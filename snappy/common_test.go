@@ -54,7 +54,7 @@ func init() {
 
 // makeInstalledMockSnap creates a installed mock snap without any
 // content other than the meta data
-func makeInstalledMockSnap(tempdir, packageYamlContent string) (yamlFile string, err error) {
+func makeInstalledMockSnap(tempdir, snapYamlContent string) (yamlFile string, err error) {
 	const packageHello = `name: hello-app
 version: 1.10
 apps:
@@ -66,12 +66,12 @@ apps:
    poststop: bin/missya
    daemon: forking
 `
-	if packageYamlContent == "" {
-		packageYamlContent = packageHello
+	if snapYamlContent == "" {
+		snapYamlContent = packageHello
 	}
 
 	var m snapYaml
-	if err := yaml.Unmarshal([]byte(packageYamlContent), &m); err != nil {
+	if err := yaml.Unmarshal([]byte(snapYamlContent), &m); err != nil {
 		return "", err
 	}
 
@@ -81,7 +81,7 @@ apps:
 		return "", err
 	}
 	yamlFile = filepath.Join(metaDir, "snap.yaml")
-	if err := ioutil.WriteFile(yamlFile, []byte(packageYamlContent), 0644); err != nil {
+	if err := ioutil.WriteFile(yamlFile, []byte(snapYamlContent), 0644); err != nil {
 		return "", err
 	}
 
@@ -173,20 +173,20 @@ connect
 }
 
 // makeTestSnapPackage creates a real snap package that can be installed on
-// disk using packageYaml as its meta/snap.yaml
-func makeTestSnapPackage(c *C, packageYamlContent string) (snapFile string) {
-	return makeTestSnapPackageFull(c, packageYamlContent, true)
+// disk using snapYamlContent as its meta/snap.yaml
+func makeTestSnapPackage(c *C, snapYamlContent string) (snapFile string) {
+	return makeTestSnapPackageFull(c, snapYamlContent, true)
 }
 
-func makeTestSnapPackageWithFiles(c *C, packageYamlContent string, files [][]string) (snapFile string) {
-	return makeTestSnapPackageFullWithFiles(c, packageYamlContent, true, files)
+func makeTestSnapPackageWithFiles(c *C, snapYamlContent string, files [][]string) (snapFile string) {
+	return makeTestSnapPackageFullWithFiles(c, snapYamlContent, true, files)
 }
 
-func makeTestSnapPackageFull(c *C, packageYamlContent string, makeLicense bool) (snapFile string) {
-	return makeTestSnapPackageFullWithFiles(c, packageYamlContent, makeLicense, [][]string{})
+func makeTestSnapPackageFull(c *C, snapYamlContent string, makeLicense bool) (snapFile string) {
+	return makeTestSnapPackageFullWithFiles(c, snapYamlContent, makeLicense, [][]string{})
 }
 
-func makeTestSnapPackageFullWithFiles(c *C, packageYamlContent string, makeLicense bool, files [][]string) (snapFile string) {
+func makeTestSnapPackageFullWithFiles(c *C, snapYamlContent string, makeLicense bool, files [][]string) (snapFile string) {
 	tmpdir := c.MkDir()
 	// content
 	os.MkdirAll(filepath.Join(tmpdir, "bin"), 0755)
@@ -196,14 +196,14 @@ echo "hello"`
 	ioutil.WriteFile(exampleBinary, []byte(content), 0755)
 	// meta
 	os.MkdirAll(filepath.Join(tmpdir, "meta"), 0755)
-	packageYaml := filepath.Join(tmpdir, "meta", "snap.yaml")
-	if packageYamlContent == "" {
-		packageYamlContent = `
+	if snapYamlContent == "" {
+		snapYamlContent = `
 name: foo
 version: 1.0
 `
 	}
-	ioutil.WriteFile(packageYaml, []byte(packageYamlContent), 0644)
+	snapYamlFn := filepath.Join(tmpdir, "meta", "snap.yaml")
+	ioutil.WriteFile(snapYamlFn, []byte(snapYamlContent), 0644)
 	if makeLicense {
 		license := filepath.Join(tmpdir, "meta", "license.txt")
 		content = "WTFPL"
@@ -234,25 +234,25 @@ version: 1.0
 func makeTwoTestSnaps(c *C, snapType snap.Type, extra ...string) {
 	inter := &MockProgressMeter{}
 
-	packageYaml := `name: foo
+	snapYamlContent := `name: foo
 `
 	if len(extra) > 0 {
-		packageYaml += strings.Join(extra, "\n") + "\n"
+		snapYamlContent += strings.Join(extra, "\n") + "\n"
 	}
 
 	qn := "foo." + testOrigin
 	if snapType != snap.TypeApp {
-		packageYaml += fmt.Sprintf("type: %s\n", snapType)
+		snapYamlContent += fmt.Sprintf("type: %s\n", snapType)
 		qn = "foo"
 	}
 
-	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
+	snapFile := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
 	n, err := installClick(snapFile, AllowUnauthenticated|AllowGadget, inter, testOrigin)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, "foo")
 	c.Assert(storeMinimalRemoteManifest(qn, "foo", testOrigin, "1.0", "", "remote-channel"), IsNil)
 
-	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
+	snapFile = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
 	n, err = installClick(snapFile, AllowUnauthenticated|AllowGadget, inter, testOrigin)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, "foo")

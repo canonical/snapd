@@ -109,17 +109,17 @@ func (s *SnapTestSuite) installThree(c *C, flags InstallFlags) {
 	err := os.MkdirAll(homeData, 0755)
 	c.Assert(err, IsNil)
 
-	packageYaml := `name: foo
+	snapYamlContent := `name: foo
 `
-	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
+	snapFile := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
 	_, err = Install(snapFile, flags, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 
-	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
+	snapFile = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
 	_, err = Install(snapFile, flags, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 
-	snapFile = makeTestSnapPackage(c, packageYaml+"version: 3.0")
+	snapFile = makeTestSnapPackage(c, snapYamlContent+"version: 3.0")
 	_, err = Install(snapFile, flags, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 }

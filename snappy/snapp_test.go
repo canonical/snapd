@@ -104,8 +104,8 @@ func (s *SnapTestSuite) makeInstalledMockSnap(yamls ...string) (yamlFile string,
 	return makeInstalledMockSnap(s.tempdir, yaml)
 }
 
-func makeSnapActive(packageYamlPath string) (err error) {
-	snapdir := filepath.Dir(filepath.Dir(packageYamlPath))
+func makeSnapActive(snapYamlPath string) (err error) {
+	snapdir := filepath.Dir(filepath.Dir(snapYamlPath))
 	parent := filepath.Dir(snapdir)
 	err = os.Symlink(snapdir, filepath.Join(parent, "current"))
 
@@ -819,7 +819,7 @@ apps:
 	c.Assert(snap.InstalledSize(), Not(Equals), -1)
 }
 
-func (s *SnapTestSuite) TestPackageYamlMultipleArchitecturesParsing(c *C) {
+func (s *SnapTestSuite) TestSnapYamlMultipleArchitecturesParsing(c *C) {
 	y := filepath.Join(s.tempdir, "snap.yaml")
 	ioutil.WriteFile(y, []byte(`name: fatbinary
 version: 1.0
@@ -830,7 +830,7 @@ architectures: [i386, armhf]
 	c.Assert(m.Architectures, DeepEquals, []string{"i386", "armhf"})
 }
 
-func (s *SnapTestSuite) TestPackageYamlSingleArchitecturesParsing(c *C) {
+func (s *SnapTestSuite) TestSnapYamlSingleArchitecturesParsing(c *C) {
 	y := filepath.Join(s.tempdir, "snap.yaml")
 	ioutil.WriteFile(y, []byte(`name: fatbinary
 version: 1.0
@@ -841,7 +841,7 @@ architectures: [i386]
 	c.Assert(m.Architectures, DeepEquals, []string{"i386"})
 }
 
-func (s *SnapTestSuite) TestPackageYamlNoArchitecturesParsing(c *C) {
+func (s *SnapTestSuite) TestSnapYamlNoArchitecturesParsing(c *C) {
 	y := filepath.Join(s.tempdir, "snap.yaml")
 	ioutil.WriteFile(y, []byte(`name: fatbinary
 version: 1.0
@@ -851,7 +851,7 @@ version: 1.0
 	c.Assert(m.Architectures, DeepEquals, []string{"all"})
 }
 
-func (s *SnapTestSuite) TestPackageYamlBadArchitectureParsing(c *C) {
+func (s *SnapTestSuite) TestSnapYamlBadArchitectureParsing(c *C) {
 	data := []byte(`name: fatbinary
 version: 1.0
 architectures:
@@ -862,7 +862,7 @@ architectures:
 	c.Assert(err, NotNil)
 }
 
-func (s *SnapTestSuite) TestPackageYamlWorseArchitectureParsing(c *C) {
+func (s *SnapTestSuite) TestSnapYamlWorseArchitectureParsing(c *C) {
 	data := []byte(`name: fatbinary
 version: 1.0
 architectures:
@@ -873,7 +873,7 @@ architectures:
 	c.Assert(err, NotNil)
 }
 
-func (s *SnapTestSuite) TestPackageYamlLicenseParsing(c *C) {
+func (s *SnapTestSuite) TestSnapYamlLicenseParsing(c *C) {
 	y := filepath.Join(s.tempdir, "snap.yaml")
 	ioutil.WriteFile(y, []byte(`
 name: foo
@@ -895,7 +895,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryGadgetStoreId(c *C) {
 	defer mockServer.Close()
 
 	// install custom gadget snap with store-id
-	packageYaml, err := makeInstalledMockSnap(s.tempdir, `name: gadget-test
+	snapYamlFn, err := makeInstalledMockSnap(s.tempdir, `name: gadget-test
 version: 1.0
 gadget:
   store:
@@ -903,7 +903,7 @@ gadget:
 type: gadget
 `)
 	c.Assert(err, IsNil)
-	makeSnapActive(packageYaml)
+	makeSnapActive(snapYamlFn)
 
 	storeDetailsURI, err = url.Parse(mockServer.URL)
 	c.Assert(err, IsNil)
@@ -929,9 +929,9 @@ type: gadget
 	c.Assert(err, IsNil)
 	makeSnapActive(gadgetYaml)
 
-	packageYaml, err := makeInstalledMockSnap(s.tempdir, "")
+	snapYamlFn, err := makeInstalledMockSnap(s.tempdir, "")
 	c.Assert(err, IsNil)
-	makeSnapActive(packageYaml)
+	makeSnapActive(snapYamlFn)
 
 	p := &MockProgressMeter{}
 
@@ -944,7 +944,7 @@ type: gadget
 	c.Check(parts[0].Uninstall(p), Equals, ErrPackageNotRemovable)
 }
 
-var securityBinaryPackageYaml = []byte(`name: test-snap
+var securityBinarySnapYaml = []byte(`name: test-snap
 version: 1.2.8
 apps:
  testme:
@@ -978,8 +978,8 @@ uses:
 
 `)
 
-func (s *SnapTestSuite) TestPackageYamlSecurityBinaryParsing(c *C) {
-	m, err := parseSnapYamlData(securityBinaryPackageYaml, false)
+func (s *SnapTestSuite) TestSnapYamlSecurityBinaryParsing(c *C) {
+	m, err := parseSnapYamlData(securityBinarySnapYaml, false)
 	c.Assert(err, IsNil)
 
 	c.Assert(m.Apps["testme"].Name, Equals, "testme")
@@ -1000,7 +1000,7 @@ func (s *SnapTestSuite) TestPackageYamlSecurityBinaryParsing(c *C) {
 	c.Assert(m.Uses["testme-policy"].SecurityPolicy.AppArmor, Equals, "meta/testme-policy.profile")
 }
 
-var securityServicePackageYaml = []byte(`name: test-snap
+var securityServiceSnapYaml = []byte(`name: test-snap
 version: 1.2.8
 apps:
  testme-service:
@@ -1019,8 +1019,8 @@ uses:
    security-template: "foo_template"
 `)
 
-func (s *SnapTestSuite) TestPackageYamlSecurityServiceParsing(c *C) {
-	m, err := parseSnapYamlData(securityServicePackageYaml, false)
+func (s *SnapTestSuite) TestSnapYamlSecurityServiceParsing(c *C) {
+	m, err := parseSnapYamlData(securityServiceSnapYaml, false)
 	c.Assert(err, IsNil)
 
 	c.Assert(m.Apps["testme-service"].Name, Equals, "testme-service")
@@ -1461,41 +1461,41 @@ func (s *SnapTestSuite) TestWriteHardwareUdevActivate(c *C) {
 }
 
 func (s *SnapTestSuite) TestQualifiedNameName(c *C) {
-	packageYaml, err := parseSnapYamlData([]byte(`name: foo
+	snapYaml, err := parseSnapYamlData([]byte(`name: foo
 version: 1.0
 `), false)
 	c.Assert(err, IsNil)
 
-	udevName := packageYaml.qualifiedName("mvo")
+	udevName := snapYaml.qualifiedName("mvo")
 	c.Assert(udevName, Equals, "foo.mvo")
 }
 
 func (s *SnapTestSuite) TestQualifiedNameNameFramework(c *C) {
-	packageYaml, err := parseSnapYamlData([]byte(`name: foo
+	snapYaml, err := parseSnapYamlData([]byte(`name: foo
 version: 1.0
 type: framework
 `), false)
 	c.Assert(err, IsNil)
 
-	udevName := packageYaml.qualifiedName("")
+	udevName := snapYaml.qualifiedName("")
 	c.Assert(udevName, Equals, "foo")
 }
 
-func (s *SnapTestSuite) TestParsePackageYamlDataChecksName(c *C) {
+func (s *SnapTestSuite) TestParseSnapYamlDataChecksName(c *C) {
 	_, err := parseSnapYamlData([]byte(`
 version: 1.0
 `), false)
 	c.Assert(err, ErrorMatches, "can not parse snap.yaml: missing required fields 'name'.*")
 }
 
-func (s *SnapTestSuite) TestParsePackageYamlDataChecksVersion(c *C) {
+func (s *SnapTestSuite) TestParseSnapYamlDataChecksVersion(c *C) {
 	_, err := parseSnapYamlData([]byte(`
 name: foo
 `), false)
 	c.Assert(err, ErrorMatches, "can not parse snap.yaml: missing required fields 'version'.*")
 }
 
-func (s *SnapTestSuite) TestParsePackageYamlDataChecksMultiple(c *C) {
+func (s *SnapTestSuite) TestParseSnapYamlDataChecksMultiple(c *C) {
 	_, err := parseSnapYamlData([]byte(`
 `), false)
 	c.Assert(err, ErrorMatches, "can not parse snap.yaml: missing required fields 'name, version'.*")

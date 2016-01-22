@@ -73,14 +73,14 @@ echo 17 some-dir`
 	duCmd = duCmdPath
 }
 
-func makeExampleSnapSourceDir(c *C, packageYaml string) string {
+func makeExampleSnapSourceDir(c *C, snapYamlContent string) string {
 	tempdir := c.MkDir()
 
 	// use meta/snap.yaml
 	metaDir := filepath.Join(tempdir, "meta")
 	err := os.Mkdir(metaDir, 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(metaDir, "snap.yaml"), []byte(packageYaml), 0644)
+	err = ioutil.WriteFile(filepath.Join(metaDir, "snap.yaml"), []byte(snapYamlContent), 0644)
 	c.Assert(err, IsNil)
 
 	const helloBinContent = `#!/bin/sh

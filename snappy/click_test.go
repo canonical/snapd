@@ -355,13 +355,13 @@ type: gadget
 }
 
 func (s *SnapTestSuite) TestClickSetActive(c *C) {
-	packageYaml := `name: foo
+	snapYamlContent := `name: foo
 `
-	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
+	snapFile := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
 	_, err := installClick(snapFile, AllowUnauthenticated, nil, testOrigin)
 	c.Assert(err, IsNil)
 
-	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
+	snapFile = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
 	_, err = installClick(snapFile, AllowUnauthenticated, nil, testOrigin)
 	c.Assert(err, IsNil)
 
@@ -394,11 +394,11 @@ func (s *SnapTestSuite) TestClickCopyData(c *C) {
 	err := os.MkdirAll(homeData, 0755)
 	c.Assert(err, IsNil)
 
-	packageYaml := `name: foo
+	snapYamlContent := `name: foo
 `
 	canaryData := []byte("ni ni ni")
 
-	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
+	snapFile := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
 	_, err = installClick(snapFile, AllowUnauthenticated, nil, testOrigin)
 	c.Assert(err, IsNil)
 	canaryDataFile := filepath.Join(dirs.SnapDataDir, appDir, "1.0", "canary.txt")
@@ -407,7 +407,7 @@ func (s *SnapTestSuite) TestClickCopyData(c *C) {
 	err = ioutil.WriteFile(filepath.Join(homeData, "canary.home"), canaryData, 0644)
 	c.Assert(err, IsNil)
 
-	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
+	snapFile = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
 	_, err = installClick(snapFile, AllowUnauthenticated, nil, testOrigin)
 	c.Assert(err, IsNil)
 	newCanaryDataFile := filepath.Join(dirs.SnapDataDir, appDir, "2.0", "canary.txt")
@@ -427,17 +427,17 @@ func (s *SnapTestSuite) TestClickCopyDataNoUserHomes(c *C) {
 	// this home dir path does not exist
 	dirs.SnapDataHomeGlob = filepath.Join(s.tempdir, "no-such-home", "*", "snaps")
 
-	packageYaml := `name: foo
+	snapYamlContent := `name: foo
 `
 	appDir := "foo." + testOrigin
-	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
+	snapFile := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
 	_, err := installClick(snapFile, AllowUnauthenticated, nil, testOrigin)
 	c.Assert(err, IsNil)
 	canaryDataFile := filepath.Join(dirs.SnapDataDir, appDir, "1.0", "canary.txt")
 	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
 	c.Assert(err, IsNil)
 
-	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
+	snapFile = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
 	_, err = installClick(snapFile, AllowUnauthenticated, nil, testOrigin)
 	c.Assert(err, IsNil)
 	_, err = os.Stat(filepath.Join(dirs.SnapDataDir, appDir, "2.0", "canary.txt"))
@@ -536,12 +536,12 @@ func (s *SnapTestSuite) TestSnappyBinPathForBinaryWithExec(c *C) {
 }
 
 func (s *SnapTestSuite) TestSnappyHandleBinariesOnUpgrade(c *C) {
-	packageYaml := `name: foo
+	snapYamlContent := `name: foo
 apps:
  bar:
   command: bin/bar
 `
-	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
+	snapFile := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
 	_, err := installClick(snapFile, AllowUnauthenticated, nil, "mvo")
 	c.Assert(err, IsNil)
 
@@ -554,7 +554,7 @@ apps:
 	c.Assert(strings.Contains(string(content), oldSnapBin), Equals, true)
 
 	// and that it gets updated on upgrade
-	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
+	snapFile = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
 	_, err = installClick(snapFile, AllowUnauthenticated, nil, "mvo")
 	c.Assert(err, IsNil)
 	newSnapBin := filepath.Join(dirs.SnapSnapsDir[len(dirs.GlobalRootDir):], "foo.mvo", "2.0", "bin", "bar")
@@ -564,13 +564,13 @@ apps:
 }
 
 func (s *SnapTestSuite) TestSnappyHandleServicesOnInstall(c *C) {
-	packageYaml := `name: foo
+	snapYamlContent := `name: foo
 apps:
  service:
    command: bin/hello
    daemon: forking
 `
-	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
+	snapFile := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
 	_, err := installClick(snapFile, AllowUnauthenticated, nil, "mvo")
 	c.Assert(err, IsNil)
 
@@ -602,7 +602,7 @@ version: `
 	_, err := installClick(fmkFile, AllowUnauthenticated, inter, "")
 	c.Assert(err, IsNil)
 
-	packageYaml := `name: foo
+	snapYamlContent := `name: foo
 frameworks:
  - fmk
 apps:
@@ -613,7 +613,7 @@ apps:
    command: bin/bye
    daemon: forking
 version: `
-	snapFile := makeTestSnapPackage(c, packageYaml+"1.0")
+	snapFile := makeTestSnapPackage(c, snapYamlContent+"1.0")
 	_, err = installClick(snapFile, AllowUnauthenticated, inter, testOrigin)
 	c.Assert(err, IsNil)
 
@@ -723,13 +723,13 @@ func (s *SnapTestSuite) TestSnappyHandleServicesOnInstallInhibit(c *C) {
 		return []byte("ActiveState=inactive\n"), nil
 	}
 
-	packageYaml := `name: foo
+	snapYamlContent := `name: foo
 apps:
  service:
    command: bin/hello
    daemon: forking
 `
-	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
+	snapFile := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
 	_, err := installClick(snapFile, InhibitHooks, nil, testOrigin)
 	c.Assert(err, IsNil)
 
@@ -1041,12 +1041,12 @@ func (s *SnapTestSuite) TestUsesWhitelistIllegal(c *C) {
 }
 
 func (s *SnapTestSuite) TestInstallChecksFrameworks(c *C) {
-	packageYaml := `name: foo
+	snapYamlContent := `name: foo
 version: 0.1
 frameworks:
   - missing
 `
-	snapFile := makeTestSnapPackage(c, packageYaml)
+	snapFile := makeTestSnapPackage(c, snapYamlContent)
 	_, err := installClick(snapFile, 0, nil, testOrigin)
 	c.Assert(err, ErrorMatches, `.*missing framework.*`)
 }
@@ -1167,12 +1167,12 @@ func (s *SnapTestSuite) TestGenerateSnapSocketFile(c *C) {
 }
 
 func (s *SnapTestSuite) TestSnappyHandleBinariesOnInstall(c *C) {
-	packageYaml := `name: foo
+	snapYamlContent := `name: foo
 apps:
  bar:
   command: bin/bar
 `
-	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
+	snapFile := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
 	_, err := installClick(snapFile, AllowUnauthenticated, nil, "mvo")
 	c.Assert(err, IsNil)
 

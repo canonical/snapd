@@ -142,7 +142,7 @@ func parseSnapYamlFile(yamlPath string) (*snapYaml, error) {
 	return parseSnapYamlData(yamlData, hasConfig)
 }
 
-func validatePackageYamlData(file string, yamlData []byte, m *snapYaml) error {
+func validateSnapYamlData(file string, yamlData []byte, m *snapYaml) error {
 	// check mandatory fields
 	missing := []string{}
 	for _, name := range []string{"Name", "Version"} {
@@ -206,7 +206,7 @@ func parseSnapYamlData(yamlData []byte, hasConfig bool) (*snapYaml, error) {
 		}
 	}
 
-	if err := validatePackageYamlData("snap.yaml", yamlData, &m); err != nil {
+	if err := validateSnapYamlData("snap.yaml", yamlData, &m); err != nil {
 		return nil, err
 	}
 

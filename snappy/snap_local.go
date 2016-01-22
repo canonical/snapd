@@ -64,7 +64,7 @@ func NewInstalledSnapPart(yamlPath, origin string) (*SnapPart, error) {
 	return part, nil
 }
 
-// newSnapPartFromYaml returns a new SnapPart from the given *packageYaml at yamlPath
+// newSnapPartFromYaml returns a new SnapPart from the given *snapYaml at yamlPath
 func newSnapPartFromYaml(yamlPath, origin string, m *snapYaml) (*SnapPart, error) {
 	part := &SnapPart{
 		basedir: filepath.Dir(filepath.Dir(yamlPath)),
