@@ -48,6 +48,13 @@ type Type interface {
 	Name() string
 	// Sanitize checks if a skill is correct, altering if necessary.
 	Sanitize(skill *Skill) error
+	// SecuritySnippet returns the configuration snippet that should be used by
+	// the given security system to enable this skill to be consumed.
+	// An empty snippet is returned when the skill doesn't require anything
+	// from the security system to work, in addition to the default configuration.
+	// ErrUnknownSecurity is returned when the skill cannot deal with the
+	// requested security system.
+	SecuritySnippet(skill *Skill, securitySystem SecuritySystem) ([]byte, error)
 }
 
 const (
