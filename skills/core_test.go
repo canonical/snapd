@@ -40,4 +40,7 @@ func (s *CoreSuite) TestValidateName(c *C) {
 		`"name-with-trailing-dash-" is not a valid skill or slot name`)
 	c.Assert(ValidateName("name-with-3-dashes"), IsNil)
 	c.Assert(ValidateName("name"), IsNil)
+	c.Assert(ValidateName("a"), IsNil)
+	c.Assert(ValidateName("ab"), IsNil)
+	c.Assert(ValidateName("abc"), IsNil)
 }
