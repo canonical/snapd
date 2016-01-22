@@ -18,3 +18,12 @@
  */
 
 package skills
+
+// Skill represents a capacity offered by a snap.
+type Skill struct {
+	Name  string
+	Snap  string
+	Type  string
+	Attrs map[string]interface{}
+	Apps  []string
+}
