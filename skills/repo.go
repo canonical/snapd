@@ -82,7 +82,7 @@ func (r *Repository) AddType(t Type) error {
 
 func (r *Repository) unlockedType(typeName string) Type {
 	// Assumption: r.types is sorted
-	i := sort.Search(len(r.types), func(i int) bool { return r.types[i].Name() <= typeName })
+	i := sort.Search(len(r.types), func(i int) bool { return r.types[i].Name() >= typeName })
 	if i < len(r.types) && r.types[i].Name() == typeName {
 		return r.types[i]
 	}
