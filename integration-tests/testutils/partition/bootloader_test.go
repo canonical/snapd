@@ -134,15 +134,14 @@ func (s *bootloaderTestSuite) TestModeReturnsSnappyModeFromConf(c *check.C) {
 	c.Assert(mode, check.Equals, "test_mode", check.Commentf("Wrong mode"))
 }
 
-func (s *bootloaderTestSuite) TestSnappyOSReturnsSnapFromConf(c *check.C) {
+func (s *bootloaderTestSuite) TestOSSnapNameReturnsSnapFromConf(c *check.C) {
 	s.fakeConf = map[string]string{
 		"snappy_os": "test-os-snap.origin_version.snap",
 	}
 
-	snappyOS, err := SnappyOS()
+	osSnapName := OSSnapName(c)
 
-	c.Assert(err, check.IsNil, check.Commentf("Unexpected error %v", err))
-	c.Assert(snappyOS, check.Equals, "test-os-snap.origin_version.snap",
+	c.Assert(osSnapName, check.Equals, "test-os-snap",
 		check.Commentf("Wrong os snap"))
 }
 

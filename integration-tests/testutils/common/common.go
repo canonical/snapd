@@ -82,7 +82,7 @@ func (s *SnappySuite) SetUpSuite(c *check.C) {
 		Cfg.Update = false
 		Cfg.Write()
 		if Cfg.Rollback {
-			cli.ExecCommand(c, "sudo", "snappy", "rollback", OSSnapName(c))
+			cli.ExecCommand(c, "sudo", "snappy", "rollback", partition.OSSnapName(c))
 			RebootWithMark(c, "setupsuite-rollback")
 		}
 	} else if CheckRebootMark("setupsuite-rollback") {
@@ -119,13 +119,6 @@ func (s *SnappySuite) SetUpTest(c *check.C) {
 	}
 }
 
-// OSSnapName returns the name of the OS snap.
-func OSSnapName(c *check.C) string {
-	snappyOS, err := partition.SnappyOS()
-	c.Assert(err, check.IsNil, check.Commentf("Error getting the name of the OS snap: %s", err))
-	return strings.Split(snappyOS, ".")[0]
-}
-
 // GetCurrentVersion returns the version of the installed and active package.
 func GetCurrentVersion(c *check.C, packageName string) string {
 	output := cli.ExecCommand(c, "snappy", "list")
@@ -142,7 +135,7 @@ func GetCurrentVersion(c *check.C, packageName string) string {
 // GetCurrentUbuntuCoreVersion returns the version number of the installed and
 // active ubuntu-core.
 func GetCurrentUbuntuCoreVersion(c *check.C) string {
-	return GetCurrentVersion(c, OSSnapName(c))
+	return GetCurrentVersion(c, partition.OSSnapName(c))
 }
 
 // Reboot requests a reboot using the test name as the mark.
