@@ -106,12 +106,20 @@ wrong, in those cases, the following return value is used:
 
 HTTP code must be one of of 400, 401, 403, 404, 405, 409, 412 or 500.
 
+Error *results* will also be used in the output of `async` responses.
+
 If, in implementing a client, you find yourself keying off of
 `message` to alter the behaviour of your client to e.g. better inform
 the user of the error or otherwise adapt to the error condition,
 **STOP** and *talk to us*; this is where `kind` comes in. New entries
 for `kind` (and associated `value` metadata) will be added as needed
 by client implementations.
+
+#### Error kinds
+
+kind               | value description
+-------------------|--------------------
+`license-required` | see “A note on licenses”, below
 
 ### Timestamps
 
@@ -316,12 +324,13 @@ field would be
 
 ```javascript
 "output": {
-    "obj": {
+    "value": {
         "agreed": false,
         "intro": "licensed requires that you accept the following license before continuing",
         "license": "In order to use this software you must agree with us."
     },
-    "str": "License agreement required."
+    "kind": "license-required",
+    "message": "License agreement required."
 }
 ```
 
@@ -641,3 +650,18 @@ Sample result:
 * Description: Remove a capability from the system
 * Access: trusted
 * Operation: sync
+
+## /2.0/assertions
+
+### POST
+
+* Description: Tries to add an assertion to the system assertion database.
+* Authorization: trusted
+* Operation: sync
+
+The body of the request provides the assertion to add. The assertion
+may also be a newer revision of a preexisting assertion that it will replace.
+
+To succeed the assertion must be valid, its signature verified with a
+known public key and the assertion consistent with and its
+prerequisite in the database.

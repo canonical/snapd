@@ -215,7 +215,7 @@ func (cs *clientSuite) TestClientRemoveCapabilityNotFound(c *check.C) {
 		"status_code": 404,
 		"type": "error",
 		"result": {
-			"str": "can't remove capability \"n\", no such capability"
+			"message": "can't remove capability \"n\", no such capability"
 		}
 	}`
 	err := cs.cli.RemoveCapability("n")
@@ -223,4 +223,19 @@ func (cs *clientSuite) TestClientRemoveCapabilityNotFound(c *check.C) {
 	c.Check(cs.req.Body, check.IsNil)
 	c.Check(cs.req.Method, check.Equals, "DELETE")
 	c.Check(cs.req.URL.Path, check.Equals, "/2.0/capabilities/n")
+}
+
+func (cs *clientSuite) TestClientAssert(c *check.C) {
+	cs.rsp = `{
+		"type": "sync",
+		"result": {}
+	}`
+	a := []byte("Assertion.")
+	err := cs.cli.Assert(a)
+	c.Assert(err, check.IsNil)
+	body, err := ioutil.ReadAll(cs.req.Body)
+	c.Assert(err, check.IsNil)
+	c.Check(body, check.DeepEquals, a)
+	c.Check(cs.req.Method, check.Equals, "POST")
+	c.Check(cs.req.URL.Path, check.Equals, "/2.0/assertions")
 }

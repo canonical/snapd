@@ -130,13 +130,21 @@ func RunTask(f func() interface{}) *Task {
 		out := f()
 		t.output = out
 
-		if err, ok := out.(error); ok {
-			// // TODO: make errors properly json-serializable, and avoid this hack (loses info!)
+		switch out := out.(type) {
+		case *licenseData:
 			t.output = errorResult{
-				Obj: err,
-				Str: err.Error(),
+				Message: out.Error(),
+				Kind:    errorKindLicenseRequired,
+				Value:   out,
 			}
-			return err
+
+			return error(out)
+		case error:
+			t.output = errorResult{
+				Message: out.Error(),
+			}
+
+			return out
 		}
 
 		return nil
