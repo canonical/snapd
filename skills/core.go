@@ -36,3 +36,13 @@ type Slot struct {
 	Attrs map[string]interface{}
 	Apps  []string
 }
+
+// Type describes a group of interchangeable capabilities with common features.
+// Types are managed centrally and act as a contract between system builders,
+// application developers and end users.
+type Type interface {
+	// Unique and public name of this type.
+	Name() string
+	// Sanitize checks if a skill is correct, altering if necessary.
+	Sanitize(skill *Skill) error
+}
