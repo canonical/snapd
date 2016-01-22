@@ -63,7 +63,7 @@ func binPathForBinary(pkgPath string, app *AppYaml) string {
 	return filepath.Join(pkgPath, app.Command)
 }
 
-func verifyBinariesYaml(app *AppYaml) error {
+func verifyAppYaml(app *AppYaml) error {
 	return verifyStructStringsAgainstWhitelist(*app, servicesBinariesStringsWhitelist)
 }
 
@@ -109,7 +109,7 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 	// it's fine for this to error out; we might be in a framework or sth
 	origin := originFromBasedir(pkgPath)
 
-	if err := verifyBinariesYaml(app); err != nil {
+	if err := verifyAppYaml(app); err != nil {
 		return "", err
 	}
 
@@ -201,12 +201,8 @@ func verifyStructStringsAgainstWhitelist(s interface{}, whitelist *regexp.Regexp
 	return nil
 }
 
-func verifyServiceYaml(app *AppYaml) error {
-	return verifyStructStringsAgainstWhitelist(*app, servicesBinariesStringsWhitelist)
-}
-
 func generateSnapServicesFile(app *AppYaml, baseDir string, aaProfile string, m *packageYaml) (string, error) {
-	if err := verifyServiceYaml(app); err != nil {
+	if err := verifyAppYaml(app); err != nil {
 		return "", err
 	}
 
@@ -245,7 +241,7 @@ func generateSnapServicesFile(app *AppYaml, baseDir string, aaProfile string, m 
 		}), nil
 }
 func generateSnapSocketFile(app *AppYaml, baseDir string, aaProfile string, m *packageYaml) (string, error) {
-	if err := verifyServiceYaml(app); err != nil {
+	if err := verifyAppYaml(app); err != nil {
 		return "", err
 	}
 

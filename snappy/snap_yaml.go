@@ -167,10 +167,7 @@ func validatePackageYamlData(file string, yamlData []byte, m *packageYaml) error
 
 	// do all checks here
 	for _, app := range m.Apps {
-		if err := verifyBinariesYaml(app); err != nil {
-			return err
-		}
-		if err := verifyServiceYaml(app); err != nil {
+		if err := verifyAppYaml(app); err != nil {
 			return err
 		}
 	}
