@@ -20,7 +20,7 @@ The following keys are optional:
 * `license-agreement`: set to `explicit` if the user needs to accept a
   special `meta/license.txt` before the snap can be installed
 * `license-version`: a string that, when it changes and
-  `explicit-license-agreement` is `Y`, prompts the user to accept the
+  `license-agreement` is `explicit`, prompts the user to accept the
   license again.
 * `type`: (optional) the type of the snap, can be:
     * `app` - the default if empty
