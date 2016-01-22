@@ -200,6 +200,12 @@ func parsePackageYamlData(yamlData []byte, hasConfig bool) (*packageYaml, error)
 		app.Name = name
 	}
 
+	for name, uses := range m.Uses {
+		if uses.Type == "" {
+			uses.Type = name
+		}
+	}
+
 	if err := validatePackageYamlData("snap.yaml", yamlData, &m); err != nil {
 		return nil, err
 	}

@@ -741,7 +741,7 @@ func findSkillForApp(m *packageYaml, app *AppYaml) (*usesYaml, error) {
 
 	skill, ok := m.Uses[app.UsesRef[0]]
 	if !ok {
-		return nil, fmt.Errorf("can not find skill %s", skill)
+		return nil, fmt.Errorf("can not find skill %q", app.UsesRef[0])
 	}
 	return skill, nil
 }

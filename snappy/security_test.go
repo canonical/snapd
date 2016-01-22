@@ -1031,4 +1031,47 @@ version: 123456789
 	m, err := parsePackageYamlFileWithVersion(y)
 	c.Assert(err, IsNil)
 	c.Assert(m.Version, Equals, testVersion)
+
+}
+
+func (a *SecurityTestSuite) TestFindSkillForAppEmpty(c *C) {
+	app := &AppYaml{}
+	m := &packageYaml{}
+	skill, err := findSkillForApp(m, app)
+	c.Check(err, IsNil)
+	c.Check(skill, IsNil)
+}
+
+func (a *SecurityTestSuite) TestFindSkillForAppTooMany(c *C) {
+	app := &AppYaml{
+		UsesRef: []string{"one", "two"},
+	}
+	m := &packageYaml{}
+	skill, err := findSkillForApp(m, app)
+	c.Check(skill, IsNil)
+	c.Check(err, ErrorMatches, "only a single skill is supported, 2 found")
+}
+
+func (a *SecurityTestSuite) TestFindSkillForAppNotFound(c *C) {
+	app := &AppYaml{
+		UsesRef: []string{"not-there"},
+	}
+	m := &packageYaml{}
+	skill, err := findSkillForApp(m, app)
+	c.Check(skill, IsNil)
+	c.Check(err, ErrorMatches, `can not find skill "not-there"`)
+}
+
+func (a *SecurityTestSuite) TestFindSkillFinds(c *C) {
+	app := &AppYaml{
+		UsesRef: []string{"skill"},
+	}
+	m := &packageYaml{
+		Uses: map[string]*usesYaml{
+			"skill": &usesYaml{Type: "some-type"},
+		},
+	}
+	skill, err := findSkillForApp(m, app)
+	c.Check(err, IsNil)
+	c.Check(skill.Type, Equals, "some-type")
 }
