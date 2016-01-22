@@ -1241,7 +1241,7 @@ func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateService(c *C) {
 		UsesRef: []string{"svc"},
 	}
 	part := &SnapPart{
-		m: &packageYaml{
+		m: &snapYaml{
 			Name:    "part",
 			Apps:    map[string]*AppYaml{"svc": svc},
 			Version: "42",
@@ -1265,7 +1265,7 @@ func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateBinary(c *C) {
 		UsesRef: []string{"echo"},
 	}
 	part := &SnapPart{
-		m: &packageYaml{
+		m: &snapYaml{
 			Name:    "part",
 			Apps:    map[string]*AppYaml{"echo": bin},
 			Version: "42",
@@ -1292,7 +1292,7 @@ func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateNothing(c *C) {
 		UsesRef: []string{"echo"},
 	}
 	part := &SnapPart{
-		m: &packageYaml{
+		m: &snapYaml{
 			Apps: map[string]*AppYaml{
 				"svc":  svc,
 				"echo": bin,

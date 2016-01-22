@@ -36,7 +36,7 @@ import (
 
 // SnapFile is a local snap file that can get installed
 type SnapFile struct {
-	m   *packageYaml
+	m   *snapYaml
 	deb snap.File
 
 	origin  string

@@ -246,9 +246,9 @@ func (s *BuildTestSuite) TestExcludeDynamicWeirdRegexps(c *C) {
 }
 
 func (s *BuildTestSuite) TestDebArchitecture(c *C) {
-	c.Check(debArchitecture(&packageYaml{Architectures: []string{"foo"}}), Equals, "foo")
-	c.Check(debArchitecture(&packageYaml{Architectures: []string{"foo", "bar"}}), Equals, "multi")
-	c.Check(debArchitecture(&packageYaml{Architectures: nil}), Equals, "unknown")
+	c.Check(debArchitecture(&snapYaml{Architectures: []string{"foo"}}), Equals, "foo")
+	c.Check(debArchitecture(&snapYaml{Architectures: []string{"foo", "bar"}}), Equals, "multi")
+	c.Check(debArchitecture(&snapYaml{Architectures: nil}), Equals, "unknown")
 }
 
 func (s *BuildTestSuite) TestBuildFailsForUnknownType(c *C) {

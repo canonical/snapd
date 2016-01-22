@@ -45,7 +45,7 @@ type ServiceActor interface {
 }
 
 type svcT struct {
-	m   *packageYaml
+	m   *snapYaml
 	svc *AppYaml
 }
 

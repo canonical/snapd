@@ -317,7 +317,7 @@ func findWhitespacePrefix(t string, s string) string {
 	return subs[1]
 }
 
-func getSecurityProfile(m *packageYaml, appName, baseDir string) (string, error) {
+func getSecurityProfile(m *snapYaml, appName, baseDir string) (string, error) {
 	cleanedName := strings.Replace(appName, "/", "-", -1)
 	if m.Type == snap.TypeFramework || m.Type == snap.TypeGadget {
 		return fmt.Sprintf("%s_%s_%s", m.Name, cleanedName, m.Version), nil
@@ -445,7 +445,7 @@ func mergeAppArmorTemplateAdditionalContent(appArmorTemplate, aaPolicy string, o
 	return aaPolicy, nil
 }
 
-func getAppArmorTemplatedPolicy(m *packageYaml, appID *securityAppID, template string, caps []string, overrides *SecurityOverrideDefinition) (string, error) {
+func getAppArmorTemplatedPolicy(m *snapYaml, appID *securityAppID, template string, caps []string, overrides *SecurityOverrideDefinition) (string, error) {
 	t, err := securityPolicyTypeAppArmor.findTemplate(template)
 	if err != nil {
 		return "", err
@@ -477,7 +477,7 @@ func getAppArmorTemplatedPolicy(m *packageYaml, appID *securityAppID, template s
 	return mergeAppArmorTemplateAdditionalContent(t, aaPolicy, overrides)
 }
 
-func getSeccompTemplatedPolicy(m *packageYaml, appID *securityAppID, templateName string, caps []string, overrides *SecurityOverrideDefinition) (string, error) {
+func getSeccompTemplatedPolicy(m *snapYaml, appID *securityAppID, templateName string, caps []string, overrides *SecurityOverrideDefinition) (string, error) {
 	t, err := securityPolicyTypeSeccomp.findTemplate(templateName)
 	if err != nil {
 		return "", err
@@ -503,7 +503,7 @@ func getSeccompTemplatedPolicy(m *packageYaml, appID *securityAppID, templateNam
 
 var finalCurtain = regexp.MustCompile(`}\s*$`)
 
-func getAppArmorCustomPolicy(m *packageYaml, appID *securityAppID, fn string, overrides *SecurityOverrideDefinition) (string, error) {
+func getAppArmorCustomPolicy(m *snapYaml, appID *securityAppID, fn string, overrides *SecurityOverrideDefinition) (string, error) {
 	custom, err := ioutil.ReadFile(fn)
 	if err != nil {
 		return "", err
@@ -524,7 +524,7 @@ func getAppArmorCustomPolicy(m *packageYaml, appID *securityAppID, fn string, ov
 	return mergeAppArmorTemplateAdditionalContent("", aaPolicy, overrides)
 }
 
-func getSeccompCustomPolicy(m *packageYaml, appID *securityAppID, fn string) (string, error) {
+func getSeccompCustomPolicy(m *snapYaml, appID *securityAppID, fn string) (string, error) {
 	custom, err := ioutil.ReadFile(fn)
 	if err != nil {
 		return "", err
@@ -548,7 +548,7 @@ var loadAppArmorPolicy = func(fn string) ([]byte, error) {
 	return content, err
 }
 
-func (m *packageYaml) removeOneSecurityPolicy(name, baseDir string) error {
+func (m *snapYaml) removeOneSecurityPolicy(name, baseDir string) error {
 	profileName, err := getSecurityProfile(m, filepath.Base(name), baseDir)
 	if err != nil {
 		return err
@@ -575,7 +575,7 @@ func (m *packageYaml) removeOneSecurityPolicy(name, baseDir string) error {
 	return nil
 }
 
-func removePolicy(m *packageYaml, baseDir string) error {
+func removePolicy(m *snapYaml, baseDir string) error {
 	for _, app := range m.Apps {
 		if app.Daemon == "" {
 			continue
@@ -636,7 +636,7 @@ func (sd *SecurityDefinitions) warnDeprecatedKeys() {
 	}
 }
 
-func (sd *SecurityDefinitions) generatePolicyForServiceBinaryResult(m *packageYaml, name string, baseDir string) (*securityPolicyResult, error) {
+func (sd *SecurityDefinitions) generatePolicyForServiceBinaryResult(m *snapYaml, name string, baseDir string) (*securityPolicyResult, error) {
 	res := &securityPolicyResult{}
 	appID, err := getSecurityProfile(m, name, baseDir)
 	if err != nil {
@@ -698,7 +698,7 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinaryResult(m *packageYa
 	return res, nil
 }
 
-func (sd *SecurityDefinitions) generatePolicyForServiceBinary(m *packageYaml, name string, baseDir string) error {
+func (sd *SecurityDefinitions) generatePolicyForServiceBinary(m *snapYaml, name string, baseDir string) error {
 	p, err := sd.generatePolicyForServiceBinaryResult(m, name, baseDir)
 	if err != nil {
 		return err
@@ -731,7 +731,7 @@ func hasConfig(baseDir string) bool {
 	return helpers.FileExists(filepath.Join(baseDir, "meta", "hooks", "config"))
 }
 
-func findSkillForApp(m *packageYaml, app *AppYaml) (*usesYaml, error) {
+func findSkillForApp(m *snapYaml, app *AppYaml) (*usesYaml, error) {
 	if len(app.UsesRef) == 0 {
 		return nil, nil
 	}
@@ -746,7 +746,7 @@ func findSkillForApp(m *packageYaml, app *AppYaml) (*usesYaml, error) {
 	return skill, nil
 }
 
-func generatePolicy(m *packageYaml, baseDir string) error {
+func generatePolicy(m *snapYaml, baseDir string) error {
 	var foundError error
 
 	// generate default security config for snappy-config
@@ -890,7 +890,7 @@ func CompareGeneratePolicyFromFile(fn string) error {
 }
 
 // FIXME: refactor so that we don't need this
-func parsePackageYamlFileWithVersion(fn string) (*packageYaml, error) {
+func parsePackageYamlFileWithVersion(fn string) (*snapYaml, error) {
 	m, err := parseSnapYamlFile(fn)
 
 	// FIXME: duplicated code from snapp.go:NewSnapPartFromYaml,

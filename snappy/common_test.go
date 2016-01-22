@@ -70,7 +70,7 @@ apps:
 		packageYamlContent = packageHello
 	}
 
-	var m packageYaml
+	var m snapYaml
 	if err := yaml.Unmarshal([]byte(packageYamlContent), &m); err != nil {
 		return "", err
 	}

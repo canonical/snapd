@@ -131,7 +131,7 @@ func (hw *HardwareAssign) generateUdevRuleContent() (string, error) {
 // logic for a gadget package in every other function
 var getGadget = getGadgetImpl
 
-func getGadgetImpl() (*packageYaml, error) {
+func getGadgetImpl() (*snapYaml, error) {
 	gadgets, _ := ActiveSnapsByType(snap.TypeGadget)
 	if len(gadgets) == 1 {
 		return gadgets[0].(*SnapPart).m, nil
@@ -189,7 +189,7 @@ func IsBuiltInSoftware(name string) bool {
 	return false
 }
 
-func cleanupGadgetHardwareUdevRules(m *packageYaml) error {
+func cleanupGadgetHardwareUdevRules(m *snapYaml) error {
 	oldFiles, err := filepath.Glob(filepath.Join(dirs.SnapUdevRulesDir, fmt.Sprintf("80-snappy_%s_*.rules", m.Name)))
 	if err != nil {
 		return err
@@ -211,7 +211,7 @@ func cleanupGadgetHardwareUdevRules(m *packageYaml) error {
 	return nil
 }
 
-func writeGadgetHardwareUdevRules(m *packageYaml) error {
+func writeGadgetHardwareUdevRules(m *snapYaml) error {
 	os.MkdirAll(dirs.SnapUdevRulesDir, 0755)
 
 	// cleanup
@@ -267,7 +267,7 @@ const apparmorAdditionalContent = `{
 // default apparmor will not allow access to /dev. We grant access here
 // and the ubuntu-core-launcher is then used to generate a confinement
 // based on the devices cgroup.
-func writeApparmorAdditionalFile(m *packageYaml) error {
+func writeApparmorAdditionalFile(m *snapYaml) error {
 	if err := os.MkdirAll(dirs.SnapAppArmorDir, 0755); err != nil {
 		return err
 	}
@@ -282,7 +282,7 @@ func writeApparmorAdditionalFile(m *packageYaml) error {
 	return nil
 }
 
-func installGadgetHardwareUdevRules(m *packageYaml) error {
+func installGadgetHardwareUdevRules(m *snapYaml) error {
 	if err := writeGadgetHardwareUdevRules(m); err != nil {
 		return err
 	}

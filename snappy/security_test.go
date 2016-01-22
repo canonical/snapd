@@ -37,7 +37,7 @@ import (
 type SecurityTestSuite struct {
 	tempDir               string
 	buildDir              string
-	m                     *packageYaml
+	m                     *snapYaml
 	scFilterGenCall       []string
 	scFilterGenCallReturn []byte
 
@@ -54,7 +54,7 @@ func (a *SecurityTestSuite) SetUpTest(c *C) {
 	// set global sandbox
 	dirs.SetRootDir(c.MkDir())
 
-	a.m = &packageYaml{
+	a.m = &snapYaml{
 		Name:    "foo",
 		Version: "1.0",
 	}
@@ -122,7 +122,7 @@ func makeMockSeccompCap(c *C, capname string, content []byte) {
 }
 
 func (a *SecurityTestSuite) TestSnappyGetSecurityProfile(c *C) {
-	m := packageYaml{
+	m := snapYaml{
 		Name:    "foo",
 		Version: "1.0",
 	}
@@ -133,7 +133,7 @@ func (a *SecurityTestSuite) TestSnappyGetSecurityProfile(c *C) {
 }
 
 func (a *SecurityTestSuite) TestSnappyGetSecurityProfileInvalid(c *C) {
-	m := packageYaml{
+	m := snapYaml{
 		Name:    "foo",
 		Version: "1.0",
 	}
@@ -143,7 +143,7 @@ func (a *SecurityTestSuite) TestSnappyGetSecurityProfileInvalid(c *C) {
 }
 
 func (a *SecurityTestSuite) TestSnappyGetSecurityProfileFramework(c *C) {
-	m := packageYaml{
+	m := snapYaml{
 		Name:    "foo",
 		Version: "1.0",
 		Type:    snap.TypeFramework,
@@ -350,7 +350,7 @@ func (a *SecurityTestSuite) TestSecurityGenAppArmorTemplatePolicy(c *C) {
 	makeMockApparmorTemplate(c, "mock-template", mockApparmorTemplate)
 	makeMockApparmorCap(c, "cap1", []byte(`capito`))
 
-	m := &packageYaml{
+	m := &snapYaml{
 		Name:    "foo",
 		Version: "1.0",
 	}
@@ -400,7 +400,7 @@ func (a *SecurityTestSuite) TestSecurityGenSeccompTemplatedPolicy(c *C) {
 	makeMockSeccompTemplate(c, "mock-template", mockSeccompTemplate)
 	makeMockSeccompCap(c, "cap1", []byte("#cap1\ncapino\n"))
 
-	m := &packageYaml{
+	m := &snapYaml{
 		Name:    "foo",
 		Version: "1.0",
 	}
@@ -462,7 +462,7 @@ profile "foo_bar_1.0" (attach_disconnected) {
 `
 
 func (a *SecurityTestSuite) TestSecurityGetApparmorCustomPolicy(c *C) {
-	m := &packageYaml{
+	m := &snapYaml{
 		Name:    "foo",
 		Version: "1.0",
 	}
@@ -482,7 +482,7 @@ func (a *SecurityTestSuite) TestSecurityGetApparmorCustomPolicy(c *C) {
 
 func (a *SecurityTestSuite) TestSecurityGetSeccompCustomPolicy(c *C) {
 	// yes, getSeccompCustomPolicy does not care for packageYaml or appid
-	m := &packageYaml{}
+	m := &snapYaml{}
 	appid := &securityAppID{}
 
 	customPolicy := filepath.Join(c.MkDir(), "foo")
@@ -572,7 +572,7 @@ sc-network-client
 
 	// empty SecurityDefinition means "network-client" cap
 	sd := &SecurityDefinitions{}
-	m := &packageYaml{
+	m := &snapYaml{
 		Name:    "pkg",
 		Version: "1.0",
 	}
@@ -799,7 +799,7 @@ func makeCustomAppArmorPolicy(c *C) string {
 }
 
 func (a *SecurityTestSuite) TestSecurityGenerateCustomPolicyAdditionalIsConsidered(c *C) {
-	m := &packageYaml{
+	m := &snapYaml{
 		Name:    "foo",
 		Version: "1.0",
 	}
@@ -971,7 +971,7 @@ func (a *SecurityTestSuite) TestSecurityGeneratePolicyForServiceBinaryFramework(
 	makeMockSecurityEnv(c)
 
 	sd := &SecurityDefinitions{}
-	m := &packageYaml{
+	m := &snapYaml{
 		Name:    "framework-name",
 		Type:    "framework",
 		Version: "1.0",
@@ -993,7 +993,7 @@ func (a *SecurityTestSuite) TestSecurityGeneratePolicyForServiceBinaryErrors(c *
 	makeMockSecurityEnv(c)
 
 	sd := &SecurityDefinitions{}
-	m := &packageYaml{
+	m := &snapYaml{
 		Name:    "app",
 		Version: "1.0",
 	}
@@ -1036,7 +1036,7 @@ version: 123456789
 
 func (a *SecurityTestSuite) TestFindSkillForAppEmpty(c *C) {
 	app := &AppYaml{}
-	m := &packageYaml{}
+	m := &snapYaml{}
 	skill, err := findSkillForApp(m, app)
 	c.Check(err, IsNil)
 	c.Check(skill, IsNil)
@@ -1046,7 +1046,7 @@ func (a *SecurityTestSuite) TestFindSkillForAppTooMany(c *C) {
 	app := &AppYaml{
 		UsesRef: []string{"one", "two"},
 	}
-	m := &packageYaml{}
+	m := &snapYaml{}
 	skill, err := findSkillForApp(m, app)
 	c.Check(skill, IsNil)
 	c.Check(err, ErrorMatches, "only a single skill is supported, 2 found")
@@ -1056,7 +1056,7 @@ func (a *SecurityTestSuite) TestFindSkillForAppNotFound(c *C) {
 	app := &AppYaml{
 		UsesRef: []string{"not-there"},
 	}
-	m := &packageYaml{}
+	m := &snapYaml{}
 	skill, err := findSkillForApp(m, app)
 	c.Check(skill, IsNil)
 	c.Check(err, ErrorMatches, `can not find skill "not-there"`)
@@ -1066,7 +1066,7 @@ func (a *SecurityTestSuite) TestFindSkillFinds(c *C) {
 	app := &AppYaml{
 		UsesRef: []string{"skill"},
 	}
-	m := &packageYaml{
+	m := &snapYaml{
 		Uses: map[string]*usesYaml{
 			"skill": &usesYaml{Type: "some-type"},
 		},

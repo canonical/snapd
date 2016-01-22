@@ -40,7 +40,7 @@ import (
 
 // SnapPart represents a generic snap type
 type SnapPart struct {
-	m        *packageYaml
+	m        *snapYaml
 	remoteM  *remote.Snap
 	origin   string
 	hash     string
@@ -65,7 +65,7 @@ func NewInstalledSnapPart(yamlPath, origin string) (*SnapPart, error) {
 }
 
 // newSnapPartFromYaml returns a new SnapPart from the given *packageYaml at yamlPath
-func newSnapPartFromYaml(yamlPath, origin string, m *packageYaml) (*SnapPart, error) {
+func newSnapPartFromYaml(yamlPath, origin string, m *snapYaml) (*SnapPart, error) {
 	part := &SnapPart{
 		basedir: filepath.Dir(filepath.Dir(yamlPath)),
 		origin:  origin,

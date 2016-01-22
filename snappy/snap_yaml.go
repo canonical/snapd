@@ -98,7 +98,7 @@ var commasplitter = regexp.MustCompile(`\s*,\s*`).Split
 
 // TODO split into payloads per package type composing the common
 // elements for all snaps.
-type packageYaml struct {
+type snapYaml struct {
 	Name             string
 	Version          string
 	LicenseAgreement string `yaml:"license-agreement,omitempty"`
@@ -129,7 +129,7 @@ type packageYaml struct {
 	Dtbs   string `yaml:"dtbs,omitempty"`
 }
 
-func parseSnapYamlFile(yamlPath string) (*packageYaml, error) {
+func parseSnapYamlFile(yamlPath string) (*snapYaml, error) {
 
 	yamlData, err := ioutil.ReadFile(yamlPath)
 	if err != nil {
@@ -142,7 +142,7 @@ func parseSnapYamlFile(yamlPath string) (*packageYaml, error) {
 	return parseSnapYamlData(yamlData, hasConfig)
 }
 
-func validatePackageYamlData(file string, yamlData []byte, m *packageYaml) error {
+func validatePackageYamlData(file string, yamlData []byte, m *snapYaml) error {
 	// check mandatory fields
 	missing := []string{}
 	for _, name := range []string{"Name", "Version"} {
@@ -182,8 +182,8 @@ func validatePackageYamlData(file string, yamlData []byte, m *packageYaml) error
 	return nil
 }
 
-func parseSnapYamlData(yamlData []byte, hasConfig bool) (*packageYaml, error) {
-	var m packageYaml
+func parseSnapYamlData(yamlData []byte, hasConfig bool) (*snapYaml, error) {
+	var m snapYaml
 	err := yaml.Unmarshal(yamlData, &m)
 	if err != nil {
 		return nil, &ErrInvalidYaml{File: "snap.yaml", Err: err, Yaml: yamlData}
@@ -213,14 +213,14 @@ func parseSnapYamlData(yamlData []byte, hasConfig bool) (*packageYaml, error) {
 	return &m, nil
 }
 
-func (m *packageYaml) qualifiedName(origin string) string {
+func (m *snapYaml) qualifiedName(origin string) string {
 	if m.Type == snap.TypeFramework || m.Type == snap.TypeGadget {
 		return m.Name
 	}
 	return m.Name + "." + origin
 }
 
-func (m *packageYaml) checkForPackageInstalled(origin string) error {
+func (m *snapYaml) checkForPackageInstalled(origin string) error {
 	part := ActiveSnapByName(m.Name)
 	if part == nil {
 		return nil
@@ -233,7 +233,7 @@ func (m *packageYaml) checkForPackageInstalled(origin string) error {
 	return nil
 }
 
-func (m *packageYaml) checkForFrameworks() error {
+func (m *snapYaml) checkForFrameworks() error {
 	installed, err := ActiveSnapIterByType(BareName, snap.TypeFramework)
 	if err != nil {
 		return err
@@ -260,7 +260,7 @@ func (m *packageYaml) checkForFrameworks() error {
 // package, as deduced from the license agreement (which might involve asking
 // the user), or an error that explains the reason why installation should not
 // proceed.
-func (m *packageYaml) checkLicenseAgreement(ag agreer, d snap.File, currentActiveDir string) error {
+func (m *snapYaml) checkLicenseAgreement(ag agreer, d snap.File, currentActiveDir string) error {
 	if m.LicenseAgreement != "explicit" {
 		return nil
 	}
@@ -294,7 +294,7 @@ func (m *packageYaml) checkLicenseAgreement(ag agreer, d snap.File, currentActiv
 	return nil
 }
 
-func (m *packageYaml) addSquashfsMount(baseDir string, inhibitHooks bool, inter interacter) error {
+func (m *snapYaml) addSquashfsMount(baseDir string, inhibitHooks bool, inter interacter) error {
 	squashfsPath := stripGlobalRootDir(squashfs.BlobPath(baseDir))
 	whereDir := stripGlobalRootDir(baseDir)
 
@@ -316,7 +316,7 @@ func (m *packageYaml) addSquashfsMount(baseDir string, inhibitHooks bool, inter 
 	return nil
 }
 
-func (m *packageYaml) removeSquashfsMount(baseDir string, inter interacter) error {
+func (m *snapYaml) removeSquashfsMount(baseDir string, inter interacter) error {
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
 	unit := systemd.MountUnitPath(stripGlobalRootDir(baseDir), "mount")
 	if helpers.FileExists(unit) {

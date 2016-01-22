@@ -127,7 +127,7 @@ func shouldExclude(basedir string, file string) bool {
 }
 
 // small helper that return the architecture or "multi" if its multiple arches
-func debArchitecture(m *packageYaml) string {
+func debArchitecture(m *snapYaml) string {
 	switch len(m.Architectures) {
 	case 0:
 		return "unknown"

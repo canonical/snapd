@@ -480,7 +480,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 	binary := &AppYaml{Name: "pastebinit", Command: "bin/pastebinit"}
 	pkgPath := "/snaps/pastebinit.mvo/1.4.0.0.1/"
 	aaProfile := "pastebinit.mvo_pastebinit_1.4.0.0.1"
-	m := packageYaml{Name: "pastebinit",
+	m := snapYaml{Name: "pastebinit",
 		Version: "1.4.0.0.1"}
 
 	expected := fmt.Sprintf(expectedWrapper, arch.UbuntuArchitecture())
@@ -494,7 +494,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperFmk(c *C) {
 	binary := &AppYaml{Name: "echo", Command: "bin/echo"}
 	pkgPath := "/snaps/fmk/1.4.0.0.1/"
 	aaProfile := "fmk_echo_1.4.0.0.1"
-	m := packageYaml{Name: "fmk",
+	m := snapYaml{Name: "fmk",
 		Version: "1.4.0.0.1",
 		Type:    "framework"}
 
@@ -513,7 +513,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperIllegalChars(c *C) {
 	binary := &AppYaml{Name: "bin/pastebinit\nSomething nasty"}
 	pkgPath := "/snaps/pastebinit.mvo/1.4.0.0.1/"
 	aaProfile := "pastebinit.mvo_pastebinit_1.4.0.0.1"
-	m := packageYaml{Name: "pastebinit",
+	m := snapYaml{Name: "pastebinit",
 		Version: "1.4.0.0.1"}
 
 	_, err := generateSnapBinaryWrapper(binary, pkgPath, aaProfile, &m)
@@ -868,7 +868,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceTypeForking(c *C) {
 	}
 	pkgPath := "/snaps/xkcd-webserver.canonical/0.3.4/"
 	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
-	m := packageYaml{Name: "xkcd-webserver",
+	m := snapYaml{Name: "xkcd-webserver",
 		Version: "0.3.4"}
 
 	generatedWrapper, err := generateSnapServicesFile(service, pkgPath, aaProfile, &m)
@@ -887,7 +887,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceAppWrapper(c *C) {
 	}
 	pkgPath := "/snaps/xkcd-webserver.canonical/0.3.4/"
 	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
-	m := packageYaml{Name: "xkcd-webserver",
+	m := snapYaml{Name: "xkcd-webserver",
 		Version: "0.3.4"}
 
 	generatedWrapper, err := generateSnapServicesFile(service, pkgPath, aaProfile, &m)
@@ -907,7 +907,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceAppWrapperWithExternalPort(
 	}
 	pkgPath := "/snaps/xkcd-webserver.canonical/0.3.4/"
 	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
-	m := packageYaml{Name: "xkcd-webserver",
+	m := snapYaml{Name: "xkcd-webserver",
 		Version: "0.3.4"}
 
 	generatedWrapper, err := generateSnapServicesFile(service, pkgPath, aaProfile, &m)
@@ -927,7 +927,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceFmkWrapper(c *C) {
 	}
 	pkgPath := "/snaps/xkcd-webserver/0.3.4/"
 	aaProfile := "xkcd-webserver_xkcd-webserver_0.3.4"
-	m := packageYaml{
+	m := snapYaml{
 		Name:    "xkcd-webserver",
 		Version: "0.3.4",
 		Type:    snap.TypeFramework,
@@ -945,7 +945,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceRestart(c *C) {
 	}
 	pkgPath := "/snaps/xkcd-webserver/0.3.4/"
 	aaProfile := "xkcd-webserver_xkcd-webserver_0.3.4"
-	m := packageYaml{
+	m := snapYaml{
 		Name:    "xkcd-webserver",
 		Version: "0.3.4",
 	}
@@ -965,7 +965,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWrapperWhitelist(c *C) {
 	}
 	pkgPath := "/snaps/xkcd-webserver.canonical/0.3.4/"
 	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
-	m := packageYaml{Name: "xkcd-webserver",
+	m := snapYaml{Name: "xkcd-webserver",
 		Version: "0.3.4"}
 
 	_, err := generateSnapServicesFile(service, pkgPath, aaProfile, &m)
@@ -1105,7 +1105,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapSocket(c *C) {
 	}
 	pkgPath := "/snaps/xkcd-webserver.canonical/0.3.4/"
 	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
-	m := packageYaml{
+	m := snapYaml{
 		Name:    "xkcd-webserver",
 		Version: "0.3.4"}
 
@@ -1139,7 +1139,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWithSockte(c *C) {
 	}
 	pkgPath := "/snaps/xkcd-webserver.canonical/0.3.4/"
 	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
-	m := packageYaml{Name: "xkcd-webserver",
+	m := snapYaml{Name: "xkcd-webserver",
 		Version: "0.3.4"}
 
 	generatedWrapper, err := generateSnapServicesFile(service, pkgPath, aaProfile, &m)
@@ -1151,7 +1151,7 @@ func (s *SnapTestSuite) TestGenerateSnapSocketFile(c *C) {
 	srv := &AppYaml{}
 	baseDir := "/base/dir"
 	aaProfile := "pkg_app_1.0"
-	m := &packageYaml{}
+	m := &snapYaml{}
 
 	// no socket mode means 0660
 	content, err := generateSnapSocketFile(srv, baseDir, aaProfile, m)

@@ -42,8 +42,8 @@ var (
 )
 
 func (s *GadgetSuite) SetUpTest(c *C) {
-	getGadget = func() (*packageYaml, error) {
-		return &packageYaml{
+	getGadget = func() (*snapYaml, error) {
+		return &snapYaml{
 			Gadget: Gadget{
 				Software: Software{[]string{"makeuppackage", "anotherpackage"}},
 				Store:    Store{"ninjablocks"},
