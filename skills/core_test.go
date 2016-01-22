@@ -48,6 +48,8 @@ func (s *CoreSuite) TestValidateName(c *C) {
 		"",
 		// dashes alone are not a name
 		"-", "--",
+		// double dashes in a name are not allowed
+		"a--a",
 		// name should not end with a dash
 		"a-",
 		// name cannot have any spaces in it

@@ -43,7 +43,7 @@ type Slot struct {
 }
 
 // Regular expression describing correct identifiers.
-var validName = regexp.MustCompile("^[a-z](:?[a-z0-9-]*[a-z0-9])?$")
+var validName = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
 
 // ValidateName checks if a string can be used as a skill or slot name.
 func ValidateName(name string) error {
