@@ -29,7 +29,7 @@ import (
 )
 
 type assertOptions struct {
-	AssertionFile string `positional-arg-name:"assertion file" description:"assertion file"`
+	AssertionFile string `positional-arg-name:"assertion-file" description:"assertion file"`
 }
 
 type cmdAssert struct {
@@ -39,6 +39,8 @@ type cmdAssert struct {
 var (
 	shortAssertHelp = i18n.G("Assert tries to add an assertion to the system")
 	longAssertHelp  = i18n.G(`This command tries to add an assertion to the system assertion database.
+
+The assertion may also be a newer revision of a preexisting assertion that it will replace.
 
 To succeed the assertion must be valid, its signature verified with a known public key and the assertion consistent with and its prerequisite in the database.`)
 )
