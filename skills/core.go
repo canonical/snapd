@@ -27,3 +27,12 @@ type Skill struct {
 	Attrs map[string]interface{}
 	Apps  []string
 }
+
+// Slot represents the potential of a given snap to use a skill.
+type Slot struct {
+	Name  string
+	Snap  string
+	Type  string
+	Attrs map[string]interface{}
+	Apps  []string
+}
