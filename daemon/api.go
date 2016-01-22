@@ -262,7 +262,7 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 	}
 	defer lock.Unlock()
 
-	// map snap names to snap attributes
+	// TODO: Marshal incrementally leveraging json.RawMessage.
 	results := make(map[string]map[string]interface{})
 	sources := make([]string, 0, 2)
 	query := r.URL.Query()
@@ -303,7 +303,8 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 	}
 
 	if includeStore {
-		// we're not worried if the remote repos error out
+		// TODO: If there are no results (local or remote), report the error. If
+		//       there are results at all, inform that the result is partial.
 		found, _ := newRemoteRepo().All()
 		if len(found) > 0 {
 			sources = append(sources, "store")
