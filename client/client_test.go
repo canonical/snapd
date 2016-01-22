@@ -228,7 +228,7 @@ func (cs *clientSuite) TestClientRemoveCapabilityNotFound(c *check.C) {
 func (cs *clientSuite) TestClientAssert(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
-                "result": {}
+		"result": {}
 	}`
 	a := []byte("Assertion.")
 	err := cs.cli.Assert(a)
