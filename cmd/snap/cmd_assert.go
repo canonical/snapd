@@ -20,7 +20,6 @@
 package main
 
 import (
-	"fmt"
 	"io/ioutil"
 
 	"github.com/ubuntu-core/snappy/client"
@@ -54,9 +53,6 @@ func init() {
 
 func (x *cmdAssert) Execute(args []string) error {
 	assertFile := x.assertOptions.AssertionFile
-	if assertFile == "" {
-		return fmt.Errorf(i18n.G("assertion file is required"))
-	}
 
 	assertData, err := ioutil.ReadFile(assertFile)
 	if err != nil {
