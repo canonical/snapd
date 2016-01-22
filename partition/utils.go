@@ -20,44 +20,33 @@
 package partition
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
 )
 
-// FIXME: would it make sense to differenciate between launch errors and
-//        exit code? (i.e. something like (returnCode, error) ?)
-func runCommandImpl(args ...string) (err error) {
-	if len(args) == 0 {
-		return errors.New("no command specified")
-	}
-
-	if out, err := exec.Command(args[0], args[1:]...).CombinedOutput(); err != nil {
-		cmdline := strings.Join(args, " ")
-		return fmt.Errorf("Failed to run command '%s': %s (%s)",
-			cmdline, out, err)
-	}
-	return nil
-}
-
-// Run the command specified by args
 // This is a var instead of a function to making mocking in the tests easier
 var runCommand = runCommandImpl
 
 // Run command specified by args and return the output
-func runCommandWithStdoutImpl(args ...string) (output string, err error) {
+func runCommandImpl(args ...string) (string, error) {
 	if len(args) == 0 {
+
 		return "", errors.New("no command specified")
 	}
 
-	bytes, err := exec.Command(args[0], args[1:]...).Output()
+	cmd := exec.Command(args[0], args[1:]...)
+	stdout := bytes.NewBuffer(nil)
+	stderr := bytes.NewBuffer(nil)
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
+	err := cmd.Run()
 	if err != nil {
-		return "", err
+		cmdline := strings.Join(args, " ")
+		return stdout.String(), fmt.Errorf("failed to run command %q: %q (%s)", cmdline, stderr, err)
 	}
 
-	return string(bytes), err
+	return stdout.String(), err
 }
-
-// This is a var instead of a function to making mocking in the tests easier
-var runCommandWithStdout = runCommandWithStdoutImpl

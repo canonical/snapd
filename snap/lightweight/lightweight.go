@@ -29,7 +29,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/ubuntu-core/snappy/dirs"
@@ -386,7 +385,7 @@ func (bag *PartBag) LoadBest() snappy.Part {
 	return part
 }
 
-// Map this PartBag into a map[string]string, augmenting it with the
+// Map this PartBag into a map[string]interface{}, augmenting it with the
 // given (purportedly remote) Part.
 //
 // It is a programming error (->panic) to call Map on a nil *PartBag with
@@ -394,7 +393,7 @@ func (bag *PartBag) LoadBest() snappy.Part {
 //
 // Also may panic if the remote part is nil and LoadBest can't load a
 // Part at all.
-func (bag *PartBag) Map(remotePart snappy.Part) map[string]string {
+func (bag *PartBag) Map(remotePart snappy.Part) map[string]interface{} {
 	var version, update, rollback, icon, name, origin, _type, description string
 
 	if bag == nil && remotePart == nil {
@@ -402,8 +401,8 @@ func (bag *PartBag) Map(remotePart snappy.Part) map[string]string {
 	}
 
 	status := "not installed"
-	installedSize := "-1"
-	downloadSize := "-1"
+	installedSize := int64(-1)
+	downloadSize := int64(-1)
 
 	part := bag.LoadBest()
 	if part != nil {
@@ -426,9 +425,9 @@ func (bag *PartBag) Map(remotePart snappy.Part) map[string]string {
 
 		icon = part.Icon()
 		description = part.Description()
-		installedSize = strconv.FormatInt(part.InstalledSize(), 10)
+		installedSize = part.InstalledSize()
 
-		downloadSize = strconv.FormatInt(part.DownloadSize(), 10)
+		downloadSize = part.DownloadSize()
 	} else {
 		name = remotePart.Name()
 		origin = remotePart.Origin()
@@ -444,7 +443,7 @@ func (bag *PartBag) Map(remotePart snappy.Part) map[string]string {
 			description = remotePart.Description()
 		}
 
-		downloadSize = strconv.FormatInt(remotePart.DownloadSize(), 10)
+		downloadSize = remotePart.DownloadSize()
 	}
 
 	if activeIdx := bag.ActiveIndex(); activeIdx >= 0 {
@@ -467,7 +466,7 @@ func (bag *PartBag) Map(remotePart snappy.Part) map[string]string {
 		}
 	}
 
-	result := map[string]string{
+	result := map[string]interface{}{
 		"icon":           icon,
 		"name":           name,
 		"origin":         origin,

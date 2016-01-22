@@ -90,13 +90,21 @@ func (r *resp) Self(*Command, *http.Request) Response {
 	return r
 }
 
+type errorKind string
+
+const (
+	errorKindLicenseRequired = errorKind("license-required")
+)
+
+type errorValue interface{}
+
 type errorResult struct {
-	Str string `json:"str,omitempty"`
-	Msg string `json:"msg,omitempty"`
-	Obj error  `json:"obj,omitempty"`
+	Message string     `json:"message"` // note no omitempty
+	Kind    errorKind  `json:"kind,omitempty"`
+	Value   errorValue `json:"value,omitempty"`
 }
 
-func (r *resp) SetError(err error, format string, v ...interface{}) Response {
+func (r *resp) setError(format string, v ...interface{}) Response {
 	m := errorResult{}
 	newr := &resp{
 		Type:   ResponseTypeError,
@@ -104,15 +112,8 @@ func (r *resp) SetError(err error, format string, v ...interface{}) Response {
 		Status: r.Status,
 	}
 
-	if format != "" {
-		logger.Noticef(format, v...)
-		m.Msg = fmt.Sprintf(format, v...)
-	}
-
-	if err != nil {
-		m.Obj = err
-		m.Str = err.Error()
-	}
+	logger.Noticef(format, v...)
+	m.Message = fmt.Sprintf(format, v...)
 
 	return newr
 }
@@ -120,7 +121,7 @@ func (r *resp) SetError(err error, format string, v ...interface{}) Response {
 // SyncResponse builds a "sync" response from the given result.
 func SyncResponse(result interface{}) Response {
 	if err, ok := result.(error); ok {
-		return InternalError(err, "")
+		return InternalError("internal error: %v", err)
 	}
 
 	if rsp, ok := result.(Response); ok {
@@ -143,14 +144,14 @@ func AsyncResponse(result map[string]interface{}) Response {
 	}
 }
 
-// ErrorResponse builds an "error" response from the given error status.
-func ErrorResponse(status int) ErrorResponseFunc {
+// makeErrorResponder builds an errorResponder from the given error status.
+func makeErrorResponder(status int) errorResponder {
 	r := &resp{
 		Type:   ResponseTypeError,
 		Status: status,
 	}
 
-	return r.SetError
+	return r.setError
 }
 
 // A FileResponse 's ServeHTTP method serves the file
@@ -166,25 +167,16 @@ func (f FileResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, string(f))
 }
 
-// ErrorResponseFunc is a callable error Response.
-// So you can return e.g. InternalError, or InternalError(err, "something broke"), etc.
-type ErrorResponseFunc func(error, string, ...interface{}) Response
-
-func (f ErrorResponseFunc) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	f(nil, "").ServeHTTP(w, r)
-}
-
-// Self returns (a copy of) this same response; mostly for convenience.
-func (f ErrorResponseFunc) Self(*Command, *http.Request) Response {
-	return f(nil, "")
-}
+// errorResponder is a callable that produces an error Response.
+// e.g., InternalError("something broke: %v", err), etc.
+type errorResponder func(string, ...interface{}) Response
 
 // standard error responses
 var (
-	NotFound       = ErrorResponse(http.StatusNotFound)
-	BadRequest     = ErrorResponse(http.StatusBadRequest)
-	BadMethod      = ErrorResponse(http.StatusMethodNotAllowed)
-	InternalError  = ErrorResponse(http.StatusInternalServerError)
-	NotImplemented = ErrorResponse(http.StatusNotImplemented)
-	Forbidden      = ErrorResponse(http.StatusForbidden)
+	NotFound       = makeErrorResponder(http.StatusNotFound)
+	BadRequest     = makeErrorResponder(http.StatusBadRequest)
+	BadMethod      = makeErrorResponder(http.StatusMethodNotAllowed)
+	InternalError  = makeErrorResponder(http.StatusInternalServerError)
+	NotImplemented = makeErrorResponder(http.StatusNotImplemented)
+	Forbidden      = makeErrorResponder(http.StatusForbidden)
 )

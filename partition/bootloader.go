@@ -29,13 +29,12 @@ const (
 	// Set to value of either bootloaderBootmodeTry (when attempting
 	// to boot a new rootfs) or bootloaderBootmodeSuccess (to denote
 	// that the boot of the new rootfs was successful).
-	bootloaderBootmodeVar = "snappy_mode"
-
-	bootloaderTrialBootVar = "snappy_trial_boot"
+	bootmodeVar  = "snappy_mode"
+	trialBootVar = "snappy_trial_boot"
 
 	// Initial and final values
-	bootloaderBootmodeTry     = "try"
-	bootloaderBootmodeSuccess = "regular"
+	modeTry     = "try"
+	modeSuccess = "regular"
 )
 
 var (
@@ -43,27 +42,22 @@ var (
 	ErrBootloader = errors.New("cannot determine bootloader")
 )
 
-type bootloaderName string
-
-type bootLoader interface {
-	// Name of the bootloader
-	Name() bootloaderName
-
+// Bootloader provides an interface to interact with the system
+// bootloader
+type Bootloader interface {
 	// Return the value of the specified bootloader variable
 	GetBootVar(name string) (string, error)
 
 	// Set the value of the specified bootloader variable
 	SetBootVar(name, value string) error
 
-	// BootDir returns the (writable) bootloader-specific boot
-	// directory.
-	BootDir() string
+	// Dir returns the bootloader directory
+	Dir() string
 }
 
-// Factory method that returns a new bootloader for the given partition
-var bootloader = bootloaderImpl
-
-func bootloaderImpl() (bootLoader, error) {
+// FindBootloader returns the bootloader for the given system
+// or an error if no bootloader is found
+func FindBootloader() (Bootloader, error) {
 	// try uboot
 	if uboot := newUboot(); uboot != nil {
 		return uboot, nil
@@ -78,7 +72,10 @@ func bootloaderImpl() (bootLoader, error) {
 	return nil, ErrBootloader
 }
 
-func markBootSuccessful(bootloader bootLoader) error {
+// MarkBootSuccessful marks the current boot as sucessful. This means
+// that snappy will consider this combination of kernel/os a valid
+// target for rollback
+func MarkBootSuccessful(bootloader Bootloader) error {
 	// FIXME: we should have something better here, i.e. one write
 	//        to the bootloader environment only (instead of three)
 	//        We need to figure out if that is possible with grub/uboot
@@ -98,14 +95,13 @@ func markBootSuccessful(bootloader bootLoader) error {
 			return err
 		}
 
-		if err := bootloader.SetBootVar("snappy_mode", "regular"); err != nil {
+		if err := bootloader.SetBootVar("snappy_mode", modeSuccess); err != nil {
 			return err
 		}
 
 		if err := bootloader.SetBootVar("snappy_trial_boot", "0"); err != nil {
 			return err
 		}
-
 	}
 
 	return nil

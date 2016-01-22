@@ -113,7 +113,7 @@ type apiInteractions []apiInteraction
 
 // all the api test suites must satisfy this interface
 type apiExerciser interface {
-	// returns the path of the resource to be tested, as in "/1.0/packages"
+	// returns the path of the resource to be tested, as in "/2.0/snaps"
 	resource() string
 }
 
@@ -212,7 +212,7 @@ func do404(c *check.C, resource string) {
 		resource+path,
 		"GET",
 		apiInteraction{
-			responsePattern: `{"result":{},"status":"Not Found","status_code":404,"type":"error"}`})
+			responsePattern: `{"result":{"message":"not found"},"status":"Not Found","status_code":404,"type":"error"}`})
 }
 
 func doMethodNotAllowed(c *check.C, resource, verb string) {
@@ -220,7 +220,7 @@ func doMethodNotAllowed(c *check.C, resource, verb string) {
 		resource,
 		verb,
 		apiInteraction{
-			responsePattern: `{"result":{},"status":"Method Not Allowed","status_code":405,"type":"error"}`})
+			responsePattern: `{"result":{"message":"method \S+ not allowed"},"status":"Method Not Allowed","status_code":405,"type":"error"}`})
 }
 
 // makeRequest makes a request to the API according to the provided options.

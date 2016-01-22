@@ -92,12 +92,12 @@ func (c *Command) canAccess(r *http.Request) bool {
 
 func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !c.canAccess(r) {
-		Forbidden.ServeHTTP(w, r)
+		Forbidden("access denied").ServeHTTP(w, r)
 		return
 	}
 
 	var rspf ResponseFunc
-	var rsp Response = BadMethod
+	var rsp = BadMethod("method %q not allowed", r.Method)
 
 	switch r.Method {
 	case "GET":
@@ -178,7 +178,7 @@ func (d *Daemon) addRoutes() {
 
 	// also maybe add a /favicon.ico handler...
 
-	d.router.NotFoundHandler = NotFound
+	d.router.NotFoundHandler = NotFound("not found")
 }
 
 // Start the Daemon

@@ -22,17 +22,32 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/ubuntu-core/snappy/partition"
+
 	. "gopkg.in/check.v1"
 )
 
 // Hook up gocheck into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
+type mockBootloader struct {
+	dir string
+}
+
+func (b *mockBootloader) Dir() string {
+	return b.dir
+}
+func (b *mockBootloader) SetBootVar(key, value string) error {
+	return nil
+}
+func (b *mockBootloader) GetBootVar(key string) (string, error) {
+	return "", nil
+}
+
 type ProvisioningTestSuite struct {
-	mockBootDir  string
 	mockYamlFile string
 
-	realBootloaderDir string
+	bootloader *mockBootloader
 }
 
 var _ = Suite(&ProvisioningTestSuite{})
@@ -75,15 +90,16 @@ options:
 var garbageData = `Fooled you!?`
 
 func (ts *ProvisioningTestSuite) SetUpTest(c *C) {
-	ts.mockBootDir = c.MkDir()
-	ts.mockYamlFile = filepath.Join(ts.mockBootDir, "install.yaml")
-	ts.realBootloaderDir = bootloaderDir
+	ts.bootloader = &mockBootloader{dir: c.MkDir()}
+	ts.mockYamlFile = filepath.Join(ts.bootloader.dir, "install.yaml")
 
-	bootloaderDir = ts.mockBootDir
+	findBootloader = func() (partition.Bootloader, error) {
+		return ts.bootloader, nil
+	}
 }
 
 func (ts *ProvisioningTestSuite) TearDownTest(c *C) {
-	bootloaderDir = ts.realBootloaderDir
+	findBootloader = partition.FindBootloader
 }
 
 func (ts *ProvisioningTestSuite) TestParseInstallYaml(c *C) {
@@ -123,7 +139,7 @@ func (ts *ProvisioningTestSuite) TestParseInstallYamlData(c *C) {
 }
 
 func (ts *ProvisioningTestSuite) TestInDeveloperModeEmpty(c *C) {
-	bootloaderDir = ""
+	ts.bootloader.dir = ""
 	c.Assert(InDeveloperMode(), Equals, false)
 }
 
@@ -133,7 +149,6 @@ options:
  developer-mode: true
 `), 0644)
 	c.Assert(err, IsNil)
-	bootloaderDir = ts.mockBootDir
 	c.Assert(InDeveloperMode(), Equals, true)
 }
 
@@ -143,6 +158,5 @@ options:
  developer-mode: false
 `), 0644)
 	c.Assert(err, IsNil)
-	bootloaderDir = ts.mockBootDir
 	c.Assert(InDeveloperMode(), Equals, false)
 }
