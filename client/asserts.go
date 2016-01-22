@@ -31,7 +31,7 @@ import (
 func (client *Client) Assert(b []byte) error {
 	var rsp interface{}
 	if err := client.doSync("POST", "/2.0/assertions", bytes.NewReader(b), &rsp); err != nil {
-		return fmt.Errorf("cannot assert: %s", err)
+		return fmt.Errorf("cannot assert: %v", err)
 	}
 
 	return nil
