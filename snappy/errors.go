@@ -88,10 +88,6 @@ var (
 	// ErrInvalidCredentials is returned on login error
 	ErrInvalidCredentials = errors.New("invalid credentials")
 
-	// ErrInvalidFrameworkSpecInYaml is returned if a snap.yaml
-	// has both frameworks and framework entries.
-	ErrInvalidFrameworkSpecInYaml = errors.New("yaml can't have both \"frameworks\" and (deprecated) \"framework\" keys")
-
 	// ErrSnapNotActive is returned if you try to unset a snap from
 	// active to inactive
 	ErrSnapNotActive = errors.New("snap not active")
