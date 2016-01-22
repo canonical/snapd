@@ -825,7 +825,7 @@ apps:
    uses: [binary1]
 uses:
  binary1:
-   type: migration-service
+   type: migration-skill
    caps: []
 `
 

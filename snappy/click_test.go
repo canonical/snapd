@@ -990,7 +990,7 @@ func (s *SnapTestSuite) TestServiceWhitelistIllegal(c *C) {
 
 func (s *SnapTestSuite) TestServiceWhitelistError(c *C) {
 	err := verifyServiceYaml(&AppYaml{Name: "x\n"})
-	c.Assert(err.Error(), Equals, "services description field 'Name' contains illegal 'x\n' (legal: '^[A-Za-z0-9/. _#:-]*$')")
+	c.Assert(err.Error(), Equals, `services description field 'Name' contains illegal "x\n" (legal: '^[A-Za-z0-9/. _#:-]*$')`)
 }
 
 func (s *SnapTestSuite) TestBinariesWhitelistSimple(c *C) {
@@ -999,11 +999,13 @@ func (s *SnapTestSuite) TestBinariesWhitelistSimple(c *C) {
 }
 
 func (s *SnapTestSuite) TestUsesWhitelistSimple(c *C) {
-	c.Assert(verifyUsesYaml(&usesYaml{
+	c.Check(verifyUsesYaml(&usesYaml{
+		Type: "migration-skill",
 		SecurityDefinitions: SecurityDefinitions{
 			SecurityTemplate: "foo"},
 	}), IsNil)
-	c.Assert(verifyUsesYaml(&usesYaml{
+	c.Check(verifyUsesYaml(&usesYaml{
+		Type: "migration-skill",
 		SecurityDefinitions: SecurityDefinitions{
 			SecurityPolicy: &SecurityPolicyDefinition{
 				AppArmor: "foo"},
@@ -1017,17 +1019,25 @@ func (s *SnapTestSuite) TestBinariesWhitelistIllegal(c *C) {
 	c.Assert(verifyBinariesYaml(&AppYaml{Command: "x\n"}), NotNil)
 }
 
+func (s *SnapTestSuite) TestWrongType(c *C) {
+	c.Check(verifyUsesYaml(&usesYaml{
+		Type: "some-skill",
+	}), ErrorMatches, ".*can not use skill.* only migration-skill supported")
+}
+
 func (s *SnapTestSuite) TestUsesWhitelistIllegal(c *C) {
-	c.Assert(verifyUsesYaml(&usesYaml{
+	c.Check(verifyUsesYaml(&usesYaml{
+		Type: "migration-skill",
 		SecurityDefinitions: SecurityDefinitions{
 			SecurityTemplate: "x\n"},
-	}), NotNil)
-	c.Assert(verifyUsesYaml(&usesYaml{
+	}), ErrorMatches, ".*contains illegal.*")
+	c.Check(verifyUsesYaml(&usesYaml{
+		Type: "migration-skill",
 		SecurityDefinitions: SecurityDefinitions{
 			SecurityPolicy: &SecurityPolicyDefinition{
 				AppArmor: "x\n"},
 		},
-	}), NotNil)
+	}), ErrorMatches, ".*contains illegal.*")
 }
 
 func (s *SnapTestSuite) TestInstallChecksFrameworks(c *C) {

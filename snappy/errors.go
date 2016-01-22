@@ -216,7 +216,7 @@ type ErrStructIllegalContent struct {
 }
 
 func (e *ErrStructIllegalContent) Error() string {
-	return fmt.Sprintf("services description field '%s' contains illegal '%s' (legal: '%s')", e.Field, e.Content, e.Whitelist)
+	return fmt.Sprintf("services description field '%s' contains illegal %q (legal: '%s')", e.Field, e.Content, e.Whitelist)
 }
 
 // ErrGarbageCollectImpossible is alerting about some of the assumptions of the

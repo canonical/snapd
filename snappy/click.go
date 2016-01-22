@@ -68,7 +68,15 @@ func verifyBinariesYaml(app *AppYaml) error {
 }
 
 func verifyUsesYaml(uses *usesYaml) error {
-	return verifyStructStringsAgainstWhitelist(*uses, servicesBinariesStringsWhitelist)
+	if err := verifyStructStringsAgainstWhitelist(*uses, servicesBinariesStringsWhitelist); err != nil {
+		return err
+	}
+
+	if uses.Type != "migration-skill" {
+		return fmt.Errorf("can not use skill %q, only migration-skill supported", uses.Type)
+	}
+
+	return nil
 }
 
 // Doesn't need to handle complications like internal quotes, just needs to
