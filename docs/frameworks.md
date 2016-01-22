@@ -66,7 +66,7 @@ frameworks from framework policies.
 ## Usage
 ### framework yaml
 
-For frameworks, meta/snap.yaml might contain something like:
+For frameworks, `meta/snap.yaml` might contain something like:
 
     name: foo
     version: 1.1.234
@@ -147,7 +147,7 @@ might contain something like:
 
 ### App yaml
 
-For apps wanting to use a particular framework, meta/snap.yaml simply
+For apps wanting to use a particular framework, `meta/snap.yaml` simply
 references the security policy provided by the framework. Eg, if a service in
 the `norf` app wants to access the `bar` service provided by the `foo`
 framework in the above framework yaml example, it might use:
