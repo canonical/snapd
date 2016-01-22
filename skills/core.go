@@ -19,6 +19,10 @@
 
 package skills
 
+import (
+	"errors"
+)
+
 // Skill represents a capacity offered by a snap.
 type Skill struct {
 	Name  string
@@ -64,4 +68,9 @@ const (
 	SecuritySeccomp SecuritySystem = "seccomp"
 	// SecurityDBus identifies the DBus security system.
 	SecurityDBus SecuritySystem = "dbus"
+)
+
+var (
+	// ErrUnknownSecurity is reported when an unknown security system is encountered.
+	ErrUnknownSecurity = errors.New("unknown security system")
 )
