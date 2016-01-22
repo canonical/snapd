@@ -1295,8 +1295,6 @@ func (s *apiSuite) TestAssertOK(c *check.C) {
 		"public-key-id": "adea89b00094c337",
 	})
 	c.Check(err, check.IsNil)
-
-	// TODO: test error paths in doAssert
 }
 
 func (s *apiSuite) TestAssertInvalid(c *check.C) {
