@@ -47,8 +47,10 @@ type Slot struct {
 type Type interface {
 	// Unique and public name of this type.
 	Name() string
+
 	// Sanitize checks if a skill is correct, altering if necessary.
 	Sanitize(skill *Skill) error
+
 	// SecuritySnippet returns the configuration snippet that should be used by
 	// the given security system to enable this skill to be consumed.
 	// An empty snippet is returned when the skill doesn't require anything
