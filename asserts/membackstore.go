@@ -25,77 +25,92 @@ import (
 )
 
 type memoryBackstore struct {
-	top memBSNode
+	top memBSBranch
 	mu  sync.RWMutex
 }
 
-// TODO: a bit more clarity with interface and different memBSBranch vs memBSLeaf?
-type memBSNode map[string]interface{}
+type memBSNode interface {
+	put(key []string, assert Assertion) error
+	get(key []string) (Assertion, error)
+	search(hint []string, found func(Assertion))
+}
 
-func (node memBSNode) put(key []string, assert Assertion) error {
+type memBSBranch map[string]memBSNode
+
+type memBSLeaf map[string]Assertion
+
+func (br memBSBranch) put(key []string, assert Assertion) error {
 	key0 := key[0]
-	if len(key) > 1 {
-		down, ok := node[key0].(memBSNode)
-		if !ok {
-			down = make(memBSNode)
-			node[key0] = down
+	down := br[key0]
+	if down == nil {
+		if len(key) > 2 {
+			down = make(memBSBranch)
+		} else {
+			down = make(memBSLeaf)
 		}
-		return down.put(key[1:], assert)
+		br[key0] = down
 	}
-	cur, ok := node[key0].(Assertion)
-	if ok {
+	return down.put(key[1:], assert)
+}
+
+func (leaf memBSLeaf) put(key []string, assert Assertion) error {
+	key0 := key[0]
+	cur := leaf[key0]
+	if cur != nil {
 		rev := assert.Revision()
 		curRev := cur.Revision()
 		if curRev >= rev {
 			return fmt.Errorf("assertion added must have more recent revision than current one (adding %d, currently %d)", rev, curRev)
 		}
 	}
-	node[key0] = assert
+	leaf[key0] = assert
 	return nil
 }
 
-func (node memBSNode) get(key []string) (Assertion, error) {
+func (br memBSBranch) get(key []string) (Assertion, error) {
 	key0 := key[0]
-	if len(key) > 1 {
-		down, ok := node[key0].(memBSNode)
-		if !ok {
-			return nil, ErrNotFound
-		}
-		return down.get(key[1:])
+	down := br[key0]
+	if down == nil {
+		return nil, ErrNotFound
 	}
+	return down.get(key[1:])
+}
 
-	cur, ok := node[key0].(Assertion)
-	if !ok {
+func (leaf memBSLeaf) get(key []string) (Assertion, error) {
+	key0 := key[0]
+	cur := leaf[key0]
+	if cur == nil {
 		return nil, ErrNotFound
 	}
 	return cur, nil
 }
 
-func (node memBSNode) search(hint []string, found func(Assertion)) {
+func (br memBSBranch) search(hint []string, found func(Assertion)) {
 	hint0 := hint[0]
-	if len(hint) > 1 {
-		if hint0 == "" {
-			for _, down := range node {
-				down.(memBSNode).search(hint[1:], found)
-			}
-			return
-		}
-		down, ok := node[hint0].(memBSNode)
-		if ok {
+	if hint0 == "" {
+		for _, down := range br {
 			down.search(hint[1:], found)
 		}
 		return
 	}
+	down := br[hint0]
+	if down != nil {
+		down.search(hint[1:], found)
+	}
+	return
+}
 
+func (leaf memBSLeaf) search(hint []string, found func(Assertion)) {
+	hint0 := hint[0]
 	if hint0 == "" {
-		for _, a := range node {
-			found(a.(Assertion))
+		for _, a := range leaf {
+			found(a)
 		}
 		return
 	}
 
-	cur, ok := node[hint0].(Assertion)
-	if ok {
+	cur := leaf[hint0]
+	if cur != nil {
 		found(cur)
 	}
 }
@@ -103,7 +118,7 @@ func (node memBSNode) search(hint []string, found func(Assertion)) {
 // NewMemoryBackstore creates a memory backed assertions backstore.
 func NewMemoryBackstore() Backstore {
 	return &memoryBackstore{
-		top: make(memBSNode),
+		top: make(memBSBranch),
 	}
 }
 
