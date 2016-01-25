@@ -47,9 +47,7 @@ func (r *Repository) AllTypes() []Type {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	types := make([]Type, len(r.types))
-	copy(types, r.types)
-	return types
+	return append([]Type(nil), r.types...)
 }
 
 // Type returns the type with a given name.
