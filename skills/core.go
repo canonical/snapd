@@ -41,9 +41,6 @@ type Slot struct {
 	Apps  []string
 }
 
-// SecuritySystem is a name of a security system.
-type SecuritySystem string
-
 // Type describes a group of interchangeable capabilities with common features.
 // Types are managed centrally and act as a contract between system builders,
 // application developers and end users.
@@ -60,6 +57,9 @@ type Type interface {
 	// requested security system.
 	SecuritySnippet(skill *Skill, securitySystem SecuritySystem) ([]byte, error)
 }
+
+// SecuritySystem is a name of a security system.
+type SecuritySystem string
 
 const (
 	// SecurityApparmor identifies the apparmor security system.
