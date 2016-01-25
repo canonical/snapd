@@ -33,8 +33,8 @@ type Repository struct {
 }
 
 var (
-	// ErrDuplicate is reported when type, skill or slot already exist.
-	ErrDuplicate = errors.New("duplicate found")
+	// ErrDuplicateType is reported when type with duplicate name is being added to a repository.
+	ErrDuplicateType = errors.New("duplicate type name")
 )
 
 // NewRepository creates an empty skill repository.
@@ -71,7 +71,7 @@ func (r *Repository) AddType(t Type) error {
 		r.types = append(r.types[:i], append([]Type{t}, r.types[i:]...)...)
 		return nil
 	}
-	return ErrDuplicate
+	return ErrDuplicateType
 }
 
 // Private unlocked APIs
