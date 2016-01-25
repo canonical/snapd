@@ -34,7 +34,7 @@ type uboot struct {
 // newUboot create a new Uboot bootloader object
 func newUboot() Bootloader {
 	u := &uboot{}
-	if !helpers.FileExists(u.configFile()) {
+	if !helpers.FileExists(u.envFile()) {
 		return nil
 	}
 
@@ -43,10 +43,6 @@ func newUboot() Bootloader {
 
 func (u *uboot) Dir() string {
 	return filepath.Join(dirs.GlobalRootDir, "/boot/uboot")
-}
-
-func (u *uboot) configFile() string {
-	return filepath.Join(u.Dir(), "uEnv.txt")
 }
 
 func (u *uboot) envFile() string {
