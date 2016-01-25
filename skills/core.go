@@ -19,6 +19,11 @@
 
 package skills
 
+import (
+	"fmt"
+	"regexp"
+)
+
 // Skill represents a capacity offered by a snap.
 type Skill struct {
 	Name  string
@@ -35,4 +40,16 @@ type Slot struct {
 	Type  string
 	Attrs map[string]interface{}
 	Apps  []string
+}
+
+// Regular expression describing correct identifiers.
+var validName = regexp.MustCompile("^[a-z](:?[a-z0-9-]*[a-z0-9])?$")
+
+// ValidateName checks if a string can be used as a skill or slot name.
+func ValidateName(name string) error {
+	valid := validName.MatchString(name)
+	if !valid {
+		return fmt.Errorf("%q is not a valid skill or slot name", name)
+	}
+	return nil
 }

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -411,6 +411,85 @@ func (s *apiSuite) TestSnapsInfoOnePerIntegration(c *check.C) {
 		c.Check(got["version"], check.Equals, version)
 		c.Check(got["origin"], check.Equals, origin)
 	}
+}
+
+func (s *apiSuite) TestSnapsInfoOnlyLocal(c *check.C) {
+	s.parts = []snappy.Part{&tP{name: "store", origin: "foo"}}
+	s.mkInstalled(c, "local", "foo", "v1", true, "")
+
+	req, err := http.NewRequest("GET", "/2.0/snaps?sources=local", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := getSnapsInfo(snapsCmd, req).(*resp)
+
+	result := rsp.Result.(map[string]interface{})
+	c.Assert(result["sources"], check.DeepEquals, []string{"local"})
+
+	snaps := result["snaps"].(map[string]map[string]interface{})
+	c.Assert(snaps, check.HasLen, 1)
+	c.Assert(snaps["local.foo"], check.NotNil)
+}
+
+func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
+	s.parts = []snappy.Part{&tP{name: "store", origin: "foo"}}
+	s.mkInstalled(c, "local", "foo", "v1", true, "")
+
+	req, err := http.NewRequest("GET", "/2.0/snaps?sources=store", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := getSnapsInfo(snapsCmd, req).(*resp)
+
+	result := rsp.Result.(map[string]interface{})
+	c.Assert(result["sources"], check.DeepEquals, []string{"store"})
+
+	snaps := result["snaps"].(map[string]map[string]interface{})
+	c.Assert(snaps, check.HasLen, 1)
+	c.Assert(snaps["store.foo"], check.NotNil)
+}
+
+func (s *apiSuite) TestSnapsInfoLocalAndStore(c *check.C) {
+	s.parts = []snappy.Part{&tP{name: "remote", origin: "foo"}}
+	s.mkInstalled(c, "local", "foo", "v1", true, "")
+
+	req, err := http.NewRequest("GET", "/2.0/snaps?sources=local,store", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := getSnapsInfo(snapsCmd, req).(*resp)
+
+	result := rsp.Result.(map[string]interface{})
+	c.Assert(result["sources"], check.DeepEquals, []string{"local", "store"})
+
+	snaps := result["snaps"].(map[string]map[string]interface{})
+	c.Assert(snaps, check.HasLen, 2)
+}
+
+func (s *apiSuite) TestSnapsInfoDefaultSources(c *check.C) {
+	s.parts = []snappy.Part{&tP{name: "remote", origin: "foo"}}
+	s.mkInstalled(c, "local", "foo", "v1", true, "")
+
+	req, err := http.NewRequest("GET", "/2.0/snaps", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := getSnapsInfo(snapsCmd, req).(*resp)
+
+	result := rsp.Result.(map[string]interface{})
+	c.Assert(result["sources"], check.DeepEquals, []string{"local", "store"})
+}
+
+func (s *apiSuite) TestSnapsInfoUnknownSource(c *check.C) {
+	s.parts = []snappy.Part{&tP{name: "remote", origin: "foo"}}
+	s.mkInstalled(c, "local", "foo", "v1", true, "")
+
+	req, err := http.NewRequest("GET", "/2.0/snaps?sources=unknown", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := getSnapsInfo(snapsCmd, req).(*resp)
+
+	result := rsp.Result.(map[string]interface{})
+	c.Assert(result["sources"], check.HasLen, 0)
+
+	snaps := result["snaps"].(map[string]map[string]interface{})
+	c.Assert(snaps, check.HasLen, 0)
 }
 
 func (s *apiSuite) TestDeleteOpNotFound(c *check.C) {

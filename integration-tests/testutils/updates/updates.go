@@ -30,6 +30,7 @@ import (
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/partition"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/store"
 )
 
@@ -68,7 +69,7 @@ func CallFakeOSUpdate(c *check.C) string {
 	currentVersion := common.GetCurrentUbuntuCoreVersion(c)
 	common.SetSavedVersion(c, currentVersion)
 
-	return CallFakeUpdate(c, "ubuntu-core.canonical", NoOp)
+	return CallFakeUpdate(c, partition.OSSnapName(c)+".canonical", NoOp)
 }
 
 func makeFakeUpdateForSnap(c *check.C, snap, targetDir string, changeFunc ChangeFakeUpdateSnap) error {
