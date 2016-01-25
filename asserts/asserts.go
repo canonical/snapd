@@ -231,12 +231,13 @@ type Decoder struct {
 
 // NewDecoder returns a Decoder to parse the stream of assertions from the reader.
 func NewDecoder(r io.Reader) *Decoder {
-	return &Decoder{rd: r, buf: make([]byte, 1)}
+	return &Decoder{rd: r, buf: make([]byte, 8192)}
 }
 
 func (dec *Decoder) readUntilNLNL() ([]byte, error) {
 	resBuf := new(bytes.Buffer)
 	resBuf.Write(dec.rest)
+	dec.rest = nil
 	pos := 0
 	for {
 		b := resBuf.Bytes()
@@ -277,6 +278,9 @@ func (dec *Decoder) readExactly(n int) ([]byte, error) {
 		dec.rest = nil
 		_, err := io.ReadFull(dec.rd, res[restSz:])
 		if err != nil {
+			if err == io.EOF {
+				return nil, io.ErrUnexpectedEOF
+			}
 			return nil, err
 		}
 	}
@@ -284,6 +288,7 @@ func (dec *Decoder) readExactly(n int) ([]byte, error) {
 }
 
 // Decode parses the next assertion from the stream.
+// It returns the error io.EOF at the end of a well-formed stream.
 func (dec *Decoder) Decode() (Assertion, error) {
 	// read the headers and the nlnl separator after them
 	headAndSep, err := dec.readUntilNLNL()

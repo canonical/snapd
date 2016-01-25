@@ -216,15 +216,50 @@ func (as *assertsSuite) TestDecoderHappyWithSeparatorsVariations(c *C) {
 
 	for _, streamData := range streams {
 		stream := bytes.NewBufferString(streamData)
-		decoder := asserts.NewDecoder(stream)
+		decoder := asserts.NewDecoderStressed(stream, 10)
 		a, err := decoder.Decode()
 		c.Assert(err, IsNil, Commentf("stream: %q", streamData))
 
 		checkContent(c, a, streamData)
 
 		a, err = decoder.Decode()
-		c.Assert(err, Equals, io.EOF)
+		c.Check(err, Equals, io.EOF, Commentf("stream: %q", streamData))
 	}
+}
+
+func (as *assertsSuite) TestDecoderUnexpectedEOF(c *C) {
+	streamData := exampleBodyAndExtraHeaders + "\n" + exampleEmptyBodyAllDefaults
+	fstHeadEnd := strings.Index(exampleBodyAndExtraHeaders, "\n\n")
+	sndHeadEnd := len(exampleBodyAndExtraHeaders) + 1 + strings.Index(exampleEmptyBodyAllDefaults, "\n\n")
+
+	for _, brk := range []int{1, fstHeadEnd / 2, fstHeadEnd, fstHeadEnd + 1, fstHeadEnd + 2, fstHeadEnd + 6} {
+		stream := bytes.NewBufferString(streamData[:brk])
+		decoder := asserts.NewDecoderStressed(stream, 10)
+		_, err := decoder.Decode()
+		c.Check(err, Equals, io.ErrUnexpectedEOF, Commentf("brk: %d", brk))
+	}
+
+	for _, brk := range []int{sndHeadEnd, sndHeadEnd + 1} {
+		stream := bytes.NewBufferString(streamData[:brk])
+		decoder := asserts.NewDecoder(stream)
+		_, err := decoder.Decode()
+		c.Assert(err, IsNil)
+
+		_, err = decoder.Decode()
+		c.Check(err, Equals, io.ErrUnexpectedEOF, Commentf("brk: %d", brk))
+	}
+}
+
+func (as *assertsSuite) TestDecoderBrokenBodySeparation(c *C) {
+	streamData := strings.Replace(exampleBodyAndExtraHeaders, "THE-BODY\n\n", "THE-BODY", 1)
+	decoder := asserts.NewDecoder(bytes.NewBufferString(streamData))
+	_, err := decoder.Decode()
+	c.Assert(err, ErrorMatches, "missing content/signature separator")
+
+	streamData = strings.Replace(exampleBodyAndExtraHeaders, "THE-BODY\n\n", "THE-BODY\n", 1)
+	decoder = asserts.NewDecoder(bytes.NewBufferString(streamData))
+	_, err = decoder.Decode()
+	c.Assert(err, ErrorMatches, "missing content/signature separator")
 }
 
 func (as *assertsSuite) TestEncode(c *C) {

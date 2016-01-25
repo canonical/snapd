@@ -20,6 +20,7 @@
 package asserts
 
 import (
+	"io"
 	"time"
 
 	"golang.org/x/crypto/openpgp/packet"
@@ -35,6 +36,11 @@ var AssembleAndSignInTest = assembleAndSign
 
 // decodePrivateKey exposed for tests
 var DecodePrivateKeyInTest = decodePrivateKey
+
+// NewDecoderStressed makes a Decoder with a stressed setup with the given buffer size.
+func NewDecoderStressed(r io.Reader, bufSize int) *Decoder {
+	return &Decoder{rd: r, buf: make([]byte, bufSize)}
+}
 
 func BootstrapAccountKeyForTest(authorityID string, pubKey *packet.PublicKey) *AccountKey {
 	return &AccountKey{
