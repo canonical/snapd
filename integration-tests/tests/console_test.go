@@ -2,7 +2,7 @@
 // +build !excludeintegration
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015, 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,6 +25,7 @@ import (
 	"io"
 	"os/exec"
 
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 
 	"gopkg.in/check.v1"
@@ -49,7 +50,12 @@ func (s *consoleSuite) SetUpTest(c *check.C) {
 	s.SnappySuite.SetUpTest(c)
 
 	var err error
-	s.cmd = exec.Command("snappy", "console")
+
+	cmdsIn := []string{"snappy", "console"}
+	cmdsOut, err := cli.AddOptionsToCommand(cmdsIn)
+	c.Assert(err, check.IsNil, check.Commentf("Error adding coverage options, %q", err))
+
+	s.cmd = exec.Command(cmdsOut[0], cmdsOut[1:]...)
 	s.stdin, err = s.cmd.StdinPipe()
 	c.Assert(err, check.IsNil, check.Commentf("Expected nil error, got %s", err))
 	s.stdout, err = s.cmd.StdoutPipe()

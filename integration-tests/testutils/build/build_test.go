@@ -2,7 +2,7 @@
 // +build !excludeintegration
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015, 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,6 +23,9 @@ package build
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -33,9 +36,10 @@ import (
 func Test(t *testing.T) { check.TestingT(t) }
 
 type BuildSuite struct {
-	execCalls        map[string]int
-	execReturnValues []string
-	backExecCommand  func(...string) error
+	execCalls       map[string]int
+	execCallsDirs   map[string]string
+	execReturnList  string
+	backExecCommand func(*exec.Cmd) (string, error)
 
 	mkDirCalls           map[string]int
 	backPrepareTargetDir func(string)
@@ -78,15 +82,24 @@ func (s *BuildSuite) TearDownSuite(c *check.C) {
 
 func (s *BuildSuite) SetUpTest(c *check.C) {
 	s.execCalls = make(map[string]int)
+	s.execCallsDirs = make(map[string]string)
 	s.mkDirCalls = make(map[string]int)
 	s.osRenameCalls = make(map[string]int)
 	s.osSetenvCalls = make(map[string]int)
 	s.osGetenvCalls = make(map[string]int)
 	s.environ = make(map[string]string)
+	s.execReturnList = ""
 }
 
-func (s *BuildSuite) fakeExecCommand(args ...string) (err error) {
-	s.execCalls[strings.Join(args, " ")]++
+func (s *BuildSuite) fakeExecCommand(cmd *exec.Cmd) (out string, err error) {
+	execCall := strings.Join(cmd.Args, " ")
+	s.execCalls[execCall]++
+	s.execCallsDirs[execCall] = cmd.Dir
+
+	if strings.HasPrefix(execCall, "go list") {
+		fmt.Fprint(os.Stdout, s.execReturnList)
+		out = s.execReturnList
+	}
 	return
 }
 
@@ -224,6 +237,7 @@ func (s *BuildSuite) TestAssetsDoesNotSetEnvironmentForNonArm(c *check.C) {
 func (s *BuildSuite) TestAssetsBuildsSnappyCliFromBranch(c *check.C) {
 	Assets(&Config{UseSnappyFromBranch: true})
 
+	buildSnappyCliCmd := getBinaryBuildCmd("snappy", "-coverpkg")
 	buildCall := s.execCalls[buildSnappyCliCmd]
 
 	c.Assert(buildCall, check.Equals, 1,
@@ -234,6 +248,7 @@ func (s *BuildSuite) TestAssetsBuildsSnappyCliFromBranch(c *check.C) {
 func (s *BuildSuite) TestAssetsDoesNotBuildSnappyCliFromBranchIfNotInstructedTo(c *check.C) {
 	Assets(nil)
 
+	buildSnappyCliCmd := getBinaryBuildCmd("snappy", "coverpkg")
 	buildCall := s.execCalls[buildSnappyCliCmd]
 
 	c.Assert(buildCall, check.Equals, 0,
@@ -244,6 +259,7 @@ func (s *BuildSuite) TestAssetsDoesNotBuildSnappyCliFromBranchIfNotInstructedTo(
 func (s *BuildSuite) TestAssetsBuildsSnapdFromBranch(c *check.C) {
 	Assets(&Config{UseSnappyFromBranch: true})
 
+	buildSnapdCmd := getBinaryBuildCmd("snapd", "-coverpkg")
 	buildCall := s.execCalls[buildSnapdCmd]
 
 	c.Assert(buildCall, check.Equals, 1,
@@ -254,11 +270,34 @@ func (s *BuildSuite) TestAssetsBuildsSnapdFromBranch(c *check.C) {
 func (s *BuildSuite) TestAssetsDoesNotBuildSnapdFromBranchIfNotInstructedTo(c *check.C) {
 	Assets(nil)
 
+	buildSnapdCmd := getBinaryBuildCmd("snapd", "-coverpkg")
 	buildCall := s.execCalls[buildSnapdCmd]
 
 	c.Assert(buildCall, check.Equals, 0,
 		check.Commentf("Expected 0 call to execCommand with %s, got %d",
 			buildSnapdCmd, buildCall))
+}
+
+func (s *BuildSuite) TestAssetsBuildsSnapFromBranch(c *check.C) {
+	Assets(&Config{UseSnappyFromBranch: true})
+
+	buildSnapCliCmd := getBinaryBuildCmd("snap", "-coverpkg")
+	buildCall := s.execCalls[buildSnapCliCmd]
+
+	c.Assert(buildCall, check.Equals, 1,
+		check.Commentf("Expected 1 call to execCommand with %s, got %d",
+			buildSnapCliCmd, buildCall))
+}
+
+func (s *BuildSuite) TestAssetsDoesNotBuildSnapFromBranchIfNotInstructedTo(c *check.C) {
+	Assets(nil)
+
+	buildSnapCliCmd := getBinaryBuildCmd("snap", "-coverpkg")
+	buildCall := s.execCalls[buildSnapCliCmd]
+
+	c.Assert(buildCall, check.Equals, 0,
+		check.Commentf("Expected 0 call to execCommand with %s, got %d",
+			buildSnapCliCmd, buildCall))
 }
 
 func (s *BuildSuite) TestAssetsHonoursBuildTags(c *check.C) {
@@ -271,4 +310,87 @@ func (s *BuildSuite) TestAssetsHonoursBuildTags(c *check.C) {
 	c.Assert(buildCall, check.Equals, 1,
 		check.Commentf("Expected 1 call to execCommand with %s, got %d",
 			tagBuildTestCmd, buildCall))
+}
+
+func (s *BuildSuite) TestBuildCmdIncludesTestCommand(c *check.C) {
+	Assets(&Config{UseSnappyFromBranch: true})
+
+	cmdsFound := s.checkBuildCmd(`go test .*cmd\/snap[py|d]?`)
+
+	c.Assert(cmdsFound, check.Equals, true)
+}
+
+func (s *BuildSuite) TestBuildCmdIncludesCoverpkg(c *check.C) {
+	var items = []struct {
+		returnList string
+		expected   string
+	}{
+		{"pkg1\npkg2", "-coverpkg pkg1,pkg2"},
+		{"dom1.com/user/pkg1\ndom1.com/user/pkg2\ndom1.com/user/pkg3", "-coverpkg dom1.com/user/pkg1,dom1.com/user/pkg2,dom1.com/user/pkg3"},
+		{"pkg1", `\-coverpkg pkg1`},
+	}
+
+	for _, item := range items {
+		s.execCalls = make(map[string]int)
+		s.execReturnList = item.returnList
+
+		Assets(&Config{UseSnappyFromBranch: true})
+
+		cmdsFound := s.checkBuildCmd(".* " + item.expected)
+		c.Check(s.execCalls[listCmd], check.Equals, 1)
+		c.Check(cmdsFound, check.Equals, true)
+	}
+}
+
+func (s *BuildSuite) TestBuildCmdCallsListCommandFromProjectRoot(c *check.C) {
+	Assets(&Config{UseSnappyFromBranch: true})
+
+	c.Assert(s.execCalls[listCmd], check.Equals, 1)
+	c.Assert(s.execCallsDirs[listCmd], check.Equals,
+		filepath.Join(os.Getenv("GOPATH"), projectSrcPath))
+}
+
+func (s *BuildSuite) TestBuildCmdDoesNotIncludeFilteredPkgs(c *check.C) {
+	var items = []struct {
+		returnList string
+		expected   string
+	}{
+		{"integration-tests/pkg1\nanotherpkg/pkg2\ninitialpkg/integration-tests/pkg3", "-coverpkg anotherpkg/pkg2"},
+		{"elper/pkg1\ninitialpkg/helper/pkg3\nanotherpkg/pkg2", "-coverpkg elper/pkg1,anotherpkg/pkg2"},
+		{"mypkg/pkg4\nosuti/pkg1\ninitialpkg/osutil/pkg3\nanotherone/pkg5", "-coverpkg mypkg/pkg4,osuti/pkg1,anotherone/pkg5"},
+		{"mypkg/pkg\nprogres/pkg1\ninitialpkg/helper/pkg3\nanotherone/pk4", "-coverpkg mypkg/pkg,progres/pkg1,anotherone/pk4"},
+	}
+
+	for _, item := range items {
+		s.execCalls = make(map[string]int)
+		s.execReturnList = item.returnList
+		Assets(&Config{UseSnappyFromBranch: true})
+
+		cmdsFound := s.checkBuildCmd(".* " + item.expected)
+		c.Check(cmdsFound, check.Equals, true)
+	}
+}
+
+func (s *BuildSuite) TestBuildCmdExecutesBuildCommandsFromGOPATH(c *check.C) {
+	Assets(&Config{UseSnappyFromBranch: true})
+
+	for _, bin := range []string{"snappy", "snapd", "snap"} {
+		cmd := getBinaryBuildCmd(bin, "-coverpkg")
+
+		c.Check(s.execCalls[cmd], check.Equals, 1)
+		c.Check(s.execCallsDirs[cmd], check.Equals,
+			filepath.Join(os.Getenv("GOPATH"), projectSrcPath))
+	}
+}
+
+func (s *BuildSuite) checkBuildCmd(pattern string) bool {
+	re := regexp.MustCompile(pattern)
+	buildTestCmd := fmt.Sprintf(buildTestCmdFmt, "")
+	cmdsFound := true
+	for cmd := range s.execCalls {
+		if cmd != buildTestCmd && cmd != listCmd {
+			cmdsFound = cmdsFound && (re.FindStringIndex(cmd) != nil)
+		}
+	}
+	return cmdsFound
 }
