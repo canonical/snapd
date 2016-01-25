@@ -88,6 +88,12 @@ func snappyOS() (string, error) {
 	return confValue("snappy_os")
 }
 
+// SnappyKernel returns the name of the Kernel snap in the form name.origin_version.snap
+// This is a workaround for https://bugs.launchpad.net/snappy/+bug/1532245
+func SnappyKernel() (string, error) {
+	return confValue("snappy_kernel")
+}
+
 func getConfValue(key string) (string, error) {
 	system, err := BootSystem()
 	if err != nil {
