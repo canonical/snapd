@@ -2,7 +2,7 @@
 // +build !excludeintegration
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015, 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -132,7 +132,8 @@ func ipTablesCommand(action, serverAddrPort string) []string {
 }
 
 func (s *loginSuite) writeCredentials(loginName string) error {
-	cmd := exec.Command("snappy", "login", loginName)
+	cmds, _ := cli.AddOptionsToCommand([]string{"snappy", "login", loginName})
+	cmd := exec.Command(cmds[0], cmds[1:]...)
 	f, err := pty.Start(cmd)
 	if err != nil {
 		return err

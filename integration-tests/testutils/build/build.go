@@ -2,7 +2,7 @@
 // +build !excludeintegration
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015, 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,42 +21,39 @@
 package build
 
 import (
+	"bytes"
 	"fmt"
 	"os"
+	"os/exec"
+	"path"
 	"path/filepath"
+	"regexp"
+	"runtime"
 	"strings"
 
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/testutils"
 )
 
 const (
+	listCmd         = "go list ./..."
 	buildTestCmdFmt = "go test%s -c ./integration-tests/tests"
 
 	// IntegrationTestName is the name of the test binary.
 	IntegrationTestName = "integration.test"
 	defaultGoArm        = "7"
 	testsBinDir         = "integration-tests/bin/"
+	baseBuildCmd        = "go test -c -tags integrationcoverage "
+	projectSrcPath      = "src/github.com/ubuntu-core/snappy"
 )
 
 var (
 	// dependency aliasing
-	execCommand      = testutils.ExecCommand
+	execCommand      = cli.ExecCommandWrapper
 	prepareTargetDir = testutils.PrepareTargetDir
 	osRename         = os.Rename
 	osSetenv         = os.Setenv
 	osGetenv         = os.Getenv
-
-	// The output of the build commands for testing goes to the testsBinDir path,
-	// which is under the integration-tests directory. The
-	// integration-tests/test-wrapper script (Test-Command's entry point of
-	// adt-run) takes care of including testsBinDir at the beginning of $PATH, so
-	// that these binaries (if they exist) take precedence over the system ones
-	buildSnappyCliCmd = "go build -o " +
-		filepath.Join(testsBinDir, "snappy") + " ." + string(os.PathSeparator) + filepath.Join("cmd", "snappy")
-	buildSnapdCmd = "go build -o " +
-		filepath.Join(testsBinDir, "snapd") + " ." + string(os.PathSeparator) + filepath.Join("cmd", "snapd")
-	buildSnapCliCmd = "go build -o " +
-		filepath.Join(testsBinDir, "snap") + " ." + string(os.PathSeparator) + filepath.Join("cmd", "snap")
 )
 
 // Config comprises the parameters for the Assets function
@@ -68,33 +65,45 @@ type Config struct {
 // Assets builds the snappy and integration tests binaries for the target
 // architecture.
 func Assets(cfg *Config) {
+	tmp := "/tmp/snappy-build"
+	_, filename, _, _ := runtime.Caller(1)
+	dir, _ := filepath.Abs(filepath.Join(path.Dir(filename), ".."))
+	os.Symlink(dir, tmp)
+
 	if cfg == nil {
 		cfg = &Config{}
 	}
 	prepareTargetDir(testsBinDir)
 
 	if cfg.UseSnappyFromBranch {
+		coverpkg := getCoverPkg()
 		// FIXME We need to build an image that has the snappy from the branch
 		// installed. --elopio - 2015-06-25.
-		buildSnappyCLI(cfg.Arch)
-		buildSnapd(cfg.Arch)
-		buildSnapCLI(cfg.Arch)
+		buildSnappyCLI(cfg.Arch, coverpkg)
+		buildSnapd(cfg.Arch, coverpkg)
+		buildSnapCLI(cfg.Arch, coverpkg)
 	}
 	buildTests(cfg.Arch, cfg.TestBuildTags)
 }
 
-func buildSnappyCLI(arch string) {
+func buildSnappyCLI(arch, coverpkg string) {
 	fmt.Println("Building snappy CLI...")
+	buildSnappyCliCmd := getBinaryBuildCmd("snappy", coverpkg)
+
 	goCall(arch, buildSnappyCliCmd)
 }
 
-func buildSnapd(arch string) {
+func buildSnapd(arch, coverpkg string) {
 	fmt.Println("Building snapd...")
+	buildSnapdCmd := getBinaryBuildCmd("snapd", coverpkg)
+
 	goCall(arch, buildSnapdCmd)
 }
 
-func buildSnapCLI(arch string) {
+func buildSnapCLI(arch, coverpkg string) {
 	fmt.Println("Building snap...")
+
+	buildSnapCliCmd := getBinaryBuildCmd("snap", coverpkg)
 	goCall(arch, buildSnapCliCmd)
 }
 
@@ -129,5 +138,50 @@ func goCall(arch string, cmd string) {
 			}
 		}
 	}
-	execCommand(strings.Fields(cmd)...)
+	cmdElems := strings.Fields(cmd)
+	command := exec.Command(cmdElems[0], cmdElems[1:]...)
+	command.Dir = filepath.Join(os.Getenv("GOPATH"), projectSrcPath)
+	execCommand(command)
+}
+
+func getBinaryBuildCmd(binary, coverpkg string) string {
+	// The output of the build commands for testing goes to the testsBinDir path,
+	// which is under the integration-tests directory. The
+	// integration-tests/test-wrapper script (Test-Command's entry point of
+	// adt-run) takes care of including testsBinDir at the beginning of $PATH, so
+	// that these binaries (if they exist) take precedence over the system ones
+	return baseBuildCmd + coverpkg +
+		" -o " + filepath.Join(testsBinDir, binary) + " ." +
+		string(os.PathSeparator) + filepath.Join("cmd", binary)
+}
+
+func getCoverPkg() string {
+	cmdElems := strings.Fields(listCmd)
+
+	cmd := exec.Command(cmdElems[0], cmdElems[1:]...)
+	cmd.Dir = filepath.Join(os.Getenv("GOPATH"), projectSrcPath)
+
+	out, _ := execCommand(cmd)
+
+	filteredOut := filterPkgs(out)
+	return "-coverpkg " + filteredOut
+}
+
+func filterPkgs(list string) string {
+	var buffer bytes.Buffer
+	// without filtering the helper, osutil and progress packages the compilation of the tests gives these errors:
+	// /home/fgimenez/src/go/pkg/tool/linux_amd64/link: running gcc failed: exit status 1
+	// /tmp/go-link-492921396/000003.o: In function `_cgo_b95aca69b89e_Cfunc_isatty':
+	// /home/fgimenez/workspace/gocode/src/github.com/ubuntu-core/snappy/progress/isatty.go:50: multiple definition of `_cgo_b95aca69b89e_Cfunc_isatty'
+	// /tmp/go-link-492921396/000002.o:/home/fgimenez/workspace/gocode/src/github/ubuntu-core/snappy/progress/isatty.go:50: first defined here
+
+	filterPattern := `.*integration-tests|helper|osutil|progress`
+	r := regexp.MustCompile(filterPattern)
+
+	for _, item := range strings.Split(list, "\n") {
+		if !r.MatchString(item) {
+			buffer.WriteString(item + ",")
+		}
+	}
+	return strings.TrimRight(buffer.String(), ",")
 }

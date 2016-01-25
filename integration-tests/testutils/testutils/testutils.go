@@ -60,3 +60,16 @@ func ExecCommand(cmds ...string) error {
 	}
 	return err
 }
+
+// RemoveTestFlags strips the flags beginning with "-test." from os.Args,
+// useful for the test binaries compiled as the original cmds for measuring
+// integration test coverage
+func RemoveTestFlags() {
+	outputArgs := []string{}
+	for _, item := range os.Args {
+		if !strings.HasPrefix(item, "-test.") {
+			outputArgs = append(outputArgs, item)
+		}
+	}
+	os.Args = outputArgs
+}
