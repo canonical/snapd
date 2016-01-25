@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,6 +25,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 // the default simple filesystem based keypair manager/backstore
@@ -36,6 +37,7 @@ const (
 
 type filesystemKeypairManager struct {
 	top string
+	mu  sync.RWMutex
 }
 
 // OpenFSKeypairManager opens a filesystem backed assertions backstore under path.
@@ -61,6 +63,9 @@ func (fskm *filesystemKeypairManager) Put(authorityID string, privKey PrivateKey
 		return fmt.Errorf("failed to store private key: %v", err)
 	}
 
+	fskm.mu.Lock()
+	defer fskm.mu.Unlock()
+
 	err = atomicWriteEntry(encoded, true, fskm.top, escapedAuthorityID, keyID)
 	if err != nil {
 		return fmt.Errorf("failed to store private key: %v", err)
@@ -71,6 +76,9 @@ func (fskm *filesystemKeypairManager) Put(authorityID string, privKey PrivateKey
 var errKeypairNotFound = errors.New("no matching key pair found")
 
 func (fskm *filesystemKeypairManager) Get(authorityID, keyID string) (PrivateKey, error) {
+	fskm.mu.RLock()
+	defer fskm.mu.RUnlock()
+
 	encoded, err := readEntry(fskm.top, url.QueryEscape(authorityID), keyID)
 	if os.IsNotExist(err) {
 		return nil, errKeypairNotFound
