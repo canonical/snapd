@@ -20,6 +20,8 @@
 package skills
 
 import (
+	"fmt"
+
 	. "gopkg.in/check.v1"
 )
 
@@ -153,9 +155,35 @@ func (s *RepositorySuite) TestAddSkillClash(c *C) {
 	c.Assert(s.testRepo.Skill(s.skill.Snap, s.skill.Name), DeepEquals, s.skill)
 }
 
-func (s *RepositorySuite) TestAddSkillInvalidName(c *C) {
+func (s *RepositorySuite) TestAddSkillFailsWithInvalidSnapName(c *C) {
+	err := s.testRepo.AddSkill("bad-snap-", "name", "type", "label", nil)
+	c.Assert(err, ErrorMatches, `"bad-snap-" is not a valid skill or slot name`)
+	c.Assert(s.testRepo.AllSkills(""), HasLen, 0)
+}
+
+func (s *RepositorySuite) TestAddSkillFailsWithInvalidSkillName(c *C) {
 	err := s.testRepo.AddSkill("snap", "bad-name-", "type", "label", nil)
 	c.Assert(err, ErrorMatches, `"bad-name-" is not a valid skill or slot name`)
+	c.Assert(s.testRepo.AllSkills(""), HasLen, 0)
+}
+
+func (s *RepositorySuite) TestAddSkillFailsWithUnknownType(c *C) {
+	err := s.emptyRepo.AddSkill(s.skill.Snap, s.skill.Name, s.skill.Type, s.skill.Label, s.skill.Attrs)
+	c.Assert(err, Equals, ErrTypeNotFound)
+	c.Assert(s.testRepo.AllSkills(""), HasLen, 0)
+}
+
+func (s *RepositorySuite) TestAddSkillFailsWithUnsanitizedSkill(c *C) {
+	dirty := &TestType{
+		TypeName: "dirty",
+		SanitizeCallback: func(skill *Skill) error {
+			return fmt.Errorf("skill is dirty")
+		},
+	}
+	err := s.emptyRepo.AddType(dirty)
+	c.Assert(err, IsNil)
+	err = s.emptyRepo.AddSkill(s.skill.Snap, s.skill.Name, "dirty", s.skill.Label, s.skill.Attrs)
+	c.Assert(err, ErrorMatches, "skill is dirty")
 	c.Assert(s.testRepo.AllSkills(""), HasLen, 0)
 }
 
