@@ -20,6 +20,7 @@
 package skills
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 )
@@ -41,6 +42,42 @@ type Slot struct {
 	Attrs map[string]interface{}
 	Apps  []string
 }
+
+// Type describes a group of interchangeable capabilities with common features.
+// Types are managed centrally and act as a contract between system builders,
+// application developers and end users.
+type Type interface {
+	// Unique and public name of this type.
+	Name() string
+
+	// Sanitize checks if a skill is correct, altering if necessary.
+	Sanitize(skill *Skill) error
+
+	// SecuritySnippet returns the configuration snippet that should be used by
+	// the given security system to enable this skill to be consumed.
+	// An empty snippet is returned when the skill doesn't require anything
+	// from the security system to work, in addition to the default configuration.
+	// ErrUnknownSecurity is returned when the skill cannot deal with the
+	// requested security system.
+	SecuritySnippet(skill *Skill, securitySystem SecuritySystem) ([]byte, error)
+}
+
+// SecuritySystem is a name of a security system.
+type SecuritySystem string
+
+const (
+	// SecurityApparmor identifies the apparmor security system.
+	SecurityApparmor SecuritySystem = "apparmor"
+	// SecuritySeccomp identifies the seccomp security system.
+	SecuritySeccomp SecuritySystem = "seccomp"
+	// SecurityDBus identifies the DBus security system.
+	SecurityDBus SecuritySystem = "dbus"
+)
+
+var (
+	// ErrUnknownSecurity is reported when a skill type is unable to deal with a given security system.
+	ErrUnknownSecurity = errors.New("unknown security system")
+)
 
 // Regular expression describing correct identifiers.
 var validName = regexp.MustCompile("^[a-z](:?[a-z0-9-]*[a-z0-9])?$")
