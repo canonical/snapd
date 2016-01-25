@@ -58,7 +58,7 @@ func (r *Repository) Type(typeName string) Type {
 	return r.unlockedType(typeName)
 }
 
-// AddType adds a skill type to the repository.
+// AddType adds the provided skill type to the repository.
 // NOTE: API exception, Type is an interface, so it cannot use simple types as arguments.
 func (r *Repository) AddType(t Type) error {
 	r.m.Lock()
