@@ -17,10 +17,12 @@
  *
  */
 
-package skills
+package skills_test
 
 import (
 	. "gopkg.in/check.v1"
+
+	. "github.com/ubuntu-core/snappy/skills"
 )
 
 type RepositorySuite struct {
