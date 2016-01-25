@@ -42,13 +42,13 @@ func (as *assertsSuite) TestUnknown(c *C) {
 	c.Check(asserts.Type("unknown"), IsNil)
 }
 
-const emptyBodyAllDefaults = "type: test-only\n" +
+const exampleEmptyBodyAllDefaults = "type: test-only\n" +
 	"authority-id: auth-id1" +
 	"\n\n" +
 	"openpgp c2ln"
 
 func (as *assertsSuite) TestDecodeEmptyBodyAllDefaults(c *C) {
-	a, err := asserts.Decode([]byte(emptyBodyAllDefaults))
+	a, err := asserts.Decode([]byte(exampleEmptyBodyAllDefaults))
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.TestOnlyType)
 	_, ok := a.(*asserts.TestOnly)
@@ -59,7 +59,7 @@ func (as *assertsSuite) TestDecodeEmptyBodyAllDefaults(c *C) {
 	c.Check(a.AuthorityID(), Equals, "auth-id1")
 }
 
-const emptyBody2NlNl = "type: test-only\n" +
+const exampleEmptyBody2NlNl = "type: test-only\n" +
 	"authority-id: auth-id1\n" +
 	"revision: 0\n" +
 	"body-length: 0" +
@@ -68,14 +68,14 @@ const emptyBody2NlNl = "type: test-only\n" +
 	"openpgp c2ln\n"
 
 func (as *assertsSuite) TestDecodeEmptyBodyNormalize2NlNl(c *C) {
-	a, err := asserts.Decode([]byte(emptyBody2NlNl))
+	a, err := asserts.Decode([]byte(exampleEmptyBody2NlNl))
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.TestOnlyType)
 	c.Check(a.Revision(), Equals, 0)
 	c.Check(a.Body(), IsNil)
 }
 
-const bodyAndExtraHeaders = "type: test-only\n" +
+const exampleBodyAndExtraHeaders = "type: test-only\n" +
 	"authority-id: auth-id2\n" +
 	"primary-key1: key1\n" +
 	"primary-key2: key2\n" +
@@ -88,7 +88,7 @@ const bodyAndExtraHeaders = "type: test-only\n" +
 	"openpgp c2ln\n"
 
 func (as *assertsSuite) TestDecodeWithABodyAndExtraHeaders(c *C) {
-	a, err := asserts.Decode([]byte(bodyAndExtraHeaders))
+	a, err := asserts.Decode([]byte(exampleBodyAndExtraHeaders))
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.TestOnlyType)
 	c.Check(a.AuthorityID(), Equals, "auth-id2")
@@ -180,11 +180,11 @@ func checkContent(c *C, a asserts.Assertion, encoded string) {
 
 func (as *assertsSuite) TestDecoderHappy(c *C) {
 	stream := new(bytes.Buffer)
-	stream.WriteString(emptyBody2NlNl)
+	stream.WriteString(exampleEmptyBody2NlNl)
 	stream.WriteString("\n")
-	stream.WriteString(bodyAndExtraHeaders)
+	stream.WriteString(exampleBodyAndExtraHeaders)
 	stream.WriteString("\n")
-	stream.WriteString(emptyBodyAllDefaults)
+	stream.WriteString(exampleEmptyBodyAllDefaults)
 	stream.WriteString("\n\n")
 
 	decoder := asserts.NewDecoder(stream)
@@ -193,15 +193,15 @@ func (as *assertsSuite) TestDecoderHappy(c *C) {
 	c.Check(a.Type(), Equals, asserts.TestOnlyType)
 	_, ok := a.(*asserts.TestOnly)
 	c.Check(ok, Equals, true)
-	checkContent(c, a, emptyBody2NlNl)
+	checkContent(c, a, exampleEmptyBody2NlNl)
 
 	a, err = decoder.Decode()
 	c.Assert(err, IsNil)
-	checkContent(c, a, bodyAndExtraHeaders)
+	checkContent(c, a, exampleBodyAndExtraHeaders)
 
 	a, err = decoder.Decode()
 	c.Assert(err, IsNil)
-	checkContent(c, a, emptyBodyAllDefaults)
+	checkContent(c, a, exampleEmptyBodyAllDefaults)
 
 	a, err = decoder.Decode()
 	c.Assert(err, Equals, io.EOF)
@@ -209,9 +209,9 @@ func (as *assertsSuite) TestDecoderHappy(c *C) {
 
 func (as *assertsSuite) TestDecoderHappyWithSeparatorsVariations(c *C) {
 	streams := []string{
-		bodyAndExtraHeaders,
-		emptyBody2NlNl,
-		emptyBodyAllDefaults,
+		exampleBodyAndExtraHeaders,
+		exampleEmptyBody2NlNl,
+		exampleEmptyBodyAllDefaults,
 	}
 
 	for _, streamData := range streams {
