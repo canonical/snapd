@@ -42,6 +42,7 @@ type Slot struct {
 	Type  string
 	Attrs map[string]interface{}
 	Apps  []string
+	Label string
 }
 
 // SecuritySystem is a name of a security system.
