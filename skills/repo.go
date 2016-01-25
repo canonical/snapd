@@ -75,12 +75,11 @@ func (r *Repository) AddType(t Type) error {
 	if err := ValidateName(typeName); err != nil {
 		return err
 	}
-	if otherT := r.unlockedType(typeName); otherT != nil {
-		return ErrDuplicate
+	if i, found := r.unlockedTypeIndex(typeName); !found {
+		r.types = append(r.types[:i], append([]Type{t}, r.types[i:]...)...)
+		return nil
 	}
-	r.types = append(r.types, t)
-	sort.Sort(byTypeName(r.types))
-	return nil
+	return ErrDuplicate
 }
 
 // AllSkills returns all skills of the given type.
@@ -185,12 +184,19 @@ func (r *Repository) RemoveSkill(snapName, skillName string) error {
 // Private unlocked APIs
 
 func (r *Repository) unlockedType(typeName string) Type {
-	// Assumption: r.types is sorted
-	i := sort.Search(len(r.types), func(i int) bool { return r.types[i].Name() >= typeName })
-	if i < len(r.types) && r.types[i].Name() == typeName {
+	if i, found := r.unlockedTypeIndex(typeName); found {
 		return r.types[i]
 	}
 	return nil
+}
+
+func (r *Repository) unlockedTypeIndex(typeName string) (int, bool) {
+	// Assumption: r.types is sorted
+	i := sort.Search(len(r.types), func(i int) bool { return r.types[i].Name() >= typeName })
+	if i < len(r.types) && r.types[i].Name() == typeName {
+		return i, true
+	}
+	return i, false
 }
 
 func (r *Repository) unlockedSkill(snapName, skillName string) *Skill {
@@ -208,14 +214,6 @@ func (r *Repository) unlockedSkill(snapName, skillName string) *Skill {
 }
 
 // Support for sort.Interface
-
-type byTypeName []Type
-
-func (c byTypeName) Len() int      { return len(c) }
-func (c byTypeName) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
-func (c byTypeName) Less(i, j int) bool {
-	return c[i].Name() < c[j].Name()
-}
 
 type bySkillSnapAndName []*Skill
 
