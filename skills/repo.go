@@ -36,9 +36,9 @@ type Repository struct {
 var (
 	// ErrDuplicate is reported when type, skill or slot already exist.
 	ErrDuplicate = errors.New("duplicate found")
-	// ErrSkillNotFound is reported when capability cannot be looked up.
+	// ErrSkillNotFound is reported when skill cannot be looked up.
 	ErrSkillNotFound = errors.New("skill not found")
-	// ErrTypeNotFound is reported when capability type cannot found.
+	// ErrTypeNotFound is reported when skill type cannot found.
 	ErrTypeNotFound = errors.New("skill type not found")
 )
 
@@ -83,8 +83,8 @@ func (r *Repository) AddType(t Type) error {
 	return nil
 }
 
-// AllSkills returns all capabilities of the given type.
-// If skillType is the empty string, all capabilities are returned.
+// AllSkills returns all skills of the given type.
+// If skillType is the empty string, all skills are returned.
 func (r *Repository) AllSkills(skillType string) []*Skill {
 	r.m.Lock()
 	defer r.m.Unlock()
@@ -126,14 +126,14 @@ func (r *Repository) Skill(snapName, skillName string) *Skill {
 	return r.unlockedSkill(snapName, skillName)
 }
 
-// AddSkill adds a capability to the repository.
+// AddSkill adds a skill to the repository.
 // Skill names must be valid snap names, as defined by ValidateName.
 // Skill name must be unique within a particular snap.
 func (r *Repository) AddSkill(snapName, skillName, typeName, label string, attrs map[string]interface{}) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	// Reject capabilities with invalid names
+	// Reject skill with invalid names
 	if err := ValidateName(snapName); err != nil {
 		return err
 	}
@@ -156,7 +156,7 @@ func (r *Repository) AddSkill(snapName, skillName, typeName, label string, attrs
 		Attrs: attrs,
 		Label: label,
 	}
-	// Reject capabilities that don't pass type-specific sanitization
+	// Reject skill that don't pass type-specific sanitization
 	if err := t.Sanitize(skill); err != nil {
 		return err
 	}
