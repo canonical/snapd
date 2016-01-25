@@ -39,13 +39,13 @@ var _ = Suite(&RepositorySuite{
 		TypeName: "type",
 	},
 	skill: &Skill{
-		Snap:  "snap",
+		Snap:  "provider-snap",
 		Name:  "name",
 		Type:  "type",
 		Attrs: map[string]interface{}{"attr": "value"},
 	},
 	slot: &Slot{
-		Snap:  "snap",
+		Snap:  "consumer-snap",
 		Name:  "name",
 		Type:  "type",
 		Apps:  []string{"app"},
@@ -220,7 +220,7 @@ func (s *RepositorySuite) TestSkillSearch(c *C) {
 
 // Tests for Repository.RemoveSkill()
 
-func (s *RepositorySuite) TestRemoveSkillGood(c *C) {
+func (s *RepositorySuite) TestRemoveSkillSucceedsWhenSkillExistsAndIdle(c *C) {
 	err := s.testRepo.AddSkill(s.skill.Snap, s.skill.Name, s.skill.Type, s.skill.Label, s.skill.Attrs)
 	c.Assert(err, IsNil)
 	err = s.testRepo.RemoveSkill(s.skill.Snap, s.skill.Name)
@@ -228,9 +228,25 @@ func (s *RepositorySuite) TestRemoveSkillGood(c *C) {
 	c.Assert(s.testRepo.AllSkills(""), HasLen, 0)
 }
 
-func (s *RepositorySuite) TestRemoveSkillNoSuchSkill(c *C) {
+func (s *RepositorySuite) TestRemoveSkillFailsWhenSlikkDoesntExist(c *C) {
 	err := s.emptyRepo.RemoveSkill(s.skill.Snap, s.skill.Name)
 	c.Assert(err, Equals, ErrSkillNotFound)
+}
+
+func (s *RepositorySuite) TestRemoveSkillFailsWhenSkillIsUsed(c *C) {
+	err := s.testRepo.AddSkill(s.skill.Snap, s.skill.Name, s.skill.Type, s.skill.Label, s.skill.Attrs)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSlot(s.slot.Snap, s.slot.Name, s.slot.Type, s.slot.Label, s.slot.Attrs, s.slot.Apps)
+	c.Assert(err, IsNil)
+	err = s.testRepo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
+	c.Assert(err, IsNil)
+	// Removing a skill used by a slot returns ErrSkillBusy
+	err = s.testRepo.RemoveSkill(s.skill.Snap, s.skill.Name)
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, Equals, ErrSkillBusy)
+	// The skill is still there
+	slot := s.testRepo.Skill(s.skill.Snap, s.skill.Name)
+	c.Assert(slot, Not(IsNil))
 }
 
 // Tests for Repository.AllSkills()
@@ -440,4 +456,185 @@ func (s *RepositorySuite) TestRemoveSlotFailsWhenSlotDoesntExist(c *C) {
 	err := s.testRepo.RemoveSlot(s.slot.Snap, s.slot.Name)
 	c.Assert(err, Not(IsNil))
 	c.Assert(err, Equals, ErrSlotNotFound)
+}
+
+func (s *RepositorySuite) TestRemoveSlotFailsWhenSlotIsBusy(c *C) {
+	err := s.testRepo.AddSkill(s.skill.Snap, s.skill.Name, s.skill.Type, s.skill.Label, s.skill.Attrs)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSlot(s.slot.Snap, s.slot.Name, s.slot.Type, s.slot.Label, s.slot.Attrs, s.slot.Apps)
+	c.Assert(err, IsNil)
+	err = s.testRepo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
+	c.Assert(err, IsNil)
+	// Removing a slot occupied by a skill returns ErrSlotBusy
+	err = s.testRepo.RemoveSlot(s.slot.Snap, s.slot.Name)
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, Equals, ErrSlotBusy)
+	// The slot is still there
+	slot := s.testRepo.Slot(s.slot.Snap, s.slot.Name)
+	c.Assert(slot, Not(IsNil))
+}
+
+// Tests for Repository.Grant()
+
+func (s *RepositorySuite) TestGrantFailsWhenSkillDoesNotExist(c *C) {
+	err := s.testRepo.AddSlot(s.slot.Snap, s.slot.Name, s.slot.Type, s.slot.Label, s.slot.Attrs, s.slot.Apps)
+	c.Assert(err, IsNil)
+	// Granting an unknown skill returns ErrSkillNotFound
+	err = s.testRepo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, Equals, ErrSkillNotFound)
+}
+
+func (s *RepositorySuite) TestGrantFailsWhenSlotDoesNotExist(c *C) {
+	err := s.testRepo.AddSkill(s.skill.Snap, s.skill.Name, s.skill.Type, s.skill.Label, s.skill.Attrs)
+	c.Assert(err, IsNil)
+	// Granting to an unknown slot returns ErrSlotNotFound
+	err = s.testRepo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, Equals, ErrSlotNotFound)
+}
+
+func (s *RepositorySuite) TestGrantFailsWhenIdenticalGrantExists(c *C) {
+	err := s.testRepo.AddSkill(s.skill.Snap, s.skill.Name, s.skill.Type, s.skill.Label, s.skill.Attrs)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSlot(s.slot.Snap, s.slot.Name, s.slot.Type, s.slot.Label, s.slot.Attrs, s.slot.Apps)
+	c.Assert(err, IsNil)
+	err = s.testRepo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
+	c.Assert(err, IsNil)
+	// Granting exactly the same thing twice fails with ErrDuplicate
+	err = s.testRepo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, Equals, ErrDuplicate)
+}
+
+func (s *RepositorySuite) TestGrantFailsWhenSlotAndSkillAreIncompatible(c *C) {
+	otherType := &TestType{TypeName: "other-type"}
+	err := s.testRepo.AddType(otherType)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSkill(s.skill.Snap, s.skill.Name, s.skill.Type, s.skill.Label, s.skill.Attrs)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSlot(s.slot.Snap, s.slot.Name, otherType.Name(), s.slot.Label, s.slot.Attrs, s.slot.Apps)
+	c.Assert(err, IsNil)
+	// Granting a skill to an incompatible slot fails with ErrTypeMismatch
+	err = s.testRepo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, Equals, ErrTypeMismatch)
+}
+
+func (s *RepositorySuite) TestGrantSucceeds(c *C) {
+	err := s.testRepo.AddSkill(s.skill.Snap, s.skill.Name, s.skill.Type, s.skill.Label, s.skill.Attrs)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSlot(s.slot.Snap, s.slot.Name, s.slot.Type, s.slot.Label, s.slot.Attrs, s.slot.Apps)
+	c.Assert(err, IsNil)
+	// Granting a skill works okay
+	err = s.testRepo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
+	c.Assert(err, IsNil)
+}
+
+// Tests for Repository.Revoke()
+
+func (s *RepositorySuite) TestRevokeFailsWhenSkillDoesNotExist(c *C) {
+	err := s.testRepo.AddSlot(s.slot.Snap, s.slot.Name, s.slot.Type, s.slot.Label, s.slot.Attrs, s.slot.Apps)
+	c.Assert(err, IsNil)
+	// Revoking an unknown skill returns ErrSkillNotFound
+	err = s.testRepo.Revoke(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, Equals, ErrSkillNotFound)
+}
+
+func (s *RepositorySuite) TestRevokeFailsWhenSlotDoesNotExist(c *C) {
+	err := s.testRepo.AddSkill(s.skill.Snap, s.skill.Name, s.skill.Type, s.skill.Label, s.skill.Attrs)
+	c.Assert(err, IsNil)
+	// Revoking to an unknown slot returns ErrSlotNotFound
+	err = s.testRepo.Revoke(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, Equals, ErrSlotNotFound)
+}
+
+func (s *RepositorySuite) TestRevokeFailsWhenNotGranted(c *C) {
+	err := s.testRepo.AddSkill(s.skill.Snap, s.skill.Name, s.skill.Type, s.skill.Label, s.skill.Attrs)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSlot(s.slot.Snap, s.slot.Name, s.slot.Type, s.slot.Label, s.slot.Attrs, s.slot.Apps)
+	c.Assert(err, IsNil)
+	// Revoking a skill that is not granted returns ErrNotGranted
+	err = s.testRepo.Revoke(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, Equals, ErrNotGranted)
+}
+
+func (s *RepositorySuite) TestRevokeSucceeds(c *C) {
+	err := s.testRepo.AddSkill(s.skill.Snap, s.skill.Name, s.skill.Type, s.skill.Label, s.skill.Attrs)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSlot(s.slot.Snap, s.slot.Name, s.slot.Type, s.slot.Label, s.slot.Attrs, s.slot.Apps)
+	c.Assert(err, IsNil)
+	err = s.testRepo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
+	c.Assert(err, IsNil)
+	// Revoking a granted skill works okay
+	err = s.testRepo.Revoke(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
+	c.Assert(err, IsNil)
+}
+
+// Test for Repository.GrantedTo()
+
+func (s *RepositorySuite) TestGrantedReturnsNothingForUnknownSnaps(c *C) {
+	// Asking about unknown snaps just returns nothing
+	c.Assert(s.testRepo.GrantedTo("unknown"), HasLen, 0)
+}
+
+func (s *RepositorySuite) TestGrantedReturnsNothingForEmptyString(c *C) {
+	// Asking about the empty string just returns nothing
+	c.Assert(s.testRepo.GrantedTo(""), HasLen, 0)
+}
+
+func (s *RepositorySuite) TestGrantedToReturnsCorrectData(c *C) {
+	err := s.testRepo.AddSkill(s.skill.Snap, s.skill.Name, s.skill.Type, s.skill.Label, s.skill.Attrs)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSlot(s.slot.Snap, s.slot.Name, s.slot.Type, s.slot.Label, s.slot.Attrs, s.slot.Apps)
+	c.Assert(err, IsNil)
+	// After granting the result is as expected
+	err = s.testRepo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
+	c.Assert(err, IsNil)
+	// NOTE: the return value has pointers to internal structures so we cannot
+	// use s.slot here as it is a different pointer to an identical structure.
+	slot := s.testRepo.Slot(s.slot.Snap, s.slot.Name)
+	c.Assert(s.testRepo.GrantedTo(s.slot.Snap), DeepEquals, map[*Slot][]*Skill{
+		slot: []*Skill{s.skill},
+	})
+	// After revoking the result is empty again
+	err = s.testRepo.Revoke(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
+	c.Assert(err, IsNil)
+	c.Assert(s.testRepo.GrantedTo(s.slot.Snap), HasLen, 0)
+}
+
+// Tests for Repository.GrantedBy()
+
+func (s *RepositorySuite) TestGrantedByReturnsNothingForUnknownSnaps(c *C) {
+	// Asking about unknown snaps just returns an empty map
+	c.Assert(s.testRepo.GrantedTo("unknown"), HasLen, 0)
+}
+
+func (s *RepositorySuite) TestGrantedByReturnsNothingForEmptyString(c *C) {
+	// Asking about the empty string just returns an empty map
+	c.Assert(s.testRepo.GrantedTo(""), HasLen, 0)
+}
+
+func (s *RepositorySuite) TestGrantedByReturnsCorrectData(c *C) {
+	err := s.testRepo.AddSkill(s.skill.Snap, s.skill.Name, s.skill.Type, s.skill.Label, s.skill.Attrs)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSlot(s.slot.Snap, s.slot.Name, s.slot.Type, s.slot.Label, s.slot.Attrs, s.slot.Apps)
+	c.Assert(err, IsNil)
+	// After granting the result is as expected
+	err = s.testRepo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
+	c.Assert(err, IsNil)
+	// NOTE: the return value has pointers to internal structures so we cannot
+	// use s.skill here as it is a different pointer to an identical structure.
+	grants := s.testRepo.GrantedBy(s.skill.Snap)
+	skill := s.testRepo.Skill(s.skill.Snap, s.skill.Name)
+	c.Assert(grants, DeepEquals, map[*Skill][]*Slot{
+		skill: []*Slot{s.slot},
+	})
+	// After revoking the result is empty again
+	err = s.testRepo.Revoke(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
+	c.Assert(err, IsNil)
+	c.Assert(s.testRepo.GrantedBy(s.skill.Snap), HasLen, 0)
 }
