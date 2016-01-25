@@ -31,6 +31,7 @@ type Repository struct {
 	m      sync.Mutex
 	types  []Type
 	skills []*Skill
+	slots  []*Slot
 }
 
 var (
@@ -40,6 +41,10 @@ var (
 	ErrSkillNotFound = errors.New("skill not found")
 	// ErrTypeNotFound is reported when skill type cannot found.
 	ErrTypeNotFound = errors.New("skill type not found")
+	// ErrSlotNotFound is reported when slot cannot be found.
+	ErrSlotNotFound = errors.New("slot not found")
+	// ErrSlotBusy is reported when operation cannot be performed when a slot is occupied.
+	ErrSlotBusy = errors.New("slot is occupied")
 )
 
 // NewRepository creates an empty skill repository.
@@ -182,6 +187,97 @@ func (r *Repository) RemoveSkill(snapName, skillName string) error {
 	return ErrSkillNotFound
 }
 
+// AllSlots returns all skill slots of the given type.
+// If skillType is the empty string, all skill slots are returned.
+func (r *Repository) AllSlots(skillType string) []*Slot {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	var result []*Slot
+	if skillType == "" {
+		result = make([]*Slot, len(r.slots))
+		copy(result, r.slots)
+	} else {
+		result = make([]*Slot, 0)
+		for _, slot := range r.slots {
+			if slot.Type == skillType {
+				result = append(result, slot)
+			}
+		}
+	}
+	return result
+}
+
+// Slots returns the skill slots offered by the named snap.
+func (r *Repository) Slots(snapName string) []*Slot {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	var result []*Slot
+	for _, slot := range r.slots {
+		// NOTE: can be done faster; r.slots is sorted by (Slot.Snap, Slot.Name).
+		if slot.Snap == snapName {
+			result = append(result, slot)
+		}
+	}
+	return result
+}
+
+// Slot returns the specified skill slot from the named snap.
+func (r *Repository) Slot(snapName, slotName string) *Slot {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	return r.unlockedSlot(snapName, slotName)
+}
+
+// AddSlot adds a new slot to the repository.
+// Adding a slot with invalid name returns an error.
+// Adding a slot that has the same name and snap name as another slot returns ErrDuplicate.
+func (r *Repository) AddSlot(snapName, slotName, typeName, label string, attrs map[string]interface{}, apps []string) error {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	// Reject skill with invalid names
+	if err := ValidateName(slotName); err != nil {
+		return err
+	}
+	// TODO: ensure the snap is correct
+	// TODO: ensure that apps are correct
+	if r.unlockedType(typeName) == nil {
+		return ErrTypeNotFound
+	}
+	if i, found := r.unlockedSlotIndex(snapName, slotName); !found {
+		slot := &Slot{
+			Name:  slotName,
+			Snap:  snapName,
+			Type:  typeName,
+			Attrs: attrs,
+			Apps:  apps,
+			Label: label,
+		}
+		// Insert the slot at the right index
+		r.slots = append(r.slots[:i], append([]*Slot{slot}, r.slots[i:]...)...)
+		return nil
+	}
+	return ErrDuplicate
+}
+
+// RemoveSlot removes a named slot from the given snap.
+// Removing a slot that doesn't exist returns ErrSlotNotFound.
+// Removing a slot that uses a skill returns ErrSlotBusy.
+func (r *Repository) RemoveSlot(snapName, slotName string) error {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	if i, found := r.unlockedSlotIndex(snapName, slotName); found {
+		// TODO: return ErrSlotBusy if slot is occupied by at least one capability.
+		r.slots = append(r.slots[:i], r.slots[i+1:]...)
+		return nil
+	}
+	return ErrSlotNotFound
+}
+
 // Private unlocked APIs
 
 func (r *Repository) unlockedType(typeName string) Type {
@@ -205,6 +301,32 @@ func (r *Repository) unlockedSkill(snapName, skillName string) *Skill {
 		return r.skills[i]
 	}
 	return nil
+}
+
+// unlockedSlot returns a slot given snap and slot name.
+func (r *Repository) unlockedSlot(snapName, slotName string) *Slot {
+	i, found := r.unlockedSlotIndex(snapName, slotName)
+	if found {
+		return r.slots[i]
+	}
+	return nil
+}
+
+// unlockedSlotIndex returns the index of a slot given snap and slot name.
+// If the slot is found, the found return value is true. Otherwise the index can
+// be used as a place where the slot should be inserted.
+func (r *Repository) unlockedSlotIndex(snapName, slotName string) (index int, found bool) {
+	// Assumption: r.slots is sorted
+	i := sort.Search(len(r.slots), func(i int) bool {
+		if r.slots[i].Snap != snapName {
+			return r.slots[i].Snap >= snapName
+		}
+		return r.slots[i].Name >= slotName
+	})
+	if i < len(r.slots) && r.slots[i].Snap == snapName && r.slots[i].Name == slotName {
+		return i, true
+	}
+	return i, false
 }
 
 // Support for sort.Interface
