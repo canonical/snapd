@@ -21,8 +21,10 @@
 package tests
 
 import (
-	//	"io/ioutil"
-	//	"path"
+	"fmt"
+	"io/ioutil"
+	"os"
+	"path"
 
 	"github.com/ubuntu-core/snappy/snappy"
 
@@ -42,22 +44,30 @@ type updateOSSuite struct {
 func (s *updateOSSuite) assertBootDirContents(c *check.C) {
 	system, err := partition.BootSystem()
 	c.Assert(err, check.IsNil, check.Commentf("Error getting the boot system: %s", err))
-	// TODO ask mvo about the new style boot dir.
-	//	files, err := ioutil.ReadDir(
-	//		path.Join(partition.BootDir(system), partition.OtherPartition(current)))
-	//	c.Assert(err, check.IsNil, check.Commentf("Error reading the other partition boot dir: %s", err))
-
-	// no filenames to check on amd64 the vmlinuz/initrd comes out of
-	// the squashfs via grub loop mounts
-	expectedFileNames := []string{}
+	snappyKernel, err := partition.SnappyKernel()
+	c.Assert(err, check.IsNil, check.Commentf("Error getting the name of the kernel snap: %s", err))
+	snapBootDir := path.Join(partition.BootDir(system), snappyKernel)
 	if system == "uboot" {
-		expectedFileNames = []string{"dtbs", "initrd.img", "vmlinuz"}
+		s.assertUBootDirContents(c, snapBootDir)
+	} else {
+		// On amd64 the vmlinuz/initrd comes out of the squashfs via grub loop mounts.
+		_, err = os.Stat(snapBootDir)
+		c.Assert(os.IsNotExist(err), check.Equals, true,
+			check.Commentf("%s exists in the grub system", snapBootDir))
 	}
+}
+
+func (s *updateOSSuite) assertUBootDirContents(c *check.C, snapBootDir string) {
+	files, err := ioutil.ReadDir(snapBootDir)
+
+	c.Assert(err, check.IsNil, check.Commentf("Error reading the other partition boot dir: %s", err))
+
+	expectedFileNames := []string{"dtbs", "initrd.img", "vmlinuz"}
 
 	fileNames := []string{}
-	//	for _, f := range files {
-	//	fileNames = append(fileNames, f.Name())
-	//	}
+	for _, f := range files {
+		fileNames = append(fileNames, f.Name())
+	}
 	c.Assert(fileNames, check.DeepEquals, expectedFileNames,
 		check.Commentf("Wrong files in the other partition boot dir"))
 }
@@ -71,7 +81,7 @@ func (s *updateOSSuite) TestUpdateToSameReleaseAndChannel(c *check.C) {
 		updateOutput := updates.CallFakeOSUpdate(c)
 		expected := "(?ms)" +
 			".*" +
-			"^Reboot to use ubuntu-core version .*\\.\n"
+			fmt.Sprintf("^Reboot to use %s version .*\\.\n", partition.OSSnapName(c))
 		c.Assert(updateOutput, check.Matches, expected)
 		s.assertBootDirContents(c)
 		common.Reboot(c)

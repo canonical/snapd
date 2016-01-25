@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -34,6 +34,7 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"github.com/ubuntu-core/snappy/asserts"
 	"github.com/ubuntu-core/snappy/caps"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/lockfile"
@@ -61,6 +62,7 @@ var api = []*Command{
 	operationCmd,
 	capabilitiesCmd,
 	capabilityCmd,
+	assertsCmd,
 }
 
 var (
@@ -137,6 +139,12 @@ var (
 	capabilityCmd = &Command{
 		Path:   "/2.0/capabilities/{name}",
 		DELETE: deleteCapability,
+	}
+
+	// TODO: allow to post assertions for UserOK? they are verified anyway
+	assertsCmd = &Command{
+		Path: "/2.0/assertions",
+		POST: doAssert,
 	}
 )
 
@@ -254,46 +262,69 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 	}
 	defer lock.Unlock()
 
-	sources := make([]string, 1, 2)
-	sources[0] = "local"
-	// we're not worried if the remote repos error out
-	found, _ := newRemoteRepo().All()
-	if len(found) > 0 {
-		sources = append(sources, "store")
-	}
-
-	sort.Sort(byQN(found))
-
-	bags := lightweight.AllPartBags()
-
+	// TODO: Marshal incrementally leveraging json.RawMessage.
 	results := make(map[string]map[string]interface{})
-	for _, part := range found {
-		name := part.Name()
-		origin := part.Origin()
+	sources := make([]string, 0, 2)
+	query := r.URL.Query()
 
-		url, err := route.URL("name", name, "origin", origin)
-		if err != nil {
-			return InternalError("can't get route to details for %s.%s: %v", name, origin, err)
+	var includeStore, includeLocal bool
+	if len(query["sources"]) > 0 {
+		for _, v := range strings.Split(query["sources"][0], ",") {
+			if v == "store" {
+				includeStore = true
+			} else if v == "local" {
+				includeLocal = true
+			}
 		}
-
-		fullname := name + "." + origin
-		qn := snappy.QualifiedName(part)
-		results[fullname] = webify(bags[qn].Map(part), url.String())
-		delete(bags, qn)
+	} else {
+		includeStore = true
+		includeLocal = true
 	}
 
-	for _, v := range bags {
-		m := v.Map(nil)
-		name, _ := m["name"].(string)
-		origin, _ := m["origin"].(string)
+	var bags map[string]*lightweight.PartBag
 
-		resource := "no resource URL for this resource"
-		url, _ := route.URL("name", name, "origin", origin)
-		if url != nil {
-			resource = url.String()
+	if includeLocal {
+		sources = append(sources, "local")
+		bags = lightweight.AllPartBags()
+
+		for _, v := range bags {
+			m := v.Map(nil)
+			name, _ := m["name"].(string)
+			origin, _ := m["origin"].(string)
+
+			resource := "no resource URL for this resource"
+			url, err := route.URL("name", name, "origin", origin)
+			if err == nil {
+				resource = url.String()
+			}
+
+			results[name+"."+origin] = webify(m, resource)
+		}
+	}
+
+	if includeStore {
+		// TODO: If there are no results (local or remote), report the error. If
+		//       there are results at all, inform that the result is partial.
+		found, _ := newRemoteRepo().All()
+		if len(found) > 0 {
+			sources = append(sources, "store")
 		}
 
-		results[name+"."+origin] = webify(m, resource)
+		sort.Sort(byQN(found))
+
+		for _, part := range found {
+			name := part.Name()
+			origin := part.Origin()
+
+			url, err := route.URL("name", name, "origin", origin)
+			if err != nil {
+				return InternalError("can't get route to details for %s.%s: %v", name, origin, err)
+			}
+
+			fullname := name + "." + origin
+			qn := snappy.QualifiedName(part)
+			results[fullname] = webify(bags[qn].Map(part), url.String())
+		}
 	}
 
 	return SyncResponse(map[string]interface{}{
@@ -880,5 +911,25 @@ func deleteCapability(c *Command, r *http.Request) Response {
 		return NotFound("can't find capability %q: %v", name, err)
 	default:
 		return InternalError("can't remove capability %q: %v", name, err)
+	}
+}
+
+func doAssert(c *Command, r *http.Request) Response {
+	b, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return BadRequest("reading assert request body gave %v", err)
+	}
+	a, err := asserts.Decode(b)
+	if err != nil {
+		return BadRequest("can't decode request body into an assertion: %v", err)
+	}
+	if err := c.d.asserts.Add(a); err != nil {
+		// TODO: have a specific error to be able to return  409 for not newer revision?
+		return BadRequest("assert failed: %v", err)
+	}
+	// TODO: what more info do we want to return on success?
+	return &resp{
+		Type:   ResponseTypeSync,
+		Status: http.StatusOK,
 	}
 }
