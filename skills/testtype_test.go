@@ -17,12 +17,14 @@
  *
  */
 
-package skills
+package skills_test
 
 import (
 	"fmt"
 
 	. "gopkg.in/check.v1"
+
+	. "github.com/ubuntu-core/snappy/skills"
 )
 
 type TestTypeSuite struct {
