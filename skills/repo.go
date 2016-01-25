@@ -50,7 +50,7 @@ func (r *Repository) AllTypes() []Type {
 	return append([]Type(nil), r.types...)
 }
 
-// Type returns the type with a given name.
+// Type returns a type with a given name.
 func (r *Repository) Type(typeName string) Type {
 	r.m.Lock()
 	defer r.m.Unlock()
