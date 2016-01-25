@@ -28,7 +28,6 @@ import (
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
-	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/systemd"
@@ -174,6 +173,52 @@ func (s *SnapFile) Frameworks() ([]string, error) {
 	return s.m.Frameworks, nil
 }
 
+type transaction interface {
+	do() error
+	undo() error
+}
+
+type transactionManager struct {
+	all  []transaction
+	done []transaction
+}
+
+func (tm *transactionManager) Add(op transaction) {
+	tm.all = append(tm.all, op)
+}
+
+func (tm *transactionManager) rollback() error {
+	for _, op := range tm.done {
+		op.undo()
+	}
+	return nil
+}
+
+func (tm *transactionManager) Run() error {
+	for _, op := range tm.all {
+		tm.done = append(tm.done, op)
+		if err := op.do(); err != nil {
+			tm.rollback()
+			return fmt.Errorf("transaction failed: %s", err)
+		}
+	}
+
+	return nil
+}
+
+// Op is a single operation that can be done and undone
+type Op struct {
+	doer   func() error
+	undoer func() error
+}
+
+func (o *Op) do() error {
+	return o.doer()
+}
+func (o *Op) undo() error {
+	return o.undoer()
+}
+
 // Install installs the snap
 func (s *SnapFile) Install(inter progress.Meter, flags InstallFlags) (name string, err error) {
 	allowGadget := (flags & AllowGadget) != 0
@@ -205,44 +250,29 @@ func (s *SnapFile) Install(inter progress.Meter, flags InstallFlags) (name strin
 		}
 	}
 
-	if err := os.MkdirAll(s.instdir, 0755); err != nil {
-		logger.Noticef("Can not create %q: %v", s.instdir, err)
-		return "", err
-	}
-
-	// if anything goes wrong here we cleanup
-	defer func() {
-		if err != nil {
-			if e := os.RemoveAll(s.instdir); e != nil && !os.IsNotExist(e) {
-				logger.Noticef("Failed to remove %q: %v", s.instdir, e)
-			}
-		}
-	}()
-
-	// we need to call the external helper so that we can reliable drop
-	// privs
-	if err := s.deb.Install(s.instdir); err != nil {
-		return "", err
-	}
-
-	// generate the mount unit for the squashfs
-	if err := s.m.addSquashfsMount(s.instdir, inhibitHooks, inter); err != nil {
-		return "", err
-	}
-	// if anything goes wrong we ensure we stop
-	defer func() {
-		if err != nil {
-			if e := s.m.removeSquashfsMount(s.instdir, inter); e != nil {
-				logger.Noticef("Failed to remove mount unit for  %s: %s", fullName, e)
-			}
-		}
-	}()
-
-	// FIXME: special handling is bad 'mkay
+	// run
+	tm := &transactionManager{}
+	// create dir
+	tm.Add(&Op{
+		func() error { return os.MkdirAll(s.instdir, 0755) },
+		func() error { return os.RemoveAll(s.instdir) },
+	})
+	// install the snap XXX: how to undo?
+	tm.Add(&Op{
+		func() error { return s.deb.Install(s.instdir) },
+		func() error { return nil },
+	})
+	// add the mount unit
+	tm.Add(&Op{
+		func() error { return s.m.addSquashfsMount(s.instdir, inhibitHooks, inter) },
+		func() error { return s.m.removeSquashfsMount(s.instdir, inter) },
+	})
 	if s.m.Type == snap.TypeKernel {
-		if err := extractKernelAssets(s, inter, flags); err != nil {
-			return "", fmt.Errorf("failed to install kernel %s", err)
-		}
+		assetsDir := ""
+		tm.Add(&Op{
+			func() error { var err error; assetsDir, err = extractKernelAssets(s, inter, flags); return err },
+			func() error { return os.RemoveAll(assetsDir) },
+		})
 	}
 
 	// deal with the data:
@@ -254,33 +284,17 @@ func (s *SnapFile) Install(inter progress.Meter, flags InstallFlags) (name strin
 	// otherwise just create a empty data dir
 	if oldPart != nil {
 		// we need to stop making it active
-		err = oldPart.deactivate(inhibitHooks, inter)
-		defer func() {
-			if err != nil {
-				if cerr := oldPart.activate(inhibitHooks, inter); cerr != nil {
-					logger.Noticef("Setting old version back to active failed: %v", cerr)
-				}
-			}
-		}()
-		if err != nil {
-			return "", err
-		}
-
-		err = copySnapData(fullName, oldPart.Version(), s.Version())
+		tm.Add(&Op{
+			func() error { return oldPart.deactivate(inhibitHooks, inter) },
+			func() error { return oldPart.activate(inhibitHooks, inter) },
+		})
+		// and copy the data
+		tm.Add(&Op{
+			func() error { return copySnapData(fullName, oldPart.Version(), s.Version()) },
+			func() error { return removeSnapData(fullName, s.Version()) },
+		})
 	} else {
 		err = os.MkdirAll(dataDir, 0755)
-	}
-
-	defer func() {
-		if err != nil {
-			if cerr := removeSnapData(fullName, s.Version()); cerr != nil {
-				logger.Noticef("When cleaning up data for %s %s: %v", s.Name(), s.Version(), cerr)
-			}
-		}
-	}()
-
-	if err != nil {
-		return "", err
 	}
 
 	if !inhibitHooks {
@@ -290,72 +304,80 @@ func (s *SnapFile) Install(inter progress.Meter, flags InstallFlags) (name strin
 		}
 
 		// and finally make active
-		err = newPart.activate(inhibitHooks, inter)
-		defer func() {
-			if err != nil && oldPart != nil {
-				if cerr := oldPart.activate(inhibitHooks, inter); cerr != nil {
-					logger.Noticef("When setting old %s version back to active: %v", s.Name(), cerr)
+		tm.Add(&Op{
+			func() error { return newPart.activate(inhibitHooks, inter) },
+			func() error {
+				if oldPart != nil {
+					return oldPart.activate(inhibitHooks, inter)
 				}
-			}
-		}()
-		if err != nil {
-			return "", err
-		}
+				return nil
+			},
+		})
 
 		// oh, one more thing: refresh the security bits
 		deps, err := newPart.Dependents()
 		if err != nil {
 			return "", err
 		}
-
 		sysd := systemd.New(dirs.GlobalRootDir, inter)
 		stopped := make(map[string]time.Duration)
-		defer func() {
-			if err != nil {
+
+		tm.Add(&Op{
+			func() error {
+				for _, dep := range deps {
+					if !dep.IsActive() {
+						continue
+					}
+					for _, svc := range dep.ServiceYamls() {
+						serviceName := filepath.Base(generateServiceFileName(dep.m, svc))
+						timeout := time.Duration(svc.StopTimeout)
+						if err = sysd.Stop(serviceName, timeout); err != nil {
+							inter.Notify(fmt.Sprintf("unable to stop %s; aborting install: %s", serviceName, err))
+							return err
+						}
+						stopped[serviceName] = timeout
+					}
+				}
+				if err := newPart.RefreshDependentsSecurity(oldPart, inter); err != nil {
+					return err
+				}
+				return nil
+			},
+			func() error {
 				for serviceName := range stopped {
 					if e := sysd.Start(serviceName); e != nil {
 						inter.Notify(fmt.Sprintf("unable to restart %s with the old %s: %s", serviceName, s.Name(), e))
 					}
 				}
-			}
-		}()
-
-		for _, dep := range deps {
-			if !dep.IsActive() {
-				continue
-			}
-			for _, svc := range dep.ServiceYamls() {
-				serviceName := filepath.Base(generateServiceFileName(dep.m, svc))
-				timeout := time.Duration(svc.StopTimeout)
-				if err = sysd.Stop(serviceName, timeout); err != nil {
-					inter.Notify(fmt.Sprintf("unable to stop %s; aborting install: %s", serviceName, err))
-					return "", err
-				}
-				stopped[serviceName] = timeout
-			}
-		}
-
-		if err := newPart.RefreshDependentsSecurity(oldPart, inter); err != nil {
-			return "", err
-		}
+				return nil
+			},
+		})
 
 		started := make(map[string]time.Duration)
-		defer func() {
-			if err != nil {
+		tm.Add(&Op{
+			func() error {
+				for serviceName, timeout := range stopped {
+					if err = sysd.Start(serviceName); err != nil {
+						inter.Notify(fmt.Sprintf("unable to restart %s; aborting install: %s", serviceName, err))
+						return err
+					}
+					started[serviceName] = timeout
+				}
+				return nil
+			},
+			func() error {
 				for serviceName, timeout := range started {
 					if e := sysd.Stop(serviceName, timeout); e != nil {
 						inter.Notify(fmt.Sprintf("unable to stop %s with the old %s: %s", serviceName, s.Name(), e))
 					}
 				}
-			}
-		}()
-		for serviceName, timeout := range stopped {
-			if err = sysd.Start(serviceName); err != nil {
-				inter.Notify(fmt.Sprintf("unable to restart %s; aborting install: %s", serviceName, err))
-				return "", err
-			}
-			started[serviceName] = timeout
-		}
+				return nil
+			},
+		})
+	}
+
+	if err := tm.Run(); err != nil {
+		return "", err
 	}
 
 	return s.Name(), nil

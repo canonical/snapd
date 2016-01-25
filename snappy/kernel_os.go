@@ -67,21 +67,21 @@ func removeKernelAssets(s *SnapPart, inter interacter) error {
 // extractKernelAssets extracts kernel/initrd/dtb data from the given
 // SnapPart to a versionized bootloader directory so that the bootloader
 // can use it.
-func extractKernelAssets(s *SnapFile, inter progress.Meter, flags InstallFlags) error {
+func extractKernelAssets(s *SnapFile, inter progress.Meter, flags InstallFlags) (string, error) {
 	if s.m.Type != snap.TypeKernel {
-		return fmt.Errorf("can not extract kernel assets from snap type %q", s.Type())
+		return "", fmt.Errorf("can not extract kernel assets from snap type %q", s.Type())
 	}
 
 	bootloader, err := findBootloader()
 	if err != nil {
-		return fmt.Errorf("can not extract kernel assets: %s", err)
+		return "", fmt.Errorf("can not extract kernel assets: %s", err)
 	}
 
 	// check if we are on a "grub" system. if so, no need to unpack
 	// the kernel
 	if oem, err := getGadget(); err == nil {
 		if oem.Gadget.Hardware.Bootloader == "grub" {
-			return nil
+			return "", nil
 		}
 	}
 
@@ -91,11 +91,11 @@ func extractKernelAssets(s *SnapFile, inter progress.Meter, flags InstallFlags) 
 	blobName := filepath.Base(squashfs.BlobPath(s.instdir))
 	dstDir := filepath.Join(bootloader.Dir(), blobName)
 	if err := os.MkdirAll(dstDir, 0755); err != nil {
-		return err
+		return "", err
 	}
 	dir, err := os.Open(dstDir)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer dir.Close()
 
@@ -104,26 +104,26 @@ func extractKernelAssets(s *SnapFile, inter progress.Meter, flags InstallFlags) 
 			continue
 		}
 		if err := s.deb.Unpack(src, dstDir); err != nil {
-			return err
+			return "", err
 		}
 		src = filepath.Join(dstDir, src)
 		dst := filepath.Join(dstDir, dropVersionSuffix(src))
 		if err := os.Rename(src, dst); err != nil {
-			return err
+			return "", err
 		}
 		if err := dir.Sync(); err != nil {
-			return err
+			return "", err
 		}
 	}
 	if s.m.Dtbs != "" {
 		src := filepath.Join(s.m.Dtbs, "*")
 		dst := dstDir
 		if err := s.deb.Unpack(src, dst); err != nil {
-			return err
+			return "", err
 		}
 	}
 
-	return dir.Sync()
+	return dir.Name(), dir.Sync()
 }
 
 // setNextBoot will schedule the given os or kernel snap to be used in
