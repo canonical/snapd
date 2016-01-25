@@ -392,9 +392,15 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapNoUnpacksKernelForGrub(c *C) {
 func (s *SquashfsTestSuite) TestInstallFailUnmountsSnap(c *C) {
 	snapPkg := makeTestSnapPackage(c, `name: hello
 version: 1.10
-binaries:
- - name: some-binary
-   security-template: not-there
+apps:
+ some-binary:
+  command: some-binary
+  uses: [some-binary]
+
+uses:
+ some-binary:
+  type: migration-skill
+  security-template: not-there
 `)
 	part, err := NewSnapFile(snapPkg, "origin", true)
 	c.Assert(err, IsNil)
