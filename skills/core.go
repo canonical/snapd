@@ -73,6 +73,6 @@ const (
 )
 
 var (
-	// ErrUnknownSecurity is reported when an unknown security system is encountered.
+	// ErrUnknownSecurity is reported when a skill type is unable to deal with a given security system.
 	ErrUnknownSecurity = errors.New("unknown security system")
 )
