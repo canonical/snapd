@@ -25,23 +25,24 @@ import (
 )
 
 type memoryBackstore struct {
-	top memBSLevel
+	top memBSNode
 	mu  sync.RWMutex
 }
 
-type memBSLevel map[string]interface{}
+// TODO: a bit more clarity with interface and different memBSBranch vs memBSLeaf?
+type memBSNode map[string]interface{}
 
-func (lev memBSLevel) put(key []string, assert Assertion) error {
+func (node memBSNode) put(key []string, assert Assertion) error {
 	key0 := key[0]
 	if len(key) > 1 {
-		down, ok := lev[key0].(memBSLevel)
+		down, ok := node[key0].(memBSNode)
 		if !ok {
-			down = make(memBSLevel)
-			lev[key0] = down
+			down = make(memBSNode)
+			node[key0] = down
 		}
 		return down.put(key[1:], assert)
 	}
-	cur, ok := lev[key0].(Assertion)
+	cur, ok := node[key0].(Assertion)
 	if ok {
 		rev := assert.Revision()
 		curRev := cur.Revision()
@@ -49,37 +50,37 @@ func (lev memBSLevel) put(key []string, assert Assertion) error {
 			return fmt.Errorf("assertion added must have more recent revision than current one (adding %d, currently %d)", rev, curRev)
 		}
 	}
-	lev[key0] = assert
+	node[key0] = assert
 	return nil
 }
 
-func (lev memBSLevel) get(key []string) (Assertion, error) {
+func (node memBSNode) get(key []string) (Assertion, error) {
 	key0 := key[0]
 	if len(key) > 1 {
-		down, ok := lev[key0].(memBSLevel)
+		down, ok := node[key0].(memBSNode)
 		if !ok {
 			return nil, ErrNotFound
 		}
 		return down.get(key[1:])
 	}
 
-	cur, ok := lev[key0].(Assertion)
+	cur, ok := node[key0].(Assertion)
 	if !ok {
 		return nil, ErrNotFound
 	}
 	return cur, nil
 }
 
-func (lev memBSLevel) search(hint []string, found func(Assertion)) {
+func (node memBSNode) search(hint []string, found func(Assertion)) {
 	hint0 := hint[0]
 	if len(hint) > 1 {
 		if hint0 == "" {
-			for _, down := range lev {
-				down.(memBSLevel).search(hint[1:], found)
+			for _, down := range node {
+				down.(memBSNode).search(hint[1:], found)
 			}
 			return
 		}
-		down, ok := lev[hint0].(memBSLevel)
+		down, ok := node[hint0].(memBSNode)
 		if ok {
 			down.search(hint[1:], found)
 		}
@@ -87,13 +88,13 @@ func (lev memBSLevel) search(hint []string, found func(Assertion)) {
 	}
 
 	if hint0 == "" {
-		for _, a := range lev {
+		for _, a := range node {
 			found(a.(Assertion))
 		}
 		return
 	}
 
-	cur, ok := lev[hint0].(Assertion)
+	cur, ok := node[hint0].(Assertion)
 	if ok {
 		found(cur)
 	}
@@ -102,7 +103,7 @@ func (lev memBSLevel) search(hint []string, found func(Assertion)) {
 // NewMemoryBackstore creates a memory backed assertions backstore.
 func NewMemoryBackstore() Backstore {
 	return &memoryBackstore{
-		top: make(memBSLevel),
+		top: make(memBSNode),
 	}
 }
 
