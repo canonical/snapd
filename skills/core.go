@@ -49,7 +49,7 @@ var validName = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
 func ValidateName(name string) error {
 	valid := validName.MatchString(name)
 	if !valid {
-		return fmt.Errorf("%q is not a valid skill name", name)
+		return fmt.Errorf("invalid skill name: %q", name)
 	}
 	return nil
 }
