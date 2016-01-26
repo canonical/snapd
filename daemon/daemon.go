@@ -37,6 +37,7 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/skills"
 )
 
 // A Daemon listens for requests and routes them to the right command
@@ -47,6 +48,7 @@ type Daemon struct {
 	tomb         tomb.Tomb
 	router       *mux.Router
 	capRepo      *caps.Repository
+	skills       *skills.Repository
 	asserts      *asserts.Database
 }
 
@@ -258,14 +260,20 @@ func New() *Daemon {
 	if err != nil {
 		panic(err.Error())
 	}
-	repo := caps.NewRepository()
-	err = caps.LoadBuiltInTypes(repo)
+	capRepo := caps.NewRepository()
+	err = caps.LoadBuiltInTypes(capRepo)
+	if err != nil {
+		panic(err.Error())
+	}
+	skillRepo := skills.NewRepository()
+	err = skills.LoadBuiltInTypes(skillRepo)
 	if err != nil {
 		panic(err.Error())
 	}
 	return &Daemon{
 		tasks:   make(map[string]*Task),
-		capRepo: repo,
+		capRepo: capRepo,
+		skills:  skillRepo,
 		asserts: db,
 	}
 }
