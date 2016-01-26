@@ -45,7 +45,7 @@ func (t *TestType) Name() string {
 // Sanitize checks and possibly modifies a skill.
 func (t *TestType) Sanitize(skill *Skill) error {
 	if t.Name() != skill.Type {
-		return fmt.Errorf("skill is not of type %q", t)
+		panic(fmt.Sprintf("skill is not of type %q", t))
 	}
 	if t.SanitizeCallback != nil {
 		return t.SanitizeCallback(skill)
