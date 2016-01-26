@@ -180,7 +180,7 @@ func (s *RepositorySuite) TestAddSkillFailsWithUnknownType(c *C) {
 func (s *RepositorySuite) TestAddSkillFailsWithUnsanitizedSkill(c *C) {
 	dirty := &TestType{
 		TypeName: "dirty",
-		SanitizeCallback: func(skill *Skill) error {
+		SanitizeSkillCallback: func(skill *Skill) error {
 			return fmt.Errorf("skill is dirty")
 		},
 	}

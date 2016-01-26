@@ -170,7 +170,7 @@ func (r *Repository) AddSkill(snapName, skillName, typeName, label string, attrs
 		Apps:  apps,
 	}
 	// Reject skill that don't pass type-specific sanitization
-	if err := t.Sanitize(skill); err != nil {
+	if err := t.SanitizeSkill(skill); err != nil {
 		return err
 	}
 	if i, found := r.unlockedSkillIndex(snapName, skillName); !found {
