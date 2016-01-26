@@ -1,3 +1,9 @@
+ubuntu-core-launcher (1.0.15) xenial; urgency=medium
+
+  * fully transition to /snaps as the snap location
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 26 Jan 2016 16:06:10 +0100
+
 ubuntu-core-launcher (1.0.15~ppa1) xenial; urgency=medium
 
   * allow /snaps as a launcher location

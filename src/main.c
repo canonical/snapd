@@ -266,7 +266,7 @@ void setup_snappy_os_mounts() {
 
    // FIXME: hardcoded "ubuntu-core.*"
    glob_t glob_res;
-   if (glob("/apps/ubuntu-core*/current/", 0, NULL, &glob_res) != 0) {
+   if (glob("/snaps/ubuntu-core*/current/", 0, NULL, &glob_res) != 0) {
       die("can not find a snappy os");
    }
    if ((glob_res.gl_pathc =! 1)) {
@@ -334,14 +334,10 @@ int main(int argc, char **argv)
 
    if(geteuid() == 0) {
        // verify binary path
-       char apps_prefix[128];
        char snaps_prefix[128];
-       must_snprintf(apps_prefix, sizeof(apps_prefix), "/apps/%s/", appname);
        must_snprintf(snaps_prefix, sizeof(snaps_prefix), "/snaps/%s/", appname);
-       if (strstr(binary, apps_prefix) != binary &&
-               strstr(binary, snaps_prefix) != binary)
-          die("binary must be inside /apps/%s/, or /snaps/%s/",
-                  appname, appname);
+       if (strstr(binary, snaps_prefix) != binary)
+          die("binary must be inside /snaps/%s/", appname);
 
        // ensure we run in our own slave mount namespace, this will
        // create a new mount namespace and make it a slave of "/"

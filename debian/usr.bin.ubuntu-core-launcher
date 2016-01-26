@@ -72,11 +72,11 @@
 
     # for running snaps on ubuntu
     mount options=(rw rslave) -> /,
-    /apps/ r,   
-    /apps/** r,
-    mount options=(rw bind) /apps/ubuntu-core*/*/bin/ -> /bin/,
-    mount options=(rw bind) /apps/ubuntu-core*/*/sbin/ -> /sbin/,
-    mount options=(rw bind) /apps/ubuntu-core*/*/lib/ -> /lib/,
-    mount options=(rw bind) /apps/ubuntu-core*/*/lib64/ -> /lib64/,
-    mount options=(rw bind) /apps/ubuntu-core*/*/usr/ -> /usr/,    
+    /snaps/ r,   
+    /snaps/** r,
+    mount options=(rw bind) /snaps/ubuntu-core*/*/bin/ -> /bin/,
+    mount options=(rw bind) /snaps/ubuntu-core*/*/sbin/ -> /sbin/,
+    mount options=(rw bind) /snaps/ubuntu-core*/*/lib/ -> /lib/,
+    mount options=(rw bind) /snaps/ubuntu-core*/*/lib64/ -> /lib64/,
+    mount options=(rw bind) /snaps/ubuntu-core*/*/usr/ -> /usr/,    
 }
