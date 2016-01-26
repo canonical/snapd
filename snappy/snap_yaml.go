@@ -59,14 +59,11 @@ type AppYaml struct {
 	// name is partent key
 	Name string
 	// part of the yaml
-	Version  string   `yaml:"version"`
-	Command  string   `yaml:"command"`
-	Provides []string `yaml:"provides"`
-	Consumes []string `yaml:"consumes"`
-	Daemon   string   `yaml:"daemon"`
+	Version string `yaml:"version"`
+	Command string `yaml:"command"`
+	Daemon  string `yaml:"daemon"`
 
-	Description string `yaml:"description,omitempty" json:"description,omitempty"`
-
+	Description string          `yaml:"description,omitempty" json:"description,omitempty"`
 	Stop        string          `yaml:"stop,omitempty"`
 	PostStop    string          `yaml:"poststop,omitempty"`
 	StopTimeout timeout.Timeout `yaml:"stop-timeout,omitempty"`
@@ -86,7 +83,8 @@ type AppYaml struct {
 	// must be a pointer so that it can be "nil" and omitempty works
 	Ports *Ports `yaml:"ports,omitempty" json:"ports,omitempty"`
 
-	UsesRef []string `yaml:"uses"`
+	OffersRef []string `yaml:"offers"`
+	UsesRef   []string `yaml:"uses"`
 }
 
 type usesYaml struct {
