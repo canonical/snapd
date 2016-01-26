@@ -24,6 +24,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/partition"
+	"github.com/ubuntu-core/snappy/snappy"
 )
 
 type cmdBooted struct {
@@ -49,5 +50,9 @@ func (x *cmdBooted) doBooted() error {
 		return fmt.Errorf("can not mark boot successful: %s", err)
 	}
 
-	return partition.MarkBootSuccessful(bootloader)
+	if err := partition.MarkBootSuccessful(bootloader); err != nil {
+		return err
+	}
+
+	return snappy.SyncBoot()
 }

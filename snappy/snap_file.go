@@ -229,6 +229,14 @@ func (s *SnapFile) Install(inter progress.Meter, flags InstallFlags) (name strin
 	if err := s.m.addSquashfsMount(s.instdir, inhibitHooks, inter); err != nil {
 		return "", err
 	}
+	// if anything goes wrong we ensure we stop
+	defer func() {
+		if err != nil {
+			if e := s.m.removeSquashfsMount(s.instdir, inter); e != nil {
+				logger.Noticef("Failed to remove mount unit for  %s: %s", fullName, e)
+			}
+		}
+	}()
 
 	// FIXME: special handling is bad 'mkay
 	if s.m.Type == snap.TypeKernel {

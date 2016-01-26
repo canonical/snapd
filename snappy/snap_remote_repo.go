@@ -270,10 +270,11 @@ func (s *SnapUbuntuStoreRepository) All() ([]Part, error) {
 
 // Search searches the repository for the given searchTerm
 func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (SharedNames, error) {
-	q := s.searchURI.Query()
+	u := *s.searchURI // make a copy, so we can mutate it
+	q := u.Query()
 	q.Set("q", searchTerm)
-	s.searchURI.RawQuery = q.Encode()
-	req, err := http.NewRequest("GET", s.searchURI.String(), nil)
+	u.RawQuery = q.Encode()
+	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
 		return nil, err
 	}

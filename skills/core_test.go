@@ -38,7 +38,7 @@ var _ = Suite(&CoreSuite{})
 func (s *CoreSuite) TestValidateName(c *C) {
 	validNames := []string{
 		"a", "aa", "aaa", "aaaa",
-		"a-a", "aa-a", "a-aa",
+		"a-a", "aa-a", "a-aa", "a-b-c",
 		"a0", "a-0", "a-0a",
 	}
 	for _, name := range validNames {
@@ -50,6 +50,8 @@ func (s *CoreSuite) TestValidateName(c *C) {
 		"",
 		// dashes alone are not a name
 		"-", "--",
+		// double dashes in a name are not allowed
+		"a--a",
 		// name should not end with a dash
 		"a-",
 		// name cannot have any spaces in it
@@ -61,6 +63,6 @@ func (s *CoreSuite) TestValidateName(c *C) {
 	}
 	for _, name := range invalidNames {
 		err := ValidateName(name)
-		c.Assert(err, ErrorMatches, `".*" is not a valid skill or slot name`)
+		c.Assert(err, ErrorMatches, `invalid skill name: ".*"`)
 	}
 }

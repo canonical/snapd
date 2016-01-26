@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -31,7 +32,10 @@ import (
 	"github.com/gorilla/mux"
 	"gopkg.in/tomb.v2"
 
+	"github.com/ubuntu-core/snappy/asserts"
 	"github.com/ubuntu-core/snappy/caps"
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
 )
 
@@ -43,6 +47,7 @@ type Daemon struct {
 	tomb         tomb.Tomb
 	router       *mux.Router
 	capRepo      *caps.Repository
+	asserts      *asserts.Database
 }
 
 // A ResponseFunc handles one of the individual verbs for a method
@@ -237,15 +242,30 @@ func (d *Daemon) DeleteTask(uuid string) error {
 	return errTaskStillRunning
 }
 
+func getTrustedAccountKey() string {
+	if !helpers.FileExists(dirs.SnapTrustedAccountKey) {
+		// XXX: allow this fallback here for integration tests,
+		// until we have a proper trusted public key shared
+		// with the store
+		return os.Getenv("SNAPPY_TRUSTED_ACCOUNT_KEY")
+	}
+	return dirs.SnapTrustedAccountKey
+}
+
 // New Daemon
 func New() *Daemon {
+	db, err := asserts.OpenSysDatabase(getTrustedAccountKey())
+	if err != nil {
+		panic(err.Error())
+	}
 	repo := caps.NewRepository()
-	err := caps.LoadBuiltInTypes(repo)
+	err = caps.LoadBuiltInTypes(repo)
 	if err != nil {
 		panic(err.Error())
 	}
 	return &Daemon{
 		tasks:   make(map[string]*Task),
 		capRepo: repo,
+		asserts: db,
 	}
 }

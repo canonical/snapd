@@ -251,6 +251,12 @@ Can be set to either `local` (to only list
 local snaps) or `store` (to only list snaps from the store), or a
 comma-separated combination. Defaults to `local,store`.
 
+#### `types`
+
+Restricts returned snaps to those with types included in the specified
+comma-separated list. See the description of the `type` field of `snaps` in the
+above section for possible values.
+
 #### `page`
 
 request the given page when the server is paginating the
@@ -650,3 +656,18 @@ Sample result:
 * Description: Remove a capability from the system
 * Access: trusted
 * Operation: sync
+
+## /2.0/assertions
+
+### POST
+
+* Description: Tries to add an assertion to the system assertion database.
+* Authorization: trusted
+* Operation: sync
+
+The body of the request provides the assertion to add. The assertion
+may also be a newer revision of a preexisting assertion that it will replace.
+
+To succeed the assertion must be valid, its signature verified with a
+known public key and the assertion consistent with and its
+prerequisite in the database.
