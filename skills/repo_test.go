@@ -614,12 +614,12 @@ func (s *RepositorySuite) TestGrantedToReturnsCorrectData(c *C) {
 
 func (s *RepositorySuite) TestGrantedByReturnsNothingForUnknownSnaps(c *C) {
 	// Asking about unknown snaps just returns an empty map
-	c.Assert(s.testRepo.GrantedTo("unknown"), HasLen, 0)
+	c.Assert(s.testRepo.GrantedBy("unknown"), HasLen, 0)
 }
 
 func (s *RepositorySuite) TestGrantedByReturnsNothingForEmptyString(c *C) {
 	// Asking about the empty string just returns an empty map
-	c.Assert(s.testRepo.GrantedTo(""), HasLen, 0)
+	c.Assert(s.testRepo.GrantedBy(""), HasLen, 0)
 }
 
 func (s *RepositorySuite) TestGrantedByReturnsCorrectData(c *C) {
