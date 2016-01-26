@@ -28,6 +28,7 @@ import (
 	"strings"
 
 	"github.com/mvo5/uboot-go/uenv"
+	"gopkg.in/check.v1"
 )
 
 const (
@@ -72,6 +73,25 @@ func BootDir(bootSystem string) string {
 // Mode returns the current bootloader mode, regular or try.
 func Mode() (mode string, err error) {
 	return confValue("snappy_mode")
+}
+
+// OSSnapName returns the name of the OS snap.
+func OSSnapName(c *check.C) string {
+	snappyOS, err := snappyOS()
+	c.Assert(err, check.IsNil, check.Commentf("Error getting the name of the OS snap: %s", err))
+	return strings.Split(snappyOS, ".")[0]
+}
+
+// snappyOS returns the name of the OS snap in the form name.origin_version.snap
+// This is a workaround for https://bugs.launchpad.net/snappy/+bug/1532245
+func snappyOS() (string, error) {
+	return confValue("snappy_os")
+}
+
+// SnappyKernel returns the name of the Kernel snap in the form name.origin_version.snap
+// This is a workaround for https://bugs.launchpad.net/snappy/+bug/1532245
+func SnappyKernel() (string, error) {
+	return confValue("snappy_kernel")
 }
 
 func getConfValue(key string) (string, error) {

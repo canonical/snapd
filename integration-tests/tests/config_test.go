@@ -2,7 +2,7 @@
 // +build !excludeintegration
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015, 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -27,6 +27,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/partition"
 
 	"gopkg.in/check.v1"
 )
@@ -35,12 +36,14 @@ var _ = check.Suite(&configSuite{})
 
 type configSuite struct {
 	common.SnappySuite
+	osSnap     string
 	backConfig string
 }
 
 func (s *configSuite) SetUpTest(c *check.C) {
 	s.SnappySuite.SetUpTest(c)
-	s.backConfig = currentConfig(c)
+	s.osSnap = partition.OSSnapName(c)
+	s.backConfig = currentConfig(c, s.osSnap)
 }
 
 func (s *configSuite) TearDownTest(c *check.C) {
@@ -80,7 +83,7 @@ func (s *configSuite) doTest(c *check.C, targetCfg string) {
 	err := s.setConfig(c, config)
 	c.Assert(err, check.IsNil, check.Commentf("Error setting config: %s", err))
 
-	actualConfig := currentConfig(c)
+	actualConfig := currentConfig(c, s.osSnap)
 
 	// we admit any characters after a new line, this is needed because the reuse
 	// of the config yaml string in the regex pattern, after setting a configuration
@@ -99,13 +102,13 @@ func (s *configSuite) setConfig(c *check.C, config string) (err error) {
 	}
 	_, err = configFile.Write([]byte(config))
 
-	cli.ExecCommand(c, "sudo", "snappy", "config", "ubuntu-core", configFile.Name())
+	cli.ExecCommand(c, "sudo", "snappy", "config", s.osSnap, configFile.Name())
 
 	return
 }
 
-func currentConfig(c *check.C) string {
-	return cli.ExecCommand(c, "sudo", "snappy", "config", "ubuntu-core")
+func currentConfig(c *check.C, osSnap string) string {
+	return cli.ExecCommand(c, "sudo", "snappy", "config", osSnap)
 }
 
 func configString(cfg string) string {

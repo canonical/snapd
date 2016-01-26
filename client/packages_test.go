@@ -21,6 +21,7 @@ package client_test
 
 import (
 	"fmt"
+	"net/url"
 
 	"gopkg.in/check.v1"
 
@@ -88,6 +89,26 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 			Version:       "1.0.18",
 		},
 	})
+}
+
+func (cs *clientSuite) TestClientFilterSnaps(c *check.C) {
+	filterTests := []struct {
+		filter client.SnapFilter
+		path   string
+	}{
+		{client.SnapFilter{}, "/2.0/snaps"},
+		{client.SnapFilter{Sources: []string{"local"}}, "/2.0/snaps?sources=local"},
+		{client.SnapFilter{Sources: []string{"store"}}, "/2.0/snaps?sources=store"},
+		{client.SnapFilter{Sources: []string{"local", "store"}}, "/2.0/snaps?sources=local,store"},
+	}
+
+	for _, tt := range filterTests {
+		_, _ = cs.cli.FilterSnaps(tt.filter)
+		// query string parameters will be URL encoded
+		path, err := url.QueryUnescape(cs.req.URL.Path)
+		c.Assert(err, check.IsNil)
+		c.Assert(path, check.Equals, tt.path)
+	}
 }
 
 const (

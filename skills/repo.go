@@ -34,12 +34,14 @@ type Repository struct {
 }
 
 var (
-	// ErrDuplicate is reported when type, skill or slot already exist.
-	ErrDuplicate = errors.New("duplicate found")
-	// ErrSkillNotFound is reported when skill cannot be looked up.
-	ErrSkillNotFound = errors.New("skill not found")
 	// ErrTypeNotFound is reported when skill type cannot found.
 	ErrTypeNotFound = errors.New("skill type not found")
+	// ErrDuplicateType is reported when type with duplicate name is being added to a repository.
+	ErrDuplicateType = errors.New("duplicate type name")
+	// ErrSkillNotFound is reported when skill cannot be looked up.
+	ErrSkillNotFound = errors.New("skill not found")
+	// ErrDuplicateSkill is reported when skill with duplicate name is being added to a repository.
+	ErrDuplicateSkill = errors.New("duplicate skill name")
 )
 
 // NewRepository creates an empty skill repository.
@@ -47,17 +49,15 @@ func NewRepository() *Repository {
 	return &Repository{}
 }
 
-// AllTypes returns all skill types.
+// AllTypes returns all skill types known to the repository.
 func (r *Repository) AllTypes() []Type {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	types := make([]Type, len(r.types))
-	copy(types, r.types)
-	return types
+	return append([]Type(nil), r.types...)
 }
 
-// Type returns the type with a given name.
+// Type returns a type with a given name.
 func (r *Repository) Type(typeName string) Type {
 	r.m.Lock()
 	defer r.m.Unlock()
@@ -65,8 +65,7 @@ func (r *Repository) Type(typeName string) Type {
 	return r.unlockedType(typeName)
 }
 
-// AddType adds a skill type to the repository.
-// NOTE: API exception, Type is an interface, so it cannot use simple types as arguments.
+// AddType adds the provided skill type to the repository.
 func (r *Repository) AddType(t Type) error {
 	r.m.Lock()
 	defer r.m.Unlock()
@@ -79,7 +78,7 @@ func (r *Repository) AddType(t Type) error {
 		r.types = append(r.types[:i], append([]Type{t}, r.types[i:]...)...)
 		return nil
 	}
-	return ErrDuplicate
+	return ErrDuplicateType
 }
 
 // AllSkills returns all skills of the given type.
@@ -159,7 +158,7 @@ func (r *Repository) AddSkill(snapName, skillName, typeName, label string, attrs
 		r.skills = append(r.skills[:i], append([]*Skill{skill}, r.skills[i:]...)...)
 		return nil
 	}
-	return ErrDuplicate
+	return ErrDuplicateSkill
 }
 
 // RemoveSkill removes the named skill provided by a given snap.

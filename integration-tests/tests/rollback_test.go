@@ -25,6 +25,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/partition"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/updates"
 
 	"gopkg.in/check.v1"
@@ -47,7 +48,7 @@ func (s *rollbackSuite) TestRollbackMustRebootToOtherVersion(c *check.C) {
 		currentVersion := common.GetCurrentUbuntuCoreVersion(c)
 		c.Assert(snappy.VersionCompare(currentVersion, common.GetSavedVersion(c)), check.Equals, -1,
 			check.Commentf("Rebooted to the wrong version: %s", currentVersion))
-		cli.ExecCommand(c, "sudo", "snappy", "rollback", "ubuntu-core",
+		cli.ExecCommand(c, "sudo", "snappy", "rollback", partition.OSSnapName(c),
 			common.GetSavedVersion(c))
 		common.RebootWithMark(c, c.TestName()+"-rollback")
 	} else if common.CheckRebootMark(c.TestName() + "-rollback") {
