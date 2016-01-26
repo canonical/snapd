@@ -649,3 +649,34 @@ func (s *RepositorySuite) TestLoadBuiltInTypes(c *C) {
 	err := LoadBuiltInTypes(s.emptyRepo)
 	c.Assert(err, IsNil)
 }
+
+// Tests for Repository.UsersOf()
+
+func (s *RepositorySuite) TestUsersOfReturnsNothingForUnknownSkills(c *C) {
+	// Asking about unknown snaps just returns an empty list
+	c.Assert(s.testRepo.UsersOf("unknown", "unknown"), HasLen, 0)
+}
+
+func (s *RepositorySuite) TestUsersOfReturnsNothingForEmptyString(c *C) {
+	// Asking about the empty string just returns an empty list
+	c.Assert(s.testRepo.UsersOf("", ""), HasLen, 0)
+}
+
+func (s *RepositorySuite) TestUsersOfReturnsCorrectData(c *C) {
+	err := s.testRepo.AddSkill(s.skill.Snap, s.skill.Name, s.skill.Type, s.skill.Label, s.skill.Attrs, s.skill.Apps)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSlot(s.slot.Snap, s.slot.Name, s.slot.Type, s.slot.Label, s.slot.Attrs, s.slot.Apps)
+	c.Assert(err, IsNil)
+	// After granting the result is as expected
+	err = s.testRepo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
+	c.Assert(err, IsNil)
+	// NOTE: the return value has pointers to internal structures so we cannot
+	// use s.slot here as it is a different pointer to an identical structure.
+	users := s.testRepo.UsersOf(s.skill.Snap, s.skill.Name)
+	slot := s.testRepo.Slot(s.slot.Snap, s.slot.Name)
+	c.Assert(users, DeepEquals, []*Slot{slot})
+	// After revoking the result is empty again
+	err = s.testRepo.Revoke(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
+	c.Assert(err, IsNil)
+	c.Assert(s.testRepo.UsersOf(s.skill.Snap, s.skill.Name), HasLen, 0)
+}

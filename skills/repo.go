@@ -397,6 +397,22 @@ func (r *Repository) GrantedBy(snapName string) map[*Skill][]*Slot {
 	return result
 }
 
+// UsersOf returns all of the slots using a given skill.
+func (r *Repository) UsersOf(snapName, skillName string) []*Slot {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	var result []*Slot
+	for slot, skills := range r.grants {
+		for _, skill := range skills {
+			if skill.Snap == snapName && skill.Name == skillName {
+				result = append(result, slot)
+			}
+		}
+	}
+	return result
+}
+
 // Private unlocked APIs
 
 func (r *Repository) unlockedType(typeName string) Type {
