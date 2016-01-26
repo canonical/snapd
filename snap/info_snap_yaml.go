@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -24,8 +24,8 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-// InfoFromPackageYaml creates a new info based on the given packageYaml
-func InfoFromPackageYaml(yamlData []byte) (*Info, error) {
+// InfoFromSnapYaml creates a new info based on the given snap.yaml data
+func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	var s Info
 	err := yaml.Unmarshal(yamlData, &s)
 	if err != nil {

@@ -132,7 +132,7 @@ func (s *Snap) Info() (*snap.Info, error) {
 		return nil, fmt.Errorf("info failed for %s: %s", s.path, err)
 	}
 
-	return snap.InfoFromPackageYaml(snapYaml)
+	return snap.InfoFromSnapYaml(snapYaml)
 }
 
 // HashDigest computes a hash digest of the snap file using the given hash.

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -28,25 +28,25 @@ import (
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-type InfoPackageYamlTestSuite struct {
+type InfoSnapYamlTestSuite struct {
 }
 
-var _ = Suite(&InfoPackageYamlTestSuite{})
+var _ = Suite(&InfoSnapYamlTestSuite{})
 
 var mockYaml = []byte(`name: foo
 version: 1.0
 type: app
 `)
 
-func (s *InfoPackageYamlTestSuite) TestSimple(c *C) {
-	info, err := InfoFromPackageYaml(mockYaml)
+func (s *InfoSnapYamlTestSuite) TestSimple(c *C) {
+	info, err := InfoFromSnapYaml(mockYaml)
 	c.Assert(err, IsNil)
 	c.Assert(info.Name, Equals, "foo")
 	c.Assert(info.Version, Equals, "1.0")
 	c.Assert(info.Type, Equals, TypeApp)
 }
 
-func (s *InfoPackageYamlTestSuite) TestFail(c *C) {
-	_, err := InfoFromPackageYaml([]byte("random-crap"))
+func (s *InfoSnapYamlTestSuite) TestFail(c *C) {
+	_, err := InfoFromSnapYaml([]byte("random-crap"))
 	c.Assert(err, ErrorMatches, "(?m)info failed to parse:.*")
 }
