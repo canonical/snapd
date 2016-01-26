@@ -45,17 +45,16 @@ type Slot struct {
 	Label string
 }
 
-// SecuritySystem is a name of a security system.
-type SecuritySystem string
-
 // Type describes a group of interchangeable capabilities with common features.
 // Types are managed centrally and act as a contract between system builders,
 // application developers and end users.
 type Type interface {
 	// Unique and public name of this type.
 	Name() string
+
 	// Sanitize checks if a skill is correct, altering if necessary.
 	Sanitize(skill *Skill) error
+
 	// SecuritySnippet returns the configuration snippet that should be used by
 	// the given security system to enable this skill to be consumed.
 	// An empty snippet is returned when the skill doesn't require anything
@@ -64,6 +63,9 @@ type Type interface {
 	// requested security system.
 	SecuritySnippet(skill *Skill, securitySystem SecuritySystem) ([]byte, error)
 }
+
+// SecuritySystem is a name of a security system.
+type SecuritySystem string
 
 const (
 	// SecurityApparmor identifies the apparmor security system.
@@ -75,18 +77,18 @@ const (
 )
 
 var (
-	// ErrUnknownSecurity is reported when an unknown security system is encountered.
+	// ErrUnknownSecurity is reported when a skill type is unable to deal with a given security system.
 	ErrUnknownSecurity = errors.New("unknown security system")
 )
 
 // Regular expression describing correct identifiers.
-var validName = regexp.MustCompile("^[a-z](:?[a-z0-9-]*[a-z0-9])?$")
+var validName = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
 
 // ValidateName checks if a string can be used as a skill or slot name.
 func ValidateName(name string) error {
 	valid := validName.MatchString(name)
 	if !valid {
-		return fmt.Errorf("%q is not a valid skill or slot name", name)
+		return fmt.Errorf("invalid skill name: %q", name)
 	}
 	return nil
 }

@@ -51,10 +51,12 @@ var (
 	// integration-tests/test-wrapper script (Test-Command's entry point of
 	// adt-run) takes care of including testsBinDir at the beginning of $PATH, so
 	// that these binaries (if they exist) take precedence over the system ones
-	buildSnappyCliCmd = "go build -tags=excludeintegration -o " +
+	buildSnappyCliCmd = "go build -o " +
 		filepath.Join(testsBinDir, "snappy") + " ." + string(os.PathSeparator) + filepath.Join("cmd", "snappy")
-	buildSnapdCmd = "go build -tags=excludeintegration -o " +
+	buildSnapdCmd = "go build -o " +
 		filepath.Join(testsBinDir, "snapd") + " ." + string(os.PathSeparator) + filepath.Join("cmd", "snapd")
+	buildSnapCliCmd = "go build -o " +
+		filepath.Join(testsBinDir, "snap") + " ." + string(os.PathSeparator) + filepath.Join("cmd", "snap")
 )
 
 // Config comprises the parameters for the Assets function
@@ -76,6 +78,7 @@ func Assets(cfg *Config) {
 		// installed. --elopio - 2015-06-25.
 		buildSnappyCLI(cfg.Arch)
 		buildSnapd(cfg.Arch)
+		buildSnapCLI(cfg.Arch)
 	}
 	buildTests(cfg.Arch, cfg.TestBuildTags)
 }
@@ -88,6 +91,11 @@ func buildSnappyCLI(arch string) {
 func buildSnapd(arch string) {
 	fmt.Println("Building snapd...")
 	goCall(arch, buildSnapdCmd)
+}
+
+func buildSnapCLI(arch string) {
+	fmt.Println("Building snap...")
+	goCall(arch, buildSnapCliCmd)
 }
 
 func buildTests(arch, testBuildTags string) {

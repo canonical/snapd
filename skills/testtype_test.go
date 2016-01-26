@@ -17,12 +17,14 @@
  *
  */
 
-package skills
+package skills_test
 
 import (
 	"fmt"
 
 	. "gopkg.in/check.v1"
+
+	. "github.com/ubuntu-core/snappy/skills"
 )
 
 type TestTypeSuite struct {
@@ -67,8 +69,7 @@ func (s *TestTypeSuite) TestSanitizeWrongType(c *C) {
 	skill := &Skill{
 		Type: "other-type",
 	}
-	err := s.t.Sanitize(skill)
-	c.Assert(err, ErrorMatches, "skill is not of type \"test\"")
+	c.Assert(func() { s.t.Sanitize(skill) }, Panics, "skill is not of type \"test\"")
 }
 
 // TestType hands out empty security snippets

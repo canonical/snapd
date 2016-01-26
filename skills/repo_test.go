@@ -17,12 +17,14 @@
  *
  */
 
-package skills
+package skills_test
 
 import (
 	"fmt"
 
 	. "gopkg.in/check.v1"
+
+	. "github.com/ubuntu-core/snappy/skills"
 )
 
 type RepositorySuite struct {
@@ -78,7 +80,7 @@ func (s *RepositorySuite) TestAddTypeClash(c *C) {
 	c.Assert(err, IsNil)
 	// Adding a type with the same name as another type is not allowed
 	err = s.emptyRepo.AddType(t2)
-	c.Assert(err, Equals, ErrDuplicate)
+	c.Assert(err, Equals, ErrDuplicateType)
 	c.Assert(s.emptyRepo.Type(t1.Name()), Equals, t1)
 	c.Assert(s.emptyRepo.AllTypes(), DeepEquals, []Type{t1})
 }
@@ -87,7 +89,7 @@ func (s *RepositorySuite) TestAddTypeInvalidName(c *C) {
 	t := &TestType{TypeName: "bad-name-"}
 	// Adding a type with invalid name is not allowed
 	err := s.emptyRepo.AddType(t)
-	c.Assert(err, ErrorMatches, `"bad-name-" is not a valid skill or slot name`)
+	c.Assert(err, ErrorMatches, `invalid skill name: "bad-name-"`)
 	c.Assert(s.emptyRepo.Type(t.Name()), IsNil)
 	c.Assert(s.emptyRepo.AllTypes(), HasLen, 0)
 }
@@ -150,20 +152,20 @@ func (s *RepositorySuite) TestAddSkillClash(c *C) {
 	err := s.testRepo.AddSkill(s.skill.Snap, s.skill.Name, s.skill.Type, s.skill.Label, s.skill.Attrs)
 	c.Assert(err, IsNil)
 	err = s.testRepo.AddSkill(s.skill.Snap, s.skill.Name, s.skill.Type, s.skill.Label, s.skill.Attrs)
-	c.Assert(err, Equals, ErrDuplicate)
+	c.Assert(err, Equals, ErrDuplicateSkill)
 	c.Assert(s.testRepo.AllSkills(""), HasLen, 1)
 	c.Assert(s.testRepo.Skill(s.skill.Snap, s.skill.Name), DeepEquals, s.skill)
 }
 
 func (s *RepositorySuite) TestAddSkillFailsWithInvalidSnapName(c *C) {
 	err := s.testRepo.AddSkill("bad-snap-", "name", "type", "label", nil)
-	c.Assert(err, ErrorMatches, `"bad-snap-" is not a valid skill or slot name`)
+	c.Assert(err, ErrorMatches, `invalid skill name: "bad-snap-"`)
 	c.Assert(s.testRepo.AllSkills(""), HasLen, 0)
 }
 
 func (s *RepositorySuite) TestAddSkillFailsWithInvalidSkillName(c *C) {
 	err := s.testRepo.AddSkill("snap", "bad-name-", "type", "label", nil)
-	c.Assert(err, ErrorMatches, `"bad-name-" is not a valid skill or slot name`)
+	c.Assert(err, ErrorMatches, `invalid skill name: "bad-name-"`)
 	c.Assert(s.testRepo.AllSkills(""), HasLen, 0)
 }
 
@@ -402,16 +404,16 @@ func (s *RepositorySuite) TestAddSlotFailsWhenTypeIsUnknown(c *C) {
 
 func (s *RepositorySuite) TestAddSlotFailsWhenSlotNameIsInvalid(c *C) {
 	err := s.emptyRepo.AddSlot(s.slot.Snap, "bad-name-", s.slot.Type, s.slot.Label, s.slot.Attrs, s.slot.Apps)
-	c.Assert(err, ErrorMatches, `"bad-name-" is not a valid skill or slot name`)
+	c.Assert(err, ErrorMatches, `invalid skill name: "bad-name-"`)
 }
 
 func (s *RepositorySuite) TestAddSlotFailsForDuplicates(c *C) {
 	// Adding the first slot succeeds
 	err := s.testRepo.AddSlot(s.slot.Snap, s.slot.Name, s.slot.Type, s.slot.Label, s.slot.Attrs, s.slot.Apps)
 	c.Assert(err, IsNil)
-	// Adding the slot again fails with ErrDuplicate
+	// Adding the slot again fails with ErrDuplicateSlot
 	err = s.testRepo.AddSlot(s.slot.Snap, s.slot.Name, s.slot.Type, s.slot.Label, s.slot.Attrs, s.slot.Apps)
-	c.Assert(err, Equals, ErrDuplicate)
+	c.Assert(err, Equals, ErrDuplicateSlot)
 }
 
 func (s *RepositorySuite) TestAddSlotStoresCorrectData(c *C) {
