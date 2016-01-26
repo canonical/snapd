@@ -464,3 +464,8 @@ func (r *Repository) unlockedSlotIndex(snapName, slotName string) (index int, fo
 	}
 	return i, false
 }
+
+// LoadBuiltInTypes loads built-in skill types to a repository.
+func LoadBuiltInTypes(repo *Repository) error {
+	return nil
+}
