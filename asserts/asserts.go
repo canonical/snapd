@@ -222,7 +222,7 @@ func Decode(serializedAssertion []byte) (Assertion, error) {
 	return Assemble(headers, body, content, signature)
 }
 
-// Decoder parses a stream of assertions bundled by separating them with double newlines.
+// Decoder parses a stream of assertions bundled by ensuring double newlines at the end of each assertion.
 type Decoder struct {
 	rd   io.Reader
 	buf  []byte
@@ -522,4 +522,40 @@ func Encode(assert Assertion) []byte {
 	buf.Write(nlnl)
 	buf.Write(signature)
 	return buf.Bytes()
+}
+
+// Encoder emits a stream of assertions bundled by ensuring double newlines at the end of each assertion.
+// NB: A single assertion emitted through Encoder can be parsed back using Decoder but not directly just with Decode() because of the extra double newlines.
+type Encoder struct {
+	wr io.Writer
+}
+
+// NewEncoder returns a Encoder to emit a stream of assertions to a writer.
+func NewEncoder(w io.Writer) *Encoder {
+	return &Encoder{wr: w}
+}
+
+// Append emits an already encoded assertion into the stream with a proper required separator.
+func (enc *Encoder) Append(encoded []byte) error {
+	sz := len(encoded)
+	if sz == 0 {
+		return fmt.Errorf("internal error: encoded assertion cannot be empty")
+	}
+
+	_, err := enc.wr.Write(encoded)
+	if err != nil {
+		return err
+	}
+	sep := nlnl
+	if encoded[sz-1] == '\n' {
+		sep = sep[1:]
+	}
+	_, err = enc.wr.Write(sep)
+	return err
+}
+
+// Encode emits the assertion into the stream with the required separator.
+func (enc *Encoder) Encode(assert Assertion) error {
+	encoded := Encode(assert)
+	return enc.Append(encoded)
 }

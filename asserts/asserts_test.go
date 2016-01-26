@@ -178,14 +178,12 @@ func checkContent(c *C, a asserts.Assertion, encoded string) {
 	c.Check(cont, DeepEquals, expectedCont)
 }
 
-func (as *assertsSuite) TestDecoderHappy(c *C) {
+func (as *assertsSuite) TestEncoderDecoderHappy(c *C) {
 	stream := new(bytes.Buffer)
-	stream.WriteString(exampleEmptyBody2NlNl)
-	stream.WriteString("\n")
-	stream.WriteString(exampleBodyAndExtraHeaders)
-	stream.WriteString("\n")
-	stream.WriteString(exampleEmptyBodyAllDefaults)
-	stream.WriteString("\n\n")
+	enc := asserts.NewEncoder(stream)
+	enc.Append([]byte(exampleEmptyBody2NlNl))
+	enc.Append([]byte(exampleBodyAndExtraHeaders))
+	enc.Append([]byte(exampleEmptyBodyAllDefaults))
 
 	decoder := asserts.NewDecoder(stream)
 	a, err := decoder.Decode()
@@ -278,6 +276,33 @@ func (as *assertsSuite) TestEncode(c *C) {
 	c.Assert(err, IsNil)
 	encodeRes := asserts.Encode(a)
 	c.Check(encodeRes, DeepEquals, encoded)
+}
+
+func (as *assertsSuite) TestEncoderOK(c *C) {
+	encoded := []byte("type: test-only\n" +
+		"authority-id: auth-id2\n" +
+		"primary-key1: key1\n" +
+		"primary-key2: key2\n" +
+		"revision: 5\n" +
+		"header1: value1\n" +
+		"header2: value2\n" +
+		"body-length: 8\n\n" +
+		"THE-BODY" +
+		"\n\n" +
+		"openpgp c2ln")
+	a0, err := asserts.Decode(encoded)
+	c.Assert(err, IsNil)
+	cont0, _ := a0.Signature()
+
+	stream := new(bytes.Buffer)
+	enc := asserts.NewEncoder(stream)
+	enc.Encode(a0)
+
+	dec := asserts.NewDecoder(stream)
+	a1, err := dec.Decode()
+
+	cont1, _ := a1.Signature()
+	c.Check(cont1, DeepEquals, cont0)
 }
 
 func (as *assertsSuite) TestSignFormatSanityEmptyBody(c *C) {
