@@ -66,7 +66,7 @@ func (s *RepositorySuite) TestAddTypeInvalidName(c *C) {
 	t := &TestType{TypeName: "bad-name-"}
 	// Adding a type with invalid name is not allowed
 	err := s.emptyRepo.AddType(t)
-	c.Assert(err, ErrorMatches, `"bad-name-" is not a valid skill or slot name`)
+	c.Assert(err, ErrorMatches, `invalid skill name: "bad-name-"`)
 	c.Assert(s.emptyRepo.Type(t.Name()), IsNil)
 	c.Assert(s.emptyRepo.AllTypes(), HasLen, 0)
 }
