@@ -186,6 +186,21 @@ func (chks *checkSuite) TestCheckNoPubKey(c *C) {
 	c.Assert(err, ErrorMatches, `no matching public key for signature by "canonical" key id.*`)
 }
 
+func (chks *checkSuite) TestCheckExpiredPubKey(c *C) {
+	trustedKey := testPrivKey0
+
+	cfg := &asserts.DatabaseConfig{
+		Backstore:      chks.bs,
+		KeypairManager: asserts.NewMemoryKeypairManager(),
+		TrustedKeys:    []*asserts.AccountKey{asserts.ExpiredAccountKeyForTest("canonical", &trustedKey.PublicKey)},
+	}
+	db, err := asserts.OpenDatabase(cfg)
+	c.Assert(err, IsNil)
+
+	err = db.Check(chks.a)
+	c.Assert(err, ErrorMatches, "no currently valid known public key verifies assertion")
+}
+
 func (chks *checkSuite) TestCheckForgery(c *C) {
 	trustedKey := testPrivKey0
 

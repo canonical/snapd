@@ -227,7 +227,8 @@ func (db *Database) Check(assert Assertion) error {
 
 	now := time.Now()
 	if !accKey.isKeyValidAt(now) {
-		return fmt.Errorf("no valid known public key verifies assertion")
+		// XXX clearer error message
+		return fmt.Errorf("no currently valid known public key verifies assertion")
 	}
 
 	err = accKey.publicKey().verify(content, sig)
