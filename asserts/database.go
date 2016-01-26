@@ -96,9 +96,9 @@ type consistencyChecker interface {
 // Database holds assertions and can be used to sign or check
 // further assertions.
 type Database struct {
-	bs          Backstore
-	keypairMgr  KeypairManager
-	trustedKeys map[string][]*AccountKey
+	bs         Backstore
+	keypairMgr KeypairManager
+	trusted    Backstore
 }
 
 // OpenDatabase opens the assertion database based on the configuration.
@@ -113,15 +113,19 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 		panic("database cannot be used without setting a keypair manager")
 	}
 
-	trustedKeys := make(map[string][]*AccountKey)
+	trustedBackstore := NewMemoryBackstore()
+
 	for _, accKey := range cfg.TrustedKeys {
-		authID := accKey.AccountID()
-		trustedKeys[authID] = append(trustedKeys[authID], accKey)
+		err := trustedBackstore.Put(AccountKeyType, accKey)
+		if err != nil {
+			return nil, fmt.Errorf("error populating trusted accout keys with key for %q key id %q: %v", accKey.AccountID(), accKey.PublicKeyID(), err)
+		}
 	}
+
 	return &Database{
-		bs:          bs,
-		keypairMgr:  keypairMgr,
-		trustedKeys: trustedKeys,
+		bs:         bs,
+		keypairMgr: keypairMgr,
+		trusted:    trustedBackstore,
 	}, nil
 }
 
@@ -187,28 +191,22 @@ func (db *Database) Sign(assertType *AssertionType, headers map[string]string, b
 	return assembleAndSign(assertType, headers, body, privKey)
 }
 
-// find account keys exactly by account id and key id
-// TODO: may need more details about the kind of key we are looking for
-// and use an interface for the results.
-func (db *Database) findAccountKeys(authorityID, keyID string) ([]*AccountKey, error) {
-	res := make([]*AccountKey, 0, 1)
-	cands := db.trustedKeys[authorityID]
-	for _, cand := range cands {
-		if cand.PublicKeyID() == keyID {
-			res = append(res, cand)
+// find account key exactly by account id and key id
+func (db *Database) findAccountKey(authorityID, keyID string) (*AccountKey, error) {
+	key := []string{authorityID, keyID}
+	// consider trusted account keys then disk stored account keys
+	for _, bs := range []Backstore{db.trusted, db.bs} {
+		a, err := bs.Get(AccountKeyType, key)
+		switch err {
+		case nil:
+			return a.(*AccountKey), nil
+		case ErrNotFound:
+			// nothing to do
+		default:
+			return nil, err
 		}
 	}
-	// consider stored account keys
-	a, err := db.bs.Get(AccountKeyType, []string{authorityID, keyID})
-	switch err {
-	case nil:
-		res = append(res, a.(*AccountKey))
-	case ErrNotFound:
-		// nothing to do
-	default:
-		return nil, err
-	}
-	return res, nil
+	return nil, ErrNotFound
 }
 
 // Check tests whether the assertion is properly signed and consistent with all the stored knowledge.
@@ -219,32 +217,33 @@ func (db *Database) Check(assert Assertion) error {
 		return err
 	}
 	// TODO: later may need to consider type of assert to find candidate keys
-	accKeys, err := db.findAccountKeys(assert.AuthorityID(), sig.KeyID())
+	accKey, err := db.findAccountKey(assert.AuthorityID(), sig.KeyID())
+	if err == ErrNotFound {
+		return fmt.Errorf("no matching public key for signature by %q key id %q", assert.AuthorityID(), sig.KeyID())
+	}
 	if err != nil {
 		return fmt.Errorf("error finding matching public key for signature: %v", err)
 	}
+
 	now := time.Now()
-	var lastErr error
-	for _, accKey := range accKeys {
-		if accKey.isKeyValidAt(now) {
-			err := accKey.publicKey().verify(content, sig)
-			if err == nil {
-				// see if the assertion requires further checks
-				if checker, ok := assert.(consistencyChecker); ok {
-					err := checker.checkConsistency(db, accKey)
-					if err != nil {
-						return fmt.Errorf("signature verifies but assertion violates other knowledge: %v", err)
-					}
-				}
-				return nil
-			}
-			lastErr = err
-		}
-	}
-	if lastErr == nil {
+	if !accKey.isKeyValidAt(now) {
 		return fmt.Errorf("no valid known public key verifies assertion")
 	}
-	return fmt.Errorf("failed signature verification: %v", lastErr)
+
+	err = accKey.publicKey().verify(content, sig)
+	if err != nil {
+		return fmt.Errorf("failed signature verification: %v", err)
+	}
+
+	// see if the assertion requires further checks
+	if checker, ok := assert.(consistencyChecker); ok {
+		err := checker.checkConsistency(db, accKey)
+		if err != nil {
+			return fmt.Errorf("signature verifies but assertion violates other knowledge: %v", err)
+		}
+	}
+
+	return nil
 }
 
 // Add persists the assertion after ensuring it is properly signed and consistent with all the stored knowledge.

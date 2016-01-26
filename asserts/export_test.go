@@ -37,16 +37,18 @@ var AssembleAndSignInTest = assembleAndSign
 var DecodePrivateKeyInTest = decodePrivateKey
 
 func BootstrapAccountKeyForTest(authorityID string, pubKey *packet.PublicKey) *AccountKey {
+	openPGPPubKey := OpenPGPPublicKey(pubKey)
 	return &AccountKey{
 		assertionBase: assertionBase{
 			headers: map[string]string{
-				"authority-id": authorityID,
-				"account-id":   authorityID,
+				"authority-id":  authorityID,
+				"account-id":    authorityID,
+				"public-key-id": openPGPPubKey.ID(),
 			},
 		},
 		since:  time.Time{},
 		until:  time.Time{}.UTC().AddDate(9999, 0, 0),
-		pubKey: OpenPGPPublicKey(pubKey),
+		pubKey: openPGPPubKey,
 	}
 }
 
