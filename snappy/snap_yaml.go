@@ -218,7 +218,7 @@ func (m *snapYaml) qualifiedName(origin string) string {
 	return m.Name + "." + origin
 }
 
-func (m *snapYaml) checkForPackageInstalled(origin string) error {
+func checkForPackageInstalled(m *snapYaml, origin string) error {
 	part := ActiveSnapByName(m.Name)
 	if part == nil {
 		return nil
@@ -231,7 +231,7 @@ func (m *snapYaml) checkForPackageInstalled(origin string) error {
 	return nil
 }
 
-func (m *snapYaml) checkForFrameworks() error {
+func checkForFrameworks(m *snapYaml) error {
 	installed, err := ActiveSnapIterByType(BareName, snap.TypeFramework)
 	if err != nil {
 		return err
@@ -258,7 +258,7 @@ func (m *snapYaml) checkForFrameworks() error {
 // package, as deduced from the license agreement (which might involve asking
 // the user), or an error that explains the reason why installation should not
 // proceed.
-func (m *snapYaml) checkLicenseAgreement(ag agreer, d snap.File, currentActiveDir string) error {
+func checkLicenseAgreement(m *snapYaml, ag agreer, d snap.File, currentActiveDir string) error {
 	if m.LicenseAgreement != "explicit" {
 		return nil
 	}

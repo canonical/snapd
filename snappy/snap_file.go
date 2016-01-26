@@ -363,7 +363,7 @@ func (s *SnapFile) Install(inter progress.Meter, flags InstallFlags) (name strin
 
 // CanInstall checks whether the SnapPart passes a series of tests required for installation
 func (s *SnapFile) CanInstall(allowGadget bool, inter interacter) error {
-	if err := s.m.checkForPackageInstalled(s.Origin()); err != nil {
+	if err := checkForPackageInstalled(s.m, s.Origin()); err != nil {
 		return err
 	}
 
@@ -372,7 +372,7 @@ func (s *SnapFile) CanInstall(allowGadget bool, inter interacter) error {
 		return &ErrArchitectureNotSupported{s.m.Architectures}
 	}
 
-	if err := s.m.checkForFrameworks(); err != nil {
+	if err := checkForFrameworks(s.m); err != nil {
 		return err
 	}
 
@@ -390,7 +390,7 @@ func (s *SnapFile) CanInstall(allowGadget bool, inter interacter) error {
 	}
 
 	curr, _ := filepath.EvalSymlinks(filepath.Join(s.instdir, "..", "current"))
-	if err := s.m.checkLicenseAgreement(inter, s.deb, curr); err != nil {
+	if err := checkLicenseAgreement(s.m, inter, s.deb, curr); err != nil {
 		return err
 	}
 
