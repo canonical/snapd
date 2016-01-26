@@ -145,7 +145,7 @@ func (r *Repository) Skill(snapName, skillName string) *Skill {
 // AddSkill adds a skill to the repository.
 // Skill names must be valid snap names, as defined by ValidateName.
 // Skill name must be unique within a particular snap.
-func (r *Repository) AddSkill(snapName, skillName, typeName, label string, attrs map[string]interface{}) error {
+func (r *Repository) AddSkill(snapName, skillName, typeName, label string, attrs map[string]interface{}, apps []string) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -167,6 +167,7 @@ func (r *Repository) AddSkill(snapName, skillName, typeName, label string, attrs
 		Type:  typeName,
 		Attrs: attrs,
 		Label: label,
+		Apps:  apps,
 	}
 	// Reject skill that don't pass type-specific sanitization
 	if err := t.Sanitize(skill); err != nil {
