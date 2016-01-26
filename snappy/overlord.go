@@ -20,6 +20,7 @@
 package snappy
 
 import (
+	"fmt"
 	"path/filepath"
 
 	"github.com/ubuntu-core/snappy/dirs"
@@ -52,13 +53,15 @@ func (o *Overlord) SetActive(sp *SnapPart, active bool, pb progress.Meter) error
 }
 
 // Installed returns the installed snaps from this repository
-func (o *Overlord) Installed() (parts []*SnapPart) {
+func (o *Overlord) Installed() ([]*SnapPart, error) {
 	globExpr := filepath.Join(dirs.SnapSnapsDir, "*", "*", "meta", "package.yaml")
-	if newParts, err := o.partsForGlobExpr(globExpr); err == nil {
-		parts = append(parts, newParts...)
+	parts, err := o.partsForGlobExpr(globExpr)
+	if err != nil {
+		return nil, fmt.Errorf("Can not get the installed snaps: %s", err)
+
 	}
 
-	return parts
+	return parts, nil
 }
 
 func (o *Overlord) partsForGlobExpr(globExpr string) (parts []*SnapPart, err error) {
