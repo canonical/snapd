@@ -60,7 +60,7 @@ func (client *Client) raw(method, path string, body io.Reader) (*http.Response, 
 	u := url.URL{
 		Scheme: "http",
 		Host:   "localhost",
-		Path:   path,
+		Opaque: path,
 	}
 	req, err := http.NewRequest(method, u.String(), body)
 	if err != nil {
@@ -149,6 +149,24 @@ func (rsp *response) err() error {
 		return fmt.Errorf("server error: %q", rsp.Status)
 	}
 	return &resultErr
+}
+
+func parseError(r *http.Response) error {
+	var rsp response
+	if r.Header.Get("Content-Type") != "application/json" {
+		return fmt.Errorf("server error: %q", r.Status)
+	}
+
+	dec := json.NewDecoder(r.Body)
+	if err := dec.Decode(&rsp); err != nil {
+		return fmt.Errorf("failed to unmarshal error: %v", err)
+	}
+
+	err := rsp.err()
+	if err == nil {
+		return fmt.Errorf("server error: %q", r.Status)
+	}
+	return err
 }
 
 // SysInfo gets system information from the REST API.

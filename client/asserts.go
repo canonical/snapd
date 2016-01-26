@@ -22,6 +22,11 @@ package client
 import (
 	"bytes"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+
+	"github.com/ubuntu-core/snappy/asserts" // for parsing
 )
 
 // Assert tries to add an assertion to the system assertion
@@ -35,4 +40,49 @@ func (client *Client) Assert(b []byte) error {
 	}
 
 	return nil
+}
+
+// Asserts queries assertions with assertTypeName and matching headers.
+func (client *Client) Asserts(assertTypeName string, headers map[string]string) ([]asserts.Assertion, error) {
+	u := url.URL{Path: fmt.Sprintf("/2.0/assertions/%s", assertTypeName)}
+
+	if len(headers) > 0 {
+		q := u.Query()
+		for k, v := range headers {
+			q.Set(k, v)
+		}
+		u.RawQuery = q.Encode()
+	}
+
+	response, err := client.raw("GET", u.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query assertions: %v", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode == http.StatusNotFound {
+		// TODO: distinguish kinds of not found ?
+		return nil, nil
+	}
+
+	if response.StatusCode != http.StatusOK {
+		return nil, parseError(response)
+	}
+
+	dec := asserts.NewDecoder(response.Body)
+
+	asserts := []asserts.Assertion{}
+
+	// TODO: make sure asserts can decode and deal with unknown types
+	for {
+		a, err := dec.Decode()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode assertions: %v", err)
+		}
+		asserts = append(asserts, a)
+	}
+
+	return asserts, nil
 }

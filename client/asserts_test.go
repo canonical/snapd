@@ -20,9 +20,14 @@
 package client_test
 
 import (
+	"errors"
 	"io/ioutil"
+	"net/http"
+	"net/url"
 
 	. "gopkg.in/check.v1"
+
+	"github.com/ubuntu-core/snappy/asserts"
 )
 
 func (cs *clientSuite) TestClientAssert(c *C) {
@@ -38,4 +43,87 @@ func (cs *clientSuite) TestClientAssert(c *C) {
 	c.Check(body, DeepEquals, a)
 	c.Check(cs.req.Method, Equals, "POST")
 	c.Check(cs.req.URL.Path, Equals, "/2.0/assertions")
+}
+
+func (cs *clientSuite) TestClientAssertsCallsEndpoint(c *C) {
+	_, _ = cs.cli.Asserts("snap-revision", nil)
+	c.Check(cs.req.Method, Equals, "GET")
+	c.Check(cs.req.URL.Path, Equals, "/2.0/assertions/snap-revision")
+}
+
+func (cs *clientSuite) TestClientAssertsCallsEndpointWithFilter(c *C) {
+	_, _ = cs.cli.Asserts("snap-revision", map[string]string{
+		"snap-id":     "snap-id-1",
+		"snap-digest": "sha256 digest...",
+	})
+	u, err := url.ParseRequestURI(cs.req.URL.String())
+	c.Assert(err, IsNil)
+	c.Check(u.Path, Equals, "/2.0/assertions/snap-revision")
+	c.Check(u.Query(), DeepEquals, url.Values{
+		"snap-digest": []string{"sha256 digest..."},
+		"snap-id":     []string{"snap-id-1"},
+	})
+}
+
+func (cs *clientSuite) TestClientAssertsHttpError(c *C) {
+	cs.err = errors.New("fail")
+	_, err := cs.cli.Asserts("snap-build", nil)
+	c.Assert(err, ErrorMatches, "failed to query assertions: fail")
+}
+
+func (cs *clientSuite) TestClientAssertsJSONError(c *C) {
+	cs.status = http.StatusBadRequest
+	cs.header = http.Header{}
+	cs.header.Add("Content-type", "application/json")
+	cs.rsp = `{
+		"status_code": 400,
+		"type": "error",
+		"result": {
+			"message": "invalid"
+		}
+	}`
+	_, err := cs.cli.Asserts("snap-build", nil)
+	c.Assert(err, ErrorMatches, "invalid")
+}
+
+func (cs *clientSuite) TestClientAsserts(c *C) {
+	cs.rsp = `type: snap-revision
+authority-id: store-id1
+snap-id: snap-id-1
+snap-digest: sha256 ...
+snap-revision: 1
+snap-build: sha256 ...
+developer-id: dev-id1
+revision: 1
+timestamp: 2015-11-25T20:00:00Z
+body-length: 0
+
+openpgp ...
+
+type: snap-revision
+authority-id: store-id1
+snap-id: snap-id-2
+snap-digest: sha256 ...
+snap-revision: 1
+snap-build: sha256 ...
+developer-id: dev-id1
+revision: 1
+timestamp: 2015-11-30T20:00:00Z
+body-length: 0
+
+openpgp ...
+`
+
+	a, err := cs.cli.Asserts("snap-revision", nil)
+	c.Assert(err, IsNil)
+	c.Check(a, HasLen, 2)
+
+	c.Check(a[0].Type(), Equals, asserts.SnapRevisionType)
+}
+
+func (cs *clientSuite) TestClientAssertsNoAssertions(c *C) {
+	cs.status = http.StatusNotFound
+	a, err := cs.cli.Asserts("snap-revision", nil)
+	c.Assert(err, IsNil)
+	c.Check(a, HasLen, 0)
 }

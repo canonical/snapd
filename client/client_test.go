@@ -224,3 +224,35 @@ func (cs *clientSuite) TestClientRemoveCapabilityNotFound(c *check.C) {
 	c.Check(cs.req.Method, check.Equals, "DELETE")
 	c.Check(cs.req.URL.Path, check.Equals, "/2.0/capabilities/n")
 }
+
+func (cs *clientSuite) TestParseError(c *check.C) {
+	resp := &http.Response{
+		Status: "404 Not Found",
+	}
+	err := client.ParseErrorInTest(resp)
+	c.Check(err, check.ErrorMatches, `server error: "404 Not Found"`)
+
+	h := http.Header{}
+	h.Add("Content-Type", "application/json")
+	resp = &http.Response{
+		Status: "400 Bad Request",
+		Header: h,
+		Body: ioutil.NopCloser(strings.NewReader(`{
+			"status_code": 400,
+			"type": "error",
+			"result": {
+				"message": "invalid"
+			}
+		}`)),
+	}
+	err = client.ParseErrorInTest(resp)
+	c.Check(err, check.ErrorMatches, "invalid")
+
+	resp = &http.Response{
+		Status: "400 Bad Request",
+		Header: h,
+		Body:   ioutil.NopCloser(strings.NewReader("{}")),
+	}
+	err = client.ParseErrorInTest(resp)
+	c.Check(err, check.ErrorMatches, `server error: "400 Bad Request"`)
+}
