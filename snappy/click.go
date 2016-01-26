@@ -163,6 +163,8 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 	return templateOut.String(), nil
 }
 
+// FIXME: too much magic, just do explicit validation of the few
+//        fields we have
 // verifyStructStringsAgainstWhitelist takes a struct and ensures that
 // the given whitelist regexp matches all string fields of the struct
 func verifyStructStringsAgainstWhitelist(s interface{}, whitelist *regexp.Regexp) error {
