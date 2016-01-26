@@ -183,7 +183,7 @@ func (chks *checkSuite) TestCheckNoPubKey(c *C) {
 	c.Assert(err, IsNil)
 
 	err = db.Check(chks.a)
-	c.Assert(err, ErrorMatches, "no valid known public key verifies assertion")
+	c.Assert(err, ErrorMatches, `no matching public key for signature by "canonical" key id.*`)
 }
 
 func (chks *checkSuite) TestCheckForgery(c *C) {
