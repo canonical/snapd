@@ -279,11 +279,11 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 	}
 
 	// add the "binaries:" from the snap.yaml
-	if err := s.m.addPackageBinaries(s.basedir); err != nil {
+	if err := addPackageBinaries(s.m, s.basedir); err != nil {
 		return err
 	}
 	// add the "services:" from the snap.yaml
-	if err := s.m.addPackageServices(s.basedir, inhibitHooks, inter); err != nil {
+	if err := addPackageServices(s.m, s.basedir, inhibitHooks, inter); err != nil {
 		return err
 	}
 
@@ -331,11 +331,11 @@ func (s *SnapPart) deactivate(inhibitHooks bool, inter interacter) error {
 	}
 
 	// remove generated services, binaries, security policy
-	if err := s.m.removePackageBinaries(s.basedir); err != nil {
+	if err := removePackageBinaries(s.m, s.basedir); err != nil {
 		return err
 	}
 
-	if err := s.m.removePackageServices(s.basedir, inter); err != nil {
+	if err := removePackageServices(s.m, s.basedir, inter); err != nil {
 		return err
 	}
 
