@@ -100,6 +100,9 @@ func (cs *clientSuite) TestClientFilterSnaps(c *check.C) {
 		{client.SnapFilter{Sources: []string{"local"}}, "/2.0/snaps?sources=local"},
 		{client.SnapFilter{Sources: []string{"store"}}, "/2.0/snaps?sources=store"},
 		{client.SnapFilter{Sources: []string{"local", "store"}}, "/2.0/snaps?sources=local,store"},
+		{client.SnapFilter{Types: []string{"app"}}, "/2.0/snaps?types=app"},
+		{client.SnapFilter{Types: []string{"app", "framework"}}, "/2.0/snaps?types=app,framework"},
+		{client.SnapFilter{Sources: []string{"local"}, Types: []string{"app"}}, "/2.0/snaps?sources=local&types=app"},
 	}
 
 	for _, tt := range filterTests {
