@@ -35,11 +35,6 @@ import (
 // SystemConfig is a config map holding configs for multiple packages
 type SystemConfig map[string]interface{}
 
-// AppYamler implements snappy packages that offer services
-type AppYamler interface {
-	AppYamls() []AppYaml
-}
-
 // Configuration allows requesting a gadget snappy package type's config
 type Configuration interface {
 	GadgetConfig() SystemConfig
