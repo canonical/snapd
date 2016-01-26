@@ -830,8 +830,8 @@ func (s *apiSuite) TestSnapServiceGet(c *check.C) {
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Status, check.Equals, http.StatusOK)
 
-	m := rsp.Result.(map[string]*svcDesc)
-	c.Assert(m["svc"], check.FitsTypeOf, new(svcDesc))
+	m := rsp.Result.(map[string]*appDesc)
+	c.Assert(m["svc"], check.FitsTypeOf, new(appDesc))
 	c.Check(m["svc"].Op, check.Equals, "status")
 	c.Check(m["svc"].Spec, check.DeepEquals, &snappy.AppYaml{Name: "svc", Daemon: "forking", StopTimeout: timeout.DefaultTimeout})
 	c.Check(m["svc"].Status, check.DeepEquals, &snappy.PackageServiceStatus{ServiceName: "svc"})

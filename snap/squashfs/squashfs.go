@@ -127,12 +127,12 @@ const (
 
 // Info returns information like name, type etc about the package
 func (s *Snap) Info() (*snap.Info, error) {
-	packageYaml, err := s.ReadFile("meta/snap.yaml")
+	snapYaml, err := s.ReadFile("meta/snap.yaml")
 	if err != nil {
 		return nil, fmt.Errorf("info failed for %s: %s", s.path, err)
 	}
 
-	return snap.InfoFromPackageYaml(packageYaml)
+	return snap.InfoFromPackageYaml(snapYaml)
 }
 
 // HashDigest computes a hash digest of the snap file using the given hash.

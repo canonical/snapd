@@ -136,12 +136,12 @@ func (s *storeTestSuite) TestBulkEndpoint(c *C) {
 }
 
 // FIXME: extract into snappy/testutils
-func (s *storeTestSuite) makeTestSnap(c *C, packageYamlContent string) string {
+func (s *storeTestSuite) makeTestSnap(c *C, snapYamlContent string) string {
 	tmpdir := c.MkDir()
 	os.MkdirAll(filepath.Join(tmpdir, "meta"), 0755)
 
-	packageYaml := filepath.Join(tmpdir, "meta", "snap.yaml")
-	err := ioutil.WriteFile(packageYaml, []byte(packageYamlContent), 0644)
+	snapYaml := filepath.Join(tmpdir, "meta", "snap.yaml")
+	err := ioutil.WriteFile(snapYaml, []byte(snapYamlContent), 0644)
 	c.Assert(err, IsNil)
 
 	targetDir := s.store.blobDir
