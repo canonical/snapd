@@ -169,9 +169,9 @@ Sample result:
  "snaps": {
     "hello-world.canonical": {
       "description": "hello-world",
-      "download_size": 22212,
+      "download_size": "22212",
       "icon": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
-      "installed_size": -1,          // always -1 if not installed
+      "installed_size": "-1",          // always -1 if not installed
       "name": "hello-world",
       "origin": "canonical",
       "resource": "/2.0/snaps/hello-world.canonical",
@@ -181,9 +181,9 @@ Sample result:
     },
     "http.chipaca": {
       "description": "HTTPie in a snap\nno description",
-      "download_size": 1578272,
+      "download_size": "1578272",
       "icon": "/2.0/icons/http.chipaca/icon",
-      "installed_size": 1821897,
+      "installed_size": "1821897",
       "name": "http",
       "origin": "chipaca",
       "resource": "/2.0/snaps/http.chipaca",
@@ -193,9 +193,9 @@ Sample result:
     },
     "ubuntu-core.ubuntu": {
       "description": "A secure, minimal transactional OS for devices and containers.",
-      "download_size": 19845748,
+      "download_size": "19845748",
       "icon": "",               // core might not have an icon
-      "installed_size": -1,     // core doesn't have installed_size (yet)
+      "installed_size": "-1",     // core doesn't have installed_size (yet)
       "name": "ubuntu-core",
       "origin": "ubuntu",
       "resource": "/2.0/snaps/ubuntu-core.ubuntu",
