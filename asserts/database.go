@@ -118,7 +118,7 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 	for _, accKey := range cfg.TrustedKeys {
 		err := trustedBackstore.Put(AccountKeyType, accKey)
 		if err != nil {
-			return nil, fmt.Errorf("error populating trusted accout keys with key for %q key id %q: %v", accKey.AccountID(), accKey.PublicKeyID(), err)
+			return nil, fmt.Errorf("error populating trusted account keys with key for %q key id %q: %v", accKey.AccountID(), accKey.PublicKeyID(), err)
 		}
 	}
 
