@@ -262,18 +262,23 @@ func (r *Repository) AddSlot(snapName, slotName, typeName, label string, attrs m
 	}
 	// TODO: ensure the snap is correct
 	// TODO: ensure that apps are correct
-	if r.unlockedType(typeName) == nil {
+	t := r.unlockedType(typeName)
+	if t == nil {
 		return ErrTypeNotFound
 	}
+	// Reject slot that don't pass type-specific sanitization
+	slot := &Slot{
+		Name:  slotName,
+		Snap:  snapName,
+		Type:  typeName,
+		Attrs: attrs,
+		Apps:  apps,
+		Label: label,
+	}
+	if err := t.SanitizeSlot(slot); err != nil {
+		return err
+	}
 	if i, found := r.unlockedSlotIndex(snapName, slotName); !found {
-		slot := &Slot{
-			Name:  slotName,
-			Snap:  snapName,
-			Type:  typeName,
-			Attrs: attrs,
-			Apps:  apps,
-			Label: label,
-		}
 		// Insert the slot at the right index
 		r.slots = append(r.slots[:i], append([]*Slot{slot}, r.slots[i:]...)...)
 		return nil

@@ -434,6 +434,20 @@ func (s *RepositorySuite) TestAddSlotFailsForDuplicates(c *C) {
 	c.Assert(err, Equals, ErrDuplicateSlot)
 }
 
+func (s *RepositorySuite) TestAddSlotFailsWithUnsanitizedSlot(c *C) {
+	dirty := &TestType{
+		TypeName: "dirty",
+		SanitizeSlotCallback: func(slot *Slot) error {
+			return fmt.Errorf("slot is dirty")
+		},
+	}
+	err := s.emptyRepo.AddType(dirty)
+	c.Assert(err, IsNil)
+	err = s.emptyRepo.AddSlot(s.slot.Snap, s.slot.Name, "dirty", s.slot.Label, s.slot.Attrs, s.slot.Apps)
+	c.Assert(err, ErrorMatches, "slot is dirty")
+	c.Assert(s.testRepo.AllSlots(""), HasLen, 0)
+}
+
 func (s *RepositorySuite) TestAddSlotStoresCorrectData(c *C) {
 	err := s.testRepo.AddSlot(s.slot.Snap, s.slot.Name, s.slot.Type, s.slot.Label, s.slot.Attrs, s.slot.Apps)
 	c.Assert(err, IsNil)
