@@ -34,21 +34,21 @@ type Overlord struct {
 // Install installs the given snap file to the system.
 //
 // It returns the local snap file or an error
-func (o *Overlord) Install(snapFilePath string, origin string, inter progress.Meter, flags InstallFlags) (*SnapPart, error) {
+func (o *Overlord) Install(snapFilePath string, origin string, flags InstallFlags, meter progress.Meter) (*SnapPart, error) {
 	return nil, ErrNotImplemented
 }
 
 // Uninstall removes the given local snap from the system.
 //
 // It returns an error on failure
-func (o *Overlord) Uninstall(sp *SnapPart, pb progress.Meter) error {
+func (o *Overlord) Uninstall(sp *SnapPart, meter progress.Meter) error {
 	return ErrNotImplemented
 }
 
 // SetActive sets the active state of the given snap
 //
 // It returns an error on failure
-func (o *Overlord) SetActive(sp *SnapPart, active bool, pb progress.Meter) error {
+func (o *Overlord) SetActive(sp *SnapPart, active bool, meter progress.Meter) error {
 	return ErrNotImplemented
 }
 
