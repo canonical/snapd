@@ -257,6 +257,12 @@ about updates will be absent if `store` is not included, whereas if
 `local` is not included information about rollbacks will be missing,
 and the package state for installed packages will be incorrect.
 
+#### `types`
+
+Restricts returned snaps to those with types included in the specified
+comma-separated list. See the description of the `type` field of `snaps` in the
+above section for possible values.
+
 #### `page`
 
 Request the given page when the server is paginating the

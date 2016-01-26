@@ -25,6 +25,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/partition"
 
 	"gopkg.in/check.v1"
 )
@@ -44,7 +45,7 @@ func (s *listSuite) TestListMustPrintCoreVersion(c *check.C) {
 	expected := "(?ms)" +
 		"Name +Date +Version +Developer *\n" +
 		".*" +
-		fmt.Sprintf("^ubuntu-core +.* +%s +canonical *\n", verRegexp) +
+		fmt.Sprintf("^%s +.* +%s +canonical *\n", partition.OSSnapName(c), verRegexp) +
 		".*"
 	c.Assert(listOutput, check.Matches, expected)
 }

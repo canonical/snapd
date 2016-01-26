@@ -20,7 +20,6 @@
 package partition
 
 import (
-	"io/ioutil"
 	"os"
 	"time"
 
@@ -31,9 +30,6 @@ import (
 
 func (s *PartitionTestSuite) makeFakeUbootEnv(c *C) {
 	u := &uboot{}
-	// this file just needs to exist
-	err := ioutil.WriteFile(u.configFile(), []byte(""), 0644)
-	c.Assert(err, IsNil)
 
 	// ensure that we have a valid uboot.env too
 	env, err := uenv.Create(u.envFile(), 4096)

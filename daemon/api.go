@@ -283,6 +283,11 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 
 	searchTerm := query.Get("q")
 
+	var includeTypes []string
+	if len(query["types"]) > 0 {
+		includeTypes = strings.Split(query["types"][0], ",")
+	}
+
 	var bags map[string]*lightweight.PartBag
 
 	if includeLocal {
@@ -345,6 +350,17 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		}
 	}
 
+	// TODO: it should be possible to search on	the "content" field on the store
+	//       with multiple values, see:
+	//       https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex#Search
+	if len(includeTypes) > 0 {
+		for name, result := range results {
+			if !resultHasType(result, includeTypes) {
+				delete(results, name)
+			}
+		}
+	}
+
 	return SyncResponse(map[string]interface{}{
 		"snaps":   results,
 		"sources": sources,
@@ -354,6 +370,15 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 			"count": len(results),
 		},
 	})
+}
+
+func resultHasType(r map[string]interface{}, allowedTypes []string) bool {
+	for _, t := range allowedTypes {
+		if r["type"] == t {
+			return true
+		}
+	}
+	return false
 }
 
 var findServices = snappy.FindServices
