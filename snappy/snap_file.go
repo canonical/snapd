@@ -226,13 +226,13 @@ func (s *SnapFile) Install(inter progress.Meter, flags InstallFlags) (name strin
 	}
 
 	// generate the mount unit for the squashfs
-	if err := s.m.addSquashfsMount(s.instdir, inhibitHooks, inter); err != nil {
+	if err := addSquashfsMount(s.m, s.instdir, inhibitHooks, inter); err != nil {
 		return "", err
 	}
 	// if anything goes wrong we ensure we stop
 	defer func() {
 		if err != nil {
-			if e := s.m.removeSquashfsMount(s.instdir, inter); e != nil {
+			if e := removeSquashfsMount(s.m, s.instdir, inter); e != nil {
 				logger.Noticef("Failed to remove mount unit for  %s: %s", fullName, e)
 			}
 		}

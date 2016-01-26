@@ -292,7 +292,7 @@ func (m *snapYaml) checkLicenseAgreement(ag agreer, d snap.File, currentActiveDi
 	return nil
 }
 
-func (m *snapYaml) addSquashfsMount(baseDir string, inhibitHooks bool, inter interacter) error {
+func addSquashfsMount(m *snapYaml, baseDir string, inhibitHooks bool, inter interacter) error {
 	squashfsPath := stripGlobalRootDir(squashfs.BlobPath(baseDir))
 	whereDir := stripGlobalRootDir(baseDir)
 
@@ -314,7 +314,7 @@ func (m *snapYaml) addSquashfsMount(baseDir string, inhibitHooks bool, inter int
 	return nil
 }
 
-func (m *snapYaml) removeSquashfsMount(baseDir string, inter interacter) error {
+func removeSquashfsMount(m *snapYaml, baseDir string, inter interacter) error {
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
 	unit := systemd.MountUnitPath(stripGlobalRootDir(baseDir), "mount")
 	if helpers.FileExists(unit) {

@@ -401,7 +401,7 @@ func (s *SnapPart) remove(inter interacter) (err error) {
 	}
 
 	// ensure mount unit stops
-	if err := s.m.removeSquashfsMount(s.basedir, inter); err != nil {
+	if err := removeSquashfsMount(s.m, s.basedir, inter); err != nil {
 		return err
 	}
 
