@@ -36,7 +36,7 @@ var _ = Suite(&CoreSuite{})
 func (s *CoreSuite) TestValidateName(c *C) {
 	validNames := []string{
 		"a", "aa", "aaa", "aaaa",
-		"a-a", "aa-a", "a-aa",
+		"a-a", "aa-a", "a-aa", "a-b-c",
 		"a0", "a-0", "a-0a",
 	}
 	for _, name := range validNames {
