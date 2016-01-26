@@ -53,8 +53,14 @@ func (t *TestType) Sanitize(skill *Skill) error {
 	return nil
 }
 
-// SecuritySnippet returns the configuration snippet "required" to use a test skill.
+// SkillSecuritySnippet returns the configuration snippet "required" to offer a test skill.
+// Providers don't gain any extra permissions.
+func (t *TestType) SkillSecuritySnippet(skill *Skill, securitySystem SecuritySystem) ([]byte, error) {
+	return nil, nil
+}
+
+// SlotSecuritySnippet returns the configuration snippet "required" to use a test skill.
 // Consumers don't gain any extra permissions.
-func (t *TestType) SecuritySnippet(skill *Skill, securitySystem SecuritySystem) ([]byte, error) {
+func (t *TestType) SlotSecuritySnippet(skill *Skill, securitySystem SecuritySystem) ([]byte, error) {
 	return nil, nil
 }
