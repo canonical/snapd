@@ -46,8 +46,8 @@ var (
 	ErrSkillNotFound = errors.New("skill not found")
 	// ErrDuplicateSkill is reported when skill with duplicate name is being added to a repository.
 	ErrDuplicateSkill = errors.New("duplicate skill name")
-	// ErrSkillBusy is reported when operation cannot be performed while a skill is granted.
-	ErrSkillBusy = errors.New("skill is busy")
+	// ErrSkillBusy is reported when operation cannot be performed while a skill is used.
+	ErrSkillBusy = errors.New("skill is used")
 	// ErrSlotNotFound is reported when slot cannot be found.
 	ErrSlotNotFound = errors.New("slot not found")
 	// ErrDuplicateSlot is reported when slot with duplicate name is being added to a repository.
