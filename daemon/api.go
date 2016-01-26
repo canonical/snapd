@@ -41,6 +41,7 @@ import (
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
+	"github.com/ubuntu-core/snappy/skills"
 	"github.com/ubuntu-core/snappy/snap/lightweight"
 	"github.com/ubuntu-core/snappy/snappy"
 )
@@ -62,6 +63,7 @@ var api = []*Command{
 	operationCmd,
 	capabilitiesCmd,
 	capabilityCmd,
+	skillsCmd,
 	assertsCmd,
 }
 
@@ -139,6 +141,13 @@ var (
 	capabilityCmd = &Command{
 		Path:   "/2.0/capabilities/{name}",
 		DELETE: deleteCapability,
+	}
+
+	skillsCmd = &Command{
+		Path:   "/2.0/skills",
+		UserOK: true,
+		GET:    getSkills,
+		POST:   changeSkills,
 	}
 
 	// TODO: allow to post assertions for UserOK? they are verified anyway
@@ -937,6 +946,119 @@ func deleteCapability(c *Command, r *http.Request) Response {
 	default:
 		return InternalError("can't remove capability %q: %v", name, err)
 	}
+}
+
+// SkillGrant is a part of response from getSkills().
+type SkillGrant struct {
+	Snap string `json:"snap"`
+	Name string `json:"name"`
+}
+
+// SkillInfo is a part of response from getSkills().
+type SkillInfo struct {
+	Snap  string       `json:"snap"`
+	Name  string       `json:"name"`
+	Type  string       `json:"type"`
+	Label string       `json:"label"`
+	Slots []SkillGrant `json:"slots"`
+}
+
+// getSkills returns a list of all the skills and which slots use them.
+func getSkills(c *Command, r *http.Request) Response {
+	var skills []SkillInfo
+	for _, skill := range c.d.skills.AllSkills("") {
+		var slots []SkillGrant
+		for _, slot := range c.d.skills.UsersOf(skill.Snap, skill.Name) {
+			slots = append(slots, SkillGrant{
+				Snap: slot.Snap,
+				Name: slot.Name,
+			})
+		}
+		skills = append(skills, SkillInfo{
+			Snap:  skill.Snap,
+			Name:  skill.Name,
+			Type:  skill.Type,
+			Label: skill.Label,
+			Slots: slots,
+		})
+	}
+	return SyncResponse(skills)
+}
+
+// SkillAction is an action performed on the skill system.
+type SkillAction struct {
+	Action string       `json:"action"`
+	Skill  skills.Skill `json:"skill,omitempty"`
+	Slot   skills.Slot  `json:"slot,omitempty"`
+}
+
+// changeSkills controls the skill system.
+// Skills can be granted to and revoked from slots.
+// When enableInternalSkillActions is true skills and slots can also be
+// explicitly added and removed.
+func changeSkills(c *Command, r *http.Request) Response {
+	var a SkillAction
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&a); err != nil || a.Action == "" {
+		return BadRequest("can't decode request body into a skill action: %v", err)
+	}
+	switch a.Action {
+	case "grant":
+		err := c.d.skills.Grant(a.Skill.Snap, a.Skill.Name, a.Slot.Snap, a.Slot.Name)
+		if err != nil {
+			return BadRequest("can't grant skill: %v", err)
+		}
+		return SyncResponse(nil)
+	case "revoke":
+		err := c.d.skills.Revoke(a.Skill.Snap, a.Skill.Name, a.Slot.Snap, a.Slot.Name)
+		if err != nil {
+			return BadRequest("can't revoke skill: %v", err)
+		}
+		return SyncResponse(nil)
+	case "add-skill":
+		if !c.d.enableInternalSkillActions {
+			return BadRequest("internal skill actions are disabled")
+		}
+		err := c.d.skills.AddSkill(a.Skill.Snap, a.Skill.Name, a.Skill.Type, a.Skill.Label, a.Skill.Attrs, a.Skill.Apps)
+		if err != nil {
+			return BadRequest("can't add skill: %v", err)
+		}
+		return &resp{
+			Type:   ResponseTypeSync,
+			Status: http.StatusCreated,
+		}
+	case "remove-skill":
+		if !c.d.enableInternalSkillActions {
+			return BadRequest("internal skill actions are disabled")
+		}
+		err := c.d.skills.RemoveSkill(a.Skill.Snap, a.Skill.Name)
+		if err != nil {
+			return BadRequest("can't remove skill: %v", err)
+		}
+		return SyncResponse(nil)
+	case "add-slot":
+		if !c.d.enableInternalSkillActions {
+			return BadRequest("internal skill actions are disabled")
+		}
+		err := c.d.skills.AddSlot(a.Slot.Snap, a.Slot.Name, a.Slot.Type, a.Slot.Label, a.Slot.Attrs, a.Slot.Apps)
+		if err != nil {
+			return BadRequest("can't add slot: %v", err)
+		}
+		return &resp{
+			Type:   ResponseTypeSync,
+			Status: http.StatusCreated,
+		}
+	case "remove-slot":
+		if !c.d.enableInternalSkillActions {
+			return BadRequest("internal skill actions are disabled")
+		}
+		err := c.d.skills.RemoveSlot(a.Slot.Snap, a.Slot.Name)
+		if err != nil {
+			return BadRequest("can't remove slot: %v", err)
+		}
+		return SyncResponse(nil)
+	}
+	return BadRequest("unsupported skill action: %q", a.Action)
 }
 
 func doAssert(c *Command, r *http.Request) Response {

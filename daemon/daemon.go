@@ -49,7 +49,9 @@ type Daemon struct {
 	router       *mux.Router
 	capRepo      *caps.Repository
 	skills       *skills.Repository
-	asserts      *asserts.Database
+	// enableInternalSkillActions controls if adding and removing skills and slots is allowed.
+	enableInternalSkillActions bool
+	asserts                    *asserts.Database
 }
 
 // A ResponseFunc handles one of the individual verbs for a method
@@ -274,6 +276,8 @@ func New() *Daemon {
 		tasks:   make(map[string]*Task),
 		capRepo: capRepo,
 		skills:  skillRepo,
-		asserts: db,
+		// TODO: Decide when this should be disabled by default.
+		enableInternalSkillActions: true,
+		asserts:                    db,
 	}
 }
