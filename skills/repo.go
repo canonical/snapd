@@ -20,7 +20,7 @@
 package skills
 
 import (
-	"errors"
+	"fmt"
 	"sync"
 )
 
@@ -30,11 +30,6 @@ type Repository struct {
 	m     sync.Mutex
 	types map[string]Type
 }
-
-var (
-	// ErrDuplicateType is reported when type with duplicate name is being added to a repository.
-	ErrDuplicateType = errors.New("duplicate type name")
-)
 
 // NewRepository creates an empty skill repository.
 func NewRepository() *Repository {
@@ -61,7 +56,7 @@ func (r *Repository) AddType(t Type) error {
 		return err
 	}
 	if _, ok := r.types[typeName]; ok {
-		return ErrDuplicateType
+		return fmt.Errorf("duplicate type name")
 	}
 	r.types[typeName] = t
 	return nil
