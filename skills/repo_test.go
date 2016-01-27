@@ -45,6 +45,8 @@ var _ = Suite(&RepositorySuite{
 		Name:  "name",
 		Type:  "type",
 		Attrs: map[string]interface{}{"attr": "value"},
+		Label: "label",
+		Apps:  []string{"app"},
 	},
 	slot: &Slot{
 		Snap:  "snap",
@@ -70,7 +72,6 @@ func (s *RepositorySuite) TestAddType(c *C) {
 	err := s.emptyRepo.AddType(s.t)
 	c.Assert(err, IsNil)
 	c.Assert(s.emptyRepo.Type(s.t.Name()), Equals, s.t)
-	c.Assert(s.emptyRepo.AllTypes(), DeepEquals, []Type{s.t})
 }
 
 func (s *RepositorySuite) TestAddTypeClash(c *C) {
@@ -80,9 +81,8 @@ func (s *RepositorySuite) TestAddTypeClash(c *C) {
 	c.Assert(err, IsNil)
 	// Adding a type with the same name as another type is not allowed
 	err = s.emptyRepo.AddType(t2)
-	c.Assert(err, Equals, ErrDuplicateType)
+	c.Assert(err, ErrorMatches, `cannot add skill type: "type", type name is in use`)
 	c.Assert(s.emptyRepo.Type(t1.Name()), Equals, t1)
-	c.Assert(s.emptyRepo.AllTypes(), DeepEquals, []Type{t1})
 }
 
 func (s *RepositorySuite) TestAddTypeInvalidName(c *C) {
@@ -91,7 +91,6 @@ func (s *RepositorySuite) TestAddTypeInvalidName(c *C) {
 	err := s.emptyRepo.AddType(t)
 	c.Assert(err, ErrorMatches, `invalid skill name: "bad-name-"`)
 	c.Assert(s.emptyRepo.Type(t.Name()), IsNil)
-	c.Assert(s.emptyRepo.AllTypes(), HasLen, 0)
 }
 
 // Tests for Repository.Type()
@@ -109,82 +108,78 @@ func (s *RepositorySuite) TestType(c *C) {
 }
 
 func (s *RepositorySuite) TestTypeSearch(c *C) {
-	err := s.emptyRepo.AddType(&TestType{TypeName: "a"})
+	ta := &TestType{TypeName: "a"}
+	tb := &TestType{TypeName: "b"}
+	tc := &TestType{TypeName: "c"}
+	err := s.emptyRepo.AddType(ta)
 	c.Assert(err, IsNil)
-	err = s.emptyRepo.AddType(&TestType{TypeName: "b"})
+	err = s.emptyRepo.AddType(tb)
 	c.Assert(err, IsNil)
-	err = s.emptyRepo.AddType(&TestType{TypeName: "c"})
+	err = s.emptyRepo.AddType(tc)
 	c.Assert(err, IsNil)
 	// Type correctly finds types
-	c.Assert(s.emptyRepo.Type("a"), Not(IsNil))
-	c.Assert(s.emptyRepo.Type("b"), Not(IsNil))
-	c.Assert(s.emptyRepo.Type("c"), Not(IsNil))
-}
-
-// Tests for Repository.AllTypes()
-
-func (s *RepositorySuite) TestAllTypes(c *C) {
-	tA := &TestType{TypeName: "a"}
-	tB := &TestType{TypeName: "b"}
-	tC := &TestType{TypeName: "c"}
-	// Note added in non-sorted order
-	err := s.emptyRepo.AddType(tA)
-	c.Assert(err, IsNil)
-	err = s.emptyRepo.AddType(tC)
-	c.Assert(err, IsNil)
-	err = s.emptyRepo.AddType(tB)
-	c.Assert(err, IsNil)
-	// All types are returned. Types are ordered by Name
-	c.Assert(s.emptyRepo.AllTypes(), DeepEquals, []Type{tA, tB, tC})
+	c.Assert(s.emptyRepo.Type("a"), Equals, ta)
+	c.Assert(s.emptyRepo.Type("b"), Equals, tb)
+	c.Assert(s.emptyRepo.Type("c"), Equals, tc)
 }
 
 // Tests for Repository.AddSkill()
 
 func (s *RepositorySuite) TestAddSkill(c *C) {
 	c.Assert(s.testRepo.AllSkills(""), HasLen, 0)
-	err := s.testRepo.AddSkill(s.skill.Snap, s.skill.Name, s.skill.Type, s.skill.Label, s.skill.Attrs)
+	err := s.testRepo.AddSkill(s.skill)
 	c.Assert(err, IsNil)
 	c.Assert(s.testRepo.AllSkills(""), HasLen, 1)
 	c.Assert(s.testRepo.Skill(s.skill.Snap, s.skill.Name), DeepEquals, s.skill)
 }
 
 func (s *RepositorySuite) TestAddSkillClash(c *C) {
-	err := s.testRepo.AddSkill(s.skill.Snap, s.skill.Name, s.skill.Type, s.skill.Label, s.skill.Attrs)
+	err := s.testRepo.AddSkill(s.skill)
 	c.Assert(err, IsNil)
-	err = s.testRepo.AddSkill(s.skill.Snap, s.skill.Name, s.skill.Type, s.skill.Label, s.skill.Attrs)
-	c.Assert(err, Equals, ErrDuplicateSkill)
+	err = s.testRepo.AddSkill(s.skill)
+	c.Assert(err, ErrorMatches, `cannot add skill, skill name "name" is in use`)
 	c.Assert(s.testRepo.AllSkills(""), HasLen, 1)
 	c.Assert(s.testRepo.Skill(s.skill.Snap, s.skill.Name), DeepEquals, s.skill)
 }
 
 func (s *RepositorySuite) TestAddSkillFailsWithInvalidSnapName(c *C) {
-	err := s.testRepo.AddSkill("bad-snap-", "name", "type", "label", nil)
-	c.Assert(err, ErrorMatches, `invalid skill name: "bad-snap-"`)
+	skill := &Skill{
+		Snap: "bad-snap-",
+		Name: "name",
+		Type: "type",
+	}
+	err := s.testRepo.AddSkill(skill)
+	c.Assert(err, ErrorMatches, `invalid snap name: "bad-snap-"`)
 	c.Assert(s.testRepo.AllSkills(""), HasLen, 0)
 }
 
 func (s *RepositorySuite) TestAddSkillFailsWithInvalidSkillName(c *C) {
-	err := s.testRepo.AddSkill("snap", "bad-name-", "type", "label", nil)
+	skill := &Skill{
+		Snap: "snap",
+		Name: "bad-name-",
+		Type: "type",
+	}
+	err := s.testRepo.AddSkill(skill)
 	c.Assert(err, ErrorMatches, `invalid skill name: "bad-name-"`)
 	c.Assert(s.testRepo.AllSkills(""), HasLen, 0)
 }
 
 func (s *RepositorySuite) TestAddSkillFailsWithUnknownType(c *C) {
-	err := s.emptyRepo.AddSkill(s.skill.Snap, s.skill.Name, s.skill.Type, s.skill.Label, s.skill.Attrs)
-	c.Assert(err, Equals, ErrTypeNotFound)
+	err := s.emptyRepo.AddSkill(s.skill)
+	c.Assert(err, ErrorMatches, `cannot add skill, skill type "type" is not known`)
 	c.Assert(s.testRepo.AllSkills(""), HasLen, 0)
 }
 
 func (s *RepositorySuite) TestAddSkillFailsWithUnsanitizedSkill(c *C) {
-	dirty := &TestType{
-		TypeName: "dirty",
+	t := &TestType{
+		TypeName: "type",
 		SanitizeCallback: func(skill *Skill) error {
 			return fmt.Errorf("skill is dirty")
 		},
 	}
-	err := s.emptyRepo.AddType(dirty)
+	err := s.emptyRepo.AddType(t)
 	c.Assert(err, IsNil)
-	err = s.emptyRepo.AddSkill(s.skill.Snap, s.skill.Name, "dirty", s.skill.Label, s.skill.Attrs)
+	err = s.emptyRepo.AddSkill(s.skill)
 	c.Assert(err, ErrorMatches, "skill is dirty")
 	c.Assert(s.testRepo.AllSkills(""), HasLen, 0)
 }
@@ -192,24 +187,48 @@ func (s *RepositorySuite) TestAddSkillFailsWithUnsanitizedSkill(c *C) {
 // Tests for Repository.Skill()
 
 func (s *RepositorySuite) TestSkill(c *C) {
-	err := s.testRepo.AddSkill(s.skill.Snap, s.skill.Name, s.skill.Type, s.skill.Label, s.skill.Attrs)
+	err := s.testRepo.AddSkill(s.skill)
 	c.Assert(err, IsNil)
 	c.Assert(s.emptyRepo.Skill(s.skill.Snap, s.skill.Name), IsNil)
 	c.Assert(s.testRepo.Skill(s.skill.Snap, s.skill.Name), DeepEquals, s.skill)
 }
 
 func (s *RepositorySuite) TestSkillSearch(c *C) {
-	err := s.testRepo.AddSkill("x", "a", s.skill.Type, s.skill.Label, s.skill.Attrs)
+	err := s.testRepo.AddSkill(&Skill{
+		Snap: "x",
+		Name: "a",
+		Type: s.skill.Type,
+	})
 	c.Assert(err, IsNil)
-	err = s.testRepo.AddSkill("x", "b", s.skill.Type, s.skill.Label, s.skill.Attrs)
+	err = s.testRepo.AddSkill(&Skill{
+		Snap: "x",
+		Name: "b",
+		Type: s.skill.Type,
+	})
 	c.Assert(err, IsNil)
-	err = s.testRepo.AddSkill("x", "c", s.skill.Type, s.skill.Label, s.skill.Attrs)
+	err = s.testRepo.AddSkill(&Skill{
+		Snap: "x",
+		Name: "c",
+		Type: s.skill.Type,
+	})
 	c.Assert(err, IsNil)
-	err = s.testRepo.AddSkill("y", "a", s.skill.Type, s.skill.Label, s.skill.Attrs)
+	err = s.testRepo.AddSkill(&Skill{
+		Snap: "y",
+		Name: "a",
+		Type: s.skill.Type,
+	})
 	c.Assert(err, IsNil)
-	err = s.testRepo.AddSkill("y", "b", s.skill.Type, s.skill.Label, s.skill.Attrs)
+	err = s.testRepo.AddSkill(&Skill{
+		Snap: "y",
+		Name: "b",
+		Type: s.skill.Type,
+	})
 	c.Assert(err, IsNil)
-	err = s.testRepo.AddSkill("y", "c", s.skill.Type, s.skill.Label, s.skill.Attrs)
+	err = s.testRepo.AddSkill(&Skill{
+		Snap: "y",
+		Name: "c",
+		Type: s.skill.Type,
+	})
 	c.Assert(err, IsNil)
 	// Skill() correctly finds skills
 	c.Assert(s.testRepo.Skill("x", "a"), Not(IsNil))
@@ -223,7 +242,7 @@ func (s *RepositorySuite) TestSkillSearch(c *C) {
 // Tests for Repository.RemoveSkill()
 
 func (s *RepositorySuite) TestRemoveSkillGood(c *C) {
-	err := s.testRepo.AddSkill(s.skill.Snap, s.skill.Name, s.skill.Type, s.skill.Label, s.skill.Attrs)
+	err := s.testRepo.AddSkill(s.skill)
 	c.Assert(err, IsNil)
 	err = s.testRepo.RemoveSkill(s.skill.Snap, s.skill.Name)
 	c.Assert(err, IsNil)
@@ -232,46 +251,58 @@ func (s *RepositorySuite) TestRemoveSkillGood(c *C) {
 
 func (s *RepositorySuite) TestRemoveSkillNoSuchSkill(c *C) {
 	err := s.emptyRepo.RemoveSkill(s.skill.Snap, s.skill.Name)
-	c.Assert(err, Equals, ErrSkillNotFound)
+	c.Assert(err, ErrorMatches, `cannot remove skill "name", no such skill`)
 }
 
 // Tests for Repository.AllSkills()
 
 func (s *RepositorySuite) TestAllSkillsWithoutTypeName(c *C) {
 	// Note added in non-sorted order
-	err := s.testRepo.AddSkill("snap-b", "name-a", "type", "label", nil)
+	err := s.testRepo.AddSkill(&Skill{
+		Snap: "snap-b",
+		Name: "name-a",
+		Type: "type",
+	})
 	c.Assert(err, IsNil)
-	err = s.testRepo.AddSkill("snap-b", "name-c", "type", "label", nil)
+	err = s.testRepo.AddSkill(&Skill{
+		Snap: "snap-b",
+		Name: "name-c",
+		Type: "type",
+	})
 	c.Assert(err, IsNil)
-	err = s.testRepo.AddSkill("snap-b", "name-b", "type", "label", nil)
+	err = s.testRepo.AddSkill(&Skill{
+		Snap: "snap-b",
+		Name: "name-b",
+		Type: "type",
+	})
 	c.Assert(err, IsNil)
-	err = s.testRepo.AddSkill("snap-a", "name-a", "type", "label", nil)
+	err = s.testRepo.AddSkill(&Skill{
+		Snap: "snap-a",
+		Name: "name-a",
+		Type: "type",
+	})
 	c.Assert(err, IsNil)
 	// The result is sorted by snap and name
 	c.Assert(s.testRepo.AllSkills(""), DeepEquals, []*Skill{
 		&Skill{
-			Snap:  "snap-a",
-			Name:  "name-a",
-			Type:  "type",
-			Label: "label",
+			Snap: "snap-a",
+			Name: "name-a",
+			Type: "type",
 		},
 		&Skill{
-			Snap:  "snap-b",
-			Name:  "name-a",
-			Type:  "type",
-			Label: "label",
+			Snap: "snap-b",
+			Name: "name-a",
+			Type: "type",
 		},
 		&Skill{
-			Snap:  "snap-b",
-			Name:  "name-b",
-			Type:  "type",
-			Label: "label",
+			Snap: "snap-b",
+			Name: "name-b",
+			Type: "type",
 		},
 		&Skill{
-			Snap:  "snap-b",
-			Name:  "name-c",
-			Type:  "type",
-			Label: "label",
+			Snap: "snap-b",
+			Name: "name-c",
+			Type: "type",
 		},
 	})
 }
@@ -280,17 +311,24 @@ func (s *RepositorySuite) TestAllSkillsWithTypeName(c *C) {
 	// Add another type so that we can look for it
 	err := s.testRepo.AddType(&TestType{TypeName: "other-type"})
 	c.Assert(err, IsNil)
-	err = s.testRepo.AddSkill("snap", "name-a", "type", "label", nil)
+	err = s.testRepo.AddSkill(&Skill{
+		Snap: "snap",
+		Name: "name-a",
+		Type: "type",
+	})
 	c.Assert(err, IsNil)
-	err = s.testRepo.AddSkill("snap", "name-b", "other-type", "label", nil)
+	err = s.testRepo.AddSkill(&Skill{
+		Snap: "snap",
+		Name: "name-b",
+		Type: "other-type",
+	})
 	c.Assert(err, IsNil)
 	// The result is sorted by snap and name
 	c.Assert(s.testRepo.AllSkills("other-type"), DeepEquals, []*Skill{
 		&Skill{
-			Snap:  "snap",
-			Name:  "name-b",
-			Type:  "other-type",
-			Label: "label",
+			Snap: "snap",
+			Name: "name-b",
+			Type: "other-type",
 		},
 	})
 }
@@ -299,33 +337,46 @@ func (s *RepositorySuite) TestAllSkillsWithTypeName(c *C) {
 
 func (s *RepositorySuite) TestSkills(c *C) {
 	// Note added in non-sorted order
-	err := s.testRepo.AddSkill("snap-b", "name-a", "type", "label", nil)
+	err := s.testRepo.AddSkill(&Skill{
+		Snap: "snap-b",
+		Name: "name-a",
+		Type: "type",
+	})
 	c.Assert(err, IsNil)
-	err = s.testRepo.AddSkill("snap-b", "name-c", "type", "label", nil)
+	err = s.testRepo.AddSkill(&Skill{
+		Snap: "snap-b",
+		Name: "name-c",
+		Type: "type",
+	})
 	c.Assert(err, IsNil)
-	err = s.testRepo.AddSkill("snap-b", "name-b", "type", "label", nil)
+	err = s.testRepo.AddSkill(&Skill{
+		Snap: "snap-b",
+		Name: "name-b",
+		Type: "type",
+	})
 	c.Assert(err, IsNil)
-	err = s.testRepo.AddSkill("snap-a", "name-a", "type", "label", nil)
+	err = s.testRepo.AddSkill(&Skill{
+		Snap: "snap-a",
+		Name: "name-a",
+		Type: "type",
+	})
 	c.Assert(err, IsNil)
 	// The result is sorted by snap and name
 	c.Assert(s.testRepo.Skills("snap-b"), DeepEquals, []*Skill{
 		&Skill{
-			Snap:  "snap-b",
-			Name:  "name-a",
-			Type:  "type",
-			Label: "label",
+			Snap: "snap-b",
+			Name: "name-a",
+			Type: "type",
 		},
 		&Skill{
-			Snap:  "snap-b",
-			Name:  "name-b",
-			Type:  "type",
-			Label: "label",
+			Snap: "snap-b",
+			Name: "name-b",
+			Type: "type",
 		},
 		&Skill{
-			Snap:  "snap-b",
-			Name:  "name-c",
-			Type:  "type",
-			Label: "label",
+			Snap: "snap-b",
+			Name: "name-c",
+			Type: "type",
 		},
 	})
 	// The result is empty if the snap is not known
