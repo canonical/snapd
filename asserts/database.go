@@ -99,6 +99,7 @@ type Database struct {
 	bs         Backstore
 	keypairMgr KeypairManager
 	trusted    Backstore
+	backstores []Backstore
 }
 
 // OpenDatabase opens the assertion database based on the configuration.
@@ -126,6 +127,7 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 		bs:         bs,
 		keypairMgr: keypairMgr,
 		trusted:    trustedBackstore,
+		backstores: []Backstore{trustedBackstore, bs},
 	}, nil
 }
 
@@ -195,7 +197,7 @@ func (db *Database) Sign(assertType *AssertionType, headers map[string]string, b
 func (db *Database) findAccountKey(authorityID, keyID string) (*AccountKey, error) {
 	key := []string{authorityID, keyID}
 	// consider trusted account keys then disk stored account keys
-	for _, bs := range []Backstore{db.trusted, db.bs} {
+	for _, bs := range db.backstores {
 		a, err := bs.Get(AccountKeyType, key)
 		switch err {
 		case nil:
@@ -260,6 +262,9 @@ func (db *Database) Add(assert Assertion) error {
 			return fmt.Errorf("missing primary key header: %v", k)
 		}
 	}
+
+	// XXX don't allow shadowing the trusted store for now
+
 	return db.bs.Put(assertType, assert)
 }
 
@@ -289,13 +294,26 @@ func (db *Database) Find(assertionType *AssertionType, headers map[string]string
 		}
 		keyValues[i] = keyVal
 	}
-	assert, err := db.bs.Get(assertionType, keyValues)
-	if err != nil {
-		return nil, err
+
+	var assert Assertion
+Got:
+	for _, bs := range db.backstores {
+		a, err := bs.Get(assertionType, keyValues)
+		switch err {
+		case nil:
+			assert = a
+			break Got
+		case ErrNotFound:
+			// nothing to do
+		default:
+			return nil, err
+		}
 	}
-	if !searchMatch(assert, headers) {
+
+	if assert == nil || !searchMatch(assert, headers) {
 		return nil, ErrNotFound
 	}
+
 	return assert, nil
 }
 
@@ -311,9 +329,12 @@ func (db *Database) FindMany(assertionType *AssertionType, headers map[string]st
 	foundCb := func(assert Assertion) {
 		res = append(res, assert)
 	}
-	err = db.bs.Search(assertionType, headers, foundCb)
-	if err != nil {
-		return nil, err
+
+	for _, bs := range db.backstores {
+		err = bs.Search(assertionType, headers, foundCb)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if len(res) == 0 {
