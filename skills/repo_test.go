@@ -83,14 +83,17 @@ func (s *RepositorySuite) TestType(c *C) {
 }
 
 func (s *RepositorySuite) TestTypeSearch(c *C) {
-	err := s.emptyRepo.AddType(&TestType{TypeName: "a"})
+	ta := &TestType{TypeName: "a"}
+	tb := &TestType{TypeName: "b"}
+	tc := &TestType{TypeName: "c"}
+	err := s.emptyRepo.AddType(ta)
 	c.Assert(err, IsNil)
-	err = s.emptyRepo.AddType(&TestType{TypeName: "b"})
+	err = s.emptyRepo.AddType(tb)
 	c.Assert(err, IsNil)
-	err = s.emptyRepo.AddType(&TestType{TypeName: "c"})
+	err = s.emptyRepo.AddType(tc)
 	c.Assert(err, IsNil)
 	// Type correctly finds types
-	c.Assert(s.emptyRepo.Type("a"), Not(IsNil))
-	c.Assert(s.emptyRepo.Type("b"), Not(IsNil))
-	c.Assert(s.emptyRepo.Type("c"), Not(IsNil))
+	c.Assert(s.emptyRepo.Type("a"), Equals, ta)
+	c.Assert(s.emptyRepo.Type("b"), Equals, tb)
+	c.Assert(s.emptyRepo.Type("c"), Equals, tc)
 }
