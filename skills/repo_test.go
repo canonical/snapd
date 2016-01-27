@@ -61,7 +61,6 @@ func (s *RepositorySuite) TestAddType(c *C) {
 	err := s.emptyRepo.AddType(s.t)
 	c.Assert(err, IsNil)
 	c.Assert(s.emptyRepo.Type(s.t.Name()), Equals, s.t)
-	c.Assert(s.emptyRepo.AllTypes(), DeepEquals, []Type{s.t})
 }
 
 func (s *RepositorySuite) TestAddTypeClash(c *C) {
@@ -71,9 +70,8 @@ func (s *RepositorySuite) TestAddTypeClash(c *C) {
 	c.Assert(err, IsNil)
 	// Adding a type with the same name as another type is not allowed
 	err = s.emptyRepo.AddType(t2)
-	c.Assert(err, Equals, ErrDuplicateType)
+	c.Assert(err, ErrorMatches, `cannot add duplicated type name: "type"`)
 	c.Assert(s.emptyRepo.Type(t1.Name()), Equals, t1)
-	c.Assert(s.emptyRepo.AllTypes(), DeepEquals, []Type{t1})
 }
 
 func (s *RepositorySuite) TestAddTypeInvalidName(c *C) {
@@ -82,7 +80,6 @@ func (s *RepositorySuite) TestAddTypeInvalidName(c *C) {
 	err := s.emptyRepo.AddType(t)
 	c.Assert(err, ErrorMatches, `invalid skill name: "bad-name-"`)
 	c.Assert(s.emptyRepo.Type(t.Name()), IsNil)
-	c.Assert(s.emptyRepo.AllTypes(), HasLen, 0)
 }
 
 // Tests for Repository.Type()
@@ -100,33 +97,19 @@ func (s *RepositorySuite) TestType(c *C) {
 }
 
 func (s *RepositorySuite) TestTypeSearch(c *C) {
-	err := s.emptyRepo.AddType(&TestType{TypeName: "a"})
+	ta := &TestType{TypeName: "a"}
+	tb := &TestType{TypeName: "b"}
+	tc := &TestType{TypeName: "c"}
+	err := s.emptyRepo.AddType(ta)
 	c.Assert(err, IsNil)
-	err = s.emptyRepo.AddType(&TestType{TypeName: "b"})
+	err = s.emptyRepo.AddType(tb)
 	c.Assert(err, IsNil)
-	err = s.emptyRepo.AddType(&TestType{TypeName: "c"})
+	err = s.emptyRepo.AddType(tc)
 	c.Assert(err, IsNil)
 	// Type correctly finds types
-	c.Assert(s.emptyRepo.Type("a"), Not(IsNil))
-	c.Assert(s.emptyRepo.Type("b"), Not(IsNil))
-	c.Assert(s.emptyRepo.Type("c"), Not(IsNil))
-}
-
-// Tests for Repository.AllTypes()
-
-func (s *RepositorySuite) TestAllTypes(c *C) {
-	tA := &TestType{TypeName: "a"}
-	tB := &TestType{TypeName: "b"}
-	tC := &TestType{TypeName: "c"}
-	// Note added in non-sorted order
-	err := s.emptyRepo.AddType(tA)
-	c.Assert(err, IsNil)
-	err = s.emptyRepo.AddType(tC)
-	c.Assert(err, IsNil)
-	err = s.emptyRepo.AddType(tB)
-	c.Assert(err, IsNil)
-	// All types are returned. Types are ordered by Name
-	c.Assert(s.emptyRepo.AllTypes(), DeepEquals, []Type{tA, tB, tC})
+	c.Assert(s.emptyRepo.Type("a"), Equals, ta)
+	c.Assert(s.emptyRepo.Type("b"), Equals, tb)
+	c.Assert(s.emptyRepo.Type("c"), Equals, tc)
 }
 
 // Tests for Repository.AddSkill()

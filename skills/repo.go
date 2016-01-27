@@ -21,17 +21,10 @@ package skills
 
 import (
 	"errors"
+	"fmt"
 	"sort"
 	"sync"
 )
-
-// Repository stores all known snappy skills and slots and types.
-type Repository struct {
-	// Protects the internals from concurrent access.
-	m      sync.Mutex
-	types  []Type
-	skills []*Skill
-}
 
 var (
 	// ErrTypeNotFound is reported when skill type cannot found.
@@ -44,17 +37,19 @@ var (
 	ErrDuplicateSkill = errors.New("duplicate skill name")
 )
 
-// NewRepository creates an empty skill repository.
-func NewRepository() *Repository {
-	return &Repository{}
+// Repository stores all known snappy skills and slots and types.
+type Repository struct {
+	// Protects the internals from concurrent access.
+	m      sync.Mutex
+	types  map[string]Type
+	skills []*Skill
 }
 
-// AllTypes returns all skill types known to the repository.
-func (r *Repository) AllTypes() []Type {
-	r.m.Lock()
-	defer r.m.Unlock()
-
-	return append([]Type(nil), r.types...)
+// NewRepository creates an empty skill repository.
+func NewRepository() *Repository {
+	return &Repository{
+		types: make(map[string]Type),
+	}
 }
 
 // Type returns a type with a given name.
@@ -62,7 +57,7 @@ func (r *Repository) Type(typeName string) Type {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	return r.unlockedType(typeName)
+	return r.types[typeName]
 }
 
 // AddType adds the provided skill type to the repository.
@@ -74,11 +69,11 @@ func (r *Repository) AddType(t Type) error {
 	if err := ValidateName(typeName); err != nil {
 		return err
 	}
-	if i, found := r.unlockedTypeIndex(typeName); !found {
-		r.types = append(r.types[:i], append([]Type{t}, r.types[i:]...)...)
-		return nil
+	if _, ok := r.types[typeName]; ok {
+		return fmt.Errorf("cannot add duplicated type name: %q", typeName)
 	}
-	return ErrDuplicateType
+	r.types[typeName] = t
+	return nil
 }
 
 // AllSkills returns all skills of the given type.
@@ -139,7 +134,7 @@ func (r *Repository) AddSkill(snapName, skillName, typeName, label string, attrs
 		return err
 	}
 	// TODO: ensure that given snap really exists
-	t := r.unlockedType(typeName)
+	t := r.types[typeName]
 	if t == nil {
 		return ErrTypeNotFound
 	}
@@ -179,22 +174,6 @@ func (r *Repository) RemoveSkill(snapName, skillName string) error {
 }
 
 // Private unlocked APIs
-
-func (r *Repository) unlockedType(typeName string) Type {
-	if i, found := r.unlockedTypeIndex(typeName); found {
-		return r.types[i]
-	}
-	return nil
-}
-
-func (r *Repository) unlockedTypeIndex(typeName string) (int, bool) {
-	// Assumption: r.types is sorted
-	i := sort.Search(len(r.types), func(i int) bool { return r.types[i].Name() >= typeName })
-	if i < len(r.types) && r.types[i].Name() == typeName {
-		return i, true
-	}
-	return i, false
-}
 
 func (r *Repository) unlockedSkill(snapName, skillName string) *Skill {
 	if i, found := r.unlockedSkillIndex(snapName, skillName); found {
