@@ -42,13 +42,6 @@ func NewRepository() *Repository {
 	return &Repository{}
 }
 
-// AllTypes returns all skill types known to the repository.
-func (r *Repository) AllTypes() []Type {
-	r.m.Lock()
-	defer r.m.Unlock()
-
-	return append([]Type(nil), r.types...)
-}
 
 // Type returns a type with a given name.
 func (r *Repository) Type(typeName string) Type {
