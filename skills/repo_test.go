@@ -56,7 +56,7 @@ func (s *RepositorySuite) TestAddTypeClash(c *C) {
 	c.Assert(err, IsNil)
 	// Adding a type with the same name as another type is not allowed
 	err = s.emptyRepo.AddType(t2)
-	c.Assert(err, ErrorMatches, "duplicate type name")
+	c.Assert(err, ErrorMatches, `cannot add duplicated type name: "type"`)
 	c.Assert(s.emptyRepo.Type(t1.Name()), Equals, t1)
 }
 
