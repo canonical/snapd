@@ -62,7 +62,7 @@ func (r *Repository) AddType(t Type) error {
 		return err
 	}
 	if _, ok := r.types[typeName]; ok {
-		return fmt.Errorf("cannot add duplicated type name: %q", typeName)
+		return fmt.Errorf("cannot add skill type: %q, type name is in use", typeName)
 	}
 	r.types[typeName] = t
 	return nil
