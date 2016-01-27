@@ -110,38 +110,31 @@ func (r *Repository) Skill(snapName, skillName string) *Skill {
 // AddSkill adds a skill to the repository.
 // Skill names must be valid snap names, as defined by ValidateName.
 // Skill name must be unique within a particular snap.
-func (r *Repository) AddSkill(snapName, skillName, typeName, label string, attrs map[string]interface{}) error {
+func (r *Repository) AddSkill(skill *Skill) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
 	// Reject skill with invalid names
-	if err := ValidateName(snapName); err != nil {
+	if err := ValidateName(skill.Snap); err != nil {
 		return err
 	}
-	if err := ValidateName(skillName); err != nil {
+	if err := ValidateName(skill.Name); err != nil {
 		return err
 	}
 	// TODO: ensure that given snap really exists
-	t := r.types[typeName]
+	t := r.types[skill.Type]
 	if t == nil {
-		return fmt.Errorf("cannot add skill, skill type %q is not known", typeName)
-	}
-	skill := &Skill{
-		Name:  skillName,
-		Snap:  snapName,
-		Type:  typeName,
-		Attrs: attrs,
-		Label: label,
+		return fmt.Errorf("cannot add skill, skill type %q is not known", skill.Type)
 	}
 	// Reject skill that don't pass type-specific sanitization
 	if err := t.Sanitize(skill); err != nil {
 		return err
 	}
-	if i, found := r.unlockedSkillIndex(snapName, skillName); !found {
+	if i, found := r.unlockedSkillIndex(skill.Snap, skill.Name); !found {
 		r.skills = append(r.skills[:i], append([]*Skill{skill}, r.skills[i:]...)...)
 		return nil
 	}
-	return fmt.Errorf("cannot add skill, skill name %q is in use", skillName)
+	return fmt.Errorf("cannot add skill, skill name %q is in use", skill.Name)
 }
 
 // RemoveSkill removes the named skill provided by a given snap.
