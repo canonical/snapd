@@ -39,7 +39,12 @@ var DecodePrivateKeyInTest = decodePrivateKey
 
 // NewDecoderStressed makes a Decoder with a stressed setup with the given buffer size.
 func NewDecoderStressed(r io.Reader, bufSize int) *Decoder {
-	return &Decoder{rd: r, buf: make([]byte, bufSize)}
+	return newDecoder(r, bufSize)
+}
+
+// Encoder.append exposed for tests
+func EncoderAppend(enc *Encoder, encoded []byte) error {
+	return enc.append(encoded)
 }
 
 func BootstrapAccountKeyForTest(authorityID string, pubKey *packet.PublicKey) *AccountKey {

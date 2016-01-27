@@ -181,9 +181,9 @@ func checkContent(c *C, a asserts.Assertion, encoded string) {
 func (as *assertsSuite) TestEncoderDecoderHappy(c *C) {
 	stream := new(bytes.Buffer)
 	enc := asserts.NewEncoder(stream)
-	enc.Append([]byte(exampleEmptyBody2NlNl))
-	enc.Append([]byte(exampleBodyAndExtraHeaders))
-	enc.Append([]byte(exampleEmptyBodyAllDefaults))
+	asserts.EncoderAppend(enc, []byte(exampleEmptyBody2NlNl))
+	asserts.EncoderAppend(enc, []byte(exampleBodyAndExtraHeaders))
+	asserts.EncoderAppend(enc, []byte(exampleEmptyBodyAllDefaults))
 
 	decoder := asserts.NewDecoder(stream)
 	a, err := decoder.Decode()
@@ -205,6 +205,13 @@ func (as *assertsSuite) TestEncoderDecoderHappy(c *C) {
 	c.Assert(err, Equals, io.EOF)
 }
 
+func (as *assertsSuite) TestDecodeEmptyStream(c *C) {
+	stream := new(bytes.Buffer)
+	decoder := asserts.NewDecoder(stream)
+	_, err := decoder.Decode()
+	c.Check(err, Equals, io.EOF)
+}
+
 func (as *assertsSuite) TestDecoderHappyWithSeparatorsVariations(c *C) {
 	streams := []string{
 		exampleBodyAndExtraHeaders,
@@ -214,7 +221,7 @@ func (as *assertsSuite) TestDecoderHappyWithSeparatorsVariations(c *C) {
 
 	for _, streamData := range streams {
 		stream := bytes.NewBufferString(streamData)
-		decoder := asserts.NewDecoderStressed(stream, 10)
+		decoder := asserts.NewDecoderStressed(stream, 16)
 		a, err := decoder.Decode()
 		c.Assert(err, IsNil, Commentf("stream: %q", streamData))
 
@@ -232,7 +239,7 @@ func (as *assertsSuite) TestDecoderUnexpectedEOF(c *C) {
 
 	for _, brk := range []int{1, fstHeadEnd / 2, fstHeadEnd, fstHeadEnd + 1, fstHeadEnd + 2, fstHeadEnd + 6} {
 		stream := bytes.NewBufferString(streamData[:brk])
-		decoder := asserts.NewDecoderStressed(stream, 10)
+		decoder := asserts.NewDecoderStressed(stream, 16)
 		_, err := decoder.Decode()
 		c.Check(err, Equals, io.ErrUnexpectedEOF, Commentf("brk: %d", brk))
 	}
