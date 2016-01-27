@@ -231,8 +231,6 @@ type Decoder struct {
 	err            error
 }
 
-const decoderBufSize = 16
-
 func newDecoder(r io.Reader, bufSize int) *Decoder {
 	return &Decoder{
 		rd:             r,
