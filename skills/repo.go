@@ -119,7 +119,6 @@ func (r *Repository) AddSkill(skill *Skill) error {
 	if err := ValidateName(skill.Name); err != nil {
 		return err
 	}
-	// TODO: ensure that given snap really exists
 	t := r.types[skill.Type]
 	if t == nil {
 		return fmt.Errorf("cannot add skill, skill type %q is not known", skill.Type)
