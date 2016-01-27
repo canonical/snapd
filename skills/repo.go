@@ -21,7 +21,6 @@ package skills
 
 import (
 	"errors"
-	"sort"
 	"sync"
 )
 
@@ -29,7 +28,7 @@ import (
 type Repository struct {
 	// Protects the internals from concurrent access.
 	m     sync.Mutex
-	types []Type
+	types map[string]Type
 }
 
 var (
@@ -39,16 +38,17 @@ var (
 
 // NewRepository creates an empty skill repository.
 func NewRepository() *Repository {
-	return &Repository{}
+	return &Repository{
+		types: make(map[string]Type),
+	}
 }
-
 
 // Type returns a type with a given name.
 func (r *Repository) Type(typeName string) Type {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	return r.unlockedType(typeName)
+	return r.types[typeName]
 }
 
 // AddType adds the provided skill type to the repository.
@@ -60,27 +60,9 @@ func (r *Repository) AddType(t Type) error {
 	if err := ValidateName(typeName); err != nil {
 		return err
 	}
-	if i, found := r.unlockedTypeIndex(typeName); !found {
-		r.types = append(r.types[:i], append([]Type{t}, r.types[i:]...)...)
-		return nil
+	if _, ok := r.types[typeName]; ok {
+		return ErrDuplicateType
 	}
-	return ErrDuplicateType
-}
-
-// Private unlocked APIs
-
-func (r *Repository) unlockedType(typeName string) Type {
-	if i, found := r.unlockedTypeIndex(typeName); found {
-		return r.types[i]
-	}
+	r.types[typeName] = t
 	return nil
-}
-
-func (r *Repository) unlockedTypeIndex(typeName string) (int, bool) {
-	// Assumption: r.types is sorted
-	i := sort.Search(len(r.types), func(i int) bool { return r.types[i].Name() >= typeName })
-	if i < len(r.types) && r.types[i].Name() == typeName {
-		return i, true
-	}
-	return i, false
 }
