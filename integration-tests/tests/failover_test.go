@@ -38,8 +38,6 @@ type failoverSuite struct {
 // This is the logic common to all the failover tests. Each of them has to call this method
 // with the snap that will be updated and the function that changes it to fail.
 func (s *failoverSuite) testUpdateToBrokenVersion(c *check.C, snap string, changeFunc updates.ChangeFakeUpdateSnap) {
-	c.Skip("KNOWN BUG FIXME: https://bugs.launchpad.net/snappy/+bug/1534029")
-
 	snapName := strings.Split(snap, ".")[0]
 	currentVersion := common.GetCurrentVersion(c, snapName)
 
