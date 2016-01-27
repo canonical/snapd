@@ -138,8 +138,7 @@ func (r *Repository) AddSkill(skill *Skill) error {
 }
 
 // RemoveSkill removes the named skill provided by a given snap.
-// Removing a skill that doesn't exist returns a ErrSkillNotFound.
-// Removing a skill that is granted returns ErrSkillBusy.
+// The removed skill must exist and must not be used anywhere.
 func (r *Repository) RemoveSkill(snapName, skillName string) error {
 	r.m.Lock()
 	defer r.m.Unlock()
