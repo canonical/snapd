@@ -44,6 +44,8 @@ var _ = Suite(&RepositorySuite{
 		Name:  "name",
 		Type:  "type",
 		Attrs: map[string]interface{}{"attr": "value"},
+		Label: "label",
+		Apps:  []string{"app"},
 	},
 })
 
