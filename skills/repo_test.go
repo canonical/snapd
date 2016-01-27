@@ -126,7 +126,7 @@ func (s *RepositorySuite) TestAddSkillClash(c *C) {
 	err := s.testRepo.AddSkill(s.skill.Snap, s.skill.Name, s.skill.Type, s.skill.Label, s.skill.Attrs)
 	c.Assert(err, IsNil)
 	err = s.testRepo.AddSkill(s.skill.Snap, s.skill.Name, s.skill.Type, s.skill.Label, s.skill.Attrs)
-	c.Assert(err, Equals, ErrDuplicateSkill)
+	c.Assert(err, ErrorMatches, `cannot add skill, skill name "name" is in use`)
 	c.Assert(s.testRepo.AllSkills(""), HasLen, 1)
 	c.Assert(s.testRepo.Skill(s.skill.Snap, s.skill.Name), DeepEquals, s.skill)
 }
@@ -145,7 +145,7 @@ func (s *RepositorySuite) TestAddSkillFailsWithInvalidSkillName(c *C) {
 
 func (s *RepositorySuite) TestAddSkillFailsWithUnknownType(c *C) {
 	err := s.emptyRepo.AddSkill(s.skill.Snap, s.skill.Name, s.skill.Type, s.skill.Label, s.skill.Attrs)
-	c.Assert(err, Equals, ErrTypeNotFound)
+	c.Assert(err, ErrorMatches, `cannot add skill, skill type "type" is not known`)
 	c.Assert(s.testRepo.AllSkills(""), HasLen, 0)
 }
 
@@ -206,7 +206,7 @@ func (s *RepositorySuite) TestRemoveSkillGood(c *C) {
 
 func (s *RepositorySuite) TestRemoveSkillNoSuchSkill(c *C) {
 	err := s.emptyRepo.RemoveSkill(s.skill.Snap, s.skill.Name)
-	c.Assert(err, Equals, ErrSkillNotFound)
+	c.Assert(err, ErrorMatches, `cannot remove skill "name", no such skill`)
 }
 
 // Tests for Repository.AllSkills()

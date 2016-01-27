@@ -20,21 +20,9 @@
 package skills
 
 import (
-	"errors"
 	"fmt"
 	"sort"
 	"sync"
-)
-
-var (
-	// ErrTypeNotFound is reported when skill type cannot found.
-	ErrTypeNotFound = errors.New("skill type not found")
-	// ErrDuplicateType is reported when type with duplicate name is being added to a repository.
-	ErrDuplicateType = errors.New("duplicate type name")
-	// ErrSkillNotFound is reported when skill cannot be looked up.
-	ErrSkillNotFound = errors.New("skill not found")
-	// ErrDuplicateSkill is reported when skill with duplicate name is being added to a repository.
-	ErrDuplicateSkill = errors.New("duplicate skill name")
 )
 
 // Repository stores all known snappy skills and slots and types.
@@ -136,7 +124,7 @@ func (r *Repository) AddSkill(snapName, skillName, typeName, label string, attrs
 	// TODO: ensure that given snap really exists
 	t := r.types[typeName]
 	if t == nil {
-		return ErrTypeNotFound
+		return fmt.Errorf("cannot add skill, skill type %q is not known", typeName)
 	}
 	skill := &Skill{
 		Name:  skillName,
@@ -153,7 +141,7 @@ func (r *Repository) AddSkill(snapName, skillName, typeName, label string, attrs
 		r.skills = append(r.skills[:i], append([]*Skill{skill}, r.skills[i:]...)...)
 		return nil
 	}
-	return ErrDuplicateSkill
+	return fmt.Errorf("cannot add skill, skill name %q is in use", skillName)
 }
 
 // RemoveSkill removes the named skill provided by a given snap.
@@ -170,7 +158,7 @@ func (r *Repository) RemoveSkill(snapName, skillName string) error {
 			return nil
 		}
 	}
-	return ErrSkillNotFound
+	return fmt.Errorf("cannot remove skill %q, no such skill", skillName)
 }
 
 // Private unlocked APIs
