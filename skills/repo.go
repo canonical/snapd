@@ -28,15 +28,17 @@ import (
 // Repository stores all known snappy skills and slots and types.
 type Repository struct {
 	// Protects the internals from concurrent access.
-	m      sync.Mutex
-	types  map[string]Type
-	skills []*Skill
+	m     sync.Mutex
+	types map[string]Type
+	// Indexed by [snapName][skillName]
+	skills map[string]map[string]*Skill
 }
 
 // NewRepository creates an empty skill repository.
 func NewRepository() *Repository {
 	return &Repository{
-		types: make(map[string]Type),
+		types:  make(map[string]Type),
+		skills: make(map[string]map[string]*Skill),
 	}
 }
 
@@ -71,17 +73,14 @@ func (r *Repository) AllSkills(skillType string) []*Skill {
 	defer r.m.Unlock()
 
 	var result []*Skill
-	if skillType == "" {
-		result = make([]*Skill, len(r.skills))
-		copy(result, r.skills)
-	} else {
-		result = make([]*Skill, 0)
-		for _, skill := range r.skills {
-			if skill.Type == skillType {
+	for _, skillsForSnap := range r.skills {
+		for _, skill := range skillsForSnap {
+			if skillType == "" || skill.Type == skillType {
 				result = append(result, skill)
 			}
 		}
 	}
+	sort.Sort(bySkillSnapAndName(result))
 	return result
 }
 
@@ -91,11 +90,10 @@ func (r *Repository) Skills(snapName string) []*Skill {
 	defer r.m.Unlock()
 
 	var result []*Skill
-	for _, skill := range r.skills {
-		if skill.Snap == snapName {
-			result = append(result, skill)
-		}
+	for _, skill := range r.skills[snapName] {
+		result = append(result, skill)
 	}
+	sort.Sort(bySkillSnapAndName(result))
 	return result
 }
 
@@ -104,7 +102,7 @@ func (r *Repository) Skill(snapName, skillName string) *Skill {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	return r.unlockedSkill(snapName, skillName)
+	return r.skills[snapName][skillName]
 }
 
 // AddSkill adds a skill to the repository.
@@ -130,11 +128,14 @@ func (r *Repository) AddSkill(skill *Skill) error {
 	if err := t.Sanitize(skill); err != nil {
 		return err
 	}
-	if i, found := r.unlockedSkillIndex(skill.Snap, skill.Name); !found {
-		r.skills = append(r.skills[:i], append([]*Skill{skill}, r.skills[i:]...)...)
-		return nil
+	if _, ok := r.skills[skill.Snap][skill.Name]; ok {
+		return fmt.Errorf("cannot add skill, skill name %q is in use", skill.Name)
 	}
-	return fmt.Errorf("cannot add skill, skill name %q is in use", skill.Name)
+	if r.skills[skill.Snap] == nil {
+		r.skills[skill.Snap] = make(map[string]*Skill)
+	}
+	r.skills[skill.Snap][skill.Name] = skill
+	return nil
 }
 
 // RemoveSkill removes the named skill provided by a given snap.
@@ -145,34 +146,22 @@ func (r *Repository) RemoveSkill(snapName, skillName string) error {
 	defer r.m.Unlock()
 
 	// TODO: Ensure that the skill is not used anywhere
-	for i, skill := range r.skills {
-		if skill.Snap == snapName && skill.Name == skillName {
-			r.skills = append(r.skills[:i], r.skills[i+1:]...)
-			return nil
-		}
+	if _, ok := r.skills[snapName][skillName]; !ok {
+		return fmt.Errorf("cannot remove skill %q, no such skill", skillName)
 	}
-	return fmt.Errorf("cannot remove skill %q, no such skill", skillName)
-}
-
-// Private unlocked APIs
-
-func (r *Repository) unlockedSkill(snapName, skillName string) *Skill {
-	if i, found := r.unlockedSkillIndex(snapName, skillName); found {
-		return r.skills[i]
-	}
+	delete(r.skills[snapName], skillName)
 	return nil
 }
 
-func (r *Repository) unlockedSkillIndex(snapName, skillName string) (int, bool) {
-	// Assumption: r.skills is sorted
-	i := sort.Search(len(r.skills), func(i int) bool {
-		if r.skills[i].Snap != snapName {
-			return r.skills[i].Snap >= snapName
-		}
-		return r.skills[i].Name >= skillName
-	})
-	if i < len(r.skills) && r.skills[i].Snap == snapName && r.skills[i].Name == skillName {
-		return i, true
+// Support for sort.Interface
+
+type bySkillSnapAndName []*Skill
+
+func (c bySkillSnapAndName) Len() int      { return len(c) }
+func (c bySkillSnapAndName) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
+func (c bySkillSnapAndName) Less(i, j int) bool {
+	if c[i].Snap != c[j].Snap {
+		return c[i].Snap < c[j].Snap
 	}
-	return i, false
+	return c[i].Name < c[j].Name
 }
