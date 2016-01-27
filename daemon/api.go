@@ -172,7 +172,6 @@ func sysInfo(c *Command, r *http.Request) Response {
 
 type metarepo interface {
 	Details(string, string) ([]snappy.Part, error)
-	All() ([]snappy.Part, error)
 	Find(string) ([]snappy.Part, error) // XXX: change this to Search iff aliases (and thus SharedNames) are no more
 }
 
@@ -320,18 +319,15 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		repo := newRemoteRepo()
 		var found []snappy.Part
 
-		if searchTerm != "" {
-			found, _ = repo.Find(searchTerm)
-			sources = append(sources, "store")
-		} else {
-			found, _ = repo.All()
+		// repo.Find("") finds all
+		//
+		// TODO: Instead of ignoring the error from Find:
+		//   * if there are no results, return an error response.
+		//   * If there are results at all (perhaps local), include a
+		//     warning in the response
+		found, _ = repo.Find(searchTerm)
 
-			// TODO: If there are no results (local or remote), report the error. If
-			//       there are results at all, inform that the result is partial.
-			if len(found) > 0 {
-				sources = append(sources, "store")
-			}
-		}
+		sources = append(sources, "store")
 
 		sort.Sort(byQN(found))
 

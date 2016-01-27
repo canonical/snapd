@@ -238,7 +238,7 @@ func (s *SnapUbuntuStoreRepository) Details(name string, origin string) (parts [
 
 // All (installable) parts from the store
 func (s *SnapUbuntuStoreRepository) All() ([]Part, error) {
-	return s.search(s.searchURI.String())
+	return s.Find("")
 }
 
 // Find (installable) parts from the store, matching the given search term.
@@ -247,15 +247,14 @@ func (s *SnapUbuntuStoreRepository) All() ([]Part, error) {
 // aliases
 func (s *SnapUbuntuStoreRepository) Find(searchTerm string) ([]Part, error) {
 	u := *s.searchURI // make a copy, so we can mutate it
-	q := u.Query()
-	q.Set("q", "name:"+searchTerm)
-	u.RawQuery = q.Encode()
 
-	return s.search(u.String())
-}
+	if searchTerm != "" {
+		q := u.Query()
+		q.Set("q", "name:"+searchTerm)
+		u.RawQuery = q.Encode()
+	}
 
-func (s *SnapUbuntuStoreRepository) search(uri string) ([]Part, error) {
-	req, err := http.NewRequest("GET", uri, nil)
+	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
 		return nil, err
 	}
