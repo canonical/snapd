@@ -138,7 +138,7 @@ func (s *RepositorySuite) TestAddSkillFailsWithInvalidSnapName(c *C) {
 		Type: "type",
 	}
 	err := s.testRepo.AddSkill(skill)
-	c.Assert(err, ErrorMatches, `invalid skill name: "bad-snap-"`)
+	c.Assert(err, ErrorMatches, `invalid snap name: "bad-snap-"`)
 	c.Assert(s.testRepo.AllSkills(""), HasLen, 0)
 }
 

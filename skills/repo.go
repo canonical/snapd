@@ -23,6 +23,8 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+
+	"github.com/ubuntu-core/snappy/snap"
 )
 
 // Repository stores all known snappy skills and slots and types.
@@ -112,10 +114,11 @@ func (r *Repository) AddSkill(skill *Skill) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	// Reject skill with invalid names
-	if err := ValidateName(skill.Snap); err != nil {
+	// Reject snaps with invalid names
+	if err := snap.ValidateName(skill.Snap); err != nil {
 		return err
 	}
+	// Reject skill with invalid names
 	if err := ValidateName(skill.Name); err != nil {
 		return err
 	}
