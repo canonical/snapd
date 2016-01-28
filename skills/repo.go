@@ -34,7 +34,7 @@ type Repository struct {
 	types map[string]Type
 	// Indexed by [snapName][skillName]
 	skills map[string]map[string]*Skill
-	slots  []*Slot
+	slots  map[string]map[string]*Slot
 }
 
 // NewRepository creates an empty skill repository.
@@ -42,6 +42,7 @@ func NewRepository() *Repository {
 	return &Repository{
 		types:  make(map[string]Type),
 		skills: make(map[string]map[string]*Skill),
+		slots:  make(map[string]map[string]*Slot),
 	}
 }
 
@@ -162,17 +163,14 @@ func (r *Repository) AllSlots(skillType string) []*Slot {
 	defer r.m.Unlock()
 
 	var result []*Slot
-	if skillType == "" {
-		result = make([]*Slot, len(r.slots))
-		copy(result, r.slots)
-	} else {
-		result = make([]*Slot, 0)
-		for _, slot := range r.slots {
-			if slot.Type == skillType {
+	for _, slotsForSnap := range r.slots {
+		for _, slot := range slotsForSnap {
+			if skillType == "" || slot.Type == skillType {
 				result = append(result, slot)
 			}
 		}
 	}
+	sort.Sort(bySlotSnapAndName(result))
 	return result
 }
 
@@ -182,12 +180,10 @@ func (r *Repository) Slots(snapName string) []*Slot {
 	defer r.m.Unlock()
 
 	var result []*Slot
-	for _, slot := range r.slots {
-		// NOTE: can be done faster; r.slots is sorted by (Slot.Snap, Slot.Name).
-		if slot.Snap == snapName {
-			result = append(result, slot)
-		}
+	for _, slot := range r.slots[snapName] {
+		result = append(result, slot)
 	}
+	sort.Sort(bySlotSnapAndName(result))
 	return result
 }
 
@@ -196,7 +192,7 @@ func (r *Repository) Slot(snapName, slotName string) *Slot {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	return r.unlockedSlot(snapName, slotName)
+	return r.slots[snapName][slotName]
 }
 
 // AddSlot adds a new slot to the repository.
@@ -212,15 +208,18 @@ func (r *Repository) AddSlot(slot *Slot) error {
 	}
 	// TODO: ensure the snap is correct
 	// TODO: ensure that apps are correct
-	if r.types[slot.Type] == nil {
+	t := r.types[slot.Type]
+	if t == nil {
 		return fmt.Errorf("cannot add slot, skill type %q is not known", slot.Type)
 	}
-	if i, found := r.unlockedSlotIndex(slot.Snap, slot.Name); !found {
-		// Insert the slot at the right index
-		r.slots = append(r.slots[:i], append([]*Slot{slot}, r.slots[i:]...)...)
-		return nil
+	if _, ok := r.slots[slot.Snap][slot.Name]; ok {
+		return fmt.Errorf("cannot add slot, slot name %q is in use", slot.Name)
 	}
-	return fmt.Errorf("cannot add slot, slot name %q is in use", slot.Name)
+	if r.slots[slot.Snap] == nil {
+		r.slots[slot.Snap] = make(map[string]*Slot)
+	}
+	r.slots[slot.Snap][slot.Name] = slot
+	return nil
 }
 
 // RemoveSlot removes a named slot from the given snap.
@@ -230,12 +229,12 @@ func (r *Repository) RemoveSlot(snapName, slotName string) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	if i, found := r.unlockedSlotIndex(snapName, slotName); found {
-		// TODO: return an error if slot is occupied by at least one capability.
-		r.slots = append(r.slots[:i], r.slots[i+1:]...)
-		return nil
+	// TODO: return an error if slot is occupied by at least one capability.
+	if _, ok := r.slots[snapName][slotName]; !ok {
+		return fmt.Errorf("cannot remove slot %q, no such slot", slotName)
 	}
-	return fmt.Errorf("cannot remove slot %q, no such slot", slotName)
+	delete(r.slots[snapName], slotName)
+	return nil
 }
 
 // Support for sort.Interface
@@ -251,30 +250,13 @@ func (c bySkillSnapAndName) Less(i, j int) bool {
 	return c[i].Name < c[j].Name
 }
 
-// Private unlocked APIs
+type bySlotSnapAndName []*Slot
 
-// unlockedSlot returns a slot given snap and slot name.
-func (r *Repository) unlockedSlot(snapName, slotName string) *Slot {
-	i, found := r.unlockedSlotIndex(snapName, slotName)
-	if found {
-		return r.slots[i]
+func (c bySlotSnapAndName) Len() int      { return len(c) }
+func (c bySlotSnapAndName) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
+func (c bySlotSnapAndName) Less(i, j int) bool {
+	if c[i].Snap != c[j].Snap {
+		return c[i].Snap < c[j].Snap
 	}
-	return nil
-}
-
-// unlockedSlotIndex returns the index of a slot given snap and slot name.
-// If the slot is found, the found return value is true. Otherwise the index can
-// be used as a place where the slot should be inserted.
-func (r *Repository) unlockedSlotIndex(snapName, slotName string) (index int, found bool) {
-	// Assumption: r.slots is sorted
-	i := sort.Search(len(r.slots), func(i int) bool {
-		if r.slots[i].Snap != snapName {
-			return r.slots[i].Snap >= snapName
-		}
-		return r.slots[i].Name >= slotName
-	})
-	if i < len(r.slots) && r.slots[i].Snap == snapName && r.slots[i].Name == slotName {
-		return i, true
-	}
-	return i, false
+	return c[i].Name < c[j].Name
 }
