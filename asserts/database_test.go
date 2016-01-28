@@ -183,7 +183,7 @@ func (chks *checkSuite) TestCheckNoPubKey(c *C) {
 	c.Assert(err, IsNil)
 
 	err = db.Check(chks.a)
-	c.Assert(err, ErrorMatches, `no matching public key for signature by "canonical" key id.*`)
+	c.Assert(err, ErrorMatches, `no matching public key for signature by "canonical" key id .*`)
 }
 
 func (chks *checkSuite) TestCheckExpiredPubKey(c *C) {
@@ -198,7 +198,7 @@ func (chks *checkSuite) TestCheckExpiredPubKey(c *C) {
 	c.Assert(err, IsNil)
 
 	err = db.Check(chks.a)
-	c.Assert(err, ErrorMatches, "no currently valid known public key verifies assertion")
+	c.Assert(err, ErrorMatches, `assertion is signed with expired public key by "canonical" key id .*`)
 }
 
 func (chks *checkSuite) TestCheckForgery(c *C) {
@@ -530,4 +530,27 @@ func (safs *signAddFindSuite) TestFindFindsTrustedAccountKeys(c *C) {
 	accKeys, err := safs.db.FindMany(asserts.AccountKeyType, nil)
 	c.Assert(err, IsNil)
 	c.Check(accKeys, HasLen, 2)
+}
+
+func (safs *signAddFindSuite) TestDontLetAddConfusinglyAssertionClashingWithTrustedOnes(c *C) {
+	// trusted
+	pubKey0, err := safs.signingDB.PublicKey("canonical", safs.signingKeyID)
+	c.Assert(err, IsNil)
+	pubKey0Encoded, err := asserts.EncodePublicKey(pubKey0)
+	c.Assert(err, IsNil)
+
+	now := time.Now().UTC()
+	headers := map[string]string{
+		"authority-id":           "canonical",
+		"account-id":             "canonical",
+		"public-key-id":          safs.signingKeyID,
+		"public-key-fingerprint": pubKey0.Fingerprint(),
+		"since":                  now.Format(time.RFC3339),
+		"until":                  now.AddDate(1, 0, 0).Format(time.RFC3339),
+	}
+	tKey, err := safs.signingDB.Sign(asserts.AccountKeyType, headers, []byte(pubKey0Encoded), safs.signingKeyID)
+	c.Assert(err, IsNil)
+
+	err = safs.db.Add(tKey)
+	c.Check(err, ErrorMatches, `cannot add assertion of type "account-key" with primary key clashing with a trusted assertion: .*`)
 }

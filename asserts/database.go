@@ -229,8 +229,7 @@ func (db *Database) Check(assert Assertion) error {
 
 	now := time.Now()
 	if !accKey.isKeyValidAt(now) {
-		// XXX clearer error message
-		return fmt.Errorf("no currently valid known public key verifies assertion")
+		return fmt.Errorf("assertion is signed with expired public key by %q key id %q", assert.AuthorityID(), sig.KeyID())
 	}
 
 	err = accKey.publicKey().verify(content, sig)
@@ -257,13 +256,23 @@ func (db *Database) Add(assert Assertion) error {
 	if err != nil {
 		return err
 	}
-	for _, k := range assertType.PrimaryKey {
-		if assert.Header(k) == "" {
+
+	keyValues := make([]string, len(assertType.PrimaryKey))
+	for i, k := range assertType.PrimaryKey {
+		keyVal := assert.Header(k)
+		if keyVal == "" {
 			return fmt.Errorf("missing primary key header: %v", k)
 		}
+		keyValues[i] = keyVal
 	}
 
-	// XXX don't allow shadowing the trusted store for now
+	// assuming trusted account keys/assertions will be managed
+	// through the os snap this seems the safest policy until we
+	// know more/better
+	_, err = db.trusted.Get(assertType, keyValues)
+	if err != ErrNotFound {
+		return fmt.Errorf("cannot add assertion of type %q with primary key clashing with a trusted assertion: %v", assertType.Name, keyValues)
+	}
 
 	return db.bs.Put(assertType, assert)
 }
