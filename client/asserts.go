@@ -63,7 +63,7 @@ func (client *Client) Asserts(assertTypeName string, headers map[string]string) 
 		return nil, parseError(response)
 	}
 
-	sanityCount, err := strconv.Atoi(response.Header.Get("X-Assertions-Count"))
+	sanityCount, err := strconv.Atoi(response.Header.Get("X-Ubuntu-Assertions-Count"))
 	if err != nil {
 		return nil, fmt.Errorf("invalid assertions count")
 	}

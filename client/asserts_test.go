@@ -88,7 +88,7 @@ func (cs *clientSuite) TestClientAssertsJSONError(c *C) {
 
 func (cs *clientSuite) TestClientAsserts(c *C) {
 	cs.header = http.Header{}
-	cs.header.Add("X-Assertions-Count", "2")
+	cs.header.Add("X-Ubuntu-Assertions-Count", "2")
 	cs.rsp = `type: snap-revision
 authority-id: store-id1
 snap-id: snap-id-1
@@ -125,7 +125,7 @@ openpgp ...
 
 func (cs *clientSuite) TestClientAssertsNoAssertions(c *C) {
 	cs.header = http.Header{}
-	cs.header.Add("X-Assertions-Count", "0")
+	cs.header.Add("X-Ubuntu-Assertions-Count", "0")
 	cs.rsp = ""
 	cs.status = http.StatusOK
 	a, err := cs.cli.Asserts("snap-revision", nil)
@@ -135,7 +135,7 @@ func (cs *clientSuite) TestClientAssertsNoAssertions(c *C) {
 
 func (cs *clientSuite) TestClientAssertsMissingAssertions(c *C) {
 	cs.header = http.Header{}
-	cs.header.Add("X-Assertions-Count", "4")
+	cs.header.Add("X-Ubuntu-Assertions-Count", "4")
 	cs.rsp = ""
 	cs.status = http.StatusOK
 	_, err := cs.cli.Asserts("snap-build", nil)
