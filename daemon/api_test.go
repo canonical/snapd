@@ -1547,7 +1547,7 @@ func (s *apiSuite) TestGrantSkillFailureNoSuchSkill(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": "cannot grant skill, no such skill \"producer\":\"skill\"",
+			"message": "cannot grant skill, skill \"producer\":\"skill\" does not exist",
 		},
 		"status":      "Bad Request",
 		"status_code": 400.0,
@@ -1585,7 +1585,7 @@ func (s *apiSuite) TestGrantSkillFailureNoSuchSlot(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": "cannot grant skill, no such slot \"consumer\":\"slot\"",
+			"message": "cannot grant skill, slot \"consumer\":\"slot\" does not exist",
 		},
 		"status":      "Bad Request",
 		"status_code": 400.0,
@@ -1661,7 +1661,7 @@ func (s *apiSuite) TestRevokeSkillFailureNoSuchSkill(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": "cannot revoke skill, no such skill \"producer\":\"skill\"",
+			"message": "cannot revoke skill, skill \"producer\":\"skill\" does not exist",
 		},
 		"status":      "Bad Request",
 		"status_code": 400.0,
@@ -1699,7 +1699,7 @@ func (s *apiSuite) TestRevokeSkillFailureNoSuchSlot(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": "cannot revoke skill, no such slot \"consumer\":\"slot\"",
+			"message": "cannot revoke skill, slot \"consumer\":\"slot\" does not exist",
 		},
 		"status":      "Bad Request",
 		"status_code": 400.0,
@@ -1830,7 +1830,7 @@ func (s *apiSuite) TestAddSkillFailure(c *check.C) {
 	d.skills.AddType(&skills.TestType{
 		TypeName: "type",
 		SanitizeSkillCallback: func(skill *skills.Skill) error {
-			return fmt.Errorf("skill sanitization error")
+			return fmt.Errorf("required attribute missing")
 		},
 	})
 	action := &SkillAction{
@@ -1859,7 +1859,7 @@ func (s *apiSuite) TestAddSkillFailure(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": "skill sanitization error",
+			"message": "cannot add skill, integrity check failure: required attribute missing",
 		},
 		"status":      "Bad Request",
 		"status_code": 400.0,
@@ -2050,7 +2050,7 @@ func (s *apiSuite) TestAddSlotFailure(c *check.C) {
 	d.skills.AddType(&skills.TestType{
 		TypeName: "type",
 		SanitizeSlotCallback: func(slot *skills.Slot) error {
-			return fmt.Errorf("slot sanitization error")
+			return fmt.Errorf("required attribute missing")
 		},
 	})
 	action := &SkillAction{
@@ -2079,7 +2079,7 @@ func (s *apiSuite) TestAddSlotFailure(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": "slot sanitization error",
+			"message": "cannot add slot, integrity check failure: required attribute missing",
 		},
 		"status":      "Bad Request",
 		"status_code": 400.0,
@@ -2200,7 +2200,7 @@ func (s *apiSuite) TestUnsupportedSkillRequest(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": "can't decode request body into a skill action: invalid character 'g' looking for beginning of value",
+			"message": "cannot decode request body into a skill action: invalid character 'g' looking for beginning of value",
 		},
 		"status":      "Bad Request",
 		"status_code": 400.0,

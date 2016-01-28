@@ -180,7 +180,7 @@ func (s *RepositorySuite) TestAddSkillFailsWithUnsanitizedSkill(c *C) {
 	err := s.emptyRepo.AddType(t)
 	c.Assert(err, IsNil)
 	err = s.emptyRepo.AddSkill(s.skill)
-	c.Assert(err, ErrorMatches, "skill is dirty")
+	c.Assert(err, ErrorMatches, "cannot add skill, integrity check failure: skill is dirty")
 	c.Assert(s.emptyRepo.AllSkills(""), HasLen, 0)
 }
 
@@ -492,7 +492,7 @@ func (s *RepositorySuite) TestAddSlotFailsWithUnsanitizedSlot(c *C) {
 	err := s.emptyRepo.AddType(t)
 	c.Assert(err, IsNil)
 	err = s.emptyRepo.AddSlot(s.slot)
-	c.Assert(err, ErrorMatches, "slot is dirty")
+	c.Assert(err, ErrorMatches, "cannot add slot, integrity check failure: slot is dirty")
 	c.Assert(s.emptyRepo.AllSlots(""), HasLen, 0)
 }
 
@@ -546,7 +546,7 @@ func (s *RepositorySuite) TestGrantFailsWhenSkillDoesNotExist(c *C) {
 	c.Assert(err, IsNil)
 	// Granting an unknown skill returns an appropriate error
 	err = s.testRepo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
-	c.Assert(err, ErrorMatches, `cannot grant skill, no such skill "provider-snap":"name"`)
+	c.Assert(err, ErrorMatches, `cannot grant skill, skill "provider-snap":"name" does not exist`)
 }
 
 func (s *RepositorySuite) TestGrantFailsWhenSlotDoesNotExist(c *C) {
@@ -554,7 +554,7 @@ func (s *RepositorySuite) TestGrantFailsWhenSlotDoesNotExist(c *C) {
 	c.Assert(err, IsNil)
 	// Granting to an unknown slot returns an error
 	err = s.testRepo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
-	c.Assert(err, ErrorMatches, `cannot grant skill, no such slot "consumer-snap":"name"`)
+	c.Assert(err, ErrorMatches, `cannot grant skill, slot "consumer-snap":"name" does not exist`)
 }
 
 func (s *RepositorySuite) TestGrantFailsWhenIdenticalGrantExists(c *C) {
@@ -599,7 +599,7 @@ func (s *RepositorySuite) TestRevokeFailsWhenSkillDoesNotExist(c *C) {
 	c.Assert(err, IsNil)
 	// Revoking an unknown skill returns and appropriate error
 	err = s.testRepo.Revoke(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
-	c.Assert(err, ErrorMatches, `cannot revoke skill, no such skill "provider-snap":"name"`)
+	c.Assert(err, ErrorMatches, `cannot revoke skill, skill "provider-snap":"name" does not exist`)
 }
 
 func (s *RepositorySuite) TestRevokeFailsWhenSlotDoesNotExist(c *C) {
@@ -607,7 +607,7 @@ func (s *RepositorySuite) TestRevokeFailsWhenSlotDoesNotExist(c *C) {
 	c.Assert(err, IsNil)
 	// Revoking to an unknown slot returns an appropriate error
 	err = s.testRepo.Revoke(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
-	c.Assert(err, ErrorMatches, `cannot revoke skill, no such slot "consumer-snap":"name"`)
+	c.Assert(err, ErrorMatches, `cannot revoke skill, slot "consumer-snap":"name" does not exist`)
 }
 
 func (s *RepositorySuite) TestRevokeFailsWhenNotGranted(c *C) {

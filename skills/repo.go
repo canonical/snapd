@@ -134,7 +134,7 @@ func (r *Repository) AddSkill(skill *Skill) error {
 	}
 	// Reject skill that don't pass type-specific sanitization
 	if err := t.SanitizeSkill(skill); err != nil {
-		return err
+		return fmt.Errorf("cannot add skill, integrity check failure: %v", err)
 	}
 	if _, ok := r.skills[skill.Snap][skill.Name]; ok {
 		return fmt.Errorf("cannot add skill, skill name %q is in use", skill.Name)
@@ -222,7 +222,7 @@ func (r *Repository) AddSlot(slot *Slot) error {
 		return fmt.Errorf("cannot add slot, skill type %q is not known", slot.Type)
 	}
 	if err := t.SanitizeSlot(slot); err != nil {
-		return err
+		return fmt.Errorf("cannot add slot, integrity check failure: %v", err)
 	}
 	if _, ok := r.slots[slot.Snap][slot.Name]; ok {
 		return fmt.Errorf("cannot add slot, slot name %q is in use", slot.Name)
@@ -263,12 +263,12 @@ func (r *Repository) Grant(skillSnapName, skillName, slotSnapName, slotName stri
 	// Ensure that such skill exists
 	skill := r.skills[skillSnapName][skillName]
 	if skill == nil {
-		return fmt.Errorf("cannot grant skill, no such skill %q:%q", skillSnapName, skillName)
+		return fmt.Errorf("cannot grant skill, skill %q:%q does not exist", skillSnapName, skillName)
 	}
 	// Ensure that such slot exists
 	slot := r.slots[slotSnapName][slotName]
 	if slot == nil {
-		return fmt.Errorf("cannot grant skill, no such slot %q:%q", slotSnapName, slotName)
+		return fmt.Errorf("cannot grant skill, slot %q:%q does not exist", slotSnapName, slotName)
 	}
 	// Ensure that skill and slot are compatible
 	if slot.Type != skill.Type {
@@ -299,12 +299,12 @@ func (r *Repository) Revoke(skillSnapName, skillName, slotSnapName, slotName str
 	// Ensure that such skill exists
 	skill := r.skills[skillSnapName][skillName]
 	if skill == nil {
-		return fmt.Errorf("cannot revoke skill, no such skill %q:%q", skillSnapName, skillName)
+		return fmt.Errorf("cannot revoke skill, skill %q:%q does not exist", skillSnapName, skillName)
 	}
 	// Ensure that such slot exists
 	slot := r.slots[slotSnapName][slotName]
 	if slot == nil {
-		return fmt.Errorf("cannot revoke skill, no such slot %q:%q", slotSnapName, slotName)
+		return fmt.Errorf("cannot revoke skill, slot %q:%q does not exist", slotSnapName, slotName)
 	}
 	// Ensure that slot and skill are connected
 	if !r.skillUsedBySlot[slot][skill] {

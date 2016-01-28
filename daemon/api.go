@@ -1014,7 +1014,7 @@ func changeSkills(c *Command, r *http.Request) Response {
 	var a SkillAction
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&a); err != nil || a.Action == "" {
-		return BadRequest("can't decode request body into a skill action: %v", err)
+		return BadRequest("cannot decode request body into a skill action: %v", err)
 	}
 	switch a.Action {
 	case "grant":
