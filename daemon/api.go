@@ -992,9 +992,9 @@ func assertsFindMany(c *Command, r *http.Request) Response {
 	}
 	assertions, err := c.d.asserts.FindMany(assertType, headers)
 	if err == asserts.ErrNotFound {
-		return NotFound("no matching assertions found")
+		return AssertResponse(nil, true)
 	} else if err != nil {
-		return InternalError("findind assertion failed: %v", err)
+		return InternalError("searching assertions failed: %v", err)
 	}
 	return AssertResponse(assertions, true)
 }
