@@ -57,7 +57,7 @@ type FirstBootTestSuite struct {
 	globs        []string
 	ethdir       string
 	ifup         string
-	m            *packageYaml
+	m            *snapYaml
 	e            error
 	partMap      map[string]Part
 	partMapErr   error
@@ -110,7 +110,7 @@ func (s *FirstBootTestSuite) TearDownTest(c *C) {
 	newPartMap = newPartMapImpl
 }
 
-func (s *FirstBootTestSuite) getGadget() (*packageYaml, error) {
+func (s *FirstBootTestSuite) getGadget() (*snapYaml, error) {
 	return s.m, s.e
 }
 
@@ -127,7 +127,7 @@ func (s *FirstBootTestSuite) newFakeApp() *fakePart {
 }
 
 func (s *FirstBootTestSuite) TestFirstBootConfigure(c *C) {
-	s.m = &packageYaml{Config: s.gadgetConfig}
+	s.m = &snapYaml{Config: s.gadgetConfig}
 	fakeMyApp := s.newFakeApp()
 
 	c.Assert(FirstBoot(), IsNil)
@@ -147,7 +147,7 @@ func (s *FirstBootTestSuite) TestSoftwareActivate(c *C) {
 	c.Assert(part.IsActive(), Equals, false)
 	name := part.Name()
 
-	s.m = &packageYaml{Gadget: Gadget{Software: Software{BuiltIn: []string{name}}}}
+	s.m = &snapYaml{Gadget: Gadget{Software: Software{BuiltIn: []string{name}}}}
 
 	repo := NewMetaLocalRepository()
 	all, err := repo.All()
@@ -205,7 +205,7 @@ func (s *FirstBootTestSuite) TestEnableFirstEtherSomeEth(c *C) {
 }
 
 func (s *FirstBootTestSuite) TestEnableFirstEtherGadgetNoIfup(c *C) {
-	s.m = &packageYaml{Gadget: Gadget{SkipIfupProvisioning: true}}
+	s.m = &snapYaml{Gadget: Gadget{SkipIfupProvisioning: true}}
 	dir := c.MkDir()
 	_, err := os.Create(filepath.Join(dir, "eth42"))
 	c.Assert(err, IsNil)
@@ -266,7 +266,7 @@ func (s *FirstBootTestSuite) TestSystemSnapsEnablesOS(c *C) {
 }
 
 func (s *FirstBootTestSuite) TestSystemSnapsEnablesKernel(c *C) {
-	s.m = &packageYaml{Gadget: Gadget{Hardware: Hardware{Bootloader: "grub"}}}
+	s.m = &snapYaml{Gadget: Gadget{Hardware: Hardware{Bootloader: "grub"}}}
 
 	s.ensureSystemSnapIsEnabledOnFirstBoot(c, mockKernelYaml, true)
 }

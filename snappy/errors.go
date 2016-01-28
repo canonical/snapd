@@ -59,10 +59,6 @@ var (
 	// that is already in the hwaccess list
 	ErrHWAccessAlreadyAdded = errors.New("device is already in hw-access list")
 
-	// ErrReadmeInvalid is returned if the package contains a invalid
-	// meta/readme.md
-	ErrReadmeInvalid = errors.New("meta/readme.md invalid")
-
 	// ErrAuthenticationNeeds2fa is returned if the authentication
 	// needs 2factor
 	ErrAuthenticationNeeds2fa = errors.New("authentication needs second factor")
@@ -92,10 +88,6 @@ var (
 	// ErrInvalidCredentials is returned on login error
 	ErrInvalidCredentials = errors.New("invalid credentials")
 
-	// ErrInvalidFrameworkSpecInYaml is returned if a package.yaml
-	// has both frameworks and framework entries.
-	ErrInvalidFrameworkSpecInYaml = errors.New("yaml can't have both \"frameworks\" and (deprecated) \"framework\" keys")
-
 	// ErrSnapNotActive is returned if you try to unset a snap from
 	// active to inactive
 	ErrSnapNotActive = errors.New("snap not active")
@@ -110,10 +102,10 @@ var (
 	// ErrLicenseBlank is returned when the package specifies that
 	// accepting license is required, but the license file was empty or
 	// blank
-	ErrLicenseBlank = errors.New("package.yaml requires accepting a license, but license file was blank")
+	ErrLicenseBlank = errors.New("snap.yaml requires accepting a license, but license file was blank")
 	// ErrLicenseNotProvided is returned when the package specifies that
 	// accepting a license is required, but no license file is provided
-	ErrLicenseNotProvided = errors.New("package.yaml requires license, but no license was provided")
+	ErrLicenseNotProvided = errors.New("snap.yaml requires license, but no license was provided")
 
 	// ErrNotFirstBoot is an error that indicates that the first boot has already
 	// run
@@ -220,7 +212,7 @@ type ErrStructIllegalContent struct {
 }
 
 func (e *ErrStructIllegalContent) Error() string {
-	return fmt.Sprintf("services description field '%s' contains illegal '%s' (legal: '%s')", e.Field, e.Content, e.Whitelist)
+	return fmt.Sprintf("app description field '%s' contains illegal %q (legal: '%s')", e.Field, e.Content, e.Whitelist)
 }
 
 // ErrGarbageCollectImpossible is alerting about some of the assumptions of the

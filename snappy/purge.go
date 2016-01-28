@@ -54,7 +54,7 @@ func Purge(partSpec string, flags PurgeFlags, meter progress.Meter) error {
 	// .snap being installed for multiple users, or the .snap using both the
 	// snap data path as well as the user data path. They all need to be purged.
 	for _, datadir := range datadirs {
-		yamlPath := filepath.Join(dirs.SnapSnapsDir, datadir.QualifiedName(), datadir.Version, "meta", "package.yaml")
+		yamlPath := filepath.Join(dirs.SnapSnapsDir, datadir.QualifiedName(), datadir.Version, "meta", "snap.yaml")
 		part, err := NewInstalledSnapPart(yamlPath, datadir.Origin)
 		if err != nil {
 			// no such part installed

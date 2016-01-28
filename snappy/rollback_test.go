@@ -50,8 +50,10 @@ func (s *SnapTestSuite) TestRollbackFindVersion(c *C) {
 }
 
 func (s *SnapTestSuite) TestRollbackService(c *C) {
-	makeTwoTestSnaps(c, snap.TypeApp, `services:
- - name: svc1
+	makeTwoTestSnaps(c, snap.TypeApp, `apps:
+ svc1:
+  command: something
+  daemon: forking
 `)
 	pkg := ActiveSnapByName("foo")
 	c.Assert(pkg, NotNil)
