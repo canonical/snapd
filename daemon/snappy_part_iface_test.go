@@ -74,7 +74,6 @@ func (p *tP) DownloadSize() int64  { return p.downloadSize }
 func (p *tP) Install(progress.Meter, snappy.InstallFlags) (string, error) {
 	return p.installName, p.installErr
 }
-func (p *tP) Uninstall(pb progress.Meter) error { return p.uninstallErr }
 func (p *tP) Config(cfg []byte) (string, error) {
 	if len(cfg) > 0 {
 		p.config = string(cfg)

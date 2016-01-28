@@ -108,8 +108,6 @@ type Part interface {
 
 	// Install the snap
 	Install(pb progress.Meter, flags InstallFlags) (name string, err error)
-	// Uninstall the snap
-	Uninstall(pb progress.Meter) error
 	// Config takes a yaml configuration and returns the full snap
 	// config with the changes. Note that "configuration" may be empty.
 	Config(configuration []byte) (newConfig string, err error)

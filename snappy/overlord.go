@@ -30,6 +30,7 @@ import (
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/squashfs"
 	"github.com/ubuntu-core/snappy/systemd"
 )
 
@@ -274,8 +275,61 @@ func canInstall(s *SnapFile, allowGadget bool, inter interacter) error {
 // Uninstall removes the given local snap from the system.
 //
 // It returns an error on failure
-func (o *Overlord) Uninstall(sp *SnapPart, meter progress.Meter) error {
-	return ErrNotImplemented
+func (o *Overlord) Uninstall(s *SnapPart, meter progress.Meter) error {
+	// Gadget snaps should not be removed as they are a key
+	// building block for Gadgets. Prunning non active ones
+	// is acceptible.
+	if s.m.Type == snap.TypeGadget && s.IsActive() {
+		return ErrPackageNotRemovable
+	}
+
+	// You never want to remove an active kernel or OS
+	if (s.m.Type == snap.TypeKernel || s.m.Type == snap.TypeOS) && s.IsActive() {
+		return ErrPackageNotRemovable
+	}
+
+	if IsBuiltInSoftware(s.Name()) && s.IsActive() {
+		return ErrPackageNotRemovable
+	}
+
+	deps, err := s.DependentNames()
+	if err != nil {
+		return err
+	}
+	if len(deps) != 0 {
+		return ErrFrameworkInUse(deps)
+	}
+
+	if err := s.deactivate(false, meter); err != nil && err != ErrSnapNotActive {
+		return err
+	}
+
+	// ensure mount unit stops
+	if err := s.m.removeSquashfsMount(s.basedir, meter); err != nil {
+		return err
+	}
+
+	err = os.RemoveAll(s.basedir)
+	if err != nil {
+		return err
+	}
+
+	// best effort(?)
+	os.Remove(filepath.Dir(s.basedir))
+
+	// remove the snap
+	if err := os.RemoveAll(squashfs.BlobPath(s.basedir)); err != nil {
+		return err
+	}
+
+	// remove the kernel assets (if any)
+	if s.m.Type == snap.TypeKernel {
+		if err := removeKernelAssets(s, meter); err != nil {
+			logger.Noticef("removing kernel assets failed with %s", err)
+		}
+	}
+
+	return RemoveAllHWAccess(QualifiedName(s))
 }
 
 // SetActive sets the active state of the given snap

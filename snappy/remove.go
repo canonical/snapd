@@ -62,8 +62,9 @@ func Remove(partSpec string, flags RemoveFlags, meter progress.Meter) error {
 		return ErrPackageNotFound
 	}
 
+	overlord := &Overlord{}
 	for _, part := range parts {
-		if err := part.Uninstall(meter); err != nil {
+		if err := overlord.Uninstall(part.(*SnapPart), meter); err != nil {
 			return err
 		}
 	}
