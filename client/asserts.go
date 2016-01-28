@@ -25,6 +25,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 
 	"github.com/ubuntu-core/snappy/asserts" // for parsing
 )
@@ -58,13 +59,13 @@ func (client *Client) Asserts(assertTypeName string, headers map[string]string) 
 		return nil, fmt.Errorf("failed to query assertions: %v", err)
 	}
 	defer response.Body.Close()
-	if response.StatusCode == http.StatusNotFound {
-		// TODO: distinguish kinds of not found ?
-		return nil, nil
-	}
-
 	if response.StatusCode != http.StatusOK {
 		return nil, parseError(response)
+	}
+
+	sanityCount, err := strconv.Atoi(response.Header.Get("X-Assertions-Count"))
+	if err != nil {
+		return nil, fmt.Errorf("invalid assertions count")
 	}
 
 	dec := asserts.NewDecoder(response.Body)
@@ -81,6 +82,10 @@ func (client *Client) Asserts(assertTypeName string, headers map[string]string) 
 			return nil, fmt.Errorf("failed to decode assertions: %v", err)
 		}
 		asserts = append(asserts, a)
+	}
+
+	if len(asserts) != sanityCount {
+		return nil, fmt.Errorf("response did not have the expected number of assertions")
 	}
 
 	return asserts, nil
