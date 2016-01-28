@@ -389,11 +389,11 @@ func (s *RepositorySuite) TestAllSlots(c *C) {
 	err := s.testRepo.AddType(&TestType{TypeName: "other-type"})
 	c.Assert(err, IsNil)
 	// Add some slots
-	err = s.testRepo.AddSlot("snap-a", "slot-b", "type", "", nil, nil)
+	err = s.testRepo.AddSlot(&Slot{Snap: "snap-a", Name: "slot-b", Type: "type"})
 	c.Assert(err, IsNil)
-	err = s.testRepo.AddSlot("snap-b", "slot-a", "other-type", "", nil, nil)
+	err = s.testRepo.AddSlot(&Slot{Snap: "snap-b", Name: "slot-a", Type: "other-type"})
 	c.Assert(err, IsNil)
-	err = s.testRepo.AddSlot("snap-a", "slot-a", "type", "", nil, nil)
+	err = s.testRepo.AddSlot(&Slot{Snap: "snap-a", Name: "slot-a", Type: "type"})
 	c.Assert(err, IsNil)
 	// AllSlots("") returns all slots, sorted by snap and slot name
 	c.Assert(s.testRepo.AllSlots(""), DeepEquals, []*Slot{
@@ -411,11 +411,11 @@ func (s *RepositorySuite) TestAllSlots(c *C) {
 
 func (s *RepositorySuite) TestSlots(c *C) {
 	// Add some slots
-	err := s.testRepo.AddSlot("snap-a", "slot-b", "type", "", nil, nil)
+	err := s.testRepo.AddSlot(&Slot{Snap: "snap-a", Name: "slot-b", Type: "type"})
 	c.Assert(err, IsNil)
-	err = s.testRepo.AddSlot("snap-b", "slot-a", "type", "", nil, nil)
+	err = s.testRepo.AddSlot(&Slot{Snap: "snap-b", Name: "slot-a", Type: "type"})
 	c.Assert(err, IsNil)
-	err = s.testRepo.AddSlot("snap-a", "slot-a", "type", "", nil, nil)
+	err = s.testRepo.AddSlot(&Slot{Snap: "snap-a", Name: "slot-a", Type: "type"})
 	c.Assert(err, IsNil)
 	// Slots("snap-a") returns slots present in that snap
 	c.Assert(s.testRepo.Slots("snap-a"), DeepEquals, []*Slot{
@@ -435,7 +435,7 @@ func (s *RepositorySuite) TestSlots(c *C) {
 // Tests for Repository.Slot()
 
 func (s *RepositorySuite) TestSlotSucceedsWhenSlotExists(c *C) {
-	err := s.testRepo.AddSlot(s.slot.Snap, s.slot.Name, s.slot.Type, s.slot.Label, s.slot.Attrs, s.slot.Apps)
+	err := s.testRepo.AddSlot(s.slot)
 	c.Assert(err, IsNil)
 	slot := s.testRepo.Slot(s.slot.Snap, s.slot.Name)
 	c.Assert(slot, DeepEquals, s.slot)
@@ -449,26 +449,26 @@ func (s *RepositorySuite) TestSlotFailsWhenSlotDoesntExist(c *C) {
 // Tests for Repository.AddSlot()
 
 func (s *RepositorySuite) TestAddSlotFailsWhenTypeIsUnknown(c *C) {
-	err := s.emptyRepo.AddSlot(s.slot.Snap, s.slot.Name, s.slot.Type, s.slot.Label, s.slot.Attrs, s.slot.Apps)
+	err := s.emptyRepo.AddSlot(s.slot)
 	c.Assert(err, Equals, ErrTypeNotFound)
 }
 
 func (s *RepositorySuite) TestAddSlotFailsWhenSlotNameIsInvalid(c *C) {
-	err := s.emptyRepo.AddSlot(s.slot.Snap, "bad-name-", s.slot.Type, s.slot.Label, s.slot.Attrs, s.slot.Apps)
+	err := s.emptyRepo.AddSlot(&Slot{Snap: s.slot.Snap, Name: "bad-name-", Type: s.slot.Type})
 	c.Assert(err, ErrorMatches, `invalid skill name: "bad-name-"`)
 }
 
 func (s *RepositorySuite) TestAddSlotFailsForDuplicates(c *C) {
 	// Adding the first slot succeeds
-	err := s.testRepo.AddSlot(s.slot.Snap, s.slot.Name, s.slot.Type, s.slot.Label, s.slot.Attrs, s.slot.Apps)
+	err := s.testRepo.AddSlot(s.slot)
 	c.Assert(err, IsNil)
 	// Adding the slot again fails with ErrDuplicateSlot
-	err = s.testRepo.AddSlot(s.slot.Snap, s.slot.Name, s.slot.Type, s.slot.Label, s.slot.Attrs, s.slot.Apps)
+	err = s.testRepo.AddSlot(s.slot)
 	c.Assert(err, Equals, ErrDuplicateSlot)
 }
 
 func (s *RepositorySuite) TestAddSlotStoresCorrectData(c *C) {
-	err := s.testRepo.AddSlot(s.slot.Snap, s.slot.Name, s.slot.Type, s.slot.Label, s.slot.Attrs, s.slot.Apps)
+	err := s.testRepo.AddSlot(s.slot)
 	c.Assert(err, IsNil)
 	slot := s.testRepo.Slot(s.slot.Snap, s.slot.Name)
 	// The added slot has the same data
@@ -478,7 +478,7 @@ func (s *RepositorySuite) TestAddSlotStoresCorrectData(c *C) {
 // Tests for Repository.RemoveSlot()
 
 func (s *RepositorySuite) TestRemoveSlotSuccedsWhenSlotExistsAndVacant(c *C) {
-	err := s.testRepo.AddSlot(s.slot.Snap, s.slot.Name, s.slot.Type, s.slot.Label, s.slot.Attrs, s.slot.Apps)
+	err := s.testRepo.AddSlot(s.slot)
 	c.Assert(err, IsNil)
 	// Removing a vacant slot simply works
 	err = s.testRepo.RemoveSlot(s.slot.Snap, s.slot.Name)

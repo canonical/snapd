@@ -220,28 +220,20 @@ func (r *Repository) Slot(snapName, slotName string) *Slot {
 // AddSlot adds a new slot to the repository.
 // Adding a slot with invalid name returns an error.
 // Adding a slot that has the same name and snap name as another slot returns ErrDuplicateSlot.
-func (r *Repository) AddSlot(snapName, slotName, typeName, label string, attrs map[string]interface{}, apps []string) error {
+func (r *Repository) AddSlot(slot *Slot) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
 	// Reject skill with invalid names
-	if err := ValidateName(slotName); err != nil {
+	if err := ValidateName(slot.Name); err != nil {
 		return err
 	}
 	// TODO: ensure the snap is correct
 	// TODO: ensure that apps are correct
-	if r.types[typeName] == nil {
+	if r.types[slot.Type] == nil {
 		return ErrTypeNotFound
 	}
-	if i, found := r.unlockedSlotIndex(snapName, slotName); !found {
-		slot := &Slot{
-			Name:  slotName,
-			Snap:  snapName,
-			Type:  typeName,
-			Attrs: attrs,
-			Apps:  apps,
-			Label: label,
-		}
+	if i, found := r.unlockedSlotIndex(slot.Snap, slot.Name); !found {
 		// Insert the slot at the right index
 		r.slots = append(r.slots[:i], append([]*Slot{slot}, r.slots[i:]...)...)
 		return nil
