@@ -133,7 +133,7 @@ func (r *Repository) AddSkill(skill *Skill) error {
 		return err
 	}
 	if _, ok := r.skills[skill.Snap][skill.Name]; ok {
-		return fmt.Errorf("cannot add skill, skill name %q is in use", skill.Name)
+		return fmt.Errorf("cannot add skill, snap %q already has skill %q", skill.Snap, skill.Name)
 	}
 	if r.skills[skill.Snap] == nil {
 		r.skills[skill.Snap] = make(map[string]*Skill)
@@ -150,9 +150,12 @@ func (r *Repository) RemoveSkill(snapName, skillName string) error {
 
 	// TODO: Ensure that the skill is not used anywhere
 	if _, ok := r.skills[snapName][skillName]; !ok {
-		return fmt.Errorf("cannot remove skill %q, no such skill", skillName)
+		return fmt.Errorf("cannot remove skill %q from snap %q, no such skill", skillName, snapName)
 	}
 	delete(r.skills[snapName], skillName)
+	if len(r.skills[snapName]) == 0 {
+		delete(r.skills, snapName)
+	}
 	return nil
 }
 
