@@ -44,17 +44,16 @@ func (client *Client) Assert(b []byte) error {
 
 // Asserts queries assertions with assertTypeName and matching headers.
 func (client *Client) Asserts(assertTypeName string, headers map[string]string) ([]asserts.Assertion, error) {
-	u := url.URL{Path: fmt.Sprintf("/2.0/assertions/%s", assertTypeName)}
+	path := fmt.Sprintf("/2.0/assertions/%s", assertTypeName)
+	q := url.Values{}
 
 	if len(headers) > 0 {
-		q := u.Query()
 		for k, v := range headers {
 			q.Set(k, v)
 		}
-		u.RawQuery = q.Encode()
 	}
 
-	response, err := client.raw("GET", u.String(), nil)
+	response, err := client.raw("GET", path, q, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query assertions: %v", err)
 	}
