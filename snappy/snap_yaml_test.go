@@ -17,36 +17,25 @@
  *
  */
 
-package snap
+package snappy
 
 import (
-	"testing"
-
 	. "gopkg.in/check.v1"
 )
 
-// Hook up check.v1 into the "go test" runner
-func Test(t *testing.T) { TestingT(t) }
-
-type InfoPackageYamlTestSuite struct {
+type snapYamlTestSuite struct {
 }
 
-var _ = Suite(&InfoPackageYamlTestSuite{})
+var _ = Suite(&snapYamlTestSuite{})
 
-var mockYaml = []byte(`name: foo
+func (s *snapYamlTestSuite) TestParseYamlSetsTypeInUsesFromName(c *C) {
+	snapYaml := []byte(`name: foo
 version: 1.0
-type: app
+uses:
+ migration-skill:
+  caps: []
 `)
-
-func (s *InfoPackageYamlTestSuite) TestSimple(c *C) {
-	info, err := InfoFromPackageYaml(mockYaml)
+	sy, err := parseSnapYamlData(snapYaml, false)
 	c.Assert(err, IsNil)
-	c.Assert(info.Name, Equals, "foo")
-	c.Assert(info.Version, Equals, "1.0")
-	c.Assert(info.Type, Equals, TypeApp)
-}
-
-func (s *InfoPackageYamlTestSuite) TestFail(c *C) {
-	_, err := InfoFromPackageYaml([]byte("random-crap"))
-	c.Assert(err, ErrorMatches, "(?m)info failed to parse:.*")
+	sy.Uses["migration-skill"].Type = "migration-skill"
 }

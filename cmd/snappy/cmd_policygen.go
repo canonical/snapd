@@ -33,7 +33,7 @@ type cmdPolicygen struct {
 	Compare       bool `long:"compare"`
 	Force         bool `short:"f" long:"force"`
 	Positional    struct {
-		PackageYaml string `positional-arg-name:"package.yaml path"`
+		SnapYaml string `positional-arg-name:"snap.yaml path"`
 	} `positional-args:"yes"`
 }
 
@@ -46,7 +46,7 @@ func init() {
 		logger.Panicf("Unable to install: %v", err)
 	}
 	addOptionDescription(arg, "force", i18n.G("Force policy generation."))
-	addOptionDescription(arg, "package.yaml path", i18n.G("The path to the package.yaml used to generate the apparmor policy."))
+	addOptionDescription(arg, "snap.yaml path", i18n.G("The path to the snap.yaml used to generate the apparmor policy."))
 }
 
 func (x *cmdPolicygen) Execute(args []string) error {
@@ -58,9 +58,9 @@ func (x *cmdPolicygen) doPolicygen() error {
 		return snappy.RegenerateAllPolicy(x.Force)
 	}
 
-	fn := x.Positional.PackageYaml
+	fn := x.Positional.SnapYaml
 	if fn == "" {
-		return fmt.Errorf(i18n.G("must supply path to package.yaml"))
+		return fmt.Errorf(i18n.G("must supply path to snap.yaml"))
 	}
 	if _, err := os.Stat(fn); err != nil {
 		return fmt.Errorf("policygen: no such file: %s", fn)

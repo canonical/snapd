@@ -41,16 +41,16 @@ var _ = Suite(&RepositorySuite{
 		TypeName: "type",
 	},
 	skill: &Skill{
-		Snap:  "provider-snap",
-		Name:  "name",
+		Snap:  "provider",
+		Name:  "skill",
 		Type:  "type",
 		Label: "label",
 		Attrs: map[string]interface{}{"attr": "value"},
 		Apps:  []string{"app"},
 	},
 	slot: &Slot{
-		Snap:  "consumer-snap",
-		Name:  "name",
+		Snap:  "consumer",
+		Name:  "slot",
 		Type:  "type",
 		Label: "label",
 		Attrs: map[string]interface{}{"attr": "value"},
@@ -137,7 +137,7 @@ func (s *RepositorySuite) TestAddSkillClash(c *C) {
 	err := s.testRepo.AddSkill(s.skill)
 	c.Assert(err, IsNil)
 	err = s.testRepo.AddSkill(s.skill)
-	c.Assert(err, ErrorMatches, `cannot add skill, skill name "name" is in use`)
+	c.Assert(err, ErrorMatches, `cannot add skill, snap "provider" already has skill "skill"`)
 	c.Assert(s.testRepo.AllSkills(""), HasLen, 1)
 	c.Assert(s.testRepo.Skill(s.skill.Snap, s.skill.Name), DeepEquals, s.skill)
 }
@@ -249,9 +249,9 @@ func (s *RepositorySuite) TestRemoveSkillSucceedsWhenSkillExistsAndIdle(c *C) {
 	c.Assert(s.testRepo.AllSkills(""), HasLen, 0)
 }
 
-func (s *RepositorySuite) TestRemoveSkillFailsWhenSlikkDoesntExist(c *C) {
+func (s *RepositorySuite) TestRemoveSkillFailsWhenSlillDoesntExist(c *C) {
 	err := s.emptyRepo.RemoveSkill(s.skill.Snap, s.skill.Name)
-	c.Assert(err, ErrorMatches, `cannot remove skill, skill "provider-snap":"name" does not exist`)
+	c.Assert(err, ErrorMatches, `cannot remove skill "skill" from snap "provider", no such skill`)
 }
 
 func (s *RepositorySuite) TestRemoveSkillFailsWhenSkillIsUsed(c *C) {
@@ -263,7 +263,7 @@ func (s *RepositorySuite) TestRemoveSkillFailsWhenSkillIsUsed(c *C) {
 	c.Assert(err, IsNil)
 	// Removing a skill used by a slot returns an appropriate error
 	err = s.testRepo.RemoveSkill(s.skill.Snap, s.skill.Name)
-	c.Assert(err, ErrorMatches, `cannot remove skill, skill "provider-snap":"name" is used by at least one slot`)
+	c.Assert(err, ErrorMatches, `cannot remove skill "skill" from snap "provider", it is still granted`)
 	// The skill is still there
 	slot := s.testRepo.Skill(s.skill.Snap, s.skill.Name)
 	c.Assert(slot, Not(IsNil))
@@ -473,13 +473,24 @@ func (s *RepositorySuite) TestAddSlotFailsWhenSlotNameIsInvalid(c *C) {
 	c.Assert(err, ErrorMatches, `invalid skill name: "bad-name-"`)
 }
 
+func (s *RepositorySuite) TestAddSlotFailsWithInvalidSnapName(c *C) {
+	slot := &Slot{
+		Snap: "bad-snap-",
+		Name: "name",
+		Type: "type",
+	}
+	err := s.testRepo.AddSlot(slot)
+	c.Assert(err, ErrorMatches, `invalid snap name: "bad-snap-"`)
+	c.Assert(s.testRepo.AllSlots(""), HasLen, 0)
+}
+
 func (s *RepositorySuite) TestAddSlotFailsForDuplicates(c *C) {
 	// Adding the first slot succeeds
 	err := s.testRepo.AddSlot(s.slot)
 	c.Assert(err, IsNil)
 	// Adding the slot again fails with appropriate error
 	err = s.testRepo.AddSlot(s.slot)
-	c.Assert(err, ErrorMatches, `cannot add slot, slot name "name" is in use`)
+	c.Assert(err, ErrorMatches, `cannot add slot, snap "consumer" already has slot "slot"`)
 }
 
 func (s *RepositorySuite) TestAddSlotFailsWithUnsanitizedSlot(c *C) {
@@ -521,7 +532,7 @@ func (s *RepositorySuite) TestRemoveSlotFailsWhenSlotDoesntExist(c *C) {
 	// Removing a slot that doesn't exist returns an appropriate error
 	err := s.testRepo.RemoveSlot(s.slot.Snap, s.slot.Name)
 	c.Assert(err, Not(IsNil))
-	c.Assert(err, ErrorMatches, `cannot remove slot, slot "consumer-snap":"name" does not exist`)
+	c.Assert(err, ErrorMatches, `cannot remove slot "slot" from snap "consumer", no such slot`)
 }
 
 func (s *RepositorySuite) TestRemoveSlotFailsWhenSlotIsBusy(c *C) {
@@ -533,7 +544,7 @@ func (s *RepositorySuite) TestRemoveSlotFailsWhenSlotIsBusy(c *C) {
 	c.Assert(err, IsNil)
 	// Removing a slot occupied by a skill returns an appropriate error
 	err = s.testRepo.RemoveSlot(s.slot.Snap, s.slot.Name)
-	c.Assert(err, ErrorMatches, `cannot remove slot, slot "consumer-snap":"name" uses at least one skill`)
+	c.Assert(err, ErrorMatches, `cannot remove slot "slot" from snap "consumer", it still uses granted skills`)
 	// The slot is still there
 	slot := s.testRepo.Slot(s.slot.Snap, s.slot.Name)
 	c.Assert(slot, Not(IsNil))
@@ -546,7 +557,7 @@ func (s *RepositorySuite) TestGrantFailsWhenSkillDoesNotExist(c *C) {
 	c.Assert(err, IsNil)
 	// Granting an unknown skill returns an appropriate error
 	err = s.testRepo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
-	c.Assert(err, ErrorMatches, `cannot grant skill, skill "provider-snap":"name" does not exist`)
+	c.Assert(err, ErrorMatches, `cannot grant skill "skill" from snap "provider", no such skill`)
 }
 
 func (s *RepositorySuite) TestGrantFailsWhenSlotDoesNotExist(c *C) {
@@ -554,7 +565,7 @@ func (s *RepositorySuite) TestGrantFailsWhenSlotDoesNotExist(c *C) {
 	c.Assert(err, IsNil)
 	// Granting to an unknown slot returns an error
 	err = s.testRepo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
-	c.Assert(err, ErrorMatches, `cannot grant skill, slot "consumer-snap":"name" does not exist`)
+	c.Assert(err, ErrorMatches, `cannot grant skill to slot "slot" from snap "consumer", no such slot`)
 }
 
 func (s *RepositorySuite) TestGrantFailsWhenIdenticalGrantExists(c *C) {
@@ -566,7 +577,7 @@ func (s *RepositorySuite) TestGrantFailsWhenIdenticalGrantExists(c *C) {
 	c.Assert(err, IsNil)
 	// Granting exactly the same thing twice fails with an appropriate error
 	err = s.testRepo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
-	c.Assert(err, ErrorMatches, `cannot grant skill, skill "provider-snap":"name" is already used by slot "consumer-snap":"name"`)
+	c.Assert(err, ErrorMatches, `cannot grant skill "skill" from snap "provider" to slot "slot" from snap "consumer" twice`)
 }
 
 func (s *RepositorySuite) TestGrantFailsWhenSlotAndSkillAreIncompatible(c *C) {
@@ -579,7 +590,7 @@ func (s *RepositorySuite) TestGrantFailsWhenSlotAndSkillAreIncompatible(c *C) {
 	c.Assert(err, IsNil)
 	// Granting a skill to an incompatible slot fails with an appropriate error
 	err = s.testRepo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
-	c.Assert(err, ErrorMatches, `cannot grant skill, skill type "other-type" doesn't match slot type "type"`)
+	c.Assert(err, ErrorMatches, `cannot grant skill "skill" from snap "provider" to slot "slot" from snap "consumer", skill type "other-type" doesn't match slot type "type"`)
 }
 
 func (s *RepositorySuite) TestGrantSucceeds(c *C) {
@@ -599,7 +610,7 @@ func (s *RepositorySuite) TestRevokeFailsWhenSkillDoesNotExist(c *C) {
 	c.Assert(err, IsNil)
 	// Revoking an unknown skill returns and appropriate error
 	err = s.testRepo.Revoke(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
-	c.Assert(err, ErrorMatches, `cannot revoke skill, skill "provider-snap":"name" does not exist`)
+	c.Assert(err, ErrorMatches, `cannot revoke skill "skill" from snap "provider", no such skill`)
 }
 
 func (s *RepositorySuite) TestRevokeFailsWhenSlotDoesNotExist(c *C) {
@@ -607,7 +618,7 @@ func (s *RepositorySuite) TestRevokeFailsWhenSlotDoesNotExist(c *C) {
 	c.Assert(err, IsNil)
 	// Revoking to an unknown slot returns an appropriate error
 	err = s.testRepo.Revoke(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
-	c.Assert(err, ErrorMatches, `cannot revoke skill, slot "consumer-snap":"name" does not exist`)
+	c.Assert(err, ErrorMatches, `cannot revoke skill from slot "slot" from snap "consumer", no such slot`)
 }
 
 func (s *RepositorySuite) TestRevokeFailsWhenNotGranted(c *C) {
@@ -617,7 +628,7 @@ func (s *RepositorySuite) TestRevokeFailsWhenNotGranted(c *C) {
 	c.Assert(err, IsNil)
 	// Revoking a skill that is not granted returns an appropriate error
 	err = s.testRepo.Revoke(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
-	c.Assert(err, ErrorMatches, `cannot revoke skill, skill "provider-snap":"name" is not used by slot "consumer-snap":"name"`)
+	c.Assert(err, ErrorMatches, `cannot revoke skill "skill" from snap "provider" from slot "slot" from snap "consumer", it is not granted`)
 }
 
 func (s *RepositorySuite) TestRevokeSucceeds(c *C) {
