@@ -458,6 +458,17 @@ func (s *RepositorySuite) TestAddSlotFailsWhenSlotNameIsInvalid(c *C) {
 	c.Assert(err, ErrorMatches, `invalid skill name: "bad-name-"`)
 }
 
+func (s *RepositorySuite) TestAddSlotFailsWithInvalidSnapName(c *C) {
+	slot := &Slot{
+		Snap: "bad-snap-",
+		Name: "name",
+		Type: "type",
+	}
+	err := s.testRepo.AddSlot(slot)
+	c.Assert(err, ErrorMatches, `invalid snap name: "bad-snap-"`)
+	c.Assert(s.testRepo.AllSlots(""), HasLen, 0)
+}
+
 func (s *RepositorySuite) TestAddSlotFailsForDuplicates(c *C) {
 	// Adding the first slot succeeds
 	err := s.testRepo.AddSlot(s.slot)

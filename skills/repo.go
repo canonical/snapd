@@ -205,11 +205,14 @@ func (r *Repository) AddSlot(slot *Slot) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
+	// Reject snaps with invalid names
+	if err := snap.ValidateName(slot.Snap); err != nil {
+		return err
+	}
 	// Reject skill with invalid names
 	if err := ValidateName(slot.Name); err != nil {
 		return err
 	}
-	// TODO: ensure the snap is correct
 	// TODO: ensure that apps are correct
 	t := r.types[slot.Type]
 	if t == nil {
