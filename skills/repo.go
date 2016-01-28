@@ -137,7 +137,7 @@ func (r *Repository) AddSkill(skill *Skill) error {
 		return err
 	}
 	if _, ok := r.skills[skill.Snap][skill.Name]; ok {
-		return fmt.Errorf("cannot add skill, skill name %q is in use", skill.Name)
+		return fmt.Errorf("cannot add skill, snap %q already has skill %q", skill.Snap, skill.Name)
 	}
 	if r.skills[skill.Snap] == nil {
 		r.skills[skill.Snap] = make(map[string]*Skill)
@@ -155,13 +155,16 @@ func (r *Repository) RemoveSkill(snapName, skillName string) error {
 	// Ensure that such skill exists
 	skill := r.skills[snapName][skillName]
 	if skill == nil {
-		return fmt.Errorf("cannot remove skill, skill %q:%q does not exist", snapName, skillName)
+		return fmt.Errorf("cannot remove skill %q from snap %q, no such skill", skillName, snapName)
 	}
 	// Ensure that the skill is not used by any slot
 	if len(r.slotsUsingSkill[skill]) > 0 {
-		return fmt.Errorf("cannot remove skill, skill %q:%q is used by at least one slot", snapName, skillName)
+		return fmt.Errorf("cannot remove skill %q from snap %q, it is still granted", skillName, snapName)
 	}
 	delete(r.skills[snapName], skillName)
+	if len(r.skills[snapName]) == 0 {
+		delete(r.skills, snapName)
+	}
 	return nil
 }
 
@@ -211,18 +214,21 @@ func (r *Repository) AddSlot(slot *Slot) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
+	// Reject snaps with invalid names
+	if err := snap.ValidateName(slot.Snap); err != nil {
+		return err
+	}
 	// Reject skill with invalid names
 	if err := ValidateName(slot.Name); err != nil {
 		return err
 	}
-	// TODO: ensure the snap is correct
 	// TODO: ensure that apps are correct
 	t := r.types[slot.Type]
 	if t == nil {
 		return fmt.Errorf("cannot add slot, skill type %q is not known", slot.Type)
 	}
 	if _, ok := r.slots[slot.Snap][slot.Name]; ok {
-		return fmt.Errorf("cannot add slot, slot name %q is in use", slot.Name)
+		return fmt.Errorf("cannot add slot, snap %q already has slot %q", slot.Snap, slot.Name)
 	}
 	if r.slots[slot.Snap] == nil {
 		r.slots[slot.Snap] = make(map[string]*Slot)
@@ -241,13 +247,16 @@ func (r *Repository) RemoveSlot(snapName, slotName string) error {
 	// Ensure that such slot exists
 	slot := r.slots[snapName][slotName]
 	if slot == nil {
-		return fmt.Errorf("cannot remove slot, slot %q:%q does not exist", snapName, slotName)
+		return fmt.Errorf("cannot remove slot %q from snap %q, no such slot", slotName, snapName)
 	}
 	// Ensure that the slot is not using any skills
 	if len(r.skillUsedBySlot[slot]) > 0 {
-		return fmt.Errorf("cannot remove slot, slot %q:%q uses at least one skill", snapName, slotName)
+		return fmt.Errorf("cannot remove slot %q from snap %q, it still uses granted skills", slotName, snapName)
 	}
 	delete(r.slots[snapName], slotName)
+	if len(r.slots[snapName]) == 0 {
+		delete(r.slots, snapName)
+	}
 	return nil
 }
 
@@ -260,21 +269,22 @@ func (r *Repository) Grant(skillSnapName, skillName, slotSnapName, slotName stri
 	// Ensure that such skill exists
 	skill := r.skills[skillSnapName][skillName]
 	if skill == nil {
-		return fmt.Errorf("cannot grant skill, no such skill %q:%q", skillSnapName, skillName)
+		return fmt.Errorf("cannot grant skill %q from snap %q, no such skill", skillName, skillSnapName)
 	}
 	// Ensure that such slot exists
 	slot := r.slots[slotSnapName][slotName]
 	if slot == nil {
-		return fmt.Errorf("cannot grant skill, no such slot %q:%q", slotSnapName, slotName)
+		return fmt.Errorf("cannot grant skill to slot %q from snap %q, no such slot", slotName, slotSnapName)
 	}
 	// Ensure that skill and slot are compatible
 	if slot.Type != skill.Type {
-		return fmt.Errorf("cannot grant skill, skill type %q doesn't match slot type %q", skill.Type, slot.Type)
+		return fmt.Errorf("cannot grant skill %q from snap %q to slot %q from snap %q, skill type %q doesn't match slot type %q",
+			skillName, skillSnapName, slotName, slotSnapName, skill.Type, slot.Type)
 	}
 	// Ensure that slot and skill are not connected yet
 	if r.skillUsedBySlot[slot][skill] {
-		return fmt.Errorf("cannot grant skill, skill %q:%q is already used by slot %q:%q",
-			skill.Snap, skill.Name, slot.Snap, slot.Name)
+		return fmt.Errorf("cannot grant skill %q from snap %q to slot %q from snap %q twice",
+			skillName, skillSnapName, slotName, slotSnapName)
 	}
 	// Grant the skill
 	if r.skillUsedBySlot[slot] == nil {
@@ -296,17 +306,17 @@ func (r *Repository) Revoke(skillSnapName, skillName, slotSnapName, slotName str
 	// Ensure that such skill exists
 	skill := r.skills[skillSnapName][skillName]
 	if skill == nil {
-		return fmt.Errorf("cannot revoke skill, no such skill %q:%q", skillSnapName, skillName)
+		return fmt.Errorf("cannot revoke skill %q from snap %q, no such skill", skillName, skillSnapName)
 	}
 	// Ensure that such slot exists
 	slot := r.slots[slotSnapName][slotName]
 	if slot == nil {
-		return fmt.Errorf("cannot revoke skill, no such slot %q:%q", slotSnapName, slotName)
+		return fmt.Errorf("cannot revoke skill from slot %q from snap %q, no such slot", slotName, slotSnapName)
 	}
 	// Ensure that slot and skill are connected
 	if !r.skillUsedBySlot[slot][skill] {
-		return fmt.Errorf("cannot revoke skill, skill %q:%q is not used by slot %q:%q",
-			skill.Snap, skill.Name, slot.Snap, slot.Name)
+		return fmt.Errorf("cannot revoke skill %q from snap %q from slot %q from snap %q, it is not granted",
+			skillName, skillSnapName, slotName, slotSnapName)
 	}
 	delete(r.skillUsedBySlot[slot], skill)
 	delete(r.slotsUsingSkill[skill], slot)

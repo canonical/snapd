@@ -37,7 +37,7 @@ import (
 type SecurityTestSuite struct {
 	tempDir               string
 	buildDir              string
-	m                     *packageYaml
+	m                     *snapYaml
 	scFilterGenCall       []string
 	scFilterGenCallReturn []byte
 
@@ -54,7 +54,7 @@ func (a *SecurityTestSuite) SetUpTest(c *C) {
 	// set global sandbox
 	dirs.SetRootDir(c.MkDir())
 
-	a.m = &packageYaml{
+	a.m = &snapYaml{
 		Name:    "foo",
 		Version: "1.0",
 	}
@@ -122,33 +122,33 @@ func makeMockSeccompCap(c *C, capname string, content []byte) {
 }
 
 func (a *SecurityTestSuite) TestSnappyGetSecurityProfile(c *C) {
-	m := packageYaml{
+	m := snapYaml{
 		Name:    "foo",
 		Version: "1.0",
 	}
-	b := Binary{Name: "bin/app"}
+	b := AppYaml{Name: "bin/app"}
 	ap, err := getSecurityProfile(&m, b.Name, "/snaps/foo.mvo/1.0/")
 	c.Assert(err, IsNil)
 	c.Check(ap, Equals, "foo.mvo_bin-app_1.0")
 }
 
 func (a *SecurityTestSuite) TestSnappyGetSecurityProfileInvalid(c *C) {
-	m := packageYaml{
+	m := snapYaml{
 		Name:    "foo",
 		Version: "1.0",
 	}
-	b := Binary{Name: "bin/app"}
+	b := AppYaml{Name: "bin/app"}
 	_, err := getSecurityProfile(&m, b.Name, "/snaps/foo/1.0/")
 	c.Assert(err, Equals, ErrInvalidPart)
 }
 
 func (a *SecurityTestSuite) TestSnappyGetSecurityProfileFramework(c *C) {
-	m := packageYaml{
+	m := snapYaml{
 		Name:    "foo",
 		Version: "1.0",
 		Type:    snap.TypeFramework,
 	}
-	b := Binary{Name: "bin/app"}
+	b := AppYaml{Name: "bin/app"}
 	ap, err := getSecurityProfile(&m, b.Name, "/snaps/foo.mvo/1.0/")
 	c.Assert(err, IsNil)
 	c.Check(ap, Equals, "foo_bin-app_1.0")
@@ -350,7 +350,7 @@ func (a *SecurityTestSuite) TestSecurityGenAppArmorTemplatePolicy(c *C) {
 	makeMockApparmorTemplate(c, "mock-template", mockApparmorTemplate)
 	makeMockApparmorCap(c, "cap1", []byte(`capito`))
 
-	m := &packageYaml{
+	m := &snapYaml{
 		Name:    "foo",
 		Version: "1.0",
 	}
@@ -400,7 +400,7 @@ func (a *SecurityTestSuite) TestSecurityGenSeccompTemplatedPolicy(c *C) {
 	makeMockSeccompTemplate(c, "mock-template", mockSeccompTemplate)
 	makeMockSeccompCap(c, "cap1", []byte("#cap1\ncapino\n"))
 
-	m := &packageYaml{
+	m := &snapYaml{
 		Name:    "foo",
 		Version: "1.0",
 	}
@@ -462,7 +462,7 @@ profile "foo_bar_1.0" (attach_disconnected) {
 `
 
 func (a *SecurityTestSuite) TestSecurityGetApparmorCustomPolicy(c *C) {
-	m := &packageYaml{
+	m := &snapYaml{
 		Name:    "foo",
 		Version: "1.0",
 	}
@@ -481,8 +481,8 @@ func (a *SecurityTestSuite) TestSecurityGetApparmorCustomPolicy(c *C) {
 }
 
 func (a *SecurityTestSuite) TestSecurityGetSeccompCustomPolicy(c *C) {
-	// yes, getSeccompCustomPolicy does not care for packageYaml or appid
-	m := &packageYaml{}
+	// yes, getSeccompCustomPolicy does not care for snapYaml or appid
+	m := &snapYaml{}
 	appid := &securityAppID{}
 
 	customPolicy := filepath.Join(c.MkDir(), "foo")
@@ -572,7 +572,7 @@ sc-network-client
 
 	// empty SecurityDefinition means "network-client" cap
 	sd := &SecurityDefinitions{}
-	m := &packageYaml{
+	m := &snapYaml{
 		Name:    "pkg",
 		Version: "1.0",
 	}
@@ -597,16 +597,23 @@ sc-network-client`)
 
 }
 
-var mockSecurityPackageYaml = `
+var mockSecuritySnapYaml = `
 name: hello-world
 vendor: someone
 version: 1.0
-binaries:
- - name: binary1
-   caps: []
-services:
- - name: service1
-   caps: []
+apps:
+ binary1:
+   uses: [binary1]
+ service1:
+   uses: [service1]
+   daemon: forking
+uses:
+ binary1:
+  type: migration-skill
+  caps: []
+ service1:
+  type: migration-skill
+  caps: []
 `
 
 func (a *SecurityTestSuite) TestSecurityGeneratePolicyFromFileSimple(c *C) {
@@ -620,11 +627,11 @@ read
 write
 `))
 
-	mockPackageYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecurityPackageYaml)
+	mockSnapYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecuritySnapYaml)
 	c.Assert(err, IsNil)
 
 	// the acutal thing that gets tested
-	err = GeneratePolicyFromFile(mockPackageYamlFn, false)
+	err = GeneratePolicyFromFile(mockSnapYamlFn, false)
 	c.Assert(err, IsNil)
 
 	// ensure the apparmor policy got loaded
@@ -656,15 +663,15 @@ read
 write
 `))
 
-	mockPackageYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecurityPackageYaml)
+	mockSnapYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecuritySnapYaml)
 	c.Assert(err, IsNil)
-	configHook := filepath.Join(filepath.Dir(mockPackageYamlFn), "hooks", "config")
+	configHook := filepath.Join(filepath.Dir(mockSnapYamlFn), "hooks", "config")
 	os.MkdirAll(filepath.Dir(configHook), 0755)
 	err = ioutil.WriteFile(configHook, []byte("true"), 0755)
 	c.Assert(err, IsNil)
 
 	// generate config
-	err = GeneratePolicyFromFile(mockPackageYamlFn, false)
+	err = GeneratePolicyFromFile(mockSnapYamlFn, false)
 	c.Assert(err, IsNil)
 
 	// and for snappy-config
@@ -685,14 +692,14 @@ deny kexec
 read
 write
 `))
-	mockPackageYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecurityPackageYaml)
+	mockSnapYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecuritySnapYaml)
 	c.Assert(err, IsNil)
 
-	err = GeneratePolicyFromFile(mockPackageYamlFn, false)
+	err = GeneratePolicyFromFile(mockSnapYamlFn, false)
 	c.Assert(err, IsNil)
 
 	// nothing changed, compare is happy
-	err = CompareGeneratePolicyFromFile(mockPackageYamlFn)
+	err = CompareGeneratePolicyFromFile(mockSnapYamlFn)
 	c.Assert(err, IsNil)
 
 	// now change the templates
@@ -700,7 +707,7 @@ write
 ###POLICYGROUPS###
 `))
 	// ...and ensure that the difference is found
-	err = CompareGeneratePolicyFromFile(mockPackageYamlFn)
+	err = CompareGeneratePolicyFromFile(mockSnapYamlFn)
 	c.Assert(err, ErrorMatches, "policy differs.*")
 }
 
@@ -716,9 +723,9 @@ deny kexec
 read
 write
 `))
-	mockPackageYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecurityPackageYaml)
+	mockSnapYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecuritySnapYaml)
 	c.Assert(err, IsNil)
-	err = GeneratePolicyFromFile(mockPackageYamlFn, false)
+	err = GeneratePolicyFromFile(mockSnapYamlFn, false)
 	c.Assert(err, IsNil)
 
 	// ensure that AddHWAccess does the right thing
@@ -753,10 +760,10 @@ deny kexec
 read
 write
 `))
-	mockPackageYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecurityPackageYaml)
+	mockSnapYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecuritySnapYaml)
 	c.Assert(err, IsNil)
 
-	err = GeneratePolicyFromFile(mockPackageYamlFn, false)
+	err = GeneratePolicyFromFile(mockSnapYamlFn, false)
 	c.Assert(err, IsNil)
 
 	// now change the templates
@@ -792,7 +799,7 @@ func makeCustomAppArmorPolicy(c *C) string {
 }
 
 func (a *SecurityTestSuite) TestSecurityGenerateCustomPolicyAdditionalIsConsidered(c *C) {
-	m := &packageYaml{
+	m := &snapYaml{
 		Name:    "foo",
 		Version: "1.0",
 	}
@@ -809,30 +816,34 @@ func (a *SecurityTestSuite) TestSecurityGenerateCustomPolicyAdditionalIsConsider
 	c.Assert(content, Matches, `(?ms).*^# No abstractions specified$`)
 }
 
-var mockSecurityDeprecatedPackageYaml = `
+var mockSecurityDeprecatedSnapYaml = `
 name: hello-world
 vendor: someone
 version: 1.0
-binaries:
- - name: binary1
+apps:
+ binary1:
+   uses: [binary1]
+uses:
+ binary1:
+   type: migration-skill
    caps: []
 `
 
-var mockSecurityDeprecatedPackageYamlApparmor1 = `
+var mockSecurityDeprecatedSnapYamlApparmor1 = `
    security-override:
     apparmor:
      read-path: [foo]
 `
-var mockSecurityDeprecatedPackageYamlApparmor2 = `
+var mockSecurityDeprecatedSnapYamlApparmor2 = `
    security-override:
     apparmor: {}
 `
-var mockSecurityDeprecatedPackageYamlSeccomp1 = `
+var mockSecurityDeprecatedSnapYamlSeccomp1 = `
    security-override:
     seccomp: {}
 `
 
-var mockSecurityDeprecatedPackageYamlSeccomp2 = `
+var mockSecurityDeprecatedSnapYamlSeccomp2 = `
    security-override:
     seccomp:
      syscalls: [1]
@@ -858,10 +869,10 @@ func (a *SecurityTestSuite) TestSecurityWarnsNot(c *C) {
 	ml := &mockLogger{}
 	logger.SetLogger(ml)
 
-	mockPackageYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecurityDeprecatedPackageYaml)
+	mockSnapYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecurityDeprecatedSnapYaml)
 	c.Assert(err, IsNil)
 
-	err = GeneratePolicyFromFile(mockPackageYamlFn, false)
+	err = GeneratePolicyFromFile(mockSnapYamlFn, false)
 	c.Assert(err, IsNil)
 
 	c.Assert(ml.notice, DeepEquals, []string(nil))
@@ -871,15 +882,15 @@ func (a *SecurityTestSuite) TestSecurityWarnsOnDeprecatedApparmor(c *C) {
 	makeMockApparmorTemplate(c, "default", []byte(``))
 	makeMockSeccompTemplate(c, "default", []byte(``))
 
-	for _, s := range []string{mockSecurityDeprecatedPackageYamlApparmor1, mockSecurityDeprecatedPackageYamlApparmor2} {
+	for _, s := range []string{mockSecurityDeprecatedSnapYamlApparmor1, mockSecurityDeprecatedSnapYamlApparmor2} {
 
 		ml := &mockLogger{}
 		logger.SetLogger(ml)
 
-		mockPackageYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecurityDeprecatedPackageYaml+s)
+		mockSnapYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecurityDeprecatedSnapYaml+s)
 		c.Assert(err, IsNil)
 
-		err = GeneratePolicyFromFile(mockPackageYamlFn, false)
+		err = GeneratePolicyFromFile(mockSnapYamlFn, false)
 		c.Assert(err, IsNil)
 
 		c.Assert(ml.notice, DeepEquals, []string{"The security-override.apparmor key is no longer supported, please use use security-override directly"})
@@ -890,15 +901,15 @@ func (a *SecurityTestSuite) TestSecurityWarnsOnDeprecatedSeccomp(c *C) {
 	makeMockApparmorTemplate(c, "default", []byte(``))
 	makeMockSeccompTemplate(c, "default", []byte(``))
 
-	for _, s := range []string{mockSecurityDeprecatedPackageYamlSeccomp1, mockSecurityDeprecatedPackageYamlSeccomp2} {
+	for _, s := range []string{mockSecurityDeprecatedSnapYamlSeccomp1, mockSecurityDeprecatedSnapYamlSeccomp2} {
 
 		ml := &mockLogger{}
 		logger.SetLogger(ml)
 
-		mockPackageYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecurityDeprecatedPackageYaml+s)
+		mockSnapYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecurityDeprecatedSnapYaml+s)
 		c.Assert(err, IsNil)
 
-		err = GeneratePolicyFromFile(mockPackageYamlFn, false)
+		err = GeneratePolicyFromFile(mockSnapYamlFn, false)
 		c.Assert(err, IsNil)
 
 		c.Assert(ml.notice, DeepEquals, []string{"The security-override.seccomp key is no longer supported, please use use security-override directly"})
@@ -906,16 +917,16 @@ func (a *SecurityTestSuite) TestSecurityWarnsOnDeprecatedSeccomp(c *C) {
 }
 
 func makeInstalledMockSnapSideloaded(c *C) string {
-	mockPackageYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecurityPackageYaml)
+	mockSnapYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecuritySnapYaml)
 	c.Assert(err, IsNil)
 	// pretend its sideloaded
-	basePath := regexp.MustCompile(`(.*)/hello-world.` + testOrigin).FindString(mockPackageYamlFn)
+	basePath := regexp.MustCompile(`(.*)/hello-world.` + testOrigin).FindString(mockSnapYamlFn)
 	oldPath := filepath.Join(basePath, "1.0")
 	newPath := filepath.Join(basePath, "IsSideloadVer")
 	err = os.Rename(oldPath, newPath)
-	mockPackageYamlFn = filepath.Join(basePath, "IsSideloadVer", "meta", "package.yaml")
+	mockSnapYamlFn = filepath.Join(basePath, "IsSideloadVer", "meta", "snap.yaml")
 
-	return mockPackageYamlFn
+	return mockSnapYamlFn
 }
 
 func (a *SecurityTestSuite) TestSecurityGeneratePolicyFromFileSideload(c *C) {
@@ -923,10 +934,10 @@ func (a *SecurityTestSuite) TestSecurityGeneratePolicyFromFileSideload(c *C) {
 	makeMockApparmorTemplate(c, "default", []byte(``))
 	makeMockSeccompTemplate(c, "default", []byte(``))
 
-	mockPackageYamlFn := makeInstalledMockSnapSideloaded(c)
+	mockSnapYamlFn := makeInstalledMockSnapSideloaded(c)
 
 	// the acutal thing that gets tested
-	err := GeneratePolicyFromFile(mockPackageYamlFn, false)
+	err := GeneratePolicyFromFile(mockSnapYamlFn, false)
 	c.Assert(err, IsNil)
 
 	// ensure the apparmor policy got loaded
@@ -946,13 +957,13 @@ func (a *SecurityTestSuite) TestSecurityCompareGeneratePolicyFromFileSideload(c 
 	makeMockApparmorTemplate(c, "default", []byte(``))
 	makeMockSeccompTemplate(c, "default", []byte(``))
 
-	mockPackageYamlFn := makeInstalledMockSnapSideloaded(c)
+	mockSnapYamlFn := makeInstalledMockSnapSideloaded(c)
 	// generate policy
-	err := GeneratePolicyFromFile(mockPackageYamlFn, false)
+	err := GeneratePolicyFromFile(mockSnapYamlFn, false)
 	c.Assert(err, IsNil)
 
 	// nothing changed, ensure compare is happy even for sideloaded pkgs
-	err = CompareGeneratePolicyFromFile(mockPackageYamlFn)
+	err = CompareGeneratePolicyFromFile(mockSnapYamlFn)
 	c.Assert(err, IsNil)
 }
 
@@ -960,7 +971,7 @@ func (a *SecurityTestSuite) TestSecurityGeneratePolicyForServiceBinaryFramework(
 	makeMockSecurityEnv(c)
 
 	sd := &SecurityDefinitions{}
-	m := &packageYaml{
+	m := &snapYaml{
 		Name:    "framework-name",
 		Type:    "framework",
 		Version: "1.0",
@@ -982,7 +993,7 @@ func (a *SecurityTestSuite) TestSecurityGeneratePolicyForServiceBinaryErrors(c *
 	makeMockSecurityEnv(c)
 
 	sd := &SecurityDefinitions{}
-	m := &packageYaml{
+	m := &snapYaml{
 		Name:    "app",
 		Version: "1.0",
 	}
@@ -992,32 +1003,75 @@ func (a *SecurityTestSuite) TestSecurityGeneratePolicyForServiceBinaryErrors(c *
 	c.Assert(err, ErrorMatches, "invalid package on system")
 }
 
-func (a *SecurityTestSuite) TestParsePackageYamlWithVersion(c *C) {
+func (a *SecurityTestSuite) TestParseSnapYamlWithVersion(c *C) {
 	testVersion := "1.0"
 	dir := filepath.Join(a.tempDir, "foo", testVersion, "meta")
 	os.MkdirAll(dir, 0755)
-	y := filepath.Join(dir, "package.yaml")
+	y := filepath.Join(dir, "snap.yaml")
 	ioutil.WriteFile(y, []byte(`
 name: foo
 version: 123456789
 `), 0644)
-	m, err := parsePackageYamlFileWithVersion(y)
+	m, err := parseSnapYamlFileWithVersion(y)
 	c.Assert(err, IsNil)
 	c.Assert(m.Version, Equals, testVersion)
 }
 
-func (a *SecurityTestSuite) TestParsePackageYamlWithVersionSymlink(c *C) {
+func (a *SecurityTestSuite) TestParseSnapYamlWithVersionSymlink(c *C) {
 	testVersion := "1.0"
 	verDir := filepath.Join(a.tempDir, "foo", testVersion)
 	symDir := filepath.Join(a.tempDir, "foo", "current")
 	os.MkdirAll(filepath.Join(verDir, "meta"), 0755)
 	os.Symlink(verDir, symDir)
-	y := filepath.Join(symDir, "meta", "package.yaml")
+	y := filepath.Join(symDir, "meta", "snap.yaml")
 	ioutil.WriteFile(y, []byte(`
 name: foo
 version: 123456789
 `), 0644)
-	m, err := parsePackageYamlFileWithVersion(y)
+	m, err := parseSnapYamlFileWithVersion(y)
 	c.Assert(err, IsNil)
 	c.Assert(m.Version, Equals, testVersion)
+
+}
+
+func (a *SecurityTestSuite) TestFindSkillForAppEmpty(c *C) {
+	app := &AppYaml{}
+	m := &snapYaml{}
+	skill, err := findSkillForApp(m, app)
+	c.Check(err, IsNil)
+	c.Check(skill, IsNil)
+}
+
+func (a *SecurityTestSuite) TestFindSkillForAppTooMany(c *C) {
+	app := &AppYaml{
+		UsesRef: []string{"one", "two"},
+	}
+	m := &snapYaml{}
+	skill, err := findSkillForApp(m, app)
+	c.Check(skill, IsNil)
+	c.Check(err, ErrorMatches, "only a single skill is supported, 2 found")
+}
+
+func (a *SecurityTestSuite) TestFindSkillForAppNotFound(c *C) {
+	app := &AppYaml{
+		UsesRef: []string{"not-there"},
+	}
+	m := &snapYaml{}
+	skill, err := findSkillForApp(m, app)
+	c.Check(skill, IsNil)
+	c.Check(err, ErrorMatches, `can not find skill "not-there"`)
+}
+
+func (a *SecurityTestSuite) TestFindSkillFinds(c *C) {
+	app := &AppYaml{
+		UsesRef: []string{"skill"},
+	}
+	m := &snapYaml{
+		Uses: map[string]*usesYaml{
+			"skill": &usesYaml{Type: "some-type"},
+		},
+	}
+	skill, err := findSkillForApp(m, app)
+	c.Check(err, IsNil)
+	c.Check(skill.Type, Equals, "some-type")
 }

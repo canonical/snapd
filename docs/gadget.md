@@ -72,7 +72,7 @@ counterpart will use this information to brand the system accordingly.
 #### dtb
 
 The default dtb (device tree blob) can be overridden by a key entry point in
-the `package.yaml` for the `gadget`.
+the `snap.yaml` for the `gadget`.
 
 If a dtb is specified during provisioning, it will be selected as the dtb to
 use for the system. If using an AB partition layout, when an update for the
@@ -117,7 +117,7 @@ is doing.
 
 ## Structure and layout
 
-The `package.yaml` is structured as:
+The `snap.yaml` is structured as:
 
 
 	name: package-string # mandatory
@@ -189,7 +189,7 @@ Rules about packages in the config:
   `gadget` snap is also installed and can not be (re)configured after the
   install.
 
-The `gadget` part of the `package.yaml` is not a configuration per se and treated
+The `gadget` part of the `snap.yaml` is not a configuration per se and treated
 separately.
 
 Rules about `software`:

@@ -20,7 +20,7 @@ origin from the store if applicable -- only snaps of `type: app` (the
 default) use an origin to compose the `APP_ID`), the
 service/binary name and package version. The `APP_ID` takes the form of
 `<pkgname>.<origin>_<appname>_<version>`. For example, if this is in
-`package.yaml`:
+`snap.yaml`:
 
     name: foo
     version: 0.1
@@ -58,20 +58,20 @@ areas, whitelist syscall filtering via seccomp and device cgroups provides for
 strong application confinement and isolation (see below for future work).
 
 ### AppArmor
-Upon snap package install, `package.yaml` is examined and AppArmor profiles are
+Upon snap package install, `snap.yaml` is examined and AppArmor profiles are
 generated for each service and binary to have names based on the `APP_ID`.
 As mentioned, AppArmor profiles are template based and may be extended through
 policy groups, which are expressed in the yaml as `caps`.
 
 ### Seccomp
-Upon snap package install, `package.yaml` is examined and seccomp filters are
+Upon snap package install, `snap.yaml` is examined and seccomp filters are
 generated for each service and binary. Like with AppArmor, seccomp filters are
 template based and may be extended through filter groups, which are expressed
 in the yaml as `caps`.
 
 ## Defining snap policy
 
-The `package.yaml` need not specify anything for default confinement. Several
+The `snap.yaml` need not specify anything for default confinement. Several
 options are available to modify the confinement:
 
 * `caps`: (optional) list of (easy to understand, human readable) additional

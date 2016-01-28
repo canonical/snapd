@@ -36,7 +36,7 @@ import (
 
 // SnapFile is a local snap file that can get installed
 type SnapFile struct {
-	m   *packageYaml
+	m   *snapYaml
 	deb snap.File
 
 	origin  string
@@ -50,7 +50,7 @@ func NewSnapFile(snapFile string, origin string, unsignedOk bool) (*SnapFile, er
 		return nil, err
 	}
 
-	yamlData, err := d.MetaMember("package.yaml")
+	yamlData, err := d.MetaMember("snap.yaml")
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +58,7 @@ func NewSnapFile(snapFile string, origin string, unsignedOk bool) (*SnapFile, er
 	_, err = d.MetaMember("hooks/config")
 	hasConfig := err == nil
 
-	m, err := parsePackageYamlData(yamlData, hasConfig)
+	m, err := parseSnapYamlData(yamlData, hasConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -199,7 +199,7 @@ func (s *SnapFile) Install(inter progress.Meter, flags InstallFlags) (name strin
 
 	var oldPart *SnapPart
 	if currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(s.instdir, "..", "current")); currentActiveDir != "" {
-		oldPart, err = NewInstalledSnapPart(filepath.Join(currentActiveDir, "meta", "package.yaml"), s.origin)
+		oldPart, err = NewInstalledSnapPart(filepath.Join(currentActiveDir, "meta", "snap.yaml"), s.origin)
 		if err != nil {
 			return "", err
 		}
@@ -284,7 +284,7 @@ func (s *SnapFile) Install(inter progress.Meter, flags InstallFlags) (name strin
 	}
 
 	if !inhibitHooks {
-		newPart, err := newSnapPartFromYaml(filepath.Join(s.instdir, "meta", "package.yaml"), s.origin, s.m)
+		newPart, err := newSnapPartFromYaml(filepath.Join(s.instdir, "meta", "snap.yaml"), s.origin, s.m)
 		if err != nil {
 			return "", err
 		}
@@ -324,7 +324,7 @@ func (s *SnapFile) Install(inter progress.Meter, flags InstallFlags) (name strin
 			if !dep.IsActive() {
 				continue
 			}
-			for _, svc := range dep.ServiceYamls() {
+			for _, svc := range dep.Apps() {
 				serviceName := filepath.Base(generateServiceFileName(dep.m, svc))
 				timeout := time.Duration(svc.StopTimeout)
 				if err = sysd.Stop(serviceName, timeout); err != nil {
@@ -370,10 +370,6 @@ func (s *SnapFile) CanInstall(allowGadget bool, inter interacter) error {
 	// verify we have a valid architecture
 	if !arch.IsSupportedArchitecture(s.m.Architectures) {
 		return &ErrArchitectureNotSupported{s.m.Architectures}
-	}
-
-	if err := s.m.checkForNameClashes(); err != nil {
-		return err
 	}
 
 	if err := s.m.checkForFrameworks(); err != nil {
