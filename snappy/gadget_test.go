@@ -37,10 +37,6 @@ type GadgetSuite struct {
 
 var _ = Suite(&GadgetSuite{})
 
-var (
-	getGadgetOrig = getGadget
-)
-
 func (s *GadgetSuite) SetUpTest(c *C) {
 	getGadget = func() (*snapYaml, error) {
 		return &snapYaml{
