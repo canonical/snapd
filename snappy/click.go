@@ -64,6 +64,19 @@ func binPathForBinary(pkgPath string, app *AppYaml) string {
 }
 
 func verifyAppYaml(app *AppYaml) error {
+	contains := func(needle string, haystack []string) bool {
+		for _, h := range haystack {
+			if needle == h {
+				return true
+			}
+		}
+		return false
+	}
+	valid := []string{"", "simple", "forking", "oneshot", "dbus"}
+	if !contains(app.Daemon, valid) {
+		return fmt.Errorf(`"daemon" field contains invalid value %q`, app.Daemon)
+	}
+
 	return verifyStructStringsAgainstWhitelist(*app, servicesBinariesStringsWhitelist)
 }
 
