@@ -151,6 +151,9 @@ func (r *Repository) RemoveSkill(snapName, skillName string) error {
 		return fmt.Errorf("cannot remove skill %q from snap %q, no such skill", skillName, snapName)
 	}
 	delete(r.skills[snapName], skillName)
+	if len(r.skills[snapName]) == 0 {
+		delete(r.skills, snapName)
+	}
 	return nil
 }
 
