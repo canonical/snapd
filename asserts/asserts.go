@@ -569,7 +569,7 @@ func NewEncoder(w io.Writer) *Encoder {
 	return &Encoder{wr: w}
 }
 
-// Append emits an already encoded assertion into the stream with a proper required separator.
+// append emits an already encoded assertion into the stream with a proper required separator.
 func (enc *Encoder) append(encoded []byte) error {
 	sz := len(encoded)
 	if sz == 0 {
