@@ -456,14 +456,15 @@ type interacter interface {
 	Notify(status string)
 }
 
-func installClick(snapFile string, flags InstallFlags, inter progress.Meter, origin string) (name string, err error) {
-	allowUnauthenticated := (flags & AllowUnauthenticated) != 0
-	part, err := NewSnapFile(snapFile, origin, allowUnauthenticated)
+// FIXME: kill once every test is converted
+func installClick(snapFilePath string, flags InstallFlags, inter progress.Meter, origin string) (name string, err error) {
+	overlord := &Overlord{}
+	snapPart, err := overlord.Install(snapFilePath, origin, flags, inter)
 	if err != nil {
 		return "", err
 	}
 
-	return part.Install(inter, flags)
+	return snapPart.Name(), nil
 }
 
 // removeSnapData removes the data for the given version of the given snap

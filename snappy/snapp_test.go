@@ -42,8 +42,9 @@ import (
 )
 
 type SnapTestSuite struct {
-	tempdir string
-	secbase string
+	tempdir  string
+	secbase  string
+	overlord Overlord
 }
 
 var _ = Suite(&SnapTestSuite{})
@@ -779,10 +780,7 @@ architectures:
 `
 
 	snapPkg := makeTestSnapPackage(c, packageHello)
-	part, err := NewSnapFile(snapPkg, "origin", true)
-	c.Assert(err, IsNil)
-
-	_, err = part.Install(&MockProgressMeter{}, 0)
+	_, err := (&Overlord{}).Install(snapPkg, "origin", 0, &MockProgressMeter{})
 	errorMsg := fmt.Sprintf("package's supported architectures (yadayada, blahblah) is incompatible with this system (%s)", arch.UbuntuArchitecture())
 	c.Assert(err.Error(), Equals, errorMsg)
 }
