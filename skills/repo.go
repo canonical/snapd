@@ -20,29 +20,11 @@
 package skills
 
 import (
-	"errors"
 	"fmt"
 	"sort"
 	"sync"
 
 	"github.com/ubuntu-core/snappy/snap"
-)
-
-var (
-	// ErrTypeNotFound is reported when skill type cannot found.
-	ErrTypeNotFound = errors.New("skill type not found")
-	// ErrDuplicateType is reported when type with duplicate name is being added to a repository.
-	ErrDuplicateType = errors.New("duplicate type name")
-	// ErrSkillNotFound is reported when skill cannot be looked up.
-	ErrSkillNotFound = errors.New("skill not found")
-	// ErrDuplicateSkill is reported when skill with duplicate name is being added to a repository.
-	ErrDuplicateSkill = errors.New("duplicate skill name")
-	// ErrSlotNotFound is reported when slot cannot be found.
-	ErrSlotNotFound = errors.New("slot not found")
-	// ErrDuplicateSlot is reported when slot with duplicate name is being added to a repository.
-	ErrDuplicateSlot = errors.New("duplicate slot name")
-	// ErrSlotBusy is reported when operation cannot be performed when a slot is occupied.
-	ErrSlotBusy = errors.New("slot is occupied")
 )
 
 // Repository stores all known snappy skills and slots and types.
@@ -219,7 +201,7 @@ func (r *Repository) Slot(snapName, slotName string) *Slot {
 
 // AddSlot adds a new slot to the repository.
 // Adding a slot with invalid name returns an error.
-// Adding a slot that has the same name and snap name as another slot returns ErrDuplicateSlot.
+// Adding a slot that has the same name and snap name as another slot returns an error.
 func (r *Repository) AddSlot(slot *Slot) error {
 	r.m.Lock()
 	defer r.m.Unlock()
@@ -231,29 +213,29 @@ func (r *Repository) AddSlot(slot *Slot) error {
 	// TODO: ensure the snap is correct
 	// TODO: ensure that apps are correct
 	if r.types[slot.Type] == nil {
-		return ErrTypeNotFound
+		return fmt.Errorf("cannot add slot, skill type %q is not known", slot.Type)
 	}
 	if i, found := r.unlockedSlotIndex(slot.Snap, slot.Name); !found {
 		// Insert the slot at the right index
 		r.slots = append(r.slots[:i], append([]*Slot{slot}, r.slots[i:]...)...)
 		return nil
 	}
-	return ErrDuplicateSlot
+	return fmt.Errorf("cannot add slot, slot name %q is in use", slot.Name)
 }
 
 // RemoveSlot removes a named slot from the given snap.
-// Removing a slot that doesn't exist returns ErrSlotNotFound.
-// Removing a slot that uses a skill returns ErrSlotBusy.
+// Removing a slot that doesn't exist returns an error.
+// Removing a slot that uses a skill returns an error.
 func (r *Repository) RemoveSlot(snapName, slotName string) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
 	if i, found := r.unlockedSlotIndex(snapName, slotName); found {
-		// TODO: return ErrSlotBusy if slot is occupied by at least one capability.
+		// TODO: return an error if slot is occupied by at least one capability.
 		r.slots = append(r.slots[:i], r.slots[i+1:]...)
 		return nil
 	}
-	return ErrSlotNotFound
+	return fmt.Errorf("cannot remove slot %q, no such slot", slotName)
 }
 
 // Support for sort.Interface
