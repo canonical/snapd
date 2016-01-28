@@ -33,10 +33,9 @@ The following keys are optional:
                    `["all"]` if empty
 * `frameworks`: a list of the frameworks the snap needs as dependencies
 
-* `services`: the servies (daemons) that the snap provides
-    * `name`: (required) name of the service (only `[a-zA-Z0-9+.-]`)
-    * `description`: (required) description of the service
-    * `start`: (required) the command to start the service
+* `apps`: the map of apps (binaries and services) that a snap provides
+    * `command`: (required) the command to start the service
+    * `daemon`: (optional) [simple|forking|oneshot]
     * `stop`: (optional) the command to stop the service
     * `stop-timeout`: (optional) the time in seconds to wait for the
                       service to stop
@@ -45,19 +44,7 @@ The following keys are optional:
       `on-abnormal`, `on-abort`, and `always`. See `systemd.service(5)`
       (search for `Restart=`) for details.
     * `poststop`: (optional) a command that runs after the service has stopped
-    * `forking`: (optional) set to "true" if the service calls fork() as
-                 part of its startup
-    * `caps`: (optional) list of additional security policies to add.
-              See `security.md` for details
-    * `security-template`: (optional) alternate security template to use
-                           instead of `default`. See `security.md` for details
-    * `security-override`: (optional) high level overrides to use when
-                           `security-template` and `caps` are not
-                           sufficient.  See security.md for details
-    * `security-policy`: (optional) hand-crafted low-level raw security
-                         policy to use instead of using default
-                         template-based  security policy. See
-                         security.md for details
+    * `uses`: a list of `skill` names that the app uses
     * `ports`: (optional) define what ports the service will work
         * `internal`: the ports the service is going to connect to
             * `tagname`: a free form name
@@ -88,15 +75,24 @@ The following keys are optional:
                       be specified with `listen-stream`. This option is
                       reserved for future use.
 
-* `binaries`: the binaries (executables) that the snap provides
-    * `name`: (required) the name of the binary, the user will be able to
-              call it as $name.$pkgname (only `[a-zA-Z0-9+.-]`)
-    * `exec`: the program that gets executed (can be omited if name points
-              to a binary already)
-    * `caps`: (optional) see entry in `services` (above)
-    * `security-template`: (optional) see entry in `services` (above)
-    * `security-override`: (optional) see entry in `services` (above)
-    * `security-policy`: (optional) see entry in `services` (above)
+* `uses`: a map of names and skills
+
+## Skills
+
+The `migration-skill` is used to make porting existing snaps easier.
+It provides the following parameters:
+    * `caps`: (optional) list of additional security policies to add.
+              See `security.md` for details
+    * `security-template`: (optional) alternate security template to use
+                           instead of `default`. See `security.md` for details
+    * `security-override`: (optional) high level overrides to use when
+                           `security-template` and `caps` are not
+                           sufficient.  See security.md for details
+    * `security-policy`: (optional) hand-crafted low-level raw security
+                         policy to use instead of using default
+                         template-based  security policy. See
+                         security.md for details
+
 
 ## license.txt
 
