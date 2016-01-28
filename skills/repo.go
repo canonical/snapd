@@ -20,7 +20,6 @@
 package skills
 
 import (
-	"errors"
 	"fmt"
 	"sort"
 	"sync"
@@ -39,23 +38,6 @@ type Repository struct {
 	// Indexed by slot
 	grants map[*Slot][]*Skill
 }
-
-var (
-	// ErrTypeMismatch is reported when skill and slot types are different.
-	ErrTypeMismatch = errors.New("skill type doesn't match slot type")
-	// ErrSkillNotFound is reported when skill cannot be looked up.
-	ErrSkillNotFound = errors.New("skill not found")
-	// ErrSkillBusy is reported when operation cannot be performed while a skill is granted.
-	ErrSkillBusy = errors.New("skill is busy")
-	// ErrSlotNotFound is reported when slot cannot be found.
-	ErrSlotNotFound = errors.New("slot not found")
-	// ErrSlotBusy is reported when operation cannot be performed when a slot is occupied.
-	ErrSlotBusy = errors.New("slot is occupied")
-	// ErrSkillNotGranted is reported when a skill is being revoked but it was not granted.
-	ErrSkillNotGranted = errors.New("skill not granted")
-	// ErrSkillAlreadyGranted is reported when a skill is being granted to the same slot again.
-	ErrSkillAlreadyGranted = errors.New("skill already granted")
-)
 
 // NewRepository creates an empty skill repository.
 func NewRepository() *Repository {
@@ -170,13 +152,13 @@ func (r *Repository) RemoveSkill(snapName, skillName string) error {
 	defer r.m.Unlock()
 
 	// Ensure that the skill is not busy
-	for _, skills := range r.grants {
+	for slot, skills := range r.grants {
 		if _, found := searchSkill(skills, snapName, skillName); found {
-			return ErrSkillBusy
+			return fmt.Errorf("cannot remove skill, skill %q:%q is used by slot %q:%q", snapName, skillName, slot.Snap, slot.Name)
 		}
 	}
 	if _, ok := r.skills[snapName][skillName]; !ok {
-		return fmt.Errorf("cannot remove skill %q, no such skill", skillName)
+		return fmt.Errorf("cannot remove skill, skill %q:%q does not exist", snapName, skillName)
 	}
 	delete(r.skills[snapName], skillName)
 	return nil
@@ -258,11 +240,11 @@ func (r *Repository) RemoveSlot(snapName, slotName string) error {
 	// Ensure that the slot is not busy
 	for slot := range r.grants {
 		if slot.Snap == snapName && slot.Name == slotName {
-			return ErrSlotBusy
+			return fmt.Errorf("cannot remove slot, slot %q:%q uses at least one skill", snapName, slotName)
 		}
 	}
 	if _, ok := r.slots[snapName][slotName]; !ok {
-		return fmt.Errorf("cannot remove slot %q, no such slot", slotName)
+		return fmt.Errorf("cannot remove slot, slot %q:%q does not exist", snapName, slotName)
 	}
 	delete(r.slots[snapName], slotName)
 	return nil
@@ -280,21 +262,22 @@ func (r *Repository) Grant(skillSnapName, skillName, slotSnapName, slotName stri
 	// Ensure that such skill exists
 	skill := r.skills[skillSnapName][skillName]
 	if skill == nil {
-		return ErrSkillNotFound
+		return fmt.Errorf("cannot grant skill, no such skill %q:%q", skillSnapName, skillName)
 	}
 	// Ensure that such slot exists
 	slot := r.slots[slotSnapName][slotName]
 	if slot == nil {
-		return ErrSlotNotFound
+		return fmt.Errorf("cannot grant skill, no such slot %q:%q", slotSnapName, slotName)
 	}
 	// Ensure that skill and slot are compatible
 	if slot.Type != skill.Type {
-		return ErrTypeMismatch
+		return fmt.Errorf("cannot grant skill, skill type %q doesn't match slot type %q", skill.Type, slot.Type)
 	}
 	// Ensure that slot and skill are not connected yet
 	slotGrants := r.grants[slot]
 	if i, found = searchSkill(slotGrants, skillSnapName, skillName); found {
-		return ErrSkillAlreadyGranted
+		return fmt.Errorf("cannot grant skill, skill %q:%q is already used by slot %q:%q",
+			skill.Snap, skill.Name, slot.Snap, slot.Name)
 	}
 	// Grant the skill
 	r.grants[slot] = append(slotGrants[:i], append([]*Skill{skill}, slotGrants[i:]...)...)
@@ -312,17 +295,18 @@ func (r *Repository) Revoke(skillSnapName, skillName, slotSnapName, slotName str
 	// Ensure that such skill exists
 	skill := r.skills[skillSnapName][skillName]
 	if skill == nil {
-		return ErrSkillNotFound
+		return fmt.Errorf("cannot revoke skill, no such skill %q:%q", skillSnapName, skillName)
 	}
 	// Ensure that such slot exists
 	slot := r.slots[slotSnapName][slotName]
 	if slot == nil {
-		return ErrSlotNotFound
+		return fmt.Errorf("cannot revoke skill, no such slot %q:%q", slotSnapName, slotName)
 	}
 	// Ensure that slot and skill are connected
 	slotGrants := r.grants[slot]
 	if i, found = searchSkill(slotGrants, skillSnapName, skillName); !found {
-		return ErrSkillNotGranted
+		return fmt.Errorf("cannot revoke skill, skill %q:%q is not used by slot %q:%q",
+			skill.Snap, skill.Name, slot.Snap, slot.Name)
 	}
 	r.grants[slot] = append(slotGrants[:i], slotGrants[i+1:]...)
 	return nil
