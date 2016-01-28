@@ -237,6 +237,9 @@ func (r *Repository) RemoveSlot(snapName, slotName string) error {
 		return fmt.Errorf("cannot remove slot %q, no such slot", slotName)
 	}
 	delete(r.slots[snapName], slotName)
+	if len(r.slots[snapName]) == 0 {
+		delete(r.slots, snapName)
+	}
 	return nil
 }
 
