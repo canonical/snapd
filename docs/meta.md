@@ -10,7 +10,7 @@ The following files are supported:
 This file describes the snap package and is the most important file
 for a snap package. The following keys are mandatory:
 
-* `name`: the name of the snap (only `[a-z0-9][a-z0-9+-]`)
+* `name`: the name of the snap (only `^[a-z](?:-?[a-z0-9])*$`)
 * `version`: the version of the snap (only `[a-zA-Z0-9.+~-]` are allowed)
 
 The following keys are optional:
