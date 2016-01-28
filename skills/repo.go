@@ -33,19 +33,20 @@ type Repository struct {
 	m     sync.Mutex
 	types map[string]Type
 	// Indexed by [snapName][skillName]
-	skills map[string]map[string]*Skill
-	slots  map[string]map[string]*Slot
-	// Indexed by slot
-	grants map[*Slot][]*Skill
+	skills          map[string]map[string]*Skill
+	slots           map[string]map[string]*Slot
+	skillUsedBySlot map[*Slot]map[*Skill]bool
+	slotsUsingSkill map[*Skill]map[*Slot]bool
 }
 
 // NewRepository creates an empty skill repository.
 func NewRepository() *Repository {
 	return &Repository{
-		types:  make(map[string]Type),
-		skills: make(map[string]map[string]*Skill),
-		slots:  make(map[string]map[string]*Slot),
-		grants: make(map[*Slot][]*Skill),
+		types:           make(map[string]Type),
+		skills:          make(map[string]map[string]*Skill),
+		slots:           make(map[string]map[string]*Slot),
+		skillUsedBySlot: make(map[*Slot]map[*Skill]bool),
+		slotsUsingSkill: make(map[*Skill]map[*Slot]bool),
 	}
 }
 
@@ -151,14 +152,14 @@ func (r *Repository) RemoveSkill(snapName, skillName string) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	// Ensure that the skill is not busy
-	for slot, skills := range r.grants {
-		if _, found := searchSkill(skills, snapName, skillName); found {
-			return fmt.Errorf("cannot remove skill, skill %q:%q is used by slot %q:%q", snapName, skillName, slot.Snap, slot.Name)
-		}
-	}
-	if _, ok := r.skills[snapName][skillName]; !ok {
+	// Ensure that such skill exists
+	skill := r.skills[snapName][skillName]
+	if skill == nil {
 		return fmt.Errorf("cannot remove skill, skill %q:%q does not exist", snapName, skillName)
+	}
+	// Ensure that the skill is not used by any slot
+	if len(r.slotsUsingSkill[skill]) > 0 {
+		return fmt.Errorf("cannot remove skill, skill %q:%q is used by at least one slot", snapName, skillName)
 	}
 	delete(r.skills[snapName], skillName)
 	return nil
@@ -237,14 +238,14 @@ func (r *Repository) RemoveSlot(snapName, slotName string) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	// Ensure that the slot is not busy
-	for slot := range r.grants {
-		if slot.Snap == snapName && slot.Name == slotName {
-			return fmt.Errorf("cannot remove slot, slot %q:%q uses at least one skill", snapName, slotName)
-		}
-	}
-	if _, ok := r.slots[snapName][slotName]; !ok {
+	// Ensure that such slot exists
+	slot := r.slots[snapName][slotName]
+	if slot == nil {
 		return fmt.Errorf("cannot remove slot, slot %q:%q does not exist", snapName, slotName)
+	}
+	// Ensure that the slot is not using any skills
+	if len(r.skillUsedBySlot[slot]) > 0 {
+		return fmt.Errorf("cannot remove slot, slot %q:%q uses at least one skill", snapName, slotName)
 	}
 	delete(r.slots[snapName], slotName)
 	return nil
@@ -255,9 +256,6 @@ func (r *Repository) RemoveSlot(snapName, slotName string) error {
 func (r *Repository) Grant(skillSnapName, skillName, slotSnapName, slotName string) error {
 	r.m.Lock()
 	defer r.m.Unlock()
-
-	var i int
-	var found bool
 
 	// Ensure that such skill exists
 	skill := r.skills[skillSnapName][skillName]
@@ -274,13 +272,19 @@ func (r *Repository) Grant(skillSnapName, skillName, slotSnapName, slotName stri
 		return fmt.Errorf("cannot grant skill, skill type %q doesn't match slot type %q", skill.Type, slot.Type)
 	}
 	// Ensure that slot and skill are not connected yet
-	slotGrants := r.grants[slot]
-	if i, found = searchSkill(slotGrants, skillSnapName, skillName); found {
+	if r.skillUsedBySlot[slot][skill] {
 		return fmt.Errorf("cannot grant skill, skill %q:%q is already used by slot %q:%q",
 			skill.Snap, skill.Name, slot.Snap, slot.Name)
 	}
 	// Grant the skill
-	r.grants[slot] = append(slotGrants[:i], append([]*Skill{skill}, slotGrants[i:]...)...)
+	if r.skillUsedBySlot[slot] == nil {
+		r.skillUsedBySlot[slot] = make(map[*Skill]bool)
+	}
+	if r.slotsUsingSkill[skill] == nil {
+		r.slotsUsingSkill[skill] = make(map[*Slot]bool)
+	}
+	r.skillUsedBySlot[slot][skill] = true
+	r.slotsUsingSkill[skill][slot] = true
 	return nil
 }
 
@@ -288,9 +292,6 @@ func (r *Repository) Grant(skillSnapName, skillName, slotSnapName, slotName stri
 func (r *Repository) Revoke(skillSnapName, skillName, slotSnapName, slotName string) error {
 	r.m.Lock()
 	defer r.m.Unlock()
-
-	var i int
-	var found bool
 
 	// Ensure that such skill exists
 	skill := r.skills[skillSnapName][skillName]
@@ -303,12 +304,12 @@ func (r *Repository) Revoke(skillSnapName, skillName, slotSnapName, slotName str
 		return fmt.Errorf("cannot revoke skill, no such slot %q:%q", slotSnapName, slotName)
 	}
 	// Ensure that slot and skill are connected
-	slotGrants := r.grants[slot]
-	if i, found = searchSkill(slotGrants, skillSnapName, skillName); !found {
+	if !r.skillUsedBySlot[slot][skill] {
 		return fmt.Errorf("cannot revoke skill, skill %q:%q is not used by slot %q:%q",
 			skill.Snap, skill.Name, slot.Snap, slot.Name)
 	}
-	r.grants[slot] = append(slotGrants[:i], slotGrants[i+1:]...)
+	delete(r.skillUsedBySlot[slot], skill)
+	delete(r.slotsUsingSkill[skill], slot)
 	return nil
 }
 
@@ -318,11 +319,11 @@ func (r *Repository) GrantedTo(snapName string) map[*Slot][]*Skill {
 	defer r.m.Unlock()
 
 	result := make(map[*Slot][]*Skill)
-	for slot, skills := range r.grants {
-		if slot.Snap == snapName && len(skills) > 0 {
-			result[slot] = make([]*Skill, len(skills))
-			copy(result[slot], skills)
+	for _, slot := range r.slots[snapName] {
+		for skill := range r.skillUsedBySlot[slot] {
+			result[slot] = append(result[slot], skill)
 		}
+		sort.Sort(bySkillSnapAndName(result[slot]))
 	}
 	return result
 }
@@ -333,30 +334,13 @@ func (r *Repository) GrantedBy(snapName string) map[*Skill][]*Slot {
 	defer r.m.Unlock()
 
 	result := make(map[*Skill][]*Slot)
-	for slot, skills := range r.grants {
-		for _, skill := range skills {
-			if skill.Snap == snapName {
-				result[skill] = append(result[skill], slot)
-			}
+	for _, skill := range r.skills[snapName] {
+		for slot := range r.slotsUsingSkill[skill] {
+			result[skill] = append(result[skill], slot)
 		}
+		sort.Sort(bySlotSnapAndName(result[skill]))
 	}
 	return result
-}
-
-// Private unlocked APIs
-
-func searchSkill(skills []*Skill, snapName, skillName string) (int, bool) {
-	// Assumption: skills is sorted
-	i := sort.Search(len(skills), func(i int) bool {
-		if skills[i].Snap != snapName {
-			return skills[i].Snap >= snapName
-		}
-		return skills[i].Name >= skillName
-	})
-	if i < len(skills) && skills[i].Snap == snapName && skills[i].Name == skillName {
-		return i, true
-	}
-	return i, false
 }
 
 // Support for sort.Interface

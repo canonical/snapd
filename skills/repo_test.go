@@ -263,7 +263,7 @@ func (s *RepositorySuite) TestRemoveSkillFailsWhenSkillIsUsed(c *C) {
 	c.Assert(err, IsNil)
 	// Removing a skill used by a slot returns an appropriate error
 	err = s.testRepo.RemoveSkill(s.skill.Snap, s.skill.Name)
-	c.Assert(err, ErrorMatches, `cannot remove skill, skill "provider-snap":"name" is used by slot "consumer-snap":"name"`)
+	c.Assert(err, ErrorMatches, `cannot remove skill, skill "provider-snap":"name" is used by at least one slot`)
 	// The skill is still there
 	slot := s.testRepo.Skill(s.skill.Snap, s.skill.Name)
 	c.Assert(slot, Not(IsNil))
@@ -638,11 +638,8 @@ func (s *RepositorySuite) TestGrantedToReturnsCorrectData(c *C) {
 	// After granting the result is as expected
 	err = s.testRepo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
 	c.Assert(err, IsNil)
-	// NOTE: the return value has pointers to internal structures so we cannot
-	// use s.slot here as it is a different pointer to an identical structure.
-	slot := s.testRepo.Slot(s.slot.Snap, s.slot.Name)
 	c.Assert(s.testRepo.GrantedTo(s.slot.Snap), DeepEquals, map[*Slot][]*Skill{
-		slot: []*Skill{s.skill},
+		s.slot: []*Skill{s.skill},
 	})
 	// After revoking the result is empty again
 	err = s.testRepo.Revoke(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
@@ -670,12 +667,9 @@ func (s *RepositorySuite) TestGrantedByReturnsCorrectData(c *C) {
 	// After granting the result is as expected
 	err = s.testRepo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
 	c.Assert(err, IsNil)
-	// NOTE: the return value has pointers to internal structures so we cannot
-	// use s.skill here as it is a different pointer to an identical structure.
 	grants := s.testRepo.GrantedBy(s.skill.Snap)
-	skill := s.testRepo.Skill(s.skill.Snap, s.skill.Name)
 	c.Assert(grants, DeepEquals, map[*Skill][]*Slot{
-		skill: []*Slot{s.slot},
+		s.skill: []*Slot{s.slot},
 	})
 	// After revoking the result is empty again
 	err = s.testRepo.Revoke(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
