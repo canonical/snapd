@@ -178,12 +178,11 @@ func sysInfo(c *Command, r *http.Request) Response {
 
 type metarepo interface {
 	Details(string, string) ([]snappy.Part, error)
-	All() ([]snappy.Part, error)
-	Updates() ([]snappy.Part, error)
+	Find(string) ([]snappy.Part, error) // XXX: change this to Search iff aliases (and thus SharedNames) are no more
 }
 
 var newRemoteRepo = func() metarepo {
-	return snappy.NewMetaStoreRepository()
+	return snappy.NewUbuntuStoreSnapRepository()
 }
 
 var muxVars = mux.Vars
@@ -287,6 +286,8 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		includeLocal = true
 	}
 
+	searchTerm := query.Get("q")
+
 	var includeTypes []string
 	if len(query["types"]) > 0 {
 		includeTypes = strings.Split(query["types"][0], ",")
@@ -309,17 +310,30 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 				resource = url.String()
 			}
 
-			results[name+"."+origin] = webify(m, resource)
+			fullname := name + "." + origin
+
+			// strings.Contains(fullname, "") is true
+			if !strings.Contains(fullname, searchTerm) {
+				continue
+			}
+
+			results[fullname] = webify(m, resource)
 		}
 	}
 
 	if includeStore {
-		// TODO: If there are no results (local or remote), report the error. If
-		//       there are results at all, inform that the result is partial.
-		found, _ := newRemoteRepo().All()
-		if len(found) > 0 {
-			sources = append(sources, "store")
-		}
+		repo := newRemoteRepo()
+		var found []snappy.Part
+
+		// repo.Find("") finds all
+		//
+		// TODO: Instead of ignoring the error from Find:
+		//   * if there are no results, return an error response.
+		//   * If there are results at all (perhaps local), include a
+		//     warning in the response
+		found, _ = repo.Find(searchTerm)
+
+		sources = append(sources, "store")
 
 		sort.Sort(byQN(found))
 
