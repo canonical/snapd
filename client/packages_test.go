@@ -21,7 +21,6 @@ package client_test
 
 import (
 	"fmt"
-	"net/url"
 
 	"gopkg.in/check.v1"
 
@@ -95,22 +94,21 @@ func (cs *clientSuite) TestClientFilterSnaps(c *check.C) {
 	filterTests := []struct {
 		filter client.SnapFilter
 		path   string
+		query  string
 	}{
-		{client.SnapFilter{}, "/2.0/snaps"},
-		{client.SnapFilter{Sources: []string{"local"}}, "/2.0/snaps?sources=local"},
-		{client.SnapFilter{Sources: []string{"store"}}, "/2.0/snaps?sources=store"},
-		{client.SnapFilter{Sources: []string{"local", "store"}}, "/2.0/snaps?sources=local,store"},
-		{client.SnapFilter{Types: []string{"app"}}, "/2.0/snaps?types=app"},
-		{client.SnapFilter{Types: []string{"app", "framework"}}, "/2.0/snaps?types=app,framework"},
-		{client.SnapFilter{Sources: []string{"local"}, Types: []string{"app"}}, "/2.0/snaps?sources=local&types=app"},
+		{client.SnapFilter{}, "/2.0/snaps", ""},
+		{client.SnapFilter{Sources: []string{"local"}}, "/2.0/snaps", "sources=local"},
+		{client.SnapFilter{Sources: []string{"store"}}, "/2.0/snaps", "sources=store"},
+		{client.SnapFilter{Sources: []string{"local", "store"}}, "/2.0/snaps", "sources=local%2Cstore"},
+		{client.SnapFilter{Types: []string{"app"}}, "/2.0/snaps", "types=app"},
+		{client.SnapFilter{Types: []string{"app", "framework"}}, "/2.0/snaps", "types=app%2Cframework"},
+		{client.SnapFilter{Sources: []string{"local"}, Types: []string{"app"}}, "/2.0/snaps", "sources=local&types=app"},
 	}
 
 	for _, tt := range filterTests {
 		_, _ = cs.cli.FilterSnaps(tt.filter)
-		// query string parameters will be URL encoded
-		path, err := url.QueryUnescape(cs.req.URL.Path)
-		c.Assert(err, check.IsNil)
-		c.Assert(path, check.Equals, tt.path)
+		c.Check(cs.req.URL.Path, check.Equals, tt.path, check.Commentf("%v", tt.filter))
+		c.Check(cs.req.URL.RawQuery, check.Equals, tt.query, check.Commentf("%v", tt.filter))
 	}
 }
 
