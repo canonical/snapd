@@ -21,37 +21,34 @@ package skills
 
 import (
 	"errors"
+	"fmt"
 	"sort"
 	"sync"
+
+	"github.com/ubuntu-core/snappy/snap"
 )
 
 // Repository stores all known snappy skills and slots and types.
 type Repository struct {
 	// Protects the internals from concurrent access.
-	m      sync.Mutex
-	types  []Type
-	skills []*Skill
-	slots  []*Slot
+	m     sync.Mutex
+	types map[string]Type
+	// Indexed by [snapName][skillName]
+	skills map[string]map[string]*Skill
+	slots  map[string]map[string]*Slot
+	// Indexed by slot
 	grants map[*Slot][]*Skill
 }
 
 var (
-	// ErrTypeNotFound is reported when skill type cannot found.
-	ErrTypeNotFound = errors.New("skill type not found")
-	// ErrDuplicateType is reported when type with duplicate name is being added to a repository.
-	ErrDuplicateType = errors.New("duplicate type name")
 	// ErrTypeMismatch is reported when skill and slot types are different.
 	ErrTypeMismatch = errors.New("skill type doesn't match slot type")
 	// ErrSkillNotFound is reported when skill cannot be looked up.
 	ErrSkillNotFound = errors.New("skill not found")
-	// ErrDuplicateSkill is reported when skill with duplicate name is being added to a repository.
-	ErrDuplicateSkill = errors.New("duplicate skill name")
 	// ErrSkillBusy is reported when operation cannot be performed while a skill is granted.
 	ErrSkillBusy = errors.New("skill is busy")
 	// ErrSlotNotFound is reported when slot cannot be found.
 	ErrSlotNotFound = errors.New("slot not found")
-	// ErrDuplicateSlot is reported when slot with duplicate name is being added to a repository.
-	ErrDuplicateSlot = errors.New("duplicate slot name")
 	// ErrSlotBusy is reported when operation cannot be performed when a slot is occupied.
 	ErrSlotBusy = errors.New("slot is occupied")
 	// ErrSkillNotGranted is reported when a skill is being revoked but it was not granted.
@@ -63,16 +60,11 @@ var (
 // NewRepository creates an empty skill repository.
 func NewRepository() *Repository {
 	return &Repository{
+		types:  make(map[string]Type),
+		skills: make(map[string]map[string]*Skill),
+		slots:  make(map[string]map[string]*Slot),
 		grants: make(map[*Slot][]*Skill),
 	}
-}
-
-// AllTypes returns all skill types known to the repository.
-func (r *Repository) AllTypes() []Type {
-	r.m.Lock()
-	defer r.m.Unlock()
-
-	return append([]Type(nil), r.types...)
 }
 
 // Type returns a type with a given name.
@@ -80,7 +72,7 @@ func (r *Repository) Type(typeName string) Type {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	return r.unlockedType(typeName)
+	return r.types[typeName]
 }
 
 // AddType adds the provided skill type to the repository.
@@ -92,11 +84,11 @@ func (r *Repository) AddType(t Type) error {
 	if err := ValidateName(typeName); err != nil {
 		return err
 	}
-	if i, found := r.unlockedTypeIndex(typeName); !found {
-		r.types = append(r.types[:i], append([]Type{t}, r.types[i:]...)...)
-		return nil
+	if _, ok := r.types[typeName]; ok {
+		return fmt.Errorf("cannot add skill type: %q, type name is in use", typeName)
 	}
-	return ErrDuplicateType
+	r.types[typeName] = t
+	return nil
 }
 
 // AllSkills returns all skills of the given type.
@@ -106,17 +98,14 @@ func (r *Repository) AllSkills(skillType string) []*Skill {
 	defer r.m.Unlock()
 
 	var result []*Skill
-	if skillType == "" {
-		result = make([]*Skill, len(r.skills))
-		copy(result, r.skills)
-	} else {
-		result = make([]*Skill, 0)
-		for _, skill := range r.skills {
-			if skill.Type == skillType {
+	for _, skillsForSnap := range r.skills {
+		for _, skill := range skillsForSnap {
+			if skillType == "" || skill.Type == skillType {
 				result = append(result, skill)
 			}
 		}
 	}
+	sort.Sort(bySkillSnapAndName(result))
 	return result
 }
 
@@ -126,11 +115,10 @@ func (r *Repository) Skills(snapName string) []*Skill {
 	defer r.m.Unlock()
 
 	var result []*Skill
-	for _, skill := range r.skills {
-		if skill.Snap == snapName {
-			result = append(result, skill)
-		}
+	for _, skill := range r.skills[snapName] {
+		result = append(result, skill)
 	}
+	sort.Sort(bySkillSnapAndName(result))
 	return result
 }
 
@@ -139,68 +127,58 @@ func (r *Repository) Skill(snapName, skillName string) *Skill {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	return r.unlockedSkill(snapName, skillName)
+	return r.skills[snapName][skillName]
 }
 
 // AddSkill adds a skill to the repository.
 // Skill names must be valid snap names, as defined by ValidateName.
 // Skill name must be unique within a particular snap.
-func (r *Repository) AddSkill(snapName, skillName, typeName, label string, attrs map[string]interface{}) error {
+func (r *Repository) AddSkill(skill *Skill) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
+	// Reject snaps with invalid names
+	if err := snap.ValidateName(skill.Snap); err != nil {
+		return err
+	}
 	// Reject skill with invalid names
-	if err := ValidateName(snapName); err != nil {
+	if err := ValidateName(skill.Name); err != nil {
 		return err
 	}
-	if err := ValidateName(skillName); err != nil {
-		return err
-	}
-	// TODO: ensure that given snap really exists
-	t := r.unlockedType(typeName)
+	t := r.types[skill.Type]
 	if t == nil {
-		return ErrTypeNotFound
-	}
-	skill := &Skill{
-		Name:  skillName,
-		Snap:  snapName,
-		Type:  typeName,
-		Attrs: attrs,
-		Label: label,
+		return fmt.Errorf("cannot add skill, skill type %q is not known", skill.Type)
 	}
 	// Reject skill that don't pass type-specific sanitization
 	if err := t.Sanitize(skill); err != nil {
 		return err
 	}
-	if i, found := r.unlockedSkillIndex(snapName, skillName); !found {
-		r.skills = append(r.skills[:i], append([]*Skill{skill}, r.skills[i:]...)...)
-		return nil
+	if _, ok := r.skills[skill.Snap][skill.Name]; ok {
+		return fmt.Errorf("cannot add skill, skill name %q is in use", skill.Name)
 	}
-	return ErrDuplicateSkill
+	if r.skills[skill.Snap] == nil {
+		r.skills[skill.Snap] = make(map[string]*Skill)
+	}
+	r.skills[skill.Snap][skill.Name] = skill
+	return nil
 }
 
 // RemoveSkill removes the named skill provided by a given snap.
-// Removing a skill that doesn't exist returns a ErrSkillNotFound.
-// Removing a skill that is granted returns ErrSkillBusy.
+// The removed skill must exist and must not be used anywhere.
 func (r *Repository) RemoveSkill(snapName, skillName string) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	var i int
-	var found bool
-
-	// Ensure that such skill exists
-	if i, found = r.unlockedSkillIndex(snapName, skillName); !found {
-		return ErrSkillNotFound
-	}
 	// Ensure that the skill is not busy
 	for _, skills := range r.grants {
 		if _, found := searchSkill(skills, snapName, skillName); found {
 			return ErrSkillBusy
 		}
 	}
-	// Remove the skill
-	r.skills = append(r.skills[:i], r.skills[i+1:]...)
+	if _, ok := r.skills[snapName][skillName]; !ok {
+		return fmt.Errorf("cannot remove skill %q, no such skill", skillName)
+	}
+	delete(r.skills[snapName], skillName)
 	return nil
 }
 
@@ -211,17 +189,14 @@ func (r *Repository) AllSlots(skillType string) []*Slot {
 	defer r.m.Unlock()
 
 	var result []*Slot
-	if skillType == "" {
-		result = make([]*Slot, len(r.slots))
-		copy(result, r.slots)
-	} else {
-		result = make([]*Slot, 0)
-		for _, slot := range r.slots {
-			if slot.Type == skillType {
+	for _, slotsForSnap := range r.slots {
+		for _, slot := range slotsForSnap {
+			if skillType == "" || slot.Type == skillType {
 				result = append(result, slot)
 			}
 		}
 	}
+	sort.Sort(bySlotSnapAndName(result))
 	return result
 }
 
@@ -231,12 +206,10 @@ func (r *Repository) Slots(snapName string) []*Slot {
 	defer r.m.Unlock()
 
 	var result []*Slot
-	for _, slot := range r.slots {
-		// NOTE: can be done faster; r.slots is sorted by (Slot.Snap, Slot.Name).
-		if slot.Snap == snapName {
-			result = append(result, slot)
-		}
+	for _, slot := range r.slots[snapName] {
+		result = append(result, slot)
 	}
+	sort.Sort(bySlotSnapAndName(result))
 	return result
 }
 
@@ -245,63 +218,53 @@ func (r *Repository) Slot(snapName, slotName string) *Slot {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	return r.unlockedSlot(snapName, slotName)
+	return r.slots[snapName][slotName]
 }
 
 // AddSlot adds a new slot to the repository.
 // Adding a slot with invalid name returns an error.
-// Adding a slot that has the same name and snap name as another slot returns ErrDuplicateSlot.
-func (r *Repository) AddSlot(snapName, slotName, typeName, label string, attrs map[string]interface{}, apps []string) error {
+// Adding a slot that has the same name and snap name as another slot returns an error.
+func (r *Repository) AddSlot(slot *Slot) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
 	// Reject skill with invalid names
-	if err := ValidateName(slotName); err != nil {
+	if err := ValidateName(slot.Name); err != nil {
 		return err
 	}
 	// TODO: ensure the snap is correct
 	// TODO: ensure that apps are correct
-	if r.unlockedType(typeName) == nil {
-		return ErrTypeNotFound
+	t := r.types[slot.Type]
+	if t == nil {
+		return fmt.Errorf("cannot add slot, skill type %q is not known", slot.Type)
 	}
-	if i, found := r.unlockedSlotIndex(snapName, slotName); !found {
-		slot := &Slot{
-			Name:  slotName,
-			Snap:  snapName,
-			Type:  typeName,
-			Attrs: attrs,
-			Apps:  apps,
-			Label: label,
-		}
-		// Insert the slot at the right index
-		r.slots = append(r.slots[:i], append([]*Slot{slot}, r.slots[i:]...)...)
-		return nil
+	if _, ok := r.slots[slot.Snap][slot.Name]; ok {
+		return fmt.Errorf("cannot add slot, slot name %q is in use", slot.Name)
 	}
-	return ErrDuplicateSlot
+	if r.slots[slot.Snap] == nil {
+		r.slots[slot.Snap] = make(map[string]*Slot)
+	}
+	r.slots[slot.Snap][slot.Name] = slot
+	return nil
 }
 
 // RemoveSlot removes a named slot from the given snap.
-// Removing a slot that doesn't exist returns ErrSlotNotFound.
-// Removing a slot that uses a skill returns ErrSlotBusy.
+// Removing a slot that doesn't exist returns an error.
+// Removing a slot that uses a skill returns an error.
 func (r *Repository) RemoveSlot(snapName, slotName string) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	var i int
-	var found bool
-
-	// Ensure that such slot exists
-	if i, found = r.unlockedSlotIndex(snapName, slotName); !found {
-		return ErrSlotNotFound
-	}
 	// Ensure that the slot is not busy
 	for slot := range r.grants {
 		if slot.Snap == snapName && slot.Name == slotName {
 			return ErrSlotBusy
 		}
 	}
-	// Remove the slot
-	r.slots = append(r.slots[:i], r.slots[i+1:]...)
+	if _, ok := r.slots[snapName][slotName]; !ok {
+		return fmt.Errorf("cannot remove slot %q, no such slot", slotName)
+	}
+	delete(r.slots[snapName], slotName)
 	return nil
 }
 
@@ -315,12 +278,12 @@ func (r *Repository) Grant(skillSnapName, skillName, slotSnapName, slotName stri
 	var found bool
 
 	// Ensure that such skill exists
-	skill := r.unlockedSkill(skillSnapName, skillName)
+	skill := r.skills[skillSnapName][skillName]
 	if skill == nil {
 		return ErrSkillNotFound
 	}
 	// Ensure that such slot exists
-	slot := r.unlockedSlot(slotSnapName, slotName)
+	slot := r.slots[slotSnapName][slotName]
 	if slot == nil {
 		return ErrSlotNotFound
 	}
@@ -347,12 +310,12 @@ func (r *Repository) Revoke(skillSnapName, skillName, slotSnapName, slotName str
 	var found bool
 
 	// Ensure that such skill exists
-	skill := r.unlockedSkill(skillSnapName, skillName)
+	skill := r.skills[skillSnapName][skillName]
 	if skill == nil {
 		return ErrSkillNotFound
 	}
 	// Ensure that such slot exists
-	slot := r.unlockedSlot(slotSnapName, slotName)
+	slot := r.slots[slotSnapName][slotName]
 	if slot == nil {
 		return ErrSlotNotFound
 	}
@@ -398,33 +361,6 @@ func (r *Repository) GrantedBy(snapName string) map[*Skill][]*Slot {
 
 // Private unlocked APIs
 
-func (r *Repository) unlockedType(typeName string) Type {
-	if i, found := r.unlockedTypeIndex(typeName); found {
-		return r.types[i]
-	}
-	return nil
-}
-
-func (r *Repository) unlockedTypeIndex(typeName string) (int, bool) {
-	// Assumption: r.types is sorted
-	i := sort.Search(len(r.types), func(i int) bool { return r.types[i].Name() >= typeName })
-	if i < len(r.types) && r.types[i].Name() == typeName {
-		return i, true
-	}
-	return i, false
-}
-
-func (r *Repository) unlockedSkill(snapName, skillName string) *Skill {
-	if i, found := r.unlockedSkillIndex(snapName, skillName); found {
-		return r.skills[i]
-	}
-	return nil
-}
-
-func (r *Repository) unlockedSkillIndex(snapName, skillName string) (int, bool) {
-	return searchSkill(r.skills, snapName, skillName)
-}
-
 func searchSkill(skills []*Skill, snapName, skillName string) (int, bool) {
 	// Assumption: skills is sorted
 	i := sort.Search(len(skills), func(i int) bool {
@@ -439,28 +375,26 @@ func searchSkill(skills []*Skill, snapName, skillName string) (int, bool) {
 	return i, false
 }
 
-// unlockedSlot returns a slot given snap and slot name.
-func (r *Repository) unlockedSlot(snapName, slotName string) *Slot {
-	i, found := r.unlockedSlotIndex(snapName, slotName)
-	if found {
-		return r.slots[i]
+// Support for sort.Interface
+
+type bySkillSnapAndName []*Skill
+
+func (c bySkillSnapAndName) Len() int      { return len(c) }
+func (c bySkillSnapAndName) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
+func (c bySkillSnapAndName) Less(i, j int) bool {
+	if c[i].Snap != c[j].Snap {
+		return c[i].Snap < c[j].Snap
 	}
-	return nil
+	return c[i].Name < c[j].Name
 }
 
-// unlockedSlotIndex returns the index of a slot given snap and slot name.
-// If the slot is found, the found return value is true. Otherwise the index can
-// be used as a place where the slot should be inserted.
-func (r *Repository) unlockedSlotIndex(snapName, slotName string) (index int, found bool) {
-	// Assumption: r.slots is sorted
-	i := sort.Search(len(r.slots), func(i int) bool {
-		if r.slots[i].Snap != snapName {
-			return r.slots[i].Snap >= snapName
-		}
-		return r.slots[i].Name >= slotName
-	})
-	if i < len(r.slots) && r.slots[i].Snap == snapName && r.slots[i].Name == slotName {
-		return i, true
+type bySlotSnapAndName []*Slot
+
+func (c bySlotSnapAndName) Len() int      { return len(c) }
+func (c bySlotSnapAndName) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
+func (c bySlotSnapAndName) Less(i, j int) bool {
+	if c[i].Snap != c[j].Snap {
+		return c[i].Snap < c[j].Snap
 	}
-	return i, false
+	return c[i].Name < c[j].Name
 }
