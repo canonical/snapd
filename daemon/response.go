@@ -196,7 +196,7 @@ func (ar assertResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	for _, a := range ar.assertions {
 		err := enc.Encode(a)
 		if err != nil {
-			logger.Noticef("unable write encoded assertion into response: %v", err)
+			logger.Noticef("unable to write encoded assertion into response: %v", err)
 			break
 
 		}
