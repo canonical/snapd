@@ -470,6 +470,27 @@ func (s *SnapTestSuite) TestUbuntuStoreAll(c *C) {
 	c.Check(parts[0].Description(), Equals, "Returns for store credit only.")
 }
 
+func (s *SnapTestSuite) TestUbuntuStoreFind(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.URL.RawQuery, Equals, "q=name%3Afoo")
+		io.WriteString(w, MockSearchJSON)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var err error
+	storeSearchURI, err = url.Parse(mockServer.URL)
+	c.Assert(err, IsNil)
+
+	repo := NewUbuntuStoreSnapRepository()
+	c.Assert(repo, NotNil)
+
+	parts, err := repo.Find("foo")
+	c.Assert(err, IsNil)
+	c.Assert(parts, HasLen, 1)
+	c.Check(parts[0].Name(), Equals, funkyAppName)
+}
+
 func (s *SnapTestSuite) TestUbuntuStoreSearchDoesNotMutateSearchURI(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.URL.RawQuery, Equals, "q=foo")

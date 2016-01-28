@@ -247,14 +247,30 @@ Sample result:
 
 #### `sources`
 
-Can be set to either `local` (to only list
-local snaps) or `store` (to only list snaps from the store), or a
-comma-separated combination. Defaults to `local,store`.
+Can be set to either `local` (to only list local snaps) or `store` (to
+only list snaps from the store), or a comma-separated
+combination. Defaults to `local,store`.
+
+Note that excluding sources will result in incomplete (and in some
+cases incorrect) information about installed packages: information
+about updates will be absent if `store` is not included, whereas if
+`local` is not included information about rollbacks will be missing,
+and the package state for installed packages will be incorrect.
+
+#### `types`
+
+Restricts returned snaps to those with types included in the specified
+comma-separated list. See the description of the `type` field of `snaps` in the
+above section for possible values.
 
 #### `page`
 
-request the given page when the server is paginating the
+Request the given page when the server is paginating the
 result. Defaults to `0`.
+
+#### `q`
+
+If present, only list snaps that match the query.
 
 ### POST
 

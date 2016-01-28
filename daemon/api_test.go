@@ -51,9 +51,10 @@ import (
 )
 
 type apiSuite struct {
-	parts []snappy.Part
-	err   error
-	vars  map[string]string
+	parts      []snappy.Part
+	err        error
+	vars       map[string]string
+	searchTerm string
 }
 
 var _ = check.Suite(&apiSuite{})
@@ -66,7 +67,9 @@ func (s *apiSuite) All() ([]snappy.Part, error) {
 	return s.parts, s.err
 }
 
-func (s *apiSuite) Updates() ([]snappy.Part, error) {
+func (s *apiSuite) Find(searchTerm string) ([]snappy.Part, error) {
+	s.searchTerm = searchTerm
+
 	return s.parts, s.err
 }
 
@@ -490,6 +493,82 @@ func (s *apiSuite) TestSnapsInfoUnknownSource(c *check.C) {
 
 	snaps := result["snaps"].(map[string]map[string]interface{})
 	c.Assert(snaps, check.HasLen, 0)
+}
+
+func (s *apiSuite) TestSnapsInfoFilterLocal(c *check.C) {
+	s.parts = nil
+	s.mkInstalled(c, "foo", "foo", "v1", true, "")
+	s.mkInstalled(c, "bar", "bar", "v1", true, "")
+
+	req, err := http.NewRequest("GET", "/2.0/snaps?q=foo", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := getSnapsInfo(snapsCmd, req).(*resp)
+
+	result := rsp.Result.(map[string]interface{})
+	c.Assert(result["snaps"], check.NotNil)
+
+	snaps := result["snaps"].(map[string]map[string]interface{})
+	c.Assert(snaps, check.HasLen, 1)
+	c.Assert(snaps["foo.foo"], check.NotNil)
+}
+
+func (s *apiSuite) TestSnapsInfoFilterRemote(c *check.C) {
+	s.parts = nil
+
+	req, err := http.NewRequest("GET", "/2.0/snaps?q=foo", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := getSnapsInfo(snapsCmd, req).(*resp)
+
+	c.Check(s.searchTerm, check.Equals, "foo")
+
+	result := rsp.Result.(map[string]interface{})
+	c.Assert(result["snaps"], check.NotNil)
+}
+
+func (s *apiSuite) TestSnapsInfoAppsOnly(c *check.C) {
+	s.mkInstalled(c, "app", "foo", "v1", true, "type: app")
+	s.mkInstalled(c, "framework", "foo", "v1", true, "type: framework")
+
+	req, err := http.NewRequest("GET", "/2.0/snaps?types=app", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := getSnapsInfo(snapsCmd, req).(*resp)
+
+	result := rsp.Result.(map[string]interface{})
+	snaps := result["snaps"].(map[string]map[string]interface{})
+	c.Assert(snaps, check.HasLen, 1)
+	c.Assert(snaps["app.foo"], check.NotNil)
+}
+
+func (s *apiSuite) TestSnapsInfoFrameworksOnly(c *check.C) {
+	s.mkInstalled(c, "app", "foo", "v1", true, "type: app")
+	s.mkInstalled(c, "framework", "foo", "v1", true, "type: framework")
+
+	req, err := http.NewRequest("GET", "/2.0/snaps?types=framework", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := getSnapsInfo(snapsCmd, req).(*resp)
+
+	result := rsp.Result.(map[string]interface{})
+	snaps := result["snaps"].(map[string]map[string]interface{})
+	c.Assert(snaps, check.HasLen, 1)
+	c.Assert(snaps["framework.foo"], check.NotNil)
+}
+
+func (s *apiSuite) TestSnapsInfoAppsAndFrameworks(c *check.C) {
+	s.mkInstalled(c, "app", "foo", "v1", true, "type: app")
+	s.mkInstalled(c, "framework", "foo", "v1", true, "type: framework")
+
+	req, err := http.NewRequest("GET", "/2.0/snaps?types=app,framework", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := getSnapsInfo(snapsCmd, req).(*resp)
+
+	result := rsp.Result.(map[string]interface{})
+	snaps := result["snaps"].(map[string]map[string]interface{})
+	c.Assert(snaps, check.HasLen, 2)
 }
 
 func (s *apiSuite) TestDeleteOpNotFound(c *check.C) {
