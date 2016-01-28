@@ -221,7 +221,7 @@ func (as *assertsSuite) TestDecoderHappyWithSeparatorsVariations(c *C) {
 
 	for _, streamData := range streams {
 		stream := bytes.NewBufferString(streamData)
-		decoder := asserts.NewDecoderStressed(stream, 16)
+		decoder := asserts.NewDecoderStressed(stream, 16, 1024, 1024, 1024)
 		a, err := decoder.Decode()
 		c.Assert(err, IsNil, Commentf("stream: %q", streamData))
 
@@ -239,7 +239,7 @@ func (as *assertsSuite) TestDecoderUnexpectedEOF(c *C) {
 
 	for _, brk := range []int{1, fstHeadEnd / 2, fstHeadEnd, fstHeadEnd + 1, fstHeadEnd + 2, fstHeadEnd + 6} {
 		stream := bytes.NewBufferString(streamData[:brk])
-		decoder := asserts.NewDecoderStressed(stream, 16)
+		decoder := asserts.NewDecoderStressed(stream, 16, 1024, 1024, 1024)
 		_, err := decoder.Decode()
 		c.Check(err, Equals, io.ErrUnexpectedEOF, Commentf("brk: %d", brk))
 	}
@@ -265,6 +265,24 @@ func (as *assertsSuite) TestDecoderBrokenBodySeparation(c *C) {
 	decoder = asserts.NewDecoder(bytes.NewBufferString(streamData))
 	_, err = decoder.Decode()
 	c.Assert(err, ErrorMatches, "missing content/signature separator")
+}
+
+func (as *assertsSuite) TestDecoderHeadTooBig(c *C) {
+	decoder := asserts.NewDecoderStressed(bytes.NewBufferString(exampleBodyAndExtraHeaders), 4, 4, 1024, 1024)
+	_, err := decoder.Decode()
+	c.Assert(err, ErrorMatches, "error reading assertion head: max size exceeded")
+}
+
+func (as *assertsSuite) TestDecoderBodyTooBig(c *C) {
+	decoder := asserts.NewDecoderStressed(bytes.NewBufferString(exampleBodyAndExtraHeaders), 1024, 1024, 5, 1024)
+	_, err := decoder.Decode()
+	c.Assert(err, ErrorMatches, "assertion body length 8 exceeds maximum body size")
+}
+
+func (as *assertsSuite) TestDecoderSignatureTooBig(c *C) {
+	decoder := asserts.NewDecoderStressed(bytes.NewBufferString(exampleBodyAndExtraHeaders), 4, 1024, 1024, 7)
+	_, err := decoder.Decode()
+	c.Assert(err, ErrorMatches, "error reading assertion signature: max size exceeded")
 }
 
 func (as *assertsSuite) TestEncode(c *C) {

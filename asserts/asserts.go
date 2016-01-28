@@ -223,25 +223,40 @@ func Decode(serializedAssertion []byte) (Assertion, error) {
 	return Assemble(headers, body, content, signature)
 }
 
+// Maximum assertion component sizes.
+const (
+	MaxBodySize      = 2 * 1024 * 1024
+	MaxHeadSize      = 128 * 1024
+	MaxSignatureSize = 128 * 1024
+)
+
 // Decoder parses a stream of assertions bundled by ensuring double newlines at the end of each assertion.
 type Decoder struct {
 	rd             io.Reader
 	initialBufSize int
 	b              *bufio.Reader
 	err            error
+	maxHeadSize    int
+	maxBodySize    int
+	maxSigSize     int
 }
 
-func newDecoder(r io.Reader, bufSize int) *Decoder {
+func newDecoder(r io.Reader, bufSize, maxHeadSize, maxBodySize, maxSigSize int) *Decoder {
 	return &Decoder{
 		rd:             r,
 		initialBufSize: bufSize,
 		b:              bufio.NewReaderSize(r, bufSize),
+		maxHeadSize:    maxHeadSize,
+		maxBodySize:    maxBodySize,
+		maxSigSize:     maxSigSize,
 	}
 }
 
+const defaultDecoderButSize = 4096
+
 // NewDecoder returns a Decoder to parse the stream of assertions from the reader.
 func NewDecoder(r io.Reader) *Decoder {
-	return newDecoder(r, 4096)
+	return newDecoder(r, defaultDecoderButSize, MaxHeadSize, MaxBodySize, MaxSignatureSize)
 }
 
 func (d *Decoder) peek(size int) ([]byte, error) {
@@ -273,44 +288,46 @@ func (d *Decoder) readExact(size int) ([]byte, error) {
 	return buf, err
 }
 
-func (d *Decoder) readUntil(delim []byte) ([]byte, error) {
+func (d *Decoder) readUntil(delim []byte, maxSize int) ([]byte, error) {
 	last := 0
-	size := 8
+	size := d.initialBufSize
 	for {
 		buf, err := d.peek(size)
 		if i := bytes.Index(buf[last:], delim); i >= 0 {
 			d.b.Discard(last + i + len(delim))
 			return buf[:last+i+len(delim)], nil
 		}
+		// report errors only once we have consumed what is buffered
 		if err != nil && len(buf) == d.b.Buffered() {
 			d.b.Discard(len(buf))
 			return buf, err
 		}
 		last = size - len(delim) + 1
-		size *= 2 // TODO: What's the limit?
+		size *= 2
+		if size > maxSize {
+			return nil, fmt.Errorf("max size exceeded")
+		}
 	}
-}
-
-func copyBuf(b []byte) []byte {
-	res := make([]byte, len(b))
-	copy(res, b)
-	return res
 }
 
 // Decode parses the next assertion from the stream.
 // It returns the error io.EOF at the end of a well-formed stream.
 func (d *Decoder) Decode() (Assertion, error) {
 	// read the headers and the nlnl separator after them
-	headAndSep, err := d.readUntil(nlnl)
+	headAndSep, err := d.readUntil(nlnl, d.maxHeadSize)
 	if err != nil {
-		if err == io.EOF && len(headAndSep) != 0 {
-			return nil, io.ErrUnexpectedEOF
+		if err == io.EOF {
+			if len(headAndSep) != 0 {
+				return nil, io.ErrUnexpectedEOF
+			}
+			return nil, io.EOF
 		}
-		return nil, err
+		return nil, fmt.Errorf("error reading assertion head: %v", err)
 	}
 
-	headAndSep = copyBuf(headAndSep)
-	head := headAndSep[:len(headAndSep)-len(nlnl)]
+	contentBuf := bytes.NewBuffer(make([]byte, 0, len(headAndSep)))
+	contentBuf.Write(headAndSep)
+	head := contentBuf.Bytes()[:len(headAndSep)-len(nlnl)]
 
 	headers, err := parseHeaders(head)
 	if err != nil {
@@ -321,7 +338,9 @@ func (d *Decoder) Decode() (Assertion, error) {
 	if err != nil {
 		return nil, fmt.Errorf("assertion: %v", err)
 	}
-	// TODO: have a maximal reasonable length here!
+	if length > d.maxBodySize {
+		return nil, fmt.Errorf("assertion body length %d exceeds maximum body size", length)
+	}
 
 	var body []byte
 	var sig []byte
@@ -331,26 +350,24 @@ func (d *Decoder) Decode() (Assertion, error) {
 		if err != nil {
 			return nil, err
 		}
-		body = copyBuf(body)
+		bodyStart := contentBuf.Len()
+		contentBuf.Write(body)
+		body = contentBuf.Bytes()[bodyStart:]
 	}
 
 	// try to read the end of body a.k.a content/signature separator
-	endOfBody, err := d.readUntil(nlnl)
+	endOfBody, err := d.readUntil(nlnl, d.maxSigSize)
 	if err != nil && err != io.EOF {
-		return nil, err
+		return nil, fmt.Errorf("error reading assertion trailer: %v", err)
 	}
 
 	var content []byte
 	if bytes.Equal(endOfBody, nlnl) {
 		// we got the nlnl content/signature separator, read the signature now and the assertion/assertion nlnl separation
-		sig, err = d.readUntil(nlnl)
+		sig, err = d.readUntil(nlnl, d.maxSigSize)
 		if err != nil && err != io.EOF {
-			return nil, err
+			return nil, fmt.Errorf("error reading assertion signature: %v", err)
 		}
-		// TODO: we can do this a bit earlier actually
-		contentBuf := bytes.NewBuffer(make([]byte, 0, len(headAndSep)+len(body)))
-		contentBuf.Write(headAndSep)
-		contentBuf.Write(body)
 		content = contentBuf.Bytes()
 	} else {
 		// we got the signature directly which is a ok format only if body length == 0
@@ -361,14 +378,15 @@ func (d *Decoder) Decode() (Assertion, error) {
 		content = head
 	}
 
-	sig = copyBuf(sig)
-
 	// normalize sig ending newlines
 	if bytes.HasSuffix(sig, nlnl) {
 		sig = sig[:len(sig)-1]
 	}
 
-	return Assemble(headers, body, content, sig)
+	finalSig := make([]byte, len(sig))
+	copy(finalSig, sig)
+
+	return Assemble(headers, body, content, finalSig)
 }
 
 func checkRevision(headers map[string]string) (int, error) {

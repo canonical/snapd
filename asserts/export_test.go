@@ -38,8 +38,8 @@ var AssembleAndSignInTest = assembleAndSign
 var DecodePrivateKeyInTest = decodePrivateKey
 
 // NewDecoderStressed makes a Decoder with a stressed setup with the given buffer size.
-func NewDecoderStressed(r io.Reader, bufSize int) *Decoder {
-	return newDecoder(r, bufSize)
+func NewDecoderStressed(r io.Reader, bufSize, maxHeadSize, maxBodySize, maxSigSize int) *Decoder {
+	return newDecoder(r, bufSize, maxHeadSize, maxBodySize, maxSigSize)
 }
 
 // Encoder.append exposed for tests
