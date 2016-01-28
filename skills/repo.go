@@ -216,7 +216,7 @@ func (r *Repository) AddSlot(slot *Slot) error {
 		return fmt.Errorf("cannot add slot, skill type %q is not known", slot.Type)
 	}
 	if _, ok := r.slots[slot.Snap][slot.Name]; ok {
-		return fmt.Errorf("cannot add slot, slot name %q is in use", slot.Name)
+		return fmt.Errorf("cannot add slot, snap %q already has slot %q", slot.Snap, slot.Name)
 	}
 	if r.slots[slot.Snap] == nil {
 		r.slots[slot.Snap] = make(map[string]*Slot)
@@ -234,7 +234,7 @@ func (r *Repository) RemoveSlot(snapName, slotName string) error {
 
 	// TODO: return an error if slot is occupied by at least one capability.
 	if _, ok := r.slots[snapName][slotName]; !ok {
-		return fmt.Errorf("cannot remove slot %q, no such slot", slotName)
+		return fmt.Errorf("cannot remove slot %q from snap %q, no such slot", slotName, snapName)
 	}
 	delete(r.slots[snapName], slotName)
 	if len(r.slots[snapName]) == 0 {
