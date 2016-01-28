@@ -52,9 +52,10 @@ import (
 )
 
 type apiSuite struct {
-	parts []snappy.Part
-	err   error
-	vars  map[string]string
+	parts      []snappy.Part
+	err        error
+	vars       map[string]string
+	searchTerm string
 }
 
 var _ = check.Suite(&apiSuite{})
@@ -67,7 +68,9 @@ func (s *apiSuite) All() ([]snappy.Part, error) {
 	return s.parts, s.err
 }
 
-func (s *apiSuite) Updates() ([]snappy.Part, error) {
+func (s *apiSuite) Find(searchTerm string) ([]snappy.Part, error) {
+	s.searchTerm = searchTerm
+
 	return s.parts, s.err
 }
 
@@ -491,6 +494,38 @@ func (s *apiSuite) TestSnapsInfoUnknownSource(c *check.C) {
 
 	snaps := result["snaps"].(map[string]map[string]interface{})
 	c.Assert(snaps, check.HasLen, 0)
+}
+
+func (s *apiSuite) TestSnapsInfoFilterLocal(c *check.C) {
+	s.parts = nil
+	s.mkInstalled(c, "foo", "foo", "v1", true, "")
+	s.mkInstalled(c, "bar", "bar", "v1", true, "")
+
+	req, err := http.NewRequest("GET", "/2.0/snaps?q=foo", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := getSnapsInfo(snapsCmd, req).(*resp)
+
+	result := rsp.Result.(map[string]interface{})
+	c.Assert(result["snaps"], check.NotNil)
+
+	snaps := result["snaps"].(map[string]map[string]interface{})
+	c.Assert(snaps, check.HasLen, 1)
+	c.Assert(snaps["foo.foo"], check.NotNil)
+}
+
+func (s *apiSuite) TestSnapsInfoFilterRemote(c *check.C) {
+	s.parts = nil
+
+	req, err := http.NewRequest("GET", "/2.0/snaps?q=foo", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := getSnapsInfo(snapsCmd, req).(*resp)
+
+	c.Check(s.searchTerm, check.Equals, "foo")
+
+	result := rsp.Result.(map[string]interface{})
+	c.Assert(result["snaps"], check.NotNil)
 }
 
 func (s *apiSuite) TestSnapsInfoAppsOnly(c *check.C) {
@@ -1359,8 +1394,8 @@ func (s *apiSuite) TestDeleteCapabilityNotFound(c *check.C) {
 func (s *apiSuite) TestGetSkills(c *check.C) {
 	d := newTestDaemon()
 	d.skills.AddType(&skills.TestType{TypeName: "type"})
-	d.skills.AddSkill("producer", "skill", "type", "label", nil, nil)
-	d.skills.AddSlot("consumer", "slot", "type", "label", nil, nil)
+	d.skills.AddSkill(&skills.Skill{Snap: "producer", Name: "skill", Type: "type", Label: "label"})
+	d.skills.AddSlot(&skills.Slot{Snap: "consumer", Name: "slot", Type: "type"})
 	d.skills.Grant("producer", "skill", "consumer", "slot")
 	req, err := http.NewRequest("GET", "/2.0/skills", nil)
 	c.Assert(err, check.IsNil)
@@ -1379,8 +1414,8 @@ func (s *apiSuite) TestGetSkills(c *check.C) {
 				"label": "label",
 				"slots": []interface{}{
 					map[string]interface{}{
-						"name": "slot",
 						"snap": "consumer",
+						"name": "slot",
 					},
 				},
 			},
@@ -1396,8 +1431,8 @@ func (s *apiSuite) TestGetSkills(c *check.C) {
 func (s *apiSuite) TestGrantSkillSuccess(c *check.C) {
 	d := newTestDaemon()
 	d.skills.AddType(&skills.TestType{TypeName: "type"})
-	d.skills.AddSkill("producer", "skill", "type", "label", nil, nil)
-	d.skills.AddSlot("consumer", "slot", "type", "label", nil, nil)
+	d.skills.AddSkill(&skills.Skill{Snap: "producer", Name: "skill", Type: "type"})
+	d.skills.AddSlot(&skills.Slot{Snap: "consumer", Name: "slot", Type: "type"})
 	action := &SkillAction{
 		Action: "grant",
 		Skill: skills.Skill{
@@ -1448,8 +1483,8 @@ func (s *apiSuite) TestGrantSkillFailureTypeMismatch(c *check.C) {
 	d := newTestDaemon()
 	d.skills.AddType(&skills.TestType{TypeName: "type"})
 	d.skills.AddType(&skills.TestType{TypeName: "other-type"})
-	d.skills.AddSkill("producer", "skill", "type", "label", nil, nil)
-	d.skills.AddSlot("consumer", "slot", "other-type", "label", nil, nil)
+	d.skills.AddSkill(&skills.Skill{Snap: "producer", Name: "skill", Type: "type"})
+	d.skills.AddSlot(&skills.Slot{Snap: "consumer", Name: "slot", Type: "other-type"})
 	action := &SkillAction{
 		Action: "grant",
 		Skill: skills.Skill{
@@ -1474,7 +1509,7 @@ func (s *apiSuite) TestGrantSkillFailureTypeMismatch(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": "can't grant skill: skill type doesn't match slot type",
+			"message": "cannot grant skill, skill type \"type\" doesn't match slot type \"other-type\"",
 		},
 		"status":      "Bad Request",
 		"status_code": 400.0,
@@ -1487,7 +1522,7 @@ func (s *apiSuite) TestGrantSkillFailureTypeMismatch(c *check.C) {
 func (s *apiSuite) TestGrantSkillFailureNoSuchSkill(c *check.C) {
 	d := newTestDaemon()
 	d.skills.AddType(&skills.TestType{TypeName: "type"})
-	d.skills.AddSlot("consumer", "slot", "type", "label", nil, nil)
+	d.skills.AddSlot(&skills.Slot{Snap: "consumer", Name: "slot", Type: "type"})
 	action := &SkillAction{
 		Action: "grant",
 		Skill: skills.Skill{
@@ -1512,7 +1547,7 @@ func (s *apiSuite) TestGrantSkillFailureNoSuchSkill(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": "can't grant skill: skill not found",
+			"message": "cannot grant skill, no such skill \"producer\":\"skill\"",
 		},
 		"status":      "Bad Request",
 		"status_code": 400.0,
@@ -1525,7 +1560,7 @@ func (s *apiSuite) TestGrantSkillFailureNoSuchSkill(c *check.C) {
 func (s *apiSuite) TestGrantSkillFailureNoSuchSlot(c *check.C) {
 	d := newTestDaemon()
 	d.skills.AddType(&skills.TestType{TypeName: "type"})
-	d.skills.AddSkill("producer", "skill", "type", "label", nil, nil)
+	d.skills.AddSkill(&skills.Skill{Snap: "producer", Name: "skill", Type: "type"})
 	action := &SkillAction{
 		Action: "grant",
 		Skill: skills.Skill{
@@ -1550,7 +1585,7 @@ func (s *apiSuite) TestGrantSkillFailureNoSuchSlot(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": "can't grant skill: slot not found",
+			"message": "cannot grant skill, no such slot \"consumer\":\"slot\"",
 		},
 		"status":      "Bad Request",
 		"status_code": 400.0,
@@ -1563,8 +1598,8 @@ func (s *apiSuite) TestGrantSkillFailureNoSuchSlot(c *check.C) {
 func (s *apiSuite) TestRevokeSkillSuccess(c *check.C) {
 	d := newTestDaemon()
 	d.skills.AddType(&skills.TestType{TypeName: "type"})
-	d.skills.AddSkill("producer", "skill", "type", "label", nil, nil)
-	d.skills.AddSlot("consumer", "slot", "type", "label", nil, nil)
+	d.skills.AddSkill(&skills.Skill{Snap: "producer", Name: "skill", Type: "type"})
+	d.skills.AddSlot(&skills.Slot{Snap: "consumer", Name: "slot", Type: "type"})
 	d.skills.Grant("producer", "skill", "consumer", "slot")
 	action := &SkillAction{
 		Action: "revoke",
@@ -1601,7 +1636,7 @@ func (s *apiSuite) TestRevokeSkillSuccess(c *check.C) {
 func (s *apiSuite) TestRevokeSkillFailureNoSuchSkill(c *check.C) {
 	d := newTestDaemon()
 	d.skills.AddType(&skills.TestType{TypeName: "type"})
-	d.skills.AddSlot("consumer", "slot", "type", "label", nil, nil)
+	d.skills.AddSlot(&skills.Slot{Snap: "consumer", Name: "slot", Type: "type"})
 	action := &SkillAction{
 		Action: "revoke",
 		Skill: skills.Skill{
@@ -1626,7 +1661,7 @@ func (s *apiSuite) TestRevokeSkillFailureNoSuchSkill(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": "can't revoke skill: skill not found",
+			"message": "cannot revoke skill, no such skill \"producer\":\"skill\"",
 		},
 		"status":      "Bad Request",
 		"status_code": 400.0,
@@ -1639,7 +1674,7 @@ func (s *apiSuite) TestRevokeSkillFailureNoSuchSkill(c *check.C) {
 func (s *apiSuite) TestRevokeSkillFailureNoSuchSlot(c *check.C) {
 	d := newTestDaemon()
 	d.skills.AddType(&skills.TestType{TypeName: "type"})
-	d.skills.AddSkill("producer", "skill", "type", "label", nil, nil)
+	d.skills.AddSkill(&skills.Skill{Snap: "producer", Name: "skill", Type: "type"})
 	action := &SkillAction{
 		Action: "revoke",
 		Skill: skills.Skill{
@@ -1664,7 +1699,7 @@ func (s *apiSuite) TestRevokeSkillFailureNoSuchSlot(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": "can't revoke skill: slot not found",
+			"message": "cannot revoke skill, no such slot \"consumer\":\"slot\"",
 		},
 		"status":      "Bad Request",
 		"status_code": 400.0,
@@ -1677,8 +1712,8 @@ func (s *apiSuite) TestRevokeSkillFailureNoSuchSlot(c *check.C) {
 func (s *apiSuite) TestRevokeSkillFailureNotGranted(c *check.C) {
 	d := newTestDaemon()
 	d.skills.AddType(&skills.TestType{TypeName: "type"})
-	d.skills.AddSkill("producer", "skill", "type", "label", nil, nil)
-	d.skills.AddSlot("consumer", "slot", "type", "label", nil, nil)
+	d.skills.AddSkill(&skills.Skill{Snap: "producer", Name: "skill", Type: "type"})
+	d.skills.AddSlot(&skills.Slot{Snap: "consumer", Name: "slot", Type: "type"})
 	action := &SkillAction{
 		Action: "revoke",
 		Skill: skills.Skill{
@@ -1703,7 +1738,7 @@ func (s *apiSuite) TestRevokeSkillFailureNotGranted(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": "can't revoke skill: skill not granted",
+			"message": "cannot revoke skill, skill \"producer\":\"skill\" is not used by slot \"consumer\":\"slot\"",
 		},
 		"status":      "Bad Request",
 		"status_code": 400.0,
@@ -1758,8 +1793,8 @@ func (s *apiSuite) TestAddSkillDisabled(c *check.C) {
 	action := &SkillAction{
 		Action: "add-skill",
 		Skill: skills.Skill{
-			Snap:  "snap",
-			Name:  "name",
+			Snap:  "producer",
+			Name:  "skill",
 			Label: "label",
 			Type:  "type",
 			Attrs: map[string]interface{}{
@@ -1787,7 +1822,7 @@ func (s *apiSuite) TestAddSkillDisabled(c *check.C) {
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Check(d.skills.Skill("snap", "name"), check.IsNil)
+	c.Check(d.skills.Skill("producer", "skill"), check.IsNil)
 }
 
 func (s *apiSuite) TestAddSkillFailure(c *check.C) {
@@ -1824,7 +1859,7 @@ func (s *apiSuite) TestAddSkillFailure(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": "can't add skill: skill sanitization error",
+			"message": "skill sanitization error",
 		},
 		"status":      "Bad Request",
 		"status_code": 400.0,
@@ -1836,12 +1871,12 @@ func (s *apiSuite) TestAddSkillFailure(c *check.C) {
 func (s *apiSuite) TestRemoveSkillSuccess(c *check.C) {
 	d := newTestDaemon()
 	d.skills.AddType(&skills.TestType{TypeName: "type"})
-	d.skills.AddSkill("snap", "name", "type", "label", nil, nil)
+	d.skills.AddSkill(&skills.Skill{Snap: "producer", Name: "skill", Type: "type"})
 	action := &SkillAction{
 		Action: "remove-skill",
 		Skill: skills.Skill{
-			Snap: "snap",
-			Name: "name",
+			Snap: "producer",
+			Name: "skill",
 		},
 	}
 	text, err := json.Marshal(action)
@@ -1867,13 +1902,13 @@ func (s *apiSuite) TestRemoveSkillSuccess(c *check.C) {
 func (s *apiSuite) TestRemoveSkillDisabled(c *check.C) {
 	d := newTestDaemon()
 	d.skills.AddType(&skills.TestType{TypeName: "type"})
-	d.skills.AddSkill("snap", "name", "type", "label", nil, nil)
+	d.skills.AddSkill(&skills.Skill{Snap: "producer", Name: "skill", Type: "type"})
 	d.enableInternalSkillActions = false
 	action := &SkillAction{
 		Action: "remove-skill",
 		Skill: skills.Skill{
-			Snap: "snap",
-			Name: "name",
+			Snap: "producer",
+			Name: "skill",
 		},
 	}
 	text, err := json.Marshal(action)
@@ -1895,14 +1930,14 @@ func (s *apiSuite) TestRemoveSkillDisabled(c *check.C) {
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Check(d.skills.Skill("snap", "name"), check.Not(check.IsNil))
+	c.Check(d.skills.Skill("producer", "skill"), check.Not(check.IsNil))
 }
 
 func (s *apiSuite) TestRemoveSkillFailure(c *check.C) {
 	d := newTestDaemon()
 	d.skills.AddType(&skills.TestType{TypeName: "type"})
-	d.skills.AddSkill("producer", "skill", "type", "label", nil, nil)
-	d.skills.AddSlot("consumer", "slot", "type", "label", nil, nil)
+	d.skills.AddSkill(&skills.Skill{Snap: "producer", Name: "skill", Type: "type"})
+	d.skills.AddSlot(&skills.Slot{Snap: "consumer", Name: "slot", Type: "type"})
 	d.skills.Grant("producer", "skill", "consumer", "slot")
 	action := &SkillAction{
 		Action: "remove-skill",
@@ -1924,7 +1959,7 @@ func (s *apiSuite) TestRemoveSkillFailure(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": "can't remove skill: skill is used",
+			"message": "cannot remove skill, skill \"producer\":\"skill\" is used by at least one slot",
 		},
 		"status":      "Bad Request",
 		"status_code": 400.0,
@@ -1978,8 +2013,8 @@ func (s *apiSuite) TestAddSlotDisabled(c *check.C) {
 	action := &SkillAction{
 		Action: "add-slot",
 		Slot: skills.Slot{
-			Snap:  "snap",
-			Name:  "name",
+			Snap:  "consumer",
+			Name:  "slot",
 			Label: "label",
 			Type:  "type",
 			Attrs: map[string]interface{}{
@@ -2007,7 +2042,7 @@ func (s *apiSuite) TestAddSlotDisabled(c *check.C) {
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Check(d.skills.Slot("snap", "name"), check.IsNil)
+	c.Check(d.skills.Slot("consumer", "slot"), check.IsNil)
 }
 
 func (s *apiSuite) TestAddSlotFailure(c *check.C) {
@@ -2044,7 +2079,7 @@ func (s *apiSuite) TestAddSlotFailure(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": "can't add slot: slot sanitization error",
+			"message": "slot sanitization error",
 		},
 		"status":      "Bad Request",
 		"status_code": 400.0,
@@ -2056,12 +2091,12 @@ func (s *apiSuite) TestAddSlotFailure(c *check.C) {
 func (s *apiSuite) TestRemoveSlotSuccess(c *check.C) {
 	d := newTestDaemon()
 	d.skills.AddType(&skills.TestType{TypeName: "type"})
-	d.skills.AddSlot("snap", "name", "type", "label", nil, nil)
+	d.skills.AddSlot(&skills.Slot{Snap: "consumer", Name: "slot", Type: "type"})
 	action := &SkillAction{
 		Action: "remove-slot",
 		Slot: skills.Slot{
-			Snap: "snap",
-			Name: "name",
+			Snap: "consumer",
+			Name: "slot",
 		},
 	}
 	text, err := json.Marshal(action)
@@ -2087,13 +2122,13 @@ func (s *apiSuite) TestRemoveSlotSuccess(c *check.C) {
 func (s *apiSuite) TestRemoveSlotDisabled(c *check.C) {
 	d := newTestDaemon()
 	d.skills.AddType(&skills.TestType{TypeName: "type"})
-	d.skills.AddSlot("snap", "name", "type", "label", nil, nil)
+	d.skills.AddSlot(&skills.Slot{Snap: "consumer", Name: "slot", Type: "type"})
 	d.enableInternalSkillActions = false
 	action := &SkillAction{
 		Action: "remove-slot",
 		Slot: skills.Slot{
-			Snap: "snap",
-			Name: "name",
+			Snap: "consumer",
+			Name: "slot",
 		},
 	}
 	text, err := json.Marshal(action)
@@ -2115,14 +2150,14 @@ func (s *apiSuite) TestRemoveSlotDisabled(c *check.C) {
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Check(d.skills.Slot("snap", "name"), check.Not(check.IsNil))
+	c.Check(d.skills.Slot("consumer", "slot"), check.Not(check.IsNil))
 }
 
 func (s *apiSuite) TestRemoveSlotFailure(c *check.C) {
 	d := newTestDaemon()
 	d.skills.AddType(&skills.TestType{TypeName: "type"})
-	d.skills.AddSkill("producer", "skill", "type", "label", nil, nil)
-	d.skills.AddSlot("consumer", "slot", "type", "label", nil, nil)
+	d.skills.AddSkill(&skills.Skill{Snap: "producer", Name: "skill", Type: "type"})
+	d.skills.AddSlot(&skills.Slot{Snap: "consumer", Name: "slot", Type: "type"})
 	d.skills.Grant("producer", "skill", "consumer", "slot")
 	action := &SkillAction{
 		Action: "remove-slot",
@@ -2144,7 +2179,7 @@ func (s *apiSuite) TestRemoveSlotFailure(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": "can't remove slot: slot is occupied",
+			"message": "cannot remove slot, slot \"consumer\":\"slot\" uses at least one skill",
 		},
 		"status":      "Bad Request",
 		"status_code": 400.0,
