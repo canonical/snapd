@@ -193,7 +193,7 @@ func (db *Database) Sign(assertType *AssertionType, headers map[string]string, b
 	return assembleAndSign(assertType, headers, body, privKey)
 }
 
-// find account key exactly by account id and key id
+// findAccountKey finds an AccountKey exactly by account id and key id.
 func (db *Database) findAccountKey(authorityID, keyID string) (*AccountKey, error) {
 	key := []string{authorityID, keyID}
 	// consider trusted account keys then disk stored account keys
