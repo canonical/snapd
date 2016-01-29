@@ -80,9 +80,6 @@ func (s *purgeSuite) mkpkg(c *C, args ...string) (dataDirs []string, part *SnapP
 	yaml := "version: 1.0\nname: hello-app\nversion: " + version + "\n" + extra
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml)
 	c.Assert(err, IsNil)
-	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
-	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", app+".manifest"), []byte(`{"name": "`+app+`"}`), 0644), IsNil)
 
 	dataDir := filepath.Join(dirs.SnapDataDir, app, version)
 	c.Assert(os.MkdirAll(dataDir, 0755), IsNil)
@@ -150,7 +147,11 @@ func (s *purgeSuite) TestPurgeActiveExplicitOK(c *C) {
 
 func (s *purgeSuite) TestPurgeActiveRestartServices(c *C) {
 	inter := &MockProgressMeter{}
-	ddirs, part := s.mkpkg(c, "v1", "services:\n - name: svc")
+	ddirs, part := s.mkpkg(c, "v1", `apps:
+ svc:
+  command: foo
+  daemon: forking
+`)
 	c.Assert(part.activate(true, inter), IsNil)
 	for _, ddir := range ddirs {
 		canary := filepath.Join(ddir, "canary")

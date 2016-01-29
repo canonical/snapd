@@ -17,34 +17,36 @@
  *
  */
 
-package snappy
+package snap
 
 import (
-	"github.com/ubuntu-core/snappy/dirs"
+	"testing"
 
 	. "gopkg.in/check.v1"
 )
 
-type overlordTestSuite struct {
+// Hook up check.v1 into the "go test" runner
+func Test(t *testing.T) { TestingT(t) }
+
+type InfoSnapYamlTestSuite struct {
 }
 
-var _ = Suite(&overlordTestSuite{})
+var _ = Suite(&InfoSnapYamlTestSuite{})
 
-func (o *overlordTestSuite) SetUpTest(c *C) {
-	dirs.SetRootDir(c.MkDir())
-}
-
-var helloAppYaml = `name: hello-app
+var mockYaml = []byte(`name: foo
 version: 1.0
-`
+type: app
+`)
 
-func (o *overlordTestSuite) TestInstalled(c *C) {
-	_, err := makeInstalledMockSnap(dirs.GlobalRootDir, helloAppYaml)
+func (s *InfoSnapYamlTestSuite) TestSimple(c *C) {
+	info, err := InfoFromSnapYaml(mockYaml)
 	c.Assert(err, IsNil)
+	c.Assert(info.Name, Equals, "foo")
+	c.Assert(info.Version, Equals, "1.0")
+	c.Assert(info.Type, Equals, TypeApp)
+}
 
-	overlord := &Overlord{}
-	installed, err := overlord.Installed()
-	c.Assert(err, IsNil)
-	c.Assert(installed, HasLen, 1)
-	c.Assert(installed[0].Name(), Equals, "hello-app")
+func (s *InfoSnapYamlTestSuite) TestFail(c *C) {
+	_, err := InfoFromSnapYaml([]byte("random-crap"))
+	c.Assert(err, ErrorMatches, "(?m)info failed to parse:.*")
 }

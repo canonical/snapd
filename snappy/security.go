@@ -317,13 +317,13 @@ func findWhitespacePrefix(t string, s string) string {
 	return subs[1]
 }
 
-func getSecurityProfile(m *packageYaml, appName, baseDir string) (string, error) {
+func getSecurityProfile(m *snapYaml, appName, baseDir string) (string, error) {
 	cleanedName := strings.Replace(appName, "/", "-", -1)
 	if m.Type == snap.TypeFramework || m.Type == snap.TypeGadget {
 		return fmt.Sprintf("%s_%s_%s", m.Name, cleanedName, m.Version), nil
 	}
 
-	origin, err := originFromYamlPath(filepath.Join(baseDir, "meta", "package.yaml"))
+	origin, err := originFromYamlPath(filepath.Join(baseDir, "meta", "snap.yaml"))
 
 	return fmt.Sprintf("%s.%s_%s_%s", m.Name, origin, cleanedName, m.Version), err
 }
@@ -445,7 +445,7 @@ func mergeAppArmorTemplateAdditionalContent(appArmorTemplate, aaPolicy string, o
 	return aaPolicy, nil
 }
 
-func getAppArmorTemplatedPolicy(m *packageYaml, appID *securityAppID, template string, caps []string, overrides *SecurityOverrideDefinition) (string, error) {
+func getAppArmorTemplatedPolicy(m *snapYaml, appID *securityAppID, template string, caps []string, overrides *SecurityOverrideDefinition) (string, error) {
 	t, err := securityPolicyTypeAppArmor.findTemplate(template)
 	if err != nil {
 		return "", err
@@ -477,7 +477,7 @@ func getAppArmorTemplatedPolicy(m *packageYaml, appID *securityAppID, template s
 	return mergeAppArmorTemplateAdditionalContent(t, aaPolicy, overrides)
 }
 
-func getSeccompTemplatedPolicy(m *packageYaml, appID *securityAppID, templateName string, caps []string, overrides *SecurityOverrideDefinition) (string, error) {
+func getSeccompTemplatedPolicy(m *snapYaml, appID *securityAppID, templateName string, caps []string, overrides *SecurityOverrideDefinition) (string, error) {
 	t, err := securityPolicyTypeSeccomp.findTemplate(templateName)
 	if err != nil {
 		return "", err
@@ -503,7 +503,7 @@ func getSeccompTemplatedPolicy(m *packageYaml, appID *securityAppID, templateNam
 
 var finalCurtain = regexp.MustCompile(`}\s*$`)
 
-func getAppArmorCustomPolicy(m *packageYaml, appID *securityAppID, fn string, overrides *SecurityOverrideDefinition) (string, error) {
+func getAppArmorCustomPolicy(m *snapYaml, appID *securityAppID, fn string, overrides *SecurityOverrideDefinition) (string, error) {
 	custom, err := ioutil.ReadFile(fn)
 	if err != nil {
 		return "", err
@@ -524,7 +524,7 @@ func getAppArmorCustomPolicy(m *packageYaml, appID *securityAppID, fn string, ov
 	return mergeAppArmorTemplateAdditionalContent("", aaPolicy, overrides)
 }
 
-func getSeccompCustomPolicy(m *packageYaml, appID *securityAppID, fn string) (string, error) {
+func getSeccompCustomPolicy(m *snapYaml, appID *securityAppID, fn string) (string, error) {
 	custom, err := ioutil.ReadFile(fn)
 	if err != nil {
 		return "", err
@@ -548,7 +548,7 @@ var loadAppArmorPolicy = func(fn string) ([]byte, error) {
 	return content, err
 }
 
-func (m *packageYaml) removeOneSecurityPolicy(name, baseDir string) error {
+func removeOneSecurityPolicy(m *snapYaml, name, baseDir string) error {
 	profileName, err := getSecurityProfile(m, filepath.Base(name), baseDir)
 	if err != nil {
 		return err
@@ -575,20 +575,26 @@ func (m *packageYaml) removeOneSecurityPolicy(name, baseDir string) error {
 	return nil
 }
 
-func removePolicy(m *packageYaml, baseDir string) error {
-	for _, service := range m.ServiceYamls {
-		if err := m.removeOneSecurityPolicy(service.Name, baseDir); err != nil {
+func removePolicy(m *snapYaml, baseDir string) error {
+	for _, app := range m.Apps {
+		if app.Daemon == "" {
+			continue
+		}
+		if err := removeOneSecurityPolicy(m, app.Name, baseDir); err != nil {
 			return err
 		}
 	}
 
-	for _, binary := range m.Binaries {
-		if err := m.removeOneSecurityPolicy(binary.Name, baseDir); err != nil {
+	for _, app := range m.Apps {
+		if app.Daemon != "" {
+			continue
+		}
+		if err := removeOneSecurityPolicy(m, app.Name, baseDir); err != nil {
 			return err
 		}
 	}
 
-	if err := m.removeOneSecurityPolicy("snappy-config", baseDir); err != nil {
+	if err := removeOneSecurityPolicy(m, "snappy-config", baseDir); err != nil {
 		return err
 	}
 
@@ -630,7 +636,7 @@ func (sd *SecurityDefinitions) warnDeprecatedKeys() {
 	}
 }
 
-func (sd *SecurityDefinitions) generatePolicyForServiceBinaryResult(m *packageYaml, name string, baseDir string) (*securityPolicyResult, error) {
+func (sd *SecurityDefinitions) generatePolicyForServiceBinaryResult(m *snapYaml, name string, baseDir string) (*securityPolicyResult, error) {
 	res := &securityPolicyResult{}
 	appID, err := getSecurityProfile(m, name, baseDir)
 	if err != nil {
@@ -650,7 +656,7 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinaryResult(m *packageYa
 	// add the hw-override parts and merge with the other overrides
 	origin := ""
 	if m.Type != snap.TypeFramework && m.Type != snap.TypeGadget {
-		origin, err = originFromYamlPath(filepath.Join(baseDir, "meta", "package.yaml"))
+		origin, err = originFromYamlPath(filepath.Join(baseDir, "meta", "snap.yaml"))
 		if err != nil {
 			return nil, err
 		}
@@ -692,7 +698,7 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinaryResult(m *packageYa
 	return res, nil
 }
 
-func (sd *SecurityDefinitions) generatePolicyForServiceBinary(m *packageYaml, name string, baseDir string) error {
+func (sd *SecurityDefinitions) generatePolicyForServiceBinary(m *snapYaml, name string, baseDir string) error {
 	p, err := sd.generatePolicyForServiceBinaryResult(m, name, baseDir)
 	if err != nil {
 		return err
@@ -725,7 +731,22 @@ func hasConfig(baseDir string) bool {
 	return helpers.FileExists(filepath.Join(baseDir, "meta", "hooks", "config"))
 }
 
-func generatePolicy(m *packageYaml, baseDir string) error {
+func findSkillForApp(m *snapYaml, app *AppYaml) (*usesYaml, error) {
+	if len(app.UsesRef) == 0 {
+		return nil, nil
+	}
+	if len(app.UsesRef) != 1 {
+		return nil, fmt.Errorf("only a single skill is supported, %d found", len(app.UsesRef))
+	}
+
+	skill, ok := m.Uses[app.UsesRef[0]]
+	if !ok {
+		return nil, fmt.Errorf("can not find skill %q", app.UsesRef[0])
+	}
+	return skill, nil
+}
+
+func generatePolicy(m *snapYaml, baseDir string) error {
 	var foundError error
 
 	// generate default security config for snappy-config
@@ -736,20 +757,19 @@ func generatePolicy(m *packageYaml, baseDir string) error {
 		}
 	}
 
-	for _, service := range m.ServiceYamls {
-		err := service.generatePolicyForServiceBinary(m, service.Name, baseDir)
+	for _, app := range m.Apps {
+		skill, err := findSkillForApp(m, app)
 		if err != nil {
-			foundError = err
-			logger.Noticef("Failed to generate policy for service %s: %v", service.Name, err)
+			return err
+		}
+		if skill == nil {
 			continue
 		}
-	}
 
-	for _, binary := range m.Binaries {
-		err := binary.generatePolicyForServiceBinary(m, binary.Name, baseDir)
+		err = skill.generatePolicyForServiceBinary(m, app.Name, baseDir)
 		if err != nil {
 			foundError = err
-			logger.Noticef("Failed to generate policy for binary %s: %v", binary.Name, err)
+			logger.Noticef("Failed to generate policy for service %s: %v", app.Name, err)
 			continue
 		}
 	}
@@ -784,7 +804,7 @@ func regeneratePolicyForSnap(snapname string) error {
 		}
 		if appID.Version != appliedVersion {
 			// FIXME: dirs.SnapSnapsDir is too simple, gadget
-			fn := filepath.Join(dirs.SnapSnapsDir, appID.Pkgname, appID.Version, "meta", "package.yaml")
+			fn := filepath.Join(dirs.SnapSnapsDir, appID.Pkgname, appID.Version, "meta", "snap.yaml")
 			if !helpers.FileExists(fn) {
 				continue
 			}
@@ -828,29 +848,24 @@ func compareSinglePolicyToCurrent(oldPolicyFn, newPolicy string) error {
 // CompareGeneratePolicyFromFile is used to simulate security policy
 // generation and returns if the policy would have changed
 func CompareGeneratePolicyFromFile(fn string) error {
-	m, err := parsePackageYamlFileWithVersion(fn)
+	m, err := parseSnapYamlFileWithVersion(fn)
 	if err != nil {
 		return err
 	}
 
 	baseDir := filepath.Dir(filepath.Dir(fn))
 
-	for _, service := range m.ServiceYamls {
-		p, err := service.generatePolicyForServiceBinaryResult(m, service.Name, baseDir)
-
-		// FIXME: use apparmor_profile -p on both AppArmor profiles
-
+	for _, app := range m.Apps {
+		skill, err := findSkillForApp(m, app)
 		if err != nil {
-			// FIXME: what to do here?
 			return err
 		}
-		if err := comparePolicyToCurrent(p); err != nil {
-			return err
+		if skill == nil {
+			continue
 		}
-	}
 
-	for _, binary := range m.Binaries {
-		p, err := binary.generatePolicyForServiceBinaryResult(m, binary.Name, baseDir)
+		p, err := skill.generatePolicyForServiceBinaryResult(m, app.Name, baseDir)
+		// FIXME: use apparmor_profile -p on both AppArmor profiles
 		if err != nil {
 			// FIXME: what to do here?
 			return err
@@ -875,8 +890,8 @@ func CompareGeneratePolicyFromFile(fn string) error {
 }
 
 // FIXME: refactor so that we don't need this
-func parsePackageYamlFileWithVersion(fn string) (*packageYaml, error) {
-	m, err := parsePackageYamlFile(fn)
+func parseSnapYamlFileWithVersion(fn string) (*snapYaml, error) {
+	m, err := parseSnapYamlFile(fn)
 
 	// FIXME: duplicated code from snapp.go:NewSnapPartFromYaml,
 	//        version is overriden by sideloaded versions
@@ -895,7 +910,7 @@ func parsePackageYamlFileWithVersion(fn string) (*packageYaml, error) {
 // from the specified manifest file name
 func GeneratePolicyFromFile(fn string, force bool) error {
 	// FIXME: force not used yet
-	m, err := parsePackageYamlFileWithVersion(fn)
+	m, err := parseSnapYamlFileWithVersion(fn)
 	if err != nil {
 		return err
 	}
@@ -934,7 +949,7 @@ func RegenerateAllPolicy(force bool) error {
 			continue
 		}
 		basedir := part.basedir
-		yFn := filepath.Join(basedir, "meta", "package.yaml")
+		yFn := filepath.Join(basedir, "meta", "snap.yaml")
 
 		// FIXME: use ErrPolicyNeedsRegenerating here to check if
 		//        re-generation is needed

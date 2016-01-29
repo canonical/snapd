@@ -32,7 +32,7 @@ import (
 
 // SnapFile is a local snap file that can get installed
 type SnapFile struct {
-	m   *packageYaml
+	m   *snapYaml
 	deb snap.File
 
 	origin  string
@@ -46,7 +46,7 @@ func NewSnapFile(snapFile string, origin string, unsignedOk bool) (*SnapFile, er
 		return nil, err
 	}
 
-	yamlData, err := d.MetaMember("package.yaml")
+	yamlData, err := d.MetaMember("snap.yaml")
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +54,7 @@ func NewSnapFile(snapFile string, origin string, unsignedOk bool) (*SnapFile, er
 	_, err = d.MetaMember("hooks/config")
 	hasConfig := err == nil
 
-	m, err := parsePackageYamlData(yamlData, hasConfig)
+	m, err := parseSnapYamlData(yamlData, hasConfig)
 	if err != nil {
 		return nil, err
 	}
