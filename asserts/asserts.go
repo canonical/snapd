@@ -241,22 +241,24 @@ type Decoder struct {
 	maxSigSize     int
 }
 
-func newDecoder(r io.Reader, bufSize, maxHeadersSize, maxBodySize, maxSigSize int) *Decoder {
-	return &Decoder{
-		rd:             r,
-		initialBufSize: bufSize,
-		b:              bufio.NewReaderSize(r, bufSize),
-		maxHeadersSize: maxHeadersSize,
-		maxBodySize:    maxBodySize,
-		maxSigSize:     maxSigSize,
-	}
+// initBuffer finishes a Decoder initialization by setting up the bufio.Reader,
+// it returns the *Decoder for convenience of notation.
+func (d *Decoder) initBuffer() *Decoder {
+	d.b = bufio.NewReaderSize(d.rd, d.initialBufSize)
+	return d
 }
 
 const defaultDecoderButSize = 4096
 
 // NewDecoder returns a Decoder to parse the stream of assertions from the reader.
 func NewDecoder(r io.Reader) *Decoder {
-	return newDecoder(r, defaultDecoderButSize, MaxHeadersSize, MaxBodySize, MaxSignatureSize)
+	return (&Decoder{
+		rd:             r,
+		initialBufSize: defaultDecoderButSize,
+		maxHeadersSize: MaxHeadersSize,
+		maxBodySize:    MaxBodySize,
+		maxSigSize:     MaxSignatureSize,
+	}).initBuffer()
 }
 
 func (d *Decoder) peek(size int) ([]byte, error) {
