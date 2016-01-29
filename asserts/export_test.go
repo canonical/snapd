@@ -37,23 +37,44 @@ var AssembleAndSignInTest = assembleAndSign
 // decodePrivateKey exposed for tests
 var DecodePrivateKeyInTest = decodePrivateKey
 
-// NewDecoderStressed makes a Decoder with a stressed setup with the given buffer size.
-func NewDecoderStressed(r io.Reader, bufSize int) *Decoder {
-	return &Decoder{rd: r, buf: make([]byte, bufSize)}
+// NewDecoderStressed makes a Decoder with a stressed setup with the given buffer and maximum sizes.
+func NewDecoderStressed(r io.Reader, bufSize, maxHeadersSize, maxBodySize, maxSigSize int) *Decoder {
+	return (&Decoder{
+		rd:             r,
+		initialBufSize: bufSize,
+		maxHeadersSize: maxHeadersSize,
+		maxBodySize:    maxBodySize,
+		maxSigSize:     maxSigSize,
+	}).initBuffer()
 }
 
-func BootstrapAccountKeyForTest(authorityID string, pubKey *packet.PublicKey) *AccountKey {
+// Encoder.append exposed for tests
+func EncoderAppend(enc *Encoder, encoded []byte) error {
+	return enc.append(encoded)
+}
+
+func makeAccountKeyForTest(authorityID string, pubKey *packet.PublicKey, validYears int) *AccountKey {
+	openPGPPubKey := OpenPGPPublicKey(pubKey)
 	return &AccountKey{
 		assertionBase: assertionBase{
 			headers: map[string]string{
-				"authority-id": authorityID,
-				"account-id":   authorityID,
+				"authority-id":  authorityID,
+				"account-id":    authorityID,
+				"public-key-id": openPGPPubKey.ID(),
 			},
 		},
 		since:  time.Time{},
-		until:  time.Time{}.UTC().AddDate(9999, 0, 0),
-		pubKey: OpenPGPPublicKey(pubKey),
+		until:  time.Time{}.UTC().AddDate(validYears, 0, 0),
+		pubKey: openPGPPubKey,
 	}
+}
+
+func BootstrapAccountKeyForTest(authorityID string, pubKey *packet.PublicKey) *AccountKey {
+	return makeAccountKeyForTest(authorityID, pubKey, 9999)
+}
+
+func ExpiredAccountKeyForTest(authorityID string, pubKey *packet.PublicKey) *AccountKey {
+	return makeAccountKeyForTest(authorityID, pubKey, 1)
 }
 
 // define dummy assertion types to use in the tests

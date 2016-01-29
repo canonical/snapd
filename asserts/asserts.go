@@ -20,6 +20,7 @@
 package asserts
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io"
@@ -225,86 +226,115 @@ func Decode(serializedAssertion []byte) (Assertion, error) {
 	return Assemble(headers, body, content, signature)
 }
 
+// Maximum assertion component sizes.
+const (
+	MaxBodySize      = 2 * 1024 * 1024
+	MaxHeadersSize   = 128 * 1024
+	MaxSignatureSize = 128 * 1024
+)
+
 // Decoder parses a stream of assertions bundled by ensuring double newlines at the end of each assertion.
 type Decoder struct {
-	rd   io.Reader
-	buf  []byte
-	rest []byte
+	rd             io.Reader
+	initialBufSize int
+	b              *bufio.Reader
+	err            error
+	maxHeadersSize int
+	maxBodySize    int
+	maxSigSize     int
 }
+
+// initBuffer finishes a Decoder initialization by setting up the bufio.Reader,
+// it returns the *Decoder for convenience of notation.
+func (d *Decoder) initBuffer() *Decoder {
+	d.b = bufio.NewReaderSize(d.rd, d.initialBufSize)
+	return d
+}
+
+const defaultDecoderButSize = 4096
 
 // NewDecoder returns a Decoder to parse the stream of assertions from the reader.
 func NewDecoder(r io.Reader) *Decoder {
-	return &Decoder{rd: r, buf: make([]byte, 8192)}
+	return (&Decoder{
+		rd:             r,
+		initialBufSize: defaultDecoderButSize,
+		maxHeadersSize: MaxHeadersSize,
+		maxBodySize:    MaxBodySize,
+		maxSigSize:     MaxSignatureSize,
+	}).initBuffer()
 }
 
-func (dec *Decoder) readUntilNLNL() ([]byte, error) {
-	resBuf := new(bytes.Buffer)
-	resBuf.Write(dec.rest)
-	dec.rest = nil
-	pos := 0
+func (d *Decoder) peek(size int) ([]byte, error) {
+	buf, err := d.b.Peek(size)
+	if err == bufio.ErrBufferFull {
+		rebuf, reerr := d.b.Peek(d.b.Buffered())
+		if reerr != nil {
+			panic(reerr)
+		}
+		mr := io.MultiReader(bytes.NewBuffer(rebuf), d.rd)
+		d.b = bufio.NewReaderSize(mr, (size/d.initialBufSize+1)*d.initialBufSize)
+		buf, err = d.b.Peek(size)
+	}
+	if err != nil && d.err == nil {
+		d.err = err
+	}
+	return buf, d.err
+}
+
+// NB: readExact and readUntil use peek underneath and their returned
+// buffers are valid only until the next reading call
+
+func (d *Decoder) readExact(size int) ([]byte, error) {
+	buf, err := d.peek(size)
+	d.b.Discard(len(buf))
+	if len(buf) == size {
+		return buf, nil
+	}
+	if err == io.EOF {
+		return buf, io.ErrUnexpectedEOF
+	}
+	return buf, err
+}
+
+func (d *Decoder) readUntil(delim []byte, maxSize int) ([]byte, error) {
+	last := 0
+	size := d.initialBufSize
 	for {
-		b := resBuf.Bytes()
-		nlnlIdx := bytes.Index(b[pos:], nlnl)
-		if nlnlIdx == -1 {
-			pos = resBuf.Len() - 1
-			if pos < 0 {
-				pos = 0
-			}
-		} else {
-			nlnlIdx += pos
-			dec.rest = b[nlnlIdx+len(nlnl):]
-			return b[:nlnlIdx+len(nlnl)], nil
+		buf, err := d.peek(size)
+		if i := bytes.Index(buf[last:], delim); i >= 0 {
+			d.b.Discard(last + i + len(delim))
+			return buf[:last+i+len(delim)], nil
 		}
-
-		n, err := dec.rd.Read(dec.buf)
-		if err != nil {
-			if err != io.EOF {
-				return nil, err
-			}
-			if n == 0 {
-				break
-			}
+		// report errors only once we have consumed what is buffered
+		if err != nil && len(buf) == d.b.Buffered() {
+			d.b.Discard(len(buf))
+			return buf, err
 		}
-		resBuf.Write(dec.buf[:n])
-	}
-	return resBuf.Bytes(), io.EOF
-}
-
-func (dec *Decoder) readExactly(n int) ([]byte, error) {
-	res := make([]byte, n)
-	restSz := len(dec.rest)
-	if restSz >= n {
-		copy(res, dec.rest[:n])
-		dec.rest = dec.rest[n:]
-	} else {
-		copy(res, dec.rest)
-		dec.rest = nil
-		_, err := io.ReadFull(dec.rd, res[restSz:])
-		if err != nil {
-			if err == io.EOF {
-				return nil, io.ErrUnexpectedEOF
-			}
-			return nil, err
+		last = size - len(delim) + 1
+		size *= 2
+		if size > maxSize {
+			return nil, fmt.Errorf("maximum size exceeded while looking for delimiter %q", delim)
 		}
 	}
-	return res, nil
 }
 
 // Decode parses the next assertion from the stream.
 // It returns the error io.EOF at the end of a well-formed stream.
-func (dec *Decoder) Decode() (Assertion, error) {
+func (d *Decoder) Decode() (Assertion, error) {
 	// read the headers and the nlnl separator after them
-	headAndSep, err := dec.readUntilNLNL()
+	headAndSep, err := d.readUntil(nlnl, d.maxHeadersSize)
 	if err != nil {
-		if err == io.EOF && len(headAndSep) != 0 {
-			return nil, io.ErrUnexpectedEOF
+		if err == io.EOF {
+			if len(headAndSep) != 0 {
+				return nil, io.ErrUnexpectedEOF
+			}
+			return nil, io.EOF
 		}
-		return nil, err
+		return nil, fmt.Errorf("error reading assertion headers: %v", err)
 	}
 
-	head := headAndSep[:len(headAndSep)-len(nlnl)]
-
-	headers, err := parseHeaders(head)
+	headLen := len(headAndSep) - len(nlnl)
+	headers, err := parseHeaders(headAndSep[:headLen])
 	if err != nil {
 		return nil, fmt.Errorf("parsing assertion headers: %v", err)
 	}
@@ -313,41 +343,44 @@ func (dec *Decoder) Decode() (Assertion, error) {
 	if err != nil {
 		return nil, fmt.Errorf("assertion: %v", err)
 	}
+	if length > d.maxBodySize {
+		return nil, fmt.Errorf("assertion body length %d exceeds maximum body size", length)
+	}
 
-	var body []byte
-	var sig []byte
+	// save the headers before we try to read more, and setup to capture
+	// the whole content in a buffer
+	contentBuf := bytes.NewBuffer(make([]byte, 0, len(headAndSep)+length))
+	contentBuf.Write(headAndSep)
+
 	if length > 0 {
 		// read the body if length != 0
-		body, err = dec.readExactly(length)
+		body, err := d.readExact(length)
 		if err != nil {
 			return nil, err
 		}
+		contentBuf.Write(body)
 	}
 
 	// try to read the end of body a.k.a content/signature separator
-	endOfBody, err := dec.readUntilNLNL()
+	endOfBody, err := d.readUntil(nlnl, d.maxSigSize)
 	if err != nil && err != io.EOF {
-		return nil, err
+		return nil, fmt.Errorf("error reading assertion trailer: %v", err)
 	}
 
-	var content []byte
+	var sig []byte
 	if bytes.Equal(endOfBody, nlnl) {
 		// we got the nlnl content/signature separator, read the signature now and the assertion/assertion nlnl separation
-		sig, err = dec.readUntilNLNL()
+		sig, err = d.readUntil(nlnl, d.maxSigSize)
 		if err != nil && err != io.EOF {
-			return nil, err
+			return nil, fmt.Errorf("error reading assertion signature: %v", err)
 		}
-		contentBuf := bytes.NewBuffer(make([]byte, 0, len(headAndSep)+len(body)))
-		contentBuf.Write(headAndSep)
-		contentBuf.Write(body)
-		content = contentBuf.Bytes()
 	} else {
 		// we got the signature directly which is a ok format only if body length == 0
 		if length > 0 {
 			return nil, fmt.Errorf("missing content/signature separator")
 		}
 		sig = endOfBody
-		content = head
+		contentBuf.Truncate(headLen)
 	}
 
 	// normalize sig ending newlines
@@ -355,7 +388,16 @@ func (dec *Decoder) Decode() (Assertion, error) {
 		sig = sig[:len(sig)-1]
 	}
 
-	return Assemble(headers, body, content, sig)
+	finalContent := contentBuf.Bytes()
+	var finalBody []byte
+	if length > 0 {
+		finalBody = finalContent[headLen+len(nlnl):]
+	}
+
+	finalSig := make([]byte, len(sig))
+	copy(finalSig, sig)
+
+	return Assemble(headers, finalBody, finalContent, finalSig)
 }
 
 func checkRevision(headers map[string]string) (int, error) {
@@ -538,8 +580,8 @@ func NewEncoder(w io.Writer) *Encoder {
 	return &Encoder{wr: w}
 }
 
-// Append emits an already encoded assertion into the stream with a proper required separator.
-func (enc *Encoder) Append(encoded []byte) error {
+// append emits an already encoded assertion into the stream with a proper required separator.
+func (enc *Encoder) append(encoded []byte) error {
 	sz := len(encoded)
 	if sz == 0 {
 		return fmt.Errorf("internal error: encoded assertion cannot be empty")
@@ -558,7 +600,8 @@ func (enc *Encoder) Append(encoded []byte) error {
 }
 
 // Encode emits the assertion into the stream with the required separator.
+// Errors here are always about writing given that Encode() itself cannot error.
 func (enc *Encoder) Encode(assert Assertion) error {
 	encoded := Encode(assert)
-	return enc.Append(encoded)
+	return enc.append(encoded)
 }

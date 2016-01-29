@@ -1504,11 +1504,20 @@ func (s *apiSuite) TestAssertsFindManyAll(c *check.C) {
 	// Verify
 	c.Check(rec.Code, check.Equals, http.StatusOK, check.Commentf("body %q", rec.Body))
 	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/x.ubuntu.assertion; bundle=y")
+	c.Check(rec.HeaderMap.Get("X-Ubuntu-Assertions-Count"), check.Equals, "2")
 	dec := asserts.NewDecoder(rec.Body)
 	a1, err := dec.Decode()
 	c.Assert(err, check.IsNil)
 	c.Check(a1.Type(), check.Equals, asserts.AccountKeyType)
-	// XXX should be two actually
+
+	a2, err := dec.Decode()
+	c.Assert(err, check.IsNil)
+
+	_, err = dec.Decode()
+	c.Assert(err, check.Equals, io.EOF)
+
+	ids := []string{a1.(*asserts.AccountKey).AccountID(), a2.(*asserts.AccountKey).AccountID()}
+	c.Check(ids, check.DeepEquals, []string{"can0nical", "developer1"})
 }
 
 func (s *apiSuite) TestAssertsFindManyFilter(c *check.C) {
@@ -1529,6 +1538,7 @@ func (s *apiSuite) TestAssertsFindManyFilter(c *check.C) {
 	assertsFindManyCmd.GET(assertsFindManyCmd, req).ServeHTTP(rec, req)
 	// Verify
 	c.Check(rec.Code, check.Equals, http.StatusOK, check.Commentf("body %q", rec.Body))
+	c.Check(rec.HeaderMap.Get("X-Ubuntu-Assertions-Count"), check.Equals, "1")
 	dec := asserts.NewDecoder(rec.Body)
 	a1, err := dec.Decode()
 	c.Assert(err, check.IsNil)
@@ -1536,4 +1546,42 @@ func (s *apiSuite) TestAssertsFindManyFilter(c *check.C) {
 	c.Check(a1.(*asserts.AccountKey).AccountID(), check.Equals, "developer1")
 	_, err = dec.Decode()
 	c.Check(err, check.Equals, io.EOF)
+}
+
+func (s *apiSuite) TestAssertsFindManyNoResults(c *check.C) {
+	// Setup
+	os.MkdirAll(filepath.Dir(dirs.SnapTrustedAccountKey), 0755)
+	err := ioutil.WriteFile(dirs.SnapTrustedAccountKey, []byte(testTrustedKey), 0640)
+	c.Assert(err, check.IsNil)
+	d := newTestDaemon()
+	a, err := asserts.Decode([]byte(testAccKey))
+	c.Assert(err, check.IsNil)
+	err = d.asserts.Add(a)
+	c.Assert(err, check.IsNil)
+	// Execute
+	req, err := http.NewRequest("POST", "/2.0/assertions/account-key?account-id=xyzzyx", nil)
+	c.Assert(err, check.IsNil)
+	s.vars = map[string]string{"assertType": "account-key"}
+	rec := httptest.NewRecorder()
+	assertsFindManyCmd.GET(assertsFindManyCmd, req).ServeHTTP(rec, req)
+	// Verify
+	c.Check(rec.Code, check.Equals, http.StatusOK, check.Commentf("body %q", rec.Body))
+	c.Check(rec.HeaderMap.Get("X-Ubuntu-Assertions-Count"), check.Equals, "0")
+	dec := asserts.NewDecoder(rec.Body)
+	_, err = dec.Decode()
+	c.Check(err, check.Equals, io.EOF)
+}
+
+func (s *apiSuite) TestAssertsInvalidType(c *check.C) {
+	// Setup
+	newTestDaemon()
+	// Execute
+	req, err := http.NewRequest("POST", "/2.0/assertions/foo", nil)
+	c.Assert(err, check.IsNil)
+	s.vars = map[string]string{"assertType": "foo"}
+	rec := httptest.NewRecorder()
+	assertsFindManyCmd.GET(assertsFindManyCmd, req).ServeHTTP(rec, req)
+	// Verify
+	c.Check(rec.Code, check.Equals, 400)
+	c.Check(rec.Body.String(), testutil.Contains, "invalid assert type")
 }

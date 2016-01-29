@@ -25,6 +25,7 @@ import (
 	"mime"
 	"net/http"
 	"path/filepath"
+	"strconv"
 
 	"github.com/ubuntu-core/snappy/asserts"
 	"github.com/ubuntu-core/snappy/logger"
@@ -190,10 +191,15 @@ func (ar assertResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		t = mime.FormatMediaType(t, map[string]string{"bundle": "y"})
 	}
 	w.Header().Set("Content-Type", t)
+	w.Header().Set("X-Ubuntu-Assertions-Count", strconv.Itoa(len(ar.assertions)))
 	enc := asserts.NewEncoder(w)
 	for _, a := range ar.assertions {
-		enc.Encode(a)
-		// XXX what to do with errors?
+		err := enc.Encode(a)
+		if err != nil {
+			logger.Noticef("unable to write encoded assertion into response: %v", err)
+			break
+
+		}
 	}
 }
 
