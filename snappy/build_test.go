@@ -73,21 +73,14 @@ echo 17 some-dir`
 	duCmd = duCmdPath
 }
 
-func makeExampleSnapSourceDir(c *C, packageYaml string) string {
+func makeExampleSnapSourceDir(c *C, snapYamlContent string) string {
 	tempdir := c.MkDir()
 
-	// use meta/package.yaml
+	// use meta/snap.yaml
 	metaDir := filepath.Join(tempdir, "meta")
 	err := os.Mkdir(metaDir, 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(metaDir, "package.yaml"), []byte(packageYaml), 0644)
-	c.Assert(err, IsNil)
-
-	// meta/readme.md
-	readme := `some title
-
-some description`
-	err = ioutil.WriteFile(filepath.Join(metaDir, "readme.md"), []byte(readme), 0644)
+	err = ioutil.WriteFile(filepath.Join(metaDir, "snap.yaml"), []byte(snapYamlContent), 0644)
 	c.Assert(err, IsNil)
 
 	const helloBinContent = `#!/bin/sh
@@ -124,7 +117,7 @@ printf "hello world"
 
 func (s *BuildTestSuite) TestBuildNoManifestFails(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "")
-	c.Assert(os.Remove(filepath.Join(sourceDir, "meta", "package.yaml")), IsNil)
+	c.Assert(os.Remove(filepath.Join(sourceDir, "meta", "snap.yaml")), IsNil)
 	_, err := BuildSquashfsSnap(sourceDir, "")
 	c.Assert(err, NotNil) // XXX maybe make the error more explicit
 }
@@ -132,11 +125,11 @@ func (s *BuildTestSuite) TestBuildNoManifestFails(c *C) {
 func (s *BuildTestSuite) TestBuildManifestRequiresMissingLicense(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 1.0.1
-architecture: ["i386", "amd64"]
+architectures: ["i386", "amd64"]
 integration:
  app:
   apparmor-profile: meta/hello.apparmor
-explicit-license-agreement: Y
+license-agreement: explicit
 `)
 	_, err := BuildSquashfsSnap(sourceDir, "")
 	c.Assert(err, NotNil) // XXX maybe make the error more explicit
@@ -145,11 +138,11 @@ explicit-license-agreement: Y
 func (s *BuildTestSuite) TestBuildManifestRequiresBlankLicense(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 1.0.1
-architecture: ["i386", "amd64"]
+architectures: ["i386", "amd64"]
 integration:
  app:
   apparmor-profile: meta/hello.apparmor
-explicit-license-agreement: Y
+license-agreement: explicit
 `)
 	lic := filepath.Join(sourceDir, "meta", "license.txt")
 	ioutil.WriteFile(lic, []byte("\n"), 0755)
@@ -252,22 +245,10 @@ func (s *BuildTestSuite) TestExcludeDynamicWeirdRegexps(c *C) {
 	c.Check(shouldExcludeDynamic(basedir, "*hello"), Equals, true)
 }
 
-func (s *BuildTestSuite) TestBuildChecksForClashes(c *C) {
-	sourceDir := makeExampleSnapSourceDir(c, `name: hello
-version: 1.0.1
-services:
- - name: foo
-binaries:
- - name: foo
-`)
-	_, err := BuildSquashfsSnap(sourceDir, "")
-	c.Assert(err, ErrorMatches, ".*binary and service both called foo.*")
-}
-
 func (s *BuildTestSuite) TestDebArchitecture(c *C) {
-	c.Check(debArchitecture(&packageYaml{Architectures: []string{"foo"}}), Equals, "foo")
-	c.Check(debArchitecture(&packageYaml{Architectures: []string{"foo", "bar"}}), Equals, "multi")
-	c.Check(debArchitecture(&packageYaml{Architectures: nil}), Equals, "unknown")
+	c.Check(debArchitecture(&snapYaml{Architectures: []string{"foo"}}), Equals, "foo")
+	c.Check(debArchitecture(&snapYaml{Architectures: []string{"foo", "bar"}}), Equals, "multi")
+	c.Check(debArchitecture(&snapYaml{Architectures: nil}), Equals, "unknown")
 }
 
 func (s *BuildTestSuite) TestBuildFailsForUnknownType(c *C) {
@@ -284,7 +265,7 @@ version: 1.0.1
 func (s *BuildTestSuite) TestBuildSquashfsSimple(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 1.0.1
-architecture: ["i386", "amd64"]
+architectures: ["i386", "amd64"]
 integration:
  app:
   apparmor-profile: meta/hello.apparmor
@@ -302,8 +283,7 @@ integration:
 	output, err := exec.Command("unsquashfs", "-ll", "hello_1.0.1_multi.snap").CombinedOutput()
 	c.Assert(err, IsNil)
 	for _, needle := range []string{
-		"meta/package.yaml",
-		"meta/readme.md",
+		"meta/snap.yaml",
 		"bin/hello-world",
 		"symlink -> bin/hello-world",
 	} {
@@ -315,7 +295,7 @@ integration:
 func (s *BuildTestSuite) TestBuildSimpleOutputDir(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 1.0.1
-architecture: ["i386", "amd64"]
+architectures: ["i386", "amd64"]
 integration:
  app:
   apparmor-profile: meta/hello.apparmor
@@ -334,8 +314,7 @@ integration:
 	output, err := exec.Command("unsquashfs", "-ll", resultSnap).CombinedOutput()
 	c.Assert(err, IsNil)
 	for _, needle := range []string{
-		"meta/package.yaml",
-		"meta/readme.md",
+		"meta/snap.yaml",
 		"bin/hello-world",
 		"symlink -> bin/hello-world",
 	} {

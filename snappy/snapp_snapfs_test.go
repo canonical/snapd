@@ -97,7 +97,6 @@ var _ = Suite(&SquashfsTestSuite{})
 
 const packageHello = `name: hello-app
 version: 1.10
-icon: meta/hello.svg
 `
 
 func (s *SquashfsTestSuite) TestMakeSnapMakesSquashfs(c *C) {
@@ -129,13 +128,13 @@ func (s *SquashfsTestSuite) TestInstallViaSquashfsWorks(c *C) {
 }
 
 func (s *SquashfsTestSuite) TestAddSquashfsMount(c *C) {
-	m := packageYaml{
+	m := &snapYaml{
 		Name:          "foo.origin",
 		Version:       "1.0",
 		Architectures: []string{"all"},
 	}
 	inter := &MockProgressMeter{}
-	err := m.addSquashfsMount(filepath.Join(dirs.SnapSnapsDir, "foo.origin/1.0"), true, inter)
+	err := addSquashfsMount(m, filepath.Join(dirs.SnapSnapsDir, "foo.origin/1.0"), true, inter)
 	c.Assert(err, IsNil)
 
 	// ensure correct mount unit
@@ -152,9 +151,9 @@ Where=/snaps/foo.origin/1.0
 }
 
 func (s *SquashfsTestSuite) TestRemoveSquashfsMountUnit(c *C) {
-	m := packageYaml{}
+	m := &snapYaml{}
 	inter := &MockProgressMeter{}
-	err := m.addSquashfsMount(filepath.Join(dirs.SnapSnapsDir, "foo.origin/1.0"), true, inter)
+	err := addSquashfsMount(m, filepath.Join(dirs.SnapSnapsDir, "foo.origin/1.0"), true, inter)
 	c.Assert(err, IsNil)
 
 	// ensure we have the files
@@ -162,7 +161,7 @@ func (s *SquashfsTestSuite) TestRemoveSquashfsMountUnit(c *C) {
 	c.Assert(helpers.FileExists(p), Equals, true)
 
 	// now call remove and ensure they are gone
-	err = m.removeSquashfsMount(filepath.Join(dirs.SnapSnapsDir, "foo.origin/1.0"), inter)
+	err = removeSquashfsMount(m, filepath.Join(dirs.SnapSnapsDir, "foo.origin/1.0"), inter)
 	c.Assert(err, IsNil)
 	p = filepath.Join(dirs.SnapServicesDir, "snaps-foo.origin-1.0.mount")
 	c.Assert(helpers.FileExists(p), Equals, false)
@@ -180,7 +179,7 @@ func (s *SquashfsTestSuite) TestRemoveViaSquashfsWorks(c *C) {
 	c.Assert(helpers.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-app.origin_1.10.snap")), Equals, true)
 
 	// now remove and ensure its gone
-	installedPart, err := newSnapPartFromYaml(filepath.Join(part.instdir, "meta", "package.yaml"), part.origin, part.m)
+	installedPart, err := newSnapPartFromYaml(filepath.Join(part.instdir, "meta", "snap.yaml"), part.origin, part.m)
 	c.Assert(err, IsNil)
 	err = installedPart.Uninstall(&MockProgressMeter{})
 	c.Assert(err, IsNil)
@@ -281,7 +280,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapRemovesKernelAssets(c *C) {
 	c.Assert(helpers.FileExists(kernelAssetsDir), Equals, true)
 
 	// ensure uninstall cleans the kernel assets
-	installedPart, err := newSnapPartFromYaml(filepath.Join(part.instdir, "meta", "package.yaml"), part.origin, part.m)
+	installedPart, err := newSnapPartFromYaml(filepath.Join(part.instdir, "meta", "snap.yaml"), part.origin, part.m)
 	c.Assert(err, IsNil)
 	installedPart.isActive = false
 	err = installedPart.Uninstall(pbar)
@@ -359,8 +358,8 @@ func (s *SquashfsTestSuite) TestInstallKernelRebootRequired(c *C) {
 	c.Assert(snap.NeedsReboot(), Equals, false)
 }
 
-func getFakeGrubGadget() (*packageYaml, error) {
-	return &packageYaml{
+func getFakeGrubGadget() (*snapYaml, error) {
+	return &snapYaml{
 		Gadget: Gadget{
 			Hardware: Hardware{
 				Bootloader: "grub",
@@ -393,9 +392,15 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapNoUnpacksKernelForGrub(c *C) {
 func (s *SquashfsTestSuite) TestInstallFailUnmountsSnap(c *C) {
 	snapPkg := makeTestSnapPackage(c, `name: hello
 version: 1.10
-binaries:
- - name: some-binary
-   security-template: not-there
+apps:
+ some-binary:
+  command: some-binary
+  uses: [some-binary]
+
+uses:
+ some-binary:
+  type: migration-skill
+  security-template: not-there
 `)
 	part, err := NewSnapFile(snapPkg, "origin", true)
 	c.Assert(err, IsNil)

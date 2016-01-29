@@ -36,7 +36,7 @@ import (
 
 // SnapFile is a local snap file that can get installed
 type SnapFile struct {
-	m   *packageYaml
+	m   *snapYaml
 	deb snap.File
 
 	origin  string
@@ -50,7 +50,7 @@ func NewSnapFile(snapFile string, origin string, unsignedOk bool) (*SnapFile, er
 		return nil, err
 	}
 
-	yamlData, err := d.MetaMember("package.yaml")
+	yamlData, err := d.MetaMember("snap.yaml")
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +58,7 @@ func NewSnapFile(snapFile string, origin string, unsignedOk bool) (*SnapFile, er
 	_, err = d.MetaMember("hooks/config")
 	hasConfig := err == nil
 
-	m, err := parsePackageYamlData(yamlData, hasConfig)
+	m, err := parseSnapYamlData(yamlData, hasConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -199,7 +199,7 @@ func (s *SnapFile) Install(inter progress.Meter, flags InstallFlags) (name strin
 
 	var oldPart *SnapPart
 	if currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(s.instdir, "..", "current")); currentActiveDir != "" {
-		oldPart, err = NewInstalledSnapPart(filepath.Join(currentActiveDir, "meta", "package.yaml"), s.origin)
+		oldPart, err = NewInstalledSnapPart(filepath.Join(currentActiveDir, "meta", "snap.yaml"), s.origin)
 		if err != nil {
 			return "", err
 		}
@@ -226,13 +226,13 @@ func (s *SnapFile) Install(inter progress.Meter, flags InstallFlags) (name strin
 	}
 
 	// generate the mount unit for the squashfs
-	if err := s.m.addSquashfsMount(s.instdir, inhibitHooks, inter); err != nil {
+	if err := addSquashfsMount(s.m, s.instdir, inhibitHooks, inter); err != nil {
 		return "", err
 	}
 	// if anything goes wrong we ensure we stop
 	defer func() {
 		if err != nil {
-			if e := s.m.removeSquashfsMount(s.instdir, inter); e != nil {
+			if e := removeSquashfsMount(s.m, s.instdir, inter); e != nil {
 				logger.Noticef("Failed to remove mount unit for  %s: %s", fullName, e)
 			}
 		}
@@ -284,7 +284,7 @@ func (s *SnapFile) Install(inter progress.Meter, flags InstallFlags) (name strin
 	}
 
 	if !inhibitHooks {
-		newPart, err := newSnapPartFromYaml(filepath.Join(s.instdir, "meta", "package.yaml"), s.origin, s.m)
+		newPart, err := newSnapPartFromYaml(filepath.Join(s.instdir, "meta", "snap.yaml"), s.origin, s.m)
 		if err != nil {
 			return "", err
 		}
@@ -324,7 +324,7 @@ func (s *SnapFile) Install(inter progress.Meter, flags InstallFlags) (name strin
 			if !dep.IsActive() {
 				continue
 			}
-			for _, svc := range dep.ServiceYamls() {
+			for _, svc := range dep.Apps() {
 				serviceName := filepath.Base(generateServiceFileName(dep.m, svc))
 				timeout := time.Duration(svc.StopTimeout)
 				if err = sysd.Stop(serviceName, timeout); err != nil {
@@ -363,7 +363,7 @@ func (s *SnapFile) Install(inter progress.Meter, flags InstallFlags) (name strin
 
 // CanInstall checks whether the SnapPart passes a series of tests required for installation
 func (s *SnapFile) CanInstall(allowGadget bool, inter interacter) error {
-	if err := s.m.checkForPackageInstalled(s.Origin()); err != nil {
+	if err := checkForPackageInstalled(s.m, s.Origin()); err != nil {
 		return err
 	}
 
@@ -372,11 +372,7 @@ func (s *SnapFile) CanInstall(allowGadget bool, inter interacter) error {
 		return &ErrArchitectureNotSupported{s.m.Architectures}
 	}
 
-	if err := s.m.checkForNameClashes(); err != nil {
-		return err
-	}
-
-	if err := s.m.checkForFrameworks(); err != nil {
+	if err := checkForFrameworks(s.m); err != nil {
 		return err
 	}
 
@@ -394,7 +390,7 @@ func (s *SnapFile) CanInstall(allowGadget bool, inter interacter) error {
 	}
 
 	curr, _ := filepath.EvalSymlinks(filepath.Join(s.instdir, "..", "current"))
-	if err := s.m.checkLicenseAgreement(inter, s.deb, curr); err != nil {
+	if err := checkLicenseAgreement(s.m, inter, s.deb, curr); err != nil {
 		return err
 	}
 
