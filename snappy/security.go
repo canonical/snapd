@@ -548,7 +548,7 @@ var loadAppArmorPolicy = func(fn string) ([]byte, error) {
 	return content, err
 }
 
-func (m *snapYaml) removeOneSecurityPolicy(name, baseDir string) error {
+func removeOneSecurityPolicy(m *snapYaml, name, baseDir string) error {
 	profileName, err := getSecurityProfile(m, filepath.Base(name), baseDir)
 	if err != nil {
 		return err
@@ -580,7 +580,7 @@ func removePolicy(m *snapYaml, baseDir string) error {
 		if app.Daemon == "" {
 			continue
 		}
-		if err := m.removeOneSecurityPolicy(app.Name, baseDir); err != nil {
+		if err := removeOneSecurityPolicy(m, app.Name, baseDir); err != nil {
 			return err
 		}
 	}
@@ -589,12 +589,12 @@ func removePolicy(m *snapYaml, baseDir string) error {
 		if app.Daemon != "" {
 			continue
 		}
-		if err := m.removeOneSecurityPolicy(app.Name, baseDir); err != nil {
+		if err := removeOneSecurityPolicy(m, app.Name, baseDir); err != nil {
 			return err
 		}
 	}
 
-	if err := m.removeOneSecurityPolicy("snappy-config", baseDir); err != nil {
+	if err := removeOneSecurityPolicy(m, "snappy-config", baseDir); err != nil {
 		return err
 	}
 

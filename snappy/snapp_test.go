@@ -1079,7 +1079,7 @@ func (s *SnapTestSuite) TestDetectsAlreadyInstalled(c *C) {
 
 	yaml, err := parseSnapYamlData([]byte(data), false)
 	c.Assert(err, IsNil)
-	c.Check(yaml.checkForPackageInstalled("otherns"), ErrorMatches, ".*is already installed with origin.*")
+	c.Check(checkForPackageInstalled(yaml, "otherns"), ErrorMatches, ".*is already installed with origin.*")
 }
 
 func (s *SnapTestSuite) TestIgnoresAlreadyInstalledSameOrigin(c *C) {
@@ -1092,7 +1092,7 @@ func (s *SnapTestSuite) TestIgnoresAlreadyInstalledSameOrigin(c *C) {
 
 	yaml, err := parseSnapYamlData([]byte(data), false)
 	c.Assert(err, IsNil)
-	c.Check(yaml.checkForPackageInstalled(testOrigin), IsNil)
+	c.Check(checkForPackageInstalled(yaml, testOrigin), IsNil)
 }
 
 func (s *SnapTestSuite) TestIgnoresAlreadyInstalledFrameworkSameOrigin(c *C) {
@@ -1103,7 +1103,7 @@ func (s *SnapTestSuite) TestIgnoresAlreadyInstalledFrameworkSameOrigin(c *C) {
 
 	yaml, err := parseSnapYamlData([]byte(data), false)
 	c.Assert(err, IsNil)
-	c.Check(yaml.checkForPackageInstalled(testOrigin), IsNil)
+	c.Check(checkForPackageInstalled(yaml, testOrigin), IsNil)
 }
 
 func (s *SnapTestSuite) TestDetectsAlreadyInstalledFramework(c *C) {
@@ -1114,7 +1114,7 @@ func (s *SnapTestSuite) TestDetectsAlreadyInstalledFramework(c *C) {
 
 	yaml, err := parseSnapYamlData([]byte(data), false)
 	c.Assert(err, IsNil)
-	c.Check(yaml.checkForPackageInstalled("otherns"), ErrorMatches, ".*is already installed with origin.*")
+	c.Check(checkForPackageInstalled(yaml, "otherns"), ErrorMatches, ".*is already installed with origin.*")
 }
 
 func (s *SnapTestSuite) TestUsesStoreMetaData(c *C) {
@@ -1148,7 +1148,7 @@ frameworks:
 `)
 	yaml, err := parseSnapYamlData(data, false)
 	c.Assert(err, IsNil)
-	err = yaml.checkForFrameworks()
+	err = checkForFrameworks(yaml)
 	c.Assert(err, ErrorMatches, `missing frameworks: missing, also-missing`)
 }
 

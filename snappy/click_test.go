@@ -748,7 +748,7 @@ func (s *SnapTestSuite) TestAddPackageServicesStripsGlobalRootdir(c *C) {
 	m, err := parseSnapYamlFile(yamlFile)
 	c.Assert(err, IsNil)
 	baseDir := filepath.Dir(filepath.Dir(yamlFile))
-	err = m.addPackageServices(baseDir, false, nil)
+	err = addPackageServices(m, baseDir, false, nil)
 	c.Assert(err, IsNil)
 
 	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/systemd/system/hello-app_svc1_1.10.service"))
@@ -777,7 +777,7 @@ apps:
 	m, err := parseSnapYamlFile(yamlFile)
 	c.Assert(err, IsNil)
 	baseDir := filepath.Dir(filepath.Dir(yamlFile))
-	err = m.addPackageServices(baseDir, false, nil)
+	err = addPackageServices(m, baseDir, false, nil)
 	c.Assert(err, IsNil)
 
 	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/dbus-1/system.d/foo_bar_1.conf"))
@@ -799,7 +799,7 @@ apps:
 	m, err := parseSnapYamlFile(yamlFile)
 	c.Assert(err, IsNil)
 	baseDir := filepath.Dir(filepath.Dir(yamlFile))
-	err = m.addPackageServices(baseDir, false, nil)
+	err = addPackageServices(m, baseDir, false, nil)
 	c.Assert(err, IsNil)
 
 	_, err = ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/dbus-1/system.d/foo_bar_1.conf"))
@@ -817,7 +817,7 @@ func (s *SnapTestSuite) TestAddPackageBinariesStripsGlobalRootdir(c *C) {
 	m, err := parseSnapYamlFile(yamlFile)
 	c.Assert(err, IsNil)
 	baseDir := filepath.Dir(filepath.Dir(yamlFile))
-	err = m.addPackageBinaries(baseDir)
+	err = addPackageBinaries(m, baseDir)
 	c.Assert(err, IsNil)
 
 	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/snaps/bin/hello-app.hello"))
@@ -1077,7 +1077,7 @@ apps:
 	m, err := parseSnapYamlFile(yamlFile)
 	c.Assert(err, IsNil)
 	inter := &MockProgressMeter{}
-	c.Check(m.removePackageServices(filepath.Dir(filepath.Dir(yamlFile)), inter), IsNil)
+	c.Check(removePackageServices(m, filepath.Dir(filepath.Dir(yamlFile)), inter), IsNil)
 	c.Assert(len(inter.notified) > 0, Equals, true)
 	c.Check(inter.notified[len(inter.notified)-1], Equals, "wat_wat_42.service refused to stop, killing.")
 	c.Assert(len(sysdLog) >= 3, Equals, true)
