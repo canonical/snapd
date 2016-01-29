@@ -305,7 +305,7 @@ func (d *Decoder) readUntil(delim []byte, maxSize int) ([]byte, error) {
 		last = size - len(delim) + 1
 		size *= 2
 		if size > maxSize {
-			return nil, fmt.Errorf("max size exceeded")
+			return nil, fmt.Errorf("maximum size exceeded while looking for delimiter %q", delim)
 		}
 	}
 }
