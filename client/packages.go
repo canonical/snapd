@@ -43,6 +43,7 @@ type Snap struct {
 type SnapFilter struct {
 	Sources []string
 	Types   []string
+	Query   string
 }
 
 // Statuses and types a snap may have.
@@ -69,6 +70,10 @@ func (client *Client) Snaps() (map[string]*Snap, error) {
 // and/or type
 func (client *Client) FilterSnaps(filter SnapFilter) (map[string]*Snap, error) {
 	q := url.Values{}
+
+	if filter.Query != "" {
+		q.Set("q", filter.Query)
+	}
 
 	if len(filter.Sources) > 0 {
 		q.Set("sources", strings.Join(filter.Sources, ","))
