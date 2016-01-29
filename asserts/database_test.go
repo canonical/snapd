@@ -552,5 +552,5 @@ func (safs *signAddFindSuite) TestDontLetAddConfusinglyAssertionClashingWithTrus
 	c.Assert(err, IsNil)
 
 	err = safs.db.Add(tKey)
-	c.Check(err, ErrorMatches, `cannot add assertion of type "account-key" with primary key clashing with a trusted assertion: .*`)
+	c.Check(err, ErrorMatches, `cannot add "account-key" assertion with primary key clashing with a trusted assertion: .*`)
 }

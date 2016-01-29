@@ -271,7 +271,7 @@ func (db *Database) Add(assert Assertion) error {
 	// know more/better
 	_, err = db.trusted.Get(assertType, keyValues)
 	if err != ErrNotFound {
-		return fmt.Errorf("cannot add assertion of type %q with primary key clashing with a trusted assertion: %v", assertType.Name, keyValues)
+		return fmt.Errorf("cannot add %q assertion with primary key clashing with a trusted assertion: %v", assertType.Name, keyValues)
 	}
 
 	return db.bs.Put(assertType, assert)
