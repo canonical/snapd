@@ -127,6 +127,9 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 		bs:         bs,
 		keypairMgr: keypairMgr,
 		trusted:    trustedBackstore,
+		// order here is relevant, Find* precedence and
+		// findAccountKey depend on it, trusted should win over the
+		// general backstore!
 		backstores: []Backstore{trustedBackstore, bs},
 	}, nil
 }
