@@ -977,7 +977,7 @@ type: gadget
 	c.Assert(err, IsNil)
 	parts := FindSnapsByName("hello-app", installed)
 	c.Assert(parts, HasLen, 1)
-	c.Check((&Overlord{}).Uninstall(parts[0].(*SnapPart), p), Equals, ErrPackageNotRemovable)
+	c.Check(s.overlord.Uninstall(parts[0].(*SnapPart), p), Equals, ErrPackageNotRemovable)
 }
 
 var securityBinarySnapYaml = []byte(`name: test-snap
@@ -1230,7 +1230,7 @@ frameworks:
 	c.Assert(err, IsNil)
 
 	part := &SnapPart{m: yaml, origin: testOrigin}
-	err = (&Overlord{}).Uninstall(part, new(MockProgressMeter))
+	err = s.overlord.Uninstall(part, new(MockProgressMeter))
 	c.Check(err, ErrorMatches, `framework still in use by: foo`)
 }
 
