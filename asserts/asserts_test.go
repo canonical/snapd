@@ -270,7 +270,7 @@ func (as *assertsSuite) TestDecoderBrokenBodySeparation(c *C) {
 func (as *assertsSuite) TestDecoderHeadTooBig(c *C) {
 	decoder := asserts.NewDecoderStressed(bytes.NewBufferString(exampleBodyAndExtraHeaders), 4, 4, 1024, 1024)
 	_, err := decoder.Decode()
-	c.Assert(err, ErrorMatches, "error reading assertion head: max size exceeded")
+	c.Assert(err, ErrorMatches, "error reading assertion headers: max size exceeded")
 }
 
 func (as *assertsSuite) TestDecoderBodyTooBig(c *C) {

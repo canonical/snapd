@@ -226,7 +226,7 @@ func Decode(serializedAssertion []byte) (Assertion, error) {
 // Maximum assertion component sizes.
 const (
 	MaxBodySize      = 2 * 1024 * 1024
-	MaxHeadSize      = 128 * 1024
+	MaxHeadersSize   = 128 * 1024
 	MaxSignatureSize = 128 * 1024
 )
 
@@ -236,17 +236,17 @@ type Decoder struct {
 	initialBufSize int
 	b              *bufio.Reader
 	err            error
-	maxHeadSize    int
+	maxHeadersSize int
 	maxBodySize    int
 	maxSigSize     int
 }
 
-func newDecoder(r io.Reader, bufSize, maxHeadSize, maxBodySize, maxSigSize int) *Decoder {
+func newDecoder(r io.Reader, bufSize, maxHeadersSize, maxBodySize, maxSigSize int) *Decoder {
 	return &Decoder{
 		rd:             r,
 		initialBufSize: bufSize,
 		b:              bufio.NewReaderSize(r, bufSize),
-		maxHeadSize:    maxHeadSize,
+		maxHeadersSize: maxHeadersSize,
 		maxBodySize:    maxBodySize,
 		maxSigSize:     maxSigSize,
 	}
@@ -256,7 +256,7 @@ const defaultDecoderButSize = 4096
 
 // NewDecoder returns a Decoder to parse the stream of assertions from the reader.
 func NewDecoder(r io.Reader) *Decoder {
-	return newDecoder(r, defaultDecoderButSize, MaxHeadSize, MaxBodySize, MaxSignatureSize)
+	return newDecoder(r, defaultDecoderButSize, MaxHeadersSize, MaxBodySize, MaxSignatureSize)
 }
 
 func (d *Decoder) peek(size int) ([]byte, error) {
@@ -314,7 +314,7 @@ func (d *Decoder) readUntil(delim []byte, maxSize int) ([]byte, error) {
 // It returns the error io.EOF at the end of a well-formed stream.
 func (d *Decoder) Decode() (Assertion, error) {
 	// read the headers and the nlnl separator after them
-	headAndSep, err := d.readUntil(nlnl, d.maxHeadSize)
+	headAndSep, err := d.readUntil(nlnl, d.maxHeadersSize)
 	if err != nil {
 		if err == io.EOF {
 			if len(headAndSep) != 0 {
@@ -322,7 +322,7 @@ func (d *Decoder) Decode() (Assertion, error) {
 			}
 			return nil, io.EOF
 		}
-		return nil, fmt.Errorf("error reading assertion head: %v", err)
+		return nil, fmt.Errorf("error reading assertion headers: %v", err)
 	}
 
 	contentBuf := bytes.NewBuffer(make([]byte, 0, len(headAndSep)))
