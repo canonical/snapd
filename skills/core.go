@@ -54,13 +54,23 @@ type Type interface {
 	// Sanitize checks if a skill is correct, altering if necessary.
 	Sanitize(skill *Skill) error
 
-	// SecuritySnippet returns the configuration snippet that should be used by
-	// the given security system to enable this skill to be consumed.
+	// SkillSecuritySnippet returns the configuration snippet needed by the
+	// given security system to allow a snap to offer a skill of this type.
+	//
 	// An empty snippet is returned when the skill doesn't require anything
-	// from the security system to work, in addition to the default configuration.
-	// ErrUnknownSecurity is returned when the skill cannot deal with the
-	// requested security system.
-	SecuritySnippet(skill *Skill, securitySystem SecuritySystem) ([]byte, error)
+	// from the security system to work, in addition to the default
+	// configuration.  ErrUnknownSecurity is returned when the skill cannot
+	// deal with the requested security system.
+	SkillSecuritySnippet(skill *Skill, securitySystem SecuritySystem) ([]byte, error)
+
+	// SlotSecuritySnippet returns the configuration snippet needed by the
+	// given security system to allow a snap to use a skill of this type.
+	//
+	// An empty snippet is returned when the skill doesn't require anything
+	// from the security system to work, in addition to the default
+	// configuration.  ErrUnknownSecurity is returned when the skill cannot
+	// deal with the requested security system.
+	SlotSecuritySnippet(skill *Skill, securitySystem SecuritySystem) ([]byte, error)
 }
 
 // SecuritySystem is a name of a security system.
