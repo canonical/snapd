@@ -248,7 +248,7 @@ func generateSnapServicesFile(app *AppYaml, baseDir string, aaProfile string, m 
 			IsFramework:    m.Type == snap.TypeFramework,
 			IsNetworked:    app.Ports != nil && len(app.Ports.External) > 0,
 			BusName:        app.BusName,
-			Forking:        app.Forking,
+			Type:           app.Daemon,
 			UdevAppName:    udevPartName,
 			Socket:         app.Socket,
 			SocketFileName: socketFileName,
