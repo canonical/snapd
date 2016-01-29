@@ -276,6 +276,9 @@ func (d *Decoder) peek(size int) ([]byte, error) {
 	return buf, d.err
 }
 
+// NB: readExact and readUntil use peek underneath and their returned
+// buffers are valid only until the next reading call
+
 func (d *Decoder) readExact(size int) ([]byte, error) {
 	buf, err := d.peek(size)
 	d.b.Discard(len(buf))
@@ -325,11 +328,8 @@ func (d *Decoder) Decode() (Assertion, error) {
 		return nil, fmt.Errorf("error reading assertion headers: %v", err)
 	}
 
-	contentBuf := bytes.NewBuffer(make([]byte, 0, len(headAndSep)))
-	contentBuf.Write(headAndSep)
-	head := contentBuf.Bytes()[:len(headAndSep)-len(nlnl)]
-
-	headers, err := parseHeaders(head)
+	headLen := len(headAndSep) - len(nlnl)
+	headers, err := parseHeaders(headAndSep[:headLen])
 	if err != nil {
 		return nil, fmt.Errorf("parsing assertion headers: %v", err)
 	}
@@ -342,17 +342,18 @@ func (d *Decoder) Decode() (Assertion, error) {
 		return nil, fmt.Errorf("assertion body length %d exceeds maximum body size", length)
 	}
 
-	var body []byte
-	var sig []byte
+	// save the headers before we try to read more, and setup to capture
+	// the whole content in a buffer
+	contentBuf := bytes.NewBuffer(make([]byte, 0, len(headAndSep)+length))
+	contentBuf.Write(headAndSep)
+
 	if length > 0 {
 		// read the body if length != 0
-		body, err = d.readExact(length)
+		body, err := d.readExact(length)
 		if err != nil {
 			return nil, err
 		}
-		bodyStart := contentBuf.Len()
 		contentBuf.Write(body)
-		body = contentBuf.Bytes()[bodyStart:]
 	}
 
 	// try to read the end of body a.k.a content/signature separator
@@ -361,21 +362,20 @@ func (d *Decoder) Decode() (Assertion, error) {
 		return nil, fmt.Errorf("error reading assertion trailer: %v", err)
 	}
 
-	var content []byte
+	var sig []byte
 	if bytes.Equal(endOfBody, nlnl) {
 		// we got the nlnl content/signature separator, read the signature now and the assertion/assertion nlnl separation
 		sig, err = d.readUntil(nlnl, d.maxSigSize)
 		if err != nil && err != io.EOF {
 			return nil, fmt.Errorf("error reading assertion signature: %v", err)
 		}
-		content = contentBuf.Bytes()
 	} else {
 		// we got the signature directly which is a ok format only if body length == 0
 		if length > 0 {
 			return nil, fmt.Errorf("missing content/signature separator")
 		}
 		sig = endOfBody
-		content = head
+		contentBuf.Truncate(headLen)
 	}
 
 	// normalize sig ending newlines
@@ -383,10 +383,16 @@ func (d *Decoder) Decode() (Assertion, error) {
 		sig = sig[:len(sig)-1]
 	}
 
+	finalContent := contentBuf.Bytes()
+	var finalBody []byte
+	if length > 0 {
+		finalBody = finalContent[headLen+len(nlnl):]
+	}
+
 	finalSig := make([]byte, len(sig))
 	copy(finalSig, sig)
 
-	return Assemble(headers, body, content, finalSig)
+	return Assemble(headers, finalBody, finalContent, finalSig)
 }
 
 func checkRevision(headers map[string]string) (int, error) {
