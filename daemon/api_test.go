@@ -1599,3 +1599,32 @@ func (s *apiSuite) TestAssertsInvalidType(c *check.C) {
 	c.Check(rec.Code, check.Equals, 400)
 	c.Check(rec.Body.String(), testutil.Contains, "invalid assert type")
 }
+
+func (s *apiSuite) TestGetGadgetNoGadget(c *check.C) {
+	req, err := http.NewRequest("GET", "/2.0/gadget", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := getGadget(gadgetCmd, req).(*resp)
+	c.Assert(rsp.Status, check.Equals, http.StatusNotFound)
+}
+
+func (s *apiSuite) TestGetGadget(c *check.C) {
+	branding := `
+  branding:
+    name: brand-name
+    subname: brand-subname
+`
+	s.mkGadget(c, "foo", branding)
+
+	req, err := http.NewRequest("GET", "/2.0/gadget", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := getGadget(gadgetCmd, req).(*resp)
+	c.Assert(rsp.Status, check.Equals, http.StatusOK)
+	c.Assert(rsp.Result, check.DeepEquals, map[string]interface{}{
+		"branding": snappy.Branding{
+			Name:    "brand-name",
+			SubName: "brand-subname",
+		},
+	})
+}

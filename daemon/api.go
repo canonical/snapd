@@ -64,6 +64,7 @@ var api = []*Command{
 	capabilityCmd,
 	assertsCmd,
 	assertsFindManyCmd,
+	gadgetCmd,
 }
 
 var (
@@ -151,6 +152,11 @@ var (
 	assertsFindManyCmd = &Command{
 		Path: "/2.0/assertions/{assertType}",
 		GET:  assertsFindMany,
+	}
+
+	gadgetCmd = &Command{
+		Path: "/2.0/gadget",
+		GET:  getGadget,
 	}
 )
 
@@ -1005,4 +1011,15 @@ func assertsFindMany(c *Command, r *http.Request) Response {
 		return InternalError("searching assertions failed: %v", err)
 	}
 	return AssertResponse(assertions, true)
+}
+
+func getGadget(c *Command, r *http.Request) Response {
+	branding, err := snappy.GadgetBranding()
+	if err != nil {
+		return NotFound(err.Error())
+	}
+
+	return SyncResponse(map[string]interface{}{
+		"branding": branding,
+	})
 }
