@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,34 +17,21 @@
  *
  */
 
-package snappy
+package snap
 
 import (
-	"github.com/ubuntu-core/snappy/dirs"
-
-	. "gopkg.in/check.v1"
+	"fmt"
+	"regexp"
 )
 
-type overlordTestSuite struct {
-}
+// Regular expression describing correct identifiers.
+var validName = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
 
-var _ = Suite(&overlordTestSuite{})
-
-func (o *overlordTestSuite) SetUpTest(c *C) {
-	dirs.SetRootDir(c.MkDir())
-}
-
-var helloAppYaml = `name: hello-app
-version: 1.0
-`
-
-func (o *overlordTestSuite) TestInstalled(c *C) {
-	_, err := makeInstalledMockSnap(dirs.GlobalRootDir, helloAppYaml)
-	c.Assert(err, IsNil)
-
-	overlord := &Overlord{}
-	installed, err := overlord.Installed()
-	c.Assert(err, IsNil)
-	c.Assert(installed, HasLen, 1)
-	c.Assert(installed[0].Name(), Equals, "hello-app")
+// ValidateName checks if a string can be used as a snap name.
+func ValidateName(name string) error {
+	valid := validName.MatchString(name)
+	if !valid {
+		return fmt.Errorf("invalid snap name: %q", name)
+	}
+	return nil
 }

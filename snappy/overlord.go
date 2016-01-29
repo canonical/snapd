@@ -69,7 +69,7 @@ func (o *Overlord) Install(snapFilePath string, origin string, flags InstallFlag
 
 	var oldPart *SnapPart
 	if currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(s.instdir, "..", "current")); currentActiveDir != "" {
-		oldPart, err = NewInstalledSnapPart(filepath.Join(currentActiveDir, "meta", "package.yaml"), s.origin)
+		oldPart, err = NewInstalledSnapPart(filepath.Join(currentActiveDir, "meta", "snap.yaml"), s.origin)
 		if err != nil {
 			return nil, err
 		}
@@ -96,13 +96,13 @@ func (o *Overlord) Install(snapFilePath string, origin string, flags InstallFlag
 	}
 
 	// generate the mount unit for the squashfs
-	if err := s.m.addSquashfsMount(s.instdir, inhibitHooks, meter); err != nil {
+	if err := addSquashfsMount(s.m, s.instdir, inhibitHooks, meter); err != nil {
 		return nil, err
 	}
 	// if anything goes wrong we ensure we stop
 	defer func() {
 		if err != nil {
-			if e := s.m.removeSquashfsMount(s.instdir, meter); e != nil {
+			if e := removeSquashfsMount(s.m, s.instdir, meter); e != nil {
 				logger.Noticef("Failed to remove mount unit for  %s: %s", fullName, e)
 			}
 		}
@@ -154,7 +154,7 @@ func (o *Overlord) Install(snapFilePath string, origin string, flags InstallFlag
 	}
 
 	if !inhibitHooks {
-		newPart, err := newSnapPartFromYaml(filepath.Join(s.instdir, "meta", "package.yaml"), s.origin, s.m)
+		newPart, err := newSnapPartFromYaml(filepath.Join(s.instdir, "meta", "snap.yaml"), s.origin, s.m)
 		if err != nil {
 			return nil, err
 		}
@@ -194,7 +194,10 @@ func (o *Overlord) Install(snapFilePath string, origin string, flags InstallFlag
 			if !dep.IsActive() {
 				continue
 			}
-			for _, svc := range dep.ServiceYamls() {
+			for _, svc := range dep.Apps() {
+				if svc.Daemon == "" {
+					continue
+				}
 				serviceName := filepath.Base(generateServiceFileName(dep.m, svc))
 				timeout := time.Duration(svc.StopTimeout)
 				if err = sysd.Stop(serviceName, timeout); err != nil {
@@ -228,12 +231,12 @@ func (o *Overlord) Install(snapFilePath string, origin string, flags InstallFlag
 		}
 	}
 
-	return newSnapPartFromYaml(filepath.Join(s.instdir, "meta", "package.yaml"), s.origin, s.m)
+	return newSnapPartFromYaml(filepath.Join(s.instdir, "meta", "snap.yaml"), s.origin, s.m)
 }
 
 // CanInstall checks whether the SnapPart passes a series of tests required for installation
 func canInstall(s *SnapFile, allowGadget bool, inter interacter) error {
-	if err := s.m.checkForPackageInstalled(s.Origin()); err != nil {
+	if err := checkForPackageInstalled(s.m, s.Origin()); err != nil {
 		return err
 	}
 
@@ -242,11 +245,7 @@ func canInstall(s *SnapFile, allowGadget bool, inter interacter) error {
 		return &ErrArchitectureNotSupported{s.m.Architectures}
 	}
 
-	if err := s.m.checkForNameClashes(); err != nil {
-		return err
-	}
-
-	if err := s.m.checkForFrameworks(); err != nil {
+	if err := checkForFrameworks(s.m); err != nil {
 		return err
 	}
 
@@ -264,7 +263,7 @@ func canInstall(s *SnapFile, allowGadget bool, inter interacter) error {
 	}
 
 	curr, _ := filepath.EvalSymlinks(filepath.Join(s.instdir, "..", "current"))
-	if err := s.m.checkLicenseAgreement(inter, s.deb, curr); err != nil {
+	if err := checkLicenseAgreement(s.m, inter, s.deb, curr); err != nil {
 		return err
 	}
 
@@ -287,7 +286,7 @@ func (o *Overlord) SetActive(sp *SnapPart, active bool, meter progress.Meter) er
 
 // Installed returns the installed snaps from this repository
 func (o *Overlord) Installed() ([]*SnapPart, error) {
-	globExpr := filepath.Join(dirs.SnapSnapsDir, "*", "*", "meta", "package.yaml")
+	globExpr := filepath.Join(dirs.SnapSnapsDir, "*", "*", "meta", "snap.yaml")
 	parts, err := o.partsForGlobExpr(globExpr)
 	if err != nil {
 		return nil, fmt.Errorf("Can not get the installed snaps: %s", err)

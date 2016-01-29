@@ -18,7 +18,7 @@
  */
 
 // TODO this should be it's own package, but depends on splitting out
-// package.yaml's
+// snap.yaml's
 
 package snappy
 
@@ -37,13 +37,9 @@ type GadgetSuite struct {
 
 var _ = Suite(&GadgetSuite{})
 
-var (
-	getGadgetOrig = getGadget
-)
-
 func (s *GadgetSuite) SetUpTest(c *C) {
-	getGadget = func() (*packageYaml, error) {
-		return &packageYaml{
+	getGadget = func() (*snapYaml, error) {
+		return &snapYaml{
 			Gadget: Gadget{
 				Software: Software{[]string{"makeuppackage", "anotherpackage"}},
 				Store:    Store{"ninjablocks"},
@@ -67,7 +63,7 @@ func (s *GadgetSuite) TestStoreID(c *C) {
 }
 
 func (s *GadgetSuite) TestWriteApparmorAdditionalFile(c *C) {
-	m, err := parsePackageYamlData(hardwareYaml, false)
+	m, err := parseSnapYamlData(hardwareYaml, false)
 	c.Assert(err, IsNil)
 
 	err = writeApparmorAdditionalFile(m)
@@ -79,7 +75,7 @@ func (s *GadgetSuite) TestWriteApparmorAdditionalFile(c *C) {
 }
 
 func (s *GadgetSuite) TestCleanupGadgetHardwareRules(c *C) {
-	m, err := parsePackageYamlData(hardwareYaml, false)
+	m, err := parseSnapYamlData(hardwareYaml, false)
 	c.Assert(err, IsNil)
 
 	err = writeApparmorAdditionalFile(m)

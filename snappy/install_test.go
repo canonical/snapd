@@ -79,9 +79,8 @@ func (s *SnapTestSuite) TestInstallInstallLicense(c *C) {
 	snapFile := makeTestSnapPackage(c, `
 name: foo
 version: 1.0
-icon: foo.svg
 vendor: Foo Bar <foo@example.com>
-explicit-license-agreement: Y
+license-agreement: explicit
 `)
 	ag := &MockProgressMeter{y: true}
 	name, err := Install(snapFile, AllowUnauthenticated|DoInstallGC, ag)
@@ -94,9 +93,8 @@ func (s *SnapTestSuite) TestInstallInstallLicenseNo(c *C) {
 	snapFile := makeTestSnapPackage(c, `
 name: foo
 version: 1.0
-icon: foo.svg
 vendor: Foo Bar <foo@example.com>
-explicit-license-agreement: Y
+license-agreement: explicit
 `)
 	ag := &MockProgressMeter{y: false}
 	_, err := Install(snapFile, AllowUnauthenticated|DoInstallGC, ag)
@@ -111,18 +109,17 @@ func (s *SnapTestSuite) installThree(c *C, flags InstallFlags) {
 	err := os.MkdirAll(homeData, 0755)
 	c.Assert(err, IsNil)
 
-	packageYaml := `name: foo
-icon: foo.svg
+	snapYamlContent := `name: foo
 `
-	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
+	snapFile := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
 	_, err = Install(snapFile, flags, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 
-	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
+	snapFile = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
 	_, err = Install(snapFile, flags, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 
-	snapFile = makeTestSnapPackage(c, packageYaml+"version: 3.0")
+	snapFile = makeTestSnapPackage(c, snapYamlContent+"version: 3.0")
 	_, err = Install(snapFile, flags, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 }
