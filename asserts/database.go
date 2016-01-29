@@ -119,7 +119,7 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 	for _, accKey := range cfg.TrustedKeys {
 		err := trustedBackstore.Put(AccountKeyType, accKey)
 		if err != nil {
-			return nil, fmt.Errorf("error populating trusted account keys with key for %q key id %q: %v", accKey.AccountID(), accKey.PublicKeyID(), err)
+			return nil, fmt.Errorf("error loading for use trusted account key %q for %q: %v", accKey.PublicKeyID(), accKey.AuthorityID(), err)
 		}
 	}
 
@@ -221,7 +221,7 @@ func (db *Database) Check(assert Assertion) error {
 	// TODO: later may need to consider type of assert to find candidate keys
 	accKey, err := db.findAccountKey(assert.AuthorityID(), sig.KeyID())
 	if err == ErrNotFound {
-		return fmt.Errorf("no matching public key for signature by %q key id %q", assert.AuthorityID(), sig.KeyID())
+		return fmt.Errorf("no matching public key %q for signature by %q", sig.KeyID(), assert.AuthorityID())
 	}
 	if err != nil {
 		return fmt.Errorf("error finding matching public key for signature: %v", err)
@@ -229,7 +229,7 @@ func (db *Database) Check(assert Assertion) error {
 
 	now := time.Now()
 	if !accKey.isKeyValidAt(now) {
-		return fmt.Errorf("assertion is signed with expired public key by %q key id %q", assert.AuthorityID(), sig.KeyID())
+		return fmt.Errorf("assertion is signed with expired public key %q from %q", sig.KeyID(), assert.AuthorityID())
 	}
 
 	err = accKey.publicKey().verify(content, sig)

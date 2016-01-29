@@ -183,7 +183,7 @@ func (chks *checkSuite) TestCheckNoPubKey(c *C) {
 	c.Assert(err, IsNil)
 
 	err = db.Check(chks.a)
-	c.Assert(err, ErrorMatches, `no matching public key for signature by "canonical" key id .*`)
+	c.Assert(err, ErrorMatches, `no matching public key "[a-f0-9]+" for signature by "canonical"`)
 }
 
 func (chks *checkSuite) TestCheckExpiredPubKey(c *C) {
@@ -198,7 +198,7 @@ func (chks *checkSuite) TestCheckExpiredPubKey(c *C) {
 	c.Assert(err, IsNil)
 
 	err = db.Check(chks.a)
-	c.Assert(err, ErrorMatches, `assertion is signed with expired public key by "canonical" key id .*`)
+	c.Assert(err, ErrorMatches, `assertion is signed with expired public key "[a-f0-9]+" from "canonical"`)
 }
 
 func (chks *checkSuite) TestCheckForgery(c *C) {
