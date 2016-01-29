@@ -53,18 +53,28 @@ func EncoderAppend(enc *Encoder, encoded []byte) error {
 	return enc.append(encoded)
 }
 
-func BootstrapAccountKeyForTest(authorityID string, pubKey *packet.PublicKey) *AccountKey {
+func makeAccountKeyForTest(authorityID string, pubKey *packet.PublicKey, validYears int) *AccountKey {
+	openPGPPubKey := OpenPGPPublicKey(pubKey)
 	return &AccountKey{
 		assertionBase: assertionBase{
 			headers: map[string]string{
-				"authority-id": authorityID,
-				"account-id":   authorityID,
+				"authority-id":  authorityID,
+				"account-id":    authorityID,
+				"public-key-id": openPGPPubKey.ID(),
 			},
 		},
 		since:  time.Time{},
-		until:  time.Time{}.UTC().AddDate(9999, 0, 0),
-		pubKey: OpenPGPPublicKey(pubKey),
+		until:  time.Time{}.UTC().AddDate(validYears, 0, 0),
+		pubKey: openPGPPubKey,
 	}
+}
+
+func BootstrapAccountKeyForTest(authorityID string, pubKey *packet.PublicKey) *AccountKey {
+	return makeAccountKeyForTest(authorityID, pubKey, 9999)
+}
+
+func ExpiredAccountKeyForTest(authorityID string, pubKey *packet.PublicKey) *AccountKey {
+	return makeAccountKeyForTest(authorityID, pubKey, 1)
 }
 
 // define dummy assertion types to use in the tests
