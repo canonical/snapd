@@ -37,9 +37,20 @@ var AssembleAndSignInTest = assembleAndSign
 // decodePrivateKey exposed for tests
 var DecodePrivateKeyInTest = decodePrivateKey
 
-// NewDecoderStressed makes a Decoder with a stressed setup with the given buffer size.
-func NewDecoderStressed(r io.Reader, bufSize int) *Decoder {
-	return &Decoder{rd: r, buf: make([]byte, bufSize)}
+// NewDecoderStressed makes a Decoder with a stressed setup with the given buffer and maximum sizes.
+func NewDecoderStressed(r io.Reader, bufSize, maxHeadersSize, maxBodySize, maxSigSize int) *Decoder {
+	return (&Decoder{
+		rd:             r,
+		initialBufSize: bufSize,
+		maxHeadersSize: maxHeadersSize,
+		maxBodySize:    maxBodySize,
+		maxSigSize:     maxSigSize,
+	}).initBuffer()
+}
+
+// Encoder.append exposed for tests
+func EncoderAppend(enc *Encoder, encoded []byte) error {
+	return enc.append(encoded)
 }
 
 func BootstrapAccountKeyForTest(authorityID string, pubKey *packet.PublicKey) *AccountKey {
