@@ -32,6 +32,7 @@ type Skill struct {
 	Type  string
 	Attrs map[string]interface{}
 	Apps  []string
+	Label string
 }
 
 // Slot represents the potential of a given snap to use a skill.

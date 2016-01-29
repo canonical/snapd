@@ -51,9 +51,10 @@ import (
 )
 
 type apiSuite struct {
-	parts []snappy.Part
-	err   error
-	vars  map[string]string
+	parts      []snappy.Part
+	err        error
+	vars       map[string]string
+	searchTerm string
 }
 
 var _ = check.Suite(&apiSuite{})
@@ -66,7 +67,9 @@ func (s *apiSuite) All() ([]snappy.Part, error) {
 	return s.parts, s.err
 }
 
-func (s *apiSuite) Updates() ([]snappy.Part, error) {
+func (s *apiSuite) Find(searchTerm string) ([]snappy.Part, error) {
+	s.searchTerm = searchTerm
+
 	return s.parts, s.err
 }
 
@@ -112,7 +115,7 @@ func (s *apiSuite) mkInstalled(c *check.C, name, origin, version string, active 
 name: %s
 version: %s
 %s`, name, version, extraYaml)
-	c.Check(ioutil.WriteFile(filepath.Join(metadir, "package.yaml"), []byte(content), 0644), check.IsNil)
+	c.Check(ioutil.WriteFile(filepath.Join(metadir, "snap.yaml"), []byte(content), 0644), check.IsNil)
 	c.Check(ioutil.WriteFile(filepath.Join(metadir, "hashes.yaml"), []byte(nil), 0644), check.IsNil)
 
 	if active {
@@ -131,7 +134,7 @@ gadget: {store: {id: %q}}
 	m := filepath.Join(d, "1", "meta")
 	c.Assert(os.MkdirAll(m, 0755), check.IsNil)
 	c.Assert(os.Symlink("1", filepath.Join(d, "current")), check.IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(m, "package.yaml"), content, 0644), check.IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(m, "snap.yaml"), content, 0644), check.IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(m, "hashes.yaml"), []byte(nil), 0644), check.IsNil)
 }
 
@@ -490,6 +493,38 @@ func (s *apiSuite) TestSnapsInfoUnknownSource(c *check.C) {
 
 	snaps := result["snaps"].(map[string]map[string]interface{})
 	c.Assert(snaps, check.HasLen, 0)
+}
+
+func (s *apiSuite) TestSnapsInfoFilterLocal(c *check.C) {
+	s.parts = nil
+	s.mkInstalled(c, "foo", "foo", "v1", true, "")
+	s.mkInstalled(c, "bar", "bar", "v1", true, "")
+
+	req, err := http.NewRequest("GET", "/2.0/snaps?q=foo", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := getSnapsInfo(snapsCmd, req).(*resp)
+
+	result := rsp.Result.(map[string]interface{})
+	c.Assert(result["snaps"], check.NotNil)
+
+	snaps := result["snaps"].(map[string]map[string]interface{})
+	c.Assert(snaps, check.HasLen, 1)
+	c.Assert(snaps["foo.foo"], check.NotNil)
+}
+
+func (s *apiSuite) TestSnapsInfoFilterRemote(c *check.C) {
+	s.parts = nil
+
+	req, err := http.NewRequest("GET", "/2.0/snaps?q=foo", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := getSnapsInfo(snapsCmd, req).(*resp)
+
+	c.Check(s.searchTerm, check.Equals, "foo")
+
+	result := rsp.Result.(map[string]interface{})
+	c.Assert(result["snaps"], check.NotNil)
 }
 
 func (s *apiSuite) TestSnapsInfoAppsOnly(c *check.C) {
@@ -863,7 +898,10 @@ func (s *apiSuite) TestSnapServiceGet(c *check.C) {
 	req, err := http.NewRequest("GET", "/2.0/snaps/foo.bar/services", nil)
 	c.Assert(err, check.IsNil)
 
-	s.mkInstalled(c, "foo", "bar", "v1", true, "services: [{name: svc}]")
+	s.mkInstalled(c, "foo", "bar", "v1", true, `apps:
+ svc:
+  daemon: forking
+`)
 	s.vars = map[string]string{"name": "foo", "origin": "bar"} // NB: no service specified
 
 	rsp := snapService(snapSvcsCmd, req).(*resp)
@@ -871,10 +909,10 @@ func (s *apiSuite) TestSnapServiceGet(c *check.C) {
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Status, check.Equals, http.StatusOK)
 
-	m := rsp.Result.(map[string]*svcDesc)
-	c.Assert(m["svc"], check.FitsTypeOf, new(svcDesc))
+	m := rsp.Result.(map[string]*appDesc)
+	c.Assert(m["svc"], check.FitsTypeOf, new(appDesc))
 	c.Check(m["svc"].Op, check.Equals, "status")
-	c.Check(m["svc"].Spec, check.DeepEquals, &snappy.ServiceYaml{Name: "svc", StopTimeout: timeout.DefaultTimeout})
+	c.Check(m["svc"].Spec, check.DeepEquals, &snappy.AppYaml{Name: "svc", Daemon: "forking", StopTimeout: timeout.DefaultTimeout})
 	c.Check(m["svc"].Status, check.DeepEquals, &snappy.PackageServiceStatus{ServiceName: "svc"})
 }
 
@@ -887,7 +925,11 @@ func (s *apiSuite) TestSnapServicePut(c *check.C) {
 	req, err := http.NewRequest("PUT", "/2.0/snaps/foo.bar/services", buf)
 	c.Assert(err, check.IsNil)
 
-	s.mkInstalled(c, "foo", "bar", "v1", true, "services: [{name: svc}]")
+	s.mkInstalled(c, "foo", "bar", "v1", true, `apps:
+ svc:
+  command: svc
+  daemon: forking
+`)
 	s.vars = map[string]string{"name": "foo", "origin": "bar"} // NB: no service specified
 
 	rsp := snapService(snapSvcsCmd, req).(*resp)
@@ -967,10 +1009,10 @@ func (s *apiSuite) TestServiceLogs(c *check.C) {
 
 func (s *apiSuite) TestAppIconGet(c *check.C) {
 	// have an active foo.bar in the system
-	s.mkInstalled(c, "foo", "bar", "v1", true, "icon: icon.ick")
+	s.mkInstalled(c, "foo", "bar", "v1", true, "")
 
-	// have an icon for it in the snap itself
-	iconfile := filepath.Join(dirs.SnapSnapsDir, "foo.bar", "v1", "icon.ick")
+	// have an icon for it in the package itself
+	iconfile := filepath.Join(dirs.SnapSnapsDir, "foo.bar", "v1", "meta", "icon.ick")
 	c.Check(ioutil.WriteFile(iconfile, []byte("ick"), 0644), check.IsNil)
 
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
@@ -986,10 +1028,10 @@ func (s *apiSuite) TestAppIconGet(c *check.C) {
 
 func (s *apiSuite) TestAppIconGetInactive(c *check.C) {
 	// have an *in*active foo.bar in the system
-	s.mkInstalled(c, "foo", "bar", "v1", false, "icon: icon.ick")
+	s.mkInstalled(c, "foo", "bar", "v1", false, "")
 
-	// have an icon for it in the snap itself
-	iconfile := filepath.Join(dirs.SnapSnapsDir, "foo.bar", "v1", "icon.ick")
+	// have an icon for it in the package itself
+	iconfile := filepath.Join(dirs.SnapSnapsDir, "foo.bar", "v1", "meta", "icon.ick")
 	c.Check(ioutil.WriteFile(iconfile, []byte("ick"), 0644), check.IsNil)
 
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
@@ -1005,7 +1047,11 @@ func (s *apiSuite) TestAppIconGetInactive(c *check.C) {
 
 func (s *apiSuite) TestAppIconGetNoIcon(c *check.C) {
 	// have an *in*active foo.bar in the system
-	s.mkInstalled(c, "foo", "bar", "v1", true, "") // NOTE: no icon in the yaml
+	s.mkInstalled(c, "foo", "bar", "v1", true, "")
+
+	// NO ICON!
+	err := os.RemoveAll(filepath.Join(dirs.SnapSnapsDir, "foo.bar", "v1", "meta", "icon.svg"))
+	c.Assert(err, check.IsNil)
 
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 	req, err := http.NewRequest("GET", "/2.0/icons/foo.bar/icon", nil)

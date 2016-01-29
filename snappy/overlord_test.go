@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2014-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,19 +17,34 @@
  *
  */
 
-package client
+package snappy
 
 import (
-	"io"
-	"net/url"
+	"github.com/ubuntu-core/snappy/dirs"
+
+	. "gopkg.in/check.v1"
 )
 
-// SetDoer sets the client's doer to the given one
-func (client *Client) SetDoer(d doer) {
-	client.doer = d
+type overlordTestSuite struct {
 }
 
-// Do does do.
-func (client *Client) Do(method, path string, query url.Values, body io.Reader, v interface{}) error {
-	return client.do(method, path, query, body, v)
+var _ = Suite(&overlordTestSuite{})
+
+func (o *overlordTestSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
+}
+
+var helloAppYaml = `name: hello-app
+version: 1.0
+`
+
+func (o *overlordTestSuite) TestInstalled(c *C) {
+	_, err := makeInstalledMockSnap(dirs.GlobalRootDir, helloAppYaml)
+	c.Assert(err, IsNil)
+
+	overlord := &Overlord{}
+	installed, err := overlord.Installed()
+	c.Assert(err, IsNil)
+	c.Assert(installed, HasLen, 1)
+	c.Assert(installed[0].Name(), Equals, "hello-app")
 }

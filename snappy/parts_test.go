@@ -34,14 +34,14 @@ import (
 func (s *SnapTestSuite) TestActiveSnapByType(c *C) {
 	yamlPath, err := makeInstalledMockSnap(s.tempdir, `name: app1
 version: 1.10
-icon: meta/hello.svg`)
+`)
 	c.Assert(err, IsNil)
 	makeSnapActive(yamlPath)
 
 	yamlPath, err = makeInstalledMockSnap(s.tempdir, `name: framework1
 version: 1.0
 type: framework
-icon: meta/hello.svg`)
+`)
 	c.Assert(err, IsNil)
 	makeSnapActive(yamlPath)
 

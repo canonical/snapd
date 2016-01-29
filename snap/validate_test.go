@@ -17,25 +17,19 @@
  *
  */
 
-package skills_test
+package snap_test
 
 import (
-	"testing"
-
 	. "gopkg.in/check.v1"
 
-	. "github.com/ubuntu-core/snappy/skills"
+	. "github.com/ubuntu-core/snappy/snap"
 )
 
-func Test(t *testing.T) {
-	TestingT(t)
-}
+type ValidateSuite struct{}
 
-type CoreSuite struct{}
+var _ = Suite(&ValidateSuite{})
 
-var _ = Suite(&CoreSuite{})
-
-func (s *CoreSuite) TestValidateName(c *C) {
+func (s *ValidateSuite) TestValidateName(c *C) {
 	validNames := []string{
 		"a", "aa", "aaa", "aaaa",
 		"a-a", "aa-a", "a-aa", "a-b-c",
@@ -63,6 +57,6 @@ func (s *CoreSuite) TestValidateName(c *C) {
 	}
 	for _, name := range invalidNames {
 		err := ValidateName(name)
-		c.Assert(err, ErrorMatches, `invalid skill name: ".*"`)
+		c.Assert(err, ErrorMatches, `invalid snap name: ".*"`)
 	}
 }
