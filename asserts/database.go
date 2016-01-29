@@ -199,12 +199,10 @@ func (db *Database) findAccountKey(authorityID, keyID string) (*AccountKey, erro
 	// consider trusted account keys then disk stored account keys
 	for _, bs := range db.backstores {
 		a, err := bs.Get(AccountKeyType, key)
-		switch err {
-		case nil:
+		if err == nil {
 			return a.(*AccountKey), nil
-		case ErrNotFound:
-			// nothing to do
-		default:
+		}
+		if err != ErrNotFound {
 			return nil, err
 		}
 	}
@@ -305,16 +303,13 @@ func (db *Database) Find(assertionType *AssertionType, headers map[string]string
 	}
 
 	var assert Assertion
-Got:
 	for _, bs := range db.backstores {
 		a, err := bs.Get(assertionType, keyValues)
-		switch err {
-		case nil:
+		if err == nil {
 			assert = a
-			break Got
-		case ErrNotFound:
-			// nothing to do
-		default:
+			break
+		}
+		if err != ErrNotFound {
 			return nil, err
 		}
 	}
