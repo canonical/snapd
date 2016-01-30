@@ -21,23 +21,20 @@
 package tests
 
 import (
-//"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
+	"path/filepath"
 
-//"gopkg.in/check.v1"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
+
+	"gopkg.in/check.v1"
 )
-
-/*
-TODO: uncomment when bug https://bugs.launchpad.net/snappy/+bug/1476129 is fixed
-(fgimenez 20150728)
 
 func (s *failoverSuite) TestRCLocalCrash(c *check.C) {
 	breakSnap := func(snapPath string) error {
-		fullPath := filepath.Join(snapPath, "etc", "rc.local")
-  	cli.ExecCommand(c, "sudo", "chmod", "a+xw", targetFile)
-    cli.ExecCommandToFile(c, targetFile,
-		  "sudo", "echo", "#!bin/sh\nprintf c > /proc/sysrq-trigger")
+		targetFile := filepath.Join(snapPath, "etc", "rc.local")
+		cli.ExecCommand(c, "sudo", "chmod", "a+xw", targetFile)
+		cli.ExecCommandToFile(c, targetFile,
+			"sudo", "echo", "#!bin/sh\nprintf c > /proc/sysrq-trigger")
 		return nil
 	}
 	s.testUpdateToBrokenVersion(c, "ubuntu-core.canonical", breakSnap)
 }
-*/
