@@ -34,7 +34,6 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/policy"
-	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/squashfs"
 	"github.com/ubuntu-core/snappy/systemd"
@@ -220,7 +219,7 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 	yamlPath := filepath.Join(instDir, "meta", "snap.yaml")
 	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
 	c.Assert(err, IsNil)
-	err = part.remove(&MockProgressMeter{})
+	err = (&Overlord{}).Uninstall(part, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 
 	_, err = os.Stat(instDir)
@@ -292,7 +291,7 @@ func (s *SnapTestSuite) TestSnapRemovePackagePolicy(c *C) {
 	yamlPath := filepath.Join(appdir, "meta", "snap.yaml")
 	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
 	c.Assert(err, IsNil)
-	err = part.remove(&MockProgressMeter{})
+	err = (&Overlord{}).Uninstall(part, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 }
 
@@ -586,7 +585,7 @@ apps:
 	yamlPath := filepath.Join(snapDir, "meta", "snap.yaml")
 	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
 	c.Assert(err, IsNil)
-	err = part.remove(&progress.NullProgress{})
+	err = (&Overlord{}).Uninstall(part, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	c.Assert(helpers.FileExists(servicesFile), Equals, false)
 	c.Assert(helpers.FileExists(snapDir), Equals, false)
@@ -1191,7 +1190,7 @@ apps:
 	yamlPath := filepath.Join(snapDir, "meta", "snap.yaml")
 	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
 	c.Assert(err, IsNil)
-	err = part.remove(&MockProgressMeter{})
+	err = (&Overlord{}).Uninstall(part, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	c.Assert(helpers.FileExists(binaryWrapper), Equals, false)
 	c.Assert(helpers.FileExists(snapDir), Equals, false)

@@ -176,7 +176,7 @@ func (s *SquashfsTestSuite) TestRemoveViaSquashfsWorks(c *C) {
 	part, err := NewSnapFile(snapFile, "origin", true)
 	c.Assert(err, IsNil)
 	installedPart, err := newSnapPartFromYaml(filepath.Join(part.instdir, "meta", "package.yaml"), part.origin, part.m)
-	err = installedPart.Uninstall(&MockProgressMeter{})
+	err = (&Overlord{}).Uninstall(installedPart, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	c.Assert(helpers.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-app.origin_1.10.snap")), Equals, false)
 
@@ -266,7 +266,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapRemovesKernelAssets(c *C) {
 	c.Assert(err, IsNil)
 	installedPart, err := newSnapPartFromYaml(filepath.Join(part.instdir, "meta", "package.yaml"), part.origin, part.m)
 	installedPart.isActive = false
-	err = installedPart.Uninstall(&MockProgressMeter{})
+	err = (&Overlord{}).Uninstall(installedPart, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	c.Assert(helpers.FileExists(kernelAssetsDir), Equals, false)
 }
@@ -279,7 +279,7 @@ func (s *SquashfsTestSuite) TestActiveKernelNotRemovable(c *C) {
 	c.Assert(err, IsNil)
 
 	snap.isActive = true
-	c.Assert(snap.Uninstall(&MockProgressMeter{}), Equals, ErrPackageNotRemovable)
+	c.Assert((&Overlord{}).Uninstall(snap, &MockProgressMeter{}), Equals, ErrPackageNotRemovable)
 }
 
 func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernelErrors(c *C) {
@@ -310,7 +310,7 @@ func (s *SquashfsTestSuite) TestActiveOSNotRemovable(c *C) {
 	c.Assert(err, IsNil)
 
 	snap.isActive = true
-	c.Assert(snap.Uninstall(&MockProgressMeter{}), Equals, ErrPackageNotRemovable)
+	c.Assert((&Overlord{}).Uninstall(snap, &MockProgressMeter{}), Equals, ErrPackageNotRemovable)
 }
 
 func (s *SquashfsTestSuite) TestInstallOsRebootRequired(c *C) {

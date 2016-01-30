@@ -235,7 +235,7 @@ func (s *purgeSuite) TestPurgeRemovedWorks(c *C) {
 	inter := &MockProgressMeter{}
 	ddirs, part := s.mkpkg(c)
 
-	err := part.remove(inter)
+	err := (&Overlord{}).Uninstall(part, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	for _, ddir := range ddirs {
 		c.Check(helpers.FileExists(ddir), Equals, true)
