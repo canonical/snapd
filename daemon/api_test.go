@@ -124,12 +124,15 @@ version: %s
 	}
 }
 
-func (s *apiSuite) mkGadget(c *check.C, store string) {
+func (s *apiSuite) mkGadget(c *check.C, store, extraYaml string) {
 	content := []byte(fmt.Sprintf(`name: test
 version: 1
 type: gadget
-gadget: {store: {id: %q}}
-`, store))
+gadget:
+  store:
+    id: %q
+%s
+`, store, extraYaml))
 
 	d := filepath.Join(dirs.SnapSnapsDir, "test")
 	m := filepath.Join(d, "1", "meta")
@@ -359,7 +362,7 @@ func (s *apiSuite) TestSysInfoStore(c *check.C) {
 	c.Check(sysInfoCmd.Path, check.Equals, "/2.0/system-info")
 
 	s.mkrelease()
-	s.mkGadget(c, "some-store")
+	s.mkGadget(c, "some-store", "")
 
 	sysInfoCmd.GET(sysInfoCmd, nil).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 200)
