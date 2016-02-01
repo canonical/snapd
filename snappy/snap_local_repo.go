@@ -49,23 +49,6 @@ func (s *SnapLocalRepository) Description() string {
 	return fmt.Sprintf("Snap local repository for %s", s.path)
 }
 
-// Details returns details for the given snap
-func (s *SnapLocalRepository) Details(name string, origin string) (versions []Part, err error) {
-	if origin == "" || origin == SideloadedOrigin {
-		origin = "*"
-	}
-	appParts, err := s.partsForGlobExpr(filepath.Join(s.path, name+"."+origin, "*", "meta", "snap.yaml"))
-	fmkParts, err := s.partsForGlobExpr(filepath.Join(s.path, name, "*", "meta", "snap.yaml"))
-
-	parts := append(appParts, fmkParts...)
-
-	if len(parts) == 0 {
-		return nil, ErrPackageNotFound
-	}
-
-	return parts, nil
-}
-
 // Updates returns the available updates
 func (s *SnapLocalRepository) Updates() (parts []Part, err error) {
 	return nil, err

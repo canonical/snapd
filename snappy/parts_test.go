@@ -112,20 +112,6 @@ type: framework`)
 	c.Check(nm, DeepEquals, map[string]bool{"fwk": true, "app." + testOrigin: true})
 }
 
-func (s *SnapTestSuite) TestMetaRepositoryDetails(c *C) {
-	_, err := makeInstalledMockSnap(s.tempdir, "")
-	c.Assert(err, IsNil)
-
-	m := NewMetaRepository()
-	c.Assert(m, NotNil)
-
-	parts, err := m.Details("hello-app", "")
-	c.Assert(err, IsNil)
-	c.Assert(parts, HasLen, 1)
-	c.Assert(parts[0].Name(), Equals, "hello-app")
-	c.Assert(parts[0].Origin(), Equals, testOrigin)
-}
-
 func (s *SnapTestSuite) TestFindSnapsByNameNotAvailable(c *C) {
 	_, err := makeInstalledMockSnap(s.tempdir, "")
 	repo := NewLocalSnapRepository(dirs.SnapSnapsDir)
