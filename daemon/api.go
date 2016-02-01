@@ -1033,6 +1033,9 @@ func changeSkills(c *Command, r *http.Request) Response {
 	if a.Action == "" {
 		return BadRequest("skill action not specified")
 	}
+	if !c.d.enableInternalSkillActions && a.Action != "grant" && a.Action != "revoke" {
+		return BadRequest("internal skill actions are disabled")
+	}
 	switch a.Action {
 	case "grant":
 		err := c.d.skills.Grant(a.Skill.Snap, a.Skill.Name, a.Slot.Snap, a.Slot.Name)
@@ -1047,9 +1050,6 @@ func changeSkills(c *Command, r *http.Request) Response {
 		}
 		return SyncResponse(nil)
 	case "add-skill":
-		if !c.d.enableInternalSkillActions {
-			return BadRequest("internal skill actions are disabled")
-		}
 		err := c.d.skills.AddSkill(&a.Skill)
 		if err != nil {
 			return BadRequest("%v", err)
@@ -1059,18 +1059,12 @@ func changeSkills(c *Command, r *http.Request) Response {
 			Status: http.StatusCreated,
 		}
 	case "remove-skill":
-		if !c.d.enableInternalSkillActions {
-			return BadRequest("internal skill actions are disabled")
-		}
 		err := c.d.skills.RemoveSkill(a.Skill.Snap, a.Skill.Name)
 		if err != nil {
 			return BadRequest("%v", err)
 		}
 		return SyncResponse(nil)
 	case "add-slot":
-		if !c.d.enableInternalSkillActions {
-			return BadRequest("internal skill actions are disabled")
-		}
 		err := c.d.skills.AddSlot(&a.Slot)
 		if err != nil {
 			return BadRequest("%v", err)
@@ -1080,9 +1074,6 @@ func changeSkills(c *Command, r *http.Request) Response {
 			Status: http.StatusCreated,
 		}
 	case "remove-slot":
-		if !c.d.enableInternalSkillActions {
-			return BadRequest("internal skill actions are disabled")
-		}
 		err := c.d.skills.RemoveSlot(a.Slot.Snap, a.Slot.Name)
 		if err != nil {
 			return BadRequest("%v", err)
