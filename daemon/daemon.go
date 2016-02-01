@@ -33,7 +33,6 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/ubuntu-core/snappy/asserts"
-	"github.com/ubuntu-core/snappy/caps"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
@@ -46,7 +45,6 @@ type Daemon struct {
 	listener     net.Listener
 	tomb         tomb.Tomb
 	router       *mux.Router
-	capRepo      *caps.Repository
 	asserts      *asserts.Database
 }
 
@@ -258,14 +256,11 @@ func New() *Daemon {
 	if err != nil {
 		panic(err.Error())
 	}
-	repo := caps.NewRepository()
-	err = caps.LoadBuiltInTypes(repo)
 	if err != nil {
 		panic(err.Error())
 	}
 	return &Daemon{
 		tasks:   make(map[string]*Task),
-		capRepo: repo,
 		asserts: db,
 	}
 }
