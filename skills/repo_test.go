@@ -576,7 +576,7 @@ func (s *RepositorySuite) TestGrantFailsWhenSlotAndSkillAreIncompatible(c *C) {
 	c.Assert(err, IsNil)
 	// Granting a skill to an incompatible slot fails with an appropriate error
 	err = s.testRepo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
-	c.Assert(err, ErrorMatches, `cannot grant skill "skill" from snap "provider" to slot "slot" from snap "consumer", skill type "other-type" doesn't match slot type "type"`)
+	c.Assert(err, ErrorMatches, `cannot grant skill "provider:skill" \(skill type "other-type"\) to "consumer:slot" \(skill type "type"\)`)
 }
 
 func (s *RepositorySuite) TestGrantSucceeds(c *C) {

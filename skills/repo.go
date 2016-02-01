@@ -278,8 +278,8 @@ func (r *Repository) Grant(skillSnapName, skillName, slotSnapName, slotName stri
 	}
 	// Ensure that skill and slot are compatible
 	if slot.Type != skill.Type {
-		return fmt.Errorf("cannot grant skill %q from snap %q to slot %q from snap %q, skill type %q doesn't match slot type %q",
-			skillName, skillSnapName, slotName, slotSnapName, skill.Type, slot.Type)
+		return fmt.Errorf(`cannot grant skill "%s:%s" (skill type %q) to "%s:%s" (skill type %q)`,
+			skillSnapName, skillName, skill.Type, slotSnapName, slotName, slot.Type)
 	}
 	// Ensure that slot and skill are not connected yet
 	if r.slotSkills[slot][skill] {
