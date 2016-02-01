@@ -106,7 +106,6 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var rspf ResponseFunc
-	var rsp = BadMethod("method %q not allowed", r.Method)
 
 	switch r.Method {
 	case "GET":
@@ -120,10 +119,10 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if rspf != nil {
-		rsp = rspf(c, r)
+		rspf(c, r).ServeHTTP(w, r)
+	} else {
+		BadMethod("method %q not allowed", r.Method).ServeHTTP(w, r)
 	}
-
-	rsp.ServeHTTP(w, r)
 }
 
 type wrappedWriter struct {
