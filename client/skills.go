@@ -59,7 +59,7 @@ type SkillAction struct {
 
 // AllSkills returns information about all the skills and their usage.
 func (client *Client) AllSkills() (usage []SkillGrants, err error) {
-	err = client.doSync("GET", "/2.0/skills", nil, &usage)
+	err = client.doSync("GET", "/2.0/skills", nil, nil, &usage)
 	return
 }
 
@@ -70,7 +70,7 @@ func (client *Client) performSkillAction(sa *SkillAction) error {
 		return err
 	}
 	var rsp interface{}
-	if err := client.doSync("POST", "/2.0/skills", bytes.NewReader(b), &rsp); err != nil {
+	if err := client.doSync("POST", "/2.0/skills", nil, bytes.NewReader(b), &rsp); err != nil {
 		return err
 	}
 	return nil

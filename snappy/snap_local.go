@@ -35,24 +35,22 @@ import (
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/remote"
-	"github.com/ubuntu-core/snappy/snap/squashfs"
 )
 
 // SnapPart represents a generic snap type
 type SnapPart struct {
-	m           *packageYaml
-	remoteM     *remote.Snap
-	origin      string
-	hash        string
-	isActive    bool
-	description string
+	m        *snapYaml
+	remoteM  *remote.Snap
+	origin   string
+	hash     string
+	isActive bool
 
 	basedir string
 }
 
 // NewInstalledSnapPart returns a new SnapPart from the given yamlPath
 func NewInstalledSnapPart(yamlPath, origin string) (*SnapPart, error) {
-	m, err := parsePackageYamlFile(yamlPath)
+	m, err := parseSnapYamlFile(yamlPath)
 	if err != nil {
 		return nil, err
 	}
@@ -65,8 +63,8 @@ func NewInstalledSnapPart(yamlPath, origin string) (*SnapPart, error) {
 	return part, nil
 }
 
-// newSnapPartFromYaml returns a new SnapPart from the given *packageYaml at yamlPath
-func newSnapPartFromYaml(yamlPath, origin string, m *packageYaml) (*SnapPart, error) {
+// newSnapPartFromYaml returns a new SnapPart from the given *snapYaml at yamlPath
+func newSnapPartFromYaml(yamlPath, origin string, m *snapYaml) (*SnapPart, error) {
 	part := &SnapPart{
 		basedir: filepath.Dir(filepath.Dir(yamlPath)),
 		origin:  origin,
@@ -87,11 +85,6 @@ func newSnapPartFromYaml(yamlPath, origin string, m *packageYaml) (*SnapPart, er
 
 	if p == part.basedir {
 		part.isActive = true
-	}
-
-	// get the *title* from readme.md and use that as the *description*.
-	if description, _, err := parseReadme(filepath.Join(part.basedir, "meta", "readme.md")); err == nil {
-		part.description = description
 	}
 
 	remoteManifestPath := RemoteManifestPath(part)
@@ -135,13 +128,13 @@ func (s *SnapPart) Version() string {
 	return s.m.Version
 }
 
-// Description returns the description
+// Description returns the summary description
 func (s *SnapPart) Description() string {
 	if r := s.remoteM; r != nil {
 		return r.Description
 	}
 
-	return s.description
+	return s.m.Summary
 }
 
 // Origin returns the origin
@@ -174,11 +167,12 @@ func (s *SnapPart) Channel() string {
 
 // Icon returns the path to the icon
 func (s *SnapPart) Icon() string {
-	if s.m.Icon == "" {
+	found, _ := filepath.Glob(filepath.Join(s.basedir, "meta", "icon.*"))
+	if len(found) == 0 {
 		return ""
 	}
 
-	return filepath.Join(s.basedir, s.m.Icon)
+	return found[0]
 }
 
 // IsActive returns true if the snap is active
@@ -222,14 +216,9 @@ func (s *SnapPart) Date() time.Time {
 	return st.ModTime()
 }
 
-// ServiceYamls return a list of ServiceYamls the package declares
-func (s *SnapPart) ServiceYamls() []ServiceYaml {
-	return s.m.ServiceYamls
-}
-
-// Binaries return a list of BinaryDescription the package declares
-func (s *SnapPart) Binaries() []Binary {
-	return s.m.Binaries
+// Apps return a list of AppsYamls the package declares
+func (s *SnapPart) Apps() map[string]*AppYaml {
+	return s.m.Apps
 }
 
 // GadgetConfig return a list of packages to configure
@@ -264,7 +253,7 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 	// there is already an active part
 	if currentActiveDir != "" {
 		// TODO: support switching origins
-		oldYaml := filepath.Join(currentActiveDir, "meta", "package.yaml")
+		oldYaml := filepath.Join(currentActiveDir, "meta", "snap.yaml")
 		oldPart, err := NewInstalledSnapPart(oldYaml, s.origin)
 		if err != nil {
 			return err
@@ -280,7 +269,7 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 		}
 	}
 
-	// generate the security policy from the package.yaml
+	// generate the security policy from the snap.yaml
 	// Note that this must happen before binaries/services are
 	// generated because serices may get started
 	appsDir := filepath.Join(dirs.SnapSnapsDir, QualifiedName(s), s.Version())
@@ -288,12 +277,12 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 		return err
 	}
 
-	// add the "binaries:" from the package.yaml
-	if err := s.m.addPackageBinaries(s.basedir); err != nil {
+	// add the "binaries:" from the snap.yaml
+	if err := addPackageBinaries(s.m, s.basedir); err != nil {
 		return err
 	}
-	// add the "services:" from the package.yaml
-	if err := s.m.addPackageServices(s.basedir, inhibitHooks, inter); err != nil {
+	// add the "services:" from the snap.yaml
+	if err := addPackageServices(s.m, s.basedir, inhibitHooks, inter); err != nil {
 		return err
 	}
 
@@ -341,11 +330,11 @@ func (s *SnapPart) deactivate(inhibitHooks bool, inter interacter) error {
 	}
 
 	// remove generated services, binaries, security policy
-	if err := s.m.removePackageBinaries(s.basedir); err != nil {
+	if err := removePackageBinaries(s.m, s.basedir); err != nil {
 		return err
 	}
 
-	if err := s.m.removePackageServices(s.basedir, inter); err != nil {
+	if err := removePackageServices(s.m, s.basedir, inter); err != nil {
 		return err
 	}
 
@@ -367,72 +356,6 @@ func (s *SnapPart) deactivate(inhibitHooks bool, inter interacter) error {
 	currentDataSymlink := filepath.Join(dirs.SnapDataDir, QualifiedName(s), "current")
 	if err := os.Remove(currentDataSymlink); err != nil && !os.IsNotExist(err) {
 		logger.Noticef("Failed to remove %q: %v", currentDataSymlink, err)
-	}
-
-	return nil
-}
-
-// Uninstall remove the snap from the system
-func (s *SnapPart) Uninstall(pb progress.Meter) (err error) {
-	// Gadget snaps should not be removed as they are a key
-	// building block for Gadgets. Prunning non active ones
-	// is acceptible.
-	if s.m.Type == snap.TypeGadget && s.IsActive() {
-		return ErrPackageNotRemovable
-	}
-
-	// You never want to remove an active kernel or OS
-	if (s.m.Type == snap.TypeKernel || s.m.Type == snap.TypeOS) && s.IsActive() {
-		return ErrPackageNotRemovable
-	}
-
-	if IsBuiltInSoftware(s.Name()) && s.IsActive() {
-		return ErrPackageNotRemovable
-	}
-
-	deps, err := s.DependentNames()
-	if err != nil {
-		return err
-	}
-	if len(deps) != 0 {
-		return ErrFrameworkInUse(deps)
-	}
-
-	if err := s.remove(pb); err != nil {
-		return err
-	}
-
-	return RemoveAllHWAccess(QualifiedName(s))
-}
-
-func (s *SnapPart) remove(inter interacter) (err error) {
-	if err := s.deactivate(false, inter); err != nil && err != ErrSnapNotActive {
-		return err
-	}
-
-	// ensure mount unit stops
-	if err := s.m.removeSquashfsMount(s.basedir, inter); err != nil {
-		return err
-	}
-
-	err = os.RemoveAll(s.basedir)
-	if err != nil {
-		return err
-	}
-
-	// best effort(?)
-	os.Remove(filepath.Dir(s.basedir))
-
-	// remove the snap
-	if err := os.RemoveAll(squashfs.BlobPath(s.basedir)); err != nil {
-		return err
-	}
-
-	// remove the kernel assets (if any)
-	if s.m.Type == snap.TypeKernel {
-		if err := removeKernelAssets(s, inter); err != nil {
-			logger.Noticef("removing kernel assets failed with %s", err)
-		}
 	}
 
 	return nil
@@ -520,20 +443,21 @@ func (s *SnapPart) CanInstall(allowGadget bool, inter interacter) error {
 // templates impacts the snap, and updates the policy if needed
 func (s *SnapPart) RequestSecurityPolicyUpdate(policies, templates map[string]bool) error {
 	var foundError error
-	for _, svc := range s.ServiceYamls() {
-		if svc.NeedsAppArmorUpdate(policies, templates) {
-			err := svc.generatePolicyForServiceBinary(s.m, svc.Name, s.basedir)
-			if err != nil {
-				logger.Noticef("Failed to regenerate policy for %s: %v", svc.Name, err)
-				foundError = err
-			}
+	for name, app := range s.Apps() {
+		skill, err := findSkillForApp(s.m, app)
+		if err != nil {
+			logger.Noticef("Failed to find skill for %s: %v", name, err)
+			foundError = err
+			continue
 		}
-	}
-	for _, bin := range s.Binaries() {
-		if bin.NeedsAppArmorUpdate(policies, templates) {
-			err := bin.generatePolicyForServiceBinary(s.m, bin.Name, s.basedir)
+		if skill == nil {
+			continue
+		}
+
+		if skill.NeedsAppArmorUpdate(policies, templates) {
+			err := skill.generatePolicyForServiceBinary(s.m, name, s.basedir)
 			if err != nil {
-				logger.Noticef("Failed to regenerate policy for %s: %v", bin.Name, err)
+				logger.Noticef("Failed to regenerate policy for %s: %v", name, err)
 				foundError = err
 			}
 		}

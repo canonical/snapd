@@ -96,9 +96,10 @@ type consistencyChecker interface {
 // Database holds assertions and can be used to sign or check
 // further assertions.
 type Database struct {
-	bs          Backstore
-	keypairMgr  KeypairManager
-	trustedKeys map[string][]*AccountKey
+	bs         Backstore
+	keypairMgr KeypairManager
+	trusted    Backstore
+	backstores []Backstore
 }
 
 // OpenDatabase opens the assertion database based on the configuration.
@@ -113,15 +114,23 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 		panic("database cannot be used without setting a keypair manager")
 	}
 
-	trustedKeys := make(map[string][]*AccountKey)
+	trustedBackstore := NewMemoryBackstore()
+
 	for _, accKey := range cfg.TrustedKeys {
-		authID := accKey.AccountID()
-		trustedKeys[authID] = append(trustedKeys[authID], accKey)
+		err := trustedBackstore.Put(AccountKeyType, accKey)
+		if err != nil {
+			return nil, fmt.Errorf("error loading for use trusted account key %q for %q: %v", accKey.PublicKeyID(), accKey.AuthorityID(), err)
+		}
 	}
+
 	return &Database{
-		bs:          bs,
-		keypairMgr:  keypairMgr,
-		trustedKeys: trustedKeys,
+		bs:         bs,
+		keypairMgr: keypairMgr,
+		trusted:    trustedBackstore,
+		// order here is relevant, Find* precedence and
+		// findAccountKey depend on it, trusted should win over the
+		// general backstore!
+		backstores: []Backstore{trustedBackstore, bs},
 	}, nil
 }
 
@@ -187,28 +196,20 @@ func (db *Database) Sign(assertType *AssertionType, headers map[string]string, b
 	return assembleAndSign(assertType, headers, body, privKey)
 }
 
-// find account keys exactly by account id and key id
-// TODO: may need more details about the kind of key we are looking for
-// and use an interface for the results.
-func (db *Database) findAccountKeys(authorityID, keyID string) ([]*AccountKey, error) {
-	res := make([]*AccountKey, 0, 1)
-	cands := db.trustedKeys[authorityID]
-	for _, cand := range cands {
-		if cand.PublicKeyID() == keyID {
-			res = append(res, cand)
+// findAccountKey finds an AccountKey exactly by account id and key id.
+func (db *Database) findAccountKey(authorityID, keyID string) (*AccountKey, error) {
+	key := []string{authorityID, keyID}
+	// consider trusted account keys then disk stored account keys
+	for _, bs := range db.backstores {
+		a, err := bs.Get(AccountKeyType, key)
+		if err == nil {
+			return a.(*AccountKey), nil
+		}
+		if err != ErrNotFound {
+			return nil, err
 		}
 	}
-	// consider stored account keys
-	a, err := db.bs.Get(AccountKeyType, []string{authorityID, keyID})
-	switch err {
-	case nil:
-		res = append(res, a.(*AccountKey))
-	case ErrNotFound:
-		// nothing to do
-	default:
-		return nil, err
-	}
-	return res, nil
+	return nil, ErrNotFound
 }
 
 // Check tests whether the assertion is properly signed and consistent with all the stored knowledge.
@@ -219,32 +220,33 @@ func (db *Database) Check(assert Assertion) error {
 		return err
 	}
 	// TODO: later may need to consider type of assert to find candidate keys
-	accKeys, err := db.findAccountKeys(assert.AuthorityID(), sig.KeyID())
+	accKey, err := db.findAccountKey(assert.AuthorityID(), sig.KeyID())
+	if err == ErrNotFound {
+		return fmt.Errorf("no matching public key %q for signature by %q", sig.KeyID(), assert.AuthorityID())
+	}
 	if err != nil {
 		return fmt.Errorf("error finding matching public key for signature: %v", err)
 	}
+
 	now := time.Now()
-	var lastErr error
-	for _, accKey := range accKeys {
-		if accKey.isKeyValidAt(now) {
-			err := accKey.publicKey().verify(content, sig)
-			if err == nil {
-				// see if the assertion requires further checks
-				if checker, ok := assert.(consistencyChecker); ok {
-					err := checker.checkConsistency(db, accKey)
-					if err != nil {
-						return fmt.Errorf("signature verifies but assertion violates other knowledge: %v", err)
-					}
-				}
-				return nil
-			}
-			lastErr = err
+	if !accKey.isKeyValidAt(now) {
+		return fmt.Errorf("assertion is signed with expired public key %q from %q", sig.KeyID(), assert.AuthorityID())
+	}
+
+	err = accKey.publicKey().verify(content, sig)
+	if err != nil {
+		return fmt.Errorf("failed signature verification: %v", err)
+	}
+
+	// see if the assertion requires further checks
+	if checker, ok := assert.(consistencyChecker); ok {
+		err := checker.checkConsistency(db, accKey)
+		if err != nil {
+			return fmt.Errorf("signature verifies but assertion violates other knowledge: %v", err)
 		}
 	}
-	if lastErr == nil {
-		return fmt.Errorf("no valid known public key verifies assertion")
-	}
-	return fmt.Errorf("failed signature verification: %v", lastErr)
+
+	return nil
 }
 
 // Add persists the assertion after ensuring it is properly signed and consistent with all the stored knowledge.
@@ -255,11 +257,24 @@ func (db *Database) Add(assert Assertion) error {
 	if err != nil {
 		return err
 	}
-	for _, k := range assertType.PrimaryKey {
-		if assert.Header(k) == "" {
+
+	keyValues := make([]string, len(assertType.PrimaryKey))
+	for i, k := range assertType.PrimaryKey {
+		keyVal := assert.Header(k)
+		if keyVal == "" {
 			return fmt.Errorf("missing primary key header: %v", k)
 		}
+		keyValues[i] = keyVal
 	}
+
+	// assuming trusted account keys/assertions will be managed
+	// through the os snap this seems the safest policy until we
+	// know more/better
+	_, err = db.trusted.Get(assertType, keyValues)
+	if err != ErrNotFound {
+		return fmt.Errorf("cannot add %q assertion with primary key clashing with a trusted assertion: %v", assertType.Name, keyValues)
+	}
+
 	return db.bs.Put(assertType, assert)
 }
 
@@ -289,13 +304,23 @@ func (db *Database) Find(assertionType *AssertionType, headers map[string]string
 		}
 		keyValues[i] = keyVal
 	}
-	assert, err := db.bs.Get(assertionType, keyValues)
-	if err != nil {
-		return nil, err
+
+	var assert Assertion
+	for _, bs := range db.backstores {
+		a, err := bs.Get(assertionType, keyValues)
+		if err == nil {
+			assert = a
+			break
+		}
+		if err != ErrNotFound {
+			return nil, err
+		}
 	}
-	if !searchMatch(assert, headers) {
+
+	if assert == nil || !searchMatch(assert, headers) {
 		return nil, ErrNotFound
 	}
+
 	return assert, nil
 }
 
@@ -311,9 +336,12 @@ func (db *Database) FindMany(assertionType *AssertionType, headers map[string]st
 	foundCb := func(assert Assertion) {
 		res = append(res, assert)
 	}
-	err = db.bs.Search(assertionType, headers, foundCb)
-	if err != nil {
-		return nil, err
+
+	for _, bs := range db.backstores {
+		err = bs.Search(assertionType, headers, foundCb)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if len(res) == 0 {

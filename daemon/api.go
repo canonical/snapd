@@ -379,9 +379,9 @@ func resultHasType(r map[string]interface{}, allowedTypes []string) bool {
 
 var findServices = snappy.FindServices
 
-type svcDesc struct {
+type appDesc struct {
 	Op     string                       `json:"op"`
-	Spec   *snappy.ServiceYaml          `json:"spec"`
+	Spec   *snappy.AppYaml              `json:"spec"`
 	Status *snappy.PackageServiceStatus `json:"status"`
 }
 
@@ -397,7 +397,7 @@ func snapService(c *Command, r *http.Request) Response {
 	if name == "" || origin == "" {
 		return BadRequest("missing name or origin")
 	}
-	svcName := vars["service"]
+	appName := vars["service"]
 	pkgName := name + "." + origin
 
 	action := "status"
@@ -447,48 +447,51 @@ func snapService(c *Command, r *http.Request) Response {
 	if !ok {
 		return InternalError("active snap is not a *snappy.SnapPart: %T", ipart)
 	}
-	svcs := part.ServiceYamls()
+	apps := part.Apps()
 
-	if len(svcs) == 0 {
+	if len(apps) == 0 {
 		return NotFound("snap %q has no services", pkgName)
 	}
 
-	svcmap := make(map[string]*svcDesc, len(svcs))
-	for i := range svcs {
-		svcmap[svcs[i].Name] = &svcDesc{Spec: &svcs[i], Op: action}
+	appmap := make(map[string]*appDesc, len(apps))
+	for i := range apps {
+		if apps[i].Daemon == "" {
+			continue
+		}
+		appmap[apps[i].Name] = &appDesc{Spec: apps[i], Op: action}
 	}
 
-	if svcName != "" && svcmap[svcName] == nil {
-		return NotFound("snap %q has no service %q", pkgName, svcName)
+	if appName != "" && appmap[appName] == nil {
+		return NotFound("snap %q has no service %q", pkgName, appName)
 	}
 
 	// note findServices takes the *bare* name
-	actor, err := findServices(name, svcName, &progress.NullProgress{})
+	actor, err := findServices(name, appName, &progress.NullProgress{})
 	if err != nil {
-		return InternalError("no services for %q [%q] found: %v", pkgName, svcName, err)
+		return InternalError("no services for %q [%q] found: %v", pkgName, appName, err)
 	}
 
 	f := func() interface{} {
 		status, err := actor.ServiceStatus()
 		if err != nil {
-			logger.Noticef("unable to get status for %q [%q]: %v", pkgName, svcName, err)
+			logger.Noticef("unable to get status for %q [%q]: %v", pkgName, appName, err)
 			return err
 		}
 
 		for i := range status {
-			if desc, ok := svcmap[status[i].ServiceName]; ok {
+			if desc, ok := appmap[status[i].ServiceName]; ok {
 				desc.Status = status[i]
 			} else {
 				// shouldn't really happen, but can't hurt
-				svcmap[status[i].ServiceName] = &svcDesc{Status: status[i]}
+				appmap[status[i].ServiceName] = &appDesc{Status: status[i]}
 			}
 		}
 
-		if svcName == "" {
-			return svcmap
+		if appName == "" {
+			return appmap
 		}
 
-		return svcmap[svcName]
+		return appmap[appName]
 	}
 
 	if action == "status" {
@@ -514,7 +517,7 @@ func snapService(c *Command, r *http.Request) Response {
 		}
 
 		if err != nil {
-			logger.Noticef("unable to %s %q [%q]: %v\n", action, pkgName, svcName, err)
+			logger.Noticef("unable to %s %q [%q]: %v\n", action, pkgName, appName, err)
 			return err
 		}
 
@@ -819,7 +822,7 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 	return AsyncResponse(c.d.AddTask(func() interface{} {
 		defer os.Remove(tmpf.Name())
 
-		part, err := newSnap(tmpf.Name(), snappy.SideloadedOrigin, unsignedOk)
+		_, err := newSnap(tmpf.Name(), snappy.SideloadedOrigin, unsignedOk)
 		if err != nil {
 			return err
 		}
@@ -830,7 +833,12 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 		}
 		defer lock.Unlock()
 
-		name, err := part.Install(&progress.NullProgress{}, 0)
+		var flags snappy.InstallFlags
+		if unsignedOk {
+			flags |= snappy.AllowUnauthenticated
+		}
+		overlord := &snappy.Overlord{}
+		name, err := overlord.Install(tmpf.Name(), snappy.SideloadedOrigin, flags, &progress.NullProgress{})
 		if err != nil {
 			return err
 		}
@@ -842,7 +850,7 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 func getLogs(c *Command, r *http.Request) Response {
 	vars := muxVars(r)
 	name := vars["name"]
-	svcName := vars["service"]
+	appName := vars["service"]
 
 	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
 	if err != nil {
@@ -850,7 +858,7 @@ func getLogs(c *Command, r *http.Request) Response {
 	}
 	defer lock.Unlock()
 
-	actor, err := findServices(name, svcName, &progress.NullProgress{})
+	actor, err := findServices(name, appName, &progress.NullProgress{})
 	if err != nil {
 		return NotFound("no services found for %q: %v", name, err)
 	}

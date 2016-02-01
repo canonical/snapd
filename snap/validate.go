@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,19 +17,21 @@
  *
  */
 
-package client
+package snap
 
 import (
-	"io"
-	"net/url"
+	"fmt"
+	"regexp"
 )
 
-// SetDoer sets the client's doer to the given one
-func (client *Client) SetDoer(d doer) {
-	client.doer = d
-}
+// Regular expression describing correct identifiers.
+var validName = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
 
-// Do does do.
-func (client *Client) Do(method, path string, query url.Values, body io.Reader, v interface{}) error {
-	return client.do(method, path, query, body, v)
+// ValidateName checks if a string can be used as a snap name.
+func ValidateName(name string) error {
+	valid := validName.MatchString(name)
+	if !valid {
+		return fmt.Errorf("invalid snap name: %q", name)
+	}
+	return nil
 }

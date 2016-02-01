@@ -48,8 +48,8 @@ func makeSnap(c *C, manifest, data string) *Snap {
 	tmp := c.MkDir()
 	err := os.MkdirAll(filepath.Join(tmp, "meta"), 0755)
 
-	// our regular package yaml
-	err = ioutil.WriteFile(filepath.Join(tmp, "meta", "package.yaml"), []byte(manifest), 0644)
+	// our regular snap.yaml
+	err = ioutil.WriteFile(filepath.Join(tmp, "meta", "snap.yaml"), []byte(manifest), 0644)
 	c.Assert(err, IsNil)
 
 	// some data
@@ -86,7 +86,7 @@ func (s *SquashfsTestSuite) TestHashFile(c *C) {
 func (s *SquashfsTestSuite) TestReadFile(c *C) {
 	snap := makeSnap(c, "name: foo", "")
 
-	content, err := snap.ReadFile("meta/package.yaml")
+	content, err := snap.ReadFile("meta/snap.yaml")
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, "name: foo")
 }
@@ -105,7 +105,7 @@ func (s *SquashfsTestSuite) TestUnpackGlob(c *C) {
 	c.Assert(string(content), Equals, data)
 
 	// ensure glob was honored
-	c.Assert(helpers.FileExists(filepath.Join(outputDir, "meta/package.yaml")), Equals, false)
+	c.Assert(helpers.FileExists(filepath.Join(outputDir, "meta/snap.yaml")), Equals, false)
 }
 
 func (s *SquashfsTestSuite) TestBuild(c *C) {

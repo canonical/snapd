@@ -54,8 +54,8 @@ func (s *SnapLocalRepository) Details(name string, origin string) (versions []Pa
 	if origin == "" || origin == SideloadedOrigin {
 		origin = "*"
 	}
-	appParts, err := s.partsForGlobExpr(filepath.Join(s.path, name+"."+origin, "*", "meta", "package.yaml"))
-	fmkParts, err := s.partsForGlobExpr(filepath.Join(s.path, name, "*", "meta", "package.yaml"))
+	appParts, err := s.partsForGlobExpr(filepath.Join(s.path, name+"."+origin, "*", "meta", "snap.yaml"))
+	fmkParts, err := s.partsForGlobExpr(filepath.Join(s.path, name, "*", "meta", "snap.yaml"))
 
 	parts := append(appParts, fmkParts...)
 
@@ -73,7 +73,7 @@ func (s *SnapLocalRepository) Updates() (parts []Part, err error) {
 
 // Installed returns the installed snaps from this repository
 func (s *SnapLocalRepository) Installed() (parts []Part, err error) {
-	globExpr := filepath.Join(s.path, "*", "*", "meta", "package.yaml")
+	globExpr := filepath.Join(s.path, "*", "*", "meta", "snap.yaml")
 	return s.partsForGlobExpr(globExpr)
 }
 
