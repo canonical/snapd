@@ -261,3 +261,26 @@ func (cs *clientSuite) TestClientRemoveSlot(c *check.C) {
 		},
 	})
 }
+
+func (cs *clientSuite) TestClientAddSkillTypeEndpoint(c *check.C) {
+	_ = cs.cli.AddType("type")
+	c.Check(cs.req.Method, check.Equals, "POST")
+	c.Check(cs.req.URL.Path, check.Equals, "/2.0/skills")
+}
+
+func (cs *clientSuite) TestClientAddSkillType(c *check.C) {
+	cs.rsp = `{
+		"type": "sync",
+		"result": { }
+	}`
+	err := cs.cli.AddType("type")
+	c.Check(err, check.IsNil)
+	var body map[string]interface{}
+	decoder := json.NewDecoder(cs.req.Body)
+	err = decoder.Decode(&body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"action": "add-type",
+		"type":   "type",
+	})
+}
