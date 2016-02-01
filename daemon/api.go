@@ -991,7 +991,7 @@ type skillInfo struct {
 	GrantedTo []skillGrant `json:"granted-to"`
 }
 
-// getSkills returns a list of all the skills and which slots use them.
+// getSkills returns a response with a list of all the skills and which slots use them.
 func getSkills(c *Command, r *http.Request) Response {
 	var skills []skillInfo
 	for _, skill := range c.d.skills.AllSkills("") {
