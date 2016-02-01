@@ -2220,6 +2220,29 @@ func (s *apiSuite) TestUnsupportedSkillRequest(c *check.C) {
 	})
 }
 
+func (s *apiSuite) TestMissingSkillAction(c *check.C) {
+	action := &skillAction{}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	skillsCmd.POST(skillsCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 400)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"message": "skill action not specified",
+		},
+		"status":      "Bad Request",
+		"status_code": 400.0,
+		"type":        "error",
+	})
+}
+
 func (s *apiSuite) TestUnsupportedSkillAction(c *check.C) {
 	d := newTestDaemon()
 	action := &skillAction{

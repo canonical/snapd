@@ -1027,8 +1027,11 @@ type skillAction struct {
 func changeSkills(c *Command, r *http.Request) Response {
 	var a skillAction
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&a); err != nil || a.Action == "" {
+	if err := decoder.Decode(&a); err != nil {
 		return BadRequest("cannot decode request body into a skill action: %v", err)
+	}
+	if a.Action == "" {
+		return BadRequest("skill action not specified")
 	}
 	switch a.Action {
 	case "grant":
