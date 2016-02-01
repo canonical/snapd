@@ -1445,7 +1445,7 @@ func (s *apiSuite) TestGrantSkillSuccess(c *check.C) {
 	d.skills.AddType(&skills.TestType{TypeName: "type"})
 	d.skills.AddSkill(&skills.Skill{Snap: "producer", Name: "skill", Type: "type"})
 	d.skills.AddSlot(&skills.Slot{Snap: "consumer", Name: "slot", Type: "type"})
-	action := &SkillAction{
+	action := &skillAction{
 		Action: "grant",
 		Skill: skills.Skill{
 			Snap: "producer",
@@ -1497,7 +1497,7 @@ func (s *apiSuite) TestGrantSkillFailureTypeMismatch(c *check.C) {
 	d.skills.AddType(&skills.TestType{TypeName: "other-type"})
 	d.skills.AddSkill(&skills.Skill{Snap: "producer", Name: "skill", Type: "type"})
 	d.skills.AddSlot(&skills.Slot{Snap: "consumer", Name: "slot", Type: "other-type"})
-	action := &SkillAction{
+	action := &skillAction{
 		Action: "grant",
 		Skill: skills.Skill{
 			Snap: "producer",
@@ -1535,7 +1535,7 @@ func (s *apiSuite) TestGrantSkillFailureNoSuchSkill(c *check.C) {
 	d := newTestDaemon()
 	d.skills.AddType(&skills.TestType{TypeName: "type"})
 	d.skills.AddSlot(&skills.Slot{Snap: "consumer", Name: "slot", Type: "type"})
-	action := &SkillAction{
+	action := &skillAction{
 		Action: "grant",
 		Skill: skills.Skill{
 			Snap: "producer",
@@ -1573,7 +1573,7 @@ func (s *apiSuite) TestGrantSkillFailureNoSuchSlot(c *check.C) {
 	d := newTestDaemon()
 	d.skills.AddType(&skills.TestType{TypeName: "type"})
 	d.skills.AddSkill(&skills.Skill{Snap: "producer", Name: "skill", Type: "type"})
-	action := &SkillAction{
+	action := &skillAction{
 		Action: "grant",
 		Skill: skills.Skill{
 			Snap: "producer",
@@ -1613,7 +1613,7 @@ func (s *apiSuite) TestRevokeSkillSuccess(c *check.C) {
 	d.skills.AddSkill(&skills.Skill{Snap: "producer", Name: "skill", Type: "type"})
 	d.skills.AddSlot(&skills.Slot{Snap: "consumer", Name: "slot", Type: "type"})
 	d.skills.Grant("producer", "skill", "consumer", "slot")
-	action := &SkillAction{
+	action := &skillAction{
 		Action: "revoke",
 		Skill: skills.Skill{
 			Snap: "producer",
@@ -1649,7 +1649,7 @@ func (s *apiSuite) TestRevokeSkillFailureNoSuchSkill(c *check.C) {
 	d := newTestDaemon()
 	d.skills.AddType(&skills.TestType{TypeName: "type"})
 	d.skills.AddSlot(&skills.Slot{Snap: "consumer", Name: "slot", Type: "type"})
-	action := &SkillAction{
+	action := &skillAction{
 		Action: "revoke",
 		Skill: skills.Skill{
 			Snap: "producer",
@@ -1687,7 +1687,7 @@ func (s *apiSuite) TestRevokeSkillFailureNoSuchSlot(c *check.C) {
 	d := newTestDaemon()
 	d.skills.AddType(&skills.TestType{TypeName: "type"})
 	d.skills.AddSkill(&skills.Skill{Snap: "producer", Name: "skill", Type: "type"})
-	action := &SkillAction{
+	action := &skillAction{
 		Action: "revoke",
 		Skill: skills.Skill{
 			Snap: "producer",
@@ -1726,7 +1726,7 @@ func (s *apiSuite) TestRevokeSkillFailureNotGranted(c *check.C) {
 	d.skills.AddType(&skills.TestType{TypeName: "type"})
 	d.skills.AddSkill(&skills.Skill{Snap: "producer", Name: "skill", Type: "type"})
 	d.skills.AddSlot(&skills.Slot{Snap: "consumer", Name: "slot", Type: "type"})
-	action := &SkillAction{
+	action := &skillAction{
 		Action: "revoke",
 		Skill: skills.Skill{
 			Snap: "producer",
@@ -1763,7 +1763,7 @@ func (s *apiSuite) TestRevokeSkillFailureNotGranted(c *check.C) {
 func (s *apiSuite) TestAddSkillSuccess(c *check.C) {
 	d := newTestDaemon()
 	d.skills.AddType(&skills.TestType{TypeName: "type"})
-	action := &SkillAction{
+	action := &skillAction{
 		Action: "add-skill",
 		Skill: skills.Skill{
 			Snap:  "snap",
@@ -1802,7 +1802,7 @@ func (s *apiSuite) TestAddSkillDisabled(c *check.C) {
 		TypeName: "type",
 	})
 	d.enableInternalSkillActions = false
-	action := &SkillAction{
+	action := &skillAction{
 		Action: "add-skill",
 		Skill: skills.Skill{
 			Snap:  "producer",
@@ -1845,7 +1845,7 @@ func (s *apiSuite) TestAddSkillFailure(c *check.C) {
 			return fmt.Errorf("required attribute missing")
 		},
 	})
-	action := &SkillAction{
+	action := &skillAction{
 		Action: "add-skill",
 		Skill: skills.Skill{
 			Snap:  "snap",
@@ -1884,7 +1884,7 @@ func (s *apiSuite) TestRemoveSkillSuccess(c *check.C) {
 	d := newTestDaemon()
 	d.skills.AddType(&skills.TestType{TypeName: "type"})
 	d.skills.AddSkill(&skills.Skill{Snap: "producer", Name: "skill", Type: "type"})
-	action := &SkillAction{
+	action := &skillAction{
 		Action: "remove-skill",
 		Skill: skills.Skill{
 			Snap: "producer",
@@ -1916,7 +1916,7 @@ func (s *apiSuite) TestRemoveSkillDisabled(c *check.C) {
 	d.skills.AddType(&skills.TestType{TypeName: "type"})
 	d.skills.AddSkill(&skills.Skill{Snap: "producer", Name: "skill", Type: "type"})
 	d.enableInternalSkillActions = false
-	action := &SkillAction{
+	action := &skillAction{
 		Action: "remove-skill",
 		Skill: skills.Skill{
 			Snap: "producer",
@@ -1951,7 +1951,7 @@ func (s *apiSuite) TestRemoveSkillFailure(c *check.C) {
 	d.skills.AddSkill(&skills.Skill{Snap: "producer", Name: "skill", Type: "type"})
 	d.skills.AddSlot(&skills.Slot{Snap: "consumer", Name: "slot", Type: "type"})
 	d.skills.Grant("producer", "skill", "consumer", "slot")
-	action := &SkillAction{
+	action := &skillAction{
 		Action: "remove-skill",
 		Skill: skills.Skill{
 			Snap: "producer",
@@ -1983,7 +1983,7 @@ func (s *apiSuite) TestRemoveSkillFailure(c *check.C) {
 func (s *apiSuite) TestAddSlotSuccess(c *check.C) {
 	d := newTestDaemon()
 	d.skills.AddType(&skills.TestType{TypeName: "type"})
-	action := &SkillAction{
+	action := &skillAction{
 		Action: "add-slot",
 		Slot: skills.Slot{
 			Snap:  "snap",
@@ -2022,7 +2022,7 @@ func (s *apiSuite) TestAddSlotDisabled(c *check.C) {
 		TypeName: "type",
 	})
 	d.enableInternalSkillActions = false
-	action := &SkillAction{
+	action := &skillAction{
 		Action: "add-slot",
 		Slot: skills.Slot{
 			Snap:  "consumer",
@@ -2065,7 +2065,7 @@ func (s *apiSuite) TestAddSlotFailure(c *check.C) {
 			return fmt.Errorf("required attribute missing")
 		},
 	})
-	action := &SkillAction{
+	action := &skillAction{
 		Action: "add-slot",
 		Slot: skills.Slot{
 			Snap:  "snap",
@@ -2104,7 +2104,7 @@ func (s *apiSuite) TestRemoveSlotSuccess(c *check.C) {
 	d := newTestDaemon()
 	d.skills.AddType(&skills.TestType{TypeName: "type"})
 	d.skills.AddSlot(&skills.Slot{Snap: "consumer", Name: "slot", Type: "type"})
-	action := &SkillAction{
+	action := &skillAction{
 		Action: "remove-slot",
 		Slot: skills.Slot{
 			Snap: "consumer",
@@ -2136,7 +2136,7 @@ func (s *apiSuite) TestRemoveSlotDisabled(c *check.C) {
 	d.skills.AddType(&skills.TestType{TypeName: "type"})
 	d.skills.AddSlot(&skills.Slot{Snap: "consumer", Name: "slot", Type: "type"})
 	d.enableInternalSkillActions = false
-	action := &SkillAction{
+	action := &skillAction{
 		Action: "remove-slot",
 		Slot: skills.Slot{
 			Snap: "consumer",
@@ -2171,7 +2171,7 @@ func (s *apiSuite) TestRemoveSlotFailure(c *check.C) {
 	d.skills.AddSkill(&skills.Skill{Snap: "producer", Name: "skill", Type: "type"})
 	d.skills.AddSlot(&skills.Slot{Snap: "consumer", Name: "slot", Type: "type"})
 	d.skills.Grant("producer", "skill", "consumer", "slot")
-	action := &SkillAction{
+	action := &skillAction{
 		Action: "remove-slot",
 		Slot: skills.Slot{
 			Snap: "consumer",
@@ -2222,7 +2222,7 @@ func (s *apiSuite) TestUnsupportedSkillRequest(c *check.C) {
 
 func (s *apiSuite) TestUnsupportedSkillAction(c *check.C) {
 	d := newTestDaemon()
-	action := &SkillAction{
+	action := &skillAction{
 		Action: "foo",
 	}
 	text, err := json.Marshal(action)

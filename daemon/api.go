@@ -1013,8 +1013,8 @@ func getSkills(c *Command, r *http.Request) Response {
 	return SyncResponse(skills)
 }
 
-// SkillAction is an action performed on the skill system.
-type SkillAction struct {
+// skillAction is an action performed on the skill system.
+type skillAction struct {
 	Action string       `json:"action"`
 	Skill  skills.Skill `json:"skill,omitempty"`
 	Slot   skills.Slot  `json:"slot,omitempty"`
@@ -1025,7 +1025,7 @@ type SkillAction struct {
 // When enableInternalSkillActions is true skills and slots can also be
 // explicitly added and removed.
 func changeSkills(c *Command, r *http.Request) Response {
-	var a SkillAction
+	var a skillAction
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&a); err != nil || a.Action == "" {
 		return BadRequest("cannot decode request body into a skill action: %v", err)
