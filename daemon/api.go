@@ -822,7 +822,7 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 	return AsyncResponse(c.d.AddTask(func() interface{} {
 		defer os.Remove(tmpf.Name())
 
-		part, err := newSnap(tmpf.Name(), snappy.SideloadedOrigin, unsignedOk)
+		_, err := newSnap(tmpf.Name(), snappy.SideloadedOrigin, unsignedOk)
 		if err != nil {
 			return err
 		}
@@ -833,7 +833,12 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 		}
 		defer lock.Unlock()
 
-		name, err := part.Install(&progress.NullProgress{}, 0)
+		var flags snappy.InstallFlags
+		if unsignedOk {
+			flags |= snappy.AllowUnauthenticated
+		}
+		overlord := &snappy.Overlord{}
+		name, err := overlord.Install(tmpf.Name(), snappy.SideloadedOrigin, flags, &progress.NullProgress{})
 		if err != nil {
 			return err
 		}

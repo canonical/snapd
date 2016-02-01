@@ -202,21 +202,16 @@ func (s *RemoteSnapPart) Install(pbar progress.Meter, flags InstallFlags) (strin
 		return "", err
 	}
 
-	unauthOk := (flags & AllowUnauthenticated) != 0
-	snapFile, err := NewSnapFile(downloadedSnap, s.Origin(), unauthOk)
+	sf, err := (&Overlord{}).Install(downloadedSnap, s.Origin(), flags, pbar)
 	if err != nil {
 		return "", err
 	}
-	return snapFile.Install(pbar, flags)
+
+	return sf.Name(), nil
 }
 
 // SetActive sets the snap active
 func (s *RemoteSnapPart) SetActive(bool, progress.Meter) error {
-	return ErrNotInstalled
-}
-
-// Uninstall remove the snap from the system
-func (s *RemoteSnapPart) Uninstall(progress.Meter) error {
 	return ErrNotInstalled
 }
 

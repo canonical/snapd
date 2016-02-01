@@ -21,6 +21,7 @@ package client
 
 import (
 	"io"
+	"net/url"
 )
 
 // SetDoer sets the client's doer to the given one
@@ -29,6 +30,6 @@ func (client *Client) SetDoer(d doer) {
 }
 
 // Do does do.
-func (client *Client) Do(method, path string, body io.Reader, v interface{}) error {
-	return client.do(method, path, body, v)
+func (client *Client) Do(method, path string, query url.Values, body io.Reader, v interface{}) error {
+	return client.do(method, path, query, body, v)
 }

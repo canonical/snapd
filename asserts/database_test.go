@@ -183,7 +183,22 @@ func (chks *checkSuite) TestCheckNoPubKey(c *C) {
 	c.Assert(err, IsNil)
 
 	err = db.Check(chks.a)
-	c.Assert(err, ErrorMatches, "no valid known public key verifies assertion")
+	c.Assert(err, ErrorMatches, `no matching public key "[a-f0-9]+" for signature by "canonical"`)
+}
+
+func (chks *checkSuite) TestCheckExpiredPubKey(c *C) {
+	trustedKey := testPrivKey0
+
+	cfg := &asserts.DatabaseConfig{
+		Backstore:      chks.bs,
+		KeypairManager: asserts.NewMemoryKeypairManager(),
+		TrustedKeys:    []*asserts.AccountKey{asserts.ExpiredAccountKeyForTest("canonical", &trustedKey.PublicKey)},
+	}
+	db, err := asserts.OpenDatabase(cfg)
+	c.Assert(err, IsNil)
+
+	err = db.Check(chks.a)
+	c.Assert(err, ErrorMatches, `assertion is signed with expired public key "[a-f0-9]+" from "canonical"`)
 }
 
 func (chks *checkSuite) TestCheckForgery(c *C) {
@@ -480,4 +495,62 @@ func (safs *signAddFindSuite) TestFindMany(c *C) {
 	})
 	c.Assert(res, HasLen, 0)
 	c.Check(err, Equals, asserts.ErrNotFound)
+}
+
+func (safs *signAddFindSuite) TestFindFindsTrustedAccountKeys(c *C) {
+	pk1 := asserts.OpenPGPPrivateKey(testPrivKey1)
+	pubKey1Encoded, err := asserts.EncodePublicKey(pk1.PublicKey())
+	c.Assert(err, IsNil)
+
+	now := time.Now().UTC()
+	headers := map[string]string{
+		"authority-id":           "canonical",
+		"account-id":             "acc-id1",
+		"public-key-id":          pk1.PublicKey().ID(),
+		"public-key-fingerprint": pk1.PublicKey().Fingerprint(),
+		"since":                  now.Format(time.RFC3339),
+		"until":                  now.AddDate(1, 0, 0).Format(time.RFC3339),
+	}
+	accKey, err := safs.signingDB.Sign(asserts.AccountKeyType, headers, []byte(pubKey1Encoded), safs.signingKeyID)
+	c.Assert(err, IsNil)
+
+	err = safs.db.Add(accKey)
+	c.Assert(err, IsNil)
+
+	// find the trusted key as well
+	tKey, err := safs.db.Find(asserts.AccountKeyType, map[string]string{
+		"account-id":    "canonical",
+		"public-key-id": safs.signingKeyID,
+	})
+	c.Assert(err, IsNil)
+	c.Assert(tKey.(*asserts.AccountKey).AccountID(), Equals, "canonical")
+	c.Assert(tKey.(*asserts.AccountKey).PublicKeyID(), Equals, safs.signingKeyID)
+
+	// find trusted and untrusted
+	accKeys, err := safs.db.FindMany(asserts.AccountKeyType, nil)
+	c.Assert(err, IsNil)
+	c.Check(accKeys, HasLen, 2)
+}
+
+func (safs *signAddFindSuite) TestDontLetAddConfusinglyAssertionClashingWithTrustedOnes(c *C) {
+	// trusted
+	pubKey0, err := safs.signingDB.PublicKey("canonical", safs.signingKeyID)
+	c.Assert(err, IsNil)
+	pubKey0Encoded, err := asserts.EncodePublicKey(pubKey0)
+	c.Assert(err, IsNil)
+
+	now := time.Now().UTC()
+	headers := map[string]string{
+		"authority-id":           "canonical",
+		"account-id":             "canonical",
+		"public-key-id":          safs.signingKeyID,
+		"public-key-fingerprint": pubKey0.Fingerprint(),
+		"since":                  now.Format(time.RFC3339),
+		"until":                  now.AddDate(1, 0, 0).Format(time.RFC3339),
+	}
+	tKey, err := safs.signingDB.Sign(asserts.AccountKeyType, headers, []byte(pubKey0Encoded), safs.signingKeyID)
+	c.Assert(err, IsNil)
+
+	err = safs.db.Add(tKey)
+	c.Check(err, ErrorMatches, `cannot add "account-key" assertion with primary key clashing with a trusted assertion: .*`)
 }

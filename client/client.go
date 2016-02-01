@@ -55,12 +55,13 @@ func New() *Client {
 // raw performs a request and returns the resulting http.Response and
 // error you usually only need to call this directly if you expect the
 // response to not be JSON, otherwise you'd call Do(...) instead.
-func (client *Client) raw(method, path string, body io.Reader) (*http.Response, error) {
+func (client *Client) raw(method, path string, query url.Values, body io.Reader) (*http.Response, error) {
 	// fake a url to keep http.Client happy
 	u := url.URL{
-		Scheme: "http",
-		Host:   "localhost",
-		Path:   path,
+		Scheme:   "http",
+		Host:     "localhost",
+		Path:     path,
+		RawQuery: query.Encode(),
 	}
 	req, err := http.NewRequest(method, u.String(), body)
 	if err != nil {
@@ -73,8 +74,8 @@ func (client *Client) raw(method, path string, body io.Reader) (*http.Response, 
 // do performs a request and decodes the resulting json into the given
 // value. It's low-level, for testing/experimenting only; you should
 // usually use a higher level interface that builds on this.
-func (client *Client) do(method, path string, body io.Reader, v interface{}) error {
-	rsp, err := client.raw(method, path, body)
+func (client *Client) do(method, path string, query url.Values, body io.Reader, v interface{}) error {
+	rsp, err := client.raw(method, path, query, body)
 	if err != nil {
 		return err
 	}
@@ -91,10 +92,10 @@ func (client *Client) do(method, path string, body io.Reader, v interface{}) err
 // doSync performs a request to the given path using the specified HTTP method.
 // It expects a "sync" response from the API and on success decodes the JSON
 // response payload into the given value.
-func (client *Client) doSync(method, path string, body io.Reader, v interface{}) error {
+func (client *Client) doSync(method, path string, query url.Values, body io.Reader, v interface{}) error {
 	var rsp response
 
-	if err := client.do(method, path, body, &rsp); err != nil {
+	if err := client.do(method, path, query, body, &rsp); err != nil {
 		return fmt.Errorf("failed to communicate with server: %s", err)
 	}
 	if err := rsp.err(); err != nil {
@@ -155,7 +156,7 @@ func (rsp *response) err() error {
 func (client *Client) SysInfo() (*SysInfo, error) {
 	var sysInfo SysInfo
 
-	if err := client.doSync("GET", "/2.0/system-info", nil, &sysInfo); err != nil {
+	if err := client.doSync("GET", "/2.0/system-info", nil, nil, &sysInfo); err != nil {
 		return nil, fmt.Errorf("bad sysinfo result: %v", err)
 	}
 

@@ -42,8 +42,9 @@ import (
 )
 
 type SnapTestSuite struct {
-	tempdir string
-	secbase string
+	tempdir  string
+	secbase  string
+	overlord Overlord
 }
 
 var _ = Suite(&SnapTestSuite{})
@@ -779,10 +780,7 @@ architectures:
 `
 
 	snapPkg := makeTestSnapPackage(c, packageHello)
-	part, err := NewSnapFile(snapPkg, "origin", true)
-	c.Assert(err, IsNil)
-
-	_, err = part.Install(&MockProgressMeter{}, 0)
+	_, err := s.overlord.Install(snapPkg, "origin", 0, &MockProgressMeter{})
 	errorMsg := fmt.Sprintf("package's supported architectures (yadayada, blahblah) is incompatible with this system (%s)", arch.UbuntuArchitecture())
 	c.Assert(err.Error(), Equals, errorMsg)
 }
@@ -792,7 +790,6 @@ func (s *SnapTestSuite) TestRemoteSnapErrors(c *C) {
 
 	c.Assert(snap.SetActive(true, nil), Equals, ErrNotInstalled)
 	c.Assert(snap.SetActive(false, nil), Equals, ErrNotInstalled)
-	c.Assert(snap.Uninstall(nil), Equals, ErrNotInstalled)
 }
 
 func (s *SnapTestSuite) TestServicesWithPorts(c *C) {
@@ -980,7 +977,7 @@ type: gadget
 	c.Assert(err, IsNil)
 	parts := FindSnapsByName("hello-app", installed)
 	c.Assert(parts, HasLen, 1)
-	c.Check(parts[0].Uninstall(p), Equals, ErrPackageNotRemovable)
+	c.Check(s.overlord.Uninstall(parts[0].(*SnapPart), p), Equals, ErrPackageNotRemovable)
 }
 
 var securityBinarySnapYaml = []byte(`name: test-snap
@@ -1079,7 +1076,7 @@ func (s *SnapTestSuite) TestDetectsAlreadyInstalled(c *C) {
 
 	yaml, err := parseSnapYamlData([]byte(data), false)
 	c.Assert(err, IsNil)
-	c.Check(yaml.checkForPackageInstalled("otherns"), ErrorMatches, ".*is already installed with origin.*")
+	c.Check(checkForPackageInstalled(yaml, "otherns"), ErrorMatches, ".*is already installed with origin.*")
 }
 
 func (s *SnapTestSuite) TestIgnoresAlreadyInstalledSameOrigin(c *C) {
@@ -1092,7 +1089,7 @@ func (s *SnapTestSuite) TestIgnoresAlreadyInstalledSameOrigin(c *C) {
 
 	yaml, err := parseSnapYamlData([]byte(data), false)
 	c.Assert(err, IsNil)
-	c.Check(yaml.checkForPackageInstalled(testOrigin), IsNil)
+	c.Check(checkForPackageInstalled(yaml, testOrigin), IsNil)
 }
 
 func (s *SnapTestSuite) TestIgnoresAlreadyInstalledFrameworkSameOrigin(c *C) {
@@ -1103,7 +1100,7 @@ func (s *SnapTestSuite) TestIgnoresAlreadyInstalledFrameworkSameOrigin(c *C) {
 
 	yaml, err := parseSnapYamlData([]byte(data), false)
 	c.Assert(err, IsNil)
-	c.Check(yaml.checkForPackageInstalled(testOrigin), IsNil)
+	c.Check(checkForPackageInstalled(yaml, testOrigin), IsNil)
 }
 
 func (s *SnapTestSuite) TestDetectsAlreadyInstalledFramework(c *C) {
@@ -1114,7 +1111,7 @@ func (s *SnapTestSuite) TestDetectsAlreadyInstalledFramework(c *C) {
 
 	yaml, err := parseSnapYamlData([]byte(data), false)
 	c.Assert(err, IsNil)
-	c.Check(yaml.checkForPackageInstalled("otherns"), ErrorMatches, ".*is already installed with origin.*")
+	c.Check(checkForPackageInstalled(yaml, "otherns"), ErrorMatches, ".*is already installed with origin.*")
 }
 
 func (s *SnapTestSuite) TestUsesStoreMetaData(c *C) {
@@ -1148,7 +1145,7 @@ frameworks:
 `)
 	yaml, err := parseSnapYamlData(data, false)
 	c.Assert(err, IsNil)
-	err = yaml.checkForFrameworks()
+	err = checkForFrameworks(yaml)
 	c.Assert(err, ErrorMatches, `missing frameworks: missing, also-missing`)
 }
 
@@ -1233,7 +1230,7 @@ frameworks:
 	c.Assert(err, IsNil)
 
 	part := &SnapPart{m: yaml, origin: testOrigin}
-	err = part.Uninstall(new(MockProgressMeter))
+	err = s.overlord.Uninstall(part, new(MockProgressMeter))
 	c.Check(err, ErrorMatches, `framework still in use by: foo`)
 }
 
