@@ -319,7 +319,13 @@ func (r *Repository) Revoke(skillSnapName, skillName, slotSnapName, slotName str
 			skillName, skillSnapName, slotName, slotSnapName)
 	}
 	delete(r.slotSkills[slot], skill)
+	if len(r.slotSkills[slot]) == 0 {
+		delete(r.slotSkills, slot)
+	}
 	delete(r.skillSlots[skill], slot)
+	if len(r.skillSlots[skill]) == 0 {
+		delete(r.skillSlots, skill)
+	}
 	return nil
 }
 
