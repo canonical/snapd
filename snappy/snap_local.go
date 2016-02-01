@@ -35,7 +35,6 @@ import (
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/remote"
-	"github.com/ubuntu-core/snappy/snap/squashfs"
 )
 
 // SnapPart represents a generic snap type
@@ -279,11 +278,11 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 	}
 
 	// add the "binaries:" from the snap.yaml
-	if err := s.m.addPackageBinaries(s.basedir); err != nil {
+	if err := addPackageBinaries(s.m, s.basedir); err != nil {
 		return err
 	}
 	// add the "services:" from the snap.yaml
-	if err := s.m.addPackageServices(s.basedir, inhibitHooks, inter); err != nil {
+	if err := addPackageServices(s.m, s.basedir, inhibitHooks, inter); err != nil {
 		return err
 	}
 
@@ -331,11 +330,11 @@ func (s *SnapPart) deactivate(inhibitHooks bool, inter interacter) error {
 	}
 
 	// remove generated services, binaries, security policy
-	if err := s.m.removePackageBinaries(s.basedir); err != nil {
+	if err := removePackageBinaries(s.m, s.basedir); err != nil {
 		return err
 	}
 
-	if err := s.m.removePackageServices(s.basedir, inter); err != nil {
+	if err := removePackageServices(s.m, s.basedir, inter); err != nil {
 		return err
 	}
 
@@ -357,72 +356,6 @@ func (s *SnapPart) deactivate(inhibitHooks bool, inter interacter) error {
 	currentDataSymlink := filepath.Join(dirs.SnapDataDir, QualifiedName(s), "current")
 	if err := os.Remove(currentDataSymlink); err != nil && !os.IsNotExist(err) {
 		logger.Noticef("Failed to remove %q: %v", currentDataSymlink, err)
-	}
-
-	return nil
-}
-
-// Uninstall remove the snap from the system
-func (s *SnapPart) Uninstall(pb progress.Meter) (err error) {
-	// Gadget snaps should not be removed as they are a key
-	// building block for Gadgets. Prunning non active ones
-	// is acceptible.
-	if s.m.Type == snap.TypeGadget && s.IsActive() {
-		return ErrPackageNotRemovable
-	}
-
-	// You never want to remove an active kernel or OS
-	if (s.m.Type == snap.TypeKernel || s.m.Type == snap.TypeOS) && s.IsActive() {
-		return ErrPackageNotRemovable
-	}
-
-	if IsBuiltInSoftware(s.Name()) && s.IsActive() {
-		return ErrPackageNotRemovable
-	}
-
-	deps, err := s.DependentNames()
-	if err != nil {
-		return err
-	}
-	if len(deps) != 0 {
-		return ErrFrameworkInUse(deps)
-	}
-
-	if err := s.remove(pb); err != nil {
-		return err
-	}
-
-	return RemoveAllHWAccess(QualifiedName(s))
-}
-
-func (s *SnapPart) remove(inter interacter) (err error) {
-	if err := s.deactivate(false, inter); err != nil && err != ErrSnapNotActive {
-		return err
-	}
-
-	// ensure mount unit stops
-	if err := s.m.removeSquashfsMount(s.basedir, inter); err != nil {
-		return err
-	}
-
-	err = os.RemoveAll(s.basedir)
-	if err != nil {
-		return err
-	}
-
-	// best effort(?)
-	os.Remove(filepath.Dir(s.basedir))
-
-	// remove the snap
-	if err := os.RemoveAll(squashfs.BlobPath(s.basedir)); err != nil {
-		return err
-	}
-
-	// remove the kernel assets (if any)
-	if s.m.Type == snap.TypeKernel {
-		if err := removeKernelAssets(s, inter); err != nil {
-			logger.Noticef("removing kernel assets failed with %s", err)
-		}
 	}
 
 	return nil

@@ -33,20 +33,20 @@ type Repository struct {
 	m     sync.Mutex
 	types map[string]Type
 	// Indexed by [snapName][skillName]
-	skills          map[string]map[string]*Skill
-	slots           map[string]map[string]*Slot
-	skillUsedBySlot map[*Slot]map[*Skill]bool
-	slotsUsingSkill map[*Skill]map[*Slot]bool
+	skills     map[string]map[string]*Skill
+	slots      map[string]map[string]*Slot
+	slotSkills map[*Slot]map[*Skill]bool
+	skillSlots map[*Skill]map[*Slot]bool
 }
 
 // NewRepository creates an empty skill repository.
 func NewRepository() *Repository {
 	return &Repository{
-		types:           make(map[string]Type),
-		skills:          make(map[string]map[string]*Skill),
-		slots:           make(map[string]map[string]*Slot),
-		skillUsedBySlot: make(map[*Slot]map[*Skill]bool),
-		slotsUsingSkill: make(map[*Skill]map[*Slot]bool),
+		types:      make(map[string]Type),
+		skills:     make(map[string]map[string]*Skill),
+		slots:      make(map[string]map[string]*Slot),
+		slotSkills: make(map[*Slot]map[*Skill]bool),
+		skillSlots: make(map[*Skill]map[*Slot]bool),
 	}
 }
 
@@ -158,7 +158,7 @@ func (r *Repository) RemoveSkill(snapName, skillName string) error {
 		return fmt.Errorf("cannot remove skill %q from snap %q, no such skill", skillName, snapName)
 	}
 	// Ensure that the skill is not used by any slot
-	if len(r.slotsUsingSkill[skill]) > 0 {
+	if len(r.skillSlots[skill]) > 0 {
 		return fmt.Errorf("cannot remove skill %q from snap %q, it is still granted", skillName, snapName)
 	}
 	delete(r.skills[snapName], skillName)
@@ -225,13 +225,13 @@ func (r *Repository) AddSlot(slot *Slot) error {
 	// TODO: ensure that apps are correct
 	t := r.types[slot.Type]
 	if t == nil {
-		return fmt.Errorf("cannot add slot, skill type %q is not known", slot.Type)
+		return fmt.Errorf("cannot add skill slot, skill type %q is not known", slot.Type)
 	}
 	if err := t.SanitizeSlot(slot); err != nil {
 		return fmt.Errorf("cannot add slot, integrity check failure: %v", err)
 	}
 	if _, ok := r.slots[slot.Snap][slot.Name]; ok {
-		return fmt.Errorf("cannot add slot, snap %q already has slot %q", slot.Snap, slot.Name)
+		return fmt.Errorf("cannot add skill slot, snap %q already has slot %q", slot.Snap, slot.Name)
 	}
 	if r.slots[slot.Snap] == nil {
 		r.slots[slot.Snap] = make(map[string]*Slot)
@@ -250,10 +250,10 @@ func (r *Repository) RemoveSlot(snapName, slotName string) error {
 	// Ensure that such slot exists
 	slot := r.slots[snapName][slotName]
 	if slot == nil {
-		return fmt.Errorf("cannot remove slot %q from snap %q, no such slot", slotName, snapName)
+		return fmt.Errorf("cannot remove skill slot %q from snap %q, no such slot", slotName, snapName)
 	}
 	// Ensure that the slot is not using any skills
-	if len(r.skillUsedBySlot[slot]) > 0 {
+	if len(r.slotSkills[slot]) > 0 {
 		return fmt.Errorf("cannot remove slot %q from snap %q, it still uses granted skills", slotName, snapName)
 	}
 	delete(r.slots[snapName], slotName)
@@ -281,23 +281,23 @@ func (r *Repository) Grant(skillSnapName, skillName, slotSnapName, slotName stri
 	}
 	// Ensure that skill and slot are compatible
 	if slot.Type != skill.Type {
-		return fmt.Errorf("cannot grant skill %q from snap %q to slot %q from snap %q, skill type %q doesn't match slot type %q",
-			skillName, skillSnapName, slotName, slotSnapName, skill.Type, slot.Type)
+		return fmt.Errorf(`cannot grant skill "%s:%s" (skill type %q) to "%s:%s" (skill type %q)`,
+			skillSnapName, skillName, skill.Type, slotSnapName, slotName, slot.Type)
 	}
 	// Ensure that slot and skill are not connected yet
-	if r.skillUsedBySlot[slot][skill] {
-		return fmt.Errorf("cannot grant skill %q from snap %q to slot %q from snap %q twice",
-			skillName, skillSnapName, slotName, slotSnapName)
+	if r.slotSkills[slot][skill] {
+		// But if they are don't treat this as an error.
+		return nil
 	}
 	// Grant the skill
-	if r.skillUsedBySlot[slot] == nil {
-		r.skillUsedBySlot[slot] = make(map[*Skill]bool)
+	if r.slotSkills[slot] == nil {
+		r.slotSkills[slot] = make(map[*Skill]bool)
 	}
-	if r.slotsUsingSkill[skill] == nil {
-		r.slotsUsingSkill[skill] = make(map[*Slot]bool)
+	if r.skillSlots[skill] == nil {
+		r.skillSlots[skill] = make(map[*Slot]bool)
 	}
-	r.skillUsedBySlot[slot][skill] = true
-	r.slotsUsingSkill[skill][slot] = true
+	r.slotSkills[slot][skill] = true
+	r.skillSlots[skill][slot] = true
 	return nil
 }
 
@@ -317,12 +317,18 @@ func (r *Repository) Revoke(skillSnapName, skillName, slotSnapName, slotName str
 		return fmt.Errorf("cannot revoke skill from slot %q from snap %q, no such slot", slotName, slotSnapName)
 	}
 	// Ensure that slot and skill are connected
-	if !r.skillUsedBySlot[slot][skill] {
+	if !r.slotSkills[slot][skill] {
 		return fmt.Errorf("cannot revoke skill %q from snap %q from slot %q from snap %q, it is not granted",
 			skillName, skillSnapName, slotName, slotSnapName)
 	}
-	delete(r.skillUsedBySlot[slot], skill)
-	delete(r.slotsUsingSkill[skill], slot)
+	delete(r.slotSkills[slot], skill)
+	if len(r.slotSkills[slot]) == 0 {
+		delete(r.slotSkills, slot)
+	}
+	delete(r.skillSlots[skill], slot)
+	if len(r.skillSlots[skill]) == 0 {
+		delete(r.skillSlots, skill)
+	}
 	return nil
 }
 
@@ -333,7 +339,7 @@ func (r *Repository) GrantedTo(snapName string) map[*Slot][]*Skill {
 
 	result := make(map[*Slot][]*Skill)
 	for _, slot := range r.slots[snapName] {
-		for skill := range r.skillUsedBySlot[slot] {
+		for skill := range r.slotSkills[slot] {
 			result[slot] = append(result[slot], skill)
 		}
 		sort.Sort(bySkillSnapAndName(result[slot]))
@@ -348,7 +354,7 @@ func (r *Repository) GrantedBy(snapName string) map[*Skill][]*Slot {
 
 	result := make(map[*Skill][]*Slot)
 	for _, skill := range r.skills[snapName] {
-		for slot := range r.slotsUsingSkill[skill] {
+		for slot := range r.skillSlots[skill] {
 			result[skill] = append(result[skill], slot)
 		}
 		sort.Sort(bySlotSnapAndName(result[skill]))
@@ -366,7 +372,7 @@ func (r *Repository) UsersOf(snapName, skillName string) []*Slot {
 		return nil
 	}
 	var result []*Slot
-	for slot := range r.slotsUsingSkill[skill] {
+	for slot := range r.skillSlots[skill] {
 		result = append(result, slot)
 	}
 	sort.Sort(bySlotSnapAndName(result))

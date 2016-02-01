@@ -34,7 +34,6 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/policy"
-	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/squashfs"
 	"github.com/ubuntu-core/snappy/systemd"
@@ -220,7 +219,7 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 	yamlPath := filepath.Join(instDir, "meta", "snap.yaml")
 	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
 	c.Assert(err, IsNil)
-	err = part.remove(&MockProgressMeter{})
+	err = (&Overlord{}).Uninstall(part, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 
 	_, err = os.Stat(instDir)
@@ -292,7 +291,7 @@ func (s *SnapTestSuite) TestSnapRemovePackagePolicy(c *C) {
 	yamlPath := filepath.Join(appdir, "meta", "snap.yaml")
 	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
 	c.Assert(err, IsNil)
-	err = part.remove(&MockProgressMeter{})
+	err = (&Overlord{}).Uninstall(part, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 }
 
@@ -586,7 +585,7 @@ apps:
 	yamlPath := filepath.Join(snapDir, "meta", "snap.yaml")
 	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
 	c.Assert(err, IsNil)
-	err = part.remove(&progress.NullProgress{})
+	err = (&Overlord{}).Uninstall(part, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	c.Assert(helpers.FileExists(servicesFile), Equals, false)
 	c.Assert(helpers.FileExists(snapDir), Equals, false)
@@ -748,7 +747,7 @@ func (s *SnapTestSuite) TestAddPackageServicesStripsGlobalRootdir(c *C) {
 	m, err := parseSnapYamlFile(yamlFile)
 	c.Assert(err, IsNil)
 	baseDir := filepath.Dir(filepath.Dir(yamlFile))
-	err = m.addPackageServices(baseDir, false, nil)
+	err = addPackageServices(m, baseDir, false, nil)
 	c.Assert(err, IsNil)
 
 	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/systemd/system/hello-app_svc1_1.10.service"))
@@ -777,7 +776,7 @@ apps:
 	m, err := parseSnapYamlFile(yamlFile)
 	c.Assert(err, IsNil)
 	baseDir := filepath.Dir(filepath.Dir(yamlFile))
-	err = m.addPackageServices(baseDir, false, nil)
+	err = addPackageServices(m, baseDir, false, nil)
 	c.Assert(err, IsNil)
 
 	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/dbus-1/system.d/foo_bar_1.conf"))
@@ -799,7 +798,7 @@ apps:
 	m, err := parseSnapYamlFile(yamlFile)
 	c.Assert(err, IsNil)
 	baseDir := filepath.Dir(filepath.Dir(yamlFile))
-	err = m.addPackageServices(baseDir, false, nil)
+	err = addPackageServices(m, baseDir, false, nil)
 	c.Assert(err, IsNil)
 
 	_, err = ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/dbus-1/system.d/foo_bar_1.conf"))
@@ -817,7 +816,7 @@ func (s *SnapTestSuite) TestAddPackageBinariesStripsGlobalRootdir(c *C) {
 	m, err := parseSnapYamlFile(yamlFile)
 	c.Assert(err, IsNil)
 	baseDir := filepath.Dir(filepath.Dir(yamlFile))
-	err = m.addPackageBinaries(baseDir)
+	err = addPackageBinaries(m, baseDir)
 	c.Assert(err, IsNil)
 
 	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/snaps/bin/hello-app.hello"))
@@ -1077,7 +1076,7 @@ apps:
 	m, err := parseSnapYamlFile(yamlFile)
 	c.Assert(err, IsNil)
 	inter := &MockProgressMeter{}
-	c.Check(m.removePackageServices(filepath.Dir(filepath.Dir(yamlFile)), inter), IsNil)
+	c.Check(removePackageServices(m, filepath.Dir(filepath.Dir(yamlFile)), inter), IsNil)
 	c.Assert(len(inter.notified) > 0, Equals, true)
 	c.Check(inter.notified[len(inter.notified)-1], Equals, "wat_wat_42.service refused to stop, killing.")
 	c.Assert(len(sysdLog) >= 3, Equals, true)
@@ -1191,7 +1190,7 @@ apps:
 	yamlPath := filepath.Join(snapDir, "meta", "snap.yaml")
 	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
 	c.Assert(err, IsNil)
-	err = part.remove(&MockProgressMeter{})
+	err = (&Overlord{}).Uninstall(part, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	c.Assert(helpers.FileExists(binaryWrapper), Equals, false)
 	c.Assert(helpers.FileExists(snapDir), Equals, false)

@@ -465,7 +465,7 @@ func (s *RepositorySuite) TestSlotFailsWhenSlotDoesntExist(c *C) {
 
 func (s *RepositorySuite) TestAddSlotFailsWhenTypeIsUnknown(c *C) {
 	err := s.emptyRepo.AddSlot(s.slot)
-	c.Assert(err, ErrorMatches, `cannot add slot, skill type "type" is not known`)
+	c.Assert(err, ErrorMatches, `cannot add skill slot, skill type "type" is not known`)
 }
 
 func (s *RepositorySuite) TestAddSlotFailsWhenSlotNameIsInvalid(c *C) {
@@ -490,7 +490,7 @@ func (s *RepositorySuite) TestAddSlotFailsForDuplicates(c *C) {
 	c.Assert(err, IsNil)
 	// Adding the slot again fails with appropriate error
 	err = s.testRepo.AddSlot(s.slot)
-	c.Assert(err, ErrorMatches, `cannot add slot, snap "consumer" already has slot "slot"`)
+	c.Assert(err, ErrorMatches, `cannot add skill slot, snap "consumer" already has slot "slot"`)
 }
 
 func (s *RepositorySuite) TestAddSlotFailsWithUnsanitizedSlot(c *C) {
@@ -532,7 +532,7 @@ func (s *RepositorySuite) TestRemoveSlotFailsWhenSlotDoesntExist(c *C) {
 	// Removing a slot that doesn't exist returns an appropriate error
 	err := s.testRepo.RemoveSlot(s.slot.Snap, s.slot.Name)
 	c.Assert(err, Not(IsNil))
-	c.Assert(err, ErrorMatches, `cannot remove slot "slot" from snap "consumer", no such slot`)
+	c.Assert(err, ErrorMatches, `cannot remove skill slot "slot" from snap "consumer", no such slot`)
 }
 
 func (s *RepositorySuite) TestRemoveSlotFailsWhenSlotIsBusy(c *C) {
@@ -568,16 +568,20 @@ func (s *RepositorySuite) TestGrantFailsWhenSlotDoesNotExist(c *C) {
 	c.Assert(err, ErrorMatches, `cannot grant skill to slot "slot" from snap "consumer", no such slot`)
 }
 
-func (s *RepositorySuite) TestGrantFailsWhenIdenticalGrantExists(c *C) {
+func (s *RepositorySuite) TestGrantSucceedsWhenIdenticalGrantExists(c *C) {
 	err := s.testRepo.AddSkill(s.skill)
 	c.Assert(err, IsNil)
 	err = s.testRepo.AddSlot(s.slot)
 	c.Assert(err, IsNil)
 	err = s.testRepo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
 	c.Assert(err, IsNil)
-	// Granting exactly the same thing twice fails with an appropriate error
+	// Granting exactly the same thing twice succeeds without an error but does nothing.
 	err = s.testRepo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
-	c.Assert(err, ErrorMatches, `cannot grant skill "skill" from snap "provider" to slot "slot" from snap "consumer" twice`)
+	c.Assert(err, IsNil)
+	// Only one "grant" is actually present.
+	c.Assert(s.testRepo.GrantedTo(s.slot.Snap), DeepEquals, map[*Slot][]*Skill{
+		s.slot: []*Skill{s.skill},
+	})
 }
 
 func (s *RepositorySuite) TestGrantFailsWhenSlotAndSkillAreIncompatible(c *C) {
@@ -590,7 +594,7 @@ func (s *RepositorySuite) TestGrantFailsWhenSlotAndSkillAreIncompatible(c *C) {
 	c.Assert(err, IsNil)
 	// Granting a skill to an incompatible slot fails with an appropriate error
 	err = s.testRepo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
-	c.Assert(err, ErrorMatches, `cannot grant skill "skill" from snap "provider" to slot "slot" from snap "consumer", skill type "other-type" doesn't match slot type "type"`)
+	c.Assert(err, ErrorMatches, `cannot grant skill "provider:skill" \(skill type "other-type"\) to "consumer:slot" \(skill type "type"\)`)
 }
 
 func (s *RepositorySuite) TestGrantSucceeds(c *C) {

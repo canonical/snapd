@@ -22,6 +22,7 @@ package client
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 )
@@ -43,6 +44,7 @@ type Snap struct {
 type SnapFilter struct {
 	Sources []string
 	Types   []string
+	Query   string
 }
 
 // Statuses and types a snap may have.
@@ -62,14 +64,17 @@ const (
 // Snaps returns the list of all snaps installed on the system and
 // available for install from the store for this system.
 func (client *Client) Snaps() (map[string]*Snap, error) {
-	return client.snapsFromPath("/2.0/snaps")
+	return client.snapsFromPath("/2.0/snaps", nil)
 }
 
 // FilterSnaps returns a list of snaps per Snaps() but filtered by source, name
 // and/or type
 func (client *Client) FilterSnaps(filter SnapFilter) (map[string]*Snap, error) {
-	u := url.URL{Path: "/2.0/snaps"}
-	q := u.Query()
+	q := url.Values{}
+
+	if filter.Query != "" {
+		q.Set("q", filter.Query)
+	}
 
 	if len(filter.Sources) > 0 {
 		q.Set("sources", strings.Join(filter.Sources, ","))
@@ -79,16 +84,14 @@ func (client *Client) FilterSnaps(filter SnapFilter) (map[string]*Snap, error) {
 		q.Set("types", strings.Join(filter.Types, ","))
 	}
 
-	u.RawQuery = q.Encode()
-
-	return client.snapsFromPath(u.String())
+	return client.snapsFromPath("/2.0/snaps", q)
 }
 
-func (client *Client) snapsFromPath(path string) (map[string]*Snap, error) {
+func (client *Client) snapsFromPath(path string, query url.Values) (map[string]*Snap, error) {
 	const errPrefix = "cannot list snaps"
 
 	var result map[string]json.RawMessage
-	if err := client.doSync("GET", path, nil, &result); err != nil {
+	if err := client.doSync("GET", path, query, nil, &result); err != nil {
 		return nil, fmt.Errorf("%s: %s", errPrefix, err)
 	}
 
@@ -111,9 +114,48 @@ func (client *Client) Snap(name string) (*Snap, error) {
 	var pkg *Snap
 
 	path := fmt.Sprintf("/2.0/snaps/%s", name)
-	if err := client.doSync("GET", path, nil, &pkg); err != nil {
+	if err := client.doSync("GET", path, nil, nil, &pkg); err != nil {
 		return nil, fmt.Errorf("cannot retrieve snap %q: %s", name, err)
 	}
 
 	return pkg, nil
+}
+
+// RemoveSnap removes the snap with the given name, returning the UUID of the
+// background operation upon success
+func (client *Client) RemoveSnap(name string) (string, error) {
+	const errPrefix = "cannot remove snap"
+	const opPrefix = "/2.0/operations/"
+	var rsp response
+
+	path := fmt.Sprintf("/2.0/snaps/%s", name)
+	body := strings.NewReader(`{"action":"remove"}`)
+
+	if err := client.do("POST", path, nil, body, &rsp); err != nil {
+		return "", fmt.Errorf("%s: %s", errPrefix, err)
+	}
+	if err := rsp.err(); err != nil {
+		return "", err
+	}
+	if rsp.Type != "async" {
+		return "", fmt.Errorf("%s: expected async response, got %q", errPrefix, rsp.Type)
+	}
+	if rsp.StatusCode != http.StatusAccepted {
+		return "", fmt.Errorf("%s: operation not accepted", errPrefix)
+	}
+
+	var operation map[string]interface{}
+	if err := json.Unmarshal(rsp.Result, &operation); err != nil {
+		return "", fmt.Errorf("%s: failed to unmarshal operation: %v", errPrefix, err)
+	}
+
+	resource, ok := operation["resource"].(string)
+	if !ok {
+		return "", fmt.Errorf("%s: operation has no resource", errPrefix)
+	}
+	if !strings.HasPrefix(resource, opPrefix) {
+		return "", fmt.Errorf("%s: invalid resource", errPrefix)
+	}
+
+	return resource[len(opPrefix):], nil
 }

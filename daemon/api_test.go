@@ -1520,7 +1520,7 @@ func (s *apiSuite) TestGrantSkillFailureTypeMismatch(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": `cannot grant skill "skill" from snap "producer" to slot "slot" from snap "consumer", skill type "type" doesn't match slot type "other-type"`,
+			"message": `cannot grant skill "producer:skill" (skill type "type") to "consumer:slot" (skill type "other-type")`,
 		},
 		"status":      "Bad Request",
 		"status_code": 400.0,
