@@ -525,6 +525,14 @@ func snapService(c *Command, r *http.Request) Response {
 	}).Map(route))
 }
 
+type Configurator interface {
+	Configure(*snappy.SnapPart, []byte) (string, error)
+}
+
+var getConfigurator = func() Configurator {
+	return &snappy.Overlord{}
+}
+
 func snapConfig(c *Command, r *http.Request) Response {
 	vars := muxVars(r)
 	name := vars["name"]
@@ -560,7 +568,8 @@ func snapConfig(c *Command, r *http.Request) Response {
 		return BadRequest("reading config request body gave %v", err)
 	}
 
-	config, err := part.Config(bs)
+	overlord := getConfigurator()
+	config, err := overlord.Configure(part.(*snappy.SnapPart), bs)
 	if err != nil {
 		return InternalError("unable to retrieve config for %s: %v", pkgName, err)
 	}
