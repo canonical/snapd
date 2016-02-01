@@ -283,8 +283,8 @@ func (r *Repository) Grant(skillSnapName, skillName, slotSnapName, slotName stri
 	}
 	// Ensure that slot and skill are not connected yet
 	if r.slotSkills[slot][skill] {
-		return fmt.Errorf("cannot grant skill %q from snap %q to slot %q from snap %q twice",
-			skillName, skillSnapName, slotName, slotSnapName)
+		// But if they are don't treat this as an error.
+		return nil
 	}
 	// Grant the skill
 	if r.slotSkills[slot] == nil {
