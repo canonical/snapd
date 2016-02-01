@@ -984,11 +984,11 @@ type skillGrant struct {
 
 // skillInfo holds details for a skill as returned by the REST API.
 type skillInfo struct {
-	Snap  string       `json:"snap"`
-	Name  string       `json:"name"`
-	Type  string       `json:"type"`
-	Label string       `json:"label"`
-	Slots []skillGrant `json:"slots"`
+	Snap      string       `json:"snap"`
+	Name      string       `json:"name"`
+	Type      string       `json:"type"`
+	Label     string       `json:"label"`
+	GrantedTo []skillGrant `json:"granted-to"`
 }
 
 // getSkills returns a list of all the skills and which slots use them.
@@ -1003,11 +1003,11 @@ func getSkills(c *Command, r *http.Request) Response {
 			})
 		}
 		skills = append(skills, skillInfo{
-			Snap:  skill.Snap,
-			Name:  skill.Name,
-			Type:  skill.Type,
-			Label: skill.Label,
-			Slots: slots,
+			Snap:      skill.Snap,
+			Name:      skill.Name,
+			Type:      skill.Type,
+			Label:     skill.Label,
+			GrantedTo: slots,
 		})
 	}
 	return SyncResponse(skills)
