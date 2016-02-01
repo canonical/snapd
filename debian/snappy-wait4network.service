@@ -5,6 +5,6 @@ After=network-online.target
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-TimeoutStartSec=0
+TimeoutStartSec=20
 ExecStart=/bin/sh -ec 'while [ -z "$( /sbin/ip route show 0/0 )" ]; do sleep 5; done'
 
