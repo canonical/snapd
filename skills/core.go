@@ -52,8 +52,11 @@ type Type interface {
 	// Unique and public name of this type.
 	Name() string
 
-	// Sanitize checks if a skill is correct, altering if necessary.
-	Sanitize(skill *Skill) error
+	// SanitizeSkill checks if a skill is correct, altering if necessary.
+	SanitizeSkill(skill *Skill) error
+
+	// SanitizeSlot checks if a slot is correct, altering if necessary.
+	SanitizeSlot(slot *Slot) error
 
 	// SecuritySnippet returns the configuration snippet that should be used by
 	// the given security system to enable this skill to be consumed.
