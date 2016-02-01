@@ -34,6 +34,7 @@ type Repository struct {
 	types map[string]Type
 	// Indexed by [snapName][skillName]
 	skills map[string]map[string]*Skill
+	slots  map[string]map[string]*Slot
 }
 
 // NewRepository creates an empty skill repository.
@@ -41,6 +42,7 @@ func NewRepository() *Repository {
 	return &Repository{
 		types:  make(map[string]Type),
 		skills: make(map[string]map[string]*Skill),
+		slots:  make(map[string]map[string]*Slot),
 	}
 }
 
@@ -157,6 +159,93 @@ func (r *Repository) RemoveSkill(snapName, skillName string) error {
 	return nil
 }
 
+// AllSlots returns all skill slots of the given type.
+// If skillType is the empty string, all skill slots are returned.
+func (r *Repository) AllSlots(skillType string) []*Slot {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	var result []*Slot
+	for _, slotsForSnap := range r.slots {
+		for _, slot := range slotsForSnap {
+			if skillType == "" || slot.Type == skillType {
+				result = append(result, slot)
+			}
+		}
+	}
+	sort.Sort(bySlotSnapAndName(result))
+	return result
+}
+
+// Slots returns the skill slots offered by the named snap.
+func (r *Repository) Slots(snapName string) []*Slot {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	var result []*Slot
+	for _, slot := range r.slots[snapName] {
+		result = append(result, slot)
+	}
+	sort.Sort(bySlotSnapAndName(result))
+	return result
+}
+
+// Slot returns the specified skill slot from the named snap.
+func (r *Repository) Slot(snapName, slotName string) *Slot {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	return r.slots[snapName][slotName]
+}
+
+// AddSlot adds a new slot to the repository.
+// Adding a slot with invalid name returns an error.
+// Adding a slot that has the same name and snap name as another slot returns an error.
+func (r *Repository) AddSlot(slot *Slot) error {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	// Reject snaps with invalid names
+	if err := snap.ValidateName(slot.Snap); err != nil {
+		return err
+	}
+	// Reject skill with invalid names
+	if err := ValidateName(slot.Name); err != nil {
+		return err
+	}
+	// TODO: ensure that apps are correct
+	t := r.types[slot.Type]
+	if t == nil {
+		return fmt.Errorf("cannot add skill slot, skill type %q is not known", slot.Type)
+	}
+	if _, ok := r.slots[slot.Snap][slot.Name]; ok {
+		return fmt.Errorf("cannot add skill slot, snap %q already has slot %q", slot.Snap, slot.Name)
+	}
+	if r.slots[slot.Snap] == nil {
+		r.slots[slot.Snap] = make(map[string]*Slot)
+	}
+	r.slots[slot.Snap][slot.Name] = slot
+	return nil
+}
+
+// RemoveSlot removes a named slot from the given snap.
+// Removing a slot that doesn't exist returns an error.
+// Removing a slot that uses a skill returns an error.
+func (r *Repository) RemoveSlot(snapName, slotName string) error {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	// TODO: return an error if slot is occupied by at least one capability.
+	if _, ok := r.slots[snapName][slotName]; !ok {
+		return fmt.Errorf("cannot remove skill slot %q from snap %q, no such slot", slotName, snapName)
+	}
+	delete(r.slots[snapName], slotName)
+	if len(r.slots[snapName]) == 0 {
+		delete(r.slots, snapName)
+	}
+	return nil
+}
+
 // Support for sort.Interface
 
 type bySkillSnapAndName []*Skill
@@ -164,6 +253,17 @@ type bySkillSnapAndName []*Skill
 func (c bySkillSnapAndName) Len() int      { return len(c) }
 func (c bySkillSnapAndName) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
 func (c bySkillSnapAndName) Less(i, j int) bool {
+	if c[i].Snap != c[j].Snap {
+		return c[i].Snap < c[j].Snap
+	}
+	return c[i].Name < c[j].Name
+}
+
+type bySlotSnapAndName []*Slot
+
+func (c bySlotSnapAndName) Len() int      { return len(c) }
+func (c bySlotSnapAndName) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
+func (c bySlotSnapAndName) Less(i, j int) bool {
 	if c[i].Snap != c[j].Snap {
 		return c[i].Snap < c[j].Snap
 	}

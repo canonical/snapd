@@ -30,6 +30,7 @@ import (
 type RepositorySuite struct {
 	t         Type
 	skill     *Skill
+	slot      *Slot
 	emptyRepo *Repository
 	// Repository pre-populated with s.t
 	testRepo *Repository
@@ -46,6 +47,14 @@ var _ = Suite(&RepositorySuite{
 		Attrs: map[string]interface{}{"attr": "value"},
 		Label: "label",
 		Apps:  []string{"app"},
+	},
+	slot: &Slot{
+		Snap:  "snap",
+		Name:  "name",
+		Type:  "type",
+		Apps:  []string{"app"},
+		Attrs: map[string]interface{}{"attr": "value"},
+		Label: "label",
 	},
 })
 
@@ -372,4 +381,127 @@ func (s *RepositorySuite) TestSkills(c *C) {
 	})
 	// The result is empty if the snap is not known
 	c.Assert(s.testRepo.Skills("snap-x"), HasLen, 0)
+}
+
+// Tests for Repository.AllSlots()
+
+func (s *RepositorySuite) TestAllSlots(c *C) {
+	err := s.testRepo.AddType(&TestType{TypeName: "other-type"})
+	c.Assert(err, IsNil)
+	// Add some slots
+	err = s.testRepo.AddSlot(&Slot{Snap: "snap-a", Name: "slot-b", Type: "type"})
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSlot(&Slot{Snap: "snap-b", Name: "slot-a", Type: "other-type"})
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSlot(&Slot{Snap: "snap-a", Name: "slot-a", Type: "type"})
+	c.Assert(err, IsNil)
+	// AllSlots("") returns all slots, sorted by snap and slot name
+	c.Assert(s.testRepo.AllSlots(""), DeepEquals, []*Slot{
+		&Slot{Snap: "snap-a", Name: "slot-a", Type: "type"},
+		&Slot{Snap: "snap-a", Name: "slot-b", Type: "type"},
+		&Slot{Snap: "snap-b", Name: "slot-a", Type: "other-type"},
+	})
+	// AllSlots("") returns all slots, sorted by snap and slot name
+	c.Assert(s.testRepo.AllSlots("other-type"), DeepEquals, []*Slot{
+		&Slot{Snap: "snap-b", Name: "slot-a", Type: "other-type"},
+	})
+}
+
+// Tests for Repository.Slots()
+
+func (s *RepositorySuite) TestSlots(c *C) {
+	// Add some slots
+	err := s.testRepo.AddSlot(&Slot{Snap: "snap-a", Name: "slot-b", Type: "type"})
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSlot(&Slot{Snap: "snap-b", Name: "slot-a", Type: "type"})
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSlot(&Slot{Snap: "snap-a", Name: "slot-a", Type: "type"})
+	c.Assert(err, IsNil)
+	// Slots("snap-a") returns slots present in that snap
+	c.Assert(s.testRepo.Slots("snap-a"), DeepEquals, []*Slot{
+		&Slot{Snap: "snap-a", Name: "slot-a", Type: "type"},
+		&Slot{Snap: "snap-a", Name: "slot-b", Type: "type"},
+	})
+	// Slots("snap-b") returns slots present in that snap
+	c.Assert(s.testRepo.Slots("snap-b"), DeepEquals, []*Slot{
+		&Slot{Snap: "snap-b", Name: "slot-a", Type: "type"},
+	})
+	// Slots("snap-c") returns no slots (because that snap doesn't exist)
+	c.Assert(s.testRepo.Slots("snap-c"), HasLen, 0)
+	// Slots("") returns no slots
+	c.Assert(s.testRepo.Slots(""), HasLen, 0)
+}
+
+// Tests for Repository.Slot()
+
+func (s *RepositorySuite) TestSlotSucceedsWhenSlotExists(c *C) {
+	err := s.testRepo.AddSlot(s.slot)
+	c.Assert(err, IsNil)
+	slot := s.testRepo.Slot(s.slot.Snap, s.slot.Name)
+	c.Assert(slot, DeepEquals, s.slot)
+}
+
+func (s *RepositorySuite) TestSlotFailsWhenSlotDoesntExist(c *C) {
+	slot := s.testRepo.Slot(s.slot.Snap, s.slot.Name)
+	c.Assert(slot, IsNil)
+}
+
+// Tests for Repository.AddSlot()
+
+func (s *RepositorySuite) TestAddSlotFailsWhenTypeIsUnknown(c *C) {
+	err := s.emptyRepo.AddSlot(s.slot)
+	c.Assert(err, ErrorMatches, `cannot add skill slot, skill type "type" is not known`)
+}
+
+func (s *RepositorySuite) TestAddSlotFailsWhenSlotNameIsInvalid(c *C) {
+	err := s.emptyRepo.AddSlot(&Slot{Snap: s.slot.Snap, Name: "bad-name-", Type: s.slot.Type})
+	c.Assert(err, ErrorMatches, `invalid skill name: "bad-name-"`)
+}
+
+func (s *RepositorySuite) TestAddSlotFailsWithInvalidSnapName(c *C) {
+	slot := &Slot{
+		Snap: "bad-snap-",
+		Name: "name",
+		Type: "type",
+	}
+	err := s.testRepo.AddSlot(slot)
+	c.Assert(err, ErrorMatches, `invalid snap name: "bad-snap-"`)
+	c.Assert(s.testRepo.AllSlots(""), HasLen, 0)
+}
+
+func (s *RepositorySuite) TestAddSlotFailsForDuplicates(c *C) {
+	// Adding the first slot succeeds
+	err := s.testRepo.AddSlot(s.slot)
+	c.Assert(err, IsNil)
+	// Adding the slot again fails with appropriate error
+	err = s.testRepo.AddSlot(s.slot)
+	c.Assert(err, ErrorMatches, `cannot add skill slot, snap "snap" already has slot "name"`)
+}
+
+func (s *RepositorySuite) TestAddSlotStoresCorrectData(c *C) {
+	err := s.testRepo.AddSlot(s.slot)
+	c.Assert(err, IsNil)
+	slot := s.testRepo.Slot(s.slot.Snap, s.slot.Name)
+	// The added slot has the same data
+	c.Assert(slot, DeepEquals, s.slot)
+}
+
+// Tests for Repository.RemoveSlot()
+
+func (s *RepositorySuite) TestRemoveSlotSuccedsWhenSlotExistsAndVacant(c *C) {
+	err := s.testRepo.AddSlot(s.slot)
+	c.Assert(err, IsNil)
+	// Removing a vacant slot simply works
+	err = s.testRepo.RemoveSlot(s.slot.Snap, s.slot.Name)
+	c.Assert(err, IsNil)
+	// The slot is gone now
+	slot := s.testRepo.Slot(s.slot.Snap, s.slot.Name)
+	c.Assert(slot, IsNil)
+}
+
+func (s *RepositorySuite) TestRemoveSlotFailsWhenSlotDoesntExist(c *C) {
+	// Removing a slot that doesn't exist returns an appropriate error
+	err := s.testRepo.RemoveSlot(s.slot.Snap, s.slot.Name)
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, ErrorMatches, `cannot remove skill slot "name" from snap "snap", no such slot`)
 }

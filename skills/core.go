@@ -42,6 +42,7 @@ type Slot struct {
 	Type  string
 	Attrs map[string]interface{}
 	Apps  []string
+	Label string
 }
 
 // Type describes a group of interchangeable capabilities with common features.
