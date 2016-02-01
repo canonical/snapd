@@ -705,8 +705,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 	r.pkg.Description = "this is a description"
 	r.pkg.Version = "1.0"
 
+	mStore := NewUbuntuStoreSnapRepository()
 	p := &MockProgressMeter{}
-	name, err := installRemote(r, 0, p)
+	name, err := installRemote(mStore, r, 0, p)
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 	st, err := os.Stat(snapPackage)
@@ -758,13 +759,14 @@ apps:
 	r.pkg.Origin = "bar"
 	r.pkg.Version = "1.0"
 
+	mStore := NewUbuntuStoreSnapRepository()
 	p := &MockProgressMeter{}
-	name, err := installRemote(r, 0, p)
+	name, err := installRemote(mStore, r, 0, p)
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 	c.Check(p.notified, HasLen, 0)
 
-	_, err = installRemote(r, 0, p)
+	_, err = installRemote(mStore, r, 0, p)
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 	c.Check(p.notified, HasLen, 1)
