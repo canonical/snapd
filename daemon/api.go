@@ -976,7 +976,7 @@ func deleteCapability(c *Command, r *http.Request) Response {
 	}
 }
 
-// skillGrant is a part of response from getSkills().
+// skillGrant holds the identification of a slot that has been granted to a skill.
 type skillGrant struct {
 	Snap string `json:"snap"`
 	Name string `json:"name"`
