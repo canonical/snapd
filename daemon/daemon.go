@@ -48,10 +48,10 @@ type Daemon struct {
 	tomb         tomb.Tomb
 	router       *mux.Router
 	capRepo      *caps.Repository
+	asserts      *asserts.Database
 	skills       *skills.Repository
 	// enableInternalSkillActions controls if adding and removing skills and slots is allowed.
 	enableInternalSkillActions bool
-	asserts                    *asserts.Database
 }
 
 // A ResponseFunc handles one of the individual verbs for a method
