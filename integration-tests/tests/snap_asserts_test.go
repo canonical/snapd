@@ -38,21 +38,43 @@ type snapAssertsSuite struct {
 	snapdTestSuite
 }
 
+// FIXME: "snap asserts" shouldn't require sudo, need to tweak snapd test re-activation
+
 func (s *snapAssertsSuite) TestAll(c *check.C) {
 	// add an account key
 	cli.ExecCommand(c, "sudo", "snap", "assert", "integration-tests/data/dev1.acckey")
-	// XXX: need to cleanup that assertion, same in snap_assert_test!
+	defer cli.ExecCommand(c, "sudo", "rm", "-rf", dev1AccKeyFiles)
 
 	out := cli.ExecCommand(c, "sudo", "snap", "asserts", "account-key")
 	dec := asserts.NewDecoder(bytes.NewBufferString(out))
-	asserts := []asserts.Assertion{}
+	assertions := []asserts.Assertion{}
 	for {
 		a, err := dec.Decode()
 		if err == io.EOF {
 			break
 		}
 		c.Assert(err, check.IsNil)
-		asserts = append(asserts, a)
+		assertions = append(assertions, a)
 	}
-	c.Check(asserts, check.HasLen, 1) // XXX: should be 2
+	c.Check(assertions, check.HasLen, 2)
+}
+
+func (s *snapAssertsSuite) TestFilter(c *check.C) {
+	// add an account key
+	cli.ExecCommand(c, "sudo", "snap", "assert", "integration-tests/data/dev1.acckey")
+	defer cli.ExecCommand(c, "sudo", "rm", "-rf", dev1AccKeyFiles)
+
+	out := cli.ExecCommand(c, "sudo", "snap", "asserts", "account-key", "account-id=developer1")
+	dec := asserts.NewDecoder(bytes.NewBufferString(out))
+	assertions := []asserts.Assertion{}
+	for {
+		a, err := dec.Decode()
+		if err == io.EOF {
+			break
+		}
+		c.Assert(err, check.IsNil)
+		assertions = append(assertions, a)
+	}
+	c.Check(assertions, check.HasLen, 1)
+	c.Check(assertions[0].(*asserts.AccountKey).AccountID(), check.Equals, "developer1")
 }

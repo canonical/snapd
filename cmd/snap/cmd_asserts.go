@@ -20,7 +20,9 @@
 package main
 
 import (
+	"fmt"
 	"os"
+	"strings"
 
 	"github.com/ubuntu-core/snappy/asserts"
 	"github.com/ubuntu-core/snappy/client"
@@ -39,7 +41,7 @@ type cmdAsserts struct {
 
 var (
 	shortAssertsHelp = i18n.G("Asserts searches the system for assertions of the given type")
-	longAssertsHelp  = i18n.G(`This command searches for assertions of the given type and matching the given header filters (header=value) in the system assertion database.`)
+	longAssertsHelp  = i18n.G(`This command searches for assertions of the given type and matching the given assertion header filters (header=value) in the system assertion database.`)
 )
 
 func init() {
@@ -50,14 +52,24 @@ func init() {
 }
 
 func (x *cmdAsserts) Execute(args []string) error {
-	// XXX: use HeaderFilters
+	headers := map[string]string{}
+	for _, headerFilter := range x.HeaderFilters {
+		parts := strings.SplitN(headerFilter, "=", 2)
+		if len(parts) != 2 {
+			return fmt.Errorf("expected header filter in key=value format")
+		}
+		headers[parts[0]] = parts[1]
+	}
 
-	assertions, err := client.New().Asserts(x.AssertTypeName, nil)
+	assertions, err := client.New().Asserts(x.AssertTypeName, headers)
 	if err != nil {
 		return err
 	}
 
-	// XXX: special case len == 0
+	if len(assertions) == 0 {
+		fmt.Fprintln(os.Stderr, "no matching assertion found.")
+		return nil
+	}
 
 	enc := asserts.NewEncoder(os.Stdout)
 
