@@ -44,8 +44,8 @@ type Slot struct {
 	Label string                 `json:"label,omitempty"`
 }
 
-// SkillUsage represents the usage of a single skill.
-type SkillUsage struct {
+// SkillGrants represents a single skill and slots that are using it.
+type SkillGrants struct {
 	Skill
 	Slots []Slot `json:"slots"`
 }
@@ -58,7 +58,7 @@ type SkillAction struct {
 }
 
 // AllSkills returns information about all the skills and their usage.
-func (client *Client) AllSkills() (usage []SkillUsage, err error) {
+func (client *Client) AllSkills() (usage []SkillGrants, err error) {
 	err = client.doSync("GET", "/2.0/skills", nil, &usage)
 	return
 }

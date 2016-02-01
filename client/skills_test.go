@@ -50,7 +50,7 @@ func (cs *clientSuite) TestClientAllSkills(c *check.C) {
 	}`
 	skills, err := cs.cli.AllSkills()
 	c.Assert(err, check.IsNil)
-	c.Check(skills, check.DeepEquals, []client.SkillUsage{
+	c.Check(skills, check.DeepEquals, []client.SkillGrants{
 		{
 			Skill: client.Skill{
 				Snap:  "canonical-pi2",
