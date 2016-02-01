@@ -42,7 +42,7 @@ func (cs *clientSuite) TestClientAllSkills(c *check.C) {
 				"name": "pin-13",
 				"type": "bool-file",
 				"label": "Pin 13",
-				"slots": [
+				"granted-to": [
 					{"snap": "keyboard-lights", "name": "capslock-led"}
 				]
 			}
@@ -58,7 +58,7 @@ func (cs *clientSuite) TestClientAllSkills(c *check.C) {
 				Type:  "bool-file",
 				Label: "Pin 13",
 			},
-			Slots: []client.Slot{
+			GrantedTo: []client.Slot{
 				{
 					Snap: "keyboard-lights",
 					Name: "capslock-led",

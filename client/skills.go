@@ -47,7 +47,7 @@ type Slot struct {
 // SkillGrants represents a single skill and slots that are using it.
 type SkillGrants struct {
 	Skill
-	Slots []Slot `json:"slots"`
+	GrantedTo []Slot `json:"granted-to"`
 }
 
 // SkillAction represents an action performed on the skill system.
