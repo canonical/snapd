@@ -33,20 +33,20 @@ type Repository struct {
 	m     sync.Mutex
 	types map[string]Type
 	// Indexed by [snapName][skillName]
-	skills          map[string]map[string]*Skill
-	slots           map[string]map[string]*Slot
-	slotSkills      map[*Slot]map[*Skill]bool
-	slotsUsingSkill map[*Skill]map[*Slot]bool
+	skills     map[string]map[string]*Skill
+	slots      map[string]map[string]*Slot
+	slotSkills map[*Slot]map[*Skill]bool
+	skillSlots map[*Skill]map[*Slot]bool
 }
 
 // NewRepository creates an empty skill repository.
 func NewRepository() *Repository {
 	return &Repository{
-		types:           make(map[string]Type),
-		skills:          make(map[string]map[string]*Skill),
-		slots:           make(map[string]map[string]*Slot),
-		slotSkills:      make(map[*Slot]map[*Skill]bool),
-		slotsUsingSkill: make(map[*Skill]map[*Slot]bool),
+		types:      make(map[string]Type),
+		skills:     make(map[string]map[string]*Skill),
+		slots:      make(map[string]map[string]*Slot),
+		slotSkills: make(map[*Slot]map[*Skill]bool),
+		skillSlots: make(map[*Skill]map[*Slot]bool),
 	}
 }
 
@@ -158,7 +158,7 @@ func (r *Repository) RemoveSkill(snapName, skillName string) error {
 		return fmt.Errorf("cannot remove skill %q from snap %q, no such skill", skillName, snapName)
 	}
 	// Ensure that the skill is not used by any slot
-	if len(r.slotsUsingSkill[skill]) > 0 {
+	if len(r.skillSlots[skill]) > 0 {
 		return fmt.Errorf("cannot remove skill %q from snap %q, it is still granted", skillName, snapName)
 	}
 	delete(r.skills[snapName], skillName)
@@ -290,11 +290,11 @@ func (r *Repository) Grant(skillSnapName, skillName, slotSnapName, slotName stri
 	if r.slotSkills[slot] == nil {
 		r.slotSkills[slot] = make(map[*Skill]bool)
 	}
-	if r.slotsUsingSkill[skill] == nil {
-		r.slotsUsingSkill[skill] = make(map[*Slot]bool)
+	if r.skillSlots[skill] == nil {
+		r.skillSlots[skill] = make(map[*Slot]bool)
 	}
 	r.slotSkills[slot][skill] = true
-	r.slotsUsingSkill[skill][slot] = true
+	r.skillSlots[skill][slot] = true
 	return nil
 }
 
@@ -319,7 +319,7 @@ func (r *Repository) Revoke(skillSnapName, skillName, slotSnapName, slotName str
 			skillName, skillSnapName, slotName, slotSnapName)
 	}
 	delete(r.slotSkills[slot], skill)
-	delete(r.slotsUsingSkill[skill], slot)
+	delete(r.skillSlots[skill], slot)
 	return nil
 }
 
@@ -345,7 +345,7 @@ func (r *Repository) GrantedBy(snapName string) map[*Skill][]*Slot {
 
 	result := make(map[*Skill][]*Slot)
 	for _, skill := range r.skills[snapName] {
-		for slot := range r.slotsUsingSkill[skill] {
+		for slot := range r.skillSlots[skill] {
 			result[skill] = append(result[skill], slot)
 		}
 		sort.Sort(bySlotSnapAndName(result[skill]))
