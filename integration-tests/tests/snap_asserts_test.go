@@ -43,6 +43,7 @@ type snapAssertsSuite struct {
 func (s *snapAssertsSuite) TestAll(c *check.C) {
 	// add an account key
 	cli.ExecCommand(c, "sudo", "snap", "assert", "integration-tests/data/dev1.acckey")
+	// XXX: forceful cleanup of relevant assertions until we have a better general approach
 	defer cli.ExecCommand(c, "sudo", "rm", "-rf", dev1AccKeyFiles)
 
 	out := cli.ExecCommand(c, "sudo", "snap", "asserts", "account-key")

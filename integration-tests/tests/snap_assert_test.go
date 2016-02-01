@@ -29,6 +29,7 @@ import (
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 )
 
+// for cleanup
 var dev1AccKeyFiles = filepath.Join(dirs.SnapAssertsDBDir, "asserts-v0/account-key/developer1")
 
 var _ = check.Suite(&snapAssertSuite{})
@@ -41,5 +42,6 @@ type snapAssertSuite struct {
 
 func (s *snapAssertSuite) TestOK(c *check.C) {
 	cli.ExecCommand(c, "sudo", "snap", "assert", "integration-tests/data/dev1.acckey")
+	// XXX: forceful cleanup of relevant assertions until we have a better general approach
 	defer cli.ExecCommand(c, "sudo", "rm", "-rf", dev1AccKeyFiles)
 }
