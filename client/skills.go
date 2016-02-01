@@ -57,7 +57,7 @@ type SkillAction struct {
 	Slot   *Slot  `json:"slot,omitempty"`
 }
 
-// AllSkills returns information about all the skills and their usage.
+// AllSkills returns information about all the skills and their grants.
 func (client *Client) AllSkills() (usage []SkillGrants, err error) {
 	err = client.doSync("GET", "/2.0/skills", nil, nil, &usage)
 	return
