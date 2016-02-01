@@ -52,10 +52,12 @@ func (cs *clientSuite) TestClientAllSkills(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(skills, check.DeepEquals, []client.SkillUsage{
 		{
-			Snap:  "canonical-pi2",
-			Name:  "pin-13",
-			Type:  "bool-file",
-			Label: "Pin 13",
+			Skill: client.Skill{
+				Snap:  "canonical-pi2",
+				Name:  "pin-13",
+				Type:  "bool-file",
+				Label: "Pin 13",
+			},
 			Slots: []client.Slot{
 				{
 					Snap: "keyboard-lights",

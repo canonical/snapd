@@ -46,10 +46,7 @@ type Slot struct {
 
 // SkillUsage represents the usage of a single skill.
 type SkillUsage struct {
-	Snap  string `json:"snap"`
-	Name  string `json:"name"`
-	Type  string `json:"type"`
-	Label string `json:"label"`
+	Skill
 	Slots []Slot `json:"slots"`
 }
 
