@@ -120,9 +120,9 @@ transfer it to the snappy system and then run:
     sudo systemctl stop ubuntu-snappy.snapd.service ubuntu-snappy.snapd.socket
     sudo /lib/systemd/systemd-activate -l /run/snapd.socket ./snapd
 
-This will stop the installed snapd and activate the new one. Once
-it'sprinted out something like `Listening on /run/snapd.socket as 3.`
-you should then
+This will stop the installed snapd and activate the new one. Once it's
+printed out something like `Listening on /run/snapd.socket as 3.` you
+should then
 
     sudo chmod 0666 /run/snapd.socket
 
