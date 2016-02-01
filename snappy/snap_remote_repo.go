@@ -191,12 +191,8 @@ func (s *SnapUbuntuStoreRepository) Description() string {
 	return fmt.Sprintf("Snap remote repository for %s", s.searchURI)
 }
 
-// Details returns details for the given snap in this repository
-func (s *SnapUbuntuStoreRepository) Details(name string, origin string) (parts []Part, err error) {
-	snapName := name
-	if origin != "" {
-		snapName = name + "." + origin
-	}
+// Snap returns the SnapRemotePart for the given name or an error
+func (s *SnapUbuntuStoreRepository) Snap(snapName string) (*RemoteSnapPart, error) {
 
 	url, err := s.detailsURI.Parse(snapName)
 	if err != nil {
@@ -223,7 +219,7 @@ func (s *SnapUbuntuStoreRepository) Details(name string, origin string) (parts [
 	case resp.StatusCode == 404:
 		return nil, ErrPackageNotFound
 	case resp.StatusCode != 200:
-		return parts, fmt.Errorf("SnapUbuntuStoreRepository: unexpected http statusCode %v for %s", resp.StatusCode, snapName)
+		return nil, fmt.Errorf("SnapUbuntuStoreRepository: unexpected http statusCode %v for %s", resp.StatusCode, snapName)
 	}
 
 	// and decode json
@@ -233,10 +229,20 @@ func (s *SnapUbuntuStoreRepository) Details(name string, origin string) (parts [
 		return nil, err
 	}
 
-	snap := NewRemoteSnapPart(detailsData)
-	parts = append(parts, snap)
+	return NewRemoteSnapPart(detailsData), nil
+}
 
-	return parts, nil
+// Details returns details for the given snap in this repository
+func (s *SnapUbuntuStoreRepository) Details(name string, origin string) (parts []Part, err error) {
+	snapName := name
+	if origin != "" {
+		snapName = name + "." + origin
+	}
+	snap, err := s.Snap(snapName)
+	if err != nil {
+		return nil, err
+	}
+	return []Part{snap}, nil
 }
 
 // All (installable) parts from the store
