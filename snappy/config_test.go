@@ -106,7 +106,7 @@ func (s *SnapTestSuite) TestConfigOS(c *C) {
 	}
 	defer func() { coreConfig = coreConfigImpl }()
 
-	_, err = snap.Config(inCfg)
+	_, err = (&Overlord{}).Configure(snap, inCfg)
 	c.Assert(err, IsNil)
 	c.Assert(cfg, DeepEquals, inCfg)
 }

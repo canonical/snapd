@@ -361,15 +361,6 @@ func (s *SnapPart) deactivate(inhibitHooks bool, inter interacter) error {
 	return nil
 }
 
-// Config is used to to configure the snap
-func (s *SnapPart) Config(configuration []byte) (new string, err error) {
-	if s.m.Type == snap.TypeOS {
-		return coreConfig(configuration)
-	}
-
-	return snapConfig(s.basedir, s.origin, string(configuration))
-}
-
 // NeedsReboot returns true if the snap becomes active on the next reboot
 func (s *SnapPart) NeedsReboot() bool {
 	return kernelOrOsRebootRequired(s)

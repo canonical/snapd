@@ -51,6 +51,14 @@ func wrapConfig(pkgName string, conf interface{}) ([]byte, error) {
 
 var newPartMap = newPartMapImpl
 
+type Configurator interface {
+	Configure(*SnapPart, []byte) (string, error)
+}
+
+var newOverlord = func() Configurator {
+	return (&Overlord{})
+}
+
 func newPartMapImpl() (map[string]Part, error) {
 	repo := NewMetaLocalRepository()
 	all, err := repo.All()
@@ -108,7 +116,8 @@ func gadgetConfig() error {
 			return err
 		}
 
-		if _, err := snap.Config(configData); err != nil {
+		overlord := newOverlord()
+		if _, err := overlord.Configure(snap.(*SnapPart), configData); err != nil {
 			return err
 		}
 	}
