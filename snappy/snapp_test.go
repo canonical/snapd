@@ -787,13 +787,6 @@ architectures:
 	c.Assert(err.Error(), Equals, errorMsg)
 }
 
-func (s *SnapTestSuite) TestRemoteSnapErrors(c *C) {
-	snap := RemoteSnapPart{}
-
-	c.Assert(snap.SetActive(true, nil), Equals, ErrNotInstalled)
-	c.Assert(snap.SetActive(false, nil), Equals, ErrNotInstalled)
-}
-
 func (s *SnapTestSuite) TestServicesWithPorts(c *C) {
 	const packageHello = `name: hello-app
 version: 1.10
