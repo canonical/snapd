@@ -180,7 +180,7 @@ func (s *RepositorySuite) TestAddSkillFailsWithUnsanitizedSkill(c *C) {
 	err := s.emptyRepo.AddType(t)
 	c.Assert(err, IsNil)
 	err = s.emptyRepo.AddSkill(s.skill)
-	c.Assert(err, ErrorMatches, "cannot add skill, integrity check failure: skill is dirty")
+	c.Assert(err, ErrorMatches, "cannot add skill: skill is dirty")
 	c.Assert(s.emptyRepo.AllSkills(""), HasLen, 0)
 }
 
@@ -503,7 +503,7 @@ func (s *RepositorySuite) TestAddSlotFailsWithUnsanitizedSlot(c *C) {
 	err := s.emptyRepo.AddType(t)
 	c.Assert(err, IsNil)
 	err = s.emptyRepo.AddSlot(s.slot)
-	c.Assert(err, ErrorMatches, "cannot add slot, integrity check failure: slot is dirty")
+	c.Assert(err, ErrorMatches, "cannot add slot: slot is dirty")
 	c.Assert(s.emptyRepo.AllSlots(""), HasLen, 0)
 }
 

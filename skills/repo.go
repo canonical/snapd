@@ -134,7 +134,7 @@ func (r *Repository) AddSkill(skill *Skill) error {
 	}
 	// Reject skill that don't pass type-specific sanitization
 	if err := t.SanitizeSkill(skill); err != nil {
-		return fmt.Errorf("cannot add skill, integrity check failure: %v", err)
+		return fmt.Errorf("cannot add skill: %v", err)
 	}
 	if _, ok := r.skills[skill.Snap][skill.Name]; ok {
 		return fmt.Errorf("cannot add skill, snap %q already has skill %q", skill.Snap, skill.Name)
@@ -228,7 +228,7 @@ func (r *Repository) AddSlot(slot *Slot) error {
 		return fmt.Errorf("cannot add skill slot, skill type %q is not known", slot.Type)
 	}
 	if err := t.SanitizeSlot(slot); err != nil {
-		return fmt.Errorf("cannot add slot, integrity check failure: %v", err)
+		return fmt.Errorf("cannot add slot: %v", err)
 	}
 	if _, ok := r.slots[slot.Snap][slot.Name]; ok {
 		return fmt.Errorf("cannot add skill slot, snap %q already has slot %q", slot.Snap, slot.Name)

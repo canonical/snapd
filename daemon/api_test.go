@@ -1870,7 +1870,7 @@ func (s *apiSuite) TestAddSkillFailure(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": "cannot add skill, integrity check failure: required attribute missing",
+			"message": "cannot add skill: required attribute missing",
 		},
 		"status":      "Bad Request",
 		"status_code": 400.0,
@@ -2090,7 +2090,7 @@ func (s *apiSuite) TestAddSlotFailure(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": "cannot add slot, integrity check failure: required attribute missing",
+			"message": "cannot add slot: required attribute missing",
 		},
 		"status":      "Bad Request",
 		"status_code": 400.0,
