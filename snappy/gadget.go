@@ -40,6 +40,7 @@ import (
 // of a gadget package type.
 type Gadget struct {
 	Store                Store    `yaml:"store,omitempty"`
+	Branding             Branding `yaml:"branding,omitempty"`
 	Hardware             Hardware `yaml:"hardware,omitempty"`
 	Software             Software `yaml:"software,omitempty"`
 	SkipIfupProvisioning bool     `yaml:"skip-ifup-provisioning"`
@@ -55,6 +56,12 @@ type Hardware struct {
 // Store holds information relevant to the store provided by a Gadget snap
 type Store struct {
 	ID string `yaml:"id,omitempty"`
+}
+
+// Branding allows for some custom branding of the system
+type Branding struct {
+	Name    string `yaml:"name,omitempty" json:"name,omitempty"`
+	SubName string `yaml:"subname,omitempty" json:"subname,omitempty"`
 }
 
 // Software describes the installed software provided by a Gadget snap
@@ -170,6 +177,16 @@ func StoreID() string {
 	}
 
 	return gadget.Gadget.Store.ID
+}
+
+// GadgetBranding returns the branding configuration of the gadget
+func GadgetBranding() (Branding, error) {
+	gadget, err := getGadget()
+	if err != nil {
+		return Branding{}, err
+	}
+
+	return gadget.Gadget.Branding, nil
 }
 
 // IsBuiltInSoftware returns true if the package is part of the built-in software

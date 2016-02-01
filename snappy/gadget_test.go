@@ -23,6 +23,7 @@
 package snappy
 
 import (
+	"errors"
 	"io/ioutil"
 	"path/filepath"
 
@@ -43,6 +44,7 @@ func (s *GadgetSuite) SetUpTest(c *C) {
 			Gadget: Gadget{
 				Software: Software{[]string{"makeuppackage", "anotherpackage"}},
 				Store:    Store{"ninjablocks"},
+				Branding: Branding{Name: "brand name", SubName: "brand subname"},
 			},
 		}, nil
 	}
@@ -60,6 +62,24 @@ func (s *GadgetSuite) TestIsBuildIn(c *C) {
 
 func (s *GadgetSuite) TestStoreID(c *C) {
 	c.Assert(StoreID(), Equals, "ninjablocks")
+}
+
+func (s *GadgetSuite) TestGadgetBrandingNoGadget(c *C) {
+	getGadget = func() (*snapYaml, error) {
+		return nil, errors.New("fail")
+	}
+
+	_, err := GadgetBranding()
+	c.Assert(err, NotNil)
+}
+
+func (s *GadgetSuite) TestGadgetBranding(c *C) {
+	branding, err := GadgetBranding()
+	c.Assert(err, IsNil)
+	c.Assert(branding, DeepEquals, Branding{
+		Name:    "brand name",
+		SubName: "brand subname",
+	})
 }
 
 func (s *GadgetSuite) TestWriteApparmorAdditionalFile(c *C) {
