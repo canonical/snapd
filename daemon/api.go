@@ -976,8 +976,8 @@ type skillGrant struct {
 	Name string `json:"name"`
 }
 
-// SkillInfo is a part of response from getSkills().
-type SkillInfo struct {
+// skillInfo is a part of response from getSkills().
+type skillInfo struct {
 	Snap  string       `json:"snap"`
 	Name  string       `json:"name"`
 	Type  string       `json:"type"`
@@ -987,7 +987,7 @@ type SkillInfo struct {
 
 // getSkills returns a list of all the skills and which slots use them.
 func getSkills(c *Command, r *http.Request) Response {
-	var skills []SkillInfo
+	var skills []skillInfo
 	for _, skill := range c.d.skills.AllSkills("") {
 		var slots []skillGrant
 		for _, slot := range c.d.skills.GrantsOf(skill.Snap, skill.Name) {
@@ -996,7 +996,7 @@ func getSkills(c *Command, r *http.Request) Response {
 				Name: slot.Name,
 			})
 		}
-		skills = append(skills, SkillInfo{
+		skills = append(skills, skillInfo{
 			Snap:  skill.Snap,
 			Name:  skill.Name,
 			Type:  skill.Type,
