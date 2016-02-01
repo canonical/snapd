@@ -982,7 +982,7 @@ type skillGrant struct {
 	Name string `json:"name"`
 }
 
-// skillInfo is a part of response from getSkills().
+// skillInfo holds details for a skill as returned by the REST API.
 type skillInfo struct {
 	Snap  string       `json:"snap"`
 	Name  string       `json:"name"`
