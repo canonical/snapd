@@ -43,7 +43,7 @@ func (client *Client) Assert(b []byte) error {
 	return nil
 }
 
-// Asserts queries assertions with assertTypeName and matching headers.
+// Asserts queries assertions with type assertTypeName and matching assertion headers.
 func (client *Client) Asserts(assertTypeName string, headers map[string]string) ([]asserts.Assertion, error) {
 	path := fmt.Sprintf("/2.0/assertions/%s", assertTypeName)
 	q := url.Values{}
