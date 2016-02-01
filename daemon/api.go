@@ -970,8 +970,8 @@ func deleteCapability(c *Command, r *http.Request) Response {
 	}
 }
 
-// SkillGrant is a part of response from getSkills().
-type SkillGrant struct {
+// skillGrant is a part of response from getSkills().
+type skillGrant struct {
 	Snap string `json:"snap"`
 	Name string `json:"name"`
 }
@@ -982,16 +982,16 @@ type SkillInfo struct {
 	Name  string       `json:"name"`
 	Type  string       `json:"type"`
 	Label string       `json:"label"`
-	Slots []SkillGrant `json:"slots"`
+	Slots []skillGrant `json:"slots"`
 }
 
 // getSkills returns a list of all the skills and which slots use them.
 func getSkills(c *Command, r *http.Request) Response {
 	var skills []SkillInfo
 	for _, skill := range c.d.skills.AllSkills("") {
-		var slots []SkillGrant
+		var slots []skillGrant
 		for _, slot := range c.d.skills.GrantsOf(skill.Snap, skill.Name) {
-			slots = append(slots, SkillGrant{
+			slots = append(slots, skillGrant{
 				Snap: slot.Snap,
 				Name: slot.Name,
 			})
