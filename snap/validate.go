@@ -1,8 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build !excludeintegration,!excludereboots
 
 /*
- * Copyright (C) 2015, 2016 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -18,23 +17,21 @@
  *
  */
 
-package tests
+package snap
 
 import (
-	"path/filepath"
-
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
-
-	"gopkg.in/check.v1"
+	"fmt"
+	"regexp"
 )
 
-func (s *failoverSuite) TestRCLocalCrash(c *check.C) {
-	breakSnap := func(snapPath string) error {
-		targetFile := filepath.Join(snapPath, "etc", "rc.local")
-		cli.ExecCommand(c, "sudo", "chmod", "a+xw", targetFile)
-		cli.ExecCommandToFile(c, targetFile,
-			"sudo", "echo", "#!bin/sh\nprintf c > /proc/sysrq-trigger")
-		return nil
+// Regular expression describing correct identifiers.
+var validName = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
+
+// ValidateName checks if a string can be used as a snap name.
+func ValidateName(name string) error {
+	valid := validName.MatchString(name)
+	if !valid {
+		return fmt.Errorf("invalid snap name: %q", name)
 	}
-	s.testUpdateToBrokenVersion(c, "ubuntu-core.canonical", breakSnap)
+	return nil
 }

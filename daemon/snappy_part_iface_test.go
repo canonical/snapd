@@ -53,7 +53,7 @@ type tP struct {
 	frameworks    []string
 	frameworksErr error
 
-	svcYamls []snappy.ServiceYaml
+	appYamls map[string]*snappy.AppYaml
 }
 
 func (p *tP) Name() string         { return p.name }
@@ -74,7 +74,6 @@ func (p *tP) DownloadSize() int64  { return p.downloadSize }
 func (p *tP) Install(progress.Meter, snappy.InstallFlags) (string, error) {
 	return p.installName, p.installErr
 }
-func (p *tP) Uninstall(pb progress.Meter) error { return p.uninstallErr }
 func (p *tP) Config(cfg []byte) (string, error) {
 	if len(cfg) > 0 {
 		p.config = string(cfg)
@@ -85,4 +84,4 @@ func (p *tP) SetActive(bool, progress.Meter) error { return p.setActiveErr }
 func (p *tP) Frameworks() ([]string, error)        { return p.frameworks, p.frameworksErr }
 
 // for ServiceYamler interface:
-func (p *tP) ServiceYamls() []snappy.ServiceYaml { return p.svcYamls }
+func (p *tP) Apps() map[string]*snappy.AppYaml { return p.appYamls }

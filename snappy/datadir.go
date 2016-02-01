@@ -73,7 +73,7 @@ func data1(spec, basedir string) []SnapDataDir {
 	// have written?”
 	// To which I can only say: DataDirs finds all the data dirs on the
 	// system, not just those of packages that are installed. If you've
-	// removed a package its package.yaml is gone, its data is still there,
+	// removed a package its snap.yaml is gone, its data is still there,
 	// and you want us to be able to clean that up.
 	for _, dir := range dirs {
 		version := filepath.Base(dir)

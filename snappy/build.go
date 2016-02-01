@@ -127,7 +127,7 @@ func shouldExclude(basedir string, file string) bool {
 }
 
 // small helper that return the architecture or "multi" if its multiple arches
-func debArchitecture(m *packageYaml) string {
+func debArchitecture(m *snapYaml) string {
 	switch len(m.Architectures) {
 	case 0:
 		return "unknown"
@@ -136,36 +136,6 @@ func debArchitecture(m *packageYaml) string {
 	default:
 		return "multi"
 	}
-}
-
-func parseReadme(readme string) (title, description string, err error) {
-	file, err := os.Open(readme)
-	if err != nil {
-		return "", "", err
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		if title == "" {
-			title = scanner.Text()
-			continue
-		}
-
-		if description != "" && scanner.Text() == "" {
-			break
-		}
-		description += scanner.Text()
-	}
-	if title == "" {
-		return "", "", ErrReadmeInvalid
-	}
-
-	if strings.TrimSpace(description) == "" {
-		description = "no description"
-	}
-
-	return title, description, nil
 }
 
 // the du(1) command, useful to override for testing
@@ -272,19 +242,15 @@ var licenseChecker = checkLicenseExists
 
 func prepare(sourceDir, targetDir, buildDir string) (snapName string, err error) {
 	// ensure we have valid content
-	m, err := parsePackageYamlFile(filepath.Join(sourceDir, "meta", "package.yaml"))
+	m, err := parseSnapYamlFile(filepath.Join(sourceDir, "meta", "snap.yaml"))
 	if err != nil {
 		return "", err
 	}
 
-	if m.ExplicitLicenseAgreement {
+	if m.LicenseAgreement == "explicit" {
 		if err := licenseChecker(sourceDir); err != nil {
 			return "", err
 		}
-	}
-
-	if err := m.checkForNameClashes(); err != nil {
-		return "", err
 	}
 
 	if err := copyToBuildDir(sourceDir, buildDir); err != nil {
