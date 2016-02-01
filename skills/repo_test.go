@@ -713,19 +713,19 @@ func (s *RepositorySuite) TestLoadBuiltInTypes(c *C) {
 	c.Assert(err, IsNil)
 }
 
-// Tests for Repository.UsersOf()
+// Tests for Repository.GrantsOf()
 
-func (s *RepositorySuite) TestUsersOfReturnsNothingForUnknownSkills(c *C) {
+func (s *RepositorySuite) TestGrantsOfReturnsNothingForUnknownSkills(c *C) {
 	// Asking about unknown snaps just returns an empty list
-	c.Assert(s.testRepo.UsersOf("unknown", "unknown"), HasLen, 0)
+	c.Assert(s.testRepo.GrantsOf("unknown", "unknown"), HasLen, 0)
 }
 
-func (s *RepositorySuite) TestUsersOfReturnsNothingForEmptyString(c *C) {
+func (s *RepositorySuite) TestGrantsOfReturnsNothingForEmptyString(c *C) {
 	// Asking about the empty string just returns an empty list
-	c.Assert(s.testRepo.UsersOf("", ""), HasLen, 0)
+	c.Assert(s.testRepo.GrantsOf("", ""), HasLen, 0)
 }
 
-func (s *RepositorySuite) TestUsersOfReturnsCorrectData(c *C) {
+func (s *RepositorySuite) TestGrantsOfReturnsCorrectData(c *C) {
 	err := s.testRepo.AddSkill(s.skill)
 	c.Assert(err, IsNil)
 	err = s.testRepo.AddSlot(s.slot)
@@ -733,10 +733,10 @@ func (s *RepositorySuite) TestUsersOfReturnsCorrectData(c *C) {
 	// After granting the result is as expected
 	err = s.testRepo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
 	c.Assert(err, IsNil)
-	users := s.testRepo.UsersOf(s.skill.Snap, s.skill.Name)
+	users := s.testRepo.GrantsOf(s.skill.Snap, s.skill.Name)
 	c.Assert(users, DeepEquals, []*Slot{s.slot})
 	// After revoking the result is empty again
 	err = s.testRepo.Revoke(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
 	c.Assert(err, IsNil)
-	c.Assert(s.testRepo.UsersOf(s.skill.Snap, s.skill.Name), HasLen, 0)
+	c.Assert(s.testRepo.GrantsOf(s.skill.Snap, s.skill.Name), HasLen, 0)
 }

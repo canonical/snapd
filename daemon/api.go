@@ -990,7 +990,7 @@ func getSkills(c *Command, r *http.Request) Response {
 	var skills []SkillInfo
 	for _, skill := range c.d.skills.AllSkills("") {
 		var slots []SkillGrant
-		for _, slot := range c.d.skills.UsersOf(skill.Snap, skill.Name) {
+		for _, slot := range c.d.skills.GrantsOf(skill.Snap, skill.Name) {
 			slots = append(slots, SkillGrant{
 				Snap: slot.Snap,
 				Name: slot.Name,

@@ -362,8 +362,8 @@ func (r *Repository) GrantedBy(snapName string) map[*Skill][]*Slot {
 	return result
 }
 
-// UsersOf returns all of the slots using a given skill.
-func (r *Repository) UsersOf(snapName, skillName string) []*Slot {
+// GrantsOf returns all of the slots that were granted the provided skill.
+func (r *Repository) GrantsOf(snapName, skillName string) []*Slot {
 	r.m.Lock()
 	defer r.m.Unlock()
 
