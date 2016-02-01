@@ -71,8 +71,9 @@ func (x *cmdAsserts) Execute(args []string) error {
 		return nil
 	}
 
+	// XXX: this will produce a double newline also at the end,
+	// tweak asserts.Encoder to avoid that
 	enc := asserts.NewEncoder(os.Stdout)
-
 	for _, a := range assertions {
 		enc.Encode(a)
 	}
