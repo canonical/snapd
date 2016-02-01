@@ -23,6 +23,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -31,6 +33,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/oauth"
+	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/remote"
@@ -382,4 +385,62 @@ func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
 // Installed returns the installed snaps from this repository
 func (s *SnapUbuntuStoreRepository) Installed() (parts []Part, err error) {
 	return nil, err
+}
+
+// Download downloads the given snap and returns the filename of the local
+// version
+func (s *SnapUbuntuStoreRepository) Download(remoteSnap *RemoteSnapPart, pbar progress.Meter) (string, error) {
+	w, err := ioutil.TempFile("", remoteSnap.pkg.Name)
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		if err != nil {
+			os.Remove(w.Name())
+		}
+	}()
+	defer w.Close()
+
+	// try anonymous download first and fallback to authenticated
+	url := remoteSnap.pkg.AnonDownloadURL
+	if url == "" {
+		url = remoteSnap.pkg.DownloadURL
+	}
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return "", err
+	}
+	setUbuntuStoreHeaders(req)
+
+	if err := download(remoteSnap.Name(), w, req, pbar); err != nil {
+		return "", err
+	}
+
+	return w.Name(), w.Sync()
+}
+
+// download writes an http.Request showing a progress.Meter
+func download(name string, w io.Writer, req *http.Request, pbar progress.Meter) error {
+	client := &http.Client{}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return &ErrDownload{Code: resp.StatusCode, URL: req.URL}
+	}
+
+	if pbar != nil {
+		pbar.Start(name, float64(resp.ContentLength))
+		mw := io.MultiWriter(w, pbar)
+		_, err = io.Copy(mw, resp.Body)
+		pbar.Finished()
+	} else {
+		_, err = io.Copy(w, resp.Body)
+	}
+
+	return err
 }

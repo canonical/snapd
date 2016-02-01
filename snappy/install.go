@@ -45,13 +45,35 @@ const (
 	AllowGadget
 )
 
+func installRemote(remoteSnap *RemoteSnapPart, flags InstallFlags, meter progress.Meter) (string, error) {
+	mStore := NewUbuntuStoreSnapRepository()
+	downloadedSnap, err := mStore.Download(remoteSnap, meter)
+	if err != nil {
+		return "", fmt.Errorf("can not download %s: %s", remoteSnap.Name(), err)
+	}
+	defer os.Remove(downloadedSnap)
+
+	if err := remoteSnap.saveStoreManifest(); err != nil {
+		return "", err
+	}
+
+	localSnap, err := (&Overlord{}).Install(downloadedSnap, remoteSnap.Origin(), flags, meter)
+	if err != nil {
+		return "", err
+	}
+
+	return localSnap.Name(), nil
+}
+
 func doUpdate(part Part, flags InstallFlags, meter progress.Meter) error {
-	if _, err := part.Install(meter, flags); err == ErrSideLoaded {
+	_, err := installRemote(part.(*RemoteSnapPart), flags, meter)
+	if err == ErrSideLoaded {
 		logger.Noticef("Skipping sideloaded package: %s", part.Name())
 		return nil
 	} else if err != nil {
 		return err
 	}
+
 	if err := GarbageCollect(part.Name(), flags, meter); err != nil {
 		return err
 	}
@@ -174,7 +196,7 @@ func doInstall(name string, flags InstallFlags, meter progress.Meter) (snapName 
 	}
 
 	// check repos next
-	mStore := NewMetaStoreRepository()
+	mStore := NewUbuntuStoreSnapRepository()
 	installed, err := NewMetaLocalRepository().Installed()
 	if err != nil {
 		return "", err
@@ -201,9 +223,7 @@ func doInstall(name string, flags InstallFlags, meter progress.Meter) (snapName 
 			return "", ErrPackageNameAlreadyInstalled
 		}
 
-		// TODO block gadget snaps here once the store supports package types
-
-		return part.Install(meter, flags)
+		return installRemote(part.(*RemoteSnapPart), flags, meter)
 	}
 
 	return "", ErrPackageNotFound
