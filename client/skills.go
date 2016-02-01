@@ -58,8 +58,8 @@ type SkillAction struct {
 }
 
 // AllSkills returns information about all the skills and their grants.
-func (client *Client) AllSkills() (usage []SkillGrants, err error) {
-	err = client.doSync("GET", "/2.0/skills", nil, nil, &usage)
+func (client *Client) AllSkills() (grants []SkillGrants, err error) {
+	err = client.doSync("GET", "/2.0/skills", nil, nil, &grants)
 	return
 }
 
