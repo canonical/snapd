@@ -403,7 +403,7 @@ func (c bySlotSnapAndName) Less(i, j int) bool {
 	return c[i].Name < c[j].Name
 }
 
-// LoadBuiltInTypes loads built-in skill types to a repository.
+// LoadBuiltInTypes loads built-in skill types into the provided repository.
 func LoadBuiltInTypes(repo *Repository) error {
 	return nil
 }
