@@ -63,6 +63,7 @@ var api = []*Command{
 	capabilitiesCmd,
 	capabilityCmd,
 	assertsCmd,
+	assertsFindManyCmd,
 }
 
 var (
@@ -145,6 +146,11 @@ var (
 	assertsCmd = &Command{
 		Path: "/2.0/assertions",
 		POST: doAssert,
+	}
+
+	assertsFindManyCmd = &Command{
+		Path: "/2.0/assertions/{assertType}",
+		GET:  assertsFindMany,
 	}
 )
 
@@ -979,4 +985,24 @@ func doAssert(c *Command, r *http.Request) Response {
 		Type:   ResponseTypeSync,
 		Status: http.StatusOK,
 	}
+}
+
+func assertsFindMany(c *Command, r *http.Request) Response {
+	assertTypeName := muxVars(r)["assertType"]
+	assertType := asserts.Type(assertTypeName)
+	if assertType == nil {
+		return BadRequest("invalid assert type: %q", assertTypeName)
+	}
+	headers := map[string]string{}
+	q := r.URL.Query()
+	for k := range q {
+		headers[k] = q.Get(k)
+	}
+	assertions, err := c.d.asserts.FindMany(assertType, headers)
+	if err == asserts.ErrNotFound {
+		return AssertResponse(nil, true)
+	} else if err != nil {
+		return InternalError("searching assertions failed: %v", err)
+	}
+	return AssertResponse(assertions, true)
 }

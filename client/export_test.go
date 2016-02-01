@@ -33,3 +33,6 @@ func (client *Client) SetDoer(d doer) {
 func (client *Client) Do(method, path string, query url.Values, body io.Reader, v interface{}) error {
 	return client.do(method, path, query, body, v)
 }
+
+// expose parseError for testing
+var ParseErrorInTest = parseError
