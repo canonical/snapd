@@ -22,14 +22,20 @@ package client_test
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/client"
+	"github.com/ubuntu-core/snappy/dirs"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -54,6 +60,8 @@ func (cs *clientSuite) SetUpTest(c *check.C) {
 	cs.req = nil
 	cs.header = nil
 	cs.status = http.StatusOK
+
+	dirs.SetRootDir(c.MkDir())
 }
 
 func (cs *clientSuite) Do(req *http.Request) (*http.Response, error) {
@@ -68,7 +76,7 @@ func (cs *clientSuite) Do(req *http.Request) (*http.Response, error) {
 
 func (cs *clientSuite) TestClientDoReportsErrors(c *check.C) {
 	cs.err = errors.New("ouchie")
-	err := cs.cli.Do("GET", "/", nil, nil)
+	err := cs.cli.Do("GET", "/", nil, nil, nil)
 	c.Check(err, check.Equals, cs.err)
 }
 
@@ -76,7 +84,7 @@ func (cs *clientSuite) TestClientWorks(c *check.C) {
 	var v []int
 	cs.rsp = `[1,2]`
 	reqBody := ioutil.NopCloser(strings.NewReader(""))
-	err := cs.cli.Do("GET", "/this", reqBody, &v)
+	err := cs.cli.Do("GET", "/this", nil, reqBody, &v)
 	c.Check(err, check.IsNil)
 	c.Check(v, check.DeepEquals, []int{1, 2})
 	c.Assert(cs.req, check.NotNil)
@@ -102,6 +110,33 @@ func (cs *clientSuite) TestClientSysInfo(c *check.C) {
 		APICompatibility: "42",
 		Store:            "store",
 	})
+}
+
+func (cs *clientSuite) TestClientIntegration(c *check.C) {
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapdSocket), 0755), check.IsNil)
+	l, err := net.Listen("unix", dirs.SnapdSocket)
+	if err != nil {
+		c.Fatalf("unable to listen on %q: %v", dirs.SnapdSocket, err)
+	}
+
+	f := func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/2.0/system-info")
+		c.Check(r.URL.RawQuery, check.Equals, "")
+
+		fmt.Fprintln(w, `{"type":"sync", "result":{"store":"X"}}`)
+	}
+
+	srv := &httptest.Server{
+		Listener: l,
+		Config:   &http.Server{Handler: http.HandlerFunc(f)},
+	}
+	srv.Start()
+	defer srv.Close()
+
+	cli := client.New()
+	si, err := cli.SysInfo()
+	c.Check(err, check.IsNil)
+	c.Check(si.Store, check.Equals, "X")
 }
 
 func (cs *clientSuite) TestClientReportsOpError(c *check.C) {
