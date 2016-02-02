@@ -3,14 +3,7 @@ version: 1.0
 apps:
  echo:
   command: bin/echo
-  uses: [nothing]
  success:
   command: bin/success
-  uses: [nothing]
  fail:
   command: bin/fail
-  uses: [nothing]
-uses:
- nothing:
-  type: migration-skill
-  caps: []

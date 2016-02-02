@@ -1039,7 +1039,7 @@ func (a *SecurityTestSuite) TestFindSkillForAppEmpty(c *C) {
 	m := &snapYaml{}
 	skill, err := findSkillForApp(m, app)
 	c.Check(err, IsNil)
-	c.Check(skill, IsNil)
+	c.Check(skill, Equals, defaultMigrationSkill)
 }
 
 func (a *SecurityTestSuite) TestFindSkillForAppTooMany(c *C) {

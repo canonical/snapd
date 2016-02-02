@@ -8,7 +8,3 @@ description: |
 apps:
  reader:
   command: bin/reader
-  uses: [defaults]
-uses:
- defaults:
-  type: migration-skill

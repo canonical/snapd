@@ -8,8 +8,4 @@ apps:
   command: ./bin/start
   daemon: simple
   description: Test service
-  uses: [service]
-uses:
- service:
-  type: migration-skill
 

@@ -71,6 +71,12 @@ var (
 		SecurityCaps: []string{},
 	}
 
+	// the default migration skill if no default is uses in
+	// the "uses" references
+	defaultMigrationSkill = &usesYaml{
+		Type: "migration-skill",
+	}
+
 	runAppArmorParser = runAppArmorParserImpl
 )
 
@@ -733,7 +739,7 @@ func hasConfig(baseDir string) bool {
 
 func findSkillForApp(m *snapYaml, app *AppYaml) (*usesYaml, error) {
 	if len(app.UsesRef) == 0 {
-		return nil, nil
+		return defaultMigrationSkill, nil
 	}
 	if len(app.UsesRef) != 1 {
 		return nil, fmt.Errorf("only a single skill is supported, %d found", len(app.UsesRef))
