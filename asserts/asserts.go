@@ -233,7 +233,7 @@ const (
 	MaxSignatureSize = 128 * 1024
 )
 
-// Decoder parses a stream of assertions bundled by ensuring double newlines at the end of each assertion.
+// Decoder parses a stream of assertions bundled by separating them with double newlines.
 type Decoder struct {
 	rd             io.Reader
 	initialBufSize int
