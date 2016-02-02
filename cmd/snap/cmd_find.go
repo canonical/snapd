@@ -61,10 +61,10 @@ func (x *cmdFind) Execute([]string) error {
 
 	if len(snaps) == 0 {
 		if filter.Query == "" {
-			return fmt.Errorf("No snaps found.")
+			return fmt.Errorf("no snaps found")
 		}
 
-		return fmt.Errorf("No snaps found for %q.", filter.Query)
+		return fmt.Errorf("no snaps found for %q", filter.Query)
 	}
 
 	names := make([]string, len(snaps))
