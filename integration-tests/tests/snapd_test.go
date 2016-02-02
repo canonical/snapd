@@ -27,7 +27,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
@@ -65,19 +64,7 @@ func (s *snapdTestSuite) SetUpTest(c *check.C) {
 
 	s.cmd.Start()
 
-	done := false
-	for i := 0; i < 50; i++ {
-		if err := exec.Command("sudo", "chmod", "/run/snapd.socket", "0666").Run(); err == nil {
-			done = true
-			break
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-	if !done {
-		s.cmd.Process.Kill()
-		c.Fatal("snapd didn't start in time")
-	}
-
+	wait.ForCommand(c, `^$`, "sudo", "chmod", "0666", "/run/snapd.socket")
 	common.InstallSnap(c, httpClientSnap+"/edge")
 }
 
