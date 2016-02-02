@@ -71,8 +71,13 @@ var (
 		SecurityCaps: []string{},
 	}
 
-	// The default SecurityDefinition if no skill is specified
-	// Note that this has no network access
+	// TODO This is not actually right. Even if there are skills,
+	// we still want to give the snap a default set of allowances,
+	// such as being able to read and write in its own directories
+	// and perhaps network access (we're still deciding on that
+	// one). So the real logic we want here is: give the snap a
+	// default set of permissions, and then whatever else the
+	// skills permit (migration or not). This is coming soon.
 	defaultSecurityPolicy = &SecurityDefinitions{
 		SecurityCaps: []string{},
 	}
