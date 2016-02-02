@@ -106,8 +106,10 @@ int CheckAuthorization (const char *action_id, pid_t pid, uid_t uid)
 done:
     if (reply)
         sd_bus_message_unref (reply);
-    if (bus)
+    if (bus) {
         sd_bus_close (bus);
+        sd_bus_unref (bus);
+    }
 
     return authorized;
 }
