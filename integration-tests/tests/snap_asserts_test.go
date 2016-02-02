@@ -32,6 +32,7 @@ import (
 
 var _ = check.Suite(&snapAssertsSuite{})
 
+// Suite for "snap asserts".
 type snapAssertsSuite struct {
 	// FIXME: use snapdTestSuite until all tests are moved to
 	// assume the snapd/snap command pairing
@@ -40,6 +41,7 @@ type snapAssertsSuite struct {
 
 // FIXME: "snap asserts" shouldn't require sudo, need to tweak snapd test re-activation
 
+// Test querying for assertions with "snap" of the given type without filtering which gives all of them.
 func (s *snapAssertsSuite) TestAll(c *check.C) {
 	// add an account key
 	cli.ExecCommand(c, "sudo", "snap", "assert", "integration-tests/data/dev1.acckey")
@@ -60,7 +62,8 @@ func (s *snapAssertsSuite) TestAll(c *check.C) {
 	c.Check(assertions, check.HasLen, 2)
 }
 
-func (s *snapAssertsSuite) TestFilter(c *check.C) {
+// Test querying for assertions with "snap" of the given type with filtering by assertion headers.
+func (s *snapAssertsSuite) TestFiltering(c *check.C) {
 	// add an account key
 	cli.ExecCommand(c, "sudo", "snap", "assert", "integration-tests/data/dev1.acckey")
 	defer cli.ExecCommand(c, "sudo", "rm", "-rf", dev1AccKeyFiles)
