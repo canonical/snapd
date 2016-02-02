@@ -121,7 +121,6 @@ The `snap.yaml` is structured as:
 
 
 	name: package-string # mandatory
-	icon: icon-path # mandatory
 	version: version-string # mandatory
 	type: gadget # mandatory
 
@@ -201,7 +200,6 @@ As an example
 
 
     name: beagleboneblack.sergiusens
-    icon: meta/element14.png
     version: 1.1
     type: gadget
 

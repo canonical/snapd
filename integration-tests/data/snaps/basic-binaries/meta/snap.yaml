@@ -1,6 +1,5 @@
 name: basic-binaries
 version: 1.0
-icon: meta/snappy64.png
 apps:
  echo:
   command: bin/echo
