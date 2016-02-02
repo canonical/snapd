@@ -2226,6 +2226,34 @@ func (s *apiSuite) TestAddTestTypeSuccess(c *check.C) {
 	c.Check(d.skills.Type("type"), check.DeepEquals, &skills.TestType{TypeName: "type"})
 }
 
+func (s *apiSuite) TestAddTestTypeFailure(c *check.C) {
+	d := newTestDaemon()
+	action := &skillAction{
+		Action: "add-type",
+		Type:   "type-",
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	skillsCmd.POST(skillsCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 400)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"message": `invalid skill name: "type-"`,
+		},
+		"status":      "Bad Request",
+		"status_code": 400.0,
+		"type":        "error",
+	})
+	c.Check(d.skills.Type("type-"), check.IsNil)
+}
+
 func (s *apiSuite) TestAddTestTypeDisabled(c *check.C) {
 	d := newTestDaemon()
 	d.enableInternalSkillActions = false
