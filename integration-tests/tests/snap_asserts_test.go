@@ -60,6 +60,7 @@ func (s *snapAssertsSuite) TestAll(c *check.C) {
 		assertions = append(assertions, a)
 	}
 	c.Check(assertions, check.HasLen, 2)
+	c.Check(assertions[1].(*asserts.AccountKey).AccountID(), check.Equals, "developer1")
 }
 
 // Test querying for assertions with "snap" of the given type with filtering by assertion headers.
