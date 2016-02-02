@@ -848,10 +848,10 @@ TimeoutStopSec=30
 [Install]
 WantedBy=multi-user.target
 `
-	expectedServiceAppWrapper     = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".canonical", "canonical", "\n", arch.UbuntuArchitecture())
-	expectedNetAppWrapper         = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target\nAfter=snappy-wait4network.service\nRequires=snappy-wait4network.service", ".canonical", "canonical", "\n", arch.UbuntuArchitecture())
-	expectedServiceFmkWrapper     = fmt.Sprintf(expectedServiceWrapperFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target", "", "", "BusName=foo.bar.baz\nType=dbus", arch.UbuntuArchitecture())
-	expectedSocketUsingWrapper    = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target xkcd-webserver_xkcd-webserver_0.3.4.socket\nRequires=ubuntu-snappy.frameworks.target xkcd-webserver_xkcd-webserver_0.3.4.socket", ".canonical", "canonical", "\n", arch.UbuntuArchitecture())
+	expectedServiceAppWrapper     = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".canonical", "canonical", "Type=simple\n", arch.UbuntuArchitecture())
+	expectedNetAppWrapper         = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target\nAfter=snappy-wait4network.service\nRequires=snappy-wait4network.service", ".canonical", "canonical", "Type=simple\n", arch.UbuntuArchitecture())
+	expectedServiceFmkWrapper     = fmt.Sprintf(expectedServiceWrapperFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target", "", "", "Type=dbus\nBusName=foo.bar.baz", arch.UbuntuArchitecture())
+	expectedSocketUsingWrapper    = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target xkcd-webserver_xkcd-webserver_0.3.4.socket\nRequires=ubuntu-snappy.frameworks.target xkcd-webserver_xkcd-webserver_0.3.4.socket", ".canonical", "canonical", "Type=simple\n", arch.UbuntuArchitecture())
 	expectedTypeForkingFmkWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".canonical", "canonical", "Type=forking\n", arch.UbuntuArchitecture())
 )
 
@@ -863,7 +863,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceTypeForking(c *C) {
 		PostStop:    "bin/foo post-stop",
 		StopTimeout: timeout.DefaultTimeout,
 		Description: "A fun webserver",
-		Forking:     true,
+		Daemon:      "forking",
 	}
 	pkgPath := "/snaps/xkcd-webserver.canonical/0.3.4/"
 	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
@@ -883,6 +883,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceAppWrapper(c *C) {
 		PostStop:    "bin/foo post-stop",
 		StopTimeout: timeout.DefaultTimeout,
 		Description: "A fun webserver",
+		Daemon:      "simple",
 	}
 	pkgPath := "/snaps/xkcd-webserver.canonical/0.3.4/"
 	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
@@ -903,6 +904,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceAppWrapperWithExternalPort(
 		StopTimeout: timeout.DefaultTimeout,
 		Description: "A fun webserver",
 		Ports:       &Ports{External: map[string]Port{"foo": Port{}}},
+		Daemon:      "simple",
 	}
 	pkgPath := "/snaps/xkcd-webserver.canonical/0.3.4/"
 	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
@@ -923,6 +925,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceFmkWrapper(c *C) {
 		StopTimeout: timeout.DefaultTimeout,
 		Description: "A fun webserver",
 		BusName:     "foo.bar.baz",
+		Daemon:      "dbus",
 	}
 	pkgPath := "/snaps/xkcd-webserver/0.3.4/"
 	aaProfile := "xkcd-webserver_xkcd-webserver_0.3.4"
@@ -941,6 +944,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceRestart(c *C) {
 	service := &AppYaml{
 		Name:        "xkcd-webserver",
 		RestartCond: systemd.RestartOnAbort,
+		Daemon:      "simple",
 	}
 	pkgPath := "/snaps/xkcd-webserver/0.3.4/"
 	aaProfile := "xkcd-webserver_xkcd-webserver_0.3.4"
@@ -961,6 +965,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWrapperWhitelist(c *C) {
 		PostStop:    "bin/foo post-stop",
 		StopTimeout: timeout.DefaultTimeout,
 		Description: "A fun webserver\nExec=foo",
+		Daemon:      "simple",
 	}
 	pkgPath := "/snaps/xkcd-webserver.canonical/0.3.4/"
 	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
@@ -1106,6 +1111,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapSocket(c *C) {
 		SocketMode:   "0660",
 		SocketUser:   "root",
 		SocketGroup:  "adm",
+		Daemon:       "simple",
 	}
 	pkgPath := "/snaps/xkcd-webserver.canonical/0.3.4/"
 	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
@@ -1140,6 +1146,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWithSockte(c *C) {
 		StopTimeout: timeout.DefaultTimeout,
 		Description: "A fun webserver",
 		Socket:      true,
+		Daemon:      "simple",
 	}
 	pkgPath := "/snaps/xkcd-webserver.canonical/0.3.4/"
 	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
