@@ -77,8 +77,6 @@ func installService(c *check.C, serviceName, serviceCfg, servicesPath string) {
 }
 
 func (s *failoverSuite) TestSystemdDependencyLoop(c *check.C) {
-	c.Skip("FIXME: fails for unknown reasons")
-
 	breakSnap := func(snapPath string) error {
 		servicesPath := filepath.Join(snapPath, "lib", "systemd", "system")
 		installService(c, "deadlock", deadlockService, servicesPath)

@@ -29,8 +29,6 @@ import (
 )
 
 func (s *failoverSuite) TestRCLocalCrash(c *check.C) {
-	c.Skip("FIXME: fails for unknown reasons")
-
 	breakSnap := func(snapPath string) error {
 		targetFile := filepath.Join(snapPath, "etc", "rc.local")
 		cli.ExecCommand(c, "sudo", "chmod", "a+xw", targetFile)

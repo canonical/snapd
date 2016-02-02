@@ -64,8 +64,6 @@ func (s *failoverSuite) TestZeroSizeKernel(c *check.C) {
 */
 
 func (s *failoverSuite) TestZeroSizeInitrd(c *check.C) {
-	c.Skip("FIXME: fails for unknown reasons")
-
 	breakSnap := func(snapPath string) error {
 		fullPath, error := filepath.EvalSymlinks(filepath.Join(snapPath, "initrd.img"))
 		if error != nil {
