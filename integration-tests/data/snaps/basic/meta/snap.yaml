@@ -1,0 +1,5 @@
+name: basic
+version: 1.0
+summary: Basic snap
+description: A basic buildable snap
+icon: meta/snappy64.png
