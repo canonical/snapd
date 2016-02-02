@@ -48,7 +48,7 @@ const (
 func installRemote(mStore *SnapUbuntuStoreRepository, remoteSnap *RemoteSnapPart, flags InstallFlags, meter progress.Meter) (string, error) {
 	downloadedSnap, err := mStore.Download(remoteSnap, meter)
 	if err != nil {
-		return "", fmt.Errorf("can not download %s: %s", remoteSnap.Name(), err)
+		return "", fmt.Errorf("cannot download %s: %s", remoteSnap.Name(), err)
 	}
 	defer os.Remove(downloadedSnap)
 
@@ -126,7 +126,7 @@ func Update(name string, flags InstallFlags, meter progress.Meter) ([]Part, erro
 	// TODO: query the store for just this package, instead of this
 	updates, err := mStore.Updates()
 	if err != nil {
-		return nil, fmt.Errorf("can not get updates: %s", err)
+		return nil, fmt.Errorf("cannot get updates: %s", err)
 	}
 	upd := FindSnapsByName(QualifiedName(cur[0]), updates)
 	if len(upd) < 1 {
