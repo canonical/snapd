@@ -125,11 +125,11 @@ func gadgetConfig() error {
 	return nil
 }
 
-type Activator interface {
+type activator interface {
 	SetActive(sp *SnapPart, active bool, meter progress.Meter) error
 }
 
-var getActivator = func() Activator {
+var getActivator = func() activator {
 	return &Overlord{}
 }
 
