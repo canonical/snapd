@@ -41,35 +41,67 @@ func (s *TestTypeSuite) TestName(c *C) {
 }
 
 // TestType doesn't do any sanitization by default
-func (s *TestTypeSuite) TestSanitizeOK(c *C) {
+func (s *TestTypeSuite) TestSanitizeSkillOK(c *C) {
 	skill := &Skill{
 		Type: "test",
 	}
-	err := s.t.Sanitize(skill)
+	err := s.t.SanitizeSkill(skill)
 	c.Assert(err, IsNil)
 }
 
 // TestType has provisions to customize sanitization
-func (s *TestTypeSuite) TestSanitizeError(c *C) {
+func (s *TestTypeSuite) TestSanitizeSkillError(c *C) {
 	t := &TestType{
 		TypeName: "test",
-		SanitizeCallback: func(skill *Skill) error {
-			return fmt.Errorf("sanitize failed")
+		SanitizeSkillCallback: func(skill *Skill) error {
+			return fmt.Errorf("sanitize skill failed")
 		},
 	}
 	skill := &Skill{
 		Type: "test",
 	}
-	err := t.Sanitize(skill)
-	c.Assert(err, ErrorMatches, "sanitize failed")
+	err := t.SanitizeSkill(skill)
+	c.Assert(err, ErrorMatches, "sanitize skill failed")
 }
 
 // TestType sanitization still checks for type identity
-func (s *TestTypeSuite) TestSanitizeWrongType(c *C) {
+func (s *TestTypeSuite) TestSanitizeSkillWrongType(c *C) {
 	skill := &Skill{
 		Type: "other-type",
 	}
-	c.Assert(func() { s.t.Sanitize(skill) }, Panics, "skill is not of type \"test\"")
+	c.Assert(func() { s.t.SanitizeSkill(skill) }, Panics, "skill is not of type \"test\"")
+}
+
+// TestType doesn't do any sanitization by default
+func (s *TestTypeSuite) TestSanitizeSlotOK(c *C) {
+	slot := &Slot{
+		Type: "test",
+	}
+	err := s.t.SanitizeSlot(slot)
+	c.Assert(err, IsNil)
+}
+
+// TestType has provisions to customize sanitization
+func (s *TestTypeSuite) TestSanitizeSlotError(c *C) {
+	t := &TestType{
+		TypeName: "test",
+		SanitizeSlotCallback: func(slot *Slot) error {
+			return fmt.Errorf("sanitize slot failed")
+		},
+	}
+	slot := &Slot{
+		Type: "test",
+	}
+	err := t.SanitizeSlot(slot)
+	c.Assert(err, ErrorMatches, "sanitize slot failed")
+}
+
+// TestType sanitization still checks for type identity
+func (s *TestTypeSuite) TestSanitizeSlotWrongType(c *C) {
+	slot := &Slot{
+		Type: "other-type",
+	}
+	c.Assert(func() { s.t.SanitizeSlot(slot) }, Panics, "slot is not of type \"test\"")
 }
 
 // TestType hands out empty skill security snippets
