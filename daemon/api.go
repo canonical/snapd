@@ -86,41 +86,41 @@ var (
 	}
 
 	snapsCmd = &Command{
-		Path:   "/2.0/snaps",
-		UserOK: true,
-		GET:    getSnapsInfo,
-		POST:   sideloadSnap,
+		Path:            "/2.0/snaps",
+		UserOK:          true,
+		GET:             getSnapsInfo,
+		POST:            sideloadSnap,
 		PolicyKitAction: "com.ubuntu.snappy.sideload-snap",
 	}
 
 	snapCmd = &Command{
-		Path:   "/2.0/snaps/{name}.{origin}",
-		UserOK: true,
-		GET:    getSnapInfo,
-		POST:   postSnap,
+		Path:            "/2.0/snaps/{name}.{origin}",
+		UserOK:          true,
+		GET:             getSnapInfo,
+		POST:            postSnap,
 		PolicyKitAction: "com.ubuntu.snappy.install-snap",
 	}
 
 	snapConfigCmd = &Command{
-		Path: "/2.0/snaps/{name}.{origin}/config",
-		GET:  snapConfig,
-		PUT:  snapConfig,
+		Path:            "/2.0/snaps/{name}.{origin}/config",
+		GET:             snapConfig,
+		PUT:             snapConfig,
 		PolicyKitAction: "com.ubuntu.snappy.configure-snap",
 	}
 
 	snapSvcsCmd = &Command{
-		Path:   "/2.0/snaps/{name}.{origin}/services",
-		UserOK: true,
-		GET:    snapService,
-		PUT:    snapService,
+		Path:            "/2.0/snaps/{name}.{origin}/services",
+		UserOK:          true,
+		GET:             snapService,
+		PUT:             snapService,
 		PolicyKitAction: "com.ubuntu.snappy.service-snap",
 	}
 
 	snapSvcCmd = &Command{
-		Path:   "/2.0/snaps/{name}.{origin}/services/{service}",
-		UserOK: true,
-		GET:    snapService,
-		PUT:    snapService,
+		Path:            "/2.0/snaps/{name}.{origin}/services/{service}",
+		UserOK:          true,
+		GET:             snapService,
+		PUT:             snapService,
 		PolicyKitAction: "com.ubuntu.snappy.service-snap",
 	}
 

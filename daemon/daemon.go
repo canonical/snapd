@@ -182,7 +182,7 @@ func (c *Command) canAccess(r *http.Request) bool {
 	// require authorization to modify
 	if r.Method != "GET" {
 		if isUser && c.PolicyKitAction != "" {
-			return C.CheckAuthorization (C.CString (c.PolicyKitAction), C.pid_t (pid), C.uid_t (uid)) != C.false
+			return C.CheckAuthorization(C.CString(c.PolicyKitAction), C.pid_t(pid), C.uid_t(uid)) != C.false
 		} else {
 			return false
 		}
