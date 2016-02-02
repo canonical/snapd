@@ -102,7 +102,7 @@ Run the tests with:
 With the `--update` flag you can flash an old image, update to the latest and
 then run the whole suite on the updated system. The `release`, the `channel` and
 the `revision` flags specify the image that will be flashed. There must be an
-update available for the flashed iamge.
+update available for the flashed image.
 
 For example, to update from *rolling edge -1* to the latest and then run the
 integration tests:
