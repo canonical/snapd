@@ -66,11 +66,6 @@ func (x *cmdAsserts) Execute(args []string) error {
 		return err
 	}
 
-	if len(assertions) == 0 {
-		fmt.Fprintln(os.Stderr, "no matching assertion found.")
-		return nil
-	}
-
 	// XXX: this will produce a double newline also at the end,
 	// tweak asserts.Encoder to avoid that
 	enc := asserts.NewEncoder(os.Stdout)
