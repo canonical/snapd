@@ -71,10 +71,10 @@ var (
 		SecurityCaps: []string{},
 	}
 
-	// the default migration skill if no default is uses in
-	// the "uses" references
-	defaultMigrationSkill = &usesYaml{
-		Type: "migration-skill",
+	// The default SecurityDefinition if no skill is specified
+	// Note that this has no network access
+	defaultSecurityPolicy = &SecurityDefinitions{
+		SecurityCaps: []string{},
 	}
 
 	runAppArmorParser = runAppArmorParserImpl
@@ -739,7 +739,7 @@ func hasConfig(baseDir string) bool {
 
 func findSkillForApp(m *snapYaml, app *AppYaml) (*usesYaml, error) {
 	if len(app.UsesRef) == 0 {
-		return defaultMigrationSkill, nil
+		return nil, nil
 	}
 	if len(app.UsesRef) != 1 {
 		return nil, fmt.Errorf("only a single skill is supported, %d found", len(app.UsesRef))
@@ -768,7 +768,12 @@ func generatePolicy(m *snapYaml, baseDir string) error {
 		if err != nil {
 			return err
 		}
+
+		// if no skill is specified, use the defaultSecurityPolicy
 		if skill == nil {
+			if err = defaultSecurityPolicy.generatePolicyForServiceBinary(m, app.Name, baseDir); err != nil {
+				logger.Noticef("Failed to generate policy for app %s: %v", app.Name, err)
+			}
 			continue
 		}
 
