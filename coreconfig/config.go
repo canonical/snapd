@@ -167,7 +167,7 @@ func newSystemConfig() (*systemConfig, error) {
 var yamlMarshal = yaml.Marshal
 
 // Get is a special configuration case for the system, for which
-// there is no such entry in a package.yaml to satisfy the snappy config interface.
+// there is no such entry in a snap.yaml to satisfy the snappy config interface.
 // This implements getting the current configuration for ubuntu-core.
 func Get() (rawConfig string, err error) {
 	config, err := newSystemConfig()

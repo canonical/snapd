@@ -35,11 +35,6 @@ import (
 // SystemConfig is a config map holding configs for multiple packages
 type SystemConfig map[string]interface{}
 
-// ServiceYamler implements snappy packages that offer services
-type ServiceYamler interface {
-	ServiceYamls() []ServiceYaml
-}
-
 // Configuration allows requesting a gadget snappy package type's config
 type Configuration interface {
 	GadgetConfig() SystemConfig
@@ -108,8 +103,6 @@ type Part interface {
 
 	// Install the snap
 	Install(pb progress.Meter, flags InstallFlags) (name string, err error)
-	// Uninstall the snap
-	Uninstall(pb progress.Meter) error
 	// Config takes a yaml configuration and returns the full snap
 	// config with the changes. Note that "configuration" may be empty.
 	Config(configuration []byte) (newConfig string, err error)

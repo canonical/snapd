@@ -247,14 +247,30 @@ Sample result:
 
 #### `sources`
 
-Can be set to either `local` (to only list
-local snaps) or `store` (to only list snaps from the store), or a
-comma-separated combination. Defaults to `local,store`.
+Can be set to either `local` (to only list local snaps) or `store` (to
+only list snaps from the store), or a comma-separated
+combination. Defaults to `local,store`.
+
+Note that excluding sources will result in incomplete (and in some
+cases incorrect) information about installed packages: information
+about updates will be absent if `store` is not included, whereas if
+`local` is not included information about rollbacks will be missing,
+and the package state for installed packages will be incorrect.
+
+#### `types`
+
+Restricts returned snaps to those with types included in the specified
+comma-separated list. See the description of the `type` field of `snaps` in the
+above section for possible values.
 
 #### `page`
 
-request the given page when the server is paginating the
+Request the given page when the server is paginating the
 result. Defaults to `0`.
+
+#### `q`
+
+If present, only list snaps that match the query.
 
 ### POST
 
@@ -665,3 +681,15 @@ may also be a newer revision of a preexisting assertion that it will replace.
 To succeed the assertion must be valid, its signature verified with a
 known public key and the assertion consistent with and its
 prerequisite in the database.
+
+## /2.0/assertions/[assertionType]
+### GET
+
+* Description: Get all the assertions in the system assertion database of the given type matching the header filters passed as query parameters
+* Access: authenticated
+* Operation: sync
+* Return: stream of assertions
+
+The response is a stream of assertions each with a separating double
+newline at its end. The X-Ubuntu-Assertions-Count header is set to the
+number of returned assertions, 0 or more.

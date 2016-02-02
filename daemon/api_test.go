@@ -27,6 +27,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -51,9 +52,10 @@ import (
 )
 
 type apiSuite struct {
-	parts []snappy.Part
-	err   error
-	vars  map[string]string
+	parts      []snappy.Part
+	err        error
+	vars       map[string]string
+	searchTerm string
 }
 
 var _ = check.Suite(&apiSuite{})
@@ -66,7 +68,9 @@ func (s *apiSuite) All() ([]snappy.Part, error) {
 	return s.parts, s.err
 }
 
-func (s *apiSuite) Updates() ([]snappy.Part, error) {
+func (s *apiSuite) Find(searchTerm string) ([]snappy.Part, error) {
+	s.searchTerm = searchTerm
+
 	return s.parts, s.err
 }
 
@@ -112,7 +116,7 @@ func (s *apiSuite) mkInstalled(c *check.C, name, origin, version string, active 
 name: %s
 version: %s
 %s`, name, version, extraYaml)
-	c.Check(ioutil.WriteFile(filepath.Join(metadir, "package.yaml"), []byte(content), 0644), check.IsNil)
+	c.Check(ioutil.WriteFile(filepath.Join(metadir, "snap.yaml"), []byte(content), 0644), check.IsNil)
 	c.Check(ioutil.WriteFile(filepath.Join(metadir, "hashes.yaml"), []byte(nil), 0644), check.IsNil)
 
 	if active {
@@ -131,7 +135,7 @@ gadget: {store: {id: %q}}
 	m := filepath.Join(d, "1", "meta")
 	c.Assert(os.MkdirAll(m, 0755), check.IsNil)
 	c.Assert(os.Symlink("1", filepath.Join(d, "current")), check.IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(m, "package.yaml"), content, 0644), check.IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(m, "snap.yaml"), content, 0644), check.IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(m, "hashes.yaml"), []byte(nil), 0644), check.IsNil)
 }
 
@@ -492,6 +496,82 @@ func (s *apiSuite) TestSnapsInfoUnknownSource(c *check.C) {
 	c.Assert(snaps, check.HasLen, 0)
 }
 
+func (s *apiSuite) TestSnapsInfoFilterLocal(c *check.C) {
+	s.parts = nil
+	s.mkInstalled(c, "foo", "foo", "v1", true, "")
+	s.mkInstalled(c, "bar", "bar", "v1", true, "")
+
+	req, err := http.NewRequest("GET", "/2.0/snaps?q=foo", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := getSnapsInfo(snapsCmd, req).(*resp)
+
+	result := rsp.Result.(map[string]interface{})
+	c.Assert(result["snaps"], check.NotNil)
+
+	snaps := result["snaps"].(map[string]map[string]interface{})
+	c.Assert(snaps, check.HasLen, 1)
+	c.Assert(snaps["foo.foo"], check.NotNil)
+}
+
+func (s *apiSuite) TestSnapsInfoFilterRemote(c *check.C) {
+	s.parts = nil
+
+	req, err := http.NewRequest("GET", "/2.0/snaps?q=foo", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := getSnapsInfo(snapsCmd, req).(*resp)
+
+	c.Check(s.searchTerm, check.Equals, "foo")
+
+	result := rsp.Result.(map[string]interface{})
+	c.Assert(result["snaps"], check.NotNil)
+}
+
+func (s *apiSuite) TestSnapsInfoAppsOnly(c *check.C) {
+	s.mkInstalled(c, "app", "foo", "v1", true, "type: app")
+	s.mkInstalled(c, "framework", "foo", "v1", true, "type: framework")
+
+	req, err := http.NewRequest("GET", "/2.0/snaps?types=app", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := getSnapsInfo(snapsCmd, req).(*resp)
+
+	result := rsp.Result.(map[string]interface{})
+	snaps := result["snaps"].(map[string]map[string]interface{})
+	c.Assert(snaps, check.HasLen, 1)
+	c.Assert(snaps["app.foo"], check.NotNil)
+}
+
+func (s *apiSuite) TestSnapsInfoFrameworksOnly(c *check.C) {
+	s.mkInstalled(c, "app", "foo", "v1", true, "type: app")
+	s.mkInstalled(c, "framework", "foo", "v1", true, "type: framework")
+
+	req, err := http.NewRequest("GET", "/2.0/snaps?types=framework", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := getSnapsInfo(snapsCmd, req).(*resp)
+
+	result := rsp.Result.(map[string]interface{})
+	snaps := result["snaps"].(map[string]map[string]interface{})
+	c.Assert(snaps, check.HasLen, 1)
+	c.Assert(snaps["framework.foo"], check.NotNil)
+}
+
+func (s *apiSuite) TestSnapsInfoAppsAndFrameworks(c *check.C) {
+	s.mkInstalled(c, "app", "foo", "v1", true, "type: app")
+	s.mkInstalled(c, "framework", "foo", "v1", true, "type: framework")
+
+	req, err := http.NewRequest("GET", "/2.0/snaps?types=app,framework", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := getSnapsInfo(snapsCmd, req).(*resp)
+
+	result := rsp.Result.(map[string]interface{})
+	snaps := result["snaps"].(map[string]map[string]interface{})
+	c.Assert(snaps, check.HasLen, 2)
+}
+
 func (s *apiSuite) TestDeleteOpNotFound(c *check.C) {
 	s.vars = map[string]string{"uuid": "42"}
 	rsp := deleteOp(operationCmd, nil).Self(nil, nil).(*resp)
@@ -819,7 +899,10 @@ func (s *apiSuite) TestSnapServiceGet(c *check.C) {
 	req, err := http.NewRequest("GET", "/2.0/snaps/foo.bar/services", nil)
 	c.Assert(err, check.IsNil)
 
-	s.mkInstalled(c, "foo", "bar", "v1", true, "services: [{name: svc}]")
+	s.mkInstalled(c, "foo", "bar", "v1", true, `apps:
+ svc:
+  daemon: forking
+`)
 	s.vars = map[string]string{"name": "foo", "origin": "bar"} // NB: no service specified
 
 	rsp := snapService(snapSvcsCmd, req).(*resp)
@@ -827,10 +910,10 @@ func (s *apiSuite) TestSnapServiceGet(c *check.C) {
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Status, check.Equals, http.StatusOK)
 
-	m := rsp.Result.(map[string]*svcDesc)
-	c.Assert(m["svc"], check.FitsTypeOf, new(svcDesc))
+	m := rsp.Result.(map[string]*appDesc)
+	c.Assert(m["svc"], check.FitsTypeOf, new(appDesc))
 	c.Check(m["svc"].Op, check.Equals, "status")
-	c.Check(m["svc"].Spec, check.DeepEquals, &snappy.ServiceYaml{Name: "svc", StopTimeout: timeout.DefaultTimeout})
+	c.Check(m["svc"].Spec, check.DeepEquals, &snappy.AppYaml{Name: "svc", Daemon: "forking", StopTimeout: timeout.DefaultTimeout})
 	c.Check(m["svc"].Status, check.DeepEquals, &snappy.PackageServiceStatus{ServiceName: "svc"})
 }
 
@@ -843,7 +926,11 @@ func (s *apiSuite) TestSnapServicePut(c *check.C) {
 	req, err := http.NewRequest("PUT", "/2.0/snaps/foo.bar/services", buf)
 	c.Assert(err, check.IsNil)
 
-	s.mkInstalled(c, "foo", "bar", "v1", true, "services: [{name: svc}]")
+	s.mkInstalled(c, "foo", "bar", "v1", true, `apps:
+ svc:
+  command: svc
+  daemon: forking
+`)
 	s.vars = map[string]string{"name": "foo", "origin": "bar"} // NB: no service specified
 
 	rsp := snapService(snapSvcsCmd, req).(*resp)
@@ -923,10 +1010,10 @@ func (s *apiSuite) TestServiceLogs(c *check.C) {
 
 func (s *apiSuite) TestAppIconGet(c *check.C) {
 	// have an active foo.bar in the system
-	s.mkInstalled(c, "foo", "bar", "v1", true, "icon: icon.ick")
+	s.mkInstalled(c, "foo", "bar", "v1", true, "")
 
-	// have an icon for it in the snap itself
-	iconfile := filepath.Join(dirs.SnapSnapsDir, "foo.bar", "v1", "icon.ick")
+	// have an icon for it in the package itself
+	iconfile := filepath.Join(dirs.SnapSnapsDir, "foo.bar", "v1", "meta", "icon.ick")
 	c.Check(ioutil.WriteFile(iconfile, []byte("ick"), 0644), check.IsNil)
 
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
@@ -942,10 +1029,10 @@ func (s *apiSuite) TestAppIconGet(c *check.C) {
 
 func (s *apiSuite) TestAppIconGetInactive(c *check.C) {
 	// have an *in*active foo.bar in the system
-	s.mkInstalled(c, "foo", "bar", "v1", false, "icon: icon.ick")
+	s.mkInstalled(c, "foo", "bar", "v1", false, "")
 
-	// have an icon for it in the snap itself
-	iconfile := filepath.Join(dirs.SnapSnapsDir, "foo.bar", "v1", "icon.ick")
+	// have an icon for it in the package itself
+	iconfile := filepath.Join(dirs.SnapSnapsDir, "foo.bar", "v1", "meta", "icon.ick")
 	c.Check(ioutil.WriteFile(iconfile, []byte("ick"), 0644), check.IsNil)
 
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
@@ -961,7 +1048,11 @@ func (s *apiSuite) TestAppIconGetInactive(c *check.C) {
 
 func (s *apiSuite) TestAppIconGetNoIcon(c *check.C) {
 	// have an *in*active foo.bar in the system
-	s.mkInstalled(c, "foo", "bar", "v1", true, "") // NOTE: no icon in the yaml
+	s.mkInstalled(c, "foo", "bar", "v1", true, "")
+
+	// NO ICON!
+	err := os.RemoveAll(filepath.Join(dirs.SnapSnapsDir, "foo.bar", "v1", "meta", "icon.svg"))
+	c.Assert(err, check.IsNil)
 
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 	req, err := http.NewRequest("GET", "/2.0/icons/foo.bar/icon", nil)
@@ -1403,4 +1494,105 @@ func (s *apiSuite) TestAssertError(c *check.C) {
 	// Verify (external)
 	c.Check(rec.Code, check.Equals, 400)
 	c.Check(rec.Body.String(), testutil.Contains, "assert failed")
+}
+
+func (s *apiSuite) TestAssertsFindManyAll(c *check.C) {
+	// Setup
+	os.MkdirAll(filepath.Dir(dirs.SnapTrustedAccountKey), 0755)
+	err := ioutil.WriteFile(dirs.SnapTrustedAccountKey, []byte(testTrustedKey), 0640)
+	c.Assert(err, check.IsNil)
+	d := newTestDaemon()
+	a, err := asserts.Decode([]byte(testAccKey))
+	c.Assert(err, check.IsNil)
+	err = d.asserts.Add(a)
+	c.Assert(err, check.IsNil)
+	// Execute
+	req, err := http.NewRequest("POST", "/2.0/assertions/account-key", nil)
+	c.Assert(err, check.IsNil)
+	s.vars = map[string]string{"assertType": "account-key"}
+	rec := httptest.NewRecorder()
+	assertsFindManyCmd.GET(assertsFindManyCmd, req).ServeHTTP(rec, req)
+	// Verify
+	c.Check(rec.Code, check.Equals, http.StatusOK, check.Commentf("body %q", rec.Body))
+	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/x.ubuntu.assertion; bundle=y")
+	c.Check(rec.HeaderMap.Get("X-Ubuntu-Assertions-Count"), check.Equals, "2")
+	dec := asserts.NewDecoder(rec.Body)
+	a1, err := dec.Decode()
+	c.Assert(err, check.IsNil)
+	c.Check(a1.Type(), check.Equals, asserts.AccountKeyType)
+
+	a2, err := dec.Decode()
+	c.Assert(err, check.IsNil)
+
+	_, err = dec.Decode()
+	c.Assert(err, check.Equals, io.EOF)
+
+	ids := []string{a1.(*asserts.AccountKey).AccountID(), a2.(*asserts.AccountKey).AccountID()}
+	c.Check(ids, check.DeepEquals, []string{"can0nical", "developer1"})
+}
+
+func (s *apiSuite) TestAssertsFindManyFilter(c *check.C) {
+	// Setup
+	os.MkdirAll(filepath.Dir(dirs.SnapTrustedAccountKey), 0755)
+	err := ioutil.WriteFile(dirs.SnapTrustedAccountKey, []byte(testTrustedKey), 0640)
+	c.Assert(err, check.IsNil)
+	d := newTestDaemon()
+	a, err := asserts.Decode([]byte(testAccKey))
+	c.Assert(err, check.IsNil)
+	err = d.asserts.Add(a)
+	c.Assert(err, check.IsNil)
+	// Execute
+	req, err := http.NewRequest("POST", "/2.0/assertions/account-key?account-id=developer1", nil)
+	c.Assert(err, check.IsNil)
+	s.vars = map[string]string{"assertType": "account-key"}
+	rec := httptest.NewRecorder()
+	assertsFindManyCmd.GET(assertsFindManyCmd, req).ServeHTTP(rec, req)
+	// Verify
+	c.Check(rec.Code, check.Equals, http.StatusOK, check.Commentf("body %q", rec.Body))
+	c.Check(rec.HeaderMap.Get("X-Ubuntu-Assertions-Count"), check.Equals, "1")
+	dec := asserts.NewDecoder(rec.Body)
+	a1, err := dec.Decode()
+	c.Assert(err, check.IsNil)
+	c.Check(a1.Type(), check.Equals, asserts.AccountKeyType)
+	c.Check(a1.(*asserts.AccountKey).AccountID(), check.Equals, "developer1")
+	_, err = dec.Decode()
+	c.Check(err, check.Equals, io.EOF)
+}
+
+func (s *apiSuite) TestAssertsFindManyNoResults(c *check.C) {
+	// Setup
+	os.MkdirAll(filepath.Dir(dirs.SnapTrustedAccountKey), 0755)
+	err := ioutil.WriteFile(dirs.SnapTrustedAccountKey, []byte(testTrustedKey), 0640)
+	c.Assert(err, check.IsNil)
+	d := newTestDaemon()
+	a, err := asserts.Decode([]byte(testAccKey))
+	c.Assert(err, check.IsNil)
+	err = d.asserts.Add(a)
+	c.Assert(err, check.IsNil)
+	// Execute
+	req, err := http.NewRequest("POST", "/2.0/assertions/account-key?account-id=xyzzyx", nil)
+	c.Assert(err, check.IsNil)
+	s.vars = map[string]string{"assertType": "account-key"}
+	rec := httptest.NewRecorder()
+	assertsFindManyCmd.GET(assertsFindManyCmd, req).ServeHTTP(rec, req)
+	// Verify
+	c.Check(rec.Code, check.Equals, http.StatusOK, check.Commentf("body %q", rec.Body))
+	c.Check(rec.HeaderMap.Get("X-Ubuntu-Assertions-Count"), check.Equals, "0")
+	dec := asserts.NewDecoder(rec.Body)
+	_, err = dec.Decode()
+	c.Check(err, check.Equals, io.EOF)
+}
+
+func (s *apiSuite) TestAssertsInvalidType(c *check.C) {
+	// Setup
+	newTestDaemon()
+	// Execute
+	req, err := http.NewRequest("POST", "/2.0/assertions/foo", nil)
+	c.Assert(err, check.IsNil)
+	s.vars = map[string]string{"assertType": "foo"}
+	rec := httptest.NewRecorder()
+	assertsFindManyCmd.GET(assertsFindManyCmd, req).ServeHTTP(rec, req)
+	// Verify
+	c.Check(rec.Code, check.Equals, 400)
+	c.Check(rec.Body.String(), testutil.Contains, "invalid assert type")
 }

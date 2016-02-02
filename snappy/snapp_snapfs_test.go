@@ -97,7 +97,6 @@ var _ = Suite(&SquashfsTestSuite{})
 
 const packageHello = `name: hello-app
 version: 1.10
-icon: meta/hello.svg
 `
 
 func (s *SquashfsTestSuite) TestMakeSnapMakesSquashfs(c *C) {
@@ -111,10 +110,7 @@ func (s *SquashfsTestSuite) TestMakeSnapMakesSquashfs(c *C) {
 
 func (s *SquashfsTestSuite) TestInstallViaSquashfsWorks(c *C) {
 	snapPkg := makeTestSnapPackage(c, packageHello)
-	part, err := NewSnapFile(snapPkg, "origin", true)
-	c.Assert(err, IsNil)
-
-	_, err = part.Install(&MockProgressMeter{}, 0)
+	_, err := (&Overlord{}).Install(snapPkg, "origin", 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 
 	// after install the blob is in the right dir
@@ -129,13 +125,13 @@ func (s *SquashfsTestSuite) TestInstallViaSquashfsWorks(c *C) {
 }
 
 func (s *SquashfsTestSuite) TestAddSquashfsMount(c *C) {
-	m := packageYaml{
+	m := &snapYaml{
 		Name:          "foo.origin",
 		Version:       "1.0",
 		Architectures: []string{"all"},
 	}
 	inter := &MockProgressMeter{}
-	err := m.addSquashfsMount(filepath.Join(dirs.SnapSnapsDir, "foo.origin/1.0"), true, inter)
+	err := addSquashfsMount(m, filepath.Join(dirs.SnapSnapsDir, "foo.origin/1.0"), true, inter)
 	c.Assert(err, IsNil)
 
 	// ensure correct mount unit
@@ -152,9 +148,9 @@ Where=/snaps/foo.origin/1.0
 }
 
 func (s *SquashfsTestSuite) TestRemoveSquashfsMountUnit(c *C) {
-	m := packageYaml{}
+	m := &snapYaml{}
 	inter := &MockProgressMeter{}
-	err := m.addSquashfsMount(filepath.Join(dirs.SnapSnapsDir, "foo.origin/1.0"), true, inter)
+	err := addSquashfsMount(m, filepath.Join(dirs.SnapSnapsDir, "foo.origin/1.0"), true, inter)
 	c.Assert(err, IsNil)
 
 	// ensure we have the files
@@ -162,27 +158,25 @@ func (s *SquashfsTestSuite) TestRemoveSquashfsMountUnit(c *C) {
 	c.Assert(helpers.FileExists(p), Equals, true)
 
 	// now call remove and ensure they are gone
-	err = m.removeSquashfsMount(filepath.Join(dirs.SnapSnapsDir, "foo.origin/1.0"), inter)
+	err = removeSquashfsMount(m, filepath.Join(dirs.SnapSnapsDir, "foo.origin/1.0"), inter)
 	c.Assert(err, IsNil)
 	p = filepath.Join(dirs.SnapServicesDir, "snaps-foo.origin-1.0.mount")
 	c.Assert(helpers.FileExists(p), Equals, false)
 }
 
 func (s *SquashfsTestSuite) TestRemoveViaSquashfsWorks(c *C) {
-	snapPkg := makeTestSnapPackage(c, packageHello)
-	part, err := NewSnapFile(snapPkg, "origin", true)
-	c.Assert(err, IsNil)
-
-	_, err = part.Install(&MockProgressMeter{}, 0)
+	snapFile := makeTestSnapPackage(c, packageHello)
+	_, err := (&Overlord{}).Install(snapFile, "origin", 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 
 	// after install the blob is in the right dir
 	c.Assert(helpers.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-app.origin_1.10.snap")), Equals, true)
 
 	// now remove and ensure its gone
-	installedPart, err := newSnapPartFromYaml(filepath.Join(part.instdir, "meta", "package.yaml"), part.origin, part.m)
+	part, err := NewSnapFile(snapFile, "origin", true)
 	c.Assert(err, IsNil)
-	err = installedPart.Uninstall(&MockProgressMeter{})
+	installedPart, err := newSnapPartFromYaml(filepath.Join(part.instdir, "meta", "package.yaml"), part.origin, part.m)
+	err = (&Overlord{}).Uninstall(installedPart, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	c.Assert(helpers.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-app.origin_1.10.snap")), Equals, false)
 
@@ -197,10 +191,7 @@ vendor: Someone
 
 func (s *SquashfsTestSuite) TestInstallOsSnapUpdatesBootloader(c *C) {
 	snapPkg := makeTestSnapPackage(c, packageOS)
-	part, err := NewSnapFile(snapPkg, "origin", true)
-	c.Assert(err, IsNil)
-
-	_, err = part.Install(&MockProgressMeter{}, 0)
+	_, err := (&Overlord{}).Install(snapPkg, "origin", 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 
 	c.Assert(s.bootloader.bootvars, DeepEquals, map[string]string{
@@ -225,10 +216,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
 		{"initrd.img-4.2", "...and I'm an initrd"},
 	}
 	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
-	part, err := NewSnapFile(snapPkg, "origin", true)
-	c.Assert(err, IsNil)
-
-	_, err = part.Install(&MockProgressMeter{}, 0)
+	_, err := (&Overlord{}).Install(snapPkg, "origin", 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 
 	c.Assert(s.bootloader.bootvars, DeepEquals, map[string]string{
@@ -243,10 +231,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernel(c *C) {
 		{"initrd.img-4.2", "...and I'm an initrd"},
 	}
 	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
-	part, err := NewSnapFile(snapPkg, "origin", true)
-	c.Assert(err, IsNil)
-
-	_, err = part.Install(&MockProgressMeter{}, 0)
+	_, err := (&Overlord{}).Install(snapPkg, "origin", 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 
 	// this is where the kernel/initrd is unpacked
@@ -271,20 +256,17 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapRemovesKernelAssets(c *C) {
 		{"initrd.img-4.2", "...and I'm an initrd"},
 	}
 	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
-	part, err := NewSnapFile(snapPkg, "origin", true)
-	c.Assert(err, IsNil)
-
-	pbar := &MockProgressMeter{}
-	_, err = part.Install(pbar, 0)
+	_, err := (&Overlord{}).Install(snapPkg, "origin", 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	kernelAssetsDir := filepath.Join(s.bootloader.Dir(), "ubuntu-kernel.origin_4.0-1.snap")
 	c.Assert(helpers.FileExists(kernelAssetsDir), Equals, true)
 
 	// ensure uninstall cleans the kernel assets
-	installedPart, err := newSnapPartFromYaml(filepath.Join(part.instdir, "meta", "package.yaml"), part.origin, part.m)
+	part, err := NewSnapFile(snapPkg, "origin", true)
 	c.Assert(err, IsNil)
+	installedPart, err := newSnapPartFromYaml(filepath.Join(part.instdir, "meta", "package.yaml"), part.origin, part.m)
 	installedPart.isActive = false
-	err = installedPart.Uninstall(pbar)
+	err = (&Overlord{}).Uninstall(installedPart, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	c.Assert(helpers.FileExists(kernelAssetsDir), Equals, false)
 }
@@ -297,7 +279,7 @@ func (s *SquashfsTestSuite) TestActiveKernelNotRemovable(c *C) {
 	c.Assert(err, IsNil)
 
 	snap.isActive = true
-	c.Assert(snap.Uninstall(&MockProgressMeter{}), Equals, ErrPackageNotRemovable)
+	c.Assert((&Overlord{}).Uninstall(snap, &MockProgressMeter{}), Equals, ErrPackageNotRemovable)
 }
 
 func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernelErrors(c *C) {
@@ -328,7 +310,7 @@ func (s *SquashfsTestSuite) TestActiveOSNotRemovable(c *C) {
 	c.Assert(err, IsNil)
 
 	snap.isActive = true
-	c.Assert(snap.Uninstall(&MockProgressMeter{}), Equals, ErrPackageNotRemovable)
+	c.Assert((&Overlord{}).Uninstall(snap, &MockProgressMeter{}), Equals, ErrPackageNotRemovable)
 }
 
 func (s *SquashfsTestSuite) TestInstallOsRebootRequired(c *C) {
@@ -359,8 +341,8 @@ func (s *SquashfsTestSuite) TestInstallKernelRebootRequired(c *C) {
 	c.Assert(snap.NeedsReboot(), Equals, false)
 }
 
-func getFakeGrubGadget() (*packageYaml, error) {
-	return &packageYaml{
+func getFakeGrubGadget() (*snapYaml, error) {
+	return &snapYaml{
 		Gadget: Gadget{
 			Hardware: Hardware{
 				Bootloader: "grub",
@@ -379,10 +361,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapNoUnpacksKernelForGrub(c *C) {
 		{"vmlinuz-4.2", "I'm a kernel"},
 	}
 	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
-	part, err := NewSnapFile(snapPkg, "origin", true)
-	c.Assert(err, IsNil)
-
-	_, err = part.Install(&MockProgressMeter{}, 0)
+	_, err := (&Overlord{}).Install(snapPkg, "origin", 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 
 	// kernel is *not* here
@@ -393,15 +372,18 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapNoUnpacksKernelForGrub(c *C) {
 func (s *SquashfsTestSuite) TestInstallFailUnmountsSnap(c *C) {
 	snapPkg := makeTestSnapPackage(c, `name: hello
 version: 1.10
-binaries:
- - name: some-binary
-   security-template: not-there
-`)
-	part, err := NewSnapFile(snapPkg, "origin", true)
-	c.Assert(err, IsNil)
+apps:
+ some-binary:
+  command: some-binary
+  uses: [some-binary]
 
+uses:
+ some-binary:
+  type: migration-skill
+  security-template: not-there
+`)
 	// install but our missing security-template will break the install
-	_, err = part.Install(&MockProgressMeter{}, 0)
+	_, err := (&Overlord{}).Install(snapPkg, "origin", 0, &MockProgressMeter{})
 	c.Assert(err, ErrorMatches, "could not find specified template: not-there.*")
 
 	// ensure the mount unit is not there

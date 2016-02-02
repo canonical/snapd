@@ -63,6 +63,7 @@ var api = []*Command{
 	capabilitiesCmd,
 	capabilityCmd,
 	assertsCmd,
+	assertsFindManyCmd,
 }
 
 var (
@@ -151,6 +152,11 @@ var (
 		Path: "/2.0/assertions",
 		POST: doAssert,
 	}
+
+	assertsFindManyCmd = &Command{
+		Path: "/2.0/assertions/{assertType}",
+		GET:  assertsFindMany,
+	}
 )
 
 func sysInfo(c *Command, r *http.Request) Response {
@@ -177,12 +183,11 @@ func sysInfo(c *Command, r *http.Request) Response {
 
 type metarepo interface {
 	Details(string, string) ([]snappy.Part, error)
-	All() ([]snappy.Part, error)
-	Updates() ([]snappy.Part, error)
+	Find(string) ([]snappy.Part, error) // XXX: change this to Search iff aliases (and thus SharedNames) are no more
 }
 
 var newRemoteRepo = func() metarepo {
-	return snappy.NewMetaStoreRepository()
+	return snappy.NewUbuntuStoreSnapRepository()
 }
 
 var muxVars = mux.Vars
@@ -286,6 +291,13 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		includeLocal = true
 	}
 
+	searchTerm := query.Get("q")
+
+	var includeTypes []string
+	if len(query["types"]) > 0 {
+		includeTypes = strings.Split(query["types"][0], ",")
+	}
+
 	var bags map[string]*lightweight.PartBag
 
 	if includeLocal {
@@ -303,17 +315,30 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 				resource = url.String()
 			}
 
-			results[name+"."+origin] = webify(m, resource)
+			fullname := name + "." + origin
+
+			// strings.Contains(fullname, "") is true
+			if !strings.Contains(fullname, searchTerm) {
+				continue
+			}
+
+			results[fullname] = webify(m, resource)
 		}
 	}
 
 	if includeStore {
-		// TODO: If there are no results (local or remote), report the error. If
-		//       there are results at all, inform that the result is partial.
-		found, _ := newRemoteRepo().All()
-		if len(found) > 0 {
-			sources = append(sources, "store")
-		}
+		repo := newRemoteRepo()
+		var found []snappy.Part
+
+		// repo.Find("") finds all
+		//
+		// TODO: Instead of ignoring the error from Find:
+		//   * if there are no results, return an error response.
+		//   * If there are results at all (perhaps local), include a
+		//     warning in the response
+		found, _ = repo.Find(searchTerm)
+
+		sources = append(sources, "store")
 
 		sort.Sort(byQN(found))
 
@@ -332,6 +357,17 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		}
 	}
 
+	// TODO: it should be possible to search on	the "content" field on the store
+	//       with multiple values, see:
+	//       https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex#Search
+	if len(includeTypes) > 0 {
+		for name, result := range results {
+			if !resultHasType(result, includeTypes) {
+				delete(results, name)
+			}
+		}
+	}
+
 	return SyncResponse(map[string]interface{}{
 		"snaps":   results,
 		"sources": sources,
@@ -343,11 +379,20 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 	})
 }
 
+func resultHasType(r map[string]interface{}, allowedTypes []string) bool {
+	for _, t := range allowedTypes {
+		if r["type"] == t {
+			return true
+		}
+	}
+	return false
+}
+
 var findServices = snappy.FindServices
 
-type svcDesc struct {
+type appDesc struct {
 	Op     string                       `json:"op"`
-	Spec   *snappy.ServiceYaml          `json:"spec"`
+	Spec   *snappy.AppYaml              `json:"spec"`
 	Status *snappy.PackageServiceStatus `json:"status"`
 }
 
@@ -363,7 +408,7 @@ func snapService(c *Command, r *http.Request) Response {
 	if name == "" || origin == "" {
 		return BadRequest("missing name or origin")
 	}
-	svcName := vars["service"]
+	appName := vars["service"]
 	pkgName := name + "." + origin
 
 	action := "status"
@@ -413,48 +458,51 @@ func snapService(c *Command, r *http.Request) Response {
 	if !ok {
 		return InternalError("active snap is not a *snappy.SnapPart: %T", ipart)
 	}
-	svcs := part.ServiceYamls()
+	apps := part.Apps()
 
-	if len(svcs) == 0 {
+	if len(apps) == 0 {
 		return NotFound("snap %q has no services", pkgName)
 	}
 
-	svcmap := make(map[string]*svcDesc, len(svcs))
-	for i := range svcs {
-		svcmap[svcs[i].Name] = &svcDesc{Spec: &svcs[i], Op: action}
+	appmap := make(map[string]*appDesc, len(apps))
+	for i := range apps {
+		if apps[i].Daemon == "" {
+			continue
+		}
+		appmap[apps[i].Name] = &appDesc{Spec: apps[i], Op: action}
 	}
 
-	if svcName != "" && svcmap[svcName] == nil {
-		return NotFound("snap %q has no service %q", pkgName, svcName)
+	if appName != "" && appmap[appName] == nil {
+		return NotFound("snap %q has no service %q", pkgName, appName)
 	}
 
 	// note findServices takes the *bare* name
-	actor, err := findServices(name, svcName, &progress.NullProgress{})
+	actor, err := findServices(name, appName, &progress.NullProgress{})
 	if err != nil {
-		return InternalError("no services for %q [%q] found: %v", pkgName, svcName, err)
+		return InternalError("no services for %q [%q] found: %v", pkgName, appName, err)
 	}
 
 	f := func() interface{} {
 		status, err := actor.ServiceStatus()
 		if err != nil {
-			logger.Noticef("unable to get status for %q [%q]: %v", pkgName, svcName, err)
+			logger.Noticef("unable to get status for %q [%q]: %v", pkgName, appName, err)
 			return err
 		}
 
 		for i := range status {
-			if desc, ok := svcmap[status[i].ServiceName]; ok {
+			if desc, ok := appmap[status[i].ServiceName]; ok {
 				desc.Status = status[i]
 			} else {
 				// shouldn't really happen, but can't hurt
-				svcmap[status[i].ServiceName] = &svcDesc{Status: status[i]}
+				appmap[status[i].ServiceName] = &appDesc{Status: status[i]}
 			}
 		}
 
-		if svcName == "" {
-			return svcmap
+		if appName == "" {
+			return appmap
 		}
 
-		return svcmap[svcName]
+		return appmap[appName]
 	}
 
 	if action == "status" {
@@ -480,7 +528,7 @@ func snapService(c *Command, r *http.Request) Response {
 		}
 
 		if err != nil {
-			logger.Noticef("unable to %s %q [%q]: %v\n", action, pkgName, svcName, err)
+			logger.Noticef("unable to %s %q [%q]: %v\n", action, pkgName, appName, err)
 			return err
 		}
 
@@ -785,7 +833,7 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 	return AsyncResponse(c.d.AddTask(func() interface{} {
 		defer os.Remove(tmpf.Name())
 
-		part, err := newSnap(tmpf.Name(), snappy.SideloadedOrigin, unsignedOk)
+		_, err := newSnap(tmpf.Name(), snappy.SideloadedOrigin, unsignedOk)
 		if err != nil {
 			return err
 		}
@@ -796,7 +844,12 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 		}
 		defer lock.Unlock()
 
-		name, err := part.Install(&progress.NullProgress{}, 0)
+		var flags snappy.InstallFlags
+		if unsignedOk {
+			flags |= snappy.AllowUnauthenticated
+		}
+		overlord := &snappy.Overlord{}
+		name, err := overlord.Install(tmpf.Name(), snappy.SideloadedOrigin, flags, &progress.NullProgress{})
 		if err != nil {
 			return err
 		}
@@ -808,7 +861,7 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 func getLogs(c *Command, r *http.Request) Response {
 	vars := muxVars(r)
 	name := vars["name"]
-	svcName := vars["service"]
+	appName := vars["service"]
 
 	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
 	if err != nil {
@@ -816,7 +869,7 @@ func getLogs(c *Command, r *http.Request) Response {
 	}
 	defer lock.Unlock()
 
-	actor, err := findServices(name, svcName, &progress.NullProgress{})
+	actor, err := findServices(name, appName, &progress.NullProgress{})
 	if err != nil {
 		return NotFound("no services found for %q: %v", name, err)
 	}
@@ -937,4 +990,24 @@ func doAssert(c *Command, r *http.Request) Response {
 		Type:   ResponseTypeSync,
 		Status: http.StatusOK,
 	}
+}
+
+func assertsFindMany(c *Command, r *http.Request) Response {
+	assertTypeName := muxVars(r)["assertType"]
+	assertType := asserts.Type(assertTypeName)
+	if assertType == nil {
+		return BadRequest("invalid assert type: %q", assertTypeName)
+	}
+	headers := map[string]string{}
+	q := r.URL.Query()
+	for k := range q {
+		headers[k] = q.Get(k)
+	}
+	assertions, err := c.d.asserts.FindMany(assertType, headers)
+	if err == asserts.ErrNotFound {
+		return AssertResponse(nil, true)
+	} else if err != nil {
+		return InternalError("searching assertions failed: %v", err)
+	}
+	return AssertResponse(assertions, true)
 }
