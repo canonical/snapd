@@ -34,28 +34,31 @@ const ucrednetNoProcess = uint64(0)
 const ucrednetNobody = uint32((1 << 32) - 1)
 
 func ucrednetGet(remoteAddr string) (uint64, uint32, error) {
-	idx := strings.IndexByte(remoteAddr, ';')
-	if !strings.HasPrefix(remoteAddr, "pid=") || idx < 5 {
+	tokens := strings.Split(remoteAddr, ";")
+	pid := ucrednetNoProcess
+	uid := ucrednetNobody
+	for idx := range tokens {
+		token := tokens[idx]
+		if strings.HasPrefix(token, "pid=") {
+			v, err := strconv.ParseUint(token[4:], 10, 64)
+			if err == nil {
+				pid = v
+			}
+
+		}
+		if strings.HasPrefix(token, "uid=") {
+			v, err := strconv.ParseUint(token[4:], 10, 32)
+			if err == nil {
+				uid = uint32(v)
+			}
+		}
+	}
+
+	if pid == ucrednetNoProcess || uid == ucrednetNobody {
 		return ucrednetNoProcess, ucrednetNobody, errNoID
+	} else {
+		return pid, uid, nil
 	}
-
-	pid, err := strconv.ParseUint(remoteAddr[4:idx], 10, 64)
-	if err != nil {
-		return ucrednetNoProcess, ucrednetNobody, err
-	}
-
-	s := remoteAddr[idx+1:]
-	idx2 := strings.IndexByte(s, ';')
-	if !strings.HasPrefix(s, "uid=") || idx2 < 5 {
-		return ucrednetNoProcess, ucrednetNobody, errNoID
-	}
-
-	uid, err := strconv.ParseUint(s[4:idx2], 10, 32)
-	if err != nil {
-		return ucrednetNoProcess, ucrednetNobody, err
-	}
-
-	return uint64(pid), uint32(uid), nil
 }
 
 type ucrednetAddr struct {
