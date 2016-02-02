@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+ "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1.0/policyconfig.dtd">
+<policyconfig>
+
+  <vendor>Snappy</vendor>
+  <vendor_url>https://developer.ubuntu.com/en/snappy/</vendor_url>
+
+  <action id="com.ubuntu.snappy.sideload-snap">
+    <description gettext-domain="system-service">Sideload snaps</description>
+    <message gettext-domain="system-service">Authentication is required to sideload snaps</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+  </action>
+
+  <action id="com.ubuntu.snappy.install-snap">
+    <description gettext-domain="system-service">Sideload snaps</description>
+    <message gettext-domain="system-service">Authentication is required to install/remove snaps</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+  </action>
+
+  <action id="com.ubuntu.snappy.configure-snap">
+    <description gettext-domain="system-service">Configure snaps</description>
+    <message gettext-domain="system-service">Authentication is required to configure snaps</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+  </action>
+
+  <action id="com.ubuntu.snappy.service-snap">
+    <description gettext-domain="system-service">Service snaps</description>
+    <message gettext-domain="system-service">Authentication is required to service snaps</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+  </action>
+
+</policyconfig>

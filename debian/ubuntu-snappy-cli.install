@@ -2,6 +2,7 @@
 /usr/bin/snapd
 /usr/bin/snappy
 data/completion/snappy /usr/share/bash-completion/completions/
+data/com.ubuntu.snappy.policy /usr/share/polkit-1/actions/
 # i18n stuff
 ../../share /usr
 # etc/profile.d contains the PATH extension for snap packages

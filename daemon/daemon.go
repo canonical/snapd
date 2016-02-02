@@ -19,6 +19,101 @@
 
 package daemon
 
+/*
+#cgo pkg-config: libsystemd
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <systemd/sd-bus.h>
+
+// Yes, this is as hacky as it looks. This copies the same method from libpolkit
+static uint64_t
+get_start_time (pid_t pid)
+{
+    char filename[1024], line[1024];
+    FILE *f = NULL;
+    int i, n_spaces;
+    uint64_t start_time = 0;
+
+    snprintf (filename, 1024, "/proc/%u/stat", pid);
+    f = fopen (filename, "r");
+    if (!fgets (line, 1024, f))
+        goto done;
+
+    // A line looks like this (the 22nd field is the start time - 545930 in this case):
+    // 14207 (gnome-terminal-) S 3399 3741 3741 0 -1 4194304 95756 7917395 23 857 6850 942 29913 2486 20 0 4 0 545930 692899840 12642 18446744073709551615 4194304 4486204 140735647896976 140735647896432 139643272960061 0 0 4096 65536 0 0 0 17 3 0 0 1 0 0 6585664 6596840 22155264 140735647901892 140735647901938 140735647901938 140735647903690 0
+
+    // Find the end of the name field, search from the right in case the name contains a ')'.
+    for (i = strlen (line) - 1; i > 0 && line[i] != ')'; i--);
+    if (line[i] != ')')
+        goto done;
+
+    // Skip 20 spaces to find the field that contains the start time
+    for (n_spaces = 0; line[i] && n_spaces < 20; i++) {
+        if (line[i] == ' ')
+            n_spaces++;
+    }
+    if (line[i] == '\0')
+        goto done;
+
+    start_time = strtoull (line + i, NULL, 10);
+
+done:
+    if (f)
+        fclose (f);
+
+    return start_time;
+}
+
+int CheckAuthorization (const char *action_id, pid_t pid, uid_t uid)
+{
+    sd_bus *bus = NULL;
+    sd_bus_error e = SD_BUS_ERROR_NULL;
+    sd_bus_message *reply = NULL;
+    int result;
+    int authorized = false, challenge = false;
+
+    if (sd_bus_open_system (&bus) < 0)
+        goto done;
+
+    result = sd_bus_call_method (bus,
+                                 "org.freedesktop.PolicyKit1",
+                                 "/org/freedesktop/PolicyKit1/Authority",
+                                 "org.freedesktop.PolicyKit1.Authority",
+                                 "CheckAuthorization",
+                                 &e,
+                                 &reply,
+                                 "(sa{sv})sa{ss}us",
+                                 "unix-process", 3, "pid", "u", pid, "start-time", "t", get_start_time (pid), "uid", "i", uid, // Subject
+                                 action_id,
+                                 0, // No details
+                                 1, // 1 = allow user interaction
+                                 ""); // Empty cancellation ID
+    if (result < 0) {
+        printf ("%s: %s\n", e.name, e.message);
+        sd_bus_error_free (&e);
+        goto done;
+    }
+
+    result = sd_bus_message_enter_container (reply, 'r', "bba{ss}");
+    if (result < 0)
+        goto done;
+
+    result = sd_bus_message_read (reply, "bb", &authorized, &challenge);
+    if (result < 0)
+        goto done;
+
+done:
+    if (reply)
+        sd_bus_message_unref (reply);
+    if (bus)
+        sd_bus_close (bus);
+
+    return authorized;
+}
+*/
+import "C"
+
 import (
 	"errors"
 	"fmt"
@@ -65,13 +160,16 @@ type Command struct {
 	GuestOK bool
 	// can non-admin GET?
 	UserOK bool
+	// can we modify with PolicyKit authorization?
+	PolicyKitAction string
 	//
 	d *Daemon
 }
 
 func (c *Command) canAccess(r *http.Request) bool {
 	isUser := false
-	if uid, err := ucrednetGetUID(r.RemoteAddr); err == nil {
+	pid, uid, err := ucrednetGet(r.RemoteAddr)
+	if err == nil {
 		if uid == 0 {
 			// superuser does anything
 			return true
@@ -79,9 +177,15 @@ func (c *Command) canAccess(r *http.Request) bool {
 		isUser = true
 	}
 
-	// only superuser can modify
+	logger.Debugf("canAccess %s %d %d '%s'", r.Method, pid, uid, c.PolicyKitAction)
+
+	// require authorization to modify
 	if r.Method != "GET" {
-		return false
+		if isUser && c.PolicyKitAction != "" {
+			return C.CheckAuthorization (C.CString (c.PolicyKitAction), C.pid_t (pid), C.uid_t (uid)) != C.false
+		} else {
+			return false
+		}
 	}
 
 	if isUser && c.UserOK {

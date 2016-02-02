@@ -89,6 +89,7 @@ var (
 		UserOK: true,
 		GET:    getSnapsInfo,
 		POST:   sideloadSnap,
+		PolicyKitAction: "com.ubuntu.snappy.sideload-snap",
 	}
 
 	snapCmd = &Command{
@@ -96,12 +97,14 @@ var (
 		UserOK: true,
 		GET:    getSnapInfo,
 		POST:   postSnap,
+		PolicyKitAction: "com.ubuntu.snappy.install-snap",
 	}
 
 	snapConfigCmd = &Command{
 		Path: "/2.0/snaps/{name}.{origin}/config",
 		GET:  snapConfig,
 		PUT:  snapConfig,
+		PolicyKitAction: "com.ubuntu.snappy.configure-snap",
 	}
 
 	snapSvcsCmd = &Command{
@@ -109,6 +112,7 @@ var (
 		UserOK: true,
 		GET:    snapService,
 		PUT:    snapService,
+		PolicyKitAction: "com.ubuntu.snappy.service-snap",
 	}
 
 	snapSvcCmd = &Command{
@@ -116,6 +120,7 @@ var (
 		UserOK: true,
 		GET:    snapService,
 		PUT:    snapService,
+		PolicyKitAction: "com.ubuntu.snappy.service-snap",
 	}
 
 	snapSvcLogsCmd = &Command{
