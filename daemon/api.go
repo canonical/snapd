@@ -1018,6 +1018,7 @@ type skillAction struct {
 	Action string       `json:"action"`
 	Skill  skills.Skill `json:"skill,omitempty"`
 	Slot   skills.Slot  `json:"slot,omitempty"`
+	Type   string       `json:"type,omitempty"`
 }
 
 // changeSkills controls the skill system.
@@ -1079,6 +1080,17 @@ func changeSkills(c *Command, r *http.Request) Response {
 			return BadRequest("%v", err)
 		}
 		return SyncResponse(nil)
+	case "add-type":
+		err := c.d.skills.AddType(&skills.TestType{
+			TypeName: a.Type,
+		})
+		if err != nil {
+			return BadRequest("%v", err)
+		}
+		return &resp{
+			Type:   ResponseTypeSync,
+			Status: http.StatusCreated,
+		}
 	}
 	return BadRequest("unsupported skill action: %q", a.Action)
 }
