@@ -31,26 +31,24 @@ import (
 )
 
 var (
-	shortSearchHelp = i18n.G("Search for packages to install")
-	longSearchHelp  = i18n.G("Query the store for available packages")
+	shortFindHelp = i18n.G("Find packages to install")
+	longFindHelp  = i18n.G("Query the store for available packages")
 )
 
-type cmdSearch struct {
+type cmdFind struct {
 	Positional struct {
 		Query string `positional-arg-name:"query"`
 	} `positional-args:"yes"`
 }
 
 func init() {
-	cmd, err := parser.AddCommand("search", shortSearchHelp, longSearchHelp, &cmdSearch{})
+	_, err := parser.AddCommand("find", shortFindHelp, longFindHelp, &cmdFind{})
 	if err != nil {
-		logger.Panicf("unable to add search command: %v", err)
+		logger.Panicf("unable to add find command: %v", err)
 	}
-
-	cmd.Aliases = append(cmd.Aliases, "se")
 }
 
-func (x *cmdSearch) Execute([]string) error {
+func (x *cmdFind) Execute([]string) error {
 	cli := client.New()
 	filter := client.SnapFilter{
 		Query:   x.Positional.Query,
@@ -62,8 +60,11 @@ func (x *cmdSearch) Execute([]string) error {
 	}
 
 	if len(snaps) == 0 {
-		fmt.Println("No results found.")
-		return nil
+		if filter.Query == "" {
+			return fmt.Errorf("No snaps found.")
+		}
+
+		return fmt.Errorf("No snaps found for %q.", filter.Query)
 	}
 
 	names := make([]string, len(snaps))
