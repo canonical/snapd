@@ -55,7 +55,7 @@ func (e *errPolicyNotFound) Error() string {
 var (
 	// Note: these are true for ubuntu-core but perhaps not other flavors
 	defaultTemplateName = "default"
-	defaultPolicyGroups = []string{}
+	defaultPolicyGroups = []string{"network-client"}
 
 	// AppArmor cache dir
 	aaCacheDir = "/var/cache/apparmor"

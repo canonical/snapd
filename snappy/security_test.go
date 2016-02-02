@@ -586,11 +586,14 @@ sc-network-client
 
 	aaProfile := filepath.Join(dirs.SnapAppArmorDir, "pkg.origin_binary_1.0")
 	ensureFileContentMatches(c, aaProfile, `# apparmor
-# No caps (policy groups) specified
+# Rules specified via caps (policy groups)
+
+aa-network-client
 `)
 	scProfile := filepath.Join(dirs.SnapSeccompDir, "pkg.origin_binary_1.0")
 	ensureFileContentMatches(c, scProfile, `write
-`)
+
+sc-network-client`)
 
 }
 
