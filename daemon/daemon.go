@@ -90,7 +90,7 @@ int CheckAuthorization (const char *action_id, pid_t pid, uid_t uid)
                                  1, // 1 = allow user interaction
                                  ""); // Empty cancellation ID
     if (result < 0) {
-        printf ("%s: %s\n", e.name, e.message);
+        // Would be nice to report this error somewhere
         sd_bus_error_free (&e);
         goto done;
     }
