@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-01-22 14:41+0100\n"
+        "POT-Creation-Date: 2016-02-02 18:47+0000\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -19,11 +19,6 @@ msgstr  "Project-Id-Version: snappy\n"
 #. TRANSLATORS: the %s is a pkgname, the second a comma separated list of paths
 #, c-format
 msgid   "%s: %s\n"
-msgstr  ""
-
-#. TRANSLATORS: the %s stand for "name", "version", "description"
-#, c-format
-msgid   "%s\t%s\t%s (forks not shown: %d)\t"
 msgstr  ""
 
 #. TRANSLATORS: the first %s is a pkgname, the second %s is a path
@@ -143,6 +138,9 @@ msgstr  ""
 msgid   "Entering classic dimension"
 msgstr  ""
 
+msgid   "Find packages to install"
+msgstr  ""
+
 msgid   "First boot has already run"
 msgstr  ""
 
@@ -195,7 +193,7 @@ msgstr  ""
 msgid   "Name\tDate\tVersion\tDeveloper\t"
 msgstr  ""
 
-msgid   "Name\tVersion\tSummary\t"
+msgid   "Name\tVersion\tSummary"
 msgstr  ""
 
 #. TRANSLATORS: the %s is a pkgname
@@ -281,9 +279,6 @@ msgstr  ""
 msgid   "Run snappy shell interface"
 msgstr  ""
 
-msgid   "Search for packages to install"
-msgstr  ""
-
 msgid   "Set configuration for a specific installed package"
 msgstr  ""
 
@@ -305,9 +300,6 @@ msgstr  ""
 #. TRANSLATORS: the first %s is a pkgname, the second %s is the new version
 #, c-format
 msgid   "Setting %s to version %s\n"
-msgstr  ""
-
-msgid   "Show all available forks of a package"
 msgstr  ""
 
 msgid   "Show available updates (requires network)"
@@ -402,9 +394,6 @@ msgid   "Unassign a hardware device to a package"
 msgstr  ""
 
 msgid   "Update all installed parts"
-msgstr  ""
-
-msgid   "Use --show-all to see all available forks."
 msgstr  ""
 
 msgid   "Username for the login"
