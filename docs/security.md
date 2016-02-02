@@ -131,11 +131,10 @@ Eg, consider the following:
 If this package is uploaded to the store in the `myorigin` origin, then:
 
 * `APP_ID` for `bar` is `foo.myorigin_bar_1.0`. It uses the `default` template
-  and `network-client` (default) cap
 * `APP_ID` for `baz` is `foo.myorigin_baz_1.0`. It uses the `default` template
   and the `network-client` and `norf-framework_client` caps
 * `APP_ID` for `qux` is `foo.myorigin_qux_1.0`. It uses the `nondefault`
-  template and `network-client` (default) cap
+  template
 * `APP_ID` for `quux` is `foo.myorigin_quux_1.0`. It does not use a
   `security-template` or `caps` but instead ships its own AppArmor policy in
   `meta/quux.profile`
