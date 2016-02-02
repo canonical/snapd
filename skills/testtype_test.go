@@ -72,21 +72,40 @@ func (s *TestTypeSuite) TestSanitizeWrongType(c *C) {
 	c.Assert(func() { s.t.Sanitize(skill) }, Panics, "skill is not of type \"test\"")
 }
 
-// TestType hands out empty security snippets
-func (s *TestTypeSuite) TestSecuritySnippet(c *C) {
+// TestType hands out empty skill security snippets
+func (s *TestTypeSuite) TestSkillSecuritySnippet(c *C) {
 	skill := &Skill{
 		Type: "test",
 	}
-	snippet, err := s.t.SecuritySnippet(skill, SecurityApparmor)
+	snippet, err := s.t.SkillSecuritySnippet(skill, SecurityApparmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.t.SecuritySnippet(skill, SecuritySeccomp)
+	snippet, err = s.t.SkillSecuritySnippet(skill, SecuritySeccomp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.t.SecuritySnippet(skill, SecurityDBus)
+	snippet, err = s.t.SkillSecuritySnippet(skill, SecurityDBus)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.t.SecuritySnippet(skill, "foo")
+	snippet, err = s.t.SkillSecuritySnippet(skill, "foo")
+	c.Assert(err, IsNil)
+	c.Assert(snippet, IsNil)
+}
+
+// TestType hands out empty slot security snippets
+func (s *TestTypeSuite) TestSlotSecuritySnippet(c *C) {
+	skill := &Skill{
+		Type: "test",
+	}
+	snippet, err := s.t.SlotSecuritySnippet(skill, SecurityApparmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, IsNil)
+	snippet, err = s.t.SlotSecuritySnippet(skill, SecuritySeccomp)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, IsNil)
+	snippet, err = s.t.SlotSecuritySnippet(skill, SecurityDBus)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, IsNil)
+	snippet, err = s.t.SlotSecuritySnippet(skill, "foo")
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 }
