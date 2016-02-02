@@ -179,7 +179,7 @@ func (c *Command) canAccess(r *http.Request) bool {
 		isUser = true
 	}
 
-	logger.Debugf("canAccess %s %d %d '%s'", r.Method, pid, uid, c.PolicyKitAction)
+	logger.Debugf("canAccess %s %d %d %q", r.Method, pid, uid, c.PolicyKitAction)
 
 	// require authorization to modify
 	if r.Method != "GET" {
