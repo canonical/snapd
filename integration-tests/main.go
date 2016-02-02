@@ -2,7 +2,7 @@
 // +build !excludeintegration
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015, 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -64,10 +64,6 @@ func main() {
 			"Revision of the image to be built (can be relative to the latest available revision in the given release and channel as in -1), defaults to the empty string")
 		update = flag.Bool("update", false,
 			"If this flag is used, the image will be updated before running the tests.")
-		targetRelease = flag.String("target-release", "",
-			"If the update flag is used, the image will be updated to this release before running the tests.")
-		targetChannel = flag.String("target-channel", "",
-			"If the update flag is used, the image will be updated to this channel before running the tests.")
 		rollback = flag.Bool("rollback", false,
 			"If this flag is used, the image will be updated and then rolled back before running the tests.")
 		outputDir     = flag.String("output-dir", defaultOutputDir, "Directory where test artifacts will be stored.")
@@ -91,8 +87,7 @@ func main() {
 	// TODO: pass the config as arguments to the test binaries.
 	// --elopio - 2015-07-15
 	cfg := config.NewConfig(
-		configFileName, *imgRelease, *imgChannel, *targetRelease, *targetChannel,
-		remoteTestbed, *update, *rollback)
+		configFileName, *imgRelease, *imgChannel, remoteTestbed, *update, *rollback)
 	cfg.Write()
 
 	rootPath := testutils.RootPath()

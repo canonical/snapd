@@ -2,7 +2,7 @@
 // +build !excludeintegration
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015, 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -71,13 +71,14 @@ func (s *SnappySuite) SetUpSuite(c *check.C) {
 
 	if !IsInRebootProcess() {
 		if Cfg.Update || Cfg.Rollback {
-			switchSystemImageConf(c, Cfg.TargetRelease, Cfg.TargetChannel, "0")
 			// Always use the installed snappy because we are updating from an old
 			// image, so we should not use the snappy from the branch.
 			output := cli.ExecCommand(c, "sudo", "/usr/bin/snappy", "update")
-			if output != "" {
-				RebootWithMark(c, "setupsuite-update")
-			}
+			expected := "(?ms)" +
+				".*" +
+				"^Reboot to use the new ubuntu-core\\.\n"
+			c.Assert(output, check.Matches, expected)
+			RebootWithMark(c, "setupsuite-update")
 		}
 	} else if CheckRebootMark("setupsuite-update") {
 		RemoveRebootMark(c)
