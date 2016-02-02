@@ -290,6 +290,11 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"pkgActionDispatch",
 		// snapInstruction vars:
 		"snappyInstall",
+		// PolicyKit action names
+		"sideloadSnapAction",
+		"installSnapAction",
+		"configureSnapAction",
+		"serviceSnapAction",
 	}
 	c.Check(found, check.Equals, len(api)+len(exceptions),
 		check.Commentf(`At a glance it looks like you've not added all the Commands defined in api to the api list. If that is not the case, please add the exception to the "exceptions" list in this test.`))

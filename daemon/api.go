@@ -66,6 +66,12 @@ var api = []*Command{
 	assertsFindManyCmd,
 }
 
+// PolicyKit action names
+const sideloadSnapAction = "com.ubuntu.snappy.sideload-snap"
+const installSnapAction = "com.ubuntu.snappy.install-snap"
+const configureSnapAction = "com.ubuntu.snappy.configure-snap"
+const serviceSnapAction = "com.ubuntu.snappy.service-snap"
+
 var (
 	rootCmd = &Command{
 		Path:    "/",
@@ -90,7 +96,7 @@ var (
 		UserOK:          true,
 		GET:             getSnapsInfo,
 		POST:            sideloadSnap,
-		PolicyKitAction: "com.ubuntu.snappy.sideload-snap",
+		PolicyKitAction: sideloadSnapAction,
 	}
 
 	snapCmd = &Command{
@@ -98,14 +104,14 @@ var (
 		UserOK:          true,
 		GET:             getSnapInfo,
 		POST:            postSnap,
-		PolicyKitAction: "com.ubuntu.snappy.install-snap",
+		PolicyKitAction: installSnapAction,
 	}
 
 	snapConfigCmd = &Command{
 		Path:            "/2.0/snaps/{name}.{origin}/config",
 		GET:             snapConfig,
 		PUT:             snapConfig,
-		PolicyKitAction: "com.ubuntu.snappy.configure-snap",
+		PolicyKitAction: configureSnapAction,
 	}
 
 	snapSvcsCmd = &Command{
@@ -113,7 +119,7 @@ var (
 		UserOK:          true,
 		GET:             snapService,
 		PUT:             snapService,
-		PolicyKitAction: "com.ubuntu.snappy.service-snap",
+		PolicyKitAction: serviceSnapAction,
 	}
 
 	snapSvcCmd = &Command{
@@ -121,7 +127,7 @@ var (
 		UserOK:          true,
 		GET:             snapService,
 		PUT:             snapService,
-		PolicyKitAction: "com.ubuntu.snappy.service-snap",
+		PolicyKitAction: serviceSnapAction,
 	}
 
 	snapSvcLogsCmd = &Command{
