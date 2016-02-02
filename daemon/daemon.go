@@ -30,9 +30,9 @@ package daemon
 static uint64_t
 get_start_time (pid_t pid)
 {
-    char filename[1024], line[1024];
+    char filename[1024], line[1024], *c;
     FILE *f = NULL;
-    int i, n_spaces;
+    int n_spaces;
     uint64_t start_time = 0;
 
     snprintf (filename, 1024, "/proc/%u/stat", pid);
@@ -44,19 +44,19 @@ get_start_time (pid_t pid)
     // 14207 (gnome-terminal-) S 3399 3741 3741 0 -1 4194304 95756 7917395 23 857 6850 942 29913 2486 20 0 4 0 545930 692899840 12642 18446744073709551615 4194304 4486204 140735647896976 140735647896432 139643272960061 0 0 4096 65536 0 0 0 17 3 0 0 1 0 0 6585664 6596840 22155264 140735647901892 140735647901938 140735647901938 140735647903690 0
 
     // Find the end of the name field, search from the right in case the name contains a ')'.
-    for (i = strlen (line) - 1; i > 0 && line[i] != ')'; i--);
-    if (line[i] != ')')
+    c = strrchr (line, ')');
+    if (!c)
         goto done;
 
     // Skip 20 spaces to find the field that contains the start time
-    for (n_spaces = 0; line[i] && n_spaces < 20; i++) {
-        if (line[i] == ' ')
+    for (n_spaces = 0; *c && n_spaces < 20; c++) {
+        if (*c == ' ')
             n_spaces++;
     }
-    if (line[i] == '\0')
+    if (*c == '\0')
         goto done;
 
-    start_time = strtoull (line + i, NULL, 10);
+    start_time = strtoull (c, NULL, 10);
 
 done:
     if (f)
