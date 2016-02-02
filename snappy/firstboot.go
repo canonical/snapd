@@ -51,11 +51,11 @@ func wrapConfig(pkgName string, conf interface{}) ([]byte, error) {
 
 var newPartMap = newPartMapImpl
 
-type Configurator interface {
+type configurator interface {
 	Configure(*SnapPart, []byte) (string, error)
 }
 
-var newOverlord = func() Configurator {
+var newOverlord = func() configurator {
 	return (&Overlord{})
 }
 

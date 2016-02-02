@@ -525,11 +525,11 @@ func snapService(c *Command, r *http.Request) Response {
 	}).Map(route))
 }
 
-type Configurator interface {
+type configurator interface {
 	Configure(*snappy.SnapPart, []byte) (string, error)
 }
 
-var getConfigurator = func() Configurator {
+var getConfigurator = func() configurator {
 	return &snappy.Overlord{}
 }
 

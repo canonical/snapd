@@ -788,7 +788,7 @@ func (s *apiSuite) TestSnapGetConfig(c *check.C) {
 	req, err := http.NewRequest("GET", "/2.0/snaps/foo.bar/config", bytes.NewBuffer(nil))
 	c.Assert(err, check.IsNil)
 
-	getConfigurator = func() Configurator {
+	getConfigurator = func() configurator {
 		return s.overlord
 	}
 
@@ -832,7 +832,7 @@ func (s *apiSuite) TestSnapGetConfigInactive(c *check.C) {
 
 func (s *apiSuite) TestSnapGetConfigNoConfig(c *check.C) {
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
-	getConfigurator = func() Configurator {
+	getConfigurator = func() configurator {
 		return s.overlord
 	}
 
@@ -851,7 +851,7 @@ func (s *apiSuite) TestSnapPutConfig(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	//configStr := "some: config"
-	getConfigurator = func() Configurator {
+	getConfigurator = func() configurator {
 		return s.overlord
 	}
 

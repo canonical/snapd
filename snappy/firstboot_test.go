@@ -112,7 +112,7 @@ func (s *FirstBootTestSuite) newPartMap() (map[string]Part, error) {
 	return s.partMap, s.partMapErr
 }
 
-func (s *FirstBootTestSuite) newOverlord() Configurator {
+func (s *FirstBootTestSuite) newOverlord() configurator {
 	return s.fakeOverlord
 }
 
