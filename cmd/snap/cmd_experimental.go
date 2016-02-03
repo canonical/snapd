@@ -23,14 +23,14 @@ import (
 	"github.com/ubuntu-core/snappy/i18n"
 )
 
-type cmdDevel struct{}
+type cmdExperimental struct{}
 
 var (
-	shortDevelHelp = i18n.G("Unsupported development commands")
-	longDevelHelp  = i18n.G(`Additional development commands.
+	shortExperimentalHelp = i18n.G("Unsupported experimental commands")
+	longExperimentalHelp  = i18n.G(`Additional experimental commands.
 
-Development commands may not work on non-development systems.
-`)
+Experimental commands can be removed without notice and may not work on
+non-development systems.`)
 )
 
-var develCommand, _ = parser.AddCommand("devel", shortDevelHelp, longDevelHelp, &cmdDevel{})
+var experimentalCommand, _ = parser.AddCommand("experimental", shortExperimentalHelp, longExperimentalHelp, &cmdExperimental{})

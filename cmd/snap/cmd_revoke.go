@@ -27,16 +27,26 @@ import (
 
 type cmdRevoke struct {
 	Positionals struct {
-		SkillSnap string `positional-arg-name:"skill-snap" description:"name of the snap containing the skill"`
-		SkillName string `positional-arg-name:"skill-name" description:"name of the skill"`
-		SlotSnap  string `positional-arg-name:"slot-snap" description:"name of the snap containing the skill slot"`
-		SlotName  string `positional-arg-name:"slot-name" description:"name of the skill slot"`
-	} `positional-args:"true" required:"true"`
+		Offer SnapAndName `positional-arg-name:"<snap>:<skill>" description:"snap offering the skill" skip-help:"true" required:"yes"`
+		Use   SnapAndName `positional-arg-name:"<snap>:<skill slot>" description:"snap using the skill" skip-help:"true"`
+	} `positional-args:"true"`
 }
 
 var (
 	shortRevokeHelp = i18n.G("Revoke a skill granted to a skill slot")
-	longRevokeHelp  = i18n.G("This command revokes a skill from a skill slot.")
+	longRevokeHelp  = i18n.G(`
+
+$ snap revoke <snap>:<skill> <snap>:<skill slot>
+
+Revokes the specific skill from the specific skill slot.
+
+$ snap revoke <snap>:<skill slot>
+
+Revokes any previously granted skill from the provided skill slot.
+
+$ snap revoke <snap>
+
+Revokes all skills from the provided snap.`)
 )
 
 func init() {
@@ -47,5 +57,11 @@ func init() {
 }
 
 func (x *cmdRevoke) Execute(args []string) error {
-	return client.New().Revoke(x.Positionals.SkillSnap, x.Positionals.SkillName, x.Positionals.SlotSnap, x.Positionals.SlotName)
+	// snap revoke <snap>:<skill slot>
+	// snap revoke <snap>
+	if x.Positionals.Use.Snap == "" && x.Positionals.Use.Name == "" {
+		// Swap Offer and Use around
+		x.Positionals.Offer, x.Positionals.Use = x.Positionals.Use, x.Positionals.Offer
+	}
+	return client.New().Revoke(x.Positionals.Offer.Snap, x.Positionals.Offer.Name, x.Positionals.Use.Snap, x.Positionals.Use.Name)
 }

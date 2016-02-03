@@ -27,42 +27,45 @@ import (
 	"github.com/ubuntu-core/snappy/logger"
 )
 
-type cmdAddSlot struct {
+type cmdAddSkillSlot struct {
 	Positionals struct {
 		Snap string `positional-arg-name:"snap" description:"name of the snap containing the slot"`
-		Slot string `positional-arg-name:"slot" description:"name of the slot within the snap"`
-		Type string `positional-arg-name:"type" description:"name of the skill type"`
+		Name string `positional-arg-name:"name" description:"name of the skill slot within the snap"`
+		Type string `positional-arg-name:"type" description:"skill type"`
 	} `positional-args:"true" required:"true"`
 	Attrs []AttributePair `short:"a" description:"key=value attributes"`
-	Apps  []string        `long:"app" description:"list of apps using this slot"`
+	Apps  []string        `long:"app" description:"list of apps using this skill slot"`
 	Label string          `long:"label" description:"human-friendly label"`
 }
 
 var (
-	shortAddSlotHelp = i18n.G("Add a skill slot to the system")
-	longAddSlotHelp  = i18n.G("This command adds a skill slot to the system")
+	shortAddSkillSlotHelp = i18n.G("Add a skill slot to the system")
+	longAddSkillSlotHelp  = i18n.G(`This command adds a skill slot to the system.
+
+This command is only for experimentation with the skill system.
+It will be removed in one of the future releases.`)
 )
 
 func init() {
 	var err error
-	if develCommand == nil {
-		err = fmt.Errorf("devel command not found")
+	if experimentalCommand == nil {
+		err = fmt.Errorf("experimental command not found")
 	} else {
-		_, err = develCommand.AddCommand("add-slot", shortAddSlotHelp, longAddSlotHelp, &cmdAddSlot{})
+		_, err = experimentalCommand.AddCommand("add-skill-slot", shortAddSkillSlotHelp, longAddSkillSlotHelp, &cmdAddSkillSlot{})
 	}
 	if err != nil {
-		logger.Panicf("unable to add add-slot command: %v", err)
+		logger.Panicf("unable to add add-skill-slot command: %v", err)
 	}
 }
 
-func (x *cmdAddSlot) Execute(args []string) error {
+func (x *cmdAddSkillSlot) Execute(args []string) error {
 	attrs := make(map[string]interface{})
 	for k, v := range AttributePairSliceToMap(x.Attrs) {
 		attrs[k] = v
 	}
 	return client.New().AddSlot(&client.Slot{
 		Snap:  x.Positionals.Snap,
-		Name:  x.Positionals.Slot,
+		Name:  x.Positionals.Name,
 		Type:  x.Positionals.Type,
 		Attrs: attrs,
 		Apps:  x.Apps,

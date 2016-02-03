@@ -55,3 +55,33 @@ func AttributePairSliceToMap(attrs []AttributePair) map[string]string {
 	}
 	return result
 }
+
+type SnapAndName struct {
+	Snap string
+	Name string
+}
+
+func (sn *SnapAndName) UnmarshalFlag(value string) error {
+	parts := strings.SplitN(value, ":", 2)
+	switch len(parts) {
+	case 0:
+		sn.Snap = ""
+		sn.Name = ""
+	case 1:
+		sn.Snap = parts[0]
+		sn.Name = ""
+	case 2:
+		sn.Snap = parts[0]
+		sn.Name = parts[1]
+	default:
+		return fmt.Errorf("expected either snap or snap:name")
+	}
+	return nil
+}
+
+func (sn *SnapAndName) MarshalFlag() (string, error) {
+	if sn.Name != "" {
+		return fmt.Sprintf("%s:%s", sn.Snap, sn.Name), nil
+	}
+	return sn.Snap, nil
+}

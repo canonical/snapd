@@ -29,22 +29,25 @@ import (
 
 type cmdRemoveSkill struct {
 	Positionals struct {
-		Snap  string `positional-arg-name:"snap" description:"name of the snap containing the skill"`
-		Skill string `positional-arg-name:"skill" description:"name of the skill within the snap"`
+		Snap string `positional-arg-name:"snap" description:"name of the snap containing the skill"`
+		Name string `positional-arg-name:"name" description:"name of the skill slot within the snap"`
 	} `positional-args:"true" required:"true"`
 }
 
 var (
 	shortRemoveSkillHelp = i18n.G("Remove a skill from the system")
-	longRemoveSkillHelp  = i18n.G("This command removes a skill from the system")
+	longRemoveSkillHelp  = i18n.G(`This command removes a skill from the system.
+
+This command is only for experimentation with the skill system.
+It will be removed in one of the future releases.`)
 )
 
 func init() {
 	var err error
-	if develCommand == nil {
-		err = fmt.Errorf("devel command not found")
+	if experimentalCommand == nil {
+		err = fmt.Errorf("experimental command not found")
 	} else {
-		_, err = develCommand.AddCommand("remove-skill", shortRemoveSkillHelp, longRemoveSkillHelp, &cmdRemoveSkill{})
+		_, err = experimentalCommand.AddCommand("remove-skill", shortRemoveSkillHelp, longRemoveSkillHelp, &cmdRemoveSkill{})
 	}
 	if err != nil {
 		logger.Panicf("unable to add remove-skill command: %v", err)
@@ -52,5 +55,5 @@ func init() {
 }
 
 func (x *cmdRemoveSkill) Execute(args []string) error {
-	return client.New().RemoveSkill(x.Positionals.Snap, x.Positionals.Skill)
+	return client.New().RemoveSkill(x.Positionals.Snap, x.Positionals.Name)
 }

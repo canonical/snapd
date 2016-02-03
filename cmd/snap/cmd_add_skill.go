@@ -29,9 +29,9 @@ import (
 
 type cmdAddSkill struct {
 	Positionals struct {
-		Snap  string `positional-arg-name:"snap" description:"name of the snap containing the skill"`
-		Skill string `positional-arg-name:"skill" description:"name of the skill within the snap"`
-		Type  string `positional-arg-name:"type" description:"name of the skill type"`
+		Snap string `positional-arg-name:"snap" description:"name of the snap offering the skill"`
+		Name string `positional-arg-name:"name" description:"skill name within the snap"`
+		Type string `positional-arg-name:"type" description:"skill type"`
 	} `positional-args:"true" required:"true"`
 	Attrs []AttributePair `short:"a" description:"key=value attributes"`
 	Apps  []string        `long:"app" description:"list of apps providing this skill"`
@@ -40,15 +40,18 @@ type cmdAddSkill struct {
 
 var (
 	shortAddSkillHelp = i18n.G("Add a skill to the system")
-	longAddSkillHelp  = i18n.G("This command adds a skill to the system")
+	longAddSkillHelp  = i18n.G(`This command adds a skill to the system.
+
+This command is only for experimentation with the skill system.
+It will be removed in one of the future releases.`)
 )
 
 func init() {
 	var err error
-	if develCommand == nil {
-		err = fmt.Errorf("devel command not found")
+	if experimentalCommand == nil {
+		err = fmt.Errorf("experimental command not found")
 	} else {
-		_, err = develCommand.AddCommand("add-skill", shortAddSkillHelp, longAddSkillHelp, &cmdAddSkill{})
+		_, err = experimentalCommand.AddCommand("add-skill", shortAddSkillHelp, longAddSkillHelp, &cmdAddSkill{})
 	}
 	if err != nil {
 		logger.Panicf("unable to add add-skill command: %v", err)
@@ -62,7 +65,7 @@ func (x *cmdAddSkill) Execute(args []string) error {
 	}
 	return client.New().AddSkill(&client.Skill{
 		Snap:  x.Positionals.Snap,
-		Name:  x.Positionals.Skill,
+		Name:  x.Positionals.Name,
 		Type:  x.Positionals.Type,
 		Attrs: attrs,
 		Apps:  x.Apps,

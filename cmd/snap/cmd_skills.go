@@ -22,7 +22,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"strings"
 	"text/tabwriter"
 
 	"github.com/ubuntu-core/snappy/client"
@@ -30,40 +29,10 @@ import (
 	"github.com/ubuntu-core/snappy/logger"
 )
 
-type snapAndSkill struct {
-	Snap  string
-	Skill string
-}
-
-func (sn *snapAndSkill) UnmarshalFlag(value string) error {
-	parts := strings.SplitN(value, ":", 2)
-	switch len(parts) {
-	case 0:
-		sn.Snap = ""
-		sn.Skill = ""
-	case 1:
-		sn.Snap = parts[0]
-		sn.Skill = ""
-	case 2:
-		sn.Snap = parts[0]
-		sn.Skill = parts[1]
-	default:
-		return fmt.Errorf("expected either snap or snap:skill")
-	}
-	return nil
-}
-
-func (sn *snapAndSkill) MarshalFlag() (string, error) {
-	if sn.Skill != "" {
-		return fmt.Sprintf("%s:%s", sn.Snap, sn.Skill), nil
-	}
-	return sn.Snap, nil
-}
-
 type cmdSkills struct {
 	Type        string `long:"type" description:"constrain listing to skills of this type"`
 	Positionals struct {
-		Query snapAndSkill `positional-arg-name:"query" description:"snap name or snap:skill name"`
+		Query SnapAndName `positional-arg-name:"<snap>:<skill>" description:"snap or snap:name" skip-help:"true"`
 	} `positional-args:"true"`
 }
 
@@ -73,8 +42,7 @@ var (
 
 By default all skills, used and offered by all snaps are displayed.
 
-Skills used and offered by a particular snap can be listed with: snap skills <snap name>
-`)
+Skills used and offered by a particular snap can be listed with: snap skills <snap name>`)
 )
 
 func init() {

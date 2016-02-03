@@ -27,30 +27,33 @@ import (
 	"github.com/ubuntu-core/snappy/logger"
 )
 
-type cmdRemoveSlot struct {
+type cmdRemoveSkillSlot struct {
 	Positionals struct {
 		Snap string `positional-arg-name:"snap" description:"name of the snap containing the skill slot"`
-		Slot string `positional-arg-name:"slot" description:"name of the skill slot within the snap"`
+		Name string `positional-arg-name:"name" description:"name of the skill slot within the snap"`
 	} `positional-args:"true" required:"true"`
 }
 
 var (
-	shortRemoveSlotHelp = i18n.G("Remove a skill slot from the system")
-	longRemoveSlotHelp  = i18n.G("This command removes a skill slot from the system")
+	shortRemoveSkillSlotHelp = i18n.G("Remove a skill slot from the system")
+	longRemoveSkillSlotHelp  = i18n.G(`This command removes a skill slot from the system.
+
+This command is only for experimentation with the skill system.
+It will be removed in one of the future releases.`)
 )
 
 func init() {
 	var err error
-	if develCommand == nil {
-		err = fmt.Errorf("devel command not found")
+	if experimentalCommand == nil {
+		err = fmt.Errorf("experimental command not found")
 	} else {
-		_, err = develCommand.AddCommand("remove-slot", shortRemoveSlotHelp, longRemoveSlotHelp, &cmdRemoveSlot{})
+		_, err = experimentalCommand.AddCommand("remove-skill-slot", shortRemoveSkillSlotHelp, longRemoveSkillSlotHelp, &cmdRemoveSkillSlot{})
 	}
 	if err != nil {
-		logger.Panicf("unable to add remove-slot command: %v", err)
+		logger.Panicf("unable to add remove-skill-slot command: %v", err)
 	}
 }
 
-func (x *cmdRemoveSlot) Execute(args []string) error {
-	return client.New().RemoveSlot(x.Positionals.Snap, x.Positionals.Slot)
+func (x *cmdRemoveSkillSlot) Execute(args []string) error {
+	return client.New().RemoveSlot(x.Positionals.Snap, x.Positionals.Name)
 }
