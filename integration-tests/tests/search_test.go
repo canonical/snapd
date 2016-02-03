@@ -34,12 +34,12 @@ type searchSuite struct {
 }
 
 func (s *searchSuite) TestSearchFrameworkMustPrintMatch(c *check.C) {
-	searchOutput := cli.ExecCommand(c, "snappy", "search", "hello-dbus-fwk")
+	searchOutput := cli.ExecCommand(c, "snap", "find", "hello-dbus-fwk")
 
 	expected := "(?ms)" +
 		"Name +Version +Summary *\n" +
 		".*" +
-		"^hello-dbus-fwk +.* +hello-dbus-fwk *\n" +
+		"^hello-dbus-fwk.canonical +.* +hello-dbus-fwk *\n" +
 		".*"
 
 	c.Assert(searchOutput, check.Matches, expected)
