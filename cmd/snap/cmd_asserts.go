@@ -20,7 +20,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"strings"
@@ -41,15 +40,14 @@ type cmdAsserts struct {
 }
 
 var (
-	shortAssertsHelp = i18n.G("Asserts searches the system for assertions of the given type")
-	longAssertsHelp  = i18n.G(`This command searches for assertions of the given type and matching the given assertion header filters (header=value) in the system assertion database.`)
+	shortAssertsHelp = i18n.G("Shows known assertions of the provided type")
+	longAssertsHelp  = i18n.G(`The asserts command shows known assertions of the provided type. If header=value pairs are provided after the assertion type, the assertions shown must also have the specified headers matching the provided values.`)
 )
 
-// XXX: final command name to be decided
 func init() {
 	_, err := parser.AddCommand("asserts", shortAssertsHelp, longAssertsHelp, &cmdAsserts{})
 	if err != nil {
-		logger.Panicf("unable to add asserts command: %v", err)
+		logger.Panicf("cannot add asserts command: %v", err)
 	}
 }
 
@@ -61,7 +59,7 @@ func (x *cmdAsserts) Execute(args []string) error {
 	for _, headerFilter := range x.HeaderFilters {
 		parts := strings.SplitN(headerFilter, "=", 2)
 		if len(parts) != 2 {
-			return fmt.Errorf("expected header filter in key=value format")
+			return fmt.Errorf("invalid header filter: %q (want key=value)", headerFilter)
 		}
 		headers[parts[0]] = parts[1]
 	}
@@ -74,11 +72,6 @@ func (x *cmdAsserts) Execute(args []string) error {
 	enc := asserts.NewEncoder(os.Stdout)
 	for _, a := range assertions {
 		enc.Encode(a)
-	}
-
-	// add a final newline if the last assertion doesn't have it
-	if n := len(assertions); n > 0 && !bytes.HasSuffix(asserts.Encode(assertions[n-1]), nl) {
-		os.Stdout.Write(nl)
 	}
 
 	return nil
