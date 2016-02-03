@@ -20,6 +20,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"strings"
@@ -51,6 +52,8 @@ func init() {
 	}
 }
 
+var nl = []byte{'\n'}
+
 func (x *cmdAsserts) Execute(args []string) error {
 	headers := map[string]string{}
 	for _, headerFilter := range x.HeaderFilters {
@@ -66,11 +69,14 @@ func (x *cmdAsserts) Execute(args []string) error {
 		return err
 	}
 
-	// XXX: this will produce a double newline also at the end,
-	// tweak asserts.Encoder to avoid that
 	enc := asserts.NewEncoder(os.Stdout)
 	for _, a := range assertions {
 		enc.Encode(a)
+	}
+
+	// add a final newline if the last assertion doesn't have it
+	if n := len(assertions); n > 0 && !bytes.HasSuffix(asserts.Encode(assertions[n-1]), nl) {
+		os.Stdout.Write(nl)
 	}
 
 	return nil
