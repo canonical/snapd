@@ -94,9 +94,10 @@ func (s *installAppSuite) TestInstallFromStoreMetadata(c *check.C) {
 	cmd := exec.Command("sudo", "snappy", "install", "hello-world/edge")
 	_, err := cmd.CombinedOutput()
 	c.Check(err, check.IsNil)
+	defer common.RemoveSnap(c, "hello-world")
 
 	cmd = exec.Command("sudo", "snappy", "info", "hello-world")
 	output, err := cmd.CombinedOutput()
 	c.Check(err, check.IsNil)
-	c.Check(output, check.Matches, "(?ms)^channel: edge")
+	c.Check(string(output), check.Matches, "(?ms)^channel: edge")
 }
