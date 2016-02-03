@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-02-02 18:47+0000\n"
+        "POT-Creation-Date: 2016-02-03 12:56+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -63,6 +63,17 @@ msgid   "Activate a package that has previously been deactivated. If the package
 msgstr  ""
 
 msgid   "Add a capability to the system"
+msgstr  ""
+
+msgid   "Add a skill slot to the system"
+msgstr  ""
+
+msgid   "Add a skill to the system"
+msgstr  ""
+
+msgid   "Additional development commands.\n"
+        "\n"
+        "Development commands may not work on non-development systems.\n"
 msgstr  ""
 
 msgid   "Allows rollback of a snap to a previous installed version. Without any arguments, the previous installed version is selected. It is also possible to specify the version to rollback to as a additional argument.\n"
@@ -155,6 +166,9 @@ msgstr  ""
 msgid   "Generated '%s' snap\n"
 msgstr  ""
 
+msgid   "Grant a skill to a skill slot"
+msgstr  ""
+
 msgid   "Include information about packages from the snappy store"
 msgstr  ""
 
@@ -179,6 +193,9 @@ msgid   "List assigned hardware for a specific installed package"
 msgstr  ""
 
 msgid   "List system capabilities"
+msgstr  ""
+
+msgid   "Lists skills in the system"
 msgstr  ""
 
 msgid   "Log into the store"
@@ -253,6 +270,12 @@ msgstr  ""
 msgid   "Remove a capability from the system"
 msgstr  ""
 
+msgid   "Remove a skill from the system"
+msgstr  ""
+
+msgid   "Remove a skill slot from the system"
+msgstr  ""
+
 msgid   "Remove a snapp part"
 msgstr  ""
 
@@ -268,6 +291,9 @@ msgstr  ""
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid   "Removing %s\n"
+msgstr  ""
+
+msgid   "Revoke a skill granted to a skill slot"
 msgstr  ""
 
 msgid   "Rollback to a previous version of a package"
@@ -306,6 +332,9 @@ msgid   "Show available updates (requires network)"
 msgstr  ""
 
 msgid   "Show channel information and expand all fields"
+msgstr  ""
+
+msgid   "Skill\tGranted To"
 msgstr  ""
 
 msgid   "Snap\tService\tState"
@@ -362,7 +391,18 @@ msgstr  ""
 msgid   "This command adds a capability to the system"
 msgstr  ""
 
+msgid   "This command adds a skill slot to the system"
+msgstr  ""
+
+msgid   "This command adds a skill to the system"
+msgstr  ""
+
 msgid   "This command adds access to a specific hardware device (e.g. /dev/ttyUSB0) for an installed package."
+msgstr  ""
+
+msgid   "This command grants a skill to a skill slot.\n"
+        "\n"
+        "Both the skill and the slot must exist and must be of the same type.\n"
 msgstr  ""
 
 msgid   "This command is no longer available, please use the \"list\" command"
@@ -377,10 +417,26 @@ msgstr  ""
 msgid   "This command removes a capability from the system"
 msgstr  ""
 
+msgid   "This command removes a skill from the system"
+msgstr  ""
+
+msgid   "This command removes a skill slot from the system"
+msgstr  ""
+
 msgid   "This command removes access of a specific hardware device (e.g. /dev/ttyUSB0) for an installed package."
 msgstr  ""
 
+msgid   "This command revokes a skill from a skill slot."
+msgstr  ""
+
 msgid   "This command shows all capabilities and their allocation"
+msgstr  ""
+
+msgid   "This command skills in the system.\n"
+        "\n"
+        "By default all skills, used and offered by all snaps are displayed.\n"
+        "\n"
+        "Skills used and offered by a particular snap can be listed with: snap skills <snap name>\n"
 msgstr  ""
 
 msgid   "This command tries to add an assertion to the system assertion database.\n"
@@ -391,6 +447,9 @@ msgid   "This command tries to add an assertion to the system assertion database
 msgstr  ""
 
 msgid   "Unassign a hardware device to a package"
+msgstr  ""
+
+msgid   "Unsupported development commands"
 msgstr  ""
 
 msgid   "Update all installed parts"
