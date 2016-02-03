@@ -45,6 +45,7 @@ var (
 	longAssertsHelp  = i18n.G(`This command searches for assertions of the given type and matching the given assertion header filters (header=value) in the system assertion database.`)
 )
 
+// XXX: final command name to be decided
 func init() {
 	_, err := parser.AddCommand("asserts", shortAssertsHelp, longAssertsHelp, &cmdAsserts{})
 	if err != nil {
