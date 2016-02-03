@@ -158,8 +158,9 @@ var (
 	}
 
 	assertsFindManyCmd = &Command{
-		Path: "/2.0/assertions/{assertType}",
-		GET:  assertsFindMany,
+		Path:   "/2.0/assertions/{assertType}",
+		UserOK: true,
+		GET:    assertsFindMany,
 	}
 )
 
