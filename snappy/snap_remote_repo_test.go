@@ -68,12 +68,12 @@ func (t *remoteRepoTestSuite) TestDownloadFails(c *C) {
 	var tmpfile *os.File
 	download = func(name string, w io.Writer, req *http.Request, pbar progress.Meter) error {
 		tmpfile = w.(*os.File)
-		return fmt.Errorf("uh, it failed!")
+		return fmt.Errorf("uh, it failed")
 	}
 
 	// simulate a failed download
 	path, err := t.store.Download(&RemoteSnapPart{}, nil)
-	c.Assert(err, ErrorMatches, "uh, it failed!")
+	c.Assert(err, ErrorMatches, "uh, it failed")
 	c.Assert(path, Equals, "")
 	// ... and ensure that the tempfile is removed
 	c.Assert(helpers.FileExists(tmpfile.Name()), Equals, false)
