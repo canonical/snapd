@@ -68,7 +68,6 @@ type AppYaml struct {
 	PostStop    string          `yaml:"poststop,omitempty"`
 	StopTimeout timeout.Timeout `yaml:"stop-timeout,omitempty"`
 	BusName     string          `yaml:"bus-name,omitempty"`
-	Forking     bool            `yaml:"forking,omitempty"`
 
 	// set to yes if we need to create a systemd socket for this service
 	Socket       bool   `yaml:"socket,omitempty" json:"socket,omitempty"`
