@@ -35,7 +35,7 @@ import (
 type InstallFlags uint
 
 const (
-	// AllowUnauthenticated allows to install a snap even if it can not be authenticated
+	// AllowUnauthenticated allows to install a snap even if it cannot be authenticated
 	AllowUnauthenticated InstallFlags = 1 << iota
 	// InhibitHooks will ensure that the hooks are not run
 	InhibitHooks
@@ -130,7 +130,7 @@ func Update(name string, flags InstallFlags, meter progress.Meter) ([]Part, erro
 	}
 	upd := FindSnapsByName(QualifiedName(cur[0]), updates)
 	if len(upd) < 1 {
-		return nil, fmt.Errorf("no update found for %s", name)
+		return nil, fmt.Errorf("cannot find any update for %q", name)
 	}
 
 	if err := doUpdate(mStore, upd[0], flags, meter); err != nil {

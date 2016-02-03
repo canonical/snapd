@@ -75,11 +75,15 @@ func snapInfo(pkgname string, includeStore, verbose bool) error {
 	snap := snappy.ActiveSnapByName(pkgname)
 	if snap == nil && includeStore {
 		m := snappy.NewUbuntuStoreSnapRepository()
-		snap, _ = m.Snap(pkgname)
+		var err error
+		snap, err = m.Snap(pkgname)
+		if err != nil {
+			return fmt.Errorf("cannot get details for snap %q: %s", pkgname, err)
+		}
 	}
 
 	if snap == nil {
-		return fmt.Errorf("No snap '%s' found", pkgname)
+		return fmt.Errorf("no snap '%s' found", pkgname)
 	}
 
 	// TRANSLATORS: the %s is a channel name

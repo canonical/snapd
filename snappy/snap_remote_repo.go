@@ -191,7 +191,7 @@ func (s *SnapUbuntuStoreRepository) Description() string {
 	return fmt.Sprintf("Snap remote repository for %s", s.searchURI)
 }
 
-// Snap returns the SnapRemotePart for the given name or an error
+// Snap returns the RemoteSnapPart for the given name or an error.
 func (s *SnapUbuntuStoreRepository) Snap(snapName string) (*RemoteSnapPart, error) {
 
 	url, err := s.detailsURI.Parse(snapName)
@@ -219,7 +219,7 @@ func (s *SnapUbuntuStoreRepository) Snap(snapName string) (*RemoteSnapPart, erro
 	case resp.StatusCode == 404:
 		return nil, ErrPackageNotFound
 	case resp.StatusCode != 200:
-		return nil, fmt.Errorf("SnapUbuntuStoreRepository: unexpected http statusCode %v for %s", resp.StatusCode, snapName)
+		return nil, fmt.Errorf("SnapUbuntuStoreRepository: unexpected HTTP status code %d while looking forsnap %q", resp.StatusCode, snapName)
 	}
 
 	// and decode json
