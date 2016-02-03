@@ -387,19 +387,23 @@ func (s *SnapUbuntuStoreRepository) Installed() (parts []Part, err error) {
 	return nil, err
 }
 
-// Download downloads the given snap and returns the filename of the local
-// version
-func (s *SnapUbuntuStoreRepository) Download(remoteSnap *RemoteSnapPart, pbar progress.Meter) (string, error) {
+// Download downloads the given snap and returns its filename.
+// The file is saved in temporary storage, and should be removed
+// after use to prevent the disk from running out of space.
+func (s *SnapUbuntuStoreRepository) Download(remoteSnap *RemoteSnapPart, pbar progress.Meter) (path string, err error) {
 	w, err := ioutil.TempFile("", remoteSnap.pkg.Name)
 	if err != nil {
 		return "", err
 	}
 	defer func() {
+		if cerr := w.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
 		if err != nil {
 			os.Remove(w.Name())
+			path = ""
 		}
 	}()
-	defer w.Close()
 
 	// try anonymous download first and fallback to authenticated
 	url := remoteSnap.pkg.AnonDownloadURL
@@ -420,7 +424,7 @@ func (s *SnapUbuntuStoreRepository) Download(remoteSnap *RemoteSnapPart, pbar pr
 }
 
 // download writes an http.Request showing a progress.Meter
-func download(name string, w io.Writer, req *http.Request, pbar progress.Meter) error {
+var download = func(name string, w io.Writer, req *http.Request, pbar progress.Meter) error {
 	client := &http.Client{}
 
 	resp, err := client.Do(req)
