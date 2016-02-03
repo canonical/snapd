@@ -1,7 +1,0 @@
-name: basic-service
-version: 1.0
-icon: meta/snappy64.png
-services:
-  - name: service
-    start: ./bin/start
-    description: Test service
