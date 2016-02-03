@@ -776,12 +776,12 @@ type fakeOverlord struct {
 }
 
 func (o *fakeOverlord) Configure(s *snappy.SnapPart, c []byte) (string, error) {
-	if string(c) != "" {
+	if len(c) > 0 {
 		o.configs[s.Name()] = string(c)
 	}
 	config, ok := o.configs[s.Name()]
 	if !ok {
-		return "", fmt.Errorf("no config for %s", s.Name())
+		return "", fmt.Errorf("no config for %q", s.Name())
 	}
 	return config, nil
 }
