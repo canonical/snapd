@@ -26,6 +26,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/ubuntu-core/snappy/dirs"
 )
@@ -110,6 +111,39 @@ func (client *Client) doSync(method, path string, query url.Values, body io.Read
 	}
 
 	return nil
+}
+
+type asyncResult struct {
+	Resource string `json:"resource"`
+}
+
+func (client *Client) doAsync(method, path string, query url.Values, body io.Reader) (string, error) {
+	var rsp response
+
+	if err := client.do(method, path, query, body, &rsp); err != nil {
+		return "", fmt.Errorf("failed to communicate with server: %v", err)
+	}
+	if err := rsp.err(); err != nil {
+		return "", err
+	}
+	if rsp.Type != "async" {
+		return "", fmt.Errorf("expected async response, got %q", rsp.Type)
+	}
+	if rsp.StatusCode != http.StatusAccepted {
+		return "", fmt.Errorf("operation not accepted")
+	}
+
+	var result asyncResult
+	if err := json.Unmarshal(rsp.Result, &result); err != nil {
+		return "", fmt.Errorf("failed to unmarshal result: %v", err)
+	}
+
+	const opPrefix = "/2.0/operations/"
+	if !strings.HasPrefix(result.Resource, opPrefix) {
+		return "", fmt.Errorf("invalid resource %q", result.Resource)
+	}
+
+	return result.Resource[len(opPrefix):], nil
 }
 
 // A response produced by the REST API will usually fit in this
