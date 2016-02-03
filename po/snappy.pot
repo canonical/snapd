@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-02-03 11:02+0100\n"
+        "POT-Creation-Date: 2016-02-03 18:30+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -74,9 +74,6 @@ msgid   "Another snappy is running, will try again in %d seconds...\n"
 msgstr  ""
 
 msgid   "Assert tries to add an assertion to the system"
-msgstr  ""
-
-msgid   "Asserts searches the system for assertions of the given type"
 msgstr  ""
 
 msgid   "Assign a hardware device to a package"
@@ -311,6 +308,9 @@ msgstr  ""
 msgid   "Show channel information and expand all fields"
 msgstr  ""
 
+msgid   "Shows known assertions of the provided type"
+msgstr  ""
+
 msgid   "Snap\tService\tState"
 msgstr  ""
 
@@ -339,6 +339,9 @@ msgid   "The \"versions\" command is no longer available.\n"
         "Please use the \"list\" command instead to see what is installed.\n"
         "The \"list -u\" (or \"list --updates\") will show you the available updates\n"
         "and \"list -v\" (or \"list --verbose\") will show all installed versions.\n"
+msgstr  ""
+
+msgid   "The asserts command shows known assertions of the provided type. If header=value pairs are provided after the assertion type, the assertions shown must also have the specified headers matching the provided values."
 msgstr  ""
 
 msgid   "The configuration for the given file"
@@ -381,9 +384,6 @@ msgid   "This command removes a capability from the system"
 msgstr  ""
 
 msgid   "This command removes access of a specific hardware device (e.g. /dev/ttyUSB0) for an installed package."
-msgstr  ""
-
-msgid   "This command searches for assertions of the given type and matching the given assertion header filters (header=value) in the system assertion database."
 msgstr  ""
 
 msgid   "This command shows all capabilities and their allocation"
