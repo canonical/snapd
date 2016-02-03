@@ -35,7 +35,7 @@ type ServiceSpec struct {
 	Name        string       `json:"name"`
 	Description string       `json:"description,omitempty"`
 	Start       string       `json:"start,omitempty"`
-	StopTimeout string       `json:"stop-timeout,omitempty"`
+	StopTimeout string       `json:"stop_timeout,omitempty"`
 	Ports       ServicePorts `json:"ports,omitempty"`
 }
 

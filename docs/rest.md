@@ -379,7 +379,7 @@ provide description about the service as well as its systemd unit.
         "name": "xkcd-webserver",
         "description": "A fun webserver",
         "start": "bin/xkcd-webserver",
-        "stop-timeout": "30s",
+        "stop_timeout": "30s",
         "caps": [
           "networking",
           "network-service"
@@ -439,7 +439,7 @@ that includes a single object from the list of the upper level endpoint
       "name": "xkcd-webserver",
       "description": "A fun webserver",
       "start": "bin/xkcd-webserver",
-      "stop-timeout": "30s",
+      "stop_timeout": "30s",
       "caps": [
         "networking",
         "network-service"
