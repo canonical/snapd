@@ -91,13 +91,9 @@ func (s *installAppSuite) TestInstallUnexistingAppMustPrintError(c *check.C) {
 }
 
 func (s *installAppSuite) TestInstallFromStoreMetadata(c *check.C) {
-	cmd := exec.Command("sudo", "snappy", "install", "hello-world/edge")
-	_, err := cmd.CombinedOutput()
-	c.Check(err, check.IsNil)
+	common.InstallSnap(c, "hello-world/edge")
 	defer common.RemoveSnap(c, "hello-world")
 
-	cmd = exec.Command("sudo", "snappy", "info", "hello-world")
-	output, err := cmd.CombinedOutput()
-	c.Check(err, check.IsNil)
+	output := cli.ExecCommand(c, "snappy", "info", "hello-world")
 	c.Check(string(output), check.Matches, "(?ms)^channel: edge")
 }
