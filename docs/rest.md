@@ -540,7 +540,7 @@ Notes: user facing implementations in text form must show this data using yaml.
 "config:\n  ubuntu-core:\n    autopilot: true\n    timezone: Europe/Berlin\n    hostname: localhost.localdomain\n"
 ```
 
-## /2.0/operations/<uuid>
+## /2.0/operations/[uuid]
 
 ### GET
 
@@ -690,6 +690,6 @@ prerequisite in the database.
 * Operation: sync
 * Return: stream of assertions
 
-The response is a stream of assertions each with a separating double
-newline at its end. The X-Ubuntu-Assertions-Count header is set to the
-number of returned assertions, 0 or more.
+The response is a stream of assertions separated by double newlines.
+The X-Ubuntu-Assertions-Count header is set to the number of
+returned assertions, 0 or more.

@@ -232,6 +232,32 @@ func (as *assertsSuite) TestDecoderHappyWithSeparatorsVariations(c *C) {
 	}
 }
 
+func (as *assertsSuite) TestDecoderHappyWithTrailerDoubleNewlines(c *C) {
+	streams := []string{
+		exampleBodyAndExtraHeaders,
+		exampleEmptyBody2NlNl,
+		exampleEmptyBodyAllDefaults,
+	}
+
+	for _, streamData := range streams {
+		stream := bytes.NewBufferString(streamData)
+		if strings.HasSuffix(streamData, "\n") {
+			stream.WriteString("\n")
+		} else {
+			stream.WriteString("\n\n")
+		}
+
+		decoder := asserts.NewDecoderStressed(stream, 16, 1024, 1024, 1024)
+		a, err := decoder.Decode()
+		c.Assert(err, IsNil, Commentf("stream: %q", streamData))
+
+		checkContent(c, a, streamData)
+
+		a, err = decoder.Decode()
+		c.Check(err, Equals, io.EOF, Commentf("stream: %q", streamData))
+	}
+}
+
 func (as *assertsSuite) TestDecoderUnexpectedEOF(c *C) {
 	streamData := exampleBodyAndExtraHeaders + "\n" + exampleEmptyBodyAllDefaults
 	fstHeadEnd := strings.Index(exampleBodyAndExtraHeaders, "\n\n")
@@ -325,6 +351,34 @@ func (as *assertsSuite) TestEncoderOK(c *C) {
 
 	dec := asserts.NewDecoder(stream)
 	a1, err := dec.Decode()
+	c.Assert(err, IsNil)
+
+	cont1, _ := a1.Signature()
+	c.Check(cont1, DeepEquals, cont0)
+}
+
+func (as *assertsSuite) TestEncoderSingleDecodeOK(c *C) {
+	encoded := []byte("type: test-only\n" +
+		"authority-id: auth-id2\n" +
+		"primary-key1: key1\n" +
+		"primary-key2: key2\n" +
+		"revision: 5\n" +
+		"header1: value1\n" +
+		"header2: value2\n" +
+		"body-length: 8\n\n" +
+		"THE-BODY" +
+		"\n\n" +
+		"openpgp c2ln")
+	a0, err := asserts.Decode(encoded)
+	c.Assert(err, IsNil)
+	cont0, _ := a0.Signature()
+
+	stream := new(bytes.Buffer)
+	enc := asserts.NewEncoder(stream)
+	enc.Encode(a0)
+
+	a1, err := asserts.Decode(stream.Bytes())
+	c.Assert(err, IsNil)
 
 	cont1, _ := a1.Signature()
 	c.Check(cont1, DeepEquals, cont0)

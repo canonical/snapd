@@ -989,7 +989,7 @@ type skillInfo struct {
 	Name      string       `json:"name"`
 	Type      string       `json:"type"`
 	Label     string       `json:"label"`
-	GrantedTo []skillGrant `json:"granted-to"`
+	GrantedTo []skillGrant `json:"granted_to"`
 }
 
 // getSkills returns a response with a list of all the skills and which slots use them.
