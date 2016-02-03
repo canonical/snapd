@@ -55,6 +55,7 @@ type SkillAction struct {
 	Action string `json:"action"`
 	Skill  *Skill `json:"skill,omitempty"`
 	Slot   *Slot  `json:"slot,omitempty"`
+	Type   string `json:"type,omitempty"`
 }
 
 // AllSkills returns information about all the skills and their grants.
@@ -142,5 +143,13 @@ func (client *Client) RemoveSlot(snapName, slotName string) error {
 			Snap: snapName,
 			Name: slotName,
 		},
+	})
+}
+
+// AddType adds a test skill type to the system.
+func (client *Client) AddType(name string) error {
+	return client.performSkillAction(&SkillAction{
+		Action: "add-type",
+		Type:   name,
 	})
 }
