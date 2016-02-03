@@ -27,23 +27,6 @@ import (
 	"github.com/ubuntu-core/snappy/helpers"
 )
 
-// FIXME: can we kill this?
-func addCoreFmk(fmks []string) []string {
-	fmkCore := false
-	for _, a := range fmks {
-		if a == "ubuntu-core-15.04-dev1" {
-			fmkCore = true
-			break
-		}
-	}
-
-	if !fmkCore {
-		fmks = append(fmks, "ubuntu-core-15.04-dev1")
-	}
-
-	return fmks
-}
-
 // makeSnapHookEnv returns an environment suitable for passing to
 // os/exec.Cmd.Env
 //

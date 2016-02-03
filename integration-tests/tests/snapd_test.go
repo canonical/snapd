@@ -64,6 +64,7 @@ func (s *snapdTestSuite) SetUpTest(c *check.C) {
 
 	s.cmd.Start()
 
+	wait.ForCommand(c, `^$`, "sudo", "chmod", "0666", "/run/snapd.socket")
 	common.InstallSnap(c, httpClientSnap+"/edge")
 }
 

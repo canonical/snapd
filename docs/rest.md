@@ -690,6 +690,6 @@ prerequisite in the database.
 * Operation: sync
 * Return: stream of assertions
 
-The response is a stream of assertions each with a separating double
-newline at its end. The X-Ubuntu-Assertions-Count header is set to the
-number of returned assertions, 0 or more.
+The response is a stream of assertions separated by double newlines.
+The X-Ubuntu-Assertions-Count header is set to the number of
+returned assertions, 0 or more.
