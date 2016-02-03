@@ -38,8 +38,6 @@ type rollbackSuite struct {
 }
 
 func (s *rollbackSuite) TestRollbackMustRebootToOtherVersion(c *check.C) {
-	c.Skip("KNOWN BUG FIXME: https://bugs.launchpad.net/snappy/+bug/1534029")
-
 	if common.BeforeReboot() {
 		updates.CallFakeOSUpdate(c)
 		common.Reboot(c)
