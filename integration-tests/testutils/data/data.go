@@ -35,6 +35,4 @@ const (
 	BasicServiceSnapName = "basic-service"
 	// WrongYamlSnapName is the name of a snap with an invalid meta yaml
 	WrongYamlSnapName = "wrong-yaml"
-	// MissingReadmeSnapName is the name of a snap without readme
-	MissingReadmeSnapName = "missing-readme"
 )
