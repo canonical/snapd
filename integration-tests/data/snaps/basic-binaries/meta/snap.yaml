@@ -1,0 +1,9 @@
+name: basic-binaries
+version: 1.0
+apps:
+ echo:
+  command: bin/echo
+ success:
+  command: bin/success
+ fail:
+  command: bin/fail

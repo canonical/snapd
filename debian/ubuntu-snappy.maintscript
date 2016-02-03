@@ -1,0 +1,3 @@
+
+# we used to ship a custom grub config that is no longer needed
+rm_conffile /etc/grub.d/09_snappy 1.7.3ubuntu1
