@@ -86,6 +86,6 @@ func (s *installAppSuite) TestInstallUnexistingAppMustPrintError(c *check.C) {
 		check.Commentf("Trying to install an unexisting snap did not exit with an error"))
 	c.Assert(string(output), check.Equals,
 		"Installing unexisting.canonical\n"+
-			"unexisting failed to install: snappy package not found\n",
+			"unexisting.canonical failed to install: snappy package not found\n",
 		check.Commentf("Wrong error message"))
 }
