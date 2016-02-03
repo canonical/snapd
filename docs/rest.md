@@ -681,3 +681,15 @@ may also be a newer revision of a preexisting assertion that it will replace.
 To succeed the assertion must be valid, its signature verified with a
 known public key and the assertion consistent with and its
 prerequisite in the database.
+
+## /2.0/assertions/[assertionType]
+### GET
+
+* Description: Get all the assertions in the system assertion database of the given type matching the header filters passed as query parameters
+* Access: authenticated
+* Operation: sync
+* Return: stream of assertions
+
+The response is a stream of assertions each with a separating double
+newline at its end. The X-Ubuntu-Assertions-Count header is set to the
+number of returned assertions, 0 or more.

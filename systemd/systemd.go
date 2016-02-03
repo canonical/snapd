@@ -163,12 +163,12 @@ type ServiceDescription struct {
 	PostStop        string
 	StopTimeout     time.Duration
 	Restart         RestartCondition
+	Type            string
 	AaProfile       string
 	IsFramework     bool
 	IsNetworked     bool
 	BusName         string
 	UdevAppName     string
-	Forking         bool
 	Socket          bool
 	SocketFileName  string
 	ListenStream    string
@@ -365,9 +365,8 @@ Environment="SNAP_APP={{.AppTriple}}" {{.EnvVars}}
 {{if .Stop}}ExecStop=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.FullPathStop}}{{end}}
 {{if .PostStop}}ExecStopPost=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.FullPathPostStop}}{{end}}
 {{if .StopTimeout}}TimeoutStopSec={{.StopTimeout.Seconds}}{{end}}
-{{if .BusName}}BusName={{.BusName}}
-Type=dbus{{else}}{{if .Forking}}Type=forking{{end}}
-{{end}}
+Type={{.Type}}
+{{if .BusName}}BusName={{.BusName}}{{end}}
 
 [Install]
 WantedBy={{.ServiceSystemdTarget}}
@@ -400,6 +399,7 @@ WantedBy={{.ServiceSystemdTarget}}
 		EnvVars              string
 		SocketFileName       string
 		Restart              string
+		Type                 string
 	}{
 		*desc,
 		filepath.Join(desc.AppPath, desc.Start),
@@ -413,6 +413,7 @@ WantedBy={{.ServiceSystemdTarget}}
 		"",
 		desc.SocketFileName,
 		restartCond,
+		desc.Type,
 	}
 	allVars := helpers.GetBasicSnapEnvVars(wrapperData)
 	allVars = append(allVars, helpers.GetUserSnapEnvVars(wrapperData)...)

@@ -152,6 +152,24 @@ func (rsp *response) err() error {
 	return &resultErr
 }
 
+func parseError(r *http.Response) error {
+	var rsp response
+	if r.Header.Get("Content-Type") != "application/json" {
+		return fmt.Errorf("server error: %q", r.Status)
+	}
+
+	dec := json.NewDecoder(r.Body)
+	if err := dec.Decode(&rsp); err != nil {
+		return fmt.Errorf("failed to unmarshal error: %v", err)
+	}
+
+	err := rsp.err()
+	if err == nil {
+		return fmt.Errorf("server error: %q", r.Status)
+	}
+	return err
+}
+
 // SysInfo gets system information from the REST API.
 func (client *Client) SysInfo() (*SysInfo, error) {
 	var sysInfo SysInfo
