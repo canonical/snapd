@@ -41,6 +41,7 @@ import (
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
+	"github.com/ubuntu-core/snappy/skills"
 	"github.com/ubuntu-core/snappy/snap/lightweight"
 	"github.com/ubuntu-core/snappy/snappy"
 )
@@ -62,7 +63,9 @@ var api = []*Command{
 	operationCmd,
 	capabilitiesCmd,
 	capabilityCmd,
+	skillsCmd,
 	assertsCmd,
+	assertsFindManyCmd,
 }
 
 var (
@@ -141,10 +144,22 @@ var (
 		DELETE: deleteCapability,
 	}
 
+	skillsCmd = &Command{
+		Path:   "/2.0/skills",
+		UserOK: true,
+		GET:    getSkills,
+		POST:   changeSkills,
+	}
+
 	// TODO: allow to post assertions for UserOK? they are verified anyway
 	assertsCmd = &Command{
 		Path: "/2.0/assertions",
 		POST: doAssert,
+	}
+
+	assertsFindManyCmd = &Command{
+		Path: "/2.0/assertions/{assertType}",
+		GET:  assertsFindMany,
 	}
 )
 
@@ -970,6 +985,113 @@ func deleteCapability(c *Command, r *http.Request) Response {
 	}
 }
 
+// skillGrant holds the identification of a slot that has been granted to a skill.
+type skillGrant struct {
+	Snap string `json:"snap"`
+	Name string `json:"name"`
+}
+
+// skillInfo holds details for a skill as returned by the REST API.
+type skillInfo struct {
+	Snap      string       `json:"snap"`
+	Name      string       `json:"name"`
+	Type      string       `json:"type"`
+	Label     string       `json:"label"`
+	GrantedTo []skillGrant `json:"granted-to"`
+}
+
+// getSkills returns a response with a list of all the skills and which slots use them.
+func getSkills(c *Command, r *http.Request) Response {
+	var skills []skillInfo
+	for _, skill := range c.d.skills.AllSkills("") {
+		var slots []skillGrant
+		for _, slot := range c.d.skills.GrantsOf(skill.Snap, skill.Name) {
+			slots = append(slots, skillGrant{
+				Snap: slot.Snap,
+				Name: slot.Name,
+			})
+		}
+		skills = append(skills, skillInfo{
+			Snap:      skill.Snap,
+			Name:      skill.Name,
+			Type:      skill.Type,
+			Label:     skill.Label,
+			GrantedTo: slots,
+		})
+	}
+	return SyncResponse(skills)
+}
+
+// skillAction is an action performed on the skill system.
+type skillAction struct {
+	Action string       `json:"action"`
+	Skill  skills.Skill `json:"skill,omitempty"`
+	Slot   skills.Slot  `json:"slot,omitempty"`
+}
+
+// changeSkills controls the skill system.
+// Skills can be granted to and revoked from slots.
+// When enableInternalSkillActions is true skills and slots can also be
+// explicitly added and removed.
+func changeSkills(c *Command, r *http.Request) Response {
+	var a skillAction
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&a); err != nil {
+		return BadRequest("cannot decode request body into a skill action: %v", err)
+	}
+	if a.Action == "" {
+		return BadRequest("skill action not specified")
+	}
+	if !c.d.enableInternalSkillActions && a.Action != "grant" && a.Action != "revoke" {
+		return BadRequest("internal skill actions are disabled")
+	}
+	switch a.Action {
+	case "grant":
+		err := c.d.skills.Grant(a.Skill.Snap, a.Skill.Name, a.Slot.Snap, a.Slot.Name)
+		if err != nil {
+			return BadRequest("%v", err)
+		}
+		return SyncResponse(nil)
+	case "revoke":
+		err := c.d.skills.Revoke(a.Skill.Snap, a.Skill.Name, a.Slot.Snap, a.Slot.Name)
+		if err != nil {
+			return BadRequest("%v", err)
+		}
+		return SyncResponse(nil)
+	case "add-skill":
+		err := c.d.skills.AddSkill(&a.Skill)
+		if err != nil {
+			return BadRequest("%v", err)
+		}
+		return &resp{
+			Type:   ResponseTypeSync,
+			Status: http.StatusCreated,
+		}
+	case "remove-skill":
+		err := c.d.skills.RemoveSkill(a.Skill.Snap, a.Skill.Name)
+		if err != nil {
+			return BadRequest("%v", err)
+		}
+		return SyncResponse(nil)
+	case "add-slot":
+		err := c.d.skills.AddSlot(&a.Slot)
+		if err != nil {
+			return BadRequest("%v", err)
+		}
+		return &resp{
+			Type:   ResponseTypeSync,
+			Status: http.StatusCreated,
+		}
+	case "remove-slot":
+		err := c.d.skills.RemoveSlot(a.Slot.Snap, a.Slot.Name)
+		if err != nil {
+			return BadRequest("%v", err)
+		}
+		return SyncResponse(nil)
+	}
+	return BadRequest("unsupported skill action: %q", a.Action)
+}
+
 func doAssert(c *Command, r *http.Request) Response {
 	b, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -988,4 +1110,24 @@ func doAssert(c *Command, r *http.Request) Response {
 		Type:   ResponseTypeSync,
 		Status: http.StatusOK,
 	}
+}
+
+func assertsFindMany(c *Command, r *http.Request) Response {
+	assertTypeName := muxVars(r)["assertType"]
+	assertType := asserts.Type(assertTypeName)
+	if assertType == nil {
+		return BadRequest("invalid assert type: %q", assertTypeName)
+	}
+	headers := map[string]string{}
+	q := r.URL.Query()
+	for k := range q {
+		headers[k] = q.Get(k)
+	}
+	assertions, err := c.d.asserts.FindMany(assertType, headers)
+	if err == asserts.ErrNotFound {
+		return AssertResponse(nil, true)
+	} else if err != nil {
+		return InternalError("searching assertions failed: %v", err)
+	}
+	return AssertResponse(assertions, true)
 }

@@ -22,9 +22,12 @@ package daemon
 import (
 	"encoding/json"
 	"fmt"
+	"mime"
 	"net/http"
 	"path/filepath"
+	"strconv"
 
+	"github.com/ubuntu-core/snappy/asserts"
 	"github.com/ubuntu-core/snappy/logger"
 )
 
@@ -165,6 +168,39 @@ func (f FileResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	filename := fmt.Sprintf("attachment; filename=%s", filepath.Base(string(f)))
 	w.Header().Add("Content-Disposition", filename)
 	http.ServeFile(w, r, string(f))
+}
+
+type assertResponse struct {
+	assertions []asserts.Assertion
+	bundle     bool
+}
+
+// AssertResponse builds a response whose ServerHTTP method serves one or a bundle of assertions.
+func AssertResponse(asserts []asserts.Assertion, bundle bool) Response {
+	if len(asserts) > 1 {
+		bundle = true
+	}
+	return &assertResponse{assertions: asserts, bundle: bundle}
+}
+
+func (ar assertResponse) Self(*Command, *http.Request) Response { return ar }
+
+func (ar assertResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	t := asserts.MediaType
+	if ar.bundle {
+		t = mime.FormatMediaType(t, map[string]string{"bundle": "y"})
+	}
+	w.Header().Set("Content-Type", t)
+	w.Header().Set("X-Ubuntu-Assertions-Count", strconv.Itoa(len(ar.assertions)))
+	enc := asserts.NewEncoder(w)
+	for _, a := range ar.assertions {
+		err := enc.Encode(a)
+		if err != nil {
+			logger.Noticef("unable to write encoded assertion into response: %v", err)
+			break
+
+		}
+	}
 }
 
 // errorResponder is a callable that produces an error Response.
