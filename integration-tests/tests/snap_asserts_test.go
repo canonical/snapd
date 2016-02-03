@@ -39,8 +39,6 @@ type snapAssertsSuite struct {
 	snapdTestSuite
 }
 
-// FIXME: "snap asserts" shouldn't require sudo, need to tweak snapd test re-activation
-
 // Test querying for assertions with "snap" of the given type without filtering which gives all of them.
 func (s *snapAssertsSuite) TestAll(c *check.C) {
 	// add an account key
@@ -48,7 +46,7 @@ func (s *snapAssertsSuite) TestAll(c *check.C) {
 	// XXX: forceful cleanup of relevant assertions until we have a better general approach
 	defer cli.ExecCommand(c, "sudo", "rm", "-rf", dev1AccKeyFiles)
 
-	out := cli.ExecCommand(c, "sudo", "snap", "asserts", "account-key")
+	out := cli.ExecCommand(c, "snap", "asserts", "account-key")
 	dec := asserts.NewDecoder(bytes.NewBufferString(out))
 	assertions := []asserts.Assertion{}
 	for {
@@ -69,7 +67,7 @@ func (s *snapAssertsSuite) TestFiltering(c *check.C) {
 	cli.ExecCommand(c, "sudo", "snap", "assert", "integration-tests/data/dev1.acckey")
 	defer cli.ExecCommand(c, "sudo", "rm", "-rf", dev1AccKeyFiles)
 
-	out := cli.ExecCommand(c, "sudo", "snap", "asserts", "account-key", "account-id=developer1")
+	out := cli.ExecCommand(c, "snap", "asserts", "account-key", "account-id=developer1")
 	dec := asserts.NewDecoder(bytes.NewBufferString(out))
 	assertions := []asserts.Assertion{}
 	for {
