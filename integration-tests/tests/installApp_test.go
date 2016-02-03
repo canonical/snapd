@@ -89,3 +89,14 @@ func (s *installAppSuite) TestInstallUnexistingAppMustPrintError(c *check.C) {
 			"unexisting failed to install: snappy package not found\n",
 		check.Commentf("Wrong error message"))
 }
+
+func (s *installAppSuite) TestInstallFromStoreMetadata(c *check.C) {
+	cmd := exec.Command("sudo", "snappy", "install", "hello-world/edge")
+	_, err := cmd.CombinedOutput()
+	c.Check(err, check.IsNil)
+
+	cmd = exec.Command("sudo", "snappy", "info", "hello-world")
+	output, err := cmd.CombinedOutput()
+	c.Check(err, check.IsNil)
+	c.Check(output, check.Matches, "(?ms)^channel: edge")
+}
