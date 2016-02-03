@@ -1424,7 +1424,7 @@ func (s *apiSuite) TestGetSkills(c *check.C) {
 				"name":  "skill",
 				"type":  "type",
 				"label": "label",
-				"granted-to": []interface{}{
+				"granted_to": []interface{}{
 					map[string]interface{}{
 						"snap": "consumer",
 						"name": "slot",
