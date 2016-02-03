@@ -42,7 +42,7 @@ func (cs *clientSuite) TestClientAllSkills(c *check.C) {
 				"name": "pin-13",
 				"type": "bool-file",
 				"label": "Pin 13",
-				"granted-to": [
+				"granted_to": [
 					{"snap": "keyboard-lights", "name": "capslock-led"}
 				]
 			}
