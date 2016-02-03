@@ -28,8 +28,10 @@ import (
 type TestType struct {
 	// TypeName is the name of this type
 	TypeName string
-	// SanitizeCallback is the callback invoked inside Sanitize()
-	SanitizeCallback func(skill *Skill) error
+	// SanitizeSkillCallback is the callback invoked inside SanitizeSkill()
+	SanitizeSkillCallback func(skill *Skill) error
+	// SanitizeSlotCallback is the callback invoked inside SanitizeSlot()
+	SanitizeSlotCallback func(slot *Slot) error
 }
 
 // String() returns the same value as Name().
@@ -42,19 +44,36 @@ func (t *TestType) Name() string {
 	return t.TypeName
 }
 
-// Sanitize checks and possibly modifies a skill.
-func (t *TestType) Sanitize(skill *Skill) error {
+// SanitizeSkill checks and possibly modifies a skill.
+func (t *TestType) SanitizeSkill(skill *Skill) error {
 	if t.Name() != skill.Type {
 		panic(fmt.Sprintf("skill is not of type %q", t))
 	}
-	if t.SanitizeCallback != nil {
-		return t.SanitizeCallback(skill)
+	if t.SanitizeSkillCallback != nil {
+		return t.SanitizeSkillCallback(skill)
 	}
 	return nil
 }
 
-// SecuritySnippet returns the configuration snippet "required" to use a test skill.
+// SanitizeSlot checks and possibly modifies a slot.
+func (t *TestType) SanitizeSlot(slot *Slot) error {
+	if t.Name() != slot.Type {
+		panic(fmt.Sprintf("slot is not of type %q", t))
+	}
+	if t.SanitizeSlotCallback != nil {
+		return t.SanitizeSlotCallback(slot)
+	}
+	return nil
+}
+
+// SkillSecuritySnippet returns the configuration snippet "required" to offer a test skill.
+// Providers don't gain any extra permissions.
+func (t *TestType) SkillSecuritySnippet(skill *Skill, securitySystem SecuritySystem) ([]byte, error) {
+	return nil, nil
+}
+
+// SlotSecuritySnippet returns the configuration snippet "required" to use a test skill.
 // Consumers don't gain any extra permissions.
-func (t *TestType) SecuritySnippet(skill *Skill, securitySystem SecuritySystem) ([]byte, error) {
+func (t *TestType) SlotSecuritySnippet(skill *Skill, securitySystem SecuritySystem) ([]byte, error) {
 	return nil, nil
 }

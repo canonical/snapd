@@ -1,0 +1,11 @@
+name: basic-service
+version: 1.0
+summary: Basic-service snap
+description: |
+ A basic buildable snap with a service.
+apps:
+ service:
+  command: ./bin/start
+  daemon: simple
+  description: Test service
+

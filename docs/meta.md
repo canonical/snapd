@@ -35,7 +35,7 @@ The following keys are optional:
 
 * `apps`: the map of apps (binaries and services) that a snap provides
     * `command`: (required) the command to start the service
-    * `daemon`: (optional) [simple|forking|oneshot]
+    * `daemon`: (optional) [simple|forking|oneshot|dbus]
     * `stop`: (optional) the command to stop the service
     * `stop-timeout`: (optional) the time in seconds to wait for the
                       service to stop

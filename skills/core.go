@@ -42,6 +42,7 @@ type Slot struct {
 	Type  string
 	Attrs map[string]interface{}
 	Apps  []string
+	Label string
 }
 
 // Type describes a group of interchangeable capabilities with common features.
@@ -51,16 +52,29 @@ type Type interface {
 	// Unique and public name of this type.
 	Name() string
 
-	// Sanitize checks if a skill is correct, altering if necessary.
-	Sanitize(skill *Skill) error
+	// SanitizeSkill checks if a skill is correct, altering if necessary.
+	SanitizeSkill(skill *Skill) error
 
-	// SecuritySnippet returns the configuration snippet that should be used by
-	// the given security system to enable this skill to be consumed.
+	// SanitizeSlot checks if a slot is correct, altering if necessary.
+	SanitizeSlot(slot *Slot) error
+
+	// SkillSecuritySnippet returns the configuration snippet needed by the
+	// given security system to allow a snap to offer a skill of this type.
+	//
 	// An empty snippet is returned when the skill doesn't require anything
-	// from the security system to work, in addition to the default configuration.
-	// ErrUnknownSecurity is returned when the skill cannot deal with the
-	// requested security system.
-	SecuritySnippet(skill *Skill, securitySystem SecuritySystem) ([]byte, error)
+	// from the security system to work, in addition to the default
+	// configuration.  ErrUnknownSecurity is returned when the skill cannot
+	// deal with the requested security system.
+	SkillSecuritySnippet(skill *Skill, securitySystem SecuritySystem) ([]byte, error)
+
+	// SlotSecuritySnippet returns the configuration snippet needed by the
+	// given security system to allow a snap to use a skill of this type.
+	//
+	// An empty snippet is returned when the skill doesn't require anything
+	// from the security system to work, in addition to the default
+	// configuration.  ErrUnknownSecurity is returned when the skill cannot
+	// deal with the requested security system.
+	SlotSecuritySnippet(skill *Skill, securitySystem SecuritySystem) ([]byte, error)
 }
 
 // SecuritySystem is a name of a security system.
