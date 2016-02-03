@@ -55,6 +55,7 @@ func init() {
 var nl = []byte{'\n'}
 
 func (x *cmdAsserts) Execute(args []string) error {
+	// TODO: share this kind of parsing once it's clearer how often is used in snap
 	headers := map[string]string{}
 	for _, headerFilter := range x.HeaderFilters {
 		parts := strings.SplitN(headerFilter, "=", 2)
