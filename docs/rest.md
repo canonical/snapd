@@ -540,7 +540,7 @@ Notes: user facing implementations in text form must show this data using yaml.
 "config:\n  ubuntu-core:\n    autopilot: true\n    timezone: Europe/Berlin\n    hostname: localhost.localdomain\n"
 ```
 
-## /2.0/operations/<uuid>
+## /2.0/operations/[uuid]
 
 ### GET
 
