@@ -45,8 +45,20 @@ func init() {
 
 func main() {
 	if err := run(); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
+		isHelp := false
+		switch err.(type) {
+		case *flags.Error:
+			if err.(*flags.Error).Type == flags.ErrHelp {
+				isHelp = true
+			}
+		}
+		if isHelp {
+			fmt.Fprintf(os.Stdout, "%v\n", err)
+			os.Exit(0)
+		} else {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
 	}
 }
 
