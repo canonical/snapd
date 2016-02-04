@@ -82,12 +82,9 @@ func New(config *Config) *Client {
 // response to not be JSON, otherwise you'd call Do(...) instead.
 func (client *Client) raw(method, urlpath string, query url.Values, body io.Reader) (*http.Response, error) {
 	// fake a url to keep http.Client happy
-	u := url.URL{
-		Scheme:   client.baseURL.Scheme,
-		Host:     client.baseURL.Host,
-		Path:     path.Join(client.baseURL.Path, urlpath),
-		RawQuery: query.Encode(),
-	}
+	u := client.baseURL
+	u.Path = path.Join(client.baseURL.Path, urlpath)
+	u.RawQuery = query.Encode()
 	req, err := http.NewRequest(method, u.String(), body)
 	if err != nil {
 		return nil, err
