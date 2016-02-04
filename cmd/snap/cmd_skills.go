@@ -21,7 +21,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"text/tabwriter"
 
 	"github.com/ubuntu-core/snappy/i18n"
@@ -48,7 +47,7 @@ func (x *cmdSkills) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	w := tabwriter.NewWriter(os.Stdout, 0, 4, 1, ' ', 0)
+	w := tabwriter.NewWriter(Stdout, 0, 4, 1, ' ', 0)
 	fmt.Fprintln(w, i18n.G("Skill\tGranted To"))
 	defer w.Flush()
 	for _, skill := range skills {

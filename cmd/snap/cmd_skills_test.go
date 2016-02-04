@@ -81,4 +81,47 @@ func (s *SnapSuite) TestSkillsSmoke(c *C) {
 	rest, err := Parser().ParseArgs([]string{"skills"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
+	c.Assert(s.Stdout(), Equals, `Skill                Granted To
+canonical-pi2:pin-13 keyboard-lights:capslock-led
+`)
+}
+
+func (s *SnapSuite) TestSkillsTwoSlots(c *C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, Equals, "GET")
+		c.Check(r.URL.Path, Equals, "/2.0/skills")
+		body, err := ioutil.ReadAll(r.Body)
+		c.Check(err, IsNil)
+		c.Check(body, DeepEquals, []byte{})
+		EncodeResponseBody(w, c, map[string]interface{}{
+			"type": "sync",
+			"result": []client.SkillGrants{
+				{
+					Skill: client.Skill{
+						Snap:  "canonical-pi2",
+						Name:  "pin-13",
+						Type:  "bool-file",
+						Label: "Pin 13",
+					},
+					GrantedTo: []client.Slot{
+						{
+							Snap: "keyboard-lights",
+							Name: "capslock-led",
+						},
+						{
+							Snap: "keyboard-lights",
+							Name: "scrollock-led",
+						},
+					},
+				},
+			},
+		})
+	})
+	rest, err := Parser().ParseArgs([]string{"skills"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	c.Assert(s.Stdout(), Equals, `Skill                Granted To
+canonical-pi2:pin-13 keyboard-lights:capslock-led
+                     keyboard-lights:scrollock-led
+`)
 }

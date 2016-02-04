@@ -21,6 +21,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/ubuntu-core/snappy/logger"
@@ -35,6 +36,12 @@ type options struct {
 var optionsData options
 
 var parser *flags.Parser
+
+// Stdout is the standard output stream, it is redirected for testing.
+var Stdout io.Writer = os.Stdout
+
+// Stderr is the standard error stream, it is redirected for testing.
+var Stderr io.Writer = os.Stderr
 
 // Parser creates and populates a fresh parser.
 // Since commands have local state a fresh parser is required to isolate tests
@@ -86,7 +93,7 @@ func init() {
 	parser = Parser()
 	err := logger.SimpleSetup()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "WARNING: failed to activate logging: %s\n", err)
+		fmt.Fprintf(Stderr, "WARNING: failed to activate logging: %s\n", err)
 	}
 }
 
@@ -100,10 +107,10 @@ func main() {
 			}
 		}
 		if isHelp {
-			fmt.Fprintf(os.Stdout, "%v\n", err)
+			fmt.Fprintf(Stdout, "%v\n", err)
 			os.Exit(0)
 		} else {
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			fmt.Fprintf(Stderr, "error: %v\n", err)
 			os.Exit(1)
 		}
 	}
