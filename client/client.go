@@ -43,7 +43,7 @@ type doer interface {
 // Config allows to customize client behavior.
 type Config struct {
 	// BaseURL contains the base URL where snappy daemon is expected to be.
-	// It can be empty for a default behavior of talking over an UNIX socket.
+	// It can be empty for a default behavior of talking over a unix socket.
 	BaseURL string
 }
 
