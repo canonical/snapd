@@ -22,7 +22,6 @@ package main
 import (
 	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/logger"
 )
 
 type removeCapOptions struct {
@@ -39,10 +38,12 @@ var (
 )
 
 func init() {
-	_, err := parser.AddCommand("remove-cap", shortRemoveCapHelp, longRemoveCapHelp, &cmdRemoveCap{})
-	if err != nil {
-		logger.Panicf("unable to add remove-cap command: %v", err)
-	}
+	commands = append(commands, cmdInfo{
+		name:      "remove-cap",
+		shortHelp: shortRemoveCapHelp,
+		longHelp:  longRemoveCapHelp,
+		callback:  func() interface{} { return &cmdRemoveCap{} },
+	})
 }
 
 func (x *cmdRemoveCap) Execute(args []string) error {

@@ -34,9 +34,33 @@ type options struct {
 
 var optionsData options
 
-var parser = flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash)
+var parser *flags.Parser
+
+// cmdInfo holds information needed to call parser.AddCommand(...).
+type cmdInfo struct {
+	name, shortHelp, longHelp string
+	callback                  func() interface{}
+}
+
+// commands holds information about all non-experimental commands.
+var commands []cmdInfo
+
+// Parser creates and populates a fresh parser.
+// Since commands have local state a fresh parser is required to isolate tests
+// from each other.
+func Parser() *flags.Parser {
+	parser := flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash)
+	// Add all regular commands
+	for _, c := range commands {
+		if _, err := parser.AddCommand(c.name, c.shortHelp, c.longHelp, c.callback()); err != nil {
+			logger.Panicf("unable to add command %q: %v", c.name, err)
+		}
+	}
+	return parser
+}
 
 func init() {
+	parser = Parser()
 	err := logger.SimpleSetup()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "WARNING: failed to activate logging: %s\n", err)

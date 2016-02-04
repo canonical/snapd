@@ -24,7 +24,6 @@ import (
 
 	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/logger"
 )
 
 type assertOptions struct {
@@ -45,10 +44,12 @@ To succeed the assertion must be valid, its signature verified with a known publ
 )
 
 func init() {
-	_, err := parser.AddCommand("assert", shortAssertHelp, longAssertHelp, &cmdAssert{})
-	if err != nil {
-		logger.Panicf("unable to add assert command: %v", err)
-	}
+	commands = append(commands, cmdInfo{
+		name:      "assert",
+		shortHelp: shortAssertHelp,
+		longHelp:  longAssertHelp,
+		callback:  func() interface{} { return &cmdAssert{} },
+	})
 }
 
 func (x *cmdAssert) Execute(args []string) error {
