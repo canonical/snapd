@@ -23,6 +23,34 @@ import (
 	. "gopkg.in/check.v1"
 )
 
+func (s *SnapSuite) TestGrantHelp(c *C) {
+	err := s.Execute([]string{"snap", "grant", "--help"})
+	msg := `Usage:
+  snap.test [OPTIONS] grant <snap>:<skill> <snap>:<skill slot>
+
+$ snap grant <snap>:<skill> <snap>:<skill slot>
+
+Grants the specific skill to the specific skill slot.
+
+$ snap grant <snap>:<skill> <snap>
+
+Grants the specific skill to the only skill slot in the provided snap that
+matches the granted skill type. If more than one potential slot exists, the
+command fails.
+
+$ snap grant <skill> <snap>[:<skill slot>]
+
+Without a name for the snap offering the skill, the skill name is looked at in
+the gadget snap, the kernel snap, and then the os snap, in that order. The
+first of these snaps that has a matching skill name is used and the command
+proceeds as above.
+
+Help Options:
+  -h, --help                     Show this help message
+`
+	c.Assert(err.Error(), Equals, msg)
+}
+
 func (s *SnapSuite) TestGrantExplicitEverything(c *C) {
 	err := s.Execute([]string{
 		"snap", "grant", "producer:skill", "consumer:slot"})
