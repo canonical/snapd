@@ -22,6 +22,8 @@ package main
 import (
 	"fmt"
 	"strings"
+
+	"github.com/ubuntu-core/snappy/client"
 )
 
 // AttributePair contains a pair of key-value strings
@@ -84,4 +86,15 @@ func (sn *SnapAndName) MarshalFlag() (string, error) {
 		return fmt.Sprintf("%s:%s", sn.Snap, sn.Name), nil
 	}
 	return sn.Snap, nil
+}
+
+var fakeClient *client.Client
+
+type cmdBase struct{}
+
+func (x *cmdBase) Client() *client.Client {
+	if fakeClient != nil {
+		return fakeClient
+	}
+	return client.New()
 }
