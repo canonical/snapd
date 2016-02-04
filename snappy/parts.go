@@ -21,8 +21,6 @@ package snappy
 
 import (
 	"fmt"
-	"net"
-	"net/url"
 	"path/filepath"
 	"strings"
 	"time"
@@ -101,8 +99,6 @@ type Part interface {
 	InstalledSize() int64
 	DownloadSize() int64
 
-	// Install the snap
-	Install(pb progress.Meter, flags InstallFlags) (name string, err error)
 	// Config takes a yaml configuration and returns the full snap
 	// config with the changes. Note that "configuration" may be empty.
 	Config(configuration []byte) (newConfig string, err error)
@@ -118,9 +114,6 @@ type Repository interface {
 
 	// query
 	Description() string
-
-	// action
-	Details(name string, origin string) ([]Part, error)
 
 	Updates() ([]Part, error)
 	Installed() ([]Part, error)
@@ -211,31 +204,9 @@ func (m *MetaRepository) Updates() (parts []Part, err error) {
 	return parts, err
 }
 
-// Details returns details for the given snap name
-func (m *MetaRepository) Details(name string, origin string) ([]Part, error) {
-	var parts []Part
-
-	for _, r := range m.all {
-		results, err := r.Details(name, origin)
-		// ignore network errors here, we will also collect
-		// local results
-		_, netError := err.(net.Error)
-		_, urlError := err.(*url.Error)
-		switch {
-		case err == ErrPackageNotFound || netError || urlError:
-			continue
-		case err != nil:
-			return nil, err
-		}
-		parts = append(parts, results...)
-	}
-
-	return parts, nil
-}
-
 // ActiveSnapsByType returns all installed snaps with the given type
 func ActiveSnapsByType(snapTs ...snap.Type) (res []Part, err error) {
-	m := NewMetaRepository()
+	m := NewMetaLocalRepository()
 	installed, err := m.Installed()
 	if err != nil {
 		return nil, err
