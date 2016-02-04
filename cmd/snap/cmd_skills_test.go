@@ -51,7 +51,37 @@ Help Options:
 	c.Assert(rest, DeepEquals, []string{})
 }
 
-func (s *SnapSuite) TestSkillsSmoke(c *C) {
+func (s *SnapSuite) TestSkillsZeroSlots(c *C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, Equals, "GET")
+		c.Check(r.URL.Path, Equals, "/2.0/skills")
+		body, err := ioutil.ReadAll(r.Body)
+		c.Check(err, IsNil)
+		c.Check(body, DeepEquals, []byte{})
+		EncodeResponseBody(w, c, map[string]interface{}{
+			"type": "sync",
+			"result": []client.SkillGrants{
+				{
+					Skill: client.Skill{
+						Snap:  "canonical-pi2",
+						Name:  "pin-13",
+						Type:  "bool-file",
+						Label: "Pin 13",
+					},
+					GrantedTo: []client.Slot{},
+				},
+			},
+		})
+	})
+	rest, err := Parser().ParseArgs([]string{"skills"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	c.Assert(s.Stdout(), Equals, `Skill                Granted To
+canonical-pi2:pin-13 --
+`)
+}
+
+func (s *SnapSuite) TestSkillsOneSlot(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/2.0/skills")
@@ -123,5 +153,54 @@ func (s *SnapSuite) TestSkillsTwoSlots(c *C) {
 	c.Assert(s.Stdout(), Equals, `Skill                Granted To
 canonical-pi2:pin-13 keyboard-lights:capslock-led
                      keyboard-lights:scrollock-led
+`)
+}
+
+func (s *SnapSuite) TestSkillsTwoSkillsAndFiltering(c *C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, Equals, "GET")
+		c.Check(r.URL.Path, Equals, "/2.0/skills")
+		body, err := ioutil.ReadAll(r.Body)
+		c.Check(err, IsNil)
+		c.Check(body, DeepEquals, []byte{})
+		EncodeResponseBody(w, c, map[string]interface{}{
+			"type": "sync",
+			"result": []client.SkillGrants{
+				{
+					Skill: client.Skill{
+						Snap:  "canonical-pi2",
+						Name:  "debug-serial",
+						Type:  "serial-port",
+						Label: "Serial port on the expansion header",
+					},
+					GrantedTo: []client.Slot{
+						{
+							Snap: "ubuntu-core",
+							Name: "debug-console",
+						},
+					},
+				},
+				{
+					Skill: client.Skill{
+						Snap:  "canonical-pi2",
+						Name:  "pin-13",
+						Type:  "bool-file",
+						Label: "Pin 13",
+					},
+					GrantedTo: []client.Slot{
+						{
+							Snap: "keyboard-lights",
+							Name: "capslock-led",
+						},
+					},
+				},
+			},
+		})
+	})
+	rest, err := Parser().ParseArgs([]string{"skills", "--type=serial-port"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	c.Assert(s.Stdout(), Equals, `Skill                      Granted To
+canonical-pi2:debug-serial ubuntu-core:debug-console
 `)
 }
