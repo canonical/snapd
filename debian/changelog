@@ -1,8 +1,93 @@
-ubuntu-snappy (1.7.3ubuntu1) UNRELEASED; urgency=medium
+ubuntu-snappy (1.7.2+20160204ubuntu1) xenial; urgency=medium
 
-  * New git snapshot
+  * New git snapshot:
+    - integration-tests: fix the rollback error messages
+    - integration-test: use the common cli method when trying to install
+      an unexisting snap
+    - integration-tests: rename snap find test
+    - daemon: refactor makeErrorResponder()
+    - integration: add regression test for LP: #1541317
+    - integration-tests: reenable TestRollbackMustRebootToOtherVersion
+    - asserts: introduce "snap asserts" subcmd to show assertions in the
+      system db
+    - docs: fix parameter style
+    - daemon: use underscore in JSON interface
+    - client: add skills API
+    - asserts,docs/rest.md: change Encoder not to add extra newlines at
+      the end of the stream
+    - integration-tests: "snappy search" is no more, its "snap search"
+      now
+    - README, integration-tests/tests: chmod snapd.socket after manual
+      start.
+    - snappy: add default security profile if none is specified
+    - skills,daemon: add REST APIs for skills
+    - cmd/snap, cmd/snappy: move from `snappy search` to `snap find`.
+    - The first step towards REST world domination: search is now done
+      via
+    - debian: remove obsolete /etc/grub.d/09_snappy on upgrade
+    - skills: provide different security snippets for skill and slot
+      side
+    - osutil: make go vet happy again
+    - snappy,systemd: use Type field in systemd.ServiceDescription
+    - skills: add basic grant-revoke methods
+    - client,daemon,asserts: expose the ability to query assertions in
+      the system db
+    - skills: add basic methods for slot handling
+    - snappy,daemon,snap: move "Uninstall" into overlord
+    - snappy: move SnapFile.Install() into Overlord.Install()
+    - integration-tests: re-enable some failover tests
+    - client: remove snaps
+    - asserts: uniform searching accross trusted (account keys) and main
+      backstore
+    - asserts: introduce Decoder to parse streams of assertions and
+      Encoder to build them
+    - client: filter snaps with a seach query
+    - client: pass query as well as path in client internals
+    - skills: provide different security snippets for skill and slot
+      side
+    - snappy: refactor snapYaml to remove methods on snapYaml type
+    - snappy: remove unused variable from test
+    - skills: add basic methods for skill handing
+    - snappy: remove support for meta/package.yaml and implement new
+      meta/snap.yaml
+    - snappy: add new overlord type responsible for
+      Installed/Install/Uninstall/SetActive and stub it out
+    - skills: add basic methods for type handling
+    - daemon, snappy: add find (aka search)
+    - client: filter snaps by type
+    - skills: tweak valid names and error messages
+    - skills: add special skill type for testing
+    - cmd/snapd,daemon: filter snaps by type
+    - partition: remove obsolete uEnv.txt
+    - skills: add Type interface
+    - integration-tests: fix the bootloader path
+    - asserts: introduce a memory backed assertion backstore
+    - integration-tests: get name of OS snap from bootloader
+    - cmd/snapd,daemon: filter snaps by source
+    - asserts,daemon: bump some copyright years for things that have
+      been touched in the new year
+    - skills: add the initial Repository type
+    - skills: add a name validation function
+    - client: filter snaps by source
+    - snappy: unmount the squashfs snap again if it fails to install
+    - snap: make a copy of the search uri before mutating it
+      Closes: LP#1537005
+    - cmd/snap,client,daemon,asserts: introduce "assert " snap
+      subcommand
+    - cmd/snappy, snappy: fix failover handling of the "active"
+      kernel/os snap
+    - daemon, client, docs/rest.md, snapd integration tests: move to the
+      new error response
+    - asserts: change Backstore interface, backstores can now access
+      primary key names from types
+    - asserts: make AssertionType into a real struct exposing the
+      metadata Name and PrimaryKey
+    - caps: improve bool-file sanitization
+    - asserts: fixup toolbelt to use exposed key ID.
+    - client: return by reference rather than by value
+    - asserts: exported filesystem backstores + explicit backstores
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 01 Feb 2016 11:10:35 +0100
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 04 Feb 2016 16:35:31 +0100
 
 ubuntu-snappy (1.7.2+20160113ubuntu1) xenial; urgency=medium
 
