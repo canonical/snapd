@@ -64,7 +64,7 @@ func (x *cmdAsserts) Execute(args []string) error {
 		headers[parts[0]] = parts[1]
 	}
 
-	assertions, err := client.New().Asserts(x.AssertTypeName, headers)
+	assertions, err := client.New(nil).Asserts(x.AssertTypeName, headers)
 	if err != nil {
 		return err
 	}
