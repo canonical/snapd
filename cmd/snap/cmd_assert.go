@@ -23,7 +23,6 @@ import (
 	"io/ioutil"
 
 	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/logger"
 )
 
 type assertOptions struct {
@@ -42,13 +41,6 @@ The assertion may also be a newer revision of a preexisting assertion that it wi
 
 To succeed the assertion must be valid, its signature verified with a known public key and the assertion consistent with and its prerequisite in the database.`)
 )
-
-func init() {
-	_, err := parser.AddCommand("assert", shortAssertHelp, longAssertHelp, &cmdAssert{})
-	if err != nil {
-		logger.Panicf("unable to add assert command: %v", err)
-	}
-}
 
 func (x *cmdAssert) Execute(args []string) error {
 	assertFile := x.assertOptions.AssertionFile

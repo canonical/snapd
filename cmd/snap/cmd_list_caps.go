@@ -25,7 +25,6 @@ import (
 	"text/tabwriter"
 
 	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/logger"
 )
 
 type cmdListCaps struct {
@@ -35,13 +34,6 @@ var (
 	shortListCapsHelp = i18n.G("List system capabilities")
 	longListCapsHelp  = i18n.G("This command shows all capabilities and their allocation")
 )
-
-func init() {
-	_, err := parser.AddCommand("list-caps", shortListCapsHelp, longListCapsHelp, &cmdListCaps{})
-	if err != nil {
-		logger.Panicf("unable to add list-caps command: %v", err)
-	}
-}
 
 func (x *cmdListCaps) Execute(args []string) error {
 	cli := Client()

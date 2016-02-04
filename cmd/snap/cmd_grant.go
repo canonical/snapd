@@ -21,7 +21,6 @@ package main
 
 import (
 	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/logger"
 )
 
 type cmdGrant struct {
@@ -52,13 +51,6 @@ the gadget snap, the kernel snap, and then the os snap, in that order. The
 first of these snaps that has a matching skill name is used and the command
 proceeds as above.`)
 )
-
-func init() {
-	_, err := parser.AddCommand("grant", shortGrantHelp, longGrantHelp, &cmdGrant{})
-	if err != nil {
-		logger.Panicf("unable to add grant command: %v", err)
-	}
-}
 
 func (x *cmdGrant) Execute(args []string) error {
 	// snap grant <skill> <snap>[:<skill slot>]

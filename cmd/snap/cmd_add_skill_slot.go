@@ -20,11 +20,8 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/logger"
 )
 
 type cmdAddSkillSlot struct {
@@ -45,18 +42,6 @@ var (
 This command is only for experimentation with the skill system.
 It will be removed in one of the future releases.`)
 )
-
-func init() {
-	var err error
-	if experimentalCommand == nil {
-		err = fmt.Errorf("experimental command not found")
-	} else {
-		_, err = experimentalCommand.AddCommand("add-skill-slot", shortAddSkillSlotHelp, longAddSkillSlotHelp, &cmdAddSkillSlot{})
-	}
-	if err != nil {
-		logger.Panicf("unable to add add-skill-slot command: %v", err)
-	}
-}
 
 func (x *cmdAddSkillSlot) Execute(args []string) error {
 	attrs := make(map[string]interface{})

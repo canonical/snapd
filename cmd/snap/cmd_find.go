@@ -27,7 +27,6 @@ import (
 
 	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/logger"
 )
 
 var (
@@ -39,13 +38,6 @@ type cmdFind struct {
 	Positional struct {
 		Query string `positional-arg-name:"query"`
 	} `positional-args:"yes"`
-}
-
-func init() {
-	_, err := parser.AddCommand("find", shortFindHelp, longFindHelp, &cmdFind{})
-	if err != nil {
-		logger.Panicf("unable to add find command: %v", err)
-	}
 }
 
 func (x *cmdFind) Execute([]string) error {

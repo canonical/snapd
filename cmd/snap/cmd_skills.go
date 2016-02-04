@@ -25,7 +25,6 @@ import (
 	"text/tabwriter"
 
 	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/logger"
 )
 
 type cmdSkills struct {
@@ -43,13 +42,6 @@ By default all skills, used and offered by all snaps are displayed.
 
 Skills used and offered by a particular snap can be listed with: snap skills <snap name>`)
 )
-
-func init() {
-	_, err := parser.AddCommand("skills", shortSkillsHelp, longSkillsHelp, &cmdSkills{})
-	if err != nil {
-		logger.Panicf("unable to add skills command: %v", err)
-	}
-}
 
 func (x *cmdSkills) Execute(args []string) error {
 	skills, err := Client().AllSkills()

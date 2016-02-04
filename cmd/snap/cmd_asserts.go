@@ -26,7 +26,6 @@ import (
 
 	"github.com/ubuntu-core/snappy/asserts"
 	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/logger"
 )
 
 type assertsOptions struct {
@@ -42,13 +41,6 @@ var (
 	shortAssertsHelp = i18n.G("Shows known assertions of the provided type")
 	longAssertsHelp  = i18n.G(`The asserts command shows known assertions of the provided type. If header=value pairs are provided after the assertion type, the assertions shown must also have the specified headers matching the provided values.`)
 )
-
-func init() {
-	_, err := parser.AddCommand("asserts", shortAssertsHelp, longAssertsHelp, &cmdAsserts{})
-	if err != nil {
-		logger.Panicf("cannot add asserts command: %v", err)
-	}
-}
 
 var nl = []byte{'\n'}
 

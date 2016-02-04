@@ -21,7 +21,6 @@ package main
 
 import (
 	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/logger"
 )
 
 type cmdRevoke struct {
@@ -47,13 +46,6 @@ $ snap revoke <snap>
 
 Revokes all skills from the provided snap.`)
 )
-
-func init() {
-	_, err := parser.AddCommand("revoke", shortRevokeHelp, longRevokeHelp, &cmdRevoke{})
-	if err != nil {
-		logger.Panicf("unable to add revoke command: %v", err)
-	}
-}
 
 func (x *cmdRevoke) Execute(args []string) error {
 	// snap revoke <snap>:<skill slot>

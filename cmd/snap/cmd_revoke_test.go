@@ -113,8 +113,7 @@ func (s *SnapSuite) TestRevokeEverythingFromSpecificSnap(c *C) {
 		})
 		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
 	})
-	// FIXME: without "" the slot state from other tests leaks to this test.
-	rest, err := Parser().ParseArgs([]string{"revoke", "consumer", ""})
+	rest, err := Parser().ParseArgs([]string{"revoke", "consumer"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 }

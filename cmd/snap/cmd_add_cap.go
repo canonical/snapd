@@ -22,7 +22,6 @@ package main
 import (
 	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/logger"
 )
 
 type cmdAddCap struct {
@@ -36,13 +35,6 @@ var (
 	shortAddCapHelp = i18n.G("Add a capability to the system")
 	longAddCapHelp  = i18n.G("This command adds a capability to the system")
 )
-
-func init() {
-	_, err := parser.AddCommand("add-cap", shortAddCapHelp, longAddCapHelp, &cmdAddCap{})
-	if err != nil {
-		logger.Panicf("unable to add add-caps command: %v", err)
-	}
-}
 
 func (x *cmdAddCap) Execute(args []string) error {
 	cap := &client.Capability{

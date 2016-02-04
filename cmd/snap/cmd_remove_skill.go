@@ -20,10 +20,7 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/logger"
 )
 
 type cmdRemoveSkill struct {
@@ -40,18 +37,6 @@ var (
 This command is only for experimentation with the skill system.
 It will be removed in one of the future releases.`)
 )
-
-func init() {
-	var err error
-	if experimentalCommand == nil {
-		err = fmt.Errorf("experimental command not found")
-	} else {
-		_, err = experimentalCommand.AddCommand("remove-skill", shortRemoveSkillHelp, longRemoveSkillHelp, &cmdRemoveSkill{})
-	}
-	if err != nil {
-		logger.Panicf("unable to add remove-skill command: %v", err)
-	}
-}
 
 func (x *cmdRemoveSkill) Execute(args []string) error {
 	return Client().RemoveSkill(x.Positionals.Snap, x.Positionals.Name)

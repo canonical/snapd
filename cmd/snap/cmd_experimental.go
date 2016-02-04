@@ -32,5 +32,3 @@ var (
 Experimental commands can be removed without notice and may not work on
 non-development systems.`)
 )
-
-var experimentalCommand, _ = parser.AddCommand("experimental", shortExperimentalHelp, longExperimentalHelp, &cmdExperimental{})
