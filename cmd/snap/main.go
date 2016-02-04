@@ -45,14 +45,7 @@ func init() {
 
 func main() {
 	if err := run(); err != nil {
-		isHelp := false
-		switch err.(type) {
-		case *flags.Error:
-			if err.(*flags.Error).Type == flags.ErrHelp {
-				isHelp = true
-			}
-		}
-		if isHelp {
+		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
 			fmt.Fprintf(os.Stdout, "%v\n", err)
 			os.Exit(0)
 		} else {
