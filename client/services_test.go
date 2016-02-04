@@ -47,7 +47,7 @@ func (cs *clientSuite) TestClientServices(c *C) {
 					"name": "chatroom",
 					"description": "A simple WebRTC videochat",
 					"start": "start-service.sh",
-					"stop-timeout": "30s",
+					"stop_timeout": "30s",
 					"ports": {
 						"external": {
 							"ui": {

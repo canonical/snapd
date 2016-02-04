@@ -1074,7 +1074,7 @@ version: 42
 apps:
  wat:
    command: wat
-   stop-timeout: 25
+   stop_timeout: 25
    daemon: forking
 `)
 	c.Assert(err, IsNil)
