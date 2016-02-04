@@ -20,7 +20,6 @@
 package snappy
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -47,11 +46,6 @@ func NewLocalSnapRepository() *SnapLocalRepository {
 	return &SnapLocalRepository{path: path}
 }
 
-// Description describes the local repository
-func (s *SnapLocalRepository) Description() string {
-	return fmt.Sprintf("Snap local repository for %s", s.path)
-}
-
 // Details returns details for the given snap
 func (s *SnapLocalRepository) Details(name string, origin string) (versions []Part, err error) {
 	if origin == "" || origin == SideloadedOrigin {
@@ -69,11 +63,6 @@ func (s *SnapLocalRepository) Details(name string, origin string) (versions []Pa
 	return parts, nil
 }
 
-// Updates returns the available updates
-func (s *SnapLocalRepository) Updates() (parts []Part, err error) {
-	return nil, err
-}
-
 // Installed returns the installed snaps from this repository
 func (s *SnapLocalRepository) Installed() (parts []Part, err error) {
 	globExpr := filepath.Join(s.path, "*", "*", "meta", "snap.yaml")
@@ -86,6 +75,7 @@ func (s *SnapLocalRepository) Installed() (parts []Part, err error) {
 func (s *SnapLocalRepository) All() ([]Part, error) {
 	return s.Installed()
 }
+
 func (s *SnapLocalRepository) partsForGlobExpr(globExpr string) (parts []Part, err error) {
 	matches, err := filepath.Glob(globExpr)
 	if err != nil {
