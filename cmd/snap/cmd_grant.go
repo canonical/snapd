@@ -20,12 +20,12 @@
 package main
 
 import (
-	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/logger"
 )
 
 type cmdGrant struct {
+	cmdBase
 	Positionals struct {
 		Offer SnapAndName `positional-arg-name:"<snap>:<skill>" description:"snap offering the skill" skip-help:"true"`
 		Use   SnapAndName `positional-arg-name:"<snap>:<skill slot>" description:"snap using the skill" skip-help:"true"`
@@ -68,5 +68,5 @@ func (x *cmdGrant) Execute(args []string) error {
 		x.Positionals.Offer.Name = x.Positionals.Offer.Snap
 		x.Positionals.Offer.Snap = ""
 	}
-	return client.New().Grant(x.Positionals.Offer.Snap, x.Positionals.Offer.Name, x.Positionals.Use.Snap, x.Positionals.Use.Name)
+	return x.Client().Grant(x.Positionals.Offer.Snap, x.Positionals.Offer.Name, x.Positionals.Use.Snap, x.Positionals.Use.Name)
 }
