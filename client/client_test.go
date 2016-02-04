@@ -74,6 +74,28 @@ func (cs *clientSuite) Do(req *http.Request) (*http.Response, error) {
 	return rsp, cs.err
 }
 
+func (cs *clientSuite) TestNewPanics(c *check.C) {
+	c.Assert(func() {
+		client.New(&client.Config{BaseURL: ":"})
+	}, check.PanicMatches, `cannot parse server base URL: ":" \(parse :: missing protocol scheme\)`)
+}
+
+func (cs *clientSuite) TestNewCustomURL(c *check.C) {
+	f := func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/2.0/system-info")
+		c.Check(r.URL.RawQuery, check.Equals, "")
+		fmt.Fprintln(w, `{"type":"sync", "result":{"store":"X"}}`)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(f))
+	defer srv.Close()
+
+	cli := client.New(&client.Config{BaseURL: srv.URL})
+	c.Assert(cli, check.Not(check.IsNil))
+	si, err := cli.SysInfo()
+	c.Check(err, check.IsNil)
+	c.Check(si.Store, check.Equals, "X")
+}
+
 func (cs *clientSuite) TestClientDoReportsErrors(c *check.C) {
 	cs.err = errors.New("ouchie")
 	err := cs.cli.Do("GET", "/", nil, nil, nil)
