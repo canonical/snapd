@@ -32,6 +32,9 @@ func (s *SnapSuite) TestGrantHelp(c *C) {
 	msg := `Usage:
   snap.test [OPTIONS] grant <snap>:<skill> <snap>:<skill slot>
 
+The grant command assigns a skill to a snap.
+It may be called in the following ways:
+
 $ snap grant <snap>:<skill> <snap>:<skill slot>
 
 Grants the specific skill to the specific skill slot.

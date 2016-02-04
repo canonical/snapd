@@ -32,7 +32,8 @@ type cmdGrant struct {
 
 var (
 	shortGrantHelp = i18n.G("Grant a skill to a skill slot")
-	longGrantHelp  = i18n.G(`
+	longGrantHelp  = i18n.G(`The grant command assigns a skill to a snap.
+It may be called in the following ways:
 
 $ snap grant <snap>:<skill> <snap>:<skill slot>
 
