@@ -57,6 +57,7 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	policy.SecBase = filepath.Join(s.tempdir, "security")
 	os.MkdirAll(dirs.SnapServicesDir, 0755)
 	os.MkdirAll(dirs.SnapSeccompDir, 0755)
+	os.MkdirAll(dirs.SnapSnapsDir, 0755)
 
 	release.Override(release.Release{Flavor: "core", Series: "15.04"})
 
@@ -171,7 +172,8 @@ frameworks:
 }
 
 func (s *SnapTestSuite) TestLocalSnapRepositoryInvalid(c *C) {
-	snap := NewLocalSnapRepository("invalid-path")
+	dirs.SnapSnapsDir = "invalid-path"
+	snap := NewLocalSnapRepository()
 	c.Assert(snap, IsNil)
 }
 
@@ -181,7 +183,7 @@ func (s *SnapTestSuite) TestLocalSnapRepositorySimple(c *C) {
 	err = makeSnapActive(yamlPath)
 	c.Assert(err, IsNil)
 
-	snap := NewLocalSnapRepository(filepath.Join(s.tempdir, "snaps"))
+	snap := NewLocalSnapRepository()
 	c.Assert(snap, NotNil)
 
 	installed, err := snap.Installed()
@@ -966,7 +968,7 @@ type: gadget
 
 	p := &MockProgressMeter{}
 
-	r := NewLocalSnapRepository(filepath.Join(s.tempdir, "snaps"))
+	r := NewLocalSnapRepository()
 	c.Assert(r, NotNil)
 	installed, err := r.Installed()
 	c.Assert(err, IsNil)

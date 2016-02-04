@@ -23,6 +23,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/ubuntu-core/snappy/dirs"
 )
 
 const (
@@ -37,7 +39,8 @@ type SnapLocalRepository struct {
 
 // NewLocalSnapRepository returns a new SnapLocalRepository for the given
 // path
-func NewLocalSnapRepository(path string) *SnapLocalRepository {
+func NewLocalSnapRepository() *SnapLocalRepository {
+	path := dirs.SnapSnapsDir
 	if s, err := os.Stat(path); err != nil || !s.IsDir() {
 		return nil
 	}

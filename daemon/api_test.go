@@ -94,6 +94,7 @@ func (s *apiSuite) TearDownSuite(c *check.C) {
 func (s *apiSuite) SetUpTest(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapLockFile), 0755), check.IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapSnapsDir, 0755), check.IsNil)
 
 	s.parts = nil
 	s.err = nil
