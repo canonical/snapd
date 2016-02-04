@@ -57,6 +57,8 @@ func (s *SnapSuite) TestWireGrantExplicitEverything(c *C) {
 	err := s.Execute([]string{
 		"snap", "grant", "producer:skill", "consumer:slot"})
 	c.Assert(err, IsNil)
+	c.Assert(client.Request.Method, Equals, "POST")
+	c.Assert(client.Request.URL.Path, Equals, "/2.0/skills")
 	c.Assert(client.DecodedRequestBody(c), DeepEquals, map[string]interface{}{
 		"action": "grant",
 		"skill": map[string]interface{}{
@@ -90,6 +92,8 @@ func (s *SnapSuite) TestGrantExplicitSkillImplicitSlot(c *C) {
 	err := s.Execute([]string{
 		"snap", "grant", "producer:skill", "consumer"})
 	c.Assert(err, IsNil)
+	c.Assert(client.Request.Method, Equals, "POST")
+	c.Assert(client.Request.URL.Path, Equals, "/2.0/skills")
 	c.Assert(client.DecodedRequestBody(c), DeepEquals, map[string]interface{}{
 		"action": "grant",
 		"skill": map[string]interface{}{
@@ -109,6 +113,8 @@ func (s *SnapSuite) TestGrantImplicitSkillExplicitSlot(c *C) {
 	err := s.Execute([]string{
 		"snap", "grant", "skill", "consumer:slot"})
 	c.Assert(err, IsNil)
+	c.Assert(client.Request.Method, Equals, "POST")
+	c.Assert(client.Request.URL.Path, Equals, "/2.0/skills")
 	c.Assert(client.DecodedRequestBody(c), DeepEquals, map[string]interface{}{
 		"action": "grant",
 		"skill": map[string]interface{}{
@@ -128,6 +134,8 @@ func (s *SnapSuite) TestGrantImplicitSkillImplicitSlot(c *C) {
 	err := s.Execute([]string{
 		"snap", "grant", "skill", "consumer"})
 	c.Assert(err, IsNil)
+	c.Assert(client.Request.Method, Equals, "POST")
+	c.Assert(client.Request.URL.Path, Equals, "/2.0/skills")
 	c.Assert(client.DecodedRequestBody(c), DeepEquals, map[string]interface{}{
 		"action": "grant",
 		"skill": map[string]interface{}{
