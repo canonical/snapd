@@ -45,7 +45,7 @@ func init() {
 }
 
 func (x *cmdListCaps) Execute(args []string) error {
-	cli := client.New()
+	cli := client.New(nil)
 	caps, err := cli.Capabilities()
 	if err != nil {
 		return err

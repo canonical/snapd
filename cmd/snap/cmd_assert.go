@@ -59,5 +59,5 @@ func (x *cmdAssert) Execute(args []string) error {
 		return err
 	}
 
-	return client.New().Assert(assertData)
+	return client.New(nil).Assert(assertData)
 }

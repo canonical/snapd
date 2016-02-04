@@ -26,6 +26,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"path"
 	"strings"
 
 	"github.com/ubuntu-core/snappy/dirs"
@@ -39,29 +40,52 @@ type doer interface {
 	Do(*http.Request) (*http.Response, error)
 }
 
-// A Client knows how to talk to the snappy daemon
+// Config allows to customize client behavior.
+type Config struct {
+	// BaseURL contains the base URL where snappy daemon is expected to be.
+	// It can be empty for a default behavior of talking over an UNIX socket.
+	BaseURL string
+}
+
+// A Client knows how to talk to the snappy daemon.
 type Client struct {
-	doer doer
+	baseURL *url.URL
+	doer    doer
 }
 
 // New returns a new instance of Client
-func New() *Client {
-	tr := &http.Transport{Dial: unixDialer}
-
+func New(config *Config) *Client {
+	// By default talk over an UNIX socket.
+	if config == nil || config.BaseURL == "" {
+		return &Client{
+			baseURL: &url.URL{
+				Scheme: "http",
+				Host:   "localhost",
+			},
+			doer: &http.Client{
+				Transport: &http.Transport{Dial: unixDialer},
+			},
+		}
+	}
+	baseURL, err := url.Parse(config.BaseURL)
+	if err != nil {
+		panic(err.Error())
+	}
 	return &Client{
-		doer: &http.Client{Transport: tr},
+		baseURL: baseURL,
+		doer:    &http.Client{},
 	}
 }
 
 // raw performs a request and returns the resulting http.Response and
 // error you usually only need to call this directly if you expect the
 // response to not be JSON, otherwise you'd call Do(...) instead.
-func (client *Client) raw(method, path string, query url.Values, body io.Reader) (*http.Response, error) {
+func (client *Client) raw(method, aPath string, query url.Values, body io.Reader) (*http.Response, error) {
 	// fake a url to keep http.Client happy
 	u := url.URL{
-		Scheme:   "http",
-		Host:     "localhost",
-		Path:     path,
+		Scheme:   client.baseURL.Scheme,
+		Host:     client.baseURL.Host,
+		Path:     path.Join(client.baseURL.Path, aPath),
 		RawQuery: query.Encode(),
 	}
 	req, err := http.NewRequest(method, u.String(), body)

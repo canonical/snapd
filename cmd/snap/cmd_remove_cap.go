@@ -46,5 +46,5 @@ func init() {
 }
 
 func (x *cmdRemoveCap) Execute(args []string) error {
-	return client.New().RemoveCapability(x.Name)
+	return client.New(nil).RemoveCapability(x.Name)
 }

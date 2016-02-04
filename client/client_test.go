@@ -53,7 +53,7 @@ type clientSuite struct {
 var _ = check.Suite(&clientSuite{})
 
 func (cs *clientSuite) SetUpTest(c *check.C) {
-	cs.cli = client.New()
+	cs.cli = client.New(nil)
 	cs.cli.SetDoer(cs)
 	cs.err = nil
 	cs.rsp = ""
@@ -133,7 +133,7 @@ func (cs *clientSuite) TestClientIntegration(c *check.C) {
 	srv.Start()
 	defer srv.Close()
 
-	cli := client.New()
+	cli := client.New(nil)
 	si, err := cli.SysInfo()
 	c.Check(err, check.IsNil)
 	c.Check(si.Store, check.Equals, "X")
