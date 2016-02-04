@@ -24,6 +24,20 @@ import (
 	"fmt"
 )
 
+// An Operation provides information about an asynchronous daemon operation
+type Operation interface {
+	Running() bool
+	Err() error
+}
+
+// Operation fetches information about an operation given its UUID
+func (client *Client) Operation(uuid string) (Operation, error) {
+	var v operation
+	err := client.doSync("GET", "/2.0/operations/"+uuid, nil, nil, &v)
+
+	return &v, err
+}
+
 type operation struct {
 	Status string          `json:"status"`
 	Output json.RawMessage `json:"output"`
@@ -44,16 +58,4 @@ func (op *operation) Err() error {
 
 func (op *operation) Running() bool {
 	return op.Status == "running"
-}
-
-type Operation interface {
-	Err() error
-	Running() bool
-}
-
-func (client *Client) GetOperation(uuid string) (Operation, error) {
-	var v operation
-	err := client.doSync("GET", "/2.0/operations/"+uuid, nil, nil, &v)
-
-	return &v, err
 }
