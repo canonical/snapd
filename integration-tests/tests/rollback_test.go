@@ -38,23 +38,29 @@ type rollbackSuite struct {
 }
 
 func (s *rollbackSuite) TestRollbackMustRebootToOtherVersion(c *check.C) {
-	c.Skip("KNOWN BUG FIXME: https://bugs.launchpad.net/snappy/+bug/1534029")
-
 	if common.BeforeReboot() {
+		// here we upgrade
 		updates.CallFakeOSUpdate(c)
 		common.Reboot(c)
 	} else if common.CheckRebootMark(c.TestName()) {
+		// after the first reboot we check that it actually booted
+		// a newer version than before
 		common.RemoveRebootMark(c)
 		currentVersion := common.GetCurrentUbuntuCoreVersion(c)
-		c.Assert(snappy.VersionCompare(currentVersion, common.GetSavedVersion(c)), check.Equals, -1,
-			check.Commentf("Rebooted to the wrong version: %s", currentVersion))
+		savedVersion := common.GetSavedVersion(c)
+		c.Assert(snappy.VersionCompare(currentVersion, savedVersion), check.Equals, 1,
+			check.Commentf("First reboot to the wrong version: %s < %s", currentVersion, savedVersion))
+		// now we rollback to the previous version
 		cli.ExecCommand(c, "sudo", "snappy", "rollback", partition.OSSnapName(c),
 			common.GetSavedVersion(c))
 		common.RebootWithMark(c, c.TestName()+"-rollback")
 	} else if common.CheckRebootMark(c.TestName() + "-rollback") {
+		// and on the second reboot we check that the rollback
+		// did indeed rolled us back to the previous version
 		common.RemoveRebootMark(c)
 		currentVersion := common.GetCurrentUbuntuCoreVersion(c)
-		c.Assert(snappy.VersionCompare(currentVersion, common.GetSavedVersion(c)), check.Equals, 0,
-			check.Commentf("Rebooted to the wrong version: %s", currentVersion))
+		savedVersion := common.GetSavedVersion(c)
+		c.Assert(currentVersion, check.Equals, savedVersion,
+			check.Commentf("Second reboot to the wrong version: %s %s", currentVersion, savedVersion))
 	}
 }
