@@ -49,7 +49,7 @@ func (s *rollbackSuite) TestRollbackMustRebootToOtherVersion(c *check.C) {
 		currentVersion := common.GetCurrentUbuntuCoreVersion(c)
 		savedVersion := common.GetSavedVersion(c)
 		c.Assert(snappy.VersionCompare(currentVersion, savedVersion), check.Equals, 1,
-			check.Commentf("First reboot to the wrong version: %s < %s", currentVersion, savedVersion))
+			check.Commentf("First reboot to the wrong version: %s <= %s", currentVersion, savedVersion))
 		// now we rollback to the previous version
 		cli.ExecCommand(c, "sudo", "snappy", "rollback", partition.OSSnapName(c),
 			common.GetSavedVersion(c))
@@ -61,6 +61,6 @@ func (s *rollbackSuite) TestRollbackMustRebootToOtherVersion(c *check.C) {
 		currentVersion := common.GetCurrentUbuntuCoreVersion(c)
 		savedVersion := common.GetSavedVersion(c)
 		c.Assert(currentVersion, check.Equals, savedVersion,
-			check.Commentf("Second reboot to the wrong version: %s %s", currentVersion, savedVersion))
+			check.Commentf("Second reboot to the wrong version: %s != %s", currentVersion, savedVersion))
 	}
 }
