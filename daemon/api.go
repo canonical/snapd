@@ -481,8 +481,10 @@ func snapService(c *Command, r *http.Request) Response {
 		return NotFound("snap %q has no service %q", pkgName, appName)
 	}
 
+	meter := progress.NullProgress{}
+
 	// note findServices takes the *bare* name
-	actor, err := findServices(name, appName, &progress.NullProgress{})
+	actor, err := findServices(name, appName, &meter)
 	if err != nil {
 		return InternalError("no services for %q [%q] found: %v", pkgName, appName, err)
 	}
@@ -538,7 +540,7 @@ func snapService(c *Command, r *http.Request) Response {
 		}
 
 		return f()
-	}).Map(route))
+	}, &meter).Map(route))
 }
 
 func snapConfig(c *Command, r *http.Request) Response {
@@ -758,7 +760,7 @@ func postSnap(c *Command, r *http.Request) Response {
 		}
 		defer lock.Unlock()
 		return f()
-	}).Map(route))
+	}, &inst).Map(route))
 }
 
 const maxReadBuflen = 1024 * 1024
@@ -829,6 +831,8 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 		return InternalError("can't copy request into tempfile: %v", err)
 	}
 
+	meter := progress.NullProgress{}
+
 	return AsyncResponse(c.d.AddTask(func() interface{} {
 		defer os.Remove(tmpf.Name())
 
@@ -848,13 +852,13 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 			flags |= snappy.AllowUnauthenticated
 		}
 		overlord := &snappy.Overlord{}
-		name, err := overlord.Install(tmpf.Name(), snappy.SideloadedOrigin, flags, &progress.NullProgress{})
+		name, err := overlord.Install(tmpf.Name(), snappy.SideloadedOrigin, flags, &meter)
 		if err != nil {
 			return err
 		}
 
 		return name
-	}).Map(route))
+	}, &meter).Map(route))
 }
 
 func getLogs(c *Command, r *http.Request) Response {

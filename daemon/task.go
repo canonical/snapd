@@ -24,6 +24,8 @@ import (
 
 	"github.com/gorilla/mux"
 	"gopkg.in/tomb.v2"
+
+	"github.com/ubuntu-core/snappy/progress"
 )
 
 // A Task encapsulates an asynchronous operation.
@@ -33,6 +35,7 @@ type Task struct {
 	t0     time.Time
 	tf     time.Time
 	output interface{}
+	meter  progress.Meter
 }
 
 // A task can be in one of three states
@@ -114,13 +117,14 @@ func (t *Task) Map(route *mux.Route) map[string]interface{} {
 }
 
 // RunTask creates a Task for the given function and runs it.
-func RunTask(f func() interface{}) *Task {
+func RunTask(f func() interface{}, meter progress.Meter) *Task {
 	id := UUID4()
 	t0 := time.Now()
 	t := &Task{
-		id: id,
-		t0: t0,
-		tf: t0,
+		id:    id,
+		t0:    t0,
+		tf:    t0,
+		meter: meter,
 	}
 
 	t.tomb.Go(func() error {

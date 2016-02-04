@@ -615,7 +615,7 @@ func (s *apiSuite) TestGetOpInfoIntegration(c *check.C) {
 	t := d.AddTask(func() interface{} {
 		ch <- struct{}{}
 		return "hello"
-	})
+	}, &progress.NullProgress{})
 
 	id := t.UUID()
 	s.vars = map[string]string{"uuid": id}

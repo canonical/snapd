@@ -25,6 +25,8 @@ import (
 
 	"github.com/gorilla/mux"
 	"gopkg.in/check.v1"
+
+	"github.com/ubuntu-core/snappy/progress"
 )
 
 type taskSuite struct{}
@@ -40,7 +42,7 @@ func (s *taskSuite) TestTask(c *check.C) {
 	t := RunTask(func() interface{} {
 		ch <- struct{}{}
 		return 42
-	})
+	}, &progress.NullProgress{})
 
 	c.Check(t.UUID(), check.Equals, t.id.String())
 	c.Check(t.Output(), check.IsNil)
@@ -66,7 +68,7 @@ func (s *taskSuite) TestFails(c *check.C) {
 	t := RunTask(func() interface{} {
 		ch <- struct{}{}
 		return err
-	})
+	}, &progress.NullProgress{})
 
 	c.Check(t.UUID(), check.Equals, t.id.String())
 	c.Check(t.Output(), check.IsNil)
