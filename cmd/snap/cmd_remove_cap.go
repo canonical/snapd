@@ -31,10 +31,17 @@ type cmdRemoveCap struct {
 	removeCapOptions `positional-args:"true" required:"true"`
 }
 
-var (
-	shortRemoveCapHelp = i18n.G("Remove a capability from the system")
-	longRemoveCapHelp  = i18n.G("This command removes a capability from the system")
-)
+var shortRemoveCapHelp = i18n.G("Remove a capability from the system")
+var longRemoveCapHelp = i18n.G("This command removes a capability from the system")
+
+func init() {
+	commands = append(commands, cmdInfo{
+		name:      "remove-cap",
+		shortHelp: shortRemoveCapHelp,
+		longHelp:  longRemoveCapHelp,
+		callback:  func() interface{} { return &cmdRemoveCap{} },
+	})
+}
 
 func (x *cmdRemoveCap) Execute(args []string) error {
 	return Client().RemoveCapability(x.Name)

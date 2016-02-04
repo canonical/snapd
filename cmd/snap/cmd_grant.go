@@ -30,9 +30,8 @@ type cmdGrant struct {
 	} `positional-args:"true" required:"true"`
 }
 
-var (
-	shortGrantHelp = i18n.G("Grant a skill to a skill slot")
-	longGrantHelp  = i18n.G(`The grant command assigns a skill to a snap.
+var shortGrantHelp = i18n.G("Grant a skill to a skill slot")
+var longGrantHelp = i18n.G(`The grant command assigns a skill to a snap.
 It may be called in the following ways:
 
 $ snap grant <snap>:<skill> <snap>:<skill slot>
@@ -51,7 +50,15 @@ Without a name for the snap offering the skill, the skill name is looked at in
 the gadget snap, the kernel snap, and then the os snap, in that order. The
 first of these snaps that has a matching skill name is used and the command
 proceeds as above.`)
-)
+
+func init() {
+	commands = append(commands, cmdInfo{
+		name:      "grant",
+		shortHelp: shortGrantHelp,
+		longHelp:  longGrantHelp,
+		callback:  func() interface{} { return &cmdGrant{} },
+	})
+}
 
 func (x *cmdGrant) Execute(args []string) error {
 	// snap grant <skill> <snap>[:<skill slot>]

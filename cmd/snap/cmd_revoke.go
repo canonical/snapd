@@ -30,9 +30,8 @@ type cmdRevoke struct {
 	} `positional-args:"true"`
 }
 
-var (
-	shortRevokeHelp = i18n.G("Revoke a skill granted to a skill slot")
-	longRevokeHelp  = i18n.G(`The revoke command unassigns previously granted
+var shortRevokeHelp = i18n.G("Revoke a skill granted to a skill slot")
+var longRevokeHelp = i18n.G(`The revoke command unassigns previously granted
 skills from a snap. It may be called in the following ways:
 
 $ snap revoke <snap>:<skill> <snap>:<skill slot>
@@ -46,7 +45,15 @@ Revokes any previously granted skill from the provided skill slot.
 $ snap revoke <snap>
 
 Revokes all skills from the provided snap.`)
-)
+
+func init() {
+	commands = append(commands, cmdInfo{
+		name:      "revoke",
+		shortHelp: shortRevokeHelp,
+		longHelp:  longRevokeHelp,
+		callback:  func() interface{} { return &cmdRevoke{} },
+	})
+}
 
 func (x *cmdRevoke) Execute(args []string) error {
 	// snap revoke <snap>:<skill slot>

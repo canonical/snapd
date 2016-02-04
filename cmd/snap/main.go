@@ -43,27 +43,26 @@ var Stdout io.Writer = os.Stdout
 // Stderr is the standard error stream, it is redirected for testing.
 var Stderr io.Writer = os.Stderr
 
+// cmdInfo holds information needed to call parser.AddCommand(...).
+type cmdInfo struct {
+	name, shortHelp, longHelp string
+	callback                  func() interface{}
+}
+
+// commands holds information about all non-experimental commands.
+var commands []cmdInfo
+
+// experimentalCommands holds information about all experimental commands.
+var experimentalCommands []cmdInfo
+
 // Parser creates and populates a fresh parser.
 // Since commands have local state a fresh parser is required to isolate tests
 // from each other.
 func Parser() *flags.Parser {
 	parser := flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash)
 	// Add all regular commands
-	for _, c := range []struct {
-		name, shortHelp, longHelp string
-		obj                       interface{}
-	}{
-		{"assert", shortAssertHelp, longAssertHelp, &cmdAssert{}},
-		{"asserts", shortAssertsHelp, longAssertsHelp, &cmdAsserts{}},
-		{"find", shortFindHelp, longFindHelp, &cmdFind{}},
-		{"grant", shortGrantHelp, longGrantHelp, &cmdGrant{}},
-		{"revoke", shortRevokeHelp, longRevokeHelp, &cmdRevoke{}},
-		{"skills", shortSkillsHelp, longSkillsHelp, &cmdSkills{}},
-		{"add-cap", shortAddCapHelp, longAddCapHelp, &cmdAddCap{}},
-		{"list-caps", shortListCapsHelp, longListCapsHelp, &cmdListCaps{}},
-		{"remove-cap", shortRemoveCapHelp, longRemoveCapHelp, &cmdRemoveCap{}},
-	} {
-		if _, err := parser.AddCommand(c.name, c.shortHelp, c.longHelp, c.obj); err != nil {
+	for _, c := range commands {
+		if _, err := parser.AddCommand(c.name, c.shortHelp, c.longHelp, c.callback()); err != nil {
 			logger.Panicf("unable to add command %q: %v", c.name, err)
 		}
 	}
@@ -73,16 +72,8 @@ func Parser() *flags.Parser {
 		logger.Panicf("unable to add command %q: %v", "experimental", err)
 	}
 	// Add all the sub-commands of the experimental command
-	for _, c := range []struct {
-		name, shortHelp, longHelp string
-		obj                       interface{}
-	}{
-		{"add-skill", shortAddSkillHelp, longAddSkillHelp, &cmdAddSkill{}},
-		{"add-skill-slot", shortAddSkillSlotHelp, longAddSkillSlotHelp, &cmdAddSkillSlot{}},
-		{"remove-skill", shortRemoveSkillHelp, longRemoveSkillHelp, &cmdRemoveSkill{}},
-		{"remove-skill-slot", shortRemoveSkillSlotHelp, longRemoveSkillSlotHelp, &cmdRemoveSkillSlot{}},
-	} {
-		if _, err = experimentalCommand.AddCommand(c.name, c.shortHelp, c.longHelp, c.obj); err != nil {
+	for _, c := range experimentalCommands {
+		if _, err = experimentalCommand.AddCommand(c.name, c.shortHelp, c.longHelp, c.callback()); err != nil {
 			logger.Panicf("unable to add command %q: %v", c.name, err)
 		}
 	}

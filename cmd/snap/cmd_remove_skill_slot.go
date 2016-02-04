@@ -30,13 +30,20 @@ type cmdRemoveSkillSlot struct {
 	} `positional-args:"true" required:"true"`
 }
 
-var (
-	shortRemoveSkillSlotHelp = i18n.G("Remove a skill slot from the system")
-	longRemoveSkillSlotHelp  = i18n.G(`This command removes a skill slot from the system.
+var shortRemoveSkillSlotHelp = i18n.G("Remove a skill slot from the system")
+var longRemoveSkillSlotHelp = i18n.G(`This command removes a skill slot from the system.
 
 This command is only for experimentation with the skill system.
 It will be removed in one of the future releases.`)
-)
+
+func init() {
+	experimentalCommands = append(experimentalCommands, cmdInfo{
+		name:      "remove-skill-slot",
+		shortHelp: shortRemoveSkillSlotHelp,
+		longHelp:  longRemoveSkillSlotHelp,
+		callback:  func() interface{} { return &cmdRemoveSkillSlot{} },
+	})
+}
 
 func (x *cmdRemoveSkillSlot) Execute(args []string) error {
 	return Client().RemoveSlot(x.Positionals.Snap, x.Positionals.Name)

@@ -21,7 +21,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/ubuntu-core/snappy/asserts"
@@ -37,10 +36,17 @@ type cmdAsserts struct {
 	assertsOptions `positional-args:"true" required:"true"`
 }
 
-var (
-	shortAssertsHelp = i18n.G("Shows known assertions of the provided type")
-	longAssertsHelp  = i18n.G(`The asserts command shows known assertions of the provided type. If header=value pairs are provided after the assertion type, the assertions shown must also have the specified headers matching the provided values.`)
-)
+var shortAssertsHelp = i18n.G("Shows known assertions of the provided type")
+var longAssertsHelp = i18n.G(`The asserts command shows known assertions of the provided type. If header=value pairs are provided after the assertion type, the assertions shown must also have the specified headers matching the provided values.`)
+
+func init() {
+	commands = append(commands, cmdInfo{
+		name:      "asserts",
+		shortHelp: shortAssertsHelp,
+		longHelp:  longAssertsHelp,
+		callback:  func() interface{} { return &cmdAsserts{} },
+	})
+}
 
 var nl = []byte{'\n'}
 
@@ -60,7 +66,7 @@ func (x *cmdAsserts) Execute(args []string) error {
 		return err
 	}
 
-	enc := asserts.NewEncoder(os.Stdout)
+	enc := asserts.NewEncoder(Stdout)
 	for _, a := range assertions {
 		enc.Encode(a)
 	}

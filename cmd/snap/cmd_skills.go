@@ -33,14 +33,21 @@ type cmdSkills struct {
 	} `positional-args:"true"`
 }
 
-var (
-	shortSkillsHelp = i18n.G("Lists skills in the system")
-	longSkillsHelp  = i18n.G(`This command skills in the system.
+var shortSkillsHelp = i18n.G("Lists skills in the system")
+var longSkillsHelp = i18n.G(`This command skills in the system.
 
 By default all skills, used and offered by all snaps are displayed.
 
 Skills used and offered by a particular snap can be listed with: snap skills <snap name>`)
-)
+
+func init() {
+	commands = append(commands, cmdInfo{
+		name:      "skills",
+		shortHelp: shortSkillsHelp,
+		longHelp:  longSkillsHelp,
+		callback:  func() interface{} { return &cmdSkills{} },
+	})
+}
 
 func (x *cmdSkills) Execute(args []string) error {
 	skills, err := Client().AllSkills()

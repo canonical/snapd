@@ -31,10 +31,17 @@ type cmdAddCap struct {
 	Attrs []AttributePair `short:"a" description:"key=value attributes"`
 }
 
-var (
-	shortAddCapHelp = i18n.G("Add a capability to the system")
-	longAddCapHelp  = i18n.G("This command adds a capability to the system")
-)
+var shortAddCapHelp = i18n.G("Add a capability to the system")
+var longAddCapHelp = i18n.G("This command adds a capability to the system")
+
+func init() {
+	commands = append(commands, cmdInfo{
+		name:      "add-cap",
+		shortHelp: shortAddCapHelp,
+		longHelp:  longAddCapHelp,
+		callback:  func() interface{} { return &cmdAddCap{} },
+	})
+}
 
 func (x *cmdAddCap) Execute(args []string) error {
 	cap := &client.Capability{

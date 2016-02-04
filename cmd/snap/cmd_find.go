@@ -29,15 +29,22 @@ import (
 	"github.com/ubuntu-core/snappy/i18n"
 )
 
-var (
-	shortFindHelp = i18n.G("Find packages to install")
-	longFindHelp  = i18n.G("Query the store for available packages")
-)
+var shortFindHelp = i18n.G("Find packages to install")
+var longFindHelp = i18n.G("Query the store for available packages")
 
 type cmdFind struct {
 	Positional struct {
 		Query string `positional-arg-name:"query"`
 	} `positional-args:"yes"`
+}
+
+func init() {
+	commands = append(commands, cmdInfo{
+		name:      "find",
+		shortHelp: shortFindHelp,
+		longHelp:  longFindHelp,
+		callback:  func() interface{} { return &cmdFind{} },
+	})
 }
 
 func (x *cmdFind) Execute([]string) error {

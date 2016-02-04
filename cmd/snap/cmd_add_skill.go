@@ -35,13 +35,20 @@ type cmdAddSkill struct {
 	Label string          `long:"label" description:"human-friendly label"`
 }
 
-var (
-	shortAddSkillHelp = i18n.G("Add a skill to the system")
-	longAddSkillHelp  = i18n.G(`This command adds a skill to the system.
+var shortAddSkillHelp = i18n.G("Add a skill to the system")
+var longAddSkillHelp = i18n.G(`This command adds a skill to the system.
 
 This command is only for experimentation with the skill system.
 It will be removed in one of the future releases.`)
-)
+
+func init() {
+	experimentalCommands = append(experimentalCommands, cmdInfo{
+		name:      "add-skill",
+		shortHelp: shortAddSkillHelp,
+		longHelp:  longAddSkillHelp,
+		callback:  func() interface{} { return &cmdAddSkill{} },
+	})
+}
 
 func (x *cmdAddSkill) Execute(args []string) error {
 	attrs := make(map[string]interface{})
