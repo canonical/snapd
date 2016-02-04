@@ -32,7 +32,8 @@ type cmdRevoke struct {
 
 var (
 	shortRevokeHelp = i18n.G("Revoke a skill granted to a skill slot")
-	longRevokeHelp  = i18n.G(`
+	longRevokeHelp  = i18n.G(`The revoke command unassigns previously granted
+skills from a snap. It may be called in the following ways:
 
 $ snap revoke <snap>:<skill> <snap>:<skill slot>
 

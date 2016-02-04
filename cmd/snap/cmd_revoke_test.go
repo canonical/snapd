@@ -32,6 +32,9 @@ func (s *SnapSuite) TestRevokeHelp(c *C) {
 	msg := `Usage:
   snap.test [OPTIONS] revoke [<snap>:<skill>] [<snap>:<skill slot>]
 
+The revoke command unassigns previously granted
+skills from a snap. It may be called in the following ways:
+
 $ snap revoke <snap>:<skill> <snap>:<skill slot>
 
 Revokes the specific skill from the specific skill slot.
