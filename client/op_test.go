@@ -33,7 +33,7 @@ func (cs *clientSuite) TestClientOpRunning(c *check.C) {
   "may_cancel": false,
   "output": {}
 }}`
-	op, err := cs.cli.GetOperation("foo")
+	op, err := cs.cli.Operation("foo")
 	c.Assert(err, check.IsNil)
 	c.Check(op.Running(), check.Equals, true)
 	c.Check(op.Err(), check.IsNil)
@@ -49,7 +49,7 @@ func (cs *clientSuite) TestClientOpFailed(c *check.C) {
   "may_cancel": false,
   "output": {"message": "something broke"}
 }}`
-	op, err := cs.cli.GetOperation("foo")
+	op, err := cs.cli.Operation("foo")
 	c.Assert(err, check.IsNil)
 	c.Check(op.Running(), check.Equals, false)
 	c.Check(op.Err(), check.ErrorMatches, "something broke")
@@ -65,7 +65,7 @@ func (cs *clientSuite) TestClientOpFailedFailure(c *check.C) {
   "may_cancel": false,
   "output": false
 }}`
-	op, err := cs.cli.GetOperation("foo")
+	op, err := cs.cli.Operation("foo")
 	c.Assert(err, check.IsNil)
 	c.Check(op.Running(), check.Equals, false)
 	c.Check(op.Err(), check.ErrorMatches, `unexpected error format: "false"`)
@@ -81,7 +81,7 @@ func (cs *clientSuite) TestClientOpSucceeded(c *check.C) {
   "may_cancel": false,
   "output": {}
 }}`
-	op, err := cs.cli.GetOperation("foo")
+	op, err := cs.cli.Operation("foo")
 	c.Assert(err, check.IsNil)
 	c.Check(op.Running(), check.Equals, false)
 	c.Check(op.Err(), check.IsNil)
