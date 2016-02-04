@@ -69,7 +69,7 @@ func New(config *Config) *Client {
 	}
 	baseURL, err := url.Parse(config.BaseURL)
 	if err != nil {
-		panic(err.Error())
+		panic(fmt.Sprintf("cannot parse server base URL: %q (%v)", config.BaseURL, err))
 	}
 	return &Client{
 		baseURL: *baseURL,
