@@ -51,11 +51,13 @@ Help Options:
 	c.Assert(err.Error(), Equals, msg)
 }
 
-func (s *SnapSuite) TestGrantExplicitEverything(c *C) {
+func (s *SnapSuite) TestWireGrantExplicitEverything(c *C) {
+	client := NewLowLevelTestClient()
+	s.UseTestClient(client)
 	err := s.Execute([]string{
 		"snap", "grant", "producer:skill", "consumer:slot"})
 	c.Assert(err, IsNil)
-	c.Assert(s.DecodedRequestBody(c), DeepEquals, map[string]interface{}{
+	c.Assert(client.DecodedRequestBody(c), DeepEquals, map[string]interface{}{
 		"action": "grant",
 		"skill": map[string]interface{}{
 			"snap": "producer",
@@ -68,11 +70,27 @@ func (s *SnapSuite) TestGrantExplicitEverything(c *C) {
 	})
 }
 
+func (s *SnapSuite) TestAbstractGrantExplicitEverything(c *C) {
+	client := NewHighLevelTestClient()
+	s.UseTestClient(client)
+	err := s.Execute([]string{
+		"snap", "grant", "producer:skill", "consumer:slot"})
+	c.Assert(err, IsNil)
+	c.Assert(client.Calls, DeepEquals, []Call{
+		{
+			Fn:   "Grant",
+			Args: []interface{}{"producer", "skill", "consumer", "slot"},
+		},
+	})
+}
+
 func (s *SnapSuite) TestGrantExplicitSkillImplicitSlot(c *C) {
+	client := NewLowLevelTestClient()
+	s.UseTestClient(client)
 	err := s.Execute([]string{
 		"snap", "grant", "producer:skill", "consumer"})
 	c.Assert(err, IsNil)
-	c.Assert(s.DecodedRequestBody(c), DeepEquals, map[string]interface{}{
+	c.Assert(client.DecodedRequestBody(c), DeepEquals, map[string]interface{}{
 		"action": "grant",
 		"skill": map[string]interface{}{
 			"snap": "producer",
@@ -86,10 +104,12 @@ func (s *SnapSuite) TestGrantExplicitSkillImplicitSlot(c *C) {
 }
 
 func (s *SnapSuite) TestGrantImplicitSkillExplicitSlot(c *C) {
+	client := NewLowLevelTestClient()
+	s.UseTestClient(client)
 	err := s.Execute([]string{
 		"snap", "grant", "skill", "consumer:slot"})
 	c.Assert(err, IsNil)
-	c.Assert(s.DecodedRequestBody(c), DeepEquals, map[string]interface{}{
+	c.Assert(client.DecodedRequestBody(c), DeepEquals, map[string]interface{}{
 		"action": "grant",
 		"skill": map[string]interface{}{
 			"snap": "",
@@ -103,10 +123,12 @@ func (s *SnapSuite) TestGrantImplicitSkillExplicitSlot(c *C) {
 }
 
 func (s *SnapSuite) TestGrantImplicitSkillImplicitSlot(c *C) {
+	client := NewLowLevelTestClient()
+	s.UseTestClient(client)
 	err := s.Execute([]string{
 		"snap", "grant", "skill", "consumer"})
 	c.Assert(err, IsNil)
-	c.Assert(s.DecodedRequestBody(c), DeepEquals, map[string]interface{}{
+	c.Assert(client.DecodedRequestBody(c), DeepEquals, map[string]interface{}{
 		"action": "grant",
 		"skill": map[string]interface{}{
 			"snap": "",

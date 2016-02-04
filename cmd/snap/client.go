@@ -17,34 +17,20 @@
  *
  */
 
-package main_test
+package main
 
 import (
-	"testing"
-
-	. "gopkg.in/check.v1"
-
-	. "github.com/ubuntu-core/snappy/cmd/snap"
-	"github.com/ubuntu-core/snappy/testutil"
+	"github.com/ubuntu-core/snappy/client"
 )
 
-// Hook up check.v1 into the "go test" runner
-func Test(t *testing.T) { TestingT(t) }
-
-type SnapSuite struct {
-	testutil.BaseTest
+type Client interface {
+	Grant(skillSnapName, skillName, slotSnapName, slotName string) error
 }
 
-var _ = Suite(&SnapSuite{})
-
-func (s *SnapSuite) UseTestClient(client Client) {
-	origGetClient := GetClient
-	s.BaseTest.AddCleanup(func() { GetClient = origGetClient })
-	GetClient = func() Client { return client }
+func ProductionClient() Client {
+	return client.New()
 }
 
-// Execute runs snappy as if invoked on command line
-func (s *SnapSuite) Execute(args []string) error {
-	_, err := Parser().ParseArgs(args)
-	return err
-}
+// GetClient is a function that returns a client.Client for commands.
+// It can be re-assigned for testing.
+var GetClient = ProductionClient

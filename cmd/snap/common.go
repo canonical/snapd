@@ -22,8 +22,6 @@ package main
 import (
 	"fmt"
 	"strings"
-
-	"github.com/ubuntu-core/snappy/client"
 )
 
 // AttributePair contains a pair of key-value strings
@@ -87,11 +85,3 @@ func (sn *SnapAndName) MarshalFlag() (string, error) {
 	}
 	return sn.Snap, nil
 }
-
-func realClient() *client.Client {
-	return client.New()
-}
-
-// Client is a function that returns a client.Client for commands.
-// It can be redirected to return test clients.
-var Client = realClient
