@@ -171,7 +171,7 @@ func (cs *clientSuite) TestClientReportsOuterJSONError(c *check.C) {
 func (cs *clientSuite) TestClientReportsInnerJSONError(c *check.C) {
 	cs.rsp = `{"type": "sync", "result": "this isn't really json is it"}`
 	_, err := cs.cli.SysInfo()
-	c.Check(err, check.ErrorMatches, `.*failed to unmarshal.*`)
+	c.Check(err, check.ErrorMatches, `.*cannot unmarshal.*`)
 }
 
 func (cs *clientSuite) TestClientCapabilities(c *check.C) {

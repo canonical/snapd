@@ -63,7 +63,7 @@ func (cs *clientSuite) TestClientOpSnapBadType(c *check.C) {
 	cs.rsp = `{"type": "what"}`
 	for _, s := range ops {
 		_, err := s.op(cs.cli, pkgName)
-		c.Check(err, check.ErrorMatches, `.*expected async response, got "what"`, check.Commentf(s.action))
+		c.Check(err, check.ErrorMatches, `.*expected async response for "POST" on "/2.0/snaps/`+pkgName+`", got "what"`, check.Commentf(s.action))
 	}
 }
 
@@ -86,7 +86,7 @@ func (cs *clientSuite) TestClientOpSnapInvalidResult(c *check.C) {
 	}`
 	for _, s := range ops {
 		_, err := s.op(cs.cli, pkgName)
-		c.Assert(err, check.ErrorMatches, `.*failed to unmarshal result.*`, check.Commentf(s.action))
+		c.Assert(err, check.ErrorMatches, `.*cannot unmarshal result.*`, check.Commentf(s.action))
 	}
 }
 
@@ -98,7 +98,7 @@ func (cs *clientSuite) TestClientOpSnapNoResource(c *check.C) {
 	}`
 	for _, s := range ops {
 		_, err := s.op(cs.cli, pkgName)
-		c.Assert(err, check.ErrorMatches, `.*invalid resource.*`, check.Commentf(s.action))
+		c.Assert(err, check.ErrorMatches, `.*invalid resource location.*`, check.Commentf(s.action))
 	}
 }
 
@@ -112,7 +112,7 @@ func (cs *clientSuite) TestClientOpSnapInvalidResource(c *check.C) {
 	}`
 	for _, s := range ops {
 		_, err := s.op(cs.cli, pkgName)
-		c.Assert(err, check.ErrorMatches, `.*invalid resource.*`, check.Commentf(s.action))
+		c.Assert(err, check.ErrorMatches, `.*invalid resource location.*`, check.Commentf(s.action))
 	}
 }
 

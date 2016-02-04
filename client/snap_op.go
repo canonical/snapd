@@ -42,7 +42,7 @@ func (client *Client) RemoveSnap(name string) (string, error) {
 	return client.doAsync("POST", path, nil, body)
 }
 
-// RefreshSnap refreshs the snap with the given name, returning the UUID of the
+// RefreshSnap refreshes the snap with the given name, returning the UUID of the
 // background operation upon success.
 func (client *Client) RefreshSnap(name string) (string, error) {
 	path := fmt.Sprintf("/2.0/snaps/%s", name)
