@@ -103,21 +103,6 @@ type Part interface {
 	Frameworks() ([]string, error)
 }
 
-// Repository is the interface for a collection of snaps
-type Repository interface {
-
-	// query
-	Description() string
-
-	// action
-	Details(name string, origin string) ([]Part, error)
-
-	Updates() ([]Part, error)
-	Installed() ([]Part, error)
-
-	All() ([]Part, error)
-}
-
 // ActiveSnapsByType returns all installed snaps with the given type
 func ActiveSnapsByType(snapTs ...snap.Type) (res []Part, err error) {
 	installed, err := NewLocalSnapRepository().Installed()
