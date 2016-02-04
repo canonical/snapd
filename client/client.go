@@ -45,10 +45,15 @@ type Client struct {
 
 // New returns a new instance of Client
 func New() *Client {
-	tr := &http.Transport{Dial: unixDialer}
+	return NewWithTransport(&http.Transport{Dial: unixDialer})
+}
 
+// NewWithTransport returns a new instance of Client using a specified transport.
+// This function is intended for testing where a non-standard transport is
+// required.
+func NewWithTransport(transport http.RoundTripper) *Client {
 	return &Client{
-		doer: &http.Client{Transport: tr},
+		doer: &http.Client{Transport: transport},
 	}
 }
 
