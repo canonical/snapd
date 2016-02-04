@@ -80,12 +80,12 @@ func New(config *Config) *Client {
 // raw performs a request and returns the resulting http.Response and
 // error you usually only need to call this directly if you expect the
 // response to not be JSON, otherwise you'd call Do(...) instead.
-func (client *Client) raw(method, aPath string, query url.Values, body io.Reader) (*http.Response, error) {
+func (client *Client) raw(method, urlpath string, query url.Values, body io.Reader) (*http.Response, error) {
 	// fake a url to keep http.Client happy
 	u := url.URL{
 		Scheme:   client.baseURL.Scheme,
 		Host:     client.baseURL.Host,
-		Path:     path.Join(client.baseURL.Path, aPath),
+		Path:     path.Join(client.baseURL.Path, urlpath),
 		RawQuery: query.Encode(),
 	}
 	req, err := http.NewRequest(method, u.String(), body)
