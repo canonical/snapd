@@ -30,12 +30,14 @@ import (
 
 	"github.com/ubuntu-core/snappy/client"
 	. "github.com/ubuntu-core/snappy/cmd/snap"
+	"github.com/ubuntu-core/snappy/testutil"
 )
 
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
 type SnapSuite struct {
+	testutil.BaseTest
 	client   *client.Client
 	request  *http.Request
 	response *http.Response
@@ -46,10 +48,13 @@ var _ = Suite(&SnapSuite{})
 
 func (s *SnapSuite) SetUpSuite(c *C) {
 	s.client = client.NewWithTransport(s)
-	SetFakeClient(s.client)
+	origClient := Client
+	s.BaseTest.AddCleanup(func() { Client = origClient })
+	Client = func() *client.Client { return s.client }
 }
 
 func (s *SnapSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
 	s.MakeCannedResponse(`{
 		"type": "sync",
 		"result": {}

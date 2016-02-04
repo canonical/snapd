@@ -88,13 +88,10 @@ func (sn *SnapAndName) MarshalFlag() (string, error) {
 	return sn.Snap, nil
 }
 
-var fakeClient *client.Client
-
-type cmdBase struct{}
-
-func (x *cmdBase) Client() *client.Client {
-	if fakeClient != nil {
-		return fakeClient
-	}
+func realClient() *client.Client {
 	return client.New()
 }
+
+// Client is a function that returns a client.Client for commands.
+// It can be redirected to return test clients.
+var Client = realClient

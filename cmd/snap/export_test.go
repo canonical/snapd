@@ -21,16 +21,9 @@ package main
 
 import (
 	"github.com/jessevdk/go-flags"
-
-	"github.com/ubuntu-core/snappy/client"
 )
 
 // Parser returns the command line parser used by snap.
 func Parser() *flags.Parser {
 	return parser
-}
-
-// SetFakeClient sets a custom client that is used by all commands.
-func SetFakeClient(client *client.Client) {
-	fakeClient = client
 }

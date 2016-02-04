@@ -25,7 +25,6 @@ import (
 )
 
 type cmdGrant struct {
-	cmdBase
 	Positionals struct {
 		Offer SnapAndName `positional-arg-name:"<snap>:<skill>" description:"snap offering the skill" skip-help:"true"`
 		Use   SnapAndName `positional-arg-name:"<snap>:<skill slot>" description:"snap using the skill" skip-help:"true"`
@@ -68,5 +67,5 @@ func (x *cmdGrant) Execute(args []string) error {
 		x.Positionals.Offer.Name = x.Positionals.Offer.Snap
 		x.Positionals.Offer.Snap = ""
 	}
-	return x.Client().Grant(x.Positionals.Offer.Snap, x.Positionals.Offer.Name, x.Positionals.Use.Snap, x.Positionals.Use.Name)
+	return Client().Grant(x.Positionals.Offer.Snap, x.Positionals.Offer.Name, x.Positionals.Use.Snap, x.Positionals.Use.Name)
 }
