@@ -26,6 +26,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/ubuntu-core/snappy/dirs"
 )
@@ -96,7 +97,7 @@ func (client *Client) doSync(method, path string, query url.Values, body io.Read
 	var rsp response
 
 	if err := client.do(method, path, query, body, &rsp); err != nil {
-		return fmt.Errorf("failed to communicate with server: %s", err)
+		return fmt.Errorf("cannot communicate with server: %s", err)
 	}
 	if err := rsp.err(); err != nil {
 		return err
@@ -106,10 +107,43 @@ func (client *Client) doSync(method, path string, query url.Values, body io.Read
 	}
 
 	if err := json.Unmarshal(rsp.Result, v); err != nil {
-		return fmt.Errorf("failed to unmarshal: %v", err)
+		return fmt.Errorf("cannot unmarshal: %v", err)
 	}
 
 	return nil
+}
+
+type asyncResult struct {
+	Resource string `json:"resource"`
+}
+
+func (client *Client) doAsync(method, path string, query url.Values, body io.Reader) (string, error) {
+	var rsp response
+
+	if err := client.do(method, path, query, body, &rsp); err != nil {
+		return "", fmt.Errorf("cannot communicate with server: %v", err)
+	}
+	if err := rsp.err(); err != nil {
+		return "", err
+	}
+	if rsp.Type != "async" {
+		return "", fmt.Errorf("expected async response for %q on %q, got %q", method, path, rsp.Type)
+	}
+	if rsp.StatusCode != http.StatusAccepted {
+		return "", fmt.Errorf("operation not accepted")
+	}
+
+	var result asyncResult
+	if err := json.Unmarshal(rsp.Result, &result); err != nil {
+		return "", fmt.Errorf("cannot unmarshal result: %v", err)
+	}
+
+	const opPrefix = "/2.0/operations/"
+	if !strings.HasPrefix(result.Resource, opPrefix) {
+		return "", fmt.Errorf("invalid resource location %q", result.Resource)
+	}
+
+	return result.Resource[len(opPrefix):], nil
 }
 
 // A response produced by the REST API will usually fit in this
@@ -160,7 +194,7 @@ func parseError(r *http.Response) error {
 
 	dec := json.NewDecoder(r.Body)
 	if err := dec.Decode(&rsp); err != nil {
-		return fmt.Errorf("failed to unmarshal error: %v", err)
+		return fmt.Errorf("cannot unmarshal error: %v", err)
 	}
 
 	err := rsp.err()

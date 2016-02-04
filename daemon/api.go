@@ -188,7 +188,7 @@ func sysInfo(c *Command, r *http.Request) Response {
 
 type metarepo interface {
 	Details(string, string) ([]snappy.Part, error)
-	Find(string) ([]snappy.Part, error) // XXX: change this to Search iff aliases (and thus SharedNames) are no more
+	Find(string) ([]snappy.Part, error)
 }
 
 var newRemoteRepo = func() metarepo {
@@ -712,7 +712,6 @@ func (inst *snapInstruction) deactivate() interface{} {
 func (inst *snapInstruction) dispatch() func() interface{} {
 	switch inst.Action {
 	case "install":
-		// TODO: licenses
 		return inst.install
 	case "update":
 		return inst.update

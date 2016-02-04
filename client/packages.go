@@ -22,7 +22,6 @@ package client
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"net/url"
 	"strings"
 )
@@ -119,43 +118,4 @@ func (client *Client) Snap(name string) (*Snap, error) {
 	}
 
 	return pkg, nil
-}
-
-// RemoveSnap removes the snap with the given name, returning the UUID of the
-// background operation upon success
-func (client *Client) RemoveSnap(name string) (string, error) {
-	const errPrefix = "cannot remove snap"
-	const opPrefix = "/2.0/operations/"
-	var rsp response
-
-	path := fmt.Sprintf("/2.0/snaps/%s", name)
-	body := strings.NewReader(`{"action":"remove"}`)
-
-	if err := client.do("POST", path, nil, body, &rsp); err != nil {
-		return "", fmt.Errorf("%s: %s", errPrefix, err)
-	}
-	if err := rsp.err(); err != nil {
-		return "", err
-	}
-	if rsp.Type != "async" {
-		return "", fmt.Errorf("%s: expected async response, got %q", errPrefix, rsp.Type)
-	}
-	if rsp.StatusCode != http.StatusAccepted {
-		return "", fmt.Errorf("%s: operation not accepted", errPrefix)
-	}
-
-	var operation map[string]interface{}
-	if err := json.Unmarshal(rsp.Result, &operation); err != nil {
-		return "", fmt.Errorf("%s: failed to unmarshal operation: %v", errPrefix, err)
-	}
-
-	resource, ok := operation["resource"].(string)
-	if !ok {
-		return "", fmt.Errorf("%s: operation has no resource", errPrefix)
-	}
-	if !strings.HasPrefix(resource, opPrefix) {
-		return "", fmt.Errorf("%s: invalid resource", errPrefix)
-	}
-
-	return resource[len(opPrefix):], nil
 }
