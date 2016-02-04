@@ -43,7 +43,8 @@ func (as *assertsSuite) TestUnknown(c *C) {
 }
 
 const exampleEmptyBodyAllDefaults = "type: test-only\n" +
-	"authority-id: auth-id1" +
+	"authority-id: auth-id1\n" +
+	"primary-key: abc" +
 	"\n\n" +
 	"openpgp c2ln"
 
@@ -61,6 +62,7 @@ func (as *assertsSuite) TestDecodeEmptyBodyAllDefaults(c *C) {
 
 const exampleEmptyBody2NlNl = "type: test-only\n" +
 	"authority-id: auth-id1\n" +
+	"primary-key: xyz\n" +
 	"revision: 0\n" +
 	"body-length: 0" +
 	"\n\n" +
@@ -77,8 +79,7 @@ func (as *assertsSuite) TestDecodeEmptyBodyNormalize2NlNl(c *C) {
 
 const exampleBodyAndExtraHeaders = "type: test-only\n" +
 	"authority-id: auth-id2\n" +
-	"primary-key1: key1\n" +
-	"primary-key2: key2\n" +
+	"primary-key: abc\n" +
 	"revision: 5\n" +
 	"header1: value1\n" +
 	"header2: value2\n" +
@@ -92,8 +93,7 @@ func (as *assertsSuite) TestDecodeWithABodyAndExtraHeaders(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.TestOnlyType)
 	c.Check(a.AuthorityID(), Equals, "auth-id2")
-	c.Check(a.Header("primary-key1"), Equals, "key1")
-	c.Check(a.Header("primary-key2"), Equals, "key2")
+	c.Check(a.Header("primary-key"), Equals, "abc")
 	c.Check(a.Revision(), Equals, 5)
 	c.Check(a.Header("header1"), Equals, "value1")
 	c.Check(a.Header("header2"), Equals, "value2")
@@ -104,6 +104,7 @@ func (as *assertsSuite) TestDecodeWithABodyAndExtraHeaders(c *C) {
 func (as *assertsSuite) TestDecodeGetSignatureBits(c *C) {
 	content := "type: test-only\n" +
 		"authority-id: auth-id1\n" +
+		"primary-key: xyz\n" +
 		"revision: 5\n" +
 		"header1: value1\n" +
 		"body-length: 8\n\n" +
@@ -143,6 +144,7 @@ func (as *assertsSuite) TestDecodeHeaderParsingErrors(c *C) {
 func (as *assertsSuite) TestDecodeInvalid(c *C) {
 	encoded := "type: test-only\n" +
 		"authority-id: auth-id\n" +
+		"primary-key: abc\n" +
 		"revision: 0\n" +
 		"body-length: 5" +
 		"\n\n" +
@@ -160,6 +162,7 @@ func (as *assertsSuite) TestDecodeInvalid(c *C) {
 		{"type: test-only\n", "type: unknown\n", `unknown assertion type: "unknown"`},
 		{"revision: 0\n", "revision: Z\n", `assertion: "revision" header is not an integer: Z`},
 		{"revision: 0\n", "revision: -10\n", "assertion: revision should be positive: -10"},
+		{"primary-key: abc\n", "", `assertion test-only: "primary-key" header is mandatory`},
 	}
 
 	for _, test := range invalidAssertTests {
@@ -314,8 +317,7 @@ func (as *assertsSuite) TestDecoderSignatureTooBig(c *C) {
 func (as *assertsSuite) TestEncode(c *C) {
 	encoded := []byte("type: test-only\n" +
 		"authority-id: auth-id2\n" +
-		"primary-key1: key1\n" +
-		"primary-key2: key2\n" +
+		"primary-key: xyz\n" +
 		"revision: 5\n" +
 		"header1: value1\n" +
 		"header2: value2\n" +
@@ -332,8 +334,7 @@ func (as *assertsSuite) TestEncode(c *C) {
 func (as *assertsSuite) TestEncoderOK(c *C) {
 	encoded := []byte("type: test-only\n" +
 		"authority-id: auth-id2\n" +
-		"primary-key1: key1\n" +
-		"primary-key2: key2\n" +
+		"primary-key: xyzyz\n" +
 		"revision: 5\n" +
 		"header1: value1\n" +
 		"header2: value2\n" +
@@ -362,8 +363,7 @@ func (as *assertsSuite) TestEncoderOK(c *C) {
 func (as *assertsSuite) TestEncoderSingleDecodeOK(c *C) {
 	encoded := []byte("type: test-only\n" +
 		"authority-id: auth-id2\n" +
-		"primary-key1: key1\n" +
-		"primary-key2: key2\n" +
+		"primary-key: abc\n" +
 		"revision: 5\n" +
 		"header1: value1\n" +
 		"header2: value2\n" +
@@ -416,8 +416,7 @@ func (as *assertsSuite) TestSignFormatSanityNonEmptyBody(c *C) {
 func (as *assertsSuite) TestHeaders(c *C) {
 	encoded := []byte("type: test-only\n" +
 		"authority-id: auth-id2\n" +
-		"primary-key1: key1\n" +
-		"primary-key2: key2\n" +
+		"primary-key: abc\n" +
 		"revision: 5\n" +
 		"header1: value1\n" +
 		"header2: value2\n" +
@@ -432,8 +431,7 @@ func (as *assertsSuite) TestHeaders(c *C) {
 	c.Check(hs, DeepEquals, map[string]string{
 		"type":         "test-only",
 		"authority-id": "auth-id2",
-		"primary-key1": "key1",
-		"primary-key2": "key2",
+		"primary-key":  "abc",
 		"revision":     "5",
 		"header1":      "value1",
 		"header2":      "value2",
@@ -444,8 +442,7 @@ func (as *assertsSuite) TestHeaders(c *C) {
 func (as *assertsSuite) TestHeadersReturnsCopy(c *C) {
 	encoded := []byte("type: test-only\n" +
 		"authority-id: auth-id2\n" +
-		"primary-key1: key1\n" +
-		"primary-key2: key2\n" +
+		"primary-key: xyz\n" +
 		"revision: 5\n" +
 		"header1: value1\n" +
 		"header2: value2\n" +
@@ -458,15 +455,14 @@ func (as *assertsSuite) TestHeadersReturnsCopy(c *C) {
 
 	hs := a.Headers()
 	// casual later result mutation doesn't trip us
-	delete(hs, "primary-key1")
-	c.Check(a.Header("primary-key1"), Equals, "key1")
+	delete(hs, "primary-key")
+	c.Check(a.Header("primary-key"), Equals, "xyz")
 }
 
 func (as *assertsSuite) TestAssembleRoundtrip(c *C) {
 	encoded := []byte("type: test-only\n" +
 		"authority-id: auth-id2\n" +
-		"primary-key1: key1\n" +
-		"primary-key2: key2\n" +
+		"primary-key: abc\n" +
 		"revision: 5\n" +
 		"header1: value1\n" +
 		"header2: value2\n" +

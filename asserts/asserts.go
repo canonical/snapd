@@ -435,6 +435,12 @@ func Assemble(headers map[string]string, body, content, signature []byte) (Asser
 		return nil, fmt.Errorf("unknown assertion type: %q", typ)
 	}
 
+	for _, primKey := range assertType.PrimaryKey {
+		if _, err := checkMandatory(headers, primKey); err != nil {
+			return nil, fmt.Errorf("assertion %s: %v", assertType.Name, err)
+		}
+	}
+
 	revision, err := checkRevision(headers)
 	if err != nil {
 		return nil, fmt.Errorf("assertion: %v", err)
