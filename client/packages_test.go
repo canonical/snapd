@@ -20,10 +20,7 @@
 package client_test
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
-	"io/ioutil"
 
 	"gopkg.in/check.v1"
 
@@ -153,86 +150,4 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 		Type:          client.TypeApp,
 		Version:       "0.1-8",
 	})
-}
-
-func (cs *clientSuite) TestClientRemoveSnapServerError(c *check.C) {
-	cs.err = errors.New("fail")
-	_, err := cs.cli.RemoveSnap(pkgName)
-	c.Assert(err, check.ErrorMatches, `.*fail`)
-}
-
-func (cs *clientSuite) TestClientRemoveSnapResponseError(c *check.C) {
-	cs.rsp = `{"type": "error", "status": "potatoes"}`
-	_, err := cs.cli.RemoveSnap(pkgName)
-	c.Assert(err, check.ErrorMatches, `.*server error: "potatoes"`)
-}
-
-func (cs *clientSuite) TestClientRemoveSnapBadType(c *check.C) {
-	cs.rsp = `{"type": "what"}`
-	_, err := cs.cli.RemoveSnap(pkgName)
-	c.Assert(err, check.ErrorMatches, `.*expected async response, got "what"`)
-}
-
-func (cs *clientSuite) TestClientRemoveSnapNotAccepted(c *check.C) {
-	cs.rsp = `{
-		"status_code": 200,
-		"type": "async"
-	}`
-	_, err := cs.cli.RemoveSnap(pkgName)
-	c.Assert(err, check.ErrorMatches, `.*operation not accepted`)
-}
-
-func (cs *clientSuite) TestClientRemoveSnapInvalidResult(c *check.C) {
-	cs.rsp = `{
-		"result": "not a JSON object",
-		"status_code": 202,
-		"type": "async"
-	}`
-	_, err := cs.cli.RemoveSnap(pkgName)
-	c.Assert(err, check.ErrorMatches, `.*failed to unmarshal operation.*`)
-}
-
-func (cs *clientSuite) TestClientRemoveSnapNoResource(c *check.C) {
-	cs.rsp = `{
-		"result": {},
-		"status_code": 202,
-		"type": "async"
-	}`
-	_, err := cs.cli.RemoveSnap(pkgName)
-	c.Assert(err, check.ErrorMatches, `.*operation has no resource`)
-}
-
-func (cs *clientSuite) TestClientRemoveSnapInvalidResource(c *check.C) {
-	cs.rsp = `{
-		"result": {
-			"resource": "invalid"
-		},
-		"status_code": 202,
-		"type": "async"
-	}`
-	_, err := cs.cli.RemoveSnap(pkgName)
-	c.Assert(err, check.ErrorMatches, `.*invalid resource`)
-}
-
-func (cs *clientSuite) TestClientRemoveSnap(c *check.C) {
-	cs.rsp = `{
-		"result": {
-			"resource": "/2.0/operations/5a70dffa-66b3-3567-d728-55b0da48bdc7"
-		},
-		"status_code": 202,
-		"type": "async"
-	}`
-	uuid, err := cs.cli.RemoveSnap(pkgName)
-
-	body, err := ioutil.ReadAll(cs.req.Body)
-	c.Assert(err, check.IsNil)
-	jsonBody := make(map[string]string)
-	err = json.Unmarshal(body, &jsonBody)
-	c.Assert(err, check.IsNil)
-	c.Assert(jsonBody["action"], check.Equals, "remove")
-
-	c.Assert(cs.req.Method, check.Equals, "POST")
-	c.Assert(cs.req.URL.Path, check.Equals, fmt.Sprintf("/2.0/snaps/%s", pkgName))
-	c.Assert(err, check.IsNil)
-	c.Assert(uuid, check.Equals, "5a70dffa-66b3-3567-d728-55b0da48bdc7")
 }

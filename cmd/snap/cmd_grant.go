@@ -67,5 +67,5 @@ func (x *cmdGrant) Execute(args []string) error {
 		x.Positionals.Offer.Name = x.Positionals.Offer.Snap
 		x.Positionals.Offer.Snap = ""
 	}
-	return GetClient().Grant(x.Positionals.Offer.Snap, x.Positionals.Offer.Name, x.Positionals.Use.Snap, x.Positionals.Use.Name)
+	return Client().Grant(x.Positionals.Offer.Snap, x.Positionals.Offer.Name, x.Positionals.Use.Snap, x.Positionals.Use.Name)
 }

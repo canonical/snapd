@@ -22,6 +22,8 @@ package main
 import (
 	"fmt"
 	"strings"
+
+	"github.com/ubuntu-core/snappy/client"
 )
 
 // AttributePair contains a pair of key-value strings
@@ -84,4 +86,11 @@ func (sn *SnapAndName) MarshalFlag() (string, error) {
 		return fmt.Sprintf("%s:%s", sn.Snap, sn.Name), nil
 	}
 	return sn.Snap, nil
+}
+
+// ClientConfig is the configuration of the client.Client used by all commands.
+var ClientConfig client.Config
+
+func Client() *client.Client {
+	return client.New(&ClientConfig)
 }

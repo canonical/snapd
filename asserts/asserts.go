@@ -143,6 +143,7 @@ func (ab *assertionBase) Signature() (content, signature []byte) {
 var _ Assertion = (*assertionBase)(nil)
 
 var (
+	nl   = []byte("\n")
 	nlnl = []byte("\n\n")
 
 	// for basic sanity checking of header names
@@ -597,11 +598,13 @@ func (enc *Encoder) append(encoded []byte) error {
 		return err
 	}
 
-	sep := nlnl
-	if encoded[sz-1] == '\n' {
-		sep = sep[1:]
+	if encoded[sz-1] != '\n' {
+		_, err = enc.wr.Write(nl)
+		if err != nil {
+			return err
+		}
 	}
-	enc.nextSep = sep
+	enc.nextSep = nl
 
 	return nil
 }

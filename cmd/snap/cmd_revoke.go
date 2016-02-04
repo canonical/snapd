@@ -20,7 +20,6 @@
 package main
 
 import (
-	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/logger"
 )
@@ -63,5 +62,5 @@ func (x *cmdRevoke) Execute(args []string) error {
 		// Swap Offer and Use around
 		x.Positionals.Offer, x.Positionals.Use = x.Positionals.Use, x.Positionals.Offer
 	}
-	return client.New().Revoke(x.Positionals.Offer.Snap, x.Positionals.Offer.Name, x.Positionals.Use.Snap, x.Positionals.Use.Name)
+	return Client().Revoke(x.Positionals.Offer.Snap, x.Positionals.Offer.Name, x.Positionals.Use.Snap, x.Positionals.Use.Name)
 }

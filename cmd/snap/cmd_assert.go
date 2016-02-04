@@ -22,7 +22,6 @@ package main
 import (
 	"io/ioutil"
 
-	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/logger"
 )
@@ -59,5 +58,5 @@ func (x *cmdAssert) Execute(args []string) error {
 		return err
 	}
 
-	return client.New().Assert(assertData)
+	return Client().Assert(assertData)
 }

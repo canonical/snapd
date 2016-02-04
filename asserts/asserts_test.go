@@ -349,6 +349,8 @@ func (as *assertsSuite) TestEncoderOK(c *C) {
 	enc := asserts.NewEncoder(stream)
 	enc.Encode(a0)
 
+	c.Check(bytes.HasSuffix(stream.Bytes(), []byte{'\n'}), Equals, true)
+
 	dec := asserts.NewDecoder(stream)
 	a1, err := dec.Decode()
 	c.Assert(err, IsNil)

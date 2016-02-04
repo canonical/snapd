@@ -63,7 +63,7 @@ func (x *cmdAddSkill) Execute(args []string) error {
 	for k, v := range AttributePairSliceToMap(x.Attrs) {
 		attrs[k] = v
 	}
-	return client.New().AddSkill(&client.Skill{
+	return Client().AddSkill(&client.Skill{
 		Snap:  x.Positionals.Snap,
 		Name:  x.Positionals.Name,
 		Type:  x.Positionals.Type,

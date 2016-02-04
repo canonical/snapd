@@ -20,6 +20,9 @@
 package main_test
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -37,14 +40,24 @@ type SnapSuite struct {
 
 var _ = Suite(&SnapSuite{})
 
-func (s *SnapSuite) UseTestClient(client Client) {
-	origGetClient := GetClient
-	s.BaseTest.AddCleanup(func() { GetClient = origGetClient })
-	GetClient = func() Client { return client }
+func (s *SnapSuite) RedirectClientToTestServer(handler func(http.ResponseWriter, *http.Request)) {
+	server := httptest.NewServer(http.HandlerFunc(handler))
+	s.BaseTest.AddCleanup(func() { server.Close() })
+	ClientConfig.BaseURL = server.URL
+	s.BaseTest.AddCleanup(func() { ClientConfig.BaseURL = "" })
 }
 
 // Execute runs snappy as if invoked on command line
 func (s *SnapSuite) Execute(args []string) error {
 	_, err := Parser().ParseArgs(args)
 	return err
+}
+
+// DecodedRequestBody returns the JSON-decoded body of the request
+func DecodedRequestBody(r *http.Request, c *C) map[string]interface{} {
+	var body map[string]interface{}
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&body)
+	c.Assert(err, IsNil)
+	return body
 }

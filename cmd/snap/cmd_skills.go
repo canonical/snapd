@@ -24,7 +24,6 @@ import (
 	"os"
 	"text/tabwriter"
 
-	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/logger"
 )
@@ -53,7 +52,7 @@ func init() {
 }
 
 func (x *cmdSkills) Execute(args []string) error {
-	skills, err := client.New().AllSkills()
+	skills, err := Client().AllSkills()
 	if err != nil {
 		return err
 	}

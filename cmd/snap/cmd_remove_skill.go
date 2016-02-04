@@ -22,7 +22,6 @@ package main
 import (
 	"fmt"
 
-	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/logger"
 )
@@ -55,5 +54,5 @@ func init() {
 }
 
 func (x *cmdRemoveSkill) Execute(args []string) error {
-	return client.New().RemoveSkill(x.Positionals.Snap, x.Positionals.Name)
+	return Client().RemoveSkill(x.Positionals.Snap, x.Positionals.Name)
 }

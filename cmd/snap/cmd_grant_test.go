@@ -20,6 +20,9 @@
 package main_test
 
 import (
+	"fmt"
+	"net/http"
+
 	. "gopkg.in/check.v1"
 )
 
@@ -52,85 +55,85 @@ Help Options:
 }
 
 func (s *SnapSuite) TestGrantExplicitEverything(c *C) {
-	client := NewLowLevelTestClient()
-	s.UseTestClient(client)
-	err := s.Execute([]string{
-		"snap", "grant", "producer:skill", "consumer:slot"})
-	c.Assert(err, IsNil)
-	c.Assert(client.Request.Method, Equals, "POST")
-	c.Assert(client.Request.URL.Path, Equals, "/2.0/skills")
-	c.Assert(client.DecodedRequestBody(c), DeepEquals, map[string]interface{}{
-		"action": "grant",
-		"skill": map[string]interface{}{
-			"snap": "producer",
-			"name": "skill",
-		},
-		"slot": map[string]interface{}{
-			"snap": "consumer",
-			"name": "slot",
-		},
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, Equals, "POST")
+		c.Check(r.URL.Path, Equals, "/2.0/skills")
+		c.Check(DecodedRequestBody(r, c), DeepEquals, map[string]interface{}{
+			"action": "grant",
+			"skill": map[string]interface{}{
+				"snap": "producer",
+				"name": "skill",
+			},
+			"slot": map[string]interface{}{
+				"snap": "consumer",
+				"name": "slot",
+			},
+		})
+		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
 	})
+	err := s.Execute([]string{"snap", "grant", "producer:skill", "consumer:slot"})
+	c.Assert(err, IsNil)
 }
 
 func (s *SnapSuite) TestGrantExplicitSkillImplicitSlot(c *C) {
-	client := NewLowLevelTestClient()
-	s.UseTestClient(client)
-	err := s.Execute([]string{
-		"snap", "grant", "producer:skill", "consumer"})
-	c.Assert(err, IsNil)
-	c.Assert(client.Request.Method, Equals, "POST")
-	c.Assert(client.Request.URL.Path, Equals, "/2.0/skills")
-	c.Assert(client.DecodedRequestBody(c), DeepEquals, map[string]interface{}{
-		"action": "grant",
-		"skill": map[string]interface{}{
-			"snap": "producer",
-			"name": "skill",
-		},
-		"slot": map[string]interface{}{
-			"snap": "consumer",
-			"name": "",
-		},
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, Equals, "POST")
+		c.Check(r.URL.Path, Equals, "/2.0/skills")
+		c.Check(DecodedRequestBody(r, c), DeepEquals, map[string]interface{}{
+			"action": "grant",
+			"skill": map[string]interface{}{
+				"snap": "producer",
+				"name": "skill",
+			},
+			"slot": map[string]interface{}{
+				"snap": "consumer",
+				"name": "",
+			},
+		})
+		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
 	})
+	err := s.Execute([]string{"snap", "grant", "producer:skill", "consumer"})
+	c.Assert(err, IsNil)
 }
 
 func (s *SnapSuite) TestGrantImplicitSkillExplicitSlot(c *C) {
-	client := NewLowLevelTestClient()
-	s.UseTestClient(client)
-	err := s.Execute([]string{
-		"snap", "grant", "skill", "consumer:slot"})
-	c.Assert(err, IsNil)
-	c.Assert(client.Request.Method, Equals, "POST")
-	c.Assert(client.Request.URL.Path, Equals, "/2.0/skills")
-	c.Assert(client.DecodedRequestBody(c), DeepEquals, map[string]interface{}{
-		"action": "grant",
-		"skill": map[string]interface{}{
-			"snap": "",
-			"name": "skill",
-		},
-		"slot": map[string]interface{}{
-			"snap": "consumer",
-			"name": "slot",
-		},
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, Equals, "POST")
+		c.Check(r.URL.Path, Equals, "/2.0/skills")
+		c.Check(DecodedRequestBody(r, c), DeepEquals, map[string]interface{}{
+			"action": "grant",
+			"skill": map[string]interface{}{
+				"snap": "",
+				"name": "skill",
+			},
+			"slot": map[string]interface{}{
+				"snap": "consumer",
+				"name": "slot",
+			},
+		})
+		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
 	})
+	err := s.Execute([]string{"snap", "grant", "skill", "consumer:slot"})
+	c.Assert(err, IsNil)
 }
 
 func (s *SnapSuite) TestGrantImplicitSkillImplicitSlot(c *C) {
-	client := NewLowLevelTestClient()
-	s.UseTestClient(client)
-	err := s.Execute([]string{
-		"snap", "grant", "skill", "consumer"})
-	c.Assert(err, IsNil)
-	c.Assert(client.Request.Method, Equals, "POST")
-	c.Assert(client.Request.URL.Path, Equals, "/2.0/skills")
-	c.Assert(client.DecodedRequestBody(c), DeepEquals, map[string]interface{}{
-		"action": "grant",
-		"skill": map[string]interface{}{
-			"snap": "",
-			"name": "skill",
-		},
-		"slot": map[string]interface{}{
-			"snap": "consumer",
-			"name": "",
-		},
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, Equals, "POST")
+		c.Check(r.URL.Path, Equals, "/2.0/skills")
+		c.Check(DecodedRequestBody(r, c), DeepEquals, map[string]interface{}{
+			"action": "grant",
+			"skill": map[string]interface{}{
+				"snap": "",
+				"name": "skill",
+			},
+			"slot": map[string]interface{}{
+				"snap": "consumer",
+				"name": "",
+			},
+		})
+		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
 	})
+	err := s.Execute([]string{"snap", "grant", "skill", "consumer"})
+	c.Assert(err, IsNil)
 }
