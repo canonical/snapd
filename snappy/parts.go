@@ -101,14 +101,6 @@ type Part interface {
 	InstalledSize() int64
 	DownloadSize() int64
 
-	// Install the snap
-	Install(pb progress.Meter, flags InstallFlags) (name string, err error)
-	// Config takes a yaml configuration and returns the full snap
-	// config with the changes. Note that "configuration" may be empty.
-	Config(configuration []byte) (newConfig string, err error)
-	// make an inactive part active, or viceversa
-	SetActive(bool, progress.Meter) error
-
 	// get the list of frameworks needed by the part
 	Frameworks() ([]string, error)
 }
@@ -339,12 +331,13 @@ func makeSnapActiveByNameAndVersion(pkg, ver string, inter progress.Meter) error
 		return err
 	}
 
+	overlord := &Overlord{}
 	parts := FindSnapsByNameAndVersion(pkg, ver, installed)
 	switch len(parts) {
 	case 0:
 		return fmt.Errorf("Can not find %s with version %s", pkg, ver)
 	case 1:
-		return parts[0].SetActive(true, inter)
+		return overlord.SetActive(parts[0].(*SnapPart), true, inter)
 	default:
 		return fmt.Errorf("More than one %s with version %s", pkg, ver)
 	}
