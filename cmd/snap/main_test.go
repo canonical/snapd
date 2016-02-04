@@ -47,11 +47,18 @@ func (s *SnapSuite) RedirectClientToTestServer(handler func(http.ResponseWriter,
 	s.BaseTest.AddCleanup(func() { ClientConfig.BaseURL = "" })
 }
 
-// DecodedRequestBody returns the JSON-decoded body of the request
+// DecodedRequestBody returns the JSON-decoded body of the request.
 func DecodedRequestBody(r *http.Request, c *C) map[string]interface{} {
 	var body map[string]interface{}
 	decoder := json.NewDecoder(r.Body)
 	err := decoder.Decode(&body)
 	c.Assert(err, IsNil)
 	return body
+}
+
+// EncodeResponseBody writes JSON-serialized body to the response writer.
+func EncodeResponseBody(w http.ResponseWriter, c *C, body interface{}) {
+	encoder := json.NewEncoder(w)
+	err := encoder.Encode(body)
+	c.Assert(err, IsNil)
 }
