@@ -20,9 +20,7 @@
 package main
 
 import (
-	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/logger"
 )
 
 type removeCapOptions struct {
@@ -33,18 +31,18 @@ type cmdRemoveCap struct {
 	removeCapOptions `positional-args:"true" required:"true"`
 }
 
-var (
-	shortRemoveCapHelp = i18n.G("Remove a capability from the system")
-	longRemoveCapHelp  = i18n.G("This command removes a capability from the system")
-)
+var shortRemoveCapHelp = i18n.G("Remove a capability from the system")
+var longRemoveCapHelp = i18n.G("This command removes a capability from the system")
 
 func init() {
-	_, err := parser.AddCommand("remove-cap", shortRemoveCapHelp, longRemoveCapHelp, &cmdRemoveCap{})
-	if err != nil {
-		logger.Panicf("unable to add remove-cap command: %v", err)
-	}
+	commands = append(commands, cmdInfo{
+		name:      "remove-cap",
+		shortHelp: shortRemoveCapHelp,
+		longHelp:  longRemoveCapHelp,
+		callback:  func() interface{} { return &cmdRemoveCap{} },
+	})
 }
 
 func (x *cmdRemoveCap) Execute(args []string) error {
-	return client.New(nil).RemoveCapability(x.Name)
+	return Client().RemoveCapability(x.Name)
 }

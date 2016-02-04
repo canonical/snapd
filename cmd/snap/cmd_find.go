@@ -27,13 +27,10 @@ import (
 
 	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/logger"
 )
 
-var (
-	shortFindHelp = i18n.G("Find packages to install")
-	longFindHelp  = i18n.G("Query the store for available packages")
-)
+var shortFindHelp = i18n.G("Find packages to install")
+var longFindHelp = i18n.G("Query the store for available packages")
 
 type cmdFind struct {
 	Positional struct {
@@ -42,14 +39,16 @@ type cmdFind struct {
 }
 
 func init() {
-	_, err := parser.AddCommand("find", shortFindHelp, longFindHelp, &cmdFind{})
-	if err != nil {
-		logger.Panicf("unable to add find command: %v", err)
-	}
+	commands = append(commands, cmdInfo{
+		name:      "find",
+		shortHelp: shortFindHelp,
+		longHelp:  longFindHelp,
+		callback:  func() interface{} { return &cmdFind{} },
+	})
 }
 
 func (x *cmdFind) Execute([]string) error {
-	cli := client.New(nil)
+	cli := Client()
 	filter := client.SnapFilter{
 		Query:   x.Positional.Query,
 		Sources: []string{"store"},

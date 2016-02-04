@@ -22,9 +22,7 @@ package main
 import (
 	"io/ioutil"
 
-	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/logger"
 )
 
 type assertOptions struct {
@@ -35,20 +33,20 @@ type cmdAssert struct {
 	assertOptions `positional-args:"true" required:"true"`
 }
 
-var (
-	shortAssertHelp = i18n.G("Assert tries to add an assertion to the system")
-	longAssertHelp  = i18n.G(`This command tries to add an assertion to the system assertion database.
+var shortAssertHelp = i18n.G("Assert tries to add an assertion to the system")
+var longAssertHelp = i18n.G(`This command tries to add an assertion to the system assertion database.
 
 The assertion may also be a newer revision of a preexisting assertion that it will replace.
 
 To succeed the assertion must be valid, its signature verified with a known public key and the assertion consistent with and its prerequisite in the database.`)
-)
 
 func init() {
-	_, err := parser.AddCommand("assert", shortAssertHelp, longAssertHelp, &cmdAssert{})
-	if err != nil {
-		logger.Panicf("unable to add assert command: %v", err)
-	}
+	commands = append(commands, cmdInfo{
+		name:      "assert",
+		shortHelp: shortAssertHelp,
+		longHelp:  longAssertHelp,
+		callback:  func() interface{} { return &cmdAssert{} },
+	})
 }
 
 func (x *cmdAssert) Execute(args []string) error {
@@ -59,5 +57,5 @@ func (x *cmdAssert) Execute(args []string) error {
 		return err
 	}
 
-	return client.New(nil).Assert(assertData)
+	return Client().Assert(assertData)
 }

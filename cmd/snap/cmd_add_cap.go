@@ -20,45 +20,9 @@
 package main
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/logger"
 )
-
-// AttributePair contains a pair of key-value strings
-type AttributePair struct {
-	// The key
-	Key string
-	// The value
-	Value string
-}
-
-// UnmarshalFlag parses a string into an AttributePair
-func (ap *AttributePair) UnmarshalFlag(value string) error {
-	parts := strings.SplitN(value, "=", 2)
-	if len(parts) != 2 {
-		return fmt.Errorf("expected attribute in key=value format")
-	}
-	ap.Key, ap.Value = parts[0], parts[1]
-	return nil
-}
-
-// MarshalFlag converts a AttributePair into a string
-func (ap *AttributePair) MarshalFlag() (string, error) {
-	return fmt.Sprintf("%s=%q", ap.Key, ap.Value), nil
-}
-
-// AttributePairSliceToMap converts a slice of AttributePair into a map
-func AttributePairSliceToMap(attrs []AttributePair) map[string]string {
-	result := make(map[string]string)
-	for _, attr := range attrs {
-		result[attr.Key] = attr.Value
-	}
-	return result
-}
 
 type cmdAddCap struct {
 	Name  string          `long:"name" required:"true" description:"unique capability name"`
@@ -67,16 +31,16 @@ type cmdAddCap struct {
 	Attrs []AttributePair `short:"a" description:"key=value attributes"`
 }
 
-var (
-	shortAddCapHelp = i18n.G("Add a capability to the system")
-	longAddCapHelp  = i18n.G("This command adds a capability to the system")
-)
+var shortAddCapHelp = i18n.G("Add a capability to the system")
+var longAddCapHelp = i18n.G("This command adds a capability to the system")
 
 func init() {
-	_, err := parser.AddCommand("add-cap", shortAddCapHelp, longAddCapHelp, &cmdAddCap{})
-	if err != nil {
-		logger.Panicf("unable to add add-caps command: %v", err)
-	}
+	commands = append(commands, cmdInfo{
+		name:      "add-cap",
+		shortHelp: shortAddCapHelp,
+		longHelp:  longAddCapHelp,
+		callback:  func() interface{} { return &cmdAddCap{} },
+	})
 }
 
 func (x *cmdAddCap) Execute(args []string) error {
@@ -86,5 +50,5 @@ func (x *cmdAddCap) Execute(args []string) error {
 		Type:  x.Type,
 		Attrs: AttributePairSliceToMap(x.Attrs),
 	}
-	return client.New(nil).AddCapability(cap)
+	return Client().AddCapability(cap)
 }

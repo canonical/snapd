@@ -21,13 +21,10 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/ubuntu-core/snappy/asserts"
-	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/logger"
 )
 
 type assertsOptions struct {
@@ -39,16 +36,16 @@ type cmdAsserts struct {
 	assertsOptions `positional-args:"true" required:"true"`
 }
 
-var (
-	shortAssertsHelp = i18n.G("Shows known assertions of the provided type")
-	longAssertsHelp  = i18n.G(`The asserts command shows known assertions of the provided type. If header=value pairs are provided after the assertion type, the assertions shown must also have the specified headers matching the provided values.`)
-)
+var shortAssertsHelp = i18n.G("Shows known assertions of the provided type")
+var longAssertsHelp = i18n.G(`The asserts command shows known assertions of the provided type. If header=value pairs are provided after the assertion type, the assertions shown must also have the specified headers matching the provided values.`)
 
 func init() {
-	_, err := parser.AddCommand("asserts", shortAssertsHelp, longAssertsHelp, &cmdAsserts{})
-	if err != nil {
-		logger.Panicf("cannot add asserts command: %v", err)
-	}
+	commands = append(commands, cmdInfo{
+		name:      "asserts",
+		shortHelp: shortAssertsHelp,
+		longHelp:  longAssertsHelp,
+		callback:  func() interface{} { return &cmdAsserts{} },
+	})
 }
 
 var nl = []byte{'\n'}
@@ -64,12 +61,12 @@ func (x *cmdAsserts) Execute(args []string) error {
 		headers[parts[0]] = parts[1]
 	}
 
-	assertions, err := client.New(nil).Asserts(x.AssertTypeName, headers)
+	assertions, err := Client().Asserts(x.AssertTypeName, headers)
 	if err != nil {
 		return err
 	}
 
-	enc := asserts.NewEncoder(os.Stdout)
+	enc := asserts.NewEncoder(Stdout)
 	for _, a := range assertions {
 		enc.Encode(a)
 	}
