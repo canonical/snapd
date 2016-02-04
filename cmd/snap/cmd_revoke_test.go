@@ -28,41 +28,36 @@ import (
 	. "github.com/ubuntu-core/snappy/cmd/snap"
 )
 
-func (s *SnapSuite) TestGrantHelp(c *C) {
+func (s *SnapSuite) TestRevokeHelp(c *C) {
 	msg := `Usage:
-  snap.test [OPTIONS] grant <snap>:<skill> <snap>:<skill slot>
+  snap.test [OPTIONS] revoke [<snap>:<skill>] [<snap>:<skill slot>]
 
-$ snap grant <snap>:<skill> <snap>:<skill slot>
+$ snap revoke <snap>:<skill> <snap>:<skill slot>
 
-Grants the specific skill to the specific skill slot.
+Revokes the specific skill from the specific skill slot.
 
-$ snap grant <snap>:<skill> <snap>
+$ snap revoke <snap>:<skill slot>
 
-Grants the specific skill to the only skill slot in the provided snap that
-matches the granted skill type. If more than one potential slot exists, the
-command fails.
+Revokes any previously granted skill from the provided skill slot.
 
-$ snap grant <skill> <snap>[:<skill slot>]
+$ snap revoke <snap>
 
-Without a name for the snap offering the skill, the skill name is looked at in
-the gadget snap, the kernel snap, and then the os snap, in that order. The
-first of these snaps that has a matching skill name is used and the command
-proceeds as above.
+Revokes all skills from the provided snap.
 
 Help Options:
   -h, --help                     Show this help message
 `
-	rest, err := Parser().ParseArgs([]string{"grant", "--help"})
+	rest, err := Parser().ParseArgs([]string{"revoke", "--help"})
 	c.Assert(err.Error(), Equals, msg)
 	c.Assert(rest, DeepEquals, []string{})
 }
 
-func (s *SnapSuite) TestGrantExplicitEverything(c *C) {
+func (s *SnapSuite) TestRevokeExplicitEverything(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "POST")
 		c.Check(r.URL.Path, Equals, "/2.0/skills")
 		c.Check(DecodedRequestBody(r, c), DeepEquals, map[string]interface{}{
-			"action": "grant",
+			"action": "revoke",
 			"skill": map[string]interface{}{
 				"snap": "producer",
 				"name": "skill",
@@ -74,42 +69,20 @@ func (s *SnapSuite) TestGrantExplicitEverything(c *C) {
 		})
 		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
 	})
-	rest, err := Parser().ParseArgs([]string{"grant", "producer:skill", "consumer:slot"})
+	rest, err := Parser().ParseArgs([]string{"revoke", "producer:skill", "consumer:slot"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 }
 
-func (s *SnapSuite) TestGrantExplicitSkillImplicitSlot(c *C) {
+func (s *SnapSuite) TestRevokeEverythingFromSpecificSlot(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "POST")
 		c.Check(r.URL.Path, Equals, "/2.0/skills")
 		c.Check(DecodedRequestBody(r, c), DeepEquals, map[string]interface{}{
-			"action": "grant",
-			"skill": map[string]interface{}{
-				"snap": "producer",
-				"name": "skill",
-			},
-			"slot": map[string]interface{}{
-				"snap": "consumer",
-				"name": "",
-			},
-		})
-		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
-	})
-	rest, err := Parser().ParseArgs([]string{"grant", "producer:skill", "consumer"})
-	c.Assert(err, IsNil)
-	c.Assert(rest, DeepEquals, []string{})
-}
-
-func (s *SnapSuite) TestGrantImplicitSkillExplicitSlot(c *C) {
-	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.Method, Equals, "POST")
-		c.Check(r.URL.Path, Equals, "/2.0/skills")
-		c.Check(DecodedRequestBody(r, c), DeepEquals, map[string]interface{}{
-			"action": "grant",
+			"action": "revoke",
 			"skill": map[string]interface{}{
 				"snap": "",
-				"name": "skill",
+				"name": "",
 			},
 			"slot": map[string]interface{}{
 				"snap": "consumer",
@@ -118,20 +91,20 @@ func (s *SnapSuite) TestGrantImplicitSkillExplicitSlot(c *C) {
 		})
 		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
 	})
-	rest, err := Parser().ParseArgs([]string{"grant", "skill", "consumer:slot"})
+	rest, err := Parser().ParseArgs([]string{"revoke", "consumer:slot"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 }
 
-func (s *SnapSuite) TestGrantImplicitSkillImplicitSlot(c *C) {
+func (s *SnapSuite) TestRevokeEverythingFromSpecificSnap(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "POST")
 		c.Check(r.URL.Path, Equals, "/2.0/skills")
 		c.Check(DecodedRequestBody(r, c), DeepEquals, map[string]interface{}{
-			"action": "grant",
+			"action": "revoke",
 			"skill": map[string]interface{}{
 				"snap": "",
-				"name": "skill",
+				"name": "",
 			},
 			"slot": map[string]interface{}{
 				"snap": "consumer",
@@ -140,7 +113,8 @@ func (s *SnapSuite) TestGrantImplicitSkillImplicitSlot(c *C) {
 		})
 		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
 	})
-	rest, err := Parser().ParseArgs([]string{"grant", "skill", "consumer"})
+	// FIXME: without "" the slot state from other tests leaks to this test.
+	rest, err := Parser().ParseArgs([]string{"revoke", "consumer", ""})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 }

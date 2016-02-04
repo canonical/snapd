@@ -47,12 +47,6 @@ func (s *SnapSuite) RedirectClientToTestServer(handler func(http.ResponseWriter,
 	s.BaseTest.AddCleanup(func() { ClientConfig.BaseURL = "" })
 }
 
-// Execute runs snappy as if invoked on command line
-func (s *SnapSuite) Execute(args []string) error {
-	_, err := Parser().ParseArgs(args)
-	return err
-}
-
 // DecodedRequestBody returns the JSON-decoded body of the request
 func DecodedRequestBody(r *http.Request, c *C) map[string]interface{} {
 	var body map[string]interface{}
