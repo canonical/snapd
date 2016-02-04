@@ -49,7 +49,7 @@ type Config struct {
 
 // A Client knows how to talk to the snappy daemon.
 type Client struct {
-	baseURL *url.URL
+	baseURL url.URL
 	doer    doer
 }
 
@@ -58,7 +58,7 @@ func New(config *Config) *Client {
 	// By default talk over an UNIX socket.
 	if config == nil || config.BaseURL == "" {
 		return &Client{
-			baseURL: &url.URL{
+			baseURL: url.URL{
 				Scheme: "http",
 				Host:   "localhost",
 			},
@@ -72,7 +72,7 @@ func New(config *Config) *Client {
 		panic(err.Error())
 	}
 	return &Client{
-		baseURL: baseURL,
+		baseURL: *baseURL,
 		doer:    &http.Client{},
 	}
 }
