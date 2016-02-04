@@ -30,31 +30,6 @@ import (
 	"github.com/ubuntu-core/snappy/client"
 )
 
-type Call struct {
-	Fn   string
-	Args []interface{}
-}
-
-// HighLevelTestClient a client compatible with snap commands.
-// It allows observing and faking calls to the Client methods.  It does not use
-// a real client.Client() so it is totally detached from the client package.
-type HighLevelTestClient struct {
-	Calls []Call
-}
-
-func NewHighLevelTestClient() *HighLevelTestClient {
-	return &HighLevelTestClient{}
-}
-
-func (c *HighLevelTestClient) Grant(skillSnapName, skillName, slotSnapName, slotName string) error {
-	call := Call{
-		Fn:   "Grant",
-		Args: []interface{}{skillSnapName, skillName, slotSnapName, slotName},
-	}
-	c.Calls = append(c.Calls, call)
-	return nil
-}
-
 // LowLevelTestClient is a client compatible with snap commands.
 // It allows observing and faking raw HTTP requests and responses.
 // It is using a real client.Client() for all of the Client methods so it has

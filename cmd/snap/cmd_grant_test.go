@@ -51,7 +51,7 @@ Help Options:
 	c.Assert(err.Error(), Equals, msg)
 }
 
-func (s *SnapSuite) TestWireGrantExplicitEverything(c *C) {
+func (s *SnapSuite) TestGrantExplicitEverything(c *C) {
 	client := NewLowLevelTestClient()
 	s.UseTestClient(client)
 	err := s.Execute([]string{
@@ -68,20 +68,6 @@ func (s *SnapSuite) TestWireGrantExplicitEverything(c *C) {
 		"slot": map[string]interface{}{
 			"snap": "consumer",
 			"name": "slot",
-		},
-	})
-}
-
-func (s *SnapSuite) TestAbstractGrantExplicitEverything(c *C) {
-	client := NewHighLevelTestClient()
-	s.UseTestClient(client)
-	err := s.Execute([]string{
-		"snap", "grant", "producer:skill", "consumer:slot"})
-	c.Assert(err, IsNil)
-	c.Assert(client.Calls, DeepEquals, []Call{
-		{
-			Fn:   "Grant",
-			Args: []interface{}{"producer", "skill", "consumer", "slot"},
 		},
 	})
 }
