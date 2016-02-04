@@ -584,11 +584,6 @@ func snapConfig(c *Command, r *http.Request) Response {
 	return SyncResponse(config)
 }
 
-type configSubtask struct {
-	Status string      `json:"status"`
-	Output interface{} `json:"output"`
-}
-
 func getOpInfo(c *Command, r *http.Request) Response {
 	route := c.d.router.Get(c.Path)
 	if route == nil {
