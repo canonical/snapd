@@ -51,8 +51,16 @@ func wrapConfig(pkgName string, conf interface{}) ([]byte, error) {
 
 var newPartMap = newPartMapImpl
 
+type configurator interface {
+	Configure(*SnapPart, []byte) (string, error)
+}
+
+var newOverlord = func() configurator {
+	return (&Overlord{})
+}
+
 func newPartMapImpl() (map[string]Part, error) {
-	repo := NewMetaLocalRepository()
+	repo := NewLocalSnapRepository()
 	all, err := repo.All()
 	if err != nil {
 		return nil, err
@@ -108,7 +116,8 @@ func gadgetConfig() error {
 			return err
 		}
 
-		if _, err := snap.Config(configData); err != nil {
+		overlord := newOverlord()
+		if _, err := overlord.Configure(snap.(*SnapPart), configData); err != nil {
 			return err
 		}
 	}
@@ -116,21 +125,30 @@ func gadgetConfig() error {
 	return nil
 }
 
+type activator interface {
+	SetActive(sp *SnapPart, active bool, meter progress.Meter) error
+}
+
+var getActivator = func() activator {
+	return &Overlord{}
+}
+
 // enableSystemSnaps activates the installed kernel/os/gadget snaps
 // on the first boot
 func enableSystemSnaps() error {
-	repo := NewMetaLocalRepository()
+	repo := NewLocalSnapRepository()
 	all, err := repo.All()
 	if err != nil {
 		return nil
 	}
 
+	activator := getActivator()
 	pb := progress.MakeProgressBar()
 	for _, part := range all {
 		switch part.Type() {
 		case snap.TypeGadget, snap.TypeKernel, snap.TypeOS:
 			logger.Noticef("Acitvating %s", FullName(part))
-			if err := part.SetActive(true, pb); err != nil {
+			if err := activator.SetActive(part.(*SnapPart), true, pb); err != nil {
 				// we don't want this to fail for now
 				logger.Noticef("failed to acitvate %s: %s", FullName(part), err)
 			}

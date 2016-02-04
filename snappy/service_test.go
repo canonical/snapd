@@ -76,6 +76,8 @@ func (s *ServiceActorSuite) SetUpTest(c *C) {
 	os.Setenv("TZ", "")
 
 	dirs.SetRootDir(c.MkDir())
+	os.MkdirAll(dirs.SnapSnapsDir, 0755)
+
 	// TODO: this mkdir hack is so enable doesn't fail; remove when enable is the same as the rest
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/multi-user.target.wants"), 0755), IsNil)
 	systemd.SystemctlCmd = s.myRun
@@ -116,6 +118,8 @@ func (s *ServiceActorSuite) TestFindServicesNoPackages(c *C) {
 func (s *ServiceActorSuite) TestFindServicesNoPackagesNoPattern(c *C) {
 	// tricky way of hiding the installed package ;)
 	dirs.SetRootDir(c.MkDir())
+	os.MkdirAll(dirs.SnapSnapsDir, 0755)
+
 	actor, err := FindServices("", "", s.pb)
 	c.Check(err, IsNil)
 	c.Assert(actor, NotNil)

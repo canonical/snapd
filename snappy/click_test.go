@@ -365,7 +365,7 @@ func (s *SnapTestSuite) TestClickSetActive(c *C) {
 	c.Assert(err, IsNil)
 
 	// ensure v2 is active
-	repo := NewLocalSnapRepository(filepath.Join(s.tempdir, "snaps"))
+	repo := NewLocalSnapRepository()
 	parts, err := repo.Installed()
 	c.Assert(err, IsNil)
 	c.Assert(parts, HasLen, 2)
