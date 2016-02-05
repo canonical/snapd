@@ -27,7 +27,6 @@ import (
 	"github.com/ubuntu-core/snappy/asserts"
 	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/logger"
 )
 
 type assertsOptions struct {
@@ -45,10 +44,9 @@ var (
 )
 
 func init() {
-	_, err := parser.AddCommand("asserts", shortAssertsHelp, longAssertsHelp, &cmdAsserts{})
-	if err != nil {
-		logger.Panicf("cannot add asserts command: %v", err)
-	}
+	addCommand("asserts", shortAssertsHelp, longAssertsHelp, func() interface{} {
+		return &cmdAsserts{}
+	})
 }
 
 var nl = []byte{'\n'}

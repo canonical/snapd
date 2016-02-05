@@ -25,7 +25,6 @@ import (
 
 	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/logger"
 )
 
 // AttributePair contains a pair of key-value strings
@@ -73,10 +72,9 @@ var (
 )
 
 func init() {
-	_, err := parser.AddCommand("add-cap", shortAddCapHelp, longAddCapHelp, &cmdAddCap{})
-	if err != nil {
-		logger.Panicf("unable to add add-caps command: %v", err)
-	}
+	addCommand("add-cap", shortAddCapHelp, longAddCapHelp, func() interface{} {
+		return &cmdAddCap{}
+	})
 }
 
 func (x *cmdAddCap) Execute(args []string) error {
