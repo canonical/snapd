@@ -42,11 +42,6 @@ func (ap *AttributePair) UnmarshalFlag(value string) error {
 	return nil
 }
 
-// MarshalFlag converts a AttributePair into a string
-func (ap *AttributePair) MarshalFlag() (string, error) {
-	return fmt.Sprintf("%s=%q", ap.Key, ap.Value), nil
-}
-
 // AttributePairSliceToMap converts a slice of AttributePair into a map
 func AttributePairSliceToMap(attrs []AttributePair) map[string]string {
 	result := make(map[string]string)
