@@ -99,9 +99,6 @@ type Part interface {
 	InstalledSize() int64
 	DownloadSize() int64
 
-	// make an inactive part active, or viceversa
-	SetActive(bool, progress.Meter) error
-
 	// get the list of frameworks needed by the part
 	Frameworks() ([]string, error)
 }
@@ -307,12 +304,13 @@ func makeSnapActiveByNameAndVersion(pkg, ver string, inter progress.Meter) error
 		return err
 	}
 
+	overlord := &Overlord{}
 	parts := FindSnapsByNameAndVersion(pkg, ver, installed)
 	switch len(parts) {
 	case 0:
 		return fmt.Errorf("Can not find %s with version %s", pkg, ver)
 	case 1:
-		return parts[0].SetActive(true, inter)
+		return overlord.SetActive(parts[0].(*SnapPart), true, inter)
 	default:
 		return fmt.Errorf("More than one %s with version %s", pkg, ver)
 	}

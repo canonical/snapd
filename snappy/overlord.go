@@ -334,8 +334,12 @@ func (o *Overlord) Uninstall(s *SnapPart, meter progress.Meter) error {
 // SetActive sets the active state of the given snap
 //
 // It returns an error on failure
-func (o *Overlord) SetActive(sp *SnapPart, active bool, meter progress.Meter) error {
-	return ErrNotImplemented
+func (o *Overlord) SetActive(s *SnapPart, active bool, meter progress.Meter) error {
+	if active {
+		return s.activate(false, meter)
+	}
+
+	return s.deactivate(false, meter)
 }
 
 // Configure configures the given snap

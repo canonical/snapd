@@ -232,15 +232,6 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 	return "", ErrAlreadyInstalled
 }
 
-// SetActive sets the snap active
-func (s *SnapPart) SetActive(active bool, pb progress.Meter) (err error) {
-	if active {
-		return s.activate(false, pb)
-	}
-
-	return s.deactivate(false, pb)
-}
-
 func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 	currentActiveSymlink := filepath.Join(s.basedir, "..", "current")
 	currentActiveDir, _ := filepath.EvalSymlinks(currentActiveSymlink)
