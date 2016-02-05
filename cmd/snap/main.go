@@ -45,6 +45,17 @@ type cmdInfo struct {
 // commands holds information about all non-experimental commands.
 var commands []cmdInfo
 
+// addCommand replaces parser.addCommand() in a way that is compatible with
+// re-constructing a pristine parser.
+func addCommand(name, shortHelp, longHelp string, builder func() interface{}) {
+	commands = append(commands, cmdInfo{
+		name:      name,
+		shortHelp: shortHelp,
+		longHelp:  longHelp,
+		builder:   builder,
+	})
+}
+
 // Parser creates and populates a fresh parser.
 // Since commands have local state a fresh parser is required to isolate tests
 // from each other.

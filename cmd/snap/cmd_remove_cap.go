@@ -38,11 +38,8 @@ var (
 )
 
 func init() {
-	commands = append(commands, cmdInfo{
-		name:      "remove-cap",
-		shortHelp: shortRemoveCapHelp,
-		longHelp:  longRemoveCapHelp,
-		builder:   func() interface{} { return &cmdRemoveCap{} },
+	addCommand("remove-cap", shortRemoveCapHelp, longRemoveCapHelp, func() interface{} {
+		return &cmdRemoveCap{}
 	})
 }
 

@@ -37,11 +37,8 @@ var (
 )
 
 func init() {
-	commands = append(commands, cmdInfo{
-		name:      "list-caps",
-		shortHelp: shortListCapsHelp,
-		longHelp:  longListCapsHelp,
-		builder:   func() interface{} { return &cmdListCaps{} },
+	addCommand("list-caps", shortListCapsHelp, longListCapsHelp, func() interface{} {
+		return &cmdListCaps{}
 	})
 }
 

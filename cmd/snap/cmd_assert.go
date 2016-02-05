@@ -44,11 +44,8 @@ To succeed the assertion must be valid, its signature verified with a known publ
 )
 
 func init() {
-	commands = append(commands, cmdInfo{
-		name:      "assert",
-		shortHelp: shortAssertHelp,
-		longHelp:  longAssertHelp,
-		builder:   func() interface{} { return &cmdAssert{} },
+	addCommand("assert", shortAssertHelp, longAssertHelp, func() interface{} {
+		return &cmdAssert{}
 	})
 }
 

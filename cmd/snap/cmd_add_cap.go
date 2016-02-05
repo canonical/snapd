@@ -72,11 +72,8 @@ var (
 )
 
 func init() {
-	commands = append(commands, cmdInfo{
-		name:      "add-cap",
-		shortHelp: shortAddCapHelp,
-		longHelp:  longAddCapHelp,
-		builder:   func() interface{} { return &cmdAddCap{} },
+	addCommand("add-cap", shortAddCapHelp, longAddCapHelp, func() interface{} {
+		return &cmdAddCap{}
 	})
 }
 

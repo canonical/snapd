@@ -44,11 +44,8 @@ var (
 )
 
 func init() {
-	commands = append(commands, cmdInfo{
-		name:      "asserts",
-		shortHelp: shortAssertsHelp,
-		longHelp:  longAssertsHelp,
-		builder:   func() interface{} { return &cmdAsserts{} },
+	addCommand("asserts", shortAssertsHelp, longAssertsHelp, func() interface{} {
+		return &cmdAsserts{}
 	})
 }
 

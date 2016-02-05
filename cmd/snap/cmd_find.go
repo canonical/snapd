@@ -41,11 +41,8 @@ type cmdFind struct {
 }
 
 func init() {
-	commands = append(commands, cmdInfo{
-		name:      "find",
-		shortHelp: shortFindHelp,
-		longHelp:  longFindHelp,
-		builder:   func() interface{} { return &cmdFind{} },
+	addCommand("find", shortFindHelp, longFindHelp, func() interface{} {
+		return &cmdFind{}
 	})
 }
 
