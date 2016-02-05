@@ -45,8 +45,13 @@ func init() {
 
 func main() {
 	if err := run(); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
+		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
+			fmt.Fprintf(os.Stdout, "%v\n", err)
+			os.Exit(0)
+		} else {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
 	}
 }
 
