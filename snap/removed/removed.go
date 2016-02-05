@@ -29,7 +29,6 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/remote"
 	"github.com/ubuntu-core/snappy/snappy"
@@ -131,9 +130,6 @@ func (r *Removed) DownloadSize() int64 {
 
 // Config from the snappy.Part interface
 func (r *Removed) Config(configuration []byte) (newConfig string, err error) { return "", ErrRemoved }
-
-// SetActive from the snappy.Part interface
-func (r *Removed) SetActive(bool, progress.Meter) error { return ErrRemoved }
 
 // Frameworks from the snappy.Part interface
 func (r *Removed) Frameworks() ([]string, error) { return nil, ErrRemoved }
