@@ -88,7 +88,7 @@ func Parser() *flags.Parser {
 	// Add all the sub-commands of the experimental command
 	for _, c := range experimentalCommands {
 		if _, err = experimentalCommand.AddCommand(c.name, c.shortHelp, c.longHelp, c.builder()); err != nil {
-			logger.Panicf("cannot add command %q: %v", c.name, err)
+			logger.Panicf("cannot add experimental command %q: %v", c.name, err)
 		}
 	}
 	return parser
