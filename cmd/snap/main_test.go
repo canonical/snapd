@@ -49,3 +49,11 @@ func (s *SnapSuite) SetUpTest(c *C) {
 	s.BaseTest.AddCleanup(func() { Stdout = os.Stdout })
 	s.BaseTest.AddCleanup(func() { Stderr = os.Stderr })
 }
+
+func (s *SnapSuite) Stdout() string {
+	return s.stdout.String()
+}
+
+func (s *SnapSuite) Stderr() string {
+	return s.stderr.String()
+}
