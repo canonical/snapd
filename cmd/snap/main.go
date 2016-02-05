@@ -37,7 +37,7 @@ var optionsData options
 
 var parser = flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash)
 
-// ClientConfig is the configuration of the client.Client used by all commands.
+// ClientConfig is the configuration of the Client used by all commands.
 var ClientConfig client.Config
 
 // Client returns a new client using ClientConfig as configuration.
