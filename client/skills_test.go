@@ -109,7 +109,7 @@ func (cs *clientSuite) TestClientRevoke(c *check.C) {
 		"type": "sync",
 		"result": { }
 	}`
-	err := cs.cli.Revoke("producer", "skill", "consumer", "snap")
+	err := cs.cli.Revoke("producer", "skill", "consumer", "slot")
 	c.Check(err, check.IsNil)
 	var body map[string]interface{}
 	decoder := json.NewDecoder(cs.req.Body)
