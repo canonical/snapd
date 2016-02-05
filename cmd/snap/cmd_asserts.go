@@ -21,7 +21,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/ubuntu-core/snappy/asserts"
@@ -69,7 +68,7 @@ func (x *cmdAsserts) Execute(args []string) error {
 		return err
 	}
 
-	enc := asserts.NewEncoder(os.Stdout)
+	enc := asserts.NewEncoder(Stdout)
 	for _, a := range assertions {
 		enc.Encode(a)
 	}

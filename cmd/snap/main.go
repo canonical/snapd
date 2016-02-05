@@ -21,6 +21,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/ubuntu-core/snappy/logger"
@@ -45,13 +46,13 @@ var parser = flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash)
 func init() {
 	err := logger.SimpleSetup()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "WARNING: failed to activate logging: %s\n", err)
+		fmt.Fprintf(Stderr, "WARNING: failed to activate logging: %s\n", err)
 	}
 }
 
 func main() {
 	if err := run(); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		fmt.Fprintf(Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
 }
