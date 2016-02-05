@@ -217,18 +217,19 @@ func SyncBoot() error {
 	kernelSnap, _ := bootloader.GetBootVar("snappy_kernel")
 	osSnap, _ := bootloader.GetBootVar("snappy_os")
 
-	installed, err := NewMetaLocalRepository().Installed()
+	installed, err := NewLocalSnapRepository().Installed()
 	if err != nil {
 		return fmt.Errorf("failed to run SyncBoot: %s", err)
 	}
 
+	overlord := &Overlord{}
 	for _, snap := range []string{kernelSnap, osSnap} {
 		name, ver := nameAndVersionFromSnap(snap)
 		found := FindSnapsByNameAndVersion(name, ver, installed)
 		if len(found) != 1 {
 			return fmt.Errorf("can not SyncBoot, expected 1 snap for %s %s found %d", name, ver, len(found))
 		}
-		if err := found[0].SetActive(true, nil); err != nil {
+		if err := overlord.SetActive(found[0].(*SnapPart), true, nil); err != nil {
 			return fmt.Errorf("can not SyncBoot, failed to make %s active: %s", found[0].Name(), err)
 		}
 	}

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,14 +17,18 @@
  *
  */
 
-package snappy
+package main
 
-// ListInstalled returns all installed snaps
-func ListInstalled() ([]Part, error) {
-	return NewLocalSnapRepository().Installed()
-}
+import (
+	"github.com/ubuntu-core/snappy/i18n"
+)
 
-// ListUpdates returns all snaps with updates
-func ListUpdates() ([]Part, error) {
-	return NewUbuntuStoreSnapRepository().Updates()
-}
+type cmdExperimental struct{}
+
+var shortExperimentalHelp = i18n.G("Runs unsupported experimental commands")
+var longExperimentalHelp = i18n.G(`
+The experimental command contains a selection of additional sub-commands.
+
+Experimental commands can be removed without notice and may not work on
+non-development systems.
+`)

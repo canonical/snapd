@@ -24,7 +24,6 @@ import (
 	"os"
 	"text/tabwriter"
 
-	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
 )
 
@@ -43,7 +42,7 @@ func init() {
 }
 
 func (x *cmdListCaps) Execute(args []string) error {
-	cli := client.New(nil)
+	cli := Client()
 	caps, err := cli.Capabilities()
 	if err != nil {
 		return err

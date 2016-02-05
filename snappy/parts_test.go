@@ -26,7 +26,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 )
@@ -114,7 +113,7 @@ type: framework`)
 
 func (s *SnapTestSuite) TestFindSnapsByNameNotAvailable(c *C) {
 	_, err := makeInstalledMockSnap(s.tempdir, "")
-	repo := NewLocalSnapRepository(dirs.SnapSnapsDir)
+	repo := NewLocalSnapRepository()
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
 
@@ -124,7 +123,7 @@ func (s *SnapTestSuite) TestFindSnapsByNameNotAvailable(c *C) {
 
 func (s *SnapTestSuite) TestFindSnapsByNameFound(c *C) {
 	_, err := makeInstalledMockSnap(s.tempdir, "")
-	repo := NewLocalSnapRepository(dirs.SnapSnapsDir)
+	repo := NewLocalSnapRepository()
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 1)
@@ -136,7 +135,7 @@ func (s *SnapTestSuite) TestFindSnapsByNameFound(c *C) {
 
 func (s *SnapTestSuite) TestFindSnapsByNameWithOrigin(c *C) {
 	_, err := makeInstalledMockSnap(s.tempdir, "")
-	repo := NewLocalSnapRepository(dirs.SnapSnapsDir)
+	repo := NewLocalSnapRepository()
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 1)
@@ -148,7 +147,7 @@ func (s *SnapTestSuite) TestFindSnapsByNameWithOrigin(c *C) {
 
 func (s *SnapTestSuite) TestFindSnapsByNameWithOriginNotThere(c *C) {
 	_, err := makeInstalledMockSnap(s.tempdir, "")
-	repo := NewLocalSnapRepository(dirs.SnapSnapsDir)
+	repo := NewLocalSnapRepository()
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 1)
@@ -180,7 +179,7 @@ func (s *SnapTestSuite) TestPackageNameInstalled(c *C) {
 
 func (s *SnapTestSuite) TestFindSnapsByNameAndVersion(c *C) {
 	_, err := makeInstalledMockSnap(s.tempdir, "")
-	repo := NewLocalSnapRepository(dirs.SnapSnapsDir)
+	repo := NewLocalSnapRepository()
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
 
@@ -203,7 +202,7 @@ func (s *SnapTestSuite) TestFindSnapsByNameAndVersion(c *C) {
 
 func (s *SnapTestSuite) TestFindSnapsByNameAndVersionFmk(c *C) {
 	_, err := makeInstalledMockSnap(s.tempdir, "name: fmk\ntype: framework\nversion: 1")
-	repo := NewLocalSnapRepository(dirs.SnapSnapsDir)
+	repo := NewLocalSnapRepository()
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
 

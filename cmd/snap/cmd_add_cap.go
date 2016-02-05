@@ -84,5 +84,5 @@ func (x *cmdAddCap) Execute(args []string) error {
 		Type:  x.Type,
 		Attrs: AttributePairSliceToMap(x.Attrs),
 	}
-	return client.New(nil).AddCapability(cap)
+	return Client().AddCapability(cap)
 }

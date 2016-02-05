@@ -21,7 +21,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"text/tabwriter"
 
@@ -47,7 +46,7 @@ func init() {
 }
 
 func (x *cmdFind) Execute([]string) error {
-	cli := client.New(nil)
+	cli := Client()
 	filter := client.SnapFilter{
 		Query:   x.Positional.Query,
 		Sources: []string{"store"},
@@ -73,7 +72,7 @@ func (x *cmdFind) Execute([]string) error {
 	}
 	sort.Strings(names)
 
-	w := tabwriter.NewWriter(os.Stdout, 5, 3, 1, ' ', 0)
+	w := tabwriter.NewWriter(Stdout, 5, 3, 1, ' ', 0)
 	defer w.Flush()
 
 	fmt.Fprintln(w, i18n.G("Name\tVersion\tSummary"))

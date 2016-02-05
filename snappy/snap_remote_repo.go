@@ -186,11 +186,6 @@ func setUbuntuStoreHeaders(req *http.Request) {
 	}
 }
 
-// Description describes the repository
-func (s *SnapUbuntuStoreRepository) Description() string {
-	return fmt.Sprintf("Snap remote repository for %s", s.searchURI)
-}
-
 // Snap returns the RemoteSnapPart for the given name or an error.
 func (s *SnapUbuntuStoreRepository) Snap(snapName string) (*RemoteSnapPart, error) {
 
@@ -386,11 +381,6 @@ func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
 	}
 
 	return parts, nil
-}
-
-// Installed returns the installed snaps from this repository
-func (s *SnapUbuntuStoreRepository) Installed() (parts []Part, err error) {
-	return nil, err
 }
 
 // Download downloads the given snap and returns its filename.

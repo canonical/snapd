@@ -20,7 +20,6 @@
 package main
 
 import (
-	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
 )
 
@@ -44,5 +43,5 @@ func init() {
 }
 
 func (x *cmdRemoveCap) Execute(args []string) error {
-	return client.New(nil).RemoveCapability(x.Name)
+	return Client().RemoveCapability(x.Name)
 }

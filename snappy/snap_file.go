@@ -20,7 +20,6 @@
 package snappy
 
 import (
-	"fmt"
 	"path/filepath"
 	"time"
 
@@ -138,11 +137,6 @@ func (s *SnapFile) Icon() string {
 // IsActive returns whether it is active.
 func (s *SnapFile) IsActive() bool {
 	return false
-}
-
-// SetActive sets the snap to the new active state
-func (s *SnapFile) SetActive(bool, progress.Meter) error {
-	return fmt.Errorf("not possible for a SnapFile")
 }
 
 // IsInstalled returns if its installed

@@ -27,7 +27,6 @@ import (
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
-	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/remote"
 )
@@ -128,11 +127,6 @@ func (s *RemoteSnapPart) saveStoreManifest() error {
 
 	// don't worry about previous contents
 	return helpers.AtomicWriteFile(RemoteManifestPath(s), content, 0644, 0)
-}
-
-// SetActive sets the snap active
-func (s *RemoteSnapPart) SetActive(bool, progress.Meter) error {
-	return ErrNotInstalled
 }
 
 // Config is used to to configure the snap

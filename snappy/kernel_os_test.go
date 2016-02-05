@@ -73,7 +73,7 @@ func (s *kernelTestSuite) TestSyncBoot(c *C) {
 	c.Assert(err, IsNil)
 
 	// ensure our mock env is correct, 3 snaps (1 os + 2 kernels)
-	installed, err := NewMetaLocalRepository().Installed()
+	installed, err := NewLocalSnapRepository().Installed()
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 3)
 	// ensure that v2 is the active one
@@ -96,7 +96,7 @@ func (s *kernelTestSuite) TestSyncBoot(c *C) {
 	c.Assert(err, IsNil)
 
 	// ensure that v1 is active now
-	installed, err = NewMetaLocalRepository().Installed()
+	installed, err = NewLocalSnapRepository().Installed()
 	c.Assert(err, IsNil)
 	found = FindSnapsByNameAndVersion("linux", "v1", installed)
 	c.Assert(found, HasLen, 1)

@@ -409,7 +409,8 @@ WantedBy={{.ServiceSystemdTarget}}
 		servicesSystemdTarget,
 		origin,
 		arch.UbuntuArchitecture(),
-		"%h",
+		// systemd runs as PID 1 so %h will not work.
+		"/root",
 		"",
 		desc.SocketFileName,
 		restartCond,

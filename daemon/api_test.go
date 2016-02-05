@@ -45,7 +45,6 @@ import (
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/skills"
 	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/lightweight"
 	"github.com/ubuntu-core/snappy/snappy"
 	"github.com/ubuntu-core/snappy/systemd"
 	"github.com/ubuntu-core/snappy/testutil"
@@ -57,6 +56,7 @@ type apiSuite struct {
 	err        error
 	vars       map[string]string
 	searchTerm string
+	overlord   *fakeOverlord
 }
 
 var _ = check.Suite(&apiSuite{})
@@ -94,10 +94,14 @@ func (s *apiSuite) TearDownSuite(c *check.C) {
 func (s *apiSuite) SetUpTest(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapLockFile), 0755), check.IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapSnapsDir, 0755), check.IsNil)
 
 	s.parts = nil
 	s.err = nil
 	s.vars = nil
+	s.overlord = &fakeOverlord{
+		configs: map[string]string{},
+	}
 }
 
 func (s *apiSuite) TearDownTest(c *check.C) {
@@ -291,6 +295,7 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"pkgActionDispatch",
 		// snapInstruction vars:
 		"snappyInstall",
+		"getConfigurator",
 	}
 	c.Check(found, check.Equals, len(api)+len(exceptions),
 		check.Commentf(`At a glance it looks like you've not added all the Commands defined in api to the api list. If that is not the case, please add the exception to the "exceptions" list in this test.`))
@@ -767,19 +772,31 @@ func (c cfgc) Load(string) (snappy.Part, error) {
 	return &tP{name: "foo", version: "v1", origin: "bar", isActive: true, config: c.cfg, configErr: c.err}, nil
 }
 
+type fakeOverlord struct {
+	configs map[string]string
+}
+
+func (o *fakeOverlord) Configure(s *snappy.SnapPart, c []byte) (string, error) {
+	if len(c) > 0 {
+		o.configs[s.Name()] = string(c)
+	}
+	config, ok := o.configs[s.Name()]
+	if !ok {
+		return "", fmt.Errorf("no config for %q", s.Name())
+	}
+	return config, nil
+}
+
 func (s *apiSuite) TestSnapGetConfig(c *check.C) {
 	req, err := http.NewRequest("GET", "/2.0/snaps/foo.bar/config", bytes.NewBuffer(nil))
 	c.Assert(err, check.IsNil)
 
-	configStr := "some: config"
-	oldConcrete := lightweight.NewConcrete
-	defer func() {
-		lightweight.NewConcrete = oldConcrete
-	}()
-	lightweight.NewConcrete = func(*lightweight.PartBag, string) lightweight.Concreter {
-		return &cfgc{cfg: configStr}
+	getConfigurator = func() configurator {
+		return s.overlord
 	}
 
+	configStr := "some: config"
+	s.overlord.configs["foo"] = configStr
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 	s.mkInstalled(c, "foo", "bar", "v1", true, "")
 
@@ -818,9 +835,11 @@ func (s *apiSuite) TestSnapGetConfigInactive(c *check.C) {
 
 func (s *apiSuite) TestSnapGetConfigNoConfig(c *check.C) {
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
+	getConfigurator = func() configurator {
+		return s.overlord
+	}
 
 	s.mkInstalled(c, "foo", "bar", "v1", true, "")
-
 	req, err := http.NewRequest("GET", "/2.0/snaps/foo.bar/config", bytes.NewBuffer(nil))
 	c.Assert(err, check.IsNil)
 
@@ -834,13 +853,9 @@ func (s *apiSuite) TestSnapPutConfig(c *check.C) {
 	req, err := http.NewRequest("PUT", "/2.0/snaps/foo.bar/config", bytes.NewBufferString(newConfigStr))
 	c.Assert(err, check.IsNil)
 
-	configStr := "some: config"
-	oldConcrete := lightweight.NewConcrete
-	defer func() {
-		lightweight.NewConcrete = oldConcrete
-	}()
-	lightweight.NewConcrete = func(*lightweight.PartBag, string) lightweight.Concreter {
-		return &cfgc{cfg: configStr}
+	//configStr := "some: config"
+	getConfigurator = func() configurator {
+		return s.overlord
 	}
 
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}

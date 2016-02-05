@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/progress"
 
@@ -43,6 +44,8 @@ var _ = Suite(&remoteRepoTestSuite{})
 func (t *remoteRepoTestSuite) SetUpTest(c *C) {
 	t.store = NewUbuntuStoreSnapRepository()
 	t.origDownloadFunc = download
+	dirs.SetRootDir(c.MkDir())
+	c.Assert(os.MkdirAll(dirs.SnapSnapsDir, 0755), IsNil)
 }
 
 func (t *remoteRepoTestSuite) TearDownTest(c *C) {

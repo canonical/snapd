@@ -28,8 +28,7 @@ import (
 // SetActive sets the active state of the given package
 func SetActive(fullName string, active bool, meter progress.Meter) error {
 	// TODO: switch this to using lightweights
-	m := NewMetaLocalRepository()
-	installed, err := m.Installed()
+	installed, err := NewLocalSnapRepository().Installed()
 	if err != nil {
 		return err
 	}
@@ -49,5 +48,6 @@ func SetActive(fullName string, active bool, meter progress.Meter) error {
 		}
 	}
 
-	return part.SetActive(active, meter)
+	overlord := &Overlord{}
+	return overlord.SetActive(part.(*SnapPart), active, meter)
 }
