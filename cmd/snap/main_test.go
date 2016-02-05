@@ -22,6 +22,7 @@ package main_test
 import (
 	"testing"
 
+	"github.com/ubuntu-core/snappy/testutil"
 	. "gopkg.in/check.v1"
 )
 
@@ -29,6 +30,7 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 type SnapSuite struct {
+	testutil.BaseTest
 }
 
 var _ = Suite(&SnapSuite{})
