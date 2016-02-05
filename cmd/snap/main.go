@@ -24,6 +24,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/logger"
 
 	"github.com/jessevdk/go-flags"
@@ -99,6 +100,14 @@ func Parser() *flags.Parser {
 		}
 	}
 	return parser
+}
+
+// ClientConfig is the configuration of the Client used by all commands.
+var ClientConfig client.Config
+
+// Client returns a new client using ClientConfig as configuration.
+func Client() *client.Client {
+	return client.New(&ClientConfig)
 }
 
 func init() {
