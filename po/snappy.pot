@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-02-03 18:30+0100\n"
+        "POT-Creation-Date: 2016-02-05 14:37+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -279,6 +279,9 @@ msgstr  ""
 msgid   "Run snappy shell interface"
 msgstr  ""
 
+msgid   "Runs unsupported experimental commands"
+msgstr  ""
+
 msgid   "Set configuration for a specific installed package"
 msgstr  ""
 
@@ -403,6 +406,13 @@ msgid   "Update all installed parts"
 msgstr  ""
 
 msgid   "Username for the login"
+msgstr  ""
+
+msgid   "\n"
+        "The experimental command contains a selection of additional sub-commands.\n"
+        "\n"
+        "Experimental commands can be removed without notice and may not work on\n"
+        "non-development systems.\n"
 msgstr  ""
 
 msgid   "\n"

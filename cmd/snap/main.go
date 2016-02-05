@@ -43,10 +43,25 @@ type cmdInfo struct {
 // commands holds information about all non-experimental commands.
 var commands []cmdInfo
 
+// experimentalCommands holds information about all experimental commands.
+var experimentalCommands []cmdInfo
+
 // addCommand replaces parser.addCommand() in a way that is compatible with
 // re-constructing a pristine parser.
 func addCommand(name, shortHelp, longHelp string, builder func() interface{}) {
 	commands = append(commands, cmdInfo{
+		name:      name,
+		shortHelp: shortHelp,
+		longHelp:  longHelp,
+		builder:   builder,
+	})
+}
+
+// addExperimentalCommand replaces parser.addCommand() in a way that is
+// compatible with re-constructing a pristine parser. It is meant for
+// adding experimental commands.
+func addExperimentalCommand(name, shortHelp, longHelp string, builder func() interface{}) {
+	experimentalCommands = append(experimentalCommands, cmdInfo{
 		name:      name,
 		shortHelp: shortHelp,
 		longHelp:  longHelp,
@@ -63,6 +78,17 @@ func Parser() *flags.Parser {
 	for _, c := range commands {
 		if _, err := parser.AddCommand(c.name, c.shortHelp, c.longHelp, c.builder()); err != nil {
 			logger.Panicf("cannot add command %q: %v", c.name, err)
+		}
+	}
+	// Add the experimental command
+	experimentalCommand, err := parser.AddCommand("experimental", shortExperimentalHelp, longExperimentalHelp, &cmdExperimental{})
+	if err != nil {
+		logger.Panicf("cannot add command %q: %v", "experimental", err)
+	}
+	// Add all the sub-commands of the experimental command
+	for _, c := range experimentalCommands {
+		if _, err = experimentalCommand.AddCommand(c.name, c.shortHelp, c.longHelp, c.builder()); err != nil {
+			logger.Panicf("cannot add experimental command %q: %v", c.name, err)
 		}
 	}
 	return parser
