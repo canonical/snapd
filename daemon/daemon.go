@@ -37,6 +37,7 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/skills"
 )
 
@@ -209,8 +210,8 @@ func (d *Daemon) Dying() <-chan struct{} {
 }
 
 // AddTask runs the given function as a task
-func (d *Daemon) AddTask(f func() interface{}) *Task {
-	t := RunTask(f)
+func (d *Daemon) AddTask(f func() interface{}, meter progress.Meter) *Task {
+	t := RunTask(f, meter)
 	d.Lock()
 	defer d.Unlock()
 	d.tasks[t.UUID()] = t
