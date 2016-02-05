@@ -62,7 +62,7 @@ func Parser() *flags.Parser {
 	// Add all regular commands
 	for _, c := range commands {
 		if _, err := parser.AddCommand(c.name, c.shortHelp, c.longHelp, c.builder()); err != nil {
-			logger.Panicf("unable to add command %q: %v", c.name, err)
+			logger.Panicf("cannot add command %q: %v", c.name, err)
 		}
 	}
 	return parser
