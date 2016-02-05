@@ -20,8 +20,11 @@
 package main_test
 
 import (
+	"bytes"
+	"os"
 	"testing"
 
+	. "github.com/ubuntu-core/snappy/cmd/snap"
 	"github.com/ubuntu-core/snappy/testutil"
 	. "gopkg.in/check.v1"
 )
@@ -31,6 +34,18 @@ func Test(t *testing.T) { TestingT(t) }
 
 type SnapSuite struct {
 	testutil.BaseTest
+	stdout *bytes.Buffer
+	stderr *bytes.Buffer
 }
 
 var _ = Suite(&SnapSuite{})
+
+func (s *SnapSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.stdout = bytes.NewBuffer(nil)
+	s.stderr = bytes.NewBuffer(nil)
+	Stdout = s.stdout
+	Stderr = s.stderr
+	s.BaseTest.AddCleanup(func() { Stdout = os.Stdout })
+	s.BaseTest.AddCleanup(func() { Stderr = os.Stderr })
+}
