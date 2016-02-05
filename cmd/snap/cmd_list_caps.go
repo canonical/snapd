@@ -30,10 +30,10 @@ import (
 type cmdListCaps struct {
 }
 
-var (
-	shortListCapsHelp = i18n.G("List system capabilities")
-	longListCapsHelp  = i18n.G("This command shows all capabilities and their allocation")
-)
+var shortListCapsHelp = i18n.G("Lists system capabilities")
+var longListCapsHelp = i18n.G(`
+The list-caps command shows all capabilities and their allocation.
+`)
 
 func init() {
 	addCommand("list-caps", shortListCapsHelp, longListCapsHelp, func() interface{} {
