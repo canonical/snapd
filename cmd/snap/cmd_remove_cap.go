@@ -42,7 +42,7 @@ func init() {
 		name:      "remove-cap",
 		shortHelp: shortRemoveCapHelp,
 		longHelp:  longRemoveCapHelp,
-		builder:  func() interface{} { return &cmdRemoveCap{} },
+		builder:   func() interface{} { return &cmdRemoveCap{} },
 	})
 }
 

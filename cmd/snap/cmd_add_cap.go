@@ -76,7 +76,7 @@ func init() {
 		name:      "add-cap",
 		shortHelp: shortAddCapHelp,
 		longHelp:  longAddCapHelp,
-		builder:  func() interface{} { return &cmdAddCap{} },
+		builder:   func() interface{} { return &cmdAddCap{} },
 	})
 }
 
