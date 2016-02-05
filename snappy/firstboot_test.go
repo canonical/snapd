@@ -32,24 +32,13 @@ import (
 	"github.com/ubuntu-core/snappy/systemd"
 )
 
-type fakePart struct {
-	SnapPart
-	config       []byte
-	gadgetConfig SystemConfig
-	snapType     snap.Type
+type fakeOverlord struct {
+	configs map[string]string
 }
 
-func (p *fakePart) Config(b []byte) (string, error) {
-	p.config = b
-	return "", nil
-}
-
-func (p *fakePart) GadgetConfig() SystemConfig {
-	return p.gadgetConfig
-}
-
-func (p *fakePart) Type() snap.Type {
-	return p.snapType
+func (o *fakeOverlord) Configure(s *SnapPart, c []byte) (string, error) {
+	o.configs[s.Name()] = string(c)
+	return string(c), nil
 }
 
 type FirstBootTestSuite struct {
@@ -62,6 +51,7 @@ type FirstBootTestSuite struct {
 	partMap      map[string]Part
 	partMapErr   error
 	verifyCmd    string
+	fakeOverlord *fakeOverlord
 }
 
 var _ = Suite(&FirstBootTestSuite{})
@@ -95,6 +85,10 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	ifup = "/bin/true"
 	getGadget = s.getGadget
 	newPartMap = s.newPartMap
+	newOverlord = s.newOverlord
+	s.fakeOverlord = &fakeOverlord{
+		configs: map[string]string{},
+	}
 
 	s.m = nil
 	s.e = nil
@@ -118,8 +112,17 @@ func (s *FirstBootTestSuite) newPartMap() (map[string]Part, error) {
 	return s.partMap, s.partMapErr
 }
 
-func (s *FirstBootTestSuite) newFakeApp() *fakePart {
-	fakeMyApp := fakePart{snapType: snap.TypeApp}
+func (s *FirstBootTestSuite) newOverlord() configurator {
+	return s.fakeOverlord
+}
+
+func (s *FirstBootTestSuite) newFakeApp() *SnapPart {
+	fakeMyApp := SnapPart{
+		m: &snapYaml{
+			Name: "myapp",
+			Type: snap.TypeApp,
+		},
+	}
 	s.partMap = make(map[string]Part)
 	s.partMap["myapp"] = &fakeMyApp
 
@@ -128,11 +131,10 @@ func (s *FirstBootTestSuite) newFakeApp() *fakePart {
 
 func (s *FirstBootTestSuite) TestFirstBootConfigure(c *C) {
 	s.m = &snapYaml{Config: s.gadgetConfig}
-	fakeMyApp := s.newFakeApp()
-
+	s.newFakeApp()
 	c.Assert(FirstBoot(), IsNil)
 	myAppConfig := fmt.Sprintf("config:\n  myapp:\n    hostname: myhostname\n")
-	c.Assert(string(fakeMyApp.config), Equals, myAppConfig)
+	c.Assert(s.fakeOverlord.configs["myapp"], Equals, myAppConfig)
 
 	_, err := os.Stat(stampFile)
 	c.Assert(err, IsNil)

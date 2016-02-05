@@ -338,6 +338,17 @@ func (o *Overlord) SetActive(sp *SnapPart, active bool, meter progress.Meter) er
 	return ErrNotImplemented
 }
 
+// Configure configures the given snap
+//
+// It returns an error on failure
+func (o *Overlord) Configure(s *SnapPart, configuration []byte) (string, error) {
+	if s.m.Type == snap.TypeOS {
+		return coreConfig(configuration)
+	}
+
+	return snapConfig(s.basedir, s.origin, string(configuration))
+}
+
 // Installed returns the installed snaps from this repository
 func (o *Overlord) Installed() ([]*SnapPart, error) {
 	globExpr := filepath.Join(dirs.SnapSnapsDir, "*", "*", "meta", "snap.yaml")
