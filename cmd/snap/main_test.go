@@ -47,8 +47,12 @@ func (s *SnapSuite) SetUpTest(c *C) {
 	s.stderr = bytes.NewBuffer(nil)
 	Stdout = s.stdout
 	Stderr = s.stderr
-	s.BaseTest.AddCleanup(func() { Stdout = os.Stdout })
-	s.BaseTest.AddCleanup(func() { Stderr = os.Stderr })
+}
+
+func (s *SnapSuite) TearDownTest(c *C) {
+	Stdout = os.Stdout
+	Stderr = os.Stderr
+	s.BaseTest.TearDownTest(c)
 }
 
 func (s *SnapSuite) Stdout() string {
