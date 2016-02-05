@@ -391,7 +391,7 @@ func (s *SnapPart) Dependents() ([]*SnapPart, error) {
 
 	var needed []*SnapPart
 
-	installed, err := NewMetaRepository().Installed()
+	installed, err := NewLocalSnapRepository().Installed()
 	if err != nil {
 		return nil, err
 	}
