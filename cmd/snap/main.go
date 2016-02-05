@@ -41,7 +41,39 @@ type options struct {
 
 var optionsData options
 
-var parser = flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash)
+// cmdInfo holds information needed to call parser.AddCommand(...).
+type cmdInfo struct {
+	name, shortHelp, longHelp string
+	builder                   func() interface{}
+}
+
+// commands holds information about all non-experimental commands.
+var commands []cmdInfo
+
+// addCommand replaces parser.addCommand() in a way that is compatible with
+// re-constructing a pristine parser.
+func addCommand(name, shortHelp, longHelp string, builder func() interface{}) {
+	commands = append(commands, cmdInfo{
+		name:      name,
+		shortHelp: shortHelp,
+		longHelp:  longHelp,
+		builder:   builder,
+	})
+}
+
+// Parser creates and populates a fresh parser.
+// Since commands have local state a fresh parser is required to isolate tests
+// from each other.
+func Parser() *flags.Parser {
+	parser := flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash)
+	// Add all regular commands
+	for _, c := range commands {
+		if _, err := parser.AddCommand(c.name, c.shortHelp, c.longHelp, c.builder()); err != nil {
+			logger.Panicf("cannot add command %q: %v", c.name, err)
+		}
+	}
+	return parser
+}
 
 func init() {
 	err := logger.SimpleSetup()
@@ -52,12 +84,18 @@ func init() {
 
 func main() {
 	if err := run(); err != nil {
-		fmt.Fprintf(Stderr, "error: %v\n", err)
-		os.Exit(1)
+		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
+			fmt.Fprintf(Stdout, "%v\n", err)
+			os.Exit(0)
+		} else {
+			fmt.Fprintf(Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
 	}
 }
 
 func run() error {
+	parser := Parser()
 	_, err := parser.Parse()
 	if err != nil {
 		return err

@@ -26,7 +26,6 @@ import (
 
 	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/logger"
 )
 
 var (
@@ -41,10 +40,9 @@ type cmdFind struct {
 }
 
 func init() {
-	_, err := parser.AddCommand("find", shortFindHelp, longFindHelp, &cmdFind{})
-	if err != nil {
-		logger.Panicf("unable to add find command: %v", err)
-	}
+	addCommand("find", shortFindHelp, longFindHelp, func() interface{} {
+		return &cmdFind{}
+	})
 }
 
 func (x *cmdFind) Execute([]string) error {

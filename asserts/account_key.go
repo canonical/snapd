@@ -91,10 +91,6 @@ func checkPublicKey(ab *assertionBase, fingerprintName, keyIDName string) (Publi
 }
 
 func assembleAccountKey(assert assertionBase) (Assertion, error) {
-	_, err := checkMandatory(assert.headers, "account-id")
-	if err != nil {
-		return nil, err
-	}
 	since, err := checkRFC3339Date(assert.headers, "since")
 	if err != nil {
 		return nil, err

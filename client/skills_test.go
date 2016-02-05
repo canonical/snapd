@@ -69,7 +69,7 @@ func (cs *clientSuite) TestClientAllSkills(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientGrantCallsEndpoint(c *check.C) {
-	_ = cs.cli.Grant("producer", "skill", "consumer", "snap")
+	_ = cs.cli.Grant("producer", "skill", "consumer", "slot")
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/2.0/skills")
 }
@@ -79,7 +79,7 @@ func (cs *clientSuite) TestClientGrant(c *check.C) {
 		"type": "sync",
 		"result": { }
 	}`
-	err := cs.cli.Grant("producer", "skill", "consumer", "snap")
+	err := cs.cli.Grant("producer", "skill", "consumer", "slot")
 	c.Check(err, check.IsNil)
 	var body map[string]interface{}
 	decoder := json.NewDecoder(cs.req.Body)
@@ -88,18 +88,18 @@ func (cs *clientSuite) TestClientGrant(c *check.C) {
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"action": "grant",
 		"skill": map[string]interface{}{
-			"name": "skill",
 			"snap": "producer",
+			"name": "skill",
 		},
 		"slot": map[string]interface{}{
-			"name": "snap",
 			"snap": "consumer",
+			"name": "slot",
 		},
 	})
 }
 
 func (cs *clientSuite) TestClientRevokeCallsEndpoint(c *check.C) {
-	_ = cs.cli.Revoke("producer", "skill", "consumer", "snap")
+	_ = cs.cli.Revoke("producer", "skill", "consumer", "slot")
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/2.0/skills")
 }
@@ -109,7 +109,7 @@ func (cs *clientSuite) TestClientRevoke(c *check.C) {
 		"type": "sync",
 		"result": { }
 	}`
-	err := cs.cli.Revoke("producer", "skill", "consumer", "snap")
+	err := cs.cli.Revoke("producer", "skill", "consumer", "slot")
 	c.Check(err, check.IsNil)
 	var body map[string]interface{}
 	decoder := json.NewDecoder(cs.req.Body)
@@ -118,12 +118,12 @@ func (cs *clientSuite) TestClientRevoke(c *check.C) {
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"action": "revoke",
 		"skill": map[string]interface{}{
-			"name": "skill",
 			"snap": "producer",
+			"name": "skill",
 		},
 		"slot": map[string]interface{}{
-			"name": "snap",
 			"snap": "consumer",
+			"name": "slot",
 		},
 	})
 }

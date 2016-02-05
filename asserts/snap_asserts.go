@@ -67,18 +67,9 @@ func (snapdcl *SnapBuild) checkConsistency(db *Database, acck *AccountKey) error
 }
 
 func assembleSnapBuild(assert assertionBase) (Assertion, error) {
-	_, err := checkMandatory(assert.headers, "snap-id")
-	if err != nil {
-		return nil, err
-	}
+	// TODO: more parsing/checking of snap-digest
 
-	// TODO: more parsing/checking of this here?
-	_, err = checkMandatory(assert.headers, "snap-digest")
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = checkMandatory(assert.headers, "grade")
+	_, err := checkMandatory(assert.headers, "grade")
 	if err != nil {
 		return nil, err
 	}
@@ -153,16 +144,7 @@ func (assert *SnapRevision) checkConsistency(db *Database, acck *AccountKey) err
 }
 
 func assembleSnapRevision(assert assertionBase) (Assertion, error) {
-	_, err := checkMandatory(assert.headers, "snap-id")
-	if err != nil {
-		return nil, err
-	}
-
-	// TODO: more parsing/checking of this here?
-	_, err = checkMandatory(assert.headers, "snap-digest")
-	if err != nil {
-		return nil, err
-	}
+	// TODO: more parsing/checking of snap-digest
 
 	snapRevision, err := checkUint(assert.headers, "snap-revision", 64)
 	if err != nil {

@@ -26,7 +26,6 @@ import (
 
 	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/logger"
 )
 
 type cmdListCaps struct {
@@ -38,10 +37,9 @@ var (
 )
 
 func init() {
-	_, err := parser.AddCommand("list-caps", shortListCapsHelp, longListCapsHelp, &cmdListCaps{})
-	if err != nil {
-		logger.Panicf("unable to add list-caps command: %v", err)
-	}
+	addCommand("list-caps", shortListCapsHelp, longListCapsHelp, func() interface{} {
+		return &cmdListCaps{}
+	})
 }
 
 func (x *cmdListCaps) Execute(args []string) error {
