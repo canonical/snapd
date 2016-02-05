@@ -25,10 +25,10 @@ import (
 
 type cmdExperimental struct{}
 
-var (
-	shortExperimentalHelp = i18n.G("Unsupported experimental commands")
-	longExperimentalHelp  = i18n.G(`Additional experimental commands.
+var shortExperimentalHelp = i18n.G("Runs unsupported experimental commands")
+var longExperimentalHelp = i18n.G(`
+The experimental command contains a selection of additional sub-commands.
 
 Experimental commands can be removed without notice and may not work on
-non-development systems.`)
-)
+non-development systems.
+`)
