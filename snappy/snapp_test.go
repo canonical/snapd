@@ -625,16 +625,15 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Assert(snap, NotNil)
 
 	// the actual test
-	results, err := snap.Details(funkyAppName, funkyAppOrigin)
+	result, err := snap.Snap(funkyAppName + "." + funkyAppOrigin)
 	c.Assert(err, IsNil)
-	c.Assert(results, HasLen, 1)
-	c.Check(results[0].Name(), Equals, funkyAppName)
-	c.Check(results[0].Origin(), Equals, funkyAppOrigin)
-	c.Check(results[0].Version(), Equals, "42")
-	c.Check(results[0].Hash(), Equals, "5364253e4a988f4f5c04380086d542f410455b97d48cc6c69ca2a5877d8aef2a6b2b2f83ec4f688cae61ebc8a6bf2cdbd4dbd8f743f0522fc76540429b79df42")
-	c.Check(results[0].Date().String(), Equals, "2015-04-15 18:30:16 +0000 UTC")
-	c.Check(results[0].DownloadSize(), Equals, int64(65375))
-	c.Check(results[0].Channel(), Equals, "edge")
+	c.Check(result.Name(), Equals, funkyAppName)
+	c.Check(result.Origin(), Equals, funkyAppOrigin)
+	c.Check(result.Version(), Equals, "42")
+	c.Check(result.Hash(), Equals, "5364253e4a988f4f5c04380086d542f410455b97d48cc6c69ca2a5877d8aef2a6b2b2f83ec4f688cae61ebc8a6bf2cdbd4dbd8f743f0522fc76540429b79df42")
+	c.Check(result.Date().String(), Equals, "2015-04-15 18:30:16 +0000 UTC")
+	c.Check(result.DownloadSize(), Equals, int64(65375))
+	c.Check(result.Channel(), Equals, "edge")
 }
 
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
@@ -654,9 +653,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
 	c.Assert(snap, NotNil)
 
 	// the actual test
-	results, err := snap.Details("no-such-pkg", "")
-	c.Assert(results, HasLen, 0)
+	result, err := snap.Snap("no-such-pkg")
 	c.Assert(err, NotNil)
+	c.Assert(result, IsNil)
 }
 
 func (s *SnapTestSuite) TestMakeConfigEnv(c *C) {
@@ -949,7 +948,7 @@ type: gadget
 	c.Assert(repo, NotNil)
 
 	// we just ensure that the right header is set
-	repo.Details("xkcd", "")
+	repo.Snap("xkcd")
 }
 
 func (s *SnapTestSuite) TestUninstallBuiltIn(c *C) {

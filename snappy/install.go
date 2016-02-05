@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"os"
 	"sort"
-	"strings"
 
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/progress"
@@ -35,7 +34,7 @@ import (
 type InstallFlags uint
 
 const (
-	// AllowUnauthenticated allows to install a snap even if it can not be authenticated
+	// AllowUnauthenticated allows to install a snap even if it cannot be authenticated
 	AllowUnauthenticated InstallFlags = 1 << iota
 	// InhibitHooks will ensure that the hooks are not run
 	InhibitHooks
@@ -130,7 +129,7 @@ func Update(name string, flags InstallFlags, meter progress.Meter) ([]Part, erro
 	}
 	upd := FindSnapsByName(QualifiedName(cur[0]), updates)
 	if len(upd) < 1 {
-		return nil, fmt.Errorf("no update found for %s", name)
+		return nil, fmt.Errorf("cannot find any update for %q", name)
 	}
 
 	if err := doUpdate(mStore, upd[0], flags, meter); err != nil {
@@ -206,31 +205,20 @@ func doInstall(name string, flags InstallFlags, meter progress.Meter) (snapName 
 		return "", err
 	}
 
-	origin := ""
-	idx := strings.IndexRune(name, '.')
-	if idx > -1 {
-		origin = name[idx+1:]
-		name = name[:idx]
-	}
-
-	found, err := mStore.Details(name, origin)
+	part, err := mStore.Snap(name)
 	if err != nil {
 		return "", err
 	}
 
-	for _, part := range found {
-		cur := FindSnapsByNameAndVersion(QualifiedName(part), part.Version(), installed)
-		if len(cur) != 0 {
-			return "", ErrAlreadyInstalled
-		}
-		if PackageNameActive(part.Name()) {
-			return "", ErrPackageNameAlreadyInstalled
-		}
-
-		return installRemote(mStore, part.(*RemoteSnapPart), flags, meter)
+	cur := FindSnapsByNameAndVersion(QualifiedName(part), part.Version(), installed)
+	if len(cur) != 0 {
+		return "", ErrAlreadyInstalled
+	}
+	if PackageNameActive(part.Name()) {
+		return "", ErrPackageNameAlreadyInstalled
 	}
 
-	return "", ErrPackageNotFound
+	return installRemote(mStore, part, flags, meter)
 }
 
 // GarbageCollect removes all versions two older than the current active
