@@ -426,6 +426,7 @@ func (s *SnapUbuntuStoreRepository) Download(remoteSnap *RemoteSnapPart, pbar pr
 		return "", err
 	}
 
+	// TODO: Sync() is not the whole dance for ensuring it's on disc
 	return w.Name(), w.Sync()
 }
 

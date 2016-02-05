@@ -88,7 +88,8 @@ func configurePackage(pkgName, configFile string) (string, error) {
 		return "", snappy.ErrPackageNotFound
 	}
 
-	return snap.Config(config)
+	overlord := &snappy.Overlord{}
+	return overlord.Configure(snap.(*snappy.SnapPart), config)
 }
 
 func readConfiguration(configInput string) (config []byte, err error) {
