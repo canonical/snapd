@@ -45,13 +45,34 @@ const (
 	AllowGadget
 )
 
-func doUpdate(part Part, flags InstallFlags, meter progress.Meter) error {
-	if _, err := part.Install(meter, flags); err == ErrSideLoaded {
+func installRemote(mStore *SnapUbuntuStoreRepository, remoteSnap *RemoteSnapPart, flags InstallFlags, meter progress.Meter) (string, error) {
+	downloadedSnap, err := mStore.Download(remoteSnap, meter)
+	if err != nil {
+		return "", fmt.Errorf("cannot download %s: %s", remoteSnap.Name(), err)
+	}
+	defer os.Remove(downloadedSnap)
+
+	if err := remoteSnap.saveStoreManifest(); err != nil {
+		return "", err
+	}
+
+	localSnap, err := (&Overlord{}).Install(downloadedSnap, remoteSnap.Origin(), flags, meter)
+	if err != nil {
+		return "", err
+	}
+
+	return localSnap.Name(), nil
+}
+
+func doUpdate(mStore *SnapUbuntuStoreRepository, part Part, flags InstallFlags, meter progress.Meter) error {
+	_, err := installRemote(mStore, part.(*RemoteSnapPart), flags, meter)
+	if err == ErrSideLoaded {
 		logger.Noticef("Skipping sideloaded package: %s", part.Name())
 		return nil
 	} else if err != nil {
 		return err
 	}
+
 	if err := GarbageCollect(part.Name(), flags, meter); err != nil {
 		return err
 	}
@@ -100,15 +121,19 @@ func Update(name string, flags InstallFlags, meter progress.Meter) ([]Part, erro
 		return nil, ErrNotInstalled
 	}
 
+	mStore := NewUbuntuStoreSnapRepository()
 	// zomg :-(
 	// TODO: query the store for just this package, instead of this
-	updates, err := ListUpdates()
+	updates, err := mStore.Updates()
+	if err != nil {
+		return nil, fmt.Errorf("cannot get updates: %s", err)
+	}
 	upd := FindSnapsByName(QualifiedName(cur[0]), updates)
 	if len(upd) < 1 {
 		return nil, fmt.Errorf("no update found for %s", name)
 	}
 
-	if err := doUpdate(upd[0], flags, meter); err != nil {
+	if err := doUpdate(mStore, upd[0], flags, meter); err != nil {
 		return nil, err
 	}
 
@@ -124,14 +149,15 @@ func Update(name string, flags InstallFlags, meter progress.Meter) ([]Part, erro
 // if updates where available and an error and nil if any of the updates
 // fail to apply.
 func UpdateAll(flags InstallFlags, meter progress.Meter) ([]Part, error) {
-	updates, err := ListUpdates()
+	mStore := NewUbuntuStoreSnapRepository()
+	updates, err := mStore.Updates()
 	if err != nil {
 		return nil, err
 	}
 
 	for _, part := range updates {
 		meter.Notify(fmt.Sprintf("Updating %s (%s)", part.Name(), part.Version()))
-		if err := doUpdate(part, flags, meter); err != nil {
+		if err := doUpdate(mStore, part, flags, meter); err != nil {
 			return nil, err
 		}
 	}
@@ -174,7 +200,7 @@ func doInstall(name string, flags InstallFlags, meter progress.Meter) (snapName 
 	}
 
 	// check repos next
-	mStore := NewMetaStoreRepository()
+	mStore := NewUbuntuStoreSnapRepository()
 	installed, err := NewMetaLocalRepository().Installed()
 	if err != nil {
 		return "", err
@@ -201,9 +227,7 @@ func doInstall(name string, flags InstallFlags, meter progress.Meter) (snapName 
 			return "", ErrPackageNameAlreadyInstalled
 		}
 
-		// TODO block gadget snaps here once the store supports package types
-
-		return part.Install(meter, flags)
+		return installRemote(mStore, part.(*RemoteSnapPart), flags, meter)
 	}
 
 	return "", ErrPackageNotFound
