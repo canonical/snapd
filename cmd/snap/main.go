@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/logger"
 
 	"github.com/jessevdk/go-flags"
@@ -35,6 +36,14 @@ type options struct {
 var optionsData options
 
 var parser = flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash)
+
+// ClientConfig is the configuration of the client.Client used by all commands.
+var ClientConfig client.Config
+
+// Client returns a new client using ClientConfig as configuration.
+func Client() *client.Client {
+	return client.New(&ClientConfig)
+}
 
 func init() {
 	err := logger.SimpleSetup()
