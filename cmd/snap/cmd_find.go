@@ -49,7 +49,7 @@ func init() {
 }
 
 func (x *cmdFind) Execute([]string) error {
-	cli := client.New(nil)
+	cli := Client()
 	filter := client.SnapFilter{
 		Query:   x.Positional.Query,
 		Sources: []string{"store"},

@@ -25,7 +25,6 @@ import (
 	"strings"
 
 	"github.com/ubuntu-core/snappy/asserts"
-	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/logger"
 )
@@ -64,7 +63,7 @@ func (x *cmdAsserts) Execute(args []string) error {
 		headers[parts[0]] = parts[1]
 	}
 
-	assertions, err := client.New(nil).Asserts(x.AssertTypeName, headers)
+	assertions, err := Client().Asserts(x.AssertTypeName, headers)
 	if err != nil {
 		return err
 	}
