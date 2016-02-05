@@ -186,8 +186,12 @@ Sample result:
       "installed_size": 1821897,
       "name": "http",
       "origin": "chipaca",
+      "prices": {
+        "USD": 2.99,
+        "GBP": 1.99,
+      },
       "resource": "/2.0/snaps/http.chipaca",
-      "status": "active",
+      "status": "not purchased",
       "type": "app",
       "version": "3.1"
     },
@@ -219,9 +223,10 @@ Sample result:
 
 #### Fields
 * `snaps`
-    * `status`: can be either `not installed`, `installed`, `active` (i.e. is
-      current), `removed` (but data present); there is no `purged` state, as a
-      purged snap is undistinguishable from a non-installed snap.
+    * `status`: can be either `not purchased`, `not installed`, `installed`,
+      `active` (i.e. is current), `removed` (but data present); there is no
+      `purged` state, as a purged snap is undistinguishable from a non-installed
+       snap.
     * `name`: the snap name.
     * `version`: a string representing the version.
     * `icon`: a url to the snap icon, possibly relative to this server.
@@ -236,6 +241,8 @@ Sample result:
       be rolled back to the version specified as a value to this entry.
     * `update_available`: if present and not empty, it means the snap can be
       updated to the version specified as a value to this entry.
+    * `prices`: if present the snap needs to be purchased before installing. It's
+      a dict with the available currency codes as keys and the prices as values.
 * `paging`
     * `count`: the number of snaps on this page
     * `page`: the page number, starting from `0`
@@ -307,8 +314,8 @@ See `sources` for `/2.0/snaps`.
 
 ### POST
 
-* Description: Install, update, remove, purge, activate, deactivate, or
-  rollback the snap
+* Description: Purchase, install, update, remove, purge, activate, deactivate,
+  or rollback the snap
 * Access: trusted
 * Operation: async
 * Return: background operation or standard error
@@ -325,7 +332,7 @@ See `sources` for `/2.0/snaps`.
 
 field      | ignored except in action | description
 -----------|-------------------|------------
-`action`   |                   | Required; a string, one of `install`, `update`, `remove`, `purge`, `activate`, `deactivate`, or `rollback`.
+`action`   |                   | Required; a string, one of `purchase`, `install`, `update`, `remove`, `purge`, `activate`, `deactivate`, or `rollback`.
 `leave_old`| `install` `update` `remove` | A boolean, equivalent to commandline's `--no-gc`. Default is false (do not leave old snaps around).
 `license`  | `install` `update` | A JSON object with `intro`, `license`, and `agreed` fields, the first two of which must match the license (see the section “A note on licenses”, below).
 
