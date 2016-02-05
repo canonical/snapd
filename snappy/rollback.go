@@ -34,8 +34,7 @@ func Rollback(pkg, ver string, inter progress.Meter) (version string, err error)
 
 	// no version specified, find the previous one
 	if ver == "" {
-		m := NewMetaRepository()
-		installed, err := m.Installed()
+		installed, err := NewLocalSnapRepository().Installed()
 		if err != nil {
 			return "", err
 		}

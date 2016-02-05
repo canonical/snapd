@@ -73,6 +73,7 @@ func (s *SquashfsTestSuite) SetUpTest(c *C) {
 
 	dirs.SetRootDir(c.MkDir())
 	os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants"), 0755)
+	os.MkdirAll(dirs.SnapSnapsDir, 0755)
 
 	// ensure we do not run a real systemd
 	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {

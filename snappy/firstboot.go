@@ -60,7 +60,7 @@ var newOverlord = func() configurator {
 }
 
 func newPartMapImpl() (map[string]Part, error) {
-	repo := NewMetaLocalRepository()
+	repo := NewLocalSnapRepository()
 	all, err := repo.All()
 	if err != nil {
 		return nil, err
@@ -136,7 +136,7 @@ var getActivator = func() activator {
 // enableSystemSnaps activates the installed kernel/os/gadget snaps
 // on the first boot
 func enableSystemSnaps() error {
-	repo := NewMetaLocalRepository()
+	repo := NewLocalSnapRepository()
 	all, err := repo.All()
 	if err != nil {
 		return nil

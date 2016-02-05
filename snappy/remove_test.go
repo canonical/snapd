@@ -38,8 +38,7 @@ func (s *SnapTestSuite) TestSnapRemoveByVersion(c *C) {
 
 	err := Remove("foo=1.0", 0, &progress.NullProgress{})
 
-	m := NewMetaRepository()
-	installed, err := m.Installed()
+	installed, err := NewLocalSnapRepository().Installed()
 	c.Assert(err, IsNil)
 	c.Assert(installed[0].Version(), Equals, "2.0")
 }
@@ -49,8 +48,7 @@ func (s *SnapTestSuite) TestSnapRemoveActive(c *C) {
 
 	err := Remove("foo", 0, &progress.NullProgress{})
 
-	m := NewMetaRepository()
-	installed, err := m.Installed()
+	installed, err := NewLocalSnapRepository().Installed()
 	c.Assert(err, IsNil)
 	c.Assert(installed[0].Version(), Equals, "1.0")
 }
@@ -67,8 +65,7 @@ func (s *SnapTestSuite) TestSnapRemoveActiveGadgetFails(c *C) {
 	err = Remove("foo", 0, &progress.NullProgress{})
 	c.Assert(err, DeepEquals, ErrPackageNotRemovable)
 
-	m := NewMetaRepository()
-	installed, err := m.Installed()
+	installed, err := NewLocalSnapRepository().Installed()
 	c.Assert(err, IsNil)
 	c.Assert(installed[0].Name(), Equals, "foo")
 	c.Assert(installed[0].Type(), Equals, snap.TypeGadget)
@@ -80,8 +77,8 @@ func (s *SnapTestSuite) TestSnapRemoveGC(c *C) {
 	makeTwoTestSnaps(c, snap.TypeApp)
 	err := Remove("foo", DoRemoveGC, &progress.NullProgress{})
 	c.Assert(err, IsNil)
-	m := NewMetaRepository()
-	installed, err := m.Installed()
+
+	installed, err := NewLocalSnapRepository().Installed()
 	c.Assert(err, IsNil)
 	c.Check(installed, HasLen, 0)
 }

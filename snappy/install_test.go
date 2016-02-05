@@ -49,8 +49,7 @@ func (s *SnapTestSuite) TestInstallInstall(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
-	repo := NewMetaLocalRepository()
-	all, err := repo.All()
+	all, err := NewLocalSnapRepository().All()
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	part := all[0]
@@ -65,8 +64,7 @@ func (s *SnapTestSuite) TestInstallNoHook(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
-	repo := NewMetaLocalRepository()
-	all, err := repo.All()
+	all, err := NewLocalSnapRepository().All()
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	part := all[0]
@@ -237,7 +235,8 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 	yamlPath, err := s.makeInstalledMockSnap("name: foo\nversion: 1")
 	c.Assert(err, IsNil)
 	makeSnapActive(yamlPath)
-	installed, _ := NewMetaLocalRepository().Installed()
+	installed, err := NewLocalSnapRepository().Installed()
+	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 1)
 	c.Assert(ActiveSnapByName("foo"), NotNil)
 

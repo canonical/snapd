@@ -59,6 +59,7 @@ var _ = Suite(&FirstBootTestSuite{})
 func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	tempdir := c.MkDir()
 	dirs.SetRootDir(tempdir)
+	os.MkdirAll(dirs.SnapSnapsDir, 0755)
 	stampFile = filepath.Join(c.MkDir(), "stamp")
 
 	// mock the world!
@@ -151,8 +152,7 @@ func (s *FirstBootTestSuite) TestSoftwareActivate(c *C) {
 
 	s.m = &snapYaml{Gadget: Gadget{Software: Software{BuiltIn: []string{name}}}}
 
-	repo := NewMetaLocalRepository()
-	all, err := repo.All()
+	all, err := NewLocalSnapRepository().All()
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	c.Check(all[0].Name(), Equals, name)
@@ -162,8 +162,7 @@ func (s *FirstBootTestSuite) TestSoftwareActivate(c *C) {
 	s.partMap = map[string]Part{name: all[0]}
 	c.Assert(FirstBoot(), IsNil)
 
-	repo = NewMetaLocalRepository()
-	all, err = repo.All()
+	all, err = NewLocalSnapRepository().All()
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	c.Check(all[0].Name(), Equals, name)
@@ -246,8 +245,7 @@ func (s *FirstBootTestSuite) ensureSystemSnapIsEnabledOnFirstBoot(c *C, yaml str
 	_, err := makeInstalledMockSnap(dirs.GlobalRootDir, yaml)
 	c.Assert(err, IsNil)
 
-	repo := NewMetaLocalRepository()
-	all, err := repo.All()
+	all, err := NewLocalSnapRepository().All()
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	c.Check(all[0].IsInstalled(), Equals, true)
@@ -255,8 +253,7 @@ func (s *FirstBootTestSuite) ensureSystemSnapIsEnabledOnFirstBoot(c *C, yaml str
 
 	c.Assert(FirstBoot(), IsNil)
 
-	repo = NewMetaLocalRepository()
-	all, err = repo.All()
+	all, err = NewLocalSnapRepository().All()
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	c.Check(all[0].IsInstalled(), Equals, true)

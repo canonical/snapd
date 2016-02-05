@@ -954,7 +954,7 @@ func GeneratePolicyFromFile(fn string, force bool) error {
 
 // RegenerateAllPolicy will re-generate all policy that needs re-generating
 func RegenerateAllPolicy(force bool) error {
-	installed, err := NewMetaLocalRepository().Installed()
+	installed, err := NewLocalSnapRepository().Installed()
 	if err != nil {
 		return err
 	}
