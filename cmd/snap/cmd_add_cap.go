@@ -66,10 +66,10 @@ type cmdAddCap struct {
 	Attrs []AttributePair `short:"a" description:"key=value attributes"`
 }
 
-var (
-	shortAddCapHelp = i18n.G("Add a capability to the system")
-	longAddCapHelp  = i18n.G("This command adds a capability to the system")
-)
+var shortAddCapHelp = i18n.G("Adds a capability to the system")
+var longAddCapHelp = i18n.G(`
+The add-cap command adds a capability to the system.
+`)
 
 func init() {
 	addCommand("add-cap", shortAddCapHelp, longAddCapHelp, func() interface{} {

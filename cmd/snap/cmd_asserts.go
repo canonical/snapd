@@ -38,10 +38,12 @@ type cmdAsserts struct {
 	assertsOptions `positional-args:"true" required:"true"`
 }
 
-var (
-	shortAssertsHelp = i18n.G("Shows known assertions of the provided type")
-	longAssertsHelp  = i18n.G(`The asserts command shows known assertions of the provided type. If header=value pairs are provided after the assertion type, the assertions shown must also have the specified headers matching the provided values.`)
-)
+var shortAssertsHelp = i18n.G("Shows known assertions of the provided type")
+var longAssertsHelp = i18n.G(`
+The asserts command shows known assertions of the provided type.
+If header=value pairs are provided after the assertion type, the assertions
+shown must also have the specified headers matching the provided values.
+`)
 
 func init() {
 	addCommand("asserts", shortAssertsHelp, longAssertsHelp, func() interface{} {
