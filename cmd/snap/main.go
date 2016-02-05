@@ -34,8 +34,6 @@ type options struct {
 
 var optionsData options
 
-var parser *flags.Parser
-
 // cmdInfo holds information needed to call parser.AddCommand(...).
 type cmdInfo struct {
 	name, shortHelp, longHelp string
@@ -71,7 +69,6 @@ func Parser() *flags.Parser {
 }
 
 func init() {
-	parser = Parser()
 	err := logger.SimpleSetup()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "WARNING: failed to activate logging: %s\n", err)
@@ -86,6 +83,7 @@ func main() {
 }
 
 func run() error {
+	parser := Parser()
 	_, err := parser.Parse()
 	if err != nil {
 		return err
