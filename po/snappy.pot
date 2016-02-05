@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-02-05 18:55+0100\n"
+        "POT-Creation-Date: 2016-02-05 19:57+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -181,6 +181,9 @@ msgstr  ""
 msgid   "List assigned hardware for a specific installed package"
 msgstr  ""
 
+msgid   "Lists skills in the system"
+msgstr  ""
+
 msgid   "Lists system capabilities"
 msgstr  ""
 
@@ -312,6 +315,9 @@ msgid   "Show channel information and expand all fields"
 msgstr  ""
 
 msgid   "Shows known assertions of the provided type"
+msgstr  ""
+
+msgid   "Skill\tGranted To"
 msgstr  ""
 
 msgid   "Snap\tService\tState"
@@ -449,6 +455,24 @@ msgstr  ""
 
 msgid   "\n"
         "The remove-cap command removes a capability from the system.\n"
+msgstr  ""
+
+msgid   "\n"
+        "The skills command lists skills available in the system.\n"
+        "\n"
+        "By default all skills, used and offered by all snaps, are displayed.\n"
+        " \n"
+        "$ snap skills <snap name>:<skill name>\n"
+        "\n"
+        "Lists only the specified skill.\n"
+        "\n"
+        "$ snap skills <snap name>\n"
+        "\n"
+        "Lists the skills offered and used by the specified snap.\n"
+        "\n"
+        "$ snap skills --type=<type> [<snap name>]\n"
+        "\n"
+        "Lists only skills of the specified type.\n"
 msgstr  ""
 
 msgid   "\n"
