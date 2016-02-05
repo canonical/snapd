@@ -24,9 +24,10 @@ import (
 	"os"
 	"testing"
 
+	. "gopkg.in/check.v1"
+
 	. "github.com/ubuntu-core/snappy/cmd/snap"
 	"github.com/ubuntu-core/snappy/testutil"
-	. "gopkg.in/check.v1"
 )
 
 // Hook up check.v1 into the "go test" runner
