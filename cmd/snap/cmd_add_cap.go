@@ -20,44 +20,9 @@
 package main
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
 )
-
-// AttributePair contains a pair of key-value strings
-type AttributePair struct {
-	// The key
-	Key string
-	// The value
-	Value string
-}
-
-// UnmarshalFlag parses a string into an AttributePair
-func (ap *AttributePair) UnmarshalFlag(value string) error {
-	parts := strings.SplitN(value, "=", 2)
-	if len(parts) != 2 {
-		return fmt.Errorf("expected attribute in key=value format")
-	}
-	ap.Key, ap.Value = parts[0], parts[1]
-	return nil
-}
-
-// MarshalFlag converts a AttributePair into a string
-func (ap *AttributePair) MarshalFlag() (string, error) {
-	return fmt.Sprintf("%s=%q", ap.Key, ap.Value), nil
-}
-
-// AttributePairSliceToMap converts a slice of AttributePair into a map
-func AttributePairSliceToMap(attrs []AttributePair) map[string]string {
-	result := make(map[string]string)
-	for _, attr := range attrs {
-		result[attr.Key] = attr.Value
-	}
-	return result
-}
 
 type cmdAddCap struct {
 	Name  string          `long:"name" required:"true" description:"unique capability name"`
