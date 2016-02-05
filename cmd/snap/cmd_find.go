@@ -45,7 +45,7 @@ func init() {
 		name:      "find",
 		shortHelp: shortFindHelp,
 		longHelp:  longFindHelp,
-		callback:  func() interface{} { return &cmdFind{} },
+		builder:  func() interface{} { return &cmdFind{} },
 	})
 }
 

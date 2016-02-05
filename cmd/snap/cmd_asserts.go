@@ -48,7 +48,7 @@ func init() {
 		name:      "asserts",
 		shortHelp: shortAssertsHelp,
 		longHelp:  longAssertsHelp,
-		callback:  func() interface{} { return &cmdAsserts{} },
+		builder:  func() interface{} { return &cmdAsserts{} },
 	})
 }
 

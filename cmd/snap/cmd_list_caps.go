@@ -41,7 +41,7 @@ func init() {
 		name:      "list-caps",
 		shortHelp: shortListCapsHelp,
 		longHelp:  longListCapsHelp,
-		callback:  func() interface{} { return &cmdListCaps{} },
+		builder:  func() interface{} { return &cmdListCaps{} },
 	})
 }
 
