@@ -36,7 +36,7 @@ type AttributePair struct {
 func (ap *AttributePair) UnmarshalFlag(value string) error {
 	parts := strings.SplitN(value, "=", 2)
 	if len(parts) != 2 {
-		return fmt.Errorf("expected attribute in key=value format")
+		return fmt.Errorf("invalid attribute: %q (want key=value)", value)
 	}
 	ap.Key, ap.Value = parts[0], parts[1]
 	return nil
