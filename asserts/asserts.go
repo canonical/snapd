@@ -45,6 +45,7 @@ type AssertionType struct {
 // Understood assertion types.
 var (
 	AccountKeyType   = &AssertionType{"account-key", []string{"account-id", "public-key-id"}, assembleAccountKey}
+	ModelType        = &AssertionType{"model", []string{"brand-id", "model", "series"}, assembleModel}
 	SnapBuildType    = &AssertionType{"snap-build", []string{"snap-id", "snap-digest"}, assembleSnapBuild}
 	SnapRevisionType = &AssertionType{"snap-revision", []string{"snap-id", "snap-digest"}, assembleSnapRevision}
 
@@ -53,6 +54,7 @@ var (
 
 var typeRegistry = map[string]*AssertionType{
 	AccountKeyType.Name:   AccountKeyType,
+	ModelType.Name:        ModelType,
 	SnapBuildType.Name:    SnapBuildType,
 	SnapRevisionType.Name: SnapRevisionType,
 }
