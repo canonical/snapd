@@ -158,16 +158,54 @@ func parseHeaders(head []byte) (map[string]string, error) {
 		return nil, fmt.Errorf("header is not utf8")
 	}
 	headers := make(map[string]string)
-	for _, entry := range strings.Split(string(head), "\n") {
-		nameValueSplit := strings.Index(entry, ": ")
+	lines := strings.Split(string(head), "\n")
+	for i := 0; i < len(lines); {
+		entry := lines[i]
+		i++
+		nameValueSplit := strings.Index(entry, ":")
 		if nameValueSplit == -1 {
-			return nil, fmt.Errorf("header entry missing name value ': ' separation: %q", entry)
+			return nil, fmt.Errorf("header entry missing name/value ':' separator: %q", entry)
 		}
 		name := entry[:nameValueSplit]
 		if !headerNameSanity.MatchString(name) {
 			return nil, fmt.Errorf("invalid header name: %q", name)
 		}
-		headers[name] = entry[nameValueSplit+2:]
+
+		afterSplit := nameValueSplit + 1
+		if afterSplit == len(entry) {
+			// multiline value
+			size := 0
+			j := i
+			for j < len(lines) {
+				iline := lines[j]
+				if len(iline) == 0 || iline[0] != ' ' {
+					break
+				}
+				size += len(iline)
+				j++
+			}
+			if j == i {
+				return nil, fmt.Errorf("empty multiline header value: %q", entry)
+			}
+
+			valueBuf := bytes.NewBuffer(make([]byte, 0, size-1))
+			valueBuf.WriteString(lines[i][1:])
+			i++
+			for i < j {
+				valueBuf.WriteByte('\n')
+				valueBuf.WriteString(lines[i][1:])
+				i++
+			}
+
+			headers[name] = valueBuf.String()
+			continue
+		}
+
+		if entry[afterSplit] != ' ' {
+			return nil, fmt.Errorf("header entry should have a space or newline (multiline) before value: %q", entry)
+		}
+
+		headers[name] = entry[afterSplit+1:]
 	}
 	return headers, nil
 }
@@ -469,8 +507,15 @@ func Assemble(headers map[string]string, body, content, signature []byte) (Asser
 func writeHeader(buf *bytes.Buffer, headers map[string]string, name string) {
 	buf.WriteByte('\n')
 	buf.WriteString(name)
-	buf.WriteString(": ")
-	buf.WriteString(headers[name])
+	value := headers[name]
+	if strings.IndexRune(value, '\n') != -1 {
+		// multiline value => quote by 1-space indenting
+		buf.WriteString(":\n ")
+		value = strings.Replace(value, "\n", "\n ", -1)
+	} else {
+		buf.WriteString(": ")
+	}
+	buf.WriteString(value)
 }
 
 func assembleAndSign(assertType *AssertionType, headers map[string]string, body []byte, privKey PrivateKey) (Assertion, error) {
