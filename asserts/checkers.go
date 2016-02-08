@@ -100,6 +100,9 @@ func checkCommaSepList(headers map[string]string, name string) ([]string, error)
 		return nil, fmt.Errorf("%q header is mandatory", name)
 	}
 
+	// XXX: we likely don't need this much white-space flexibility,
+	// just supporting newline after , could be enough
+
 	// empty list are allowed
 	listStr = strings.TrimSpace(listStr)
 	if listStr == "" {
