@@ -103,7 +103,7 @@ func checkCommaSepList(headers map[string]string, name string) ([]string, error)
 	// XXX: we likely don't need this much white-space flexibility,
 	// just supporting newline after , could be enough
 
-	// empty list are allowed
+	// empty lists are allowed
 	listStr = strings.TrimSpace(listStr)
 	if listStr == "" {
 		return nil, nil
