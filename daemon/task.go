@@ -42,6 +42,10 @@ const (
 	TaskFailed    = "failed"
 )
 
+func (t *Task) Tomb() *tomb.Tomb {
+	return &t.tomb
+}
+
 // CreatedAt returns the timestamp at which the task was created
 func (t *Task) CreatedAt() time.Time {
 	return t.t0

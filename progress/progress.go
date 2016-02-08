@@ -92,6 +92,28 @@ func (t *NullProgress) Agreed(intro, license string) bool {
 	return false
 }
 
+type SimpleProgress struct {
+	NullProgress
+	total   float64
+	current float64
+}
+
+func (t *SimpleProgress) Start(pkg string, total float64) {
+	t.total = total
+	t.current = 0
+}
+
+func (t *SimpleProgress) Set(current float64) {
+	t.current = current
+}
+
+func (t *SimpleProgress) Percentage() float64 {
+	if t.total > 0 {
+		return (t.current / t.total) * 100
+	}
+	return 0.0
+}
+
 // TextProgress show progress on the terminal
 type TextProgress struct {
 	Meter
