@@ -348,9 +348,22 @@ void mkpath(const char *const path) {
          // substring without needing more memory.
          pathCopy[index] = '\0';
 
-         // If the directory already exists, no problem. Otherwise, create it.
-         // It we can't, it's fatal.
-         if (mkdir(pathCopy, 0755) < 0 && errno != EEXIST) {
+         // Create the directory
+         if (mkdir(pathCopy, 0755) == 0) {
+            uid_t uid = getuid();
+
+            // Since the launcher is setuid root, we need to make sure the user
+            // data directory is owned by whoever ran it.
+            if (uid != geteuid()) {
+               if (chown(pathCopy, uid, getgid()) < 0) {
+                  rmdir(pathCopy);
+                  free(pathCopy);
+                  die("failed to create user data directory");
+               }
+            }
+         }
+         // Not a problem if it already existed, but it's fatal otherwise.
+         else if (errno != EEXIST) {
             free(pathCopy);
             die("failed to create user data directory");
          }
