@@ -212,7 +212,7 @@ void setup_private_mount(const char* appname) {
 
     // Create a 0700 base directory, this is the base dir that is
     // protected from other users.
-    // 
+    //
     // Under that basedir, we put a 1777 /tmp dir that is then bind
     // mounted for the applications to use
     must_snprintf(tmpdir, sizeof(tmpdir), "/tmp/snap.%d_%s_XXXXXX", uid, appname);
@@ -233,7 +233,7 @@ void setup_private_mount(const char* appname) {
        die("unable to create /tmp inside private dir");
     }
     umask(old_mask);
-    
+
     // MS_BIND is there from linux 2.4
     if (mount(tmpdir, "/tmp", NULL, MS_BIND, NULL) != 0) {
         die("unable to bind private /tmp");
@@ -304,14 +304,87 @@ void setup_slave_mount_namespace() {
    if (unshare(CLONE_NEWNS) < 0) {
       die("unable to set up mount namespace");
    }
-   
+
    // make our "/" a rslave of the real "/". this means that
    // mounts from the host "/" get propagated to our namespace
    // (i.e. we see new media mounts)
    if (mount("none", "/", NULL, MS_REC|MS_SLAVE, NULL) != 0) {
       die("can not make make / rslave");
    }
-}   
+}
+
+void mkpath(const char *const path) {
+   // If asked to create an empty path, return immediately.
+   int path_length = strlen(path);
+   if (path_length == 0) {
+      return;
+   }
+
+    // We're going to need to modify the path, so make a copy of it.
+   char *pathCopy = strdup(path);
+   if (pathCopy == NULL) {
+      die("failed to create user data directory");
+   }
+
+   int index = -1;
+
+   // Skip a leading slash
+   if (pathCopy[0] == '/') {
+      ++index;
+   }
+
+   // Search the path for path separators ('/'), making sure each parent
+   // directory exists as we go along. For example, given "/a/b/c":
+   //   - Make sure /a exists
+   //   - Make sure /a/b exists
+   //   - Make sure /a/b/c exists
+   do {
+      ++index;
+
+      // '/' is obviously our separator, but check for '\0' here as well or
+      // we'll miss the final directory of the path.
+      if ((pathCopy[index] == '/') || (pathCopy[index] == '\0')) {
+         // Replace the separator with the null character so we have a
+         // substring without needing more memory.
+         pathCopy[index] = '\0';
+
+         // If the directory already exists, no problem. Otherwise, create it.
+         // It we can't, it's fatal.
+         if (mkdir(pathCopy, 0755) < 0 && errno != EEXIST) {
+            free(pathCopy);
+            die("failed to create user data directory");
+         }
+
+         // Replace the null character with the separator again (not a
+         // substring anymore).
+         pathCopy[index] = '/';
+      }
+   } while (index < path_length);
+
+   free(pathCopy);
+}
+
+void setup_user_data() {
+   const char *user_data = getenv("SNAP_USER_DATA");
+
+   // If $SNAP_USER_DATA wasn't defined, check the deprecated
+   // $SNAP_APP_USER_DATA_PATH.
+   if (user_data == NULL) {
+      user_data = getenv("SNAP_APP_USER_DATA_PATH");
+      // If it's still not defined, there's nothing to do. No need to die,
+      // there's simply no directory to create.
+      if (user_data == NULL) {
+         return;
+      }
+   }
+
+   // Only support absolute paths.
+   if (user_data[0] != '/') {
+      die("user data directory must be an absolute path");
+   }
+
+   mkpath(user_data);
+}
 
 int main(int argc, char **argv)
 {
@@ -332,6 +405,9 @@ int main(int argc, char **argv)
        die("need to run as root or suid");
    }
 
+   // Ensure that the user data path exists.
+   setup_user_data();
+
    if(geteuid() == 0) {
        // verify binary path
        char snaps_prefix[128];
@@ -350,12 +426,12 @@ int main(int argc, char **argv)
        // This also means you can't run an automount daemon unter
        // this launcher
        setup_slave_mount_namespace();
-       
+
        // do the mounting if run on a non-native snappy system
        if(is_running_on_classic_ubuntu()) {
           setup_snappy_os_mounts();
        }
-      
+
        // set up private mounts
        setup_private_mount(appname);
 
@@ -403,4 +479,3 @@ int main(int argc, char **argv)
     perror("execv failed");
     return 1;
 }
-

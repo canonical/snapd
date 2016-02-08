@@ -1,0 +1,187 @@
+#!/bin/sh
+
+set -e
+
+. $(pwd)/common.sh
+
+cat >$TMP/unrestricted <<EOF
+# some comment
+@unrestricted
+EOF
+
+cat >$TMP/restricted <<EOF
+# filter that works ok for true
+open
+close
+
+mmap
+munmap
+mprotect
+
+fstat
+access
+read
+
+brk
+execve
+
+arch_prctl
+exit_group
+
+# unknown syscalls are ignore
+i-dont-exit
+EOF
+
+# Set current user data variable
+export SNAP_USER_DATA=$TMP/user_data
+
+printf "Test that an unrestricted launcher creates \$SNAP_USER_DATA"
+if $L appid unrestricted /bin/true / >/dev/null; then
+   if [ ! -d "$SNAP_USER_DATA" ]; then
+      FAIL
+   fi
+
+   PASS
+else
+   FAIL
+fi
+
+rmdir $SNAP_USER_DATA
+
+printf "Test that a restricted launcher creates \$SNAP_USER_DATA"
+if $L appid restricted /bin/true 2>/dev/null; then
+   if [ ! -d "$SNAP_USER_DATA" ]; then
+      FAIL
+   fi
+
+   PASS
+else
+   FAIL
+fi
+
+# At this point, $SNAP_USER_DATA should exist. Now make sure that the launcher
+# will run if it already exists.
+printf "Test that an unrestricted launcher works when \$SNAP_USER_DATA exists"
+if $L appid unrestricted /bin/true / >/dev/null; then
+   if [ ! -d "$SNAP_USER_DATA" ]; then
+      FAIL
+   fi
+
+   PASS
+else
+   FAIL
+fi
+
+printf "Test that an restricted launcher works when \$SNAP_USER_DATA exists"
+if $L appid restricted /bin/true 2>/dev/null; then
+   if [ ! -d "$SNAP_USER_DATA" ]; then
+      FAIL
+   fi
+
+   PASS
+else
+   FAIL
+fi
+
+rmdir $SNAP_USER_DATA
+
+# Set the user data dir to be nested under a non-existing parent directory
+export SNAP_USER_DATA=$TMP/parent/user_data
+
+printf "Test that an unrestricted launcher creates \$SNAP_USER_DATA with parent directory"
+if $L appid unrestricted /bin/true / >/dev/null; then
+   if [ ! -d "$SNAP_USER_DATA" ]; then
+      FAIL
+   fi
+
+   PASS
+else
+   FAIL
+fi
+
+rmdir $SNAP_USER_DATA
+
+printf "Test that a restricted launcher creates \$SNAP_USER_DATA with parent directory"
+if $L appid restricted /bin/true 2>/dev/null; then
+   if [ ! -d "$SNAP_USER_DATA" ]; then
+      FAIL
+   fi
+
+   PASS
+else
+   FAIL
+fi
+
+rmdir $SNAP_USER_DATA
+
+printf "Test that \$SNAP_USER_DATA must be absolute"
+export SNAP_USER_DATA="../foo"
+if $L appid restricted /bin/true 2>/dev/null; then
+   FAIL
+else
+   PASS
+fi
+
+# Unset current user data variable so we can test the deprecated one
+unset SNAP_USER_DATA
+
+# Set deprecated user data variable
+export SNAP_APP_USER_DATA_PATH=$TMP/user_data
+
+printf "Test that an unrestricted launcher creates \$SNAP_APP_USER_DATA_PATH"
+if $L appid unrestricted /bin/true / >/dev/null; then
+   if [ ! -d "$SNAP_APP_USER_DATA_PATH" ]; then
+      FAIL
+   fi
+
+   PASS
+else
+   FAIL
+fi
+
+rmdir $SNAP_APP_USER_DATA_PATH
+
+printf "Test that a restricted launcher creates \$SNAP_APP_USER_DATA_PATH"
+if $L appid restricted /bin/true 2>/dev/null; then
+   if [ ! -d "$SNAP_APP_USER_DATA_PATH" ]; then
+      FAIL
+   fi
+
+   PASS
+else
+   FAIL
+fi
+
+# At this point, $SNAP_APP_USER_DATA_PATH should exist. Now make sure that the
+# launcher will still run if it already exists.
+printf "Test that an unrestricted launcher works when \$SNAP_APP_USER_DATA_PATH exists"
+if $L appid unrestricted /bin/true / >/dev/null; then
+   if [ ! -d "$SNAP_APP_USER_DATA_PATH" ]; then
+      FAIL
+   fi
+
+   PASS
+else
+   FAIL
+fi
+
+printf "Test that an restricted launcher works when \$SNAP_APP_USER_DATA_PATH exists"
+if $L appid restricted /bin/true 2>/dev/null; then
+   if [ ! -d "$SNAP_APP_USER_DATA_PATH" ]; then
+      FAIL
+   fi
+
+   PASS
+else
+   FAIL
+fi
+
+rmdir $SNAP_APP_USER_DATA_PATH
+
+printf "Test that \$SNAP_APP_USER_DATA_PATH must be absolute"
+export SNAP_APP_USER_DATA_PATH="../foo"
+if $L appid restricted /bin/true 2>/dev/null; then
+   FAIL
+else
+   PASS
+fi
