@@ -80,9 +80,9 @@ func (t *BoolFileType) SanitizeSlot(skill *skills.Slot) error {
 // controlling the direction of particular pins.
 func (t *BoolFileType) SkillSecuritySnippet(skill *skills.Skill, securitySystem skills.SecuritySystem) ([]byte, error) {
 	gpioSnippet := []byte(`
-/sys/class/gpio/export rwl,
-/sys/class/gpio/unexport rwl,
-/sys/class/gpio/gpio[0-9]+/direction rwl,
+/sys/class/gpio/export rw,
+/sys/class/gpio/unexport rw,
+/sys/class/gpio/gpio[0-9]+/direction rw,
 `)
 	switch securitySystem {
 	case skills.SecurityApparmor:
@@ -112,7 +112,7 @@ func (t *BoolFileType) SlotSecuritySnippet(skill *skills.Skill, securitySystem s
 		if err != nil {
 			return nil, fmt.Errorf("cannot compute skill slot security snippet: %v", err)
 		}
-		return []byte(fmt.Sprintf("%s wl,\n", path)), nil
+		return []byte(fmt.Sprintf("%s w,\n", path)), nil
 	case skills.SecuritySeccomp, skills.SecurityDBus:
 		return nil, nil
 	default:

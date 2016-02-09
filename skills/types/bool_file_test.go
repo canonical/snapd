@@ -129,13 +129,13 @@ func (s *BoolFileTypeSuite) TestSlotSecuritySnippetDereferencesSymlinks(c *C) {
 	snippet, err := s.t.SlotSecuritySnippet(s.gpioSkill, skills.SecurityApparmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, []byte(
-		"(dereferenced)/sys/class/gpio/gpio13/value wl,\n"))
+		"(dereferenced)/sys/class/gpio/gpio13/value w,\n"))
 	// Extra apparmor permission to access LED brightness.
 	// The path uses dereferenced symbolic links.
 	snippet, err = s.t.SlotSecuritySnippet(s.ledSkill, skills.SecurityApparmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, []byte(
-		"(dereferenced)/sys/class/leds/input27::capslock/brightness wl,\n"))
+		"(dereferenced)/sys/class/leds/input27::capslock/brightness w,\n"))
 }
 
 func (s *BoolFileTypeSuite) TestSlotSecuritySnippetPanicksOnUnsanitizedSkills(c *C) {
@@ -165,9 +165,9 @@ func (s *BoolFileTypeSuite) TestSlotSecuritySnippetUnusedSecurtySystems(c *C) {
 func (s *BoolFileTypeSuite) TestSkillSecuritySnippetGivesExtraPermissionsToConfigureGPIOs(c *C) {
 	// Extra apparmor permission to provide GPIOs
 	expectedGPIOSnippet := []byte(`
-/sys/class/gpio/export rwl,
-/sys/class/gpio/unexport rwl,
-/sys/class/gpio/gpio[0-9]+/direction rwl,
+/sys/class/gpio/export rw,
+/sys/class/gpio/unexport rw,
+/sys/class/gpio/gpio[0-9]+/direction rw,
 `)
 	snippet, err := s.t.SkillSecuritySnippet(s.gpioSkill, skills.SecurityApparmor)
 	c.Assert(err, IsNil)
