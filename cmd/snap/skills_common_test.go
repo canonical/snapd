@@ -38,9 +38,9 @@ func (s *AttributePairSuite) TestUnmarshalFlagAttributePair(c *C) {
 	c.Check(ap.Value, Equals, "value")
 	// Empty key
 	err = ap.UnmarshalFlag("=value")
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, `invalid attribute: "=value" \(want key=value\)`)
 	c.Check(ap.Key, Equals, "")
-	c.Check(ap.Value, Equals, "value")
+	c.Check(ap.Value, Equals, "")
 	// Empty value
 	err = ap.UnmarshalFlag("key=")
 	c.Assert(err, IsNil)
@@ -48,7 +48,7 @@ func (s *AttributePairSuite) TestUnmarshalFlagAttributePair(c *C) {
 	c.Check(ap.Value, Equals, "")
 	// Both key and value empty
 	err = ap.UnmarshalFlag("=")
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, `invalid attribute: "=" \(want key=value\)`)
 	c.Check(ap.Key, Equals, "")
 	c.Check(ap.Value, Equals, "")
 	// Value containing =
