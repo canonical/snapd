@@ -744,7 +744,7 @@ func (s *RepositorySuite) TestGrantsOfReturnsCorrectData(c *C) {
 // Tests for Repository.SecuritySnippetsForSnap()
 
 func (s *RepositorySuite) TestSlotSnippetsForSnapSuccess(c *C) {
-	var testSecurity SecuritySystem = "security"
+	const testSecurity SecuritySystem = "security"
 	t := &TestType{
 		TypeName: "type",
 		SkillSecuritySnippetCallback: func(skill *Skill, securitySystem SecuritySystem) ([]byte, error) {
