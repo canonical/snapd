@@ -22,6 +22,7 @@ package types
 import (
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/ubuntu-core/snappy/skills"
 )
@@ -57,6 +58,9 @@ func (t *BoolFileType) SanitizeSkill(skill *skills.Skill) error {
 	path, ok := skill.Attrs["path"].(string)
 	if !ok || path == "" {
 		return fmt.Errorf("bool-file must contain the path attribute")
+	}
+	if strings.Contains(path, "..") {
+		return fmt.Errorf("bool-file path cannot contain %q", "..")
 	}
 	for _, pattern := range boolFileAllowedPathPatterns {
 		if pattern.MatchString(path) {
