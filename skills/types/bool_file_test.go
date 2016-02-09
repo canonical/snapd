@@ -36,14 +36,15 @@ func Test(t *testing.T) {
 
 type BoolFileTypeSuite struct {
 	testutil.BaseTest
-	t                skills.Type
-	gpioSkill        *skills.Skill
-	ledSkill         *skills.Skill
-	badPathSkill     *skills.Skill
-	missingPathSkill *skills.Skill
-	badTypeSkill     *skills.Skill
-	slot             *skills.Slot
-	badTypeSlot      *skills.Slot
+	t                  skills.Type
+	gpioSkill          *skills.Skill
+	ledSkill           *skills.Skill
+	badPathSkill       *skills.Skill
+	parentDirPathSkill *skills.Skill
+	missingPathSkill   *skills.Skill
+	badTypeSkill       *skills.Skill
+	slot               *skills.Slot
+	badTypeSlot        *skills.Slot
 }
 
 var _ = Suite(&BoolFileTypeSuite{
@@ -66,6 +67,12 @@ var _ = Suite(&BoolFileTypeSuite{
 	badPathSkill: &skills.Skill{
 		Type:  "bool-file",
 		Attrs: map[string]interface{}{"path": "path"},
+	},
+	parentDirPathSkill: &skills.Skill{
+		Type: "bool-file",
+		Attrs: map[string]interface{}{
+			"path": "/sys/class/gpio/../value",
+		},
 	},
 	badTypeSkill: &skills.Skill{
 		Type: "other-type",
@@ -92,6 +99,9 @@ func (s *BoolFileTypeSuite) TestSanitizeSkill(c *C) {
 	err = s.t.SanitizeSkill(s.missingPathSkill)
 	c.Assert(err, ErrorMatches,
 		"bool-file must contain the path attribute")
+	// Skills without the "path" attribute are rejected.
+	err = s.t.SanitizeSkill(s.parentDirPathSkill)
+	c.Assert(err, ErrorMatches, "bool-file path cannot contain \"..\"")
 	// Skills with incorrect value of the "path" attribute are rejected.
 	err = s.t.SanitizeSkill(s.badPathSkill)
 	c.Assert(err, ErrorMatches,
