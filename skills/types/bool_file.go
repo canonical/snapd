@@ -79,17 +79,17 @@ func (t *BoolFileType) SanitizeSlot(skill *skills.Slot) error {
 // Producers gain control over exporting, importing GPIOs as well as
 // controlling the direction of particular pins.
 func (t *BoolFileType) SkillSecuritySnippet(skill *skills.Skill, securitySystem skills.SecuritySystem) ([]byte, error) {
+	gpioSnippet := []byte(`
+/sys/class/gpio/export rwl,
+/sys/class/gpio/import rwl,
+/sys/class/gpio/gpio[0-9]+/direction rwl,
+`)
 	switch securitySystem {
 	case skills.SecurityApparmor:
 		// To provide GPIOs we need extra permissions to export/unexport and to
 		// set the direction of each pin.
 		if t.isGPIO(skill) {
-			snippet := []byte(`
-/sys/class/gpio/export rwl,
-/sys/class/gpio/import rwl,
-/sys/class/gpio/gpio[0-9]+/direction rwl,
-`)
-			return snippet, nil
+			return gpioSnippet, nil
 		}
 		return nil, nil
 	case skills.SecuritySeccomp:
