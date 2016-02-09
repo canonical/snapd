@@ -81,7 +81,7 @@ func (t *BoolFileType) SanitizeSlot(skill *skills.Slot) error {
 func (t *BoolFileType) SkillSecuritySnippet(skill *skills.Skill, securitySystem skills.SecuritySystem) ([]byte, error) {
 	gpioSnippet := []byte(`
 /sys/class/gpio/export rwl,
-/sys/class/gpio/import rwl,
+/sys/class/gpio/unexport rwl,
 /sys/class/gpio/gpio[0-9]+/direction rwl,
 `)
 	switch securitySystem {

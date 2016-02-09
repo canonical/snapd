@@ -166,7 +166,7 @@ func (s *BoolFileTypeSuite) TestSkillSecuritySnippetGivesExtraPermissionsToConfi
 	// Extra apparmor permission to provide GPIOs
 	expectedGPIOSnippet := []byte(`
 /sys/class/gpio/export rwl,
-/sys/class/gpio/import rwl,
+/sys/class/gpio/unexport rwl,
 /sys/class/gpio/gpio[0-9]+/direction rwl,
 `)
 	snippet, err := s.t.SkillSecuritySnippet(s.gpioSkill, skills.SecurityApparmor)
