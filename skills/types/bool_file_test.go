@@ -155,7 +155,7 @@ func (s *BoolFileTypeSuite) TestSlotSecuritySnippetPanicksOnUnsanitizedSkills(c 
 	}, PanicMatches, "skill is not sanitized")
 }
 
-func (s *BoolFileTypeSuite) TestSlotSecuritySnippetUnusedSecurtySystems(c *C) {
+func (s *BoolFileTypeSuite) TestSlotSecuritySnippetUnusedSecuritySystems(c *C) {
 	for _, skill := range []*skills.Skill{s.ledSkill, s.gpioSkill} {
 		// No extra seccomp permissions for slot
 		snippet, err := s.t.SlotSecuritySnippet(skill, skills.SecuritySeccomp)
@@ -198,7 +198,7 @@ func (s *BoolFileTypeSuite) TestSkillSecuritySnippetPanicksOnUnsanitizedSkills(c
 	}, PanicMatches, "skill is not sanitized")
 }
 
-func (s *BoolFileTypeSuite) TestSkillSecuritySnippetUnusedSecurtySystems(c *C) {
+func (s *BoolFileTypeSuite) TestSkillSecuritySnippetUnusedSecuritySystems(c *C) {
 	for _, skill := range []*skills.Skill{s.ledSkill, s.gpioSkill} {
 		// No extra seccomp permissions for skill
 		snippet, err := s.t.SkillSecuritySnippet(skill, skills.SecuritySeccomp)
