@@ -33,7 +33,6 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/ubuntu-core/snappy/asserts"
-	"github.com/ubuntu-core/snappy/caps"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
@@ -47,7 +46,6 @@ type Daemon struct {
 	listener     net.Listener
 	tomb         tomb.Tomb
 	router       *mux.Router
-	capRepo      *caps.Repository
 	asserts      *asserts.Database
 	skills       *skills.Repository
 	// enableInternalSkillActions controls if adding and removing skills and slots is allowed.
@@ -262,11 +260,6 @@ func New() *Daemon {
 	if err != nil {
 		panic(err.Error())
 	}
-	capRepo := caps.NewRepository()
-	err = caps.LoadBuiltInTypes(capRepo)
-	if err != nil {
-		panic(err.Error())
-	}
 	skillRepo := skills.NewRepository()
 	err = skills.LoadBuiltInTypes(skillRepo)
 	if err != nil {
@@ -274,10 +267,9 @@ func New() *Daemon {
 	}
 	return &Daemon{
 		tasks:   make(map[string]*Task),
-		capRepo: capRepo,
+		asserts: db,
 		skills:  skillRepo,
 		// TODO: Decide when this should be disabled by default.
 		enableInternalSkillActions: true,
-		asserts:                    db,
 	}
 }

@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-02-09 14:26+0000\n"
+        "POT-Creation-Date: 2016-02-09 16:47+0000\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -66,9 +66,6 @@ msgid   "Activate a snap that is installed but inactive"
 msgstr  ""
 
 msgid   "Add a snap to the system"
-msgstr  ""
-
-msgid   "Adds a capability to the system"
 msgstr  ""
 
 msgid   "Adds an assertion to the system"
@@ -187,9 +184,6 @@ msgstr  ""
 msgid   "List assigned hardware for a specific installed package"
 msgstr  ""
 
-msgid   "Lists system capabilities"
-msgstr  ""
-
 msgid   "Log into the store"
 msgstr  ""
 
@@ -275,9 +269,6 @@ msgid   "Remove all the data from the listed packages. Normally this is used for
 msgstr  ""
 
 msgid   "Remove hardware from a specific installed package"
-msgstr  ""
-
-msgid   "Removes a capability from the system"
 msgstr  ""
 
 #. TRANSLATORS: the %s is a pkgname
@@ -418,10 +409,6 @@ msgid   "\n"
 msgstr  ""
 
 msgid   "\n"
-        "The add-cap command adds a capability to the system.\n"
-msgstr  ""
-
-msgid   "\n"
         "The assert command tries to add an assertion to the system assertion database.\n"
         "\n"
         "The assertion may also be a newer revision of a preexisting assertion that it\n"
@@ -456,10 +443,6 @@ msgid   "\n"
 msgstr  ""
 
 msgid   "\n"
-        "The list-caps command shows all capabilities and their allocation.\n"
-msgstr  ""
-
-msgid   "\n"
         "The purge command removes the data of the named snap from the system.\n"
 msgstr  ""
 
@@ -472,10 +455,6 @@ msgid   "\n"
         "\n"
         "The snap's data is currently not removed; use purge for that. This behaviour\n"
         "will change before 16.04 is final.\n"
-msgstr  ""
-
-msgid   "\n"
-        "The remove-cap command removes a capability from the system.\n"
 msgstr  ""
 
 msgid   "\n"
