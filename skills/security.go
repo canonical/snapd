@@ -96,3 +96,30 @@ func (sc *secComp) headerForApp(snapName, appName string) []byte {
 func (sc *secComp) footerForApp(snapName, appName string) []byte {
 	return nil // seccomp doesn't require a footer
 }
+
+// uDev is a security subsystem that writes additional udev rules (one per snap).
+//
+// Each rule looks like this:
+//
+// KERNEL=="hiddev0", TAG:="snappy-assign", ENV{SNAPPY_APP}:="http.chipaca"
+//
+// NOTE: This interacts with ubuntu-core-launcher.
+// TODO: Explain how this works (security).
+type uDev struct{}
+
+func (udev *uDev) securitySystem() SecuritySystem {
+	return SecurityUDev
+}
+
+func (udev *uDev) pathForApp(snapName, appName string) string {
+	// NOTE: we ignore appName so effectively udev rules apply to entire snap.
+	return fmt.Sprintf("/etc/udev/rules.d/70-snappy-%s.rules", snapName)
+}
+
+func (udev *uDev) headerForApp(snapName, appName string) []byte {
+	return nil // udev doesn't require a header
+}
+
+func (udev *uDev) footerForApp(snapName, appName string) []byte {
+	return nil // udev doesn't require a footer
+}

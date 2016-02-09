@@ -52,6 +52,7 @@ func NewRepository() *Repository {
 		securityHelpers: []securityHelper{
 			&appArmor{},
 			&secComp{},
+			&uDev{},
 		},
 	}
 }

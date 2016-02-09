@@ -146,3 +146,41 @@ func (s *SecuritySuite) TestSecCompSlotPermissions(c *C) {
 			"deny kexec\n"),
 	})
 }
+
+// Tests for uDev
+
+func (s *SecuritySuite) TestUdevSkillPermissions(c *C) {
+	s.prepareFixtureWithType(c, &TestType{
+		TypeName: "type",
+		SkillSecuritySnippetCallback: func(skill *Skill, securitySystem SecuritySystem) ([]byte, error) {
+			if securitySystem == SecurityUDev {
+				return []byte("...\n"), nil
+			}
+			return nil, nil
+		},
+	})
+	// Ensure that skill-side security profile looks correct.
+	blobs, err := s.repo.SecurityFilesForSnap(s.skill.Snap)
+	c.Assert(err, IsNil)
+	c.Check(blobs, DeepEquals, map[string][]byte{
+		"/etc/udev/rules.d/70-snappy-producer.rules": []byte("...\n"),
+	})
+}
+
+func (s *SecuritySuite) TestUdevSlotPermissions(c *C) {
+	s.prepareFixtureWithType(c, &TestType{
+		TypeName: "type",
+		SlotSecuritySnippetCallback: func(skill *Skill, securitySystem SecuritySystem) ([]byte, error) {
+			if securitySystem == SecurityUDev {
+				return []byte("...\n"), nil
+			}
+			return nil, nil
+		},
+	})
+	// Ensure that slot-side security profile looks correct.
+	blobs, err := s.repo.SecurityFilesForSnap(s.slot.Snap)
+	c.Assert(err, IsNil)
+	c.Check(blobs, DeepEquals, map[string][]byte{
+		"/etc/udev/rules.d/70-snappy-consumer.rules": []byte("...\n"),
+	})
+}
