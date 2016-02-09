@@ -20,6 +20,7 @@
 package skills
 
 import (
+	"bytes"
 	"fmt"
 	"sort"
 	"sync"
@@ -33,10 +34,11 @@ type Repository struct {
 	m     sync.Mutex
 	types map[string]Type
 	// Indexed by [snapName][skillName]
-	skills     map[string]map[string]*Skill
-	slots      map[string]map[string]*Slot
-	slotSkills map[*Slot]map[*Skill]bool
-	skillSlots map[*Skill]map[*Slot]bool
+	skills          map[string]map[string]*Skill
+	slots           map[string]map[string]*Slot
+	slotSkills      map[*Slot]map[*Skill]bool
+	skillSlots      map[*Skill]map[*Slot]bool
+	securityHelpers []securityHelper
 }
 
 // NewRepository creates an empty skill repository.
@@ -451,4 +453,54 @@ func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem Sec
 		}
 	}
 	return snippets, nil
+}
+
+// SecurityFilesForSnap computes files that constitute all of the security permissions.
+func (r *Repository) SecurityFilesForSnap(snapName string) (map[string][]byte, error) {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	buffers := make(map[string]*bytes.Buffer)
+	for _, helper := range r.securityHelpers {
+		if err := r.collectFilesFromSecurityHelper(snapName, helper, buffers); err != nil {
+			return nil, err
+		}
+	}
+	blobs := make(map[string][]byte)
+	for name, buffer := range buffers {
+		blobs[name] = buffer.Bytes()
+	}
+	return blobs, nil
+}
+
+func (r *Repository) collectFilesFromSecurityHelper(snapName string, helper securityHelper, buffers map[string]*bytes.Buffer) error {
+	securitySystem := helper.securitySystem()
+	appSnippets, err := r.securitySnippetsForSnap(snapName, securitySystem)
+	if err != nil {
+		return fmt.Errorf("cannot determine %s security snippets for snap %s: %v", securitySystem, snapName, err)
+	}
+	for appName, snippets := range appSnippets {
+		writer := &bytes.Buffer{}
+		path := helper.pathForApp(snapName, appName)
+		doWrite := func(blob []byte) error {
+			_, err = writer.Write(blob)
+			if err != nil {
+				return fmt.Errorf("cannot write %s file for snap %s (app %s): %v", securitySystem, snapName, appName, err)
+			}
+			return nil
+		}
+		if err := doWrite(helper.headerForApp(snapName, appName)); err != nil {
+			return err
+		}
+		for _, snippet := range snippets {
+			if err := doWrite(snippet); err != nil {
+				return err
+			}
+		}
+		if err := doWrite(helper.footerForApp(snapName, appName)); err != nil {
+			return err
+		}
+		buffers[path] = writer
+	}
+	return nil
 }
