@@ -101,9 +101,8 @@ Run the tests with:
 
 With the `--update` flag you can flash an old image, update to the latest and
 then run the whole suite on the updated system. The `release`, the `channel` and
-the `revision` flags specify the image that will be flashed, and the
-`target-release` and `target-channel` flags specify the values to be used in the
-update if they are different from the flashed values.
+the `revision` flags specify the image that will be flashed. There must be an
+update available for the flashed image.
 
 For example, to update from *rolling edge -1* to the latest and then run the
 integration tests:
@@ -111,18 +110,12 @@ integration tests:
     go run integration-tests/main.go --snappy-from-branch \
     --revision=-1 --update
 
-To update from *15.04 alpha* to *rolling edge* and then run the integration tests:
-
-    go run integration-tests/main.go --snappy-from-branch \
-    --release=15.04 --channel=alpha \
-    --update --target-release=rolling --target-channel=edge
-
 ### Testing a rollback
 
 With the `--rollback` flag you can flash an old image, update to the latest,
 rollback again to the old image and then run the whole suite on the rolled
-back system. You should use the `release`, `channel`, `revision`, `target-release`
-and `target-channel` flags as when testing an update.
+back system. You should use the `release`, `channel` and `revision` flags as
+when testing an update.
 
 For example, to test a rollback from latest *rolling edge* to *rolling edge -1*:
 
