@@ -64,3 +64,35 @@ func (aa *appArmor) headerForApp(snapName, appName string) []byte {
 func (aa *appArmor) footerForApp(snapName, appName string) []byte {
 	return []byte("}\n")
 }
+
+// secComp is a security subsystem that writes additional seccomp rules.
+//
+// Rules use a simple line-oriented record structure.  Each line specifies a
+// system call that is allowed.  Lines starting with "deny" specify system
+// calls that are explicitly not allowed. Lines starting with '#' are treated
+// as comments are ignored.
+//
+// NOTE: This subsystem interacts with ubuntu-core-launcher. The launcher reads
+// a single profile from a specific path, parses it and loads a seccomp profile
+// (using Berkley packet filter as low level mechanism).
+type secComp struct{}
+
+func (sc *secComp) securitySystem() SecuritySystem {
+	return SecuritySecComp
+}
+
+func (sc *secComp) pathForApp(snapName, appName string) string {
+	// NOTE: This path has to be synchronized with ubuntu-core-launcher.
+	// TODO: Use the path that ubuntu-core-launcher actually looks at.
+	return fmt.Sprintf("/run/snappy/security/seccomp/%s/%s.profile", snapName, appName)
+}
+
+func (sc *secComp) headerForApp(snapName, appName string) []byte {
+	// TODO: Inject the real profile as the header.
+	// e.g. /usr/share/seccomp/templates/ubuntu-core/16.04/default
+	return []byte("# TODO: add default seccomp profile here\n")
+}
+
+func (sc *secComp) footerForApp(snapName, appName string) []byte {
+	return nil // seccomp doesn't require a footer
+}
