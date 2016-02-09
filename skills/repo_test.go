@@ -761,18 +761,14 @@ func (s *RepositorySuite) TestSlotSnippetsForSnapSuccess(c *C) {
 		},
 	}
 	repo := s.emptyRepo
-	err := repo.AddType(t)
-	c.Assert(err, IsNil)
-	err = repo.AddSkill(s.skill)
-	c.Assert(err, IsNil)
-	err = repo.AddSlot(s.slot)
-	c.Assert(err, IsNil)
-	err = repo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
-	c.Assert(err, IsNil)
+	c.Assert(repo.AddType(t), IsNil)
+	c.Assert(repo.AddSkill(s.skill), IsNil)
+	c.Assert(repo.AddSlot(s.slot), IsNil)
+	c.Assert(repo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name), IsNil)
 	// Now producer.app should get `producer snippet` and consumer.app should
 	// get `consumer snippet`.
 	var snippets map[string][][]byte
-	snippets, err = repo.SecuritySnippetsForSnap(s.skill.Snap, testSecurity)
+	snippets, err := repo.SecuritySnippetsForSnap(s.skill.Snap, testSecurity)
 	c.Assert(err, IsNil)
 	c.Check(snippets, DeepEquals, map[string][][]byte{
 		"meta/hooks/skill": [][]byte{
@@ -800,16 +796,12 @@ func (s *RepositorySuite) TestSecuritySnippetsForSnapFailure(c *C) {
 		},
 	}
 	repo := s.emptyRepo
-	err := repo.AddType(t)
-	c.Assert(err, IsNil)
-	err = repo.AddSkill(s.skill)
-	c.Assert(err, IsNil)
-	err = repo.AddSlot(s.slot)
-	c.Assert(err, IsNil)
-	err = repo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
-	c.Assert(err, IsNil)
+	c.Assert(repo.AddType(t), IsNil)
+	c.Assert(repo.AddSkill(s.skill), IsNil)
+	c.Assert(repo.AddSlot(s.slot), IsNil)
+	c.Assert(repo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name), IsNil)
 	var snippets map[string][][]byte
-	snippets, err = repo.SecuritySnippetsForSnap(s.skill.Snap, testSecurity)
+	snippets, err := repo.SecuritySnippetsForSnap(s.skill.Snap, testSecurity)
 	c.Assert(err, ErrorMatches, "cannot compute snippet for provider")
 	c.Check(snippets, IsNil)
 	snippets, err = repo.SecuritySnippetsForSnap(s.slot.Snap, testSecurity)
