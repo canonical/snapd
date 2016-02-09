@@ -92,9 +92,7 @@ func (t *BoolFileType) SkillSecuritySnippet(skill *skills.Skill, securitySystem 
 			return gpioSnippet, nil
 		}
 		return nil, nil
-	case skills.SecuritySeccomp:
-		return nil, nil
-	case skills.SecurityDBus:
+	case skills.SecuritySeccomp, skills.SecurityDBus:
 		return nil, nil
 	default:
 		return nil, skills.ErrUnknownSecurity
@@ -115,9 +113,7 @@ func (t *BoolFileType) SlotSecuritySnippet(skill *skills.Skill, securitySystem s
 			return nil, fmt.Errorf("cannot compute skill slot security snippet: %v", err)
 		}
 		return []byte(fmt.Sprintf("%s wl,\n", path)), nil
-	case skills.SecuritySeccomp:
-		return nil, nil
-	case skills.SecurityDBus:
+	case skills.SecuritySeccomp, skills.SecurityDBus:
 		return nil, nil
 	default:
 		return nil, skills.ErrUnknownSecurity
