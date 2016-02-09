@@ -620,9 +620,25 @@ func (s *RepositorySuite) TestRevokeFailsWhenSkillDoesNotExist(c *C) {
 func (s *RepositorySuite) TestRevokeFailsWhenSlotDoesNotExist(c *C) {
 	err := s.testRepo.AddSkill(s.skill)
 	c.Assert(err, IsNil)
-	// Revoking to an unknown slot returns an appropriate error
+	// Revoking from an unknown slot returns an appropriate error
 	err = s.testRepo.Revoke(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
 	c.Assert(err, ErrorMatches, `cannot revoke skill from slot "slot" from snap "consumer", no such slot`)
+}
+
+func (s *RepositorySuite) TestRevokeFromSkillSlotFailsWhenSlotDoesNotExist(c *C) {
+	err := s.testRepo.AddSkill(s.skill)
+	c.Assert(err, IsNil)
+	// Revoking everything form an unknown slot returns an appropriate error
+	err = s.testRepo.Revoke("", "", s.slot.Snap, s.slot.Name)
+	c.Assert(err, ErrorMatches, `cannot revoke skill from slot "slot" from snap "consumer", no such slot`)
+}
+
+func (s *RepositorySuite) TestRevokeFromSnapFailsWhenSlotDoesNotExist(c *C) {
+	err := s.testRepo.AddSkill(s.skill)
+	c.Assert(err, IsNil)
+	// Revoking all skills from a snap that is not known returns an appropriate error
+	err = s.testRepo.Revoke("", "", s.slot.Snap, "")
+	c.Assert(err, ErrorMatches, `cannot revoke skill from snap "consumer", no such snap`)
 }
 
 func (s *RepositorySuite) TestRevokeFailsWhenNotGranted(c *C) {
@@ -635,6 +651,26 @@ func (s *RepositorySuite) TestRevokeFailsWhenNotGranted(c *C) {
 	c.Assert(err, ErrorMatches, `cannot revoke skill "skill" from snap "provider" from slot "slot" from snap "consumer", it is not granted`)
 }
 
+func (s *RepositorySuite) TestRevokeFromSnapDoesNothingWhenNotGranted(c *C) {
+	err := s.testRepo.AddSkill(s.skill)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSlot(s.slot)
+	c.Assert(err, IsNil)
+	// Revoking a all skills from a snap that uses nothing is not an error.
+	err = s.testRepo.Revoke("", "", s.slot.Snap, "")
+	c.Assert(err, IsNil)
+}
+
+func (s *RepositorySuite) TestRevokeFromSkillSlotDoesNothingWhenNotGranted(c *C) {
+	err := s.testRepo.AddSkill(s.skill)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSlot(s.slot)
+	c.Assert(err, IsNil)
+	// Revoking a all skills from a slot that uses nothing is not an error.
+	err = s.testRepo.Revoke("", "", s.slot.Snap, s.slot.Name)
+	c.Assert(err, IsNil)
+}
+
 func (s *RepositorySuite) TestRevokeSucceeds(c *C) {
 	err := s.testRepo.AddSkill(s.skill)
 	c.Assert(err, IsNil)
@@ -645,6 +681,33 @@ func (s *RepositorySuite) TestRevokeSucceeds(c *C) {
 	// Revoking a granted skill works okay
 	err = s.testRepo.Revoke(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
 	c.Assert(err, IsNil)
+	c.Assert(s.testRepo.GrantedTo(s.slot.Snap), HasLen, 0)
+}
+
+func (s *RepositorySuite) TestRevokeFromSnap(c *C) {
+	err := s.testRepo.AddSkill(s.skill)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSlot(s.slot)
+	c.Assert(err, IsNil)
+	err = s.testRepo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
+	c.Assert(err, IsNil)
+	// Revoking everything from a snap works OK
+	err = s.testRepo.Revoke("", "", s.slot.Snap, "")
+	c.Assert(err, IsNil)
+	c.Assert(s.testRepo.GrantedTo(s.slot.Snap), HasLen, 0)
+}
+
+func (s *RepositorySuite) TestRevokeFromSkillSlot(c *C) {
+	err := s.testRepo.AddSkill(s.skill)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSlot(s.slot)
+	c.Assert(err, IsNil)
+	err = s.testRepo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
+	c.Assert(err, IsNil)
+	// Revoking everything from a skill slot works OK
+	err = s.testRepo.Revoke("", "", s.slot.Snap, s.slot.Name)
+	c.Assert(err, IsNil)
+	c.Assert(s.testRepo.GrantedTo(s.slot.Snap), HasLen, 0)
 }
 
 // Test for Repository.GrantedTo()
