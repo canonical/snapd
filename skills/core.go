@@ -87,6 +87,8 @@ const (
 	SecuritySecComp SecuritySystem = "seccomp"
 	// SecurityDBus identifies the DBus security system.
 	SecurityDBus SecuritySystem = "dbus"
+	// SecurityUDev identifies the UDev security system.
+	SecurityUDev SecuritySystem = "udev"
 )
 
 var (
