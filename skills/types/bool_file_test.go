@@ -34,8 +34,6 @@ func Test(t *testing.T) {
 	TestingT(t)
 }
 
-// BoolFileType
-
 type BoolFileTypeSuite struct {
 	testutil.BaseTest
 	t                skills.Type
