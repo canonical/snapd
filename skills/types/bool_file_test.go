@@ -129,13 +129,13 @@ func (s *BoolFileTypeSuite) TestSlotSecuritySnippetDereferencesSymlinks(c *C) {
 	snippet, err := s.t.SlotSecuritySnippet(s.gpioSkill, skills.SecurityApparmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, []byte(
-		"(dereferenced)/sys/class/gpio/gpio13/value rw,\n"))
+		"(dereferenced)/sys/class/gpio/gpio13/value rwk,\n"))
 	// Extra apparmor permission to access LED brightness.
 	// The path uses dereferenced symbolic links.
 	snippet, err = s.t.SlotSecuritySnippet(s.ledSkill, skills.SecurityApparmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, []byte(
-		"(dereferenced)/sys/class/leds/input27::capslock/brightness rw,\n"))
+		"(dereferenced)/sys/class/leds/input27::capslock/brightness rwk,\n"))
 }
 
 func (s *BoolFileTypeSuite) TestSlotSecuritySnippetPanicksOnUnsanitizedSkills(c *C) {
