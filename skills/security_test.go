@@ -60,3 +60,47 @@ func (s *SecuritySuite) prepareFixtureWithType(c *C, t Type) {
 	err = s.repo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
 	c.Assert(err, IsNil)
 }
+
+// Tests for appArmor
+
+func (s *SecuritySuite) TestAppArmorSkillPermissions(c *C) {
+	s.prepareFixtureWithType(c, &TestType{
+		TypeName: "type",
+		SkillSecuritySnippetCallback: func(skill *Skill, securitySystem SecuritySystem) ([]byte, error) {
+			if securitySystem == SecurityAppArmor {
+				return []byte("producer snippet\n"), nil
+			}
+			return nil, nil
+		},
+	})
+	// Ensure that skill-side security profile looks correct.
+	blobs, err := s.repo.SecurityFilesForSnap(s.skill.Snap)
+	c.Assert(err, IsNil)
+	c.Check(blobs, DeepEquals, map[string][]byte{
+		"/run/snappy/security/apparmor/producer/hook.profile": []byte("" +
+			"fake \"/snaps/producer/current/hook\" {\n" +
+			"producer snippet\n" +
+			"}\n"),
+	})
+}
+
+func (s *SecuritySuite) TestAppArmorSlotPermissions(c *C) {
+	s.prepareFixtureWithType(c, &TestType{
+		TypeName: "type",
+		SlotSecuritySnippetCallback: func(skill *Skill, securitySystem SecuritySystem) ([]byte, error) {
+			if securitySystem == SecurityAppArmor {
+				return []byte("consumer snippet\n"), nil
+			}
+			return nil, nil
+		},
+	})
+	// Ensure that slot-side security profile looks correct.
+	blobs, err := s.repo.SecurityFilesForSnap(s.slot.Snap)
+	c.Assert(err, IsNil)
+	c.Check(blobs, DeepEquals, map[string][]byte{
+		"/run/snappy/security/apparmor/consumer/app.profile": []byte("" +
+			"fake \"/snaps/consumer/current/app\" {\n" +
+			"consumer snippet\n" +
+			"}\n"),
+	})
+}

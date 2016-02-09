@@ -49,6 +49,9 @@ func NewRepository() *Repository {
 		slots:      make(map[string]map[string]*Slot),
 		slotSkills: make(map[*Slot]map[*Skill]bool),
 		skillSlots: make(map[*Skill]map[*Slot]bool),
+		securityHelpers: []securityHelper{
+			&appArmor{},
+		},
 	}
 }
 
