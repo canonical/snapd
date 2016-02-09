@@ -407,3 +407,48 @@ func (c bySlotSnapAndName) Less(i, j int) bool {
 func LoadBuiltInTypes(repo *Repository) error {
 	return nil
 }
+
+// SecuritySnippetsForSnap collects all of the snippets of a given security
+// system that affect a given snap.  The return value is indexed by app name
+// within that snap.
+func (r *Repository) SecuritySnippetsForSnap(snapName string, securitySystem SecuritySystem) (map[string][][]byte, error) {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	return r.securitySnippetsForSnap(snapName, securitySystem)
+}
+
+func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem SecuritySystem) (map[string][][]byte, error) {
+	var snippets = make(map[string][][]byte)
+	// Find all of the skills that affect this app because of skill consumption.
+	for _, slot := range r.slots[snapName] {
+		t := r.types[slot.Type]
+		for skill := range r.slotSkills[slot] {
+			snippet, err := t.SlotSecuritySnippet(skill, securitySystem)
+			if err != nil {
+				return nil, err
+			}
+			if snippet == nil {
+				continue
+			}
+			for _, app := range slot.Apps {
+				snippets[app] = append(snippets[app], snippet)
+			}
+		}
+	}
+	// Find all of the skills that affect this app because of skill offer.
+	for _, skill := range r.skills[snapName] {
+		t := r.types[skill.Type]
+		snippet, err := t.SkillSecuritySnippet(skill, securitySystem)
+		if err != nil {
+			return nil, err
+		}
+		if snippet == nil {
+			continue
+		}
+		for _, app := range skill.Apps {
+			snippets[app] = append(snippets[app], snippet)
+		}
+	}
+	return snippets, nil
+}
