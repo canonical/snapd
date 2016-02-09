@@ -694,8 +694,8 @@ The response is a stream of assertions separated by double newlines.
 The X-Ubuntu-Assertions-Count header is set to the number of
 returned assertions, 0 or more.
 
-
 ## /2.0/skills
+
 ### GET
 
 * Description: Get all the skills and information about where they are granted
