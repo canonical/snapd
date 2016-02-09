@@ -34,7 +34,7 @@ func (t *BoolFileType) String() string {
 	return t.Name()
 }
 
-// Name returns the name of the bool-file type (always "bool-file").
+// Name returns the name of the bool-file type.
 func (t *BoolFileType) Name() string {
 	return "bool-file"
 }
