@@ -77,19 +77,19 @@ The rollback command reverts an installed snap to its previous revision.
 var longActivateHelp = i18n.G(`
 The activate command activates an installed but inactive snap.
 
-Non-active snaps' apps are not available for use.
+Snaps that are not active don't have their apps available for use.
 `)
 
 var longDeactivateHelp = i18n.G(`
 The deactivate command deactivates an installed, active snap.
 
-Deactivated snaps' apps are not available for use.
+Snaps that are not active don't have their apps available for use.
 `)
 
 type cmdOp struct {
 	Positional struct {
 		Snap string `positional-arg-name:"snap"`
-	} `positional-args:"yes"`
+	} `positional-args:"yes" required:"yes"`
 	op func(*client.Client, string) (string, error)
 }
 

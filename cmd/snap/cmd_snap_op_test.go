@@ -57,4 +57,6 @@ func (s *SnapSuite) TestAdd(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"add", "foo.bar"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
 }
