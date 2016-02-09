@@ -32,6 +32,7 @@ import (
 const (
 	assertionsLayoutVersion = "v0"
 	assertionsRoot          = "asserts-" + assertionsLayoutVersion
+	activeFname             = "active"
 )
 
 type filesystemBackstore struct {
@@ -70,11 +71,13 @@ func (fsbs *filesystemBackstore) readAssertion(assertType *AssertionType, diskPr
 }
 
 func buildDiskPrimaryPath(primaryPath []string) string {
-	comps := make([]string, len(primaryPath))
+	n := len(primaryPath)
+	comps := make([]string, n+1)
 	// safety against '/' etc
 	for i, comp := range primaryPath {
 		comps[i] = url.QueryEscape(comp)
 	}
+	comps[n] = activeFname
 	return filepath.Join(comps...)
 }
 
@@ -137,7 +140,8 @@ func (fsbs *filesystemBackstore) Search(assertType *AssertionType, headers map[s
 	fsbs.mu.RLock()
 	defer fsbs.mu.RUnlock()
 
-	diskPattern := make([]string, len(assertType.PrimaryKey))
+	n := len(assertType.PrimaryKey)
+	diskPattern := make([]string, n+1)
 	for i, k := range assertType.PrimaryKey {
 		keyVal := headers[k]
 		if keyVal == "" {
@@ -146,6 +150,7 @@ func (fsbs *filesystemBackstore) Search(assertType *AssertionType, headers map[s
 			diskPattern[i] = url.QueryEscape(keyVal)
 		}
 	}
+	diskPattern[n] = activeFname
 
 	candCb := func(a Assertion) {
 		if searchMatch(a, headers) {
