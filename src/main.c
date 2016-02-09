@@ -320,18 +320,34 @@ void mkpath(const char *const path) {
       return;
    }
 
-    // We're going to need to modify the path, so make a copy of it.
-   char *pathCopy = strdup(path);
-   if (pathCopy == NULL) {
+   // We're going to need to modify the path, so make a copy of it.
+   char *path_copy = strdup(path);
+   if (path_copy == NULL) {
       die("failed to create user data directory");
    }
 
    int index = -1;
 
-   // Skip a leading slash
-   if (pathCopy[0] == '/') {
-      ++index;
+   // Open flags to use while we walk the user data path:
+   // - Don't follow symlinks
+   // - Only open a directory (fail otherwise)
+   int open_flags = O_NOFOLLOW | O_DIRECTORY;
+
+   // We're going to create each path segment via openat/mkdirat calls instead
+   // of mkdir calls, to avoid following symlinks and placing the user data
+   // directory somewhere we never intended for it to go. The first step is to
+   // get an initial file descriptor.
+   int fd = AT_FDCWD;
+   if (path_copy[0] == '/') {
+      fd = open("/", open_flags);
+      if (fd < 0) {
+         free(path_copy);
+         die("failed to create user data directory");
+      }
    }
+
+   // Create a variable to pull out individual path segments.
+   char *path_segment = path_copy;
 
    // Search the path for path separators ('/'), making sure each parent
    // directory exists as we go along. For example, given "/a/b/c":
@@ -343,25 +359,40 @@ void mkpath(const char *const path) {
 
       // '/' is obviously our separator, but check for '\0' here as well or
       // we'll miss the final directory of the path.
-      if ((pathCopy[index] == '/') || (pathCopy[index] == '\0')) {
+      if ((path_copy[index] == '/') || (path_copy[index] == '\0')) {
          // Replace the separator with the null character so we have a
          // substring without needing more memory.
-         pathCopy[index] = '\0';
+         path_copy[index] = '\0';
 
-         // If the directory already exists, no problem. Otherwise, create it.
-         // It we can't, it's fatal.
-         if (mkdir(pathCopy, 0755) < 0 && errno != EEXIST) {
-            free(pathCopy);
-            die("failed to create user data directory");
+         // Account for the possibility of multiple separators
+         if (strlen(path_segment) > 0) {
+            // Try to create the directory. It's okay if it already existed,
+            // but any other error is fatal.
+            if (mkdirat(fd, path_segment, 0755) < 0 && errno != EEXIST) {
+               close(fd);
+               free(path_copy);
+               die("failed to create user data directory");
+            }
+
+            // Open the parent directory we just made (and close the previous
+            // one) so we can continue down the path.
+            int previous_fd = fd;
+            fd = openat(fd, path_segment, open_flags);
+            close(previous_fd);
+            if (fd < 0) {
+               free(path_copy);
+               die("failed to create user data directory");
+            }
          }
 
-         // Replace the null character with the separator again (not a
-         // substring anymore).
-         pathCopy[index] = '/';
+         path_segment = path_copy + index + 1;
       }
    } while (index < path_length);
 
-   free(pathCopy);
+   // Close the descriptor for the final directory in the path.
+   close(fd);
+
+   free(path_copy);
 }
 
 void setup_user_data() {
