@@ -20,6 +20,7 @@
 package types_test
 
 import (
+	"bytes"
 	"fmt"
 	"testing"
 
@@ -146,6 +147,21 @@ func (s *BoolFileTypeSuite) TestSlotSecuritySnippetDereferencesSymlinks(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, []byte(
 		"(dereferenced)/sys/class/leds/input27::capslock/brightness rwk,\n"))
+}
+
+func (s *BoolFileTypeSuite) TestSlotSecurityDoesNotContainSkillSecurity(c *C) {
+	// Use a fake (successful) dereferencing function for the remainder of the test.
+	types.MockEvalSymlinks(&s.BaseTest, func(path string) (string, error) {
+		return path, nil
+	})
+	var err error
+	var skillSnippet, slotSnippet []byte
+	slotSnippet, err = s.t.SlotSecuritySnippet(s.gpioSkill, skills.SecurityApparmor)
+	c.Assert(err, IsNil)
+	skillSnippet, err = s.t.SkillSecuritySnippet(s.gpioSkill, skills.SecurityApparmor)
+	c.Assert(err, IsNil)
+	// Ensure that we don't accidentally give skill-side permissions to slot-side.
+	c.Assert(bytes.Contains(slotSnippet, skillSnippet), Equals, false)
 }
 
 func (s *BoolFileTypeSuite) TestSlotSecuritySnippetPanicksOnUnsanitizedSkills(c *C) {
