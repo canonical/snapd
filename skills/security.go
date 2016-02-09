@@ -38,11 +38,11 @@ type securityHelper interface {
 // identifier can be either the full path of the executable or an abstract
 // identifier not related to the executable name.
 //
-// File containing apparmor profile has to be parsed, compiled and loaded into
-// the running kernel using apparmor_parser. After this is done the actual file
-// is irrelevant and can be removed. To improve performance certain command
-// line options to apparmor_parser can be used to cache compiled profile across
-// reboots.
+// A file containing an apparmor profile has to be parsed, compiled and loaded
+// into the running kernel using apparmor_parser. After this is done the actual
+// file is irrelevant and can be removed. To improve performance certain
+// command line options to apparmor_parser can be used to cache compiled
+// profiles across reboots.
 //
 // NOTE: ubuntu-core-launcher only uses the profile identifier. It doesn't handle
 // loading the profile into the kernel or compiling it from source.
@@ -68,13 +68,13 @@ func (aa *appArmor) footerForApp(snapName, appName string) []byte {
 // secComp is a security subsystem that writes additional seccomp rules.
 //
 // Rules use a simple line-oriented record structure.  Each line specifies a
-// system call that is allowed.  Lines starting with "deny" specify system
+// system call that is allowed. Lines starting with "deny" specify system
 // calls that are explicitly not allowed. Lines starting with '#' are treated
-// as comments are ignored.
+// as comments and are ignored.
 //
 // NOTE: This subsystem interacts with ubuntu-core-launcher. The launcher reads
 // a single profile from a specific path, parses it and loads a seccomp profile
-// (using Berkley packet filter as low level mechanism).
+// (using Berkley packet filter as a low level mechanism).
 type secComp struct{}
 
 func (sc *secComp) securitySystem() SecuritySystem {

@@ -417,7 +417,7 @@ func LoadBuiltInTypes(repo *Repository) error {
 }
 
 // SecuritySnippetsForSnap collects all of the snippets of a given security
-// system that affect a given snap.  The return value is indexed by app name
+// system that affect a given snap. The return value is indexed by app name
 // within that snap.
 func (r *Repository) SecuritySnippetsForSnap(snapName string, securitySystem SecuritySystem) (map[string][][]byte, error) {
 	r.m.Lock()
@@ -461,7 +461,7 @@ func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem Sec
 	return snippets, nil
 }
 
-// SecurityFilesForSnap computes files that constitute all of the security permissions.
+// SecurityFilesForSnap returns the paths and contents of security files for a given snap.
 func (r *Repository) SecurityFilesForSnap(snapName string) (map[string][]byte, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
