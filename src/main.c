@@ -315,18 +315,16 @@ void setup_slave_mount_namespace() {
 
 void mkpath(const char *const path) {
    // If asked to create an empty path, return immediately.
-   int path_length = strlen(path);
-   if (path_length == 0) {
+   if (strlen(path) == 0) {
       return;
    }
 
-   // We're going to need to modify the path, so make a copy of it.
+   // We're going to use strtok_r, which needs to modify the path, so we'll make
+   // a copy of it.
    char *path_copy = strdup(path);
    if (path_copy == NULL) {
       die("failed to create user data directory");
    }
-
-   int index = -1;
 
    // Open flags to use while we walk the user data path:
    // - Don't follow symlinks
@@ -346,48 +344,33 @@ void mkpath(const char *const path) {
       }
    }
 
-   // Create a variable to pull out individual path segments.
-   char *path_segment = path_copy;
+   // strtok_r needs a pointer to keep track of where it is in the string.
+   char *path_walker;
 
-   // Search the path for path separators ('/'), making sure each parent
-   // directory exists as we go along. For example, given "/a/b/c":
-   //   - Make sure /a exists
-   //   - Make sure /a/b exists
-   //   - Make sure /a/b/c exists
-   do {
-      ++index;
-
-      // '/' is obviously our separator, but check for '\0' here as well or
-      // we'll miss the final directory of the path.
-      if ((path_copy[index] == '/') || (path_copy[index] == '\0')) {
-         // Replace the separator with the null character so we have a
-         // substring without needing more memory.
-         path_copy[index] = '\0';
-
-         // Account for the possibility of multiple separators
-         if (strlen(path_segment) > 0) {
-            // Try to create the directory. It's okay if it already existed,
-            // but any other error is fatal.
-            if (mkdirat(fd, path_segment, 0755) < 0 && errno != EEXIST) {
-               close(fd);
-               free(path_copy);
-               die("failed to create user data directory");
-            }
-
-            // Open the parent directory we just made (and close the previous
-            // one) so we can continue down the path.
-            int previous_fd = fd;
-            fd = openat(fd, path_segment, open_flags);
-            close(previous_fd);
-            if (fd < 0) {
-               free(path_copy);
-               die("failed to create user data directory");
-            }
-         }
-
-         path_segment = path_copy + index + 1;
+   // Initialize tokenizer and obtain first path segment.
+   char *path_segment = strtok_r(path_copy, "/", &path_walker);
+   while (path_segment) {
+      // Try to create the directory. It's okay if it already existed, but any
+      // other error is fatal.
+      if (mkdirat(fd, path_segment, 0755) < 0 && errno != EEXIST) {
+         close(fd);
+         free(path_copy);
+         die("failed to create user data directory");
       }
-   } while (index < path_length);
+
+      // Open the parent directory we just made (and close the previous one) so
+      // we can continue down the path.
+      int previous_fd = fd;
+      fd = openat(fd, path_segment, open_flags);
+      close(previous_fd);
+      if (fd < 0) {
+         free(path_copy);
+         die("failed to create user data directory");
+      }
+
+      // Obtain the next path segment.
+      path_segment = strtok_r(NULL, "/", &path_walker);
+   }
 
    // Close the descriptor for the final directory in the path.
    close(fd);
