@@ -53,6 +53,7 @@ func NewRepository() *Repository {
 			&appArmor{},
 			&secComp{},
 			&uDev{},
+			&dBus{},
 		},
 	}
 }

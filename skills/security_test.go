@@ -184,3 +184,53 @@ func (s *SecuritySuite) TestUdevSlotPermissions(c *C) {
 		"/etc/udev/rules.d/70-snappy-consumer.rules": []byte("...\n"),
 	})
 }
+
+// Tests for DBus
+
+func (s *SecuritySuite) TestDBusSkillPermissions(c *C) {
+	s.prepareFixtureWithType(c, &TestType{
+		TypeName: "type",
+		SkillSecuritySnippetCallback: func(skill *Skill, securitySystem SecuritySystem) ([]byte, error) {
+			if securitySystem == SecurityDBus {
+				return []byte("...\n"), nil
+			}
+			return nil, nil
+		},
+	})
+	// Ensure that skill-side security profile looks correct.
+	blobs, err := s.repo.SecurityFilesForSnap(s.skill.Snap)
+	c.Assert(err, IsNil)
+	c.Check(blobs, DeepEquals, map[string][]byte{
+		"/etc/dbus-1/system.d/producer.conf": []byte("" +
+			"<!DOCTYPE busconfig PUBLIC\n" +
+			" \"-//freedesktop//DTD D-BUS Bus Configuration 1.0//EN\"\n" +
+			" \"http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd\">\n" +
+			"<busconfig>\n" +
+			"...\n" +
+			"</busconfig>\n"),
+	})
+}
+
+func (s *SecuritySuite) TestDBusSlotPermissions(c *C) {
+	s.prepareFixtureWithType(c, &TestType{
+		TypeName: "type",
+		SlotSecuritySnippetCallback: func(skill *Skill, securitySystem SecuritySystem) ([]byte, error) {
+			if securitySystem == SecurityDBus {
+				return []byte("...\n"), nil
+			}
+			return nil, nil
+		},
+	})
+	// Ensure that slot-side security profile looks correct.
+	blobs, err := s.repo.SecurityFilesForSnap(s.slot.Snap)
+	c.Assert(err, IsNil)
+	c.Check(blobs, DeepEquals, map[string][]byte{
+		"/etc/dbus-1/system.d/consumer.conf": []byte("" +
+			"<!DOCTYPE busconfig PUBLIC\n" +
+			" \"-//freedesktop//DTD D-BUS Bus Configuration 1.0//EN\"\n" +
+			" \"http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd\">\n" +
+			"<busconfig>\n" +
+			"...\n" +
+			"</busconfig>\n"),
+	})
+}
