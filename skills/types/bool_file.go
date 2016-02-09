@@ -29,7 +29,7 @@ import (
 // BoolFileType is the type of all the bool-file skills.
 type BoolFileType struct{}
 
-// String() returns the same value as Name().
+// String returns the same value as Name().
 func (t *BoolFileType) String() string {
 	return t.Name()
 }
