@@ -2,7 +2,7 @@
 // +build !excludeintegration
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015, 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -56,8 +56,13 @@ func ExecCommandToFile(c *check.C, filename string, cmds ...string) {
 // ExecCommandErr executes a shell command and returns a string with the output
 // of the command and eventually the obtained error
 func ExecCommandErr(cmds ...string) (output string, err error) {
-	fmt.Println(strings.Join(cmds, " "))
 	cmd := execCommand(cmds[0], cmds[1:]...)
+	return ExecCommandWrapper(cmd)
+}
+
+// ExecCommandWrapper decorates the execution of the given command
+func ExecCommandWrapper(cmd *exec.Cmd) (output string, err error) {
+	fmt.Println(strings.Join(cmd.Args, " "))
 	outputByte, err := cmd.CombinedOutput()
 	output = string(outputByte)
 	fmt.Print(output)
