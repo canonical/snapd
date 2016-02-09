@@ -735,7 +735,7 @@ Sample input:
 
 ```javascript
 {
-    “action”: “grant” | “revoke”,
+    “action”: “grant”,
     “skill”:  {“snap”: “canonical-pi2”,   “name”: “pin-13”},
     “slot”:   {“snap”: “keyboard-lights”, “name”: “capslock-led”}
 }
