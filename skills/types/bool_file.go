@@ -112,7 +112,7 @@ func (t *BoolFileType) SlotSecuritySnippet(skill *skills.Skill, securitySystem s
 		if err != nil {
 			return nil, fmt.Errorf("cannot compute skill slot security snippet: %v", err)
 		}
-		return []byte(fmt.Sprintf("%s w,\n", path)), nil
+		return []byte(fmt.Sprintf("%s rw,\n", path)), nil
 	case skills.SecuritySeccomp, skills.SecurityDBus:
 		return nil, nil
 	default:
