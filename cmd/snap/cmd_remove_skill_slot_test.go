@@ -30,7 +30,7 @@ import (
 
 func (s *SnapSuite) TestRemoveSkillSlotHelp(c *C) {
 	msg := `Usage:
-  snap.test [OPTIONS] experimental remove-skill-slot snap name
+  snap.test [OPTIONS] experimental remove-skill-slot <snap name> <skill slot name>
 
 The remove-skill-slot command removes a skill slot from the system.
 
@@ -38,11 +38,11 @@ This command is only for experimentation with the skill system.
 It will be removed in one of the future releases.
 
 Help Options:
-  -h, --help      Show this help message
+  -h, --help                   Show this help message
 
 [remove-skill-slot command arguments]
-  snap:           Name of the snap containing the skill slot
-  name:           Name of the skill slot within the snap
+  <snap name>:                 Name of the snap containing the skill slot
+  <skill slot name>:           Name of the skill slot within the snap
 `
 	rest, _ := Parser().ParseArgs([]string{"experimental", "remove-skill-slot", "--help"})
 	// TODO: Re-enable this test after go-flags is updated
