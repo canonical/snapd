@@ -41,8 +41,8 @@ Help Options:
   -h, --help              Show this help message
 
 [remove-skill command arguments]
-  <snap name>:            name of the snap containing the skill
-  <skill name>:           name of the skill slot within the snap
+  <snap name>:            Name of the snap containing the skill
+  <skill name>:           Name of the skill slot within the snap
 `
 	rest, _ := Parser().ParseArgs([]string{
 		"experimental", "remove-skill", "--help"})
