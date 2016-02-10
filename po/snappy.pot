@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-02-10 13:11+0100\n"
+        "POT-Creation-Date: 2016-02-10 14:08+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -256,6 +256,9 @@ msgstr  ""
 msgid   "Remove hardware from a specific installed package"
 msgstr  ""
 
+msgid   "Removes a skill from the system"
+msgstr  ""
+
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid   "Removing %s\n"
@@ -413,6 +416,13 @@ msgstr  ""
 
 msgid   "\n"
         "The find command queries the store for available packages.\n"
+msgstr  ""
+
+msgid   "\n"
+        "The remove-skill command removes a skill from the system.\n"
+        "\n"
+        "This command is only for experimentation with the skill system.\n"
+        "It will be removed in one of the future releases.\n"
 msgstr  ""
 
 msgid   "\n"
