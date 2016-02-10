@@ -181,7 +181,7 @@ func (sds *snapBuildSuite) TestSnapBuildCheckInconsistentTimestamp(c *C) {
 	c.Assert(err, IsNil)
 
 	err = db.Check(snapBuild)
-	c.Assert(err, ErrorMatches, "signature verifies but assertion violates other knowledge: snap-build timestamp outside of signing key validity")
+	c.Assert(err, ErrorMatches, "snap-build assertion timestamp outside of signing key validity")
 }
 
 type snapRevSuite struct {
@@ -288,7 +288,7 @@ func (suite *snapRevSuite) TestSnapRevisionCheckInconsistentTimestamp(c *C) {
 	c.Assert(err, IsNil)
 
 	err = db.Check(snapRev)
-	c.Assert(err, ErrorMatches, "signature verifies but assertion violates other knowledge: snap-revision timestamp outside of signing key validity")
+	c.Assert(err, ErrorMatches, "snap-revision assertion timestamp outside of signing key validity")
 }
 
 func (suite *snapRevSuite) TestPrimaryKey(c *C) {
