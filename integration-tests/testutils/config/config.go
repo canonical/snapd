@@ -2,7 +2,7 @@
 // +build !excludeintegration
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015, 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -32,18 +32,15 @@ type Config struct {
 	FileName      string
 	Release       string
 	Channel       string
-	TargetRelease string
-	TargetChannel string
 	RemoteTestbed bool
 	Update        bool
 	Rollback      bool
 }
 
 // NewConfig is the Config constructor
-func NewConfig(fileName, release, channel, targetRelease, targetChannel string, remoteTestbed, update, rollback bool) *Config {
+func NewConfig(fileName, release, channel string, remoteTestbed, update, rollback bool) *Config {
 	return &Config{
 		FileName: fileName, Release: release, Channel: channel,
-		TargetRelease: targetRelease, TargetChannel: targetChannel,
 		RemoteTestbed: remoteTestbed, Update: update, Rollback: rollback,
 	}
 }
