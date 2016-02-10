@@ -212,7 +212,7 @@ void setup_private_mount(const char* appname) {
 
     // Create a 0700 base directory, this is the base dir that is
     // protected from other users.
-    // 
+    //
     // Under that basedir, we put a 1777 /tmp dir that is then bind
     // mounted for the applications to use
     must_snprintf(tmpdir, sizeof(tmpdir), "/tmp/snap.%d_%s_XXXXXX", uid, appname);
@@ -233,7 +233,7 @@ void setup_private_mount(const char* appname) {
        die("unable to create /tmp inside private dir");
     }
     umask(old_mask);
-    
+
     // MS_BIND is there from linux 2.4
     if (mount(tmpdir, "/tmp", NULL, MS_BIND, NULL) != 0) {
         die("unable to bind private /tmp");
@@ -304,20 +304,108 @@ void setup_slave_mount_namespace() {
    if (unshare(CLONE_NEWNS) < 0) {
       die("unable to set up mount namespace");
    }
-   
+
    // make our "/" a rslave of the real "/". this means that
    // mounts from the host "/" get propagated to our namespace
    // (i.e. we see new media mounts)
    if (mount("none", "/", NULL, MS_REC|MS_SLAVE, NULL) != 0) {
       die("can not make make / rslave");
    }
-}   
+}
+
+void mkpath(const char *const path) {
+   // If asked to create an empty path, return immediately.
+   if (strlen(path) == 0) {
+      return;
+   }
+
+   // We're going to use strtok_r, which needs to modify the path, so we'll make
+   // a copy of it.
+   char *path_copy = strdup(path);
+   if (path_copy == NULL) {
+      die("failed to create user data directory");
+   }
+
+   // Open flags to use while we walk the user data path:
+   // - Don't follow symlinks
+   // - Don't allow child access to file descriptor
+   // - Only open a directory (fail otherwise)
+   int open_flags = O_NOFOLLOW | O_CLOEXEC | O_DIRECTORY;
+
+   // We're going to create each path segment via openat/mkdirat calls instead
+   // of mkdir calls, to avoid following symlinks and placing the user data
+   // directory somewhere we never intended for it to go. The first step is to
+   // get an initial file descriptor.
+   int fd = AT_FDCWD;
+   if (path_copy[0] == '/') {
+      fd = open("/", open_flags);
+      if (fd < 0) {
+         free(path_copy);
+         die("failed to create user data directory");
+      }
+   }
+
+   // strtok_r needs a pointer to keep track of where it is in the string.
+   char *path_walker;
+
+   // Initialize tokenizer and obtain first path segment.
+   char *path_segment = strtok_r(path_copy, "/", &path_walker);
+   while (path_segment) {
+      // Try to create the directory. It's okay if it already existed, but any
+      // other error is fatal.
+      if (mkdirat(fd, path_segment, 0755) < 0 && errno != EEXIST) {
+         close(fd);
+         free(path_copy);
+         die("failed to create user data directory");
+      }
+
+      // Open the parent directory we just made (and close the previous one) so
+      // we can continue down the path.
+      int previous_fd = fd;
+      fd = openat(fd, path_segment, open_flags);
+      close(previous_fd);
+      if (fd < 0) {
+         free(path_copy);
+         die("failed to create user data directory");
+      }
+
+      // Obtain the next path segment.
+      path_segment = strtok_r(NULL, "/", &path_walker);
+   }
+
+   // Close the descriptor for the final directory in the path.
+   close(fd);
+
+   free(path_copy);
+}
+
+void setup_user_data() {
+   const char *user_data = getenv("SNAP_USER_DATA");
+
+   // If $SNAP_USER_DATA wasn't defined, check the deprecated
+   // $SNAP_APP_USER_DATA_PATH.
+   if (user_data == NULL) {
+      user_data = getenv("SNAP_APP_USER_DATA_PATH");
+      // If it's still not defined, there's nothing to do. No need to die,
+      // there's simply no directory to create.
+      if (user_data == NULL) {
+         return;
+      }
+   }
+
+   // Only support absolute paths.
+   if (user_data[0] != '/') {
+      die("user data directory must be an absolute path");
+   }
+
+   mkpath(user_data);
+}
 
 int main(int argc, char **argv)
 {
    const int NR_ARGS = 3;
    if(argc < NR_ARGS+1)
-       die("Usage: %s <appname> <apparmor> <binary>", argv[0]);
+      die("Usage: %s <appname> <apparmor> <binary>", argv[0]);
 
    const char *appname = argv[1];
    const char *aa_profile = argv[2];
@@ -329,78 +417,80 @@ int main(int argc, char **argv)
    // this code always needs to run as root for the cgroup/udev setup,
    // however for the tests we allow it to run as non-root
    if(geteuid() != 0 && getenv("UBUNTU_CORE_LAUNCHER_NO_ROOT") == NULL) {
-       die("need to run as root or suid");
+      die("need to run as root or suid");
    }
 
    if(geteuid() == 0) {
-       // verify binary path
-       char snaps_prefix[128];
-       must_snprintf(snaps_prefix, sizeof(snaps_prefix), "/snaps/%s/", appname);
-       if (strstr(binary, snaps_prefix) != binary)
-          die("binary must be inside /snaps/%s/", appname);
+      // verify binary path
+      char snaps_prefix[128];
+      must_snprintf(snaps_prefix, sizeof(snaps_prefix), "/snaps/%s/", appname);
+      if (strstr(binary, snaps_prefix) != binary)
+         die("binary must be inside /snaps/%s/", appname);
 
-       // ensure we run in our own slave mount namespace, this will
-       // create a new mount namespace and make it a slave of "/"
-       //
-       // Note that this means that no mount actions inside our
-       // namespace are propagated to the main "/". We need this
-       // both for the private /tmp we create and for the bind
-       // mounts we do on a classic ubuntu system
-       //
-       // This also means you can't run an automount daemon unter
-       // this launcher
-       setup_slave_mount_namespace();
-       
-       // do the mounting if run on a non-native snappy system
-       if(is_running_on_classic_ubuntu()) {
-          setup_snappy_os_mounts();
-       }
-      
-       // set up private mounts
-       setup_private_mount(appname);
+      // ensure we run in our own slave mount namespace, this will
+      // create a new mount namespace and make it a slave of "/"
+      //
+      // Note that this means that no mount actions inside our
+      // namespace are propagated to the main "/". We need this
+      // both for the private /tmp we create and for the bind
+      // mounts we do on a classic ubuntu system
+      //
+      // This also means you can't run an automount daemon unter
+      // this launcher
+      setup_slave_mount_namespace();
 
-       // this needs to happen as root
-       if(snappy_udev_setup_required(appname)) {
-          setup_devices_cgroup(appname);
-          setup_udev_snappy_assign(appname);
-       }
+      // do the mounting if run on a non-native snappy system
+      if(is_running_on_classic_ubuntu()) {
+         setup_snappy_os_mounts();
+      }
 
-       // the rest does not so drop privs back to calling user
-       unsigned real_uid = getuid();
-       unsigned real_gid = getgid();
+      // set up private mounts
+      setup_private_mount(appname);
 
-       // Note that we do not call setgroups() here because its ok
-       // that the user keeps the groups he already belongs to
-       if (setgid(real_gid) != 0)
-          die("setgid failed");
-       if (setuid(real_uid) != 0)
-          die("setuid failed");
+      // this needs to happen as root
+      if(snappy_udev_setup_required(appname)) {
+         setup_devices_cgroup(appname);
+         setup_udev_snappy_assign(appname);
+      }
 
-       if(real_gid != 0 && (getuid() == 0 || geteuid() == 0))
-          die("dropping privs did not work");
-       if(real_uid != 0 && (getgid() == 0 || getegid() == 0))
-          die("dropping privs did not work");
-    }
+      // the rest does not so drop privs back to calling user
+      unsigned real_uid = getuid();
+      unsigned real_gid = getgid();
 
-    //https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement#ubuntu-snapp-launch
+      // Note that we do not call setgroups() here because its ok
+      // that the user keeps the groups he already belongs to
+      if (setgid(real_gid) != 0)
+         die("setgid failed");
+      if (setuid(real_uid) != 0)
+         die("setuid failed");
 
-    int rc = 0;
-    // set apparmor rules
-    rc = aa_change_onexec(aa_profile);
-    if (rc != 0) {
-       if (getenv("SNAPPY_LAUNCHER_INSIDE_TESTS") == NULL)
-          die("aa_change_onexec failed with %i", rc);
-    }
+      if(real_gid != 0 && (getuid() == 0 || geteuid() == 0))
+         die("dropping privs did not work");
+      if(real_uid != 0 && (getgid() == 0 || getegid() == 0))
+         die("dropping privs did not work");
+   }
 
-    // set seccomp
-    rc = seccomp_load_filters(aa_profile);
-    if (rc != 0)
-       die("seccomp_load_filters failed with %i", rc);
+   // Ensure that the user data path exists.
+   setup_user_data();
 
-    // and exec the new binary
-    argv[NR_ARGS] = (char*)binary,
-    execv(binary, (char *const*)&argv[NR_ARGS]);
-    perror("execv failed");
-    return 1;
+   //https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement#ubuntu-snapp-launch
+
+   int rc = 0;
+   // set apparmor rules
+   rc = aa_change_onexec(aa_profile);
+   if (rc != 0) {
+   if (getenv("SNAPPY_LAUNCHER_INSIDE_TESTS") == NULL)
+      die("aa_change_onexec failed with %i", rc);
+   }
+
+   // set seccomp
+   rc = seccomp_load_filters(aa_profile);
+   if (rc != 0)
+      die("seccomp_load_filters failed with %i", rc);
+
+   // and exec the new binary
+   argv[NR_ARGS] = (char*)binary,
+   execv(binary, (char *const*)&argv[NR_ARGS]);
+   perror("execv failed");
+   return 1;
 }
-
