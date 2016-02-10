@@ -25,12 +25,10 @@ import (
 	"github.com/ubuntu-core/snappy/i18n"
 )
 
-type assertOptions struct {
-	AssertionFile string `positional-arg-name:"assertion-file" description:"assertion file"`
-}
-
 type cmdAssert struct {
-	assertOptions `positional-args:"true" required:"true"`
+	AssertOptions struct {
+		AssertionFile string `positional-arg-name:"assertion-file" description:"assertion file"`
+	} `positional-args:"true" required:"true"`
 }
 
 var shortAssertHelp = i18n.G("Adds an assertion to the system")
@@ -52,7 +50,7 @@ func init() {
 }
 
 func (x *cmdAssert) Execute(args []string) error {
-	assertFile := x.assertOptions.AssertionFile
+	assertFile := x.AssertOptions.AssertionFile
 
 	assertData, err := ioutil.ReadFile(assertFile)
 	if err != nil {
