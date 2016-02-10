@@ -328,8 +328,9 @@ void mkpath(const char *const path) {
 
    // Open flags to use while we walk the user data path:
    // - Don't follow symlinks
+   // - Don't allow child access to file descriptor
    // - Only open a directory (fail otherwise)
-   int open_flags = O_NOFOLLOW | O_DIRECTORY;
+   int open_flags = O_NOFOLLOW | O_CLOEXEC | O_DIRECTORY;
 
    // We're going to create each path segment via openat/mkdirat calls instead
    // of mkdir calls, to avoid following symlinks and placing the user data
