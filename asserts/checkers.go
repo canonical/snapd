@@ -22,6 +22,7 @@ package asserts
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -91,4 +92,31 @@ func checkUint(headers map[string]string, name string, bitSize int) (uint64, err
 		return 0, fmt.Errorf("%q header is not an unsigned integer: %v", name, valueStr)
 	}
 	return value, nil
+}
+
+func checkCommaSepList(headers map[string]string, name string) ([]string, error) {
+	listStr, ok := headers[name]
+	if !ok {
+		return nil, fmt.Errorf("%q header is mandatory", name)
+	}
+
+	// XXX: we likely don't need this much white-space flexibility,
+	// just supporting newline after , could be enough
+
+	// empty lists are allowed
+	listStr = strings.TrimSpace(listStr)
+	if listStr == "" {
+		return nil, nil
+	}
+
+	entries := strings.Split(listStr, ",")
+	for i, entry := range entries {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			return nil, fmt.Errorf("empty entry in comma separated %q header: %q", name, listStr)
+		}
+		entries[i] = entry
+	}
+
+	return entries, nil
 }
