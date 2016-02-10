@@ -41,8 +41,8 @@ Help Options:
   -h, --help      Show this help message
 
 [remove-skill-slot command arguments]
-  snap:           name of the snap containing the skill slot
-  name:           name of the skill slot within the snap
+  snap:           Name of the snap containing the skill slot
+  name:           Name of the skill slot within the snap
 `
 	rest, _ := Parser().ParseArgs([]string{"experimental", "remove-skill-slot", "--help"})
 	// TODO: Re-enable this test after go-flags is updated
