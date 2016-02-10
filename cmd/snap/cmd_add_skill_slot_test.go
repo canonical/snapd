@@ -30,7 +30,7 @@ import (
 
 func (s *SnapSuite) TestAddSkillSlotHelp(c *C) {
 	msg := `Usage:
-  snap.test [OPTIONS] experimental add-skill-slot [add-skill-slot-OPTIONS] snap name type
+  snap.test [OPTIONS] experimental add-skill-slot [add-skill-slot-OPTIONS] <snap name> <skill slot name> <skill type>
 
 The add-skill-slot command adds a new skill slot to the system.
 
@@ -38,17 +38,17 @@ This command is only for experimentation with the skill system.
 It will be removed in one of the future releases.
 
 Help Options:
-  -h, --help       Show this help message
+  -h, --help                   Show this help message
 
 [add-skill-slot command options]
-      -a=          key=value attributes
-          --app=   list of apps using this skill slot
-          --label= human-friendly label
+      -a=                      key=value attributes
+          --app=               list of apps using this skill slot
+          --label=             human-friendly label
 
 [add-skill-slot command arguments]
-  snap:            name of the snap containing the slot
-  name:            name of the skill slot within the snap
-  type:            skill type
+  <snap name>:                 name of the snap containing the slot
+  <skill slot name>:           name of the skill slot within the snap
+  <skill type>:                skill type
 `
 	rest, _ := Parser().ParseArgs([]string{"experimental", "add-skill-slot", "--help"})
 	// TODO: Re-enable this test after go-flags is updated
