@@ -30,7 +30,7 @@ import (
 
 func (s *SnapSuite) TestRemoveSkillHelp(c *C) {
 	msg := `Usage:
-  snap.test [OPTIONS] experimental remove-skill snap name
+  snap.test [OPTIONS] experimental remove-skill <snap name> <skill name>
 
 The remove-skill command removes a skill from the system.
 
@@ -38,11 +38,11 @@ This command is only for experimentation with the skill system.
 It will be removed in one of the future releases.
 
 Help Options:
-  -h, --help      Show this help message
+  -h, --help              Show this help message
 
 [remove-skill command arguments]
-  snap:           name of the snap containing the skill
-  name:           name of the skill slot within the snap
+  <snap name>:            name of the snap containing the skill
+  <skill name>:           name of the skill slot within the snap
 `
 	rest, _ := Parser().ParseArgs([]string{
 		"experimental", "remove-skill", "--help"})

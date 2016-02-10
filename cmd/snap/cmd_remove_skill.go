@@ -25,8 +25,8 @@ import (
 
 type cmdRemoveSkill struct {
 	Positionals struct {
-		Snap string `positional-arg-name:"snap" description:"name of the snap containing the skill"`
-		Name string `positional-arg-name:"name" description:"name of the skill slot within the snap"`
+		Snap string `positional-arg-name:"<snap name>" description:"name of the snap containing the skill"`
+		Name string `positional-arg-name:"<skill name>" description:"name of the skill slot within the snap"`
 	} `positional-args:"true" required:"true"`
 }
 
