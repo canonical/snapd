@@ -59,6 +59,8 @@ To obtain the correct dependencies for the project, run:
 
     godeps -t -u dependencies.tsv
 
+You can use the script `get-deps.sh` to run the two previous steps.
+
 If the dependencies need updating
 
     godeps -t ./... > dependencies.tsv
