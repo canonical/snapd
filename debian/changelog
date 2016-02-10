@@ -1,11 +1,11 @@
-ubuntu-core-launcher (1.0.16) UNRELEASED; urgency=medium
+ubuntu-core-launcher (1.0.16) xenial; urgency=medium
 
   [ Kyle Fazzari ]
   * Add creation of user data directory. Previously this was only handled
     within Snappy's binary wrappers, which meant that it wasn't created for
     services. (LP: #1527612)
 
- -- Jamie Strandboge <jamie@ubuntu.com>  Wed, 10 Feb 2016 11:21:03 -0600
+ -- Jamie Strandboge <jamie@ubuntu.com>  Wed, 10 Feb 2016 11:35:29 -0600
 
 ubuntu-core-launcher (1.0.15) xenial; urgency=medium
 
