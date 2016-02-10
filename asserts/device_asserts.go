@@ -95,13 +95,13 @@ func (mod *Model) Timestamp() time.Time {
 }
 
 // Implement further consistency checks.
-func (mod *Model) checkConsistency(db *Database, acck *AccountKey) error {
+func (mod *Model) checkConsistency(db RODatabase, acck *AccountKey) error {
 	// TODO: double check trust level of authority depending on class and possibly allowed-modes
-	if !acck.isKeyValidAt(mod.timestamp) {
-		return fmt.Errorf("model assertion timestamp outside of signing key validity")
-	}
 	return nil
 }
+
+// sanity
+var _ consistencyChecker = (*Model)(nil)
 
 var modelMandatory = []string{"os", "architecture", "gadget", "kernel", "store", "class"}
 
