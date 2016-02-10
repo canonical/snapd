@@ -140,6 +140,8 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 	if len(checkers) == 0 {
 		checkers = DefaultCheckers
 	}
+	dbCheckers := make([]Checker, len(checkers))
+	copy(dbCheckers, checkers)
 
 	return &Database{
 		bs:         bs,
@@ -149,7 +151,7 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 		// findAccountKey depend on it, trusted should win over the
 		// general backstore!
 		backstores: []Backstore{trustedBackstore, bs},
-		checkers:   checkers,
+		checkers:   dbCheckers,
 	}, nil
 }
 
