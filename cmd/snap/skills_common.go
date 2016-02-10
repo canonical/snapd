@@ -35,22 +35,13 @@ type AttributePair struct {
 // UnmarshalFlag parses a string into an AttributePair
 func (ap *AttributePair) UnmarshalFlag(value string) error {
 	parts := strings.SplitN(value, "=", 2)
-	ap.Key = ""
-	ap.Value = ""
-	switch len(parts) {
-	case 1:
-		// Reject key (without =)
-	case 2:
-		ap.Key = parts[0]
-		ap.Value = parts[1]
-		// Reject =value (empty key is invalid)
-		if ap.Key == "" {
-			ap.Value = ""
-		}
-	}
-	if ap.Key == "" && ap.Value == "" {
+	if len(parts) < 2 || parts[0] == "" {
+		ap.Key = ""
+		ap.Value = ""
 		return fmt.Errorf("invalid attribute: %q (want key=value)", value)
 	}
+	ap.Key = parts[0]
+	ap.Value = parts[1]
 	return nil
 }
 
