@@ -27,7 +27,7 @@ import (
 
 type cmdAssert struct {
 	AssertOptions struct {
-		AssertionFile string `positional-arg-name:"assertion-file" description:"assertion file"`
+		AssertionFile string `positional-arg-name:"<assertion file>" description:"assertion file"`
 	} `positional-args:"true" required:"true"`
 }
 

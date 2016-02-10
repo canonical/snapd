@@ -88,7 +88,7 @@ Snaps that are not active don't have their apps available for use.
 
 type cmdOp struct {
 	Positional struct {
-		Snap string `positional-arg-name:"snap"`
+		Snap string `positional-arg-name:"<snap>"`
 	} `positional-args:"yes" required:"yes"`
 	op func(*client.Client, string) (string, error)
 }
