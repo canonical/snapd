@@ -26,9 +26,9 @@ import (
 
 type cmdAddSkillSlot struct {
 	Positionals struct {
-		Snap string `positional-arg-name:"snap" description:"name of the snap containing the slot"`
-		Name string `positional-arg-name:"name" description:"name of the skill slot within the snap"`
-		Type string `positional-arg-name:"type" description:"skill type"`
+		Snap string `positional-arg-name:"<snap name>" description:"name of the snap containing the slot"`
+		Name string `positional-arg-name:"<skill slot name>" description:"name of the skill slot within the snap"`
+		Type string `positional-arg-name:"<skill type>" description:"skill type"`
 	} `positional-args:"true" required:"true"`
 	Attrs []AttributePair `short:"a" description:"key=value attributes"`
 	Apps  []string        `long:"app" description:"list of apps using this skill slot"`
