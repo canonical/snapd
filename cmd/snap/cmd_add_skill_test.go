@@ -30,7 +30,7 @@ import (
 
 func (s *SnapSuite) TestAddSkillHelp(c *C) {
 	msg := `Usage:
-  snap.test [OPTIONS] experimental add-skill [add-skill-OPTIONS] <snap name> <skill name> <skill type>
+  snap.test [OPTIONS] experimental add-skill [add-skill-OPTIONS] <snap> <skill> <type>
 
 The add-skill command adds a new skill to the system.
 
@@ -38,19 +38,19 @@ This command is only for experimentation with the skill system.
 It will be removed in one of the future releases.
 
 Help Options:
-  -h, --help              Show this help message
+  -h, --help         Show this help message
 
 [add-skill command options]
-      -a=                 List of key=value attributes
-          --app=          List of apps providing this skill
-          --label=        Human-friendly label
+      -a=            List of key=value attributes
+          --app=     List of apps providing this skill
+          --label=   Human-friendly label
 
 [add-skill command arguments]
-  <snap name>:            Name of the snap offering the skill
-  <skill name>:           Skill name within the snap
-  <skill type>:           Skill type
+  <snap>:            Name of the snap offering the skill
+  <skill>:           Skill name within the snap
+  <type>:            Skill type
 `
-	rest, err_ := Parser().ParseArgs([]string{"experimental", "add-skill", "--help"})
+	rest, _ := Parser().ParseArgs([]string{"experimental", "add-skill", "--help"})
 	msg = msg[:]
 	// TODO: re-enable this test after go-flags is updated.
 	// c.Assert(err.Error(), Equals, msg)
