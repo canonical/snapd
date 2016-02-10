@@ -306,7 +306,7 @@ func (r *Repository) Grant(skillSnapName, skillName, slotSnapName, slotName stri
 // Revoke has three modes of operation that depend on the passed arguments:
 //
 // - If all the arguments are specified revoke finds a specific skill slot and
-//   a specific skill and revoke that skill from that skill slot. It is an
+//   a specific skill and revokes that skill from that skill slot. It is an
 //   error if skill or skill slot cannot be found or if the grant does not
 //   exist.
 // - If skillSnapName and skillName are empty then revoke finds the specified
