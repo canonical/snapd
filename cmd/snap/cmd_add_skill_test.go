@@ -46,9 +46,9 @@ Help Options:
           --label=        human-friendly label
 
 [add-skill command arguments]
-  <snap name>:            name of the snap offering the skill
-  <skill name>:           skill name within the snap
-  <skill type>:           skill type
+  <snap name>:            Name of the snap offering the skill
+  <skill name>:           Skill name within the snap
+  <skill type>:           Skill type
 `
 	rest, _ := Parser().ParseArgs([]string{"experimental", "add-skill", "--help"})
 	msg = msg[:]
