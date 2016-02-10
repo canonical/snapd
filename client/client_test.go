@@ -20,7 +20,6 @@
 package client_test
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -194,92 +193,6 @@ func (cs *clientSuite) TestClientReportsInnerJSONError(c *check.C) {
 	cs.rsp = `{"type": "sync", "result": "this isn't really json is it"}`
 	_, err := cs.cli.SysInfo()
 	c.Check(err, check.ErrorMatches, `.*cannot unmarshal.*`)
-}
-
-func (cs *clientSuite) TestClientCapabilities(c *check.C) {
-	cs.rsp = `{
-		"type": "sync",
-		"result": {
-			"capabilities": {
-				"n": {
-					"name": "n",
-					"label": "l",
-					"type": "t",
-					"attrs": {"k": "v"}
-				}
-			}
-		}
-	}`
-	caps, err := cs.cli.Capabilities()
-	c.Check(err, check.IsNil)
-	c.Check(caps, check.DeepEquals, map[string]client.Capability{
-		"n": client.Capability{
-			Name:  "n",
-			Label: "l",
-			Type:  "t",
-			Attrs: map[string]string{"k": "v"},
-		},
-	})
-	c.Check(cs.req.Method, check.Equals, "GET")
-	c.Check(cs.req.URL.Path, check.Equals, "/2.0/capabilities")
-}
-
-func (cs *clientSuite) TestClientAddCapability(c *check.C) {
-	cs.rsp = `{
-		"type": "sync",
-		"result": {
-		}
-	}`
-	cap := &client.Capability{
-		Name:  "n",
-		Label: "l",
-		Type:  "t",
-		Attrs: map[string]string{"k": "v"},
-	}
-	err := cs.cli.AddCapability(cap)
-	c.Check(err, check.IsNil)
-	var body map[string]interface{}
-	decoder := json.NewDecoder(cs.req.Body)
-	err = decoder.Decode(&body)
-	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"name":  "n",
-		"label": "l",
-		"type":  "t",
-		"attrs": map[string]interface{}{
-			"k": "v",
-		},
-	})
-	c.Check(cs.req.Method, check.Equals, "POST")
-	c.Check(cs.req.URL.Path, check.Equals, "/2.0/capabilities")
-}
-
-func (cs *clientSuite) TestClientRemoveCapabilityOk(c *check.C) {
-	cs.rsp = `{
-		"type": "sync",
-		"result": { }
-	}`
-	err := cs.cli.RemoveCapability("n")
-	c.Check(err, check.IsNil)
-	c.Check(cs.req.Body, check.IsNil)
-	c.Check(cs.req.Method, check.Equals, "DELETE")
-	c.Check(cs.req.URL.Path, check.Equals, "/2.0/capabilities/n")
-}
-
-func (cs *clientSuite) TestClientRemoveCapabilityNotFound(c *check.C) {
-	cs.rsp = `{
-		"status": "Not Found",
-		"status_code": 404,
-		"type": "error",
-		"result": {
-			"message": "can't remove capability \"n\", no such capability"
-		}
-	}`
-	err := cs.cli.RemoveCapability("n")
-	c.Check(err, check.ErrorMatches, `.*can't remove capability \"n\", no such capability`)
-	c.Check(cs.req.Body, check.IsNil)
-	c.Check(cs.req.Method, check.Equals, "DELETE")
-	c.Check(cs.req.URL.Path, check.Equals, "/2.0/capabilities/n")
 }
 
 func (cs *clientSuite) TestParseError(c *check.C) {
