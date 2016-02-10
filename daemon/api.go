@@ -21,7 +21,6 @@ package daemon
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"mime"
@@ -35,7 +34,6 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/ubuntu-core/snappy/asserts"
-	"github.com/ubuntu-core/snappy/caps"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/lockfile"
 	"github.com/ubuntu-core/snappy/logger"
@@ -61,8 +59,6 @@ var api = []*Command{
 	snapSvcsCmd,
 	snapSvcLogsCmd,
 	operationCmd,
-	capabilitiesCmd,
-	capabilityCmd,
 	skillsCmd,
 	assertsCmd,
 	assertsFindManyCmd,
@@ -130,18 +126,6 @@ var (
 		Path:   "/2.0/operations/{uuid}",
 		GET:    getOpInfo,
 		DELETE: deleteOp,
-	}
-
-	capabilitiesCmd = &Command{
-		Path:   "/2.0/capabilities",
-		UserOK: true,
-		GET:    getCapabilities,
-		POST:   addCapability,
-	}
-
-	capabilityCmd = &Command{
-		Path:   "/2.0/capabilities/{name}",
-		DELETE: deleteCapability,
 	}
 
 	skillsCmd = &Command{
@@ -932,52 +916,6 @@ func appIconGet(c *Command, r *http.Request) Response {
 	origin := vars["origin"]
 
 	return iconGet(name, origin)
-}
-
-func getCapabilities(c *Command, r *http.Request) Response {
-	return SyncResponse(map[string]interface{}{
-		"capabilities": c.d.capRepo.Caps(),
-	})
-}
-
-func addCapability(c *Command, r *http.Request) Response {
-	decoder := json.NewDecoder(r.Body)
-	var newCap caps.Capability
-	if err := decoder.Decode(&newCap); err != nil || newCap.TypeName == "" {
-		return BadRequest("can't decode request body into a capability: %v", err)
-	}
-
-	// Re-construct the perfect type object knowing just the type name that is
-	// passed through the JSON representation.
-	newType := c.d.capRepo.Type(newCap.TypeName)
-	if newType == nil {
-		return BadRequest("cannot add capability: unknown type name %q", newCap.TypeName)
-	}
-
-	if err := c.d.capRepo.Add(&newCap); err != nil {
-		return BadRequest("%v", err)
-	}
-
-	return &resp{
-		Type:   ResponseTypeSync,
-		Status: http.StatusCreated,
-		Result: map[string]string{
-			"resource": fmt.Sprintf("/2.0/capabilities/%s", newCap.Name),
-		},
-	}
-}
-
-func deleteCapability(c *Command, r *http.Request) Response {
-	name := muxVars(r)["name"]
-	err := c.d.capRepo.Remove(name)
-	switch err.(type) {
-	case nil:
-		return SyncResponse(nil)
-	case *caps.NotFoundError:
-		return NotFound("can't find capability %q: %v", name, err)
-	default:
-		return InternalError("can't remove capability %q: %v", name, err)
-	}
 }
 
 // skillGrant holds the identification of a slot that has been granted to a skill.
