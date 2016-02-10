@@ -2263,3 +2263,27 @@ func (s *apiSuite) TestAssertsInvalidType(c *check.C) {
 	c.Check(rec.Code, check.Equals, 400)
 	c.Check(rec.Body.String(), testutil.Contains, "invalid assert type")
 }
+
+func (s *apiSuite) TestGetEvents(c *check.C) {
+	d := newTestDaemon()
+	eventsCmd.d = d
+	c.Assert(d.hub.SubscriberCount(), check.Equals, 0)
+
+	ts := httptest.NewServer(http.HandlerFunc(eventsCmd.GET(eventsCmd, nil).ServeHTTP))
+	defer ts.Close()
+
+	req, err := http.NewRequest("GET", ts.URL, nil)
+	c.Assert(err, check.IsNil)
+	req.Header.Add("Upgrade", "websocket")
+	req.Header.Add("Connection", "Upgrade")
+	req.Header.Add("Sec-WebSocket-Key", "xxx")
+	req.Header.Add("Sec-WebSocket-Version", "13")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	c.Assert(err, check.IsNil)
+	// upgrades request
+	c.Assert(resp.Header["Upgrade"], check.DeepEquals, []string{"websocket"})
+	// adds subscriber
+	c.Assert(d.hub.SubscriberCount(), check.Equals, 1)
+}
