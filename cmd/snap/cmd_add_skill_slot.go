@@ -26,13 +26,13 @@ import (
 
 type cmdAddSkillSlot struct {
 	Positionals struct {
-		Snap string `positional-arg-name:"<snap name>" description:"name of the snap containing the slot"`
-		Name string `positional-arg-name:"<skill slot name>" description:"name of the skill slot within the snap"`
-		Type string `positional-arg-name:"<skill type>" description:"skill type"`
+		Snap string `positional-arg-name:"<snap name>" description:"Name of the snap containing the slot"`
+		Name string `positional-arg-name:"<skill slot name>" description:"Name of the skill slot within the snap"`
+		Type string `positional-arg-name:"<skill type>" description:"Skill type"`
 	} `positional-args:"true" required:"true"`
-	Attrs []AttributePair `short:"a" description:"key=value attributes"`
-	Apps  []string        `long:"app" description:"list of apps using this skill slot"`
-	Label string          `long:"label" description:"human-friendly label"`
+	Attrs []AttributePair `short:"a" description:"List of key=value attributes"`
+	Apps  []string        `long:"app" description:"List of apps using this skill slot"`
+	Label string          `long:"label" description:"Human-friendly label"`
 }
 
 var shortAddSkillSlotHelp = i18n.G("Adds a skill slot to the system")

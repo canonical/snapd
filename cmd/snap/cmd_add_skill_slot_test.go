@@ -41,14 +41,14 @@ Help Options:
   -h, --help                   Show this help message
 
 [add-skill-slot command options]
-      -a=                      key=value attributes
-          --app=               list of apps using this skill slot
-          --label=             human-friendly label
+      -a=                      List of key=value attributes
+          --app=               List of apps using this skill slot
+          --label=             Human-friendly label
 
 [add-skill-slot command arguments]
-  <snap name>:                 name of the snap containing the slot
-  <skill slot name>:           name of the skill slot within the snap
-  <skill type>:                skill type
+  <snap name>:                 Name of the snap containing the slot
+  <skill slot name>:           Name of the skill slot within the snap
+  <skill type>:                Skill type
 `
 	rest, _ := Parser().ParseArgs([]string{"experimental", "add-skill-slot", "--help"})
 	// TODO: Re-enable this test after go-flags is updated
