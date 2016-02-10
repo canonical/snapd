@@ -20,7 +20,6 @@
 package asserts
 
 import (
-	"fmt"
 	"time"
 )
 
@@ -56,14 +55,6 @@ func (snapdcl *SnapBuild) Grade() string {
 // Timestamp returns the time when the snap-build assertion was created.
 func (snapdcl *SnapBuild) Timestamp() time.Time {
 	return snapdcl.timestamp
-}
-
-// implement further consistency checks
-func (snapdcl *SnapBuild) checkConsistency(db *Database, acck *AccountKey) error {
-	if !acck.isKeyValidAt(snapdcl.timestamp) {
-		return fmt.Errorf("snap-build timestamp outside of signing key validity")
-	}
-	return nil
 }
 
 func assembleSnapBuild(assert assertionBase) (Assertion, error) {
@@ -133,15 +124,15 @@ func (assert *SnapRevision) Timestamp() time.Time {
 }
 
 // Implement further consistency checks.
-func (assert *SnapRevision) checkConsistency(db *Database, acck *AccountKey) error {
+func (assert *SnapRevision) checkConsistency(db RODatabase, acck *AccountKey) error {
 	// TODO: check the associated snap-build exists.
 	// TODO: check the associated snap-build's digest.
 	// TODO: check developer-id matches snap-build's authority-id.
-	if !acck.isKeyValidAt(assert.timestamp) {
-		return fmt.Errorf("snap-revision timestamp outside of signing key validity")
-	}
 	return nil
 }
+
+// sanity
+var _ consistencyChecker = (*SnapRevision)(nil)
 
 func assembleSnapRevision(assert assertionBase) (Assertion, error) {
 	// TODO: more parsing/checking of snap-digest
