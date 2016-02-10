@@ -41,16 +41,16 @@ Help Options:
   -h, --help              Show this help message
 
 [add-skill command options]
-      -a=                 key=value attributes
-          --app=          list of apps providing this skill
-          --label=        human-friendly label
+      -a=                 List of key=value attributes
+          --app=          List of apps providing this skill
+          --label=        Human-friendly label
 
 [add-skill command arguments]
   <snap name>:            Name of the snap offering the skill
   <skill name>:           Skill name within the snap
   <skill type>:           Skill type
 `
-	rest, _ := Parser().ParseArgs([]string{"experimental", "add-skill", "--help"})
+	rest, err_ := Parser().ParseArgs([]string{"experimental", "add-skill", "--help"})
 	msg = msg[:]
 	// TODO: re-enable this test after go-flags is updated.
 	// c.Assert(err.Error(), Equals, msg)

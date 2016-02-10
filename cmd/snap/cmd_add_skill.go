@@ -30,9 +30,9 @@ type cmdAddSkill struct {
 		Name string `positional-arg-name:"<skill name>" description:"Skill name within the snap"`
 		Type string `positional-arg-name:"<skill type>" description:"Skill type"`
 	} `positional-args:"true" required:"true"`
-	Attrs []AttributePair `short:"a" description:"key=value attributes"`
-	Apps  []string        `long:"app" description:"list of apps providing this skill"`
-	Label string          `long:"label" description:"human-friendly label"`
+	Attrs []AttributePair `short:"a" description:"List of key=value attributes"`
+	Apps  []string        `long:"app" description:"List of apps providing this skill"`
+	Label string          `long:"label" description:"Human-friendly label"`
 }
 
 var shortAddSkillHelp = i18n.G("Adds a skill to the system")
