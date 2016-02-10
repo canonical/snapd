@@ -80,6 +80,8 @@ type DatabaseConfig struct {
 	Backstore Backstore
 	// manager/backstore for keypairs, mandatory
 	KeypairManager KeypairManager
+	// assertion checkers used by Database.Check, left unset DefaultCheckers will be used which is recommended
+	Checkers []Checker
 }
 
 // Well-known errors
@@ -87,11 +89,21 @@ var (
 	ErrNotFound = errors.New("assertion not found")
 )
 
-// A consistencyChecker performs further checks based on the full
-// assertion database knowledge and its own signing key.
-type consistencyChecker interface {
-	checkConsistency(db *Database, signingKey *AccountKey) error
+// A RODatabase exposes read-only access to an assertion database.
+type RODatabase interface {
+	// Find an assertion based on arbitrary headers.
+	// Provided headers must contain the primary key for the assertion type.
+	// It returns ErrNotFound if the assertion cannot be found.
+	Find(assertionType *AssertionType, headers map[string]string) (Assertion, error)
+	// FindMany finds assertions based on arbitrary headers.
+	// It returns ErrNotFound if no assertion can be found.
+	FindMany(assertionType *AssertionType, headers map[string]string) ([]Assertion, error)
 }
+
+// A Checker defines a check on an assertion considering aspects such as
+// its signature, the signing key, and consistency with other
+// assertions in the database.
+type Checker func(assert Assertion, signature Signature, signingKey *AccountKey, roDB RODatabase, checkTime time.Time) error
 
 // Database holds assertions and can be used to sign or check
 // further assertions.
@@ -100,6 +112,7 @@ type Database struct {
 	keypairMgr KeypairManager
 	trusted    Backstore
 	backstores []Backstore
+	checkers   []Checker
 }
 
 // OpenDatabase opens the assertion database based on the configuration.
@@ -123,6 +136,13 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 		}
 	}
 
+	checkers := cfg.Checkers
+	if len(checkers) == 0 {
+		checkers = DefaultCheckers
+	}
+	dbCheckers := make([]Checker, len(checkers))
+	copy(dbCheckers, checkers)
+
 	return &Database{
 		bs:         bs,
 		keypairMgr: keypairMgr,
@@ -131,6 +151,7 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 		// findAccountKey depend on it, trusted should win over the
 		// general backstore!
 		backstores: []Backstore{trustedBackstore, bs},
+		checkers:   dbCheckers,
 	}, nil
 }
 
@@ -214,7 +235,7 @@ func (db *Database) findAccountKey(authorityID, keyID string) (*AccountKey, erro
 
 // Check tests whether the assertion is properly signed and consistent with all the stored knowledge.
 func (db *Database) Check(assert Assertion) error {
-	content, signature := assert.Signature()
+	_, signature := assert.Signature()
 	sig, err := decodeSignature(signature)
 	if err != nil {
 		return err
@@ -229,20 +250,10 @@ func (db *Database) Check(assert Assertion) error {
 	}
 
 	now := time.Now()
-	if !accKey.isKeyValidAt(now) {
-		return fmt.Errorf("assertion is signed with expired public key %q from %q", sig.KeyID(), assert.AuthorityID())
-	}
-
-	err = accKey.publicKey().verify(content, sig)
-	if err != nil {
-		return fmt.Errorf("failed signature verification: %v", err)
-	}
-
-	// see if the assertion requires further checks
-	if checker, ok := assert.(consistencyChecker); ok {
-		err := checker.checkConsistency(db, accKey)
+	for _, checker := range db.checkers {
+		err := checker(assert, sig, accKey, db, now)
 		if err != nil {
-			return fmt.Errorf("signature verifies but assertion violates other knowledge: %v", err)
+			return err
 		}
 	}
 
@@ -348,4 +359,69 @@ func (db *Database) FindMany(assertionType *AssertionType, headers map[string]st
 		return nil, ErrNotFound
 	}
 	return res, nil
+}
+
+// assertion checkers
+
+// CheckSigningKeyIsNotExpired checks that the signing key is not expired.
+func CheckSigningKeyIsNotExpired(assert Assertion, signature Signature, signingKey *AccountKey, roDB RODatabase, checkTime time.Time) error {
+	if !signingKey.isKeyValidAt(checkTime) {
+		return fmt.Errorf("assertion is signed with expired public key %q from %q", signature.KeyID(), assert.AuthorityID())
+	}
+	return nil
+}
+
+// CheckSignature checks that the signature is valid.
+func CheckSignature(assert Assertion, signature Signature, signingKey *AccountKey, roDB RODatabase, checkTime time.Time) error {
+	content, _ := assert.Signature()
+	err := signingKey.publicKey().verify(content, signature)
+	if err != nil {
+		return fmt.Errorf("failed signature verification: %v", err)
+	}
+	return nil
+}
+
+type timestamped interface {
+	Timestamp() time.Time
+}
+
+// CheckTimestampVsSigningKeyValidity verifies that the timestamp of
+// the assertion is within the signing key validity.
+func CheckTimestampVsSigningKeyValidity(assert Assertion, signature Signature, signingKey *AccountKey, roDB RODatabase, checkTime time.Time) error {
+	if tstamped, ok := assert.(timestamped); ok {
+		if !signingKey.isKeyValidAt(tstamped.Timestamp()) {
+			return fmt.Errorf("%s assertion timestamp outside of signing key validity", assert.Type().Name)
+		}
+	}
+	return nil
+}
+
+// XXX: keeping these in this form until we know better
+
+// A consistencyChecker performs further checks based on the full
+// assertion database knowledge and its own signing key.
+type consistencyChecker interface {
+	checkConsistency(roDB RODatabase, signingKey *AccountKey) error
+}
+
+// CheckCrossConsistency verifies that the assertion is consistent with the other statements in the database.
+func CheckCrossConsistency(assert Assertion, signature Signature, signingKey *AccountKey, roDB RODatabase, checkTime time.Time) error {
+	// see if the assertion requires further checks
+	if checker, ok := assert.(consistencyChecker); ok {
+		err := checker.checkConsistency(roDB, signingKey)
+		if err != nil {
+			return fmt.Errorf("%s assertion violates other knowledge: %v", assert.Type().Name, err)
+		}
+	}
+	return nil
+}
+
+// DefaultCheckers lists the default and recommended assertion
+// checkers used by Database if none are specified in the
+// DatabaseConfig.Checkers.
+var DefaultCheckers = []Checker{
+	CheckSigningKeyIsNotExpired,
+	CheckSignature,
+	CheckTimestampVsSigningKeyValidity,
+	CheckCrossConsistency,
 }
