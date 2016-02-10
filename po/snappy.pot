@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-02-10 12:40+0100\n"
+        "POT-Creation-Date: 2016-02-10 20:58+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -60,6 +60,12 @@ msgid   "Activate a package"
 msgstr  ""
 
 msgid   "Activate a package that has previously been deactivated. If the package is already activated, do nothing."
+msgstr  ""
+
+msgid   "Adds a skill slot to the system"
+msgstr  ""
+
+msgid   "Adds a skill to the system"
 msgstr  ""
 
 msgid   "Adds an assertion to the system"
@@ -253,6 +259,9 @@ msgstr  ""
 msgid   "Remove hardware from a specific installed package"
 msgstr  ""
 
+msgid   "Removes a skill from the system"
+msgstr  ""
+
 msgid   "Removes a skill slot from the system"
 msgstr  ""
 
@@ -381,6 +390,20 @@ msgid   "Username for the login"
 msgstr  ""
 
 msgid   "\n"
+        "The add-skill command adds a new skill to the system.\n"
+        "\n"
+        "This command is only for experimentation with the skill system.\n"
+        "It will be removed in one of the future releases.\n"
+msgstr  ""
+
+msgid   "\n"
+        "The add-skill-slot command adds a new skill slot to the system.\n"
+        "\n"
+        "This command is only for experimentation with the skill system.\n"
+        "It will be removed in one of the future releases.\n"
+msgstr  ""
+
+msgid   "\n"
         "The assert command tries to add an assertion to the system assertion database.\n"
         "\n"
         "The assertion may also be a newer revision of a preexisting assertion that it\n"
@@ -406,6 +429,13 @@ msgstr  ""
 
 msgid   "\n"
         "The find command queries the store for available packages.\n"
+msgstr  ""
+
+msgid   "\n"
+        "The remove-skill command removes a skill from the system.\n"
+        "\n"
+        "This command is only for experimentation with the skill system.\n"
+        "It will be removed in one of the future releases.\n"
 msgstr  ""
 
 msgid   "\n"
