@@ -60,29 +60,28 @@ func init() {
 
 func (x *cmdSkills) Execute(args []string) error {
 	skills, err := Client().AllSkills()
-	if err != nil {
-		return err
-	}
-	w := tabwriter.NewWriter(Stdout, 0, 4, 1, ' ', 0)
-	fmt.Fprintln(w, i18n.G("Skill\tGranted To"))
-	defer w.Flush()
-	for _, skill := range skills {
-		// TODO: support filtering by snap:skill
-		if x.Type != "" && skill.Type != x.Type {
-			continue
-		}
-		fmt.Fprintf(w, "%s:%s\t", skill.Snap, skill.Name)
-		for i := 0; i < len(skill.GrantedTo); i++ {
-			if i > 0 {
-				fmt.Fprintf(w, ",")
+	if err == nil {
+		w := tabwriter.NewWriter(Stdout, 0, 4, 1, ' ', 0)
+		fmt.Fprintln(w, i18n.G("Skill\tGranted To"))
+		defer w.Flush()
+		for _, skill := range skills {
+			// TODO: support filtering by snap:skill
+			if x.Type != "" && skill.Type != x.Type {
+				continue
 			}
-			if skill.GrantedTo[i].Name != skill.Name {
-				fmt.Fprintf(w, "%s:%s", skill.GrantedTo[i].Snap, skill.GrantedTo[i].Name)
-			} else {
-				fmt.Fprintf(w, "%s", skill.GrantedTo[i].Snap)
+			fmt.Fprintf(w, "%s:%s\t", skill.Snap, skill.Name)
+			for i := 0; i < len(skill.GrantedTo); i++ {
+				if i > 0 {
+					fmt.Fprint(w, ",")
+				}
+				if skill.GrantedTo[i].Name != skill.Name {
+					fmt.Fprintf(w, "%s:%s", skill.GrantedTo[i].Snap, skill.GrantedTo[i].Name)
+				} else {
+					fmt.Fprintf(w, "%s", skill.GrantedTo[i].Snap)
+				}
 			}
+			fmt.Fprintf(w, "\n")
 		}
-		fmt.Fprintf(w, "\n")
 	}
-	return nil
+	return err
 }
