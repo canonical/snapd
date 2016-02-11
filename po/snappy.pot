@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-02-10 14:39+0000\n"
+        "POT-Creation-Date: 2016-02-11 09:46+0000\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -66,6 +66,9 @@ msgid   "Activate a snap that is installed but inactive"
 msgstr  ""
 
 msgid   "Add a snap to the system"
+msgstr  ""
+
+msgid   "Adds a skill slot to the system"
 msgstr  ""
 
 msgid   "Adds a skill to the system"
@@ -274,6 +277,9 @@ msgstr  ""
 msgid   "Remove hardware from a specific installed package"
 msgstr  ""
 
+msgid   "Removes a skill from the system"
+msgstr  ""
+
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid   "Removing %s\n"
@@ -419,6 +425,13 @@ msgid   "\n"
 msgstr  ""
 
 msgid   "\n"
+        "The add-skill-slot command adds a new skill slot to the system.\n"
+        "\n"
+        "This command is only for experimentation with the skill system.\n"
+        "It will be removed in one of the future releases.\n"
+msgstr  ""
+
+msgid   "\n"
         "The assert command tries to add an assertion to the system assertion database.\n"
         "\n"
         "The assertion may also be a newer revision of a preexisting assertion that it\n"
@@ -465,6 +478,13 @@ msgid   "\n"
         "\n"
         "The snap's data is currently not removed; use purge for that. This behaviour\n"
         "will change before 16.04 is final.\n"
+msgstr  ""
+
+msgid   "\n"
+        "The remove-skill command removes a skill from the system.\n"
+        "\n"
+        "This command is only for experimentation with the skill system.\n"
+        "It will be removed in one of the future releases.\n"
 msgstr  ""
 
 msgid   "\n"
