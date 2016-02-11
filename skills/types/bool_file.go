@@ -136,6 +136,7 @@ func (t *BoolFileType) dereferencedPath(skill *skills.Skill) (string, error) {
 // isGPIO checks if a given bool-file skill refers to a GPIO pin.
 func (t *BoolFileType) isGPIO(skill *skills.Skill) bool {
 	if path, ok := skill.Attrs["path"].(string); ok {
+		path = filepath.Clean(path)
 		return boolFileGPIOValuePattern.MatchString(path)
 	}
 	panic("skill is not sanitized")
