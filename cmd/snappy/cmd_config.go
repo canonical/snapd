@@ -72,7 +72,7 @@ func (x *cmdConfig) Execute(args []string) (err error) {
 	}
 
 	// output the new configuration
-	fmt.Println(newConfig)
+	os.Stdout.Write(newConfig)
 
 	return nil
 }
