@@ -131,7 +131,7 @@ func (as *assertsSuite) TestDecodeNoSignatureSplit(c *C) {
 func (as *assertsSuite) TestDecodeHeaderParsingErrors(c *C) {
 	headerParsingErrorsTests := []struct{ encoded, expectedErr string }{
 		{string([]byte{255, '\n', '\n'}), "header is not utf8"},
-		{"foo: a\nbar\n\n", `header entry missing name/value ':' separator: "bar"`},
+		{"foo: a\nbar\n\n", `header entry missing ':' separator: "bar"`},
 		{"TYPE: foo\n\n", `invalid header name: "TYPE"`},
 		{"foo: a\nbar:>\n\n", `header entry should have a space or newline \(multiline\) before value: "bar:>"`},
 		{"foo: a\nbar:\n\n", `empty multiline header value: "bar:"`},

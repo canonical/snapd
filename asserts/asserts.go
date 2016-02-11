@@ -166,7 +166,7 @@ func parseHeaders(head []byte) (map[string]string, error) {
 		i++
 		nameValueSplit := strings.Index(entry, ":")
 		if nameValueSplit == -1 {
-			return nil, fmt.Errorf("header entry missing name/value ':' separator: %q", entry)
+			return nil, fmt.Errorf("header entry missing ':' separator: %q", entry)
 		}
 		name := entry[:nameValueSplit]
 		if !headerNameSanity.MatchString(name) {
