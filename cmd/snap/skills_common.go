@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -35,12 +35,13 @@ type AttributePair struct {
 // UnmarshalFlag parses a string into an AttributePair
 func (ap *AttributePair) UnmarshalFlag(value string) error {
 	parts := strings.SplitN(value, "=", 2)
-	if len(parts) != 2 {
+	if len(parts) < 2 || parts[0] == "" {
 		ap.Key = ""
 		ap.Value = ""
 		return fmt.Errorf("invalid attribute: %q (want key=value)", value)
 	}
-	ap.Key, ap.Value = parts[0], parts[1]
+	ap.Key = parts[0]
+	ap.Value = parts[1]
 	return nil
 }
 
