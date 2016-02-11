@@ -19,10 +19,32 @@
 
 package notifications
 
+import (
+	"encoding/json"
+
+	"github.com/gorilla/websocket"
+)
+
 // A Subscriber is interested in receiving notifications
 type Subscriber struct {
 	uuid string
+	conn messageWriter
 }
 
 // Subscribers is a collection of subscribers
 type Subscribers map[string]*Subscriber
+
+type messageWriter interface {
+	WriteMessage(messageType int, data []byte) error
+}
+
+// Notify receives a notification which is then encoded as JSON and written to
+// the websocket.
+func (s *Subscriber) Notify(n *Notification) {
+	b, err := json.Marshal(n)
+	if err != nil {
+		return
+	}
+
+	s.conn.WriteMessage(websocket.TextMessage, b)
+}
