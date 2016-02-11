@@ -20,6 +20,7 @@
 package notifications
 
 import (
+	"encoding/json"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -34,6 +35,17 @@ type HubSuite struct {
 }
 
 var _ = Suite(&HubSuite{})
+
+type fakeConn struct {
+	message []byte
+}
+
+func (c *fakeConn) WriteMessage(messageType int, data []byte) error {
+	c.message = data
+	return nil
+}
+
+var _ messageWriter = &fakeConn{}
 
 func (s *HubSuite) SetUpTest(c *C) {
 	s.h = NewHub()
@@ -58,4 +70,17 @@ func (s *HubSuite) TestUnsubscribe(c *C) {
 
 	s.h.Unsubscribe(sub1)
 	c.Assert(s.h.subscribers, DeepEquals, Subscribers{"sub2": sub2})
+}
+
+func (s *HubSuite) TestPublish(c *C) {
+	conn := &fakeConn{}
+	sub := &Subscriber{uuid: "sub", conn: conn}
+	s.h.Subscribe(sub)
+
+	n := &Notification{}
+	s.h.Publish(n)
+
+	b, err := json.Marshal(n)
+	c.Assert(err, IsNil)
+	c.Assert(conn.message, DeepEquals, b)
 }

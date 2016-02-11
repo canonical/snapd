@@ -53,3 +53,13 @@ func (h *Hub) Unsubscribe(s *Subscriber) {
 
 	delete(h.subscribers, s.uuid)
 }
+
+// Publish broadcasts a notification to subscribers.
+func (h *Hub) Publish(n *Notification) {
+	h.Lock()
+	defer h.Unlock()
+
+	for _, s := range h.subscribers {
+		s.Notify(n)
+	}
+}
