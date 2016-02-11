@@ -7,7 +7,11 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
+<<<<<<< HEAD
         "POT-Creation-Date: 2016-02-10 13:12+0100\n"
+=======
+        "POT-Creation-Date: 2016-02-11 11:58+0100\n"
+>>>>>>> 85955123ab302b82a5d3ce73b2b55c3b4cc7563e
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -62,6 +66,18 @@ msgstr  ""
 msgid   "Activate a package that has previously been deactivated. If the package is already activated, do nothing."
 msgstr  ""
 
+msgid   "Activate a snap that is installed but inactive"
+msgstr  ""
+
+msgid   "Add a snap to the system"
+msgstr  ""
+
+msgid   "Adds a skill slot to the system"
+msgstr  ""
+
+msgid   "Adds a skill to the system"
+msgstr  ""
+
 msgid   "Adds an assertion to the system"
 msgstr  ""
 
@@ -109,6 +125,9 @@ msgid   "Deactivate a package"
 msgstr  ""
 
 msgid   "Deactivate a package. If the package is already deactivated, do nothing."
+msgstr  ""
+
+msgid   "Deactivate an installed active snap"
 msgstr  ""
 
 msgid   "Destroy the classic dimension."
@@ -216,6 +235,9 @@ msgstr  ""
 msgid   "Provides more detailed information"
 msgstr  ""
 
+msgid   "Purge a snap's data from the system"
+msgstr  ""
+
 msgid   "Purge an installed package."
 msgstr  ""
 
@@ -244,6 +266,12 @@ msgstr  ""
 msgid   "Rebooting to satisfy updates for %s\n"
 msgstr  ""
 
+msgid   "Refresh a snap in the system"
+msgstr  ""
+
+msgid   "Remove a snap from the system"
+msgstr  ""
+
 msgid   "Remove a snapp part"
 msgstr  ""
 
@@ -256,9 +284,18 @@ msgstr  ""
 msgid   "Remove hardware from a specific installed package"
 msgstr  ""
 
+msgid   "Removes a skill from the system"
+msgstr  ""
+
+msgid   "Removes a skill slot from the system"
+msgstr  ""
+
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid   "Removing %s\n"
+msgstr  ""
+
+msgid   "Rollback a snap to its previous known-good version"
 msgstr  ""
 
 msgid   "Rollback to a previous version of a package"
@@ -381,6 +418,30 @@ msgid   "Username for the login"
 msgstr  ""
 
 msgid   "\n"
+        "The activate command activates an installed but inactive snap.\n"
+        "\n"
+        "Snaps that are not active don't have their apps available for use.\n"
+msgstr  ""
+
+msgid   "\n"
+        "The add command installs and activates the named snap in the system.\n"
+msgstr  ""
+
+msgid   "\n"
+        "The add-skill command adds a new skill to the system.\n"
+        "\n"
+        "This command is only for experimentation with the skill system.\n"
+        "It will be removed in one of the future releases.\n"
+msgstr  ""
+
+msgid   "\n"
+        "The add-skill-slot command adds a new skill slot to the system.\n"
+        "\n"
+        "This command is only for experimentation with the skill system.\n"
+        "It will be removed in one of the future releases.\n"
+msgstr  ""
+
+msgid   "\n"
         "The assert command tries to add an assertion to the system assertion database.\n"
         "\n"
         "The assertion may also be a newer revision of a preexisting assertion that it\n"
@@ -398,6 +459,12 @@ msgid   "\n"
 msgstr  ""
 
 msgid   "\n"
+        "The deactivate command deactivates an installed, active snap.\n"
+        "\n"
+        "Snaps that are not active don't have their apps available for use.\n"
+msgstr  ""
+
+msgid   "\n"
         "The experimental command contains a selection of additional sub-commands.\n"
         "\n"
         "Experimental commands can be removed without notice and may not work on\n"
@@ -409,6 +476,7 @@ msgid   "\n"
 msgstr  ""
 
 msgid   "\n"
+<<<<<<< HEAD
         "The grant command assigns a skill to a snap.\n"
         "It may be called in the following ways:\n"
         "\n"
@@ -428,6 +496,38 @@ msgid   "\n"
         "the gadget snap, the kernel snap, and then the os snap, in that order. The\n"
         "first of these snaps that has a matching skill name is used and the command\n"
         "proceeds as above.\n"
+=======
+        "The purge command removes the data of the named snap from the system.\n"
+msgstr  ""
+
+msgid   "\n"
+        "The refresh command refreshes (updates) the named snap.\n"
+msgstr  ""
+
+msgid   "\n"
+        "The remove command removes the named snap from the system.\n"
+        "\n"
+        "The snap's data is currently not removed; use purge for that. This behaviour\n"
+        "will change before 16.04 is final.\n"
+msgstr  ""
+
+msgid   "\n"
+        "The remove-skill command removes a skill from the system.\n"
+        "\n"
+        "This command is only for experimentation with the skill system.\n"
+        "It will be removed in one of the future releases.\n"
+msgstr  ""
+
+msgid   "\n"
+        "The remove-skill-slot command removes a skill slot from the system.\n"
+        "\n"
+        "This command is only for experimentation with the skill system.\n"
+        "It will be removed in one of the future releases.\n"
+msgstr  ""
+
+msgid   "\n"
+        "The rollback command reverts an installed snap to its previous revision.\n"
+>>>>>>> 85955123ab302b82a5d3ce73b2b55c3b4cc7563e
 msgstr  ""
 
 msgid   "\n"

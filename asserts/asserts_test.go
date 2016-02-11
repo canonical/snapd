@@ -131,8 +131,11 @@ func (as *assertsSuite) TestDecodeNoSignatureSplit(c *C) {
 func (as *assertsSuite) TestDecodeHeaderParsingErrors(c *C) {
 	headerParsingErrorsTests := []struct{ encoded, expectedErr string }{
 		{string([]byte{255, '\n', '\n'}), "header is not utf8"},
-		{"foo: a\nbar\n\n", "header entry missing name value ': ' separation: \"bar\""},
+		{"foo: a\nbar\n\n", `header entry missing ':' separator: "bar"`},
 		{"TYPE: foo\n\n", `invalid header name: "TYPE"`},
+		{"foo: a\nbar:>\n\n", `header entry should have a space or newline \(multiline\) before value: "bar:>"`},
+		{"foo: a\nbar:\n\n", `empty multiline header value: "bar:"`},
+		{"foo: a\nbar:\nbaz: x\n\n", `empty multiline header value: "bar:"`},
 	}
 
 	for _, test := range headerParsingErrorsTests {
@@ -411,6 +414,37 @@ func (as *assertsSuite) TestSignFormatSanityNonEmptyBody(c *C) {
 	decoded, err := asserts.Decode(asserts.Encode(a))
 	c.Assert(err, IsNil)
 	c.Check(decoded.Body(), DeepEquals, body)
+}
+
+func (as *assertsSuite) TestSignFormatSanitySupportMultilineHeaderValues(c *C) {
+	headers := map[string]string{
+		"authority-id": "auth-id1",
+		"primary-key":  "0",
+	}
+
+	multilineVals := []string{
+		"a\n",
+		"\na",
+		"a\n\b\nc",
+		"a\n\b\nc\n",
+		"\na\n",
+		"\n\na\n\nb\n\nc",
+	}
+
+	for _, multilineVal := range multilineVals {
+		headers["multiline"] = multilineVal
+		if len(multilineVal)%2 == 1 {
+			headers["odd"] = "true"
+		}
+
+		a, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, asserts.OpenPGPPrivateKey(testPrivKey1))
+		c.Assert(err, IsNil)
+
+		decoded, err := asserts.Decode(asserts.Encode(a))
+		c.Assert(err, IsNil)
+
+		c.Check(decoded.Header("multiline"), Equals, multilineVal)
+	}
 }
 
 func (as *assertsSuite) TestHeaders(c *C) {
