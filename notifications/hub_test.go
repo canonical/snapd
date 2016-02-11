@@ -87,6 +87,35 @@ func (s *HubSuite) TestPublish(c *C) {
 	c.Assert(conn.message, DeepEquals, b)
 }
 
+func (s *HubSuite) TestPublishFilteredNotifications(c *C) {
+	conn1 := &fakeConn{}
+	conn2 := &fakeConn{}
+	sub1 := &Subscriber{uuid: "sub1", types: []string{"logging"}, conn: conn1}
+	sub2 := &Subscriber{uuid: "sub2", resource: "/2.0/operations/23", conn: conn2}
+	s.h.Subscribe(sub1)
+	s.h.Subscribe(sub2)
+
+	s.h.Publish(&Notification{Type: "logging"})
+	c.Assert(conn1.message, Not(HasLen), 0)
+	c.Assert(conn2.message, HasLen, 0)
+
+	conn1.message = []byte{}
+
+	s.h.Publish(&Notification{Type: "operations"})
+	c.Assert(conn1.message, HasLen, 0)
+	c.Assert(conn2.message, HasLen, 0)
+
+	s.h.Publish(&Notification{Resource: "/2.0/operations/23"})
+	c.Assert(conn1.message, HasLen, 0)
+	c.Assert(conn2.message, Not(HasLen), 0)
+
+	conn2.message = []byte{}
+
+	s.h.Publish(&Notification{Resource: "/2.0/operations/999"})
+	c.Assert(conn1.message, HasLen, 0)
+	c.Assert(conn2.message, HasLen, 0)
+}
+
 func (s *HubSuite) TestPublishUnsubscribesOnFailedNotify(c *C) {
 	sub1 := &Subscriber{uuid: "sub1", conn: &fakeConn{}}
 	sub2 := &Subscriber{uuid: "sub2", conn: &fakeConn{err: errors.New("fail")}}
