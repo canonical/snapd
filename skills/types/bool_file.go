@@ -21,8 +21,8 @@ package types
 
 import (
 	"fmt"
+	"path/filepath"
 	"regexp"
-	"strings"
 
 	"github.com/ubuntu-core/snappy/skills"
 )
@@ -59,9 +59,7 @@ func (t *BoolFileType) SanitizeSkill(skill *skills.Skill) error {
 	if !ok || path == "" {
 		return fmt.Errorf("bool-file must contain the path attribute")
 	}
-	if strings.Contains(path, "..") {
-		return fmt.Errorf("bool-file path cannot contain %q", "..")
-	}
+	path = filepath.Clean(path)
 	for _, pattern := range boolFileAllowedPathPatterns {
 		if pattern.MatchString(path) {
 			return nil
@@ -126,7 +124,11 @@ func (t *BoolFileType) SlotSecuritySnippet(skill *skills.Skill, securitySystem s
 
 func (t *BoolFileType) dereferencedPath(skill *skills.Skill) (string, error) {
 	if path, ok := skill.Attrs["path"].(string); ok {
-		return evalSymlinks(path)
+		path, err := evalSymlinks(path)
+		if err != nil {
+			return "", err
+		}
+		return filepath.Clean(path), nil
 	}
 	panic("skill is not sanitized")
 }

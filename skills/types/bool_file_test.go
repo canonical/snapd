@@ -102,7 +102,8 @@ func (s *BoolFileTypeSuite) TestSanitizeSkill(c *C) {
 		"bool-file must contain the path attribute")
 	// Skills without the "path" attribute are rejected.
 	err = s.t.SanitizeSkill(s.parentDirPathSkill)
-	c.Assert(err, ErrorMatches, "bool-file path cannot contain \"..\"")
+	c.Assert(err, ErrorMatches,
+		"bool-file can only point at LED brightness or GPIO value")
 	// Skills with incorrect value of the "path" attribute are rejected.
 	err = s.t.SanitizeSkill(s.badPathSkill)
 	c.Assert(err, ErrorMatches,
