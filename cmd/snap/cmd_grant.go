@@ -25,8 +25,8 @@ import (
 
 type cmdGrant struct {
 	Positionals struct {
-		Offer SnapAndName `positional-arg-name:"<snap>:<skill>" description:"snap offering the skill" skip-help:"true" required:"true"`
-		Use   SnapAndName `positional-arg-name:"<snap>:<skill slot>" description:"snap using the skill" skip-help:"true" required:"true"`
+		Offer SnapAndName `positional-arg-name:"<snap>:<skill>" required:"true"`
+		Use   SnapAndName `positional-arg-name:"<snap>:<skill slot>" required:"true"`
 	} `positional-args:"true" required:"true"`
 }
 
