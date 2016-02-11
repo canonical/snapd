@@ -65,7 +65,12 @@ func (x *cmdSkills) Execute(args []string) error {
 		fmt.Fprintln(w, i18n.G("Skill\tGranted To"))
 		defer w.Flush()
 		for _, skill := range skills {
-			// TODO: support filtering by snap:skill
+			if x.Positionals.Query.Snap != "" && x.Positionals.Query.Snap != skill.Snap {
+				continue
+			}
+			if x.Positionals.Query.Name != "" && x.Positionals.Query.Name != skill.Name {
+				continue
+			}
 			if x.Type != "" && skill.Type != x.Type {
 				continue
 			}
