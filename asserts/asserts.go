@@ -220,11 +220,11 @@ func parseHeaders(head []byte) (map[string]string, error) {
 //
 // where:
 //
-//    HEADER is a set of header lines separated by "\n"
+//    HEADER is a set of header entries separated by "\n"
 //    BODY can be arbitrary,
 //    SIGNATURE is the signature
 //
-// A header entry for a single line value looks like:
+// A header entry for a single line value (no "\n" in it) looks like:
 //
 //   NAME ": " VALUE
 //
