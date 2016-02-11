@@ -224,9 +224,13 @@ func parseHeaders(head []byte) (map[string]string, error) {
 //    BODY can be arbitrary,
 //    SIGNATURE is the signature
 //
-// A header line looks like:
+// A header entry for a single line value looks like:
 //
 //   NAME ": " VALUE
+//
+// A header entry for a multiline value (a value with "\n"s in it) looks like:
+//
+//   NAME ":\n"  1-space indented VALUE
 //
 // The following headers are mandatory:
 //
