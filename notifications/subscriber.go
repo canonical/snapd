@@ -40,11 +40,11 @@ type messageWriter interface {
 
 // Notify receives a notification which is then encoded as JSON and written to
 // the websocket.
-func (s *Subscriber) Notify(n *Notification) {
+func (s *Subscriber) Notify(n *Notification) error {
 	b, err := json.Marshal(n)
 	if err != nil {
-		return
+		return err
 	}
 
-	s.conn.WriteMessage(websocket.TextMessage, b)
+	return s.conn.WriteMessage(websocket.TextMessage, b)
 }

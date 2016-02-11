@@ -51,6 +51,10 @@ func (h *Hub) Unsubscribe(s *Subscriber) {
 	h.Lock()
 	defer h.Unlock()
 
+	h.doUnsubscribe(s)
+}
+
+func (h *Hub) doUnsubscribe(s *Subscriber) {
 	delete(h.subscribers, s.uuid)
 }
 
@@ -60,6 +64,9 @@ func (h *Hub) Publish(n *Notification) {
 	defer h.Unlock()
 
 	for _, s := range h.subscribers {
-		s.Notify(n)
+		err := s.Notify(n)
+		if err != nil {
+			h.doUnsubscribe(s)
+		}
 	}
 }
