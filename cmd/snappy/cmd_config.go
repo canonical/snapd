@@ -77,15 +77,15 @@ func (x *cmdConfig) Execute(args []string) (err error) {
 	return nil
 }
 
-func configurePackage(pkgName, configFile string) (string, error) {
+func configurePackage(pkgName, configFile string) ([]byte, error) {
 	config, err := readConfiguration(configFile)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	snap := snappy.ActiveSnapByName(pkgName)
 	if snap == nil {
-		return "", snappy.ErrPackageNotFound
+		return nil, snappy.ErrPackageNotFound
 	}
 
 	overlord := &snappy.Overlord{}
