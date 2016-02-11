@@ -25,6 +25,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/ubuntu-core/snappy/coreconfig"
 )
@@ -82,4 +83,35 @@ func runConfigScriptImpl(configScript, appArmorProfile string, rawConfig []byte,
 	}
 
 	return output, nil
+}
+
+// snippet2path extracts the path, whether it's a setter (i.e. it has
+// =<value>) and, if it's a setter, the value.
+func snippet2path(snippet string) (path []string, isSet bool, value string) {
+	eqIdx := strings.IndexByte(snippet, '=')
+	if eqIdx >= 0 {
+		value = snippet[eqIdx+1:]
+		snippet = snippet[:eqIdx]
+	}
+
+	return strings.Split(snippet, "."), eqIdx >= 0, value
+}
+
+// snip2yaml turns the snippet path and value (as from snippet2path)
+// into the yaml expected by config for the named package
+func snip2yaml(name string, path []string, value string) []byte {
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "config: {%s: ", name)
+
+	for _, elem := range path {
+		fmt.Fprintf(&buf, "{%s: ", elem)
+	}
+
+	buf.WriteString(value)
+
+	for i := 0; i <= len(path); i++ {
+		buf.WriteByte('}')
+	}
+
+	return buf.Bytes()
 }

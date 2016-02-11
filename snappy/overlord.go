@@ -25,6 +25,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"gopkg.in/yaml.v2"
+
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/logger"
@@ -340,6 +342,50 @@ func (o *Overlord) SetActive(s *SnapPart, active bool, meter progress.Meter) err
 	}
 
 	return s.deactivate(false, meter)
+}
+
+// ConfigureFromSnippet turns snippet into a snap configuration
+// and calls Configure on the result.
+func (o *Overlord) ConfigureFromSnippet(s *SnapPart, snippet string) (string, error) {
+	var bs []byte
+	path, isSet, value := snippet2path(snippet)
+	name := s.Name()
+	if isSet {
+		bs = snip2yaml(name, path, value)
+	}
+
+	cfg, err := o.Configure(s, bs)
+	if err != nil {
+		// TODO: make this not leak the intermediate representation
+		return "", err
+	}
+
+	var m map[string]map[string]interface{}
+	if err := yaml.Unmarshal([]byte(cfg), &m); err != nil {
+		return "", fmt.Errorf("configuration succeeded but can't unmarshal result: %v", err)
+	}
+
+	v, ok := m["config"][name]
+	if !ok {
+		// is this an error?
+		// config succeeded but returned the wrong lind of thing...
+		return "", fmt.Errorf("configuration succeeded but returned unexpected value: %v", m)
+	}
+
+	for _, p := range path {
+		vm, ok := v.(map[interface{}]interface{})
+		if !ok {
+			// an error
+			return "", fmt.Errorf("configuration succeeded but got unexpected value in which to look for %q: %v", p, v)
+		}
+		v, ok = vm[p]
+		if !ok {
+			// an error
+			return "", fmt.Errorf("configuration succeeded but result has no entry %q", p)
+		}
+	}
+
+	return fmt.Sprintf("%v", v), nil
 }
 
 // Configure configures the given snap
