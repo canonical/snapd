@@ -36,6 +36,7 @@ type modelSuite struct {
 
 var (
 	_ = Suite(&modelSuite{})
+	_ = Suite(&deviceSuite{})
 )
 
 func (mods *modelSuite) SetUpSuite(c *C) {
@@ -142,5 +143,72 @@ func (mods *modelSuite) TestModelCheckInconsistentTimestamp(c *C) {
 	c.Assert(err, IsNil)
 
 	err = db.Check(model)
-	c.Assert(err, ErrorMatches, "signature verifies but assertion violates other knowledge: model assertion timestamp outside of signing key validity")
+	c.Assert(err, ErrorMatches, "model assertion timestamp outside of signing key validity")
+}
+
+type deviceSuite struct {
+	ts            time.Time
+	tsLine        string
+	deviceKey     asserts.PrivateKey
+	encodedDevKey string
+}
+
+func (devs *deviceSuite) SetUpSuite(c *C) {
+	devs.ts = time.Now().Truncate(time.Second).UTC()
+	devs.tsLine = "timestamp: " + devs.ts.Format(time.RFC3339) + "\n"
+
+	devs.deviceKey = asserts.OpenPGPPrivateKey(testPrivKey2)
+	encodedPubKey, err := asserts.EncodePublicKey(devs.deviceKey.PublicKey())
+	c.Assert(err, IsNil)
+	devs.encodedDevKey = string(encodedPubKey)
+}
+
+const deviceExample = "type: device\n" +
+	"authority-id: canonical\n" +
+	"brand-id: brand-id1\n" +
+	"model: baz-3000\n" +
+	"serial: 2700\n" +
+	"device-key:\n DEVICEKEY\n" +
+	"TSLINE" +
+	"body-length: 2\n\n" +
+	"HW" +
+	"\n\n" +
+	"openpgp c2ln"
+
+func (devs *deviceSuite) TestDecodeOK(c *C) {
+	encoded := strings.Replace(deviceExample, "TSLINE", devs.tsLine, 1)
+	encoded = strings.Replace(encoded, "DEVICEKEY", strings.Replace(devs.encodedDevKey, "\n", "\n ", -1), 1)
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.DeviceType)
+	device := a.(*asserts.Device)
+	c.Check(device.AuthorityID(), Equals, "canonical")
+	c.Check(device.Timestamp(), Equals, devs.ts)
+	c.Check(device.BrandID(), Equals, "brand-id1")
+	c.Check(device.Model(), Equals, "baz-3000")
+	c.Check(device.Serial(), Equals, "2700")
+	c.Check(device.DeviceKey().Fingerprint(), Equals, devs.deviceKey.PublicKey().Fingerprint())
+}
+
+const (
+	deviceErrPrefix = "assertion device: "
+)
+
+func (devs *deviceSuite) TestDecodeInvalid(c *C) {
+	encoded := strings.Replace(deviceExample, "TSLINE", devs.tsLine, 1)
+
+	invalidTests := []struct{ original, invalid, expectedErr string }{
+		{"serial: 2700\n", "", `"serial" header is mandatory`},
+		{"device-key:\n DEVICEKEY\n", "", `"device-key" header is mandatory`},
+		{"device-key:\n DEVICEKEY\n", "device-key: openpgp ZZZ\n", `public key: could not decode base64 data:.*`},
+		{devs.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
+	}
+
+	for _, test := range invalidTests {
+		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
+		invalid = strings.Replace(invalid, "DEVICEKEY", strings.Replace(devs.encodedDevKey, "\n", "\n ", -1), 1)
+
+		_, err := asserts.Decode([]byte(invalid))
+		c.Check(err, ErrorMatches, deviceErrPrefix+test.expectedErr)
+	}
 }

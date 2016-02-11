@@ -35,7 +35,7 @@ The find command queries the store for available packages.
 
 type cmdFind struct {
 	Positional struct {
-		Query string `positional-arg-name:"query"`
+		Query string `positional-arg-name:"<query>"`
 	} `positional-args:"yes"`
 }
 
