@@ -36,9 +36,9 @@ type fakeOverlord struct {
 	configs map[string]string
 }
 
-func (o *fakeOverlord) Configure(s *SnapPart, c []byte) (string, error) {
+func (o *fakeOverlord) Configure(s *SnapPart, c []byte) ([]byte, error) {
 	o.configs[s.Name()] = string(c)
-	return string(c), nil
+	return c, nil
 }
 
 type FirstBootTestSuite struct {

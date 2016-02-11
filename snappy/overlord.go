@@ -345,12 +345,12 @@ func (o *Overlord) SetActive(s *SnapPart, active bool, meter progress.Meter) err
 // Configure configures the given snap
 //
 // It returns an error on failure
-func (o *Overlord) Configure(s *SnapPart, configuration []byte) (string, error) {
+func (o *Overlord) Configure(s *SnapPart, configuration []byte) ([]byte, error) {
 	if s.m.Type == snap.TypeOS {
 		return coreConfig(configuration)
 	}
 
-	return snapConfig(s.basedir, s.origin, string(configuration))
+	return snapConfig(s.basedir, s.origin, configuration)
 }
 
 // Installed returns the installed snaps from this repository
