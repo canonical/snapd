@@ -27,8 +27,10 @@ import (
 
 // A Subscriber is interested in receiving notifications
 type Subscriber struct {
-	uuid string
-	conn messageWriter
+	uuid     string
+	conn     messageWriter
+	types    []string
+	resource string
 }
 
 // Subscribers is a collection of subscribers
@@ -38,13 +40,35 @@ type messageWriter interface {
 	WriteMessage(messageType int, data []byte) error
 }
 
-// Notify receives a notification which is then encoded as JSON and written to
-// the websocket.
+// Notify receives a notification and if the subscriber is interested in it it
+// is encoded as JSON and written to the websocket.
 func (s *Subscriber) Notify(n *Notification) error {
+	if !s.canAccept(n) {
+		return nil
+	}
+
 	b, err := json.Marshal(n)
 	if err != nil {
 		return err
 	}
 
 	return s.conn.WriteMessage(websocket.TextMessage, b)
+}
+
+func (s *Subscriber) canAccept(n *Notification) bool {
+	if s.resource != "" {
+		return s.resource == n.Resource
+	}
+
+	if len(s.types) > 0 {
+		for _, t := range s.types {
+			if t == n.Type {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	return true
 }
