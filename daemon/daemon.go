@@ -37,6 +37,7 @@ import (
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/skills"
+	"github.com/ubuntu-core/snappy/skills/types"
 )
 
 // A Daemon listens for requests and routes them to the right command
@@ -261,9 +262,10 @@ func New() *Daemon {
 		panic(err.Error())
 	}
 	skillRepo := skills.NewRepository()
-	err = skills.LoadBuiltInTypes(skillRepo)
-	if err != nil {
-		panic(err.Error())
+	for _, skillType := range types.AllTypes() {
+		if err := skillRepo.AddType(skillType); err != nil {
+			panic(err.Error())
+		}
 	}
 	return &Daemon{
 		tasks:   make(map[string]*Task),
