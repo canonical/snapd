@@ -63,6 +63,7 @@ type Command struct {
 	PUT    ResponseFunc
 	POST   ResponseFunc
 	DELETE ResponseFunc
+	PATCH  ResponseFunc
 	// can guest GET?
 	GuestOK bool
 	// can non-admin GET?
@@ -115,6 +116,8 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		rspf = c.POST
 	case "DELETE":
 		rspf = c.DELETE
+	case "PATCH":
+		rspf = c.PATCH
 	}
 
 	if rspf != nil {

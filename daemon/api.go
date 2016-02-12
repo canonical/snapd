@@ -33,6 +33,7 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"fmt"
 	"github.com/ubuntu-core/snappy/asserts"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/lockfile"
@@ -98,9 +99,10 @@ var (
 	}
 
 	snapConfigCmd = &Command{
-		Path: "/2.0/snaps/{name}.{origin}/config",
-		GET:  snapConfig,
-		PUT:  snapConfig,
+		Path:  "/2.0/snaps/{name}.{origin}/config",
+		GET:   snapConfig,
+		PUT:   snapConfig,
+		PATCH: snapConfig,
 	}
 
 	snapSvcsCmd = &Command{
@@ -527,6 +529,7 @@ func snapService(c *Command, r *http.Request) Response {
 
 type configurator interface {
 	Configure(*snappy.SnapPart, []byte) ([]byte, error)
+	ConfigureFromSnippet(*snappy.SnapPart, []string, string) (string, error)
 }
 
 var getConfigurator = func() configurator {
@@ -569,6 +572,39 @@ func snapConfig(c *Command, r *http.Request) Response {
 	}
 
 	overlord := getConfigurator()
+	switch r.Method {
+	case "GET":
+		if snippet := r.URL.Query()["snippet"]; len(snippet) > 0 {
+			path := strings.Split(snippet[0], ".")
+			val, err := overlord.ConfigureFromSnippet(part.(*snappy.SnapPart), path, "")
+			if err != nil {
+				return InternalError("unable to config: %v", err)
+			}
+
+			return SyncResponse(val)
+		}
+
+	case "PATCH":
+		var m map[string]interface{}
+		if err := json.Unmarshal(bs, &m); err != nil {
+			return BadRequest("unable to PATCH: %v", err)
+		}
+
+		var k string
+		var v interface{}
+		for k, v = range m {
+			break
+		}
+
+		path := strings.Split(k, ".")
+		val, err := overlord.ConfigureFromSnippet(part.(*snappy.SnapPart), path, fmt.Sprintf("%v", v))
+		if err != nil {
+			return InternalError("unable to config: %v", err)
+		}
+
+		return SyncResponse(val)
+	}
+
 	config, err := overlord.Configure(part.(*snappy.SnapPart), bs)
 	if err != nil {
 		return InternalError("unable to retrieve config for %s: %v", pkgName, err)
