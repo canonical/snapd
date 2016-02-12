@@ -100,6 +100,7 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 	s.vars = nil
 	s.overlord = &fakeOverlord{
 		configs: map[string]string{},
+		snips:   map[string]map[string]string{},
 	}
 }
 
@@ -773,6 +774,7 @@ func (c cfgc) Load(string) (snappy.Part, error) {
 
 type fakeOverlord struct {
 	configs map[string]string
+	snips   map[string]map[string]string
 }
 
 func (o *fakeOverlord) Configure(s *snappy.SnapPart, c []byte) ([]byte, error) {
@@ -784,6 +786,20 @@ func (o *fakeOverlord) Configure(s *snappy.SnapPart, c []byte) ([]byte, error) {
 		return nil, fmt.Errorf("no config for %q", s.Name())
 	}
 	return []byte(config), nil
+}
+
+func (o *fakeOverlord) ConfigureFromSnippet(s *snappy.SnapPart, p []string, v string) (string, error) {
+	k := strings.Join(p, ".")
+	if v != "" {
+		o.snips[s.Name()] = map[string]string{k: v}
+	}
+
+	out, ok := o.snips[s.Name()][k]
+	if !ok {
+		return "", fmt.Errorf("no snip for %q:%q", s.Name(), k)
+	}
+
+	return out, nil
 }
 
 func (s *apiSuite) TestSnapGetConfig(c *check.C) {
@@ -805,6 +821,27 @@ func (s *apiSuite) TestSnapGetConfig(c *check.C) {
 		Type:   ResponseTypeSync,
 		Status: http.StatusOK,
 		Result: configStr,
+	})
+}
+
+func (s *apiSuite) TestSnapGetConfigSnippet(c *check.C) {
+	req, err := http.NewRequest("GET", "/2.0/snaps/foo.bar/config?snippet=baz", bytes.NewBuffer(nil))
+	c.Assert(err, check.IsNil)
+
+	getConfigurator = func() configurator {
+		return s.overlord
+	}
+
+	s.overlord.snips["foo"] = map[string]string{"baz": "quux"}
+	s.vars = map[string]string{"name": "foo", "origin": "bar"}
+	s.mkInstalled(c, "foo", "bar", "v1", true, "")
+
+	rsp := snapConfig(snapsCmd, req).(*resp)
+
+	c.Check(rsp, check.DeepEquals, &resp{
+		Type:   ResponseTypeSync,
+		Status: http.StatusOK,
+		Result: "quux",
 	})
 }
 
@@ -904,6 +941,27 @@ func (s *apiSuite) TestSnapPutConfigNoConfig(c *check.C) {
 	rsp := snapConfig(snapsCmd, req).Self(nil, nil).(*resp)
 
 	c.Check(rsp.Status, check.Equals, http.StatusInternalServerError)
+}
+
+func (s *apiSuite) TestSnapPatchConfig(c *check.C) {
+	req, err := http.NewRequest("PATCH", "/2.0/snaps/foo.bar/config", bytes.NewBufferString(`{"baz": 42}`))
+	c.Assert(err, check.IsNil)
+
+	//configStr := "some: config"
+	getConfigurator = func() configurator {
+		return s.overlord
+	}
+
+	s.vars = map[string]string{"name": "foo", "origin": "bar"}
+	s.mkInstalled(c, "foo", "bar", "v1", true, "")
+
+	rsp := snapConfig(snapConfigCmd, req).Self(nil, nil).(*resp)
+
+	c.Check(rsp, check.DeepEquals, &resp{
+		Type:   ResponseTypeSync,
+		Status: http.StatusOK,
+		Result: "42",
+	})
 }
 
 func (s *apiSuite) TestSnapServiceGet(c *check.C) {
