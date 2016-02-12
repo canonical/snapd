@@ -36,6 +36,7 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/notifications"
 	"github.com/ubuntu-core/snappy/skills"
 	"github.com/ubuntu-core/snappy/skills/types"
 )
@@ -49,6 +50,7 @@ type Daemon struct {
 	router       *mux.Router
 	asserts      *asserts.Database
 	skills       *skills.Repository
+	hub          *notifications.Hub
 	// enableInternalSkillActions controls if adding and removing skills and slots is allowed.
 	enableInternalSkillActions bool
 }
@@ -270,6 +272,7 @@ func New() *Daemon {
 	return &Daemon{
 		tasks:   make(map[string]*Task),
 		asserts: db,
+		hub:     notifications.NewHub(),
 		skills:  skillRepo,
 		// TODO: Decide when this should be disabled by default.
 		enableInternalSkillActions: true,
