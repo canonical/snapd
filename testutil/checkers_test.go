@@ -65,6 +65,23 @@ func (s *CheckersS) TestUnsupportedTypes(c *C) {
 	testCheck(c, Contains, false, "element is a int but expected a string", "container", 1)
 }
 
+func (s *CheckersS) TestContainsVerifiesTypes(c *C) {
+	testInfo(c, Contains, "Contains", []string{"container", "elem"})
+	testCheck(c, Contains,
+		false, "container has items of type int but expected element is a string",
+		[...]int{1, 2, 3}, "foo")
+	testCheck(c, Contains,
+		false, "container has items of type int but expected element is a string",
+		[]int{1, 2, 3}, "foo")
+	// This looks tricky, Contains looks at _values_, not at keys
+	testCheck(c, Contains,
+		false, "container has items of type int but expected element is a string",
+		map[string]int{"foo": 1, "bar": 2}, "foo")
+	testCheck(c, Contains,
+		false, "container has items of type int but expected element is a string",
+		map[string]int{"foo": 1, "bar": 2}, "foo")
+}
+
 type animal interface {
 	Sound() string
 }
@@ -83,33 +100,16 @@ func (c *cat) Sound() string {
 
 type tree struct{}
 
-func (s *CheckersS) TestContainsVerifiesTypes(c *C) {
-	testInfo(c, Contains, "Contains", []string{"container", "elem"})
-	testCheck(c, Contains,
-		false, "container has items of type int but expected element is a string",
-		[...]int{1, 2, 3}, "foo")
-	testCheck(c, Contains,
-		false, "container has items of type int but expected element is a string",
-		[]int{1, 2, 3}, "foo")
-	// This looks tricky, Contains looks at _values_, not at keys
-	testCheck(c, Contains,
-		false, "container has items of type int but expected element is a string",
-		map[string]int{"foo": 1, "bar": 2}, "foo")
-	testCheck(c, Contains,
-		false, "container has items of type int but expected element is a string",
-		map[string]int{"foo": 1, "bar": 2}, "foo")
-}
-
 func (s *CheckersS) TestContainsVerifiesInterfaceTypes(c *C) {
 	testCheck(c, Contains,
 		false, "container has items of interface type testutil.animal but expected element does not implement it",
-		[...]animal{&dog{}, &cat{}}, "foo")
+		[...]animal{&dog{}, &cat{}}, &tree{})
 	testCheck(c, Contains,
 		false, "container has items of interface type testutil.animal but expected element does not implement it",
-		[]animal{&dog{}, &cat{}}, "foo")
+		[]animal{&dog{}, &cat{}}, &tree{})
 	testCheck(c, Contains,
 		false, "container has items of interface type testutil.animal but expected element does not implement it",
-		map[string]animal{"dog": &dog{}, "cat": &cat{}}, "foo")
+		map[string]animal{"dog": &dog{}, "cat": &cat{}}, &tree{})
 }
 
 func (s *CheckersS) TestContainsString(c *C) {
