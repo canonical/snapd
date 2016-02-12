@@ -346,11 +346,10 @@ func (o *Overlord) SetActive(s *SnapPart, active bool, meter progress.Meter) err
 
 // ConfigureFromSnippet turns snippet into a snap configuration
 // and calls Configure on the result.
-func (o *Overlord) ConfigureFromSnippet(s *SnapPart, snippet string) (string, error) {
+func (o *Overlord) ConfigureFromSnippet(s *SnapPart, path []string, value string) (string, error) {
 	var bs []byte
-	path, isSet, value := snippet2path(snippet)
 	name := s.Name()
-	if isSet {
+	if value != "" {
 		bs = snip2yaml(name, path, value)
 	}
 
