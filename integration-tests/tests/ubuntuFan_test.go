@@ -86,6 +86,8 @@ func (s *fanTestSuite) TestFanCommandCreatesFanBridge(c *check.C) {
 }
 
 func (s *fanTestSuite) TestDockerCreatesAContainerInsideTheFan(c *check.C) {
+	c.Skip("Skipping until LP: #1544507 is fixed")
+
 	setUpDocker(c)
 	defer tearDownDocker(c)
 	s.configureDockerToUseBridge(c)
@@ -101,6 +103,8 @@ func (s *fanTestSuite) TestDockerCreatesAContainerInsideTheFan(c *check.C) {
 }
 
 func (s *fanTestSuite) TestContainersInTheFanAreReachable(c *check.C) {
+	c.Skip("Skipping until LP: #1544507 is fixed")
+
 	setUpDocker(c)
 	defer tearDownDocker(c)
 	s.configureDockerToUseBridge(c)
