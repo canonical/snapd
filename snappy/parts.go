@@ -105,7 +105,12 @@ type Part interface {
 
 // ActiveSnapsByType returns all installed snaps with the given type
 func ActiveSnapsByType(snapTs ...snap.Type) (res []Part, err error) {
-	installed, err := NewLocalSnapRepository().Installed()
+	repo := NewLocalSnapRepository()
+	if repo == nil {
+		return nil, fmt.Errorf("No local snap repository")
+	}
+
+	installed, err := repo.Installed()
 	if err != nil {
 		return nil, err
 	}
