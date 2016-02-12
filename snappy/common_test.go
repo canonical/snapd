@@ -258,8 +258,7 @@ func makeTwoTestSnaps(c *C, snapType snap.Type, extra ...string) {
 	c.Assert(n, Equals, "foo")
 	c.Assert(storeMinimalRemoteManifest(qn, "foo", testOrigin, "2.0", "", "remote-channel"), IsNil)
 
-	m := NewMetaRepository()
-	installed, err := m.Installed()
+	installed, err := NewLocalSnapRepository().Installed()
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 2)
 }

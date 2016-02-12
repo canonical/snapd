@@ -21,8 +21,6 @@ package snappy
 
 import (
 	"fmt"
-	"net"
-	"net/url"
 	"path/filepath"
 	"strings"
 	"time"
@@ -101,142 +99,13 @@ type Part interface {
 	InstalledSize() int64
 	DownloadSize() int64
 
-	// Install the snap
-	Install(pb progress.Meter, flags InstallFlags) (name string, err error)
-	// Config takes a yaml configuration and returns the full snap
-	// config with the changes. Note that "configuration" may be empty.
-	Config(configuration []byte) (newConfig string, err error)
-	// make an inactive part active, or viceversa
-	SetActive(bool, progress.Meter) error
-
 	// get the list of frameworks needed by the part
 	Frameworks() ([]string, error)
 }
 
-// Repository is the interface for a collection of snaps
-type Repository interface {
-
-	// query
-	Description() string
-
-	// action
-	Details(name string, origin string) ([]Part, error)
-
-	Updates() ([]Part, error)
-	Installed() ([]Part, error)
-
-	All() ([]Part, error)
-}
-
-// MetaRepository contains all available single repositories can can be used
-// to query in a single place
-type MetaRepository struct {
-	all []Repository
-}
-
-// NewMetaStoreRepository returns a MetaRepository of stores
-func NewMetaStoreRepository() *MetaRepository {
-	m := new(MetaRepository)
-	m.all = []Repository{}
-
-	if repo := NewUbuntuStoreSnapRepository(); repo != nil {
-		m.all = append(m.all, repo)
-	}
-
-	return m
-}
-
-// NewMetaLocalRepository returns a MetaRepository of stores
-func NewMetaLocalRepository() *MetaRepository {
-	m := new(MetaRepository)
-	m.all = []Repository{}
-
-	if repo := NewLocalSnapRepository(dirs.SnapSnapsDir); repo != nil {
-		m.all = append(m.all, repo)
-	}
-
-	return m
-}
-
-// NewMetaRepository returns a new MetaRepository
-func NewMetaRepository() *MetaRepository {
-	// FIXME: make this a configuration file
-
-	m := NewMetaLocalRepository()
-	if repo := NewUbuntuStoreSnapRepository(); repo != nil {
-		m.all = append(m.all, repo)
-	}
-
-	return m
-}
-
-// Installed returns all installed parts
-func (m *MetaRepository) Installed() (parts []Part, err error) {
-	for _, r := range m.all {
-		installed, err := r.Installed()
-		if err != nil {
-			return parts, err
-		}
-		parts = append(parts, installed...)
-	}
-
-	return parts, err
-}
-
-// All the parts
-func (m *MetaRepository) All() ([]Part, error) {
-	var parts []Part
-
-	for _, r := range m.all {
-		all, err := r.All()
-		if err != nil {
-			return nil, err
-		}
-		parts = append(parts, all...)
-	}
-
-	return parts, nil
-}
-
-// Updates returns all updatable parts
-func (m *MetaRepository) Updates() (parts []Part, err error) {
-	for _, r := range m.all {
-		updates, err := r.Updates()
-		if err != nil {
-			return parts, err
-		}
-		parts = append(parts, updates...)
-	}
-
-	return parts, err
-}
-
-// Details returns details for the given snap name
-func (m *MetaRepository) Details(name string, origin string) ([]Part, error) {
-	var parts []Part
-
-	for _, r := range m.all {
-		results, err := r.Details(name, origin)
-		// ignore network errors here, we will also collect
-		// local results
-		_, netError := err.(net.Error)
-		_, urlError := err.(*url.Error)
-		switch {
-		case err == ErrPackageNotFound || netError || urlError:
-			continue
-		case err != nil:
-			return nil, err
-		}
-		parts = append(parts, results...)
-	}
-
-	return parts, nil
-}
-
 // ActiveSnapsByType returns all installed snaps with the given type
 func ActiveSnapsByType(snapTs ...snap.Type) (res []Part, err error) {
-	m := NewMetaRepository()
-	installed, err := m.Installed()
+	installed, err := NewLocalSnapRepository().Installed()
 	if err != nil {
 		return nil, err
 	}
@@ -272,8 +141,7 @@ func activeSnapIterByTypeImpl(f func(Part) string, snapTs ...snap.Type) ([]strin
 
 // ActiveSnapByName returns all active snaps with the given name
 func ActiveSnapByName(needle string) Part {
-	m := NewMetaRepository()
-	installed, err := m.Installed()
+	installed, err := NewLocalSnapRepository().Installed()
 	if err != nil {
 		return nil
 	}
@@ -333,18 +201,18 @@ func FindSnapsByNameAndVersion(needle, version string, haystack []Part) []Part {
 // MakeSnapActiveByNameAndVersion makes the given snap version the active
 // version
 func makeSnapActiveByNameAndVersion(pkg, ver string, inter progress.Meter) error {
-	m := NewMetaRepository()
-	installed, err := m.Installed()
+	installed, err := NewLocalSnapRepository().Installed()
 	if err != nil {
 		return err
 	}
 
+	overlord := &Overlord{}
 	parts := FindSnapsByNameAndVersion(pkg, ver, installed)
 	switch len(parts) {
 	case 0:
 		return fmt.Errorf("Can not find %s with version %s", pkg, ver)
 	case 1:
-		return parts[0].SetActive(true, inter)
+		return overlord.SetActive(parts[0].(*SnapPart), true, inter)
 	default:
 		return fmt.Errorf("More than one %s with version %s", pkg, ver)
 	}

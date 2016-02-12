@@ -39,12 +39,11 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/asserts"
-	"github.com/ubuntu-core/snappy/caps"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
+	"github.com/ubuntu-core/snappy/skills"
 	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/lightweight"
 	"github.com/ubuntu-core/snappy/snappy"
 	"github.com/ubuntu-core/snappy/systemd"
 	"github.com/ubuntu-core/snappy/testutil"
@@ -56,6 +55,7 @@ type apiSuite struct {
 	err        error
 	vars       map[string]string
 	searchTerm string
+	overlord   *fakeOverlord
 }
 
 var _ = check.Suite(&apiSuite{})
@@ -93,10 +93,14 @@ func (s *apiSuite) TearDownSuite(c *check.C) {
 func (s *apiSuite) SetUpTest(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapLockFile), 0755), check.IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapSnapsDir, 0755), check.IsNil)
 
 	s.parts = nil
 	s.err = nil
 	s.vars = nil
+	s.overlord = &fakeOverlord{
+		configs: map[string]string{},
+	}
 }
 
 func (s *apiSuite) TearDownTest(c *check.C) {
@@ -290,6 +294,7 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"pkgActionDispatch",
 		// snapInstruction vars:
 		"snappyInstall",
+		"getConfigurator",
 		// PolicyKit action names
 		"sideloadSnapAction",
 		"installSnapAction",
@@ -771,19 +776,31 @@ func (c cfgc) Load(string) (snappy.Part, error) {
 	return &tP{name: "foo", version: "v1", origin: "bar", isActive: true, config: c.cfg, configErr: c.err}, nil
 }
 
+type fakeOverlord struct {
+	configs map[string]string
+}
+
+func (o *fakeOverlord) Configure(s *snappy.SnapPart, c []byte) (string, error) {
+	if len(c) > 0 {
+		o.configs[s.Name()] = string(c)
+	}
+	config, ok := o.configs[s.Name()]
+	if !ok {
+		return "", fmt.Errorf("no config for %q", s.Name())
+	}
+	return config, nil
+}
+
 func (s *apiSuite) TestSnapGetConfig(c *check.C) {
 	req, err := http.NewRequest("GET", "/2.0/snaps/foo.bar/config", bytes.NewBuffer(nil))
 	c.Assert(err, check.IsNil)
 
-	configStr := "some: config"
-	oldConcrete := lightweight.NewConcrete
-	defer func() {
-		lightweight.NewConcrete = oldConcrete
-	}()
-	lightweight.NewConcrete = func(*lightweight.PartBag, string) lightweight.Concreter {
-		return &cfgc{cfg: configStr}
+	getConfigurator = func() configurator {
+		return s.overlord
 	}
 
+	configStr := "some: config"
+	s.overlord.configs["foo"] = configStr
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 	s.mkInstalled(c, "foo", "bar", "v1", true, "")
 
@@ -822,9 +839,11 @@ func (s *apiSuite) TestSnapGetConfigInactive(c *check.C) {
 
 func (s *apiSuite) TestSnapGetConfigNoConfig(c *check.C) {
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
+	getConfigurator = func() configurator {
+		return s.overlord
+	}
 
 	s.mkInstalled(c, "foo", "bar", "v1", true, "")
-
 	req, err := http.NewRequest("GET", "/2.0/snaps/foo.bar/config", bytes.NewBuffer(nil))
 	c.Assert(err, check.IsNil)
 
@@ -838,13 +857,9 @@ func (s *apiSuite) TestSnapPutConfig(c *check.C) {
 	req, err := http.NewRequest("PUT", "/2.0/snaps/foo.bar/config", bytes.NewBufferString(newConfigStr))
 	c.Assert(err, check.IsNil)
 
-	configStr := "some: config"
-	oldConcrete := lightweight.NewConcrete
-	defer func() {
-		lightweight.NewConcrete = oldConcrete
-	}()
-	lightweight.NewConcrete = func(*lightweight.PartBag, string) lightweight.Concreter {
-		return &cfgc{cfg: configStr}
+	//configStr := "some: config"
+	getConfigurator = func() configurator {
+		return s.overlord
 	}
 
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
@@ -1235,174 +1250,873 @@ func (s *apiSuite) TestInstallLicensedIntegration(c *check.C) {
 	c.Check(task.State(), check.Equals, TaskSucceeded)
 }
 
-func (s *apiSuite) TestGetCapabilities(c *check.C) {
+// Tests for GET /2.0/skills
+
+func (s *apiSuite) TestGetSkills(c *check.C) {
 	d := newTestDaemon()
-	d.capRepo.Add(&caps.Capability{
-		Name:     "caps-lock-led",
-		Label:    "Caps Lock LED",
-		TypeName: "bool-file",
-		Attrs: map[string]string{
-			"path": "/sys/class/leds/input::capslock/brightness",
-		},
-	})
-	req, err := http.NewRequest("GET", "/2.0/capabilities", nil)
+	d.skills.AddType(&skills.TestType{TypeName: "type"})
+	d.skills.AddSkill(&skills.Skill{Snap: "producer", Name: "skill", Type: "type", Label: "label"})
+	d.skills.AddSlot(&skills.Slot{Snap: "consumer", Name: "slot", Type: "type"})
+	d.skills.Grant("producer", "skill", "consumer", "slot")
+	req, err := http.NewRequest("GET", "/2.0/skills", nil)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	capabilitiesCmd.GET(capabilitiesCmd, req).ServeHTTP(rec, req)
+	skillsCmd.GET(skillsCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 200)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"result": map[string]interface{}{
-			"capabilities": map[string]interface{}{
-				"caps-lock-led": map[string]interface{}{
-					"name":  "caps-lock-led",
-					"label": "Caps Lock LED",
-					"type":  "bool-file",
-					"attrs": map[string]interface{}{
-						"path": "/sys/class/leds/input::capslock/brightness",
+		"result": []interface{}{
+			map[string]interface{}{
+				"snap":  "producer",
+				"name":  "skill",
+				"type":  "type",
+				"label": "label",
+				"granted_to": []interface{}{
+					map[string]interface{}{
+						"snap": "consumer",
+						"name": "slot",
 					},
 				},
 			},
 		},
 		"status":      "OK",
-		"status_code": 200.0, // A float because $reasons
+		"status_code": 200.0,
 		"type":        "sync",
 	})
 }
 
-func (s *apiSuite) TestAddCapabilitiesGood(c *check.C) {
-	// Setup
+// Test for POST /2.0/skills
+
+func (s *apiSuite) TestGrantSkillSuccess(c *check.C) {
 	d := newTestDaemon()
-	cap := &caps.Capability{
-		Name:     "name",
-		Label:    "label",
-		TypeName: "bool-file",
-		Attrs: map[string]string{
-			"path": "/sys/class/leds/input::capslock/brightness",
+	d.skills.AddType(&skills.TestType{TypeName: "type"})
+	d.skills.AddSkill(&skills.Skill{Snap: "producer", Name: "skill", Type: "type"})
+	d.skills.AddSlot(&skills.Slot{Snap: "consumer", Name: "slot", Type: "type"})
+	action := &skillAction{
+		Action: "grant",
+		Skill: skills.Skill{
+			Snap: "producer",
+			Name: "skill",
+		},
+		Slot: skills.Slot{
+			Snap: "consumer",
+			Name: "slot",
 		},
 	}
-	text, err := json.Marshal(cap)
+	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	// Execute
-	req, err := http.NewRequest("POST", "/2.0/capabilities", buf)
+	req, err := http.NewRequest("POST", "/2.0/skills", buf)
 	c.Assert(err, check.IsNil)
-	rsp := addCapability(capabilitiesCmd, req).Self(nil, nil).(*resp)
-	// Verify (external)
-	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Check(rsp.Status, check.Equals, http.StatusCreated)
-	c.Check(rsp.Result, check.DeepEquals, map[string]string{"resource": "/2.0/capabilities/name"})
-	// Verify (internal)
-	c.Check(d.capRepo.All(), testutil.DeepContains, *cap)
+	rec := httptest.NewRecorder()
+	skillsCmd.POST(skillsCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result":      nil,
+		"status":      "OK",
+		"status_code": 200.0,
+		"type":        "sync",
+	})
+	for slot, skills := range d.skills.GrantedTo("consumer") {
+		c.Check(slot.Snap, check.Equals, "consumer")
+		c.Check(slot.Name, check.Equals, "slot")
+		for _, skill := range skills {
+			c.Check(skill.Snap, check.Equals, "producer")
+			c.Check(skill.Name, check.Equals, "skill")
+		}
+	}
+	for skill, slots := range d.skills.GrantedBy("producer") {
+		c.Check(skill.Snap, check.Equals, "producer")
+		c.Check(skill.Name, check.Equals, "skill")
+		for _, slot := range slots {
+			c.Check(slot.Snap, check.Equals, "consumer")
+			c.Check(slot.Name, check.Equals, "slot")
+		}
+	}
 }
 
-func (s *apiSuite) TestAddCapabilitiesNameClash(c *check.C) {
-	// Setup
-	// Start with one capability named 'name' in the repository
+func (s *apiSuite) TestGrantSkillFailureTypeMismatch(c *check.C) {
 	d := newTestDaemon()
-	cap := &caps.Capability{
-		Name:     "name",
-		Label:    "label",
-		TypeName: "bool-file",
-		Attrs: map[string]string{
-			"path": "/sys/class/leds/input::capslock/brightness",
+	d.skills.AddType(&skills.TestType{TypeName: "type"})
+	d.skills.AddType(&skills.TestType{TypeName: "other-type"})
+	d.skills.AddSkill(&skills.Skill{Snap: "producer", Name: "skill", Type: "type"})
+	d.skills.AddSlot(&skills.Slot{Snap: "consumer", Name: "slot", Type: "other-type"})
+	action := &skillAction{
+		Action: "grant",
+		Skill: skills.Skill{
+			Snap: "producer",
+			Name: "skill",
+		},
+		Slot: skills.Slot{
+			Snap: "consumer",
+			Name: "slot",
 		},
 	}
-	err := d.capRepo.Add(cap)
-	c.Assert(err, check.IsNil)
-	// Prepare for adding a second capability with the same name
-	capClashing := &caps.Capability{
-		Name:     "name",
-		Label:    "second label",
-		TypeName: "bool-file",
-		Attrs: map[string]string{
-			"path": "/sys/class/leds/input::capslock/brightness",
-		},
-	}
-	text, err := json.Marshal(capClashing)
+	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	// Execute
-	req, err := http.NewRequest("GET", "/2.0/capabilities", buf)
-	c.Assert(err, check.IsNil)
-	rsp := addCapability(capabilitiesCmd, req).Self(nil, nil).(*resp)
-	// Verify (external)
-	c.Check(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Result.(*errorResult).Message, check.Equals, `cannot add capability "name": name already exists`)
-	// Verify (internal)
-	c.Check(d.capRepo.All(), testutil.DeepContains, *cap)
-	c.Check(d.capRepo.All(), check.Not(testutil.DeepContains), *capClashing)
-}
-
-func (s *apiSuite) TestAddCapabilitiesUnintelligible(c *check.C) {
-	// Setup
-	d := newTestDaemon()
-	buf := bytes.NewBufferString("blargh")
-	req, err := http.NewRequest("POST", "/2.0/capabilities", buf)
+	req, err := http.NewRequest("POST", "/2.0/skills", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	// Execute
-	capabilitiesCmd.POST(capabilitiesCmd, req).ServeHTTP(rec, req)
-	// Verify (external)
+	skillsCmd.POST(skillsCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 400)
-	c.Check(rec.Body.String(), testutil.Contains,
-		"can't decode request body into a capability")
-	// Verify (internal)
-	c.Check(d.capRepo.All(), check.HasLen, 0)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"message": `cannot grant skill "producer:skill" (skill type "type") to "consumer:slot" (skill type "other-type")`,
+		},
+		"status":      "Bad Request",
+		"status_code": 400.0,
+		"type":        "error",
+	})
+	c.Check(d.skills.GrantedTo("consumer"), check.HasLen, 0)
+	c.Check(d.skills.GrantedBy("producer"), check.HasLen, 0)
 }
 
-func (s *apiSuite) TestAddCapabilitiesNotACapability(c *check.C) {
-	// Setup
+func (s *apiSuite) TestGrantSkillFailureNoSuchSkill(c *check.C) {
 	d := newTestDaemon()
-	buf := bytes.NewBufferString(`{"NotACapability": 1}`)
-	req, err := http.NewRequest("POST", "/2.0/capabilities", buf)
+	d.skills.AddType(&skills.TestType{TypeName: "type"})
+	d.skills.AddSlot(&skills.Slot{Snap: "consumer", Name: "slot", Type: "type"})
+	action := &skillAction{
+		Action: "grant",
+		Skill: skills.Skill{
+			Snap: "producer",
+			Name: "skill",
+		},
+		Slot: skills.Slot{
+			Snap: "consumer",
+			Name: "slot",
+		},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/2.0/skills", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	// Execute
-	capabilitiesCmd.POST(capabilitiesCmd, req).ServeHTTP(rec, req)
-	// Verify (external)
+	skillsCmd.POST(skillsCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 400)
-	c.Check(rec.Body.String(), testutil.Contains,
-		`can't decode request body into a capability`)
-	// Verify (internal)
-	c.Check(d.capRepo.All(), check.HasLen, 0)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"message": `cannot grant skill "skill" from snap "producer", no such skill`,
+		},
+		"status":      "Bad Request",
+		"status_code": 400.0,
+		"type":        "error",
+	})
+	c.Check(d.skills.GrantedTo("consumer"), check.HasLen, 0)
+	c.Check(d.skills.GrantedBy("producer"), check.HasLen, 0)
 }
 
-func (s *apiSuite) TestDeleteCapabilityGood(c *check.C) {
-	// Setup
+func (s *apiSuite) TestGrantSkillFailureNoSuchSlot(c *check.C) {
 	d := newTestDaemon()
-	t := &caps.TestType{TypeName: "test"}
-	err := d.capRepo.AddType(t)
+	d.skills.AddType(&skills.TestType{TypeName: "type"})
+	d.skills.AddSkill(&skills.Skill{Snap: "producer", Name: "skill", Type: "type"})
+	action := &skillAction{
+		Action: "grant",
+		Skill: skills.Skill{
+			Snap: "producer",
+			Name: "skill",
+		},
+		Slot: skills.Slot{
+			Snap: "consumer",
+			Name: "slot",
+		},
+	}
+	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
-	cap := &caps.Capability{Name: "name", TypeName: "test"}
-	err = d.capRepo.Add(cap)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/2.0/skills", buf)
 	c.Assert(err, check.IsNil)
-	s.vars = map[string]string{"name": "name"}
-	// Execute
-	rsp := deleteCapability(capabilityCmd, nil).Self(nil, nil).(*resp)
-	// Verify (external)
-	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Check(rsp.Status, check.Equals, http.StatusOK)
-	// Verify (internal)
-	c.Check(d.capRepo.Capability(cap.Name), check.IsNil)
+	rec := httptest.NewRecorder()
+	skillsCmd.POST(skillsCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 400)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"message": `cannot grant skill to slot "slot" from snap "consumer", no such slot`,
+		},
+		"status":      "Bad Request",
+		"status_code": 400.0,
+		"type":        "error",
+	})
+	c.Check(d.skills.GrantedTo("consumer"), check.HasLen, 0)
+	c.Check(d.skills.GrantedBy("producer"), check.HasLen, 0)
 }
 
-func (s *apiSuite) TestDeleteCapabilityNotFound(c *check.C) {
-	// Setup
+func (s *apiSuite) TestRevokeSkillSuccess(c *check.C) {
 	d := newTestDaemon()
-	before := d.capRepo.All()
-	s.vars = map[string]string{"name": "name"}
-	// Execute
-	rsp := deleteCapability(capabilityCmd, nil).Self(nil, nil).(*resp)
-	// Verify (external)
-	c.Check(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Status, check.Equals, http.StatusNotFound)
-	// Verify (internal)
-	after := d.capRepo.All()
-	c.Check(before, check.DeepEquals, after)
+	d.skills.AddType(&skills.TestType{TypeName: "type"})
+	d.skills.AddSkill(&skills.Skill{Snap: "producer", Name: "skill", Type: "type"})
+	d.skills.AddSlot(&skills.Slot{Snap: "consumer", Name: "slot", Type: "type"})
+	d.skills.Grant("producer", "skill", "consumer", "slot")
+	action := &skillAction{
+		Action: "revoke",
+		Skill: skills.Skill{
+			Snap: "producer",
+			Name: "skill",
+		},
+		Slot: skills.Slot{
+			Snap: "consumer",
+			Name: "slot",
+		},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	skillsCmd.POST(skillsCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result":      nil,
+		"status":      "OK",
+		"status_code": 200.0,
+		"type":        "sync",
+	})
+	c.Check(d.skills.GrantedTo("consumer"), check.HasLen, 0)
+	c.Check(d.skills.GrantedBy("producer"), check.HasLen, 0)
+}
+
+func (s *apiSuite) TestRevokeSkillFailureNoSuchSkill(c *check.C) {
+	d := newTestDaemon()
+	d.skills.AddType(&skills.TestType{TypeName: "type"})
+	d.skills.AddSlot(&skills.Slot{Snap: "consumer", Name: "slot", Type: "type"})
+	action := &skillAction{
+		Action: "revoke",
+		Skill: skills.Skill{
+			Snap: "producer",
+			Name: "skill",
+		},
+		Slot: skills.Slot{
+			Snap: "consumer",
+			Name: "slot",
+		},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	skillsCmd.POST(skillsCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 400)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"message": `cannot revoke skill "skill" from snap "producer", no such skill`,
+		},
+		"status":      "Bad Request",
+		"status_code": 400.0,
+		"type":        "error",
+	})
+	c.Check(d.skills.GrantedTo("consumer"), check.HasLen, 0)
+	c.Check(d.skills.GrantedBy("producer"), check.HasLen, 0)
+}
+
+func (s *apiSuite) TestRevokeSkillFailureNoSuchSlot(c *check.C) {
+	d := newTestDaemon()
+	d.skills.AddType(&skills.TestType{TypeName: "type"})
+	d.skills.AddSkill(&skills.Skill{Snap: "producer", Name: "skill", Type: "type"})
+	action := &skillAction{
+		Action: "revoke",
+		Skill: skills.Skill{
+			Snap: "producer",
+			Name: "skill",
+		},
+		Slot: skills.Slot{
+			Snap: "consumer",
+			Name: "slot",
+		},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	skillsCmd.POST(skillsCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 400)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"message": `cannot revoke skill from slot "slot" from snap "consumer", no such slot`,
+		},
+		"status":      "Bad Request",
+		"status_code": 400.0,
+		"type":        "error",
+	})
+	c.Check(d.skills.GrantedTo("consumer"), check.HasLen, 0)
+	c.Check(d.skills.GrantedBy("producer"), check.HasLen, 0)
+}
+
+func (s *apiSuite) TestRevokeSkillFailureNotGranted(c *check.C) {
+	d := newTestDaemon()
+	d.skills.AddType(&skills.TestType{TypeName: "type"})
+	d.skills.AddSkill(&skills.Skill{Snap: "producer", Name: "skill", Type: "type"})
+	d.skills.AddSlot(&skills.Slot{Snap: "consumer", Name: "slot", Type: "type"})
+	action := &skillAction{
+		Action: "revoke",
+		Skill: skills.Skill{
+			Snap: "producer",
+			Name: "skill",
+		},
+		Slot: skills.Slot{
+			Snap: "consumer",
+			Name: "slot",
+		},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	skillsCmd.POST(skillsCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 400)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"message": `cannot revoke skill "skill" from snap "producer" from slot "slot" from snap "consumer", it is not granted`,
+		},
+		"status":      "Bad Request",
+		"status_code": 400.0,
+		"type":        "error",
+	})
+	c.Check(d.skills.GrantedTo("consumer"), check.HasLen, 0)
+	c.Check(d.skills.GrantedBy("producer"), check.HasLen, 0)
+}
+
+func (s *apiSuite) TestAddSkillSuccess(c *check.C) {
+	d := newTestDaemon()
+	d.skills.AddType(&skills.TestType{TypeName: "type"})
+	action := &skillAction{
+		Action: "add-skill",
+		Skill: skills.Skill{
+			Snap:  "snap",
+			Name:  "name",
+			Label: "label",
+			Type:  "type",
+			Attrs: map[string]interface{}{
+				"key": "value",
+			},
+			Apps: []string{"app"},
+		},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	skillsCmd.POST(skillsCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 201)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result":      nil,
+		"status":      "Created",
+		"status_code": 201.0,
+		"type":        "sync",
+	})
+	c.Check(d.skills.Skill("snap", "name"), check.DeepEquals, &action.Skill)
+}
+
+func (s *apiSuite) TestAddSkillDisabled(c *check.C) {
+	d := newTestDaemon()
+	d.skills.AddType(&skills.TestType{
+		TypeName: "type",
+	})
+	d.enableInternalSkillActions = false
+	action := &skillAction{
+		Action: "add-skill",
+		Skill: skills.Skill{
+			Snap:  "producer",
+			Name:  "skill",
+			Label: "label",
+			Type:  "type",
+			Attrs: map[string]interface{}{
+				"key": "value",
+			},
+			Apps: []string{"app"},
+		},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	skillsCmd.POST(skillsCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 400)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"message": "internal skill actions are disabled",
+		},
+		"status":      "Bad Request",
+		"status_code": 400.0,
+		"type":        "error",
+	})
+	c.Check(d.skills.Skill("producer", "skill"), check.IsNil)
+}
+
+func (s *apiSuite) TestAddSkillFailure(c *check.C) {
+	d := newTestDaemon()
+	d.skills.AddType(&skills.TestType{
+		TypeName: "type",
+		SanitizeSkillCallback: func(skill *skills.Skill) error {
+			return fmt.Errorf("required attribute missing")
+		},
+	})
+	action := &skillAction{
+		Action: "add-skill",
+		Skill: skills.Skill{
+			Snap:  "snap",
+			Name:  "name",
+			Label: "label",
+			Type:  "type",
+			Attrs: map[string]interface{}{
+				"key": "value",
+			},
+			Apps: []string{"app"},
+		},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	skillsCmd.POST(skillsCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 400)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"message": "cannot add skill: required attribute missing",
+		},
+		"status":      "Bad Request",
+		"status_code": 400.0,
+		"type":        "error",
+	})
+	c.Check(d.skills.Skill("snap", "name"), check.IsNil)
+}
+
+func (s *apiSuite) TestRemoveSkillSuccess(c *check.C) {
+	d := newTestDaemon()
+	d.skills.AddType(&skills.TestType{TypeName: "type"})
+	d.skills.AddSkill(&skills.Skill{Snap: "producer", Name: "skill", Type: "type"})
+	action := &skillAction{
+		Action: "remove-skill",
+		Skill: skills.Skill{
+			Snap: "producer",
+			Name: "skill",
+		},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	skillsCmd.POST(skillsCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result":      nil,
+		"status":      "OK",
+		"status_code": 200.0,
+		"type":        "sync",
+	})
+	c.Check(d.skills.Skill("snap", "name"), check.IsNil)
+}
+
+func (s *apiSuite) TestRemoveSkillDisabled(c *check.C) {
+	d := newTestDaemon()
+	d.skills.AddType(&skills.TestType{TypeName: "type"})
+	d.skills.AddSkill(&skills.Skill{Snap: "producer", Name: "skill", Type: "type"})
+	d.enableInternalSkillActions = false
+	action := &skillAction{
+		Action: "remove-skill",
+		Skill: skills.Skill{
+			Snap: "producer",
+			Name: "skill",
+		},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	skillsCmd.POST(skillsCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 400)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"message": "internal skill actions are disabled",
+		},
+		"status":      "Bad Request",
+		"status_code": 400.0,
+		"type":        "error",
+	})
+	c.Check(d.skills.Skill("producer", "skill"), check.Not(check.IsNil))
+}
+
+func (s *apiSuite) TestRemoveSkillFailure(c *check.C) {
+	d := newTestDaemon()
+	d.skills.AddType(&skills.TestType{TypeName: "type"})
+	d.skills.AddSkill(&skills.Skill{Snap: "producer", Name: "skill", Type: "type"})
+	d.skills.AddSlot(&skills.Slot{Snap: "consumer", Name: "slot", Type: "type"})
+	d.skills.Grant("producer", "skill", "consumer", "slot")
+	action := &skillAction{
+		Action: "remove-skill",
+		Skill: skills.Skill{
+			Snap: "producer",
+			Name: "skill",
+		},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	skillsCmd.POST(skillsCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 400)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"message": `cannot remove skill "skill" from snap "producer", it is still granted`,
+		},
+		"status":      "Bad Request",
+		"status_code": 400.0,
+		"type":        "error",
+	})
+	c.Check(d.skills.Skill("producer", "skill"), check.Not(check.IsNil))
+}
+
+func (s *apiSuite) TestAddSlotSuccess(c *check.C) {
+	d := newTestDaemon()
+	d.skills.AddType(&skills.TestType{TypeName: "type"})
+	action := &skillAction{
+		Action: "add-slot",
+		Slot: skills.Slot{
+			Snap:  "snap",
+			Name:  "name",
+			Label: "label",
+			Type:  "type",
+			Attrs: map[string]interface{}{
+				"key": "value",
+			},
+			Apps: []string{"app"},
+		},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	skillsCmd.POST(skillsCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 201)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result":      nil,
+		"status":      "Created",
+		"status_code": 201.0,
+		"type":        "sync",
+	})
+	c.Check(d.skills.Slot("snap", "name"), check.DeepEquals, &action.Slot)
+}
+
+func (s *apiSuite) TestAddSlotDisabled(c *check.C) {
+	d := newTestDaemon()
+	d.skills.AddType(&skills.TestType{
+		TypeName: "type",
+	})
+	d.enableInternalSkillActions = false
+	action := &skillAction{
+		Action: "add-slot",
+		Slot: skills.Slot{
+			Snap:  "consumer",
+			Name:  "slot",
+			Label: "label",
+			Type:  "type",
+			Attrs: map[string]interface{}{
+				"key": "value",
+			},
+			Apps: []string{"app"},
+		},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	skillsCmd.POST(skillsCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 400)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"message": "internal skill actions are disabled",
+		},
+		"status":      "Bad Request",
+		"status_code": 400.0,
+		"type":        "error",
+	})
+	c.Check(d.skills.Slot("consumer", "slot"), check.IsNil)
+}
+
+func (s *apiSuite) TestAddSlotFailure(c *check.C) {
+	d := newTestDaemon()
+	d.skills.AddType(&skills.TestType{
+		TypeName: "type",
+		SanitizeSlotCallback: func(slot *skills.Slot) error {
+			return fmt.Errorf("required attribute missing")
+		},
+	})
+	action := &skillAction{
+		Action: "add-slot",
+		Slot: skills.Slot{
+			Snap:  "snap",
+			Name:  "name",
+			Label: "label",
+			Type:  "type",
+			Attrs: map[string]interface{}{
+				"key": "value",
+			},
+			Apps: []string{"app"},
+		},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	skillsCmd.POST(skillsCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 400)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"message": "cannot add slot: required attribute missing",
+		},
+		"status":      "Bad Request",
+		"status_code": 400.0,
+		"type":        "error",
+	})
+	c.Check(d.skills.Slot("snap", "name"), check.IsNil)
+}
+
+func (s *apiSuite) TestRemoveSlotSuccess(c *check.C) {
+	d := newTestDaemon()
+	d.skills.AddType(&skills.TestType{TypeName: "type"})
+	d.skills.AddSlot(&skills.Slot{Snap: "consumer", Name: "slot", Type: "type"})
+	action := &skillAction{
+		Action: "remove-slot",
+		Slot: skills.Slot{
+			Snap: "consumer",
+			Name: "slot",
+		},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	skillsCmd.POST(skillsCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result":      nil,
+		"status":      "OK",
+		"status_code": 200.0,
+		"type":        "sync",
+	})
+	c.Check(d.skills.Slot("snap", "name"), check.IsNil)
+}
+
+func (s *apiSuite) TestRemoveSlotDisabled(c *check.C) {
+	d := newTestDaemon()
+	d.skills.AddType(&skills.TestType{TypeName: "type"})
+	d.skills.AddSlot(&skills.Slot{Snap: "consumer", Name: "slot", Type: "type"})
+	d.enableInternalSkillActions = false
+	action := &skillAction{
+		Action: "remove-slot",
+		Slot: skills.Slot{
+			Snap: "consumer",
+			Name: "slot",
+		},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	skillsCmd.POST(skillsCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 400)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"message": "internal skill actions are disabled",
+		},
+		"status":      "Bad Request",
+		"status_code": 400.0,
+		"type":        "error",
+	})
+	c.Check(d.skills.Slot("consumer", "slot"), check.Not(check.IsNil))
+}
+
+func (s *apiSuite) TestRemoveSlotFailure(c *check.C) {
+	d := newTestDaemon()
+	d.skills.AddType(&skills.TestType{TypeName: "type"})
+	d.skills.AddSkill(&skills.Skill{Snap: "producer", Name: "skill", Type: "type"})
+	d.skills.AddSlot(&skills.Slot{Snap: "consumer", Name: "slot", Type: "type"})
+	d.skills.Grant("producer", "skill", "consumer", "slot")
+	action := &skillAction{
+		Action: "remove-slot",
+		Slot: skills.Slot{
+			Snap: "consumer",
+			Name: "slot",
+		},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	skillsCmd.POST(skillsCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 400)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"message": `cannot remove slot "slot" from snap "consumer", it still uses granted skills`,
+		},
+		"status":      "Bad Request",
+		"status_code": 400.0,
+		"type":        "error",
+	})
+	c.Check(d.skills.Slot("consumer", "slot"), check.Not(check.IsNil))
+}
+
+func (s *apiSuite) TestUnsupportedSkillRequest(c *check.C) {
+	buf := bytes.NewBuffer([]byte(`garbage`))
+	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	skillsCmd.POST(skillsCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 400)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"message": "cannot decode request body into a skill action: invalid character 'g' looking for beginning of value",
+		},
+		"status":      "Bad Request",
+		"status_code": 400.0,
+		"type":        "error",
+	})
+}
+
+func (s *apiSuite) TestMissingSkillAction(c *check.C) {
+	action := &skillAction{}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	skillsCmd.POST(skillsCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 400)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"message": "skill action not specified",
+		},
+		"status":      "Bad Request",
+		"status_code": 400.0,
+		"type":        "error",
+	})
+}
+
+func (s *apiSuite) TestUnsupportedSkillAction(c *check.C) {
+	d := newTestDaemon()
+	action := &skillAction{
+		Action: "foo",
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	skillsCmd.POST(skillsCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 400)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"message": "unsupported skill action: \"foo\"",
+		},
+		"status":      "Bad Request",
+		"status_code": 400.0,
+		"type":        "error",
+	})
+	c.Check(d.skills.Slot("snap", "name"), check.IsNil)
 }
 
 const (

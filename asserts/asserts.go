@@ -44,7 +44,10 @@ type AssertionType struct {
 
 // Understood assertion types.
 var (
-	AccountKeyType   = &AssertionType{"account-key", []string{"account-id", "public-key-id"}, assembleAccountKey}
+	AccountKeyType = &AssertionType{"account-key", []string{"account-id", "public-key-id"}, assembleAccountKey}
+	// XXX: is series actually part of the primary key?
+	ModelType        = &AssertionType{"model", []string{"brand-id", "model", "series"}, assembleModel}
+	DeviceType       = &AssertionType{"device", []string{"brand-id", "model", "serial"}, assembleDevice}
 	SnapBuildType    = &AssertionType{"snap-build", []string{"snap-id", "snap-digest"}, assembleSnapBuild}
 	SnapRevisionType = &AssertionType{"snap-revision", []string{"snap-id", "snap-digest"}, assembleSnapRevision}
 
@@ -53,6 +56,8 @@ var (
 
 var typeRegistry = map[string]*AssertionType{
 	AccountKeyType.Name:   AccountKeyType,
+	ModelType.Name:        ModelType,
+	DeviceType.Name:       DeviceType,
 	SnapBuildType.Name:    SnapBuildType,
 	SnapRevisionType.Name: SnapRevisionType,
 }
@@ -143,6 +148,7 @@ func (ab *assertionBase) Signature() (content, signature []byte) {
 var _ Assertion = (*assertionBase)(nil)
 
 var (
+	nl   = []byte("\n")
 	nlnl = []byte("\n\n")
 
 	// for basic sanity checking of header names
@@ -154,16 +160,54 @@ func parseHeaders(head []byte) (map[string]string, error) {
 		return nil, fmt.Errorf("header is not utf8")
 	}
 	headers := make(map[string]string)
-	for _, entry := range strings.Split(string(head), "\n") {
-		nameValueSplit := strings.Index(entry, ": ")
+	lines := strings.Split(string(head), "\n")
+	for i := 0; i < len(lines); {
+		entry := lines[i]
+		i++
+		nameValueSplit := strings.Index(entry, ":")
 		if nameValueSplit == -1 {
-			return nil, fmt.Errorf("header entry missing name value ': ' separation: %q", entry)
+			return nil, fmt.Errorf("header entry missing ':' separator: %q", entry)
 		}
 		name := entry[:nameValueSplit]
 		if !headerNameSanity.MatchString(name) {
 			return nil, fmt.Errorf("invalid header name: %q", name)
 		}
-		headers[name] = entry[nameValueSplit+2:]
+
+		afterSplit := nameValueSplit + 1
+		if afterSplit == len(entry) {
+			// multiline value
+			size := 0
+			j := i
+			for j < len(lines) {
+				iline := lines[j]
+				if len(iline) == 0 || iline[0] != ' ' {
+					break
+				}
+				size += len(iline)
+				j++
+			}
+			if j == i {
+				return nil, fmt.Errorf("empty multiline header value: %q", entry)
+			}
+
+			valueBuf := bytes.NewBuffer(make([]byte, 0, size-1))
+			valueBuf.WriteString(lines[i][1:])
+			i++
+			for i < j {
+				valueBuf.WriteByte('\n')
+				valueBuf.WriteString(lines[i][1:])
+				i++
+			}
+
+			headers[name] = valueBuf.String()
+			continue
+		}
+
+		if entry[afterSplit] != ' ' {
+			return nil, fmt.Errorf("header entry should have a space or newline (multiline) before value: %q", entry)
+		}
+
+		headers[name] = entry[afterSplit+1:]
 	}
 	return headers, nil
 }
@@ -176,13 +220,17 @@ func parseHeaders(head []byte) (map[string]string, error) {
 //
 // where:
 //
-//    HEADER is a set of header lines separated by "\n"
+//    HEADER is a set of header entries separated by "\n"
 //    BODY can be arbitrary,
 //    SIGNATURE is the signature
 //
-// A header line looks like:
+// A header entry for a single line value (no "\n" in it) looks like:
 //
 //   NAME ": " VALUE
+//
+// A header entry for a multiline value (a value with "\n"s in it) looks like:
+//
+//   NAME ":\n"  1-space indented VALUE
 //
 // The following headers are mandatory:
 //
@@ -233,7 +281,7 @@ const (
 	MaxSignatureSize = 128 * 1024
 )
 
-// Decoder parses a stream of assertions bundled by ensuring double newlines at the end of each assertion.
+// Decoder parses a stream of assertions bundled by separating them with double newlines.
 type Decoder struct {
 	rd             io.Reader
 	initialBufSize int
@@ -434,6 +482,12 @@ func Assemble(headers map[string]string, body, content, signature []byte) (Asser
 		return nil, fmt.Errorf("unknown assertion type: %q", typ)
 	}
 
+	for _, primKey := range assertType.PrimaryKey {
+		if _, err := checkMandatory(headers, primKey); err != nil {
+			return nil, fmt.Errorf("assertion %s: %v", assertType.Name, err)
+		}
+	}
+
 	revision, err := checkRevision(headers)
 	if err != nil {
 		return nil, fmt.Errorf("assertion: %v", err)
@@ -459,8 +513,15 @@ func Assemble(headers map[string]string, body, content, signature []byte) (Asser
 func writeHeader(buf *bytes.Buffer, headers map[string]string, name string) {
 	buf.WriteByte('\n')
 	buf.WriteString(name)
-	buf.WriteString(": ")
-	buf.WriteString(headers[name])
+	value := headers[name]
+	if strings.IndexRune(value, '\n') != -1 {
+		// multiline value => quote by 1-space indenting
+		buf.WriteString(":\n ")
+		value = strings.Replace(value, "\n", "\n ", -1)
+	} else {
+		buf.WriteString(": ")
+	}
+	buf.WriteString(value)
 }
 
 func assembleAndSign(assertType *AssertionType, headers map[string]string, body []byte, privKey PrivateKey) (Assertion, error) {
@@ -569,10 +630,10 @@ func Encode(assert Assertion) []byte {
 	return buf.Bytes()
 }
 
-// Encoder emits a stream of assertions bundled by ensuring double newlines at the end of each assertion.
-// NB: A single assertion emitted through Encoder can be parsed back using Decoder but not directly just with Decode() because of the extra double newlines.
+// Encoder emits a stream of assertions bundled by separating them with double newlines.
 type Encoder struct {
-	wr io.Writer
+	wr      io.Writer
+	nextSep []byte
 }
 
 // NewEncoder returns a Encoder to emit a stream of assertions to a writer.
@@ -587,16 +648,25 @@ func (enc *Encoder) append(encoded []byte) error {
 		return fmt.Errorf("internal error: encoded assertion cannot be empty")
 	}
 
-	_, err := enc.wr.Write(encoded)
+	_, err := enc.wr.Write(enc.nextSep)
 	if err != nil {
 		return err
 	}
-	sep := nlnl
-	if encoded[sz-1] == '\n' {
-		sep = sep[1:]
+
+	_, err = enc.wr.Write(encoded)
+	if err != nil {
+		return err
 	}
-	_, err = enc.wr.Write(sep)
-	return err
+
+	if encoded[sz-1] != '\n' {
+		_, err = enc.wr.Write(nl)
+		if err != nil {
+			return err
+		}
+	}
+	enc.nextSep = nl
+
+	return nil
 }
 
 // Encode emits the assertion into the stream with the required separator.

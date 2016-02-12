@@ -20,9 +20,6 @@
 package snappy
 
 import (
-	"io"
-	"io/ioutil"
-	"net/http"
 	"os"
 	"time"
 
@@ -30,7 +27,6 @@ import (
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
-	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/remote"
 )
@@ -119,63 +115,6 @@ func (s *RemoteSnapPart) Date() time.Time {
 	return p
 }
 
-// download writes an http.Request showing a progress.Meter
-func download(name string, w io.Writer, req *http.Request, pbar progress.Meter) error {
-	client := &http.Client{}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return &ErrDownload{Code: resp.StatusCode, URL: req.URL}
-	}
-
-	if pbar != nil {
-		pbar.Start(name, float64(resp.ContentLength))
-		mw := io.MultiWriter(w, pbar)
-		_, err = io.Copy(mw, resp.Body)
-		pbar.Finished()
-	} else {
-		_, err = io.Copy(w, resp.Body)
-	}
-
-	return err
-}
-
-// Download downloads the snap and returns the filename
-func (s *RemoteSnapPart) Download(pbar progress.Meter) (string, error) {
-	w, err := ioutil.TempFile("", s.pkg.Name)
-	if err != nil {
-		return "", err
-	}
-	defer func() {
-		if err != nil {
-			os.Remove(w.Name())
-		}
-	}()
-	defer w.Close()
-
-	// try anonymous download first and fallback to authenticated
-	url := s.pkg.AnonDownloadURL
-	if url == "" {
-		url = s.pkg.DownloadURL
-	}
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return "", err
-	}
-	setUbuntuStoreHeaders(req)
-
-	if err := download(s.Name(), w, req, pbar); err != nil {
-		return "", err
-	}
-
-	return w.Name(), w.Sync()
-}
-
 func (s *RemoteSnapPart) saveStoreManifest() error {
 	content, err := yaml.Marshal(s.pkg)
 	if err != nil {
@@ -188,31 +127,6 @@ func (s *RemoteSnapPart) saveStoreManifest() error {
 
 	// don't worry about previous contents
 	return helpers.AtomicWriteFile(RemoteManifestPath(s), content, 0644, 0)
-}
-
-// Install installs the snap
-func (s *RemoteSnapPart) Install(pbar progress.Meter, flags InstallFlags) (string, error) {
-	downloadedSnap, err := s.Download(pbar)
-	if err != nil {
-		return "", err
-	}
-	defer os.Remove(downloadedSnap)
-
-	if err := s.saveStoreManifest(); err != nil {
-		return "", err
-	}
-
-	sf, err := (&Overlord{}).Install(downloadedSnap, s.Origin(), flags, pbar)
-	if err != nil {
-		return "", err
-	}
-
-	return sf.Name(), nil
-}
-
-// SetActive sets the snap active
-func (s *RemoteSnapPart) SetActive(bool, progress.Meter) error {
-	return ErrNotInstalled
 }
 
 // Config is used to to configure the snap

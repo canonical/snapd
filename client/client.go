@@ -26,6 +26,8 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"path"
+	"strings"
 
 	"github.com/ubuntu-core/snappy/dirs"
 )
@@ -38,31 +40,51 @@ type doer interface {
 	Do(*http.Request) (*http.Response, error)
 }
 
-// A Client knows how to talk to the snappy daemon
+// Config allows to customize client behavior.
+type Config struct {
+	// BaseURL contains the base URL where snappy daemon is expected to be.
+	// It can be empty for a default behavior of talking over a unix socket.
+	BaseURL string
+}
+
+// A Client knows how to talk to the snappy daemon.
 type Client struct {
-	doer doer
+	baseURL url.URL
+	doer    doer
 }
 
 // New returns a new instance of Client
-func New() *Client {
-	tr := &http.Transport{Dial: unixDialer}
-
+func New(config *Config) *Client {
+	// By default talk over an UNIX socket.
+	if config == nil || config.BaseURL == "" {
+		return &Client{
+			baseURL: url.URL{
+				Scheme: "http",
+				Host:   "localhost",
+			},
+			doer: &http.Client{
+				Transport: &http.Transport{Dial: unixDialer},
+			},
+		}
+	}
+	baseURL, err := url.Parse(config.BaseURL)
+	if err != nil {
+		panic(fmt.Sprintf("cannot parse server base URL: %q (%v)", config.BaseURL, err))
+	}
 	return &Client{
-		doer: &http.Client{Transport: tr},
+		baseURL: *baseURL,
+		doer:    &http.Client{},
 	}
 }
 
 // raw performs a request and returns the resulting http.Response and
 // error you usually only need to call this directly if you expect the
 // response to not be JSON, otherwise you'd call Do(...) instead.
-func (client *Client) raw(method, path string, query url.Values, body io.Reader) (*http.Response, error) {
+func (client *Client) raw(method, urlpath string, query url.Values, body io.Reader) (*http.Response, error) {
 	// fake a url to keep http.Client happy
-	u := url.URL{
-		Scheme:   "http",
-		Host:     "localhost",
-		Path:     path,
-		RawQuery: query.Encode(),
-	}
+	u := client.baseURL
+	u.Path = path.Join(client.baseURL.Path, urlpath)
+	u.RawQuery = query.Encode()
 	req, err := http.NewRequest(method, u.String(), body)
 	if err != nil {
 		return nil, err
@@ -96,7 +118,7 @@ func (client *Client) doSync(method, path string, query url.Values, body io.Read
 	var rsp response
 
 	if err := client.do(method, path, query, body, &rsp); err != nil {
-		return fmt.Errorf("failed to communicate with server: %s", err)
+		return fmt.Errorf("cannot communicate with server: %s", err)
 	}
 	if err := rsp.err(); err != nil {
 		return err
@@ -106,10 +128,43 @@ func (client *Client) doSync(method, path string, query url.Values, body io.Read
 	}
 
 	if err := json.Unmarshal(rsp.Result, v); err != nil {
-		return fmt.Errorf("failed to unmarshal: %v", err)
+		return fmt.Errorf("cannot unmarshal: %v", err)
 	}
 
 	return nil
+}
+
+type asyncResult struct {
+	Resource string `json:"resource"`
+}
+
+func (client *Client) doAsync(method, path string, query url.Values, body io.Reader) (string, error) {
+	var rsp response
+
+	if err := client.do(method, path, query, body, &rsp); err != nil {
+		return "", fmt.Errorf("cannot communicate with server: %v", err)
+	}
+	if err := rsp.err(); err != nil {
+		return "", err
+	}
+	if rsp.Type != "async" {
+		return "", fmt.Errorf("expected async response for %q on %q, got %q", method, path, rsp.Type)
+	}
+	if rsp.StatusCode != http.StatusAccepted {
+		return "", fmt.Errorf("operation not accepted")
+	}
+
+	var result asyncResult
+	if err := json.Unmarshal(rsp.Result, &result); err != nil {
+		return "", fmt.Errorf("cannot unmarshal result: %v", err)
+	}
+
+	const opPrefix = "/2.0/operations/"
+	if !strings.HasPrefix(result.Resource, opPrefix) {
+		return "", fmt.Errorf("invalid resource location %q", result.Resource)
+	}
+
+	return result.Resource[len(opPrefix):], nil
 }
 
 // A response produced by the REST API will usually fit in this
@@ -160,7 +215,7 @@ func parseError(r *http.Response) error {
 
 	dec := json.NewDecoder(r.Body)
 	if err := dec.Decode(&rsp); err != nil {
-		return fmt.Errorf("failed to unmarshal error: %v", err)
+		return fmt.Errorf("cannot unmarshal error: %v", err)
 	}
 
 	err := rsp.err()

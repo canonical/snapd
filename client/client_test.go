@@ -20,7 +20,6 @@
 package client_test
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -53,7 +52,7 @@ type clientSuite struct {
 var _ = check.Suite(&clientSuite{})
 
 func (cs *clientSuite) SetUpTest(c *check.C) {
-	cs.cli = client.New()
+	cs.cli = client.New(nil)
 	cs.cli.SetDoer(cs)
 	cs.err = nil
 	cs.rsp = ""
@@ -72,6 +71,28 @@ func (cs *clientSuite) Do(req *http.Request) (*http.Response, error) {
 		StatusCode: cs.status,
 	}
 	return rsp, cs.err
+}
+
+func (cs *clientSuite) TestNewPanics(c *check.C) {
+	c.Assert(func() {
+		client.New(&client.Config{BaseURL: ":"})
+	}, check.PanicMatches, `cannot parse server base URL: ":" \(parse :: missing protocol scheme\)`)
+}
+
+func (cs *clientSuite) TestNewCustomURL(c *check.C) {
+	f := func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/2.0/system-info")
+		c.Check(r.URL.RawQuery, check.Equals, "")
+		fmt.Fprintln(w, `{"type":"sync", "result":{"store":"X"}}`)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(f))
+	defer srv.Close()
+
+	cli := client.New(&client.Config{BaseURL: srv.URL})
+	c.Assert(cli, check.Not(check.IsNil))
+	si, err := cli.SysInfo()
+	c.Check(err, check.IsNil)
+	c.Check(si.Store, check.Equals, "X")
 }
 
 func (cs *clientSuite) TestClientDoReportsErrors(c *check.C) {
@@ -133,7 +154,7 @@ func (cs *clientSuite) TestClientIntegration(c *check.C) {
 	srv.Start()
 	defer srv.Close()
 
-	cli := client.New()
+	cli := client.New(nil)
 	si, err := cli.SysInfo()
 	c.Check(err, check.IsNil)
 	c.Check(si.Store, check.Equals, "X")
@@ -171,93 +192,7 @@ func (cs *clientSuite) TestClientReportsOuterJSONError(c *check.C) {
 func (cs *clientSuite) TestClientReportsInnerJSONError(c *check.C) {
 	cs.rsp = `{"type": "sync", "result": "this isn't really json is it"}`
 	_, err := cs.cli.SysInfo()
-	c.Check(err, check.ErrorMatches, `.*failed to unmarshal.*`)
-}
-
-func (cs *clientSuite) TestClientCapabilities(c *check.C) {
-	cs.rsp = `{
-		"type": "sync",
-		"result": {
-			"capabilities": {
-				"n": {
-					"name": "n",
-					"label": "l",
-					"type": "t",
-					"attrs": {"k": "v"}
-				}
-			}
-		}
-	}`
-	caps, err := cs.cli.Capabilities()
-	c.Check(err, check.IsNil)
-	c.Check(caps, check.DeepEquals, map[string]client.Capability{
-		"n": client.Capability{
-			Name:  "n",
-			Label: "l",
-			Type:  "t",
-			Attrs: map[string]string{"k": "v"},
-		},
-	})
-	c.Check(cs.req.Method, check.Equals, "GET")
-	c.Check(cs.req.URL.Path, check.Equals, "/2.0/capabilities")
-}
-
-func (cs *clientSuite) TestClientAddCapability(c *check.C) {
-	cs.rsp = `{
-		"type": "sync",
-		"result": {
-		}
-	}`
-	cap := &client.Capability{
-		Name:  "n",
-		Label: "l",
-		Type:  "t",
-		Attrs: map[string]string{"k": "v"},
-	}
-	err := cs.cli.AddCapability(cap)
-	c.Check(err, check.IsNil)
-	var body map[string]interface{}
-	decoder := json.NewDecoder(cs.req.Body)
-	err = decoder.Decode(&body)
-	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"name":  "n",
-		"label": "l",
-		"type":  "t",
-		"attrs": map[string]interface{}{
-			"k": "v",
-		},
-	})
-	c.Check(cs.req.Method, check.Equals, "POST")
-	c.Check(cs.req.URL.Path, check.Equals, "/2.0/capabilities")
-}
-
-func (cs *clientSuite) TestClientRemoveCapabilityOk(c *check.C) {
-	cs.rsp = `{
-		"type": "sync",
-		"result": { }
-	}`
-	err := cs.cli.RemoveCapability("n")
-	c.Check(err, check.IsNil)
-	c.Check(cs.req.Body, check.IsNil)
-	c.Check(cs.req.Method, check.Equals, "DELETE")
-	c.Check(cs.req.URL.Path, check.Equals, "/2.0/capabilities/n")
-}
-
-func (cs *clientSuite) TestClientRemoveCapabilityNotFound(c *check.C) {
-	cs.rsp = `{
-		"status": "Not Found",
-		"status_code": 404,
-		"type": "error",
-		"result": {
-			"message": "can't remove capability \"n\", no such capability"
-		}
-	}`
-	err := cs.cli.RemoveCapability("n")
-	c.Check(err, check.ErrorMatches, `.*can't remove capability \"n\", no such capability`)
-	c.Check(cs.req.Body, check.IsNil)
-	c.Check(cs.req.Method, check.Equals, "DELETE")
-	c.Check(cs.req.URL.Path, check.Equals, "/2.0/capabilities/n")
+	c.Check(err, check.ErrorMatches, `.*cannot unmarshal.*`)
 }
 
 func (cs *clientSuite) TestParseError(c *check.C) {

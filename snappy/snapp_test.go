@@ -57,6 +57,7 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	policy.SecBase = filepath.Join(s.tempdir, "security")
 	os.MkdirAll(dirs.SnapServicesDir, 0755)
 	os.MkdirAll(dirs.SnapSeccompDir, 0755)
+	os.MkdirAll(dirs.SnapSnapsDir, 0755)
 
 	release.Override(release.Release{Flavor: "core", Series: "15.04"})
 
@@ -171,7 +172,8 @@ frameworks:
 }
 
 func (s *SnapTestSuite) TestLocalSnapRepositoryInvalid(c *C) {
-	snap := NewLocalSnapRepository("invalid-path")
+	dirs.SnapSnapsDir = "invalid-path"
+	snap := NewLocalSnapRepository()
 	c.Assert(snap, IsNil)
 }
 
@@ -181,7 +183,7 @@ func (s *SnapTestSuite) TestLocalSnapRepositorySimple(c *C) {
 	err = makeSnapActive(yamlPath)
 	c.Assert(err, IsNil)
 
-	snap := NewLocalSnapRepository(filepath.Join(s.tempdir, "snaps"))
+	snap := NewLocalSnapRepository()
 	c.Assert(snap, NotNil)
 
 	installed, err := snap.Installed()
@@ -625,16 +627,15 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Assert(snap, NotNil)
 
 	// the actual test
-	results, err := snap.Details(funkyAppName, funkyAppOrigin)
+	result, err := snap.Snap(funkyAppName + "." + funkyAppOrigin)
 	c.Assert(err, IsNil)
-	c.Assert(results, HasLen, 1)
-	c.Check(results[0].Name(), Equals, funkyAppName)
-	c.Check(results[0].Origin(), Equals, funkyAppOrigin)
-	c.Check(results[0].Version(), Equals, "42")
-	c.Check(results[0].Hash(), Equals, "5364253e4a988f4f5c04380086d542f410455b97d48cc6c69ca2a5877d8aef2a6b2b2f83ec4f688cae61ebc8a6bf2cdbd4dbd8f743f0522fc76540429b79df42")
-	c.Check(results[0].Date().String(), Equals, "2015-04-15 18:30:16 +0000 UTC")
-	c.Check(results[0].DownloadSize(), Equals, int64(65375))
-	c.Check(results[0].Channel(), Equals, "edge")
+	c.Check(result.Name(), Equals, funkyAppName)
+	c.Check(result.Origin(), Equals, funkyAppOrigin)
+	c.Check(result.Version(), Equals, "42")
+	c.Check(result.Hash(), Equals, "5364253e4a988f4f5c04380086d542f410455b97d48cc6c69ca2a5877d8aef2a6b2b2f83ec4f688cae61ebc8a6bf2cdbd4dbd8f743f0522fc76540429b79df42")
+	c.Check(result.Date().String(), Equals, "2015-04-15 18:30:16 +0000 UTC")
+	c.Check(result.DownloadSize(), Equals, int64(65375))
+	c.Check(result.Channel(), Equals, "edge")
 }
 
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
@@ -654,9 +655,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
 	c.Assert(snap, NotNil)
 
 	// the actual test
-	results, err := snap.Details("no-such-pkg", "")
-	c.Assert(results, HasLen, 0)
+	result, err := snap.Snap("no-such-pkg")
 	c.Assert(err, NotNil)
+	c.Assert(result, IsNil)
 }
 
 func (s *SnapTestSuite) TestMakeConfigEnv(c *C) {
@@ -697,7 +698,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	r := RemoteSnapPart{}
+	r := &RemoteSnapPart{}
 	r.pkg.AnonDownloadURL = mockServer.URL + "/snap"
 	r.pkg.IconURL = mockServer.URL + "/icon"
 	r.pkg.Name = "foo"
@@ -705,8 +706,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 	r.pkg.Description = "this is a description"
 	r.pkg.Version = "1.0"
 
+	mStore := NewUbuntuStoreSnapRepository()
 	p := &MockProgressMeter{}
-	name, err := r.Install(p, 0)
+	name, err := installRemote(mStore, r, 0, p)
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 	st, err := os.Stat(snapPackage)
@@ -750,7 +752,7 @@ apps:
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	r := RemoteSnapPart{}
+	r := &RemoteSnapPart{}
 	r.pkg.AnonDownloadURL = mockServer.URL + "/snap"
 	r.pkg.Origin = testOrigin
 	r.pkg.IconURL = mockServer.URL + "/icon"
@@ -758,13 +760,14 @@ apps:
 	r.pkg.Origin = "bar"
 	r.pkg.Version = "1.0"
 
+	mStore := NewUbuntuStoreSnapRepository()
 	p := &MockProgressMeter{}
-	name, err := r.Install(p, 0)
+	name, err := installRemote(mStore, r, 0, p)
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 	c.Check(p.notified, HasLen, 0)
 
-	_, err = r.Install(p, 0)
+	_, err = installRemote(mStore, r, 0, p)
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 	c.Check(p.notified, HasLen, 1)
@@ -783,13 +786,6 @@ architectures:
 	_, err := s.overlord.Install(snapPkg, "origin", 0, &MockProgressMeter{})
 	errorMsg := fmt.Sprintf("package's supported architectures (yadayada, blahblah) is incompatible with this system (%s)", arch.UbuntuArchitecture())
 	c.Assert(err.Error(), Equals, errorMsg)
-}
-
-func (s *SnapTestSuite) TestRemoteSnapErrors(c *C) {
-	snap := RemoteSnapPart{}
-
-	c.Assert(snap.SetActive(true, nil), Equals, ErrNotInstalled)
-	c.Assert(snap.SetActive(false, nil), Equals, ErrNotInstalled)
 }
 
 func (s *SnapTestSuite) TestServicesWithPorts(c *C) {
@@ -947,7 +943,7 @@ type: gadget
 	c.Assert(repo, NotNil)
 
 	// we just ensure that the right header is set
-	repo.Details("xkcd", "")
+	repo.Snap("xkcd")
 }
 
 func (s *SnapTestSuite) TestUninstallBuiltIn(c *C) {
@@ -971,7 +967,7 @@ type: gadget
 
 	p := &MockProgressMeter{}
 
-	r := NewLocalSnapRepository(filepath.Join(s.tempdir, "snaps"))
+	r := NewLocalSnapRepository()
 	c.Assert(r, NotNil)
 	installed, err := r.Installed()
 	c.Assert(err, IsNil)

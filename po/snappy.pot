@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-01-22 14:41+0100\n"
+        "POT-Creation-Date: 2016-02-11 11:58+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -19,11 +19,6 @@ msgstr  "Project-Id-Version: snappy\n"
 #. TRANSLATORS: the %s is a pkgname, the second a comma separated list of paths
 #, c-format
 msgid   "%s: %s\n"
-msgstr  ""
-
-#. TRANSLATORS: the %s stand for "name", "version", "description"
-#, c-format
-msgid   "%s\t%s\t%s (forks not shown: %d)\t"
 msgstr  ""
 
 #. TRANSLATORS: the first %s is a pkgname, the second %s is a path
@@ -67,7 +62,19 @@ msgstr  ""
 msgid   "Activate a package that has previously been deactivated. If the package is already activated, do nothing."
 msgstr  ""
 
-msgid   "Add a capability to the system"
+msgid   "Activate a snap that is installed but inactive"
+msgstr  ""
+
+msgid   "Add a snap to the system"
+msgstr  ""
+
+msgid   "Adds a skill slot to the system"
+msgstr  ""
+
+msgid   "Adds a skill to the system"
+msgstr  ""
+
+msgid   "Adds an assertion to the system"
 msgstr  ""
 
 msgid   "Allows rollback of a snap to a previous installed version. Without any arguments, the previous installed version is selected. It is also possible to specify the version to rollback to as a additional argument.\n"
@@ -76,9 +83,6 @@ msgstr  ""
 #, c-format
 msgid   "Another snappy is running, will try again in %d seconds...\n"
         "Press ctrl-c to cancel.\n"
-msgstr  ""
-
-msgid   "Assert tries to add an assertion to the system"
 msgstr  ""
 
 msgid   "Assign a hardware device to a package"
@@ -119,6 +123,9 @@ msgstr  ""
 msgid   "Deactivate a package. If the package is already deactivated, do nothing."
 msgstr  ""
 
+msgid   "Deactivate an installed active snap"
+msgstr  ""
+
 msgid   "Destroy the classic dimension."
 msgstr  ""
 
@@ -141,6 +148,9 @@ msgid   "Ensures system is running with latest parts"
 msgstr  ""
 
 msgid   "Entering classic dimension"
+msgstr  ""
+
+msgid   "Finds packages to install"
 msgstr  ""
 
 msgid   "First boot has already run"
@@ -180,9 +190,6 @@ msgstr  ""
 msgid   "List assigned hardware for a specific installed package"
 msgstr  ""
 
-msgid   "List system capabilities"
-msgstr  ""
-
 msgid   "Log into the store"
 msgstr  ""
 
@@ -195,7 +202,7 @@ msgstr  ""
 msgid   "Name\tDate\tVersion\tDeveloper\t"
 msgstr  ""
 
-msgid   "Name\tVersion\tSummary\t"
+msgid   "Name\tVersion\tSummary"
 msgstr  ""
 
 #. TRANSLATORS: the %s is a pkgname
@@ -221,6 +228,9 @@ msgstr  ""
 msgid   "Provides more detailed information"
 msgstr  ""
 
+msgid   "Purge a snap's data from the system"
+msgstr  ""
+
 msgid   "Purge an installed package."
 msgstr  ""
 
@@ -233,9 +243,6 @@ msgid   "Query and modify snappy services"
 msgstr  ""
 
 msgid   "Query and modify snappy services of locally-installed packages"
-msgstr  ""
-
-msgid   "Query the store for available packages"
 msgstr  ""
 
 msgid   "Reboot if necessary to be on the latest running system."
@@ -252,7 +259,10 @@ msgstr  ""
 msgid   "Rebooting to satisfy updates for %s\n"
 msgstr  ""
 
-msgid   "Remove a capability from the system"
+msgid   "Refresh a snap in the system"
+msgstr  ""
+
+msgid   "Remove a snap from the system"
 msgstr  ""
 
 msgid   "Remove a snapp part"
@@ -267,9 +277,18 @@ msgstr  ""
 msgid   "Remove hardware from a specific installed package"
 msgstr  ""
 
+msgid   "Removes a skill from the system"
+msgstr  ""
+
+msgid   "Removes a skill slot from the system"
+msgstr  ""
+
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid   "Removing %s\n"
+msgstr  ""
+
+msgid   "Rollback a snap to its previous known-good version"
 msgstr  ""
 
 msgid   "Rollback to a previous version of a package"
@@ -281,7 +300,7 @@ msgstr  ""
 msgid   "Run snappy shell interface"
 msgstr  ""
 
-msgid   "Search for packages to install"
+msgid   "Runs unsupported experimental commands"
 msgstr  ""
 
 msgid   "Set configuration for a specific installed package"
@@ -307,13 +326,13 @@ msgstr  ""
 msgid   "Setting %s to version %s\n"
 msgstr  ""
 
-msgid   "Show all available forks of a package"
-msgstr  ""
-
 msgid   "Show available updates (requires network)"
 msgstr  ""
 
 msgid   "Show channel information and expand all fields"
+msgstr  ""
+
+msgid   "Shows known assertions of the provided type"
 msgstr  ""
 
 msgid   "Snap\tService\tState"
@@ -367,9 +386,6 @@ msgstr  ""
 msgid   "The version to rollback to"
 msgstr  ""
 
-msgid   "This command adds a capability to the system"
-msgstr  ""
-
 msgid   "This command adds access to a specific hardware device (e.g. /dev/ttyUSB0) for an installed package."
 msgstr  ""
 
@@ -382,20 +398,7 @@ msgstr  ""
 msgid   "This command logs the given username into the store"
 msgstr  ""
 
-msgid   "This command removes a capability from the system"
-msgstr  ""
-
 msgid   "This command removes access of a specific hardware device (e.g. /dev/ttyUSB0) for an installed package."
-msgstr  ""
-
-msgid   "This command shows all capabilities and their allocation"
-msgstr  ""
-
-msgid   "This command tries to add an assertion to the system assertion database.\n"
-        "\n"
-        "The assertion may also be a newer revision of a preexisting assertion that it will replace.\n"
-        "\n"
-        "To succeed the assertion must be valid, its signature verified with a known public key and the assertion consistent with and its prerequisite in the database."
 msgstr  ""
 
 msgid   "Unassign a hardware device to a package"
@@ -404,10 +407,98 @@ msgstr  ""
 msgid   "Update all installed parts"
 msgstr  ""
 
-msgid   "Use --show-all to see all available forks."
+msgid   "Username for the login"
 msgstr  ""
 
-msgid   "Username for the login"
+msgid   "\n"
+        "The activate command activates an installed but inactive snap.\n"
+        "\n"
+        "Snaps that are not active don't have their apps available for use.\n"
+msgstr  ""
+
+msgid   "\n"
+        "The add command installs and activates the named snap in the system.\n"
+msgstr  ""
+
+msgid   "\n"
+        "The add-skill command adds a new skill to the system.\n"
+        "\n"
+        "This command is only for experimentation with the skill system.\n"
+        "It will be removed in one of the future releases.\n"
+msgstr  ""
+
+msgid   "\n"
+        "The add-skill-slot command adds a new skill slot to the system.\n"
+        "\n"
+        "This command is only for experimentation with the skill system.\n"
+        "It will be removed in one of the future releases.\n"
+msgstr  ""
+
+msgid   "\n"
+        "The assert command tries to add an assertion to the system assertion database.\n"
+        "\n"
+        "The assertion may also be a newer revision of a preexisting assertion that it\n"
+        "will replace.\n"
+        "\n"
+        "To succeed the assertion must be valid, its signature verified with a known\n"
+        "public key and the assertion consistent with and its prerequisite in the\n"
+        "database.\n"
+msgstr  ""
+
+msgid   "\n"
+        "The asserts command shows known assertions of the provided type.\n"
+        "If header=value pairs are provided after the assertion type, the assertions\n"
+        "shown must also have the specified headers matching the provided values.\n"
+msgstr  ""
+
+msgid   "\n"
+        "The deactivate command deactivates an installed, active snap.\n"
+        "\n"
+        "Snaps that are not active don't have their apps available for use.\n"
+msgstr  ""
+
+msgid   "\n"
+        "The experimental command contains a selection of additional sub-commands.\n"
+        "\n"
+        "Experimental commands can be removed without notice and may not work on\n"
+        "non-development systems.\n"
+msgstr  ""
+
+msgid   "\n"
+        "The find command queries the store for available packages.\n"
+msgstr  ""
+
+msgid   "\n"
+        "The purge command removes the data of the named snap from the system.\n"
+msgstr  ""
+
+msgid   "\n"
+        "The refresh command refreshes (updates) the named snap.\n"
+msgstr  ""
+
+msgid   "\n"
+        "The remove command removes the named snap from the system.\n"
+        "\n"
+        "The snap's data is currently not removed; use purge for that. This behaviour\n"
+        "will change before 16.04 is final.\n"
+msgstr  ""
+
+msgid   "\n"
+        "The remove-skill command removes a skill from the system.\n"
+        "\n"
+        "This command is only for experimentation with the skill system.\n"
+        "It will be removed in one of the future releases.\n"
+msgstr  ""
+
+msgid   "\n"
+        "The remove-skill-slot command removes a skill slot from the system.\n"
+        "\n"
+        "This command is only for experimentation with the skill system.\n"
+        "It will be removed in one of the future releases.\n"
+msgstr  ""
+
+msgid   "\n"
+        "The rollback command reverts an installed snap to its previous revision.\n"
 msgstr  ""
 
 msgid   "\n"

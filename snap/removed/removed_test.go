@@ -28,7 +28,6 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
 )
@@ -84,15 +83,6 @@ func (s *removedSuite) TestNoStore(c *check.C) {
 	c.Check(part.IsActive(), check.Equals, false)
 	c.Check(part.IsInstalled(), check.Equals, false)
 	c.Check(part.NeedsReboot(), check.Equals, false)
-
-	prog := &progress.NullProgress{}
-	c.Check(part.SetActive(true, prog), check.Equals, ErrRemoved)
-	_, err := part.Install(prog, 0)
-	c.Check(err, check.Equals, ErrRemoved)
-	_, err = part.Config(nil)
-	c.Check(err, check.Equals, ErrRemoved)
-	_, err = part.Frameworks()
-	c.Check(err, check.Equals, ErrRemoved)
 }
 
 func (s *removedSuite) TestNoOrigin(c *check.C) {
@@ -120,13 +110,4 @@ func (s *removedSuite) TestWithStore(c *check.C) {
 	c.Check(part.IsActive(), check.Equals, false)
 	c.Check(part.IsInstalled(), check.Equals, false)
 	c.Check(part.NeedsReboot(), check.Equals, false)
-
-	prog := &progress.NullProgress{}
-	c.Check(part.SetActive(true, prog), check.Equals, ErrRemoved)
-	_, err := part.Install(prog, 0)
-	c.Check(err, check.Equals, ErrRemoved)
-	_, err = part.Config(nil)
-	c.Check(err, check.Equals, ErrRemoved)
-	_, err = part.Frameworks()
-	c.Check(err, check.Equals, ErrRemoved)
 }

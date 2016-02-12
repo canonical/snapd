@@ -1,0 +1,6 @@
+# This is an invalid yaml, there's a missing colon after the 'name' field
+name wrong-yaml
+version: 1.0
+summary: Wrong metadata snap
+description: |
+ A snap with an invalid meta/snap.yaml

@@ -2,7 +2,7 @@
 // +build !excludeintegration
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015, 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,7 +23,6 @@ package tests
 import (
 	"fmt"
 	"os"
-	"os/exec"
 
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/build"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
@@ -79,13 +78,20 @@ func (s *installAppSuite) TestCallFailBinaryFromInstalledSnap(c *check.C) {
 }
 
 func (s *installAppSuite) TestInstallUnexistingAppMustPrintError(c *check.C) {
-	cmd := exec.Command("sudo", "snappy", "install", "unexisting.canonical")
-	output, err := cmd.CombinedOutput()
+	output, err := cli.ExecCommandErr("sudo", "snappy", "install", "unexisting.canonical")
 
 	c.Check(err, check.NotNil,
 		check.Commentf("Trying to install an unexisting snap did not exit with an error"))
 	c.Assert(string(output), check.Equals,
 		"Installing unexisting.canonical\n"+
-			"unexisting failed to install: snappy package not found\n",
+			"unexisting.canonical failed to install: snappy package not found\n",
 		check.Commentf("Wrong error message"))
+}
+
+func (s *installAppSuite) TestInstallFromStoreMetadata(c *check.C) {
+	common.InstallSnap(c, "hello-world/edge")
+	defer common.RemoveSnap(c, "hello-world")
+
+	output := cli.ExecCommand(c, "snappy", "info", "hello-world")
+	c.Check(string(output), check.Matches, "(?ms)^channel: edge")
 }

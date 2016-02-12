@@ -133,8 +133,8 @@ func (r *Repository) AddSkill(skill *Skill) error {
 		return fmt.Errorf("cannot add skill, skill type %q is not known", skill.Type)
 	}
 	// Reject skill that don't pass type-specific sanitization
-	if err := t.Sanitize(skill); err != nil {
-		return err
+	if err := t.SanitizeSkill(skill); err != nil {
+		return fmt.Errorf("cannot add skill: %v", err)
 	}
 	if _, ok := r.skills[skill.Snap][skill.Name]; ok {
 		return fmt.Errorf("cannot add skill, snap %q already has skill %q", skill.Snap, skill.Name)
@@ -226,6 +226,9 @@ func (r *Repository) AddSlot(slot *Slot) error {
 	t := r.types[slot.Type]
 	if t == nil {
 		return fmt.Errorf("cannot add skill slot, skill type %q is not known", slot.Type)
+	}
+	if err := t.SanitizeSlot(slot); err != nil {
+		return fmt.Errorf("cannot add slot: %v", err)
 	}
 	if _, ok := r.slots[slot.Snap][slot.Name]; ok {
 		return fmt.Errorf("cannot add skill slot, snap %q already has slot %q", slot.Snap, slot.Name)
@@ -359,6 +362,23 @@ func (r *Repository) GrantedBy(snapName string) map[*Skill][]*Slot {
 	return result
 }
 
+// GrantsOf returns all of the slots that were granted the provided skill.
+func (r *Repository) GrantsOf(snapName, skillName string) []*Slot {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	skill := r.skills[snapName][skillName]
+	if skill == nil {
+		return nil
+	}
+	var result []*Slot
+	for slot := range r.skillSlots[skill] {
+		result = append(result, slot)
+	}
+	sort.Sort(bySlotSnapAndName(result))
+	return result
+}
+
 // Support for sort.Interface
 
 type bySkillSnapAndName []*Skill
@@ -381,4 +401,9 @@ func (c bySlotSnapAndName) Less(i, j int) bool {
 		return c[i].Snap < c[j].Snap
 	}
 	return c[i].Name < c[j].Name
+}
+
+// LoadBuiltInTypes loads built-in skill types into the provided repository.
+func LoadBuiltInTypes(repo *Repository) error {
+	return nil
 }

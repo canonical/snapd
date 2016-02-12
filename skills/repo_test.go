@@ -44,17 +44,17 @@ var _ = Suite(&RepositorySuite{
 		Snap:  "provider",
 		Name:  "skill",
 		Type:  "type",
-		Attrs: map[string]interface{}{"attr": "value"},
 		Label: "label",
+		Attrs: map[string]interface{}{"attr": "value"},
 		Apps:  []string{"app"},
 	},
 	slot: &Slot{
 		Snap:  "consumer",
 		Name:  "slot",
 		Type:  "type",
-		Apps:  []string{"app"},
-		Attrs: map[string]interface{}{"attr": "value"},
 		Label: "label",
+		Attrs: map[string]interface{}{"attr": "value"},
+		Apps:  []string{"app"},
 	},
 })
 
@@ -167,21 +167,21 @@ func (s *RepositorySuite) TestAddSkillFailsWithInvalidSkillName(c *C) {
 func (s *RepositorySuite) TestAddSkillFailsWithUnknownType(c *C) {
 	err := s.emptyRepo.AddSkill(s.skill)
 	c.Assert(err, ErrorMatches, `cannot add skill, skill type "type" is not known`)
-	c.Assert(s.testRepo.AllSkills(""), HasLen, 0)
+	c.Assert(s.emptyRepo.AllSkills(""), HasLen, 0)
 }
 
 func (s *RepositorySuite) TestAddSkillFailsWithUnsanitizedSkill(c *C) {
 	t := &TestType{
 		TypeName: "type",
-		SanitizeCallback: func(skill *Skill) error {
+		SanitizeSkillCallback: func(skill *Skill) error {
 			return fmt.Errorf("skill is dirty")
 		},
 	}
 	err := s.emptyRepo.AddType(t)
 	c.Assert(err, IsNil)
 	err = s.emptyRepo.AddSkill(s.skill)
-	c.Assert(err, ErrorMatches, "skill is dirty")
-	c.Assert(s.testRepo.AllSkills(""), HasLen, 0)
+	c.Assert(err, ErrorMatches, "cannot add skill: skill is dirty")
+	c.Assert(s.emptyRepo.AllSkills(""), HasLen, 0)
 }
 
 // Tests for Repository.Skill()
@@ -493,6 +493,20 @@ func (s *RepositorySuite) TestAddSlotFailsForDuplicates(c *C) {
 	c.Assert(err, ErrorMatches, `cannot add skill slot, snap "consumer" already has slot "slot"`)
 }
 
+func (s *RepositorySuite) TestAddSlotFailsWithUnsanitizedSlot(c *C) {
+	t := &TestType{
+		TypeName: "type",
+		SanitizeSlotCallback: func(slot *Slot) error {
+			return fmt.Errorf("slot is dirty")
+		},
+	}
+	err := s.emptyRepo.AddType(t)
+	c.Assert(err, IsNil)
+	err = s.emptyRepo.AddSlot(s.slot)
+	c.Assert(err, ErrorMatches, "cannot add slot: slot is dirty")
+	c.Assert(s.emptyRepo.AllSlots(""), HasLen, 0)
+}
+
 func (s *RepositorySuite) TestAddSlotStoresCorrectData(c *C) {
 	err := s.testRepo.AddSlot(s.slot)
 	c.Assert(err, IsNil)
@@ -666,12 +680,12 @@ func (s *RepositorySuite) TestGrantedToReturnsCorrectData(c *C) {
 
 func (s *RepositorySuite) TestGrantedByReturnsNothingForUnknownSnaps(c *C) {
 	// Asking about unknown snaps just returns an empty map
-	c.Assert(s.testRepo.GrantedTo("unknown"), HasLen, 0)
+	c.Assert(s.testRepo.GrantedBy("unknown"), HasLen, 0)
 }
 
 func (s *RepositorySuite) TestGrantedByReturnsNothingForEmptyString(c *C) {
 	// Asking about the empty string just returns an empty map
-	c.Assert(s.testRepo.GrantedTo(""), HasLen, 0)
+	c.Assert(s.testRepo.GrantedBy(""), HasLen, 0)
 }
 
 func (s *RepositorySuite) TestGrantedByReturnsCorrectData(c *C) {
@@ -690,4 +704,39 @@ func (s *RepositorySuite) TestGrantedByReturnsCorrectData(c *C) {
 	err = s.testRepo.Revoke(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
 	c.Assert(err, IsNil)
 	c.Assert(s.testRepo.GrantedBy(s.skill.Snap), HasLen, 0)
+}
+
+// Tests for LoadBuiltInTypes()
+
+func (s *RepositorySuite) TestLoadBuiltInTypes(c *C) {
+	err := LoadBuiltInTypes(s.emptyRepo)
+	c.Assert(err, IsNil)
+}
+
+// Tests for Repository.GrantsOf()
+
+func (s *RepositorySuite) TestGrantsOfReturnsNothingForUnknownSkills(c *C) {
+	// Asking about unknown snaps just returns an empty list
+	c.Assert(s.testRepo.GrantsOf("unknown", "unknown"), HasLen, 0)
+}
+
+func (s *RepositorySuite) TestGrantsOfReturnsNothingForEmptyString(c *C) {
+	// Asking about the empty string just returns an empty list
+	c.Assert(s.testRepo.GrantsOf("", ""), HasLen, 0)
+}
+
+func (s *RepositorySuite) TestGrantsOfReturnsCorrectData(c *C) {
+	err := s.testRepo.AddSkill(s.skill)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSlot(s.slot)
+	c.Assert(err, IsNil)
+	// After granting the result is as expected
+	err = s.testRepo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
+	c.Assert(err, IsNil)
+	users := s.testRepo.GrantsOf(s.skill.Snap, s.skill.Name)
+	c.Assert(users, DeepEquals, []*Slot{s.slot})
+	// After revoking the result is empty again
+	err = s.testRepo.Revoke(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
+	c.Assert(err, IsNil)
+	c.Assert(s.testRepo.GrantsOf(s.skill.Snap, s.skill.Name), HasLen, 0)
 }

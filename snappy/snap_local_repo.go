@@ -20,9 +20,10 @@
 package snappy
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/ubuntu-core/snappy/dirs"
 )
 
 const (
@@ -37,38 +38,12 @@ type SnapLocalRepository struct {
 
 // NewLocalSnapRepository returns a new SnapLocalRepository for the given
 // path
-func NewLocalSnapRepository(path string) *SnapLocalRepository {
+func NewLocalSnapRepository() *SnapLocalRepository {
+	path := dirs.SnapSnapsDir
 	if s, err := os.Stat(path); err != nil || !s.IsDir() {
 		return nil
 	}
 	return &SnapLocalRepository{path: path}
-}
-
-// Description describes the local repository
-func (s *SnapLocalRepository) Description() string {
-	return fmt.Sprintf("Snap local repository for %s", s.path)
-}
-
-// Details returns details for the given snap
-func (s *SnapLocalRepository) Details(name string, origin string) (versions []Part, err error) {
-	if origin == "" || origin == SideloadedOrigin {
-		origin = "*"
-	}
-	appParts, err := s.partsForGlobExpr(filepath.Join(s.path, name+"."+origin, "*", "meta", "snap.yaml"))
-	fmkParts, err := s.partsForGlobExpr(filepath.Join(s.path, name, "*", "meta", "snap.yaml"))
-
-	parts := append(appParts, fmkParts...)
-
-	if len(parts) == 0 {
-		return nil, ErrPackageNotFound
-	}
-
-	return parts, nil
-}
-
-// Updates returns the available updates
-func (s *SnapLocalRepository) Updates() (parts []Part, err error) {
-	return nil, err
 }
 
 // Installed returns the installed snaps from this repository
@@ -83,6 +58,7 @@ func (s *SnapLocalRepository) Installed() (parts []Part, err error) {
 func (s *SnapLocalRepository) All() ([]Part, error) {
 	return s.Installed()
 }
+
 func (s *SnapLocalRepository) partsForGlobExpr(globExpr string) (parts []Part, err error) {
 	matches, err := filepath.Glob(globExpr)
 	if err != nil {

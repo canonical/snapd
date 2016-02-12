@@ -221,7 +221,7 @@ X-Snappy=yes
 ExecStart=/usr/bin/ubuntu-core-launcher app%[2]s aa-profile /apps/app%[2]s/1.0/bin/start
 Restart=on-failure
 WorkingDirectory=/apps/app%[2]s/1.0/
-Environment="SNAP_APP=app_service_1.0" "SNAP=/apps/app%[2]s/1.0/" "SNAP_DATA=/var/lib/apps/app%[2]s/1.0/" "TMPDIR=/tmp/snaps/app%[2]s/1.0/tmp" "TEMPDIR=/tmp/snaps/app%[2]s/1.0/tmp" "SNAP_NAME=app" "SNAP_VERSION=1.0" "SNAP_ORIGIN=%[3]s" "SNAP_FULLNAME=app%[2]s" "SNAP_ARCH=%[5]s" "SNAP_USER_DATA=%%h/apps/app%[2]s/1.0/" "SNAP_APP_PATH=/apps/app%[2]s/1.0/" "SNAP_APP_DATA_PATH=/var/lib/apps/app%[2]s/1.0/" "SNAP_APP_TMPDIR=/tmp/snaps/app%[2]s/1.0/tmp" "SNAP_APP_USER_DATA_PATH=%%h/apps/app%[2]s/1.0/"
+Environment="SNAP_APP=app_service_1.0" "SNAP=/apps/app%[2]s/1.0/" "SNAP_DATA=/var/lib/apps/app%[2]s/1.0/" "TMPDIR=/tmp/snaps/app%[2]s/1.0/tmp" "TEMPDIR=/tmp/snaps/app%[2]s/1.0/tmp" "SNAP_NAME=app" "SNAP_VERSION=1.0" "SNAP_ORIGIN=%[3]s" "SNAP_FULLNAME=app%[2]s" "SNAP_ARCH=%[5]s" "SNAP_USER_DATA=/root/apps/app%[2]s/1.0/" "SNAP_APP_PATH=/apps/app%[2]s/1.0/" "SNAP_APP_DATA_PATH=/var/lib/apps/app%[2]s/1.0/" "SNAP_APP_TMPDIR=/tmp/snaps/app%[2]s/1.0/tmp" "SNAP_APP_USER_DATA_PATH=/root/apps/app%[2]s/1.0/"
 ExecStop=/usr/bin/ubuntu-core-launcher app%[2]s aa-profile /apps/app%[2]s/1.0/bin/stop
 ExecStopPost=/usr/bin/ubuntu-core-launcher app%[2]s aa-profile /apps/app%[2]s/1.0/bin/stop --post
 TimeoutStopSec=10
@@ -232,13 +232,13 @@ WantedBy=multi-user.target
 `
 
 var (
-	expectedAppService  = fmt.Sprintf(expectedServiceFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".mvo", "mvo", "\n", arch.UbuntuArchitecture())
-	expectedFmkService  = fmt.Sprintf(expectedServiceFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target", "", "", "\n", arch.UbuntuArchitecture())
-	expectedDbusService = fmt.Sprintf(expectedServiceFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".mvo", "mvo", "BusName=foo.bar.baz\nType=dbus", arch.UbuntuArchitecture())
+	expectedAppService  = fmt.Sprintf(expectedServiceFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".mvo", "mvo", "Type=simple\n", arch.UbuntuArchitecture())
+	expectedFmkService  = fmt.Sprintf(expectedServiceFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target", "", "", "Type=simple\n", arch.UbuntuArchitecture())
+	expectedDbusService = fmt.Sprintf(expectedServiceFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".mvo", "mvo", "Type=dbus\nBusName=foo.bar.baz", arch.UbuntuArchitecture())
 
 	// things that need network
-	expectedNetAppService = fmt.Sprintf(expectedServiceFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target\nAfter=snappy-wait4network.service\nRequires=snappy-wait4network.service", ".mvo", "mvo", "\n", arch.UbuntuArchitecture())
-	expectedNetFmkService = fmt.Sprintf(expectedServiceFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target\nAfter=snappy-wait4network.service\nRequires=snappy-wait4network.service", "", "", "\n", arch.UbuntuArchitecture())
+	expectedNetAppService = fmt.Sprintf(expectedServiceFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target\nAfter=snappy-wait4network.service\nRequires=snappy-wait4network.service", ".mvo", "mvo", "Type=simple\n", arch.UbuntuArchitecture())
+	expectedNetFmkService = fmt.Sprintf(expectedServiceFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target\nAfter=snappy-wait4network.service\nRequires=snappy-wait4network.service", "", "", "Type=simple\n", arch.UbuntuArchitecture())
 )
 
 func (s *SystemdTestSuite) TestGenAppServiceFile(c *C) {
@@ -255,6 +255,7 @@ func (s *SystemdTestSuite) TestGenAppServiceFile(c *C) {
 		StopTimeout: time.Duration(10 * time.Second),
 		AaProfile:   "aa-profile",
 		UdevAppName: "app.mvo",
+		Type:        "simple",
 	}
 
 	c.Check(New("", nil).GenServiceFile(desc), Equals, expectedAppService)
@@ -286,6 +287,7 @@ func (s *SystemdTestSuite) TestGenNetAppServiceFile(c *C) {
 		AaProfile:   "aa-profile",
 		IsNetworked: true,
 		UdevAppName: "app.mvo",
+		Type:        "simple",
 	}
 
 	c.Check(New("", nil).GenServiceFile(desc), Equals, expectedNetAppService)
@@ -306,6 +308,7 @@ func (s *SystemdTestSuite) TestGenFmkServiceFile(c *C) {
 		AaProfile:   "aa-profile",
 		IsFramework: true,
 		UdevAppName: "app",
+		Type:        "simple",
 	}
 
 	c.Check(New("", nil).GenServiceFile(desc), Equals, expectedFmkService)
@@ -327,6 +330,7 @@ func (s *SystemdTestSuite) TestGenNetFmkServiceFile(c *C) {
 		IsNetworked: true,
 		IsFramework: true,
 		UdevAppName: "app",
+		Type:        "simple",
 	}
 
 	c.Check(New("", nil).GenServiceFile(desc), Equals, expectedNetFmkService)
@@ -347,6 +351,7 @@ func (s *SystemdTestSuite) TestGenServiceFileWithBusName(c *C) {
 		AaProfile:   "aa-profile",
 		BusName:     "foo.bar.baz",
 		UdevAppName: "app.mvo",
+		Type:        "dbus",
 	}
 
 	generated := New("", nil).GenServiceFile(desc)

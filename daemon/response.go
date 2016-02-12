@@ -107,20 +107,6 @@ type errorResult struct {
 	Value   errorValue `json:"value,omitempty"`
 }
 
-func (r *resp) setError(format string, v ...interface{}) Response {
-	m := errorResult{}
-	newr := &resp{
-		Type:   ResponseTypeError,
-		Result: &m,
-		Status: r.Status,
-	}
-
-	logger.Noticef(format, v...)
-	m.Message = fmt.Sprintf(format, v...)
-
-	return newr
-}
-
 // SyncResponse builds a "sync" response from the given result.
 func SyncResponse(result interface{}) Response {
 	if err, ok := result.(error); ok {
@@ -149,12 +135,15 @@ func AsyncResponse(result map[string]interface{}) Response {
 
 // makeErrorResponder builds an errorResponder from the given error status.
 func makeErrorResponder(status int) errorResponder {
-	r := &resp{
-		Type:   ResponseTypeError,
-		Status: status,
+	return func(format string, v ...interface{}) Response {
+		return &resp{
+			Type: ResponseTypeError,
+			Result: &errorResult{
+				Message: fmt.Sprintf(format, v...),
+			},
+			Status: status,
+		}
 	}
-
-	return r.setError
 }
 
 // A FileResponse 's ServeHTTP method serves the file

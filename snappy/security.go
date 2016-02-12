@@ -71,6 +71,17 @@ var (
 		SecurityCaps: []string{},
 	}
 
+	// TODO This is not actually right. Even if there are skills,
+	// we still want to give the snap a default set of allowances,
+	// such as being able to read and write in its own directories
+	// and perhaps network access (we're still deciding on that
+	// one). So the real logic we want here is: give the snap a
+	// default set of permissions, and then whatever else the
+	// skills permit (migration or not). This is coming soon.
+	defaultSecurityPolicy = &SecurityDefinitions{
+		SecurityCaps: []string{},
+	}
+
 	runAppArmorParser = runAppArmorParserImpl
 )
 
@@ -762,7 +773,12 @@ func generatePolicy(m *snapYaml, baseDir string) error {
 		if err != nil {
 			return err
 		}
+
+		// if no skill is specified, use the defaultSecurityPolicy
 		if skill == nil {
+			if err = defaultSecurityPolicy.generatePolicyForServiceBinary(m, app.Name, baseDir); err != nil {
+				logger.Noticef("Failed to generate policy for app %s: %v", app.Name, err)
+			}
 			continue
 		}
 
@@ -938,7 +954,7 @@ func GeneratePolicyFromFile(fn string, force bool) error {
 
 // RegenerateAllPolicy will re-generate all policy that needs re-generating
 func RegenerateAllPolicy(force bool) error {
-	installed, err := NewMetaLocalRepository().Installed()
+	installed, err := NewLocalSnapRepository().Installed()
 	if err != nil {
 		return err
 	}

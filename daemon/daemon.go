@@ -130,10 +130,10 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/ubuntu-core/snappy/asserts"
-	"github.com/ubuntu-core/snappy/caps"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/skills"
 )
 
 // A Daemon listens for requests and routes them to the right command
@@ -143,8 +143,10 @@ type Daemon struct {
 	listener     net.Listener
 	tomb         tomb.Tomb
 	router       *mux.Router
-	capRepo      *caps.Repository
 	asserts      *asserts.Database
+	skills       *skills.Repository
+	// enableInternalSkillActions controls if adding and removing skills and slots is allowed.
+	enableInternalSkillActions bool
 }
 
 // A ResponseFunc handles one of the individual verbs for a method
@@ -363,14 +365,16 @@ func New() *Daemon {
 	if err != nil {
 		panic(err.Error())
 	}
-	repo := caps.NewRepository()
-	err = caps.LoadBuiltInTypes(repo)
+	skillRepo := skills.NewRepository()
+	err = skills.LoadBuiltInTypes(skillRepo)
 	if err != nil {
 		panic(err.Error())
 	}
 	return &Daemon{
 		tasks:   make(map[string]*Task),
-		capRepo: repo,
 		asserts: db,
+		skills:  skillRepo,
+		// TODO: Decide when this should be disabled by default.
+		enableInternalSkillActions: true,
 	}
 }

@@ -1,0 +1,10 @@
+name: dev-kmsg
+version: 1.0
+summary: dev-kmsg snap
+description: |
+ This simple snap provides a binary to read and output real raw
+ data from /dev/kmsg using dd. For it to work it needs that hw
+ to be assigned before being run.
+apps:
+ reader:
+  command: bin/reader

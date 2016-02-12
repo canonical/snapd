@@ -17,7 +17,8 @@ is similar to Java's `CLASSPATH` or Python's `~/.local`. `GOPATH` is documented
 Various conventions exist for naming the location of your `GOPATH`, but it
 should exist, and be writable by you. For example
 
-    export GOPATH=${HOME}/work mkdir $GOPATH
+    export GOPATH=${HOME}/work
+    mkdir $GOPATH
 
 will define and create `$HOME/work` as your local `GOPATH`. The `go` tool
 itself will create three subdirectories inside your `GOPATH` when required;
@@ -57,6 +58,8 @@ To generate dependencies.tsv you need `godeps`, so
 To obtain the correct dependencies for the project, run:
 
     godeps -t -u dependencies.tsv
+
+You can use the script `get-deps.sh` to run the two previous steps.
 
 If the dependencies need updating
 
@@ -119,7 +122,14 @@ transfer it to the snappy system and then run:
     sudo systemctl stop ubuntu-snappy.snapd.service ubuntu-snappy.snapd.socket
     sudo /lib/systemd/systemd-activate -l /run/snapd.socket ./snapd
 
-This will stop the installed snapd and activate the new one.
+This will stop the installed snapd and activate the new one. Once it's
+printed out something like `Listening on /run/snapd.socket as 3.` you
+should then
+
+    sudo chmod 0666 /run/snapd.socket
+
+so the socket has the right permissions (otherwise you need `sudo` to
+connect).
 
 
 [travis-image]: https://travis-ci.org/ubuntu-core/snappy.svg?branch=master

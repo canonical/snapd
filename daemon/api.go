@@ -21,7 +21,6 @@ package daemon
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"mime"
@@ -35,12 +34,12 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/ubuntu-core/snappy/asserts"
-	"github.com/ubuntu-core/snappy/caps"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/lockfile"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
+	"github.com/ubuntu-core/snappy/skills"
 	"github.com/ubuntu-core/snappy/snap/lightweight"
 	"github.com/ubuntu-core/snappy/snappy"
 )
@@ -60,8 +59,7 @@ var api = []*Command{
 	snapSvcsCmd,
 	snapSvcLogsCmd,
 	operationCmd,
-	capabilitiesCmd,
-	capabilityCmd,
+	skillsCmd,
 	assertsCmd,
 	assertsFindManyCmd,
 }
@@ -141,16 +139,11 @@ var (
 		DELETE: deleteOp,
 	}
 
-	capabilitiesCmd = &Command{
-		Path:   "/2.0/capabilities",
+	skillsCmd = &Command{
+		Path:   "/2.0/skills",
 		UserOK: true,
-		GET:    getCapabilities,
-		POST:   addCapability,
-	}
-
-	capabilityCmd = &Command{
-		Path:   "/2.0/capabilities/{name}",
-		DELETE: deleteCapability,
+		GET:    getSkills,
+		POST:   changeSkills,
 	}
 
 	// TODO: allow to post assertions for UserOK? they are verified anyway
@@ -160,8 +153,9 @@ var (
 	}
 
 	assertsFindManyCmd = &Command{
-		Path: "/2.0/assertions/{assertType}",
-		GET:  assertsFindMany,
+		Path:   "/2.0/assertions/{assertType}",
+		UserOK: true,
+		GET:    assertsFindMany,
 	}
 )
 
@@ -189,7 +183,7 @@ func sysInfo(c *Command, r *http.Request) Response {
 
 type metarepo interface {
 	Details(string, string) ([]snappy.Part, error)
-	Find(string) ([]snappy.Part, error) // XXX: change this to Search iff aliases (and thus SharedNames) are no more
+	Find(string) ([]snappy.Part, error)
 }
 
 var newRemoteRepo = func() metarepo {
@@ -542,6 +536,14 @@ func snapService(c *Command, r *http.Request) Response {
 	}).Map(route))
 }
 
+type configurator interface {
+	Configure(*snappy.SnapPart, []byte) (string, error)
+}
+
+var getConfigurator = func() configurator {
+	return &snappy.Overlord{}
+}
+
 func snapConfig(c *Command, r *http.Request) Response {
 	vars := muxVars(r)
 	name := vars["name"]
@@ -577,17 +579,13 @@ func snapConfig(c *Command, r *http.Request) Response {
 		return BadRequest("reading config request body gave %v", err)
 	}
 
-	config, err := part.Config(bs)
+	overlord := getConfigurator()
+	config, err := overlord.Configure(part.(*snappy.SnapPart), bs)
 	if err != nil {
 		return InternalError("unable to retrieve config for %s: %v", pkgName, err)
 	}
 
 	return SyncResponse(config)
-}
-
-type configSubtask struct {
-	Status string      `json:"status"`
-	Output interface{} `json:"output"`
 }
 
 func getOpInfo(c *Command, r *http.Request) Response {
@@ -713,7 +711,6 @@ func (inst *snapInstruction) deactivate() interface{} {
 func (inst *snapInstruction) dispatch() func() interface{} {
 	switch inst.Action {
 	case "install":
-		// TODO: licenses
 		return inst.install
 	case "update":
 		return inst.update
@@ -932,50 +929,111 @@ func appIconGet(c *Command, r *http.Request) Response {
 	return iconGet(name, origin)
 }
 
-func getCapabilities(c *Command, r *http.Request) Response {
-	return SyncResponse(map[string]interface{}{
-		"capabilities": c.d.capRepo.Caps(),
-	})
+// skillGrant holds the identification of a slot that has been granted to a skill.
+type skillGrant struct {
+	Snap string `json:"snap"`
+	Name string `json:"name"`
 }
 
-func addCapability(c *Command, r *http.Request) Response {
+// skillInfo holds details for a skill as returned by the REST API.
+type skillInfo struct {
+	Snap      string       `json:"snap"`
+	Name      string       `json:"name"`
+	Type      string       `json:"type"`
+	Label     string       `json:"label"`
+	GrantedTo []skillGrant `json:"granted_to"`
+}
+
+// getSkills returns a response with a list of all the skills and which slots use them.
+func getSkills(c *Command, r *http.Request) Response {
+	var skills []skillInfo
+	for _, skill := range c.d.skills.AllSkills("") {
+		var slots []skillGrant
+		for _, slot := range c.d.skills.GrantsOf(skill.Snap, skill.Name) {
+			slots = append(slots, skillGrant{
+				Snap: slot.Snap,
+				Name: slot.Name,
+			})
+		}
+		skills = append(skills, skillInfo{
+			Snap:      skill.Snap,
+			Name:      skill.Name,
+			Type:      skill.Type,
+			Label:     skill.Label,
+			GrantedTo: slots,
+		})
+	}
+	return SyncResponse(skills)
+}
+
+// skillAction is an action performed on the skill system.
+type skillAction struct {
+	Action string       `json:"action"`
+	Skill  skills.Skill `json:"skill,omitempty"`
+	Slot   skills.Slot  `json:"slot,omitempty"`
+}
+
+// changeSkills controls the skill system.
+// Skills can be granted to and revoked from slots.
+// When enableInternalSkillActions is true skills and slots can also be
+// explicitly added and removed.
+func changeSkills(c *Command, r *http.Request) Response {
+	var a skillAction
 	decoder := json.NewDecoder(r.Body)
-	var newCap caps.Capability
-	if err := decoder.Decode(&newCap); err != nil || newCap.TypeName == "" {
-		return BadRequest("can't decode request body into a capability: %v", err)
+	if err := decoder.Decode(&a); err != nil {
+		return BadRequest("cannot decode request body into a skill action: %v", err)
 	}
-
-	// Re-construct the perfect type object knowing just the type name that is
-	// passed through the JSON representation.
-	newType := c.d.capRepo.Type(newCap.TypeName)
-	if newType == nil {
-		return BadRequest("cannot add capability: unknown type name %q", newCap.TypeName)
+	if a.Action == "" {
+		return BadRequest("skill action not specified")
 	}
-
-	if err := c.d.capRepo.Add(&newCap); err != nil {
-		return BadRequest("%v", err)
+	if !c.d.enableInternalSkillActions && a.Action != "grant" && a.Action != "revoke" {
+		return BadRequest("internal skill actions are disabled")
 	}
-
-	return &resp{
-		Type:   ResponseTypeSync,
-		Status: http.StatusCreated,
-		Result: map[string]string{
-			"resource": fmt.Sprintf("/2.0/capabilities/%s", newCap.Name),
-		},
-	}
-}
-
-func deleteCapability(c *Command, r *http.Request) Response {
-	name := muxVars(r)["name"]
-	err := c.d.capRepo.Remove(name)
-	switch err.(type) {
-	case nil:
+	switch a.Action {
+	case "grant":
+		err := c.d.skills.Grant(a.Skill.Snap, a.Skill.Name, a.Slot.Snap, a.Slot.Name)
+		if err != nil {
+			return BadRequest("%v", err)
+		}
 		return SyncResponse(nil)
-	case *caps.NotFoundError:
-		return NotFound("can't find capability %q: %v", name, err)
-	default:
-		return InternalError("can't remove capability %q: %v", name, err)
+	case "revoke":
+		err := c.d.skills.Revoke(a.Skill.Snap, a.Skill.Name, a.Slot.Snap, a.Slot.Name)
+		if err != nil {
+			return BadRequest("%v", err)
+		}
+		return SyncResponse(nil)
+	case "add-skill":
+		err := c.d.skills.AddSkill(&a.Skill)
+		if err != nil {
+			return BadRequest("%v", err)
+		}
+		return &resp{
+			Type:   ResponseTypeSync,
+			Status: http.StatusCreated,
+		}
+	case "remove-skill":
+		err := c.d.skills.RemoveSkill(a.Skill.Snap, a.Skill.Name)
+		if err != nil {
+			return BadRequest("%v", err)
+		}
+		return SyncResponse(nil)
+	case "add-slot":
+		err := c.d.skills.AddSlot(&a.Slot)
+		if err != nil {
+			return BadRequest("%v", err)
+		}
+		return &resp{
+			Type:   ResponseTypeSync,
+			Status: http.StatusCreated,
+		}
+	case "remove-slot":
+		err := c.d.skills.RemoveSlot(a.Slot.Snap, a.Slot.Name)
+		if err != nil {
+			return BadRequest("%v", err)
+		}
+		return SyncResponse(nil)
 	}
+	return BadRequest("unsupported skill action: %q", a.Action)
 }
 
 func doAssert(c *Command, r *http.Request) Response {
