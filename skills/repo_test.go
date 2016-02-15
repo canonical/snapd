@@ -816,7 +816,7 @@ func (s *RepositorySuite) TestSlotSnippetsForSnapSuccess(c *C) {
 			}
 			return nil, ErrUnknownSecurity
 		},
-		SlotSecuritySnippetCallback: func(skill *Skill, securitySystem SecuritySystem) ([]byte, error) {
+		SlotSecuritySnippetCallback: func(skill *Skill, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == testSecurity {
 				return []byte(`consumer snippet`), nil
 			}
@@ -851,7 +851,7 @@ func (s *RepositorySuite) TestSecuritySnippetsForSnapFailure(c *C) {
 	var testSecurity SecuritySystem = "security"
 	t := &TestType{
 		TypeName: "type",
-		SlotSecuritySnippetCallback: func(skill *Skill, securitySystem SecuritySystem) ([]byte, error) {
+		SlotSecuritySnippetCallback: func(skill *Skill, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			return nil, fmt.Errorf("cannot compute snippet for consumer")
 		},
 		SkillSecuritySnippetCallback: func(skill *Skill, securitySystem SecuritySystem) ([]byte, error) {
