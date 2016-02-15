@@ -128,16 +128,19 @@ func (s *TestTypeSuite) TestSlotSecuritySnippet(c *C) {
 	skill := &Skill{
 		Type: "test",
 	}
-	snippet, err := s.t.SlotSecuritySnippet(skill, SecurityAppArmor)
+	slot := &Slot{
+		Type: "test",
+	}
+	snippet, err := s.t.SlotSecuritySnippet(skill, slot, SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.t.SlotSecuritySnippet(skill, SecuritySecComp)
+	snippet, err = s.t.SlotSecuritySnippet(skill, slot, SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.t.SlotSecuritySnippet(skill, SecurityDBus)
+	snippet, err = s.t.SlotSecuritySnippet(skill, slot, SecurityDBus)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.t.SlotSecuritySnippet(skill, "foo")
+	snippet, err = s.t.SlotSecuritySnippet(skill, slot, "foo")
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 }

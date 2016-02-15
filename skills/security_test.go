@@ -87,7 +87,7 @@ func (s *SecuritySuite) TestAppArmorSkillPermissions(c *C) {
 func (s *SecuritySuite) TestAppArmorSlotPermissions(c *C) {
 	s.prepareFixtureWithType(c, &TestType{
 		TypeName: "type",
-		SlotSecuritySnippetCallback: func(skill *Skill, securitySystem SecuritySystem) ([]byte, error) {
+		SlotSecuritySnippetCallback: func(skill *Skill, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == SecurityAppArmor {
 				return []byte("consumer snippet\n"), nil
 			}
@@ -130,7 +130,7 @@ func (s *SecuritySuite) TestSecCompSkillPermissions(c *C) {
 func (s *SecuritySuite) TestSecCompSlotPermissions(c *C) {
 	s.prepareFixtureWithType(c, &TestType{
 		TypeName: "type",
-		SlotSecuritySnippetCallback: func(skill *Skill, securitySystem SecuritySystem) ([]byte, error) {
+		SlotSecuritySnippetCallback: func(skill *Skill, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == SecuritySecComp {
 				return []byte("deny kexec\n"), nil
 			}
@@ -170,7 +170,7 @@ func (s *SecuritySuite) TestUdevSkillPermissions(c *C) {
 func (s *SecuritySuite) TestUdevSlotPermissions(c *C) {
 	s.prepareFixtureWithType(c, &TestType{
 		TypeName: "type",
-		SlotSecuritySnippetCallback: func(skill *Skill, securitySystem SecuritySystem) ([]byte, error) {
+		SlotSecuritySnippetCallback: func(skill *Skill, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == SecurityUDev {
 				return []byte("...\n"), nil
 			}
@@ -214,7 +214,7 @@ func (s *SecuritySuite) TestDBusSkillPermissions(c *C) {
 func (s *SecuritySuite) TestDBusSlotPermissions(c *C) {
 	s.prepareFixtureWithType(c, &TestType{
 		TypeName: "type",
-		SlotSecuritySnippetCallback: func(skill *Skill, securitySystem SecuritySystem) ([]byte, error) {
+		SlotSecuritySnippetCallback: func(skill *Skill, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == SecurityDBus {
 				return []byte("...\n"), nil
 			}
