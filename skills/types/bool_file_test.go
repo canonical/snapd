@@ -182,6 +182,10 @@ func (s *BoolFileTypeSuite) TestSlotSecuritySnippetUnusedSecuritySystems(c *C) {
 		snippet, err = s.t.SlotSecuritySnippet(skill, skills.SecurityDBus)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
+		// No extra udev permissions for slot
+		snippet, err = s.t.SlotSecuritySnippet(skill, skills.SecurityUDev)
+		c.Assert(err, IsNil)
+		c.Assert(snippet, IsNil)
 		// Other security types are not recognized
 		snippet, err = s.t.SlotSecuritySnippet(skill, "foo")
 		c.Assert(err, ErrorMatches, `unknown security system`)
@@ -223,6 +227,10 @@ func (s *BoolFileTypeSuite) TestSkillSecuritySnippetUnusedSecuritySystems(c *C) 
 		c.Assert(snippet, IsNil)
 		// No extra dbus permissions for skill
 		snippet, err = s.t.SkillSecuritySnippet(skill, skills.SecurityDBus)
+		c.Assert(err, IsNil)
+		c.Assert(snippet, IsNil)
+		// No extra udev permissions for skill
+		snippet, err = s.t.SkillSecuritySnippet(skill, skills.SecurityUDev)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 		// Other security types are not recognized
