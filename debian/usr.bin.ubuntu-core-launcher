@@ -79,4 +79,18 @@
     mount options=(rw bind) /snaps/ubuntu-core*/*/lib/ -> /lib/,
     mount options=(rw bind) /snaps/ubuntu-core*/*/lib64/ -> /lib64/,
     mount options=(rw bind) /snaps/ubuntu-core*/*/usr/ -> /usr/,
+
+    # for creating the user data directories: ~/snaps, ~/snaps/<name> and
+    # ~/snaps/<name>/<version>
+    / r,
+    @{HOMEDIRS}/ r,
+    # These should both have 'owner' match but due to LP: #1466234, we can't
+    # yet
+    @{HOME}/ r,
+    @{HOME}/snaps/{,*/,*/*/} rw,
+
+    # for creating the user shared memory directories
+    /{dev,run}/{,shm/} r,
+    # This should both have 'owner' match but due to LP: #1466234, we can't yet
+    /{dev,run}/shm/{,*/,*/*/} rw,
 }
