@@ -526,7 +526,7 @@ func snapService(c *Command, r *http.Request) Response {
 }
 
 type configurator interface {
-	Configure(*snappy.SnapPart, []byte) (string, error)
+	Configure(*snappy.SnapPart, []byte) ([]byte, error)
 }
 
 var getConfigurator = func() configurator {
@@ -574,7 +574,7 @@ func snapConfig(c *Command, r *http.Request) Response {
 		return InternalError("unable to retrieve config for %s: %v", pkgName, err)
 	}
 
-	return SyncResponse(config)
+	return SyncResponse(string(config))
 }
 
 func getOpInfo(c *Command, r *http.Request) Response {
