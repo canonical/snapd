@@ -1544,6 +1544,17 @@ func (s *SnapTestSuite) TestCpiURLDependsOnEnviron(c *C) {
 	c.Check(before, Not(Equals), after)
 }
 
+func (s *SnapTestSuite) TestAuthURLDependsOnEnviron(c *C) {
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", ""), IsNil)
+	before := authURL()
+
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", "1"), IsNil)
+	defer os.Setenv("SNAPPY_USE_STAGING_CPI", "")
+	after := authURL()
+
+	c.Check(before, Not(Equals), after)
+}
+
 func (s *SnapTestSuite) TestChannelFromLocalManifest(c *C) {
 	snapYaml, err := s.makeInstalledMockSnap()
 	c.Assert(err, IsNil)
