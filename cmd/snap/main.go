@@ -37,6 +37,9 @@ var Stdout io.Writer = os.Stdout
 // Stderr is the standard error stream, it is redirected for testing.
 var Stderr io.Writer = os.Stderr
 
+// Stdin is the standard input stream, it is redirected for testing.
+var Stdin io.Reader = os.Stdin
+
 type options struct {
 	// No global options yet
 }
