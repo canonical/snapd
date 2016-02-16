@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"time"
 
 	"gopkg.in/yaml.v2"
@@ -346,11 +347,13 @@ func (o *Overlord) SetActive(s *SnapPart, active bool, meter progress.Meter) err
 
 // ConfigureFromSnippet turns snippet into a snap configuration
 // and calls Configure on the result.
-func (o *Overlord) ConfigureFromSnippet(s *SnapPart, path []string, value string) (string, error) {
+func (o *Overlord) ConfigureFromSnippet(s *SnapPart, path []string, value string) (interface{}, error) {
 	var bs []byte
 	name := s.Name()
+	msgprefix := ""
 	if value != "" {
 		bs = snip2yaml(name, path, value)
+		msgprefix = "configuration succeeded but "
 	}
 
 	cfg, err := o.Configure(s, bs)
@@ -361,30 +364,35 @@ func (o *Overlord) ConfigureFromSnippet(s *SnapPart, path []string, value string
 
 	var m map[string]map[string]interface{}
 	if err := yaml.Unmarshal([]byte(cfg), &m); err != nil {
-		return "", fmt.Errorf("configuration succeeded but can't unmarshal result: %v", err)
+		return "", fmt.Errorf("%scan't unmarshal result: %v", msgprefix, err)
 	}
 
 	v, ok := m["config"][name]
 	if !ok {
 		// is this an error?
 		// config succeeded but returned the wrong lind of thing...
-		return "", fmt.Errorf("configuration succeeded but returned unexpected value: %v", m)
+		return "", fmt.Errorf("%sreturned unexpected value: %v", msgprefix, m)
 	}
 
 	for _, p := range path {
 		vm, ok := v.(map[interface{}]interface{})
 		if !ok {
 			// an error
-			return "", fmt.Errorf("configuration succeeded but got unexpected value in which to look for %q: %v", p, v)
+			return "", fmt.Errorf("%sgot unexpected value in which to look for %q: %v", msgprefix, p, v)
 		}
 		v, ok = vm[p]
 		if !ok {
 			// an error
-			return "", fmt.Errorf("configuration succeeded but result has no entry %q", p)
+			return "", fmt.Errorf("%sresult has no entry %q", msgprefix, p)
 		}
 	}
 
-	return fmt.Sprintf("%v", v), nil
+	switch k := reflect.ValueOf(v).Kind(); k {
+	case reflect.Array, reflect.Interface, reflect.Map, reflect.Slice, reflect.Struct:
+		return "", fmt.Errorf("%svalue at %q is not a simple value (looks like a %s)", msgprefix, path, k)
+	}
+
+	return v, nil
 }
 
 // Configure configures the given snap

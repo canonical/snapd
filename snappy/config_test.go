@@ -180,36 +180,39 @@ config:
   hello-app:
     foo:
       bar:
-        42
+        hello
 `)
 	bs, err := ov.ConfigureFromSnippet(snap, []string{"foo", "bar"}, "")
 	c.Assert(err, IsNil)
 	c.Check(ins, DeepEquals, []string{""})
-	c.Check(bs, Equals, "42")
+	c.Check(bs, Equals, "hello")
 
 	bs, err = ov.ConfigureFromSnippet(snap, []string{"foo", "bar"}, "8")
 	c.Assert(err, IsNil)
 	c.Check(ins, DeepEquals, []string{"", "config: {hello-app: {foo: {bar: 8}}}"})
-	c.Check(bs, Equals, "42")
+	c.Check(bs, Equals, "hello")
 
 	errOut = fmt.Errorf("hi")
-	_, err = ov.ConfigureFromSnippet(snap, []string{"foo", "bar"}, "42")
+	_, err = ov.ConfigureFromSnippet(snap, []string{"foo", "bar"}, "hello")
 	c.Check(err, Equals, errOut)
 
 	errOut = nil
 	out = []byte(`hello`)
-	_, err = ov.ConfigureFromSnippet(snap, []string{"foo", "bar"}, "42")
+	_, err = ov.ConfigureFromSnippet(snap, []string{"foo", "bar"}, "hello")
 	c.Check(err, ErrorMatches, `configuration succeeded but can't unmarshal result: (?m).*`)
 
-	out = []byte(`foo: {bar: 42}`)
-	_, err = ov.ConfigureFromSnippet(snap, []string{"foo", "bar"}, "42")
+	out = []byte(`foo: {bar: hello}`)
+	_, err = ov.ConfigureFromSnippet(snap, []string{"foo", "bar"}, "hello")
 	c.Check(err, ErrorMatches, `configuration succeeded but returned unexpected value: (?m).*`)
 
-	out = []byte(`config: {hello-app: {foo: 42}}`)
-	_, err = ov.ConfigureFromSnippet(snap, []string{"foo", "bar"}, "42")
-	c.Check(err, ErrorMatches, `configuration succeeded but got unexpected value in which to look for "bar": 42`)
+	out = []byte(`config: {hello-app: {foo: hello}}`)
+	_, err = ov.ConfigureFromSnippet(snap, []string{"foo", "bar"}, "hello")
+	c.Check(err, ErrorMatches, `configuration succeeded but got unexpected value in which to look for "bar": hello`)
 
 	out = []byte(`config: {hello-app: {foo: {a: b}}}`)
-	_, err = ov.ConfigureFromSnippet(snap, []string{"foo", "bar"}, "42")
+	_, err = ov.ConfigureFromSnippet(snap, []string{"foo", "bar"}, "hello")
 	c.Check(err, ErrorMatches, `configuration succeeded but result has no entry "bar"`)
+
+	_, err = ov.ConfigureFromSnippet(snap, []string{"foo"}, "hello")
+	c.Check(err, ErrorMatches, `configuration succeeded but value at \["foo"\] is not a simple value.*`)
 }
