@@ -23,11 +23,11 @@ package updates
 import (
 	"fmt"
 	"io/ioutil"
+	"os/exec"
 	"path/filepath"
 
 	"gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/partition"
@@ -104,9 +104,8 @@ func copySnap(c *check.C, snap, targetDir string) {
 }
 
 func buildSnap(c *check.C, snapDir, targetDir string) {
-	helpers.ChDir(targetDir, func() error {
-		// build in /var/tmp (which is not a tempfs)
-		cli.ExecCommand(c, "sudo", "TMPDIR=/var/tmp", "snappy", "build", "--squashfs", snapDir)
-		return nil
-	})
+	// build in /var/tmp (which is not a tempfs)
+	cmd := exec.Command("sudo", "TMPDIR=/var/tmp", "snappy", "build", "--squashfs", snapDir)
+	cmd.Dir = targetDir
+	cli.ExecCommandWrapper(cmd)
 }
