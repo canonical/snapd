@@ -32,6 +32,10 @@ type TestType struct {
 	SanitizeSkillCallback func(skill *Skill) error
 	// SanitizeSlotCallback is the callback invoked inside SanitizeSlot()
 	SanitizeSlotCallback func(slot *Slot) error
+	// SlotSecuritySnippetCallback is the callback invoked inside SlotSecuritySnippet()
+	SlotSecuritySnippetCallback func(skill *Skill, securitySystem SecuritySystem) ([]byte, error)
+	// SkillSecuritySnippetCallback is the callback invoked inside SkillSecuritySnippet()
+	SkillSecuritySnippetCallback func(skill *Skill, securitySystem SecuritySystem) ([]byte, error)
 }
 
 // String() returns the same value as Name().
@@ -69,11 +73,17 @@ func (t *TestType) SanitizeSlot(slot *Slot) error {
 // SkillSecuritySnippet returns the configuration snippet "required" to offer a test skill.
 // Providers don't gain any extra permissions.
 func (t *TestType) SkillSecuritySnippet(skill *Skill, securitySystem SecuritySystem) ([]byte, error) {
+	if t.SkillSecuritySnippetCallback != nil {
+		return t.SkillSecuritySnippetCallback(skill, securitySystem)
+	}
 	return nil, nil
 }
 
 // SlotSecuritySnippet returns the configuration snippet "required" to use a test skill.
 // Consumers don't gain any extra permissions.
 func (t *TestType) SlotSecuritySnippet(skill *Skill, securitySystem SecuritySystem) ([]byte, error) {
+	if t.SlotSecuritySnippetCallback != nil {
+		return t.SlotSecuritySnippetCallback(skill, securitySystem)
+	}
 	return nil, nil
 }

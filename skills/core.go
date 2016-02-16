@@ -81,12 +81,14 @@ type Type interface {
 type SecuritySystem string
 
 const (
-	// SecurityApparmor identifies the apparmor security system.
-	SecurityApparmor SecuritySystem = "apparmor"
-	// SecuritySeccomp identifies the seccomp security system.
-	SecuritySeccomp SecuritySystem = "seccomp"
+	// SecurityAppArmor identifies the apparmor security system.
+	SecurityAppArmor SecuritySystem = "apparmor"
+	// SecuritySecComp identifies the seccomp security system.
+	SecuritySecComp SecuritySystem = "seccomp"
 	// SecurityDBus identifies the DBus security system.
 	SecurityDBus SecuritySystem = "dbus"
+	// SecurityUDev identifies the UDev security system.
+	SecurityUDev SecuritySystem = "udev"
 )
 
 var (

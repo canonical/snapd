@@ -46,7 +46,7 @@ var _ = Suite(&RepositorySuite{
 		Type:  "type",
 		Label: "label",
 		Attrs: map[string]interface{}{"attr": "value"},
-		Apps:  []string{"app"},
+		Apps:  []string{"meta/hooks/skill"},
 	},
 	slot: &Slot{
 		Snap:  "consumer",
@@ -739,4 +739,72 @@ func (s *RepositorySuite) TestGrantsOfReturnsCorrectData(c *C) {
 	err = s.testRepo.Revoke(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
 	c.Assert(err, IsNil)
 	c.Assert(s.testRepo.GrantsOf(s.skill.Snap, s.skill.Name), HasLen, 0)
+}
+
+// Tests for Repository.SecuritySnippetsForSnap()
+
+func (s *RepositorySuite) TestSlotSnippetsForSnapSuccess(c *C) {
+	const testSecurity SecuritySystem = "security"
+	t := &TestType{
+		TypeName: "type",
+		SkillSecuritySnippetCallback: func(skill *Skill, securitySystem SecuritySystem) ([]byte, error) {
+			if securitySystem == testSecurity {
+				return []byte(`producer snippet`), nil
+			}
+			return nil, ErrUnknownSecurity
+		},
+		SlotSecuritySnippetCallback: func(skill *Skill, securitySystem SecuritySystem) ([]byte, error) {
+			if securitySystem == testSecurity {
+				return []byte(`consumer snippet`), nil
+			}
+			return nil, ErrUnknownSecurity
+		},
+	}
+	repo := s.emptyRepo
+	c.Assert(repo.AddType(t), IsNil)
+	c.Assert(repo.AddSkill(s.skill), IsNil)
+	c.Assert(repo.AddSlot(s.slot), IsNil)
+	c.Assert(repo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name), IsNil)
+	// Now producer.app should get `producer snippet` and consumer.app should
+	// get `consumer snippet`.
+	var snippets map[string][][]byte
+	snippets, err := repo.SecuritySnippetsForSnap(s.skill.Snap, testSecurity)
+	c.Assert(err, IsNil)
+	c.Check(snippets, DeepEquals, map[string][][]byte{
+		"meta/hooks/skill": [][]byte{
+			[]byte(`producer snippet`),
+		},
+	})
+	snippets, err = repo.SecuritySnippetsForSnap(s.slot.Snap, testSecurity)
+	c.Assert(err, IsNil)
+	c.Check(snippets, DeepEquals, map[string][][]byte{
+		"app": [][]byte{
+			[]byte(`consumer snippet`),
+		},
+	})
+}
+
+func (s *RepositorySuite) TestSecuritySnippetsForSnapFailure(c *C) {
+	var testSecurity SecuritySystem = "security"
+	t := &TestType{
+		TypeName: "type",
+		SlotSecuritySnippetCallback: func(skill *Skill, securitySystem SecuritySystem) ([]byte, error) {
+			return nil, fmt.Errorf("cannot compute snippet for consumer")
+		},
+		SkillSecuritySnippetCallback: func(skill *Skill, securitySystem SecuritySystem) ([]byte, error) {
+			return nil, fmt.Errorf("cannot compute snippet for provider")
+		},
+	}
+	repo := s.emptyRepo
+	c.Assert(repo.AddType(t), IsNil)
+	c.Assert(repo.AddSkill(s.skill), IsNil)
+	c.Assert(repo.AddSlot(s.slot), IsNil)
+	c.Assert(repo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name), IsNil)
+	var snippets map[string][][]byte
+	snippets, err := repo.SecuritySnippetsForSnap(s.skill.Snap, testSecurity)
+	c.Assert(err, ErrorMatches, "cannot compute snippet for provider")
+	c.Check(snippets, IsNil)
+	snippets, err = repo.SecuritySnippetsForSnap(s.slot.Snap, testSecurity)
+	c.Assert(err, ErrorMatches, "cannot compute snippet for consumer")
+	c.Check(snippets, IsNil)
 }
