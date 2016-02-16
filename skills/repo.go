@@ -310,10 +310,67 @@ func (r *Repository) Grant(skillSnapName, skillName, slotSnapName, slotName stri
 }
 
 // Revoke revokes the named skill from the slot of the given snap.
+//
+// Revoke has three modes of operation that depend on the passed arguments:
+//
+// - If all the arguments are specified then Revoke() finds a specific skill
+//   slot and a specific skill and revokes that skill from that skill slot. It is
+//   an error if skill or skill slot cannot be found or if the grant does not
+//   exist.
+// - If skillSnapName and skillName are empty then Revoke() finds the specified
+//   skill slot and revokes all the skills granted there. It is not an error if
+//   there are no such skills but it is still an error if the skill slot does
+//   not exist.
+// - If skillSnapName, skillName and slotName are all empty then Revoke finds
+//   the specified snap (designated by slotSnapName) and revokes all the skills
+//   from all the skill slots found therein. It is not an error if there are no
+//   such skills but it is still an error if the snap does not exist or has no
+//   slots at all.
 func (r *Repository) Revoke(skillSnapName, skillName, slotSnapName, slotName string) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
+	switch {
+	case skillSnapName == "" && skillName == "" && slotName == "":
+		// Revoke everything from slotSnapName
+		return r.revokeEverythingFromSnap(slotSnapName)
+	case skillSnapName == "" && skillName == "":
+		// Revoke everything from slotSnapName:slotName
+		return r.revokeEverythingFromSkillSlot(slotSnapName, slotName)
+	default:
+		return r.revokeSkillFromSkillSlot(skillSnapName, skillName, slotSnapName, slotName)
+	}
+
+}
+
+// revokeEverythingFromSnap finds a specific snap and revokes all the skills granted to all the slots therein.
+func (r *Repository) revokeEverythingFromSnap(slotSnapName string) error {
+	if _, ok := r.slots[slotSnapName]; !ok {
+		return fmt.Errorf("cannot revoke skill from snap %q, no such snap", slotSnapName)
+	}
+	for _, slot := range r.slots[slotSnapName] {
+		for skill := range r.slotSkills[slot] {
+			r.revoke(skill, slot)
+		}
+	}
+	return nil
+}
+
+// revokeEverythingFromSkillSlot finds a specific skill slot and revokes all the skills granted there.
+func (r *Repository) revokeEverythingFromSkillSlot(slotSnapName, slotName string) error {
+	// Ensure that such slot exists
+	slot := r.slots[slotSnapName][slotName]
+	if slot == nil {
+		return fmt.Errorf("cannot revoke skill from slot %q from snap %q, no such slot", slotName, slotSnapName)
+	}
+	for skill := range r.slotSkills[slot] {
+		r.revoke(skill, slot)
+	}
+	return nil
+}
+
+// revokeSkillFromSkillSlot finds a specific skill slot and skill and revokes it.
+func (r *Repository) revokeSkillFromSkillSlot(skillSnapName, skillName, slotSnapName, slotName string) error {
 	// Ensure that such skill exists
 	skill := r.skills[skillSnapName][skillName]
 	if skill == nil {
@@ -329,6 +386,12 @@ func (r *Repository) Revoke(skillSnapName, skillName, slotSnapName, slotName str
 		return fmt.Errorf("cannot revoke skill %q from snap %q from slot %q from snap %q, it is not granted",
 			skillName, skillSnapName, slotName, slotSnapName)
 	}
+	r.revoke(skill, slot)
+	return nil
+}
+
+// revoke revokes a specific skill from a specific skill slot.
+func (r *Repository) revoke(skill *Skill, slot *Slot) {
 	delete(r.slotSkills[slot], skill)
 	if len(r.slotSkills[slot]) == 0 {
 		delete(r.slotSkills, slot)
@@ -337,7 +400,6 @@ func (r *Repository) Revoke(skillSnapName, skillName, slotSnapName, slotName str
 	if len(r.skillSlots[skill]) == 0 {
 		delete(r.skillSlots, skill)
 	}
-	return nil
 }
 
 // GrantedTo returns all the skills granted to a given snap.
