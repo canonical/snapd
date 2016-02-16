@@ -345,8 +345,9 @@ func (o *Overlord) SetActive(s *SnapPart, active bool, meter progress.Meter) err
 	return s.deactivate(false, meter)
 }
 
-// ConfigureFromSnippet turns snippet into a snap configuration
-// and calls Configure on the result.
+// ConfigureFromSnippet turns a snippet (e.g. foo.bar.baz=quux, parsed
+// into separate path array and value) into a snap configuration and
+// calls Configure on the result.
 func (o *Overlord) ConfigureFromSnippet(s *SnapPart, path []string, value string) (interface{}, error) {
 	var bs []byte
 	name := s.Name()
@@ -370,7 +371,7 @@ func (o *Overlord) ConfigureFromSnippet(s *SnapPart, path []string, value string
 	v, ok := m["config"][name]
 	if !ok {
 		// is this an error?
-		// config succeeded but returned the wrong lind of thing...
+		// config succeeded but returned the wrong kind of thing...
 		return "", fmt.Errorf("%sreturned unexpected value: %v", msgprefix, m)
 	}
 
