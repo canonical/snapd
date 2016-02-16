@@ -21,6 +21,7 @@ package daemon
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"mime"
@@ -33,7 +34,6 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"fmt"
 	"github.com/ubuntu-core/snappy/asserts"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/lockfile"
