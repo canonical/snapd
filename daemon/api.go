@@ -529,7 +529,7 @@ func snapService(c *Command, r *http.Request) Response {
 
 type configurator interface {
 	Configure(*snappy.SnapPart, []byte) ([]byte, error)
-	ConfigureFromSnippet(*snappy.SnapPart, []string, string) (string, error)
+	ConfigureFromSnippet(*snappy.SnapPart, []string, string) (interface{}, error)
 }
 
 var getConfigurator = func() configurator {

@@ -788,7 +788,7 @@ func (o *fakeOverlord) Configure(s *snappy.SnapPart, c []byte) ([]byte, error) {
 	return []byte(config), nil
 }
 
-func (o *fakeOverlord) ConfigureFromSnippet(s *snappy.SnapPart, p []string, v string) (string, error) {
+func (o *fakeOverlord) ConfigureFromSnippet(s *snappy.SnapPart, p []string, v string) (interface{}, error) {
 	k := strings.Join(p, ".")
 	if v != "" {
 		o.snips[s.Name()] = map[string]string{k: v}
