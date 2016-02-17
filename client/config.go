@@ -53,7 +53,9 @@ func (client *Client) ConfigFromSnippet(name, key, value string) (string, error)
 		}
 		obj := map[string]interface{}{key: encv}
 
-		json.NewEncoder(&body).Encode(obj)
+		if err := json.NewEncoder(&body).Encode(obj); err != nil {
+			return "", err
+		}
 	}
 
 	var v interface{}
