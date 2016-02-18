@@ -59,10 +59,11 @@ func (s *snapdTestSuite) SetUpTest(c *check.C) {
 	// FIXME: for now pass a test-only trusted key through an env var
 	s.cmd = exec.Command("sudo", "env", "PATH="+os.Getenv("PATH"),
 		"SNAPPY_TRUSTED_ACCOUNT_KEY="+trustedKey,
-		"/lib/systemd/systemd-activate", "-ESNAPPY_TRUSTED_ACCOUNT_KEY",
+		"/lib/systemd/systemd-activate", "--setenv=SNAPPY_TRUSTED_ACCOUNT_KEY",
 		"-l", "/run/snapd.socket", "snapd")
 
-	s.cmd.Start()
+	err = s.cmd.Start()
+	c.Assert(err, check.IsNil)
 
 	wait.ForCommand(c, `^$`, "sudo", "chmod", "0666", "/run/snapd.socket")
 	common.InstallSnap(c, httpClientSnap+"/edge")
