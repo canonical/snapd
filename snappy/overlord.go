@@ -23,7 +23,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"time"
+
+	"gopkg.in/yaml.v2"
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
@@ -340,6 +343,57 @@ func (o *Overlord) SetActive(s *SnapPart, active bool, meter progress.Meter) err
 	}
 
 	return s.deactivate(false, meter)
+}
+
+// ConfigureFromSnippet turns a snippet (e.g. foo.bar.baz=quux, parsed
+// into separate path array and value) into a snap configuration and
+// calls Configure on the result.
+func (o *Overlord) ConfigureFromSnippet(s *SnapPart, path []string, value string) (interface{}, error) {
+	var bs []byte
+	name := s.Name()
+	msgprefix := ""
+	if value != "" {
+		bs = snip2yaml(name, path, value)
+		msgprefix = "configuration succeeded but "
+	}
+
+	cfg, err := o.Configure(s, bs)
+	if err != nil {
+		// TODO: make this not leak the intermediate representation
+		return "", err
+	}
+
+	var m map[string]map[string]interface{}
+	if err := yaml.Unmarshal([]byte(cfg), &m); err != nil {
+		return "", fmt.Errorf("%scan't unmarshal result: %v", msgprefix, err)
+	}
+
+	v, ok := m["config"][name]
+	if !ok {
+		// is this an error?
+		// config succeeded but returned the wrong kind of thing...
+		return "", fmt.Errorf("%sreturned unexpected value: %v", msgprefix, m)
+	}
+
+	for _, p := range path {
+		vm, ok := v.(map[interface{}]interface{})
+		if !ok {
+			// an error
+			return "", fmt.Errorf("%sgot unexpected value in which to look for %q: %v", msgprefix, p, v)
+		}
+		v, ok = vm[p]
+		if !ok {
+			// an error
+			return "", fmt.Errorf("%sresult has no entry %q", msgprefix, p)
+		}
+	}
+
+	switch k := reflect.ValueOf(v).Kind(); k {
+	case reflect.Array, reflect.Interface, reflect.Map, reflect.Slice, reflect.Struct:
+		return "", fmt.Errorf("%svalue at %q is not a simple value (looks like a %s)", msgprefix, path, k)
+	}
+
+	return v, nil
 }
 
 // Configure configures the given snap

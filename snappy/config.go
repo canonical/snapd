@@ -83,3 +83,22 @@ func runConfigScriptImpl(configScript, appArmorProfile string, rawConfig []byte,
 
 	return output, nil
 }
+
+// snip2yaml turns the snippet path and value
+// into the yaml expected by config for the named package
+func snip2yaml(name string, path []string, value string) []byte {
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "config: {%s: ", name)
+
+	for _, elem := range path {
+		fmt.Fprintf(&buf, "{%s: ", elem)
+	}
+
+	buf.WriteString(value)
+
+	for i := 0; i <= len(path); i++ {
+		buf.WriteByte('}')
+	}
+
+	return buf.Bytes()
+}
