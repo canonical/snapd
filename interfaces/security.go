@@ -104,7 +104,18 @@ func (sc *secComp) footerForApp(snapName, appName string) []byte {
 // KERNEL=="hiddev0", TAG:="snappy-assign", ENV{SNAPPY_APP}:="http.chipaca"
 //
 // NOTE: This interacts with ubuntu-core-launcher.
-// TODO: Explain how this works (security).
+//
+// This tag is picked up by /lib/udev/rules.d/80-snappy-assign.rules which in
+// turn runs /lib/udev/snappy-app-dev script, which re-configures the device
+// cgroup at /sys/fs/cgroup/devices/snappy.$SNAPPY_APP for the acl "c
+// $major:$minor rwm" for character devices and "b $major:$minor rwm" for block
+// devices.
+//
+// The control group is created by ubuntu-app-launcher.
+//
+// XXX: the variable there is $SNAPPY_APP but this is a remnant of the pasts,
+// it should be named $SNAP_NAME instead as it affects the entire snap, not a
+// particular application.
 type uDev struct{}
 
 func (udev *uDev) securitySystem() SecuritySystem {
