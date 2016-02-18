@@ -28,40 +28,57 @@ import (
 	sys "syscall"
 )
 
-var errNoUID = errors.New("no uid found")
+var errNoID = errors.New("no pid/uid found")
 
+const ucrednetNoProcess = uint64(0)
 const ucrednetNobody = uint32((1 << 32) - 1)
 
-func ucrednetGetUID(remoteAddr string) (uint32, error) {
-	idx := strings.IndexByte(remoteAddr, ';')
-	if !strings.HasPrefix(remoteAddr, "uid=") || idx < 5 {
-		return ucrednetNobody, errNoUID
+func ucrednetGet(remoteAddr string) (uint64, uint32, error) {
+	tokens := strings.Split(remoteAddr, ";")
+	pid := ucrednetNoProcess
+	uid := ucrednetNobody
+	for idx := range tokens {
+		token := tokens[idx]
+		if strings.HasPrefix(token, "pid=") {
+			v, err := strconv.ParseUint(token[4:], 10, 64)
+			if err == nil {
+				pid = v
+			}
+
+		}
+		if strings.HasPrefix(token, "uid=") {
+			v, err := strconv.ParseUint(token[4:], 10, 32)
+			if err == nil {
+				uid = uint32(v)
+			}
+		}
 	}
 
-	uid, err := strconv.ParseUint(remoteAddr[4:idx], 10, 32)
-	if err != nil {
-		return ucrednetNobody, err
+	if pid == ucrednetNoProcess || uid == ucrednetNobody {
+		return ucrednetNoProcess, ucrednetNobody, errNoID
+	} else {
+		return pid, uid, nil
 	}
-
-	return uint32(uid), nil
 }
 
 type ucrednetAddr struct {
 	net.Addr
+	pid string
 	uid string
 }
 
 func (wa *ucrednetAddr) String() string {
-	return fmt.Sprintf("uid=%s;%s", wa.uid, wa.Addr)
+	return fmt.Sprintf("pid=%s;uid=%s;%s", wa.pid, wa.uid, wa.Addr)
 }
 
 type ucrednetConn struct {
 	net.Conn
+	pid string
 	uid string
 }
 
 func (wc *ucrednetConn) RemoteAddr() net.Addr {
-	return &ucrednetAddr{wc.Conn.RemoteAddr(), wc.uid}
+	return &ucrednetAddr{wc.Conn.RemoteAddr(), wc.pid, wc.uid}
 }
 
 type ucrednetListener struct{ net.Listener }
@@ -74,6 +91,7 @@ func (wl *ucrednetListener) Accept() (net.Conn, error) {
 		return nil, err
 	}
 
+	pid := ""
 	uid := ""
 	if ucon, ok := con.(*net.UnixConn); ok {
 		f, err := ucon.File()
@@ -86,8 +104,9 @@ func (wl *ucrednetListener) Accept() (net.Conn, error) {
 			return nil, err
 		}
 
+		pid = strconv.FormatUint(uint64(ucred.Pid), 10)
 		uid = strconv.FormatUint(uint64(ucred.Uid), 10)
 	}
 
-	return &ucrednetConn{con, uid}, err
+	return &ucrednetConn{con, pid, uid}, err
 }

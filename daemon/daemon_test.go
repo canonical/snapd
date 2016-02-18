@@ -81,7 +81,7 @@ func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
 		c.Check(rec.Code, check.Equals, http.StatusForbidden, check.Commentf(method))
 
 		rec = httptest.NewRecorder()
-		req.RemoteAddr = "uid=0;" + req.RemoteAddr
+		req.RemoteAddr = "pid=42;uid=0;" + req.RemoteAddr
 
 		cmd.ServeHTTP(rec, req)
 		c.Check(mck.lastMethod, check.Equals, method)
@@ -90,7 +90,7 @@ func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
 
 	req, err := http.NewRequest("POTATO", "", nil)
 	c.Assert(err, check.IsNil)
-	req.RemoteAddr = "uid=0;" + req.RemoteAddr
+	req.RemoteAddr = "pid=42;uid=0;" + req.RemoteAddr
 
 	rec := httptest.NewRecorder()
 	cmd.ServeHTTP(rec, req)
@@ -123,8 +123,8 @@ func (s *daemonSuite) TestGuestAccess(c *check.C) {
 }
 
 func (s *daemonSuite) TestUserAccess(c *check.C) {
-	get := &http.Request{Method: "GET", RemoteAddr: "uid=42;"}
-	put := &http.Request{Method: "PUT", RemoteAddr: "uid=42;"}
+	get := &http.Request{Method: "GET", RemoteAddr: "pid=42;uid=42;"}
+	put := &http.Request{Method: "PUT", RemoteAddr: "pid=42;uid=42;"}
 
 	cmd := &Command{}
 	c.Check(cmd.canAccess(get), check.Equals, false)
@@ -140,8 +140,8 @@ func (s *daemonSuite) TestUserAccess(c *check.C) {
 }
 
 func (s *daemonSuite) TestSuperAccess(c *check.C) {
-	get := &http.Request{Method: "GET", RemoteAddr: "uid=0;"}
-	put := &http.Request{Method: "PUT", RemoteAddr: "uid=0;"}
+	get := &http.Request{Method: "GET", RemoteAddr: "pid=42;uid=0;"}
+	put := &http.Request{Method: "PUT", RemoteAddr: "pid=42;uid=0;"}
 
 	cmd := &Command{}
 	c.Check(cmd.canAccess(get), check.Equals, true)
