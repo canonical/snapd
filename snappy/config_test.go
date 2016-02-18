@@ -150,3 +150,69 @@ func (s *SnapTestSuite) TestConfigError(c *C) {
 	c.Assert(newConfig, IsNil)
 	c.Assert(err, ErrorMatches, ".*failed with: 'error: some error'.*")
 }
+
+func (s *SnapTestSuite) TestSnip2Yaml(c *C) {
+	bs := snip2yaml("hello-world", []string{"foo", "bar"}, "42")
+	c.Check(string(bs), Equals, "config: {hello-world: {foo: {bar: 42}}}")
+}
+
+func (s *SnapTestSuite) TestConfigSnippetGetIntegration(c *C) {
+	ins := []string{}
+	out := []byte{}
+	var errOut error
+	runConfigScript = func(_, _ string, rc []byte, _ []string) ([]byte, error) {
+		ins = append(ins, string(rc))
+		return out, errOut
+	}
+	defer func() { runConfigScript = runConfigScriptImpl }()
+
+	mockConfig := fmt.Sprintf(configPassthroughScript, s.tempdir)
+
+	snapDir, err := s.makeInstalledMockSnapWithConfig(c, mockConfig)
+	c.Assert(err, IsNil)
+	snap, err := NewInstalledSnapPart(filepath.Join(snapDir, "meta", "snap.yaml"), testOrigin)
+	c.Assert(err, IsNil)
+
+	ov := &Overlord{}
+
+	out = []byte(`
+config:
+  hello-app:
+    foo:
+      bar:
+        hello
+`)
+	bs, err := ov.ConfigureFromSnippet(snap, []string{"foo", "bar"}, "")
+	c.Assert(err, IsNil)
+	c.Check(ins, DeepEquals, []string{""})
+	c.Check(bs, Equals, "hello")
+
+	bs, err = ov.ConfigureFromSnippet(snap, []string{"foo", "bar"}, "8")
+	c.Assert(err, IsNil)
+	c.Check(ins, DeepEquals, []string{"", "config: {hello-app: {foo: {bar: 8}}}"})
+	c.Check(bs, Equals, "hello")
+
+	errOut = fmt.Errorf("hi")
+	_, err = ov.ConfigureFromSnippet(snap, []string{"foo", "bar"}, "hello")
+	c.Check(err, Equals, errOut)
+
+	errOut = nil
+	out = []byte(`hello`)
+	_, err = ov.ConfigureFromSnippet(snap, []string{"foo", "bar"}, "hello")
+	c.Check(err, ErrorMatches, `configuration succeeded but can't unmarshal result: (?m).*`)
+
+	out = []byte(`foo: {bar: hello}`)
+	_, err = ov.ConfigureFromSnippet(snap, []string{"foo", "bar"}, "hello")
+	c.Check(err, ErrorMatches, `configuration succeeded but returned unexpected value: (?m).*`)
+
+	out = []byte(`config: {hello-app: {foo: hello}}`)
+	_, err = ov.ConfigureFromSnippet(snap, []string{"foo", "bar"}, "hello")
+	c.Check(err, ErrorMatches, `configuration succeeded but got unexpected value in which to look for "bar": hello`)
+
+	out = []byte(`config: {hello-app: {foo: {a: b}}}`)
+	_, err = ov.ConfigureFromSnippet(snap, []string{"foo", "bar"}, "hello")
+	c.Check(err, ErrorMatches, `configuration succeeded but result has no entry "bar"`)
+
+	_, err = ov.ConfigureFromSnippet(snap, []string{"foo"}, "hello")
+	c.Check(err, ErrorMatches, `configuration succeeded but value at \["foo"\] is not a simple value.*`)
+}
