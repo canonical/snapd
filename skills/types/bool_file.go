@@ -87,14 +87,14 @@ func (t *BoolFileType) SkillSecuritySnippet(skill *skills.Skill, securitySystem 
 /sys/class/gpio/gpio[0-9]+/direction rw,
 `)
 	switch securitySystem {
-	case skills.SecurityApparmor:
+	case skills.SecurityAppArmor:
 		// To provide GPIOs we need extra permissions to export/unexport and to
 		// set the direction of each pin.
 		if t.isGPIO(skill) {
 			return gpioSnippet, nil
 		}
 		return nil, nil
-	case skills.SecuritySeccomp, skills.SecurityDBus:
+	case skills.SecuritySecComp, skills.SecurityDBus:
 		return nil, nil
 	default:
 		return nil, skills.ErrUnknownSecurity
@@ -105,7 +105,7 @@ func (t *BoolFileType) SkillSecuritySnippet(skill *skills.Skill, securitySystem 
 // Consumers gain permission to read, write and lock the designated file.
 func (t *BoolFileType) SlotSecuritySnippet(skill *skills.Skill, securitySystem skills.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case skills.SecurityApparmor:
+	case skills.SecurityAppArmor:
 		// Allow write and lock on the file designated by the path.
 		// Dereference symbolic links to file path handed out to apparmor since
 		// sysfs is full of symlinks and apparmor requires uses real path for
@@ -115,7 +115,7 @@ func (t *BoolFileType) SlotSecuritySnippet(skill *skills.Skill, securitySystem s
 			return nil, fmt.Errorf("cannot compute skill slot security snippet: %v", err)
 		}
 		return []byte(fmt.Sprintf("%s rwk,\n", path)), nil
-	case skills.SecuritySeccomp, skills.SecurityDBus:
+	case skills.SecuritySecComp, skills.SecurityDBus:
 		return nil, nil
 	default:
 		return nil, skills.ErrUnknownSecurity

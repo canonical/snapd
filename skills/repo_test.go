@@ -46,7 +46,7 @@ var _ = Suite(&RepositorySuite{
 		Type:  "type",
 		Label: "label",
 		Attrs: map[string]interface{}{"attr": "value"},
-		Apps:  []string{"app"},
+		Apps:  []string{"meta/hooks/skill"},
 	},
 	slot: &Slot{
 		Snap:  "consumer",
@@ -620,9 +620,25 @@ func (s *RepositorySuite) TestRevokeFailsWhenSkillDoesNotExist(c *C) {
 func (s *RepositorySuite) TestRevokeFailsWhenSlotDoesNotExist(c *C) {
 	err := s.testRepo.AddSkill(s.skill)
 	c.Assert(err, IsNil)
-	// Revoking to an unknown slot returns an appropriate error
+	// Revoking from an unknown slot returns an appropriate error
 	err = s.testRepo.Revoke(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
 	c.Assert(err, ErrorMatches, `cannot revoke skill from slot "slot" from snap "consumer", no such slot`)
+}
+
+func (s *RepositorySuite) TestRevokeFromSkillSlotFailsWhenSlotDoesNotExist(c *C) {
+	err := s.testRepo.AddSkill(s.skill)
+	c.Assert(err, IsNil)
+	// Revoking everything form an unknown slot returns an appropriate error
+	err = s.testRepo.Revoke("", "", s.slot.Snap, s.slot.Name)
+	c.Assert(err, ErrorMatches, `cannot revoke skill from slot "slot" from snap "consumer", no such slot`)
+}
+
+func (s *RepositorySuite) TestRevokeFromSnapFailsWhenSlotDoesNotExist(c *C) {
+	err := s.testRepo.AddSkill(s.skill)
+	c.Assert(err, IsNil)
+	// Revoking all skills from a snap that is not known returns an appropriate error
+	err = s.testRepo.Revoke("", "", s.slot.Snap, "")
+	c.Assert(err, ErrorMatches, `cannot revoke skill from snap "consumer", no such snap`)
 }
 
 func (s *RepositorySuite) TestRevokeFailsWhenNotGranted(c *C) {
@@ -635,6 +651,26 @@ func (s *RepositorySuite) TestRevokeFailsWhenNotGranted(c *C) {
 	c.Assert(err, ErrorMatches, `cannot revoke skill "skill" from snap "provider" from slot "slot" from snap "consumer", it is not granted`)
 }
 
+func (s *RepositorySuite) TestRevokeFromSnapDoesNothingWhenNotGranted(c *C) {
+	err := s.testRepo.AddSkill(s.skill)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSlot(s.slot)
+	c.Assert(err, IsNil)
+	// Revoking a all skills from a snap that uses nothing is not an error.
+	err = s.testRepo.Revoke("", "", s.slot.Snap, "")
+	c.Assert(err, IsNil)
+}
+
+func (s *RepositorySuite) TestRevokeFromSkillSlotDoesNothingWhenNotGranted(c *C) {
+	err := s.testRepo.AddSkill(s.skill)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSlot(s.slot)
+	c.Assert(err, IsNil)
+	// Revoking a all skills from a slot that uses nothing is not an error.
+	err = s.testRepo.Revoke("", "", s.slot.Snap, s.slot.Name)
+	c.Assert(err, IsNil)
+}
+
 func (s *RepositorySuite) TestRevokeSucceeds(c *C) {
 	err := s.testRepo.AddSkill(s.skill)
 	c.Assert(err, IsNil)
@@ -645,6 +681,33 @@ func (s *RepositorySuite) TestRevokeSucceeds(c *C) {
 	// Revoking a granted skill works okay
 	err = s.testRepo.Revoke(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
 	c.Assert(err, IsNil)
+	c.Assert(s.testRepo.GrantedTo(s.slot.Snap), HasLen, 0)
+}
+
+func (s *RepositorySuite) TestRevokeFromSnap(c *C) {
+	err := s.testRepo.AddSkill(s.skill)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSlot(s.slot)
+	c.Assert(err, IsNil)
+	err = s.testRepo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
+	c.Assert(err, IsNil)
+	// Revoking everything from a snap works OK
+	err = s.testRepo.Revoke("", "", s.slot.Snap, "")
+	c.Assert(err, IsNil)
+	c.Assert(s.testRepo.GrantedTo(s.slot.Snap), HasLen, 0)
+}
+
+func (s *RepositorySuite) TestRevokeFromSkillSlot(c *C) {
+	err := s.testRepo.AddSkill(s.skill)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSlot(s.slot)
+	c.Assert(err, IsNil)
+	err = s.testRepo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
+	c.Assert(err, IsNil)
+	// Revoking everything from a skill slot works OK
+	err = s.testRepo.Revoke("", "", s.slot.Snap, s.slot.Name)
+	c.Assert(err, IsNil)
+	c.Assert(s.testRepo.GrantedTo(s.slot.Snap), HasLen, 0)
 }
 
 // Test for Repository.GrantedTo()
@@ -739,4 +802,72 @@ func (s *RepositorySuite) TestGrantsOfReturnsCorrectData(c *C) {
 	err = s.testRepo.Revoke(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
 	c.Assert(err, IsNil)
 	c.Assert(s.testRepo.GrantsOf(s.skill.Snap, s.skill.Name), HasLen, 0)
+}
+
+// Tests for Repository.SecuritySnippetsForSnap()
+
+func (s *RepositorySuite) TestSlotSnippetsForSnapSuccess(c *C) {
+	const testSecurity SecuritySystem = "security"
+	t := &TestType{
+		TypeName: "type",
+		SkillSecuritySnippetCallback: func(skill *Skill, securitySystem SecuritySystem) ([]byte, error) {
+			if securitySystem == testSecurity {
+				return []byte(`producer snippet`), nil
+			}
+			return nil, ErrUnknownSecurity
+		},
+		SlotSecuritySnippetCallback: func(skill *Skill, securitySystem SecuritySystem) ([]byte, error) {
+			if securitySystem == testSecurity {
+				return []byte(`consumer snippet`), nil
+			}
+			return nil, ErrUnknownSecurity
+		},
+	}
+	repo := s.emptyRepo
+	c.Assert(repo.AddType(t), IsNil)
+	c.Assert(repo.AddSkill(s.skill), IsNil)
+	c.Assert(repo.AddSlot(s.slot), IsNil)
+	c.Assert(repo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name), IsNil)
+	// Now producer.app should get `producer snippet` and consumer.app should
+	// get `consumer snippet`.
+	var snippets map[string][][]byte
+	snippets, err := repo.SecuritySnippetsForSnap(s.skill.Snap, testSecurity)
+	c.Assert(err, IsNil)
+	c.Check(snippets, DeepEquals, map[string][][]byte{
+		"meta/hooks/skill": [][]byte{
+			[]byte(`producer snippet`),
+		},
+	})
+	snippets, err = repo.SecuritySnippetsForSnap(s.slot.Snap, testSecurity)
+	c.Assert(err, IsNil)
+	c.Check(snippets, DeepEquals, map[string][][]byte{
+		"app": [][]byte{
+			[]byte(`consumer snippet`),
+		},
+	})
+}
+
+func (s *RepositorySuite) TestSecuritySnippetsForSnapFailure(c *C) {
+	var testSecurity SecuritySystem = "security"
+	t := &TestType{
+		TypeName: "type",
+		SlotSecuritySnippetCallback: func(skill *Skill, securitySystem SecuritySystem) ([]byte, error) {
+			return nil, fmt.Errorf("cannot compute snippet for consumer")
+		},
+		SkillSecuritySnippetCallback: func(skill *Skill, securitySystem SecuritySystem) ([]byte, error) {
+			return nil, fmt.Errorf("cannot compute snippet for provider")
+		},
+	}
+	repo := s.emptyRepo
+	c.Assert(repo.AddType(t), IsNil)
+	c.Assert(repo.AddSkill(s.skill), IsNil)
+	c.Assert(repo.AddSlot(s.slot), IsNil)
+	c.Assert(repo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name), IsNil)
+	var snippets map[string][][]byte
+	snippets, err := repo.SecuritySnippetsForSnap(s.skill.Snap, testSecurity)
+	c.Assert(err, ErrorMatches, "cannot compute snippet for provider")
+	c.Check(snippets, IsNil)
+	snippets, err = repo.SecuritySnippetsForSnap(s.slot.Snap, testSecurity)
+	c.Assert(err, ErrorMatches, "cannot compute snippet for consumer")
+	c.Check(snippets, IsNil)
 }

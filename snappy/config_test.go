@@ -84,12 +84,12 @@ func (s *SnapTestSuite) TestConfigSimple(c *C) {
 	snapDir, err := s.makeInstalledMockSnapWithConfig(c, mockConfig)
 	c.Assert(err, IsNil)
 
-	newConfig, err := snapConfig(snapDir, "sergiusens", configYaml)
+	newConfig, err := snapConfig(snapDir, "sergiusens", []byte(configYaml))
 	c.Assert(err, IsNil)
 	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "config.out"))
 	c.Assert(err, IsNil)
 	c.Assert(content, DeepEquals, []byte(configYaml))
-	c.Assert(newConfig, Equals, configYaml)
+	c.Assert(string(newConfig), Equals, configYaml)
 }
 
 func (s *SnapTestSuite) TestConfigOS(c *C) {
@@ -100,9 +100,9 @@ func (s *SnapTestSuite) TestConfigOS(c *C) {
 
 	var cfg []byte
 	inCfg := []byte(`something`)
-	coreConfig = func(configuration []byte) (string, error) {
+	coreConfig = func(configuration []byte) ([]byte, error) {
 		cfg = configuration
-		return string(cfg), nil
+		return cfg, nil
 	}
 	defer func() { coreConfig = coreConfigImpl }()
 
@@ -113,9 +113,9 @@ func (s *SnapTestSuite) TestConfigOS(c *C) {
 
 func (s *SnapTestSuite) TestConfigGeneratesRightAA(c *C) {
 	aas := []string{}
-	runConfigScript = func(cs, aa, rc string, env []string) (string, error) {
+	runConfigScript = func(cs, aa string, rc []byte, env []string) ([]byte, error) {
 		aas = append(aas, aa)
-		return "", nil
+		return nil, nil
 	}
 	defer func() { runConfigScript = runConfigScriptImpl }()
 
@@ -125,14 +125,14 @@ func (s *SnapTestSuite) TestConfigGeneratesRightAA(c *C) {
 type: framework
 version: 42`)
 	c.Assert(err, IsNil)
-	_, err = snapConfig(snapDir, testOrigin, configYaml)
+	_, err = snapConfig(snapDir, testOrigin, []byte(configYaml))
 	c.Assert(err, IsNil)
 
 	snapDir, err = s.makeInstalledMockSnapWithConfig(c, mockConfig, `name: potato
 type: potato
 version: 42`)
 	c.Assert(err, IsNil)
-	_, err = snapConfig(snapDir, testOrigin, configYaml)
+	_, err = snapConfig(snapDir, testOrigin, []byte(configYaml))
 	c.Assert(err, IsNil)
 
 	c.Check(aas, DeepEquals, []string{
@@ -145,8 +145,8 @@ func (s *SnapTestSuite) TestConfigError(c *C) {
 	snapDir, err := s.makeInstalledMockSnapWithConfig(c, configErrorScript)
 	c.Assert(err, IsNil)
 
-	newConfig, err := snapConfig(snapDir, "sergiusens", configYaml)
+	newConfig, err := snapConfig(snapDir, "sergiusens", []byte(configYaml))
 	c.Assert(err, NotNil)
-	c.Assert(newConfig, Equals, "")
+	c.Assert(newConfig, IsNil)
 	c.Assert(err, ErrorMatches, ".*failed with: 'error: some error'.*")
 }
