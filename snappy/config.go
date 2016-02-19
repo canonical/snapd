@@ -20,11 +20,11 @@
 package snappy
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 
 	"github.com/ubuntu-core/snappy/coreconfig"
 )
@@ -36,9 +36,9 @@ var aaExec = "aa-exec"
 var coreConfig = coreConfigImpl
 
 // coreConfig configure the OS snap
-func coreConfigImpl(configuration []byte) (newConfig string, err error) {
-	if cfg := string(configuration); cfg != "" {
-		return coreconfig.Set(cfg)
+func coreConfigImpl(configuration []byte) (newConfig []byte, err error) {
+	if len(configuration) > 0 {
+		return coreconfig.Set(configuration)
 	}
 
 	return coreconfig.Get()
@@ -50,15 +50,15 @@ func coreConfigImpl(configuration []byte) (newConfig string, err error) {
 // This string can be empty.
 //
 // It returns the newConfig or an error
-func snapConfig(snapDir, origin, rawConfig string) (newConfig string, err error) {
+func snapConfig(snapDir, origin string, rawConfig []byte) (newConfig []byte, err error) {
 	configScript := filepath.Join(snapDir, "meta", "hooks", "config")
 	if _, err := os.Stat(configScript); err != nil {
-		return "", ErrConfigNotFound
+		return nil, ErrConfigNotFound
 	}
 
 	part, err := NewInstalledSnapPart(filepath.Join(snapDir, "meta", "snap.yaml"), origin)
 	if err != nil {
-		return "", ErrPackageNotFound
+		return nil, ErrPackageNotFound
 	}
 
 	name := QualifiedName(part)
@@ -71,15 +71,15 @@ var runConfigScript = runConfigScriptImpl
 
 // runConfigScript is a helper that just runs the config script and passes
 // the rawConfig via stdin and reads/returns the output
-func runConfigScriptImpl(configScript, appArmorProfile, rawConfig string, env []string) (newConfig string, err error) {
+func runConfigScriptImpl(configScript, appArmorProfile string, rawConfig []byte, env []string) (newConfig []byte, err error) {
 	cmd := exec.Command(aaExec, "-p", appArmorProfile, configScript)
-	cmd.Stdin = strings.NewReader(rawConfig)
+	cmd.Stdin = bytes.NewReader(rawConfig)
 	cmd.Env = env
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("config failed with: '%s' (%v)", output, err)
+		return nil, fmt.Errorf("config failed with: '%s' (%v)", output, err)
 	}
 
-	return string(output), nil
+	return output, nil
 }
