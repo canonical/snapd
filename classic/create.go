@@ -248,7 +248,14 @@ func customizeClassicChroot() error {
 		// bind mount of the /var/lib/extrausers directory.
 		// Without that the "SUDO_USER" will not exist in the chroot
 		if err := runInClassicEnv("usermod", "-a", "-G", "sudo", sudoUser); err != nil {
-			unmountBindMounts()
+			if err := unmountBindMounts(); err != nil {
+				// we can not return an error here if we
+				// still have bind mounts in place, the
+				// writable dir may still have /home mounted
+				// so we can not remove /writable/classic
+				// again
+				panic("cannot undo bind mounts")
+			}
 			return fmt.Errorf("failed to add %s to the sudo users: %s", sudoUser, err)
 		}
 	}
