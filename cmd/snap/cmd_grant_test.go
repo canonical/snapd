@@ -54,12 +54,14 @@ proceeds as above.
 
 Help Options:
   -h, --help                     Show this help message
+
+[grant command arguments]
+  <snap>:<skill>
+  <snap>:<skill slot>
 `
-	rest, _ := Parser().ParseArgs([]string{"grant", "--help"})
-	// TODO: re-enable this once go-flags is updated
-	msg = msg[:]
-	// c.Assert(err.Error(), Equals, msg)
-	c.Assert(rest, DeepEquals, []string{"--help"})
+	rest, err := Parser().ParseArgs([]string{"grant", "--help"})
+	c.Assert(err.Error(), Equals, msg)
+	c.Assert(rest, DeepEquals, []string{})
 }
 
 func (s *SnapSuite) TestGrantExplicitEverything(c *C) {
