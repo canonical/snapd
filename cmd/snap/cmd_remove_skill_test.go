@@ -46,7 +46,6 @@ Help Options:
 `
 	rest, err := Parser().ParseArgs([]string{
 		"experimental", "remove-skill", "--help"})
-	msg = msg[:]
 	c.Assert(err.Error(), Equals, msg)
 	c.Assert(rest, DeepEquals, []string{})
 }

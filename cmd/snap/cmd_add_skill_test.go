@@ -51,7 +51,6 @@ Help Options:
   <type>:            Skill type
 `
 	rest, err := Parser().ParseArgs([]string{"experimental", "add-skill", "--help"})
-	msg = msg[:]
 	c.Assert(err.Error(), Equals, msg)
 	c.Assert(rest, DeepEquals, []string{})
 }
