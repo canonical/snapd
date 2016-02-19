@@ -60,7 +60,7 @@ func findDownloadPathFromLxdIndex(r io.Reader) (string, error) {
 		if strings.HasPrefix(scanner.Text(), needle) {
 			l := strings.Split(scanner.Text(), ";")
 			if len(l) < 6 {
-				return "", fmt.Errorf("can not find download path in %s", scanner.Text())
+				return "", fmt.Errorf("cannot find download path in %s", scanner.Text())
 			}
 			return l[5], nil
 		}
