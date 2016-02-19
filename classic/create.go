@@ -248,6 +248,7 @@ func customizeClassicChroot() error {
 		// bind mount of the /var/lib/extrausers directory.
 		// Without that the "SUDO_USER" will not exist in the chroot
 		if err := runInClassicEnv("usermod", "-a", "-G", "sudo", sudoUser); err != nil {
+			unmountBindMounts()
 			return fmt.Errorf("failed to add %s to the sudo users: %s", sudoUser, err)
 		}
 	}
