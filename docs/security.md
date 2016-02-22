@@ -1,10 +1,10 @@
 # Security policy
 
 Most of the security aspects of the system will be done via skills and
-slots. However for compatibility with the 15.04 snappy architecture
-there is a special skill called `migration-skill` that can be used to
-migrate using the 15.04 syntax. See the example below for the various
-ways the migration-skill can be used.
+skill slots. However for compatibility with the 15.04 snappy
+architecture there is a special skill type called `migration-skill`
+that can be used to migrate using the 15.04 syntax. See the example
+below for the various ways the migration-skill can be used.
 
 ## Security with the migration skill
 
