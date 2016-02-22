@@ -23,6 +23,75 @@ import (
 	"time"
 )
 
+// SnapDeclaration holds a snap-declaration assertion, declaring a
+// snap binding its identifying snap-id to a name, asserting its
+// publisher and its other properties.
+type SnapDeclaration struct {
+	assertionBase
+	gates     []string
+	timestamp time.Time
+}
+
+// Series returns the series for which the snap is being declared.
+func (snapdcl *SnapDeclaration) Series() string {
+	return snapdcl.Header("series")
+}
+
+// SnapID returns the snap id of the declared snap.
+func (snapdcl *SnapDeclaration) SnapID() string {
+	return snapdcl.Header("snap-id")
+}
+
+// SnapName returns the declared snap name.
+func (snapdcl *SnapDeclaration) SnapName() string {
+	return snapdcl.Header("snap-name")
+}
+
+// PublisherID returns the identifier of the publisher of the declared snap.
+func (snapdcl *SnapDeclaration) PublisherID() string {
+	return snapdcl.Header("publisher-id")
+}
+
+// Gates returns the list of snap-ids gated by this snap.
+func (snapdcl *SnapDeclaration) Gates() []string {
+	return snapdcl.gates
+}
+
+// Timestamp returns the time when the snap-declaration was issued.
+func (snapdcl *SnapDeclaration) Timestamp() time.Time {
+	return snapdcl.timestamp
+}
+
+// XXX: consistency check is signed by canonical
+
+func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
+	_, err := checkMandatory(assert.headers, "snap-name")
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = checkMandatory(assert.headers, "publisher-id")
+	if err != nil {
+		return nil, err
+	}
+
+	gates, err := checkCommaSepList(assert.headers, "gates")
+	if err != nil {
+		return nil, err
+	}
+
+	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
+	if err != nil {
+		return nil, err
+	}
+
+	return &SnapDeclaration{
+		assertionBase: assert,
+		gates:         gates,
+		timestamp:     timestamp,
+	}, nil
+}
+
 // SnapBuild holds a snap-build assertion, asserting the properties of a snap
 // at the time it was built by the developer.
 type SnapBuild struct {
