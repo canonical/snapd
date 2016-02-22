@@ -70,7 +70,7 @@ func (s *fanTestSuite) TestFanCommandExists(c *check.C) {
 	cmd := exec.Command("fanctl")
 	output, _ := cmd.CombinedOutput()
 
-	expectedPattern := `(?msi)Usage: \/usr\/sbin\/fanctl up.*`
+	expectedPattern := `(?msi)Usage: \/usr\/sbin\/fanctl <cmd>.*`
 
 	c.Assert(string(output), check.Matches, expectedPattern,
 		check.Commentf("Expected output pattern %s not found in %s", expectedPattern, output))
