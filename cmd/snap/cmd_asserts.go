@@ -28,10 +28,10 @@ import (
 )
 
 type cmdAsserts struct {
-	AssertsOptions struct {
-		AssertTypeName string   `positional-arg-name:"<assertion type>" description:"assertion type name" required:"true"`
-		HeaderFilters  []string `positional-arg-name:"<header filters>" description:"header=value" required:"false"`
+	AssertOptions struct {
+		AssertTypeName string `positional-arg-name:"<assertion type>" description:"assertion type name" required:"true"`
 	} `positional-args:"true" required:"true"`
+	HeaderFilters []string `positional-arg-name:"<header filters>" description:"header=value" required:"false"`
 }
 
 var shortAssertsHelp = i18n.G("Shows known assertions of the provided type")
@@ -52,7 +52,7 @@ var nl = []byte{'\n'}
 func (x *cmdAsserts) Execute(args []string) error {
 	// TODO: share this kind of parsing once it's clearer how often is used in snap
 	headers := map[string]string{}
-	for _, headerFilter := range x.AssertsOptions.HeaderFilters {
+	for _, headerFilter := range x.HeaderFilters {
 		parts := strings.SplitN(headerFilter, "=", 2)
 		if len(parts) != 2 {
 			return fmt.Errorf("invalid header filter: %q (want key=value)", headerFilter)
@@ -60,7 +60,7 @@ func (x *cmdAsserts) Execute(args []string) error {
 		headers[parts[0]] = parts[1]
 	}
 
-	assertions, err := Client().Asserts(x.AssertsOptions.AssertTypeName, headers)
+	assertions, err := Client().Asserts(x.AssertOptions.AssertTypeName, headers)
 	if err != nil {
 		return err
 	}
