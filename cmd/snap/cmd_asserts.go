@@ -30,7 +30,7 @@ import (
 type cmdAsserts struct {
 	AssertsOptions struct {
 		AssertTypeName string   `positional-arg-name:"<assertion type>" description:"assertion type name" required:"true"`
-		HeaderFilters  []string `positional-arg-name:"<header filters>" description:"header=value" required:"false"`
+		HeaderFilters  []string `positional-arg-name:"<header filters>" description:"header=value" required:"0"`
 	} `positional-args:"true" required:"true"`
 }
 

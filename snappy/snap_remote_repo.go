@@ -115,6 +115,13 @@ func cpiURL() string {
 	return "https://search.apps.ubuntu.com/api/v1/"
 }
 
+func authURL() string {
+	if os.Getenv("SNAPPY_USE_STAGING_CPI") != "" {
+		return "https://login.staging.ubuntu.com/api/v2"
+	}
+	return "https://login.ubuntu.com/api/v2"
+}
+
 func init() {
 	storeBaseURI, err := url.Parse(cpiURL())
 	if err != nil {

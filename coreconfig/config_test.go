@@ -148,7 +148,7 @@ func (cts *ConfigTestSuite) TestGet(c *C) {
 
 	rawConfig, err := Get()
 	c.Assert(err, IsNil)
-	c.Assert(rawConfig, Equals, expectedOutput)
+	c.Assert(string(rawConfig), Equals, expectedOutput)
 }
 
 // TestSet is a broad test, close enough to be an integration test.
@@ -163,9 +163,9 @@ func (cts *ConfigTestSuite) TestSet(c *C) {
 `
 
 	cmdAutoUpdateEnabled = []string{"-c", "echo enabled"}
-	rawConfig, err := Set(expected)
+	rawConfig, err := Set([]byte(expected))
 	c.Assert(err, IsNil)
-	c.Assert(rawConfig, Equals, expected)
+	c.Assert(string(rawConfig), Equals, expected)
 
 	// systemctl hasn't been called
 	c.Check(cts.sysctlargses, HasLen, 0)
@@ -178,7 +178,7 @@ func (cts *ConfigTestSuite) TestSetBadValueDoesNotPanic(c *C) {
 		"config:\n",
 		"config:\n ubuntu-core:\n",
 	} {
-		_, err := Set(s)
+		_, err := Set([]byte(s))
 		c.Assert(err, Equals, ErrInvalidConfig)
 	}
 
@@ -197,9 +197,9 @@ func (cts *ConfigTestSuite) TestSetTimezone(c *C) {
     modprobe: ""
 `
 
-	rawConfig, err := Set(expected)
+	rawConfig, err := Set([]byte(expected))
 	c.Assert(err, IsNil)
-	c.Assert(rawConfig, Equals, expected)
+	c.Assert(string(rawConfig), Equals, expected)
 	c.Assert(helpers.FileExists(tzZoneInfoTarget), Equals, true)
 
 	// systemctl hasn't been called
@@ -219,9 +219,9 @@ func (cts *ConfigTestSuite) TestSetTimezoneAlreadyExists(c *C) {
 	err := ioutil.WriteFile(tzZoneInfoTarget, canary, 0644)
 	c.Assert(err, IsNil)
 
-	rawConfig, err := Set(expected)
+	rawConfig, err := Set([]byte(expected))
 	c.Assert(err, IsNil)
-	c.Assert(rawConfig, Equals, expected)
+	c.Assert(string(rawConfig), Equals, expected)
 	content, err := ioutil.ReadFile(tzZoneInfoTarget)
 	c.Assert(err, IsNil)
 	c.Assert(content, Not(DeepEquals), []byte(canary))
@@ -245,9 +245,9 @@ func (cts *ConfigTestSuite) TestSetAutoUpdate(c *C) {
 	getAutoUpdate = func() (bool, error) { return enabled, nil }
 	setAutoUpdate = func(state bool) error { enabled = state; return nil }
 
-	rawConfig, err := Set(expected)
+	rawConfig, err := Set([]byte(expected))
 	c.Assert(err, IsNil)
-	c.Assert(rawConfig, Equals, expected)
+	c.Assert(string(rawConfig), Equals, expected)
 
 	// systemctl hasn't been called
 	c.Check(cts.sysctlargses, HasLen, 0)
@@ -263,9 +263,9 @@ func (cts *ConfigTestSuite) TestSetHostname(c *C) {
     modprobe: ""
 `
 
-	rawConfig, err := Set(expected)
+	rawConfig, err := Set([]byte(expected))
 	c.Assert(err, IsNil)
-	c.Assert(rawConfig, Equals, expected)
+	c.Assert(string(rawConfig), Equals, expected)
 
 	// systemctl hasn't been called
 	c.Check(cts.sysctlargses, HasLen, 0)
@@ -280,9 +280,9 @@ func (cts *ConfigTestSuite) TestSetInvalid(c *C) {
     modprobe: ""
 `
 
-	rawConfig, err := Set(input)
+	rawConfig, err := Set([]byte(input))
 	c.Assert(err, NotNil)
-	c.Assert(rawConfig, Equals, "")
+	c.Assert(rawConfig, IsNil)
 
 	// systemctl hasn't been called
 	c.Check(cts.sysctlargses, HasLen, 0)
@@ -297,9 +297,9 @@ func (cts *ConfigTestSuite) TestNoChangeSet(c *C) {
     modprobe: ""
 `
 
-	rawConfig, err := Set(input)
+	rawConfig, err := Set([]byte(input))
 	c.Assert(err, IsNil)
-	c.Assert(rawConfig, Equals, input)
+	c.Assert(string(rawConfig), Equals, input)
 
 	// systemctl hasn't been called
 	c.Check(cts.sysctlargses, HasLen, 0)
@@ -321,9 +321,9 @@ func (cts *ConfigTestSuite) TestPartialInput(c *C) {
     modprobe: ""
 `
 
-	rawConfig, err := Set(input)
+	rawConfig, err := Set([]byte(input))
 	c.Assert(err, IsNil)
-	c.Assert(rawConfig, Equals, expected)
+	c.Assert(string(rawConfig), Equals, expected)
 
 	// systemctl hasn't been called
 	c.Check(cts.sysctlargses, HasLen, 0)
@@ -340,15 +340,15 @@ func (cts *ConfigTestSuite) TestBadTzOnGet(c *C) {
 
 	rawConfig, err := Get()
 	c.Assert(err, NotNil)
-	c.Assert(rawConfig, Equals, "")
+	c.Assert(rawConfig, IsNil)
 }
 
 func (cts *ConfigTestSuite) TestBadTzOnSet(c *C) {
 	getTimezone = func() (string, error) { return "", errors.New("Bad mock tz") }
 
-	rawConfig, err := Set("config:")
+	rawConfig, err := Set([]byte("config:"))
 	c.Assert(err, NotNil)
-	c.Assert(rawConfig, Equals, "")
+	c.Assert(rawConfig, IsNil)
 
 	// systemctl hasn't been called
 	c.Check(cts.sysctlargses, HasLen, 0)
@@ -365,9 +365,9 @@ func (cts *ConfigTestSuite) TestErrorOnTzSet(c *C) {
     modprobe: ""
 `
 
-	rawConfig, err := Set(input)
+	rawConfig, err := Set([]byte(input))
 	c.Assert(err, NotNil)
-	c.Assert(rawConfig, Equals, "")
+	c.Assert(rawConfig, IsNil)
 
 	// systemctl hasn't been called
 	c.Check(cts.sysctlargses, HasLen, 0)
@@ -378,7 +378,7 @@ func (cts *ConfigTestSuite) TestBadAutoUpdateOnGet(c *C) {
 
 	rawConfig, err := Get()
 	c.Assert(err, NotNil)
-	c.Assert(rawConfig, Equals, "")
+	c.Assert(rawConfig, IsNil)
 }
 
 func (cts *ConfigTestSuite) TestErrorOnAutoUpdateSet(c *C) {
@@ -394,9 +394,9 @@ func (cts *ConfigTestSuite) TestErrorOnAutoUpdateSet(c *C) {
 	getAutoUpdate = func() (bool, error) { return enabled, nil }
 	setAutoUpdate = func(state bool) error { enabled = state; return errors.New("setAutoUpdate error") }
 
-	rawConfig, err := Set(input)
+	rawConfig, err := Set([]byte(input))
 	c.Assert(err, NotNil)
-	c.Assert(rawConfig, Equals, "")
+	c.Assert(rawConfig, IsNil)
 
 	// systemctl hasn't been called
 	c.Check(cts.sysctlargses, HasLen, 0)
@@ -413,9 +413,9 @@ func (cts *ConfigTestSuite) TestErrorOnSetHostname(c *C) {
 
 	setHostname = func(string) error { return errors.New("this is bad") }
 
-	rawConfig, err := Set(input)
+	rawConfig, err := Set([]byte(input))
 	c.Assert(err, NotNil)
-	c.Assert(rawConfig, Equals, "")
+	c.Assert(rawConfig, IsNil)
 
 	// systemctl hasn't been called
 	c.Check(cts.sysctlargses, HasLen, 0)
@@ -432,9 +432,9 @@ func (cts *ConfigTestSuite) TestErrorOnGetHostname(c *C) {
 
 	getHostname = func() (string, error) { return "", errors.New("this is bad") }
 
-	rawConfig, err := Set(input)
+	rawConfig, err := Set([]byte(input))
 	c.Assert(err, NotNil)
-	c.Assert(rawConfig, Equals, "")
+	c.Assert(rawConfig, IsNil)
 
 	// systemctl hasn't been called
 	c.Check(cts.sysctlargses, HasLen, 0)
@@ -447,7 +447,7 @@ func (cts *ConfigTestSuite) TestErrorOnUnmarshal(c *C) {
 
 	rawConfig, err := Get()
 	c.Assert(err, NotNil)
-	c.Assert(rawConfig, Equals, "")
+	c.Assert(rawConfig, IsNil)
 }
 
 func (cts *ConfigTestSuite) TestInvalidTzFile(c *C) {
@@ -551,7 +551,7 @@ func (cts *ConfigTestSuite) TestModprobeYaml(c *C) {
       blacklist floppy
       softdep mlx4_core post: mlx4_en
 `
-	_, err := Set(input)
+	_, err := Set([]byte(input))
 	c.Assert(err, IsNil)
 
 	// systemctl was called
@@ -701,7 +701,7 @@ func (cts *ConfigTestSuite) TestModulesYaml(c *C) {
   ubuntu-core:
     load-kernel-modules: [-foo, bar]
 `
-	_, err = Set(input)
+	_, err = Set([]byte(input))
 	c.Assert(err, IsNil)
 
 	// systemctl was called
@@ -727,7 +727,7 @@ func (cts *ConfigTestSuite) TestModulesErrorWrite(c *C) {
   ubuntu-core:
     load-kernel-modules: [foo]
 `
-	_, err := Set(input)
+	_, err := Set([]byte(input))
 	c.Check(err, NotNil)
 
 	_, err = getModules()
@@ -748,7 +748,7 @@ func (cts *ConfigTestSuite) TestModulesErrorRW(c *C) {
 	_, err = newSystemConfig()
 	c.Check(err, NotNil)
 
-	_, err = Set("config: {ubuntu-core: {modules: [foo]}}")
+	_, err = Set([]byte("config: {ubuntu-core: {modules: [foo]}}"))
 	c.Check(err, NotNil)
 }
 
@@ -827,7 +827,7 @@ config:
         - name: eth0
           content: auto dhcp
 `
-	_, err := Set(input)
+	_, err := Set([]byte(input))
 	c.Assert(err, IsNil)
 
 	// ensure it's really there
@@ -850,7 +850,7 @@ config:
         - name: chap-secret
           content: password
 `
-	_, err := Set(input)
+	_, err := Set([]byte(input))
 	c.Assert(err, IsNil)
 
 	// ensure it's really there
@@ -930,7 +930,7 @@ config:
       startup: some startup
       config: some config
 `
-	_, err := Set(input)
+	_, err := Set([]byte(input))
 	c.Assert(err, IsNil)
 
 	// ensure it's really there

@@ -20,6 +20,7 @@
 package skills
 
 import (
+	"bytes"
 	"fmt"
 	"sort"
 	"sync"
@@ -33,10 +34,11 @@ type Repository struct {
 	m     sync.Mutex
 	types map[string]Type
 	// Indexed by [snapName][skillName]
-	skills     map[string]map[string]*Skill
-	slots      map[string]map[string]*Slot
-	slotSkills map[*Slot]map[*Skill]bool
-	skillSlots map[*Skill]map[*Slot]bool
+	skills          map[string]map[string]*Skill
+	slots           map[string]map[string]*Slot
+	slotSkills      map[*Slot]map[*Skill]bool
+	skillSlots      map[*Skill]map[*Slot]bool
+	securityHelpers []securityHelper
 }
 
 // NewRepository creates an empty skill repository.
@@ -47,6 +49,12 @@ func NewRepository() *Repository {
 		slots:      make(map[string]map[string]*Slot),
 		slotSkills: make(map[*Slot]map[*Skill]bool),
 		skillSlots: make(map[*Skill]map[*Slot]bool),
+		securityHelpers: []securityHelper{
+			&appArmor{},
+			&secComp{},
+			&uDev{},
+			&dBus{},
+		},
 	}
 }
 
@@ -302,10 +310,67 @@ func (r *Repository) Grant(skillSnapName, skillName, slotSnapName, slotName stri
 }
 
 // Revoke revokes the named skill from the slot of the given snap.
+//
+// Revoke has three modes of operation that depend on the passed arguments:
+//
+// - If all the arguments are specified then Revoke() finds a specific skill
+//   slot and a specific skill and revokes that skill from that skill slot. It is
+//   an error if skill or skill slot cannot be found or if the grant does not
+//   exist.
+// - If skillSnapName and skillName are empty then Revoke() finds the specified
+//   skill slot and revokes all the skills granted there. It is not an error if
+//   there are no such skills but it is still an error if the skill slot does
+//   not exist.
+// - If skillSnapName, skillName and slotName are all empty then Revoke finds
+//   the specified snap (designated by slotSnapName) and revokes all the skills
+//   from all the skill slots found therein. It is not an error if there are no
+//   such skills but it is still an error if the snap does not exist or has no
+//   slots at all.
 func (r *Repository) Revoke(skillSnapName, skillName, slotSnapName, slotName string) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
+	switch {
+	case skillSnapName == "" && skillName == "" && slotName == "":
+		// Revoke everything from slotSnapName
+		return r.revokeEverythingFromSnap(slotSnapName)
+	case skillSnapName == "" && skillName == "":
+		// Revoke everything from slotSnapName:slotName
+		return r.revokeEverythingFromSkillSlot(slotSnapName, slotName)
+	default:
+		return r.revokeSkillFromSkillSlot(skillSnapName, skillName, slotSnapName, slotName)
+	}
+
+}
+
+// revokeEverythingFromSnap finds a specific snap and revokes all the skills granted to all the slots therein.
+func (r *Repository) revokeEverythingFromSnap(slotSnapName string) error {
+	if _, ok := r.slots[slotSnapName]; !ok {
+		return fmt.Errorf("cannot revoke skill from snap %q, no such snap", slotSnapName)
+	}
+	for _, slot := range r.slots[slotSnapName] {
+		for skill := range r.slotSkills[slot] {
+			r.revoke(skill, slot)
+		}
+	}
+	return nil
+}
+
+// revokeEverythingFromSkillSlot finds a specific skill slot and revokes all the skills granted there.
+func (r *Repository) revokeEverythingFromSkillSlot(slotSnapName, slotName string) error {
+	// Ensure that such slot exists
+	slot := r.slots[slotSnapName][slotName]
+	if slot == nil {
+		return fmt.Errorf("cannot revoke skill from slot %q from snap %q, no such slot", slotName, slotSnapName)
+	}
+	for skill := range r.slotSkills[slot] {
+		r.revoke(skill, slot)
+	}
+	return nil
+}
+
+// revokeSkillFromSkillSlot finds a specific skill slot and skill and revokes it.
+func (r *Repository) revokeSkillFromSkillSlot(skillSnapName, skillName, slotSnapName, slotName string) error {
 	// Ensure that such skill exists
 	skill := r.skills[skillSnapName][skillName]
 	if skill == nil {
@@ -321,6 +386,12 @@ func (r *Repository) Revoke(skillSnapName, skillName, slotSnapName, slotName str
 		return fmt.Errorf("cannot revoke skill %q from snap %q from slot %q from snap %q, it is not granted",
 			skillName, skillSnapName, slotName, slotSnapName)
 	}
+	r.revoke(skill, slot)
+	return nil
+}
+
+// revoke revokes a specific skill from a specific skill slot.
+func (r *Repository) revoke(skill *Skill, slot *Slot) {
 	delete(r.slotSkills[slot], skill)
 	if len(r.slotSkills[slot]) == 0 {
 		delete(r.slotSkills, slot)
@@ -329,7 +400,6 @@ func (r *Repository) Revoke(skillSnapName, skillName, slotSnapName, slotName str
 	if len(r.skillSlots[skill]) == 0 {
 		delete(r.skillSlots, skill)
 	}
-	return nil
 }
 
 // GrantedTo returns all the skills granted to a given snap.
@@ -405,5 +475,100 @@ func (c bySlotSnapAndName) Less(i, j int) bool {
 
 // LoadBuiltInTypes loads built-in skill types into the provided repository.
 func LoadBuiltInTypes(repo *Repository) error {
+	return nil
+}
+
+// SecuritySnippetsForSnap collects all of the snippets of a given security
+// system that affect a given snap. The return value is indexed by app name
+// within that snap.
+func (r *Repository) SecuritySnippetsForSnap(snapName string, securitySystem SecuritySystem) (map[string][][]byte, error) {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	return r.securitySnippetsForSnap(snapName, securitySystem)
+}
+
+func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem SecuritySystem) (map[string][][]byte, error) {
+	var snippets = make(map[string][][]byte)
+	// Find all of the skills that affect this app because of skill consumption.
+	for _, slot := range r.slots[snapName] {
+		t := r.types[slot.Type]
+		for skill := range r.slotSkills[slot] {
+			snippet, err := t.SlotSecuritySnippet(skill, securitySystem)
+			if err != nil {
+				return nil, err
+			}
+			if snippet == nil {
+				continue
+			}
+			for _, app := range slot.Apps {
+				snippets[app] = append(snippets[app], snippet)
+			}
+		}
+	}
+	// Find all of the skills that affect this app because of skill offer.
+	for _, skill := range r.skills[snapName] {
+		t := r.types[skill.Type]
+		snippet, err := t.SkillSecuritySnippet(skill, securitySystem)
+		if err != nil {
+			return nil, err
+		}
+		if snippet == nil {
+			continue
+		}
+		for _, app := range skill.Apps {
+			snippets[app] = append(snippets[app], snippet)
+		}
+	}
+	return snippets, nil
+}
+
+// SecurityFilesForSnap returns the paths and contents of security files for a given snap.
+func (r *Repository) SecurityFilesForSnap(snapName string) (map[string][]byte, error) {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	buffers := make(map[string]*bytes.Buffer)
+	for _, helper := range r.securityHelpers {
+		if err := r.collectFilesFromSecurityHelper(snapName, helper, buffers); err != nil {
+			return nil, err
+		}
+	}
+	blobs := make(map[string][]byte)
+	for name, buffer := range buffers {
+		blobs[name] = buffer.Bytes()
+	}
+	return blobs, nil
+}
+
+func (r *Repository) collectFilesFromSecurityHelper(snapName string, helper securityHelper, buffers map[string]*bytes.Buffer) error {
+	securitySystem := helper.securitySystem()
+	appSnippets, err := r.securitySnippetsForSnap(snapName, securitySystem)
+	if err != nil {
+		return fmt.Errorf("cannot determine %s security snippets for snap %s: %v", securitySystem, snapName, err)
+	}
+	for appName, snippets := range appSnippets {
+		writer := &bytes.Buffer{}
+		path := helper.pathForApp(snapName, appName)
+		doWrite := func(blob []byte) error {
+			_, err = writer.Write(blob)
+			if err != nil {
+				return fmt.Errorf("cannot write %s file for snap %s (app %s): %v", securitySystem, snapName, appName, err)
+			}
+			return nil
+		}
+		if err := doWrite(helper.headerForApp(snapName, appName)); err != nil {
+			return err
+		}
+		for _, snippet := range snippets {
+			if err := doWrite(snippet); err != nil {
+				return err
+			}
+		}
+		if err := doWrite(helper.footerForApp(snapName, appName)); err != nil {
+			return err
+		}
+		buffers[path] = writer
+	}
 	return nil
 }
