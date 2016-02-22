@@ -48,7 +48,7 @@ func testConfigStruct(fileName string) *Config {
 	return NewConfig(
 		fileName,
 		"testrelease", "testchannel",
-		true, true, true)
+		true, true, true, true)
 }
 func testConfigContents(fileName string) string {
 	return `{` +
@@ -57,7 +57,8 @@ func testConfigContents(fileName string) string {
 		`"Channel":"testchannel",` +
 		`"RemoteTestbed":true,` +
 		`"Update":true,` +
-		`"Rollback":true` +
+		`"Rollback":true,` +
+		`"FromBranch":true` +
 		`}`
 }
 
@@ -101,14 +102,15 @@ func (s *ConfigSuite) TestReadConfigLocalTestBed(c *check.C) {
 		`"Channel":"testchannel",` +
 		`"RemoteTestbed":false,` +
 		`"Update":true,` +
-		`"Rollback":true` +
+		`"Rollback":true,` +
+		`"FromBranch":true` +
 		`}`
 
 	ioutil.WriteFile(configFileName, []byte(configContents), 0644)
 
 	cfg, err := ReadConfig(configFileName)
 
-	testConfigStruct := NewConfig(configFileName, "testrelease", "testchannel", false, true, true)
+	testConfigStruct := NewConfig(configFileName, "testrelease", "testchannel", false, true, true, true)
 
 	c.Assert(err, check.IsNil, check.Commentf("Error reading config: %v", err))
 	c.Assert(cfg, check.DeepEquals, testConfigStruct)
