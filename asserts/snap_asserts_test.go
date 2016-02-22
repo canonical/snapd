@@ -29,15 +29,86 @@ import (
 	"github.com/ubuntu-core/snappy/asserts"
 )
 
-type snapBuildSuite struct {
+var (
+	_ = Suite(&snapDeclSuite{})
+	_ = Suite(&snapBuildSuite{})
+	_ = Suite(&snapRevSuite{})
+)
+
+type snapDeclSuite struct {
 	ts     time.Time
 	tsLine string
 }
 
-var (
-	_ = Suite(&snapBuildSuite{})
-	_ = Suite(&snapRevSuite{})
+func (sds *snapDeclSuite) SetUpSuite(c *C) {
+	sds.ts = time.Now().Truncate(time.Second).UTC()
+	sds.tsLine = "timestamp: " + sds.ts.Format(time.RFC3339) + "\n"
+}
+
+func (sds *snapDeclSuite) TestDecodeOK(c *C) {
+	encoded := "type: snap-declaration\n" +
+		"authority-id: canonical\n" +
+		"series: 16\n" +
+		"snap-id: snap-id-1\n" +
+		"snap-name: first\n" +
+		"publisher-id: dev-id1\n" +
+		"gates: snap-id-3,snap-id-4\n" +
+		sds.tsLine +
+		"body-length: 0" +
+		"\n\n" +
+		"openpgp c2ln"
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.SnapDeclarationType)
+	snapDecl := a.(*asserts.SnapDeclaration)
+	c.Check(snapDecl.AuthorityID(), Equals, "canonical")
+	c.Check(snapDecl.Timestamp(), Equals, sds.ts)
+	c.Check(snapDecl.Series(), Equals, "16")
+	c.Check(snapDecl.SnapID(), Equals, "snap-id-1")
+	c.Check(snapDecl.SnapName(), Equals, "first")
+	c.Check(snapDecl.PublisherID(), Equals, "dev-id1")
+	c.Check(snapDecl.Gates(), DeepEquals, []string{"snap-id-3", "snap-id-4"})
+}
+
+const (
+	snapDeclErrPrefix = "assertion snap-declaration: "
 )
+
+func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
+	encoded := "type: snap-declaration\n" +
+		"authority-id: canonical\n" +
+		"series: 16\n" +
+		"snap-id: snap-id-1\n" +
+		"snap-name: first\n" +
+		"publisher-id: dev-id1\n" +
+		"gates: snap-id-3,snap-id-4\n" +
+		sds.tsLine +
+		"body-length: 0" +
+		"\n\n" +
+		"openpgp c2ln"
+
+	invalidTests := []struct{ original, invalid, expectedErr string }{
+		{"series: 16\n", "", `"series" header is mandatory`},
+		{"snap-id: snap-id-1\n", "", `"snap-id" header is mandatory`},
+		{"snap-name: first\n", "", `"snap-name" header is mandatory`},
+		{"publisher-id: dev-id1\n", "", `"publisher-id" header is mandatory`},
+		{"gates: snap-id-3,snap-id-4\n", "", `\"gates\" header is mandatory`},
+		{"gates: snap-id-3,snap-id-4\n", "gates: foo,\n", `empty entry in comma separated "gates" header: "foo,"`},
+		{sds.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
+	}
+
+	for _, test := range invalidTests {
+		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
+		_, err := asserts.Decode([]byte(invalid))
+		c.Check(err, ErrorMatches, snapDeclErrPrefix+test.expectedErr)
+	}
+
+}
+
+type snapBuildSuite struct {
+	ts     time.Time
+	tsLine string
+}
 
 func (sbs *snapBuildSuite) SetUpSuite(c *C) {
 	sbs.ts = time.Now().Truncate(time.Second).UTC()
