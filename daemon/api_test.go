@@ -775,15 +775,15 @@ type fakeOverlord struct {
 	configs map[string]string
 }
 
-func (o *fakeOverlord) Configure(s *snappy.SnapPart, c []byte) (string, error) {
+func (o *fakeOverlord) Configure(s *snappy.SnapPart, c []byte) ([]byte, error) {
 	if len(c) > 0 {
 		o.configs[s.Name()] = string(c)
 	}
 	config, ok := o.configs[s.Name()]
 	if !ok {
-		return "", fmt.Errorf("no config for %q", s.Name())
+		return nil, fmt.Errorf("no config for %q", s.Name())
 	}
-	return config, nil
+	return []byte(config), nil
 }
 
 func (s *apiSuite) TestSnapGetConfig(c *check.C) {

@@ -609,3 +609,50 @@ prerequisite in the database.
 The response is a stream of assertions separated by double newlines.
 The X-Ubuntu-Assertions-Count header is set to the number of
 returned assertions, 0 or more.
+
+## /2.0/skills
+
+### GET
+
+* Description: Get all the skills and information about where they are granted
+* Access: authenticated
+* Operation: sync
+* Return: array of skills containing array of slots using each skill.
+
+Sample result:
+
+```javascript
+[
+    {
+        “snap”:  "canonical-pi2",
+        “type”:  "bool-file",
+        “name”:  "pin-13",
+        “label”: "Pin 13",
+        “granted-to”: [
+            {"snap": "keyboard-lights", "name": "capslock-led"}
+        ]
+    }
+]
+```
+
+### POST
+
+* Description: Issue an action to the skill system
+* Access: authenticated
+* Operation: sync
+* Return: nothing
+
+Available actions are:
+
+- grant: grant the skill to the given skill slot.
+- revoke: revoke the given skill from the given skill slot.
+
+Sample input:
+
+```javascript
+{
+    “action”: “grant”,
+    “skill”:  {“snap”: “canonical-pi2”,   “name”: “pin-13”},
+    “slot”:   {“snap”: “keyboard-lights”, “name”: “capslock-led”}
+}
+```

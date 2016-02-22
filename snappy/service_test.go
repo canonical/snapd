@@ -88,6 +88,8 @@ apps:
  svc1:
    command: bin/hello
    daemon: forking
+ non-svc2:
+   command: something
 `)
 	c.Assert(err, IsNil)
 	f, err := makeInstalledMockSnap(dirs.GlobalRootDir, `name: hello-app
@@ -96,6 +98,8 @@ apps:
  svc1:
    command: bin/hello
    daemon: forking
+ non-svc2:
+   command: something
 `)
 	c.Assert(err, IsNil)
 	c.Assert(makeSnapActive(f), IsNil)
@@ -232,4 +236,9 @@ func (s *ServiceActorSuite) TestFindServicesReportsErrors(c *C) {
 	c.Check(err, NotNil)
 	_, err = actor.Loglines()
 	c.Check(err, NotNil)
+}
+
+func (s *ServiceActorSuite) TestFindServicesIgnoresForegroundApps(c *C) {
+	_, err := FindServices("hello-app", "non-svc2", s.pb)
+	c.Check(err, Equals, ErrServiceNotFound)
 }

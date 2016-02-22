@@ -94,8 +94,7 @@ func RunShell() error {
 	return nil
 }
 
-// Destroy destroys a classic environment, i.e. unmonts and removes all files
-func Destroy() error {
+func unmountBindMounts() error {
 	for _, m := range bindMountDirs {
 		dst := filepath.Join(dirs.ClassicDir, m.dst)
 		needsUnmount, err := isMounted(dst)
@@ -107,6 +106,15 @@ func Destroy() error {
 				return err
 			}
 		}
+	}
+
+	return nil
+}
+
+// Destroy destroys a classic environment, i.e. unmonts and removes all files
+func Destroy() error {
+	if err := unmountBindMounts(); err != nil {
+		return fmt.Errorf("cannot unmount")
 	}
 
 	return os.RemoveAll(dirs.ClassicDir)
