@@ -51,8 +51,8 @@ Help Options:
   -h, --help                     Show this help message
 
 [revoke command arguments]
-  <snap>:<skill>:                snap offering the skill
-  <snap>:<skill slot>:           snap using the skill
+  <snap>:<skill>
+  <snap>:<skill slot>
 `
 	rest, err := Parser().ParseArgs([]string{"revoke", "--help"})
 	c.Assert(err.Error(), Equals, msg)
