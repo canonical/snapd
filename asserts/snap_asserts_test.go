@@ -88,9 +88,11 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 		"openpgp c2ln"
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
+		{"series: 16\n", "", `"series" header is mandatory`},
 		{"snap-id: snap-id-1\n", "", `"snap-id" header is mandatory`},
 		{"snap-name: first\n", "", `"snap-name" header is mandatory`},
 		{"publisher-id: dev-id1\n", "", `"publisher-id" header is mandatory`},
+		{"gates: snap-id-3,snap-id-4\n", "", `\"gates\" header is mandatory`},
 		{"gates: snap-id-3,snap-id-4\n", "gates: foo,\n", `empty entry in comma separated "gates" header: "foo,"`},
 		{sds.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
 	}
