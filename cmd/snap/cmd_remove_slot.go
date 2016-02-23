@@ -23,27 +23,27 @@ import (
 	"github.com/ubuntu-core/snappy/i18n"
 )
 
-type cmdRemoveSkillSlot struct {
+type cmdRemoveSlot struct {
 	Positionals struct {
-		Snap string `positional-arg-name:"<snap>" description:"Name of the snap containing the skill slot"`
-		Name string `positional-arg-name:"<skill slot>" description:"Name of the skill slot within the snap"`
+		Snap string `positional-arg-name:"<snap>" description:"Name of the snap containing the slot"`
+		Slot string `positional-arg-name:"<slot>" description:"Name of the slot within the snap"`
 	} `positional-args:"true" required:"true"`
 }
 
-var shortRemoveSkillSlotHelp = i18n.G("Removes a skill slot from the system")
-var longRemoveSkillSlotHelp = i18n.G(`
-The remove-skill-slot command removes a skill slot from the system.
+var shortRemoveSlotHelp = i18n.G("Removes a slot from the system")
+var longRemoveSlotHelp = i18n.G(`
+The remove-slot command removes a slot from the system.
 
-This command is only for experimentation with the skill system.
+This command is only for experimentation with interfaces.
 It will be removed in one of the future releases.
 `)
 
 func init() {
-	addExperimentalCommand("remove-skill-slot", shortRemoveSkillSlotHelp, longRemoveSkillSlotHelp, func() interface{} {
-		return &cmdRemoveSkillSlot{}
+	addExperimentalCommand("remove-slot", shortRemoveSlotHelp, longRemoveSlotHelp, func() interface{} {
+		return &cmdRemoveSlot{}
 	})
 }
 
-func (x *cmdRemoveSkillSlot) Execute(args []string) error {
-	return Client().RemoveSlot(x.Positionals.Snap, x.Positionals.Name)
+func (x *cmdRemoveSlot) Execute(args []string) error {
+	return Client().RemoveSlot(x.Positionals.Snap, x.Positionals.Slot)
 }
