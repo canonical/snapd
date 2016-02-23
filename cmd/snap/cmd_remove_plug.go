@@ -23,27 +23,27 @@ import (
 	"github.com/ubuntu-core/snappy/i18n"
 )
 
-type cmdRemoveSkill struct {
+type cmdRemovePlug struct {
 	Positionals struct {
-		Snap string `positional-arg-name:"<snap>" description:"Name of the snap containing the skill"`
-		Name string `positional-arg-name:"<skill>" description:"Name of the skill slot within the snap"`
+		Snap string `positional-arg-name:"<snap>" description:"Name of the snap containing the plug"`
+		Plug string `positional-arg-name:"<plug>" description:"Name of the plug within the snap"`
 	} `positional-args:"true" required:"true"`
 }
 
-var shortRemoveSkillHelp = i18n.G("Removes a skill from the system")
-var longRemoveSkillHelp = i18n.G(`
-The remove-skill command removes a skill from the system.
+var shortRemovePlugHelp = i18n.G("Removes a plug from the system")
+var longRemovePlugHelp = i18n.G(`
+The remove-plug command removes a plug from the system.
 
-This command is only for experimentation with the skill system.
+This command is only for experimentation with interfaces.
 It will be removed in one of the future releases.
 `)
 
 func init() {
-	addExperimentalCommand("remove-skill", shortRemoveSkillHelp, longRemoveSkillHelp, func() interface{} {
-		return &cmdRemoveSkill{}
+	addExperimentalCommand("remove-plug", shortRemovePlugHelp, longRemovePlugHelp, func() interface{} {
+		return &cmdRemovePlug{}
 	})
 }
 
-func (x *cmdRemoveSkill) Execute(args []string) error {
-	return Client().RemoveSkill(x.Positionals.Snap, x.Positionals.Name)
+func (x *cmdRemovePlug) Execute(args []string) error {
+	return Client().RemoveSkill(x.Positionals.Snap, x.Positionals.Plug)
 }
