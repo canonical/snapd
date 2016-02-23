@@ -28,28 +28,28 @@ import (
 	. "github.com/ubuntu-core/snappy/cmd/snap"
 )
 
-func (s *SnapSuite) TestRemoveSkillSlotHelp(c *C) {
+func (s *SnapSuite) TestRemoveSlotHelp(c *C) {
 	msg := `Usage:
-  snap.test [OPTIONS] experimental remove-skill-slot <snap> <skill slot>
+  snap.test [OPTIONS] experimental remove-slot <snap> <slot>
 
-The remove-skill-slot command removes a skill slot from the system.
+The remove-slot command removes a slot from the system.
 
-This command is only for experimentation with the skill system.
+This command is only for experimentation with interfaces.
 It will be removed in one of the future releases.
 
 Help Options:
-  -h, --help              Show this help message
+  -h, --help        Show this help message
 
-[remove-skill-slot command arguments]
-  <snap>:                 Name of the snap containing the skill slot
-  <skill slot>:           Name of the skill slot within the snap
+[remove-slot command arguments]
+  <snap>:           Name of the snap containing the slot
+  <slot>:           Name of the slot within the snap
 `
-	rest, err := Parser().ParseArgs([]string{"experimental", "remove-skill-slot", "--help"})
+	rest, err := Parser().ParseArgs([]string{"experimental", "remove-slot", "--help"})
 	c.Assert(err.Error(), Equals, msg)
 	c.Assert(rest, DeepEquals, []string{})
 }
 
-func (s *SnapSuite) TestRemoveSkillSlot(c *C) {
+func (s *SnapSuite) TestRemoveSlot(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "POST")
 		c.Check(r.URL.Path, Equals, "/2.0/skills")
@@ -63,7 +63,7 @@ func (s *SnapSuite) TestRemoveSkillSlot(c *C) {
 		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
 	})
 	rest, err := Parser().ParseArgs([]string{
-		"experimental", "remove-skill-slot", "consumer", "slot",
+		"experimental", "remove-slot", "consumer", "slot",
 	})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
