@@ -20,7 +20,7 @@
 package types_test
 
 import (
-	"github.com/ubuntu-core/snappy/skills/types"
+	"github.com/ubuntu-core/snappy/interfaces/types"
 	. "github.com/ubuntu-core/snappy/testutil"
 
 	. "gopkg.in/check.v1"

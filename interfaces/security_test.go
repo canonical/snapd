@@ -17,12 +17,12 @@
  *
  */
 
-package skills_test
+package interfaces_test
 
 import (
 	. "gopkg.in/check.v1"
 
-	. "github.com/ubuntu-core/snappy/skills"
+	. "github.com/ubuntu-core/snappy/interfaces"
 )
 
 type SecuritySuite struct {
