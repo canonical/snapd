@@ -50,12 +50,9 @@ Help Options:
   <skill slot>:           Name of the skill slot within the snap
   <type>:                 Skill type
 `
-	rest, _ := Parser().ParseArgs([]string{"experimental", "add-skill-slot", "--help"})
-	// TODO: Re-enable this test after go-flags is updated
-	msg = msg[:]
-	// c.Assert(err.Error(), Equals, msg)
-	// NOTE: Updated go-flags returns []string{} here
-	c.Assert(rest, DeepEquals, []string{"--help"})
+	rest, err := Parser().ParseArgs([]string{"experimental", "add-skill-slot", "--help"})
+	c.Assert(err.Error(), Equals, msg)
+	c.Assert(rest, DeepEquals, []string{})
 }
 
 func (s *SnapSuite) TestAddSkillSlotExplicitEverything(c *C) {

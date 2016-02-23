@@ -171,10 +171,14 @@ frameworks:
 	c.Check(fmk, DeepEquals, []string{"one", "two"})
 }
 
-func (s *SnapTestSuite) TestLocalSnapRepositoryInvalid(c *C) {
+func (s *SnapTestSuite) TestLocalSnapRepositoryInvalidIsStillOk(c *C) {
 	dirs.SnapSnapsDir = "invalid-path"
 	snap := NewLocalSnapRepository()
-	c.Assert(snap, IsNil)
+	c.Assert(snap, NotNil)
+
+	installed, err := snap.Installed()
+	c.Assert(err, IsNil)
+	c.Assert(installed, HasLen, 0)
 }
 
 func (s *SnapTestSuite) TestLocalSnapRepositorySimple(c *C) {
@@ -1540,6 +1544,17 @@ func (s *SnapTestSuite) TestCpiURLDependsOnEnviron(c *C) {
 	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", "1"), IsNil)
 	defer os.Setenv("SNAPPY_USE_STAGING_CPI", "")
 	after := cpiURL()
+
+	c.Check(before, Not(Equals), after)
+}
+
+func (s *SnapTestSuite) TestAuthURLDependsOnEnviron(c *C) {
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", ""), IsNil)
+	before := authURL()
+
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", "1"), IsNil)
+	defer os.Setenv("SNAPPY_USE_STAGING_CPI", "")
+	after := authURL()
 
 	c.Check(before, Not(Equals), after)
 }
