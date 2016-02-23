@@ -45,10 +45,10 @@ func testConfigFileName(c *check.C) string {
 }
 
 func testConfigStruct(fileName string) *Config {
-	return NewConfig(
+	return &Config{
 		fileName,
 		"testrelease", "testchannel",
-		true, true, true, true)
+		true, true, true, true}
 }
 func testConfigContents(fileName string) string {
 	return `{` +
@@ -110,7 +110,7 @@ func (s *ConfigSuite) TestReadConfigLocalTestBed(c *check.C) {
 
 	cfg, err := ReadConfig(configFileName)
 
-	testConfigStruct := NewConfig(configFileName, "testrelease", "testchannel", false, true, true, true)
+	testConfigStruct := &Config{configFileName, "testrelease", "testchannel", false, true, true, true}
 
 	c.Assert(err, check.IsNil, check.Commentf("Error reading config: %v", err))
 	c.Assert(cfg, check.DeepEquals, testConfigStruct)

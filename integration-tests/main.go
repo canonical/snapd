@@ -95,8 +95,15 @@ func main() {
 
 	// TODO: pass the config as arguments to the test binaries.
 	// --elopio - 2015-07-15
-	cfg := config.NewConfig(
-		config.DefaultFileName, *imgRelease, *imgChannel, remoteTestbed, *update, *rollback, *useSnappyFromBranch)
+	cfg := &config.Config{
+		FileName:      config.DefaultFileName,
+		Release:       *imgRelease,
+		Channel:       *imgChannel,
+		RemoteTestbed: remoteTestbed,
+		Update:        *update,
+		Rollback:      *rollback,
+		FromBranch:    *useSnappyFromBranch,
+	}
 	cfg.Write()
 
 	rootPath := testutils.RootPath()

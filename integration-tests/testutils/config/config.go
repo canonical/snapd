@@ -40,15 +40,6 @@ type Config struct {
 	FromBranch    bool
 }
 
-// NewConfig is the Config constructor
-func NewConfig(fileName, release, channel string, remoteTestbed, update, rollback, fromBranch bool) *Config {
-	return &Config{
-		FileName: fileName, Release: release, Channel: channel,
-		RemoteTestbed: remoteTestbed, Update: update, Rollback: rollback,
-		FromBranch: fromBranch,
-	}
-}
-
 // Write writes the config to a file that will be copied to the test bed.
 func (cfg Config) Write() {
 	encoded, err := json.Marshal(cfg)
