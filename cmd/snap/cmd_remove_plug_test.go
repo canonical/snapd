@@ -28,29 +28,29 @@ import (
 	. "github.com/ubuntu-core/snappy/cmd/snap"
 )
 
-func (s *SnapSuite) TestRemoveSkillHelp(c *C) {
+func (s *SnapSuite) TestRemovePlugHelp(c *C) {
 	msg := `Usage:
-  snap.test [OPTIONS] experimental remove-skill <snap> <skill>
+  snap.test [OPTIONS] experimental remove-plug <snap> <plug>
 
-The remove-skill command removes a skill from the system.
+The remove-plug command removes a plug from the system.
 
-This command is only for experimentation with the skill system.
+This command is only for experimentation with interfaces.
 It will be removed in one of the future releases.
 
 Help Options:
-  -h, --help         Show this help message
+  -h, --help        Show this help message
 
-[remove-skill command arguments]
-  <snap>:            Name of the snap containing the skill
-  <skill>:           Name of the skill slot within the snap
+[remove-plug command arguments]
+  <snap>:           Name of the snap containing the plug
+  <plug>:           Name of the plug within the snap
 `
 	rest, err := Parser().ParseArgs([]string{
-		"experimental", "remove-skill", "--help"})
+		"experimental", "remove-plug", "--help"})
 	c.Assert(err.Error(), Equals, msg)
 	c.Assert(rest, DeepEquals, []string{})
 }
 
-func (s *SnapSuite) TestRemoveSkill(c *C) {
+func (s *SnapSuite) TestRemovePlug(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "POST")
 		c.Check(r.URL.Path, Equals, "/2.0/skills")
@@ -58,13 +58,13 @@ func (s *SnapSuite) TestRemoveSkill(c *C) {
 			"action": "remove-skill",
 			"skill": map[string]interface{}{
 				"snap": "producer",
-				"name": "skill",
+				"name": "plug",
 			},
 		})
 		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
 	})
 	rest, err := Parser().ParseArgs([]string{
-		"experimental", "remove-skill", "producer", "skill",
+		"experimental", "remove-plug", "producer", "plug",
 	})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
