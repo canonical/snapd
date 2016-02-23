@@ -126,7 +126,7 @@ func (s *BoolFileTypeSuite) TestSlotSecuritySnippetHandlesSymlinkErrors(c *C) {
 	types.MockEvalSymlinks(&s.BaseTest, func(path string) (string, error) {
 		return "", fmt.Errorf("broken symbolic link")
 	})
-	snippet, err := s.t.SlotSecuritySnippet(s.gpioSkill, skills.SecurityAppArmor)
+	snippet, err := s.t.SlotSecuritySnippet(s.gpioSkill, s.slot, skills.SecurityAppArmor)
 	c.Assert(err, ErrorMatches, "cannot compute skill slot security snippet: broken symbolic link")
 	c.Assert(snippet, IsNil)
 }
@@ -138,13 +138,13 @@ func (s *BoolFileTypeSuite) TestSlotSecuritySnippetDereferencesSymlinks(c *C) {
 	})
 	// Extra apparmor permission to access GPIO value
 	// The path uses dereferenced symbolic links.
-	snippet, err := s.t.SlotSecuritySnippet(s.gpioSkill, skills.SecurityAppArmor)
+	snippet, err := s.t.SlotSecuritySnippet(s.gpioSkill, s.slot, skills.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, []byte(
 		"(dereferenced)/sys/class/gpio/gpio13/value rwk,\n"))
 	// Extra apparmor permission to access LED brightness.
 	// The path uses dereferenced symbolic links.
-	snippet, err = s.t.SlotSecuritySnippet(s.ledSkill, skills.SecurityAppArmor)
+	snippet, err = s.t.SlotSecuritySnippet(s.ledSkill, s.slot, skills.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, []byte(
 		"(dereferenced)/sys/class/leds/input27::capslock/brightness rwk,\n"))
@@ -157,7 +157,7 @@ func (s *BoolFileTypeSuite) TestSlotSecurityDoesNotContainSkillSecurity(c *C) {
 	})
 	var err error
 	var skillSnippet, slotSnippet []byte
-	slotSnippet, err = s.t.SlotSecuritySnippet(s.gpioSkill, skills.SecurityAppArmor)
+	slotSnippet, err = s.t.SlotSecuritySnippet(s.gpioSkill, s.slot, skills.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	skillSnippet, err = s.t.SkillSecuritySnippet(s.gpioSkill, skills.SecurityAppArmor)
 	c.Assert(err, IsNil)
@@ -168,18 +168,22 @@ func (s *BoolFileTypeSuite) TestSlotSecurityDoesNotContainSkillSecurity(c *C) {
 func (s *BoolFileTypeSuite) TestSlotSecuritySnippetPanicksOnUnsanitizedSkills(c *C) {
 	// Unsanitized skills should never be used and cause a panic.
 	c.Assert(func() {
-		s.t.SlotSecuritySnippet(s.missingPathSkill, skills.SecurityAppArmor)
+		s.t.SlotSecuritySnippet(s.missingPathSkill, s.slot, skills.SecurityAppArmor)
 	}, PanicMatches, "skill is not sanitized")
 }
 
 func (s *BoolFileTypeSuite) TestSlotSecuritySnippetUnusedSecuritySystems(c *C) {
 	for _, skill := range []*skills.Skill{s.ledSkill, s.gpioSkill} {
 		// No extra seccomp permissions for slot
-		snippet, err := s.t.SlotSecuritySnippet(skill, skills.SecuritySecComp)
+		snippet, err := s.t.SlotSecuritySnippet(skill, s.slot, skills.SecuritySecComp)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 		// No extra dbus permissions for slot
-		snippet, err = s.t.SlotSecuritySnippet(skill, skills.SecurityDBus)
+		snippet, err = s.t.SlotSecuritySnippet(skill, s.slot, skills.SecurityDBus)
+		c.Assert(err, IsNil)
+		c.Assert(snippet, IsNil)
+		// No extra udev permissions for slot
+		snippet, err = s.t.SlotSecuritySnippet(skill, s.slot, skills.SecurityUDev)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 		// No extra udev permissions for slot
@@ -187,7 +191,7 @@ func (s *BoolFileTypeSuite) TestSlotSecuritySnippetUnusedSecuritySystems(c *C) {
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 		// Other security types are not recognized
-		snippet, err = s.t.SlotSecuritySnippet(skill, "foo")
+		snippet, err = s.t.SlotSecuritySnippet(skill, s.slot, "foo")
 		c.Assert(err, ErrorMatches, `unknown security system`)
 		c.Assert(snippet, IsNil)
 	}

@@ -74,7 +74,7 @@ type Type interface {
 	// from the security system to work, in addition to the default
 	// configuration.  ErrUnknownSecurity is returned when the skill cannot
 	// deal with the requested security system.
-	SlotSecuritySnippet(skill *Skill, securitySystem SecuritySystem) ([]byte, error)
+	SlotSecuritySnippet(skill *Skill, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
 }
 
 // SecuritySystem is a name of a security system.

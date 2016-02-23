@@ -103,7 +103,7 @@ func (t *BoolFileType) SkillSecuritySnippet(skill *skills.Skill, securitySystem 
 
 // SlotSecuritySnippet returns the configuration snippet required to use a bool-file skill.
 // Consumers gain permission to read, write and lock the designated file.
-func (t *BoolFileType) SlotSecuritySnippet(skill *skills.Skill, securitySystem skills.SecuritySystem) ([]byte, error) {
+func (t *BoolFileType) SlotSecuritySnippet(skill *skills.Skill, slot *skills.Slot, securitySystem skills.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case skills.SecurityAppArmor:
 		// Allow write and lock on the file designated by the path.
