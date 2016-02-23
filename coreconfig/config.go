@@ -169,18 +169,18 @@ var yamlMarshal = yaml.Marshal
 // Get is a special configuration case for the system, for which
 // there is no such entry in a snap.yaml to satisfy the snappy config interface.
 // This implements getting the current configuration for ubuntu-core.
-func Get() (rawConfig string, err error) {
+func Get() (rawConfig []byte, err error) {
 	config, err := newSystemConfig()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	out, err := yamlMarshal(&configYaml{Config: coreConfig{config}})
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return string(out), nil
+	return out, nil
 }
 
 func passthroughEqual(a, b []passthroughConfig) bool {
@@ -199,20 +199,20 @@ func passthroughEqual(a, b []passthroughConfig) bool {
 // Set is used to configure settings for the system, this is meant to
 // be used as an interface for snappy config to satisfy the ubuntu-core
 // hook.
-func Set(rawConfig string) (newRawConfig string, err error) {
+func Set(rawConfig []byte) (newRawConfig []byte, err error) {
 	oldConfig, err := newSystemConfig()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	var configWrap configYaml
-	err = yaml.Unmarshal([]byte(rawConfig), &configWrap)
+	err = yaml.Unmarshal(rawConfig, &configWrap)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	newConfig := configWrap.Config.UbuntuCore
 	if newConfig == nil {
-		return "", ErrInvalidConfig
+		return nil, ErrInvalidConfig
 	}
 
 	needsModReload := false
@@ -231,7 +231,7 @@ func Set(rawConfig string) (newRawConfig string, err error) {
 			}
 
 			if err := setTimezone(*newConfig.Timezone); err != nil {
-				return "", err
+				return nil, err
 			}
 		case "AutoUpdate":
 			if *oldConfig.AutoUpdate == *newConfig.AutoUpdate {
@@ -239,7 +239,7 @@ func Set(rawConfig string) (newRawConfig string, err error) {
 			}
 
 			if err := setAutoUpdate(*newConfig.AutoUpdate); err != nil {
-				return "", err
+				return nil, err
 			}
 		case "Hostname":
 			if *oldConfig.Hostname == *newConfig.Hostname {
@@ -247,7 +247,7 @@ func Set(rawConfig string) (newRawConfig string, err error) {
 			}
 
 			if err := setHostname(*newConfig.Hostname); err != nil {
-				return "", err
+				return nil, err
 			}
 		case "Modprobe":
 			if *oldConfig.Modprobe == *newConfig.Modprobe {
@@ -255,23 +255,23 @@ func Set(rawConfig string) (newRawConfig string, err error) {
 			}
 
 			if err := setModprobe(*newConfig.Modprobe); err != nil {
-				return "", err
+				return nil, err
 			}
 			needsModReload = true
 		case "Modules":
 			if err := setModules(newConfig.Modules); err != nil {
-				return "", err
+				return nil, err
 			}
 			needsModReload = true
 		case "Network":
 			if oldConfig.Network == nil || !passthroughEqual(oldConfig.Network.Interfaces, newConfig.Network.Interfaces) {
 				if err := setInterfaces(newConfig.Network.Interfaces); err != nil {
-					return "", err
+					return nil, err
 				}
 			}
 			if oldConfig.Network == nil || !passthroughEqual(oldConfig.Network.PPP, newConfig.Network.PPP) {
 				if err := setPPP(newConfig.Network.PPP); err != nil {
-					return "", err
+					return nil, err
 				}
 			}
 		case "Watchdog":
@@ -280,14 +280,14 @@ func Set(rawConfig string) (newRawConfig string, err error) {
 			}
 
 			if err := setWatchdog(newConfig.Watchdog); err != nil {
-				return "", err
+				return nil, err
 			}
 		}
 	}
 
 	if needsModReload {
 		if _, err := systemd.SystemctlCmd("restart", "--no-block", "systemd-modules-load.service"); err != nil {
-			return "", err
+			return nil, err
 		}
 	}
 

@@ -74,3 +74,34 @@ func (s *AttributePairSuite) TestAttributePairSliceToMap(c *C) {
 		"key2": "value2",
 	})
 }
+
+type SnapAndNameSuite struct{}
+
+var _ = Suite(&SnapAndNameSuite{})
+
+func (s *SnapAndNameSuite) TestUnmarshalFlag(c *C) {
+	var sn SnapAndName
+	// Typical
+	err := sn.UnmarshalFlag("snap:name")
+	c.Assert(err, IsNil)
+	c.Check(sn.Snap, Equals, "snap")
+	c.Check(sn.Name, Equals, "name")
+	// Abbreviated
+	err = sn.UnmarshalFlag("snap")
+	c.Assert(err, IsNil)
+	c.Check(sn.Snap, Equals, "snap")
+	c.Check(sn.Name, Equals, "")
+	// Invalid
+	for _, input := range []string{
+		":name",          // Empty snap, makes no sense
+		"snap:",          // Empty name, should be spelled as "snap"
+		":",              // Both snap and name empty, makes no sense
+		"snap:name:more", // Name containing :, probably a typo
+		"",               // Empty input
+	} {
+		err = sn.UnmarshalFlag(input)
+		c.Assert(err, ErrorMatches, `invalid value: ".*" \(want snap:name or snap\)`)
+		c.Check(sn.Snap, Equals, "")
+		c.Check(sn.Name, Equals, "")
+	}
+}

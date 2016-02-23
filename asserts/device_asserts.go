@@ -141,3 +141,63 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		timestamp:     timestamp,
 	}, nil
 }
+
+// Device holds a device assertion, which is a statement binding
+// a device identity with the device public key.
+type Device struct {
+	assertionBase
+	timestamp time.Time
+	pubKey    PublicKey
+}
+
+// BrandID returns the brand identifier of the device.
+func (dev *Device) BrandID() string {
+	return dev.Header("brand-id")
+}
+
+// Model returns the model name identifier of the device.
+func (dev *Device) Model() string {
+	return dev.Header("model")
+}
+
+// Serial returns the serial of the device, together with brand id and model they form the unique identifier of the device.
+func (dev *Device) Serial() string {
+	return dev.Header("serial")
+}
+
+// DeviceKey returns the public key of the device.
+func (dev *Device) DeviceKey() PublicKey {
+	return dev.pubKey
+}
+
+// Timestamp returns the time when the device assertion was issued.
+func (dev *Device) Timestamp() time.Time {
+	return dev.timestamp
+}
+
+// TODO: implement further consistency checks for Device but first review approach
+
+func assembleDevice(assert assertionBase) (Assertion, error) {
+	// TODO: authority-id can only == canonical or brand-id
+
+	encodedKey, err := checkMandatory(assert.headers, "device-key")
+	if err != nil {
+		return nil, err
+	}
+	pubKey, err := decodePublicKey([]byte(encodedKey))
+	if err != nil {
+		return nil, err
+	}
+
+	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
+	if err != nil {
+		return nil, err
+	}
+
+	// ignore extra headers and non-empty body for future compatibility
+	return &Device{
+		assertionBase: assert,
+		timestamp:     timestamp,
+		pubKey:        pubKey,
+	}, nil
+}

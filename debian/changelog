@@ -1,3 +1,77 @@
+ubuntu-snappy (1.7.2+20160223ubuntu1) xenial; urgency=medium
+
+  * New git snapshot:
+    - asserts: introduce snap-declaration
+    - cmd/snap: fix integration tests for the "cmd_asserts"
+    - integration-tests: fix fanctl output check
+    - cmd/snap: fix test failure after merging 23a64e6
+    - cmd/snap: replace skip-help with empty description
+    - docs: update security.md to match current migration-skill
+      semantics
+    - snappy: treat commands with 'daemon' field as services
+    - asserts: use more consistent names for receivers in
+      snap_asserts*.go
+    - debian: add missing golang-websocket-dev build-dependency
+    - classic: if classic fails to get created, undo the bind mounts
+    - snappy: never return nil in NewLocalSnapRepository()
+    - notifications: A simple notification system
+    - snappy: when using staging, authenticate there instead
+    - integration-tests/snapd: fix the start of the test snapd socket
+    - skills/types: use CamelCase for security names
+    - skills: add support for implicit revoke
+    - skills: add security layer
+    - integration-tests: use exec.Command wrapper for updates
+    - cmd/snap: add 'snap skills'
+    - cms/snap: add 'snap revoke'
+    - docs: add docs for skills API
+    - cmd/snap: add 'snap grant'
+    - cmd/snappy, coreconfig, daemon, snappy: move config to always be
+      bytes (in and out)
+    - overlord: start with a skeleton and stubs for Overlord,
+      StateEngine, StateJournal and managers
+    - integration-tests: skip tests affected by LP: #1544507
+    - skills/types: add bool-file
+    - po: refresh translation templates
+    - cmd/snap: add 'snap experimental remove-skill-slot'
+    - asserts: introduce device assertion
+    - cmd/snap: implemented add, remove, purge, refresh, rollback,
+      activate, deactivate
+    - cmd/snap: add 'snap experimental add-skill-slot'
+    - cmd/snap: add 'snap experimental remove-skill'
+    - cmd/snap: add tests for common skills code
+    - cmd/snap: add 'snap experimental add-skill'
+    - asserts: make assertion checkers used by db.Check modular and
+      pluggable
+    - cmd,client,daemon,caps,docs,po: remove capabilities
+    - scripts: move the script to get dependencies to a separate file
+    - asserts: make the disk layout compatible for storing more than one
+      revision
+    - cmd/snap: make the assert command options exported
+    - integration-tests: Remove the target release and channel
+    - asserts: introduce model assertion
+    - integration-tests: add exec.Cmd wrapper
+    - cmd/snap: add client test support methods
+    - cmd/snap: move key=value attribute parsing to commmon
+    - cmd/snap: apply new style consistency to "snap" commands.
+    - cmd/snap: support redirecting the client for testing
+    - cmd/snap: support testing command output
+    - snappy,daemon: remove the meta repositories abstractions
+    - cmd: add support for experimental commands
+    - cmd/snappy,daemon,snap,snappy: remove SetActive from parts
+    - cmd/snappy,daemon,snappy,snap: remove config from parts interface
+    - client: improve test data
+    - cmd: allow to construct a fresh parser
+    - cmd: don't treat help as an error
+    - cmd/snappy,snappy: remove "Details" from the repository interface
+    - asserts: check that primary keys are set when
+      Decode()ing/assembling assertions
+    - snap,snappy: refactor to remove "Install" from the Part interface
+    - client,cmd: make client.New() configurable
+    - client: enable retrieving asynchronous operation information with
+      `Client.Operation`.
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 23 Feb 2016 11:28:18 +0100
+
 ubuntu-snappy (1.7.2+20160204ubuntu1) xenial; urgency=medium
 
   * New git snapshot:

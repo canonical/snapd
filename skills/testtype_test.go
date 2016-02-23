@@ -109,10 +109,10 @@ func (s *TestTypeSuite) TestSkillSecuritySnippet(c *C) {
 	skill := &Skill{
 		Type: "test",
 	}
-	snippet, err := s.t.SkillSecuritySnippet(skill, SecurityApparmor)
+	snippet, err := s.t.SkillSecuritySnippet(skill, SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.t.SkillSecuritySnippet(skill, SecuritySeccomp)
+	snippet, err = s.t.SkillSecuritySnippet(skill, SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 	snippet, err = s.t.SkillSecuritySnippet(skill, SecurityDBus)
@@ -128,16 +128,19 @@ func (s *TestTypeSuite) TestSlotSecuritySnippet(c *C) {
 	skill := &Skill{
 		Type: "test",
 	}
-	snippet, err := s.t.SlotSecuritySnippet(skill, SecurityApparmor)
+	slot := &Slot{
+		Type: "test",
+	}
+	snippet, err := s.t.SlotSecuritySnippet(skill, slot, SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.t.SlotSecuritySnippet(skill, SecuritySeccomp)
+	snippet, err = s.t.SlotSecuritySnippet(skill, slot, SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.t.SlotSecuritySnippet(skill, SecurityDBus)
+	snippet, err = s.t.SlotSecuritySnippet(skill, slot, SecurityDBus)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.t.SlotSecuritySnippet(skill, "foo")
+	snippet, err = s.t.SlotSecuritySnippet(skill, slot, "foo")
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 }

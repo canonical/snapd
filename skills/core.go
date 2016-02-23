@@ -74,19 +74,21 @@ type Type interface {
 	// from the security system to work, in addition to the default
 	// configuration.  ErrUnknownSecurity is returned when the skill cannot
 	// deal with the requested security system.
-	SlotSecuritySnippet(skill *Skill, securitySystem SecuritySystem) ([]byte, error)
+	SlotSecuritySnippet(skill *Skill, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
 }
 
 // SecuritySystem is a name of a security system.
 type SecuritySystem string
 
 const (
-	// SecurityApparmor identifies the apparmor security system.
-	SecurityApparmor SecuritySystem = "apparmor"
-	// SecuritySeccomp identifies the seccomp security system.
-	SecuritySeccomp SecuritySystem = "seccomp"
+	// SecurityAppArmor identifies the apparmor security system.
+	SecurityAppArmor SecuritySystem = "apparmor"
+	// SecuritySecComp identifies the seccomp security system.
+	SecuritySecComp SecuritySystem = "seccomp"
 	// SecurityDBus identifies the DBus security system.
 	SecurityDBus SecuritySystem = "dbus"
+	// SecurityUDev identifies the UDev security system.
+	SecurityUDev SecuritySystem = "udev"
 )
 
 var (
