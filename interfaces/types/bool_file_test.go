@@ -26,8 +26,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/skills"
-	"github.com/ubuntu-core/snappy/skills/types"
+	"github.com/ubuntu-core/snappy/interfaces"
+	"github.com/ubuntu-core/snappy/interfaces/types"
 	"github.com/ubuntu-core/snappy/testutil"
 )
 
@@ -37,51 +37,51 @@ func Test(t *testing.T) {
 
 type BoolFileTypeSuite struct {
 	testutil.BaseTest
-	t                  skills.Type
-	gpioSkill          *skills.Skill
-	ledSkill           *skills.Skill
-	badPathSkill       *skills.Skill
-	parentDirPathSkill *skills.Skill
-	missingPathSkill   *skills.Skill
-	badTypeSkill       *skills.Skill
-	slot               *skills.Slot
-	badTypeSlot        *skills.Slot
+	t                  interfaces.Type
+	gpioSkill          *interfaces.Skill
+	ledSkill           *interfaces.Skill
+	badPathSkill       *interfaces.Skill
+	parentDirPathSkill *interfaces.Skill
+	missingPathSkill   *interfaces.Skill
+	badTypeSkill       *interfaces.Skill
+	slot               *interfaces.Slot
+	badTypeSlot        *interfaces.Slot
 }
 
 var _ = Suite(&BoolFileTypeSuite{
 	t: &types.BoolFileType{},
-	gpioSkill: &skills.Skill{
+	gpioSkill: &interfaces.Skill{
 		Type: "bool-file",
 		Attrs: map[string]interface{}{
 			"path": "/sys/class/gpio/gpio13/value",
 		},
 	},
-	ledSkill: &skills.Skill{
+	ledSkill: &interfaces.Skill{
 		Type: "bool-file",
 		Attrs: map[string]interface{}{
 			"path": "/sys/class/leds/input27::capslock/brightness",
 		},
 	},
-	missingPathSkill: &skills.Skill{
+	missingPathSkill: &interfaces.Skill{
 		Type: "bool-file",
 	},
-	badPathSkill: &skills.Skill{
+	badPathSkill: &interfaces.Skill{
 		Type:  "bool-file",
 		Attrs: map[string]interface{}{"path": "path"},
 	},
-	parentDirPathSkill: &skills.Skill{
+	parentDirPathSkill: &interfaces.Skill{
 		Type: "bool-file",
 		Attrs: map[string]interface{}{
 			"path": "/sys/class/gpio/../value",
 		},
 	},
-	badTypeSkill: &skills.Skill{
+	badTypeSkill: &interfaces.Skill{
 		Type: "other-type",
 	},
-	slot: &skills.Slot{
+	slot: &interfaces.Slot{
 		Type: "bool-file",
 	},
-	badTypeSlot: &skills.Slot{
+	badTypeSlot: &interfaces.Slot{
 		Type: "other-type",
 	},
 })
@@ -126,7 +126,7 @@ func (s *BoolFileTypeSuite) TestSlotSecuritySnippetHandlesSymlinkErrors(c *C) {
 	types.MockEvalSymlinks(&s.BaseTest, func(path string) (string, error) {
 		return "", fmt.Errorf("broken symbolic link")
 	})
-	snippet, err := s.t.SlotSecuritySnippet(s.gpioSkill, s.slot, skills.SecurityAppArmor)
+	snippet, err := s.t.SlotSecuritySnippet(s.gpioSkill, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, ErrorMatches, "cannot compute skill slot security snippet: broken symbolic link")
 	c.Assert(snippet, IsNil)
 }
@@ -138,13 +138,13 @@ func (s *BoolFileTypeSuite) TestSlotSecuritySnippetDereferencesSymlinks(c *C) {
 	})
 	// Extra apparmor permission to access GPIO value
 	// The path uses dereferenced symbolic links.
-	snippet, err := s.t.SlotSecuritySnippet(s.gpioSkill, s.slot, skills.SecurityAppArmor)
+	snippet, err := s.t.SlotSecuritySnippet(s.gpioSkill, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, []byte(
 		"(dereferenced)/sys/class/gpio/gpio13/value rwk,\n"))
 	// Extra apparmor permission to access LED brightness.
 	// The path uses dereferenced symbolic links.
-	snippet, err = s.t.SlotSecuritySnippet(s.ledSkill, s.slot, skills.SecurityAppArmor)
+	snippet, err = s.t.SlotSecuritySnippet(s.ledSkill, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, []byte(
 		"(dereferenced)/sys/class/leds/input27::capslock/brightness rwk,\n"))
@@ -157,9 +157,9 @@ func (s *BoolFileTypeSuite) TestSlotSecurityDoesNotContainSkillSecurity(c *C) {
 	})
 	var err error
 	var skillSnippet, slotSnippet []byte
-	slotSnippet, err = s.t.SlotSecuritySnippet(s.gpioSkill, s.slot, skills.SecurityAppArmor)
+	slotSnippet, err = s.t.SlotSecuritySnippet(s.gpioSkill, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
-	skillSnippet, err = s.t.SkillSecuritySnippet(s.gpioSkill, skills.SecurityAppArmor)
+	skillSnippet, err = s.t.SkillSecuritySnippet(s.gpioSkill, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	// Ensure that we don't accidentally give skill-side permissions to slot-side.
 	c.Assert(bytes.Contains(slotSnippet, skillSnippet), Equals, false)
@@ -168,26 +168,26 @@ func (s *BoolFileTypeSuite) TestSlotSecurityDoesNotContainSkillSecurity(c *C) {
 func (s *BoolFileTypeSuite) TestSlotSecuritySnippetPanicksOnUnsanitizedSkills(c *C) {
 	// Unsanitized skills should never be used and cause a panic.
 	c.Assert(func() {
-		s.t.SlotSecuritySnippet(s.missingPathSkill, s.slot, skills.SecurityAppArmor)
+		s.t.SlotSecuritySnippet(s.missingPathSkill, s.slot, interfaces.SecurityAppArmor)
 	}, PanicMatches, "skill is not sanitized")
 }
 
 func (s *BoolFileTypeSuite) TestSlotSecuritySnippetUnusedSecuritySystems(c *C) {
-	for _, skill := range []*skills.Skill{s.ledSkill, s.gpioSkill} {
+	for _, skill := range []*interfaces.Skill{s.ledSkill, s.gpioSkill} {
 		// No extra seccomp permissions for slot
-		snippet, err := s.t.SlotSecuritySnippet(skill, s.slot, skills.SecuritySecComp)
+		snippet, err := s.t.SlotSecuritySnippet(skill, s.slot, interfaces.SecuritySecComp)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 		// No extra dbus permissions for slot
-		snippet, err = s.t.SlotSecuritySnippet(skill, s.slot, skills.SecurityDBus)
+		snippet, err = s.t.SlotSecuritySnippet(skill, s.slot, interfaces.SecurityDBus)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 		// No extra udev permissions for slot
-		snippet, err = s.t.SlotSecuritySnippet(skill, s.slot, skills.SecurityUDev)
+		snippet, err = s.t.SlotSecuritySnippet(skill, s.slot, interfaces.SecurityUDev)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 		// No extra udev permissions for slot
-		snippet, err = s.t.SlotSecuritySnippet(skill, s.slot, skills.SecurityUDev)
+		snippet, err = s.t.SlotSecuritySnippet(skill, s.slot, interfaces.SecurityUDev)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 		// Other security types are not recognized
@@ -204,14 +204,14 @@ func (s *BoolFileTypeSuite) TestSkillSecuritySnippetGivesExtraPermissionsToConfi
 /sys/class/gpio/unexport rw,
 /sys/class/gpio/gpio[0-9]+/direction rw,
 `)
-	snippet, err := s.t.SkillSecuritySnippet(s.gpioSkill, skills.SecurityAppArmor)
+	snippet, err := s.t.SkillSecuritySnippet(s.gpioSkill, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, expectedGPIOSnippet)
 }
 
 func (s *BoolFileTypeSuite) TestSkillSecuritySnippetGivesNoExtraPermissionsToConfigureLEDs(c *C) {
 	// No extra apparmor permission to provide LEDs
-	snippet, err := s.t.SkillSecuritySnippet(s.ledSkill, skills.SecurityAppArmor)
+	snippet, err := s.t.SkillSecuritySnippet(s.ledSkill, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 }
@@ -219,22 +219,22 @@ func (s *BoolFileTypeSuite) TestSkillSecuritySnippetGivesNoExtraPermissionsToCon
 func (s *BoolFileTypeSuite) TestSkillSecuritySnippetPanicksOnUnsanitizedSkills(c *C) {
 	// Unsanitized skills should never be used and cause a panic.
 	c.Assert(func() {
-		s.t.SkillSecuritySnippet(s.missingPathSkill, skills.SecurityAppArmor)
+		s.t.SkillSecuritySnippet(s.missingPathSkill, interfaces.SecurityAppArmor)
 	}, PanicMatches, "skill is not sanitized")
 }
 
 func (s *BoolFileTypeSuite) TestSkillSecuritySnippetUnusedSecuritySystems(c *C) {
-	for _, skill := range []*skills.Skill{s.ledSkill, s.gpioSkill} {
+	for _, skill := range []*interfaces.Skill{s.ledSkill, s.gpioSkill} {
 		// No extra seccomp permissions for skill
-		snippet, err := s.t.SkillSecuritySnippet(skill, skills.SecuritySecComp)
+		snippet, err := s.t.SkillSecuritySnippet(skill, interfaces.SecuritySecComp)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 		// No extra dbus permissions for skill
-		snippet, err = s.t.SkillSecuritySnippet(skill, skills.SecurityDBus)
+		snippet, err = s.t.SkillSecuritySnippet(skill, interfaces.SecurityDBus)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 		// No extra udev permissions for skill
-		snippet, err = s.t.SkillSecuritySnippet(skill, skills.SecurityUDev)
+		snippet, err = s.t.SkillSecuritySnippet(skill, interfaces.SecurityUDev)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 		// Other security types are not recognized

@@ -24,10 +24,10 @@ import (
 	"path/filepath"
 	"regexp"
 
-	"github.com/ubuntu-core/snappy/skills"
+	"github.com/ubuntu-core/snappy/interfaces"
 )
 
-// BoolFileType is the type of all the bool-file skills.
+// BoolFileType is the type of all the bool-file interfaces.
 type BoolFileType struct{}
 
 // String returns the same value as Name().
@@ -51,7 +51,7 @@ var boolFileAllowedPathPatterns = []*regexp.Regexp{
 
 // SanitizeSkill checks and possibly modifies a skill.
 // Valid "bool-file" skills must contain the attribute "path".
-func (t *BoolFileType) SanitizeSkill(skill *skills.Skill) error {
+func (t *BoolFileType) SanitizeSkill(skill *interfaces.Skill) error {
 	if t.Name() != skill.Type {
 		panic(fmt.Sprintf("skill is not of type %q", t))
 	}
@@ -69,7 +69,7 @@ func (t *BoolFileType) SanitizeSkill(skill *skills.Skill) error {
 }
 
 // SanitizeSlot checks and possibly modifies a skill slot.
-func (t *BoolFileType) SanitizeSlot(skill *skills.Slot) error {
+func (t *BoolFileType) SanitizeSlot(skill *interfaces.Slot) error {
 	if t.Name() != skill.Type {
 		panic(fmt.Sprintf("skill slot is not of type %q", t))
 	}
@@ -80,32 +80,32 @@ func (t *BoolFileType) SanitizeSlot(skill *skills.Slot) error {
 // SkillSecuritySnippet returns the configuration snippet required to provide a bool-file skill.
 // Producers gain control over exporting, importing GPIOs as well as
 // controlling the direction of particular pins.
-func (t *BoolFileType) SkillSecuritySnippet(skill *skills.Skill, securitySystem skills.SecuritySystem) ([]byte, error) {
+func (t *BoolFileType) SkillSecuritySnippet(skill *interfaces.Skill, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	gpioSnippet := []byte(`
 /sys/class/gpio/export rw,
 /sys/class/gpio/unexport rw,
 /sys/class/gpio/gpio[0-9]+/direction rw,
 `)
 	switch securitySystem {
-	case skills.SecurityAppArmor:
+	case interfaces.SecurityAppArmor:
 		// To provide GPIOs we need extra permissions to export/unexport and to
 		// set the direction of each pin.
 		if t.isGPIO(skill) {
 			return gpioSnippet, nil
 		}
 		return nil, nil
-	case skills.SecuritySecComp, skills.SecurityDBus, skills.SecurityUDev:
+	case interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev:
 		return nil, nil
 	default:
-		return nil, skills.ErrUnknownSecurity
+		return nil, interfaces.ErrUnknownSecurity
 	}
 }
 
 // SlotSecuritySnippet returns the configuration snippet required to use a bool-file skill.
 // Consumers gain permission to read, write and lock the designated file.
-func (t *BoolFileType) SlotSecuritySnippet(skill *skills.Skill, slot *skills.Slot, securitySystem skills.SecuritySystem) ([]byte, error) {
+func (t *BoolFileType) SlotSecuritySnippet(skill *interfaces.Skill, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case skills.SecurityAppArmor:
+	case interfaces.SecurityAppArmor:
 		// Allow write and lock on the file designated by the path.
 		// Dereference symbolic links to file path handed out to apparmor since
 		// sysfs is full of symlinks and apparmor requires uses real path for
@@ -115,14 +115,14 @@ func (t *BoolFileType) SlotSecuritySnippet(skill *skills.Skill, slot *skills.Slo
 			return nil, fmt.Errorf("cannot compute skill slot security snippet: %v", err)
 		}
 		return []byte(fmt.Sprintf("%s rwk,\n", path)), nil
-	case skills.SecuritySecComp, skills.SecurityDBus, skills.SecurityUDev:
+	case interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev:
 		return nil, nil
 	default:
-		return nil, skills.ErrUnknownSecurity
+		return nil, interfaces.ErrUnknownSecurity
 	}
 }
 
-func (t *BoolFileType) dereferencedPath(skill *skills.Skill) (string, error) {
+func (t *BoolFileType) dereferencedPath(skill *interfaces.Skill) (string, error) {
 	if path, ok := skill.Attrs["path"].(string); ok {
 		path, err := evalSymlinks(path)
 		if err != nil {
@@ -134,7 +134,7 @@ func (t *BoolFileType) dereferencedPath(skill *skills.Skill) (string, error) {
 }
 
 // isGPIO checks if a given bool-file skill refers to a GPIO pin.
-func (t *BoolFileType) isGPIO(skill *skills.Skill) bool {
+func (t *BoolFileType) isGPIO(skill *interfaces.Skill) bool {
 	if path, ok := skill.Attrs["path"].(string); ok {
 		path = filepath.Clean(path)
 		return boolFileGPIOValuePattern.MatchString(path)

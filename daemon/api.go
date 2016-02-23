@@ -35,11 +35,11 @@ import (
 
 	"github.com/ubuntu-core/snappy/asserts"
 	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/lockfile"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
-	"github.com/ubuntu-core/snappy/skills"
 	"github.com/ubuntu-core/snappy/snap/lightweight"
 	"github.com/ubuntu-core/snappy/snappy"
 )
@@ -936,9 +936,9 @@ type skillInfo struct {
 // getSkills returns a response with a list of all the skills and which slots use them.
 func getSkills(c *Command, r *http.Request) Response {
 	var skills []skillInfo
-	for _, skill := range c.d.skills.AllSkills("") {
+	for _, skill := range c.d.interfaces.AllSkills("") {
 		var slots []skillGrant
-		for _, slot := range c.d.skills.GrantsOf(skill.Snap, skill.Name) {
+		for _, slot := range c.d.interfaces.GrantsOf(skill.Snap, skill.Name) {
 			slots = append(slots, skillGrant{
 				Snap: slot.Snap,
 				Name: slot.Name,
@@ -957,9 +957,9 @@ func getSkills(c *Command, r *http.Request) Response {
 
 // skillAction is an action performed on the skill system.
 type skillAction struct {
-	Action string       `json:"action"`
-	Skill  skills.Skill `json:"skill,omitempty"`
-	Slot   skills.Slot  `json:"slot,omitempty"`
+	Action string           `json:"action"`
+	Skill  interfaces.Skill `json:"skill,omitempty"`
+	Slot   interfaces.Slot  `json:"slot,omitempty"`
 }
 
 // changeSkills controls the skill system.
@@ -980,19 +980,19 @@ func changeSkills(c *Command, r *http.Request) Response {
 	}
 	switch a.Action {
 	case "grant":
-		err := c.d.skills.Grant(a.Skill.Snap, a.Skill.Name, a.Slot.Snap, a.Slot.Name)
+		err := c.d.interfaces.Grant(a.Skill.Snap, a.Skill.Name, a.Slot.Snap, a.Slot.Name)
 		if err != nil {
 			return BadRequest("%v", err)
 		}
 		return SyncResponse(nil)
 	case "revoke":
-		err := c.d.skills.Revoke(a.Skill.Snap, a.Skill.Name, a.Slot.Snap, a.Slot.Name)
+		err := c.d.interfaces.Revoke(a.Skill.Snap, a.Skill.Name, a.Slot.Snap, a.Slot.Name)
 		if err != nil {
 			return BadRequest("%v", err)
 		}
 		return SyncResponse(nil)
 	case "add-skill":
-		err := c.d.skills.AddSkill(&a.Skill)
+		err := c.d.interfaces.AddSkill(&a.Skill)
 		if err != nil {
 			return BadRequest("%v", err)
 		}
@@ -1001,13 +1001,13 @@ func changeSkills(c *Command, r *http.Request) Response {
 			Status: http.StatusCreated,
 		}
 	case "remove-skill":
-		err := c.d.skills.RemoveSkill(a.Skill.Snap, a.Skill.Name)
+		err := c.d.interfaces.RemoveSkill(a.Skill.Snap, a.Skill.Name)
 		if err != nil {
 			return BadRequest("%v", err)
 		}
 		return SyncResponse(nil)
 	case "add-slot":
-		err := c.d.skills.AddSlot(&a.Slot)
+		err := c.d.interfaces.AddSlot(&a.Slot)
 		if err != nil {
 			return BadRequest("%v", err)
 		}
@@ -1016,7 +1016,7 @@ func changeSkills(c *Command, r *http.Request) Response {
 			Status: http.StatusCreated,
 		}
 	case "remove-slot":
-		err := c.d.skills.RemoveSlot(a.Slot.Snap, a.Slot.Name)
+		err := c.d.interfaces.RemoveSlot(a.Slot.Snap, a.Slot.Name)
 		if err != nil {
 			return BadRequest("%v", err)
 		}

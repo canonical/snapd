@@ -20,14 +20,14 @@
 package types
 
 import (
-	"github.com/ubuntu-core/snappy/skills"
+	"github.com/ubuntu-core/snappy/interfaces"
 )
 
-var allTypes = []skills.Type{
+var allTypes = []interfaces.Type{
 	&BoolFileType{},
 }
 
 // AllTypes returns a slice of all the skill types.
-func AllTypes() []skills.Type {
+func AllTypes() []interfaces.Type {
 	return allTypes
 }
