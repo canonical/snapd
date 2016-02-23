@@ -43,8 +43,8 @@ func (client *Client) Ack(b []byte) error {
 	return nil
 }
 
-// Asserts queries assertions with type assertTypeName and matching assertion headers.
-func (client *Client) Asserts(assertTypeName string, headers map[string]string) ([]asserts.Assertion, error) {
+// Known queries assertions with type assertTypeName and matching assertion headers.
+func (client *Client) Known(assertTypeName string, headers map[string]string) ([]asserts.Assertion, error) {
 	path := fmt.Sprintf("/2.0/assertions/%s", assertTypeName)
 	q := url.Values{}
 
