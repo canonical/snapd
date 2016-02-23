@@ -28,34 +28,34 @@ import (
 	. "github.com/ubuntu-core/snappy/cmd/snap"
 )
 
-func (s *SnapSuite) TestAddSkillSlotHelp(c *C) {
+func (s *SnapSuite) TestAddSlotHelp(c *C) {
 	msg := `Usage:
-  snap.test [OPTIONS] experimental add-skill-slot [add-skill-slot-OPTIONS] <snap> <skill slot> <type>
+  snap.test [OPTIONS] experimental add-slot [add-slot-OPTIONS] <snap> <slot> <interface>
 
-The add-skill-slot command adds a new skill slot to the system.
+The add-slot command adds a new slot to the system.
 
-This command is only for experimentation with the skill system.
+This command is only for experimentation with interfaces.
 It will be removed in one of the future releases.
 
 Help Options:
-  -h, --help              Show this help message
+  -h, --help             Show this help message
 
-[add-skill-slot command options]
-      -a=                 List of key=value attributes
-          --app=          List of apps using this skill slot
-          --label=        Human-friendly label
+[add-slot command options]
+      -a=                List of key=value attributes
+          --app=         List of apps using this slot
+          --label=       Human-friendly label
 
-[add-skill-slot command arguments]
-  <snap>:                 Name of the snap containing the slot
-  <skill slot>:           Name of the skill slot within the snap
-  <type>:                 Skill type
+[add-slot command arguments]
+  <snap>:                Name of the snap containing the slot
+  <slot>:                Name of the slot within the snap
+  <interface>:           Interface name
 `
-	rest, err := Parser().ParseArgs([]string{"experimental", "add-skill-slot", "--help"})
+	rest, err := Parser().ParseArgs([]string{"experimental", "add-slot", "--help"})
 	c.Assert(err.Error(), Equals, msg)
 	c.Assert(rest, DeepEquals, []string{})
 }
 
-func (s *SnapSuite) TestAddSkillSlotExplicitEverything(c *C) {
+func (s *SnapSuite) TestAddSlotExplicitEverything(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "POST")
 		c.Check(r.URL.Path, Equals, "/2.0/skills")
@@ -64,7 +64,7 @@ func (s *SnapSuite) TestAddSkillSlotExplicitEverything(c *C) {
 			"slot": map[string]interface{}{
 				"snap": "consumer",
 				"name": "slot",
-				"type": "type",
+				"type": "interface",
 				"attrs": map[string]interface{}{
 					"attr": "value",
 				},
@@ -77,7 +77,7 @@ func (s *SnapSuite) TestAddSkillSlotExplicitEverything(c *C) {
 		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
 	})
 	rest, err := Parser().ParseArgs([]string{
-		"experimental", "add-skill-slot", "consumer", "slot", "type",
+		"experimental", "add-slot", "consumer", "slot", "interface",
 		"-a", "attr=value", "--app=my-app", "--label=label",
 	})
 	c.Assert(err, IsNil)
