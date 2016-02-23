@@ -49,11 +49,13 @@ func (ss *stateSuite) TestGetAndSet(c *C) {
 	st.Set("mgr2", mSt2)
 
 	var mSt1B mgrState1
-	st.Get("mgr1", &mSt1B)
+	err := st.Get("mgr1", &mSt1B)
+	c.Assert(err, IsNil)
 	c.Check(&mSt1B, DeepEquals, mSt1)
 
 	var mSt2B mgrState2
-	st.Get("mgr2", &mSt2B)
+	err = st.Get("mgr2", &mSt2B)
+	c.Assert(err, IsNil)
 	c.Check(&mSt2B, DeepEquals, mSt2)
 }
 
@@ -65,7 +67,15 @@ func (ss *stateSuite) TestSetPanic(c *C) {
 	c.Check(func() { st.Set("mgr9", unsupported) }, PanicMatches, `internal error: could not marshal value for state entry "mgr9": json: unsupported type:.*`)
 }
 
-func (ss *stateSuite) TestGetPanic(c *C) {
+func (ss *stateSuite) TestGetNoState(c *C) {
+	st := overlord.NewState()
+
+	var mSt1B mgrState1
+	err := st.Get("mgr9", &mSt1B)
+	c.Check(err, Equals, overlord.ErrNoState)
+}
+
+func (ss *stateSuite) TestGetUnmarshalProblem(c *C) {
 	st := overlord.NewState()
 	mismatched := struct {
 		A int
@@ -73,7 +83,8 @@ func (ss *stateSuite) TestGetPanic(c *C) {
 	st.Set("mgr9", &mismatched)
 
 	var mSt1B mgrState1
-	c.Check(func() { st.Get("mgr9", &mSt1B) }, PanicMatches, `internal error: could not retrieve and unmarshal state entry "mgr9": json: cannot unmarshal .*`)
+	err := st.Get("mgr9", &mSt1B)
+	c.Check(err, ErrorMatches, `internal error: could not unmarshal state entry "mgr9": json: cannot unmarshal .*`)
 }
 
 func (ss *stateSuite) TestCopy(c *C) {
@@ -87,11 +98,13 @@ func (ss *stateSuite) TestCopy(c *C) {
 	stCopy := st.Copy()
 
 	var mSt1B mgrState1
-	stCopy.Get("mgr1", &mSt1B)
+	err := stCopy.Get("mgr1", &mSt1B)
+	c.Assert(err, IsNil)
 	c.Check(&mSt1B, DeepEquals, mSt1)
 
 	var mSt2B mgrState2
-	stCopy.Get("mgr2", &mSt2B)
+	err = stCopy.Get("mgr2", &mSt2B)
+	c.Assert(err, IsNil)
 	c.Check(&mSt2B, DeepEquals, mSt2)
 
 	c.Check(mSt2B.C, Not(Equals), cnt)

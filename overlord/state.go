@@ -21,8 +21,11 @@ package overlord
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+
+	"github.com/ubuntu-core/snappy/logger"
 )
 
 // State represents a snapshot of the system state.
@@ -37,13 +40,22 @@ func NewState() *State {
 	}
 }
 
+// ErrNoState represents the case of no state entry for a given key.
+var ErrNoState = errors.New("no state entry for key")
+
 // Get unmarshals the stored value associated with the provided key
 // into the value parameter.
-func (s *State) Get(key string, value interface{}) {
-	err := json.Unmarshal(s.entries[key], value)
-	if err != nil {
-		panic(fmt.Errorf("internal error: could not retrieve and unmarshal state entry %q: %v", key, err))
+// It returns ErrNoState if there is no entry for key.
+func (s *State) Get(key string, value interface{}) error {
+	entryJSON := s.entries[key]
+	if len(entryJSON) == 0 {
+		return ErrNoState
 	}
+	err := json.Unmarshal(entryJSON, value)
+	if err != nil {
+		return fmt.Errorf("internal error: could not unmarshal state entry %q: %v", key, err)
+	}
+	return nil
 }
 
 // Set associates value with key for future consulting by managers.
@@ -51,7 +63,7 @@ func (s *State) Get(key string, value interface{}) {
 func (s *State) Set(key string, value interface{}) {
 	serialized, err := json.Marshal(value)
 	if err != nil {
-		panic(fmt.Errorf("internal error: could not marshal value for state entry %q: %v", key, err))
+		logger.Panicf("internal error: could not marshal value for state entry %q: %v", key, err)
 	}
 	s.entries[key] = serialized
 }
