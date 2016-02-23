@@ -2,8 +2,9 @@ github.com/cheggaaa/pb	git	e8c7cc515bfde3e267957a3b110080ceed51354e	2014-12-02T0
 github.com/coreos/go-systemd	git	f743bc15d6bddd23662280b4ad20f7c874cdd5ad	2014-05-03T19:37:39Z
 github.com/gorilla/context	git	1c83b3eabd45b6d76072b66b746c20815fb2872d	2015-08-20T05:12:45Z
 github.com/gorilla/mux	git	ee1815431e497d3850809578c93ab6705f1a19f7	2015-08-20T05:15:06Z
+github.com/gorilla/websocket	git	234959944d9cf05229b02e8b386e5cffe1e4e04a	2016-01-28T16:48:56Z
 github.com/gosexy/gettext	git	98b7b91596d20b96909e6b60d57411547dd9959c	2013-02-21T11:21:43Z
-github.com/jessevdk/go-flags	git	1acbbaff2f347c412a0c7884873bd72cc9c1f5b4	2015-08-16T10:05:21Z
+github.com/jessevdk/go-flags	git	97448c91aac742cbca3d020b3e769013a420a06f	2016-02-07T07:45:15Z
 github.com/kr/pty	git	05017fcccf23c823bfdea560dcc958a136e54fb7	2014-12-17T21:19:37Z
 github.com/mvo5/goconfigparser	git	26426272dda20cc76aa1fa44286dc743d2972fe8	2015-02-12T09:37:50Z
 github.com/mvo5/uboot-go	git	361f6ebcbb54f389d15dc9faefa000e996ba3e37	2015-07-22T06:53:46Z

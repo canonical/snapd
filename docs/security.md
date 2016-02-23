@@ -1,5 +1,13 @@
 # Security policy
 
+Most of the security aspects of the system will be done via skills and
+skill slots. However for compatibility with the 15.04 snappy
+architecture there is a special skill type called `migration-skill`
+that can be used to migrate using the 15.04 syntax. See the example
+below for the various ways the migration-skill can be used.
+
+## Security with the migration skill
+
 Snap packages run confined under a restrictive security sandbox by default.
 The security policies and store policies work together to allow developers to
 quickly update their applications and to provide safety to end users.
@@ -25,8 +33,8 @@ service/binary name and package version. The `APP_ID` takes the form of
     name: foo
     version: 0.1
     ...
-    services:
-      - name: bar
+    apps:
+      bar:
         start: bin/bar
 
 and the app was uploaded to the `myorigin` origin in the store, then the
@@ -72,7 +80,7 @@ in the yaml as `caps`.
 ## Defining snap policy
 
 The `snap.yaml` need not specify anything for default confinement. Several
-options are available to modify the confinement:
+options are available in the migration-skill to modify the confinement:
 
 * `caps`: (optional) list of (easy to understand, human readable) additional
   security policies to add. The system will translate these to generate
@@ -108,25 +116,48 @@ Eg, consider the following:
 
     name: foo
     version: 1.0
-    services:
-      - name: bar
-      - name: baz
+    apps:
+      bar:
+        command: bar
+      baz:
+        command: baz
+        uses: [baz-caps]
+      qux:
+        command: qux
+        uses: [qux-security]
+      quux:
+        command: quux
+        uses: [quux-policy]
+      corge:
+        command: corge
+        daemon: simple
+        uses: [corge-override]
+      cli-exe:
+        command: cli-exe
+        uses: [no-caps]
+    uses:
+      baz-caps:
+        type: migration-skill
         caps:
           - network-client
           - norf-framework_client
-      - name: qux
+      qux-security:
+        type: migration-skill
         security-template: nondefault
-      - name: quux
+      quux-policy:
+        type: migration-skill
         security-policy:
           apparmor: meta/quux.profile
           seccomp: meta/quux.filter
-      - name: corge
+      corge-override:
+        type: migration-skill
         security-override:
           apparmor: meta/corge.apparmor
           seccomp: meta/corge.seccomp
-    binaries:
-      - name: cli-exe
+      no-caps:
+        type: migration-skill
         caps: []
+
 
 If this package is uploaded to the store in the `myorigin` origin, then:
 

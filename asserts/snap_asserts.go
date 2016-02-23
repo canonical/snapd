@@ -23,6 +23,75 @@ import (
 	"time"
 )
 
+// SnapDeclaration holds a snap-declaration assertion, declaring a
+// snap binding its identifying snap-id to a name, asserting its
+// publisher and its other properties.
+type SnapDeclaration struct {
+	assertionBase
+	gates     []string
+	timestamp time.Time
+}
+
+// Series returns the series for which the snap is being declared.
+func (snapdcl *SnapDeclaration) Series() string {
+	return snapdcl.Header("series")
+}
+
+// SnapID returns the snap id of the declared snap.
+func (snapdcl *SnapDeclaration) SnapID() string {
+	return snapdcl.Header("snap-id")
+}
+
+// SnapName returns the declared snap name.
+func (snapdcl *SnapDeclaration) SnapName() string {
+	return snapdcl.Header("snap-name")
+}
+
+// PublisherID returns the identifier of the publisher of the declared snap.
+func (snapdcl *SnapDeclaration) PublisherID() string {
+	return snapdcl.Header("publisher-id")
+}
+
+// Gates returns the list of snap-ids gated by this snap.
+func (snapdcl *SnapDeclaration) Gates() []string {
+	return snapdcl.gates
+}
+
+// Timestamp returns the time when the snap-declaration was issued.
+func (snapdcl *SnapDeclaration) Timestamp() time.Time {
+	return snapdcl.timestamp
+}
+
+// XXX: consistency check is signed by canonical
+
+func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
+	_, err := checkMandatory(assert.headers, "snap-name")
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = checkMandatory(assert.headers, "publisher-id")
+	if err != nil {
+		return nil, err
+	}
+
+	gates, err := checkCommaSepList(assert.headers, "gates")
+	if err != nil {
+		return nil, err
+	}
+
+	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
+	if err != nil {
+		return nil, err
+	}
+
+	return &SnapDeclaration{
+		assertionBase: assert,
+		gates:         gates,
+		timestamp:     timestamp,
+	}, nil
+}
+
 // SnapBuild holds a snap-build assertion, asserting the properties of a snap
 // at the time it was built by the developer.
 type SnapBuild struct {
@@ -32,29 +101,29 @@ type SnapBuild struct {
 }
 
 // SnapID returns the snap id of the snap.
-func (snapdcl *SnapBuild) SnapID() string {
-	return snapdcl.Header("snap-id")
+func (snapbld *SnapBuild) SnapID() string {
+	return snapbld.Header("snap-id")
 }
 
 // SnapDigest returns the digest of the snap. The digest is prefixed with the
 // algorithm used to generate it.
-func (snapdcl *SnapBuild) SnapDigest() string {
-	return snapdcl.Header("snap-digest")
+func (snapbld *SnapBuild) SnapDigest() string {
+	return snapbld.Header("snap-digest")
 }
 
 // SnapSize returns the size of the snap.
-func (snapdcl *SnapBuild) SnapSize() uint64 {
-	return snapdcl.size
+func (snapbld *SnapBuild) SnapSize() uint64 {
+	return snapbld.size
 }
 
 // Grade returns the grade of the snap: devel|stable
-func (snapdcl *SnapBuild) Grade() string {
-	return snapdcl.Header("grade")
+func (snapbld *SnapBuild) Grade() string {
+	return snapbld.Header("grade")
 }
 
 // Timestamp returns the time when the snap-build assertion was created.
-func (snapdcl *SnapBuild) Timestamp() time.Time {
-	return snapdcl.timestamp
+func (snapbld *SnapBuild) Timestamp() time.Time {
+	return snapbld.timestamp
 }
 
 func assembleSnapBuild(assert assertionBase) (Assertion, error) {
@@ -92,39 +161,39 @@ type SnapRevision struct {
 }
 
 // SnapID returns the snap id of the snap.
-func (assert *SnapRevision) SnapID() string {
-	return assert.Header("snap-id")
+func (snaprev *SnapRevision) SnapID() string {
+	return snaprev.Header("snap-id")
 }
 
 // SnapDigest returns the digest of the snap submitted to the store. The digest
 // is prefixed with the algorithm used to generate it.
-func (assert *SnapRevision) SnapDigest() string {
-	return assert.Header("snap-digest")
+func (snaprev *SnapRevision) SnapDigest() string {
+	return snaprev.Header("snap-digest")
 }
 
 // SnapRevision returns the revision of the snap-id assigned to this build.
-func (assert *SnapRevision) SnapRevision() uint64 {
-	return assert.snapRevision
+func (snaprev *SnapRevision) SnapRevision() uint64 {
+	return snaprev.snapRevision
 }
 
 // SnapBuild returns the digest of the associated snap-build.
-func (assert *SnapRevision) SnapBuild() string {
-	return assert.Header("snap-build")
+func (snaprev *SnapRevision) SnapBuild() string {
+	return snaprev.Header("snap-build")
 }
 
 // DeveloperID returns the id of the developer that submitted the snap build to
 // the store.
-func (assert *SnapRevision) DeveloperID() string {
-	return assert.Header("developer-id")
+func (snaprev *SnapRevision) DeveloperID() string {
+	return snaprev.Header("developer-id")
 }
 
 // Timestamp returns the time when the snap-revision was issued.
-func (assert *SnapRevision) Timestamp() time.Time {
-	return assert.timestamp
+func (snaprev *SnapRevision) Timestamp() time.Time {
+	return snaprev.timestamp
 }
 
 // Implement further consistency checks.
-func (assert *SnapRevision) checkConsistency(db RODatabase, acck *AccountKey) error {
+func (snaprev *SnapRevision) checkConsistency(db RODatabase, acck *AccountKey) error {
 	// TODO: check the associated snap-build exists.
 	// TODO: check the associated snap-build's digest.
 	// TODO: check developer-id matches snap-build's authority-id.

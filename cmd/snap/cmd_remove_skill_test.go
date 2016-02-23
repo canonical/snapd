@@ -44,13 +44,10 @@ Help Options:
   <snap>:            Name of the snap containing the skill
   <skill>:           Name of the skill slot within the snap
 `
-	rest, _ := Parser().ParseArgs([]string{
+	rest, err := Parser().ParseArgs([]string{
 		"experimental", "remove-skill", "--help"})
-	msg = msg[:]
-	// TODO: Re-enable this test after go-flags is updated
-	// c.Assert(err.Error(), Equals, msg)
-	// NOTE: Updated go-flags returns []string{} here
-	c.Assert(rest, DeepEquals, []string{"--help"})
+	c.Assert(err.Error(), Equals, msg)
+	c.Assert(rest, DeepEquals, []string{})
 }
 
 func (s *SnapSuite) TestRemoveSkill(c *C) {
