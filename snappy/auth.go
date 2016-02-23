@@ -32,7 +32,7 @@ import (
 )
 
 var (
-	ubuntuoneAPIBase  = "https://login.ubuntu.com/api/v2"
+	ubuntuoneAPIBase  = authURL()
 	ubuntuoneOauthAPI = ubuntuoneAPIBase + "/tokens/oauth"
 )
 
