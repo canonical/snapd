@@ -68,7 +68,7 @@ func (s *State) Set(key string, value interface{}) {
 	s.entries[key] = serialized
 }
 
-// Copy returns an indepent copy of the state.
+// Copy returns an independent copy of the state.
 func (s *State) Copy() *State {
 	entries := make(map[string]json.RawMessage, len(s.entries))
 	for k, s := range s.entries {
