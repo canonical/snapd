@@ -49,13 +49,14 @@ Revokes all skills from the provided snap.
 
 Help Options:
   -h, --help                     Show this help message
+
+[revoke command arguments]
+  <snap>:<skill>
+  <snap>:<skill slot>
 `
-	rest, _ := Parser().ParseArgs([]string{"revoke", "--help"})
-	// TODO: Re-enable this test after go-flags is updated
-	msg = msg[:]
-	// c.Assert(err.Error(), Equals, msg)
-	// NOTE: Updated go-flags returns []string{} here
-	c.Assert(rest, DeepEquals, []string{"--help"})
+	rest, err := Parser().ParseArgs([]string{"revoke", "--help"})
+	c.Assert(err.Error(), Equals, msg)
+	c.Assert(rest, DeepEquals, []string{})
 }
 
 func (s *SnapSuite) TestRevokeExplicitEverything(c *C) {
