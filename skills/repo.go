@@ -494,7 +494,7 @@ func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem Sec
 	for _, slot := range r.slots[snapName] {
 		t := r.types[slot.Type]
 		for skill := range r.slotSkills[slot] {
-			snippet, err := t.SlotSecuritySnippet(skill, securitySystem)
+			snippet, err := t.SlotSecuritySnippet(skill, slot, securitySystem)
 			if err != nil {
 				return nil, err
 			}
