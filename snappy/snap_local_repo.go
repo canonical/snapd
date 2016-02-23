@@ -20,7 +20,6 @@
 package snappy
 
 import (
-	"os"
 	"path/filepath"
 
 	"github.com/ubuntu-core/snappy/dirs"
@@ -39,11 +38,9 @@ type SnapLocalRepository struct {
 // NewLocalSnapRepository returns a new SnapLocalRepository for the given
 // path
 func NewLocalSnapRepository() *SnapLocalRepository {
-	path := dirs.SnapSnapsDir
-	if s, err := os.Stat(path); err != nil || !s.IsDir() {
-		return nil
+	return &SnapLocalRepository{
+		path: dirs.SnapSnapsDir,
 	}
-	return &SnapLocalRepository{path: path}
 }
 
 // Installed returns the installed snaps from this repository

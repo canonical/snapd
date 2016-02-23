@@ -86,6 +86,9 @@ func FindServices(snapName string, serviceName string, pb progress.Meter) (Servi
 
 		yamls := snap.Apps()
 		for name, app := range yamls {
+			if app.Daemon == "" {
+				continue
+			}
 			if serviceName != "" && serviceName != name {
 				continue
 			}

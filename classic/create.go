@@ -60,7 +60,7 @@ func findDownloadPathFromLxdIndex(r io.Reader) (string, error) {
 		if strings.HasPrefix(scanner.Text(), needle) {
 			l := strings.Split(scanner.Text(), ";")
 			if len(l) < 6 {
-				return "", fmt.Errorf("can not find download path in %s", scanner.Text())
+				return "", fmt.Errorf("cannot find download path in %s", scanner.Text())
 			}
 			return l[5], nil
 		}
@@ -248,6 +248,14 @@ func customizeClassicChroot() error {
 		// bind mount of the /var/lib/extrausers directory.
 		// Without that the "SUDO_USER" will not exist in the chroot
 		if err := runInClassicEnv("usermod", "-a", "-G", "sudo", sudoUser); err != nil {
+			if err := unmountBindMounts(); err != nil {
+				// we can not return an error here if we
+				// still have bind mounts in place, the
+				// writable dir may still have /home mounted
+				// so we can not remove /writable/classic
+				// again
+				panic("cannot undo bind mounts")
+			}
 			return fmt.Errorf("failed to add %s to the sudo users: %s", sudoUser, err)
 		}
 	}

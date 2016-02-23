@@ -29,29 +29,100 @@ import (
 	"github.com/ubuntu-core/snappy/asserts"
 )
 
+var (
+	_ = Suite(&snapDeclSuite{})
+	_ = Suite(&snapBuildSuite{})
+	_ = Suite(&snapRevSuite{})
+)
+
+type snapDeclSuite struct {
+	ts     time.Time
+	tsLine string
+}
+
+func (sds *snapDeclSuite) SetUpSuite(c *C) {
+	sds.ts = time.Now().Truncate(time.Second).UTC()
+	sds.tsLine = "timestamp: " + sds.ts.Format(time.RFC3339) + "\n"
+}
+
+func (sds *snapDeclSuite) TestDecodeOK(c *C) {
+	encoded := "type: snap-declaration\n" +
+		"authority-id: canonical\n" +
+		"series: 16\n" +
+		"snap-id: snap-id-1\n" +
+		"snap-name: first\n" +
+		"publisher-id: dev-id1\n" +
+		"gates: snap-id-3,snap-id-4\n" +
+		sds.tsLine +
+		"body-length: 0" +
+		"\n\n" +
+		"openpgp c2ln"
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.SnapDeclarationType)
+	snapDecl := a.(*asserts.SnapDeclaration)
+	c.Check(snapDecl.AuthorityID(), Equals, "canonical")
+	c.Check(snapDecl.Timestamp(), Equals, sds.ts)
+	c.Check(snapDecl.Series(), Equals, "16")
+	c.Check(snapDecl.SnapID(), Equals, "snap-id-1")
+	c.Check(snapDecl.SnapName(), Equals, "first")
+	c.Check(snapDecl.PublisherID(), Equals, "dev-id1")
+	c.Check(snapDecl.Gates(), DeepEquals, []string{"snap-id-3", "snap-id-4"})
+}
+
+const (
+	snapDeclErrPrefix = "assertion snap-declaration: "
+)
+
+func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
+	encoded := "type: snap-declaration\n" +
+		"authority-id: canonical\n" +
+		"series: 16\n" +
+		"snap-id: snap-id-1\n" +
+		"snap-name: first\n" +
+		"publisher-id: dev-id1\n" +
+		"gates: snap-id-3,snap-id-4\n" +
+		sds.tsLine +
+		"body-length: 0" +
+		"\n\n" +
+		"openpgp c2ln"
+
+	invalidTests := []struct{ original, invalid, expectedErr string }{
+		{"series: 16\n", "", `"series" header is mandatory`},
+		{"snap-id: snap-id-1\n", "", `"snap-id" header is mandatory`},
+		{"snap-name: first\n", "", `"snap-name" header is mandatory`},
+		{"publisher-id: dev-id1\n", "", `"publisher-id" header is mandatory`},
+		{"gates: snap-id-3,snap-id-4\n", "", `\"gates\" header is mandatory`},
+		{"gates: snap-id-3,snap-id-4\n", "gates: foo,\n", `empty entry in comma separated "gates" header: "foo,"`},
+		{sds.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
+	}
+
+	for _, test := range invalidTests {
+		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
+		_, err := asserts.Decode([]byte(invalid))
+		c.Check(err, ErrorMatches, snapDeclErrPrefix+test.expectedErr)
+	}
+
+}
+
 type snapBuildSuite struct {
 	ts     time.Time
 	tsLine string
 }
 
-var (
-	_ = Suite(&snapBuildSuite{})
-	_ = Suite(&snapRevSuite{})
-)
-
-func (sds *snapBuildSuite) SetUpSuite(c *C) {
-	sds.ts = time.Now().Truncate(time.Second).UTC()
-	sds.tsLine = "timestamp: " + sds.ts.Format(time.RFC3339) + "\n"
+func (sbs *snapBuildSuite) SetUpSuite(c *C) {
+	sbs.ts = time.Now().Truncate(time.Second).UTC()
+	sbs.tsLine = "timestamp: " + sbs.ts.Format(time.RFC3339) + "\n"
 }
 
-func (sds *snapBuildSuite) TestDecodeOK(c *C) {
+func (sbs *snapBuildSuite) TestDecodeOK(c *C) {
 	encoded := "type: snap-build\n" +
 		"authority-id: dev-id1\n" +
 		"snap-id: snap-id-1\n" +
 		"snap-digest: sha256 ...\n" +
 		"grade: stable\n" +
 		"snap-size: 10000\n" +
-		sds.tsLine +
+		sbs.tsLine +
 		"body-length: 0" +
 		"\n\n" +
 		"openpgp c2ln"
@@ -60,7 +131,7 @@ func (sds *snapBuildSuite) TestDecodeOK(c *C) {
 	c.Check(a.Type(), Equals, asserts.SnapBuildType)
 	snapBuild := a.(*asserts.SnapBuild)
 	c.Check(snapBuild.AuthorityID(), Equals, "dev-id1")
-	c.Check(snapBuild.Timestamp(), Equals, sds.ts)
+	c.Check(snapBuild.Timestamp(), Equals, sbs.ts)
 	c.Check(snapBuild.SnapID(), Equals, "snap-id-1")
 	c.Check(snapBuild.SnapDigest(), Equals, "sha256 ...")
 	c.Check(snapBuild.SnapSize(), Equals, uint64(10000))
@@ -71,14 +142,14 @@ const (
 	snapBuildErrPrefix = "assertion snap-build: "
 )
 
-func (sds *snapBuildSuite) TestDecodeInvalid(c *C) {
+func (sbs *snapBuildSuite) TestDecodeInvalid(c *C) {
 	encoded := "type: snap-build\n" +
 		"authority-id: dev-id1\n" +
 		"snap-id: snap-id-1\n" +
 		"snap-digest: sha256 ...\n" +
 		"grade: stable\n" +
 		"snap-size: 10000\n" +
-		sds.tsLine +
+		sbs.tsLine +
 		"body-length: 0" +
 		"\n\n" +
 		"openpgp c2ln"
@@ -90,7 +161,7 @@ func (sds *snapBuildSuite) TestDecodeInvalid(c *C) {
 		{"snap-size: 10000\n", "", `"snap-size" header is mandatory`},
 		{"snap-size: 10000\n", "snap-size: -1\n", `"snap-size" header is not an unsigned integer: -1`},
 		{"snap-size: 10000\n", "snap-size: zzz\n", `"snap-size" header is not an unsigned integer: zzz`},
-		{sds.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
+		{sbs.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
 	}
 
 	for _, test := range invalidTests {
@@ -148,7 +219,7 @@ func makeSignAndCheckDbWithAccountKey(c *C, accountID string) (signingKeyID stri
 	return accKeyID, accSignDB, checkDB
 }
 
-func (sds *snapBuildSuite) TestSnapBuildCheck(c *C) {
+func (sbs *snapBuildSuite) TestSnapBuildCheck(c *C) {
 	signingKeyID, accSignDB, db := makeSignAndCheckDbWithAccountKey(c, "dev-id1")
 
 	headers := map[string]string{
@@ -166,7 +237,7 @@ func (sds *snapBuildSuite) TestSnapBuildCheck(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (sds *snapBuildSuite) TestSnapBuildCheckInconsistentTimestamp(c *C) {
+func (sbs *snapBuildSuite) TestSnapBuildCheckInconsistentTimestamp(c *C) {
 	signingKeyID, accSignDB, db := makeSignAndCheckDbWithAccountKey(c, "dev-id1")
 
 	headers := map[string]string{
@@ -190,12 +261,12 @@ type snapRevSuite struct {
 	validEncoded string
 }
 
-func (suite *snapRevSuite) SetUpSuite(c *C) {
-	suite.ts = time.Now().Truncate(time.Second).UTC()
-	suite.tsLine = "timestamp: " + suite.ts.Format(time.RFC3339) + "\n"
+func (srs *snapRevSuite) SetUpSuite(c *C) {
+	srs.ts = time.Now().Truncate(time.Second).UTC()
+	srs.tsLine = "timestamp: " + srs.ts.Format(time.RFC3339) + "\n"
 }
 
-func (suite *snapRevSuite) makeValidEncoded() string {
+func (srs *snapRevSuite) makeValidEncoded() string {
 	return "type: snap-revision\n" +
 		"authority-id: store-id1\n" +
 		"snap-id: snap-id-1\n" +
@@ -204,13 +275,13 @@ func (suite *snapRevSuite) makeValidEncoded() string {
 		"snap-build: sha256 ...\n" +
 		"developer-id: dev-id1\n" +
 		"revision: 1\n" +
-		suite.tsLine +
+		srs.tsLine +
 		"body-length: 0" +
 		"\n\n" +
 		"openpgp c2ln"
 }
 
-func (suite *snapRevSuite) makeHeaders(overrides map[string]string) map[string]string {
+func (srs *snapRevSuite) makeHeaders(overrides map[string]string) map[string]string {
 	headers := map[string]string{
 		"authority-id":  "store-id1",
 		"snap-id":       "snap-id-1",
@@ -227,14 +298,14 @@ func (suite *snapRevSuite) makeHeaders(overrides map[string]string) map[string]s
 	return headers
 }
 
-func (suite *snapRevSuite) TestDecodeOK(c *C) {
-	encoded := suite.makeValidEncoded()
+func (srs *snapRevSuite) TestDecodeOK(c *C) {
+	encoded := srs.makeValidEncoded()
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.SnapRevisionType)
 	snapRev := a.(*asserts.SnapRevision)
 	c.Check(snapRev.AuthorityID(), Equals, "store-id1")
-	c.Check(snapRev.Timestamp(), Equals, suite.ts)
+	c.Check(snapRev.Timestamp(), Equals, srs.ts)
 	c.Check(snapRev.SnapID(), Equals, "snap-id-1")
 	c.Check(snapRev.SnapDigest(), Equals, "sha256 ...")
 	c.Check(snapRev.SnapRevision(), Equals, uint64(1))
@@ -247,8 +318,8 @@ const (
 	snapRevErrPrefix = "assertion snap-revision: "
 )
 
-func (suite *snapRevSuite) TestDecodeInvalid(c *C) {
-	encoded := suite.makeValidEncoded()
+func (srs *snapRevSuite) TestDecodeInvalid(c *C) {
+	encoded := srs.makeValidEncoded()
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"snap-id: snap-id-1\n", "", `"snap-id" header is mandatory`},
 		{"snap-digest: sha256 ...\n", "", `"snap-digest" header is mandatory`},
@@ -257,7 +328,7 @@ func (suite *snapRevSuite) TestDecodeInvalid(c *C) {
 		{"snap-revision: 1\n", "snap-revision: zzz\n", `"snap-revision" header is not an unsigned integer: zzz`},
 		{"snap-build: sha256 ...\n", "", `"snap-build" header is mandatory`},
 		{"developer-id: dev-id1\n", "", `"developer-id" header is mandatory`},
-		{suite.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
+		{srs.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
 	}
 
 	for _, test := range invalidTests {
@@ -267,10 +338,10 @@ func (suite *snapRevSuite) TestDecodeInvalid(c *C) {
 	}
 }
 
-func (suite *snapRevSuite) TestSnapRevisionCheck(c *C) {
+func (srs *snapRevSuite) TestSnapRevisionCheck(c *C) {
 	signingKeyID, accSignDB, db := makeSignAndCheckDbWithAccountKey(c, "store-id1")
 
-	headers := suite.makeHeaders(nil)
+	headers := srs.makeHeaders(nil)
 	snapRev, err := accSignDB.Sign(asserts.SnapRevisionType, headers, nil, signingKeyID)
 	c.Assert(err, IsNil)
 
@@ -278,10 +349,10 @@ func (suite *snapRevSuite) TestSnapRevisionCheck(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (suite *snapRevSuite) TestSnapRevisionCheckInconsistentTimestamp(c *C) {
+func (srs *snapRevSuite) TestSnapRevisionCheckInconsistentTimestamp(c *C) {
 	signingKeyID, accSignDB, db := makeSignAndCheckDbWithAccountKey(c, "store-id1")
 
-	headers := suite.makeHeaders(map[string]string{
+	headers := srs.makeHeaders(map[string]string{
 		"timestamp": "2013-01-01T14:00:00Z",
 	})
 	snapRev, err := accSignDB.Sign(asserts.SnapRevisionType, headers, nil, signingKeyID)
@@ -291,8 +362,8 @@ func (suite *snapRevSuite) TestSnapRevisionCheckInconsistentTimestamp(c *C) {
 	c.Assert(err, ErrorMatches, "snap-revision assertion timestamp outside of signing key validity")
 }
 
-func (suite *snapRevSuite) TestPrimaryKey(c *C) {
-	headers := suite.makeHeaders(nil)
+func (srs *snapRevSuite) TestPrimaryKey(c *C) {
+	headers := srs.makeHeaders(nil)
 
 	signingKeyID, accSignDB, db := makeSignAndCheckDbWithAccountKey(c, "store-id1")
 	snapRev, err := accSignDB.Sign(asserts.SnapRevisionType, headers, nil, signingKeyID)
