@@ -165,6 +165,9 @@ func (t *CreateTestSuite) TestCreate(c *C) {
 	for _, canary := range []string{"/etc/nsswitch.conf", "/etc/hosts", "/usr/sbin/policy-rc.d"} {
 		c.Assert(helpers.FileExists(filepath.Join(dirs.ClassicDir, canary)), Equals, true)
 	}
+	leftovers, err := filepath.Glob(filepath.Join(os.TempDir(), "classic*"))
+	c.Assert(err, IsNil)
+	c.Assert(leftovers, HasLen, 0)
 }
 
 func (t *CreateTestSuite) TestCreateFailDestroys(c *C) {
