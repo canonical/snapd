@@ -36,7 +36,7 @@ func (cs *clientSuite) TestClientAssert(c *C) {
 		"result": {}
 	}`
 	a := []byte("Assertion.")
-	err := cs.cli.Assert(a)
+	err := cs.cli.Ack(a)
 	c.Assert(err, IsNil)
 	body, err := ioutil.ReadAll(cs.req.Body)
 	c.Assert(err, IsNil)
