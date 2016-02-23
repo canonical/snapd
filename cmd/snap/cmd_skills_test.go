@@ -54,13 +54,13 @@ Help Options:
 
 [skills command options]
           --type=           constrain listing to skills of this type
+
+[skills command arguments]
+  <snap>:<skill>:           snap or snap:name
 `
-	rest, _ := Parser().ParseArgs([]string{"skills", "--help"})
-	// TODO: Re-enable this after go-flags is updated.
-	msg = msg[:]
-	// c.Assert(err.Error(), Equals, msg)
-	// NOTE: Updated go-flags returns []string{} here
-	c.Assert(rest, DeepEquals, []string{"--help"})
+	rest, err := Parser().ParseArgs([]string{"skills", "--help"})
+	c.Assert(err.Error(), Equals, msg)
+	c.Assert(rest, DeepEquals, []string{})
 }
 
 func (s *SnapSuite) TestSkillsZeroSlots(c *C) {

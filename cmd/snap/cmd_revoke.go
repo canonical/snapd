@@ -25,8 +25,8 @@ import (
 
 type cmdRevoke struct {
 	Positionals struct {
-		Offer SnapAndName `positional-arg-name:"<snap>:<skill>" description:"snap offering the skill" skip-help:"true" required:"true"`
-		Use   SnapAndName `positional-arg-name:"<snap>:<skill slot>" description:"snap using the skill" skip-help:"true"`
+		Offer SnapAndName `positional-arg-name:"<snap>:<skill>" required:"true"`
+		Use   SnapAndName `positional-arg-name:"<snap>:<skill slot>"`
 	} `positional-args:"true"`
 }
 
