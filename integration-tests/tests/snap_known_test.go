@@ -30,23 +30,23 @@ import (
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 )
 
-var _ = check.Suite(&snapAssertsSuite{})
+var _ = check.Suite(&snapKnownSuite{})
 
-// Suite for "snap asserts".
-type snapAssertsSuite struct {
+// Suite for "snap known".
+type snapKnownSuite struct {
 	// FIXME: use snapdTestSuite until all tests are moved to
 	// assume the snapd/snap command pairing
 	snapdTestSuite
 }
 
 // Test querying for assertions with "snap" of the given type without filtering which gives all of them.
-func (s *snapAssertsSuite) TestAll(c *check.C) {
+func (s *snapKnownSuite) TestAll(c *check.C) {
 	// add an account key
-	cli.ExecCommand(c, "sudo", "snap", "assert", "integration-tests/data/dev1.acckey")
+	cli.ExecCommand(c, "sudo", "snap", "ack", "integration-tests/data/dev1.acckey")
 	// XXX: forceful cleanup of relevant assertions until we have a better general approach
 	defer cli.ExecCommand(c, "sudo", "rm", "-rf", dev1AccKeyFiles)
 
-	out := cli.ExecCommand(c, "snap", "asserts", "account-key")
+	out := cli.ExecCommand(c, "snap", "known", "account-key")
 	dec := asserts.NewDecoder(bytes.NewBufferString(out))
 	assertions := []asserts.Assertion{}
 	for {
@@ -62,12 +62,12 @@ func (s *snapAssertsSuite) TestAll(c *check.C) {
 }
 
 // Test querying for assertions with "snap" of the given type with filtering by assertion headers.
-func (s *snapAssertsSuite) TestFiltering(c *check.C) {
+func (s *snapKnownSuite) TestFiltering(c *check.C) {
 	// add an account key
-	cli.ExecCommand(c, "sudo", "snap", "assert", "integration-tests/data/dev1.acckey")
+	cli.ExecCommand(c, "sudo", "snap", "ack", "integration-tests/data/dev1.acckey")
 	defer cli.ExecCommand(c, "sudo", "rm", "-rf", dev1AccKeyFiles)
 
-	out := cli.ExecCommand(c, "snap", "asserts", "account-key", "account-id=developer1")
+	out := cli.ExecCommand(c, "snap", "known", "account-key", "account-id=developer1")
 	dec := asserts.NewDecoder(bytes.NewBufferString(out))
 	assertions := []asserts.Assertion{}
 	for {
