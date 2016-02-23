@@ -187,7 +187,7 @@ func (s *BoolFileTypeSuite) TestSlotSecuritySnippetUnusedSecuritySystems(c *C) {
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 		// No extra udev permissions for slot
-		snippet, err = s.t.SlotSecuritySnippet(skill, skills.SecurityUDev)
+		snippet, err = s.t.SlotSecuritySnippet(skill, s.slot, skills.SecurityUDev)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 		// Other security types are not recognized
