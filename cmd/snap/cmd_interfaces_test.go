@@ -72,15 +72,15 @@ func (s *SnapSuite) TestInterfacesZeroSlots(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": []client.SkillGrants{
+			"result": []client.PlugConnections{
 				{
-					Skill: client.Skill{
-						Snap:  "canonical-pi2",
-						Name:  "pin-13",
-						Type:  "bool-file",
-						Label: "Pin 13",
+					Plug: client.Plug{
+						Snap:      "canonical-pi2",
+						Name:      "pin-13",
+						Interface: "bool-file",
+						Label:     "Pin 13",
 					},
-					GrantedTo: []client.Slot{},
+					Connections: []client.Slot{},
 				},
 			},
 		})
@@ -104,15 +104,15 @@ func (s *SnapSuite) TestInterfacesOneSlot(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": []client.SkillGrants{
+			"result": []client.PlugConnections{
 				{
-					Skill: client.Skill{
-						Snap:  "canonical-pi2",
-						Name:  "pin-13",
-						Type:  "bool-file",
-						Label: "Pin 13",
+					Plug: client.Plug{
+						Snap:      "canonical-pi2",
+						Name:      "pin-13",
+						Interface: "bool-file",
+						Label:     "Pin 13",
 					},
-					GrantedTo: []client.Slot{
+					Connections: []client.Slot{
 						{
 							Snap: "keyboard-lights",
 							Name: "capslock-led",
@@ -141,15 +141,15 @@ func (s *SnapSuite) TestInterfacesTwoSlots(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": []client.SkillGrants{
+			"result": []client.PlugConnections{
 				{
-					Skill: client.Skill{
-						Snap:  "canonical-pi2",
-						Name:  "pin-13",
-						Type:  "bool-file",
-						Label: "Pin 13",
+					Plug: client.Plug{
+						Snap:      "canonical-pi2",
+						Name:      "pin-13",
+						Interface: "bool-file",
+						Label:     "Pin 13",
 					},
-					GrantedTo: []client.Slot{
+					Connections: []client.Slot{
 						{
 							Snap: "keyboard-lights",
 							Name: "capslock-led",
@@ -182,15 +182,15 @@ func (s *SnapSuite) TestInterfacesSlotsWithCommonName(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": []client.SkillGrants{
+			"result": []client.PlugConnections{
 				{
-					Skill: client.Skill{
-						Snap:  "canonical-pi2",
-						Name:  "network-listening",
-						Type:  "network-listening",
-						Label: "Ability to be a network service",
+					Plug: client.Plug{
+						Snap:      "canonical-pi2",
+						Name:      "network-listening",
+						Interface: "network-listening",
+						Label:     "Ability to be a network service",
 					},
-					GrantedTo: []client.Slot{
+					Connections: []client.Slot{
 						{
 							Snap: "paste-daemon",
 							Name: "network-listening",
@@ -214,7 +214,7 @@ func (s *SnapSuite) TestInterfacesSlotsWithCommonName(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestInterfacesTwoSkillsAndFiltering(c *C) {
+func (s *SnapSuite) TestInterfacesTwoPlugsAndFiltering(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/2.0/skills")
@@ -223,15 +223,15 @@ func (s *SnapSuite) TestInterfacesTwoSkillsAndFiltering(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": []client.SkillGrants{
+			"result": []client.PlugConnections{
 				{
-					Skill: client.Skill{
-						Snap:  "canonical-pi2",
-						Name:  "debug-console",
-						Type:  "serial-port",
-						Label: "Serial port on the expansion header",
+					Plug: client.Plug{
+						Snap:      "canonical-pi2",
+						Name:      "debug-console",
+						Interface: "serial-port",
+						Label:     "Serial port on the expansion header",
 					},
-					GrantedTo: []client.Slot{
+					Connections: []client.Slot{
 						{
 							Snap: "ubuntu-core",
 							Name: "debug-console",
@@ -239,13 +239,13 @@ func (s *SnapSuite) TestInterfacesTwoSkillsAndFiltering(c *C) {
 					},
 				},
 				{
-					Skill: client.Skill{
-						Snap:  "canonical-pi2",
-						Name:  "pin-13",
-						Type:  "bool-file",
-						Label: "Pin 13",
+					Plug: client.Plug{
+						Snap:      "canonical-pi2",
+						Name:      "pin-13",
+						Interface: "bool-file",
+						Label:     "Pin 13",
 					},
-					GrantedTo: []client.Slot{
+					Connections: []client.Slot{
 						{
 							Snap: "keyboard-lights",
 							Name: "capslock-led",
@@ -274,27 +274,27 @@ func (s *SnapSuite) TestInterfacesOfSpecificSnap(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": []client.SkillGrants{
+			"result": []client.PlugConnections{
 				{
-					Skill: client.Skill{
-						Snap:  "cheese",
-						Name:  "photo-trigger",
-						Type:  "bool-file",
-						Label: "Photo trigger",
+					Plug: client.Plug{
+						Snap:      "cheese",
+						Name:      "photo-trigger",
+						Interface: "bool-file",
+						Label:     "Photo trigger",
 					},
 				}, {
-					Skill: client.Skill{
-						Snap:  "wake-up-alarm",
-						Name:  "toggle",
-						Type:  "bool-file",
-						Label: "Alarm toggle",
+					Plug: client.Plug{
+						Snap:      "wake-up-alarm",
+						Name:      "toggle",
+						Interface: "bool-file",
+						Label:     "Alarm toggle",
 					},
 				}, {
-					Skill: client.Skill{
-						Snap:  "wake-up-alarm",
-						Name:  "snooze",
-						Type:  "bool-file",
-						Label: "Alarm snooze",
+					Plug: client.Plug{
+						Snap:      "wake-up-alarm",
+						Name:      "snooze",
+						Interface: "bool-file",
+						Label:     "Alarm snooze",
 					},
 				},
 			},
@@ -311,7 +311,7 @@ func (s *SnapSuite) TestInterfacesOfSpecificSnap(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestInterfacesOfSpecificSnapAndSkill(c *C) {
+func (s *SnapSuite) TestInterfacesOfSpecificSnapAndPlug(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/2.0/skills")
@@ -320,27 +320,27 @@ func (s *SnapSuite) TestInterfacesOfSpecificSnapAndSkill(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": []client.SkillGrants{
+			"result": []client.PlugConnections{
 				{
-					Skill: client.Skill{
-						Snap:  "cheese",
-						Name:  "photo-trigger",
-						Type:  "bool-file",
-						Label: "Photo trigger",
+					Plug: client.Plug{
+						Snap:      "cheese",
+						Name:      "photo-trigger",
+						Interface: "bool-file",
+						Label:     "Photo trigger",
 					},
 				}, {
-					Skill: client.Skill{
-						Snap:  "wake-up-alarm",
-						Name:  "toggle",
-						Type:  "bool-file",
-						Label: "Alarm toggle",
+					Plug: client.Plug{
+						Snap:      "wake-up-alarm",
+						Name:      "toggle",
+						Interface: "bool-file",
+						Label:     "Alarm toggle",
 					},
 				}, {
-					Skill: client.Skill{
-						Snap:  "wake-up-alarm",
-						Name:  "snooze",
-						Type:  "bool-file",
-						Label: "Alarm snooze",
+					Plug: client.Plug{
+						Snap:      "wake-up-alarm",
+						Name:      "snooze",
+						Interface: "bool-file",
+						Label:     "Alarm snooze",
 					},
 				},
 			},
