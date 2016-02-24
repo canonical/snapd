@@ -30,13 +30,13 @@ import (
 
 // State represents a snapshot of the system state.
 type State struct {
-	entries map[string]json.RawMessage
+	entries map[string]*json.RawMessage
 }
 
 // NewState returns an empty system state.
 func NewState() *State {
 	return &State{
-		entries: make(map[string]json.RawMessage),
+		entries: make(map[string]*json.RawMessage),
 	}
 }
 
@@ -48,10 +48,10 @@ var ErrNoState = errors.New("no state entry for key")
 // It returns ErrNoState if there is no entry for key.
 func (s *State) Get(key string, value interface{}) error {
 	entryJSON := s.entries[key]
-	if len(entryJSON) == 0 {
+	if entryJSON == nil {
 		return ErrNoState
 	}
-	err := json.Unmarshal(entryJSON, value)
+	err := json.Unmarshal(*entryJSON, value)
 	if err != nil {
 		return fmt.Errorf("internal error: could not unmarshal state entry %q: %v", key, err)
 	}
@@ -65,12 +65,13 @@ func (s *State) Set(key string, value interface{}) {
 	if err != nil {
 		logger.Panicf("internal error: could not marshal value for state entry %q: %v", key, err)
 	}
-	s.entries[key] = serialized
+	entryJSON := json.RawMessage(serialized)
+	s.entries[key] = &entryJSON
 }
 
 // Copy returns an independent copy of the state.
 func (s *State) Copy() *State {
-	entries := make(map[string]json.RawMessage, len(s.entries))
+	entries := make(map[string]*json.RawMessage, len(s.entries))
 	for k, s := range s.entries {
 		entries[k] = s
 	}
@@ -79,12 +80,19 @@ func (s *State) Copy() *State {
 
 // WriteState serializes the provided state into w.
 func WriteState(s *State, w io.Writer) error {
-	return nil
+	e := json.NewEncoder(w)
+	return e.Encode(s.entries)
 }
 
 // ReadState returns the state deserialized from r.
 func ReadState(r io.Reader) (*State, error) {
-	return nil, nil
+	s := new(State)
+	d := json.NewDecoder(r)
+	err := d.Decode(&s.entries)
+	if err != nil {
+		return nil, err
+	}
+	return s, err
 }
 
 // Delta represents a list of state changes.
