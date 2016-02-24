@@ -23,40 +23,40 @@ import (
 	"github.com/ubuntu-core/snappy/i18n"
 )
 
-type cmdRevoke struct {
+type cmdDisconnect struct {
 	Positionals struct {
-		Offer SnapAndName `positional-arg-name:"<snap>:<skill>" required:"true"`
-		Use   SnapAndName `positional-arg-name:"<snap>:<skill slot>"`
+		Offer SnapAndName `positional-arg-name:"<snap>:<plug>" required:"true"`
+		Use   SnapAndName `positional-arg-name:"<snap>:<slot>"`
 	} `positional-args:"true"`
 }
 
-var shortRevokeHelp = i18n.G("Revokes a skill granted to a skill slot")
-var longRevokeHelp = i18n.G(`
-The revoke command unassigns previously granted skills from a snap.
+var shortDisconnectHelp = i18n.G("Disconnects a plug from a slot")
+var longDisconnectHelp = i18n.G(`
+The disconnect command disconnects a plug from a slot.
 It may be called in the following ways:
 
-$ snap revoke <snap>:<skill> <snap>:<skill slot>
+$ snap disconnect <snap>:<plug> <snap>:<slot>
 
-Revokes the specific skill from the specific skill slot.
+Disconnects the specific plug from the specific slot.
 
-$ snap revoke <snap>:<skill slot>
+$ snap disconnect <snap>:<slot>
 
-Revokes any previously granted skill from the provided skill slot.
+Disconnects any previously connected plugs from the provided slot.
 
-$ snap revoke <snap>
+$ snap disconnect <snap>
 
-Revokes all skills from the provided snap.
+Disconnects all plugs from the provided snap.
 `)
 
 func init() {
-	addCommand("revoke", shortRevokeHelp, longRevokeHelp, func() interface{} {
-		return &cmdRevoke{}
+	addCommand("disconnect", shortDisconnectHelp, longDisconnectHelp, func() interface{} {
+		return &cmdDisconnect{}
 	})
 }
 
-func (x *cmdRevoke) Execute(args []string) error {
-	// snap revoke <snap>:<skill slot>
-	// snap revoke <snap>
+func (x *cmdDisconnect) Execute(args []string) error {
+	// snap disconnect <snap>:<slot>
+	// snap disconnect <snap>
 	if x.Positionals.Use.Snap == "" && x.Positionals.Use.Name == "" {
 		// Swap Offer and Use around
 		x.Positionals.Offer, x.Positionals.Use = x.Positionals.Use, x.Positionals.Offer

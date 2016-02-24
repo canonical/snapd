@@ -28,38 +28,38 @@ import (
 	. "github.com/ubuntu-core/snappy/cmd/snap"
 )
 
-func (s *SnapSuite) TestRevokeHelp(c *C) {
+func (s *SnapSuite) TestDisconnectHelp(c *C) {
 	msg := `Usage:
-  snap.test [OPTIONS] revoke [<snap>:<skill>] [<snap>:<skill slot>]
+  snap.test [OPTIONS] disconnect [<snap>:<plug>] [<snap>:<slot>]
 
-The revoke command unassigns previously granted skills from a snap.
+The disconnect command disconnects a plug from a slot.
 It may be called in the following ways:
 
-$ snap revoke <snap>:<skill> <snap>:<skill slot>
+$ snap disconnect <snap>:<plug> <snap>:<slot>
 
-Revokes the specific skill from the specific skill slot.
+Disconnects the specific plug from the specific slot.
 
-$ snap revoke <snap>:<skill slot>
+$ snap disconnect <snap>:<slot>
 
-Revokes any previously granted skill from the provided skill slot.
+Disconnects any previously connected plugs from the provided slot.
 
-$ snap revoke <snap>
+$ snap disconnect <snap>
 
-Revokes all skills from the provided snap.
+Disconnects all plugs from the provided snap.
 
 Help Options:
-  -h, --help                     Show this help message
+  -h, --help               Show this help message
 
-[revoke command arguments]
-  <snap>:<skill>
-  <snap>:<skill slot>
+[disconnect command arguments]
+  <snap>:<plug>
+  <snap>:<slot>
 `
-	rest, err := Parser().ParseArgs([]string{"revoke", "--help"})
+	rest, err := Parser().ParseArgs([]string{"disconnect", "--help"})
 	c.Assert(err.Error(), Equals, msg)
 	c.Assert(rest, DeepEquals, []string{})
 }
 
-func (s *SnapSuite) TestRevokeExplicitEverything(c *C) {
+func (s *SnapSuite) TestDisconnectExplicitEverything(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "POST")
 		c.Check(r.URL.Path, Equals, "/2.0/skills")
@@ -67,7 +67,7 @@ func (s *SnapSuite) TestRevokeExplicitEverything(c *C) {
 			"action": "revoke",
 			"skill": map[string]interface{}{
 				"snap": "producer",
-				"name": "skill",
+				"name": "plug",
 			},
 			"slot": map[string]interface{}{
 				"snap": "consumer",
@@ -76,14 +76,14 @@ func (s *SnapSuite) TestRevokeExplicitEverything(c *C) {
 		})
 		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
 	})
-	rest, err := Parser().ParseArgs([]string{"revoke", "producer:skill", "consumer:slot"})
+	rest, err := Parser().ParseArgs([]string{"disconnect", "producer:plug", "consumer:slot"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestRevokeEverythingFromSpecificSlot(c *C) {
+func (s *SnapSuite) TestDisconnectEverythingFromSpecificSlot(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "POST")
 		c.Check(r.URL.Path, Equals, "/2.0/skills")
@@ -100,14 +100,14 @@ func (s *SnapSuite) TestRevokeEverythingFromSpecificSlot(c *C) {
 		})
 		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
 	})
-	rest, err := Parser().ParseArgs([]string{"revoke", "consumer:slot"})
+	rest, err := Parser().ParseArgs([]string{"disconnect", "consumer:slot"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestRevokeEverythingFromSpecificSnap(c *C) {
+func (s *SnapSuite) TestDisconnectEverythingFromSpecificSnap(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "POST")
 		c.Check(r.URL.Path, Equals, "/2.0/skills")
@@ -124,7 +124,7 @@ func (s *SnapSuite) TestRevokeEverythingFromSpecificSnap(c *C) {
 		})
 		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
 	})
-	rest, err := Parser().ParseArgs([]string{"revoke", "consumer"})
+	rest, err := Parser().ParseArgs([]string{"disconnect", "consumer"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, "")
