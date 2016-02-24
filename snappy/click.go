@@ -85,8 +85,8 @@ func verifyUsesYaml(uses *usesYaml) error {
 		return err
 	}
 
-	if uses.Type != "migration-skill" {
-		return fmt.Errorf("can not use skill %q, only migration-skill supported", uses.Type)
+	if uses.Type != "old-security" {
+		return fmt.Errorf("can not use interface %q, only `old-security` supported", uses.Type)
 	}
 
 	return nil

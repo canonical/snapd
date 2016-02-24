@@ -77,9 +77,9 @@ The following keys are optional:
 
 * `uses`: a map of names and skills
 
-## Skills
+## Interfaces
 
-The `migration-skill` is used to make porting existing snaps easier.
+The `old-security` interface is used to make porting existing snaps easier.
 It provides the following parameters:
     * `caps`: (optional) list of additional security policies to add.
               See `security.md` for details

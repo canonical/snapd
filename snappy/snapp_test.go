@@ -996,19 +996,19 @@ apps:
 
 uses:
  testme:
-   type: migration-skill
+   type: old-security
    caps:
      - "foo_group"
    security-template: "foo_template"
  testme-override:
-   type: migration-skill
+   type: old-security
    security-override:
      read-paths:
          - "/foo"
      syscalls:
          - "bar"
  testme-policy:
-   type: migration-skill
+   type: old-security
    security-policy:
      apparmor: meta/testme-policy.profile
 
@@ -1048,7 +1048,7 @@ apps:
 
 uses:
  testme-service:
-   type: migration-skill
+   type: old-security
    caps:
      - "network-client"
      - "foo_group"
