@@ -2,19 +2,4 @@
 
 set -e
 
-# TODO: we do not need this user anymore
-SNAPPYUSER=snappypkg
-if [ "$(lsb_release -c -s)" = "vivid" ]; then
-    SNAPPYUSER=clickpkg
-fi
-
-if [ "$1" = configure ]; then
-    adduser --system \
-        --disabled-password \
-        --home /nonexistent \
-        --no-create-home \
-        --group \
-        $SNAPPYUSER
-fi
-
 #DEBHELPER#
