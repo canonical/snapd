@@ -23,10 +23,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snappy"
 )
 
@@ -76,7 +78,12 @@ func (x *cmdInstall) doInstall() error {
 	// TRANSLATORS: the %s is a pkgname
 	fmt.Printf(i18n.G("Installing %s\n"), pkgName)
 
-	realPkgName, err := snappy.Install(pkgName, flags, progress.MakeProgressBar())
+	channel := release.Get().Channel
+	if idx := strings.IndexByte(pkgName, '/'); idx > -1 {
+		pkgName, channel = pkgName[:idx], pkgName[idx+1:]
+	}
+
+	realPkgName, err := snappy.Install(pkgName, channel, flags, progress.MakeProgressBar())
 	if err != nil {
 		return err
 	}
