@@ -1,8 +1,8 @@
 # Security policy
 
-Most of the security aspects of the system will be done via interfaces and
+Most of the security aspects of the system will be done via interfaces,
 slots and plugs. However for compatibility with the 15.04 snappy
-architecture there is a special interface type called `old-security`
+architecture there is a special interface called `old-security`
 that can be used to migrate using the 15.04 syntax. See the example
 below for the various ways the `old-security` interface can be used.
 
