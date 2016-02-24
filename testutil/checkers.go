@@ -43,7 +43,7 @@ func commonEquals(container, elem interface{}, result *bool, error *string) bool
 	switch containerV.Kind() {
 	case reflect.Slice, reflect.Array, reflect.Map:
 		containerElemType := containerV.Type().Elem()
-		if containerV.Type().Elem().Kind() == reflect.Interface {
+		if containerElemType.Kind() == reflect.Interface {
 			// Ensure that element implements the type of elements stored in the container.
 			if !elemV.Type().Implements(containerElemType) {
 				*result = false
