@@ -177,7 +177,8 @@ Sample result:
       "resource": "/2.0/snaps/hello-world.canonical",
       "status": "not installed",
       "type": "app",
-      "version": "1.0.18"
+      "version": "1.0.18",
+      "channel": "stable"
     },
     "http.chipaca": {
       "description": "HTTPie in a snap\nno description",
@@ -189,7 +190,8 @@ Sample result:
       "resource": "/2.0/snaps/http.chipaca",
       "status": "active",
       "type": "app",
-      "version": "3.1"
+      "version": "3.1",
+      "channel": "stable"
     },
     "ubuntu-core.ubuntu": {
       "description": "A secure, minimal transactional OS for devices and containers.",
@@ -202,7 +204,8 @@ Sample result:
       "status": "active",
       "type": "os",
       "update_available": "247",
-      "version": "241"
+      "version": "241",
+      "channel": "stable"
     }
  },
  "paging": {
@@ -236,6 +239,7 @@ Sample result:
       be rolled back to the version specified as a value to this entry.
     * `update_available`: if present and not empty, it means the snap can be
       updated to the version specified as a value to this entry.
+    * `channel`: which channel the package is currently tracking.
 * `paging`
     * `count`: the number of snaps on this page
     * `page`: the page number, starting from `0`
@@ -326,6 +330,7 @@ See `sources` for `/2.0/snaps`.
 field      | ignored except in action | description
 -----------|-------------------|------------
 `action`   |                   | Required; a string, one of `install`, `update`, `remove`, `purge`, `activate`, `deactivate`, or `rollback`.
+`channel`  | `install` `update` | From which channel to pull the new package (and track henceforth). Channels are a means to discern the maturity of a package or the software it contains, although the exact meaning is left to the application developer. One of `edge`, `beta`, `candidate`, and `stable` which is the default.
 `leave_old`| `install` `update` `remove` | A boolean, equivalent to commandline's `--no-gc`. Default is false (do not leave old snaps around).
 `license`  | `install` `update` | A JSON object with `intro`, `license`, and `agreed` fields, the first two of which must match the license (see the section “A note on licenses”, below).
 

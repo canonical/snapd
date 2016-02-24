@@ -195,6 +195,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 			"resource":           "/2.0/snaps/foo.bar",
 			"update_available":   "v2",
 			"rollback_available": "v0",
+			"channel":            "stable",
 		},
 	}
 
