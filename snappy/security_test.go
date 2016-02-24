@@ -1067,8 +1067,8 @@ func (a *SecurityTestSuite) TestFindSkillFinds(c *C) {
 		SlotsRef: []string{"skill"},
 	}
 	m := &snapYaml{
-		Slots: map[string]*slotsYaml{
-			"skill": &slotsYaml{Interface: "some-type"},
+		Slots: map[string]*slotYaml{
+			"skill": &slotYaml{Interface: "some-type"},
 		},
 	}
 	skill, err := findSkillForApp(m, app)

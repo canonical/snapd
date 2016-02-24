@@ -1281,8 +1281,8 @@ func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateService(c *C) {
 			Name:    "part",
 			Apps:    map[string]*AppYaml{"svc": svc},
 			Version: "42",
-			Slots: map[string]*slotsYaml{
-				"svc": &slotsYaml{
+			Slots: map[string]*slotYaml{
+				"svc": &slotYaml{
 					SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"},
 				},
 			},
@@ -1305,8 +1305,8 @@ func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateBinary(c *C) {
 			Name:    "part",
 			Apps:    map[string]*AppYaml{"echo": bin},
 			Version: "42",
-			Slots: map[string]*slotsYaml{
-				"echo": &slotsYaml{
+			Slots: map[string]*slotYaml{
+				"echo": &slotYaml{
 					SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"},
 				},
 			},
@@ -1334,11 +1334,11 @@ func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateNothing(c *C) {
 				"echo": bin,
 			},
 			Version: "42",
-			Slots: map[string]*slotsYaml{
-				"svc": &slotsYaml{
+			Slots: map[string]*slotYaml{
+				"svc": &slotYaml{
 					SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"},
 				},
-				"echo": &slotsYaml{
+				"echo": &slotYaml{
 					SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"},
 				},
 			},

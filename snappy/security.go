@@ -742,7 +742,7 @@ func hasConfig(baseDir string) bool {
 	return helpers.FileExists(filepath.Join(baseDir, "meta", "hooks", "config"))
 }
 
-func findSkillForApp(m *snapYaml, app *AppYaml) (*slotsYaml, error) {
+func findSkillForApp(m *snapYaml, app *AppYaml) (*slotYaml, error) {
 	if len(app.SlotsRef) == 0 {
 		return nil, nil
 	}

@@ -86,7 +86,7 @@ type AppYaml struct {
 	SlotsRef []string `yaml:"slots"`
 }
 
-type slotsYaml struct {
+type slotYaml struct {
 	Interface           string `yaml:"interface"`
 	SecurityDefinitions `yaml:",inline"`
 }
@@ -112,7 +112,7 @@ type snapYaml struct {
 	Apps map[string]*AppYaml `yaml:"apps,omitempty"`
 
 	// Slots maps the used "interfaces" to the apps
-	Slots map[string]*slotsYaml `yaml:"slots,omitempty"`
+	Slots map[string]*slotYaml `yaml:"slots,omitempty"`
 
 	// FIXME: clarify those
 
