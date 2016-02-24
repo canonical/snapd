@@ -23,44 +23,44 @@ import (
 	"github.com/ubuntu-core/snappy/i18n"
 )
 
-type cmdGrant struct {
+type cmdConnect struct {
 	Positionals struct {
-		Offer SnapAndName `positional-arg-name:"<snap>:<skill>" required:"true"`
-		Use   SnapAndName `positional-arg-name:"<snap>:<skill slot>" required:"true"`
+		Offer SnapAndName `positional-arg-name:"<snap>:<plug>" required:"true"`
+		Use   SnapAndName `positional-arg-name:"<snap>:<slot>" required:"true"`
 	} `positional-args:"true" required:"true"`
 }
 
-var shortGrantHelp = i18n.G("Grants a skill to a skill slot")
-var longGrantHelp = i18n.G(`
-The grant command assigns a skill to a snap.
+var shortConnectHelp = i18n.G("Connects a plug to a slot")
+var longConnectHelp = i18n.G(`
+The connect command connects a plug to a slot.
 It may be called in the following ways:
 
-$ snap grant <snap>:<skill> <snap>:<skill slot>
+$ snap connect <snap>:<plug> <snap>:<slot>
 
-Grants the specific skill to the specific skill slot.
+Connects the specific plug to the specific slot.
 
-$ snap grant <snap>:<skill> <snap>
+$ snap connect <snap>:<plug> <snap>
 
-Grants the specific skill to the only skill slot in the provided snap that
-matches the granted skill type. If more than one potential slot exists, the
-command fails.
+Connects the specific plug to the only slot in the provided snap that matches
+the connected interface. If more than one potential slot exists, the command
+fails.
 
-$ snap grant <skill> <snap>[:<skill slot>]
+$ snap connect <plug> <snap>[:<slot>]
 
-Without a name for the snap offering the skill, the skill name is looked at in
+Without a name for the snap offering the plug, the plug name is looked at in
 the gadget snap, the kernel snap, and then the os snap, in that order. The
-first of these snaps that has a matching skill name is used and the command
+first of these snaps that has a matching plug name is used and the command
 proceeds as above.
 `)
 
 func init() {
-	addCommand("grant", shortGrantHelp, longGrantHelp, func() interface{} {
-		return &cmdGrant{}
+	addCommand("connect", shortConnectHelp, longConnectHelp, func() interface{} {
+		return &cmdConnect{}
 	})
 }
 
-func (x *cmdGrant) Execute(args []string) error {
-	// snap grant <skill> <snap>[:<skill slot>]
+func (x *cmdConnect) Execute(args []string) error {
+	// snap connect <plug> <snap>[:<slot>]
 	if x.Positionals.Offer.Snap != "" && x.Positionals.Offer.Name == "" {
 		// Move the value of .Snap to .Name and keep .Snap empty
 		x.Positionals.Offer.Name = x.Positionals.Offer.Snap

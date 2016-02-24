@@ -28,43 +28,43 @@ import (
 	. "github.com/ubuntu-core/snappy/cmd/snap"
 )
 
-func (s *SnapSuite) TestGrantHelp(c *C) {
+func (s *SnapSuite) TestConnectHelp(c *C) {
 	msg := `Usage:
-  snap.test [OPTIONS] grant <snap>:<skill> <snap>:<skill slot>
+  snap.test [OPTIONS] connect <snap>:<plug> <snap>:<slot>
 
-The grant command assigns a skill to a snap.
+The connect command connects a plug to a slot.
 It may be called in the following ways:
 
-$ snap grant <snap>:<skill> <snap>:<skill slot>
+$ snap connect <snap>:<plug> <snap>:<slot>
 
-Grants the specific skill to the specific skill slot.
+Connects the specific plug to the specific slot.
 
-$ snap grant <snap>:<skill> <snap>
+$ snap connect <snap>:<plug> <snap>
 
-Grants the specific skill to the only skill slot in the provided snap that
-matches the granted skill type. If more than one potential slot exists, the
-command fails.
+Connects the specific plug to the only slot in the provided snap that matches
+the connected interface. If more than one potential slot exists, the command
+fails.
 
-$ snap grant <skill> <snap>[:<skill slot>]
+$ snap connect <plug> <snap>[:<slot>]
 
-Without a name for the snap offering the skill, the skill name is looked at in
+Without a name for the snap offering the plug, the plug name is looked at in
 the gadget snap, the kernel snap, and then the os snap, in that order. The
-first of these snaps that has a matching skill name is used and the command
+first of these snaps that has a matching plug name is used and the command
 proceeds as above.
 
 Help Options:
-  -h, --help                     Show this help message
+  -h, --help               Show this help message
 
-[grant command arguments]
-  <snap>:<skill>
-  <snap>:<skill slot>
+[connect command arguments]
+  <snap>:<plug>
+  <snap>:<slot>
 `
-	rest, err := Parser().ParseArgs([]string{"grant", "--help"})
+	rest, err := Parser().ParseArgs([]string{"connect", "--help"})
 	c.Assert(err.Error(), Equals, msg)
 	c.Assert(rest, DeepEquals, []string{})
 }
 
-func (s *SnapSuite) TestGrantExplicitEverything(c *C) {
+func (s *SnapSuite) TestConnectExplicitEverything(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "POST")
 		c.Check(r.URL.Path, Equals, "/2.0/skills")
@@ -72,7 +72,7 @@ func (s *SnapSuite) TestGrantExplicitEverything(c *C) {
 			"action": "grant",
 			"skill": map[string]interface{}{
 				"snap": "producer",
-				"name": "skill",
+				"name": "plug",
 			},
 			"slot": map[string]interface{}{
 				"snap": "consumer",
@@ -81,12 +81,12 @@ func (s *SnapSuite) TestGrantExplicitEverything(c *C) {
 		})
 		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
 	})
-	rest, err := Parser().ParseArgs([]string{"grant", "producer:skill", "consumer:slot"})
+	rest, err := Parser().ParseArgs([]string{"connect", "producer:plug", "consumer:slot"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 }
 
-func (s *SnapSuite) TestGrantExplicitSkillImplicitSlot(c *C) {
+func (s *SnapSuite) TestConnectExplicitPlugImplicitSlot(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "POST")
 		c.Check(r.URL.Path, Equals, "/2.0/skills")
@@ -94,7 +94,7 @@ func (s *SnapSuite) TestGrantExplicitSkillImplicitSlot(c *C) {
 			"action": "grant",
 			"skill": map[string]interface{}{
 				"snap": "producer",
-				"name": "skill",
+				"name": "plug",
 			},
 			"slot": map[string]interface{}{
 				"snap": "consumer",
@@ -103,12 +103,12 @@ func (s *SnapSuite) TestGrantExplicitSkillImplicitSlot(c *C) {
 		})
 		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
 	})
-	rest, err := Parser().ParseArgs([]string{"grant", "producer:skill", "consumer"})
+	rest, err := Parser().ParseArgs([]string{"connect", "producer:plug", "consumer"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 }
 
-func (s *SnapSuite) TestGrantImplicitSkillExplicitSlot(c *C) {
+func (s *SnapSuite) TestConnectImplicitPlugExplicitSlot(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "POST")
 		c.Check(r.URL.Path, Equals, "/2.0/skills")
@@ -116,7 +116,7 @@ func (s *SnapSuite) TestGrantImplicitSkillExplicitSlot(c *C) {
 			"action": "grant",
 			"skill": map[string]interface{}{
 				"snap": "",
-				"name": "skill",
+				"name": "plug",
 			},
 			"slot": map[string]interface{}{
 				"snap": "consumer",
@@ -125,12 +125,12 @@ func (s *SnapSuite) TestGrantImplicitSkillExplicitSlot(c *C) {
 		})
 		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
 	})
-	rest, err := Parser().ParseArgs([]string{"grant", "skill", "consumer:slot"})
+	rest, err := Parser().ParseArgs([]string{"connect", "plug", "consumer:slot"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 }
 
-func (s *SnapSuite) TestGrantImplicitSkillImplicitSlot(c *C) {
+func (s *SnapSuite) TestConnectImplicitPlugImplicitSlot(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "POST")
 		c.Check(r.URL.Path, Equals, "/2.0/skills")
@@ -138,7 +138,7 @@ func (s *SnapSuite) TestGrantImplicitSkillImplicitSlot(c *C) {
 			"action": "grant",
 			"skill": map[string]interface{}{
 				"snap": "",
-				"name": "skill",
+				"name": "plug",
 			},
 			"slot": map[string]interface{}{
 				"snap": "consumer",
@@ -147,7 +147,7 @@ func (s *SnapSuite) TestGrantImplicitSkillImplicitSlot(c *C) {
 		})
 		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
 	})
-	rest, err := Parser().ParseArgs([]string{"grant", "skill", "consumer"})
+	rest, err := Parser().ParseArgs([]string{"connect", "plug", "consumer"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 }
