@@ -24,47 +24,47 @@ import (
 	"encoding/json"
 )
 
-// Skill represents a capacity offered by a snap.
-type Skill struct {
-	Name  string                 `json:"name"`
-	Snap  string                 `json:"snap"`
-	Type  string                 `json:"type,omitempty"`
-	Attrs map[string]interface{} `json:"attrs,omitempty"`
-	Apps  []string               `json:"apps,omitempty"`
-	Label string                 `json:"label,omitempty"`
+// Plug represents a capacity offered by a snap.
+type Plug struct {
+	Name      string                 `json:"name"`
+	Snap      string                 `json:"snap"`
+	Interface string                 `json:"type,omitempty"`
+	Attrs     map[string]interface{} `json:"attrs,omitempty"`
+	Apps      []string               `json:"apps,omitempty"`
+	Label     string                 `json:"label,omitempty"`
 }
 
-// Slot represents the potential of a given snap to use a skill.
+// Slot represents the potential of a given snap to connect to a given plug.
 type Slot struct {
-	Name  string                 `json:"name"`
-	Snap  string                 `json:"snap"`
-	Type  string                 `json:"type,omitempty"`
-	Attrs map[string]interface{} `json:"attrs,omitempty"`
-	Apps  []string               `json:"apps,omitempty"`
-	Label string                 `json:"label,omitempty"`
+	Name      string                 `json:"name"`
+	Snap      string                 `json:"snap"`
+	Interface string                 `json:"type,omitempty"`
+	Attrs     map[string]interface{} `json:"attrs,omitempty"`
+	Apps      []string               `json:"apps,omitempty"`
+	Label     string                 `json:"label,omitempty"`
 }
 
-// SkillGrants represents a single skill and slots that are using it.
-type SkillGrants struct {
-	Skill
-	GrantedTo []Slot `json:"granted_to"`
+// PlugConnections represents a single plug and slots that are connected to it.
+type PlugConnections struct {
+	Plug
+	Connections []Slot `json:"granted_to"`
 }
 
-// SkillAction represents an action performed on the skill system.
-type SkillAction struct {
+// InterfaceAction represents an action performed on the interface system.
+type InterfaceAction struct {
 	Action string `json:"action"`
-	Skill  *Skill `json:"skill,omitempty"`
+	Plug   *Plug  `json:"skill,omitempty"`
 	Slot   *Slot  `json:"slot,omitempty"`
 }
 
-// AllSkills returns information about all the skills and their grants.
-func (client *Client) AllSkills() (grants []SkillGrants, err error) {
-	err = client.doSync("GET", "/2.0/skills", nil, nil, &grants)
+// AllPlugs returns information about all the plugs and their connections.
+func (client *Client) AllPlugs() (connections []PlugConnections, err error) {
+	err = client.doSync("GET", "/2.0/skills", nil, nil, &connections)
 	return
 }
 
-// performSkillAction performs a single action on the skill system.
-func (client *Client) performSkillAction(sa *SkillAction) error {
+// performInterfaceAction performs a single action on the interface system.
+func (client *Client) performInterfaceAction(sa *InterfaceAction) error {
 	b, err := json.Marshal(sa)
 	if err != nil {
 		return err
@@ -76,14 +76,14 @@ func (client *Client) performSkillAction(sa *SkillAction) error {
 	return nil
 }
 
-// Grant grants the named skill to the named slot of the given snap.
-// The skill and the slot must have the same type.
-func (client *Client) Grant(skillSnapName, skillName, slotSnapName, slotName string) error {
-	return client.performSkillAction(&SkillAction{
+// Connect establishes a connection between a plug and a slot.
+// The plug and the slot must have the same interface.
+func (client *Client) Connect(plugSnapName, plugName, slotSnapName, slotName string) error {
+	return client.performInterfaceAction(&InterfaceAction{
 		Action: "grant",
-		Skill: &Skill{
-			Snap: skillSnapName,
-			Name: skillName,
+		Plug: &Plug{
+			Snap: plugSnapName,
+			Name: plugName,
 		},
 		Slot: &Slot{
 			Snap: slotSnapName,
@@ -92,13 +92,13 @@ func (client *Client) Grant(skillSnapName, skillName, slotSnapName, slotName str
 	})
 }
 
-// Revoke revokes the named skill from the slot of the given snap.
-func (client *Client) Revoke(skillSnapName, skillName, slotSnapName, slotName string) error {
-	return client.performSkillAction(&SkillAction{
+// Disconnect breaks the connection between a plug and a slot.
+func (client *Client) Disconnect(plugSnapName, plugName, slotSnapName, slotName string) error {
+	return client.performInterfaceAction(&InterfaceAction{
 		Action: "revoke",
-		Skill: &Skill{
-			Snap: skillSnapName,
-			Name: skillName,
+		Plug: &Plug{
+			Snap: plugSnapName,
+			Name: plugName,
 		},
 		Slot: &Slot{
 			Snap: slotSnapName,
@@ -107,28 +107,28 @@ func (client *Client) Revoke(skillSnapName, skillName, slotSnapName, slotName st
 	})
 }
 
-// AddSkill adds a skill to the system.
-func (client *Client) AddSkill(skill *Skill) error {
-	return client.performSkillAction(&SkillAction{
+// AddPlug adds a plug to the interface system.
+func (client *Client) AddPlug(plug *Plug) error {
+	return client.performInterfaceAction(&InterfaceAction{
 		Action: "add-skill",
-		Skill:  skill,
+		Plug:   plug,
 	})
 }
 
-// RemoveSkill removes a skill from the system.
-func (client *Client) RemoveSkill(snapName, skillName string) error {
-	return client.performSkillAction(&SkillAction{
+// RemovePlug removes a plug from the interface system.
+func (client *Client) RemovePlug(snapName, plugName string) error {
+	return client.performInterfaceAction(&InterfaceAction{
 		Action: "remove-skill",
-		Skill: &Skill{
+		Plug: &Plug{
 			Snap: snapName,
-			Name: skillName,
+			Name: plugName,
 		},
 	})
 }
 
 // AddSlot adds a slot to the system.
 func (client *Client) AddSlot(slot *Slot) error {
-	return client.performSkillAction(&SkillAction{
+	return client.performInterfaceAction(&InterfaceAction{
 		Action: "add-slot",
 		Slot:   slot,
 	})
@@ -136,7 +136,7 @@ func (client *Client) AddSlot(slot *Slot) error {
 
 // RemoveSlot removes a slot from the system.
 func (client *Client) RemoveSlot(snapName, slotName string) error {
-	return client.performSkillAction(&SkillAction{
+	return client.performInterfaceAction(&InterfaceAction{
 		Action: "remove-slot",
 		Slot: &Slot{
 			Snap: snapName,

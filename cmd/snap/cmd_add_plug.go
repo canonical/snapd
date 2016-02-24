@@ -54,12 +54,12 @@ func (x *cmdAddInterface) Execute(args []string) error {
 	for k, v := range AttributePairSliceToMap(x.Attrs) {
 		attrs[k] = v
 	}
-	return Client().AddSkill(&client.Skill{
-		Snap:  x.Positionals.Snap,
-		Name:  x.Positionals.Plug,
-		Type:  x.Positionals.Interface,
-		Attrs: attrs,
-		Apps:  x.Apps,
-		Label: x.Label,
+	return Client().AddPlug(&client.Plug{
+		Snap:      x.Positionals.Snap,
+		Name:      x.Positionals.Plug,
+		Interface: x.Positionals.Interface,
+		Attrs:     attrs,
+		Apps:      x.Apps,
+		Label:     x.Label,
 	})
 }
