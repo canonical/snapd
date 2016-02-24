@@ -27,32 +27,32 @@ import (
 	"github.com/ubuntu-core/snappy/i18n"
 )
 
-type cmdAsserts struct {
-	AssertsOptions struct {
+type cmdKnown struct {
+	KnownOptions struct {
 		AssertTypeName string   `positional-arg-name:"<assertion type>" description:"assertion type name" required:"true"`
 		HeaderFilters  []string `positional-arg-name:"<header filters>" description:"header=value" required:"0"`
 	} `positional-args:"true" required:"true"`
 }
 
-var shortAssertsHelp = i18n.G("Shows known assertions of the provided type")
-var longAssertsHelp = i18n.G(`
-The asserts command shows known assertions of the provided type.
+var shortKnownHelp = i18n.G("Shows known assertions of the provided type")
+var longKnownHelp = i18n.G(`
+The known command shows known assertions of the provided type.
 If header=value pairs are provided after the assertion type, the assertions
 shown must also have the specified headers matching the provided values.
 `)
 
 func init() {
-	addCommand("asserts", shortAssertsHelp, longAssertsHelp, func() interface{} {
-		return &cmdAsserts{}
+	addCommand("known", shortKnownHelp, longKnownHelp, func() interface{} {
+		return &cmdKnown{}
 	})
 }
 
 var nl = []byte{'\n'}
 
-func (x *cmdAsserts) Execute(args []string) error {
+func (x *cmdKnown) Execute(args []string) error {
 	// TODO: share this kind of parsing once it's clearer how often is used in snap
 	headers := map[string]string{}
-	for _, headerFilter := range x.AssertsOptions.HeaderFilters {
+	for _, headerFilter := range x.KnownOptions.HeaderFilters {
 		parts := strings.SplitN(headerFilter, "=", 2)
 		if len(parts) != 2 {
 			return fmt.Errorf("invalid header filter: %q (want key=value)", headerFilter)
@@ -60,7 +60,7 @@ func (x *cmdAsserts) Execute(args []string) error {
 		headers[parts[0]] = parts[1]
 	}
 
-	assertions, err := Client().Asserts(x.AssertsOptions.AssertTypeName, headers)
+	assertions, err := Client().Known(x.KnownOptions.AssertTypeName, headers)
 	if err != nil {
 		return err
 	}

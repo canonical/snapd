@@ -32,16 +32,16 @@ import (
 // for cleanup
 var dev1AccKeyFiles = filepath.Join(dirs.SnapAssertsDBDir, "asserts-v0/account-key/developer1")
 
-var _ = check.Suite(&snapAssertSuite{})
+var _ = check.Suite(&snapAckSuite{})
 
-type snapAssertSuite struct {
+type snapAckSuite struct {
 	// FIXME: use snapdTestSuite until all tests are moved to
 	// assume the snapd/snap command pairing
 	snapdTestSuite
 }
 
-func (s *snapAssertSuite) TestOK(c *check.C) {
-	cli.ExecCommand(c, "sudo", "snap", "assert", "integration-tests/data/dev1.acckey")
+func (s *snapAckSuite) TestOK(c *check.C) {
+	cli.ExecCommand(c, "sudo", "snap", "ack", "integration-tests/data/dev1.acckey")
 	// XXX: forceful cleanup of relevant assertions until we have a better general approach
 	defer cli.ExecCommand(c, "sudo", "rm", "-rf", dev1AccKeyFiles)
 }

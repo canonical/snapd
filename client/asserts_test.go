@@ -36,7 +36,7 @@ func (cs *clientSuite) TestClientAssert(c *C) {
 		"result": {}
 	}`
 	a := []byte("Assertion.")
-	err := cs.cli.Assert(a)
+	err := cs.cli.Ack(a)
 	c.Assert(err, IsNil)
 	body, err := ioutil.ReadAll(cs.req.Body)
 	c.Assert(err, IsNil)
@@ -46,13 +46,13 @@ func (cs *clientSuite) TestClientAssert(c *C) {
 }
 
 func (cs *clientSuite) TestClientAssertsCallsEndpoint(c *C) {
-	_, _ = cs.cli.Asserts("snap-revision", nil)
+	_, _ = cs.cli.Known("snap-revision", nil)
 	c.Check(cs.req.Method, Equals, "GET")
 	c.Check(cs.req.URL.Path, Equals, "/2.0/assertions/snap-revision")
 }
 
 func (cs *clientSuite) TestClientAssertsCallsEndpointWithFilter(c *C) {
-	_, _ = cs.cli.Asserts("snap-revision", map[string]string{
+	_, _ = cs.cli.Known("snap-revision", map[string]string{
 		"snap-id":     "snap-id-1",
 		"snap-digest": "sha256 digest...",
 	})
@@ -67,7 +67,7 @@ func (cs *clientSuite) TestClientAssertsCallsEndpointWithFilter(c *C) {
 
 func (cs *clientSuite) TestClientAssertsHttpError(c *C) {
 	cs.err = errors.New("fail")
-	_, err := cs.cli.Asserts("snap-build", nil)
+	_, err := cs.cli.Known("snap-build", nil)
 	c.Assert(err, ErrorMatches, "failed to query assertions: fail")
 }
 
@@ -82,7 +82,7 @@ func (cs *clientSuite) TestClientAssertsJSONError(c *C) {
 			"message": "invalid"
 		}
 	}`
-	_, err := cs.cli.Asserts("snap-build", nil)
+	_, err := cs.cli.Known("snap-build", nil)
 	c.Assert(err, ErrorMatches, "invalid")
 }
 
@@ -116,7 +116,7 @@ body-length: 0
 openpgp ...
 `
 
-	a, err := cs.cli.Asserts("snap-revision", nil)
+	a, err := cs.cli.Known("snap-revision", nil)
 	c.Assert(err, IsNil)
 	c.Check(a, HasLen, 2)
 
@@ -128,7 +128,7 @@ func (cs *clientSuite) TestClientAssertsNoAssertions(c *C) {
 	cs.header.Add("X-Ubuntu-Assertions-Count", "0")
 	cs.rsp = ""
 	cs.status = http.StatusOK
-	a, err := cs.cli.Asserts("snap-revision", nil)
+	a, err := cs.cli.Known("snap-revision", nil)
 	c.Assert(err, IsNil)
 	c.Check(a, HasLen, 0)
 }
@@ -138,6 +138,6 @@ func (cs *clientSuite) TestClientAssertsMissingAssertions(c *C) {
 	cs.header.Add("X-Ubuntu-Assertions-Count", "4")
 	cs.rsp = ""
 	cs.status = http.StatusOK
-	_, err := cs.cli.Asserts("snap-build", nil)
+	_, err := cs.cli.Known("snap-build", nil)
 	c.Assert(err, ErrorMatches, "response did not have the expected number of assertions")
 }
