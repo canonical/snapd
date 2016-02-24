@@ -82,11 +82,11 @@ type AppYaml struct {
 	// must be a pointer so that it can be "nil" and omitempty works
 	Ports *Ports `yaml:"ports,omitempty" json:"ports,omitempty"`
 
-	OffersRef []string `yaml:"offers"`
-	UsesRef   []string `yaml:"uses"`
+	PlugsRef []string `yaml:"plugs"`
+	SlotsRef []string `yaml:"slots"`
 }
 
-type usesYaml struct {
+type slotsYaml struct {
 	Type                string `yaml:"type"`
 	SecurityDefinitions `yaml:",inline"`
 }
@@ -111,8 +111,8 @@ type snapYaml struct {
 	// Apps can be both binary or service
 	Apps map[string]*AppYaml `yaml:"apps,omitempty"`
 
-	// Uses maps the used "skills" to the apps
-	Uses map[string]*usesYaml `yaml:"uses,omitempty"`
+	// Slots maps the used "interfaces" to the apps
+	Slots map[string]*slotsYaml `yaml:"slots,omitempty"`
 
 	// FIXME: clarify those
 
@@ -169,9 +169,9 @@ func validateSnapYamlData(file string, yamlData []byte, m *snapYaml) error {
 		}
 	}
 
-	// check for "uses"
-	for _, uses := range m.Uses {
-		if err := verifyUsesYaml(uses); err != nil {
+	// check for "slots"
+	for _, slots := range m.Slots {
+		if err := verifySlotsYaml(slots); err != nil {
 			return err
 		}
 	}
@@ -197,9 +197,9 @@ func parseSnapYamlData(yamlData []byte, hasConfig bool) (*snapYaml, error) {
 		app.Name = name
 	}
 
-	for name, uses := range m.Uses {
-		if uses.Type == "" {
-			uses.Type = name
+	for name, slots := range m.Slots {
+		if slots.Type == "" {
+			slots.Type = name
 		}
 	}
 

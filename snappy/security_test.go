@@ -603,11 +603,11 @@ vendor: someone
 version: 1.0
 apps:
  binary1:
-   uses: [binary1]
+   slots: [binary1]
  service1:
-   uses: [service1]
+   slots: [service1]
    daemon: forking
-uses:
+slots:
  binary1:
   type: old-security
   caps: []
@@ -822,8 +822,8 @@ vendor: someone
 version: 1.0
 apps:
  binary1:
-   uses: [binary1]
-uses:
+   slots: [binary1]
+slots:
  binary1:
    type: old-security
    caps: []
@@ -1044,7 +1044,7 @@ func (a *SecurityTestSuite) TestFindSkillForAppEmpty(c *C) {
 
 func (a *SecurityTestSuite) TestFindSkillForAppTooMany(c *C) {
 	app := &AppYaml{
-		UsesRef: []string{"one", "two"},
+		SlotsRef: []string{"one", "two"},
 	}
 	m := &snapYaml{}
 	skill, err := findSkillForApp(m, app)
@@ -1054,7 +1054,7 @@ func (a *SecurityTestSuite) TestFindSkillForAppTooMany(c *C) {
 
 func (a *SecurityTestSuite) TestFindSkillForAppNotFound(c *C) {
 	app := &AppYaml{
-		UsesRef: []string{"not-there"},
+		SlotsRef: []string{"not-there"},
 	}
 	m := &snapYaml{}
 	skill, err := findSkillForApp(m, app)
@@ -1064,11 +1064,11 @@ func (a *SecurityTestSuite) TestFindSkillForAppNotFound(c *C) {
 
 func (a *SecurityTestSuite) TestFindSkillFinds(c *C) {
 	app := &AppYaml{
-		UsesRef: []string{"skill"},
+		SlotsRef: []string{"skill"},
 	}
 	m := &snapYaml{
-		Uses: map[string]*usesYaml{
-			"skill": &usesYaml{Type: "some-type"},
+		Slots: map[string]*slotsYaml{
+			"skill": &slotsYaml{Type: "some-type"},
 		},
 	}
 	skill, err := findSkillForApp(m, app)
