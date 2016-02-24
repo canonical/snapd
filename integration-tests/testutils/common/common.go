@@ -61,8 +61,7 @@ type SnappySuite struct {
 // integration suites.
 func (s *SnappySuite) SetUpSuite(c *check.C) {
 	var err error
-	Cfg, err = config.ReadConfig(
-		"integration-tests/data/output/testconfig.json")
+	Cfg, err = config.ReadConfig(config.DefaultFileName)
 	c.Assert(err, check.IsNil, check.Commentf("Error reading config: %v", err))
 
 	if !IsInRebootProcess() {
