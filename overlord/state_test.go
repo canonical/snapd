@@ -20,6 +20,8 @@
 package overlord_test
 
 import (
+	"bytes"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/overlord"
@@ -108,4 +110,37 @@ func (ss *stateSuite) TestCopy(c *C) {
 	c.Check(&mSt2B, DeepEquals, mSt2)
 
 	c.Check(mSt2B.C, Not(Equals), cnt)
+}
+
+func (ss *stateSuite) TestWriteAndRead(c *C) {
+	st := overlord.NewState()
+	st.Set("v", 1)
+	mSt1 := &mgrState1{A: "foo"}
+	st.Set("mgr1", mSt1)
+	mSt2 := &mgrState2{C: &Count2{B: 42}}
+	st.Set("mgr2", mSt2)
+
+	buf := new(bytes.Buffer)
+
+	err := overlord.WriteState(st, buf)
+	c.Assert(err, IsNil)
+
+	st2, err := overlord.ReadState(buf)
+	c.Assert(err, IsNil)
+	c.Assert(st2, NotNil)
+
+	var v int
+	err = st2.Get("v", &v)
+	c.Assert(err, IsNil)
+	c.Check(v, Equals, 1)
+
+	var mSt1B mgrState1
+	err = st2.Get("mgr1", &mSt1B)
+	c.Assert(err, IsNil)
+	c.Check(&mSt1B, DeepEquals, mSt1)
+
+	var mSt2B mgrState2
+	err = st2.Get("mgr2", &mSt2B)
+	c.Assert(err, IsNil)
+	c.Check(&mSt2B, DeepEquals, mSt2)
 }
