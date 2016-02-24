@@ -36,7 +36,7 @@ const (
 	binName           = snapName + ".reader"
 	installedSnapName = snapName + ".sideload"
 	hwName            = "/dev/kmsg"
-	hwAssignError     = "dd: failed to open ‘" + hwName + "’: Permission denied\n"
+	hwAssignError     = "dd: failed to open '" + hwName + "': Permission denied\n"
 )
 
 var _ = check.Suite(&hwAssignSuite{})
