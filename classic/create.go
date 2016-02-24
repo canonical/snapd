@@ -280,6 +280,7 @@ func Create(pbar progress.Meter) (err error) {
 	if err != nil {
 		return err
 	}
+	defer os.Remove(lxdRootfsTar)
 
 	if err := unpackLxdRootfs(lxdRootfsTar); err != nil {
 		return err
