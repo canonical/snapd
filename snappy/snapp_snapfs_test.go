@@ -380,7 +380,7 @@ apps:
 
 slots:
  some-binary:
-  type: old-security
+  interface: old-security
   security-template: not-there
 `)
 	// install but our missing security-template will break the install
