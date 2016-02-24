@@ -376,9 +376,9 @@ version: 1.10
 apps:
  some-binary:
   command: some-binary
-  uses: [some-binary]
+  slots: [some-binary]
 
-uses:
+slots:
  some-binary:
   type: old-security
   security-template: not-there

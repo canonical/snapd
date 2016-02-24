@@ -80,7 +80,7 @@ func verifyAppYaml(app *AppYaml) error {
 	return verifyStructStringsAgainstWhitelist(*app, servicesBinariesStringsWhitelist)
 }
 
-func verifyUsesYaml(uses *usesYaml) error {
+func verifySlotsYaml(uses *slotsYaml) error {
 	if err := verifyStructStringsAgainstWhitelist(*uses, servicesBinariesStringsWhitelist); err != nil {
 		return err
 	}

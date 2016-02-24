@@ -742,17 +742,17 @@ func hasConfig(baseDir string) bool {
 	return helpers.FileExists(filepath.Join(baseDir, "meta", "hooks", "config"))
 }
 
-func findSkillForApp(m *snapYaml, app *AppYaml) (*usesYaml, error) {
-	if len(app.UsesRef) == 0 {
+func findSkillForApp(m *snapYaml, app *AppYaml) (*slotsYaml, error) {
+	if len(app.SlotsRef) == 0 {
 		return nil, nil
 	}
-	if len(app.UsesRef) != 1 {
-		return nil, fmt.Errorf("only a single skill is supported, %d found", len(app.UsesRef))
+	if len(app.SlotsRef) != 1 {
+		return nil, fmt.Errorf("only a single skill is supported, %d found", len(app.SlotsRef))
 	}
 
-	skill, ok := m.Uses[app.UsesRef[0]]
+	skill, ok := m.Slots[app.SlotsRef[0]]
 	if !ok {
-		return nil, fmt.Errorf("can not find skill %q", app.UsesRef[0])
+		return nil, fmt.Errorf("can not find skill %q", app.SlotsRef[0])
 	}
 	return skill, nil
 }
