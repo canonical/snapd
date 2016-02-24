@@ -80,13 +80,13 @@ func verifyAppYaml(app *AppYaml) error {
 	return verifyStructStringsAgainstWhitelist(*app, servicesBinariesStringsWhitelist)
 }
 
-func verifySlotsYaml(uses *slotsYaml) error {
-	if err := verifyStructStringsAgainstWhitelist(*uses, servicesBinariesStringsWhitelist); err != nil {
+func verifySlotYaml(slot *slotsYaml) error {
+	if err := verifyStructStringsAgainstWhitelist(*slot, servicesBinariesStringsWhitelist); err != nil {
 		return err
 	}
 
-	if uses.Type != "old-security" {
-		return fmt.Errorf("can not use interface %q, only `old-security` supported", uses.Type)
+	if slot.Interface != "old-security" {
+		return fmt.Errorf("can not use interface %q, only `old-security` supported", slot.Interface)
 	}
 
 	return nil

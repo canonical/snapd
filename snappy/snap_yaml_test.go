@@ -37,5 +37,5 @@ slots:
 `)
 	sy, err := parseSnapYamlData(snapYaml, false)
 	c.Assert(err, IsNil)
-	sy.Slots["old-security"].Type = "old-security"
+	sy.Slots["old-security"].Interface = "old-security"
 }

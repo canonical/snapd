@@ -996,19 +996,19 @@ apps:
 
 slots:
  testme:
-   type: old-security
+   interface: old-security
    caps:
      - "foo_group"
    security-template: "foo_template"
  testme-override:
-   type: old-security
+   interface: old-security
    security-override:
      read-paths:
          - "/foo"
      syscalls:
          - "bar"
  testme-policy:
-   type: old-security
+   interface: old-security
    security-policy:
      apparmor: meta/testme-policy.profile
 
@@ -1048,7 +1048,7 @@ apps:
 
 slots:
  testme-service:
-   type: old-security
+   interface: old-security
    caps:
      - "network-client"
      - "foo_group"

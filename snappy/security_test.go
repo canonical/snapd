@@ -609,10 +609,10 @@ apps:
    daemon: forking
 slots:
  binary1:
-  type: old-security
+  interface: old-security
   caps: []
  service1:
-  type: old-security
+  interface: old-security
   caps: []
 `
 
@@ -825,7 +825,7 @@ apps:
    slots: [binary1]
 slots:
  binary1:
-   type: old-security
+   interface: old-security
    caps: []
 `
 
@@ -1068,10 +1068,10 @@ func (a *SecurityTestSuite) TestFindSkillFinds(c *C) {
 	}
 	m := &snapYaml{
 		Slots: map[string]*slotsYaml{
-			"skill": &slotsYaml{Type: "some-type"},
+			"skill": &slotsYaml{Interface: "some-type"},
 		},
 	}
 	skill, err := findSkillForApp(m, app)
 	c.Check(err, IsNil)
-	c.Check(skill.Type, Equals, "some-type")
+	c.Check(skill.Interface, Equals, "some-type")
 }

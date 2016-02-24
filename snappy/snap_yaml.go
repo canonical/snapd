@@ -87,7 +87,7 @@ type AppYaml struct {
 }
 
 type slotsYaml struct {
-	Type                string `yaml:"type"`
+	Interface           string `yaml:"interface"`
 	SecurityDefinitions `yaml:",inline"`
 }
 
@@ -171,7 +171,7 @@ func validateSnapYamlData(file string, yamlData []byte, m *snapYaml) error {
 
 	// check for "slots"
 	for _, slots := range m.Slots {
-		if err := verifySlotsYaml(slots); err != nil {
+		if err := verifySlotYaml(slots); err != nil {
 			return err
 		}
 	}
@@ -197,9 +197,9 @@ func parseSnapYamlData(yamlData []byte, hasConfig bool) (*snapYaml, error) {
 		app.Name = name
 	}
 
-	for name, slots := range m.Slots {
-		if slots.Type == "" {
-			slots.Type = name
+	for name, slot := range m.Slots {
+		if slot.Interface == "" {
+			slot.Interface = name
 		}
 	}
 
