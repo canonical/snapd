@@ -24,7 +24,6 @@ import (
 	"flag"
 	"log"
 	"os"
-	"path/filepath"
 	"strconv"
 
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/autopkgtest"
@@ -45,8 +44,6 @@ const (
 	defaultOS     = "ubuntu-core.canonical"
 	defaultGadget = "canonical-pc.canonical"
 )
-
-var configFileName = filepath.Join(dataOutputDir, "testconfig.json")
 
 func main() {
 	var (
@@ -98,8 +95,15 @@ func main() {
 
 	// TODO: pass the config as arguments to the test binaries.
 	// --elopio - 2015-07-15
-	cfg := config.NewConfig(
-		configFileName, *imgRelease, *imgChannel, remoteTestbed, *update, *rollback)
+	cfg := &config.Config{
+		FileName:      config.DefaultFileName,
+		Release:       *imgRelease,
+		Channel:       *imgChannel,
+		RemoteTestbed: remoteTestbed,
+		Update:        *update,
+		Rollback:      *rollback,
+		FromBranch:    *useSnappyFromBranch,
+	}
 	cfg.Write()
 
 	rootPath := testutils.RootPath()
