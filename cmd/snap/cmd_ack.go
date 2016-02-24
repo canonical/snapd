@@ -25,15 +25,15 @@ import (
 	"github.com/ubuntu-core/snappy/i18n"
 )
 
-type cmdAssert struct {
-	AssertOptions struct {
+type cmdAck struct {
+	AckOptions struct {
 		AssertionFile string `positional-arg-name:"<assertion file>" description:"assertion file"`
 	} `positional-args:"true" required:"true"`
 }
 
-var shortAssertHelp = i18n.G("Adds an assertion to the system")
-var longAssertHelp = i18n.G(`
-The assert command tries to add an assertion to the system assertion database.
+var shortAckHelp = i18n.G("Adds an assertion to the system")
+var longAckHelp = i18n.G(`
+The ack command tries to add an assertion to the system assertion database.
 
 The assertion may also be a newer revision of a preexisting assertion that it
 will replace.
@@ -44,18 +44,18 @@ database.
 `)
 
 func init() {
-	addCommand("assert", shortAssertHelp, longAssertHelp, func() interface{} {
-		return &cmdAssert{}
+	addCommand("ack", shortAckHelp, longAckHelp, func() interface{} {
+		return &cmdAck{}
 	})
 }
 
-func (x *cmdAssert) Execute(args []string) error {
-	assertFile := x.AssertOptions.AssertionFile
+func (x *cmdAck) Execute(args []string) error {
+	assertFile := x.AckOptions.AssertionFile
 
 	assertData, err := ioutil.ReadFile(assertFile)
 	if err != nil {
 		return err
 	}
 
-	return Client().Assert(assertData)
+	return Client().Ack(assertData)
 }

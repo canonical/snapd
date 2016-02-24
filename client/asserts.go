@@ -30,11 +30,11 @@ import (
 	"github.com/ubuntu-core/snappy/asserts" // for parsing
 )
 
-// Assert tries to add an assertion to the system assertion
+// Ack tries to add an assertion to the system assertion
 // database. To succeed the assertion must be valid, its signature
 // verified with a known public key and the assertion consistent with
 // and its prerequisite in the database.
-func (client *Client) Assert(b []byte) error {
+func (client *Client) Ack(b []byte) error {
 	var rsp interface{}
 	if err := client.doSync("POST", "/2.0/assertions", nil, bytes.NewReader(b), &rsp); err != nil {
 		return fmt.Errorf("cannot assert: %v", err)
@@ -43,8 +43,8 @@ func (client *Client) Assert(b []byte) error {
 	return nil
 }
 
-// Asserts queries assertions with type assertTypeName and matching assertion headers.
-func (client *Client) Asserts(assertTypeName string, headers map[string]string) ([]asserts.Assertion, error) {
+// Known queries assertions with type assertTypeName and matching assertion headers.
+func (client *Client) Known(assertTypeName string, headers map[string]string) ([]asserts.Assertion, error) {
 	path := fmt.Sprintf("/2.0/assertions/%s", assertTypeName)
 	q := url.Values{}
 
