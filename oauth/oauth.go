@@ -75,6 +75,6 @@ func MakePlaintextSignature(token *Token) string {
 	nonce := helpers.MakeRandomString(60)
 	timestamp := time.Now().Unix()
 
-	s := fmt.Sprintf(`OAuth oauth_nonce="%s", oauth_timestamp="%v", oauth_version="1.0", oauth_signature_method="PLAINTEXT", oauth_consumer_key="%s", oauth_token="%s", oauth_signature="%s&%s"`, nonce, timestamp, quote(token.ConsumerKey), quote(token.TokenKey), quote(token.ConsumerSecret), quote(token.TokenSecret))
+	s := fmt.Sprintf(`OAuth oauth_nonce="%s", oauth_timestamp="%v", oauth_version="1.0", oauth_signature_method="PLAINTEXT", oauth_consumer_key="%s", oauth_token="%s", oauth_signature="%s%%26%s"`, nonce, timestamp, quote(token.ConsumerKey), quote(token.TokenKey), quote(token.ConsumerSecret), quote(token.TokenSecret))
 	return s
 }
