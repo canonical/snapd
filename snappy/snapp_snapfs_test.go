@@ -380,7 +380,7 @@ apps:
 
 uses:
  some-binary:
-  type: migration-skill
+  type: old-security
   security-template: not-there
 `)
 	// install but our missing security-template will break the install

@@ -609,10 +609,10 @@ apps:
    daemon: forking
 uses:
  binary1:
-  type: migration-skill
+  type: old-security
   caps: []
  service1:
-  type: migration-skill
+  type: old-security
   caps: []
 `
 
@@ -825,7 +825,7 @@ apps:
    uses: [binary1]
 uses:
  binary1:
-   type: migration-skill
+   type: old-security
    caps: []
 `
 
