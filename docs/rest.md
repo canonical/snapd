@@ -610,14 +610,14 @@ The response is a stream of assertions separated by double newlines.
 The X-Ubuntu-Assertions-Count header is set to the number of
 returned assertions, 0 or more.
 
-## /2.0/skills
+## /2.0/interfaces
 
 ### GET
 
-* Description: Get all the skills and information about where they are granted
+* Description: Get all the plugs and slots and information about what is connected to them.
 * Access: authenticated
 * Operation: sync
-* Return: array of skills containing array of slots using each skill.
+* Return: array of plugs containing array of slots using each skill.
 
 Sample result:
 
@@ -625,10 +625,10 @@ Sample result:
 [
     {
         “snap”:  "canonical-pi2",
-        “type”:  "bool-file",
+        “interface”:  "bool-file",
         “name”:  "pin-13",
         “label”: "Pin 13",
-        “granted-to”: [
+        “connections”: [
             {"snap": "keyboard-lights", "name": "capslock-led"}
         ]
     }
@@ -637,22 +637,22 @@ Sample result:
 
 ### POST
 
-* Description: Issue an action to the skill system
+* Description: Issue an action to the interface system
 * Access: authenticated
 * Operation: sync
 * Return: nothing
 
 Available actions are:
 
-- grant: grant the skill to the given skill slot.
-- revoke: revoke the given skill from the given skill slot.
+- connect: connect the plug to the given slot.
+- disconnect: disconnect the given plug from the given slot.
 
 Sample input:
 
 ```javascript
 {
-    “action”: “grant”,
-    “skill”:  {“snap”: “canonical-pi2”,   “name”: “pin-13”},
-    “slot”:   {“snap”: “keyboard-lights”, “name”: “capslock-led”}
+    “action”: “connect”,
+    “plug”: {“snap”: “canonical-pi2”,   “name”: “pin-13”},
+    “slot”: {“snap”: “keyboard-lights”, “name”: “capslock-led”}
 }
 ```
