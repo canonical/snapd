@@ -91,7 +91,7 @@ func (s *HubSuite) TestPublishFilteredNotifications(c *C) {
 	conn1 := &fakeConn{}
 	conn2 := &fakeConn{}
 	sub1 := &Subscriber{uuid: "sub1", types: []string{"logging"}, conn: conn1}
-	sub2 := &Subscriber{uuid: "sub2", resource: "/2.0/operations/23", conn: conn2}
+	sub2 := &Subscriber{uuid: "sub2", resource: "23", conn: conn2}
 	s.h.Subscribe(sub1)
 	s.h.Subscribe(sub2)
 
