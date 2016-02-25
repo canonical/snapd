@@ -39,22 +39,17 @@ func (m *SnapManager) Remove(snap string) error {
 	return nil
 }
 
-// Apply implements StateManager.Apply.
-func (m *SnapManager) Apply(s *State) error {
+// Init implements StateManager.Init.
+func (m *SnapManager) Init(s *State) error {
 	return nil
 }
 
-// Learn implements StateManager.Learn.
-func (m *SnapManager) Learn(s *State) error {
+// Ensure implements StateManager.Ensure.
+func (m *SnapManager) Ensure() error {
 	return nil
 }
 
-// Sanitize implements StateManager.Sanitize.
-func (m *SnapManager) Sanitize(s *State) error {
+// Stop implements StateManager.Stop.
+func (m *SnapManager) Stop() error {
 	return nil
-}
-
-// Delta implements StateManager.Delta.
-func (m *SnapManager) Delta(a, b *State) (Delta, error) {
-	return nil, nil
 }

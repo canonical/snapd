@@ -32,22 +32,17 @@ func NewAssertManager(o *Overlord) (*AssertManager, error) {
 	return &AssertManager{o: o}, nil
 }
 
-// Apply implements StateManager.Apply.
-func (m *AssertManager) Apply(s *State) error {
+// Init implements StateManager.Init.
+func (m *AssertManager) Init(s *State) error {
 	return nil
 }
 
-// Learn implements StateManager.Learn.
-func (m *AssertManager) Learn(s *State) error {
+// Ensure implements StateManager.Ensure.
+func (m *AssertManager) Ensure() error {
 	return nil
 }
 
-// Sanitize implements StateManager.Sanitize.
-func (m *AssertManager) Sanitize(s *State) error {
+// Stop implements StateManager.Stop.
+func (m *AssertManager) Stop() error {
 	return nil
-}
-
-// Delta implements StateManager.Delta.
-func (m *AssertManager) Delta(a, b *State) (Delta, error) {
-	return nil, nil
 }
