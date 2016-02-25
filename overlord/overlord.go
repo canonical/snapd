@@ -17,7 +17,7 @@
  *
  */
 
-// Package overlord implements state changes for the operation of a snappy system.
+// Package overlord implements the overall control of a snappy system.
 package overlord
 
 // Overlord is the central manager of a snappy system, keeping
