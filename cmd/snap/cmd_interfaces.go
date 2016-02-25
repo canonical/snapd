@@ -74,7 +74,13 @@ func (x *cmdInterfaces) Execute(args []string) error {
 			if x.Interface != "" && plug.Interface != x.Interface {
 				continue
 			}
-			fmt.Fprintf(w, "%s:%s\t", plug.Snap, plug.Plug.Plug)
+			// The OS snap (always ubuntu-core) is special and enable abbreviated
+			// display syntax on the plug-side of the connection.
+			if plug.Snap != "ubuntu-core" {
+				fmt.Fprintf(w, "%s:%s\t", plug.Snap, plug.Plug.Plug)
+			} else {
+				fmt.Fprintf(w, ":%s\t", plug.Plug.Plug)
+			}
 			for i := 0; i < len(plug.Connections); i++ {
 				if i > 0 {
 					fmt.Fprint(w, ",")

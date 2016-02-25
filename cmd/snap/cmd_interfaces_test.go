@@ -298,6 +298,79 @@ func (s *SnapSuite) TestInterfacesSlotsWithCommonName(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
+func (s *SnapSuite) TestInterfacesOsSnapPlugs(c *C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, Equals, "GET")
+		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
+		body, err := ioutil.ReadAll(r.Body)
+		c.Check(err, IsNil)
+		c.Check(body, DeepEquals, []byte{})
+		EncodeResponseBody(c, w, map[string]interface{}{
+			"type": "sync",
+			"result": client.InterfaceConnections{
+				Plugs: []client.PlugConnections{
+					{
+						Plug: client.Plug{
+							Snap:      "ubuntu-core",
+							Plug:      "network-listening",
+							Interface: "network-listening",
+							Label:     "Ability to be a network service",
+						},
+						Connections: []client.Slot{
+							{
+								Snap: "paste-daemon",
+								Slot: "network-listening",
+							},
+							{
+								Snap: "time-daemon",
+								Slot: "network-listening",
+							},
+						},
+					},
+				},
+				Slots: []client.SlotConnections{
+					{
+						Slot: client.Slot{
+							Snap:      "paste-daemon",
+							Slot:      "network-listening",
+							Interface: "network-listening",
+							Label:     "Ability to be a network service",
+						},
+						Connections: []client.Plug{
+							{
+								Snap: "ubuntu-core",
+								Plug: "network-listening",
+							},
+						},
+					},
+					{
+						Slot: client.Slot{
+							Snap:      "time-daemon",
+							Slot:      "network-listening",
+							Interface: "network-listening",
+							Label:     "Ability to be a network service",
+						},
+						Connections: []client.Plug{
+							{
+								Snap: "ubuntu-core",
+								Plug: "network-listening",
+							},
+						},
+					},
+				},
+			},
+		})
+	})
+	rest, err := Parser().ParseArgs([]string{"interfaces"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	expectedStdout := "" +
+		"plug               slot\n" +
+		":network-listening paste-daemon,time-daemon\n"
+	c.Assert(s.Stdout(), Equals, expectedStdout)
+	c.Assert(s.Stderr(), Equals, "")
+}
+
 func (s *SnapSuite) TestInterfacesTwoPlugsAndFiltering(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
