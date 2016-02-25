@@ -28,43 +28,42 @@ import (
 	. "github.com/ubuntu-core/snappy/cmd/snap"
 )
 
-func (s *SnapSuite) TestRemoveSkillHelp(c *C) {
+func (s *SnapSuite) TestRemoveSlotHelp(c *C) {
 	msg := `Usage:
-  snap.test [OPTIONS] experimental remove-skill <snap> <skill>
+  snap.test [OPTIONS] experimental remove-slot <snap> <slot>
 
-The remove-skill command removes a skill from the system.
+The remove-slot command removes a slot from the system.
 
-This command is only for experimentation with the skill system.
+This command is only for experimentation with interfaces.
 It will be removed in one of the future releases.
 
 Help Options:
-  -h, --help         Show this help message
+  -h, --help        Show this help message
 
-[remove-skill command arguments]
-  <snap>:            Name of the snap containing the skill
-  <skill>:           Name of the skill slot within the snap
+[remove-slot command arguments]
+  <snap>:           Name of the snap containing the slot
+  <slot>:           Name of the slot within the snap
 `
-	rest, err := Parser().ParseArgs([]string{
-		"experimental", "remove-skill", "--help"})
+	rest, err := Parser().ParseArgs([]string{"experimental", "remove-slot", "--help"})
 	c.Assert(err.Error(), Equals, msg)
 	c.Assert(rest, DeepEquals, []string{})
 }
 
-func (s *SnapSuite) TestRemoveSkill(c *C) {
+func (s *SnapSuite) TestRemoveSlot(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "POST")
 		c.Check(r.URL.Path, Equals, "/2.0/skills")
 		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
-			"action": "remove-skill",
-			"skill": map[string]interface{}{
-				"snap": "producer",
-				"name": "skill",
+			"action": "remove-slot",
+			"slot": map[string]interface{}{
+				"snap": "consumer",
+				"name": "slot",
 			},
 		})
 		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
 	})
 	rest, err := Parser().ParseArgs([]string{
-		"experimental", "remove-skill", "producer", "skill",
+		"experimental", "remove-slot", "consumer", "slot",
 	})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
