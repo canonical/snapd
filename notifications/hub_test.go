@@ -39,12 +39,18 @@ var _ = Suite(&HubSuite{})
 
 type fakeConn struct {
 	message []byte
+	closed  bool
 	err     error
 }
 
 func (c *fakeConn) WriteMessage(messageType int, data []byte) error {
 	c.message = data
 	return c.err
+}
+
+func (c *fakeConn) Close() error {
+	c.closed = true
+	return nil
 }
 
 var _ websocketConnection = &fakeConn{}
@@ -66,12 +72,14 @@ func (s *HubSuite) TestSubscribe(c *C) {
 }
 
 func (s *HubSuite) TestUnsubscribe(c *C) {
-	sub1 := &Subscriber{uuid: "sub1"}
+	conn := &fakeConn{}
+	sub1 := &Subscriber{uuid: "sub1", conn: conn}
 	sub2 := &Subscriber{uuid: "sub2"}
 	s.h.subscribers = Subscribers{"sub1": sub1, "sub2": sub2}
 
 	s.h.Unsubscribe(sub1)
 	c.Assert(s.h.subscribers, DeepEquals, Subscribers{"sub2": sub2})
+	c.Assert(conn.closed, Equals, true)
 }
 
 func (s *HubSuite) TestPublish(c *C) {

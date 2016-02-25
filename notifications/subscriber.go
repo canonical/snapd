@@ -42,6 +42,7 @@ type Subscribers map[string]*Subscriber
 
 type websocketConnection interface {
 	WriteMessage(messageType int, data []byte) error
+	Close() error
 }
 
 // NewSubscriber returns a new subscriber containing the given websocket
