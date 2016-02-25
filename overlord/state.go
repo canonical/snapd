@@ -47,15 +47,26 @@ type State struct {
 	// locking
 	mu  sync.Mutex
 	muC int32
-	// XXX/TODO: change this
+	// storage
+	backend StateBackend
 	entries map[string]*json.RawMessage
 }
 
 // NewState returns a new empty state.
 func NewState(backend StateBackend) *State {
 	return &State{
+		backend: backend,
 		entries: make(map[string]*json.RawMessage),
 	}
+}
+
+func (s *State) checkpointData() []byte {
+	data, err := json.Marshal(s.entries)
+	if err != nil {
+		// this shouldn't happen, because the actual delicate serializing happens at various Set()s
+		logger.Panicf("internal error: could not marshal state for checkpoiting: %v", err)
+	}
+	return data
 }
 
 // Lock acquires the state lock.
@@ -68,8 +79,14 @@ func (s *State) Lock() {
 // It does not return until the state is correctly checkpointed.
 // After too many unsuccessful checkpoint attempts, it panics.
 func (s *State) Unlock() {
-	atomic.AddInt32(&s.muC, -1)
-	s.mu.Unlock()
+	defer func() {
+		atomic.AddInt32(&s.muC, -1)
+		s.mu.Unlock()
+	}()
+	if s.backend != nil {
+		// XXX: return error?
+		s.backend.Checkpoint(s.checkpointData())
+	}
 }
 
 func (s *State) ensureLocked() {
@@ -108,13 +125,6 @@ func (s *State) Set(key string, value interface{}) {
 	}
 	entryJSON := json.RawMessage(serialized)
 	s.entries[key] = &entryJSON
-}
-
-// WriteState serializes the provided state into w.
-// XXX: this should go away
-func WriteState(s *State, w io.Writer) error {
-	e := json.NewEncoder(w)
-	return e.Encode(s.entries)
 }
 
 // ReadState returns the state deserialized from r.

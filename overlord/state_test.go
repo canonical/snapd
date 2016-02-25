@@ -125,10 +125,19 @@ func (ss *stateSuite) TestGetUnmarshalProblem(c *C) {
 	c.Check(err, ErrorMatches, `internal error: could not unmarshal state entry "mgr9": json: cannot unmarshal .*`)
 }
 
-func (ss *stateSuite) TestWriteAndRead(c *C) {
-	st := overlord.NewState(nil)
+type fakeStateBackend struct {
+	checkpoints [][]byte
+}
+
+func (b *fakeStateBackend) Checkpoint(data []byte) error {
+	b.checkpoints = append(b.checkpoints, data)
+	return nil
+}
+
+func (ss *stateSuite) TestImplicitCheckpointAndRead(c *C) {
+	b := new(fakeStateBackend)
+	st := overlord.NewState(b)
 	st.Lock()
-	defer st.Unlock()
 
 	st.Set("v", 1)
 	mSt1 := &mgrState1{A: "foo"}
@@ -136,10 +145,12 @@ func (ss *stateSuite) TestWriteAndRead(c *C) {
 	mSt2 := &mgrState2{C: &Count2{B: 42}}
 	st.Set("mgr2", mSt2)
 
-	buf := new(bytes.Buffer)
+	// implicit checkpoint
+	st.Unlock()
 
-	err := overlord.WriteState(st, buf)
-	c.Assert(err, IsNil)
+	c.Assert(b.checkpoints, HasLen, 1)
+
+	buf := bytes.NewBuffer(b.checkpoints[0])
 
 	st2, err := overlord.ReadState(nil, buf)
 	c.Assert(err, IsNil)
