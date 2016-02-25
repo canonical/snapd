@@ -77,6 +77,39 @@ func (s *CheckersS) TestContainsVerifiesTypes(c *C) {
 	testCheck(c, Contains,
 		false, "container has items of type int but expected element is a string",
 		map[string]int{"foo": 1, "bar": 2}, "foo")
+	testCheck(c, Contains,
+		false, "container has items of type int but expected element is a string",
+		map[string]int{"foo": 1, "bar": 2}, "foo")
+}
+
+type animal interface {
+	Sound() string
+}
+
+type dog struct{}
+
+func (d *dog) Sound() string {
+	return "bark"
+}
+
+type cat struct{}
+
+func (c *cat) Sound() string {
+	return "meow"
+}
+
+type tree struct{}
+
+func (s *CheckersS) TestContainsVerifiesInterfaceTypes(c *C) {
+	testCheck(c, Contains,
+		false, "container has items of interface type testutil.animal but expected element does not implement it",
+		[...]animal{&dog{}, &cat{}}, &tree{})
+	testCheck(c, Contains,
+		false, "container has items of interface type testutil.animal but expected element does not implement it",
+		[]animal{&dog{}, &cat{}}, &tree{})
+	testCheck(c, Contains,
+		false, "container has items of interface type testutil.animal but expected element does not implement it",
+		map[string]animal{"dog": &dog{}, "cat": &cat{}}, &tree{})
 }
 
 func (s *CheckersS) TestContainsString(c *C) {
@@ -104,6 +137,8 @@ func (s *CheckersS) TestContainsArray(c *C) {
 	c.Assert([...]int{1, 2, 3}, Contains, 2)
 	c.Assert([...]int{1, 2, 3}, Contains, 3)
 	c.Assert([...]int{1, 2, 3}, Not(Contains), 4)
+	c.Assert([...]animal{&dog{}, &cat{}}, Contains, &dog{})
+	c.Assert([...]animal{&cat{}}, Not(Contains), &dog{})
 }
 
 func (s *CheckersS) TestContainsSlice(c *C) {
@@ -111,12 +146,16 @@ func (s *CheckersS) TestContainsSlice(c *C) {
 	c.Assert([]int{1, 2, 3}, Contains, 2)
 	c.Assert([]int{1, 2, 3}, Contains, 3)
 	c.Assert([]int{1, 2, 3}, Not(Contains), 4)
+	c.Assert([]animal{&dog{}, &cat{}}, Contains, &dog{})
+	c.Assert([]animal{&cat{}}, Not(Contains), &dog{})
 }
 
 func (s *CheckersS) TestContainsMap(c *C) {
 	c.Assert(map[string]int{"foo": 1, "bar": 2}, Contains, 1)
 	c.Assert(map[string]int{"foo": 1, "bar": 2}, Contains, 2)
 	c.Assert(map[string]int{"foo": 1, "bar": 2}, Not(Contains), 3)
+	c.Assert(map[string]animal{"dog": &dog{}, "cat": &cat{}}, Contains, &dog{})
+	c.Assert(map[string]animal{"cat": &cat{}}, Not(Contains), &dog{})
 }
 
 // Arbitrary type that is not comparable
