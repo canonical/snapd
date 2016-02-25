@@ -45,5 +45,5 @@ func init() {
 }
 
 func (x *cmdRemovePlug) Execute(args []string) error {
-	return Client().RemoveSkill(x.Positionals.Snap, x.Positionals.Plug)
+	return Client().RemovePlug(x.Positionals.Snap, x.Positionals.Plug)
 }
