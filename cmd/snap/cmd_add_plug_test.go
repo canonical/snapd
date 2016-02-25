@@ -69,7 +69,7 @@ func (s *SnapSuite) TestAddInterfaceExplicitEverything(c *C) {
 					"attr": "value",
 				},
 				"apps": []interface{}{
-					"meta/hooks/interface",
+					"meta/hooks/interfaces",
 				},
 				"label": "label",
 			},
@@ -78,7 +78,7 @@ func (s *SnapSuite) TestAddInterfaceExplicitEverything(c *C) {
 	})
 	rest, err := Parser().ParseArgs([]string{
 		"experimental", "add-plug", "producer", "plug", "interface",
-		"-a", "attr=value", "--app=meta/hooks/interface", "--label=label",
+		"-a", "attr=value", "--app=meta/hooks/interfaces", "--label=label",
 	})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
