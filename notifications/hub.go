@@ -55,6 +55,7 @@ func (h *Hub) Unsubscribe(s *Subscriber) {
 }
 
 func (h *Hub) doUnsubscribe(s *Subscriber) {
+	s.conn.Close()
 	delete(h.subscribers, s.uuid)
 }
 
