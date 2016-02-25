@@ -1254,7 +1254,7 @@ func (s *apiSuite) TestGetPlugs(c *check.C) {
 	d := newTestDaemon()
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Plug: "plug", Interface: "interface", Label: "label"})
-	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Slot: "slot", Interface: "interface"})
+	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Slot: "slot", Interface: "interface", Label: "label"})
 	d.interfaces.Connect("producer", "plug", "consumer", "slot")
 	req, err := http.NewRequest("GET", "/2.0/interfaces", nil)
 	c.Assert(err, check.IsNil)
@@ -1265,16 +1265,32 @@ func (s *apiSuite) TestGetPlugs(c *check.C) {
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"result": []interface{}{
-			map[string]interface{}{
-				"snap":      "producer",
-				"plug":      "plug",
-				"interface": "interface",
-				"label":     "label",
-				"connections": []interface{}{
-					map[string]interface{}{
-						"snap": "consumer",
-						"slot": "slot",
+		"result": map[string]interface{}{
+			"plugs": []interface{}{
+				map[string]interface{}{
+					"snap":      "producer",
+					"plug":      "plug",
+					"interface": "interface",
+					"label":     "label",
+					"connections": []interface{}{
+						map[string]interface{}{
+							"snap": "consumer",
+							"slot": "slot",
+						},
+					},
+				},
+			},
+			"slots": []interface{}{
+				map[string]interface{}{
+					"snap":      "consumer",
+					"slot":      "slot",
+					"interface": "interface",
+					"label":     "label",
+					"connections": []interface{}{
+						map[string]interface{}{
+							"snap": "producer",
+							"plug": "plug",
+						},
 					},
 				},
 			},
