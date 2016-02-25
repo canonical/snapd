@@ -19,9 +19,10 @@
 
 package overlord
 
-// AssertManager is responsible for the enforcement of assertions
-// in system states. It manipulates observed states to ensure nothing
-// in them violates existing assertions, or misses required ones.
+// AssertManager is responsible for the enforcement of assertions in
+// system states. It manipulates the observed system state to ensure
+// nothing in it violates existing assertions, or misses required
+// ones.
 type AssertManager struct {
 	o *Overlord
 }
