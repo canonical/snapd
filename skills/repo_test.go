@@ -769,13 +769,6 @@ func (s *RepositorySuite) TestGrantedByReturnsCorrectData(c *C) {
 	c.Assert(s.testRepo.GrantedBy(s.skill.Snap), HasLen, 0)
 }
 
-// Tests for LoadBuiltInTypes()
-
-func (s *RepositorySuite) TestLoadBuiltInTypes(c *C) {
-	err := LoadBuiltInTypes(s.emptyRepo)
-	c.Assert(err, IsNil)
-}
-
 // Tests for Repository.GrantsOf()
 
 func (s *RepositorySuite) TestGrantsOfReturnsNothingForUnknownSkills(c *C) {

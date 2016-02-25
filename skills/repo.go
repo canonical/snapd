@@ -473,11 +473,6 @@ func (c bySlotSnapAndName) Less(i, j int) bool {
 	return c[i].Name < c[j].Name
 }
 
-// LoadBuiltInTypes loads built-in skill types into the provided repository.
-func LoadBuiltInTypes(repo *Repository) error {
-	return nil
-}
-
 // SecuritySnippetsForSnap collects all of the snippets of a given security
 // system that affect a given snap. The return value is indexed by app name
 // within that snap.
