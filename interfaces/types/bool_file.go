@@ -27,16 +27,16 @@ import (
 	"github.com/ubuntu-core/snappy/interfaces"
 )
 
-// BoolFileType is the type of all the bool-file interfaces.
-type BoolFileType struct{}
+// BoolFileInterface is the type of all the bool-file interfaces.
+type BoolFileInterface struct{}
 
 // String returns the same value as Name().
-func (t *BoolFileType) String() string {
-	return t.Name()
+func (iface *BoolFileInterface) String() string {
+	return iface.Name()
 }
 
-// Name returns the name of the bool-file type.
-func (t *BoolFileType) Name() string {
+// Name returns the name of the bool-file interface.
+func (iface *BoolFileInterface) Name() string {
 	return "bool-file"
 }
 
@@ -49,13 +49,13 @@ var boolFileAllowedPathPatterns = []*regexp.Regexp{
 	boolFileGPIOValuePattern,
 }
 
-// SanitizeSkill checks and possibly modifies a skill.
-// Valid "bool-file" skills must contain the attribute "path".
-func (t *BoolFileType) SanitizeSkill(skill *interfaces.Skill) error {
-	if t.Name() != skill.Type {
-		panic(fmt.Sprintf("skill is not of type %q", t))
+// SanitizePlug checks and possibly modifies a plug.
+// Valid "bool-file" plugs must contain the attribute "path".
+func (iface *BoolFileInterface) SanitizePlug(plug *interfaces.Plug) error {
+	if iface.Name() != plug.Interface {
+		panic(fmt.Sprintf("plug is not of interface %q", iface))
 	}
-	path, ok := skill.Attrs["path"].(string)
+	path, ok := plug.Attrs["path"].(string)
 	if !ok || path == "" {
 		return fmt.Errorf("bool-file must contain the path attribute")
 	}
@@ -68,19 +68,19 @@ func (t *BoolFileType) SanitizeSkill(skill *interfaces.Skill) error {
 	return fmt.Errorf("bool-file can only point at LED brightness or GPIO value")
 }
 
-// SanitizeSlot checks and possibly modifies a skill slot.
-func (t *BoolFileType) SanitizeSlot(skill *interfaces.Slot) error {
-	if t.Name() != skill.Type {
-		panic(fmt.Sprintf("skill slot is not of type %q", t))
+// SanitizeSlot checks and possibly modifies a slot.
+func (iface *BoolFileInterface) SanitizeSlot(plug *interfaces.Slot) error {
+	if iface.Name() != plug.Interface {
+		panic(fmt.Sprintf("slot is not of interface %q", iface))
 	}
 	// NOTE: currently we don't check anything on the slot side.
 	return nil
 }
 
-// SkillSecuritySnippet returns the configuration snippet required to provide a bool-file skill.
+// PlugSecuritySnippet returns the configuration snippet required to provide a bool-file interface.
 // Producers gain control over exporting, importing GPIOs as well as
 // controlling the direction of particular pins.
-func (t *BoolFileType) SkillSecuritySnippet(skill *interfaces.Skill, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *BoolFileInterface) PlugSecuritySnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	gpioSnippet := []byte(`
 /sys/class/gpio/export rw,
 /sys/class/gpio/unexport rw,
@@ -90,7 +90,7 @@ func (t *BoolFileType) SkillSecuritySnippet(skill *interfaces.Skill, securitySys
 	case interfaces.SecurityAppArmor:
 		// To provide GPIOs we need extra permissions to export/unexport and to
 		// set the direction of each pin.
-		if t.isGPIO(skill) {
+		if iface.isGPIO(plug) {
 			return gpioSnippet, nil
 		}
 		return nil, nil
@@ -101,18 +101,18 @@ func (t *BoolFileType) SkillSecuritySnippet(skill *interfaces.Skill, securitySys
 	}
 }
 
-// SlotSecuritySnippet returns the configuration snippet required to use a bool-file skill.
+// SlotSecuritySnippet returns the configuration snippet required to use a bool-file interface.
 // Consumers gain permission to read, write and lock the designated file.
-func (t *BoolFileType) SlotSecuritySnippet(skill *interfaces.Skill, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *BoolFileInterface) SlotSecuritySnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		// Allow write and lock on the file designated by the path.
 		// Dereference symbolic links to file path handed out to apparmor since
 		// sysfs is full of symlinks and apparmor requires uses real path for
 		// filtering.
-		path, err := t.dereferencedPath(skill)
+		path, err := iface.dereferencedPath(plug)
 		if err != nil {
-			return nil, fmt.Errorf("cannot compute skill slot security snippet: %v", err)
+			return nil, fmt.Errorf("cannot compute slot security snippet: %v", err)
 		}
 		return []byte(fmt.Sprintf("%s rwk,\n", path)), nil
 	case interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev:
@@ -122,22 +122,22 @@ func (t *BoolFileType) SlotSecuritySnippet(skill *interfaces.Skill, slot *interf
 	}
 }
 
-func (t *BoolFileType) dereferencedPath(skill *interfaces.Skill) (string, error) {
-	if path, ok := skill.Attrs["path"].(string); ok {
+func (iface *BoolFileInterface) dereferencedPath(plug *interfaces.Plug) (string, error) {
+	if path, ok := plug.Attrs["path"].(string); ok {
 		path, err := evalSymlinks(path)
 		if err != nil {
 			return "", err
 		}
 		return filepath.Clean(path), nil
 	}
-	panic("skill is not sanitized")
+	panic("plug is not sanitized")
 }
 
-// isGPIO checks if a given bool-file skill refers to a GPIO pin.
-func (t *BoolFileType) isGPIO(skill *interfaces.Skill) bool {
-	if path, ok := skill.Attrs["path"].(string); ok {
+// isGPIO checks if a given bool-file plug refers to a GPIO pin.
+func (iface *BoolFileInterface) isGPIO(plug *interfaces.Plug) bool {
+	if path, ok := plug.Attrs["path"].(string); ok {
 		path = filepath.Clean(path)
 		return boolFileGPIOValuePattern.MatchString(path)
 	}
-	panic("skill is not sanitized")
+	panic("plug is not sanitized")
 }

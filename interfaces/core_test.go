@@ -63,6 +63,6 @@ func (s *CoreSuite) TestValidateName(c *C) {
 	}
 	for _, name := range invalidNames {
 		err := ValidateName(name)
-		c.Assert(err, ErrorMatches, `invalid skill name: ".*"`)
+		c.Assert(err, ErrorMatches, `invalid interface name: ".*"`)
 	}
 }

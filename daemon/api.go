@@ -59,7 +59,7 @@ var api = []*Command{
 	snapSvcsCmd,
 	snapSvcLogsCmd,
 	operationCmd,
-	skillsCmd,
+	interfacesCmd,
 	assertsCmd,
 	assertsFindManyCmd,
 }
@@ -128,11 +128,11 @@ var (
 		DELETE: deleteOp,
 	}
 
-	skillsCmd = &Command{
+	interfacesCmd = &Command{
 		Path:   "/2.0/skills",
 		UserOK: true,
-		GET:    getSkills,
-		POST:   changeSkills,
+		GET:    getPlugs,
+		POST:   changeInterfaces,
 	}
 
 	// TODO: allow to post assertions for UserOK? they are verified anyway
@@ -918,81 +918,81 @@ func appIconGet(c *Command, r *http.Request) Response {
 	return iconGet(name, origin)
 }
 
-// skillGrant holds the identification of a slot that has been granted to a skill.
-type skillGrant struct {
+// plugConnection holds the identification of a slot that has been connected to a plug.
+type plugConnection struct {
 	Snap string `json:"snap"`
-	Name string `json:"name"`
+	Name string `json:"name"` // This is the slot name
 }
 
-// skillInfo holds details for a skill as returned by the REST API.
-type skillInfo struct {
-	Snap      string       `json:"snap"`
-	Name      string       `json:"name"`
-	Type      string       `json:"type"`
-	Label     string       `json:"label"`
-	GrantedTo []skillGrant `json:"granted_to"`
+// plugInfo holds details for a plug as returned by the REST API.
+type plugInfo struct {
+	Snap        string           `json:"snap"`
+	Name        string           `json:"name"`
+	Interface   string           `json:"type"`
+	Label       string           `json:"label"`
+	Connections []plugConnection `json:"granted_to"`
 }
 
-// getSkills returns a response with a list of all the skills and which slots use them.
-func getSkills(c *Command, r *http.Request) Response {
-	var skills []skillInfo
-	for _, skill := range c.d.interfaces.AllSkills("") {
-		var slots []skillGrant
-		for _, slot := range c.d.interfaces.GrantsOf(skill.Snap, skill.Name) {
-			slots = append(slots, skillGrant{
+// getPlugs returns a response with a list of all the plugs and which slots use them.
+func getPlugs(c *Command, r *http.Request) Response {
+	var plugs []plugInfo
+	for _, plug := range c.d.interfaces.AllPlugs("") {
+		var slots []plugConnection
+		for _, slot := range c.d.interfaces.PlugConnections(plug.Snap, plug.Name) {
+			slots = append(slots, plugConnection{
 				Snap: slot.Snap,
 				Name: slot.Name,
 			})
 		}
-		skills = append(skills, skillInfo{
-			Snap:      skill.Snap,
-			Name:      skill.Name,
-			Type:      skill.Type,
-			Label:     skill.Label,
-			GrantedTo: slots,
+		plugs = append(plugs, plugInfo{
+			Snap:        plug.Snap,
+			Name:        plug.Name,
+			Interface:   plug.Interface,
+			Label:       plug.Label,
+			Connections: slots,
 		})
 	}
-	return SyncResponse(skills)
+	return SyncResponse(plugs)
 }
 
-// skillAction is an action performed on the skill system.
-type skillAction struct {
-	Action string           `json:"action"`
-	Skill  interfaces.Skill `json:"skill,omitempty"`
-	Slot   interfaces.Slot  `json:"slot,omitempty"`
+// interfaceAction is an action performed on the plug system.
+type interfaceAction struct {
+	Action string          `json:"action"`
+	Plug   interfaces.Plug `json:"skill,omitempty"`
+	Slot   interfaces.Slot `json:"slot,omitempty"`
 }
 
-// changeSkills controls the skill system.
-// Skills can be granted to and revoked from slots.
-// When enableInternalSkillActions is true skills and slots can also be
+// changeInterfaces controls the plug system.
+// Plugs can be granted to and revoked from slots.
+// When enableInternalInterfaceActions is true plugs and slots can also be
 // explicitly added and removed.
-func changeSkills(c *Command, r *http.Request) Response {
-	var a skillAction
+func changeInterfaces(c *Command, r *http.Request) Response {
+	var a interfaceAction
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&a); err != nil {
-		return BadRequest("cannot decode request body into a skill action: %v", err)
+		return BadRequest("cannot decode request body into an interface action: %v", err)
 	}
 	if a.Action == "" {
-		return BadRequest("skill action not specified")
+		return BadRequest("interface action not specified")
 	}
-	if !c.d.enableInternalSkillActions && a.Action != "grant" && a.Action != "revoke" {
-		return BadRequest("internal skill actions are disabled")
+	if !c.d.enableInternalInterfaceActions && a.Action != "grant" && a.Action != "revoke" {
+		return BadRequest("internal interface actions are disabled")
 	}
 	switch a.Action {
 	case "grant":
-		err := c.d.interfaces.Grant(a.Skill.Snap, a.Skill.Name, a.Slot.Snap, a.Slot.Name)
+		err := c.d.interfaces.Connect(a.Plug.Snap, a.Plug.Name, a.Slot.Snap, a.Slot.Name)
 		if err != nil {
 			return BadRequest("%v", err)
 		}
 		return SyncResponse(nil)
 	case "revoke":
-		err := c.d.interfaces.Revoke(a.Skill.Snap, a.Skill.Name, a.Slot.Snap, a.Slot.Name)
+		err := c.d.interfaces.Disconnect(a.Plug.Snap, a.Plug.Name, a.Slot.Snap, a.Slot.Name)
 		if err != nil {
 			return BadRequest("%v", err)
 		}
 		return SyncResponse(nil)
 	case "add-skill":
-		err := c.d.interfaces.AddSkill(&a.Skill)
+		err := c.d.interfaces.AddPlug(&a.Plug)
 		if err != nil {
 			return BadRequest("%v", err)
 		}
@@ -1001,7 +1001,7 @@ func changeSkills(c *Command, r *http.Request) Response {
 			Status: http.StatusCreated,
 		}
 	case "remove-skill":
-		err := c.d.interfaces.RemoveSkill(a.Skill.Snap, a.Skill.Name)
+		err := c.d.interfaces.RemovePlug(a.Plug.Snap, a.Plug.Name)
 		if err != nil {
 			return BadRequest("%v", err)
 		}
@@ -1022,7 +1022,7 @@ func changeSkills(c *Command, r *http.Request) Response {
 		}
 		return SyncResponse(nil)
 	}
-	return BadRequest("unsupported skill action: %q", a.Action)
+	return BadRequest("unsupported interface action: %q", a.Action)
 }
 
 func doAssert(c *Command, r *http.Request) Response {

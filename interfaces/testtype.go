@@ -23,46 +23,46 @@ import (
 	"fmt"
 )
 
-// TestType is a skill type for various kind of tests.
+// TestInterface is a interface for various kind of tests.
 // It is public so that it can be consumed from other packages.
-type TestType struct {
-	// TypeName is the name of this type
-	TypeName string
-	// SanitizeSkillCallback is the callback invoked inside SanitizeSkill()
-	SanitizeSkillCallback func(skill *Skill) error
+type TestInterface struct {
+	// InterfaceName is the name of this interface
+	InterfaceName string
+	// SanitizePlugCallback is the callback invoked inside SanitizePlug()
+	SanitizePlugCallback func(plug *Plug) error
 	// SanitizeSlotCallback is the callback invoked inside SanitizeSlot()
 	SanitizeSlotCallback func(slot *Slot) error
 	// SlotSecuritySnippetCallback is the callback invoked inside SlotSecuritySnippet()
-	SlotSecuritySnippetCallback func(skill *Skill, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
-	// SkillSecuritySnippetCallback is the callback invoked inside SkillSecuritySnippet()
-	SkillSecuritySnippetCallback func(skill *Skill, securitySystem SecuritySystem) ([]byte, error)
+	SlotSecuritySnippetCallback func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
+	// PlugSecuritySnippetCallback is the callback invoked inside PlugSecuritySnippet()
+	PlugSecuritySnippetCallback func(plug *Plug, securitySystem SecuritySystem) ([]byte, error)
 }
 
 // String() returns the same value as Name().
-func (t *TestType) String() string {
+func (t *TestInterface) String() string {
 	return t.Name()
 }
 
-// Name returns the name of the test type.
-func (t *TestType) Name() string {
-	return t.TypeName
+// Name returns the name of the test interface.
+func (t *TestInterface) Name() string {
+	return t.InterfaceName
 }
 
-// SanitizeSkill checks and possibly modifies a skill.
-func (t *TestType) SanitizeSkill(skill *Skill) error {
-	if t.Name() != skill.Type {
-		panic(fmt.Sprintf("skill is not of type %q", t))
+// SanitizePlug checks and possibly modifies a plug.
+func (t *TestInterface) SanitizePlug(plug *Plug) error {
+	if t.Name() != plug.Interface {
+		panic(fmt.Sprintf("plug is not of interface %q", t))
 	}
-	if t.SanitizeSkillCallback != nil {
-		return t.SanitizeSkillCallback(skill)
+	if t.SanitizePlugCallback != nil {
+		return t.SanitizePlugCallback(plug)
 	}
 	return nil
 }
 
 // SanitizeSlot checks and possibly modifies a slot.
-func (t *TestType) SanitizeSlot(slot *Slot) error {
-	if t.Name() != slot.Type {
-		panic(fmt.Sprintf("slot is not of type %q", t))
+func (t *TestInterface) SanitizeSlot(slot *Slot) error {
+	if t.Name() != slot.Interface {
+		panic(fmt.Sprintf("slot is not of interface %q", t))
 	}
 	if t.SanitizeSlotCallback != nil {
 		return t.SanitizeSlotCallback(slot)
@@ -70,20 +70,20 @@ func (t *TestType) SanitizeSlot(slot *Slot) error {
 	return nil
 }
 
-// SkillSecuritySnippet returns the configuration snippet "required" to offer a test skill.
+// PlugSecuritySnippet returns the configuration snippet "required" to offer a test plug.
 // Providers don't gain any extra permissions.
-func (t *TestType) SkillSecuritySnippet(skill *Skill, securitySystem SecuritySystem) ([]byte, error) {
-	if t.SkillSecuritySnippetCallback != nil {
-		return t.SkillSecuritySnippetCallback(skill, securitySystem)
+func (t *TestInterface) PlugSecuritySnippet(plug *Plug, securitySystem SecuritySystem) ([]byte, error) {
+	if t.PlugSecuritySnippetCallback != nil {
+		return t.PlugSecuritySnippetCallback(plug, securitySystem)
 	}
 	return nil, nil
 }
 
-// SlotSecuritySnippet returns the configuration snippet "required" to use a test skill.
+// SlotSecuritySnippet returns the configuration snippet "required" to use a test plug.
 // Consumers don't gain any extra permissions.
-func (t *TestType) SlotSecuritySnippet(skill *Skill, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+func (t *TestInterface) SlotSecuritySnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 	if t.SlotSecuritySnippetCallback != nil {
-		return t.SlotSecuritySnippetCallback(skill, slot, securitySystem)
+		return t.SlotSecuritySnippetCallback(plug, slot, securitySystem)
 	}
 	return nil, nil
 }

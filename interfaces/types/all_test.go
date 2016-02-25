@@ -30,7 +30,7 @@ type AllSuite struct{}
 
 var _ = Suite(&AllSuite{})
 
-func (s *AllSuite) TestAllTypes(c *C) {
-	allTypes := types.AllTypes()
-	c.Check(allTypes, Contains, &types.BoolFileType{})
+func (s *AllSuite) TestAllInterfaces(c *C) {
+	allInterfaces := types.AllInterfaces()
+	c.Check(allInterfaces, Contains, &types.BoolFileInterface{})
 }

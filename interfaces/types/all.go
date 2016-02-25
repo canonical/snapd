@@ -23,11 +23,11 @@ import (
 	"github.com/ubuntu-core/snappy/interfaces"
 )
 
-var allTypes = []interfaces.Type{
-	&BoolFileType{},
+var allInterfaces = []interfaces.Interface{
+	&BoolFileInterface{},
 }
 
-// AllTypes returns a slice of all the skill types.
-func AllTypes() []interfaces.Type {
-	return allTypes
+// AllInterfaces returns a slice of all the interfaces.
+func AllInterfaces() []interfaces.Interface {
+	return allInterfaces
 }
