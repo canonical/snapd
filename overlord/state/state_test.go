@@ -17,15 +17,18 @@
  *
  */
 
-package overlord_test
+package state_test
 
 import (
 	"bytes"
+	"testing"
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/overlord"
+	"github.com/ubuntu-core/snappy/overlord/state"
 )
+
+func TestState(t *testing.T) { TestingT(t) }
 
 type stateSuite struct{}
 
@@ -44,7 +47,7 @@ type mgrState2 struct {
 }
 
 func (ss *stateSuite) TestGetAndSet(c *C) {
-	st := overlord.NewState(nil)
+	st := state.New(nil)
 	mSt1 := &mgrState1{A: "foo"}
 	st.Set("mgr1", mSt1)
 	mSt2 := &mgrState2{C: &Count2{B: 42}}
@@ -62,7 +65,7 @@ func (ss *stateSuite) TestGetAndSet(c *C) {
 }
 
 func (ss *stateSuite) TestSetPanic(c *C) {
-	st := overlord.NewState(nil)
+	st := state.New(nil)
 	unsupported := struct {
 		Ch chan bool
 	}{}
@@ -70,15 +73,15 @@ func (ss *stateSuite) TestSetPanic(c *C) {
 }
 
 func (ss *stateSuite) TestGetNoState(c *C) {
-	st := overlord.NewState(nil)
+	st := state.New(nil)
 
 	var mSt1B mgrState1
 	err := st.Get("mgr9", &mSt1B)
-	c.Check(err, Equals, overlord.ErrNoState)
+	c.Check(err, Equals, state.ErrNoState)
 }
 
 func (ss *stateSuite) TestGetUnmarshalProblem(c *C) {
-	st := overlord.NewState(nil)
+	st := state.New(nil)
 	mismatched := struct {
 		A int
 	}{A: 22}
@@ -90,7 +93,7 @@ func (ss *stateSuite) TestGetUnmarshalProblem(c *C) {
 }
 
 func (ss *stateSuite) TestWriteAndRead(c *C) {
-	st := overlord.NewState(nil)
+	st := state.New(nil)
 	st.Set("v", 1)
 	mSt1 := &mgrState1{A: "foo"}
 	st.Set("mgr1", mSt1)
@@ -99,10 +102,10 @@ func (ss *stateSuite) TestWriteAndRead(c *C) {
 
 	buf := new(bytes.Buffer)
 
-	err := overlord.WriteState(st, buf)
+	err := state.WriteState(st, buf)
 	c.Assert(err, IsNil)
 
-	st2, err := overlord.ReadState(nil, buf)
+	st2, err := state.ReadState(nil, buf)
 	c.Assert(err, IsNil)
 	c.Assert(st2, NotNil)
 
