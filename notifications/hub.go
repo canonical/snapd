@@ -36,6 +36,14 @@ func NewHub() *Hub {
 	}
 }
 
+// SubscriberCount returns the number of subscribers
+func (h *Hub) SubscriberCount() int {
+	h.Lock()
+	defer h.Unlock()
+
+	return len(h.subscribers)
+}
+
 // Subscribe registers a subscriber to receive notifications.
 func (h *Hub) Subscribe(s *Subscriber) {
 	h.Lock()

@@ -57,7 +57,7 @@ var _ websocketConnection = &fakeConn{}
 
 func (s *HubSuite) SetUpTest(c *C) {
 	s.h = NewHub()
-	c.Assert(s.h.subscribers, HasLen, 0)
+	c.Assert(s.h.SubscriberCount(), Equals, 0)
 }
 
 func (s *HubSuite) TestSubscribe(c *C) {
