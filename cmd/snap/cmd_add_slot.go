@@ -24,40 +24,40 @@ import (
 	"github.com/ubuntu-core/snappy/i18n"
 )
 
-type cmdAddSkillSlot struct {
+type cmdAddSlot struct {
 	Positionals struct {
-		Snap string `positional-arg-name:"<snap>" description:"Name of the snap containing the slot"`
-		Name string `positional-arg-name:"<skill slot>" description:"Name of the skill slot within the snap"`
-		Type string `positional-arg-name:"<type>" description:"Skill type"`
+		Snap      string `positional-arg-name:"<snap>" description:"Name of the snap containing the slot"`
+		Slot      string `positional-arg-name:"<slot>" description:"Name of the slot within the snap"`
+		Interface string `positional-arg-name:"<interface>" description:"Interface name"`
 	} `positional-args:"true" required:"true"`
 	Attrs []AttributePair `short:"a" description:"List of key=value attributes"`
-	Apps  []string        `long:"app" description:"List of apps using this skill slot"`
+	Apps  []string        `long:"app" description:"List of apps using this slot"`
 	Label string          `long:"label" description:"Human-friendly label"`
 }
 
-var shortAddSkillSlotHelp = i18n.G("Adds a skill slot to the system")
-var longAddSkillSlotHelp = i18n.G(`
-The add-skill-slot command adds a new skill slot to the system.
+var shortAddSlotHelp = i18n.G("Adds a slot to the system")
+var longAddSlotHelp = i18n.G(`
+The add-slot command adds a new slot to the system.
 
-This command is only for experimentation with the skill system.
+This command is only for experimentation with interfaces.
 It will be removed in one of the future releases.
 `)
 
 func init() {
-	addExperimentalCommand("add-skill-slot", shortAddSkillSlotHelp, longAddSkillSlotHelp, func() interface{} {
-		return &cmdAddSkillSlot{}
+	addExperimentalCommand("add-slot", shortAddSlotHelp, longAddSlotHelp, func() interface{} {
+		return &cmdAddSlot{}
 	})
 }
 
-func (x *cmdAddSkillSlot) Execute(args []string) error {
+func (x *cmdAddSlot) Execute(args []string) error {
 	attrs := make(map[string]interface{})
 	for k, v := range AttributePairSliceToMap(x.Attrs) {
 		attrs[k] = v
 	}
 	return Client().AddSlot(&client.Slot{
 		Snap:  x.Positionals.Snap,
-		Name:  x.Positionals.Name,
-		Type:  x.Positionals.Type,
+		Name:  x.Positionals.Slot,
+		Type:  x.Positionals.Interface,
 		Attrs: attrs,
 		Apps:  x.Apps,
 		Label: x.Label,

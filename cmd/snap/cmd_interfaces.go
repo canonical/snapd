@@ -26,43 +26,43 @@ import (
 	"github.com/ubuntu-core/snappy/i18n"
 )
 
-type cmdSkills struct {
-	Type        string `long:"type" description:"constrain listing to skills of this type"`
+type cmdInterfaces struct {
+	Interface   string `short:"i" description:"constrain listing to specific interfaces"`
 	Positionals struct {
-		Query SnapAndName `positional-arg-name:"<snap>:<skill>" description:"snap or snap:name" skip-help:"true"`
+		Query SnapAndName `positional-arg-name:"<snap>:<plug or slot>" description:"snap or snap:name" skip-help:"true"`
 	} `positional-args:"true"`
 }
 
-var shortSkillsHelp = i18n.G("Lists skills in the system")
-var longSkillsHelp = i18n.G(`
-The skills command lists skills available in the system.
+var shortInterfacesHelp = i18n.G("Lists interfaces in the system")
+var longInterfacesHelp = i18n.G(`
+The interfaces command lists interfaces available in the system.
 
-By default all skills, used and offered by all snaps, are displayed.
+By default all plugs and slots, used and offered by all snaps, are displayed.
  
-$ snap skills <snap name>:<skill name>
+$ snap interfaces <snap>:<plug>
 
-Lists only the specified skill.
+Lists only the specified plug.
 
-$ snap skills <snap name>
+$ snap interfaces <snap>
 
-Lists the skills offered and used by the specified snap.
+Lists the plugs offered and slots used by the specified snap.
 
-$ snap skills --type=<type> [<snap name>]
+$ snap interfaces --i=<interface> [<snap>]
 
-Lists only skills of the specified type.
+Lists only plugs and slots of the specific interface.
 `)
 
 func init() {
-	addCommand("skills", shortSkillsHelp, longSkillsHelp, func() interface{} {
-		return &cmdSkills{}
+	addCommand("interfaces", shortInterfacesHelp, longInterfacesHelp, func() interface{} {
+		return &cmdInterfaces{}
 	})
 }
 
-func (x *cmdSkills) Execute(args []string) error {
+func (x *cmdInterfaces) Execute(args []string) error {
 	skills, err := Client().AllSkills()
 	if err == nil {
 		w := tabwriter.NewWriter(Stdout, 0, 4, 1, ' ', 0)
-		fmt.Fprintln(w, i18n.G("Skill\tGranted To"))
+		fmt.Fprintln(w, i18n.G("plug\tslot"))
 		defer w.Flush()
 		for _, skill := range skills {
 			if x.Positionals.Query.Snap != "" && x.Positionals.Query.Snap != skill.Snap {
@@ -71,7 +71,7 @@ func (x *cmdSkills) Execute(args []string) error {
 			if x.Positionals.Query.Name != "" && x.Positionals.Query.Name != skill.Name {
 				continue
 			}
-			if x.Type != "" && skill.Type != x.Type {
+			if x.Interface != "" && skill.Type != x.Interface {
 				continue
 			}
 			fmt.Fprintf(w, "%s:%s\t", skill.Snap, skill.Name)
