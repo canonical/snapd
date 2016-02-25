@@ -41,22 +41,17 @@ func (m *InterfaceManager) Disconnect(plugSnap, plugName, slotSnap, slotName str
 	return nil
 }
 
-// Apply implements StateManager.Apply.
-func (m *InterfaceManager) Apply(s *State) error {
+// Init implements StateManager.Init.
+func (m *InterfaceManager) Init(s *State) error {
 	return nil
 }
 
-// Learn implements StateManager.Learn.
-func (m *InterfaceManager) Learn(s *State) error {
+// Ensure implements StateManager.Ensure.
+func (m *InterfaceManager) Ensure() error {
 	return nil
 }
 
-// Sanitize implements StateManager.Sanitize.
-func (m *InterfaceManager) Sanitize(s *State) error {
+// Stop implements StateManager.Stop.
+func (m *InterfaceManager) Stop() error {
 	return nil
-}
-
-// Delta implements StateManager.Delta.
-func (m *InterfaceManager) Delta(a, b *State) (Delta, error) {
-	return nil, nil
 }
