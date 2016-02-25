@@ -27,41 +27,72 @@ import (
 	"github.com/ubuntu-core/snappy/client"
 )
 
-func (cs *clientSuite) TestClientAllPlugsCallsEndpoint(c *check.C) {
-	_, _ = cs.cli.AllPlugs()
+func (cs *clientSuite) TestClientInterfaceConnectionsCallsEndpoint(c *check.C) {
+	_, _ = cs.cli.InterfaceConnections()
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/2.0/interfaces")
 }
 
-func (cs *clientSuite) TestClientAllPlugs(c *check.C) {
+func (cs *clientSuite) TestClientInterfaceConnections(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
-		"result": [
-			{
-				"snap": "canonical-pi2",
-				"plug": "pin-13",
-				"interface": "bool-file",
-				"label": "Pin 13",
-				"connections": [
-					{"snap": "keyboard-lights", "slot": "capslock-led"}
-				]
-			}
-		]
-	}`
-	interfaces, err := cs.cli.AllPlugs()
-	c.Assert(err, check.IsNil)
-	c.Check(interfaces, check.DeepEquals, []client.PlugConnections{
-		{
-			Plug: client.Plug{
-				Snap:      "canonical-pi2",
-				Plug:      "pin-13",
-				Interface: "bool-file",
-				Label:     "Pin 13",
-			},
-			Connections: []client.Slot{
+		"result": {
+			"plugs": [
 				{
-					Snap: "keyboard-lights",
-					Slot: "capslock-led",
+					"snap": "canonical-pi2",
+					"plug": "pin-13",
+					"interface": "bool-file",
+					"label": "Pin 13",
+					"connections": [
+						{"snap": "keyboard-lights", "slot": "capslock-led"}
+					]
+				}
+			],
+			"slots": [
+				{
+					"snap": "keyboard-lights",
+					"slot": "capslock-led",
+					"interface": "bool-file",
+					"label": "Capslock indicator LED",
+					"connections": [
+						{"snap": "canonical-pi2", "plug": "pin-13"}
+					]
+				}
+			]
+		}
+	}`
+	interfaces, err := cs.cli.InterfaceConnections()
+	c.Assert(err, check.IsNil)
+	c.Check(interfaces, check.DeepEquals, client.InterfaceConnections{
+		Plugs: []client.PlugConnections{
+			{
+				Plug: client.Plug{
+					Snap:      "canonical-pi2",
+					Plug:      "pin-13",
+					Interface: "bool-file",
+					Label:     "Pin 13",
+				},
+				Connections: []client.Slot{
+					{
+						Snap: "keyboard-lights",
+						Slot: "capslock-led",
+					},
+				},
+			},
+		},
+		Slots: []client.SlotConnections{
+			{
+				Slot: client.Slot{
+					Snap:      "keyboard-lights",
+					Slot:      "capslock-led",
+					Interface: "bool-file",
+					Label:     "Capslock indicator LED",
+				},
+				Connections: []client.Plug{
+					{
+						Snap: "canonical-pi2",
+						Plug: "pin-13",
+					},
 				},
 			},
 		},
@@ -157,8 +188,8 @@ func (cs *clientSuite) TestClientAddPlug(c *check.C) {
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"action": "add-plug",
 		"plug": map[string]interface{}{
-			"plug":      "plug",
 			"snap":      "snap",
+			"plug":      "plug",
 			"interface": "interface",
 			"attrs": map[string]interface{}{
 				"attr": "value",
@@ -189,8 +220,8 @@ func (cs *clientSuite) TestClientRemovePlug(c *check.C) {
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"action": "remove-plug",
 		"plug": map[string]interface{}{
-			"plug": "plug",
 			"snap": "snap",
+			"plug": "plug",
 		},
 	})
 }
@@ -224,8 +255,8 @@ func (cs *clientSuite) TestClientAddSlot(c *check.C) {
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"action": "add-slot",
 		"slot": map[string]interface{}{
-			"slot":      "slot",
 			"snap":      "snap",
+			"slot":      "slot",
 			"interface": "interface",
 			"attrs": map[string]interface{}{
 				"attr": "value",
@@ -256,8 +287,8 @@ func (cs *clientSuite) TestClientRemoveSlot(c *check.C) {
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"action": "remove-slot",
 		"slot": map[string]interface{}{
-			"slot": "slot",
 			"snap": "snap",
+			"slot": "slot",
 		},
 	})
 }

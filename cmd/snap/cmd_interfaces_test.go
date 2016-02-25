@@ -72,15 +72,17 @@ func (s *SnapSuite) TestInterfacesZeroSlots(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": []client.PlugConnections{
-				{
-					Plug: client.Plug{
-						Snap:      "canonical-pi2",
-						Plug:      "pin-13",
-						Interface: "bool-file",
-						Label:     "Pin 13",
+			"result": client.InterfaceConnections{
+				Plugs: []client.PlugConnections{
+					{
+						Plug: client.Plug{
+							Snap:      "canonical-pi2",
+							Plug:      "pin-13",
+							Interface: "bool-file",
+							Label:     "Pin 13",
+						},
+						Connections: []client.Slot{},
 					},
-					Connections: []client.Slot{},
 				},
 			},
 		})
@@ -104,18 +106,20 @@ func (s *SnapSuite) TestInterfacesOneSlot(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": []client.PlugConnections{
-				{
-					Plug: client.Plug{
-						Snap:      "canonical-pi2",
-						Plug:      "pin-13",
-						Interface: "bool-file",
-						Label:     "Pin 13",
-					},
-					Connections: []client.Slot{
-						{
-							Snap: "keyboard-lights",
-							Slot: "capslock-led",
+			"result": client.InterfaceConnections{
+				Plugs: []client.PlugConnections{
+					{
+						Plug: client.Plug{
+							Snap:      "canonical-pi2",
+							Plug:      "pin-13",
+							Interface: "bool-file",
+							Label:     "Pin 13",
+						},
+						Connections: []client.Slot{
+							{
+								Snap: "keyboard-lights",
+								Slot: "capslock-led",
+							},
 						},
 					},
 				},
@@ -141,22 +145,24 @@ func (s *SnapSuite) TestInterfacesTwoSlots(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": []client.PlugConnections{
-				{
-					Plug: client.Plug{
-						Snap:      "canonical-pi2",
-						Plug:      "pin-13",
-						Interface: "bool-file",
-						Label:     "Pin 13",
-					},
-					Connections: []client.Slot{
-						{
-							Snap: "keyboard-lights",
-							Slot: "capslock-led",
+			"result": client.InterfaceConnections{
+				Plugs: []client.PlugConnections{
+					{
+						Plug: client.Plug{
+							Snap:      "canonical-pi2",
+							Plug:      "pin-13",
+							Interface: "bool-file",
+							Label:     "Pin 13",
 						},
-						{
-							Snap: "keyboard-lights",
-							Slot: "scrollock-led",
+						Connections: []client.Slot{
+							{
+								Snap: "keyboard-lights",
+								Slot: "capslock-led",
+							},
+							{
+								Snap: "keyboard-lights",
+								Slot: "scrollock-led",
+							},
 						},
 					},
 				},
@@ -182,22 +188,24 @@ func (s *SnapSuite) TestInterfacesSlotsWithCommonName(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": []client.PlugConnections{
-				{
-					Plug: client.Plug{
-						Snap:      "canonical-pi2",
-						Plug:      "network-listening",
-						Interface: "network-listening",
-						Label:     "Ability to be a network service",
-					},
-					Connections: []client.Slot{
-						{
-							Snap: "paste-daemon",
-							Slot: "network-listening",
+			"result": client.InterfaceConnections{
+				Plugs: []client.PlugConnections{
+					{
+						Plug: client.Plug{
+							Snap:      "canonical-pi2",
+							Plug:      "network-listening",
+							Interface: "network-listening",
+							Label:     "Ability to be a network service",
 						},
-						{
-							Snap: "time-daemon",
-							Slot: "network-listening",
+						Connections: []client.Slot{
+							{
+								Snap: "paste-daemon",
+								Slot: "network-listening",
+							},
+							{
+								Snap: "time-daemon",
+								Slot: "network-listening",
+							},
 						},
 					},
 				},
@@ -223,32 +231,34 @@ func (s *SnapSuite) TestInterfacesTwoPlugsAndFiltering(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": []client.PlugConnections{
-				{
-					Plug: client.Plug{
-						Snap:      "canonical-pi2",
-						Plug:      "debug-console",
-						Interface: "serial-port",
-						Label:     "Serial port on the expansion header",
-					},
-					Connections: []client.Slot{
-						{
-							Snap: "ubuntu-core",
-							Slot: "debug-console",
+			"result": client.InterfaceConnections{
+				Plugs: []client.PlugConnections{
+					{
+						Plug: client.Plug{
+							Snap:      "canonical-pi2",
+							Plug:      "debug-console",
+							Interface: "serial-port",
+							Label:     "Serial port on the expansion header",
+						},
+						Connections: []client.Slot{
+							{
+								Snap: "ubuntu-core",
+								Slot: "debug-console",
+							},
 						},
 					},
-				},
-				{
-					Plug: client.Plug{
-						Snap:      "canonical-pi2",
-						Plug:      "pin-13",
-						Interface: "bool-file",
-						Label:     "Pin 13",
-					},
-					Connections: []client.Slot{
-						{
-							Snap: "keyboard-lights",
-							Slot: "capslock-led",
+					{
+						Plug: client.Plug{
+							Snap:      "canonical-pi2",
+							Plug:      "pin-13",
+							Interface: "bool-file",
+							Label:     "Pin 13",
+						},
+						Connections: []client.Slot{
+							{
+								Snap: "keyboard-lights",
+								Slot: "capslock-led",
+							},
 						},
 					},
 				},
@@ -274,27 +284,29 @@ func (s *SnapSuite) TestInterfacesOfSpecificSnap(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": []client.PlugConnections{
-				{
-					Plug: client.Plug{
-						Snap:      "cheese",
-						Plug:      "photo-trigger",
-						Interface: "bool-file",
-						Label:     "Photo trigger",
-					},
-				}, {
-					Plug: client.Plug{
-						Snap:      "wake-up-alarm",
-						Plug:      "toggle",
-						Interface: "bool-file",
-						Label:     "Alarm toggle",
-					},
-				}, {
-					Plug: client.Plug{
-						Snap:      "wake-up-alarm",
-						Plug:      "snooze",
-						Interface: "bool-file",
-						Label:     "Alarm snooze",
+			"result": client.InterfaceConnections{
+				Plugs: []client.PlugConnections{
+					{
+						Plug: client.Plug{
+							Snap:      "cheese",
+							Plug:      "photo-trigger",
+							Interface: "bool-file",
+							Label:     "Photo trigger",
+						},
+					}, {
+						Plug: client.Plug{
+							Snap:      "wake-up-alarm",
+							Plug:      "toggle",
+							Interface: "bool-file",
+							Label:     "Alarm toggle",
+						},
+					}, {
+						Plug: client.Plug{
+							Snap:      "wake-up-alarm",
+							Plug:      "snooze",
+							Interface: "bool-file",
+							Label:     "Alarm snooze",
+						},
 					},
 				},
 			},
@@ -320,27 +332,29 @@ func (s *SnapSuite) TestInterfacesOfSpecificSnapAndPlug(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": []client.PlugConnections{
-				{
-					Plug: client.Plug{
-						Snap:      "cheese",
-						Plug:      "photo-trigger",
-						Interface: "bool-file",
-						Label:     "Photo trigger",
-					},
-				}, {
-					Plug: client.Plug{
-						Snap:      "wake-up-alarm",
-						Plug:      "toggle",
-						Interface: "bool-file",
-						Label:     "Alarm toggle",
-					},
-				}, {
-					Plug: client.Plug{
-						Snap:      "wake-up-alarm",
-						Plug:      "snooze",
-						Interface: "bool-file",
-						Label:     "Alarm snooze",
+			"result": client.InterfaceConnections{
+				Plugs: []client.PlugConnections{
+					{
+						Plug: client.Plug{
+							Snap:      "cheese",
+							Plug:      "photo-trigger",
+							Interface: "bool-file",
+							Label:     "Photo trigger",
+						},
+					}, {
+						Plug: client.Plug{
+							Snap:      "wake-up-alarm",
+							Plug:      "toggle",
+							Interface: "bool-file",
+							Label:     "Alarm toggle",
+						},
+					}, {
+						Plug: client.Plug{
+							Snap:      "wake-up-alarm",
+							Plug:      "snooze",
+							Interface: "bool-file",
+							Label:     "Alarm snooze",
+						},
 					},
 				},
 			},

@@ -26,8 +26,8 @@ import (
 
 // Plug represents a capacity offered by a snap.
 type Plug struct {
-	Plug      string                 `json:"plug"`
 	Snap      string                 `json:"snap"`
+	Plug      string                 `json:"plug"`
 	Interface string                 `json:"interface,omitempty"`
 	Attrs     map[string]interface{} `json:"attrs,omitempty"`
 	Apps      []string               `json:"apps,omitempty"`
@@ -36,8 +36,8 @@ type Plug struct {
 
 // Slot represents the potential of a given snap to connect to a given plug.
 type Slot struct {
-	Slot      string                 `json:"slot"`
 	Snap      string                 `json:"snap"`
+	Slot      string                 `json:"slot"`
 	Interface string                 `json:"interface,omitempty"`
 	Attrs     map[string]interface{} `json:"attrs,omitempty"`
 	Apps      []string               `json:"apps,omitempty"`
@@ -50,6 +50,18 @@ type PlugConnections struct {
 	Connections []Slot `json:"connections"`
 }
 
+// SlotConnections represents a single slot and plugs that are connected to it.
+type SlotConnections struct {
+	Slot
+	Connections []Plug `json:"connections"`
+}
+
+// InterfaceConnections contains information about all plugs, slots and their connections
+type InterfaceConnections struct {
+	Plugs []PlugConnections `json:"plugs"`
+	Slots []SlotConnections `json:"slots"`
+}
+
 // InterfaceAction represents an action performed on the interface system.
 type InterfaceAction struct {
 	Action string `json:"action"`
@@ -57,8 +69,8 @@ type InterfaceAction struct {
 	Slot   *Slot  `json:"slot,omitempty"`
 }
 
-// AllPlugs returns information about all the plugs and their connections.
-func (client *Client) AllPlugs() (connections []PlugConnections, err error) {
+// AllPlugsAndSlots returns information about all the plugs and their connections.
+func (client *Client) InterfaceConnections() (connections InterfaceConnections, err error) {
 	err = client.doSync("GET", "/2.0/interfaces", nil, nil, &connections)
 	return
 }

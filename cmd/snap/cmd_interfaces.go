@@ -59,12 +59,12 @@ func init() {
 }
 
 func (x *cmdInterfaces) Execute(args []string) error {
-	plugs, err := Client().AllPlugs()
+	conns, err := Client().InterfaceConnections()
 	if err == nil {
 		w := tabwriter.NewWriter(Stdout, 0, 4, 1, ' ', 0)
 		fmt.Fprintln(w, i18n.G("plug\tslot"))
 		defer w.Flush()
-		for _, plug := range plugs {
+		for _, plug := range conns.Plugs {
 			if x.Positionals.Query.Snap != "" && x.Positionals.Query.Snap != plug.Snap {
 				continue
 			}
