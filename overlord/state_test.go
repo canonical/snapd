@@ -43,8 +43,36 @@ type mgrState2 struct {
 	C *Count2
 }
 
+func (ss *stateSuite) TestLockUnlock(c *C) {
+	st := overlord.NewState(nil)
+	st.Lock()
+	st.Unlock()
+}
+
+func (ss *stateSuite) TestSetNeedsLocked(c *C) {
+	st := overlord.NewState(nil)
+	mSt1 := &mgrState1{A: "foo"}
+
+	c.Assert(func() { st.Set("mgr1", mSt1) }, PanicMatches, "internal error: accessing state without lock")
+
+	st.Lock()
+	defer st.Unlock()
+	// fine
+	st.Set("mgr1", mSt1)
+}
+
+func (ss *stateSuite) TestGetNeedsLocked(c *C) {
+	st := overlord.NewState(nil)
+
+	var v int
+	c.Assert(func() { st.Get("foo", &v) }, PanicMatches, "internal error: accessing state without lock")
+}
+
 func (ss *stateSuite) TestGetAndSet(c *C) {
 	st := overlord.NewState(nil)
+	st.Lock()
+	defer st.Unlock()
+
 	mSt1 := &mgrState1{A: "foo"}
 	st.Set("mgr1", mSt1)
 	mSt2 := &mgrState2{C: &Count2{B: 42}}
@@ -63,6 +91,9 @@ func (ss *stateSuite) TestGetAndSet(c *C) {
 
 func (ss *stateSuite) TestSetPanic(c *C) {
 	st := overlord.NewState(nil)
+	st.Lock()
+	defer st.Unlock()
+
 	unsupported := struct {
 		Ch chan bool
 	}{}
@@ -71,6 +102,8 @@ func (ss *stateSuite) TestSetPanic(c *C) {
 
 func (ss *stateSuite) TestGetNoState(c *C) {
 	st := overlord.NewState(nil)
+	st.Lock()
+	defer st.Unlock()
 
 	var mSt1B mgrState1
 	err := st.Get("mgr9", &mSt1B)
@@ -79,6 +112,9 @@ func (ss *stateSuite) TestGetNoState(c *C) {
 
 func (ss *stateSuite) TestGetUnmarshalProblem(c *C) {
 	st := overlord.NewState(nil)
+	st.Lock()
+	defer st.Unlock()
+
 	mismatched := struct {
 		A int
 	}{A: 22}
@@ -91,6 +127,9 @@ func (ss *stateSuite) TestGetUnmarshalProblem(c *C) {
 
 func (ss *stateSuite) TestWriteAndRead(c *C) {
 	st := overlord.NewState(nil)
+	st.Lock()
+	defer st.Unlock()
+
 	st.Set("v", 1)
 	mSt1 := &mgrState1{A: "foo"}
 	st.Set("mgr1", mSt1)
@@ -105,6 +144,9 @@ func (ss *stateSuite) TestWriteAndRead(c *C) {
 	st2, err := overlord.ReadState(nil, buf)
 	c.Assert(err, IsNil)
 	c.Assert(st2, NotNil)
+
+	st2.Lock()
+	defer st2.Unlock()
 
 	var v int
 	err = st2.Get("v", &v)
