@@ -20,7 +20,6 @@
 package asserts
 
 import (
-	"fmt"
 	"time"
 )
 
@@ -33,7 +32,7 @@ type Model struct {
 	timestamp     time.Time
 }
 
-// BrandID returns the brand identifier. Same as the authority id.
+// BrandID returns the brand identifier.
 func (mod *Model) BrandID() string {
 	return mod.Header("brand-id")
 }
@@ -106,10 +105,6 @@ var _ consistencyChecker = (*Model)(nil)
 var modelMandatory = []string{"os", "architecture", "gadget", "kernel", "store", "class"}
 
 func assembleModel(assert assertionBase) (Assertion, error) {
-	if assert.headers["brand-id"] != assert.headers["authority-id"] {
-		return nil, fmt.Errorf("authority-id and brand-id must match, model assertions are expected to be signed by the brand: %q != %q", assert.headers["authority-id"], assert.headers["brand-id"])
-	}
-
 	for _, mandatory := range modelMandatory {
 		if _, err := checkMandatory(assert.headers, mandatory); err != nil {
 			return nil, err

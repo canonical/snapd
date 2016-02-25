@@ -103,7 +103,6 @@ func (mods *modelSuite) TestDecodeInvalid(c *C) {
 	encoded := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
-		{"brand-id: brand-id1\n", "brand-id: random\n", `authority-id and brand-id must match, model assertions are expected to be signed by the brand: "brand-id1" != "random"`},
 		{"required-snaps: foo, bar\n", "required-snaps: foo,\n", `empty entry in comma separated "required-snaps" header: "foo,"`},
 		{"allowed-modes: \n", "allowed-modes: ,\n", `empty entry in comma separated "allowed-modes" header: ","`},
 		{mods.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
