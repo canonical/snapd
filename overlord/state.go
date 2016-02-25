@@ -28,17 +28,38 @@ import (
 	"github.com/ubuntu-core/snappy/logger"
 )
 
-// State represents a snapshot of the system state.
+// StateBackend is used by State to checkpoint on every unlock operation.
+type StateBackend interface {
+	Checkpoint(data []byte) error
+}
+
+// State represents an evolving system state that persists across restarts.
+//
+// The State is concurrency-safe, and all reads and writes to it must be
+// performed with the state locked. It's a runtime error (panic) to perform
+// operations without it.
+//
+// The state is persisted on every unlock operation via the StateBackend
+// it was initialized with.
 type State struct {
+	// XXX/TODO: change this
 	entries map[string]*json.RawMessage
 }
 
-// NewState returns an empty system state.
-func NewState() *State {
+// NewState returns a new empty state.
+func NewState(backend StateBackend) *State {
 	return &State{
 		entries: make(map[string]*json.RawMessage),
 	}
 }
+
+// Lock acquires the state lock.
+func (s *State) Lock() {}
+
+// Unlock releases the state lock and checkpoints the state.
+// It does not return until the state is correctly checkpointed.
+// After too many unsuccessful checkpoint attempts, it panics.
+func (s *State) Unlock() {}
 
 // ErrNoState represents the case of no state entry for a given key.
 var ErrNoState = errors.New("no state entry for key")
@@ -79,13 +100,14 @@ func (s *State) Copy() *State {
 }
 
 // WriteState serializes the provided state into w.
+// XXX: this should go away
 func WriteState(s *State, w io.Writer) error {
 	e := json.NewEncoder(w)
 	return e.Encode(s.entries)
 }
 
 // ReadState returns the state deserialized from r.
-func ReadState(r io.Reader) (*State, error) {
+func ReadState(backend StateBackend, r io.Reader) (*State, error) {
 	s := new(State)
 	d := json.NewDecoder(r)
 	err := d.Decode(&s.entries)
