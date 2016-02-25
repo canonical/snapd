@@ -21,8 +21,12 @@ package notifications
 
 import (
 	"encoding/json"
+	"net/http"
+	"strings"
 
 	"github.com/gorilla/websocket"
+
+	"github.com/ubuntu-core/snappy/strutil"
 )
 
 // A Subscriber is interested in receiving notifications
@@ -38,6 +42,26 @@ type Subscribers map[string]*Subscriber
 
 type websocketConnection interface {
 	WriteMessage(messageType int, data []byte) error
+}
+
+// NewSubscriber returns a new subscriber containing the given websocket
+// connection and type/resource filters set from the query string params in the
+// supplied http request
+func NewSubscriber(c websocketConnection, r *http.Request) *Subscriber {
+	s := &Subscriber{
+		uuid: strutil.MakeRandomString(16),
+		conn: c,
+	}
+
+	q := r.URL.Query()
+	if len(q["types"]) > 0 {
+		s.types = strings.Split(q["types"][0], ",")
+	}
+	if len(q["resource"]) > 0 {
+		s.resource = q["resource"][0]
+	}
+
+	return s
 }
 
 // Notify receives a notification and if the subscriber is interested in it it
