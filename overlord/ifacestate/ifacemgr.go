@@ -17,18 +17,22 @@
  *
  */
 
-package overlord
+// Package ifacestate implements the manager and state aspects
+// responsible for the maintenance of interfaces the system.
+package ifacestate
+
+import (
+	"github.com/ubuntu-core/snappy/overlord/state"
+)
 
 // InterfaceManager is responsible for the maintenance of interfaces in
 // the system state.  It maintains interface connections, and also observes
 // installed snaps to track the current set of available plugs and slots.
-type InterfaceManager struct {
-	o *Overlord
-}
+type InterfaceManager struct{}
 
-// NewInterfaceManager returns a new InterfaceManager.
-func NewInterfaceManager(o *Overlord) (*InterfaceManager, error) {
-	return &InterfaceManager{o: o}, nil
+// Manager returns a new InterfaceManager.
+func Manager() (*InterfaceManager, error) {
+	return &InterfaceManager{}, nil
 }
 
 // Connect initiates a change connecting an interface.
@@ -42,7 +46,7 @@ func (m *InterfaceManager) Disconnect(plugSnap, plugName, slotSnap, slotName str
 }
 
 // Init implements StateManager.Init.
-func (m *InterfaceManager) Init(s *State) error {
+func (m *InterfaceManager) Init(s *state.State) error {
 	return nil
 }
 
