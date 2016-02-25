@@ -17,7 +17,7 @@
  *
  */
 
-// Package overlord implements the policies for state transitions for the operation of a snappy system.
+// Package overlord implements state changes for the operation of a snappy system.
 package overlord
 
 // Overlord is the central manager of a snappy system, keeping
@@ -55,14 +55,7 @@ func New() (*Overlord, error) {
 	o.skillMgr = skillMgr
 	stateEng.AddManager(o.skillMgr)
 
-	// XXX: setup the StateJournal
-
 	return o, nil
-}
-
-// StateJournal returns the StateJournal used by the overlord.
-func (o *Overlord) StateJournal() *StateJournal {
-	return nil
 }
 
 // SnapManager returns the snap manager responsible for snaps under
