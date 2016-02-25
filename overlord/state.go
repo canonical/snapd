@@ -94,20 +94,3 @@ func ReadState(r io.Reader) (*State, error) {
 	}
 	return s, err
 }
-
-// Delta represents a list of state changes.
-type Delta []DeltaItem
-
-// DeltaItem represent a single state change, possibly with a reason for it.
-type DeltaItem struct {
-	Header  string // Header for grouping
-	Summary string // Summary with textual description
-	Reason  string // Optional reason for the change, available with sanitization
-}
-
-// MarshalText returns a human-oriented textual representation of the delta.
-//
-// This function turns Delta into an encoding.TextMarshaler.
-func (d Delta) MarshalText() ([]byte, error) {
-	return nil, nil
-}
