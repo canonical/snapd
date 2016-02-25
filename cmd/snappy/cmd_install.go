@@ -25,6 +25,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/progress"
@@ -79,7 +80,7 @@ func (x *cmdInstall) doInstall() error {
 	fmt.Printf(i18n.G("Installing %s\n"), pkgName)
 
 	channel := release.Get().Channel
-	if idx := strings.IndexByte(pkgName, '/'); idx > -1 {
+	if idx := strings.IndexByte(pkgName, '/'); !helpers.FileExists(pkgName) && idx > -1 {
 		pkgName, channel = pkgName[:idx], pkgName[idx+1:]
 	}
 
