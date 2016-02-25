@@ -37,9 +37,9 @@ The interfaces command lists interfaces available in the system.
 
 By default all plugs and slots, used and offered by all snaps, are displayed.
 
-$ snap interfaces <snap>:<plug>
+$ snap interfaces <snap>:<plug or slot>
 
-Lists only the specified plug.
+Lists only the specified plug or slot.
 
 $ snap interfaces <snap>
 
