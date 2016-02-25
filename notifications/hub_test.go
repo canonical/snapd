@@ -47,7 +47,7 @@ func (c *fakeConn) WriteMessage(messageType int, data []byte) error {
 	return c.err
 }
 
-var _ messageWriter = &fakeConn{}
+var _ websocketConnection = &fakeConn{}
 
 func (s *HubSuite) SetUpTest(c *C) {
 	s.h = NewHub()

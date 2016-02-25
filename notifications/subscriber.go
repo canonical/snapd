@@ -28,7 +28,7 @@ import (
 // A Subscriber is interested in receiving notifications
 type Subscriber struct {
 	uuid     string
-	conn     messageWriter
+	conn     websocketConnection
 	types    []string
 	resource string
 }
@@ -36,7 +36,7 @@ type Subscriber struct {
 // Subscribers is a collection of subscribers
 type Subscribers map[string]*Subscriber
 
-type messageWriter interface {
+type websocketConnection interface {
 	WriteMessage(messageType int, data []byte) error
 }
 
