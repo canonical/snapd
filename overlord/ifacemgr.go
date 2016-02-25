@@ -19,44 +19,44 @@
 
 package overlord
 
-// SkillManager is responsible for the maintenance of skills in system states.
-// It maintains skills assignments, and also observes installed snaps to track
-// the current set of available skills and skill slots.
-type SkillManager struct {
+// InterfaceManager is responsible for the maintenance of interfaces in
+// the system state.  It maintains interface connections, and also observes
+// installed snaps to track the current set of available plugs and slots.
+type InterfaceManager struct {
 	o *Overlord
 }
 
-// NewSkillManager returns a new SkillManager.
-func NewSkillManager(o *Overlord) (*SkillManager, error) {
-	return &SkillManager{o: o}, nil
+// NewInterfaceManager returns a new InterfaceManager.
+func NewInterfaceManager(o *Overlord) (*InterfaceManager, error) {
+	return &InterfaceManager{o: o}, nil
 }
 
-// Grant records the intent of granting the skill in state s.
-func (m *SkillManager) Grant(s *State, skillSnap, skillName, slotSnap, slotName string) error {
+// Connect initiates a change connecting an interface.
+func (m *InterfaceManager) Connect(plugSnap, plugName, slotSnap, slotName string) error {
 	return nil
 }
 
-// Revoke records the intent of revoking the skill in state s.
-func (m *SkillManager) Revoke(s *State, skillSnap, skillName, slotSnap, slotName string) error {
+// Disconnect initiates a change disconnecting an interface.
+func (m *InterfaceManager) Disconnect(plugSnap, plugName, slotSnap, slotName string) error {
 	return nil
 }
 
 // Apply implements StateManager.Apply.
-func (m *SkillManager) Apply(s *State) error {
+func (m *InterfaceManager) Apply(s *State) error {
 	return nil
 }
 
 // Learn implements StateManager.Learn.
-func (m *SkillManager) Learn(s *State) error {
+func (m *InterfaceManager) Learn(s *State) error {
 	return nil
 }
 
 // Sanitize implements StateManager.Sanitize.
-func (m *SkillManager) Sanitize(s *State) error {
+func (m *InterfaceManager) Sanitize(s *State) error {
 	return nil
 }
 
 // Delta implements StateManager.Delta.
-func (m *SkillManager) Delta(a, b *State) (Delta, error) {
+func (m *InterfaceManager) Delta(a, b *State) (Delta, error) {
 	return nil, nil
 }
