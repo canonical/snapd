@@ -28,48 +28,48 @@ import (
 	. "github.com/ubuntu-core/snappy/cmd/snap"
 )
 
-func (s *SnapSuite) TestAddSkillSlotHelp(c *C) {
+func (s *SnapSuite) TestAddInterfaceHelp(c *C) {
 	msg := `Usage:
-  snap.test [OPTIONS] experimental add-skill-slot [add-skill-slot-OPTIONS] <snap> <skill slot> <type>
+  snap.test [OPTIONS] experimental add-plug [add-plug-OPTIONS] <snap> <plug> <interface>
 
-The add-skill-slot command adds a new skill slot to the system.
+The add-plug command adds a new plug to the system.
 
-This command is only for experimentation with the skill system.
+This command is only for experimentation with interfaces.
 It will be removed in one of the future releases.
 
 Help Options:
-  -h, --help              Show this help message
+  -h, --help             Show this help message
 
-[add-skill-slot command options]
-      -a=                 List of key=value attributes
-          --app=          List of apps using this skill slot
-          --label=        Human-friendly label
+[add-plug command options]
+      -a=                List of key=value attributes
+          --app=         List of apps providing this plug
+          --label=       Human-friendly label
 
-[add-skill-slot command arguments]
-  <snap>:                 Name of the snap containing the slot
-  <skill slot>:           Name of the skill slot within the snap
-  <type>:                 Skill type
+[add-plug command arguments]
+  <snap>:                Name of the snap offering the interface
+  <plug>:                Plug name within the snap
+  <interface>:           Interface name
 `
-	rest, err := Parser().ParseArgs([]string{"experimental", "add-skill-slot", "--help"})
+	rest, err := Parser().ParseArgs([]string{"experimental", "add-plug", "--help"})
 	c.Assert(err.Error(), Equals, msg)
 	c.Assert(rest, DeepEquals, []string{})
 }
 
-func (s *SnapSuite) TestAddSkillSlotExplicitEverything(c *C) {
+func (s *SnapSuite) TestAddInterfaceExplicitEverything(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "POST")
 		c.Check(r.URL.Path, Equals, "/2.0/skills")
 		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
-			"action": "add-slot",
-			"slot": map[string]interface{}{
-				"snap": "consumer",
-				"name": "slot",
-				"type": "type",
+			"action": "add-skill",
+			"skill": map[string]interface{}{
+				"snap": "producer",
+				"name": "plug",
+				"type": "interface",
 				"attrs": map[string]interface{}{
 					"attr": "value",
 				},
 				"apps": []interface{}{
-					"my-app",
+					"meta/hooks/skill",
 				},
 				"label": "label",
 			},
@@ -77,8 +77,8 @@ func (s *SnapSuite) TestAddSkillSlotExplicitEverything(c *C) {
 		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
 	})
 	rest, err := Parser().ParseArgs([]string{
-		"experimental", "add-skill-slot", "consumer", "slot", "type",
-		"-a", "attr=value", "--app=my-app", "--label=label",
+		"experimental", "add-plug", "producer", "plug", "interface",
+		"-a", "attr=value", "--app=meta/hooks/skill", "--label=label",
 	})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})

@@ -24,40 +24,40 @@ import (
 	"github.com/ubuntu-core/snappy/i18n"
 )
 
-type cmdAddSkill struct {
+type cmdAddInterface struct {
 	Positionals struct {
-		Snap string `positional-arg-name:"<snap>" description:"Name of the snap offering the skill"`
-		Name string `positional-arg-name:"<skill>" description:"Skill name within the snap"`
-		Type string `positional-arg-name:"<type>" description:"Skill type"`
+		Snap      string `positional-arg-name:"<snap>" description:"Name of the snap offering the interface"`
+		Plug      string `positional-arg-name:"<plug>" description:"Plug name within the snap"`
+		Interface string `positional-arg-name:"<interface>" description:"Interface name"`
 	} `positional-args:"true" required:"true"`
 	Attrs []AttributePair `short:"a" description:"List of key=value attributes"`
-	Apps  []string        `long:"app" description:"List of apps providing this skill"`
+	Apps  []string        `long:"app" description:"List of apps providing this plug"`
 	Label string          `long:"label" description:"Human-friendly label"`
 }
 
-var shortAddSkillHelp = i18n.G("Adds a skill to the system")
-var longAddSkillHelp = i18n.G(`
-The add-skill command adds a new skill to the system.
+var shortAddPlugHelp = i18n.G("Adds a plug to the system")
+var longAddPlugHelp = i18n.G(`
+The add-plug command adds a new plug to the system.
 
-This command is only for experimentation with the skill system.
+This command is only for experimentation with interfaces.
 It will be removed in one of the future releases.
 `)
 
 func init() {
-	addExperimentalCommand("add-skill", shortAddSkillHelp, longAddSkillHelp, func() interface{} {
-		return &cmdAddSkill{}
+	addExperimentalCommand("add-plug", shortAddPlugHelp, longAddPlugHelp, func() interface{} {
+		return &cmdAddInterface{}
 	})
 }
 
-func (x *cmdAddSkill) Execute(args []string) error {
+func (x *cmdAddInterface) Execute(args []string) error {
 	attrs := make(map[string]interface{})
 	for k, v := range AttributePairSliceToMap(x.Attrs) {
 		attrs[k] = v
 	}
 	return Client().AddSkill(&client.Skill{
 		Snap:  x.Positionals.Snap,
-		Name:  x.Positionals.Name,
-		Type:  x.Positionals.Type,
+		Name:  x.Positionals.Plug,
+		Type:  x.Positionals.Interface,
 		Attrs: attrs,
 		Apps:  x.Apps,
 		Label: x.Label,

@@ -29,41 +29,41 @@ import (
 	. "github.com/ubuntu-core/snappy/cmd/snap"
 )
 
-func (s *SnapSuite) TestSkillsHelp(c *C) {
+func (s *SnapSuite) TestInterfacesHelp(c *C) {
 	msg := `Usage:
-  snap.test [OPTIONS] skills [skills-OPTIONS] [<snap>:<skill>]
+  snap.test [OPTIONS] interfaces [interfaces-OPTIONS] [<snap>:<plug or slot>]
 
-The skills command lists skills available in the system.
+The interfaces command lists interfaces available in the system.
 
-By default all skills, used and offered by all snaps, are displayed.
+By default all plugs and slots, used and offered by all snaps, are displayed.
 
-$ snap skills <snap name>:<skill name>
+$ snap interfaces <snap>:<plug>
 
-Lists only the specified skill.
+Lists only the specified plug.
 
-$ snap skills <snap name>
+$ snap interfaces <snap>
 
-Lists the skills offered and used by the specified snap.
+Lists the plugs offered and slots used by the specified snap.
 
-$ snap skills --type=<type> [<snap name>]
+$ snap interfaces --i=<interface> [<snap>]
 
-Lists only skills of the specified type.
+Lists only plugs and slots of the specific interface.
 
 Help Options:
-  -h, --help                Show this help message
+  -h, --help                       Show this help message
 
-[skills command options]
-          --type=           constrain listing to skills of this type
+[interfaces command options]
+      -i=                          constrain listing to specific interfaces
 
-[skills command arguments]
-  <snap>:<skill>:           snap or snap:name
+[interfaces command arguments]
+  <snap>:<plug or slot>:           snap or snap:name
 `
-	rest, err := Parser().ParseArgs([]string{"skills", "--help"})
+	rest, err := Parser().ParseArgs([]string{"interfaces", "--help"})
 	c.Assert(err.Error(), Equals, msg)
 	c.Assert(rest, DeepEquals, []string{})
 }
 
-func (s *SnapSuite) TestSkillsZeroSlots(c *C) {
+func (s *SnapSuite) TestInterfacesZeroSlots(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/2.0/skills")
@@ -85,17 +85,17 @@ func (s *SnapSuite) TestSkillsZeroSlots(c *C) {
 			},
 		})
 	})
-	rest, err := Parser().ParseArgs([]string{"skills"})
+	rest, err := Parser().ParseArgs([]string{"interfaces"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
-		"Skill                Granted To\n" +
+		"plug                 slot\n" +
 		"canonical-pi2:pin-13 \n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestSkillsOneSlot(c *C) {
+func (s *SnapSuite) TestInterfacesOneSlot(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/2.0/skills")
@@ -122,17 +122,17 @@ func (s *SnapSuite) TestSkillsOneSlot(c *C) {
 			},
 		})
 	})
-	rest, err := Parser().ParseArgs([]string{"skills"})
+	rest, err := Parser().ParseArgs([]string{"interfaces"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
-		"Skill                Granted To\n" +
+		"plug                 slot\n" +
 		"canonical-pi2:pin-13 keyboard-lights:capslock-led\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestSkillsTwoSlots(c *C) {
+func (s *SnapSuite) TestInterfacesTwoSlots(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/2.0/skills")
@@ -163,17 +163,17 @@ func (s *SnapSuite) TestSkillsTwoSlots(c *C) {
 			},
 		})
 	})
-	rest, err := Parser().ParseArgs([]string{"skills"})
+	rest, err := Parser().ParseArgs([]string{"interfaces"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
-		"Skill                Granted To\n" +
+		"plug                 slot\n" +
 		"canonical-pi2:pin-13 keyboard-lights:capslock-led,keyboard-lights:scrollock-led\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestSkillsSlotsWithCommonName(c *C) {
+func (s *SnapSuite) TestInterfacesSlotsWithCommonName(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/2.0/skills")
@@ -204,17 +204,17 @@ func (s *SnapSuite) TestSkillsSlotsWithCommonName(c *C) {
 			},
 		})
 	})
-	rest, err := Parser().ParseArgs([]string{"skills"})
+	rest, err := Parser().ParseArgs([]string{"interfaces"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
-		"Skill                           Granted To\n" +
+		"plug                            slot\n" +
 		"canonical-pi2:network-listening paste-daemon,time-daemon\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestSkillsTwoSkillsAndFiltering(c *C) {
+func (s *SnapSuite) TestInterfacesTwoSkillsAndFiltering(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/2.0/skills")
@@ -255,17 +255,17 @@ func (s *SnapSuite) TestSkillsTwoSkillsAndFiltering(c *C) {
 			},
 		})
 	})
-	rest, err := Parser().ParseArgs([]string{"skills", "--type=serial-port"})
+	rest, err := Parser().ParseArgs([]string{"interfaces", "-i=serial-port"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
-		"Skill                       Granted To\n" +
+		"plug                        slot\n" +
 		"canonical-pi2:debug-console ubuntu-core\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestSkillsOfSpecificSnap(c *C) {
+func (s *SnapSuite) TestInterfacesOfSpecificSnap(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/2.0/skills")
@@ -300,18 +300,18 @@ func (s *SnapSuite) TestSkillsOfSpecificSnap(c *C) {
 			},
 		})
 	})
-	rest, err := Parser().ParseArgs([]string{"skills", "wake-up-alarm"})
+	rest, err := Parser().ParseArgs([]string{"interfaces", "wake-up-alarm"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
-		"Skill                Granted To\n" +
+		"plug                 slot\n" +
 		"wake-up-alarm:toggle \n" +
 		"wake-up-alarm:snooze \n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestSkillsOfSpecificSnapAndSkill(c *C) {
+func (s *SnapSuite) TestInterfacesOfSpecificSnapAndSkill(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/2.0/skills")
@@ -346,11 +346,11 @@ func (s *SnapSuite) TestSkillsOfSpecificSnapAndSkill(c *C) {
 			},
 		})
 	})
-	rest, err := Parser().ParseArgs([]string{"skills", "wake-up-alarm:snooze"})
+	rest, err := Parser().ParseArgs([]string{"interfaces", "wake-up-alarm:snooze"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
-		"Skill                Granted To\n" +
+		"plug                 slot\n" +
 		"wake-up-alarm:snooze \n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
