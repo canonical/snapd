@@ -24,6 +24,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sync"
+	"sync/atomic"
 
 	"github.com/ubuntu-core/snappy/logger"
 )
@@ -42,6 +44,9 @@ type StateBackend interface {
 // The state is persisted on every unlock operation via the StateBackend
 // it was initialized with.
 type State struct {
+	// locking
+	mu  sync.Mutex
+	muC int32
 	// XXX/TODO: change this
 	entries map[string]*json.RawMessage
 }
@@ -54,12 +59,25 @@ func NewState(backend StateBackend) *State {
 }
 
 // Lock acquires the state lock.
-func (s *State) Lock() {}
+func (s *State) Lock() {
+	s.mu.Lock()
+	atomic.AddInt32(&s.muC, 1)
+}
 
 // Unlock releases the state lock and checkpoints the state.
 // It does not return until the state is correctly checkpointed.
 // After too many unsuccessful checkpoint attempts, it panics.
-func (s *State) Unlock() {}
+func (s *State) Unlock() {
+	atomic.AddInt32(&s.muC, -1)
+	s.mu.Unlock()
+}
+
+func (s *State) ensureLocked() {
+	c := atomic.LoadInt32(&s.muC)
+	if c != 1 {
+		panic("internal error: accessing state without lock")
+	}
+}
 
 // ErrNoState represents the case of no state entry for a given key.
 var ErrNoState = errors.New("no state entry for key")
@@ -68,6 +86,7 @@ var ErrNoState = errors.New("no state entry for key")
 // into the value parameter.
 // It returns ErrNoState if there is no entry for key.
 func (s *State) Get(key string, value interface{}) error {
+	s.ensureLocked()
 	entryJSON := s.entries[key]
 	if entryJSON == nil {
 		return ErrNoState
@@ -82,6 +101,7 @@ func (s *State) Get(key string, value interface{}) error {
 // Set associates value with key for future consulting by managers.
 // The provided value must properly marshal and unmarshal with encoding/json.
 func (s *State) Set(key string, value interface{}) {
+	s.ensureLocked()
 	serialized, err := json.Marshal(value)
 	if err != nil {
 		logger.Panicf("internal error: could not marshal value for state entry %q: %v", key, err)
