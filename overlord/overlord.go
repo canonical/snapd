@@ -26,7 +26,7 @@ type Overlord struct {
 	// managers
 	snapMgr   *SnapManager
 	assertMgr *AssertManager
-	skillMgr  *SkillManager
+	ifaceMgr  *InterfaceManager
 }
 
 // New creates a new Overlord with all its state managers.
@@ -48,12 +48,12 @@ func New() (*Overlord, error) {
 	o.assertMgr = assertMgr
 	stateEng.AddManager(o.assertMgr)
 
-	skillMgr, err := NewSkillManager(o)
+	ifaceMgr, err := NewInterfaceManager(o)
 	if err != nil {
 		return nil, err
 	}
-	o.skillMgr = skillMgr
-	stateEng.AddManager(o.skillMgr)
+	o.ifaceMgr = ifaceMgr
+	stateEng.AddManager(o.ifaceMgr)
 
 	return o, nil
 }
@@ -70,8 +70,8 @@ func (o *Overlord) AssertManager() *AssertManager {
 	return o.assertMgr
 }
 
-// SkillManager returns the skill manager mantaining skill assignments
-// under the overlord.
-func (o *Overlord) SkillManager() *SkillManager {
-	return o.skillMgr
+// InterfaceManager returns the interface manager mantaining
+// interface connections under the overlord.
+func (o *Overlord) InterfaceManager() *InterfaceManager {
+	return o.ifaceMgr
 }
