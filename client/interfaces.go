@@ -26,10 +26,9 @@ import (
 
 // Plug represents a capacity offered by a snap.
 type Plug struct {
-	Name string `json:"name"`
-	Snap string `json:"snap"`
-	// NOTE: json format intentionally using old "skill" terminology
-	Interface string                 `json:"type,omitempty"`
+	Name      string                 `json:"name"`
+	Snap      string                 `json:"snap"`
+	Interface string                 `json:"interface,omitempty"`
 	Attrs     map[string]interface{} `json:"attrs,omitempty"`
 	Apps      []string               `json:"apps,omitempty"`
 	Label     string                 `json:"label,omitempty"`
@@ -37,10 +36,9 @@ type Plug struct {
 
 // Slot represents the potential of a given snap to connect to a given plug.
 type Slot struct {
-	Name string `json:"name"`
-	Snap string `json:"snap"`
-	// NOTE: json format intentionally using old "skill" terminology
-	Interface string                 `json:"type,omitempty"`
+	Name      string                 `json:"name"`
+	Snap      string                 `json:"snap"`
+	Interface string                 `json:"interface,omitempty"`
 	Attrs     map[string]interface{} `json:"attrs,omitempty"`
 	Apps      []string               `json:"apps,omitempty"`
 	Label     string                 `json:"label,omitempty"`
@@ -49,21 +47,19 @@ type Slot struct {
 // PlugConnections represents a single plug and slots that are connected to it.
 type PlugConnections struct {
 	Plug
-	// NOTE: json format intentionally using old "skill" terminology
-	Connections []Slot `json:"granted_to"`
+	Connections []Slot `json:"connections"`
 }
 
 // InterfaceAction represents an action performed on the interface system.
 type InterfaceAction struct {
 	Action string `json:"action"`
-	// NOTE: json format intentionally using old "skill" terminology
-	Plug *Plug `json:"skill,omitempty"`
-	Slot *Slot `json:"slot,omitempty"`
+	Plug   *Plug  `json:"plug,omitempty"`
+	Slot   *Slot  `json:"slot,omitempty"`
 }
 
 // AllPlugs returns information about all the plugs and their connections.
 func (client *Client) AllPlugs() (connections []PlugConnections, err error) {
-	err = client.doSync("GET", "/2.0/skills", nil, nil, &connections)
+	err = client.doSync("GET", "/2.0/interfaces", nil, nil, &connections)
 	return
 }
 
@@ -74,7 +70,7 @@ func (client *Client) performInterfaceAction(sa *InterfaceAction) error {
 		return err
 	}
 	var rsp interface{}
-	if err := client.doSync("POST", "/2.0/skills", nil, bytes.NewReader(b), &rsp); err != nil {
+	if err := client.doSync("POST", "/2.0/interfaces", nil, bytes.NewReader(b), &rsp); err != nil {
 		return err
 	}
 	return nil
@@ -84,7 +80,7 @@ func (client *Client) performInterfaceAction(sa *InterfaceAction) error {
 // The plug and the slot must have the same interface.
 func (client *Client) Connect(plugSnapName, plugName, slotSnapName, slotName string) error {
 	return client.performInterfaceAction(&InterfaceAction{
-		Action: "grant",
+		Action: "connect",
 		Plug: &Plug{
 			Snap: plugSnapName,
 			Name: plugName,
@@ -99,7 +95,7 @@ func (client *Client) Connect(plugSnapName, plugName, slotSnapName, slotName str
 // Disconnect breaks the connection between a plug and a slot.
 func (client *Client) Disconnect(plugSnapName, plugName, slotSnapName, slotName string) error {
 	return client.performInterfaceAction(&InterfaceAction{
-		Action: "revoke",
+		Action: "disconnect",
 		Plug: &Plug{
 			Snap: plugSnapName,
 			Name: plugName,
@@ -114,7 +110,7 @@ func (client *Client) Disconnect(plugSnapName, plugName, slotSnapName, slotName 
 // AddPlug adds a plug to the interface system.
 func (client *Client) AddPlug(plug *Plug) error {
 	return client.performInterfaceAction(&InterfaceAction{
-		Action: "add-skill",
+		Action: "add-plug",
 		Plug:   plug,
 	})
 }
@@ -122,7 +118,7 @@ func (client *Client) AddPlug(plug *Plug) error {
 // RemovePlug removes a plug from the interface system.
 func (client *Client) RemovePlug(snapName, plugName string) error {
 	return client.performInterfaceAction(&InterfaceAction{
-		Action: "remove-skill",
+		Action: "remove-plug",
 		Plug: &Plug{
 			Snap: snapName,
 			Name: plugName,

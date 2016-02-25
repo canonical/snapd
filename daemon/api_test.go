@@ -1245,7 +1245,7 @@ func (s *apiSuite) TestInstallLicensedIntegration(c *check.C) {
 	c.Check(task.State(), check.Equals, TaskSucceeded)
 }
 
-// Tests for GET /2.0/skills
+// Tests for GET /2.0/interfaces
 
 func (s *apiSuite) TestGetPlugs(c *check.C) {
 	d := newTestDaemon()
@@ -1253,7 +1253,7 @@ func (s *apiSuite) TestGetPlugs(c *check.C) {
 	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface", Label: "label"})
 	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
 	d.interfaces.Connect("producer", "plug", "consumer", "slot")
-	req, err := http.NewRequest("GET", "/2.0/skills", nil)
+	req, err := http.NewRequest("GET", "/2.0/interfaces", nil)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.GET(interfacesCmd, req).ServeHTTP(rec, req)
@@ -1264,11 +1264,11 @@ func (s *apiSuite) TestGetPlugs(c *check.C) {
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": []interface{}{
 			map[string]interface{}{
-				"snap":  "producer",
-				"name":  "plug",
-				"type":  "interface",
-				"label": "label",
-				"granted_to": []interface{}{
+				"snap":      "producer",
+				"name":      "plug",
+				"interface": "interface",
+				"label":     "label",
+				"connections": []interface{}{
 					map[string]interface{}{
 						"snap": "consumer",
 						"name": "slot",
@@ -1282,7 +1282,7 @@ func (s *apiSuite) TestGetPlugs(c *check.C) {
 	})
 }
 
-// Test for POST /2.0/skills
+// Test for POST /2.0/interfaces
 
 func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 	d := newTestDaemon()
@@ -1290,7 +1290,7 @@ func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
 	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
 	action := &interfaceAction{
-		Action: "grant",
+		Action: "connect",
 		Plug: interfaces.Plug{
 			Snap: "producer",
 			Name: "plug",
@@ -1303,7 +1303,7 @@ func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	req, err := http.NewRequest("POST", "/2.0/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
@@ -1342,7 +1342,7 @@ func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
 	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "other-interface"})
 	action := &interfaceAction{
-		Action: "grant",
+		Action: "connect",
 		Plug: interfaces.Plug{
 			Snap: "producer",
 			Name: "plug",
@@ -1355,7 +1355,7 @@ func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	req, err := http.NewRequest("POST", "/2.0/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
@@ -1380,7 +1380,7 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
 	action := &interfaceAction{
-		Action: "grant",
+		Action: "connect",
 		Plug: interfaces.Plug{
 			Snap: "producer",
 			Name: "plug",
@@ -1393,7 +1393,7 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	req, err := http.NewRequest("POST", "/2.0/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
@@ -1418,7 +1418,7 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
 	action := &interfaceAction{
-		Action: "grant",
+		Action: "connect",
 		Plug: interfaces.Plug{
 			Snap: "producer",
 			Name: "plug",
@@ -1431,7 +1431,7 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	req, err := http.NewRequest("POST", "/2.0/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
@@ -1458,7 +1458,7 @@ func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
 	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
 	d.interfaces.Connect("producer", "plug", "consumer", "slot")
 	action := &interfaceAction{
-		Action: "revoke",
+		Action: "disconnect",
 		Plug: interfaces.Plug{
 			Snap: "producer",
 			Name: "plug",
@@ -1471,7 +1471,7 @@ func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	req, err := http.NewRequest("POST", "/2.0/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
@@ -1494,7 +1494,7 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
 	action := &interfaceAction{
-		Action: "revoke",
+		Action: "disconnect",
 		Plug: interfaces.Plug{
 			Snap: "producer",
 			Name: "plug",
@@ -1507,7 +1507,7 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	req, err := http.NewRequest("POST", "/2.0/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
@@ -1532,7 +1532,7 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
 	action := &interfaceAction{
-		Action: "revoke",
+		Action: "disconnect",
 		Plug: interfaces.Plug{
 			Snap: "producer",
 			Name: "plug",
@@ -1545,7 +1545,7 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	req, err := http.NewRequest("POST", "/2.0/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
@@ -1571,7 +1571,7 @@ func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
 	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
 	action := &interfaceAction{
-		Action: "revoke",
+		Action: "disconnect",
 		Plug: interfaces.Plug{
 			Snap: "producer",
 			Name: "plug",
@@ -1584,7 +1584,7 @@ func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	req, err := http.NewRequest("POST", "/2.0/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
@@ -1623,7 +1623,7 @@ func (s *apiSuite) TestAddPlugSuccess(c *check.C) {
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	req, err := http.NewRequest("POST", "/2.0/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
@@ -1662,7 +1662,7 @@ func (s *apiSuite) TestAddPlugDisabled(c *check.C) {
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	req, err := http.NewRequest("POST", "/2.0/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
@@ -1705,7 +1705,7 @@ func (s *apiSuite) TestAddPlugFailure(c *check.C) {
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	req, err := http.NewRequest("POST", "/2.0/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
@@ -1738,7 +1738,7 @@ func (s *apiSuite) TestRemovePlugSuccess(c *check.C) {
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	req, err := http.NewRequest("POST", "/2.0/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
@@ -1770,7 +1770,7 @@ func (s *apiSuite) TestRemovePlugDisabled(c *check.C) {
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	req, err := http.NewRequest("POST", "/2.0/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
@@ -1805,7 +1805,7 @@ func (s *apiSuite) TestRemovePlugFailure(c *check.C) {
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	req, err := http.NewRequest("POST", "/2.0/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
@@ -1843,7 +1843,7 @@ func (s *apiSuite) TestAddSlotSuccess(c *check.C) {
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	req, err := http.NewRequest("POST", "/2.0/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
@@ -1882,7 +1882,7 @@ func (s *apiSuite) TestAddSlotDisabled(c *check.C) {
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	req, err := http.NewRequest("POST", "/2.0/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
@@ -1925,7 +1925,7 @@ func (s *apiSuite) TestAddSlotFailure(c *check.C) {
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	req, err := http.NewRequest("POST", "/2.0/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
@@ -1958,7 +1958,7 @@ func (s *apiSuite) TestRemoveSlotSuccess(c *check.C) {
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	req, err := http.NewRequest("POST", "/2.0/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
@@ -1990,7 +1990,7 @@ func (s *apiSuite) TestRemoveSlotDisabled(c *check.C) {
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	req, err := http.NewRequest("POST", "/2.0/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
@@ -2025,7 +2025,7 @@ func (s *apiSuite) TestRemoveSlotFailure(c *check.C) {
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	req, err := http.NewRequest("POST", "/2.0/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
@@ -2046,7 +2046,7 @@ func (s *apiSuite) TestRemoveSlotFailure(c *check.C) {
 
 func (s *apiSuite) TestUnsupportedInterfaceRequest(c *check.C) {
 	buf := bytes.NewBuffer([]byte(`garbage`))
-	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	req, err := http.NewRequest("POST", "/2.0/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
@@ -2069,7 +2069,7 @@ func (s *apiSuite) TestMissingInterfaceAction(c *check.C) {
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	req, err := http.NewRequest("POST", "/2.0/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
@@ -2095,7 +2095,7 @@ func (s *apiSuite) TestUnsupportedInterfaceAction(c *check.C) {
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/2.0/skills", buf)
+	req, err := http.NewRequest("POST", "/2.0/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
