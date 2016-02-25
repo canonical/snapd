@@ -1,4 +1,4 @@
-// -*- Mode: Go; indent-tabs-mode: t -*-
+// -*- Mode: Go; indent-tabs-mode: i -*-
 
 /*
  * Copyright (C) 2015 Canonical Ltd
@@ -27,120 +27,120 @@ import (
 	. "github.com/ubuntu-core/snappy/interfaces"
 )
 
-type TestTypeSuite struct {
-	t Type
+type TestInterfaceSuite struct {
+	i Interface
 }
 
-var _ = Suite(&TestTypeSuite{
-	t: &TestType{TypeName: "test"},
+var _ = Suite(&TestInterfaceSuite{
+	i: &TestInterface{InterfaceName: "test"},
 })
 
-// TestType has a working Name() function
-func (s *TestTypeSuite) TestName(c *C) {
-	c.Assert(s.t.Name(), Equals, "test")
+// TestInterface has a working Name() function
+func (s *TestInterfaceSuite) TestName(c *C) {
+	c.Assert(s.i.Name(), Equals, "test")
 }
 
-// TestType doesn't do any sanitization by default
-func (s *TestTypeSuite) TestSanitizeSkillOK(c *C) {
-	skill := &Skill{
-		Type: "test",
+// TestInterface doesn'i do any sanitization by default
+func (s *TestInterfaceSuite) TestSanitizePlugOK(c *C) {
+	plug := &Plug{
+		Interface: "test",
 	}
-	err := s.t.SanitizeSkill(skill)
+	err := s.i.SanitizePlug(plug)
 	c.Assert(err, IsNil)
 }
 
-// TestType has provisions to customize sanitization
-func (s *TestTypeSuite) TestSanitizeSkillError(c *C) {
-	t := &TestType{
-		TypeName: "test",
-		SanitizeSkillCallback: func(skill *Skill) error {
-			return fmt.Errorf("sanitize skill failed")
+// TestInterface has provisions to customize sanitization
+func (s *TestInterfaceSuite) TestSanitizePlugError(c *C) {
+	i := &TestInterface{
+		InterfaceName: "test",
+		SanitizePlugCallback: func(plug *Plug) error {
+			return fmt.Errorf("sanitize plug failed")
 		},
 	}
-	skill := &Skill{
-		Type: "test",
+	plug := &Plug{
+		Interface: "test",
 	}
-	err := t.SanitizeSkill(skill)
-	c.Assert(err, ErrorMatches, "sanitize skill failed")
+	err := i.SanitizePlug(plug)
+	c.Assert(err, ErrorMatches, "sanitize plug failed")
 }
 
-// TestType sanitization still checks for type identity
-func (s *TestTypeSuite) TestSanitizeSkillWrongType(c *C) {
-	skill := &Skill{
-		Type: "other-type",
+// TestInterface sanitization still checks for interface identity
+func (s *TestInterfaceSuite) TestSanitizePlugWrongInterface(c *C) {
+	plug := &Plug{
+		Interface: "other-interface",
 	}
-	c.Assert(func() { s.t.SanitizeSkill(skill) }, Panics, "skill is not of type \"test\"")
+	c.Assert(func() { s.i.SanitizePlug(plug) }, Panics, "plug is not of interface \"test\"")
 }
 
-// TestType doesn't do any sanitization by default
-func (s *TestTypeSuite) TestSanitizeSlotOK(c *C) {
+// TestInterface doesn'i do any sanitization by default
+func (s *TestInterfaceSuite) TestSanitizeSlotOK(c *C) {
 	slot := &Slot{
-		Type: "test",
+		Interface: "test",
 	}
-	err := s.t.SanitizeSlot(slot)
+	err := s.i.SanitizeSlot(slot)
 	c.Assert(err, IsNil)
 }
 
-// TestType has provisions to customize sanitization
-func (s *TestTypeSuite) TestSanitizeSlotError(c *C) {
-	t := &TestType{
-		TypeName: "test",
+// TestInterface has provisions to customize sanitization
+func (s *TestInterfaceSuite) TestSanitizeSlotError(c *C) {
+	i := &TestInterface{
+		InterfaceName: "test",
 		SanitizeSlotCallback: func(slot *Slot) error {
 			return fmt.Errorf("sanitize slot failed")
 		},
 	}
 	slot := &Slot{
-		Type: "test",
+		Interface: "test",
 	}
-	err := t.SanitizeSlot(slot)
+	err := i.SanitizeSlot(slot)
 	c.Assert(err, ErrorMatches, "sanitize slot failed")
 }
 
-// TestType sanitization still checks for type identity
-func (s *TestTypeSuite) TestSanitizeSlotWrongType(c *C) {
+// TestInterface sanitization still checks for interface identity
+func (s *TestInterfaceSuite) TestSanitizeSlotWrongInterface(c *C) {
 	slot := &Slot{
-		Type: "other-type",
+		Interface: "other-interface",
 	}
-	c.Assert(func() { s.t.SanitizeSlot(slot) }, Panics, "slot is not of type \"test\"")
+	c.Assert(func() { s.i.SanitizeSlot(slot) }, Panics, "slot is not of interface \"test\"")
 }
 
-// TestType hands out empty skill security snippets
-func (s *TestTypeSuite) TestSkillSecuritySnippet(c *C) {
-	skill := &Skill{
-		Type: "test",
+// TestInterface hands out empty plug security snippets
+func (s *TestInterfaceSuite) TestPlugSecuritySnippet(c *C) {
+	plug := &Plug{
+		Interface: "test",
 	}
-	snippet, err := s.t.SkillSecuritySnippet(skill, SecurityAppArmor)
+	snippet, err := s.i.PlugSecuritySnippet(plug, SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.t.SkillSecuritySnippet(skill, SecuritySecComp)
+	snippet, err = s.i.PlugSecuritySnippet(plug, SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.t.SkillSecuritySnippet(skill, SecurityDBus)
+	snippet, err = s.i.PlugSecuritySnippet(plug, SecurityDBus)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.t.SkillSecuritySnippet(skill, "foo")
+	snippet, err = s.i.PlugSecuritySnippet(plug, "foo")
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 }
 
-// TestType hands out empty slot security snippets
-func (s *TestTypeSuite) TestSlotSecuritySnippet(c *C) {
-	skill := &Skill{
-		Type: "test",
+// TestInterface hands out empty slot security snippets
+func (s *TestInterfaceSuite) TestSlotSecuritySnippet(c *C) {
+	plug := &Plug{
+		Interface: "test",
 	}
 	slot := &Slot{
-		Type: "test",
+		Interface: "test",
 	}
-	snippet, err := s.t.SlotSecuritySnippet(skill, slot, SecurityAppArmor)
+	snippet, err := s.i.SlotSecuritySnippet(plug, slot, SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.t.SlotSecuritySnippet(skill, slot, SecuritySecComp)
+	snippet, err = s.i.SlotSecuritySnippet(plug, slot, SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.t.SlotSecuritySnippet(skill, slot, SecurityDBus)
+	snippet, err = s.i.SlotSecuritySnippet(plug, slot, SecurityDBus)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.t.SlotSecuritySnippet(skill, slot, "foo")
+	snippet, err = s.i.SlotSecuritySnippet(plug, slot, "foo")
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 }

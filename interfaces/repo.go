@@ -1,4 +1,4 @@
-// -*- Mode: Go; indent-tabs-mode: t -*-
+// -*- Mode: Go; indent-tabs-mode: i -*-
 
 /*
  * Copyright (C) 2016 Canonical Ltd
@@ -28,27 +28,27 @@ import (
 	"github.com/ubuntu-core/snappy/snap"
 )
 
-// Repository stores all known snappy skills and slots and types.
+// Repository stores all known snappy plugs and slots and ifaces.
 type Repository struct {
 	// Protects the internals from concurrent access.
-	m     sync.Mutex
-	types map[string]Type
-	// Indexed by [snapName][skillName]
-	skills          map[string]map[string]*Skill
+	m      sync.Mutex
+	ifaces map[string]Interface
+	// Indexed by [snapName][plugName]
+	plugs           map[string]map[string]*Plug
 	slots           map[string]map[string]*Slot
-	slotSkills      map[*Slot]map[*Skill]bool
-	skillSlots      map[*Skill]map[*Slot]bool
+	slotPlugs       map[*Slot]map[*Plug]bool
+	plugSlots       map[*Plug]map[*Slot]bool
 	securityHelpers []securityHelper
 }
 
-// NewRepository creates an empty skill repository.
+// NewRepository creates an empty plug repository.
 func NewRepository() *Repository {
 	return &Repository{
-		types:      make(map[string]Type),
-		skills:     make(map[string]map[string]*Skill),
-		slots:      make(map[string]map[string]*Slot),
-		slotSkills: make(map[*Slot]map[*Skill]bool),
-		skillSlots: make(map[*Skill]map[*Slot]bool),
+		ifaces:    make(map[string]Interface),
+		plugs:     make(map[string]map[string]*Plug),
+		slots:     make(map[string]map[string]*Slot),
+		slotPlugs: make(map[*Slot]map[*Plug]bool),
+		plugSlots: make(map[*Plug]map[*Slot]bool),
 		securityHelpers: []securityHelper{
 			&appArmor{},
 			&secComp{},
@@ -58,134 +58,134 @@ func NewRepository() *Repository {
 	}
 }
 
-// Type returns a type with a given name.
-func (r *Repository) Type(typeName string) Type {
+// Interface returns an interface with a given name.
+func (r *Repository) Interface(interfaceName string) Interface {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	return r.types[typeName]
+	return r.ifaces[interfaceName]
 }
 
-// AddType adds the provided skill type to the repository.
-func (r *Repository) AddType(t Type) error {
+// AddInterface adds the provided interface to the repository.
+func (r *Repository) AddInterface(i Interface) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	typeName := t.Name()
-	if err := ValidateName(typeName); err != nil {
+	interfaceName := i.Name()
+	if err := ValidateName(interfaceName); err != nil {
 		return err
 	}
-	if _, ok := r.types[typeName]; ok {
-		return fmt.Errorf("cannot add skill type: %q, type name is in use", typeName)
+	if _, ok := r.ifaces[interfaceName]; ok {
+		return fmt.Errorf("cannot add interface: %q, interface name is in use", interfaceName)
 	}
-	r.types[typeName] = t
+	r.ifaces[interfaceName] = i
 	return nil
 }
 
-// AllSkills returns all skills of the given type.
-// If skillType is the empty string, all skills are returned.
-func (r *Repository) AllSkills(skillType string) []*Skill {
+// AllPlugs returns all plugs of the given interface.
+// If interfaceName is the empty string, all plugs are returned.
+func (r *Repository) AllPlugs(interfaceName string) []*Plug {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	var result []*Skill
-	for _, skillsForSnap := range r.skills {
-		for _, skill := range skillsForSnap {
-			if skillType == "" || skill.Type == skillType {
-				result = append(result, skill)
+	var result []*Plug
+	for _, plugsForSnap := range r.plugs {
+		for _, plug := range plugsForSnap {
+			if interfaceName == "" || plug.Interface == interfaceName {
+				result = append(result, plug)
 			}
 		}
 	}
-	sort.Sort(bySkillSnapAndName(result))
+	sort.Sort(byPlugSnapAndName(result))
 	return result
 }
 
-// Skills returns the skills offered by the named snap.
-func (r *Repository) Skills(snapName string) []*Skill {
+// Plugs returns the plugs offered by the named snap.
+func (r *Repository) Plugs(snapName string) []*Plug {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	var result []*Skill
-	for _, skill := range r.skills[snapName] {
-		result = append(result, skill)
+	var result []*Plug
+	for _, plug := range r.plugs[snapName] {
+		result = append(result, plug)
 	}
-	sort.Sort(bySkillSnapAndName(result))
+	sort.Sort(byPlugSnapAndName(result))
 	return result
 }
 
-// Skill returns the specified skill from the named snap.
-func (r *Repository) Skill(snapName, skillName string) *Skill {
+// Plug returns the specified plug from the named snap.
+func (r *Repository) Plug(snapName, plugName string) *Plug {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	return r.skills[snapName][skillName]
+	return r.plugs[snapName][plugName]
 }
 
-// AddSkill adds a skill to the repository.
-// Skill names must be valid snap names, as defined by ValidateName.
-// Skill name must be unique within a particular snap.
-func (r *Repository) AddSkill(skill *Skill) error {
+// AddPlug adds a plug to the repository.
+// Plug names must be valid snap names, as defined by ValidateName.
+// Plug name must be unique within a particular snap.
+func (r *Repository) AddPlug(plug *Plug) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
 	// Reject snaps with invalid names
-	if err := snap.ValidateName(skill.Snap); err != nil {
+	if err := snap.ValidateName(plug.Snap); err != nil {
 		return err
 	}
-	// Reject skill with invalid names
-	if err := ValidateName(skill.Name); err != nil {
+	// Reject plug with invalid names
+	if err := ValidateName(plug.Name); err != nil {
 		return err
 	}
-	t := r.types[skill.Type]
-	if t == nil {
-		return fmt.Errorf("cannot add skill, skill type %q is not known", skill.Type)
+	i := r.ifaces[plug.Interface]
+	if i == nil {
+		return fmt.Errorf("cannot add plug, interface %q is not known", plug.Interface)
 	}
-	// Reject skill that don't pass type-specific sanitization
-	if err := t.SanitizeSkill(skill); err != nil {
-		return fmt.Errorf("cannot add skill: %v", err)
+	// Reject plug that don'i pass interface-specific sanitization
+	if err := i.SanitizePlug(plug); err != nil {
+		return fmt.Errorf("cannot add plug: %v", err)
 	}
-	if _, ok := r.skills[skill.Snap][skill.Name]; ok {
-		return fmt.Errorf("cannot add skill, snap %q already has skill %q", skill.Snap, skill.Name)
+	if _, ok := r.plugs[plug.Snap][plug.Name]; ok {
+		return fmt.Errorf("cannot add plug, snap %q already has plug %q", plug.Snap, plug.Name)
 	}
-	if r.skills[skill.Snap] == nil {
-		r.skills[skill.Snap] = make(map[string]*Skill)
+	if r.plugs[plug.Snap] == nil {
+		r.plugs[plug.Snap] = make(map[string]*Plug)
 	}
-	r.skills[skill.Snap][skill.Name] = skill
+	r.plugs[plug.Snap][plug.Name] = plug
 	return nil
 }
 
-// RemoveSkill removes the named skill provided by a given snap.
-// The removed skill must exist and must not be used anywhere.
-func (r *Repository) RemoveSkill(snapName, skillName string) error {
+// RemovePlug removes the named plug provided by a given snap.
+// The removed plug must exist and must not be used anywhere.
+func (r *Repository) RemovePlug(snapName, plugName string) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	// Ensure that such skill exists
-	skill := r.skills[snapName][skillName]
-	if skill == nil {
-		return fmt.Errorf("cannot remove skill %q from snap %q, no such skill", skillName, snapName)
+	// Ensure that such plug exists
+	plug := r.plugs[snapName][plugName]
+	if plug == nil {
+		return fmt.Errorf("cannot remove plug %q from snap %q, no such plug", plugName, snapName)
 	}
-	// Ensure that the skill is not used by any slot
-	if len(r.skillSlots[skill]) > 0 {
-		return fmt.Errorf("cannot remove skill %q from snap %q, it is still granted", skillName, snapName)
+	// Ensure that the plug is not used by any slot
+	if len(r.plugSlots[plug]) > 0 {
+		return fmt.Errorf("cannot remove plug %q from snap %q, it is still connected", plugName, snapName)
 	}
-	delete(r.skills[snapName], skillName)
-	if len(r.skills[snapName]) == 0 {
-		delete(r.skills, snapName)
+	delete(r.plugs[snapName], plugName)
+	if len(r.plugs[snapName]) == 0 {
+		delete(r.plugs, snapName)
 	}
 	return nil
 }
 
-// AllSlots returns all skill slots of the given type.
-// If skillType is the empty string, all skill slots are returned.
-func (r *Repository) AllSlots(skillType string) []*Slot {
+// AllSlots returns all plug slots of the given interface.
+// If interfaceName is the empty string, all plug slots are returned.
+func (r *Repository) AllSlots(interfaceName string) []*Slot {
 	r.m.Lock()
 	defer r.m.Unlock()
 
 	var result []*Slot
 	for _, slotsForSnap := range r.slots {
 		for _, slot := range slotsForSnap {
-			if skillType == "" || slot.Type == skillType {
+			if interfaceName == "" || slot.Interface == interfaceName {
 				result = append(result, slot)
 			}
 		}
@@ -194,7 +194,7 @@ func (r *Repository) AllSlots(skillType string) []*Slot {
 	return result
 }
 
-// Slots returns the skill slots offered by the named snap.
+// Slots returns the plug slots offered by the named snap.
 func (r *Repository) Slots(snapName string) []*Slot {
 	r.m.Lock()
 	defer r.m.Unlock()
@@ -207,7 +207,7 @@ func (r *Repository) Slots(snapName string) []*Slot {
 	return result
 }
 
-// Slot returns the specified skill slot from the named snap.
+// Slot returns the specified plug slot from the named snap.
 func (r *Repository) Slot(snapName, slotName string) *Slot {
 	r.m.Lock()
 	defer r.m.Unlock()
@@ -226,20 +226,20 @@ func (r *Repository) AddSlot(slot *Slot) error {
 	if err := snap.ValidateName(slot.Snap); err != nil {
 		return err
 	}
-	// Reject skill with invalid names
+	// Reject plug with invalid names
 	if err := ValidateName(slot.Name); err != nil {
 		return err
 	}
 	// TODO: ensure that apps are correct
-	t := r.types[slot.Type]
-	if t == nil {
-		return fmt.Errorf("cannot add skill slot, skill type %q is not known", slot.Type)
+	i := r.ifaces[slot.Interface]
+	if i == nil {
+		return fmt.Errorf("cannot add slot, interface %q is not known", slot.Interface)
 	}
-	if err := t.SanitizeSlot(slot); err != nil {
+	if err := i.SanitizeSlot(slot); err != nil {
 		return fmt.Errorf("cannot add slot: %v", err)
 	}
 	if _, ok := r.slots[slot.Snap][slot.Name]; ok {
-		return fmt.Errorf("cannot add skill slot, snap %q already has slot %q", slot.Snap, slot.Name)
+		return fmt.Errorf("cannot add slot, snap %q already has slot %q", slot.Snap, slot.Name)
 	}
 	if r.slots[slot.Snap] == nil {
 		r.slots[slot.Snap] = make(map[string]*Slot)
@@ -250,7 +250,7 @@ func (r *Repository) AddSlot(slot *Slot) error {
 
 // RemoveSlot removes a named slot from the given snap.
 // Removing a slot that doesn't exist returns an error.
-// Removing a slot that uses a skill returns an error.
+// Removing a slot that is connected to a plug returns an error.
 func (r *Repository) RemoveSlot(snapName, slotName string) error {
 	r.m.Lock()
 	defer r.m.Unlock()
@@ -258,11 +258,11 @@ func (r *Repository) RemoveSlot(snapName, slotName string) error {
 	// Ensure that such slot exists
 	slot := r.slots[snapName][slotName]
 	if slot == nil {
-		return fmt.Errorf("cannot remove skill slot %q from snap %q, no such slot", slotName, snapName)
+		return fmt.Errorf("cannot remove plug slot %q from snap %q, no such slot", slotName, snapName)
 	}
-	// Ensure that the slot is not using any skills
-	if len(r.slotSkills[slot]) > 0 {
-		return fmt.Errorf("cannot remove slot %q from snap %q, it still uses granted skills", slotName, snapName)
+	// Ensure that the slot is not using any plugs
+	if len(r.slotPlugs[slot]) > 0 {
+		return fmt.Errorf("cannot remove slot %q from snap %q, it is still connected", slotName, snapName)
 	}
 	delete(r.slots[snapName], slotName)
 	if len(r.slots[snapName]) == 0 {
@@ -271,178 +271,178 @@ func (r *Repository) RemoveSlot(snapName, slotName string) error {
 	return nil
 }
 
-// Grant grants the named skill to the named slot of the given snap.
-// The skill and the slot must have the same type.
-func (r *Repository) Grant(skillSnapName, skillName, slotSnapName, slotName string) error {
+// Connect establishes a connection between a plug and a slot.
+// The plug and the slot must have the same interface.
+func (r *Repository) Connect(plugSnapName, plugName, slotSnapName, slotName string) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	// Ensure that such skill exists
-	skill := r.skills[skillSnapName][skillName]
-	if skill == nil {
-		return fmt.Errorf("cannot grant skill %q from snap %q, no such skill", skillName, skillSnapName)
+	// Ensure that such plug exists
+	plug := r.plugs[plugSnapName][plugName]
+	if plug == nil {
+		return fmt.Errorf("cannot connect plug %q from snap %q, no such plug", plugName, plugSnapName)
 	}
 	// Ensure that such slot exists
 	slot := r.slots[slotSnapName][slotName]
 	if slot == nil {
-		return fmt.Errorf("cannot grant skill to slot %q from snap %q, no such slot", slotName, slotSnapName)
+		return fmt.Errorf("cannot connect plug to slot %q from snap %q, no such slot", slotName, slotSnapName)
 	}
-	// Ensure that skill and slot are compatible
-	if slot.Type != skill.Type {
-		return fmt.Errorf(`cannot grant skill "%s:%s" (skill type %q) to "%s:%s" (skill type %q)`,
-			skillSnapName, skillName, skill.Type, slotSnapName, slotName, slot.Type)
+	// Ensure that plug and slot are compatible
+	if slot.Interface != plug.Interface {
+		return fmt.Errorf(`cannot connect plug "%s:%s" (interface %q) to "%s:%s" (interface %q)`,
+			plugSnapName, plugName, plug.Interface, slotSnapName, slotName, slot.Interface)
 	}
-	// Ensure that slot and skill are not connected yet
-	if r.slotSkills[slot][skill] {
-		// But if they are don't treat this as an error.
+	// Ensure that slot and plug are not connected yet
+	if r.slotPlugs[slot][plug] {
+		// But if they are don'i treat this as an error.
 		return nil
 	}
-	// Grant the skill
-	if r.slotSkills[slot] == nil {
-		r.slotSkills[slot] = make(map[*Skill]bool)
+	// Connect the plug
+	if r.slotPlugs[slot] == nil {
+		r.slotPlugs[slot] = make(map[*Plug]bool)
 	}
-	if r.skillSlots[skill] == nil {
-		r.skillSlots[skill] = make(map[*Slot]bool)
+	if r.plugSlots[plug] == nil {
+		r.plugSlots[plug] = make(map[*Slot]bool)
 	}
-	r.slotSkills[slot][skill] = true
-	r.skillSlots[skill][slot] = true
+	r.slotPlugs[slot][plug] = true
+	r.plugSlots[plug][slot] = true
 	return nil
 }
 
-// Revoke revokes the named skill from the slot of the given snap.
+// Disconnect disconnects the named plug from the slot of the given snap.
 //
-// Revoke has three modes of operation that depend on the passed arguments:
+// Disconnect has three modes of operation that depend on the passed arguments:
 //
-// - If all the arguments are specified then Revoke() finds a specific skill
-//   slot and a specific skill and revokes that skill from that skill slot. It is
-//   an error if skill or skill slot cannot be found or if the grant does not
+// - If all the arguments are specified then Disconnect() finds a specific plug
+//   slot and a specific plug and disconnects that plug from that plug slot. It is
+//   an error if plug or plug slot cannot be found or if the connect does not
 //   exist.
-// - If skillSnapName and skillName are empty then Revoke() finds the specified
-//   skill slot and revokes all the skills granted there. It is not an error if
-//   there are no such skills but it is still an error if the skill slot does
+// - If plugSnapName and plugName are empty then Disconnect() finds the specified
+//   plug slot and disconnects all the plugs connected there. It is not an error if
+//   there are no such plugs but it is still an error if the plug slot does
 //   not exist.
-// - If skillSnapName, skillName and slotName are all empty then Revoke finds
-//   the specified snap (designated by slotSnapName) and revokes all the skills
-//   from all the skill slots found therein. It is not an error if there are no
-//   such skills but it is still an error if the snap does not exist or has no
+// - If plugSnapName, plugName and slotName are all empty then Disconnect finds
+//   the specified snap (designated by slotSnapName) and disconnects all the plugs
+//   from all the plug slots found therein. It is not an error if there are no
+//   such plugs but it is still an error if the snap does not exist or has no
 //   slots at all.
-func (r *Repository) Revoke(skillSnapName, skillName, slotSnapName, slotName string) error {
+func (r *Repository) Disconnect(plugSnapName, plugName, slotSnapName, slotName string) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
 	switch {
-	case skillSnapName == "" && skillName == "" && slotName == "":
-		// Revoke everything from slotSnapName
-		return r.revokeEverythingFromSnap(slotSnapName)
-	case skillSnapName == "" && skillName == "":
-		// Revoke everything from slotSnapName:slotName
-		return r.revokeEverythingFromSkillSlot(slotSnapName, slotName)
+	case plugSnapName == "" && plugName == "" && slotName == "":
+		// Disconnect everything from slotSnapName
+		return r.disconnectEverythingFromSnap(slotSnapName)
+	case plugSnapName == "" && plugName == "":
+		// Disconnect everything from slotSnapName:slotName
+		return r.disconnectEverythingFromPlugSlot(slotSnapName, slotName)
 	default:
-		return r.revokeSkillFromSkillSlot(skillSnapName, skillName, slotSnapName, slotName)
+		return r.disconnectPlugFromPlugSlot(plugSnapName, plugName, slotSnapName, slotName)
 	}
 
 }
 
-// revokeEverythingFromSnap finds a specific snap and revokes all the skills granted to all the slots therein.
-func (r *Repository) revokeEverythingFromSnap(slotSnapName string) error {
+// disconnectEverythingFromSnap finds a specific snap and disconnects all the plugs connected to all the slots therein.
+func (r *Repository) disconnectEverythingFromSnap(slotSnapName string) error {
 	if _, ok := r.slots[slotSnapName]; !ok {
-		return fmt.Errorf("cannot revoke skill from snap %q, no such snap", slotSnapName)
+		return fmt.Errorf("cannot disconnect plug from snap %q, no such snap", slotSnapName)
 	}
 	for _, slot := range r.slots[slotSnapName] {
-		for skill := range r.slotSkills[slot] {
-			r.revoke(skill, slot)
+		for plug := range r.slotPlugs[slot] {
+			r.disconnect(plug, slot)
 		}
 	}
 	return nil
 }
 
-// revokeEverythingFromSkillSlot finds a specific skill slot and revokes all the skills granted there.
-func (r *Repository) revokeEverythingFromSkillSlot(slotSnapName, slotName string) error {
+// disconnectEverythingFromPlugSlot finds a specific plug slot and disconnects all the plugs connected there.
+func (r *Repository) disconnectEverythingFromPlugSlot(slotSnapName, slotName string) error {
 	// Ensure that such slot exists
 	slot := r.slots[slotSnapName][slotName]
 	if slot == nil {
-		return fmt.Errorf("cannot revoke skill from slot %q from snap %q, no such slot", slotName, slotSnapName)
+		return fmt.Errorf("cannot disconnect plug from slot %q from snap %q, no such slot", slotName, slotSnapName)
 	}
-	for skill := range r.slotSkills[slot] {
-		r.revoke(skill, slot)
+	for plug := range r.slotPlugs[slot] {
+		r.disconnect(plug, slot)
 	}
 	return nil
 }
 
-// revokeSkillFromSkillSlot finds a specific skill slot and skill and revokes it.
-func (r *Repository) revokeSkillFromSkillSlot(skillSnapName, skillName, slotSnapName, slotName string) error {
-	// Ensure that such skill exists
-	skill := r.skills[skillSnapName][skillName]
-	if skill == nil {
-		return fmt.Errorf("cannot revoke skill %q from snap %q, no such skill", skillName, skillSnapName)
+// disconnectPlugFromPlugSlot finds a specific plug slot and plug and disconnects it.
+func (r *Repository) disconnectPlugFromPlugSlot(plugSnapName, plugName, slotSnapName, slotName string) error {
+	// Ensure that such plug exists
+	plug := r.plugs[plugSnapName][plugName]
+	if plug == nil {
+		return fmt.Errorf("cannot disconnect plug %q from snap %q, no such plug", plugName, plugSnapName)
 	}
 	// Ensure that such slot exists
 	slot := r.slots[slotSnapName][slotName]
 	if slot == nil {
-		return fmt.Errorf("cannot revoke skill from slot %q from snap %q, no such slot", slotName, slotSnapName)
+		return fmt.Errorf("cannot disconnect plug from slot %q from snap %q, no such slot", slotName, slotSnapName)
 	}
-	// Ensure that slot and skill are connected
-	if !r.slotSkills[slot][skill] {
-		return fmt.Errorf("cannot revoke skill %q from snap %q from slot %q from snap %q, it is not granted",
-			skillName, skillSnapName, slotName, slotSnapName)
+	// Ensure that slot and plug are connected
+	if !r.slotPlugs[slot][plug] {
+		return fmt.Errorf("cannot disconnect plug %q from snap %q from slot %q from snap %q, it is not connected",
+			plugName, plugSnapName, slotName, slotSnapName)
 	}
-	r.revoke(skill, slot)
+	r.disconnect(plug, slot)
 	return nil
 }
 
-// revoke revokes a specific skill from a specific skill slot.
-func (r *Repository) revoke(skill *Skill, slot *Slot) {
-	delete(r.slotSkills[slot], skill)
-	if len(r.slotSkills[slot]) == 0 {
-		delete(r.slotSkills, slot)
+// disconnect disconnects a specific plug from a specific plug slot.
+func (r *Repository) disconnect(plug *Plug, slot *Slot) {
+	delete(r.slotPlugs[slot], plug)
+	if len(r.slotPlugs[slot]) == 0 {
+		delete(r.slotPlugs, slot)
 	}
-	delete(r.skillSlots[skill], slot)
-	if len(r.skillSlots[skill]) == 0 {
-		delete(r.skillSlots, skill)
+	delete(r.plugSlots[plug], slot)
+	if len(r.plugSlots[plug]) == 0 {
+		delete(r.plugSlots, plug)
 	}
 }
 
-// GrantedTo returns all the skills granted to a given snap.
-func (r *Repository) GrantedTo(snapName string) map[*Slot][]*Skill {
+// ConnectedTo returns all the plugs connected to a given snap.
+func (r *Repository) ConnectedTo(snapName string) map[*Slot][]*Plug {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	result := make(map[*Slot][]*Skill)
+	result := make(map[*Slot][]*Plug)
 	for _, slot := range r.slots[snapName] {
-		for skill := range r.slotSkills[slot] {
-			result[slot] = append(result[slot], skill)
+		for plug := range r.slotPlugs[slot] {
+			result[slot] = append(result[slot], plug)
 		}
-		sort.Sort(bySkillSnapAndName(result[slot]))
+		sort.Sort(byPlugSnapAndName(result[slot]))
 	}
 	return result
 }
 
-// GrantedBy returns all of the skills granted by a given snap.
-func (r *Repository) GrantedBy(snapName string) map[*Skill][]*Slot {
+// ConnectedBy returns all of the plugs connected by a given snap.
+func (r *Repository) ConnectedBy(snapName string) map[*Plug][]*Slot {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	result := make(map[*Skill][]*Slot)
-	for _, skill := range r.skills[snapName] {
-		for slot := range r.skillSlots[skill] {
-			result[skill] = append(result[skill], slot)
+	result := make(map[*Plug][]*Slot)
+	for _, plug := range r.plugs[snapName] {
+		for slot := range r.plugSlots[plug] {
+			result[plug] = append(result[plug], slot)
 		}
-		sort.Sort(bySlotSnapAndName(result[skill]))
+		sort.Sort(bySlotSnapAndName(result[plug]))
 	}
 	return result
 }
 
-// GrantsOf returns all of the slots that were granted the provided skill.
-func (r *Repository) GrantsOf(snapName, skillName string) []*Slot {
+// PlugConnections returns all of the slots that are connected a given plug.
+func (r *Repository) PlugConnections(snapName, plugName string) []*Slot {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	skill := r.skills[snapName][skillName]
-	if skill == nil {
+	plug := r.plugs[snapName][plugName]
+	if plug == nil {
 		return nil
 	}
 	var result []*Slot
-	for slot := range r.skillSlots[skill] {
+	for slot := range r.plugSlots[plug] {
 		result = append(result, slot)
 	}
 	sort.Sort(bySlotSnapAndName(result))
@@ -451,11 +451,11 @@ func (r *Repository) GrantsOf(snapName, skillName string) []*Slot {
 
 // Support for sort.Interface
 
-type bySkillSnapAndName []*Skill
+type byPlugSnapAndName []*Plug
 
-func (c bySkillSnapAndName) Len() int      { return len(c) }
-func (c bySkillSnapAndName) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
-func (c bySkillSnapAndName) Less(i, j int) bool {
+func (c byPlugSnapAndName) Len() int      { return len(c) }
+func (c byPlugSnapAndName) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
+func (c byPlugSnapAndName) Less(i, j int) bool {
 	if c[i].Snap != c[j].Snap {
 		return c[i].Snap < c[j].Snap
 	}
@@ -485,11 +485,11 @@ func (r *Repository) SecuritySnippetsForSnap(snapName string, securitySystem Sec
 
 func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem SecuritySystem) (map[string][][]byte, error) {
 	var snippets = make(map[string][][]byte)
-	// Find all of the skills that affect this app because of skill consumption.
+	// Find all of the plugs that affect this app because of plug consumption.
 	for _, slot := range r.slots[snapName] {
-		t := r.types[slot.Type]
-		for skill := range r.slotSkills[slot] {
-			snippet, err := t.SlotSecuritySnippet(skill, slot, securitySystem)
+		i := r.ifaces[slot.Interface]
+		for plug := range r.slotPlugs[slot] {
+			snippet, err := i.SlotSecuritySnippet(plug, slot, securitySystem)
 			if err != nil {
 				return nil, err
 			}
@@ -501,17 +501,17 @@ func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem Sec
 			}
 		}
 	}
-	// Find all of the skills that affect this app because of skill offer.
-	for _, skill := range r.skills[snapName] {
-		t := r.types[skill.Type]
-		snippet, err := t.SkillSecuritySnippet(skill, securitySystem)
+	// Find all of the plugs that affect this app because of plug offer.
+	for _, plug := range r.plugs[snapName] {
+		i := r.ifaces[plug.Interface]
+		snippet, err := i.PlugSecuritySnippet(plug, securitySystem)
 		if err != nil {
 			return nil, err
 		}
 		if snippet == nil {
 			continue
 		}
-		for _, app := range skill.Apps {
+		for _, app := range plug.Apps {
 			snippets[app] = append(snippets[app], snippet)
 		}
 	}

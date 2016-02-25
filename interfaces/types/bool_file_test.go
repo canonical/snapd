@@ -35,210 +35,210 @@ func Test(t *testing.T) {
 	TestingT(t)
 }
 
-type BoolFileTypeSuite struct {
+type BoolFileInterfaceSuite struct {
 	testutil.BaseTest
-	t                  interfaces.Type
-	gpioSkill          *interfaces.Skill
-	ledSkill           *interfaces.Skill
-	badPathSkill       *interfaces.Skill
-	parentDirPathSkill *interfaces.Skill
-	missingPathSkill   *interfaces.Skill
-	badTypeSkill       *interfaces.Skill
-	slot               *interfaces.Slot
-	badTypeSlot        *interfaces.Slot
+	iface             interfaces.Interface
+	gpioPlug          *interfaces.Plug
+	ledPlug           *interfaces.Plug
+	badPathPlug       *interfaces.Plug
+	parentDirPathPlug *interfaces.Plug
+	missingPathPlug   *interfaces.Plug
+	badInterfacePlug  *interfaces.Plug
+	slot              *interfaces.Slot
+	badInterfaceSlot  *interfaces.Slot
 }
 
-var _ = Suite(&BoolFileTypeSuite{
-	t: &types.BoolFileType{},
-	gpioSkill: &interfaces.Skill{
-		Type: "bool-file",
+var _ = Suite(&BoolFileInterfaceSuite{
+	iface: &types.BoolFileInterface{},
+	gpioPlug: &interfaces.Plug{
+		Interface: "bool-file",
 		Attrs: map[string]interface{}{
 			"path": "/sys/class/gpio/gpio13/value",
 		},
 	},
-	ledSkill: &interfaces.Skill{
-		Type: "bool-file",
+	ledPlug: &interfaces.Plug{
+		Interface: "bool-file",
 		Attrs: map[string]interface{}{
 			"path": "/sys/class/leds/input27::capslock/brightness",
 		},
 	},
-	missingPathSkill: &interfaces.Skill{
-		Type: "bool-file",
+	missingPathPlug: &interfaces.Plug{
+		Interface: "bool-file",
 	},
-	badPathSkill: &interfaces.Skill{
-		Type:  "bool-file",
-		Attrs: map[string]interface{}{"path": "path"},
+	badPathPlug: &interfaces.Plug{
+		Interface: "bool-file",
+		Attrs:     map[string]interface{}{"path": "path"},
 	},
-	parentDirPathSkill: &interfaces.Skill{
-		Type: "bool-file",
+	parentDirPathPlug: &interfaces.Plug{
+		Interface: "bool-file",
 		Attrs: map[string]interface{}{
 			"path": "/sys/class/gpio/../value",
 		},
 	},
-	badTypeSkill: &interfaces.Skill{
-		Type: "other-type",
+	badInterfacePlug: &interfaces.Plug{
+		Interface: "other-interface",
 	},
 	slot: &interfaces.Slot{
-		Type: "bool-file",
+		Interface: "bool-file",
 	},
-	badTypeSlot: &interfaces.Slot{
-		Type: "other-type",
+	badInterfaceSlot: &interfaces.Slot{
+		Interface: "other-interface",
 	},
 })
 
-func (s *BoolFileTypeSuite) TestName(c *C) {
-	c.Assert(s.t.Name(), Equals, "bool-file")
+func (s *BoolFileInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "bool-file")
 }
 
-func (s *BoolFileTypeSuite) TestSanitizeSkill(c *C) {
-	// Both LED and GPIO skills are accepted
-	err := s.t.SanitizeSkill(s.ledSkill)
+func (s *BoolFileInterfaceSuite) TestSanitizePlug(c *C) {
+	// Both LED and GPIO plugs are accepted
+	err := s.iface.SanitizePlug(s.ledPlug)
 	c.Assert(err, IsNil)
-	err = s.t.SanitizeSkill(s.gpioSkill)
+	err = s.iface.SanitizePlug(s.gpioPlug)
 	c.Assert(err, IsNil)
-	// Skills without the "path" attribute are rejected.
-	err = s.t.SanitizeSkill(s.missingPathSkill)
+	// Plugs without the "path" attribute are rejected.
+	err = s.iface.SanitizePlug(s.missingPathPlug)
 	c.Assert(err, ErrorMatches,
 		"bool-file must contain the path attribute")
-	// Skills without the "path" attribute are rejected.
-	err = s.t.SanitizeSkill(s.parentDirPathSkill)
+	// Plugs without the "path" attribute are rejected.
+	err = s.iface.SanitizePlug(s.parentDirPathPlug)
 	c.Assert(err, ErrorMatches,
 		"bool-file can only point at LED brightness or GPIO value")
-	// Skills with incorrect value of the "path" attribute are rejected.
-	err = s.t.SanitizeSkill(s.badPathSkill)
+	// Plugs with incorrect value of the "path" attribute are rejected.
+	err = s.iface.SanitizePlug(s.badPathPlug)
 	c.Assert(err, ErrorMatches,
 		"bool-file can only point at LED brightness or GPIO value")
-	// It is impossible to use "bool-file" type to sanitize skills of other types.
-	c.Assert(func() { s.t.SanitizeSkill(s.badTypeSkill) }, PanicMatches,
-		`skill is not of type "bool-file"`)
+	// It is impossible to use "bool-file" interface to sanitize plugs with other interfaces.
+	c.Assert(func() { s.iface.SanitizePlug(s.badInterfacePlug) }, PanicMatches,
+		`plug is not of interface "bool-file"`)
 }
 
-func (s *BoolFileTypeSuite) TestSanitizeSlot(c *C) {
-	err := s.t.SanitizeSlot(s.slot)
+func (s *BoolFileInterfaceSuite) TestSanitizeSlot(c *C) {
+	err := s.iface.SanitizeSlot(s.slot)
 	c.Assert(err, IsNil)
-	// It is impossible to use "bool-file" type to sanitize slots of other types.
-	c.Assert(func() { s.t.SanitizeSlot(s.badTypeSlot) }, PanicMatches,
-		`skill slot is not of type "bool-file"`)
+	// It is impossible to use "bool-file" interface to sanitize slots of different interface.
+	c.Assert(func() { s.iface.SanitizeSlot(s.badInterfaceSlot) }, PanicMatches,
+		`slot is not of interface "bool-file"`)
 }
 
-func (s *BoolFileTypeSuite) TestSlotSecuritySnippetHandlesSymlinkErrors(c *C) {
+func (s *BoolFileInterfaceSuite) TestSlotSecuritySnippetHandlesSymlinkErrors(c *C) {
 	// Symbolic link traversal is handled correctly
 	types.MockEvalSymlinks(&s.BaseTest, func(path string) (string, error) {
 		return "", fmt.Errorf("broken symbolic link")
 	})
-	snippet, err := s.t.SlotSecuritySnippet(s.gpioSkill, s.slot, interfaces.SecurityAppArmor)
-	c.Assert(err, ErrorMatches, "cannot compute skill slot security snippet: broken symbolic link")
+	snippet, err := s.iface.SlotSecuritySnippet(s.gpioPlug, s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, ErrorMatches, "cannot compute slot security snippet: broken symbolic link")
 	c.Assert(snippet, IsNil)
 }
 
-func (s *BoolFileTypeSuite) TestSlotSecuritySnippetDereferencesSymlinks(c *C) {
+func (s *BoolFileInterfaceSuite) TestSlotSecuritySnippetDereferencesSymlinks(c *C) {
 	// Use a fake (successful) dereferencing function for the remainder of the test.
 	types.MockEvalSymlinks(&s.BaseTest, func(path string) (string, error) {
 		return "(dereferenced)" + path, nil
 	})
 	// Extra apparmor permission to access GPIO value
 	// The path uses dereferenced symbolic links.
-	snippet, err := s.t.SlotSecuritySnippet(s.gpioSkill, s.slot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.SlotSecuritySnippet(s.gpioPlug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, []byte(
 		"(dereferenced)/sys/class/gpio/gpio13/value rwk,\n"))
 	// Extra apparmor permission to access LED brightness.
 	// The path uses dereferenced symbolic links.
-	snippet, err = s.t.SlotSecuritySnippet(s.ledSkill, s.slot, interfaces.SecurityAppArmor)
+	snippet, err = s.iface.SlotSecuritySnippet(s.ledPlug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, []byte(
 		"(dereferenced)/sys/class/leds/input27::capslock/brightness rwk,\n"))
 }
 
-func (s *BoolFileTypeSuite) TestSlotSecurityDoesNotContainSkillSecurity(c *C) {
+func (s *BoolFileInterfaceSuite) TestSlotSecurityDoesNotContainPlugSecurity(c *C) {
 	// Use a fake (successful) dereferencing function for the remainder of the test.
 	types.MockEvalSymlinks(&s.BaseTest, func(path string) (string, error) {
 		return path, nil
 	})
 	var err error
-	var skillSnippet, slotSnippet []byte
-	slotSnippet, err = s.t.SlotSecuritySnippet(s.gpioSkill, s.slot, interfaces.SecurityAppArmor)
+	var plugSnippet, slotSnippet []byte
+	slotSnippet, err = s.iface.SlotSecuritySnippet(s.gpioPlug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
-	skillSnippet, err = s.t.SkillSecuritySnippet(s.gpioSkill, interfaces.SecurityAppArmor)
+	plugSnippet, err = s.iface.PlugSecuritySnippet(s.gpioPlug, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
-	// Ensure that we don't accidentally give skill-side permissions to slot-side.
-	c.Assert(bytes.Contains(slotSnippet, skillSnippet), Equals, false)
+	// Ensure that we don't accidentally give plug-side permissions to slot-side.
+	c.Assert(bytes.Contains(slotSnippet, plugSnippet), Equals, false)
 }
 
-func (s *BoolFileTypeSuite) TestSlotSecuritySnippetPanicksOnUnsanitizedSkills(c *C) {
-	// Unsanitized skills should never be used and cause a panic.
+func (s *BoolFileInterfaceSuite) TestSlotSecuritySnippetPanicksOnUnsanitizedPlugs(c *C) {
+	// Unsanitized plugs should never be used and cause a panic.
 	c.Assert(func() {
-		s.t.SlotSecuritySnippet(s.missingPathSkill, s.slot, interfaces.SecurityAppArmor)
-	}, PanicMatches, "skill is not sanitized")
+		s.iface.SlotSecuritySnippet(s.missingPathPlug, s.slot, interfaces.SecurityAppArmor)
+	}, PanicMatches, "plug is not sanitized")
 }
 
-func (s *BoolFileTypeSuite) TestSlotSecuritySnippetUnusedSecuritySystems(c *C) {
-	for _, skill := range []*interfaces.Skill{s.ledSkill, s.gpioSkill} {
+func (s *BoolFileInterfaceSuite) TestSlotSecuritySnippetUnusedSecuritySystems(c *C) {
+	for _, plug := range []*interfaces.Plug{s.ledPlug, s.gpioPlug} {
 		// No extra seccomp permissions for slot
-		snippet, err := s.t.SlotSecuritySnippet(skill, s.slot, interfaces.SecuritySecComp)
+		snippet, err := s.iface.SlotSecuritySnippet(plug, s.slot, interfaces.SecuritySecComp)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 		// No extra dbus permissions for slot
-		snippet, err = s.t.SlotSecuritySnippet(skill, s.slot, interfaces.SecurityDBus)
+		snippet, err = s.iface.SlotSecuritySnippet(plug, s.slot, interfaces.SecurityDBus)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 		// No extra udev permissions for slot
-		snippet, err = s.t.SlotSecuritySnippet(skill, s.slot, interfaces.SecurityUDev)
+		snippet, err = s.iface.SlotSecuritySnippet(plug, s.slot, interfaces.SecurityUDev)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 		// No extra udev permissions for slot
-		snippet, err = s.t.SlotSecuritySnippet(skill, s.slot, interfaces.SecurityUDev)
+		snippet, err = s.iface.SlotSecuritySnippet(plug, s.slot, interfaces.SecurityUDev)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 		// Other security types are not recognized
-		snippet, err = s.t.SlotSecuritySnippet(skill, s.slot, "foo")
+		snippet, err = s.iface.SlotSecuritySnippet(plug, s.slot, "foo")
 		c.Assert(err, ErrorMatches, `unknown security system`)
 		c.Assert(snippet, IsNil)
 	}
 }
 
-func (s *BoolFileTypeSuite) TestSkillSecuritySnippetGivesExtraPermissionsToConfigureGPIOs(c *C) {
+func (s *BoolFileInterfaceSuite) TestPlugSecuritySnippetGivesExtraPermissionsToConfigureGPIOs(c *C) {
 	// Extra apparmor permission to provide GPIOs
 	expectedGPIOSnippet := []byte(`
 /sys/class/gpio/export rw,
 /sys/class/gpio/unexport rw,
 /sys/class/gpio/gpio[0-9]+/direction rw,
 `)
-	snippet, err := s.t.SkillSecuritySnippet(s.gpioSkill, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.PlugSecuritySnippet(s.gpioPlug, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, expectedGPIOSnippet)
 }
 
-func (s *BoolFileTypeSuite) TestSkillSecuritySnippetGivesNoExtraPermissionsToConfigureLEDs(c *C) {
+func (s *BoolFileInterfaceSuite) TestPlugSecuritySnippetGivesNoExtraPermissionsToConfigureLEDs(c *C) {
 	// No extra apparmor permission to provide LEDs
-	snippet, err := s.t.SkillSecuritySnippet(s.ledSkill, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.PlugSecuritySnippet(s.ledPlug, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 }
 
-func (s *BoolFileTypeSuite) TestSkillSecuritySnippetPanicksOnUnsanitizedSkills(c *C) {
-	// Unsanitized skills should never be used and cause a panic.
+func (s *BoolFileInterfaceSuite) TestPlugSecuritySnippetPanicksOnUnsanitizedPlugs(c *C) {
+	// Unsanitized plugs should never be used and cause a panic.
 	c.Assert(func() {
-		s.t.SkillSecuritySnippet(s.missingPathSkill, interfaces.SecurityAppArmor)
-	}, PanicMatches, "skill is not sanitized")
+		s.iface.PlugSecuritySnippet(s.missingPathPlug, interfaces.SecurityAppArmor)
+	}, PanicMatches, "plug is not sanitized")
 }
 
-func (s *BoolFileTypeSuite) TestSkillSecuritySnippetUnusedSecuritySystems(c *C) {
-	for _, skill := range []*interfaces.Skill{s.ledSkill, s.gpioSkill} {
-		// No extra seccomp permissions for skill
-		snippet, err := s.t.SkillSecuritySnippet(skill, interfaces.SecuritySecComp)
+func (s *BoolFileInterfaceSuite) TestPlugSecuritySnippetUnusedSecuritySystems(c *C) {
+	for _, plug := range []*interfaces.Plug{s.ledPlug, s.gpioPlug} {
+		// No extra seccomp permissions for plug
+		snippet, err := s.iface.PlugSecuritySnippet(plug, interfaces.SecuritySecComp)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
-		// No extra dbus permissions for skill
-		snippet, err = s.t.SkillSecuritySnippet(skill, interfaces.SecurityDBus)
+		// No extra dbus permissions for plug
+		snippet, err = s.iface.PlugSecuritySnippet(plug, interfaces.SecurityDBus)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
-		// No extra udev permissions for skill
-		snippet, err = s.t.SkillSecuritySnippet(skill, interfaces.SecurityUDev)
+		// No extra udev permissions for plug
+		snippet, err = s.iface.PlugSecuritySnippet(plug, interfaces.SecurityUDev)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 		// Other security types are not recognized
-		snippet, err = s.t.SkillSecuritySnippet(skill, "foo")
+		snippet, err = s.iface.PlugSecuritySnippet(plug, "foo")
 		c.Assert(err, ErrorMatches, `unknown security system`)
 		c.Assert(snippet, IsNil)
 	}

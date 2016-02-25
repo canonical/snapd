@@ -49,8 +49,8 @@ type Daemon struct {
 	router       *mux.Router
 	asserts      *asserts.Database
 	interfaces   *interfaces.Repository
-	// enableInternalSkillActions controls if adding and removing skills and slots is allowed.
-	enableInternalSkillActions bool
+	// enableInternalInterfaceActions controls if adding and removing skills and slots is allowed.
+	enableInternalInterfaceActions bool
 }
 
 // A ResponseFunc handles one of the individual verbs for a method
@@ -262,8 +262,8 @@ func New() *Daemon {
 		panic(err.Error())
 	}
 	interfacesRepo := interfaces.NewRepository()
-	for _, skillType := range types.AllTypes() {
-		if err := interfacesRepo.AddType(skillType); err != nil {
+	for _, iface := range types.AllInterfaces() {
+		if err := interfacesRepo.AddInterface(iface); err != nil {
 			panic(err.Error())
 		}
 	}
@@ -272,6 +272,6 @@ func New() *Daemon {
 		asserts:    db,
 		interfaces: interfacesRepo,
 		// TODO: Decide when this should be disabled by default.
-		enableInternalSkillActions: true,
+		enableInternalInterfaceActions: true,
 	}
 }
