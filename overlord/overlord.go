@@ -23,6 +23,7 @@ package overlord
 // Overlord is the central manager of a snappy system, keeping
 // track of all available state managers and related helpers.
 type Overlord struct {
+	stateEng *StateEngine
 	// managers
 	snapMgr   *SnapManager
 	assertMgr *AssertManager
@@ -31,31 +32,37 @@ type Overlord struct {
 
 // New creates a new Overlord with all its state managers.
 func New() (*Overlord, error) {
-	stateEng := NewStateEngine()
-
 	o := &Overlord{}
+
+	o.stateEng = NewStateEngine()
+
 	snapMgr, err := NewSnapManager(o)
 	if err != nil {
 		return nil, err
 	}
 	o.snapMgr = snapMgr
-	stateEng.AddManager(o.snapMgr)
+	o.stateEng.AddManager(o.snapMgr)
 
 	assertMgr, err := NewAssertManager(o)
 	if err != nil {
 		return nil, err
 	}
 	o.assertMgr = assertMgr
-	stateEng.AddManager(o.assertMgr)
+	o.stateEng.AddManager(o.assertMgr)
 
 	ifaceMgr, err := NewInterfaceManager(o)
 	if err != nil {
 		return nil, err
 	}
 	o.ifaceMgr = ifaceMgr
-	stateEng.AddManager(o.ifaceMgr)
+	o.stateEng.AddManager(o.ifaceMgr)
 
 	return o, nil
+}
+
+// StateEngine returns the state engine used by the overlord.
+func (o *Overlord) StateEngine() *StateEngine {
+	return o.stateEng
 }
 
 // SnapManager returns the snap manager responsible for snaps under
