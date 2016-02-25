@@ -90,15 +90,6 @@ func (s *State) Set(key string, value interface{}) {
 	s.entries[key] = &entryJSON
 }
 
-// Copy returns an independent copy of the state.
-func (s *State) Copy() *State {
-	entries := make(map[string]*json.RawMessage, len(s.entries))
-	for k, s := range s.entries {
-		entries[k] = s
-	}
-	return &State{entries: entries}
-}
-
 // WriteState serializes the provided state into w.
 // XXX: this should go away
 func WriteState(s *State, w io.Writer) error {

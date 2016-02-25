@@ -89,29 +89,6 @@ func (ss *stateSuite) TestGetUnmarshalProblem(c *C) {
 	c.Check(err, ErrorMatches, `internal error: could not unmarshal state entry "mgr9": json: cannot unmarshal .*`)
 }
 
-func (ss *stateSuite) TestCopy(c *C) {
-	st := overlord.NewState(nil)
-	mSt1 := &mgrState1{A: "foo"}
-	st.Set("mgr1", mSt1)
-	cnt := &Count2{B: 42}
-	mSt2 := &mgrState2{C: cnt}
-	st.Set("mgr2", mSt2)
-
-	stCopy := st.Copy()
-
-	var mSt1B mgrState1
-	err := stCopy.Get("mgr1", &mSt1B)
-	c.Assert(err, IsNil)
-	c.Check(&mSt1B, DeepEquals, mSt1)
-
-	var mSt2B mgrState2
-	err = stCopy.Get("mgr2", &mSt2B)
-	c.Assert(err, IsNil)
-	c.Check(&mSt2B, DeepEquals, mSt2)
-
-	c.Check(mSt2B.C, Not(Equals), cnt)
-}
-
 func (ss *stateSuite) TestWriteAndRead(c *C) {
 	st := overlord.NewState(nil)
 	st.Set("v", 1)
