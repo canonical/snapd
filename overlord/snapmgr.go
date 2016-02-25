@@ -29,13 +29,13 @@ func NewSnapManager(o *Overlord) (*SnapManager, error) {
 	return &SnapManager{o: o}, nil
 }
 
-// Install records the intent of installing snap in state s.
-func (m *SnapManager) Install(s *State, snap string) error {
+// Install initiates a change installing snap.
+func (m *SnapManager) Install(snap string) error {
 	return nil
 }
 
-// Remove records the intent of removing snap in state s.
-func (m *SnapManager) Remove(s *State, snap string) error {
+// Remove initiates a change removing snap.
+func (m *SnapManager) Remove(snap string) error {
 	return nil
 }
 
