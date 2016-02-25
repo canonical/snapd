@@ -26,8 +26,9 @@ import (
 
 // Plug represents a capacity offered by a snap.
 type Plug struct {
-	Name      string                 `json:"name"`
-	Snap      string                 `json:"snap"`
+	Name string `json:"name"`
+	Snap string `json:"snap"`
+	// NOTE: json format intentionally using old "skill" terminology
 	Interface string                 `json:"type,omitempty"`
 	Attrs     map[string]interface{} `json:"attrs,omitempty"`
 	Apps      []string               `json:"apps,omitempty"`
@@ -36,8 +37,9 @@ type Plug struct {
 
 // Slot represents the potential of a given snap to connect to a given plug.
 type Slot struct {
-	Name      string                 `json:"name"`
-	Snap      string                 `json:"snap"`
+	Name string `json:"name"`
+	Snap string `json:"snap"`
+	// NOTE: json format intentionally using old "skill" terminology
 	Interface string                 `json:"type,omitempty"`
 	Attrs     map[string]interface{} `json:"attrs,omitempty"`
 	Apps      []string               `json:"apps,omitempty"`
@@ -47,14 +49,16 @@ type Slot struct {
 // PlugConnections represents a single plug and slots that are connected to it.
 type PlugConnections struct {
 	Plug
+	// NOTE: json format intentionally using old "skill" terminology
 	Connections []Slot `json:"granted_to"`
 }
 
 // InterfaceAction represents an action performed on the interface system.
 type InterfaceAction struct {
 	Action string `json:"action"`
-	Plug   *Plug  `json:"skill,omitempty"`
-	Slot   *Slot  `json:"slot,omitempty"`
+	// NOTE: json format intentionally using old "skill" terminology
+	Plug *Plug `json:"skill,omitempty"`
+	Slot *Slot `json:"slot,omitempty"`
 }
 
 // AllPlugs returns information about all the plugs and their connections.
