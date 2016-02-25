@@ -81,7 +81,8 @@ func (s *Subscriber) Notify(n *Notification) error {
 
 func (s *Subscriber) canAccept(n *Notification) bool {
 	if s.resource != "" {
-		return s.resource == n.Resource
+		// notification has full resource path while we have the uuid portion
+		return strings.HasSuffix(n.Resource, s.resource)
 	}
 
 	if len(s.types) > 0 {
