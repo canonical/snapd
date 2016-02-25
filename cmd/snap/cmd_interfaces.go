@@ -85,7 +85,28 @@ func (x *cmdInterfaces) Execute(args []string) error {
 					fmt.Fprintf(w, "%s", plug.Connections[i].Snap)
 				}
 			}
+			// Display visual indicator for disconnected plugs
+			if len(plug.Connections) == 0 {
+				fmt.Fprint(w, "--")
+			}
 			fmt.Fprintf(w, "\n")
+		}
+		// Slots are treated differently. Since the loop above already printed each connected
+		// slot, the loop below focuses on printing just the disconnected slots.
+		for _, slot := range conns.Slots {
+			if x.Positionals.Query.Snap != "" && x.Positionals.Query.Snap != slot.Snap {
+				continue
+			}
+			if x.Positionals.Query.Name != "" && x.Positionals.Query.Name != slot.Slot.Slot {
+				continue
+			}
+			if x.Interface != "" && slot.Interface != x.Interface {
+				continue
+			}
+			// Display visual indicator for disconnected slots.
+			if len(slot.Connections) == 0 {
+				fmt.Fprintf(w, "--\t%s:%s\n", slot.Snap, slot.Slot.Slot)
+			}
 		}
 	}
 	return err
