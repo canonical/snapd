@@ -38,19 +38,32 @@ var Contains check.Checker = &containsChecker{
 }
 
 func commonEquals(container, elem interface{}, result *bool, error *string) bool {
-	switch containerV := reflect.ValueOf(container); containerV.Kind() {
+	containerV := reflect.ValueOf(container)
+	elemV := reflect.ValueOf(elem)
+	switch containerV.Kind() {
 	case reflect.Slice, reflect.Array, reflect.Map:
-		// Ensure that type of elements in container is compatible with elem
-		if elemV := reflect.ValueOf(elem); containerV.Type().Elem() != elemV.Type() {
-			*result = false
-			*error = fmt.Sprintf(
-				"container has items of type %s but expected element is a %s",
-				containerV.Type().Elem(), elemV.Type())
-			return true
+		containerElemType := containerV.Type().Elem()
+		if containerElemType.Kind() == reflect.Interface {
+			// Ensure that element implements the type of elements stored in the container.
+			if !elemV.Type().Implements(containerElemType) {
+				*result = false
+				*error = fmt.Sprintf(""+
+					"container has items of interface type %s but expected"+
+					" element does not implement it", containerElemType)
+				return true
+			}
+		} else {
+			// Ensure that type of elements in container is compatible with elem
+			if containerElemType != elemV.Type() {
+				*result = false
+				*error = fmt.Sprintf(
+					"container has items of type %s but expected element is a %s",
+					containerElemType, elemV.Type())
+				return true
+			}
 		}
 	case reflect.String:
 		// When container is a string, we expect elem to be a string as well
-		elemV := reflect.ValueOf(elem)
 		if elemV.Kind() != reflect.String {
 			*result = false
 			*error = fmt.Sprintf("element is a %T but expected a string", elem)
