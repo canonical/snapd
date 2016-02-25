@@ -131,7 +131,7 @@ var (
 	interfacesCmd = &Command{
 		Path:   "/2.0/interfaces",
 		UserOK: true,
-		GET:    getPlugs,
+		GET:    getInterfaces,
 		POST:   changeInterfaces,
 	}
 
@@ -922,38 +922,73 @@ func appIconGet(c *Command, r *http.Request) Response {
 // plugConnection holds the identification of a slot that has been connected to a plug.
 type plugConnection struct {
 	Snap string `json:"snap"`
-	Name string `json:"slot"` // This is the slot name
+	Slot string `json:"slot"`
+}
+
+// slotConnection holds the identification of a plug that has been connected to a slot.
+type slotConnection struct {
+	Snap string `json:"snap"`
+	Plug string `json:"plug"`
 }
 
 // plugInfo holds details for a plug as returned by the REST API.
 type plugInfo struct {
 	Snap        string           `json:"snap"`
-	Name        string           `json:"plug"`
+	Plug        string           `json:"plug"`
 	Interface   string           `json:"interface"`
 	Label       string           `json:"label"`
 	Connections []plugConnection `json:"connections"`
 }
 
-// getPlugs returns a response with a list of all the plugs and which slots use them.
-func getPlugs(c *Command, r *http.Request) Response {
-	var plugs []plugInfo
+// slotInfo holds details for a slot as returned by the REST API.
+type slotInfo struct {
+	Snap        string           `json:"snap"`
+	Slot        string           `json:"slot"`
+	Interface   string           `json:"interface"`
+	Label       string           `json:"label"`
+	Connections []slotConnection `json:"connections"`
+}
+
+// interfaceConnections contains information about all plugs, slots and their connections
+type interfaceConnections struct {
+	Plugs []plugInfo `json:"plugs"`
+	Slots []slotInfo `json:"slots"`
+}
+
+// getInterfaces returns a response with a list of all the plugs and slots and their connections.
+func getInterfaces(c *Command, r *http.Request) Response {
+	var resp interfaceConnections
 	for _, plug := range c.d.interfaces.AllPlugs("") {
-		var slots []plugConnection
+		info := plugInfo{
+			Snap:      plug.Snap,
+			Plug:      plug.Plug,
+			Interface: plug.Interface,
+			Label:     plug.Label,
+		}
 		for _, slot := range c.d.interfaces.PlugConnections(plug.Snap, plug.Plug) {
-			slots = append(slots, plugConnection{
+			info.Connections = append(info.Connections, plugConnection{
 				Snap: slot.Snap,
-				Name: slot.Slot,
+				Slot: slot.Slot,
 			})
 		}
-		plugs = append(plugs, plugInfo{
-			Snap:        plug.Snap,
-			Name:        plug.Plug,
-			Interface:   plug.Interface,
-			Label:       plug.Label,
-			Connections: slots,
-		})
+		resp.Plugs = append(resp.Plugs, info)
 	}
-	return SyncResponse(plugs)
+	for _, slot := range c.d.interfaces.AllSlots("") {
+		info := slotInfo{
+			Snap:      slot.Snap,
+			Slot:      slot.Slot,
+			Interface: slot.Interface,
+			Label:     slot.Label,
+		}
+		for _, plug := range c.d.interfaces.SlotConnections(slot.Snap, slot.Slot) {
+			info.Connections = append(info.Connections, slotConnection{
+				Snap: plug.Snap,
+				Plug: plug.Plug,
+			})
+		}
+		resp.Slots = append(resp.Slots, info)
+	}
+	return SyncResponse(resp)
 }
 
 // interfaceAction is an action performed on the plug system.
