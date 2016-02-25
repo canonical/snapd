@@ -1,3 +1,9 @@
+ubuntu-core-launcher (1.0.18) xenial; urgency=medium
+
+  * re-enable running all tests on `make`
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 25 Feb 2016 16:01:51 +0100
+
 ubuntu-core-launcher (1.0.17) xenial; urgency=medium
 
   * debian/usr.bin.ubuntu-core-launcher: add directory reads needed for
