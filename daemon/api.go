@@ -129,7 +129,7 @@ var (
 	}
 
 	interfacesCmd = &Command{
-		Path:   "/2.0/skills",
+		Path:   "/2.0/interfaces",
 		UserOK: true,
 		GET:    getPlugs,
 		POST:   changeInterfaces,
@@ -928,9 +928,9 @@ type plugConnection struct {
 type plugInfo struct {
 	Snap        string           `json:"snap"`
 	Name        string           `json:"name"`
-	Interface   string           `json:"type"`
+	Interface   string           `json:"interface"`
 	Label       string           `json:"label"`
-	Connections []plugConnection `json:"granted_to"`
+	Connections []plugConnection `json:"connections"`
 }
 
 // getPlugs returns a response with a list of all the plugs and which slots use them.
@@ -975,17 +975,17 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 	if a.Action == "" {
 		return BadRequest("interface action not specified")
 	}
-	if !c.d.enableInternalInterfaceActions && a.Action != "grant" && a.Action != "revoke" {
+	if !c.d.enableInternalInterfaceActions && a.Action != "connect" && a.Action != "disconnect" {
 		return BadRequest("internal interface actions are disabled")
 	}
 	switch a.Action {
-	case "grant":
+	case "connect":
 		err := c.d.interfaces.Connect(a.Plug.Snap, a.Plug.Name, a.Slot.Snap, a.Slot.Name)
 		if err != nil {
 			return BadRequest("%v", err)
 		}
 		return SyncResponse(nil)
-	case "revoke":
+	case "disconnect":
 		err := c.d.interfaces.Disconnect(a.Plug.Snap, a.Plug.Name, a.Slot.Snap, a.Slot.Name)
 		if err != nil {
 			return BadRequest("%v", err)
