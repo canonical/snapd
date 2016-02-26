@@ -656,3 +656,21 @@ Sample input:
     “slot”:   {“snap”: “keyboard-lights”, “name”: “capslock-led”}
 }
 ```
+
+## /2.0/branding
+
+### `GET`
+
+* Description: Branding details of the installed gadget
+* Access: guest
+* Operation: sync
+* Return: branding details or standard error if a gadget snap is not installed
+
+#### Sample result:
+
+:``javascript
+{
+    "name": "amd64",
+    "subname": "generic"
+}
+```
