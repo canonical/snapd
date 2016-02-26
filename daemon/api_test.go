@@ -1317,7 +1317,7 @@ func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 		"status_code": 200.0,
 		"type":        "sync",
 	})
-	for slot, plugs := range d.interfaces.ConnectedTo("consumer") {
+	for slot, plugs := range d.interfaces.ConnectedSlots("consumer") {
 		c.Check(slot.Snap, check.Equals, "consumer")
 		c.Check(slot.Name, check.Equals, "slot")
 		for _, plug := range plugs {
@@ -1325,7 +1325,7 @@ func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 			c.Check(plug.Name, check.Equals, "plug")
 		}
 	}
-	for plug, slots := range d.interfaces.ConnectedBy("producer") {
+	for plug, slots := range d.interfaces.ConnectedPlugs("producer") {
 		c.Check(plug.Snap, check.Equals, "producer")
 		c.Check(plug.Name, check.Equals, "plug")
 		for _, slot := range slots {
@@ -1371,8 +1371,8 @@ func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Check(d.interfaces.ConnectedTo("consumer"), check.HasLen, 0)
-	c.Check(d.interfaces.ConnectedBy("producer"), check.HasLen, 0)
+	c.Check(d.interfaces.ConnectedSlots("consumer"), check.HasLen, 0)
+	c.Check(d.interfaces.ConnectedPlugs("producer"), check.HasLen, 0)
 }
 
 func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
@@ -1409,8 +1409,8 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Check(d.interfaces.ConnectedTo("consumer"), check.HasLen, 0)
-	c.Check(d.interfaces.ConnectedBy("producer"), check.HasLen, 0)
+	c.Check(d.interfaces.ConnectedSlots("consumer"), check.HasLen, 0)
+	c.Check(d.interfaces.ConnectedPlugs("producer"), check.HasLen, 0)
 }
 
 func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
@@ -1447,8 +1447,8 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Check(d.interfaces.ConnectedTo("consumer"), check.HasLen, 0)
-	c.Check(d.interfaces.ConnectedBy("producer"), check.HasLen, 0)
+	c.Check(d.interfaces.ConnectedSlots("consumer"), check.HasLen, 0)
+	c.Check(d.interfaces.ConnectedPlugs("producer"), check.HasLen, 0)
 }
 
 func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
@@ -1485,8 +1485,8 @@ func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
 		"status_code": 200.0,
 		"type":        "sync",
 	})
-	c.Check(d.interfaces.ConnectedTo("consumer"), check.HasLen, 0)
-	c.Check(d.interfaces.ConnectedBy("producer"), check.HasLen, 0)
+	c.Check(d.interfaces.ConnectedSlots("consumer"), check.HasLen, 0)
+	c.Check(d.interfaces.ConnectedPlugs("producer"), check.HasLen, 0)
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
@@ -1523,8 +1523,8 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Check(d.interfaces.ConnectedTo("consumer"), check.HasLen, 0)
-	c.Check(d.interfaces.ConnectedBy("producer"), check.HasLen, 0)
+	c.Check(d.interfaces.ConnectedSlots("consumer"), check.HasLen, 0)
+	c.Check(d.interfaces.ConnectedPlugs("producer"), check.HasLen, 0)
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
@@ -1561,8 +1561,8 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Check(d.interfaces.ConnectedTo("consumer"), check.HasLen, 0)
-	c.Check(d.interfaces.ConnectedBy("producer"), check.HasLen, 0)
+	c.Check(d.interfaces.ConnectedSlots("consumer"), check.HasLen, 0)
+	c.Check(d.interfaces.ConnectedPlugs("producer"), check.HasLen, 0)
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
@@ -1600,8 +1600,8 @@ func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Check(d.interfaces.ConnectedTo("consumer"), check.HasLen, 0)
-	c.Check(d.interfaces.ConnectedBy("producer"), check.HasLen, 0)
+	c.Check(d.interfaces.ConnectedSlots("consumer"), check.HasLen, 0)
+	c.Check(d.interfaces.ConnectedPlugs("producer"), check.HasLen, 0)
 }
 
 func (s *apiSuite) TestAddPlugSuccess(c *check.C) {
