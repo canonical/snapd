@@ -1,4 +1,4 @@
-// -*- Mode: Go; indent-tabs-mode: i -*-
+// -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
  * Copyright (C) 2015 Canonical Ltd
