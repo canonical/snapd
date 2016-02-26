@@ -36,7 +36,7 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/interfaces"
-	"github.com/ubuntu-core/snappy/interfaces/types"
+	"github.com/ubuntu-core/snappy/interfaces/builtin"
 	"github.com/ubuntu-core/snappy/logger"
 )
 
@@ -262,7 +262,7 @@ func New() *Daemon {
 		panic(err.Error())
 	}
 	interfacesRepo := interfaces.NewRepository()
-	for _, iface := range types.AllInterfaces() {
+	for _, iface := range builtin.AllInterfaces() {
 		if err := interfacesRepo.AddInterface(iface); err != nil {
 			panic(err.Error())
 		}
