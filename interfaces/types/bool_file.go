@@ -80,7 +80,7 @@ func (iface *BoolFileInterface) SanitizeSlot(plug *interfaces.Slot) error {
 // PlugSecuritySnippet returns the configuration snippet required to provide a bool-file interface.
 // Producers gain control over exporting, importing GPIOs as well as
 // controlling the direction of particular pins.
-func (iface *BoolFileInterface) PlugSecuritySnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *BoolFileInterface) PlugSecuritySnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	gpioSnippet := []byte(`
 /sys/class/gpio/export rw,
 /sys/class/gpio/unexport rw,

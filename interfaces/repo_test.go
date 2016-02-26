@@ -802,7 +802,7 @@ func (s *RepositorySuite) TestSlotSnippetsForSnapSuccess(c *C) {
 	const testSecurity SecuritySystem = "security"
 	iface := &TestInterface{
 		InterfaceName: "interface",
-		PlugSecuritySnippetCallback: func(plug *Plug, securitySystem SecuritySystem) ([]byte, error) {
+		PlugSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == testSecurity {
 				return []byte(`producer snippet`), nil
 			}
@@ -846,7 +846,7 @@ func (s *RepositorySuite) TestSecuritySnippetsForSnapFailure(c *C) {
 		SlotSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			return nil, fmt.Errorf("cannot compute snippet for consumer")
 		},
-		PlugSecuritySnippetCallback: func(plug *Plug, securitySystem SecuritySystem) ([]byte, error) {
+		PlugSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			return nil, fmt.Errorf("cannot compute snippet for provider")
 		},
 	}
