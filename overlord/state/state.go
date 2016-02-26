@@ -49,7 +49,7 @@ type State struct {
 	mu  sync.Mutex
 	muC int32
 	// storage
-	backend StateBackend
+	backend Backend
 	entries map[string]*json.RawMessage
 }
 
