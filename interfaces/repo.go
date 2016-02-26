@@ -536,6 +536,23 @@ func (r *Repository) SecurityFilesForSnap(snapName string) (map[string][]byte, e
 	return blobs, nil
 }
 
+// SecurityCommandsForSnap returns the commands required to change effective security for a given snap.
+func (r *Repository) SecurityCommandsForSnap(snapName string) (cmds [][]string, err error) {
+	r.m.Lock()
+	defer r.m.Unlock()
+	for _, helper := range r.securityHelpers {
+		for _, appName := range appInSnap(snapName) {
+			cmds = append(cmds, helper.cmdsToRun(snapName, appName)...)
+		}
+	}
+	return
+}
+
+// XXX: this is a dummy implementation
+func appInSnap(snapName string) []string {
+	return nil
+}
+
 func (r *Repository) collectFilesFromSecurityHelper(snapName string, helper securityHelper, buffers map[string]*bytes.Buffer) error {
 	securitySystem := helper.securitySystem()
 	appSnippets, err := r.securitySnippetsForSnap(snapName, securitySystem)
