@@ -66,7 +66,7 @@ func (s *State) checkpointData() []byte {
 	data, err := json.Marshal(s.entries)
 	if err != nil {
 		// this shouldn't happen, because the actual delicate serializing happens at various Set()s
-		logger.Panicf("internal error: could not marshal state for checkpoiting: %v", err)
+		logger.Panicf("internal error: could not marshal state for checkpointing: %v", err)
 	}
 	return data
 }
