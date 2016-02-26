@@ -140,7 +140,7 @@ func (r *Repository) AddPlug(plug *Plug) error {
 	if i == nil {
 		return fmt.Errorf("cannot add plug, interface %q is not known", plug.Interface)
 	}
-	// Reject plug that don'i pass interface-specific sanitization
+	// Reject plug that don't pass interface-specific sanitization
 	if err := i.SanitizePlug(plug); err != nil {
 		return fmt.Errorf("cannot add plug: %v", err)
 	}
@@ -294,7 +294,7 @@ func (r *Repository) Connect(plugSnapName, plugName, slotSnapName, slotName stri
 	}
 	// Ensure that slot and plug are not connected yet
 	if r.slotPlugs[slot][plug] {
-		// But if they are don'i treat this as an error.
+		// But if they are don't treat this as an error.
 		return nil
 	}
 	// Connect the plug
