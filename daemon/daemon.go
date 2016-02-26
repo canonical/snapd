@@ -262,7 +262,7 @@ func New() *Daemon {
 		panic(err.Error())
 	}
 	interfacesRepo := interfaces.NewRepository()
-	for _, iface := range builtin.AllInterfaces() {
+	for _, iface := range builtin.Interfaces() {
 		if err := interfacesRepo.AddInterface(iface); err != nil {
 			panic(err.Error())
 		}
