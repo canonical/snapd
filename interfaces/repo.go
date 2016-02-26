@@ -176,8 +176,8 @@ func (r *Repository) RemovePlug(snapName, plugName string) error {
 	return nil
 }
 
-// AllSlots returns all plug slots of the given interface.
-// If interfaceName is the empty string, all plug slots are returned.
+// AllSlots returns all slots of the given interface.
+// If interfaceName is the empty string, all slots are returned.
 func (r *Repository) AllSlots(interfaceName string) []*Slot {
 	r.m.Lock()
 	defer r.m.Unlock()
@@ -194,7 +194,7 @@ func (r *Repository) AllSlots(interfaceName string) []*Slot {
 	return result
 }
 
-// Slots returns the plug slots offered by the named snap.
+// Slots returns the slots offered by the named snap.
 func (r *Repository) Slots(snapName string) []*Slot {
 	r.m.Lock()
 	defer r.m.Unlock()
@@ -323,7 +323,7 @@ func (r *Repository) Connect(plugSnapName, plugName, slotSnapName, slotName stri
 //   not exist.
 // - If plugSnapName, plugName and slotName are all empty then Disconnect finds
 //   the specified snap (designated by slotSnapName) and disconnects all the plugs
-//   from all the plug slots found therein. It is not an error if there are no
+//   from all the slots found therein. It is not an error if there are no
 //   such plugs but it is still an error if the snap does not exist or has no
 //   slots at all.
 func (r *Repository) Disconnect(plugSnapName, plugName, slotSnapName, slotName string) error {
