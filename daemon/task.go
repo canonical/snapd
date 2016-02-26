@@ -24,11 +24,13 @@ import (
 
 	"github.com/gorilla/mux"
 	"gopkg.in/tomb.v2"
+
+	"github.com/ubuntu-core/snappy/uuid"
 )
 
 // A Task encapsulates an asynchronous operation.
 type Task struct {
-	id     UUID
+	id     uuid.UUID
 	tomb   tomb.Tomb
 	t0     time.Time
 	tf     time.Time
@@ -115,7 +117,7 @@ func (t *Task) Map(route *mux.Route) map[string]interface{} {
 
 // RunTask creates a Task for the given function and runs it.
 func RunTask(f func() interface{}) *Task {
-	id := UUID4()
+	id := uuid.UUID4()
 	t0 := time.Now()
 	t := &Task{
 		id: id,
