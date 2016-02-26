@@ -27,7 +27,7 @@ var allInterfaces = []interfaces.Interface{
 	&BoolFileInterface{},
 }
 
-// AllInterfaces returns a slice of all the interfaces.
-func AllInterfaces() []interfaces.Interface {
+// Interfaces returns all of the built-in interfaces.
+func Interfaces() []interfaces.Interface {
 	return allInterfaces
 }

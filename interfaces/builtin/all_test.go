@@ -30,7 +30,7 @@ type AllSuite struct{}
 
 var _ = Suite(&AllSuite{})
 
-func (s *AllSuite) TestAllInterfaces(c *C) {
-	allInterfaces := builtin.AllInterfaces()
-	c.Check(allInterfaces, Contains, &builtin.BoolFileInterface{})
+func (s *AllSuite) TestInterfaces(c *C) {
+	all := builtin.Interfaces()
+	c.Check(all, Contains, &builtin.BoolFileInterface{})
 }
