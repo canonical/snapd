@@ -80,7 +80,7 @@ func (x *cmdInstall) doInstall() error {
 	fmt.Printf(i18n.G("Installing %s\n"), pkgName)
 
 	channel := release.Get().Channel
-	if idx := strings.IndexByte(pkgName, '/'); !helpers.FileExists(pkgName) && idx > -1 {
+	if idx := strings.IndexByte(pkgName, '/'); idx > -1 && !helpers.FileExists(pkgName) {
 		pkgName, channel = pkgName[:idx], pkgName[idx+1:]
 	}
 
