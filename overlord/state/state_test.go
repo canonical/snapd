@@ -234,3 +234,32 @@ func (ss *stateSuite) TestImplicitCheckpointPanicsAfterFailedRetries(c *C) {
 	c.Check(retries > 2, Equals, true)
 	c.Check(time.Since(t0) > 10*time.Millisecond, Equals, true)
 }
+
+func (ss *stateSuite) TestNewChangeAndCheckpoint(c *C) {
+	b := new(fakeStateBackend)
+	st := state.New(b)
+	st.Lock()
+
+	chg := st.NewChange("install", "...")
+	c.Assert(chg, NotNil)
+	chgID := chg.ID()
+
+	// implicit checkpoint
+	st.Unlock()
+
+	c.Assert(b.checkpoints, HasLen, 1)
+
+	buf := bytes.NewBuffer(b.checkpoints[0])
+
+	st2, err := state.ReadState(nil, buf)
+	c.Assert(err, IsNil)
+	c.Assert(st2, NotNil)
+
+	st2.Lock()
+	defer st2.Unlock()
+
+	chgs := st2.Changes()
+
+	c.Assert(chgs, HasLen, 1)
+	c.Check(chgs[0].ID(), Equals, chgID)
+}

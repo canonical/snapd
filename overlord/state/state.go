@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -52,6 +53,7 @@ type State struct {
 	// storage
 	backend Backend
 	entries map[string]*json.RawMessage
+	changes map[string]*Change
 }
 
 // New returns a new empty state.
@@ -59,11 +61,38 @@ func New(backend Backend) *State {
 	return &State{
 		backend: backend,
 		entries: make(map[string]*json.RawMessage),
+		changes: make(map[string]*Change),
 	}
 }
 
+type marshalledState struct {
+	Entries map[string]*json.RawMessage  `json:"entries"`
+	// XXX: marshal as array instead?
+	Changes map[string]*Change           `json:"changes"`
+}
+
+// MarshalJSON makes State a json.Marshaller
+func (s *State) MarshalJSON() ([]byte, error) {
+	return json.Marshal(marshalledState{
+		Entries: s.entries,
+		Changes: s.changes,
+	})
+}
+
+// UnmarshalJSON makes State a json.Unmarshaller
+func (s *State) UnmarshalJSON(data []byte) error {
+	var unmarshalled marshalledState
+	err := json.Unmarshal(data, &unmarshalled)
+	if err != nil {
+		return err
+	}
+	s.entries = unmarshalled.Entries
+	s.changes = unmarshalled.Changes
+	return nil
+}
+
 func (s *State) checkpointData() []byte {
-	data, err := json.Marshal(s.entries)
+	data, err := json.Marshal(s)
 	if err != nil {
 		// this shouldn't happen, because the actual delicate serializing happens at various Set()s
 		logger.Panicf("internal error: could not marshal state for checkpointing: %v", err)
@@ -143,13 +172,45 @@ func (s *State) Set(key string, value interface{}) {
 	s.entries[key] = &entryJSON
 }
 
+var rnd = rand.New(rand.NewSource(time.Now().UTC().UnixNano()))
+
+func (s *State) genID() string {
+	for {
+		id := fmt.Sprintf("%08X", rnd.Uint32())
+		if _, ok := s.changes[id]; ok {
+			continue
+		}
+		return id
+	}
+}
+
+// NewChange adds a new change to the state.
+func (s *State) NewChange(kind, summary string) *Change {
+	s.ensureLocked()
+	id := s.genID()
+	chg := newChange(id, kind, summary)
+	s.changes[id] = chg
+	return chg
+}
+
+// Changes returns all changes currently known to the state.
+func (s *State) Changes() []*Change {
+	s.ensureLocked()
+	res := make([]*Change, 0, len(s.changes))
+	for _, chg := range s.changes {
+		res = append(res, chg)
+	}
+	return res
+}
+
 // ReadState returns the state deserialized from r.
 func ReadState(backend Backend, r io.Reader) (*State, error) {
 	s := new(State)
 	d := json.NewDecoder(r)
-	err := d.Decode(&s.entries)
+	err := d.Decode(&s)
 	if err != nil {
 		return nil, err
 	}
+	s.backend = backend
 	return s, err
 }
