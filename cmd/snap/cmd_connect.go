@@ -66,5 +66,5 @@ func (x *cmdConnect) Execute(args []string) error {
 		x.Positionals.Offer.Name = x.Positionals.Offer.Snap
 		x.Positionals.Offer.Snap = ""
 	}
-	return Client().Grant(x.Positionals.Offer.Snap, x.Positionals.Offer.Name, x.Positionals.Use.Snap, x.Positionals.Use.Name)
+	return Client().Connect(x.Positionals.Offer.Snap, x.Positionals.Offer.Name, x.Positionals.Use.Snap, x.Positionals.Use.Name)
 }
