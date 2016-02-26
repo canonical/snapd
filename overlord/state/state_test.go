@@ -185,14 +185,12 @@ func (ss *stateSuite) TestImplicitCheckpointAndRead(c *C) {
 }
 
 func (ss *stateSuite) TestImplicitCheckpointRetry(c *C) {
-	prevUnlockCheckpointMaxRetries := state.UnlockCheckpointMaxRetries
-	prevUnlockCheckpointRetryInterval := state.UnlockCheckpointRetryInterval
-	state.UnlockCheckpointMaxRetries = 2
-	state.UnlockCheckpointRetryInterval = 10 * time.Millisecond
-	defer func() {
-		state.UnlockCheckpointMaxRetries = prevUnlockCheckpointMaxRetries
-		state.UnlockCheckpointRetryInterval = prevUnlockCheckpointRetryInterval
-	}()
+	prevInterval, prevMaxTime := state.ChangeUnlockCheckpointRetryParamsForTest(
+		2*time.Millisecond,
+		1*time.Second,
+	)
+	defer state.ChangeUnlockCheckpointRetryParamsForTest(prevInterval, prevMaxTime)
+
 	retries := 0
 	boom := errors.New("boom")
 	error := func() error {
@@ -213,13 +211,16 @@ func (ss *stateSuite) TestImplicitCheckpointRetry(c *C) {
 }
 
 func (ss *stateSuite) TestImplicitCheckpointPanicsAfterFailedRetries(c *C) {
-	prevUnlockCheckpointRetryInterval := state.UnlockCheckpointRetryInterval
-	state.UnlockCheckpointRetryInterval = 1 * time.Millisecond
-	defer func() {
-		state.UnlockCheckpointRetryInterval = prevUnlockCheckpointRetryInterval
-	}()
+	prevInterval, prevMaxTime := state.ChangeUnlockCheckpointRetryParamsForTest(
+		2*time.Millisecond,
+		10*time.Millisecond,
+	)
+	defer state.ChangeUnlockCheckpointRetryParamsForTest(prevInterval, prevMaxTime)
+
 	boom := errors.New("boom")
+	retries := 0
 	error := func() error {
+		retries++
 		return boom
 	}
 	b := &fakeStateBackend{error: error}
@@ -227,5 +228,9 @@ func (ss *stateSuite) TestImplicitCheckpointPanicsAfterFailedRetries(c *C) {
 	st.Lock()
 
 	// implicit checkpoint will panic after all failed retries
-	c.Check(func() { st.Unlock() }, PanicMatches, "cannot checkpoint even after 10 retries: boom")
+	t0 := time.Now()
+	c.Check(func() { st.Unlock() }, PanicMatches, "cannot checkpoint even after 10ms of retries every 2ms: boom")
+	// we did at least a couple
+	c.Check(retries > 2, Equals, true)
+	c.Check(time.Since(t0) > 10*time.Millisecond, Equals, true)
 }

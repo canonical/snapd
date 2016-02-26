@@ -77,10 +77,10 @@ func (s *State) Lock() {
 	atomic.AddInt32(&s.muC, 1)
 }
 
-// Unlock checkpoint retry parameters (5 mins of retries by default)
+// unlock checkpoint retry parameters (5 mins of retries by default)
 var (
-	UnlockCheckpointMaxRetries    = 10
-	UnlockCheckpointRetryInterval = 30 * time.Second
+	unlockCheckpointRetryMaxTime  = 5 * time.Minute
+	unlockCheckpointRetryInterval = 3 * time.Second
 )
 
 // Unlock releases the state lock and checkpoints the state.
@@ -92,17 +92,16 @@ func (s *State) Unlock() {
 		s.mu.Unlock()
 	}()
 	if s.backend != nil {
-		retries := 0
 		data := s.checkpointData()
 		var err error
-		for retries < UnlockCheckpointMaxRetries {
+		start := time.Now()
+		for time.Since(start) <= unlockCheckpointRetryMaxTime {
 			if err = s.backend.Checkpoint(data); err == nil {
 				return
 			}
-			time.Sleep(UnlockCheckpointRetryInterval)
-			retries++
+			time.Sleep(unlockCheckpointRetryInterval)
 		}
-		panic(fmt.Errorf("cannot checkpoint even after %d retries: %v", UnlockCheckpointMaxRetries, err))
+		panic(fmt.Errorf("cannot checkpoint even after %v of retries every %v: %v", unlockCheckpointRetryMaxTime, unlockCheckpointRetryInterval, err))
 	}
 }
 
