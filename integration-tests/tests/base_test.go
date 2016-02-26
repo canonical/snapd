@@ -21,10 +21,13 @@
 package tests
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"testing"
 
 	"gopkg.in/check.v1"
@@ -37,7 +40,7 @@ import (
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/wait"
 )
 
-var daemonCmd *exec.Cmd
+var daemonParentCmd *exec.Cmd
 
 func init() {
 	c := &check.C{}
@@ -64,10 +67,16 @@ func Test(t *testing.T) {
 		os.Stdout,
 		report.NewSubunitV2ParserReporter(&report.FileReporter{}))
 	runner.TestingT(t, output)
+
+	if daemonParentCmd != nil && daemonParentCmd.Process != nil {
+		if err := stopDaemonProcess("snapd"); err != nil {
+			fmt.Printf("Error stopping daemon: %v\n", err)
+		}
+	}
 }
 
 func setUpSnapdFromBranch(c *check.C) {
-	if daemonCmd == nil {
+	if daemonParentCmd == nil {
 		trustedKey, err := filepath.Abs("integration-tests/data/trusted.acckey")
 		c.Assert(err, check.IsNil)
 
@@ -75,14 +84,39 @@ func setUpSnapdFromBranch(c *check.C) {
 			"ubuntu-snappy.snapd.service", "ubuntu-snappy.snapd.socket")
 
 		// FIXME: for now pass a test-only trusted key through an env var
-		daemonCmd = exec.Command("sudo", "env", "PATH="+os.Getenv("PATH"),
+		daemonParentCmd = exec.Command("sudo", "env", "PATH="+os.Getenv("PATH"),
 			"SNAPPY_TRUSTED_ACCOUNT_KEY="+trustedKey,
 			"/lib/systemd/systemd-activate", "--setenv=SNAPPY_TRUSTED_ACCOUNT_KEY",
 			"-l", "/run/snapd.socket", "snapd")
 
-		err = daemonCmd.Start()
+		err = daemonParentCmd.Start()
 		c.Assert(err, check.IsNil)
 
 		wait.ForCommand(c, `^$`, "sudo", "chmod", "0666", "/run/snapd.socket")
 	}
+}
+
+func stopDaemonProcess(name string) error {
+	pid, err := getPidFromName(name)
+	if err != nil {
+		return err
+	}
+	// send SIGINT to the process
+	_, err = cli.ExecCommandErr("sudo", "kill", "-2", strconv.Itoa(pid))
+	return err
+}
+
+func getPidFromName(name string) (int, error) {
+	re := regexp.MustCompile(`.*` + name + `\[(\d+)\]:.*`)
+
+	output, err := cli.ExecCommandErr("sudo", "journalctl", "_COMM="+name, "-q", "--lines=1")
+	if err != nil {
+		return 0, err
+	}
+
+	matches := re.FindStringSubmatch(output)
+	if len(matches) < 2 {
+		return 0, fmt.Errorf("Error extracting pid for %s from %s", name, output)
+	}
+	return strconv.Atoi(matches[1])
 }
