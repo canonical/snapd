@@ -19,13 +19,17 @@
 
 package overlord
 
+import (
+	"github.com/ubuntu-core/snappy/overlord/state"
+)
+
 // StateManager is implemented by types responsible for observing
 // the system and manipulating it to reflect the desired state.
 type StateManager interface {
 	// Init hands the manager the current state it's supposed to track
 	// and update.  The StateEngine may call Init again after a Stop
 	// was observed.
-	Init(s *State) error
+	Init(s *state.State) error
 
 	// Ensure forces a complete evaluation of the current state.
 	// See StateEngine.Ensure for more details.
@@ -51,7 +55,7 @@ func NewStateEngine() *StateEngine {
 }
 
 // State returns the current system state.
-func (se *StateEngine) State() *State {
+func (se *StateEngine) State() *state.State {
 	return nil
 }
 
