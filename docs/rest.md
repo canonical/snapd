@@ -626,7 +626,7 @@ Sample result:
     {
         “snap”:  "canonical-pi2",
         “interface”:  "bool-file",
-        “name”:  "pin-13",
+        “plug”:  "pin-13",
         “label”: "Pin 13",
         “connections”: [
             {"snap": "keyboard-lights", "slot": "capslock-led"}
