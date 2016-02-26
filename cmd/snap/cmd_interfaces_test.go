@@ -66,7 +66,7 @@ Help Options:
 func (s *SnapSuite) TestInterfacesZeroSlots(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
-		c.Check(r.URL.Path, Equals, "/2.0/skills")
+		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
 		body, err := ioutil.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
@@ -98,7 +98,7 @@ func (s *SnapSuite) TestInterfacesZeroSlots(c *C) {
 func (s *SnapSuite) TestInterfacesOneSlot(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
-		c.Check(r.URL.Path, Equals, "/2.0/skills")
+		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
 		body, err := ioutil.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
@@ -135,7 +135,7 @@ func (s *SnapSuite) TestInterfacesOneSlot(c *C) {
 func (s *SnapSuite) TestInterfacesTwoSlots(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
-		c.Check(r.URL.Path, Equals, "/2.0/skills")
+		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
 		body, err := ioutil.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
@@ -176,7 +176,7 @@ func (s *SnapSuite) TestInterfacesTwoSlots(c *C) {
 func (s *SnapSuite) TestInterfacesSlotsWithCommonName(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
-		c.Check(r.URL.Path, Equals, "/2.0/skills")
+		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
 		body, err := ioutil.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
@@ -217,7 +217,7 @@ func (s *SnapSuite) TestInterfacesSlotsWithCommonName(c *C) {
 func (s *SnapSuite) TestInterfacesTwoPlugsAndFiltering(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
-		c.Check(r.URL.Path, Equals, "/2.0/skills")
+		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
 		body, err := ioutil.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
@@ -268,7 +268,7 @@ func (s *SnapSuite) TestInterfacesTwoPlugsAndFiltering(c *C) {
 func (s *SnapSuite) TestInterfacesOfSpecificSnap(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
-		c.Check(r.URL.Path, Equals, "/2.0/skills")
+		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
 		body, err := ioutil.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
@@ -314,7 +314,7 @@ func (s *SnapSuite) TestInterfacesOfSpecificSnap(c *C) {
 func (s *SnapSuite) TestInterfacesOfSpecificSnapAndPlug(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
-		c.Check(r.URL.Path, Equals, "/2.0/skills")
+		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
 		body, err := ioutil.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
