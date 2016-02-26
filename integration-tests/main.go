@@ -118,7 +118,7 @@ func main() {
 		Env: map[string]string{
 			"http_proxy":  *httpProxy,
 			"https_proxy": *httpProxy,
-			"no_proxy":    "127.0.0.1,127.0.1.1,localhost",
+			"no_proxy":    "127.0.0.1,127.0.1.1,localhost,login.ubuntu.com",
 		},
 	}
 	if !remoteTestbed {
