@@ -249,10 +249,7 @@ void setup_private_mount(const char* appname) {
     }
 
     // ensure we set the various TMPDIRs to our newly created tmpdir
-    const char *tmpd[] = {"TMPDIR", "TEMPDIR", "SNAP_APP_TMPDIR",
-                          // deprecated
-                          "SNAPP_APP_TMPDIR",
-                          NULL};
+    const char *tmpd[] = {"TMPDIR", "TEMPDIR", "SNAP_APP_TMPDIR", NULL};
     int i;
     for (i=0; tmpd[i] != NULL; i++) {
        if (setenv(tmpd[i], "/tmp", 1) != 0) {

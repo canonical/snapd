@@ -1,3 +1,10 @@
+ubuntu-core-launcher (1.0.19) UNRELEASED; urgency=medium
+
+  [ Jamie Strandboge ]
+  * src/main.c: don't set the obsoleted SNAPP_APP_TMPDIR (LP: #1550405)
+
+ -- Jamie Strandboge <jamie@ubuntu.com>  Fri, 26 Feb 2016 12:17:31 -0600
+
 ubuntu-core-launcher (1.0.18) xenial; urgency=medium
 
   * re-enable running all tests on `make`
