@@ -40,7 +40,7 @@ func (s *TestInterfaceSuite) TestName(c *C) {
 	c.Assert(s.i.Name(), Equals, "test")
 }
 
-// TestInterface doesn'i do any sanitization by default
+// TestInterface doesn't do any sanitization by default
 func (s *TestInterfaceSuite) TestSanitizePlugOK(c *C) {
 	plug := &Plug{
 		Interface: "test",
@@ -72,7 +72,7 @@ func (s *TestInterfaceSuite) TestSanitizePlugWrongInterface(c *C) {
 	c.Assert(func() { s.i.SanitizePlug(plug) }, Panics, "plug is not of interface \"test\"")
 }
 
-// TestInterface doesn'i do any sanitization by default
+// TestInterface doesn't do any sanitization by default
 func (s *TestInterfaceSuite) TestSanitizeSlotOK(c *C) {
 	slot := &Slot{
 		Interface: "test",
