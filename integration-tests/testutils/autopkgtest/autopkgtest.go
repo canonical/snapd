@@ -54,7 +54,7 @@ type AutoPkgTest struct {
 	IntegrationTestName string
 	// ShellOnFail is used in case of failure to open a shell on the testbed before shutting it down.
 	ShellOnFail bool
-	// Env is a map with the environment variables to set on the test bed and their values.adtrunCommonCmd
+	// Env is a map with the environment variables to set on the test bed and their values.
 	Env map[string]string
 }
 
