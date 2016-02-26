@@ -390,7 +390,7 @@ func (r *Repository) disconnectPlugFromSlot(plugSnapName, plugName, slotSnapName
 	return nil
 }
 
-// disconnect disconnects a specific plug from a specific plug slot.
+// disconnect disconnects a plug from a slot.
 func (r *Repository) disconnect(plug *Plug, slot *Slot) {
 	delete(r.slotPlugs[slot], plug)
 	if len(r.slotPlugs[slot]) == 0 {
