@@ -17,7 +17,7 @@
  *
  */
 
-package daemon
+package uuid
 
 import (
 	"gopkg.in/check.v1"
