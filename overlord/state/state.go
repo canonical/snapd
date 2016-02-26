@@ -66,9 +66,9 @@ func New(backend Backend) *State {
 }
 
 type marshalledState struct {
-	Entries map[string]*json.RawMessage  `json:"entries"`
+	Entries map[string]*json.RawMessage `json:"entries"`
 	// XXX: marshal as array instead?
-	Changes map[string]*Change           `json:"changes"`
+	Changes map[string]*Change `json:"changes"`
 }
 
 // MarshalJSON makes State a json.Marshaller
