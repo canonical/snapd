@@ -27,6 +27,7 @@ import (
 	"io"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/ubuntu-core/snappy/logger"
 )
@@ -76,6 +77,12 @@ func (s *State) Lock() {
 	atomic.AddInt32(&s.muC, 1)
 }
 
+// Unlock checkpoint retry parameters (5 mins of retries by default)
+var (
+	UnlockCheckpointMaxRetries    = 10
+	UnlockCheckpointRetryInterval = 30 * time.Second
+)
+
 // Unlock releases the state lock and checkpoints the state.
 // It does not return until the state is correctly checkpointed.
 // After too many unsuccessful checkpoint attempts, it panics.
@@ -85,8 +92,17 @@ func (s *State) Unlock() {
 		s.mu.Unlock()
 	}()
 	if s.backend != nil {
-		// XXX: return error?
-		s.backend.Checkpoint(s.checkpointData())
+		retries := 0
+		data := s.checkpointData()
+		var err error
+		for retries < UnlockCheckpointMaxRetries {
+			if err = s.backend.Checkpoint(data); err == nil {
+				return
+			}
+			time.Sleep(UnlockCheckpointRetryInterval)
+			retries++
+		}
+		panic(fmt.Errorf("cannot checkpoint even after %d retries: %v", UnlockCheckpointMaxRetries, err))
 	}
 }
 
