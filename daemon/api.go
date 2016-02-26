@@ -958,7 +958,7 @@ func getPlugs(c *Command, r *http.Request) Response {
 // interfaceAction is an action performed on the plug system.
 type interfaceAction struct {
 	Action string          `json:"action"`
-	Plug   interfaces.Plug `json:"skill,omitempty"`
+	Plug   interfaces.Plug `json:"plug,omitempty"`
 	Slot   interfaces.Slot `json:"slot,omitempty"`
 }
 
@@ -991,7 +991,7 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 			return BadRequest("%v", err)
 		}
 		return SyncResponse(nil)
-	case "add-skill":
+	case "add-plug":
 		err := c.d.interfaces.AddPlug(&a.Plug)
 		if err != nil {
 			return BadRequest("%v", err)
@@ -1000,7 +1000,7 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 			Type:   ResponseTypeSync,
 			Status: http.StatusCreated,
 		}
-	case "remove-skill":
+	case "remove-plug":
 		err := c.d.interfaces.RemovePlug(a.Plug.Snap, a.Plug.Name)
 		if err != nil {
 			return BadRequest("%v", err)

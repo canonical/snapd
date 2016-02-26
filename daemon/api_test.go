@@ -1608,7 +1608,7 @@ func (s *apiSuite) TestAddPlugSuccess(c *check.C) {
 	d := newTestDaemon()
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	action := &interfaceAction{
-		Action: "add-skill",
+		Action: "add-plug",
 		Plug: interfaces.Plug{
 			Snap:      "snap",
 			Name:      "name",
@@ -1647,7 +1647,7 @@ func (s *apiSuite) TestAddPlugDisabled(c *check.C) {
 	})
 	d.enableInternalInterfaceActions = false
 	action := &interfaceAction{
-		Action: "add-skill",
+		Action: "add-plug",
 		Plug: interfaces.Plug{
 			Snap:      "producer",
 			Name:      "plug",
@@ -1690,7 +1690,7 @@ func (s *apiSuite) TestAddPlugFailure(c *check.C) {
 		},
 	})
 	action := &interfaceAction{
-		Action: "add-skill",
+		Action: "add-plug",
 		Plug: interfaces.Plug{
 			Snap:      "snap",
 			Name:      "name",
@@ -1729,7 +1729,7 @@ func (s *apiSuite) TestRemovePlugSuccess(c *check.C) {
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
 	action := &interfaceAction{
-		Action: "remove-skill",
+		Action: "remove-plug",
 		Plug: interfaces.Plug{
 			Snap: "producer",
 			Name: "plug",
@@ -1761,7 +1761,7 @@ func (s *apiSuite) TestRemovePlugDisabled(c *check.C) {
 	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
 	d.enableInternalInterfaceActions = false
 	action := &interfaceAction{
-		Action: "remove-skill",
+		Action: "remove-plug",
 		Plug: interfaces.Plug{
 			Snap: "producer",
 			Name: "plug",
@@ -1796,7 +1796,7 @@ func (s *apiSuite) TestRemovePlugFailure(c *check.C) {
 	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
 	d.interfaces.Connect("producer", "plug", "consumer", "slot")
 	action := &interfaceAction{
-		Action: "remove-skill",
+		Action: "remove-plug",
 		Plug: interfaces.Plug{
 			Snap: "producer",
 			Name: "plug",
