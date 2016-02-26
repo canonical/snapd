@@ -46,8 +46,8 @@ type Slot struct {
 }
 
 // Interface describes a group of interchangeable capabilities with common features.
-// Interfaces are managed centrally and act as a contract between system builders,
-// application developers and end users.
+// Interfaces act as a contract between system builders, application developers
+// and end users.
 type Interface interface {
 	// Unique and public name of this interface.
 	Name() string
