@@ -402,8 +402,8 @@ func (r *Repository) disconnect(plug *Plug, slot *Slot) {
 	}
 }
 
-// ConnectedTo returns all the plugs connected to a given snap.
-func (r *Repository) ConnectedTo(snapName string) map[*Slot][]*Plug {
+// ConnectedSlots returns all the plugs connected to a given snap.
+func (r *Repository) ConnectedSlots(snapName string) map[*Slot][]*Plug {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -417,8 +417,8 @@ func (r *Repository) ConnectedTo(snapName string) map[*Slot][]*Plug {
 	return result
 }
 
-// ConnectedBy returns all of the plugs connected by a given snap.
-func (r *Repository) ConnectedBy(snapName string) map[*Plug][]*Slot {
+// ConnectedPlugs returns all of the plugs connected by a given snap.
+func (r *Repository) ConnectedPlugs(snapName string) map[*Plug][]*Slot {
 	r.m.Lock()
 	defer r.m.Unlock()
 
