@@ -624,7 +624,7 @@ func (s *RepositorySuite) TestDisconnectFailsWhenSlotDoesNotExist(c *C) {
 	c.Assert(err, ErrorMatches, `cannot disconnect plug from slot "slot" from snap "consumer", no such slot`)
 }
 
-func (s *RepositorySuite) TestDisconnectFromPlugSlotFailsWhenSlotDoesNotExist(c *C) {
+func (s *RepositorySuite) TestDisconnectFromSlotFailsWhenSlotDoesNotExist(c *C) {
 	err := s.testRepo.AddPlug(s.plug)
 	c.Assert(err, IsNil)
 	// Disconnecting everything form an unknown slot returns an appropriate error
@@ -660,7 +660,7 @@ func (s *RepositorySuite) TestDisconnectFromSnapDoesNothingWhenNotConnected(c *C
 	c.Assert(err, IsNil)
 }
 
-func (s *RepositorySuite) TestDisconnectFromPlugSlotDoesNothingWhenNotConnected(c *C) {
+func (s *RepositorySuite) TestDisconnectFromSlotDoesNothingWhenNotConnected(c *C) {
 	err := s.testRepo.AddPlug(s.plug)
 	c.Assert(err, IsNil)
 	err = s.testRepo.AddSlot(s.slot)
@@ -696,7 +696,7 @@ func (s *RepositorySuite) TestDisconnectFromSnap(c *C) {
 	c.Assert(s.testRepo.ConnectedTo(s.slot.Snap), HasLen, 0)
 }
 
-func (s *RepositorySuite) TestDisconnectFromPlugSlot(c *C) {
+func (s *RepositorySuite) TestDisconnectFromSlot(c *C) {
 	err := s.testRepo.AddPlug(s.plug)
 	c.Assert(err, IsNil)
 	err = s.testRepo.AddSlot(s.slot)
