@@ -1265,13 +1265,13 @@ func (s *apiSuite) TestGetPlugs(c *check.C) {
 		"result": []interface{}{
 			map[string]interface{}{
 				"snap":      "producer",
-				"name":      "plug",
+				"plug":      "plug",
 				"interface": "interface",
 				"label":     "label",
 				"connections": []interface{}{
 					map[string]interface{}{
 						"snap": "consumer",
-						"name": "slot",
+						"slot": "slot",
 					},
 				},
 			},

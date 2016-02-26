@@ -629,7 +629,7 @@ Sample result:
         “name”:  "pin-13",
         “label”: "Pin 13",
         “connections”: [
-            {"snap": "keyboard-lights", "name": "capslock-led"}
+            {"snap": "keyboard-lights", "slot": "capslock-led"}
         ]
     }
 ]
@@ -652,7 +652,7 @@ Sample input:
 ```javascript
 {
     “action”: “connect”,
-    “plug”: {“snap”: “canonical-pi2”,   “name”: “pin-13”},
-    “slot”: {“snap”: “keyboard-lights”, “name”: “capslock-led”}
+    “plug”: {“snap”: “canonical-pi2”,   “plug”: “pin-13”},
+    “slot”: {“snap”: “keyboard-lights”, “slot”: “capslock-led”}
 }
 ```

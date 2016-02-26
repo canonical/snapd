@@ -921,13 +921,13 @@ func appIconGet(c *Command, r *http.Request) Response {
 // plugConnection holds the identification of a slot that has been connected to a plug.
 type plugConnection struct {
 	Snap string `json:"snap"`
-	Name string `json:"name"` // This is the slot name
+	Name string `json:"slot"` // This is the slot name
 }
 
 // plugInfo holds details for a plug as returned by the REST API.
 type plugInfo struct {
 	Snap        string           `json:"snap"`
-	Name        string           `json:"name"`
+	Name        string           `json:"plug"`
 	Interface   string           `json:"interface"`
 	Label       string           `json:"label"`
 	Connections []plugConnection `json:"connections"`
