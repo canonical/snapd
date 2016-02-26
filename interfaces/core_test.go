@@ -17,14 +17,14 @@
  *
  */
 
-package skills_test
+package interfaces_test
 
 import (
 	"testing"
 
 	. "gopkg.in/check.v1"
 
-	. "github.com/ubuntu-core/snappy/skills"
+	. "github.com/ubuntu-core/snappy/interfaces"
 )
 
 func Test(t *testing.T) {
@@ -63,6 +63,6 @@ func (s *CoreSuite) TestValidateName(c *C) {
 	}
 	for _, name := range invalidNames {
 		err := ValidateName(name)
-		c.Assert(err, ErrorMatches, `invalid skill name: ".*"`)
+		c.Assert(err, ErrorMatches, `invalid interface name: ".*"`)
 	}
 }

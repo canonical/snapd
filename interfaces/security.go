@@ -17,7 +17,7 @@
  *
  */
 
-package skills
+package interfaces
 
 import (
 	"fmt"

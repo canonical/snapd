@@ -35,9 +35,9 @@ import (
 	"github.com/ubuntu-core/snappy/asserts"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/interfaces"
+	"github.com/ubuntu-core/snappy/interfaces/types"
 	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/skills"
-	"github.com/ubuntu-core/snappy/skills/types"
 )
 
 // A Daemon listens for requests and routes them to the right command
@@ -48,9 +48,9 @@ type Daemon struct {
 	tomb         tomb.Tomb
 	router       *mux.Router
 	asserts      *asserts.Database
-	skills       *skills.Repository
-	// enableInternalSkillActions controls if adding and removing skills and slots is allowed.
-	enableInternalSkillActions bool
+	interfaces   *interfaces.Repository
+	// enableInternalInterfaceActions controls if adding and removing skills and slots is allowed.
+	enableInternalInterfaceActions bool
 }
 
 // A ResponseFunc handles one of the individual verbs for a method
@@ -261,17 +261,17 @@ func New() *Daemon {
 	if err != nil {
 		panic(err.Error())
 	}
-	skillRepo := skills.NewRepository()
-	for _, skillType := range types.AllTypes() {
-		if err := skillRepo.AddType(skillType); err != nil {
+	interfacesRepo := interfaces.NewRepository()
+	for _, iface := range types.AllInterfaces() {
+		if err := interfacesRepo.AddInterface(iface); err != nil {
 			panic(err.Error())
 		}
 	}
 	return &Daemon{
-		tasks:   make(map[string]*Task),
-		asserts: db,
-		skills:  skillRepo,
+		tasks:      make(map[string]*Task),
+		asserts:    db,
+		interfaces: interfacesRepo,
 		// TODO: Decide when this should be disabled by default.
-		enableInternalSkillActions: true,
+		enableInternalInterfaceActions: true,
 	}
 }
