@@ -29,6 +29,8 @@ type securityHelper interface {
 	pathForApp(snapName, appName string) string
 	headerForApp(snapName, appName string) []byte
 	footerForApp(snapName, appName string) []byte
+	// cmdsToRun returns a list of commands to run to "apply" the security changes.
+	cmdsToRun(snapName, appName string) [][]string
 }
 
 // appArmor is a security subsystem that writes apparmor profiles.
@@ -65,6 +67,16 @@ func (aa *appArmor) footerForApp(snapName, appName string) []byte {
 	return []byte("}\n")
 }
 
+func (aa *appArmor) cmdsToRun(snapName, appName string) [][]string {
+	return [][]string{
+		// TODO: enable caching of compiled profiles
+		[]string{"apparmor_parser", "--replace", aa.pathForApp(snapName, appName)},
+		// XXX: we should also be able to tell the kernel that a profile is not
+		// needed after a snap is removed. Since this data is volatile (doesn't
+		// survive reboot), we might be able to just store it in aa instance.
+	}
+}
+
 // secComp is a security subsystem that writes additional seccomp rules.
 //
 // Rules use a simple line-oriented record structure.  Each line specifies a
@@ -97,6 +109,10 @@ func (sc *secComp) footerForApp(snapName, appName string) []byte {
 	return nil // seccomp doesn't require a footer
 }
 
+func (sc *secComp) cmdsToRun(snapName, appName string) [][]string {
+	return nil // seccomp doesn't require any commands to run
+}
+
 // uDev is a security subsystem that writes additional udev rules (one per snap).
 //
 // Each rule looks like this:
@@ -122,6 +138,10 @@ func (udev *uDev) headerForApp(snapName, appName string) []byte {
 
 func (udev *uDev) footerForApp(snapName, appName string) []byte {
 	return nil // udev doesn't require a footer
+}
+
+func (udev *uDev) cmdsToRun(snapName, appName string) [][]string {
+	return nil // udev doesn't require any commands to run
 }
 
 // dBus is a security subsystem that writes DBus "firewall" configuration files.
@@ -155,4 +175,8 @@ func (dbus *dBus) headerForApp(snapName, appName string) []byte {
 func (dbus *dBus) footerForApp(snapName, appName string) []byte {
 	return []byte("" +
 		"</busconfig>\n")
+}
+
+func (dbus *dBus) cmdsToRun(snapName, appName string) [][]string {
+	return nil // dbus doesn't require any commands to run
 }
