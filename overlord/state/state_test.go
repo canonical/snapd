@@ -21,7 +21,9 @@ package state_test
 
 import (
 	"bytes"
+	"errors"
 	"testing"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -130,10 +132,14 @@ func (ss *stateSuite) TestGetUnmarshalProblem(c *C) {
 
 type fakeStateBackend struct {
 	checkpoints [][]byte
+	error       func() error
 }
 
 func (b *fakeStateBackend) Checkpoint(data []byte) error {
 	b.checkpoints = append(b.checkpoints, data)
+	if b.error != nil {
+		return b.error()
+	}
 	return nil
 }
 
@@ -176,4 +182,50 @@ func (ss *stateSuite) TestImplicitCheckpointAndRead(c *C) {
 	err = st2.Get("mgr2", &mSt2B)
 	c.Assert(err, IsNil)
 	c.Check(&mSt2B, DeepEquals, mSt2)
+}
+
+func (ss *stateSuite) TestImplicitCheckpointRetry(c *C) {
+	prevUnlockCheckpointMaxRetries := state.UnlockCheckpointMaxRetries
+	prevUnlockCheckpointRetryInterval := state.UnlockCheckpointRetryInterval
+	state.UnlockCheckpointMaxRetries = 2
+	state.UnlockCheckpointRetryInterval = 10 * time.Millisecond
+	defer func() {
+		state.UnlockCheckpointMaxRetries = prevUnlockCheckpointMaxRetries
+		state.UnlockCheckpointRetryInterval = prevUnlockCheckpointRetryInterval
+	}()
+	retries := 0
+	boom := errors.New("boom")
+	error := func() error {
+		retries++
+		if retries == 2 {
+			return nil
+		}
+		return boom
+	}
+	b := &fakeStateBackend{error: error}
+	st := state.New(b)
+	st.Lock()
+
+	// implicit checkpoint will retry
+	st.Unlock()
+
+	c.Check(retries, Equals, 2)
+}
+
+func (ss *stateSuite) TestImplicitCheckpointPanicsAfterFailedRetries(c *C) {
+	prevUnlockCheckpointRetryInterval := state.UnlockCheckpointRetryInterval
+	state.UnlockCheckpointRetryInterval = 1 * time.Millisecond
+	defer func() {
+		state.UnlockCheckpointRetryInterval = prevUnlockCheckpointRetryInterval
+	}()
+	boom := errors.New("boom")
+	error := func() error {
+		return boom
+	}
+	b := &fakeStateBackend{error: error}
+	st := state.New(b)
+	st.Lock()
+
+	// implicit checkpoint will panic after all failed retries
+	c.Check(func() { st.Unlock() }, PanicMatches, "cannot checkpoint even after 10 retries: boom")
 }
