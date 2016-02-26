@@ -20,7 +20,7 @@
 package types_test
 
 import (
-	"github.com/ubuntu-core/snappy/skills/types"
+	"github.com/ubuntu-core/snappy/interfaces/types"
 	. "github.com/ubuntu-core/snappy/testutil"
 
 	. "gopkg.in/check.v1"
@@ -30,7 +30,7 @@ type AllSuite struct{}
 
 var _ = Suite(&AllSuite{})
 
-func (s *AllSuite) TestAllTypes(c *C) {
-	allTypes := types.AllTypes()
-	c.Check(allTypes, Contains, &types.BoolFileType{})
+func (s *AllSuite) TestAllInterfaces(c *C) {
+	allInterfaces := types.AllInterfaces()
+	c.Check(allInterfaces, Contains, &types.BoolFileInterface{})
 }
