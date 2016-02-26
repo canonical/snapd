@@ -34,13 +34,13 @@ type SecuritySuite struct {
 var _ = Suite(&SecuritySuite{
 	plug: &Plug{
 		Snap:      "producer",
-		Name:      "plug",
+		Plug:      "plug",
 		Interface: "interface",
 		Apps:      []string{"hook"},
 	},
 	slot: &Slot{
 		Snap:      "consumer",
-		Name:      "slot",
+		Slot:      "slot",
 		Interface: "interface",
 		Apps:      []string{"app"},
 	},
@@ -57,7 +57,7 @@ func (s *SecuritySuite) prepareFixtureWithInterface(c *C, i Interface) {
 	c.Assert(err, IsNil)
 	err = s.repo.AddSlot(s.slot)
 	c.Assert(err, IsNil)
-	err = s.repo.Connect(s.plug.Snap, s.plug.Name, s.slot.Snap, s.slot.Name)
+	err = s.repo.Connect(s.plug.Snap, s.plug.Plug, s.slot.Snap, s.slot.Slot)
 	c.Assert(err, IsNil)
 }
 
