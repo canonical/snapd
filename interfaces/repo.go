@@ -485,7 +485,7 @@ func (r *Repository) SecuritySnippetsForSnap(snapName string, securitySystem Sec
 
 func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem SecuritySystem) (map[string][][]byte, error) {
 	var snippets = make(map[string][][]byte)
-	// Find all of the plugs that affect this app because of plug consumption.
+	// Find all of the slots that affect this snap because of plug connection.
 	for _, slot := range r.slots[snapName] {
 		i := r.ifaces[slot.Interface]
 		for plug := range r.slotPlugs[slot] {
@@ -501,18 +501,20 @@ func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem Sec
 			}
 		}
 	}
-	// Find all of the plugs that affect this app because of plug offer.
+	// Find all of the plugs that affect this snap because of slot connection
 	for _, plug := range r.plugs[snapName] {
 		i := r.ifaces[plug.Interface]
-		snippet, err := i.PlugSecuritySnippet(plug, securitySystem)
-		if err != nil {
-			return nil, err
-		}
-		if snippet == nil {
-			continue
-		}
-		for _, app := range plug.Apps {
-			snippets[app] = append(snippets[app], snippet)
+		for slot := range r.plugSlots[plug] {
+			snippet, err := i.PlugSecuritySnippet(plug, slot, securitySystem)
+			if err != nil {
+				return nil, err
+			}
+			if snippet == nil {
+				continue
+			}
+			for _, app := range plug.Apps {
+				snippets[app] = append(snippets[app], snippet)
+			}
 		}
 	}
 	return snippets, nil

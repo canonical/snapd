@@ -159,7 +159,7 @@ func (s *BoolFileInterfaceSuite) TestSlotSecurityDoesNotContainPlugSecurity(c *C
 	var plugSnippet, slotSnippet []byte
 	slotSnippet, err = s.iface.SlotSecuritySnippet(s.gpioPlug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
-	plugSnippet, err = s.iface.PlugSecuritySnippet(s.gpioPlug, interfaces.SecurityAppArmor)
+	plugSnippet, err = s.iface.PlugSecuritySnippet(s.gpioPlug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	// Ensure that we don't accidentally give plug-side permissions to slot-side.
 	c.Assert(bytes.Contains(slotSnippet, plugSnippet), Equals, false)
@@ -204,14 +204,14 @@ func (s *BoolFileInterfaceSuite) TestPlugSecuritySnippetGivesExtraPermissionsToC
 /sys/class/gpio/unexport rw,
 /sys/class/gpio/gpio[0-9]+/direction rw,
 `)
-	snippet, err := s.iface.PlugSecuritySnippet(s.gpioPlug, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.PlugSecuritySnippet(s.gpioPlug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, expectedGPIOSnippet)
 }
 
 func (s *BoolFileInterfaceSuite) TestPlugSecuritySnippetGivesNoExtraPermissionsToConfigureLEDs(c *C) {
 	// No extra apparmor permission to provide LEDs
-	snippet, err := s.iface.PlugSecuritySnippet(s.ledPlug, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.PlugSecuritySnippet(s.ledPlug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 }
@@ -219,26 +219,26 @@ func (s *BoolFileInterfaceSuite) TestPlugSecuritySnippetGivesNoExtraPermissionsT
 func (s *BoolFileInterfaceSuite) TestPlugSecuritySnippetPanicksOnUnsanitizedPlugs(c *C) {
 	// Unsanitized plugs should never be used and cause a panic.
 	c.Assert(func() {
-		s.iface.PlugSecuritySnippet(s.missingPathPlug, interfaces.SecurityAppArmor)
+		s.iface.PlugSecuritySnippet(s.missingPathPlug, s.slot, interfaces.SecurityAppArmor)
 	}, PanicMatches, "plug is not sanitized")
 }
 
 func (s *BoolFileInterfaceSuite) TestPlugSecuritySnippetUnusedSecuritySystems(c *C) {
 	for _, plug := range []*interfaces.Plug{s.ledPlug, s.gpioPlug} {
 		// No extra seccomp permissions for plug
-		snippet, err := s.iface.PlugSecuritySnippet(plug, interfaces.SecuritySecComp)
+		snippet, err := s.iface.PlugSecuritySnippet(plug, s.slot, interfaces.SecuritySecComp)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 		// No extra dbus permissions for plug
-		snippet, err = s.iface.PlugSecuritySnippet(plug, interfaces.SecurityDBus)
+		snippet, err = s.iface.PlugSecuritySnippet(plug, s.slot, interfaces.SecurityDBus)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 		// No extra udev permissions for plug
-		snippet, err = s.iface.PlugSecuritySnippet(plug, interfaces.SecurityUDev)
+		snippet, err = s.iface.PlugSecuritySnippet(plug, s.slot, interfaces.SecurityUDev)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 		// Other security types are not recognized
-		snippet, err = s.iface.PlugSecuritySnippet(plug, "foo")
+		snippet, err = s.iface.PlugSecuritySnippet(plug, s.slot, "foo")
 		c.Assert(err, ErrorMatches, `unknown security system`)
 		c.Assert(snippet, IsNil)
 	}
