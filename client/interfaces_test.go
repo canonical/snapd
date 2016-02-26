@@ -39,11 +39,11 @@ func (cs *clientSuite) TestClientAllPlugs(c *check.C) {
 		"result": [
 			{
 				"snap": "canonical-pi2",
-				"name": "pin-13",
+				"plug": "pin-13",
 				"interface": "bool-file",
 				"label": "Pin 13",
 				"connections": [
-					{"snap": "keyboard-lights", "name": "capslock-led"}
+					{"snap": "keyboard-lights", "slot": "capslock-led"}
 				]
 			}
 		]
@@ -89,11 +89,11 @@ func (cs *clientSuite) TestClientConnect(c *check.C) {
 		"action": "connect",
 		"plug": map[string]interface{}{
 			"snap": "producer",
-			"name": "plug",
+			"plug": "plug",
 		},
 		"slot": map[string]interface{}{
 			"snap": "consumer",
-			"name": "slot",
+			"slot": "slot",
 		},
 	})
 }
@@ -119,11 +119,11 @@ func (cs *clientSuite) TestClientDisconnect(c *check.C) {
 		"action": "disconnect",
 		"plug": map[string]interface{}{
 			"snap": "producer",
-			"name": "plug",
+			"plug": "plug",
 		},
 		"slot": map[string]interface{}{
 			"snap": "consumer",
-			"name": "slot",
+			"slot": "slot",
 		},
 	})
 }
@@ -141,7 +141,7 @@ func (cs *clientSuite) TestClientAddPlug(c *check.C) {
 	}`
 	err := cs.cli.AddPlug(&client.Plug{
 		Snap:      "snap",
-		Name:      "name",
+		Name:      "plug",
 		Interface: "interface",
 		Attrs: map[string]interface{}{
 			"attr": "value",
@@ -157,7 +157,7 @@ func (cs *clientSuite) TestClientAddPlug(c *check.C) {
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"action": "add-plug",
 		"plug": map[string]interface{}{
-			"name":      "name",
+			"plug":      "plug",
 			"snap":      "snap",
 			"interface": "interface",
 			"attrs": map[string]interface{}{
@@ -170,7 +170,7 @@ func (cs *clientSuite) TestClientAddPlug(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientRemovePlugCallsEndpoint(c *check.C) {
-	_ = cs.cli.RemovePlug("snap", "name")
+	_ = cs.cli.RemovePlug("snap", "plug")
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/2.0/interfaces")
 }
@@ -180,7 +180,7 @@ func (cs *clientSuite) TestClientRemovePlug(c *check.C) {
 		"type": "sync",
 		"result": { }
 	}`
-	err := cs.cli.RemovePlug("snap", "name")
+	err := cs.cli.RemovePlug("snap", "plug")
 	c.Check(err, check.IsNil)
 	var body map[string]interface{}
 	decoder := json.NewDecoder(cs.req.Body)
@@ -189,7 +189,7 @@ func (cs *clientSuite) TestClientRemovePlug(c *check.C) {
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"action": "remove-plug",
 		"plug": map[string]interface{}{
-			"name": "name",
+			"plug": "plug",
 			"snap": "snap",
 		},
 	})
@@ -208,7 +208,7 @@ func (cs *clientSuite) TestClientAddSlot(c *check.C) {
 	}`
 	err := cs.cli.AddSlot(&client.Slot{
 		Snap:      "snap",
-		Name:      "name",
+		Name:      "slot",
 		Interface: "interface",
 		Attrs: map[string]interface{}{
 			"attr": "value",
@@ -224,7 +224,7 @@ func (cs *clientSuite) TestClientAddSlot(c *check.C) {
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"action": "add-slot",
 		"slot": map[string]interface{}{
-			"name":      "name",
+			"slot":      "slot",
 			"snap":      "snap",
 			"interface": "interface",
 			"attrs": map[string]interface{}{
@@ -237,7 +237,7 @@ func (cs *clientSuite) TestClientAddSlot(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientRemoveSlotCallsEndpoint(c *check.C) {
-	_ = cs.cli.RemoveSlot("snap", "name")
+	_ = cs.cli.RemoveSlot("snap", "slot")
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/2.0/interfaces")
 }
@@ -247,7 +247,7 @@ func (cs *clientSuite) TestClientRemoveSlot(c *check.C) {
 		"type": "sync",
 		"result": { }
 	}`
-	err := cs.cli.RemoveSlot("snap", "name")
+	err := cs.cli.RemoveSlot("snap", "slot")
 	c.Check(err, check.IsNil)
 	var body map[string]interface{}
 	decoder := json.NewDecoder(cs.req.Body)
@@ -256,7 +256,7 @@ func (cs *clientSuite) TestClientRemoveSlot(c *check.C) {
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"action": "remove-slot",
 		"slot": map[string]interface{}{
-			"name": "name",
+			"slot": "slot",
 			"snap": "snap",
 		},
 	})
