@@ -20,6 +20,7 @@
 package asserts_test
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -61,7 +62,32 @@ func (ids *identitySuite) TestDecodeOK(c *C) {
 	c.Check(identity.Timestamp(), Equals, ids.ts)
 	c.Check(identity.AccountID(), Equals, "abc-123")
 	c.Check(identity.DisplayName(), Equals, "Display Name")
-	c.Check(identity.Validation(), Equals, "certified")
+	c.Check(identity.IsCertified(), Equals, true)
+}
+
+func (ids *identitySuite) TestIsCertified(c *C) {
+	tests := []struct {
+		value       string
+		isCertified bool
+	}{
+		{"certified", true},
+		{"unproven", false},
+		{"nonsense", false},
+	}
+
+	template := strings.Replace(identityExample, "TSLINE", ids.tsLine, 1)
+	for _, test := range tests {
+		encoded := strings.Replace(
+			template,
+			"validation: certified\n",
+			fmt.Sprintf("validation: %s\n", test.value),
+			1,
+		)
+		assert, err := asserts.Decode([]byte(encoded))
+		c.Assert(err, IsNil)
+		identity := assert.(*asserts.Identity)
+		c.Check(identity.IsCertified(), Equals, test.isCertified)
+	}
 }
 
 const (

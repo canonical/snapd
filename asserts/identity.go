@@ -21,10 +21,15 @@ package asserts
 
 import "time"
 
+var (
+	identityValidationCertified = "certified"
+)
+
 // Identity holds an identity assertion, which provides a name for an account
 // and the authority's confidence in the name's validity.
 type Identity struct {
 	assertionBase
+	certified bool
 	timestamp time.Time
 }
 
@@ -38,9 +43,9 @@ func (id *Identity) DisplayName() string {
 	return id.Header("display-name")
 }
 
-// Validation returns the authority's confidence in the identity.
-func (id *Identity) Validation() string {
-	return id.Header("validation")
+// IsCertified returns true if the authority has confidence in the identity's name.
+func (id *Identity) IsCertified() bool {
+	return id.certified
 }
 
 // Timestamp returns the time when the identity was issued.
@@ -63,6 +68,7 @@ func assembleIdentity(assert assertionBase) (Assertion, error) {
 	if err != nil {
 		return nil, err
 	}
+	certified := assert.headers["validation"] == identityValidationCertified
 
 	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
 	if err != nil {
@@ -71,6 +77,7 @@ func assembleIdentity(assert assertionBase) (Assertion, error) {
 
 	return &Identity{
 		assertionBase: assert,
+		certified:     certified,
 		timestamp:     timestamp,
 	}, nil
 }
