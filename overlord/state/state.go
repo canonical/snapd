@@ -38,6 +38,29 @@ type Backend interface {
 	Checkpoint(data []byte) error
 }
 
+type customEntries map[string]*json.RawMessage
+
+func (entries customEntries) get(key string, value interface{}) error {
+	entryJSON := entries[key]
+	if entryJSON == nil {
+		return ErrNoState
+	}
+	err := json.Unmarshal(*entryJSON, value)
+	if err != nil {
+		return fmt.Errorf("internal error: could not unmarshal state entry %q: %v", key, err)
+	}
+	return nil
+}
+
+func (entries customEntries) set(key string, value interface{}) {
+	serialized, err := json.Marshal(value)
+	if err != nil {
+		logger.Panicf("internal error: could not marshal value for state entry %q: %v", key, err)
+	}
+	entryJSON := json.RawMessage(serialized)
+	entries[key] = &entryJSON
+}
+
 // State represents an evolving system state that persists across restarts.
 //
 // The State is concurrency-safe, and all reads and writes to it must be
@@ -52,7 +75,7 @@ type State struct {
 	muC int32
 	// storage
 	backend Backend
-	entries map[string]*json.RawMessage
+	entries customEntries
 	changes map[string]*Change
 }
 
@@ -60,15 +83,14 @@ type State struct {
 func New(backend Backend) *State {
 	return &State{
 		backend: backend,
-		entries: make(map[string]*json.RawMessage),
+		entries: make(customEntries),
 		changes: make(map[string]*Change),
 	}
 }
 
 type marshalledState struct {
 	Entries map[string]*json.RawMessage `json:"entries"`
-	// XXX: marshal as array instead?
-	Changes map[string]*Change `json:"changes"`
+	Changes map[string]*Change          `json:"changes"`
 }
 
 // MarshalJSON makes State a json.Marshaller
@@ -88,6 +110,10 @@ func (s *State) UnmarshalJSON(data []byte) error {
 	}
 	s.entries = unmarshalled.Entries
 	s.changes = unmarshalled.Changes
+	// backlink state again
+	for _, chg := range s.changes {
+		chg.state = s
+	}
 	return nil
 }
 
@@ -149,27 +175,14 @@ var ErrNoState = errors.New("no state entry for key")
 // It returns ErrNoState if there is no entry for key.
 func (s *State) Get(key string, value interface{}) error {
 	s.ensureLocked()
-	entryJSON := s.entries[key]
-	if entryJSON == nil {
-		return ErrNoState
-	}
-	err := json.Unmarshal(*entryJSON, value)
-	if err != nil {
-		return fmt.Errorf("internal error: could not unmarshal state entry %q: %v", key, err)
-	}
-	return nil
+	return s.entries.get(key, value)
 }
 
 // Set associates value with key for future consulting by managers.
 // The provided value must properly marshal and unmarshal with encoding/json.
 func (s *State) Set(key string, value interface{}) {
 	s.ensureLocked()
-	serialized, err := json.Marshal(value)
-	if err != nil {
-		logger.Panicf("internal error: could not marshal value for state entry %q: %v", key, err)
-	}
-	entryJSON := json.RawMessage(serialized)
-	s.entries[key] = &entryJSON
+	s.entries.set(key, value)
 }
 
 var rnd = rand.New(rand.NewSource(time.Now().UTC().UnixNano()))
@@ -188,7 +201,7 @@ func (s *State) genID() string {
 func (s *State) NewChange(kind, summary string) *Change {
 	s.ensureLocked()
 	id := s.genID()
-	chg := newChange(id, kind, summary)
+	chg := newChange(s, id, kind, summary)
 	s.changes[id] = chg
 	return chg
 }

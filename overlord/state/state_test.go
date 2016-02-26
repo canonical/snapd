@@ -235,14 +235,48 @@ func (ss *stateSuite) TestImplicitCheckpointPanicsAfterFailedRetries(c *C) {
 	c.Check(time.Since(t0) > 10*time.Millisecond, Equals, true)
 }
 
+func (ss *stateSuite) TestNewChangeAndChanges(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg1 := st.NewChange("install", "...")
+	chg2 := st.NewChange("remove", "...")
+
+	chgs := st.Changes()
+	c.Check(chgs, HasLen, 2)
+
+	expected := map[string]*state.Change{
+		chg1.ID(): chg1,
+		chg2.ID(): chg2,
+	}
+
+	for _, chg := range chgs {
+		c.Check(chg, Equals, expected[chg.ID()])
+	}
+}
+
+func (ss *stateSuite) TestNewChangeNeedsLocked(c *C) {
+	st := state.New(nil)
+
+	c.Assert(func() { st.NewChange("install", "...") }, PanicMatches, "internal error: accessing state without lock")
+}
+
+func (ss *stateSuite) TestChangesNeedsLocked(c *C) {
+	st := state.New(nil)
+
+	c.Assert(func() { st.Changes() }, PanicMatches, "internal error: accessing state without lock")
+}
+
 func (ss *stateSuite) TestNewChangeAndCheckpoint(c *C) {
 	b := new(fakeStateBackend)
 	st := state.New(b)
 	st.Lock()
 
-	chg := st.NewChange("install", "...")
+	chg := st.NewChange("install", "summary")
 	c.Assert(chg, NotNil)
 	chgID := chg.ID()
+	chg.Set("a", 1)
 
 	// implicit checkpoint
 	st.Unlock()
@@ -261,5 +295,13 @@ func (ss *stateSuite) TestNewChangeAndCheckpoint(c *C) {
 	chgs := st2.Changes()
 
 	c.Assert(chgs, HasLen, 1)
-	c.Check(chgs[0].ID(), Equals, chgID)
+
+	chg0 := chgs[0]
+	c.Check(chg0.ID(), Equals, chgID)
+	c.Check(chg0.Kind(), Equals, "install")
+	c.Check(chg0.Summary(), Equals, "summary")
+
+	var v int
+	err = chg0.Get("a", &v)
+	c.Check(v, Equals, 1)
 }
