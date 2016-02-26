@@ -17,15 +17,18 @@
  *
  */
 
-package overlord_test
+package state_test
 
 import (
 	"bytes"
+	"testing"
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/overlord"
+	"github.com/ubuntu-core/snappy/overlord/state"
 )
+
+func TestState(t *testing.T) { TestingT(t) }
 
 type stateSuite struct{}
 
@@ -44,13 +47,13 @@ type mgrState2 struct {
 }
 
 func (ss *stateSuite) TestLockUnlock(c *C) {
-	st := overlord.NewState(nil)
+	st := state.New(nil)
 	st.Lock()
 	st.Unlock()
 }
 
 func (ss *stateSuite) TestSetNeedsLocked(c *C) {
-	st := overlord.NewState(nil)
+	st := state.New(nil)
 	mSt1 := &mgrState1{A: "foo"}
 
 	c.Assert(func() { st.Set("mgr1", mSt1) }, PanicMatches, "internal error: accessing state without lock")
@@ -62,14 +65,14 @@ func (ss *stateSuite) TestSetNeedsLocked(c *C) {
 }
 
 func (ss *stateSuite) TestGetNeedsLocked(c *C) {
-	st := overlord.NewState(nil)
+	st := state.New(nil)
 
 	var v int
 	c.Assert(func() { st.Get("foo", &v) }, PanicMatches, "internal error: accessing state without lock")
 }
 
 func (ss *stateSuite) TestGetAndSet(c *C) {
-	st := overlord.NewState(nil)
+	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
 
@@ -90,7 +93,7 @@ func (ss *stateSuite) TestGetAndSet(c *C) {
 }
 
 func (ss *stateSuite) TestSetPanic(c *C) {
-	st := overlord.NewState(nil)
+	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
 
@@ -101,17 +104,17 @@ func (ss *stateSuite) TestSetPanic(c *C) {
 }
 
 func (ss *stateSuite) TestGetNoState(c *C) {
-	st := overlord.NewState(nil)
+	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
 
 	var mSt1B mgrState1
 	err := st.Get("mgr9", &mSt1B)
-	c.Check(err, Equals, overlord.ErrNoState)
+	c.Check(err, Equals, state.ErrNoState)
 }
 
 func (ss *stateSuite) TestGetUnmarshalProblem(c *C) {
-	st := overlord.NewState(nil)
+	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
 
@@ -136,7 +139,7 @@ func (b *fakeStateBackend) Checkpoint(data []byte) error {
 
 func (ss *stateSuite) TestImplicitCheckpointAndRead(c *C) {
 	b := new(fakeStateBackend)
-	st := overlord.NewState(b)
+	st := state.New(b)
 	st.Lock()
 
 	st.Set("v", 1)
@@ -152,7 +155,7 @@ func (ss *stateSuite) TestImplicitCheckpointAndRead(c *C) {
 
 	buf := bytes.NewBuffer(b.checkpoints[0])
 
-	st2, err := overlord.ReadState(nil, buf)
+	st2, err := state.ReadState(nil, buf)
 	c.Assert(err, IsNil)
 	c.Assert(st2, NotNil)
 
