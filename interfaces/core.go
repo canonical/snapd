@@ -27,7 +27,7 @@ import (
 
 // Plug represents a capacity offered by a snap.
 type Plug struct {
-	Name      string
+	Plug      string
 	Snap      string
 	Interface string
 	Attrs     map[string]interface{}
@@ -37,7 +37,7 @@ type Plug struct {
 
 // Slot represents the potential of a given snap to connect to a plug.
 type Slot struct {
-	Name      string
+	Slot      string
 	Snap      string
 	Interface string
 	Attrs     map[string]interface{}
