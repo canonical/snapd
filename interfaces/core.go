@@ -35,6 +35,12 @@ type Plug struct {
 	Label     string                 `json:"label"`
 }
 
+// PlugRef is a reference to a plug.
+type PlugRef struct {
+	Snap string `json:"snap"`
+	Plug string `json:"plug"`
+}
+
 // Slot represents the potential of a given snap to connect to a plug.
 type Slot struct {
 	Slot      string                 `json:"slot"`
@@ -43,6 +49,12 @@ type Slot struct {
 	Attrs     map[string]interface{} `json:"attrs,omitempty"`
 	Apps      []string               `json:"apps,omitempty"`
 	Label     string                 `json:"label"`
+}
+
+// SlotRef is a reference to a slot.
+type SlotRef struct {
+	Snap string `json:"snap"`
+	Slot string `json:"slot"`
 }
 
 // Interface describes a group of interchangeable capabilities with common features.
