@@ -208,10 +208,10 @@ func (ts *HTestSuite) TestMakeRandomString(c *C) {
 	rand.Seed(1)
 
 	s1 := MakeRandomString(10)
-	c.Assert(s1, Equals, "gmwJgSapGA")
+	c.Assert(s1, Equals, "pw7MpXh0JB")
 
 	s2 := MakeRandomString(5)
-	c.Assert(s2, Equals, "tLMod")
+	c.Assert(s2, Equals, "4PQyl")
 }
 
 func (ts *HTestSuite) TestAtomicWriteFile(c *C) {
