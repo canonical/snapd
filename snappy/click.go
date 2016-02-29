@@ -489,7 +489,7 @@ func addPackageDesktopFiles(m *snapYaml, baseDir string) error {
 
 	desktopFiles, err := filepath.Glob(filepath.Join(baseDir, "meta", "gui", "*.desktop"))
 	if err != nil {
-		return fmt.Errorf("can not get desktop files for %v: %s", baseDir, err)
+		return fmt.Errorf("cannot get desktop files for %v: %s", baseDir, err)
 	}
 
 	for _, df := range desktopFiles {
@@ -514,7 +514,7 @@ func removePackageDesktopFiles(m *snapYaml) error {
 	glob := filepath.Join(dirs.SnapDesktopFilesDir, m.Name+"_*.desktop")
 	activeDesktopFiles, err := filepath.Glob(glob)
 	if err != nil {
-		return fmt.Errorf("can not get desktop files for %v: %s", glob, err)
+		return fmt.Errorf("cannot get desktop files for %v: %s", glob, err)
 	}
 	for _, f := range activeDesktopFiles {
 		os.Remove(f)
