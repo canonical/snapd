@@ -1037,9 +1037,9 @@ version: 123456789
 func (a *SecurityTestSuite) TestFindSlotForAppEmpty(c *C) {
 	app := &AppYaml{}
 	m := &snapYaml{}
-	skill, err := findSlotForApp(m, app)
+	slot, err := findSlotForApp(m, app)
 	c.Check(err, IsNil)
-	c.Check(skill, IsNil)
+	c.Check(slot, IsNil)
 }
 
 func (a *SecurityTestSuite) TestFindSlotlForAppTooMany(c *C) {
@@ -1047,8 +1047,8 @@ func (a *SecurityTestSuite) TestFindSlotlForAppTooMany(c *C) {
 		SlotsRef: []string{"one", "two"},
 	}
 	m := &snapYaml{}
-	skill, err := findSlotForApp(m, app)
-	c.Check(skill, IsNil)
+	slot, err := findSlotForApp(m, app)
+	c.Check(slot, IsNil)
 	c.Check(err, ErrorMatches, "only a single slot is supported, 2 found")
 }
 
@@ -1057,21 +1057,21 @@ func (a *SecurityTestSuite) TestFindSlotForAppNotFound(c *C) {
 		SlotsRef: []string{"not-there"},
 	}
 	m := &snapYaml{}
-	skill, err := findSlotForApp(m, app)
-	c.Check(skill, IsNil)
+	slot, err := findSlotForApp(m, app)
+	c.Check(slot, IsNil)
 	c.Check(err, ErrorMatches, `can not find slot "not-there"`)
 }
 
 func (a *SecurityTestSuite) TestFindSlotFinds(c *C) {
 	app := &AppYaml{
-		SlotsRef: []string{"skill"},
+		SlotsRef: []string{"slot"},
 	}
 	m := &snapYaml{
 		Slots: map[string]*slotYaml{
-			"skill": &slotYaml{Interface: "some-type"},
+			"slot": &slotYaml{Interface: "some-type"},
 		},
 	}
-	skill, err := findSlotForApp(m, app)
+	slot, err := findSlotForApp(m, app)
 	c.Check(err, IsNil)
-	c.Check(skill.Interface, Equals, "some-type")
+	c.Check(slot.Interface, Equals, "some-type")
 }
