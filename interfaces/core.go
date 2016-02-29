@@ -59,6 +59,12 @@ type SlotRef struct {
 	Slot string `json:"slot"`
 }
 
+// InterfaceConnections contains information about all plugs, slots and their connections
+type InterfaceConnections struct {
+	Plugs []*Plug `json:"plugs"`
+	Slots []*Slot `json:"slots"`
+}
+
 // Interface describes a group of interchangeable capabilities with common features.
 // Interfaces act as a contract between system builders, application developers
 // and end users.
