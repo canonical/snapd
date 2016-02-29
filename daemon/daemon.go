@@ -192,13 +192,18 @@ func (d *Daemon) addRoutes() {
 // Start the Daemon
 func (d *Daemon) Start() {
 	d.tomb.Go(func() error {
-		return http.Serve(d.listener, logit(d.router))
+		if err := http.Serve(d.listener, logit(d.router)); err != nil && d.tomb.Err() == tomb.ErrStillAlive {
+			return err
+		}
+
+		return nil
 	})
 }
 
 // Stop shuts down the Daemon
 func (d *Daemon) Stop() error {
 	d.tomb.Kill(nil)
+	d.listener.Close()
 	return d.tomb.Wait()
 }
 

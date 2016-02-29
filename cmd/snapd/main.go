@@ -53,7 +53,7 @@ func run() error {
 	d.Start()
 
 	ch := make(chan os.Signal)
-	signal.Notify(ch, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
+	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
 	select {
 	case sig := <-ch:
 		logger.Noticef("Exiting on %s signal.\n", sig)
