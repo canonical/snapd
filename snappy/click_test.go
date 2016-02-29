@@ -1203,23 +1203,9 @@ apps:
 	c.Assert(helpers.FileExists(snapDir), Equals, false)
 }
 
-func (s *SnapTestSuite) TestGenerateDesktopFileName(c *C) {
-	m := &snapYaml{
-		Name: "foo",
-	}
-	app := &AppYaml{
-		DesktopFile: "foo.desktop",
-	}
-	c.Assert(generateDesktopFileName(m, app), Equals, filepath.Join(dirs.SnapDesktopFilesDir, "foo_foo.desktop"))
-}
-
 var desktopAppYaml = []byte(`
 name: foo
 version: 1.0
-apps:
- bar:
-  command: baz
-  desktop: foobar.desktop
 `)
 
 var mockDesktopFile = []byte(`
@@ -1227,29 +1213,24 @@ var mockDesktopFile = []byte(`
 Name=foo
 Icon=${SNAP}/foo.png`)
 
-func (s *SnapTestSuite) TestAddPackageDesktopFileNoDesktopFileFails(c *C) {
-	baseDir := c.MkDir()
-	m, err := parseSnapYamlData(desktopAppYaml, false)
-	c.Assert(err, IsNil)
-	err = addPackageDesktopFiles(m, baseDir)
-	c.Assert(err, ErrorMatches, ".*foobar.desktop: no such file or directory")
-}
-
 func (s *SnapTestSuite) TestAddPackageDesktopFiles(c *C) {
-	mockDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar.desktop")
-	c.Assert(helpers.FileExists(mockDesktopFilePath), Equals, false)
+	expectedDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar.desktop")
+	c.Assert(helpers.FileExists(expectedDesktopFilePath), Equals, false)
 
 	m, err := parseSnapYamlData(desktopAppYaml, false)
 	c.Assert(err, IsNil)
 
 	// generate .desktop file in the package baseDir
 	baseDir := c.MkDir()
-	err = ioutil.WriteFile(filepath.Join(baseDir, "foobar.desktop"), mockDesktopFile, 0644)
+	err = os.MkdirAll(filepath.Join(baseDir, "meta"), 0755)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(filepath.Join(baseDir, "meta", "foobar.desktop"), mockDesktopFile, 0644)
 	c.Assert(err, IsNil)
 
 	err = addPackageDesktopFiles(m, baseDir)
 	c.Assert(err, IsNil)
-	c.Assert(helpers.FileExists(mockDesktopFilePath), Equals, true)
+	c.Assert(helpers.FileExists(expectedDesktopFilePath), Equals, true)
 }
 
 func (s *SnapTestSuite) TestRemovePackageDesktopFiles(c *C) {
@@ -1274,7 +1255,7 @@ func (s *SnapTestSuite) TestDesktopFileIsAddedAndRemoved(c *C) {
 	c.Assert(err, IsNil)
 
 	// create a mock desktop file
-	err = ioutil.WriteFile(filepath.Join(filepath.Dir(yamlFile), "..", "foobar.desktop"), []byte(mockDesktopFile), 0644)
+	err = ioutil.WriteFile(filepath.Join(filepath.Dir(yamlFile), "foobar.desktop"), []byte(mockDesktopFile), 0644)
 	c.Assert(err, IsNil)
 
 	// ensure that activate creates the desktop file

@@ -482,22 +482,18 @@ func removePackageBinaries(m *snapYaml, baseDir string) error {
 	return nil
 }
 
-func generateDesktopFileName(m *snapYaml, app *AppYaml) string {
-	desktopFileName := fmt.Sprintf("%s_%s", m.Name, app.DesktopFile)
-
-	return filepath.Join(dirs.SnapDesktopFilesDir, desktopFileName)
-}
-
 func addPackageDesktopFiles(m *snapYaml, baseDir string) error {
 	if err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0755); err != nil {
 		return err
 	}
 
-	for _, app := range m.Apps {
-		if app.DesktopFile == "" {
-			continue
-		}
-		content, err := ioutil.ReadFile(filepath.Join(baseDir, app.DesktopFile))
+	desktopFiles, err := filepath.Glob(filepath.Join(baseDir, "meta", "*.desktop"))
+	if err != nil {
+		return fmt.Errorf("can not get desktop files for %v: %s", baseDir, err)
+	}
+
+	for _, df := range desktopFiles {
+		content, err := ioutil.ReadFile(df)
 		if err != nil {
 			return err
 		}
@@ -505,7 +501,8 @@ func addPackageDesktopFiles(m *snapYaml, baseDir string) error {
 		realBaseDir := stripGlobalRootDir(baseDir)
 		content = bytes.Replace(content, []byte("${SNAP}"), []byte(realBaseDir), -1)
 
-		if err := helpers.AtomicWriteFile(generateDesktopFileName(m, app), []byte(content), 0755, 0); err != nil {
+		installedDesktopFileName := filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s", m.Name, filepath.Base(df)))
+		if err := helpers.AtomicWriteFile(installedDesktopFileName, []byte(content), 0755, 0); err != nil {
 			return err
 		}
 	}
@@ -514,8 +511,13 @@ func addPackageDesktopFiles(m *snapYaml, baseDir string) error {
 }
 
 func removePackageDesktopFiles(m *snapYaml) error {
-	for _, app := range m.Apps {
-		os.Remove(generateDesktopFileName(m, app))
+	glob := filepath.Join(dirs.SnapDesktopFilesDir, m.Name+"_*.desktop")
+	activeDesktopFiles, err := filepath.Glob(glob)
+	if err != nil {
+		return fmt.Errorf("can not get desktop files for %v: %s", glob, err)
+	}
+	for _, f := range activeDesktopFiles {
+		os.Remove(f)
 	}
 
 	return nil
