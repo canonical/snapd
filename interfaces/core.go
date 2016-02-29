@@ -27,22 +27,22 @@ import (
 
 // Plug represents a capacity offered by a snap.
 type Plug struct {
-	Plug      string
-	Snap      string
-	Interface string
-	Attrs     map[string]interface{}
-	Apps      []string
-	Label     string
+	Plug      string                 `json:"plug"`
+	Snap      string                 `json:"snap"`
+	Interface string                 `json:"interface"`
+	Attrs     map[string]interface{} `json:"attrs,omitempty"`
+	Apps      []string               `json:"apps,omitempty"`
+	Label     string                 `json:"label"`
 }
 
 // Slot represents the potential of a given snap to connect to a plug.
 type Slot struct {
-	Slot      string
-	Snap      string
-	Interface string
-	Attrs     map[string]interface{}
-	Apps      []string
-	Label     string
+	Slot      string                 `json:"slot"`
+	Snap      string                 `json:"snap"`
+	Interface string                 `json:"interface"`
+	Attrs     map[string]interface{} `json:"attrs,omitempty"`
+	Apps      []string               `json:"apps,omitempty"`
+	Label     string                 `json:"label"`
 }
 
 // Interface describes a group of interchangeable capabilities with common features.
