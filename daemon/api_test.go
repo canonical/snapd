@@ -116,7 +116,10 @@ func (s *apiSuite) mkInstalled(c *check.C, name, origin, version string, active 
 	metadir := filepath.Join(dirs.SnapSnapsDir, fullname, version, "meta")
 	c.Assert(os.MkdirAll(metadir, 0755), check.IsNil)
 
-	c.Check(ioutil.WriteFile(filepath.Join(metadir, "icon.svg"), []byte("yadda icon"), 0644), check.IsNil)
+	guidir := filepath.Join(metadir, "gui")
+	c.Assert(os.MkdirAll(guidir, 0755), check.IsNil)
+
+	c.Check(ioutil.WriteFile(filepath.Join(guidir, "icon.svg"), []byte("yadda icon"), 0644), check.IsNil)
 
 	content := fmt.Sprintf(`
 name: %s
@@ -158,7 +161,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 		origin:       "bar",
 		isInstalled:  true,
 		isActive:     true,
-		icon:         "meta/icon.svg",
+		icon:         "meta/gui/icon.svg",
 		_type:        snap.TypeApp,
 		downloadSize: 2,
 	}}
@@ -1031,7 +1034,8 @@ func (s *apiSuite) TestAppIconGet(c *check.C) {
 	s.mkInstalled(c, "foo", "bar", "v1", true, "")
 
 	// have an icon for it in the package itself
-	iconfile := filepath.Join(dirs.SnapSnapsDir, "foo.bar", "v1", "meta", "icon.ick")
+	iconfile := filepath.Join(dirs.SnapSnapsDir, "foo.bar", "v1", "meta", "gui", "icon.ick")
+	c.Assert(os.MkdirAll(filepath.Dir(iconfile), 0755), check.IsNil)
 	c.Check(ioutil.WriteFile(iconfile, []byte("ick"), 0644), check.IsNil)
 
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
@@ -1050,7 +1054,9 @@ func (s *apiSuite) TestAppIconGetInactive(c *check.C) {
 	s.mkInstalled(c, "foo", "bar", "v1", false, "")
 
 	// have an icon for it in the package itself
-	iconfile := filepath.Join(dirs.SnapSnapsDir, "foo.bar", "v1", "meta", "icon.ick")
+
+	iconfile := filepath.Join(dirs.SnapSnapsDir, "foo.bar", "v1", "meta", "gui", "icon.ick")
+	c.Assert(os.MkdirAll(filepath.Dir(iconfile), 0755), check.IsNil)
 	c.Check(ioutil.WriteFile(iconfile, []byte("ick"), 0644), check.IsNil)
 
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
@@ -1069,7 +1075,7 @@ func (s *apiSuite) TestAppIconGetNoIcon(c *check.C) {
 	s.mkInstalled(c, "foo", "bar", "v1", true, "")
 
 	// NO ICON!
-	err := os.RemoveAll(filepath.Join(dirs.SnapSnapsDir, "foo.bar", "v1", "meta", "icon.svg"))
+	err := os.RemoveAll(filepath.Join(dirs.SnapSnapsDir, "foo.bar", "v1", "meta", "gui", "icon.svg"))
 	c.Assert(err, check.IsNil)
 
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
