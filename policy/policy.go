@@ -26,8 +26,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ubuntu-core/snappy/cmp"
 	"github.com/ubuntu-core/snappy/cp"
-	"github.com/ubuntu-core/snappy/helpers"
 )
 
 var (
@@ -131,7 +131,7 @@ func Remove(pkgName, instPath, rootDir string) error {
 }
 
 func aaUp(old, new, dir, pfx string) map[string]bool {
-	return helpers.DirUpdated(filepath.Join(old, dir), filepath.Join(new, dir), pfx)
+	return cmp.DirUpdated(filepath.Join(old, dir), filepath.Join(new, dir), pfx)
 }
 
 // AppArmorDelta returns which policies and templates are updated in the package

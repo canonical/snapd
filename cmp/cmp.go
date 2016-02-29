@@ -17,7 +17,7 @@
  *
  */
 
-package helpers
+package cmp
 
 import (
 	"bytes"
