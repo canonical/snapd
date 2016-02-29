@@ -1222,10 +1222,10 @@ func (s *SnapTestSuite) TestAddPackageDesktopFiles(c *C) {
 
 	// generate .desktop file in the package baseDir
 	baseDir := c.MkDir()
-	err = os.MkdirAll(filepath.Join(baseDir, "meta"), 0755)
+	err = os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0755)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(filepath.Join(baseDir, "meta", "foobar.desktop"), mockDesktopFile, 0644)
+	err = ioutil.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar.desktop"), mockDesktopFile, 0644)
 	c.Assert(err, IsNil)
 
 	err = addPackageDesktopFiles(m, baseDir)
@@ -1255,7 +1255,9 @@ func (s *SnapTestSuite) TestDesktopFileIsAddedAndRemoved(c *C) {
 	c.Assert(err, IsNil)
 
 	// create a mock desktop file
-	err = ioutil.WriteFile(filepath.Join(filepath.Dir(yamlFile), "foobar.desktop"), []byte(mockDesktopFile), 0644)
+	err = os.MkdirAll(filepath.Join(filepath.Dir(yamlFile), "gui"), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(filepath.Dir(yamlFile), "gui", "foobar.desktop"), []byte(mockDesktopFile), 0644)
 	c.Assert(err, IsNil)
 
 	// ensure that activate creates the desktop file
