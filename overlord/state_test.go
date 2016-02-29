@@ -44,7 +44,7 @@ type mgrState2 struct {
 }
 
 func (ss *stateSuite) TestGetAndSet(c *C) {
-	st := overlord.NewState()
+	st := overlord.NewState(nil)
 	mSt1 := &mgrState1{A: "foo"}
 	st.Set("mgr1", mSt1)
 	mSt2 := &mgrState2{C: &Count2{B: 42}}
@@ -62,7 +62,7 @@ func (ss *stateSuite) TestGetAndSet(c *C) {
 }
 
 func (ss *stateSuite) TestSetPanic(c *C) {
-	st := overlord.NewState()
+	st := overlord.NewState(nil)
 	unsupported := struct {
 		Ch chan bool
 	}{}
@@ -70,7 +70,7 @@ func (ss *stateSuite) TestSetPanic(c *C) {
 }
 
 func (ss *stateSuite) TestGetNoState(c *C) {
-	st := overlord.NewState()
+	st := overlord.NewState(nil)
 
 	var mSt1B mgrState1
 	err := st.Get("mgr9", &mSt1B)
@@ -78,7 +78,7 @@ func (ss *stateSuite) TestGetNoState(c *C) {
 }
 
 func (ss *stateSuite) TestGetUnmarshalProblem(c *C) {
-	st := overlord.NewState()
+	st := overlord.NewState(nil)
 	mismatched := struct {
 		A int
 	}{A: 22}
@@ -89,31 +89,8 @@ func (ss *stateSuite) TestGetUnmarshalProblem(c *C) {
 	c.Check(err, ErrorMatches, `internal error: could not unmarshal state entry "mgr9": json: cannot unmarshal .*`)
 }
 
-func (ss *stateSuite) TestCopy(c *C) {
-	st := overlord.NewState()
-	mSt1 := &mgrState1{A: "foo"}
-	st.Set("mgr1", mSt1)
-	cnt := &Count2{B: 42}
-	mSt2 := &mgrState2{C: cnt}
-	st.Set("mgr2", mSt2)
-
-	stCopy := st.Copy()
-
-	var mSt1B mgrState1
-	err := stCopy.Get("mgr1", &mSt1B)
-	c.Assert(err, IsNil)
-	c.Check(&mSt1B, DeepEquals, mSt1)
-
-	var mSt2B mgrState2
-	err = stCopy.Get("mgr2", &mSt2B)
-	c.Assert(err, IsNil)
-	c.Check(&mSt2B, DeepEquals, mSt2)
-
-	c.Check(mSt2B.C, Not(Equals), cnt)
-}
-
 func (ss *stateSuite) TestWriteAndRead(c *C) {
-	st := overlord.NewState()
+	st := overlord.NewState(nil)
 	st.Set("v", 1)
 	mSt1 := &mgrState1{A: "foo"}
 	st.Set("mgr1", mSt1)
@@ -125,7 +102,7 @@ func (ss *stateSuite) TestWriteAndRead(c *C) {
 	err := overlord.WriteState(st, buf)
 	c.Assert(err, IsNil)
 
-	st2, err := overlord.ReadState(buf)
+	st2, err := overlord.ReadState(nil, buf)
 	c.Assert(err, IsNil)
 	c.Assert(st2, NotNil)
 

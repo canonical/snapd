@@ -17,52 +17,52 @@
  *
  */
 
-// Package overlord implements the policies for state transitions for the operation of a snappy system.
+// Package overlord implements the overall control of a snappy system.
 package overlord
 
 // Overlord is the central manager of a snappy system, keeping
 // track of all available state managers and related helpers.
 type Overlord struct {
+	stateEng *StateEngine
 	// managers
 	snapMgr   *SnapManager
 	assertMgr *AssertManager
-	skillMgr  *SkillManager
+	ifaceMgr  *InterfaceManager
 }
 
 // New creates a new Overlord with all its state managers.
 func New() (*Overlord, error) {
-	stateEng := NewStateEngine()
-
 	o := &Overlord{}
+
+	o.stateEng = NewStateEngine()
+
 	snapMgr, err := NewSnapManager(o)
 	if err != nil {
 		return nil, err
 	}
 	o.snapMgr = snapMgr
-	stateEng.AddManager(o.snapMgr)
+	o.stateEng.AddManager(o.snapMgr)
 
 	assertMgr, err := NewAssertManager(o)
 	if err != nil {
 		return nil, err
 	}
 	o.assertMgr = assertMgr
-	stateEng.AddManager(o.assertMgr)
+	o.stateEng.AddManager(o.assertMgr)
 
-	skillMgr, err := NewSkillManager(o)
+	ifaceMgr, err := NewInterfaceManager(o)
 	if err != nil {
 		return nil, err
 	}
-	o.skillMgr = skillMgr
-	stateEng.AddManager(o.skillMgr)
-
-	// XXX: setup the StateJournal
+	o.ifaceMgr = ifaceMgr
+	o.stateEng.AddManager(o.ifaceMgr)
 
 	return o, nil
 }
 
-// StateJournal returns the StateJournal used by the overlord.
-func (o *Overlord) StateJournal() *StateJournal {
-	return nil
+// StateEngine returns the state engine used by the overlord.
+func (o *Overlord) StateEngine() *StateEngine {
+	return o.stateEng
 }
 
 // SnapManager returns the snap manager responsible for snaps under
@@ -77,8 +77,8 @@ func (o *Overlord) AssertManager() *AssertManager {
 	return o.assertMgr
 }
 
-// SkillManager returns the skill manager mantaining skill assignments
-// under the overlord.
-func (o *Overlord) SkillManager() *SkillManager {
-	return o.skillMgr
+// InterfaceManager returns the interface manager mantaining
+// interface connections under the overlord.
+func (o *Overlord) InterfaceManager() *InterfaceManager {
+	return o.ifaceMgr
 }

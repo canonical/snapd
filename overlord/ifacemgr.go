@@ -19,37 +19,39 @@
 
 package overlord
 
-// SnapManager is responsible for the installation and removal of snaps.
-type SnapManager struct {
+// InterfaceManager is responsible for the maintenance of interfaces in
+// the system state.  It maintains interface connections, and also observes
+// installed snaps to track the current set of available plugs and slots.
+type InterfaceManager struct {
 	o *Overlord
 }
 
-// NewSnapManager returns a new snap manager.
-func NewSnapManager(o *Overlord) (*SnapManager, error) {
-	return &SnapManager{o: o}, nil
+// NewInterfaceManager returns a new InterfaceManager.
+func NewInterfaceManager(o *Overlord) (*InterfaceManager, error) {
+	return &InterfaceManager{o: o}, nil
 }
 
-// Install initiates a change installing snap.
-func (m *SnapManager) Install(snap string) error {
+// Connect initiates a change connecting an interface.
+func (m *InterfaceManager) Connect(plugSnap, plugName, slotSnap, slotName string) error {
 	return nil
 }
 
-// Remove initiates a change removing snap.
-func (m *SnapManager) Remove(snap string) error {
+// Disconnect initiates a change disconnecting an interface.
+func (m *InterfaceManager) Disconnect(plugSnap, plugName, slotSnap, slotName string) error {
 	return nil
 }
 
 // Init implements StateManager.Init.
-func (m *SnapManager) Init(s *State) error {
+func (m *InterfaceManager) Init(s *State) error {
 	return nil
 }
 
 // Ensure implements StateManager.Ensure.
-func (m *SnapManager) Ensure() error {
+func (m *InterfaceManager) Ensure() error {
 	return nil
 }
 
 // Stop implements StateManager.Stop.
-func (m *SnapManager) Stop() error {
+func (m *InterfaceManager) Stop() error {
 	return nil
 }
