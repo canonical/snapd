@@ -502,7 +502,6 @@ func addPackageDesktopFiles(m *snapYaml, baseDir string) error {
 			return err
 		}
 
-		// sub
 		realBaseDir := stripGlobalRootDir(baseDir)
 		content = bytes.Replace(content, []byte("${SNAP}"), []byte(realBaseDir), -1)
 
