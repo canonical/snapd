@@ -487,7 +487,7 @@ func addPackageDesktopFiles(m *snapYaml, baseDir string) error {
 		return err
 	}
 
-	desktopFiles, err := filepath.Glob(filepath.Join(baseDir, "meta", "*.desktop"))
+	desktopFiles, err := filepath.Glob(filepath.Join(baseDir, "meta", "gui", "*.desktop"))
 	if err != nil {
 		return fmt.Errorf("can not get desktop files for %v: %s", baseDir, err)
 	}
