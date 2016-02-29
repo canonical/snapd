@@ -78,6 +78,7 @@ func main() {
 		outputDir     = flag.String("output-dir", defaultOutputDir, "Directory where test artifacts will be stored.")
 		shellOnFail   = flag.Bool("shell-fail", false, "Run a shell in the testbed if the suite fails.")
 		testBuildTags = flag.String("test-build-tags", "", "Build tags to be passed to the go test command")
+		httpProxy     = flag.String("http-proxy", "", "HTTP proxy to set in the testbed.")
 	)
 
 	flag.Parse()
@@ -114,6 +115,11 @@ func main() {
 		TestFilter:          *testFilter,
 		IntegrationTestName: build.IntegrationTestName,
 		ShellOnFail:         *shellOnFail,
+		Env: map[string]string{
+			"http_proxy":  *httpProxy,
+			"https_proxy": *httpProxy,
+			"no_proxy":    "127.0.0.1,127.0.1.1,localhost,login.ubuntu.com",
+		},
 	}
 	if !remoteTestbed {
 		img := &image.Image{

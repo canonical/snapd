@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -44,39 +43,16 @@ var _ = check.Suite(&snapdTestSuite{})
 
 type snapdTestSuite struct {
 	common.SnappySuite
-	cmd *exec.Cmd
 }
 
 func (s *snapdTestSuite) SetUpTest(c *check.C) {
 	s.SnappySuite.SetUpTest(c)
 
-	trustedKey, err := filepath.Abs("integration-tests/data/trusted.acckey")
-	c.Assert(err, check.IsNil)
-
-	cli.ExecCommand(c, "sudo", "systemctl", "stop",
-		"ubuntu-snappy.snapd.service", "ubuntu-snappy.snapd.socket")
-
-	// FIXME: for now pass a test-only trusted key through an env var
-	s.cmd = exec.Command("sudo", "env", "PATH="+os.Getenv("PATH"),
-		"SNAPPY_TRUSTED_ACCOUNT_KEY="+trustedKey,
-		"/lib/systemd/systemd-activate", "--setenv=SNAPPY_TRUSTED_ACCOUNT_KEY",
-		"-l", "/run/snapd.socket", "snapd")
-
-	err = s.cmd.Start()
-	c.Assert(err, check.IsNil)
-
-	wait.ForCommand(c, `^$`, "sudo", "chmod", "0666", "/run/snapd.socket")
 	common.InstallSnap(c, httpClientSnap+"/edge")
 }
 
 func (s *snapdTestSuite) TearDownTest(c *check.C) {
 	s.SnappySuite.TearDownTest(c)
-
-	proc := s.cmd.Process
-	if proc != nil {
-		proc.Kill()
-	}
-	cli.ExecCommand(c, "sudo", "systemctl", "start", "ubuntu-snappy.snapd.socket")
 
 	common.RemoveSnap(c, httpClientSnap)
 }

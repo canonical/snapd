@@ -479,6 +479,13 @@ func (bag *PartBag) Map(remotePart snappy.Part) map[string]interface{} {
 		"download_size":  downloadSize,
 	}
 
+	if part != nil {
+		channel := part.Channel()
+		if channel != "" {
+			result["channel"] = channel
+		}
+	}
+
 	if rollback != "" {
 		result["rollback_available"] = rollback
 	}
