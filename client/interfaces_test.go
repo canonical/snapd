@@ -64,15 +64,13 @@ func (cs *clientSuite) TestClientInterfaceConnections(c *check.C) {
 	interfaces, err := cs.cli.InterfaceConnections()
 	c.Assert(err, check.IsNil)
 	c.Check(interfaces, check.DeepEquals, client.InterfaceConnections{
-		Plugs: []client.PlugConnections{
-			{
-				Plug: client.Plug{
-					Snap:      "canonical-pi2",
-					Plug:      "pin-13",
-					Interface: "bool-file",
-					Label:     "Pin 13",
-				},
-				Connections: []client.Slot{
+		Plugs: []*client.Plug{
+			&client.Plug{
+				Snap:      "canonical-pi2",
+				Plug:      "pin-13",
+				Interface: "bool-file",
+				Label:     "Pin 13",
+				Connections: []client.SlotRef{
 					{
 						Snap: "keyboard-lights",
 						Slot: "capslock-led",
@@ -80,15 +78,13 @@ func (cs *clientSuite) TestClientInterfaceConnections(c *check.C) {
 				},
 			},
 		},
-		Slots: []client.SlotConnections{
-			{
-				Slot: client.Slot{
-					Snap:      "keyboard-lights",
-					Slot:      "capslock-led",
-					Interface: "bool-file",
-					Label:     "Capslock indicator LED",
-				},
-				Connections: []client.Plug{
+		Slots: []*client.Slot{
+			&client.Slot{
+				Snap:      "keyboard-lights",
+				Slot:      "capslock-led",
+				Interface: "bool-file",
+				Label:     "Capslock indicator LED",
+				Connections: []client.PlugRef{
 					{
 						Snap: "canonical-pi2",
 						Plug: "pin-13",
