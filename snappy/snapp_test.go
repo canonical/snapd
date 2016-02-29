@@ -1570,10 +1570,12 @@ func (s *SnapTestSuite) TestIcon(c *C) {
 	snapYaml, err := s.makeInstalledMockSnap()
 	part, err := NewInstalledSnapPart(snapYaml, testOrigin)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(part.basedir, "meta", "icon.png"), nil, 0644)
+	err = os.MkdirAll(filepath.Join(part.basedir, "meta", "gui"), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(part.basedir, "meta", "gui", "icon.png"), nil, 0644)
 	c.Assert(err, IsNil)
 
-	c.Check(part.Icon(), Matches, filepath.Join(dirs.SnapSnapsDir, QualifiedName(part), part.Version(), "meta/icon.png"))
+	c.Check(part.Icon(), Matches, filepath.Join(dirs.SnapSnapsDir, QualifiedName(part), part.Version(), "meta/gui/icon.png"))
 }
 
 func (s *SnapTestSuite) TestIconEmpty(c *C) {
