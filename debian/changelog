@@ -1,3 +1,27 @@
+ubuntu-snappy (1.7.3+20160225ubuntu1) xenial; urgency=medium
+
+    - integration-tests: always use the built snapd when compiling
+      binaries from branch
+    - cmd/snap: rename skills to interfaces
+    - testutil,skills/types,skills,daemon: tweak discovery of know skill
+      types
+    - docs: add docs for arm64 cross building
+    - overlord: implement basic ReadState/WriteState
+    - overlord: implement Get/Set/Copy on State
+    - integration-tests: fix dd output check
+    - integration-tests: add fromBranch config field
+    - integration-tests: use cli pkg methods in hwAssignSuite
+    - debian: do not create the snappypkg user, we don't need it anymore
+    - arch: fix build failure on s390x
+    - classic: cleanup downloaded lxd tarball
+    - cmd/snap,client,integration-tests: rename snap subcmds
+      'assert'=>'ack', 'asserts'=>'known'
+    - skills: fix broken tests builds
+    - skills,skills/types: pass slot to SlotSecuritySnippet()
+    - skills/types: teach bool-file about udev security
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 25 Feb 2016 16:17:19 +0100
+
 ubuntu-snappy (1.7.2+20160223ubuntu1) xenial; urgency=medium
 
   * New git snapshot:

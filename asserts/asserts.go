@@ -45,6 +45,7 @@ type AssertionType struct {
 // Understood assertion types.
 var (
 	AccountKeyType = &AssertionType{"account-key", []string{"account-id", "public-key-id"}, assembleAccountKey}
+	IdentityType   = &AssertionType{"identity", []string{"account-id"}, assembleIdentity}
 	// XXX: is series actually part of the primary key?
 	ModelType           = &AssertionType{"model", []string{"brand-id", "model", "series"}, assembleModel}
 	DeviceType          = &AssertionType{"device", []string{"brand-id", "model", "serial"}, assembleDevice}
@@ -57,6 +58,7 @@ var (
 
 var typeRegistry = map[string]*AssertionType{
 	AccountKeyType.Name:      AccountKeyType,
+	IdentityType.Name:        IdentityType,
 	ModelType.Name:           ModelType,
 	DeviceType.Name:          DeviceType,
 	SnapDeclarationType.Name: SnapDeclarationType,
