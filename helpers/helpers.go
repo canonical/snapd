@@ -20,12 +20,8 @@
 package helpers
 
 import (
-	"archive/tar"
 	"bytes"
-	"crypto/sha512"
-	"encoding/hex"
 	"fmt"
-	"io"
 	"math/rand"
 	"os"
 	"os/user"
@@ -57,134 +53,9 @@ func ChDir(newDir string, f func() error) (err error) {
 	return f()
 }
 
-// TarIterFunc is called for each file inside a tar archive
-type TarIterFunc func(r *tar.Reader, hdr *tar.Header) error
-
-// TarIterate will take a io.Reader and call the fn callback on each tar
-// archive member
-func TarIterate(r io.Reader, fn TarIterFunc) error {
-	tr := tar.NewReader(r)
-	for {
-		hdr, err := tr.Next()
-		if err == io.EOF {
-			// end of tar archive
-			break
-		}
-		if err != nil {
-			return err
-		}
-
-		if err := fn(tr, hdr); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// IsSymlink checks whether the given os.FileMode corresponds to a symlink
-func IsSymlink(mode os.FileMode) bool {
-	return (mode & os.ModeSymlink) == os.ModeSymlink
-}
-
 // IsDevice checks if the given os.FileMode coresponds to a device (char/block)
 func IsDevice(mode os.FileMode) bool {
 	return (mode & (os.ModeDevice | os.ModeCharDevice)) != 0
-}
-
-// UnpackTarTransformFunc can be used to change the names during unpack
-// or to return a error for files that are not acceptable
-type UnpackTarTransformFunc func(path string) (newPath string, err error)
-
-var mknod = syscall.Mknod
-
-// UnpackTar unpacks the given tar file into the target directory
-func UnpackTar(r io.Reader, targetDir string, fn UnpackTarTransformFunc) error {
-	// ensure we we extract with the original permissions
-	oldUmask := syscall.Umask(0)
-	defer syscall.Umask(oldUmask)
-
-	return TarIterate(r, func(tr *tar.Reader, hdr *tar.Header) (err error) {
-		// run tar transform func
-		name := hdr.Name
-		if fn != nil {
-			name, err = fn(hdr.Name)
-			if err != nil {
-				return err
-			}
-		}
-
-		path := filepath.Join(targetDir, name)
-		mode := hdr.FileInfo().Mode()
-		if err := os.MkdirAll(filepath.Dir(path), 0777); err != nil {
-			return err
-		}
-
-		switch {
-		case mode.IsDir():
-			err := os.Mkdir(path, mode)
-			if err != nil {
-				return nil
-			}
-		case IsSymlink(mode):
-			if err := os.Symlink(hdr.Linkname, path); err != nil {
-				return err
-			}
-		case IsDevice(mode):
-			switch {
-			case (mode & os.ModeCharDevice) != 0:
-				mode |= syscall.S_IFCHR
-			case (mode & os.ModeDevice) != 0:
-				mode |= syscall.S_IFBLK
-			}
-			devNum := Makedev(uint32(hdr.Devmajor), uint32(hdr.Devminor))
-			err = mknod(path, uint32(mode), int(devNum))
-			if err != nil {
-				return err
-			}
-		case mode.IsRegular():
-			out, err := os.OpenFile(path, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, mode)
-			if err != nil {
-				return err
-			}
-			defer out.Close()
-			_, err = io.Copy(out, tr)
-			if err != nil {
-				return err
-			}
-		default:
-			return &ErrUnsupportedFileType{path, mode}
-		}
-
-		return nil
-	})
-}
-
-// ErrUnsupportedFileType is returned when trying to extract a file
-// that is not a regular file, a directory, or a symlink.
-type ErrUnsupportedFileType struct {
-	Name string
-	Mode os.FileMode
-}
-
-func (e ErrUnsupportedFileType) Error() string {
-	return fmt.Sprintf("%s: unsupported filetype %s", e.Name, e.Mode)
-}
-
-// Sha512sum returns the sha512 of the given file as a hexdigest
-func Sha512sum(infile string) (hexdigest string, err error) {
-	r, err := os.Open(infile)
-	if err != nil {
-		return "", err
-	}
-	defer r.Close()
-
-	hasher := sha512.New()
-	if _, err := io.Copy(hasher, r); err != nil {
-		return "", err
-	}
-
-	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
 // MakeMapFromEnvList takes a string list of the form "key=value"

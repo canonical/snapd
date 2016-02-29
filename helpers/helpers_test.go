@@ -20,17 +20,13 @@
 package helpers
 
 import (
-	"compress/gzip"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"syscall"
 	"testing"
-
-	"github.com/ubuntu-core/snappy/osutil"
 
 	. "gopkg.in/check.v1"
 )
@@ -40,55 +36,6 @@ func Test(t *testing.T) { TestingT(t) }
 type HTestSuite struct{}
 
 var _ = Suite(&HTestSuite{})
-
-func (ts *HTestSuite) TestUnpack(c *C) {
-
-	// setup tmpdir
-	tmpdir := c.MkDir()
-	tmpfile := filepath.Join(tmpdir, "foo.tar.gz")
-
-	// ok, slightly silly
-	path := "/etc/fstab"
-
-	// create test dir, symlink, and also test file
-	someDir := c.MkDir()
-	c.Assert(os.Symlink(path, filepath.Join(someDir, "fstab")), IsNil)
-
-	cmd := exec.Command("tar", "cvzf", tmpfile, path, someDir)
-	output, err := cmd.CombinedOutput()
-	c.Assert(err, IsNil)
-	c.Check(string(output), Matches, `(?ms).*^/etc/fstab`,
-		Commentf("Can not find expected output from tar"))
-
-	// unpack
-	unpackdir := filepath.Join(tmpdir, "t")
-	f, err := os.Open(tmpfile)
-	c.Assert(err, IsNil)
-
-	f2, err := gzip.NewReader(f)
-	c.Assert(err, IsNil)
-
-	err = UnpackTar(f2, unpackdir, nil)
-	c.Assert(err, IsNil)
-
-	// we have the expected file
-	_, err = os.Open(filepath.Join(tmpdir, "t/etc/fstab"))
-	c.Assert(err, IsNil)
-
-	// and the expected dir is there and has the right mode
-	unpackedSomeDir := filepath.Join(tmpdir, "t", someDir)
-	c.Assert(osutil.IsDirectory(unpackedSomeDir), Equals, true)
-	st1, err := os.Stat(unpackedSomeDir)
-	c.Assert(err, IsNil)
-	st2, err := os.Stat(someDir)
-	c.Assert(err, IsNil)
-	c.Assert(st1.Mode(), Equals, st2.Mode())
-
-	// and the symlink is there too
-	fn, err := os.Readlink(filepath.Join(unpackedSomeDir, "fstab"))
-	c.Check(err, IsNil)
-	c.Check(fn, Equals, "/etc/fstab")
-}
 
 func (ts *HTestSuite) TestChdir(c *C) {
 	tmpdir := c.MkDir()
@@ -136,17 +83,6 @@ func (ts *HTestSuite) TestMakeMapFromEnvListInvalidInput(c *C) {
 	}
 	envMap := MakeMapFromEnvList(envList)
 	c.Assert(envMap, DeepEquals, map[string]string(nil))
-}
-
-func (ts *HTestSuite) TestSha512sum(c *C) {
-	tempdir := c.MkDir()
-
-	p := filepath.Join(tempdir, "foo")
-	err := ioutil.WriteFile(p, []byte("x"), 0644)
-	c.Assert(err, IsNil)
-	hashsum, err := Sha512sum(p)
-	c.Assert(err, IsNil)
-	c.Assert(hashsum, Equals, "a4abd4448c49562d828115d13a1fccea927f52b4d5459297f8b43e42da89238bc13626e43dcb38ddb082488927ec904fb42057443983e88585179d50551afe62")
 }
 
 func (ts *HTestSuite) TestMakeRandomString(c *C) {
@@ -359,32 +295,6 @@ func (ts *HTestSuite) TestMakedev(c *C) {
 	c.Assert(Makedev(1, 11), Equals, uint32(267))
 }
 
-func (ts *HTestSuite) TestUnpacksMknod(c *C) {
-	skipOnMissingDevKmsg(c)
-
-	// mknod mock
-	mknodWasCalled := false
-	mknod = func(path string, mode uint32, dev int) error {
-		mknodWasCalled = true
-		return nil
-	}
-
-	// setup tmpdir
-	tmpdir := c.MkDir()
-	tmpfile := filepath.Join(tmpdir, "device.tar")
-
-	cmd := exec.Command("tar", "cf", tmpfile, "/dev/kmsg")
-	err := cmd.Run()
-	c.Assert(err, IsNil)
-
-	f, err := os.Open(tmpfile)
-	c.Assert(err, IsNil)
-
-	err = UnpackTar(f, c.MkDir(), nil)
-	c.Assert(err, IsNil)
-	c.Assert(mknodWasCalled, Equals, true)
-}
-
 func (ts *HTestSuite) TestGetattr(c *C) {
 	T := struct {
 		S string
@@ -538,36 +448,4 @@ func (ts *HTestSuite) TestCopyIfDifferentErrorsOnNoSrc(c *C) {
 
 	err := CopyIfDifferent(src, dst)
 	c.Assert(err, NotNil)
-}
-
-func (ts *HTestSuite) TestUnpackPermissions(c *C) {
-	tarArchive := filepath.Join(c.MkDir(), "foo.tar")
-
-	canaryName := "foo"
-	canaryPerms := os.FileMode(0644)
-	tmpdir := c.MkDir()
-	err := ioutil.WriteFile(filepath.Join(tmpdir, canaryName), []byte(nil), canaryPerms)
-	c.Assert(err, IsNil)
-
-	ChDir(tmpdir, func() error {
-		cmd := exec.Command("tar", "cvf", tarArchive, ".")
-		_, err = cmd.CombinedOutput()
-		c.Assert(err, IsNil)
-		return err
-	})
-
-	// set crazy umask
-	oldUmask := syscall.Umask(0077)
-	defer syscall.Umask(oldUmask)
-
-	// unpack
-	unpackdir := c.MkDir()
-	f, err := os.Open(tarArchive)
-	c.Assert(err, IsNil)
-	defer f.Close()
-	UnpackTar(f, unpackdir, nil)
-
-	st, err := os.Stat(filepath.Join(unpackdir, canaryName))
-	c.Assert(err, IsNil)
-	c.Assert(st.Mode()&os.ModePerm, Equals, canaryPerms)
 }
