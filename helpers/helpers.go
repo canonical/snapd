@@ -239,7 +239,7 @@ const letters = "BCDFGHJKLMNPQRSTVWXYbcdfghjklmnpqrstvwxy0123456789"
 //
 // The vowels are omited to avoid that words are created by pure
 // chance. Numbers are included.
-var MakeRandomString = func(length int) string {
+func MakeRandomString(length int) string {
 
 	out := ""
 	for i := 0; i < length; i++ {

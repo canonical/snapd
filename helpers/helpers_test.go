@@ -341,16 +341,14 @@ func (ts *HTestSuite) TestAtomicWriteFileOverwriteRelativeSymlink(c *C) {
 
 func (ts *HTestSuite) TestAtomicWriteFileNoOverwriteTmpExisting(c *C) {
 	tmpdir := c.MkDir()
-	realMakeRandomString := MakeRandomString
-	defer func() { MakeRandomString = realMakeRandomString }()
-	MakeRandomString = func(n int) string {
-		// chosen by fair dice roll.
-		// guranteed to be random.
-		return "4"
-	}
+	// ensure we always get the same result
+	rand.Seed(1)
+	expectedRandomness := MakeRandomString(12)
+	// ensure we always get the same result
+	rand.Seed(1)
 
 	p := filepath.Join(tmpdir, "foo")
-	err := ioutil.WriteFile(p+".4", []byte(""), 0644)
+	err := ioutil.WriteFile(p+"."+expectedRandomness, []byte(""), 0644)
 	c.Assert(err, IsNil)
 
 	err = AtomicWriteFile(p, []byte(""), 0600, 0)
