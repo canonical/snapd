@@ -919,28 +919,16 @@ func appIconGet(c *Command, r *http.Request) Response {
 	return iconGet(name, origin)
 }
 
-// slotRef is a reference to a slot.
-type slotRef struct {
-	Snap string `json:"snap"`
-	Slot string `json:"slot"`
-}
-
-// plugRef is a reference to a plug.
-type plugRef struct {
-	Snap string `json:"snap"`
-	Plug string `json:"plug"`
-}
-
 // plugInfo holds details for a plug as returned by the REST API.
 type plugInfo struct {
 	interfaces.Plug
-	Connections []slotRef `json:"connections"`
+	Connections []interfaces.SlotRef `json:"connections"`
 }
 
 // slotInfo holds details for a slot as returned by the REST API.
 type slotInfo struct {
 	interfaces.Slot
-	Connections []plugRef `json:"connections"`
+	Connections []interfaces.PlugRef `json:"connections"`
 }
 
 // interfaceConnections contains information about all plugs, slots and their connections
@@ -954,8 +942,10 @@ func getInterfaces(c *Command, r *http.Request) Response {
 	var resp interfaceConnections
 	for _, plug := range c.d.interfaces.AllPlugs("") {
 		info := plugInfo{Plug: *plug}
+		info.Attrs = nil
+		info.Apps = nil
 		for _, slot := range c.d.interfaces.PlugConnections(plug.Snap, plug.Plug) {
-			info.Connections = append(info.Connections, slotRef{
+			info.Connections = append(info.Connections, interfaces.SlotRef{
 				Snap: slot.Snap,
 				Slot: slot.Slot,
 			})
@@ -964,8 +954,10 @@ func getInterfaces(c *Command, r *http.Request) Response {
 	}
 	for _, slot := range c.d.interfaces.AllSlots("") {
 		info := slotInfo{Slot: *slot}
+		info.Attrs = nil
+		info.Apps = nil
 		for _, plug := range c.d.interfaces.SlotConnections(slot.Snap, slot.Slot) {
-			info.Connections = append(info.Connections, plugRef{
+			info.Connections = append(info.Connections, interfaces.PlugRef{
 				Snap: plug.Snap,
 				Plug: plug.Plug,
 			})
