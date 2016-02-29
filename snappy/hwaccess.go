@@ -31,6 +31,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/osutil"
 )
 
 const udevDataGlob = "/run/udev/data/*"
@@ -97,7 +98,7 @@ func writeHWAccessYamlFile(snapname string, appArmorAdditional SecurityOverrideD
 	}
 
 	additionalFile := getHWAccessYamlFile(snapname)
-	if !helpers.FileExists(filepath.Dir(additionalFile)) {
+	if !osutil.FileExists(filepath.Dir(additionalFile)) {
 		if err := os.MkdirAll(filepath.Dir(additionalFile), 0755); err != nil {
 			return err
 		}

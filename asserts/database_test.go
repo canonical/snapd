@@ -35,7 +35,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/asserts"
-	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/osutil"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -111,7 +111,7 @@ func (dbs *databaseSuite) TestGenerateKey(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(fingerp, NotNil)
 	keyPath := filepath.Join(dbs.topDir, "private-keys-v0/account0", fingerp)
-	c.Check(helpers.FileExists(keyPath), Equals, true)
+	c.Check(osutil.FileExists(keyPath), Equals, true)
 }
 
 func (dbs *databaseSuite) TestPublicKey(c *C) {

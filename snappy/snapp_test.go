@@ -32,6 +32,7 @@ import (
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/policy"
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snap"
@@ -1463,7 +1464,7 @@ func (s *SnapTestSuite) TestWriteHardwareUdevEtc(c *C) {
 	dirs.SnapUdevRulesDir = c.MkDir()
 	writeGadgetHardwareUdevRules(m)
 
-	c.Assert(helpers.FileExists(filepath.Join(dirs.SnapUdevRulesDir, "80-snappy_gadget-foo_device-hive-iot-hal.rules")), Equals, true)
+	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapUdevRulesDir, "80-snappy_gadget-foo_device-hive-iot-hal.rules")), Equals, true)
 }
 
 func (s *SnapTestSuite) TestWriteHardwareUdevCleanup(c *C) {
@@ -1475,7 +1476,7 @@ func (s *SnapTestSuite) TestWriteHardwareUdevCleanup(c *C) {
 	c.Assert(ioutil.WriteFile(udevRulesFile, nil, 0644), Equals, nil)
 	cleanupGadgetHardwareUdevRules(m)
 
-	c.Assert(helpers.FileExists(udevRulesFile), Equals, false)
+	c.Assert(osutil.FileExists(udevRulesFile), Equals, false)
 }
 
 func (s *SnapTestSuite) TestWriteHardwareUdevActivate(c *C) {

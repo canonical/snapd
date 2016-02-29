@@ -18,7 +18,7 @@
  *
  */
 
-package helpers
+package cp
 
 import (
 	"io"

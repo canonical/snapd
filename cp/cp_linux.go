@@ -17,7 +17,7 @@
  *
  */
 
-package helpers
+package cp
 
 import (
 	"os"

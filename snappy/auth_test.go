@@ -27,8 +27,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/oauth"
+	"github.com/ubuntu-core/snappy/osutil"
 
 	. "gopkg.in/check.v1"
 )
@@ -114,7 +114,7 @@ func (s *SnapTestSuite) TestWriteStoreToken(c *C) {
 
 	c.Assert(err, IsNil)
 	outFile := filepath.Join(s.tempdir, "snaps", "snappy", "auth", "sso.json")
-	c.Assert(helpers.FileExists(outFile), Equals, true)
+	c.Assert(osutil.FileExists(outFile), Equals, true)
 	content, err := ioutil.ReadFile(outFile)
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, `{

@@ -23,8 +23,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/partition"
 
 	"gopkg.in/yaml.v2"
@@ -121,7 +121,7 @@ func InDeveloperMode() bool {
 	}
 
 	file := filepath.Join(bootloader.Dir(), InstallYamlFile)
-	if !helpers.FileExists(file) {
+	if !osutil.FileExists(file) {
 		// no idea
 		return false
 	}

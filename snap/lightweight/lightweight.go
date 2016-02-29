@@ -32,7 +32,7 @@ import (
 	"strings"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/removed"
 	"github.com/ubuntu-core/snappy/snappy"
@@ -169,7 +169,7 @@ func find(name string, origin string) map[string]*PartBag {
 			// package, and install a framework with the same name
 			// as the gadget package you deactivated. You get to keep
 			// the parts.
-			if typ == snap.TypeFramework && helpers.FileExists(filepath.Join(dirs.SnapSnapsDir, name)) {
+			if typ == snap.TypeFramework && osutil.FileExists(filepath.Join(dirs.SnapSnapsDir, name)) {
 				// FIMXE: way too simplistic
 				if content, err := ioutil.ReadFile(filepath.Join(dirs.SnapSnapsDir, name, versions[0], "meta", "snap.yaml")); err == nil {
 					if bytes.Contains(content, []byte("\ntype: gadget\n")) {
@@ -254,7 +254,7 @@ type concreteSnap struct {
 }
 
 func (c *concreteSnap) IsInstalled(version string) bool {
-	return helpers.FileExists(filepath.Join(c.instdir, c.self.QualifiedName(), version, "meta", "snap.yaml"))
+	return osutil.FileExists(filepath.Join(c.instdir, c.self.QualifiedName(), version, "meta", "snap.yaml"))
 }
 
 func (c *concreteSnap) ActiveIndex() int {
@@ -299,7 +299,7 @@ func (c *concreteSnap) ActiveIndex() int {
 
 func (c *concreteSnap) Load(version string) (snappy.Part, error) {
 	yamlPath := filepath.Join(c.instdir, c.self.QualifiedName(), version, "meta", "snap.yaml")
-	if !helpers.FileExists(yamlPath) {
+	if !osutil.FileExists(yamlPath) {
 		return removed.New(c.self.Name, c.self.Origin, version, c.self.Type), nil
 	}
 

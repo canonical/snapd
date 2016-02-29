@@ -29,8 +29,8 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/policy"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
@@ -88,7 +88,7 @@ func newSnapPartFromYaml(yamlPath, origin string, m *snapYaml) (*SnapPart, error
 	}
 
 	remoteManifestPath := RemoteManifestPath(part)
-	if helpers.FileExists(remoteManifestPath) {
+	if osutil.FileExists(remoteManifestPath) {
 		content, err := ioutil.ReadFile(remoteManifestPath)
 		if err != nil {
 			return nil, err

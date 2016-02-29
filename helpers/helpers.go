@@ -28,7 +28,6 @@ import (
 	"io"
 	"math/rand"
 	"os"
-	"os/exec"
 	"os/user"
 	"path/filepath"
 	"reflect"
@@ -56,18 +55,6 @@ func ChDir(newDir string, f func() error) (err error) {
 	}
 	defer os.Chdir(cwd)
 	return f()
-}
-
-// ExitCode extract the exit code from the error of a failed cmd.Run() or the
-// original error if its not a exec.ExitError
-func ExitCode(runErr error) (e int, err error) {
-	// golang, you are kidding me, right?
-	if exitErr, ok := runErr.(*exec.ExitError); ok {
-		waitStatus := exitErr.Sys().(syscall.WaitStatus)
-		e = waitStatus.ExitStatus()
-		return e, nil
-	}
-	return e, runErr
 }
 
 // TarIterFunc is called for each file inside a tar archive
@@ -213,24 +200,6 @@ func MakeMapFromEnvList(env []string) map[string]string {
 		envMap[split[0]] = split[1]
 	}
 	return envMap
-}
-
-// FileExists return true if given path can be stat()ed by us. Note that
-// it may return false on e.g. permission issues.
-func FileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
-}
-
-// IsDirectory return true if the given path can be stat()ed by us and
-// is a directory. Note that it may return false on e.g. permission issues.
-func IsDirectory(path string) bool {
-	fileInfo, err := os.Stat(path)
-	if err != nil {
-		return false
-	}
-
-	return fileInfo.IsDir()
 }
 
 const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYabcdefghijklmnopqrstuvwxy"
@@ -450,74 +419,4 @@ func GetDeprecatedUserSnapEnvVars(desc interface{}) []string {
 	return fillSnapEnvVars(desc, []string{
 		"SNAP_APP_USER_DATA_PATH={{.Home}}{{.AppPath}}",
 	})
-}
-
-// RSyncWithDelete syncs srcDir to destDir
-func RSyncWithDelete(srcDirName, destDirName string) error {
-	// first remove everything thats not in srcdir
-	err := filepath.Walk(destDirName, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		// relative to the root "destDirName"
-		relPath := path[len(destDirName):]
-		if !FileExists(filepath.Join(srcDirName, relPath)) {
-			if err := os.RemoveAll(path); err != nil {
-				return err
-			}
-			if info.IsDir() {
-				return filepath.SkipDir
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-
-	// then copy or update the data from srcdir to destdir
-	err = filepath.Walk(srcDirName, func(src string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		// relative to the root "srcDirName"
-		relPath := src[len(srcDirName):]
-		dst := filepath.Join(destDirName, relPath)
-		if info.IsDir() {
-			if err := os.MkdirAll(dst, info.Mode()); err != nil {
-				return err
-			}
-
-			// this can panic. The alternative would be to use the "st, ok" pattern, and then if !ok... panic?
-			st := info.Sys().(*syscall.Stat_t)
-			ts := []syscall.Timespec{st.Atim, st.Mtim}
-
-			return syscall.UtimesNano(dst, ts)
-		}
-		if !FilesAreEqual(src, dst) {
-			// XXX: we should (eventually) use CopyFile here,
-			//      but we need to teach it about preserving
-			//      of atime/mtime and permissions
-			output, err := exec.Command("cp", "-va", src, dst).CombinedOutput()
-			if err != nil {
-				return fmt.Errorf("Failed to copy %s to %s (%s)", src, dst, output)
-			}
-		}
-		return nil
-	})
-
-	return err
-}
-
-// CopyIfDifferent copies src to dst only if dst is different that src
-func CopyIfDifferent(src, dst string) error {
-	if !FilesAreEqual(src, dst) {
-		if err := CopyFile(src, dst, CopyFlagSync|CopyFlagOverwrite); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
