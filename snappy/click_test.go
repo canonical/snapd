@@ -1030,7 +1030,7 @@ func (s *SnapTestSuite) TestBinariesWhitelistIllegal(c *C) {
 
 func (s *SnapTestSuite) TestWrongType(c *C) {
 	c.Check(verifySlotYaml(&slotYaml{
-		Interface: "some-skill",
+		Interface: "some-interface",
 	}), ErrorMatches, ".*can not use interface.* only `old-security` supported")
 }
 

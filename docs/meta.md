@@ -44,7 +44,7 @@ The following keys are optional:
       `on-abnormal`, `on-abort`, and `always`. See `systemd.service(5)`
       (search for `Restart=`) for details.
     * `poststop`: (optional) a command that runs after the service has stopped
-    * `uses`: a list of `skill` names that the app uses
+    * `slots`: a map of interfaces
     * `ports`: (optional) define what ports the service will work
         * `internal`: the ports the service is going to connect to
             * `tagname`: a free form name
@@ -75,7 +75,7 @@ The following keys are optional:
                       be specified with `listen-stream`. This option is
                       reserved for future use.
 
-* `uses`: a map of names and skills
+* `slots`: a map of interfaces
 
 ## Interfaces
 
