@@ -1034,35 +1034,35 @@ version: 123456789
 
 }
 
-func (a *SecurityTestSuite) TestFindSkillForAppEmpty(c *C) {
+func (a *SecurityTestSuite) TestFindSlotForAppEmpty(c *C) {
 	app := &AppYaml{}
 	m := &snapYaml{}
-	skill, err := findSkillForApp(m, app)
+	skill, err := findSlotForApp(m, app)
 	c.Check(err, IsNil)
 	c.Check(skill, IsNil)
 }
 
-func (a *SecurityTestSuite) TestFindSkillForAppTooMany(c *C) {
+func (a *SecurityTestSuite) TestFindSlotlForAppTooMany(c *C) {
 	app := &AppYaml{
 		SlotsRef: []string{"one", "two"},
 	}
 	m := &snapYaml{}
-	skill, err := findSkillForApp(m, app)
+	skill, err := findSlotForApp(m, app)
 	c.Check(skill, IsNil)
-	c.Check(err, ErrorMatches, "only a single skill is supported, 2 found")
+	c.Check(err, ErrorMatches, "only a single slot is supported, 2 found")
 }
 
-func (a *SecurityTestSuite) TestFindSkillForAppNotFound(c *C) {
+func (a *SecurityTestSuite) TestFindSlotForAppNotFound(c *C) {
 	app := &AppYaml{
 		SlotsRef: []string{"not-there"},
 	}
 	m := &snapYaml{}
-	skill, err := findSkillForApp(m, app)
+	skill, err := findSlotForApp(m, app)
 	c.Check(skill, IsNil)
-	c.Check(err, ErrorMatches, `can not find skill "not-there"`)
+	c.Check(err, ErrorMatches, `can not find slot "not-there"`)
 }
 
-func (a *SecurityTestSuite) TestFindSkillFinds(c *C) {
+func (a *SecurityTestSuite) TestFindSlotFinds(c *C) {
 	app := &AppYaml{
 		SlotsRef: []string{"skill"},
 	}
@@ -1071,7 +1071,7 @@ func (a *SecurityTestSuite) TestFindSkillFinds(c *C) {
 			"skill": &slotYaml{Interface: "some-type"},
 		},
 	}
-	skill, err := findSkillForApp(m, app)
+	skill, err := findSlotForApp(m, app)
 	c.Check(err, IsNil)
 	c.Check(skill.Interface, Equals, "some-type")
 }

@@ -6,7 +6,7 @@ architecture there is a special interface called `old-security`
 that can be used to migrate using the 15.04 syntax. See the example
 below for the various ways the `old-security` interface can be used.
 
-## Security with the migration skill
+## Security with the old-security interface
 
 Snap packages run confined under a restrictive security sandbox by default.
 The security policies and store policies work together to allow developers to
