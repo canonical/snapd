@@ -171,8 +171,8 @@ func sysInfo(c *Command, r *http.Request) Response {
 }
 
 type metarepo interface {
-	Details(string, string) ([]snappy.Part, error)
-	Find(string) ([]snappy.Part, error)
+	Details(string, string, string) ([]snappy.Part, error)
+	Find(string, string) ([]snappy.Part, error)
 }
 
 var newRemoteRepo = func() metarepo {
@@ -194,7 +194,7 @@ func getSnapInfo(c *Command, r *http.Request) Response {
 
 	repo := newRemoteRepo()
 	var part snappy.Part
-	if parts, _ := repo.Details(name, origin); len(parts) > 0 {
+	if parts, _ := repo.Details(name, origin, ""); len(parts) > 0 {
 		part = parts[0]
 	}
 
@@ -325,7 +325,7 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		//   * if there are no results, return an error response.
 		//   * If there are results at all (perhaps local), include a
 		//     warning in the response
-		found, _ = repo.Find(searchTerm)
+		found, _ = repo.Find(searchTerm, "")
 
 		sources = append(sources, "store")
 
@@ -625,6 +625,7 @@ func (*licenseData) Error() string {
 type snapInstruction struct {
 	progress.NullProgress
 	Action   string       `json:"action"`
+	Channel  string       `json:"channel"`
 	LeaveOld bool         `json:"leave_old"`
 	License  *licenseData `json:"license"`
 	pkg      string
@@ -648,7 +649,7 @@ func (inst *snapInstruction) install() interface{} {
 	if inst.LeaveOld {
 		flags = 0
 	}
-	_, err := snappyInstall(inst.pkg, flags, inst)
+	_, err := snappyInstall(inst.pkg, inst.Channel, flags, inst)
 	if err != nil {
 		if inst.License != nil && snappy.IsLicenseNotAccepted(err) {
 			return inst.License

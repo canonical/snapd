@@ -55,12 +55,13 @@ type apiSuite struct {
 	err        error
 	vars       map[string]string
 	searchTerm string
+	channel    string
 	overlord   *fakeOverlord
 }
 
 var _ = check.Suite(&apiSuite{})
 
-func (s *apiSuite) Details(string, string) ([]snappy.Part, error) {
+func (s *apiSuite) Details(string, string, string) ([]snappy.Part, error) {
 	return s.parts, s.err
 }
 
@@ -68,8 +69,9 @@ func (s *apiSuite) All() ([]snappy.Part, error) {
 	return s.parts, s.err
 }
 
-func (s *apiSuite) Find(searchTerm string) ([]snappy.Part, error) {
+func (s *apiSuite) Find(searchTerm, channel string) ([]snappy.Part, error) {
 	s.searchTerm = searchTerm
+	s.channel = channel
 
 	return s.parts, s.err
 }
@@ -193,6 +195,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 			"resource":           "/2.0/snaps/foo.bar",
 			"update_available":   "v2",
 			"rollback_available": "v0",
+			"channel":            "stable",
 		},
 	}
 
@@ -1132,7 +1135,7 @@ func (s *apiSuite) TestInstall(c *check.C) {
 
 	calledFlags := snappy.InstallFlags(42)
 
-	snappyInstall = func(name string, flags snappy.InstallFlags, meter progress.Meter) (string, error) {
+	snappyInstall = func(name, channel string, flags snappy.InstallFlags, meter progress.Meter) (string, error) {
 		calledFlags = flags
 
 		return "", nil
@@ -1154,7 +1157,7 @@ func (s *apiSuite) TestInstallLeaveOld(c *check.C) {
 
 	calledFlags := snappy.InstallFlags(42)
 
-	snappyInstall = func(name string, flags snappy.InstallFlags, meter progress.Meter) (string, error) {
+	snappyInstall = func(name, channel string, flags snappy.InstallFlags, meter progress.Meter) (string, error) {
 		calledFlags = flags
 
 		return "", nil
@@ -1175,7 +1178,7 @@ func (s *apiSuite) TestInstallLicensed(c *check.C) {
 	orig := snappyInstall
 	defer func() { snappyInstall = orig }()
 
-	snappyInstall = func(name string, flags snappy.InstallFlags, meter progress.Meter) (string, error) {
+	snappyInstall = func(name, channel string, flags snappy.InstallFlags, meter progress.Meter) (string, error) {
 		if meter.Agreed("hi", "yak yak") {
 			return "", nil
 		}
@@ -1208,7 +1211,7 @@ func (s *apiSuite) TestInstallLicensedIntegration(c *check.C) {
 	orig := snappyInstall
 	defer func() { snappyInstall = orig }()
 
-	snappyInstall = func(name string, flags snappy.InstallFlags, meter progress.Meter) (string, error) {
+	snappyInstall = func(name, channel string, flags snappy.InstallFlags, meter progress.Meter) (string, error) {
 		if meter.Agreed("hi", "yak yak") {
 			return "", nil
 		}
