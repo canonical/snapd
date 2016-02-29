@@ -24,10 +24,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"regexp"
-	"strconv"
 	"testing"
 
 	"gopkg.in/check.v1"
@@ -39,8 +36,6 @@ import (
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/runner"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/wait"
 )
-
-var daemonParentCmd *exec.Cmd
 
 func init() {
 	c := &check.C{}
@@ -68,55 +63,43 @@ func Test(t *testing.T) {
 		report.NewSubunitV2ParserReporter(&report.FileReporter{}))
 	runner.TestingT(t, output)
 
-	if daemonParentCmd != nil && daemonParentCmd.Process != nil {
-		if err := stopDaemonProcess("snapd"); err != nil {
-			fmt.Printf("Error stopping daemon: %v\n", err)
+	cfg, err := config.ReadConfig(config.DefaultFileName)
+	if err != nil {
+		t.Fatalf("Error reading config: %v", err)
+	}
+
+	if cfg.FromBranch {
+		if err := stopDaemonProcess(); err != nil {
+			t.Fatalf("Error stopping daemon: %v", err)
 		}
 	}
 }
 
 func setUpSnapdFromBranch(c *check.C) {
-	if daemonParentCmd == nil {
-		trustedKey, err := filepath.Abs("integration-tests/data/trusted.acckey")
-		c.Assert(err, check.IsNil)
+	cli.ExecCommand(c, "sudo", "systemctl", "stop",
+		"ubuntu-snappy.snapd.service", "ubuntu-snappy.snapd.socket")
 
-		cli.ExecCommand(c, "sudo", "systemctl", "stop",
-			"ubuntu-snappy.snapd.service", "ubuntu-snappy.snapd.socket")
+	binPath, err := filepath.Abs("integration-tests/bin/snapd")
+	c.Assert(err, check.IsNil)
 
-		// FIXME: for now pass a test-only trusted key through an env var
-		daemonParentCmd = exec.Command("sudo", "env", "PATH="+os.Getenv("PATH"),
-			"SNAPPY_TRUSTED_ACCOUNT_KEY="+trustedKey,
-			"/lib/systemd/systemd-activate", "--setenv=SNAPPY_TRUSTED_ACCOUNT_KEY",
-			"-l", "/run/snapd.socket", "snapd")
+	_, err = cli.ExecCommandErr("sudo", "mount", "-o", "bind",
+		binPath, "/usr/bin/snapd")
+	c.Assert(err, check.IsNil)
 
-		err = daemonParentCmd.Start()
-		c.Assert(err, check.IsNil)
+	// FIXME: for now pass a test-only trusted key through an env var
+	trustedKey, err := filepath.Abs("integration-tests/data/trusted.acckey")
+	c.Assert(err, check.IsNil)
 
-		wait.ForCommand(c, `^$`, "sudo", "chmod", "0666", "/run/snapd.socket")
-	}
+	_, err = cli.ExecCommandErr("sudo", "SNAPPY_TRUSTED_ACCOUNT_KEY="+trustedKey,
+		"systemctl", "start", "ubuntu-snappy.snapd.service")
+	c.Assert(err, check.IsNil)
 }
 
-func stopDaemonProcess(name string) error {
-	pid, err := getPidFromName(name)
-	if err != nil {
+func stopDaemonProcess() error {
+	if _, err := cli.ExecCommandErr("sudo", "systemctl", "stop",
+		"ubuntu-snappy.snapd.service"); err != nil {
 		return err
 	}
-	// send SIGINT to the process
-	_, err = cli.ExecCommandErr("sudo", "kill", "-2", strconv.Itoa(pid))
-	return err
-}
-
-func getPidFromName(name string) (int, error) {
-	re := regexp.MustCompile(`.*` + name + `\[(\d+)\]:.*`)
-
-	output, err := cli.ExecCommandErr("sudo", "journalctl", "_COMM="+name, "-q", "--lines=1")
-	if err != nil {
-		return 0, err
-	}
-
-	matches := re.FindStringSubmatch(output)
-	if len(matches) < 2 {
-		return 0, fmt.Errorf("Error extracting pid for %s from %s", name, output)
-	}
-	return strconv.Atoi(matches[1])
+	fmt.Println("after stopping daemon")
+	return nil
 }
