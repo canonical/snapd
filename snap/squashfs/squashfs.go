@@ -30,7 +30,7 @@ import (
 	"strings"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap"
 )
 
@@ -158,7 +158,7 @@ func (s *Snap) Build(buildDir string) error {
 		return err
 	}
 
-	return helpers.ChDir(buildDir, func() error {
+	return osutil.ChDir(buildDir, func() error {
 		return runCommand(
 			"mksquashfs",
 			".", fullSnapPath,

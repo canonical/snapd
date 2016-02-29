@@ -31,7 +31,7 @@ import (
 	"syscall"
 
 	"github.com/ubuntu-core/snappy/cp"
-	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap/squashfs"
 )
 
@@ -195,7 +195,7 @@ func copyToBuildDir(sourceDir, buildDir string) error {
 		}
 
 		// handle char/block devices
-		if helpers.IsDevice(info.Mode()) {
+		if osutil.IsDevice(info.Mode()) {
 			return cp.CopySpecialFile(path, dest)
 		}
 

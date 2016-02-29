@@ -21,7 +21,6 @@ package helpers
 
 import (
 	"bytes"
-	"fmt"
 	"math/rand"
 	"os"
 	"os/user"
@@ -38,24 +37,6 @@ import (
 func init() {
 	// golang does not init Seed() itself
 	rand.Seed(time.Now().UTC().UnixNano())
-}
-
-// ChDir runs runs "f" inside the given directory
-func ChDir(newDir string, f func() error) (err error) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-	if err := os.Chdir(newDir); err != nil {
-		return err
-	}
-	defer os.Chdir(cwd)
-	return f()
-}
-
-// IsDevice checks if the given os.FileMode coresponds to a device (char/block)
-func IsDevice(mode os.FileMode) bool {
-	return (mode & (os.ModeDevice | os.ModeCharDevice)) != 0
 }
 
 // MakeMapFromEnvList takes a string list of the form "key=value"
@@ -191,30 +172,6 @@ func ShouldDropPrivs() bool {
 
 	return syscall.Getuid() == 0 || syscall.Getgid() == 0
 
-}
-
-// MajorMinor returns the major/minor number of the given os.FileInfo
-func MajorMinor(info os.FileInfo) (uint32, uint32, error) {
-	if !IsDevice(info.Mode()) {
-		return 0, 0, fmt.Errorf("No device %s", info.Name())
-	}
-
-	unixStat, ok := info.Sys().(*syscall.Stat_t)
-	if ok {
-		// see glibc: sysdeps/unix/sysv/linux/makedev.c
-		dev := unixStat.Rdev
-		major := uint32((dev>>8)&0xfff) | (uint32(dev>>32) & ^uint32(0xfff))
-		minor := uint32(dev&0xff) | (uint32(dev>>12) & ^uint32(0xff))
-
-		return major, minor, nil
-	}
-
-	return 0, 0, fmt.Errorf("failed to get syscall.stat_t for %v", info.Name())
-}
-
-// Makedev implements makedev(3)
-func Makedev(major, minor uint32) uint32 {
-	return uint32((minor & 0xff) | ((major & 0xfff) << 8))
 }
 
 // Getattr get the attribute of the given name

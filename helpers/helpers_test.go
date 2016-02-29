@@ -37,34 +37,6 @@ type HTestSuite struct{}
 
 var _ = Suite(&HTestSuite{})
 
-func (ts *HTestSuite) TestChdir(c *C) {
-	tmpdir := c.MkDir()
-
-	cwd, err := os.Getwd()
-	c.Assert(err, IsNil)
-	c.Assert(cwd, Not(Equals), tmpdir)
-	ChDir(tmpdir, func() error {
-		cwd, err := os.Getwd()
-		c.Assert(err, IsNil)
-		c.Assert(cwd, Equals, tmpdir)
-		return err
-	})
-}
-
-func (ts *HTestSuite) TestChdirErrorNoDir(c *C) {
-	err := ChDir("random-dir-that-does-not-exist", func() error {
-		return nil
-	})
-	c.Assert(err, ErrorMatches, "chdir .*: no such file or directory")
-}
-
-func (ts *HTestSuite) TestChdirErrorFromFunc(c *C) {
-	err := ChDir("/", func() error {
-		return fmt.Errorf("meep")
-	})
-	c.Assert(err, ErrorMatches, "meep")
-}
-
 func (ts *HTestSuite) TestMakeMapFromEnvList(c *C) {
 	envList := []string{
 		"PATH=/usr/bin:/bin",
@@ -269,30 +241,6 @@ func skipOnMissingDevKmsg(c *C) {
 	if err != nil {
 		c.Skip("Can not stat /dev/kmsg")
 	}
-}
-
-func (ts *HTestSuite) TestMajorMinorSimple(c *C) {
-	skipOnMissingDevKmsg(c)
-
-	stat, _ := os.Stat("/dev/kmsg")
-	major, minor, err := MajorMinor(stat)
-	c.Assert(err, IsNil)
-	c.Assert(major, Equals, uint32(1))
-	c.Assert(minor, Equals, uint32(11))
-}
-
-func (ts *HTestSuite) TestMajorMinorNoDevice(c *C) {
-	stat, err := os.Stat(c.MkDir())
-	c.Assert(err, IsNil)
-
-	_, _, err = MajorMinor(stat)
-	c.Assert(err, NotNil)
-}
-
-func (ts *HTestSuite) TestMakedev(c *C) {
-	// $ python -c 'import os;print(os.makedev(1,11))'
-	// 267
-	c.Assert(Makedev(1, 11), Equals, uint32(267))
 }
 
 func (ts *HTestSuite) TestGetattr(c *C) {
