@@ -63,9 +63,6 @@ type AppYaml struct {
 	Command string `yaml:"command"`
 	Daemon  string `yaml:"daemon"`
 
-	// for desktop-file integration
-	DesktopFile string `yaml:"desktop"`
-
 	Description string          `yaml:"description,omitempty" json:"description,omitempty"`
 	Stop        string          `yaml:"stop,omitempty"`
 	PostStop    string          `yaml:"poststop,omitempty"`
