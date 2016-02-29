@@ -66,7 +66,7 @@ func (s *SecuritySuite) prepareFixtureWithInterface(c *C, i Interface) {
 func (s *SecuritySuite) TestAppArmorPlugPermissions(c *C) {
 	s.prepareFixtureWithInterface(c, &TestInterface{
 		InterfaceName: "interface",
-		PlugSecuritySnippetCallback: func(plug *Plug, securitySystem SecuritySystem) ([]byte, error) {
+		PlugSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == SecurityAppArmor {
 				return []byte("producer snippet\n"), nil
 			}
@@ -110,7 +110,7 @@ func (s *SecuritySuite) TestAppArmorSlotPermissions(c *C) {
 func (s *SecuritySuite) TestSecCompPlugPermissions(c *C) {
 	s.prepareFixtureWithInterface(c, &TestInterface{
 		InterfaceName: "interface",
-		PlugSecuritySnippetCallback: func(plug *Plug, securitySystem SecuritySystem) ([]byte, error) {
+		PlugSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == SecuritySecComp {
 				return []byte("allow open\n"), nil
 			}
@@ -152,7 +152,7 @@ func (s *SecuritySuite) TestSecCompSlotPermissions(c *C) {
 func (s *SecuritySuite) TestUdevPlugPermissions(c *C) {
 	s.prepareFixtureWithInterface(c, &TestInterface{
 		InterfaceName: "interface",
-		PlugSecuritySnippetCallback: func(plug *Plug, securitySystem SecuritySystem) ([]byte, error) {
+		PlugSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == SecurityUDev {
 				return []byte("...\n"), nil
 			}
@@ -190,7 +190,7 @@ func (s *SecuritySuite) TestUdevSlotPermissions(c *C) {
 func (s *SecuritySuite) TestDBusPlugPermissions(c *C) {
 	s.prepareFixtureWithInterface(c, &TestInterface{
 		InterfaceName: "interface",
-		PlugSecuritySnippetCallback: func(plug *Plug, securitySystem SecuritySystem) ([]byte, error) {
+		PlugSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == SecurityDBus {
 				return []byte("...\n"), nil
 			}
