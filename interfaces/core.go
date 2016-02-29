@@ -27,12 +27,13 @@ import (
 
 // Plug represents a capacity offered by a snap.
 type Plug struct {
-	Plug      string                 `json:"plug"`
-	Snap      string                 `json:"snap"`
-	Interface string                 `json:"interface"`
-	Attrs     map[string]interface{} `json:"attrs,omitempty"`
-	Apps      []string               `json:"apps,omitempty"`
-	Label     string                 `json:"label"`
+	Plug        string                 `json:"plug"`
+	Snap        string                 `json:"snap"`
+	Interface   string                 `json:"interface"`
+	Attrs       map[string]interface{} `json:"attrs,omitempty"`
+	Apps        []string               `json:"apps,omitempty"`
+	Label       string                 `json:"label"`
+	Connections []SlotRef              `json:"connections,omitempty"`
 }
 
 // PlugRef is a reference to a plug.
@@ -43,12 +44,13 @@ type PlugRef struct {
 
 // Slot represents the potential of a given snap to connect to a plug.
 type Slot struct {
-	Slot      string                 `json:"slot"`
-	Snap      string                 `json:"snap"`
-	Interface string                 `json:"interface"`
-	Attrs     map[string]interface{} `json:"attrs,omitempty"`
-	Apps      []string               `json:"apps,omitempty"`
-	Label     string                 `json:"label"`
+	Slot        string                 `json:"slot"`
+	Snap        string                 `json:"snap"`
+	Interface   string                 `json:"interface"`
+	Attrs       map[string]interface{} `json:"attrs,omitempty"`
+	Apps        []string               `json:"apps,omitempty"`
+	Label       string                 `json:"label"`
+	Connections []PlugRef              `json:"connections,omitempty"`
 }
 
 // SlotRef is a reference to a slot.
