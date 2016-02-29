@@ -17,7 +17,7 @@
  *
  */
 
-package types
+package builtin
 
 import (
 	"fmt"

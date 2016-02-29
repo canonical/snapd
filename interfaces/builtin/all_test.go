@@ -17,10 +17,10 @@
  *
  */
 
-package types_test
+package builtin_test
 
 import (
-	"github.com/ubuntu-core/snappy/interfaces/types"
+	"github.com/ubuntu-core/snappy/interfaces/builtin"
 	. "github.com/ubuntu-core/snappy/testutil"
 
 	. "gopkg.in/check.v1"
@@ -30,7 +30,7 @@ type AllSuite struct{}
 
 var _ = Suite(&AllSuite{})
 
-func (s *AllSuite) TestAllInterfaces(c *C) {
-	allInterfaces := types.AllInterfaces()
-	c.Check(allInterfaces, Contains, &types.BoolFileInterface{})
+func (s *AllSuite) TestInterfaces(c *C) {
+	all := builtin.Interfaces()
+	c.Check(all, Contains, &builtin.BoolFileInterface{})
 }
