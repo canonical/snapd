@@ -17,7 +17,7 @@
  *
  */
 
-package types_test
+package builtin_test
 
 import (
 	"bytes"
@@ -27,7 +27,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/interfaces"
-	"github.com/ubuntu-core/snappy/interfaces/types"
+	"github.com/ubuntu-core/snappy/interfaces/builtin"
 	"github.com/ubuntu-core/snappy/testutil"
 )
 
@@ -49,7 +49,7 @@ type BoolFileInterfaceSuite struct {
 }
 
 var _ = Suite(&BoolFileInterfaceSuite{
-	iface: &types.BoolFileInterface{},
+	iface: &builtin.BoolFileInterface{},
 	gpioPlug: &interfaces.Plug{
 		Interface: "bool-file",
 		Attrs: map[string]interface{}{
@@ -123,7 +123,7 @@ func (s *BoolFileInterfaceSuite) TestSanitizeSlot(c *C) {
 
 func (s *BoolFileInterfaceSuite) TestSlotSecuritySnippetHandlesSymlinkErrors(c *C) {
 	// Symbolic link traversal is handled correctly
-	types.MockEvalSymlinks(&s.BaseTest, func(path string) (string, error) {
+	builtin.MockEvalSymlinks(&s.BaseTest, func(path string) (string, error) {
 		return "", fmt.Errorf("broken symbolic link")
 	})
 	snippet, err := s.iface.SlotSecuritySnippet(s.gpioPlug, s.slot, interfaces.SecurityAppArmor)
@@ -133,7 +133,7 @@ func (s *BoolFileInterfaceSuite) TestSlotSecuritySnippetHandlesSymlinkErrors(c *
 
 func (s *BoolFileInterfaceSuite) TestSlotSecuritySnippetDereferencesSymlinks(c *C) {
 	// Use a fake (successful) dereferencing function for the remainder of the test.
-	types.MockEvalSymlinks(&s.BaseTest, func(path string) (string, error) {
+	builtin.MockEvalSymlinks(&s.BaseTest, func(path string) (string, error) {
 		return "(dereferenced)" + path, nil
 	})
 	// Extra apparmor permission to access GPIO value
@@ -152,7 +152,7 @@ func (s *BoolFileInterfaceSuite) TestSlotSecuritySnippetDereferencesSymlinks(c *
 
 func (s *BoolFileInterfaceSuite) TestSlotSecurityDoesNotContainPlugSecurity(c *C) {
 	// Use a fake (successful) dereferencing function for the remainder of the test.
-	types.MockEvalSymlinks(&s.BaseTest, func(path string) (string, error) {
+	builtin.MockEvalSymlinks(&s.BaseTest, func(path string) (string, error) {
 		return path, nil
 	})
 	var err error

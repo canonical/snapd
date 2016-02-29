@@ -129,7 +129,7 @@ var (
 	}
 
 	interfacesCmd = &Command{
-		Path:   "/2.0/skills",
+		Path:   "/2.0/interfaces",
 		UserOK: true,
 		GET:    getPlugs,
 		POST:   changeInterfaces,
@@ -171,8 +171,8 @@ func sysInfo(c *Command, r *http.Request) Response {
 }
 
 type metarepo interface {
-	Details(string, string) ([]snappy.Part, error)
-	Find(string) ([]snappy.Part, error)
+	Details(string, string, string) ([]snappy.Part, error)
+	Find(string, string) ([]snappy.Part, error)
 }
 
 var newRemoteRepo = func() metarepo {
@@ -194,7 +194,7 @@ func getSnapInfo(c *Command, r *http.Request) Response {
 
 	repo := newRemoteRepo()
 	var part snappy.Part
-	if parts, _ := repo.Details(name, origin); len(parts) > 0 {
+	if parts, _ := repo.Details(name, origin, ""); len(parts) > 0 {
 		part = parts[0]
 	}
 
@@ -325,7 +325,7 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		//   * if there are no results, return an error response.
 		//   * If there are results at all (perhaps local), include a
 		//     warning in the response
-		found, _ = repo.Find(searchTerm)
+		found, _ = repo.Find(searchTerm, "")
 
 		sources = append(sources, "store")
 
@@ -625,6 +625,7 @@ func (*licenseData) Error() string {
 type snapInstruction struct {
 	progress.NullProgress
 	Action   string       `json:"action"`
+	Channel  string       `json:"channel"`
 	LeaveOld bool         `json:"leave_old"`
 	License  *licenseData `json:"license"`
 	pkg      string
@@ -648,7 +649,7 @@ func (inst *snapInstruction) install() interface{} {
 	if inst.LeaveOld {
 		flags = 0
 	}
-	_, err := snappyInstall(inst.pkg, flags, inst)
+	_, err := snappyInstall(inst.pkg, inst.Channel, flags, inst)
 	if err != nil {
 		if inst.License != nil && snappy.IsLicenseNotAccepted(err) {
 			return inst.License
@@ -921,16 +922,16 @@ func appIconGet(c *Command, r *http.Request) Response {
 // plugConnection holds the identification of a slot that has been connected to a plug.
 type plugConnection struct {
 	Snap string `json:"snap"`
-	Name string `json:"name"` // This is the slot name
+	Name string `json:"slot"` // This is the slot name
 }
 
 // plugInfo holds details for a plug as returned by the REST API.
 type plugInfo struct {
 	Snap        string           `json:"snap"`
-	Name        string           `json:"name"`
-	Interface   string           `json:"type"`
+	Name        string           `json:"plug"`
+	Interface   string           `json:"interface"`
 	Label       string           `json:"label"`
-	Connections []plugConnection `json:"granted_to"`
+	Connections []plugConnection `json:"connections"`
 }
 
 // getPlugs returns a response with a list of all the plugs and which slots use them.
@@ -958,7 +959,7 @@ func getPlugs(c *Command, r *http.Request) Response {
 // interfaceAction is an action performed on the plug system.
 type interfaceAction struct {
 	Action string          `json:"action"`
-	Plug   interfaces.Plug `json:"skill,omitempty"`
+	Plug   interfaces.Plug `json:"plug,omitempty"`
 	Slot   interfaces.Slot `json:"slot,omitempty"`
 }
 
@@ -975,23 +976,23 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 	if a.Action == "" {
 		return BadRequest("interface action not specified")
 	}
-	if !c.d.enableInternalInterfaceActions && a.Action != "grant" && a.Action != "revoke" {
+	if !c.d.enableInternalInterfaceActions && a.Action != "connect" && a.Action != "disconnect" {
 		return BadRequest("internal interface actions are disabled")
 	}
 	switch a.Action {
-	case "grant":
+	case "connect":
 		err := c.d.interfaces.Connect(a.Plug.Snap, a.Plug.Name, a.Slot.Snap, a.Slot.Name)
 		if err != nil {
 			return BadRequest("%v", err)
 		}
 		return SyncResponse(nil)
-	case "revoke":
+	case "disconnect":
 		err := c.d.interfaces.Disconnect(a.Plug.Snap, a.Plug.Name, a.Slot.Snap, a.Slot.Name)
 		if err != nil {
 			return BadRequest("%v", err)
 		}
 		return SyncResponse(nil)
-	case "add-skill":
+	case "add-plug":
 		err := c.d.interfaces.AddPlug(&a.Plug)
 		if err != nil {
 			return BadRequest("%v", err)
@@ -1000,7 +1001,7 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 			Type:   ResponseTypeSync,
 			Status: http.StatusCreated,
 		}
-	case "remove-skill":
+	case "remove-plug":
 		err := c.d.interfaces.RemovePlug(a.Plug.Snap, a.Plug.Name)
 		if err != nil {
 			return BadRequest("%v", err)

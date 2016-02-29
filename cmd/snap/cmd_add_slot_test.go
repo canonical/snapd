@@ -58,13 +58,13 @@ Help Options:
 func (s *SnapSuite) TestAddSlotExplicitEverything(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "POST")
-		c.Check(r.URL.Path, Equals, "/2.0/skills")
+		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
 		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
 			"action": "add-slot",
 			"slot": map[string]interface{}{
-				"snap": "consumer",
-				"name": "slot",
-				"type": "interface",
+				"snap":      "consumer",
+				"slot":      "slot",
+				"interface": "interface",
 				"attrs": map[string]interface{}{
 					"attr": "value",
 				},

@@ -45,7 +45,7 @@ func makeCloudInitMetaData(c *C, content string) string {
 
 func (s *SnapTestSuite) TestInstallInstall(c *C) {
 	snapFile := makeTestSnapPackage(c, "")
-	name, err := Install(snapFile, AllowUnauthenticated|DoInstallGC, &progress.NullProgress{})
+	name, err := Install(snapFile, "", AllowUnauthenticated|DoInstallGC, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
@@ -60,7 +60,7 @@ func (s *SnapTestSuite) TestInstallInstall(c *C) {
 
 func (s *SnapTestSuite) TestInstallNoHook(c *C) {
 	snapFile := makeTestSnapPackage(c, "")
-	name, err := Install(snapFile, AllowUnauthenticated|DoInstallGC|InhibitHooks, &progress.NullProgress{})
+	name, err := Install(snapFile, "", AllowUnauthenticated|DoInstallGC|InhibitHooks, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
@@ -81,7 +81,7 @@ vendor: Foo Bar <foo@example.com>
 license-agreement: explicit
 `)
 	ag := &MockProgressMeter{y: true}
-	name, err := Install(snapFile, AllowUnauthenticated|DoInstallGC, ag)
+	name, err := Install(snapFile, "", AllowUnauthenticated|DoInstallGC, ag)
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 	c.Check(ag.license, Equals, "WTFPL")
@@ -95,7 +95,7 @@ vendor: Foo Bar <foo@example.com>
 license-agreement: explicit
 `)
 	ag := &MockProgressMeter{y: false}
-	_, err := Install(snapFile, AllowUnauthenticated|DoInstallGC, ag)
+	_, err := Install(snapFile, "", AllowUnauthenticated|DoInstallGC, ag)
 	c.Assert(IsLicenseNotAccepted(err), Equals, true)
 	c.Check(ag.license, Equals, "WTFPL")
 }
@@ -110,15 +110,15 @@ func (s *SnapTestSuite) installThree(c *C, flags InstallFlags) {
 	snapYamlContent := `name: foo
 `
 	snapFile := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
-	_, err = Install(snapFile, flags, &progress.NullProgress{})
+	_, err = Install(snapFile, "", flags, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 
 	snapFile = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
-	_, err = Install(snapFile, flags, &progress.NullProgress{})
+	_, err = Install(snapFile, "", flags, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 
 	snapFile = makeTestSnapPackage(c, snapYamlContent+"version: 3.0")
-	_, err = Install(snapFile, flags, &progress.NullProgress{})
+	_, err = Install(snapFile, "", flags, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 }
 
@@ -158,7 +158,7 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 	var dlURL, iconURL string
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/details/foo":
+		case "/details/foo/ch":
 			io.WriteString(w, `{
 "package_name": "foo",
 "version": "2",
@@ -184,11 +184,11 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 	storeDetailsURI, err = url.Parse(mockServer.URL + "/details/")
 	c.Assert(err, IsNil)
 
-	name, err := Install("foo", 0, &progress.NullProgress{})
+	name, err := Install("foo", "ch", 0, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
-	_, err = Install("foo", 0, &progress.NullProgress{})
+	_, err = Install("foo", "ch", 0, &progress.NullProgress{})
 	c.Assert(err, ErrorMatches, ".*"+ErrAlreadyInstalled.Error())
 }
 
@@ -209,7 +209,7 @@ func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/details/hello-app.potato":
+		case "/details/hello-app.potato/ch":
 			io.WriteString(w, `{
 "origin": "potato",
 "package_name": "hello-app",
@@ -227,7 +227,7 @@ func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	_, err = Install("hello-app.potato", 0, ag)
+	_, err = Install("hello-app.potato", "ch", 0, ag)
 	c.Assert(err, ErrorMatches, ".*"+ErrPackageNameAlreadyInstalled.Error())
 }
 
