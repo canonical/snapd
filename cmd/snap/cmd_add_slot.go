@@ -56,7 +56,7 @@ func (x *cmdAddSlot) Execute(args []string) error {
 	}
 	return Client().AddSlot(&client.Slot{
 		Snap:      x.Positionals.Snap,
-		Name:      x.Positionals.Slot,
+		Slot:      x.Positionals.Slot,
 		Interface: x.Positionals.Interface,
 		Attrs:     attrs,
 		Apps:      x.Apps,
