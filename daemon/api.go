@@ -933,19 +933,13 @@ type plugRef struct {
 
 // plugInfo holds details for a plug as returned by the REST API.
 type plugInfo struct {
-	Snap        string    `json:"snap"`
-	Plug        string    `json:"plug"`
-	Interface   string    `json:"interface"`
-	Label       string    `json:"label"`
+	interfaces.Plug
 	Connections []slotRef `json:"connections"`
 }
 
 // slotInfo holds details for a slot as returned by the REST API.
 type slotInfo struct {
-	Snap        string    `json:"snap"`
-	Slot        string    `json:"slot"`
-	Interface   string    `json:"interface"`
-	Label       string    `json:"label"`
+	interfaces.Slot
 	Connections []plugRef `json:"connections"`
 }
 
@@ -959,12 +953,7 @@ type interfaceConnections struct {
 func getInterfaces(c *Command, r *http.Request) Response {
 	var resp interfaceConnections
 	for _, plug := range c.d.interfaces.AllPlugs("") {
-		info := plugInfo{
-			Snap:      plug.Snap,
-			Plug:      plug.Plug,
-			Interface: plug.Interface,
-			Label:     plug.Label,
-		}
+		info := plugInfo{Plug: *plug}
 		for _, slot := range c.d.interfaces.PlugConnections(plug.Snap, plug.Plug) {
 			info.Connections = append(info.Connections, slotRef{
 				Snap: slot.Snap,
@@ -974,12 +963,7 @@ func getInterfaces(c *Command, r *http.Request) Response {
 		resp.Plugs = append(resp.Plugs, info)
 	}
 	for _, slot := range c.d.interfaces.AllSlots("") {
-		info := slotInfo{
-			Snap:      slot.Snap,
-			Slot:      slot.Slot,
-			Interface: slot.Interface,
-			Label:     slot.Label,
-		}
+		info := slotInfo{Slot: *slot}
 		for _, plug := range c.d.interfaces.SlotConnections(slot.Snap, slot.Slot) {
 			info.Connections = append(info.Connections, plugRef{
 				Snap: plug.Snap,
