@@ -466,30 +466,6 @@ func (r *Repository) SlotConnections(snapName, slotName string) []*Plug {
 	return result
 }
 
-// Support for sort.Interface
-
-type byPlugSnapAndName []*Plug
-
-func (c byPlugSnapAndName) Len() int      { return len(c) }
-func (c byPlugSnapAndName) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
-func (c byPlugSnapAndName) Less(i, j int) bool {
-	if c[i].Snap != c[j].Snap {
-		return c[i].Snap < c[j].Snap
-	}
-	return c[i].Plug < c[j].Plug
-}
-
-type bySlotSnapAndName []*Slot
-
-func (c bySlotSnapAndName) Len() int      { return len(c) }
-func (c bySlotSnapAndName) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
-func (c bySlotSnapAndName) Less(i, j int) bool {
-	if c[i].Snap != c[j].Snap {
-		return c[i].Snap < c[j].Snap
-	}
-	return c[i].Slot < c[j].Slot
-}
-
 // SecuritySnippetsForSnap collects all of the snippets of a given security
 // system that affect a given snap. The return value is indexed by app name
 // within that snap.

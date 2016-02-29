@@ -40,3 +40,25 @@ func (c byPlugRef) Less(i, j int) bool {
 	}
 	return c[i].Plug < c[j].Plug
 }
+
+type byPlugSnapAndName []*Plug
+
+func (c byPlugSnapAndName) Len() int      { return len(c) }
+func (c byPlugSnapAndName) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
+func (c byPlugSnapAndName) Less(i, j int) bool {
+	if c[i].Snap != c[j].Snap {
+		return c[i].Snap < c[j].Snap
+	}
+	return c[i].Plug < c[j].Plug
+}
+
+type bySlotSnapAndName []*Slot
+
+func (c bySlotSnapAndName) Len() int      { return len(c) }
+func (c bySlotSnapAndName) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
+func (c bySlotSnapAndName) Less(i, j int) bool {
+	if c[i].Snap != c[j].Snap {
+		return c[i].Snap < c[j].Snap
+	}
+	return c[i].Slot < c[j].Slot
+}
