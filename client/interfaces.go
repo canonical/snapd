@@ -26,7 +26,7 @@ import (
 
 // Plug represents a capacity offered by a snap.
 type Plug struct {
-	Name      string                 `json:"plug"`
+	Plug      string                 `json:"plug"`
 	Snap      string                 `json:"snap"`
 	Interface string                 `json:"interface,omitempty"`
 	Attrs     map[string]interface{} `json:"attrs,omitempty"`
@@ -36,7 +36,7 @@ type Plug struct {
 
 // Slot represents the potential of a given snap to connect to a given plug.
 type Slot struct {
-	Name      string                 `json:"slot"`
+	Slot      string                 `json:"slot"`
 	Snap      string                 `json:"snap"`
 	Interface string                 `json:"interface,omitempty"`
 	Attrs     map[string]interface{} `json:"attrs,omitempty"`
@@ -83,11 +83,11 @@ func (client *Client) Connect(plugSnapName, plugName, slotSnapName, slotName str
 		Action: "connect",
 		Plug: &Plug{
 			Snap: plugSnapName,
-			Name: plugName,
+			Plug: plugName,
 		},
 		Slot: &Slot{
 			Snap: slotSnapName,
-			Name: slotName,
+			Slot: slotName,
 		},
 	})
 }
@@ -98,11 +98,11 @@ func (client *Client) Disconnect(plugSnapName, plugName, slotSnapName, slotName 
 		Action: "disconnect",
 		Plug: &Plug{
 			Snap: plugSnapName,
-			Name: plugName,
+			Plug: plugName,
 		},
 		Slot: &Slot{
 			Snap: slotSnapName,
-			Name: slotName,
+			Slot: slotName,
 		},
 	})
 }
@@ -121,7 +121,7 @@ func (client *Client) RemovePlug(snapName, plugName string) error {
 		Action: "remove-plug",
 		Plug: &Plug{
 			Snap: snapName,
-			Name: plugName,
+			Plug: plugName,
 		},
 	})
 }
@@ -140,7 +140,7 @@ func (client *Client) RemoveSlot(snapName, slotName string) error {
 		Action: "remove-slot",
 		Slot: &Slot{
 			Snap: snapName,
-			Name: slotName,
+			Slot: slotName,
 		},
 	})
 }
