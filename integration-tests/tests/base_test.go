@@ -21,7 +21,6 @@
 package tests
 
 import (
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -100,6 +99,5 @@ func stopDaemonProcess() error {
 		"ubuntu-snappy.snapd.service"); err != nil {
 		return err
 	}
-	fmt.Println("after stopping daemon")
 	return nil
 }
