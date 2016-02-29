@@ -28,6 +28,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"reflect"
 	"strings"
 
@@ -194,9 +195,9 @@ func setUbuntuStoreHeaders(req *http.Request) {
 }
 
 // Snap returns the RemoteSnapPart for the given name or an error.
-func (s *SnapUbuntuStoreRepository) Snap(snapName string) (*RemoteSnapPart, error) {
+func (s *SnapUbuntuStoreRepository) Snap(name, channel string) (*RemoteSnapPart, error) {
 
-	url, err := s.detailsURI.Parse(snapName)
+	url, err := s.detailsURI.Parse(path.Join(name, channel))
 	if err != nil {
 		return nil, err
 	}
@@ -221,7 +222,7 @@ func (s *SnapUbuntuStoreRepository) Snap(snapName string) (*RemoteSnapPart, erro
 	case resp.StatusCode == 404:
 		return nil, ErrPackageNotFound
 	case resp.StatusCode != 200:
-		return nil, fmt.Errorf("SnapUbuntuStoreRepository: unexpected HTTP status code %d while looking forsnap %q", resp.StatusCode, snapName)
+		return nil, fmt.Errorf("SnapUbuntuStoreRepository: unexpected HTTP status code %d while looking forsnap %q/%q", resp.StatusCode, name, channel)
 	}
 
 	// and decode json
@@ -235,12 +236,12 @@ func (s *SnapUbuntuStoreRepository) Snap(snapName string) (*RemoteSnapPart, erro
 }
 
 // Details returns details for the given snap in this repository
-func (s *SnapUbuntuStoreRepository) Details(name string, origin string) (parts []Part, err error) {
+func (s *SnapUbuntuStoreRepository) Details(name, origin, channel string) (parts []Part, err error) {
 	snapName := name
 	if origin != "" {
 		snapName = name + "." + origin
 	}
-	snap, err := s.Snap(snapName)
+	snap, err := s.Snap(snapName, channel)
 	if err != nil {
 		return nil, err
 	}
@@ -249,14 +250,15 @@ func (s *SnapUbuntuStoreRepository) Details(name string, origin string) (parts [
 
 // All (installable) parts from the store
 func (s *SnapUbuntuStoreRepository) All() ([]Part, error) {
-	return s.Find("")
+	return s.Find("", "")
 }
 
 // Find (installable) parts from the store, matching the given search term.
-//
-// XXX: this is actually Search, but that name is taken until we clean up
-// aliases
-func (s *SnapUbuntuStoreRepository) Find(searchTerm string) ([]Part, error) {
+func (s *SnapUbuntuStoreRepository) Find(searchTerm string, channel string) ([]Part, error) {
+	if channel == "" {
+		channel = release.Get().Channel
+	}
+
 	u := *s.searchURI // make a copy, so we can mutate it
 
 	if searchTerm != "" {
@@ -272,6 +274,7 @@ func (s *SnapUbuntuStoreRepository) Find(searchTerm string) ([]Part, error) {
 
 	// set headers
 	setUbuntuStoreHeaders(req)
+	req.Header.Set("X-Ubuntu-Device-Channnel", channel)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
