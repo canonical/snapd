@@ -68,7 +68,7 @@ func (x *cmdInterfaces) Execute(args []string) error {
 			if x.Positionals.Query.Snap != "" && x.Positionals.Query.Snap != plug.Snap {
 				continue
 			}
-			if x.Positionals.Query.Name != "" && x.Positionals.Query.Name != plug.Plug.Plug {
+			if x.Positionals.Query.Name != "" && x.Positionals.Query.Name != plug.Plug {
 				continue
 			}
 			if x.Interface != "" && plug.Interface != x.Interface {
@@ -77,15 +77,15 @@ func (x *cmdInterfaces) Execute(args []string) error {
 			// The OS snap (always ubuntu-core) is special and enable abbreviated
 			// display syntax on the plug-side of the connection.
 			if plug.Snap != "ubuntu-core" {
-				fmt.Fprintf(w, "%s:%s\t", plug.Snap, plug.Plug.Plug)
+				fmt.Fprintf(w, "%s:%s\t", plug.Snap, plug.Plug)
 			} else {
-				fmt.Fprintf(w, ":%s\t", plug.Plug.Plug)
+				fmt.Fprintf(w, ":%s\t", plug.Plug)
 			}
 			for i := 0; i < len(plug.Connections); i++ {
 				if i > 0 {
 					fmt.Fprint(w, ",")
 				}
-				if plug.Connections[i].Slot != plug.Plug.Plug {
+				if plug.Connections[i].Slot != plug.Plug {
 					fmt.Fprintf(w, "%s:%s", plug.Connections[i].Snap, plug.Connections[i].Slot)
 				} else {
 					fmt.Fprintf(w, "%s", plug.Connections[i].Snap)
@@ -103,7 +103,7 @@ func (x *cmdInterfaces) Execute(args []string) error {
 			if x.Positionals.Query.Snap != "" && x.Positionals.Query.Snap != slot.Snap {
 				continue
 			}
-			if x.Positionals.Query.Name != "" && x.Positionals.Query.Name != slot.Slot.Slot {
+			if x.Positionals.Query.Name != "" && x.Positionals.Query.Name != slot.Slot {
 				continue
 			}
 			if x.Interface != "" && slot.Interface != x.Interface {
@@ -111,7 +111,7 @@ func (x *cmdInterfaces) Execute(args []string) error {
 			}
 			// Display visual indicator for disconnected slots.
 			if len(slot.Connections) == 0 {
-				fmt.Fprintf(w, "--\t%s:%s\n", slot.Snap, slot.Slot.Slot)
+				fmt.Fprintf(w, "--\t%s:%s\n", slot.Snap, slot.Slot)
 			}
 		}
 	}

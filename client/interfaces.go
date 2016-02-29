@@ -26,40 +26,42 @@ import (
 
 // Plug represents a capacity offered by a snap.
 type Plug struct {
-	Snap      string                 `json:"snap"`
-	Plug      string                 `json:"plug"`
-	Interface string                 `json:"interface,omitempty"`
-	Attrs     map[string]interface{} `json:"attrs,omitempty"`
-	Apps      []string               `json:"apps,omitempty"`
-	Label     string                 `json:"label,omitempty"`
+	Snap        string                 `json:"snap"`
+	Plug        string                 `json:"plug"`
+	Interface   string                 `json:"interface,omitempty"`
+	Attrs       map[string]interface{} `json:"attrs,omitempty"`
+	Apps        []string               `json:"apps,omitempty"`
+	Label       string                 `json:"label,omitempty"`
+	Connections []SlotRef              `json:"connections,omitempty"`
+}
+
+// PlugRef is a reference to a plug.
+type PlugRef struct {
+	Snap string `json:"snap"`
+	Plug string `json:"plug"`
 }
 
 // Slot represents the potential of a given snap to connect to a given plug.
 type Slot struct {
-	Snap      string                 `json:"snap"`
-	Slot      string                 `json:"slot"`
-	Interface string                 `json:"interface,omitempty"`
-	Attrs     map[string]interface{} `json:"attrs,omitempty"`
-	Apps      []string               `json:"apps,omitempty"`
-	Label     string                 `json:"label,omitempty"`
+	Snap        string                 `json:"snap"`
+	Slot        string                 `json:"slot"`
+	Interface   string                 `json:"interface,omitempty"`
+	Attrs       map[string]interface{} `json:"attrs,omitempty"`
+	Apps        []string               `json:"apps,omitempty"`
+	Label       string                 `json:"label,omitempty"`
+	Connections []PlugRef              `json:"connections,omitempty"`
 }
 
-// PlugConnections represents a single plug and slots that are connected to it.
-type PlugConnections struct {
-	Plug
-	Connections []Slot `json:"connections"`
-}
-
-// SlotConnections represents a single slot and plugs that are connected to it.
-type SlotConnections struct {
-	Slot
-	Connections []Plug `json:"connections"`
+// SlotRef is a reference to a slot.
+type SlotRef struct {
+	Snap string `json:"snap"`
+	Slot string `json:"slot"`
 }
 
 // InterfaceConnections contains information about all plugs, slots and their connections
 type InterfaceConnections struct {
-	Plugs []PlugConnections `json:"plugs"`
-	Slots []SlotConnections `json:"slots"`
+	Plugs []*Plug `json:"plugs"`
+	Slots []*Slot `json:"slots"`
 }
 
 // InterfaceAction represents an action performed on the interface system.
