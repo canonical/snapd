@@ -466,6 +466,58 @@ func (r *Repository) SlotConnections(snapName, slotName string) []*Plug {
 	return result
 }
 
+// InterfaceConnections returns object holding a lists of all the plugs and slots and their connections.
+func (r *Repository) InterfaceConnections() *InterfaceConnections {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	conns := &InterfaceConnections{}
+	// Copy and flatten plugs and slots
+	for _, plugs := range r.plugs {
+		for _, plug := range plugs {
+			// Copy part of the data explicitly, leaving out attrs and apps.
+			p := &Plug{
+				Plug:      plug.Plug,
+				Snap:      plug.Snap,
+				Interface: plug.Interface,
+				Label:     plug.Label,
+			}
+			// Add connection details
+			for slot := range r.plugSlots[plug] {
+				p.Connections = append(p.Connections, SlotRef{
+					Slot: slot.Slot,
+					Snap: slot.Snap,
+				})
+			}
+			sort.Sort(bySlotRef(p.Connections))
+			conns.Plugs = append(conns.Plugs, p)
+		}
+	}
+	for _, slots := range r.slots {
+		for _, slot := range slots {
+			// Copy part of the data explicitly, leaving out attrs and apps.
+			s := &Slot{
+				Slot:      slot.Slot,
+				Snap:      slot.Snap,
+				Interface: slot.Interface,
+				Label:     slot.Label,
+			}
+			// Add connection details
+			for plug := range r.slotPlugs[slot] {
+				s.Connections = append(s.Connections, PlugRef{
+					Plug: plug.Plug,
+					Snap: plug.Snap,
+				})
+			}
+			sort.Sort(byPlugRef(s.Connections))
+			conns.Slots = append(conns.Slots, s)
+		}
+	}
+	sort.Sort(byPlugSnapAndName(conns.Plugs))
+	sort.Sort(bySlotSnapAndName(conns.Slots))
+	return conns
+}
+
 // SecuritySnippetsForSnap collects all of the snippets of a given security
 // system that affect a given snap. The return value is indexed by app name
 // within that snap.
