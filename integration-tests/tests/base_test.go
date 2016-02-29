@@ -91,6 +91,9 @@ func setUpSnapdFromBranch(c *check.C) {
 	err = writeEnvConfig()
 	c.Assert(err, check.IsNil)
 
+	_, err = cli.ExecCommandErr("sudo", "systemctl", "daemon-reload")
+	c.Assert(err, check.IsNil)
+
 	_, err = cli.ExecCommandErr("sudo", "systemctl", "start", "ubuntu-snappy.snapd.service")
 	c.Assert(err, check.IsNil)
 }
@@ -106,6 +109,10 @@ func tearDownSnapdFromBranch() error {
 	}
 
 	if _, err := cli.ExecCommandErr("sudo", "umount", "/usr/bin/snapd"); err != nil {
+		return err
+	}
+
+	if _, err := cli.ExecCommandErr("sudo", "systemctl", "daemon-reload"); err != nil {
 		return err
 	}
 
