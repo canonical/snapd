@@ -39,7 +39,7 @@ func (s *OAuthTestSuite) TestMakePlaintextSignature(c *C) {
 		TokenSecret:    "token-secret+",
 	}
 	sig := MakePlaintextSignature(&mockToken)
-	c.Assert(sig, Matches, `OAuth oauth_nonce="[a-zA-Z]+", oauth_timestamp="[0-9]+", oauth_version="1.0", oauth_signature_method="PLAINTEXT", oauth_consumer_key="consumer-key%2B", oauth_token="token-key%2B", oauth_signature="consumer-secret%2B&token-secret%2B"`)
+	c.Assert(sig, Matches, `OAuth oauth_nonce="[a-zA-Z]+", oauth_timestamp="[0-9]+", oauth_version="1.0", oauth_signature_method="PLAINTEXT", oauth_consumer_key="consumer-key%2B", oauth_token="token-key%2B", oauth_signature="consumer-secret%2B%26token-secret%2B"`)
 }
 
 func (s *OAuthTestSuite) TestQuote(c *C) {

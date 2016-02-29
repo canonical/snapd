@@ -1,4 +1,11 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//
+// 20160229: The tests with gccgo on powerpc fails for this file
+//           and it will loop endlessly. This is not reproducable
+//           with gccgo on amd64. Given that its a relatively little
+//           used arch we disable the tests in here to workaround this
+//           gccgo bug.
+// +build !ppc
 
 /*
  * Copyright (C) 2015 Canonical Ltd

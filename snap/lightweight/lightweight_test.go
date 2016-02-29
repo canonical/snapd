@@ -109,6 +109,7 @@ func (s *lightweightSuite) TestMapFmkNoPart(c *check.C) {
 		"download_size":      int64(-1),
 		"description":        "",
 		"rollback_available": "119",
+		"channel":            "stable",
 	})
 }
 
@@ -179,6 +180,7 @@ func (s *lightweightSuite) TestMapAppNoPart(c *check.C) {
 		"vendor":        "",
 		"download_size": int64(-1),
 		"description":   "",
+		"channel":       "stable",
 	})
 }
 
@@ -208,6 +210,7 @@ func (s *lightweightSuite) TestMapAppWithPart(c *check.C) {
 		"download_size":    int64(42),
 		"description":      "",
 		"update_available": "2",
+		"channel":          "stable",
 	})
 }
 
@@ -271,6 +274,7 @@ func (s *lightweightSuite) TestMapInactiveGadgetNoPart(c *check.C) {
 		"vendor":        "",
 		"download_size": int64(-1),
 		"description":   "",
+		"channel":       "stable",
 	})
 }
 

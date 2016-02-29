@@ -36,7 +36,7 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/interfaces"
-	"github.com/ubuntu-core/snappy/interfaces/types"
+	"github.com/ubuntu-core/snappy/interfaces/builtin"
 	"github.com/ubuntu-core/snappy/logger"
 )
 
@@ -192,13 +192,18 @@ func (d *Daemon) addRoutes() {
 // Start the Daemon
 func (d *Daemon) Start() {
 	d.tomb.Go(func() error {
-		return http.Serve(d.listener, logit(d.router))
+		if err := http.Serve(d.listener, logit(d.router)); err != nil && d.tomb.Err() == tomb.ErrStillAlive {
+			return err
+		}
+
+		return nil
 	})
 }
 
 // Stop shuts down the Daemon
 func (d *Daemon) Stop() error {
 	d.tomb.Kill(nil)
+	d.listener.Close()
 	return d.tomb.Wait()
 }
 
@@ -262,7 +267,7 @@ func New() *Daemon {
 		panic(err.Error())
 	}
 	interfacesRepo := interfaces.NewRepository()
-	for _, iface := range types.AllInterfaces() {
+	for _, iface := range builtin.Interfaces() {
 		if err := interfacesRepo.AddInterface(iface); err != nil {
 			panic(err.Error())
 		}

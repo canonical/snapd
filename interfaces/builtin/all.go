@@ -17,14 +17,17 @@
  *
  */
 
-package types
+package builtin
 
 import (
-	"path/filepath"
+	"github.com/ubuntu-core/snappy/interfaces"
 )
 
-type evalSymlinksFn func(string) (string, error)
+var allInterfaces = []interfaces.Interface{
+	&BoolFileInterface{},
+}
 
-// evalSymlinks is either filepath.EvalSymlinks or a mocked function for
-// applicable for testing.
-var evalSymlinks = filepath.EvalSymlinks
+// Interfaces returns all of the built-in interfaces.
+func Interfaces() []interfaces.Interface {
+	return allInterfaces
+}

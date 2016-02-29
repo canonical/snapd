@@ -17,17 +17,17 @@
  *
  */
 
-package types
+package builtin
 
 import (
-	"github.com/ubuntu-core/snappy/interfaces"
+	"github.com/ubuntu-core/snappy/testutil"
 )
 
-var allInterfaces = []interfaces.Interface{
-	&BoolFileInterface{},
-}
-
-// AllInterfaces returns a slice of all the interfaces.
-func AllInterfaces() []interfaces.Interface {
-	return allInterfaces
+// MockEvalSymlinks replaces the path/filepath.EvalSymlinks function used inside the caps package.
+func MockEvalSymlinks(test *testutil.BaseTest, fn func(string) (string, error)) {
+	orig := evalSymlinks
+	evalSymlinks = fn
+	test.AddCleanup(func() {
+		evalSymlinks = orig
+	})
 }

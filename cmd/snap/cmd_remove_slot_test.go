@@ -52,12 +52,12 @@ Help Options:
 func (s *SnapSuite) TestRemoveSlot(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "POST")
-		c.Check(r.URL.Path, Equals, "/2.0/skills")
+		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
 		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
 			"action": "remove-slot",
 			"slot": map[string]interface{}{
 				"snap": "consumer",
-				"name": "slot",
+				"slot": "slot",
 			},
 		})
 		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
