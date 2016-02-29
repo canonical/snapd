@@ -919,34 +919,34 @@ func appIconGet(c *Command, r *http.Request) Response {
 	return iconGet(name, origin)
 }
 
-// plugConnection holds the identification of a slot that has been connected to a plug.
-type plugConnection struct {
+// slotRef is a reference to a slot.
+type slotRef struct {
 	Snap string `json:"snap"`
 	Slot string `json:"slot"`
 }
 
-// slotConnection holds the identification of a plug that has been connected to a slot.
-type slotConnection struct {
+// plugRef is a reference to a plug.
+type plugRef struct {
 	Snap string `json:"snap"`
 	Plug string `json:"plug"`
 }
 
 // plugInfo holds details for a plug as returned by the REST API.
 type plugInfo struct {
-	Snap        string           `json:"snap"`
-	Plug        string           `json:"plug"`
-	Interface   string           `json:"interface"`
-	Label       string           `json:"label"`
-	Connections []plugConnection `json:"connections"`
+	Snap        string    `json:"snap"`
+	Plug        string    `json:"plug"`
+	Interface   string    `json:"interface"`
+	Label       string    `json:"label"`
+	Connections []slotRef `json:"connections"`
 }
 
 // slotInfo holds details for a slot as returned by the REST API.
 type slotInfo struct {
-	Snap        string           `json:"snap"`
-	Slot        string           `json:"slot"`
-	Interface   string           `json:"interface"`
-	Label       string           `json:"label"`
-	Connections []slotConnection `json:"connections"`
+	Snap        string    `json:"snap"`
+	Slot        string    `json:"slot"`
+	Interface   string    `json:"interface"`
+	Label       string    `json:"label"`
+	Connections []plugRef `json:"connections"`
 }
 
 // interfaceConnections contains information about all plugs, slots and their connections
@@ -966,7 +966,7 @@ func getInterfaces(c *Command, r *http.Request) Response {
 			Label:     plug.Label,
 		}
 		for _, slot := range c.d.interfaces.PlugConnections(plug.Snap, plug.Plug) {
-			info.Connections = append(info.Connections, plugConnection{
+			info.Connections = append(info.Connections, slotRef{
 				Snap: slot.Snap,
 				Slot: slot.Slot,
 			})
@@ -981,7 +981,7 @@ func getInterfaces(c *Command, r *http.Request) Response {
 			Label:     slot.Label,
 		}
 		for _, plug := range c.d.interfaces.SlotConnections(slot.Snap, slot.Slot) {
-			info.Connections = append(info.Connections, slotConnection{
+			info.Connections = append(info.Connections, plugRef{
 				Snap: plug.Snap,
 				Plug: plug.Plug,
 			})
