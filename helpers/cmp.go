@@ -24,6 +24,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/ubuntu-core/snappy/osutil"
 )
 
 const defaultBufsz = 16 * 1024
@@ -103,13 +105,13 @@ func DirUpdated(dirA, dirB, pfx string) map[string]bool {
 
 	updated := make(map[string]bool)
 	for _, fileA := range filesA {
-		if IsDirectory(fileA) {
+		if osutil.IsDirectory(fileA) {
 			continue
 		}
 
 		name := filepath.Base(fileA)
 		fileB := filepath.Join(dirB, name)
-		if FileExists(fileB) && !FilesAreEqual(fileA, fileB) {
+		if osutil.FileExists(fileB) && !FilesAreEqual(fileA, fileB) {
 			updated[pfx+name] = true
 		}
 	}

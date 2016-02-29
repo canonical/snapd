@@ -17,7 +17,7 @@
  *
  */
 
-package helpers
+package cp
 
 import (
 	"errors"
@@ -27,10 +27,13 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"testing"
 	"time"
 
 	. "gopkg.in/check.v1"
 )
+
+func Test(t *testing.T) { TestingT(t) }
 
 type cpSuite struct {
 	dir  string

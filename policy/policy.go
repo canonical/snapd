@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ubuntu-core/snappy/cp"
 	"github.com/ubuntu-core/snappy/helpers"
 )
 
@@ -91,7 +92,7 @@ func iterOp(op policyOp, glob, targetDir, prefix string) (err error) {
 			}
 		case install:
 			// do the copy
-			if err := helpers.CopyFile(file, targetFile, helpers.CopyFlagSync|helpers.CopyFlagOverwrite); err != nil {
+			if err := cp.CopyFile(file, targetFile, cp.CopyFlagSync|cp.CopyFlagOverwrite); err != nil {
 				return err
 			}
 		default:

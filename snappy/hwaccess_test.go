@@ -26,7 +26,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/osutil"
 )
 
 func mockRegenerateAppArmorRules() *bool {
@@ -151,7 +151,7 @@ func (s *SnapTestSuite) TestRemoveHWAccess(c *C) {
 
 	// check that the udev rules file got created
 	udevRulesFilename := "70-snappy_hwassign_hello-app.rules"
-	c.Assert(helpers.FileExists(filepath.Join(dirs.SnapUdevRulesDir, udevRulesFilename)), Equals, true)
+	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapUdevRulesDir, udevRulesFilename)), Equals, true)
 
 	writePaths, err := ListHWAccess("hello-app")
 	c.Assert(err, IsNil)
@@ -167,7 +167,7 @@ func (s *SnapTestSuite) TestRemoveHWAccess(c *C) {
 	c.Assert(writePaths, HasLen, 0)
 
 	// check that the udev rules file got removed on unassign
-	c.Assert(helpers.FileExists(filepath.Join(dirs.SnapUdevRulesDir, udevRulesFilename)), Equals, false)
+	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapUdevRulesDir, udevRulesFilename)), Equals, false)
 
 	// check the json.additional got cleaned out
 	content, err := ioutil.ReadFile(filepath.Join(dirs.SnapAppArmorAdditionalDir, "hello-app.hwaccess.yaml"))
@@ -283,8 +283,8 @@ func (s *SnapTestSuite) TestRemoveAllHWAccess(c *C) {
 	c.Check(*regenerateAppArmorRulesWasCalled, Equals, false)
 	c.Check(RemoveAllHWAccess("hello-app"), IsNil)
 
-	c.Check(helpers.FileExists(filepath.Join(dirs.SnapUdevRulesDir, "70-snappy_hwassign_foo-app.rules")), Equals, false)
-	c.Check(helpers.FileExists(filepath.Join(dirs.SnapAppArmorAdditionalDir, "hello-app.hwaccess.yaml")), Equals, false)
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapUdevRulesDir, "70-snappy_hwassign_foo-app.rules")), Equals, false)
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapAppArmorAdditionalDir, "hello-app.hwaccess.yaml")), Equals, false)
 	c.Check(*regenerateAppArmorRulesWasCalled, Equals, true)
 }
 

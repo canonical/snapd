@@ -38,6 +38,7 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/osutil"
 )
 
 var (
@@ -53,7 +54,7 @@ var (
 func run(args ...string) ([]byte, error) {
 	bs, err := exec.Command("systemctl", args...).CombinedOutput()
 	if err != nil {
-		exitCode, _ := helpers.ExitCode(err)
+		exitCode, _ := osutil.ExitCode(err)
 		return nil, &Error{cmd: args, exitCode: exitCode, msg: bs}
 	}
 
@@ -74,7 +75,7 @@ func jctl(svcs []string) ([]byte, error) {
 
 	bs, err := exec.Command(cmd[0], cmd[1:]...).Output() // journalctl can be messy with its stderr
 	if err != nil {
-		exitCode, _ := helpers.ExitCode(err)
+		exitCode, _ := osutil.ExitCode(err)
 		return nil, &Error{cmd: cmd, exitCode: exitCode, msg: bs}
 	}
 

@@ -88,7 +88,7 @@ func (s *Snap) Install(instDir string) error {
 		}
 	}
 
-	// FIXME: helpers.CopyFile() has no preserve attribute flag yet
+	// FIXME: cp.CopyFile() has no preserve attribute flag yet
 	return runCommand("cp", "-a", s.path, BlobPath(instDir))
 }
 
