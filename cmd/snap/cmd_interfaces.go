@@ -68,19 +68,19 @@ func (x *cmdInterfaces) Execute(args []string) error {
 			if x.Positionals.Query.Snap != "" && x.Positionals.Query.Snap != plug.Snap {
 				continue
 			}
-			if x.Positionals.Query.Name != "" && x.Positionals.Query.Name != plug.Name {
+			if x.Positionals.Query.Name != "" && x.Positionals.Query.Name != plug.Plug.Plug {
 				continue
 			}
 			if x.Interface != "" && plug.Interface != x.Interface {
 				continue
 			}
-			fmt.Fprintf(w, "%s:%s\t", plug.Snap, plug.Name)
+			fmt.Fprintf(w, "%s:%s\t", plug.Snap, plug.Plug.Plug)
 			for i := 0; i < len(plug.Connections); i++ {
 				if i > 0 {
 					fmt.Fprint(w, ",")
 				}
-				if plug.Connections[i].Name != plug.Name {
-					fmt.Fprintf(w, "%s:%s", plug.Connections[i].Snap, plug.Connections[i].Name)
+				if plug.Connections[i].Slot != plug.Plug.Plug {
+					fmt.Fprintf(w, "%s:%s", plug.Connections[i].Snap, plug.Connections[i].Slot)
 				} else {
 					fmt.Fprintf(w, "%s", plug.Connections[i].Snap)
 				}
