@@ -65,7 +65,7 @@ type Interface interface {
 	// from the security system to work, in addition to the default
 	// configuration.  ErrUnknownSecurity is returned when the plug cannot
 	// deal with the requested security system.
-	PlugSecuritySnippet(plug *Plug, securitySystem SecuritySystem) ([]byte, error)
+	PlugSecuritySnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
 
 	// SlotSecuritySnippet returns the configuration snippet needed by the
 	// given security system to allow a snap to use a plug of this interface.
