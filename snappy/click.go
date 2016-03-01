@@ -325,7 +325,7 @@ func addPackageServices(m *snapYaml, baseDir string, inhibitHooks bool, inter in
 		}
 		serviceFilename := generateServiceFileName(m, app)
 		os.MkdirAll(filepath.Dir(serviceFilename), 0755)
-		if err := helpers.AtomicWriteFile(serviceFilename, []byte(content), 0644, 0); err != nil {
+		if err := osutil.AtomicWriteFile(serviceFilename, []byte(content), 0644, 0); err != nil {
 			return err
 		}
 		// Generate systemd socket file if needed
@@ -336,7 +336,7 @@ func addPackageServices(m *snapYaml, baseDir string, inhibitHooks bool, inter in
 			}
 			socketFilename := generateSocketFileName(m, app)
 			os.MkdirAll(filepath.Dir(socketFilename), 0755)
-			if err := helpers.AtomicWriteFile(socketFilename, []byte(content), 0644, 0); err != nil {
+			if err := osutil.AtomicWriteFile(socketFilename, []byte(content), 0644, 0); err != nil {
 				return err
 			}
 		}
@@ -349,7 +349,7 @@ func addPackageServices(m *snapYaml, baseDir string, inhibitHooks bool, inter in
 			}
 			policyFilename := generateBusPolicyFileName(m, app)
 			os.MkdirAll(filepath.Dir(policyFilename), 0755)
-			if err := helpers.AtomicWriteFile(policyFilename, []byte(content), 0644, 0); err != nil {
+			if err := osutil.AtomicWriteFile(policyFilename, []byte(content), 0644, 0); err != nil {
 				return err
 			}
 		}
@@ -466,7 +466,7 @@ func addPackageBinaries(m *snapYaml, baseDir string) error {
 			return err
 		}
 
-		if err := helpers.AtomicWriteFile(generateBinaryName(m, app), []byte(content), 0755, 0); err != nil {
+		if err := osutil.AtomicWriteFile(generateBinaryName(m, app), []byte(content), 0755, 0); err != nil {
 			return err
 		}
 	}

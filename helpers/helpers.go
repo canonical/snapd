@@ -22,9 +22,6 @@ package helpers
 import (
 	"bytes"
 	"math/rand"
-	"os"
-	"os/user"
-	"path/filepath"
 	"reflect"
 	"strings"
 	"text/template"
@@ -80,85 +77,6 @@ func NewSideloadVersion() string {
 	}
 
 	return string(bs)
-}
-
-// AtomicWriteFlags are a bitfield of flags for AtomicWriteFile
-type AtomicWriteFlags uint
-
-const (
-	// AtomicWriteFollow makes AtomicWriteFile follow symlinks
-	AtomicWriteFollow AtomicWriteFlags = 1 << iota
-)
-
-// AtomicWriteFile updates the filename atomically and works otherwise
-// like io/ioutil.WriteFile()
-//
-// Note that it won't follow symlinks and will replace existing symlinks
-// with the real file
-func AtomicWriteFile(filename string, data []byte, perm os.FileMode, flags AtomicWriteFlags) (err error) {
-	if flags&AtomicWriteFollow != 0 {
-		if fn, err := os.Readlink(filename); err == nil || (fn != "" && os.IsNotExist(err)) {
-			if filepath.IsAbs(fn) {
-				filename = fn
-			} else {
-				filename = filepath.Join(filepath.Dir(filename), fn)
-			}
-		}
-	}
-	tmp := filename + "." + MakeRandomString(12)
-
-	// XXX: if go switches to use aio_fsync, we need to open the dir for writing
-	dir, err := os.Open(filepath.Dir(filename))
-	if err != nil {
-		return err
-	}
-	defer dir.Close()
-
-	fd, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_EXCL, perm)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		e := fd.Close()
-		if err == nil {
-			err = e
-		}
-		if err != nil {
-			os.Remove(tmp)
-		}
-	}()
-
-	// according to the docs, Write returns a non-nil error when n !=
-	// len(b), so don't worry about short writes.
-	if _, err := fd.Write(data); err != nil {
-		return err
-	}
-
-	if err := fd.Sync(); err != nil {
-		return err
-	}
-
-	if err := os.Rename(tmp, filename); err != nil {
-		return err
-	}
-
-	return dir.Sync()
-}
-
-// CurrentHomeDir returns the homedir of the current user. It looks at
-// $HOME first and then at passwd
-func CurrentHomeDir() (string, error) {
-	home := os.Getenv("HOME")
-	if home != "" {
-		return home, nil
-	}
-
-	user, err := user.Current()
-	if err != nil {
-		return "", err
-	}
-
-	return user.HomeDir, nil
 }
 
 // Getattr get the attribute of the given name
