@@ -59,30 +59,30 @@ func init() {
 }
 
 func (x *cmdInterfaces) Execute(args []string) error {
-	skills, err := Client().AllSkills()
+	plugs, err := Client().AllPlugs()
 	if err == nil {
 		w := tabwriter.NewWriter(Stdout, 0, 4, 1, ' ', 0)
 		fmt.Fprintln(w, i18n.G("plug\tslot"))
 		defer w.Flush()
-		for _, skill := range skills {
-			if x.Positionals.Query.Snap != "" && x.Positionals.Query.Snap != skill.Snap {
+		for _, plug := range plugs {
+			if x.Positionals.Query.Snap != "" && x.Positionals.Query.Snap != plug.Snap {
 				continue
 			}
-			if x.Positionals.Query.Name != "" && x.Positionals.Query.Name != skill.Name {
+			if x.Positionals.Query.Name != "" && x.Positionals.Query.Name != plug.Plug.Name {
 				continue
 			}
-			if x.Interface != "" && skill.Type != x.Interface {
+			if x.Interface != "" && plug.Interface != x.Interface {
 				continue
 			}
-			fmt.Fprintf(w, "%s:%s\t", skill.Snap, skill.Name)
-			for i := 0; i < len(skill.GrantedTo); i++ {
+			fmt.Fprintf(w, "%s:%s\t", plug.Snap, plug.Plug.Name)
+			for i := 0; i < len(plug.Connections); i++ {
 				if i > 0 {
 					fmt.Fprint(w, ",")
 				}
-				if skill.GrantedTo[i].Name != skill.Name {
-					fmt.Fprintf(w, "%s:%s", skill.GrantedTo[i].Snap, skill.GrantedTo[i].Name)
+				if plug.Connections[i].Name != plug.Plug.Name {
+					fmt.Fprintf(w, "%s:%s", plug.Connections[i].Snap, plug.Connections[i].Name)
 				} else {
-					fmt.Fprintf(w, "%s", skill.GrantedTo[i].Snap)
+					fmt.Fprintf(w, "%s", plug.Connections[i].Snap)
 				}
 			}
 			fmt.Fprintf(w, "\n")

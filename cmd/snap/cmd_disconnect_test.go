@@ -62,16 +62,16 @@ Help Options:
 func (s *SnapSuite) TestDisconnectExplicitEverything(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "POST")
-		c.Check(r.URL.Path, Equals, "/2.0/skills")
+		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
 		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
-			"action": "revoke",
-			"skill": map[string]interface{}{
+			"action": "disconnect",
+			"plug": map[string]interface{}{
 				"snap": "producer",
-				"name": "plug",
+				"plug": "plug",
 			},
 			"slot": map[string]interface{}{
 				"snap": "consumer",
-				"name": "slot",
+				"slot": "slot",
 			},
 		})
 		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
@@ -86,16 +86,16 @@ func (s *SnapSuite) TestDisconnectExplicitEverything(c *C) {
 func (s *SnapSuite) TestDisconnectEverythingFromSpecificSlot(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "POST")
-		c.Check(r.URL.Path, Equals, "/2.0/skills")
+		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
 		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
-			"action": "revoke",
-			"skill": map[string]interface{}{
+			"action": "disconnect",
+			"plug": map[string]interface{}{
 				"snap": "",
-				"name": "",
+				"plug": "",
 			},
 			"slot": map[string]interface{}{
 				"snap": "consumer",
-				"name": "slot",
+				"slot": "slot",
 			},
 		})
 		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
@@ -110,16 +110,16 @@ func (s *SnapSuite) TestDisconnectEverythingFromSpecificSlot(c *C) {
 func (s *SnapSuite) TestDisconnectEverythingFromSpecificSnap(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "POST")
-		c.Check(r.URL.Path, Equals, "/2.0/skills")
+		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
 		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
-			"action": "revoke",
-			"skill": map[string]interface{}{
+			"action": "disconnect",
+			"plug": map[string]interface{}{
 				"snap": "",
-				"name": "",
+				"plug": "",
 			},
 			"slot": map[string]interface{}{
 				"snap": "consumer",
-				"name": "",
+				"slot": "",
 			},
 		})
 		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)

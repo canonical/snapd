@@ -76,7 +76,7 @@ func snapInfo(pkgname string, includeStore, verbose bool) error {
 	if snap == nil && includeStore {
 		m := snappy.NewUbuntuStoreSnapRepository()
 		var err error
-		snap, err = m.Snap(pkgname)
+		snap, err = m.Snap(pkgname, release.Get().Channel)
 		if err != nil {
 			return fmt.Errorf("cannot get details for snap %q: %s", pkgname, err)
 		}

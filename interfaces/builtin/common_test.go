@@ -17,17 +17,17 @@
  *
  */
 
-package types
+package builtin
 
 import (
-	"github.com/ubuntu-core/snappy/skills"
+	"github.com/ubuntu-core/snappy/testutil"
 )
 
-var allTypes = []skills.Type{
-	&BoolFileType{},
-}
-
-// AllTypes returns a slice of all the skill types.
-func AllTypes() []skills.Type {
-	return allTypes
+// MockEvalSymlinks replaces the path/filepath.EvalSymlinks function used inside the caps package.
+func MockEvalSymlinks(test *testutil.BaseTest, fn func(string) (string, error)) {
+	orig := evalSymlinks
+	evalSymlinks = fn
+	test.AddCleanup(func() {
+		evalSymlinks = orig
+	})
 }

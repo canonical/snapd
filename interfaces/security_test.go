@@ -17,32 +17,32 @@
  *
  */
 
-package skills_test
+package interfaces_test
 
 import (
 	. "gopkg.in/check.v1"
 
-	. "github.com/ubuntu-core/snappy/skills"
+	. "github.com/ubuntu-core/snappy/interfaces"
 )
 
 type SecuritySuite struct {
-	repo  *Repository
-	skill *Skill
-	slot  *Slot
+	repo *Repository
+	plug *Plug
+	slot *Slot
 }
 
 var _ = Suite(&SecuritySuite{
-	skill: &Skill{
-		Snap: "producer",
-		Name: "skill",
-		Type: "type",
-		Apps: []string{"hook"},
+	plug: &Plug{
+		Snap:      "producer",
+		Plug:      "plug",
+		Interface: "interface",
+		Apps:      []string{"hook"},
 	},
 	slot: &Slot{
-		Snap: "consumer",
-		Name: "slot",
-		Type: "type",
-		Apps: []string{"app"},
+		Snap:      "consumer",
+		Slot:      "slot",
+		Interface: "interface",
+		Apps:      []string{"app"},
 	},
 })
 
@@ -50,31 +50,31 @@ func (s *SecuritySuite) SetUpTest(c *C) {
 	s.repo = NewRepository()
 }
 
-func (s *SecuritySuite) prepareFixtureWithType(c *C, t Type) {
-	err := s.repo.AddType(t)
+func (s *SecuritySuite) prepareFixtureWithInterface(c *C, i Interface) {
+	err := s.repo.AddInterface(i)
 	c.Assert(err, IsNil)
-	err = s.repo.AddSkill(s.skill)
+	err = s.repo.AddPlug(s.plug)
 	c.Assert(err, IsNil)
 	err = s.repo.AddSlot(s.slot)
 	c.Assert(err, IsNil)
-	err = s.repo.Grant(s.skill.Snap, s.skill.Name, s.slot.Snap, s.slot.Name)
+	err = s.repo.Connect(s.plug.Snap, s.plug.Plug, s.slot.Snap, s.slot.Slot)
 	c.Assert(err, IsNil)
 }
 
 // Tests for appArmor
 
-func (s *SecuritySuite) TestAppArmorSkillPermissions(c *C) {
-	s.prepareFixtureWithType(c, &TestType{
-		TypeName: "type",
-		SkillSecuritySnippetCallback: func(skill *Skill, securitySystem SecuritySystem) ([]byte, error) {
+func (s *SecuritySuite) TestAppArmorPlugPermissions(c *C) {
+	s.prepareFixtureWithInterface(c, &TestInterface{
+		InterfaceName: "interface",
+		PlugSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == SecurityAppArmor {
 				return []byte("producer snippet\n"), nil
 			}
 			return nil, nil
 		},
 	})
-	// Ensure that skill-side security profile looks correct.
-	blobs, err := s.repo.SecurityFilesForSnap(s.skill.Snap)
+	// Ensure that plug-side security profile looks correct.
+	blobs, err := s.repo.SecurityFilesForSnap(s.plug.Snap)
 	c.Assert(err, IsNil)
 	c.Check(blobs, DeepEquals, map[string][]byte{
 		"/run/snappy/security/apparmor/producer/hook.profile": []byte("" +
@@ -85,9 +85,9 @@ func (s *SecuritySuite) TestAppArmorSkillPermissions(c *C) {
 }
 
 func (s *SecuritySuite) TestAppArmorSlotPermissions(c *C) {
-	s.prepareFixtureWithType(c, &TestType{
-		TypeName: "type",
-		SlotSecuritySnippetCallback: func(skill *Skill, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+	s.prepareFixtureWithInterface(c, &TestInterface{
+		InterfaceName: "interface",
+		SlotSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == SecurityAppArmor {
 				return []byte("consumer snippet\n"), nil
 			}
@@ -107,18 +107,18 @@ func (s *SecuritySuite) TestAppArmorSlotPermissions(c *C) {
 
 // Tests for secComp
 
-func (s *SecuritySuite) TestSecCompSkillPermissions(c *C) {
-	s.prepareFixtureWithType(c, &TestType{
-		TypeName: "type",
-		SkillSecuritySnippetCallback: func(skill *Skill, securitySystem SecuritySystem) ([]byte, error) {
+func (s *SecuritySuite) TestSecCompPlugPermissions(c *C) {
+	s.prepareFixtureWithInterface(c, &TestInterface{
+		InterfaceName: "interface",
+		PlugSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == SecuritySecComp {
 				return []byte("allow open\n"), nil
 			}
 			return nil, nil
 		},
 	})
-	// Ensure that skill-side security profile looks correct.
-	blobs, err := s.repo.SecurityFilesForSnap(s.skill.Snap)
+	// Ensure that plug-side security profile looks correct.
+	blobs, err := s.repo.SecurityFilesForSnap(s.plug.Snap)
 	c.Assert(err, IsNil)
 	c.Check(blobs, DeepEquals, map[string][]byte{
 		"/run/snappy/security/seccomp/producer/hook.profile": []byte("" +
@@ -128,9 +128,9 @@ func (s *SecuritySuite) TestSecCompSkillPermissions(c *C) {
 }
 
 func (s *SecuritySuite) TestSecCompSlotPermissions(c *C) {
-	s.prepareFixtureWithType(c, &TestType{
-		TypeName: "type",
-		SlotSecuritySnippetCallback: func(skill *Skill, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+	s.prepareFixtureWithInterface(c, &TestInterface{
+		InterfaceName: "interface",
+		SlotSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == SecuritySecComp {
 				return []byte("deny kexec\n"), nil
 			}
@@ -149,18 +149,18 @@ func (s *SecuritySuite) TestSecCompSlotPermissions(c *C) {
 
 // Tests for uDev
 
-func (s *SecuritySuite) TestUdevSkillPermissions(c *C) {
-	s.prepareFixtureWithType(c, &TestType{
-		TypeName: "type",
-		SkillSecuritySnippetCallback: func(skill *Skill, securitySystem SecuritySystem) ([]byte, error) {
+func (s *SecuritySuite) TestUdevPlugPermissions(c *C) {
+	s.prepareFixtureWithInterface(c, &TestInterface{
+		InterfaceName: "interface",
+		PlugSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == SecurityUDev {
 				return []byte("...\n"), nil
 			}
 			return nil, nil
 		},
 	})
-	// Ensure that skill-side security profile looks correct.
-	blobs, err := s.repo.SecurityFilesForSnap(s.skill.Snap)
+	// Ensure that plug-side security profile looks correct.
+	blobs, err := s.repo.SecurityFilesForSnap(s.plug.Snap)
 	c.Assert(err, IsNil)
 	c.Check(blobs, DeepEquals, map[string][]byte{
 		"/etc/udev/rules.d/70-snappy-producer.rules": []byte("...\n"),
@@ -168,9 +168,9 @@ func (s *SecuritySuite) TestUdevSkillPermissions(c *C) {
 }
 
 func (s *SecuritySuite) TestUdevSlotPermissions(c *C) {
-	s.prepareFixtureWithType(c, &TestType{
-		TypeName: "type",
-		SlotSecuritySnippetCallback: func(skill *Skill, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+	s.prepareFixtureWithInterface(c, &TestInterface{
+		InterfaceName: "interface",
+		SlotSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == SecurityUDev {
 				return []byte("...\n"), nil
 			}
@@ -187,18 +187,18 @@ func (s *SecuritySuite) TestUdevSlotPermissions(c *C) {
 
 // Tests for DBus
 
-func (s *SecuritySuite) TestDBusSkillPermissions(c *C) {
-	s.prepareFixtureWithType(c, &TestType{
-		TypeName: "type",
-		SkillSecuritySnippetCallback: func(skill *Skill, securitySystem SecuritySystem) ([]byte, error) {
+func (s *SecuritySuite) TestDBusPlugPermissions(c *C) {
+	s.prepareFixtureWithInterface(c, &TestInterface{
+		InterfaceName: "interface",
+		PlugSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == SecurityDBus {
 				return []byte("...\n"), nil
 			}
 			return nil, nil
 		},
 	})
-	// Ensure that skill-side security profile looks correct.
-	blobs, err := s.repo.SecurityFilesForSnap(s.skill.Snap)
+	// Ensure that plug-side security profile looks correct.
+	blobs, err := s.repo.SecurityFilesForSnap(s.plug.Snap)
 	c.Assert(err, IsNil)
 	c.Check(blobs, DeepEquals, map[string][]byte{
 		"/etc/dbus-1/system.d/producer.conf": []byte("" +
@@ -212,9 +212,9 @@ func (s *SecuritySuite) TestDBusSkillPermissions(c *C) {
 }
 
 func (s *SecuritySuite) TestDBusSlotPermissions(c *C) {
-	s.prepareFixtureWithType(c, &TestType{
-		TypeName: "type",
-		SlotSecuritySnippetCallback: func(skill *Skill, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+	s.prepareFixtureWithInterface(c, &TestInterface{
+		InterfaceName: "interface",
+		SlotSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == SecurityDBus {
 				return []byte("...\n"), nil
 			}
