@@ -22,7 +22,6 @@ package helpers
 import (
 	"fmt"
 	"io/ioutil"
-	"math/rand"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -55,17 +54,6 @@ func (ts *HTestSuite) TestMakeMapFromEnvListInvalidInput(c *C) {
 	}
 	envMap := MakeMapFromEnvList(envList)
 	c.Assert(envMap, DeepEquals, map[string]string(nil))
-}
-
-func (ts *HTestSuite) TestMakeRandomString(c *C) {
-	// for our tests
-	rand.Seed(1)
-
-	s1 := MakeRandomString(10)
-	c.Assert(s1, Equals, "pw7MpXh0JB")
-
-	s2 := MakeRandomString(5)
-	c.Assert(s2, Equals, "4PQyl")
 }
 
 func skipOnMissingDevKmsg(c *C) {

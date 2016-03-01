@@ -23,7 +23,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/strutil"
 )
 
 // AtomicWriteFlags are a bitfield of flags for AtomicWriteFile
@@ -49,7 +49,7 @@ func AtomicWriteFile(filename string, data []byte, perm os.FileMode, flags Atomi
 			}
 		}
 	}
-	tmp := filename + "." + helpers.MakeRandomString(12)
+	tmp := filename + "." + strutil.MakeRandomString(12)
 
 	// XXX: if go switches to use aio_fsync, we need to open the dir for writing
 	dir, err := os.Open(filepath.Dir(filename))

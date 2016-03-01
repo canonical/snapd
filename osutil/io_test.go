@@ -25,7 +25,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/strutil"
 
 	. "gopkg.in/check.v1"
 )
@@ -163,7 +163,7 @@ func (ts *AtomicWriteTestSuite) TestAtomicWriteFileNoOverwriteTmpExisting(c *C) 
 	tmpdir := c.MkDir()
 	// ensure we always get the same result
 	rand.Seed(1)
-	expectedRandomness := helpers.MakeRandomString(12)
+	expectedRandomness := strutil.MakeRandomString(12)
 	// ensure we always get the same result
 	rand.Seed(1)
 
