@@ -17,7 +17,7 @@
  *
  */
 
-package skills
+package interfaces
 
 import (
 	"errors"
@@ -25,56 +25,56 @@ import (
 	"regexp"
 )
 
-// Skill represents a capacity offered by a snap.
-type Skill struct {
-	Name  string
-	Snap  string
-	Type  string
-	Attrs map[string]interface{}
-	Apps  []string
-	Label string
+// Plug represents a capacity offered by a snap.
+type Plug struct {
+	Plug      string
+	Snap      string
+	Interface string
+	Attrs     map[string]interface{}
+	Apps      []string
+	Label     string
 }
 
-// Slot represents the potential of a given snap to use a skill.
+// Slot represents the potential of a given snap to connect to a plug.
 type Slot struct {
-	Name  string
-	Snap  string
-	Type  string
-	Attrs map[string]interface{}
-	Apps  []string
-	Label string
+	Slot      string
+	Snap      string
+	Interface string
+	Attrs     map[string]interface{}
+	Apps      []string
+	Label     string
 }
 
-// Type describes a group of interchangeable capabilities with common features.
-// Types are managed centrally and act as a contract between system builders,
-// application developers and end users.
-type Type interface {
-	// Unique and public name of this type.
+// Interface describes a group of interchangeable capabilities with common features.
+// Interfaces act as a contract between system builders, application developers
+// and end users.
+type Interface interface {
+	// Unique and public name of this interface.
 	Name() string
 
-	// SanitizeSkill checks if a skill is correct, altering if necessary.
-	SanitizeSkill(skill *Skill) error
+	// SanitizePlug checks if a plug is correct, altering if necessary.
+	SanitizePlug(plug *Plug) error
 
 	// SanitizeSlot checks if a slot is correct, altering if necessary.
 	SanitizeSlot(slot *Slot) error
 
-	// SkillSecuritySnippet returns the configuration snippet needed by the
-	// given security system to allow a snap to offer a skill of this type.
+	// PlugSecuritySnippet returns the configuration snippet needed by the
+	// given security system to allow a snap to offer a plug of this interface.
 	//
-	// An empty snippet is returned when the skill doesn't require anything
+	// An empty snippet is returned when the plug doesn't require anything
 	// from the security system to work, in addition to the default
-	// configuration.  ErrUnknownSecurity is returned when the skill cannot
+	// configuration.  ErrUnknownSecurity is returned when the plug cannot
 	// deal with the requested security system.
-	SkillSecuritySnippet(skill *Skill, securitySystem SecuritySystem) ([]byte, error)
+	PlugSecuritySnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
 
 	// SlotSecuritySnippet returns the configuration snippet needed by the
-	// given security system to allow a snap to use a skill of this type.
+	// given security system to allow a snap to use a plug of this interface.
 	//
-	// An empty snippet is returned when the skill doesn't require anything
+	// An empty snippet is returned when the plug doesn't require anything
 	// from the security system to work, in addition to the default
-	// configuration.  ErrUnknownSecurity is returned when the skill cannot
+	// configuration.  ErrUnknownSecurity is returned when the plug cannot
 	// deal with the requested security system.
-	SlotSecuritySnippet(skill *Skill, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
+	SlotSecuritySnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
 }
 
 // SecuritySystem is a name of a security system.
@@ -92,18 +92,18 @@ const (
 )
 
 var (
-	// ErrUnknownSecurity is reported when a skill type is unable to deal with a given security system.
+	// ErrUnknownSecurity is reported when a interface is unable to deal with a given security system.
 	ErrUnknownSecurity = errors.New("unknown security system")
 )
 
 // Regular expression describing correct identifiers.
 var validName = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
 
-// ValidateName checks if a string can be used as a skill or slot name.
+// ValidateName checks if a string can be used as a plug or slot name.
 func ValidateName(name string) error {
 	valid := validName.MatchString(name)
 	if !valid {
-		return fmt.Errorf("invalid skill name: %q", name)
+		return fmt.Errorf("invalid interface name: %q", name)
 	}
 	return nil
 }

@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -44,7 +43,6 @@ var _ = check.Suite(&snapdTestSuite{})
 
 type snapdTestSuite struct {
 	common.SnappySuite
-	cmd *exec.Cmd
 }
 
 func (s *snapdTestSuite) SetUpTest(c *check.C) {
