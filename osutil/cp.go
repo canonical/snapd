@@ -17,14 +17,12 @@
  *
  */
 
-package cp
+package osutil
 
 import (
 	"fmt"
 	"os"
 	"os/exec"
-
-	"github.com/ubuntu-core/snappy/osutil"
 )
 
 // CopyFlag is used to tweak the behaviour of CopyFile
@@ -114,7 +112,7 @@ func CopyFile(src, dst string, flags CopyFlag) (err error) {
 func runCpPreserveAll(path, dest string) error {
 	cmd := exec.Command("cp", "-av", path, dest)
 	if output, err := cmd.CombinedOutput(); err != nil {
-		if exitCode, err := osutil.ExitCode(err); err == nil {
+		if exitCode, err := ExitCode(err); err == nil {
 			return &ErrCopySpecialFile{
 				exitCode: exitCode,
 				output:   output,

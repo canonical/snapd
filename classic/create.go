@@ -31,7 +31,6 @@ import (
 	"strings"
 
 	"github.com/ubuntu-core/snappy/arch"
-	"github.com/ubuntu-core/snappy/cp"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/progress"
@@ -196,7 +195,7 @@ func customizeClassicChroot() error {
 	for _, f := range []string{"hostname", "hosts", "timezone", "localtime"} {
 		src := filepath.Join("/etc/", f)
 		dst := filepath.Join(dirs.ClassicDir, "etc", f)
-		if err := cp.CopyFile(src, dst, cp.CopyFlagPreserveAll); err != nil {
+		if err := osutil.CopyFile(src, dst, osutil.CopyFlagPreserveAll); err != nil {
 			return err
 		}
 	}
@@ -218,7 +217,7 @@ func customizeClassicChroot() error {
 	}
 	src := filepath.Join(dirs.GlobalRootDir, "/run/resolvconf/resolv.conf")
 	dst := filepath.Join(dirs.ClassicDir, "/run/resolvconf/")
-	if err := cp.CopyFile(src, dst, cp.CopyFlagPreserveAll); err != nil {
+	if err := osutil.CopyFile(src, dst, osutil.CopyFlagPreserveAll); err != nil {
 		return err
 	}
 

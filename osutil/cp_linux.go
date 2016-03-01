@@ -17,30 +17,32 @@
  *
  */
 
-package cp
+package osutil
 
 import (
-	"io/ioutil"
 	"os"
-
-	. "gopkg.in/check.v1"
+	"syscall"
 )
 
-func (s *cpSuite) TestCpMulti(c *C) {
-	maxcp = 2
-	defer func() { maxcp = maxint }()
+const maxint = int64(^uint(0) >> 1)
 
-	c.Check(CopyFile(s.f1, s.f2, CopyFlagDefault), IsNil)
-	bs, err := ioutil.ReadFile(s.f2)
-	c.Check(err, IsNil)
-	c.Check(bs, DeepEquals, s.data)
-}
+var maxcp = maxint // overridden in testing
 
-func (s *cpSuite) TestDoCpErr(c *C) {
-	f1, err := os.Open(s.f1)
-	c.Assert(err, IsNil)
-	st, err := f1.Stat()
-	c.Assert(err, IsNil)
-	// force an error by asking it to write to a readonly stream
-	c.Check(doCopyFile(f1, os.Stdin, st), NotNil)
+func doCopyFile(fin, fout fileish, fi os.FileInfo) error {
+	size := fi.Size()
+	var offset int64
+	for offset < size {
+		// sendfile is funny; it only copies up to maxint
+		// bytes at a time, but takes an int64 offset.
+		count := size - offset
+		if count > maxcp {
+			count = maxcp
+		}
+
+		if _, err := syscall.Sendfile(int(fout.Fd()), int(fin.Fd()), &offset, int(count)); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
