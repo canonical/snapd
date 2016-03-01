@@ -76,7 +76,7 @@ func (s *SnapSuite) TestInterfacesZeroPlugsOneSlot(c *C) {
 				Slots: []*client.Slot{
 					&client.Slot{
 						Snap: "keyboard-lights",
-						Slot: "capslock-led",
+						Name: "capslock-led",
 					},
 				},
 			},
@@ -105,7 +105,7 @@ func (s *SnapSuite) TestInterfacesZeroSlotsOnePlug(c *C) {
 				Plugs: []*client.Plug{
 					&client.Plug{
 						Snap:      "canonical-pi2",
-						Plug:      "pin-13",
+						Name:      "pin-13",
 						Interface: "bool-file",
 						Label:     "Pin 13",
 					},
@@ -136,13 +136,13 @@ func (s *SnapSuite) TestInterfacesOnePlugOneSlot(c *C) {
 				Plugs: []*client.Plug{
 					&client.Plug{
 						Snap:      "canonical-pi2",
-						Plug:      "pin-13",
+						Name:      "pin-13",
 						Interface: "bool-file",
 						Label:     "Pin 13",
 						Connections: []client.SlotRef{
 							{
 								Snap: "keyboard-lights",
-								Slot: "capslock-led",
+								Name: "capslock-led",
 							},
 						},
 					},
@@ -150,13 +150,13 @@ func (s *SnapSuite) TestInterfacesOnePlugOneSlot(c *C) {
 				Slots: []*client.Slot{
 					&client.Slot{
 						Snap:      "keyboard-lights",
-						Slot:      "capslock-led",
+						Name:      "capslock-led",
 						Interface: "bool-file",
 						Label:     "Capslock indicator LED",
 						Connections: []client.PlugRef{
 							{
 								Snap: "canonical-pi2",
-								Plug: "pin-13",
+								Name: "pin-13",
 							},
 						},
 					},
@@ -187,17 +187,17 @@ func (s *SnapSuite) TestInterfacesTwoSlots(c *C) {
 				Plugs: []*client.Plug{
 					&client.Plug{
 						Snap:      "canonical-pi2",
-						Plug:      "pin-13",
+						Name:      "pin-13",
 						Interface: "bool-file",
 						Label:     "Pin 13",
 						Connections: []client.SlotRef{
 							{
 								Snap: "keyboard-lights",
-								Slot: "capslock-led",
+								Name: "capslock-led",
 							},
 							{
 								Snap: "keyboard-lights",
-								Slot: "scrollock-led",
+								Name: "scrollock-led",
 							},
 						},
 					},
@@ -228,17 +228,17 @@ func (s *SnapSuite) TestInterfacesSlotsWithCommonName(c *C) {
 				Plugs: []*client.Plug{
 					&client.Plug{
 						Snap:      "canonical-pi2",
-						Plug:      "network-listening",
+						Name:      "network-listening",
 						Interface: "network-listening",
 						Label:     "Ability to be a network service",
 						Connections: []client.SlotRef{
 							{
 								Snap: "paste-daemon",
-								Slot: "network-listening",
+								Name: "network-listening",
 							},
 							{
 								Snap: "time-daemon",
-								Slot: "network-listening",
+								Name: "network-listening",
 							},
 						},
 					},
@@ -246,25 +246,25 @@ func (s *SnapSuite) TestInterfacesSlotsWithCommonName(c *C) {
 				Slots: []*client.Slot{
 					&client.Slot{
 						Snap:      "paste-daemon",
-						Slot:      "network-listening",
+						Name:      "network-listening",
 						Interface: "network-listening",
 						Label:     "Ability to be a network service",
 						Connections: []client.PlugRef{
 							{
 								Snap: "canonical-pi2",
-								Plug: "network-listening",
+								Name: "network-listening",
 							},
 						},
 					},
 					&client.Slot{
 						Snap:      "time-daemon",
-						Slot:      "network-listening",
+						Name:      "network-listening",
 						Interface: "network-listening",
 						Label:     "Ability to be a network service",
 						Connections: []client.PlugRef{
 							{
 								Snap: "canonical-pi2",
-								Plug: "network-listening",
+								Name: "network-listening",
 							},
 						},
 					},
@@ -295,17 +295,17 @@ func (s *SnapSuite) TestInterfacesOsSnapPlugs(c *C) {
 				Plugs: []*client.Plug{
 					&client.Plug{
 						Snap:      "ubuntu-core",
-						Plug:      "network-listening",
+						Name:      "network-listening",
 						Interface: "network-listening",
 						Label:     "Ability to be a network service",
 						Connections: []client.SlotRef{
 							{
 								Snap: "paste-daemon",
-								Slot: "network-listening",
+								Name: "network-listening",
 							},
 							{
 								Snap: "time-daemon",
-								Slot: "network-listening",
+								Name: "network-listening",
 							},
 						},
 					},
@@ -313,25 +313,25 @@ func (s *SnapSuite) TestInterfacesOsSnapPlugs(c *C) {
 				Slots: []*client.Slot{
 					&client.Slot{
 						Snap:      "paste-daemon",
-						Slot:      "network-listening",
+						Name:      "network-listening",
 						Interface: "network-listening",
 						Label:     "Ability to be a network service",
 						Connections: []client.PlugRef{
 							{
 								Snap: "ubuntu-core",
-								Plug: "network-listening",
+								Name: "network-listening",
 							},
 						},
 					},
 					&client.Slot{
 						Snap:      "time-daemon",
-						Slot:      "network-listening",
+						Name:      "network-listening",
 						Interface: "network-listening",
 						Label:     "Ability to be a network service",
 						Connections: []client.PlugRef{
 							{
 								Snap: "ubuntu-core",
-								Plug: "network-listening",
+								Name: "network-listening",
 							},
 						},
 					},
@@ -362,25 +362,25 @@ func (s *SnapSuite) TestInterfacesTwoPlugsAndFiltering(c *C) {
 				Plugs: []*client.Plug{
 					&client.Plug{
 						Snap:      "canonical-pi2",
-						Plug:      "debug-console",
+						Name:      "debug-console",
 						Interface: "serial-port",
 						Label:     "Serial port on the expansion header",
 						Connections: []client.SlotRef{
 							{
 								Snap: "ubuntu-core",
-								Slot: "debug-console",
+								Name: "debug-console",
 							},
 						},
 					},
 					&client.Plug{
 						Snap:      "canonical-pi2",
-						Plug:      "pin-13",
+						Name:      "pin-13",
 						Interface: "bool-file",
 						Label:     "Pin 13",
 						Connections: []client.SlotRef{
 							{
 								Snap: "keyboard-lights",
-								Slot: "capslock-led",
+								Name: "capslock-led",
 							},
 						},
 					},
@@ -411,19 +411,19 @@ func (s *SnapSuite) TestInterfacesOfSpecificSnap(c *C) {
 				Plugs: []*client.Plug{
 					&client.Plug{
 						Snap:      "cheese",
-						Plug:      "photo-trigger",
+						Name:      "photo-trigger",
 						Interface: "bool-file",
 						Label:     "Photo trigger",
 					},
 					&client.Plug{
 						Snap:      "wake-up-alarm",
-						Plug:      "toggle",
+						Name:      "toggle",
 						Interface: "bool-file",
 						Label:     "Alarm toggle",
 					},
 					&client.Plug{
 						Snap:      "wake-up-alarm",
-						Plug:      "snooze",
+						Name:      "snooze",
 						Interface: "bool-file",
 						Label:     "Alarm snooze",
 					},
@@ -455,19 +455,19 @@ func (s *SnapSuite) TestInterfacesOfSpecificSnapAndPlug(c *C) {
 				Plugs: []*client.Plug{
 					&client.Plug{
 						Snap:      "cheese",
-						Plug:      "photo-trigger",
+						Name:      "photo-trigger",
 						Interface: "bool-file",
 						Label:     "Photo trigger",
 					},
 					&client.Plug{
 						Snap:      "wake-up-alarm",
-						Plug:      "toggle",
+						Name:      "toggle",
 						Interface: "bool-file",
 						Label:     "Alarm toggle",
 					},
 					&client.Plug{
 						Snap:      "wake-up-alarm",
-						Plug:      "snooze",
+						Name:      "snooze",
 						Interface: "bool-file",
 						Label:     "Alarm snooze",
 					},

@@ -67,13 +67,13 @@ func (cs *clientSuite) TestClientInterfaceConnections(c *check.C) {
 		Plugs: []*client.Plug{
 			&client.Plug{
 				Snap:      "canonical-pi2",
-				Plug:      "pin-13",
+				Name:      "pin-13",
 				Interface: "bool-file",
 				Label:     "Pin 13",
 				Connections: []client.SlotRef{
 					{
 						Snap: "keyboard-lights",
-						Slot: "capslock-led",
+						Name: "capslock-led",
 					},
 				},
 			},
@@ -81,13 +81,13 @@ func (cs *clientSuite) TestClientInterfaceConnections(c *check.C) {
 		Slots: []*client.Slot{
 			&client.Slot{
 				Snap:      "keyboard-lights",
-				Slot:      "capslock-led",
+				Name:      "capslock-led",
 				Interface: "bool-file",
 				Label:     "Capslock indicator LED",
 				Connections: []client.PlugRef{
 					{
 						Snap: "canonical-pi2",
-						Plug: "pin-13",
+						Name: "pin-13",
 					},
 				},
 			},
@@ -168,7 +168,7 @@ func (cs *clientSuite) TestClientAddPlug(c *check.C) {
 	}`
 	err := cs.cli.AddPlug(&client.Plug{
 		Snap:      "snap",
-		Plug:      "plug",
+		Name:      "plug",
 		Interface: "interface",
 		Attrs: map[string]interface{}{
 			"attr": "value",
@@ -235,7 +235,7 @@ func (cs *clientSuite) TestClientAddSlot(c *check.C) {
 	}`
 	err := cs.cli.AddSlot(&client.Slot{
 		Snap:      "snap",
-		Slot:      "slot",
+		Name:      "slot",
 		Interface: "interface",
 		Attrs: map[string]interface{}{
 			"attr": "value",

@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-02-29 15:44+0100\n"
+        "POT-Creation-Date: 2016-03-01 12:16+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -63,9 +63,6 @@ msgid   "Activate a package that has previously been deactivated. If the package
 msgstr  ""
 
 msgid   "Activate a snap that is installed but inactive"
-msgstr  ""
-
-msgid   "Add a snap to the system"
 msgstr  ""
 
 msgid   "Adds a plug to the system"
@@ -177,6 +174,9 @@ msgid   "Include information about packages from the snappy store"
 msgstr  ""
 
 msgid   "Install a snap package"
+msgstr  ""
+
+msgid   "Install a snap to the system"
 msgstr  ""
 
 msgid   "Install snaps even if the signature can not be verified."
@@ -437,10 +437,6 @@ msgid   "\n"
 msgstr  ""
 
 msgid   "\n"
-        "The add command installs and activates the named snap in the system.\n"
-msgstr  ""
-
-msgid   "\n"
         "The add-plug command adds a new plug to the system.\n"
         "\n"
         "This command is only for experimentation with interfaces.\n"
@@ -508,6 +504,10 @@ msgstr  ""
 
 msgid   "\n"
         "The find command queries the store for available packages.\n"
+msgstr  ""
+
+msgid   "\n"
+        "The install command installs and activates the named snap in the system.\n"
 msgstr  ""
 
 msgid   "\n"
