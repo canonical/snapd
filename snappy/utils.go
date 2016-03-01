@@ -22,6 +22,7 @@ package snappy
 import (
 	"fmt"
 	"os"
+	"reflect"
 	"time"
 
 	"github.com/ubuntu-core/snappy/arch"
@@ -85,4 +86,13 @@ func newSideloadVersion() string {
 	}
 
 	return string(bs)
+}
+
+// getattr get the attribute of the given name from an interface
+func getattr(i interface{}, name string) interface{} {
+	v := reflect.ValueOf(i)
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+	return v.FieldByName(name).Interface()
 }
