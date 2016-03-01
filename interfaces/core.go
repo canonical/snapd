@@ -27,7 +27,7 @@ import (
 
 // Plug represents a capacity offered by a snap.
 type Plug struct {
-	Name      string
+	Plug      string
 	Snap      string
 	Interface string
 	Attrs     map[string]interface{}
@@ -37,7 +37,7 @@ type Plug struct {
 
 // Slot represents the potential of a given snap to connect to a plug.
 type Slot struct {
-	Name      string
+	Slot      string
 	Snap      string
 	Interface string
 	Attrs     map[string]interface{}
@@ -65,7 +65,7 @@ type Interface interface {
 	// from the security system to work, in addition to the default
 	// configuration.  ErrUnknownSecurity is returned when the plug cannot
 	// deal with the requested security system.
-	PlugSecuritySnippet(plug *Plug, securitySystem SecuritySystem) ([]byte, error)
+	PlugSecuritySnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
 
 	// SlotSecuritySnippet returns the configuration snippet needed by the
 	// given security system to allow a snap to use a plug of this interface.

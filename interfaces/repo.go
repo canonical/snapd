@@ -133,7 +133,7 @@ func (r *Repository) AddPlug(plug *Plug) error {
 		return err
 	}
 	// Reject plug with invalid names
-	if err := ValidateName(plug.Name); err != nil {
+	if err := ValidateName(plug.Plug); err != nil {
 		return err
 	}
 	i := r.ifaces[plug.Interface]
@@ -144,13 +144,13 @@ func (r *Repository) AddPlug(plug *Plug) error {
 	if err := i.SanitizePlug(plug); err != nil {
 		return fmt.Errorf("cannot add plug: %v", err)
 	}
-	if _, ok := r.plugs[plug.Snap][plug.Name]; ok {
-		return fmt.Errorf("cannot add plug, snap %q already has plug %q", plug.Snap, plug.Name)
+	if _, ok := r.plugs[plug.Snap][plug.Plug]; ok {
+		return fmt.Errorf("cannot add plug, snap %q already has plug %q", plug.Snap, plug.Plug)
 	}
 	if r.plugs[plug.Snap] == nil {
 		r.plugs[plug.Snap] = make(map[string]*Plug)
 	}
-	r.plugs[plug.Snap][plug.Name] = plug
+	r.plugs[plug.Snap][plug.Plug] = plug
 	return nil
 }
 
@@ -227,7 +227,7 @@ func (r *Repository) AddSlot(slot *Slot) error {
 		return err
 	}
 	// Reject plug with invalid names
-	if err := ValidateName(slot.Name); err != nil {
+	if err := ValidateName(slot.Slot); err != nil {
 		return err
 	}
 	// TODO: ensure that apps are correct
@@ -238,13 +238,13 @@ func (r *Repository) AddSlot(slot *Slot) error {
 	if err := i.SanitizeSlot(slot); err != nil {
 		return fmt.Errorf("cannot add slot: %v", err)
 	}
-	if _, ok := r.slots[slot.Snap][slot.Name]; ok {
-		return fmt.Errorf("cannot add slot, snap %q already has slot %q", slot.Snap, slot.Name)
+	if _, ok := r.slots[slot.Snap][slot.Slot]; ok {
+		return fmt.Errorf("cannot add slot, snap %q already has slot %q", slot.Snap, slot.Slot)
 	}
 	if r.slots[slot.Snap] == nil {
 		r.slots[slot.Snap] = make(map[string]*Slot)
 	}
-	r.slots[slot.Snap][slot.Name] = slot
+	r.slots[slot.Snap][slot.Slot] = slot
 	return nil
 }
 
@@ -459,7 +459,7 @@ func (c byPlugSnapAndName) Less(i, j int) bool {
 	if c[i].Snap != c[j].Snap {
 		return c[i].Snap < c[j].Snap
 	}
-	return c[i].Name < c[j].Name
+	return c[i].Plug < c[j].Plug
 }
 
 type bySlotSnapAndName []*Slot
@@ -470,7 +470,7 @@ func (c bySlotSnapAndName) Less(i, j int) bool {
 	if c[i].Snap != c[j].Snap {
 		return c[i].Snap < c[j].Snap
 	}
-	return c[i].Name < c[j].Name
+	return c[i].Slot < c[j].Slot
 }
 
 // SecuritySnippetsForSnap collects all of the snippets of a given security
@@ -485,7 +485,7 @@ func (r *Repository) SecuritySnippetsForSnap(snapName string, securitySystem Sec
 
 func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem SecuritySystem) (map[string][][]byte, error) {
 	var snippets = make(map[string][][]byte)
-	// Find all of the plugs that affect this app because of plug consumption.
+	// Find all of the slots that affect this snap because of plug connection.
 	for _, slot := range r.slots[snapName] {
 		i := r.ifaces[slot.Interface]
 		for plug := range r.slotPlugs[slot] {
@@ -501,18 +501,20 @@ func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem Sec
 			}
 		}
 	}
-	// Find all of the plugs that affect this app because of plug offer.
+	// Find all of the plugs that affect this snap because of slot connection
 	for _, plug := range r.plugs[snapName] {
 		i := r.ifaces[plug.Interface]
-		snippet, err := i.PlugSecuritySnippet(plug, securitySystem)
-		if err != nil {
-			return nil, err
-		}
-		if snippet == nil {
-			continue
-		}
-		for _, app := range plug.Apps {
-			snippets[app] = append(snippets[app], snippet)
+		for slot := range r.plugSlots[plug] {
+			snippet, err := i.PlugSecuritySnippet(plug, slot, securitySystem)
+			if err != nil {
+				return nil, err
+			}
+			if snippet == nil {
+				continue
+			}
+			for _, app := range plug.Apps {
+				snippets[app] = append(snippets[app], snippet)
+			}
 		}
 	}
 	return snippets, nil

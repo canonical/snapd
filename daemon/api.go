@@ -939,15 +939,15 @@ func getPlugs(c *Command, r *http.Request) Response {
 	var plugs []plugInfo
 	for _, plug := range c.d.interfaces.AllPlugs("") {
 		var slots []plugConnection
-		for _, slot := range c.d.interfaces.PlugConnections(plug.Snap, plug.Name) {
+		for _, slot := range c.d.interfaces.PlugConnections(plug.Snap, plug.Plug) {
 			slots = append(slots, plugConnection{
 				Snap: slot.Snap,
-				Name: slot.Name,
+				Name: slot.Slot,
 			})
 		}
 		plugs = append(plugs, plugInfo{
 			Snap:        plug.Snap,
-			Name:        plug.Name,
+			Name:        plug.Plug,
 			Interface:   plug.Interface,
 			Label:       plug.Label,
 			Connections: slots,
@@ -981,13 +981,13 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 	}
 	switch a.Action {
 	case "connect":
-		err := c.d.interfaces.Connect(a.Plug.Snap, a.Plug.Name, a.Slot.Snap, a.Slot.Name)
+		err := c.d.interfaces.Connect(a.Plug.Snap, a.Plug.Plug, a.Slot.Snap, a.Slot.Slot)
 		if err != nil {
 			return BadRequest("%v", err)
 		}
 		return SyncResponse(nil)
 	case "disconnect":
-		err := c.d.interfaces.Disconnect(a.Plug.Snap, a.Plug.Name, a.Slot.Snap, a.Slot.Name)
+		err := c.d.interfaces.Disconnect(a.Plug.Snap, a.Plug.Plug, a.Slot.Snap, a.Slot.Slot)
 		if err != nil {
 			return BadRequest("%v", err)
 		}
@@ -1002,7 +1002,7 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 			Status: http.StatusCreated,
 		}
 	case "remove-plug":
-		err := c.d.interfaces.RemovePlug(a.Plug.Snap, a.Plug.Name)
+		err := c.d.interfaces.RemovePlug(a.Plug.Snap, a.Plug.Plug)
 		if err != nil {
 			return BadRequest("%v", err)
 		}
@@ -1017,7 +1017,7 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 			Status: http.StatusCreated,
 		}
 	case "remove-slot":
-		err := c.d.interfaces.RemoveSlot(a.Slot.Snap, a.Slot.Name)
+		err := c.d.interfaces.RemoveSlot(a.Slot.Snap, a.Slot.Slot)
 		if err != nil {
 			return BadRequest("%v", err)
 		}

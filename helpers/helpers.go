@@ -27,7 +27,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
-	"syscall"
 	"text/template"
 	"time"
 
@@ -54,10 +53,13 @@ func MakeMapFromEnvList(env []string) map[string]string {
 	return envMap
 }
 
-const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYabcdefghijklmnopqrstuvwxy"
+const letters = "BCDFGHJKLMNPQRSTVWXYbcdfghjklmnpqrstvwxy0123456789"
 
 // MakeRandomString returns a random string of length length
-var MakeRandomString = func(length int) string {
+//
+// The vowels are omited to avoid that words are created by pure
+// chance. Numbers are included.
+func MakeRandomString(length int) string {
 
 	out := ""
 	for i := 0; i < length; i++ {
