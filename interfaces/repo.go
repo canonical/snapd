@@ -133,7 +133,7 @@ func (r *Repository) AddPlug(plug *Plug) error {
 		return err
 	}
 	// Reject plug with invalid names
-	if err := ValidateName(plug.Plug); err != nil {
+	if err := ValidateName(plug.Name); err != nil {
 		return err
 	}
 	i := r.ifaces[plug.Interface]
@@ -144,13 +144,13 @@ func (r *Repository) AddPlug(plug *Plug) error {
 	if err := i.SanitizePlug(plug); err != nil {
 		return fmt.Errorf("cannot add plug: %v", err)
 	}
-	if _, ok := r.plugs[plug.Snap][plug.Plug]; ok {
-		return fmt.Errorf("cannot add plug, snap %q already has plug %q", plug.Snap, plug.Plug)
+	if _, ok := r.plugs[plug.Snap][plug.Name]; ok {
+		return fmt.Errorf("cannot add plug, snap %q already has plug %q", plug.Snap, plug.Name)
 	}
 	if r.plugs[plug.Snap] == nil {
 		r.plugs[plug.Snap] = make(map[string]*Plug)
 	}
-	r.plugs[plug.Snap][plug.Plug] = plug
+	r.plugs[plug.Snap][plug.Name] = plug
 	return nil
 }
 
@@ -227,7 +227,7 @@ func (r *Repository) AddSlot(slot *Slot) error {
 		return err
 	}
 	// Reject plug with invalid names
-	if err := ValidateName(slot.Slot); err != nil {
+	if err := ValidateName(slot.Name); err != nil {
 		return err
 	}
 	// TODO: ensure that apps are correct
@@ -238,13 +238,13 @@ func (r *Repository) AddSlot(slot *Slot) error {
 	if err := i.SanitizeSlot(slot); err != nil {
 		return fmt.Errorf("cannot add slot: %v", err)
 	}
-	if _, ok := r.slots[slot.Snap][slot.Slot]; ok {
-		return fmt.Errorf("cannot add slot, snap %q already has slot %q", slot.Snap, slot.Slot)
+	if _, ok := r.slots[slot.Snap][slot.Name]; ok {
+		return fmt.Errorf("cannot add slot, snap %q already has slot %q", slot.Snap, slot.Name)
 	}
 	if r.slots[slot.Snap] == nil {
 		r.slots[slot.Snap] = make(map[string]*Slot)
 	}
-	r.slots[slot.Snap][slot.Slot] = slot
+	r.slots[slot.Snap][slot.Name] = slot
 	return nil
 }
 
@@ -477,7 +477,7 @@ func (r *Repository) InterfaceConnections() *InterfaceConnections {
 		for _, plug := range plugs {
 			// Copy part of the data explicitly, leaving out attrs and apps.
 			p := &Plug{
-				Plug:      plug.Plug,
+				Name:      plug.Name,
 				Snap:      plug.Snap,
 				Interface: plug.Interface,
 				Label:     plug.Label,
@@ -485,7 +485,7 @@ func (r *Repository) InterfaceConnections() *InterfaceConnections {
 			// Add connection details
 			for slot := range r.plugSlots[plug] {
 				p.Connections = append(p.Connections, SlotRef{
-					Slot: slot.Slot,
+					Name: slot.Name,
 					Snap: slot.Snap,
 				})
 			}
@@ -497,7 +497,7 @@ func (r *Repository) InterfaceConnections() *InterfaceConnections {
 		for _, slot := range slots {
 			// Copy part of the data explicitly, leaving out attrs and apps.
 			s := &Slot{
-				Slot:      slot.Slot,
+				Name:      slot.Name,
 				Snap:      slot.Snap,
 				Interface: slot.Interface,
 				Label:     slot.Label,
@@ -505,7 +505,7 @@ func (r *Repository) InterfaceConnections() *InterfaceConnections {
 			// Add connection details
 			for plug := range r.slotPlugs[slot] {
 				s.Connections = append(s.Connections, PlugRef{
-					Plug: plug.Plug,
+					Name: plug.Name,
 					Snap: plug.Snap,
 				})
 			}
