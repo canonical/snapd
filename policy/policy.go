@@ -27,7 +27,7 @@ import (
 	"path/filepath"
 
 	"github.com/ubuntu-core/snappy/cmp"
-	"github.com/ubuntu-core/snappy/cp"
+	"github.com/ubuntu-core/snappy/osutil"
 )
 
 var (
@@ -92,7 +92,7 @@ func iterOp(op policyOp, glob, targetDir, prefix string) (err error) {
 			}
 		case install:
 			// do the copy
-			if err := cp.CopyFile(file, targetFile, cp.CopyFlagSync|cp.CopyFlagOverwrite); err != nil {
+			if err := osutil.CopyFile(file, targetFile, osutil.CopyFlagSync|osutil.CopyFlagOverwrite); err != nil {
 				return err
 			}
 		default:

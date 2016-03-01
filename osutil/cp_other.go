@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !linux
 
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
@@ -17,32 +18,14 @@
  *
  */
 
-package cp
+package osutil
 
 import (
+	"io"
 	"os"
-	"syscall"
 )
 
-const maxint = int64(^uint(0) >> 1)
-
-var maxcp = maxint // overridden in testing
-
 func doCopyFile(fin, fout fileish, fi os.FileInfo) error {
-	size := fi.Size()
-	var offset int64
-	for offset < size {
-		// sendfile is funny; it only copies up to maxint
-		// bytes at a time, but takes an int64 offset.
-		count := size - offset
-		if count > maxcp {
-			count = maxcp
-		}
-
-		if _, err := syscall.Sendfile(int(fout.Fd()), int(fin.Fd()), &offset, int(count)); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	_, err := io.Copy(fout, fin)
+	return err
 }
