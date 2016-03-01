@@ -17,19 +17,16 @@
  *
  */
 
-package cmp
+package osutil
 
 import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
-	"testing"
 
 	. "gopkg.in/check.v1"
 )
-
-func Test(t *testing.T) { TestingT(t) }
 
 type CmpTestSuite struct{}
 
