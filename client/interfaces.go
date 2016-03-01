@@ -26,7 +26,8 @@ import (
 
 // Plug represents a capacity offered by a snap.
 type Plug struct {
-	Plug      string                 `json:"plug"`
+	// NOTE: the discrepancy between go and json field name is intentional.
+	Name      string                 `json:"plug"`
 	Snap      string                 `json:"snap"`
 	Interface string                 `json:"interface,omitempty"`
 	Attrs     map[string]interface{} `json:"attrs,omitempty"`
@@ -36,7 +37,8 @@ type Plug struct {
 
 // Slot represents the potential of a given snap to connect to a given plug.
 type Slot struct {
-	Slot      string                 `json:"slot"`
+	// NOTE: the discrepancy between go and json field name is intentional.
+	Name      string                 `json:"slot"`
 	Snap      string                 `json:"snap"`
 	Interface string                 `json:"interface,omitempty"`
 	Attrs     map[string]interface{} `json:"attrs,omitempty"`
@@ -83,11 +85,11 @@ func (client *Client) Connect(plugSnapName, plugName, slotSnapName, slotName str
 		Action: "connect",
 		Plug: &Plug{
 			Snap: plugSnapName,
-			Plug: plugName,
+			Name: plugName,
 		},
 		Slot: &Slot{
 			Snap: slotSnapName,
-			Slot: slotName,
+			Name: slotName,
 		},
 	})
 }
@@ -98,11 +100,11 @@ func (client *Client) Disconnect(plugSnapName, plugName, slotSnapName, slotName 
 		Action: "disconnect",
 		Plug: &Plug{
 			Snap: plugSnapName,
-			Plug: plugName,
+			Name: plugName,
 		},
 		Slot: &Slot{
 			Snap: slotSnapName,
-			Slot: slotName,
+			Name: slotName,
 		},
 	})
 }
@@ -121,7 +123,7 @@ func (client *Client) RemovePlug(snapName, plugName string) error {
 		Action: "remove-plug",
 		Plug: &Plug{
 			Snap: snapName,
-			Plug: plugName,
+			Name: plugName,
 		},
 	})
 }
@@ -140,7 +142,7 @@ func (client *Client) RemoveSlot(snapName, slotName string) error {
 		Action: "remove-slot",
 		Slot: &Slot{
 			Snap: snapName,
-			Slot: slotName,
+			Name: slotName,
 		},
 	})
 }
