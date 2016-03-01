@@ -583,5 +583,5 @@ Where=%s
 `, name, what, where)
 
 	mu := MountUnitPath(where, "mount")
-	return filepath.Base(mu), helpers.AtomicWriteFile(mu, []byte(c), 0644, 0)
+	return filepath.Base(mu), osutil.AtomicWriteFile(mu, []byte(c), 0644, 0)
 }
