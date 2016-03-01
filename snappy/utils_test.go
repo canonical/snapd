@@ -17,36 +17,28 @@
  *
  */
 
-package helpers
+package snappy
 
 import (
-	"testing"
-
 	. "gopkg.in/check.v1"
 )
 
-func Test(t *testing.T) { TestingT(t) }
+type UtilsTestSuite struct{}
 
-type HTestSuite struct{}
+var _ = Suite(&UtilsTestSuite{})
 
-var _ = Suite(&HTestSuite{})
-
-func (ts *HTestSuite) TestMakeMapFromEnvList(c *C) {
-	envList := []string{
-		"PATH=/usr/bin:/bin",
-		"DBUS_SESSION_BUS_ADDRESS=unix:abstract=something1234",
+func (ts *UtilsTestSuite) TestGetattr(c *C) {
+	T := struct {
+		S string
+		I int
+	}{
+		S: "foo",
+		I: 42,
 	}
-	envMap := MakeMapFromEnvList(envList)
-	c.Assert(envMap, DeepEquals, map[string]string{
-		"PATH": "/usr/bin:/bin",
-		"DBUS_SESSION_BUS_ADDRESS": "unix:abstract=something1234",
-	})
-}
-
-func (ts *HTestSuite) TestMakeMapFromEnvListInvalidInput(c *C) {
-	envList := []string{
-		"nonsesne",
-	}
-	envMap := MakeMapFromEnvList(envList)
-	c.Assert(envMap, DeepEquals, map[string]string(nil))
+	// works on values
+	c.Assert(getattr(T, "S").(string), Equals, "foo")
+	c.Assert(getattr(T, "I").(int), Equals, 42)
+	// works for pointers too
+	c.Assert(getattr(&T, "S").(string), Equals, "foo")
+	c.Assert(getattr(&T, "I").(int), Equals, 42)
 }

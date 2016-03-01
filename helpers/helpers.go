@@ -21,7 +21,6 @@ package helpers
 
 import (
 	"bytes"
-	"reflect"
 	"strings"
 	"text/template"
 
@@ -41,15 +40,6 @@ func MakeMapFromEnvList(env []string) map[string]string {
 		envMap[split[0]] = split[1]
 	}
 	return envMap
-}
-
-// Getattr get the attribute of the given name
-func Getattr(i interface{}, name string) interface{} {
-	v := reflect.ValueOf(i)
-	if v.Kind() == reflect.Ptr {
-		v = v.Elem()
-	}
-	return v.FieldByName(name).Interface()
 }
 
 func fillSnapEnvVars(desc interface{}, vars []string) []string {
