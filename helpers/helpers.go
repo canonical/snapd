@@ -66,19 +66,6 @@ func MakeRandomString(length int) string {
 	return out
 }
 
-// NewSideloadVersion returns a version number such that later calls
-// should return versions that compare larger.
-func NewSideloadVersion() string {
-	n := time.Now().UTC().UnixNano()
-	bs := make([]byte, 12)
-	for i := 11; i >= 0; i-- {
-		bs[i] = letters[n&31]
-		n = n >> 5
-	}
-
-	return string(bs)
-}
-
 // Getattr get the attribute of the given name
 func Getattr(i interface{}, name string) interface{} {
 	v := reflect.ValueOf(i)

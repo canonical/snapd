@@ -22,6 +22,7 @@ package snappy
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/helpers"
@@ -69,4 +70,19 @@ func makeSnapHookEnv(part *SnapPart) (env []string) {
 	}
 
 	return env
+}
+
+// newSideloadVersion returns a version number such that later calls
+// should return versions that compare larger.
+func newSideloadVersion() string {
+	const letters = "BCDFGHJKLMNPQRSTVWXYbcdfghjklmnpqrstvwxy"
+
+	n := time.Now().UTC().UnixNano()
+	bs := make([]byte, 12)
+	for i := 11; i >= 0; i-- {
+		bs[i] = letters[n&31]
+		n = n >> 5
+	}
+
+	return string(bs)
 }
