@@ -56,7 +56,7 @@ func (x *cmdAddInterface) Execute(args []string) error {
 	}
 	return Client().AddPlug(&client.Plug{
 		Snap:      x.Positionals.Snap,
-		Plug:      x.Positionals.Plug,
+		Name:      x.Positionals.Plug,
 		Interface: x.Positionals.Interface,
 		Attrs:     attrs,
 		Apps:      x.Apps,
