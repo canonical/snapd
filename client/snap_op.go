@@ -24,9 +24,9 @@ import (
 	"strings"
 )
 
-// AddSnap adds the snap with the given name, returning the UUID of the
+// InstallSnap adds the snap with the given name, returning the UUID of the
 // background operation upon success.
-func (client *Client) AddSnap(name string) (string, error) {
+func (client *Client) InstallSnap(name string) (string, error) {
 	path := fmt.Sprintf("/2.0/snaps/%s", name)
 	body := strings.NewReader(`{"action":"install"}`)
 

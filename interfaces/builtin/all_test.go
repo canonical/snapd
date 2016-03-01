@@ -17,14 +17,20 @@
  *
  */
 
-package types
+package builtin_test
 
 import (
-	"path/filepath"
+	"github.com/ubuntu-core/snappy/interfaces/builtin"
+	. "github.com/ubuntu-core/snappy/testutil"
+
+	. "gopkg.in/check.v1"
 )
 
-type evalSymlinksFn func(string) (string, error)
+type AllSuite struct{}
 
-// evalSymlinks is either filepath.EvalSymlinks or a mocked function for
-// applicable for testing.
-var evalSymlinks = filepath.EvalSymlinks
+var _ = Suite(&AllSuite{})
+
+func (s *AllSuite) TestInterfaces(c *C) {
+	all := builtin.Interfaces()
+	c.Check(all, Contains, &builtin.BoolFileInterface{})
+}

@@ -34,7 +34,7 @@ var ops = []struct {
 	op     func(*client.Client, string) (string, error)
 	action string
 }{
-	{(*client.Client).AddSnap, "install"},
+	{(*client.Client).InstallSnap, "install"},
 	{(*client.Client).RemoveSnap, "remove"},
 	{(*client.Client).RefreshSnap, "update"},
 	{(*client.Client).PurgeSnap, "purge"},

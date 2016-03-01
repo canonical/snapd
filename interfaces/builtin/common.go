@@ -17,17 +17,14 @@
  *
  */
 
-package types
+package builtin
 
 import (
-	"github.com/ubuntu-core/snappy/testutil"
+	"path/filepath"
 )
 
-// MockEvalSymlinks replaces the path/filepath.EvalSymlinks function used inside the caps package.
-func MockEvalSymlinks(test *testutil.BaseTest, fn func(string) (string, error)) {
-	orig := evalSymlinks
-	evalSymlinks = fn
-	test.AddCleanup(func() {
-		evalSymlinks = orig
-	})
-}
+type evalSymlinksFn func(string) (string, error)
+
+// evalSymlinks is either filepath.EvalSymlinks or a mocked function for
+// applicable for testing.
+var evalSymlinks = filepath.EvalSymlinks
