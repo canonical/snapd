@@ -28,7 +28,7 @@ import (
 	snap "github.com/ubuntu-core/snappy/cmd/snap"
 )
 
-func (s *SnapSuite) TestAdd(c *check.C) {
+func (s *SnapSuite) TestInstall(c *check.C) {
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch n {
@@ -54,7 +54,7 @@ func (s *SnapSuite) TestAdd(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"add", "foo.bar"})
+	rest, err := snap.Parser().ParseArgs([]string{"install", "foo.bar"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, "")

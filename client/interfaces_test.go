@@ -27,38 +27,38 @@ import (
 	"github.com/ubuntu-core/snappy/client"
 )
 
-func (cs *clientSuite) TestClientAllSkillsCallsEndpoint(c *check.C) {
-	_, _ = cs.cli.AllSkills()
+func (cs *clientSuite) TestClientAllPlugsCallsEndpoint(c *check.C) {
+	_, _ = cs.cli.AllPlugs()
 	c.Check(cs.req.Method, check.Equals, "GET")
-	c.Check(cs.req.URL.Path, check.Equals, "/2.0/skills")
+	c.Check(cs.req.URL.Path, check.Equals, "/2.0/interfaces")
 }
 
-func (cs *clientSuite) TestClientAllSkills(c *check.C) {
+func (cs *clientSuite) TestClientAllPlugs(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
 		"result": [
 			{
 				"snap": "canonical-pi2",
-				"name": "pin-13",
-				"type": "bool-file",
+				"plug": "pin-13",
+				"interface": "bool-file",
 				"label": "Pin 13",
-				"granted_to": [
-					{"snap": "keyboard-lights", "name": "capslock-led"}
+				"connections": [
+					{"snap": "keyboard-lights", "slot": "capslock-led"}
 				]
 			}
 		]
 	}`
-	skills, err := cs.cli.AllSkills()
+	interfaces, err := cs.cli.AllPlugs()
 	c.Assert(err, check.IsNil)
-	c.Check(skills, check.DeepEquals, []client.SkillGrants{
+	c.Check(interfaces, check.DeepEquals, []client.PlugConnections{
 		{
-			Skill: client.Skill{
-				Snap:  "canonical-pi2",
-				Name:  "pin-13",
-				Type:  "bool-file",
-				Label: "Pin 13",
+			Plug: client.Plug{
+				Snap:      "canonical-pi2",
+				Name:      "pin-13",
+				Interface: "bool-file",
+				Label:     "Pin 13",
 			},
-			GrantedTo: []client.Slot{
+			Connections: []client.Slot{
 				{
 					Snap: "keyboard-lights",
 					Name: "capslock-led",
@@ -68,81 +68,81 @@ func (cs *clientSuite) TestClientAllSkills(c *check.C) {
 	})
 }
 
-func (cs *clientSuite) TestClientGrantCallsEndpoint(c *check.C) {
-	_ = cs.cli.Grant("producer", "skill", "consumer", "slot")
+func (cs *clientSuite) TestClientConnectCallsEndpoint(c *check.C) {
+	_ = cs.cli.Connect("producer", "plug", "consumer", "slot")
 	c.Check(cs.req.Method, check.Equals, "POST")
-	c.Check(cs.req.URL.Path, check.Equals, "/2.0/skills")
+	c.Check(cs.req.URL.Path, check.Equals, "/2.0/interfaces")
 }
 
-func (cs *clientSuite) TestClientGrant(c *check.C) {
+func (cs *clientSuite) TestClientConnect(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
 		"result": { }
 	}`
-	err := cs.cli.Grant("producer", "skill", "consumer", "slot")
+	err := cs.cli.Connect("producer", "plug", "consumer", "slot")
 	c.Check(err, check.IsNil)
 	var body map[string]interface{}
 	decoder := json.NewDecoder(cs.req.Body)
 	err = decoder.Decode(&body)
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"action": "grant",
-		"skill": map[string]interface{}{
+		"action": "connect",
+		"plug": map[string]interface{}{
 			"snap": "producer",
-			"name": "skill",
+			"plug": "plug",
 		},
 		"slot": map[string]interface{}{
 			"snap": "consumer",
-			"name": "slot",
+			"slot": "slot",
 		},
 	})
 }
 
-func (cs *clientSuite) TestClientRevokeCallsEndpoint(c *check.C) {
-	_ = cs.cli.Revoke("producer", "skill", "consumer", "slot")
+func (cs *clientSuite) TestClientDisconnectCallsEndpoint(c *check.C) {
+	_ = cs.cli.Disconnect("producer", "plug", "consumer", "slot")
 	c.Check(cs.req.Method, check.Equals, "POST")
-	c.Check(cs.req.URL.Path, check.Equals, "/2.0/skills")
+	c.Check(cs.req.URL.Path, check.Equals, "/2.0/interfaces")
 }
 
-func (cs *clientSuite) TestClientRevoke(c *check.C) {
+func (cs *clientSuite) TestClientDisconnect(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
 		"result": { }
 	}`
-	err := cs.cli.Revoke("producer", "skill", "consumer", "slot")
+	err := cs.cli.Disconnect("producer", "plug", "consumer", "slot")
 	c.Check(err, check.IsNil)
 	var body map[string]interface{}
 	decoder := json.NewDecoder(cs.req.Body)
 	err = decoder.Decode(&body)
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"action": "revoke",
-		"skill": map[string]interface{}{
+		"action": "disconnect",
+		"plug": map[string]interface{}{
 			"snap": "producer",
-			"name": "skill",
+			"plug": "plug",
 		},
 		"slot": map[string]interface{}{
 			"snap": "consumer",
-			"name": "slot",
+			"slot": "slot",
 		},
 	})
 }
 
-func (cs *clientSuite) TestClientAddSkillCallsEndpoint(c *check.C) {
-	_ = cs.cli.AddSkill(&client.Skill{})
+func (cs *clientSuite) TestClientAddPlugCallsEndpoint(c *check.C) {
+	_ = cs.cli.AddPlug(&client.Plug{})
 	c.Check(cs.req.Method, check.Equals, "POST")
-	c.Check(cs.req.URL.Path, check.Equals, "/2.0/skills")
+	c.Check(cs.req.URL.Path, check.Equals, "/2.0/interfaces")
 }
 
-func (cs *clientSuite) TestClientAddSkill(c *check.C) {
+func (cs *clientSuite) TestClientAddPlug(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
 		"result": { }
 	}`
-	err := cs.cli.AddSkill(&client.Skill{
-		Snap: "snap",
-		Name: "name",
-		Type: "type",
+	err := cs.cli.AddPlug(&client.Plug{
+		Snap:      "snap",
+		Name:      "plug",
+		Interface: "interface",
 		Attrs: map[string]interface{}{
 			"attr": "value",
 		},
@@ -155,11 +155,11 @@ func (cs *clientSuite) TestClientAddSkill(c *check.C) {
 	err = decoder.Decode(&body)
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"action": "add-skill",
-		"skill": map[string]interface{}{
-			"name": "name",
-			"snap": "snap",
-			"type": "type",
+		"action": "add-plug",
+		"plug": map[string]interface{}{
+			"plug":      "plug",
+			"snap":      "snap",
+			"interface": "interface",
 			"attrs": map[string]interface{}{
 				"attr": "value",
 			},
@@ -169,27 +169,27 @@ func (cs *clientSuite) TestClientAddSkill(c *check.C) {
 	})
 }
 
-func (cs *clientSuite) TestClientRemoveSkillCallsEndpoint(c *check.C) {
-	_ = cs.cli.RemoveSkill("snap", "name")
+func (cs *clientSuite) TestClientRemovePlugCallsEndpoint(c *check.C) {
+	_ = cs.cli.RemovePlug("snap", "plug")
 	c.Check(cs.req.Method, check.Equals, "POST")
-	c.Check(cs.req.URL.Path, check.Equals, "/2.0/skills")
+	c.Check(cs.req.URL.Path, check.Equals, "/2.0/interfaces")
 }
 
-func (cs *clientSuite) TestClientRemoveSkill(c *check.C) {
+func (cs *clientSuite) TestClientRemovePlug(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
 		"result": { }
 	}`
-	err := cs.cli.RemoveSkill("snap", "name")
+	err := cs.cli.RemovePlug("snap", "plug")
 	c.Check(err, check.IsNil)
 	var body map[string]interface{}
 	decoder := json.NewDecoder(cs.req.Body)
 	err = decoder.Decode(&body)
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"action": "remove-skill",
-		"skill": map[string]interface{}{
-			"name": "name",
+		"action": "remove-plug",
+		"plug": map[string]interface{}{
+			"plug": "plug",
 			"snap": "snap",
 		},
 	})
@@ -198,7 +198,7 @@ func (cs *clientSuite) TestClientRemoveSkill(c *check.C) {
 func (cs *clientSuite) TestClientAddSlotCallsEndpoint(c *check.C) {
 	_ = cs.cli.AddSlot(&client.Slot{})
 	c.Check(cs.req.Method, check.Equals, "POST")
-	c.Check(cs.req.URL.Path, check.Equals, "/2.0/skills")
+	c.Check(cs.req.URL.Path, check.Equals, "/2.0/interfaces")
 }
 
 func (cs *clientSuite) TestClientAddSlot(c *check.C) {
@@ -207,9 +207,9 @@ func (cs *clientSuite) TestClientAddSlot(c *check.C) {
 		"result": { }
 	}`
 	err := cs.cli.AddSlot(&client.Slot{
-		Snap: "snap",
-		Name: "name",
-		Type: "type",
+		Snap:      "snap",
+		Name:      "slot",
+		Interface: "interface",
 		Attrs: map[string]interface{}{
 			"attr": "value",
 		},
@@ -224,9 +224,9 @@ func (cs *clientSuite) TestClientAddSlot(c *check.C) {
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"action": "add-slot",
 		"slot": map[string]interface{}{
-			"name": "name",
-			"snap": "snap",
-			"type": "type",
+			"slot":      "slot",
+			"snap":      "snap",
+			"interface": "interface",
 			"attrs": map[string]interface{}{
 				"attr": "value",
 			},
@@ -237,9 +237,9 @@ func (cs *clientSuite) TestClientAddSlot(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientRemoveSlotCallsEndpoint(c *check.C) {
-	_ = cs.cli.RemoveSlot("snap", "name")
+	_ = cs.cli.RemoveSlot("snap", "slot")
 	c.Check(cs.req.Method, check.Equals, "POST")
-	c.Check(cs.req.URL.Path, check.Equals, "/2.0/skills")
+	c.Check(cs.req.URL.Path, check.Equals, "/2.0/interfaces")
 }
 
 func (cs *clientSuite) TestClientRemoveSlot(c *check.C) {
@@ -247,7 +247,7 @@ func (cs *clientSuite) TestClientRemoveSlot(c *check.C) {
 		"type": "sync",
 		"result": { }
 	}`
-	err := cs.cli.RemoveSlot("snap", "name")
+	err := cs.cli.RemoveSlot("snap", "slot")
 	c.Check(err, check.IsNil)
 	var body map[string]interface{}
 	decoder := json.NewDecoder(cs.req.Body)
@@ -256,7 +256,7 @@ func (cs *clientSuite) TestClientRemoveSlot(c *check.C) {
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"action": "remove-slot",
 		"slot": map[string]interface{}{
-			"name": "name",
+			"slot": "slot",
 			"snap": "snap",
 		},
 	})

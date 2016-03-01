@@ -58,18 +58,18 @@ Help Options:
 func (s *SnapSuite) TestAddInterfaceExplicitEverything(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "POST")
-		c.Check(r.URL.Path, Equals, "/2.0/skills")
+		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
 		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
-			"action": "add-skill",
-			"skill": map[string]interface{}{
-				"snap": "producer",
-				"name": "plug",
-				"type": "interface",
+			"action": "add-plug",
+			"plug": map[string]interface{}{
+				"snap":      "producer",
+				"plug":      "plug",
+				"interface": "interface",
 				"attrs": map[string]interface{}{
 					"attr": "value",
 				},
 				"apps": []interface{}{
-					"meta/hooks/skill",
+					"meta/hooks/interface",
 				},
 				"label": "label",
 			},
@@ -78,7 +78,7 @@ func (s *SnapSuite) TestAddInterfaceExplicitEverything(c *C) {
 	})
 	rest, err := Parser().ParseArgs([]string{
 		"experimental", "add-plug", "producer", "plug", "interface",
-		"-a", "attr=value", "--app=meta/hooks/skill", "--label=label",
+		"-a", "attr=value", "--app=meta/hooks/interface", "--label=label",
 	})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})

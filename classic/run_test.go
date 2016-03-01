@@ -30,5 +30,5 @@ var _ = Suite(&RunTestSuite{})
 
 func (t *RunTestSuite) TestGenScopeName(c *C) {
 	name := genClassicScopeName()
-	c.Assert(name, Matches, "snappy-classic_[0-9-]+_[0-9:]+_[a-zA-Z]+.scope")
+	c.Assert(name, Matches, "snappy-classic_[0-9-]+_[0-9:]+_[a-zA-Z0-9]+.scope")
 }
