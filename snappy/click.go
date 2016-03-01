@@ -33,11 +33,11 @@ import (
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/snapenv"
 	"github.com/ubuntu-core/snappy/systemd"
 )
 
@@ -158,16 +158,16 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 
 	oldVars := []string{}
 	for _, envVar := range append(
-		helpers.GetDeprecatedBasicSnapEnvVars(wrapperData),
-		helpers.GetDeprecatedUserSnapEnvVars(wrapperData)...) {
+		snapenv.GetDeprecatedBasicSnapEnvVars(wrapperData),
+		snapenv.GetDeprecatedUserSnapEnvVars(wrapperData)...) {
 		oldVars = append(oldVars, quoteEnvVar(envVar))
 	}
 	wrapperData.OldAppVars = strings.Join(oldVars, "\n")
 
 	newVars := []string{}
 	for _, envVar := range append(
-		helpers.GetBasicSnapEnvVars(wrapperData),
-		helpers.GetUserSnapEnvVars(wrapperData)...) {
+		snapenv.GetBasicSnapEnvVars(wrapperData),
+		snapenv.GetUserSnapEnvVars(wrapperData)...) {
 		newVars = append(newVars, quoteEnvVar(envVar))
 	}
 	wrapperData.NewAppVars = strings.Join(newVars, "\n")

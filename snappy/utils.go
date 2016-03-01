@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"github.com/ubuntu-core/snappy/arch"
-	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/snap/snapenv"
 )
 
 // makeSnapHookEnv returns an environment suitable for passing to
@@ -52,12 +52,12 @@ func makeSnapHookEnv(part *SnapPart) (env []string) {
 		part.Origin(),
 	}
 
-	vars := helpers.GetBasicSnapEnvVars(desc)
-	vars = append(vars, helpers.GetDeprecatedBasicSnapEnvVars(desc)...)
-	snapEnv := helpers.MakeMapFromEnvList(vars)
+	vars := snapenv.GetBasicSnapEnvVars(desc)
+	vars = append(vars, snapenv.GetDeprecatedBasicSnapEnvVars(desc)...)
+	snapEnv := snapenv.MakeMapFromEnvList(vars)
 
 	// merge regular env and new snapEnv
-	envMap := helpers.MakeMapFromEnvList(os.Environ())
+	envMap := snapenv.MakeMapFromEnvList(os.Environ())
 	for k, v := range snapEnv {
 		envMap[k] = v
 	}

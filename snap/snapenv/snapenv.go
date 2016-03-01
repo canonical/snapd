@@ -17,7 +17,7 @@
  *
  */
 
-package helpers
+package snapenv
 
 import (
 	"bytes"
