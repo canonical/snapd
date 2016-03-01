@@ -27,7 +27,7 @@ func (c bySlotRef) Less(i, j int) bool {
 	if c[i].Snap != c[j].Snap {
 		return c[i].Snap < c[j].Snap
 	}
-	return c[i].Slot < c[j].Slot
+	return c[i].Name < c[j].Name
 }
 
 type byPlugRef []PlugRef
@@ -38,7 +38,7 @@ func (c byPlugRef) Less(i, j int) bool {
 	if c[i].Snap != c[j].Snap {
 		return c[i].Snap < c[j].Snap
 	}
-	return c[i].Plug < c[j].Plug
+	return c[i].Name < c[j].Name
 }
 
 type byPlugSnapAndName []*Plug
@@ -49,7 +49,7 @@ func (c byPlugSnapAndName) Less(i, j int) bool {
 	if c[i].Snap != c[j].Snap {
 		return c[i].Snap < c[j].Snap
 	}
-	return c[i].Plug < c[j].Plug
+	return c[i].Name < c[j].Name
 }
 
 type bySlotSnapAndName []*Slot
@@ -60,5 +60,5 @@ func (c bySlotSnapAndName) Less(i, j int) bool {
 	if c[i].Snap != c[j].Snap {
 		return c[i].Snap < c[j].Snap
 	}
-	return c[i].Slot < c[j].Slot
+	return c[i].Name < c[j].Name
 }

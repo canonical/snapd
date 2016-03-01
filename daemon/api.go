@@ -949,13 +949,13 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 	}
 	switch a.Action {
 	case "connect":
-		err := c.d.interfaces.Connect(a.Plug.Snap, a.Plug.Plug, a.Slot.Snap, a.Slot.Slot)
+		err := c.d.interfaces.Connect(a.Plug.Snap, a.Plug.Name, a.Slot.Snap, a.Slot.Name)
 		if err != nil {
 			return BadRequest("%v", err)
 		}
 		return SyncResponse(nil)
 	case "disconnect":
-		err := c.d.interfaces.Disconnect(a.Plug.Snap, a.Plug.Plug, a.Slot.Snap, a.Slot.Slot)
+		err := c.d.interfaces.Disconnect(a.Plug.Snap, a.Plug.Name, a.Slot.Snap, a.Slot.Name)
 		if err != nil {
 			return BadRequest("%v", err)
 		}
@@ -970,7 +970,7 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 			Status: http.StatusCreated,
 		}
 	case "remove-plug":
-		err := c.d.interfaces.RemovePlug(a.Plug.Snap, a.Plug.Plug)
+		err := c.d.interfaces.RemovePlug(a.Plug.Snap, a.Plug.Name)
 		if err != nil {
 			return BadRequest("%v", err)
 		}
@@ -985,7 +985,7 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 			Status: http.StatusCreated,
 		}
 	case "remove-slot":
-		err := c.d.interfaces.RemoveSlot(a.Slot.Snap, a.Slot.Slot)
+		err := c.d.interfaces.RemoveSlot(a.Slot.Snap, a.Slot.Name)
 		if err != nil {
 			return BadRequest("%v", err)
 		}
