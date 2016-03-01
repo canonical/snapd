@@ -42,7 +42,7 @@ func wait(client *client.Client, uuid string) error {
 }
 
 var (
-	shortAddHelp        = i18n.G("Add a snap to the system")
+	shortInstallHelp    = i18n.G("Install a snap to the system")
 	shortRemoveHelp     = i18n.G("Remove a snap from the system")
 	shortPurgeHelp      = i18n.G("Purge a snap's data from the system")
 	shortRefreshHelp    = i18n.G("Refresh a snap in the system")
@@ -51,8 +51,8 @@ var (
 	shortDeactivateHelp = i18n.G("Deactivate an installed active snap")
 )
 
-var longAddHelp = i18n.G(`
-The add command installs and activates the named snap in the system.
+var longInstallHelp = i18n.G(`
+The install command installs and activates the named snap in the system.
 `)
 
 var longRemoveHelp = i18n.G(`
@@ -100,7 +100,7 @@ func init() {
 		long  string
 		op    func(*client.Client, string) (string, error)
 	}{
-		{"add", shortAddHelp, longAddHelp, (*client.Client).AddSnap},
+		{"install", shortInstallHelp, longInstallHelp, (*client.Client).InstallSnap},
 		{"remove", shortRemoveHelp, longRemoveHelp, (*client.Client).RemoveSnap},
 		{"purge", shortPurgeHelp, longPurgeHelp, (*client.Client).PurgeSnap},
 		{"refresh", shortRefreshHelp, longRefreshHelp, (*client.Client).RefreshSnap},
