@@ -73,7 +73,7 @@ type InterfaceAction struct {
 	Slot   *Slot  `json:"slot,omitempty"`
 }
 
-// AllPlugsAndSlots returns information about all the plugs and their connections.
+// InterfaceConnections returns information about all the plugs, slots and their connections.
 func (client *Client) InterfaceConnections() (connections InterfaceConnections, err error) {
 	err = client.doSync("GET", "/2.0/interfaces", nil, nil, &connections)
 	return
