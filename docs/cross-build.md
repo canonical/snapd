@@ -1,4 +1,4 @@
-= armhf =
+# armhf
 
 To cross build for arm you need to install:
 
@@ -20,7 +20,7 @@ to the command, e.g.
     GOARCH=arm GOARM=7 CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc go build -o snappy_armhf github.com/ubuntu-core/snappy/cmd/snappy
 
 
-= arm64 =
+# arm64
 
 Install:
 
