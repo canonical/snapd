@@ -2,7 +2,7 @@
 // +build !excludeintegration
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015, 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -24,7 +24,6 @@ import (
 	"flag"
 	"log"
 	"os"
-	"path/filepath"
 	"strconv"
 
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/autopkgtest"
@@ -45,8 +44,6 @@ const (
 	defaultOS     = "ubuntu-core.canonical"
 	defaultGadget = "canonical-pc.canonical"
 )
-
-var configFileName = filepath.Join(dataOutputDir, "testconfig.json")
 
 func main() {
 	var (
@@ -76,15 +73,12 @@ func main() {
 
 		update = flag.Bool("update", false,
 			"If this flag is used, the image will be updated before running the tests.")
-		targetRelease = flag.String("target-release", "",
-			"If the update flag is used, the image will be updated to this release before running the tests.")
-		targetChannel = flag.String("target-channel", "",
-			"If the update flag is used, the image will be updated to this channel before running the tests.")
 		rollback = flag.Bool("rollback", false,
 			"If this flag is used, the image will be updated and then rolled back before running the tests.")
 		outputDir     = flag.String("output-dir", defaultOutputDir, "Directory where test artifacts will be stored.")
 		shellOnFail   = flag.Bool("shell-fail", false, "Run a shell in the testbed if the suite fails.")
 		testBuildTags = flag.String("test-build-tags", "", "Build tags to be passed to the go test command")
+		httpProxy     = flag.String("http-proxy", "", "HTTP proxy to set in the testbed.")
 	)
 
 	flag.Parse()
@@ -102,9 +96,15 @@ func main() {
 
 	// TODO: pass the config as arguments to the test binaries.
 	// --elopio - 2015-07-15
-	cfg := config.NewConfig(
-		configFileName, *imgRelease, *imgChannel, *targetRelease, *targetChannel,
-		remoteTestbed, *update, *rollback)
+	cfg := &config.Config{
+		FileName:      config.DefaultFileName,
+		Release:       *imgRelease,
+		Channel:       *imgChannel,
+		RemoteTestbed: remoteTestbed,
+		Update:        *update,
+		Rollback:      *rollback,
+		FromBranch:    *useSnappyFromBranch,
+	}
 	cfg.Write()
 
 	rootPath := testutils.RootPath()
@@ -115,6 +115,11 @@ func main() {
 		TestFilter:          *testFilter,
 		IntegrationTestName: build.IntegrationTestName,
 		ShellOnFail:         *shellOnFail,
+		Env: map[string]string{
+			"http_proxy":  *httpProxy,
+			"https_proxy": *httpProxy,
+			"no_proxy":    "127.0.0.1,127.0.1.1,localhost,login.ubuntu.com",
+		},
 	}
 	if !remoteTestbed {
 		img := &image.Image{

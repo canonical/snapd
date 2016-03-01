@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/logger"
@@ -84,7 +85,7 @@ func Parser() *flags.Parser {
 	parser := flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash)
 	// Add all regular commands
 	for _, c := range commands {
-		if _, err := parser.AddCommand(c.name, c.shortHelp, c.longHelp, c.builder()); err != nil {
+		if _, err := parser.AddCommand(c.name, c.shortHelp, strings.TrimSpace(c.longHelp), c.builder()); err != nil {
 			logger.Panicf("cannot add command %q: %v", c.name, err)
 		}
 	}
@@ -95,7 +96,7 @@ func Parser() *flags.Parser {
 	}
 	// Add all the sub-commands of the experimental command
 	for _, c := range experimentalCommands {
-		if _, err = experimentalCommand.AddCommand(c.name, c.shortHelp, c.longHelp, c.builder()); err != nil {
+		if _, err = experimentalCommand.AddCommand(c.name, c.shortHelp, strings.TrimSpace(c.longHelp), c.builder()); err != nil {
 			logger.Panicf("cannot add experimental command %q: %v", c.name, err)
 		}
 	}

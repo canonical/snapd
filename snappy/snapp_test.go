@@ -28,7 +28,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
@@ -171,10 +170,14 @@ frameworks:
 	c.Check(fmk, DeepEquals, []string{"one", "two"})
 }
 
-func (s *SnapTestSuite) TestLocalSnapRepositoryInvalid(c *C) {
+func (s *SnapTestSuite) TestLocalSnapRepositoryInvalidIsStillOk(c *C) {
 	dirs.SnapSnapsDir = "invalid-path"
 	snap := NewLocalSnapRepository()
-	c.Assert(snap, IsNil)
+	c.Assert(snap, NotNil)
+
+	installed, err := snap.Installed()
+	c.Assert(err, IsNil)
+	c.Assert(installed, HasLen, 0)
 }
 
 func (s *SnapTestSuite) TestLocalSnapRepositorySimple(c *C) {
@@ -488,7 +491,7 @@ func (s *SnapTestSuite) TestUbuntuStoreFind(c *C) {
 	repo := NewUbuntuStoreSnapRepository()
 	c.Assert(repo, NotNil)
 
-	parts, err := repo.Find("foo")
+	parts, err := repo.Find("foo", "")
 	c.Assert(err, IsNil)
 	c.Assert(parts, HasLen, 1)
 	c.Check(parts[0].Name(), Equals, funkyAppName)
@@ -613,7 +616,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 		storeID := r.Header.Get("X-Ubuntu-Store")
 		c.Check(storeID, Equals, "")
 
-		c.Check(filepath.Base(r.URL.String()), Equals, funkyAppName+"."+funkyAppOrigin)
+		c.Check(r.URL.Path, Equals, fmt.Sprintf("/details/%s.%s/edge", funkyAppName, funkyAppOrigin))
 		io.WriteString(w, MockDetailsJSON)
 	}))
 
@@ -627,7 +630,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Assert(snap, NotNil)
 
 	// the actual test
-	result, err := snap.Snap(funkyAppName + "." + funkyAppOrigin)
+	result, err := snap.Snap(funkyAppName+"."+funkyAppOrigin, "edge")
 	c.Assert(err, IsNil)
 	c.Check(result.Name(), Equals, funkyAppName)
 	c.Check(result.Origin(), Equals, funkyAppOrigin)
@@ -640,7 +643,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Assert(strings.HasSuffix(r.URL.String(), "no-such-pkg"), Equals, true)
+		c.Assert(r.URL.Path, Equals, "/details/no-such-pkg/edge")
 		w.WriteHeader(404)
 		io.WriteString(w, MockNoDetailsJSON)
 	}))
@@ -655,7 +658,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
 	c.Assert(snap, NotNil)
 
 	// the actual test
-	result, err := snap.Snap("no-such-pkg")
+	result, err := snap.Snap("no-such-pkg", "edge")
 	c.Assert(err, NotNil)
 	c.Assert(result, IsNil)
 }
@@ -943,7 +946,7 @@ type: gadget
 	c.Assert(repo, NotNil)
 
 	// we just ensure that the right header is set
-	repo.Snap("xkcd")
+	repo.Snap("xkcd", "edge")
 }
 
 func (s *SnapTestSuite) TestUninstallBuiltIn(c *C) {
@@ -1540,6 +1543,17 @@ func (s *SnapTestSuite) TestCpiURLDependsOnEnviron(c *C) {
 	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", "1"), IsNil)
 	defer os.Setenv("SNAPPY_USE_STAGING_CPI", "")
 	after := cpiURL()
+
+	c.Check(before, Not(Equals), after)
+}
+
+func (s *SnapTestSuite) TestAuthURLDependsOnEnviron(c *C) {
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", ""), IsNil)
+	before := authURL()
+
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", "1"), IsNil)
+	defer os.Setenv("SNAPPY_USE_STAGING_CPI", "")
+	after := authURL()
 
 	c.Check(before, Not(Equals), after)
 }

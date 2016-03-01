@@ -21,7 +21,6 @@ package daemon
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"mime"
@@ -35,13 +34,12 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/ubuntu-core/snappy/asserts"
-	"github.com/ubuntu-core/snappy/caps"
 	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/lockfile"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
-	"github.com/ubuntu-core/snappy/skills"
 	"github.com/ubuntu-core/snappy/snap/lightweight"
 	"github.com/ubuntu-core/snappy/snappy"
 )
@@ -61,9 +59,7 @@ var api = []*Command{
 	snapSvcsCmd,
 	snapSvcLogsCmd,
 	operationCmd,
-	capabilitiesCmd,
-	capabilityCmd,
-	skillsCmd,
+	interfacesCmd,
 	assertsCmd,
 	assertsFindManyCmd,
 }
@@ -132,23 +128,11 @@ var (
 		DELETE: deleteOp,
 	}
 
-	capabilitiesCmd = &Command{
-		Path:   "/2.0/capabilities",
+	interfacesCmd = &Command{
+		Path:   "/2.0/interfaces",
 		UserOK: true,
-		GET:    getCapabilities,
-		POST:   addCapability,
-	}
-
-	capabilityCmd = &Command{
-		Path:   "/2.0/capabilities/{name}",
-		DELETE: deleteCapability,
-	}
-
-	skillsCmd = &Command{
-		Path:   "/2.0/skills",
-		UserOK: true,
-		GET:    getSkills,
-		POST:   changeSkills,
+		GET:    getPlugs,
+		POST:   changeInterfaces,
 	}
 
 	// TODO: allow to post assertions for UserOK? they are verified anyway
@@ -187,8 +171,8 @@ func sysInfo(c *Command, r *http.Request) Response {
 }
 
 type metarepo interface {
-	Details(string, string) ([]snappy.Part, error)
-	Find(string) ([]snappy.Part, error)
+	Details(string, string, string) ([]snappy.Part, error)
+	Find(string, string) ([]snappy.Part, error)
 }
 
 var newRemoteRepo = func() metarepo {
@@ -210,7 +194,7 @@ func getSnapInfo(c *Command, r *http.Request) Response {
 
 	repo := newRemoteRepo()
 	var part snappy.Part
-	if parts, _ := repo.Details(name, origin); len(parts) > 0 {
+	if parts, _ := repo.Details(name, origin, ""); len(parts) > 0 {
 		part = parts[0]
 	}
 
@@ -341,7 +325,7 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		//   * if there are no results, return an error response.
 		//   * If there are results at all (perhaps local), include a
 		//     warning in the response
-		found, _ = repo.Find(searchTerm)
+		found, _ = repo.Find(searchTerm, "")
 
 		sources = append(sources, "store")
 
@@ -542,7 +526,7 @@ func snapService(c *Command, r *http.Request) Response {
 }
 
 type configurator interface {
-	Configure(*snappy.SnapPart, []byte) (string, error)
+	Configure(*snappy.SnapPart, []byte) ([]byte, error)
 }
 
 var getConfigurator = func() configurator {
@@ -590,7 +574,7 @@ func snapConfig(c *Command, r *http.Request) Response {
 		return InternalError("unable to retrieve config for %s: %v", pkgName, err)
 	}
 
-	return SyncResponse(config)
+	return SyncResponse(string(config))
 }
 
 func getOpInfo(c *Command, r *http.Request) Response {
@@ -641,6 +625,7 @@ func (*licenseData) Error() string {
 type snapInstruction struct {
 	progress.NullProgress
 	Action   string       `json:"action"`
+	Channel  string       `json:"channel"`
 	LeaveOld bool         `json:"leave_old"`
 	License  *licenseData `json:"license"`
 	pkg      string
@@ -664,7 +649,7 @@ func (inst *snapInstruction) install() interface{} {
 	if inst.LeaveOld {
 		flags = 0
 	}
-	_, err := snappyInstall(inst.pkg, flags, inst)
+	_, err := snappyInstall(inst.pkg, inst.Channel, flags, inst)
 	if err != nil {
 		if inst.License != nil && snappy.IsLicenseNotAccepted(err) {
 			return inst.License
@@ -934,127 +919,81 @@ func appIconGet(c *Command, r *http.Request) Response {
 	return iconGet(name, origin)
 }
 
-func getCapabilities(c *Command, r *http.Request) Response {
-	return SyncResponse(map[string]interface{}{
-		"capabilities": c.d.capRepo.Caps(),
-	})
-}
-
-func addCapability(c *Command, r *http.Request) Response {
-	decoder := json.NewDecoder(r.Body)
-	var newCap caps.Capability
-	if err := decoder.Decode(&newCap); err != nil || newCap.TypeName == "" {
-		return BadRequest("can't decode request body into a capability: %v", err)
-	}
-
-	// Re-construct the perfect type object knowing just the type name that is
-	// passed through the JSON representation.
-	newType := c.d.capRepo.Type(newCap.TypeName)
-	if newType == nil {
-		return BadRequest("cannot add capability: unknown type name %q", newCap.TypeName)
-	}
-
-	if err := c.d.capRepo.Add(&newCap); err != nil {
-		return BadRequest("%v", err)
-	}
-
-	return &resp{
-		Type:   ResponseTypeSync,
-		Status: http.StatusCreated,
-		Result: map[string]string{
-			"resource": fmt.Sprintf("/2.0/capabilities/%s", newCap.Name),
-		},
-	}
-}
-
-func deleteCapability(c *Command, r *http.Request) Response {
-	name := muxVars(r)["name"]
-	err := c.d.capRepo.Remove(name)
-	switch err.(type) {
-	case nil:
-		return SyncResponse(nil)
-	case *caps.NotFoundError:
-		return NotFound("can't find capability %q: %v", name, err)
-	default:
-		return InternalError("can't remove capability %q: %v", name, err)
-	}
-}
-
-// skillGrant holds the identification of a slot that has been granted to a skill.
-type skillGrant struct {
+// plugConnection holds the identification of a slot that has been connected to a plug.
+type plugConnection struct {
 	Snap string `json:"snap"`
-	Name string `json:"name"`
+	Name string `json:"slot"` // This is the slot name
 }
 
-// skillInfo holds details for a skill as returned by the REST API.
-type skillInfo struct {
-	Snap      string       `json:"snap"`
-	Name      string       `json:"name"`
-	Type      string       `json:"type"`
-	Label     string       `json:"label"`
-	GrantedTo []skillGrant `json:"granted_to"`
+// plugInfo holds details for a plug as returned by the REST API.
+type plugInfo struct {
+	Snap        string           `json:"snap"`
+	Name        string           `json:"plug"`
+	Interface   string           `json:"interface"`
+	Label       string           `json:"label"`
+	Connections []plugConnection `json:"connections"`
 }
 
-// getSkills returns a response with a list of all the skills and which slots use them.
-func getSkills(c *Command, r *http.Request) Response {
-	var skills []skillInfo
-	for _, skill := range c.d.skills.AllSkills("") {
-		var slots []skillGrant
-		for _, slot := range c.d.skills.GrantsOf(skill.Snap, skill.Name) {
-			slots = append(slots, skillGrant{
+// getPlugs returns a response with a list of all the plugs and which slots use them.
+func getPlugs(c *Command, r *http.Request) Response {
+	var plugs []plugInfo
+	for _, plug := range c.d.interfaces.AllPlugs("") {
+		var slots []plugConnection
+		for _, slot := range c.d.interfaces.PlugConnections(plug.Snap, plug.Plug) {
+			slots = append(slots, plugConnection{
 				Snap: slot.Snap,
-				Name: slot.Name,
+				Name: slot.Slot,
 			})
 		}
-		skills = append(skills, skillInfo{
-			Snap:      skill.Snap,
-			Name:      skill.Name,
-			Type:      skill.Type,
-			Label:     skill.Label,
-			GrantedTo: slots,
+		plugs = append(plugs, plugInfo{
+			Snap:        plug.Snap,
+			Name:        plug.Plug,
+			Interface:   plug.Interface,
+			Label:       plug.Label,
+			Connections: slots,
 		})
 	}
-	return SyncResponse(skills)
+	return SyncResponse(plugs)
 }
 
-// skillAction is an action performed on the skill system.
-type skillAction struct {
-	Action string       `json:"action"`
-	Skill  skills.Skill `json:"skill,omitempty"`
-	Slot   skills.Slot  `json:"slot,omitempty"`
+// interfaceAction is an action performed on the plug system.
+type interfaceAction struct {
+	Action string          `json:"action"`
+	Plug   interfaces.Plug `json:"plug,omitempty"`
+	Slot   interfaces.Slot `json:"slot,omitempty"`
 }
 
-// changeSkills controls the skill system.
-// Skills can be granted to and revoked from slots.
-// When enableInternalSkillActions is true skills and slots can also be
+// changeInterfaces controls the plug system.
+// Plugs can be granted to and revoked from slots.
+// When enableInternalInterfaceActions is true plugs and slots can also be
 // explicitly added and removed.
-func changeSkills(c *Command, r *http.Request) Response {
-	var a skillAction
+func changeInterfaces(c *Command, r *http.Request) Response {
+	var a interfaceAction
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&a); err != nil {
-		return BadRequest("cannot decode request body into a skill action: %v", err)
+		return BadRequest("cannot decode request body into an interface action: %v", err)
 	}
 	if a.Action == "" {
-		return BadRequest("skill action not specified")
+		return BadRequest("interface action not specified")
 	}
-	if !c.d.enableInternalSkillActions && a.Action != "grant" && a.Action != "revoke" {
-		return BadRequest("internal skill actions are disabled")
+	if !c.d.enableInternalInterfaceActions && a.Action != "connect" && a.Action != "disconnect" {
+		return BadRequest("internal interface actions are disabled")
 	}
 	switch a.Action {
-	case "grant":
-		err := c.d.skills.Grant(a.Skill.Snap, a.Skill.Name, a.Slot.Snap, a.Slot.Name)
+	case "connect":
+		err := c.d.interfaces.Connect(a.Plug.Snap, a.Plug.Plug, a.Slot.Snap, a.Slot.Slot)
 		if err != nil {
 			return BadRequest("%v", err)
 		}
 		return SyncResponse(nil)
-	case "revoke":
-		err := c.d.skills.Revoke(a.Skill.Snap, a.Skill.Name, a.Slot.Snap, a.Slot.Name)
+	case "disconnect":
+		err := c.d.interfaces.Disconnect(a.Plug.Snap, a.Plug.Plug, a.Slot.Snap, a.Slot.Slot)
 		if err != nil {
 			return BadRequest("%v", err)
 		}
 		return SyncResponse(nil)
-	case "add-skill":
-		err := c.d.skills.AddSkill(&a.Skill)
+	case "add-plug":
+		err := c.d.interfaces.AddPlug(&a.Plug)
 		if err != nil {
 			return BadRequest("%v", err)
 		}
@@ -1062,14 +1001,14 @@ func changeSkills(c *Command, r *http.Request) Response {
 			Type:   ResponseTypeSync,
 			Status: http.StatusCreated,
 		}
-	case "remove-skill":
-		err := c.d.skills.RemoveSkill(a.Skill.Snap, a.Skill.Name)
+	case "remove-plug":
+		err := c.d.interfaces.RemovePlug(a.Plug.Snap, a.Plug.Plug)
 		if err != nil {
 			return BadRequest("%v", err)
 		}
 		return SyncResponse(nil)
 	case "add-slot":
-		err := c.d.skills.AddSlot(&a.Slot)
+		err := c.d.interfaces.AddSlot(&a.Slot)
 		if err != nil {
 			return BadRequest("%v", err)
 		}
@@ -1078,13 +1017,13 @@ func changeSkills(c *Command, r *http.Request) Response {
 			Status: http.StatusCreated,
 		}
 	case "remove-slot":
-		err := c.d.skills.RemoveSlot(a.Slot.Snap, a.Slot.Name)
+		err := c.d.interfaces.RemoveSlot(a.Slot.Snap, a.Slot.Slot)
 		if err != nil {
 			return BadRequest("%v", err)
 		}
 		return SyncResponse(nil)
 	}
-	return BadRequest("unsupported skill action: %q", a.Action)
+	return BadRequest("unsupported interface action: %q", a.Action)
 }
 
 func doAssert(c *Command, r *http.Request) Response {

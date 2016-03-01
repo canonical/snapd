@@ -61,8 +61,7 @@ type SnappySuite struct {
 // integration suites.
 func (s *SnappySuite) SetUpSuite(c *check.C) {
 	var err error
-	Cfg, err = config.ReadConfig(
-		"integration-tests/data/output/testconfig.json")
+	Cfg, err = config.ReadConfig(config.DefaultFileName)
 	c.Assert(err, check.IsNil, check.Commentf("Error reading config: %v", err))
 
 	if !IsInRebootProcess() {
@@ -71,10 +70,11 @@ func (s *SnappySuite) SetUpSuite(c *check.C) {
 			// Always use the installed snappy because we are updating from an old
 			// image, so we should not use the snappy from the branch.
 			output := cli.ExecCommand(c, "sudo", "/usr/bin/snappy", "update")
-			// TODO raise an error if there is no available update.
-			if output != "" {
-				RebootWithMark(c, "setupsuite-update")
-			}
+			expected := "(?ms)" +
+				".*" +
+				fmt.Sprintf("^Reboot to use %s version .*\\.\n", partition.OSSnapName(c))
+			c.Assert(output, check.Matches, expected)
+			RebootWithMark(c, "setupsuite-update")
 		}
 	} else if CheckRebootMark("setupsuite-update") {
 		RemoveRebootMark(c)

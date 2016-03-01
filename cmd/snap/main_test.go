@@ -21,6 +21,9 @@ package main_test
 
 import (
 	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 
@@ -61,4 +64,27 @@ func (s *SnapSuite) Stdout() string {
 
 func (s *SnapSuite) Stderr() string {
 	return s.stderr.String()
+}
+
+func (s *SnapSuite) RedirectClientToTestServer(handler func(http.ResponseWriter, *http.Request)) {
+	server := httptest.NewServer(http.HandlerFunc(handler))
+	s.BaseTest.AddCleanup(func() { server.Close() })
+	ClientConfig.BaseURL = server.URL
+	s.BaseTest.AddCleanup(func() { ClientConfig.BaseURL = "" })
+}
+
+// DecodedRequestBody returns the JSON-decoded body of the request.
+func DecodedRequestBody(c *C, r *http.Request) map[string]interface{} {
+	var body map[string]interface{}
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&body)
+	c.Assert(err, IsNil)
+	return body
+}
+
+// EncodeResponseBody writes JSON-serialized body to the response writer.
+func EncodeResponseBody(c *C, w http.ResponseWriter, body interface{}) {
+	encoder := json.NewEncoder(w)
+	err := encoder.Encode(body)
+	c.Assert(err, IsNil)
 }

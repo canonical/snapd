@@ -2,7 +2,7 @@
 // +build !excludeintegration
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014, 2015, 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -45,21 +45,20 @@ func testConfigFileName(c *check.C) string {
 }
 
 func testConfigStruct(fileName string) *Config {
-	return NewConfig(
+	return &Config{
 		fileName,
-		"testrelease", "testchannel", "testtargetrelease", "testtargetchannel",
-		true, true, true)
+		"testrelease", "testchannel",
+		true, true, true, true}
 }
 func testConfigContents(fileName string) string {
 	return `{` +
 		fmt.Sprintf(`"FileName":"%s",`, fileName) +
 		`"Release":"testrelease",` +
 		`"Channel":"testchannel",` +
-		`"TargetRelease":"testtargetrelease",` +
-		`"TargetChannel":"testtargetchannel",` +
 		`"RemoteTestbed":true,` +
 		`"Update":true,` +
-		`"Rollback":true` +
+		`"Rollback":true,` +
+		`"FromBranch":true` +
 		`}`
 }
 
@@ -101,21 +100,17 @@ func (s *ConfigSuite) TestReadConfigLocalTestBed(c *check.C) {
 		fmt.Sprintf(`"FileName":"%s",`, configFileName) +
 		`"Release":"testrelease",` +
 		`"Channel":"testchannel",` +
-		`"TargetRelease":"testtargetrelease",` +
-		`"TargetChannel":"testtargetchannel",` +
 		`"RemoteTestbed":false,` +
 		`"Update":true,` +
-		`"Rollback":true` +
+		`"Rollback":true,` +
+		`"FromBranch":true` +
 		`}`
 
 	ioutil.WriteFile(configFileName, []byte(configContents), 0644)
 
 	cfg, err := ReadConfig(configFileName)
 
-	testConfigStruct := NewConfig(
-		configFileName,
-		"testrelease", "testchannel", "testtargetrelease", "testtargetchannel",
-		false, true, true)
+	testConfigStruct := &Config{configFileName, "testrelease", "testchannel", false, true, true, true}
 
 	c.Assert(err, check.IsNil, check.Commentf("Error reading config: %v", err))
 	c.Assert(cfg, check.DeepEquals, testConfigStruct)

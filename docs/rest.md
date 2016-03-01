@@ -175,9 +175,10 @@ Sample result:
       "name": "hello-world",
       "origin": "canonical",
       "resource": "/2.0/snaps/hello-world.canonical",
-      "status": "not installed",
+      "status": "available",
       "type": "app",
-      "version": "1.0.18"
+      "version": "1.0.18",
+      "channel": "stable"
     },
     "http.chipaca": {
       "description": "HTTPie in a snap\nno description",
@@ -191,9 +192,10 @@ Sample result:
         "GBP": 1.99,
       },
       "resource": "/2.0/snaps/http.chipaca",
-      "status": "not purchased",
+      "status": "buyable",
       "type": "app",
-      "version": "3.1"
+      "version": "3.1",
+      "channel": "stable"
     },
     "ubuntu-core.ubuntu": {
       "description": "A secure, minimal transactional OS for devices and containers.",
@@ -206,7 +208,8 @@ Sample result:
       "status": "active",
       "type": "os",
       "update_available": "247",
-      "version": "241"
+      "version": "241",
+      "channel": "stable"
     }
  },
  "paging": {
@@ -223,7 +226,7 @@ Sample result:
 
 #### Fields
 * `snaps`
-    * `status`: can be either `not purchased`, `not installed`, `installed`,
+    * `status`: can be either `buyable`, `available`, `installed`,
       `active` (i.e. is current), `removed` (but data present); there is no
       `purged` state, as a purged snap is undistinguishable from a non-installed
        snap.
@@ -241,6 +244,7 @@ Sample result:
       be rolled back to the version specified as a value to this entry.
     * `update_available`: if present and not empty, it means the snap can be
       updated to the version specified as a value to this entry.
+    * `channel`: which channel the package is currently tracking.
     * `prices`: if present the snap needs to be purchased before installing. It's
       a dict with the available currency codes as keys and the prices as values.
 * `paging`
@@ -333,6 +337,7 @@ See `sources` for `/2.0/snaps`.
 field      | ignored except in action | description
 -----------|-------------------|------------
 `action`   |                   | Required; a string, one of `purchase`, `install`, `update`, `remove`, `purge`, `activate`, `deactivate`, or `rollback`.
+`channel`  | `install` `update` | From which channel to pull the new package (and track henceforth). Channels are a means to discern the maturity of a package or the software it contains, although the exact meaning is left to the application developer. One of `edge`, `beta`, `candidate`, and `stable` which is the default.
 `leave_old`| `install` `update` `remove` | A boolean, equivalent to commandline's `--no-gc`. Default is false (do not leave old snaps around).
 `license`  | `install` `update` | A JSON object with `intro`, `license`, and `agreed` fields, the first two of which must match the license (see the section “A note on licenses”, below).
 
@@ -590,90 +595,6 @@ Notes: user facing implementations in text form must show this data using yaml.
 
 This is *not* a standard return type.
 
-## /2.0/capabilities
-
-### GET
-
-* Description: Get all of the capabilities that exist in the system
-* Authorization: authenticated
-* Operation: sync
-* Return: map of capabilities, see below.
-
-The result is a JSON object with a *capabilities* key; its value itself is a JSON
-object whose keys are capability names (e.g., "power-button") and whose values
-describe that capability.
-
-The method returns *all* capabilities. Regardless of their assignment to snaps.
-Note that capabilities are dynamic, they can be added and removed to the system
-and individual capabilities can change state over time.
-
-Each capability has the following attributes:
-
-name:
-	Name is a key that identifies the capability. It must be unique within its
-	context, which may be either a snap or a snappy runtime.
-
-label:
-	Label provides an optional title for the capability to help a human tell
-	which physical device this capability is referring to. It might say "Front
-	USB", or "Green Serial Port", for example.
-
-type:
-	Type defines the type of this capability. The capability type defines the
-	behavior allowed and expected from providers and consumers of that
-	capability, and also which information should be exchanged by these
-	parties.
-
-attrs:
-	Attrs are key-value pairs that provide type-specific capability details.
-	The attribute 'attrs' itself may not be present if there are no attributes
-	to mention.
-
-Sample result:
-
-```javascript
-{
-	"capabilities": {
-		"power-button": {
-			"resource": "/2.0/capabilities/power-button",
-			"name": "power-button",
-			"label": "Power Button",
-			"type": "evdev",
-			"attrs": {
-				"path": "/dev/input/event2"
-			},
-		}
-	}
-}
-```
-
-### POST
-
-* Description: Adds a new capability to the system
-* Authorization: authenticated
-* Operation: sync
-
-#### Sample input:
-
-```javascript
-{
-	"name": "my-capability",
-	"label": "My Capability",
-	"type": "my-type",
-	"attrs": {
-		"key": "value"
-	}
-}
-```
-
-## /1.0/capabilities/[name]
-
-### DELETE
-
-* Description: Remove a capability from the system
-* Access: trusted
-* Operation: sync
-
 ## /2.0/assertions
 
 ### POST
@@ -700,3 +621,50 @@ prerequisite in the database.
 The response is a stream of assertions separated by double newlines.
 The X-Ubuntu-Assertions-Count header is set to the number of
 returned assertions, 0 or more.
+
+## /2.0/interfaces
+
+### GET
+
+* Description: Get all the plugs and information about the slots connected to them.
+* Access: authenticated
+* Operation: sync
+* Return: array of plugs containing array of slots using each skill.
+
+Sample result:
+
+```javascript
+[
+    {
+        “snap”:  "canonical-pi2",
+        “interface”:  "bool-file",
+        “plug”:  "pin-13",
+        “label”: "Pin 13",
+        “connections”: [
+            {"snap": "keyboard-lights", "slot": "capslock-led"}
+        ]
+    }
+]
+```
+
+### POST
+
+* Description: Issue an action to the interface system
+* Access: authenticated
+* Operation: sync
+* Return: nothing
+
+Available actions are:
+
+- connect: connect the plug to the given slot.
+- disconnect: disconnect the given plug from the given slot.
+
+Sample input:
+
+```javascript
+{
+    “action”: “connect”,
+    “plug”: {“snap”: “canonical-pi2”,   “plug”: “pin-13”},
+    “slot”: {“snap”: “keyboard-lights”, “slot”: “capslock-led”}
+}
+```

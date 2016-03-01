@@ -70,7 +70,7 @@ func (s *fanTestSuite) TestFanCommandExists(c *check.C) {
 	cmd := exec.Command("fanctl")
 	output, _ := cmd.CombinedOutput()
 
-	expectedPattern := `(?msi)Usage: \/usr\/sbin\/fanctl up.*`
+	expectedPattern := `(?msi)Usage: \/usr\/sbin\/fanctl <cmd>.*`
 
 	c.Assert(string(output), check.Matches, expectedPattern,
 		check.Commentf("Expected output pattern %s not found in %s", expectedPattern, output))
@@ -86,6 +86,8 @@ func (s *fanTestSuite) TestFanCommandCreatesFanBridge(c *check.C) {
 }
 
 func (s *fanTestSuite) TestDockerCreatesAContainerInsideTheFan(c *check.C) {
+	c.Skip("Skipping until LP: #1544507 is fixed")
+
 	setUpDocker(c)
 	defer tearDownDocker(c)
 	s.configureDockerToUseBridge(c)
@@ -101,6 +103,8 @@ func (s *fanTestSuite) TestDockerCreatesAContainerInsideTheFan(c *check.C) {
 }
 
 func (s *fanTestSuite) TestContainersInTheFanAreReachable(c *check.C) {
+	c.Skip("Skipping until LP: #1544507 is fixed")
+
 	setUpDocker(c)
 	defer tearDownDocker(c)
 	s.configureDockerToUseBridge(c)

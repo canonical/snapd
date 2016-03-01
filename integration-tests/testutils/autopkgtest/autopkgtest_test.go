@@ -2,7 +2,7 @@
 // +build !excludeintegration
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015, 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -43,7 +43,7 @@ const (
 	imgPath             = "imgPath"
 	testbedIP           = "1.1.1.1"
 	testbedPort         = 90
-	adtrunTpl           = "adt-run -B --setup-commands touch /run/autopkgtest_no_reboot.stamp --override-control %s --built-tree %s --output-dir %s %s"
+	adtrunTpl           = "adt-run -B --override-control %s --built-tree %s --output-dir %s --setup-commands touch /run/autopkgtest_no_reboot.stamp %s"
 )
 
 type AutoPkgTestSuite struct {
@@ -72,14 +72,6 @@ func (s *AutoPkgTestSuite) SetUpSuite(c *check.C) {
 	execCommand = s.fakeExecCommand
 	prepareTargetDir = s.fakePrepareTargetDir
 	tplExecute = s.fakeTplExecute
-
-	s.subject = &AutoPkgTest{
-		SourceCodePath:      sourceCodePath,
-		TestArtifactsPath:   testArtifactsPath,
-		TestFilter:          testFilter,
-		IntegrationTestName: integrationTestName,
-		ShellOnFail:         false,
-	}
 }
 
 func (s *AutoPkgTestSuite) TearDownSuite(c *check.C) {
@@ -93,6 +85,15 @@ func (s *AutoPkgTestSuite) SetUpTest(c *check.C) {
 	s.mkDirCalls = make(map[string]int)
 	s.tplExecuteCalls = make(map[string]int)
 	s.tplError = false
+
+	s.subject = &AutoPkgTest{
+		SourceCodePath:      sourceCodePath,
+		TestArtifactsPath:   testArtifactsPath,
+		TestFilter:          testFilter,
+		IntegrationTestName: integrationTestName,
+		ShellOnFail:         false,
+		Env:                 nil,
+	}
 }
 
 func (s *AutoPkgTestSuite) fakeExecCommand(args ...string) (err error) {
@@ -210,6 +211,17 @@ func (s *AutoPkgTestSuite) TestAdtRunShellOnFail(c *check.C) {
 		c.Check(s.execCalls[expectedCommandCall], check.Equals, 1,
 			check.Commentf("Expected call %s not executed 1 time", expectedCommandCall))
 	}
+}
+
+func (s *AutoPkgTestSuite) TestAdtRunEnv(c *check.C) {
+	s.subject.Env = map[string]string{"var1": "value1"}
+	s.subject.adtRun("testbed-options")
+
+	testOutputDir := outputDir(testArtifactsPath)
+	expectedCommandCall := fmt.Sprintf(
+		adtrunTpl, controlFile, sourceCodePath, testOutputDir, "--env var1=value1 testbed-options")
+	c.Check(s.execCalls[expectedCommandCall], check.Equals, 1,
+		check.Commentf("Expected call %s not executed 1 time", expectedCommandCall))
 }
 
 func tplExecuteCmd(tplFile, outputFile string, data interface{}) string {

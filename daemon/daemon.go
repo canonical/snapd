@@ -33,11 +33,11 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/ubuntu-core/snappy/asserts"
-	"github.com/ubuntu-core/snappy/caps"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/interfaces"
+	"github.com/ubuntu-core/snappy/interfaces/builtin"
 	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/skills"
 )
 
 // A Daemon listens for requests and routes them to the right command
@@ -47,11 +47,10 @@ type Daemon struct {
 	listener     net.Listener
 	tomb         tomb.Tomb
 	router       *mux.Router
-	capRepo      *caps.Repository
 	asserts      *asserts.Database
-	skills       *skills.Repository
-	// enableInternalSkillActions controls if adding and removing skills and slots is allowed.
-	enableInternalSkillActions bool
+	interfaces   *interfaces.Repository
+	// enableInternalInterfaceActions controls if adding and removing skills and slots is allowed.
+	enableInternalInterfaceActions bool
 }
 
 // A ResponseFunc handles one of the individual verbs for a method
@@ -193,13 +192,18 @@ func (d *Daemon) addRoutes() {
 // Start the Daemon
 func (d *Daemon) Start() {
 	d.tomb.Go(func() error {
-		return http.Serve(d.listener, logit(d.router))
+		if err := http.Serve(d.listener, logit(d.router)); err != nil && d.tomb.Err() == tomb.ErrStillAlive {
+			return err
+		}
+
+		return nil
 	})
 }
 
 // Stop shuts down the Daemon
 func (d *Daemon) Stop() error {
 	d.tomb.Kill(nil)
+	d.listener.Close()
 	return d.tomb.Wait()
 }
 
@@ -262,22 +266,17 @@ func New() *Daemon {
 	if err != nil {
 		panic(err.Error())
 	}
-	capRepo := caps.NewRepository()
-	err = caps.LoadBuiltInTypes(capRepo)
-	if err != nil {
-		panic(err.Error())
-	}
-	skillRepo := skills.NewRepository()
-	err = skills.LoadBuiltInTypes(skillRepo)
-	if err != nil {
-		panic(err.Error())
+	interfacesRepo := interfaces.NewRepository()
+	for _, iface := range builtin.Interfaces() {
+		if err := interfacesRepo.AddInterface(iface); err != nil {
+			panic(err.Error())
+		}
 	}
 	return &Daemon{
-		tasks:   make(map[string]*Task),
-		capRepo: capRepo,
-		skills:  skillRepo,
+		tasks:      make(map[string]*Task),
+		asserts:    db,
+		interfaces: interfacesRepo,
 		// TODO: Decide when this should be disabled by default.
-		enableInternalSkillActions: true,
-		asserts:                    db,
+		enableInternalInterfaceActions: true,
 	}
 }

@@ -60,6 +60,8 @@ func ubuntuArchFromGoArch(goarch string) string {
 		"arm":     "armhf",
 		"arm64":   "arm64",
 		"ppc64le": "ppc64el",
+		"s390x":   "s390x",
+		"ppc":     "powerpc",
 	}
 
 	ubuntuArch := goArchMapping[goarch]
