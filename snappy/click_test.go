@@ -1202,3 +1202,68 @@ apps:
 	c.Assert(helpers.FileExists(binaryWrapper), Equals, false)
 	c.Assert(helpers.FileExists(snapDir), Equals, false)
 }
+
+func (s *SnapTestSuite) TestSnappyGenerateSnapDesktopFileNotNeeded(c *C) {
+	app := &AppYaml{Name: "pastebinit", Command: "bin/pastebinit"}
+	pkgPath := "/snaps/pastebinit.mvo/1.4.0.0.1/"
+	m := &snapYaml{
+		Name:    "pastebinit",
+		Version: "1.4.0.0.1",
+	}
+
+	generatedDesktopFile, err := generateSnapDesktopFile(app, pkgPath, m)
+	c.Assert(err, IsNil)
+	c.Assert(generatedDesktopFile, Equals, "")
+}
+
+func (s *SnapTestSuite) TestSnappyGenerateSnapDesktopFile(c *C) {
+	app := &AppYaml{
+		Name:       "pastebinit",
+		Command:    "bin/pastebinit",
+		Comment:    "Best evar",
+		Icon:       "something.png",
+		Categories: []string{"Game", "LogicGame"},
+	}
+	pkgPath := "/snaps/pastebinit.mvo/1.4.0.0.1/"
+	m := &snapYaml{
+		Name:    "pastebinit",
+		Version: "1.4.0.0.1",
+	}
+
+	generatedDesktopFile, err := generateSnapDesktopFile(app, pkgPath, m)
+	c.Assert(err, IsNil)
+	c.Assert(generatedDesktopFile, Equals, `[Desktop Entry]
+Encoding=UTF-8
+Type=Application
+Name=pastebinit
+Comment=Best evar
+Icon=/snaps/pastebinit.mvo/1.4.0.0.1/something.png
+Exec=/snaps/bin/pastebinit.pastebinit
+Categories=Game;LogicGame;
+`)
+}
+
+func (s *SnapTestSuite) TestSnappyGenerateSnapDesktopFileNoCategories(c *C) {
+	app := &AppYaml{
+		Name:       "pastebinit",
+		Command:    "bin/pastebinit",
+		Comment:    "Best evar",
+		Icon:       "something.png",
+		Categories: nil,
+	}
+	pkgPath := "/snaps/pastebinit.mvo/1.4.0.0.1/"
+	m := &snapYaml{
+		Name:    "pastebinit",
+		Version: "1.4.0.0.1",
+	}
+	generatedDesktopFile, err := generateSnapDesktopFile(app, pkgPath, m)
+	c.Assert(err, IsNil)
+	c.Assert(generatedDesktopFile, Equals, `[Desktop Entry]
+Encoding=UTF-8
+Type=Application
+Name=pastebinit
+Comment=Best evar
+Icon=/snaps/pastebinit.mvo/1.4.0.0.1/something.png
+Exec=/snaps/bin/pastebinit.pastebinit
+`)
+}

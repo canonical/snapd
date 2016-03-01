@@ -46,6 +46,7 @@ var (
 
 	SnapBinariesDir  string
 	SnapServicesDir  string
+	SnapDesktopDir   string
 	SnapBusPolicyDir string
 
 	CloudMetaDataFile string
@@ -89,6 +90,7 @@ func SetRootDir(rootdir string) {
 	SnapTrustedAccountKey = filepath.Join(rootdir, "/usr/share/snappy/trusted.acckey")
 
 	SnapBinariesDir = filepath.Join(SnapSnapsDir, "bin")
+	SnapDesktopDir = filepath.Join(rootdir, snappyDir, "applications")
 	SnapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")
 	SnapBusPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/system.d")
 

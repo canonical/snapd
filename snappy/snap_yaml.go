@@ -63,6 +63,11 @@ type AppYaml struct {
 	Command string `yaml:"command"`
 	Daemon  string `yaml:"daemon"`
 
+	// desktop file stuff
+	Icon       string   `yaml:"icon,omitempty"`
+	Comment    string   `yaml:"comment,omitempty"`
+	Categories []string `yaml:"categories,omitempty"`
+
 	Description string          `yaml:"description,omitempty" json:"description,omitempty"`
 	Stop        string          `yaml:"stop,omitempty"`
 	PostStop    string          `yaml:"poststop,omitempty"`
