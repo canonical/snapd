@@ -21,19 +21,12 @@ package helpers
 
 import (
 	"bytes"
-	"math/rand"
 	"reflect"
 	"strings"
 	"text/template"
-	"time"
 
 	"github.com/ubuntu-core/snappy/logger"
 )
-
-func init() {
-	// golang does not init Seed() itself
-	rand.Seed(time.Now().UTC().UnixNano())
-}
 
 // MakeMapFromEnvList takes a string list of the form "key=value"
 // and returns a map[string]string from that list
@@ -48,22 +41,6 @@ func MakeMapFromEnvList(env []string) map[string]string {
 		envMap[split[0]] = split[1]
 	}
 	return envMap
-}
-
-const letters = "BCDFGHJKLMNPQRSTVWXYbcdfghjklmnpqrstvwxy0123456789"
-
-// MakeRandomString returns a random string of length length
-//
-// The vowels are omited to avoid that words are created by pure
-// chance. Numbers are included.
-func MakeRandomString(length int) string {
-
-	out := ""
-	for i := 0; i < length; i++ {
-		out += string(letters[rand.Intn(len(letters))])
-	}
-
-	return out
 }
 
 // Getattr get the attribute of the given name
