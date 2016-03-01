@@ -619,25 +619,38 @@ returned assertions, 0 or more.
 
 ### GET
 
-* Description: Get all the plugs and information about the slots connected to them.
+* Description: Get all the plugs, slots and their connections.
 * Access: authenticated
 * Operation: sync
-* Return: array of plugs containing array of slots using each skill.
+* Return: an object with two arrays of plugs, slots and their connections.
 
 Sample result:
 
 ```javascript
-[
-    {
-        “snap”:  "canonical-pi2",
-        “interface”:  "bool-file",
-        “plug”:  "pin-13",
-        “label”: "Pin 13",
-        “connections”: [
-            {"snap": "keyboard-lights", "slot": "capslock-led"}
-        ]
-    }
-]
+{
+    “plugs”: [
+        {
+            “snap”:  "canonical-pi2",
+            “plug”:  "pin-13",
+            “interface”:  "bool-file",
+            “label”: "Pin 13",
+            “connections”: [
+                {"snap": "keyboard-lights", "slot": "capslock-led"}
+            ]
+        }
+    ],
+    “slots”: [
+        {
+            “snap”:  "keyboard-lights",
+            “slot”:  "capslock-led",
+            “interface”: "bool-file",
+            “label”: "Capslock indicator LED",
+            “connections”: [
+                {"snap": "canonical-pi2", "plug": "pin-13"}
+            ]
+        }
+    ]
+}
 ```
 
 ### POST
