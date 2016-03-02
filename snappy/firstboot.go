@@ -100,7 +100,7 @@ func gadgetConfig() error {
 			return errNoSnapToActivate
 		}
 		if err := snap.activate(false, pb); err != nil {
-			logger.Noticef("failed to acitvate %s: %s", FullName(part), err)
+			logger.Noticef("failed to activate %s: %s", FullName(part), err)
 		}
 	}
 
@@ -151,7 +151,7 @@ func enableSystemSnaps() error {
 			logger.Noticef("Acitvating %s", FullName(part))
 			if err := activator.SetActive(part.(*SnapPart), true, pb); err != nil {
 				// we don't want this to fail for now
-				logger.Noticef("failed to acitvate %s: %s", FullName(part), err)
+				logger.Noticef("failed to activate %s: %s", FullName(part), err)
 			}
 		}
 	}
