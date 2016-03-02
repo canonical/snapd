@@ -306,6 +306,14 @@ func (r *Repository) Connect(plugSnapName, plugName, slotSnapName, slotName stri
 	}
 	r.slotPlugs[slot][plug] = true
 	r.plugSlots[plug][slot] = true
+	slot.Connections = append(slot.Connections, PlugRef{
+		Snap: plug.Snap,
+		Name: plug.Name,
+	})
+	plug.Connections = append(plug.Connections, SlotRef{
+		Snap: slot.Snap,
+		Name: slot.Name,
+	})
 	return nil
 }
 
@@ -399,6 +407,28 @@ func (r *Repository) disconnect(plug *Plug, slot *Slot) {
 	delete(r.plugSlots[plug], slot)
 	if len(r.plugSlots[plug]) == 0 {
 		delete(r.plugSlots, plug)
+	}
+	for i := 0; i < len(slot.Connections); i++ {
+		plugRef := slot.Connections[i]
+		if plugRef.Snap == plug.Snap && plugRef.Name == plug.Name {
+			slot.Connections[i] = slot.Connections[len(slot.Connections)-1]
+			slot.Connections = slot.Connections[:len(slot.Connections)-1]
+			if len(slot.Connections) == 0 {
+				slot.Connections = nil
+			}
+			break
+		}
+	}
+	for i := 0; i < len(plug.Connections); i++ {
+		slotRef := plug.Connections[i]
+		if slotRef.Snap == slot.Snap && slotRef.Name == slot.Name {
+			plug.Connections[i] = plug.Connections[len(plug.Connections)-1]
+			plug.Connections = plug.Connections[:len(plug.Connections)-1]
+			if len(plug.Connections) == 0 {
+				plug.Connections = nil
+			}
+			break
+		}
 	}
 }
 
