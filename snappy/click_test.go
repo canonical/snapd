@@ -1327,14 +1327,14 @@ apps:
 	c.Assert(err, IsNil)
 	desktopContent := []byte(`[Desktop Entry]
 Name=foo
-Exec=snap.app
+Exec=snap.app %U
 TryExec=meep
 `)
 
 	e := sanitizeDesktopFile(m, "/my/basedir", desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Entry]
 Name=foo
-Exec=snap.app`)
+Exec=snap.app %U`)
 }
 
 func (s *SnapTestSuite) TestDesktopFileSanitizeFiltersTryExecOk(c *C) {
@@ -1349,11 +1349,11 @@ apps:
 	desktopContent := []byte(`[Desktop Entry]
 Name=foo
 Exec=invalid
-TryExec=snap.app
+TryExec=snap.app %U
 `)
 
 	e := sanitizeDesktopFile(m, "/my/basedir", desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Entry]
 Name=foo
-TryExec=snap.app`)
+TryExec=snap.app %U`)
 }

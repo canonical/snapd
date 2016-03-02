@@ -506,7 +506,9 @@ func validExecLine(m *snapYaml, line string) bool {
 	cmd := strings.SplitN(line, "=", 2)[1]
 	for _, app := range m.Apps {
 		validCmd := filepath.Base(generateBinaryName(m, app))
-		if validCmd == cmd {
+		// just check the prefix to allow %flag style args
+		// this is ok because desktop files are not run through sh
+		if strings.HasPrefix(cmd, validCmd) {
 			return true
 		}
 	}
