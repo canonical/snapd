@@ -55,7 +55,7 @@ type marshalledChange struct {
 	ID      string `json:"id"`
 	Kind    string `json:"kind"`
 	Summary string `json:"summary"`
-	Entries map[string]*json.RawMessage
+    Entries map[string]*json.RawMessage `json:"entries"`
 }
 
 // MarshalJSON makes Change a json.Marshaller
