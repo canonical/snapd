@@ -49,7 +49,7 @@ type Daemon struct {
 	router       *mux.Router
 	asserts      *asserts.Database
 	interfaces   *interfaces.Repository
-	// enableInternalInterfaceActions controls if adding and removing skills and slots is allowed.
+	// enableInternalInterfaceActions controls if adding and removing slots and plugs is allowed.
 	enableInternalInterfaceActions bool
 }
 

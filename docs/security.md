@@ -1,12 +1,12 @@
 # Security policy
 
-Most of the security aspects of the system will be done via skills and
-skill slots. However for compatibility with the 15.04 snappy
-architecture there is a special skill type called `migration-skill`
+Most of the security aspects of the system will be done via interfaces,
+slots and plugs. However for compatibility with the 15.04 snappy
+architecture there is a special interface called `old-security`
 that can be used to migrate using the 15.04 syntax. See the example
-below for the various ways the migration-skill can be used.
+below for the various ways the `old-security` interface can be used.
 
-## Security with the migration skill
+## Security with the old-security interface
 
 Snap packages run confined under a restrictive security sandbox by default.
 The security policies and store policies work together to allow developers to
@@ -80,7 +80,8 @@ in the yaml as `caps`.
 ## Defining snap policy
 
 The `snap.yaml` need not specify anything for default confinement. Several
-options are available in the migration-skill to modify the confinement:
+options are available in the `old-security` interface to modify the
+confinement:
 
 * `caps`: (optional) list of (easy to understand, human readable) additional
   security policies to add. The system will translate these to generate
@@ -121,41 +122,41 @@ Eg, consider the following:
         command: bar
       baz:
         command: baz
-        uses: [baz-caps]
+        slots: [baz-caps]
       qux:
         command: qux
-        uses: [qux-security]
+        slots: [qux-security]
       quux:
         command: quux
-        uses: [quux-policy]
+        slots: [quux-policy]
       corge:
         command: corge
         daemon: simple
-        uses: [corge-override]
+        slots: [corge-override]
       cli-exe:
         command: cli-exe
-        uses: [no-caps]
-    uses:
+        slots: [no-caps]
+    slots:
       baz-caps:
-        type: migration-skill
+        type: old-security
         caps:
           - network-client
           - norf-framework_client
       qux-security:
-        type: migration-skill
+        type: old-security
         security-template: nondefault
       quux-policy:
-        type: migration-skill
+        type: old-security
         security-policy:
           apparmor: meta/quux.profile
           seccomp: meta/quux.filter
       corge-override:
-        type: migration-skill
+        type: old-security
         security-override:
           apparmor: meta/corge.apparmor
           seccomp: meta/corge.seccomp
       no-caps:
-        type: migration-skill
+        type: old-security
         caps: []
 
 

@@ -81,13 +81,13 @@ func verifyAppYaml(app *AppYaml) error {
 	return verifyStructStringsAgainstWhitelist(*app, servicesBinariesStringsWhitelist)
 }
 
-func verifyUsesYaml(uses *usesYaml) error {
-	if err := verifyStructStringsAgainstWhitelist(*uses, servicesBinariesStringsWhitelist); err != nil {
+func verifySlotYaml(slot *slotYaml) error {
+	if err := verifyStructStringsAgainstWhitelist(*slot, servicesBinariesStringsWhitelist); err != nil {
 		return err
 	}
 
-	if uses.Type != "migration-skill" {
-		return fmt.Errorf("can not use skill %q, only migration-skill supported", uses.Type)
+	if slot.Interface != "old-security" {
+		return fmt.Errorf("can not use interface %q, only `old-security` supported", slot.Interface)
 	}
 
 	return nil
