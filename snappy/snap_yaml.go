@@ -64,8 +64,8 @@ type AppYaml struct {
 	Daemon  string `yaml:"daemon"`
 
 	Description string          `yaml:"description,omitempty" json:"description,omitempty"`
-	Stop        string          `yaml:"stop,omitempty"`
-	PostStop    string          `yaml:"poststop,omitempty"`
+	Stop        string          `yaml:"stop-command,omitempty"`
+	PostStop    string          `yaml:"poststop-command,omitempty"`
 	StopTimeout timeout.Timeout `yaml:"stop-timeout,omitempty"`
 	BusName     string          `yaml:"bus-name,omitempty"`
 

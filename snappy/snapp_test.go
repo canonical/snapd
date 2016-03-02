@@ -1041,7 +1041,7 @@ apps:
  testme-service:
    command: bin/testme-service.start
    daemon: forking
-   stop: bin/testme-service.stop
+   stop-command: bin/testme-service.stop
    description: "testme service"
    uses: [testme-service]
 
