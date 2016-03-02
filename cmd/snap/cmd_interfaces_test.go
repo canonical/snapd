@@ -73,8 +73,8 @@ func (s *SnapSuite) TestInterfacesZeroPlugsOneSlot(c *C) {
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
 			"result": client.Interfaces{
-				Slots: []*client.Slot{
-					&client.Slot{
+				Slots: []client.Slot{
+					{
 						Snap: "keyboard-lights",
 						Name: "capslock-led",
 					},
@@ -102,8 +102,8 @@ func (s *SnapSuite) TestInterfacesZeroSlotsOnePlug(c *C) {
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
 			"result": client.Interfaces{
-				Plugs: []*client.Plug{
-					&client.Plug{
+				Plugs: []client.Plug{
+					{
 						Snap:      "canonical-pi2",
 						Name:      "pin-13",
 						Interface: "bool-file",
@@ -133,8 +133,8 @@ func (s *SnapSuite) TestInterfacesOnePlugOneSlot(c *C) {
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
 			"result": client.Interfaces{
-				Plugs: []*client.Plug{
-					&client.Plug{
+				Plugs: []client.Plug{
+					{
 						Snap:      "canonical-pi2",
 						Name:      "pin-13",
 						Interface: "bool-file",
@@ -147,8 +147,8 @@ func (s *SnapSuite) TestInterfacesOnePlugOneSlot(c *C) {
 						},
 					},
 				},
-				Slots: []*client.Slot{
-					&client.Slot{
+				Slots: []client.Slot{
+					{
 						Snap:      "keyboard-lights",
 						Name:      "capslock-led",
 						Interface: "bool-file",
@@ -184,8 +184,8 @@ func (s *SnapSuite) TestInterfacesTwoSlots(c *C) {
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
 			"result": client.Interfaces{
-				Plugs: []*client.Plug{
-					&client.Plug{
+				Plugs: []client.Plug{
+					{
 						Snap:      "canonical-pi2",
 						Name:      "pin-13",
 						Interface: "bool-file",
@@ -225,8 +225,8 @@ func (s *SnapSuite) TestInterfacesSlotsWithCommonName(c *C) {
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
 			"result": client.Interfaces{
-				Plugs: []*client.Plug{
-					&client.Plug{
+				Plugs: []client.Plug{
+					{
 						Snap:      "canonical-pi2",
 						Name:      "network-listening",
 						Interface: "network-listening",
@@ -243,8 +243,8 @@ func (s *SnapSuite) TestInterfacesSlotsWithCommonName(c *C) {
 						},
 					},
 				},
-				Slots: []*client.Slot{
-					&client.Slot{
+				Slots: []client.Slot{
+					{
 						Snap:      "paste-daemon",
 						Name:      "network-listening",
 						Interface: "network-listening",
@@ -256,7 +256,7 @@ func (s *SnapSuite) TestInterfacesSlotsWithCommonName(c *C) {
 							},
 						},
 					},
-					&client.Slot{
+					{
 						Snap:      "time-daemon",
 						Name:      "network-listening",
 						Interface: "network-listening",
@@ -292,8 +292,8 @@ func (s *SnapSuite) TestInterfacesOsSnapPlugs(c *C) {
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
 			"result": client.Interfaces{
-				Plugs: []*client.Plug{
-					&client.Plug{
+				Plugs: []client.Plug{
+					{
 						Snap:      "ubuntu-core",
 						Name:      "network-listening",
 						Interface: "network-listening",
@@ -310,8 +310,8 @@ func (s *SnapSuite) TestInterfacesOsSnapPlugs(c *C) {
 						},
 					},
 				},
-				Slots: []*client.Slot{
-					&client.Slot{
+				Slots: []client.Slot{
+					{
 						Snap:      "paste-daemon",
 						Name:      "network-listening",
 						Interface: "network-listening",
@@ -323,7 +323,7 @@ func (s *SnapSuite) TestInterfacesOsSnapPlugs(c *C) {
 							},
 						},
 					},
-					&client.Slot{
+					{
 						Snap:      "time-daemon",
 						Name:      "network-listening",
 						Interface: "network-listening",
@@ -359,8 +359,8 @@ func (s *SnapSuite) TestInterfacesTwoPlugsAndFiltering(c *C) {
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
 			"result": client.Interfaces{
-				Plugs: []*client.Plug{
-					&client.Plug{
+				Plugs: []client.Plug{
+					{
 						Snap:      "canonical-pi2",
 						Name:      "debug-console",
 						Interface: "serial-port",
@@ -372,7 +372,7 @@ func (s *SnapSuite) TestInterfacesTwoPlugsAndFiltering(c *C) {
 							},
 						},
 					},
-					&client.Plug{
+					{
 						Snap:      "canonical-pi2",
 						Name:      "pin-13",
 						Interface: "bool-file",
@@ -408,20 +408,20 @@ func (s *SnapSuite) TestInterfacesOfSpecificSnap(c *C) {
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
 			"result": client.Interfaces{
-				Plugs: []*client.Plug{
-					&client.Plug{
+				Plugs: []client.Plug{
+					{
 						Snap:      "cheese",
 						Name:      "photo-trigger",
 						Interface: "bool-file",
 						Label:     "Photo trigger",
 					},
-					&client.Plug{
+					{
 						Snap:      "wake-up-alarm",
 						Name:      "toggle",
 						Interface: "bool-file",
 						Label:     "Alarm toggle",
 					},
-					&client.Plug{
+					{
 						Snap:      "wake-up-alarm",
 						Name:      "snooze",
 						Interface: "bool-file",
@@ -452,20 +452,20 @@ func (s *SnapSuite) TestInterfacesOfSpecificSnapAndPlug(c *C) {
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
 			"result": client.Interfaces{
-				Plugs: []*client.Plug{
-					&client.Plug{
+				Plugs: []client.Plug{
+					{
 						Snap:      "cheese",
 						Name:      "photo-trigger",
 						Interface: "bool-file",
 						Label:     "Photo trigger",
 					},
-					&client.Plug{
+					{
 						Snap:      "wake-up-alarm",
 						Name:      "toggle",
 						Interface: "bool-file",
 						Label:     "Alarm toggle",
 					},
-					&client.Plug{
+					{
 						Snap:      "wake-up-alarm",
 						Name:      "snooze",
 						Interface: "bool-file",

@@ -64,8 +64,8 @@ func (cs *clientSuite) TestClientInterfaces(c *check.C) {
 	interfaces, err := cs.cli.Interfaces()
 	c.Assert(err, check.IsNil)
 	c.Check(interfaces, check.DeepEquals, client.Interfaces{
-		Plugs: []*client.Plug{
-			&client.Plug{
+		Plugs: []client.Plug{
+			{
 				Snap:      "canonical-pi2",
 				Name:      "pin-13",
 				Interface: "bool-file",
@@ -78,8 +78,8 @@ func (cs *clientSuite) TestClientInterfaces(c *check.C) {
 				},
 			},
 		},
-		Slots: []*client.Slot{
-			&client.Slot{
+		Slots: []client.Slot{
+			{
 				Snap:      "keyboard-lights",
 				Name:      "capslock-led",
 				Interface: "bool-file",

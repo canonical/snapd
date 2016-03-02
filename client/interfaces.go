@@ -60,8 +60,8 @@ type SlotRef struct {
 
 // Interfaces contains information about all plugs, slots and their connections
 type Interfaces struct {
-	Plugs []*Plug `json:"plugs"`
-	Slots []*Slot `json:"slots"`
+	Plugs []Plug `json:"plugs"`
+	Slots []Slot `json:"slots"`
 }
 
 // InterfaceAction represents an action performed on the interface system.
