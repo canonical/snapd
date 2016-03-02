@@ -471,7 +471,7 @@ func (r *Repository) Interfaces() *Interfaces {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	conns := &Interfaces{}
+	ifaces := &Interfaces{}
 	// Copy and flatten plugs and slots
 	for _, plugs := range r.plugs {
 		for _, plug := range plugs {
@@ -490,7 +490,7 @@ func (r *Repository) Interfaces() *Interfaces {
 				})
 			}
 			sort.Sort(bySlotRef(p.Connections))
-			conns.Plugs = append(conns.Plugs, p)
+			ifaces.Plugs = append(ifaces.Plugs, p)
 		}
 	}
 	for _, slots := range r.slots {
@@ -510,12 +510,12 @@ func (r *Repository) Interfaces() *Interfaces {
 				})
 			}
 			sort.Sort(byPlugRef(s.Connections))
-			conns.Slots = append(conns.Slots, s)
+			ifaces.Slots = append(ifaces.Slots, s)
 		}
 	}
-	sort.Sort(byPlugSnapAndName(conns.Plugs))
-	sort.Sort(bySlotSnapAndName(conns.Slots))
-	return conns
+	sort.Sort(byPlugSnapAndName(ifaces.Plugs))
+	sort.Sort(bySlotSnapAndName(ifaces.Slots))
+	return ifaces
 }
 
 // SecuritySnippetsForSnap collects all of the snippets of a given security

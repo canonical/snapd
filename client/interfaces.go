@@ -72,8 +72,8 @@ type InterfaceAction struct {
 }
 
 // Interfaces returns information about all the plugs, slots and their connections.
-func (client *Client) Interfaces() (connections Interfaces, err error) {
-	err = client.doSync("GET", "/2.0/interfaces", nil, nil, &connections)
+func (client *Client) Interfaces() (interfaces Interfaces, err error) {
+	err = client.doSync("GET", "/2.0/interfaces", nil, nil, &interfaces)
 	return
 }
 
