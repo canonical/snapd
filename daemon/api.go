@@ -919,7 +919,7 @@ func appIconGet(c *Command, r *http.Request) Response {
 	return iconGet(name, origin)
 }
 
-// getInterfaces returns a response with a list of all the plugs and slots and their connections.
+// getInterfaces returns all plugs and slots.
 func getInterfaces(c *Command, r *http.Request) Response {
 	return SyncResponse(c.d.interfaces.Interfaces())
 }
