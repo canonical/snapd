@@ -36,7 +36,7 @@ type modelSuite struct {
 
 var (
 	_ = Suite(&modelSuite{})
-	_ = Suite(&deviceSuite{})
+	_ = Suite(&serialSuite{})
 )
 
 func (mods *modelSuite) SetUpSuite(c *C) {
@@ -146,24 +146,24 @@ func (mods *modelSuite) TestModelCheckInconsistentTimestamp(c *C) {
 	c.Assert(err, ErrorMatches, "model assertion timestamp outside of signing key validity")
 }
 
-type deviceSuite struct {
+type serialSuite struct {
 	ts            time.Time
 	tsLine        string
 	deviceKey     asserts.PrivateKey
 	encodedDevKey string
 }
 
-func (devs *deviceSuite) SetUpSuite(c *C) {
-	devs.ts = time.Now().Truncate(time.Second).UTC()
-	devs.tsLine = "timestamp: " + devs.ts.Format(time.RFC3339) + "\n"
+func (sers *serialSuite) SetUpSuite(c *C) {
+	sers.ts = time.Now().Truncate(time.Second).UTC()
+	sers.tsLine = "timestamp: " + sers.ts.Format(time.RFC3339) + "\n"
 
-	devs.deviceKey = asserts.OpenPGPPrivateKey(testPrivKey2)
-	encodedPubKey, err := asserts.EncodePublicKey(devs.deviceKey.PublicKey())
+	sers.deviceKey = asserts.OpenPGPPrivateKey(testPrivKey2)
+	encodedPubKey, err := asserts.EncodePublicKey(sers.deviceKey.PublicKey())
 	c.Assert(err, IsNil)
-	devs.encodedDevKey = string(encodedPubKey)
+	sers.encodedDevKey = string(encodedPubKey)
 }
 
-const deviceExample = "type: device\n" +
+const serialExample = "type: serial\n" +
 	"authority-id: canonical\n" +
 	"brand-id: brand-id1\n" +
 	"model: baz-3000\n" +
@@ -175,40 +175,40 @@ const deviceExample = "type: device\n" +
 	"\n\n" +
 	"openpgp c2ln"
 
-func (devs *deviceSuite) TestDecodeOK(c *C) {
-	encoded := strings.Replace(deviceExample, "TSLINE", devs.tsLine, 1)
-	encoded = strings.Replace(encoded, "DEVICEKEY", strings.Replace(devs.encodedDevKey, "\n", "\n ", -1), 1)
+func (sers *serialSuite) TestDecodeOK(c *C) {
+	encoded := strings.Replace(serialExample, "TSLINE", sers.tsLine, 1)
+	encoded = strings.Replace(encoded, "DEVICEKEY", strings.Replace(sers.encodedDevKey, "\n", "\n ", -1), 1)
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
-	c.Check(a.Type(), Equals, asserts.DeviceType)
-	device := a.(*asserts.Device)
-	c.Check(device.AuthorityID(), Equals, "canonical")
-	c.Check(device.Timestamp(), Equals, devs.ts)
-	c.Check(device.BrandID(), Equals, "brand-id1")
-	c.Check(device.Model(), Equals, "baz-3000")
-	c.Check(device.Serial(), Equals, "2700")
-	c.Check(device.DeviceKey().Fingerprint(), Equals, devs.deviceKey.PublicKey().Fingerprint())
+	c.Check(a.Type(), Equals, asserts.SerialType)
+	serial := a.(*asserts.Serial)
+	c.Check(serial.AuthorityID(), Equals, "canonical")
+	c.Check(serial.Timestamp(), Equals, sers.ts)
+	c.Check(serial.BrandID(), Equals, "brand-id1")
+	c.Check(serial.Model(), Equals, "baz-3000")
+	c.Check(serial.Serial(), Equals, "2700")
+	c.Check(serial.DeviceKey().Fingerprint(), Equals, sers.deviceKey.PublicKey().Fingerprint())
 }
 
 const (
-	deviceErrPrefix = "assertion device: "
+	serialErrPrefix = "assertion serial: "
 )
 
-func (devs *deviceSuite) TestDecodeInvalid(c *C) {
-	encoded := strings.Replace(deviceExample, "TSLINE", devs.tsLine, 1)
+func (sers *serialSuite) TestDecodeInvalid(c *C) {
+	encoded := strings.Replace(serialExample, "TSLINE", sers.tsLine, 1)
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"serial: 2700\n", "", `"serial" header is mandatory`},
 		{"device-key:\n DEVICEKEY\n", "", `"device-key" header is mandatory`},
 		{"device-key:\n DEVICEKEY\n", "device-key: openpgp ZZZ\n", `public key: could not decode base64 data:.*`},
-		{devs.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
+		{sers.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
 	}
 
 	for _, test := range invalidTests {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
-		invalid = strings.Replace(invalid, "DEVICEKEY", strings.Replace(devs.encodedDevKey, "\n", "\n ", -1), 1)
+		invalid = strings.Replace(invalid, "DEVICEKEY", strings.Replace(sers.encodedDevKey, "\n", "\n ", -1), 1)
 
 		_, err := asserts.Decode([]byte(invalid))
-		c.Check(err, ErrorMatches, deviceErrPrefix+test.expectedErr)
+		c.Check(err, ErrorMatches, serialErrPrefix+test.expectedErr)
 	}
 }

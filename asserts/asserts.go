@@ -48,7 +48,7 @@ var (
 	IdentityType   = &AssertionType{"identity", []string{"account-id"}, assembleIdentity}
 	// XXX: is series actually part of the primary key?
 	ModelType           = &AssertionType{"model", []string{"brand-id", "model", "series"}, assembleModel}
-	DeviceType          = &AssertionType{"device", []string{"brand-id", "model", "serial"}, assembleDevice}
+	SerialType          = &AssertionType{"serial", []string{"brand-id", "model", "serial"}, assembleSerial}
 	SnapDeclarationType = &AssertionType{"snap-declaration", []string{"series", "snap-id"}, assembleSnapDeclaration}
 	SnapBuildType       = &AssertionType{"snap-build", []string{"snap-id", "snap-digest"}, assembleSnapBuild}
 	SnapRevisionType    = &AssertionType{"snap-revision", []string{"snap-id", "snap-digest"}, assembleSnapRevision}
@@ -60,7 +60,7 @@ var typeRegistry = map[string]*AssertionType{
 	AccountKeyType.Name:      AccountKeyType,
 	IdentityType.Name:        IdentityType,
 	ModelType.Name:           ModelType,
-	DeviceType.Name:          DeviceType,
+	SerialType.Name:          SerialType,
 	SnapDeclarationType.Name: SnapDeclarationType,
 	SnapBuildType.Name:       SnapBuildType,
 	SnapRevisionType.Name:    SnapRevisionType,

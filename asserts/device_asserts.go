@@ -142,42 +142,42 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 	}, nil
 }
 
-// Device holds a device assertion, which is a statement binding
-// a device identity with the device public key.
-type Device struct {
+// Serial holds a serial assertion, which is a statement binding a device
+// identity with the device public key.
+type Serial struct {
 	assertionBase
 	timestamp time.Time
 	pubKey    PublicKey
 }
 
 // BrandID returns the brand identifier of the device.
-func (dev *Device) BrandID() string {
-	return dev.Header("brand-id")
+func (ser *Serial) BrandID() string {
+	return ser.Header("brand-id")
 }
 
 // Model returns the model name identifier of the device.
-func (dev *Device) Model() string {
-	return dev.Header("model")
+func (ser *Serial) Model() string {
+	return ser.Header("model")
 }
 
 // Serial returns the serial of the device, together with brand id and model they form the unique identifier of the device.
-func (dev *Device) Serial() string {
-	return dev.Header("serial")
+func (ser *Serial) Serial() string {
+	return ser.Header("serial")
 }
 
 // DeviceKey returns the public key of the device.
-func (dev *Device) DeviceKey() PublicKey {
-	return dev.pubKey
+func (ser *Serial) DeviceKey() PublicKey {
+	return ser.pubKey
 }
 
-// Timestamp returns the time when the device assertion was issued.
-func (dev *Device) Timestamp() time.Time {
-	return dev.timestamp
+// Timestamp returns the time when the serial assertion was issued.
+func (ser *Serial) Timestamp() time.Time {
+	return ser.timestamp
 }
 
-// TODO: implement further consistency checks for Device but first review approach
+// TODO: implement further consistency checks for Serial but first review approach
 
-func assembleDevice(assert assertionBase) (Assertion, error) {
+func assembleSerial(assert assertionBase) (Assertion, error) {
 	// TODO: authority-id can only == canonical or brand-id
 
 	encodedKey, err := checkMandatory(assert.headers, "device-key")
@@ -195,7 +195,7 @@ func assembleDevice(assert assertionBase) (Assertion, error) {
 	}
 
 	// ignore extra headers and non-empty body for future compatibility
-	return &Device{
+	return &Serial{
 		assertionBase: assert,
 		timestamp:     timestamp,
 		pubKey:        pubKey,
