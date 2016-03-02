@@ -59,7 +59,7 @@ type SlotRef struct {
 	Name string `json:"slot"`
 }
 
-// Interfaces contains information about all plugs, slots and their connections
+// Interfaces holds information about a list of plugs and slots, and their connections.
 type Interfaces struct {
 	Plugs []*Plug `json:"plugs"`
 	Slots []*Slot `json:"slots"`
