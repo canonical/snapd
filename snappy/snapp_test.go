@@ -832,16 +832,6 @@ apps:
 	c.Assert(apps["svc1"].Name, Equals, "svc1")
 	c.Assert(apps["svc1"].Description, Equals, "Service #1")
 
-	external1Ui, ok := apps["svc1"].Ports.External["ui"]
-	c.Assert(ok, Equals, true)
-	c.Assert(external1Ui.Port, Equals, "8080/tcp")
-	c.Assert(external1Ui.Negotiable, Equals, false)
-
-	external1Nothing, ok := apps["svc1"].Ports.External["nothing"]
-	c.Assert(ok, Equals, true)
-	c.Assert(external1Nothing.Port, Equals, "8081/tcp")
-	c.Assert(external1Nothing.Negotiable, Equals, true)
-
 	c.Assert(apps["svc2"].Name, Equals, "svc2")
 	c.Assert(apps["svc2"].Description, Equals, "Service #2")
 
