@@ -114,13 +114,17 @@ func (cs *clientSuite) TestClientConnect(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"action": "connect",
-		"plug": map[string]interface{}{
-			"snap": "producer",
-			"plug": "plug",
+		"plugs": []interface{}{
+			map[string]interface{}{
+				"snap": "producer",
+				"plug": "plug",
+			},
 		},
-		"slot": map[string]interface{}{
-			"snap": "consumer",
-			"slot": "slot",
+		"slots": []interface{}{
+			map[string]interface{}{
+				"snap": "consumer",
+				"slot": "slot",
+			},
 		},
 	})
 }
@@ -144,13 +148,17 @@ func (cs *clientSuite) TestClientDisconnect(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"action": "disconnect",
-		"plug": map[string]interface{}{
-			"snap": "producer",
-			"plug": "plug",
+		"plugs": []interface{}{
+			map[string]interface{}{
+				"snap": "producer",
+				"plug": "plug",
+			},
 		},
-		"slot": map[string]interface{}{
-			"snap": "consumer",
-			"slot": "slot",
+		"slots": []interface{}{
+			map[string]interface{}{
+				"snap": "consumer",
+				"slot": "slot",
+			},
 		},
 	})
 }
@@ -183,15 +191,17 @@ func (cs *clientSuite) TestClientAddPlug(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"action": "add-plug",
-		"plug": map[string]interface{}{
-			"snap":      "snap",
-			"plug":      "plug",
-			"interface": "interface",
-			"attrs": map[string]interface{}{
-				"attr": "value",
+		"plugs": []interface{}{
+			map[string]interface{}{
+				"snap":      "snap",
+				"plug":      "plug",
+				"interface": "interface",
+				"attrs": map[string]interface{}{
+					"attr": "value",
+				},
+				"apps":  []interface{}{"app"},
+				"label": "label",
 			},
-			"apps":  []interface{}{"app"},
-			"label": "label",
 		},
 	})
 }
@@ -215,9 +225,11 @@ func (cs *clientSuite) TestClientRemovePlug(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"action": "remove-plug",
-		"plug": map[string]interface{}{
-			"snap": "snap",
-			"plug": "plug",
+		"plugs": []interface{}{
+			map[string]interface{}{
+				"snap": "snap",
+				"plug": "plug",
+			},
 		},
 	})
 }
@@ -250,15 +262,17 @@ func (cs *clientSuite) TestClientAddSlot(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"action": "add-slot",
-		"slot": map[string]interface{}{
-			"snap":      "snap",
-			"slot":      "slot",
-			"interface": "interface",
-			"attrs": map[string]interface{}{
-				"attr": "value",
+		"slots": []interface{}{
+			map[string]interface{}{
+				"snap":      "snap",
+				"slot":      "slot",
+				"interface": "interface",
+				"attrs": map[string]interface{}{
+					"attr": "value",
+				},
+				"apps":  []interface{}{"app"},
+				"label": "label",
 			},
-			"apps":  []interface{}{"app"},
-			"label": "label",
 		},
 	})
 }
@@ -282,9 +296,11 @@ func (cs *clientSuite) TestClientRemoveSlot(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"action": "remove-slot",
-		"slot": map[string]interface{}{
-			"snap": "snap",
-			"slot": "slot",
+		"slots": []interface{}{
+			map[string]interface{}{
+				"snap": "snap",
+				"slot": "slot",
+			},
 		},
 	})
 }
