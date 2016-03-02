@@ -507,17 +507,11 @@ func (r *Repository) Interfaces() *Interfaces {
 		for _, plug := range plugs {
 			// Copy part of the data explicitly, leaving out attrs and apps.
 			p := &Plug{
-				Name:      plug.Name,
-				Snap:      plug.Snap,
-				Interface: plug.Interface,
-				Label:     plug.Label,
-			}
-			// Add connection details
-			for slot := range r.plugSlots[plug] {
-				p.Connections = append(p.Connections, SlotRef{
-					Name: slot.Name,
-					Snap: slot.Snap,
-				})
+				Name:        plug.Name,
+				Snap:        plug.Snap,
+				Interface:   plug.Interface,
+				Label:       plug.Label,
+				Connections: plug.Connections[:],
 			}
 			sort.Sort(bySlotRef(p.Connections))
 			ifaces.Plugs = append(ifaces.Plugs, p)
@@ -527,17 +521,11 @@ func (r *Repository) Interfaces() *Interfaces {
 		for _, slot := range slots {
 			// Copy part of the data explicitly, leaving out attrs and apps.
 			s := &Slot{
-				Name:      slot.Name,
-				Snap:      slot.Snap,
-				Interface: slot.Interface,
-				Label:     slot.Label,
-			}
-			// Add connection details
-			for plug := range r.slotPlugs[slot] {
-				s.Connections = append(s.Connections, PlugRef{
-					Name: plug.Name,
-					Snap: plug.Snap,
-				})
+				Name:        slot.Name,
+				Snap:        slot.Snap,
+				Interface:   slot.Interface,
+				Label:       slot.Label,
+				Connections: slot.Connections[:],
 			}
 			sort.Sort(byPlugRef(s.Connections))
 			ifaces.Slots = append(ifaces.Slots, s)
