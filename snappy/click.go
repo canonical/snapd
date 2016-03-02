@@ -273,8 +273,6 @@ func generateSnapSocketFile(app *AppYaml, baseDir string, aaProfile string, m *s
 			ServiceFileName: serviceFileName,
 			ListenStream:    app.ListenStream,
 			SocketMode:      app.SocketMode,
-			SocketUser:      app.SocketUser,
-			SocketGroup:     app.SocketGroup,
 		}), nil
 }
 

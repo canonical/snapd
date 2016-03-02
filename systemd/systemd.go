@@ -173,8 +173,6 @@ type ServiceDescription struct {
 	SocketFileName  string
 	ListenStream    string
 	SocketMode      string
-	SocketUser      string
-	SocketGroup     string
 	ServiceFileName string
 }
 
@@ -439,8 +437,6 @@ X-Snappy=yes
 [Socket]
 ListenStream={{.ListenStream}}
 {{if .SocketMode}}SocketMode={{.SocketMode}}{{end}}
-{{if .SocketUser}}SocketUser={{.SocketUser}}{{end}}
-{{if .SocketGroup}}SocketGroup={{.SocketGroup}}{{end}}
 
 [Install]
 WantedBy={{.SocketSystemdTarget}}
@@ -455,16 +451,12 @@ WantedBy={{.SocketSystemdTarget}}
 		ServiceFileName,
 		ListenStream string
 		SocketMode          string
-		SocketUser          string
-		SocketGroup         string
 		SocketSystemdTarget string
 	}{
 		*desc,
 		desc.ServiceFileName,
 		desc.ListenStream,
 		desc.SocketMode,
-		desc.SocketUser,
-		desc.SocketGroup,
 		socketsSystemdTarget,
 	}
 

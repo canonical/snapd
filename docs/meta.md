@@ -67,14 +67,6 @@ The following keys are optional:
                 typically be followed by either the snap package name or the
                 snap package name followed by '\_' and any other characters
                 (eg, '@name' or '@name\_something').
-    * `socket-user`: (optional) The user that owns the stream socket. The user
-                     should normally match the snap package name. Must be
-                     specified with `listen-stream`. This option is reserved
-                     for future use.
-    * `socket-group`: (optional) The group that own the stream socket. The
-                      group should normally match the snap package name. Must
-                      be specified with `listen-stream`. This option is
-                      reserved for future use.
 
 * `uses`: a map of names and skills
 
