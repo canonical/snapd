@@ -54,10 +54,6 @@ proceeds as above.
 
 Help Options:
   -h, --help               Show this help message
-
-[connect command arguments]
-  <snap>:<plug>
-  <snap>:<slot>
 `
 	rest, err := Parser().ParseArgs([]string{"connect", "--help"})
 	c.Assert(err.Error(), Equals, msg)
