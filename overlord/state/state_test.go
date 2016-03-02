@@ -21,7 +21,9 @@ package state_test
 
 import (
 	"bytes"
+	"errors"
 	"testing"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -46,8 +48,36 @@ type mgrState2 struct {
 	C *Count2
 }
 
+func (ss *stateSuite) TestLockUnlock(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	st.Unlock()
+}
+
+func (ss *stateSuite) TestSetNeedsLocked(c *C) {
+	st := state.New(nil)
+	mSt1 := &mgrState1{A: "foo"}
+
+	c.Assert(func() { st.Set("mgr1", mSt1) }, PanicMatches, "internal error: accessing state without lock")
+
+	st.Lock()
+	defer st.Unlock()
+	// fine
+	st.Set("mgr1", mSt1)
+}
+
+func (ss *stateSuite) TestGetNeedsLocked(c *C) {
+	st := state.New(nil)
+
+	var v int
+	c.Assert(func() { st.Get("foo", &v) }, PanicMatches, "internal error: accessing state without lock")
+}
+
 func (ss *stateSuite) TestGetAndSet(c *C) {
 	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
 	mSt1 := &mgrState1{A: "foo"}
 	st.Set("mgr1", mSt1)
 	mSt2 := &mgrState2{C: &Count2{B: 42}}
@@ -66,6 +96,9 @@ func (ss *stateSuite) TestGetAndSet(c *C) {
 
 func (ss *stateSuite) TestSetPanic(c *C) {
 	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
 	unsupported := struct {
 		Ch chan bool
 	}{}
@@ -74,6 +107,8 @@ func (ss *stateSuite) TestSetPanic(c *C) {
 
 func (ss *stateSuite) TestGetNoState(c *C) {
 	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
 
 	var mSt1B mgrState1
 	err := st.Get("mgr9", &mSt1B)
@@ -82,6 +117,9 @@ func (ss *stateSuite) TestGetNoState(c *C) {
 
 func (ss *stateSuite) TestGetUnmarshalProblem(c *C) {
 	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
 	mismatched := struct {
 		A int
 	}{A: 22}
@@ -92,22 +130,43 @@ func (ss *stateSuite) TestGetUnmarshalProblem(c *C) {
 	c.Check(err, ErrorMatches, `internal error: could not unmarshal state entry "mgr9": json: cannot unmarshal .*`)
 }
 
-func (ss *stateSuite) TestWriteAndRead(c *C) {
-	st := state.New(nil)
+type fakeStateBackend struct {
+	checkpoints [][]byte
+	error       func() error
+}
+
+func (b *fakeStateBackend) Checkpoint(data []byte) error {
+	b.checkpoints = append(b.checkpoints, data)
+	if b.error != nil {
+		return b.error()
+	}
+	return nil
+}
+
+func (ss *stateSuite) TestImplicitCheckpointAndRead(c *C) {
+	b := new(fakeStateBackend)
+	st := state.New(b)
+	st.Lock()
+
 	st.Set("v", 1)
 	mSt1 := &mgrState1{A: "foo"}
 	st.Set("mgr1", mSt1)
 	mSt2 := &mgrState2{C: &Count2{B: 42}}
 	st.Set("mgr2", mSt2)
 
-	buf := new(bytes.Buffer)
+	// implicit checkpoint
+	st.Unlock()
 
-	err := state.WriteState(st, buf)
-	c.Assert(err, IsNil)
+	c.Assert(b.checkpoints, HasLen, 1)
+
+	buf := bytes.NewBuffer(b.checkpoints[0])
 
 	st2, err := state.ReadState(nil, buf)
 	c.Assert(err, IsNil)
 	c.Assert(st2, NotNil)
+
+	st2.Lock()
+	defer st2.Unlock()
 
 	var v int
 	err = st2.Get("v", &v)
@@ -123,4 +182,55 @@ func (ss *stateSuite) TestWriteAndRead(c *C) {
 	err = st2.Get("mgr2", &mSt2B)
 	c.Assert(err, IsNil)
 	c.Check(&mSt2B, DeepEquals, mSt2)
+}
+
+func (ss *stateSuite) TestImplicitCheckpointRetry(c *C) {
+	prevInterval, prevMaxTime := state.ChangeUnlockCheckpointRetryParamsForTest(
+		2*time.Millisecond,
+		1*time.Second,
+	)
+	defer state.ChangeUnlockCheckpointRetryParamsForTest(prevInterval, prevMaxTime)
+
+	retries := 0
+	boom := errors.New("boom")
+	error := func() error {
+		retries++
+		if retries == 2 {
+			return nil
+		}
+		return boom
+	}
+	b := &fakeStateBackend{error: error}
+	st := state.New(b)
+	st.Lock()
+
+	// implicit checkpoint will retry
+	st.Unlock()
+
+	c.Check(retries, Equals, 2)
+}
+
+func (ss *stateSuite) TestImplicitCheckpointPanicsAfterFailedRetries(c *C) {
+	prevInterval, prevMaxTime := state.ChangeUnlockCheckpointRetryParamsForTest(
+		2*time.Millisecond,
+		10*time.Millisecond,
+	)
+	defer state.ChangeUnlockCheckpointRetryParamsForTest(prevInterval, prevMaxTime)
+
+	boom := errors.New("boom")
+	retries := 0
+	error := func() error {
+		retries++
+		return boom
+	}
+	b := &fakeStateBackend{error: error}
+	st := state.New(b)
+	st.Lock()
+
+	// implicit checkpoint will panic after all failed retries
+	t0 := time.Now()
+	c.Check(func() { st.Unlock() }, PanicMatches, "cannot checkpoint even after 10ms of retries every 2ms: boom")
+	// we did at least a couple
+	c.Check(retries > 2, Equals, true)
+	c.Check(time.Since(t0) > 10*time.Millisecond, Equals, true)
 }
