@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,25 +17,17 @@
  *
  */
 
-package snappy
+package state
 
 import (
-	. "gopkg.in/check.v1"
+	"time"
 )
 
-type snapYamlTestSuite struct {
-}
-
-var _ = Suite(&snapYamlTestSuite{})
-
-func (s *snapYamlTestSuite) TestParseYamlSetsTypeInUsesFromName(c *C) {
-	snapYaml := []byte(`name: foo
-version: 1.0
-slots:
- old-security:
-  caps: []
-`)
-	sy, err := parseSnapYamlData(snapYaml, false)
-	c.Assert(err, IsNil)
-	sy.Slots["old-security"].Interface = "old-security"
+// ChangeUnlockCheckpointRetryParamsForTest let's a test change unlockcheckpointRetryInterval and unlockCheckpointRetryMaxTime.
+func ChangeUnlockCheckpointRetryParamsForTest(newInterval, newMaxTime time.Duration) (oldInterval, oldMaxTime time.Duration) {
+	oldInterval = unlockCheckpointRetryInterval
+	oldMaxTime = unlockCheckpointRetryMaxTime
+	unlockCheckpointRetryInterval = newInterval
+	unlockCheckpointRetryMaxTime = newMaxTime
+	return
 }
