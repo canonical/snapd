@@ -483,16 +483,43 @@ func removePackageBinaries(m *snapYaml, baseDir string) error {
 	return nil
 }
 
+// this is a bit confusing, a localestring in xdg is:
+// "key=value" or "key[locale]=" with locale as:
+//  lang_COUNTRY@MODFIER (or a subset of this)
+var desktopFileI18nPattern = `(|\[[a-zA-Z_@]+\])`
+var validDesktopFileLines = []*regexp.Regexp{
+	// headers
+	regexp.MustCompile(`^\[Desktop Entry\]$`),
+	regexp.MustCompile(`^\[Desktop Action`),
+	// whitespace lines
+	regexp.MustCompile(`^\s*$`),
+	// lines with comments
+	regexp.MustCompile(`^\s*#`),
+	// https://specifications.freedesktop.org/desktop-entry-spec/latest/ar01s05.html
+	regexp.MustCompile(`^Type=`),
+	regexp.MustCompile(`^Version=`),
+	regexp.MustCompile(fmt.Sprintf(`^Name%s=`, desktopFileI18nPattern)),
+	regexp.MustCompile(fmt.Sprintf(`^GenericName%s=`, desktopFileI18nPattern)),
+	regexp.MustCompile(`^NoDisplay=`),
+	regexp.MustCompile(fmt.Sprintf(`^Comment%s=`, desktopFileI18nPattern)),
+	regexp.MustCompile(`^Icon=`),
+	regexp.MustCompile(`^Hidden=`),
+	regexp.MustCompile(`^OnlyShowIn=`),
+	regexp.MustCompile(`^NotShowIn=`),
+	regexp.MustCompile(`^Exec=`),
+	regexp.MustCompile(`^TryExec=`),
+	regexp.MustCompile(`^Terminal=`),
+	regexp.MustCompile(`^Actions=`),
+	regexp.MustCompile(`^MimeType=`),
+	regexp.MustCompile(`^Categories=`),
+	regexp.MustCompile(fmt.Sprintf(`^Keywords%s=`, desktopFileI18nPattern)),
+	regexp.MustCompile(`^StartupNotify=`),
+	regexp.MustCompile(`^StartupWMClass`),
+}
+
 func isValidDesktopFilePrefix(line string) bool {
-	validPrefixes := []string{
-		"[Desktop Entry]", "[Desktop Action",
-		"Name=", "Version=", "Terminal=", "Icon=", "Type=",
-		"Categories=", "MimeType=", "GenericName=", "Comment=",
-		"StartupNotify=", "Keywords=", "StartupWMClass",
-		"Exec=", "TryExec=",
-	}
-	for _, prefix := range validPrefixes {
-		if strings.HasPrefix(line, prefix) {
+	for _, re := range validDesktopFileLines {
+		if re.MatchString(line) {
 			return true
 		}
 	}
@@ -522,12 +549,6 @@ func sanitizeDesktopFile(m *snapYaml, realBaseDir string, rawcontent []byte) []b
 	scanner := bufio.NewScanner(bytes.NewReader(rawcontent))
 	for scanner.Scan() {
 		line := scanner.Text()
-
-		// empty of whitespace is used verbatim
-		if strings.TrimSpace(line) == "" || strings.HasPrefix(line, "#") {
-			newContent = append(newContent, line)
-			continue
-		}
 		// ignore everything we have not whitelisted
 		if !isValidDesktopFilePrefix(line) {
 			continue

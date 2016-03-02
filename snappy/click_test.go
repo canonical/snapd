@@ -1357,3 +1357,20 @@ TryExec=snap.app %U
 Name=foo
 TryExec=snap.app %U`)
 }
+
+func (s *SnapTestSuite) TestDesktopFileSanitizeWorthWithI18n(c *C) {
+	m := &snapYaml{}
+	desktopContent := []byte(`[Desktop Entry]
+Name=foo
+GenericName=bar
+GenericName[de]=einsehrlangeszusammengesetzteswort
+Invalid=key
+Invalid[i18n]=key
+`)
+
+	e := sanitizeDesktopFile(m, "/my/basedir", desktopContent)
+	c.Assert(string(e), Equals, `[Desktop Entry]
+Name=foo
+GenericName=bar
+GenericName[de]=einsehrlangeszusammengesetzteswort`)
+}
