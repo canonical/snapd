@@ -1277,3 +1277,20 @@ Icon=/snaps/foo.%s/1.0/foo.png`, testOrigin))
 	c.Assert(err, IsNil)
 	c.Assert(helpers.FileExists(mockDesktopFilePath), Equals, false)
 }
+
+func (s *SnapTestSuite) TestDesktopFileSanitizeIgnoreNotWhitelisted(c *C) {
+	d := []byte(`[Desktop Entry]
+Name=foo
+UnknownKey=baz
+nonsense
+Icon=${SNAP}/meep
+
+# the empty line above is fine`)
+
+	e := sanitizeDesktopFile(d, "/my/basedir")
+	c.Assert(string(e), Equals, `[Desktop Entry]
+Name=foo
+Icon=/my/basedir/meep
+
+# the empty line above is fine`)
+}

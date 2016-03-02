@@ -483,13 +483,41 @@ func removePackageBinaries(m *snapYaml, baseDir string) error {
 	return nil
 }
 
+func isValidDesktopFilePrefix(line string) bool {
+	validPrefixes := []string{
+		"[Desktop Entry]", "[Desktop Action",
+		"Name=", "Version=", "Terminal=", "Icon=", "Type=",
+		"Categories=", "MimeType=", "GenericName=", "Comment=",
+		"StartupNotify=", "Keywords=", "StartupWMClass",
+	}
+	for _, prefix := range validPrefixes {
+		if strings.HasPrefix(line, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
 func sanitizeDesktopFile(rawcontent []byte, realBaseDir string) []byte {
 	newContent := []string{}
 
 	scanner := bufio.NewScanner(bytes.NewReader(rawcontent))
 	for scanner.Scan() {
-		l := strings.Replace(scanner.Text(), "${SNAP}", realBaseDir, -1)
-		newContent = append(newContent, l)
+		line := scanner.Text()
+
+		// empty of whitespace is used verbatim
+		if strings.TrimSpace(line) == "" || strings.HasPrefix(line, "#") {
+			newContent = append(newContent, line)
+			continue
+		}
+		// ignore everything we have not whitelisted
+		if !isValidDesktopFilePrefix(line) {
+			continue
+		}
+
+		// do variable substitution
+		line = strings.Replace(line, "${SNAP}", realBaseDir, -1)
+		newContent = append(newContent, line)
 	}
 
 	return []byte(strings.Join(newContent, "\n"))
