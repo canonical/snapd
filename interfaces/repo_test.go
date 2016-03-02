@@ -40,25 +40,25 @@ var _ = Suite(&RepositorySuite{
 	iface: &TestInterface{
 		InterfaceName: "interface",
 	},
-	plug: &Plug{
+})
+
+func (s *RepositorySuite) SetUpTest(c *C) {
+	s.plug = &Plug{
 		Snap:      "provider",
 		Name:      "plug",
 		Interface: "interface",
 		Label:     "label",
 		Attrs:     map[string]interface{}{"attr": "value"},
 		Apps:      []string{"meta/hooks/plug"},
-	},
-	slot: &Slot{
+	}
+	s.slot = &Slot{
 		Snap:      "consumer",
 		Name:      "slot",
 		Interface: "interface",
 		Label:     "label",
 		Attrs:     map[string]interface{}{"attr": "value"},
 		Apps:      []string{"app"},
-	},
-})
-
-func (s *RepositorySuite) SetUpTest(c *C) {
+	}
 	s.emptyRepo = NewRepository()
 	s.testRepo = NewRepository()
 	err := s.testRepo.AddInterface(s.iface)
