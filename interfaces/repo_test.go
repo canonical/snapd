@@ -796,6 +796,71 @@ func (s *RepositorySuite) TestPlugConnectionsReturnsCorrectData(c *C) {
 	c.Assert(s.testRepo.PlugConnections(s.plug.Snap, s.plug.Name), HasLen, 0)
 }
 
+// Tests for Repository.Interfaces()
+
+func (s *RepositorySuite) TestInterfacesSmokeTest(c *C) {
+	err := s.testRepo.AddPlug(s.plug)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSlot(s.slot)
+	c.Assert(err, IsNil)
+	// After connecting the result is as expected
+	err = s.testRepo.Connect(s.plug.Snap, s.plug.Name, s.slot.Snap, s.slot.Name)
+	c.Assert(err, IsNil)
+	ifaces := s.testRepo.Interfaces()
+	c.Assert(ifaces, DeepEquals, &Interfaces{
+		Plugs: []*Plug{
+			&Plug{
+				Name:      s.plug.Name,
+				Snap:      s.plug.Snap,
+				Interface: s.plug.Interface,
+				Label:     s.plug.Label,
+				Connections: []SlotRef{
+					{
+						Snap: s.slot.Snap,
+						Name: s.slot.Name,
+					},
+				},
+			},
+		},
+		Slots: []*Slot{
+			&Slot{
+				Snap:      s.slot.Snap,
+				Name:      s.slot.Name,
+				Interface: s.slot.Interface,
+				Label:     s.slot.Label,
+				Connections: []PlugRef{
+					{
+						Snap: s.plug.Snap,
+						Name: s.plug.Name,
+					},
+				},
+			},
+		},
+	})
+	// After disconnecting the connections become empty
+	err = s.testRepo.Disconnect(s.plug.Snap, s.plug.Name, s.slot.Snap, s.slot.Name)
+	c.Assert(err, IsNil)
+	ifaces = s.testRepo.Interfaces()
+	c.Assert(ifaces, DeepEquals, &Interfaces{
+		Plugs: []*Plug{
+			&Plug{
+				Name:      s.plug.Name,
+				Snap:      s.plug.Snap,
+				Interface: s.plug.Interface,
+				Label:     s.plug.Label,
+			},
+		},
+		Slots: []*Slot{
+			&Slot{
+				Snap:      s.slot.Snap,
+				Name:      s.slot.Name,
+				Interface: s.slot.Interface,
+				Label:     s.slot.Label,
+			},
+		},
+	})
+}
+
 // Tests for Repository.SecuritySnippetsForSnap()
 
 func (s *RepositorySuite) TestSlotSnippetsForSnapSuccess(c *C) {
