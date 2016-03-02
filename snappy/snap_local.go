@@ -426,18 +426,18 @@ func (s *SnapPart) CanInstall(allowGadget bool, inter interacter) error {
 func (s *SnapPart) RequestSecurityPolicyUpdate(policies, templates map[string]bool) error {
 	var foundError error
 	for name, app := range s.Apps() {
-		skill, err := findSkillForApp(s.m, app)
+		slot, err := findSlotForApp(s.m, app)
 		if err != nil {
-			logger.Noticef("Failed to find skill for %s: %v", name, err)
+			logger.Noticef("Failed to find slot for %s: %v", name, err)
 			foundError = err
 			continue
 		}
-		if skill == nil {
+		if slot == nil {
 			continue
 		}
 
-		if skill.NeedsAppArmorUpdate(policies, templates) {
-			err := skill.generatePolicyForServiceBinary(s.m, name, s.basedir)
+		if slot.NeedsAppArmorUpdate(policies, templates) {
+			err := slot.generatePolicyForServiceBinary(s.m, name, s.basedir)
 			if err != nil {
 				logger.Noticef("Failed to regenerate policy for %s: %v", name, err)
 				foundError = err

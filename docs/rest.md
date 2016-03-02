@@ -622,7 +622,7 @@ returned assertions, 0 or more.
 * Description: Get all the plugs and information about the slots connected to them.
 * Access: authenticated
 * Operation: sync
-* Return: array of plugs containing array of slots using each skill.
+* Return: array of plugs containing array of slots using each interface.
 
 Sample result:
 
