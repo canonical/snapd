@@ -1279,7 +1279,8 @@ Icon=/snaps/foo.%s/1.0/foo.png`, testOrigin))
 }
 
 func (s *SnapTestSuite) TestDesktopFileSanitizeIgnoreNotWhitelisted(c *C) {
-	d := []byte(`[Desktop Entry]
+	m := &snapYaml{}
+	desktopContent := []byte(`[Desktop Entry]
 Name=foo
 UnknownKey=baz
 nonsense
@@ -1287,10 +1288,72 @@ Icon=${SNAP}/meep
 
 # the empty line above is fine`)
 
-	e := sanitizeDesktopFile(d, "/my/basedir")
+	e := sanitizeDesktopFile(m, "/my/basedir", desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Entry]
 Name=foo
 Icon=/my/basedir/meep
 
 # the empty line above is fine`)
+}
+
+func (s *SnapTestSuite) TestDesktopFileSanitizeFiltersExec(c *C) {
+	m, err := parseSnapYamlData([]byte(`
+name: snap
+version: 1.0
+apps:
+ app:
+  command: cmd
+`), false)
+	c.Assert(err, IsNil)
+	desktopContent := []byte(`[Desktop Entry]
+Name=foo
+Exec=baz
+TryExec=meep
+`)
+
+	e := sanitizeDesktopFile(m, "/my/basedir", desktopContent)
+	c.Assert(string(e), Equals, `[Desktop Entry]
+Name=foo`)
+}
+
+func (s *SnapTestSuite) TestDesktopFileSanitizeFiltersExecOk(c *C) {
+	m, err := parseSnapYamlData([]byte(`
+name: snap
+version: 1.0
+apps:
+ app:
+  command: cmd
+`), false)
+	c.Assert(err, IsNil)
+	desktopContent := []byte(`[Desktop Entry]
+Name=foo
+Exec=snap.app
+TryExec=meep
+`)
+
+	e := sanitizeDesktopFile(m, "/my/basedir", desktopContent)
+	c.Assert(string(e), Equals, `[Desktop Entry]
+Name=foo
+Exec=snap.app`)
+}
+
+func (s *SnapTestSuite) TestDesktopFileSanitizeFiltersTryExecOk(c *C) {
+	m, err := parseSnapYamlData([]byte(`
+name: snap
+version: 1.0
+apps:
+ app:
+  command: cmd
+`), false)
+	c.Assert(err, IsNil)
+	desktopContent := []byte(`[Desktop Entry]
+Name=foo
+Exec=invalid
+TryExec=snap.app
+`)
+
+	e := sanitizeDesktopFile(m, "/my/basedir", desktopContent)
+	c.Assert(string(e), Equals, `[Desktop Entry]
+Name=foo
+TryExec=snap.app`)
 }

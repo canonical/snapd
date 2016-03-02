@@ -489,6 +489,7 @@ func isValidDesktopFilePrefix(line string) bool {
 		"Name=", "Version=", "Terminal=", "Icon=", "Type=",
 		"Categories=", "MimeType=", "GenericName=", "Comment=",
 		"StartupNotify=", "Keywords=", "StartupWMClass",
+		"Exec=", "TryExec=",
 	}
 	for _, prefix := range validPrefixes {
 		if strings.HasPrefix(line, prefix) {
@@ -498,7 +499,22 @@ func isValidDesktopFilePrefix(line string) bool {
 	return false
 }
 
-func sanitizeDesktopFile(rawcontent []byte, realBaseDir string) []byte {
+func validExecLine(m *snapYaml, line string) bool {
+	if !strings.HasPrefix(line, "Exec=") && !strings.HasPrefix(line, "TryExec=") {
+		return true
+	}
+	cmd := strings.SplitN(line, "=", 2)[1]
+	for _, app := range m.Apps {
+		validCmd := filepath.Base(generateBinaryName(m, app))
+		if validCmd == cmd {
+			return true
+		}
+	}
+
+	return false
+}
+
+func sanitizeDesktopFile(m *snapYaml, realBaseDir string, rawcontent []byte) []byte {
 	newContent := []string{}
 
 	scanner := bufio.NewScanner(bytes.NewReader(rawcontent))
@@ -512,6 +528,9 @@ func sanitizeDesktopFile(rawcontent []byte, realBaseDir string) []byte {
 		}
 		// ignore everything we have not whitelisted
 		if !isValidDesktopFilePrefix(line) {
+			continue
+		}
+		if !validExecLine(m, line) {
 			continue
 		}
 
@@ -540,7 +559,7 @@ func addPackageDesktopFiles(m *snapYaml, baseDir string) error {
 		}
 
 		realBaseDir := stripGlobalRootDir(baseDir)
-		content = sanitizeDesktopFile(content, realBaseDir)
+		content = sanitizeDesktopFile(m, realBaseDir, content)
 
 		installedDesktopFileName := filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s", m.Name, filepath.Base(df)))
 		if err := helpers.AtomicWriteFile(installedDesktopFileName, []byte(content), 0755, 0); err != nil {
