@@ -17,7 +17,8 @@
  *
  */
 
-package overlord
+// Package state implements the representation of system state.
+package state
 
 import (
 	"encoding/json"
@@ -28,8 +29,8 @@ import (
 	"github.com/ubuntu-core/snappy/logger"
 )
 
-// StateBackend is used by State to checkpoint on every unlock operation.
-type StateBackend interface {
+// A Backend is used by State to checkpoint on every unlock operation.
+type Backend interface {
 	Checkpoint(data []byte) error
 }
 
@@ -46,8 +47,8 @@ type State struct {
 	entries map[string]*json.RawMessage
 }
 
-// NewState returns a new empty state.
-func NewState(backend StateBackend) *State {
+// New returns a new empty state.
+func New(backend Backend) *State {
 	return &State{
 		entries: make(map[string]*json.RawMessage),
 	}
@@ -98,7 +99,7 @@ func WriteState(s *State, w io.Writer) error {
 }
 
 // ReadState returns the state deserialized from r.
-func ReadState(backend StateBackend, r io.Reader) (*State, error) {
+func ReadState(backend Backend, r io.Reader) (*State, error) {
 	s := new(State)
 	d := json.NewDecoder(r)
 	err := d.Decode(&s.entries)
