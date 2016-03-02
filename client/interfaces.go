@@ -26,6 +26,7 @@ import (
 
 // Plug represents a capacity offered by a snap.
 type Plug struct {
+	// NOTE: the discrepancy between go and json field name is intentional.
 	Name      string                 `json:"plug"`
 	Snap      string                 `json:"snap"`
 	Interface string                 `json:"interface,omitempty"`
@@ -36,6 +37,7 @@ type Plug struct {
 
 // Slot represents the potential of a given snap to connect to a given plug.
 type Slot struct {
+	// NOTE: the discrepancy between go and json field name is intentional.
 	Name      string                 `json:"slot"`
 	Snap      string                 `json:"snap"`
 	Interface string                 `json:"interface,omitempty"`

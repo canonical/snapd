@@ -45,7 +45,7 @@ The following keys are optional:
       (search for `Restart=`) for details.
     * `poststop-command`: (optional) a command that runs after the service
                           has stopped
-    * `uses`: a list of `skill` names that the app uses
+    * `slots`: a map of interfaces
     * `ports`: (optional) define what ports the service will work
         * `internal`: the ports the service is going to connect to
             * `tagname`: a free form name
@@ -68,11 +68,11 @@ The following keys are optional:
                 snap package name followed by '\_' and any other characters
                 (eg, '@name' or '@name\_something').
 
-* `uses`: a map of names and skills
+* `slots`: a map of interfaces
 
-## Skills
+## Interfaces
 
-The `migration-skill` is used to make porting existing snaps easier.
+The `old-security` interface is used to make porting existing snaps easier.
 It provides the following parameters:
     * `caps`: (optional) list of additional security policies to add.
               See `security.md` for details
