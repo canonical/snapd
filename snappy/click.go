@@ -20,6 +20,7 @@
 package snappy
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io/ioutil"
@@ -482,6 +483,18 @@ func removePackageBinaries(m *snapYaml, baseDir string) error {
 	return nil
 }
 
+func sanitizeDesktopFile(rawcontent []byte, realBaseDir string) []byte {
+	newContent := []string{}
+
+	scanner := bufio.NewScanner(bytes.NewReader(rawcontent))
+	for scanner.Scan() {
+		l := strings.Replace(scanner.Text(), "${SNAP}", realBaseDir, -1)
+		newContent = append(newContent, l)
+	}
+
+	return []byte(strings.Join(newContent, "\n"))
+}
+
 func addPackageDesktopFiles(m *snapYaml, baseDir string) error {
 	if err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0755); err != nil {
 		return err
@@ -499,7 +512,7 @@ func addPackageDesktopFiles(m *snapYaml, baseDir string) error {
 		}
 
 		realBaseDir := stripGlobalRootDir(baseDir)
-		content = bytes.Replace(content, []byte("${SNAP}"), []byte(realBaseDir), -1)
+		content = sanitizeDesktopFile(content, realBaseDir)
 
 		installedDesktopFileName := filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s", m.Name, filepath.Base(df)))
 		if err := helpers.AtomicWriteFile(installedDesktopFileName, []byte(content), 0755, 0); err != nil {
