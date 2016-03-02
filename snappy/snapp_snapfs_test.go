@@ -376,11 +376,11 @@ version: 1.10
 apps:
  some-binary:
   command: some-binary
-  uses: [some-binary]
+  slots: [some-binary]
 
-uses:
+slots:
  some-binary:
-  type: migration-skill
+  interface: old-security
   security-template: not-there
 `)
 	// install but our missing security-template will break the install
