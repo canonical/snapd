@@ -40,7 +40,7 @@ The following keys are optional:
     * `stop-timeout`: (optional) the time in seconds to wait for the
                       service to stop
     * `restart-condition`: (optional) if specified, use the given restart
-      condition. Can be one of `on-failure` (default), `never`, `on-success`,
+      condition. Can be one of `on-failure` (default), `no`, `on-success`,
       `on-abnormal`, `on-abort`, and `always`. See `systemd.service(5)`
       (search for `Restart=`) for details.
     * `poststop`: (optional) a command that runs after the service has stopped
