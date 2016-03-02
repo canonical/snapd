@@ -924,15 +924,15 @@ func getInterfaces(c *Command, r *http.Request) Response {
 	return SyncResponse(c.d.interfaces.Interfaces())
 }
 
-// interfaceAction is an action performed on the plug system.
+// interfaceAction is an action performed on the interface system.
 type interfaceAction struct {
 	Action string          `json:"action"`
 	Plug   interfaces.Plug `json:"plug,omitempty"`
 	Slot   interfaces.Slot `json:"slot,omitempty"`
 }
 
-// changeInterfaces controls the plug system.
-// Plugs can be granted to and revoked from slots.
+// changeInterfaces controls the interfaces system.
+// Plugs can be connected to and disconnected from slots.
 // When enableInternalInterfaceActions is true plugs and slots can also be
 // explicitly added and removed.
 func changeInterfaces(c *Command, r *http.Request) Response {
