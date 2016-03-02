@@ -101,7 +101,7 @@ func (s *State) Unlock() {
 			}
 			time.Sleep(unlockCheckpointRetryInterval)
 		}
-		panic(fmt.Errorf("cannot checkpoint even after %v of retries every %v: %v", unlockCheckpointRetryMaxTime, unlockCheckpointRetryInterval, err))
+		logger.Panicf("cannot checkpoint even after %v of retries every %v: %v", unlockCheckpointRetryMaxTime, unlockCheckpointRetryInterval, err)
 	}
 }
 
