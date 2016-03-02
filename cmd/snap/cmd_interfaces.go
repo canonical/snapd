@@ -59,7 +59,7 @@ func init() {
 }
 
 func (x *cmdInterfaces) Execute(args []string) error {
-	conns, err := Client().InterfaceConnections()
+	conns, err := Client().Interfaces()
 	if err == nil {
 		w := tabwriter.NewWriter(Stdout, 0, 4, 1, ' ', 0)
 		fmt.Fprintln(w, i18n.G("plug\tslot"))

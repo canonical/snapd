@@ -466,12 +466,12 @@ func (r *Repository) SlotConnections(snapName, slotName string) []*Plug {
 	return result
 }
 
-// InterfaceConnections returns object holding a lists of all the plugs and slots and their connections.
-func (r *Repository) InterfaceConnections() *InterfaceConnections {
+// Interfaces returns object holding a lists of all the plugs and slots and their connections.
+func (r *Repository) Interfaces() *Interfaces {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	conns := &InterfaceConnections{}
+	conns := &Interfaces{}
 	// Copy and flatten plugs and slots
 	for _, plugs := range r.plugs {
 		for _, plug := range plugs {

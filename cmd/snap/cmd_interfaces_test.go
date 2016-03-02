@@ -72,7 +72,7 @@ func (s *SnapSuite) TestInterfacesZeroPlugsOneSlot(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": client.InterfaceConnections{
+			"result": client.Interfaces{
 				Slots: []*client.Slot{
 					&client.Slot{
 						Snap: "keyboard-lights",
@@ -101,7 +101,7 @@ func (s *SnapSuite) TestInterfacesZeroSlotsOnePlug(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": client.InterfaceConnections{
+			"result": client.Interfaces{
 				Plugs: []*client.Plug{
 					&client.Plug{
 						Snap:      "canonical-pi2",
@@ -132,7 +132,7 @@ func (s *SnapSuite) TestInterfacesOnePlugOneSlot(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": client.InterfaceConnections{
+			"result": client.Interfaces{
 				Plugs: []*client.Plug{
 					&client.Plug{
 						Snap:      "canonical-pi2",
@@ -183,7 +183,7 @@ func (s *SnapSuite) TestInterfacesTwoSlots(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": client.InterfaceConnections{
+			"result": client.Interfaces{
 				Plugs: []*client.Plug{
 					&client.Plug{
 						Snap:      "canonical-pi2",
@@ -224,7 +224,7 @@ func (s *SnapSuite) TestInterfacesSlotsWithCommonName(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": client.InterfaceConnections{
+			"result": client.Interfaces{
 				Plugs: []*client.Plug{
 					&client.Plug{
 						Snap:      "canonical-pi2",
@@ -291,7 +291,7 @@ func (s *SnapSuite) TestInterfacesOsSnapPlugs(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": client.InterfaceConnections{
+			"result": client.Interfaces{
 				Plugs: []*client.Plug{
 					&client.Plug{
 						Snap:      "ubuntu-core",
@@ -358,7 +358,7 @@ func (s *SnapSuite) TestInterfacesTwoPlugsAndFiltering(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": client.InterfaceConnections{
+			"result": client.Interfaces{
 				Plugs: []*client.Plug{
 					&client.Plug{
 						Snap:      "canonical-pi2",
@@ -407,7 +407,7 @@ func (s *SnapSuite) TestInterfacesOfSpecificSnap(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": client.InterfaceConnections{
+			"result": client.Interfaces{
 				Plugs: []*client.Plug{
 					&client.Plug{
 						Snap:      "cheese",
@@ -451,7 +451,7 @@ func (s *SnapSuite) TestInterfacesOfSpecificSnapAndPlug(c *C) {
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
-			"result": client.InterfaceConnections{
+			"result": client.Interfaces{
 				Plugs: []*client.Plug{
 					&client.Plug{
 						Snap:      "cheese",
