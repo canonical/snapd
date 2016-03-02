@@ -27,13 +27,13 @@ import (
 	"github.com/ubuntu-core/snappy/client"
 )
 
-func (cs *clientSuite) TestClientInterfaceConnectionsCallsEndpoint(c *check.C) {
-	_, _ = cs.cli.InterfaceConnections()
+func (cs *clientSuite) TestClientInterfacesCallsEndpoint(c *check.C) {
+	_, _ = cs.cli.Interfaces()
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/2.0/interfaces")
 }
 
-func (cs *clientSuite) TestClientInterfaceConnections(c *check.C) {
+func (cs *clientSuite) TestClientInterfaces(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
 		"result": {
@@ -61,9 +61,9 @@ func (cs *clientSuite) TestClientInterfaceConnections(c *check.C) {
 			]
 		}
 	}`
-	interfaces, err := cs.cli.InterfaceConnections()
+	interfaces, err := cs.cli.Interfaces()
 	c.Assert(err, check.IsNil)
-	c.Check(interfaces, check.DeepEquals, client.InterfaceConnections{
+	c.Check(interfaces, check.DeepEquals, client.Interfaces{
 		Plugs: []*client.Plug{
 			&client.Plug{
 				Snap:      "canonical-pi2",

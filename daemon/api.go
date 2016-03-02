@@ -921,7 +921,7 @@ func appIconGet(c *Command, r *http.Request) Response {
 
 // getInterfaces returns a response with a list of all the plugs and slots and their connections.
 func getInterfaces(c *Command, r *http.Request) Response {
-	return SyncResponse(c.d.interfaces.InterfaceConnections())
+	return SyncResponse(c.d.interfaces.Interfaces())
 }
 
 // interfaceAction is an action performed on the plug system.
