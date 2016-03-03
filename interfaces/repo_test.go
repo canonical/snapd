@@ -808,46 +808,38 @@ func (s *RepositorySuite) TestInterfacesSmokeTest(c *C) {
 	c.Assert(err, IsNil)
 	ifaces := s.testRepo.Interfaces()
 	c.Assert(ifaces, DeepEquals, &Interfaces{
-		Plugs: []*Plug{
-			&Plug{
-				Name:        s.plug.Name,
-				Snap:        s.plug.Snap,
-				Interface:   s.plug.Interface,
-				Label:       s.plug.Label,
-				Connections: []SlotRef{{s.slot.Snap, s.slot.Name}},
-			},
-		},
-		Slots: []*Slot{
-			&Slot{
-				Snap:        s.slot.Snap,
-				Name:        s.slot.Name,
-				Interface:   s.slot.Interface,
-				Label:       s.slot.Label,
-				Connections: []PlugRef{{s.plug.Snap, s.plug.Name}},
-			},
-		},
+		Plugs: []*Plug{{
+			Name:        s.plug.Name,
+			Snap:        s.plug.Snap,
+			Interface:   s.plug.Interface,
+			Label:       s.plug.Label,
+			Connections: []SlotRef{{s.slot.Snap, s.slot.Name}},
+		}},
+		Slots: []*Slot{{
+			Snap:        s.slot.Snap,
+			Name:        s.slot.Name,
+			Interface:   s.slot.Interface,
+			Label:       s.slot.Label,
+			Connections: []PlugRef{{s.plug.Snap, s.plug.Name}},
+		}},
 	})
 	// After disconnecting the connections become empty
 	err = s.testRepo.Disconnect(s.plug.Snap, s.plug.Name, s.slot.Snap, s.slot.Name)
 	c.Assert(err, IsNil)
 	ifaces = s.testRepo.Interfaces()
 	c.Assert(ifaces, DeepEquals, &Interfaces{
-		Plugs: []*Plug{
-			&Plug{
-				Name:      s.plug.Name,
-				Snap:      s.plug.Snap,
-				Interface: s.plug.Interface,
-				Label:     s.plug.Label,
-			},
-		},
-		Slots: []*Slot{
-			&Slot{
-				Snap:      s.slot.Snap,
-				Name:      s.slot.Name,
-				Interface: s.slot.Interface,
-				Label:     s.slot.Label,
-			},
-		},
+		Plugs: []*Plug{{
+			Name:      s.plug.Name,
+			Snap:      s.plug.Snap,
+			Interface: s.plug.Interface,
+			Label:     s.plug.Label,
+		}},
+		Slots: []*Slot{{
+			Snap:      s.slot.Snap,
+			Name:      s.slot.Name,
+			Interface: s.slot.Interface,
+			Label:     s.slot.Label,
+		}},
 	})
 }
 
