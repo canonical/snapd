@@ -30,11 +30,35 @@ import (
 	"time"
 
 	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/strutil"
 )
 
 // A Backend is used by State to checkpoint on every unlock operation.
 type Backend interface {
 	Checkpoint(data []byte) error
+}
+
+type customData map[string]*json.RawMessage
+
+func (data customData) get(key string, value interface{}) error {
+	entryJSON := data[key]
+	if entryJSON == nil {
+		return ErrNoState
+	}
+	err := json.Unmarshal(*entryJSON, value)
+	if err != nil {
+		return fmt.Errorf("internal error: could not unmarshal state entry %q: %v", key, err)
+	}
+	return nil
+}
+
+func (data customData) set(key string, value interface{}) {
+	serialized, err := json.Marshal(value)
+	if err != nil {
+		logger.Panicf("internal error: could not marshal value for state entry %q: %v", key, err)
+	}
+	entryJSON := json.RawMessage(serialized)
+	data[key] = &entryJSON
 }
 
 // State represents an evolving system state that persists across restarts.
@@ -51,30 +75,75 @@ type State struct {
 	muC int32
 	// storage
 	backend Backend
-	entries map[string]*json.RawMessage
+	data    customData
+	changes map[string]*Change
 }
 
 // New returns a new empty state.
 func New(backend Backend) *State {
 	return &State{
 		backend: backend,
-		entries: make(map[string]*json.RawMessage),
+		data:    make(customData),
+		changes: make(map[string]*Change),
 	}
-}
-
-func (s *State) checkpointData() []byte {
-	data, err := json.Marshal(s.entries)
-	if err != nil {
-		// this shouldn't happen, because the actual delicate serializing happens at various Set()s
-		logger.Panicf("internal error: could not marshal state for checkpointing: %v", err)
-	}
-	return data
 }
 
 // Lock acquires the state lock.
 func (s *State) Lock() {
 	s.mu.Lock()
 	atomic.AddInt32(&s.muC, 1)
+}
+
+func (s *State) ensureLocked() {
+	c := atomic.LoadInt32(&s.muC)
+	if c != 1 {
+		panic("internal error: accessing state without lock")
+	}
+}
+
+func (s *State) unlock() {
+	atomic.AddInt32(&s.muC, -1)
+	s.mu.Unlock()
+}
+
+type marshalledState struct {
+	Data    map[string]*json.RawMessage `json:"data"`
+	Changes map[string]*Change          `json:"changes"`
+}
+
+// MarshalJSON makes State a json.Marshaller
+func (s *State) MarshalJSON() ([]byte, error) {
+	s.ensureLocked()
+	return json.Marshal(marshalledState{
+		Data:    s.data,
+		Changes: s.changes,
+	})
+}
+
+// UnmarshalJSON makes State a json.Unmarshaller
+func (s *State) UnmarshalJSON(data []byte) error {
+	s.ensureLocked()
+	var unmarshalled marshalledState
+	err := json.Unmarshal(data, &unmarshalled)
+	if err != nil {
+		return err
+	}
+	s.data = unmarshalled.Data
+	s.changes = unmarshalled.Changes
+	// backlink state again
+	for _, chg := range s.changes {
+		chg.state = s
+	}
+	return nil
+}
+
+func (s *State) checkpointData() []byte {
+	data, err := json.Marshal(s)
+	if err != nil {
+		// this shouldn't happen, because the actual delicate serializing happens at various Set()s
+		logger.Panicf("internal error: could not marshal state for checkpointing: %v", err)
+	}
+	return data
 }
 
 // unlock checkpoint retry parameters (5 mins of retries by default)
@@ -87,10 +156,7 @@ var (
 // It does not return until the state is correctly checkpointed.
 // After too many unsuccessful checkpoint attempts, it panics.
 func (s *State) Unlock() {
-	defer func() {
-		atomic.AddInt32(&s.muC, -1)
-		s.mu.Unlock()
-	}()
+	defer s.unlock()
 	if s.backend != nil {
 		data := s.checkpointData()
 		var err error
@@ -105,13 +171,6 @@ func (s *State) Unlock() {
 	}
 }
 
-func (s *State) ensureLocked() {
-	c := atomic.LoadInt32(&s.muC)
-	if c != 1 {
-		panic("internal error: accessing state without lock")
-	}
-}
-
 // ErrNoState represents the case of no state entry for a given key.
 var ErrNoState = errors.New("no state entry for key")
 
@@ -120,36 +179,55 @@ var ErrNoState = errors.New("no state entry for key")
 // It returns ErrNoState if there is no entry for key.
 func (s *State) Get(key string, value interface{}) error {
 	s.ensureLocked()
-	entryJSON := s.entries[key]
-	if entryJSON == nil {
-		return ErrNoState
-	}
-	err := json.Unmarshal(*entryJSON, value)
-	if err != nil {
-		return fmt.Errorf("internal error: could not unmarshal state entry %q: %v", key, err)
-	}
-	return nil
+	return s.data.get(key, value)
 }
 
 // Set associates value with key for future consulting by managers.
 // The provided value must properly marshal and unmarshal with encoding/json.
 func (s *State) Set(key string, value interface{}) {
 	s.ensureLocked()
-	serialized, err := json.Marshal(value)
-	if err != nil {
-		logger.Panicf("internal error: could not marshal value for state entry %q: %v", key, err)
+	s.data.set(key, value)
+}
+
+func (s *State) genID() string {
+	for {
+		id := strutil.MakeRandomString(6)
+		if _, ok := s.changes[id]; ok {
+			continue
+		}
+		return id
 	}
-	entryJSON := json.RawMessage(serialized)
-	s.entries[key] = &entryJSON
+}
+
+// NewChange adds a new change to the state.
+func (s *State) NewChange(kind, summary string) *Change {
+	s.ensureLocked()
+	id := s.genID()
+	chg := newChange(s, id, kind, summary)
+	s.changes[id] = chg
+	return chg
+}
+
+// Changes returns all changes currently known to the state.
+func (s *State) Changes() []*Change {
+	s.ensureLocked()
+	res := make([]*Change, 0, len(s.changes))
+	for _, chg := range s.changes {
+		res = append(res, chg)
+	}
+	return res
 }
 
 // ReadState returns the state deserialized from r.
 func ReadState(backend Backend, r io.Reader) (*State, error) {
 	s := new(State)
+	s.Lock()
+	defer s.unlock()
 	d := json.NewDecoder(r)
-	err := d.Decode(&s.entries)
+	err := d.Decode(&s)
 	if err != nil {
 		return nil, err
 	}
+	s.backend = backend
 	return s, err
 }
