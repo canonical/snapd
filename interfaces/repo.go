@@ -432,21 +432,6 @@ func (r *Repository) disconnect(plug *Plug, slot *Slot) {
 	}
 }
 
-// ConnectedPlugs returns all of the plugs connected by a given snap.
-func (r *Repository) ConnectedPlugs(snapName string) map[*Plug][]*Slot {
-	r.m.Lock()
-	defer r.m.Unlock()
-
-	result := make(map[*Plug][]*Slot)
-	for _, plug := range r.plugs[snapName] {
-		for slot := range r.plugSlots[plug] {
-			result[plug] = append(result[plug], slot)
-		}
-		sort.Sort(bySlotSnapAndName(result[plug]))
-	}
-	return result
-}
-
 // PlugConnections returns all of the slots that are connected a given plug.
 func (r *Repository) PlugConnections(snapName, plugName string) []*Slot {
 	r.m.Lock()
