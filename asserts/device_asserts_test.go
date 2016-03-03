@@ -35,8 +35,8 @@ type modelSuite struct {
 }
 
 var (
+	_ = Suite(&deviceSerialSuite{})
 	_ = Suite(&modelSuite{})
-	_ = Suite(&serialSuite{})
 )
 
 func (mods *modelSuite) SetUpSuite(c *C) {
@@ -146,24 +146,24 @@ func (mods *modelSuite) TestModelCheckInconsistentTimestamp(c *C) {
 	c.Assert(err, ErrorMatches, "model assertion timestamp outside of signing key validity")
 }
 
-type serialSuite struct {
+type deviceSerialSuite struct {
 	ts            time.Time
 	tsLine        string
 	deviceKey     asserts.PrivateKey
 	encodedDevKey string
 }
 
-func (sers *serialSuite) SetUpSuite(c *C) {
-	sers.ts = time.Now().Truncate(time.Second).UTC()
-	sers.tsLine = "timestamp: " + sers.ts.Format(time.RFC3339) + "\n"
+func (dss *deviceSerialSuite) SetUpSuite(c *C) {
+	dss.ts = time.Now().Truncate(time.Second).UTC()
+	dss.tsLine = "timestamp: " + dss.ts.Format(time.RFC3339) + "\n"
 
-	sers.deviceKey = asserts.OpenPGPPrivateKey(testPrivKey2)
-	encodedPubKey, err := asserts.EncodePublicKey(sers.deviceKey.PublicKey())
+	dss.deviceKey = asserts.OpenPGPPrivateKey(testPrivKey2)
+	encodedPubKey, err := asserts.EncodePublicKey(dss.deviceKey.PublicKey())
 	c.Assert(err, IsNil)
-	sers.encodedDevKey = string(encodedPubKey)
+	dss.encodedDevKey = string(encodedPubKey)
 }
 
-const serialExample = "type: serial\n" +
+const deviceSerialExample = "type: device-serial\n" +
 	"authority-id: canonical\n" +
 	"brand-id: brand-id1\n" +
 	"model: baz-3000\n" +
@@ -175,40 +175,40 @@ const serialExample = "type: serial\n" +
 	"\n\n" +
 	"openpgp c2ln"
 
-func (sers *serialSuite) TestDecodeOK(c *C) {
-	encoded := strings.Replace(serialExample, "TSLINE", sers.tsLine, 1)
-	encoded = strings.Replace(encoded, "DEVICEKEY", strings.Replace(sers.encodedDevKey, "\n", "\n ", -1), 1)
+func (dss *deviceSerialSuite) TestDecodeOK(c *C) {
+	encoded := strings.Replace(deviceSerialExample, "TSLINE", dss.tsLine, 1)
+	encoded = strings.Replace(encoded, "DEVICEKEY", strings.Replace(dss.encodedDevKey, "\n", "\n ", -1), 1)
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
-	c.Check(a.Type(), Equals, asserts.SerialType)
-	serial := a.(*asserts.Serial)
-	c.Check(serial.AuthorityID(), Equals, "canonical")
-	c.Check(serial.Timestamp(), Equals, sers.ts)
-	c.Check(serial.BrandID(), Equals, "brand-id1")
-	c.Check(serial.Model(), Equals, "baz-3000")
-	c.Check(serial.Serial(), Equals, "2700")
-	c.Check(serial.DeviceKey().Fingerprint(), Equals, sers.deviceKey.PublicKey().Fingerprint())
+	c.Check(a.Type(), Equals, asserts.DeviceSerialType)
+	deviceSerial := a.(*asserts.DeviceSerial)
+	c.Check(deviceSerial.AuthorityID(), Equals, "canonical")
+	c.Check(deviceSerial.Timestamp(), Equals, dss.ts)
+	c.Check(deviceSerial.BrandID(), Equals, "brand-id1")
+	c.Check(deviceSerial.Model(), Equals, "baz-3000")
+	c.Check(deviceSerial.Serial(), Equals, "2700")
+	c.Check(deviceSerial.DeviceKey().Fingerprint(), Equals, dss.deviceKey.PublicKey().Fingerprint())
 }
 
 const (
-	serialErrPrefix = "assertion serial: "
+	deviceSerialErrPrefix = "assertion device-serial: "
 )
 
-func (sers *serialSuite) TestDecodeInvalid(c *C) {
-	encoded := strings.Replace(serialExample, "TSLINE", sers.tsLine, 1)
+func (dss *deviceSerialSuite) TestDecodeInvalid(c *C) {
+	encoded := strings.Replace(deviceSerialExample, "TSLINE", dss.tsLine, 1)
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"serial: 2700\n", "", `"serial" header is mandatory`},
 		{"device-key:\n DEVICEKEY\n", "", `"device-key" header is mandatory`},
 		{"device-key:\n DEVICEKEY\n", "device-key: openpgp ZZZ\n", `public key: could not decode base64 data:.*`},
-		{sers.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
+		{dss.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
 	}
 
 	for _, test := range invalidTests {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
-		invalid = strings.Replace(invalid, "DEVICEKEY", strings.Replace(sers.encodedDevKey, "\n", "\n ", -1), 1)
+		invalid = strings.Replace(invalid, "DEVICEKEY", strings.Replace(dss.encodedDevKey, "\n", "\n ", -1), 1)
 
 		_, err := asserts.Decode([]byte(invalid))
-		c.Check(err, ErrorMatches, serialErrPrefix+test.expectedErr)
+		c.Check(err, ErrorMatches, deviceSerialErrPrefix+test.expectedErr)
 	}
 }
