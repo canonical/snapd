@@ -136,7 +136,6 @@ apps:
 	desktopContent := []byte(`[Desktop Entry]
 Name=foo
 Exec=baz
-TryExec=meep
 `)
 
 	e := sanitizeDesktopFile(m, "/my/basedir", desktopContent)
@@ -156,7 +155,6 @@ apps:
 	desktopContent := []byte(`[Desktop Entry]
 Name=foo
 Exec=snap.app %U
-TryExec=meep
 `)
 
 	e := sanitizeDesktopFile(m, "/my/basedir", desktopContent)
@@ -165,7 +163,9 @@ Name=foo
 Exec=snap.app %U`)
 }
 
-func (s *SnapTestSuite) TestDesktopFileSanitizeFiltersTryExecOk(c *C) {
+// we do not support TryExec (even if its a valid line), this test ensures
+// we do not accidentally enable it
+func (s *SnapTestSuite) TestDesktopFileSanitizeFiltersTryExecIgnored(c *C) {
 	m, err := parseSnapYamlData([]byte(`
 name: snap
 version: 1.0
@@ -176,14 +176,12 @@ apps:
 	c.Assert(err, IsNil)
 	desktopContent := []byte(`[Desktop Entry]
 Name=foo
-Exec=invalid
 TryExec=snap.app %U
 `)
 
 	e := sanitizeDesktopFile(m, "/my/basedir", desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Entry]
-Name=foo
-TryExec=snap.app %U`)
+Name=foo`)
 }
 
 func (s *SnapTestSuite) TestDesktopFileSanitizeWorthWithI18n(c *C) {
