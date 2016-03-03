@@ -25,12 +25,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/strutil"
 )
 
 // A Backend is used by State to checkpoint on every unlock operation.
@@ -185,11 +185,9 @@ func (s *State) Set(key string, value interface{}) {
 	s.entries.set(key, value)
 }
 
-var rnd = rand.New(rand.NewSource(time.Now().UTC().UnixNano()))
-
 func (s *State) genID() string {
 	for {
-		id := fmt.Sprintf("%08X", rnd.Uint32())
+		id := strutil.MakeRandomString(6)
 		if _, ok := s.changes[id]; ok {
 			continue
 		}
