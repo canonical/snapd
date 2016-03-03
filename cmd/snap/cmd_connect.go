@@ -25,31 +25,31 @@ import (
 
 type cmdConnect struct {
 	Positionals struct {
-		Offer SnapAndName `positional-arg-name:"<snap>:<plug>" required:"true"`
-		Use   SnapAndName `positional-arg-name:"<snap>:<slot>" required:"true"`
+		Offer SnapAndName `positional-arg-name:"<snap>:<slot>" required:"true"`
+		Use   SnapAndName `positional-arg-name:"<snap>:<plug>" required:"true"`
 	} `positional-args:"true" required:"true"`
 }
 
-var shortConnectHelp = i18n.G("Connects a plug to a slot")
+var shortConnectHelp = i18n.G("Connects a slot to a plug")
 var longConnectHelp = i18n.G(`
-The connect command connects a plug to a slot.
+The connect command connects a slot to a plug.
 It may be called in the following ways:
 
-$ snap connect <snap>:<plug> <snap>:<slot>
+$ snap connect <snap>:<slot> <snap>:<plug>
 
-Connects the specific plug to the specific slot.
+Connects the specific slot to the specific plug.
 
-$ snap connect <snap>:<plug> <snap>
+$ snap connect <snap>:<slot> <snap>
 
-Connects the specific plug to the only slot in the provided snap that matches
-the connected interface. If more than one potential slot exists, the command
+Connects the specific slot to the only plug in the provided snap that matches
+the connected interface. If more than one potential plug exists, the command
 fails.
 
-$ snap connect <plug> <snap>[:<slot>]
+$ snap connect <slot> <snap>[:<plug>]
 
-Without a name for the snap offering the plug, the plug name is looked at in
+Without a name for the snap offering the slot, the slot name is looked at in
 the gadget snap, the kernel snap, and then the os snap, in that order. The
-first of these snaps that has a matching plug name is used and the command
+first of these snaps that has a matching slot name is used and the command
 proceeds as above.
 `)
 
@@ -60,7 +60,7 @@ func init() {
 }
 
 func (x *cmdConnect) Execute(args []string) error {
-	// snap connect <plug> <snap>[:<slot>]
+	// snap connect <slot> <snap>[:<plug>]
 	if x.Positionals.Offer.Snap != "" && x.Positionals.Offer.Name == "" {
 		// Move the value of .Snap to .Name and keep .Snap empty
 		x.Positionals.Offer.Name = x.Positionals.Offer.Snap

@@ -25,27 +25,27 @@ import (
 
 type cmdDisconnect struct {
 	Positionals struct {
-		Offer SnapAndName `positional-arg-name:"<snap>:<plug>" required:"true"`
-		Use   SnapAndName `positional-arg-name:"<snap>:<slot>"`
+		Offer SnapAndName `positional-arg-name:"<snap>:<slot>" required:"true"`
+		Use   SnapAndName `positional-arg-name:"<snap>:<plug>"`
 	} `positional-args:"true"`
 }
 
-var shortDisconnectHelp = i18n.G("Disconnects a plug from a slot")
+var shortDisconnectHelp = i18n.G("Disconnects a slot from a plug")
 var longDisconnectHelp = i18n.G(`
-The disconnect command disconnects a plug from a slot.
+The disconnect command disconnects a slot from a plug.
 It may be called in the following ways:
 
-$ snap disconnect <snap>:<plug> <snap>:<slot>
+$ snap disconnect <snap>:<slot> <snap>:<plug>
 
-Disconnects the specific plug from the specific slot.
+Disconnects the specific slot from the specific plug.
 
-$ snap disconnect <snap>:<slot>
+$ snap disconnect <snap>:<plug>
 
-Disconnects any previously connected plugs from the provided slot.
+Disconnects any previously connected slots from the provided plug.
 
 $ snap disconnect <snap>
 
-Disconnects all plugs from the provided snap.
+Disconnects all slots from the provided snap.
 `)
 
 func init() {
@@ -55,7 +55,7 @@ func init() {
 }
 
 func (x *cmdDisconnect) Execute(args []string) error {
-	// snap disconnect <snap>:<slot>
+	// snap disconnect <snap>:<plug>
 	// snap disconnect <snap>
 	if x.Positionals.Use.Snap == "" && x.Positionals.Use.Name == "" {
 		// Swap Offer and Use around

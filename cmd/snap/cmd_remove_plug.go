@@ -23,27 +23,27 @@ import (
 	"github.com/ubuntu-core/snappy/i18n"
 )
 
-type cmdRemovePlug struct {
+type cmdRemoveSlot struct {
 	Positionals struct {
-		Snap string `positional-arg-name:"<snap>" description:"Name of the snap containing the plug"`
-		Plug string `positional-arg-name:"<plug>" description:"Name of the plug within the snap"`
+		Snap string `positional-arg-name:"<snap>" description:"Name of the snap containing the slot"`
+		Slot string `positional-arg-name:"<slot>" description:"Name of the slot within the snap"`
 	} `positional-args:"true" required:"true"`
 }
 
-var shortRemovePlugHelp = i18n.G("Removes a plug from the system")
-var longRemovePlugHelp = i18n.G(`
-The remove-plug command removes a plug from the system.
+var shortRemoveSlotHelp = i18n.G("Removes a slot from the system")
+var longRemoveSlotHelp = i18n.G(`
+The remove-slot command removes a slot from the system.
 
 This command is only for experimentation with interfaces.
 It will be removed in one of the future releases.
 `)
 
 func init() {
-	addExperimentalCommand("remove-plug", shortRemovePlugHelp, longRemovePlugHelp, func() interface{} {
-		return &cmdRemovePlug{}
+	addExperimentalCommand("remove-slot", shortRemoveSlotHelp, longRemoveSlotHelp, func() interface{} {
+		return &cmdRemoveSlot{}
 	})
 }
 
-func (x *cmdRemovePlug) Execute(args []string) error {
-	return Client().RemovePlug(x.Positionals.Snap, x.Positionals.Plug)
+func (x *cmdRemoveSlot) Execute(args []string) error {
+	return Client().RemoveSlot(x.Positionals.Snap, x.Positionals.Slot)
 }

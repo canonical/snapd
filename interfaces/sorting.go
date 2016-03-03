@@ -19,17 +19,6 @@
 
 package interfaces
 
-type bySlotRef []SlotRef
-
-func (c bySlotRef) Len() int      { return len(c) }
-func (c bySlotRef) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
-func (c bySlotRef) Less(i, j int) bool {
-	if c[i].Snap != c[j].Snap {
-		return c[i].Snap < c[j].Snap
-	}
-	return c[i].Name < c[j].Name
-}
-
 type byPlugRef []PlugRef
 
 func (c byPlugRef) Len() int      { return len(c) }
@@ -41,11 +30,11 @@ func (c byPlugRef) Less(i, j int) bool {
 	return c[i].Name < c[j].Name
 }
 
-type byPlugSnapAndName []*Plug
+type bySlotRef []SlotRef
 
-func (c byPlugSnapAndName) Len() int      { return len(c) }
-func (c byPlugSnapAndName) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
-func (c byPlugSnapAndName) Less(i, j int) bool {
+func (c bySlotRef) Len() int      { return len(c) }
+func (c bySlotRef) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
+func (c bySlotRef) Less(i, j int) bool {
 	if c[i].Snap != c[j].Snap {
 		return c[i].Snap < c[j].Snap
 	}
@@ -57,6 +46,17 @@ type bySlotSnapAndName []*Slot
 func (c bySlotSnapAndName) Len() int      { return len(c) }
 func (c bySlotSnapAndName) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
 func (c bySlotSnapAndName) Less(i, j int) bool {
+	if c[i].Snap != c[j].Snap {
+		return c[i].Snap < c[j].Snap
+	}
+	return c[i].Name < c[j].Name
+}
+
+type byPlugSnapAndName []*Plug
+
+func (c byPlugSnapAndName) Len() int      { return len(c) }
+func (c byPlugSnapAndName) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
+func (c byPlugSnapAndName) Less(i, j int) bool {
 	if c[i].Snap != c[j].Snap {
 		return c[i].Snap < c[j].Snap
 	}

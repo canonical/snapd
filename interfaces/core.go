@@ -25,24 +25,7 @@ import (
 	"regexp"
 )
 
-// Plug represents a capacity offered by a snap.
-type Plug struct {
-	Snap        string                 `json:"snap"`
-	Name        string                 `json:"plug"`
-	Interface   string                 `json:"interface"`
-	Attrs       map[string]interface{} `json:"attrs,omitempty"`
-	Apps        []string               `json:"apps,omitempty"`
-	Label       string                 `json:"label"`
-	Connections []SlotRef              `json:"connections,omitempty"`
-}
-
-// PlugRef is a reference to a plug.
-type PlugRef struct {
-	Snap string `json:"snap"`
-	Name string `json:"plug"`
-}
-
-// Slot represents the potential of a given snap to connect to a plug.
+// Slot represents a capacity offered by a snap.
 type Slot struct {
 	Snap        string                 `json:"snap"`
 	Name        string                 `json:"slot"`
@@ -59,10 +42,27 @@ type SlotRef struct {
 	Name string `json:"slot"`
 }
 
-// Interfaces holds information about a list of plugs and slots, and their connections.
+// Plug represents the potential of a given snap to connect to a slot.
+type Plug struct {
+	Snap        string                 `json:"snap"`
+	Name        string                 `json:"plug"`
+	Interface   string                 `json:"interface"`
+	Attrs       map[string]interface{} `json:"attrs,omitempty"`
+	Apps        []string               `json:"apps,omitempty"`
+	Label       string                 `json:"label"`
+	Connections []SlotRef              `json:"connections,omitempty"`
+}
+
+// PlugRef is a reference to a plug.
+type PlugRef struct {
+	Snap string `json:"snap"`
+	Name string `json:"plug"`
+}
+
+// Interfaces holds information about a list of slots and plugs, and their connections.
 type Interfaces struct {
-	Plugs []*Plug `json:"plugs"`
 	Slots []*Slot `json:"slots"`
+	Plugs []*Plug `json:"plugs"`
 }
 
 // Interface describes a group of interchangeable capabilities with common features.
@@ -72,29 +72,29 @@ type Interface interface {
 	// Unique and public name of this interface.
 	Name() string
 
-	// SanitizePlug checks if a plug is correct, altering if necessary.
-	SanitizePlug(plug *Plug) error
-
 	// SanitizeSlot checks if a slot is correct, altering if necessary.
 	SanitizeSlot(slot *Slot) error
 
-	// PlugSecuritySnippet returns the configuration snippet needed by the
-	// given security system to allow a snap to offer a plug of this interface.
-	//
-	// An empty snippet is returned when the plug doesn't require anything
-	// from the security system to work, in addition to the default
-	// configuration.  ErrUnknownSecurity is returned when the plug cannot
-	// deal with the requested security system.
-	PlugSecuritySnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
+	// SanitizePlug checks if a plug is correct, altering if necessary.
+	SanitizePlug(plug *Plug) error
 
 	// SlotSecuritySnippet returns the configuration snippet needed by the
-	// given security system to allow a snap to use a plug of this interface.
+	// given security system to allow a snap to offer a slot of this interface.
 	//
-	// An empty snippet is returned when the plug doesn't require anything
+	// An empty snippet is returned when the slot doesn't require anything
 	// from the security system to work, in addition to the default
-	// configuration.  ErrUnknownSecurity is returned when the plug cannot
+	// configuration.  ErrUnknownSecurity is returned when the slot cannot
 	// deal with the requested security system.
-	SlotSecuritySnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
+	SlotSecuritySnippet(slot *Slot, plug *Plug, securitySystem SecuritySystem) ([]byte, error)
+
+	// PlugSecuritySnippet returns the configuration snippet needed by the
+	// given security system to allow a snap to use a slot of this interface.
+	//
+	// An empty snippet is returned when the slot doesn't require anything
+	// from the security system to work, in addition to the default
+	// configuration.  ErrUnknownSecurity is returned when the slot cannot
+	// deal with the requested security system.
+	PlugSecuritySnippet(slot *Slot, plug *Plug, securitySystem SecuritySystem) ([]byte, error)
 }
 
 // SecuritySystem is a name of a security system.
@@ -119,7 +119,7 @@ var (
 // Regular expression describing correct identifiers.
 var validName = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
 
-// ValidateName checks if a string can be used as a plug or slot name.
+// ValidateName checks if a string can be used as a slot or plug name.
 func ValidateName(name string) error {
 	valid := validName.MatchString(name)
 	if !valid {

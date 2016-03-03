@@ -214,7 +214,7 @@ func enableFirstEther() error {
 	}
 	eth := filepath.Base(eths[0])
 	ethfile := filepath.Join(ethdir, eth)
-	data := fmt.Sprintf("allow-hotplug %[1]s\niface %[1]s inet dhcp\n", eth)
+	data := fmt.Sprintf("allow-hotslot %[1]s\niface %[1]s inet dhcp\n", eth)
 
 	if err := osutil.AtomicWriteFile(ethfile, []byte(data), 0644, 0); err != nil {
 		return err

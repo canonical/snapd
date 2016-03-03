@@ -28,11 +28,11 @@ import (
 	. "github.com/ubuntu-core/snappy/cmd/snap"
 )
 
-func (s *SnapSuite) TestAddSlotHelp(c *C) {
+func (s *SnapSuite) TestAddPlugHelp(c *C) {
 	msg := `Usage:
-  snap.test [OPTIONS] experimental add-slot [add-slot-OPTIONS] <snap> <slot> <interface>
+  snap.test [OPTIONS] experimental add-plug [add-plug-OPTIONS] <snap> <plug> <interface>
 
-The add-slot command adds a new slot to the system.
+The add-plug command adds a new plug to the system.
 
 This command is only for experimentation with interfaces.
 It will be removed in one of the future releases.
@@ -40,30 +40,30 @@ It will be removed in one of the future releases.
 Help Options:
   -h, --help             Show this help message
 
-[add-slot command options]
+[add-plug command options]
       -a=                List of key=value attributes
-          --app=         List of apps using this slot
+          --app=         List of apps using this plug
           --label=       Human-friendly label
 
-[add-slot command arguments]
-  <snap>:                Name of the snap containing the slot
-  <slot>:                Name of the slot within the snap
+[add-plug command arguments]
+  <snap>:                Name of the snap containing the plug
+  <plug>:                Name of the plug within the snap
   <interface>:           Interface name
 `
-	rest, err := Parser().ParseArgs([]string{"experimental", "add-slot", "--help"})
+	rest, err := Parser().ParseArgs([]string{"experimental", "add-plug", "--help"})
 	c.Assert(err.Error(), Equals, msg)
 	c.Assert(rest, DeepEquals, []string{})
 }
 
-func (s *SnapSuite) TestAddSlotExplicitEverything(c *C) {
+func (s *SnapSuite) TestAddPlugExplicitEverything(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "POST")
 		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
 		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
-			"action": "add-slot",
-			"slot": map[string]interface{}{
+			"action": "add-plug",
+			"plug": map[string]interface{}{
 				"snap":      "consumer",
-				"slot":      "slot",
+				"plug":      "plug",
 				"interface": "interface",
 				"attrs": map[string]interface{}{
 					"attr": "value",
@@ -77,7 +77,7 @@ func (s *SnapSuite) TestAddSlotExplicitEverything(c *C) {
 		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
 	})
 	rest, err := Parser().ParseArgs([]string{
-		"experimental", "add-slot", "consumer", "slot", "interface",
+		"experimental", "add-plug", "consumer", "plug", "interface",
 		"-a", "attr=value", "--app=my-app", "--label=label",
 	})
 	c.Assert(err, IsNil)

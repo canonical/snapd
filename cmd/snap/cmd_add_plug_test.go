@@ -30,9 +30,9 @@ import (
 
 func (s *SnapSuite) TestAddInterfaceHelp(c *C) {
 	msg := `Usage:
-  snap.test [OPTIONS] experimental add-plug [add-plug-OPTIONS] <snap> <plug> <interface>
+  snap.test [OPTIONS] experimental add-slot [add-slot-OPTIONS] <snap> <slot> <interface>
 
-The add-plug command adds a new plug to the system.
+The add-slot command adds a new slot to the system.
 
 This command is only for experimentation with interfaces.
 It will be removed in one of the future releases.
@@ -40,17 +40,17 @@ It will be removed in one of the future releases.
 Help Options:
   -h, --help             Show this help message
 
-[add-plug command options]
+[add-slot command options]
       -a=                List of key=value attributes
-          --app=         List of apps providing this plug
+          --app=         List of apps providing this slot
           --label=       Human-friendly label
 
-[add-plug command arguments]
+[add-slot command arguments]
   <snap>:                Name of the snap offering the interface
-  <plug>:                Plug name within the snap
+  <slot>:                Slot name within the snap
   <interface>:           Interface name
 `
-	rest, err := Parser().ParseArgs([]string{"experimental", "add-plug", "--help"})
+	rest, err := Parser().ParseArgs([]string{"experimental", "add-slot", "--help"})
 	c.Assert(err.Error(), Equals, msg)
 	c.Assert(rest, DeepEquals, []string{})
 }
@@ -60,10 +60,10 @@ func (s *SnapSuite) TestAddInterfaceExplicitEverything(c *C) {
 		c.Check(r.Method, Equals, "POST")
 		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
 		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
-			"action": "add-plug",
-			"plug": map[string]interface{}{
+			"action": "add-slot",
+			"slot": map[string]interface{}{
 				"snap":      "producer",
-				"plug":      "plug",
+				"slot":      "slot",
 				"interface": "interface",
 				"attrs": map[string]interface{}{
 					"attr": "value",
@@ -77,7 +77,7 @@ func (s *SnapSuite) TestAddInterfaceExplicitEverything(c *C) {
 		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
 	})
 	rest, err := Parser().ParseArgs([]string{
-		"experimental", "add-plug", "producer", "plug", "interface",
+		"experimental", "add-slot", "producer", "slot", "interface",
 		"-a", "attr=value", "--app=meta/hooks/interfaces", "--label=label",
 	})
 	c.Assert(err, IsNil)

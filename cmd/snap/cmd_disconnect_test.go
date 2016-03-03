@@ -30,22 +30,22 @@ import (
 
 func (s *SnapSuite) TestDisconnectHelp(c *C) {
 	msg := `Usage:
-  snap.test [OPTIONS] disconnect [<snap>:<plug>] [<snap>:<slot>]
+  snap.test [OPTIONS] disconnect [<snap>:<slot>] [<snap>:<plug>]
 
-The disconnect command disconnects a plug from a slot.
+The disconnect command disconnects a slot from a plug.
 It may be called in the following ways:
 
-$ snap disconnect <snap>:<plug> <snap>:<slot>
+$ snap disconnect <snap>:<slot> <snap>:<plug>
 
-Disconnects the specific plug from the specific slot.
+Disconnects the specific slot from the specific plug.
 
-$ snap disconnect <snap>:<slot>
+$ snap disconnect <snap>:<plug>
 
-Disconnects any previously connected plugs from the provided slot.
+Disconnects any previously connected slots from the provided plug.
 
 $ snap disconnect <snap>
 
-Disconnects all plugs from the provided snap.
+Disconnects all slots from the provided snap.
 
 Help Options:
   -h, --help               Show this help message
@@ -61,42 +61,42 @@ func (s *SnapSuite) TestDisconnectExplicitEverything(c *C) {
 		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
 		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
 			"action": "disconnect",
-			"plug": map[string]interface{}{
-				"snap": "producer",
-				"plug": "plug",
-			},
 			"slot": map[string]interface{}{
-				"snap": "consumer",
+				"snap": "producer",
 				"slot": "slot",
+			},
+			"plug": map[string]interface{}{
+				"snap": "consumer",
+				"plug": "plug",
 			},
 		})
 		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
 	})
-	rest, err := Parser().ParseArgs([]string{"disconnect", "producer:plug", "consumer:slot"})
+	rest, err := Parser().ParseArgs([]string{"disconnect", "producer:slot", "consumer:plug"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestDisconnectEverythingFromSpecificSlot(c *C) {
+func (s *SnapSuite) TestDisconnectEverythingFromSpecificPlug(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "POST")
 		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
 		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
 			"action": "disconnect",
-			"plug": map[string]interface{}{
-				"snap": "",
-				"plug": "",
-			},
 			"slot": map[string]interface{}{
+				"snap": "",
+				"slot": "",
+			},
+			"plug": map[string]interface{}{
 				"snap": "consumer",
-				"slot": "slot",
+				"plug": "plug",
 			},
 		})
 		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
 	})
-	rest, err := Parser().ParseArgs([]string{"disconnect", "consumer:slot"})
+	rest, err := Parser().ParseArgs([]string{"disconnect", "consumer:plug"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, "")
@@ -109,13 +109,13 @@ func (s *SnapSuite) TestDisconnectEverythingFromSpecificSnap(c *C) {
 		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
 		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
 			"action": "disconnect",
-			"plug": map[string]interface{}{
-				"snap": "",
-				"plug": "",
-			},
 			"slot": map[string]interface{}{
-				"snap": "consumer",
+				"snap": "",
 				"slot": "",
+			},
+			"plug": map[string]interface{}{
+				"snap": "consumer",
+				"plug": "",
 			},
 		})
 		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)

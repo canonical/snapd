@@ -24,39 +24,39 @@ import (
 	"github.com/ubuntu-core/snappy/i18n"
 )
 
-type cmdAddSlot struct {
+type cmdAddPlug struct {
 	Positionals struct {
-		Snap      string `positional-arg-name:"<snap>" description:"Name of the snap containing the slot"`
-		Slot      string `positional-arg-name:"<slot>" description:"Name of the slot within the snap"`
+		Snap      string `positional-arg-name:"<snap>" description:"Name of the snap containing the plug"`
+		Plug      string `positional-arg-name:"<plug>" description:"Name of the plug within the snap"`
 		Interface string `positional-arg-name:"<interface>" description:"Interface name"`
 	} `positional-args:"true" required:"true"`
 	Attrs []AttributePair `short:"a" description:"List of key=value attributes"`
-	Apps  []string        `long:"app" description:"List of apps using this slot"`
+	Apps  []string        `long:"app" description:"List of apps using this plug"`
 	Label string          `long:"label" description:"Human-friendly label"`
 }
 
-var shortAddSlotHelp = i18n.G("Adds a slot to the system")
-var longAddSlotHelp = i18n.G(`
-The add-slot command adds a new slot to the system.
+var shortAddPlugHelp = i18n.G("Adds a plug to the system")
+var longAddPlugHelp = i18n.G(`
+The add-plug command adds a new plug to the system.
 
 This command is only for experimentation with interfaces.
 It will be removed in one of the future releases.
 `)
 
 func init() {
-	addExperimentalCommand("add-slot", shortAddSlotHelp, longAddSlotHelp, func() interface{} {
-		return &cmdAddSlot{}
+	addExperimentalCommand("add-plug", shortAddPlugHelp, longAddPlugHelp, func() interface{} {
+		return &cmdAddPlug{}
 	})
 }
 
-func (x *cmdAddSlot) Execute(args []string) error {
+func (x *cmdAddPlug) Execute(args []string) error {
 	attrs := make(map[string]interface{})
 	for k, v := range AttributePairSliceToMap(x.Attrs) {
 		attrs[k] = v
 	}
-	return Client().AddSlot(&client.Slot{
+	return Client().AddPlug(&client.Plug{
 		Snap:      x.Positionals.Snap,
-		Name:      x.Positionals.Slot,
+		Name:      x.Positionals.Plug,
 		Interface: x.Positionals.Interface,
 		Attrs:     attrs,
 		Apps:      x.Apps,

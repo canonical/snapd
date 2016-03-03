@@ -41,38 +41,6 @@ func (s *TestInterfaceSuite) TestName(c *C) {
 }
 
 // TestInterface doesn't do any sanitization by default
-func (s *TestInterfaceSuite) TestSanitizePlugOK(c *C) {
-	plug := &Plug{
-		Interface: "test",
-	}
-	err := s.i.SanitizePlug(plug)
-	c.Assert(err, IsNil)
-}
-
-// TestInterface has provisions to customize sanitization
-func (s *TestInterfaceSuite) TestSanitizePlugError(c *C) {
-	i := &TestInterface{
-		InterfaceName: "test",
-		SanitizePlugCallback: func(plug *Plug) error {
-			return fmt.Errorf("sanitize plug failed")
-		},
-	}
-	plug := &Plug{
-		Interface: "test",
-	}
-	err := i.SanitizePlug(plug)
-	c.Assert(err, ErrorMatches, "sanitize plug failed")
-}
-
-// TestInterface sanitization still checks for interface identity
-func (s *TestInterfaceSuite) TestSanitizePlugWrongInterface(c *C) {
-	plug := &Plug{
-		Interface: "other-interface",
-	}
-	c.Assert(func() { s.i.SanitizePlug(plug) }, Panics, "plug is not of interface \"test\"")
-}
-
-// TestInterface doesn't do any sanitization by default
 func (s *TestInterfaceSuite) TestSanitizeSlotOK(c *C) {
 	slot := &Slot{
 		Interface: "test",
@@ -104,38 +72,70 @@ func (s *TestInterfaceSuite) TestSanitizeSlotWrongInterface(c *C) {
 	c.Assert(func() { s.i.SanitizeSlot(slot) }, Panics, "slot is not of interface \"test\"")
 }
 
-// TestInterface hands out empty plug security snippets
-func (s *TestInterfaceSuite) TestPlugSecuritySnippet(c *C) {
-	plug := &Plug{Interface: "test"}
-	slot := &Slot{Interface: "test"}
-	snippet, err := s.i.PlugSecuritySnippet(plug, slot, SecurityAppArmor)
+// TestInterface doesn't do any sanitization by default
+func (s *TestInterfaceSuite) TestSanitizePlugOK(c *C) {
+	plug := &Plug{
+		Interface: "test",
+	}
+	err := s.i.SanitizePlug(plug)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.i.PlugSecuritySnippet(plug, slot, SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.i.PlugSecuritySnippet(plug, slot, SecurityDBus)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.i.PlugSecuritySnippet(plug, slot, "foo")
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
+}
+
+// TestInterface has provisions to customize sanitization
+func (s *TestInterfaceSuite) TestSanitizePlugError(c *C) {
+	i := &TestInterface{
+		InterfaceName: "test",
+		SanitizePlugCallback: func(plug *Plug) error {
+			return fmt.Errorf("sanitize plug failed")
+		},
+	}
+	plug := &Plug{
+		Interface: "test",
+	}
+	err := i.SanitizePlug(plug)
+	c.Assert(err, ErrorMatches, "sanitize plug failed")
+}
+
+// TestInterface sanitization still checks for interface identity
+func (s *TestInterfaceSuite) TestSanitizePlugWrongInterface(c *C) {
+	plug := &Plug{
+		Interface: "other-interface",
+	}
+	c.Assert(func() { s.i.SanitizePlug(plug) }, Panics, "plug is not of interface \"test\"")
 }
 
 // TestInterface hands out empty slot security snippets
 func (s *TestInterfaceSuite) TestSlotSecuritySnippet(c *C) {
-	plug := &Plug{Interface: "test"}
 	slot := &Slot{Interface: "test"}
-	snippet, err := s.i.SlotSecuritySnippet(plug, slot, SecurityAppArmor)
+	plug := &Plug{Interface: "test"}
+	snippet, err := s.i.SlotSecuritySnippet(slot, plug, SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.i.SlotSecuritySnippet(plug, slot, SecuritySecComp)
+	snippet, err = s.i.SlotSecuritySnippet(slot, plug, SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.i.SlotSecuritySnippet(plug, slot, SecurityDBus)
+	snippet, err = s.i.SlotSecuritySnippet(slot, plug, SecurityDBus)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.i.SlotSecuritySnippet(plug, slot, "foo")
+	snippet, err = s.i.SlotSecuritySnippet(slot, plug, "foo")
+	c.Assert(err, IsNil)
+	c.Assert(snippet, IsNil)
+}
+
+// TestInterface hands out empty plug security snippets
+func (s *TestInterfaceSuite) TestPlugSecuritySnippet(c *C) {
+	slot := &Slot{Interface: "test"}
+	plug := &Plug{Interface: "test"}
+	snippet, err := s.i.PlugSecuritySnippet(slot, plug, SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, IsNil)
+	snippet, err = s.i.PlugSecuritySnippet(slot, plug, SecuritySecComp)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, IsNil)
+	snippet, err = s.i.PlugSecuritySnippet(slot, plug, SecurityDBus)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, IsNil)
+	snippet, err = s.i.PlugSecuritySnippet(slot, plug, "foo")
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 }

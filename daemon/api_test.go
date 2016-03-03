@@ -1250,12 +1250,12 @@ func (s *apiSuite) TestInstallLicensedIntegration(c *check.C) {
 
 // Tests for GET /2.0/interfaces
 
-func (s *apiSuite) TestGetPlugs(c *check.C) {
+func (s *apiSuite) TestGetSlots(c *check.C) {
 	d := newTestDaemon()
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface", Label: "label"})
-	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface", Label: "label"})
-	d.interfaces.Connect("producer", "plug", "consumer", "slot")
+	d.interfaces.AddSlot(&interfaces.Slot{Snap: "producer", Name: "slot", Interface: "interface", Label: "label"})
+	d.interfaces.AddPlug(&interfaces.Plug{Snap: "consumer", Name: "plug", Interface: "interface", Label: "label"})
+	d.interfaces.Connect("producer", "slot", "consumer", "plug")
 	req, err := http.NewRequest("GET", "/2.0/interfaces", nil)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
@@ -1266,30 +1266,30 @@ func (s *apiSuite) TestGetPlugs(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"plugs": []interface{}{
-				map[string]interface{}{
-					"snap":      "producer",
-					"plug":      "plug",
-					"interface": "interface",
-					"label":     "label",
-					"connections": []interface{}{
-						map[string]interface{}{
-							"snap": "consumer",
-							"slot": "slot",
-						},
-					},
-				},
-			},
 			"slots": []interface{}{
 				map[string]interface{}{
-					"snap":      "consumer",
+					"snap":      "producer",
 					"slot":      "slot",
 					"interface": "interface",
 					"label":     "label",
 					"connections": []interface{}{
 						map[string]interface{}{
-							"snap": "producer",
+							"snap": "consumer",
 							"plug": "plug",
+						},
+					},
+				},
+			},
+			"plugs": []interface{}{
+				map[string]interface{}{
+					"snap":      "consumer",
+					"plug":      "plug",
+					"interface": "interface",
+					"label":     "label",
+					"connections": []interface{}{
+						map[string]interface{}{
+							"snap": "producer",
+							"slot": "slot",
 						},
 					},
 				},
@@ -1303,20 +1303,20 @@ func (s *apiSuite) TestGetPlugs(c *check.C) {
 
 // Test for POST /2.0/interfaces
 
-func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
+func (s *apiSuite) TestConnectSlotSuccess(c *check.C) {
 	d := newTestDaemon()
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
-	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
+	d.interfaces.AddSlot(&interfaces.Slot{Snap: "producer", Name: "slot", Interface: "interface"})
+	d.interfaces.AddPlug(&interfaces.Plug{Snap: "consumer", Name: "plug", Interface: "interface"})
 	action := &interfaceAction{
 		Action: "connect",
-		Plug: interfaces.Plug{
-			Snap: "producer",
-			Name: "plug",
-		},
 		Slot: interfaces.Slot{
-			Snap: "consumer",
+			Snap: "producer",
 			Name: "slot",
+		},
+		Plug: interfaces.Plug{
+			Snap: "consumer",
+			Name: "plug",
 		},
 	}
 	text, err := json.Marshal(action)
@@ -1336,39 +1336,39 @@ func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 		"status_code": 200.0,
 		"type":        "sync",
 	})
-	for slot, plugs := range d.interfaces.ConnectedSlots("consumer") {
-		c.Check(slot.Snap, check.Equals, "consumer")
-		c.Check(slot.Name, check.Equals, "slot")
-		for _, plug := range plugs {
-			c.Check(plug.Snap, check.Equals, "producer")
-			c.Check(plug.Name, check.Equals, "plug")
-		}
-	}
-	for plug, slots := range d.interfaces.ConnectedPlugs("producer") {
-		c.Check(plug.Snap, check.Equals, "producer")
+	for plug, slots := range d.interfaces.ConnectedPlugs("consumer") {
+		c.Check(plug.Snap, check.Equals, "consumer")
 		c.Check(plug.Name, check.Equals, "plug")
 		for _, slot := range slots {
-			c.Check(slot.Snap, check.Equals, "consumer")
+			c.Check(slot.Snap, check.Equals, "producer")
 			c.Check(slot.Name, check.Equals, "slot")
 		}
 	}
+	for slot, plugs := range d.interfaces.ConnectedSlots("producer") {
+		c.Check(slot.Snap, check.Equals, "producer")
+		c.Check(slot.Name, check.Equals, "slot")
+		for _, plug := range plugs {
+			c.Check(plug.Snap, check.Equals, "consumer")
+			c.Check(plug.Name, check.Equals, "plug")
+		}
+	}
 }
 
-func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
+func (s *apiSuite) TestConnectSlotFailureInterfaceMismatch(c *check.C) {
 	d := newTestDaemon()
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "other-interface"})
-	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
-	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "other-interface"})
+	d.interfaces.AddSlot(&interfaces.Slot{Snap: "producer", Name: "slot", Interface: "interface"})
+	d.interfaces.AddPlug(&interfaces.Plug{Snap: "consumer", Name: "plug", Interface: "other-interface"})
 	action := &interfaceAction{
 		Action: "connect",
-		Plug: interfaces.Plug{
-			Snap: "producer",
-			Name: "plug",
-		},
 		Slot: interfaces.Slot{
-			Snap: "consumer",
+			Snap: "producer",
 			Name: "slot",
+		},
+		Plug: interfaces.Plug{
+			Snap: "consumer",
+			Name: "plug",
 		},
 	}
 	text, err := json.Marshal(action)
@@ -1384,29 +1384,29 @@ func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": `cannot connect plug "producer:plug" (interface "interface") to "consumer:slot" (interface "other-interface")`,
+			"message": `cannot connect slot "producer:slot" (interface "interface") to "consumer:plug" (interface "other-interface")`,
 		},
 		"status":      "Bad Request",
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Check(d.interfaces.ConnectedSlots("consumer"), check.HasLen, 0)
-	c.Check(d.interfaces.ConnectedPlugs("producer"), check.HasLen, 0)
+	c.Check(d.interfaces.ConnectedPlugs("consumer"), check.HasLen, 0)
+	c.Check(d.interfaces.ConnectedSlots("producer"), check.HasLen, 0)
 }
 
-func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
+func (s *apiSuite) TestConnectSlotFailureNoSuchSlot(c *check.C) {
 	d := newTestDaemon()
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
+	d.interfaces.AddPlug(&interfaces.Plug{Snap: "consumer", Name: "plug", Interface: "interface"})
 	action := &interfaceAction{
 		Action: "connect",
-		Plug: interfaces.Plug{
-			Snap: "producer",
-			Name: "plug",
-		},
 		Slot: interfaces.Slot{
-			Snap: "consumer",
+			Snap: "producer",
 			Name: "slot",
+		},
+		Plug: interfaces.Plug{
+			Snap: "consumer",
+			Name: "plug",
 		},
 	}
 	text, err := json.Marshal(action)
@@ -1422,29 +1422,29 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": `cannot connect plug "plug" from snap "producer", no such plug`,
+			"message": `cannot connect slot "slot" from snap "producer", no such slot`,
 		},
 		"status":      "Bad Request",
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Check(d.interfaces.ConnectedSlots("consumer"), check.HasLen, 0)
-	c.Check(d.interfaces.ConnectedPlugs("producer"), check.HasLen, 0)
+	c.Check(d.interfaces.ConnectedPlugs("consumer"), check.HasLen, 0)
+	c.Check(d.interfaces.ConnectedSlots("producer"), check.HasLen, 0)
 }
 
-func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
+func (s *apiSuite) TestConnectSlotFailureNoSuchPlug(c *check.C) {
 	d := newTestDaemon()
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
+	d.interfaces.AddSlot(&interfaces.Slot{Snap: "producer", Name: "slot", Interface: "interface"})
 	action := &interfaceAction{
 		Action: "connect",
-		Plug: interfaces.Plug{
-			Snap: "producer",
-			Name: "plug",
-		},
 		Slot: interfaces.Slot{
-			Snap: "consumer",
+			Snap: "producer",
 			Name: "slot",
+		},
+		Plug: interfaces.Plug{
+			Snap: "consumer",
+			Name: "plug",
 		},
 	}
 	text, err := json.Marshal(action)
@@ -1460,297 +1460,30 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": `cannot connect plug to slot "slot" from snap "consumer", no such slot`,
+			"message": `cannot connect slot to plug "plug" from snap "consumer", no such plug`,
 		},
 		"status":      "Bad Request",
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Check(d.interfaces.ConnectedSlots("consumer"), check.HasLen, 0)
-	c.Check(d.interfaces.ConnectedPlugs("producer"), check.HasLen, 0)
+	c.Check(d.interfaces.ConnectedPlugs("consumer"), check.HasLen, 0)
+	c.Check(d.interfaces.ConnectedSlots("producer"), check.HasLen, 0)
 }
 
-func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
+func (s *apiSuite) TestDisconnectSlotSuccess(c *check.C) {
 	d := newTestDaemon()
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
-	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
-	d.interfaces.Connect("producer", "plug", "consumer", "slot")
+	d.interfaces.AddSlot(&interfaces.Slot{Snap: "producer", Name: "slot", Interface: "interface"})
+	d.interfaces.AddPlug(&interfaces.Plug{Snap: "consumer", Name: "plug", Interface: "interface"})
+	d.interfaces.Connect("producer", "slot", "consumer", "plug")
 	action := &interfaceAction{
 		Action: "disconnect",
-		Plug: interfaces.Plug{
-			Snap: "producer",
-			Name: "plug",
-		},
 		Slot: interfaces.Slot{
-			Snap: "consumer",
+			Snap: "producer",
 			Name: "slot",
 		},
-	}
-	text, err := json.Marshal(action)
-	c.Assert(err, check.IsNil)
-	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/2.0/interfaces", buf)
-	c.Assert(err, check.IsNil)
-	rec := httptest.NewRecorder()
-	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 200)
-	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
-	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"result":      nil,
-		"status":      "OK",
-		"status_code": 200.0,
-		"type":        "sync",
-	})
-	c.Check(d.interfaces.ConnectedSlots("consumer"), check.HasLen, 0)
-	c.Check(d.interfaces.ConnectedPlugs("producer"), check.HasLen, 0)
-}
-
-func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
-	d := newTestDaemon()
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
-	action := &interfaceAction{
-		Action: "disconnect",
 		Plug: interfaces.Plug{
-			Snap: "producer",
-			Name: "plug",
-		},
-		Slot: interfaces.Slot{
 			Snap: "consumer",
-			Name: "slot",
-		},
-	}
-	text, err := json.Marshal(action)
-	c.Assert(err, check.IsNil)
-	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/2.0/interfaces", buf)
-	c.Assert(err, check.IsNil)
-	rec := httptest.NewRecorder()
-	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 400)
-	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
-	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"result": map[string]interface{}{
-			"message": `cannot disconnect plug "plug" from snap "producer", no such plug`,
-		},
-		"status":      "Bad Request",
-		"status_code": 400.0,
-		"type":        "error",
-	})
-	c.Check(d.interfaces.ConnectedSlots("consumer"), check.HasLen, 0)
-	c.Check(d.interfaces.ConnectedPlugs("producer"), check.HasLen, 0)
-}
-
-func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
-	d := newTestDaemon()
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
-	action := &interfaceAction{
-		Action: "disconnect",
-		Plug: interfaces.Plug{
-			Snap: "producer",
-			Name: "plug",
-		},
-		Slot: interfaces.Slot{
-			Snap: "consumer",
-			Name: "slot",
-		},
-	}
-	text, err := json.Marshal(action)
-	c.Assert(err, check.IsNil)
-	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/2.0/interfaces", buf)
-	c.Assert(err, check.IsNil)
-	rec := httptest.NewRecorder()
-	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 400)
-	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
-	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"result": map[string]interface{}{
-			"message": `cannot disconnect plug from slot "slot" from snap "consumer", no such slot`,
-		},
-		"status":      "Bad Request",
-		"status_code": 400.0,
-		"type":        "error",
-	})
-	c.Check(d.interfaces.ConnectedSlots("consumer"), check.HasLen, 0)
-	c.Check(d.interfaces.ConnectedPlugs("producer"), check.HasLen, 0)
-}
-
-func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
-	d := newTestDaemon()
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
-	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
-	action := &interfaceAction{
-		Action: "disconnect",
-		Plug: interfaces.Plug{
-			Snap: "producer",
-			Name: "plug",
-		},
-		Slot: interfaces.Slot{
-			Snap: "consumer",
-			Name: "slot",
-		},
-	}
-	text, err := json.Marshal(action)
-	c.Assert(err, check.IsNil)
-	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/2.0/interfaces", buf)
-	c.Assert(err, check.IsNil)
-	rec := httptest.NewRecorder()
-	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 400)
-	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
-	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"result": map[string]interface{}{
-			"message": `cannot disconnect plug "plug" from snap "producer" from slot "slot" from snap "consumer", it is not connected`,
-		},
-		"status":      "Bad Request",
-		"status_code": 400.0,
-		"type":        "error",
-	})
-	c.Check(d.interfaces.ConnectedSlots("consumer"), check.HasLen, 0)
-	c.Check(d.interfaces.ConnectedPlugs("producer"), check.HasLen, 0)
-}
-
-func (s *apiSuite) TestAddPlugSuccess(c *check.C) {
-	d := newTestDaemon()
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	action := &interfaceAction{
-		Action: "add-plug",
-		Plug: interfaces.Plug{
-			Snap:      "snap",
-			Name:      "plug",
-			Label:     "label",
-			Interface: "interface",
-			Attrs: map[string]interface{}{
-				"key": "value",
-			},
-			Apps: []string{"app"},
-		},
-	}
-	text, err := json.Marshal(action)
-	c.Assert(err, check.IsNil)
-	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/2.0/interfaces", buf)
-	c.Assert(err, check.IsNil)
-	rec := httptest.NewRecorder()
-	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 201)
-	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
-	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"result":      nil,
-		"status":      "Created",
-		"status_code": 201.0,
-		"type":        "sync",
-	})
-	c.Check(d.interfaces.Plug("snap", "plug"), check.DeepEquals, &action.Plug)
-}
-
-func (s *apiSuite) TestAddPlugDisabled(c *check.C) {
-	d := newTestDaemon()
-	d.interfaces.AddInterface(&interfaces.TestInterface{
-		InterfaceName: "interface",
-	})
-	d.enableInternalInterfaceActions = false
-	action := &interfaceAction{
-		Action: "add-plug",
-		Plug: interfaces.Plug{
-			Snap:      "producer",
-			Name:      "plug",
-			Label:     "label",
-			Interface: "interface",
-			Attrs: map[string]interface{}{
-				"key": "value",
-			},
-			Apps: []string{"app"},
-		},
-	}
-	text, err := json.Marshal(action)
-	c.Assert(err, check.IsNil)
-	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/2.0/interfaces", buf)
-	c.Assert(err, check.IsNil)
-	rec := httptest.NewRecorder()
-	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 400)
-	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
-	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"result": map[string]interface{}{
-			"message": "internal interface actions are disabled",
-		},
-		"status":      "Bad Request",
-		"status_code": 400.0,
-		"type":        "error",
-	})
-	c.Check(d.interfaces.Plug("producer", "plug"), check.IsNil)
-}
-
-func (s *apiSuite) TestAddPlugFailure(c *check.C) {
-	d := newTestDaemon()
-	d.interfaces.AddInterface(&interfaces.TestInterface{
-		InterfaceName: "interface",
-		SanitizePlugCallback: func(plug *interfaces.Plug) error {
-			return fmt.Errorf("required attribute missing")
-		},
-	})
-	action := &interfaceAction{
-		Action: "add-plug",
-		Plug: interfaces.Plug{
-			Snap:      "snap",
-			Name:      "plug",
-			Label:     "label",
-			Interface: "interface",
-			Attrs: map[string]interface{}{
-				"key": "value",
-			},
-			Apps: []string{"app"},
-		},
-	}
-	text, err := json.Marshal(action)
-	c.Assert(err, check.IsNil)
-	buf := bytes.NewBuffer(text)
-	req, err := http.NewRequest("POST", "/2.0/interfaces", buf)
-	c.Assert(err, check.IsNil)
-	rec := httptest.NewRecorder()
-	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 400)
-	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
-	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"result": map[string]interface{}{
-			"message": "cannot add plug: required attribute missing",
-		},
-		"status":      "Bad Request",
-		"status_code": 400.0,
-		"type":        "error",
-	})
-	c.Check(d.interfaces.Plug("snap", "name"), check.IsNil)
-}
-
-func (s *apiSuite) TestRemovePlugSuccess(c *check.C) {
-	d := newTestDaemon()
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
-	action := &interfaceAction{
-		Action: "remove-plug",
-		Plug: interfaces.Plug{
-			Snap: "producer",
 			Name: "plug",
 		},
 	}
@@ -1771,18 +1504,22 @@ func (s *apiSuite) TestRemovePlugSuccess(c *check.C) {
 		"status_code": 200.0,
 		"type":        "sync",
 	})
-	c.Check(d.interfaces.Plug("snap", "name"), check.IsNil)
+	c.Check(d.interfaces.ConnectedPlugs("consumer"), check.HasLen, 0)
+	c.Check(d.interfaces.ConnectedSlots("producer"), check.HasLen, 0)
 }
 
-func (s *apiSuite) TestRemovePlugDisabled(c *check.C) {
+func (s *apiSuite) TestDisconnectSlotFailureNoSuchSlot(c *check.C) {
 	d := newTestDaemon()
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
-	d.enableInternalInterfaceActions = false
+	d.interfaces.AddPlug(&interfaces.Plug{Snap: "consumer", Name: "plug", Interface: "interface"})
 	action := &interfaceAction{
-		Action: "remove-plug",
-		Plug: interfaces.Plug{
+		Action: "disconnect",
+		Slot: interfaces.Slot{
 			Snap: "producer",
+			Name: "slot",
+		},
+		Plug: interfaces.Plug{
+			Snap: "consumer",
 			Name: "plug",
 		},
 	}
@@ -1799,25 +1536,28 @@ func (s *apiSuite) TestRemovePlugDisabled(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": "internal interface actions are disabled",
+			"message": `cannot disconnect slot "slot" from snap "producer", no such slot`,
 		},
 		"status":      "Bad Request",
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Check(d.interfaces.Plug("producer", "plug"), check.Not(check.IsNil))
+	c.Check(d.interfaces.ConnectedPlugs("consumer"), check.HasLen, 0)
+	c.Check(d.interfaces.ConnectedSlots("producer"), check.HasLen, 0)
 }
 
-func (s *apiSuite) TestRemovePlugFailure(c *check.C) {
+func (s *apiSuite) TestDisconnectSlotFailureNoSuchPlug(c *check.C) {
 	d := newTestDaemon()
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
-	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
-	d.interfaces.Connect("producer", "plug", "consumer", "slot")
+	d.interfaces.AddSlot(&interfaces.Slot{Snap: "producer", Name: "slot", Interface: "interface"})
 	action := &interfaceAction{
-		Action: "remove-plug",
-		Plug: interfaces.Plug{
+		Action: "disconnect",
+		Slot: interfaces.Slot{
 			Snap: "producer",
+			Name: "slot",
+		},
+		Plug: interfaces.Plug{
+			Snap: "consumer",
 			Name: "plug",
 		},
 	}
@@ -1834,13 +1574,53 @@ func (s *apiSuite) TestRemovePlugFailure(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": `cannot remove plug "plug" from snap "producer", it is still connected`,
+			"message": `cannot disconnect slot from plug "plug" from snap "consumer", no such plug`,
 		},
 		"status":      "Bad Request",
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Check(d.interfaces.Plug("producer", "plug"), check.Not(check.IsNil))
+	c.Check(d.interfaces.ConnectedPlugs("consumer"), check.HasLen, 0)
+	c.Check(d.interfaces.ConnectedSlots("producer"), check.HasLen, 0)
+}
+
+func (s *apiSuite) TestDisconnectSlotFailureNotConnected(c *check.C) {
+	d := newTestDaemon()
+	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	d.interfaces.AddSlot(&interfaces.Slot{Snap: "producer", Name: "slot", Interface: "interface"})
+	d.interfaces.AddPlug(&interfaces.Plug{Snap: "consumer", Name: "plug", Interface: "interface"})
+	action := &interfaceAction{
+		Action: "disconnect",
+		Slot: interfaces.Slot{
+			Snap: "producer",
+			Name: "slot",
+		},
+		Plug: interfaces.Plug{
+			Snap: "consumer",
+			Name: "plug",
+		},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/2.0/interfaces", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 400)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"message": `cannot disconnect slot "slot" from snap "producer" from plug "plug" from snap "consumer", it is not connected`,
+		},
+		"status":      "Bad Request",
+		"status_code": 400.0,
+		"type":        "error",
+	})
+	c.Check(d.interfaces.ConnectedPlugs("consumer"), check.HasLen, 0)
+	c.Check(d.interfaces.ConnectedSlots("producer"), check.HasLen, 0)
 }
 
 func (s *apiSuite) TestAddSlotSuccess(c *check.C) {
@@ -1888,7 +1668,7 @@ func (s *apiSuite) TestAddSlotDisabled(c *check.C) {
 	action := &interfaceAction{
 		Action: "add-slot",
 		Slot: interfaces.Slot{
-			Snap:      "consumer",
+			Snap:      "producer",
 			Name:      "slot",
 			Label:     "label",
 			Interface: "interface",
@@ -1917,7 +1697,7 @@ func (s *apiSuite) TestAddSlotDisabled(c *check.C) {
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Check(d.interfaces.Slot("consumer", "slot"), check.IsNil)
+	c.Check(d.interfaces.Slot("producer", "slot"), check.IsNil)
 }
 
 func (s *apiSuite) TestAddSlotFailure(c *check.C) {
@@ -1966,11 +1746,11 @@ func (s *apiSuite) TestAddSlotFailure(c *check.C) {
 func (s *apiSuite) TestRemoveSlotSuccess(c *check.C) {
 	d := newTestDaemon()
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
+	d.interfaces.AddSlot(&interfaces.Slot{Snap: "producer", Name: "slot", Interface: "interface"})
 	action := &interfaceAction{
 		Action: "remove-slot",
 		Slot: interfaces.Slot{
-			Snap: "consumer",
+			Snap: "producer",
 			Name: "slot",
 		},
 	}
@@ -1997,12 +1777,12 @@ func (s *apiSuite) TestRemoveSlotSuccess(c *check.C) {
 func (s *apiSuite) TestRemoveSlotDisabled(c *check.C) {
 	d := newTestDaemon()
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
+	d.interfaces.AddSlot(&interfaces.Slot{Snap: "producer", Name: "slot", Interface: "interface"})
 	d.enableInternalInterfaceActions = false
 	action := &interfaceAction{
 		Action: "remove-slot",
 		Slot: interfaces.Slot{
-			Snap: "consumer",
+			Snap: "producer",
 			Name: "slot",
 		},
 	}
@@ -2025,19 +1805,19 @@ func (s *apiSuite) TestRemoveSlotDisabled(c *check.C) {
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Check(d.interfaces.Slot("consumer", "slot"), check.Not(check.IsNil))
+	c.Check(d.interfaces.Slot("producer", "slot"), check.Not(check.IsNil))
 }
 
 func (s *apiSuite) TestRemoveSlotFailure(c *check.C) {
 	d := newTestDaemon()
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
-	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
-	d.interfaces.Connect("producer", "plug", "consumer", "slot")
+	d.interfaces.AddSlot(&interfaces.Slot{Snap: "producer", Name: "slot", Interface: "interface"})
+	d.interfaces.AddPlug(&interfaces.Plug{Snap: "consumer", Name: "plug", Interface: "interface"})
+	d.interfaces.Connect("producer", "slot", "consumer", "plug")
 	action := &interfaceAction{
 		Action: "remove-slot",
 		Slot: interfaces.Slot{
-			Snap: "consumer",
+			Snap: "producer",
 			Name: "slot",
 		},
 	}
@@ -2054,13 +1834,233 @@ func (s *apiSuite) TestRemoveSlotFailure(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": `cannot remove slot "slot" from snap "consumer", it is still connected`,
+			"message": `cannot remove slot "slot" from snap "producer", it is still connected`,
 		},
 		"status":      "Bad Request",
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Check(d.interfaces.Slot("consumer", "slot"), check.Not(check.IsNil))
+	c.Check(d.interfaces.Slot("producer", "slot"), check.Not(check.IsNil))
+}
+
+func (s *apiSuite) TestAddPlugSuccess(c *check.C) {
+	d := newTestDaemon()
+	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	action := &interfaceAction{
+		Action: "add-plug",
+		Plug: interfaces.Plug{
+			Snap:      "snap",
+			Name:      "plug",
+			Label:     "label",
+			Interface: "interface",
+			Attrs: map[string]interface{}{
+				"key": "value",
+			},
+			Apps: []string{"app"},
+		},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/2.0/interfaces", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 201)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result":      nil,
+		"status":      "Created",
+		"status_code": 201.0,
+		"type":        "sync",
+	})
+	c.Check(d.interfaces.Plug("snap", "plug"), check.DeepEquals, &action.Plug)
+}
+
+func (s *apiSuite) TestAddPlugDisabled(c *check.C) {
+	d := newTestDaemon()
+	d.interfaces.AddInterface(&interfaces.TestInterface{
+		InterfaceName: "interface",
+	})
+	d.enableInternalInterfaceActions = false
+	action := &interfaceAction{
+		Action: "add-plug",
+		Plug: interfaces.Plug{
+			Snap:      "consumer",
+			Name:      "plug",
+			Label:     "label",
+			Interface: "interface",
+			Attrs: map[string]interface{}{
+				"key": "value",
+			},
+			Apps: []string{"app"},
+		},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/2.0/interfaces", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 400)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"message": "internal interface actions are disabled",
+		},
+		"status":      "Bad Request",
+		"status_code": 400.0,
+		"type":        "error",
+	})
+	c.Check(d.interfaces.Plug("consumer", "plug"), check.IsNil)
+}
+
+func (s *apiSuite) TestAddPlugFailure(c *check.C) {
+	d := newTestDaemon()
+	d.interfaces.AddInterface(&interfaces.TestInterface{
+		InterfaceName: "interface",
+		SanitizePlugCallback: func(plug *interfaces.Plug) error {
+			return fmt.Errorf("required attribute missing")
+		},
+	})
+	action := &interfaceAction{
+		Action: "add-plug",
+		Plug: interfaces.Plug{
+			Snap:      "snap",
+			Name:      "plug",
+			Label:     "label",
+			Interface: "interface",
+			Attrs: map[string]interface{}{
+				"key": "value",
+			},
+			Apps: []string{"app"},
+		},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/2.0/interfaces", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 400)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"message": "cannot add plug: required attribute missing",
+		},
+		"status":      "Bad Request",
+		"status_code": 400.0,
+		"type":        "error",
+	})
+	c.Check(d.interfaces.Plug("snap", "name"), check.IsNil)
+}
+
+func (s *apiSuite) TestRemovePlugSuccess(c *check.C) {
+	d := newTestDaemon()
+	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	d.interfaces.AddPlug(&interfaces.Plug{Snap: "consumer", Name: "plug", Interface: "interface"})
+	action := &interfaceAction{
+		Action: "remove-plug",
+		Plug: interfaces.Plug{
+			Snap: "consumer",
+			Name: "plug",
+		},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/2.0/interfaces", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result":      nil,
+		"status":      "OK",
+		"status_code": 200.0,
+		"type":        "sync",
+	})
+	c.Check(d.interfaces.Plug("snap", "name"), check.IsNil)
+}
+
+func (s *apiSuite) TestRemovePlugDisabled(c *check.C) {
+	d := newTestDaemon()
+	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	d.interfaces.AddPlug(&interfaces.Plug{Snap: "consumer", Name: "plug", Interface: "interface"})
+	d.enableInternalInterfaceActions = false
+	action := &interfaceAction{
+		Action: "remove-plug",
+		Plug: interfaces.Plug{
+			Snap: "consumer",
+			Name: "plug",
+		},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/2.0/interfaces", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 400)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"message": "internal interface actions are disabled",
+		},
+		"status":      "Bad Request",
+		"status_code": 400.0,
+		"type":        "error",
+	})
+	c.Check(d.interfaces.Plug("consumer", "plug"), check.Not(check.IsNil))
+}
+
+func (s *apiSuite) TestRemovePlugFailure(c *check.C) {
+	d := newTestDaemon()
+	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	d.interfaces.AddSlot(&interfaces.Slot{Snap: "producer", Name: "slot", Interface: "interface"})
+	d.interfaces.AddPlug(&interfaces.Plug{Snap: "consumer", Name: "plug", Interface: "interface"})
+	d.interfaces.Connect("producer", "slot", "consumer", "plug")
+	action := &interfaceAction{
+		Action: "remove-plug",
+		Plug: interfaces.Plug{
+			Snap: "consumer",
+			Name: "plug",
+		},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/2.0/interfaces", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 400)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"message": `cannot remove plug "plug" from snap "consumer", it is still connected`,
+		},
+		"status":      "Bad Request",
+		"status_code": 400.0,
+		"type":        "error",
+	})
+	c.Check(d.interfaces.Plug("consumer", "plug"), check.Not(check.IsNil))
 }
 
 func (s *apiSuite) TestUnsupportedInterfaceRequest(c *check.C) {
@@ -2130,7 +2130,7 @@ func (s *apiSuite) TestUnsupportedInterfaceAction(c *check.C) {
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Check(d.interfaces.Slot("snap", "name"), check.IsNil)
+	c.Check(d.interfaces.Plug("snap", "name"), check.IsNil)
 }
 
 const (

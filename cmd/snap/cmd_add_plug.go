@@ -27,24 +27,24 @@ import (
 type cmdAddInterface struct {
 	Positionals struct {
 		Snap      string `positional-arg-name:"<snap>" description:"Name of the snap offering the interface"`
-		Plug      string `positional-arg-name:"<plug>" description:"Plug name within the snap"`
+		Slot      string `positional-arg-name:"<slot>" description:"Slot name within the snap"`
 		Interface string `positional-arg-name:"<interface>" description:"Interface name"`
 	} `positional-args:"true" required:"true"`
 	Attrs []AttributePair `short:"a" description:"List of key=value attributes"`
-	Apps  []string        `long:"app" description:"List of apps providing this plug"`
+	Apps  []string        `long:"app" description:"List of apps providing this slot"`
 	Label string          `long:"label" description:"Human-friendly label"`
 }
 
-var shortAddPlugHelp = i18n.G("Adds a plug to the system")
-var longAddPlugHelp = i18n.G(`
-The add-plug command adds a new plug to the system.
+var shortAddSlotHelp = i18n.G("Adds a slot to the system")
+var longAddSlotHelp = i18n.G(`
+The add-slot command adds a new slot to the system.
 
 This command is only for experimentation with interfaces.
 It will be removed in one of the future releases.
 `)
 
 func init() {
-	addExperimentalCommand("add-plug", shortAddPlugHelp, longAddPlugHelp, func() interface{} {
+	addExperimentalCommand("add-slot", shortAddSlotHelp, longAddSlotHelp, func() interface{} {
 		return &cmdAddInterface{}
 	})
 }
@@ -54,9 +54,9 @@ func (x *cmdAddInterface) Execute(args []string) error {
 	for k, v := range AttributePairSliceToMap(x.Attrs) {
 		attrs[k] = v
 	}
-	return Client().AddPlug(&client.Plug{
+	return Client().AddSlot(&client.Slot{
 		Snap:      x.Positionals.Snap,
-		Name:      x.Positionals.Plug,
+		Name:      x.Positionals.Slot,
 		Interface: x.Positionals.Interface,
 		Attrs:     attrs,
 		Apps:      x.Apps,
