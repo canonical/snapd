@@ -101,7 +101,8 @@ The gui directory contains GUI releated files for the snap.
 The `gui/` directory may contain .desktop files for the snap. Those
 desktop files may contain all valid desktop entries from the xdg
 Desktop Entry Specification version 1.1 with some exceptions listed
-below.
+below. If there is a line with an unknown key or an unofficial key
+that line is silently removed from the desktop file on install.
 
 Only `Exec=` lines that starts with `Exec=$snap.$app` are valid, but
 arguments may be passed. E.g. for a snap like:
@@ -127,7 +128,8 @@ snap is called "http" and the app is called "GET").
 ### Unsupported desktop keys
 
 The `DBusActivatable`, `TryExec` and `Implements` keys are currently
-not supported.
+not supported and will be silently removed from the desktop file on
+install.
 
 ## hooks/ directory
 
