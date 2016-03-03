@@ -1586,10 +1586,8 @@ func (s *apiSuite) TestAddPlugSuccess(c *check.C) {
 				Name:      "plug",
 				Label:     "label",
 				Interface: "interface",
-				Attrs: map[string]interface{}{
-					"key": "value",
-				},
-				Apps: []string{"app"},
+				Attrs:     map[string]interface{}{"key": "value"},
+				Apps:      []string{"app"},
 			},
 		},
 	}
@@ -1627,10 +1625,8 @@ func (s *apiSuite) TestAddPlugDisabled(c *check.C) {
 				Name:      "plug",
 				Label:     "label",
 				Interface: "interface",
-				Attrs: map[string]interface{}{
-					"key": "value",
-				},
-				Apps: []string{"app"},
+				Attrs:     map[string]interface{}{"key": "value"},
+				Apps:      []string{"app"},
 			},
 		},
 	}
@@ -1672,10 +1668,8 @@ func (s *apiSuite) TestAddPlugFailure(c *check.C) {
 				Name:      "plug",
 				Label:     "label",
 				Interface: "interface",
-				Attrs: map[string]interface{}{
-					"key": "value",
-				},
-				Apps: []string{"app"},
+				Attrs:     map[string]interface{}{"key": "value"},
+				Apps:      []string{"app"},
 			},
 		},
 	}
@@ -1707,12 +1701,7 @@ func (s *apiSuite) TestRemovePlugSuccess(c *check.C) {
 	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
 	action := &interfaceAction{
 		Action: "remove-plug",
-		Plugs: []interfaces.Plug{
-			{
-				Snap: "producer",
-				Name: "plug",
-			},
-		},
+		Plugs:  []interfaces.Plug{{Snap: "producer", Name: "plug"}},
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -1808,10 +1797,8 @@ func (s *apiSuite) TestAddSlotSuccess(c *check.C) {
 				Name:      "slot",
 				Label:     "label",
 				Interface: "interface",
-				Attrs: map[string]interface{}{
-					"key": "value",
-				},
-				Apps: []string{"app"},
+				Attrs:     map[string]interface{}{"key": "value"},
+				Apps:      []string{"app"},
 			},
 		},
 	}
@@ -1849,10 +1836,8 @@ func (s *apiSuite) TestAddSlotDisabled(c *check.C) {
 				Name:      "slot",
 				Label:     "label",
 				Interface: "interface",
-				Attrs: map[string]interface{}{
-					"key": "value",
-				},
-				Apps: []string{"app"},
+				Attrs:     map[string]interface{}{"key": "value"},
+				Apps:      []string{"app"},
 			},
 		},
 	}
@@ -1894,10 +1879,8 @@ func (s *apiSuite) TestAddSlotFailure(c *check.C) {
 				Name:      "slot",
 				Label:     "label",
 				Interface: "interface",
-				Attrs: map[string]interface{}{
-					"key": "value",
-				},
-				Apps: []string{"app"},
+				Attrs:     map[string]interface{}{"key": "value"},
+				Apps:      []string{"app"},
 			},
 		},
 	}
