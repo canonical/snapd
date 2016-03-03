@@ -34,10 +34,10 @@ import (
 
 	"github.com/ubuntu-core/snappy/asserts"
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/interfaces/builtin"
 	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/osutil"
 )
 
 // A Daemon listens for requests and routes them to the right command
@@ -49,7 +49,7 @@ type Daemon struct {
 	router       *mux.Router
 	asserts      *asserts.Database
 	interfaces   *interfaces.Repository
-	// enableInternalInterfaceActions controls if adding and removing skills and slots is allowed.
+	// enableInternalInterfaceActions controls if adding and removing slots and plugs is allowed.
 	enableInternalInterfaceActions bool
 }
 
@@ -251,7 +251,7 @@ func (d *Daemon) DeleteTask(uuid string) error {
 }
 
 func getTrustedAccountKey() string {
-	if !helpers.FileExists(dirs.SnapTrustedAccountKey) {
+	if !osutil.FileExists(dirs.SnapTrustedAccountKey) {
 		// XXX: allow this fallback here for integration tests,
 		// until we have a proper trusted public key shared
 		// with the store

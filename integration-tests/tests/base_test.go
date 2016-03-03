@@ -22,8 +22,8 @@ package tests
 
 import (
 	"io"
+	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -37,7 +37,7 @@ import (
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/wait"
 )
 
-var daemonCmd *exec.Cmd
+const cfgDir = "/etc/systemd/system/ubuntu-snappy.snapd.service.d"
 
 func init() {
 	c := &check.C{}
@@ -64,25 +64,87 @@ func Test(t *testing.T) {
 		os.Stdout,
 		report.NewSubunitV2ParserReporter(&report.FileReporter{}))
 	runner.TestingT(t, output)
+
+	cfg, err := config.ReadConfig(config.DefaultFileName)
+	if err != nil {
+		t.Fatalf("Error reading config: %v", err)
+	}
+
+	if cfg.FromBranch {
+		if err := tearDownSnapdFromBranch(); err != nil {
+			t.Fatalf("Error stopping daemon: %v", err)
+		}
+	}
 }
 
 func setUpSnapdFromBranch(c *check.C) {
-	if daemonCmd == nil {
-		trustedKey, err := filepath.Abs("integration-tests/data/trusted.acckey")
-		c.Assert(err, check.IsNil)
+	cli.ExecCommand(c, "sudo", "systemctl", "stop",
+		"ubuntu-snappy.snapd.service", "ubuntu-snappy.snapd.socket")
 
-		cli.ExecCommand(c, "sudo", "systemctl", "stop",
-			"ubuntu-snappy.snapd.service", "ubuntu-snappy.snapd.socket")
+	binPath, err := filepath.Abs("integration-tests/bin/snapd")
+	c.Assert(err, check.IsNil)
 
-		// FIXME: for now pass a test-only trusted key through an env var
-		daemonCmd = exec.Command("sudo", "env", "PATH="+os.Getenv("PATH"),
-			"SNAPPY_TRUSTED_ACCOUNT_KEY="+trustedKey,
-			"/lib/systemd/systemd-activate", "--setenv=SNAPPY_TRUSTED_ACCOUNT_KEY",
-			"-l", "/run/snapd.socket", "snapd")
+	_, err = cli.ExecCommandErr("sudo", "mount", "-o", "bind",
+		binPath, "/usr/bin/snapd")
+	c.Assert(err, check.IsNil)
 
-		err = daemonCmd.Start()
-		c.Assert(err, check.IsNil)
+	err = writeEnvConfig()
+	c.Assert(err, check.IsNil)
 
-		wait.ForCommand(c, `^$`, "sudo", "chmod", "0666", "/run/snapd.socket")
+	_, err = cli.ExecCommandErr("sudo", "systemctl", "daemon-reload")
+	c.Assert(err, check.IsNil)
+
+	_, err = cli.ExecCommandErr("sudo", "systemctl", "start", "ubuntu-snappy.snapd.service")
+	c.Assert(err, check.IsNil)
+}
+
+func tearDownSnapdFromBranch() error {
+	if _, err := cli.ExecCommandErr("sudo", "systemctl", "stop",
+		"ubuntu-snappy.snapd.service"); err != nil {
+		return err
 	}
+
+	if _, err := cli.ExecCommandErr("sudo", "rm", "-rf", cfgDir); err != nil {
+		return err
+	}
+
+	if _, err := cli.ExecCommandErr("sudo", "umount", "/usr/bin/snapd"); err != nil {
+		return err
+	}
+
+	if _, err := cli.ExecCommandErr("sudo", "systemctl", "daemon-reload"); err != nil {
+		return err
+	}
+
+	if _, err := cli.ExecCommandErr("sudo", "systemctl", "start",
+		"ubuntu-snappy.snapd.service"); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func writeEnvConfig() error {
+	if _, err := cli.ExecCommandErr("sudo", "mkdir", "-p", cfgDir); err != nil {
+		return err
+	}
+
+	cfgFile := filepath.Join(cfgDir, "env.conf")
+	// FIXME: for now pass a test-only trusted key through an env var
+	trustedKey, err := filepath.Abs("integration-tests/data/trusted.acckey")
+	if err != nil {
+		return err
+	}
+
+	cfgContent := []byte(`[Service]
+Environment="SNAPPY_TRUSTED_ACCOUNT_KEY=` + trustedKey + `"
+`)
+	if err = ioutil.WriteFile("/tmp/snapd.env.conf", cfgContent, os.ModeExclusive); err != nil {
+		return err
+	}
+
+	if _, err = cli.ExecCommandErr("sudo", "mv", "/tmp/snapd.env.conf", cfgFile); err != nil {
+		return err
+	}
+	return nil
 }

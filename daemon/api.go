@@ -131,7 +131,7 @@ var (
 	interfacesCmd = &Command{
 		Path:   "/2.0/interfaces",
 		UserOK: true,
-		GET:    getPlugs,
+		GET:    getInterfaces,
 		POST:   changeInterfaces,
 	}
 
@@ -919,52 +919,20 @@ func appIconGet(c *Command, r *http.Request) Response {
 	return iconGet(name, origin)
 }
 
-// plugConnection holds the identification of a slot that has been connected to a plug.
-type plugConnection struct {
-	Snap string `json:"snap"`
-	Name string `json:"slot"` // This is the slot name
+// getInterfaces returns all plugs and slots.
+func getInterfaces(c *Command, r *http.Request) Response {
+	return SyncResponse(c.d.interfaces.Interfaces())
 }
 
-// plugInfo holds details for a plug as returned by the REST API.
-type plugInfo struct {
-	Snap        string           `json:"snap"`
-	Name        string           `json:"plug"`
-	Interface   string           `json:"interface"`
-	Label       string           `json:"label"`
-	Connections []plugConnection `json:"connections"`
-}
-
-// getPlugs returns a response with a list of all the plugs and which slots use them.
-func getPlugs(c *Command, r *http.Request) Response {
-	var plugs []plugInfo
-	for _, plug := range c.d.interfaces.AllPlugs("") {
-		var slots []plugConnection
-		for _, slot := range c.d.interfaces.PlugConnections(plug.Snap, plug.Name) {
-			slots = append(slots, plugConnection{
-				Snap: slot.Snap,
-				Name: slot.Name,
-			})
-		}
-		plugs = append(plugs, plugInfo{
-			Snap:        plug.Snap,
-			Name:        plug.Name,
-			Interface:   plug.Interface,
-			Label:       plug.Label,
-			Connections: slots,
-		})
-	}
-	return SyncResponse(plugs)
-}
-
-// interfaceAction is an action performed on the plug system.
+// interfaceAction is an action performed on the interface system.
 type interfaceAction struct {
 	Action string          `json:"action"`
 	Plug   interfaces.Plug `json:"plug,omitempty"`
 	Slot   interfaces.Slot `json:"slot,omitempty"`
 }
 
-// changeInterfaces controls the plug system.
-// Plugs can be granted to and revoked from slots.
+// changeInterfaces controls the interfaces system.
+// Plugs can be connected to and disconnected from slots.
 // When enableInternalInterfaceActions is true plugs and slots can also be
 // explicitly added and removed.
 func changeInterfaces(c *Command, r *http.Request) Response {

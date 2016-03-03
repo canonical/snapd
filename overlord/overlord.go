@@ -17,68 +17,74 @@
  *
  */
 
-// Package overlord implements the policies for state transitions for the operation of a snappy system.
+// Package overlord implements the overall control of a snappy system.
 package overlord
+
+import (
+	"github.com/ubuntu-core/snappy/overlord/assertstate"
+	"github.com/ubuntu-core/snappy/overlord/ifacestate"
+	"github.com/ubuntu-core/snappy/overlord/snapstate"
+)
 
 // Overlord is the central manager of a snappy system, keeping
 // track of all available state managers and related helpers.
 type Overlord struct {
+	stateEng *StateEngine
 	// managers
-	snapMgr   *SnapManager
-	assertMgr *AssertManager
-	skillMgr  *SkillManager
+	snapMgr   *snapstate.SnapManager
+	assertMgr *assertstate.AssertManager
+	ifaceMgr  *ifacestate.InterfaceManager
 }
 
 // New creates a new Overlord with all its state managers.
 func New() (*Overlord, error) {
-	stateEng := NewStateEngine()
-
 	o := &Overlord{}
-	snapMgr, err := NewSnapManager(o)
+
+	o.stateEng = NewStateEngine()
+
+	snapMgr, err := snapstate.Manager()
 	if err != nil {
 		return nil, err
 	}
 	o.snapMgr = snapMgr
-	stateEng.AddManager(o.snapMgr)
+	o.stateEng.AddManager(o.snapMgr)
 
-	assertMgr, err := NewAssertManager(o)
+	assertMgr, err := assertstate.Manager()
 	if err != nil {
 		return nil, err
 	}
 	o.assertMgr = assertMgr
-	stateEng.AddManager(o.assertMgr)
+	o.stateEng.AddManager(o.assertMgr)
 
-	skillMgr, err := NewSkillManager(o)
+	ifaceMgr, err := ifacestate.Manager()
 	if err != nil {
 		return nil, err
 	}
-	o.skillMgr = skillMgr
-	stateEng.AddManager(o.skillMgr)
-
-	// XXX: setup the StateJournal
+	o.ifaceMgr = ifaceMgr
+	o.stateEng.AddManager(o.ifaceMgr)
 
 	return o, nil
 }
 
-// StateJournal returns the StateJournal used by the overlord.
-func (o *Overlord) StateJournal() *StateJournal {
-	return nil
+// StateEngine returns the state engine used by the overlord.
+func (o *Overlord) StateEngine() *StateEngine {
+	return o.stateEng
 }
 
 // SnapManager returns the snap manager responsible for snaps under
 // the overlord.
-func (o *Overlord) SnapManager() *SnapManager {
+func (o *Overlord) SnapManager() *snapstate.SnapManager {
 	return o.snapMgr
 }
 
 // AssertManager returns the assertion manager enforcing assertions
 // under the overlord.
-func (o *Overlord) AssertManager() *AssertManager {
+func (o *Overlord) AssertManager() *assertstate.AssertManager {
 	return o.assertMgr
 }
 
-// SkillManager returns the skill manager mantaining skill assignments
-// under the overlord.
-func (o *Overlord) SkillManager() *SkillManager {
-	return o.skillMgr
+// InterfaceManager returns the interface manager mantaining
+// interface connections under the overlord.
+func (o *Overlord) InterfaceManager() *ifacestate.InterfaceManager {
+	return o.ifaceMgr
 }

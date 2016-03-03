@@ -24,7 +24,7 @@ import (
 	"path/filepath"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/osutil"
 
 	"github.com/mvo5/goconfigparser"
 )
@@ -40,7 +40,7 @@ type grub struct {
 // newGrub create a new Grub bootloader object
 func newGrub() Bootloader {
 	g := &grub{}
-	if !helpers.FileExists(g.configFile()) {
+	if !osutil.FileExists(g.configFile()) {
 		return nil
 	}
 

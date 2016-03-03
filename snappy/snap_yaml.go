@@ -35,6 +35,7 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/squashfs"
 	"github.com/ubuntu-core/snappy/systemd"
@@ -82,12 +83,12 @@ type AppYaml struct {
 	// must be a pointer so that it can be "nil" and omitempty works
 	Ports *Ports `yaml:"ports,omitempty" json:"ports,omitempty"`
 
-	OffersRef []string `yaml:"offers"`
-	UsesRef   []string `yaml:"uses"`
+	PlugsRef []string `yaml:"plugs"`
+	SlotsRef []string `yaml:"slots"`
 }
 
-type usesYaml struct {
-	Type                string `yaml:"type"`
+type slotYaml struct {
+	Interface           string `yaml:"interface"`
 	SecurityDefinitions `yaml:",inline"`
 }
 
@@ -111,8 +112,8 @@ type snapYaml struct {
 	// Apps can be both binary or service
 	Apps map[string]*AppYaml `yaml:"apps,omitempty"`
 
-	// Uses maps the used "skills" to the apps
-	Uses map[string]*usesYaml `yaml:"uses,omitempty"`
+	// Slots maps the used "interfaces" to the apps
+	Slots map[string]*slotYaml `yaml:"slots,omitempty"`
 
 	// FIXME: clarify those
 
@@ -134,7 +135,7 @@ func parseSnapYamlFile(yamlPath string) (*snapYaml, error) {
 	}
 
 	// legacy support sucks :-/
-	hasConfig := helpers.FileExists(filepath.Join(filepath.Dir(yamlPath), "hooks", "config"))
+	hasConfig := osutil.FileExists(filepath.Join(filepath.Dir(yamlPath), "hooks", "config"))
 
 	return parseSnapYamlData(yamlData, hasConfig)
 }
@@ -169,9 +170,9 @@ func validateSnapYamlData(file string, yamlData []byte, m *snapYaml) error {
 		}
 	}
 
-	// check for "uses"
-	for _, uses := range m.Uses {
-		if err := verifyUsesYaml(uses); err != nil {
+	// check for "slots"
+	for _, slots := range m.Slots {
+		if err := verifySlotYaml(slots); err != nil {
 			return err
 		}
 	}
@@ -197,9 +198,9 @@ func parseSnapYamlData(yamlData []byte, hasConfig bool) (*snapYaml, error) {
 		app.Name = name
 	}
 
-	for name, uses := range m.Uses {
-		if uses.Type == "" {
-			uses.Type = name
+	for name, slot := range m.Slots {
+		if slot.Interface == "" {
+			slot.Interface = name
 		}
 	}
 
@@ -316,7 +317,7 @@ func addSquashfsMount(m *snapYaml, baseDir string, inhibitHooks bool, inter inte
 func removeSquashfsMount(m *snapYaml, baseDir string, inter interacter) error {
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
 	unit := systemd.MountUnitPath(stripGlobalRootDir(baseDir), "mount")
-	if helpers.FileExists(unit) {
+	if osutil.FileExists(unit) {
 		// we ignore errors, nothing should stop removals
 		if err := sysd.Disable(filepath.Base(unit)); err != nil {
 			logger.Noticef("Failed to disable %q: %s, but continuing anyway.", unit, err)

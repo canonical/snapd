@@ -27,12 +27,12 @@ import (
 	"strings"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/osutil"
 )
 
 // Enabled returns true if the classic mode is already enabled
 func Enabled() bool {
-	return helpers.FileExists(filepath.Join(dirs.ClassicDir, "etc", "apt", "sources.list"))
+	return osutil.FileExists(filepath.Join(dirs.ClassicDir, "etc", "apt", "sources.list"))
 }
 
 var mountpointCmd = "mountpoint"
@@ -45,7 +45,7 @@ func isMounted(path string) (bool, error) {
 	cmd.Env = []string{"LC_ALL=C"}
 
 	output, err := cmd.CombinedOutput()
-	exitCode, err := helpers.ExitCode(err)
+	exitCode, err := osutil.ExitCode(err)
 	// if we get anything other than "ExitError" er error here
 	if err != nil {
 		return false, err
