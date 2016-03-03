@@ -305,3 +305,46 @@ func (ss *stateSuite) TestNewChangeAndCheckpoint(c *C) {
 	err = chg0.Get("a", &v)
 	c.Check(v, Equals, 1)
 }
+
+func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
+	b := new(fakeStateBackend)
+	st := state.New(b)
+	st.Lock()
+
+	chg := st.NewChange("install", "summary")
+	c.Assert(chg, NotNil)
+
+	t1 := chg.NewTask("download", "1...")
+	t1ID := t1.ID()
+	t1.Set("a", 1)
+
+	// implicit checkpoint
+	st.Unlock()
+
+	c.Assert(b.checkpoints, HasLen, 1)
+
+	buf := bytes.NewBuffer(b.checkpoints[0])
+
+	st2, err := state.ReadState(nil, buf)
+	c.Assert(err, IsNil)
+	c.Assert(st2, NotNil)
+
+	st2.Lock()
+	defer st2.Unlock()
+
+	chgs := st2.Changes()
+	c.Assert(chgs, HasLen, 1)
+	chg0 := chgs[0]
+
+	tasks0 := chg0.Tasks()
+	c.Assert(tasks0, HasLen, 1)
+
+	task0_1 := tasks0[0]
+	c.Check(task0_1.ID(), Equals, t1ID)
+	c.Check(task0_1.Kind(), Equals, "download")
+	c.Check(task0_1.Summary(), Equals, "1...")
+
+	var v int
+	err = task0_1.Get("a", &v)
+	c.Check(v, Equals, 1)
+}
