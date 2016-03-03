@@ -20,14 +20,20 @@
 // Package overlord implements the overall control of a snappy system.
 package overlord
 
+import (
+	"github.com/ubuntu-core/snappy/overlord/assertstate"
+	"github.com/ubuntu-core/snappy/overlord/ifacestate"
+	"github.com/ubuntu-core/snappy/overlord/snapstate"
+)
+
 // Overlord is the central manager of a snappy system, keeping
 // track of all available state managers and related helpers.
 type Overlord struct {
 	stateEng *StateEngine
 	// managers
-	snapMgr   *SnapManager
-	assertMgr *AssertManager
-	ifaceMgr  *InterfaceManager
+	snapMgr   *snapstate.SnapManager
+	assertMgr *assertstate.AssertManager
+	ifaceMgr  *ifacestate.InterfaceManager
 }
 
 // New creates a new Overlord with all its state managers.
@@ -36,21 +42,21 @@ func New() (*Overlord, error) {
 
 	o.stateEng = NewStateEngine()
 
-	snapMgr, err := NewSnapManager(o)
+	snapMgr, err := snapstate.Manager()
 	if err != nil {
 		return nil, err
 	}
 	o.snapMgr = snapMgr
 	o.stateEng.AddManager(o.snapMgr)
 
-	assertMgr, err := NewAssertManager(o)
+	assertMgr, err := assertstate.Manager()
 	if err != nil {
 		return nil, err
 	}
 	o.assertMgr = assertMgr
 	o.stateEng.AddManager(o.assertMgr)
 
-	ifaceMgr, err := NewInterfaceManager(o)
+	ifaceMgr, err := ifacestate.Manager()
 	if err != nil {
 		return nil, err
 	}
@@ -67,18 +73,18 @@ func (o *Overlord) StateEngine() *StateEngine {
 
 // SnapManager returns the snap manager responsible for snaps under
 // the overlord.
-func (o *Overlord) SnapManager() *SnapManager {
+func (o *Overlord) SnapManager() *snapstate.SnapManager {
 	return o.snapMgr
 }
 
 // AssertManager returns the assertion manager enforcing assertions
 // under the overlord.
-func (o *Overlord) AssertManager() *AssertManager {
+func (o *Overlord) AssertManager() *assertstate.AssertManager {
 	return o.assertMgr
 }
 
 // InterfaceManager returns the interface manager mantaining
 // interface connections under the overlord.
-func (o *Overlord) InterfaceManager() *InterfaceManager {
+func (o *Overlord) InterfaceManager() *ifacestate.InterfaceManager {
 	return o.ifaceMgr
 }

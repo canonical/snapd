@@ -17,39 +17,36 @@
  *
  */
 
-package overlord
+// Package assertstate implements the manager and state aspects responsible
+// for the enforcement of assertions in the system.
+package assertstate
 
-// SnapManager is responsible for the installation and removal of snaps.
-type SnapManager struct {
-	o *Overlord
-}
+import (
+	"github.com/ubuntu-core/snappy/overlord/state"
+)
 
-// NewSnapManager returns a new snap manager.
-func NewSnapManager(o *Overlord) (*SnapManager, error) {
-	return &SnapManager{o: o}, nil
-}
+// AssertManager is responsible for the enforcement of assertions in
+// system states. It manipulates the observed system state to ensure
+// nothing in it violates existing assertions, or misses required
+// ones.
+type AssertManager struct{}
 
-// Install initiates a change installing snap.
-func (m *SnapManager) Install(snap string) error {
-	return nil
-}
-
-// Remove initiates a change removing snap.
-func (m *SnapManager) Remove(snap string) error {
-	return nil
+// Manager returns a new assertion manager.
+func Manager() (*AssertManager, error) {
+	return &AssertManager{}, nil
 }
 
 // Init implements StateManager.Init.
-func (m *SnapManager) Init(s *State) error {
+func (m *AssertManager) Init(s *state.State) error {
 	return nil
 }
 
 // Ensure implements StateManager.Ensure.
-func (m *SnapManager) Ensure() error {
+func (m *AssertManager) Ensure() error {
 	return nil
 }
 
 // Stop implements StateManager.Stop.
-func (m *SnapManager) Stop() error {
+func (m *AssertManager) Stop() error {
 	return nil
 }

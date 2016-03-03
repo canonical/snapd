@@ -1,3 +1,61 @@
+ubuntu-snappy (1.7.3+20160303ubuntu4) xenial; urgency=medium
+
+  * rename:
+    debian/golang-snappy-dev.install ->
+       debian/golang-github-ubuntu-core-snappy-dev.install:
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 03 Mar 2016 12:29:16 +0100
+
+ubuntu-snappy (1.7.3+20160303ubuntu3) xenial; urgency=medium
+
+  * really fix typo in dependency name
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 03 Mar 2016 12:21:39 +0100
+
+ubuntu-snappy (1.7.3+20160303ubuntu2) xenial; urgency=medium
+
+  * fix typo in dependency name
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 03 Mar 2016 12:05:36 +0100
+
+ubuntu-snappy (1.7.3+20160303ubuntu1) xenial; urgency=medium
+
+    - debian: update build-depends for MIR
+    - many: implement new REST API: GET /2.0/interfaces
+    - integration-tests: properly stop snapd from branch
+    - cmd/snap: update tests for go-flags changes
+    - overlord/state: implement Lock/Unlock with implicit checkpointing
+    - overlord: split out the managers and State to their own
+      subpackages of overlord
+    - snappy: rename "migration-skill" to "old-security" and use new
+      interface names instead of skills
+    - client,cmd/snap: clarify name ambiguity in Plug or Slot
+    - overlord: start working on state engine along spec v2, have the
+      main skeleton follow that
+    - classic, oauth: update tests for change in MakeRandomString()
+    - client,cmd/snap: s/add/install/:-(
+    - interfaces,daemon: specialize Name to either Plug or Slot
+    - interfaces,interfaces/types: unify security snippet functions
+    - snapd: close the listener on Stop, to force the http.Serve loop to
+      exit
+    - snappy,daemon,snap/lightweight,cmd/snappy,docs/rest.md: expose
+      explicit channel selection to rest api
+    - interfaces,daemon: rename package holding built-in interfaces
+    - integration-tests: add the first classic dimention tests
+    - client,deaemon,docs: rename skills to interfaces on the wire
+    - asserts: add identity assertion type
+    - integration-tests: add the no_proxy env var
+    - debian: update build-depends for new package names
+    - oauth: fix oauth & quoting in the oauth_signature
+    - integration-tests: remove unused field
+    - integration-tests: add the http proxy argument
+    - interfaces,interfaces/types,deamon: mass internal rename to
+      interfaces
+    - client,cmd/snap: rename skills to interfaces (part 2)
+    - arch: fix missing mapping for powerpc
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 03 Mar 2016 11:00:19 +0100
+
 ubuntu-snappy (1.7.3+20160225ubuntu1) xenial; urgency=medium
 
     - integration-tests: always use the built snapd when compiling
