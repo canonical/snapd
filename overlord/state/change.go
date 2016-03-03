@@ -75,6 +75,9 @@ func (c *Change) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON makes Change a json.Unmarshaller
 func (c *Change) UnmarshalJSON(data []byte) error {
+	if c.state != nil {
+		c.state.ensureLocked()
+	}
 	var unmarshalled marshalledChange
 	err := json.Unmarshal(data, &unmarshalled)
 	if err != nil {

@@ -65,6 +65,9 @@ func (t *Task) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON makes Task a json.Unmarshaller
 func (t *Task) UnmarshalJSON(data []byte) error {
+	if t.state != nil {
+		t.state.ensureLocked()
+	}
 	var unmarshalled marshalledTask
 	err := json.Unmarshal(data, &unmarshalled)
 	if err != nil {
