@@ -1,3 +1,11 @@
+ubuntu-snappy (1.7.3+20160303ubuntu4) xenial; urgency=medium
+
+  * rename:
+    debian/golang-snappy-dev.install ->
+       debian/golang-github-ubuntu-core-snappy-dev.install:
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 03 Mar 2016 12:29:16 +0100
+
 ubuntu-snappy (1.7.3+20160303ubuntu3) xenial; urgency=medium
 
   * really fix typo in dependency name
