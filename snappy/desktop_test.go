@@ -179,7 +179,7 @@ Exec=snap.app %U
 	e := sanitizeDesktopFile(m, "/my/basedir", desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Entry]
 Name=foo
-Exec=snap.app %U`)
+Exec=/snaps/bin/snap.app %U`)
 }
 
 // we do not support TryExec (even if its a valid line), this test ensures
@@ -218,4 +218,25 @@ Invalid[i18n]=key
 Name=foo
 GenericName=bar
 GenericName[de]=einsehrlangeszusammengesetzteswort`)
+}
+
+func (s *SnapTestSuite) TestDesktopFileRewriteExecLineInvalid(c *C) {
+	m := &snapYaml{}
+	_, err := rewriteExecLine(m, "Exec=invalid")
+	c.Assert(err, ErrorMatches, `invalid exec command: "invalid"`)
+}
+
+func (s *SnapTestSuite) TestDesktopFileRewriteExecLineOk(c *C) {
+	m, err := parseSnapYamlData([]byte(`
+name: snap
+version: 1.0
+apps:
+ app:
+  command: cmd
+`), false)
+	c.Assert(err, IsNil)
+
+	newl, err := rewriteExecLine(m, "Exec=snap.app")
+	c.Assert(err, IsNil)
+	c.Assert(newl, Equals, "Exec=/snaps/bin/snap.app")
 }
