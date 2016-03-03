@@ -17,30 +17,39 @@
  *
  */
 
-package helpers
+package osutil
 
 import (
-	"io/ioutil"
 	"os"
 
 	. "gopkg.in/check.v1"
 )
 
-func (s *cpSuite) TestCpMulti(c *C) {
-	maxcp = 2
-	defer func() { maxcp = maxint }()
+type CurrentHomeDirTestSuite struct{}
 
-	c.Check(CopyFile(s.f1, s.f2, CopyFlagDefault), IsNil)
-	bs, err := ioutil.ReadFile(s.f2)
-	c.Check(err, IsNil)
-	c.Check(bs, DeepEquals, s.data)
+var _ = Suite(&AtomicWriteTestSuite{})
+
+func (ts *CurrentHomeDirTestSuite) TestCurrentHomeDirHOMEenv(c *C) {
+	tmpdir := c.MkDir()
+
+	oldHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", oldHome)
+
+	os.Setenv("HOME", tmpdir)
+	home, err := CurrentHomeDir()
+	c.Assert(err, IsNil)
+	c.Assert(home, Equals, tmpdir)
 }
 
-func (s *cpSuite) TestDoCpErr(c *C) {
-	f1, err := os.Open(s.f1)
+func (ts *CurrentHomeDirTestSuite) TestCurrentHomeDirNoHomeEnv(c *C) {
+	oldHome := os.Getenv("HOME")
+	if oldHome == "/sbuild-nonexistent" {
+		c.Skip("running in schroot this test won't work")
+	}
+	defer os.Setenv("HOME", oldHome)
+
+	os.Setenv("HOME", "")
+	home, err := CurrentHomeDir()
 	c.Assert(err, IsNil)
-	st, err := f1.Stat()
-	c.Assert(err, IsNil)
-	// force an error by asking it to write to a readonly stream
-	c.Check(doCopyFile(f1, os.Stdin, st), NotNil)
+	c.Assert(home, Equals, oldHome)
 }

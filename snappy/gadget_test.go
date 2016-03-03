@@ -29,7 +29,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/osutil"
 )
 
 type GadgetSuite struct {
@@ -82,9 +82,9 @@ func (s *GadgetSuite) TestCleanupGadgetHardwareRules(c *C) {
 	c.Assert(err, IsNil)
 
 	additionalFile := filepath.Join(dirs.SnapAppArmorDir, "device-hive-iot-hal.json.additional")
-	c.Assert(helpers.FileExists(additionalFile), Equals, true)
+	c.Assert(osutil.FileExists(additionalFile), Equals, true)
 
 	err = cleanupGadgetHardwareUdevRules(m)
 	c.Assert(err, IsNil)
-	c.Assert(helpers.FileExists(additionalFile), Equals, false)
+	c.Assert(osutil.FileExists(additionalFile), Equals, false)
 }

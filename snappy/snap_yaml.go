@@ -33,8 +33,8 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/squashfs"
 	"github.com/ubuntu-core/snappy/systemd"
@@ -134,7 +134,7 @@ func parseSnapYamlFile(yamlPath string) (*snapYaml, error) {
 	}
 
 	// legacy support sucks :-/
-	hasConfig := helpers.FileExists(filepath.Join(filepath.Dir(yamlPath), "hooks", "config"))
+	hasConfig := osutil.FileExists(filepath.Join(filepath.Dir(yamlPath), "hooks", "config"))
 
 	return parseSnapYamlData(yamlData, hasConfig)
 }
@@ -143,7 +143,7 @@ func validateSnapYamlData(file string, yamlData []byte, m *snapYaml) error {
 	// check mandatory fields
 	missing := []string{}
 	for _, name := range []string{"Name", "Version"} {
-		s := helpers.Getattr(m, name).(string)
+		s := getattr(m, name).(string)
 		if s == "" {
 			missing = append(missing, strings.ToLower(name))
 		}
@@ -316,7 +316,7 @@ func addSquashfsMount(m *snapYaml, baseDir string, inhibitHooks bool, inter inte
 func removeSquashfsMount(m *snapYaml, baseDir string, inter interacter) error {
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
 	unit := systemd.MountUnitPath(stripGlobalRootDir(baseDir), "mount")
-	if helpers.FileExists(unit) {
+	if osutil.FileExists(unit) {
 		// we ignore errors, nothing should stop removals
 		if err := sysd.Disable(filepath.Base(unit)); err != nil {
 			logger.Noticef("Failed to disable %q: %s, but continuing anyway.", unit, err)

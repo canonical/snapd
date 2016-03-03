@@ -24,7 +24,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/snap/remote"
 )
 
@@ -97,7 +96,7 @@ func (s *SortTestSuite) TestSideloadVersion(c *C) {
 	vs := make(ByVersion, n)
 
 	for i := 0; i < n; i++ {
-		vs[i] = helpers.NewSideloadVersion()
+		vs[i] = newSideloadVersion()
 	}
 
 	c.Check(sort.IsSorted(vs), Equals, true)

@@ -32,8 +32,8 @@ import (
 	"strings"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/policy"
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snap"
@@ -716,14 +716,14 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinary(m *snapYaml, name 
 	}
 
 	os.MkdirAll(filepath.Dir(p.scFn), 0755)
-	err = helpers.AtomicWriteFile(p.scFn, []byte(p.scPolicy), 0644, 0)
+	err = osutil.AtomicWriteFile(p.scFn, []byte(p.scPolicy), 0644, 0)
 	if err != nil {
 		logger.Noticef("Failed to write seccomp policy for %s: %v", name, err)
 		return err
 	}
 
 	os.MkdirAll(filepath.Dir(p.aaFn), 0755)
-	err = helpers.AtomicWriteFile(p.aaFn, []byte(p.aaPolicy), 0644, 0)
+	err = osutil.AtomicWriteFile(p.aaFn, []byte(p.aaPolicy), 0644, 0)
 	if err != nil {
 		logger.Noticef("Failed to write AppArmor policy for %s: %v", name, err)
 		return err
@@ -739,7 +739,7 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinary(m *snapYaml, name 
 
 // FIXME: move into something more generic - SnapPart.HasConfig?
 func hasConfig(baseDir string) bool {
-	return helpers.FileExists(filepath.Join(baseDir, "meta", "hooks", "config"))
+	return osutil.FileExists(filepath.Join(baseDir, "meta", "hooks", "config"))
 }
 
 func findSlotForApp(m *snapYaml, app *AppYaml) (*slotYaml, error) {
@@ -821,7 +821,7 @@ func regeneratePolicyForSnap(snapname string) error {
 		if appID.Version != appliedVersion {
 			// FIXME: dirs.SnapSnapsDir is too simple, gadget
 			fn := filepath.Join(dirs.SnapSnapsDir, appID.Pkgname, appID.Version, "meta", "snap.yaml")
-			if !helpers.FileExists(fn) {
+			if !osutil.FileExists(fn) {
 				continue
 			}
 			err := GeneratePolicyFromFile(fn, true)
