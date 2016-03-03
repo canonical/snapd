@@ -77,21 +77,21 @@ func isValidDesktopFilePrefix(line string) bool {
 	return false
 }
 
-func badExecLine(m *snapYaml, line string) bool {
-	if !strings.HasPrefix(line, "Exec=") {
-		return false
-	}
+func rewriteExecLine(m *snapYaml, line string) (string, error) {
 	cmd := strings.SplitN(line, "=", 2)[1]
 	for _, app := range m.Apps {
 		validCmd := filepath.Base(generateBinaryName(m, app))
-		// just check the prefix to allow %flag style args
+		// check the prefix to allow %flag style args
 		// this is ok because desktop files are not run through sh
+		// so we don't have to worry about the arguments too much
 		if cmd == validCmd || strings.HasPrefix(cmd, validCmd+" ") {
-			return false
+			binDir := stripGlobalRootDir(dirs.SnapBinariesDir)
+			absoluteCmd := filepath.Join(binDir, cmd)
+			return strings.Replace(line, cmd, absoluteCmd, 1), nil
 		}
 	}
 
-	return true
+	return "", fmt.Errorf("invalid exec command: %q", cmd)
 }
 
 func sanitizeDesktopFile(m *snapYaml, realBaseDir string, rawcontent []byte) []byte {
@@ -104,8 +104,14 @@ func sanitizeDesktopFile(m *snapYaml, realBaseDir string, rawcontent []byte) []b
 		if !isValidDesktopFilePrefix(line) {
 			continue
 		}
-		if badExecLine(m, line) {
-			continue
+		// rewrite exec lines to an absolute path for the binary
+		if strings.HasPrefix(line, "Exec=") {
+			var err error
+			line, err = rewriteExecLine(m, line)
+			if err != nil {
+				// something went wrong, ignore the line
+				continue
+			}
 		}
 
 		// do variable substitution
