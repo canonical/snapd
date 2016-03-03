@@ -70,7 +70,7 @@ type KeypairManager interface {
 	Get(authorityID, keyID string) (PrivateKey, error)
 }
 
-// TODO: for more flexibility slotging the keypair manager make PrivatKey private encoding methods optional, and add an explicit sign method.
+// TODO: for more flexibility plugging the keypair manager make PrivatKey private encoding methods optional, and add an explicit sign method.
 
 // DatabaseConfig for an assertion database.
 type DatabaseConfig struct {
