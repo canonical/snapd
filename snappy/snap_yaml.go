@@ -51,8 +51,8 @@ type AppYaml struct {
 	Daemon  string `yaml:"daemon"`
 
 	Description string          `yaml:"description,omitempty" json:"description,omitempty"`
-	Stop        string          `yaml:"stop,omitempty"`
-	PostStop    string          `yaml:"poststop,omitempty"`
+	Stop        string          `yaml:"stop-command,omitempty"`
+	PostStop    string          `yaml:"post-stop-command,omitempty"`
 	StopTimeout timeout.Timeout `yaml:"stop-timeout,omitempty"`
 	BusName     string          `yaml:"bus-name,omitempty"`
 
@@ -60,8 +60,6 @@ type AppYaml struct {
 	Socket       bool   `yaml:"socket,omitempty" json:"socket,omitempty"`
 	ListenStream string `yaml:"listen-stream,omitempty" json:"listen-stream,omitempty"`
 	SocketMode   string `yaml:"socket-mode,omitempty" json:"socket-mode,omitempty"`
-	SocketUser   string `yaml:"socket-user,omitempty" json:"socket-user,omitempty"`
-	SocketGroup  string `yaml:"socket-group,omitempty" json:"socket-group,omitempty"`
 
 	// systemd "restart" thing
 	RestartCond systemd.RestartCondition `yaml:"restart-condition,omitempty" json:"restart-condition,omitempty"`
