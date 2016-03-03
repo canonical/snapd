@@ -731,35 +731,6 @@ func (s *RepositorySuite) TestDisconnectFromSlot(c *C) {
 	c.Assert(s.testRepo.Interfaces().Plugs[0].Connections, HasLen, 0)
 }
 
-// Test for Repository.ConnectedSlots()
-
-func (s *RepositorySuite) TestConnectedReturnsNothingForUnknownSnaps(c *C) {
-	// Asking about unknown snaps just returns nothing
-	c.Assert(s.testRepo.ConnectedSlots("unknown"), HasLen, 0)
-}
-
-func (s *RepositorySuite) TestConnectedReturnsNothingForEmptyString(c *C) {
-	// Asking about the empty string just returns nothing
-	c.Assert(s.testRepo.ConnectedSlots(""), HasLen, 0)
-}
-
-func (s *RepositorySuite) TestConnectedSlotsReturnsCorrectData(c *C) {
-	err := s.testRepo.AddPlug(s.plug)
-	c.Assert(err, IsNil)
-	err = s.testRepo.AddSlot(s.slot)
-	c.Assert(err, IsNil)
-	// After connecting the result is as expected
-	err = s.testRepo.Connect(s.plug.Snap, s.plug.Name, s.slot.Snap, s.slot.Name)
-	c.Assert(err, IsNil)
-	c.Assert(s.testRepo.ConnectedSlots(s.slot.Snap), DeepEquals, map[*Slot][]*Plug{
-		s.slot: []*Plug{s.plug},
-	})
-	// After disconnecting the result is empty again
-	err = s.testRepo.Disconnect(s.plug.Snap, s.plug.Name, s.slot.Snap, s.slot.Name)
-	c.Assert(err, IsNil)
-	c.Assert(s.testRepo.ConnectedSlots(s.slot.Snap), HasLen, 0)
-}
-
 // Tests for Repository.ConnectedPlugs()
 
 func (s *RepositorySuite) TestConnectedPlugsReturnsNothingForUnknownSnaps(c *C) {
