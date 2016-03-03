@@ -40,7 +40,9 @@ var desktopFileI18nPattern = `(|\[[a-zA-Z_@]+\])`
 var validDesktopFileLines = []*regexp.Regexp{
 	// headers
 	regexp.MustCompile(`^\[Desktop Entry\]$`),
-	regexp.MustCompile(`^\[Desktop Action [a-zA-Z0-9]+\]$`),
+	// the spec says Action is [a-zA-Z0-9]+ but the real world
+	// disagrees and has at least "-" as a common char
+	regexp.MustCompile(`^\[Desktop Action [a-zA-Z0-9-]+\]$`),
 	// whitespace lines
 	regexp.MustCompile(`^\s*$`),
 	// lines with comments
