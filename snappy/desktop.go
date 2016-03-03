@@ -57,7 +57,8 @@ var validDesktopFileLines = []*regexp.Regexp{
 	regexp.MustCompile(`^OnlyShowIn=`),
 	regexp.MustCompile(`^NotShowIn=`),
 	regexp.MustCompile(`^Exec=`),
-	regexp.MustCompile(`^TryExec=`),
+	// Note that we do not support TryExec, it does not make sense
+	// in the snap context
 	regexp.MustCompile(`^Terminal=`),
 	regexp.MustCompile(`^Actions=`),
 	regexp.MustCompile(`^MimeType=`),
@@ -77,7 +78,7 @@ func isValidDesktopFilePrefix(line string) bool {
 }
 
 func validExecLine(m *snapYaml, line string) bool {
-	if !strings.HasPrefix(line, "Exec=") && !strings.HasPrefix(line, "TryExec=") {
+	if !strings.HasPrefix(line, "Exec=") {
 		return true
 	}
 	cmd := strings.SplitN(line, "=", 2)[1]
