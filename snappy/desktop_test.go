@@ -28,7 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/osutil"
 )
 
 var desktopAppYaml = []byte(`
@@ -43,7 +43,7 @@ Icon=${SNAP}/foo.png`)
 
 func (s *SnapTestSuite) TestAddPackageDesktopFiles(c *C) {
 	expectedDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar.desktop")
-	c.Assert(helpers.FileExists(expectedDesktopFilePath), Equals, false)
+	c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, false)
 
 	m, err := parseSnapYamlData(desktopAppYaml, false)
 	c.Assert(err, IsNil)
@@ -58,7 +58,7 @@ func (s *SnapTestSuite) TestAddPackageDesktopFiles(c *C) {
 
 	err = addPackageDesktopFiles(m, baseDir)
 	c.Assert(err, IsNil)
-	c.Assert(helpers.FileExists(expectedDesktopFilePath), Equals, true)
+	c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, true)
 }
 
 func (s *SnapTestSuite) TestRemovePackageDesktopFiles(c *C) {
@@ -73,7 +73,7 @@ func (s *SnapTestSuite) TestRemovePackageDesktopFiles(c *C) {
 
 	err = removePackageDesktopFiles(m)
 	c.Assert(err, IsNil)
-	c.Assert(helpers.FileExists(mockDesktopFilePath), Equals, false)
+	c.Assert(osutil.FileExists(mockDesktopFilePath), Equals, false)
 }
 
 func (s *SnapTestSuite) TestDesktopFileIsAddedAndRemoved(c *C) {
@@ -103,7 +103,7 @@ Icon=/snaps/foo.%s/1.0/foo.png`, testOrigin))
 	// deactivate removes it again
 	err = part.deactivate(false, nil)
 	c.Assert(err, IsNil)
-	c.Assert(helpers.FileExists(mockDesktopFilePath), Equals, false)
+	c.Assert(osutil.FileExists(mockDesktopFilePath), Equals, false)
 }
 
 func (s *SnapTestSuite) TestDesktopFileSanitizeIgnoreNotWhitelisted(c *C) {
