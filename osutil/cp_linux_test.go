@@ -17,7 +17,7 @@
  *
  */
 
-package helpers
+package osutil
 
 import (
 	"io/ioutil"

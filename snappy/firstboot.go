@@ -28,6 +28,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 
@@ -231,5 +232,5 @@ func enableFirstEther() error {
 }
 
 func firstBootHasRun() bool {
-	return helpers.FileExists(stampFile)
+	return osutil.FileExists(stampFile)
 }

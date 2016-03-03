@@ -28,8 +28,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/lockfile"
+	"github.com/ubuntu-core/snappy/osutil"
 )
 
 type FileLockTestSuite struct{}
@@ -41,13 +41,13 @@ var _ = Suite(&FileLockTestSuite{})
 func (ts *FileLockTestSuite) TestFileLock(c *C) {
 	path := filepath.Join(c.MkDir(), "lock")
 
-	c.Assert(helpers.FileExists(path), Equals, false)
+	c.Assert(osutil.FileExists(path), Equals, false)
 
 	lock, err := lockfile.Lock(path, false)
 	c.Assert(err, IsNil)
 	c.Check(lock > 0, Equals, true)
 
-	c.Assert(helpers.FileExists(path), Equals, true)
+	c.Assert(osutil.FileExists(path), Equals, true)
 
 	err = lock.Unlock()
 	c.Assert(err, IsNil)

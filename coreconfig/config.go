@@ -33,6 +33,7 @@ import (
 	"syscall"
 
 	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/systemd"
 
 	"gopkg.in/yaml.v2"
@@ -318,7 +319,7 @@ var getTimezone = func() (timezone string, err error) {
 // setTimezone sets the specified timezone for the system, an error is returned
 // if it can't.
 var setTimezone = func(timezone string) error {
-	if err := helpers.CopyFile(filepath.Join(tzZoneInfoPath, timezone), tzZoneInfoTarget, helpers.CopyFlagOverwrite); err != nil {
+	if err := osutil.CopyFile(filepath.Join(tzZoneInfoPath, timezone), tzZoneInfoTarget, osutil.CopyFlagOverwrite); err != nil {
 		return err
 	}
 
