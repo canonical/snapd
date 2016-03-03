@@ -77,9 +77,9 @@ func isValidDesktopFilePrefix(line string) bool {
 	return false
 }
 
-func validExecLine(m *snapYaml, line string) bool {
+func badExecLine(m *snapYaml, line string) bool {
 	if !strings.HasPrefix(line, "Exec=") {
-		return true
+		return false
 	}
 	cmd := strings.SplitN(line, "=", 2)[1]
 	for _, app := range m.Apps {
@@ -87,11 +87,11 @@ func validExecLine(m *snapYaml, line string) bool {
 		// just check the prefix to allow %flag style args
 		// this is ok because desktop files are not run through sh
 		if cmd == validCmd || strings.HasPrefix(cmd, validCmd+" ") {
-			return true
+			return false
 		}
 	}
 
-	return false
+	return true
 }
 
 func sanitizeDesktopFile(m *snapYaml, realBaseDir string, rawcontent []byte) []byte {
@@ -104,7 +104,7 @@ func sanitizeDesktopFile(m *snapYaml, realBaseDir string, rawcontent []byte) []b
 		if !isValidDesktopFilePrefix(line) {
 			continue
 		}
-		if !validExecLine(m, line) {
+		if badExecLine(m, line) {
 			continue
 		}
 
