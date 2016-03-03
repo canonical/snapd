@@ -22,9 +22,11 @@ package snappy
 import (
 	"fmt"
 	"os"
+	"reflect"
+	"time"
 
 	"github.com/ubuntu-core/snappy/arch"
-	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/snap/snapenv"
 )
 
 // makeSnapHookEnv returns an environment suitable for passing to
@@ -50,12 +52,12 @@ func makeSnapHookEnv(part *SnapPart) (env []string) {
 		part.Origin(),
 	}
 
-	vars := helpers.GetBasicSnapEnvVars(desc)
-	vars = append(vars, helpers.GetDeprecatedBasicSnapEnvVars(desc)...)
-	snapEnv := helpers.MakeMapFromEnvList(vars)
+	vars := snapenv.GetBasicSnapEnvVars(desc)
+	vars = append(vars, snapenv.GetDeprecatedBasicSnapEnvVars(desc)...)
+	snapEnv := snapenv.MakeMapFromEnvList(vars)
 
 	// merge regular env and new snapEnv
-	envMap := helpers.MakeMapFromEnvList(os.Environ())
+	envMap := snapenv.MakeMapFromEnvList(os.Environ())
 	for k, v := range snapEnv {
 		envMap[k] = v
 	}
@@ -69,4 +71,28 @@ func makeSnapHookEnv(part *SnapPart) (env []string) {
 	}
 
 	return env
+}
+
+// newSideloadVersion returns a version number such that later calls
+// should return versions that compare larger.
+func newSideloadVersion() string {
+	const letters = "BCDFGHJKLMNPQRSTVWXYbcdfghjklmnpqrstvwxy"
+
+	n := time.Now().UTC().UnixNano()
+	bs := make([]byte, 12)
+	for i := 11; i >= 0; i-- {
+		bs[i] = letters[n&31]
+		n = n >> 5
+	}
+
+	return string(bs)
+}
+
+// getattr get the attribute of the given name from an interface
+func getattr(i interface{}, name string) interface{} {
+	v := reflect.ValueOf(i)
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+	return v.FieldByName(name).Interface()
 }

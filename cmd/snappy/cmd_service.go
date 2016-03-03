@@ -24,9 +24,9 @@ import (
 	"os"
 	"text/tabwriter"
 
-	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snappy"
 )
@@ -112,7 +112,7 @@ func (s *svcStatus) Execute(args []string) error {
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 8, 1, '\t', 0)
 
-	ws, _ := helpers.GetTermWinsize()
+	ws, _ := osutil.GetTermWinsize()
 	rows := int(ws.Row) - 2
 
 	header := i18n.G("Snap\tService\tState")

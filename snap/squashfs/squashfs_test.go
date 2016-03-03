@@ -30,7 +30,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap"
 
 	. "gopkg.in/check.v1"
@@ -105,7 +105,7 @@ func (s *SquashfsTestSuite) TestUnpackGlob(c *C) {
 	c.Assert(string(content), Equals, data)
 
 	// ensure glob was honored
-	c.Assert(helpers.FileExists(filepath.Join(outputDir, "meta/snap.yaml")), Equals, false)
+	c.Assert(osutil.FileExists(filepath.Join(outputDir, "meta/snap.yaml")), Equals, false)
 }
 
 func (s *SquashfsTestSuite) TestBuild(c *C) {

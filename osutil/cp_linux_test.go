@@ -17,32 +17,30 @@
  *
  */
 
-package helpers
+package osutil
 
 import (
-	"syscall"
-	"unsafe"
+	"io/ioutil"
+	"os"
+
+	. "gopkg.in/check.v1"
 )
 
-// Winsize is from tty_ioctl(4)
-type Winsize struct {
-	Row    uint16
-	Col    uint16
-	xpixel uint16 // unused
-	Ypixel uint16 // unused
+func (s *cpSuite) TestCpMulti(c *C) {
+	maxcp = 2
+	defer func() { maxcp = maxint }()
+
+	c.Check(CopyFile(s.f1, s.f2, CopyFlagDefault), IsNil)
+	bs, err := ioutil.ReadFile(s.f2)
+	c.Check(err, IsNil)
+	c.Check(bs, DeepEquals, s.data)
 }
 
-// GetTermWinsize performs the TIOCGWINSZ ioctl on stdout
-func GetTermWinsize() (*Winsize, error) {
-	ws := &Winsize{}
-	x, _, errno := syscall.Syscall(syscall.SYS_IOCTL, uintptr(syscall.Stdout), uintptr(syscall.TIOCGWINSZ), uintptr(unsafe.Pointer(ws)))
-
-	if int(x) == -1 {
-		// returning ws on error lets people that don't care
-		// about the error get on with querying the struct
-		// (which will be empty on error).
-		return ws, errno
-	}
-
-	return ws, nil
+func (s *cpSuite) TestDoCpErr(c *C) {
+	f1, err := os.Open(s.f1)
+	c.Assert(err, IsNil)
+	st, err := f1.Stat()
+	c.Assert(err, IsNil)
+	// force an error by asking it to write to a readonly stream
+	c.Check(doCopyFile(f1, os.Stdin, st), NotNil)
 }

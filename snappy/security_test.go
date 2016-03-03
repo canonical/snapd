@@ -29,8 +29,8 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap"
 )
 
@@ -945,11 +945,11 @@ func (a *SecurityTestSuite) TestSecurityGeneratePolicyFromFileSideload(c *C) {
 
 	// apparmor
 	generatedProfileFn := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("hello-world.%s_binary1_IsSideloadVer", testOrigin))
-	c.Assert(helpers.FileExists(generatedProfileFn), Equals, true)
+	c.Assert(osutil.FileExists(generatedProfileFn), Equals, true)
 
 	// ... and seccomp
 	generatedProfileFn = filepath.Join(dirs.SnapSeccompDir, fmt.Sprintf("hello-world.%s_binary1_IsSideloadVer", testOrigin))
-	c.Assert(helpers.FileExists(generatedProfileFn), Equals, true)
+	c.Assert(osutil.FileExists(generatedProfileFn), Equals, true)
 }
 
 func (a *SecurityTestSuite) TestSecurityCompareGeneratePolicyFromFileSideload(c *C) {

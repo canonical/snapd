@@ -31,7 +31,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/remote"
 )
@@ -218,7 +218,7 @@ version: 1.0
 	}
 
 	// build it
-	err := helpers.ChDir(tmpdir, func() error {
+	err := osutil.ChDir(tmpdir, func() error {
 		var err error
 		snapFile, err = snapBuilderFunc(tmpdir, "")
 		c.Assert(err, IsNil)

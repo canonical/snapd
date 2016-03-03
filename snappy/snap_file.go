@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 )
@@ -60,7 +59,7 @@ func NewSnapFile(snapFile string, origin string, unsignedOk bool) (*SnapFile, er
 
 	targetDir := dirs.SnapSnapsDir
 	if origin == SideloadedOrigin {
-		m.Version = helpers.NewSideloadVersion()
+		m.Version = newSideloadVersion()
 	}
 
 	fullName := m.qualifiedName(origin)
