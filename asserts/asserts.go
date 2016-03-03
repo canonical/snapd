@@ -44,11 +44,11 @@ type AssertionType struct {
 
 // Understood assertion types.
 var (
-	AccountKeyType = &AssertionType{"account-key", []string{"account-id", "public-key-id"}, assembleAccountKey}
-	IdentityType   = &AssertionType{"identity", []string{"account-id"}, assembleIdentity}
+	AccountKeyType   = &AssertionType{"account-key", []string{"account-id", "public-key-id"}, assembleAccountKey}
+	DeviceSerialType = &AssertionType{"device-serial", []string{"brand-id", "model", "serial"}, assembleDeviceSerial}
+	IdentityType     = &AssertionType{"identity", []string{"account-id"}, assembleIdentity}
 	// XXX: is series actually part of the primary key?
 	ModelType           = &AssertionType{"model", []string{"brand-id", "model", "series"}, assembleModel}
-	SerialType          = &AssertionType{"serial", []string{"brand-id", "model", "serial"}, assembleSerial}
 	SnapDeclarationType = &AssertionType{"snap-declaration", []string{"series", "snap-id"}, assembleSnapDeclaration}
 	SnapBuildType       = &AssertionType{"snap-build", []string{"snap-id", "snap-digest"}, assembleSnapBuild}
 	SnapRevisionType    = &AssertionType{"snap-revision", []string{"snap-id", "snap-digest"}, assembleSnapRevision}
@@ -60,7 +60,7 @@ var typeRegistry = map[string]*AssertionType{
 	AccountKeyType.Name:      AccountKeyType,
 	IdentityType.Name:        IdentityType,
 	ModelType.Name:           ModelType,
-	SerialType.Name:          SerialType,
+	DeviceSerialType.Name:    DeviceSerialType,
 	SnapDeclarationType.Name: SnapDeclarationType,
 	SnapBuildType.Name:       SnapBuildType,
 	SnapRevisionType.Name:    SnapRevisionType,
