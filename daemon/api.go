@@ -919,7 +919,7 @@ func appIconGet(c *Command, r *http.Request) Response {
 	return iconGet(name, origin)
 }
 
-// getInterfaces returns all plugs and slots.
+// getInterfaces returns all slots and plugs.
 func getInterfaces(c *Command, r *http.Request) Response {
 	return SyncResponse(c.d.interfaces.Interfaces())
 }
@@ -927,13 +927,13 @@ func getInterfaces(c *Command, r *http.Request) Response {
 // interfaceAction is an action performed on the interface system.
 type interfaceAction struct {
 	Action string          `json:"action"`
-	Plug   interfaces.Plug `json:"plug,omitempty"`
 	Slot   interfaces.Slot `json:"slot,omitempty"`
+	Plug   interfaces.Plug `json:"plug,omitempty"`
 }
 
 // changeInterfaces controls the interfaces system.
-// Plugs can be connected to and disconnected from slots.
-// When enableInternalInterfaceActions is true plugs and slots can also be
+// Slots can be connected to and disconnected from plugs.
+// When enableInternalInterfaceActions is true slots and plugs can also be
 // explicitly added and removed.
 func changeInterfaces(c *Command, r *http.Request) Response {
 	var a interfaceAction
@@ -949,28 +949,13 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 	}
 	switch a.Action {
 	case "connect":
-		err := c.d.interfaces.Connect(a.Plug.Snap, a.Plug.Name, a.Slot.Snap, a.Slot.Name)
+		err := c.d.interfaces.Connect(a.Slot.Snap, a.Slot.Name, a.Plug.Snap, a.Plug.Name)
 		if err != nil {
 			return BadRequest("%v", err)
 		}
 		return SyncResponse(nil)
 	case "disconnect":
-		err := c.d.interfaces.Disconnect(a.Plug.Snap, a.Plug.Name, a.Slot.Snap, a.Slot.Name)
-		if err != nil {
-			return BadRequest("%v", err)
-		}
-		return SyncResponse(nil)
-	case "add-plug":
-		err := c.d.interfaces.AddPlug(&a.Plug)
-		if err != nil {
-			return BadRequest("%v", err)
-		}
-		return &resp{
-			Type:   ResponseTypeSync,
-			Status: http.StatusCreated,
-		}
-	case "remove-plug":
-		err := c.d.interfaces.RemovePlug(a.Plug.Snap, a.Plug.Name)
+		err := c.d.interfaces.Disconnect(a.Slot.Snap, a.Slot.Name, a.Plug.Snap, a.Plug.Name)
 		if err != nil {
 			return BadRequest("%v", err)
 		}
@@ -986,6 +971,21 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 		}
 	case "remove-slot":
 		err := c.d.interfaces.RemoveSlot(a.Slot.Snap, a.Slot.Name)
+		if err != nil {
+			return BadRequest("%v", err)
+		}
+		return SyncResponse(nil)
+	case "add-plug":
+		err := c.d.interfaces.AddPlug(&a.Plug)
+		if err != nil {
+			return BadRequest("%v", err)
+		}
+		return &resp{
+			Type:   ResponseTypeSync,
+			Status: http.StatusCreated,
+		}
+	case "remove-plug":
+		err := c.d.interfaces.RemovePlug(a.Plug.Snap, a.Plug.Name)
 		if err != nil {
 			return BadRequest("%v", err)
 		}

@@ -28,14 +28,14 @@ import (
 type TestInterface struct {
 	// InterfaceName is the name of this interface
 	InterfaceName string
-	// SanitizePlugCallback is the callback invoked inside SanitizePlug()
-	SanitizePlugCallback func(plug *Plug) error
 	// SanitizeSlotCallback is the callback invoked inside SanitizeSlot()
 	SanitizeSlotCallback func(slot *Slot) error
-	// SlotSecuritySnippetCallback is the callback invoked inside SlotSecuritySnippet()
-	SlotSecuritySnippetCallback func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
+	// SanitizePlugCallback is the callback invoked inside SanitizePlug()
+	SanitizePlugCallback func(plug *Plug) error
 	// PlugSecuritySnippetCallback is the callback invoked inside PlugSecuritySnippet()
-	PlugSecuritySnippetCallback func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
+	PlugSecuritySnippetCallback func(slot *Slot, plug *Plug, securitySystem SecuritySystem) ([]byte, error)
+	// SlotSecuritySnippetCallback is the callback invoked inside SlotSecuritySnippet()
+	SlotSecuritySnippetCallback func(slot *Slot, plug *Plug, securitySystem SecuritySystem) ([]byte, error)
 }
 
 // String() returns the same value as Name().
@@ -46,17 +46,6 @@ func (t *TestInterface) String() string {
 // Name returns the name of the test interface.
 func (t *TestInterface) Name() string {
 	return t.InterfaceName
-}
-
-// SanitizePlug checks and possibly modifies a plug.
-func (t *TestInterface) SanitizePlug(plug *Plug) error {
-	if t.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", t))
-	}
-	if t.SanitizePlugCallback != nil {
-		return t.SanitizePlugCallback(plug)
-	}
-	return nil
 }
 
 // SanitizeSlot checks and possibly modifies a slot.
@@ -70,20 +59,31 @@ func (t *TestInterface) SanitizeSlot(slot *Slot) error {
 	return nil
 }
 
-// PlugSecuritySnippet returns the configuration snippet "required" to offer a test plug.
+// SanitizePlug checks and possibly modifies a plug.
+func (t *TestInterface) SanitizePlug(plug *Plug) error {
+	if t.Name() != plug.Interface {
+		panic(fmt.Sprintf("plug is not of interface %q", t))
+	}
+	if t.SanitizePlugCallback != nil {
+		return t.SanitizePlugCallback(plug)
+	}
+	return nil
+}
+
+// SlotSecuritySnippet returns the configuration snippet "required" to offer a test slot.
 // Providers don't gain any extra permissions.
-func (t *TestInterface) PlugSecuritySnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
-	if t.PlugSecuritySnippetCallback != nil {
-		return t.PlugSecuritySnippetCallback(plug, slot, securitySystem)
+func (t *TestInterface) SlotSecuritySnippet(slot *Slot, plug *Plug, securitySystem SecuritySystem) ([]byte, error) {
+	if t.SlotSecuritySnippetCallback != nil {
+		return t.SlotSecuritySnippetCallback(slot, plug, securitySystem)
 	}
 	return nil, nil
 }
 
-// SlotSecuritySnippet returns the configuration snippet "required" to use a test plug.
+// PlugSecuritySnippet returns the configuration snippet "required" to use a test slot.
 // Consumers don't gain any extra permissions.
-func (t *TestInterface) SlotSecuritySnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
-	if t.SlotSecuritySnippetCallback != nil {
-		return t.SlotSecuritySnippetCallback(plug, slot, securitySystem)
+func (t *TestInterface) PlugSecuritySnippet(slot *Slot, plug *Plug, securitySystem SecuritySystem) ([]byte, error) {
+	if t.PlugSecuritySnippetCallback != nil {
+		return t.PlugSecuritySnippetCallback(slot, plug, securitySystem)
 	}
 	return nil, nil
 }

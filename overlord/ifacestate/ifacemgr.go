@@ -27,7 +27,7 @@ import (
 
 // InterfaceManager is responsible for the maintenance of interfaces in
 // the system state.  It maintains interface connections, and also observes
-// installed snaps to track the current set of available plugs and slots.
+// installed snaps to track the current set of available slots and plugs.
 type InterfaceManager struct{}
 
 // Manager returns a new InterfaceManager.
@@ -36,12 +36,12 @@ func Manager() (*InterfaceManager, error) {
 }
 
 // Connect initiates a change connecting an interface.
-func (m *InterfaceManager) Connect(plugSnap, plugName, slotSnap, slotName string) error {
+func (m *InterfaceManager) Connect(slotSnap, slotName, plugSnap, plugName string) error {
 	return nil
 }
 
 // Disconnect initiates a change disconnecting an interface.
-func (m *InterfaceManager) Disconnect(plugSnap, plugName, slotSnap, slotName string) error {
+func (m *InterfaceManager) Disconnect(slotSnap, slotName, plugSnap, plugName string) error {
 	return nil
 }
 

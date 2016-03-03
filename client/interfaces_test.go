@@ -37,25 +37,25 @@ func (cs *clientSuite) TestClientInterfaces(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
 		"result": {
-			"plugs": [
+			"slots": [
 				{
 					"snap": "canonical-pi2",
-					"plug": "pin-13",
+					"slot": "pin-13",
 					"interface": "bool-file",
 					"label": "Pin 13",
 					"connections": [
-						{"snap": "keyboard-lights", "slot": "capslock-led"}
+						{"snap": "keyboard-lights", "plug": "capslock-led"}
 					]
 				}
 			],
-			"slots": [
+			"plugs": [
 				{
 					"snap": "keyboard-lights",
-					"slot": "capslock-led",
+					"plug": "capslock-led",
 					"interface": "bool-file",
 					"label": "Capslock indicator LED",
 					"connections": [
-						{"snap": "canonical-pi2", "plug": "pin-13"}
+						{"snap": "canonical-pi2", "slot": "pin-13"}
 					]
 				}
 			]
@@ -64,13 +64,13 @@ func (cs *clientSuite) TestClientInterfaces(c *check.C) {
 	interfaces, err := cs.cli.Interfaces()
 	c.Assert(err, check.IsNil)
 	c.Check(interfaces, check.DeepEquals, client.Interfaces{
-		Plugs: []*client.Plug{
-			&client.Plug{
+		Slots: []*client.Slot{
+			&client.Slot{
 				Snap:      "canonical-pi2",
 				Name:      "pin-13",
 				Interface: "bool-file",
 				Label:     "Pin 13",
-				Connections: []client.SlotRef{
+				Connections: []client.PlugRef{
 					{
 						Snap: "keyboard-lights",
 						Name: "capslock-led",
@@ -78,13 +78,13 @@ func (cs *clientSuite) TestClientInterfaces(c *check.C) {
 				},
 			},
 		},
-		Slots: []*client.Slot{
-			&client.Slot{
+		Plugs: []*client.Plug{
+			&client.Plug{
 				Snap:      "keyboard-lights",
 				Name:      "capslock-led",
 				Interface: "bool-file",
 				Label:     "Capslock indicator LED",
-				Connections: []client.PlugRef{
+				Connections: []client.SlotRef{
 					{
 						Snap: "canonical-pi2",
 						Name: "pin-13",
@@ -96,7 +96,7 @@ func (cs *clientSuite) TestClientInterfaces(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientConnectCallsEndpoint(c *check.C) {
-	_ = cs.cli.Connect("producer", "plug", "consumer", "slot")
+	_ = cs.cli.Connect("producer", "slot", "consumer", "plug")
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/2.0/interfaces")
 }
@@ -106,7 +106,7 @@ func (cs *clientSuite) TestClientConnect(c *check.C) {
 		"type": "sync",
 		"result": { }
 	}`
-	err := cs.cli.Connect("producer", "plug", "consumer", "slot")
+	err := cs.cli.Connect("producer", "slot", "consumer", "plug")
 	c.Check(err, check.IsNil)
 	var body map[string]interface{}
 	decoder := json.NewDecoder(cs.req.Body)
@@ -114,19 +114,19 @@ func (cs *clientSuite) TestClientConnect(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"action": "connect",
-		"plug": map[string]interface{}{
-			"snap": "producer",
-			"plug": "plug",
-		},
 		"slot": map[string]interface{}{
-			"snap": "consumer",
+			"snap": "producer",
 			"slot": "slot",
+		},
+		"plug": map[string]interface{}{
+			"snap": "consumer",
+			"plug": "plug",
 		},
 	})
 }
 
 func (cs *clientSuite) TestClientDisconnectCallsEndpoint(c *check.C) {
-	_ = cs.cli.Disconnect("producer", "plug", "consumer", "slot")
+	_ = cs.cli.Disconnect("producer", "slot", "consumer", "plug")
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/2.0/interfaces")
 }
@@ -136,7 +136,7 @@ func (cs *clientSuite) TestClientDisconnect(c *check.C) {
 		"type": "sync",
 		"result": { }
 	}`
-	err := cs.cli.Disconnect("producer", "plug", "consumer", "slot")
+	err := cs.cli.Disconnect("producer", "slot", "consumer", "plug")
 	c.Check(err, check.IsNil)
 	var body map[string]interface{}
 	decoder := json.NewDecoder(cs.req.Body)
@@ -144,79 +144,12 @@ func (cs *clientSuite) TestClientDisconnect(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"action": "disconnect",
-		"plug": map[string]interface{}{
-			"snap": "producer",
-			"plug": "plug",
-		},
 		"slot": map[string]interface{}{
-			"snap": "consumer",
+			"snap": "producer",
 			"slot": "slot",
 		},
-	})
-}
-
-func (cs *clientSuite) TestClientAddPlugCallsEndpoint(c *check.C) {
-	_ = cs.cli.AddPlug(&client.Plug{})
-	c.Check(cs.req.Method, check.Equals, "POST")
-	c.Check(cs.req.URL.Path, check.Equals, "/2.0/interfaces")
-}
-
-func (cs *clientSuite) TestClientAddPlug(c *check.C) {
-	cs.rsp = `{
-		"type": "sync",
-		"result": { }
-	}`
-	err := cs.cli.AddPlug(&client.Plug{
-		Snap:      "snap",
-		Name:      "plug",
-		Interface: "interface",
-		Attrs: map[string]interface{}{
-			"attr": "value",
-		},
-		Apps:  []string{"app"},
-		Label: "label",
-	})
-	c.Check(err, check.IsNil)
-	var body map[string]interface{}
-	decoder := json.NewDecoder(cs.req.Body)
-	err = decoder.Decode(&body)
-	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"action": "add-plug",
 		"plug": map[string]interface{}{
-			"snap":      "snap",
-			"plug":      "plug",
-			"interface": "interface",
-			"attrs": map[string]interface{}{
-				"attr": "value",
-			},
-			"apps":  []interface{}{"app"},
-			"label": "label",
-		},
-	})
-}
-
-func (cs *clientSuite) TestClientRemovePlugCallsEndpoint(c *check.C) {
-	_ = cs.cli.RemovePlug("snap", "plug")
-	c.Check(cs.req.Method, check.Equals, "POST")
-	c.Check(cs.req.URL.Path, check.Equals, "/2.0/interfaces")
-}
-
-func (cs *clientSuite) TestClientRemovePlug(c *check.C) {
-	cs.rsp = `{
-		"type": "sync",
-		"result": { }
-	}`
-	err := cs.cli.RemovePlug("snap", "plug")
-	c.Check(err, check.IsNil)
-	var body map[string]interface{}
-	decoder := json.NewDecoder(cs.req.Body)
-	err = decoder.Decode(&body)
-	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"action": "remove-plug",
-		"plug": map[string]interface{}{
-			"snap": "snap",
+			"snap": "consumer",
 			"plug": "plug",
 		},
 	})
@@ -285,6 +218,73 @@ func (cs *clientSuite) TestClientRemoveSlot(c *check.C) {
 		"slot": map[string]interface{}{
 			"snap": "snap",
 			"slot": "slot",
+		},
+	})
+}
+
+func (cs *clientSuite) TestClientAddPlugCallsEndpoint(c *check.C) {
+	_ = cs.cli.AddPlug(&client.Plug{})
+	c.Check(cs.req.Method, check.Equals, "POST")
+	c.Check(cs.req.URL.Path, check.Equals, "/2.0/interfaces")
+}
+
+func (cs *clientSuite) TestClientAddPlug(c *check.C) {
+	cs.rsp = `{
+		"type": "sync",
+		"result": { }
+	}`
+	err := cs.cli.AddPlug(&client.Plug{
+		Snap:      "snap",
+		Name:      "plug",
+		Interface: "interface",
+		Attrs: map[string]interface{}{
+			"attr": "value",
+		},
+		Apps:  []string{"app"},
+		Label: "label",
+	})
+	c.Check(err, check.IsNil)
+	var body map[string]interface{}
+	decoder := json.NewDecoder(cs.req.Body)
+	err = decoder.Decode(&body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"action": "add-plug",
+		"plug": map[string]interface{}{
+			"snap":      "snap",
+			"plug":      "plug",
+			"interface": "interface",
+			"attrs": map[string]interface{}{
+				"attr": "value",
+			},
+			"apps":  []interface{}{"app"},
+			"label": "label",
+		},
+	})
+}
+
+func (cs *clientSuite) TestClientRemovePlugCallsEndpoint(c *check.C) {
+	_ = cs.cli.RemovePlug("snap", "plug")
+	c.Check(cs.req.Method, check.Equals, "POST")
+	c.Check(cs.req.URL.Path, check.Equals, "/2.0/interfaces")
+}
+
+func (cs *clientSuite) TestClientRemovePlug(c *check.C) {
+	cs.rsp = `{
+		"type": "sync",
+		"result": { }
+	}`
+	err := cs.cli.RemovePlug("snap", "plug")
+	c.Check(err, check.IsNil)
+	var body map[string]interface{}
+	decoder := json.NewDecoder(cs.req.Body)
+	err = decoder.Decode(&body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"action": "remove-plug",
+		"plug": map[string]interface{}{
+			"snap": "snap",
+			"plug": "plug",
 		},
 	})
 }

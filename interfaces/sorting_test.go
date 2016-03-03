@@ -29,38 +29,6 @@ type SortingSuite struct{}
 
 var _ = Suite(&SortingSuite{})
 
-func (s *SortingSuite) TestSortBySlotRef(c *C) {
-	list := []SlotRef{
-		{
-			Snap: "snap-2",
-			Name: "name-2",
-		},
-		{
-			Snap: "snap-1",
-			Name: "name-2",
-		},
-		{
-			Snap: "snap-1",
-			Name: "name-1",
-		},
-	}
-	sort.Sort(bySlotRef(list))
-	c.Assert(list, DeepEquals, []SlotRef{
-		{
-			Snap: "snap-1",
-			Name: "name-1",
-		},
-		{
-			Snap: "snap-1",
-			Name: "name-2",
-		},
-		{
-			Snap: "snap-2",
-			Name: "name-2",
-		},
-	})
-}
-
 func (s *SortingSuite) TestSortByPlugRef(c *C) {
 	list := []PlugRef{
 		{
@@ -78,6 +46,38 @@ func (s *SortingSuite) TestSortByPlugRef(c *C) {
 	}
 	sort.Sort(byPlugRef(list))
 	c.Assert(list, DeepEquals, []PlugRef{
+		{
+			Snap: "snap-1",
+			Name: "name-1",
+		},
+		{
+			Snap: "snap-1",
+			Name: "name-2",
+		},
+		{
+			Snap: "snap-2",
+			Name: "name-2",
+		},
+	})
+}
+
+func (s *SortingSuite) TestSortBySlotRef(c *C) {
+	list := []SlotRef{
+		{
+			Snap: "snap-2",
+			Name: "name-2",
+		},
+		{
+			Snap: "snap-1",
+			Name: "name-2",
+		},
+		{
+			Snap: "snap-1",
+			Name: "name-1",
+		},
+	}
+	sort.Sort(bySlotRef(list))
+	c.Assert(list, DeepEquals, []SlotRef{
 		{
 			Snap: "snap-1",
 			Name: "name-1",

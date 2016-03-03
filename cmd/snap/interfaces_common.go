@@ -54,13 +54,13 @@ func AttributePairSliceToMap(attrs []AttributePair) map[string]string {
 	return result
 }
 
-// SnapAndName holds a snap name and a plug or slot name.
+// SnapAndName holds a snap name and a slot or plug name.
 type SnapAndName struct {
 	Snap string
 	Name string
 }
 
-// UnmarshalFlag unmarshals snap and plug or slot name.
+// UnmarshalFlag unmarshals snap and slot or plug name.
 func (sn *SnapAndName) UnmarshalFlag(value string) error {
 	parts := strings.Split(value, ":")
 	sn.Snap = ""

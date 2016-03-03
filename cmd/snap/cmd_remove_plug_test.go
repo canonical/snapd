@@ -28,11 +28,11 @@ import (
 	. "github.com/ubuntu-core/snappy/cmd/snap"
 )
 
-func (s *SnapSuite) TestRemovePlugHelp(c *C) {
+func (s *SnapSuite) TestRemoveSlotHelp(c *C) {
 	msg := `Usage:
-  snap.test [OPTIONS] experimental remove-plug <snap> <plug>
+  snap.test [OPTIONS] experimental remove-slot <snap> <slot>
 
-The remove-plug command removes a plug from the system.
+The remove-slot command removes a slot from the system.
 
 This command is only for experimentation with interfaces.
 It will be removed in one of the future releases.
@@ -40,31 +40,31 @@ It will be removed in one of the future releases.
 Help Options:
   -h, --help        Show this help message
 
-[remove-plug command arguments]
-  <snap>:           Name of the snap containing the plug
-  <plug>:           Name of the plug within the snap
+[remove-slot command arguments]
+  <snap>:           Name of the snap containing the slot
+  <slot>:           Name of the slot within the snap
 `
 	rest, err := Parser().ParseArgs([]string{
-		"experimental", "remove-plug", "--help"})
+		"experimental", "remove-slot", "--help"})
 	c.Assert(err.Error(), Equals, msg)
 	c.Assert(rest, DeepEquals, []string{})
 }
 
-func (s *SnapSuite) TestRemovePlug(c *C) {
+func (s *SnapSuite) TestRemoveSlot(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "POST")
 		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
 		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
-			"action": "remove-plug",
-			"plug": map[string]interface{}{
+			"action": "remove-slot",
+			"slot": map[string]interface{}{
 				"snap": "producer",
-				"plug": "plug",
+				"slot": "slot",
 			},
 		})
 		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
 	})
 	rest, err := Parser().ParseArgs([]string{
-		"experimental", "remove-plug", "producer", "plug",
+		"experimental", "remove-slot", "producer", "slot",
 	})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})

@@ -30,26 +30,26 @@ import (
 
 func (s *SnapSuite) TestConnectHelp(c *C) {
 	msg := `Usage:
-  snap.test [OPTIONS] connect <snap>:<plug> <snap>:<slot>
+  snap.test [OPTIONS] connect <snap>:<slot> <snap>:<plug>
 
-The connect command connects a plug to a slot.
+The connect command connects a slot to a plug.
 It may be called in the following ways:
 
-$ snap connect <snap>:<plug> <snap>:<slot>
+$ snap connect <snap>:<slot> <snap>:<plug>
 
-Connects the specific plug to the specific slot.
+Connects the specific slot to the specific plug.
 
-$ snap connect <snap>:<plug> <snap>
+$ snap connect <snap>:<slot> <snap>
 
-Connects the specific plug to the only slot in the provided snap that matches
-the connected interface. If more than one potential slot exists, the command
+Connects the specific slot to the only plug in the provided snap that matches
+the connected interface. If more than one potential plug exists, the command
 fails.
 
-$ snap connect <plug> <snap>[:<slot>]
+$ snap connect <slot> <snap>[:<plug>]
 
-Without a name for the snap offering the plug, the plug name is looked at in
+Without a name for the snap offering the slot, the slot name is looked at in
 the gadget snap, the kernel snap, and then the os snap, in that order. The
-first of these snaps that has a matching plug name is used and the command
+first of these snaps that has a matching slot name is used and the command
 proceeds as above.
 
 Help Options:
@@ -66,84 +66,84 @@ func (s *SnapSuite) TestConnectExplicitEverything(c *C) {
 		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
 		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
 			"action": "connect",
-			"plug": map[string]interface{}{
-				"snap": "producer",
-				"plug": "plug",
-			},
 			"slot": map[string]interface{}{
-				"snap": "consumer",
+				"snap": "producer",
 				"slot": "slot",
 			},
+			"plug": map[string]interface{}{
+				"snap": "consumer",
+				"plug": "plug",
+			},
 		})
 		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
 	})
-	rest, err := Parser().ParseArgs([]string{"connect", "producer:plug", "consumer:slot"})
+	rest, err := Parser().ParseArgs([]string{"connect", "producer:slot", "consumer:plug"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 }
 
-func (s *SnapSuite) TestConnectExplicitPlugImplicitSlot(c *C) {
+func (s *SnapSuite) TestConnectExplicitSlotImplicitPlug(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "POST")
 		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
 		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
 			"action": "connect",
-			"plug": map[string]interface{}{
+			"slot": map[string]interface{}{
 				"snap": "producer",
-				"plug": "plug",
-			},
-			"slot": map[string]interface{}{
-				"snap": "consumer",
-				"slot": "",
-			},
-		})
-		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
-	})
-	rest, err := Parser().ParseArgs([]string{"connect", "producer:plug", "consumer"})
-	c.Assert(err, IsNil)
-	c.Assert(rest, DeepEquals, []string{})
-}
-
-func (s *SnapSuite) TestConnectImplicitPlugExplicitSlot(c *C) {
-	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.Method, Equals, "POST")
-		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
-		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
-			"action": "connect",
-			"plug": map[string]interface{}{
-				"snap": "",
-				"plug": "plug",
-			},
-			"slot": map[string]interface{}{
-				"snap": "consumer",
 				"slot": "slot",
 			},
+			"plug": map[string]interface{}{
+				"snap": "consumer",
+				"plug": "",
+			},
 		})
 		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
 	})
-	rest, err := Parser().ParseArgs([]string{"connect", "plug", "consumer:slot"})
+	rest, err := Parser().ParseArgs([]string{"connect", "producer:slot", "consumer"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 }
 
-func (s *SnapSuite) TestConnectImplicitPlugImplicitSlot(c *C) {
+func (s *SnapSuite) TestConnectImplicitSlotExplicitPlug(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "POST")
 		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
 		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
 			"action": "connect",
-			"plug": map[string]interface{}{
-				"snap": "",
-				"plug": "plug",
-			},
 			"slot": map[string]interface{}{
+				"snap": "",
+				"slot": "slot",
+			},
+			"plug": map[string]interface{}{
 				"snap": "consumer",
-				"slot": "",
+				"plug": "plug",
 			},
 		})
 		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
 	})
-	rest, err := Parser().ParseArgs([]string{"connect", "plug", "consumer"})
+	rest, err := Parser().ParseArgs([]string{"connect", "slot", "consumer:plug"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+}
+
+func (s *SnapSuite) TestConnectImplicitSlotImplicitPlug(c *C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, Equals, "POST")
+		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
+		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
+			"action": "connect",
+			"slot": map[string]interface{}{
+				"snap": "",
+				"slot": "slot",
+			},
+			"plug": map[string]interface{}{
+				"snap": "consumer",
+				"plug": "",
+			},
+		})
+		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
+	})
+	rest, err := Parser().ParseArgs([]string{"connect", "slot", "consumer"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 }

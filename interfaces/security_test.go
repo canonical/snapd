@@ -27,20 +27,20 @@ import (
 
 type SecuritySuite struct {
 	repo *Repository
-	plug *Plug
 	slot *Slot
+	plug *Plug
 }
 
 var _ = Suite(&SecuritySuite{
-	plug: &Plug{
+	slot: &Slot{
 		Snap:      "producer",
-		Name:      "plug",
+		Name:      "slot",
 		Interface: "interface",
 		Apps:      []string{"hook"},
 	},
-	slot: &Slot{
+	plug: &Plug{
 		Snap:      "consumer",
-		Name:      "slot",
+		Name:      "plug",
 		Interface: "interface",
 		Apps:      []string{"app"},
 	},
@@ -53,28 +53,28 @@ func (s *SecuritySuite) SetUpTest(c *C) {
 func (s *SecuritySuite) prepareFixtureWithInterface(c *C, i Interface) {
 	err := s.repo.AddInterface(i)
 	c.Assert(err, IsNil)
-	err = s.repo.AddPlug(s.plug)
-	c.Assert(err, IsNil)
 	err = s.repo.AddSlot(s.slot)
 	c.Assert(err, IsNil)
-	err = s.repo.Connect(s.plug.Snap, s.plug.Name, s.slot.Snap, s.slot.Name)
+	err = s.repo.AddPlug(s.plug)
+	c.Assert(err, IsNil)
+	err = s.repo.Connect(s.slot.Snap, s.slot.Name, s.plug.Snap, s.plug.Name)
 	c.Assert(err, IsNil)
 }
 
 // Tests for appArmor
 
-func (s *SecuritySuite) TestAppArmorPlugPermissions(c *C) {
+func (s *SecuritySuite) TestAppArmorSlotPermissions(c *C) {
 	s.prepareFixtureWithInterface(c, &TestInterface{
 		InterfaceName: "interface",
-		PlugSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+		SlotSecuritySnippetCallback: func(slot *Slot, plug *Plug, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == SecurityAppArmor {
 				return []byte("producer snippet\n"), nil
 			}
 			return nil, nil
 		},
 	})
-	// Ensure that plug-side security profile looks correct.
-	blobs, err := s.repo.SecurityFilesForSnap(s.plug.Snap)
+	// Ensure that slot-side security profile looks correct.
+	blobs, err := s.repo.SecurityFilesForSnap(s.slot.Snap)
 	c.Assert(err, IsNil)
 	c.Check(blobs, DeepEquals, map[string][]byte{
 		"/run/snappy/security/apparmor/producer/hook.profile": []byte("" +
@@ -84,18 +84,18 @@ func (s *SecuritySuite) TestAppArmorPlugPermissions(c *C) {
 	})
 }
 
-func (s *SecuritySuite) TestAppArmorSlotPermissions(c *C) {
+func (s *SecuritySuite) TestAppArmorPlugPermissions(c *C) {
 	s.prepareFixtureWithInterface(c, &TestInterface{
 		InterfaceName: "interface",
-		SlotSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+		PlugSecuritySnippetCallback: func(slot *Slot, plug *Plug, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == SecurityAppArmor {
 				return []byte("consumer snippet\n"), nil
 			}
 			return nil, nil
 		},
 	})
-	// Ensure that slot-side security profile looks correct.
-	blobs, err := s.repo.SecurityFilesForSnap(s.slot.Snap)
+	// Ensure that plug-side security profile looks correct.
+	blobs, err := s.repo.SecurityFilesForSnap(s.plug.Snap)
 	c.Assert(err, IsNil)
 	c.Check(blobs, DeepEquals, map[string][]byte{
 		"/run/snappy/security/apparmor/consumer/app.profile": []byte("" +
@@ -107,18 +107,18 @@ func (s *SecuritySuite) TestAppArmorSlotPermissions(c *C) {
 
 // Tests for secComp
 
-func (s *SecuritySuite) TestSecCompPlugPermissions(c *C) {
+func (s *SecuritySuite) TestSecCompSlotPermissions(c *C) {
 	s.prepareFixtureWithInterface(c, &TestInterface{
 		InterfaceName: "interface",
-		PlugSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+		SlotSecuritySnippetCallback: func(slot *Slot, plug *Plug, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == SecuritySecComp {
 				return []byte("allow open\n"), nil
 			}
 			return nil, nil
 		},
 	})
-	// Ensure that plug-side security profile looks correct.
-	blobs, err := s.repo.SecurityFilesForSnap(s.plug.Snap)
+	// Ensure that slot-side security profile looks correct.
+	blobs, err := s.repo.SecurityFilesForSnap(s.slot.Snap)
 	c.Assert(err, IsNil)
 	c.Check(blobs, DeepEquals, map[string][]byte{
 		"/run/snappy/security/seccomp/producer/hook.profile": []byte("" +
@@ -127,18 +127,18 @@ func (s *SecuritySuite) TestSecCompPlugPermissions(c *C) {
 	})
 }
 
-func (s *SecuritySuite) TestSecCompSlotPermissions(c *C) {
+func (s *SecuritySuite) TestSecCompPlugPermissions(c *C) {
 	s.prepareFixtureWithInterface(c, &TestInterface{
 		InterfaceName: "interface",
-		SlotSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+		PlugSecuritySnippetCallback: func(slot *Slot, plug *Plug, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == SecuritySecComp {
 				return []byte("deny kexec\n"), nil
 			}
 			return nil, nil
 		},
 	})
-	// Ensure that slot-side security profile looks correct.
-	blobs, err := s.repo.SecurityFilesForSnap(s.slot.Snap)
+	// Ensure that plug-side security profile looks correct.
+	blobs, err := s.repo.SecurityFilesForSnap(s.plug.Snap)
 	c.Assert(err, IsNil)
 	c.Check(blobs, DeepEquals, map[string][]byte{
 		"/run/snappy/security/seccomp/consumer/app.profile": []byte("" +
@@ -149,28 +149,10 @@ func (s *SecuritySuite) TestSecCompSlotPermissions(c *C) {
 
 // Tests for uDev
 
-func (s *SecuritySuite) TestUdevPlugPermissions(c *C) {
-	s.prepareFixtureWithInterface(c, &TestInterface{
-		InterfaceName: "interface",
-		PlugSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
-			if securitySystem == SecurityUDev {
-				return []byte("...\n"), nil
-			}
-			return nil, nil
-		},
-	})
-	// Ensure that plug-side security profile looks correct.
-	blobs, err := s.repo.SecurityFilesForSnap(s.plug.Snap)
-	c.Assert(err, IsNil)
-	c.Check(blobs, DeepEquals, map[string][]byte{
-		"/etc/udev/rules.d/70-snappy-producer.rules": []byte("...\n"),
-	})
-}
-
 func (s *SecuritySuite) TestUdevSlotPermissions(c *C) {
 	s.prepareFixtureWithInterface(c, &TestInterface{
 		InterfaceName: "interface",
-		SlotSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+		SlotSecuritySnippetCallback: func(slot *Slot, plug *Plug, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == SecurityUDev {
 				return []byte("...\n"), nil
 			}
@@ -181,17 +163,15 @@ func (s *SecuritySuite) TestUdevSlotPermissions(c *C) {
 	blobs, err := s.repo.SecurityFilesForSnap(s.slot.Snap)
 	c.Assert(err, IsNil)
 	c.Check(blobs, DeepEquals, map[string][]byte{
-		"/etc/udev/rules.d/70-snappy-consumer.rules": []byte("...\n"),
+		"/etc/udev/rules.d/70-snappy-producer.rules": []byte("...\n"),
 	})
 }
 
-// Tests for DBus
-
-func (s *SecuritySuite) TestDBusPlugPermissions(c *C) {
+func (s *SecuritySuite) TestUdevPlugPermissions(c *C) {
 	s.prepareFixtureWithInterface(c, &TestInterface{
 		InterfaceName: "interface",
-		PlugSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
-			if securitySystem == SecurityDBus {
+		PlugSecuritySnippetCallback: func(slot *Slot, plug *Plug, securitySystem SecuritySystem) ([]byte, error) {
+			if securitySystem == SecurityUDev {
 				return []byte("...\n"), nil
 			}
 			return nil, nil
@@ -199,6 +179,26 @@ func (s *SecuritySuite) TestDBusPlugPermissions(c *C) {
 	})
 	// Ensure that plug-side security profile looks correct.
 	blobs, err := s.repo.SecurityFilesForSnap(s.plug.Snap)
+	c.Assert(err, IsNil)
+	c.Check(blobs, DeepEquals, map[string][]byte{
+		"/etc/udev/rules.d/70-snappy-consumer.rules": []byte("...\n"),
+	})
+}
+
+// Tests for DBus
+
+func (s *SecuritySuite) TestDBusSlotPermissions(c *C) {
+	s.prepareFixtureWithInterface(c, &TestInterface{
+		InterfaceName: "interface",
+		SlotSecuritySnippetCallback: func(slot *Slot, plug *Plug, securitySystem SecuritySystem) ([]byte, error) {
+			if securitySystem == SecurityDBus {
+				return []byte("...\n"), nil
+			}
+			return nil, nil
+		},
+	})
+	// Ensure that slot-side security profile looks correct.
+	blobs, err := s.repo.SecurityFilesForSnap(s.slot.Snap)
 	c.Assert(err, IsNil)
 	c.Check(blobs, DeepEquals, map[string][]byte{
 		"/etc/dbus-1/system.d/producer.conf": []byte("" +
@@ -211,18 +211,18 @@ func (s *SecuritySuite) TestDBusPlugPermissions(c *C) {
 	})
 }
 
-func (s *SecuritySuite) TestDBusSlotPermissions(c *C) {
+func (s *SecuritySuite) TestDBusPlugPermissions(c *C) {
 	s.prepareFixtureWithInterface(c, &TestInterface{
 		InterfaceName: "interface",
-		SlotSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+		PlugSecuritySnippetCallback: func(slot *Slot, plug *Plug, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == SecurityDBus {
 				return []byte("...\n"), nil
 			}
 			return nil, nil
 		},
 	})
-	// Ensure that slot-side security profile looks correct.
-	blobs, err := s.repo.SecurityFilesForSnap(s.slot.Snap)
+	// Ensure that plug-side security profile looks correct.
+	blobs, err := s.repo.SecurityFilesForSnap(s.plug.Snap)
 	c.Assert(err, IsNil)
 	c.Check(blobs, DeepEquals, map[string][]byte{
 		"/etc/dbus-1/system.d/consumer.conf": []byte("" +
