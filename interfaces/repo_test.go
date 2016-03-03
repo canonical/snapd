@@ -578,9 +578,16 @@ func (s *RepositorySuite) TestConnectSucceedsWhenIdenticalConnectExists(c *C) {
 	err = s.testRepo.Connect(s.plug.Snap, s.plug.Name, s.slot.Snap, s.slot.Name)
 	c.Assert(err, IsNil)
 	// Only one "connect" is actually present.
-	c.Assert(s.testRepo.ConnectedSlots(s.slot.Snap), DeepEquals, map[*Slot][]*Plug{
-		s.slot: []*Plug{s.plug},
-	})
+	c.Assert(s.testRepo.Interfaces().Slots[0].Snap, Equals, s.slot.Snap)
+	c.Assert(s.testRepo.Interfaces().Slots[0].Name, Equals, s.slot.Name)
+	c.Assert(s.testRepo.Interfaces().Slots[0].Connections, HasLen, 1)
+	c.Assert(s.testRepo.Interfaces().Slots[0].Connections[0].Snap, Equals, s.plug.Snap)
+	c.Assert(s.testRepo.Interfaces().Slots[0].Connections[0].Name, Equals, s.plug.Name)
+	c.Assert(s.testRepo.Interfaces().Plugs[0].Snap, Equals, s.plug.Snap)
+	c.Assert(s.testRepo.Interfaces().Plugs[0].Name, Equals, s.plug.Name)
+	c.Assert(s.testRepo.Interfaces().Plugs[0].Connections, HasLen, 1)
+	c.Assert(s.testRepo.Interfaces().Plugs[0].Connections[0].Snap, Equals, s.slot.Snap)
+	c.Assert(s.testRepo.Interfaces().Plugs[0].Connections[0].Name, Equals, s.slot.Name)
 }
 
 func (s *RepositorySuite) TestConnectFailsWhenSlotAndPlugAreIncompatible(c *C) {
@@ -680,7 +687,12 @@ func (s *RepositorySuite) TestDisconnectSucceeds(c *C) {
 	// Disconnecting a connected plug works okay
 	err = s.testRepo.Disconnect(s.plug.Snap, s.plug.Name, s.slot.Snap, s.slot.Name)
 	c.Assert(err, IsNil)
-	c.Assert(s.testRepo.ConnectedSlots(s.slot.Snap), HasLen, 0)
+	c.Assert(s.testRepo.Interfaces().Slots[0].Snap, Equals, s.slot.Snap)
+	c.Assert(s.testRepo.Interfaces().Slots[0].Name, Equals, s.slot.Name)
+	c.Assert(s.testRepo.Interfaces().Slots[0].Connections, HasLen, 0)
+	c.Assert(s.testRepo.Interfaces().Plugs[0].Snap, Equals, s.plug.Snap)
+	c.Assert(s.testRepo.Interfaces().Plugs[0].Name, Equals, s.plug.Name)
+	c.Assert(s.testRepo.Interfaces().Plugs[0].Connections, HasLen, 0)
 }
 
 func (s *RepositorySuite) TestDisconnectFromSnap(c *C) {
@@ -693,7 +705,12 @@ func (s *RepositorySuite) TestDisconnectFromSnap(c *C) {
 	// Disconnecting everything from a snap works OK
 	err = s.testRepo.Disconnect("", "", s.slot.Snap, "")
 	c.Assert(err, IsNil)
-	c.Assert(s.testRepo.ConnectedSlots(s.slot.Snap), HasLen, 0)
+	c.Assert(s.testRepo.Interfaces().Slots[0].Snap, Equals, s.slot.Snap)
+	c.Assert(s.testRepo.Interfaces().Slots[0].Name, Equals, s.slot.Name)
+	c.Assert(s.testRepo.Interfaces().Slots[0].Connections, HasLen, 0)
+	c.Assert(s.testRepo.Interfaces().Plugs[0].Snap, Equals, s.plug.Snap)
+	c.Assert(s.testRepo.Interfaces().Plugs[0].Name, Equals, s.plug.Name)
+	c.Assert(s.testRepo.Interfaces().Plugs[0].Connections, HasLen, 0)
 }
 
 func (s *RepositorySuite) TestDisconnectFromSlot(c *C) {
@@ -706,7 +723,12 @@ func (s *RepositorySuite) TestDisconnectFromSlot(c *C) {
 	// Disconnecting everything from a plug slot works OK
 	err = s.testRepo.Disconnect("", "", s.slot.Snap, s.slot.Name)
 	c.Assert(err, IsNil)
-	c.Assert(s.testRepo.ConnectedSlots(s.slot.Snap), HasLen, 0)
+	c.Assert(s.testRepo.Interfaces().Slots[0].Snap, Equals, s.slot.Snap)
+	c.Assert(s.testRepo.Interfaces().Slots[0].Name, Equals, s.slot.Name)
+	c.Assert(s.testRepo.Interfaces().Slots[0].Connections, HasLen, 0)
+	c.Assert(s.testRepo.Interfaces().Plugs[0].Snap, Equals, s.plug.Snap)
+	c.Assert(s.testRepo.Interfaces().Plugs[0].Name, Equals, s.plug.Name)
+	c.Assert(s.testRepo.Interfaces().Plugs[0].Connections, HasLen, 0)
 }
 
 // Test for Repository.ConnectedSlots()
