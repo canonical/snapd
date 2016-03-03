@@ -408,8 +408,7 @@ func (r *Repository) disconnect(plug *Plug, slot *Slot) {
 	if len(r.plugSlots[plug]) == 0 {
 		delete(r.plugSlots, plug)
 	}
-	for i := 0; i < len(slot.Connections); i++ {
-		plugRef := slot.Connections[i]
+	for i, plugRef := range slot.Connections {
 		if plugRef.Snap == plug.Snap && plugRef.Name == plug.Name {
 			slot.Connections[i] = slot.Connections[len(slot.Connections)-1]
 			slot.Connections = slot.Connections[:len(slot.Connections)-1]
@@ -419,8 +418,7 @@ func (r *Repository) disconnect(plug *Plug, slot *Slot) {
 			break
 		}
 	}
-	for i := 0; i < len(plug.Connections); i++ {
-		slotRef := plug.Connections[i]
+	for i, slotRef := range plug.Connections {
 		if slotRef.Snap == slot.Snap && slotRef.Name == slot.Name {
 			plug.Connections[i] = plug.Connections[len(plug.Connections)-1]
 			plug.Connections = plug.Connections[:len(plug.Connections)-1]
