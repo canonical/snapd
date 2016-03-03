@@ -38,7 +38,7 @@ type Change struct {
 	id      string
 	kind    string
 	summary string
-	entries customEntries
+	data    customData
 }
 
 func newChange(state *State, id, kind, summary string) *Change {
@@ -47,7 +47,7 @@ func newChange(state *State, id, kind, summary string) *Change {
 		id:      id,
 		kind:    kind,
 		summary: summary,
-		entries: make(customEntries),
+		data:    make(customData),
 	}
 }
 
@@ -55,7 +55,7 @@ type marshalledChange struct {
 	ID      string                      `json:"id"`
 	Kind    string                      `json:"kind"`
 	Summary string                      `json:"summary"`
-	Entries map[string]*json.RawMessage `json:"entries"`
+	Data    map[string]*json.RawMessage `json:"data"`
 }
 
 // MarshalJSON makes Change a json.Marshaller
@@ -64,7 +64,7 @@ func (c *Change) MarshalJSON() ([]byte, error) {
 		ID:      c.id,
 		Kind:    c.kind,
 		Summary: c.summary,
-		Entries: c.entries,
+		Data:    c.data,
 	})
 }
 
@@ -78,7 +78,7 @@ func (c *Change) UnmarshalJSON(data []byte) error {
 	c.id = unmarshalled.ID
 	c.kind = unmarshalled.Kind
 	c.summary = unmarshalled.Summary
-	c.entries = unmarshalled.Entries
+	c.data = unmarshalled.Data
 	return nil
 }
 
@@ -101,12 +101,12 @@ func (c *Change) Summary() string {
 // The provided value must properly marshal and unmarshal with encoding/json.
 func (c *Change) Set(key string, value interface{}) {
 	c.state.ensureLocked()
-	c.entries.set(key, value)
+	c.data.set(key, value)
 }
 
 // Get unmarshals the stored value associated with the provided key
 // into the value parameter.
 func (c *Change) Get(key string, value interface{}) error {
 	c.state.ensureLocked()
-	return c.entries.get(key, value)
+	return c.data.get(key, value)
 }
