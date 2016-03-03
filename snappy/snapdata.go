@@ -25,7 +25,7 @@ import (
 	"path/filepath"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/osutil"
 )
 
 // removeSnapData removes the data for the given version of the given snap
@@ -85,7 +85,7 @@ func copySnapDataDirectory(oldPath, newPath string) (err error) {
 			// there is no golang "CopyFile"
 			cmd := exec.Command("cp", "-a", oldPath, newPath)
 			if err := cmd.Run(); err != nil {
-				if exitCode, err := helpers.ExitCode(err); err == nil {
+				if exitCode, err := osutil.ExitCode(err); err == nil {
 					return &ErrDataCopyFailed{
 						OldPath:  oldPath,
 						NewPath:  newPath,

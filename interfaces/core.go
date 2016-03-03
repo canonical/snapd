@@ -27,22 +27,42 @@ import (
 
 // Plug represents a capacity offered by a snap.
 type Plug struct {
-	Name      string
-	Snap      string
-	Interface string
-	Attrs     map[string]interface{}
-	Apps      []string
-	Label     string
+	Snap        string                 `json:"snap"`
+	Name        string                 `json:"plug"`
+	Interface   string                 `json:"interface"`
+	Attrs       map[string]interface{} `json:"attrs,omitempty"`
+	Apps        []string               `json:"apps,omitempty"`
+	Label       string                 `json:"label"`
+	Connections []SlotRef              `json:"connections,omitempty"`
+}
+
+// PlugRef is a reference to a plug.
+type PlugRef struct {
+	Snap string `json:"snap"`
+	Name string `json:"plug"`
 }
 
 // Slot represents the potential of a given snap to connect to a plug.
 type Slot struct {
-	Name      string
-	Snap      string
-	Interface string
-	Attrs     map[string]interface{}
-	Apps      []string
-	Label     string
+	Snap        string                 `json:"snap"`
+	Name        string                 `json:"slot"`
+	Interface   string                 `json:"interface"`
+	Attrs       map[string]interface{} `json:"attrs,omitempty"`
+	Apps        []string               `json:"apps,omitempty"`
+	Label       string                 `json:"label"`
+	Connections []PlugRef              `json:"connections,omitempty"`
+}
+
+// SlotRef is a reference to a slot.
+type SlotRef struct {
+	Snap string `json:"snap"`
+	Name string `json:"slot"`
+}
+
+// Interfaces holds information about a list of plugs and slots, and their connections.
+type Interfaces struct {
+	Plugs []*Plug `json:"plugs"`
+	Slots []*Slot `json:"slots"`
 }
 
 // Interface describes a group of interchangeable capabilities with common features.
@@ -65,7 +85,7 @@ type Interface interface {
 	// from the security system to work, in addition to the default
 	// configuration.  ErrUnknownSecurity is returned when the plug cannot
 	// deal with the requested security system.
-	PlugSecuritySnippet(plug *Plug, securitySystem SecuritySystem) ([]byte, error)
+	PlugSecuritySnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
 
 	// SlotSecuritySnippet returns the configuration snippet needed by the
 	// given security system to allow a snap to use a plug of this interface.

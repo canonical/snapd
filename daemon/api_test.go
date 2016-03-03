@@ -1254,7 +1254,7 @@ func (s *apiSuite) TestGetPlugs(c *check.C) {
 	d := newTestDaemon()
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface", Label: "label"})
-	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
+	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface", Label: "label"})
 	d.interfaces.Connect("producer", "plug", "consumer", "slot")
 	req, err := http.NewRequest("GET", "/2.0/interfaces", nil)
 	c.Assert(err, check.IsNil)
@@ -1265,16 +1265,32 @@ func (s *apiSuite) TestGetPlugs(c *check.C) {
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"result": []interface{}{
-			map[string]interface{}{
-				"snap":      "producer",
-				"plug":      "plug",
-				"interface": "interface",
-				"label":     "label",
-				"connections": []interface{}{
-					map[string]interface{}{
-						"snap": "consumer",
-						"slot": "slot",
+		"result": map[string]interface{}{
+			"plugs": []interface{}{
+				map[string]interface{}{
+					"snap":      "producer",
+					"plug":      "plug",
+					"interface": "interface",
+					"label":     "label",
+					"connections": []interface{}{
+						map[string]interface{}{
+							"snap": "consumer",
+							"slot": "slot",
+						},
+					},
+				},
+			},
+			"slots": []interface{}{
+				map[string]interface{}{
+					"snap":      "consumer",
+					"slot":      "slot",
+					"interface": "interface",
+					"label":     "label",
+					"connections": []interface{}{
+						map[string]interface{}{
+							"snap": "producer",
+							"plug": "plug",
+						},
 					},
 				},
 			},
@@ -1614,7 +1630,7 @@ func (s *apiSuite) TestAddPlugSuccess(c *check.C) {
 		Action: "add-plug",
 		Plug: interfaces.Plug{
 			Snap:      "snap",
-			Name:      "name",
+			Name:      "plug",
 			Label:     "label",
 			Interface: "interface",
 			Attrs: map[string]interface{}{
@@ -1640,7 +1656,7 @@ func (s *apiSuite) TestAddPlugSuccess(c *check.C) {
 		"status_code": 201.0,
 		"type":        "sync",
 	})
-	c.Check(d.interfaces.Plug("snap", "name"), check.DeepEquals, &action.Plug)
+	c.Check(d.interfaces.Plug("snap", "plug"), check.DeepEquals, &action.Plug)
 }
 
 func (s *apiSuite) TestAddPlugDisabled(c *check.C) {
@@ -1696,7 +1712,7 @@ func (s *apiSuite) TestAddPlugFailure(c *check.C) {
 		Action: "add-plug",
 		Plug: interfaces.Plug{
 			Snap:      "snap",
-			Name:      "name",
+			Name:      "plug",
 			Label:     "label",
 			Interface: "interface",
 			Attrs: map[string]interface{}{
@@ -1834,7 +1850,7 @@ func (s *apiSuite) TestAddSlotSuccess(c *check.C) {
 		Action: "add-slot",
 		Slot: interfaces.Slot{
 			Snap:      "snap",
-			Name:      "name",
+			Name:      "slot",
 			Label:     "label",
 			Interface: "interface",
 			Attrs: map[string]interface{}{
@@ -1860,7 +1876,7 @@ func (s *apiSuite) TestAddSlotSuccess(c *check.C) {
 		"status_code": 201.0,
 		"type":        "sync",
 	})
-	c.Check(d.interfaces.Slot("snap", "name"), check.DeepEquals, &action.Slot)
+	c.Check(d.interfaces.Slot("snap", "slot"), check.DeepEquals, &action.Slot)
 }
 
 func (s *apiSuite) TestAddSlotDisabled(c *check.C) {
@@ -1916,7 +1932,7 @@ func (s *apiSuite) TestAddSlotFailure(c *check.C) {
 		Action: "add-slot",
 		Slot: interfaces.Slot{
 			Snap:      "snap",
-			Name:      "name",
+			Name:      "slot",
 			Label:     "label",
 			Interface: "interface",
 			Attrs: map[string]interface{}{

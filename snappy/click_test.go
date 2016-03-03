@@ -32,7 +32,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/policy"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/squashfs"
@@ -47,7 +47,7 @@ func (s *SnapTestSuite) testLocalSnapInstall(c *C) string {
 	c.Check(name, Equals, "foo")
 
 	baseDir := filepath.Join(dirs.SnapSnapsDir, fooComposedName, "1.0")
-	c.Assert(helpers.FileExists(baseDir), Equals, true)
+	c.Assert(osutil.FileExists(baseDir), Equals, true)
 	_, err = os.Stat(filepath.Join(s.tempdir, "var", "lib", "snaps", "foo."+testOrigin, "1.0"))
 	c.Assert(err, IsNil)
 
@@ -574,7 +574,7 @@ apps:
 	c.Assert(err, IsNil)
 
 	servicesFile := filepath.Join(dirs.SnapServicesDir, "foo_service_1.0.service")
-	c.Assert(helpers.FileExists(servicesFile), Equals, true)
+	c.Assert(osutil.FileExists(servicesFile), Equals, true)
 	st, err := os.Stat(servicesFile)
 	c.Assert(err, IsNil)
 	// should _not_ be executable
@@ -587,8 +587,8 @@ apps:
 	c.Assert(err, IsNil)
 	err = (&Overlord{}).Uninstall(part, &MockProgressMeter{})
 	c.Assert(err, IsNil)
-	c.Assert(helpers.FileExists(servicesFile), Equals, false)
-	c.Assert(helpers.FileExists(snapDir), Equals, false)
+	c.Assert(osutil.FileExists(servicesFile), Equals, false)
+	c.Assert(osutil.FileExists(snapDir), Equals, false)
 }
 
 func (s *SnapTestSuite) setupSnappyDependentServices(c *C) (string, *MockProgressMeter) {
@@ -616,8 +616,8 @@ version: `
 	_, err = installClick(snapFile, AllowUnauthenticated, inter, testOrigin)
 	c.Assert(err, IsNil)
 
-	c.Assert(helpers.FileExists(filepath.Join(dirs.SnapServicesDir, "foo_svc1_1.0.service")), Equals, true)
-	c.Assert(helpers.FileExists(filepath.Join(dirs.SnapServicesDir, "foo_svc2_1.0.service")), Equals, true)
+	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapServicesDir, "foo_svc1_1.0.service")), Equals, true)
+	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapServicesDir, "foo_svc2_1.0.service")), Equals, true)
 
 	return fmkYaml, inter
 }
@@ -1008,13 +1008,13 @@ func (s *SnapTestSuite) TestBinariesWhitelistSimple(c *C) {
 }
 
 func (s *SnapTestSuite) TestUsesWhitelistSimple(c *C) {
-	c.Check(verifyUsesYaml(&usesYaml{
-		Type: "migration-skill",
+	c.Check(verifySlotYaml(&slotYaml{
+		Interface: "old-security",
 		SecurityDefinitions: SecurityDefinitions{
 			SecurityTemplate: "foo"},
 	}), IsNil)
-	c.Check(verifyUsesYaml(&usesYaml{
-		Type: "migration-skill",
+	c.Check(verifySlotYaml(&slotYaml{
+		Interface: "old-security",
 		SecurityDefinitions: SecurityDefinitions{
 			SecurityPolicy: &SecurityPolicyDefinition{
 				AppArmor: "foo"},
@@ -1029,19 +1029,19 @@ func (s *SnapTestSuite) TestBinariesWhitelistIllegal(c *C) {
 }
 
 func (s *SnapTestSuite) TestWrongType(c *C) {
-	c.Check(verifyUsesYaml(&usesYaml{
-		Type: "some-skill",
-	}), ErrorMatches, ".*can not use skill.* only migration-skill supported")
+	c.Check(verifySlotYaml(&slotYaml{
+		Interface: "some-interface",
+	}), ErrorMatches, ".*can not use interface.* only `old-security` supported")
 }
 
 func (s *SnapTestSuite) TestUsesWhitelistIllegal(c *C) {
-	c.Check(verifyUsesYaml(&usesYaml{
-		Type: "migration-skill",
+	c.Check(verifySlotYaml(&slotYaml{
+		Interface: "old-security",
 		SecurityDefinitions: SecurityDefinitions{
 			SecurityTemplate: "x\n"},
 	}), ErrorMatches, ".*contains illegal.*")
-	c.Check(verifyUsesYaml(&usesYaml{
-		Type: "migration-skill",
+	c.Check(verifySlotYaml(&slotYaml{
+		Interface: "old-security",
 		SecurityDefinitions: SecurityDefinitions{
 			SecurityPolicy: &SecurityPolicyDefinition{
 				AppArmor: "x\n"},
@@ -1190,7 +1190,7 @@ apps:
 	// ensure that the binary wrapper file go generated with the right
 	// name
 	binaryWrapper := filepath.Join(dirs.SnapBinariesDir, "foo.bar")
-	c.Assert(helpers.FileExists(binaryWrapper), Equals, true)
+	c.Assert(osutil.FileExists(binaryWrapper), Equals, true)
 
 	// and that it gets removed on remove
 	snapDir := filepath.Join(dirs.SnapSnapsDir, "foo.mvo", "1.0")
@@ -1199,6 +1199,6 @@ apps:
 	c.Assert(err, IsNil)
 	err = (&Overlord{}).Uninstall(part, &MockProgressMeter{})
 	c.Assert(err, IsNil)
-	c.Assert(helpers.FileExists(binaryWrapper), Equals, false)
-	c.Assert(helpers.FileExists(snapDir), Equals, false)
+	c.Assert(osutil.FileExists(binaryWrapper), Equals, false)
+	c.Assert(osutil.FileExists(snapDir), Equals, false)
 }

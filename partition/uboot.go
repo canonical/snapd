@@ -23,7 +23,7 @@ import (
 	"path/filepath"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/osutil"
 
 	"github.com/mvo5/uboot-go/uenv"
 )
@@ -34,7 +34,7 @@ type uboot struct {
 // newUboot create a new Uboot bootloader object
 func newUboot() Bootloader {
 	u := &uboot{}
-	if !helpers.FileExists(u.envFile()) {
+	if !osutil.FileExists(u.envFile()) {
 		return nil
 	}
 

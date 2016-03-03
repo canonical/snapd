@@ -35,7 +35,7 @@ type TestInterface struct {
 	// SlotSecuritySnippetCallback is the callback invoked inside SlotSecuritySnippet()
 	SlotSecuritySnippetCallback func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
 	// PlugSecuritySnippetCallback is the callback invoked inside PlugSecuritySnippet()
-	PlugSecuritySnippetCallback func(plug *Plug, securitySystem SecuritySystem) ([]byte, error)
+	PlugSecuritySnippetCallback func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
 }
 
 // String() returns the same value as Name().
@@ -72,9 +72,9 @@ func (t *TestInterface) SanitizeSlot(slot *Slot) error {
 
 // PlugSecuritySnippet returns the configuration snippet "required" to offer a test plug.
 // Providers don't gain any extra permissions.
-func (t *TestInterface) PlugSecuritySnippet(plug *Plug, securitySystem SecuritySystem) ([]byte, error) {
+func (t *TestInterface) PlugSecuritySnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 	if t.PlugSecuritySnippetCallback != nil {
-		return t.PlugSecuritySnippetCallback(plug, securitySystem)
+		return t.PlugSecuritySnippetCallback(plug, slot, securitySystem)
 	}
 	return nil, nil
 }

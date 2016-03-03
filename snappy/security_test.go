@@ -29,8 +29,8 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap"
 )
 
@@ -603,16 +603,16 @@ vendor: someone
 version: 1.0
 apps:
  binary1:
-   uses: [binary1]
+   slots: [binary1]
  service1:
-   uses: [service1]
+   slots: [service1]
    daemon: forking
-uses:
+slots:
  binary1:
-  type: migration-skill
+  interface: old-security
   caps: []
  service1:
-  type: migration-skill
+  interface: old-security
   caps: []
 `
 
@@ -822,10 +822,10 @@ vendor: someone
 version: 1.0
 apps:
  binary1:
-   uses: [binary1]
-uses:
+   slots: [binary1]
+slots:
  binary1:
-   type: migration-skill
+   interface: old-security
    caps: []
 `
 
@@ -945,11 +945,11 @@ func (a *SecurityTestSuite) TestSecurityGeneratePolicyFromFileSideload(c *C) {
 
 	// apparmor
 	generatedProfileFn := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("hello-world.%s_binary1_IsSideloadVer", testOrigin))
-	c.Assert(helpers.FileExists(generatedProfileFn), Equals, true)
+	c.Assert(osutil.FileExists(generatedProfileFn), Equals, true)
 
 	// ... and seccomp
 	generatedProfileFn = filepath.Join(dirs.SnapSeccompDir, fmt.Sprintf("hello-world.%s_binary1_IsSideloadVer", testOrigin))
-	c.Assert(helpers.FileExists(generatedProfileFn), Equals, true)
+	c.Assert(osutil.FileExists(generatedProfileFn), Equals, true)
 }
 
 func (a *SecurityTestSuite) TestSecurityCompareGeneratePolicyFromFileSideload(c *C) {
@@ -1034,44 +1034,44 @@ version: 123456789
 
 }
 
-func (a *SecurityTestSuite) TestFindSkillForAppEmpty(c *C) {
+func (a *SecurityTestSuite) TestFindSlotForAppEmpty(c *C) {
 	app := &AppYaml{}
 	m := &snapYaml{}
-	skill, err := findSkillForApp(m, app)
+	slot, err := findSlotForApp(m, app)
 	c.Check(err, IsNil)
-	c.Check(skill, IsNil)
+	c.Check(slot, IsNil)
 }
 
-func (a *SecurityTestSuite) TestFindSkillForAppTooMany(c *C) {
+func (a *SecurityTestSuite) TestFindSlotlForAppTooMany(c *C) {
 	app := &AppYaml{
-		UsesRef: []string{"one", "two"},
+		SlotsRef: []string{"one", "two"},
 	}
 	m := &snapYaml{}
-	skill, err := findSkillForApp(m, app)
-	c.Check(skill, IsNil)
-	c.Check(err, ErrorMatches, "only a single skill is supported, 2 found")
+	slot, err := findSlotForApp(m, app)
+	c.Check(slot, IsNil)
+	c.Check(err, ErrorMatches, "only a single slot is supported, 2 found")
 }
 
-func (a *SecurityTestSuite) TestFindSkillForAppNotFound(c *C) {
+func (a *SecurityTestSuite) TestFindSlotForAppNotFound(c *C) {
 	app := &AppYaml{
-		UsesRef: []string{"not-there"},
+		SlotsRef: []string{"not-there"},
 	}
 	m := &snapYaml{}
-	skill, err := findSkillForApp(m, app)
-	c.Check(skill, IsNil)
-	c.Check(err, ErrorMatches, `can not find skill "not-there"`)
+	slot, err := findSlotForApp(m, app)
+	c.Check(slot, IsNil)
+	c.Check(err, ErrorMatches, `can not find slot "not-there"`)
 }
 
-func (a *SecurityTestSuite) TestFindSkillFinds(c *C) {
+func (a *SecurityTestSuite) TestFindSlotFinds(c *C) {
 	app := &AppYaml{
-		UsesRef: []string{"skill"},
+		SlotsRef: []string{"slot"},
 	}
 	m := &snapYaml{
-		Uses: map[string]*usesYaml{
-			"skill": &usesYaml{Type: "some-type"},
+		Slots: map[string]*slotYaml{
+			"slot": &slotYaml{Interface: "some-type"},
 		},
 	}
-	skill, err := findSkillForApp(m, app)
+	slot, err := findSlotForApp(m, app)
 	c.Check(err, IsNil)
-	c.Check(skill.Type, Equals, "some-type")
+	c.Check(slot.Interface, Equals, "some-type")
 }

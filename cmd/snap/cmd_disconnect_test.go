@@ -49,10 +49,6 @@ Disconnects all plugs from the provided snap.
 
 Help Options:
   -h, --help               Show this help message
-
-[disconnect command arguments]
-  <snap>:<plug>
-  <snap>:<slot>
 `
 	rest, err := Parser().ParseArgs([]string{"disconnect", "--help"})
 	c.Assert(err.Error(), Equals, msg)
