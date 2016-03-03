@@ -39,6 +39,7 @@ type Change struct {
 	kind    string
 	summary string
 	data    customData
+	tasks   map[string]*Task
 }
 
 func newChange(state *State, id, kind, summary string) *Change {
@@ -48,6 +49,7 @@ func newChange(state *State, id, kind, summary string) *Change {
 		kind:    kind,
 		summary: summary,
 		data:    make(customData),
+		tasks:   make(map[string]*Task),
 	}
 }
 
@@ -110,4 +112,30 @@ func (c *Change) Set(key string, value interface{}) {
 func (c *Change) Get(key string, value interface{}) error {
 	c.state.ensureLocked()
 	return c.data.get(key, value)
+}
+
+// NewTask creates a new task and registers it as a required task for the
+// state change to be accomplished.
+func (c *Change) NewTask(kind, summary string) *Task {
+	c.state.ensureLocked()
+	id := c.state.genID()
+	t := newTask(c.state, id, kind, summary)
+	c.state.tasks[id] = t
+	c.tasks[id] = t
+	return t
+}
+
+/*
+// AddTask registers t as a required task for the state change to be accomplished.
+func (c *Change) AddTask(t *Task) { ... }
+*/
+
+// Tasks returns all the tasks this state change depends on.
+func (c *Change) Tasks() []*Task {
+	c.state.ensureLocked()
+	res := make([]*Task, 0, len(c.tasks))
+	for _, t := range c.tasks {
+		res = append(res, t)
+	}
+	return res
 }

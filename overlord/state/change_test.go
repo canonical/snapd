@@ -72,3 +72,44 @@ func (cs *changeSuite) TestSetNeedsLock(c *C) {
 
 	c.Assert(func() { chg.Set("a", 1) }, PanicMatches, "internal error: accessing state without lock")
 }
+
+func (cs *changeSuite) TestNewTaskAndTasks(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("install", "...")
+
+	t1 := chg.NewTask("download", "1...")
+	t2 := chg.NewTask("verify", "2...")
+
+	tasks := chg.Tasks()
+	c.Check(tasks, HasLen, 2)
+
+	expected := map[string]*state.Task{
+		t1.ID(): t1,
+		t2.ID(): t2,
+	}
+
+	for _, t := range tasks {
+		c.Check(t, Equals, expected[t.ID()])
+	}
+}
+
+func (cs *changeSuite) TestNewTaskNeedsLocked(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	st.Unlock()
+
+	c.Assert(func() { chg.NewTask("download", "...") }, PanicMatches, "internal error: accessing state without lock")
+}
+
+func (cs *changeSuite) TestTasksNeedsLocked(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	st.Unlock()
+
+	c.Assert(func() { chg.Tasks() }, PanicMatches, "internal error: accessing state without lock")
+}
