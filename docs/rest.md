@@ -670,11 +670,7 @@ Sample input:
 ```javascript
 {
     "action": "connect",
-    "plugs": {
-        {"snap": "canonical-pi2",   "plug": "pin-13"},
-    },
-    "slots": {
-        {"snap": "keyboard-lights", "slot": "capslock-led"},
-    }
+    "plugs": {{"snap": "canonical-pi2",   "plug": "pin-13"}},
+    "slots": {{"snap": "keyboard-lights", "slot": "capslock-led"}}
 }
 ```
