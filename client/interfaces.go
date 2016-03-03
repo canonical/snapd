@@ -95,18 +95,8 @@ func (client *Client) performInterfaceAction(sa *InterfaceAction) error {
 func (client *Client) Connect(plugSnapName, plugName, slotSnapName, slotName string) error {
 	return client.performInterfaceAction(&InterfaceAction{
 		Action: "connect",
-		Plugs: []Plug{
-			{
-				Snap: plugSnapName,
-				Name: plugName,
-			},
-		},
-		Slots: []Slot{
-			{
-				Snap: slotSnapName,
-				Name: slotName,
-			},
-		},
+		Plugs:  []Plug{{Snap: plugSnapName, Name: plugName}},
+		Slots:  []Slot{{Snap: slotSnapName, Name: slotName}},
 	})
 }
 
@@ -114,18 +104,8 @@ func (client *Client) Connect(plugSnapName, plugName, slotSnapName, slotName str
 func (client *Client) Disconnect(plugSnapName, plugName, slotSnapName, slotName string) error {
 	return client.performInterfaceAction(&InterfaceAction{
 		Action: "disconnect",
-		Plugs: []Plug{
-			{
-				Snap: plugSnapName,
-				Name: plugName,
-			},
-		},
-		Slots: []Slot{
-			{
-				Snap: slotSnapName,
-				Name: slotName,
-			},
-		},
+		Plugs:  []Plug{{Snap: plugSnapName, Name: plugName}},
+		Slots:  []Slot{{Snap: slotSnapName, Name: slotName}},
 	})
 }
 
@@ -141,12 +121,7 @@ func (client *Client) AddPlug(plug *Plug) error {
 func (client *Client) RemovePlug(snapName, plugName string) error {
 	return client.performInterfaceAction(&InterfaceAction{
 		Action: "remove-plug",
-		Plugs: []Plug{
-			{
-				Snap: snapName,
-				Name: plugName,
-			},
-		},
+		Plugs:  []Plug{{Snap: snapName, Name: plugName}},
 	})
 }
 
@@ -162,11 +137,6 @@ func (client *Client) AddSlot(slot *Slot) error {
 func (client *Client) RemoveSlot(snapName, slotName string) error {
 	return client.performInterfaceAction(&InterfaceAction{
 		Action: "remove-slot",
-		Slots: []Slot{
-			{
-				Snap: snapName,
-				Name: slotName,
-			},
-		},
+		Slots:  []Slot{{Snap: snapName, Name: slotName}},
 	})
 }
