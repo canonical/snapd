@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/strutil"
 )
 
 type bindMount struct {
@@ -51,7 +51,7 @@ var bindMountDirs = []bindMount{
 func genClassicScopeName() string {
 	now := time.Now()
 	ti := fmt.Sprintf("%4d-%02d-%02d_%02d:%02d:%02d", now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute(), now.Second())
-	return fmt.Sprintf("snappy-classic_%s_%s.scope", ti, helpers.MakeRandomString(5))
+	return fmt.Sprintf("snappy-classic_%s_%s.scope", ti, strutil.MakeRandomString(5))
 }
 
 func runInClassicEnv(cmdStr ...string) error {

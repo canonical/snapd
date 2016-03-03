@@ -36,8 +36,9 @@ import (
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/osutil"
+	"github.com/ubuntu-core/snappy/snap/snapenv"
 )
 
 var (
@@ -53,7 +54,7 @@ var (
 func run(args ...string) ([]byte, error) {
 	bs, err := exec.Command("systemctl", args...).CombinedOutput()
 	if err != nil {
-		exitCode, _ := helpers.ExitCode(err)
+		exitCode, _ := osutil.ExitCode(err)
 		return nil, &Error{cmd: args, exitCode: exitCode, msg: bs}
 	}
 
@@ -74,7 +75,7 @@ func jctl(svcs []string) ([]byte, error) {
 
 	bs, err := exec.Command(cmd[0], cmd[1:]...).Output() // journalctl can be messy with its stderr
 	if err != nil {
-		exitCode, _ := helpers.ExitCode(err)
+		exitCode, _ := osutil.ExitCode(err)
 		return nil, &Error{cmd: cmd, exitCode: exitCode, msg: bs}
 	}
 
@@ -166,15 +167,12 @@ type ServiceDescription struct {
 	Type            string
 	AaProfile       string
 	IsFramework     bool
-	IsNetworked     bool
 	BusName         string
 	UdevAppName     string
 	Socket          bool
 	SocketFileName  string
 	ListenStream    string
 	SocketMode      string
-	SocketUser      string
-	SocketGroup     string
 	ServiceFileName string
 }
 
@@ -352,9 +350,7 @@ Description={{.Description}}
 {{if .IsFramework}}Before=ubuntu-snappy.frameworks.target
 After=ubuntu-snappy.frameworks-pre.target{{ if .Socket }} {{.SocketFileName}}{{end}}
 Requires=ubuntu-snappy.frameworks-pre.target{{ if .Socket }} {{.SocketFileName}}{{end}}{{else}}After=ubuntu-snappy.frameworks.target{{ if .Socket }} {{.SocketFileName}}{{end}}
-Requires=ubuntu-snappy.frameworks.target{{ if .Socket }} {{.SocketFileName}}{{end}}{{end}}{{if .IsNetworked}}
-After=snappy-wait4network.service
-Requires=snappy-wait4network.service{{end}}
+Requires=ubuntu-snappy.frameworks.target{{ if .Socket }} {{.SocketFileName}}{{end}}{{end}}
 X-Snappy=yes
 
 [Service]
@@ -416,10 +412,10 @@ WantedBy={{.ServiceSystemdTarget}}
 		restartCond,
 		desc.Type,
 	}
-	allVars := helpers.GetBasicSnapEnvVars(wrapperData)
-	allVars = append(allVars, helpers.GetUserSnapEnvVars(wrapperData)...)
-	allVars = append(allVars, helpers.GetDeprecatedBasicSnapEnvVars(wrapperData)...)
-	allVars = append(allVars, helpers.GetDeprecatedUserSnapEnvVars(wrapperData)...)
+	allVars := snapenv.GetBasicSnapEnvVars(wrapperData)
+	allVars = append(allVars, snapenv.GetUserSnapEnvVars(wrapperData)...)
+	allVars = append(allVars, snapenv.GetDeprecatedBasicSnapEnvVars(wrapperData)...)
+	allVars = append(allVars, snapenv.GetDeprecatedUserSnapEnvVars(wrapperData)...)
 	wrapperData.EnvVars = "\"" + strings.Join(allVars, "\" \"") + "\"" // allVars won't be empty
 
 	if err := t.Execute(&templateOut, wrapperData); err != nil {
@@ -439,8 +435,6 @@ X-Snappy=yes
 [Socket]
 ListenStream={{.ListenStream}}
 {{if .SocketMode}}SocketMode={{.SocketMode}}{{end}}
-{{if .SocketUser}}SocketUser={{.SocketUser}}{{end}}
-{{if .SocketGroup}}SocketGroup={{.SocketGroup}}{{end}}
 
 [Install]
 WantedBy={{.SocketSystemdTarget}}
@@ -455,16 +449,12 @@ WantedBy={{.SocketSystemdTarget}}
 		ServiceFileName,
 		ListenStream string
 		SocketMode          string
-		SocketUser          string
-		SocketGroup         string
 		SocketSystemdTarget string
 	}{
 		*desc,
 		desc.ServiceFileName,
 		desc.ListenStream,
 		desc.SocketMode,
-		desc.SocketUser,
-		desc.SocketGroup,
 		socketsSystemdTarget,
 	}
 
@@ -582,5 +572,5 @@ Where=%s
 `, name, what, where)
 
 	mu := MountUnitPath(where, "mount")
-	return filepath.Base(mu), helpers.AtomicWriteFile(mu, []byte(c), 0644, 0)
+	return filepath.Base(mu), osutil.AtomicWriteFile(mu, []byte(c), 0644, 0)
 }

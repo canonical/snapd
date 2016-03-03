@@ -17,7 +17,7 @@
  *
  */
 
-package helpers
+package osutil
 
 import (
 	"io/ioutil"
@@ -28,7 +28,11 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-func (ts *HTestSuite) TestCmp(c *C) {
+type CmpTestSuite struct{}
+
+var _ = Suite(&CmpTestSuite{})
+
+func (ts *CmpTestSuite) TestCmp(c *C) {
 	tmpdir := c.MkDir()
 
 	foo := filepath.Join(tmpdir, "foo")
@@ -57,7 +61,7 @@ func (ts *HTestSuite) TestCmp(c *C) {
 	}
 }
 
-func (ts *HTestSuite) TestCmpEmptyNeqMissing(c *C) {
+func (ts *CmpTestSuite) TestCmpEmptyNeqMissing(c *C) {
 	tmpdir := c.MkDir()
 
 	foo := filepath.Join(tmpdir, "foo")
@@ -69,7 +73,7 @@ func (ts *HTestSuite) TestCmpEmptyNeqMissing(c *C) {
 	c.Assert(FilesAreEqual(bar, foo), Equals, false)
 }
 
-func (ts *HTestSuite) TestCmpEmptyNeqNonEmpty(c *C) {
+func (ts *CmpTestSuite) TestCmpEmptyNeqNonEmpty(c *C) {
 	tmpdir := c.MkDir()
 
 	foo := filepath.Join(tmpdir, "foo")
@@ -82,7 +86,7 @@ func (ts *HTestSuite) TestCmpEmptyNeqNonEmpty(c *C) {
 	c.Assert(FilesAreEqual(bar, foo), Equals, false)
 }
 
-func (ts *HTestSuite) TestCmpStreams(c *C) {
+func (ts *CmpTestSuite) TestCmpStreams(c *C) {
 	for _, x := range []struct {
 		a string
 		b string
@@ -96,14 +100,14 @@ func (ts *HTestSuite) TestCmpStreams(c *C) {
 	}
 }
 
-func (ts *HTestSuite) TestDirUpdatedEmptyOK(c *C) {
+func (ts *CmpTestSuite) TestDirUpdatedEmptyOK(c *C) {
 	d1 := c.MkDir()
 	d2 := c.MkDir()
 
 	c.Check(DirUpdated(d1, d2, ""), HasLen, 0)
 }
 
-func (ts *HTestSuite) TestDirUpdatedExtraFileIgnored(c *C) {
+func (ts *CmpTestSuite) TestDirUpdatedExtraFileIgnored(c *C) {
 	d1 := c.MkDir()
 	d2 := c.MkDir()
 
@@ -114,7 +118,7 @@ func (ts *HTestSuite) TestDirUpdatedExtraFileIgnored(c *C) {
 	c.Check(DirUpdated(d2, d1, ""), HasLen, 0)
 }
 
-func (ts *HTestSuite) TestDirUpdatedFilesEqual(c *C) {
+func (ts *CmpTestSuite) TestDirUpdatedFilesEqual(c *C) {
 	d1 := c.MkDir()
 	d2 := c.MkDir()
 
@@ -123,7 +127,7 @@ func (ts *HTestSuite) TestDirUpdatedFilesEqual(c *C) {
 	c.Check(DirUpdated(d1, d2, ""), HasLen, 0)
 }
 
-func (ts *HTestSuite) TestDirUpdatedDirIgnored(c *C) {
+func (ts *CmpTestSuite) TestDirUpdatedDirIgnored(c *C) {
 	d1 := c.MkDir()
 	d2 := c.MkDir()
 
@@ -133,7 +137,7 @@ func (ts *HTestSuite) TestDirUpdatedDirIgnored(c *C) {
 	c.Check(DirUpdated(d1, d2, ""), HasLen, 0)
 }
 
-func (ts *HTestSuite) TestDirUpdatedAllDifferentReturned(c *C) {
+func (ts *CmpTestSuite) TestDirUpdatedAllDifferentReturned(c *C) {
 	d1 := c.MkDir()
 	d2 := c.MkDir()
 

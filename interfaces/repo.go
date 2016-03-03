@@ -449,28 +449,73 @@ func (r *Repository) PlugConnections(snapName, plugName string) []*Slot {
 	return result
 }
 
-// Support for sort.Interface
+// SlotConnections returns all of the plugs that are connected a given slot.
+func (r *Repository) SlotConnections(snapName, slotName string) []*Plug {
+	r.m.Lock()
+	defer r.m.Unlock()
 
-type byPlugSnapAndName []*Plug
-
-func (c byPlugSnapAndName) Len() int      { return len(c) }
-func (c byPlugSnapAndName) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
-func (c byPlugSnapAndName) Less(i, j int) bool {
-	if c[i].Snap != c[j].Snap {
-		return c[i].Snap < c[j].Snap
+	slot := r.slots[snapName][slotName]
+	if slot == nil {
+		return nil
 	}
-	return c[i].Name < c[j].Name
+	var result []*Plug
+	for plug := range r.slotPlugs[slot] {
+		result = append(result, plug)
+	}
+	sort.Sort(byPlugSnapAndName(result))
+	return result
 }
 
-type bySlotSnapAndName []*Slot
+// Interfaces returns object holding a lists of all the plugs and slots and their connections.
+func (r *Repository) Interfaces() *Interfaces {
+	r.m.Lock()
+	defer r.m.Unlock()
 
-func (c bySlotSnapAndName) Len() int      { return len(c) }
-func (c bySlotSnapAndName) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
-func (c bySlotSnapAndName) Less(i, j int) bool {
-	if c[i].Snap != c[j].Snap {
-		return c[i].Snap < c[j].Snap
+	ifaces := &Interfaces{}
+	// Copy and flatten plugs and slots
+	for _, plugs := range r.plugs {
+		for _, plug := range plugs {
+			// Copy part of the data explicitly, leaving out attrs and apps.
+			p := &Plug{
+				Name:      plug.Name,
+				Snap:      plug.Snap,
+				Interface: plug.Interface,
+				Label:     plug.Label,
+			}
+			// Add connection details
+			for slot := range r.plugSlots[plug] {
+				p.Connections = append(p.Connections, SlotRef{
+					Name: slot.Name,
+					Snap: slot.Snap,
+				})
+			}
+			sort.Sort(bySlotRef(p.Connections))
+			ifaces.Plugs = append(ifaces.Plugs, p)
+		}
 	}
-	return c[i].Name < c[j].Name
+	for _, slots := range r.slots {
+		for _, slot := range slots {
+			// Copy part of the data explicitly, leaving out attrs and apps.
+			s := &Slot{
+				Name:      slot.Name,
+				Snap:      slot.Snap,
+				Interface: slot.Interface,
+				Label:     slot.Label,
+			}
+			// Add connection details
+			for plug := range r.slotPlugs[slot] {
+				s.Connections = append(s.Connections, PlugRef{
+					Name: plug.Name,
+					Snap: plug.Snap,
+				})
+			}
+			sort.Sort(byPlugRef(s.Connections))
+			ifaces.Slots = append(ifaces.Slots, s)
+		}
+	}
+	sort.Sort(byPlugSnapAndName(ifaces.Plugs))
+	sort.Sort(bySlotSnapAndName(ifaces.Slots))
+	return ifaces
 }
 
 // SecuritySnippetsForSnap collects all of the snippets of a given security
@@ -485,7 +530,7 @@ func (r *Repository) SecuritySnippetsForSnap(snapName string, securitySystem Sec
 
 func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem SecuritySystem) (map[string][][]byte, error) {
 	var snippets = make(map[string][][]byte)
-	// Find all of the plugs that affect this app because of plug consumption.
+	// Find all of the slots that affect this snap because of plug connection.
 	for _, slot := range r.slots[snapName] {
 		i := r.ifaces[slot.Interface]
 		for plug := range r.slotPlugs[slot] {
@@ -501,18 +546,20 @@ func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem Sec
 			}
 		}
 	}
-	// Find all of the plugs that affect this app because of plug offer.
+	// Find all of the plugs that affect this snap because of slot connection
 	for _, plug := range r.plugs[snapName] {
 		i := r.ifaces[plug.Interface]
-		snippet, err := i.PlugSecuritySnippet(plug, securitySystem)
-		if err != nil {
-			return nil, err
-		}
-		if snippet == nil {
-			continue
-		}
-		for _, app := range plug.Apps {
-			snippets[app] = append(snippets[app], snippet)
+		for slot := range r.plugSlots[plug] {
+			snippet, err := i.PlugSecuritySnippet(plug, slot, securitySystem)
+			if err != nil {
+				return nil, err
+			}
+			if snippet == nil {
+				continue
+			}
+			for _, app := range plug.Apps {
+				snippets[app] = append(snippets[app], snippet)
+			}
 		}
 	}
 	return snippets, nil

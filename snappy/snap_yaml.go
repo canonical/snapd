@@ -33,26 +33,13 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/squashfs"
 	"github.com/ubuntu-core/snappy/systemd"
 	"github.com/ubuntu-core/snappy/timeout"
 )
-
-// Port is used to declare the Port and Negotiable status of such port
-// that is bound to a ServiceYaml.
-type Port struct {
-	Port       string `yaml:"port,omitempty"`
-	Negotiable bool   `yaml:"negotiable,omitempty"`
-}
-
-// Ports is a representation of Internal and External ports mapped with a Port.
-type Ports struct {
-	Internal map[string]Port `yaml:"internal,omitempty" json:"internal,omitempty"`
-	External map[string]Port `yaml:"external,omitempty" json:"external,omitempty"`
-}
 
 // AppYaml represents an application (binary or service)
 type AppYaml struct {
@@ -64,8 +51,8 @@ type AppYaml struct {
 	Daemon  string `yaml:"daemon"`
 
 	Description string          `yaml:"description,omitempty" json:"description,omitempty"`
-	Stop        string          `yaml:"stop,omitempty"`
-	PostStop    string          `yaml:"poststop,omitempty"`
+	Stop        string          `yaml:"stop-command,omitempty"`
+	PostStop    string          `yaml:"post-stop-command,omitempty"`
 	StopTimeout timeout.Timeout `yaml:"stop-timeout,omitempty"`
 	BusName     string          `yaml:"bus-name,omitempty"`
 
@@ -73,21 +60,16 @@ type AppYaml struct {
 	Socket       bool   `yaml:"socket,omitempty" json:"socket,omitempty"`
 	ListenStream string `yaml:"listen-stream,omitempty" json:"listen-stream,omitempty"`
 	SocketMode   string `yaml:"socket-mode,omitempty" json:"socket-mode,omitempty"`
-	SocketUser   string `yaml:"socket-user,omitempty" json:"socket-user,omitempty"`
-	SocketGroup  string `yaml:"socket-group,omitempty" json:"socket-group,omitempty"`
 
 	// systemd "restart" thing
 	RestartCond systemd.RestartCondition `yaml:"restart-condition,omitempty" json:"restart-condition,omitempty"`
 
-	// must be a pointer so that it can be "nil" and omitempty works
-	Ports *Ports `yaml:"ports,omitempty" json:"ports,omitempty"`
-
-	OffersRef []string `yaml:"offers"`
-	UsesRef   []string `yaml:"uses"`
+	PlugsRef []string `yaml:"plugs"`
+	SlotsRef []string `yaml:"slots"`
 }
 
-type usesYaml struct {
-	Type                string `yaml:"type"`
+type slotYaml struct {
+	Interface           string `yaml:"interface"`
 	SecurityDefinitions `yaml:",inline"`
 }
 
@@ -111,8 +93,8 @@ type snapYaml struct {
 	// Apps can be both binary or service
 	Apps map[string]*AppYaml `yaml:"apps,omitempty"`
 
-	// Uses maps the used "skills" to the apps
-	Uses map[string]*usesYaml `yaml:"uses,omitempty"`
+	// Slots maps the used "interfaces" to the apps
+	Slots map[string]*slotYaml `yaml:"slots,omitempty"`
 
 	// FIXME: clarify those
 
@@ -134,7 +116,7 @@ func parseSnapYamlFile(yamlPath string) (*snapYaml, error) {
 	}
 
 	// legacy support sucks :-/
-	hasConfig := helpers.FileExists(filepath.Join(filepath.Dir(yamlPath), "hooks", "config"))
+	hasConfig := osutil.FileExists(filepath.Join(filepath.Dir(yamlPath), "hooks", "config"))
 
 	return parseSnapYamlData(yamlData, hasConfig)
 }
@@ -143,7 +125,7 @@ func validateSnapYamlData(file string, yamlData []byte, m *snapYaml) error {
 	// check mandatory fields
 	missing := []string{}
 	for _, name := range []string{"Name", "Version"} {
-		s := helpers.Getattr(m, name).(string)
+		s := getattr(m, name).(string)
 		if s == "" {
 			missing = append(missing, strings.ToLower(name))
 		}
@@ -169,9 +151,9 @@ func validateSnapYamlData(file string, yamlData []byte, m *snapYaml) error {
 		}
 	}
 
-	// check for "uses"
-	for _, uses := range m.Uses {
-		if err := verifyUsesYaml(uses); err != nil {
+	// check for "slots"
+	for _, slots := range m.Slots {
+		if err := verifySlotYaml(slots); err != nil {
 			return err
 		}
 	}
@@ -197,9 +179,9 @@ func parseSnapYamlData(yamlData []byte, hasConfig bool) (*snapYaml, error) {
 		app.Name = name
 	}
 
-	for name, uses := range m.Uses {
-		if uses.Type == "" {
-			uses.Type = name
+	for name, slot := range m.Slots {
+		if slot.Interface == "" {
+			slot.Interface = name
 		}
 	}
 
@@ -316,7 +298,7 @@ func addSquashfsMount(m *snapYaml, baseDir string, inhibitHooks bool, inter inte
 func removeSquashfsMount(m *snapYaml, baseDir string, inter interacter) error {
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
 	unit := systemd.MountUnitPath(stripGlobalRootDir(baseDir), "mount")
-	if helpers.FileExists(unit) {
+	if osutil.FileExists(unit) {
 		// we ignore errors, nothing should stop removals
 		if err := sysd.Disable(filepath.Base(unit)); err != nil {
 			logger.Noticef("Failed to disable %q: %s, but continuing anyway.", unit, err)

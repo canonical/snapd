@@ -29,8 +29,8 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/policy"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
@@ -88,7 +88,7 @@ func newSnapPartFromYaml(yamlPath, origin string, m *snapYaml) (*SnapPart, error
 	}
 
 	remoteManifestPath := RemoteManifestPath(part)
-	if helpers.FileExists(remoteManifestPath) {
+	if osutil.FileExists(remoteManifestPath) {
 		content, err := ioutil.ReadFile(remoteManifestPath)
 		if err != nil {
 			return nil, err
@@ -434,18 +434,18 @@ func (s *SnapPart) CanInstall(allowGadget bool, inter interacter) error {
 func (s *SnapPart) RequestSecurityPolicyUpdate(policies, templates map[string]bool) error {
 	var foundError error
 	for name, app := range s.Apps() {
-		skill, err := findSkillForApp(s.m, app)
+		slot, err := findSlotForApp(s.m, app)
 		if err != nil {
-			logger.Noticef("Failed to find skill for %s: %v", name, err)
+			logger.Noticef("Failed to find slot for %s: %v", name, err)
 			foundError = err
 			continue
 		}
-		if skill == nil {
+		if slot == nil {
 			continue
 		}
 
-		if skill.NeedsAppArmorUpdate(policies, templates) {
-			err := skill.generatePolicyForServiceBinary(s.m, name, s.basedir)
+		if slot.NeedsAppArmorUpdate(policies, templates) {
+			err := slot.generatePolicyForServiceBinary(s.m, name, s.basedir)
 			if err != nil {
 				logger.Noticef("Failed to regenerate policy for %s: %v", name, err)
 				foundError = err
