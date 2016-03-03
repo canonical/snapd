@@ -106,31 +106,26 @@ func (s *TestInterfaceSuite) TestSanitizeSlotWrongInterface(c *C) {
 
 // TestInterface hands out empty plug security snippets
 func (s *TestInterfaceSuite) TestPlugSecuritySnippet(c *C) {
-	plug := &Plug{
-		Interface: "test",
-	}
-	snippet, err := s.i.PlugSecuritySnippet(plug, SecurityAppArmor)
+	plug := &Plug{Interface: "test"}
+	slot := &Slot{Interface: "test"}
+	snippet, err := s.i.PlugSecuritySnippet(plug, slot, SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.i.PlugSecuritySnippet(plug, SecuritySecComp)
+	snippet, err = s.i.PlugSecuritySnippet(plug, slot, SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.i.PlugSecuritySnippet(plug, SecurityDBus)
+	snippet, err = s.i.PlugSecuritySnippet(plug, slot, SecurityDBus)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.i.PlugSecuritySnippet(plug, "foo")
+	snippet, err = s.i.PlugSecuritySnippet(plug, slot, "foo")
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 }
 
 // TestInterface hands out empty slot security snippets
 func (s *TestInterfaceSuite) TestSlotSecuritySnippet(c *C) {
-	plug := &Plug{
-		Interface: "test",
-	}
-	slot := &Slot{
-		Interface: "test",
-	}
+	plug := &Plug{Interface: "test"}
+	slot := &Slot{Interface: "test"}
 	snippet, err := s.i.SlotSecuritySnippet(plug, slot, SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)

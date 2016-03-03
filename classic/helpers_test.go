@@ -73,10 +73,11 @@ func (t *HelpersTestSuite) TestMountpointReturnsUnexpectedString(c *C) {
 }
 
 func (t *HelpersTestSuite) TestIsMountedSignaled(c *C) {
-	t.makeMockMountpointCmd(c, "echo segfaulting;kill -SEGV $$")
+
+	t.makeMockMountpointCmd(c, "echo ctrl-c;kill -INT $$")
 
 	_, err := isMounted("/")
-	c.Assert(err, ErrorMatches, "(?m)got unexpected exit code.*: segfaulting$")
+	c.Assert(err, ErrorMatches, "(?m)got unexpected exit code.*: ctrl-c$")
 }
 
 func (t *HelpersTestSuite) TestIsMountedNoBinary(c *C) {

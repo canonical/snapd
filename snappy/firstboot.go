@@ -26,8 +26,8 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 
@@ -99,7 +99,7 @@ func gadgetConfig() error {
 			return errNoSnapToActivate
 		}
 		if err := snap.activate(false, pb); err != nil {
-			logger.Noticef("failed to acitvate %s: %s", FullName(part), err)
+			logger.Noticef("failed to activate %s: %s", FullName(part), err)
 		}
 	}
 
@@ -150,7 +150,7 @@ func enableSystemSnaps() error {
 			logger.Noticef("Acitvating %s", FullName(part))
 			if err := activator.SetActive(part.(*SnapPart), true, pb); err != nil {
 				// we don't want this to fail for now
-				logger.Noticef("failed to acitvate %s: %s", FullName(part), err)
+				logger.Noticef("failed to activate %s: %s", FullName(part), err)
 			}
 		}
 	}
@@ -189,7 +189,7 @@ func stampFirstBoot() error {
 		}
 	}
 
-	return helpers.AtomicWriteFile(stampFile, []byte{}, 0644, 0)
+	return osutil.AtomicWriteFile(stampFile, []byte{}, 0644, 0)
 }
 
 var globs = []string{"/sys/class/net/eth*", "/sys/class/net/en*"}
@@ -216,7 +216,7 @@ func enableFirstEther() error {
 	ethfile := filepath.Join(ethdir, eth)
 	data := fmt.Sprintf("allow-hotplug %[1]s\niface %[1]s inet dhcp\n", eth)
 
-	if err := helpers.AtomicWriteFile(ethfile, []byte(data), 0644, 0); err != nil {
+	if err := osutil.AtomicWriteFile(ethfile, []byte(data), 0644, 0); err != nil {
 		return err
 	}
 
@@ -231,5 +231,5 @@ func enableFirstEther() error {
 }
 
 func firstBootHasRun() bool {
-	return helpers.FileExists(stampFile)
+	return osutil.FileExists(stampFile)
 }

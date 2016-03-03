@@ -27,8 +27,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/oauth"
+	"github.com/ubuntu-core/snappy/osutil"
 )
 
 var (
@@ -123,7 +123,7 @@ func RequestStoreToken(username, password, tokenName, otp string) (*StoreToken, 
 // FIXME: maybe use a name in /var/lib/users/$user/snappy instead?
 //        as sabdfl prefers $HOME to be for user created data?
 func storeTokenFilename() string {
-	homeDir, _ := helpers.CurrentHomeDir()
+	homeDir, _ := osutil.CurrentHomeDir()
 	return filepath.Join(homeDir, "snaps", "snappy", "auth", "sso.json")
 }
 
@@ -139,7 +139,7 @@ func WriteStoreToken(token StoreToken) error {
 		return nil
 	}
 
-	return helpers.AtomicWriteFile(targetFile, []byte(outStr), 0600, 0)
+	return osutil.AtomicWriteFile(targetFile, []byte(outStr), 0600, 0)
 }
 
 // ReadStoreToken reads a token previously write via WriteStoreToken

@@ -32,8 +32,8 @@ import (
 	"strings"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/policy"
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snap"
@@ -71,13 +71,13 @@ var (
 		SecurityCaps: []string{},
 	}
 
-	// TODO This is not actually right. Even if there are skills,
+	// TODO This is not actually right. Even if there are interfaces,
 	// we still want to give the snap a default set of allowances,
 	// such as being able to read and write in its own directories
 	// and perhaps network access (we're still deciding on that
 	// one). So the real logic we want here is: give the snap a
 	// default set of permissions, and then whatever else the
-	// skills permit (migration or not). This is coming soon.
+	// interfaces permit (migration or not). This is coming soon.
 	defaultSecurityPolicy = &SecurityDefinitions{
 		SecurityCaps: []string{},
 	}
@@ -716,14 +716,14 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinary(m *snapYaml, name 
 	}
 
 	os.MkdirAll(filepath.Dir(p.scFn), 0755)
-	err = helpers.AtomicWriteFile(p.scFn, []byte(p.scPolicy), 0644, 0)
+	err = osutil.AtomicWriteFile(p.scFn, []byte(p.scPolicy), 0644, 0)
 	if err != nil {
 		logger.Noticef("Failed to write seccomp policy for %s: %v", name, err)
 		return err
 	}
 
 	os.MkdirAll(filepath.Dir(p.aaFn), 0755)
-	err = helpers.AtomicWriteFile(p.aaFn, []byte(p.aaPolicy), 0644, 0)
+	err = osutil.AtomicWriteFile(p.aaFn, []byte(p.aaPolicy), 0644, 0)
 	if err != nil {
 		logger.Noticef("Failed to write AppArmor policy for %s: %v", name, err)
 		return err
@@ -739,22 +739,22 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinary(m *snapYaml, name 
 
 // FIXME: move into something more generic - SnapPart.HasConfig?
 func hasConfig(baseDir string) bool {
-	return helpers.FileExists(filepath.Join(baseDir, "meta", "hooks", "config"))
+	return osutil.FileExists(filepath.Join(baseDir, "meta", "hooks", "config"))
 }
 
-func findSkillForApp(m *snapYaml, app *AppYaml) (*usesYaml, error) {
-	if len(app.UsesRef) == 0 {
+func findSlotForApp(m *snapYaml, app *AppYaml) (*slotYaml, error) {
+	if len(app.SlotsRef) == 0 {
 		return nil, nil
 	}
-	if len(app.UsesRef) != 1 {
-		return nil, fmt.Errorf("only a single skill is supported, %d found", len(app.UsesRef))
+	if len(app.SlotsRef) != 1 {
+		return nil, fmt.Errorf("only a single slot is supported, %d found", len(app.SlotsRef))
 	}
 
-	skill, ok := m.Uses[app.UsesRef[0]]
+	slot, ok := m.Slots[app.SlotsRef[0]]
 	if !ok {
-		return nil, fmt.Errorf("can not find skill %q", app.UsesRef[0])
+		return nil, fmt.Errorf("can not find slot %q", app.SlotsRef[0])
 	}
-	return skill, nil
+	return slot, nil
 }
 
 func generatePolicy(m *snapYaml, baseDir string) error {
@@ -769,20 +769,20 @@ func generatePolicy(m *snapYaml, baseDir string) error {
 	}
 
 	for _, app := range m.Apps {
-		skill, err := findSkillForApp(m, app)
+		slot, err := findSlotForApp(m, app)
 		if err != nil {
 			return err
 		}
 
-		// if no skill is specified, use the defaultSecurityPolicy
-		if skill == nil {
+		// if no slot is specified, use the defaultSecurityPolicy
+		if slot == nil {
 			if err = defaultSecurityPolicy.generatePolicyForServiceBinary(m, app.Name, baseDir); err != nil {
 				logger.Noticef("Failed to generate policy for app %s: %v", app.Name, err)
 			}
 			continue
 		}
 
-		err = skill.generatePolicyForServiceBinary(m, app.Name, baseDir)
+		err = slot.generatePolicyForServiceBinary(m, app.Name, baseDir)
 		if err != nil {
 			foundError = err
 			logger.Noticef("Failed to generate policy for service %s: %v", app.Name, err)
@@ -821,7 +821,7 @@ func regeneratePolicyForSnap(snapname string) error {
 		if appID.Version != appliedVersion {
 			// FIXME: dirs.SnapSnapsDir is too simple, gadget
 			fn := filepath.Join(dirs.SnapSnapsDir, appID.Pkgname, appID.Version, "meta", "snap.yaml")
-			if !helpers.FileExists(fn) {
+			if !osutil.FileExists(fn) {
 				continue
 			}
 			err := GeneratePolicyFromFile(fn, true)
@@ -872,15 +872,15 @@ func CompareGeneratePolicyFromFile(fn string) error {
 	baseDir := filepath.Dir(filepath.Dir(fn))
 
 	for _, app := range m.Apps {
-		skill, err := findSkillForApp(m, app)
+		slot, err := findSlotForApp(m, app)
 		if err != nil {
 			return err
 		}
-		if skill == nil {
+		if slot == nil {
 			continue
 		}
 
-		p, err := skill.generatePolicyForServiceBinaryResult(m, app.Name, baseDir)
+		p, err := slot.generatePolicyForServiceBinaryResult(m, app.Name, baseDir)
 		// FIXME: use apparmor_profile -p on both AppArmor profiles
 		if err != nil {
 			// FIXME: what to do here?

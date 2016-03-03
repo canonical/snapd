@@ -36,15 +36,16 @@ The following keys are optional:
 * `apps`: the map of apps (binaries and services) that a snap provides
     * `command`: (required) the command to start the service
     * `daemon`: (optional) [simple|forking|oneshot|dbus]
-    * `stop`: (optional) the command to stop the service
+    * `stop-command`: (optional) the command to stop the service
     * `stop-timeout`: (optional) the time in seconds to wait for the
                       service to stop
     * `restart-condition`: (optional) if specified, use the given restart
       condition. Can be one of `on-failure` (default), `never`, `on-success`,
       `on-abnormal`, `on-abort`, and `always`. See `systemd.service(5)`
       (search for `Restart=`) for details.
-    * `poststop`: (optional) a command that runs after the service has stopped
-    * `uses`: a list of `skill` names that the app uses
+    * `post-stop-command`: (optional) a command that runs after the service
+                          has stopped
+    * `slots`: a map of interfaces
     * `ports`: (optional) define what ports the service will work
         * `internal`: the ports the service is going to connect to
             * `tagname`: a free form name
@@ -66,20 +67,12 @@ The following keys are optional:
                 typically be followed by either the snap package name or the
                 snap package name followed by '\_' and any other characters
                 (eg, '@name' or '@name\_something').
-    * `socket-user`: (optional) The user that owns the stream socket. The user
-                     should normally match the snap package name. Must be
-                     specified with `listen-stream`. This option is reserved
-                     for future use.
-    * `socket-group`: (optional) The group that own the stream socket. The
-                      group should normally match the snap package name. Must
-                      be specified with `listen-stream`. This option is
-                      reserved for future use.
 
-* `uses`: a map of names and skills
+* `slots`: a map of interfaces
 
-## Skills
+## Interfaces
 
-The `migration-skill` is used to make porting existing snaps easier.
+The `old-security` interface is used to make porting existing snaps easier.
 It provides the following parameters:
     * `caps`: (optional) list of additional security policies to add.
               See `security.md` for details

@@ -20,67 +20,63 @@
 package overlord
 
 import (
-	"encoding"
+	"github.com/ubuntu-core/snappy/overlord/state"
 )
 
 // StateManager is implemented by types responsible for observing
-// the system state and directly manipulating it.
-//
-// See the interface of StateEngine for details on those methods.
+// the system and manipulating it to reflect the desired state.
 type StateManager interface {
-	Apply(s *State) error
-	Learn(s *State) error
-	Sanitize(s *State) error
-	Delta(a, b *State) (Delta, error)
-}
+	// Init hands the manager the current state it's supposed to track
+	// and update.  The StateEngine may call Init again after a Stop
+	// was observed.
+	Init(s *state.State) error
 
-// sanity
-var _ encoding.TextMarshaler = Delta(nil)
+	// Ensure forces a complete evaluation of the current state.
+	// See StateEngine.Ensure for more details.
+	Ensure() error
+
+	// Stop asks the manager to terminate all activities running concurrently.
+	// It must not return before these activities are finished.
+	Stop() error
+}
 
 // StateEngine controls the dispatching of state changes to state managers.
 //
-// The operations performed by StateEngine resemble in some ways a
-// transaction system, but it needs to deal with the fact that many of the
-// system changes involved in a snappy system are not atomic, and may
-// actually become invalid without notice (e.g. USB device physically removed).
+// Most of the actual work performed by the state engine is in fact done
+// by the individual managers registered. These managers must be able to
+// cope with Ensure calls in any order, coordinating among themselves
+// solely via the state.
 type StateEngine struct{}
 
 // NewStateEngine returns a new state engine.
+// TODO: take or read a state somehow
 func NewStateEngine() *StateEngine {
 	return &StateEngine{}
 }
 
-// Apply attempts to perform the necessary changes in the system to make s
-// the current state.
-func (se *StateEngine) Apply(s *State) error {
+// State returns the current system state.
+func (se *StateEngine) State() *state.State {
 	return nil
 }
 
-// Learn records the current state into s.
-func (se *StateEngine) Learn(s *State) error {
-	return nil
-}
-
-// Delta returns the differences between state a and b,
-// or nil if there are no relevant differences.
-func (se *StateEngine) Delta(a, b *State) (Delta, error) {
-	return nil, nil
-}
-
-// Sanitize attempts to make the necessary changes in the
-// provided state to make it ready for applying. It returns
-// a Delta with the changes performed and the reasoning for them.
-func (se *StateEngine) Sanitize(s *State) (Delta, error) {
-	return nil, nil
-}
-
-// Validate checks whether the s state might be applied as-is if desired.
-// It's implemented in terms of Sanitize and Delta.
-func (se *StateEngine) Validate(s *State) error {
+// Ensure asks every manager to ensure that they are doing the necessary
+// work to put the current desired system state in place by calling their
+// respective Ensure methods.
+//
+// Managers must evaluate the desired state completely when they receive
+// that request, and report whether they found any critical issues. They
+// must not perform long running activities during that operation, though.
+// These should be performed in properly tracked changes and tasks.
+func (se *StateEngine) Ensure() error {
 	return nil
 }
 
 // AddManager adds the provided manager to take part in state operations.
 func (se *StateEngine) AddManager(m StateManager) {
-	// XXX: how is Apply and Sanitize order picked?
+}
+
+// Stop asks all managers to terminate activities running concurrently.
+// It returns the first error found after all managers are stopped.
+func (se *StateEngine) Stop() error {
+	return nil
 }
