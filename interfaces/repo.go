@@ -432,23 +432,6 @@ func (r *Repository) disconnect(plug *Plug, slot *Slot) {
 	}
 }
 
-// SlotConnections returns all of the plugs that are connected a given slot.
-func (r *Repository) SlotConnections(snapName, slotName string) []*Plug {
-	r.m.Lock()
-	defer r.m.Unlock()
-
-	slot := r.slots[snapName][slotName]
-	if slot == nil {
-		return nil
-	}
-	var result []*Plug
-	for plug := range r.slotPlugs[slot] {
-		result = append(result, plug)
-	}
-	sort.Sort(byPlugSnapAndName(result))
-	return result
-}
-
 // Interfaces returns object holding a lists of all the plugs and slots and their connections.
 func (r *Repository) Interfaces() *Interfaces {
 	r.m.Lock()
