@@ -24,6 +24,7 @@ import (
 )
 
 // ChDir runs runs "f" inside the given directory
+// Note that this will only work reliable in a single-threaded context.
 func ChDir(newDir string, f func() error) (err error) {
 	cwd, err := os.Getwd()
 	if err != nil {
