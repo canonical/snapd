@@ -503,7 +503,7 @@ func (r *Repository) Interfaces() *Interfaces {
 				Snap:        plug.Snap,
 				Interface:   plug.Interface,
 				Label:       plug.Label,
-				Connections: plug.Connections[:],
+				Connections: append([]SlotRef(nil), plug.Connections...),
 			}
 			sort.Sort(bySlotRef(p.Connections))
 			ifaces.Plugs = append(ifaces.Plugs, p)
@@ -517,7 +517,7 @@ func (r *Repository) Interfaces() *Interfaces {
 				Snap:        slot.Snap,
 				Interface:   slot.Interface,
 				Label:       slot.Label,
-				Connections: slot.Connections[:],
+				Connections: append([]PlugRef(nil), slot.Connections...),
 			}
 			sort.Sort(byPlugRef(s.Connections))
 			ifaces.Slots = append(ifaces.Slots, s)
