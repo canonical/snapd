@@ -947,10 +947,13 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 	if !c.d.enableInternalInterfaceActions && a.Action != "connect" && a.Action != "disconnect" {
 		return BadRequest("internal interface actions are disabled")
 	}
+	if len(a.Plugs) > 1 || len(a.Slots) > 1 {
+		return NotImplemented("many-to-many operations are not implemented")
+	}
 	switch a.Action {
 	case "connect":
-		if len(a.Plugs) != 1 || len(a.Slots) != 1 {
-			return BadRequest("many-to-many operations are not implemented")
+		if len(a.Plugs) == 0 || len(a.Slots) == 0 {
+			return BadRequest("at least one plug and slot is required")
 		}
 		err := c.d.interfaces.Connect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 		if err != nil {
@@ -958,8 +961,8 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 		}
 		return SyncResponse(nil)
 	case "disconnect":
-		if len(a.Plugs) != 1 || len(a.Slots) != 1 {
-			return BadRequest("many-to-many operations are not implemented")
+		if len(a.Plugs) == 0 || len(a.Slots) == 0 {
+			return BadRequest("at least one plug and slot is required")
 		}
 		err := c.d.interfaces.Disconnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 		if err != nil {
@@ -967,8 +970,8 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 		}
 		return SyncResponse(nil)
 	case "add-plug":
-		if len(a.Plugs) != 1 {
-			return BadRequest("operating on multiple plugs is not implemented yet")
+		if len(a.Plugs) == 0 {
+			return BadRequest("at least one plug is required")
 		}
 		err := c.d.interfaces.AddPlug(&a.Plugs[0])
 		if err != nil {
@@ -979,8 +982,8 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 			Status: http.StatusCreated,
 		}
 	case "remove-plug":
-		if len(a.Plugs) != 1 {
-			return BadRequest("operating on multiple plugs is not implemented yet")
+		if len(a.Plugs) == 0 {
+			return BadRequest("at least one plug is required")
 		}
 		err := c.d.interfaces.RemovePlug(a.Plugs[0].Snap, a.Plugs[0].Name)
 		if err != nil {
@@ -988,8 +991,8 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 		}
 		return SyncResponse(nil)
 	case "add-slot":
-		if len(a.Slots) != 1 {
-			return BadRequest("operating on multiple slots is not implemented yet")
+		if len(a.Slots) == 0 {
+			return BadRequest("at least one slot is required")
 		}
 		err := c.d.interfaces.AddSlot(&a.Slots[0])
 		if err != nil {
@@ -1000,8 +1003,8 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 			Status: http.StatusCreated,
 		}
 	case "remove-slot":
-		if len(a.Slots) != 1 {
-			return BadRequest("operating on multiple slots is not implemented yet")
+		if len(a.Slots) == 0 {
+			return BadRequest("at least one slot is required")
 		}
 		err := c.d.interfaces.RemoveSlot(a.Slots[0].Snap, a.Slots[0].Name)
 		if err != nil {
