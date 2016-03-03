@@ -60,6 +60,7 @@ type marshalledChange struct {
 
 // MarshalJSON makes Change a json.Marshaller
 func (c *Change) MarshalJSON() ([]byte, error) {
+	c.state.ensureLocked()
 	return json.Marshal(marshalledChange{
 		ID:      c.id,
 		Kind:    c.kind,

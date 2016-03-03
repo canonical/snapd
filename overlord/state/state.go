@@ -88,6 +88,19 @@ func New(backend Backend) *State {
 	}
 }
 
+// Lock acquires the state lock.
+func (s *State) Lock() {
+	s.mu.Lock()
+	atomic.AddInt32(&s.muC, 1)
+}
+
+func (s *State) ensureLocked() {
+	c := atomic.LoadInt32(&s.muC)
+	if c != 1 {
+		panic("internal error: accessing state without lock")
+	}
+}
+
 type marshalledState struct {
 	Data    map[string]*json.RawMessage `json:"data"`
 	Changes map[string]*Change          `json:"changes"`
@@ -126,12 +139,6 @@ func (s *State) checkpointData() []byte {
 	return data
 }
 
-// Lock acquires the state lock.
-func (s *State) Lock() {
-	s.mu.Lock()
-	atomic.AddInt32(&s.muC, 1)
-}
-
 // unlock checkpoint retry parameters (5 mins of retries by default)
 var (
 	unlockCheckpointRetryMaxTime  = 5 * time.Minute
@@ -157,13 +164,6 @@ func (s *State) Unlock() {
 			time.Sleep(unlockCheckpointRetryInterval)
 		}
 		logger.Panicf("cannot checkpoint even after %v of retries every %v: %v", unlockCheckpointRetryMaxTime, unlockCheckpointRetryInterval, err)
-	}
-}
-
-func (s *State) ensureLocked() {
-	c := atomic.LoadInt32(&s.muC)
-	if c != 1 {
-		panic("internal error: accessing state without lock")
 	}
 }
 
