@@ -86,7 +86,7 @@ func validExecLine(m *snapYaml, line string) bool {
 		validCmd := filepath.Base(generateBinaryName(m, app))
 		// just check the prefix to allow %flag style args
 		// this is ok because desktop files are not run through sh
-		if strings.HasPrefix(cmd, validCmd) {
+		if cmd == validCmd || strings.HasPrefix(cmd, validCmd+" ") {
 			return true
 		}
 	}

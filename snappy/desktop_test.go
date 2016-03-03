@@ -143,6 +143,25 @@ Exec=baz
 Name=foo`)
 }
 
+func (s *SnapTestSuite) TestDesktopFileSanitizeFiltersExecPrefix(c *C) {
+	m, err := parseSnapYamlData([]byte(`
+name: snap
+version: 1.0
+apps:
+ app:
+  command: cmd
+`), false)
+	c.Assert(err, IsNil)
+	desktopContent := []byte(`[Desktop Entry]
+Name=foo
+Exec=snap.app.evil.evil
+`)
+
+	e := sanitizeDesktopFile(m, "/my/basedir", desktopContent)
+	c.Assert(string(e), Equals, `[Desktop Entry]
+Name=foo`)
+}
+
 func (s *SnapTestSuite) TestDesktopFileSanitizeFiltersExecOk(c *C) {
 	m, err := parseSnapYamlData([]byte(`
 name: snap
