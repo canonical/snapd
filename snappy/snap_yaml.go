@@ -33,7 +33,6 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap"
@@ -144,7 +143,7 @@ func validateSnapYamlData(file string, yamlData []byte, m *snapYaml) error {
 	// check mandatory fields
 	missing := []string{}
 	for _, name := range []string{"Name", "Version"} {
-		s := helpers.Getattr(m, name).(string)
+		s := getattr(m, name).(string)
 		if s == "" {
 			missing = append(missing, strings.ToLower(name))
 		}
