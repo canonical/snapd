@@ -34,7 +34,6 @@ import (
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
@@ -163,7 +162,7 @@ func (t *CreateTestSuite) TestCreate(c *C) {
 	})
 	c.Assert(t.getgrnamCalled, DeepEquals, []string{"sudo"})
 	for _, canary := range []string{"/etc/nsswitch.conf", "/etc/hosts", "/usr/sbin/policy-rc.d"} {
-		c.Assert(helpers.FileExists(filepath.Join(dirs.ClassicDir, canary)), Equals, true)
+		c.Assert(osutil.FileExists(filepath.Join(dirs.ClassicDir, canary)), Equals, true)
 	}
 	leftovers, err := filepath.Glob(filepath.Join(os.TempDir(), "classic*"))
 	c.Assert(err, IsNil)
@@ -176,5 +175,5 @@ func (t *CreateTestSuite) TestCreateFailDestroys(c *C) {
 
 	err := Create(&progress.NullProgress{})
 	c.Assert(err, ErrorMatches, `(?m)failed to unpack .*`)
-	c.Assert(helpers.FileExists(dirs.ClassicDir), Equals, false)
+	c.Assert(osutil.FileExists(dirs.ClassicDir), Equals, false)
 }

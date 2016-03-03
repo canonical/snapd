@@ -35,6 +35,7 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/systemd"
@@ -558,7 +559,7 @@ func copySnapDataDirectory(oldPath, newPath string) (err error) {
 			// there is no golang "CopyFile"
 			cmd := exec.Command("cp", "-a", oldPath, newPath)
 			if err := cmd.Run(); err != nil {
-				if exitCode, err := helpers.ExitCode(err); err == nil {
+				if exitCode, err := osutil.ExitCode(err); err == nil {
 					return &ErrDataCopyFailed{
 						OldPath:  oldPath,
 						NewPath:  newPath,

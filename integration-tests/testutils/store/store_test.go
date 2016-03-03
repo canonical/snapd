@@ -29,7 +29,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snappy"
 
 	. "gopkg.in/check.v1"
@@ -152,7 +152,7 @@ func (s *storeTestSuite) makeTestSnap(c *C, snapYamlContent string) string {
 
 func (s *storeTestSuite) TestMakeTestSnap(c *C) {
 	snapFn := s.makeTestSnap(c, "name: foo\nversion: 1")
-	c.Assert(helpers.FileExists(snapFn), Equals, true)
+	c.Assert(osutil.FileExists(snapFn), Equals, true)
 	c.Assert(snapFn, Equals, filepath.Join(s.store.blobDir, "foo_1_all.snap"))
 }
 

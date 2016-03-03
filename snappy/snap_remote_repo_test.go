@@ -27,7 +27,7 @@ import (
 	"os"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/progress"
 
 	. "gopkg.in/check.v1"
@@ -79,7 +79,7 @@ func (t *remoteRepoTestSuite) TestDownloadFails(c *C) {
 	c.Assert(err, ErrorMatches, "uh, it failed")
 	c.Assert(path, Equals, "")
 	// ... and ensure that the tempfile is removed
-	c.Assert(helpers.FileExists(tmpfile.Name()), Equals, false)
+	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
 }
 
 func (t *remoteRepoTestSuite) TestDownloadSyncFails(c *C) {
@@ -97,5 +97,5 @@ func (t *remoteRepoTestSuite) TestDownloadSyncFails(c *C) {
 	c.Assert(err, ErrorMatches, "fsync:.*")
 	c.Assert(path, Equals, "")
 	// ... and ensure that the tempfile is removed
-	c.Assert(helpers.FileExists(tmpfile.Name()), Equals, false)
+	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
 }
