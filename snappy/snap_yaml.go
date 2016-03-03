@@ -41,19 +41,6 @@ import (
 	"github.com/ubuntu-core/snappy/timeout"
 )
 
-// Port is used to declare the Port and Negotiable status of such port
-// that is bound to a ServiceYaml.
-type Port struct {
-	Port       string `yaml:"port,omitempty"`
-	Negotiable bool   `yaml:"negotiable,omitempty"`
-}
-
-// Ports is a representation of Internal and External ports mapped with a Port.
-type Ports struct {
-	Internal map[string]Port `yaml:"internal,omitempty" json:"internal,omitempty"`
-	External map[string]Port `yaml:"external,omitempty" json:"external,omitempty"`
-}
-
 // AppYaml represents an application (binary or service)
 type AppYaml struct {
 	// name is partent key
@@ -78,9 +65,6 @@ type AppYaml struct {
 
 	// systemd "restart" thing
 	RestartCond systemd.RestartCondition `yaml:"restart-condition,omitempty" json:"restart-condition,omitempty"`
-
-	// must be a pointer so that it can be "nil" and omitempty works
-	Ports *Ports `yaml:"ports,omitempty" json:"ports,omitempty"`
 
 	PlugsRef []string `yaml:"plugs"`
 	SlotsRef []string `yaml:"slots"`

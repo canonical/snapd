@@ -167,7 +167,6 @@ type ServiceDescription struct {
 	Type            string
 	AaProfile       string
 	IsFramework     bool
-	IsNetworked     bool
 	BusName         string
 	UdevAppName     string
 	Socket          bool
@@ -353,9 +352,7 @@ Description={{.Description}}
 {{if .IsFramework}}Before=ubuntu-snappy.frameworks.target
 After=ubuntu-snappy.frameworks-pre.target{{ if .Socket }} {{.SocketFileName}}{{end}}
 Requires=ubuntu-snappy.frameworks-pre.target{{ if .Socket }} {{.SocketFileName}}{{end}}{{else}}After=ubuntu-snappy.frameworks.target{{ if .Socket }} {{.SocketFileName}}{{end}}
-Requires=ubuntu-snappy.frameworks.target{{ if .Socket }} {{.SocketFileName}}{{end}}{{end}}{{if .IsNetworked}}
-After=snappy-wait4network.service
-Requires=snappy-wait4network.service{{end}}
+Requires=ubuntu-snappy.frameworks.target{{ if .Socket }} {{.SocketFileName}}{{end}}{{end}}
 X-Snappy=yes
 
 [Service]
