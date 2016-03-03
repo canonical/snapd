@@ -108,6 +108,7 @@ type marshalledState struct {
 
 // MarshalJSON makes State a json.Marshaller
 func (s *State) MarshalJSON() ([]byte, error) {
+	s.ensureLocked()
 	return json.Marshal(marshalledState{
 		Data:    s.data,
 		Changes: s.changes,
