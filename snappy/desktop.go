@@ -30,7 +30,7 @@ import (
 	"strings"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/osutil"
 )
 
 // this is a bit confusing, a localestring in xdg is:
@@ -142,7 +142,7 @@ func addPackageDesktopFiles(m *snapYaml, baseDir string) error {
 		content = sanitizeDesktopFile(m, realBaseDir, content)
 
 		installedDesktopFileName := filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s", m.Name, filepath.Base(df)))
-		if err := helpers.AtomicWriteFile(installedDesktopFileName, []byte(content), 0755, 0); err != nil {
+		if err := osutil.AtomicWriteFile(installedDesktopFileName, []byte(content), 0755, 0); err != nil {
 			return err
 		}
 	}
