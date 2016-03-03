@@ -240,3 +240,19 @@ apps:
 	c.Assert(err, IsNil)
 	c.Assert(newl, Equals, "Exec=/snaps/bin/snap.app")
 }
+
+func (s *SnapTestSuite) TestDesktopFileSanitizeDesktopActionsOk(c *C) {
+	m := &snapYaml{}
+	desktopContent := []byte(`[Desktop Action ok]`)
+
+	e := sanitizeDesktopFile(m, "/my/basedir", desktopContent)
+	c.Assert(string(e), Equals, `[Desktop Action ok]`)
+}
+
+func (s *SnapTestSuite) TestDesktopFileSanitizeDesktopActionsNotOk(c *C) {
+	m := &snapYaml{}
+	desktopContent := []byte(`[Desktop Action can not have spaces]`)
+
+	e := sanitizeDesktopFile(m, "/my/basedir", desktopContent)
+	c.Assert(string(e), Equals, ``)
+}
