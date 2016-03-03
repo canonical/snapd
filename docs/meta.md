@@ -43,7 +43,7 @@ The following keys are optional:
       condition. Can be one of `on-failure` (default), `never`, `on-success`,
       `on-abnormal`, `on-abort`, and `always`. See `systemd.service(5)`
       (search for `Restart=`) for details.
-    * `poststop-command`: (optional) a command that runs after the service
+    * `post-stop-command`: (optional) a command that runs after the service
                           has stopped
     * `slots`: a map of interfaces
     * `ports`: (optional) define what ports the service will work
