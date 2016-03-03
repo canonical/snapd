@@ -101,6 +101,11 @@ func (s *State) ensureLocked() {
 	}
 }
 
+func (s *State) unlock() {
+	atomic.AddInt32(&s.muC, -1)
+	s.mu.Unlock()
+}
+
 type marshalledState struct {
 	Data    map[string]*json.RawMessage `json:"data"`
 	Changes map[string]*Change          `json:"changes"`
@@ -117,6 +122,7 @@ func (s *State) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON makes State a json.Unmarshaller
 func (s *State) UnmarshalJSON(data []byte) error {
+	s.ensureLocked()
 	var unmarshalled marshalledState
 	err := json.Unmarshal(data, &unmarshalled)
 	if err != nil {
@@ -150,10 +156,7 @@ var (
 // It does not return until the state is correctly checkpointed.
 // After too many unsuccessful checkpoint attempts, it panics.
 func (s *State) Unlock() {
-	defer func() {
-		atomic.AddInt32(&s.muC, -1)
-		s.mu.Unlock()
-	}()
+	defer s.unlock()
 	if s.backend != nil {
 		data := s.checkpointData()
 		var err error
@@ -218,6 +221,8 @@ func (s *State) Changes() []*Change {
 // ReadState returns the state deserialized from r.
 func ReadState(backend Backend, r io.Reader) (*State, error) {
 	s := new(State)
+	s.Lock()
+	defer s.unlock()
 	d := json.NewDecoder(r)
 	err := d.Decode(&s)
 	if err != nil {
