@@ -306,14 +306,8 @@ func (r *Repository) Connect(plugSnapName, plugName, slotSnapName, slotName stri
 	}
 	r.slotPlugs[slot][plug] = true
 	r.plugSlots[plug][slot] = true
-	slot.Connections = append(slot.Connections, PlugRef{
-		Snap: plug.Snap,
-		Name: plug.Name,
-	})
-	plug.Connections = append(plug.Connections, SlotRef{
-		Snap: slot.Snap,
-		Name: slot.Name,
-	})
+	slot.Connections = append(slot.Connections, PlugRef{plug.Snap, plug.Name})
+	plug.Connections = append(plug.Connections, SlotRef{slot.Snap, slot.Name})
 	return nil
 }
 
