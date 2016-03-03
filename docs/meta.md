@@ -99,6 +99,43 @@ It provides the following parameters:
 A license text that the user must accept before the snap can be
 installed.
 
+## gui/ directory
+
+The gui directory contains GUI releated files for the snap.
+
+### dekstop files
+
+The `gui/` directory may contain .desktop files for the snap. Those
+desktop files may contain all valid desktop entries from the xdg
+Desktop Entry Specification version 1.1 with some exceptions listed
+below.
+
+Only `Exec=` lines that starts with `Exec=$snap.$app` are valid, but
+arguments may be passed. E.g. for a snap like:
+```
+name: http
+version: 1.0
+apps:
+ GET:
+  command: myhttpdownlaoder.get-stuff
+```
+
+With a desktop file:
+```
+[Desktop Entry]
+Name=My downloader
+Exec=http.GET %U
+```
+
+The `Exec=` line is valid because it starts with `Exec=http.GET` (the
+snap is called "http" and the app is called "GET").
+
+
+### Unsupported desktop keys
+
+The `DBusActivatable`, `TryExec` and `Implements` keys are currently
+not supported.
+
 ## hooks/ directory
 
 See `config.md` for details.
