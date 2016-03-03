@@ -1087,8 +1087,6 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapSocket(c *C) {
 		Socket:       true,
 		ListenStream: "/var/run/docker.sock",
 		SocketMode:   "0660",
-		SocketUser:   "root",
-		SocketGroup:  "adm",
 		Daemon:       "simple",
 	}
 	pkgPath := "/snaps/xkcd-webserver.canonical/0.3.4/"
@@ -1107,8 +1105,6 @@ X-Snappy=yes
 [Socket]
 ListenStream=/var/run/docker.sock
 SocketMode=0660
-SocketUser=root
-SocketGroup=adm
 
 [Install]
 WantedBy=sockets.target

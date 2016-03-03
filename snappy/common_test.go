@@ -62,8 +62,8 @@ apps:
   command: bin/hello
  svc1:
    command: bin/hello
-   stop: bin/goodbye
-   poststop: bin/missya
+   stop-command: bin/goodbye
+   post-stop-command: bin/missya
    daemon: forking
 `
 	if snapYamlContent == "" {
