@@ -77,6 +77,7 @@ type State struct {
 	backend Backend
 	data    customData
 	changes map[string]*Change
+	tasks   map[string]*Task
 }
 
 // New returns a new empty state.
@@ -85,6 +86,7 @@ func New(backend Backend) *State {
 		backend: backend,
 		data:    make(customData),
 		changes: make(map[string]*Change),
+		tasks:   make(map[string]*Task),
 	}
 }
 
