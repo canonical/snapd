@@ -31,11 +31,11 @@ import (
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/policy"
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/snapenv"
 	"github.com/ubuntu-core/snappy/systemd"
 
 	. "gopkg.in/check.v1"
@@ -677,7 +677,7 @@ func (s *SnapTestSuite) TestMakeConfigEnv(c *C) {
 	env := makeSnapHookEnv(snap)
 
 	// now ensure that the environment we get back is what we want
-	envMap := helpers.MakeMapFromEnvList(env)
+	envMap := snapenv.MakeMapFromEnvList(env)
 	// regular env is unaltered
 	c.Assert(envMap["PATH"], Equals, os.Getenv("PATH"))
 	// SNAP_* is overriden

@@ -33,11 +33,11 @@ import (
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/snapenv"
 	"github.com/ubuntu-core/snappy/systemd"
 )
 
@@ -158,16 +158,16 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 
 	oldVars := []string{}
 	for _, envVar := range append(
-		helpers.GetDeprecatedBasicSnapEnvVars(wrapperData),
-		helpers.GetDeprecatedUserSnapEnvVars(wrapperData)...) {
+		snapenv.GetDeprecatedBasicSnapEnvVars(wrapperData),
+		snapenv.GetDeprecatedUserSnapEnvVars(wrapperData)...) {
 		oldVars = append(oldVars, quoteEnvVar(envVar))
 	}
 	wrapperData.OldAppVars = strings.Join(oldVars, "\n")
 
 	newVars := []string{}
 	for _, envVar := range append(
-		helpers.GetBasicSnapEnvVars(wrapperData),
-		helpers.GetUserSnapEnvVars(wrapperData)...) {
+		snapenv.GetBasicSnapEnvVars(wrapperData),
+		snapenv.GetUserSnapEnvVars(wrapperData)...) {
 		newVars = append(newVars, quoteEnvVar(envVar))
 	}
 	wrapperData.NewAppVars = strings.Join(newVars, "\n")
@@ -325,7 +325,7 @@ func addPackageServices(m *snapYaml, baseDir string, inhibitHooks bool, inter in
 		}
 		serviceFilename := generateServiceFileName(m, app)
 		os.MkdirAll(filepath.Dir(serviceFilename), 0755)
-		if err := helpers.AtomicWriteFile(serviceFilename, []byte(content), 0644, 0); err != nil {
+		if err := osutil.AtomicWriteFile(serviceFilename, []byte(content), 0644, 0); err != nil {
 			return err
 		}
 		// Generate systemd socket file if needed
@@ -336,7 +336,7 @@ func addPackageServices(m *snapYaml, baseDir string, inhibitHooks bool, inter in
 			}
 			socketFilename := generateSocketFileName(m, app)
 			os.MkdirAll(filepath.Dir(socketFilename), 0755)
-			if err := helpers.AtomicWriteFile(socketFilename, []byte(content), 0644, 0); err != nil {
+			if err := osutil.AtomicWriteFile(socketFilename, []byte(content), 0644, 0); err != nil {
 				return err
 			}
 		}
@@ -349,7 +349,7 @@ func addPackageServices(m *snapYaml, baseDir string, inhibitHooks bool, inter in
 			}
 			policyFilename := generateBusPolicyFileName(m, app)
 			os.MkdirAll(filepath.Dir(policyFilename), 0755)
-			if err := helpers.AtomicWriteFile(policyFilename, []byte(content), 0644, 0); err != nil {
+			if err := osutil.AtomicWriteFile(policyFilename, []byte(content), 0644, 0); err != nil {
 				return err
 			}
 		}
@@ -466,7 +466,7 @@ func addPackageBinaries(m *snapYaml, baseDir string) error {
 			return err
 		}
 
-		if err := helpers.AtomicWriteFile(generateBinaryName(m, app), []byte(content), 0755, 0); err != nil {
+		if err := osutil.AtomicWriteFile(generateBinaryName(m, app), []byte(content), 0755, 0); err != nil {
 			return err
 		}
 	}
