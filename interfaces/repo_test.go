@@ -810,30 +810,20 @@ func (s *RepositorySuite) TestInterfacesSmokeTest(c *C) {
 	c.Assert(ifaces, DeepEquals, &Interfaces{
 		Plugs: []*Plug{
 			&Plug{
-				Name:      s.plug.Name,
-				Snap:      s.plug.Snap,
-				Interface: s.plug.Interface,
-				Label:     s.plug.Label,
-				Connections: []SlotRef{
-					{
-						Snap: s.slot.Snap,
-						Name: s.slot.Name,
-					},
-				},
+				Name:        s.plug.Name,
+				Snap:        s.plug.Snap,
+				Interface:   s.plug.Interface,
+				Label:       s.plug.Label,
+				Connections: []SlotRef{{s.slot.Snap, s.slot.Name}},
 			},
 		},
 		Slots: []*Slot{
 			&Slot{
-				Snap:      s.slot.Snap,
-				Name:      s.slot.Name,
-				Interface: s.slot.Interface,
-				Label:     s.slot.Label,
-				Connections: []PlugRef{
-					{
-						Snap: s.plug.Snap,
-						Name: s.plug.Name,
-					},
-				},
+				Snap:        s.slot.Snap,
+				Name:        s.slot.Name,
+				Interface:   s.slot.Interface,
+				Label:       s.slot.Label,
+				Connections: []PlugRef{{s.plug.Snap, s.plug.Name}},
 			},
 		},
 	})
