@@ -1,4 +1,4 @@
-// -*- Mode: Go; indent-tabs-mode: t -*-
+// -*- Mote: Go; indent-tabs-mode: t -*-
 
 /*
  * Copyright (C) 2016 Canonical Ltd
@@ -34,13 +34,13 @@ type SecuritySuite struct {
 var _ = Suite(&SecuritySuite{
 	plug: &Plug{
 		Snap:      "producer",
-		Plug:      "plug",
+		Name:      "plug",
 		Interface: "interface",
 		Apps:      []string{"hook"},
 	},
 	slot: &Slot{
 		Snap:      "consumer",
-		Slot:      "slot",
+		Name:      "slot",
 		Interface: "interface",
 		Apps:      []string{"app"},
 	},
@@ -57,7 +57,7 @@ func (s *SecuritySuite) prepareFixtureWithInterface(c *C, i Interface) {
 	c.Assert(err, IsNil)
 	err = s.repo.AddSlot(s.slot)
 	c.Assert(err, IsNil)
-	err = s.repo.Connect(s.plug.Snap, s.plug.Plug, s.slot.Snap, s.slot.Slot)
+	err = s.repo.Connect(s.plug.Snap, s.plug.Name, s.slot.Snap, s.slot.Name)
 	c.Assert(err, IsNil)
 }
 
