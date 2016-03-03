@@ -24,8 +24,22 @@ import (
 	"os"
 
 	"github.com/ubuntu-core/snappy/arch"
+	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 )
+
+// takes a directory and removes the global root, this is needed
+// when the SetRoot option is used and we need to generate
+// content for the "Apps" section
+var stripGlobalRootDir = stripGlobalRootDirImpl
+
+func stripGlobalRootDirImpl(dir string) string {
+	if dirs.GlobalRootDir == "/" {
+		return dir
+	}
+
+	return dir[len(dirs.GlobalRootDir):]
+}
 
 // makeSnapHookEnv returns an environment suitable for passing to
 // os/exec.Cmd.Env
