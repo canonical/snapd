@@ -243,10 +243,10 @@ apps:
 
 func (s *SnapTestSuite) TestDesktopFileSanitizeDesktopActionsOk(c *C) {
 	m := &snapYaml{}
-	desktopContent := []byte(`[Desktop Action ok]`)
+	desktopContent := []byte(`[Desktop Action is-ok]`)
 
 	e := sanitizeDesktopFile(m, "/my/basedir", desktopContent)
-	c.Assert(string(e), Equals, `[Desktop Action ok]`)
+	c.Assert(string(e), Equals, `[Desktop Action is-ok]`)
 }
 
 func (s *SnapTestSuite) TestDesktopFileSanitizeDesktopActionsNotOk(c *C) {
