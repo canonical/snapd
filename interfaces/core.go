@@ -25,7 +25,7 @@ import (
 	"regexp"
 )
 
-// Plug represents a capacity offered by a snap.
+// Plug represents the potential of a given snap to connect to a plug.
 type Plug struct {
 	Snap        string                 `json:"snap"`
 	Name        string                 `json:"plug"`
@@ -42,7 +42,7 @@ type PlugRef struct {
 	Name string `json:"plug"`
 }
 
-// Slot represents the potential of a given snap to connect to a plug.
+// Slot represents a capacity offered by a snap.
 type Slot struct {
 	Snap        string                 `json:"snap"`
 	Name        string                 `json:"slot"`
@@ -78,23 +78,23 @@ type Interface interface {
 	// SanitizeSlot checks if a slot is correct, altering if necessary.
 	SanitizeSlot(slot *Slot) error
 
+	// SlotSecuritySnippet returns the configuration snippet needed by the
+	// given security system to allow a snap to offer a slot of this interface.
+	//
+	// An empty snippet is returned when the slot doesn't require anything
+	// from the security system to work, in addition to the default
+	// configuration.  ErrUnknownSecurity is returned when the slot cannot
+	// deal with the requested security system.
+	SlotSecuritySnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
+
 	// PlugSecuritySnippet returns the configuration snippet needed by the
-	// given security system to allow a snap to offer a plug of this interface.
+	// given security system to allow a snap to use a slot of this interface.
 	//
 	// An empty snippet is returned when the plug doesn't require anything
 	// from the security system to work, in addition to the default
 	// configuration.  ErrUnknownSecurity is returned when the plug cannot
 	// deal with the requested security system.
 	PlugSecuritySnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
-
-	// SlotSecuritySnippet returns the configuration snippet needed by the
-	// given security system to allow a snap to use a plug of this interface.
-	//
-	// An empty snippet is returned when the plug doesn't require anything
-	// from the security system to work, in addition to the default
-	// configuration.  ErrUnknownSecurity is returned when the plug cannot
-	// deal with the requested security system.
-	SlotSecuritySnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
 }
 
 // SecuritySystem is a name of a security system.
