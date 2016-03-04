@@ -101,6 +101,12 @@ func (iface *BoolFileInterface) SlotSecuritySnippet(plug *interfaces.Plug, slot 
 	}
 }
 
+// StaticSlotSecuritySnippet returns the configuration snippet required to provide a bool-file interface.
+func (iface *BoolFileInterface) StaticSlotSecuritySnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	// TODO: implement this for real
+	return nil, nil
+}
+
 // PlugSecuritySnippet returns the configuration snippet required to use a bool-file interface.
 // Consumers gain permission to read, write and lock the designated file.
 func (iface *BoolFileInterface) PlugSecuritySnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -120,6 +126,12 @@ func (iface *BoolFileInterface) PlugSecuritySnippet(plug *interfaces.Plug, slot 
 	default:
 		return nil, interfaces.ErrUnknownSecurity
 	}
+}
+
+// StaticPlugSecuritySnippet returns the configuration snippet required to use a bool-file interface.
+func (iface *BoolFileInterface) StaticPlugSecuritySnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	// TODO: implement this for real
+	return nil, nil
 }
 
 func (iface *BoolFileInterface) dereferencedPath(slot *interfaces.Slot) (string, error) {
