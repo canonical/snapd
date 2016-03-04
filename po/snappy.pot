@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-03-01 12:16+0100\n"
+        "POT-Creation-Date: 2016-03-04 12:01+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -513,19 +513,19 @@ msgstr  ""
 msgid   "\n"
         "The interfaces command lists interfaces available in the system.\n"
         "\n"
-        "By default all plugs and slots, used and offered by all snaps, are displayed.\n"
+        "By default all slots and plugs, used and offered by all snaps, are displayed.\n"
         " \n"
-        "$ snap interfaces <snap>:<plug or slot>\n"
+        "$ snap interfaces <snap>:<slot or plug>\n"
         "\n"
-        "Lists only the specified plug or slot.\n"
+        "Lists only the specified slot or plug.\n"
         "\n"
         "$ snap interfaces <snap>\n"
         "\n"
-        "Lists the plugs offered and slots used by the specified snap.\n"
+        "Lists the slots offered and plugs used by the specified snap.\n"
         "\n"
         "$ snap interfaces --i=<interface> [<snap>]\n"
         "\n"
-        "Lists only plugs and slots of the specific interface.\n"
+        "Lists only slots and plugs of the specific interface.\n"
 msgstr  ""
 
 msgid   "\n"
@@ -615,15 +615,15 @@ msgstr  ""
 msgid   "package name is required"
 msgstr  ""
 
-msgid   "plug\tslot"
-msgstr  ""
-
 msgid   "produces manpage"
 msgstr  ""
 
 #. TRANSLATORS: the %s release string
 #, c-format
 msgid   "release: %s\n"
+msgstr  ""
+
+msgid   "slot\tplug"
 msgstr  ""
 
 #. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
