@@ -28,11 +28,14 @@ type Status int
 
 // Admitted status values for changes and tasks.
 const (
-	Running Status = 0
-	Waiting Status = 1
-	Done    Status = 2
-	Error   Status = 3
+	DefaultStatus Status = 0
+	RunningStatus Status = 1
+	WaitingStatus Status = 2
+	DoneStatus    Status = 3
+	ErrorStatus   Status = 4
 )
+
+const nStatuses = ErrorStatus + 1
 
 // Change represents a tracked modification to the system state.
 //
@@ -49,6 +52,7 @@ type Change struct {
 	id      string
 	kind    string
 	summary string
+	status  Status
 	data    customData
 	taskIDs map[string]bool
 }
@@ -68,6 +72,7 @@ type marshalledChange struct {
 	ID      string                      `json:"id"`
 	Kind    string                      `json:"kind"`
 	Summary string                      `json:"summary"`
+	Status  Status                      `json:"status"`
 	Data    map[string]*json.RawMessage `json:"data"`
 	TaskIDs map[string]bool             `json:"task-ids"`
 }
@@ -79,6 +84,7 @@ func (c *Change) MarshalJSON() ([]byte, error) {
 		ID:      c.id,
 		Kind:    c.kind,
 		Summary: c.summary,
+		Status:  c.status,
 		Data:    c.data,
 		TaskIDs: c.taskIDs,
 	})
@@ -97,6 +103,7 @@ func (c *Change) UnmarshalJSON(data []byte) error {
 	c.id = unmarshalled.ID
 	c.kind = unmarshalled.Kind
 	c.summary = unmarshalled.Summary
+	c.status = unmarshalled.Status
 	c.data = unmarshalled.Data
 	c.taskIDs = unmarshalled.TaskIDs
 	return nil
@@ -129,6 +136,43 @@ func (c *Change) Set(key string, value interface{}) {
 func (c *Change) Get(key string, value interface{}) error {
 	c.state.ensureLocked()
 	return c.data.get(key, value)
+}
+
+// Status returns the current status of the change.
+// If the status was not explicitly set the result is derived from the status
+// of the individual tasks related to the change, according to the following
+// decision sequence:
+//
+//     - With at least one task in RunningStatus, return RunningStatus
+//     - With at least one task in WaitingStatus, return WaitingStatus
+//     - With at least one task in ErrorStatus, return ErrorStatus
+//     - Otherwise, return DoneStatus
+//
+func (c *Change) Status() Status {
+	c.state.ensureLocked()
+	if c.status == DefaultStatus {
+		statusStats := make(map[Status]int, nStatuses)
+		for tid := range c.taskIDs {
+			statusStats[c.state.tasks[tid].Status()]++
+		}
+		if statusStats[RunningStatus] > 0 {
+			return RunningStatus
+		}
+		if statusStats[WaitingStatus] > 0 {
+			return WaitingStatus
+		}
+		if statusStats[ErrorStatus] > 0 {
+			return ErrorStatus
+		}
+		return DoneStatus
+	}
+	return c.status
+}
+
+// SetStatus sets the change status, overriding the default behavior (see Status method).
+func (c *Change) SetStatus(s Status) {
+	c.state.ensureLocked()
+	c.status = s
 }
 
 // NewTask creates a new task and registers it as a required task for the

@@ -277,6 +277,7 @@ func (ss *stateSuite) TestNewChangeAndCheckpoint(c *C) {
 	c.Assert(chg, NotNil)
 	chgID := chg.ID()
 	chg.Set("a", 1)
+	chg.SetStatus(state.ErrorStatus)
 
 	// implicit checkpoint
 	st.Unlock()
@@ -304,6 +305,8 @@ func (ss *stateSuite) TestNewChangeAndCheckpoint(c *C) {
 	var v int
 	err = chg0.Get("a", &v)
 	c.Check(v, Equals, 1)
+
+	c.Check(chg0.Status(), Equals, state.ErrorStatus)
 }
 
 func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
@@ -317,7 +320,7 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 	t1 := chg.NewTask("download", "1...")
 	t1ID := t1.ID()
 	t1.Set("a", 1)
-	t1.SetStatus(state.Waiting)
+	t1.SetStatus(state.WaitingStatus)
 	t1.SetProgress(5, 10)
 
 	// implicit checkpoint
@@ -350,7 +353,7 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 	err = task0_1.Get("a", &v)
 	c.Check(v, Equals, 1)
 
-	c.Check(task0_1.Status(), Equals, state.Waiting)
+	c.Check(task0_1.Status(), Equals, state.WaitingStatus)
 
 	cur, tot := task0_1.Progress()
 	c.Check(cur, Equals, 5)
