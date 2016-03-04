@@ -23,6 +23,11 @@ import (
 	"encoding/json"
 )
 
+type progress struct {
+	Current int `json:"current"`
+	Total   int `json:"totatl"`
+}
+
 // Task represents an individual operation to be performed
 // for accomplishing one or more state changes.
 //
@@ -33,8 +38,7 @@ type Task struct {
 	kind                     string
 	summary                  string
 	status                   Status
-	curProgress              int
-	totProgress              int
+	progress                 progress
 	data                     customData
 }
 
@@ -53,8 +57,7 @@ type marshalledTask struct {
 	Kind        string                      `json:"kind"`
 	Summary     string                      `json:"summary"`
 	Status      Status                      `json:"status"`
-	CurProgress int                         `json:"cur_progess"`
-	TotProgress int                         `json:"tot_progress"`
+	Progress    progress                    `json:"progress"`
 	Data        map[string]*json.RawMessage `json:"data"`
 }
 
@@ -66,8 +69,7 @@ func (t *Task) MarshalJSON() ([]byte, error) {
 		Kind:        t.kind,
 		Summary:     t.summary,
 		Status:      t.status,
-		CurProgress: t.curProgress,
-		TotProgress: t.totProgress,
+		Progress:    t.progress,
 		Data:        t.data,
 	})
 }
@@ -86,8 +88,7 @@ func (t *Task) UnmarshalJSON(data []byte) error {
 	t.kind = unmarshalled.Kind
 	t.summary = unmarshalled.Summary
 	t.status = unmarshalled.Status
-	t.curProgress = unmarshalled.CurProgress
-	t.totProgress = unmarshalled.TotProgress
+	t.progress = unmarshalled.Progress
 	t.data = unmarshalled.Data
 	return nil
 }
@@ -124,7 +125,7 @@ func (t *Task) SetStatus(s Status) {
 // Running or Waiting and (1, 1) otherwise.
 func (t *Task) Progress() (cur, total int) {
 	t.state.ensureLocked()
-	if t.curProgress == 0 && t.totProgress == 0 {
+	if t.progress.Current == 0 && t.progress.Total == 0 {
 		switch t.status {
 		case Running, Waiting:
 			return 0, 1
@@ -132,14 +133,13 @@ func (t *Task) Progress() (cur, total int) {
 			return 1, 1
 		}
 	}
-	return t.curProgress, t.totProgress
+	return t.progress.Current, t.progress.Total
 }
 
 // SetProgress sets the task progress to cur out of total steps.
 func (t *Task) SetProgress(cur, total int) {
 	t.state.ensureLocked()
-	t.curProgress = cur
-	t.totProgress = total
+	t.progress = progress{Current: cur, Total: total}
 }
 
 // Set associates value with key for future consulting by managers.
