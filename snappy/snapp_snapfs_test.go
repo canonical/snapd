@@ -376,9 +376,9 @@ version: 1.10
 apps:
  some-binary:
   command: some-binary
-  slots: [some-binary]
+  plugs: [some-binary]
 
-slots:
+plugs:
  some-binary:
   interface: old-security
   security-template: not-there

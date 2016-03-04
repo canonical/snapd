@@ -31,11 +31,11 @@ var _ = Suite(&snapYamlTestSuite{})
 func (s *snapYamlTestSuite) TestParseYamlSetsTypeInUsesFromName(c *C) {
 	snapYaml := []byte(`name: foo
 version: 1.0
-slots:
+plugs:
  old-security:
   caps: []
 `)
 	sy, err := parseSnapYamlData(snapYaml, false)
 	c.Assert(err, IsNil)
-	sy.Slots["old-security"].Interface = "old-security"
+	sy.Plugs["old-security"].Interface = "old-security"
 }
