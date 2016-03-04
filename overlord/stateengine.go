@@ -46,17 +46,22 @@ type StateManager interface {
 // by the individual managers registered. These managers must be able to
 // cope with Ensure calls in any order, coordinating among themselves
 // solely via the state.
-type StateEngine struct{}
+type StateEngine struct {
+	state    *state.State
+	managers []StateManager
+	inited   bool
+}
 
 // NewStateEngine returns a new state engine.
-// TODO: take or read a state somehow
-func NewStateEngine() *StateEngine {
-	return &StateEngine{}
+func NewStateEngine(s *state.State) *StateEngine {
+	return &StateEngine{
+		state: s,
+	}
 }
 
 // State returns the current system state.
 func (se *StateEngine) State() *state.State {
-	return nil
+	return se.state
 }
 
 // Ensure asks every manager to ensure that they are doing the necessary
@@ -68,15 +73,41 @@ func (se *StateEngine) State() *state.State {
 // must not perform long running activities during that operation, though.
 // These should be performed in properly tracked changes and tasks.
 func (se *StateEngine) Ensure() error {
+	if !se.inited {
+		for _, m := range se.managers {
+			err := m.Init(se.state)
+			if err != nil {
+				return err
+			}
+		}
+		se.inited = true
+	}
+
+	for _, m := range se.managers {
+		err := m.Ensure()
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 // AddManager adds the provided manager to take part in state operations.
 func (se *StateEngine) AddManager(m StateManager) {
+	se.managers = append(se.managers, m)
 }
 
 // Stop asks all managers to terminate activities running concurrently.
 // It returns the first error found after all managers are stopped.
 func (se *StateEngine) Stop() error {
+	if se.inited {
+		for _, m := range se.managers {
+			err := m.Stop()
+			if err != nil {
+				return err
+			}
+		}
+		se.inited = false
+	}
 	return nil
 }
