@@ -39,6 +39,7 @@ type Change struct {
 	kind    string
 	summary string
 	data    customData
+	taskIDs map[string]bool
 }
 
 func newChange(state *State, id, kind, summary string) *Change {
@@ -48,6 +49,7 @@ func newChange(state *State, id, kind, summary string) *Change {
 		kind:    kind,
 		summary: summary,
 		data:    make(customData),
+		taskIDs: make(map[string]bool),
 	}
 }
 
@@ -56,6 +58,7 @@ type marshalledChange struct {
 	Kind    string                      `json:"kind"`
 	Summary string                      `json:"summary"`
 	Data    map[string]*json.RawMessage `json:"data"`
+	TaskIDs map[string]bool             `json:"task-ids"`
 }
 
 // MarshalJSON makes Change a json.Marshaller
@@ -66,11 +69,15 @@ func (c *Change) MarshalJSON() ([]byte, error) {
 		Kind:    c.kind,
 		Summary: c.summary,
 		Data:    c.data,
+		TaskIDs: c.taskIDs,
 	})
 }
 
 // UnmarshalJSON makes Change a json.Unmarshaller
 func (c *Change) UnmarshalJSON(data []byte) error {
+	if c.state != nil {
+		c.state.ensureLocked()
+	}
 	var unmarshalled marshalledChange
 	err := json.Unmarshal(data, &unmarshalled)
 	if err != nil {
@@ -80,6 +87,7 @@ func (c *Change) UnmarshalJSON(data []byte) error {
 	c.kind = unmarshalled.Kind
 	c.summary = unmarshalled.Summary
 	c.data = unmarshalled.Data
+	c.taskIDs = unmarshalled.TaskIDs
 	return nil
 }
 
@@ -110,4 +118,27 @@ func (c *Change) Set(key string, value interface{}) {
 func (c *Change) Get(key string, value interface{}) error {
 	c.state.ensureLocked()
 	return c.data.get(key, value)
+}
+
+// NewTask creates a new task and registers it as a required task for the
+// state change to be accomplished.
+func (c *Change) NewTask(kind, summary string) *Task {
+	c.state.ensureLocked()
+	id := c.state.genID()
+	t := newTask(c.state, id, kind, summary)
+	c.state.tasks[id] = t
+	c.taskIDs[id] = true
+	return t
+}
+
+// TODO: AddTask
+
+// Tasks returns all the tasks this state change depends on.
+func (c *Change) Tasks() []*Task {
+	c.state.ensureLocked()
+	res := make([]*Task, 0, len(c.taskIDs))
+	for tid := range c.taskIDs {
+		res = append(res, c.state.tasks[tid])
+	}
+	return res
 }
