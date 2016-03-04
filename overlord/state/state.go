@@ -203,6 +203,9 @@ func (s *State) genID() string {
 		if _, ok := s.changes[id]; ok {
 			continue
 		}
+		if _, ok := s.tasks[id]; ok {
+			continue
+		}
 		return id
 	}
 }
