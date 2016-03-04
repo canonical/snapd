@@ -47,9 +47,11 @@ type StateManager interface {
 // cope with Ensure calls in any order, coordinating among themselves
 // solely via the state.
 type StateEngine struct {
-	state    *state.State
+	state *state.State
+	// added managers to initialize
+	initialize []StateManager
+	// managers in use
 	managers []StateManager
-	inited   bool
 }
 
 // NewStateEngine returns a new state engine.
@@ -73,14 +75,15 @@ func (se *StateEngine) State() *state.State {
 // must not perform long running activities during that operation, though.
 // These should be performed in properly tracked changes and tasks.
 func (se *StateEngine) Ensure() error {
-	if !se.inited {
-		for _, m := range se.managers {
+	if len(se.initialize) > 0 {
+		for _, m := range se.initialize {
 			err := m.Init(se.state)
 			if err != nil {
 				return err
 			}
 		}
-		se.inited = true
+		se.managers = append(se.managers, se.initialize...)
+		se.initialize = nil
 	}
 
 	for _, m := range se.managers {
@@ -94,20 +97,21 @@ func (se *StateEngine) Ensure() error {
 
 // AddManager adds the provided manager to take part in state operations.
 func (se *StateEngine) AddManager(m StateManager) {
-	se.managers = append(se.managers, m)
+	se.initialize = append(se.initialize, m)
 }
 
 // Stop asks all managers to terminate activities running concurrently.
 // It returns the first error found after all managers are stopped.
 func (se *StateEngine) Stop() error {
-	if se.inited {
+	if len(se.managers) > 0 {
 		for _, m := range se.managers {
 			err := m.Stop()
 			if err != nil {
 				return err
 			}
 		}
-		se.inited = false
+		se.initialize = append(se.initialize, se.managers...)
+		se.managers = nil
 	}
 	return nil
 }
