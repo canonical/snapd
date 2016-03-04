@@ -32,11 +32,11 @@ type TestInterface struct {
 	SanitizePlugCallback func(plug *Plug) error
 	// SanitizeSlotCallback is the callback invoked inside SanitizeSlot()
 	SanitizeSlotCallback func(slot *Slot) error
-	// SlotSnippetCallback is the callback invoked inside SlotSnippet()
+	// SlotSnippetCallback is the callback invoked inside ConnectedSlotSnippet()
 	SlotSnippetCallback func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
 	// PermanentSlotSnippetCallback is the callback invoked inside PermanentSlotSnippet()
 	PermanentSlotSnippetCallback func(slot *Slot, securitySystem SecuritySystem) ([]byte, error)
-	// PlugSnippetCallback is the callback invoked inside PlugSnippet()
+	// PlugSnippetCallback is the callback invoked inside ConnectedPlugSnippet()
 	PlugSnippetCallback func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
 	// PermanentPlugSnippetCallback is the callback invoked inside PermanentPlugSnippet()
 	PermanentPlugSnippetCallback func(plug *Plug, securitySystem SecuritySystem) ([]byte, error)
@@ -74,9 +74,9 @@ func (t *TestInterface) SanitizeSlot(slot *Slot) error {
 	return nil
 }
 
-// PlugSnippet returns the configuration snippet "required" to offer a test plug.
+// ConnectedPlugSnippet returns the configuration snippet "required" to offer a test plug.
 // Providers don't gain any extra permissions.
-func (t *TestInterface) PlugSnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+func (t *TestInterface) ConnectedPlugSnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 	if t.PlugSnippetCallback != nil {
 		return t.PlugSnippetCallback(plug, slot, securitySystem)
 	}
@@ -92,9 +92,9 @@ func (t *TestInterface) PermanentPlugSnippet(plug *Plug, securitySystem Security
 	return nil, nil
 }
 
-// SlotSnippet returns the configuration snippet "required" to use a test plug.
+// ConnectedSlotSnippet returns the configuration snippet "required" to use a test plug.
 // Consumers don't gain any extra permissions.
-func (t *TestInterface) SlotSnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+func (t *TestInterface) ConnectedSlotSnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 	if t.SlotSnippetCallback != nil {
 		return t.SlotSnippetCallback(plug, slot, securitySystem)
 	}

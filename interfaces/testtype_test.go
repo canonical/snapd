@@ -108,16 +108,16 @@ func (s *TestInterfaceSuite) TestSanitizeSlotWrongInterface(c *C) {
 func (s *TestInterfaceSuite) TestPlugSnippet(c *C) {
 	plug := &Plug{Interface: "test"}
 	slot := &Slot{Interface: "test"}
-	snippet, err := s.i.PlugSnippet(plug, slot, SecurityAppArmor)
+	snippet, err := s.i.ConnectedPlugSnippet(plug, slot, SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.i.PlugSnippet(plug, slot, SecuritySecComp)
+	snippet, err = s.i.ConnectedPlugSnippet(plug, slot, SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.i.PlugSnippet(plug, slot, SecurityDBus)
+	snippet, err = s.i.ConnectedPlugSnippet(plug, slot, SecurityDBus)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.i.PlugSnippet(plug, slot, "foo")
+	snippet, err = s.i.ConnectedPlugSnippet(plug, slot, "foo")
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 }
@@ -126,16 +126,16 @@ func (s *TestInterfaceSuite) TestPlugSnippet(c *C) {
 func (s *TestInterfaceSuite) TestSlotSnippet(c *C) {
 	plug := &Plug{Interface: "test"}
 	slot := &Slot{Interface: "test"}
-	snippet, err := s.i.SlotSnippet(plug, slot, SecurityAppArmor)
+	snippet, err := s.i.ConnectedSlotSnippet(plug, slot, SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.i.SlotSnippet(plug, slot, SecuritySecComp)
+	snippet, err = s.i.ConnectedSlotSnippet(plug, slot, SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.i.SlotSnippet(plug, slot, SecurityDBus)
+	snippet, err = s.i.ConnectedSlotSnippet(plug, slot, SecurityDBus)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.i.SlotSnippet(plug, slot, "foo")
+	snippet, err = s.i.ConnectedSlotSnippet(plug, slot, "foo")
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 }

@@ -126,7 +126,7 @@ func (s *BoolFileInterfaceSuite) TestPlugSnippetHandlesSymlinkErrors(c *C) {
 	builtin.MockEvalSymlinks(&s.BaseTest, func(path string) (string, error) {
 		return "", fmt.Errorf("broken symbolic link")
 	})
-	snippet, err := s.iface.PlugSnippet(s.plug, s.gpioSlot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.gpioSlot, interfaces.SecurityAppArmor)
 	c.Assert(err, ErrorMatches, "cannot compute plug security snippet: broken symbolic link")
 	c.Assert(snippet, IsNil)
 }
@@ -138,13 +138,13 @@ func (s *BoolFileInterfaceSuite) TestPlugSnippetDereferencesSymlinks(c *C) {
 	})
 	// Extra apparmor permission to access GPIO value
 	// The path uses dereferenced symbolic links.
-	snippet, err := s.iface.PlugSnippet(s.plug, s.gpioSlot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.gpioSlot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, []byte(
 		"(dereferenced)/sys/class/gpio/gpio13/value rwk,\n"))
 	// Extra apparmor permission to access LED brightness.
 	// The path uses dereferenced symbolic links.
-	snippet, err = s.iface.PlugSnippet(s.plug, s.ledSlot, interfaces.SecurityAppArmor)
+	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.ledSlot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, []byte(
 		"(dereferenced)/sys/class/leds/input27::capslock/brightness rwk,\n"))
@@ -157,9 +157,9 @@ func (s *BoolFileInterfaceSuite) TestPlugSecurityDoesNotContainSlotSecurity(c *C
 	})
 	var err error
 	var slotSnippet, plugSnippet []byte
-	plugSnippet, err = s.iface.PlugSnippet(s.plug, s.gpioSlot, interfaces.SecurityAppArmor)
+	plugSnippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.gpioSlot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
-	slotSnippet, err = s.iface.SlotSnippet(s.plug, s.gpioSlot, interfaces.SecurityAppArmor)
+	slotSnippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.gpioSlot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	// Ensure that we don't accidentally give slot-side permissions to plug-side.
 	c.Assert(bytes.Contains(plugSnippet, slotSnippet), Equals, false)
@@ -168,30 +168,30 @@ func (s *BoolFileInterfaceSuite) TestPlugSecurityDoesNotContainSlotSecurity(c *C
 func (s *BoolFileInterfaceSuite) TestPlugSnippetPanicksOnUnsanitizedSlots(c *C) {
 	// Unsanitized slots should never be used and cause a panic.
 	c.Assert(func() {
-		s.iface.PlugSnippet(s.plug, s.missingPathSlot, interfaces.SecurityAppArmor)
+		s.iface.ConnectedPlugSnippet(s.plug, s.missingPathSlot, interfaces.SecurityAppArmor)
 	}, PanicMatches, "slot is not sanitized")
 }
 
 func (s *BoolFileInterfaceSuite) TestPlugSnippetUnusedSecuritySystems(c *C) {
 	for _, slot := range []*interfaces.Slot{s.ledSlot, s.gpioSlot} {
 		// No extra seccomp permissions for plug
-		snippet, err := s.iface.PlugSnippet(s.plug, slot, interfaces.SecuritySecComp)
+		snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecuritySecComp)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 		// No extra dbus permissions for plug
-		snippet, err = s.iface.PlugSnippet(s.plug, slot, interfaces.SecurityDBus)
+		snippet, err = s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityDBus)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 		// No extra udev permissions for plug
-		snippet, err = s.iface.PlugSnippet(s.plug, slot, interfaces.SecurityUDev)
+		snippet, err = s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityUDev)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 		// No extra udev permissions for plug
-		snippet, err = s.iface.PlugSnippet(s.plug, slot, interfaces.SecurityUDev)
+		snippet, err = s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityUDev)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 		// Other security types are not recognized
-		snippet, err = s.iface.PlugSnippet(s.plug, slot, "foo")
+		snippet, err = s.iface.ConnectedPlugSnippet(s.plug, slot, "foo")
 		c.Assert(err, ErrorMatches, `unknown security system`)
 		c.Assert(snippet, IsNil)
 	}
@@ -204,14 +204,14 @@ func (s *BoolFileInterfaceSuite) TestSlotSnippetGivesExtraPermissionsToConfigure
 /sys/class/gpio/unexport rw,
 /sys/class/gpio/gpio[0-9]+/direction rw,
 `)
-	snippet, err := s.iface.SlotSnippet(s.plug, s.gpioSlot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.gpioSlot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, expectedGPIOSnippet)
 }
 
 func (s *BoolFileInterfaceSuite) TestSlotSnippetGivesNoExtraPermissionsToConfigureLEDs(c *C) {
 	// No extra apparmor permission to provide LEDs
-	snippet, err := s.iface.SlotSnippet(s.plug, s.ledSlot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.ledSlot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 }
@@ -219,26 +219,26 @@ func (s *BoolFileInterfaceSuite) TestSlotSnippetGivesNoExtraPermissionsToConfigu
 func (s *BoolFileInterfaceSuite) TestSlotSnippetPanicksOnUnsanitizedSlots(c *C) {
 	// Unsanitized slots should never be used and cause a panic.
 	c.Assert(func() {
-		s.iface.SlotSnippet(s.plug, s.missingPathSlot, interfaces.SecurityAppArmor)
+		s.iface.ConnectedSlotSnippet(s.plug, s.missingPathSlot, interfaces.SecurityAppArmor)
 	}, PanicMatches, "slot is not sanitized")
 }
 
 func (s *BoolFileInterfaceSuite) TestSlotSnippetUnusedSecuritySystems(c *C) {
 	for _, slot := range []*interfaces.Slot{s.ledSlot, s.gpioSlot} {
 		// No extra seccomp permissions for slot
-		snippet, err := s.iface.SlotSnippet(s.plug, slot, interfaces.SecuritySecComp)
+		snippet, err := s.iface.ConnectedSlotSnippet(s.plug, slot, interfaces.SecuritySecComp)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 		// No extra dbus permissions for slot
-		snippet, err = s.iface.SlotSnippet(s.plug, slot, interfaces.SecurityDBus)
+		snippet, err = s.iface.ConnectedSlotSnippet(s.plug, slot, interfaces.SecurityDBus)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 		// No extra udev permissions for slot
-		snippet, err = s.iface.SlotSnippet(s.plug, slot, interfaces.SecurityUDev)
+		snippet, err = s.iface.ConnectedSlotSnippet(s.plug, slot, interfaces.SecurityUDev)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 		// Other security types are not recognized
-		snippet, err = s.iface.SlotSnippet(s.plug, slot, "foo")
+		snippet, err = s.iface.ConnectedSlotSnippet(s.plug, slot, "foo")
 		c.Assert(err, ErrorMatches, `unknown security system`)
 		c.Assert(snippet, IsNil)
 	}
