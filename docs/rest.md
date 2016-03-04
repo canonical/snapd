@@ -628,25 +628,25 @@ Sample result:
 
 ```javascript
 {
-    "plugs": [
+    "slots": [
         {
             "snap":  "canonical-pi2",
-            "plug":  "pin-13",
+            "slot":  "pin-13",
             "interface":  "bool-file",
             "label": "Pin 13",
             "connections": [
-                {"snap": "keyboard-lights", "slot": "capslock-led"}
+                {"snap": "keyboard-lights", "plug": "capslock-led"}
             ]
         }
     ],
-    "slots": [
+    "plugs": [
         {
             "snap":  "keyboard-lights",
-            "slot":  "capslock-led",
+            "plug":  "capslock-led",
             "interface": "bool-file",
             "label": "Capslock indicator LED",
             "connections": [
-                {"snap": "canonical-pi2", "plug": "pin-13"}
+                {"snap": "canonical-pi2", "slot": "pin-13"}
             ]
         }
     ]
@@ -670,7 +670,7 @@ Sample input:
 ```javascript
 {
     "action": "connect",
-    "plugs": {{"snap": "canonical-pi2",   "plug": "pin-13"}},
-    "slots": {{"snap": "keyboard-lights", "slot": "capslock-led"}}
+    "slots": {{"snap": "canonical-pi2",   "slot": "pin-13"}},
+    "plugs": {{"snap": "keyboard-lights", "plug": "capslock-led"}}
 }
 ```
