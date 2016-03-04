@@ -78,7 +78,9 @@ type Interface interface {
 	// SanitizeSlot checks if a slot is correct, altering if necessary.
 	SanitizeSlot(slot *Slot) error
 
-	// PermanentPlugSnippet returns permanent, plug-side security snippet.
+	// PermanentPlugSnippet returns the snippet of text for the given security
+	// system that is used during the whole lifetime of affected applications,
+	// whether the plug is connected or not.
 	//
 	// Permanent security snippet can be used to grant permissions to a snap that
 	// has a plug of a given interface even before the plug is connected to a
@@ -90,7 +92,9 @@ type Interface interface {
 	// system.
 	PermanentPlugSnippet(plug *Plug, securitySystem SecuritySystem) ([]byte, error)
 
-	// ConnectedPlugSnippet returns connection-specific, plug-side security snippet.
+	// ConnectedPlugSnippet returns the snippet of text for the given security
+	// system that is used by affected application, while a specific connection
+	// between a plug and a slot exists.
 	//
 	// Connection-specific security snippet can be used to grant permission to
 	// a snap that has a plug of a given interface connected to a slot in
@@ -106,7 +110,9 @@ type Interface interface {
 	// system.
 	ConnectedPlugSnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
 
-	// PermanentSlotSnippet returns permanent, slot-side security snippet.
+	// PermanentSlotSnippet returns the snippet of text for the given security
+	// system that is used during the whole lifetime of affected applications,
+	// whether the slot is connected or not.
 	//
 	// Permanent security snippet can be used to grant permissions to a snap that
 	// has a slot of a given interface even before the first connection to that
@@ -118,7 +124,9 @@ type Interface interface {
 	// system.
 	PermanentSlotSnippet(slot *Slot, securitySystem SecuritySystem) ([]byte, error)
 
-	// ConnectedSlotSnippet returns connection-specific, slot-side security snippet.
+	// ConnectedSlotSnippet returns the snippet of text for the given security
+	// system that is used by affected application, while a specific connection
+	// between a plug and a slot exists.
 	//
 	// Connection-specific security snippet can be used to grant permission to
 	// a snap that has a slot of a given interface connected to a plug in
