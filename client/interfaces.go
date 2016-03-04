@@ -24,7 +24,7 @@ import (
 	"encoding/json"
 )
 
-// Plug represents a capacity offered by a snap.
+// Plug represents the potential of a given snap to connect to a given plug.
 type Plug struct {
 	Snap        string                 `json:"snap"`
 	Name        string                 `json:"plug"`
@@ -41,7 +41,7 @@ type PlugRef struct {
 	Name string `json:"plug"`
 }
 
-// Slot represents the potential of a given snap to connect to a given plug.
+// Slot represents a capacity offered by a snap.
 type Slot struct {
 	Snap        string                 `json:"snap"`
 	Name        string                 `json:"slot"`
