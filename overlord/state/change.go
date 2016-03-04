@@ -131,6 +131,8 @@ func (c *Change) NewTask(kind, summary string) *Task {
 	return t
 }
 
+// TODO: AddTask
+
 // Tasks returns all the tasks this state change depends on.
 func (c *Change) Tasks() []*Task {
 	c.state.ensureLocked()
