@@ -77,10 +77,10 @@ func (iface *BoolFileInterface) SanitizeSlot(plug *interfaces.Slot) error {
 	return nil
 }
 
-// PlugSecuritySnippet returns the configuration snippet required to provide a bool-file interface.
+// SlotSecuritySnippet returns the configuration snippet required to provide a bool-file interface.
 // Producers gain control over exporting, importing GPIOs as well as
 // controlling the direction of particular pins.
-func (iface *BoolFileInterface) PlugSecuritySnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *BoolFileInterface) SlotSecuritySnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	gpioSnippet := []byte(`
 /sys/class/gpio/export rw,
 /sys/class/gpio/unexport rw,
@@ -101,9 +101,9 @@ func (iface *BoolFileInterface) PlugSecuritySnippet(plug *interfaces.Plug, slot 
 	}
 }
 
-// SlotSecuritySnippet returns the configuration snippet required to use a bool-file interface.
+// PlugSecuritySnippet returns the configuration snippet required to use a bool-file interface.
 // Consumers gain permission to read, write and lock the designated file.
-func (iface *BoolFileInterface) SlotSecuritySnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *BoolFileInterface) PlugSecuritySnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		// Allow write and lock on the file designated by the path.
