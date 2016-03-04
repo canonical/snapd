@@ -33,7 +33,8 @@ type Task struct {
 	kind                     string
 	summary                  string
 	status                   Status
-	curProgress, totProgress int
+	curProgress              int
+	totProgress              int
 	data                     customData
 }
 
