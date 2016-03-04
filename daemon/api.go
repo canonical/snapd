@@ -926,9 +926,9 @@ func getInterfaces(c *Command, r *http.Request) Response {
 
 // interfaceAction is an action performed on the interface system.
 type interfaceAction struct {
-	Action string          `json:"action"`
-	Plug   interfaces.Plug `json:"plug,omitempty"`
-	Slot   interfaces.Slot `json:"slot,omitempty"`
+	Action string            `json:"action"`
+	Plugs  []interfaces.Plug `json:"plugs,omitempty"`
+	Slots  []interfaces.Slot `json:"slots,omitempty"`
 }
 
 // changeInterfaces controls the interfaces system.
@@ -947,21 +947,33 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 	if !c.d.enableInternalInterfaceActions && a.Action != "connect" && a.Action != "disconnect" {
 		return BadRequest("internal interface actions are disabled")
 	}
+	if len(a.Plugs) > 1 || len(a.Slots) > 1 {
+		return NotImplemented("many-to-many operations are not implemented")
+	}
 	switch a.Action {
 	case "connect":
-		err := c.d.interfaces.Connect(a.Plug.Snap, a.Plug.Name, a.Slot.Snap, a.Slot.Name)
+		if len(a.Plugs) == 0 || len(a.Slots) == 0 {
+			return BadRequest("at least one plug and slot is required")
+		}
+		err := c.d.interfaces.Connect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 		if err != nil {
 			return BadRequest("%v", err)
 		}
 		return SyncResponse(nil)
 	case "disconnect":
-		err := c.d.interfaces.Disconnect(a.Plug.Snap, a.Plug.Name, a.Slot.Snap, a.Slot.Name)
+		if len(a.Plugs) == 0 || len(a.Slots) == 0 {
+			return BadRequest("at least one plug and slot is required")
+		}
+		err := c.d.interfaces.Disconnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 		if err != nil {
 			return BadRequest("%v", err)
 		}
 		return SyncResponse(nil)
 	case "add-plug":
-		err := c.d.interfaces.AddPlug(&a.Plug)
+		if len(a.Plugs) == 0 {
+			return BadRequest("at least one plug is required")
+		}
+		err := c.d.interfaces.AddPlug(&a.Plugs[0])
 		if err != nil {
 			return BadRequest("%v", err)
 		}
@@ -970,13 +982,19 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 			Status: http.StatusCreated,
 		}
 	case "remove-plug":
-		err := c.d.interfaces.RemovePlug(a.Plug.Snap, a.Plug.Name)
+		if len(a.Plugs) == 0 {
+			return BadRequest("at least one plug is required")
+		}
+		err := c.d.interfaces.RemovePlug(a.Plugs[0].Snap, a.Plugs[0].Name)
 		if err != nil {
 			return BadRequest("%v", err)
 		}
 		return SyncResponse(nil)
 	case "add-slot":
-		err := c.d.interfaces.AddSlot(&a.Slot)
+		if len(a.Slots) == 0 {
+			return BadRequest("at least one slot is required")
+		}
+		err := c.d.interfaces.AddSlot(&a.Slots[0])
 		if err != nil {
 			return BadRequest("%v", err)
 		}
@@ -985,7 +1003,10 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 			Status: http.StatusCreated,
 		}
 	case "remove-slot":
-		err := c.d.interfaces.RemoveSlot(a.Slot.Snap, a.Slot.Name)
+		if len(a.Slots) == 0 {
+			return BadRequest("at least one slot is required")
+		}
+		err := c.d.interfaces.RemoveSlot(a.Slots[0].Snap, a.Slots[0].Name)
 		if err != nil {
 			return BadRequest("%v", err)
 		}

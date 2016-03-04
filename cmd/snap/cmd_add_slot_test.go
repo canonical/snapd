@@ -61,17 +61,19 @@ func (s *SnapSuite) TestAddSlotExplicitEverything(c *C) {
 		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
 		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
 			"action": "add-slot",
-			"slot": map[string]interface{}{
-				"snap":      "consumer",
-				"slot":      "slot",
-				"interface": "interface",
-				"attrs": map[string]interface{}{
-					"attr": "value",
+			"slots": []interface{}{
+				map[string]interface{}{
+					"snap":      "consumer",
+					"slot":      "slot",
+					"interface": "interface",
+					"attrs": map[string]interface{}{
+						"attr": "value",
+					},
+					"apps": []interface{}{
+						"my-app",
+					},
+					"label": "label",
 				},
-				"apps": []interface{}{
-					"my-app",
-				},
-				"label": "label",
 			},
 		})
 		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)

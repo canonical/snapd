@@ -66,13 +66,17 @@ func (s *SnapSuite) TestConnectExplicitEverything(c *C) {
 		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
 		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
 			"action": "connect",
-			"plug": map[string]interface{}{
-				"snap": "producer",
-				"plug": "plug",
+			"plugs": []interface{}{
+				map[string]interface{}{
+					"snap": "producer",
+					"plug": "plug",
+				},
 			},
-			"slot": map[string]interface{}{
-				"snap": "consumer",
-				"slot": "slot",
+			"slots": []interface{}{
+				map[string]interface{}{
+					"snap": "consumer",
+					"slot": "slot",
+				},
 			},
 		})
 		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
@@ -88,13 +92,17 @@ func (s *SnapSuite) TestConnectExplicitPlugImplicitSlot(c *C) {
 		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
 		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
 			"action": "connect",
-			"plug": map[string]interface{}{
-				"snap": "producer",
-				"plug": "plug",
+			"plugs": []interface{}{
+				map[string]interface{}{
+					"snap": "producer",
+					"plug": "plug",
+				},
 			},
-			"slot": map[string]interface{}{
-				"snap": "consumer",
-				"slot": "",
+			"slots": []interface{}{
+				map[string]interface{}{
+					"snap": "consumer",
+					"slot": "",
+				},
 			},
 		})
 		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
@@ -110,13 +118,17 @@ func (s *SnapSuite) TestConnectImplicitPlugExplicitSlot(c *C) {
 		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
 		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
 			"action": "connect",
-			"plug": map[string]interface{}{
-				"snap": "",
-				"plug": "plug",
+			"plugs": []interface{}{
+				map[string]interface{}{
+					"snap": "",
+					"plug": "plug",
+				},
 			},
-			"slot": map[string]interface{}{
-				"snap": "consumer",
-				"slot": "slot",
+			"slots": []interface{}{
+				map[string]interface{}{
+					"snap": "consumer",
+					"slot": "slot",
+				},
 			},
 		})
 		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
@@ -132,13 +144,17 @@ func (s *SnapSuite) TestConnectImplicitPlugImplicitSlot(c *C) {
 		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
 		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
 			"action": "connect",
-			"plug": map[string]interface{}{
-				"snap": "",
-				"plug": "plug",
+			"plugs": []interface{}{
+				map[string]interface{}{
+					"snap": "",
+					"plug": "plug",
+				},
 			},
-			"slot": map[string]interface{}{
-				"snap": "consumer",
-				"slot": "",
+			"slots": []interface{}{
+				map[string]interface{}{
+					"snap": "consumer",
+					"slot": "",
+				},
 			},
 		})
 		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
