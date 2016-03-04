@@ -542,9 +542,9 @@ func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem Sec
 	var snippets = make(map[string][][]byte)
 	// Find all of the slots that affect this snap because of plug connection.
 	for _, slot := range r.slots[snapName] {
-		i := r.ifaces[slot.Interface]
+		iface := r.ifaces[slot.Interface]
 		for plug := range r.slotPlugs[slot] {
-			snippet, err := i.SlotSecuritySnippet(plug, slot, securitySystem)
+			snippet, err := iface.SlotSecuritySnippet(plug, slot, securitySystem)
 			if err != nil {
 				return nil, err
 			}
@@ -558,9 +558,9 @@ func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem Sec
 	}
 	// Find all of the plugs that affect this snap because of slot connection
 	for _, plug := range r.plugs[snapName] {
-		i := r.ifaces[plug.Interface]
+		iface := r.ifaces[plug.Interface]
 		for slot := range r.plugSlots[plug] {
-			snippet, err := i.PlugSecuritySnippet(plug, slot, securitySystem)
+			snippet, err := iface.PlugSecuritySnippet(plug, slot, securitySystem)
 			if err != nil {
 				return nil, err
 			}
