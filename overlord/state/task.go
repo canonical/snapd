@@ -28,11 +28,13 @@ import (
 //
 // See Change for more details.
 type Task struct {
-	state   *State
-	id      string
-	kind    string
-	summary string
-	data    customData
+	state                    *State
+	id                       string
+	kind                     string
+	summary                  string
+	status                   Status
+	curProgress, totProgress int
+	data                     customData
 }
 
 func newTask(state *State, id, kind, summary string) *Task {
@@ -46,20 +48,26 @@ func newTask(state *State, id, kind, summary string) *Task {
 }
 
 type marshalledTask struct {
-	ID      string                      `json:"id"`
-	Kind    string                      `json:"kind"`
-	Summary string                      `json:"summary"`
-	Data    map[string]*json.RawMessage `json:"data"`
+	ID          string                      `json:"id"`
+	Kind        string                      `json:"kind"`
+	Summary     string                      `json:"summary"`
+	Status      Status                      `json:"status"`
+	CurProgress int                         `json:"cur_progess"`
+	TotProgress int                         `json:"tot_progress"`
+	Data        map[string]*json.RawMessage `json:"data"`
 }
 
 // MarshalJSON makes Task a json.Marshaller
 func (t *Task) MarshalJSON() ([]byte, error) {
 	t.state.ensureLocked()
 	return json.Marshal(marshalledTask{
-		ID:      t.id,
-		Kind:    t.kind,
-		Summary: t.summary,
-		Data:    t.data,
+		ID:          t.id,
+		Kind:        t.kind,
+		Summary:     t.summary,
+		Status:      t.status,
+		CurProgress: t.curProgress,
+		TotProgress: t.totProgress,
+		Data:        t.data,
 	})
 }
 
@@ -76,6 +84,9 @@ func (t *Task) UnmarshalJSON(data []byte) error {
 	t.id = unmarshalled.ID
 	t.kind = unmarshalled.Kind
 	t.summary = unmarshalled.Summary
+	t.status = unmarshalled.Status
+	t.curProgress = unmarshalled.CurProgress
+	t.totProgress = unmarshalled.TotProgress
 	t.data = unmarshalled.Data
 	return nil
 }
@@ -93,6 +104,41 @@ func (t *Task) Kind() string {
 // Summary returns a summary describing what the task is about.
 func (t *Task) Summary() string {
 	return t.summary
+}
+
+// Status returns the current task status.
+func (t *Task) Status() Status {
+	t.state.ensureLocked()
+	return t.status
+}
+
+// SetStatus sets the task status, overriding the default behavior (see Status method).
+func (t *Task) SetStatus(s Status) {
+	t.state.ensureLocked()
+	t.status = s
+}
+
+// Progress returns the current progress for the task.
+// If progress is not explicitly set, it returns (0, 1) if the status is
+// Running or Waiting and (1, 1) otherwise.
+func (t *Task) Progress() (cur, total int) {
+	t.state.ensureLocked()
+	if t.curProgress == 0 && t.totProgress == 0 {
+		switch t.status {
+		case Running, Waiting:
+			return 0, 1
+		case Done, Error:
+			return 1, 1
+		}
+	}
+	return t.curProgress, t.totProgress
+}
+
+// SetProgress sets the task progress to cur out of total steps.
+func (t *Task) SetProgress(cur, total int) {
+	t.state.ensureLocked()
+	t.curProgress = cur
+	t.totProgress = total
 }
 
 // Set associates value with key for future consulting by managers.
