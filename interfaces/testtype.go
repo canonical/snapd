@@ -34,8 +34,12 @@ type TestInterface struct {
 	SanitizeSlotCallback func(slot *Slot) error
 	// SlotSecuritySnippetCallback is the callback invoked inside SlotSecuritySnippet()
 	SlotSecuritySnippetCallback func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
+	// StaticSlotSecuritySnippetCallback is the callback invoked inside StaticSlotSecuritySnippet()
+	StaticSlotSecuritySnippetCallback func(slot *Slot, securitySystem SecuritySystem) ([]byte, error)
 	// PlugSecuritySnippetCallback is the callback invoked inside PlugSecuritySnippet()
 	PlugSecuritySnippetCallback func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
+	// StaticPlugSecuritySnippetCallback is the callback invoked inside StaticPlugSecuritySnippet()
+	StaticPlugSecuritySnippetCallback func(plug *Plug, securitySystem SecuritySystem) ([]byte, error)
 }
 
 // String() returns the same value as Name().
@@ -79,11 +83,29 @@ func (t *TestInterface) PlugSecuritySnippet(plug *Plug, slot *Slot, securitySyst
 	return nil, nil
 }
 
+// StaticPlugSecuritySnippet returns the configuration snippet "required" to offer a test plug.
+// Providers don't gain any extra permissions.
+func (t *TestInterface) StaticPlugSecuritySnippet(plug *Plug, securitySystem SecuritySystem) ([]byte, error) {
+	if t.StaticPlugSecuritySnippetCallback != nil {
+		return t.StaticPlugSecuritySnippetCallback(plug, securitySystem)
+	}
+	return nil, nil
+}
+
 // SlotSecuritySnippet returns the configuration snippet "required" to use a test plug.
 // Consumers don't gain any extra permissions.
 func (t *TestInterface) SlotSecuritySnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 	if t.SlotSecuritySnippetCallback != nil {
 		return t.SlotSecuritySnippetCallback(plug, slot, securitySystem)
+	}
+	return nil, nil
+}
+
+// StaticSlotSecuritySnippet returns the configuration snippet "required" to use a test plug.
+// Consumers don't gain any extra permissions.
+func (t *TestInterface) StaticSlotSecuritySnippet(slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+	if t.StaticSlotSecuritySnippetCallback != nil {
+		return t.StaticSlotSecuritySnippetCallback(slot, securitySystem)
 	}
 	return nil, nil
 }
