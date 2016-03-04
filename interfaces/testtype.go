@@ -32,14 +32,14 @@ type TestInterface struct {
 	SanitizePlugCallback func(plug *Plug) error
 	// SanitizeSlotCallback is the callback invoked inside SanitizeSlot()
 	SanitizeSlotCallback func(slot *Slot) error
-	// SlotSecuritySnippetCallback is the callback invoked inside SlotSecuritySnippet()
-	SlotSecuritySnippetCallback func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
-	// PermanentSlotSecuritySnippetCallback is the callback invoked inside PermanentSlotSecuritySnippet()
-	PermanentSlotSecuritySnippetCallback func(slot *Slot, securitySystem SecuritySystem) ([]byte, error)
-	// PlugSecuritySnippetCallback is the callback invoked inside PlugSecuritySnippet()
-	PlugSecuritySnippetCallback func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
-	// PermanentPlugSecuritySnippetCallback is the callback invoked inside PermanentPlugSecuritySnippet()
-	PermanentPlugSecuritySnippetCallback func(plug *Plug, securitySystem SecuritySystem) ([]byte, error)
+	// SlotSnippetCallback is the callback invoked inside SlotSnippet()
+	SlotSnippetCallback func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
+	// PermanentSlotSnippetCallback is the callback invoked inside PermanentSlotSnippet()
+	PermanentSlotSnippetCallback func(slot *Slot, securitySystem SecuritySystem) ([]byte, error)
+	// PlugSnippetCallback is the callback invoked inside PlugSnippet()
+	PlugSnippetCallback func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
+	// PermanentPlugSnippetCallback is the callback invoked inside PermanentPlugSnippet()
+	PermanentPlugSnippetCallback func(plug *Plug, securitySystem SecuritySystem) ([]byte, error)
 }
 
 // String() returns the same value as Name().
@@ -74,38 +74,38 @@ func (t *TestInterface) SanitizeSlot(slot *Slot) error {
 	return nil
 }
 
-// PlugSecuritySnippet returns the configuration snippet "required" to offer a test plug.
+// PlugSnippet returns the configuration snippet "required" to offer a test plug.
 // Providers don't gain any extra permissions.
-func (t *TestInterface) PlugSecuritySnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
-	if t.PlugSecuritySnippetCallback != nil {
-		return t.PlugSecuritySnippetCallback(plug, slot, securitySystem)
+func (t *TestInterface) PlugSnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+	if t.PlugSnippetCallback != nil {
+		return t.PlugSnippetCallback(plug, slot, securitySystem)
 	}
 	return nil, nil
 }
 
-// PermanentPlugSecuritySnippet returns the configuration snippet "required" to offer a test plug.
+// PermanentPlugSnippet returns the configuration snippet "required" to offer a test plug.
 // Providers don't gain any extra permissions.
-func (t *TestInterface) PermanentPlugSecuritySnippet(plug *Plug, securitySystem SecuritySystem) ([]byte, error) {
-	if t.PermanentPlugSecuritySnippetCallback != nil {
-		return t.PermanentPlugSecuritySnippetCallback(plug, securitySystem)
+func (t *TestInterface) PermanentPlugSnippet(plug *Plug, securitySystem SecuritySystem) ([]byte, error) {
+	if t.PermanentPlugSnippetCallback != nil {
+		return t.PermanentPlugSnippetCallback(plug, securitySystem)
 	}
 	return nil, nil
 }
 
-// SlotSecuritySnippet returns the configuration snippet "required" to use a test plug.
+// SlotSnippet returns the configuration snippet "required" to use a test plug.
 // Consumers don't gain any extra permissions.
-func (t *TestInterface) SlotSecuritySnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
-	if t.SlotSecuritySnippetCallback != nil {
-		return t.SlotSecuritySnippetCallback(plug, slot, securitySystem)
+func (t *TestInterface) SlotSnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+	if t.SlotSnippetCallback != nil {
+		return t.SlotSnippetCallback(plug, slot, securitySystem)
 	}
 	return nil, nil
 }
 
-// PermanentSlotSecuritySnippet returns the configuration snippet "required" to use a test plug.
+// PermanentSlotSnippet returns the configuration snippet "required" to use a test plug.
 // Consumers don't gain any extra permissions.
-func (t *TestInterface) PermanentSlotSecuritySnippet(slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
-	if t.PermanentSlotSecuritySnippetCallback != nil {
-		return t.PermanentSlotSecuritySnippetCallback(slot, securitySystem)
+func (t *TestInterface) PermanentSlotSnippet(slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+	if t.PermanentSlotSnippetCallback != nil {
+		return t.PermanentSlotSnippetCallback(slot, securitySystem)
 	}
 	return nil, nil
 }
