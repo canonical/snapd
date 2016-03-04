@@ -25,7 +25,7 @@ import (
 
 type progress struct {
 	Current int `json:"current"`
-	Total   int `json:"totatl"`
+	Total   int `json:"total"`
 }
 
 // Task represents an individual operation to be performed
