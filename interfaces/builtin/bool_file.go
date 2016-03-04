@@ -49,13 +49,13 @@ var boolFileAllowedPathPatterns = []*regexp.Regexp{
 	boolFileGPIOValuePattern,
 }
 
-// SanitizePlug checks and possibly modifies a plug.
-// Valid "bool-file" plugs must contain the attribute "path".
-func (iface *BoolFileInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface))
+// SanitizeSlot checks and possibly modifies a slot.
+// Valid "bool-file" slots must contain the attribute "path".
+func (iface *BoolFileInterface) SanitizeSlot(slot *interfaces.Slot) error {
+	if iface.Name() != slot.Interface {
+		panic(fmt.Sprintf("slot is not of interface %q", iface))
 	}
-	path, ok := plug.Attrs["path"].(string)
+	path, ok := slot.Attrs["path"].(string)
 	if !ok || path == "" {
 		return fmt.Errorf("bool-file must contain the path attribute")
 	}
@@ -68,19 +68,19 @@ func (iface *BoolFileInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return fmt.Errorf("bool-file can only point at LED brightness or GPIO value")
 }
 
-// SanitizeSlot checks and possibly modifies a slot.
-func (iface *BoolFileInterface) SanitizeSlot(plug *interfaces.Slot) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface))
+// SanitizePlug checks and possibly modifies a plug.
+func (iface *BoolFileInterface) SanitizePlug(slot *interfaces.Plug) error {
+	if iface.Name() != slot.Interface {
+		panic(fmt.Sprintf("plug is not of interface %q", iface))
 	}
-	// NOTE: currently we don't check anything on the slot side.
+	// NOTE: currently we don't check anything on the plug side.
 	return nil
 }
 
-// PlugSecuritySnippet returns the configuration snippet required to provide a bool-file interface.
+// SlotSecuritySnippet returns the configuration snippet required to provide a bool-file interface.
 // Producers gain control over exporting, importing GPIOs as well as
 // controlling the direction of particular pins.
-func (iface *BoolFileInterface) PlugSecuritySnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *BoolFileInterface) SlotSecuritySnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	gpioSnippet := []byte(`
 /sys/class/gpio/export rw,
 /sys/class/gpio/unexport rw,
@@ -90,7 +90,7 @@ func (iface *BoolFileInterface) PlugSecuritySnippet(plug *interfaces.Plug, slot 
 	case interfaces.SecurityAppArmor:
 		// To provide GPIOs we need extra permissions to export/unexport and to
 		// set the direction of each pin.
-		if iface.isGPIO(plug) {
+		if iface.isGPIO(slot) {
 			return gpioSnippet, nil
 		}
 		return nil, nil
@@ -101,18 +101,18 @@ func (iface *BoolFileInterface) PlugSecuritySnippet(plug *interfaces.Plug, slot 
 	}
 }
 
-// SlotSecuritySnippet returns the configuration snippet required to use a bool-file interface.
+// PlugSecuritySnippet returns the configuration snippet required to use a bool-file interface.
 // Consumers gain permission to read, write and lock the designated file.
-func (iface *BoolFileInterface) SlotSecuritySnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *BoolFileInterface) PlugSecuritySnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		// Allow write and lock on the file designated by the path.
 		// Dereference symbolic links to file path handed out to apparmor since
 		// sysfs is full of symlinks and apparmor requires uses real path for
 		// filtering.
-		path, err := iface.dereferencedPath(plug)
+		path, err := iface.dereferencedPath(slot)
 		if err != nil {
-			return nil, fmt.Errorf("cannot compute slot security snippet: %v", err)
+			return nil, fmt.Errorf("cannot compute plug security snippet: %v", err)
 		}
 		return []byte(fmt.Sprintf("%s rwk,\n", path)), nil
 	case interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev:
@@ -122,22 +122,22 @@ func (iface *BoolFileInterface) SlotSecuritySnippet(plug *interfaces.Plug, slot 
 	}
 }
 
-func (iface *BoolFileInterface) dereferencedPath(plug *interfaces.Plug) (string, error) {
-	if path, ok := plug.Attrs["path"].(string); ok {
+func (iface *BoolFileInterface) dereferencedPath(slot *interfaces.Slot) (string, error) {
+	if path, ok := slot.Attrs["path"].(string); ok {
 		path, err := evalSymlinks(path)
 		if err != nil {
 			return "", err
 		}
 		return filepath.Clean(path), nil
 	}
-	panic("plug is not sanitized")
+	panic("slot is not sanitized")
 }
 
-// isGPIO checks if a given bool-file plug refers to a GPIO pin.
-func (iface *BoolFileInterface) isGPIO(plug *interfaces.Plug) bool {
-	if path, ok := plug.Attrs["path"].(string); ok {
+// isGPIO checks if a given bool-file slot refers to a GPIO pin.
+func (iface *BoolFileInterface) isGPIO(slot *interfaces.Slot) bool {
+	if path, ok := slot.Attrs["path"].(string); ok {
 		path = filepath.Clean(path)
 		return boolFileGPIOValuePattern.MatchString(path)
 	}
-	panic("plug is not sanitized")
+	panic("slot is not sanitized")
 }
