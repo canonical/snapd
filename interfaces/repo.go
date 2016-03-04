@@ -544,7 +544,7 @@ func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem Sec
 	for _, slot := range r.slots[snapName] {
 		iface := r.ifaces[slot.Interface]
 		// Add the static snippet for the slot
-		snippet, err := iface.StaticSlotSecuritySnippet(slot, securitySystem)
+		snippet, err := iface.PermanentSlotSecuritySnippet(slot, securitySystem)
 		if err != nil {
 			return nil, err
 		}
@@ -571,7 +571,7 @@ func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem Sec
 	for _, plug := range r.plugs[snapName] {
 		iface := r.ifaces[plug.Interface]
 		// Add the static snippet for the plug
-		snippet, err := iface.StaticPlugSecuritySnippet(plug, securitySystem)
+		snippet, err := iface.PermanentPlugSecuritySnippet(plug, securitySystem)
 		if err != nil {
 			return nil, err
 		}
