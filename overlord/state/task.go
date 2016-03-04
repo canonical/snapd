@@ -33,13 +33,13 @@ type progress struct {
 //
 // See Change for more details.
 type Task struct {
-	state                    *State
-	id                       string
-	kind                     string
-	summary                  string
-	status                   Status
-	progress                 progress
-	data                     customData
+	state    *State
+	id       string
+	kind     string
+	summary  string
+	status   Status
+	progress progress
+	data     customData
 }
 
 func newTask(state *State, id, kind, summary string) *Task {
@@ -53,24 +53,24 @@ func newTask(state *State, id, kind, summary string) *Task {
 }
 
 type marshalledTask struct {
-	ID          string                      `json:"id"`
-	Kind        string                      `json:"kind"`
-	Summary     string                      `json:"summary"`
-	Status      Status                      `json:"status"`
-	Progress    progress                    `json:"progress"`
-	Data        map[string]*json.RawMessage `json:"data"`
+	ID       string                      `json:"id"`
+	Kind     string                      `json:"kind"`
+	Summary  string                      `json:"summary"`
+	Status   Status                      `json:"status"`
+	Progress progress                    `json:"progress"`
+	Data     map[string]*json.RawMessage `json:"data"`
 }
 
 // MarshalJSON makes Task a json.Marshaller
 func (t *Task) MarshalJSON() ([]byte, error) {
 	t.state.ensureLocked()
 	return json.Marshal(marshalledTask{
-		ID:          t.id,
-		Kind:        t.kind,
-		Summary:     t.summary,
-		Status:      t.status,
-		Progress:    t.progress,
-		Data:        t.data,
+		ID:       t.id,
+		Kind:     t.kind,
+		Summary:  t.summary,
+		Status:   t.status,
+		Progress: t.progress,
+		Data:     t.data,
 	})
 }
 
