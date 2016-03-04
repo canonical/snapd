@@ -121,12 +121,12 @@ func (cs *changeSuite) TestStatusAndSetStatus(c *C) {
 
 	chg := st.NewChange("install", "...")
 
-	// default with no tasks will end up as Done
-	c.Check(chg.Status(), Equals, state.Done)
+	// default with no tasks will end up as DoneStatus
+	c.Check(chg.Status(), Equals, state.DoneStatus)
 
-	chg.SetStatus(state.Running)
+	chg.SetStatus(state.RunningStatus)
 
-	c.Check(chg.Status(), Equals, state.Running)
+	c.Check(chg.Status(), Equals, state.RunningStatus)
 }
 
 func (cs *changeSuite) TestStatusNeedsLock(c *C) {
@@ -144,7 +144,7 @@ func (cs *changeSuite) TestSetStatusNeedsLock(c *C) {
 	chg := st.NewChange("install", "...")
 	st.Unlock()
 
-	c.Assert(func() { chg.SetStatus(state.Waiting) }, PanicMatches, "internal error: accessing state without lock")
+	c.Assert(func() { chg.SetStatus(state.WaitingStatus) }, PanicMatches, "internal error: accessing state without lock")
 }
 
 func (cs *changeSuite) TestStatusDerivedFromTasks(c *C) {
@@ -157,23 +157,23 @@ func (cs *changeSuite) TestStatusDerivedFromTasks(c *C) {
 	t1 := chg.NewTask("download", "1...")
 	t2 := chg.NewTask("verify", "2...")
 
-	c.Check(chg.Status(), Equals, state.Running)
+	c.Check(chg.Status(), Equals, state.RunningStatus)
 
-	t1.SetStatus(state.Waiting)
-	c.Check(chg.Status(), Equals, state.Running)
+	t1.SetStatus(state.WaitingStatus)
+	c.Check(chg.Status(), Equals, state.RunningStatus)
 
-	t2.SetStatus(state.Waiting)
-	c.Check(chg.Status(), Equals, state.Waiting)
+	t2.SetStatus(state.WaitingStatus)
+	c.Check(chg.Status(), Equals, state.WaitingStatus)
 
-	t1.SetStatus(state.Error)
-	c.Check(chg.Status(), Equals, state.Waiting)
+	t1.SetStatus(state.ErrorStatus)
+	c.Check(chg.Status(), Equals, state.WaitingStatus)
 
-	t2.SetStatus(state.Error)
-	c.Check(chg.Status(), Equals, state.Error)
+	t2.SetStatus(state.ErrorStatus)
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
 
-	t1.SetStatus(state.Done)
-	c.Check(chg.Status(), Equals, state.Error)
+	t1.SetStatus(state.DoneStatus)
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
 
-	t2.SetStatus(state.Done)
-	c.Check(chg.Status(), Equals, state.Done)
+	t2.SetStatus(state.DoneStatus)
+	c.Check(chg.Status(), Equals, state.DoneStatus)
 }
