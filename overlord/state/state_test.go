@@ -277,6 +277,7 @@ func (ss *stateSuite) TestNewChangeAndCheckpoint(c *C) {
 	c.Assert(chg, NotNil)
 	chgID := chg.ID()
 	chg.Set("a", 1)
+	chg.SetStatus(state.Error)
 
 	// implicit checkpoint
 	st.Unlock()
@@ -304,6 +305,8 @@ func (ss *stateSuite) TestNewChangeAndCheckpoint(c *C) {
 	var v int
 	err = chg0.Get("a", &v)
 	c.Check(v, Equals, 1)
+
+	c.Check(chg0.Status(), Equals, state.Error)
 }
 
 func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {

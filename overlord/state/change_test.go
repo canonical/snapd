@@ -113,3 +113,67 @@ func (cs *changeSuite) TestTasksNeedsLocked(c *C) {
 
 	c.Assert(func() { chg.Tasks() }, PanicMatches, "internal error: accessing state without lock")
 }
+
+func (cs *changeSuite) TestStatusAndSetStatus(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("install", "...")
+
+	// default with no tasks will end up as Done
+	c.Check(chg.Status(), Equals, state.Done)
+
+	chg.SetStatus(state.Running)
+
+	c.Check(chg.Status(), Equals, state.Running)
+}
+
+func (cs *changeSuite) TestStatusNeedsLock(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	st.Unlock()
+
+	c.Assert(func() { chg.Status() }, PanicMatches, "internal error: accessing state without lock")
+}
+
+func (cs *changeSuite) TestSetStatusNeedsLock(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	st.Unlock()
+
+	c.Assert(func() { chg.SetStatus(state.Waiting) }, PanicMatches, "internal error: accessing state without lock")
+}
+
+func (cs *changeSuite) TestStatusDerivedFromTasks(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("install", "...")
+
+	t1 := chg.NewTask("download", "1...")
+	t2 := chg.NewTask("verify", "2...")
+
+	c.Check(chg.Status(), Equals, state.Running)
+
+	t1.SetStatus(state.Waiting)
+	c.Check(chg.Status(), Equals, state.Running)
+
+	t2.SetStatus(state.Waiting)
+	c.Check(chg.Status(), Equals, state.Waiting)
+
+	t1.SetStatus(state.Error)
+	c.Check(chg.Status(), Equals, state.Waiting)
+
+	t2.SetStatus(state.Error)
+	c.Check(chg.Status(), Equals, state.Error)
+
+	t1.SetStatus(state.Done)
+	c.Check(chg.Status(), Equals, state.Error)
+
+	t2.SetStatus(state.Done)
+	c.Check(chg.Status(), Equals, state.Done)
+}
