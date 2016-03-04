@@ -90,7 +90,7 @@ type Interface interface {
 	// system.
 	PermanentPlugSnippet(plug *Plug, securitySystem SecuritySystem) ([]byte, error)
 
-	// PlugSnippet returns connection-specific, plug-side security snippet.
+	// ConnectedPlugSnippet returns connection-specific, plug-side security snippet.
 	//
 	// Connection-specific security snippet can be used to grant permission to
 	// a snap that has a plug of a given interface connected to a slot in
@@ -104,7 +104,7 @@ type Interface interface {
 	// that are required to implement this interface. ErrUnknownSecurity error
 	// is returned when the plug cannot deal with the requested security
 	// system.
-	PlugSnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
+	ConnectedPlugSnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
 
 	// PermanentSlotSnippet returns permanent, slot-side security snippet.
 	//
@@ -118,7 +118,7 @@ type Interface interface {
 	// system.
 	PermanentSlotSnippet(slot *Slot, securitySystem SecuritySystem) ([]byte, error)
 
-	// SlotSnippet returns connection-specific, slot-side security snippet.
+	// ConnectedSlotSnippet returns connection-specific, slot-side security snippet.
 	//
 	// Connection-specific security snippet can be used to grant permission to
 	// a snap that has a slot of a given interface connected to a plug in
@@ -132,7 +132,7 @@ type Interface interface {
 	// that are required to implement this interface. ErrUnknownSecurity error
 	// is returned when the plug cannot deal with the requested security
 	// system.
-	SlotSnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
+	ConnectedSlotSnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
 }
 
 // SecuritySystem is a name of a security system.
