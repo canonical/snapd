@@ -111,6 +111,10 @@ func (t *Task) Summary() string {
 // Status returns the current task status.
 func (t *Task) Status() Status {
 	t.state.ensureLocked()
+	// default status for tasks is running
+	if t.status == StatusDefault {
+		return Running
+	}
 	return t.status
 }
 
@@ -126,7 +130,7 @@ func (t *Task) SetStatus(s Status) {
 func (t *Task) Progress() (cur, total int) {
 	t.state.ensureLocked()
 	if t.progress.Total == 0 {
-		switch t.status {
+		switch t.Status() {
 		case Running, Waiting:
 			return 0, 1
 		case Done, Error:

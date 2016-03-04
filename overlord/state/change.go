@@ -28,10 +28,11 @@ type Status int
 
 // Admitted status values for changes and tasks.
 const (
-	Running Status = 0
-	Waiting Status = 1
-	Done    Status = 2
-	Error   Status = 3
+	StatusDefault Status = 0
+	Running       Status = 1
+	Waiting       Status = 2
+	Done          Status = 3
+	Error         Status = 4
 )
 
 // Change represents a tracked modification to the system state.

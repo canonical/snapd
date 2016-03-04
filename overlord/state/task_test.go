@@ -147,6 +147,11 @@ func (ts *taskSuite) TestProgressDefaults(c *C) {
 	c.Check(cur, Equals, 0)
 	c.Check(tot, Equals, 1)
 
+	t.SetStatus(state.Running)
+	cur, tot = t.Progress()
+	c.Check(cur, Equals, 0)
+	c.Check(tot, Equals, 1)
+
 	t.SetStatus(state.Done)
 	cur, tot = t.Progress()
 	c.Check(cur, Equals, 1)
