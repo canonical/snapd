@@ -105,37 +105,37 @@ func (s *TestInterfaceSuite) TestSanitizeSlotWrongInterface(c *C) {
 }
 
 // TestInterface hands out empty plug security snippets
-func (s *TestInterfaceSuite) TestPlugSecuritySnippet(c *C) {
+func (s *TestInterfaceSuite) TestPlugSnippet(c *C) {
 	plug := &Plug{Interface: "test"}
 	slot := &Slot{Interface: "test"}
-	snippet, err := s.i.PlugSecuritySnippet(plug, slot, SecurityAppArmor)
+	snippet, err := s.i.ConnectedPlugSnippet(plug, slot, SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.i.PlugSecuritySnippet(plug, slot, SecuritySecComp)
+	snippet, err = s.i.ConnectedPlugSnippet(plug, slot, SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.i.PlugSecuritySnippet(plug, slot, SecurityDBus)
+	snippet, err = s.i.ConnectedPlugSnippet(plug, slot, SecurityDBus)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.i.PlugSecuritySnippet(plug, slot, "foo")
+	snippet, err = s.i.ConnectedPlugSnippet(plug, slot, "foo")
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 }
 
 // TestInterface hands out empty slot security snippets
-func (s *TestInterfaceSuite) TestSlotSecuritySnippet(c *C) {
+func (s *TestInterfaceSuite) TestSlotSnippet(c *C) {
 	plug := &Plug{Interface: "test"}
 	slot := &Slot{Interface: "test"}
-	snippet, err := s.i.SlotSecuritySnippet(plug, slot, SecurityAppArmor)
+	snippet, err := s.i.ConnectedSlotSnippet(plug, slot, SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.i.SlotSecuritySnippet(plug, slot, SecuritySecComp)
+	snippet, err = s.i.ConnectedSlotSnippet(plug, slot, SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.i.SlotSecuritySnippet(plug, slot, SecurityDBus)
+	snippet, err = s.i.ConnectedSlotSnippet(plug, slot, SecurityDBus)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.i.SlotSecuritySnippet(plug, slot, "foo")
+	snippet, err = s.i.ConnectedSlotSnippet(plug, slot, "foo")
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 }
