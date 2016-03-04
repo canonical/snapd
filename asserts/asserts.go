@@ -46,7 +46,7 @@ type AssertionType struct {
 var (
 	AccountKeyType   = &AssertionType{"account-key", []string{"account-id", "public-key-id"}, assembleAccountKey}
 	DeviceSerialType = &AssertionType{"device-serial", []string{"brand-id", "model", "serial"}, assembleDeviceSerial}
-	IdentityType     = &AssertionType{"identity", []string{"account-id"}, assembleIdentity}
+	IdentityType     = &AssertionType{"identity", []string{"series", "account-id"}, assembleIdentity}
 	// XXX: is series actually part of the primary key?
 	ModelType           = &AssertionType{"model", []string{"brand-id", "model", "series"}, assembleModel}
 	SnapDeclarationType = &AssertionType{"snap-declaration", []string{"series", "snap-id"}, assembleSnapDeclaration}
