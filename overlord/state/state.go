@@ -77,6 +77,7 @@ type State struct {
 	backend Backend
 	data    customData
 	changes map[string]*Change
+	tasks   map[string]*Task
 }
 
 // New returns a new empty state.
@@ -85,6 +86,7 @@ func New(backend Backend) *State {
 		backend: backend,
 		data:    make(customData),
 		changes: make(map[string]*Change),
+		tasks:   make(map[string]*Task),
 	}
 }
 
@@ -109,6 +111,7 @@ func (s *State) unlock() {
 type marshalledState struct {
 	Data    map[string]*json.RawMessage `json:"data"`
 	Changes map[string]*Change          `json:"changes"`
+	Tasks   map[string]*Task            `json:"tasks"`
 }
 
 // MarshalJSON makes State a json.Marshaller
@@ -117,6 +120,7 @@ func (s *State) MarshalJSON() ([]byte, error) {
 	return json.Marshal(marshalledState{
 		Data:    s.data,
 		Changes: s.changes,
+		Tasks:   s.tasks,
 	})
 }
 
@@ -130,7 +134,11 @@ func (s *State) UnmarshalJSON(data []byte) error {
 	}
 	s.data = unmarshalled.Data
 	s.changes = unmarshalled.Changes
+	s.tasks = unmarshalled.Tasks
 	// backlink state again
+	for _, t := range s.tasks {
+		t.state = s
+	}
 	for _, chg := range s.changes {
 		chg.state = s
 	}
