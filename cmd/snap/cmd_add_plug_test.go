@@ -61,17 +61,19 @@ func (s *SnapSuite) TestAddInterfaceExplicitEverything(c *C) {
 		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
 		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
 			"action": "add-plug",
-			"plug": map[string]interface{}{
-				"snap":      "producer",
-				"plug":      "plug",
-				"interface": "interface",
-				"attrs": map[string]interface{}{
-					"attr": "value",
+			"plugs": []interface{}{
+				map[string]interface{}{
+					"snap":      "producer",
+					"plug":      "plug",
+					"interface": "interface",
+					"attrs": map[string]interface{}{
+						"attr": "value",
+					},
+					"apps": []interface{}{
+						"meta/hooks/interfaces",
+					},
+					"label": "label",
 				},
-				"apps": []interface{}{
-					"meta/hooks/interfaces",
-				},
-				"label": "label",
 			},
 		})
 		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
