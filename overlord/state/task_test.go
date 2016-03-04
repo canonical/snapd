@@ -86,11 +86,11 @@ func (ts *taskSuite) TestStatusAndSetStatus(c *C) {
 	chg := st.NewChange("install", "...")
 	t := chg.NewTask("download", "1...")
 
-	c.Check(t.Status(), Equals, state.Running)
+	c.Check(t.Status(), Equals, state.RunningStatus)
 
-	t.SetStatus(state.Done)
+	t.SetStatus(state.DoneStatus)
 
-	c.Check(t.Status(), Equals, state.Done)
+	c.Check(t.Status(), Equals, state.DoneStatus)
 }
 
 func (ts *taskSuite) TestStatusNeedsLock(c *C) {
@@ -110,7 +110,7 @@ func (ts *taskSuite) TestSetStatusNeedsLock(c *C) {
 	t := chg.NewTask("download", "1...")
 	st.Unlock()
 
-	c.Assert(func() { t.SetStatus(state.Done) }, PanicMatches, "internal error: accessing state without lock")
+	c.Assert(func() { t.SetStatus(state.DoneStatus) }, PanicMatches, "internal error: accessing state without lock")
 }
 
 func (ts *taskSuite) TestProgressAndSetProgress(c *C) {
@@ -137,22 +137,27 @@ func (ts *taskSuite) TestProgressDefaults(c *C) {
 	chg := st.NewChange("install", "...")
 	t := chg.NewTask("download", "1...")
 
-	c.Check(t.Status(), Equals, state.Running)
+	c.Check(t.Status(), Equals, state.RunningStatus)
 	cur, tot := t.Progress()
 	c.Check(cur, Equals, 0)
 	c.Check(tot, Equals, 1)
 
-	t.SetStatus(state.Waiting)
+	t.SetStatus(state.WaitingStatus)
 	cur, tot = t.Progress()
 	c.Check(cur, Equals, 0)
 	c.Check(tot, Equals, 1)
 
-	t.SetStatus(state.Done)
+	t.SetStatus(state.RunningStatus)
+	cur, tot = t.Progress()
+	c.Check(cur, Equals, 0)
+	c.Check(tot, Equals, 1)
+
+	t.SetStatus(state.DoneStatus)
 	cur, tot = t.Progress()
 	c.Check(cur, Equals, 1)
 	c.Check(tot, Equals, 1)
 
-	t.SetStatus(state.Error)
+	t.SetStatus(state.ErrorStatus)
 	cur, tot = t.Progress()
 	c.Check(cur, Equals, 1)
 	c.Check(tot, Equals, 1)
