@@ -25,7 +25,7 @@ import (
 	"regexp"
 )
 
-// Plug represents the potential of a given snap to connect to a plug.
+// Plug represents the potential of a given snap to connect to a slot.
 type Plug struct {
 	Snap        string                 `json:"snap"`
 	Name        string                 `json:"plug"`
