@@ -23,6 +23,17 @@ import (
 	"encoding/json"
 )
 
+// Status is used for status values for changes and tasks.
+type Status int
+
+// Admitted status values for changes and tasks.
+const (
+	Running Status = 0
+	Waiting Status = 1
+	Done    Status = 2
+	Error   Status = 3
+)
+
 // Change represents a tracked modification to the system state.
 //
 // The Change provides both the justification for individual tasks

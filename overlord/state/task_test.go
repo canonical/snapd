@@ -77,3 +77,103 @@ func (ts *taskSuite) TestSetNeedsLock(c *C) {
 
 	c.Assert(func() { t.Set("a", 1) }, PanicMatches, "internal error: accessing state without lock")
 }
+
+func (ts *taskSuite) TestStatusAndSetStatus(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("install", "...")
+	t := chg.NewTask("download", "1...")
+
+	c.Check(t.Status(), Equals, state.Running)
+
+	t.SetStatus(state.Done)
+
+	c.Check(t.Status(), Equals, state.Done)
+}
+
+func (ts *taskSuite) TestStatusNeedsLock(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	t := chg.NewTask("download", "1...")
+	st.Unlock()
+
+	c.Assert(func() { t.Status() }, PanicMatches, "internal error: accessing state without lock")
+}
+
+func (ts *taskSuite) TestSetStatusNeedsLock(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	t := chg.NewTask("download", "1...")
+	st.Unlock()
+
+	c.Assert(func() { t.SetStatus(state.Done) }, PanicMatches, "internal error: accessing state without lock")
+}
+
+func (ts *taskSuite) TestProgressAndSetProgress(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("install", "...")
+	t := chg.NewTask("download", "1...")
+
+	t.SetProgress(2, 99)
+
+	cur, tot := t.Progress()
+
+	c.Check(cur, Equals, 2)
+	c.Check(tot, Equals, 99)
+}
+
+func (ts *taskSuite) TestProgressDefaults(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("install", "...")
+	t := chg.NewTask("download", "1...")
+
+	c.Check(t.Status(), Equals, state.Running)
+	cur, tot := t.Progress()
+	c.Check(cur, Equals, 0)
+	c.Check(tot, Equals, 1)
+
+	t.SetStatus(state.Waiting)
+	cur, tot = t.Progress()
+	c.Check(cur, Equals, 0)
+	c.Check(tot, Equals, 1)
+
+	t.SetStatus(state.Done)
+	cur, tot = t.Progress()
+	c.Check(cur, Equals, 1)
+	c.Check(tot, Equals, 1)
+
+	t.SetStatus(state.Error)
+	cur, tot = t.Progress()
+	c.Check(cur, Equals, 1)
+	c.Check(tot, Equals, 1)
+}
+
+func (ts *taskSuite) TestProgressNeedsLock(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	t := chg.NewTask("download", "1...")
+	st.Unlock()
+
+	c.Assert(func() { t.Progress() }, PanicMatches, "internal error: accessing state without lock")
+}
+
+func (ts *taskSuite) TestSetProgressNeedsLock(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	t := chg.NewTask("download", "1...")
+	st.Unlock()
+
+	c.Assert(func() { t.SetProgress(2, 2) }, PanicMatches, "internal error: accessing state without lock")
+}
