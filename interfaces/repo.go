@@ -315,12 +315,12 @@ func (r *Repository) Connect(plugSnapName, plugName, slotSnapName, slotName stri
 //
 // Disconnect has three modes of operation that depend on the passed arguments:
 //
-// - If all the arguments are specified then Disconnect() finds a specific plug
-//   slot and a specific plug and disconnects that plug from that plug slot. It is
+// - If all the arguments are specified then Disconnect() finds a specific slot
+//   and a specific plug and disconnects that plug from that plug slot. It is
 //   an error if plug or plug slot cannot be found or if the connect does not
 //   exist.
 // - If plugSnapName and plugName are empty then Disconnect() finds the specified
-//   plug slot and disconnects all the plugs connected there. It is not an error if
+//   slot and disconnects all the plugs connected there. It is not an error if
 //   there are no such plugs but it is still an error if the plug slot does
 //   not exist.
 // - If plugSnapName, plugName and slotName are all empty then Disconnect finds
