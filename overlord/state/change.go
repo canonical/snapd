@@ -28,14 +28,14 @@ type Status int
 
 // Admitted status values for changes and tasks.
 const (
-	StatusDefault Status = 0
-	Running       Status = 1
-	Waiting       Status = 2
-	Done          Status = 3
-	Error         Status = 4
+	DefaultStatus Status = 0
+	RunningStatus Status = 1
+	WaitingStatus Status = 2
+	DoneStatus    Status = 3
+	ErrorStatus   Status = 4
 )
 
-const nStatuses = Error + 1
+const nStatuses = ErrorStatus + 1
 
 // Change represents a tracked modification to the system state.
 //
@@ -143,28 +143,28 @@ func (c *Change) Get(key string, value interface{}) error {
 // of the individual tasks related to the change, according to the following
 // decision sequence:
 //
-//     - With at least one task Running, return Running
-//     - With at least one task Waiting, return Waiting
-//     - With at least one task Failed, return Failed
-//     - Otherwise, return Done
+//     - With at least one task in RunningStatus, return RunningStatus
+//     - With at least one task in WaitingStatus, return WaitingStatus
+//     - With at least one task in ErrorStatus, return ErrorStatus
+//     - Otherwise, return DoneStatus
 //
 func (c *Change) Status() Status {
 	c.state.ensureLocked()
-	if c.status == StatusDefault {
+	if c.status == DefaultStatus {
 		statusStats := make(map[Status]int, nStatuses)
 		for tid := range c.taskIDs {
 			statusStats[c.state.tasks[tid].Status()]++
 		}
-		if statusStats[Running] > 0 {
-			return Running
+		if statusStats[RunningStatus] > 0 {
+			return RunningStatus
 		}
-		if statusStats[Waiting] > 0 {
-			return Waiting
+		if statusStats[WaitingStatus] > 0 {
+			return WaitingStatus
 		}
-		if statusStats[Error] > 0 {
-			return Error
+		if statusStats[ErrorStatus] > 0 {
+			return ErrorStatus
 		}
-		return Done
+		return DoneStatus
 	}
 	return c.status
 }
