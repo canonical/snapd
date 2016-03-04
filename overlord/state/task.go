@@ -125,7 +125,7 @@ func (t *Task) SetStatus(s Status) {
 // Running or Waiting and (1, 1) otherwise.
 func (t *Task) Progress() (cur, total int) {
 	t.state.ensureLocked()
-	if t.progress.Current == 0 && t.progress.Total == 0 {
+	if t.progress.Total == 0 {
 		switch t.status {
 		case Running, Waiting:
 			return 0, 1
