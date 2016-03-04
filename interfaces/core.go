@@ -97,7 +97,7 @@ type Interface interface {
 	// another snap.
 	//
 	// The snippet should be specific to both the plug and the slot. If the
-	// slot is not necessary then consider using PermanentPlugSecutitySnippet()
+	// slot is not necessary then consider using PermanentPlugSecuritySnippet()
 	// instead.
 	//
 	// An empty snippet is returned when there are no additional permissions
@@ -125,7 +125,7 @@ type Interface interface {
 	// another snap.
 	//
 	// The snippet should be specific to both the plug and the slot, if the
-	// plug is not necessary then consider using PermanentSlotSecutitySnippet()
+	// plug is not necessary then consider using PermanentSlotSecuritySnippet()
 	// instead.
 	//
 	// An empty snippet is returned when there are no additional permissions
