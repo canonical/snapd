@@ -101,8 +101,8 @@ func (iface *BoolFileInterface) SlotSecuritySnippet(plug *interfaces.Plug, slot 
 	}
 }
 
-// StaticSlotSecuritySnippet returns the configuration snippet required to provide a bool-file interface.
-func (iface *BoolFileInterface) StaticSlotSecuritySnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+// PermanentSlotSecuritySnippet returns the configuration snippet required to provide a bool-file interface.
+func (iface *BoolFileInterface) PermanentSlotSecuritySnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	// TODO: implement this for real
 	return nil, nil
 }
@@ -128,8 +128,8 @@ func (iface *BoolFileInterface) PlugSecuritySnippet(plug *interfaces.Plug, slot 
 	}
 }
 
-// StaticPlugSecuritySnippet returns the configuration snippet required to use a bool-file interface.
-func (iface *BoolFileInterface) StaticPlugSecuritySnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+// PermanentPlugSecuritySnippet returns the configuration snippet required to use a bool-file interface.
+func (iface *BoolFileInterface) PermanentPlugSecuritySnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	// TODO: implement this for real
 	return nil, nil
 }

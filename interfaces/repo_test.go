@@ -849,7 +849,7 @@ func (s *RepositorySuite) TestSlotSnippetsForSnapSuccess(c *C) {
 	const testSecurity SecuritySystem = "security"
 	iface := &TestInterface{
 		InterfaceName: "interface",
-		StaticPlugSecuritySnippetCallback: func(plug *Plug, securitySystem SecuritySystem) ([]byte, error) {
+		PermanentPlugSecuritySnippetCallback: func(plug *Plug, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == testSecurity {
 				return []byte(`static plug snippet`), nil
 			}
@@ -861,7 +861,7 @@ func (s *RepositorySuite) TestSlotSnippetsForSnapSuccess(c *C) {
 			}
 			return nil, ErrUnknownSecurity
 		},
-		StaticSlotSecuritySnippetCallback: func(slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+		PermanentSlotSecuritySnippetCallback: func(slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == testSecurity {
 				return []byte(`static slot snippet`), nil
 			}
@@ -940,14 +940,14 @@ func (s *RepositorySuite) TestSecuritySnippetsForSnapFailureWithConnectionSnippe
 	c.Check(snippets, IsNil)
 }
 
-func (s *RepositorySuite) TestSecuritySnippetsForSnapFailureWithStaticSnippets(c *C) {
+func (s *RepositorySuite) TestSecuritySnippetsForSnapFailureWithPermanentSnippets(c *C) {
 	var testSecurity SecuritySystem = "security"
 	iface := &TestInterface{
 		InterfaceName: "interface",
-		StaticSlotSecuritySnippetCallback: func(slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+		PermanentSlotSecuritySnippetCallback: func(slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			return nil, fmt.Errorf("cannot compute static snippet for consumer")
 		},
-		StaticPlugSecuritySnippetCallback: func(plug *Plug, securitySystem SecuritySystem) ([]byte, error) {
+		PermanentPlugSecuritySnippetCallback: func(plug *Plug, securitySystem SecuritySystem) ([]byte, error) {
 			return nil, fmt.Errorf("cannot compute static snippet for provider")
 		},
 	}
