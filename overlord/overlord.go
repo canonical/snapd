@@ -24,6 +24,7 @@ import (
 	"github.com/ubuntu-core/snappy/overlord/assertstate"
 	"github.com/ubuntu-core/snappy/overlord/ifacestate"
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
+	"github.com/ubuntu-core/snappy/overlord/state"
 )
 
 // Overlord is the central manager of a snappy system, keeping
@@ -40,7 +41,11 @@ type Overlord struct {
 func New() (*Overlord, error) {
 	o := &Overlord{}
 
-	o.stateEng = NewStateEngine()
+	// TODO: read it or create a fresh one and learn about the system
+	// current state
+	s := state.New(nil)
+
+	o.stateEng = NewStateEngine(s)
 
 	snapMgr, err := snapstate.Manager()
 	if err != nil {
