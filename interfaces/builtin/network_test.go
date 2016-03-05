@@ -33,7 +33,7 @@ type NetworkInterfaceSuite struct {
 }
 
 var _ = Suite(&NetworkInterfaceSuite{
-	iface: &builtin.NetworkInterface{},
+	iface: builtin.NewNetworkInterface(),
 })
 
 func (s *NetworkInterfaceSuite) SetUpTest(c *C) {
