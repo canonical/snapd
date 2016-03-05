@@ -26,7 +26,7 @@ import (
 )
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/network
-const connectedPlugAppArmorSnippet = `
+const connectedPlugAppArmor = `
 # Description: Can access the network as a client.
 # Usage: common
 #include <abstractions/nameservice>
@@ -36,7 +36,7 @@ const connectedPlugAppArmorSnippet = `
 `
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/network
-const connectedPlugSecCompSnippet = `
+const connectedPlugSecComp = `
 # Description: Can access the network as a client.
 # Usage: common
 connect
@@ -120,9 +120,9 @@ func (iface *NetworkInterface) PermanentPlugSnippet(plug *interfaces.Plug, secur
 func (iface *NetworkInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		return []byte(connectedPlugAppArmorSnippet), nil
+		return []byte(connectedPlugAppArmor), nil
 	case interfaces.SecuritySecComp:
-		return []byte(connectedPlugSecCompSnippet), nil
+		return []byte(connectedPlugSecComp), nil
 	case interfaces.SecurityDBus, interfaces.SecurityUDev:
 		return nil, nil
 	default:
