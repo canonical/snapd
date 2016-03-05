@@ -34,4 +34,5 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	all := builtin.Interfaces()
 	c.Check(all, Contains, &builtin.BoolFileInterface{})
 	c.Check(all, DeepContains, builtin.NewNetworkInterface())
+	c.Check(all, DeepContains, builtin.NewNetworkBindInterface())
 }
