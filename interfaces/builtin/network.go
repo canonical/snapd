@@ -83,7 +83,7 @@ func (iface *NetworkInterface) SanitizeSlot(slot *interfaces.Slot) error {
 		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
 	}
 	if slot.Snap != "ubuntu-core" {
-		return fmt.Errorf("slots using the network interface are reserved for ubuntu-core")
+		return fmt.Errorf("network slots are reserved for the operating system snap")
 	}
 	return nil
 }

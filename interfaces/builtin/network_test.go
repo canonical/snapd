@@ -61,7 +61,7 @@ func (s *NetworkInterfaceSuite) TestSanitizeSlot(c *C) {
 		Name:      "network",
 		Interface: "network",
 	})
-	c.Assert(err, ErrorMatches, "slots using the network interface are reserved for ubuntu-core")
+	c.Assert(err, ErrorMatches, "network slots are reserved for the operating system snap")
 }
 
 func (s *NetworkInterfaceSuite) TestSanitizePlug(c *C) {
