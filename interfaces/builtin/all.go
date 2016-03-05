@@ -26,6 +26,7 @@ import (
 var allInterfaces = []interfaces.Interface{
 	&BoolFileInterface{},
 	NewNetworkInterface(),
+	NewNetworkBindInterface(),
 }
 
 // Interfaces returns all of the built-in interfaces.
