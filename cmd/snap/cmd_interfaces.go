@@ -38,7 +38,7 @@ var longInterfacesHelp = i18n.G(`
 The interfaces command lists interfaces available in the system.
 
 By default all slots and plugs, used and offered by all snaps, are displayed.
- 
+
 $ snap interfaces <snap>:<slot or plug>
 
 Lists only the specified slot or plug.
@@ -49,7 +49,8 @@ Lists the slots offered and plugs used by the specified snap.
 
 $ snap interfaces --i=<interface> [<snap>]
 
-Filters the complete output so only plugs and/or slots matching the provided details are listed.
+Filters the complete output so only plugs and/or slots matching the provided
+details are listed.
 `)
 
 func init() {
