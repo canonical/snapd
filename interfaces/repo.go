@@ -306,6 +306,8 @@ func (r *Repository) Connect(plugSnapName, plugName, slotSnapName, slotName stri
 	}
 	r.slotPlugs[slot][plug] = true
 	r.plugSlots[plug][slot] = true
+	slot.Connections = append(slot.Connections, PlugRef{plug.Snap, plug.Name})
+	plug.Connections = append(plug.Connections, SlotRef{slot.Snap, slot.Name})
 	return nil
 }
 
@@ -400,6 +402,26 @@ func (r *Repository) disconnect(plug *Plug, slot *Slot) {
 	if len(r.plugSlots[plug]) == 0 {
 		delete(r.plugSlots, plug)
 	}
+	for i, plugRef := range slot.Connections {
+		if plugRef.Snap == plug.Snap && plugRef.Name == plug.Name {
+			slot.Connections[i] = slot.Connections[len(slot.Connections)-1]
+			slot.Connections = slot.Connections[:len(slot.Connections)-1]
+			if len(slot.Connections) == 0 {
+				slot.Connections = nil
+			}
+			break
+		}
+	}
+	for i, slotRef := range plug.Connections {
+		if slotRef.Snap == slot.Snap && slotRef.Name == slot.Name {
+			plug.Connections[i] = plug.Connections[len(plug.Connections)-1]
+			plug.Connections = plug.Connections[:len(plug.Connections)-1]
+			if len(plug.Connections) == 0 {
+				plug.Connections = nil
+			}
+			break
+		}
+	}
 }
 
 // ConnectedSlots returns all the plugs connected to a given snap.
@@ -477,17 +499,11 @@ func (r *Repository) Interfaces() *Interfaces {
 		for _, plug := range plugs {
 			// Copy part of the data explicitly, leaving out attrs and apps.
 			p := &Plug{
-				Name:      plug.Name,
-				Snap:      plug.Snap,
-				Interface: plug.Interface,
-				Label:     plug.Label,
-			}
-			// Add connection details
-			for slot := range r.plugSlots[plug] {
-				p.Connections = append(p.Connections, SlotRef{
-					Name: slot.Name,
-					Snap: slot.Snap,
-				})
+				Name:        plug.Name,
+				Snap:        plug.Snap,
+				Interface:   plug.Interface,
+				Label:       plug.Label,
+				Connections: append([]SlotRef(nil), plug.Connections...),
 			}
 			sort.Sort(bySlotRef(p.Connections))
 			ifaces.Plugs = append(ifaces.Plugs, p)
@@ -497,17 +513,11 @@ func (r *Repository) Interfaces() *Interfaces {
 		for _, slot := range slots {
 			// Copy part of the data explicitly, leaving out attrs and apps.
 			s := &Slot{
-				Name:      slot.Name,
-				Snap:      slot.Snap,
-				Interface: slot.Interface,
-				Label:     slot.Label,
-			}
-			// Add connection details
-			for plug := range r.slotPlugs[slot] {
-				s.Connections = append(s.Connections, PlugRef{
-					Name: plug.Name,
-					Snap: plug.Snap,
-				})
+				Name:        slot.Name,
+				Snap:        slot.Snap,
+				Interface:   slot.Interface,
+				Label:       slot.Label,
+				Connections: append([]PlugRef(nil), slot.Connections...),
 			}
 			sort.Sort(byPlugRef(s.Connections))
 			ifaces.Slots = append(ifaces.Slots, s)
@@ -532,9 +542,20 @@ func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem Sec
 	var snippets = make(map[string][][]byte)
 	// Find all of the slots that affect this snap because of plug connection.
 	for _, slot := range r.slots[snapName] {
-		i := r.ifaces[slot.Interface]
+		iface := r.ifaces[slot.Interface]
+		// Add the static snippet for the slot
+		snippet, err := iface.PermanentSlotSnippet(slot, securitySystem)
+		if err != nil {
+			return nil, err
+		}
+		if snippet != nil {
+			for _, app := range slot.Apps {
+				snippets[app] = append(snippets[app], snippet)
+			}
+		}
+		// Add connection-specific snippet specific to each plug
 		for plug := range r.slotPlugs[slot] {
-			snippet, err := i.SlotSecuritySnippet(plug, slot, securitySystem)
+			snippet, err := iface.ConnectedSlotSnippet(plug, slot, securitySystem)
 			if err != nil {
 				return nil, err
 			}
@@ -548,9 +569,20 @@ func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem Sec
 	}
 	// Find all of the plugs that affect this snap because of slot connection
 	for _, plug := range r.plugs[snapName] {
-		i := r.ifaces[plug.Interface]
+		iface := r.ifaces[plug.Interface]
+		// Add the static snippet for the plug
+		snippet, err := iface.PermanentPlugSnippet(plug, securitySystem)
+		if err != nil {
+			return nil, err
+		}
+		if snippet != nil {
+			for _, app := range plug.Apps {
+				snippets[app] = append(snippets[app], snippet)
+			}
+		}
+		// Add connection-specific snippet specific to each slot
 		for slot := range r.plugSlots[plug] {
-			snippet, err := i.PlugSecuritySnippet(plug, slot, securitySystem)
+			snippet, err := iface.ConnectedPlugSnippet(plug, slot, securitySystem)
 			if err != nil {
 				return nil, err
 			}

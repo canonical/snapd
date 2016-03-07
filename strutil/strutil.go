@@ -17,25 +17,30 @@
  *
  */
 
-package snappy
+package strutil
 
 import (
-	. "gopkg.in/check.v1"
+	"math/rand"
+	"time"
 )
 
-type snapYamlTestSuite struct {
+func init() {
+	// golang does not init Seed() itself
+	rand.Seed(time.Now().UTC().UnixNano())
 }
 
-var _ = Suite(&snapYamlTestSuite{})
+const letters = "BCDFGHJKLMNPQRSTVWXYbcdfghjklmnpqrstvwxy0123456789"
 
-func (s *snapYamlTestSuite) TestParseYamlSetsTypeInUsesFromName(c *C) {
-	snapYaml := []byte(`name: foo
-version: 1.0
-plugs:
- old-security:
-  caps: []
-`)
-	sy, err := parseSnapYamlData(snapYaml, false)
-	c.Assert(err, IsNil)
-	sy.Plugs["old-security"].Interface = "old-security"
+// MakeRandomString returns a random string of length length
+//
+// The vowels are omited to avoid that words are created by pure
+// chance. Numbers are included.
+func MakeRandomString(length int) string {
+
+	out := ""
+	for i := 0; i < length; i++ {
+		out += string(letters[rand.Intn(len(letters))])
+	}
+
+	return out
 }

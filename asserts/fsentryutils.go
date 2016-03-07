@@ -25,7 +25,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/osutil"
 )
 
@@ -57,7 +56,7 @@ func atomicWriteEntry(data []byte, secret bool, top string, subpath ...string) e
 	if secret {
 		fperm = 0600
 	}
-	return helpers.AtomicWriteFile(fpath, data, os.FileMode(fperm), 0)
+	return osutil.AtomicWriteFile(fpath, data, os.FileMode(fperm), 0)
 }
 
 func entryExists(top string, subpath ...string) bool {

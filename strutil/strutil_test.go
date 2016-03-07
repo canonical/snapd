@@ -17,25 +17,28 @@
  *
  */
 
-package snappy
+package strutil
 
 import (
+	"math/rand"
+	"testing"
+
 	. "gopkg.in/check.v1"
 )
 
-type snapYamlTestSuite struct {
-}
+func Test(t *testing.T) { TestingT(t) }
 
-var _ = Suite(&snapYamlTestSuite{})
+type MakeRandomStringTestSuite struct{}
 
-func (s *snapYamlTestSuite) TestParseYamlSetsTypeInUsesFromName(c *C) {
-	snapYaml := []byte(`name: foo
-version: 1.0
-plugs:
- old-security:
-  caps: []
-`)
-	sy, err := parseSnapYamlData(snapYaml, false)
-	c.Assert(err, IsNil)
-	sy.Plugs["old-security"].Interface = "old-security"
+var _ = Suite(&MakeRandomStringTestSuite{})
+
+func (ts *MakeRandomStringTestSuite) TestMakeRandomString(c *C) {
+	// for our tests
+	rand.Seed(1)
+
+	s1 := MakeRandomString(10)
+	c.Assert(s1, Equals, "pw7MpXh0JB")
+
+	s2 := MakeRandomString(5)
+	c.Assert(s2, Equals, "4PQyl")
 }

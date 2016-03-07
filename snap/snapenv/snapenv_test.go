@@ -17,25 +17,36 @@
  *
  */
 
-package snappy
+package snapenv
 
 import (
+	"testing"
+
 	. "gopkg.in/check.v1"
 )
 
-type snapYamlTestSuite struct {
+func Test(t *testing.T) { TestingT(t) }
+
+type HTestSuite struct{}
+
+var _ = Suite(&HTestSuite{})
+
+func (ts *HTestSuite) TestMakeMapFromEnvList(c *C) {
+	envList := []string{
+		"PATH=/usr/bin:/bin",
+		"DBUS_SESSION_BUS_ADDRESS=unix:abstract=something1234",
+	}
+	envMap := MakeMapFromEnvList(envList)
+	c.Assert(envMap, DeepEquals, map[string]string{
+		"PATH": "/usr/bin:/bin",
+		"DBUS_SESSION_BUS_ADDRESS": "unix:abstract=something1234",
+	})
 }
 
-var _ = Suite(&snapYamlTestSuite{})
-
-func (s *snapYamlTestSuite) TestParseYamlSetsTypeInUsesFromName(c *C) {
-	snapYaml := []byte(`name: foo
-version: 1.0
-plugs:
- old-security:
-  caps: []
-`)
-	sy, err := parseSnapYamlData(snapYaml, false)
-	c.Assert(err, IsNil)
-	sy.Plugs["old-security"].Interface = "old-security"
+func (ts *HTestSuite) TestMakeMapFromEnvListInvalidInput(c *C) {
+	envList := []string{
+		"nonsesne",
+	}
+	envMap := MakeMapFromEnvList(envList)
+	c.Assert(envMap, DeepEquals, map[string]string(nil))
 }

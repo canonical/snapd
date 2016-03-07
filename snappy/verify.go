@@ -42,7 +42,7 @@ func verifyAppYaml(app *AppYaml) error {
 	return verifyStructStringsAgainstWhitelist(*app, servicesBinariesStringsWhitelist)
 }
 
-func verifySlotYaml(slot *slotYaml) error {
+func verifyPlugYaml(slot *plugYaml) error {
 	if err := verifyStructStringsAgainstWhitelist(*slot, servicesBinariesStringsWhitelist); err != nil {
 		return err
 	}

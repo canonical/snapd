@@ -209,6 +209,8 @@ func (s *SnapTestSuite) TestDesktopFileSanitizeWorthWithI18n(c *C) {
 Name=foo
 GenericName=bar
 GenericName[de]=einsehrlangeszusammengesetzteswort
+GenericName[tlh_TLH]=Qapla'
+GenericName[ca@valencia]=Hola!
 Invalid=key
 Invalid[i18n]=key
 `)
@@ -217,7 +219,9 @@ Invalid[i18n]=key
 	c.Assert(string(e), Equals, `[Desktop Entry]
 Name=foo
 GenericName=bar
-GenericName[de]=einsehrlangeszusammengesetzteswort`)
+GenericName[de]=einsehrlangeszusammengesetzteswort
+GenericName[tlh_TLH]=Qapla'
+GenericName[ca@valencia]=Hola!`)
 }
 
 func (s *SnapTestSuite) TestDesktopFileRewriteExecLineInvalid(c *C) {
@@ -239,4 +243,31 @@ apps:
 	newl, err := rewriteExecLine(m, "Exec=snap.app")
 	c.Assert(err, IsNil)
 	c.Assert(newl, Equals, "Exec=/snaps/bin/snap.app")
+}
+
+func (s *SnapTestSuite) TestDesktopFileSanitizeDesktopActionsOk(c *C) {
+	m := &snapYaml{}
+	desktopContent := []byte(`[Desktop Action is-ok]`)
+
+	e := sanitizeDesktopFile(m, "/my/basedir", desktopContent)
+	c.Assert(string(e), Equals, `[Desktop Action is-ok]`)
+}
+
+func (s *SnapTestSuite) TestDesktopFileTrimLang(c *C) {
+	langs := []struct {
+		in  string
+		out string
+	}{
+		// langCodes
+		{"[lang_COUNTRY@MODIFIER]=foo", "=foo"},
+		{"[lang_COUNTRY]=bar", "=bar"},
+		{"[lang_COUNTRY]=baz", "=baz"},
+		{"[lang]=foobar", "=foobar"},
+		// non-langCodes, should be ignored
+		{"", ""},
+		{"Name=foobar", "Name=foobar"},
+	}
+	for _, t := range langs {
+		c.Assert(trimLang(t.in), Equals, t.out)
+	}
 }

@@ -66,7 +66,7 @@ func (s *SecuritySuite) prepareFixtureWithInterface(c *C, i Interface) {
 func (s *SecuritySuite) TestAppArmorPlugPermissions(c *C) {
 	s.prepareFixtureWithInterface(c, &TestInterface{
 		InterfaceName: "interface",
-		PlugSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+		PlugSnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == SecurityAppArmor {
 				return []byte("producer snippet\n"), nil
 			}
@@ -87,7 +87,7 @@ func (s *SecuritySuite) TestAppArmorPlugPermissions(c *C) {
 func (s *SecuritySuite) TestAppArmorSlotPermissions(c *C) {
 	s.prepareFixtureWithInterface(c, &TestInterface{
 		InterfaceName: "interface",
-		SlotSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+		SlotSnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == SecurityAppArmor {
 				return []byte("consumer snippet\n"), nil
 			}
@@ -110,7 +110,7 @@ func (s *SecuritySuite) TestAppArmorSlotPermissions(c *C) {
 func (s *SecuritySuite) TestSecCompPlugPermissions(c *C) {
 	s.prepareFixtureWithInterface(c, &TestInterface{
 		InterfaceName: "interface",
-		PlugSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+		PlugSnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == SecuritySecComp {
 				return []byte("allow open\n"), nil
 			}
@@ -130,7 +130,7 @@ func (s *SecuritySuite) TestSecCompPlugPermissions(c *C) {
 func (s *SecuritySuite) TestSecCompSlotPermissions(c *C) {
 	s.prepareFixtureWithInterface(c, &TestInterface{
 		InterfaceName: "interface",
-		SlotSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+		SlotSnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == SecuritySecComp {
 				return []byte("deny kexec\n"), nil
 			}
@@ -152,7 +152,7 @@ func (s *SecuritySuite) TestSecCompSlotPermissions(c *C) {
 func (s *SecuritySuite) TestUdevPlugPermissions(c *C) {
 	s.prepareFixtureWithInterface(c, &TestInterface{
 		InterfaceName: "interface",
-		PlugSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+		PlugSnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == SecurityUDev {
 				return []byte("...\n"), nil
 			}
@@ -170,7 +170,7 @@ func (s *SecuritySuite) TestUdevPlugPermissions(c *C) {
 func (s *SecuritySuite) TestUdevSlotPermissions(c *C) {
 	s.prepareFixtureWithInterface(c, &TestInterface{
 		InterfaceName: "interface",
-		SlotSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+		SlotSnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == SecurityUDev {
 				return []byte("...\n"), nil
 			}
@@ -190,7 +190,7 @@ func (s *SecuritySuite) TestUdevSlotPermissions(c *C) {
 func (s *SecuritySuite) TestDBusPlugPermissions(c *C) {
 	s.prepareFixtureWithInterface(c, &TestInterface{
 		InterfaceName: "interface",
-		PlugSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+		PlugSnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == SecurityDBus {
 				return []byte("...\n"), nil
 			}
@@ -214,7 +214,7 @@ func (s *SecuritySuite) TestDBusPlugPermissions(c *C) {
 func (s *SecuritySuite) TestDBusSlotPermissions(c *C) {
 	s.prepareFixtureWithInterface(c, &TestInterface{
 		InterfaceName: "interface",
-		SlotSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+		SlotSnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == SecurityDBus {
 				return []byte("...\n"), nil
 			}
