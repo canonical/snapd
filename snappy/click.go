@@ -116,7 +116,7 @@ export HOME="$SNAP_USER_DATA"
 
 # export old pwd
 export SNAP_OLD_PWD="$(pwd)"
-cd {{.AppPath}}
+cd $SNAP_DATA
 ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 `
 
