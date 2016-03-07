@@ -29,7 +29,7 @@ import (
 type cmdInterfaces struct {
 	Interface   string `short:"i" description:"constrain listing to specific interfaces"`
 	Positionals struct {
-		Query SnapAndName `positional-arg-name:"<snap>:<slot or plug>" description:"snap or snap:name" skip-help:"true"`
+		Query SnapAndName `positional-arg-name:"<snap>:<slot or plug>"`
 	} `positional-args:"true"`
 }
 

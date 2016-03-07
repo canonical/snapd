@@ -55,9 +55,6 @@ Help Options:
 
 [interfaces command options]
       -i=                          constrain listing to specific interfaces
-
-[interfaces command arguments]
-  <snap>:<slot or plug>:           snap or snap:name
 `
 	rest, err := Parser().ParseArgs([]string{"interfaces", "--help"})
 	c.Assert(err.Error(), Equals, msg)
