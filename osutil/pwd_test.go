@@ -17,25 +17,39 @@
  *
  */
 
-package snappy
+package osutil
 
 import (
+	"os"
+
 	. "gopkg.in/check.v1"
 )
 
-type snapYamlTestSuite struct {
+type CurrentHomeDirTestSuite struct{}
+
+var _ = Suite(&AtomicWriteTestSuite{})
+
+func (ts *CurrentHomeDirTestSuite) TestCurrentHomeDirHOMEenv(c *C) {
+	tmpdir := c.MkDir()
+
+	oldHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", oldHome)
+
+	os.Setenv("HOME", tmpdir)
+	home, err := CurrentHomeDir()
+	c.Assert(err, IsNil)
+	c.Assert(home, Equals, tmpdir)
 }
 
-var _ = Suite(&snapYamlTestSuite{})
+func (ts *CurrentHomeDirTestSuite) TestCurrentHomeDirNoHomeEnv(c *C) {
+	oldHome := os.Getenv("HOME")
+	if oldHome == "/sbuild-nonexistent" {
+		c.Skip("running in schroot this test won't work")
+	}
+	defer os.Setenv("HOME", oldHome)
 
-func (s *snapYamlTestSuite) TestParseYamlSetsTypeInUsesFromName(c *C) {
-	snapYaml := []byte(`name: foo
-version: 1.0
-plugs:
- old-security:
-  caps: []
-`)
-	sy, err := parseSnapYamlData(snapYaml, false)
+	os.Setenv("HOME", "")
+	home, err := CurrentHomeDir()
 	c.Assert(err, IsNil)
-	sy.Plugs["old-security"].Interface = "old-security"
+	c.Assert(home, Equals, oldHome)
 }

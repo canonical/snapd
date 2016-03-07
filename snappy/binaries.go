@@ -29,8 +29,9 @@ import (
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/snapenv"
 )
 
 // generate the name
@@ -114,16 +115,16 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 
 	oldVars := []string{}
 	for _, envVar := range append(
-		helpers.GetDeprecatedBasicSnapEnvVars(wrapperData),
-		helpers.GetDeprecatedUserSnapEnvVars(wrapperData)...) {
+		snapenv.GetDeprecatedBasicSnapEnvVars(wrapperData),
+		snapenv.GetDeprecatedUserSnapEnvVars(wrapperData)...) {
 		oldVars = append(oldVars, quoteEnvVar(envVar))
 	}
 	wrapperData.OldAppVars = strings.Join(oldVars, "\n")
 
 	newVars := []string{}
 	for _, envVar := range append(
-		helpers.GetBasicSnapEnvVars(wrapperData),
-		helpers.GetUserSnapEnvVars(wrapperData)...) {
+		snapenv.GetBasicSnapEnvVars(wrapperData),
+		snapenv.GetUserSnapEnvVars(wrapperData)...) {
 		newVars = append(newVars, quoteEnvVar(envVar))
 	}
 	wrapperData.NewAppVars = strings.Join(newVars, "\n")
@@ -156,7 +157,7 @@ func addPackageBinaries(m *snapYaml, baseDir string) error {
 			return err
 		}
 
-		if err := helpers.AtomicWriteFile(generateBinaryName(m, app), []byte(content), 0755, 0); err != nil {
+		if err := osutil.AtomicWriteFile(generateBinaryName(m, app), []byte(content), 0755, 0); err != nil {
 			return err
 		}
 	}

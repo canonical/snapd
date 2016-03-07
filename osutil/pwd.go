@@ -17,25 +17,25 @@
  *
  */
 
-package snappy
+package osutil
 
 import (
-	. "gopkg.in/check.v1"
+	"os"
+	"os/user"
 )
 
-type snapYamlTestSuite struct {
-}
+// CurrentHomeDir returns the homedir of the current user. It looks at
+// $HOME first and then at passwd
+func CurrentHomeDir() (string, error) {
+	home := os.Getenv("HOME")
+	if home != "" {
+		return home, nil
+	}
 
-var _ = Suite(&snapYamlTestSuite{})
+	user, err := user.Current()
+	if err != nil {
+		return "", err
+	}
 
-func (s *snapYamlTestSuite) TestParseYamlSetsTypeInUsesFromName(c *C) {
-	snapYaml := []byte(`name: foo
-version: 1.0
-plugs:
- old-security:
-  caps: []
-`)
-	sy, err := parseSnapYamlData(snapYaml, false)
-	c.Assert(err, IsNil)
-	sy.Plugs["old-security"].Interface = "old-security"
+	return user.HomeDir, nil
 }

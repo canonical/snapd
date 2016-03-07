@@ -23,19 +23,22 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-type snapYamlTestSuite struct {
-}
+type UtilsTestSuite struct{}
 
-var _ = Suite(&snapYamlTestSuite{})
+var _ = Suite(&UtilsTestSuite{})
 
-func (s *snapYamlTestSuite) TestParseYamlSetsTypeInUsesFromName(c *C) {
-	snapYaml := []byte(`name: foo
-version: 1.0
-plugs:
- old-security:
-  caps: []
-`)
-	sy, err := parseSnapYamlData(snapYaml, false)
-	c.Assert(err, IsNil)
-	sy.Plugs["old-security"].Interface = "old-security"
+func (ts *UtilsTestSuite) TestGetattr(c *C) {
+	T := struct {
+		S string
+		I int
+	}{
+		S: "foo",
+		I: 42,
+	}
+	// works on values
+	c.Assert(getattr(T, "S").(string), Equals, "foo")
+	c.Assert(getattr(T, "I").(int), Equals, 42)
+	// works for pointers too
+	c.Assert(getattr(&T, "S").(string), Equals, "foo")
+	c.Assert(getattr(&T, "I").(int), Equals, 42)
 }

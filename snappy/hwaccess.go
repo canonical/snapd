@@ -30,7 +30,6 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/osutil"
 )
 
@@ -103,7 +102,7 @@ func writeHWAccessYamlFile(snapname string, appArmorAdditional SecurityOverrideD
 			return err
 		}
 	}
-	if err := helpers.AtomicWriteFile(additionalFile, out, 0640, 0); err != nil {
+	if err := osutil.AtomicWriteFile(additionalFile, out, 0640, 0); err != nil {
 		return err
 	}
 
@@ -137,7 +136,7 @@ func addUdevRuleForSnap(snapname, newRule string) error {
 	// In both cases, updatedRules will have the right content.
 	updatedRules := append(rules, newRule...)
 
-	if err := helpers.AtomicWriteFile(udevRulesFile, updatedRules, 0644, 0); nil != err {
+	if err := osutil.AtomicWriteFile(udevRulesFile, updatedRules, 0644, 0); nil != err {
 		return err
 	}
 
@@ -265,7 +264,7 @@ func removeUdevRuleForSnap(snapname, device string) error {
 			out = out + rule + "\n"
 		}
 
-		if err := helpers.AtomicWriteFile(udevRulesFile, []byte(out), 0644, 0); nil != err {
+		if err := osutil.AtomicWriteFile(udevRulesFile, []byte(out), 0644, 0); nil != err {
 			return err
 		}
 	} else {

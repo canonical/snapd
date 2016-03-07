@@ -25,10 +25,6 @@ override_dh_systemd_enable:
 	dh_systemd_enable \
 		-pubuntu-snappy \
 		ubuntu-snappy.firstboot.service
-	# enable the grub-migrate boot service
-	dh_systemd_enable \
-		-pubuntu-snappy \
-		ubuntu-snappy.grub-migrate.service
 # we want the autopilot timer enabled by default
 	dh_systemd_enable \
 		-pubuntu-snappy \
@@ -38,10 +34,6 @@ override_dh_systemd_enable:
 		--no-enable \
 		-pubuntu-snappy \
 		snappy-autopilot.service
-	# enable wait4network
-	dh_systemd_enable \
-		-pubuntu-snappy \
-		snappy-wait4network.service
 	# enable snapd
 	dh_systemd_enable \
 		-pubuntu-snappy \
@@ -52,10 +44,6 @@ override_dh_systemd_start:
 	dh_systemd_start \
 		-pubuntu-snappy \
 		ubuntu-snappy.boot-ok.service
-	# start grub-migrate
-	dh_systemd_start \
-		-pubuntu-snappy \
-		ubuntu-snappy.grub-migrate.service
 # start run-hooks
 	dh_systemd_start \
 		-pubuntu-snappy \
@@ -69,10 +57,6 @@ override_dh_systemd_start:
 		--no-start \
 		-pubuntu-snappy \
 		snappy-autopilot.service
-	# start wait4network
-	dh_systemd_start \
-		-pubuntu-snappy \
-		snappy-wait4network.service
 	# start snapd
 	dh_systemd_start \
 		-pubuntu-snappy \

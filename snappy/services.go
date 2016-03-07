@@ -27,8 +27,8 @@ import (
 	"time"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/systemd"
 )
@@ -79,7 +79,6 @@ func generateSnapServicesFile(app *AppYaml, baseDir string, aaProfile string, m 
 			StopTimeout:    time.Duration(app.StopTimeout),
 			AaProfile:      aaProfile,
 			IsFramework:    m.Type == snap.TypeFramework,
-			IsNetworked:    app.Ports != nil && len(app.Ports.External) > 0,
 			BusName:        app.BusName,
 			Type:           app.Daemon,
 			UdevAppName:    udevPartName,
@@ -106,8 +105,6 @@ func generateSnapSocketFile(app *AppYaml, baseDir string, aaProfile string, m *s
 			ServiceFileName: serviceFileName,
 			ListenStream:    app.ListenStream,
 			SocketMode:      app.SocketMode,
-			SocketUser:      app.SocketUser,
-			SocketGroup:     app.SocketGroup,
 		}), nil
 }
 
@@ -144,7 +141,7 @@ func addPackageServices(m *snapYaml, baseDir string, inhibitHooks bool, inter in
 		}
 		serviceFilename := generateServiceFileName(m, app)
 		os.MkdirAll(filepath.Dir(serviceFilename), 0755)
-		if err := helpers.AtomicWriteFile(serviceFilename, []byte(content), 0644, 0); err != nil {
+		if err := osutil.AtomicWriteFile(serviceFilename, []byte(content), 0644, 0); err != nil {
 			return err
 		}
 		// Generate systemd socket file if needed
@@ -155,7 +152,7 @@ func addPackageServices(m *snapYaml, baseDir string, inhibitHooks bool, inter in
 			}
 			socketFilename := generateSocketFileName(m, app)
 			os.MkdirAll(filepath.Dir(socketFilename), 0755)
-			if err := helpers.AtomicWriteFile(socketFilename, []byte(content), 0644, 0); err != nil {
+			if err := osutil.AtomicWriteFile(socketFilename, []byte(content), 0644, 0); err != nil {
 				return err
 			}
 		}
@@ -168,7 +165,7 @@ func addPackageServices(m *snapYaml, baseDir string, inhibitHooks bool, inter in
 			}
 			policyFilename := generateBusPolicyFileName(m, app)
 			os.MkdirAll(filepath.Dir(policyFilename), 0755)
-			if err := helpers.AtomicWriteFile(policyFilename, []byte(content), 0644, 0); err != nil {
+			if err := osutil.AtomicWriteFile(policyFilename, []byte(content), 0644, 0); err != nil {
 				return err
 			}
 		}
