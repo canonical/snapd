@@ -26,53 +26,82 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/osutil"
 )
 
-// this is a bit confusing, a localestring in xdg is:
-// "key=value" or "key[locale]=" with locale as:
-//  lang_COUNTRY@MODFIER (or a subset of this)
-var desktopFileI18nPattern = `(|\[[a-zA-Z_@]+\])`
-var validDesktopFileLines = []*regexp.Regexp{
+// valid simple prefixes
+var validDesktopFilePrefixes = []string{
 	// headers
-	regexp.MustCompile(`^\[Desktop Entry\]$`),
-	// the spec says Action is [a-zA-Z0-9]+ but the real world
-	// disagrees and has at least "-" as a common char
-	regexp.MustCompile(`^\[Desktop Action [a-zA-Z0-9-]+\]$`),
-	// whitespace lines
-	regexp.MustCompile(`^\s*$`),
-	// lines with comments
-	regexp.MustCompile(`^\s*#`),
+	"[Desktop Entry]",
+	"[Desktop Action ",
 	// https://specifications.freedesktop.org/desktop-entry-spec/latest/ar01s05.html
-	regexp.MustCompile(`^Type=`),
-	regexp.MustCompile(`^Version=`),
-	regexp.MustCompile(fmt.Sprintf(`^Name%s=`, desktopFileI18nPattern)),
-	regexp.MustCompile(fmt.Sprintf(`^GenericName%s=`, desktopFileI18nPattern)),
-	regexp.MustCompile(`^NoDisplay=`),
-	regexp.MustCompile(fmt.Sprintf(`^Comment%s=`, desktopFileI18nPattern)),
-	regexp.MustCompile(`^Icon=`),
-	regexp.MustCompile(`^Hidden=`),
-	regexp.MustCompile(`^OnlyShowIn=`),
-	regexp.MustCompile(`^NotShowIn=`),
-	regexp.MustCompile(`^Exec=`),
+	"Type=",
+	"Version=",
+	"Name=",
+	"GenericName=",
+	"NoDisplay=",
+	"Comment=",
+	"Icon=",
+	"Hidden=",
+	"OnlyShowIn=",
+	"NotShowIn=",
+	"Exec=",
 	// Note that we do not support TryExec, it does not make sense
 	// in the snap context
-	regexp.MustCompile(`^Terminal=`),
-	regexp.MustCompile(`^Actions=`),
-	regexp.MustCompile(`^MimeType=`),
-	regexp.MustCompile(`^Categories=`),
-	regexp.MustCompile(fmt.Sprintf(`^Keywords%s=`, desktopFileI18nPattern)),
-	regexp.MustCompile(`^StartupNotify=`),
-	regexp.MustCompile(`^StartupWMClass`),
+	"Terminal=",
+	"Actions=",
+	"MimeType=",
+	"Categories=",
+	"Keywords=",
+	"StartupNotify=",
+	"StartupWMClass=",
+}
+
+// name desktop file keys are localized as key[LOCALE]=:
+//   lang_COUNTRY@MODIFIER
+//   lang_COUNTRY
+//   lang@MODIFIER
+//   lang
+var validLocalizedDesktopFilePrefixes = []string{
+	"Name",
+	"GenericName",
+	"Comment",
+	"Keywords",
 }
 
 func isValidDesktopFilePrefix(line string) bool {
-	for _, re := range validDesktopFileLines {
-		if re.MatchString(line) {
+	for _, prefix := range validDesktopFilePrefixes {
+		if strings.HasPrefix(line, prefix) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func trimLang(s string) string {
+	const langChars = "@_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+
+	if s == "" || s[0] != '[' {
+		return s
+	}
+	t := strings.TrimLeft(s[1:], langChars)
+	if t != "" && t[0] == ']' {
+		return t[1:]
+	}
+	return s
+}
+
+func isValidLocalizedDesktopFilePrefix(line string) bool {
+	for _, prefix := range validLocalizedDesktopFilePrefixes {
+		s := strings.TrimPrefix(line, prefix)
+		if s == line {
+			continue
+		}
+		if strings.HasPrefix(trimLang(s), "=") {
 			return true
 		}
 	}
@@ -102,8 +131,15 @@ func sanitizeDesktopFile(m *snapYaml, realBaseDir string, rawcontent []byte) []b
 	scanner := bufio.NewScanner(bytes.NewReader(rawcontent))
 	for scanner.Scan() {
 		line := scanner.Text()
+
+		// whitespace/comments are just copied
+		if strings.TrimSpace(line) == "" || strings.HasPrefix(strings.TrimSpace(line), "#") {
+			newContent = append(newContent, line)
+			continue
+		}
+
 		// ignore everything we have not whitelisted
-		if !isValidDesktopFilePrefix(line) {
+		if !isValidDesktopFilePrefix(line) && !isValidLocalizedDesktopFilePrefix(line) {
 			continue
 		}
 		// rewrite exec lines to an absolute path for the binary
