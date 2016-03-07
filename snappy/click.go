@@ -222,7 +222,8 @@ func generateSnapServicesFile(app *AppYaml, baseDir string, aaProfile string, m 
 		return "", err
 	}
 
-	udevPartName := m.qualifiedName(originFromBasedir(baseDir))
+	origin := originFromBasedir(baseDir)
+	udevPartName := m.qualifiedName(origin)
 
 	desc := app.Description
 	if desc == "" {
@@ -238,6 +239,7 @@ func generateSnapServicesFile(app *AppYaml, baseDir string, aaProfile string, m 
 		&systemd.ServiceDescription{
 			AppName:        m.Name,
 			ServiceName:    app.Name,
+			Origin:         origin,
 			Version:        m.Version,
 			Description:    desc,
 			AppPath:        baseDir,
