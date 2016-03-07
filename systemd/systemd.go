@@ -371,11 +371,6 @@ WantedBy={{.ServiceSystemdTarget}}
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("wrapper").Parse(serviceTemplate))
 
-	origin := ""
-	if len(desc.UdevAppName) > len(desc.AppName) {
-		origin = desc.UdevAppName[len(desc.AppName)+1:]
-	}
-
 	restartCond := desc.Restart.String()
 	if restartCond == "" {
 		restartCond = RestartOnFailure.String()
@@ -404,7 +399,7 @@ WantedBy={{.ServiceSystemdTarget}}
 		filepath.Join(desc.AppPath, desc.PostStop),
 		fmt.Sprintf("%s_%s_%s", desc.AppName, desc.ServiceName, desc.Version),
 		servicesSystemdTarget,
-		origin,
+		desc.Origin,
 		arch.UbuntuArchitecture(),
 		// systemd runs as PID 1 so %h will not work.
 		"/root",
