@@ -62,6 +62,7 @@ var api = []*Command{
 	interfacesCmd,
 	assertsCmd,
 	assertsFindManyCmd,
+	eventsCmd,
 }
 
 var (
@@ -145,6 +146,11 @@ var (
 		Path:   "/2.0/assertions/{assertType}",
 		UserOK: true,
 		GET:    assertsFindMany,
+	}
+
+	eventsCmd = &Command{
+		Path: "/2.0/events",
+		GET:  getEvents,
 	}
 )
 
@@ -1053,4 +1059,8 @@ func assertsFindMany(c *Command, r *http.Request) Response {
 		return InternalError("searching assertions failed: %v", err)
 	}
 	return AssertResponse(assertions, true)
+}
+
+func getEvents(c *Command, r *http.Request) Response {
+	return EventResponse(c.d.hub)
 }
