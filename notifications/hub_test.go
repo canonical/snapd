@@ -39,6 +39,7 @@ var _ = Suite(&HubSuite{})
 
 type fakeConn struct {
 	message []byte
+	closed  bool
 	err     error
 }
 
@@ -47,11 +48,16 @@ func (c *fakeConn) WriteMessage(messageType int, data []byte) error {
 	return c.err
 }
 
-var _ messageWriter = &fakeConn{}
+func (c *fakeConn) Close() error {
+	c.closed = true
+	return nil
+}
+
+var _ websocketConnection = &fakeConn{}
 
 func (s *HubSuite) SetUpTest(c *C) {
 	s.h = NewHub()
-	c.Assert(s.h.subscribers, HasLen, 0)
+	c.Assert(s.h.SubscriberCount(), Equals, 0)
 }
 
 func (s *HubSuite) TestSubscribe(c *C) {
@@ -66,12 +72,14 @@ func (s *HubSuite) TestSubscribe(c *C) {
 }
 
 func (s *HubSuite) TestUnsubscribe(c *C) {
-	sub1 := &Subscriber{uuid: "sub1"}
+	conn := &fakeConn{}
+	sub1 := &Subscriber{uuid: "sub1", conn: conn}
 	sub2 := &Subscriber{uuid: "sub2"}
 	s.h.subscribers = Subscribers{"sub1": sub1, "sub2": sub2}
 
 	s.h.Unsubscribe(sub1)
 	c.Assert(s.h.subscribers, DeepEquals, Subscribers{"sub2": sub2})
+	c.Assert(conn.closed, Equals, true)
 }
 
 func (s *HubSuite) TestPublish(c *C) {
@@ -91,7 +99,7 @@ func (s *HubSuite) TestPublishFilteredNotifications(c *C) {
 	conn1 := &fakeConn{}
 	conn2 := &fakeConn{}
 	sub1 := &Subscriber{uuid: "sub1", types: []string{"logging"}, conn: conn1}
-	sub2 := &Subscriber{uuid: "sub2", resource: "/2.0/operations/23", conn: conn2}
+	sub2 := &Subscriber{uuid: "sub2", resource: "23", conn: conn2}
 	s.h.Subscribe(sub1)
 	s.h.Subscribe(sub2)
 

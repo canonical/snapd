@@ -21,14 +21,18 @@ package notifications
 
 import (
 	"encoding/json"
+	"net/http"
+	"strings"
 
 	"github.com/gorilla/websocket"
+
+	"github.com/ubuntu-core/snappy/strutil"
 )
 
 // A Subscriber is interested in receiving notifications
 type Subscriber struct {
 	uuid     string
-	conn     messageWriter
+	conn     websocketConnection
 	types    []string
 	resource string
 }
@@ -36,8 +40,29 @@ type Subscriber struct {
 // Subscribers is a collection of subscribers
 type Subscribers map[string]*Subscriber
 
-type messageWriter interface {
+type websocketConnection interface {
 	WriteMessage(messageType int, data []byte) error
+	Close() error
+}
+
+// NewSubscriber returns a new subscriber containing the given websocket
+// connection and type/resource filters set from the query string params in the
+// supplied http request
+func NewSubscriber(c websocketConnection, r *http.Request) *Subscriber {
+	s := &Subscriber{
+		uuid: strutil.MakeRandomString(16),
+		conn: c,
+	}
+
+	q := r.URL.Query()
+	if len(q["types"]) > 0 {
+		s.types = strings.Split(q["types"][0], ",")
+	}
+	if len(q["resource"]) > 0 {
+		s.resource = q["resource"][0]
+	}
+
+	return s
 }
 
 // Notify receives a notification and if the subscriber is interested in it it
@@ -57,7 +82,8 @@ func (s *Subscriber) Notify(n *Notification) error {
 
 func (s *Subscriber) canAccept(n *Notification) bool {
 	if s.resource != "" {
-		return s.resource == n.Resource
+		// notification has full resource path while we have the uuid portion
+		return strings.HasSuffix(n.Resource, s.resource)
 	}
 
 	if len(s.types) > 0 {
