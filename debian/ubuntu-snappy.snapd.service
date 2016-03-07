@@ -5,4 +5,4 @@ Before=ubuntu-snappy.frameworks-pre.target
 Requires=ubuntu-snappy.snapd.socket
 
 [Service]
-ExecStart=/usr/bin/snapd
+ExecStart=/usr/lib/snapd
