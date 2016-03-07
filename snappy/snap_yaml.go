@@ -68,7 +68,7 @@ type AppYaml struct {
 	SlotsRef []string `yaml:"slots"`
 }
 
-type slotYaml struct {
+type plugYaml struct {
 	Interface           string `yaml:"interface"`
 	SecurityDefinitions `yaml:",inline"`
 }
@@ -93,8 +93,8 @@ type snapYaml struct {
 	// Apps can be both binary or service
 	Apps map[string]*AppYaml `yaml:"apps,omitempty"`
 
-	// Slots maps the used "interfaces" to the apps
-	Slots map[string]*slotYaml `yaml:"slots,omitempty"`
+	// Plugs maps the used "interfaces" to the apps
+	Plugs map[string]*plugYaml `yaml:"plugs,omitempty"`
 
 	// FIXME: clarify those
 
@@ -151,9 +151,9 @@ func validateSnapYamlData(file string, yamlData []byte, m *snapYaml) error {
 		}
 	}
 
-	// check for "slots"
-	for _, slots := range m.Slots {
-		if err := verifySlotYaml(slots); err != nil {
+	// check for "plugs"
+	for _, plugs := range m.Plugs {
+		if err := verifyPlugYaml(plugs); err != nil {
 			return err
 		}
 	}
@@ -179,9 +179,9 @@ func parseSnapYamlData(yamlData []byte, hasConfig bool) (*snapYaml, error) {
 		app.Name = name
 	}
 
-	for name, slot := range m.Slots {
-		if slot.Interface == "" {
-			slot.Interface = name
+	for name, plug := range m.Plugs {
+		if plug.Interface == "" {
+			plug.Interface = name
 		}
 	}
 

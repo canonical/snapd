@@ -40,25 +40,25 @@ var _ = Suite(&RepositorySuite{
 	iface: &TestInterface{
 		InterfaceName: "interface",
 	},
-	plug: &Plug{
+})
+
+func (s *RepositorySuite) SetUpTest(c *C) {
+	s.plug = &Plug{
 		Snap:      "provider",
 		Name:      "plug",
 		Interface: "interface",
 		Label:     "label",
 		Attrs:     map[string]interface{}{"attr": "value"},
 		Apps:      []string{"meta/hooks/plug"},
-	},
-	slot: &Slot{
+	}
+	s.slot = &Slot{
 		Snap:      "consumer",
 		Name:      "slot",
 		Interface: "interface",
 		Label:     "label",
 		Attrs:     map[string]interface{}{"attr": "value"},
 		Apps:      []string{"app"},
-	},
-})
-
-func (s *RepositorySuite) SetUpTest(c *C) {
+	}
 	s.emptyRepo = NewRepository()
 	s.testRepo = NewRepository()
 	err := s.testRepo.AddInterface(s.iface)
@@ -732,7 +732,7 @@ func (s *RepositorySuite) TestConnectedSlotsReturnsCorrectData(c *C) {
 	c.Assert(s.testRepo.ConnectedSlots(s.slot.Snap), DeepEquals, map[*Slot][]*Plug{
 		s.slot: []*Plug{s.plug},
 	})
-	// After revoking the result is empty again
+	// After disconnecting the result is empty again
 	err = s.testRepo.Disconnect(s.plug.Snap, s.plug.Name, s.slot.Snap, s.slot.Name)
 	c.Assert(err, IsNil)
 	c.Assert(s.testRepo.ConnectedSlots(s.slot.Snap), HasLen, 0)
@@ -762,7 +762,7 @@ func (s *RepositorySuite) TestConnectedPlugsReturnsCorrectData(c *C) {
 	c.Assert(connects, DeepEquals, map[*Plug][]*Slot{
 		s.plug: []*Slot{s.slot},
 	})
-	// After revoking the result is empty again
+	// After disconnecting the result is empty again
 	err = s.testRepo.Disconnect(s.plug.Snap, s.plug.Name, s.slot.Snap, s.slot.Name)
 	c.Assert(err, IsNil)
 	c.Assert(s.testRepo.ConnectedPlugs(s.plug.Snap), HasLen, 0)
@@ -790,10 +790,57 @@ func (s *RepositorySuite) TestPlugConnectionsReturnsCorrectData(c *C) {
 	c.Assert(err, IsNil)
 	users := s.testRepo.PlugConnections(s.plug.Snap, s.plug.Name)
 	c.Assert(users, DeepEquals, []*Slot{s.slot})
-	// After revoking the result is empty again
+	// After disconnecting the result is empty again
 	err = s.testRepo.Disconnect(s.plug.Snap, s.plug.Name, s.slot.Snap, s.slot.Name)
 	c.Assert(err, IsNil)
 	c.Assert(s.testRepo.PlugConnections(s.plug.Snap, s.plug.Name), HasLen, 0)
+}
+
+// Tests for Repository.Interfaces()
+
+func (s *RepositorySuite) TestInterfacesSmokeTest(c *C) {
+	err := s.testRepo.AddPlug(s.plug)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSlot(s.slot)
+	c.Assert(err, IsNil)
+	// After connecting the result is as expected
+	err = s.testRepo.Connect(s.plug.Snap, s.plug.Name, s.slot.Snap, s.slot.Name)
+	c.Assert(err, IsNil)
+	ifaces := s.testRepo.Interfaces()
+	c.Assert(ifaces, DeepEquals, &Interfaces{
+		Plugs: []*Plug{{
+			Name:        s.plug.Name,
+			Snap:        s.plug.Snap,
+			Interface:   s.plug.Interface,
+			Label:       s.plug.Label,
+			Connections: []SlotRef{{s.slot.Snap, s.slot.Name}},
+		}},
+		Slots: []*Slot{{
+			Snap:        s.slot.Snap,
+			Name:        s.slot.Name,
+			Interface:   s.slot.Interface,
+			Label:       s.slot.Label,
+			Connections: []PlugRef{{s.plug.Snap, s.plug.Name}},
+		}},
+	})
+	// After disconnecting the connections become empty
+	err = s.testRepo.Disconnect(s.plug.Snap, s.plug.Name, s.slot.Snap, s.slot.Name)
+	c.Assert(err, IsNil)
+	ifaces = s.testRepo.Interfaces()
+	c.Assert(ifaces, DeepEquals, &Interfaces{
+		Plugs: []*Plug{{
+			Name:      s.plug.Name,
+			Snap:      s.plug.Snap,
+			Interface: s.plug.Interface,
+			Label:     s.plug.Label,
+		}},
+		Slots: []*Slot{{
+			Snap:      s.slot.Snap,
+			Name:      s.slot.Name,
+			Interface: s.slot.Interface,
+			Label:     s.slot.Label,
+		}},
+	})
 }
 
 // Tests for Repository.SecuritySnippetsForSnap()
@@ -802,15 +849,27 @@ func (s *RepositorySuite) TestSlotSnippetsForSnapSuccess(c *C) {
 	const testSecurity SecuritySystem = "security"
 	iface := &TestInterface{
 		InterfaceName: "interface",
-		PlugSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+		PermanentPlugSnippetCallback: func(plug *Plug, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == testSecurity {
-				return []byte(`producer snippet`), nil
+				return []byte(`static plug snippet`), nil
 			}
 			return nil, ErrUnknownSecurity
 		},
-		SlotSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+		PlugSnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == testSecurity {
-				return []byte(`consumer snippet`), nil
+				return []byte(`connection-specific plug snippet`), nil
+			}
+			return nil, ErrUnknownSecurity
+		},
+		PermanentSlotSnippetCallback: func(slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+			if securitySystem == testSecurity {
+				return []byte(`static slot snippet`), nil
+			}
+			return nil, ErrUnknownSecurity
+		},
+		SlotSnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+			if securitySystem == testSecurity {
+				return []byte(`connection-specific slot snippet`), nil
 			}
 			return nil, ErrUnknownSecurity
 		},
@@ -819,34 +878,51 @@ func (s *RepositorySuite) TestSlotSnippetsForSnapSuccess(c *C) {
 	c.Assert(repo.AddInterface(iface), IsNil)
 	c.Assert(repo.AddPlug(s.plug), IsNil)
 	c.Assert(repo.AddSlot(s.slot), IsNil)
-	c.Assert(repo.Connect(s.plug.Snap, s.plug.Name, s.slot.Snap, s.slot.Name), IsNil)
-	// Now producer.app should get `producer snippet` and consumer.app should
-	// get `consumer snippet`.
+	// Snaps should get static security now
 	var snippets map[string][][]byte
 	snippets, err := repo.SecuritySnippetsForSnap(s.plug.Snap, testSecurity)
 	c.Assert(err, IsNil)
 	c.Check(snippets, DeepEquals, map[string][][]byte{
 		"meta/hooks/plug": [][]byte{
-			[]byte(`producer snippet`),
+			[]byte(`static plug snippet`),
 		},
 	})
 	snippets, err = repo.SecuritySnippetsForSnap(s.slot.Snap, testSecurity)
 	c.Assert(err, IsNil)
 	c.Check(snippets, DeepEquals, map[string][][]byte{
 		"app": [][]byte{
-			[]byte(`consumer snippet`),
+			[]byte(`static slot snippet`),
+		},
+	})
+	// Establish connection between plug and slot
+	c.Assert(repo.Connect(s.plug.Snap, s.plug.Name, s.slot.Snap, s.slot.Name), IsNil)
+	// Snaps should get static and connection-specific security now
+	snippets, err = repo.SecuritySnippetsForSnap(s.plug.Snap, testSecurity)
+	c.Assert(err, IsNil)
+	c.Check(snippets, DeepEquals, map[string][][]byte{
+		"meta/hooks/plug": [][]byte{
+			[]byte(`static plug snippet`),
+			[]byte(`connection-specific plug snippet`),
+		},
+	})
+	snippets, err = repo.SecuritySnippetsForSnap(s.slot.Snap, testSecurity)
+	c.Assert(err, IsNil)
+	c.Check(snippets, DeepEquals, map[string][][]byte{
+		"app": [][]byte{
+			[]byte(`static slot snippet`),
+			[]byte(`connection-specific slot snippet`),
 		},
 	})
 }
 
-func (s *RepositorySuite) TestSecuritySnippetsForSnapFailure(c *C) {
+func (s *RepositorySuite) TestSecuritySnippetsForSnapFailureWithConnectionSnippets(c *C) {
 	var testSecurity SecuritySystem = "security"
 	iface := &TestInterface{
 		InterfaceName: "interface",
-		SlotSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+		SlotSnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			return nil, fmt.Errorf("cannot compute snippet for consumer")
 		},
-		PlugSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+		PlugSnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			return nil, fmt.Errorf("cannot compute snippet for provider")
 		},
 	}
@@ -861,5 +937,30 @@ func (s *RepositorySuite) TestSecuritySnippetsForSnapFailure(c *C) {
 	c.Check(snippets, IsNil)
 	snippets, err = repo.SecuritySnippetsForSnap(s.slot.Snap, testSecurity)
 	c.Assert(err, ErrorMatches, "cannot compute snippet for consumer")
+	c.Check(snippets, IsNil)
+}
+
+func (s *RepositorySuite) TestSecuritySnippetsForSnapFailureWithPermanentSnippets(c *C) {
+	var testSecurity SecuritySystem = "security"
+	iface := &TestInterface{
+		InterfaceName: "interface",
+		PermanentSlotSnippetCallback: func(slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+			return nil, fmt.Errorf("cannot compute static snippet for consumer")
+		},
+		PermanentPlugSnippetCallback: func(plug *Plug, securitySystem SecuritySystem) ([]byte, error) {
+			return nil, fmt.Errorf("cannot compute static snippet for provider")
+		},
+	}
+	repo := s.emptyRepo
+	c.Assert(repo.AddInterface(iface), IsNil)
+	c.Assert(repo.AddPlug(s.plug), IsNil)
+	c.Assert(repo.AddSlot(s.slot), IsNil)
+	c.Assert(repo.Connect(s.plug.Snap, s.plug.Name, s.slot.Snap, s.slot.Name), IsNil)
+	var snippets map[string][][]byte
+	snippets, err := repo.SecuritySnippetsForSnap(s.plug.Snap, testSecurity)
+	c.Assert(err, ErrorMatches, "cannot compute static snippet for provider")
+	c.Check(snippets, IsNil)
+	snippets, err = repo.SecuritySnippetsForSnap(s.slot.Snap, testSecurity)
+	c.Assert(err, ErrorMatches, "cannot compute static snippet for consumer")
 	c.Check(snippets, IsNil)
 }
