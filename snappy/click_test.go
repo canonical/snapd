@@ -468,7 +468,7 @@ export HOME="$SNAP_USER_DATA"
 # export old pwd
 export SNAP_OLD_PWD="$(pwd)"
 cd $SNAP_DATA
-ubuntu-core-launcher pastebinit.mvo pastebinit.mvo_pastebinit_1.4.0.0.1 /snaps/pastebinit.mvo/1.4.0.0.1/bin/pastebinit "$@"
+ubuntu-core-launcher pastebinit.pastebinit.mvo pastebinit.mvo_pastebinit_1.4.0.0.1 /snaps/pastebinit.mvo/1.4.0.0.1/bin/pastebinit "$@"
 `
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
@@ -485,6 +485,34 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 	c.Assert(generatedWrapper, Equals, expected)
 }
 
+const expectedFmkWrapper = `#!/bin/sh
+set -e
+
+# app info (deprecated)
+export SNAP_APP_PATH="/snaps/fmk/1.4.0.0.1/"
+export SNAP_APP_DATA_PATH="/var/lib/snaps/fmk/1.4.0.0.1/"
+export SNAP_APP_USER_DATA_PATH="$HOME/snaps/fmk/1.4.0.0.1/"
+
+# app info
+export SNAP="/snaps/fmk/1.4.0.0.1/"
+export SNAP_DATA="/var/lib/snaps/fmk/1.4.0.0.1/"
+export SNAP_NAME="fmk"
+export SNAP_VERSION="1.4.0.0.1"
+export SNAP_ORIGIN=""
+export SNAP_ARCH="%[1]s"
+export SNAP_USER_DATA="$HOME/snaps/fmk/1.4.0.0.1/"
+
+if [ ! -d "$SNAP_USER_DATA" ]; then
+   mkdir -p "$SNAP_USER_DATA"
+fi
+export HOME="$SNAP_USER_DATA"
+
+# export old pwd
+export SNAP_OLD_PWD="$(pwd)"
+cd $SNAP_DATA
+ubuntu-core-launcher fmk.echo fmk_echo_1.4.0.0.1 /snaps/fmk/1.4.0.0.1/bin/echo "$@"
+`
+
 func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperFmk(c *C) {
 	binary := &AppYaml{Name: "echo", Command: "bin/echo"}
 	pkgPath := "/snaps/fmk/1.4.0.0.1/"
@@ -493,11 +521,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperFmk(c *C) {
 		Version: "1.4.0.0.1",
 		Type:    "framework"}
 
-	expected := strings.Replace(expectedWrapper, "pastebinit.mvo", "fmk", -1)
-	expected = strings.Replace(expected, `NAME="pastebinit"`, `NAME="fmk"`, 1)
-	expected = strings.Replace(expected, "mvo", "", -1)
-	expected = strings.Replace(expected, "pastebinit", "echo", -1)
-	expected = fmt.Sprintf(expected, arch.UbuntuArchitecture())
+	expected := fmt.Sprintf(expectedFmkWrapper, arch.UbuntuArchitecture())
 
 	generatedWrapper, err := generateSnapBinaryWrapper(binary, pkgPath, aaProfile, &m)
 	c.Assert(err, IsNil)
@@ -753,7 +777,7 @@ func (s *SnapTestSuite) TestAddPackageServicesStripsGlobalRootdir(c *C) {
 	verbs := []string{"Start", "Stop", "StopPost"}
 	bins := []string{"hello", "goodbye", "missya"}
 	for i := range verbs {
-		expected := fmt.Sprintf("Exec%s=/usr/bin/ubuntu-core-launcher hello-app.%s %s_svc1_1.10 %s/bin/%s", verbs[i], testOrigin, helloAppComposedName, baseDirWithoutRootPrefix, bins[i])
+		expected := fmt.Sprintf("Exec%s=/usr/bin/ubuntu-core-launcher hello-app.svc1.%s %s_svc1_1.10 %s/bin/%s", verbs[i], testOrigin, helloAppComposedName, baseDirWithoutRootPrefix, bins[i])
 		c.Check(string(content), Matches, "(?ms).*^"+regexp.QuoteMeta(expected)) // check.v1 adds ^ and $ around the regexp provided
 	}
 }
@@ -820,7 +844,7 @@ func (s *SnapTestSuite) TestAddPackageBinariesStripsGlobalRootdir(c *C) {
 
 	needle := fmt.Sprintf(`
 cd $SNAP_DATA
-ubuntu-core-launcher hello-app.%s hello-app.testspacethename_hello_1.10 /snaps/hello-app.testspacethename/1.10/bin/hello "$@"
+ubuntu-core-launcher hello-app.hello.%s hello-app.testspacethename_hello_1.10 /snaps/hello-app.testspacethename/1.10/bin/hello "$@"
 `, testOrigin)
 	c.Assert(string(content), Matches, "(?ms).*"+regexp.QuoteMeta(needle)+".*")
 }
@@ -832,12 +856,12 @@ Description=A fun webserver
 X-Snappy=yes
 
 [Service]
-ExecStart=/usr/bin/ubuntu-core-launcher xkcd-webserver%s xkcd-webserver%[2]s_xkcd-webserver_0.3.4 /snaps/xkcd-webserver%[2]s/0.3.4/bin/foo start
+ExecStart=/usr/bin/ubuntu-core-launcher xkcd-webserver.xkcd-webserver%s xkcd-webserver%[2]s_xkcd-webserver_0.3.4 /snaps/xkcd-webserver%[2]s/0.3.4/bin/foo start
 Restart=on-failure
 WorkingDirectory=/snaps/xkcd-webserver%[2]s/0.3.4/
 Environment="SNAP_APP=xkcd-webserver_xkcd-webserver_0.3.4" "SNAP=/snaps/xkcd-webserver%[2]s/0.3.4/" "SNAP_DATA=/var/lib/snaps/xkcd-webserver%[2]s/0.3.4/" "SNAP_NAME=xkcd-webserver" "SNAP_VERSION=0.3.4" "SNAP_ORIGIN=%[3]s" "SNAP_ARCH=%[5]s" "SNAP_USER_DATA=/root/snaps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_PATH=/snaps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_DATA_PATH=/var/lib/snaps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_USER_DATA_PATH=/root/snaps/xkcd-webserver%[2]s/0.3.4/"
-ExecStop=/usr/bin/ubuntu-core-launcher xkcd-webserver%[2]s xkcd-webserver%[2]s_xkcd-webserver_0.3.4 /snaps/xkcd-webserver%[2]s/0.3.4/bin/foo stop
-ExecStopPost=/usr/bin/ubuntu-core-launcher xkcd-webserver%[2]s xkcd-webserver%[2]s_xkcd-webserver_0.3.4 /snaps/xkcd-webserver%[2]s/0.3.4/bin/foo post-stop
+ExecStop=/usr/bin/ubuntu-core-launcher xkcd-webserver.xkcd-webserver%[2]s xkcd-webserver%[2]s_xkcd-webserver_0.3.4 /snaps/xkcd-webserver%[2]s/0.3.4/bin/foo stop
+ExecStopPost=/usr/bin/ubuntu-core-launcher xkcd-webserver.xkcd-webserver%[2]s xkcd-webserver%[2]s_xkcd-webserver_0.3.4 /snaps/xkcd-webserver%[2]s/0.3.4/bin/foo post-stop
 TimeoutStopSec=30
 %[4]s
 

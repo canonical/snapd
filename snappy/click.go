@@ -128,7 +128,7 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 	}
 
 	actualBinPath := binPathForBinary(pkgPath, app)
-	udevPartName := m.qualifiedName(origin)
+	udevAppName := app.qualifiedAppName(m, origin)
 
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("wrapper").Parse(wrapperTemplate))
@@ -149,7 +149,7 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 		AppArch:     arch.UbuntuArchitecture(),
 		AppPath:     pkgPath,
 		Version:     m.Version,
-		UdevAppName: udevPartName,
+		UdevAppName: udevAppName,
 		Origin:      origin,
 		Home:        "$HOME",
 		Target:      actualBinPath,
@@ -223,7 +223,7 @@ func generateSnapServicesFile(app *AppYaml, baseDir string, aaProfile string, m 
 	}
 
 	origin := originFromBasedir(baseDir)
-	udevPartName := m.qualifiedName(origin)
+	udevAppName := app.qualifiedAppName(m, origin)
 
 	desc := app.Description
 	if desc == "" {
@@ -251,7 +251,7 @@ func generateSnapServicesFile(app *AppYaml, baseDir string, aaProfile string, m 
 			IsFramework:    m.Type == snap.TypeFramework,
 			BusName:        app.BusName,
 			Type:           app.Daemon,
-			UdevAppName:    udevPartName,
+			UdevAppName:    udevAppName,
 			Socket:         app.Socket,
 			SocketFileName: socketFileName,
 			Restart:        app.RestartCond,
