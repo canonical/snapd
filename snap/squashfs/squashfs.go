@@ -163,6 +163,8 @@ func (s *Snap) Build(buildDir string) error {
 			"mksquashfs",
 			".", fullSnapPath,
 			"-noappend",
-			"-comp", "xz")
+			"-comp", "xz",
+			"--no-xattrs",
+		)
 	})
 }
