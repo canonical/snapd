@@ -156,6 +156,7 @@ func (rc *RestartCondition) UnmarshalYAML(unmarshal func(interface{}) error) err
 type ServiceDescription struct {
 	AppName         string
 	ServiceName     string
+	Origin          string
 	Version         string
 	Description     string
 	AppPath         string

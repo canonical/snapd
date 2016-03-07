@@ -242,6 +242,7 @@ func (s *SystemdTestSuite) TestGenAppServiceFile(c *C) {
 	desc := &ServiceDescription{
 		AppName:     "app",
 		ServiceName: "service",
+		Origin:      "mvo",
 		Version:     "1.0",
 		Description: "descr",
 		AppPath:     "/apps/app.mvo/1.0/",
@@ -294,6 +295,7 @@ func (s *SystemdTestSuite) TestGenServiceFileWithBusName(c *C) {
 	desc := &ServiceDescription{
 		AppName:     "app",
 		ServiceName: "service",
+		Origin:      "mvo",
 		Version:     "1.0",
 		Description: "descr",
 		AppPath:     "/apps/app.mvo/1.0/",
