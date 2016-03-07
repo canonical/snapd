@@ -471,7 +471,7 @@ export HOME="$SNAP_USER_DATA"
 
 # export old pwd
 export SNAP_OLD_PWD="$(pwd)"
-cd /snaps/pastebinit.mvo/1.4.0.0.1/
+cd $SNAP_DATA
 ubuntu-core-launcher pastebinit.mvo pastebinit.mvo_pastebinit_1.4.0.0.1 /snaps/pastebinit.mvo/1.4.0.0.1/bin/pastebinit "$@"
 `
 
@@ -823,7 +823,7 @@ func (s *SnapTestSuite) TestAddPackageBinariesStripsGlobalRootdir(c *C) {
 	c.Assert(err, IsNil)
 
 	needle := fmt.Sprintf(`
-cd /snaps/hello-app.testspacethename/1.10
+cd $SNAP_DATA
 ubuntu-core-launcher hello-app.%s hello-app.testspacethename_hello_1.10 /snaps/hello-app.testspacethename/1.10/bin/hello "$@"
 `, testOrigin)
 	c.Assert(string(content), Matches, "(?ms).*"+regexp.QuoteMeta(needle)+".*")
