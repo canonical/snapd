@@ -674,3 +674,25 @@ Sample input:
     "plugs": {{"snap": "keyboard-lights", "plug": "capslock-led"}}
 }
 ```
+
+## /2.0/events
+
+### GET
+
+* Description: Websocket upgrade
+* Access: trusted
+* Operation: sync
+* Return: nothing (never ending flow of events)
+
+### Parameters
+
+The default is for all notifications to be received but the following filters
+are supported:
+
+#### types
+
+Comma separated list of notification types, either `logging` or `operations`.
+
+#### resource
+
+Generally the UUID of a background operation you are interested in.
