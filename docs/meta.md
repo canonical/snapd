@@ -104,7 +104,7 @@ Desktop Entry Specification version 1.1 with some exceptions listed
 below. If there is a line with an unknown key or an unofficial key
 that line is silently removed from the desktop file on install.
 
-Only `Exec=` lines that starts with `Exec=$snap.$app` are valid, but
+Only `Exec=` lines that start with `Exec=$snap.$app` are valid, but
 arguments may be passed. E.g. for a snap like:
 ```
 name: http
