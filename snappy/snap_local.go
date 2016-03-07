@@ -268,12 +268,16 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 		return err
 	}
 
-	// add the "binaries:" from the snap.yaml
+	// add the CLI apps from the snap.yaml
 	if err := addPackageBinaries(s.m, s.basedir); err != nil {
 		return err
 	}
-	// add the "services:" from the snap.yaml
+	// add the daemons from the snap.yaml
 	if err := addPackageServices(s.m, s.basedir, inhibitHooks, inter); err != nil {
+		return err
+	}
+	// add the desktop files
+	if err := addPackageDesktopFiles(s.m, s.basedir); err != nil {
 		return err
 	}
 
@@ -326,6 +330,10 @@ func (s *SnapPart) deactivate(inhibitHooks bool, inter interacter) error {
 	}
 
 	if err := removePackageServices(s.m, s.basedir, inter); err != nil {
+		return err
+	}
+
+	if err := removePackageDesktopFiles(s.m); err != nil {
 		return err
 	}
 
