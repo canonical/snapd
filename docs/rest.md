@@ -119,7 +119,7 @@ by client implementations.
 
 kind               | value description
 -------------------|--------------------
-`license-required` | see “A note on licenses”, below
+`license-required` | see "A note on licenses", below
 
 ### Timestamps
 
@@ -332,7 +332,7 @@ field      | ignored except in action | description
 `action`   |                   | Required; a string, one of `install`, `update`, `remove`, `purge`, `activate`, `deactivate`, or `rollback`.
 `channel`  | `install` `update` | From which channel to pull the new package (and track henceforth). Channels are a means to discern the maturity of a package or the software it contains, although the exact meaning is left to the application developer. One of `edge`, `beta`, `candidate`, and `stable` which is the default.
 `leave_old`| `install` `update` `remove` | A boolean, equivalent to commandline's `--no-gc`. Default is false (do not leave old snaps around).
-`license`  | `install` `update` | A JSON object with `intro`, `license`, and `agreed` fields, the first two of which must match the license (see the section “A note on licenses”, below).
+`license`  | `install` `update` | A JSON object with `intro`, `license`, and `agreed` fields, the first two of which must match the license (see the section "A note on licenses", below).
 
 #### A note on licenses
 
@@ -561,7 +561,7 @@ Notes: user facing implementations in text form must show this data using yaml.
  "created_at": "1415639996123456",      // Creation timestamp
  "output": {},
  "resource": "/2.0/snaps/camlistore.sergiusens",
- "status": "running",                   // or “succeeded” or “failed”
+ "status": "running",                   // or "succeeded" or "failed"
  "updated_at": "1415639996451214"       // Last update timestamp
 }
 ```
@@ -628,25 +628,25 @@ Sample result:
 
 ```javascript
 {
-    “plugs”: [
+    "slots": [
         {
-            “snap”:  "canonical-pi2",
-            “plug”:  "pin-13",
-            “interface”:  "bool-file",
-            “label”: "Pin 13",
-            “connections”: [
-                {"snap": "keyboard-lights", "slot": "capslock-led"}
+            "snap":  "canonical-pi2",
+            "slot":  "pin-13",
+            "interface":  "bool-file",
+            "label": "Pin 13",
+            "connections": [
+                {"snap": "keyboard-lights", "plug": "capslock-led"}
             ]
         }
     ],
-    “slots”: [
+    "plugs": [
         {
-            “snap”:  "keyboard-lights",
-            “slot”:  "capslock-led",
-            “interface”: "bool-file",
-            “label”: "Capslock indicator LED",
-            “connections”: [
-                {"snap": "canonical-pi2", "plug": "pin-13"}
+            "snap":  "keyboard-lights",
+            "plug":  "capslock-led",
+            "interface": "bool-file",
+            "label": "Capslock indicator LED",
+            "connections": [
+                {"snap": "canonical-pi2", "slot": "pin-13"}
             ]
         }
     ]
@@ -669,8 +669,8 @@ Sample input:
 
 ```javascript
 {
-    “action”: “connect”,
-    “plug”: {“snap”: “canonical-pi2”,   “plug”: “pin-13”},
-    “slot”: {“snap”: “keyboard-lights”, “slot”: “capslock-led”}
+    "action": "connect",
+    "slots": {{"snap": "canonical-pi2",   "slot": "pin-13"}},
+    "plugs": {{"snap": "keyboard-lights", "plug": "capslock-led"}}
 }
 ```

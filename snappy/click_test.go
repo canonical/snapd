@@ -986,12 +986,12 @@ func (s *SnapTestSuite) TestBinariesWhitelistSimple(c *C) {
 }
 
 func (s *SnapTestSuite) TestUsesWhitelistSimple(c *C) {
-	c.Check(verifySlotYaml(&slotYaml{
+	c.Check(verifyPlugYaml(&plugYaml{
 		Interface: "old-security",
 		SecurityDefinitions: SecurityDefinitions{
 			SecurityTemplate: "foo"},
 	}), IsNil)
-	c.Check(verifySlotYaml(&slotYaml{
+	c.Check(verifyPlugYaml(&plugYaml{
 		Interface: "old-security",
 		SecurityDefinitions: SecurityDefinitions{
 			SecurityPolicy: &SecurityPolicyDefinition{
@@ -1007,18 +1007,18 @@ func (s *SnapTestSuite) TestBinariesWhitelistIllegal(c *C) {
 }
 
 func (s *SnapTestSuite) TestWrongType(c *C) {
-	c.Check(verifySlotYaml(&slotYaml{
+	c.Check(verifyPlugYaml(&plugYaml{
 		Interface: "some-interface",
 	}), ErrorMatches, ".*can not use interface.* only `old-security` supported")
 }
 
 func (s *SnapTestSuite) TestUsesWhitelistIllegal(c *C) {
-	c.Check(verifySlotYaml(&slotYaml{
+	c.Check(verifyPlugYaml(&plugYaml{
 		Interface: "old-security",
 		SecurityDefinitions: SecurityDefinitions{
 			SecurityTemplate: "x\n"},
 	}), ErrorMatches, ".*contains illegal.*")
-	c.Check(verifySlotYaml(&slotYaml{
+	c.Check(verifyPlugYaml(&plugYaml{
 		Interface: "old-security",
 		SecurityDefinitions: SecurityDefinitions{
 			SecurityPolicy: &SecurityPolicyDefinition{

@@ -976,15 +976,15 @@ apps:
  testme:
    command: bin/testme
    description: "testme client"
-   slots: [testme]
+   plugs: [testme]
  testme-override:
    command: bin/testme-override
-   slots: [testme-override]
+   plugs: [testme-override]
  testme-policy:
    command: bin/testme-policy
-   slots: [testme-policy]
+   plugs: [testme-policy]
 
-slots:
+plugs:
  testme:
    interface: old-security
    caps:
@@ -1010,20 +1010,20 @@ func (s *SnapTestSuite) TestSnapYamlSecurityBinaryParsing(c *C) {
 
 	c.Assert(m.Apps["testme"].Name, Equals, "testme")
 	c.Assert(m.Apps["testme"].Command, Equals, "bin/testme")
-	c.Assert(m.Slots["testme"].SecurityCaps, HasLen, 1)
-	c.Assert(m.Slots["testme"].SecurityCaps[0], Equals, "foo_group")
-	c.Assert(m.Slots["testme"].SecurityTemplate, Equals, "foo_template")
+	c.Assert(m.Plugs["testme"].SecurityCaps, HasLen, 1)
+	c.Assert(m.Plugs["testme"].SecurityCaps[0], Equals, "foo_group")
+	c.Assert(m.Plugs["testme"].SecurityTemplate, Equals, "foo_template")
 
 	c.Assert(m.Apps["testme-override"].Name, Equals, "testme-override")
 	c.Assert(m.Apps["testme-override"].Command, Equals, "bin/testme-override")
-	c.Assert(m.Slots["testme-override"].SecurityCaps, HasLen, 0)
-	c.Assert(m.Slots["testme-override"].SecurityOverride.ReadPaths[0], Equals, "/foo")
-	c.Assert(m.Slots["testme-override"].SecurityOverride.Syscalls[0], Equals, "bar")
+	c.Assert(m.Plugs["testme-override"].SecurityCaps, HasLen, 0)
+	c.Assert(m.Plugs["testme-override"].SecurityOverride.ReadPaths[0], Equals, "/foo")
+	c.Assert(m.Plugs["testme-override"].SecurityOverride.Syscalls[0], Equals, "bar")
 
 	c.Assert(m.Apps["testme-policy"].Name, Equals, "testme-policy")
 	c.Assert(m.Apps["testme-policy"].Command, Equals, "bin/testme-policy")
-	c.Assert(m.Slots["testme-policy"].SecurityCaps, HasLen, 0)
-	c.Assert(m.Slots["testme-policy"].SecurityPolicy.AppArmor, Equals, "meta/testme-policy.profile")
+	c.Assert(m.Plugs["testme-policy"].SecurityCaps, HasLen, 0)
+	c.Assert(m.Plugs["testme-policy"].SecurityPolicy.AppArmor, Equals, "meta/testme-policy.profile")
 }
 
 var securityServiceSnapYaml = []byte(`name: test-snap
@@ -1034,9 +1034,9 @@ apps:
    daemon: forking
    stop-command: bin/testme-service.stop
    description: "testme service"
-   slots: [testme-service]
+   plugs: [testme-service]
 
-slots:
+plugs:
  testme-service:
    interface: old-security
    caps:
@@ -1052,10 +1052,10 @@ func (s *SnapTestSuite) TestSnapYamlSecurityServiceParsing(c *C) {
 	c.Assert(m.Apps["testme-service"].Name, Equals, "testme-service")
 	c.Assert(m.Apps["testme-service"].Command, Equals, "bin/testme-service.start")
 	c.Assert(m.Apps["testme-service"].Stop, Equals, "bin/testme-service.stop")
-	c.Assert(m.Slots["testme-service"].SecurityCaps, HasLen, 2)
-	c.Assert(m.Slots["testme-service"].SecurityCaps[0], Equals, "network-client")
-	c.Assert(m.Slots["testme-service"].SecurityCaps[1], Equals, "foo_group")
-	c.Assert(m.Slots["testme-service"].SecurityTemplate, Equals, "foo_template")
+	c.Assert(m.Plugs["testme-service"].SecurityCaps, HasLen, 2)
+	c.Assert(m.Plugs["testme-service"].SecurityCaps[0], Equals, "network-client")
+	c.Assert(m.Plugs["testme-service"].SecurityCaps[1], Equals, "foo_group")
+	c.Assert(m.Plugs["testme-service"].SecurityTemplate, Equals, "foo_template")
 }
 
 func (s *SnapTestSuite) TestDetectsAlreadyInstalled(c *C) {
@@ -1264,15 +1264,15 @@ func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateService(c *C) {
 	// if one of the services needs updating, it's updated and returned
 	svc := &AppYaml{
 		Name:     "svc",
-		SlotsRef: []string{"svc"},
+		PlugsRef: []string{"svc"},
 	}
 	part := &SnapPart{
 		m: &snapYaml{
 			Name:    "part",
 			Apps:    map[string]*AppYaml{"svc": svc},
 			Version: "42",
-			Slots: map[string]*slotYaml{
-				"svc": &slotYaml{
+			Plugs: map[string]*plugYaml{
+				"svc": &plugYaml{
 					SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"},
 				},
 			},
@@ -1288,15 +1288,15 @@ func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateBinary(c *C) {
 	// if one of the binaries needs updating, the part needs updating
 	bin := &AppYaml{
 		Name:     "echo",
-		SlotsRef: []string{"echo"},
+		PlugsRef: []string{"echo"},
 	}
 	part := &SnapPart{
 		m: &snapYaml{
 			Name:    "part",
 			Apps:    map[string]*AppYaml{"echo": bin},
 			Version: "42",
-			Slots: map[string]*slotYaml{
-				"echo": &slotYaml{
+			Plugs: map[string]*plugYaml{
+				"echo": &plugYaml{
 					SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"},
 				},
 			},
@@ -1311,11 +1311,11 @@ func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateBinary(c *C) {
 func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateNothing(c *C) {
 	svc := &AppYaml{
 		Name:     "svc",
-		SlotsRef: []string{"svc"},
+		PlugsRef: []string{"svc"},
 	}
 	bin := &AppYaml{
 		Name:     "echo",
-		SlotsRef: []string{"echo"},
+		PlugsRef: []string{"echo"},
 	}
 	part := &SnapPart{
 		m: &snapYaml{
@@ -1324,11 +1324,11 @@ func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateNothing(c *C) {
 				"echo": bin,
 			},
 			Version: "42",
-			Slots: map[string]*slotYaml{
-				"svc": &slotYaml{
+			Plugs: map[string]*plugYaml{
+				"svc": &plugYaml{
 					SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"},
 				},
-				"echo": &slotYaml{
+				"echo": &plugYaml{
 					SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"},
 				},
 			},

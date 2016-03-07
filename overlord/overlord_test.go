@@ -41,4 +41,6 @@ func (os *overlordSuite) TestNew(c *C) {
 	c.Check(o.SnapManager(), NotNil)
 	c.Check(o.AssertManager(), NotNil)
 	c.Check(o.InterfaceManager(), NotNil)
+
+	c.Check(o.StateEngine(), NotNil)
 }
