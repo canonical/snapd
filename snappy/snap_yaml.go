@@ -68,6 +68,14 @@ type AppYaml struct {
 	SlotsRef []string `yaml:"slots"`
 }
 
+// qualifiedAppName returns the "full" application name, including the snap name and origin (except for frameworks).
+func (app *AppYaml) qualifiedAppName(s *snapYaml, origin string) string {
+	if s.Type == snap.TypeFramework || s.Type == snap.TypeGadget {
+		return fmt.Sprintf("%s.%s", s.Name, app.Name)
+	}
+	return fmt.Sprintf("%s.%s.%s", s.Name, app.Name, origin)
+}
+
 type plugYaml struct {
 	Interface           string `yaml:"interface"`
 	SecurityDefinitions `yaml:",inline"`
