@@ -485,11 +485,11 @@ func snapService(c *Command, r *http.Request) Response {
 		}
 
 		for i := range status {
-			if desc, ok := appmap[status[i].ServiceName]; ok {
+			if desc, ok := appmap[status[i].AppName]; ok {
 				desc.Status = status[i]
 			} else {
 				// shouldn't really happen, but can't hurt
-				appmap[status[i].ServiceName] = &appDesc{Status: status[i]}
+				appmap[status[i].AppName] = &appDesc{Status: status[i]}
 			}
 		}
 

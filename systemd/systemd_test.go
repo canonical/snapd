@@ -241,7 +241,7 @@ func (s *SystemdTestSuite) TestGenAppServiceFile(c *C) {
 
 	desc := &ServiceDescription{
 		SnapName:    "app",
-		ServiceName: "service",
+		AppName:     "service",
 		Version:     "1.0",
 		Description: "descr",
 		SnapPath:    "/apps/app.mvo/1.0/",
@@ -272,7 +272,7 @@ func (s *SystemdTestSuite) TestGenFmkServiceFile(c *C) {
 
 	desc := &ServiceDescription{
 		SnapName:    "app",
-		ServiceName: "service",
+		AppName:     "service",
 		Version:     "1.0",
 		Description: "descr",
 		SnapPath:    "/apps/app/1.0/",
@@ -293,7 +293,7 @@ func (s *SystemdTestSuite) TestGenServiceFileWithBusName(c *C) {
 
 	desc := &ServiceDescription{
 		SnapName:    "app",
-		ServiceName: "service",
+		AppName:     "service",
 		Version:     "1.0",
 		Description: "descr",
 		SnapPath:    "/apps/app.mvo/1.0/",
