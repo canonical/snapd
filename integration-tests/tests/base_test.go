@@ -85,7 +85,7 @@ func setUpSnapdFromBranch(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	_, err = cli.ExecCommandErr("sudo", "mount", "-o", "bind",
-		binPath, "/usr/bin/snapd")
+		binPath, "/usr/lib/snappy/snapd")
 	c.Assert(err, check.IsNil)
 
 	err = writeEnvConfig()
