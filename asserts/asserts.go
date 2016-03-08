@@ -51,7 +51,7 @@ var (
 	ModelType           = &AssertionType{"model", []string{"series", "brand-id", "model"}, assembleModel}
 	SnapDeclarationType = &AssertionType{"snap-declaration", []string{"series", "snap-id"}, assembleSnapDeclaration}
 	SnapBuildType       = &AssertionType{"snap-build", []string{"series", "snap-id", "snap-digest"}, assembleSnapBuild}
-	SnapRevisionType    = &AssertionType{"snap-revision", []string{"snap-id", "snap-digest"}, assembleSnapRevision}
+	SnapRevisionType    = &AssertionType{"snap-revision", []string{"series", "snap-id", "snap-digest"}, assembleSnapRevision}
 
 // ...
 )
