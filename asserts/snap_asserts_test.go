@@ -193,6 +193,7 @@ func makeSignAndCheckDbWithAccountKey(c *C, accountID string) (signingKeyID stri
 
 	headers := map[string]string{
 		"authority-id":           "canonical",
+		"series":                 "16",
 		"account-id":             accountID,
 		"public-key-id":          accKeyID,
 		"public-key-fingerprint": accFingerp,
@@ -224,6 +225,7 @@ func (sbs *snapBuildSuite) TestSnapBuildCheck(c *C) {
 
 	headers := map[string]string{
 		"authority-id": "dev-id1",
+		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-digest":  "sha256 ...",
 		"grade":        "devel",
@@ -242,6 +244,7 @@ func (sbs *snapBuildSuite) TestSnapBuildCheckInconsistentTimestamp(c *C) {
 
 	headers := map[string]string{
 		"authority-id": "dev-id1",
+		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-digest":  "sha256 ...",
 		"grade":        "devel",
@@ -284,6 +287,7 @@ func (srs *snapRevSuite) makeValidEncoded() string {
 func (srs *snapRevSuite) makeHeaders(overrides map[string]string) map[string]string {
 	headers := map[string]string{
 		"authority-id":  "store-id1",
+		"series":        "16",
 		"snap-id":       "snap-id-1",
 		"snap-digest":   "sha256 ...",
 		"snap-revision": "1",

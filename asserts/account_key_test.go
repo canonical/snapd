@@ -67,6 +67,7 @@ func (aks *accountKeySuite) SetUpSuite(c *C) {
 func (aks *accountKeySuite) TestDecodeOK(c *C) {
 	encoded := "type: account-key\n" +
 		"authority-id: canonical\n" +
+		"series: 16\n" +
 		"account-id: acc-id1\n" +
 		"public-key-id: " + aks.keyid + "\n" +
 		"public-key-fingerprint: " + aks.fp + "\n" +
@@ -79,6 +80,7 @@ func (aks *accountKeySuite) TestDecodeOK(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.AccountKeyType)
 	accKey := a.(*asserts.AccountKey)
+	c.Check(accKey.Series(), Equals, "16")
 	c.Check(accKey.AccountID(), Equals, "acc-id1")
 	c.Check(accKey.PublicKeyFingerprint(), Equals, aks.fp)
 	c.Check(accKey.PublicKeyID(), Equals, aks.keyid)
@@ -93,6 +95,7 @@ const (
 func (aks *accountKeySuite) TestDecodeInvalidHeaders(c *C) {
 	encoded := "type: account-key\n" +
 		"authority-id: canonical\n" +
+		"series: 16\n" +
 		"account-id: acc-id1\n" +
 		"public-key-id: " + aks.keyid + "\n" +
 		"public-key-fingerprint: " + aks.fp + "\n" +
@@ -103,6 +106,7 @@ func (aks *accountKeySuite) TestDecodeInvalidHeaders(c *C) {
 		"openpgp c2ln"
 
 	invalidHeaderTests := []struct{ original, invalid, expectedErr string }{
+		{"series: 16\n", "", `"series" header is mandatory`},
 		{"account-id: acc-id1\n", "", `"account-id" header is mandatory`},
 		{aks.sinceLine, "", `"since" header is mandatory`},
 		{aks.untilLine, "", `"until" header is mandatory`},
@@ -122,6 +126,7 @@ func (aks *accountKeySuite) TestDecodeInvalidHeaders(c *C) {
 func (aks *accountKeySuite) TestDecodeInvalidPublicKey(c *C) {
 	headers := "type: account-key\n" +
 		"authority-id: canonical\n" +
+		"series: 16\n" +
 		"account-id: acc-id1\n" +
 		"public-key-id: " + aks.keyid + "\n" +
 		"public-key-fingerprint: " + aks.fp + "\n" +
@@ -150,6 +155,7 @@ func (aks *accountKeySuite) TestDecodeInvalidPublicKey(c *C) {
 func (aks *accountKeySuite) TestDecodeFingerprintMismatch(c *C) {
 	invalid := "type: account-key\n" +
 		"authority-id: canonical\n" +
+		"series: 16\n" +
 		"account-id: acc-id1\n" +
 		"public-key-id: " + aks.keyid + "\n" +
 		"public-key-fingerprint: 00\n" +
@@ -166,6 +172,7 @@ func (aks *accountKeySuite) TestDecodeFingerprintMismatch(c *C) {
 func (aks *accountKeySuite) TestDecodeKeyIDMismatch(c *C) {
 	invalid := "type: account-key\n" +
 		"authority-id: canonical\n" +
+		"series: 16\n" +
 		"account-id: acc-id1\n" +
 		"public-key-id: aa\n" +
 		"public-key-fingerprint: " + aks.fp + "\n" +
@@ -200,6 +207,7 @@ func (aks *accountKeySuite) TestAccountKeyCheck(c *C) {
 
 	headers := map[string]string{
 		"authority-id":           "canonical",
+		"series":                 "16",
 		"account-id":             "acc-id1",
 		"public-key-id":          aks.keyid,
 		"public-key-fingerprint": aks.fp,
@@ -220,6 +228,7 @@ func (aks *accountKeySuite) TestAccountKeyAddAndFind(c *C) {
 
 	headers := map[string]string{
 		"authority-id":           "canonical",
+		"series":                 "16",
 		"account-id":             "acc-id1",
 		"public-key-id":          aks.keyid,
 		"public-key-fingerprint": aks.fp,
@@ -235,6 +244,7 @@ func (aks *accountKeySuite) TestAccountKeyAddAndFind(c *C) {
 	c.Assert(err, IsNil)
 
 	found, err := db.Find(asserts.AccountKeyType, map[string]string{
+		"series":        "16",
 		"account-id":    "acc-id1",
 		"public-key-id": aks.keyid,
 	})
@@ -246,6 +256,7 @@ func (aks *accountKeySuite) TestAccountKeyAddAndFind(c *C) {
 func (aks *accountKeySuite) TestPublicKeyIsValidAt(c *C) {
 	encoded := "type: account-key\n" +
 		"authority-id: canonical\n" +
+		"series: 16\n" +
 		"account-id: acc-id1\n" +
 		"public-key-id: " + aks.keyid + "\n" +
 		"public-key-fingerprint: " + aks.fp + "\n" +

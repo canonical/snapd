@@ -59,6 +59,7 @@ func makeAccountKeyForTest(authorityID string, pubKey *packet.PublicKey, validYe
 		assertionBase: assertionBase{
 			headers: map[string]string{
 				"authority-id":  authorityID,
+				"series":        "16",
 				"account-id":    authorityID,
 				"public-key-id": openPGPPubKey.ID(),
 			},

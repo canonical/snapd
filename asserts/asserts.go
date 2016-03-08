@@ -44,7 +44,7 @@ type AssertionType struct {
 
 // Understood assertion types.
 var (
-	AccountKeyType   = &AssertionType{"account-key", []string{"account-id", "public-key-id"}, assembleAccountKey}
+	AccountKeyType   = &AssertionType{"account-key", []string{"series", "account-id", "public-key-id"}, assembleAccountKey}
 	DeviceSerialType = &AssertionType{"device-serial", []string{"brand-id", "model", "serial"}, assembleDeviceSerial}
 	IdentityType     = &AssertionType{"identity", []string{"series", "account-id"}, assembleIdentity}
 	// XXX: is series actually part of the primary key?
