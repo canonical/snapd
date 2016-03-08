@@ -26,7 +26,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/osutil"
 )
 
 var (
@@ -91,7 +91,7 @@ func iterOp(op policyOp, glob, targetDir, prefix string) (err error) {
 			}
 		case install:
 			// do the copy
-			if err := helpers.CopyFile(file, targetFile, helpers.CopyFlagSync|helpers.CopyFlagOverwrite); err != nil {
+			if err := osutil.CopyFile(file, targetFile, osutil.CopyFlagSync|osutil.CopyFlagOverwrite); err != nil {
 				return err
 			}
 		default:
@@ -130,7 +130,7 @@ func Remove(pkgName, instPath, rootDir string) error {
 }
 
 func aaUp(old, new, dir, pfx string) map[string]bool {
-	return helpers.DirUpdated(filepath.Join(old, dir), filepath.Join(new, dir), pfx)
+	return osutil.DirUpdated(filepath.Join(old, dir), filepath.Join(new, dir), pfx)
 }
 
 // AppArmorDelta returns which policies and templates are updated in the package

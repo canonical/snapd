@@ -13,15 +13,16 @@ Build-Depends: bash-completion,
                golang-go,
                golang-go-flags-dev,
                golang-go.crypto-dev,
+               golang-github-coreos-go-systemd-dev,
+               golang-github-gorilla-mux-dev,
+               golang-github-gosexy-gettext-dev,
                golang-github-mvo5-goconfigparser-dev,
                golang-github-peterh-liner-dev,
                golang-pb-dev,
                golang-pty-dev,
                golang-github-mvo5-uboot-go-dev,
                golang-yaml.v2-dev,
-               golang-mux-dev,
                golang-gopkg-tomb.v2-dev,
-               golang-go-systemd-dev,
                golang-websocket-dev,
                lsb-release,
                python3,
@@ -32,7 +33,7 @@ Homepage: https://github.com/ubuntu-core/snappy
 Vcs-Browser: https://github.com/ubuntu-core/snappy
 Vcs-Git: https://github.com/ubuntu-core/snappy.git
 
-Package: golang-snappy-dev
+Package: golang-github-ubuntu-core-snappy-dev
 Architecture: all
 Depends: ${misc:Depends}
 Description: snappy development go packages.

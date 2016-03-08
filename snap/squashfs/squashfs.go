@@ -30,7 +30,7 @@ import (
 	"strings"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap"
 )
 
@@ -88,7 +88,7 @@ func (s *Snap) Install(instDir string) error {
 		}
 	}
 
-	// FIXME: helpers.CopyFile() has no preserve attribute flag yet
+	// FIXME: cp.CopyFile() has no preserve attribute flag yet
 	return runCommand("cp", "-a", s.path, BlobPath(instDir))
 }
 
@@ -158,11 +158,13 @@ func (s *Snap) Build(buildDir string) error {
 		return err
 	}
 
-	return helpers.ChDir(buildDir, func() error {
+	return osutil.ChDir(buildDir, func() error {
 		return runCommand(
 			"mksquashfs",
 			".", fullSnapPath,
 			"-noappend",
-			"-comp", "xz")
+			"-comp", "xz",
+			"-no-xattrs",
+		)
 	})
 }

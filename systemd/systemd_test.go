@@ -221,7 +221,7 @@ X-Snappy=yes
 ExecStart=/usr/bin/ubuntu-core-launcher app%[2]s aa-profile /apps/app%[2]s/1.0/bin/start
 Restart=on-failure
 WorkingDirectory=/apps/app%[2]s/1.0/
-Environment="SNAP_APP=app_service_1.0" "SNAP=/apps/app%[2]s/1.0/" "SNAP_DATA=/var/lib/apps/app%[2]s/1.0/" "TMPDIR=/tmp/snaps/app%[2]s/1.0/tmp" "TEMPDIR=/tmp/snaps/app%[2]s/1.0/tmp" "SNAP_NAME=app" "SNAP_VERSION=1.0" "SNAP_ORIGIN=%[3]s" "SNAP_FULLNAME=app%[2]s" "SNAP_ARCH=%[5]s" "SNAP_USER_DATA=/root/apps/app%[2]s/1.0/" "SNAP_APP_PATH=/apps/app%[2]s/1.0/" "SNAP_APP_DATA_PATH=/var/lib/apps/app%[2]s/1.0/" "SNAP_APP_TMPDIR=/tmp/snaps/app%[2]s/1.0/tmp" "SNAP_APP_USER_DATA_PATH=/root/apps/app%[2]s/1.0/"
+Environment="SNAP_APP=app_service_1.0" "SNAP=/apps/app%[2]s/1.0/" "SNAP_DATA=/var/lib/apps/app%[2]s/1.0/" "SNAP_NAME=app" "SNAP_VERSION=1.0" "SNAP_ORIGIN=%[3]s" "SNAP_ARCH=%[5]s" "SNAP_USER_DATA=/root/apps/app%[2]s/1.0/" "SNAP_APP_PATH=/apps/app%[2]s/1.0/" "SNAP_APP_DATA_PATH=/var/lib/apps/app%[2]s/1.0/" "SNAP_APP_USER_DATA_PATH=/root/apps/app%[2]s/1.0/"
 ExecStop=/usr/bin/ubuntu-core-launcher app%[2]s aa-profile /apps/app%[2]s/1.0/bin/stop
 ExecStopPost=/usr/bin/ubuntu-core-launcher app%[2]s aa-profile /apps/app%[2]s/1.0/bin/stop --post
 TimeoutStopSec=10
@@ -235,20 +235,16 @@ var (
 	expectedAppService  = fmt.Sprintf(expectedServiceFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".mvo", "mvo", "Type=simple\n", arch.UbuntuArchitecture())
 	expectedFmkService  = fmt.Sprintf(expectedServiceFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target", "", "", "Type=simple\n", arch.UbuntuArchitecture())
 	expectedDbusService = fmt.Sprintf(expectedServiceFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".mvo", "mvo", "Type=dbus\nBusName=foo.bar.baz", arch.UbuntuArchitecture())
-
-	// things that need network
-	expectedNetAppService = fmt.Sprintf(expectedServiceFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target\nAfter=snappy-wait4network.service\nRequires=snappy-wait4network.service", ".mvo", "mvo", "Type=simple\n", arch.UbuntuArchitecture())
-	expectedNetFmkService = fmt.Sprintf(expectedServiceFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target\nAfter=snappy-wait4network.service\nRequires=snappy-wait4network.service", "", "", "Type=simple\n", arch.UbuntuArchitecture())
 )
 
 func (s *SystemdTestSuite) TestGenAppServiceFile(c *C) {
 
 	desc := &ServiceDescription{
-		AppName:     "app",
-		ServiceName: "service",
+		SnapName:    "app",
+		AppName:     "service",
 		Version:     "1.0",
 		Description: "descr",
-		AppPath:     "/apps/app.mvo/1.0/",
+		SnapPath:    "/apps/app.mvo/1.0/",
 		Start:       "bin/start",
 		Stop:        "bin/stop",
 		PostStop:    "bin/stop --post",
@@ -264,43 +260,22 @@ func (s *SystemdTestSuite) TestGenAppServiceFile(c *C) {
 func (s *SystemdTestSuite) TestGenAppServiceFileRestart(c *C) {
 	for name, cond := range restartMap {
 		desc := &ServiceDescription{
-			AppName: "app",
-			Restart: cond,
+			SnapName: "app",
+			Restart:  cond,
 		}
 
 		c.Check(New("", nil).GenServiceFile(desc), Matches, `(?ms).*^Restart=`+name+`$.*`, Commentf(name))
 	}
 }
 
-func (s *SystemdTestSuite) TestGenNetAppServiceFile(c *C) {
-
-	desc := &ServiceDescription{
-		AppName:     "app",
-		ServiceName: "service",
-		Version:     "1.0",
-		Description: "descr",
-		AppPath:     "/apps/app.mvo/1.0/",
-		Start:       "bin/start",
-		Stop:        "bin/stop",
-		PostStop:    "bin/stop --post",
-		StopTimeout: time.Duration(10 * time.Second),
-		AaProfile:   "aa-profile",
-		IsNetworked: true,
-		UdevAppName: "app.mvo",
-		Type:        "simple",
-	}
-
-	c.Check(New("", nil).GenServiceFile(desc), Equals, expectedNetAppService)
-}
-
 func (s *SystemdTestSuite) TestGenFmkServiceFile(c *C) {
 
 	desc := &ServiceDescription{
-		AppName:     "app",
-		ServiceName: "service",
+		SnapName:    "app",
+		AppName:     "service",
 		Version:     "1.0",
 		Description: "descr",
-		AppPath:     "/apps/app/1.0/",
+		SnapPath:    "/apps/app/1.0/",
 		Start:       "bin/start",
 		Stop:        "bin/stop",
 		PostStop:    "bin/stop --post",
@@ -314,36 +289,14 @@ func (s *SystemdTestSuite) TestGenFmkServiceFile(c *C) {
 	c.Check(New("", nil).GenServiceFile(desc), Equals, expectedFmkService)
 }
 
-func (s *SystemdTestSuite) TestGenNetFmkServiceFile(c *C) {
-
-	desc := &ServiceDescription{
-		AppName:     "app",
-		ServiceName: "service",
-		Version:     "1.0",
-		Description: "descr",
-		AppPath:     "/apps/app/1.0/",
-		Start:       "bin/start",
-		Stop:        "bin/stop",
-		PostStop:    "bin/stop --post",
-		StopTimeout: time.Duration(10 * time.Second),
-		AaProfile:   "aa-profile",
-		IsNetworked: true,
-		IsFramework: true,
-		UdevAppName: "app",
-		Type:        "simple",
-	}
-
-	c.Check(New("", nil).GenServiceFile(desc), Equals, expectedNetFmkService)
-}
-
 func (s *SystemdTestSuite) TestGenServiceFileWithBusName(c *C) {
 
 	desc := &ServiceDescription{
-		AppName:     "app",
-		ServiceName: "service",
+		SnapName:    "app",
+		AppName:     "service",
 		Version:     "1.0",
 		Description: "descr",
-		AppPath:     "/apps/app.mvo/1.0/",
+		SnapPath:    "/apps/app.mvo/1.0/",
 		Start:       "bin/start",
 		Stop:        "bin/stop",
 		PostStop:    "bin/stop --post",

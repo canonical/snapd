@@ -778,14 +778,14 @@ func (s *RepositorySuite) TestInterfacesSmokeTest(c *C) {
 			Snap:        s.plug.Snap,
 			Interface:   s.plug.Interface,
 			Label:       s.plug.Label,
-			Connections: []SlotRef{{Snap: s.slot.Snap, Name: s.slot.Name}},
+			Connections: []SlotRef{{s.slot.Snap, s.slot.Name}},
 		}},
 		Slots: []*Slot{{
 			Snap:        s.slot.Snap,
 			Name:        s.slot.Name,
 			Interface:   s.slot.Interface,
 			Label:       s.slot.Label,
-			Connections: []PlugRef{{Snap: s.plug.Snap, Name: s.plug.Name}},
+			Connections: []PlugRef{{s.plug.Snap, s.plug.Name}},
 		}},
 	})
 	// After disconnecting the connections become empty
@@ -814,15 +814,27 @@ func (s *RepositorySuite) TestSlotSnippetsForSnapSuccess(c *C) {
 	const testSecurity SecuritySystem = "security"
 	iface := &TestInterface{
 		InterfaceName: "interface",
-		PlugSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+		PermanentPlugSnippetCallback: func(plug *Plug, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == testSecurity {
-				return []byte(`producer snippet`), nil
+				return []byte(`static plug snippet`), nil
 			}
 			return nil, ErrUnknownSecurity
 		},
-		SlotSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+		PlugSnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == testSecurity {
-				return []byte(`consumer snippet`), nil
+				return []byte(`connection-specific plug snippet`), nil
+			}
+			return nil, ErrUnknownSecurity
+		},
+		PermanentSlotSnippetCallback: func(slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+			if securitySystem == testSecurity {
+				return []byte(`static slot snippet`), nil
+			}
+			return nil, ErrUnknownSecurity
+		},
+		SlotSnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+			if securitySystem == testSecurity {
+				return []byte(`connection-specific slot snippet`), nil
 			}
 			return nil, ErrUnknownSecurity
 		},
@@ -831,34 +843,51 @@ func (s *RepositorySuite) TestSlotSnippetsForSnapSuccess(c *C) {
 	c.Assert(repo.AddInterface(iface), IsNil)
 	c.Assert(repo.AddPlug(s.plug), IsNil)
 	c.Assert(repo.AddSlot(s.slot), IsNil)
-	c.Assert(repo.Connect(s.plug.Snap, s.plug.Name, s.slot.Snap, s.slot.Name), IsNil)
-	// Now producer.app should get `producer snippet` and consumer.app should
-	// get `consumer snippet`.
+	// Snaps should get static security now
 	var snippets map[string][][]byte
 	snippets, err := repo.SecuritySnippetsForSnap(s.plug.Snap, testSecurity)
 	c.Assert(err, IsNil)
 	c.Check(snippets, DeepEquals, map[string][][]byte{
 		"meta/hooks/plug": [][]byte{
-			[]byte(`producer snippet`),
+			[]byte(`static plug snippet`),
 		},
 	})
 	snippets, err = repo.SecuritySnippetsForSnap(s.slot.Snap, testSecurity)
 	c.Assert(err, IsNil)
 	c.Check(snippets, DeepEquals, map[string][][]byte{
 		"app": [][]byte{
-			[]byte(`consumer snippet`),
+			[]byte(`static slot snippet`),
+		},
+	})
+	// Establish connection between plug and slot
+	c.Assert(repo.Connect(s.plug.Snap, s.plug.Name, s.slot.Snap, s.slot.Name), IsNil)
+	// Snaps should get static and connection-specific security now
+	snippets, err = repo.SecuritySnippetsForSnap(s.plug.Snap, testSecurity)
+	c.Assert(err, IsNil)
+	c.Check(snippets, DeepEquals, map[string][][]byte{
+		"meta/hooks/plug": [][]byte{
+			[]byte(`static plug snippet`),
+			[]byte(`connection-specific plug snippet`),
+		},
+	})
+	snippets, err = repo.SecuritySnippetsForSnap(s.slot.Snap, testSecurity)
+	c.Assert(err, IsNil)
+	c.Check(snippets, DeepEquals, map[string][][]byte{
+		"app": [][]byte{
+			[]byte(`static slot snippet`),
+			[]byte(`connection-specific slot snippet`),
 		},
 	})
 }
 
-func (s *RepositorySuite) TestSecuritySnippetsForSnapFailure(c *C) {
+func (s *RepositorySuite) TestSecuritySnippetsForSnapFailureWithConnectionSnippets(c *C) {
 	var testSecurity SecuritySystem = "security"
 	iface := &TestInterface{
 		InterfaceName: "interface",
-		SlotSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+		SlotSnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			return nil, fmt.Errorf("cannot compute snippet for consumer")
 		},
-		PlugSecuritySnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+		PlugSnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			return nil, fmt.Errorf("cannot compute snippet for provider")
 		},
 	}
@@ -873,5 +902,30 @@ func (s *RepositorySuite) TestSecuritySnippetsForSnapFailure(c *C) {
 	c.Check(snippets, IsNil)
 	snippets, err = repo.SecuritySnippetsForSnap(s.slot.Snap, testSecurity)
 	c.Assert(err, ErrorMatches, "cannot compute snippet for consumer")
+	c.Check(snippets, IsNil)
+}
+
+func (s *RepositorySuite) TestSecuritySnippetsForSnapFailureWithPermanentSnippets(c *C) {
+	var testSecurity SecuritySystem = "security"
+	iface := &TestInterface{
+		InterfaceName: "interface",
+		PermanentSlotSnippetCallback: func(slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+			return nil, fmt.Errorf("cannot compute static snippet for consumer")
+		},
+		PermanentPlugSnippetCallback: func(plug *Plug, securitySystem SecuritySystem) ([]byte, error) {
+			return nil, fmt.Errorf("cannot compute static snippet for provider")
+		},
+	}
+	repo := s.emptyRepo
+	c.Assert(repo.AddInterface(iface), IsNil)
+	c.Assert(repo.AddPlug(s.plug), IsNil)
+	c.Assert(repo.AddSlot(s.slot), IsNil)
+	c.Assert(repo.Connect(s.plug.Snap, s.plug.Name, s.slot.Snap, s.slot.Name), IsNil)
+	var snippets map[string][][]byte
+	snippets, err := repo.SecuritySnippetsForSnap(s.plug.Snap, testSecurity)
+	c.Assert(err, ErrorMatches, "cannot compute static snippet for provider")
+	c.Check(snippets, IsNil)
+	snippets, err = repo.SecuritySnippetsForSnap(s.slot.Snap, testSecurity)
+	c.Assert(err, ErrorMatches, "cannot compute static snippet for consumer")
 	c.Check(snippets, IsNil)
 }

@@ -47,35 +47,40 @@ var optionsData options
 type cmdInfo struct {
 	name, shortHelp, longHelp string
 	builder                   func() interface{}
+	hidden                    bool
 }
 
 // commands holds information about all non-experimental commands.
-var commands []cmdInfo
+var commands []*cmdInfo
 
 // experimentalCommands holds information about all experimental commands.
-var experimentalCommands []cmdInfo
+var experimentalCommands []*cmdInfo
 
 // addCommand replaces parser.addCommand() in a way that is compatible with
 // re-constructing a pristine parser.
-func addCommand(name, shortHelp, longHelp string, builder func() interface{}) {
-	commands = append(commands, cmdInfo{
+func addCommand(name, shortHelp, longHelp string, builder func() interface{}) *cmdInfo {
+	info := &cmdInfo{
 		name:      name,
 		shortHelp: shortHelp,
 		longHelp:  longHelp,
 		builder:   builder,
-	})
+	}
+	commands = append(commands, info)
+	return info
 }
 
 // addExperimentalCommand replaces parser.addCommand() in a way that is
 // compatible with re-constructing a pristine parser. It is meant for
 // adding experimental commands.
-func addExperimentalCommand(name, shortHelp, longHelp string, builder func() interface{}) {
-	experimentalCommands = append(experimentalCommands, cmdInfo{
+func addExperimentalCommand(name, shortHelp, longHelp string, builder func() interface{}) *cmdInfo {
+	info := &cmdInfo{
 		name:      name,
 		shortHelp: shortHelp,
 		longHelp:  longHelp,
 		builder:   builder,
-	})
+	}
+	experimentalCommands = append(experimentalCommands, info)
+	return info
 }
 
 // Parser creates and populates a fresh parser.
@@ -85,9 +90,12 @@ func Parser() *flags.Parser {
 	parser := flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash)
 	// Add all regular commands
 	for _, c := range commands {
-		if _, err := parser.AddCommand(c.name, c.shortHelp, strings.TrimSpace(c.longHelp), c.builder()); err != nil {
+		cmd, err := parser.AddCommand(c.name, c.shortHelp, strings.TrimSpace(c.longHelp), c.builder())
+		if err != nil {
+
 			logger.Panicf("cannot add command %q: %v", c.name, err)
 		}
+		cmd.Hidden = c.hidden
 	}
 	// Add the experimental command
 	experimentalCommand, err := parser.AddCommand("experimental", shortExperimentalHelp, longExperimentalHelp, &cmdExperimental{})
@@ -96,9 +104,11 @@ func Parser() *flags.Parser {
 	}
 	// Add all the sub-commands of the experimental command
 	for _, c := range experimentalCommands {
-		if _, err = experimentalCommand.AddCommand(c.name, c.shortHelp, strings.TrimSpace(c.longHelp), c.builder()); err != nil {
+		cmd, err := experimentalCommand.AddCommand(c.name, c.shortHelp, strings.TrimSpace(c.longHelp), c.builder())
+		if err != nil {
 			logger.Panicf("cannot add experimental command %q: %v", c.name, err)
 		}
+		cmd.Hidden = c.hidden
 	}
 	return parser
 }

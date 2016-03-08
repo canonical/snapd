@@ -74,7 +74,9 @@ func (s *lightweightSuite) MkInstalled(c *check.C, _type snap.Type, appdir, name
 	yaml := fmt.Sprintf("name: %s\nversion: %s\ntype: %s\n", name, version, _type)
 	c.Check(os.MkdirAll(apath, 0755), check.IsNil)
 	c.Check(ioutil.WriteFile(filepath.Join(apath, "snap.yaml"), []byte(yaml), 0644), check.IsNil)
-	c.Check(ioutil.WriteFile(filepath.Join(apath, "icon.png"), nil, 0644), check.IsNil)
+	guipath := filepath.Join(apath, "gui")
+	c.Check(os.MkdirAll(guipath, 0755), check.IsNil)
+	c.Check(ioutil.WriteFile(filepath.Join(guipath, "icon.png"), nil, 0644), check.IsNil)
 
 	if active {
 		c.Check(os.Symlink(version, filepath.Join(appdir, qn, "current")), check.IsNil)
@@ -103,7 +105,7 @@ func (s *lightweightSuite) TestMapFmkNoPart(c *check.C) {
 		"origin":             "sideload",
 		"status":             "active",
 		"version":            "120",
-		"icon":               filepath.Join(s.d, "snaps", "fmk", "120", "meta/icon.png"),
+		"icon":               filepath.Join(s.d, "snaps", "fmk", "120", "meta/gui/icon.png"),
 		"type":               "framework",
 		"vendor":             "",
 		"download_size":      int64(-1),
@@ -175,7 +177,7 @@ func (s *lightweightSuite) TestMapAppNoPart(c *check.C) {
 		"origin":        "bar",
 		"status":        "active",
 		"version":       "1.0",
-		"icon":          filepath.Join(s.d, "snaps", "foo.bar", "1.0", "meta/icon.png"),
+		"icon":          filepath.Join(s.d, "snaps", "foo.bar", "1.0", "meta/gui/icon.png"),
 		"type":          "app",
 		"vendor":        "",
 		"download_size": int64(-1),
@@ -204,7 +206,7 @@ func (s *lightweightSuite) TestMapAppWithPart(c *check.C) {
 		"origin":           "bar",
 		"status":           "active",
 		"version":          "1.0",
-		"icon":             filepath.Join(s.d, "snaps", "foo.bar", "1.0", "meta/icon.png"),
+		"icon":             filepath.Join(s.d, "snaps", "foo.bar", "1.0", "meta/gui/icon.png"),
 		"type":             "app",
 		"vendor":           "",
 		"download_size":    int64(42),
@@ -269,7 +271,7 @@ func (s *lightweightSuite) TestMapInactiveGadgetNoPart(c *check.C) {
 		"origin":        "sideload", // best guess
 		"status":        "installed",
 		"version":       "3",
-		"icon":          filepath.Join(s.d, "snaps", "a-gadget", "3", "meta/icon.png"),
+		"icon":          filepath.Join(s.d, "snaps", "a-gadget", "3", "meta/gui/icon.png"),
 		"type":          "gadget",
 		"vendor":        "",
 		"download_size": int64(-1),

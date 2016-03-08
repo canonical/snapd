@@ -17,32 +17,21 @@
  *
  */
 
-package helpers
+package osutil
 
 import (
-	"os"
+	"os/exec"
 	"syscall"
 )
 
-const maxint = int64(^uint(0) >> 1)
-
-var maxcp = maxint // overridden in testing
-
-func doCopyFile(fin, fout fileish, fi os.FileInfo) error {
-	size := fi.Size()
-	var offset int64
-	for offset < size {
-		// sendfile is funny; it only copies up to maxint
-		// bytes at a time, but takes an int64 offset.
-		count := size - offset
-		if count > maxcp {
-			count = maxcp
-		}
-
-		if _, err := syscall.Sendfile(int(fout.Fd()), int(fin.Fd()), &offset, int(count)); err != nil {
-			return err
-		}
+// ExitCode extract the exit code from the error of a failed cmd.Run() or the
+// original error if its not a exec.ExitError
+func ExitCode(runErr error) (e int, err error) {
+	// golang, you are kidding me, right?
+	if exitErr, ok := runErr.(*exec.ExitError); ok {
+		waitStatus := exitErr.Sys().(syscall.WaitStatus)
+		e = waitStatus.ExitStatus()
+		return e, nil
 	}
-
-	return nil
+	return e, runErr
 }
