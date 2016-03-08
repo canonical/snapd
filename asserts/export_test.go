@@ -92,7 +92,7 @@ func assembleTestOnly(assert assertionBase) (Assertion, error) {
 	return &TestOnly{assert}, nil
 }
 
-var TestOnlyType = &AssertionType{"test-only", []string{"primary-key"}, assembleTestOnly}
+var TestOnlyType = &AssertionType{"test-only", []string{"series", "primary-key"}, assembleTestOnly}
 
 type TestOnly2 struct {
 	assertionBase
@@ -102,7 +102,7 @@ func assembleTestOnly2(assert assertionBase) (Assertion, error) {
 	return &TestOnly2{assert}, nil
 }
 
-var TestOnly2Type = &AssertionType{"test-only-2", []string{"pk1", "pk2"}, assembleTestOnly2}
+var TestOnly2Type = &AssertionType{"test-only-2", []string{"series", "pk1", "pk2"}, assembleTestOnly2}
 
 func init() {
 	typeRegistry[TestOnlyType.Name] = TestOnlyType

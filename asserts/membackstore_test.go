@@ -37,6 +37,7 @@ func (mbss *memBackstoreSuite) SetUpTest(c *C) {
 
 	encoded := "type: test-only\n" +
 		"authority-id: auth-id1\n" +
+		"series: 16\n" +
 		"primary-key: foo" +
 		"\n\n" +
 		"openpgp c2ln"
@@ -49,7 +50,7 @@ func (mbss *memBackstoreSuite) TestPutAndGet(c *C) {
 	err := mbss.bs.Put(asserts.TestOnlyType, mbss.a)
 	c.Assert(err, IsNil)
 
-	a, err := mbss.bs.Get(asserts.TestOnlyType, []string{"foo"})
+	a, err := mbss.bs.Get(asserts.TestOnlyType, []string{"16", "foo"})
 	c.Assert(err, IsNil)
 
 	c.Check(a, Equals, mbss.a)
@@ -79,6 +80,7 @@ func (mbss *memBackstoreSuite) TestPutNotNewer(c *C) {
 func (mbss *memBackstoreSuite) TestSearch(c *C) {
 	encoded := "type: test-only\n" +
 		"authority-id: auth-id1\n" +
+		"series: 16\n" +
 		"primary-key: one\n" +
 		"other: other1" +
 		"\n\n" +
@@ -88,6 +90,7 @@ func (mbss *memBackstoreSuite) TestSearch(c *C) {
 
 	encoded = "type: test-only\n" +
 		"authority-id: auth-id1\n" +
+		"series: 16\n" +
 		"primary-key: two\n" +
 		"other: other2" +
 		"\n\n" +
@@ -138,6 +141,7 @@ func (mbss *memBackstoreSuite) TestSearch(c *C) {
 func (mbss *memBackstoreSuite) TestSearch2Levels(c *C) {
 	encoded := "type: test-only-2\n" +
 		"authority-id: auth-id1\n" +
+		"series: 16\n" +
 		"pk1: a\n" +
 		"pk2: x" +
 		"\n\n" +
@@ -147,6 +151,7 @@ func (mbss *memBackstoreSuite) TestSearch2Levels(c *C) {
 
 	encoded = "type: test-only-2\n" +
 		"authority-id: auth-id1\n" +
+		"series: 16\n" +
 		"pk1: b\n" +
 		"pk2: x" +
 		"\n\n" +
