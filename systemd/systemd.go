@@ -390,7 +390,7 @@ WantedBy={{.ServiceSystemdTarget}}
 		AppTriple            string
 		ServiceSystemdTarget string
 		Origin               string
-		AppArch              string
+		SnapArch             string
 		Home                 string
 		EnvVars              string
 		SocketFileName       string

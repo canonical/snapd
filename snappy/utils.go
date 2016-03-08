@@ -52,7 +52,7 @@ func stripGlobalRootDirImpl(dir string) string {
 func makeSnapHookEnv(part *SnapPart) (env []string) {
 	desc := struct {
 		SnapName    string
-		AppArch     string
+		SnapArch    string
 		AppPath     string
 		Version     string
 		UdevAppName string
