@@ -169,6 +169,7 @@ type ServiceDescription struct {
 	IsFramework     bool
 	BusName         string
 	UdevAppName     string
+	Origin          string
 	Socket          bool
 	SocketFileName  string
 	ListenStream    string
@@ -370,11 +371,6 @@ WantedBy={{.ServiceSystemdTarget}}
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("wrapper").Parse(serviceTemplate))
 
-	origin := ""
-	if len(desc.UdevAppName) > len(desc.SnapName) {
-		origin = desc.UdevAppName[len(desc.SnapName)+1:]
-	}
-
 	restartCond := desc.Restart.String()
 	if restartCond == "" {
 		restartCond = RestartOnFailure.String()
@@ -389,7 +385,6 @@ WantedBy={{.ServiceSystemdTarget}}
 		FullPathPostStop     string
 		AppTriple            string
 		ServiceSystemdTarget string
-		Origin               string
 		SnapArch             string
 		Home                 string
 		EnvVars              string
@@ -403,7 +398,6 @@ WantedBy={{.ServiceSystemdTarget}}
 		filepath.Join(desc.SnapPath, desc.PostStop),
 		fmt.Sprintf("%s_%s_%s", desc.SnapName, desc.AppName, desc.Version),
 		servicesSystemdTarget,
-		origin,
 		arch.UbuntuArchitecture(),
 		// systemd runs as PID 1 so %h will not work.
 		"/root",
