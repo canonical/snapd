@@ -27,6 +27,7 @@ var allInterfaces = []interfaces.Interface{
 	&BoolFileInterface{},
 	NewNetworkInterface(),
 	NewNetworkBindInterface(),
+	NewFirewallControlInterface(),
 }
 
 // Interfaces returns all of the built-in interfaces.
