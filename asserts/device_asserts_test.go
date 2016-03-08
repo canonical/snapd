@@ -165,6 +165,7 @@ func (dss *deviceSerialSuite) SetUpSuite(c *C) {
 
 const deviceSerialExample = "type: device-serial\n" +
 	"authority-id: canonical\n" +
+	"series: 16\n" +
 	"brand-id: brand-id1\n" +
 	"model: baz-3000\n" +
 	"serial: 2700\n" +
@@ -184,6 +185,7 @@ func (dss *deviceSerialSuite) TestDecodeOK(c *C) {
 	deviceSerial := a.(*asserts.DeviceSerial)
 	c.Check(deviceSerial.AuthorityID(), Equals, "canonical")
 	c.Check(deviceSerial.Timestamp(), Equals, dss.ts)
+	c.Check(deviceSerial.Series(), Equals, "16")
 	c.Check(deviceSerial.BrandID(), Equals, "brand-id1")
 	c.Check(deviceSerial.Model(), Equals, "baz-3000")
 	c.Check(deviceSerial.Serial(), Equals, "2700")
@@ -198,6 +200,7 @@ func (dss *deviceSerialSuite) TestDecodeInvalid(c *C) {
 	encoded := strings.Replace(deviceSerialExample, "TSLINE", dss.tsLine, 1)
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
+		{"series: 16\n", "", `"series" header is mandatory`},
 		{"serial: 2700\n", "", `"serial" header is mandatory`},
 		{"device-key:\n DEVICEKEY\n", "", `"device-key" header is mandatory`},
 		{"device-key:\n DEVICEKEY\n", "device-key: openpgp ZZZ\n", `public key: could not decode base64 data:.*`},
