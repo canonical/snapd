@@ -1325,22 +1325,18 @@ func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 		"type":        "sync",
 	})
 	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
-		Plugs: []*interfaces.Plug{
-			&interfaces.Plug{
-				Snap:        "producer",
-				Name:        "plug",
-				Interface:   "interface",
-				Connections: []interfaces.SlotRef{{Snap: "consumer", Name: "slot"}},
-			},
-		},
-		Slots: []*interfaces.Slot{
-			&interfaces.Slot{
-				Snap:        "consumer",
-				Name:        "slot",
-				Interface:   "interface",
-				Connections: []interfaces.PlugRef{{Snap: "producer", Name: "plug"}},
-			},
-		},
+		Plugs: []*interfaces.Plug{{
+			Snap:        "producer",
+			Name:        "plug",
+			Interface:   "interface",
+			Connections: []interfaces.SlotRef{{Snap: "consumer", Name: "slot"}},
+		}},
+		Slots: []*interfaces.Slot{{
+			Snap:        "consumer",
+			Name:        "slot",
+			Interface:   "interface",
+			Connections: []interfaces.PlugRef{{Snap: "producer", Name: "plug"}},
+		}},
 	})
 }
 
@@ -1375,20 +1371,16 @@ func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 		"type":        "error",
 	})
 	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
-		Plugs: []*interfaces.Plug{
-			&interfaces.Plug{
-				Snap:      "producer",
-				Name:      "plug",
-				Interface: "interface",
-			},
-		},
-		Slots: []*interfaces.Slot{
-			&interfaces.Slot{
-				Snap:      "consumer",
-				Name:      "slot",
-				Interface: "other-interface",
-			},
-		},
+		Plugs: []*interfaces.Plug{{
+			Snap:      "producer",
+			Name:      "plug",
+			Interface: "interface",
+		}},
+		Slots: []*interfaces.Slot{{
+			Snap:      "consumer",
+			Name:      "slot",
+			Interface: "other-interface",
+		}},
 	})
 }
 
@@ -1421,13 +1413,11 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 		"type":        "error",
 	})
 	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
-		Slots: []*interfaces.Slot{
-			&interfaces.Slot{
-				Snap:      "consumer",
-				Name:      "slot",
-				Interface: "interface",
-			},
-		},
+		Slots: []*interfaces.Slot{{
+			Snap:      "consumer",
+			Name:      "slot",
+			Interface: "interface",
+		}},
 	})
 }
 
@@ -1460,13 +1450,11 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 		"type":        "error",
 	})
 	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
-		Plugs: []*interfaces.Plug{
-			&interfaces.Plug{
-				Snap:      "producer",
-				Name:      "plug",
-				Interface: "interface",
-			},
-		},
+		Plugs: []*interfaces.Plug{{
+			Snap:      "producer",
+			Name:      "plug",
+			Interface: "interface",
+		}},
 	})
 }
 
@@ -1499,20 +1487,16 @@ func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
 		"type":        "sync",
 	})
 	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
-		Plugs: []*interfaces.Plug{
-			&interfaces.Plug{
-				Snap:      "producer",
-				Name:      "plug",
-				Interface: "interface",
-			},
-		},
-		Slots: []*interfaces.Slot{
-			&interfaces.Slot{
-				Snap:      "consumer",
-				Name:      "slot",
-				Interface: "interface",
-			},
-		},
+		Plugs: []*interfaces.Plug{{
+			Snap:      "producer",
+			Name:      "plug",
+			Interface: "interface",
+		}},
+		Slots: []*interfaces.Slot{{
+			Snap:      "consumer",
+			Name:      "slot",
+			Interface: "interface",
+		}},
 	})
 }
 
@@ -1545,13 +1529,11 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 		"type":        "error",
 	})
 	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
-		Slots: []*interfaces.Slot{
-			&interfaces.Slot{
-				Snap:      "consumer",
-				Name:      "slot",
-				Interface: "interface",
-			},
-		},
+		Slots: []*interfaces.Slot{{
+			Snap:      "consumer",
+			Name:      "slot",
+			Interface: "interface",
+		}},
 	})
 }
 
@@ -1584,13 +1566,11 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 		"type":        "error",
 	})
 	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
-		Plugs: []*interfaces.Plug{
-			&interfaces.Plug{
-				Snap:      "producer",
-				Name:      "plug",
-				Interface: "interface",
-			},
-		},
+		Plugs: []*interfaces.Plug{{
+			Snap:      "producer",
+			Name:      "plug",
+			Interface: "interface",
+		}},
 	})
 }
 
@@ -1624,20 +1604,16 @@ func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 		"type":        "error",
 	})
 	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
-		Plugs: []*interfaces.Plug{
-			&interfaces.Plug{
-				Snap:      "producer",
-				Name:      "plug",
-				Interface: "interface",
-			},
-		},
-		Slots: []*interfaces.Slot{
-			&interfaces.Slot{
-				Snap:      "consumer",
-				Name:      "slot",
-				Interface: "interface",
-			},
-		},
+		Plugs: []*interfaces.Plug{{
+			Snap:      "producer",
+			Name:      "plug",
+			Interface: "interface",
+		}},
+		Slots: []*interfaces.Slot{{
+			Snap:      "consumer",
+			Name:      "slot",
+			Interface: "interface",
+		}},
 	})
 }
 
