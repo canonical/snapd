@@ -486,6 +486,35 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 	c.Assert(generatedWrapper, Equals, expected)
 }
 
+const expectedFrameworkWrapper = `#!/bin/sh
+set -e
+
+# app info (deprecated)
+export SNAP_APP_PATH="/snaps/fmk/1.4.0.0.1/"
+export SNAP_APP_DATA_PATH="/var/lib/snaps/fmk/1.4.0.0.1/"
+export SNAP_APP_USER_DATA_PATH="$HOME/snaps/fmk/1.4.0.0.1/"
+
+# app info
+export SNAP="/snaps/fmk/1.4.0.0.1/"
+export SNAP_DATA="/var/lib/snaps/fmk/1.4.0.0.1/"
+export SNAP_NAME="fmk"
+export SNAP_VERSION="1.4.0.0.1"
+export SNAP_ORIGIN=""
+export SNAP_FULLNAME="fmk"
+export SNAP_ARCH="%[1]s"
+export SNAP_USER_DATA="$HOME/snaps/fmk/1.4.0.0.1/"
+
+if [ ! -d "$SNAP_USER_DATA" ]; then
+   mkdir -p "$SNAP_USER_DATA"
+fi
+export HOME="$SNAP_USER_DATA"
+
+# export old pwd
+export SNAP_OLD_PWD="$(pwd)"
+cd $SNAP_DATA
+ubuntu-core-launcher fmk fmk_echo_1.4.0.0.1 /snaps/fmk/1.4.0.0.1/bin/echo "$@"
+`
+
 func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperFmk(c *C) {
 	binary := &AppYaml{Name: "echo", Command: "bin/echo"}
 	pkgPath := "/snaps/fmk/1.4.0.0.1/"
@@ -494,12 +523,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperFmk(c *C) {
 		Version: "1.4.0.0.1",
 		Type:    "framework"}
 
-	expected := strings.Replace(expectedWrapper, "pastebinit.mvo", "fmk", -1)
-	expected = strings.Replace(expected, `NAME="pastebinit"`, `NAME="fmk"`, 1)
-	expected = strings.Replace(expected, "mvo", "", -1)
-	expected = strings.Replace(expected, "pastebinit", "echo", -1)
-	expected = fmt.Sprintf(expected, arch.UbuntuArchitecture())
-
+	expected := fmt.Sprintf(expectedFrameworkWrapper, arch.UbuntuArchitecture())
 	generatedWrapper, err := generateSnapBinaryWrapper(binary, pkgPath, aaProfile, &m)
 	c.Assert(err, IsNil)
 	c.Assert(generatedWrapper, Equals, expected)
