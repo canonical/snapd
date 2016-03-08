@@ -142,42 +142,43 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 	}, nil
 }
 
-// Device holds a device assertion, which is a statement binding
-// a device identity with the device public key.
-type Device struct {
+// DeviceSerial holds a device-serial assertion, which is a statement binding a
+// device identity with the device public key.
+type DeviceSerial struct {
 	assertionBase
 	timestamp time.Time
 	pubKey    PublicKey
 }
 
 // BrandID returns the brand identifier of the device.
-func (dev *Device) BrandID() string {
-	return dev.Header("brand-id")
+func (ds *DeviceSerial) BrandID() string {
+	return ds.Header("brand-id")
 }
 
 // Model returns the model name identifier of the device.
-func (dev *Device) Model() string {
-	return dev.Header("model")
+func (ds *DeviceSerial) Model() string {
+	return ds.Header("model")
 }
 
-// Serial returns the serial of the device, together with brand id and model they form the unique identifier of the device.
-func (dev *Device) Serial() string {
-	return dev.Header("serial")
+// Serial returns the serial of the device, together with brand id and model
+// they form the unique identifier of the device.
+func (ds *DeviceSerial) Serial() string {
+	return ds.Header("serial")
 }
 
 // DeviceKey returns the public key of the device.
-func (dev *Device) DeviceKey() PublicKey {
-	return dev.pubKey
+func (ds *DeviceSerial) DeviceKey() PublicKey {
+	return ds.pubKey
 }
 
-// Timestamp returns the time when the device assertion was issued.
-func (dev *Device) Timestamp() time.Time {
-	return dev.timestamp
+// Timestamp returns the time when the device-serial assertion was issued.
+func (ds *DeviceSerial) Timestamp() time.Time {
+	return ds.timestamp
 }
 
-// TODO: implement further consistency checks for Device but first review approach
+// TODO: implement further consistency checks for DeviceSerial but first review approach
 
-func assembleDevice(assert assertionBase) (Assertion, error) {
+func assembleDeviceSerial(assert assertionBase) (Assertion, error) {
 	// TODO: authority-id can only == canonical or brand-id
 
 	encodedKey, err := checkMandatory(assert.headers, "device-key")
@@ -195,7 +196,7 @@ func assembleDevice(assert assertionBase) (Assertion, error) {
 	}
 
 	// ignore extra headers and non-empty body for future compatibility
-	return &Device{
+	return &DeviceSerial{
 		assertionBase: assert,
 		timestamp:     timestamp,
 		pubKey:        pubKey,
