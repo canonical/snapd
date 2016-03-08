@@ -110,7 +110,7 @@ type RestartCondition string
 
 // These are the supported restart conditions
 const (
-	RestartNever      RestartCondition = "never"
+	RestartNo         RestartCondition = "no"
 	RestartOnSuccess  RestartCondition = "on-success"
 	RestartOnFailure  RestartCondition = "on-failure"
 	RestartOnAbnormal RestartCondition = "on-abnormal"
@@ -119,7 +119,7 @@ const (
 )
 
 var restartMap = map[string]RestartCondition{
-	"never":       RestartNever,
+	"no":          RestartNo,
 	"on-success":  RestartOnSuccess,
 	"on-failure":  RestartOnFailure,
 	"on-abnormal": RestartOnAbnormal,
