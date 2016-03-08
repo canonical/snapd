@@ -50,7 +50,7 @@ var (
 	// XXX: is series actually part of the primary key?
 	ModelType           = &AssertionType{"model", []string{"series", "brand-id", "model"}, assembleModel}
 	SnapDeclarationType = &AssertionType{"snap-declaration", []string{"series", "snap-id"}, assembleSnapDeclaration}
-	SnapBuildType       = &AssertionType{"snap-build", []string{"snap-id", "snap-digest"}, assembleSnapBuild}
+	SnapBuildType       = &AssertionType{"snap-build", []string{"series", "snap-id", "snap-digest"}, assembleSnapBuild}
 	SnapRevisionType    = &AssertionType{"snap-revision", []string{"snap-id", "snap-digest"}, assembleSnapRevision}
 
 // ...

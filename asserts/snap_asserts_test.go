@@ -118,6 +118,7 @@ func (sbs *snapBuildSuite) SetUpSuite(c *C) {
 func (sbs *snapBuildSuite) TestDecodeOK(c *C) {
 	encoded := "type: snap-build\n" +
 		"authority-id: dev-id1\n" +
+		"series: 16\n" +
 		"snap-id: snap-id-1\n" +
 		"snap-digest: sha256 ...\n" +
 		"grade: stable\n" +
@@ -132,6 +133,7 @@ func (sbs *snapBuildSuite) TestDecodeOK(c *C) {
 	snapBuild := a.(*asserts.SnapBuild)
 	c.Check(snapBuild.AuthorityID(), Equals, "dev-id1")
 	c.Check(snapBuild.Timestamp(), Equals, sbs.ts)
+	c.Check(snapBuild.Series(), Equals, "16")
 	c.Check(snapBuild.SnapID(), Equals, "snap-id-1")
 	c.Check(snapBuild.SnapDigest(), Equals, "sha256 ...")
 	c.Check(snapBuild.SnapSize(), Equals, uint64(10000))
@@ -145,6 +147,7 @@ const (
 func (sbs *snapBuildSuite) TestDecodeInvalid(c *C) {
 	encoded := "type: snap-build\n" +
 		"authority-id: dev-id1\n" +
+		"series: 16\n" +
 		"snap-id: snap-id-1\n" +
 		"snap-digest: sha256 ...\n" +
 		"grade: stable\n" +
@@ -155,6 +158,7 @@ func (sbs *snapBuildSuite) TestDecodeInvalid(c *C) {
 		"openpgp c2ln"
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
+		{"series: 16\n", "", `"series" header is mandatory`},
 		{"snap-id: snap-id-1\n", "", `"snap-id" header is mandatory`},
 		{"snap-digest: sha256 ...\n", "", `"snap-digest" header is mandatory`},
 		{"grade: stable\n", "", `"grade" header is mandatory`},
@@ -224,6 +228,7 @@ func (sbs *snapBuildSuite) TestSnapBuildCheck(c *C) {
 
 	headers := map[string]string{
 		"authority-id": "dev-id1",
+		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-digest":  "sha256 ...",
 		"grade":        "devel",
@@ -242,6 +247,7 @@ func (sbs *snapBuildSuite) TestSnapBuildCheckInconsistentTimestamp(c *C) {
 
 	headers := map[string]string{
 		"authority-id": "dev-id1",
+		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-digest":  "sha256 ...",
 		"grade":        "devel",
