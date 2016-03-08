@@ -165,6 +165,11 @@ type SnapRevision struct {
 	timestamp    time.Time
 }
 
+// Series returns the series of the snap submitted to the store.
+func (snaprev *SnapRevision) Series() string {
+	return snaprev.Header("series")
+}
+
 // SnapID returns the snap id of the snap.
 func (snaprev *SnapRevision) SnapID() string {
 	return snaprev.Header("snap-id")
