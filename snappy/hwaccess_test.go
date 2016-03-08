@@ -199,10 +199,11 @@ write-paths:
 	// check the udev rule file contains all the rules
 	content, err = ioutil.ReadFile(filepath.Join(dirs.SnapUdevRulesDir, "70-snappy_hwassign_hello-app.rules"))
 	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, `
-KERNEL=="bar", TAG:="snappy-assign", ENV{SNAPPY_APP}:="hello-app"
-
-KERNEL=="bar*", TAG:="snappy-assign", ENV{SNAPPY_APP}:="hello-app"
+	c.Assert(string(content), Equals,
+		`KERNEL=="bar", TAG:="snappy-assign", ENV{SNAPPY_APP}:="hello-app.hello"
+KERNEL=="bar", TAG:="snappy-assign", ENV{SNAPPY_APP}:="hello-app.svc1"
+KERNEL=="bar*", TAG:="snappy-assign", ENV{SNAPPY_APP}:="hello-app.hello"
+KERNEL=="bar*", TAG:="snappy-assign", ENV{SNAPPY_APP}:="hello-app.svc1"
 `)
 	// remove
 	err = RemoveHWAccess("hello-app", "/dev/bar")
@@ -224,7 +225,9 @@ write-paths:
 	// check the udevReadGlob Udev rule is still there
 	content, err = ioutil.ReadFile(filepath.Join(dirs.SnapUdevRulesDir, "70-snappy_hwassign_hello-app.rules"))
 	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, `KERNEL=="bar*", TAG:="snappy-assign", ENV{SNAPPY_APP}:="hello-app"
+	c.Assert(string(content), Equals,
+		`KERNEL=="bar*", TAG:="snappy-assign", ENV{SNAPPY_APP}:="hello-app.hello"
+KERNEL=="bar*", TAG:="snappy-assign", ENV{SNAPPY_APP}:="hello-app.svc1"
 `)
 }
 
@@ -257,17 +260,23 @@ func (s *SnapTestSuite) TestRemoveHWAccessFail(c *C) {
 }
 
 func (s *SnapTestSuite) TestWriteUdevRulesForDeviceCgroup(c *C) {
+	makeInstalledMockSnap(s.tempdir, `
+name: foo-snap
+version: 1.0
+apps:
+  app:
+   command: cmd
+`)
 	var runUdevAdmCalls [][]string
 	runUdevAdm = makeRunUdevAdmMock(&runUdevAdmCalls)
 
-	snapapp := "foo-app_meep_1.0"
+	snapapp := "foo-snap_meep_1.0"
 	err := writeUdevRuleForDeviceCgroup(snapapp, "/dev/ttyS0")
 	c.Assert(err, IsNil)
 
-	got, err := ioutil.ReadFile(filepath.Join(dirs.SnapUdevRulesDir, "70-snappy_hwassign_foo-app.rules"))
+	got, err := ioutil.ReadFile(filepath.Join(dirs.SnapUdevRulesDir, "70-snappy_hwassign_foo-snap.rules"))
 	c.Assert(err, IsNil)
-	c.Assert(string(got), Equals, `
-KERNEL=="ttyS0", TAG:="snappy-assign", ENV{SNAPPY_APP}:="foo-app"
+	c.Assert(string(got), Equals, `KERNEL=="ttyS0", TAG:="snappy-assign", ENV{SNAPPY_APP}:="foo-snap.app"
 `)
 
 	verifyUdevAdmActivateRules(c, runUdevAdmCalls)
