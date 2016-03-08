@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v2"
@@ -123,7 +124,7 @@ func udevRulesPathForPart(partid string) string {
 	return filepath.Join(dirs.SnapUdevRulesDir, fmt.Sprintf("70-snappy_hwassign_%s.rules", partid))
 }
 
-func addUdevRuleForSnap(snapname, newRule string) error {
+func addUdevRulesForSnap(snapname string, newRules []string) error {
 	udevRulesFile := udevRulesPathForPart(snapname)
 
 	rules, err := ioutil.ReadFile(udevRulesFile)
@@ -134,9 +135,10 @@ func addUdevRuleForSnap(snapname, newRule string) error {
 	// At this point either rules variable contains some rules if the
 	// file exists, or it is nil if the file does not exist yet.
 	// In both cases, updatedRules will have the right content.
-	updatedRules := append(rules, newRule...)
-
-	if err := osutil.AtomicWriteFile(udevRulesFile, updatedRules, 0644, 0); nil != err {
+	for _, newRule := range newRules {
+		rules = append(rules, newRule...)
+	}
+	if err := osutil.AtomicWriteFile(udevRulesFile, rules, 0644, 0); nil != err {
 		return err
 	}
 
@@ -153,12 +155,33 @@ func writeUdevRuleForDeviceCgroup(snapname, device string) error {
 		l := strings.Split(snapname, "_")
 		snapname = l[0]
 	}
+	// If there's a dedicated .origin then parse it and use that as the origin
+	// to look for in the loop below. In other cases, just ignore origin
+	// altogether.
+	origin := ""
+	if strings.Contains(snapname, ".") {
+		l := strings.Split(snapname, ".")
+		snapname, origin = l[0], l[1]
+	}
+	devicePath := filepath.Base(device)
 
-	acl := fmt.Sprintf(`
-KERNEL=="%v", TAG:="snappy-assign", ENV{SNAPPY_APP}:="%s"
-`, filepath.Base(device), snapname)
-
-	if err := addUdevRuleForSnap(snapname, acl); err != nil {
+	repo := NewLocalSnapRepository()
+	installed, err := repo.Installed()
+	if err != nil {
+		return err
+	}
+	var acls []string
+	for _, snap := range installed {
+		if snap.Name() == snapname && (origin == "" || snap.Origin() == origin) {
+			for _, app := range snap.(*SnapPart).Apps() {
+				acl := fmt.Sprintf(`KERNEL=="%v", TAG:="snappy-assign", ENV{SNAPPY_APP}:="%s"`+"\n",
+					devicePath, fmt.Sprintf("%s.%s", snap.Name(), app.Name))
+				acls = append(acls, acl)
+			}
+		}
+	}
+	sort.Strings(acls)
+	if err = addUdevRulesForSnap(snapname, acls); err != nil {
 		return err
 	}
 
