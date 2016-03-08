@@ -72,7 +72,7 @@ func generateSnapServicesFile(app *AppYaml, baseDir string, aaProfile string, m 
 			ServiceName:    app.Name,
 			Version:        m.Version,
 			Description:    desc,
-			AppPath:        baseDir,
+			SnapPath:       baseDir,
 			Start:          app.Command,
 			Stop:           app.Stop,
 			PostStop:       app.PostStop,
