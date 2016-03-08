@@ -472,7 +472,7 @@ export HOME="$SNAP_USER_DATA"
 # export old pwd
 export SNAP_OLD_PWD="$(pwd)"
 cd $SNAP_DATA
-ubuntu-core-launcher pastebinit.mvo pastebinit.mvo_pastebinit_1.4.0.0.1 /snaps/pastebinit.mvo/1.4.0.0.1/bin/pastebinit "$@"
+ubuntu-core-launcher pastebinit.pastebinit pastebinit.mvo_pastebinit_1.4.0.0.1 /snaps/pastebinit.mvo/1.4.0.0.1/bin/pastebinit "$@"
 `
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
@@ -518,7 +518,7 @@ export HOME="$SNAP_USER_DATA"
 # export old pwd
 export SNAP_OLD_PWD="$(pwd)"
 cd $SNAP_DATA
-ubuntu-core-launcher fmk fmk_echo_1.4.0.0.1 /snaps/fmk/1.4.0.0.1/bin/echo "$@"
+ubuntu-core-launcher fmk.echo fmk_echo_1.4.0.0.1 /snaps/fmk/1.4.0.0.1/bin/echo "$@"
 `
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperFmk(c *C) {
@@ -849,10 +849,10 @@ func (s *SnapTestSuite) TestAddPackageBinariesStripsGlobalRootdir(c *C) {
 	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/snaps/bin/hello-app.hello"))
 	c.Assert(err, IsNil)
 
-	needle := fmt.Sprintf(`
+	needle := `
 cd $SNAP_DATA
-ubuntu-core-launcher hello-app.%s hello-app.testspacethename_hello_1.10 /snaps/hello-app.testspacethename/1.10/bin/hello "$@"
-`, testOrigin)
+ubuntu-core-launcher hello-app.hello hello-app.testspacethename_hello_1.10 /snaps/hello-app.testspacethename/1.10/bin/hello "$@"
+`
 	c.Assert(string(content), Matches, "(?ms).*"+regexp.QuoteMeta(needle)+".*")
 }
 
