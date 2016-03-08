@@ -90,7 +90,7 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("wrapper").Parse(wrapperTemplate))
 	wrapperData := struct {
-		AppName     string
+		SnapName    string
 		AppArch     string
 		AppPath     string
 		Version     string
@@ -102,7 +102,7 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 		OldAppVars  string
 		NewAppVars  string
 	}{
-		AppName:     m.Name,
+		SnapName:    m.Name,
 		AppArch:     arch.UbuntuArchitecture(),
 		AppPath:     pkgPath,
 		Version:     m.Version,

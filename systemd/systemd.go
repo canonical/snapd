@@ -154,7 +154,7 @@ func (rc *RestartCondition) UnmarshalYAML(unmarshal func(interface{}) error) err
 
 // ServiceDescription describes a snappy systemd service
 type ServiceDescription struct {
-	AppName         string
+	SnapName        string
 	ServiceName     string
 	Version         string
 	Description     string
@@ -371,8 +371,8 @@ WantedBy={{.ServiceSystemdTarget}}
 	t := template.Must(template.New("wrapper").Parse(serviceTemplate))
 
 	origin := ""
-	if len(desc.UdevAppName) > len(desc.AppName) {
-		origin = desc.UdevAppName[len(desc.AppName)+1:]
+	if len(desc.UdevAppName) > len(desc.SnapName) {
+		origin = desc.UdevAppName[len(desc.SnapName)+1:]
 	}
 
 	restartCond := desc.Restart.String()
@@ -401,7 +401,7 @@ WantedBy={{.ServiceSystemdTarget}}
 		filepath.Join(desc.AppPath, desc.Start),
 		filepath.Join(desc.AppPath, desc.Stop),
 		filepath.Join(desc.AppPath, desc.PostStop),
-		fmt.Sprintf("%s_%s_%s", desc.AppName, desc.ServiceName, desc.Version),
+		fmt.Sprintf("%s_%s_%s", desc.SnapName, desc.ServiceName, desc.Version),
 		servicesSystemdTarget,
 		origin,
 		arch.UbuntuArchitecture(),

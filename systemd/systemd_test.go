@@ -240,7 +240,7 @@ var (
 func (s *SystemdTestSuite) TestGenAppServiceFile(c *C) {
 
 	desc := &ServiceDescription{
-		AppName:     "app",
+		SnapName:    "app",
 		ServiceName: "service",
 		Version:     "1.0",
 		Description: "descr",
@@ -260,8 +260,8 @@ func (s *SystemdTestSuite) TestGenAppServiceFile(c *C) {
 func (s *SystemdTestSuite) TestGenAppServiceFileRestart(c *C) {
 	for name, cond := range restartMap {
 		desc := &ServiceDescription{
-			AppName: "app",
-			Restart: cond,
+			SnapName: "app",
+			Restart:  cond,
 		}
 
 		c.Check(New("", nil).GenServiceFile(desc), Matches, `(?ms).*^Restart=`+name+`$.*`, Commentf(name))
@@ -271,7 +271,7 @@ func (s *SystemdTestSuite) TestGenAppServiceFileRestart(c *C) {
 func (s *SystemdTestSuite) TestGenFmkServiceFile(c *C) {
 
 	desc := &ServiceDescription{
-		AppName:     "app",
+		SnapName:    "app",
 		ServiceName: "service",
 		Version:     "1.0",
 		Description: "descr",
@@ -292,7 +292,7 @@ func (s *SystemdTestSuite) TestGenFmkServiceFile(c *C) {
 func (s *SystemdTestSuite) TestGenServiceFileWithBusName(c *C) {
 
 	desc := &ServiceDescription{
-		AppName:     "app",
+		SnapName:    "app",
 		ServiceName: "service",
 		Version:     "1.0",
 		Description: "descr",
