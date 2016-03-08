@@ -158,7 +158,7 @@ type ServiceDescription struct {
 	ServiceName     string
 	Version         string
 	Description     string
-	AppPath         string
+	SnapPath        string
 	Start           string
 	Stop            string
 	PostStop        string
@@ -356,7 +356,7 @@ X-Snappy=yes
 [Service]
 ExecStart=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.FullPathStart}}
 Restart={{.Restart}}
-WorkingDirectory={{.AppPath}}
+WorkingDirectory={{.SnapPath}}
 Environment="SNAP_APP={{.AppTriple}}" {{.EnvVars}}
 {{if .Stop}}ExecStop=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.FullPathStop}}{{end}}
 {{if .PostStop}}ExecStopPost=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.FullPathPostStop}}{{end}}
@@ -398,9 +398,9 @@ WantedBy={{.ServiceSystemdTarget}}
 		Type                 string
 	}{
 		*desc,
-		filepath.Join(desc.AppPath, desc.Start),
-		filepath.Join(desc.AppPath, desc.Stop),
-		filepath.Join(desc.AppPath, desc.PostStop),
+		filepath.Join(desc.SnapPath, desc.Start),
+		filepath.Join(desc.SnapPath, desc.Stop),
+		filepath.Join(desc.SnapPath, desc.PostStop),
 		fmt.Sprintf("%s_%s_%s", desc.SnapName, desc.ServiceName, desc.Version),
 		servicesSystemdTarget,
 		origin,
