@@ -31,9 +31,10 @@ var shortManHelp = i18n.G("produces manpage")
 var longManHelp = i18n.G("produces manpage")
 
 func init() {
-	addCommand("man", shortManHelp, longManHelp, func() interface{} {
+	cmd := addCommand("man", shortManHelp, longManHelp, func() interface{} {
 		return &cmdMan{}
 	})
+	cmd.hidden = true
 }
 
 func (*cmdMan) Execute([]string) error {
