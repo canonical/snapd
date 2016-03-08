@@ -68,7 +68,7 @@ func generateSnapServicesFile(app *AppYaml, baseDir string, aaProfile string, m 
 
 	return systemd.New(dirs.GlobalRootDir, nil).GenServiceFile(
 		&systemd.ServiceDescription{
-			AppName:        m.Name,
+			SnapName:       m.Name,
 			ServiceName:    app.Name,
 			Version:        m.Version,
 			Description:    desc,

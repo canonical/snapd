@@ -63,7 +63,7 @@ func GetBasicSnapEnvVars(desc interface{}) []string {
 	return fillSnapEnvVars(desc, []string{
 		"SNAP={{.AppPath}}",
 		"SNAP_DATA=/var/lib{{.AppPath}}",
-		"SNAP_NAME={{.AppName}}",
+		"SNAP_NAME={{.SnapName}}",
 		"SNAP_VERSION={{.Version}}",
 		"SNAP_ORIGIN={{.Origin}}",
 		"SNAP_FULLNAME={{.UdevAppName}}",
