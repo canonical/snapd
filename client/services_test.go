@@ -95,7 +95,7 @@ func (cs *clientSuite) TestClientServices(c *C) {
 				SubState:        "running",
 				UnitFileState:   "enabled",
 				SnapName:        "chatroom",
-				ServiceName:     "chatroom",
+				AppName:         "chatroom",
 			},
 		},
 	})

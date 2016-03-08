@@ -914,7 +914,7 @@ func (s *apiSuite) TestSnapPutConfigNoConfig(c *check.C) {
 
 func (s *apiSuite) TestSnapServiceGet(c *check.C) {
 	findServices = func(string, string, progress.Meter) (snappy.ServiceActor, error) {
-		return &tSA{ssout: []*snappy.PackageServiceStatus{{ServiceName: "svc"}}}, nil
+		return &tSA{ssout: []*snappy.PackageServiceStatus{{AppName: "svc"}}}, nil
 	}
 
 	req, err := http.NewRequest("GET", "/2.0/snaps/foo.bar/services", nil)
@@ -935,12 +935,12 @@ func (s *apiSuite) TestSnapServiceGet(c *check.C) {
 	c.Assert(m["svc"], check.FitsTypeOf, new(appDesc))
 	c.Check(m["svc"].Op, check.Equals, "status")
 	c.Check(m["svc"].Spec, check.DeepEquals, &snappy.AppYaml{Name: "svc", Daemon: "forking", StopTimeout: timeout.DefaultTimeout})
-	c.Check(m["svc"].Status, check.DeepEquals, &snappy.PackageServiceStatus{ServiceName: "svc"})
+	c.Check(m["svc"].Status, check.DeepEquals, &snappy.PackageServiceStatus{AppName: "svc"})
 }
 
 func (s *apiSuite) TestSnapServicePut(c *check.C) {
 	findServices = func(string, string, progress.Meter) (snappy.ServiceActor, error) {
-		return &tSA{ssout: []*snappy.PackageServiceStatus{{ServiceName: "svc"}}}, nil
+		return &tSA{ssout: []*snappy.PackageServiceStatus{{AppName: "svc"}}}, nil
 	}
 
 	buf := bytes.NewBufferString(`{"action": "stop"}`)
