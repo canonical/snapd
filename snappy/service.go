@@ -137,7 +137,7 @@ func (actor *serviceActor) Status() ([]string, error) {
 type PackageServiceStatus struct {
 	systemd.ServiceStatus
 	PackageName string `json:"package_name"`
-	ServiceName string `json:"service_name"`
+	AppName     string `json:"service_name"`
 }
 
 // ServiceStatus of all the found services.
@@ -153,7 +153,7 @@ func (actor *serviceActor) ServiceStatus() ([]*PackageServiceStatus, error) {
 		stati = append(stati, &PackageServiceStatus{
 			ServiceStatus: *status,
 			PackageName:   svc.m.Name,
-			ServiceName:   svc.svc.Name,
+			AppName:       svc.svc.Name,
 		})
 	}
 

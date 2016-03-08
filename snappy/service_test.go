@@ -196,7 +196,7 @@ func (s *ServiceActorSuite) TestFindServicesFindsServices(c *C) {
 			UnitFileState:   "enabled",
 		},
 		PackageName: "hello-app",
-		ServiceName: "svc1",
+		AppName:     "svc1",
 	})
 
 	logs, err := actor.Logs()
