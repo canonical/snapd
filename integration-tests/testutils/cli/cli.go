@@ -22,9 +22,13 @@ package cli
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
+
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/config"
 
 	"gopkg.in/check.v1"
 )
@@ -42,6 +46,7 @@ func ExecCommand(c *check.C, cmds ...string) string {
 // ExecCommandToFile executes a shell command and saves the output of the
 // command to a file. In case of error, it will fail the test.
 func ExecCommandToFile(c *check.C, filename string, cmds ...string) {
+	cmds, err := AddOptionsToCommand(cmds)
 	cmd := execCommand(cmds[0], cmds[1:]...)
 	outfile, err := os.Create(filename)
 	c.Assert(err, check.IsNil, check.Commentf("Error creating output file %s", filename))
@@ -56,6 +61,10 @@ func ExecCommandToFile(c *check.C, filename string, cmds ...string) {
 // ExecCommandErr executes a shell command and returns a string with the output
 // of the command and eventually the obtained error
 func ExecCommandErr(cmds ...string) (output string, err error) {
+	cmds, err = AddOptionsToCommand(cmds)
+	if err != nil {
+		return
+	}
 	cmd := execCommand(cmds[0], cmds[1:]...)
 	return ExecCommandWrapper(cmd)
 }
@@ -64,7 +73,79 @@ func ExecCommandErr(cmds ...string) (output string, err error) {
 func ExecCommandWrapper(cmd *exec.Cmd) (output string, err error) {
 	fmt.Println(strings.Join(cmd.Args, " "))
 	outputByte, err := cmd.CombinedOutput()
-	output = string(outputByte)
+	output = removeCoverageInfo(string(outputByte))
 	fmt.Print(output)
 	return
+}
+
+// AddOptionsToCommand inserts the required coverage options in
+// the given snappy command slice
+func AddOptionsToCommand(cmds []string) ([]string, error) {
+	index := findIndex(cmds, "snappy", "snap", "snapd")
+	if index != -1 {
+		cfg, err := config.ReadConfig(config.DefaultFileName)
+		if err != nil {
+			return []string{}, err
+		}
+		if cfg.FromBranch {
+			return addCoverageOptions(cmds, index)
+		}
+	}
+	return cmds, nil
+}
+
+// findIndex returns the index of the first of targetItems in items, -1 if any of them present
+func findIndex(items []string, targetItems ...string) int {
+	for index, elem := range items {
+		for _, target := range targetItems {
+			if elem == target {
+				return index
+			}
+		}
+	}
+	return -1
+}
+
+func addCoverageOptions(cmds []string, index int) ([]string, error) {
+	orig := make([]string, len(cmds))
+	copy(orig, cmds)
+
+	coveragePath := getCoveragePath()
+	err := os.MkdirAll(coveragePath, os.ModePerm)
+	if err != nil {
+		return []string{}, err
+	}
+
+	tmpFile := getCoverFilename()
+	coverprofile := filepath.Join(coveragePath, tmpFile)
+
+	head := append(cmds[:index+1],
+		[]string{"-test.run=^TestRunMain$", "-test.coverprofile=" + coverprofile}...)
+	tail := orig[index+1:]
+
+	return append(head, tail...), nil
+}
+
+func removeCoverageInfo(input string) string {
+	output := input
+	lines := strings.Split(input, "\n")
+	l := len(lines)
+
+	if l >= 3 && lines[l-3] == "PASS" &&
+		strings.HasPrefix(lines[l-2], "coverage") &&
+		lines[l-1] == "" {
+		lines = lines[:l-3]
+		output = strings.Join(lines, "\n") + "\n"
+	}
+	return output
+}
+
+func getCoverFilename() string {
+	coverFile, _ := ioutil.TempFile(getCoveragePath(), "")
+	coverFile.Close()
+	return filepath.Base(coverFile.Name())
+}
+
+func getCoveragePath() string {
+	return filepath.Join(os.Getenv("ADT_ARTIFACTS"), "coverage")
 }

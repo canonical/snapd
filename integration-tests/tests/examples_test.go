@@ -2,7 +2,7 @@
 // +build !excludeintegration
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015, 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -187,7 +187,11 @@ type licensedExampleSuite struct {
 }
 
 func (s *licensedExampleSuite) TestAcceptLicenseMustInstallSnap(c *check.C) {
-	cmd := exec.Command("sudo", "snappy", "install", "licensed.canonical/edge")
+	cmds := []string{"sudo", "snappy", "install", "licensed.canonical/edge"}
+	cmdsCover, err := cli.AddOptionsToCommand(cmds)
+	c.Assert(err, check.IsNil, check.Commentf("Error adding coverage options, %q", err))
+
+	cmd := exec.Command(cmdsCover[0], cmdsCover[1:]...)
 	f, err := pty.Start(cmd)
 	c.Assert(err, check.IsNil, check.Commentf("Error starting pty: %s", err))
 	defer common.RemoveSnap(c, "licensed.canonical")
@@ -203,7 +207,11 @@ func (s *licensedExampleSuite) TestAcceptLicenseMustInstallSnap(c *check.C) {
 }
 
 func (s *licensedExampleSuite) TestDeclineLicenseMustNotInstallSnap(c *check.C) {
-	cmd := exec.Command("sudo", "snappy", "install", "licensed.canonical/edge")
+	cmds := []string{"sudo", "snappy", "install", "licensed.canonical/edge"}
+	cmdsCover, err := cli.AddOptionsToCommand(cmds)
+	c.Assert(err, check.IsNil, check.Commentf("Error adding coverage options, %q", err))
+
+	cmd := exec.Command(cmdsCover[0], cmdsCover[1:]...)
 	f, err := pty.Start(cmd)
 	c.Assert(err, check.IsNil, check.Commentf("Error starting pty: %s", err))
 
