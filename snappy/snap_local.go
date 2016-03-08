@@ -167,7 +167,7 @@ func (s *SnapPart) Channel() string {
 
 // Icon returns the path to the icon
 func (s *SnapPart) Icon() string {
-	found, _ := filepath.Glob(filepath.Join(s.basedir, "meta", "icon.*"))
+	found, _ := filepath.Glob(filepath.Join(s.basedir, "meta", "gui", "icon.*"))
 	if len(found) == 0 {
 		return ""
 	}
