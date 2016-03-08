@@ -25,7 +25,7 @@ import (
 	"path/filepath"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/partition"
 	"github.com/ubuntu-core/snappy/snap/squashfs"
 	"github.com/ubuntu-core/snappy/systemd"
@@ -115,7 +115,7 @@ func (s *SquashfsTestSuite) TestInstallViaSquashfsWorks(c *C) {
 	c.Assert(err, IsNil)
 
 	// after install the blob is in the right dir
-	c.Assert(helpers.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-app.origin_1.10.snap")), Equals, true)
+	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-app.origin_1.10.snap")), Equals, true)
 
 	// ensure the right unit is created
 	mup := systemd.MountUnitPath("/snaps/hello-app.origin/1.10", "mount")
@@ -156,13 +156,13 @@ func (s *SquashfsTestSuite) TestRemoveSquashfsMountUnit(c *C) {
 
 	// ensure we have the files
 	p := filepath.Join(dirs.SnapServicesDir, "snaps-foo.origin-1.0.mount")
-	c.Assert(helpers.FileExists(p), Equals, true)
+	c.Assert(osutil.FileExists(p), Equals, true)
 
 	// now call remove and ensure they are gone
 	err = removeSquashfsMount(m, filepath.Join(dirs.SnapSnapsDir, "foo.origin/1.0"), inter)
 	c.Assert(err, IsNil)
 	p = filepath.Join(dirs.SnapServicesDir, "snaps-foo.origin-1.0.mount")
-	c.Assert(helpers.FileExists(p), Equals, false)
+	c.Assert(osutil.FileExists(p), Equals, false)
 }
 
 func (s *SquashfsTestSuite) TestRemoveViaSquashfsWorks(c *C) {
@@ -171,7 +171,7 @@ func (s *SquashfsTestSuite) TestRemoveViaSquashfsWorks(c *C) {
 	c.Assert(err, IsNil)
 
 	// after install the blob is in the right dir
-	c.Assert(helpers.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-app.origin_1.10.snap")), Equals, true)
+	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-app.origin_1.10.snap")), Equals, true)
 
 	// now remove and ensure its gone
 	part, err := NewSnapFile(snapFile, "origin", true)
@@ -179,7 +179,7 @@ func (s *SquashfsTestSuite) TestRemoveViaSquashfsWorks(c *C) {
 	installedPart, err := newSnapPartFromYaml(filepath.Join(part.instdir, "meta", "package.yaml"), part.origin, part.m)
 	err = (&Overlord{}).Uninstall(installedPart, &MockProgressMeter{})
 	c.Assert(err, IsNil)
-	c.Assert(helpers.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-app.origin_1.10.snap")), Equals, false)
+	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-app.origin_1.10.snap")), Equals, false)
 
 }
 
@@ -260,7 +260,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapRemovesKernelAssets(c *C) {
 	_, err := (&Overlord{}).Install(snapPkg, "origin", 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	kernelAssetsDir := filepath.Join(s.bootloader.Dir(), "ubuntu-kernel.origin_4.0-1.snap")
-	c.Assert(helpers.FileExists(kernelAssetsDir), Equals, true)
+	c.Assert(osutil.FileExists(kernelAssetsDir), Equals, true)
 
 	// ensure uninstall cleans the kernel assets
 	part, err := NewSnapFile(snapPkg, "origin", true)
@@ -269,7 +269,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapRemovesKernelAssets(c *C) {
 	installedPart.isActive = false
 	err = (&Overlord{}).Uninstall(installedPart, &MockProgressMeter{})
 	c.Assert(err, IsNil)
-	c.Assert(helpers.FileExists(kernelAssetsDir), Equals, false)
+	c.Assert(osutil.FileExists(kernelAssetsDir), Equals, false)
 }
 
 func (s *SquashfsTestSuite) TestActiveKernelNotRemovable(c *C) {
@@ -367,7 +367,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapNoUnpacksKernelForGrub(c *C) {
 
 	// kernel is *not* here
 	vmlinuz := filepath.Join(s.bootloader.Dir(), "ubuntu-kernel.origin_4.0-1.snap", "vmlinuz")
-	c.Assert(helpers.FileExists(vmlinuz), Equals, false)
+	c.Assert(osutil.FileExists(vmlinuz), Equals, false)
 }
 
 func (s *SquashfsTestSuite) TestInstallFailUnmountsSnap(c *C) {
@@ -376,9 +376,9 @@ version: 1.10
 apps:
  some-binary:
   command: some-binary
-  slots: [some-binary]
+  plugs: [some-binary]
 
-slots:
+plugs:
  some-binary:
   interface: old-security
   security-template: not-there
@@ -389,7 +389,7 @@ slots:
 
 	// ensure the mount unit is not there
 	mup := systemd.MountUnitPath("/snaps/hello.origin/1.10", "mount")
-	c.Assert(helpers.FileExists(mup), Equals, false)
+	c.Assert(osutil.FileExists(mup), Equals, false)
 
 	// ensure that the mount gets unmounted and stopped
 	c.Assert(s.systemdCmds, DeepEquals, [][]string{

@@ -36,14 +36,15 @@ The following keys are optional:
 * `apps`: the map of apps (binaries and services) that a snap provides
     * `command`: (required) the command to start the service
     * `daemon`: (optional) [simple|forking|oneshot|dbus]
-    * `stop`: (optional) the command to stop the service
+    * `stop-command`: (optional) the command to stop the service
     * `stop-timeout`: (optional) the time in seconds to wait for the
                       service to stop
     * `restart-condition`: (optional) if specified, use the given restart
       condition. Can be one of `on-failure` (default), `never`, `on-success`,
       `on-abnormal`, `on-abort`, and `always`. See `systemd.service(5)`
       (search for `Restart=`) for details.
-    * `poststop`: (optional) a command that runs after the service has stopped
+    * `post-stop-command`: (optional) a command that runs after the service
+                          has stopped
     * `slots`: a map of interfaces
     * `ports`: (optional) define what ports the service will work
         * `internal`: the ports the service is going to connect to
@@ -66,14 +67,6 @@ The following keys are optional:
                 typically be followed by either the snap package name or the
                 snap package name followed by '\_' and any other characters
                 (eg, '@name' or '@name\_something').
-    * `socket-user`: (optional) The user that owns the stream socket. The user
-                     should normally match the snap package name. Must be
-                     specified with `listen-stream`. This option is reserved
-                     for future use.
-    * `socket-group`: (optional) The group that own the stream socket. The
-                      group should normally match the snap package name. Must
-                      be specified with `listen-stream`. This option is
-                      reserved for future use.
 
 * `slots`: a map of interfaces
 
@@ -98,6 +91,45 @@ It provides the following parameters:
 
 A license text that the user must accept before the snap can be
 installed.
+
+## gui/ directory
+
+The gui directory contains GUI releated files for the snap.
+
+### dekstop files
+
+The `gui/` directory may contain .desktop files for the snap. Those
+desktop files may contain all valid desktop entries from the xdg
+Desktop Entry Specification version 1.1 with some exceptions listed
+below. If there is a line with an unknown key or an unofficial key
+that line is silently removed from the desktop file on install.
+
+Only `Exec=` lines that start with `Exec=$snap.$app` are valid, but
+arguments may be passed. E.g. for a snap like:
+```
+name: http
+version: 1.0
+apps:
+ GET:
+  command: myhttpdownlaoder.get-stuff
+```
+
+With a desktop file:
+```
+[Desktop Entry]
+Name=My downloader
+Exec=http.GET %U
+```
+
+The `Exec=` line is valid because it starts with `Exec=http.GET` (the
+snap is called "http" and the app is called "GET").
+
+
+### Unsupported desktop keys
+
+The `DBusActivatable`, `TryExec` and `Implements` keys are currently
+not supported and will be silently removed from the desktop file on
+install.
 
 ## hooks/ directory
 

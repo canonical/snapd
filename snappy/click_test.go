@@ -32,7 +32,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/policy"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/squashfs"
@@ -47,7 +47,7 @@ func (s *SnapTestSuite) testLocalSnapInstall(c *C) string {
 	c.Check(name, Equals, "foo")
 
 	baseDir := filepath.Join(dirs.SnapSnapsDir, fooComposedName, "1.0")
-	c.Assert(helpers.FileExists(baseDir), Equals, true)
+	c.Assert(osutil.FileExists(baseDir), Equals, true)
 	_, err = os.Stat(filepath.Join(s.tempdir, "var", "lib", "snaps", "foo."+testOrigin, "1.0"))
 	c.Assert(err, IsNil)
 
@@ -449,18 +449,14 @@ set -e
 # app info (deprecated)
 export SNAP_APP_PATH="/snaps/pastebinit.mvo/1.4.0.0.1/"
 export SNAP_APP_DATA_PATH="/var/lib/snaps/pastebinit.mvo/1.4.0.0.1/"
-export SNAP_APP_TMPDIR="/tmp/snaps/pastebinit.mvo/1.4.0.0.1/tmp"
 export SNAP_APP_USER_DATA_PATH="$HOME/snaps/pastebinit.mvo/1.4.0.0.1/"
 
 # app info
 export SNAP="/snaps/pastebinit.mvo/1.4.0.0.1/"
 export SNAP_DATA="/var/lib/snaps/pastebinit.mvo/1.4.0.0.1/"
-export TMPDIR="/tmp/snaps/pastebinit.mvo/1.4.0.0.1/tmp"
-export TEMPDIR="/tmp/snaps/pastebinit.mvo/1.4.0.0.1/tmp"
 export SNAP_NAME="pastebinit"
 export SNAP_VERSION="1.4.0.0.1"
 export SNAP_ORIGIN="mvo"
-export SNAP_FULLNAME="pastebinit.mvo"
 export SNAP_ARCH="%[1]s"
 export SNAP_USER_DATA="$HOME/snaps/pastebinit.mvo/1.4.0.0.1/"
 
@@ -469,9 +465,13 @@ if [ ! -d "$SNAP_USER_DATA" ]; then
 fi
 export HOME="$SNAP_USER_DATA"
 
+# Snap name is: pastebinit
+# App name is: pastebinit
+# Developer name is: mvo
+
 # export old pwd
 export SNAP_OLD_PWD="$(pwd)"
-cd /snaps/pastebinit.mvo/1.4.0.0.1/
+cd $SNAP_DATA
 ubuntu-core-launcher pastebinit.mvo pastebinit.mvo_pastebinit_1.4.0.0.1 /snaps/pastebinit.mvo/1.4.0.0.1/bin/pastebinit "$@"
 `
 
@@ -489,6 +489,38 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 	c.Assert(generatedWrapper, Equals, expected)
 }
 
+const expectedFrameworkWrapper = `#!/bin/sh
+set -e
+
+# app info (deprecated)
+export SNAP_APP_PATH="/snaps/fmk/1.4.0.0.1/"
+export SNAP_APP_DATA_PATH="/var/lib/snaps/fmk/1.4.0.0.1/"
+export SNAP_APP_USER_DATA_PATH="$HOME/snaps/fmk/1.4.0.0.1/"
+
+# app info
+export SNAP="/snaps/fmk/1.4.0.0.1/"
+export SNAP_DATA="/var/lib/snaps/fmk/1.4.0.0.1/"
+export SNAP_NAME="fmk"
+export SNAP_VERSION="1.4.0.0.1"
+export SNAP_ORIGIN=""
+export SNAP_ARCH="%[1]s"
+export SNAP_USER_DATA="$HOME/snaps/fmk/1.4.0.0.1/"
+
+if [ ! -d "$SNAP_USER_DATA" ]; then
+   mkdir -p "$SNAP_USER_DATA"
+fi
+export HOME="$SNAP_USER_DATA"
+
+# Snap name is: fmk
+# App name is: echo
+# Developer name is: 
+
+# export old pwd
+export SNAP_OLD_PWD="$(pwd)"
+cd $SNAP_DATA
+ubuntu-core-launcher fmk fmk_echo_1.4.0.0.1 /snaps/fmk/1.4.0.0.1/bin/echo "$@"
+`
+
 func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperFmk(c *C) {
 	binary := &AppYaml{Name: "echo", Command: "bin/echo"}
 	pkgPath := "/snaps/fmk/1.4.0.0.1/"
@@ -497,12 +529,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperFmk(c *C) {
 		Version: "1.4.0.0.1",
 		Type:    "framework"}
 
-	expected := strings.Replace(expectedWrapper, "pastebinit.mvo", "fmk", -1)
-	expected = strings.Replace(expected, `NAME="pastebinit"`, `NAME="fmk"`, 1)
-	expected = strings.Replace(expected, "mvo", "", -1)
-	expected = strings.Replace(expected, "pastebinit", "echo", -1)
-	expected = fmt.Sprintf(expected, arch.UbuntuArchitecture())
-
+	expected := fmt.Sprintf(expectedFrameworkWrapper, arch.UbuntuArchitecture())
 	generatedWrapper, err := generateSnapBinaryWrapper(binary, pkgPath, aaProfile, &m)
 	c.Assert(err, IsNil)
 	c.Assert(generatedWrapper, Equals, expected)
@@ -574,7 +601,7 @@ apps:
 	c.Assert(err, IsNil)
 
 	servicesFile := filepath.Join(dirs.SnapServicesDir, "foo_service_1.0.service")
-	c.Assert(helpers.FileExists(servicesFile), Equals, true)
+	c.Assert(osutil.FileExists(servicesFile), Equals, true)
 	st, err := os.Stat(servicesFile)
 	c.Assert(err, IsNil)
 	// should _not_ be executable
@@ -587,8 +614,8 @@ apps:
 	c.Assert(err, IsNil)
 	err = (&Overlord{}).Uninstall(part, &MockProgressMeter{})
 	c.Assert(err, IsNil)
-	c.Assert(helpers.FileExists(servicesFile), Equals, false)
-	c.Assert(helpers.FileExists(snapDir), Equals, false)
+	c.Assert(osutil.FileExists(servicesFile), Equals, false)
+	c.Assert(osutil.FileExists(snapDir), Equals, false)
 }
 
 func (s *SnapTestSuite) setupSnappyDependentServices(c *C) (string, *MockProgressMeter) {
@@ -616,8 +643,8 @@ version: `
 	_, err = installClick(snapFile, AllowUnauthenticated, inter, testOrigin)
 	c.Assert(err, IsNil)
 
-	c.Assert(helpers.FileExists(filepath.Join(dirs.SnapServicesDir, "foo_svc1_1.0.service")), Equals, true)
-	c.Assert(helpers.FileExists(filepath.Join(dirs.SnapServicesDir, "foo_svc2_1.0.service")), Equals, true)
+	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapServicesDir, "foo_svc1_1.0.service")), Equals, true)
+	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapServicesDir, "foo_svc2_1.0.service")), Equals, true)
 
 	return fmkYaml, inter
 }
@@ -823,7 +850,7 @@ func (s *SnapTestSuite) TestAddPackageBinariesStripsGlobalRootdir(c *C) {
 	c.Assert(err, IsNil)
 
 	needle := fmt.Sprintf(`
-cd /snaps/hello-app.testspacethename/1.10
+cd $SNAP_DATA
 ubuntu-core-launcher hello-app.%s hello-app.testspacethename_hello_1.10 /snaps/hello-app.testspacethename/1.10/bin/hello "$@"
 `, testOrigin)
 	c.Assert(string(content), Matches, "(?ms).*"+regexp.QuoteMeta(needle)+".*")
@@ -839,7 +866,7 @@ X-Snappy=yes
 ExecStart=/usr/bin/ubuntu-core-launcher xkcd-webserver%s xkcd-webserver%[2]s_xkcd-webserver_0.3.4 /snaps/xkcd-webserver%[2]s/0.3.4/bin/foo start
 Restart=on-failure
 WorkingDirectory=/snaps/xkcd-webserver%[2]s/0.3.4/
-Environment="SNAP_APP=xkcd-webserver_xkcd-webserver_0.3.4" "SNAP=/snaps/xkcd-webserver%[2]s/0.3.4/" "SNAP_DATA=/var/lib/snaps/xkcd-webserver%[2]s/0.3.4/" "TMPDIR=/tmp/snaps/xkcd-webserver%[2]s/0.3.4/tmp" "TEMPDIR=/tmp/snaps/xkcd-webserver%[2]s/0.3.4/tmp" "SNAP_NAME=xkcd-webserver" "SNAP_VERSION=0.3.4" "SNAP_ORIGIN=%[3]s" "SNAP_FULLNAME=xkcd-webserver%[2]s" "SNAP_ARCH=%[5]s" "SNAP_USER_DATA=/root/snaps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_PATH=/snaps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_DATA_PATH=/var/lib/snaps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_TMPDIR=/tmp/snaps/xkcd-webserver%[2]s/0.3.4/tmp" "SNAP_APP_USER_DATA_PATH=/root/snaps/xkcd-webserver%[2]s/0.3.4/"
+Environment="SNAP_APP=xkcd-webserver_xkcd-webserver_0.3.4" "SNAP=/snaps/xkcd-webserver%[2]s/0.3.4/" "SNAP_DATA=/var/lib/snaps/xkcd-webserver%[2]s/0.3.4/" "SNAP_NAME=xkcd-webserver" "SNAP_VERSION=0.3.4" "SNAP_ORIGIN=%[3]s" "SNAP_ARCH=%[5]s" "SNAP_USER_DATA=/root/snaps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_PATH=/snaps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_DATA_PATH=/var/lib/snaps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_USER_DATA_PATH=/root/snaps/xkcd-webserver%[2]s/0.3.4/"
 ExecStop=/usr/bin/ubuntu-core-launcher xkcd-webserver%[2]s xkcd-webserver%[2]s_xkcd-webserver_0.3.4 /snaps/xkcd-webserver%[2]s/0.3.4/bin/foo stop
 ExecStopPost=/usr/bin/ubuntu-core-launcher xkcd-webserver%[2]s xkcd-webserver%[2]s_xkcd-webserver_0.3.4 /snaps/xkcd-webserver%[2]s/0.3.4/bin/foo post-stop
 TimeoutStopSec=30
@@ -849,7 +876,6 @@ TimeoutStopSec=30
 WantedBy=multi-user.target
 `
 	expectedServiceAppWrapper     = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".canonical", "canonical", "Type=simple\n", arch.UbuntuArchitecture())
-	expectedNetAppWrapper         = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target\nAfter=snappy-wait4network.service\nRequires=snappy-wait4network.service", ".canonical", "canonical", "Type=simple\n", arch.UbuntuArchitecture())
 	expectedServiceFmkWrapper     = fmt.Sprintf(expectedServiceWrapperFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target", "", "", "Type=dbus\nBusName=foo.bar.baz", arch.UbuntuArchitecture())
 	expectedSocketUsingWrapper    = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target xkcd-webserver_xkcd-webserver_0.3.4.socket\nRequires=ubuntu-snappy.frameworks.target xkcd-webserver_xkcd-webserver_0.3.4.socket", ".canonical", "canonical", "Type=simple\n", arch.UbuntuArchitecture())
 	expectedTypeForkingFmkWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".canonical", "canonical", "Type=forking\n", arch.UbuntuArchitecture())
@@ -893,27 +919,6 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceAppWrapper(c *C) {
 	generatedWrapper, err := generateSnapServicesFile(service, pkgPath, aaProfile, &m)
 	c.Assert(err, IsNil)
 	c.Assert(generatedWrapper, Equals, expectedServiceAppWrapper)
-}
-
-func (s *SnapTestSuite) TestSnappyGenerateSnapServiceAppWrapperWithExternalPort(c *C) {
-	service := &AppYaml{
-		Name:        "xkcd-webserver",
-		Command:     "bin/foo start",
-		Stop:        "bin/foo stop",
-		PostStop:    "bin/foo post-stop",
-		StopTimeout: timeout.DefaultTimeout,
-		Description: "A fun webserver",
-		Ports:       &Ports{External: map[string]Port{"foo": Port{}}},
-		Daemon:      "simple",
-	}
-	pkgPath := "/snaps/xkcd-webserver.canonical/0.3.4/"
-	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
-	m := snapYaml{Name: "xkcd-webserver",
-		Version: "0.3.4"}
-
-	generatedWrapper, err := generateSnapServicesFile(service, pkgPath, aaProfile, &m)
-	c.Assert(err, IsNil)
-	c.Assert(generatedWrapper, Equals, expectedNetAppWrapper)
 }
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapServiceFmkWrapper(c *C) {
@@ -1008,12 +1013,12 @@ func (s *SnapTestSuite) TestBinariesWhitelistSimple(c *C) {
 }
 
 func (s *SnapTestSuite) TestUsesWhitelistSimple(c *C) {
-	c.Check(verifySlotYaml(&slotYaml{
+	c.Check(verifyPlugYaml(&plugYaml{
 		Interface: "old-security",
 		SecurityDefinitions: SecurityDefinitions{
 			SecurityTemplate: "foo"},
 	}), IsNil)
-	c.Check(verifySlotYaml(&slotYaml{
+	c.Check(verifyPlugYaml(&plugYaml{
 		Interface: "old-security",
 		SecurityDefinitions: SecurityDefinitions{
 			SecurityPolicy: &SecurityPolicyDefinition{
@@ -1029,18 +1034,18 @@ func (s *SnapTestSuite) TestBinariesWhitelistIllegal(c *C) {
 }
 
 func (s *SnapTestSuite) TestWrongType(c *C) {
-	c.Check(verifySlotYaml(&slotYaml{
+	c.Check(verifyPlugYaml(&plugYaml{
 		Interface: "some-interface",
 	}), ErrorMatches, ".*can not use interface.* only `old-security` supported")
 }
 
 func (s *SnapTestSuite) TestUsesWhitelistIllegal(c *C) {
-	c.Check(verifySlotYaml(&slotYaml{
+	c.Check(verifyPlugYaml(&plugYaml{
 		Interface: "old-security",
 		SecurityDefinitions: SecurityDefinitions{
 			SecurityTemplate: "x\n"},
 	}), ErrorMatches, ".*contains illegal.*")
-	c.Check(verifySlotYaml(&slotYaml{
+	c.Check(verifyPlugYaml(&plugYaml{
 		Interface: "old-security",
 		SecurityDefinitions: SecurityDefinitions{
 			SecurityPolicy: &SecurityPolicyDefinition{
@@ -1109,8 +1114,6 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapSocket(c *C) {
 		Socket:       true,
 		ListenStream: "/var/run/docker.sock",
 		SocketMode:   "0660",
-		SocketUser:   "root",
-		SocketGroup:  "adm",
 		Daemon:       "simple",
 	}
 	pkgPath := "/snaps/xkcd-webserver.canonical/0.3.4/"
@@ -1129,8 +1132,6 @@ X-Snappy=yes
 [Socket]
 ListenStream=/var/run/docker.sock
 SocketMode=0660
-SocketUser=root
-SocketGroup=adm
 
 [Install]
 WantedBy=sockets.target
@@ -1190,7 +1191,7 @@ apps:
 	// ensure that the binary wrapper file go generated with the right
 	// name
 	binaryWrapper := filepath.Join(dirs.SnapBinariesDir, "foo.bar")
-	c.Assert(helpers.FileExists(binaryWrapper), Equals, true)
+	c.Assert(osutil.FileExists(binaryWrapper), Equals, true)
 
 	// and that it gets removed on remove
 	snapDir := filepath.Join(dirs.SnapSnapsDir, "foo.mvo", "1.0")
@@ -1199,6 +1200,6 @@ apps:
 	c.Assert(err, IsNil)
 	err = (&Overlord{}).Uninstall(part, &MockProgressMeter{})
 	c.Assert(err, IsNil)
-	c.Assert(helpers.FileExists(binaryWrapper), Equals, false)
-	c.Assert(helpers.FileExists(snapDir), Equals, false)
+	c.Assert(osutil.FileExists(binaryWrapper), Equals, false)
+	c.Assert(osutil.FileExists(snapDir), Equals, false)
 }

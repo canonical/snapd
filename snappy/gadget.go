@@ -31,8 +31,8 @@ import (
 	"strings"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap"
 )
 
@@ -225,7 +225,7 @@ func writeGadgetHardwareUdevRules(m *snapYaml) error {
 			return err
 		}
 		outfile := filepath.Join(dirs.SnapUdevRulesDir, fmt.Sprintf("80-snappy_%s_%s.rules", m.Name, h.PartID))
-		if err := helpers.AtomicWriteFile(outfile, []byte(rulesContent), 0644, 0); err != nil {
+		if err := osutil.AtomicWriteFile(outfile, []byte(rulesContent), 0644, 0); err != nil {
 			return err
 		}
 	}
@@ -274,7 +274,7 @@ func writeApparmorAdditionalFile(m *snapYaml) error {
 
 	for _, h := range m.Gadget.Hardware.Assign {
 		jsonAdditionalPath := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("%s.json.additional", h.PartID))
-		if err := helpers.AtomicWriteFile(jsonAdditionalPath, []byte(apparmorAdditionalContent), 0644, 0); err != nil {
+		if err := osutil.AtomicWriteFile(jsonAdditionalPath, []byte(apparmorAdditionalContent), 0644, 0); err != nil {
 			return err
 		}
 	}

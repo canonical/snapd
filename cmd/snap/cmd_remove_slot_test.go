@@ -55,9 +55,11 @@ func (s *SnapSuite) TestRemoveSlot(c *C) {
 		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
 		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
 			"action": "remove-slot",
-			"slot": map[string]interface{}{
-				"snap": "consumer",
-				"slot": "slot",
+			"slots": []interface{}{
+				map[string]interface{}{
+					"snap": "consumer",
+					"slot": "slot",
+				},
 			},
 		})
 		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)

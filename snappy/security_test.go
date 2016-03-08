@@ -29,8 +29,8 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap"
 )
 
@@ -603,11 +603,11 @@ vendor: someone
 version: 1.0
 apps:
  binary1:
-   slots: [binary1]
+   plugs: [binary1]
  service1:
-   slots: [service1]
+   plugs: [service1]
    daemon: forking
-slots:
+plugs:
  binary1:
   interface: old-security
   caps: []
@@ -822,8 +822,8 @@ vendor: someone
 version: 1.0
 apps:
  binary1:
-   slots: [binary1]
-slots:
+   plugs: [binary1]
+plugs:
  binary1:
    interface: old-security
    caps: []
@@ -945,11 +945,11 @@ func (a *SecurityTestSuite) TestSecurityGeneratePolicyFromFileSideload(c *C) {
 
 	// apparmor
 	generatedProfileFn := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("hello-world.%s_binary1_IsSideloadVer", testOrigin))
-	c.Assert(helpers.FileExists(generatedProfileFn), Equals, true)
+	c.Assert(osutil.FileExists(generatedProfileFn), Equals, true)
 
 	// ... and seccomp
 	generatedProfileFn = filepath.Join(dirs.SnapSeccompDir, fmt.Sprintf("hello-world.%s_binary1_IsSideloadVer", testOrigin))
-	c.Assert(helpers.FileExists(generatedProfileFn), Equals, true)
+	c.Assert(osutil.FileExists(generatedProfileFn), Equals, true)
 }
 
 func (a *SecurityTestSuite) TestSecurityCompareGeneratePolicyFromFileSideload(c *C) {
@@ -1034,44 +1034,44 @@ version: 123456789
 
 }
 
-func (a *SecurityTestSuite) TestFindSlotForAppEmpty(c *C) {
+func (a *SecurityTestSuite) TestFindPlugForAppEmpty(c *C) {
 	app := &AppYaml{}
 	m := &snapYaml{}
-	slot, err := findSlotForApp(m, app)
+	plug, err := findPlugForApp(m, app)
 	c.Check(err, IsNil)
-	c.Check(slot, IsNil)
+	c.Check(plug, IsNil)
 }
 
-func (a *SecurityTestSuite) TestFindSlotlForAppTooMany(c *C) {
+func (a *SecurityTestSuite) TestFindPluglForAppTooMany(c *C) {
 	app := &AppYaml{
-		SlotsRef: []string{"one", "two"},
+		PlugsRef: []string{"one", "two"},
 	}
 	m := &snapYaml{}
-	slot, err := findSlotForApp(m, app)
-	c.Check(slot, IsNil)
-	c.Check(err, ErrorMatches, "only a single slot is supported, 2 found")
+	plug, err := findPlugForApp(m, app)
+	c.Check(plug, IsNil)
+	c.Check(err, ErrorMatches, "only a single plug is supported, 2 found")
 }
 
-func (a *SecurityTestSuite) TestFindSlotForAppNotFound(c *C) {
+func (a *SecurityTestSuite) TestFindPlugForAppNotFound(c *C) {
 	app := &AppYaml{
-		SlotsRef: []string{"not-there"},
+		PlugsRef: []string{"not-there"},
 	}
 	m := &snapYaml{}
-	slot, err := findSlotForApp(m, app)
-	c.Check(slot, IsNil)
-	c.Check(err, ErrorMatches, `can not find slot "not-there"`)
+	plug, err := findPlugForApp(m, app)
+	c.Check(plug, IsNil)
+	c.Check(err, ErrorMatches, `can not find plug "not-there"`)
 }
 
-func (a *SecurityTestSuite) TestFindSlotFinds(c *C) {
+func (a *SecurityTestSuite) TestFindPlugFinds(c *C) {
 	app := &AppYaml{
-		SlotsRef: []string{"slot"},
+		PlugsRef: []string{"plug"},
 	}
 	m := &snapYaml{
-		Slots: map[string]*slotYaml{
-			"slot": &slotYaml{Interface: "some-type"},
+		Plugs: map[string]*plugYaml{
+			"plug": &plugYaml{Interface: "some-type"},
 		},
 	}
-	slot, err := findSlotForApp(m, app)
+	plug, err := findPlugForApp(m, app)
 	c.Check(err, IsNil)
-	c.Check(slot.Interface, Equals, "some-type")
+	c.Check(plug.Interface, Equals, "some-type")
 }

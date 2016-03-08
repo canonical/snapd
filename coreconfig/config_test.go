@@ -26,7 +26,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/systemd"
 
 	. "gopkg.in/check.v1"
@@ -200,7 +200,7 @@ func (cts *ConfigTestSuite) TestSetTimezone(c *C) {
 	rawConfig, err := Set([]byte(expected))
 	c.Assert(err, IsNil)
 	c.Assert(string(rawConfig), Equals, expected)
-	c.Assert(helpers.FileExists(tzZoneInfoTarget), Equals, true)
+	c.Assert(osutil.FileExists(tzZoneInfoTarget), Equals, true)
 
 	// systemctl hasn't been called
 	c.Check(cts.sysctlargses, HasLen, 0)
@@ -790,7 +790,7 @@ func (cts *ConfigTestSuite) TestNetworkSetEmptyRemoves(c *C) {
 	err = setInterfaces(nc)
 	c.Assert(err, IsNil)
 	_, err = ioutil.ReadFile(path)
-	c.Assert(helpers.FileExists(path), Equals, false)
+	c.Assert(osutil.FileExists(path), Equals, false)
 }
 
 func (cts *ConfigTestSuite) TestPppGet(c *C) {

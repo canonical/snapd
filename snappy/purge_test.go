@@ -28,7 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/systemd"
 )
 
@@ -119,7 +119,7 @@ func (s *purgeSuite) TestPurgeInactiveOK(c *C) {
 	c.Check(err, IsNil)
 
 	for _, ddir := range ddirs {
-		c.Check(helpers.FileExists(ddir), Equals, false)
+		c.Check(osutil.FileExists(ddir), Equals, false)
 	}
 
 	c.Check(inter.notified, HasLen, 0)
@@ -139,7 +139,7 @@ func (s *purgeSuite) TestPurgeActiveExplicitOK(c *C) {
 	c.Check(err, IsNil)
 
 	for _, ddir := range ddirs {
-		c.Check(helpers.FileExists(filepath.Join(ddir, "canary")), Equals, false)
+		c.Check(osutil.FileExists(filepath.Join(ddir, "canary")), Equals, false)
 	}
 
 	c.Check(inter.notified, HasLen, 0)
@@ -167,7 +167,7 @@ func (s *purgeSuite) TestPurgeActiveRestartServices(c *C) {
 	err := Purge("hello-app", DoPurgeActive, inter)
 	c.Check(err, IsNil)
 	for _, ddir := range ddirs {
-		c.Check(helpers.FileExists(filepath.Join(ddir, "canary")), Equals, false)
+		c.Check(osutil.FileExists(filepath.Join(ddir, "canary")), Equals, false)
 	}
 	c.Assert(inter.notified, HasLen, 1)
 	c.Check(inter.notified[0], Matches, `Waiting for .* to stop.`)
@@ -187,10 +187,10 @@ func (s *purgeSuite) TestPurgeMultiOK(c *C) {
 	c.Check(err, IsNil)
 
 	for _, ddir := range ddirs0 {
-		c.Check(helpers.FileExists(ddir), Equals, false)
+		c.Check(osutil.FileExists(ddir), Equals, false)
 	}
 	for _, ddir := range ddirs1 {
-		c.Check(helpers.FileExists(ddir), Equals, false)
+		c.Check(osutil.FileExists(ddir), Equals, false)
 	}
 	c.Check(inter.notified, HasLen, 0)
 }
@@ -218,13 +218,13 @@ func (s *purgeSuite) TestPurgeMultiContinuesOnFail(c *C) {
 	c.Check(err, Equals, anError)
 	c.Check(count, Equals, 6)
 	for _, ddir := range ddirs0 {
-		c.Check(helpers.FileExists(ddir), Equals, false)
+		c.Check(osutil.FileExists(ddir), Equals, false)
 	}
 	for _, ddir := range ddirs1 {
-		c.Check(helpers.FileExists(ddir), Equals, true)
+		c.Check(osutil.FileExists(ddir), Equals, true)
 	}
 	for _, ddir := range ddirs2 {
-		c.Check(helpers.FileExists(ddir), Equals, false)
+		c.Check(osutil.FileExists(ddir), Equals, false)
 	}
 	c.Assert(inter.notified, HasLen, 2)
 	c.Check(inter.notified[0], Matches, `unable to purge.*fail`)
@@ -238,13 +238,13 @@ func (s *purgeSuite) TestPurgeRemovedWorks(c *C) {
 	err := (&Overlord{}).Uninstall(part, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	for _, ddir := range ddirs {
-		c.Check(helpers.FileExists(ddir), Equals, true)
+		c.Check(osutil.FileExists(ddir), Equals, true)
 	}
 
 	err = Purge("hello-app", 0, inter)
 	c.Check(err, IsNil)
 	for _, ddir := range ddirs {
-		c.Check(helpers.FileExists(ddir), Equals, false)
+		c.Check(osutil.FileExists(ddir), Equals, false)
 	}
 }
 

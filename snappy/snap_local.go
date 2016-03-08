@@ -29,8 +29,8 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/policy"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
@@ -88,7 +88,7 @@ func newSnapPartFromYaml(yamlPath, origin string, m *snapYaml) (*SnapPart, error
 	}
 
 	remoteManifestPath := RemoteManifestPath(part)
-	if helpers.FileExists(remoteManifestPath) {
+	if osutil.FileExists(remoteManifestPath) {
 		content, err := ioutil.ReadFile(remoteManifestPath)
 		if err != nil {
 			return nil, err
@@ -167,7 +167,7 @@ func (s *SnapPart) Channel() string {
 
 // Icon returns the path to the icon
 func (s *SnapPart) Icon() string {
-	found, _ := filepath.Glob(filepath.Join(s.basedir, "meta", "icon.*"))
+	found, _ := filepath.Glob(filepath.Join(s.basedir, "meta", "gui", "icon.*"))
 	if len(found) == 0 {
 		return ""
 	}
@@ -268,12 +268,16 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 		return err
 	}
 
-	// add the "binaries:" from the snap.yaml
+	// add the CLI apps from the snap.yaml
 	if err := addPackageBinaries(s.m, s.basedir); err != nil {
 		return err
 	}
-	// add the "services:" from the snap.yaml
+	// add the daemons from the snap.yaml
 	if err := addPackageServices(s.m, s.basedir, inhibitHooks, inter); err != nil {
+		return err
+	}
+	// add the desktop files
+	if err := addPackageDesktopFiles(s.m, s.basedir); err != nil {
 		return err
 	}
 
@@ -326,6 +330,10 @@ func (s *SnapPart) deactivate(inhibitHooks bool, inter interacter) error {
 	}
 
 	if err := removePackageServices(s.m, s.basedir, inter); err != nil {
+		return err
+	}
+
+	if err := removePackageDesktopFiles(s.m); err != nil {
 		return err
 	}
 
@@ -426,18 +434,18 @@ func (s *SnapPart) CanInstall(allowGadget bool, inter interacter) error {
 func (s *SnapPart) RequestSecurityPolicyUpdate(policies, templates map[string]bool) error {
 	var foundError error
 	for name, app := range s.Apps() {
-		slot, err := findSlotForApp(s.m, app)
+		plug, err := findPlugForApp(s.m, app)
 		if err != nil {
-			logger.Noticef("Failed to find slot for %s: %v", name, err)
+			logger.Noticef("Failed to find plug for %s: %v", name, err)
 			foundError = err
 			continue
 		}
-		if slot == nil {
+		if plug == nil {
 			continue
 		}
 
-		if slot.NeedsAppArmorUpdate(policies, templates) {
-			err := slot.generatePolicyForServiceBinary(s.m, name, s.basedir)
+		if plug.NeedsAppArmorUpdate(policies, templates) {
+			err := plug.generatePolicyForServiceBinary(s.m, name, s.basedir)
 			if err != nil {
 				logger.Noticef("Failed to regenerate policy for %s: %v", name, err)
 				foundError = err

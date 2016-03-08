@@ -31,23 +31,23 @@ import (
 
 func (s *SnapSuite) TestInterfacesHelp(c *C) {
 	msg := `Usage:
-  snap.test [OPTIONS] interfaces [interfaces-OPTIONS] [<snap>:<plug or slot>]
+  snap.test [OPTIONS] interfaces [interfaces-OPTIONS] [<snap>:<slot or plug>]
 
 The interfaces command lists interfaces available in the system.
 
-By default all plugs and slots, used and offered by all snaps, are displayed.
+By default all slots and plugs, used and offered by all snaps, are displayed.
 
-$ snap interfaces <snap>:<plug or slot>
+$ snap interfaces <snap>:<slot or plug>
 
-Lists only the specified plug or slot.
+Lists only the specified slot or plug.
 
 $ snap interfaces <snap>
 
-Lists the plugs offered and slots used by the specified snap.
+Lists the slots offered and plugs used by the specified snap.
 
 $ snap interfaces --i=<interface> [<snap>]
 
-Lists only plugs and slots of the specific interface.
+Lists only slots and plugs of the specific interface.
 
 Help Options:
   -h, --help                       Show this help message
@@ -56,40 +56,11 @@ Help Options:
       -i=                          constrain listing to specific interfaces
 
 [interfaces command arguments]
-  <snap>:<plug or slot>:           snap or snap:name
+  <snap>:<slot or plug>:           snap or snap:name
 `
 	rest, err := Parser().ParseArgs([]string{"interfaces", "--help"})
 	c.Assert(err.Error(), Equals, msg)
 	c.Assert(rest, DeepEquals, []string{})
-}
-
-func (s *SnapSuite) TestInterfacesZeroPlugsOneSlot(c *C) {
-	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.Method, Equals, "GET")
-		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
-		body, err := ioutil.ReadAll(r.Body)
-		c.Check(err, IsNil)
-		c.Check(body, DeepEquals, []byte{})
-		EncodeResponseBody(c, w, map[string]interface{}{
-			"type": "sync",
-			"result": client.Interfaces{
-				Slots: []*client.Slot{
-					&client.Slot{
-						Snap: "keyboard-lights",
-						Name: "capslock-led",
-					},
-				},
-			},
-		})
-	})
-	rest, err := Parser().ParseArgs([]string{"interfaces"})
-	c.Assert(err, IsNil)
-	c.Assert(rest, DeepEquals, []string{})
-	expectedStdout := "" +
-		"plug slot\n" +
-		"--   keyboard-lights:capslock-led\n"
-	c.Assert(s.Stdout(), Equals, expectedStdout)
-	c.Assert(s.Stderr(), Equals, "")
 }
 
 func (s *SnapSuite) TestInterfacesZeroSlotsOnePlug(c *C) {
@@ -102,8 +73,37 @@ func (s *SnapSuite) TestInterfacesZeroSlotsOnePlug(c *C) {
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
 			"result": client.Interfaces{
-				Plugs: []*client.Plug{
-					&client.Plug{
+				Plugs: []client.Plug{
+					{
+						Snap: "keyboard-lights",
+						Name: "capslock-led",
+					},
+				},
+			},
+		})
+	})
+	rest, err := Parser().ParseArgs([]string{"interfaces"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	expectedStdout := "" +
+		"slot plug\n" +
+		"--   keyboard-lights:capslock-led\n"
+	c.Assert(s.Stdout(), Equals, expectedStdout)
+	c.Assert(s.Stderr(), Equals, "")
+}
+
+func (s *SnapSuite) TestInterfacesZeroPlugsOneSlot(c *C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, Equals, "GET")
+		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
+		body, err := ioutil.ReadAll(r.Body)
+		c.Check(err, IsNil)
+		c.Check(body, DeepEquals, []byte{})
+		EncodeResponseBody(c, w, map[string]interface{}{
+			"type": "sync",
+			"result": client.Interfaces{
+				Slots: []client.Slot{
+					{
 						Snap:      "canonical-pi2",
 						Name:      "pin-13",
 						Interface: "bool-file",
@@ -117,13 +117,13 @@ func (s *SnapSuite) TestInterfacesZeroSlotsOnePlug(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
-		"plug                 slot\n" +
+		"slot                 plug\n" +
 		"canonical-pi2:pin-13 --\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestInterfacesOnePlugOneSlot(c *C) {
+func (s *SnapSuite) TestInterfacesOneSlotOnePlug(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
@@ -133,13 +133,13 @@ func (s *SnapSuite) TestInterfacesOnePlugOneSlot(c *C) {
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
 			"result": client.Interfaces{
-				Plugs: []*client.Plug{
-					&client.Plug{
+				Slots: []client.Slot{
+					{
 						Snap:      "canonical-pi2",
 						Name:      "pin-13",
 						Interface: "bool-file",
 						Label:     "Pin 13",
-						Connections: []client.SlotRef{
+						Connections: []client.PlugRef{
 							{
 								Snap: "keyboard-lights",
 								Name: "capslock-led",
@@ -147,13 +147,13 @@ func (s *SnapSuite) TestInterfacesOnePlugOneSlot(c *C) {
 						},
 					},
 				},
-				Slots: []*client.Slot{
-					&client.Slot{
+				Plugs: []client.Plug{
+					{
 						Snap:      "keyboard-lights",
 						Name:      "capslock-led",
 						Interface: "bool-file",
 						Label:     "Capslock indicator LED",
-						Connections: []client.PlugRef{
+						Connections: []client.SlotRef{
 							{
 								Snap: "canonical-pi2",
 								Name: "pin-13",
@@ -168,13 +168,13 @@ func (s *SnapSuite) TestInterfacesOnePlugOneSlot(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
-		"plug                 slot\n" +
+		"slot                 plug\n" +
 		"canonical-pi2:pin-13 keyboard-lights:capslock-led\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestInterfacesTwoSlots(c *C) {
+func (s *SnapSuite) TestInterfacesTwoPlugs(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
@@ -184,13 +184,13 @@ func (s *SnapSuite) TestInterfacesTwoSlots(c *C) {
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
 			"result": client.Interfaces{
-				Plugs: []*client.Plug{
-					&client.Plug{
+				Slots: []client.Slot{
+					{
 						Snap:      "canonical-pi2",
 						Name:      "pin-13",
 						Interface: "bool-file",
 						Label:     "Pin 13",
-						Connections: []client.SlotRef{
+						Connections: []client.PlugRef{
 							{
 								Snap: "keyboard-lights",
 								Name: "capslock-led",
@@ -209,13 +209,13 @@ func (s *SnapSuite) TestInterfacesTwoSlots(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
-		"plug                 slot\n" +
+		"slot                 plug\n" +
 		"canonical-pi2:pin-13 keyboard-lights:capslock-led,keyboard-lights:scrollock-led\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestInterfacesSlotsWithCommonName(c *C) {
+func (s *SnapSuite) TestInterfacesPlugsWithCommonName(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
@@ -225,13 +225,13 @@ func (s *SnapSuite) TestInterfacesSlotsWithCommonName(c *C) {
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
 			"result": client.Interfaces{
-				Plugs: []*client.Plug{
-					&client.Plug{
+				Slots: []client.Slot{
+					{
 						Snap:      "canonical-pi2",
 						Name:      "network-listening",
 						Interface: "network-listening",
 						Label:     "Ability to be a network service",
-						Connections: []client.SlotRef{
+						Connections: []client.PlugRef{
 							{
 								Snap: "paste-daemon",
 								Name: "network-listening",
@@ -243,25 +243,25 @@ func (s *SnapSuite) TestInterfacesSlotsWithCommonName(c *C) {
 						},
 					},
 				},
-				Slots: []*client.Slot{
-					&client.Slot{
+				Plugs: []client.Plug{
+					{
 						Snap:      "paste-daemon",
 						Name:      "network-listening",
 						Interface: "network-listening",
 						Label:     "Ability to be a network service",
-						Connections: []client.PlugRef{
+						Connections: []client.SlotRef{
 							{
 								Snap: "canonical-pi2",
 								Name: "network-listening",
 							},
 						},
 					},
-					&client.Slot{
+					{
 						Snap:      "time-daemon",
 						Name:      "network-listening",
 						Interface: "network-listening",
 						Label:     "Ability to be a network service",
-						Connections: []client.PlugRef{
+						Connections: []client.SlotRef{
 							{
 								Snap: "canonical-pi2",
 								Name: "network-listening",
@@ -276,13 +276,13 @@ func (s *SnapSuite) TestInterfacesSlotsWithCommonName(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
-		"plug                            slot\n" +
+		"slot                            plug\n" +
 		"canonical-pi2:network-listening paste-daemon,time-daemon\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestInterfacesOsSnapPlugs(c *C) {
+func (s *SnapSuite) TestInterfacesOsSnapSlots(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
@@ -292,13 +292,13 @@ func (s *SnapSuite) TestInterfacesOsSnapPlugs(c *C) {
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
 			"result": client.Interfaces{
-				Plugs: []*client.Plug{
-					&client.Plug{
+				Slots: []client.Slot{
+					{
 						Snap:      "ubuntu-core",
 						Name:      "network-listening",
 						Interface: "network-listening",
 						Label:     "Ability to be a network service",
-						Connections: []client.SlotRef{
+						Connections: []client.PlugRef{
 							{
 								Snap: "paste-daemon",
 								Name: "network-listening",
@@ -310,25 +310,25 @@ func (s *SnapSuite) TestInterfacesOsSnapPlugs(c *C) {
 						},
 					},
 				},
-				Slots: []*client.Slot{
-					&client.Slot{
+				Plugs: []client.Plug{
+					{
 						Snap:      "paste-daemon",
 						Name:      "network-listening",
 						Interface: "network-listening",
 						Label:     "Ability to be a network service",
-						Connections: []client.PlugRef{
+						Connections: []client.SlotRef{
 							{
 								Snap: "ubuntu-core",
 								Name: "network-listening",
 							},
 						},
 					},
-					&client.Slot{
+					{
 						Snap:      "time-daemon",
 						Name:      "network-listening",
 						Interface: "network-listening",
 						Label:     "Ability to be a network service",
-						Connections: []client.PlugRef{
+						Connections: []client.SlotRef{
 							{
 								Snap: "ubuntu-core",
 								Name: "network-listening",
@@ -343,13 +343,13 @@ func (s *SnapSuite) TestInterfacesOsSnapPlugs(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
-		"plug               slot\n" +
+		"slot               plug\n" +
 		":network-listening paste-daemon,time-daemon\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestInterfacesTwoPlugsAndFiltering(c *C) {
+func (s *SnapSuite) TestInterfacesTwoSlotsAndFiltering(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
@@ -359,25 +359,25 @@ func (s *SnapSuite) TestInterfacesTwoPlugsAndFiltering(c *C) {
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
 			"result": client.Interfaces{
-				Plugs: []*client.Plug{
-					&client.Plug{
+				Slots: []client.Slot{
+					{
 						Snap:      "canonical-pi2",
 						Name:      "debug-console",
 						Interface: "serial-port",
 						Label:     "Serial port on the expansion header",
-						Connections: []client.SlotRef{
+						Connections: []client.PlugRef{
 							{
 								Snap: "ubuntu-core",
 								Name: "debug-console",
 							},
 						},
 					},
-					&client.Plug{
+					{
 						Snap:      "canonical-pi2",
 						Name:      "pin-13",
 						Interface: "bool-file",
 						Label:     "Pin 13",
-						Connections: []client.SlotRef{
+						Connections: []client.PlugRef{
 							{
 								Snap: "keyboard-lights",
 								Name: "capslock-led",
@@ -392,7 +392,7 @@ func (s *SnapSuite) TestInterfacesTwoPlugsAndFiltering(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
-		"plug                        slot\n" +
+		"slot                        plug\n" +
 		"canonical-pi2:debug-console ubuntu-core\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
@@ -408,20 +408,20 @@ func (s *SnapSuite) TestInterfacesOfSpecificSnap(c *C) {
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
 			"result": client.Interfaces{
-				Plugs: []*client.Plug{
-					&client.Plug{
+				Slots: []client.Slot{
+					{
 						Snap:      "cheese",
 						Name:      "photo-trigger",
 						Interface: "bool-file",
 						Label:     "Photo trigger",
 					},
-					&client.Plug{
+					{
 						Snap:      "wake-up-alarm",
 						Name:      "toggle",
 						Interface: "bool-file",
 						Label:     "Alarm toggle",
 					},
-					&client.Plug{
+					{
 						Snap:      "wake-up-alarm",
 						Name:      "snooze",
 						Interface: "bool-file",
@@ -435,14 +435,14 @@ func (s *SnapSuite) TestInterfacesOfSpecificSnap(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
-		"plug                 slot\n" +
+		"slot                 plug\n" +
 		"wake-up-alarm:toggle --\n" +
 		"wake-up-alarm:snooze --\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestInterfacesOfSpecificSnapAndPlug(c *C) {
+func (s *SnapSuite) TestInterfacesOfSpecificSnapAndSlot(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
@@ -452,20 +452,20 @@ func (s *SnapSuite) TestInterfacesOfSpecificSnapAndPlug(c *C) {
 		EncodeResponseBody(c, w, map[string]interface{}{
 			"type": "sync",
 			"result": client.Interfaces{
-				Plugs: []*client.Plug{
-					&client.Plug{
+				Slots: []client.Slot{
+					{
 						Snap:      "cheese",
 						Name:      "photo-trigger",
 						Interface: "bool-file",
 						Label:     "Photo trigger",
 					},
-					&client.Plug{
+					{
 						Snap:      "wake-up-alarm",
 						Name:      "toggle",
 						Interface: "bool-file",
 						Label:     "Alarm toggle",
 					},
-					&client.Plug{
+					{
 						Snap:      "wake-up-alarm",
 						Name:      "snooze",
 						Interface: "bool-file",
@@ -479,7 +479,7 @@ func (s *SnapSuite) TestInterfacesOfSpecificSnapAndPlug(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
-		"plug                 slot\n" +
+		"slot                 plug\n" +
 		"wake-up-alarm:snooze --\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")

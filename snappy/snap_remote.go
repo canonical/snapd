@@ -26,7 +26,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/remote"
 )
@@ -126,7 +126,7 @@ func (s *RemoteSnapPart) saveStoreManifest() error {
 	}
 
 	// don't worry about previous contents
-	return helpers.AtomicWriteFile(RemoteManifestPath(s), content, 0644, 0)
+	return osutil.AtomicWriteFile(RemoteManifestPath(s), content, 0644, 0)
 }
 
 // Config is used to to configure the snap

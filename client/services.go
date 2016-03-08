@@ -60,7 +60,7 @@ type ServiceStatus struct {
 	SubState        string `json:"sub_state"`
 	UnitFileState   string `json:"unit_file_state"`
 	SnapName        string `json:"snap_name"`
-	ServiceName     string `json:"service_name"`
+	AppName         string `json:"service_name"`
 }
 
 // Services returns the list of services belonging to an *active* Snap
