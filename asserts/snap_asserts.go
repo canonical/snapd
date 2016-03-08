@@ -100,6 +100,11 @@ type SnapBuild struct {
 	timestamp time.Time
 }
 
+// Series returns the series for which the snap was built.
+func (snapbld *SnapBuild) Series() string {
+	return snapbld.Header("series")
+}
+
 // SnapID returns the snap id of the snap.
 func (snapbld *SnapBuild) SnapID() string {
 	return snapbld.Header("snap-id")
