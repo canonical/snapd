@@ -251,6 +251,7 @@ func (s *SystemdTestSuite) TestGenAppServiceFile(c *C) {
 		StopTimeout: time.Duration(10 * time.Second),
 		AaProfile:   "aa-profile",
 		UdevAppName: "app.mvo",
+		Origin:      "mvo",
 		Type:        "simple",
 	}
 
@@ -304,6 +305,7 @@ func (s *SystemdTestSuite) TestGenServiceFileWithBusName(c *C) {
 		AaProfile:   "aa-profile",
 		BusName:     "foo.bar.baz",
 		UdevAppName: "app.mvo",
+		Origin:      "mvo",
 		Type:        "dbus",
 	}
 
