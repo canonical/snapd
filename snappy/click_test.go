@@ -446,12 +446,12 @@ func (s *SnapTestSuite) TestClickCopyDataNoUserHomes(c *C) {
 const expectedWrapper = `#!/bin/sh
 set -e
 
-# app info (deprecated)
+# snap info (deprecated)
 export SNAP_APP_PATH="/snaps/pastebinit.mvo/1.4.0.0.1/"
 export SNAP_APP_DATA_PATH="/var/lib/snaps/pastebinit.mvo/1.4.0.0.1/"
 export SNAP_APP_USER_DATA_PATH="$HOME/snaps/pastebinit.mvo/1.4.0.0.1/"
 
-# app info
+# snap info
 export SNAP="/snaps/pastebinit.mvo/1.4.0.0.1/"
 export SNAP_DATA="/var/lib/snaps/pastebinit.mvo/1.4.0.0.1/"
 export SNAP_NAME="pastebinit"
@@ -492,12 +492,12 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 const expectedFrameworkWrapper = `#!/bin/sh
 set -e
 
-# app info (deprecated)
+# snap info (deprecated)
 export SNAP_APP_PATH="/snaps/fmk/1.4.0.0.1/"
 export SNAP_APP_DATA_PATH="/var/lib/snaps/fmk/1.4.0.0.1/"
 export SNAP_APP_USER_DATA_PATH="$HOME/snaps/fmk/1.4.0.0.1/"
 
-# app info
+# snap info
 export SNAP="/snaps/fmk/1.4.0.0.1/"
 export SNAP_DATA="/var/lib/snaps/fmk/1.4.0.0.1/"
 export SNAP_NAME="fmk"

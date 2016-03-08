@@ -60,10 +60,10 @@ func generateSnapBinaryWrapper(app *AppYaml, pkgPath, aaProfile string, m *snapY
 	wrapperTemplate := `#!/bin/sh
 set -e
 
-# app info (deprecated)
+# snap info (deprecated)
 {{.OldAppVars}}
 
-# app info
+# snap info
 {{.NewAppVars}}
 
 if [ ! -d "$SNAP_USER_DATA" ]; then
