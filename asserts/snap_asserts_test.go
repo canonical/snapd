@@ -118,6 +118,7 @@ func (sbs *snapBuildSuite) SetUpSuite(c *C) {
 func (sbs *snapBuildSuite) TestDecodeOK(c *C) {
 	encoded := "type: snap-build\n" +
 		"authority-id: dev-id1\n" +
+		"series: 16\n" +
 		"snap-id: snap-id-1\n" +
 		"snap-digest: sha256 ...\n" +
 		"grade: stable\n" +
@@ -145,6 +146,7 @@ const (
 func (sbs *snapBuildSuite) TestDecodeInvalid(c *C) {
 	encoded := "type: snap-build\n" +
 		"authority-id: dev-id1\n" +
+		"series: 16\n" +
 		"snap-id: snap-id-1\n" +
 		"snap-digest: sha256 ...\n" +
 		"grade: stable\n" +
@@ -155,6 +157,7 @@ func (sbs *snapBuildSuite) TestDecodeInvalid(c *C) {
 		"openpgp c2ln"
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
+		{"series: 16\n", "", `"series" header is mandatory`},
 		{"snap-id: snap-id-1\n", "", `"snap-id" header is mandatory`},
 		{"snap-digest: sha256 ...\n", "", `"snap-digest" header is mandatory`},
 		{"grade: stable\n", "", `"grade" header is mandatory`},
