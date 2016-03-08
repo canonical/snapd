@@ -53,7 +53,7 @@ func makeSnapHookEnv(part *SnapPart) (env []string) {
 	desc := struct {
 		SnapName    string
 		SnapArch    string
-		AppPath     string
+		SnapPath    string
 		Version     string
 		UdevAppName string
 		Origin      string

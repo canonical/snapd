@@ -92,7 +92,7 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 	wrapperData := struct {
 		SnapName    string
 		SnapArch    string
-		AppPath     string
+		SnapPath    string
 		Version     string
 		UdevAppName string
 		Origin      string
@@ -104,7 +104,7 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 	}{
 		SnapName:    m.Name,
 		SnapArch:    arch.UbuntuArchitecture(),
-		AppPath:     pkgPath,
+		SnapPath:    pkgPath,
 		Version:     m.Version,
 		UdevAppName: udevPartName,
 		Origin:      origin,
