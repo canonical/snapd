@@ -79,6 +79,8 @@ type Assertion interface {
 	Revision() int
 	// AuthorityID returns the authority that signed this assertion
 	AuthorityID() string
+	// Series return the series of the assertion.
+	Series() string
 
 	// Header retrieves the header with name
 	Header(name string) string
@@ -122,6 +124,11 @@ func (ab *assertionBase) Revision() int {
 // AuthorityID returns the authority-id a.k.a the signer id of the assertion.
 func (ab *assertionBase) AuthorityID() string {
 	return ab.headers["authority-id"]
+}
+
+// Series return the series of the assertion.
+func (ab *assertionBase) Series() string {
+	return ab.Header("series")
 }
 
 // Header returns the value of an header by name.
@@ -472,6 +479,11 @@ func Assemble(headers map[string]string, body, content, signature []byte) (Asser
 	if length != len(body) {
 		return nil, fmt.Errorf("assertion body length and declared body-length don't match: %v != %v", len(body), length)
 	}
+
+	// TODO(matt): uncomment this once all assertions include `series`
+	//if _, err := checkMandatory(headers, "series"); err != nil {
+	//	return nil, fmt.Errorf("assertion: %v", err)
+	//}
 
 	if _, err := checkMandatory(headers, "authority-id"); err != nil {
 		return nil, fmt.Errorf("assertion: %v", err)
