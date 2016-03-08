@@ -577,17 +577,23 @@ func (s *RepositorySuite) TestConnectSucceedsWhenIdenticalConnectExists(c *C) {
 	// Connecting exactly the same thing twice succeeds without an error but does nothing.
 	err = s.testRepo.Connect(s.plug.Snap, s.plug.Name, s.slot.Snap, s.slot.Name)
 	c.Assert(err, IsNil)
-	// Only one "connect" is actually present.
-	c.Assert(s.testRepo.Interfaces().Slots[0].Snap, Equals, s.slot.Snap)
-	c.Assert(s.testRepo.Interfaces().Slots[0].Name, Equals, s.slot.Name)
-	c.Assert(s.testRepo.Interfaces().Slots[0].Connections, HasLen, 1)
-	c.Assert(s.testRepo.Interfaces().Slots[0].Connections[0].Snap, Equals, s.plug.Snap)
-	c.Assert(s.testRepo.Interfaces().Slots[0].Connections[0].Name, Equals, s.plug.Name)
-	c.Assert(s.testRepo.Interfaces().Plugs[0].Snap, Equals, s.plug.Snap)
-	c.Assert(s.testRepo.Interfaces().Plugs[0].Name, Equals, s.plug.Name)
-	c.Assert(s.testRepo.Interfaces().Plugs[0].Connections, HasLen, 1)
-	c.Assert(s.testRepo.Interfaces().Plugs[0].Connections[0].Snap, Equals, s.slot.Snap)
-	c.Assert(s.testRepo.Interfaces().Plugs[0].Connections[0].Name, Equals, s.slot.Name)
+	// Only one connection is actually present.
+	c.Assert(s.testRepo.Interfaces(), DeepEquals, &Interfaces{
+		Plugs: []*Plug{{
+			Snap:        s.plug.Snap,
+			Name:        s.plug.Name,
+			Interface:   s.plug.Interface,
+			Label:       s.plug.Label,
+			Connections: []SlotRef{{s.slot.Snap, s.slot.Name}},
+		}},
+		Slots: []*Slot{{
+			Snap:        s.slot.Snap,
+			Name:        s.slot.Name,
+			Interface:   s.slot.Interface,
+			Label:       s.slot.Label,
+			Connections: []PlugRef{{s.plug.Snap, s.plug.Name}},
+		}},
+	})
 }
 
 func (s *RepositorySuite) TestConnectFailsWhenSlotAndPlugAreIncompatible(c *C) {
@@ -687,12 +693,20 @@ func (s *RepositorySuite) TestDisconnectSucceeds(c *C) {
 	// Disconnecting a connected plug works okay
 	err = s.testRepo.Disconnect(s.plug.Snap, s.plug.Name, s.slot.Snap, s.slot.Name)
 	c.Assert(err, IsNil)
-	c.Assert(s.testRepo.Interfaces().Slots[0].Snap, Equals, s.slot.Snap)
-	c.Assert(s.testRepo.Interfaces().Slots[0].Name, Equals, s.slot.Name)
-	c.Assert(s.testRepo.Interfaces().Slots[0].Connections, HasLen, 0)
-	c.Assert(s.testRepo.Interfaces().Plugs[0].Snap, Equals, s.plug.Snap)
-	c.Assert(s.testRepo.Interfaces().Plugs[0].Name, Equals, s.plug.Name)
-	c.Assert(s.testRepo.Interfaces().Plugs[0].Connections, HasLen, 0)
+	c.Assert(s.testRepo.Interfaces(), DeepEquals, &Interfaces{
+		Plugs: []*Plug{{
+			Snap:      s.plug.Snap,
+			Name:      s.plug.Name,
+			Interface: s.plug.Interface,
+			Label:     s.plug.Label,
+		}},
+		Slots: []*Slot{{
+			Snap:      s.slot.Snap,
+			Name:      s.slot.Name,
+			Interface: s.slot.Interface,
+			Label:     s.slot.Label,
+		}},
+	})
 }
 
 func (s *RepositorySuite) TestDisconnectFromSnap(c *C) {
@@ -705,12 +719,20 @@ func (s *RepositorySuite) TestDisconnectFromSnap(c *C) {
 	// Disconnecting everything from a snap works OK
 	err = s.testRepo.Disconnect("", "", s.slot.Snap, "")
 	c.Assert(err, IsNil)
-	c.Assert(s.testRepo.Interfaces().Slots[0].Snap, Equals, s.slot.Snap)
-	c.Assert(s.testRepo.Interfaces().Slots[0].Name, Equals, s.slot.Name)
-	c.Assert(s.testRepo.Interfaces().Slots[0].Connections, HasLen, 0)
-	c.Assert(s.testRepo.Interfaces().Plugs[0].Snap, Equals, s.plug.Snap)
-	c.Assert(s.testRepo.Interfaces().Plugs[0].Name, Equals, s.plug.Name)
-	c.Assert(s.testRepo.Interfaces().Plugs[0].Connections, HasLen, 0)
+	c.Assert(s.testRepo.Interfaces(), DeepEquals, &Interfaces{
+		Plugs: []*Plug{{
+			Snap:      s.plug.Snap,
+			Name:      s.plug.Name,
+			Interface: s.plug.Interface,
+			Label:     s.plug.Label,
+		}},
+		Slots: []*Slot{{
+			Snap:      s.slot.Snap,
+			Name:      s.slot.Name,
+			Interface: s.slot.Interface,
+			Label:     s.slot.Label,
+		}},
+	})
 }
 
 func (s *RepositorySuite) TestDisconnectFromSlot(c *C) {
@@ -723,12 +745,20 @@ func (s *RepositorySuite) TestDisconnectFromSlot(c *C) {
 	// Disconnecting everything from a plug slot works OK
 	err = s.testRepo.Disconnect("", "", s.slot.Snap, s.slot.Name)
 	c.Assert(err, IsNil)
-	c.Assert(s.testRepo.Interfaces().Slots[0].Snap, Equals, s.slot.Snap)
-	c.Assert(s.testRepo.Interfaces().Slots[0].Name, Equals, s.slot.Name)
-	c.Assert(s.testRepo.Interfaces().Slots[0].Connections, HasLen, 0)
-	c.Assert(s.testRepo.Interfaces().Plugs[0].Snap, Equals, s.plug.Snap)
-	c.Assert(s.testRepo.Interfaces().Plugs[0].Name, Equals, s.plug.Name)
-	c.Assert(s.testRepo.Interfaces().Plugs[0].Connections, HasLen, 0)
+	c.Assert(s.testRepo.Interfaces(), DeepEquals, &Interfaces{
+		Plugs: []*Plug{{
+			Snap:      s.plug.Snap,
+			Name:      s.plug.Name,
+			Interface: s.plug.Interface,
+			Label:     s.plug.Label,
+		}},
+		Slots: []*Slot{{
+			Snap:      s.slot.Snap,
+			Name:      s.slot.Name,
+			Interface: s.slot.Interface,
+			Label:     s.slot.Label,
+		}},
+	})
 }
 
 // Tests for Repository.Interfaces()
@@ -743,56 +773,38 @@ func (s *RepositorySuite) TestInterfacesSmokeTest(c *C) {
 	c.Assert(err, IsNil)
 	ifaces := s.testRepo.Interfaces()
 	c.Assert(ifaces, DeepEquals, &Interfaces{
-		Plugs: []*Plug{
-			&Plug{
-				Name:      s.plug.Name,
-				Snap:      s.plug.Snap,
-				Interface: s.plug.Interface,
-				Label:     s.plug.Label,
-				Connections: []SlotRef{
-					{
-						Snap: s.slot.Snap,
-						Name: s.slot.Name,
-					},
-				},
-			},
-		},
-		Slots: []*Slot{
-			&Slot{
-				Snap:      s.slot.Snap,
-				Name:      s.slot.Name,
-				Interface: s.slot.Interface,
-				Label:     s.slot.Label,
-				Connections: []PlugRef{
-					{
-						Snap: s.plug.Snap,
-						Name: s.plug.Name,
-					},
-				},
-			},
-		},
+		Plugs: []*Plug{{
+			Name:        s.plug.Name,
+			Snap:        s.plug.Snap,
+			Interface:   s.plug.Interface,
+			Label:       s.plug.Label,
+			Connections: []SlotRef{{Snap: s.slot.Snap, Name: s.slot.Name}},
+		}},
+		Slots: []*Slot{{
+			Snap:        s.slot.Snap,
+			Name:        s.slot.Name,
+			Interface:   s.slot.Interface,
+			Label:       s.slot.Label,
+			Connections: []PlugRef{{Snap: s.plug.Snap, Name: s.plug.Name}},
+		}},
 	})
 	// After disconnecting the connections become empty
 	err = s.testRepo.Disconnect(s.plug.Snap, s.plug.Name, s.slot.Snap, s.slot.Name)
 	c.Assert(err, IsNil)
 	ifaces = s.testRepo.Interfaces()
 	c.Assert(ifaces, DeepEquals, &Interfaces{
-		Plugs: []*Plug{
-			&Plug{
-				Name:      s.plug.Name,
-				Snap:      s.plug.Snap,
-				Interface: s.plug.Interface,
-				Label:     s.plug.Label,
-			},
-		},
-		Slots: []*Slot{
-			&Slot{
-				Snap:      s.slot.Snap,
-				Name:      s.slot.Name,
-				Interface: s.slot.Interface,
-				Label:     s.slot.Label,
-			},
-		},
+		Plugs: []*Plug{{
+			Name:      s.plug.Name,
+			Snap:      s.plug.Snap,
+			Interface: s.plug.Interface,
+			Label:     s.plug.Label,
+		}},
+		Slots: []*Slot{{
+			Snap:      s.slot.Snap,
+			Name:      s.slot.Name,
+			Interface: s.slot.Interface,
+			Label:     s.slot.Label,
+		}},
 	})
 }
 
