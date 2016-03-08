@@ -1279,10 +1279,7 @@ func (s *apiSuite) TestGetPlugs(c *check.C) {
 					"interface": "interface",
 					"label":     "label",
 					"connections": []interface{}{
-						map[string]interface{}{
-							"snap": "consumer",
-							"slot": "slot",
-						},
+						map[string]interface{}{"snap": "consumer", "slot": "slot"},
 					},
 				},
 			},
@@ -1293,10 +1290,7 @@ func (s *apiSuite) TestGetPlugs(c *check.C) {
 					"interface": "interface",
 					"label":     "label",
 					"connections": []interface{}{
-						map[string]interface{}{
-							"snap": "producer",
-							"plug": "plug",
-						},
+						map[string]interface{}{"snap": "producer", "plug": "plug"},
 					},
 				},
 			},
@@ -1336,22 +1330,20 @@ func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 		"status_code": 200.0,
 		"type":        "sync",
 	})
-	for slot, plugs := range d.interfaces.ConnectedSlots("consumer") {
-		c.Check(slot.Snap, check.Equals, "consumer")
-		c.Check(slot.Name, check.Equals, "slot")
-		for _, plug := range plugs {
-			c.Check(plug.Snap, check.Equals, "producer")
-			c.Check(plug.Name, check.Equals, "plug")
-		}
-	}
-	for plug, slots := range d.interfaces.ConnectedPlugs("producer") {
-		c.Check(plug.Snap, check.Equals, "producer")
-		c.Check(plug.Name, check.Equals, "plug")
-		for _, slot := range slots {
-			c.Check(slot.Snap, check.Equals, "consumer")
-			c.Check(slot.Name, check.Equals, "slot")
-		}
-	}
+	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
+		Plugs: []*interfaces.Plug{{
+			Snap:        "producer",
+			Name:        "plug",
+			Interface:   "interface",
+			Connections: []interfaces.SlotRef{{Snap: "consumer", Name: "slot"}},
+		}},
+		Slots: []*interfaces.Slot{{
+			Snap:        "consumer",
+			Name:        "slot",
+			Interface:   "interface",
+			Connections: []interfaces.PlugRef{{Snap: "producer", Name: "plug"}},
+		}},
+	})
 }
 
 func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
@@ -1384,8 +1376,18 @@ func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Check(d.interfaces.ConnectedSlots("consumer"), check.HasLen, 0)
-	c.Check(d.interfaces.ConnectedPlugs("producer"), check.HasLen, 0)
+	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
+		Plugs: []*interfaces.Plug{{
+			Snap:      "producer",
+			Name:      "plug",
+			Interface: "interface",
+		}},
+		Slots: []*interfaces.Slot{{
+			Snap:      "consumer",
+			Name:      "slot",
+			Interface: "other-interface",
+		}},
+	})
 }
 
 func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
@@ -1416,8 +1418,13 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Check(d.interfaces.ConnectedSlots("consumer"), check.HasLen, 0)
-	c.Check(d.interfaces.ConnectedPlugs("producer"), check.HasLen, 0)
+	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
+		Slots: []*interfaces.Slot{{
+			Snap:      "consumer",
+			Name:      "slot",
+			Interface: "interface",
+		}},
+	})
 }
 
 func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
@@ -1448,8 +1455,13 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Check(d.interfaces.ConnectedSlots("consumer"), check.HasLen, 0)
-	c.Check(d.interfaces.ConnectedPlugs("producer"), check.HasLen, 0)
+	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
+		Plugs: []*interfaces.Plug{{
+			Snap:      "producer",
+			Name:      "plug",
+			Interface: "interface",
+		}},
+	})
 }
 
 func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
@@ -1480,8 +1492,18 @@ func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
 		"status_code": 200.0,
 		"type":        "sync",
 	})
-	c.Check(d.interfaces.ConnectedSlots("consumer"), check.HasLen, 0)
-	c.Check(d.interfaces.ConnectedPlugs("producer"), check.HasLen, 0)
+	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
+		Plugs: []*interfaces.Plug{{
+			Snap:      "producer",
+			Name:      "plug",
+			Interface: "interface",
+		}},
+		Slots: []*interfaces.Slot{{
+			Snap:      "consumer",
+			Name:      "slot",
+			Interface: "interface",
+		}},
+	})
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
@@ -1512,8 +1534,13 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Check(d.interfaces.ConnectedSlots("consumer"), check.HasLen, 0)
-	c.Check(d.interfaces.ConnectedPlugs("producer"), check.HasLen, 0)
+	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
+		Slots: []*interfaces.Slot{{
+			Snap:      "consumer",
+			Name:      "slot",
+			Interface: "interface",
+		}},
+	})
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
@@ -1544,8 +1571,13 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Check(d.interfaces.ConnectedSlots("consumer"), check.HasLen, 0)
-	c.Check(d.interfaces.ConnectedPlugs("producer"), check.HasLen, 0)
+	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
+		Plugs: []*interfaces.Plug{{
+			Snap:      "producer",
+			Name:      "plug",
+			Interface: "interface",
+		}},
+	})
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
@@ -1577,8 +1609,18 @@ func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Check(d.interfaces.ConnectedSlots("consumer"), check.HasLen, 0)
-	c.Check(d.interfaces.ConnectedPlugs("producer"), check.HasLen, 0)
+	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
+		Plugs: []*interfaces.Plug{{
+			Snap:      "producer",
+			Name:      "plug",
+			Interface: "interface",
+		}},
+		Slots: []*interfaces.Slot{{
+			Snap:      "consumer",
+			Name:      "slot",
+			Interface: "interface",
+		}},
+	})
 }
 
 func (s *apiSuite) TestAddPlugSuccess(c *check.C) {
@@ -1586,16 +1628,14 @@ func (s *apiSuite) TestAddPlugSuccess(c *check.C) {
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	action := &interfaceAction{
 		Action: "add-plug",
-		Plugs: []interfaces.Plug{
-			{
-				Snap:      "snap",
-				Name:      "plug",
-				Label:     "label",
-				Interface: "interface",
-				Attrs:     map[string]interface{}{"key": "value"},
-				Apps:      []string{"app"},
-			},
-		},
+		Plugs: []interfaces.Plug{{
+			Snap:      "snap",
+			Name:      "plug",
+			Label:     "label",
+			Interface: "interface",
+			Attrs:     map[string]interface{}{"key": "value"},
+			Apps:      []string{"app"},
+		}},
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -1625,16 +1665,14 @@ func (s *apiSuite) TestAddPlugDisabled(c *check.C) {
 	d.enableInternalInterfaceActions = false
 	action := &interfaceAction{
 		Action: "add-plug",
-		Plugs: []interfaces.Plug{
-			{
-				Snap:      "producer",
-				Name:      "plug",
-				Label:     "label",
-				Interface: "interface",
-				Attrs:     map[string]interface{}{"key": "value"},
-				Apps:      []string{"app"},
-			},
-		},
+		Plugs: []interfaces.Plug{{
+			Snap:      "producer",
+			Name:      "plug",
+			Label:     "label",
+			Interface: "interface",
+			Attrs:     map[string]interface{}{"key": "value"},
+			Apps:      []string{"app"},
+		}},
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -1668,16 +1706,14 @@ func (s *apiSuite) TestAddPlugFailure(c *check.C) {
 	})
 	action := &interfaceAction{
 		Action: "add-plug",
-		Plugs: []interfaces.Plug{
-			{
-				Snap:      "snap",
-				Name:      "plug",
-				Label:     "label",
-				Interface: "interface",
-				Attrs:     map[string]interface{}{"key": "value"},
-				Apps:      []string{"app"},
-			},
-		},
+		Plugs: []interfaces.Plug{{
+			Snap:      "snap",
+			Name:      "plug",
+			Label:     "label",
+			Interface: "interface",
+			Attrs:     map[string]interface{}{"key": "value"},
+			Apps:      []string{"app"},
+		}},
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -1797,16 +1833,14 @@ func (s *apiSuite) TestAddSlotSuccess(c *check.C) {
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	action := &interfaceAction{
 		Action: "add-slot",
-		Slots: []interfaces.Slot{
-			{
-				Snap:      "snap",
-				Name:      "slot",
-				Label:     "label",
-				Interface: "interface",
-				Attrs:     map[string]interface{}{"key": "value"},
-				Apps:      []string{"app"},
-			},
-		},
+		Slots: []interfaces.Slot{{
+			Snap:      "snap",
+			Name:      "slot",
+			Label:     "label",
+			Interface: "interface",
+			Attrs:     map[string]interface{}{"key": "value"},
+			Apps:      []string{"app"},
+		}},
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -1836,16 +1870,14 @@ func (s *apiSuite) TestAddSlotDisabled(c *check.C) {
 	d.enableInternalInterfaceActions = false
 	action := &interfaceAction{
 		Action: "add-slot",
-		Slots: []interfaces.Slot{
-			{
-				Snap:      "consumer",
-				Name:      "slot",
-				Label:     "label",
-				Interface: "interface",
-				Attrs:     map[string]interface{}{"key": "value"},
-				Apps:      []string{"app"},
-			},
-		},
+		Slots: []interfaces.Slot{{
+			Snap:      "consumer",
+			Name:      "slot",
+			Label:     "label",
+			Interface: "interface",
+			Attrs:     map[string]interface{}{"key": "value"},
+			Apps:      []string{"app"},
+		}},
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -1879,16 +1911,14 @@ func (s *apiSuite) TestAddSlotFailure(c *check.C) {
 	})
 	action := &interfaceAction{
 		Action: "add-slot",
-		Slots: []interfaces.Slot{
-			{
-				Snap:      "snap",
-				Name:      "slot",
-				Label:     "label",
-				Interface: "interface",
-				Attrs:     map[string]interface{}{"key": "value"},
-				Apps:      []string{"app"},
-			},
-		},
+		Slots: []interfaces.Slot{{
+			Snap:      "snap",
+			Name:      "slot",
+			Label:     "label",
+			Interface: "interface",
+			Attrs:     map[string]interface{}{"key": "value"},
+			Apps:      []string{"app"},
+		}},
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
