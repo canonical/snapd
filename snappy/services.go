@@ -54,8 +54,6 @@ func generateSnapServicesFile(app *AppYaml, baseDir string, aaProfile string, m 
 		return "", err
 	}
 
-	udevPartName := m.qualifiedName(originFromBasedir(baseDir))
-
 	desc := app.Description
 	if desc == "" {
 		desc = fmt.Sprintf("service %s for package %s", app.Name, m.Name)
@@ -81,7 +79,8 @@ func generateSnapServicesFile(app *AppYaml, baseDir string, aaProfile string, m 
 			IsFramework:    m.Type == snap.TypeFramework,
 			BusName:        app.BusName,
 			Type:           app.Daemon,
-			UdevAppName:    udevPartName,
+			UdevAppName:    fmt.Sprintf("%s.%s", m.Name, app.Name),
+			Origin:         originFromBasedir(baseDir),
 			Socket:         app.Socket,
 			SocketFileName: socketFileName,
 			Restart:        app.RestartCond,
