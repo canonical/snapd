@@ -29,7 +29,7 @@ import (
 type cmdInterfaces struct {
 	Interface   string `short:"i" description:"constrain listing to specific interfaces"`
 	Positionals struct {
-		Query SnapAndName `positional-arg-name:"<snap>:<slot or plug>" description:"snap or snap:name" skip-help:"true"`
+		Query SnapAndName `positional-arg-name:"<snap>:<slot or plug>"`
 	} `positional-args:"true"`
 }
 
@@ -38,7 +38,7 @@ var longInterfacesHelp = i18n.G(`
 The interfaces command lists interfaces available in the system.
 
 By default all slots and plugs, used and offered by all snaps, are displayed.
- 
+
 $ snap interfaces <snap>:<slot or plug>
 
 Lists only the specified slot or plug.
@@ -49,7 +49,8 @@ Lists the slots offered and plugs used by the specified snap.
 
 $ snap interfaces --i=<interface> [<snap>]
 
-Lists only slots and plugs of the specific interface.
+Filters the complete output so only plugs and/or slots matching the provided
+details are listed.
 `)
 
 func init() {

@@ -47,16 +47,14 @@ Lists the slots offered and plugs used by the specified snap.
 
 $ snap interfaces --i=<interface> [<snap>]
 
-Lists only slots and plugs of the specific interface.
+Filters the complete output so only plugs and/or slots matching the provided
+details are listed.
 
 Help Options:
   -h, --help                       Show this help message
 
 [interfaces command options]
       -i=                          constrain listing to specific interfaces
-
-[interfaces command arguments]
-  <snap>:<slot or plug>:           snap or snap:name
 `
 	rest, err := Parser().ParseArgs([]string{"interfaces", "--help"})
 	c.Assert(err.Error(), Equals, msg)
