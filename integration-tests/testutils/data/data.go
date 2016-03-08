@@ -33,6 +33,8 @@ const (
 	BasicFrameworkSnapName = "basic-framework"
 	// BasicServiceSnapName is the name of the basic snap with a service
 	BasicServiceSnapName = "basic-service"
+	// BasicDesktopSnapName is the name of the snap with a desktop file
+	BasicDesktopSnapName = "basic-desktop"
 	// WrongYamlSnapName is the name of a snap with an invalid meta yaml
 	WrongYamlSnapName = "wrong-yaml"
 )
