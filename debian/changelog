@@ -1,3 +1,32 @@
+ubuntu-snappy (1.7.3+20160308ubuntu1) xenial; urgency=medium
+
+    - snappy,snap: move icon under meta/gui/
+    - debian: add snap.8 manpage
+    - debian: move snapd to /usr/lib/snappy/snapd
+    - snap,snappy,systemd: remove TMPDIR, TEMPDIR, SNAP_APP_TMPDIR
+    - snappy,dirs: add support to use desktop files from inside snaps
+    - daemon: snapd API events endpoint redux
+    - interfaces/builtin: add "network" interface
+    - overlord/state: do small fixes (typo, id clashes paranoia)
+    - overlord: add first pass of the logic in StateEngine itself
+    - overlord/state: introduce Status/SetStatus on Change
+    - interfaces: support permanent security snippets
+    - overlord/state: introduce Status/SetStatus and
+      Progress/SetProgress on Task
+    - overlord/state: introduce Task and Change.NewTask
+    - many: selectively swap semantics of plugs and slots
+    - client,cmd/snap: remove useless indirection in Interfaces
+    - interfaces: maintain Plug and Slot connection details
+    - client,daemon,cmd/snap: change POST /2.0/interfaces to work with
+      lists
+    - overlord/state: introduce Change and NewChange on state to create
+      them
+    - snappy: bugfix for snap.yaml parsing to be more consistent with
+      the spec
+    - snappy,systemd: remove "ports" from snap.yaml
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 08 Mar 2016 11:24:09 +0100
+
 ubuntu-snappy (1.7.3+20160303ubuntu4) xenial; urgency=medium
 
   * rename:
