@@ -71,6 +71,10 @@ if [ ! -d "$SNAP_USER_DATA" ]; then
 fi
 export HOME="$SNAP_USER_DATA"
 
+# Snap name is: {{.SnapName}}
+# App name is: {{.AppName}}
+# Developer name is: {{.Origin}}
+
 # export old pwd
 export SNAP_OLD_PWD="$(pwd)"
 cd $SNAP_DATA
