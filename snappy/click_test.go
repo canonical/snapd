@@ -466,6 +466,10 @@ if [ ! -d "$SNAP_USER_DATA" ]; then
 fi
 export HOME="$SNAP_USER_DATA"
 
+# Snap name is: pastebinit
+# App name is: pastebinit
+# Developer name is: mvo
+
 # export old pwd
 export SNAP_OLD_PWD="$(pwd)"
 cd $SNAP_DATA
@@ -508,6 +512,10 @@ if [ ! -d "$SNAP_USER_DATA" ]; then
    mkdir -p "$SNAP_USER_DATA"
 fi
 export HOME="$SNAP_USER_DATA"
+
+# Snap name is: fmk
+# App name is: echo
+# Developer name is: 
 
 # export old pwd
 export SNAP_OLD_PWD="$(pwd)"
