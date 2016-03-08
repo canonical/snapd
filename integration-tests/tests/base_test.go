@@ -108,7 +108,7 @@ func tearDownSnapdFromBranch() error {
 		return err
 	}
 
-	if _, err := cli.ExecCommandErr("sudo", "umount", "/usr/bin/snapd"); err != nil {
+	if _, err := cli.ExecCommandErr("sudo", "umount", "/usr/lib/snappy/snapd"); err != nil {
 		return err
 	}
 
