@@ -164,7 +164,7 @@ func (s *Snap) Build(buildDir string) error {
 			".", fullSnapPath,
 			"-noappend",
 			"-comp", "xz",
-			"--no-xattrs",
+			"-no-xattrs",
 		)
 	})
 }
