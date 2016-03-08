@@ -89,7 +89,6 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 	}
 
 	actualBinPath := binPathForBinary(pkgPath, app)
-	udevPartName := m.qualifiedName(origin)
 
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("wrapper").Parse(wrapperTemplate))
@@ -112,7 +111,7 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 		SnapArch:    arch.UbuntuArchitecture(),
 		SnapPath:    pkgPath,
 		Version:     m.Version,
-		UdevAppName: udevPartName,
+		UdevAppName: fmt.Sprintf("%s.%s", m.Name, app.Name),
 		Origin:      origin,
 		Home:        "$HOME",
 		Target:      actualBinPath,
