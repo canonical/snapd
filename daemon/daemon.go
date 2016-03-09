@@ -34,8 +34,6 @@ import (
 
 	"github.com/ubuntu-core/snappy/asserts"
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/interfaces"
-	"github.com/ubuntu-core/snappy/interfaces/builtin"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/notifications"
 	"github.com/ubuntu-core/snappy/osutil"
@@ -52,7 +50,6 @@ type Daemon struct {
 	router       *mux.Router
 	asserts      *asserts.Database
 	hub          *notifications.Hub
-	interfaces   *interfaces.Repository
 	// enableInternalInterfaceActions controls if adding and removing slots and plugs is allowed.
 	enableInternalInterfaceActions bool
 }
@@ -274,18 +271,11 @@ func New() (*Daemon, error) {
 	if err != nil {
 		return nil, err
 	}
-	interfacesRepo := interfaces.NewRepository()
-	for _, iface := range builtin.Interfaces() {
-		if err := interfacesRepo.AddInterface(iface); err != nil {
-			return nil, err
-		}
-	}
 	return &Daemon{
-		overlord:   ovld,
-		tasks:      make(map[string]*Task),
-		asserts:    db,
-		hub:        notifications.NewHub(),
-		interfaces: interfacesRepo,
+		overlord: ovld,
+		tasks:    make(map[string]*Task),
+		asserts:  db,
+		hub:      notifications.NewHub(),
 		// TODO: Decide when this should be disabled by default.
 		enableInternalInterfaceActions: true,
 	}, nil
