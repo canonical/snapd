@@ -88,7 +88,7 @@ func (o *Overlord) AssertManager() *assertstate.AssertManager {
 	return o.assertMgr
 }
 
-// InterfaceManager returns the interface manager mantaining
+// InterfaceManager returns the interface manager maintaining
 // interface connections under the overlord.
 func (o *Overlord) InterfaceManager() *ifacestate.InterfaceManager {
 	return o.ifaceMgr
