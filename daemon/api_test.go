@@ -2107,45 +2107,39 @@ const (
 	testTrustedKey = `type: account-key
 authority-id: can0nical
 account-id: can0nical
-public-key-id: 844efa9730eec4be
-public-key-fingerprint: 716ff3cec4b9364a2bd930dc844efa9730eec4be
+public-key-id: 33f5d7e5d273dfad
+public-key-fingerprint: 851fa8363c79cc0cd1c73a1833f5d7e5d273dfad
+series: 16
 since: 2016-01-14T15:00:00Z
 until: 2023-01-14T15:00:00Z
-body-length: 376
+body-length: 372
 
-openpgp xsBNBFaXv40BCADIlqLKFZaPaoe4TNLQv77vh4JWTlt7Z3IN2ducNqfg50q5mnkyUD2D
-SckvsMy1440+a0Z83m/A7aPaO1JkLpMGfLr23VLyKCaAe0k6hg69/6aEfXhfy0yYvEOgGcBiX+fN
-T6tqdRCsd+08LtisjYez7iJvmVwQ/syeduoTU4EiSVO1zlgc3eeq3TFyvcN0E1EsZ/7l2A33amTo
-mtAPVyQsa1B+lTeaUgwuPBWV0oTuYcUSfYsmmsXEKx/PnzkliicnrC9QZ5CcisskVve3QwPAuLUz
-2nV7/6vSRF22T4cUPF4QntjZBB6xjopdDH6wQsKyzLTTRak74moWksx8MEmVABEBAAE=
+openpgp xsBNBFbgGZ8BCADFFgoCtakq1BXe5pv8JIb0NjoK7zcMMkntUDZyhqfkETt9RQjvkg+6ve7uiCQtioOM5yep1E534dK6VZxxsnGbfoAbO/2dm6rzckv0mTumU5Z8/E36hDz7/bZIG+h8A72kfOd39TfO7RydX6WHao0dB8oyh0Ct/Jj08wioeLhNb7mDKxZoLxuRpNiRB/wBImpYULcBV4BTJj1BoReAjXGef72NhgaO95S+6gqhcC0Pp6eN6vqwUH9RFYFkMf76qvHCyQculBq8FjG+6EyVKCpeXdYN2LzsACKFn2wtY/xXzSqTeTnFHPTA6K4Ch3Flr5kPbKvvnna4n3Rgnjwm+ixPABEBAAE=
 
-openpgp wsBcBAABCAAQBQJWl8DiCRCETvqXMO7EvgAAhjkIAEoINWjQkujtx/TFYsKh0yYcQSpT
-v8O83mLRP7Ty+mH99uQ0/DbeQ1hM5st8cFgzU8SzlDCh6BUMnAl/bR/hhibFD40CBLd13kDXl1aN
-APybmSYoDVRQPAPop44UF0aCrTIw4Xds3E56d2Rsn+CkNML03kRc/i0Q53uYzZwxXVnzW/gVOXDL
-u/IZtjeo3KsB645MVEUxJLQmjlgMOwMvCHJgWhSvZOuf7wC0soBCN9Ufa/0M/PZFXzzn8LpjKVrX
-iDXhV7cY5PceG8ZV7Duo1JadOCzpkOHmai4DcrN7ZeY8bJnuNjOwvTLkrouw9xci4IxpPDRu0T/i
-K9qaJtUo4cA=`
+openpgp wsBcBAABCAAQBQJW4BpqCRAz9dfl0nPfrQAAZ/UIAB0XvtB+EUIfz1v6YD1PfFEDxHGX
+Ja4bqr0ik3GYuPF6JrNfe+MkoBFs4rKD5XHhWym4GIukCrrBCuHZ0TaEdu8+uihEEChkJ99j8e33
+Rkho+N90LgVUrdnSqepVVXWFLMTIEmeG+/diPfDsBSoKP72faoPQAOFgZd2r3grjaemOCoyJR5gN
+H2Lkzm+DKgzzoQzQfT4ctvu+oju0aygr6UmZTzoRLj8qqOK1f49p4BPK4D+9PQv0D4Se5VMyLv0+
+Glwd4qQJK12Dzkg1cnj8x7aQT98DwhxkrsIcKveSJIhlkK4Y/1vczWxLtQkSg50AHe0AhOvumtkp
+e6Fkj0oQztA=`
 	testAccKey = `type: account-key
 authority-id: can0nical
 account-id: developer1
-public-key-id: adea89b00094c337
-public-key-fingerprint: 5fa7b16ad5e8c8810d5a0686adea89b00094c337
+public-key-id: 37df895cebe1b232
+public-key-fingerprint: fbb515beda3687d1ce0d09d237df895cebe1b232
+series: 16
 since: 2016-01-14T15:00:00Z
 until: 2023-01-14T15:00:00Z
-body-length: 376
+body-length: 372
 
-openpgp xsBNBFaXv5MBCACkK//qNb3UwRtDviGcCSEi8Z6d5OXok3yilQmEh0LuW6DyP9sVpm08
-Vb1LGewOa5dThWGX4XKRBI/jCUnjCJQ6v15lLwHe1N7MJQ58DUxKqWFMV9yn4RcDPk6LqoFpPGdR
-rbp9Ivo3PqJRMyD0wuJk9RhbaGZmILcL//BLgomE9NgQdAfZbiEnGxtkqAjeVtBtcJIj5TnCC658
-ZCqwugQeO9iJuIn3GosYvvTB6tReq6GP6b4dqvoi7SqxHVhtt2zD4Y6FUZIVmvZK0qwkV0gua2az
-LzPOeoVcU1AEl7HVeBk7G6GiT5jx+CjjoGa0j22LdJB9S3JXHtGYk5p9CAwhABEBAAE=
+openpgp xsBNBFbgGogBCADDJ9unqpn1SKEFaCNsI3NmyFKzNcIAd5SI88ttO+PsOpCtjoJTvKt+ss9n5lCRsGmtdhiTo/VMktL8A+sgErDDZ3XUy5wFmFlRFqnkskf6TGFRPskth6whNcxIQ/EiRuPUM7/HXTKO4CBBVlJLuriNY5qF8W/0mGlgPXrGGo8uqaCOKFjcZpbLZAmeoW5Mgl2as12v718atvwzhT/vUYJqfmu5Fd+Z5gcWm/7+uPu4LAPRR/gR0k31AYyw3zksQfrH4E+vPcp5UYS4INxF+M7v8oB4IhuLRrsaPXe2d2x7y1d28IGtmDgGkoBUBFHu7vrdFdEJA0g2luCceorAkvUvABEBAAE=
 
-openpgp wsBcBAABCAAQBQJWl8HNCRCETvqXMO7EvgAAeuAIABn/1i8qGyaIhxOWE2cHIPYW3hq2
-PWpq7qrPN5Dbp/00xrTvc6tvMQWsXlMrAsYuq3sBCxUp3JRp9XhGiQeJtb8ft10g3+3J7e8OGHjl
-CfXJ3A5el8Xxp5qkFywCsLdJgNtF6+uSQ4dO8SrAwzkM7c3JzntxdiFOjDLUSyZ+rXL42jdRagTY
-8bcZfb47vd68Hyz3EvSvJuHSDbcNSTd3B832cimpfq5vJ7FoDrchVn3sg+3IwekuPhG3LQn5BVtc
-0ontHd+V1GaandhqBaDA01cGZN0gnqv2Haogt0P/h3nZZZJ1nTW5PLC6hs8TZdBdl3Lel8yAHD5L
-ZF5jSvRDLgI=`
+openpgp wsBcBAABCAAQBQJW4BroCRAz9dfl0nPfrQAA6pgIAE8roGlbt02xEUoQbyhn9MOQyMck
+Dnivwb7b7iFz6TeZ/EMpFhytjxdxzOZcNrEoamC1eTN7XophsAXXtknyNtUmqijT8VB81xtKm2v4
+0pVlNaoe1g3bUppnHGJrmoFMvaP0djNv46YVfpyt5eBGfdvGCJDiAtT40FDNs8LbGHJ33Nha3SyB
+8nyC07DzpWzbajO3if+7QgbtRGubEoAEsGy7tZY9jqy0QsFfXspe3bfZf9NnEtQ/F14k15RnbN1Y
++A886r+LC0o7fUR1YGQAfUf3CuvoHbYY1wVR+uNfiauh0Re10aQ1Ubg1zq62MR+5pIo6Sj6fma43
+gnXtE+RRd3o=`
 )
 
 func (s *apiSuite) TestAssertOK(c *check.C) {
@@ -2164,8 +2158,9 @@ func (s *apiSuite) TestAssertOK(c *check.C) {
 	c.Check(rsp.Status, check.Equals, http.StatusOK)
 	// Verify (internal)
 	_, err = d.asserts.Find(asserts.AccountKeyType, map[string]string{
+		"series":        "16",
 		"account-id":    "developer1",
-		"public-key-id": "adea89b00094c337",
+		"public-key-id": "37df895cebe1b232",
 	})
 	c.Check(err, check.IsNil)
 }
