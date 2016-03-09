@@ -50,11 +50,13 @@ func init() {
 	cli.ExecCommand(c, "sudo", "systemctl", "stop", "snappy-autopilot.timer")
 	cli.ExecCommand(c, "sudo", "systemctl", "disable", "snappy-autopilot.timer")
 
-	cfg, err := config.ReadConfig(config.DefaultFileName)
-	c.Assert(err, check.IsNil, check.Commentf("Error reading config: %v", err))
+	if _, err := os.Stat(config.DefaultFileName); err == nil {
+		cfg, err := config.ReadConfig(config.DefaultFileName)
+		c.Assert(err, check.IsNil, check.Commentf("Error reading config: %v", err))
 
-	if cfg.FromBranch {
-		setUpSnapdFromBranch(c)
+		if cfg.FromBranch {
+			setUpSnapdFromBranch(c)
+		}
 	}
 }
 
