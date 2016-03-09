@@ -418,11 +418,6 @@ int main(int argc, char **argv)
    }
 
    if(geteuid() == 0) {
-      // verify binary path
-      char snaps_prefix[128];
-      must_snprintf(snaps_prefix, sizeof(snaps_prefix), "/snaps/%s/", appname);
-      if (strstr(binary, snaps_prefix) != binary)
-         die("binary must be inside /snaps/%s/", appname);
 
       // ensure we run in our own slave mount namespace, this will
       // create a new mount namespace and make it a slave of "/"
