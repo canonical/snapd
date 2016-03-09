@@ -71,12 +71,14 @@ func Manager() (*InterfaceManager, error) {
 
 // Connect initiates a change connecting an interface.
 func (m *InterfaceManager) Connect(plugSnap, plugName, slotSnap, slotName string) error {
-	return nil
+	// XXX: This is a stub, more work is needed
+	return m.repo.Connect(plugSnap, plugName, slotSnap, slotName)
 }
 
 // Disconnect initiates a change disconnecting an interface.
 func (m *InterfaceManager) Disconnect(plugSnap, plugName, slotSnap, slotName string) error {
-	return nil
+	// XXX: This is a stub, more work is needed
+	return m.repo.Disconnect(plugSnap, plugName, slotSnap, slotName)
 }
 
 // Init implements StateManager.Init.
@@ -111,4 +113,44 @@ func (m *InterfaceManager) Ensure() error {
 // Stop implements StateManager.Stop.
 func (m *InterfaceManager) Stop() error {
 	return nil
+}
+
+// Interfaces returns object holding a lists of all the plugs and slots and their connections.
+func (m *InterfaceManager) Interfaces() *interfaces.Interfaces {
+	return m.repo.Interfaces()
+}
+
+// AddInterface adds the provided interface to the repository.
+func (m *InterfaceManager) AddInterface(iface interfaces.Interface) error {
+	return m.repo.AddInterface(iface)
+}
+
+// AddPlug adds a plug to the repository.
+func (m *InterfaceManager) AddPlug(plug *interfaces.Plug) error {
+	return m.repo.AddPlug(plug)
+}
+
+// AddSlot adds a new slot to the repository.
+func (m *InterfaceManager) AddSlot(slot *interfaces.Slot) error {
+	return m.repo.AddSlot(slot)
+}
+
+// RemovePlug removes the named plug provided by a given snap.
+func (m *InterfaceManager) RemovePlug(snapName, plugName string) error {
+	return m.repo.RemovePlug(snapName, plugName)
+}
+
+// RemoveSlot removes a named slot from the given snap.
+func (m *InterfaceManager) RemoveSlot(snapName, slotName string) error {
+	return m.repo.RemoveSlot(snapName, slotName)
+}
+
+// Slot returns the specified plug slot from the named snap.
+func (m *InterfaceManager) Slot(snapName, slotName string) *interfaces.Slot {
+	return m.repo.Slot(snapName, slotName)
+}
+
+// Plug returns the specified plug from the named snap.
+func (m *InterfaceManager) Plug(snapName, plugName string) *interfaces.Plug {
+	return m.repo.Plug(snapName, plugName)
 }
