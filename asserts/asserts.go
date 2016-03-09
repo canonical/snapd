@@ -479,11 +479,6 @@ func Assemble(headers map[string]string, body, content, signature []byte) (Asser
 		return nil, fmt.Errorf("assertion body length and declared body-length don't match: %v != %v", len(body), length)
 	}
 
-	// TODO(matt): uncomment this once all assertions include `series`
-	//if _, err := checkMandatory(headers, "series"); err != nil {
-	//	return nil, fmt.Errorf("assertion: %v", err)
-	//}
-
 	if _, err := checkMandatory(headers, "authority-id"); err != nil {
 		return nil, fmt.Errorf("assertion: %v", err)
 	}
@@ -502,6 +497,12 @@ func Assemble(headers map[string]string, body, content, signature []byte) (Asser
 			return nil, fmt.Errorf("assertion %s: %v", assertType.Name, err)
 		}
 	}
+
+	// TODO(matt): consider uncommenting this once all assertions include
+	// `series`, just in case it's not in the primary key. Needs a test.
+	//if _, err := checkMandatory(headers, "series"); err != nil {
+	//	return nil, fmt.Errorf("assertion: %v", err)
+	//}
 
 	revision, err := checkRevision(headers)
 	if err != nil {
