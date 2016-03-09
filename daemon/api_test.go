@@ -1257,10 +1257,11 @@ func (s *apiSuite) TestInstallLicensedIntegration(c *check.C) {
 
 func (s *apiSuite) TestGetPlugs(c *check.C) {
 	d := newTestDaemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface", Label: "label"})
-	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface", Label: "label"})
-	d.interfaces.Connect("producer", "plug", "consumer", "slot")
+	mgr := d.overlord.InterfaceManager()
+	mgr.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	mgr.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface", Label: "label"})
+	mgr.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface", Label: "label"})
+	mgr.Connect("producer", "plug", "consumer", "slot")
 	req, err := http.NewRequest("GET", "/2.0/interfaces", nil)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
@@ -1304,9 +1305,10 @@ func (s *apiSuite) TestGetPlugs(c *check.C) {
 
 func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 	d := newTestDaemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
-	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
+	mgr := d.overlord.InterfaceManager()
+	mgr.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	mgr.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
+	mgr.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
 	action := &interfaceAction{
 		Action: "connect",
 		Plugs:  []interfaces.Plug{{Snap: "producer", Name: "plug"}},
@@ -1329,7 +1331,7 @@ func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 		"status_code": 200.0,
 		"type":        "sync",
 	})
-	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
+	c.Assert(mgr.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
 		Plugs: []*interfaces.Plug{{
 			Snap:        "producer",
 			Name:        "plug",
@@ -1347,10 +1349,11 @@ func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 
 func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 	d := newTestDaemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "other-interface"})
-	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
-	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "other-interface"})
+	mgr := d.overlord.InterfaceManager()
+	mgr.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	mgr.AddInterface(&interfaces.TestInterface{InterfaceName: "other-interface"})
+	mgr.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
+	mgr.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "other-interface"})
 	action := &interfaceAction{
 		Action: "connect",
 		Plugs:  []interfaces.Plug{{Snap: "producer", Name: "plug"}},
@@ -1375,7 +1378,7 @@ func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
+	c.Assert(mgr.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
 		Plugs: []*interfaces.Plug{{
 			Snap:      "producer",
 			Name:      "plug",
@@ -1391,8 +1394,9 @@ func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 
 func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 	d := newTestDaemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
+	mgr := d.overlord.InterfaceManager()
+	mgr.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	mgr.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
 	action := &interfaceAction{
 		Action: "connect",
 		Plugs:  []interfaces.Plug{{Snap: "producer", Name: "plug"}},
@@ -1417,7 +1421,7 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
+	c.Assert(mgr.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
 		Slots: []*interfaces.Slot{{
 			Snap:      "consumer",
 			Name:      "slot",
@@ -1428,8 +1432,9 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 
 func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 	d := newTestDaemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
+	mgr := d.overlord.InterfaceManager()
+	mgr.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	mgr.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
 	action := &interfaceAction{
 		Action: "connect",
 		Plugs:  []interfaces.Plug{{Snap: "producer", Name: "plug"}},
@@ -1454,7 +1459,7 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
+	c.Assert(mgr.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
 		Plugs: []*interfaces.Plug{{
 			Snap:      "producer",
 			Name:      "plug",
@@ -1465,10 +1470,11 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 
 func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
 	d := newTestDaemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
-	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
-	d.interfaces.Connect("producer", "plug", "consumer", "slot")
+	mgr := d.overlord.InterfaceManager()
+	mgr.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	mgr.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
+	mgr.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
+	mgr.Connect("producer", "plug", "consumer", "slot")
 	action := &interfaceAction{
 		Action: "disconnect",
 		Plugs:  []interfaces.Plug{{Snap: "producer", Name: "plug"}},
@@ -1491,7 +1497,7 @@ func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
 		"status_code": 200.0,
 		"type":        "sync",
 	})
-	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
+	c.Assert(mgr.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
 		Plugs: []*interfaces.Plug{{
 			Snap:      "producer",
 			Name:      "plug",
@@ -1507,8 +1513,9 @@ func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 	d := newTestDaemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
+	mgr := d.overlord.InterfaceManager()
+	mgr.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	mgr.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
 	action := &interfaceAction{
 		Action: "disconnect",
 		Plugs:  []interfaces.Plug{{Snap: "producer", Name: "plug"}},
@@ -1533,7 +1540,7 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
+	c.Assert(mgr.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
 		Slots: []*interfaces.Slot{{
 			Snap:      "consumer",
 			Name:      "slot",
@@ -1544,8 +1551,9 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 	d := newTestDaemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
+	mgr := d.overlord.InterfaceManager()
+	mgr.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	mgr.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
 	action := &interfaceAction{
 		Action: "disconnect",
 		Plugs:  []interfaces.Plug{{Snap: "producer", Name: "plug"}},
@@ -1570,7 +1578,7 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
+	c.Assert(mgr.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
 		Plugs: []*interfaces.Plug{{
 			Snap:      "producer",
 			Name:      "plug",
@@ -1581,9 +1589,10 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 
 func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 	d := newTestDaemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
-	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
+	mgr := d.overlord.InterfaceManager()
+	mgr.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	mgr.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
+	mgr.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
 	action := &interfaceAction{
 		Action: "disconnect",
 		Plugs:  []interfaces.Plug{{Snap: "producer", Name: "plug"}},
@@ -1608,7 +1617,7 @@ func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
+	c.Assert(mgr.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
 		Plugs: []*interfaces.Plug{{
 			Snap:      "producer",
 			Name:      "plug",
@@ -1624,7 +1633,8 @@ func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 
 func (s *apiSuite) TestAddPlugSuccess(c *check.C) {
 	d := newTestDaemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	mgr := d.overlord.InterfaceManager()
+	mgr.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	action := &interfaceAction{
 		Action: "add-plug",
 		Plugs: []interfaces.Plug{{
@@ -1653,12 +1663,13 @@ func (s *apiSuite) TestAddPlugSuccess(c *check.C) {
 		"status_code": 201.0,
 		"type":        "sync",
 	})
-	c.Check(d.interfaces.Plug("snap", "plug"), check.DeepEquals, &action.Plugs[0])
+	c.Check(mgr.Plug("snap", "plug"), check.DeepEquals, &action.Plugs[0])
 }
 
 func (s *apiSuite) TestAddPlugDisabled(c *check.C) {
 	d := newTestDaemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{
+	mgr := d.overlord.InterfaceManager()
+	mgr.AddInterface(&interfaces.TestInterface{
 		InterfaceName: "interface",
 	})
 	d.enableInternalInterfaceActions = false
@@ -1692,12 +1703,13 @@ func (s *apiSuite) TestAddPlugDisabled(c *check.C) {
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Check(d.interfaces.Plug("producer", "plug"), check.IsNil)
+	c.Check(mgr.Plug("producer", "plug"), check.IsNil)
 }
 
 func (s *apiSuite) TestAddPlugFailure(c *check.C) {
 	d := newTestDaemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{
+	mgr := d.overlord.InterfaceManager()
+	mgr.AddInterface(&interfaces.TestInterface{
 		InterfaceName: "interface",
 		SanitizePlugCallback: func(plug *interfaces.Plug) error {
 			return fmt.Errorf("required attribute missing")
@@ -1733,13 +1745,14 @@ func (s *apiSuite) TestAddPlugFailure(c *check.C) {
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Check(d.interfaces.Plug("snap", "name"), check.IsNil)
+	c.Check(mgr.Plug("snap", "name"), check.IsNil)
 }
 
 func (s *apiSuite) TestRemovePlugSuccess(c *check.C) {
 	d := newTestDaemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
+	mgr := d.overlord.InterfaceManager()
+	mgr.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	mgr.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
 	action := &interfaceAction{
 		Action: "remove-plug",
 		Plugs:  []interfaces.Plug{{Snap: "producer", Name: "plug"}},
@@ -1761,13 +1774,14 @@ func (s *apiSuite) TestRemovePlugSuccess(c *check.C) {
 		"status_code": 200.0,
 		"type":        "sync",
 	})
-	c.Check(d.interfaces.Plug("snap", "name"), check.IsNil)
+	c.Check(mgr.Plug("snap", "name"), check.IsNil)
 }
 
 func (s *apiSuite) TestRemovePlugDisabled(c *check.C) {
 	d := newTestDaemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
+	mgr := d.overlord.InterfaceManager()
+	mgr.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	mgr.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
 	d.enableInternalInterfaceActions = false
 	action := &interfaceAction{
 		Action: "remove-plug",
@@ -1792,15 +1806,16 @@ func (s *apiSuite) TestRemovePlugDisabled(c *check.C) {
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Check(d.interfaces.Plug("producer", "plug"), check.Not(check.IsNil))
+	c.Check(mgr.Plug("producer", "plug"), check.Not(check.IsNil))
 }
 
 func (s *apiSuite) TestRemovePlugFailure(c *check.C) {
 	d := newTestDaemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
-	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
-	d.interfaces.Connect("producer", "plug", "consumer", "slot")
+	mgr := d.overlord.InterfaceManager()
+	mgr.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	mgr.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
+	mgr.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
+	mgr.Connect("producer", "plug", "consumer", "slot")
 	action := &interfaceAction{
 		Action: "remove-plug",
 		Plugs:  []interfaces.Plug{{Snap: "producer", Name: "plug"}},
@@ -1824,12 +1839,13 @@ func (s *apiSuite) TestRemovePlugFailure(c *check.C) {
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Check(d.interfaces.Plug("producer", "plug"), check.Not(check.IsNil))
+	c.Check(mgr.Plug("producer", "plug"), check.Not(check.IsNil))
 }
 
 func (s *apiSuite) TestAddSlotSuccess(c *check.C) {
 	d := newTestDaemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	mgr := d.overlord.InterfaceManager()
+	mgr.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	action := &interfaceAction{
 		Action: "add-slot",
 		Slots: []interfaces.Slot{{
@@ -1858,12 +1874,13 @@ func (s *apiSuite) TestAddSlotSuccess(c *check.C) {
 		"status_code": 201.0,
 		"type":        "sync",
 	})
-	c.Check(d.interfaces.Slot("snap", "slot"), check.DeepEquals, &action.Slots[0])
+	c.Check(mgr.Slot("snap", "slot"), check.DeepEquals, &action.Slots[0])
 }
 
 func (s *apiSuite) TestAddSlotDisabled(c *check.C) {
 	d := newTestDaemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{
+	mgr := d.overlord.InterfaceManager()
+	mgr.AddInterface(&interfaces.TestInterface{
 		InterfaceName: "interface",
 	})
 	d.enableInternalInterfaceActions = false
@@ -1897,12 +1914,13 @@ func (s *apiSuite) TestAddSlotDisabled(c *check.C) {
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Check(d.interfaces.Slot("consumer", "slot"), check.IsNil)
+	c.Check(mgr.Slot("consumer", "slot"), check.IsNil)
 }
 
 func (s *apiSuite) TestAddSlotFailure(c *check.C) {
 	d := newTestDaemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{
+	mgr := d.overlord.InterfaceManager()
+	mgr.AddInterface(&interfaces.TestInterface{
 		InterfaceName: "interface",
 		SanitizeSlotCallback: func(slot *interfaces.Slot) error {
 			return fmt.Errorf("required attribute missing")
@@ -1938,13 +1956,14 @@ func (s *apiSuite) TestAddSlotFailure(c *check.C) {
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Check(d.interfaces.Slot("snap", "name"), check.IsNil)
+	c.Check(mgr.Slot("snap", "name"), check.IsNil)
 }
 
 func (s *apiSuite) TestRemoveSlotSuccess(c *check.C) {
 	d := newTestDaemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
+	mgr := d.overlord.InterfaceManager()
+	mgr.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	mgr.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
 	action := &interfaceAction{
 		Action: "remove-slot",
 		Slots:  []interfaces.Slot{{Snap: "consumer", Name: "slot"}},
@@ -1966,13 +1985,14 @@ func (s *apiSuite) TestRemoveSlotSuccess(c *check.C) {
 		"status_code": 200.0,
 		"type":        "sync",
 	})
-	c.Check(d.interfaces.Slot("snap", "name"), check.IsNil)
+	c.Check(mgr.Slot("snap", "name"), check.IsNil)
 }
 
 func (s *apiSuite) TestRemoveSlotDisabled(c *check.C) {
 	d := newTestDaemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
+	mgr := d.overlord.InterfaceManager()
+	mgr.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	mgr.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
 	d.enableInternalInterfaceActions = false
 	action := &interfaceAction{
 		Action: "remove-slot",
@@ -1997,15 +2017,16 @@ func (s *apiSuite) TestRemoveSlotDisabled(c *check.C) {
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Check(d.interfaces.Slot("consumer", "slot"), check.Not(check.IsNil))
+	c.Check(mgr.Slot("consumer", "slot"), check.Not(check.IsNil))
 }
 
 func (s *apiSuite) TestRemoveSlotFailure(c *check.C) {
 	d := newTestDaemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
-	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
-	d.interfaces.Connect("producer", "plug", "consumer", "slot")
+	mgr := d.overlord.InterfaceManager()
+	mgr.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	mgr.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
+	mgr.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
+	mgr.Connect("producer", "plug", "consumer", "slot")
 	action := &interfaceAction{
 		Action: "remove-slot",
 		Slots:  []interfaces.Slot{{Snap: "consumer", Name: "slot"}},
@@ -2029,7 +2050,7 @@ func (s *apiSuite) TestRemoveSlotFailure(c *check.C) {
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Check(d.interfaces.Slot("consumer", "slot"), check.Not(check.IsNil))
+	c.Check(mgr.Slot("consumer", "slot"), check.Not(check.IsNil))
 }
 
 func (s *apiSuite) TestUnsupportedInterfaceRequest(c *check.C) {
@@ -2077,6 +2098,7 @@ func (s *apiSuite) TestMissingInterfaceAction(c *check.C) {
 
 func (s *apiSuite) TestUnsupportedInterfaceAction(c *check.C) {
 	d := newTestDaemon(c)
+	mgr := d.overlord.InterfaceManager()
 	action := &interfaceAction{
 		Action: "foo",
 	}
@@ -2099,7 +2121,7 @@ func (s *apiSuite) TestUnsupportedInterfaceAction(c *check.C) {
 		"status_code": 400.0,
 		"type":        "error",
 	})
-	c.Check(d.interfaces.Slot("snap", "name"), check.IsNil)
+	c.Check(mgr.Slot("snap", "name"), check.IsNil)
 }
 
 const (

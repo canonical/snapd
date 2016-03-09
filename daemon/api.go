@@ -914,7 +914,8 @@ func appIconGet(c *Command, r *http.Request) Response {
 
 // getInterfaces returns all plugs and slots.
 func getInterfaces(c *Command, r *http.Request) Response {
-	return SyncResponse(c.d.interfaces.Interfaces())
+	mgr := c.d.overlord.InterfaceManager()
+	return SyncResponse(mgr.Interfaces())
 }
 
 // interfaceAction is an action performed on the interface system.
@@ -943,12 +944,13 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 	if len(a.Plugs) > 1 || len(a.Slots) > 1 {
 		return NotImplemented("many-to-many operations are not implemented")
 	}
+	mgr := c.d.overlord.InterfaceManager()
 	switch a.Action {
 	case "connect":
 		if len(a.Plugs) == 0 || len(a.Slots) == 0 {
 			return BadRequest("at least one plug and slot is required")
 		}
-		err := c.d.interfaces.Connect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		err := mgr.Connect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 		if err != nil {
 			return BadRequest("%v", err)
 		}
@@ -957,7 +959,7 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 		if len(a.Plugs) == 0 || len(a.Slots) == 0 {
 			return BadRequest("at least one plug and slot is required")
 		}
-		err := c.d.interfaces.Disconnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		err := mgr.Disconnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 		if err != nil {
 			return BadRequest("%v", err)
 		}
@@ -966,7 +968,7 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 		if len(a.Plugs) == 0 {
 			return BadRequest("at least one plug is required")
 		}
-		err := c.d.interfaces.AddPlug(&a.Plugs[0])
+		err := mgr.AddPlug(&a.Plugs[0])
 		if err != nil {
 			return BadRequest("%v", err)
 		}
@@ -978,7 +980,7 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 		if len(a.Plugs) == 0 {
 			return BadRequest("at least one plug is required")
 		}
-		err := c.d.interfaces.RemovePlug(a.Plugs[0].Snap, a.Plugs[0].Name)
+		err := mgr.RemovePlug(a.Plugs[0].Snap, a.Plugs[0].Name)
 		if err != nil {
 			return BadRequest("%v", err)
 		}
@@ -987,7 +989,7 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 		if len(a.Slots) == 0 {
 			return BadRequest("at least one slot is required")
 		}
-		err := c.d.interfaces.AddSlot(&a.Slots[0])
+		err := mgr.AddSlot(&a.Slots[0])
 		if err != nil {
 			return BadRequest("%v", err)
 		}
@@ -999,7 +1001,7 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 		if len(a.Slots) == 0 {
 			return BadRequest("at least one slot is required")
 		}
-		err := c.d.interfaces.RemoveSlot(a.Slots[0].Snap, a.Slots[0].Name)
+		err := mgr.RemoveSlot(a.Slots[0].Snap, a.Slots[0].Name)
 		if err != nil {
 			return BadRequest("%v", err)
 		}
