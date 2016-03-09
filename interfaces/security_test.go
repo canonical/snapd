@@ -23,9 +23,11 @@ import (
 	. "gopkg.in/check.v1"
 
 	. "github.com/ubuntu-core/snappy/interfaces"
+	"github.com/ubuntu-core/snappy/testutil"
 )
 
 type SecuritySuite struct {
+	testutil.BaseTest
 	repo *Repository
 	plug *Plug
 	slot *Slot
@@ -47,7 +49,22 @@ var _ = Suite(&SecuritySuite{
 })
 
 func (s *SecuritySuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
 	s.repo = NewRepository()
+	MockActiveSnapMetaData(&s.BaseTest, func(snapName string) (string, string, []string, error) {
+		switch snapName {
+		case "producer":
+			return "version", "origin", []string{"hook"}, nil
+		case "consumer":
+			return "version", "origin", []string{"app"}, nil
+		default:
+			panic("unexpected snap name")
+		}
+	})
+	MockSecCompHeader(&s.BaseTest, []byte("# Mocked seccomp header\n"))
+	MockAppArmorHeader(&s.BaseTest, []byte(""+
+		"###VAR###\n"+
+		"###PROFILEATTACH### {\n"))
 }
 
 func (s *SecuritySuite) prepareFixtureWithInterface(c *C, i Interface) {
@@ -76,12 +93,20 @@ func (s *SecuritySuite) TestAppArmorPlugPermissions(c *C) {
 	// Ensure that plug-side security profile looks correct.
 	blobs, err := s.repo.SecurityFilesForSnap(s.plug.Snap)
 	c.Assert(err, IsNil)
-	c.Check(blobs, DeepEquals, map[string][]byte{
-		"/run/snappy/security/apparmor/producer/hook.profile": []byte("" +
-			"fake \"/snaps/producer/current/hook\" {\n" +
-			"producer snippet\n" +
-			"}\n"),
-	})
+	c.Check(blobs["/var/lib/snappy/apparmor/profiles/producer.origin_hook_version"], DeepEquals, []byte(`
+# Specified profile variables
+@{APP_APPNAME}="hook"
+@{APP_ID_DBUS}="producer_2eorigin_5fhook_5fversion"
+@{APP_PKGNAME_DBUS}="producer_2eorigin"
+@{APP_PKGNAME}="producer.origin"
+@{APP_VERSION}="version"
+@{INSTALL_DIR}="{/snaps,/gadget}"
+# Deprecated:
+@{CLICK_DIR}="{/snaps,/gadget}"
+profile "producer.origin_hook_version" {
+producer snippet
+}
+`))
 }
 
 func (s *SecuritySuite) TestAppArmorSlotPermissions(c *C) {
@@ -97,12 +122,20 @@ func (s *SecuritySuite) TestAppArmorSlotPermissions(c *C) {
 	// Ensure that slot-side security profile looks correct.
 	blobs, err := s.repo.SecurityFilesForSnap(s.slot.Snap)
 	c.Assert(err, IsNil)
-	c.Check(blobs, DeepEquals, map[string][]byte{
-		"/run/snappy/security/apparmor/consumer/app.profile": []byte("" +
-			"fake \"/snaps/consumer/current/app\" {\n" +
-			"consumer snippet\n" +
-			"}\n"),
-	})
+	c.Check(blobs["/var/lib/snappy/apparmor/profiles/consumer.origin_app_version"], DeepEquals, []byte(`
+# Specified profile variables
+@{APP_APPNAME}="app"
+@{APP_ID_DBUS}="consumer_2eorigin_5fapp_5fversion"
+@{APP_PKGNAME_DBUS}="consumer_2eorigin"
+@{APP_PKGNAME}="consumer.origin"
+@{APP_VERSION}="version"
+@{INSTALL_DIR}="{/snaps,/gadget}"
+# Deprecated:
+@{CLICK_DIR}="{/snaps,/gadget}"
+profile "consumer.origin_app_version" {
+consumer snippet
+}
+`))
 }
 
 // Tests for secComp
@@ -120,11 +153,9 @@ func (s *SecuritySuite) TestSecCompPlugPermissions(c *C) {
 	// Ensure that plug-side security profile looks correct.
 	blobs, err := s.repo.SecurityFilesForSnap(s.plug.Snap)
 	c.Assert(err, IsNil)
-	c.Check(blobs, DeepEquals, map[string][]byte{
-		"/run/snappy/security/seccomp/producer/hook.profile": []byte("" +
-			"# TODO: add default seccomp profile here\n" +
-			"allow open\n"),
-	})
+	c.Check(blobs["/var/lib/snappy/seccomp/profiles/producer.origin_hook_version"], DeepEquals, []byte(""+
+		"# Mocked seccomp header\n"+
+		"allow open\n"))
 }
 
 func (s *SecuritySuite) TestSecCompSlotPermissions(c *C) {
@@ -140,11 +171,9 @@ func (s *SecuritySuite) TestSecCompSlotPermissions(c *C) {
 	// Ensure that slot-side security profile looks correct.
 	blobs, err := s.repo.SecurityFilesForSnap(s.slot.Snap)
 	c.Assert(err, IsNil)
-	c.Check(blobs, DeepEquals, map[string][]byte{
-		"/run/snappy/security/seccomp/consumer/app.profile": []byte("" +
-			"# TODO: add default seccomp profile here\n" +
-			"deny kexec\n"),
-	})
+	c.Check(blobs["/var/lib/snappy/seccomp/profiles/consumer.origin_app_version"], DeepEquals, []byte(""+
+		"# Mocked seccomp header\n"+
+		"deny kexec\n"))
 }
 
 // Tests for uDev
@@ -162,9 +191,7 @@ func (s *SecuritySuite) TestUdevPlugPermissions(c *C) {
 	// Ensure that plug-side security profile looks correct.
 	blobs, err := s.repo.SecurityFilesForSnap(s.plug.Snap)
 	c.Assert(err, IsNil)
-	c.Check(blobs, DeepEquals, map[string][]byte{
-		"/etc/udev/rules.d/70-snappy-producer.rules": []byte("...\n"),
-	})
+	c.Check(blobs["/etc/udev/rules.d/70-snappy-producer.rules"], DeepEquals, []byte("...\n"))
 }
 
 func (s *SecuritySuite) TestUdevSlotPermissions(c *C) {
@@ -180,9 +207,7 @@ func (s *SecuritySuite) TestUdevSlotPermissions(c *C) {
 	// Ensure that slot-side security profile looks correct.
 	blobs, err := s.repo.SecurityFilesForSnap(s.slot.Snap)
 	c.Assert(err, IsNil)
-	c.Check(blobs, DeepEquals, map[string][]byte{
-		"/etc/udev/rules.d/70-snappy-consumer.rules": []byte("...\n"),
-	})
+	c.Check(blobs["/etc/udev/rules.d/70-snappy-consumer.rules"], DeepEquals, []byte("...\n"))
 }
 
 // Tests for DBus
@@ -200,15 +225,13 @@ func (s *SecuritySuite) TestDBusPlugPermissions(c *C) {
 	// Ensure that plug-side security profile looks correct.
 	blobs, err := s.repo.SecurityFilesForSnap(s.plug.Snap)
 	c.Assert(err, IsNil)
-	c.Check(blobs, DeepEquals, map[string][]byte{
-		"/etc/dbus-1/system.d/producer.conf": []byte("" +
-			"<!DOCTYPE busconfig PUBLIC\n" +
-			" \"-//freedesktop//DTD D-BUS Bus Configuration 1.0//EN\"\n" +
-			" \"http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd\">\n" +
-			"<busconfig>\n" +
-			"...\n" +
-			"</busconfig>\n"),
-	})
+	c.Check(blobs["/etc/dbus-1/system.d/producer.conf"], DeepEquals, []byte(""+
+		"<!DOCTYPE busconfig PUBLIC\n"+
+		" \"-//freedesktop//DTD D-BUS Bus Configuration 1.0//EN\"\n"+
+		" \"http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd\">\n"+
+		"<busconfig>\n"+
+		"...\n"+
+		"</busconfig>\n"))
 }
 
 func (s *SecuritySuite) TestDBusSlotPermissions(c *C) {
@@ -224,13 +247,11 @@ func (s *SecuritySuite) TestDBusSlotPermissions(c *C) {
 	// Ensure that slot-side security profile looks correct.
 	blobs, err := s.repo.SecurityFilesForSnap(s.slot.Snap)
 	c.Assert(err, IsNil)
-	c.Check(blobs, DeepEquals, map[string][]byte{
-		"/etc/dbus-1/system.d/consumer.conf": []byte("" +
-			"<!DOCTYPE busconfig PUBLIC\n" +
-			" \"-//freedesktop//DTD D-BUS Bus Configuration 1.0//EN\"\n" +
-			" \"http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd\">\n" +
-			"<busconfig>\n" +
-			"...\n" +
-			"</busconfig>\n"),
-	})
+	c.Check(blobs["/etc/dbus-1/system.d/consumer.conf"], DeepEquals, []byte(""+
+		"<!DOCTYPE busconfig PUBLIC\n"+
+		" \"-//freedesktop//DTD D-BUS Bus Configuration 1.0//EN\"\n"+
+		" \"http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd\">\n"+
+		"<busconfig>\n"+
+		"...\n"+
+		"</busconfig>\n"))
 }
