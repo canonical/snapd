@@ -23,14 +23,14 @@ import (
 	"github.com/ubuntu-core/snappy/osutil"
 )
 
-type StateFsBackend struct {
-	backFn string
+type fileBackend struct {
+	path string
 }
 
-func NewStateFsBackend(path string) *StateFsBackend {
-	return &StateFsBackend{backFn: path}
+func NewFileBackend(path string) Backend {
+	return &fileBackend{path: path}
 }
 
-func (sf *StateFsBackend) Checkpoint(data []byte) error {
-	return osutil.AtomicWriteFile(sf.backFn, data, 0600, 0)
+func (sf *fileBackend) Checkpoint(data []byte) error {
+	return osutil.AtomicWriteFile(sf.path, data, 0600, 0)
 }

@@ -29,21 +29,21 @@ import (
 	"github.com/ubuntu-core/snappy/overlord/state"
 )
 
-type StateFsBackendSuite struct{}
+type fileBackendSuite struct{}
 
-var _ = Suite(&StateFsBackendSuite{})
+var _ = Suite(&fileBackendSuite{})
 
-func (fsbss *StateFsBackendSuite) TestOpen(c *C) {
+func (fsbss *fileBackendSuite) TestOpen(c *C) {
 	oldUmask := syscall.Umask(0)
 	defer syscall.Umask(oldUmask)
 
-	sf := state.NewStateFsBackend("test.state")
-	c.Assert(sf, FitsTypeOf, &state.StateFsBackend{})
+	sf := state.NewFileBackend("test.state")
+	c.Assert(sf, FitsTypeOf, state.FileBackend)
 }
 
-func (fsbss *StateFsBackendSuite) TestCheckpoint(c *C) {
+func (fsbss *fileBackendSuite) TestCheckpoint(c *C) {
 	backFn := filepath.Join(c.MkDir(), "test.state")
-	sf := state.NewStateFsBackend(backFn)
+	sf := state.NewFileBackend(backFn)
 
 	canary := []byte("some-data")
 	err := sf.Checkpoint(canary)
