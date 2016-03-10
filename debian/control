@@ -34,6 +34,8 @@ Vcs-Git: https://github.com/ubuntu-core/snappy.git
 
 Package: golang-github-ubuntu-core-snappy-dev
 Architecture: all
+Breaks: golang-snappy-dev (<< 1.7.3+20160303ubuntu4)
+Replaces: golang-snappy-dev (<< 1.7.3+20160303ubuntu4)
 Depends: ${misc:Depends}
 Description: snappy development go packages.
  Use these to use the snappy API.
