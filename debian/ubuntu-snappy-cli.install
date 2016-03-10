@@ -6,3 +6,5 @@ data/completion/snappy /usr/share/bash-completion/completions/
 ../../share /usr
 # etc/profile.d contains the PATH extension for snap packages
 etc/profile.d
+# etc/X11/Xsession.d will add to XDG_DATA_DIRS so that we have .desktop support
+etc/X11
