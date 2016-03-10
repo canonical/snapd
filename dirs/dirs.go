@@ -44,6 +44,8 @@ var (
 	SnapAssertsDBDir      string
 	SnapTrustedAccountKey string
 
+	SnapStateFile string
+
 	SnapBinariesDir     string
 	SnapServicesDir     string
 	SnapDesktopFilesDir string
@@ -89,6 +91,8 @@ func SetRootDir(rootdir string) {
 
 	SnapAssertsDBDir = filepath.Join(rootdir, snappyDir, "assertions")
 	SnapTrustedAccountKey = filepath.Join(rootdir, "/usr/share/snappy/trusted.acckey")
+
+	SnapStateFile = filepath.Join(rootdir, snappyDir, "state.json")
 
 	SnapBinariesDir = filepath.Join(SnapSnapsDir, "bin")
 	SnapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")
