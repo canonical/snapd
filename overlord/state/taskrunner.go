@@ -25,6 +25,7 @@ import (
 	"gopkg.in/tomb.v2"
 )
 
+// HandlerFunc is the type of function for the hanlders
 type HandlerFunc func(task *Task) error
 
 // TaskRunner controls the running of goroutines to execute known task kinds.
@@ -35,8 +36,8 @@ type TaskRunner struct {
 	mu       sync.Mutex
 	handlers map[string]HandlerFunc
 
-	// go-routines
-	tomb tomb.Tomb
+	// go-routines lifecycle
+	tombs map[string]*tomb.Tomb
 }
 
 // NewTaskRunner creates a new TaskRunner
@@ -44,6 +45,7 @@ func NewTaskRunner(s *State) *TaskRunner {
 	return &TaskRunner{
 		state:    s,
 		handlers: make(map[string]HandlerFunc),
+		tombs:    make(map[string]*tomb.Tomb),
 	}
 }
 
@@ -56,24 +58,68 @@ func (r *TaskRunner) AddHandler(kind string, fn HandlerFunc) {
 	r.handlers[kind] = fn
 }
 
+// run must be called with the state lock in place
+func (r *TaskRunner) run(fn HandlerFunc, taskID string) {
+	t := r.state.tasks[taskID]
+	r.tombs[taskID] = &tomb.Tomb{}
+	r.tombs[taskID].Go(func() error {
+		err := fn(t)
+
+		r.state.Lock()
+		defer r.state.Unlock()
+		if err == nil {
+			t.SetStatus(DoneStatus)
+		} else {
+			t.SetStatus(ErrorStatus)
+		}
+		delete(r.tombs, taskID)
+
+		return err
+	})
+}
+
+// mustWait must be called with the state lock in place
+func (r *TaskRunner) mustWait(t *Task) bool {
+	for _, id := range t.WaitTasks() {
+		if wt, ok := r.state.tasks[id]; ok {
+			if wt.Status() != DoneStatus {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 // Ensure starts new goroutines for all known tasks with no pending
 // dependencies.
 func (r *TaskRunner) Ensure() {
 	r.state.Lock()
 	defer r.state.Unlock()
 
-	// see what changes and tasks are pending
 	for _, chg := range r.state.Changes() {
-		for _, t := range chg.Tasks() {
-			// FIMXE: add task loop detection
-			if len(t.WaitTasks()) > 0 {
+		tasks := chg.Tasks()
+		for _, t := range tasks {
+			// done, nothing to do
+			if t.Status() == DoneStatus {
+				continue
+			}
+			// we look at the Tomb instead of Status because
+			// a task is always in RunningStatus even if
+			// not running (FIXME?)
+			if _, ok := r.tombs[t.ID()]; ok {
 				continue
 			}
 
-			// run stuff
+			// check if there is anything we need to wait for
+			if r.mustWait(t) {
+				continue
+			}
+
+			// the task is ready to run (all prerequists done)
+			// so full steam ahead!
 			if fn, ok := r.handlers[t.Kind()]; ok {
-				// FIXME: do something sensible with an error
-				r.tomb.Go(func() error { return fn(t) })
+				r.run(fn, t.ID())
 			}
 		}
 	}
@@ -81,7 +127,8 @@ func (r *TaskRunner) Ensure() {
 
 // Stop stops all concurrent activities and returns after that's done.
 func (r *TaskRunner) Stop() {
-	r.tomb.Kill(nil)
-	r.tomb.Wait()
-
+	for _, tb := range r.tombs {
+		tb.Kill(nil)
+		tb.Wait()
+	}
 }
