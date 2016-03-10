@@ -38,7 +38,11 @@ import (
 // If no such profile was previously loaded then it is simply added to the kernel.
 // If there was a profile with the same name before, that profile is replaced.
 func LoadProfile(fname string) error {
-	return exec.Command("apparmor_parser", "--replace", fname).Run()
+	output, err := exec.Command("apparmor_parser", "--replace", fname).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("cannot load apparmor profile: %s\napparmor_parser output:\n%s", err, string(output))
+	}
+	return nil
 }
 
 // Profile contains the name and mode of an apparmor profile loaded into the kernel.
@@ -54,7 +58,11 @@ type Profile struct {
 //
 // The operation is done with: apparmor_parser --remove $name
 func (profile *Profile) Unload() error {
-	return exec.Command("apparmor_parser", "--remove", profile.Name).Run()
+	output, err := exec.Command("apparmor_parser", "--remove", profile.Name).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("cannot unload apparmor profile: %s\napparmor_parser output:\n%s", err, string(output))
+	}
+	return nil
 }
 
 // profilesPath contains information about the currently loaded apparmor profiles.
