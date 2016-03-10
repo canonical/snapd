@@ -35,32 +35,34 @@ func Test(t *testing.T) {
 }
 
 type appArmorSuite struct {
-	testutil.ExecTest
+	testutil.BaseTest
 	profilesFilename string
 }
 
 var _ = Suite(&appArmorSuite{})
 
 func (s *appArmorSuite) SetUpTest(c *C) {
-	s.ExecTest.SetUpTest(c)
+	s.BaseTest.SetUpTest(c)
 	// Mock the list of profiles in the running kernel
 	s.profilesFilename = path.Join(c.MkDir(), "profiles")
-	apparmor.MockProfilesPath(&s.ExecTest.BaseTest, s.profilesFilename)
+	apparmor.MockProfilesPath(&s.BaseTest, s.profilesFilename)
 }
 
 // Tests for AddOrReplaceProfile()
 
 func (s *appArmorSuite) TestAddOrReplaceProfileRunsAppArmorParserReplace(c *C) {
-	s.ExecTest.MockExecutable(c, "apparmor_parser")
+	cmd := testutil.MockCommand(c, "apparmor_parser", 0)
+	defer cmd.Restore()
 	err := apparmor.AddOrReplaceProfile("foo.snap")
 	c.Assert(err, IsNil)
-	c.Assert(s.CallsToExecutable(c, "apparmor_parser"), DeepEquals, []string{
+	c.Assert(cmd.Calls(), DeepEquals, []string{
 		"--replace foo.snap",
 	})
 }
 
 func (s *appArmorSuite) TestAddOrReplaceProfileReportsErrors(c *C) {
-	s.ExecTest.MockFailingExecutable(c, "apparmor_parser", 42)
+	cmd := testutil.MockCommand(c, "apparmor_parser", 42)
+	defer cmd.Restore()
 	err := apparmor.AddOrReplaceProfile("foo.snap")
 	c.Assert(err, ErrorMatches, "exit status 42")
 }
@@ -68,17 +70,17 @@ func (s *appArmorSuite) TestAddOrReplaceProfileReportsErrors(c *C) {
 // Tests for Profile.Unload()
 
 func (s *appArmorSuite) TestUnloadProfileRunsAppArmorParserRemove(c *C) {
-	s.ExecTest.MockExecutable(c, "apparmor_parser")
+	cmd := testutil.MockCommand(c, "apparmor_parser", 0)
+	defer cmd.Restore()
 	profile := apparmor.Profile{Name: "foo.snap"}
 	err := profile.Unload()
 	c.Assert(err, IsNil)
-	c.Assert(s.CallsToExecutable(c, "apparmor_parser"), DeepEquals, []string{
-		"--remove foo.snap",
-	})
+	c.Assert(cmd.Calls(), DeepEquals, []string{"--remove foo.snap"})
 }
 
 func (s *appArmorSuite) TestUnloadProfileReportsErrors(c *C) {
-	s.ExecTest.MockFailingExecutable(c, "apparmor_parser", 42)
+	cmd := testutil.MockCommand(c, "apparmor_parser", 42)
+	defer cmd.Restore()
 	profile := apparmor.Profile{Name: "foo.snap"}
 	err := profile.Unload()
 	c.Assert(err, ErrorMatches, "exit status 42")
