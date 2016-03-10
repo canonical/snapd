@@ -33,14 +33,14 @@ type progress struct {
 //
 // See Change for more details.
 type Task struct {
-	state      *State
-	id         string
-	kind       string
-	summary    string
-	status     Status
-	progress   progress
-	data       customData
-	waitingFor []*Task
+	state     *State
+	id        string
+	kind      string
+	summary   string
+	status    Status
+	progress  progress
+	data      customData
+	waitTasks []string
 }
 
 func newTask(state *State, id, kind, summary string) *Task {
@@ -54,26 +54,26 @@ func newTask(state *State, id, kind, summary string) *Task {
 }
 
 type marshalledTask struct {
-	ID         string                      `json:"id"`
-	Kind       string                      `json:"kind"`
-	Summary    string                      `json:"summary"`
-	Status     Status                      `json:"status"`
-	Progress   progress                    `json:"progress"`
-	Data       map[string]*json.RawMessage `json:"data"`
-	WaitingFor []*Task                     `json:"waiting-for"`
+	ID        string                      `json:"id"`
+	Kind      string                      `json:"kind"`
+	Summary   string                      `json:"summary"`
+	Status    Status                      `json:"status"`
+	Progress  progress                    `json:"progress"`
+	Data      map[string]*json.RawMessage `json:"data"`
+	WaitTasks []string                    `json:"wait-tasks"`
 }
 
 // MarshalJSON makes Task a json.Marshaller
 func (t *Task) MarshalJSON() ([]byte, error) {
 	t.state.ensureLocked()
 	return json.Marshal(marshalledTask{
-		ID:         t.id,
-		Kind:       t.kind,
-		Summary:    t.summary,
-		Status:     t.status,
-		Progress:   t.progress,
-		Data:       t.data,
-		WaitingFor: t.waitingFor,
+		ID:        t.id,
+		Kind:      t.kind,
+		Summary:   t.summary,
+		Status:    t.status,
+		Progress:  t.progress,
+		Data:      t.data,
+		WaitTasks: t.waitTasks,
 	})
 }
 
@@ -93,7 +93,7 @@ func (t *Task) UnmarshalJSON(data []byte) error {
 	t.status = unmarshalled.Status
 	t.progress = unmarshalled.Progress
 	t.data = unmarshalled.Data
-	t.waitingFor = unmarshalled.WaitingFor
+	t.waitTasks = unmarshalled.WaitTasks
 	return nil
 }
 
@@ -169,10 +169,10 @@ func (t *Task) Get(key string, value interface{}) error {
 func (t *Task) WaitFor(another *Task) {
 	t.state.ensureLocked()
 	t.status = WaitingStatus
-	t.waitingFor = append(t.waitingFor, another)
+	t.waitTasks = append(t.waitTasks, another.ID())
 }
 
 // WaitTasks returns the list of tasks registered for t to wait for.
-func (t *Task) WaitTasks() []*Task {
-	return t.waitingFor
+func (t *Task) WaitTasks() []string {
+	return t.waitTasks
 }
