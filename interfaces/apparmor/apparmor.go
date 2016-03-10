@@ -66,12 +66,13 @@ var profilesPath = realProfilesPath
 //
 // Snappy manages apparmor profiles named *.snap. Other profiles might exist on
 // the system (via snappy dimension) and those are filtered-out.
-func LoadedProfiles() (profiles []Profile, err error) {
+func LoadedProfiles() ([]Profile, error) {
 	file, err := os.Open(profilesPath)
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
+	var profiles []Profile
 	for {
 		var name, mode string
 		_, err := fmt.Fscanf(file, "%s %s\n", &name, &mode)
