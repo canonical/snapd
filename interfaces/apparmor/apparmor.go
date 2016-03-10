@@ -81,10 +81,7 @@ func LoadedProfiles() (profiles []Profile, err error) {
 		if err != nil {
 			return nil, err
 		}
-		// Eliminate '(' ')' around the mode.
-		mode = strings.TrimPrefix(mode, "(")
-		mode = strings.TrimSuffix(mode, ")")
-		// Store only entries named "*.snap"
+		mode = strings.Trim(mode, "()")
 		if strings.HasSuffix(name, ".snap") {
 			profiles = append(profiles, Profile{Name: name, Mode: mode})
 		}
