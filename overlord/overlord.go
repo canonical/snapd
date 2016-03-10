@@ -21,6 +21,12 @@
 package overlord
 
 import (
+	"fmt"
+	"os"
+
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/osutil"
+
 	"github.com/ubuntu-core/snappy/overlord/assertstate"
 	"github.com/ubuntu-core/snappy/overlord/ifacestate"
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
@@ -41,9 +47,25 @@ type Overlord struct {
 func New() (*Overlord, error) {
 	o := &Overlord{}
 
-	// TODO: read it or create a fresh one and learn about the system
-	// current state
-	s := state.New(nil)
+	backend := state.NewStateFsBackend(dirs.SnapStateFile)
+	var s *state.State
+	if osutil.FileExists(dirs.SnapStateFile) {
+		var err error
+		var r *os.File
+
+		r, err = os.Open(dirs.SnapStateFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read the state file: %s", err)
+		}
+		defer r.Close()
+
+		if s, err = state.ReadState(backend, r); err != nil {
+			return nil, fmt.Errorf("read state failed: %s", err)
+		}
+
+	} else {
+		s = state.New(backend)
+	}
 
 	o.stateEng = NewStateEngine(s)
 

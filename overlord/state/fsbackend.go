@@ -27,9 +27,8 @@ type StateFsBackend struct {
 	backFn string
 }
 
-func OpenStateFsBackend(path string) (*StateFsBackend, error) {
-	sf := &StateFsBackend{backFn: path}
-	return sf, nil
+func NewStateFsBackend(path string) *StateFsBackend {
+	return &StateFsBackend{backFn: path}
 }
 
 func (sf *StateFsBackend) Checkpoint(data []byte) error {

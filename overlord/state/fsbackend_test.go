@@ -37,18 +37,16 @@ func (fsbss *StateFsBackendSuite) TestOpen(c *C) {
 	oldUmask := syscall.Umask(0)
 	defer syscall.Umask(oldUmask)
 
-	sf, err := state.OpenStateFsBackend(filepath.Join(c.MkDir(), "test.state"))
-	c.Assert(err, IsNil)
+	sf := state.NewStateFsBackend("test.state")
 	c.Assert(sf, FitsTypeOf, &state.StateFsBackend{})
 }
 
 func (fsbss *StateFsBackendSuite) TestCheckpoint(c *C) {
 	backFn := filepath.Join(c.MkDir(), "test.state")
-	sf, err := state.OpenStateFsBackend(backFn)
-	c.Assert(err, IsNil)
+	sf := state.NewStateFsBackend(backFn)
 
 	canary := []byte("some-data")
-	err = sf.Checkpoint(canary)
+	err := sf.Checkpoint(canary)
 	c.Assert(err, IsNil)
 
 	content, err := ioutil.ReadFile(backFn)
