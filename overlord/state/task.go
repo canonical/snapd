@@ -168,6 +168,7 @@ func (t *Task) Get(key string, value interface{}) error {
 // and sets the status as WaitingStatus.
 func (t *Task) WaitFor(another *Task) {
 	t.state.ensureLocked()
+	t.status = WaitingStatus
 	t.waitingFor = append(t.waitingFor, another)
 }
 
