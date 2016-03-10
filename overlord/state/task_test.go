@@ -214,4 +214,5 @@ func (ts *taskSuite) TestTaskWaitFor(c *C) {
 	t2.WaitFor(t1)
 
 	c.Assert(t2.WaitTasks(), DeepEquals, []*state.Task{t1})
+	c.Assert(t2.Status(), Equals, state.WaitingStatus)
 }
