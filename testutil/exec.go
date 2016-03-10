@@ -26,55 +26,54 @@ import (
 	"path"
 	"strings"
 
-	. "gopkg.in/check.v1"
+	"gopkg.in/check.v1"
 )
 
-// ExecTest is a test helper for tests that need to run external programs.
-type ExecTest struct {
-	BaseTest
-	dirOnPath string
-	logFiles  map[string]string
+// MockCmd allows mocking commands for testing.
+type MockCmd struct {
+	binDir  string
+	exeFile string
+	logFile string
 }
 
-// SetUpTest adds a new temporary directory to PATH, in front of other entries.
-func (s *ExecTest) SetUpTest(c *C) {
-	s.BaseTest.SetUpTest(c)
-	PATH := os.Getenv("PATH")
-	s.dirOnPath = c.MkDir()
-	os.Setenv("PATH", s.dirOnPath+":"+PATH)
-	s.BaseTest.AddCleanup(func() { os.Setenv("PATH", PATH) })
-	s.logFiles = make(map[string]string)
-}
-
-// MockExecutable creates a fake executable that always succeeds.
-func (s *ExecTest) MockExecutable(c *C, fname string) {
-	s.createExecutable(c, fname, 0)
-}
-
-// MockFalilingExecutable creates a fake executable that always fails.
-func (s *ExecTest) MockFailingExecutable(c *C, fname string, exitCode int) {
-	s.createExecutable(c, fname, exitCode)
-}
-
-// CallsToExecutable returns a list of calls that were made to the given executable.
-func (s *ExecTest) CallsToExecutable(c *C, fname string) []string {
-	logFname, ok := s.logFiles[fname]
-	if !ok {
-		c.Fatalf("executable %q was not faked", fname)
+// MockCommand adds a mocked command to PATH.
+//
+// The command logs all invocations to a dedicated log file and exits with the
+// specified code.
+func MockCommand(c *check.C, basename string, status int) *MockCmd {
+	binDir := c.MkDir()
+	exeFile := path.Join(binDir, basename)
+	logFile := path.Join(binDir, basename+".log")
+	err := ioutil.WriteFile(exeFile, []byte(fmt.Sprintf(""+
+		"#!/bin/sh\n"+
+		"echo \"$@\" >> %q\n"+
+		"exit %d\n", logFile, status)), 0700)
+	if err != nil {
+		panic(err)
 	}
-	calls, err := ioutil.ReadFile(logFname)
-	c.Assert(err, IsNil)
+	os.Setenv("PATH", binDir+":"+os.Getenv("PATH"))
+	return &MockCmd{binDir: binDir, exeFile: exeFile, logFile: logFile}
+}
+
+// Restore removes the mocked command from PATH
+func (cmd *MockCmd) Restore() {
+	entries := strings.Split(os.Getenv("PATH"), ":")
+	for i, entry := range entries {
+		if entry == cmd.binDir {
+			entries = append(entries[:i], entries[i+1:]...)
+			break
+		}
+	}
+	os.Setenv("PATH", strings.Join(entries, ":"))
+}
+
+// Calls returns a list of calls that were made to the mock command.
+func (cmd *MockCmd) Calls() []string {
+	calls, err := ioutil.ReadFile(cmd.logFile)
+	if err != nil {
+		panic(err)
+	}
 	text := string(calls)
 	text = strings.TrimSuffix(text, "\n")
 	return strings.Split(text, "\n")
-}
-
-func (s *ExecTest) createExecutable(c *C, fname string, exitCode int) {
-	execFname := path.Join(s.dirOnPath, fname)
-	logFname := path.Join(s.dirOnPath, fname+".log")
-	ioutil.WriteFile(execFname, []byte(fmt.Sprintf(""+
-		"#!/bin/sh\n"+
-		"echo \"$@\" >> %q\n"+
-		"exit %d\n", logFname, exitCode)), 0700)
-	s.logFiles[fname] = logFname
 }

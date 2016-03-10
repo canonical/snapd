@@ -32,26 +32,26 @@ func Test(t *testing.T) {
 	TestingT(t)
 }
 
-type uDevSuite struct {
-	testutil.ExecTest
-}
+type uDevSuite struct{}
 
 var _ = Suite(&uDevSuite{})
 
 // Tests for ReloadRules()
 
 func (s *uDevSuite) TestReloadUDevRulesRunsUDevAdm(c *C) {
-	s.ExecTest.MockExecutable(c, "udevadm")
+	cmd := testutil.MockCommand(c, "udevadm", 0)
+	defer cmd.Restore()
 	err := udev.ReloadRules()
 	c.Assert(err, IsNil)
-	c.Assert(s.CallsToExecutable(c, "udevadm"), DeepEquals, []string{
+	c.Assert(cmd.Calls(), DeepEquals, []string{
 		"control --reload-rules",
 		"trigger",
 	})
 }
 
 func (s *uDevSuite) TestReloadUDevRulesReportsErrors(c *C) {
-	s.ExecTest.MockFailingExecutable(c, "udevadm", 42)
+	cmd := testutil.MockCommand(c, "udevadm", 42)
+	defer cmd.Restore()
 	err := udev.ReloadRules()
 	c.Assert(err, ErrorMatches, "exit status 42")
 }
