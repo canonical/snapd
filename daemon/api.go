@@ -28,7 +28,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/gorilla/mux"
@@ -40,7 +39,6 @@ import (
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
-	"github.com/ubuntu-core/snappy/snap/lightweight"
 	"github.com/ubuntu-core/snappy/snappy"
 )
 
@@ -204,8 +202,12 @@ func getSnapInfo(c *Command, r *http.Request) Response {
 		part = parts[0]
 	}
 
-	bag := lightweight.PartBagByName(name, origin)
-	if bag == nil && part == nil {
+	bag, err := snappy.NewLocalSnapRepository().Named(name, origin)
+	if err != nil {
+		return InternalError("cannot load snaps: %v", err)
+	}
+
+	if len(bag) == 0 && part == nil {
 		return NotFound("unable to find snap with name %q and origin %q", name, origin)
 	}
 
@@ -293,35 +295,16 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		includeTypes = strings.Split(query["types"][0], ",")
 	}
 
-	var bags map[string]*lightweight.PartBag
+	var bags map[string]snappy.SnapBag
+	var parts map[string]snappy.Part
 
 	if includeLocal {
 		sources = append(sources, "local")
-		bags = lightweight.AllPartBags()
-
-		for _, v := range bags {
-			m := v.Map(nil)
-			name, _ := m["name"].(string)
-			origin, _ := m["origin"].(string)
-
-			resource := "no resource URL for this resource"
-			url, err := route.URL("name", name, "origin", origin)
-			if err == nil {
-				resource = url.String()
-			}
-
-			fullname := name + "." + origin
-
-			// strings.Contains(fullname, "") is true
-			if !strings.Contains(fullname, searchTerm) {
-				continue
-			}
-
-			results[fullname] = webify(m, resource)
-		}
+		bags, _ = snappy.NewLocalSnapRepository().AllBags()
 	}
 
 	if includeStore {
+		parts = make(map[string]snappy.Part)
 		repo := newRemoteRepo()
 		var found []snappy.Part
 
@@ -335,21 +318,44 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 
 		sources = append(sources, "store")
 
-		sort.Sort(byQN(found))
-
 		for _, part := range found {
-			name := part.Name()
-			origin := part.Origin()
-
-			url, err := route.URL("name", name, "origin", origin)
-			if err != nil {
-				return InternalError("can't get route to details for %s.%s: %v", name, origin, err)
-			}
-
-			fullname := name + "." + origin
-			qn := snappy.QualifiedName(part)
-			results[fullname] = webify(bags[qn].Map(part), url.String())
+			parts[snappy.FullName(part)] = part
 		}
+	}
+
+	for fullname, bag := range bags {
+		// strings.Contains(fullname, "") is true
+		if !strings.Contains(fullname, searchTerm) {
+			continue
+		}
+
+		m := bag.Map(parts[fullname])
+		name, _ := m["name"].(string)
+		origin, _ := m["origin"].(string)
+
+		resource := "no resource URL for this resource"
+		url, err := route.URL("name", name, "origin", origin)
+		if err == nil {
+			resource = url.String()
+		}
+
+		results[fullname] = webify(m, resource)
+	}
+
+	for fullname, part := range parts {
+		if _, ok := results[fullname]; ok {
+			continue
+		}
+
+		m := (snappy.SnapBag)(nil).Map(part)
+
+		resource := "no resource URL for this resource"
+		url, err := route.URL("name", part.Name(), "origin", part.Origin())
+		if err == nil {
+			resource = url.String()
+		}
+
+		results[fullname] = webify(m, resource)
 	}
 
 	// TODO: it should be possible to search on	the "content" field on the store
@@ -438,21 +444,12 @@ func snapService(c *Command, r *http.Request) Response {
 		return BadRequest("unknown action %s", action)
 	}
 
-	bag := lightweight.PartBagByName(name, origin)
-	idx := bag.ActiveIndex()
-	if idx < 0 {
+	bag, err := snappy.NewLocalSnapRepository().Named(name, origin)
+	_, part := bag.Best()
+	if err != nil || part == nil || !part.IsActive() {
 		return NotFound("unable to find snap with name %q and origin %q", name, origin)
 	}
 
-	ipart, err := bag.Load(idx)
-	if err != nil {
-		return InternalError("unable to load active snap: %v", err)
-	}
-
-	part, ok := ipart.(*snappy.Snap)
-	if !ok {
-		return InternalError("active snap is not a *snappy.Snap: %T", ipart)
-	}
 	apps := part.Apps()
 
 	if len(apps) == 0 {
@@ -554,19 +551,14 @@ func snapConfig(c *Command, r *http.Request) Response {
 	}
 	defer lock.Unlock()
 
-	bag := lightweight.PartBagByName(name, origin)
-	if bag == nil {
+	bag, err := snappy.NewLocalSnapRepository().Named(name, origin)
+	_, part := bag.Best()
+	if err != nil || part == nil {
 		return NotFound("no snap found with name %q and origin %q", name, origin)
 	}
 
-	idx := bag.ActiveIndex()
-	if idx < 0 {
+	if !part.IsActive() {
 		return BadRequest("unable to configure non-active snap")
-	}
-
-	part, err := bag.Load(idx)
-	if err != nil {
-		return InternalError("unable to load active snap: %v", err)
 	}
 
 	bs, err := ioutil.ReadAll(r.Body)
@@ -575,7 +567,7 @@ func snapConfig(c *Command, r *http.Request) Response {
 	}
 
 	overlord := getConfigurator()
-	config, err := overlord.Configure(part.(*snappy.Snap), bs)
+	config, err := overlord.Configure(part, bs)
 	if err != nil {
 		return InternalError("unable to retrieve config for %s: %v", pkgName, err)
 	}
@@ -898,14 +890,10 @@ func iconGet(name, origin string) Response {
 	}
 	defer lock.Unlock()
 
-	bag := lightweight.PartBagByName(name, origin)
-	if bag == nil || len(bag.Versions) == 0 {
+	bag, err := snappy.NewLocalSnapRepository().Named(name, origin)
+	_, part := bag.Best()
+	if err != nil || part == nil {
 		return NotFound("unable to find snap with name %q and origin %q", name, origin)
-	}
-
-	part := bag.LoadBest()
-	if part == nil {
-		return NotFound("unable to load snap with name %q and origin %q", name, origin)
 	}
 
 	path := filepath.Clean(part.Icon())
