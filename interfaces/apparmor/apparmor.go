@@ -32,11 +32,11 @@ import (
 	"strings"
 )
 
-// AddOrReplaceProfile loads an apparmor profile from the given file.
+// LoadProfile loads an apparmor profile from the given file.
 //
 // If no such profile was previously loaded then it is simply added to the kernel.
 // If there was a profile with the same name before, that profile is replaced.
-func AddOrReplaceProfile(fname string) error {
+func LoadProfile(fname string) error {
 	return exec.Command("apparmor_parser", "--replace", fname).Run()
 }
 
