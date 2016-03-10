@@ -2306,7 +2306,6 @@ func (s *apiSuite) TestGetEvents(c *check.C) {
 	c.Assert(d.hub.SubscriberCount(), check.Equals, 0)
 
 	ts := httptest.NewServer(http.HandlerFunc(eventsCmd.GET(eventsCmd, nil).ServeHTTP))
-	defer ts.Close()
 
 	req, err := http.NewRequest("GET", ts.URL, nil)
 	c.Assert(err, check.IsNil)
@@ -2320,6 +2319,8 @@ func (s *apiSuite) TestGetEvents(c *check.C) {
 	c.Assert(err, check.IsNil)
 	// upgrades request
 	c.Assert(resp.Header["Upgrade"], check.DeepEquals, []string{"websocket"})
-	// adds subscriber
+	// adds subscriber - this happens at the end of the response so close the
+	// server first to prevent problems with sequence ordering
+	ts.Close()
 	c.Assert(d.hub.SubscriberCount(), check.Equals, 1)
 }
