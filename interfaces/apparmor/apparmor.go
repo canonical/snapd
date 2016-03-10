@@ -74,10 +74,11 @@ func LoadedProfiles() (profiles []Profile, err error) {
 	defer file.Close()
 	for {
 		var name, mode string
-		if _, err := fmt.Fscanf(file, "%s %s\n", &name, &mode); err != nil {
-			if err == io.EOF {
-				break
-			}
+		_, err := fmt.Fscanf(file, "%s %s\n", &name, &mode)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
 			return nil, err
 		}
 		// Eliminate '(' ')' around the mode.
