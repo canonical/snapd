@@ -54,6 +54,24 @@ func (r *TaskRunner) AddHandler(kind string, fn HandlerFunc) {
 // Ensure starts new goroutines for all known tasks with no pending
 // dependencies.
 func (r *TaskRunner) Ensure() {
+	r.state.Lock()
+	defer r.state.Unlock()
+
+	// see what changes and tasks are pending
+	for _, chg := range r.state.Changes() {
+		for _, t := range chg.Tasks() {
+			// FIMXE: add task loop detection
+			if len(t.WaitTasks()) > 0 {
+				continue
+			}
+
+			// run stuff
+			if fn, ok := r.handlers[t.Kind()]; ok {
+				// FIXME: do something sensible with an error
+				go fn(t)
+			}
+		}
+	}
 }
 
 // Stop stops all concurrent activities and returns after that's done.
