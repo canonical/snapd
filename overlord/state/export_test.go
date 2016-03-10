@@ -31,3 +31,7 @@ func ChangeUnlockCheckpointRetryParamsForTest(newInterval, newMaxTime time.Durat
 	unlockCheckpointRetryMaxTime = newMaxTime
 	return
 }
+
+func (r *TaskRunner) Handlers() map[string]HandlerFunc {
+	return r.handlers
+}
