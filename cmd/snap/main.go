@@ -99,6 +99,7 @@ func Parser() *flags.Parser {
 	}
 	// Add the experimental command
 	experimentalCommand, err := parser.AddCommand("experimental", shortExperimentalHelp, longExperimentalHelp, &cmdExperimental{})
+	experimentalCommand.Hidden = true
 	if err != nil {
 		logger.Panicf("cannot add command %q: %v", "experimental", err)
 	}
