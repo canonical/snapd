@@ -21,6 +21,7 @@ package state_test
 
 import (
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"syscall"
 
@@ -34,14 +35,14 @@ type fileBackendSuite struct{}
 var _ = Suite(&fileBackendSuite{})
 
 func (fsbss *fileBackendSuite) TestOpen(c *C) {
-	oldUmask := syscall.Umask(0)
-	defer syscall.Umask(oldUmask)
-
 	sf := state.NewFileBackend("test.state")
 	c.Assert(sf, FitsTypeOf, state.FileBackend)
 }
 
 func (fsbss *fileBackendSuite) TestCheckpoint(c *C) {
+	oldUmask := syscall.Umask(0)
+	defer syscall.Umask(oldUmask)
+
 	backFn := filepath.Join(c.MkDir(), "test.state")
 	sf := state.NewFileBackend(backFn)
 
@@ -52,4 +53,8 @@ func (fsbss *fileBackendSuite) TestCheckpoint(c *C) {
 	content, err := ioutil.ReadFile(backFn)
 	c.Assert(err, IsNil)
 	c.Assert(content, DeepEquals, canary)
+
+	st, err := os.Stat(backFn)
+	c.Assert(err, IsNil)
+	c.Assert(st.Mode(), Equals, os.FileMode(0600))
 }
