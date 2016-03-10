@@ -55,7 +55,8 @@ func (s *appArmorSuite) TestLoadProfileRunsAppArmorParserReplace(c *C) {
 	defer cmd.Restore()
 	err := apparmor.LoadProfile("foo.snap")
 	c.Assert(err, IsNil)
-	c.Assert(cmd.Calls(), DeepEquals, []string{"--replace foo.snap"})
+	c.Assert(cmd.Calls(), DeepEquals, []string{
+		"--replace --write-cache -O no-expr-simplify --cache-loc=/var/cache/apparmor foo.snap"})
 }
 
 func (s *appArmorSuite) TestLoadProfileReportsErrors(c *C) {
@@ -65,7 +66,8 @@ func (s *appArmorSuite) TestLoadProfileReportsErrors(c *C) {
 	c.Assert(err.Error(), Equals, `cannot load apparmor profile: exit status 42
 apparmor_parser output:
 `)
-	c.Assert(cmd.Calls(), DeepEquals, []string{"--replace foo.snap"})
+	c.Assert(cmd.Calls(), DeepEquals, []string{
+		"--replace --write-cache -O no-expr-simplify --cache-loc=/var/cache/apparmor foo.snap"})
 }
 
 // Tests for Profile.Unload()

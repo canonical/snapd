@@ -38,7 +38,10 @@ import (
 // If no such profile was previously loaded then it is simply added to the kernel.
 // If there was a profile with the same name before, that profile is replaced.
 func LoadProfile(fname string) error {
-	output, err := exec.Command("apparmor_parser", "--replace", fname).CombinedOutput()
+	output, err := exec.Command(
+		"apparmor_parser", "--replace", "--write-cache", "-O",
+		"no-expr-simplify", "--cache-loc=/var/cache/apparmor",
+		fname).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("cannot load apparmor profile: %s\napparmor_parser output:\n%s", err, string(output))
 	}
