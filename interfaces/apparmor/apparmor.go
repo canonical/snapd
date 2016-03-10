@@ -17,7 +17,7 @@
  *
  */
 
-// apparmor contains primitives for working with apparmor.
+// Package apparmor contains primitives for working with apparmor.
 //
 // References:
 //  - http://wiki.apparmor.net/index.php/Kernel_interfaces
