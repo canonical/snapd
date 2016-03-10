@@ -19,18 +19,36 @@
 
 package state
 
+import (
+	"sync"
+)
+
+type HandlerFunc func(task *Task) error
+
 // TaskRunner controls the running of goroutines to execute known task kinds.
 type TaskRunner struct {
 	state *State
+
+	// locking
+	mu       sync.Mutex
+	handlers map[string]HandlerFunc
 }
 
+// NewTaskRunner creates a new TaskRunner
 func NewTaskRunner(s *State) *TaskRunner {
-	return &TaskRunner{state: s}
+	return &TaskRunner{
+		state:    s,
+		handlers: make(map[string]HandlerFunc),
+	}
 }
 
 // AddHandler registers the function to concurrently call for handling
 // tasks of the given kind.
-func (r *TaskRunner) AddHandler(kind string, fn func(task *Task) error) {
+func (r *TaskRunner) AddHandler(kind string, fn HandlerFunc) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.handlers[kind] = fn
 }
 
 // Ensure starts new goroutines for all known tasks with no pending
