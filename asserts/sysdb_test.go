@@ -47,6 +47,7 @@ func (sdbs *sysDBSuite) SetUpTest(c *C) {
 	// self-signed
 	headers := map[string]string{
 		"authority-id":           "canonical",
+		"series":                 "16",
 		"account-id":             "canonical",
 		"public-key-id":          trustedPubKey.ID(),
 		"public-key-fingerprint": trustedPubKey.Fingerprint(),
@@ -68,6 +69,7 @@ func (sdbs *sysDBSuite) SetUpTest(c *C) {
 
 	headers = map[string]string{
 		"authority-id": "canonical",
+		"series":       "16",
 		"primary-key":  "0",
 	}
 	sdbs.probeAssert, err = asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, pk)

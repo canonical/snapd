@@ -218,8 +218,8 @@ func (db *Database) Sign(assertType *AssertionType, headers map[string]string, b
 }
 
 // findAccountKey finds an AccountKey exactly by account id and key id.
-func (db *Database) findAccountKey(authorityID, keyID string) (*AccountKey, error) {
-	key := []string{authorityID, keyID}
+func (db *Database) findAccountKey(series string, authorityID, keyID string) (*AccountKey, error) {
+	key := []string{series, authorityID, keyID}
 	// consider trusted account keys then disk stored account keys
 	for _, bs := range db.backstores {
 		a, err := bs.Get(AccountKeyType, key)
@@ -241,7 +241,7 @@ func (db *Database) Check(assert Assertion) error {
 		return err
 	}
 	// TODO: later may need to consider type of assert to find candidate keys
-	accKey, err := db.findAccountKey(assert.AuthorityID(), sig.KeyID())
+	accKey, err := db.findAccountKey(assert.Series(), assert.AuthorityID(), sig.KeyID())
 	if err == ErrNotFound {
 		return fmt.Errorf("no matching public key %q for signature by %q", sig.KeyID(), assert.AuthorityID())
 	}

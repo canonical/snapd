@@ -44,14 +44,13 @@ type AssertionType struct {
 
 // Understood assertion types.
 var (
-	AccountKeyType   = &AssertionType{"account-key", []string{"account-id", "public-key-id"}, assembleAccountKey}
-	DeviceSerialType = &AssertionType{"device-serial", []string{"brand-id", "model", "serial"}, assembleDeviceSerial}
-	IdentityType     = &AssertionType{"identity", []string{"account-id"}, assembleIdentity}
-	// XXX: is series actually part of the primary key?
-	ModelType           = &AssertionType{"model", []string{"brand-id", "model", "series"}, assembleModel}
+	AccountKeyType      = &AssertionType{"account-key", []string{"series", "account-id", "public-key-id"}, assembleAccountKey}
+	DeviceSerialType    = &AssertionType{"device-serial", []string{"series", "brand-id", "model", "serial"}, assembleDeviceSerial}
+	IdentityType        = &AssertionType{"identity", []string{"series", "account-id"}, assembleIdentity}
+	ModelType           = &AssertionType{"model", []string{"series", "brand-id", "model"}, assembleModel}
 	SnapDeclarationType = &AssertionType{"snap-declaration", []string{"series", "snap-id"}, assembleSnapDeclaration}
-	SnapBuildType       = &AssertionType{"snap-build", []string{"snap-id", "snap-digest"}, assembleSnapBuild}
-	SnapRevisionType    = &AssertionType{"snap-revision", []string{"snap-id", "snap-digest"}, assembleSnapRevision}
+	SnapBuildType       = &AssertionType{"snap-build", []string{"series", "snap-id", "snap-digest"}, assembleSnapBuild}
+	SnapRevisionType    = &AssertionType{"snap-revision", []string{"series", "snap-id", "snap-digest"}, assembleSnapRevision}
 
 // ...
 )
@@ -79,6 +78,8 @@ type Assertion interface {
 	Revision() int
 	// AuthorityID returns the authority that signed this assertion
 	AuthorityID() string
+	// Series return the series of the assertion.
+	Series() string
 
 	// Header retrieves the header with name
 	Header(name string) string
@@ -122,6 +123,11 @@ func (ab *assertionBase) Revision() int {
 // AuthorityID returns the authority-id a.k.a the signer id of the assertion.
 func (ab *assertionBase) AuthorityID() string {
 	return ab.headers["authority-id"]
+}
+
+// Series return the series of the assertion.
+func (ab *assertionBase) Series() string {
+	return ab.Header("series")
 }
 
 // Header returns the value of an header by name.
@@ -491,6 +497,12 @@ func Assemble(headers map[string]string, body, content, signature []byte) (Asser
 			return nil, fmt.Errorf("assertion %s: %v", assertType.Name, err)
 		}
 	}
+
+	// TODO(matt): consider uncommenting this once all assertions include
+	// `series`, just in case it's not in the primary key. Needs a test.
+	//if _, err := checkMandatory(headers, "series"); err != nil {
+	//	return nil, fmt.Errorf("assertion: %v", err)
+	//}
 
 	revision, err := checkRevision(headers)
 	if err != nil {

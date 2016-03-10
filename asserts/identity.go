@@ -33,7 +33,7 @@ type Identity struct {
 	timestamp time.Time
 }
 
-// AccountID returns the account-id of the identit.
+// AccountID returns the account-id of the identity.
 func (id *Identity) AccountID() string {
 	return id.Header("account-id")
 }

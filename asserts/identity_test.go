@@ -44,6 +44,7 @@ func (ids *identitySuite) SetUpSuite(c *C) {
 
 const identityExample = "type: identity\n" +
 	"authority-id: canonical\n" +
+	"series: 16\n" +
 	"account-id: abc-123\n" +
 	"display-name: Display Name\n" +
 	"validation: certified\n" +
@@ -60,6 +61,7 @@ func (ids *identitySuite) TestDecodeOK(c *C) {
 	identity := a.(*asserts.Identity)
 	c.Check(identity.AuthorityID(), Equals, "canonical")
 	c.Check(identity.Timestamp(), Equals, ids.ts)
+	c.Check(identity.Series(), Equals, "16")
 	c.Check(identity.AccountID(), Equals, "abc-123")
 	c.Check(identity.DisplayName(), Equals, "Display Name")
 	c.Check(identity.IsCertified(), Equals, true)
@@ -98,6 +100,7 @@ func (ids *identitySuite) TestDecodeInvalid(c *C) {
 	encoded := strings.Replace(identityExample, "TSLINE", ids.tsLine, 1)
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
+		{"series: 16\n", "", `"series" header is mandatory`},
 		{"account-id: abc-123\n", "", `"account-id" header is mandatory`},
 		{"display-name: Display Name\n", "", `"display-name" header is mandatory`},
 		{"validation: certified\n", "", `"validation" header is mandatory`},

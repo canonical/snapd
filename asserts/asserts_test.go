@@ -44,6 +44,7 @@ func (as *assertsSuite) TestUnknown(c *C) {
 
 const exampleEmptyBodyAllDefaults = "type: test-only\n" +
 	"authority-id: auth-id1\n" +
+	"series: 16\n" +
 	"primary-key: abc" +
 	"\n\n" +
 	"openpgp c2ln"
@@ -62,6 +63,7 @@ func (as *assertsSuite) TestDecodeEmptyBodyAllDefaults(c *C) {
 
 const exampleEmptyBody2NlNl = "type: test-only\n" +
 	"authority-id: auth-id1\n" +
+	"series: 16\n" +
 	"primary-key: xyz\n" +
 	"revision: 0\n" +
 	"body-length: 0" +
@@ -79,6 +81,7 @@ func (as *assertsSuite) TestDecodeEmptyBodyNormalize2NlNl(c *C) {
 
 const exampleBodyAndExtraHeaders = "type: test-only\n" +
 	"authority-id: auth-id2\n" +
+	"series: 16\n" +
 	"primary-key: abc\n" +
 	"revision: 5\n" +
 	"header1: value1\n" +
@@ -104,6 +107,7 @@ func (as *assertsSuite) TestDecodeWithABodyAndExtraHeaders(c *C) {
 func (as *assertsSuite) TestDecodeGetSignatureBits(c *C) {
 	content := "type: test-only\n" +
 		"authority-id: auth-id1\n" +
+		"series: 16\n" +
 		"primary-key: xyz\n" +
 		"revision: 5\n" +
 		"header1: value1\n" +
@@ -147,6 +151,7 @@ func (as *assertsSuite) TestDecodeHeaderParsingErrors(c *C) {
 func (as *assertsSuite) TestDecodeInvalid(c *C) {
 	encoded := "type: test-only\n" +
 		"authority-id: auth-id\n" +
+		"series: 16\n" +
 		"primary-key: abc\n" +
 		"revision: 0\n" +
 		"body-length: 5" +
@@ -320,6 +325,7 @@ func (as *assertsSuite) TestDecoderSignatureTooBig(c *C) {
 func (as *assertsSuite) TestEncode(c *C) {
 	encoded := []byte("type: test-only\n" +
 		"authority-id: auth-id2\n" +
+		"series: 16\n" +
 		"primary-key: xyz\n" +
 		"revision: 5\n" +
 		"header1: value1\n" +
@@ -337,6 +343,7 @@ func (as *assertsSuite) TestEncode(c *C) {
 func (as *assertsSuite) TestEncoderOK(c *C) {
 	encoded := []byte("type: test-only\n" +
 		"authority-id: auth-id2\n" +
+		"series: 16\n" +
 		"primary-key: xyzyz\n" +
 		"revision: 5\n" +
 		"header1: value1\n" +
@@ -366,6 +373,7 @@ func (as *assertsSuite) TestEncoderOK(c *C) {
 func (as *assertsSuite) TestEncoderSingleDecodeOK(c *C) {
 	encoded := []byte("type: test-only\n" +
 		"authority-id: auth-id2\n" +
+		"series: 16\n" +
 		"primary-key: abc\n" +
 		"revision: 5\n" +
 		"header1: value1\n" +
@@ -392,6 +400,7 @@ func (as *assertsSuite) TestEncoderSingleDecodeOK(c *C) {
 func (as *assertsSuite) TestSignFormatSanityEmptyBody(c *C) {
 	headers := map[string]string{
 		"authority-id": "auth-id1",
+		"series":       "16",
 		"primary-key":  "0",
 	}
 	a, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, asserts.OpenPGPPrivateKey(testPrivKey1))
@@ -404,6 +413,7 @@ func (as *assertsSuite) TestSignFormatSanityEmptyBody(c *C) {
 func (as *assertsSuite) TestSignFormatSanityNonEmptyBody(c *C) {
 	headers := map[string]string{
 		"authority-id": "auth-id1",
+		"series":       "16",
 		"primary-key":  "0",
 	}
 	body := []byte("THE-BODY")
@@ -419,6 +429,7 @@ func (as *assertsSuite) TestSignFormatSanityNonEmptyBody(c *C) {
 func (as *assertsSuite) TestSignFormatSanitySupportMultilineHeaderValues(c *C) {
 	headers := map[string]string{
 		"authority-id": "auth-id1",
+		"series":       "16",
 		"primary-key":  "0",
 	}
 
@@ -450,6 +461,7 @@ func (as *assertsSuite) TestSignFormatSanitySupportMultilineHeaderValues(c *C) {
 func (as *assertsSuite) TestHeaders(c *C) {
 	encoded := []byte("type: test-only\n" +
 		"authority-id: auth-id2\n" +
+		"series: 16\n" +
 		"primary-key: abc\n" +
 		"revision: 5\n" +
 		"header1: value1\n" +
@@ -465,6 +477,7 @@ func (as *assertsSuite) TestHeaders(c *C) {
 	c.Check(hs, DeepEquals, map[string]string{
 		"type":         "test-only",
 		"authority-id": "auth-id2",
+		"series":       "16",
 		"primary-key":  "abc",
 		"revision":     "5",
 		"header1":      "value1",
@@ -476,6 +489,7 @@ func (as *assertsSuite) TestHeaders(c *C) {
 func (as *assertsSuite) TestHeadersReturnsCopy(c *C) {
 	encoded := []byte("type: test-only\n" +
 		"authority-id: auth-id2\n" +
+		"series: 16\n" +
 		"primary-key: xyz\n" +
 		"revision: 5\n" +
 		"header1: value1\n" +
@@ -496,6 +510,7 @@ func (as *assertsSuite) TestHeadersReturnsCopy(c *C) {
 func (as *assertsSuite) TestAssembleRoundtrip(c *C) {
 	encoded := []byte("type: test-only\n" +
 		"authority-id: auth-id2\n" +
+		"series: 16\n" +
 		"primary-key: abc\n" +
 		"revision: 5\n" +
 		"header1: value1\n" +

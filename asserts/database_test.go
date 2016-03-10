@@ -168,6 +168,7 @@ func (chks *checkSuite) SetUpTest(c *C) {
 
 	headers := map[string]string{
 		"authority-id": "canonical",
+		"series":       "16",
 		"primary-key":  "0",
 	}
 	chks.a, err = asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, asserts.OpenPGPPrivateKey(testPrivKey0))
@@ -276,6 +277,7 @@ func (safs *signAddFindSuite) SetUpTest(c *C) {
 func (safs *signAddFindSuite) TestSign(c *C) {
 	headers := map[string]string{
 		"authority-id": "canonical",
+		"series":       "16",
 		"primary-key":  "a",
 	}
 	a1, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
@@ -305,12 +307,25 @@ func (safs *signAddFindSuite) TestSignMissingAuthorityId(c *C) {
 }
 
 func (safs *signAddFindSuite) TestSignMissingPrimaryKey(c *C) {
-	headers := map[string]string{
-		"authority-id": "canonical",
+	tests := []struct {
+		headers map[string]string
+		err     string
+	}{
+		{
+			map[string]string{"authority-id": "canonical"},
+			`"series" header is mandatory`,
+		},
+		{
+			map[string]string{"authority-id": "canonical", "series": "16"},
+			`"primary-key" header is mandatory`,
+		},
 	}
-	a1, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
-	c.Assert(err, ErrorMatches, `"primary-key" header is mandatory`)
-	c.Check(a1, IsNil)
+
+	for _, test := range tests {
+		a, err := safs.signingDB.Sign(asserts.TestOnlyType, test.headers, nil, safs.signingKeyID)
+		c.Assert(err, ErrorMatches, test.err)
+		c.Check(a, IsNil)
+	}
 }
 
 func (safs *signAddFindSuite) TestSignNoPrivateKey(c *C) {
@@ -355,6 +370,7 @@ func (safs *signAddFindSuite) TestSignBadRevision(c *C) {
 func (safs *signAddFindSuite) TestSignAssemblerError(c *C) {
 	headers := map[string]string{
 		"authority-id": "canonical",
+		"series":       "16",
 		"primary-key":  "a",
 		"count":        "zzz",
 	}
@@ -366,6 +382,7 @@ func (safs *signAddFindSuite) TestSignAssemblerError(c *C) {
 func (safs *signAddFindSuite) TestAddSuperseding(c *C) {
 	headers := map[string]string{
 		"authority-id": "canonical",
+		"series":       "16",
 		"primary-key":  "a",
 	}
 	a1, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
@@ -375,6 +392,7 @@ func (safs *signAddFindSuite) TestAddSuperseding(c *C) {
 	c.Assert(err, IsNil)
 
 	retrieved1, err := safs.db.Find(asserts.TestOnlyType, map[string]string{
+		"series":      "16",
 		"primary-key": "a",
 	})
 	c.Assert(err, IsNil)
@@ -389,6 +407,7 @@ func (safs *signAddFindSuite) TestAddSuperseding(c *C) {
 	c.Assert(err, IsNil)
 
 	retrieved2, err := safs.db.Find(asserts.TestOnlyType, map[string]string{
+		"series":      "16",
 		"primary-key": "a",
 	})
 	c.Assert(err, IsNil)
@@ -402,6 +421,7 @@ func (safs *signAddFindSuite) TestAddSuperseding(c *C) {
 func (safs *signAddFindSuite) TestFindNotFound(c *C) {
 	headers := map[string]string{
 		"authority-id": "canonical",
+		"series":       "16",
 		"primary-key":  "a",
 	}
 	a1, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
@@ -411,6 +431,7 @@ func (safs *signAddFindSuite) TestFindNotFound(c *C) {
 	c.Assert(err, IsNil)
 
 	retrieved1, err := safs.db.Find(asserts.TestOnlyType, map[string]string{
+		"series":      "16",
 		"primary-key": "b",
 	})
 	c.Assert(err, Equals, asserts.ErrNotFound)
@@ -418,6 +439,7 @@ func (safs *signAddFindSuite) TestFindNotFound(c *C) {
 
 	// checking also extra headers
 	retrieved1, err = safs.db.Find(asserts.TestOnlyType, map[string]string{
+		"series":       "16",
 		"primary-key":  "a",
 		"authority-id": "other-auth-id",
 	})
@@ -426,14 +448,25 @@ func (safs *signAddFindSuite) TestFindNotFound(c *C) {
 }
 
 func (safs *signAddFindSuite) TestFindPrimaryLeftOut(c *C) {
-	retrieved1, err := safs.db.Find(asserts.TestOnlyType, map[string]string{})
-	c.Assert(err, ErrorMatches, "must provide primary key: primary-key")
-	c.Check(retrieved1, IsNil)
+	tests := []struct {
+		key map[string]string
+		err string
+	}{
+		{nil, "must provide primary key: series"},
+		{map[string]string{"series": "16"}, "must provide primary key: primary-key"},
+	}
+
+	for _, test := range tests {
+		retrieved, err := safs.db.Find(asserts.TestOnlyType, test.key)
+		c.Assert(err, ErrorMatches, test.err)
+		c.Check(retrieved, IsNil)
+	}
 }
 
 func (safs *signAddFindSuite) TestFindMany(c *C) {
 	headers := map[string]string{
 		"authority-id": "canonical",
+		"series":       "16",
 		"primary-key":  "a",
 		"other":        "other-x",
 	}
@@ -444,6 +477,7 @@ func (safs *signAddFindSuite) TestFindMany(c *C) {
 
 	headers = map[string]string{
 		"authority-id": "canonical",
+		"series":       "16",
 		"primary-key":  "b",
 		"other":        "other-y",
 	}
@@ -454,6 +488,7 @@ func (safs *signAddFindSuite) TestFindMany(c *C) {
 
 	headers = map[string]string{
 		"authority-id": "canonical",
+		"series":       "16",
 		"primary-key":  "c",
 		"other":        "other-x",
 	}
@@ -505,6 +540,7 @@ func (safs *signAddFindSuite) TestFindFindsTrustedAccountKeys(c *C) {
 	now := time.Now().UTC()
 	headers := map[string]string{
 		"authority-id":           "canonical",
+		"series":                 "16",
 		"account-id":             "acc-id1",
 		"public-key-id":          pk1.PublicKey().ID(),
 		"public-key-fingerprint": pk1.PublicKey().Fingerprint(),
@@ -519,6 +555,7 @@ func (safs *signAddFindSuite) TestFindFindsTrustedAccountKeys(c *C) {
 
 	// find the trusted key as well
 	tKey, err := safs.db.Find(asserts.AccountKeyType, map[string]string{
+		"series":        "16",
 		"account-id":    "canonical",
 		"public-key-id": safs.signingKeyID,
 	})
@@ -542,6 +579,7 @@ func (safs *signAddFindSuite) TestDontLetAddConfusinglyAssertionClashingWithTrus
 	now := time.Now().UTC()
 	headers := map[string]string{
 		"authority-id":           "canonical",
+		"series":                 "16",
 		"account-id":             "canonical",
 		"public-key-id":          safs.signingKeyID,
 		"public-key-fingerprint": pubKey0.Fingerprint(),
