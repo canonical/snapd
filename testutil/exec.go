@@ -20,6 +20,7 @@
 package testutil
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -31,9 +32,10 @@ import (
 
 // MockCmd allows mocking commands for testing.
 type MockCmd struct {
-	binDir  string
-	exeFile string
-	logFile string
+	binDir    string
+	exeFile   string
+	logFile   string
+	countFile string
 }
 
 // MockCommand adds a mocked command to PATH.
@@ -44,6 +46,7 @@ func MockCommand(c *check.C, basename string, status int) *MockCmd {
 	binDir := c.MkDir()
 	exeFile := path.Join(binDir, basename)
 	logFile := path.Join(binDir, basename+".log")
+	countFile := path.Join(binDir, basename+".cnt")
 	err := ioutil.WriteFile(exeFile, []byte(fmt.Sprintf(""+
 		"#!/bin/sh\n"+
 		"echo \"$@\" >> %q\n"+
@@ -52,7 +55,49 @@ func MockCommand(c *check.C, basename string, status int) *MockCmd {
 		panic(err)
 	}
 	os.Setenv("PATH", binDir+":"+os.Getenv("PATH"))
-	return &MockCmd{binDir: binDir, exeFile: exeFile, logFile: logFile}
+	return &MockCmd{binDir: binDir, exeFile: exeFile, logFile: logFile, countFile: countFile}
+}
+
+// SetDynamicBehavior sets dynamic behavior, depending on the number of times
+// the command is invoked.
+//
+// The first argument defines the number of dynamic cases. The second argument
+// is a function that is called exactly n times (from 0 to n - 1).  Each time
+// the function returns a message that is printed to standard output and the
+// exit code to return in that case.
+//
+// If the command is called more than the expected number of times a diagnostic
+// message is printed to stderr and the command fails with code 1.
+func (cmd *MockCmd) SetDynamicBehavior(n int, fn func(int) (string, int)) {
+	buf := bytes.NewBuffer(nil)
+	buf.WriteString(fmt.Sprintf(
+		`#!/bin/sh
+echo "$@" >> %q
+case $(cat %q) in
+`, cmd.logFile, cmd.countFile))
+	for i := 0; i < n; i++ {
+		msg, status := fn(i)
+		buf.WriteString(fmt.Sprintf(
+			`    %d)
+        echo %d > %q
+        echo %q
+        exit %d
+        ;;
+`, i, i+1, cmd.countFile, msg, status))
+	}
+	buf.WriteString(
+		`esac
+echo "reached beyond dynamic behavior range!" >&2
+exit 1
+`)
+	err := ioutil.WriteFile(cmd.exeFile, buf.Bytes(), 0700)
+	if err != nil {
+		panic(err)
+	}
+	err = ioutil.WriteFile(cmd.countFile, []byte("0"), 0600)
+	if err != nil {
+		panic(err)
+	}
 }
 
 // Restore removes the mocked command from PATH
