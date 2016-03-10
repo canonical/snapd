@@ -131,3 +131,14 @@ webbrowser-app//oxide_helper (enforce)
 		{"pi2-piglow.foreground.snap", "enforce"},
 	})
 }
+
+func (s *appArmorSuite) TestLoadedApparmorProfilesHandlesParsingErrors(c *C) {
+	ioutil.WriteFile(s.profilesFilename, []byte("broken stuff here\n"), 0600)
+	profiles, err := apparmor.LoadedProfiles()
+	c.Assert(err, ErrorMatches, "newline in format does not match input")
+	c.Check(profiles, IsNil)
+	ioutil.WriteFile(s.profilesFilename, []byte("truncated"), 0600)
+	profiles, err = apparmor.LoadedProfiles()
+	c.Assert(err, ErrorMatches, `syntax error, expected: name \(mode\)`)
+	c.Check(profiles, IsNil)
+}
