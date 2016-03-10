@@ -149,7 +149,7 @@ gadget: {store: {id: %q}}
 }
 
 func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
-	newTestDaemon()
+	newTestDaemon(c)
 
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 
@@ -232,7 +232,7 @@ func (s *apiSuite) TestSnapInfoIgnoresRemoteErrors(c *check.C) {
 func (s *apiSuite) TestSnapInfoWeirdRoute(c *check.C) {
 	// can't really happen
 
-	d := newTestDaemon()
+	d := newTestDaemon(c)
 
 	// use the wrong command to force the issue
 	wrongCmd := &Command{Path: "/{what}", d: d}
@@ -244,7 +244,7 @@ func (s *apiSuite) TestSnapInfoWeirdRoute(c *check.C) {
 func (s *apiSuite) TestSnapInfoBadRoute(c *check.C) {
 	// can't really happen, v2
 
-	d := newTestDaemon()
+	d := newTestDaemon(c)
 
 	// get the route and break it
 	route := d.router.Get(snapCmd.Path)
@@ -591,7 +591,7 @@ func (s *apiSuite) TestDeleteOpNotFound(c *check.C) {
 }
 
 func (s *apiSuite) TestDeleteOpStillRunning(c *check.C) {
-	d := newTestDaemon()
+	d := newTestDaemon(c)
 
 	d.tasks["42"] = &Task{}
 	s.vars = map[string]string{"uuid": "42"}
@@ -601,7 +601,7 @@ func (s *apiSuite) TestDeleteOpStillRunning(c *check.C) {
 }
 
 func (s *apiSuite) TestDeleteOp(c *check.C) {
-	d := newTestDaemon()
+	d := newTestDaemon(c)
 
 	task := &Task{}
 	d.tasks["42"] = task
@@ -613,7 +613,7 @@ func (s *apiSuite) TestDeleteOp(c *check.C) {
 }
 
 func (s *apiSuite) TestGetOpInfoIntegration(c *check.C) {
-	d := newTestDaemon()
+	d := newTestDaemon(c)
 
 	s.vars = map[string]string{"uuid": "42"}
 	rsp := getOpInfo(operationCmd, nil).Self(nil, nil).(*resp)
@@ -698,7 +698,7 @@ func (s *apiSuite) TestPostSnapBadAction(c *check.C) {
 }
 
 func (s *apiSuite) TestPostSnap(c *check.C) {
-	d := newTestDaemon()
+	d := newTestDaemon(c)
 
 	s.vars = map[string]string{"uuid": "42"}
 	c.Check(getOpInfo(operationCmd, nil).Self(nil, nil).(*resp).Status, check.Equals, http.StatusNotFound)
@@ -1212,7 +1212,7 @@ func (s *apiSuite) TestInstallLicensed(c *check.C) {
 }
 
 func (s *apiSuite) TestInstallLicensedIntegration(c *check.C) {
-	d := newTestDaemon()
+	d := newTestDaemon(c)
 
 	orig := snappyInstall
 	defer func() { snappyInstall = orig }()
@@ -1257,7 +1257,7 @@ func (s *apiSuite) TestInstallLicensedIntegration(c *check.C) {
 // Tests for GET /2.0/interfaces
 
 func (s *apiSuite) TestGetPlugs(c *check.C) {
-	d := newTestDaemon()
+	d := newTestDaemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface", Label: "label"})
 	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface", Label: "label"})
@@ -1304,7 +1304,7 @@ func (s *apiSuite) TestGetPlugs(c *check.C) {
 // Test for POST /2.0/interfaces
 
 func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
-	d := newTestDaemon()
+	d := newTestDaemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
 	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
@@ -1347,7 +1347,7 @@ func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 }
 
 func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
-	d := newTestDaemon()
+	d := newTestDaemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "other-interface"})
 	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
@@ -1391,7 +1391,7 @@ func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 }
 
 func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
-	d := newTestDaemon()
+	d := newTestDaemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
 	action := &interfaceAction{
@@ -1428,7 +1428,7 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 }
 
 func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
-	d := newTestDaemon()
+	d := newTestDaemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
 	action := &interfaceAction{
@@ -1465,7 +1465,7 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 }
 
 func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
-	d := newTestDaemon()
+	d := newTestDaemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
 	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
@@ -1507,7 +1507,7 @@ func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
-	d := newTestDaemon()
+	d := newTestDaemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
 	action := &interfaceAction{
@@ -1544,7 +1544,7 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
-	d := newTestDaemon()
+	d := newTestDaemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
 	action := &interfaceAction{
@@ -1581,7 +1581,7 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
-	d := newTestDaemon()
+	d := newTestDaemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
 	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
@@ -1624,7 +1624,7 @@ func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 }
 
 func (s *apiSuite) TestAddPlugSuccess(c *check.C) {
-	d := newTestDaemon()
+	d := newTestDaemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	action := &interfaceAction{
 		Action: "add-plug",
@@ -1658,7 +1658,7 @@ func (s *apiSuite) TestAddPlugSuccess(c *check.C) {
 }
 
 func (s *apiSuite) TestAddPlugDisabled(c *check.C) {
-	d := newTestDaemon()
+	d := newTestDaemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{
 		InterfaceName: "interface",
 	})
@@ -1697,7 +1697,7 @@ func (s *apiSuite) TestAddPlugDisabled(c *check.C) {
 }
 
 func (s *apiSuite) TestAddPlugFailure(c *check.C) {
-	d := newTestDaemon()
+	d := newTestDaemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{
 		InterfaceName: "interface",
 		SanitizePlugCallback: func(plug *interfaces.Plug) error {
@@ -1738,7 +1738,7 @@ func (s *apiSuite) TestAddPlugFailure(c *check.C) {
 }
 
 func (s *apiSuite) TestRemovePlugSuccess(c *check.C) {
-	d := newTestDaemon()
+	d := newTestDaemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
 	action := &interfaceAction{
@@ -1766,7 +1766,7 @@ func (s *apiSuite) TestRemovePlugSuccess(c *check.C) {
 }
 
 func (s *apiSuite) TestRemovePlugDisabled(c *check.C) {
-	d := newTestDaemon()
+	d := newTestDaemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
 	d.enableInternalInterfaceActions = false
@@ -1797,7 +1797,7 @@ func (s *apiSuite) TestRemovePlugDisabled(c *check.C) {
 }
 
 func (s *apiSuite) TestRemovePlugFailure(c *check.C) {
-	d := newTestDaemon()
+	d := newTestDaemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
 	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
@@ -1829,7 +1829,7 @@ func (s *apiSuite) TestRemovePlugFailure(c *check.C) {
 }
 
 func (s *apiSuite) TestAddSlotSuccess(c *check.C) {
-	d := newTestDaemon()
+	d := newTestDaemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	action := &interfaceAction{
 		Action: "add-slot",
@@ -1863,7 +1863,7 @@ func (s *apiSuite) TestAddSlotSuccess(c *check.C) {
 }
 
 func (s *apiSuite) TestAddSlotDisabled(c *check.C) {
-	d := newTestDaemon()
+	d := newTestDaemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{
 		InterfaceName: "interface",
 	})
@@ -1902,7 +1902,7 @@ func (s *apiSuite) TestAddSlotDisabled(c *check.C) {
 }
 
 func (s *apiSuite) TestAddSlotFailure(c *check.C) {
-	d := newTestDaemon()
+	d := newTestDaemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{
 		InterfaceName: "interface",
 		SanitizeSlotCallback: func(slot *interfaces.Slot) error {
@@ -1943,7 +1943,7 @@ func (s *apiSuite) TestAddSlotFailure(c *check.C) {
 }
 
 func (s *apiSuite) TestRemoveSlotSuccess(c *check.C) {
-	d := newTestDaemon()
+	d := newTestDaemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
 	action := &interfaceAction{
@@ -1971,7 +1971,7 @@ func (s *apiSuite) TestRemoveSlotSuccess(c *check.C) {
 }
 
 func (s *apiSuite) TestRemoveSlotDisabled(c *check.C) {
-	d := newTestDaemon()
+	d := newTestDaemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
 	d.enableInternalInterfaceActions = false
@@ -2002,7 +2002,7 @@ func (s *apiSuite) TestRemoveSlotDisabled(c *check.C) {
 }
 
 func (s *apiSuite) TestRemoveSlotFailure(c *check.C) {
-	d := newTestDaemon()
+	d := newTestDaemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddPlug(&interfaces.Plug{Snap: "producer", Name: "plug", Interface: "interface"})
 	d.interfaces.AddSlot(&interfaces.Slot{Snap: "consumer", Name: "slot", Interface: "interface"})
@@ -2077,7 +2077,7 @@ func (s *apiSuite) TestMissingInterfaceAction(c *check.C) {
 }
 
 func (s *apiSuite) TestUnsupportedInterfaceAction(c *check.C) {
-	d := newTestDaemon()
+	d := newTestDaemon(c)
 	action := &interfaceAction{
 		Action: "foo",
 	}
@@ -2153,7 +2153,7 @@ func (s *apiSuite) TestAssertOK(c *check.C) {
 	os.MkdirAll(filepath.Dir(dirs.SnapTrustedAccountKey), 0755)
 	err := ioutil.WriteFile(dirs.SnapTrustedAccountKey, []byte(testTrustedKey), 0640)
 	c.Assert(err, check.IsNil)
-	d := newTestDaemon()
+	d := newTestDaemon(c)
 	buf := bytes.NewBufferString(testAccKey)
 	// Execute
 	req, err := http.NewRequest("POST", "/2.0/assertions", buf)
@@ -2172,7 +2172,7 @@ func (s *apiSuite) TestAssertOK(c *check.C) {
 
 func (s *apiSuite) TestAssertInvalid(c *check.C) {
 	// Setup
-	newTestDaemon()
+	newTestDaemon(c)
 	buf := bytes.NewBufferString("blargh")
 	req, err := http.NewRequest("POST", "/2.0/assertions", buf)
 	c.Assert(err, check.IsNil)
@@ -2187,7 +2187,7 @@ func (s *apiSuite) TestAssertInvalid(c *check.C) {
 
 func (s *apiSuite) TestAssertError(c *check.C) {
 	// Setup
-	newTestDaemon()
+	newTestDaemon(c)
 	buf := bytes.NewBufferString(testAccKey)
 	req, err := http.NewRequest("POST", "/2.0/assertions", buf)
 	c.Assert(err, check.IsNil)
@@ -2204,7 +2204,7 @@ func (s *apiSuite) TestAssertsFindManyAll(c *check.C) {
 	os.MkdirAll(filepath.Dir(dirs.SnapTrustedAccountKey), 0755)
 	err := ioutil.WriteFile(dirs.SnapTrustedAccountKey, []byte(testTrustedKey), 0640)
 	c.Assert(err, check.IsNil)
-	d := newTestDaemon()
+	d := newTestDaemon(c)
 	a, err := asserts.Decode([]byte(testAccKey))
 	c.Assert(err, check.IsNil)
 	err = d.asserts.Add(a)
@@ -2239,7 +2239,7 @@ func (s *apiSuite) TestAssertsFindManyFilter(c *check.C) {
 	os.MkdirAll(filepath.Dir(dirs.SnapTrustedAccountKey), 0755)
 	err := ioutil.WriteFile(dirs.SnapTrustedAccountKey, []byte(testTrustedKey), 0640)
 	c.Assert(err, check.IsNil)
-	d := newTestDaemon()
+	d := newTestDaemon(c)
 	a, err := asserts.Decode([]byte(testAccKey))
 	c.Assert(err, check.IsNil)
 	err = d.asserts.Add(a)
@@ -2267,7 +2267,7 @@ func (s *apiSuite) TestAssertsFindManyNoResults(c *check.C) {
 	os.MkdirAll(filepath.Dir(dirs.SnapTrustedAccountKey), 0755)
 	err := ioutil.WriteFile(dirs.SnapTrustedAccountKey, []byte(testTrustedKey), 0640)
 	c.Assert(err, check.IsNil)
-	d := newTestDaemon()
+	d := newTestDaemon(c)
 	a, err := asserts.Decode([]byte(testAccKey))
 	c.Assert(err, check.IsNil)
 	err = d.asserts.Add(a)
@@ -2288,7 +2288,7 @@ func (s *apiSuite) TestAssertsFindManyNoResults(c *check.C) {
 
 func (s *apiSuite) TestAssertsInvalidType(c *check.C) {
 	// Setup
-	newTestDaemon()
+	newTestDaemon(c)
 	// Execute
 	req, err := http.NewRequest("POST", "/2.0/assertions/foo", nil)
 	c.Assert(err, check.IsNil)
@@ -2301,7 +2301,7 @@ func (s *apiSuite) TestAssertsInvalidType(c *check.C) {
 }
 
 func (s *apiSuite) TestGetEvents(c *check.C) {
-	d := newTestDaemon()
+	d := newTestDaemon(c)
 	eventsCmd.d = d
 	c.Assert(d.hub.SubscriberCount(), check.Equals, 0)
 
