@@ -44,10 +44,13 @@ func MockCommand(c *check.C, basename string, status int) *MockCmd {
 	binDir := c.MkDir()
 	exeFile := path.Join(binDir, basename)
 	logFile := path.Join(binDir, basename+".log")
-	ioutil.WriteFile(exeFile, []byte(fmt.Sprintf(""+
+	err := ioutil.WriteFile(exeFile, []byte(fmt.Sprintf(""+
 		"#!/bin/sh\n"+
 		"echo \"$@\" >> %q\n"+
 		"exit %d\n", logFile, status)), 0700)
+	if err != nil {
+		panic(err)
+	}
 	os.Setenv("PATH", binDir+":"+os.Getenv("PATH"))
 	return &MockCmd{binDir: binDir, exeFile: exeFile, logFile: logFile}
 }
