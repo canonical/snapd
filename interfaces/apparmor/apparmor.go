@@ -50,7 +50,7 @@ type Profile struct {
 	// Name of the profile. This is is either full path of the executable or an
 	// arbitrary string without spaces.
 	Name string
-	// Mode is either "enforcing" or "complaining".
+	// Mode is either "enforce" or "complain".
 	Mode string
 }
 
