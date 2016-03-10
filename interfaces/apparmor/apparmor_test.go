@@ -48,22 +48,22 @@ func (s *appArmorSuite) SetUpTest(c *C) {
 	apparmor.MockProfilesPath(&s.BaseTest, s.profilesFilename)
 }
 
-// Tests for AddOrReplaceProfile()
+// Tests for LoadProfile()
 
-func (s *appArmorSuite) TestAddOrReplaceProfileRunsAppArmorParserReplace(c *C) {
+func (s *appArmorSuite) TestLoadProfileRunsAppArmorParserReplace(c *C) {
 	cmd := testutil.MockCommand(c, "apparmor_parser", 0)
 	defer cmd.Restore()
-	err := apparmor.AddOrReplaceProfile("foo.snap")
+	err := apparmor.LoadProfile("foo.snap")
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, []string{
 		"--replace foo.snap",
 	})
 }
 
-func (s *appArmorSuite) TestAddOrReplaceProfileReportsErrors(c *C) {
+func (s *appArmorSuite) TestLoadProfileReportsErrors(c *C) {
 	cmd := testutil.MockCommand(c, "apparmor_parser", 42)
 	defer cmd.Restore()
-	err := apparmor.AddOrReplaceProfile("foo.snap")
+	err := apparmor.LoadProfile("foo.snap")
 	c.Assert(err, ErrorMatches, "exit status 42")
 }
 
