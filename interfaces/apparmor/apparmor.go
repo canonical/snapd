@@ -27,6 +27,7 @@ package apparmor
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -74,7 +75,7 @@ func LoadedProfiles() (profiles []Profile, err error) {
 	for {
 		var name, mode string
 		if _, err := fmt.Fscanf(file, "%s %s\n", &name, &mode); err != nil {
-			if err.Error() == "EOF" {
+			if err == io.EOF {
 				break
 			}
 			return nil, err
