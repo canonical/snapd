@@ -9,7 +9,6 @@ Build-Depends: bash-completion,
                fakeroot,
                gettext,
                golang-check.v1-dev,
-               golang-gettext-dev,
                golang-go,
                golang-go-flags-dev,
                golang-go.crypto-dev,
@@ -49,7 +48,7 @@ Description: System components for Ubuntu Core Snappy.
 Package: ubuntu-snappy-cli
 Architecture: any
 Depends: ${misc:Depends}, ${shlibs:Depends}, adduser, lsb-release,
- squashfs-tools, ubuntu-core-launcher (>= 0.2.3),
+ squashfs-tools, ubuntu-core-launcher (>= 1.0.19),
  ubuntu-core-security-seccomp, ubuntu-core-security-apparmor,
  ubuntu-core-security-utils,
 Replaces: ubuntu-core-snappy (<< 0.2~ppa90)
