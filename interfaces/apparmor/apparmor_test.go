@@ -55,16 +55,17 @@ func (s *appArmorSuite) TestLoadProfileRunsAppArmorParserReplace(c *C) {
 	defer cmd.Restore()
 	err := apparmor.LoadProfile("foo.snap")
 	c.Assert(err, IsNil)
-	c.Assert(cmd.Calls(), DeepEquals, []string{
-		"--replace foo.snap",
-	})
+	c.Assert(cmd.Calls(), DeepEquals, []string{"--replace foo.snap"})
 }
 
 func (s *appArmorSuite) TestLoadProfileReportsErrors(c *C) {
 	cmd := testutil.MockCommand(c, "apparmor_parser", 42)
 	defer cmd.Restore()
 	err := apparmor.LoadProfile("foo.snap")
-	c.Assert(err, ErrorMatches, "exit status 42")
+	c.Assert(err.Error(), Equals, `cannot load apparmor profile: exit status 42
+apparmor_parser output:
+`)
+	c.Assert(cmd.Calls(), DeepEquals, []string{"--replace foo.snap"})
 }
 
 // Tests for Profile.Unload()
@@ -83,7 +84,9 @@ func (s *appArmorSuite) TestUnloadProfileReportsErrors(c *C) {
 	defer cmd.Restore()
 	profile := apparmor.Profile{Name: "foo.snap"}
 	err := profile.Unload()
-	c.Assert(err, ErrorMatches, "exit status 42")
+	c.Assert(err.Error(), Equals, `cannot unload apparmor profile: exit status 42
+apparmor_parser output:
+`)
 }
 
 // Tests for LoadedProfiles()
