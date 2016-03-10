@@ -27,6 +27,7 @@ type fileBackend struct {
 	path string
 }
 
+// NewFileBackend creates a new file based state backend
 func NewFileBackend(path string) Backend {
 	return &fileBackend{path: path}
 }
