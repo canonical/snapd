@@ -199,7 +199,7 @@ func (ts *taskSuite) TestTaskMarshalsWaitFor(c *C) {
 	d, err := t2.MarshalJSON()
 	c.Assert(err, IsNil)
 
-	needle := fmt.Sprintf(`"waiting-for":[{"id":"%s",`, t1.ID())
+	needle := fmt.Sprintf(`"wait-tasks":["%s"`, t1.ID())
 	c.Assert(string(d), testutil.Contains, needle)
 }
 
@@ -213,6 +213,6 @@ func (ts *taskSuite) TestTaskWaitFor(c *C) {
 	t2 := chg.NewTask("install", "2...")
 	t2.WaitFor(t1)
 
-	c.Assert(t2.WaitTasks(), DeepEquals, []*state.Task{t1})
+	c.Assert(t2.WaitTasks(), DeepEquals, []string{t1.ID()})
 	c.Assert(t2.Status(), Equals, state.WaitingStatus)
 }
