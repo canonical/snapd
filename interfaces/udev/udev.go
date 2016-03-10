@@ -20,6 +20,7 @@
 package udev
 
 import (
+	"fmt"
 	"os/exec"
 )
 
@@ -28,10 +29,13 @@ import (
 // The commands are: udevadm control --reload-rules
 //                   udevadm trigger
 func ReloadRules() error {
-	err := exec.Command("udevadm", "control", "--reload-rules").Run()
+	output, err := exec.Command("udevadm", "control", "--reload-rules").CombinedOutput()
 	if err != nil {
-		return err
+		return fmt.Errorf("Cannot reload udev rules: %s\nudev output:\n%s", err, string(output))
 	}
-	err = exec.Command("udevadm", "trigger").Run()
-	return err
+	output, err = exec.Command("udevadm", "trigger").CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("Cannot run udev triggers: %s\nudev output:\n%s", err, string(output))
+	}
+	return nil
 }
