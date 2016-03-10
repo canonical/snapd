@@ -21,6 +21,8 @@ package state
 
 import (
 	"sync"
+
+	"gopkg.in/tomb.v2"
 )
 
 type HandlerFunc func(task *Task) error
@@ -32,6 +34,9 @@ type TaskRunner struct {
 	// locking
 	mu       sync.Mutex
 	handlers map[string]HandlerFunc
+
+	// go-routines
+	tomb tomb.Tomb
 }
 
 // NewTaskRunner creates a new TaskRunner
@@ -68,7 +73,7 @@ func (r *TaskRunner) Ensure() {
 			// run stuff
 			if fn, ok := r.handlers[t.Kind()]; ok {
 				// FIXME: do something sensible with an error
-				go fn(t)
+				r.tomb.Go(func() error { return fn(t) })
 			}
 		}
 	}
@@ -76,4 +81,7 @@ func (r *TaskRunner) Ensure() {
 
 // Stop stops all concurrent activities and returns after that's done.
 func (r *TaskRunner) Stop() {
+	r.tomb.Kill(nil)
+	r.tomb.Wait()
+
 }
