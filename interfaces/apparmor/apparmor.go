@@ -75,7 +75,10 @@ func LoadedProfiles() ([]Profile, error) {
 	var profiles []Profile
 	for {
 		var name, mode string
-		_, err := fmt.Fscanf(file, "%s %s\n", &name, &mode)
+		n, err := fmt.Fscanf(file, "%s %s\n", &name, &mode)
+		if n > 0 && n != 2 {
+			return nil, fmt.Errorf("syntax error, expected: name (mode)")
+		}
 		if err == io.EOF {
 			break
 		}
