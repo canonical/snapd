@@ -158,10 +158,14 @@ func writeUdevRuleForDeviceCgroup(snapname, device string) error {
 	// If there's a dedicated .origin then parse it and use that as the origin
 	// to look for in the loop below. In other cases, just ignore origin
 	// altogether.
+	//
+	// NOTE: snapname stays as "$snap.$origin" so that hw-unassign doesn't have
+	// to be changed. This is all meant to be removed anyway.
+	name := snapname
 	origin := ""
 	if strings.Contains(snapname, ".") {
 		l := strings.Split(snapname, ".")
-		snapname, origin = l[0], l[1]
+		name, origin = l[0], l[1]
 	}
 	devicePath := filepath.Base(device)
 
@@ -172,7 +176,7 @@ func writeUdevRuleForDeviceCgroup(snapname, device string) error {
 	}
 	var acls []string
 	for _, snap := range installed {
-		if snap.Name() == snapname && (origin == "" || snap.Origin() == origin) {
+		if snap.Name() == name && (origin == "" || snap.Origin() == origin) {
 			for _, app := range snap.(*SnapPart).Apps() {
 				acl := fmt.Sprintf(`KERNEL=="%v", TAG:="snappy-assign", ENV{SNAPPY_APP}:="%s"`+"\n",
 					devicePath, fmt.Sprintf("%s.%s", snap.Name(), app.Name))
