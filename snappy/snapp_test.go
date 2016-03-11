@@ -126,7 +126,7 @@ func (s *SnapTestSuite) TestLocalSnapSimple(c *C) {
 	snap, err := NewInstalledSnap(snapYaml, testDeveloper)
 	c.Assert(err, IsNil)
 	c.Assert(snap, NotNil)
-	c.Check(snap.Name(), Equals, "hello-app")
+	c.Check(snap.Name(), Equals, "hello-snap")
 	c.Check(snap.Version(), Equals, "1.10")
 	c.Check(snap.IsActive(), Equals, false)
 	c.Check(snap.Description(), Equals, "Hello")
@@ -193,7 +193,7 @@ func (s *SnapTestSuite) TestLocalSnapRepositorySimple(c *C) {
 	installed, err := snap.Installed()
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 1)
-	c.Assert(installed[0].Name(), Equals, "hello-app")
+	c.Assert(installed[0].Name(), Equals, "hello-snap")
 	c.Assert(installed[0].Version(), Equals, "1.10")
 }
 
@@ -681,7 +681,7 @@ func (s *SnapTestSuite) TestMakeConfigEnv(c *C) {
 	// regular env is unaltered
 	c.Assert(envMap["PATH"], Equals, os.Getenv("PATH"))
 	// SNAP_* is overriden
-	c.Assert(envMap["SNAP_NAME"], Equals, "hello-app")
+	c.Assert(envMap["SNAP_NAME"], Equals, "hello-snap")
 	c.Assert(envMap["SNAP_VERSION"], Equals, "1.10")
 	c.Check(envMap["LC_ALL"], Equals, "C.UTF-8")
 }
@@ -779,7 +779,7 @@ apps:
 }
 
 func (s *SnapTestSuite) TestErrorOnUnsupportedArchitecture(c *C) {
-	const packageHello = `name: hello-app
+	const packageHello = `name: hello-snap
 version: 1.10
 architectures:
     - yadayada
@@ -793,7 +793,7 @@ architectures:
 }
 
 func (s *SnapTestSuite) TestServicesWithPorts(c *C) {
-	const packageHello = `name: hello-app
+	const packageHello = `name: hello-snap
 version: 1.10
 apps:
  hello:
@@ -822,7 +822,7 @@ apps:
 	c.Assert(err, IsNil)
 	c.Assert(snap, NotNil)
 
-	c.Assert(snap.Name(), Equals, "hello-app")
+	c.Assert(snap.Name(), Equals, "hello-snap")
 	c.Assert(snap.Developer(), Equals, testDeveloper)
 	c.Assert(snap.Version(), Equals, "1.10")
 	c.Assert(snap.IsActive(), Equals, false)
@@ -949,7 +949,7 @@ gadget:
     id: my-store
   software:
     built-in:
-      - hello-app
+      - hello-snap
 type: gadget
 `)
 	c.Assert(err, IsNil)
@@ -965,7 +965,7 @@ type: gadget
 	c.Assert(r, NotNil)
 	installed, err := r.Installed()
 	c.Assert(err, IsNil)
-	parts := FindSnapsByName("hello-app", installed)
+	parts := FindSnapsByName("hello-snap", installed)
 	c.Assert(parts, HasLen, 1)
 	c.Check(s.overlord.Uninstall(parts[0].(*Snap), p), Equals, ErrPackageNotRemovable)
 }
