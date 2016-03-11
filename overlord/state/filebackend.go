@@ -20,20 +20,18 @@
 package state
 
 import (
-	"time"
+	"github.com/ubuntu-core/snappy/osutil"
 )
 
-// ChangeUnlockCheckpointRetryParamsForTest let's a test change unlockcheckpointRetryInterval and unlockCheckpointRetryMaxTime.
-func ChangeUnlockCheckpointRetryParamsForTest(newInterval, newMaxTime time.Duration) (oldInterval, oldMaxTime time.Duration) {
-	oldInterval = unlockCheckpointRetryInterval
-	oldMaxTime = unlockCheckpointRetryMaxTime
-	unlockCheckpointRetryInterval = newInterval
-	unlockCheckpointRetryMaxTime = newMaxTime
-	return
+type fileBackend struct {
+	path string
 }
 
-func (r *TaskRunner) Handlers() map[string]HandlerFunc {
-	return r.handlers
+// NewFileBackend creates a new file based state backend
+func NewFileBackend(path string) Backend {
+	return &fileBackend{path: path}
 }
 
-var FileBackend = &fileBackend{}
+func (sf *fileBackend) Checkpoint(data []byte) error {
+	return osutil.AtomicWriteFile(sf.path, data, 0600, 0)
+}

@@ -49,7 +49,7 @@ Lists the slots offered and plugs used by the specified snap.
 
 $ snap interfaces --i=<interface> [<snap>]
 
-Lists only slots and plugs of the specific interface.
+Filters the complete output so only plugs and/or slots matching the provided details are listed.
 `)
 
 func init() {
