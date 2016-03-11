@@ -202,7 +202,7 @@ func getSnapInfo(c *Command, r *http.Request) Response {
 		remoteSnap = parts[0]
 	}
 
-	localSnaps, err := snappy.NewLocalSnapRepository().Named(name, origin)
+	localSnaps, err := snappy.NewLocalSnapRepository().Snaps(name, origin)
 	if err != nil {
 		return InternalError("cannot load snaps: %v", err)
 	}
@@ -443,7 +443,7 @@ func snapService(c *Command, r *http.Request) Response {
 		return BadRequest("unknown action %s", action)
 	}
 
-	snaps, err := snappy.NewLocalSnapRepository().Named(name, origin)
+	snaps, err := snappy.NewLocalSnapRepository().Snaps(name, origin)
 	_, snap := bestSnap(snaps)
 	if err != nil || snap == nil || !snap.IsActive() {
 		return NotFound("unable to find snap with name %q and origin %q", name, origin)
@@ -550,7 +550,7 @@ func snapConfig(c *Command, r *http.Request) Response {
 	}
 	defer lock.Unlock()
 
-	snaps, err := snappy.NewLocalSnapRepository().Named(name, origin)
+	snaps, err := snappy.NewLocalSnapRepository().Snaps(name, origin)
 	_, part := bestSnap(snaps)
 	if err != nil || part == nil {
 		return NotFound("no snap found with name %q and origin %q", name, origin)
@@ -889,7 +889,7 @@ func iconGet(name, origin string) Response {
 	}
 	defer lock.Unlock()
 
-	snaps, err := snappy.NewLocalSnapRepository().Named(name, origin)
+	snaps, err := snappy.NewLocalSnapRepository().Snaps(name, origin)
 	_, snap := bestSnap(snaps)
 	if err != nil || snap == nil {
 		return NotFound("unable to find snap with name %q and origin %q", name, origin)
