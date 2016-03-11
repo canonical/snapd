@@ -737,7 +737,7 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinary(m *snapYaml, name 
 	return nil
 }
 
-// FIXME: move into something more generic - SnapPart.HasConfig?
+// FIXME: move into something more generic - Snap.HasConfig?
 func hasConfig(baseDir string) bool {
 	return osutil.FileExists(filepath.Join(baseDir, "meta", "hooks", "config"))
 }
@@ -909,7 +909,7 @@ func CompareGeneratePolicyFromFile(fn string) error {
 func parseSnapYamlFileWithVersion(fn string) (*snapYaml, error) {
 	m, err := parseSnapYamlFile(fn)
 
-	// FIXME: duplicated code from snapp.go:NewSnapPartFromYaml,
+	// FIXME: duplicated code from snapp.go:NewSnapFromYaml,
 	//        version is overriden by sideloaded versions
 
 	// use EvalSymlinks to resolve 'current' to the correct version
@@ -960,7 +960,7 @@ func RegenerateAllPolicy(force bool) error {
 	}
 
 	for _, p := range installed {
-		part, ok := p.(*SnapPart)
+		part, ok := p.(*Snap)
 		if !ok {
 			continue
 		}
