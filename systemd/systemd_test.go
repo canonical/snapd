@@ -232,9 +232,9 @@ WantedBy=multi-user.target
 `
 
 var (
-	expectedAppService  = fmt.Sprintf(expectedServiceFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".mvo", "mvo", "Type=simple\n", arch.UbuntuArchitecture())
-	expectedFmkService  = fmt.Sprintf(expectedServiceFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target", "", "", "Type=simple\n", arch.UbuntuArchitecture())
-	expectedDbusService = fmt.Sprintf(expectedServiceFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".mvo", "mvo", "Type=dbus\nBusName=foo.bar.baz", arch.UbuntuArchitecture())
+	expectedAppService  = fmt.Sprintf(expectedServiceFmt, "After=snapd.frameworks.target\nRequires=snapd.frameworks.target", ".mvo", "mvo", "Type=simple\n", arch.UbuntuArchitecture())
+	expectedFmkService  = fmt.Sprintf(expectedServiceFmt, "Before=snapd.frameworks.target\nAfter=snapd.frameworks-pre.target\nRequires=snapd.frameworks-pre.target", "", "", "Type=simple\n", arch.UbuntuArchitecture())
+	expectedDbusService = fmt.Sprintf(expectedServiceFmt, "After=snapd.frameworks.target\nRequires=snapd.frameworks.target", ".mvo", "mvo", "Type=dbus\nBusName=foo.bar.baz", arch.UbuntuArchitecture())
 )
 
 func (s *SystemdTestSuite) TestGenAppServiceFile(c *C) {

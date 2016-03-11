@@ -37,7 +37,7 @@ import (
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/wait"
 )
 
-const cfgDir = "/etc/systemd/system/ubuntu-snappy.snapd.service.d"
+const cfgDir = "/etc/systemd/system/snapd.snapd.service.d"
 
 func init() {
 	c := &check.C{}
@@ -81,7 +81,7 @@ func Test(t *testing.T) {
 
 func setUpSnapdFromBranch(c *check.C) {
 	cli.ExecCommand(c, "sudo", "systemctl", "stop",
-		"ubuntu-snappy.snapd.service", "ubuntu-snappy.snapd.socket")
+		"snapd.snapd.service", "snapd.snapd.socket")
 
 	binPath, err := filepath.Abs("integration-tests/bin/snapd")
 	c.Assert(err, check.IsNil)
@@ -96,13 +96,13 @@ func setUpSnapdFromBranch(c *check.C) {
 	_, err = cli.ExecCommandErr("sudo", "systemctl", "daemon-reload")
 	c.Assert(err, check.IsNil)
 
-	_, err = cli.ExecCommandErr("sudo", "systemctl", "start", "ubuntu-snappy.snapd.service")
+	_, err = cli.ExecCommandErr("sudo", "systemctl", "start", "snapd.snapd.service")
 	c.Assert(err, check.IsNil)
 }
 
 func tearDownSnapdFromBranch() error {
 	if _, err := cli.ExecCommandErr("sudo", "systemctl", "stop",
-		"ubuntu-snappy.snapd.service"); err != nil {
+		"snapd.snapd.service"); err != nil {
 		return err
 	}
 
@@ -119,7 +119,7 @@ func tearDownSnapdFromBranch() error {
 	}
 
 	if _, err := cli.ExecCommandErr("sudo", "systemctl", "start",
-		"ubuntu-snappy.snapd.service"); err != nil {
+		"snapd.snapd.service"); err != nil {
 		return err
 	}
 

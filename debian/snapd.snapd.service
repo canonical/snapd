@@ -1,0 +1,8 @@
+[Unit]
+Description=Snappy daemon
+After=snapd.firstboot.service
+Before=snapd.frameworks-pre.target
+Requires=snapd.snapd.socket
+
+[Service]
+ExecStart=/usr/lib/snappy/snapd
