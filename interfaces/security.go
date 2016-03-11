@@ -85,8 +85,6 @@ func (aa *appArmor) varsForApp(snapName, snapVersion, snapOrigin, appName string
 @{APP_PKGNAME}="%s"
 @{APP_VERSION}="%s"
 @{INSTALL_DIR}="{/snaps,/gadget}"
-# Deprecated:
-@{CLICK_DIR}="{/snaps,/gadget}"
 `,
 		appName,
 		dbusPath(fmt.Sprintf("%s.%s_%s_%s", snapName, snapOrigin, appName, snapVersion)),
