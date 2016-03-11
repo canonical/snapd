@@ -781,7 +781,7 @@ type fakeOverlord struct {
 	configs map[string]string
 }
 
-func (o *fakeOverlord) Configure(s *snappy.SnapPart, c []byte) ([]byte, error) {
+func (o *fakeOverlord) Configure(s *snappy.Snap, c []byte) ([]byte, error) {
 	if len(c) > 0 {
 		o.configs[s.Name()] = string(c)
 	}

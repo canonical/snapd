@@ -167,7 +167,7 @@ func (s *SnapTestSuite) TestPackageNameInstalled(c *C) {
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "hello-app.manifest"), []byte(`{"name": "hello-app"}`), 0644), IsNil)
 	ag := &progress.NullProgress{}
 
-	part, err := NewInstalledSnapPart(yamlFile, testOrigin)
+	part, err := NewInstalledSnap(yamlFile, testOrigin)
 	c.Assert(err, IsNil)
 
 	c.Assert(part.activate(true, ag), IsNil)

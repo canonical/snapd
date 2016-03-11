@@ -449,9 +449,9 @@ func snapService(c *Command, r *http.Request) Response {
 		return InternalError("unable to load active snap: %v", err)
 	}
 
-	part, ok := ipart.(*snappy.SnapPart)
+	part, ok := ipart.(*snappy.Snap)
 	if !ok {
-		return InternalError("active snap is not a *snappy.SnapPart: %T", ipart)
+		return InternalError("active snap is not a *snappy.Snap: %T", ipart)
 	}
 	apps := part.Apps()
 
@@ -532,7 +532,7 @@ func snapService(c *Command, r *http.Request) Response {
 }
 
 type configurator interface {
-	Configure(*snappy.SnapPart, []byte) ([]byte, error)
+	Configure(*snappy.Snap, []byte) ([]byte, error)
 }
 
 var getConfigurator = func() configurator {
@@ -575,7 +575,7 @@ func snapConfig(c *Command, r *http.Request) Response {
 	}
 
 	overlord := getConfigurator()
-	config, err := overlord.Configure(part.(*snappy.SnapPart), bs)
+	config, err := overlord.Configure(part.(*snappy.Snap), bs)
 	if err != nil {
 		return InternalError("unable to retrieve config for %s: %v", pkgName, err)
 	}

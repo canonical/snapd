@@ -74,7 +74,7 @@ func FindServices(snapName string, serviceName string, pb progress.Meter) (Servi
 			continue
 		}
 
-		snap, ok := part.(*SnapPart)
+		snap, ok := part.(*Snap)
 		if !ok {
 			// can't happen
 			continue

@@ -303,7 +303,7 @@ func (c *concreteSnap) Load(version string) (snappy.Part, error) {
 		return removed.New(c.self.Name, c.self.Origin, version, c.self.Type), nil
 	}
 
-	part, err := snappy.NewInstalledSnapPart(yamlPath, c.self.Origin)
+	part, err := snappy.NewInstalledSnap(yamlPath, c.self.Origin)
 	if err != nil {
 		return nil, err
 	}

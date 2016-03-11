@@ -44,7 +44,7 @@ var findBootloader = partition.FindBootloader
 
 // removeKernelAssets removes the unpacked kernel/initrd for the given
 // kernel snap
-func removeKernelAssets(s *SnapPart, inter interacter) error {
+func removeKernelAssets(s *Snap, inter interacter) error {
 	if s.m.Type != snap.TypeKernel {
 		return fmt.Errorf("can not remove kernel assets from snap type %q", s.Type())
 	}
@@ -65,7 +65,7 @@ func removeKernelAssets(s *SnapPart, inter interacter) error {
 }
 
 // extractKernelAssets extracts kernel/initrd/dtb data from the given
-// SnapPart to a versionized bootloader directory so that the bootloader
+// Snap to a versionized bootloader directory so that the bootloader
 // can use it.
 func extractKernelAssets(s *SnapFile, inter progress.Meter, flags InstallFlags) error {
 	if s.m.Type != snap.TypeKernel {
@@ -128,7 +128,7 @@ func extractKernelAssets(s *SnapFile, inter progress.Meter, flags InstallFlags) 
 
 // setNextBoot will schedule the given os or kernel snap to be used in
 // the next boot
-func setNextBoot(s *SnapPart) error {
+func setNextBoot(s *Snap) error {
 	if s.m.Type != snap.TypeOS && s.m.Type != snap.TypeKernel {
 		return nil
 	}
@@ -157,7 +157,7 @@ func setNextBoot(s *SnapPart) error {
 	return nil
 }
 
-func kernelOrOsRebootRequired(s *SnapPart) bool {
+func kernelOrOsRebootRequired(s *Snap) bool {
 	if s.m.Type != snap.TypeKernel && s.m.Type != snap.TypeOS {
 		return false
 	}
@@ -229,7 +229,7 @@ func SyncBoot() error {
 		if len(found) != 1 {
 			return fmt.Errorf("can not SyncBoot, expected 1 snap for %s %s found %d", name, ver, len(found))
 		}
-		if err := overlord.SetActive(found[0].(*SnapPart), true, nil); err != nil {
+		if err := overlord.SetActive(found[0].(*Snap), true, nil); err != nil {
 			return fmt.Errorf("can not SyncBoot, failed to make %s active: %s", found[0].Name(), err)
 		}
 	}
