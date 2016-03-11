@@ -199,20 +199,20 @@ func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "hello-app.manifest"), []byte(`{"name": "hello-app"}`), 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "hello-snap.manifest"), []byte(`{"name": "hello-snap"}`), 0644), IsNil)
 	ag := &progress.NullProgress{}
 	part, err := NewInstalledSnap(yamlFile, "potato")
 	c.Assert(err, IsNil)
 	c.Assert(part.activate(true, ag), IsNil)
-	current := ActiveSnapByName("hello-app")
+	current := ActiveSnapByName("hello-snap")
 	c.Assert(current, NotNil)
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/details/hello-app.potato/ch":
+		case "/details/hello-snap.potato/ch":
 			io.WriteString(w, `{
 "origin": "potato",
-"package_name": "hello-app",
+"package_name": "hello-snap",
 "version": "2",
 "anon_download_url": "blah"
 }`)
@@ -227,7 +227,7 @@ func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	_, err = Install("hello-app.potato", "ch", 0, ag)
+	_, err = Install("hello-snap.potato", "ch", 0, ag)
 	c.Assert(err, ErrorMatches, ".*"+ErrPackageNameAlreadyInstalled.Error())
 }
 

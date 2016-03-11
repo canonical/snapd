@@ -39,7 +39,7 @@ import (
 const (
 	testOrigin            = "testspacethename"
 	fooComposedName       = "foo.testspacethename"
-	helloSnapComposedName = "hello-app.testspacethename"
+	helloSnapComposedName = "hello-snap.testspacethename"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -55,7 +55,7 @@ func init() {
 // makeInstalledMockSnap creates a installed mock snap without any
 // content other than the meta data
 func makeInstalledMockSnap(tempdir, snapYamlContent string) (yamlFile string, err error) {
-	const packageHello = `name: hello-app
+	const packageHello = `name: hello-snap
 version: 1.10
 apps:
  hello:
@@ -85,19 +85,19 @@ apps:
 		return "", err
 	}
 
-	if err := addMockDefaultApparmorProfile("hello-app_hello_1.10"); err != nil {
+	if err := addMockDefaultApparmorProfile("hello-snap_hello_1.10"); err != nil {
 		return "", err
 	}
 
-	if err := addMockDefaultApparmorProfile("hello-app_svc1_1.10"); err != nil {
+	if err := addMockDefaultApparmorProfile("hello-snap_svc1_1.10"); err != nil {
 		return "", err
 	}
 
-	if err := addMockDefaultSeccompProfile("hello-app_hello_1.10"); err != nil {
+	if err := addMockDefaultSeccompProfile("hello-snap_hello_1.10"); err != nil {
 		return "", err
 	}
 
-	if err := addMockDefaultSeccompProfile("hello-app_svc1_1.10"); err != nil {
+	if err := addMockDefaultSeccompProfile("hello-snap_svc1_1.10"); err != nil {
 		return "", err
 	}
 

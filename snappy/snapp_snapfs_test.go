@@ -96,7 +96,7 @@ func (s *SquashfsTestSuite) TearDownTest(c *C) {
 
 var _ = Suite(&SquashfsTestSuite{})
 
-const packageHello = `name: hello-app
+const packageHello = `name: hello-snap
 version: 1.10
 `
 
@@ -115,14 +115,14 @@ func (s *SquashfsTestSuite) TestInstallViaSquashfsWorks(c *C) {
 	c.Assert(err, IsNil)
 
 	// after install the blob is in the right dir
-	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-app.origin_1.10.snap")), Equals, true)
+	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-snap.origin_1.10.snap")), Equals, true)
 
 	// ensure the right unit is created
-	mup := systemd.MountUnitPath("/snaps/hello-app.origin/1.10", "mount")
+	mup := systemd.MountUnitPath("/snaps/hello-snap.origin/1.10", "mount")
 	content, err := ioutil.ReadFile(mup)
 	c.Assert(err, IsNil)
-	c.Assert(string(content), Matches, "(?ms).*^Where=/snaps/hello-app.origin/1.10")
-	c.Assert(string(content), Matches, "(?ms).*^What=/var/lib/snappy/snaps/hello-app.origin_1.10.snap")
+	c.Assert(string(content), Matches, "(?ms).*^Where=/snaps/hello-snap.origin/1.10")
+	c.Assert(string(content), Matches, "(?ms).*^What=/var/lib/snappy/snaps/hello-snap.origin_1.10.snap")
 }
 
 func (s *SquashfsTestSuite) TestAddSquashfsMount(c *C) {
@@ -171,7 +171,7 @@ func (s *SquashfsTestSuite) TestRemoveViaSquashfsWorks(c *C) {
 	c.Assert(err, IsNil)
 
 	// after install the blob is in the right dir
-	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-app.origin_1.10.snap")), Equals, true)
+	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-snap.origin_1.10.snap")), Equals, true)
 
 	// now remove and ensure its gone
 	part, err := NewSnapFile(snapFile, "origin", true)
@@ -179,7 +179,7 @@ func (s *SquashfsTestSuite) TestRemoveViaSquashfsWorks(c *C) {
 	installedPart, err := newSnapFromYaml(filepath.Join(part.instdir, "meta", "package.yaml"), part.origin, part.m)
 	err = (&Overlord{}).Uninstall(installedPart, &MockProgressMeter{})
 	c.Assert(err, IsNil)
-	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-app.origin_1.10.snap")), Equals, false)
+	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-snap.origin_1.10.snap")), Equals, false)
 
 }
 
