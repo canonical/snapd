@@ -154,7 +154,7 @@ type bulkReplyJSON struct {
 	Status          string `json:"status"`
 	Name            string `json:"name"`
 	PackageName     string `json:"package_name"`
-	Developer       string `json:"developer"`
+	Developer       string `json:"origin"`
 	AnonDownloadURL string `json:"anon_download_url"`
 	Version         string `json:"version"`
 }

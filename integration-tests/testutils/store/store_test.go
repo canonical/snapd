@@ -128,7 +128,7 @@ func (s *storeTestSuite) TestBulkEndpoint(c *C) {
         "status": "Published",
         "name": "foo.canonical",
         "package_name": "foo",
-        "developer": "canonical",
+        "origin": "canonical",
         "anon_download_url": "%s/download/foo_1_all.snap",
         "version": "1"
     }
