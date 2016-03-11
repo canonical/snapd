@@ -62,10 +62,10 @@ func (s *lightweightSuite) SetUpTest(c *check.C) {
 	s.MkInstalled(c, snap.TypeGadget, dirs.SnapSnapsDir, "a-gadget", "", "3", false)
 }
 
-func (s *lightweightSuite) MkInstalled(c *check.C, _type snap.Type, appdir, name, origin, version string, active bool) {
+func (s *lightweightSuite) MkInstalled(c *check.C, _type snap.Type, appdir, name, developer, version string, active bool) {
 	qn := name
-	if origin != "" {
-		qn += "." + origin
+	if developer != "" {
+		qn += "." + developer
 	}
 
 	s.MkRemoved(c, qn, version)
@@ -102,7 +102,7 @@ func (s *lightweightSuite) TestMapFmkNoPart(c *check.C) {
 	delete(m, "installed_size")
 	c.Check(m, check.DeepEquals, map[string]interface{}{
 		"name":               "fmk",
-		"origin":             "sideload",
+		"developer":          "sideload",
 		"status":             "active",
 		"version":            "120",
 		"icon":               filepath.Join(s.d, "snaps", "fmk", "120", "meta/gui/icon.png"),
@@ -120,7 +120,7 @@ func (s *lightweightSuite) TestMapRemovedFmkNoPart(c *check.C) {
 	m := bag.Map(nil)
 	c.Check(m, check.DeepEquals, map[string]interface{}{
 		"name":           "fmk2",
-		"origin":         "",
+		"developer":      "",
 		"status":         "removed",
 		"version":        "4.2.0ubuntu1",
 		"icon":           "",
@@ -135,7 +135,7 @@ func (s *lightweightSuite) TestMapRemovedFmkNoPart(c *check.C) {
 func (s *lightweightSuite) TestMapRemovedFmkNoPartButStoreMeta(c *check.C) {
 	snap := remote.Snap{
 		Name:         "fmk2",
-		Origin:       "fmk2origin",
+		Developer:    "fmk2developer",
 		Version:      "4.2.0ubuntu1",
 		Type:         snap.TypeFramework,
 		IconURL:      "http://example.com/icon",
@@ -151,11 +151,11 @@ func (s *lightweightSuite) TestMapRemovedFmkNoPartButStoreMeta(c *check.C) {
 	c.Assert(os.MkdirAll(filepath.Dir(p), 0755), check.IsNil)
 	c.Assert(ioutil.WriteFile(p, content, 0644), check.IsNil)
 
-	bag := PartBagByName("fmk2", "fmk2origin")
+	bag := PartBagByName("fmk2", "fmk2developer")
 	m := bag.Map(nil)
 	c.Check(m, check.DeepEquals, map[string]interface{}{
 		"name":           "fmk2",
-		"origin":         "fmk2origin",
+		"developer":      "fmk2developer",
 		"status":         "removed",
 		"version":        "4.2.0ubuntu1",
 		"icon":           "http://example.com/icon",
@@ -174,7 +174,7 @@ func (s *lightweightSuite) TestMapAppNoPart(c *check.C) {
 	delete(m, "installed_size")
 	c.Check(m, check.DeepEquals, map[string]interface{}{
 		"name":          "foo",
-		"origin":        "bar",
+		"developer":     "bar",
 		"status":        "active",
 		"version":       "1.0",
 		"icon":          filepath.Join(s.d, "snaps", "foo.bar", "1.0", "meta/gui/icon.png"),
@@ -189,7 +189,7 @@ func (s *lightweightSuite) TestMapAppNoPart(c *check.C) {
 func (s *lightweightSuite) TestMapAppWithPart(c *check.C) {
 	snap := remote.Snap{
 		Name:         "foo",
-		Origin:       "bar",
+		Developer:    "bar",
 		Version:      "2",
 		Type:         snap.TypeApp,
 		IconURL:      "http://example.com/icon",
@@ -203,7 +203,7 @@ func (s *lightweightSuite) TestMapAppWithPart(c *check.C) {
 	delete(m, "installed_size")
 	c.Check(m, check.DeepEquals, map[string]interface{}{
 		"name":             "foo",
-		"origin":           "bar",
+		"developer":        "bar",
 		"status":           "active",
 		"version":          "1.0",
 		"icon":             filepath.Join(s.d, "snaps", "foo.bar", "1.0", "meta/gui/icon.png"),
@@ -219,7 +219,7 @@ func (s *lightweightSuite) TestMapAppWithPart(c *check.C) {
 func (s *lightweightSuite) TestMapAppNoPartBag(c *check.C) {
 	snap := remote.Snap{
 		Name:         "foo",
-		Origin:       "bar",
+		Developer:    "bar",
 		Version:      "2",
 		Type:         snap.TypeApp,
 		IconURL:      "http://example.com/icon",
@@ -231,7 +231,7 @@ func (s *lightweightSuite) TestMapAppNoPartBag(c *check.C) {
 	m := (*PartBag)(nil).Map(part)
 	c.Check(m, check.DeepEquals, map[string]interface{}{
 		"name":           "foo",
-		"origin":         "bar",
+		"developer":      "bar",
 		"status":         "not installed",
 		"version":        "2",
 		"icon":           snap.IconURL,
@@ -249,7 +249,7 @@ func (s *lightweightSuite) TestMapRemovedAppNoPart(c *check.C) {
 	m := bag.Map(nil)
 	c.Check(m, check.DeepEquals, map[string]interface{}{
 		"name":           "foo",
-		"origin":         "baz",
+		"developer":      "baz",
 		"status":         "removed",
 		"version":        "0.8",
 		"icon":           "",
@@ -268,7 +268,7 @@ func (s *lightweightSuite) TestMapInactiveGadgetNoPart(c *check.C) {
 	delete(m, "installed_size")
 	c.Check(m, check.DeepEquals, map[string]interface{}{
 		"name":          "a-gadget",
-		"origin":        "sideload", // best guess
+		"developer":     "sideload", // best guess
 		"status":        "installed",
 		"version":       "3",
 		"icon":          filepath.Join(s.d, "snaps", "a-gadget", "3", "meta/gui/icon.png"),

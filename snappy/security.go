@@ -60,7 +60,7 @@ var (
 	// AppArmor cache dir
 	aaCacheDir = "/var/cache/apparmor"
 
-	errOriginNotFound     = errors.New("could not detect origin")
+	errDeveloperNotFound  = errors.New("could not detect developer")
 	errPolicyTypeNotFound = errors.New("could not find specified policy type")
 	errInvalidAppID       = errors.New("invalid APP_ID")
 	errPolicyGen          = errors.New("errors found when generating policy")
@@ -334,9 +334,9 @@ func getSecurityProfile(m *snapYaml, appName, baseDir string) (string, error) {
 		return fmt.Sprintf("%s_%s_%s", m.Name, cleanedName, m.Version), nil
 	}
 
-	origin, err := originFromYamlPath(filepath.Join(baseDir, "meta", "snap.yaml"))
+	developer, err := developerFromYamlPath(filepath.Join(baseDir, "meta", "snap.yaml"))
 
-	return fmt.Sprintf("%s.%s_%s_%s", m.Name, origin, cleanedName, m.Version), err
+	return fmt.Sprintf("%s.%s_%s_%s", m.Name, developer, cleanedName, m.Version), err
 }
 
 type securityAppID struct {
@@ -665,15 +665,15 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinaryResult(m *snapYaml,
 	sd.warnDeprecatedKeys()
 
 	// add the hw-override parts and merge with the other overrides
-	origin := ""
+	developer := ""
 	if m.Type != snap.TypeFramework && m.Type != snap.TypeGadget {
-		origin, err = originFromYamlPath(filepath.Join(baseDir, "meta", "snap.yaml"))
+		developer, err = developerFromYamlPath(filepath.Join(baseDir, "meta", "snap.yaml"))
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	hwaccessOverrides, err := readHWAccessYamlFile(m.qualifiedName(origin))
+	hwaccessOverrides, err := readHWAccessYamlFile(m.qualifiedName(developer))
 	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
@@ -932,10 +932,10 @@ func GeneratePolicyFromFile(fn string, force bool) error {
 	}
 
 	if m.Type == "" || m.Type == snap.TypeApp {
-		_, err = originFromYamlPath(fn)
+		_, err = developerFromYamlPath(fn)
 		if err != nil {
 			if err == ErrInvalidPart {
-				err = errOriginNotFound
+				err = errDeveloperNotFound
 			}
 			return err
 		}

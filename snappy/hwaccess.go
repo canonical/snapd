@@ -155,17 +155,17 @@ func writeUdevRuleForDeviceCgroup(snapname, device string) error {
 		l := strings.Split(snapname, "_")
 		snapname = l[0]
 	}
-	// If there's a dedicated .origin then parse it and use that as the origin
-	// to look for in the loop below. In other cases, just ignore origin
+	// If there's a dedicated .developer then parse it and use that as the developer
+	// to look for in the loop below. In other cases, just ignore developer
 	// altogether.
 	//
-	// NOTE: snapname stays as "$snap.$origin" so that hw-unassign doesn't have
+	// NOTE: snapname stays as "$snap.$developer" so that hw-unassign doesn't have
 	// to be changed. This is all meant to be removed anyway.
 	name := snapname
-	origin := ""
+	developer := ""
 	if strings.Contains(snapname, ".") {
 		l := strings.Split(snapname, ".")
-		name, origin = l[0], l[1]
+		name, developer = l[0], l[1]
 	}
 	devicePath := filepath.Base(device)
 
@@ -176,7 +176,7 @@ func writeUdevRuleForDeviceCgroup(snapname, device string) error {
 	}
 	var acls []string
 	for _, snap := range installed {
-		if snap.Name() == name && (origin == "" || snap.Origin() == origin) {
+		if snap.Name() == name && (developer == "" || snap.Developer() == developer) {
 			for _, app := range snap.(*Snap).Apps() {
 				acl := fmt.Sprintf(`KERNEL=="%v", TAG:="snappy-assign", ENV{SNAPPY_APP}:="%s"`+"\n",
 					devicePath, fmt.Sprintf("%s.%s", snap.Name(), app.Name))

@@ -76,7 +76,7 @@ func (s *purgeSuite) mkpkg(c *C, args ...string) (dataDirs []string, part *Snap)
 	default:
 		panic("dunno what to do with args")
 	}
-	app := "hello-app." + testOrigin
+	app := "hello-app." + testDeveloper
 	yaml := "version: 1.0\nname: hello-app\nversion: " + version + "\n" + extra
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml)
 	c.Assert(err, IsNil)
@@ -93,7 +93,7 @@ func (s *purgeSuite) mkpkg(c *C, args ...string) (dataDirs []string, part *Snap)
 	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
 	c.Assert(err, IsNil)
 
-	part, err = NewInstalledSnap(yamlFile, testOrigin)
+	part, err = NewInstalledSnap(yamlFile, testDeveloper)
 	c.Assert(err, IsNil)
 
 	dataDirs = []string{dataDir, dataHomeDir}

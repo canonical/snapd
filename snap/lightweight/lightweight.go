@@ -19,7 +19,7 @@
 
 // Package lightweight provides a quick way of loading things that can become snaps.
 //
-// A lightweight.PartBag has a name and n versions; it might not even know its origin.
+// A lightweight.PartBag has a name and n versions; it might not even know its developer.
 package lightweight
 
 import (
@@ -69,19 +69,19 @@ func split(path string) (name string, ext string, file string) {
 	return name[:idxOrig], name[idxOrig+1:], file
 }
 
-// extract the name, origin and list of versions from a list of paths that
-// end {name}[.{origin}]/{version}. If the name or origin changes, stop and
+// extract the name, developer and list of versions from a list of paths that
+// end {name}[.{developer}]/{version}. If the name or developer changes, stop and
 // return the versions so far, and the remaining paths.
 //
 // Calls split() on each path in paths, so will panic if it does not have
 // the right number of path separators, as it's a programming error.
 func extract(paths []string) (string, string, []string, []string) {
-	name, origin, _ := split(paths[0])
+	name, developer, _ := split(paths[0])
 
 	var versions []string
 	for len(paths) > 0 {
 		n, o, v := split(paths[0])
-		if name != n || origin != o {
+		if name != n || developer != o {
 			break
 		}
 		paths = paths[1:]
@@ -93,7 +93,7 @@ func extract(paths []string) (string, string, []string, []string) {
 		versions = append(versions, v)
 	}
 
-	return name, origin, versions, paths
+	return name, developer, versions, paths
 }
 
 func versionSort(versions []string) {
@@ -101,12 +101,12 @@ func versionSort(versions []string) {
 }
 
 // PartBagByName finds a PartBag with the given name.
-func PartBagByName(name string, origin string) *PartBag {
-	if strings.ContainsAny(name, ".*?/") || strings.ContainsAny(origin, ".*?/") {
-		panic("invalid name " + name + "." + origin)
+func PartBagByName(name string, developer string) *PartBag {
+	if strings.ContainsAny(name, ".*?/") || strings.ContainsAny(developer, ".*?/") {
+		panic("invalid name " + name + "." + developer)
 	}
 
-	for _, v := range find(name, origin) {
+	for _, v := range find(name, developer) {
 		return v
 	}
 
@@ -122,7 +122,7 @@ type repo interface {
 	All() ([]snappy.Part, error)
 }
 
-func find(name string, origin string) map[string]*PartBag {
+func find(name string, developer string) map[string]*PartBag {
 	bags := make(map[string]*PartBag)
 
 	type T struct {
@@ -132,18 +132,18 @@ func find(name string, origin string) map[string]*PartBag {
 	}
 
 	for _, s := range []T{
-		{dirs.SnapSnapsDir, name + "." + origin, snap.TypeApp},
+		{dirs.SnapSnapsDir, name + "." + developer, snap.TypeApp},
 		{dirs.SnapSnapsDir, name, snap.TypeFramework},
 	} {
 		// all snaps share the data dir, hence this bit of mess
 		paths, _ := filepath.Glob(filepath.Join(dirs.SnapDataDir, s.qn, "*"))
 		for len(paths) > 0 {
 			var name string
-			var origin string
+			var developer string
 			var versions []string
 
-			name, origin, versions, paths = extract(paths)
-			if origin != "" && s.typ != snap.TypeApp {
+			name, developer, versions, paths = extract(paths)
+			if developer != "" && s.typ != snap.TypeApp {
 				// this happens when called with name="*"
 				continue
 			}
@@ -154,13 +154,13 @@ func find(name string, origin string) map[string]*PartBag {
 			inst := s.inst
 
 			// if gadgets were removable, there'd be no way of
-			// telling the kind of a removed origin-less package
+			// telling the kind of a removed developer-less package
 			//
 			// in case it's not clear, we're walking the *data*
 			// directory, where directories for packages of all
 			// types are present. Gadget packages and frameworks look
 			// the same in the data dir: they both have no
-			// origin. However, Gadget packages are uninstallable, and
+			// developer. However, Gadget packages are uninstallable, and
 			// you can't install a package with the same name as an
 			// active package, so if /gadget/{name} exists, we switch
 			// this package to be type Gadget.
@@ -180,10 +180,10 @@ func find(name string, origin string) map[string]*PartBag {
 			}
 
 			bag := &PartBag{
-				Name:     name,
-				Origin:   origin,
-				Type:     typ,
-				Versions: versions,
+				Name:      name,
+				Developer: developer,
+				Type:      typ,
+				Versions:  versions,
 			}
 
 			bag.concrete = NewConcrete(bag, inst)
@@ -198,11 +198,11 @@ func find(name string, origin string) map[string]*PartBag {
 // A PartBag is a lightweight object that represents and knows how to
 // load a Part on demand.
 type PartBag struct {
-	Name     string
-	Origin   string
-	Type     snap.Type
-	Versions []string
-	concrete Concreter
+	Name      string
+	Developer string
+	Type      snap.Type
+	Versions  []string
+	concrete  Concreter
 }
 
 // Concreter hides the part-specific details of PartBags
@@ -225,10 +225,10 @@ func newConcreteImpl(bag *PartBag, instdir string) Concreter {
 
 // QualifiedName of the PartBag.
 //
-// because PartBags read their origin from the filesystem, you don't need
+// because PartBags read their developer from the filesystem, you don't need
 // to check the pacakge type.
 func (bag *PartBag) QualifiedName() string {
-	if bag.Origin == "" {
+	if bag.Developer == "" {
 		return bag.Name
 	}
 	return bag.FullName()
@@ -236,7 +236,7 @@ func (bag *PartBag) QualifiedName() string {
 
 // FullName of the PartBag
 func (bag *PartBag) FullName() string {
-	return bag.Name + "." + bag.Origin
+	return bag.Name + "." + bag.Developer
 }
 
 var (
@@ -300,10 +300,10 @@ func (c *concreteSnap) ActiveIndex() int {
 func (c *concreteSnap) Load(version string) (snappy.Part, error) {
 	yamlPath := filepath.Join(c.instdir, c.self.QualifiedName(), version, "meta", "snap.yaml")
 	if !osutil.FileExists(yamlPath) {
-		return removed.New(c.self.Name, c.self.Origin, version, c.self.Type), nil
+		return removed.New(c.self.Name, c.self.Developer, version, c.self.Type), nil
 	}
 
-	part, err := snappy.NewInstalledSnap(yamlPath, c.self.Origin)
+	part, err := snappy.NewInstalledSnap(yamlPath, c.self.Developer)
 	if err != nil {
 		return nil, err
 	}
@@ -394,7 +394,7 @@ func (bag *PartBag) LoadBest() snappy.Part {
 // Also may panic if the remote part is nil and LoadBest can't load a
 // Part at all.
 func (bag *PartBag) Map(remotePart snappy.Part) map[string]interface{} {
-	var version, update, rollback, icon, name, origin, _type, description string
+	var version, update, rollback, icon, name, developer, _type, description string
 
 	if bag == nil && remotePart == nil {
 		panic("part bag & part both nil -- how did i even get here")
@@ -419,7 +419,7 @@ func (bag *PartBag) Map(remotePart snappy.Part) map[string]interface{} {
 
 	if part != nil {
 		name = part.Name()
-		origin = part.Origin()
+		developer = part.Developer()
 		version = part.Version()
 		_type = string(part.Type())
 
@@ -430,7 +430,7 @@ func (bag *PartBag) Map(remotePart snappy.Part) map[string]interface{} {
 		downloadSize = part.DownloadSize()
 	} else {
 		name = remotePart.Name()
-		origin = remotePart.Origin()
+		developer = remotePart.Developer()
 		version = remotePart.Version()
 		_type = string(remotePart.Type())
 	}
@@ -469,7 +469,7 @@ func (bag *PartBag) Map(remotePart snappy.Part) map[string]interface{} {
 	result := map[string]interface{}{
 		"icon":           icon,
 		"name":           name,
-		"origin":         origin,
+		"developer":      developer,
 		"status":         status,
 		"type":           _type,
 		"vendor":         "",

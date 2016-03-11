@@ -57,11 +57,11 @@ type SharedName struct {
 // SharedNames is a list of all packages and it's SharedName structure.
 type SharedNames map[string]*SharedName
 
-// IsAlias determines if origin is the one that is an alias for the
+// IsAlias determines if developer is the one that is an alias for the
 // shared name.
-func (f *SharedName) IsAlias(origin string) bool {
+func (f *SharedName) IsAlias(developer string) bool {
 	if alias := f.Alias; alias != nil {
-		return alias.Origin() == origin
+		return alias.Developer() == developer
 	}
 
 	return false
@@ -236,10 +236,10 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string) (*RemoteSnap, err
 }
 
 // Details returns details for the given snap in this repository
-func (s *SnapUbuntuStoreRepository) Details(name, origin, channel string) (parts []Part, err error) {
+func (s *SnapUbuntuStoreRepository) Details(name, developer, channel string) (parts []Part, err error) {
 	snapName := name
-	if origin != "" {
-		snapName = name + "." + origin
+	if developer != "" {
+		snapName = name + "." + developer
 	}
 	snap, err := s.Snap(snapName, channel)
 	if err != nil {
