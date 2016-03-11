@@ -65,11 +65,6 @@ func (aa *appArmor) headerForApp(snapName, snapVersion, snapOrigin, appName stri
 	profileAttach := aa.profileAttachForApp(snapName, snapVersion, snapOrigin, appName)
 	header = strings.Replace(header, "###VAR###\n", vars, 1)
 	header = strings.Replace(header, "###PROFILEATTACH###", profileAttach, 1)
-	// The rest of those are not used so let's just be explicit about it.
-	// They are unused because they are replaced with equivalent content coming
-	// from various snippets (perhaps not organized as neatly but having the
-	// same meaning).
-	header = strings.Replace(header, "###WRITES###", "", 1)
 	return []byte(header)
 }
 
