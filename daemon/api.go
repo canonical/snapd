@@ -197,17 +197,17 @@ func getSnapInfo(c *Command, r *http.Request) Response {
 	defer lock.Unlock()
 
 	repo := newRemoteRepo()
-	var part snappy.Part
+	var remoteSnap snappy.Part
 	if parts, _ := repo.Details(name, origin, ""); len(parts) > 0 {
-		part = parts[0]
+		remoteSnap = parts[0]
 	}
 
-	bag, err := snappy.NewLocalSnapRepository().Named(name, origin)
+	localSnaps, err := snappy.NewLocalSnapRepository().Named(name, origin)
 	if err != nil {
 		return InternalError("cannot load snaps: %v", err)
 	}
 
-	if len(bag) == 0 && part == nil {
+	if len(localSnaps) == 0 && remoteSnap == nil {
 		return NotFound("unable to find snap with name %q and origin %q", name, origin)
 	}
 
@@ -221,7 +221,7 @@ func getSnapInfo(c *Command, r *http.Request) Response {
 		return InternalError("route can't build URL for snap %s.%s: %v", name, origin, err)
 	}
 
-	result := webify(bag.Map(part), url.String())
+	result := webify(mapSnap(localSnaps, remoteSnap), url.String())
 
 	return SyncResponse(result)
 }
@@ -295,18 +295,16 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		includeTypes = strings.Split(query["types"][0], ",")
 	}
 
-	var bags map[string]snappy.SnapBag
-	var parts map[string]snappy.Part
+	var localSnapsMap map[string][]*snappy.Snap
+	var remoteSnapMap map[string]snappy.Part
 
 	if includeLocal {
 		sources = append(sources, "local")
-		bags, _ = snappy.NewLocalSnapRepository().AllBags()
+		localSnapsMap, _ = allSnaps()
 	}
 
 	if includeStore {
-		parts = make(map[string]snappy.Part)
-		repo := newRemoteRepo()
-		var found []snappy.Part
+		remoteSnapMap = make(map[string]snappy.Part)
 
 		// repo.Find("") finds all
 		//
@@ -314,22 +312,22 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		//   * if there are no results, return an error response.
 		//   * If there are results at all (perhaps local), include a
 		//     warning in the response
-		found, _ = repo.Find(searchTerm, "")
+		found, _ := newRemoteRepo().Find(searchTerm, "")
 
 		sources = append(sources, "store")
 
 		for _, part := range found {
-			parts[snappy.FullName(part)] = part
+			remoteSnapMap[snappy.FullName(part)] = part
 		}
 	}
 
-	for fullname, bag := range bags {
+	for fullname, localSnaps := range localSnapsMap {
 		// strings.Contains(fullname, "") is true
 		if !strings.Contains(fullname, searchTerm) {
 			continue
 		}
 
-		m := bag.Map(parts[fullname])
+		m := mapSnap(localSnaps, remoteSnapMap[fullname])
 		name, _ := m["name"].(string)
 		origin, _ := m["origin"].(string)
 
@@ -342,15 +340,16 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		results[fullname] = webify(m, resource)
 	}
 
-	for fullname, part := range parts {
+	for fullname, remoteSnap := range remoteSnapMap {
 		if _, ok := results[fullname]; ok {
+			// already done
 			continue
 		}
 
-		m := (snappy.SnapBag)(nil).Map(part)
+		m := mapSnap(nil, remoteSnap)
 
 		resource := "no resource URL for this resource"
-		url, err := route.URL("name", part.Name(), "origin", part.Origin())
+		url, err := route.URL("name", remoteSnap.Name(), "origin", remoteSnap.Origin())
 		if err == nil {
 			resource = url.String()
 		}
@@ -358,7 +357,7 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		results[fullname] = webify(m, resource)
 	}
 
-	// TODO: it should be possible to search on	the "content" field on the store
+	// TODO: it should be possible to search on the "content" field on the store
 	//       with multiple values, see:
 	//       https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex#Search
 	if len(includeTypes) > 0 {
@@ -444,13 +443,13 @@ func snapService(c *Command, r *http.Request) Response {
 		return BadRequest("unknown action %s", action)
 	}
 
-	bag, err := snappy.NewLocalSnapRepository().Named(name, origin)
-	_, part := bag.Best()
-	if err != nil || part == nil || !part.IsActive() {
+	snaps, err := snappy.NewLocalSnapRepository().Named(name, origin)
+	_, snap := bestSnap(snaps)
+	if err != nil || snap == nil || !snap.IsActive() {
 		return NotFound("unable to find snap with name %q and origin %q", name, origin)
 	}
 
-	apps := part.Apps()
+	apps := snap.Apps()
 
 	if len(apps) == 0 {
 		return NotFound("snap %q has no services", pkgName)
@@ -551,8 +550,8 @@ func snapConfig(c *Command, r *http.Request) Response {
 	}
 	defer lock.Unlock()
 
-	bag, err := snappy.NewLocalSnapRepository().Named(name, origin)
-	_, part := bag.Best()
+	snaps, err := snappy.NewLocalSnapRepository().Named(name, origin)
+	_, part := bestSnap(snaps)
 	if err != nil || part == nil {
 		return NotFound("no snap found with name %q and origin %q", name, origin)
 	}
@@ -890,13 +889,13 @@ func iconGet(name, origin string) Response {
 	}
 	defer lock.Unlock()
 
-	bag, err := snappy.NewLocalSnapRepository().Named(name, origin)
-	_, part := bag.Best()
-	if err != nil || part == nil {
+	snaps, err := snappy.NewLocalSnapRepository().Named(name, origin)
+	_, snap := bestSnap(snaps)
+	if err != nil || snap == nil {
 		return NotFound("unable to find snap with name %q and origin %q", name, origin)
 	}
 
-	path := filepath.Clean(part.Icon())
+	path := filepath.Clean(snap.Icon())
 	if !strings.HasPrefix(path, dirs.SnapSnapsDir) {
 		// XXX: how could this happen?
 		return BadRequest("requested icon is not in snap path")
