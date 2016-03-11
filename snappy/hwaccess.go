@@ -119,9 +119,9 @@ func regenerateAppArmorRulesImpl(snapname string) error {
 	return nil
 }
 
-func udevRulesPathForPart(partid string) string {
+func udevRulesPathForPart(snapName string) string {
 	// use 70- here so that its read before the Gadget rules
-	return filepath.Join(dirs.SnapUdevRulesDir, fmt.Sprintf("70-snappy_hwassign_%s.rules", partid))
+	return filepath.Join(dirs.SnapUdevRulesDir, fmt.Sprintf("70-snappy_hwassign_%s.rules", snapName))
 }
 
 func addUdevRulesForSnap(snapname string, newRules []string) error {
