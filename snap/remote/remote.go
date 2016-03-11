@@ -28,23 +28,24 @@ import (
 // Full json available via:
 // curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: rolling-core" https://search.apps.ubuntu.com/api/v1/package/ubuntu-core.canonical | python -m json.tool
 type Snap struct {
-	Alias           string             `json:"alias,omitempty"`
-	AnonDownloadURL string             `json:"anon_download_url,omitempty"`
-	Channel         string             `json:"channel,omitempty"`
-	DownloadSha512  string             `json:"download_sha512,omitempty"`
-	Description     string             `json:"description,omitempty"`
-	DownloadSize    int64              `json:"binary_filesize,omitempty"`
-	DownloadURL     string             `json:"download_url,omitempty"`
-	IconURL         string             `json:"icon_url"`
-	LastUpdated     string             `json:"last_updated,omitempty"`
-	Name            string             `json:"package_name"`
-	Developer       string             `json:"developer"`
-	Prices          map[string]float64 `json:"prices,omitempty"`
-	Publisher       string             `json:"publisher,omitempty"`
-	RatingsAverage  float64            `json:"ratings_average,omitempty"`
-	Revision        int64              `json:"revision"`
-	SupportURL      string             `json:"support_url"`
-	Title           string             `json:"title"`
-	Type            snap.Type          `json:"content,omitempty"`
-	Version         string             `json:"version"`
+	Alias           string `json:"alias,omitempty"`
+	AnonDownloadURL string `json:"anon_download_url,omitempty"`
+	Channel         string `json:"channel,omitempty"`
+	DownloadSha512  string `json:"download_sha512,omitempty"`
+	Description     string `json:"description,omitempty"`
+	DownloadSize    int64  `json:"binary_filesize,omitempty"`
+	DownloadURL     string `json:"download_url,omitempty"`
+	IconURL         string `json:"icon_url"`
+	LastUpdated     string `json:"last_updated,omitempty"`
+	Name            string `json:"package_name"`
+	// FIXME: the store should return "developer" to us
+	Developer      string             `json:"origin"`
+	Prices         map[string]float64 `json:"prices,omitempty"`
+	Publisher      string             `json:"publisher,omitempty"`
+	RatingsAverage float64            `json:"ratings_average,omitempty"`
+	Revision       int64              `json:"revision"`
+	SupportURL     string             `json:"support_url"`
+	Title          string             `json:"title"`
+	Type           snap.Type          `json:"content,omitempty"`
+	Version        string             `json:"version"`
 }
