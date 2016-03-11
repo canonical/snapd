@@ -23,15 +23,23 @@ import (
 	"fmt"
 )
 
+// LauncherNameForApp returns the launcher name for a given application.
+//
+// In general, the launcher has the form: "$snap.$app". When both snap name and
+// app name are the same then the tag is simplified to just "$snap".
+func LauncherNameForApp(snapName, appName string) string {
+	if appName == snapName {
+		return snapName
+	}
+	return fmt.Sprintf("%s.%s", snapName, appName)
+}
+
 // SecurityTagForApp returns the unified tag used for all security systems.
 //
 // In general, the tag has the form: "$snap.$app.snap". When both snap name and
 // app name are the same then the tag is simplified to just "$snap.snap".
 func SecurityTagForApp(snapName, appName string) string {
-	if appName == snapName {
-		return fmt.Sprintf("%s.snap", snapName)
-	}
-	return fmt.Sprintf("%s.%s.snap", snapName, appName)
+	return fmt.Sprintf("%s.snap", LauncherNameForApp(snapName, appName))
 }
 
 // securityHelper is an interface for common aspects of generating security files.
