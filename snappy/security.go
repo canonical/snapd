@@ -340,10 +340,10 @@ func getSecurityProfile(m *snapYaml, appName, baseDir string) (string, error) {
 }
 
 type securityAppID struct {
-	AppID   string
-	Pkgname string
-	Appname string
-	Version string
+	AppID    string
+	SnapName string
+	Appname  string
+	Version  string
 }
 
 func newAppID(appID string) (*securityAppID, error) {
@@ -352,10 +352,10 @@ func newAppID(appID string) (*securityAppID, error) {
 		return nil, errInvalidAppID
 	}
 	id := securityAppID{
-		AppID:   appID,
-		Pkgname: tmp[0],
-		Appname: tmp[1],
-		Version: tmp[2],
+		AppID:    appID,
+		SnapName: tmp[0],
+		Appname:  tmp[1],
+		Version:  tmp[2],
 	}
 	return &id, nil
 }
@@ -371,7 +371,7 @@ func (sa *securityAppID) appArmorVars() string {
 @{APP_VERSION}="%s"
 @{INSTALL_DIR}="{/snaps,/gadget}"
 # Deprecated:
-@{CLICK_DIR}="{/snaps,/gadget}"`, sa.Appname, dbusPath(sa.AppID), dbusPath(sa.Pkgname), sa.Pkgname, sa.Version)
+@{CLICK_DIR}="{/snaps,/gadget}"`, sa.Appname, dbusPath(sa.AppID), dbusPath(sa.SnapName), sa.SnapName, sa.Version)
 	return aavars
 }
 
@@ -820,7 +820,7 @@ func regeneratePolicyForSnap(snapname string) error {
 		}
 		if appID.Version != appliedVersion {
 			// FIXME: dirs.SnapSnapsDir is too simple, gadget
-			fn := filepath.Join(dirs.SnapSnapsDir, appID.Pkgname, appID.Version, "meta", "snap.yaml")
+			fn := filepath.Join(dirs.SnapSnapsDir, appID.SnapName, appID.Version, "meta", "snap.yaml")
 			if !osutil.FileExists(fn) {
 				continue
 			}
