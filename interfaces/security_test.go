@@ -78,6 +78,13 @@ func (s *SecuritySuite) prepareFixtureWithInterface(c *C, i Interface) {
 	c.Assert(err, IsNil)
 }
 
+// Tests for SecurityTagForApp()
+
+func (s *SecuritySuite) TestSecurityTagForApp(c *C) {
+	c.Assert(SecurityTagForApp("snap", "app"), Equals, "snap.app.snap")
+	c.Assert(SecurityTagForApp("foo", "foo"), Equals, "foo.snap")
+}
+
 // Tests for appArmor
 
 func (s *SecuritySuite) TestAppArmorPlugPermissions(c *C) {
