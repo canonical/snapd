@@ -142,7 +142,7 @@ func (s *lightweightSuite) TestMapRemovedFmkNoPartButStoreMeta(c *check.C) {
 		DownloadSize: 42,
 		Publisher:    "Example Inc.",
 	}
-	part := snappy.NewRemoteSnapPart(snap)
+	part := snappy.NewRemoteSnap(snap)
 
 	content, err := yaml.Marshal(snap)
 	c.Assert(err, check.IsNil)
@@ -195,7 +195,7 @@ func (s *lightweightSuite) TestMapAppWithPart(c *check.C) {
 		IconURL:      "http://example.com/icon",
 		DownloadSize: 42,
 	}
-	part := snappy.NewRemoteSnapPart(snap)
+	part := snappy.NewRemoteSnap(snap)
 
 	bag := PartBagByName("foo", "bar")
 	m := bag.Map(part)
@@ -226,7 +226,7 @@ func (s *lightweightSuite) TestMapAppNoPartBag(c *check.C) {
 		Publisher:    "example.com",
 		DownloadSize: 42,
 	}
-	part := snappy.NewRemoteSnapPart(snap)
+	part := snappy.NewRemoteSnap(snap)
 
 	m := (*PartBag)(nil).Map(part)
 	c.Check(m, check.DeepEquals, map[string]interface{}{
@@ -310,21 +310,21 @@ func (s *lightweightSuite) TestLoadFmk(c *check.C) {
 	p, err := bag.Load(0)
 	c.Check(err, check.IsNil)
 	// load loaded the right implementation of Part
-	c.Check(p, check.FitsTypeOf, new(snappy.SnapPart))
+	c.Check(p, check.FitsTypeOf, new(snappy.Snap))
 	c.Check(p.IsActive(), check.Equals, false)
 	c.Check(p.Version(), check.Equals, "123")
 
 	c.Check(bag.IsInstalled(1), check.Equals, true)
 	p, err = bag.Load(1)
 	c.Check(err, check.IsNil)
-	c.Check(p, check.FitsTypeOf, new(snappy.SnapPart))
+	c.Check(p, check.FitsTypeOf, new(snappy.Snap))
 	c.Check(p.IsActive(), check.Equals, true)
 	c.Check(p.Version(), check.Equals, "120")
 
 	c.Check(bag.IsInstalled(2), check.Equals, true)
 	p, err = bag.Load(2)
 	c.Check(err, check.IsNil)
-	c.Check(p, check.FitsTypeOf, new(snappy.SnapPart))
+	c.Check(p, check.FitsTypeOf, new(snappy.Snap))
 	c.Check(p.IsActive(), check.Equals, false)
 	c.Check(p.Version(), check.Equals, "119")
 
@@ -356,7 +356,7 @@ func (s *lightweightSuite) TestLoadApp(c *check.C) {
 	c.Check(bag0.IsInstalled(0), check.Equals, true)
 	p, err := bag0.Load(0)
 	c.Check(err, check.IsNil)
-	c.Check(p, check.FitsTypeOf, new(snappy.SnapPart))
+	c.Check(p, check.FitsTypeOf, new(snappy.Snap))
 	c.Check(p.IsActive(), check.Equals, true)
 	c.Check(p.Version(), check.Equals, "1.0")
 
@@ -385,7 +385,7 @@ func (s *lightweightSuite) TestLoadGadget(c *check.C) {
 	c.Check(gadget.ActiveIndex(), check.Equals, -1)
 	p, err := gadget.Load(0)
 	c.Check(err, check.IsNil)
-	c.Check(p, check.FitsTypeOf, new(snappy.SnapPart))
+	c.Check(p, check.FitsTypeOf, new(snappy.Snap))
 	c.Check(p.Version(), check.Equals, "3")
 }
 

@@ -52,7 +52,7 @@ func wrapConfig(pkgName string, conf interface{}) ([]byte, error) {
 var newPartMap = newPartMapImpl
 
 type configurator interface {
-	Configure(*SnapPart, []byte) ([]byte, error)
+	Configure(*Snap, []byte) ([]byte, error)
 }
 
 var newOverlord = func() configurator {
@@ -94,7 +94,7 @@ func gadgetConfig() error {
 		if !ok {
 			return errNoSnapToActivate
 		}
-		snap, ok := part.(*SnapPart)
+		snap, ok := part.(*Snap)
 		if !ok {
 			return errNoSnapToActivate
 		}
@@ -117,7 +117,7 @@ func gadgetConfig() error {
 		}
 
 		overlord := newOverlord()
-		if _, err := overlord.Configure(snap.(*SnapPart), configData); err != nil {
+		if _, err := overlord.Configure(snap.(*Snap), configData); err != nil {
 			return err
 		}
 	}
@@ -126,7 +126,7 @@ func gadgetConfig() error {
 }
 
 type activator interface {
-	SetActive(sp *SnapPart, active bool, meter progress.Meter) error
+	SetActive(sp *Snap, active bool, meter progress.Meter) error
 }
 
 var getActivator = func() activator {
@@ -148,7 +148,7 @@ func enableSystemSnaps() error {
 		switch part.Type() {
 		case snap.TypeGadget, snap.TypeKernel, snap.TypeOS:
 			logger.Noticef("Acitvating %s", FullName(part))
-			if err := activator.SetActive(part.(*SnapPart), true, pb); err != nil {
+			if err := activator.SetActive(part.(*Snap), true, pb); err != nil {
 				// we don't want this to fail for now
 				logger.Noticef("failed to activate %s: %s", FullName(part), err)
 			}

@@ -115,7 +115,7 @@ func makeSnapActive(snapYamlPath string) (err error) {
 }
 
 func (s *SnapTestSuite) TestLocalSnapInvalidPath(c *C) {
-	_, err := NewInstalledSnapPart("invalid-path", "")
+	_, err := NewInstalledSnap("invalid-path", "")
 	c.Assert(err, NotNil)
 }
 
@@ -123,7 +123,7 @@ func (s *SnapTestSuite) TestLocalSnapSimple(c *C) {
 	snapYaml, err := s.makeInstalledMockSnap()
 	c.Assert(err, IsNil)
 
-	snap, err := NewInstalledSnapPart(snapYaml, testOrigin)
+	snap, err := NewInstalledSnap(snapYaml, testOrigin)
 	c.Assert(err, IsNil)
 	c.Assert(snap, NotNil)
 	c.Check(snap.Name(), Equals, "hello-app")
@@ -150,7 +150,7 @@ func (s *SnapTestSuite) TestLocalSnapActive(c *C) {
 	c.Assert(err, IsNil)
 	makeSnapActive(snapYaml)
 
-	snap, err := NewInstalledSnapPart(snapYaml, testOrigin)
+	snap, err := NewInstalledSnap(snapYaml, testOrigin)
 	c.Assert(err, IsNil)
 	c.Assert(snap.IsActive(), Equals, true)
 }
@@ -164,7 +164,7 @@ frameworks:
 `)
 	c.Assert(err, IsNil)
 
-	snap, err := NewInstalledSnapPart(snapYaml, testOrigin)
+	snap, err := NewInstalledSnap(snapYaml, testOrigin)
 	c.Assert(err, IsNil)
 	fmk, err := snap.Frameworks()
 	c.Assert(err, IsNil)
@@ -667,7 +667,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
 func (s *SnapTestSuite) TestMakeConfigEnv(c *C) {
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, "")
 	c.Assert(err, IsNil)
-	snap, err := NewInstalledSnapPart(yamlFile, "sergiusens")
+	snap, err := NewInstalledSnap(yamlFile, "sergiusens")
 	c.Assert(err, IsNil)
 	c.Assert(snap, NotNil)
 
@@ -702,7 +702,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	r := &RemoteSnapPart{}
+	r := &RemoteSnap{}
 	r.pkg.AnonDownloadURL = mockServer.URL + "/snap"
 	r.pkg.IconURL = mockServer.URL + "/icon"
 	r.pkg.Name = "foo"
@@ -756,7 +756,7 @@ apps:
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	r := &RemoteSnapPart{}
+	r := &RemoteSnap{}
 	r.pkg.AnonDownloadURL = mockServer.URL + "/snap"
 	r.pkg.Origin = testOrigin
 	r.pkg.IconURL = mockServer.URL + "/icon"
@@ -818,7 +818,7 @@ apps:
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, packageHello)
 	c.Assert(err, IsNil)
 
-	snap, err := NewInstalledSnapPart(yamlFile, testOrigin)
+	snap, err := NewInstalledSnap(yamlFile, testOrigin)
 	c.Assert(err, IsNil)
 	c.Assert(snap, NotNil)
 
@@ -967,7 +967,7 @@ type: gadget
 	c.Assert(err, IsNil)
 	parts := FindSnapsByName("hello-app", installed)
 	c.Assert(parts, HasLen, 1)
-	c.Check(s.overlord.Uninstall(parts[0].(*SnapPart), p), Equals, ErrPackageNotRemovable)
+	c.Check(s.overlord.Uninstall(parts[0].(*Snap), p), Equals, ErrPackageNotRemovable)
 }
 
 var securityBinarySnapYaml = []byte(`name: test-snap
@@ -1151,7 +1151,7 @@ frameworks:
 version: 1.0
 type: framework`), false)
 	c.Assert(err, IsNil)
-	part := &SnapPart{m: yaml}
+	part := &Snap{m: yaml}
 	deps, err := part.Dependents()
 	c.Assert(err, IsNil)
 	c.Check(deps, HasLen, 1)
@@ -1200,8 +1200,8 @@ apps:
 
 	pb := &MockProgressMeter{}
 	m, err := parseSnapYamlData([]byte(yaml), false)
-	part := &SnapPart{m: m, origin: testOrigin, basedir: d1}
-	c.Assert(part.RefreshDependentsSecurity(&SnapPart{basedir: d2}, pb), IsNil)
+	part := &Snap{m: m, origin: testOrigin, basedir: d1}
+	c.Assert(part.RefreshDependentsSecurity(&Snap{basedir: d2}, pb), IsNil)
 	// TODO: verify it was updated
 }
 
@@ -1219,7 +1219,7 @@ frameworks:
 `)
 	c.Assert(err, IsNil)
 
-	part := &SnapPart{m: yaml, origin: testOrigin}
+	part := &Snap{m: yaml, origin: testOrigin}
 	err = s.overlord.Uninstall(part, new(MockProgressMeter))
 	c.Check(err, ErrorMatches, `framework still in use by: foo`)
 }
@@ -1266,7 +1266,7 @@ func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateService(c *C) {
 		Name:     "svc",
 		PlugsRef: []string{"svc"},
 	}
-	part := &SnapPart{
+	part := &Snap{
 		m: &snapYaml{
 			Name:    "part",
 			Apps:    map[string]*AppYaml{"svc": svc},
@@ -1290,7 +1290,7 @@ func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateBinary(c *C) {
 		Name:     "echo",
 		PlugsRef: []string{"echo"},
 	}
-	part := &SnapPart{
+	part := &Snap{
 		m: &snapYaml{
 			Name:    "part",
 			Apps:    map[string]*AppYaml{"echo": bin},
@@ -1317,7 +1317,7 @@ func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateNothing(c *C) {
 		Name:     "echo",
 		PlugsRef: []string{"echo"},
 	}
-	part := &SnapPart{
+	part := &Snap{
 		m: &snapYaml{
 			Apps: map[string]*AppYaml{
 				"svc":  svc,
@@ -1553,13 +1553,13 @@ func (s *SnapTestSuite) TestChannelFromLocalManifest(c *C) {
 	snapYaml, err := s.makeInstalledMockSnap()
 	c.Assert(err, IsNil)
 
-	snap, err := NewInstalledSnapPart(snapYaml, testOrigin)
+	snap, err := NewInstalledSnap(snapYaml, testOrigin)
 	c.Assert(snap.Channel(), Equals, "remote-channel")
 }
 
 func (s *SnapTestSuite) TestIcon(c *C) {
 	snapYaml, err := s.makeInstalledMockSnap()
-	part, err := NewInstalledSnapPart(snapYaml, testOrigin)
+	part, err := NewInstalledSnap(snapYaml, testOrigin)
 	c.Assert(err, IsNil)
 	err = os.MkdirAll(filepath.Join(part.basedir, "meta", "gui"), 0755)
 	c.Assert(err, IsNil)
@@ -1573,7 +1573,7 @@ func (s *SnapTestSuite) TestIconEmpty(c *C) {
 	snapYaml, err := s.makeInstalledMockSnap(`name: foo
 version: 1.0
 `)
-	part, err := NewInstalledSnapPart(snapYaml, testOrigin)
+	part, err := NewInstalledSnap(snapYaml, testOrigin)
 	c.Assert(err, IsNil)
 	// no icon in the yaml!
 	c.Check(part.Icon(), Equals, "")

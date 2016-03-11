@@ -74,7 +74,7 @@ func (s *SnapLocalRepository) partsForGlobExpr(globExpr string) (parts []Part, e
 		}
 
 		origin, _ := originFromYamlPath(realpath)
-		snap, err := NewInstalledSnapPart(realpath, origin)
+		snap, err := NewInstalledSnap(realpath, origin)
 		if err != nil {
 			return nil, err
 		}

@@ -63,7 +63,7 @@ func (s *purgeSuite) TestPurgeNonExistingRaisesError(c *C) {
 	c.Check(inter.notified, HasLen, 0)
 }
 
-func (s *purgeSuite) mkpkg(c *C, args ...string) (dataDirs []string, part *SnapPart) {
+func (s *purgeSuite) mkpkg(c *C, args ...string) (dataDirs []string, part *Snap) {
 	version := "1.10"
 	extra := ""
 	switch len(args) {
@@ -93,7 +93,7 @@ func (s *purgeSuite) mkpkg(c *C, args ...string) (dataDirs []string, part *SnapP
 	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
 	c.Assert(err, IsNil)
 
-	part, err = NewInstalledSnapPart(yamlFile, testOrigin)
+	part, err = NewInstalledSnap(yamlFile, testOrigin)
 	c.Assert(err, IsNil)
 
 	dataDirs = []string{dataDir, dataHomeDir}
