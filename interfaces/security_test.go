@@ -141,7 +141,7 @@ func (s *SecuritySuite) TestSecCompPlugPermissions(c *C) {
 		InterfaceName: "interface",
 		PlugSnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 			if securitySystem == SecuritySecComp {
-				return []byte("allow open\n"), nil
+				return []byte("open\n"), nil
 			}
 			return nil, nil
 		},
@@ -151,7 +151,7 @@ func (s *SecuritySuite) TestSecCompPlugPermissions(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(blobs["/var/lib/snappy/seccomp/profiles/producer.origin_hook_version"], DeepEquals, []byte(""+
 		"# Mocked seccomp header\n"+
-		"allow open\n"))
+		"open\n"))
 }
 
 func (s *SecuritySuite) TestSecCompSlotPermissions(c *C) {
