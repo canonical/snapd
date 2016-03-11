@@ -69,7 +69,6 @@ func (aa *appArmor) headerForApp(snapName, snapVersion, snapOrigin, appName stri
 	// They are unused because they are replaced with equivalent content coming
 	// from various snippets (perhaps not organized as neatly but having the
 	// same meaning).
-	header = strings.Replace(header, "###READS###", "", 1)
 	header = strings.Replace(header, "###WRITES###", "", 1)
 	return []byte(header)
 }
