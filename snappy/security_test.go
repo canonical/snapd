@@ -217,7 +217,7 @@ func (a *SecurityTestSuite) TestSecurityFindCapsMultipleErrorHandling(c *C) {
 
 func (a *SecurityTestSuite) TestSecurityGetAppArmorVars(c *C) {
 	appID := &securityAppID{
-		Appname:  "foo",
+		AppName:  "foo",
 		Version:  "1.0",
 		AppID:    "id",
 		SnapName: "pkgname",
@@ -500,7 +500,7 @@ func (a *SecurityTestSuite) TestSecurityGetAppID(c *C) {
 	c.Assert(id, DeepEquals, &securityAppID{
 		AppID:    "pkg_app_1.0",
 		SnapName: "pkg",
-		Appname:  "app",
+		AppName:  "app",
 		Version:  "1.0",
 	})
 }

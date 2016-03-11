@@ -342,7 +342,7 @@ func getSecurityProfile(m *snapYaml, appName, baseDir string) (string, error) {
 type securityAppID struct {
 	AppID    string
 	SnapName string
-	Appname  string
+	AppName  string
 	Version  string
 }
 
@@ -354,7 +354,7 @@ func newAppID(appID string) (*securityAppID, error) {
 	id := securityAppID{
 		AppID:    appID,
 		SnapName: tmp[0],
-		Appname:  tmp[1],
+		AppName:  tmp[1],
 		Version:  tmp[2],
 	}
 	return &id, nil
@@ -371,7 +371,7 @@ func (sa *securityAppID) appArmorVars() string {
 @{APP_VERSION}="%s"
 @{INSTALL_DIR}="{/snaps,/gadget}"
 # Deprecated:
-@{CLICK_DIR}="{/snaps,/gadget}"`, sa.Appname, dbusPath(sa.AppID), dbusPath(sa.SnapName), sa.SnapName, sa.Version)
+@{CLICK_DIR}="{/snaps,/gadget}"`, sa.AppName, dbusPath(sa.AppID), dbusPath(sa.SnapName), sa.SnapName, sa.Version)
 	return aavars
 }
 
