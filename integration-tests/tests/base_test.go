@@ -51,7 +51,7 @@ func init() {
 	cli.ExecCommand(c, "sudo", "systemctl", "disable", "snappy-autopilot.timer")
 
 	cfg, err := config.ReadConfig(config.DefaultFileName)
-	if err == nil  {
+	if err == nil {
 		if cfg.FromBranch {
 			setUpSnapdFromBranch(c)
 		}
