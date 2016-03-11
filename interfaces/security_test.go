@@ -101,8 +101,6 @@ func (s *SecuritySuite) TestAppArmorPlugPermissions(c *C) {
 @{APP_PKGNAME}="producer.origin"
 @{APP_VERSION}="version"
 @{INSTALL_DIR}="{/snaps,/gadget}"
-# Deprecated:
-@{CLICK_DIR}="{/snaps,/gadget}"
 profile "producer.origin_hook_version" {
 producer snippet
 }
@@ -130,8 +128,6 @@ func (s *SecuritySuite) TestAppArmorSlotPermissions(c *C) {
 @{APP_PKGNAME}="consumer.origin"
 @{APP_VERSION}="version"
 @{INSTALL_DIR}="{/snaps,/gadget}"
-# Deprecated:
-@{CLICK_DIR}="{/snaps,/gadget}"
 profile "consumer.origin_app_version" {
 consumer snippet
 }
