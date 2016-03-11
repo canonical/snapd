@@ -109,8 +109,8 @@ func (s *apiSuite) TearDownTest(c *check.C) {
 	findServices = snappy.FindServices
 }
 
-func (s *apiSuite) mkInstalled(c *check.C, name, origin, version string, active bool, extraYaml string) {
-	fullname := name + "." + origin
+func (s *apiSuite) mkInstalled(c *check.C, name, developer, version string, active bool, extraYaml string) {
+	fullname := name + "." + developer
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapDataDir, fullname, version), 0755), check.IsNil)
 
 	metadir := filepath.Join(dirs.SnapSnapsDir, fullname, version, "meta")
@@ -151,14 +151,14 @@ gadget: {store: {id: %q}}
 func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	newTestDaemon()
 
-	s.vars = map[string]string{"name": "foo", "origin": "bar"}
+	s.vars = map[string]string{"name": "foo", "developer": "bar"}
 
 	// the store tells us about v2
 	s.parts = []snappy.Part{&tP{
 		name:         "foo",
 		version:      "v2",
 		description:  "description",
-		origin:       "bar",
+		developer:    "bar",
 		isInstalled:  true,
 		isActive:     true,
 		icon:         "meta/gui/icon.svg",
@@ -189,7 +189,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 			"name":               "foo",
 			"version":            "v1",
 			"description":        "description",
-			"origin":             "bar",
+			"developer":          "bar",
 			"status":             "active",
 			"icon":               "/2.0/icons/foo.bar/icon",
 			"type":               string(snap.TypeApp),
@@ -206,20 +206,20 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapInfoNotFound(c *check.C) {
-	s.vars = map[string]string{"name": "foo", "origin": "bar"}
+	s.vars = map[string]string{"name": "foo", "developer": "bar"}
 	s.err = snappy.ErrPackageNotFound
 
 	c.Check(getSnapInfo(snapCmd, nil).Self(nil, nil).(*resp).Status, check.Equals, http.StatusNotFound)
 }
 
 func (s *apiSuite) TestSnapInfoNoneFound(c *check.C) {
-	s.vars = map[string]string{"name": "foo", "origin": "bar"}
+	s.vars = map[string]string{"name": "foo", "developer": "bar"}
 
 	c.Check(getSnapInfo(snapCmd, nil).Self(nil, nil).(*resp).Status, check.Equals, http.StatusNotFound)
 }
 
 func (s *apiSuite) TestSnapInfoIgnoresRemoteErrors(c *check.C) {
-	s.vars = map[string]string{"name": "foo", "origin": "bar"}
+	s.vars = map[string]string{"name": "foo", "developer": "bar"}
 	s.err = errors.New("weird")
 
 	rsp := getSnapInfo(snapCmd, nil).Self(nil, nil).(*resp)
@@ -236,7 +236,7 @@ func (s *apiSuite) TestSnapInfoWeirdRoute(c *check.C) {
 
 	// use the wrong command to force the issue
 	wrongCmd := &Command{Path: "/{what}", d: d}
-	s.vars = map[string]string{"name": "foo", "origin": "bar"}
+	s.vars = map[string]string{"name": "foo", "developer": "bar"}
 	s.parts = []snappy.Part{&tP{name: "foo"}}
 	c.Check(getSnapInfo(wrongCmd, nil).Self(nil, nil).(*resp).Status, check.Equals, http.StatusInternalServerError)
 }
@@ -250,7 +250,7 @@ func (s *apiSuite) TestSnapInfoBadRoute(c *check.C) {
 	route := d.router.Get(snapCmd.Path)
 	c.Assert(route.Name("foo").GetError(), check.NotNil)
 
-	s.vars = map[string]string{"name": "foo", "origin": "bar"}
+	s.vars = map[string]string{"name": "foo", "developer": "bar"}
 	s.parts = []snappy.Part{&tP{name: "foo"}}
 
 	rsp := getSnapInfo(snapCmd, nil).Self(nil, nil).(*resp)
@@ -419,17 +419,17 @@ func (s *apiSuite) TestSnapsInfoOnePerIntegration(c *check.C) {
 	for i := range ddirs {
 		qn, version := ddirs[i][0], ddirs[i][1]
 		idx := strings.LastIndex(qn, ".")
-		name, origin := qn[:idx], qn[idx+1:]
+		name, developer := qn[:idx], qn[idx+1:]
 		got := snaps[qn]
 		c.Assert(got, check.NotNil, check.Commentf(qn))
 		c.Check(got["name"], check.Equals, name)
 		c.Check(got["version"], check.Equals, version)
-		c.Check(got["origin"], check.Equals, origin)
+		c.Check(got["developer"], check.Equals, developer)
 	}
 }
 
 func (s *apiSuite) TestSnapsInfoOnlyLocal(c *check.C) {
-	s.parts = []snappy.Part{&tP{name: "store", origin: "foo"}}
+	s.parts = []snappy.Part{&tP{name: "store", developer: "foo"}}
 	s.mkInstalled(c, "local", "foo", "v1", true, "")
 
 	req, err := http.NewRequest("GET", "/2.0/snaps?sources=local", nil)
@@ -446,7 +446,7 @@ func (s *apiSuite) TestSnapsInfoOnlyLocal(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
-	s.parts = []snappy.Part{&tP{name: "store", origin: "foo"}}
+	s.parts = []snappy.Part{&tP{name: "store", developer: "foo"}}
 	s.mkInstalled(c, "local", "foo", "v1", true, "")
 
 	req, err := http.NewRequest("GET", "/2.0/snaps?sources=store", nil)
@@ -463,7 +463,7 @@ func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapsInfoLocalAndStore(c *check.C) {
-	s.parts = []snappy.Part{&tP{name: "remote", origin: "foo"}}
+	s.parts = []snappy.Part{&tP{name: "remote", developer: "foo"}}
 	s.mkInstalled(c, "local", "foo", "v1", true, "")
 
 	req, err := http.NewRequest("GET", "/2.0/snaps?sources=local,store", nil)
@@ -479,7 +479,7 @@ func (s *apiSuite) TestSnapsInfoLocalAndStore(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapsInfoDefaultSources(c *check.C) {
-	s.parts = []snappy.Part{&tP{name: "remote", origin: "foo"}}
+	s.parts = []snappy.Part{&tP{name: "remote", developer: "foo"}}
 	s.mkInstalled(c, "local", "foo", "v1", true, "")
 
 	req, err := http.NewRequest("GET", "/2.0/snaps", nil)
@@ -492,7 +492,7 @@ func (s *apiSuite) TestSnapsInfoDefaultSources(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapsInfoUnknownSource(c *check.C) {
-	s.parts = []snappy.Part{&tP{name: "remote", origin: "foo"}}
+	s.parts = []snappy.Part{&tP{name: "remote", developer: "foo"}}
 	s.mkInstalled(c, "local", "foo", "v1", true, "")
 
 	req, err := http.NewRequest("GET", "/2.0/snaps?sources=unknown", nil)
@@ -774,7 +774,7 @@ type cfgc struct {
 func (cfgc) IsInstalled(string) bool { return true }
 func (c cfgc) ActiveIndex() int      { return c.idx }
 func (c cfgc) Load(string) (snappy.Part, error) {
-	return &tP{name: "foo", version: "v1", origin: "bar", isActive: true, config: c.cfg, configErr: c.err}, nil
+	return &tP{name: "foo", version: "v1", developer: "bar", isActive: true, config: c.cfg, configErr: c.err}, nil
 }
 
 type fakeOverlord struct {
@@ -802,7 +802,7 @@ func (s *apiSuite) TestSnapGetConfig(c *check.C) {
 
 	configStr := "some: config"
 	s.overlord.configs["foo"] = configStr
-	s.vars = map[string]string{"name": "foo", "origin": "bar"}
+	s.vars = map[string]string{"name": "foo", "developer": "bar"}
 	s.mkInstalled(c, "foo", "bar", "v1", true, "")
 
 	rsp := snapConfig(snapsCmd, req).(*resp)
@@ -815,7 +815,7 @@ func (s *apiSuite) TestSnapGetConfig(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapGetConfigMissing(c *check.C) {
-	s.vars = map[string]string{"name": "foo", "origin": "bar"}
+	s.vars = map[string]string{"name": "foo", "developer": "bar"}
 
 	req, err := http.NewRequest("GET", "/2.0/snaps/foo.bar/config", bytes.NewBuffer(nil))
 	c.Assert(err, check.IsNil)
@@ -826,7 +826,7 @@ func (s *apiSuite) TestSnapGetConfigMissing(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapGetConfigInactive(c *check.C) {
-	s.vars = map[string]string{"name": "foo", "origin": "bar"}
+	s.vars = map[string]string{"name": "foo", "developer": "bar"}
 
 	s.mkInstalled(c, "foo", "bar", "v1", false, "")
 
@@ -839,7 +839,7 @@ func (s *apiSuite) TestSnapGetConfigInactive(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapGetConfigNoConfig(c *check.C) {
-	s.vars = map[string]string{"name": "foo", "origin": "bar"}
+	s.vars = map[string]string{"name": "foo", "developer": "bar"}
 	getConfigurator = func() configurator {
 		return s.overlord
 	}
@@ -863,7 +863,7 @@ func (s *apiSuite) TestSnapPutConfig(c *check.C) {
 		return s.overlord
 	}
 
-	s.vars = map[string]string{"name": "foo", "origin": "bar"}
+	s.vars = map[string]string{"name": "foo", "developer": "bar"}
 	s.mkInstalled(c, "foo", "bar", "v1", true, "")
 
 	rsp := snapConfig(snapConfigCmd, req).Self(nil, nil).(*resp)
@@ -876,7 +876,7 @@ func (s *apiSuite) TestSnapPutConfig(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapPutConfigMissing(c *check.C) {
-	s.vars = map[string]string{"name": "foo", "origin": "bar"}
+	s.vars = map[string]string{"name": "foo", "developer": "bar"}
 
 	req, err := http.NewRequest("PUT", "/2.0/snaps/foo.bar/config", bytes.NewBuffer(nil))
 	c.Assert(err, check.IsNil)
@@ -887,7 +887,7 @@ func (s *apiSuite) TestSnapPutConfigMissing(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapPutConfigInactive(c *check.C) {
-	s.vars = map[string]string{"name": "foo", "origin": "bar"}
+	s.vars = map[string]string{"name": "foo", "developer": "bar"}
 
 	s.mkInstalled(c, "foo", "bar", "v1", false, "")
 
@@ -900,7 +900,7 @@ func (s *apiSuite) TestSnapPutConfigInactive(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapPutConfigNoConfig(c *check.C) {
-	s.vars = map[string]string{"name": "foo", "origin": "bar"}
+	s.vars = map[string]string{"name": "foo", "developer": "bar"}
 
 	s.mkInstalled(c, "foo", "bar", "v1", true, "")
 
@@ -924,7 +924,7 @@ func (s *apiSuite) TestSnapServiceGet(c *check.C) {
  svc:
   daemon: forking
 `)
-	s.vars = map[string]string{"name": "foo", "origin": "bar"} // NB: no service specified
+	s.vars = map[string]string{"name": "foo", "developer": "bar"} // NB: no service specified
 
 	rsp := snapService(snapSvcsCmd, req).(*resp)
 	c.Assert(rsp, check.NotNil)
@@ -952,7 +952,7 @@ func (s *apiSuite) TestSnapServicePut(c *check.C) {
   command: svc
   daemon: forking
 `)
-	s.vars = map[string]string{"name": "foo", "origin": "bar"} // NB: no service specified
+	s.vars = map[string]string{"name": "foo", "developer": "bar"} // NB: no service specified
 
 	rsp := snapService(snapSvcsCmd, req).(*resp)
 	c.Assert(rsp, check.NotNil)
@@ -982,8 +982,8 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, unsignedExpected bo
 
 	// setup done
 
-	newSnap = func(fn string, origin string, unauthOk bool) (snappy.Part, error) {
-		c.Check(origin, check.Equals, snappy.SideloadedOrigin)
+	newSnap = func(fn string, developer string, unauthOk bool) (snappy.Part, error) {
+		c.Check(developer, check.Equals, snappy.SideloadedDeveloper)
 		c.Check(unauthOk, check.Equals, unsignedExpected)
 
 		bs, err := ioutil.ReadFile(fn)
@@ -1038,7 +1038,7 @@ func (s *apiSuite) TestAppIconGet(c *check.C) {
 	c.Assert(os.MkdirAll(filepath.Dir(iconfile), 0755), check.IsNil)
 	c.Check(ioutil.WriteFile(iconfile, []byte("ick"), 0644), check.IsNil)
 
-	s.vars = map[string]string{"name": "foo", "origin": "bar"}
+	s.vars = map[string]string{"name": "foo", "developer": "bar"}
 	req, err := http.NewRequest("GET", "/2.0/icons/foo.bar/icon", nil)
 	c.Assert(err, check.IsNil)
 
@@ -1059,7 +1059,7 @@ func (s *apiSuite) TestAppIconGetInactive(c *check.C) {
 	c.Assert(os.MkdirAll(filepath.Dir(iconfile), 0755), check.IsNil)
 	c.Check(ioutil.WriteFile(iconfile, []byte("ick"), 0644), check.IsNil)
 
-	s.vars = map[string]string{"name": "foo", "origin": "bar"}
+	s.vars = map[string]string{"name": "foo", "developer": "bar"}
 	req, err := http.NewRequest("GET", "/2.0/icons/foo.bar/icon", nil)
 	c.Assert(err, check.IsNil)
 
@@ -1078,7 +1078,7 @@ func (s *apiSuite) TestAppIconGetNoIcon(c *check.C) {
 	err := os.RemoveAll(filepath.Join(dirs.SnapSnapsDir, "foo.bar", "v1", "meta", "gui", "icon.svg"))
 	c.Assert(err, check.IsNil)
 
-	s.vars = map[string]string{"name": "foo", "origin": "bar"}
+	s.vars = map[string]string{"name": "foo", "developer": "bar"}
 	req, err := http.NewRequest("GET", "/2.0/icons/foo.bar/icon", nil)
 	c.Assert(err, check.IsNil)
 
@@ -1089,7 +1089,7 @@ func (s *apiSuite) TestAppIconGetNoIcon(c *check.C) {
 }
 
 func (s *apiSuite) TestAppIconGetNoApp(c *check.C) {
-	s.vars = map[string]string{"name": "foo", "origin": "bar"}
+	s.vars = map[string]string{"name": "foo", "developer": "bar"}
 	req, err := http.NewRequest("GET", "/2.0/icons/foo.bar/icon", nil)
 	c.Assert(err, check.IsNil)
 
@@ -1227,7 +1227,7 @@ func (s *apiSuite) TestInstallLicensedIntegration(c *check.C) {
 
 	req, err := http.NewRequest("POST", "/2.0/snaps/foo.bar", strings.NewReader(`{"action": "install"}`))
 	c.Assert(err, check.IsNil)
-	s.vars = map[string]string{"name": "foo", "origin": "bar"}
+	s.vars = map[string]string{"name": "foo", "developer": "bar"}
 
 	res := postSnap(snapCmd, req).(*resp).Result.(map[string]interface{})
 	task := d.tasks[res["resource"].(string)[16:]]

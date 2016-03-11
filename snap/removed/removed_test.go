@@ -46,15 +46,15 @@ func (s *removedSuite) SetUpTest(c *check.C) {
 func (s *removedSuite) MkStoreYaml(c *check.C, pkgType snap.Type) {
 	// creating the part to get its manifest path is cheating, a little
 	part := &Removed{
-		name:    "foo",
-		origin:  "bar",
-		version: "1",
-		pkgType: pkgType,
+		name:      "foo",
+		developer: "bar",
+		version:   "1",
+		pkgType:   pkgType,
 	}
 
 	content := `
 name: foo
-origin: bar
+developer: bar
 version: 1
 type: app
 description: |-
@@ -72,7 +72,7 @@ func (s *removedSuite) TestNoStore(c *check.C) {
 	part := New("foo", "bar", "1", snap.TypeApp)
 
 	c.Check(part.Name(), check.Equals, "foo")
-	c.Check(part.Origin(), check.Equals, "bar")
+	c.Check(part.Developer(), check.Equals, "bar")
 	c.Check(part.Version(), check.Equals, "1")
 	c.Check(part.Description(), check.Equals, "")
 	c.Check(part.Hash(), check.Equals, "")
@@ -85,13 +85,13 @@ func (s *removedSuite) TestNoStore(c *check.C) {
 	c.Check(part.NeedsReboot(), check.Equals, false)
 }
 
-func (s *removedSuite) TestNoOrigin(c *check.C) {
+func (s *removedSuite) TestNoDeveloper(c *check.C) {
 	part := New("foo", "", "1", snap.TypeFramework)
-	c.Check(part.Origin(), check.Equals, "")
+	c.Check(part.Developer(), check.Equals, "")
 
 	s.MkStoreYaml(c, snap.TypeFramework)
 	part = New("foo", "", "1", snap.TypeFramework)
-	c.Check(part.Origin(), check.Equals, "bar")
+	c.Check(part.Developer(), check.Equals, "bar")
 }
 
 func (s *removedSuite) TestWithStore(c *check.C) {
@@ -99,7 +99,7 @@ func (s *removedSuite) TestWithStore(c *check.C) {
 	part := New("foo", "bar", "1", snap.TypeApp)
 
 	c.Check(part.Name(), check.Equals, "foo")
-	c.Check(part.Origin(), check.Equals, "bar")
+	c.Check(part.Developer(), check.Equals, "bar")
 	c.Check(part.Version(), check.Equals, "1")
 	c.Check(part.Description(), check.Equals, "bla bla bla")
 	c.Check(part.Hash(), check.Equals, "")

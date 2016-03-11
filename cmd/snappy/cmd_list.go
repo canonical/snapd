@@ -95,7 +95,7 @@ func showInstalledList(installed []snappy.Part, o io.Writer) {
 	fmt.Fprintln(w, "Name\tDate\tVersion\tDeveloper\t")
 	for _, part := range installed {
 		if part.IsActive() {
-			fmt.Fprintln(w, fmt.Sprintf("%s\t%s\t%s\t%s\t", part.Name(), formatDate(part.Date()), part.Version(), part.Origin()))
+			fmt.Fprintln(w, fmt.Sprintf("%s\t%s\t%s\t%s\t", part.Name(), formatDate(part.Date()), part.Version(), part.Developer()))
 		}
 	}
 	w.Flush()
@@ -118,7 +118,7 @@ func showVerboseList(installed []snappy.Part, o io.Writer) {
 			active = "!"
 		}
 
-		fmt.Fprintln(w, fmt.Sprintf("%s%s\t%s\t%s\t%s%s\t", part.Name(), needsReboot, formatDate(part.Date()), part.Version(), part.Origin(), active))
+		fmt.Fprintln(w, fmt.Sprintf("%s%s\t%s\t%s\t%s%s\t", part.Name(), needsReboot, formatDate(part.Date()), part.Version(), part.Developer(), active))
 	}
 	w.Flush()
 
