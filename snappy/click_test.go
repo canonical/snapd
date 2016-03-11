@@ -780,11 +780,11 @@ func (s *SnapTestSuite) TestAddPackageServicesStripsGlobalRootdir(c *C) {
 	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/systemd/system/hello-app_svc1_1.10.service"))
 	c.Assert(err, IsNil)
 
-	baseDirWithoutRootPrefix := "/snaps/" + helloAppComposedName + "/1.10"
+	baseDirWithoutRootPrefix := "/snaps/" + helloSnapComposedName + "/1.10"
 	verbs := []string{"Start", "Stop", "StopPost"}
 	bins := []string{"hello", "goodbye", "missya"}
 	for i := range verbs {
-		expected := fmt.Sprintf("Exec%s=/usr/bin/ubuntu-core-launcher hello-app.svc1 %s_svc1_1.10 %s/bin/%s", verbs[i], helloAppComposedName, baseDirWithoutRootPrefix, bins[i])
+		expected := fmt.Sprintf("Exec%s=/usr/bin/ubuntu-core-launcher hello-app.svc1 %s_svc1_1.10 %s/bin/%s", verbs[i], helloSnapComposedName, baseDirWithoutRootPrefix, bins[i])
 		c.Check(string(content), Matches, "(?ms).*^"+regexp.QuoteMeta(expected)) // check.v1 adds ^ and $ around the regexp provided
 	}
 }

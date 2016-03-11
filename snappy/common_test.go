@@ -37,9 +37,9 @@ import (
 )
 
 const (
-	testOrigin           = "testspacethename"
-	fooComposedName      = "foo.testspacethename"
-	helloAppComposedName = "hello-app.testspacethename"
+	testOrigin            = "testspacethename"
+	fooComposedName       = "foo.testspacethename"
+	helloSnapComposedName = "hello-app.testspacethename"
 )
 
 // Hook up check.v1 into the "go test" runner
