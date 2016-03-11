@@ -56,8 +56,8 @@ func (s *SnapLocalRepository) All() ([]Part, error) {
 	return s.Installed()
 }
 
-// Named gets the bag of snaps with the given name and origin
-func (s *SnapLocalRepository) Named(name, origin string) (SnapBag, error) {
+// Named gets all the snaps with the given name and origin
+func (s *SnapLocalRepository) Named(name, origin string) ([]*Snap, error) {
 	globExpr := filepath.Join(s.path, name+"."+origin, "*", "meta", "snap.yaml")
 	parts, err := s.partsForGlobExpr(globExpr)
 	if err != nil {
@@ -71,24 +71,6 @@ func (s *SnapLocalRepository) Named(name, origin string) (SnapBag, error) {
 
 	return snaps, nil
 }
-
-// AllBags returns all installed snaps, grouped by name
-func (s *SnapLocalRepository) AllBags() (map[string]SnapBag, error) {
-	all, err := s.All()
-	if err != nil {
-		return nil, err
-	}
-
-	m := make(map[string]SnapBag)
-
-	for _, part := range all {
-		name := FullName(part)
-		m[name] = append(m[name], part.(*Snap))
-	}
-
-	return m, nil
-}
-
 func (s *SnapLocalRepository) partsForGlobExpr(globExpr string) (parts []Part, err error) {
 	matches, err := filepath.Glob(globExpr)
 	if err != nil {
