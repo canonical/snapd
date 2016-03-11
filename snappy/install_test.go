@@ -201,7 +201,7 @@ func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "hello-app.manifest"), []byte(`{"name": "hello-app"}`), 0644), IsNil)
 	ag := &progress.NullProgress{}
-	part, err := NewInstalledSnapPart(yamlFile, "potato")
+	part, err := NewInstalledSnap(yamlFile, "potato")
 	c.Assert(err, IsNil)
 	c.Assert(part.activate(true, ag), IsNil)
 	current := ActiveSnapByName("hello-app")
@@ -300,5 +300,5 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 	c.Check(updates[0].Name(), Equals, "foo")
 	c.Check(updates[0].Version(), Equals, "2")
 	// ensure that we get a "local" snap back - not a remote one
-	c.Check(updates[0], FitsTypeOf, &SnapPart{})
+	c.Check(updates[0], FitsTypeOf, &Snap{})
 }

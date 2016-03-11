@@ -49,5 +49,5 @@ func SetActive(fullName string, active bool, meter progress.Meter) error {
 	}
 
 	overlord := &Overlord{}
-	return overlord.SetActive(part.(*SnapPart), active, meter)
+	return overlord.SetActive(part.(*Snap), active, meter)
 }
