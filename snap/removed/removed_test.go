@@ -54,7 +54,7 @@ func (s *removedSuite) MkStoreYaml(c *check.C, pkgType snap.Type) {
 
 	content := `
 name: foo
-developer: bar
+origin: bar
 version: 1
 type: app
 description: |-
