@@ -66,8 +66,8 @@ func (aa *appArmor) securitySystem() SecuritySystem {
 }
 
 func (aa *appArmor) pathForApp(snapName, snapVersion, snapOrigin, appName string) string {
-	return fmt.Sprintf("/var/lib/snappy/apparmor/profiles/%s.%s_%s_%s",
-		snapName, snapOrigin, appName, snapVersion)
+	return fmt.Sprintf("/var/lib/snappy/apparmor/profiles/%s",
+		SecurityTagForApp(snapName, appName))
 }
 
 func (aa *appArmor) headerForApp(snapName, snapVersion, snapOrigin, appName string) []byte {
@@ -139,8 +139,8 @@ func (sc *secComp) securitySystem() SecuritySystem {
 
 func (sc *secComp) pathForApp(snapName, snapVersion, snapOrigin, appName string) string {
 	// NOTE: This path has to be synchronized with ubuntu-core-launcher.
-	return fmt.Sprintf("/var/lib/snappy/seccomp/profiles/%s.%s_%s_%s",
-		snapName, snapOrigin, appName, snapVersion)
+	return fmt.Sprintf("/var/lib/snappy/seccomp/profiles/%s",
+		SecurityTagForApp(snapName, appName))
 }
 
 var secCompHeader = []byte(defaultSecCompTemplate)
@@ -158,7 +158,7 @@ func (sc *secComp) footerForApp(snapName, snapVersion, snapOrigin, appName strin
 //
 // Each rule looks like this:
 //
-// KERNEL=="hiddev0", TAG:="snappy-assign", ENV{SNAPPY_APP}:="http.GET"
+// KERNEL=="hiddev0", TAG:="snappy-assign", ENV{SNAPPY_APP}:="http.GET.snap"
 //
 // NOTE: This interacts with ubuntu-core-launcher.
 //
@@ -168,8 +168,7 @@ func (sc *secComp) footerForApp(snapName, snapVersion, snapOrigin, appName strin
 // "c $major:$minor rwm" for character devices and "b $major:$minor rwm" for
 // block devices.
 //
-// $SNAPPY_APP is always Snap.Name + "." + App.Name, later on it should also
-// support the abbreviated syntax Snap.Name when both names are the same.
+// $SNAPPY_APP is always computed with SecurityTagForApp()
 //
 // The control group is created by ubuntu-app-launcher.
 type uDev struct{}
@@ -180,7 +179,7 @@ func (udev *uDev) securitySystem() SecuritySystem {
 
 func (udev *uDev) pathForApp(snapName, snapVersion, snapOrigin, appName string) string {
 	// NOTE: we ignore appName so effectively udev rules apply to entire snap.
-	return fmt.Sprintf("/etc/udev/rules.d/70-snappy-%s.rules", snapName)
+	return fmt.Sprintf("/etc/udev/rules.d/70-%s.rules", SecurityTagForApp(snapName, appName))
 }
 
 func (udev *uDev) headerForApp(snapName, snapVersion, snapOrigin, appName string) []byte {
@@ -208,7 +207,7 @@ func (dbus *dBus) pathForApp(snapName, snapVersion, snapOrigin, appName string) 
 	// XXX: Is the name of this file relevant or can everything be contained
 	// in particular snippets?
 	// XXX: At this level we don't know the bus name.
-	return fmt.Sprintf("/etc/dbus-1/system.d/%s.conf", snapName)
+	return fmt.Sprintf("/etc/dbus-1/system.d/%s.conf", SecurityTagForApp(snapName, appName))
 }
 
 func (dbus *dBus) headerForApp(snapName, snapVersion, snapOrigin, appName string) []byte {

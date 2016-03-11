@@ -100,7 +100,7 @@ func (s *SecuritySuite) TestAppArmorPlugPermissions(c *C) {
 	// Ensure that plug-side security profile looks correct.
 	blobs, err := s.repo.SecurityFilesForSnap(s.plug.Snap)
 	c.Assert(err, IsNil)
-	c.Check(blobs["/var/lib/snappy/apparmor/profiles/producer.origin_hook_version"], DeepEquals, []byte(`
+	c.Check(blobs["/var/lib/snappy/apparmor/profiles/producer.hook.snap"], DeepEquals, []byte(`
 # Specified profile variables
 @{APP_APPNAME}="hook"
 @{APP_ID_DBUS}="producer_2eorigin_5fhook_5fversion"
@@ -127,7 +127,7 @@ func (s *SecuritySuite) TestAppArmorSlotPermissions(c *C) {
 	// Ensure that slot-side security profile looks correct.
 	blobs, err := s.repo.SecurityFilesForSnap(s.slot.Snap)
 	c.Assert(err, IsNil)
-	c.Check(blobs["/var/lib/snappy/apparmor/profiles/consumer.origin_app_version"], DeepEquals, []byte(`
+	c.Check(blobs["/var/lib/snappy/apparmor/profiles/consumer.app.snap"], DeepEquals, []byte(`
 # Specified profile variables
 @{APP_APPNAME}="app"
 @{APP_ID_DBUS}="consumer_2eorigin_5fapp_5fversion"
@@ -156,7 +156,7 @@ func (s *SecuritySuite) TestSecCompPlugPermissions(c *C) {
 	// Ensure that plug-side security profile looks correct.
 	blobs, err := s.repo.SecurityFilesForSnap(s.plug.Snap)
 	c.Assert(err, IsNil)
-	c.Check(blobs["/var/lib/snappy/seccomp/profiles/producer.origin_hook_version"], DeepEquals, []byte(""+
+	c.Check(blobs["/var/lib/snappy/seccomp/profiles/producer.hook.snap"], DeepEquals, []byte(""+
 		"# Mocked seccomp header\n"+
 		"open\n"))
 }
@@ -174,7 +174,7 @@ func (s *SecuritySuite) TestSecCompSlotPermissions(c *C) {
 	// Ensure that slot-side security profile looks correct.
 	blobs, err := s.repo.SecurityFilesForSnap(s.slot.Snap)
 	c.Assert(err, IsNil)
-	c.Check(blobs["/var/lib/snappy/seccomp/profiles/consumer.origin_app_version"], DeepEquals, []byte(""+
+	c.Check(blobs["/var/lib/snappy/seccomp/profiles/consumer.app.snap"], DeepEquals, []byte(""+
 		"# Mocked seccomp header\n"+
 		"deny kexec\n"))
 }
@@ -194,7 +194,7 @@ func (s *SecuritySuite) TestUdevPlugPermissions(c *C) {
 	// Ensure that plug-side security profile looks correct.
 	blobs, err := s.repo.SecurityFilesForSnap(s.plug.Snap)
 	c.Assert(err, IsNil)
-	c.Check(blobs["/etc/udev/rules.d/70-snappy-producer.rules"], DeepEquals, []byte("...\n"))
+	c.Check(blobs["/etc/udev/rules.d/70-producer.hook.snap.rules"], DeepEquals, []byte("...\n"))
 }
 
 func (s *SecuritySuite) TestUdevSlotPermissions(c *C) {
@@ -210,7 +210,7 @@ func (s *SecuritySuite) TestUdevSlotPermissions(c *C) {
 	// Ensure that slot-side security profile looks correct.
 	blobs, err := s.repo.SecurityFilesForSnap(s.slot.Snap)
 	c.Assert(err, IsNil)
-	c.Check(blobs["/etc/udev/rules.d/70-snappy-consumer.rules"], DeepEquals, []byte("...\n"))
+	c.Check(blobs["/etc/udev/rules.d/70-consumer.app.snap.rules"], DeepEquals, []byte("...\n"))
 }
 
 // Tests for DBus
@@ -228,7 +228,7 @@ func (s *SecuritySuite) TestDBusPlugPermissions(c *C) {
 	// Ensure that plug-side security profile looks correct.
 	blobs, err := s.repo.SecurityFilesForSnap(s.plug.Snap)
 	c.Assert(err, IsNil)
-	c.Check(blobs["/etc/dbus-1/system.d/producer.conf"], DeepEquals, []byte(""+
+	c.Check(blobs["/etc/dbus-1/system.d/producer.hook.snap.conf"], DeepEquals, []byte(""+
 		"<!DOCTYPE busconfig PUBLIC\n"+
 		" \"-//freedesktop//DTD D-BUS Bus Configuration 1.0//EN\"\n"+
 		" \"http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd\">\n"+
@@ -250,7 +250,7 @@ func (s *SecuritySuite) TestDBusSlotPermissions(c *C) {
 	// Ensure that slot-side security profile looks correct.
 	blobs, err := s.repo.SecurityFilesForSnap(s.slot.Snap)
 	c.Assert(err, IsNil)
-	c.Check(blobs["/etc/dbus-1/system.d/consumer.conf"], DeepEquals, []byte(""+
+	c.Check(blobs["/etc/dbus-1/system.d/consumer.app.snap.conf"], DeepEquals, []byte(""+
 		"<!DOCTYPE busconfig PUBLIC\n"+
 		" \"-//freedesktop//DTD D-BUS Bus Configuration 1.0//EN\"\n"+
 		" \"http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd\">\n"+
