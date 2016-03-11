@@ -51,7 +51,7 @@ func removeKernelAssets(s *Snap, inter interacter) error {
 
 	bootloader, err := findBootloader()
 	if err != nil {
-		return fmt.Errorf("no not remove kernel assests: %s", err)
+		return fmt.Errorf("no not remove kernel assets: %s", err)
 	}
 
 	// remove the kernel blob
