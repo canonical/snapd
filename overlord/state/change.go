@@ -175,6 +175,11 @@ func (c *Change) SetStatus(s Status) {
 	c.status = s
 }
 
+// State return the pointer to the global State
+func (c *Change) State() *State {
+	return c.state
+}
+
 // NewTask creates a new task and registers it as a required task for the
 // state change to be accomplished.
 func (c *Change) NewTask(kind, summary string) *Task {
