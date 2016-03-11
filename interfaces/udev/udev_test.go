@@ -32,27 +32,33 @@ func Test(t *testing.T) {
 	TestingT(t)
 }
 
-type uDevSuite struct{}
+type uDevSuite struct {
+	cmd *testutil.MockCmd
+}
 
 var _ = Suite(&uDevSuite{})
+
+func (s *uDevSuite) SetUpTest(c *C) {
+	s.cmd = testutil.MockCommand(c, "udevadm", 0)
+}
+
+func (s *uDevSuite) TearDownTest(c *C) {
+	s.cmd.Restore()
+}
 
 // Tests for ReloadRules()
 
 func (s *uDevSuite) TestReloadUDevRulesRunsUDevAdm(c *C) {
-	cmd := testutil.MockCommand(c, "udevadm", 0)
-	defer cmd.Restore()
 	err := udev.ReloadRules()
 	c.Assert(err, IsNil)
-	c.Assert(cmd.Calls(), DeepEquals, []string{
+	c.Assert(s.cmd.Calls(), DeepEquals, []string{
 		"control --reload-rules",
 		"trigger",
 	})
 }
 
 func (s *uDevSuite) TestReloadUDevRulesReportsErrorsFromReloadRules(c *C) {
-	cmd := testutil.MockCommand(c, "udevadm", 0)
-	defer cmd.Restore()
-	cmd.SetDynamicBehavior(1, func(n int) (string, int) {
+	s.cmd.SetDynamicBehavior(1, func(n int) (string, int) {
 		switch n {
 		case 0:
 			return "failure 1", 1
@@ -65,13 +71,11 @@ func (s *uDevSuite) TestReloadUDevRulesReportsErrorsFromReloadRules(c *C) {
 		"Cannot reload udev rules: exit status 1\n"+
 		"udev output:\n"+
 		"failure 1\n")
-	c.Assert(cmd.Calls(), DeepEquals, []string{"control --reload-rules"})
+	c.Assert(s.cmd.Calls(), DeepEquals, []string{"control --reload-rules"})
 }
 
 func (s *uDevSuite) TestReloadUDevRulesReportsErrorsFromTrigger(c *C) {
-	cmd := testutil.MockCommand(c, "udevadm", 0)
-	defer cmd.Restore()
-	cmd.SetDynamicBehavior(2, func(n int) (string, int) {
+	s.cmd.SetDynamicBehavior(2, func(n int) (string, int) {
 		switch n {
 		case 0:
 			return "", 0
@@ -86,7 +90,7 @@ func (s *uDevSuite) TestReloadUDevRulesReportsErrorsFromTrigger(c *C) {
 		"Cannot run udev triggers: exit status 2\n"+
 		"udev output:\n"+
 		"failure 2\n")
-	c.Assert(cmd.Calls(), DeepEquals, []string{
+	c.Assert(s.cmd.Calls(), DeepEquals, []string{
 		"control --reload-rules",
 		"trigger",
 	})
