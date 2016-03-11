@@ -84,7 +84,7 @@ func SetRootDir(rootdir string) {
 	SnapLockFile = filepath.Join(rootdir, "/run/snappy.lock")
 	SnapBlobDir = filepath.Join(rootdir, snappyDir, "snaps")
 	SnapDesktopFilesDir = filepath.Join(rootdir, snappyDir, "desktop")
-	// keep in sync with the debian/ubuntu-snappy.snapd.socket file:
+	// keep in sync with the debian/snapd.snapd.socket file:
 	SnapdSocket = filepath.Join(rootdir, "/run/snapd.socket")
 
 	SnapAssertsDBDir = filepath.Join(rootdir, snappyDir, "assertions")
