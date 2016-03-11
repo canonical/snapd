@@ -175,7 +175,7 @@ func (c *Change) SetStatus(s Status) {
 	c.status = s
 }
 
-// State return the pointer to the global State
+// State returns the pointer to the system State
 func (c *Change) State() *State {
 	return c.state
 }
