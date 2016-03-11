@@ -283,8 +283,6 @@ const defaultAppArmorTemplate = `
   /sys/class/ r,
   /sys/class/**/ r,
 
-  ###POLICYGROUPS###
-
   ###READS###
 
   ###WRITES###
