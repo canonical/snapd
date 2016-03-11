@@ -128,9 +128,9 @@ func (s *SnapTestSuite) TestFindSnapsByNameFound(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 1)
 
-	parts := FindSnapsByName("hello-app", installed)
+	parts := FindSnapsByName("hello-snap", installed)
 	c.Assert(parts, HasLen, 1)
-	c.Assert(parts[0].Name(), Equals, "hello-app")
+	c.Assert(parts[0].Name(), Equals, "hello-snap")
 }
 
 func (s *SnapTestSuite) TestFindSnapsByNameWithOrigin(c *C) {
@@ -140,9 +140,9 @@ func (s *SnapTestSuite) TestFindSnapsByNameWithOrigin(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 1)
 
-	parts := FindSnapsByName("hello-app."+testOrigin, installed)
+	parts := FindSnapsByName("hello-snap."+testOrigin, installed)
 	c.Assert(parts, HasLen, 1)
-	c.Assert(parts[0].Name(), Equals, "hello-app")
+	c.Assert(parts[0].Name(), Equals, "hello-snap")
 }
 
 func (s *SnapTestSuite) TestFindSnapsByNameWithOriginNotThere(c *C) {
@@ -152,19 +152,19 @@ func (s *SnapTestSuite) TestFindSnapsByNameWithOriginNotThere(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 1)
 
-	parts := FindSnapsByName("hello-app.otherns", installed)
+	parts := FindSnapsByName("hello-snap.otherns", installed)
 	c.Assert(parts, HasLen, 0)
 }
 
 func (s *SnapTestSuite) TestPackageNameInstalled(c *C) {
-	c.Check(PackageNameActive("hello-app"), Equals, false)
+	c.Check(PackageNameActive("hello-snap"), Equals, false)
 
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, "")
 	c.Assert(err, IsNil)
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "hello-app.manifest"), []byte(`{"name": "hello-app"}`), 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "hello-snap.manifest"), []byte(`{"name": "hello-snap"}`), 0644), IsNil)
 	ag := &progress.NullProgress{}
 
 	part, err := NewInstalledSnapPart(yamlFile, testOrigin)
@@ -172,9 +172,9 @@ func (s *SnapTestSuite) TestPackageNameInstalled(c *C) {
 
 	c.Assert(part.activate(true, ag), IsNil)
 
-	c.Check(PackageNameActive("hello-app"), Equals, true)
+	c.Check(PackageNameActive("hello-snap"), Equals, true)
 	c.Assert(part.deactivate(true, ag), IsNil)
-	c.Check(PackageNameActive("hello-app"), Equals, false)
+	c.Check(PackageNameActive("hello-snap"), Equals, false)
 }
 
 func (s *SnapTestSuite) TestFindSnapsByNameAndVersion(c *C) {
@@ -183,20 +183,20 @@ func (s *SnapTestSuite) TestFindSnapsByNameAndVersion(c *C) {
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
 
-	parts := FindSnapsByNameAndVersion("hello-app."+testOrigin, "1.10", installed)
+	parts := FindSnapsByNameAndVersion("hello-snap."+testOrigin, "1.10", installed)
 	c.Check(parts, HasLen, 1)
 	parts = FindSnapsByNameAndVersion("bad-app."+testOrigin, "1.10", installed)
 	c.Check(parts, HasLen, 0)
-	parts = FindSnapsByNameAndVersion("hello-app.badOrigin", "1.10", installed)
+	parts = FindSnapsByNameAndVersion("hello-snap.badOrigin", "1.10", installed)
 	c.Check(parts, HasLen, 0)
-	parts = FindSnapsByNameAndVersion("hello-app."+testOrigin, "2.20", installed)
+	parts = FindSnapsByNameAndVersion("hello-snap."+testOrigin, "2.20", installed)
 	c.Check(parts, HasLen, 0)
 
-	parts = FindSnapsByNameAndVersion("hello-app", "1.10", installed)
+	parts = FindSnapsByNameAndVersion("hello-snap", "1.10", installed)
 	c.Check(parts, HasLen, 1)
 	parts = FindSnapsByNameAndVersion("bad-app", "1.10", installed)
 	c.Check(parts, HasLen, 0)
-	parts = FindSnapsByNameAndVersion("hello-app", "2.20", installed)
+	parts = FindSnapsByNameAndVersion("hello-snap", "2.20", installed)
 	c.Check(parts, HasLen, 0)
 }
 
