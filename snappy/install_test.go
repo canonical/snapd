@@ -281,7 +281,7 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 		io.WriteString(w, `[{
 	"package_name": "foo",
 	"version": "2",
-        "developer": "`+testDeveloper+`",
+        "origin": "`+testDeveloper+`",
 	"anon_download_url": "`+dlURL+`",
 	"icon_url": "`+iconURL+`"
 }]`)

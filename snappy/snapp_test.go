@@ -221,7 +221,7 @@ const MockSearchJSON = `{
                 "download_url": "https://public.apps.ubuntu.com/download/chipaca/8nzc1x4iim2xj1g2ul64.chipaca/8nzc1x4iim2xj1g2ul64.chipaca_42_all.snap",
                 "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/04/hello.svg_Dlrd3L4.png",
                 "last_updated": "2015-04-15T18:30:16Z",
-                "developer": "chipaca",
+                "origin": "chipaca",
                 "package_name": "8nzc1x4iim2xj1g2ul64",
                 "prices": {},
                 "publisher": "John Lenton",
@@ -256,7 +256,7 @@ const MockUpdatesJSON = `[
         "status": "Published",
         "name": "8nzc1x4iim2xj1g2ul64.chipaca",
         "package_name": "8nzc1x4iim2xj1g2ul64",
-        "developer": "chipaca",
+        "origin": "chipaca",
         "changelog": "",
         "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/04/hello.svg_Dlrd3L4.png",
         "title": "Returns for store credit only.",
@@ -319,7 +319,7 @@ const MockDetailsJSON = `{
     "last_updated": "2015-04-15T18:30:16Z",
     "license": "Proprietary",
     "name": "8nzc1x4iim2xj1g2ul64.chipaca",
-    "developer": "chipaca",
+    "origin": "chipaca",
     "package_name": "8nzc1x4iim2xj1g2ul64",
     "price": 0.0,
     "prices": {},
@@ -369,7 +369,7 @@ const MockAliasSearchJSON = `{
                 "download_url": "https://public.apps.ubuntu.com/download/canonical/hello-world.canonical/hello-world.canonical_1.0.8_all.snap",
                 "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
                 "last_updated": "2015-04-16T16:13:58.104820Z",
-                "developer": "canonical",
+                "origin": "canonical",
                 "package_name": "hello-world",
                 "prices": {},
                 "publisher": "Canonical",
@@ -393,7 +393,7 @@ const MockAliasSearchJSON = `{
                 "download_url": "https://public.apps.ubuntu.com/download/jdstrand/hello-world.jdstrand/hello-world.jdstrand_1.4_all.snap",
                 "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg.png",
                 "last_updated": "2015-04-16T15:32:09.118993Z",
-                "developer": "jdstrand",
+                "origin": "jdstrand",
                 "package_name": "hello-world",
                 "prices": {},
                 "publisher": "Jamie Strandboge",
@@ -1110,7 +1110,7 @@ func (s *SnapTestSuite) TestUsesStoreMetaData(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(makeSnapActive(yamlPath), IsNil)
 
-	data = "name: afoo\nalias: afoo\ndescription: something nice\ndownloadsize: 10\ndeveloper: someplace"
+	data = "name: afoo\nalias: afoo\ndescription: something nice\ndownloadsize: 10\norigin: someplace"
 	err = ioutil.WriteFile(filepath.Join(dirs.SnapMetaDir, "afoo_1.manifest"), []byte(data), 0644)
 	c.Assert(err, IsNil)
 
