@@ -74,15 +74,6 @@ func (s *removedSuite) TestNoStore(c *check.C) {
 	c.Check(part.Name(), check.Equals, "foo")
 	c.Check(part.Origin(), check.Equals, "bar")
 	c.Check(part.Version(), check.Equals, "1")
-	c.Check(part.Description(), check.Equals, "")
-	c.Check(part.Hash(), check.Equals, "")
-	c.Check(part.Icon(), check.Equals, "")
-	c.Check(part.DownloadSize(), check.Equals, int64(-1))
-
-	c.Check(part.InstalledSize(), check.Equals, int64(-1))
-	c.Check(part.IsActive(), check.Equals, false)
-	c.Check(part.IsInstalled(), check.Equals, false)
-	c.Check(part.NeedsReboot(), check.Equals, false)
 }
 
 func (s *removedSuite) TestNoOrigin(c *check.C) {
@@ -101,13 +92,4 @@ func (s *removedSuite) TestWithStore(c *check.C) {
 	c.Check(part.Name(), check.Equals, "foo")
 	c.Check(part.Origin(), check.Equals, "bar")
 	c.Check(part.Version(), check.Equals, "1")
-	c.Check(part.Description(), check.Equals, "bla bla bla")
-	c.Check(part.Hash(), check.Equals, "")
-	c.Check(part.Icon(), check.Equals, "http://i.stack.imgur.com/i8q1U.jpg")
-	c.Check(part.DownloadSize(), check.Equals, int64(5554242))
-
-	c.Check(part.InstalledSize(), check.Equals, int64(-1))
-	c.Check(part.IsActive(), check.Equals, false)
-	c.Check(part.IsInstalled(), check.Equals, false)
-	c.Check(part.NeedsReboot(), check.Equals, false)
 }

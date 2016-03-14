@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/progress"
@@ -71,41 +70,16 @@ func fullNameWithChannel(p Part) string {
 
 // Part representation of a snappy part
 type Part interface {
-
-	// query
 	Name() string
 	Version() string
-	Description() string
 	Origin() string
-
-	Hash() string
-	IsActive() bool
-	IsInstalled() bool
-	// Will become active on the next reboot
-	NeedsReboot() bool
-
-	// returns the date when the snap was last updated
-	Date() time.Time
-
-	// returns the channel of the part
 	Channel() string
-
-	// returns the path to the icon (local or uri)
-	Icon() string
-
-	// Returns app, framework, core
 	Type() snap.Type
-
-	InstalledSize() int64
-	DownloadSize() int64
-
-	// get the list of frameworks needed by the part
-	Frameworks() ([]string, error)
 }
 
 // ActiveSnapsByType returns all installed snaps with the given type
-func ActiveSnapsByType(snapTs ...snap.Type) (res []Part, err error) {
-	installed, err := NewLocalSnapRepository().Installed()
+func ActiveSnapsByType(snapTs ...snap.Type) (res []*Snap, err error) {
+	installed, err := NewLocalSnapRepository().AllSnaps()
 	if err != nil {
 		return nil, err
 	}
@@ -140,8 +114,8 @@ func activeSnapIterByTypeImpl(f func(Part) string, snapTs ...snap.Type) ([]strin
 }
 
 // ActiveSnapByName returns all active snaps with the given name
-func ActiveSnapByName(needle string) Part {
-	installed, err := NewLocalSnapRepository().Installed()
+func ActiveSnapByName(needle string) *Snap {
+	installed, err := NewLocalSnapRepository().AllSnaps()
 	if err != nil {
 		return nil
 	}
@@ -159,7 +133,7 @@ func ActiveSnapByName(needle string) Part {
 
 // FindSnapsByName returns all snaps with the given name in the "haystack"
 // slice of parts (useful for filtering)
-func FindSnapsByName(needle string, haystack []Part) (res []Part) {
+func FindSnapsByName(needle string, haystack []*Snap) (res []*Snap) {
 	name, origin := SplitOrigin(needle)
 	ignorens := origin == ""
 
@@ -184,10 +158,10 @@ func SplitOrigin(name string) (string, string) {
 
 // FindSnapsByNameAndVersion returns the parts with the name/version in the
 // given slice of parts
-func FindSnapsByNameAndVersion(needle, version string, haystack []Part) []Part {
+func FindSnapsByNameAndVersion(needle, version string, haystack []*Snap) []*Snap {
 	name, origin := SplitOrigin(needle)
 	ignorens := origin == ""
-	var found []Part
+	var found []*Snap
 
 	for _, part := range haystack {
 		if part.Name() == name && part.Version() == version && (ignorens || part.Origin() == origin) {
@@ -201,7 +175,7 @@ func FindSnapsByNameAndVersion(needle, version string, haystack []Part) []Part {
 // MakeSnapActiveByNameAndVersion makes the given snap version the active
 // version
 func makeSnapActiveByNameAndVersion(pkg, ver string, inter progress.Meter) error {
-	installed, err := NewLocalSnapRepository().Installed()
+	installed, err := NewLocalSnapRepository().AllSnaps()
 	if err != nil {
 		return err
 	}
@@ -212,7 +186,7 @@ func makeSnapActiveByNameAndVersion(pkg, ver string, inter progress.Meter) error
 	case 0:
 		return fmt.Errorf("Can not find %s with version %s", pkg, ver)
 	case 1:
-		return overlord.SetActive(parts[0].(*Snap), true, inter)
+		return overlord.SetActive(parts[0], true, inter)
 	default:
 		return fmt.Errorf("More than one %s with version %s", pkg, ver)
 	}
