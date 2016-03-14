@@ -58,12 +58,7 @@ func (s *JanitorSuite) TestVerifiesExpectedFiles(c *C) {
 	err := ioutil.WriteFile(name, []byte(`expected`), 0600)
 	c.Assert(err, IsNil)
 	removed, created, fixed, err := s.j.Tidy(map[string]*janitor.File{
-		"expected.snap": {
-			Content: []byte(`expected`),
-			Mode:    0600,
-			UID:     s.uid,
-			Gid:     s.gid,
-		},
+		"expected.snap": {Content: []byte(`expected`), Mode: 0600, UID: s.uid, Gid: s.gid},
 	})
 	c.Assert(err, IsNil)
 	// Report says that nothing has changed
@@ -82,12 +77,7 @@ func (s *JanitorSuite) TestVerifiesExpectedFiles(c *C) {
 
 func (s *JanitorSuite) TestCreatesMissingFiles(c *C) {
 	removed, created, fixed, err := s.j.Tidy(map[string]*janitor.File{
-		"missing.snap": {
-			Content: []byte(`content`),
-			Mode:    0600,
-			UID:     s.uid,
-			Gid:     s.gid,
-		},
+		"missing.snap": {Content: []byte(`content`), Mode: 0600, UID: s.uid, Gid: s.gid},
 	})
 	c.Assert(err, IsNil)
 	// Created file is reported
@@ -140,12 +130,7 @@ func (s *JanitorSuite) TestCorrectsCorruptedFilesWithDifferentSize(c *C) {
 	err := ioutil.WriteFile(name, []byte(``), 0600)
 	c.Assert(err, IsNil)
 	removed, created, fixed, err := s.j.Tidy(map[string]*janitor.File{
-		"corrupted.snap": {
-			Content: []byte(`Hello World`),
-			Mode:    0600,
-			UID:     s.uid,
-			Gid:     s.gid,
-		},
+		"corrupted.snap": {Content: []byte(`Hello World`), Mode: 0600, UID: s.uid, Gid: s.gid},
 	})
 	c.Assert(err, IsNil)
 	// Fixed file is reported
@@ -167,12 +152,7 @@ func (s *JanitorSuite) TestCorrectsCorruptedFilesWithSameSize(c *C) {
 	err := ioutil.WriteFile(name, []byte(`evil`), 0600)
 	c.Assert(err, IsNil)
 	removed, created, fixed, err := s.j.Tidy(map[string]*janitor.File{
-		"corrupted.snap": {
-			Content: []byte(`good`),
-			Mode:    0600,
-			UID:     s.uid,
-			Gid:     s.gid,
-		},
+		"corrupted.snap": {Content: []byte(`good`), Mode: 0600, UID: s.uid, Gid: s.gid},
 	})
 	c.Assert(err, IsNil)
 	// Fixed file is reported
@@ -248,12 +228,7 @@ func (s *JanitorSuite) TestTriesToFixFilesWithBadOwnership(c *C) {
 
 func (s *JanitorSuite) TestReportsAbnormalFileName(c *C) {
 	removed, created, fixed, err := s.j.Tidy(map[string]*janitor.File{
-		"without-namespace": {
-			Content: nil,
-			Mode:    0600,
-			UID:     s.uid,
-			Gid:     s.gid,
-		},
+		"without-namespace": {Content: nil, Mode: 0600, UID: s.uid, Gid: s.gid},
 	})
 	c.Assert(err.Error(), Equals, `expected files must match pattern: "without-namespace" (pattern: "*.snap")`)
 	c.Assert(removed, HasLen, 0)
@@ -263,12 +238,7 @@ func (s *JanitorSuite) TestReportsAbnormalFileName(c *C) {
 
 func (s *JanitorSuite) TestReportsAbnormalFileLocation(c *C) {
 	removed, created, fixed, err := s.j.Tidy(map[string]*janitor.File{
-		"subdir/file.snap": {
-			Content: nil,
-			Mode:    0600,
-			UID:     s.uid,
-			Gid:     s.gid,
-		},
+		"subdir/file.snap": {Content: nil, Mode: 0600, UID: s.uid, Gid: s.gid},
 	})
 	c.Assert(err.Error(), Equals, `expected files cannot have path component: "subdir/file.snap"`)
 	c.Assert(removed, HasLen, 0)
