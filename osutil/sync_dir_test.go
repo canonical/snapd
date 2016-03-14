@@ -52,14 +52,14 @@ func (s *JanitorSuite) TestVerifiesExpectedFiles(c *C) {
 	name := path.Join(s.dir, "expected.snap")
 	err := ioutil.WriteFile(name, []byte(`expected`), 0600)
 	c.Assert(err, IsNil)
-	removed, created, fixed, err := s.j.Tidy(map[string]*osutil.File{
+	removed, created, corrected, err := s.j.Tidy(map[string]*osutil.File{
 		"expected.snap": {Content: []byte(`expected`), Mode: 0600, UID: s.uid, Gid: s.gid},
 	})
 	c.Assert(err, IsNil)
 	// Report says that nothing has changed
 	c.Assert(removed, HasLen, 0)
 	c.Assert(created, HasLen, 0)
-	c.Assert(fixed, HasLen, 0)
+	c.Assert(corrected, HasLen, 0)
 	// The content is correct
 	content, err := ioutil.ReadFile(path.Join(s.dir, "expected.snap"))
 	c.Assert(err, IsNil)
@@ -71,14 +71,14 @@ func (s *JanitorSuite) TestVerifiesExpectedFiles(c *C) {
 }
 
 func (s *JanitorSuite) TestCreatesMissingFiles(c *C) {
-	removed, created, fixed, err := s.j.Tidy(map[string]*osutil.File{
+	removed, created, corrected, err := s.j.Tidy(map[string]*osutil.File{
 		"missing.snap": {Content: []byte(`content`), Mode: 0600, UID: s.uid, Gid: s.gid},
 	})
 	c.Assert(err, IsNil)
 	// Created file is reported
 	c.Assert(removed, HasLen, 0)
 	c.Assert(created, DeepEquals, []string{"missing.snap"})
-	c.Assert(fixed, HasLen, 0)
+	c.Assert(corrected, HasLen, 0)
 	// The content is correct
 	content, err := ioutil.ReadFile(path.Join(s.dir, "missing.snap"))
 	c.Assert(err, IsNil)
@@ -94,12 +94,12 @@ func (s *JanitorSuite) TestRemovesUnexpectedFiless(c *C) {
 	name := path.Join(s.dir, "evil.snap")
 	err := ioutil.WriteFile(name, []byte(`evil text`), 0600)
 	c.Assert(err, IsNil)
-	removed, created, fixed, err := s.j.Tidy(map[string]*osutil.File{})
+	removed, created, corrected, err := s.j.Tidy(map[string]*osutil.File{})
 	c.Assert(err, IsNil)
 	// Removed file is reported
 	c.Assert(removed, DeepEquals, []string{"evil.snap"})
 	c.Assert(created, HasLen, 0)
-	c.Assert(fixed, HasLen, 0)
+	c.Assert(corrected, HasLen, 0)
 	// The file is removed
 	_, err = os.Stat(name)
 	c.Assert(os.IsNotExist(err), Equals, true)
@@ -109,12 +109,12 @@ func (s *JanitorSuite) TestIgnoresUnrelatedFiles(c *C) {
 	name := path.Join(s.dir, "unrelated")
 	err := ioutil.WriteFile(name, []byte(`text`), 0600)
 	c.Assert(err, IsNil)
-	removed, created, fixed, err := s.j.Tidy(map[string]*osutil.File{})
+	removed, created, corrected, err := s.j.Tidy(map[string]*osutil.File{})
 	c.Assert(err, IsNil)
 	// Report says that nothing has changed
 	c.Assert(removed, HasLen, 0)
 	c.Assert(created, HasLen, 0)
-	c.Assert(fixed, HasLen, 0)
+	c.Assert(corrected, HasLen, 0)
 	// The file is still there
 	_, err = os.Stat(name)
 	c.Assert(err, IsNil)
@@ -124,14 +124,14 @@ func (s *JanitorSuite) TestCorrectsCorruptedFilesWithDifferentSize(c *C) {
 	name := path.Join(s.dir, "corrupted.snap")
 	err := ioutil.WriteFile(name, []byte(``), 0600)
 	c.Assert(err, IsNil)
-	removed, created, fixed, err := s.j.Tidy(map[string]*osutil.File{
+	removed, created, corrected, err := s.j.Tidy(map[string]*osutil.File{
 		"corrupted.snap": {Content: []byte(`Hello World`), Mode: 0600, UID: s.uid, Gid: s.gid},
 	})
 	c.Assert(err, IsNil)
-	// Fixed file is reported
+	// corrected file is reported
 	c.Assert(removed, HasLen, 0)
 	c.Assert(created, HasLen, 0)
-	c.Assert(fixed, DeepEquals, []string{"corrupted.snap"})
+	c.Assert(corrected, DeepEquals, []string{"corrupted.snap"})
 	// The content is corrected
 	content, err := ioutil.ReadFile(path.Join(s.dir, "corrupted.snap"))
 	c.Assert(err, IsNil)
@@ -146,15 +146,15 @@ func (s *JanitorSuite) TestCorrectsCorruptedFilesWithSameSize(c *C) {
 	name := path.Join(s.dir, "corrupted.snap")
 	err := ioutil.WriteFile(name, []byte(`evil`), 0600)
 	c.Assert(err, IsNil)
-	removed, created, fixed, err := s.j.Tidy(map[string]*osutil.File{
+	removed, created, corrected, err := s.j.Tidy(map[string]*osutil.File{
 		"corrupted.snap": {Content: []byte(`good`), Mode: 0600, UID: s.uid, Gid: s.gid},
 	})
 	c.Assert(err, IsNil)
-	// Fixed file is reported
+	// corrected file is reported
 	c.Assert(removed, HasLen, 0)
 	c.Assert(created, HasLen, 0)
-	c.Assert(fixed, DeepEquals, []string{"corrupted.snap"})
-	// The content is fixed
+	c.Assert(corrected, DeepEquals, []string{"corrupted.snap"})
+	// The content is corrected
 	content, err := ioutil.ReadFile(path.Join(s.dir, "corrupted.snap"))
 	c.Assert(err, IsNil)
 	c.Assert(content, DeepEquals, []byte(`good`))
@@ -169,20 +169,20 @@ func (s *JanitorSuite) TestFixesFilesWithBadPermissions(c *C) {
 	// NOTE: the file is wide-open for everyone
 	err := ioutil.WriteFile(name, []byte(`password`), 0666)
 	c.Assert(err, IsNil)
-	removed, created, fixed, err := s.j.Tidy(map[string]*osutil.File{
+	removed, created, corrected, err := s.j.Tidy(map[string]*osutil.File{
 		// NOTE: we want the file to be private
 		"sensitive.snap": {Content: []byte(`password`), Mode: 0600, UID: s.uid, Gid: s.gid},
 	})
 	c.Assert(err, IsNil)
-	// Fixed file is reported
+	// corrected file is reported
 	c.Assert(removed, HasLen, 0)
 	c.Assert(created, HasLen, 0)
-	c.Assert(fixed, DeepEquals, []string{"sensitive.snap"})
+	c.Assert(corrected, DeepEquals, []string{"sensitive.snap"})
 	// The content is still the same
 	content, err := ioutil.ReadFile(path.Join(s.dir, "sensitive.snap"))
 	c.Assert(err, IsNil)
 	c.Assert(content, DeepEquals, []byte(`password`))
-	// The permissions are fixed
+	// The permissions are corrected
 	stat, err := os.Stat(name)
 	c.Assert(err, IsNil)
 	c.Assert(stat.Mode().Perm(), Equals, os.FileMode(0600))
@@ -192,16 +192,16 @@ func (s *JanitorSuite) TestTriesToFixFilesWithBadOwnership(c *C) {
 	name := path.Join(s.dir, "root-owned.snap")
 	err := ioutil.WriteFile(name, []byte(`state`), 0600)
 	c.Assert(err, IsNil)
-	removed, created, fixed, err := s.j.Tidy(map[string]*osutil.File{
+	removed, created, corrected, err := s.j.Tidy(map[string]*osutil.File{
 		// NOTE: we want this file to be root-owned
 		"root-owned.snap": {Content: []byte(`state`), Mode: 0600, UID: 0, Gid: 0},
 	})
 	// XXX: we'd like to chown the file but could not
 	c.Assert(err, ErrorMatches, "chown .*: operation not permitted")
-	// The file is not reported as fixed because the error happened before that
+	// The file is not reported as corrected because the error happened before that
 	c.Assert(removed, HasLen, 0)
 	c.Assert(created, HasLen, 0)
-	c.Assert(fixed, HasLen, 0)
+	c.Assert(corrected, HasLen, 0)
 	// The content is still the same
 	content, err := ioutil.ReadFile(path.Join(s.dir, "root-owned.snap"))
 	c.Assert(err, IsNil)
@@ -213,31 +213,31 @@ func (s *JanitorSuite) TestTriesToFixFilesWithBadOwnership(c *C) {
 }
 
 func (s *JanitorSuite) TestReportsAbnormalFileName(c *C) {
-	removed, created, fixed, err := s.j.Tidy(map[string]*osutil.File{
+	removed, created, corrected, err := s.j.Tidy(map[string]*osutil.File{
 		"without-namespace": {Content: nil, Mode: 0600, UID: s.uid, Gid: s.gid},
 	})
 	c.Assert(err.Error(), Equals, `expected files must match pattern: "without-namespace" (pattern: "*.snap")`)
 	c.Assert(removed, HasLen, 0)
 	c.Assert(created, HasLen, 0)
-	c.Assert(fixed, HasLen, 0)
+	c.Assert(corrected, HasLen, 0)
 }
 
 func (s *JanitorSuite) TestReportsAbnormalFileLocation(c *C) {
-	removed, created, fixed, err := s.j.Tidy(map[string]*osutil.File{
+	removed, created, corrected, err := s.j.Tidy(map[string]*osutil.File{
 		"subdir/file.snap": {Content: nil, Mode: 0600, UID: s.uid, Gid: s.gid},
 	})
 	c.Assert(err.Error(), Equals, `expected files cannot have path component: "subdir/file.snap"`)
 	c.Assert(removed, HasLen, 0)
 	c.Assert(created, HasLen, 0)
-	c.Assert(fixed, HasLen, 0)
+	c.Assert(corrected, HasLen, 0)
 }
 
 func (s *JanitorSuite) TestReportsAbnormalPatterns(c *C) {
 	// NOTE: the pattern is invalid
 	j := osutil.Janitor{Glob: "[", Path: s.dir}
-	removed, created, fixed, err := j.Tidy(map[string]*osutil.File{"unused": {}})
+	removed, created, corrected, err := j.Tidy(map[string]*osutil.File{"unused": {}})
 	c.Assert(err, ErrorMatches, "syntax error in pattern")
 	c.Assert(removed, HasLen, 0)
 	c.Assert(created, HasLen, 0)
-	c.Assert(fixed, HasLen, 0)
+	c.Assert(corrected, HasLen, 0)
 }
