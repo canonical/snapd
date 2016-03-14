@@ -42,7 +42,7 @@ type FileState struct {
 // SyncDir enumerates all the files in the specified directory that match the
 // provided pattern (glob). Each enumerated file is checked to ensure that the
 // contents, permissions and ownership are what is desired. Unexpected files
-// are removed.  Missing files are created and corrupted files are corrected.
+// are removed.  Missing files are created and differing files are corrected.
 // Files not matching the pattern are ignored.
 //
 // The content map describes each of the files that are intended to exist in

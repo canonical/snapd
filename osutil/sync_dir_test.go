@@ -117,20 +117,20 @@ func (s *JanitorSuite) TestIgnoresUnrelatedFiles(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *JanitorSuite) TestCorrectsCorruptedFilesWithDifferentSize(c *C) {
-	name := path.Join(s.dir, "corrupted.snap")
+func (s *JanitorSuite) TestCorrectsdifferingFilesWithDifferentSize(c *C) {
+	name := path.Join(s.dir, "differing.snap")
 	err := ioutil.WriteFile(name, []byte(``), 0600)
 	c.Assert(err, IsNil)
 	created, corrected, removed, err := osutil.SyncDir(s.dir, s.glob, map[string]*osutil.FileState{
-		"corrupted.snap": {Content: []byte(`Hello World`), Mode: 0600, UID: s.uid, GID: s.gid},
+		"differing.snap": {Content: []byte(`Hello World`), Mode: 0600, UID: s.uid, GID: s.gid},
 	})
 	c.Assert(err, IsNil)
 	// corrected file is reported
 	c.Assert(removed, HasLen, 0)
 	c.Assert(created, HasLen, 0)
-	c.Assert(corrected, DeepEquals, []string{"corrupted.snap"})
+	c.Assert(corrected, DeepEquals, []string{"differing.snap"})
 	// The content is corrected
-	content, err := ioutil.ReadFile(path.Join(s.dir, "corrupted.snap"))
+	content, err := ioutil.ReadFile(path.Join(s.dir, "differing.snap"))
 	c.Assert(err, IsNil)
 	c.Assert(content, DeepEquals, []byte(`Hello World`))
 	// The permissions are what we expect
@@ -139,20 +139,20 @@ func (s *JanitorSuite) TestCorrectsCorruptedFilesWithDifferentSize(c *C) {
 	c.Assert(stat.Mode().Perm(), Equals, os.FileMode(0600))
 }
 
-func (s *JanitorSuite) TestCorrectsCorruptedFilesWithSameSize(c *C) {
-	name := path.Join(s.dir, "corrupted.snap")
+func (s *JanitorSuite) TestCorrectsdifferingFilesWithSameSize(c *C) {
+	name := path.Join(s.dir, "differing.snap")
 	err := ioutil.WriteFile(name, []byte(`evil`), 0600)
 	c.Assert(err, IsNil)
 	created, corrected, removed, err := osutil.SyncDir(s.dir, s.glob, map[string]*osutil.FileState{
-		"corrupted.snap": {Content: []byte(`good`), Mode: 0600, UID: s.uid, GID: s.gid},
+		"differing.snap": {Content: []byte(`good`), Mode: 0600, UID: s.uid, GID: s.gid},
 	})
 	c.Assert(err, IsNil)
 	// corrected file is reported
 	c.Assert(removed, HasLen, 0)
 	c.Assert(created, HasLen, 0)
-	c.Assert(corrected, DeepEquals, []string{"corrupted.snap"})
+	c.Assert(corrected, DeepEquals, []string{"differing.snap"})
 	// The content is corrected
-	content, err := ioutil.ReadFile(path.Join(s.dir, "corrupted.snap"))
+	content, err := ioutil.ReadFile(path.Join(s.dir, "differing.snap"))
 	c.Assert(err, IsNil)
 	c.Assert(content, DeepEquals, []byte(`good`))
 	// The permissions are what we expect
