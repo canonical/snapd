@@ -44,6 +44,7 @@ import (
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/remote"
 	"github.com/ubuntu-core/snappy/snappy"
 	"github.com/ubuntu-core/snappy/systemd"
 	"github.com/ubuntu-core/snappy/testutil"
@@ -51,7 +52,7 @@ import (
 )
 
 type apiSuite struct {
-	parts      []snappy.Part
+	parts      []*snappy.RemoteSnap
 	err        error
 	vars       map[string]string
 	searchTerm string
@@ -61,15 +62,14 @@ type apiSuite struct {
 
 var _ = check.Suite(&apiSuite{})
 
-func (s *apiSuite) Details(string, string, string) ([]snappy.Part, error) {
-	return s.parts, s.err
+func (s *apiSuite) Snap(string, string) (*snappy.RemoteSnap, error) {
+	if len(s.parts) > 0 {
+		return s.parts[0], s.err
+	}
+	return nil, s.err
 }
 
-func (s *apiSuite) All() ([]snappy.Part, error) {
-	return s.parts, s.err
-}
-
-func (s *apiSuite) Find(searchTerm, channel string) ([]snappy.Part, error) {
+func (s *apiSuite) FindSnaps(searchTerm, channel string) ([]*snappy.RemoteSnap, error) {
 	s.searchTerm = searchTerm
 	s.channel = channel
 
@@ -154,17 +154,20 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 
 	// the store tells us about v2
-	s.parts = []snappy.Part{&tP{
-		name:         "foo",
-		version:      "v2",
-		description:  "description",
-		origin:       "bar",
-		isInstalled:  true,
-		isActive:     true,
-		icon:         "meta/gui/icon.svg",
-		_type:        snap.TypeApp,
-		downloadSize: 2,
-	}}
+	s.parts = []*snappy.RemoteSnap{
+		&snappy.RemoteSnap{
+			Pkg: remote.Snap{
+				Name:    "foo",
+				Version: "v2",
+				// FIXME: sucks that title is descripton!
+				Title:        "description",
+				Origin:       "bar",
+				IconURL:      "meta/gui/icon.svg",
+				Type:         snap.TypeApp,
+				DownloadSize: 2,
+			},
+		},
+	}
 
 	// we have v0 installed
 	s.mkInstalled(c, "foo", "bar", "v0", false, "")
@@ -237,7 +240,13 @@ func (s *apiSuite) TestSnapInfoWeirdRoute(c *check.C) {
 	// use the wrong command to force the issue
 	wrongCmd := &Command{Path: "/{what}", d: d}
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
-	s.parts = []snappy.Part{&tP{name: "foo"}}
+	s.parts = []*snappy.RemoteSnap{
+		&snappy.RemoteSnap{
+			Pkg: remote.Snap{
+				Name: "foo",
+			},
+		},
+	}
 	c.Check(getSnapInfo(wrongCmd, nil).Self(nil, nil).(*resp).Status, check.Equals, http.StatusInternalServerError)
 }
 
@@ -251,7 +260,13 @@ func (s *apiSuite) TestSnapInfoBadRoute(c *check.C) {
 	c.Assert(route.Name("foo").GetError(), check.NotNil)
 
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
-	s.parts = []snappy.Part{&tP{name: "foo"}}
+	s.parts = []*snappy.RemoteSnap{
+		&snappy.RemoteSnap{
+			Pkg: remote.Snap{
+				Name: "foo",
+			},
+		},
+	}
 
 	rsp := getSnapInfo(snapCmd, nil).Self(nil, nil).(*resp)
 
@@ -428,7 +443,14 @@ func (s *apiSuite) TestSnapsInfoOnePerIntegration(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapsInfoOnlyLocal(c *check.C) {
-	s.parts = []snappy.Part{&tP{name: "store", origin: "foo"}}
+	s.parts = []*snappy.RemoteSnap{
+		&snappy.RemoteSnap{
+			Pkg: remote.Snap{
+				Name:   "store",
+				Origin: "foo",
+			},
+		},
+	}
 	s.mkInstalled(c, "local", "foo", "v1", true, "")
 
 	req, err := http.NewRequest("GET", "/2.0/snaps?sources=local", nil)
@@ -445,7 +467,14 @@ func (s *apiSuite) TestSnapsInfoOnlyLocal(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
-	s.parts = []snappy.Part{&tP{name: "store", origin: "foo"}}
+	s.parts = []*snappy.RemoteSnap{
+		&snappy.RemoteSnap{
+			Pkg: remote.Snap{
+				Name:   "store",
+				Origin: "foo",
+			},
+		},
+	}
 	s.mkInstalled(c, "local", "foo", "v1", true, "")
 
 	req, err := http.NewRequest("GET", "/2.0/snaps?sources=store", nil)
@@ -462,7 +491,14 @@ func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapsInfoLocalAndStore(c *check.C) {
-	s.parts = []snappy.Part{&tP{name: "remote", origin: "foo"}}
+	s.parts = []*snappy.RemoteSnap{
+		&snappy.RemoteSnap{
+			Pkg: remote.Snap{
+				Name:   "remote",
+				Origin: "foo",
+			},
+		},
+	}
 	s.mkInstalled(c, "local", "foo", "v1", true, "")
 
 	req, err := http.NewRequest("GET", "/2.0/snaps?sources=local,store", nil)
@@ -478,7 +514,14 @@ func (s *apiSuite) TestSnapsInfoLocalAndStore(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapsInfoDefaultSources(c *check.C) {
-	s.parts = []snappy.Part{&tP{name: "remote", origin: "foo"}}
+	s.parts = []*snappy.RemoteSnap{
+		&snappy.RemoteSnap{
+			Pkg: remote.Snap{
+				Name:   "remote",
+				Origin: "foo",
+			},
+		},
+	}
 	s.mkInstalled(c, "local", "foo", "v1", true, "")
 
 	req, err := http.NewRequest("GET", "/2.0/snaps", nil)
@@ -491,7 +534,14 @@ func (s *apiSuite) TestSnapsInfoDefaultSources(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapsInfoUnknownSource(c *check.C) {
-	s.parts = []snappy.Part{&tP{name: "remote", origin: "foo"}}
+	s.parts = []*snappy.RemoteSnap{
+		&snappy.RemoteSnap{
+			Pkg: remote.Snap{
+				Name:   "remote",
+				Origin: "foo",
+			},
+		},
+	}
 	s.mkInstalled(c, "local", "foo", "v1", true, "")
 
 	req, err := http.NewRequest("GET", "/2.0/snaps?sources=unknown", nil)

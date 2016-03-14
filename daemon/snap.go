@@ -65,7 +65,7 @@ func bestSnap(snaps []*snappy.Snap) (idx int, snap *snappy.Snap) {
 // a nil Part. Slice or remotePart may be empty/nil, but not both of them.
 //
 // Also may panic if the remote part is nil and Best() is nil.
-func mapSnap(localSnaps []*snappy.Snap, remotePart snappy.Part) map[string]interface{} {
+func mapSnap(localSnaps []*snappy.Snap, remotePart *snappy.RemoteSnap) map[string]interface{} {
 	var version, update, rollback, icon, name, origin, _type, description string
 
 	if len(localSnaps) == 0 && remotePart == nil {

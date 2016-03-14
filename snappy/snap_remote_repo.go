@@ -70,7 +70,7 @@ func (f *SharedName) IsAlias(origin string) bool {
 // NewRemoteSnap returns a new RemoteSnap from the given
 // remote.Snap data
 func NewRemoteSnap(data remote.Snap) *RemoteSnap {
-	return &RemoteSnap{pkg: data}
+	return &RemoteSnap{Pkg: data}
 }
 
 // SnapUbuntuStoreRepository represents the ubuntu snap store
@@ -255,6 +255,18 @@ func (s *SnapUbuntuStoreRepository) All() ([]Part, error) {
 
 // Find (installable) parts from the store, matching the given search term.
 func (s *SnapUbuntuStoreRepository) Find(searchTerm string, channel string) ([]Part, error) {
+	snaps, err := s.FindSnaps(searchTerm, channel)
+	if err != nil {
+		return nil, err
+	}
+	parts := make([]Part, len(snaps))
+	for i, snap := range snaps {
+		parts[i] = snap
+	}
+	return parts, nil
+}
+
+func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string) ([]*RemoteSnap, error) {
 	if channel == "" {
 		channel = release.Get().Channel
 	}
@@ -290,12 +302,12 @@ func (s *SnapUbuntuStoreRepository) Find(searchTerm string, channel string) ([]P
 		return nil, err
 	}
 
-	parts := make([]Part, len(searchData.Payload.Packages))
+	snaps := make([]*RemoteSnap, len(searchData.Payload.Packages))
 	for i, pkg := range searchData.Payload.Packages {
-		parts[i] = NewRemoteSnap(pkg)
+		snaps[i] = NewRemoteSnap(pkg)
 	}
 
-	return parts, nil
+	return snaps, nil
 }
 
 // Search searches the repository for the given searchTerm
@@ -411,7 +423,7 @@ func (s *SnapUbuntuStoreRepository) SnapUpdates() (snaps []*RemoteSnap, err erro
 // The file is saved in temporary storage, and should be removed
 // after use to prevent the disk from running out of space.
 func (s *SnapUbuntuStoreRepository) Download(remoteSnap *RemoteSnap, pbar progress.Meter) (path string, err error) {
-	w, err := ioutil.TempFile("", remoteSnap.pkg.Name)
+	w, err := ioutil.TempFile("", remoteSnap.Pkg.Name)
 	if err != nil {
 		return "", err
 	}
@@ -426,9 +438,9 @@ func (s *SnapUbuntuStoreRepository) Download(remoteSnap *RemoteSnap, pbar progre
 	}()
 
 	// try anonymous download first and fallback to authenticated
-	url := remoteSnap.pkg.AnonDownloadURL
+	url := remoteSnap.Pkg.AnonDownloadURL
 	if url == "" {
-		url = remoteSnap.pkg.DownloadURL
+		url = remoteSnap.Pkg.DownloadURL
 	}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
