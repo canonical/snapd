@@ -51,8 +51,8 @@ type Janitor struct {
 	Glob string
 }
 
-// File describes the content and-meta data of one file managed by the janitor.
-type File struct {
+// FileState describes the content and-meta data of one file managed by the janitor.
+type FileState struct {
 	Content  []byte
 	Mode     os.FileMode
 	UID, Gid uint32
@@ -69,7 +69,7 @@ type File struct {
 // changes performed so far. Information about the performed changes is
 // returned to the caller for any extra processing that might be required (e.g.
 // to run some helper program).
-func (j *Janitor) Tidy(oracle map[string]*File) (created, corrected, removed []string, err error) {
+func (j *Janitor) Tidy(oracle map[string]*FileState) (created, corrected, removed []string, err error) {
 	found := make(map[string]bool)
 	matches, err := filepath.Glob(path.Join(j.Path, j.Glob))
 	if err != nil {
@@ -132,7 +132,7 @@ func (j *Janitor) Tidy(oracle map[string]*File) (created, corrected, removed []s
 }
 
 // tidyExistingFile ensures that file content and meta-data matches expectations.
-func (j *Janitor) tidyExistingFile(file *os.File, stat os.FileInfo, expected *File) (corrected bool, err error) {
+func (j *Janitor) tidyExistingFile(file *os.File, stat os.FileInfo, expected *FileState) (corrected bool, err error) {
 	var correctedMeta, correctedContent bool
 	if correctedMeta, err = j.tidyContent(file, stat, expected); err != nil {
 		return
@@ -150,7 +150,7 @@ func (j *Janitor) tidyExistingFile(file *os.File, stat os.FileInfo, expected *Fi
 // Here we assume that the size is not of unexpectedly large size because we
 // can hold the reference content. If the file size is not what we expected we
 // overwrite it unconditionally.
-func (j *Janitor) tidyContent(file *os.File, stat os.FileInfo, expected *File) (corrected bool, err error) {
+func (j *Janitor) tidyContent(file *os.File, stat os.FileInfo, expected *FileState) (corrected bool, err error) {
 	if stat.Size() == int64(len(expected.Content)) {
 		var content []byte
 		if content, err = ioutil.ReadFile(file.Name()); err != nil {
@@ -183,7 +183,7 @@ func (j *Janitor) tidyContent(file *os.File, stat os.FileInfo, expected *File) (
 //
 // If file permissions, owner or group owner is different from expectations
 // they are corrected..
-func (j *Janitor) tidyMetaData(file *os.File, stat os.FileInfo, expected *File) (corrected bool, err error) {
+func (j *Janitor) tidyMetaData(file *os.File, stat os.FileInfo, expected *FileState) (corrected bool, err error) {
 	currentPerm := stat.Mode().Perm()
 	expectedPerm := expected.Mode.Perm()
 	if currentPerm != expectedPerm {
