@@ -37,13 +37,13 @@ type FileState struct {
 	GID     uint32
 }
 
-// SyncDir ensures that directory content matches expectations.
+// EnsureDirState ensures that directory content matches expectations.
 //
-// SyncDir enumerates all the files in the specified directory that match the
-// provided pattern (glob). Each enumerated file is checked to ensure that the
-// contents, permissions and ownership are what is desired. Unexpected files
-// are removed.  Missing files are created and differing files are corrected.
-// Files not matching the pattern are ignored.
+// EnsureDirState enumerates all the files in the specified directory that
+// match the provided pattern (glob). Each enumerated file is checked to ensure
+// that the contents, permissions and ownership are what is desired. Unexpected
+// files are removed.  Missing files are created and differing files are
+// corrected.  Files not matching the pattern are ignored.
 //
 // The content map describes each of the files that are intended to exist in
 // the directory.  Map keys must be file names relative to the directory.
@@ -53,7 +53,7 @@ type FileState struct {
 // changes performed so far. Information about the performed changes is
 // returned to the caller for any extra processing that might be required (e.g.
 // to run some helper program).
-func SyncDir(dir, glob string, content map[string]*FileState) (created, corrected, removed []string, err error) {
+func EnsureDirState(dir, glob string, content map[string]*FileState) (created, corrected, removed []string, err error) {
 	found := make(map[string]bool)
 	matches, err := filepath.Glob(path.Join(dir, glob))
 	if err != nil {
