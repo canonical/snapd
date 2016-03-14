@@ -78,11 +78,11 @@ func (s *SecuritySuite) prepareFixtureWithInterface(c *C, i Interface) {
 	c.Assert(err, IsNil)
 }
 
-// Tests for LauncherNameForApp()
+// Tests for WrapperNameForApp()
 
-func (s *SecuritySuite) TestLauncherNameForApp(c *C) {
-	c.Assert(LauncherNameForApp("snap", "app"), Equals, "snap.app")
-	c.Assert(LauncherNameForApp("foo", "foo"), Equals, "foo")
+func (s *SecuritySuite) TestWrapperNameForApp(c *C) {
+	c.Assert(WrapperNameForApp("snap", "app"), Equals, "snap.app")
+	c.Assert(WrapperNameForApp("foo", "foo"), Equals, "foo")
 }
 
 // Tests for SecurityTagForApp()

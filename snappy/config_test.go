@@ -95,7 +95,7 @@ func (s *SnapTestSuite) TestConfigSimple(c *C) {
 func (s *SnapTestSuite) TestConfigOS(c *C) {
 	snapYaml, err := s.makeInstalledMockSnap(mockOsSnap)
 	c.Assert(err, IsNil)
-	snap, err := NewInstalledSnapPart(snapYaml, testOrigin)
+	snap, err := NewInstalledSnap(snapYaml, testOrigin)
 	c.Assert(err, IsNil)
 
 	var cfg []byte

@@ -56,7 +56,7 @@ func snapConfig(snapDir, origin string, rawConfig []byte) (newConfig []byte, err
 		return nil, ErrConfigNotFound
 	}
 
-	part, err := NewInstalledSnapPart(filepath.Join(snapDir, "meta", "snap.yaml"), origin)
+	part, err := NewInstalledSnap(filepath.Join(snapDir, "meta", "snap.yaml"), origin)
 	if err != nil {
 		return nil, ErrPackageNotFound
 	}
