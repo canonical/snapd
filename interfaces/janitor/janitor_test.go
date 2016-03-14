@@ -175,12 +175,8 @@ func (s *JanitorSuite) TestFixesFilesWithBadPermissions(c *C) {
 	err := ioutil.WriteFile(name, []byte(`password`), 0666)
 	c.Assert(err, IsNil)
 	removed, created, fixed, err := s.j.Tidy(map[string]*janitor.File{
-		"sensitive.snap": {
-			Content: []byte(`password`),
-			Mode:    0600, // NOTE: we want the file to be private
-			UID:     s.uid,
-			Gid:     s.gid,
-		},
+		// NOTE: we want the file to be private
+		"sensitive.snap": {Content: []byte(`password`), Mode: 0600, UID: s.uid, Gid: s.gid},
 	})
 	c.Assert(err, IsNil)
 	// Fixed file is reported
@@ -202,13 +198,8 @@ func (s *JanitorSuite) TestTriesToFixFilesWithBadOwnership(c *C) {
 	err := ioutil.WriteFile(name, []byte(`state`), 0600)
 	c.Assert(err, IsNil)
 	removed, created, fixed, err := s.j.Tidy(map[string]*janitor.File{
-		"root-owned.snap": {
-			Content: []byte(`state`),
-			Mode:    0600,
-			// NOTE: we want this file to be root-owned
-			UID: 0,
-			Gid: 0,
-		},
+		// NOTE: we want this file to be root-owned
+		"root-owned.snap": {Content: []byte(`state`), Mode: 0600, UID: 0, Gid: 0},
 	})
 	// XXX: we'd like to chown the file but could not
 	c.Assert(err, ErrorMatches, "chown .*: operation not permitted")
@@ -247,10 +238,8 @@ func (s *JanitorSuite) TestReportsAbnormalFileLocation(c *C) {
 }
 
 func (s *JanitorSuite) TestReportsAbnormalPatterns(c *C) {
-	j := janitor.Janitor{
-		Glob: "[", // invalid pattern
-		Path: s.dir,
-	}
+	// NOTE: the pattern is invalid
+	j := janitor.Janitor{Glob: "[", Path: s.dir}
 	removed, created, fixed, err := j.Tidy(map[string]*janitor.File{"unused": {}})
 	c.Assert(err, ErrorMatches, "syntax error in pattern")
 	c.Assert(removed, HasLen, 0)
