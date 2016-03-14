@@ -215,6 +215,8 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string) (*RemoteSnap, err
 	return NewRemoteSnap(detailsData), nil
 }
 
+// FindSnaps finds  (installable) parts from the store, matching the
+// given search term.
 func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string) ([]*RemoteSnap, error) {
 	if channel == "" {
 		channel = release.Get().Channel
