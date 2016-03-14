@@ -266,6 +266,7 @@ func (s *SnapUbuntuStoreRepository) Find(searchTerm string, channel string) ([]P
 	return parts, nil
 }
 
+// FindSnaps finds (installable) parts from the store, matching the given search term.
 func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string) ([]*RemoteSnap, error) {
 	if channel == "" {
 		channel = release.Get().Channel
@@ -370,7 +371,7 @@ func (s *SnapUbuntuStoreRepository) Updates() ([]Part, error) {
 	return parts, nil
 }
 
-// Updates returns the available updates
+// SnapUpdates returns the available updates
 func (s *SnapUbuntuStoreRepository) SnapUpdates() (snaps []*RemoteSnap, err error) {
 	// the store only supports apps, gadget and frameworks currently, so no
 	// sense in sending it our ubuntu-core snap
