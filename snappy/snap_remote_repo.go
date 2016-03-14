@@ -248,11 +248,6 @@ func (s *SnapUbuntuStoreRepository) Details(name, origin, channel string) (parts
 	return []Part{snap}, nil
 }
 
-// All (installable) parts from the store
-func (s *SnapUbuntuStoreRepository) All() ([]Part, error) {
-	return s.Find("", "")
-}
-
 // Find (installable) parts from the store, matching the given search term.
 func (s *SnapUbuntuStoreRepository) Find(searchTerm string, channel string) ([]Part, error) {
 	snaps, err := s.FindSnaps(searchTerm, channel)
