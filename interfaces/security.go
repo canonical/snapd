@@ -25,11 +25,14 @@ import (
 	"strings"
 )
 
-// LauncherNameForApp returns the launcher name for a given application.
+// WrapperNameForApp returns the name of the wrapper for a given application.
 //
-// In general, the launcher has the form: "$snap.$app". When both snap name and
+// A wrapper is a generated helper executable that assists in setting up
+// environment for running a particular application.
+//
+// In general, the wrapper has the form: "$snap.$app". When both snap name and
 // app name are the same then the tag is simplified to just "$snap".
-func LauncherNameForApp(snapName, appName string) string {
+func WrapperNameForApp(snapName, appName string) string {
 	if appName == snapName {
 		return snapName
 	}
@@ -41,7 +44,7 @@ func LauncherNameForApp(snapName, appName string) string {
 // In general, the tag has the form: "$snap.$app.snap". When both snap name and
 // app name are the same then the tag is simplified to just "$snap.snap".
 func SecurityTagForApp(snapName, appName string) string {
-	return fmt.Sprintf("%s.snap", LauncherNameForApp(snapName, appName))
+	return fmt.Sprintf("%s.snap", WrapperNameForApp(snapName, appName))
 }
 
 // securityHelper is an interface for common aspects of generating security files.

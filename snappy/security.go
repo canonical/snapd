@@ -340,10 +340,10 @@ func getSecurityProfile(m *snapYaml, appName, baseDir string) (string, error) {
 }
 
 type securityAppID struct {
-	AppID   string
-	Pkgname string
-	Appname string
-	Version string
+	AppID    string
+	SnapName string
+	AppName  string
+	Version  string
 }
 
 func newAppID(appID string) (*securityAppID, error) {
@@ -352,10 +352,10 @@ func newAppID(appID string) (*securityAppID, error) {
 		return nil, errInvalidAppID
 	}
 	id := securityAppID{
-		AppID:   appID,
-		Pkgname: tmp[0],
-		Appname: tmp[1],
-		Version: tmp[2],
+		AppID:    appID,
+		SnapName: tmp[0],
+		AppName:  tmp[1],
+		Version:  tmp[2],
 	}
 	return &id, nil
 }
@@ -371,7 +371,7 @@ func (sa *securityAppID) appArmorVars() string {
 @{APP_VERSION}="%s"
 @{INSTALL_DIR}="{/snaps,/gadget}"
 # Deprecated:
-@{CLICK_DIR}="{/snaps,/gadget}"`, sa.Appname, dbusPath(sa.AppID), dbusPath(sa.Pkgname), sa.Pkgname, sa.Version)
+@{CLICK_DIR}="{/snaps,/gadget}"`, sa.AppName, dbusPath(sa.AppID), dbusPath(sa.SnapName), sa.SnapName, sa.Version)
 	return aavars
 }
 
@@ -737,7 +737,7 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinary(m *snapYaml, name 
 	return nil
 }
 
-// FIXME: move into something more generic - SnapPart.HasConfig?
+// FIXME: move into something more generic - Snap.HasConfig?
 func hasConfig(baseDir string) bool {
 	return osutil.FileExists(filepath.Join(baseDir, "meta", "hooks", "config"))
 }
@@ -820,7 +820,7 @@ func regeneratePolicyForSnap(snapname string) error {
 		}
 		if appID.Version != appliedVersion {
 			// FIXME: dirs.SnapSnapsDir is too simple, gadget
-			fn := filepath.Join(dirs.SnapSnapsDir, appID.Pkgname, appID.Version, "meta", "snap.yaml")
+			fn := filepath.Join(dirs.SnapSnapsDir, appID.SnapName, appID.Version, "meta", "snap.yaml")
 			if !osutil.FileExists(fn) {
 				continue
 			}
@@ -909,7 +909,7 @@ func CompareGeneratePolicyFromFile(fn string) error {
 func parseSnapYamlFileWithVersion(fn string) (*snapYaml, error) {
 	m, err := parseSnapYamlFile(fn)
 
-	// FIXME: duplicated code from snapp.go:NewSnapPartFromYaml,
+	// FIXME: duplicated code from snapp.go:NewSnapFromYaml,
 	//        version is overriden by sideloaded versions
 
 	// use EvalSymlinks to resolve 'current' to the correct version
@@ -960,7 +960,7 @@ func RegenerateAllPolicy(force bool) error {
 	}
 
 	for _, p := range installed {
-		part, ok := p.(*SnapPart)
+		part, ok := p.(*Snap)
 		if !ok {
 			continue
 		}

@@ -79,7 +79,7 @@ func (s *SnapTestSuite) TestRemovePackageDesktopFiles(c *C) {
 func (s *SnapTestSuite) TestDesktopFileIsAddedAndRemoved(c *C) {
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, string(desktopAppYaml))
 	c.Assert(err, IsNil)
-	part, err := NewInstalledSnapPart(yamlFile, testOrigin)
+	part, err := NewInstalledSnap(yamlFile, testOrigin)
 	c.Assert(err, IsNil)
 
 	// create a mock desktop file

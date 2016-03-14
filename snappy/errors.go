@@ -119,9 +119,9 @@ var (
 	// but does not provide a configuration.
 	ErrNoGadgetConfiguration = errors.New("no configuration entry found in the gadget snap")
 
-	// ErrInstalledNonSnapPart is returned if a part that is purportedly
-	// installed turns out to not be a SnapPart.
-	ErrInstalledNonSnapPart = errors.New("installed dependent snap is not a SnapPart")
+	// ErrInstalledNonSnap is returned if a part that is purportedly
+	// installed turns out to not be a Snap.
+	ErrInstalledNonSnap = errors.New("installed dependent snap is not a Snap")
 
 	// ErrSideLoaded is returned on system update if the system was
 	// created with a custom enablement part.
