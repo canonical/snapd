@@ -73,7 +73,7 @@ func NewSnapFile(snapFile string, origin string, unsignedOk bool) (*SnapFile, er
 	}, nil
 }
 
-// Type returns the type of the SnapPart (app, gadget, ...)
+// Type returns the type of the Snap (app, gadget, ...)
 func (s *SnapFile) Type() snap.Type {
 	if s.m.Type != "" {
 		return s.m.Type
