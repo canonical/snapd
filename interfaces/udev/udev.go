@@ -31,11 +31,11 @@ import (
 func ReloadRules() error {
 	output, err := exec.Command("udevadm", "control", "--reload-rules").CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("Cannot reload udev rules: %s\nudev output:\n%s", err, string(output))
+		return fmt.Errorf("cannot reload udev rules: %s\nudev output:\n%s", err, string(output))
 	}
 	output, err = exec.Command("udevadm", "trigger").CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("Cannot run udev triggers: %s\nudev output:\n%s", err, string(output))
+		return fmt.Errorf("cannot run udev triggers: %s\nudev output:\n%s", err, string(output))
 	}
 	return nil
 }

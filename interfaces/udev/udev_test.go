@@ -59,7 +59,7 @@ fi
 	defer cmd.Restore()
 	err := udev.ReloadRules()
 	c.Assert(err.Error(), Equals, ""+
-		"Cannot reload udev rules: exit status 1\n"+
+		"cannot reload udev rules: exit status 1\n"+
 		"udev output:\n"+
 		"failure 1\n")
 	c.Assert(cmd.Calls(), DeepEquals, []string{"control --reload-rules"})
@@ -75,7 +75,7 @@ fi
 	defer cmd.Restore()
 	err := udev.ReloadRules()
 	c.Assert(err.Error(), Equals, ""+
-		"Cannot run udev triggers: exit status 2\n"+
+		"cannot run udev triggers: exit status 2\n"+
 		"udev output:\n"+
 		"failure 2\n")
 	c.Assert(cmd.Calls(), DeepEquals, []string{
