@@ -40,7 +40,7 @@ type FileState struct {
 	// UID is the identifier of the user who owns the file (UNIX only).
 	UID uint32
 	// GID is the identifier of the group who owns the file (UNIX only).
-	Gid uint32
+	GID uint32
 }
 
 // SyncDir ensures that directory content matches expectations.
@@ -113,8 +113,8 @@ func SyncDir(dir, glob string, content map[string]*FileState) (created, correcte
 				changed = true
 			}
 			if st, ok := stat.Sys().(*syscall.Stat_t); ok {
-				if st.Uid != expected.UID || st.Gid != expected.Gid {
-					if err = file.Chown(int(expected.UID), int(expected.Gid)); err != nil {
+				if st.Uid != expected.UID || st.Gid != expected.GID {
+					if err = file.Chown(int(expected.UID), int(expected.GID)); err != nil {
 						return
 					}
 					changed = true
