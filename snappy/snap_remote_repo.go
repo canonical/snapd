@@ -235,32 +235,6 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string) (*RemoteSnap, err
 	return NewRemoteSnap(detailsData), nil
 }
 
-// Details returns details for the given snap in this repository
-func (s *SnapUbuntuStoreRepository) Details(name, origin, channel string) (parts []Part, err error) {
-	snapName := name
-	if origin != "" {
-		snapName = name + "." + origin
-	}
-	snap, err := s.Snap(snapName, channel)
-	if err != nil {
-		return nil, err
-	}
-	return []Part{snap}, nil
-}
-
-// Find (installable) parts from the store, matching the given search term.
-func (s *SnapUbuntuStoreRepository) Find(searchTerm string, channel string) ([]Part, error) {
-	snaps, err := s.FindSnaps(searchTerm, channel)
-	if err != nil {
-		return nil, err
-	}
-	parts := make([]Part, len(snaps))
-	for i, snap := range snaps {
-		parts[i] = snap
-	}
-	return parts, nil
-}
-
 func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string) ([]*RemoteSnap, error) {
 	if channel == "" {
 		channel = release.Get().Channel
@@ -349,20 +323,6 @@ func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (SharedNames, erro
 	}
 
 	return sharedNames, nil
-}
-
-// Updates returns the available updates
-func (s *SnapUbuntuStoreRepository) Updates() ([]Part, error) {
-	snaps, err := s.SnapUpdates()
-	if err != nil {
-		return nil, err
-	}
-
-	parts := make([]Part, len(snaps))
-	for i, snap := range snaps {
-		parts[i] = snap
-	}
-	return parts, nil
 }
 
 // Updates returns the available updates

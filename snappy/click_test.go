@@ -366,7 +366,7 @@ func (s *SnapTestSuite) TestClickSetActive(c *C) {
 
 	// ensure v2 is active
 	repo := NewLocalSnapRepository()
-	parts, err := repo.AllSnaps()
+	parts, err := repo.Installed()
 	c.Assert(err, IsNil)
 	c.Assert(parts, HasLen, 2)
 	c.Assert(parts[0].Version(), Equals, "1.0")
@@ -376,7 +376,7 @@ func (s *SnapTestSuite) TestClickSetActive(c *C) {
 
 	// set v1 active
 	err = parts[0].activate(false, nil)
-	parts, err = repo.AllSnaps()
+	parts, err = repo.Installed()
 	c.Assert(err, IsNil)
 	c.Assert(parts[0].Version(), Equals, "1.0")
 	c.Assert(parts[0].IsActive(), Equals, true)

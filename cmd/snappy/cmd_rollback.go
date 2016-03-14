@@ -70,7 +70,7 @@ func (x *cmdRollback) doRollback() error {
 	// TRANSLATORS: the first %s is a pkgname, the second %s is the new version
 	fmt.Printf(i18n.G("Setting %s to version %s\n"), pkg, nowVersion)
 
-	installed, err := snappy.NewLocalSnapRepository().AllSnaps()
+	installed, err := snappy.NewLocalSnapRepository().Installed()
 	if err != nil {
 		return err
 	}

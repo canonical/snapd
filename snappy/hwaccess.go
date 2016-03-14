@@ -177,7 +177,7 @@ func writeUdevRuleForDeviceCgroup(snapname, device string) error {
 	var acls []string
 	for _, snap := range installed {
 		if snap.Name() == name && (origin == "" || snap.Origin() == origin) {
-			for _, app := range snap.(*Snap).Apps() {
+			for _, app := range snap.Apps() {
 				acl := fmt.Sprintf(`KERNEL=="%v", TAG:="snappy-assign", ENV{SNAPPY_APP}:="%s"`+"\n",
 					devicePath, fmt.Sprintf("%s.%s", snap.Name(), app.Name))
 				acls = append(acls, acl)

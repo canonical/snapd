@@ -79,7 +79,7 @@ type Part interface {
 
 // ActiveSnapsByType returns all installed snaps with the given type
 func ActiveSnapsByType(snapTs ...snap.Type) (res []*Snap, err error) {
-	installed, err := NewLocalSnapRepository().AllSnaps()
+	installed, err := NewLocalSnapRepository().Installed()
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +115,7 @@ func activeSnapIterByTypeImpl(f func(Part) string, snapTs ...snap.Type) ([]strin
 
 // ActiveSnapByName returns all active snaps with the given name
 func ActiveSnapByName(needle string) *Snap {
-	installed, err := NewLocalSnapRepository().AllSnaps()
+	installed, err := NewLocalSnapRepository().Installed()
 	if err != nil {
 		return nil
 	}
@@ -175,7 +175,7 @@ func FindSnapsByNameAndVersion(needle, version string, haystack []*Snap) []*Snap
 // MakeSnapActiveByNameAndVersion makes the given snap version the active
 // version
 func makeSnapActiveByNameAndVersion(pkg, ver string, inter progress.Meter) error {
-	installed, err := NewLocalSnapRepository().AllSnaps()
+	installed, err := NewLocalSnapRepository().Installed()
 	if err != nil {
 		return err
 	}

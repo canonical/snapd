@@ -959,11 +959,7 @@ func RegenerateAllPolicy(force bool) error {
 		return err
 	}
 
-	for _, p := range installed {
-		part, ok := p.(*Snap)
-		if !ok {
-			continue
-		}
+	for _, part := range installed {
 		basedir := part.basedir
 		yFn := filepath.Join(basedir, "meta", "snap.yaml")
 

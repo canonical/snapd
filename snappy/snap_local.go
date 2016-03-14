@@ -399,7 +399,7 @@ func (s *Snap) Dependents() ([]*Snap, error) {
 
 	var needed []*Snap
 
-	installed, err := NewLocalSnapRepository().AllSnaps()
+	installed, err := NewLocalSnapRepository().Installed()
 	if err != nil {
 		return nil, err
 	}
