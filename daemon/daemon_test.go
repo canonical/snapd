@@ -36,8 +36,9 @@ type daemonSuite struct{}
 var _ = check.Suite(&daemonSuite{})
 
 // build a new daemon, with only a little of Init(), suitable for the tests
-func newTestDaemon() *Daemon {
-	d := New()
+func newTestDaemon(c *check.C) *Daemon {
+	d, err := New()
+	c.Assert(err, check.IsNil)
 	d.addRoutes()
 
 	return d
@@ -157,8 +158,7 @@ func (s *daemonSuite) TestSuperAccess(c *check.C) {
 }
 
 func (s *daemonSuite) TestAddRoutes(c *check.C) {
-	d := New()
-	d.addRoutes()
+	d := newTestDaemon(c)
 
 	expected := make([]string, len(api))
 	for i, v := range api {
