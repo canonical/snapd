@@ -91,20 +91,15 @@ func (aa *appArmor) headerForApp(snapName, snapVersion, snapOrigin, appName stri
 }
 
 func (aa *appArmor) varsForApp(snapName, snapVersion, snapOrigin, appName string) string {
-	return fmt.Sprintf(`
-# Specified profile variables
-@{APP_APPNAME}="%s"
-@{APP_ID_DBUS}="%s"
-@{APP_PKGNAME_DBUS}="%s"
-@{APP_PKGNAME}="%s"
-@{APP_VERSION}="%s"
-@{INSTALL_DIR}="{/snaps,/gadget}"
-`,
-		appName,
-		dbusPath(fmt.Sprintf("%s.%s_%s_%s", snapName, snapOrigin, appName, snapVersion)),
-		dbusPath(fmt.Sprintf("%s.%s", snapName, snapOrigin)),
-		fmt.Sprintf("%s.%s", snapName, snapOrigin),
-		snapVersion)
+	return "\n" +
+		"# Specified profile variables\n" +
+		fmt.Sprintf("@{APP_APPNAME}=\"%s\"\n", appName) +
+		fmt.Sprintf("@{APP_ID_DBUS}=\"%s\"\n", dbusPath(
+			fmt.Sprintf("%s.%s_%s_%s", snapName, snapOrigin, appName, snapVersion))) +
+		fmt.Sprintf("@{APP_PKGNAME_DBUS}=\"%s\"\n", dbusPath(fmt.Sprintf("%s.%s", snapName, snapOrigin))) +
+		fmt.Sprintf("@{APP_PKGNAME}=\"%s\"\n", fmt.Sprintf("%s.%s", snapName, snapOrigin)) +
+		fmt.Sprintf("@{APP_VERSION}=\"%s\"\n", snapVersion) +
+		"@{INSTALL_DIR}=\"{/snaps,/gadget}\"\n"
 }
 
 func (aa *appArmor) profileAttachForApp(snapName, snapVersion, snapOrigin, appName string) string {
