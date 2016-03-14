@@ -814,18 +814,6 @@ func (s *apiSuite) TestPostSnapDispatch(c *check.C) {
 	}
 }
 
-type cfgc struct {
-	cfg string
-	err error
-	idx int
-}
-
-func (cfgc) IsInstalled(string) bool { return true }
-func (c cfgc) ActiveIndex() int      { return c.idx }
-func (c cfgc) Load(string) (snappy.Part, error) {
-	return &tP{name: "foo", version: "v1", origin: "bar", isActive: true, config: c.cfg, configErr: c.err}, nil
-}
-
 type fakeOverlord struct {
 	configs map[string]string
 }
@@ -1031,7 +1019,7 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, unsignedExpected bo
 
 	// setup done
 
-	newSnap = func(fn string, origin string, unauthOk bool) (snappy.Part, error) {
+	newSnap = func(fn string, origin string, unauthOk bool) (*snappy.SnapFile, error) {
 		c.Check(origin, check.Equals, snappy.SideloadedOrigin)
 		c.Check(unauthOk, check.Equals, unsignedExpected)
 
@@ -1041,7 +1029,7 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, unsignedExpected bo
 
 		ch <- struct{}{}
 
-		return &tP{}, nil
+		return &snappy.SnapFile{}, nil
 	}
 	defer func() { newSnap = newSnapImpl }()
 

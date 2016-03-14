@@ -247,14 +247,6 @@ func webify(result map[string]interface{}, resource string) map[string]interface
 	return result
 }
 
-type byQN []snappy.Part
-
-func (ps byQN) Len() int      { return len(ps) }
-func (ps byQN) Swap(a, b int) { ps[a], ps[b] = ps[b], ps[a] }
-func (ps byQN) Less(a, b int) bool {
-	return snappy.QualifiedName(ps[a]) < snappy.QualifiedName(ps[b])
-}
-
 // plural!
 func getSnapsInfo(c *Command, r *http.Request) Response {
 	route := c.d.router.Get(snapCmd.Path)
@@ -754,7 +746,7 @@ func postSnap(c *Command, r *http.Request) Response {
 
 const maxReadBuflen = 1024 * 1024
 
-func newSnapImpl(filename string, origin string, unsignedOk bool) (snappy.Part, error) {
+func newSnapImpl(filename string, origin string, unsignedOk bool) (*snappy.SnapFile, error) {
 	return snappy.NewSnapFile(filename, origin, unsignedOk)
 }
 
