@@ -30,10 +30,17 @@ import (
 )
 
 // FileState describes the expected content and meta data of a single file.
+//
+// FileState is used by the SyncDir()
 type FileState struct {
-	Content  []byte
-	Mode     os.FileMode
-	UID, Gid uint32
+	// Content is the entire content that a specific file is expected to have.
+	Content []byte
+	// Mode describes the permissions that the file is expected to have.
+	Mode os.FileMode
+	// UID is the identifier of the user who owns the file (UNIX only).
+	UID uint32
+	// GID is the identifier of the group who owns the file (UNIX only).
+	Gid uint32
 }
 
 // SyncDir ensures that directory content matches expectations.
