@@ -29,49 +29,32 @@ import (
 	"syscall"
 )
 
-// Janitor looks after a specific directory, making sure it has exactly what is expected.
-//
-// Technically the janitor looks at a subset of files in a given directory. On
-// demand, the janitor scans the directory and looking at contents and
-// permissions of files matching a given pattern. At the same time the janitor
-// has an oracle/helper that tells it exactly what should be in each of the
-// files, which files should exist, etc. The janitor uses this information to
-// correct any discrepancies.
-//
-// After checking everything the janitor notifies whoever controls it about the
-// changes made. Those changes can be used to follow up with some additional
-// tasks that are beyond the scope of the janitor, e.g. to run some programs.
-//
-// Note that Janitor doesn't use any filesystem observation APIs. All changes
-// are monitored on demand.
-type Janitor struct {
-	// path contains the name of the directory to "observe".
-	Path string
-	// glob contains pattern of files to observe.
-	Glob string
-}
-
-// FileState describes the content and-meta data of one file managed by the janitor.
+// FileState describes the expected content and meta data of a single file.
 type FileState struct {
 	Content  []byte
 	Mode     os.FileMode
 	UID, Gid uint32
 }
 
-// Tidy the directory to match expectations.
+// SyncDir ensures that directory content matches expectations.
 //
-// Tidy looks at the managed directory, enumerates all the files
-// there that match the encapsulated glob. Files not matching the glob are
-// untouched.  Unexpected files are removed. Missing files are created and
-// corrupted files are corrected.
+// SyncDir enumerates all the files in the specified directory that match the
+// provided pattern (glob). Each enumerated file is checked to ensure that the
+// contents, permissions and ownership are what is desired. Unexpected files
+// are removed.  Missing files are created and corrupted files are corrected.
+// Files not matching the pattern are ignored.
 //
-// The janitor stops at the first encountered error but reports all of the
+// The content map describes each of the files that are intended to exist in
+// the directory.  Map keys must be file names relative to the directory.
+// Sub-directories in the name are not allowed.
+//
+// The function stops at the first encountered error but reports all of the
 // changes performed so far. Information about the performed changes is
 // returned to the caller for any extra processing that might be required (e.g.
 // to run some helper program).
-func (j *Janitor) Tidy(oracle map[string]*FileState) (created, corrected, removed []string, err error) {
+func SyncDir(dir, glob string, content map[string]*FileState) (created, corrected, removed []string, err error) {
 	found := make(map[string]bool)
-	matches, err := filepath.Glob(path.Join(j.Path, j.Glob))
+	matches, err := filepath.Glob(path.Join(dir, glob))
 	if err != nil {
 		return
 	}
@@ -87,13 +70,50 @@ func (j *Janitor) Tidy(oracle map[string]*FileState) (created, corrected, remove
 		if stat, err = file.Stat(); err != nil {
 			return
 		}
-		if expected, shouldBeHere := oracle[baseName]; shouldBeHere {
-			// Check that the file has the right content and meta-data.
-			iscorrected := false
-			if iscorrected, err = j.tidyExistingFile(file, stat, expected); err != nil {
-				return
+		if expected, shouldBeHere := content[baseName]; shouldBeHere {
+			changed := false
+			// Check that file has the right content
+			if stat.Size() == int64(len(expected.Content)) {
+				var content []byte
+				if content, err = ioutil.ReadFile(file.Name()); err != nil {
+					return
+				}
+				if !bytes.Equal(content, expected.Content) {
+					if _, err = file.Seek(0, 0); err != nil {
+						return
+					}
+					if _, err = file.Write(expected.Content); err != nil {
+						return
+					}
+					changed = true
+				}
+			} else {
+				if err = file.Truncate(0); err != nil {
+					return
+				}
+				if _, err = file.Write(expected.Content); err != nil {
+					return
+				}
+				changed = true
 			}
-			if iscorrected {
+			// Check that file has the right meta-data
+			currentPerm := stat.Mode().Perm()
+			expectedPerm := expected.Mode.Perm()
+			if currentPerm != expectedPerm {
+				if err = file.Chmod(expectedPerm); err != nil {
+					return
+				}
+				changed = true
+			}
+			if st, ok := stat.Sys().(*syscall.Stat_t); ok {
+				if st.Uid != expected.UID || st.Gid != expected.Gid {
+					if err = file.Chown(int(expected.UID), int(expected.Gid)); err != nil {
+						return
+					}
+					changed = true
+				}
+			}
+			if changed {
 				corrected = append(corrected, baseName)
 			}
 			found[baseName] = true
@@ -106,99 +126,27 @@ func (j *Janitor) Tidy(oracle map[string]*FileState) (created, corrected, remove
 		}
 	}
 	// Create files that were not found but are expected
-	for baseName, expected := range oracle {
+	for baseName, expected := range content {
 		if baseName != path.Base(baseName) {
 			err = fmt.Errorf("expected files cannot have path component: %q", baseName)
 			return
 		}
 		var matched bool
-		matched, err = filepath.Match(j.Glob, baseName)
+		matched, err = filepath.Match(glob, baseName)
 		if err != nil {
 			return
 		}
 		if !matched {
-			err = fmt.Errorf("expected files must match pattern: %q (pattern: %q)", baseName, j.Glob)
+			err = fmt.Errorf("expected files must match pattern: %q (pattern: %q)", baseName, glob)
 			return
 		}
 		if found[baseName] {
 			continue
 		}
-		if err = ioutil.WriteFile(path.Join(j.Path, baseName), expected.Content, expected.Mode); err != nil {
+		if err = ioutil.WriteFile(path.Join(dir, baseName), expected.Content, expected.Mode); err != nil {
 			return
 		}
 		created = append(created, baseName)
-	}
-	return
-}
-
-// tidyExistingFile ensures that file content and meta-data matches expectations.
-func (j *Janitor) tidyExistingFile(file *os.File, stat os.FileInfo, expected *FileState) (corrected bool, err error) {
-	var correctedMeta, correctedContent bool
-	if correctedMeta, err = j.tidyContent(file, stat, expected); err != nil {
-		return
-	}
-	if correctedContent, err = j.tidyMetaData(file, stat, expected); err != nil {
-		return
-	}
-	corrected = correctedMeta || correctedContent
-	return
-}
-
-// tidyContent ensures that file content matches expectations.
-//
-// If file has the same size read it in memory and check that is is correct.
-// Here we assume that the size is not of unexpectedly large size because we
-// can hold the reference content. If the file size is not what we expected we
-// overwrite it unconditionally.
-func (j *Janitor) tidyContent(file *os.File, stat os.FileInfo, expected *FileState) (corrected bool, err error) {
-	if stat.Size() == int64(len(expected.Content)) {
-		var content []byte
-		if content, err = ioutil.ReadFile(file.Name()); err != nil {
-			return
-		}
-		if bytes.Equal(content, expected.Content) {
-			// If the file has expected content, just return.
-			return
-		}
-		if _, err = file.Seek(0, 0); err != nil {
-			return
-		}
-		if _, err = file.Write(expected.Content); err != nil {
-			return
-		}
-		corrected = true
-	} else {
-		if err = file.Truncate(0); err != nil {
-			return
-		}
-		if _, err = file.Write(expected.Content); err != nil {
-			return
-		}
-		corrected = true
-	}
-	return
-}
-
-// tidyMetaData ensures that file meta-data matches expectations.
-//
-// If file permissions, owner or group owner is different from expectations
-// they are corrected..
-func (j *Janitor) tidyMetaData(file *os.File, stat os.FileInfo, expected *FileState) (corrected bool, err error) {
-	currentPerm := stat.Mode().Perm()
-	expectedPerm := expected.Mode.Perm()
-	if currentPerm != expectedPerm {
-		if err = file.Chmod(expectedPerm); err != nil {
-			return
-		}
-		corrected = true
-	}
-	if st, ok := stat.Sys().(*syscall.Stat_t); ok {
-		if st.Uid != expected.UID || st.Gid != expected.Gid {
-			if err = file.Chown(int(expected.UID), int(expected.Gid)); err != nil {
-				return
-			}
-			corrected = true
-		}
 	}
 	return
 }
