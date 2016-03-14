@@ -74,25 +74,26 @@ func EnsureDirState(dir, glob string, content map[string]*FileState) ([]string, 
 		if stat, err = file.Stat(); err != nil {
 			return created, corrected, removed, err
 		}
-		if expected, shouldBeHere := content[baseName]; shouldBeHere {
-			changed := false
-			// Check that file has the right content
-			if stat.Size() == int64(len(expected.Content)) {
-				var content []byte
-				if content, err = ioutil.ReadFile(file.Name()); err != nil {
-					return created, corrected, removed, err
-				}
-				if !bytes.Equal(content, expected.Content) {
-					if _, err := file.Seek(0, 0); err != nil {
-						return created, corrected, removed, err
-					}
-					if _, err := file.Write(expected.Content); err != nil {
-						return created, corrected, removed, err
-					}
-					changed = true
-				}
-			} else {
-				if err := file.Truncate(0); err != nil {
+		// Remove files that should not be here.
+		var expected *FileState
+		var shouldBeHere bool
+		if expected, shouldBeHere = content[baseName]; !shouldBeHere {
+			if err := os.RemoveAll(name); err != nil {
+				return created, corrected, removed, err
+			}
+			removed = append(removed, baseName)
+			continue
+		}
+		// Verify files that should be here.
+		changed := false
+		// Check that file has the right content
+		if stat.Size() == int64(len(expected.Content)) {
+			var content []byte
+			if content, err = ioutil.ReadFile(file.Name()); err != nil {
+				return created, corrected, removed, err
+			}
+			if !bytes.Equal(content, expected.Content) {
+				if _, err := file.Seek(0, 0); err != nil {
 					return created, corrected, removed, err
 				}
 				if _, err := file.Write(expected.Content); err != nil {
@@ -100,34 +101,36 @@ func EnsureDirState(dir, glob string, content map[string]*FileState) ([]string, 
 				}
 				changed = true
 			}
-			// Check that file has the right meta-data
-			currentPerm := stat.Mode().Perm()
-			expectedPerm := expected.Mode.Perm()
-			if currentPerm != expectedPerm {
-				if err := file.Chmod(expectedPerm); err != nil {
+		} else {
+			if err := file.Truncate(0); err != nil {
+				return created, corrected, removed, err
+			}
+			if _, err := file.Write(expected.Content); err != nil {
+				return created, corrected, removed, err
+			}
+			changed = true
+		}
+		// Check that file has the right meta-data
+		currentPerm := stat.Mode().Perm()
+		expectedPerm := expected.Mode.Perm()
+		if currentPerm != expectedPerm {
+			if err := file.Chmod(expectedPerm); err != nil {
+				return created, corrected, removed, err
+			}
+			changed = true
+		}
+		if st, ok := stat.Sys().(*syscall.Stat_t); ok {
+			if st.Uid != expected.UID || st.Gid != expected.GID {
+				if err := file.Chown(int(expected.UID), int(expected.GID)); err != nil {
 					return created, corrected, removed, err
 				}
 				changed = true
 			}
-			if st, ok := stat.Sys().(*syscall.Stat_t); ok {
-				if st.Uid != expected.UID || st.Gid != expected.GID {
-					if err := file.Chown(int(expected.UID), int(expected.GID)); err != nil {
-						return created, corrected, removed, err
-					}
-					changed = true
-				}
-			}
-			if changed {
-				corrected = append(corrected, baseName)
-			}
-			found[baseName] = true
-		} else {
-			// The file is not supposed to be here.
-			if err := os.RemoveAll(name); err != nil {
-				return created, corrected, removed, err
-			}
-			removed = append(removed, baseName)
 		}
+		if changed {
+			corrected = append(corrected, baseName)
+		}
+		found[baseName] = true
 	}
 	// Create files that were not found but are expected
 	for baseName, expected := range content {
