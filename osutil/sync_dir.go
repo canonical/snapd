@@ -65,15 +65,6 @@ func EnsureDirState(dir, glob string, content map[string]*FileState) ([]string, 
 	// Analyze files that inhabit the subset defined by our glob pattern.
 	for _, name := range matches {
 		baseName := path.Base(name)
-		var file *os.File
-		if file, err = os.OpenFile(name, os.O_RDWR, 0); err != nil {
-			return created, corrected, removed, err
-		}
-		defer file.Close()
-		var stat os.FileInfo
-		if stat, err = file.Stat(); err != nil {
-			return created, corrected, removed, err
-		}
 		// Remove files that should not be here.
 		var expected *FileState
 		var shouldBeHere bool
@@ -83,6 +74,15 @@ func EnsureDirState(dir, glob string, content map[string]*FileState) ([]string, 
 			}
 			removed = append(removed, baseName)
 			continue
+		}
+		var file *os.File
+		if file, err = os.OpenFile(name, os.O_RDWR, 0); err != nil {
+			return created, corrected, removed, err
+		}
+		defer file.Close()
+		var stat os.FileInfo
+		if stat, err = file.Stat(); err != nil {
+			return created, corrected, removed, err
 		}
 		// Verify files that should be here.
 		changed := false
