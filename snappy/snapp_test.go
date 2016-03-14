@@ -449,23 +449,6 @@ func (s *SnapTestSuite) TestUbuntuStoreFind(c *C) {
 	c.Check(parts[0].Name(), Equals, funkyAppName)
 }
 
-func (s *SnapTestSuite) TestUbuntuStoreSearchDoesNotMutateSearchURI(c *C) {
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.URL.RawQuery, Equals, "q=foo")
-		c.Check(storeSearchURI.RawQuery, Equals, "")
-		io.WriteString(w, MockSearchJSON)
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	var err error
-	storeSearchURI, err = url.Parse(mockServer.URL)
-	c.Assert(err, IsNil)
-	repo := NewUbuntuStoreSnapRepository()
-	c.Assert(repo, NotNil)
-
-	repo.Search("foo")
-}
 func mockActiveSnapIterByType(mockSnaps []string) {
 	ActiveSnapIterByType = func(f func(Part) string, snapTs ...snap.Type) (res []string, err error) {
 		return mockSnaps, nil
