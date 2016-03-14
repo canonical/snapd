@@ -92,7 +92,7 @@ func doUpdate(mStore *SnapUbuntuStoreRepository, part Part, flags InstallFlags, 
 // convertToInstalledSnaps takes a slice of remote snaps that got
 // updated and returns the corresponding local snap parts.
 func convertToInstalledSnaps(remoteUpdates []*RemoteSnap) ([]*Snap, error) {
-	installed, err := NewLocalSnapRepository().AllSnaps()
+	installed, err := NewLocalSnapRepository().Installed()
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +111,7 @@ func convertToInstalledSnaps(remoteUpdates []*RemoteSnap) ([]*Snap, error) {
 
 // Update updates the selected name
 func Update(name string, flags InstallFlags, meter progress.Meter) ([]*Snap, error) {
-	installed, err := NewLocalSnapRepository().AllSnaps()
+	installed, err := NewLocalSnapRepository().Installed()
 	if err != nil {
 		return nil, err
 	}
@@ -206,7 +206,7 @@ func doInstall(name, channel string, flags InstallFlags, meter progress.Meter) (
 
 	// check repos next
 	mStore := NewUbuntuStoreSnapRepository()
-	installed, err := NewLocalSnapRepository().AllSnaps()
+	installed, err := NewLocalSnapRepository().Installed()
 	if err != nil {
 		return "", err
 	}
@@ -237,7 +237,7 @@ func GarbageCollect(name string, flags InstallFlags, pb progress.Meter) error {
 		return nil
 	}
 
-	installed, err := NewLocalSnapRepository().AllSnaps()
+	installed, err := NewLocalSnapRepository().Installed()
 	if err != nil {
 		return err
 	}

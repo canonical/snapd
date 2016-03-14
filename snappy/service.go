@@ -67,7 +67,7 @@ type serviceActor struct {
 func FindServices(snapName string, serviceName string, pb progress.Meter) (ServiceActor, error) {
 	var svcs []*svcT
 
-	installed, _ := NewLocalSnapRepository().AllSnaps()
+	installed, _ := NewLocalSnapRepository().Installed()
 	foundSnap := false
 	for _, snap := range installed {
 		if !snap.IsActive() {

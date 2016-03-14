@@ -443,7 +443,7 @@ func (s *SnapTestSuite) TestUbuntuStoreFind(c *C) {
 	repo := NewUbuntuStoreSnapRepository()
 	c.Assert(repo, NotNil)
 
-	parts, err := repo.Find("foo", "")
+	parts, err := repo.FindSnaps("foo", "")
 	c.Assert(err, IsNil)
 	c.Assert(parts, HasLen, 1)
 	c.Check(parts[0].Name(), Equals, funkyAppName)
@@ -494,7 +494,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 	mockActiveSnapIterByType([]string{funkyAppName})
 
 	// the actual test
-	results, err := snap.Updates()
+	results, err := snap.SnapUpdates()
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].Name(), Equals, funkyAppName)
@@ -515,7 +515,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdatesNoSnaps(c *C) {
 	mockActiveSnapIterByType([]string{})
 
 	// the actual test
-	results, err := snap.Updates()
+	results, err := snap.SnapUpdates()
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 0)
 }
@@ -881,7 +881,7 @@ type: gadget
 
 	r := NewLocalSnapRepository()
 	c.Assert(r, NotNil)
-	installed, err := r.AllSnaps()
+	installed, err := r.Installed()
 	c.Assert(err, IsNil)
 	parts := FindSnapsByName("hello-snap", installed)
 	c.Assert(parts, HasLen, 1)

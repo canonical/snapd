@@ -44,20 +44,7 @@ func NewLocalSnapRepository() *SnapLocalRepository {
 }
 
 // Installed returns the installed snaps from this repository
-func (s *SnapLocalRepository) Installed() (parts []Part, err error) {
-	globExpr := filepath.Join(s.path, "*", "*", "meta", "snap.yaml")
-	return s.partsForGlobExpr(globExpr)
-}
-
-// All the parts (ie all installed + removed-but-not-purged)
-//
-// TODO: that thing about removed
-func (s *SnapLocalRepository) All() ([]Part, error) {
-	return s.Installed()
-}
-
-// AllSnaps get all the snaps
-func (s *SnapLocalRepository) AllSnaps() ([]*Snap, error) {
+func (s *SnapLocalRepository) Installed() ([]*Snap, error) {
 	globExpr := filepath.Join(s.path, "*", "*", "meta", "snap.yaml")
 	return s.snapsForGlobExpr(globExpr)
 }
@@ -68,20 +55,7 @@ func (s *SnapLocalRepository) Snaps(name, origin string) ([]*Snap, error) {
 	return s.snapsForGlobExpr(globExpr)
 }
 
-func (s *SnapLocalRepository) snapsForGlobExpr(globExpr string) ([]*Snap, error) {
-	parts, err := s.partsForGlobExpr(globExpr)
-	if err != nil {
-		return nil, err
-	}
-
-	snaps := make([]*Snap, len(parts))
-	for i, part := range parts {
-		snaps[i] = part.(*Snap)
-	}
-
-	return snaps, nil
-}
-func (s *SnapLocalRepository) partsForGlobExpr(globExpr string) (parts []Part, err error) {
+func (s *SnapLocalRepository) snapsForGlobExpr(globExpr string) (parts []*Snap, err error) {
 	matches, err := filepath.Glob(globExpr)
 	if err != nil {
 		return nil, err

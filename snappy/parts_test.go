@@ -114,7 +114,7 @@ type: framework`)
 func (s *SnapTestSuite) TestFindSnapsByNameNotAvailable(c *C) {
 	_, err := makeInstalledMockSnap(s.tempdir, "")
 	repo := NewLocalSnapRepository()
-	installed, err := repo.AllSnaps()
+	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
 
 	parts := FindSnapsByName("not-available", installed)
@@ -124,7 +124,7 @@ func (s *SnapTestSuite) TestFindSnapsByNameNotAvailable(c *C) {
 func (s *SnapTestSuite) TestFindSnapsByNameFound(c *C) {
 	_, err := makeInstalledMockSnap(s.tempdir, "")
 	repo := NewLocalSnapRepository()
-	installed, err := repo.AllSnaps()
+	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 1)
 
@@ -136,7 +136,7 @@ func (s *SnapTestSuite) TestFindSnapsByNameFound(c *C) {
 func (s *SnapTestSuite) TestFindSnapsByNameWithOrigin(c *C) {
 	_, err := makeInstalledMockSnap(s.tempdir, "")
 	repo := NewLocalSnapRepository()
-	installed, err := repo.AllSnaps()
+	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 1)
 
@@ -148,7 +148,7 @@ func (s *SnapTestSuite) TestFindSnapsByNameWithOrigin(c *C) {
 func (s *SnapTestSuite) TestFindSnapsByNameWithOriginNotThere(c *C) {
 	_, err := makeInstalledMockSnap(s.tempdir, "")
 	repo := NewLocalSnapRepository()
-	installed, err := repo.AllSnaps()
+	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 1)
 
@@ -180,7 +180,7 @@ func (s *SnapTestSuite) TestPackageNameInstalled(c *C) {
 func (s *SnapTestSuite) TestFindSnapsByNameAndVersion(c *C) {
 	_, err := makeInstalledMockSnap(s.tempdir, "")
 	repo := NewLocalSnapRepository()
-	installed, err := repo.AllSnaps()
+	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
 
 	parts := FindSnapsByNameAndVersion("hello-snap."+testOrigin, "1.10", installed)
@@ -203,7 +203,7 @@ func (s *SnapTestSuite) TestFindSnapsByNameAndVersion(c *C) {
 func (s *SnapTestSuite) TestFindSnapsByNameAndVersionFmk(c *C) {
 	_, err := makeInstalledMockSnap(s.tempdir, "name: fmk\ntype: framework\nversion: 1")
 	repo := NewLocalSnapRepository()
-	installed, err := repo.AllSnaps()
+	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
 
 	parts := FindSnapsByNameAndVersion("fmk."+testOrigin, "1", installed)
