@@ -259,7 +259,7 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string)
 	return snaps, nil
 }
 
-// Updates returns the available updates
+// SnapUpdates returns the available updates
 func (s *SnapUbuntuStoreRepository) SnapUpdates() (snaps []*RemoteSnap, err error) {
 	// the store only supports apps, gadget and frameworks currently, so no
 	// sense in sending it our ubuntu-core snap
