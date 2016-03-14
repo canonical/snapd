@@ -103,8 +103,7 @@ func (aa *appArmor) varsForApp(snapName, snapVersion, snapOrigin, appName string
 }
 
 func (aa *appArmor) profileAttachForApp(snapName, snapVersion, snapOrigin, appName string) string {
-	return fmt.Sprintf("profile \"%s.%s_%s_%s\"",
-		snapName, snapOrigin, appName, snapVersion)
+	return fmt.Sprintf("profile \"%s\"", SecurityTagForApp(snapName, appName))
 }
 
 // Generate a string suitable for use in a DBus object
