@@ -63,13 +63,13 @@ type File struct {
 // Tidy looks at the managed directory, enumerates all the files
 // there that match the encapsulated glob. Files not matching the glob are
 // untouched.  Unexpected files are removed. Missing files are created and
-// corrupted files are fixed.
+// corrupted files are corrected.
 //
 // The janitor stops at the first encountered error but reports all of the
 // changes performed so far. Information about the performed changes is
 // returned to the caller for any extra processing that might be required (e.g.
 // to run some helper program).
-func (j *Janitor) Tidy(oracle map[string]*File) (removed, created, fixed []string, err error) {
+func (j *Janitor) Tidy(oracle map[string]*File) (removed, created, corrected []string, err error) {
 	found := make(map[string]bool)
 	matches, err := filepath.Glob(path.Join(j.Path, j.Glob))
 	if err != nil {
@@ -89,12 +89,12 @@ func (j *Janitor) Tidy(oracle map[string]*File) (removed, created, fixed []strin
 		}
 		if expected, shouldBeHere := oracle[baseName]; shouldBeHere {
 			// Check that the file has the right content and meta-data.
-			isFixed := false
-			if isFixed, err = j.tidyExistingFile(file, stat, expected); err != nil {
+			iscorrected := false
+			if iscorrected, err = j.tidyExistingFile(file, stat, expected); err != nil {
 				return
 			}
-			if isFixed {
-				fixed = append(fixed, baseName)
+			if iscorrected {
+				corrected = append(corrected, baseName)
 			}
 			found[baseName] = true
 		} else {
@@ -132,15 +132,15 @@ func (j *Janitor) Tidy(oracle map[string]*File) (removed, created, fixed []strin
 }
 
 // tidyExistingFile ensures that file content and meta-data matches expectations.
-func (j *Janitor) tidyExistingFile(file *os.File, stat os.FileInfo, expected *File) (fixed bool, err error) {
-	var fixedMeta, fixedContent bool
-	if fixedMeta, err = j.tidyContent(file, stat, expected); err != nil {
+func (j *Janitor) tidyExistingFile(file *os.File, stat os.FileInfo, expected *File) (corrected bool, err error) {
+	var correctedMeta, correctedContent bool
+	if correctedMeta, err = j.tidyContent(file, stat, expected); err != nil {
 		return
 	}
-	if fixedContent, err = j.tidyMetaData(file, stat, expected); err != nil {
+	if correctedContent, err = j.tidyMetaData(file, stat, expected); err != nil {
 		return
 	}
-	fixed = fixedMeta || fixedContent
+	corrected = correctedMeta || correctedContent
 	return
 }
 
@@ -150,7 +150,7 @@ func (j *Janitor) tidyExistingFile(file *os.File, stat os.FileInfo, expected *Fi
 // Here we assume that the size is not of unexpectedly large size because we
 // can hold the reference content. If the file size is not what we expected we
 // overwrite it unconditionally.
-func (j *Janitor) tidyContent(file *os.File, stat os.FileInfo, expected *File) (fixed bool, err error) {
+func (j *Janitor) tidyContent(file *os.File, stat os.FileInfo, expected *File) (corrected bool, err error) {
 	if stat.Size() == int64(len(expected.Content)) {
 		var content []byte
 		if content, err = ioutil.ReadFile(file.Name()); err != nil {
@@ -166,7 +166,7 @@ func (j *Janitor) tidyContent(file *os.File, stat os.FileInfo, expected *File) (
 		if _, err = file.Write(expected.Content); err != nil {
 			return
 		}
-		fixed = true
+		corrected = true
 	} else {
 		if err = file.Truncate(0); err != nil {
 			return
@@ -174,7 +174,7 @@ func (j *Janitor) tidyContent(file *os.File, stat os.FileInfo, expected *File) (
 		if _, err = file.Write(expected.Content); err != nil {
 			return
 		}
-		fixed = true
+		corrected = true
 	}
 	return
 }
@@ -183,21 +183,21 @@ func (j *Janitor) tidyContent(file *os.File, stat os.FileInfo, expected *File) (
 //
 // If file permissions, owner or group owner is different from expectations
 // they are corrected..
-func (j *Janitor) tidyMetaData(file *os.File, stat os.FileInfo, expected *File) (fixed bool, err error) {
+func (j *Janitor) tidyMetaData(file *os.File, stat os.FileInfo, expected *File) (corrected bool, err error) {
 	currentPerm := stat.Mode().Perm()
 	expectedPerm := expected.Mode.Perm()
 	if currentPerm != expectedPerm {
 		if err = file.Chmod(expectedPerm); err != nil {
 			return
 		}
-		fixed = true
+		corrected = true
 	}
 	if st, ok := stat.Sys().(*syscall.Stat_t); ok {
 		if st.Uid != expected.UID || st.Gid != expected.Gid {
 			if err = file.Chown(int(expected.UID), int(expected.Gid)); err != nil {
 				return
 			}
-			fixed = true
+			corrected = true
 		}
 	}
 	return
