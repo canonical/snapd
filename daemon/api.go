@@ -21,6 +21,7 @@ package daemon
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"mime"
@@ -175,8 +176,8 @@ func sysInfo(c *Command, r *http.Request) Response {
 }
 
 type metarepo interface {
-	Details(string, string, string) ([]snappy.Part, error)
-	Find(string, string) ([]snappy.Part, error)
+	Snap(string, string) (*snappy.RemoteSnap, error)
+	FindSnaps(string, string) ([]*snappy.RemoteSnap, error)
 }
 
 var newRemoteRepo = func() metarepo {
@@ -196,11 +197,9 @@ func getSnapInfo(c *Command, r *http.Request) Response {
 	}
 	defer lock.Unlock()
 
-	repo := newRemoteRepo()
-	var remoteSnap snappy.Part
-	if parts, _ := repo.Details(name, origin, ""); len(parts) > 0 {
-		remoteSnap = parts[0]
-	}
+	fullName := fmt.Sprintf("%s.%s", name, origin)
+	channel := ""
+	remoteSnap, _ := newRemoteRepo().Snap(fullName, channel)
 
 	localSnaps, err := snappy.NewLocalSnapRepository().Snaps(name, origin)
 	if err != nil {
@@ -296,7 +295,7 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 	}
 
 	var localSnapsMap map[string][]*snappy.Snap
-	var remoteSnapMap map[string]snappy.Part
+	var remoteSnapMap map[string]*snappy.RemoteSnap
 
 	if includeLocal {
 		sources = append(sources, "local")
@@ -304,7 +303,7 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 	}
 
 	if includeStore {
-		remoteSnapMap = make(map[string]snappy.Part)
+		remoteSnapMap = make(map[string]*snappy.RemoteSnap)
 
 		// repo.Find("") finds all
 		//
@@ -312,12 +311,13 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		//   * if there are no results, return an error response.
 		//   * If there are results at all (perhaps local), include a
 		//     warning in the response
-		found, _ := newRemoteRepo().Find(searchTerm, "")
+		found, _ := newRemoteRepo().FindSnaps(searchTerm, "")
 
 		sources = append(sources, "store")
 
-		for _, part := range found {
-			remoteSnapMap[snappy.FullName(part)] = part
+		for _, snap := range found {
+			fullName := fmt.Sprintf("%s.%s", snap.Name(), snap.Origin())
+			remoteSnapMap[fullName] = snap
 		}
 	}
 

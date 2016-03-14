@@ -703,12 +703,12 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 	defer mockServer.Close()
 
 	r := &RemoteSnap{}
-	r.pkg.AnonDownloadURL = mockServer.URL + "/snap"
-	r.pkg.IconURL = mockServer.URL + "/icon"
-	r.pkg.Name = "foo"
-	r.pkg.Origin = "bar"
-	r.pkg.Description = "this is a description"
-	r.pkg.Version = "1.0"
+	r.Pkg.AnonDownloadURL = mockServer.URL + "/snap"
+	r.Pkg.IconURL = mockServer.URL + "/icon"
+	r.Pkg.Name = "foo"
+	r.Pkg.Origin = "bar"
+	r.Pkg.Description = "this is a description"
+	r.Pkg.Version = "1.0"
 
 	mStore := NewUbuntuStoreSnapRepository()
 	p := &MockProgressMeter{}
@@ -757,12 +757,12 @@ apps:
 	defer mockServer.Close()
 
 	r := &RemoteSnap{}
-	r.pkg.AnonDownloadURL = mockServer.URL + "/snap"
-	r.pkg.Origin = testOrigin
-	r.pkg.IconURL = mockServer.URL + "/icon"
-	r.pkg.Name = "foo"
-	r.pkg.Origin = "bar"
-	r.pkg.Version = "1.0"
+	r.Pkg.AnonDownloadURL = mockServer.URL + "/snap"
+	r.Pkg.Origin = testOrigin
+	r.Pkg.IconURL = mockServer.URL + "/icon"
+	r.Pkg.Name = "foo"
+	r.Pkg.Origin = "bar"
+	r.Pkg.Version = "1.0"
 
 	mStore := NewUbuntuStoreSnapRepository()
 	p := &MockProgressMeter{}
