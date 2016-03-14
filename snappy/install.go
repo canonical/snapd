@@ -91,26 +91,26 @@ func doUpdate(mStore *SnapUbuntuStoreRepository, part Part, flags InstallFlags, 
 //
 // convertToInstalledSnaps takes a slice of remote snaps that got
 // updated and returns the corresponding local snap parts.
-func convertToInstalledSnaps(remoteUpdates []Part) ([]Part, error) {
-	installed, err := NewLocalSnapRepository().Installed()
+func convertToInstalledSnaps(remoteUpdates []Part) ([]*Snap, error) {
+	installed, err := NewLocalSnapRepository().AllSnaps()
 	if err != nil {
 		return nil, err
 	}
 
-	installedUpdates := make([]Part, 0, len(remoteUpdates))
+	installedUpdates := make([]*Snap, 0, len(remoteUpdates))
 	for _, part := range remoteUpdates {
-		localPart := FindSnapsByNameAndVersion(part.Name(), part.Version(), installed)
-		if len(localPart) != 1 {
-			return nil, fmt.Errorf("expected one local part for the update %v, got %v", part, len(localPart))
+		for _, installed := range installed {
+			if part.Name() == installed.Name() && part.Version() == installed.Version() {
+				installedUpdates = append(installedUpdates, installed)
+			}
 		}
-		installedUpdates = append(installedUpdates, localPart[0])
 	}
 
 	return installedUpdates, nil
 }
 
 // Update updates the selected name
-func Update(name string, flags InstallFlags, meter progress.Meter) ([]Part, error) {
+func Update(name string, flags InstallFlags, meter progress.Meter) ([]*Snap, error) {
 	installed, err := NewLocalSnapRepository().Installed()
 	if err != nil {
 		return nil, err
@@ -147,7 +147,7 @@ func Update(name string, flags InstallFlags, meter progress.Meter) ([]Part, erro
 // UpdateAll the installed snappy packages, it returns the updated Parts
 // if updates where available and an error and nil if any of the updates
 // fail to apply.
-func UpdateAll(flags InstallFlags, meter progress.Meter) ([]Part, error) {
+func UpdateAll(flags InstallFlags, meter progress.Meter) ([]*Snap, error) {
 	mStore := NewUbuntuStoreSnapRepository()
 	updates, err := mStore.Updates()
 	if err != nil {
