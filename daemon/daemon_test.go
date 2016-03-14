@@ -39,7 +39,6 @@ var _ = check.Suite(&daemonSuite{})
 func newTestDaemon(c *check.C) *Daemon {
 	d, err := New()
 	c.Assert(err, check.IsNil)
-	c.Assert(d, check.Not(check.IsNil))
 	d.addRoutes()
 
 	return d
