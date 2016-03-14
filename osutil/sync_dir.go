@@ -127,8 +127,7 @@ func EnsureDirState(dir, glob string, content map[string]*FileState) ([]string, 
 			return created, corrected, removed, err
 		}
 		var matched bool
-		matched, err = filepath.Match(glob, baseName)
-		if err != nil {
+		if matched, err = filepath.Match(glob, baseName); err != nil {
 			return created, corrected, removed, err
 		}
 		if !matched {
@@ -138,7 +137,7 @@ func EnsureDirState(dir, glob string, content map[string]*FileState) ([]string, 
 		if found[baseName] {
 			continue
 		}
-		if err := ioutil.WriteFile(path.Join(dir, baseName), expected.Content, expected.Mode); err != nil {
+		if err := AtomicWriteFile(path.Join(dir, baseName), expected.Content, expected.Mode, 0); err != nil {
 			return created, corrected, removed, err
 		}
 		created = append(created, baseName)
