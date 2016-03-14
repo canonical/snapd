@@ -32,65 +32,53 @@ func Test(t *testing.T) {
 	TestingT(t)
 }
 
-type uDevSuite struct {
-	cmd *testutil.MockCmd
-}
+type uDevSuite struct{}
 
 var _ = Suite(&uDevSuite{})
-
-func (s *uDevSuite) SetUpTest(c *C) {
-	s.cmd = testutil.MockCommand(c, "udevadm", 0)
-}
-
-func (s *uDevSuite) TearDownTest(c *C) {
-	s.cmd.Restore()
-}
 
 // Tests for ReloadRules()
 
 func (s *uDevSuite) TestReloadUDevRulesRunsUDevAdm(c *C) {
+	cmd := testutil.MockCommand(c, "udevadm", "")
+	defer cmd.Restore()
 	err := udev.ReloadRules()
 	c.Assert(err, IsNil)
-	c.Assert(s.cmd.Calls(), DeepEquals, []string{
+	c.Assert(cmd.Calls(), DeepEquals, []string{
 		"control --reload-rules",
 		"trigger",
 	})
 }
 
 func (s *uDevSuite) TestReloadUDevRulesReportsErrorsFromReloadRules(c *C) {
-	s.cmd.SetDynamicBehavior(1, func(n int) (string, int) {
-		switch n {
-		case 0:
-			return "failure 1", 1
-		default:
-			panic(n)
-		}
-	})
+	cmd := testutil.MockCommand(c, "udevadm", `
+if [ "$1" = "control" ]; then
+	echo "failure 1"
+	exit 1
+fi
+	`)
+	defer cmd.Restore()
 	err := udev.ReloadRules()
 	c.Assert(err.Error(), Equals, ""+
 		"Cannot reload udev rules: exit status 1\n"+
 		"udev output:\n"+
 		"failure 1\n")
-	c.Assert(s.cmd.Calls(), DeepEquals, []string{"control --reload-rules"})
+	c.Assert(cmd.Calls(), DeepEquals, []string{"control --reload-rules"})
 }
 
 func (s *uDevSuite) TestReloadUDevRulesReportsErrorsFromTrigger(c *C) {
-	s.cmd.SetDynamicBehavior(2, func(n int) (string, int) {
-		switch n {
-		case 0:
-			return "", 0
-		case 1:
-			return "failure 2", 2
-		default:
-			panic(n)
-		}
-	})
+	cmd := testutil.MockCommand(c, "udevadm", `
+if [ "$1" = "trigger" ]; then
+	echo "failure 2"
+	exit 2
+fi
+	`)
+	defer cmd.Restore()
 	err := udev.ReloadRules()
 	c.Assert(err.Error(), Equals, ""+
 		"Cannot run udev triggers: exit status 2\n"+
 		"udev output:\n"+
 		"failure 2\n")
-	c.Assert(s.cmd.Calls(), DeepEquals, []string{
+	c.Assert(cmd.Calls(), DeepEquals, []string{
 		"control --reload-rules",
 		"trigger",
 	})
