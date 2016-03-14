@@ -175,7 +175,7 @@ func (c *Change) SetStatus(s Status) {
 	c.status = s
 }
 
-// State returns the pointer to the system State
+// State returns the system State
 func (c *Change) State() *State {
 	return c.state
 }
