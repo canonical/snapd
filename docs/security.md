@@ -37,8 +37,8 @@ service/binary name and package version. The `APP_ID` takes the form of
       bar:
         start: bin/bar
 
-and the app was uploaded to the `mydeveloper` developer in the store, then the
-`APP_ID` for the `bar` service is `foo.mydeveloper_bar_0.1`. The `APP_ID` is used
+and the app was uploaded to the `snapdev` developer in the store, then the
+`APP_ID` for the `bar` service is `foo.snapdev_bar_0.1`. The `APP_ID` is used
 throughout the system including in the enforcement of security policy by the
 app launcher.
 
@@ -50,7 +50,7 @@ Under the hood, the launcher:
    [snappy FHS](https://developer.ubuntu.com/en/snappy/guides/filesystem-layout/) for details.
 * sets up a device cgroup with default devices (eg, /dev/null, /dev/urandom,
   etc) and any devices which are assigned to this app via Gadget snaps or
-  `snappy hw-assign` (eg, `snappy hw-assign foo.mydeveloper /dev/bar`).
+  `snappy hw-assign` (eg, `snappy hw-assign foo.snapdev /dev/bar`).
 * sets up the seccomp filter
 * executes the app under an AppArmor profile under a default nice value
 
@@ -159,22 +159,22 @@ Eg, consider the following:
         caps: []
 
 
-If this package is uploaded to the store in the `mydeveloper` developer, then:
+If this package is uploaded to the store in the `snapdev` developer, then:
 
-* `APP_ID` for `bar` is `foo.mydeveloper_bar_1.0`. It uses the `default` template
+* `APP_ID` for `bar` is `foo.snapdev_bar_1.0`. It uses the `default` template
   and `network-client` (default) cap
-* `APP_ID` for `baz` is `foo.mydeveloper_baz_1.0`. It uses the `default` template
+* `APP_ID` for `baz` is `foo.snapdev_baz_1.0`. It uses the `default` template
   and the `network-client` and `norf-framework_client` caps
-* `APP_ID` for `qux` is `foo.mydeveloper_qux_1.0`. It uses the `nondefault`
+* `APP_ID` for `qux` is `foo.snapdev_qux_1.0`. It uses the `nondefault`
   template and `network-client` (default) cap
-* `APP_ID` for `quux` is `foo.mydeveloper_quux_1.0`. It does not use a
+* `APP_ID` for `quux` is `foo.snapdev_quux_1.0`. It does not use a
   `security-template` or `caps` but instead ships its own AppArmor policy in
   `meta/quux.profile`
   and seccomp filters in `meta/quux.filter`
-* `APP_ID` for `corge` is `foo.mydeveloper_corge_1.0`. It does not use a
+* `APP_ID` for `corge` is `foo.snapdev_corge_1.0`. It does not use a
   `security-template` or `caps` but instead ships the override files
   `meta/corge.apparmor` and `meta/corge.seccomp`.
-* `APP_ID` for `cli-exe` is `foo.mydeveloper_cli-exe_1.0`. It uses the `default`
+* `APP_ID` for `cli-exe` is `foo.snapdev_cli-exe_1.0`. It uses the `default`
   template and no `caps`
 
 As mentioned, security policies and store policies work together to provide
