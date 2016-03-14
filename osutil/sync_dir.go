@@ -69,7 +69,7 @@ type File struct {
 // changes performed so far. Information about the performed changes is
 // returned to the caller for any extra processing that might be required (e.g.
 // to run some helper program).
-func (j *Janitor) Tidy(oracle map[string]*File) (removed, created, corrected []string, err error) {
+func (j *Janitor) Tidy(oracle map[string]*File) (created, corrected, removed []string, err error) {
 	found := make(map[string]bool)
 	matches, err := filepath.Glob(path.Join(j.Path, j.Glob))
 	if err != nil {
