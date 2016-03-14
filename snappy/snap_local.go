@@ -37,8 +37,8 @@ import (
 	"github.com/ubuntu-core/snappy/snap/remote"
 )
 
-// SnapPart represents a generic snap type
-type SnapPart struct {
+// Snap represents a generic snap type
+type Snap struct {
 	m        *snapYaml
 	remoteM  *remote.Snap
 	origin   string
@@ -48,14 +48,14 @@ type SnapPart struct {
 	basedir string
 }
 
-// NewInstalledSnapPart returns a new SnapPart from the given yamlPath
-func NewInstalledSnapPart(yamlPath, origin string) (*SnapPart, error) {
+// NewInstalledSnap returns a new Snap from the given yamlPath
+func NewInstalledSnap(yamlPath, origin string) (*Snap, error) {
 	m, err := parseSnapYamlFile(yamlPath)
 	if err != nil {
 		return nil, err
 	}
 
-	part, err := newSnapPartFromYaml(yamlPath, origin, m)
+	part, err := newSnapFromYaml(yamlPath, origin, m)
 	if err != nil {
 		return nil, err
 	}
@@ -63,9 +63,9 @@ func NewInstalledSnapPart(yamlPath, origin string) (*SnapPart, error) {
 	return part, nil
 }
 
-// newSnapPartFromYaml returns a new SnapPart from the given *snapYaml at yamlPath
-func newSnapPartFromYaml(yamlPath, origin string, m *snapYaml) (*SnapPart, error) {
-	part := &SnapPart{
+// newSnapFromYaml returns a new Snap from the given *snapYaml at yamlPath
+func newSnapFromYaml(yamlPath, origin string, m *snapYaml) (*Snap, error) {
+	part := &Snap{
 		basedir: filepath.Dir(filepath.Dir(yamlPath)),
 		origin:  origin,
 		m:       m,
@@ -104,8 +104,8 @@ func newSnapPartFromYaml(yamlPath, origin string, m *snapYaml) (*SnapPart, error
 	return part, nil
 }
 
-// Type returns the type of the SnapPart (app, gadget, ...)
-func (s *SnapPart) Type() snap.Type {
+// Type returns the type of the Snap (app, gadget, ...)
+func (s *Snap) Type() snap.Type {
 	if s.m.Type != "" {
 		return s.m.Type
 	}
@@ -115,12 +115,12 @@ func (s *SnapPart) Type() snap.Type {
 }
 
 // Name returns the name
-func (s *SnapPart) Name() string {
+func (s *Snap) Name() string {
 	return s.m.Name
 }
 
 // Version returns the version
-func (s *SnapPart) Version() string {
+func (s *Snap) Version() string {
 	if s.basedir != "" {
 		return filepath.Base(s.basedir)
 	}
@@ -129,7 +129,7 @@ func (s *SnapPart) Version() string {
 }
 
 // Description returns the summary description
-func (s *SnapPart) Description() string {
+func (s *Snap) Description() string {
 	if r := s.remoteM; r != nil {
 		return r.Description
 	}
@@ -138,7 +138,7 @@ func (s *SnapPart) Description() string {
 }
 
 // Origin returns the origin
-func (s *SnapPart) Origin() string {
+func (s *Snap) Origin() string {
 	if r := s.remoteM; r != nil {
 		return r.Origin
 	}
@@ -151,12 +151,12 @@ func (s *SnapPart) Origin() string {
 }
 
 // Hash returns the hash
-func (s *SnapPart) Hash() string {
+func (s *Snap) Hash() string {
 	return s.hash
 }
 
 // Channel returns the channel used
-func (s *SnapPart) Channel() string {
+func (s *Snap) Channel() string {
 	if r := s.remoteM; r != nil {
 		return r.Channel
 	}
@@ -166,7 +166,7 @@ func (s *SnapPart) Channel() string {
 }
 
 // Icon returns the path to the icon
-func (s *SnapPart) Icon() string {
+func (s *Snap) Icon() string {
 	found, _ := filepath.Glob(filepath.Join(s.basedir, "meta", "gui", "icon.*"))
 	if len(found) == 0 {
 		return ""
@@ -176,17 +176,17 @@ func (s *SnapPart) Icon() string {
 }
 
 // IsActive returns true if the snap is active
-func (s *SnapPart) IsActive() bool {
+func (s *Snap) IsActive() bool {
 	return s.isActive
 }
 
 // IsInstalled returns true if the snap is installed
-func (s *SnapPart) IsInstalled() bool {
+func (s *Snap) IsInstalled() bool {
 	return true
 }
 
 // InstalledSize returns the size of the installed snap
-func (s *SnapPart) InstalledSize() int64 {
+func (s *Snap) InstalledSize() int64 {
 	// FIXME: cache this at install time maybe?
 	totalSize := int64(0)
 	f := func(_ string, info os.FileInfo, err error) error {
@@ -198,7 +198,7 @@ func (s *SnapPart) InstalledSize() int64 {
 }
 
 // DownloadSize returns the dowload size
-func (s *SnapPart) DownloadSize() int64 {
+func (s *Snap) DownloadSize() int64 {
 	if r := s.remoteM; r != nil {
 		return r.DownloadSize
 	}
@@ -207,7 +207,7 @@ func (s *SnapPart) DownloadSize() int64 {
 }
 
 // Date returns the last update date
-func (s *SnapPart) Date() time.Time {
+func (s *Snap) Date() time.Time {
 	st, err := os.Stat(s.basedir)
 	if err != nil {
 		return time.Time{}
@@ -217,22 +217,22 @@ func (s *SnapPart) Date() time.Time {
 }
 
 // Apps return a list of AppsYamls the package declares
-func (s *SnapPart) Apps() map[string]*AppYaml {
+func (s *Snap) Apps() map[string]*AppYaml {
 	return s.m.Apps
 }
 
 // GadgetConfig return a list of packages to configure
-func (s *SnapPart) GadgetConfig() SystemConfig {
+func (s *Snap) GadgetConfig() SystemConfig {
 	return s.m.Config
 }
 
 // Install installs the snap (which does not make sense for an already
 // installed snap
-func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name string, err error) {
+func (s *Snap) Install(inter progress.Meter, flags InstallFlags) (name string, err error) {
 	return "", ErrAlreadyInstalled
 }
 
-func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
+func (s *Snap) activate(inhibitHooks bool, inter interacter) error {
 	currentActiveSymlink := filepath.Join(s.basedir, "..", "current")
 	currentActiveDir, _ := filepath.EvalSymlinks(currentActiveSymlink)
 
@@ -245,7 +245,7 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 	if currentActiveDir != "" {
 		// TODO: support switching origins
 		oldYaml := filepath.Join(currentActiveDir, "meta", "snap.yaml")
-		oldPart, err := NewInstalledSnapPart(oldYaml, s.origin)
+		oldPart, err := NewInstalledSnap(oldYaml, s.origin)
 		if err != nil {
 			return err
 		}
@@ -309,7 +309,7 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 	return os.Symlink(filepath.Base(s.basedir), currentDataSymlink)
 }
 
-func (s *SnapPart) deactivate(inhibitHooks bool, inter interacter) error {
+func (s *Snap) deactivate(inhibitHooks bool, inter interacter) error {
 	currentSymlink := filepath.Join(s.basedir, "..", "current")
 
 	// sanity check
@@ -361,12 +361,12 @@ func (s *SnapPart) deactivate(inhibitHooks bool, inter interacter) error {
 }
 
 // NeedsReboot returns true if the snap becomes active on the next reboot
-func (s *SnapPart) NeedsReboot() bool {
+func (s *Snap) NeedsReboot() bool {
 	return kernelOrOsRebootRequired(s)
 }
 
 // Frameworks returns the list of frameworks needed by the snap
-func (s *SnapPart) Frameworks() ([]string, error) {
+func (s *Snap) Frameworks() ([]string, error) {
 	return s.m.Frameworks, nil
 }
 
@@ -374,7 +374,7 @@ func (s *SnapPart) Frameworks() ([]string, error) {
 // depend on this one
 //
 // /!\ not part of the Part interface.
-func (s *SnapPart) DependentNames() ([]string, error) {
+func (s *Snap) DependentNames() ([]string, error) {
 	deps, err := s.Dependents()
 	if err != nil {
 		return nil, err
@@ -391,13 +391,13 @@ func (s *SnapPart) DependentNames() ([]string, error) {
 // Dependents gives the list of apps installed that depend on this one
 //
 // /!\ not part of the Part interface.
-func (s *SnapPart) Dependents() ([]*SnapPart, error) {
+func (s *Snap) Dependents() ([]*Snap, error) {
 	if s.Type() != snap.TypeFramework {
 		// only frameworks are depended on
 		return nil, nil
 	}
 
-	var needed []*SnapPart
+	var needed []*Snap
 
 	installed, err := NewLocalSnapRepository().Installed()
 	if err != nil {
@@ -412,9 +412,9 @@ func (s *SnapPart) Dependents() ([]*SnapPart, error) {
 		}
 		for _, fmk := range fmks {
 			if fmk == name {
-				part, ok := part.(*SnapPart)
+				part, ok := part.(*Snap)
 				if !ok {
-					return nil, ErrInstalledNonSnapPart
+					return nil, ErrInstalledNonSnap
 				}
 				needed = append(needed, part)
 			}
@@ -424,14 +424,14 @@ func (s *SnapPart) Dependents() ([]*SnapPart, error) {
 	return needed, nil
 }
 
-// CanInstall checks whether the SnapPart passes a series of tests required for installation
-func (s *SnapPart) CanInstall(allowGadget bool, inter interacter) error {
-	return fmt.Errorf("not possible on a SnapPart")
+// CanInstall checks whether the Snap passes a series of tests required for installation
+func (s *Snap) CanInstall(allowGadget bool, inter interacter) error {
+	return fmt.Errorf("not possible on a Snap")
 }
 
 // RequestSecurityPolicyUpdate checks whether changes to the given policies and
 // templates impacts the snap, and updates the policy if needed
-func (s *SnapPart) RequestSecurityPolicyUpdate(policies, templates map[string]bool) error {
+func (s *Snap) RequestSecurityPolicyUpdate(policies, templates map[string]bool) error {
 	var foundError error
 	for name, app := range s.Apps() {
 		plug, err := findPlugForApp(s.m, app)
@@ -463,7 +463,7 @@ func (s *SnapPart) RequestSecurityPolicyUpdate(policies, templates map[string]bo
 }
 
 // RefreshDependentsSecurity refreshes the security policies of dependent snaps
-func (s *SnapPart) RefreshDependentsSecurity(oldPart *SnapPart, inter interacter) (err error) {
+func (s *Snap) RefreshDependentsSecurity(oldPart *Snap, inter interacter) (err error) {
 	oldBaseDir := ""
 	if oldPart != nil {
 		oldBaseDir = oldPart.basedir
