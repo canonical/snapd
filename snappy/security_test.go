@@ -217,10 +217,10 @@ func (a *SecurityTestSuite) TestSecurityFindCapsMultipleErrorHandling(c *C) {
 
 func (a *SecurityTestSuite) TestSecurityGetAppArmorVars(c *C) {
 	appID := &securityAppID{
-		Appname: "foo",
-		Version: "1.0",
-		AppID:   "id",
-		Pkgname: "pkgname",
+		AppName:  "foo",
+		Version:  "1.0",
+		AppID:    "id",
+		SnapName: "pkgname",
 	}
 	c.Assert(appID.appArmorVars(), Equals, `
 # Specified profile variables
@@ -355,8 +355,8 @@ func (a *SecurityTestSuite) TestSecurityGenAppArmorTemplatePolicy(c *C) {
 		Version: "1.0",
 	}
 	appid := &securityAppID{
-		Pkgname: "foo",
-		Version: "1.0",
+		SnapName: "foo",
+		Version:  "1.0",
 	}
 	template := "mock-template"
 	caps := []string{"cap1"}
@@ -405,8 +405,8 @@ func (a *SecurityTestSuite) TestSecurityGenSeccompTemplatedPolicy(c *C) {
 		Version: "1.0",
 	}
 	appid := &securityAppID{
-		Pkgname: "foo",
-		Version: "1.0",
+		SnapName: "foo",
+		Version:  "1.0",
 	}
 	template := "mock-template"
 	caps := []string{"cap1"}
@@ -467,9 +467,9 @@ func (a *SecurityTestSuite) TestSecurityGetApparmorCustomPolicy(c *C) {
 		Version: "1.0",
 	}
 	appid := &securityAppID{
-		AppID:   "foo_bar_1.0",
-		Pkgname: "foo",
-		Version: "1.0",
+		AppID:    "foo_bar_1.0",
+		SnapName: "foo",
+		Version:  "1.0",
 	}
 	customPolicy := filepath.Join(c.MkDir(), "foo")
 	err := ioutil.WriteFile(customPolicy, []byte(aaCustomPolicy), 0644)
@@ -498,10 +498,10 @@ func (a *SecurityTestSuite) TestSecurityGetAppID(c *C) {
 	id, err := newAppID("pkg_app_1.0")
 	c.Assert(err, IsNil)
 	c.Assert(id, DeepEquals, &securityAppID{
-		AppID:   "pkg_app_1.0",
-		Pkgname: "pkg",
-		Appname: "app",
-		Version: "1.0",
+		AppID:    "pkg_app_1.0",
+		SnapName: "pkg",
+		AppName:  "app",
+		Version:  "1.0",
 	})
 }
 
@@ -804,8 +804,8 @@ func (a *SecurityTestSuite) TestSecurityGenerateCustomPolicyAdditionalIsConsider
 		Version: "1.0",
 	}
 	appid := &securityAppID{
-		Pkgname: "foo",
-		Version: "1.0",
+		SnapName: "foo",
+		Version:  "1.0",
 	}
 	fn := makeCustomAppArmorPolicy(c)
 
