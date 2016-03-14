@@ -17,7 +17,7 @@
  *
  */
 
-package janitor
+package osutil
 
 import (
 	"bytes"
