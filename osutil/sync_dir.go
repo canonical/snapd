@@ -84,27 +84,22 @@ func EnsureDirState(dir, glob string, content map[string]*FileState) ([]string, 
 		if stat, err = file.Stat(); err != nil {
 			return created, corrected, removed, err
 		}
-		// Verify files that should be here.
-		changed := false
+		found[baseName] = true
 		// Check that file has the right content
-		if stat.Size() == int64(len(expected.Content)) {
-			var content []byte
-			if content, err = ioutil.ReadFile(file.Name()); err != nil {
-				return created, corrected, removed, err
-			}
-			if !bytes.Equal(content, expected.Content) {
-				if err := AtomicWriteFile(file.Name(), expected.Content, expected.Mode, 0); err != nil {
-					return created, corrected, removed, err
-				}
-				changed = true
-			}
-		} else {
+		needsRewrite, err := fileNeedsRewrite(file, stat, expected)
+		if err != nil {
+			return created, corrected, removed, err
+		}
+		if needsRewrite {
 			if err := AtomicWriteFile(file.Name(), expected.Content, expected.Mode, 0); err != nil {
 				return created, corrected, removed, err
 			}
-			changed = true
+			corrected = append(corrected, baseName)
+			// NOTE: rewriting files also fixes permissions so we can skip the last stage
+			continue
 		}
 		// Check that file has the right meta-data
+		changed := false
 		currentPerm := stat.Mode().Perm()
 		expectedPerm := expected.Mode.Perm()
 		if currentPerm != expectedPerm {
@@ -124,7 +119,6 @@ func EnsureDirState(dir, glob string, content map[string]*FileState) ([]string, 
 		if changed {
 			corrected = append(corrected, baseName)
 		}
-		found[baseName] = true
 	}
 	// Create files that were not found but are expected
 	for baseName, expected := range content {
@@ -150,4 +144,16 @@ func EnsureDirState(dir, glob string, content map[string]*FileState) ([]string, 
 		created = append(created, baseName)
 	}
 	return created, corrected, removed, nil
+}
+
+func fileNeedsRewrite(file *os.File, stat os.FileInfo, expected *FileState) (bool, error) {
+	if stat.Size() != int64(len(expected.Content)) {
+		return true, nil
+	}
+	var content []byte
+	var err error
+	if content, err = ioutil.ReadFile(file.Name()); err != nil {
+		return true, err
+	}
+	return !bytes.Equal(content, expected.Content), nil
 }
