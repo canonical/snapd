@@ -53,23 +53,26 @@ type FileState struct {
 // changes performed so far. Information about the performed changes is
 // returned to the caller for any extra processing that might be required (e.g.
 // to run some helper program).
-func EnsureDirState(dir, glob string, content map[string]*FileState) (created, corrected, removed []string, err error) {
-	found := make(map[string]bool)
+//
+// The return value is: created, corrected, removed []string, err error
+func EnsureDirState(dir, glob string, content map[string]*FileState) ([]string, []string, []string, error) {
 	matches, err := filepath.Glob(path.Join(dir, glob))
 	if err != nil {
-		return
+		return nil, nil, nil, err
 	}
+	found := make(map[string]bool)
+	var created, corrected, removed []string
 	// Analyze files that inhabit the subset defined by our glob pattern.
 	for _, name := range matches {
 		baseName := path.Base(name)
 		var file *os.File
 		if file, err = os.OpenFile(name, os.O_RDWR, 0); err != nil {
-			return
+			return created, corrected, removed, err
 		}
 		defer file.Close()
 		var stat os.FileInfo
 		if stat, err = file.Stat(); err != nil {
-			return
+			return created, corrected, removed, err
 		}
 		if expected, shouldBeHere := content[baseName]; shouldBeHere {
 			changed := false
@@ -77,23 +80,23 @@ func EnsureDirState(dir, glob string, content map[string]*FileState) (created, c
 			if stat.Size() == int64(len(expected.Content)) {
 				var content []byte
 				if content, err = ioutil.ReadFile(file.Name()); err != nil {
-					return
+					return created, corrected, removed, err
 				}
 				if !bytes.Equal(content, expected.Content) {
-					if _, err = file.Seek(0, 0); err != nil {
-						return
+					if _, err := file.Seek(0, 0); err != nil {
+						return created, corrected, removed, err
 					}
-					if _, err = file.Write(expected.Content); err != nil {
-						return
+					if _, err := file.Write(expected.Content); err != nil {
+						return created, corrected, removed, err
 					}
 					changed = true
 				}
 			} else {
-				if err = file.Truncate(0); err != nil {
-					return
+				if err := file.Truncate(0); err != nil {
+					return created, corrected, removed, err
 				}
-				if _, err = file.Write(expected.Content); err != nil {
-					return
+				if _, err := file.Write(expected.Content); err != nil {
+					return created, corrected, removed, err
 				}
 				changed = true
 			}
@@ -101,15 +104,15 @@ func EnsureDirState(dir, glob string, content map[string]*FileState) (created, c
 			currentPerm := stat.Mode().Perm()
 			expectedPerm := expected.Mode.Perm()
 			if currentPerm != expectedPerm {
-				if err = file.Chmod(expectedPerm); err != nil {
-					return
+				if err := file.Chmod(expectedPerm); err != nil {
+					return created, corrected, removed, err
 				}
 				changed = true
 			}
 			if st, ok := stat.Sys().(*syscall.Stat_t); ok {
 				if st.Uid != expected.UID || st.Gid != expected.GID {
-					if err = file.Chown(int(expected.UID), int(expected.GID)); err != nil {
-						return
+					if err := file.Chown(int(expected.UID), int(expected.GID)); err != nil {
+						return created, corrected, removed, err
 					}
 					changed = true
 				}
@@ -120,8 +123,8 @@ func EnsureDirState(dir, glob string, content map[string]*FileState) (created, c
 			found[baseName] = true
 		} else {
 			// The file is not supposed to be here.
-			if err = os.RemoveAll(name); err != nil {
-				return
+			if err := os.RemoveAll(name); err != nil {
+				return created, corrected, removed, err
 			}
 			removed = append(removed, baseName)
 		}
@@ -129,25 +132,25 @@ func EnsureDirState(dir, glob string, content map[string]*FileState) (created, c
 	// Create files that were not found but are expected
 	for baseName, expected := range content {
 		if baseName != path.Base(baseName) {
-			err = fmt.Errorf("expected files cannot have path component: %q", baseName)
-			return
+			err := fmt.Errorf("expected files cannot have path component: %q", baseName)
+			return created, corrected, removed, err
 		}
 		var matched bool
 		matched, err = filepath.Match(glob, baseName)
 		if err != nil {
-			return
+			return created, corrected, removed, err
 		}
 		if !matched {
-			err = fmt.Errorf("expected files must match pattern: %q (pattern: %q)", baseName, glob)
-			return
+			err := fmt.Errorf("expected files must match pattern: %q (pattern: %q)", baseName, glob)
+			return created, corrected, removed, err
 		}
 		if found[baseName] {
 			continue
 		}
-		if err = ioutil.WriteFile(path.Join(dir, baseName), expected.Content, expected.Mode); err != nil {
-			return
+		if err := ioutil.WriteFile(path.Join(dir, baseName), expected.Content, expected.Mode); err != nil {
+			return created, corrected, removed, err
 		}
 		created = append(created, baseName)
 	}
-	return
+	return created, corrected, removed, nil
 }
