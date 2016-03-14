@@ -93,19 +93,13 @@ func EnsureDirState(dir, glob string, content map[string]*FileState) ([]string, 
 				return created, corrected, removed, err
 			}
 			if !bytes.Equal(content, expected.Content) {
-				if _, err := file.Seek(0, 0); err != nil {
-					return created, corrected, removed, err
-				}
-				if _, err := file.Write(expected.Content); err != nil {
+				if err := writeFile(file, expected); err != nil {
 					return created, corrected, removed, err
 				}
 				changed = true
 			}
 		} else {
-			if err := file.Truncate(0); err != nil {
-				return created, corrected, removed, err
-			}
-			if _, err := file.Write(expected.Content); err != nil {
+			if err := writeFile(file, expected); err != nil {
 				return created, corrected, removed, err
 			}
 			changed = true
@@ -156,4 +150,17 @@ func EnsureDirState(dir, glob string, content map[string]*FileState) ([]string, 
 		created = append(created, baseName)
 	}
 	return created, corrected, removed, nil
+}
+
+func writeFile(file *os.File, state *FileState) error {
+	if _, err := file.Seek(0, 0); err != nil {
+		return err
+	}
+	if err := file.Truncate(0); err != nil {
+		return err
+	}
+	if _, err := file.Write(state.Content); err != nil {
+		return err
+	}
+	return nil
 }
