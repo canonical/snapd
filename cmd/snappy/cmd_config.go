@@ -89,7 +89,7 @@ func configurePackage(pkgName, configFile string) ([]byte, error) {
 	}
 
 	overlord := &snappy.Overlord{}
-	return overlord.Configure(snap.(*snappy.SnapPart), config)
+	return overlord.Configure(snap.(*snappy.Snap), config)
 }
 
 func readConfiguration(configInput string) (config []byte, err error) {

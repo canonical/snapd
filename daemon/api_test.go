@@ -393,10 +393,10 @@ func (s *apiSuite) TestSnapsInfoOnePerIntegration(c *check.C) {
 	req, err := http.NewRequest("GET", "/2.0/snaps", nil)
 	c.Assert(err, check.IsNil)
 
-	ddirs := [][2]string{{"foo.bar", "v1"}, {"bar.baz", "v2"}, {"baz.qux", "v3"}, {"qux.mip", "v4"}}
+	ddirs := [][3]string{{"foo", "bar", "v1"}, {"bar", "baz", "v2"}, {"baz", "qux", "v3"}, {"qux", "mip", "v4"}}
 
-	for i := range ddirs {
-		c.Assert(os.MkdirAll(filepath.Join(dirs.SnapDataDir, ddirs[i][0], ddirs[i][1]), 0755), check.IsNil)
+	for _, d := range ddirs {
+		s.mkInstalled(c, d[0], d[1], d[2], false, "")
 	}
 
 	rsp, ok := getSnapsInfo(snapsCmd, req).(*resp)
@@ -417,9 +417,8 @@ func (s *apiSuite) TestSnapsInfoOnePerIntegration(c *check.C) {
 	c.Check(snaps, check.HasLen, len(ddirs))
 
 	for i := range ddirs {
-		qn, version := ddirs[i][0], ddirs[i][1]
-		idx := strings.LastIndex(qn, ".")
-		name, origin := qn[:idx], qn[idx+1:]
+		name, origin, version := ddirs[i][0], ddirs[i][1], ddirs[i][2]
+		qn := name + "." + origin
 		got := snaps[qn]
 		c.Assert(got, check.NotNil, check.Commentf(qn))
 		c.Check(got["name"], check.Equals, name)
@@ -781,7 +780,7 @@ type fakeOverlord struct {
 	configs map[string]string
 }
 
-func (o *fakeOverlord) Configure(s *snappy.SnapPart, c []byte) ([]byte, error) {
+func (o *fakeOverlord) Configure(s *snappy.Snap, c []byte) ([]byte, error) {
 	if len(c) > 0 {
 		o.configs[s.Name()] = string(c)
 	}
