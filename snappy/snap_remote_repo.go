@@ -47,26 +47,6 @@ const (
 	UbuntuCoreWireProtocol = "1"
 )
 
-// SharedName is a structure that holds an Alias to the preferred package and
-// the list of all the alternatives.
-type SharedName struct {
-	Alias Part
-	Parts []Part
-}
-
-// SharedNames is a list of all packages and it's SharedName structure.
-type SharedNames map[string]*SharedName
-
-// IsAlias determines if origin is the one that is an alias for the
-// shared name.
-func (f *SharedName) IsAlias(origin string) bool {
-	if alias := f.Alias; alias != nil {
-		return alias.Origin() == origin
-	}
-
-	return false
-}
-
 // NewRemoteSnap returns a new RemoteSnap from the given
 // remote.Snap data
 func NewRemoteSnap(data remote.Snap) *RemoteSnap {
@@ -277,52 +257,6 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string)
 	}
 
 	return snaps, nil
-}
-
-// Search searches the repository for the given searchTerm
-func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (SharedNames, error) {
-	u := *s.searchURI // make a copy, so we can mutate it
-	q := u.Query()
-	q.Set("q", searchTerm)
-	u.RawQuery = q.Encode()
-	req, err := http.NewRequest("GET", u.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	// set headers
-	setUbuntuStoreHeaders(req)
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	var searchData searchResults
-
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&searchData); err != nil {
-		return nil, err
-	}
-
-	sharedNames := make(SharedNames, len(searchData.Payload.Packages))
-	for _, pkg := range searchData.Payload.Packages {
-		snap := NewRemoteSnap(pkg)
-		pkgName := snap.Name()
-
-		if _, ok := sharedNames[snap.Name()]; !ok {
-			sharedNames[pkgName] = new(SharedName)
-		}
-
-		sharedNames[pkgName].Parts = append(sharedNames[pkgName].Parts, snap)
-		if pkg.Alias != "" {
-			sharedNames[pkgName].Alias = snap
-		}
-	}
-
-	return sharedNames, nil
 }
 
 // Updates returns the available updates
