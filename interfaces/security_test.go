@@ -107,7 +107,7 @@ func (s *SecuritySuite) TestAppArmorPlugPermissions(c *C) {
 	// Ensure that plug-side security profile looks correct.
 	blobs, err := s.repo.SecurityFilesForSnap(s.plug.Snap)
 	c.Assert(err, IsNil)
-	c.Check(blobs["/var/lib/snappy/apparmor/profiles/producer.hook.snap"], DeepEquals, []byte(`
+	c.Check(string(blobs["/var/lib/snappy/apparmor/profiles/producer.hook.snap"]), DeepEquals, `
 # Specified profile variables
 @{APP_APPNAME}="hook"
 @{APP_ID_DBUS}="producer_2eorigin_5fhook_5fversion"
@@ -118,7 +118,7 @@ func (s *SecuritySuite) TestAppArmorPlugPermissions(c *C) {
 profile "producer.hook.snap" {
 producer snippet
 }
-`))
+`)
 }
 
 func (s *SecuritySuite) TestAppArmorSlotPermissions(c *C) {
@@ -134,7 +134,7 @@ func (s *SecuritySuite) TestAppArmorSlotPermissions(c *C) {
 	// Ensure that slot-side security profile looks correct.
 	blobs, err := s.repo.SecurityFilesForSnap(s.slot.Snap)
 	c.Assert(err, IsNil)
-	c.Check(blobs["/var/lib/snappy/apparmor/profiles/consumer.app.snap"], DeepEquals, []byte(`
+	c.Check(string(blobs["/var/lib/snappy/apparmor/profiles/consumer.app.snap"]), DeepEquals, `
 # Specified profile variables
 @{APP_APPNAME}="app"
 @{APP_ID_DBUS}="consumer_2eorigin_5fapp_5fversion"
@@ -145,7 +145,7 @@ func (s *SecuritySuite) TestAppArmorSlotPermissions(c *C) {
 profile "consumer.app.snap" {
 consumer snippet
 }
-`))
+`)
 }
 
 // Tests for secComp
