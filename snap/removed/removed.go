@@ -25,7 +25,6 @@ package removed
 import (
 	"errors"
 	"io/ioutil"
-	"time"
 
 	"gopkg.in/yaml.v2"
 
@@ -47,7 +46,7 @@ type Removed struct {
 }
 
 // New removed package.
-func New(name, origin, version string, pkgType snap.Type) snappy.Part {
+func New(name, origin, version string, pkgType snap.Type) snappy.BaseSnap {
 	part := &Removed{
 		name:    name,
 		origin:  origin,
@@ -69,6 +68,9 @@ func (r *Removed) Name() string { return r.name }
 // Version from the snappy.Part interface
 func (r *Removed) Version() string { return r.version }
 
+// Channel from the snappy.Part interface
+func (r *Removed) Channel() string { return "" }
+
 // Description from the snappy.Part interface
 func (r *Removed) Description() string {
 	if r.remote != nil {
@@ -87,49 +89,5 @@ func (r *Removed) Origin() string {
 	return r.origin
 }
 
-// Hash from the snappy.Part interface
-func (r *Removed) Hash() string { return "" }
-
-// IsActive from the snappy.Part interface
-func (r *Removed) IsActive() bool { return false }
-
-// IsInstalled from the snappy.Part interface
-func (r *Removed) IsInstalled() bool { return false }
-
-// NeedsReboot from the snappy.Part interface
-func (r *Removed) NeedsReboot() bool { return false }
-
-// Date from the snappy.Part interface
-func (r *Removed) Date() time.Time { return time.Time{} } // XXX: keep track of when the package was removed
-// Channel from the snappy.Part interface
-func (r *Removed) Channel() string { return "" }
-
-// Icon from the snappy.Part interface
-func (r *Removed) Icon() string {
-	if r.remote != nil {
-		return r.remote.IconURL
-	}
-
-	return ""
-}
-
 // Type from the snappy.Part interface
 func (r *Removed) Type() snap.Type { return r.pkgType }
-
-// InstalledSize from the snappy.Part interface
-func (r *Removed) InstalledSize() int64 { return -1 }
-
-// DownloadSize from the snappy.Part interface
-func (r *Removed) DownloadSize() int64 {
-	if r.remote != nil {
-		return r.remote.DownloadSize
-	}
-
-	return -1
-}
-
-// Config from the snappy.Part interface
-func (r *Removed) Config(configuration []byte) (newConfig string, err error) { return "", ErrRemoved }
-
-// Frameworks from the snappy.Part interface
-func (r *Removed) Frameworks() ([]string, error) { return nil, ErrRemoved }

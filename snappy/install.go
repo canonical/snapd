@@ -63,16 +63,16 @@ func installRemote(mStore *SnapUbuntuStoreRepository, remoteSnap *RemoteSnap, fl
 	return localSnap.Name(), nil
 }
 
-func doUpdate(mStore *SnapUbuntuStoreRepository, part Part, flags InstallFlags, meter progress.Meter) error {
-	_, err := installRemote(mStore, part.(*RemoteSnap), flags, meter)
+func doUpdate(mStore *SnapUbuntuStoreRepository, rsnap *RemoteSnap, flags InstallFlags, meter progress.Meter) error {
+	_, err := installRemote(mStore, rsnap, flags, meter)
 	if err == ErrSideLoaded {
-		logger.Noticef("Skipping sideloaded package: %s", part.Name())
+		logger.Noticef("Skipping sideloaded package: %s", rsnap.Name())
 		return nil
 	} else if err != nil {
 		return err
 	}
 
-	if err := GarbageCollect(part.Name(), flags, meter); err != nil {
+	if err := GarbageCollect(rsnap.Name(), flags, meter); err != nil {
 		return err
 	}
 
