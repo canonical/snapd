@@ -450,7 +450,7 @@ func (s *SnapTestSuite) TestUbuntuStoreFind(c *C) {
 }
 
 func mockActiveSnapIterByType(mockSnaps []string) {
-	ActiveSnapIterByType = func(f func(Part) string, snapTs ...snap.Type) (res []string, err error) {
+	ActiveSnapIterByType = func(f func(BaseSnap) string, snapTs ...snap.Type) (res []string, err error) {
 		return mockSnaps, nil
 	}
 }

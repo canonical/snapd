@@ -39,26 +39,26 @@ type Configuration interface {
 
 // QualifiedName of a Part is the Name, in most cases qualified with the
 // Origin
-func QualifiedName(p Part) string {
+func QualifiedName(p BaseSnap) string {
 	if t := p.Type(); t == snap.TypeFramework || t == snap.TypeGadget {
 		return p.Name()
 	}
 	return p.Name() + "." + p.Origin()
 }
 
-// BareName of a Part is just its Name
-func BareName(p Part) string {
+// BareName of a BaseSnap is just its Name
+func BareName(p BaseSnap) string {
 	return p.Name()
 }
 
-// FullName of a Part is Name.Origin
-func FullName(p Part) string {
+// FullName of a BaseSnap is Name.Origin
+func FullName(p BaseSnap) string {
 	return p.Name() + "." + p.Origin()
 }
 
 // FullNameWithChannel returns the FullName, with the channel appended
 // if it has one.
-func fullNameWithChannel(p Part) string {
+func fullNameWithChannel(p BaseSnap) string {
 	name := FullName(p)
 	ch := p.Channel()
 	if ch == "" {
@@ -68,8 +68,8 @@ func fullNameWithChannel(p Part) string {
 	return fmt.Sprintf("%s/%s", name, ch)
 }
 
-// Part representation of a snappy part
-type Part interface {
+// BaseSnap represents a minimal snap information
+type BaseSnap interface {
 	Name() string
 	Version() string
 	Origin() string
@@ -102,7 +102,7 @@ func ActiveSnapsByType(snapTs ...snap.Type) (res []*Snap, err error) {
 // function to all active snaps with the given type.
 var ActiveSnapIterByType = activeSnapIterByTypeImpl
 
-func activeSnapIterByTypeImpl(f func(Part) string, snapTs ...snap.Type) ([]string, error) {
+func activeSnapIterByTypeImpl(f func(BaseSnap) string, snapTs ...snap.Type) ([]string, error) {
 	installed, err := ActiveSnapsByType(snapTs...)
 	res := make([]string, len(installed))
 
@@ -198,6 +198,6 @@ func PackageNameActive(name string) bool {
 }
 
 // RemoteManifestPath returns the would be path for the store manifest meta data
-func RemoteManifestPath(s Part) string {
+func RemoteManifestPath(s BaseSnap) string {
 	return filepath.Join(dirs.SnapMetaDir, fmt.Sprintf("%s_%s.manifest", QualifiedName(s), s.Version()))
 }
