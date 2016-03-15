@@ -37,7 +37,7 @@ override_dh_systemd_enable:
 	# enable snapd
 	dh_systemd_enable \
 		-psnapd \
-		snapd.snapd.socket
+		snapd.socket
 
 override_dh_systemd_start:
 	# start boot-ok
@@ -60,7 +60,7 @@ override_dh_systemd_start:
 	# start snapd
 	dh_systemd_start \
 		-psnapd \
-		snapd.snapd.socket
+		snapd.socket
 
 # we need the builddir; is there a simpler way to get it?
 BUILDDIR:=${CURDIR}/obj-$(shell dpkg-architecture -qDEB_TARGET_GNU_TYPE)
