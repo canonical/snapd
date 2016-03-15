@@ -56,9 +56,19 @@ func (s *SnapLocalRepository) All() ([]Part, error) {
 	return s.Installed()
 }
 
+// AllSnaps get all the snaps
+func (s *SnapLocalRepository) AllSnaps() ([]*Snap, error) {
+	globExpr := filepath.Join(s.path, "*", "*", "meta", "snap.yaml")
+	return s.snapsForGlobExpr(globExpr)
+}
+
 // Snaps gets all the snaps with the given name and origin
 func (s *SnapLocalRepository) Snaps(name, origin string) ([]*Snap, error) {
 	globExpr := filepath.Join(s.path, name+"."+origin, "*", "meta", "snap.yaml")
+	return s.snapsForGlobExpr(globExpr)
+}
+
+func (s *SnapLocalRepository) snapsForGlobExpr(globExpr string) ([]*Snap, error) {
 	parts, err := s.partsForGlobExpr(globExpr)
 	if err != nil {
 		return nil, err
