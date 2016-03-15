@@ -176,9 +176,5 @@ func (t *Task) WaitFor(another *Task) {
 // WaitTasks returns the list of tasks registered for t to wait for.
 func (t *Task) WaitTasks() []*Task {
 	t.state.ensureLocked()
-	tasks := make([]*Task, 0, len(t.waitTasks))
-	for tid := range t.waitTasks {
-		tasks = append(tasks, t.state.tasks[tid])
-	}
-	return tasks
+	return t.waitTasks.tasks(t.state)
 }
