@@ -90,8 +90,6 @@ func snapInfo(pkgname string, includeStore, verbose bool) error {
 			// TRANSLATORS: the %s is a date
 			fmt.Printf(i18n.G("installed: %s\n"), "n/a")
 			// TRANSLATORS: the %s is a size
-			fmt.Printf(i18n.G("binary-size: %v\n"), remote.InstalledSize())
-			// TRANSLATORS: the %s is a size
 			fmt.Printf(i18n.G("data-size: %s\n"), "n/a")
 		}
 
