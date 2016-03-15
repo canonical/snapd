@@ -216,3 +216,13 @@ func (ts *taskSuite) TestTaskWaitFor(c *C) {
 	c.Assert(t2.WaitTasks(), DeepEquals, []string{t1.ID()})
 	c.Assert(t2.Status(), Equals, state.WaitingStatus)
 }
+
+func (ts *taskSuite) TestState(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	t := chg.NewTask("download", "1...")
+	st.Unlock()
+
+	c.Assert(t.State(), Equals, st)
+}
