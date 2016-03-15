@@ -38,7 +38,7 @@ func activeSnapMetaDataImpl(snapName string) (version, origin string, apps []str
 				apps = append(apps, app.Name)
 			}
 			version = snap.Version()
-			origin = snap.Origin()
+			origin = snap.Developer()
 			return
 		}
 	}
