@@ -102,6 +102,9 @@ func (r *TaskRunner) Ensure() {
 	r.state.Lock()
 	defer r.state.Unlock()
 
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	for _, chg := range r.state.Changes() {
 		tasks := chg.Tasks()
 		for _, t := range tasks {
@@ -132,6 +135,9 @@ func (r *TaskRunner) Ensure() {
 
 // Stop stops all concurrent activities and returns after that's done.
 func (r *TaskRunner) Stop() {
+	r.state.Lock()
+	defer r.state.Unlock()
+
 	for _, tb := range r.tombs {
 		tb.Kill(nil)
 		tb.Wait()
