@@ -24,8 +24,10 @@ import (
 )
 
 // SetEnsureIntervalForTest let's change overlord ensure interval for tests.
-func SetEnsureIntervalForTest(d time.Duration) time.Duration {
+func SetEnsureIntervalForTest(d time.Duration) (restore func()) {
 	prev := ensureInterval
 	ensureInterval = d
-	return prev
+	return func() {
+		ensureInterval = prev
+	}
 }

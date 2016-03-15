@@ -88,8 +88,8 @@ func (os *overlordSuite) TestNewWithInvalidState(c *C) {
 }
 
 func (os *overlordSuite) TestEnsureLoopRunAndStop(c *C) {
-	prevInterval := overlord.SetEnsureIntervalForTest(10 * time.Millisecond)
-	defer overlord.SetEnsureIntervalForTest(prevInterval)
+	restoreIntv := overlord.SetEnsureIntervalForTest(10 * time.Millisecond)
+	defer restoreIntv()
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
 
