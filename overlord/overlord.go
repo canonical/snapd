@@ -23,8 +23,12 @@ package overlord
 import (
 	"fmt"
 	"os"
+	"time"
+
+	"gopkg.in/tomb.v2"
 
 	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/osutil"
 
 	"github.com/ubuntu-core/snappy/overlord/assertstate"
@@ -33,10 +37,14 @@ import (
 	"github.com/ubuntu-core/snappy/overlord/state"
 )
 
+var ensureInterval = 3 * time.Second
+
 // Overlord is the central manager of a snappy system, keeping
 // track of all available state managers and related helpers.
 type Overlord struct {
 	stateEng *StateEngine
+	// ensure loop
+	loopTomb *tomb.Tomb
 	// managers
 	snapMgr   *snapstate.SnapManager
 	assertMgr *assertstate.AssertManager
@@ -45,7 +53,7 @@ type Overlord struct {
 
 // New creates a new Overlord with all its state managers.
 func New() (*Overlord, error) {
-	o := &Overlord{}
+	o := &Overlord{loopTomb: new(tomb.Tomb)}
 
 	backend := state.NewFileBackend(dirs.SnapStateFile)
 	s, err := loadState(backend)
@@ -91,6 +99,36 @@ func loadState(backend state.Backend) (*state.State, error) {
 	defer r.Close()
 
 	return state.ReadState(backend, r)
+}
+
+// Run runs a loop to ensure the current state regularly through StateEngine Ensure().
+func (o *Overlord) Run() {
+	intv := ensureInterval
+	o.loopTomb.Go(func() error {
+		tim := time.NewTimer(intv)
+		for {
+			select {
+			case <-o.loopTomb.Dying():
+				return nil
+			case <-tim.C:
+			}
+			err := o.stateEng.Ensure()
+			if err != nil {
+				logger.Panicf("state engine ensure failed not recoverably: %v", err)
+			}
+			tim.Reset(intv)
+		}
+	})
+}
+
+// Stop stops the ensure loop and the managers under the StateEngine.
+func (o *Overlord) Stop() error {
+	o.loopTomb.Kill(nil)
+	err := o.stateEng.Stop()
+	if err != nil {
+		return err
+	}
+	return o.loopTomb.Wait()
 }
 
 // StateEngine returns the state engine used by the overlord.
