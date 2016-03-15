@@ -114,7 +114,8 @@ func (o *Overlord) Run() {
 			}
 			err := o.stateEng.Ensure()
 			if err != nil {
-				logger.Panicf("state engine ensure failed not recoverably: %v", err)
+				logger.Noticef("state engine ensure failed: %v", err)
+				// continue to the next Ensure() try for now
 			}
 			timer.Reset(intv)
 		}
