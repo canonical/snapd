@@ -77,10 +77,20 @@ func (iface *BoolFileInterface) SanitizePlug(slot *interfaces.Plug) error {
 	return nil
 }
 
-// ConnectedSlotSnippet returns the configuration snippet required to provide a bool-file interface.
-// Producers gain control over exporting, importing GPIOs as well as
-// controlling the direction of particular pins.
+// ConnectedSlotSnippet returns security snippet specific to a given connection between the bool-file slot and some plug.
+// Applications associated with the slot don't gain any extra permissions.
 func (iface *BoolFileInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	switch securitySystem {
+	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev:
+		return nil, nil
+	default:
+		return nil, interfaces.ErrUnknownSecurity
+	}
+}
+
+// PermanentSlotSnippet returns security snippet permanently granted to bool-file slots.
+// Applications associated with the slot, if the slot is a GPIO, gain permission to export, unexport and set direction of any GPIO pin.
+func (iface *BoolFileInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	gpioSnippet := []byte(`
 /sys/class/gpio/export rw,
 /sys/class/gpio/unexport rw,
@@ -101,14 +111,8 @@ func (iface *BoolFileInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot
 	}
 }
 
-// PermanentSlotSnippet returns the configuration snippet required to provide a bool-file interface.
-func (iface *BoolFileInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	// TODO: implement this for real
-	return nil, nil
-}
-
-// ConnectedPlugSnippet returns the configuration snippet required to use a bool-file interface.
-// Consumers gain permission to read, write and lock the designated file.
+// ConnectedPlugSnippet returns security snippet specific to a given connection between the bool-file plug and some slot.
+// Applications associated with the plug gain permission to read, write and lock the designated file.
 func (iface *BoolFileInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
@@ -129,9 +133,14 @@ func (iface *BoolFileInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot
 }
 
 // PermanentPlugSnippet returns the configuration snippet required to use a bool-file interface.
+// Applications associated with the plug don't gain any extra permissions.
 func (iface *BoolFileInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	// TODO: implement this for real
-	return nil, nil
+	switch securitySystem {
+	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev:
+		return nil, nil
+	default:
+		return nil, interfaces.ErrUnknownSecurity
+	}
 }
 
 func (iface *BoolFileInterface) dereferencedPath(slot *interfaces.Slot) (string, error) {

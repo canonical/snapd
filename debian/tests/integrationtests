@@ -1,0 +1,11 @@
+#!/bin/sh
+tmp="$(mktemp -d)"
+export GOPATH=$tmp
+./get-deps.sh
+mkdir -p $GOPATH/src/github.com/ubuntu-core/
+cp -R . $GOPATH/src/github.com/ubuntu-core/snappy/
+mkdir $GOPATH/src/github.com/ubuntu-core/snappy/integration-tests/data/output
+cp debian/tests/testconfig.json $GOPATH/src/github.com/ubuntu-core/snappy/integration-tests/data/output/
+cd $GOPATH/src/github.com/ubuntu-core/snappy
+go test -c ./integration-tests/tests
+./tests.test  -check.v -check.f buildSuite

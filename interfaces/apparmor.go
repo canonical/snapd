@@ -282,13 +282,5 @@ const defaultAppArmorTemplate = `
   /sys/devices/**/ r,
   /sys/class/ r,
   /sys/class/**/ r,
-
-  ###ABSTRACTIONS###
-
-  ###POLICYGROUPS###
-
-  ###READS###
-
-  ###WRITES###
 }
 `

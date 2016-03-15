@@ -28,16 +28,16 @@ import (
 
 // A SnapDataDir represents a single data directory for a version of a package
 type SnapDataDir struct {
-	Base    string
-	Name    string
-	Origin  string
-	Version string
+	Base      string
+	Name      string
+	Developer string
+	Version   string
 }
 
 // QualifiedName returns the filesystem directory name for this SnapDataDir
 func (dd SnapDataDir) QualifiedName() string {
-	if dd.Origin != "" {
-		return dd.Name + "." + dd.Origin
+	if dd.Developer != "" {
+		return dd.Name + "." + dd.Developer
 	}
 	return dd.Name
 }
@@ -69,7 +69,7 @@ func data1(spec, basedir string) []SnapDataDir {
 
 	// “but, Chipaca”, I hear you say, “why are you doing all this all over
 	// again, when you could just use .Installed() on an appropriate repo,
-	// and getOriginFromYaml and all the other lovely tools we already
+	// and getDeveloperFromYaml and all the other lovely tools we already
 	// have written?”
 	// To which I can only say: DataDirs finds all the data dirs on the
 	// system, not just those of packages that are installed. If you've
@@ -81,13 +81,13 @@ func data1(spec, basedir string) []SnapDataDir {
 			continue
 		}
 		name := filepath.Base(filepath.Dir(dir))
-		origin := ""
+		developer := ""
 		idx := strings.LastIndexAny(name, ".")
 		if idx > -1 {
-			origin = name[idx+1:]
+			developer = name[idx+1:]
 			name = name[:idx]
 		}
-		if filterns && specns != origin {
+		if filterns && specns != developer {
 			continue
 		}
 		if spec != "" && spec != name {
@@ -95,10 +95,10 @@ func data1(spec, basedir string) []SnapDataDir {
 		}
 
 		snaps = append(snaps, SnapDataDir{
-			Base:    basedir,
-			Name:    name,
-			Origin:  origin,
-			Version: version,
+			Base:      basedir,
+			Name:      name,
+			Developer: developer,
+			Version:   version,
 		})
 	}
 

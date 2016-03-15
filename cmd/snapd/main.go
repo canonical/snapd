@@ -44,7 +44,10 @@ func main() {
 }
 
 func run() error {
-	d := daemon.New()
+	d, err := daemon.New()
+	if err != nil {
+		return err
+	}
 
 	if err := d.Init(); err != nil {
 		return err
