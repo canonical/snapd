@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path"
 	"path/filepath"
 	"syscall"
 )
@@ -54,14 +53,14 @@ type FileState struct {
 // returned to the caller for any extra processing that might be required (e.g.
 // to run some helper program).
 func EnsureDirState(dir, glob string, content map[string]*FileState) (created, corrected, removed []string, err error) {
-	matches, err := filepath.Glob(path.Join(dir, glob))
+	matches, err := filepath.Glob(filepath.Join(dir, glob))
 	if err != nil {
 		return nil, nil, nil, err
 	}
 	found := make(map[string]bool)
 	// Analyze files that inhabit the subset defined by our glob pattern.
 	for _, name := range matches {
-		baseName := path.Base(name)
+		baseName := filepath.Base(name)
 		// Remove files that should not be here.
 		var expected *FileState
 		var shouldBeHere bool
@@ -119,7 +118,7 @@ func EnsureDirState(dir, glob string, content map[string]*FileState) (created, c
 	}
 	// Create files that were not found but are expected
 	for baseName, expected := range content {
-		if baseName != path.Base(baseName) {
+		if baseName != filepath.Base(baseName) {
 			err := fmt.Errorf("expected files cannot have path component: %q", baseName)
 			return created, corrected, removed, err
 		}
@@ -134,7 +133,7 @@ func EnsureDirState(dir, glob string, content map[string]*FileState) (created, c
 		if found[baseName] {
 			continue
 		}
-		if err := AtomicWriteFile(path.Join(dir, baseName), expected.Content, expected.Mode, 0); err != nil {
+		if err := AtomicWriteFile(filepath.Join(dir, baseName), expected.Content, expected.Mode, 0); err != nil {
 			return created, corrected, removed, err
 		}
 		created = append(created, baseName)
