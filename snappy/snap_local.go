@@ -197,6 +197,7 @@ func (s *Snap) InstalledSize() int64 {
 	return totalSize
 }
 
+// Info returns the snap.Info data.
 func (s *Snap) Info() *snap.Info {
 	return &snap.Info{
 		Name:        s.Name(),

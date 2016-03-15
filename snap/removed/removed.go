@@ -36,7 +36,7 @@ import (
 // ErrRemoved is returned when you ask to operate on a removed package.
 var ErrRemoved = errors.New("package is removed")
 
-// Removed represents a removed package.
+// New returns the snap.Info for a removed package.
 func New(name, developer, version string, pkgType snap.Type) *snap.Info {
 	info := &snap.Info{
 		Name:      name,
