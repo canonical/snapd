@@ -125,11 +125,8 @@ func (o *Overlord) Run() {
 // Stop stops the ensure loop and the managers under the StateEngine.
 func (o *Overlord) Stop() error {
 	o.loopTomb.Kill(nil)
-	err := o.stateEng.Stop()
-	if err != nil {
-		return err
-	}
-	return o.loopTomb.Wait()
+	o.loopTomb.Wait()
+	return o.stateEng.Stop()
 }
 
 // StateEngine returns the state engine used by the overlord.
