@@ -142,7 +142,7 @@ license-version: 2
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testOrigin+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
-	part, err := NewInstalledSnapPart(yamlFile, testOrigin)
+	part, err := NewInstalledSnap(yamlFile, testOrigin)
 	c.Assert(err, IsNil)
 	c.Assert(part.activate(true, ag), IsNil)
 
@@ -166,7 +166,7 @@ version: 1.0
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testOrigin+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
-	part, err := NewInstalledSnapPart(yamlFile, testOrigin)
+	part, err := NewInstalledSnap(yamlFile, testOrigin)
 	c.Assert(err, IsNil)
 	c.Assert(part.activate(true, ag), IsNil)
 
@@ -188,7 +188,7 @@ license-agreement: explicit
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testOrigin+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
-	part, err := NewInstalledSnapPart(yamlFile, testOrigin)
+	part, err := NewInstalledSnap(yamlFile, testOrigin)
 	c.Assert(err, IsNil)
 	c.Assert(part.activate(true, ag), IsNil)
 
@@ -217,7 +217,7 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 	c.Assert(err, IsNil)
 
 	yamlPath := filepath.Join(instDir, "meta", "snap.yaml")
-	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
+	part, err := NewInstalledSnap(yamlPath, testOrigin)
 	c.Assert(err, IsNil)
 	err = (&Overlord{}).Uninstall(part, &MockProgressMeter{})
 	c.Assert(err, IsNil)
@@ -289,7 +289,7 @@ func (s *SnapTestSuite) TestSnapRemovePackagePolicy(c *C) {
 	s.buildFramework(c)
 	appdir := filepath.Join(s.tempdir, "snaps", "hello", "1.0.1")
 	yamlPath := filepath.Join(appdir, "meta", "snap.yaml")
-	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
+	part, err := NewInstalledSnap(yamlPath, testOrigin)
 	c.Assert(err, IsNil)
 	err = (&Overlord{}).Uninstall(part, &MockProgressMeter{})
 	c.Assert(err, IsNil)
@@ -375,7 +375,7 @@ func (s *SnapTestSuite) TestClickSetActive(c *C) {
 	c.Assert(parts[1].IsActive(), Equals, true)
 
 	// set v1 active
-	err = parts[0].(*SnapPart).activate(false, nil)
+	err = parts[0].(*Snap).activate(false, nil)
 	parts, err = repo.Installed()
 	c.Assert(err, IsNil)
 	c.Assert(parts[0].Version(), Equals, "1.0")
@@ -610,7 +610,7 @@ apps:
 	// and that it gets removed on remove
 	snapDir := filepath.Join(dirs.SnapSnapsDir, "foo.mvo", "1.0")
 	yamlPath := filepath.Join(snapDir, "meta", "snap.yaml")
-	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
+	part, err := NewInstalledSnap(yamlPath, testOrigin)
 	c.Assert(err, IsNil)
 	err = (&Overlord{}).Uninstall(part, &MockProgressMeter{})
 	c.Assert(err, IsNil)
@@ -777,14 +777,14 @@ func (s *SnapTestSuite) TestAddPackageServicesStripsGlobalRootdir(c *C) {
 	err = addPackageServices(m, baseDir, false, nil)
 	c.Assert(err, IsNil)
 
-	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/systemd/system/hello-app_svc1_1.10.service"))
+	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/systemd/system/hello-snap_svc1_1.10.service"))
 	c.Assert(err, IsNil)
 
-	baseDirWithoutRootPrefix := "/snaps/" + helloAppComposedName + "/1.10"
+	baseDirWithoutRootPrefix := "/snaps/" + helloSnapComposedName + "/1.10"
 	verbs := []string{"Start", "Stop", "StopPost"}
 	bins := []string{"hello", "goodbye", "missya"}
 	for i := range verbs {
-		expected := fmt.Sprintf("Exec%s=/usr/bin/ubuntu-core-launcher hello-app.svc1 %s_svc1_1.10 %s/bin/%s", verbs[i], helloAppComposedName, baseDirWithoutRootPrefix, bins[i])
+		expected := fmt.Sprintf("Exec%s=/usr/bin/ubuntu-core-launcher hello-snap.svc1 %s_svc1_1.10 %s/bin/%s", verbs[i], helloSnapComposedName, baseDirWithoutRootPrefix, bins[i])
 		c.Check(string(content), Matches, "(?ms).*^"+regexp.QuoteMeta(expected)) // check.v1 adds ^ and $ around the regexp provided
 	}
 }
@@ -846,12 +846,12 @@ func (s *SnapTestSuite) TestAddPackageBinariesStripsGlobalRootdir(c *C) {
 	err = addPackageBinaries(m, baseDir)
 	c.Assert(err, IsNil)
 
-	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/snaps/bin/hello-app.hello"))
+	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/snaps/bin/hello-snap.hello"))
 	c.Assert(err, IsNil)
 
 	needle := `
 cd $SNAP_DATA
-ubuntu-core-launcher hello-app.hello hello-app.testspacethename_hello_1.10 /snaps/hello-app.testspacethename/1.10/bin/hello "$@"
+ubuntu-core-launcher hello-snap.hello hello-snap.testspacethename_hello_1.10 /snaps/hello-snap.testspacethename/1.10/bin/hello "$@"
 `
 	c.Assert(string(content), Matches, "(?ms).*"+regexp.QuoteMeta(needle)+".*")
 }
@@ -1196,7 +1196,7 @@ apps:
 	// and that it gets removed on remove
 	snapDir := filepath.Join(dirs.SnapSnapsDir, "foo.mvo", "1.0")
 	yamlPath := filepath.Join(snapDir, "meta", "snap.yaml")
-	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
+	part, err := NewInstalledSnap(yamlPath, testOrigin)
 	c.Assert(err, IsNil)
 	err = (&Overlord{}).Uninstall(part, &MockProgressMeter{})
 	c.Assert(err, IsNil)

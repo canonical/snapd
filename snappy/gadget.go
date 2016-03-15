@@ -134,7 +134,7 @@ var getGadget = getGadgetImpl
 func getGadgetImpl() (*snapYaml, error) {
 	gadgets, _ := ActiveSnapsByType(snap.TypeGadget)
 	if len(gadgets) == 1 {
-		return gadgets[0].(*SnapPart).m, nil
+		return gadgets[0].(*Snap).m, nil
 	}
 
 	return nil, errors.New("no gadget snap")
