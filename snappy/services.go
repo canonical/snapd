@@ -80,7 +80,7 @@ func generateSnapServicesFile(app *AppYaml, baseDir string, aaProfile string, m 
 			BusName:        app.BusName,
 			Type:           app.Daemon,
 			UdevAppName:    fmt.Sprintf("%s.%s", m.Name, app.Name),
-			Origin:         originFromBasedir(baseDir),
+			Developer:      developerFromBasedir(baseDir),
 			Socket:         app.Socket,
 			SocketFileName: socketFileName,
 			Restart:        app.RestartCond,

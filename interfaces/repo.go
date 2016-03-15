@@ -553,13 +553,20 @@ func (r *Repository) SecurityFilesForSnap(snapName string) (map[string][]byte, e
 
 func (r *Repository) collectFilesFromSecurityHelper(snapName string, helper securityHelper, buffers map[string]*bytes.Buffer) error {
 	securitySystem := helper.securitySystem()
+	snapVersion, snapOrigin, snapApps, err := ActiveSnapMetaData(snapName)
+	if err != nil {
+		return fmt.Errorf("cannot determine meta-data for snap %s: %v", snapName, err)
+	}
 	appSnippets, err := r.securitySnippetsForSnap(snapName, securitySystem)
 	if err != nil {
 		return fmt.Errorf("cannot determine %s security snippets for snap %s: %v", securitySystem, snapName, err)
 	}
-	for appName, snippets := range appSnippets {
+	for _, appName := range snapApps {
+		// NOTE: this explicitly iterates over all apps, even if they have no granted skills.
+		// This way after revoking a skill permission are updated to reflect that.
+		snippets := appSnippets[appName]
 		writer := &bytes.Buffer{}
-		path := helper.pathForApp(snapName, appName)
+		path := helper.pathForApp(snapName, snapVersion, snapOrigin, appName)
 		doWrite := func(blob []byte) error {
 			_, err = writer.Write(blob)
 			if err != nil {
@@ -567,7 +574,7 @@ func (r *Repository) collectFilesFromSecurityHelper(snapName string, helper secu
 			}
 			return nil
 		}
-		if err := doWrite(helper.headerForApp(snapName, appName)); err != nil {
+		if err := doWrite(helper.headerForApp(snapName, snapVersion, snapOrigin, appName)); err != nil {
 			return err
 		}
 		for _, snippet := range snippets {
@@ -575,7 +582,7 @@ func (r *Repository) collectFilesFromSecurityHelper(snapName string, helper secu
 				return err
 			}
 		}
-		if err := doWrite(helper.footerForApp(snapName, appName)); err != nil {
+		if err := doWrite(helper.footerForApp(snapName, snapVersion, snapOrigin, appName)); err != nil {
 			return err
 		}
 		buffers[path] = writer
