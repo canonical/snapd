@@ -60,7 +60,7 @@ var (
 	// AppArmor cache dir
 	aaCacheDir = "/var/cache/apparmor"
 
-	errOriginNotFound     = errors.New("could not detect origin")
+	errDeveloperNotFound  = errors.New("could not detect developer")
 	errPolicyTypeNotFound = errors.New("could not find specified policy type")
 	errInvalidAppID       = errors.New("invalid APP_ID")
 	errPolicyGen          = errors.New("errors found when generating policy")
@@ -334,16 +334,16 @@ func getSecurityProfile(m *snapYaml, appName, baseDir string) (string, error) {
 		return fmt.Sprintf("%s_%s_%s", m.Name, cleanedName, m.Version), nil
 	}
 
-	origin, err := originFromYamlPath(filepath.Join(baseDir, "meta", "snap.yaml"))
+	developer, err := developerFromYamlPath(filepath.Join(baseDir, "meta", "snap.yaml"))
 
-	return fmt.Sprintf("%s.%s_%s_%s", m.Name, origin, cleanedName, m.Version), err
+	return fmt.Sprintf("%s.%s_%s_%s", m.Name, developer, cleanedName, m.Version), err
 }
 
 type securityAppID struct {
-	AppID   string
-	Pkgname string
-	Appname string
-	Version string
+	AppID    string
+	SnapName string
+	AppName  string
+	Version  string
 }
 
 func newAppID(appID string) (*securityAppID, error) {
@@ -352,10 +352,10 @@ func newAppID(appID string) (*securityAppID, error) {
 		return nil, errInvalidAppID
 	}
 	id := securityAppID{
-		AppID:   appID,
-		Pkgname: tmp[0],
-		Appname: tmp[1],
-		Version: tmp[2],
+		AppID:    appID,
+		SnapName: tmp[0],
+		AppName:  tmp[1],
+		Version:  tmp[2],
 	}
 	return &id, nil
 }
@@ -371,7 +371,7 @@ func (sa *securityAppID) appArmorVars() string {
 @{APP_VERSION}="%s"
 @{INSTALL_DIR}="{/snaps,/gadget}"
 # Deprecated:
-@{CLICK_DIR}="{/snaps,/gadget}"`, sa.Appname, dbusPath(sa.AppID), dbusPath(sa.Pkgname), sa.Pkgname, sa.Version)
+@{CLICK_DIR}="{/snaps,/gadget}"`, sa.AppName, dbusPath(sa.AppID), dbusPath(sa.SnapName), sa.SnapName, sa.Version)
 	return aavars
 }
 
@@ -665,15 +665,15 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinaryResult(m *snapYaml,
 	sd.warnDeprecatedKeys()
 
 	// add the hw-override parts and merge with the other overrides
-	origin := ""
+	developer := ""
 	if m.Type != snap.TypeFramework && m.Type != snap.TypeGadget {
-		origin, err = originFromYamlPath(filepath.Join(baseDir, "meta", "snap.yaml"))
+		developer, err = developerFromYamlPath(filepath.Join(baseDir, "meta", "snap.yaml"))
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	hwaccessOverrides, err := readHWAccessYamlFile(m.qualifiedName(origin))
+	hwaccessOverrides, err := readHWAccessYamlFile(m.qualifiedName(developer))
 	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
@@ -737,7 +737,7 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinary(m *snapYaml, name 
 	return nil
 }
 
-// FIXME: move into something more generic - SnapPart.HasConfig?
+// FIXME: move into something more generic - Snap.HasConfig?
 func hasConfig(baseDir string) bool {
 	return osutil.FileExists(filepath.Join(baseDir, "meta", "hooks", "config"))
 }
@@ -820,7 +820,7 @@ func regeneratePolicyForSnap(snapname string) error {
 		}
 		if appID.Version != appliedVersion {
 			// FIXME: dirs.SnapSnapsDir is too simple, gadget
-			fn := filepath.Join(dirs.SnapSnapsDir, appID.Pkgname, appID.Version, "meta", "snap.yaml")
+			fn := filepath.Join(dirs.SnapSnapsDir, appID.SnapName, appID.Version, "meta", "snap.yaml")
 			if !osutil.FileExists(fn) {
 				continue
 			}
@@ -909,7 +909,7 @@ func CompareGeneratePolicyFromFile(fn string) error {
 func parseSnapYamlFileWithVersion(fn string) (*snapYaml, error) {
 	m, err := parseSnapYamlFile(fn)
 
-	// FIXME: duplicated code from snapp.go:NewSnapPartFromYaml,
+	// FIXME: duplicated code from snapp.go:NewSnapFromYaml,
 	//        version is overriden by sideloaded versions
 
 	// use EvalSymlinks to resolve 'current' to the correct version
@@ -932,10 +932,10 @@ func GeneratePolicyFromFile(fn string, force bool) error {
 	}
 
 	if m.Type == "" || m.Type == snap.TypeApp {
-		_, err = originFromYamlPath(fn)
+		_, err = developerFromYamlPath(fn)
 		if err != nil {
 			if err == ErrInvalidPart {
-				err = errOriginNotFound
+				err = errDeveloperNotFound
 			}
 			return err
 		}
@@ -960,7 +960,7 @@ func RegenerateAllPolicy(force bool) error {
 	}
 
 	for _, p := range installed {
-		part, ok := p.(*SnapPart)
+		part, ok := p.(*Snap)
 		if !ok {
 			continue
 		}

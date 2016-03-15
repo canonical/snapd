@@ -38,7 +38,6 @@ type Snap struct {
 	IconURL         string             `json:"icon_url"`
 	LastUpdated     string             `json:"last_updated,omitempty"`
 	Name            string             `json:"package_name"`
-	Origin          string             `json:"origin"`
 	Prices          map[string]float64 `json:"prices,omitempty"`
 	Publisher       string             `json:"publisher,omitempty"`
 	RatingsAverage  float64            `json:"ratings_average,omitempty"`
@@ -47,4 +46,8 @@ type Snap struct {
 	Title           string             `json:"title"`
 	Type            snap.Type          `json:"content,omitempty"`
 	Version         string             `json:"version"`
+
+	// FIXME: the store should return "developer" to us instead of
+	//        origin
+	Developer string `json:"origin" yaml:"origin"`
 }

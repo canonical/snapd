@@ -91,11 +91,11 @@ When you update, you always update to the original package you installed,
 regardless of whether the mapping for vim has changed.
 
 ## Manifest & metadata
-Package manifests will only contain the package name (`vim`), the origin of 
+Package manifests will only contain the package name (`vim`), the developer of 
 the app will be fed by the store separately.
 
 ## Filesystem
-Apps will be installed on the filesystem with their package name and origin:
+Apps will be installed on the filesystem with their package name and developer:
 `/apps/vim.beuno/1.1/`
 
 ## Garbage collection
@@ -107,7 +107,7 @@ You can only sideload one fork of an app, there is no switching on sideloads.
 ## Touch & other GUIs
 Snappy will provide the basic building blocks, each platform can decide how to
 deal with it. The store will guarantee the uniqueness of a package name and
-origin combination, Snappy will allow packages with the same name to be
+developer combination, Snappy will allow packages with the same name to be
 co-installed but will not be co-runnable.
 
 How UIs will be mapped to the primitives described in this document is not yet
@@ -115,12 +115,12 @@ defined. As part of that effort new requirements and feature nuances for snappy
 package origins could arise that snappy will work with engineering teams to
 realize the best solution. (for instance it might be that touch design might
 deem the need to allow co-installation and co-runnability of snappy packages of
-different origin to realize their UX/app story, but we explicitly leave that
+different developer to realize their UX/app story, but we explicitly leave that
 problem out for now).
 
 ## Implementation details
 The packages will continue to be accessed in the store using their full
-namespaces, which would be composed from the `package name` and the `origin`
+namespaces, which would be composed from the `package name` and the `developer`
 (`/api/v1/vim.beuno`) On install, Snappy will ask you to choose which vim to
 use on runtime if you have more than one (defaults to what you are installing)
 There will have to be a (secure) way of persisting the user’s selection of

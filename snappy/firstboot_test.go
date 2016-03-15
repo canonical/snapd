@@ -36,7 +36,7 @@ type fakeOverlord struct {
 	configs map[string]string
 }
 
-func (o *fakeOverlord) Configure(s *SnapPart, c []byte) ([]byte, error) {
+func (o *fakeOverlord) Configure(s *Snap, c []byte) ([]byte, error) {
 	o.configs[s.Name()] = string(c)
 	return c, nil
 }
@@ -48,8 +48,8 @@ type FirstBootTestSuite struct {
 	ifup         string
 	m            *snapYaml
 	e            error
-	partMap      map[string]Part
-	partMapErr   error
+	snapMap      map[string]*Snap
+	snapMapErr   error
 	verifyCmd    string
 	fakeOverlord *fakeOverlord
 }
@@ -85,7 +85,7 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	s.ifup = ifup
 	ifup = "/bin/true"
 	getGadget = s.getGadget
-	newPartMap = s.newPartMap
+	newSnapMap = s.newSnapMap
 	newOverlord = s.newOverlord
 	s.fakeOverlord = &fakeOverlord{
 		configs: map[string]string{},
@@ -93,8 +93,8 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 
 	s.m = nil
 	s.e = nil
-	s.partMap = nil
-	s.partMapErr = nil
+	s.snapMap = nil
+	s.snapMapErr = nil
 }
 
 func (s *FirstBootTestSuite) TearDownTest(c *C) {
@@ -102,30 +102,30 @@ func (s *FirstBootTestSuite) TearDownTest(c *C) {
 	ethdir = s.ethdir
 	ifup = s.ifup
 	getGadget = getGadgetImpl
-	newPartMap = newPartMapImpl
+	newSnapMap = newSnapMapImpl
 }
 
 func (s *FirstBootTestSuite) getGadget() (*snapYaml, error) {
 	return s.m, s.e
 }
 
-func (s *FirstBootTestSuite) newPartMap() (map[string]Part, error) {
-	return s.partMap, s.partMapErr
+func (s *FirstBootTestSuite) newSnapMap() (map[string]*Snap, error) {
+	return s.snapMap, s.snapMapErr
 }
 
 func (s *FirstBootTestSuite) newOverlord() configurator {
 	return s.fakeOverlord
 }
 
-func (s *FirstBootTestSuite) newFakeApp() *SnapPart {
-	fakeMyApp := SnapPart{
+func (s *FirstBootTestSuite) newFakeApp() *Snap {
+	fakeMyApp := Snap{
 		m: &snapYaml{
 			Name: "myapp",
 			Type: snap.TypeApp,
 		},
 	}
-	s.partMap = make(map[string]Part)
-	s.partMap["myapp"] = &fakeMyApp
+	s.snapMap = make(map[string]*Snap)
+	s.snapMap["myapp"] = &fakeMyApp
 
 	return &fakeMyApp
 }
@@ -145,24 +145,24 @@ func (s *FirstBootTestSuite) TestSoftwareActivate(c *C) {
 	yamlPath, err := makeInstalledMockSnap(dirs.GlobalRootDir, "")
 	c.Assert(err, IsNil)
 
-	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
+	part, err := NewInstalledSnap(yamlPath, testDeveloper)
 	c.Assert(err, IsNil)
 	c.Assert(part.IsActive(), Equals, false)
 	name := part.Name()
 
 	s.m = &snapYaml{Gadget: Gadget{Software: Software{BuiltIn: []string{name}}}}
 
-	all, err := NewLocalSnapRepository().All()
+	all, err := NewLocalSnapRepository().AllSnaps()
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	c.Check(all[0].Name(), Equals, name)
 	c.Check(all[0].IsInstalled(), Equals, true)
 	c.Check(all[0].IsActive(), Equals, false)
 
-	s.partMap = map[string]Part{name: all[0]}
+	s.snapMap = map[string]*Snap{name: all[0]}
 	c.Assert(FirstBoot(), IsNil)
 
-	all, err = NewLocalSnapRepository().All()
+	all, err = NewLocalSnapRepository().AllSnaps()
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	c.Check(all[0].Name(), Equals, name)

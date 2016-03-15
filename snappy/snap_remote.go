@@ -31,73 +31,73 @@ import (
 	"github.com/ubuntu-core/snappy/snap/remote"
 )
 
-// RemoteSnapPart represents a snap available on the server
-type RemoteSnapPart struct {
+// RemoteSnap represents a snap available on the server
+type RemoteSnap struct {
 	pkg remote.Snap
 }
 
-// Type returns the type of the SnapPart (app, gadget, ...)
-func (s *RemoteSnapPart) Type() snap.Type {
+// Type returns the type of the Snap (app, gadget, ...)
+func (s *RemoteSnap) Type() snap.Type {
 	return s.pkg.Type
 }
 
 // Name returns the name
-func (s *RemoteSnapPart) Name() string {
+func (s *RemoteSnap) Name() string {
 	return s.pkg.Name
 }
 
 // Version returns the version
-func (s *RemoteSnapPart) Version() string {
+func (s *RemoteSnap) Version() string {
 	return s.pkg.Version
 }
 
 // Description returns the description
-func (s *RemoteSnapPart) Description() string {
+func (s *RemoteSnap) Description() string {
 	return s.pkg.Title
 }
 
-// Origin is the origin
-func (s *RemoteSnapPart) Origin() string {
-	return s.pkg.Origin
+// Developer is the developer
+func (s *RemoteSnap) Developer() string {
+	return s.pkg.Developer
 }
 
 // Hash returns the hash
-func (s *RemoteSnapPart) Hash() string {
+func (s *RemoteSnap) Hash() string {
 	return s.pkg.DownloadSha512
 }
 
 // Channel returns the channel used
-func (s *RemoteSnapPart) Channel() string {
+func (s *RemoteSnap) Channel() string {
 	return s.pkg.Channel
 }
 
 // Icon returns the icon
-func (s *RemoteSnapPart) Icon() string {
+func (s *RemoteSnap) Icon() string {
 	return s.pkg.IconURL
 }
 
 // IsActive returns true if the snap is active
-func (s *RemoteSnapPart) IsActive() bool {
+func (s *RemoteSnap) IsActive() bool {
 	return false
 }
 
 // IsInstalled returns true if the snap is installed
-func (s *RemoteSnapPart) IsInstalled() bool {
+func (s *RemoteSnap) IsInstalled() bool {
 	return false
 }
 
 // InstalledSize returns the size of the installed snap
-func (s *RemoteSnapPart) InstalledSize() int64 {
+func (s *RemoteSnap) InstalledSize() int64 {
 	return -1
 }
 
 // DownloadSize returns the dowload size
-func (s *RemoteSnapPart) DownloadSize() int64 {
+func (s *RemoteSnap) DownloadSize() int64 {
 	return s.pkg.DownloadSize
 }
 
 // Date returns the last update time
-func (s *RemoteSnapPart) Date() time.Time {
+func (s *RemoteSnap) Date() time.Time {
 	var p time.Time
 	var err error
 
@@ -115,7 +115,7 @@ func (s *RemoteSnapPart) Date() time.Time {
 	return p
 }
 
-func (s *RemoteSnapPart) saveStoreManifest() error {
+func (s *RemoteSnap) saveStoreManifest() error {
 	content, err := yaml.Marshal(s.pkg)
 	if err != nil {
 		return err
@@ -130,16 +130,16 @@ func (s *RemoteSnapPart) saveStoreManifest() error {
 }
 
 // Config is used to to configure the snap
-func (s *RemoteSnapPart) Config(configuration []byte) (new string, err error) {
+func (s *RemoteSnap) Config(configuration []byte) (new string, err error) {
 	return "", err
 }
 
 // NeedsReboot returns true if the snap becomes active on the next reboot
-func (s *RemoteSnapPart) NeedsReboot() bool {
+func (s *RemoteSnap) NeedsReboot() bool {
 	return false
 }
 
 // Frameworks returns the list of frameworks needed by the snap
-func (s *RemoteSnapPart) Frameworks() ([]string, error) {
+func (s *RemoteSnap) Frameworks() ([]string, error) {
 	return nil, ErrNotImplemented
 }

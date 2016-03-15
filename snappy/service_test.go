@@ -82,7 +82,7 @@ func (s *ServiceActorSuite) SetUpTest(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/multi-user.target.wants"), 0755), IsNil)
 	systemd.SystemctlCmd = s.myRun
 	systemd.JournalctlCmd = s.myJctl
-	_, err := makeInstalledMockSnap(dirs.GlobalRootDir, `name: hello-app
+	_, err := makeInstalledMockSnap(dirs.GlobalRootDir, `name: hello-snap
 version: 1.09
 apps:
  svc1:
@@ -92,7 +92,7 @@ apps:
    command: something
 `)
 	c.Assert(err, IsNil)
-	f, err := makeInstalledMockSnap(dirs.GlobalRootDir, `name: hello-app
+	f, err := makeInstalledMockSnap(dirs.GlobalRootDir, `name: hello-snap
 version: 1.10
 apps:
  svc1:
@@ -131,7 +131,7 @@ func (s *ServiceActorSuite) TestFindServicesNoPackagesNoPattern(c *C) {
 }
 
 func (s *ServiceActorSuite) TestFindServicesNoServices(c *C) {
-	_, err := FindServices("hello-app", "notfound", s.pb)
+	_, err := FindServices("hello-snap", "notfound", s.pb)
 	c.Check(err, Equals, ErrServiceNotFound)
 }
 
@@ -182,20 +182,20 @@ func (s *ServiceActorSuite) TestFindServicesFindsServices(c *C) {
 	status, err := actor.Status()
 	c.Check(err, IsNil)
 	c.Assert(status, HasLen, 1)
-	c.Check(status[0], Equals, "hello-app\tsvc1\tenabled; loaded; active (running)")
+	c.Check(status[0], Equals, "hello-snap\tsvc1\tenabled; loaded; active (running)")
 
 	stobj, err := actor.ServiceStatus()
 	c.Check(err, IsNil)
 	c.Assert(stobj, HasLen, 1)
 	c.Check(stobj[0], DeepEquals, &PackageServiceStatus{
 		ServiceStatus: systemd.ServiceStatus{
-			ServiceFileName: "hello-app_svc1_1.10.service",
+			ServiceFileName: "hello-snap_svc1_1.10.service",
 			LoadState:       "loaded",
 			ActiveState:     "active",
 			SubState:        "running",
 			UnitFileState:   "enabled",
 		},
-		PackageName: "hello-app",
+		PackageName: "hello-snap",
 		AppName:     "svc1",
 	})
 
@@ -239,6 +239,6 @@ func (s *ServiceActorSuite) TestFindServicesReportsErrors(c *C) {
 }
 
 func (s *ServiceActorSuite) TestFindServicesIgnoresForegroundApps(c *C) {
-	_, err := FindServices("hello-app", "non-svc2", s.pb)
+	_, err := FindServices("hello-snap", "non-svc2", s.pb)
 	c.Check(err, Equals, ErrServiceNotFound)
 }

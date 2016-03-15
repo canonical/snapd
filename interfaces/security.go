@@ -20,15 +20,39 @@
 package interfaces
 
 import (
+	"bytes"
 	"fmt"
+	"strings"
 )
+
+// WrapperNameForApp returns the name of the wrapper for a given application.
+//
+// A wrapper is a generated helper executable that assists in setting up
+// environment for running a particular application.
+//
+// In general, the wrapper has the form: "$snap.$app". When both snap name and
+// app name are the same then the tag is simplified to just "$snap".
+func WrapperNameForApp(snapName, appName string) string {
+	if appName == snapName {
+		return snapName
+	}
+	return fmt.Sprintf("%s.%s", snapName, appName)
+}
+
+// SecurityTagForApp returns the unified tag used for all security systems.
+//
+// In general, the tag has the form: "$snap.$app.snap". When both snap name and
+// app name are the same then the tag is simplified to just "$snap.snap".
+func SecurityTagForApp(snapName, appName string) string {
+	return fmt.Sprintf("%s.snap", WrapperNameForApp(snapName, appName))
+}
 
 // securityHelper is an interface for common aspects of generating security files.
 type securityHelper interface {
 	securitySystem() SecuritySystem
-	pathForApp(snapName, appName string) string
-	headerForApp(snapName, appName string) []byte
-	footerForApp(snapName, appName string) []byte
+	pathForApp(snapName, snapVersion, snapOrigin, appName string) string
+	headerForApp(snapName, snapVersion, snapOrigin, appName string) []byte
+	footerForApp(snapName, snapVersion, snapOrigin, appName string) []byte
 }
 
 // appArmor is a security subsystem that writes apparmor profiles.
@@ -52,16 +76,53 @@ func (aa *appArmor) securitySystem() SecuritySystem {
 	return SecurityAppArmor
 }
 
-func (aa *appArmor) pathForApp(snapName, appName string) string {
-	return fmt.Sprintf("/run/snappy/security/apparmor/%s/%s.profile", snapName, appName)
+func (aa *appArmor) pathForApp(snapName, snapVersion, snapOrigin, appName string) string {
+	return fmt.Sprintf("/var/lib/snappy/apparmor/profiles/%s",
+		SecurityTagForApp(snapName, appName))
 }
 
-func (aa *appArmor) headerForApp(snapName, appName string) []byte {
-	// TODO: use a real header here
-	return []byte(fmt.Sprintf("fake \"/snaps/%s/current/%s\" {\n", snapName, appName))
+func (aa *appArmor) headerForApp(snapName, snapVersion, snapOrigin, appName string) []byte {
+	header := string(appArmorHeader)
+	vars := aa.varsForApp(snapName, snapVersion, snapOrigin, appName)
+	profileAttach := aa.profileAttachForApp(snapName, snapVersion, snapOrigin, appName)
+	header = strings.Replace(header, "###VAR###\n", vars, 1)
+	header = strings.Replace(header, "###PROFILEATTACH###", profileAttach, 1)
+	return []byte(header)
 }
 
-func (aa *appArmor) footerForApp(snapName, appName string) []byte {
+func (aa *appArmor) varsForApp(snapName, snapVersion, snapOrigin, appName string) string {
+	return "\n" +
+		"# Specified profile variables\n" +
+		fmt.Sprintf("@{APP_APPNAME}=\"%s\"\n", appName) +
+		fmt.Sprintf("@{APP_ID_DBUS}=\"%s\"\n", dbusPath(
+			fmt.Sprintf("%s.%s_%s_%s", snapName, snapOrigin, appName, snapVersion))) +
+		fmt.Sprintf("@{APP_PKGNAME_DBUS}=\"%s\"\n", dbusPath(fmt.Sprintf("%s.%s", snapName, snapOrigin))) +
+		fmt.Sprintf("@{APP_PKGNAME}=\"%s\"\n", fmt.Sprintf("%s.%s", snapName, snapOrigin)) +
+		fmt.Sprintf("@{APP_VERSION}=\"%s\"\n", snapVersion) +
+		"@{INSTALL_DIR}=\"{/snaps,/gadget}\"\n"
+}
+
+func (aa *appArmor) profileAttachForApp(snapName, snapVersion, snapOrigin, appName string) string {
+	return fmt.Sprintf("profile \"%s\"", SecurityTagForApp(snapName, appName))
+}
+
+// Generate a string suitable for use in a DBus object
+func dbusPath(s string) string {
+	const allowed = `abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789`
+	buf := bytes.NewBuffer(make([]byte, 0, len(s)))
+
+	for _, c := range []byte(s) {
+		if strings.IndexByte(allowed, c) >= 0 {
+			fmt.Fprintf(buf, "%c", c)
+		} else {
+			fmt.Fprintf(buf, "_%02x", c)
+		}
+	}
+
+	return buf.String()
+}
+
+func (aa *appArmor) footerForApp(snapName, snapVersion, snapOrigin, appName string) []byte {
 	return []byte("}\n")
 }
 
@@ -81,19 +142,20 @@ func (sc *secComp) securitySystem() SecuritySystem {
 	return SecuritySecComp
 }
 
-func (sc *secComp) pathForApp(snapName, appName string) string {
+func (sc *secComp) pathForApp(snapName, snapVersion, snapOrigin, appName string) string {
 	// NOTE: This path has to be synchronized with ubuntu-core-launcher.
-	// TODO: Use the path that ubuntu-core-launcher actually looks at.
-	return fmt.Sprintf("/run/snappy/security/seccomp/%s/%s.profile", snapName, appName)
+	return fmt.Sprintf("/var/lib/snappy/seccomp/profiles/%s",
+		SecurityTagForApp(snapName, appName))
 }
 
-func (sc *secComp) headerForApp(snapName, appName string) []byte {
-	// TODO: Inject the real profile as the header.
-	// e.g. /usr/share/seccomp/templates/ubuntu-core/16.04/default
-	return []byte("# TODO: add default seccomp profile here\n")
+var secCompHeader = []byte(defaultSecCompTemplate)
+var appArmorHeader = []byte(strings.TrimRight(defaultAppArmorTemplate, "\n}"))
+
+func (sc *secComp) headerForApp(snapName, snapVersion, snapOrigin, appName string) []byte {
+	return secCompHeader
 }
 
-func (sc *secComp) footerForApp(snapName, appName string) []byte {
+func (sc *secComp) footerForApp(snapName, snapVersion, snapOrigin, appName string) []byte {
 	return nil // seccomp doesn't require a footer
 }
 
@@ -101,26 +163,35 @@ func (sc *secComp) footerForApp(snapName, appName string) []byte {
 //
 // Each rule looks like this:
 //
-// KERNEL=="hiddev0", TAG:="snappy-assign", ENV{SNAPPY_APP}:="http.chipaca"
+// KERNEL=="hiddev0", TAG:="snappy-assign", ENV{SNAPPY_APP}:="http.GET.snap"
 //
 // NOTE: This interacts with ubuntu-core-launcher.
-// TODO: Explain how this works (security).
+//
+// This tag is picked up by /lib/udev/rules.d/80-snappy-assign.rules which in
+// turn runs /lib/udev/snappy-app-dev script, which re-configures the device
+// cgroup at /sys/fs/cgroup/devices/snappy.$SNAPPY_APP for the acl
+// "c $major:$minor rwm" for character devices and "b $major:$minor rwm" for
+// block devices.
+//
+// $SNAPPY_APP is always computed with SecurityTagForApp()
+//
+// The control group is created by ubuntu-app-launcher.
 type uDev struct{}
 
 func (udev *uDev) securitySystem() SecuritySystem {
 	return SecurityUDev
 }
 
-func (udev *uDev) pathForApp(snapName, appName string) string {
+func (udev *uDev) pathForApp(snapName, snapVersion, snapOrigin, appName string) string {
 	// NOTE: we ignore appName so effectively udev rules apply to entire snap.
-	return fmt.Sprintf("/etc/udev/rules.d/70-snappy-%s.rules", snapName)
+	return fmt.Sprintf("/etc/udev/rules.d/70-%s.rules", SecurityTagForApp(snapName, appName))
 }
 
-func (udev *uDev) headerForApp(snapName, appName string) []byte {
+func (udev *uDev) headerForApp(snapName, snapVersion, snapOrigin, appName string) []byte {
 	return nil // udev doesn't require a header
 }
 
-func (udev *uDev) footerForApp(snapName, appName string) []byte {
+func (udev *uDev) footerForApp(snapName, snapVersion, snapOrigin, appName string) []byte {
 	return nil // udev doesn't require a footer
 }
 
@@ -137,14 +208,14 @@ func (dbus *dBus) securitySystem() SecuritySystem {
 	return SecurityDBus
 }
 
-func (dbus *dBus) pathForApp(snapName, appName string) string {
+func (dbus *dBus) pathForApp(snapName, snapVersion, snapOrigin, appName string) string {
 	// XXX: Is the name of this file relevant or can everything be contained
 	// in particular snippets?
 	// XXX: At this level we don't know the bus name.
-	return fmt.Sprintf("/etc/dbus-1/system.d/%s.conf", snapName)
+	return fmt.Sprintf("/etc/dbus-1/system.d/%s.conf", SecurityTagForApp(snapName, appName))
 }
 
-func (dbus *dBus) headerForApp(snapName, appName string) []byte {
+func (dbus *dBus) headerForApp(snapName, snapVersion, snapOrigin, appName string) []byte {
 	return []byte("" +
 		"<!DOCTYPE busconfig PUBLIC\n" +
 		" \"-//freedesktop//DTD D-BUS Bus Configuration 1.0//EN\"\n" +
@@ -152,7 +223,7 @@ func (dbus *dBus) headerForApp(snapName, appName string) []byte {
 		"<busconfig>\n")
 }
 
-func (dbus *dBus) footerForApp(snapName, appName string) []byte {
+func (dbus *dBus) footerForApp(snapName, snapVersion, snapOrigin, appName string) []byte {
 	return []byte("" +
 		"</busconfig>\n")
 }

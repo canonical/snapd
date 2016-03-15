@@ -50,7 +50,7 @@ type pkgItem struct {
 	Icon          string
 	InstalledSize int64 `json:"installed_size"`
 	Name          string
-	Origin        string
+	Developer     string
 	Resource      string
 	Status        string
 	Type          string
