@@ -51,7 +51,7 @@ func Connect(change *state.Change, plugSnap, plugName, slotSnap, slotName string
 
 	task := change.NewTask("connect", fmt.Sprintf("connect %s:%s to %s:%s",
 		plugSnap, plugName, slotSnap, slotName))
-	task.Set("slot", interfaces.PlugRef{Snap: slotSnap, Name: slotName})
+	task.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
 	task.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
 	return nil
 }
