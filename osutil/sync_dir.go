@@ -85,23 +85,22 @@ func EnsureDirState(dir, glob string, content map[string]*FileState) (created, c
 		if err != nil {
 			return created, corrected, removed, err
 		}
+		changed := false
 		if needsRewrite {
 			if err := AtomicWriteFile(file.Name(), expected.Content, expected.Mode, 0); err != nil {
 				return created, corrected, removed, err
 			}
 			corrected = append(corrected, baseName)
-			// NOTE: rewriting files also fixes permissions so we can skip the last stage
-			continue
-		}
-		// Check that file has the right meta-data
-		changed := false
-		currentPerm := stat.Mode().Perm()
-		expectedPerm := expected.Mode.Perm()
-		if currentPerm != expectedPerm {
-			if err := file.Chmod(expectedPerm); err != nil {
-				return created, corrected, removed, err
+		} else {
+			// Check that file has the right meta-data
+			currentPerm := stat.Mode().Perm()
+			expectedPerm := expected.Mode.Perm()
+			if currentPerm != expectedPerm {
+				if err := file.Chmod(expectedPerm); err != nil {
+					return created, corrected, removed, err
+				}
+				changed = true
 			}
-			changed = true
 		}
 		if st, ok := stat.Sys().(*syscall.Stat_t); ok {
 			if st.Uid != expected.UID || st.Gid != expected.GID {
