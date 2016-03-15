@@ -17,21 +17,23 @@
  *
  */
 
-package state
+package overlord
 
 import (
+	"time"
+
 	"github.com/ubuntu-core/snappy/osutil"
 )
 
-type fileBackend struct {
+type overlordStateBackend struct {
 	path string
+	ensureAfter func(d time.Duration)
 }
 
-// NewFileBackend creates a new file based state backend
-func NewFileBackend(path string) Backend {
-	return &fileBackend{path: path}
+func (osb *overlordStateBackend) Checkpoint(data []byte) error {
+	return osutil.AtomicWriteFile(osb.path, data, 0600, 0)
 }
 
-func (sf *fileBackend) Checkpoint(data []byte) error {
-	return osutil.AtomicWriteFile(sf.path, data, 0600, 0)
+func (osb *overlordStateBackend) EnsureAfter(d time.Duration) {
+	osb.ensureAfter(d)
 }

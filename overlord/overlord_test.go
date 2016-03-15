@@ -21,14 +21,18 @@ package overlord_test
 
 import (
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/testutil"
+
 	"github.com/ubuntu-core/snappy/overlord"
 )
 
@@ -38,15 +42,15 @@ type overlordSuite struct{}
 
 var _ = Suite(&overlordSuite{})
 
-func (os *overlordSuite) SetUpTest(c *C) {
+func (ovs *overlordSuite) SetUpTest(c *C) {
 	dirs.SnapStateFile = filepath.Join(c.MkDir(), "test.json")
 }
 
-func (os *overlordSuite) TearDownTest(c *C) {
+func (ovs *overlordSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 }
 
-func (os *overlordSuite) TestNew(c *C) {
+func (ovs *overlordSuite) TestNew(c *C) {
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
 	c.Check(o, NotNil)
@@ -60,7 +64,7 @@ func (os *overlordSuite) TestNew(c *C) {
 	c.Check(o.StateEngine().State(), NotNil)
 }
 
-func (os *overlordSuite) TestNewWithGoodState(c *C) {
+func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
 	fakeState := []byte(`{"data":{"some":"data"},"changes":null,"tasks":null}`)
 	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, IsNil)
@@ -78,7 +82,7 @@ func (os *overlordSuite) TestNewWithGoodState(c *C) {
 	c.Assert(string(d), DeepEquals, string(fakeState))
 }
 
-func (os *overlordSuite) TestNewWithInvalidState(c *C) {
+func (ovs *overlordSuite) TestNewWithInvalidState(c *C) {
 	fakeState := []byte(``)
 	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, IsNil)
@@ -87,7 +91,7 @@ func (os *overlordSuite) TestNewWithInvalidState(c *C) {
 	c.Assert(err, ErrorMatches, "EOF")
 }
 
-func (os *overlordSuite) TestEnsureLoopRunAndStop(c *C) {
+func (ovs *overlordSuite) TestEnsureLoopRunAndStop(c *C) {
 	restoreIntv := overlord.SetEnsureIntervalForTest(10 * time.Millisecond)
 	defer restoreIntv()
 	o, err := overlord.New()
@@ -113,7 +117,7 @@ func (os *overlordSuite) TestEnsureLoopRunAndStop(c *C) {
 	c.Check(ensureCalls >= 2, Equals, true)
 }
 
-func (os *overlordSuite) TestEnsureLoopEnsureAfter(c *C) {
+func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureAfter(c *C) {
 	restoreIntv := overlord.SetEnsureIntervalForTest(10 * time.Minute)
 	defer restoreIntv()
 	o, err := overlord.New()
@@ -122,10 +126,11 @@ func (os *overlordSuite) TestEnsureLoopEnsureAfter(c *C) {
 	calls := []string{}
 
 	witness := &fakeManager{name: "witness", calls: &calls}
-	o.StateEngine().AddManager(witness)
+	se := o.StateEngine()
+	se.AddManager(witness)
 
 	o.Run()
-	o.EnsureAfter(10 * time.Millisecond)
+	se.State().EnsureAfter(10 * time.Millisecond)
 	time.Sleep(25 * time.Millisecond)
 	err = o.Stop()
 	c.Assert(err, IsNil)
@@ -138,4 +143,28 @@ func (os *overlordSuite) TestEnsureLoopEnsureAfter(c *C) {
 	}
 
 	c.Check(ensureCalls, Equals, 1)
+}
+
+func (ovs *overlordSuite) TestCheckpoint(c *C) {
+	oldUmask := syscall.Umask(0)
+	defer syscall.Umask(oldUmask)
+
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	_, err = os.Stat(dirs.SnapStateFile)
+	c.Check(os.IsNotExist(err), Equals, true)
+
+	s := o.StateEngine().State()
+	s.Lock()
+	s.Set("mark", 1)
+	s.Unlock()
+
+	st, err := os.Stat(dirs.SnapStateFile)
+	c.Assert(err, IsNil)
+	c.Assert(st.Mode(), Equals, os.FileMode(0600))
+
+	content, err := ioutil.ReadFile(dirs.SnapStateFile)
+	c.Assert(err, IsNil)
+	c.Check(string(content), testutil.Contains, `"mark":1`)
 }

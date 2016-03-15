@@ -133,6 +133,7 @@ func (ss *stateSuite) TestGetUnmarshalProblem(c *C) {
 type fakeStateBackend struct {
 	checkpoints [][]byte
 	error       func() error
+	ensureAfter time.Duration
 }
 
 func (b *fakeStateBackend) Checkpoint(data []byte) error {
@@ -141,6 +142,10 @@ func (b *fakeStateBackend) Checkpoint(data []byte) error {
 		return b.error()
 	}
 	return nil
+}
+
+func (b *fakeStateBackend) EnsureAfter(d time.Duration) {
+	b.ensureAfter = d
 }
 
 func (ss *stateSuite) TestImplicitCheckpointAndRead(c *C) {
@@ -358,4 +363,13 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 	cur, tot := task0_1.Progress()
 	c.Check(cur, Equals, 5)
 	c.Check(tot, Equals, 10)
+}
+
+func (ss *stateSuite) TestEnsureAfter(c *C) {
+	b := new(fakeStateBackend)
+	st := state.New(b)
+
+	st.EnsureAfter(10 * time.Second)
+
+	c.Check(b.ensureAfter, Equals, 10*time.Second)
 }
