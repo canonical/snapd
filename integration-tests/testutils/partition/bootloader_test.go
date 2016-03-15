@@ -136,7 +136,7 @@ func (s *bootloaderTestSuite) TestModeReturnsSnappyModeFromConf(c *check.C) {
 
 func (s *bootloaderTestSuite) TestOSSnapNameReturnsSnapFromConf(c *check.C) {
 	s.fakeConf = map[string]string{
-		"snappy_os": "test-os-snap.origin_version.snap",
+		"snappy_os": "test-os-snap.developer_version.snap",
 	}
 
 	osSnapName := OSSnapName(c)
@@ -147,13 +147,13 @@ func (s *bootloaderTestSuite) TestOSSnapNameReturnsSnapFromConf(c *check.C) {
 
 func (s *bootloaderTestSuite) TestSnappyKernelReturnsSnapFromConf(c *check.C) {
 	s.fakeConf = map[string]string{
-		"snappy_kernel": "test-kernel-snap.origin_version.snap",
+		"snappy_kernel": "test-kernel-snap.developer_version.snap",
 	}
 
 	snappyOS, err := SnappyKernel()
 
 	c.Assert(err, check.IsNil, check.Commentf("Unexpected error %v", err))
-	c.Assert(snappyOS, check.Equals, "test-kernel-snap.origin_version.snap",
+	c.Assert(snappyOS, check.Equals, "test-kernel-snap.developer_version.snap",
 		check.Commentf("Wrong os snap"))
 }
 

@@ -73,7 +73,7 @@ export HOME="$SNAP_USER_DATA"
 
 # Snap name is: {{.SnapName}}
 # App name is: {{.AppName}}
-# Developer name is: {{.Origin}}
+# Developer name is: {{.Developer}}
 
 # export old pwd
 export SNAP_OLD_PWD="$(pwd)"
@@ -82,7 +82,7 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 `
 
 	// it's fine for this to error out; we might be in a framework or sth
-	origin := originFromBasedir(pkgPath)
+	developer := developerFromBasedir(pkgPath)
 
 	if err := verifyAppYaml(app); err != nil {
 		return "", err
@@ -99,7 +99,7 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 		SnapPath    string
 		Version     string
 		UdevAppName string
-		Origin      string
+		Developer   string
 		Home        string
 		Target      string
 		AaProfile   string
@@ -112,7 +112,7 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 		SnapPath:    pkgPath,
 		Version:     m.Version,
 		UdevAppName: fmt.Sprintf("%s.%s", m.Name, app.Name),
-		Origin:      origin,
+		Developer:   developer,
 		Home:        "$HOME",
 		Target:      actualBinPath,
 		AaProfile:   aaProfile,
