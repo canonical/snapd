@@ -96,6 +96,7 @@ func (r *TaskRunner) mustWait(t *Task) bool {
 
 // Ensure starts new goroutines for all known tasks with no pending
 // dependencies.
+// Note that Ensure will lock the state.
 func (r *TaskRunner) Ensure() {
 	r.state.Lock()
 	defer r.state.Unlock()
@@ -115,8 +116,9 @@ func (r *TaskRunner) Ensure() {
 				continue
 			}
 			// we look at the Tomb instead of Status because
-			// a task is always in RunningStatus even if
-			// not running (FIXME?)
+			// a task can be in RunningStatus even when it
+			// is not started yet (like when the daemon
+			// process restarts)
 			if _, ok := r.tombs[t.ID()]; ok {
 				continue
 			}
@@ -136,6 +138,7 @@ func (r *TaskRunner) Ensure() {
 }
 
 // Stop stops all concurrent activities and returns after that's done.
+// Note that stop will lock the state.
 func (r *TaskRunner) Stop() {
 	r.state.Lock()
 	defer r.state.Unlock()
