@@ -77,6 +77,7 @@ func (s *RemoteSnap) Icon() string {
 	return s.Pkg.IconURL
 }
 
+// Info returns the snap.Info data.
 func (s *RemoteSnap) Info() *snap.Info {
 	return &snap.Info{
 		Name:        s.Name(),
