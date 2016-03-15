@@ -70,13 +70,13 @@ func EnsureDirState(dir, glob string, content map[string]*FileState) (created, c
 			removed = append(removed, baseName)
 			continue
 		}
-		var file *os.File
-		if file, err = os.OpenFile(name, os.O_RDWR, 0); err != nil {
+		file, err := os.OpenFile(name, os.O_RDWR, 0)
+		if err != nil {
 			return created, corrected, removed, err
 		}
 		defer file.Close()
-		var stat os.FileInfo
-		if stat, err = file.Stat(); err != nil {
+		stat, err := file.Stat()
+		if err != nil {
 			return created, corrected, removed, err
 		}
 		found[baseName] = true
