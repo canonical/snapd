@@ -73,15 +73,6 @@ func NewSnapFile(snapFile string, developer string, unsignedOk bool) (*SnapFile,
 	}, nil
 }
 
-func (s *SnapFile) Info() *snap.Info {
-	if info, err := s.deb.Info(); err == nil {
-		// developer is something that not part of squashfs
-		info.Developer = s.developer
-		return info
-	}
-	return nil
-}
-
 // Type returns the type of the Snap (app, gadget, ...)
 func (s *SnapFile) Type() snap.Type {
 	if s.m.Type != "" {
