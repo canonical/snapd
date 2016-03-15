@@ -22,7 +22,6 @@ package snappy
 import (
 	"fmt"
 	"os"
-	"sort"
 
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/progress"
@@ -231,26 +230,16 @@ func doInstall(name, channel string, flags InstallFlags, meter progress.Meter) (
 // version, as long as NeedsReboot() is false on all the versions found, and
 // DoInstallGC is set.
 func GarbageCollect(name string, flags InstallFlags, pb progress.Meter) error {
-	var snaps BySnapVersion
-
 	if (flags & DoInstallGC) == 0 {
 		return nil
 	}
 
-	installed, err := NewLocalSnapRepository().Installed()
+	snaps, err := NewLocalSnapRepository().Snaps(name, "*")
 	if err != nil {
 		return err
 	}
 
-	snaps = FindSnapsByName(name, installed)
-	if len(snaps) < 3 {
-		// not enough things installed to do gc
-		return nil
-	}
-
-	sort.Sort(snaps)
 	active := -1 // active is the index of the active snap in snaps (-1 if no active snap)
-
 	for i, snap := range snaps {
 		if snap.IsActive() {
 			if active > -1 {
@@ -268,10 +257,15 @@ func GarbageCollect(name string, flags InstallFlags, pb progress.Meter) error {
 		return nil
 	}
 
-	for _, snap := range snaps[:active-1] {
+	for i, snap := range snaps {
+		if i == active {
+			continue
+		}
+
 		if err := (&Overlord{}).Uninstall(snap, pb); err != nil {
 			return ErrGarbageCollectImpossible(err.Error())
 		}
+		// TODO: also purge it.
 	}
 
 	return nil

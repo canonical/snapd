@@ -26,6 +26,7 @@ import (
 )
 
 func (s *SnapTestSuite) TestRollbackWithVersion(c *C) {
+	c.Skip("rollback disabled")
 	makeTwoTestSnaps(c, snap.TypeApp)
 	c.Assert(ActiveSnapByName("foo").Version(), Equals, "2.0")
 
@@ -38,6 +39,7 @@ func (s *SnapTestSuite) TestRollbackWithVersion(c *C) {
 }
 
 func (s *SnapTestSuite) TestRollbackFindVersion(c *C) {
+	c.Skip("rollback disabled")
 	makeTwoTestSnaps(c, snap.TypeApp)
 	c.Assert(ActiveSnapByName("foo").Version(), Equals, "2.0")
 
@@ -50,6 +52,7 @@ func (s *SnapTestSuite) TestRollbackFindVersion(c *C) {
 }
 
 func (s *SnapTestSuite) TestRollbackService(c *C) {
+	c.Skip("rollback disabled")
 	makeTwoTestSnaps(c, snap.TypeApp, `apps:
  svc1:
   command: something

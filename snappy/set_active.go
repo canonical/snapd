@@ -20,34 +20,27 @@
 package snappy
 
 import (
-	"sort"
-
 	"github.com/ubuntu-core/snappy/progress"
 )
 
 // SetActive sets the active state of the given package
 func SetActive(fullName string, active bool, meter progress.Meter) error {
+	name, developer := SplitDeveloper(fullName)
+	if developer == "" {
+		developer = "*"
+	}
+
 	// TODO: switch this to using lightweights
-	installed, err := NewLocalSnapRepository().Installed()
+	snaps, err := NewLocalSnapRepository().Snaps(name, developer)
 	if err != nil {
 		return err
 	}
 
-	snaps := FindSnapsByName(fullName, installed)
-	if len(snaps) == 0 {
+	if len(snaps) != 1 {
 		return ErrPackageNotFound
 	}
 
-	sort.Sort(sort.Reverse(BySnapVersion(snaps)))
-
 	snap := snaps[0]
-	for i := range snaps {
-		if snaps[i].IsActive() {
-			snap = snaps[i]
-			break
-		}
-	}
-
 	overlord := &Overlord{}
 	return overlord.SetActive(snap, active, meter)
 }

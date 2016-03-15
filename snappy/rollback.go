@@ -21,7 +21,6 @@ package snappy
 
 import (
 	"fmt"
-	"sort"
 
 	"github.com/ubuntu-core/snappy/progress"
 )
@@ -31,25 +30,5 @@ import (
 //
 // The version needs to be installed on disk
 func Rollback(pkg, ver string, inter progress.Meter) (version string, err error) {
-
-	// no version specified, find the previous one
-	if ver == "" {
-		installed, err := NewLocalSnapRepository().Installed()
-		if err != nil {
-			return "", err
-		}
-		snaps := FindSnapsByName(pkg, installed)
-		if len(snaps) < 2 {
-			return "", fmt.Errorf("no version to rollback to")
-		}
-		sort.Sort(BySnapVersion(snaps))
-		// -1 is the most recent, -2 the previous one
-		ver = snaps[len(snaps)-2].Version()
-	}
-
-	if err := makeSnapActiveByNameAndVersion(pkg, ver, inter); err != nil {
-		return "", err
-	}
-
-	return ver, nil
+	return "", fmt.Errorf("no version to rollback to")
 }

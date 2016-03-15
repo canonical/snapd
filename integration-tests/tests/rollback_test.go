@@ -21,8 +21,6 @@
 package tests
 
 import (
-	"github.com/ubuntu-core/snappy/snappy"
-
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/partition"
@@ -38,18 +36,19 @@ type rollbackSuite struct {
 }
 
 func (s *rollbackSuite) TestRollbackMustRebootToOtherVersion(c *check.C) {
+	c.Skip("no rollback for now")
 	if common.BeforeReboot() {
 		// here we upgrade
 		updates.CallFakeOSUpdate(c)
 		common.Reboot(c)
 	} else if common.CheckRebootMark(c.TestName()) {
 		// after the first reboot we check that it actually booted
-		// a newer version than before
+		// a different version than before
 		common.RemoveRebootMark(c)
 		currentVersion := common.GetCurrentUbuntuCoreVersion(c)
 		savedVersion := common.GetSavedVersion(c)
-		c.Assert(snappy.VersionCompare(currentVersion, savedVersion), check.Equals, 1,
-			check.Commentf("First reboot to the wrong version: %s <= %s", currentVersion, savedVersion))
+		c.Assert(currentVersion, check.Not(check.Equals), savedVersion,
+			check.Commentf("First reboot to the wrong version: %s == %s", currentVersion, savedVersion))
 		// now we rollback to the previous version
 		cli.ExecCommand(c, "sudo", "snappy", "rollback", partition.OSSnapName(c),
 			common.GetSavedVersion(c))
