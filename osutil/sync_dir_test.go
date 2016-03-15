@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
@@ -30,33 +31,27 @@ import (
 )
 
 type EnsureDirStateSuite struct {
-	dir      string
-	glob     string
-	uid, gid uint32
+	dir  string
+	glob string
 }
 
-var _ = Suite(&EnsureDirStateSuite{
-	glob: "*.snap",
-	uid:  uint32(os.Getuid()),
-	gid:  uint32(os.Getgid()),
-})
+var _ = Suite(&EnsureDirStateSuite{glob: "*.snap"})
 
 func (s *EnsureDirStateSuite) SetUpTest(c *C) {
 	s.dir = c.MkDir()
 }
 
 func (s *EnsureDirStateSuite) TestVerifiesExpectedFiles(c *C) {
-	name := path.Join(s.dir, "expected.snap")
+	name := filepath.Join(s.dir, "expected.snap")
 	err := ioutil.WriteFile(name, []byte(`expected`), 0600)
 	c.Assert(err, IsNil)
-	created, corrected, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{
-		"expected.snap": {Content: []byte(`expected`), Mode: 0600, UID: s.uid, GID: s.gid},
+	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{
+		"expected.snap": {Content: []byte(`expected`), Mode: 0600},
 	})
 	c.Assert(err, IsNil)
 	// Report says that nothing has changed
+	c.Assert(changed, HasLen, 0)
 	c.Assert(removed, HasLen, 0)
-	c.Assert(created, HasLen, 0)
-	c.Assert(corrected, HasLen, 0)
 	// The content is correct
 	content, err := ioutil.ReadFile(path.Join(s.dir, "expected.snap"))
 	c.Assert(err, IsNil)
@@ -68,69 +63,65 @@ func (s *EnsureDirStateSuite) TestVerifiesExpectedFiles(c *C) {
 }
 
 func (s *EnsureDirStateSuite) TestCreatesMissingFiles(c *C) {
-	created, corrected, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{
-		"missing.snap": {Content: []byte(`content`), Mode: 0600, UID: s.uid, GID: s.gid},
+	name := filepath.Join(s.dir, "missing.snap")
+	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{
+		"missing.snap": {Content: []byte(`content`), Mode: 0600},
 	})
 	c.Assert(err, IsNil)
 	// Created file is reported
+	c.Assert(changed, DeepEquals, []string{"missing.snap"})
 	c.Assert(removed, HasLen, 0)
-	c.Assert(created, DeepEquals, []string{"missing.snap"})
-	c.Assert(corrected, HasLen, 0)
 	// The content is correct
-	content, err := ioutil.ReadFile(path.Join(s.dir, "missing.snap"))
+	content, err := ioutil.ReadFile(name)
 	c.Assert(err, IsNil)
 	c.Assert(content, DeepEquals, []byte(`content`))
 	// The permissions are correct
-	name := path.Join(s.dir, "missing.snap")
 	stat, err := os.Stat(name)
 	c.Assert(err, IsNil)
 	c.Assert(stat.Mode().Perm(), Equals, os.FileMode(0600))
 }
 
 func (s *EnsureDirStateSuite) TestRemovesUnexpectedFiless(c *C) {
-	name := path.Join(s.dir, "evil.snap")
+	name := filepath.Join(s.dir, "evil.snap")
 	err := ioutil.WriteFile(name, []byte(`evil text`), 0600)
 	c.Assert(err, IsNil)
-	created, corrected, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{})
+	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{})
 	c.Assert(err, IsNil)
 	// Removed file is reported
+	c.Assert(changed, HasLen, 0)
 	c.Assert(removed, DeepEquals, []string{"evil.snap"})
-	c.Assert(created, HasLen, 0)
-	c.Assert(corrected, HasLen, 0)
 	// The file is removed
 	_, err = os.Stat(name)
 	c.Assert(os.IsNotExist(err), Equals, true)
 }
 
 func (s *EnsureDirStateSuite) TestIgnoresUnrelatedFiles(c *C) {
-	name := path.Join(s.dir, "unrelated")
+	name := filepath.Join(s.dir, "unrelated")
 	err := ioutil.WriteFile(name, []byte(`text`), 0600)
 	c.Assert(err, IsNil)
-	created, corrected, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{})
+	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{})
 	c.Assert(err, IsNil)
 	// Report says that nothing has changed
+	c.Assert(changed, HasLen, 0)
 	c.Assert(removed, HasLen, 0)
-	c.Assert(created, HasLen, 0)
-	c.Assert(corrected, HasLen, 0)
 	// The file is still there
 	_, err = os.Stat(name)
 	c.Assert(err, IsNil)
 }
 
-func (s *EnsureDirStateSuite) TestCorrectsdifferingFilesWithDifferentSize(c *C) {
-	name := path.Join(s.dir, "differing.snap")
+func (s *EnsureDirStateSuite) TestCorrectsFilesWithDifferentSize(c *C) {
+	name := filepath.Join(s.dir, "differing.snap")
 	err := ioutil.WriteFile(name, []byte(``), 0600)
 	c.Assert(err, IsNil)
-	created, corrected, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{
-		"differing.snap": {Content: []byte(`Hello World`), Mode: 0600, UID: s.uid, GID: s.gid},
+	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{
+		"differing.snap": {Content: []byte(`Hello World`), Mode: 0600},
 	})
 	c.Assert(err, IsNil)
-	// corrected file is reported
+	// changed file is reported
+	c.Assert(changed, DeepEquals, []string{"differing.snap"})
 	c.Assert(removed, HasLen, 0)
-	c.Assert(created, HasLen, 0)
-	c.Assert(corrected, DeepEquals, []string{"differing.snap"})
-	// The content is corrected
-	content, err := ioutil.ReadFile(path.Join(s.dir, "differing.snap"))
+	// The content is changed
+	content, err := ioutil.ReadFile(name)
 	c.Assert(err, IsNil)
 	c.Assert(content, DeepEquals, []byte(`Hello World`))
 	// The permissions are what we expect
@@ -139,20 +130,19 @@ func (s *EnsureDirStateSuite) TestCorrectsdifferingFilesWithDifferentSize(c *C) 
 	c.Assert(stat.Mode().Perm(), Equals, os.FileMode(0600))
 }
 
-func (s *EnsureDirStateSuite) TestCorrectsdifferingFilesWithSameSize(c *C) {
-	name := path.Join(s.dir, "differing.snap")
+func (s *EnsureDirStateSuite) TestCorrectsFilesWithSameSize(c *C) {
+	name := filepath.Join(s.dir, "differing.snap")
 	err := ioutil.WriteFile(name, []byte(`evil`), 0600)
 	c.Assert(err, IsNil)
-	created, corrected, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{
-		"differing.snap": {Content: []byte(`good`), Mode: 0600, UID: s.uid, GID: s.gid},
+	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{
+		"differing.snap": {Content: []byte(`good`), Mode: 0600},
 	})
 	c.Assert(err, IsNil)
-	// corrected file is reported
+	// changed file is reported
+	c.Assert(changed, DeepEquals, []string{"differing.snap"})
 	c.Assert(removed, HasLen, 0)
-	c.Assert(created, HasLen, 0)
-	c.Assert(corrected, DeepEquals, []string{"differing.snap"})
-	// The content is corrected
-	content, err := ioutil.ReadFile(path.Join(s.dir, "differing.snap"))
+	// The content is changed
+	content, err := ioutil.ReadFile(name)
 	c.Assert(err, IsNil)
 	c.Assert(content, DeepEquals, []byte(`good`))
 	// The permissions are what we expect
@@ -162,70 +152,24 @@ func (s *EnsureDirStateSuite) TestCorrectsdifferingFilesWithSameSize(c *C) {
 }
 
 func (s *EnsureDirStateSuite) TestFixesFilesWithBadPermissions(c *C) {
-	name := path.Join(s.dir, "sensitive.snap")
+	name := filepath.Join(s.dir, "sensitive.snap")
 	// NOTE: the file is wide-open for everyone
 	err := ioutil.WriteFile(name, []byte(`password`), 0666)
 	c.Assert(err, IsNil)
-	created, corrected, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{
+	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{
 		// NOTE: we want the file to be private
-		"sensitive.snap": {Content: []byte(`password`), Mode: 0600, UID: s.uid, GID: s.gid},
+		"sensitive.snap": {Content: []byte(`password`), Mode: 0600},
 	})
 	c.Assert(err, IsNil)
-	// corrected file is reported
+	// changed file is reported
+	c.Assert(changed, DeepEquals, []string{"sensitive.snap"})
 	c.Assert(removed, HasLen, 0)
-	c.Assert(created, HasLen, 0)
-	c.Assert(corrected, DeepEquals, []string{"sensitive.snap"})
 	// The content is still the same
-	content, err := ioutil.ReadFile(path.Join(s.dir, "sensitive.snap"))
+	content, err := ioutil.ReadFile(name)
 	c.Assert(err, IsNil)
 	c.Assert(content, DeepEquals, []byte(`password`))
-	// The permissions are corrected
+	// The permissions are changed
 	stat, err := os.Stat(name)
 	c.Assert(err, IsNil)
 	c.Assert(stat.Mode().Perm(), Equals, os.FileMode(0600))
-}
-
-func (s *EnsureDirStateSuite) TestTriesToFixFilesWithBadOwnership(c *C) {
-	name := path.Join(s.dir, "root-owned.snap")
-	err := ioutil.WriteFile(name, []byte(`state`), 0600)
-	c.Assert(err, IsNil)
-	created, corrected, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{
-		// NOTE: we want this file to be root-owned
-		"root-owned.snap": {Content: []byte(`state`), Mode: 0600, UID: 0, GID: 0},
-	})
-	// XXX: we'd like to chown the file but could not
-	c.Assert(err, ErrorMatches, "chown .*: operation not permitted")
-	// The file is not reported as corrected because the error happened before that
-	c.Assert(removed, HasLen, 0)
-	c.Assert(created, HasLen, 0)
-	c.Assert(corrected, HasLen, 0)
-	// The content is still the same
-	content, err := ioutil.ReadFile(path.Join(s.dir, "root-owned.snap"))
-	c.Assert(err, IsNil)
-	c.Assert(content, DeepEquals, []byte(`state`))
-	// The permissions still the same
-	stat, err := os.Stat(name)
-	c.Assert(err, IsNil)
-	c.Assert(stat.Mode().Perm(), Equals, os.FileMode(0600))
-}
-
-func (s *EnsureDirStateSuite) TestReportsAbnormalFileName(c *C) {
-	c.Assert(func() {
-		osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{"without-namespace": {}})
-	}, PanicMatches, `EnsureDirState got filename "without-namespace" which doesn't match the glob pattern "\*\.snap"`)
-}
-
-func (s *EnsureDirStateSuite) TestReportsAbnormalFileLocation(c *C) {
-	c.Assert(func() {
-		osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{"subdir/file.snap": {}})
-	}, PanicMatches, `EnsureDirState got filename "subdir/file.snap" which has a path component`)
-}
-
-func (s *EnsureDirStateSuite) TestReportsAbnormalPatterns(c *C) {
-	// NOTE: the pattern is invalid
-	created, corrected, removed, err := osutil.EnsureDirState(s.dir, "[", map[string]*osutil.FileState{"unused": {}})
-	c.Assert(err, ErrorMatches, "syntax error in pattern")
-	c.Assert(removed, HasLen, 0)
-	c.Assert(created, HasLen, 0)
-	c.Assert(corrected, HasLen, 0)
 }
