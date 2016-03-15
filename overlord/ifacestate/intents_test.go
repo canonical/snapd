@@ -29,14 +29,18 @@ import (
 )
 
 type intentSuite struct {
-	intent ifacestate.Intent
+	intent      ifacestate.Intent
+	otherIntent ifacestate.Intent
 }
 
 var _ = check.Suite(&intentSuite{
 	intent: ifacestate.Intent{
-		Action: ifacestate.IntentConnect,
-		Plug:   interfaces.PlugRef{"snap", "plug"},
-		Slot:   interfaces.SlotRef{"snap", "slot"},
+		Plug: interfaces.PlugRef{"snap", "plug"},
+		Slot: interfaces.SlotRef{"snap", "slot"},
+	},
+	otherIntent: ifacestate.Intent{
+		Plug: interfaces.PlugRef{"other-snap", "plug"},
+		Slot: interfaces.SlotRef{"other-snap", "slot"},
 	},
 })
 
@@ -47,7 +51,6 @@ func (s *intentSuite) TestMarshallToJSON(c *check.C) {
 	err = json.Unmarshal(data, &result)
 	c.Assert(err, check.IsNil)
 	c.Check(result, check.DeepEquals, map[string]interface{}{
-		"action": "connect",
 		"plug": map[string]interface{}{
 			"snap": "snap",
 			"plug": "plug",
@@ -62,7 +65,6 @@ func (s *intentSuite) TestMarshallToJSON(c *check.C) {
 func (s *intentSuite) TestMarshallFromJSON(c *check.C) {
 	data := []byte(`
 	{
-		"action": "connect",
 		"plug": { 
 			"snap": "snap",
 			"plug": "plug"
@@ -76,4 +78,16 @@ func (s *intentSuite) TestMarshallFromJSON(c *check.C) {
 	err := json.Unmarshal(data, &intent)
 	c.Assert(err, check.IsNil)
 	c.Check(intent, check.DeepEquals, s.intent)
+}
+
+func (s *intentSuite) TestAdd(c *check.C) {
+	var intents ifacestate.Intents
+	intents.Add(s.intent)
+	c.Assert(intents, check.DeepEquals, ifacestate.Intents{s.intent})
+	// Adding another one won't do anything because it is the same
+	intents.Add(s.intent)
+	c.Assert(intents, check.DeepEquals, ifacestate.Intents{s.intent})
+	// Adding an unrelated one will just append it
+	intents.Add(s.otherIntent)
+	c.Assert(intents, check.DeepEquals, ifacestate.Intents{s.intent, s.otherIntent})
 }

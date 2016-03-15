@@ -23,17 +23,22 @@ import (
 	"github.com/ubuntu-core/snappy/interfaces"
 )
 
-// Intent expresses persistent intent to connect or disconnect certain plug and
-// slot.  Intents are a part of the persistent state of the manager.
+// Intent expresses persistent intent to connect a certain plug and slot.
+// Intents are a part of the persistent state of the manager.
 type Intent struct {
-	Action string             `json:"action"`
-	Plug   interfaces.PlugRef `json:"plug"`
-	Slot   interfaces.SlotRef `json:"slot"`
+	Plug interfaces.PlugRef `json:"plug"`
+	Slot interfaces.SlotRef `json:"slot"`
 }
 
-const (
-	// IntentConnect represents desire to connect a plug to a slot.
-	IntentConnect = "connect"
-	// IntentDisconnect represents desire to disconnect a plug from a slot.
-	IntentDisconnect = "disconnect"
-)
+// Intents is a slice of intents
+type Intents []Intent
+
+// Add add an intent to the list. Duplicate intents are merged.
+func (intents *Intents) Add(intent Intent) {
+	for _, otherIntent := range *intents {
+		if otherIntent == intent {
+			return
+		}
+	}
+	*intents = append(*intents, intent)
+}
