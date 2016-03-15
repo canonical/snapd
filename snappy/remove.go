@@ -34,7 +34,7 @@ const (
 	DoRemoveGC RemoveFlags = 1 << iota
 )
 
-// Remove a part by a partSpec string, name[.origin][=version]
+// Remove a part by a partSpec string, name[.developer][=version]
 func Remove(partSpec string, flags RemoveFlags, meter progress.Meter) error {
 	var parts BySnapVersion
 

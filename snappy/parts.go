@@ -38,12 +38,12 @@ type Configuration interface {
 }
 
 // QualifiedName of a Part is the Name, in most cases qualified with the
-// Origin
+// Developer
 func QualifiedName(p BaseSnap) string {
 	if t := p.Type(); t == snap.TypeFramework || t == snap.TypeGadget {
 		return p.Name()
 	}
-	return p.Name() + "." + p.Origin()
+	return p.Name() + "." + p.Developer()
 }
 
 // BareName of a BaseSnap is just its Name
@@ -51,9 +51,9 @@ func BareName(p BaseSnap) string {
 	return p.Name()
 }
 
-// FullName of a BaseSnap is Name.Origin
+// FullName of a BaseSnap is Name.Developer
 func FullName(p BaseSnap) string {
-	return p.Name() + "." + p.Origin()
+	return p.Name() + "." + p.Developer()
 }
 
 // FullNameWithChannel returns the FullName, with the channel appended
@@ -72,7 +72,7 @@ func fullNameWithChannel(p BaseSnap) string {
 type BaseSnap interface {
 	Name() string
 	Version() string
-	Origin() string
+	Developer() string
 	Channel() string
 	Type() snap.Type
 }
@@ -134,11 +134,11 @@ func ActiveSnapByName(needle string) *Snap {
 // FindSnapsByName returns all snaps with the given name in the "haystack"
 // slice of parts (useful for filtering)
 func FindSnapsByName(needle string, haystack []*Snap) (res []*Snap) {
-	name, origin := SplitOrigin(needle)
-	ignorens := origin == ""
+	name, developer := SplitDeveloper(needle)
+	ignorens := developer == ""
 
 	for _, part := range haystack {
-		if part.Name() == name && (ignorens || part.Origin() == origin) {
+		if part.Name() == name && (ignorens || part.Developer() == developer) {
 			res = append(res, part)
 		}
 	}
@@ -146,8 +146,8 @@ func FindSnapsByName(needle string, haystack []*Snap) (res []*Snap) {
 	return res
 }
 
-// SplitOrigin splits a snappy name name into a (name, origin) pair
-func SplitOrigin(name string) (string, string) {
+// SplitDeveloper splits a snappy name name into a (name, developer) pair
+func SplitDeveloper(name string) (string, string) {
 	idx := strings.LastIndexAny(name, ".")
 	if idx > -1 {
 		return name[:idx], name[idx+1:]
@@ -159,12 +159,12 @@ func SplitOrigin(name string) (string, string) {
 // FindSnapsByNameAndVersion returns the parts with the name/version in the
 // given slice of parts
 func FindSnapsByNameAndVersion(needle, version string, haystack []*Snap) []*Snap {
-	name, origin := SplitOrigin(needle)
-	ignorens := origin == ""
+	name, developer := SplitDeveloper(needle)
+	ignorens := developer == ""
 	var found []*Snap
 
 	for _, part := range haystack {
-		if part.Name() == name && part.Version() == version && (ignorens || part.Origin() == origin) {
+		if part.Name() == name && part.Version() == version && (ignorens || part.Developer() == developer) {
 			found = append(found, part)
 		}
 	}

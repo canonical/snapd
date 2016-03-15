@@ -169,7 +169,7 @@ type ServiceDescription struct {
 	IsFramework     bool
 	BusName         string
 	UdevAppName     string
-	Origin          string
+	Developer       string
 	Socket          bool
 	SocketFileName  string
 	ListenStream    string
