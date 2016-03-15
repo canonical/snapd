@@ -29,23 +29,23 @@ import (
 	"github.com/ubuntu-core/snappy/osutil"
 )
 
-type JanitorSuite struct {
+type EnsureDirStateSuite struct {
 	dir      string
 	glob     string
 	uid, gid uint32
 }
 
-var _ = Suite(&JanitorSuite{
+var _ = Suite(&EnsureDirStateSuite{
 	glob: "*.snap",
 	uid:  uint32(os.Getuid()),
 	gid:  uint32(os.Getgid()),
 })
 
-func (s *JanitorSuite) SetUpTest(c *C) {
+func (s *EnsureDirStateSuite) SetUpTest(c *C) {
 	s.dir = c.MkDir()
 }
 
-func (s *JanitorSuite) TestVerifiesExpectedFiles(c *C) {
+func (s *EnsureDirStateSuite) TestVerifiesExpectedFiles(c *C) {
 	name := path.Join(s.dir, "expected.snap")
 	err := ioutil.WriteFile(name, []byte(`expected`), 0600)
 	c.Assert(err, IsNil)
@@ -67,7 +67,7 @@ func (s *JanitorSuite) TestVerifiesExpectedFiles(c *C) {
 	c.Assert(stat.Mode().Perm(), Equals, os.FileMode(0600))
 }
 
-func (s *JanitorSuite) TestCreatesMissingFiles(c *C) {
+func (s *EnsureDirStateSuite) TestCreatesMissingFiles(c *C) {
 	created, corrected, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{
 		"missing.snap": {Content: []byte(`content`), Mode: 0600, UID: s.uid, GID: s.gid},
 	})
@@ -87,7 +87,7 @@ func (s *JanitorSuite) TestCreatesMissingFiles(c *C) {
 	c.Assert(stat.Mode().Perm(), Equals, os.FileMode(0600))
 }
 
-func (s *JanitorSuite) TestRemovesUnexpectedFiless(c *C) {
+func (s *EnsureDirStateSuite) TestRemovesUnexpectedFiless(c *C) {
 	name := path.Join(s.dir, "evil.snap")
 	err := ioutil.WriteFile(name, []byte(`evil text`), 0600)
 	c.Assert(err, IsNil)
@@ -102,7 +102,7 @@ func (s *JanitorSuite) TestRemovesUnexpectedFiless(c *C) {
 	c.Assert(os.IsNotExist(err), Equals, true)
 }
 
-func (s *JanitorSuite) TestIgnoresUnrelatedFiles(c *C) {
+func (s *EnsureDirStateSuite) TestIgnoresUnrelatedFiles(c *C) {
 	name := path.Join(s.dir, "unrelated")
 	err := ioutil.WriteFile(name, []byte(`text`), 0600)
 	c.Assert(err, IsNil)
@@ -117,7 +117,7 @@ func (s *JanitorSuite) TestIgnoresUnrelatedFiles(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *JanitorSuite) TestCorrectsdifferingFilesWithDifferentSize(c *C) {
+func (s *EnsureDirStateSuite) TestCorrectsdifferingFilesWithDifferentSize(c *C) {
 	name := path.Join(s.dir, "differing.snap")
 	err := ioutil.WriteFile(name, []byte(``), 0600)
 	c.Assert(err, IsNil)
@@ -139,7 +139,7 @@ func (s *JanitorSuite) TestCorrectsdifferingFilesWithDifferentSize(c *C) {
 	c.Assert(stat.Mode().Perm(), Equals, os.FileMode(0600))
 }
 
-func (s *JanitorSuite) TestCorrectsdifferingFilesWithSameSize(c *C) {
+func (s *EnsureDirStateSuite) TestCorrectsdifferingFilesWithSameSize(c *C) {
 	name := path.Join(s.dir, "differing.snap")
 	err := ioutil.WriteFile(name, []byte(`evil`), 0600)
 	c.Assert(err, IsNil)
@@ -161,7 +161,7 @@ func (s *JanitorSuite) TestCorrectsdifferingFilesWithSameSize(c *C) {
 	c.Assert(stat.Mode().Perm(), Equals, os.FileMode(0600))
 }
 
-func (s *JanitorSuite) TestFixesFilesWithBadPermissions(c *C) {
+func (s *EnsureDirStateSuite) TestFixesFilesWithBadPermissions(c *C) {
 	name := path.Join(s.dir, "sensitive.snap")
 	// NOTE: the file is wide-open for everyone
 	err := ioutil.WriteFile(name, []byte(`password`), 0666)
@@ -185,7 +185,7 @@ func (s *JanitorSuite) TestFixesFilesWithBadPermissions(c *C) {
 	c.Assert(stat.Mode().Perm(), Equals, os.FileMode(0600))
 }
 
-func (s *JanitorSuite) TestTriesToFixFilesWithBadOwnership(c *C) {
+func (s *EnsureDirStateSuite) TestTriesToFixFilesWithBadOwnership(c *C) {
 	name := path.Join(s.dir, "root-owned.snap")
 	err := ioutil.WriteFile(name, []byte(`state`), 0600)
 	c.Assert(err, IsNil)
@@ -209,19 +209,19 @@ func (s *JanitorSuite) TestTriesToFixFilesWithBadOwnership(c *C) {
 	c.Assert(stat.Mode().Perm(), Equals, os.FileMode(0600))
 }
 
-func (s *JanitorSuite) TestReportsAbnormalFileName(c *C) {
+func (s *EnsureDirStateSuite) TestReportsAbnormalFileName(c *C) {
 	c.Assert(func() {
 		osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{"without-namespace": {}})
 	}, PanicMatches, `EnsureDirState got filename "without-namespace" which doesn't match the glob pattern "\*\.snap"`)
 }
 
-func (s *JanitorSuite) TestReportsAbnormalFileLocation(c *C) {
+func (s *EnsureDirStateSuite) TestReportsAbnormalFileLocation(c *C) {
 	c.Assert(func() {
 		osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{"subdir/file.snap": {}})
 	}, PanicMatches, `EnsureDirState got filename "subdir/file.snap" which has a path component`)
 }
 
-func (s *JanitorSuite) TestReportsAbnormalPatterns(c *C) {
+func (s *EnsureDirStateSuite) TestReportsAbnormalPatterns(c *C) {
 	// NOTE: the pattern is invalid
 	created, corrected, removed, err := osutil.EnsureDirState(s.dir, "[", map[string]*osutil.FileState{"unused": {}})
 	c.Assert(err, ErrorMatches, "syntax error in pattern")
