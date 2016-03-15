@@ -58,6 +58,11 @@ func (r *TaskRunner) AddHandler(kind string, fn HandlerFunc) {
 	r.handlers[kind] = fn
 }
 
+// Handlers returns the map of name/handler functions
+func (r *TaskRunner) Handlers() map[string]HandlerFunc {
+	return r.handlers
+}
+
 // run must be called with the state lock in place
 func (r *TaskRunner) run(fn HandlerFunc, taskID string) {
 	t := r.state.tasks[taskID]

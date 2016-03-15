@@ -32,8 +32,4 @@ func ChangeUnlockCheckpointRetryParamsForTest(newInterval, newMaxTime time.Durat
 	return
 }
 
-func (r *TaskRunner) Handlers() map[string]HandlerFunc {
-	return r.handlers
-}
-
 var FileBackend = &fileBackend{}
