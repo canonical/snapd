@@ -64,20 +64,19 @@ func (r *TaskRunner) Handlers() map[string]HandlerFunc {
 }
 
 // run must be called with the state lock in place
-func (r *TaskRunner) run(fn HandlerFunc, taskID string) {
-	t := r.state.tasks[taskID]
-	r.tombs[taskID] = &tomb.Tomb{}
-	r.tombs[taskID].Go(func() error {
-		err := fn(t)
+func (r *TaskRunner) run(fn HandlerFunc, task *Task) {
+	r.tombs[task.ID()] = &tomb.Tomb{}
+	r.tombs[task.ID()].Go(func() error {
+		err := fn(task)
 
 		r.state.Lock()
 		defer r.state.Unlock()
 		if err == nil {
-			t.SetStatus(DoneStatus)
+			task.SetStatus(DoneStatus)
 		} else {
-			t.SetStatus(ErrorStatus)
+			task.SetStatus(ErrorStatus)
 		}
-		delete(r.tombs, taskID)
+		delete(r.tombs, task.ID())
 
 		return err
 	})
@@ -138,7 +137,7 @@ func (r *TaskRunner) Ensure() {
 
 			// the task is ready to run (all prerequists done)
 			// so full steam ahead!
-			r.run(r.handlers[t.Kind()], t.ID())
+			r.run(r.handlers[t.Kind()], t)
 		}
 	}
 }
