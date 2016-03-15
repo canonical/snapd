@@ -43,16 +43,15 @@ func Manager() (*InterfaceManager, error) {
 }
 
 // Connect initiates a change connecting an interface.
-func (m *InterfaceManager) Connect(plugSnap, plugName, slotSnap, slotName string) error {
-	m.state.Lock()
-	defer m.state.Unlock()
+//
+func Connect(change *state.Change, plugSnap, plugName, slotSnap, slotName string) error {
+	change.State().Lock()
+	defer change.State().Unlock()
 
-	change := m.state.NewChange("connect", fmt.Sprintf("connecting %s:%s to %s:%s",
+	task := change.NewTask("connect", fmt.Sprintf("connect %s:%s to %s:%s",
 		plugSnap, plugName, slotSnap, slotName))
-	change.Set("slot", interfaces.PlugRef{Snap: slotSnap, Name: slotName})
-	change.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
-	change.NewTask("add-connection", fmt.Sprintf("connect %s:%s to %s:%s",
-		plugSnap, plugName, slotSnap, slotName))
+	task.Set("slot", interfaces.PlugRef{Snap: slotSnap, Name: slotName})
+	task.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
 	return nil
 }
 
@@ -80,27 +79,24 @@ func (m *InterfaceManager) Ensure() error {
 	defer m.state.Unlock()
 
 	for _, change := range m.state.Changes() {
-		switch change.Kind() {
-		case "connect":
-			for _, task := range change.Tasks() {
-				switch task.Kind() {
-				case "add-connection":
-					var slotRef interfaces.SlotRef
-					if err := change.Get("slot", &slotRef); err != nil {
-						task.SetStatus(state.ErrorStatus)
-						return err
-					}
-					var plugRef interfaces.PlugRef
-					if err := change.Get("plug", &plugRef); err != nil {
-						task.SetStatus(state.ErrorStatus)
-						return err
-					}
-					if err := m.repo.Connect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name); err != nil {
-						task.SetStatus(state.ErrorStatus)
-						return err
-					}
-					task.SetStatus(state.DoneStatus)
+		for _, task := range change.Tasks() {
+			switch task.Kind() {
+			case "connect":
+				var slotRef interfaces.SlotRef
+				if err := task.Get("slot", &slotRef); err != nil {
+					task.SetStatus(state.ErrorStatus)
+					return err
 				}
+				var plugRef interfaces.PlugRef
+				if err := task.Get("plug", &plugRef); err != nil {
+					task.SetStatus(state.ErrorStatus)
+					return err
+				}
+				if err := m.repo.Connect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name); err != nil {
+					task.SetStatus(state.ErrorStatus)
+					return err
+				}
+				task.SetStatus(state.DoneStatus)
 			}
 		}
 	}
