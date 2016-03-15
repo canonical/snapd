@@ -27,6 +27,6 @@ func (m *InterfaceManager) Repository() *interfaces.Repository {
 	return m.repo
 }
 
-func (m *InterfaceManager) Settle() {
-	m.runner.Settle()
+func (m *InterfaceManager) Wait() {
+	m.runner.Wait()
 }
