@@ -9,7 +9,7 @@ the following attributes:
 * Frameworks are delivered via snaps
 * Frameworks can be installed on the same system without conflicts
 * Frameworks are unique and multiple origins for a framework are not supported
-  (therefore frameworks must always be referred to without an `origin`)
+  (therefore frameworks must always be referred to without an `developer`)
 * Framework `binaries` may be used without appending the package name and
   these binary names are governed by the framework onboarding process (below)
 * Frameworks must not depend on other frameworks

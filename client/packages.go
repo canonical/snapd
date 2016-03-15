@@ -33,7 +33,7 @@ type Snap struct {
 	Icon          string `json:"icon"`
 	InstalledSize int64  `json:"installed_size"`
 	Name          string `json:"name"`
-	Origin        string `json:"origin"`
+	Developer     string `json:"developer"`
 	Status        string `json:"status"`
 	Type          string `json:"type"`
 	Version       string `json:"version"`

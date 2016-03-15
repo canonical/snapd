@@ -162,7 +162,7 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 			io.WriteString(w, `{
 "package_name": "foo",
 "version": "2",
-"origin": "test",
+"developer": "test",
 "anon_download_url": "`+dlURL+`",
 "icon_url": "`+iconURL+`"
 }`)
@@ -211,7 +211,7 @@ func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 		switch r.URL.Path {
 		case "/details/hello-snap.potato/ch":
 			io.WriteString(w, `{
-"origin": "potato",
+"developer": "potato",
 "package_name": "hello-snap",
 "version": "2",
 "anon_download_url": "blah"
@@ -250,11 +250,11 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 	var dlURL, iconURL string
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/details/foo." + testOrigin:
+		case "/details/foo." + testDeveloper:
 			io.WriteString(w, `{
 "package_name": "foo",
 "version": "2",
-"origin": "`+testOrigin+`",
+"developer": "`+testDeveloper+`",
 "anon_download_url": "`+dlURL+`",
 "icon_url": "`+iconURL+`"
 }`)
@@ -281,7 +281,7 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 		io.WriteString(w, `[{
 	"package_name": "foo",
 	"version": "2",
-        "origin": "`+testOrigin+`",
+        "origin": "`+testDeveloper+`",
 	"anon_download_url": "`+dlURL+`",
 	"icon_url": "`+iconURL+`"
 }]`)

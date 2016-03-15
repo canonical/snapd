@@ -108,7 +108,9 @@ func (s *SnappySuite) SetUpTest(c *check.C) {
 	} else {
 		if CheckRebootMark("") {
 			c.Logf("****** Running %s", c.TestName())
-			SetSavedVersion(c, GetCurrentUbuntuCoreVersion(c))
+			if version := GetCurrentUbuntuCoreVersion(c); version != "" {
+				SetSavedVersion(c, version)
+			}
 		} else {
 			if AfterReboot(c) {
 				c.Logf("****** Resuming %s after reboot", c.TestName())
@@ -135,7 +137,10 @@ func GetCurrentVersion(c *check.C, packageName string) string {
 // GetCurrentUbuntuCoreVersion returns the version number of the installed and
 // active ubuntu-core.
 func GetCurrentUbuntuCoreVersion(c *check.C) string {
-	return GetCurrentVersion(c, partition.OSSnapName(c))
+	if snap := partition.OSSnapName(c); snap != "" {
+		return GetCurrentVersion(c, snap)
+	}
+	return ""
 }
 
 // Reboot requests a reboot using the test name as the mark.
