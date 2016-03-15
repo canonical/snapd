@@ -51,7 +51,7 @@ func (s *appArmorSuite) SetUpTest(c *C) {
 // Tests for LoadProfile()
 
 func (s *appArmorSuite) TestLoadProfileRunsAppArmorParserReplace(c *C) {
-	cmd := testutil.MockCommand(c, "apparmor_parser", 0)
+	cmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer cmd.Restore()
 	err := apparmor.LoadProfile("foo.snap")
 	c.Assert(err, IsNil)
@@ -60,7 +60,7 @@ func (s *appArmorSuite) TestLoadProfileRunsAppArmorParserReplace(c *C) {
 }
 
 func (s *appArmorSuite) TestLoadProfileReportsErrors(c *C) {
-	cmd := testutil.MockCommand(c, "apparmor_parser", 42)
+	cmd := testutil.MockCommand(c, "apparmor_parser", "exit 42")
 	defer cmd.Restore()
 	err := apparmor.LoadProfile("foo.snap")
 	c.Assert(err.Error(), Equals, `cannot load apparmor profile: exit status 42
@@ -73,7 +73,7 @@ apparmor_parser output:
 // Tests for Profile.Unload()
 
 func (s *appArmorSuite) TestUnloadProfileRunsAppArmorParserRemove(c *C) {
-	cmd := testutil.MockCommand(c, "apparmor_parser", 0)
+	cmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer cmd.Restore()
 	profile := apparmor.Profile{Name: "foo.snap"}
 	err := profile.Unload()
@@ -82,7 +82,7 @@ func (s *appArmorSuite) TestUnloadProfileRunsAppArmorParserRemove(c *C) {
 }
 
 func (s *appArmorSuite) TestUnloadProfileReportsErrors(c *C) {
-	cmd := testutil.MockCommand(c, "apparmor_parser", 42)
+	cmd := testutil.MockCommand(c, "apparmor_parser", "exit 42")
 	defer cmd.Restore()
 	profile := apparmor.Profile{Name: "foo.snap"}
 	err := profile.Unload()

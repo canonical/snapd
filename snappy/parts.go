@@ -212,7 +212,7 @@ func makeSnapActiveByNameAndVersion(pkg, ver string, inter progress.Meter) error
 	case 0:
 		return fmt.Errorf("Can not find %s with version %s", pkg, ver)
 	case 1:
-		return overlord.SetActive(parts[0].(*SnapPart), true, inter)
+		return overlord.SetActive(parts[0].(*Snap), true, inter)
 	default:
 		return fmt.Errorf("More than one %s with version %s", pkg, ver)
 	}
