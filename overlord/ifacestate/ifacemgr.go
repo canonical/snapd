@@ -33,8 +33,9 @@ import (
 // the system state.  It maintains interface connections, and also observes
 // installed snaps to track the current set of available plugs and slots.
 type InterfaceManager struct {
-	state *state.State
-	repo  *interfaces.Repository
+	state  *state.State
+	runner *state.TaskRunner
+	repo   *interfaces.Repository
 }
 
 // Manager returns a new InterfaceManager.
@@ -68,38 +69,36 @@ func (m *InterfaceManager) Init(s *state.State) error {
 			return err
 		}
 	}
+	runner := state.NewTaskRunner(s)
 	m.state = s
 	m.repo = repo
+	m.runner = runner
+	m.runner.AddHandler("connect", m.doConnect)
+	return nil
+}
+
+func (m *InterfaceManager) doConnect(task *state.Task) error {
+	var slotRef interfaces.SlotRef
+	if err := task.Get("slot", &slotRef); err != nil {
+		task.SetStatus(state.ErrorStatus)
+		return err
+	}
+	var plugRef interfaces.PlugRef
+	if err := task.Get("plug", &plugRef); err != nil {
+		task.SetStatus(state.ErrorStatus)
+		return err
+	}
+	if err := m.repo.Connect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name); err != nil {
+		task.SetStatus(state.ErrorStatus)
+		return err
+	}
+	task.SetStatus(state.DoneStatus)
 	return nil
 }
 
 // Ensure implements StateManager.Ensure.
 func (m *InterfaceManager) Ensure() error {
-	m.state.Lock()
-	defer m.state.Unlock()
-
-	for _, change := range m.state.Changes() {
-		for _, task := range change.Tasks() {
-			switch task.Kind() {
-			case "connect":
-				var slotRef interfaces.SlotRef
-				if err := task.Get("slot", &slotRef); err != nil {
-					task.SetStatus(state.ErrorStatus)
-					return err
-				}
-				var plugRef interfaces.PlugRef
-				if err := task.Get("plug", &plugRef); err != nil {
-					task.SetStatus(state.ErrorStatus)
-					return err
-				}
-				if err := m.repo.Connect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name); err != nil {
-					task.SetStatus(state.ErrorStatus)
-					return err
-				}
-				task.SetStatus(state.DoneStatus)
-			}
-		}
-	}
+	m.runner.Ensure()
 	return nil
 }
 

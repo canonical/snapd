@@ -25,7 +25,7 @@ import (
 	"gopkg.in/tomb.v2"
 )
 
-// HandlerFunc is the type of function for the hanlders
+// HandlerFunc is the type of function for the handlers
 type HandlerFunc func(task *Task) error
 
 // TaskRunner controls the running of goroutines to execute known task kinds.
