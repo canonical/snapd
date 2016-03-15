@@ -50,13 +50,13 @@ func coreConfigImpl(configuration []byte) (newConfig []byte, err error) {
 // This string can be empty.
 //
 // It returns the newConfig or an error
-func snapConfig(snapDir, origin string, rawConfig []byte) (newConfig []byte, err error) {
+func snapConfig(snapDir, developer string, rawConfig []byte) (newConfig []byte, err error) {
 	configScript := filepath.Join(snapDir, "meta", "hooks", "config")
 	if _, err := os.Stat(configScript); err != nil {
 		return nil, ErrConfigNotFound
 	}
 
-	part, err := NewInstalledSnapPart(filepath.Join(snapDir, "meta", "snap.yaml"), origin)
+	part, err := NewInstalledSnap(filepath.Join(snapDir, "meta", "snap.yaml"), developer)
 	if err != nil {
 		return nil, ErrPackageNotFound
 	}

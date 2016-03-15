@@ -34,7 +34,7 @@ const (
 	DoRemoveGC RemoveFlags = 1 << iota
 )
 
-// Remove a part by a partSpec string, name[.origin][=version]
+// Remove a part by a partSpec string, name[.developer][=version]
 func Remove(partSpec string, flags RemoveFlags, meter progress.Meter) error {
 	var parts BySnapVersion
 
@@ -64,7 +64,7 @@ func Remove(partSpec string, flags RemoveFlags, meter progress.Meter) error {
 
 	overlord := &Overlord{}
 	for _, part := range parts {
-		if err := overlord.Uninstall(part.(*SnapPart), meter); err != nil {
+		if err := overlord.Uninstall(part.(*Snap), meter); err != nil {
 			return err
 		}
 	}

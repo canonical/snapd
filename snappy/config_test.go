@@ -95,7 +95,7 @@ func (s *SnapTestSuite) TestConfigSimple(c *C) {
 func (s *SnapTestSuite) TestConfigOS(c *C) {
 	snapYaml, err := s.makeInstalledMockSnap(mockOsSnap)
 	c.Assert(err, IsNil)
-	snap, err := NewInstalledSnapPart(snapYaml, testOrigin)
+	snap, err := NewInstalledSnap(snapYaml, testDeveloper)
 	c.Assert(err, IsNil)
 
 	var cfg []byte
@@ -125,19 +125,19 @@ func (s *SnapTestSuite) TestConfigGeneratesRightAA(c *C) {
 type: framework
 version: 42`)
 	c.Assert(err, IsNil)
-	_, err = snapConfig(snapDir, testOrigin, []byte(configYaml))
+	_, err = snapConfig(snapDir, testDeveloper, []byte(configYaml))
 	c.Assert(err, IsNil)
 
 	snapDir, err = s.makeInstalledMockSnapWithConfig(c, mockConfig, `name: potato
 type: potato
 version: 42`)
 	c.Assert(err, IsNil)
-	_, err = snapConfig(snapDir, testOrigin, []byte(configYaml))
+	_, err = snapConfig(snapDir, testDeveloper, []byte(configYaml))
 	c.Assert(err, IsNil)
 
 	c.Check(aas, DeepEquals, []string{
 		"fmk_snappy-config_42",
-		"potato." + testOrigin + "_snappy-config_42",
+		"potato." + testDeveloper + "_snappy-config_42",
 	})
 }
 

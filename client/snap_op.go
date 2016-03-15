@@ -24,11 +24,12 @@ import (
 	"strings"
 )
 
-// InstallSnap adds the snap with the given name, returning the UUID of the
-// background operation upon success.
-func (client *Client) InstallSnap(name string) (string, error) {
+// InstallSnap adds the snap with the given name from the given channel (or
+// the system default channel if not), returning the UUID of the background
+// operation upon success.
+func (client *Client) InstallSnap(name, channel string) (string, error) {
 	path := fmt.Sprintf("/2.0/snaps/%s", name)
-	body := strings.NewReader(`{"action":"install"}`)
+	body := strings.NewReader(fmt.Sprintf(`{"action":"install","channel":%q}`, channel))
 
 	return client.doAsync("POST", path, nil, body)
 }
@@ -42,11 +43,12 @@ func (client *Client) RemoveSnap(name string) (string, error) {
 	return client.doAsync("POST", path, nil, body)
 }
 
-// RefreshSnap refreshes the snap with the given name, returning the UUID of the
-// background operation upon success.
-func (client *Client) RefreshSnap(name string) (string, error) {
+// RefreshSnap refreshes the snap with the given name (switching it to track
+// the given channel if given), returning the UUID of the background operation
+// upon success.
+func (client *Client) RefreshSnap(name, channel string) (string, error) {
 	path := fmt.Sprintf("/2.0/snaps/%s", name)
-	body := strings.NewReader(`{"action":"update"}`)
+	body := strings.NewReader(fmt.Sprintf(`{"action":"update","channel":%q}`, channel))
 
 	return client.doAsync("POST", path, nil, body)
 }

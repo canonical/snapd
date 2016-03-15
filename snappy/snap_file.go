@@ -33,12 +33,12 @@ type SnapFile struct {
 	m   *snapYaml
 	deb snap.File
 
-	origin  string
-	instdir string
+	developer string
+	instdir   string
 }
 
 // NewSnapFile loads a snap from the given snapFile
-func NewSnapFile(snapFile string, origin string, unsignedOk bool) (*SnapFile, error) {
+func NewSnapFile(snapFile string, developer string, unsignedOk bool) (*SnapFile, error) {
 	d, err := snap.Open(snapFile)
 	if err != nil {
 		return nil, err
@@ -58,22 +58,22 @@ func NewSnapFile(snapFile string, origin string, unsignedOk bool) (*SnapFile, er
 	}
 
 	targetDir := dirs.SnapSnapsDir
-	if origin == SideloadedOrigin {
+	if developer == SideloadedDeveloper {
 		m.Version = newSideloadVersion()
 	}
 
-	fullName := m.qualifiedName(origin)
+	fullName := m.qualifiedName(developer)
 	instDir := filepath.Join(targetDir, fullName, m.Version)
 
 	return &SnapFile{
-		instdir: instDir,
-		origin:  origin,
-		m:       m,
-		deb:     d,
+		instdir:   instDir,
+		developer: developer,
+		m:         m,
+		deb:       d,
 	}, nil
 }
 
-// Type returns the type of the SnapPart (app, gadget, ...)
+// Type returns the type of the Snap (app, gadget, ...)
 func (s *SnapFile) Type() snap.Type {
 	if s.m.Type != "" {
 		return s.m.Type
@@ -148,9 +148,9 @@ func (s *SnapFile) NeedsReboot() bool {
 	return false
 }
 
-// Origin returns the origin
-func (s *SnapFile) Origin() string {
-	return s.origin
+// Developer returns the developer
+func (s *SnapFile) Developer() string {
+	return s.developer
 }
 
 // Frameworks returns the list of frameworks needed by the snap

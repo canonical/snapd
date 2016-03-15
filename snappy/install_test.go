@@ -162,7 +162,7 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 			io.WriteString(w, `{
 "package_name": "foo",
 "version": "2",
-"origin": "test",
+"developer": "test",
 "anon_download_url": "`+dlURL+`",
 "icon_url": "`+iconURL+`"
 }`)
@@ -199,20 +199,20 @@ func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "hello-app.manifest"), []byte(`{"name": "hello-app"}`), 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "hello-snap.manifest"), []byte(`{"name": "hello-snap"}`), 0644), IsNil)
 	ag := &progress.NullProgress{}
-	part, err := NewInstalledSnapPart(yamlFile, "potato")
+	part, err := NewInstalledSnap(yamlFile, "potato")
 	c.Assert(err, IsNil)
 	c.Assert(part.activate(true, ag), IsNil)
-	current := ActiveSnapByName("hello-app")
+	current := ActiveSnapByName("hello-snap")
 	c.Assert(current, NotNil)
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/details/hello-app.potato/ch":
+		case "/details/hello-snap.potato/ch":
 			io.WriteString(w, `{
-"origin": "potato",
-"package_name": "hello-app",
+"developer": "potato",
+"package_name": "hello-snap",
 "version": "2",
 "anon_download_url": "blah"
 }`)
@@ -227,7 +227,7 @@ func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	_, err = Install("hello-app.potato", "ch", 0, ag)
+	_, err = Install("hello-snap.potato", "ch", 0, ag)
 	c.Assert(err, ErrorMatches, ".*"+ErrPackageNameAlreadyInstalled.Error())
 }
 
@@ -250,11 +250,11 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 	var dlURL, iconURL string
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/details/foo." + testOrigin:
+		case "/details/foo." + testDeveloper:
 			io.WriteString(w, `{
 "package_name": "foo",
 "version": "2",
-"origin": "`+testOrigin+`",
+"developer": "`+testDeveloper+`",
 "anon_download_url": "`+dlURL+`",
 "icon_url": "`+iconURL+`"
 }`)
@@ -281,7 +281,7 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 		io.WriteString(w, `[{
 	"package_name": "foo",
 	"version": "2",
-        "origin": "`+testOrigin+`",
+        "origin": "`+testDeveloper+`",
 	"anon_download_url": "`+dlURL+`",
 	"icon_url": "`+iconURL+`"
 }]`)
@@ -300,5 +300,5 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 	c.Check(updates[0].Name(), Equals, "foo")
 	c.Check(updates[0].Version(), Equals, "2")
 	// ensure that we get a "local" snap back - not a remote one
-	c.Check(updates[0], FitsTypeOf, &SnapPart{})
+	c.Check(updates[0], FitsTypeOf, &Snap{})
 }

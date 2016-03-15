@@ -93,6 +93,20 @@ type cmdOp struct {
 	op func(*client.Client, string) (string, error)
 }
 
+type cmdInstall struct {
+	Channel    string `long:"channel" description:"Install from this channel instead of the device's default"`
+	Positional struct {
+		Snap string `positional-arg-name:"<snap>"`
+	} `positional-args:"yes" required:"yes"`
+}
+
+type cmdRefresh struct {
+	Channel    string `long:"channel" description:"Refresh to the latest on this channel, and track this channel henceforth"`
+	Positional struct {
+		Snap string `positional-arg-name:"<snap>"`
+	} `positional-args:"yes" required:"yes"`
+}
+
 func init() {
 	for _, s := range []struct {
 		name  string
@@ -100,10 +114,8 @@ func init() {
 		long  string
 		op    func(*client.Client, string) (string, error)
 	}{
-		{"install", shortInstallHelp, longInstallHelp, (*client.Client).InstallSnap},
 		{"remove", shortRemoveHelp, longRemoveHelp, (*client.Client).RemoveSnap},
 		{"purge", shortPurgeHelp, longPurgeHelp, (*client.Client).PurgeSnap},
-		{"refresh", shortRefreshHelp, longRefreshHelp, (*client.Client).RefreshSnap},
 		{"rollback", shortRollbackHelp, longRollbackHelp, (*client.Client).RollbackSnap},
 		{"activate", shortActivateHelp, longActivateHelp, (*client.Client).ActivateSnap},
 		{"deactivate", shortDeactivateHelp, longDeactivateHelp, (*client.Client).DeactivateSnap},
@@ -111,6 +123,9 @@ func init() {
 		op := s.op
 		addCommand(s.name, s.short, s.long, func() interface{} { return &cmdOp{op: op} })
 	}
+
+	addCommand("install", shortInstallHelp, longInstallHelp, func() interface{} { return &cmdInstall{} })
+	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() interface{} { return &cmdRefresh{} })
 }
 
 func (x *cmdOp) Execute([]string) error {
