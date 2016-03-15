@@ -58,7 +58,7 @@ func (o *Overlord) Install(snapFilePath string, developer string, flags InstallF
 		return nil, err
 	}
 
-	// the "gadget" parts are special
+	// the "gadget" snaps are special
 	if s.Type() == snap.TypeGadget {
 		if err := installGadgetHardwareUdevRules(s.m); err != nil {
 			return nil, err
@@ -68,9 +68,9 @@ func (o *Overlord) Install(snapFilePath string, developer string, flags InstallF
 	fullName := QualifiedName(s.Info())
 	dataDir := filepath.Join(dirs.SnapDataDir, fullName, s.Version())
 
-	var oldPart *Snap
+	var oldSnap *Snap
 	if currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(s.instdir, "..", "current")); currentActiveDir != "" {
-		oldPart, err = NewInstalledSnap(filepath.Join(currentActiveDir, "meta", "snap.yaml"), s.developer)
+		oldSnap, err = NewInstalledSnap(filepath.Join(currentActiveDir, "meta", "snap.yaml"), s.developer)
 		if err != nil {
 			return nil, err
 		}
@@ -123,12 +123,12 @@ func (o *Overlord) Install(snapFilePath string, developer string, flags InstallF
 	// started then copy the data
 	//
 	// otherwise just create a empty data dir
-	if oldPart != nil {
+	if oldSnap != nil {
 		// we need to stop making it active
-		err = oldPart.deactivate(inhibitHooks, meter)
+		err = oldSnap.deactivate(inhibitHooks, meter)
 		defer func() {
 			if err != nil {
-				if cerr := oldPart.activate(inhibitHooks, meter); cerr != nil {
+				if cerr := oldSnap.activate(inhibitHooks, meter); cerr != nil {
 					logger.Noticef("Setting old version back to active failed: %v", cerr)
 				}
 			}
@@ -137,7 +137,7 @@ func (o *Overlord) Install(snapFilePath string, developer string, flags InstallF
 			return nil, err
 		}
 
-		err = copySnapData(fullName, oldPart.Version(), s.Version())
+		err = copySnapData(fullName, oldSnap.Version(), s.Version())
 	} else {
 		err = os.MkdirAll(dataDir, 0755)
 	}
@@ -155,16 +155,16 @@ func (o *Overlord) Install(snapFilePath string, developer string, flags InstallF
 	}
 
 	if !inhibitHooks {
-		newPart, err := newSnapFromYaml(filepath.Join(s.instdir, "meta", "snap.yaml"), s.developer, s.m)
+		newSnap, err := newSnapFromYaml(filepath.Join(s.instdir, "meta", "snap.yaml"), s.developer, s.m)
 		if err != nil {
 			return nil, err
 		}
 
 		// and finally make active
-		err = newPart.activate(inhibitHooks, meter)
+		err = newSnap.activate(inhibitHooks, meter)
 		defer func() {
-			if err != nil && oldPart != nil {
-				if cerr := oldPart.activate(inhibitHooks, meter); cerr != nil {
+			if err != nil && oldSnap != nil {
+				if cerr := oldSnap.activate(inhibitHooks, meter); cerr != nil {
 					logger.Noticef("When setting old %s version back to active: %v", s.Name(), cerr)
 				}
 			}
@@ -174,7 +174,7 @@ func (o *Overlord) Install(snapFilePath string, developer string, flags InstallF
 		}
 
 		// oh, one more thing: refresh the security bits
-		deps, err := newPart.Dependents()
+		deps, err := newSnap.Dependents()
 		if err != nil {
 			return nil, err
 		}
@@ -209,7 +209,7 @@ func (o *Overlord) Install(snapFilePath string, developer string, flags InstallF
 			}
 		}
 
-		if err := newPart.RefreshDependentsSecurity(oldPart, meter); err != nil {
+		if err := newSnap.RefreshDependentsSecurity(oldSnap, meter); err != nil {
 			return nil, err
 		}
 
@@ -356,16 +356,16 @@ func (o *Overlord) Configure(s *Snap, configuration []byte) ([]byte, error) {
 // Installed returns the installed snaps from this repository
 func (o *Overlord) Installed() ([]*Snap, error) {
 	globExpr := filepath.Join(dirs.SnapSnapsDir, "*", "*", "meta", "snap.yaml")
-	parts, err := o.partsForGlobExpr(globExpr)
+	snaps, err := o.snapsForGlobExpr(globExpr)
 	if err != nil {
 		return nil, fmt.Errorf("Can not get the installed snaps: %s", err)
 
 	}
 
-	return parts, nil
+	return snaps, nil
 }
 
-func (o *Overlord) partsForGlobExpr(globExpr string) (parts []*Snap, err error) {
+func (o *Overlord) snapsForGlobExpr(globExpr string) (snaps []*Snap, err error) {
 	matches, err := filepath.Glob(globExpr)
 	if err != nil {
 		return nil, err
@@ -386,8 +386,8 @@ func (o *Overlord) partsForGlobExpr(globExpr string) (parts []*Snap, err error) 
 		if err != nil {
 			return nil, err
 		}
-		parts = append(parts, snap)
+		snaps = append(snaps, snap)
 	}
 
-	return parts, nil
+	return snaps, nil
 }

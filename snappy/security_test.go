@@ -139,7 +139,7 @@ func (a *SecurityTestSuite) TestSnappyGetSecurityProfileInvalid(c *C) {
 	}
 	b := AppYaml{Name: "bin/app"}
 	_, err := getSecurityProfile(&m, b.Name, "/snaps/foo/1.0/")
-	c.Assert(err, Equals, ErrInvalidPart)
+	c.Assert(err, Equals, ErrInvalidSnap)
 }
 
 func (a *SecurityTestSuite) TestSnappyGetSecurityProfileFramework(c *C) {

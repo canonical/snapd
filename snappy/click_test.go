@@ -142,9 +142,9 @@ license-version: 2
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testDeveloper+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
-	part, err := NewInstalledSnap(yamlFile, testDeveloper)
+	snap, err := NewInstalledSnap(yamlFile, testDeveloper)
 	c.Assert(err, IsNil)
-	c.Assert(part.activate(true, ag), IsNil)
+	c.Assert(snap.activate(true, ag), IsNil)
 
 	pkg := makeTestSnapPackage(c, yaml+"version: 2")
 	_, err = installClick(pkg, 0, ag, testDeveloper)
@@ -166,9 +166,9 @@ version: 1.0
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testDeveloper+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
-	part, err := NewInstalledSnap(yamlFile, testDeveloper)
+	snap, err := NewInstalledSnap(yamlFile, testDeveloper)
 	c.Assert(err, IsNil)
-	c.Assert(part.activate(true, ag), IsNil)
+	c.Assert(snap.activate(true, ag), IsNil)
 
 	pkg := makeTestSnapPackage(c, yaml+"version: 2\nlicense-agreement: explicit\n")
 	_, err = installClick(pkg, 0, ag, testDeveloper)
@@ -188,9 +188,9 @@ license-agreement: explicit
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testDeveloper+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
-	part, err := NewInstalledSnap(yamlFile, testDeveloper)
+	snap, err := NewInstalledSnap(yamlFile, testDeveloper)
 	c.Assert(err, IsNil)
-	c.Assert(part.activate(true, ag), IsNil)
+	c.Assert(snap.activate(true, ag), IsNil)
 
 	pkg := makeTestSnapPackage(c, yaml+"license-version: 3\nversion: 2")
 	_, err = installClick(pkg, 0, ag, testDeveloper)
@@ -217,9 +217,9 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 	c.Assert(err, IsNil)
 
 	yamlPath := filepath.Join(instDir, "meta", "snap.yaml")
-	part, err := NewInstalledSnap(yamlPath, testDeveloper)
+	snap, err := NewInstalledSnap(yamlPath, testDeveloper)
 	c.Assert(err, IsNil)
-	err = (&Overlord{}).Uninstall(part, &MockProgressMeter{})
+	err = (&Overlord{}).Uninstall(snap, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 
 	_, err = os.Stat(instDir)
@@ -289,9 +289,9 @@ func (s *SnapTestSuite) TestSnapRemovePackagePolicy(c *C) {
 	s.buildFramework(c)
 	appdir := filepath.Join(s.tempdir, "snaps", "hello", "1.0.1")
 	yamlPath := filepath.Join(appdir, "meta", "snap.yaml")
-	part, err := NewInstalledSnap(yamlPath, testDeveloper)
+	snap, err := NewInstalledSnap(yamlPath, testDeveloper)
 	c.Assert(err, IsNil)
-	err = (&Overlord{}).Uninstall(part, &MockProgressMeter{})
+	err = (&Overlord{}).Uninstall(snap, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 }
 
@@ -366,22 +366,22 @@ func (s *SnapTestSuite) TestClickSetActive(c *C) {
 
 	// ensure v2 is active
 	repo := NewLocalSnapRepository()
-	parts, err := repo.Installed()
+	snaps, err := repo.Installed()
 	c.Assert(err, IsNil)
-	c.Assert(parts, HasLen, 2)
-	c.Assert(parts[0].Version(), Equals, "1.0")
-	c.Assert(parts[0].IsActive(), Equals, false)
-	c.Assert(parts[1].Version(), Equals, "2.0")
-	c.Assert(parts[1].IsActive(), Equals, true)
+	c.Assert(snaps, HasLen, 2)
+	c.Assert(snaps[0].Version(), Equals, "1.0")
+	c.Assert(snaps[0].IsActive(), Equals, false)
+	c.Assert(snaps[1].Version(), Equals, "2.0")
+	c.Assert(snaps[1].IsActive(), Equals, true)
 
 	// set v1 active
-	err = parts[0].activate(false, nil)
-	parts, err = repo.Installed()
+	err = snaps[0].activate(false, nil)
+	snaps, err = repo.Installed()
 	c.Assert(err, IsNil)
-	c.Assert(parts[0].Version(), Equals, "1.0")
-	c.Assert(parts[0].IsActive(), Equals, true)
-	c.Assert(parts[1].Version(), Equals, "2.0")
-	c.Assert(parts[1].IsActive(), Equals, false)
+	c.Assert(snaps[0].Version(), Equals, "1.0")
+	c.Assert(snaps[0].IsActive(), Equals, true)
+	c.Assert(snaps[1].Version(), Equals, "2.0")
+	c.Assert(snaps[1].IsActive(), Equals, false)
 
 }
 
@@ -610,9 +610,9 @@ apps:
 	// and that it gets removed on remove
 	snapDir := filepath.Join(dirs.SnapSnapsDir, "foo.mvo", "1.0")
 	yamlPath := filepath.Join(snapDir, "meta", "snap.yaml")
-	part, err := NewInstalledSnap(yamlPath, testDeveloper)
+	snap, err := NewInstalledSnap(yamlPath, testDeveloper)
 	c.Assert(err, IsNil)
-	err = (&Overlord{}).Uninstall(part, &MockProgressMeter{})
+	err = (&Overlord{}).Uninstall(snap, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	c.Assert(osutil.FileExists(servicesFile), Equals, false)
 	c.Assert(osutil.FileExists(snapDir), Equals, false)
@@ -1196,9 +1196,9 @@ apps:
 	// and that it gets removed on remove
 	snapDir := filepath.Join(dirs.SnapSnapsDir, "foo.mvo", "1.0")
 	yamlPath := filepath.Join(snapDir, "meta", "snap.yaml")
-	part, err := NewInstalledSnap(yamlPath, testDeveloper)
+	snap, err := NewInstalledSnap(yamlPath, testDeveloper)
 	c.Assert(err, IsNil)
-	err = (&Overlord{}).Uninstall(part, &MockProgressMeter{})
+	err = (&Overlord{}).Uninstall(snap, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	c.Assert(osutil.FileExists(binaryWrapper), Equals, false)
 	c.Assert(osutil.FileExists(snapDir), Equals, false)

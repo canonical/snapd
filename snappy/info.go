@@ -37,7 +37,7 @@ type Configuration interface {
 	GadgetConfig() SystemConfig
 }
 
-// QualifiedName of a Part is the Name, in most cases qualified with the
+// QualifiedName of a snap.Info is the Name, in most cases qualified with the
 // Developer
 func QualifiedName(p *snap.Info) string {
 	if t := p.Type; t == snap.TypeFramework || t == snap.TypeGadget {
@@ -75,13 +75,13 @@ func ActiveSnapsByType(snapTs ...snap.Type) (res []*Snap, err error) {
 		return nil, err
 	}
 
-	for _, part := range installed {
-		if !part.IsActive() {
+	for _, snap := range installed {
+		if !snap.IsActive() {
 			continue
 		}
 		for i := range snapTs {
-			if part.Type() == snapTs[i] {
-				res = append(res, part)
+			if snap.Type() == snapTs[i] {
+				res = append(res, snap)
 			}
 		}
 	}
@@ -97,8 +97,8 @@ func activeSnapIterByTypeImpl(f func(*snap.Info) string, snapTs ...snap.Type) ([
 	installed, err := ActiveSnapsByType(snapTs...)
 	res := make([]string, len(installed))
 
-	for i, part := range installed {
-		res[i] = f(part.Info())
+	for i, snap := range installed {
+		res[i] = f(snap.Info())
 	}
 
 	return res, err
@@ -110,12 +110,12 @@ func ActiveSnapByName(needle string) *Snap {
 	if err != nil {
 		return nil
 	}
-	for _, part := range installed {
-		if !part.IsActive() {
+	for _, snap := range installed {
+		if !snap.IsActive() {
 			continue
 		}
-		if part.Name() == needle {
-			return part
+		if snap.Name() == needle {
+			return snap
 		}
 	}
 
@@ -123,14 +123,14 @@ func ActiveSnapByName(needle string) *Snap {
 }
 
 // FindSnapsByName returns all snaps with the given name in the "haystack"
-// slice of parts (useful for filtering)
+// slice of snaps (useful for filtering)
 func FindSnapsByName(needle string, haystack []*Snap) (res []*Snap) {
 	name, developer := SplitDeveloper(needle)
 	ignorens := developer == ""
 
-	for _, part := range haystack {
-		if part.Name() == name && (ignorens || part.Developer() == developer) {
-			res = append(res, part)
+	for _, snap := range haystack {
+		if snap.Name() == name && (ignorens || snap.Developer() == developer) {
+			res = append(res, snap)
 		}
 	}
 
@@ -147,16 +147,16 @@ func SplitDeveloper(name string) (string, string) {
 	return name, ""
 }
 
-// FindSnapsByNameAndVersion returns the parts with the name/version in the
-// given slice of parts
+// FindSnapsByNameAndVersion returns the snaps with the name/version in the
+// given slice of snaps
 func FindSnapsByNameAndVersion(needle, version string, haystack []*Snap) []*Snap {
 	name, developer := SplitDeveloper(needle)
 	ignorens := developer == ""
 	var found []*Snap
 
-	for _, part := range haystack {
-		if part.Name() == name && part.Version() == version && (ignorens || part.Developer() == developer) {
-			found = append(found, part)
+	for _, snap := range haystack {
+		if snap.Name() == name && snap.Version() == version && (ignorens || snap.Developer() == developer) {
+			found = append(found, snap)
 		}
 	}
 
@@ -172,12 +172,12 @@ func makeSnapActiveByNameAndVersion(pkg, ver string, inter progress.Meter) error
 	}
 
 	overlord := &Overlord{}
-	parts := FindSnapsByNameAndVersion(pkg, ver, installed)
-	switch len(parts) {
+	snaps := FindSnapsByNameAndVersion(pkg, ver, installed)
+	switch len(snaps) {
 	case 0:
 		return fmt.Errorf("Can not find %s with version %s", pkg, ver)
 	case 1:
-		return overlord.SetActive(parts[0], true, inter)
+		return overlord.SetActive(snaps[0], true, inter)
 	default:
 		return fmt.Errorf("More than one %s with version %s", pkg, ver)
 	}
