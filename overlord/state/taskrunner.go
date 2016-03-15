@@ -115,6 +115,14 @@ func (r *TaskRunner) Ensure() {
 			if t.Status() == DoneStatus {
 				continue
 			}
+
+			// No handler for the given kind of task,
+			// this means another taskrunner is going
+			// to handle this task.
+			if _, ok := r.handlers[t.Kind()]; !ok {
+				continue
+			}
+
 			// we look at the Tomb instead of Status because
 			// a task can be in RunningStatus even when it
 			// is not started yet (like when the daemon
@@ -130,9 +138,7 @@ func (r *TaskRunner) Ensure() {
 
 			// the task is ready to run (all prerequists done)
 			// so full steam ahead!
-			if fn, ok := r.handlers[t.Kind()]; ok {
-				r.run(fn, t.ID())
-			}
+			r.run(r.handlers[t.Kind()], t.ID())
 		}
 	}
 }
