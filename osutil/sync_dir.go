@@ -117,16 +117,14 @@ func EnsureDirState(dir, glob string, content map[string]*FileState) (created, c
 	// Create files that were not found but are expected
 	for baseName, expected := range content {
 		if baseName != filepath.Base(baseName) {
-			err := fmt.Errorf("expected files cannot have path component: %q", baseName)
-			return created, corrected, removed, err
+			panic(fmt.Sprintf("EnsureDirState got filename %q which has a path component", baseName))
 		}
 		var matched bool
 		if matched, err = filepath.Match(glob, baseName); err != nil {
 			return created, corrected, removed, err
 		}
 		if !matched {
-			err := fmt.Errorf("expected files must match pattern: %q (pattern: %q)", baseName, glob)
-			return created, corrected, removed, err
+			panic(fmt.Sprintf("EnsureDirState got filename %q which doesn't match the glob pattern %q", baseName, glob))
 		}
 		if found[baseName] {
 			continue
