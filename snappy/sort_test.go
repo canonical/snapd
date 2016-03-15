@@ -23,8 +23,6 @@ import (
 	"sort"
 
 	. "gopkg.in/check.v1"
-
-	"github.com/ubuntu-core/snappy/snap/remote"
 )
 
 type SortTestSuite struct {
@@ -82,9 +80,9 @@ func (s *SortTestSuite) TestSort(c *C) {
 }
 
 func (s *SortTestSuite) TestSortSnaps(c *C) {
-	snaps := []Part{
-		&RemoteSnap{Pkg: remote.Snap{Version: "2.0"}},
-		&RemoteSnap{Pkg: remote.Snap{Version: "1.0"}},
+	snaps := []*Snap{
+		&Snap{m: &snapYaml{Version: "2.0"}},
+		&Snap{m: &snapYaml{Version: "1.0"}},
 	}
 	sort.Sort(BySnapVersion(snaps))
 	c.Assert(snaps[0].Version(), Equals, "1.0")

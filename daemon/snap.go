@@ -25,7 +25,7 @@ import (
 
 // allSnaps returns all installed snaps, grouped by name
 func allSnaps() (map[string][]*snappy.Snap, error) {
-	all, err := snappy.NewLocalSnapRepository().All()
+	all, err := snappy.NewLocalSnapRepository().Installed()
 	if err != nil {
 		return nil, err
 	}
@@ -34,7 +34,7 @@ func allSnaps() (map[string][]*snappy.Snap, error) {
 
 	for _, part := range all {
 		name := snappy.FullName(part)
-		m[name] = append(m[name], part.(*snappy.Snap))
+		m[name] = append(m[name], part)
 	}
 
 	return m, nil

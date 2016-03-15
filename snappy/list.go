@@ -21,7 +21,7 @@ package snappy
 
 // ListInstalled returns all installed snaps
 func ListInstalled() ([]*Snap, error) {
-	return NewLocalSnapRepository().AllSnaps()
+	return NewLocalSnapRepository().Installed()
 }
 
 // ListUpdates returns all snaps with updates

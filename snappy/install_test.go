@@ -49,7 +49,7 @@ func (s *SnapTestSuite) TestInstallInstall(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
-	all, err := NewLocalSnapRepository().All()
+	all, err := NewLocalSnapRepository().Installed()
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	part := all[0]
@@ -64,7 +64,7 @@ func (s *SnapTestSuite) TestInstallNoHook(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
-	all, err := NewLocalSnapRepository().All()
+	all, err := NewLocalSnapRepository().Installed()
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	part := all[0]
