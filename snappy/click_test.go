@@ -42,13 +42,13 @@ import (
 
 func (s *SnapTestSuite) testLocalSnapInstall(c *C) string {
 	snapFile := makeTestSnapPackage(c, "")
-	name, err := installClick(snapFile, 0, nil, testOrigin)
+	name, err := installClick(snapFile, 0, nil, testDeveloper)
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
 	baseDir := filepath.Join(dirs.SnapSnapsDir, fooComposedName, "1.0")
 	c.Assert(osutil.FileExists(baseDir), Equals, true)
-	_, err = os.Stat(filepath.Join(s.tempdir, "var", "lib", "snaps", "foo."+testOrigin, "1.0"))
+	_, err = os.Stat(filepath.Join(s.tempdir, "var", "lib", "snaps", "foo."+testDeveloper, "1.0"))
 	c.Assert(err, IsNil)
 
 	return snapFile
@@ -61,8 +61,8 @@ func (s *SnapTestSuite) TestLocalSnapInstall(c *C) {
 func (s *SnapTestSuite) TestLocalSnapInstallFailsAlreadyInstalled(c *C) {
 	snapFile := s.testLocalSnapInstall(c)
 
-	_, err := installClick(snapFile, 0, nil, "originother")
-	c.Assert(err, ErrorMatches, ".*is already installed with origin.*")
+	_, err := installClick(snapFile, 0, nil, "developerother")
+	c.Assert(err, ErrorMatches, ".*is already installed with developer.*")
 }
 
 // if the snap asks for accepting a license, and an agreer isn't provided,
@@ -72,7 +72,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallMissingAccepterFails(c *C) {
 name: foo
 version: 1.0
 license-agreement: explicit`)
-	_, err := installClick(pkg, 0, nil, testOrigin)
+	_, err := installClick(pkg, 0, nil, testDeveloper)
 	c.Check(err, Equals, ErrLicenseNotAccepted)
 	c.Check(IsLicenseNotAccepted(err), Equals, true)
 }
@@ -84,7 +84,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallNegAccepterFails(c *C) {
 name: foo
 version: 1.0
 license-agreement: explicit`)
-	_, err := installClick(pkg, 0, &MockProgressMeter{y: false}, testOrigin)
+	_, err := installClick(pkg, 0, &MockProgressMeter{y: false}, testDeveloper)
 	c.Check(err, Equals, ErrLicenseNotAccepted)
 	c.Check(IsLicenseNotAccepted(err), Equals, true)
 }
@@ -99,7 +99,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallNoLicenseFails(c *C) {
 name: foo
 version: 1.0
 license-agreement: explicit`, false)
-	_, err := installClick(pkg, 0, &MockProgressMeter{y: true}, testOrigin)
+	_, err := installClick(pkg, 0, &MockProgressMeter{y: true}, testDeveloper)
 	c.Check(err, Equals, ErrLicenseNotProvided)
 	c.Check(IsLicenseNotAccepted(err), Equals, false)
 }
@@ -111,7 +111,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallPosAccepterWorks(c *C) {
 name: foo
 version: 1.0
 license-agreement: explicit`)
-	_, err := installClick(pkg, 0, &MockProgressMeter{y: true}, testOrigin)
+	_, err := installClick(pkg, 0, &MockProgressMeter{y: true}, testDeveloper)
 	c.Check(err, Equals, nil)
 	c.Check(IsLicenseNotAccepted(err), Equals, false)
 }
@@ -123,7 +123,7 @@ name: foobar
 version: 1.0
 license-agreement: explicit`)
 	ag := &MockProgressMeter{y: true}
-	_, err := installClick(pkg, 0, ag, testOrigin)
+	_, err := installClick(pkg, 0, ag, testDeveloper)
 	c.Assert(err, Equals, nil)
 	c.Check(IsLicenseNotAccepted(err), Equals, false)
 	c.Check(ag.intro, Matches, ".*foobar.*requires.*license.*")
@@ -141,13 +141,13 @@ license-version: 2
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml+"version: 1")
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testOrigin+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
-	part, err := NewInstalledSnap(yamlFile, testOrigin)
+	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testDeveloper+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
+	part, err := NewInstalledSnap(yamlFile, testDeveloper)
 	c.Assert(err, IsNil)
 	c.Assert(part.activate(true, ag), IsNil)
 
 	pkg := makeTestSnapPackage(c, yaml+"version: 2")
-	_, err = installClick(pkg, 0, ag, testOrigin)
+	_, err = installClick(pkg, 0, ag, testDeveloper)
 	c.Assert(err, Equals, nil)
 	c.Check(IsLicenseNotAccepted(err), Equals, false)
 	c.Check(ag.intro, Equals, "")
@@ -165,13 +165,13 @@ version: 1.0
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml+"version: 1")
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testOrigin+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
-	part, err := NewInstalledSnap(yamlFile, testOrigin)
+	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testDeveloper+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
+	part, err := NewInstalledSnap(yamlFile, testDeveloper)
 	c.Assert(err, IsNil)
 	c.Assert(part.activate(true, ag), IsNil)
 
 	pkg := makeTestSnapPackage(c, yaml+"version: 2\nlicense-agreement: explicit\n")
-	_, err = installClick(pkg, 0, ag, testOrigin)
+	_, err = installClick(pkg, 0, ag, testDeveloper)
 	c.Check(IsLicenseNotAccepted(err), Equals, false)
 	c.Assert(err, Equals, nil)
 	c.Check(ag.license, Equals, "WTFPL")
@@ -187,13 +187,13 @@ license-agreement: explicit
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml+"license-version: 2\nversion: 1")
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testOrigin+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
-	part, err := NewInstalledSnap(yamlFile, testOrigin)
+	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testDeveloper+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
+	part, err := NewInstalledSnap(yamlFile, testDeveloper)
 	c.Assert(err, IsNil)
 	c.Assert(part.activate(true, ag), IsNil)
 
 	pkg := makeTestSnapPackage(c, yaml+"license-version: 3\nversion: 2")
-	_, err = installClick(pkg, 0, ag, testOrigin)
+	_, err = installClick(pkg, 0, ag, testDeveloper)
 	c.Assert(err, Equals, nil)
 	c.Check(IsLicenseNotAccepted(err), Equals, false)
 	c.Check(ag.license, Equals, "WTFPL")
@@ -209,7 +209,7 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 	}
 
 	targetDir := filepath.Join(s.tempdir, "snaps")
-	_, err := installClick(makeTestSnapPackage(c, ""), 0, nil, testOrigin)
+	_, err := installClick(makeTestSnapPackage(c, ""), 0, nil, testDeveloper)
 	c.Assert(err, IsNil)
 
 	instDir := filepath.Join(targetDir, fooComposedName, "1.0")
@@ -217,7 +217,7 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 	c.Assert(err, IsNil)
 
 	yamlPath := filepath.Join(instDir, "meta", "snap.yaml")
-	part, err := NewInstalledSnap(yamlPath, testOrigin)
+	part, err := NewInstalledSnap(yamlPath, testDeveloper)
 	c.Assert(err, IsNil)
 	err = (&Overlord{}).Uninstall(part, &MockProgressMeter{})
 	c.Assert(err, IsNil)
@@ -255,7 +255,7 @@ type: framework
 	c.Assert(d.Build(tmpdir), IsNil)
 	defer os.Remove(snapName)
 
-	_, err = installClick(snapName, 0, nil, testOrigin)
+	_, err = installClick(snapName, 0, nil, testDeveloper)
 	c.Assert(err, IsNil)
 
 	return snapName
@@ -273,7 +273,7 @@ func (s *SnapTestSuite) TestSnapInstallPackagePolicyDelta(c *C) {
 	// rename the policy
 	//poldir := filepath.Join(tmpdir, "meta", "framework-policy", "apparmor", "policygroups")
 
-	// _, err := installClick(snapName, 0, nil, testOrigin)
+	// _, err := installClick(snapName, 0, nil, testDeveloper)
 	// c.Assert(err, IsNil)
 	// appdir := filepath.Join(s.tempdir, "snaps", "hello.testspacethename", "1.0.1")
 	// c.Assert(removeClick(appdir, nil), IsNil)
@@ -289,7 +289,7 @@ func (s *SnapTestSuite) TestSnapRemovePackagePolicy(c *C) {
 	s.buildFramework(c)
 	appdir := filepath.Join(s.tempdir, "snaps", "hello", "1.0.1")
 	yamlPath := filepath.Join(appdir, "meta", "snap.yaml")
-	part, err := NewInstalledSnap(yamlPath, testOrigin)
+	part, err := NewInstalledSnap(yamlPath, testDeveloper)
 	c.Assert(err, IsNil)
 	err = (&Overlord{}).Uninstall(part, &MockProgressMeter{})
 	c.Assert(err, IsNil)
@@ -300,7 +300,7 @@ func (s *SnapTestSuite) TestLocalGadgetSnapInstall(c *C) {
 version: 1.0
 type: gadget
 `)
-	_, err := installClick(snapFile, AllowGadget, nil, testOrigin)
+	_, err := installClick(snapFile, AllowGadget, nil, testDeveloper)
 	c.Assert(err, IsNil)
 
 	contentFile := filepath.Join(s.tempdir, "snaps", "foo", "1.0", "bin", "foo")
@@ -313,9 +313,9 @@ func (s *SnapTestSuite) TestLocalGadgetSnapInstallVariants(c *C) {
 version: 1.0
 type: gadget
 `)
-	_, err := installClick(snapFile, AllowGadget, nil, testOrigin)
+	_, err := installClick(snapFile, AllowGadget, nil, testDeveloper)
 	c.Assert(err, IsNil)
-	c.Assert(storeMinimalRemoteManifest("foo", "foo", testOrigin, "1.0", "", "remote-channel"), IsNil)
+	c.Assert(storeMinimalRemoteManifest("foo", "foo", testDeveloper, "1.0", "", "remote-channel"), IsNil)
 
 	contentFile := filepath.Join(s.tempdir, "snaps", "foo", "1.0", "bin", "foo")
 	_, err = os.Stat(contentFile)
@@ -326,30 +326,30 @@ type: gadget
 version: 2.0
 type: gadget
 `)
-	_, err = installClick(snapFile, 0, nil, testOrigin)
+	_, err = installClick(snapFile, 0, nil, testDeveloper)
 	c.Check(err, IsNil)
-	c.Assert(storeMinimalRemoteManifest("foo", "foo", testOrigin, "2.0", "", "remote-channel"), IsNil)
+	c.Assert(storeMinimalRemoteManifest("foo", "foo", testDeveloper, "2.0", "", "remote-channel"), IsNil)
 
 	// XXX: I think this next test now tests something we actually don't
 	// want. At least for fwks and apps, sideloading something installed
 	// is a no-no. Are Gadgets different in this regard?
 	//
-	// // different origin, this shows we have no origin support at this
+	// // different developer, this shows we have no developer support at this
 	// // level, but sideloading also works.
-	// _, err = installClick(snapFile, 0, nil, SideloadedOrigin)
+	// _, err = installClick(snapFile, 0, nil, SideloadedDeveloper)
 	// c.Check(err, IsNil)
-	// c.Assert(storeMinimalRemoteManifest("foo", "foo", SideloadedOrigin, "1.0", ""), IsNil)
+	// c.Assert(storeMinimalRemoteManifest("foo", "foo", SideloadedDeveloper, "1.0", ""), IsNil)
 
 	// a package name fork, IOW, a different Gadget package.
 	snapFile = makeTestSnapPackage(c, `name: foo-fork
 version: 2.0
 type: gadget
 `)
-	_, err = installClick(snapFile, 0, nil, testOrigin)
+	_, err = installClick(snapFile, 0, nil, testDeveloper)
 	c.Check(err, Equals, ErrGadgetPackageInstall)
 
 	// this will cause chaos, but let's test if it works
-	_, err = installClick(snapFile, AllowGadget, nil, testOrigin)
+	_, err = installClick(snapFile, AllowGadget, nil, testDeveloper)
 	c.Check(err, IsNil)
 }
 
@@ -357,11 +357,11 @@ func (s *SnapTestSuite) TestClickSetActive(c *C) {
 	snapYamlContent := `name: foo
 `
 	snapFile := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
-	_, err := installClick(snapFile, AllowUnauthenticated, nil, testOrigin)
+	_, err := installClick(snapFile, AllowUnauthenticated, nil, testDeveloper)
 	c.Assert(err, IsNil)
 
 	snapFile = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
-	_, err = installClick(snapFile, AllowUnauthenticated, nil, testOrigin)
+	_, err = installClick(snapFile, AllowUnauthenticated, nil, testDeveloper)
 	c.Assert(err, IsNil)
 
 	// ensure v2 is active
@@ -388,7 +388,7 @@ func (s *SnapTestSuite) TestClickSetActive(c *C) {
 func (s *SnapTestSuite) TestClickCopyData(c *C) {
 	dirs.SnapDataHomeGlob = filepath.Join(s.tempdir, "home", "*", "snaps")
 	homeDir := filepath.Join(s.tempdir, "home", "user1", "snaps")
-	appDir := "foo." + testOrigin
+	appDir := "foo." + testDeveloper
 	homeData := filepath.Join(homeDir, appDir, "1.0")
 	err := os.MkdirAll(homeData, 0755)
 	c.Assert(err, IsNil)
@@ -398,7 +398,7 @@ func (s *SnapTestSuite) TestClickCopyData(c *C) {
 	canaryData := []byte("ni ni ni")
 
 	snapFile := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
-	_, err = installClick(snapFile, AllowUnauthenticated, nil, testOrigin)
+	_, err = installClick(snapFile, AllowUnauthenticated, nil, testDeveloper)
 	c.Assert(err, IsNil)
 	canaryDataFile := filepath.Join(dirs.SnapDataDir, appDir, "1.0", "canary.txt")
 	err = ioutil.WriteFile(canaryDataFile, canaryData, 0644)
@@ -407,7 +407,7 @@ func (s *SnapTestSuite) TestClickCopyData(c *C) {
 	c.Assert(err, IsNil)
 
 	snapFile = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
-	_, err = installClick(snapFile, AllowUnauthenticated, nil, testOrigin)
+	_, err = installClick(snapFile, AllowUnauthenticated, nil, testDeveloper)
 	c.Assert(err, IsNil)
 	newCanaryDataFile := filepath.Join(dirs.SnapDataDir, appDir, "2.0", "canary.txt")
 	content, err := ioutil.ReadFile(newCanaryDataFile)
@@ -428,16 +428,16 @@ func (s *SnapTestSuite) TestClickCopyDataNoUserHomes(c *C) {
 
 	snapYamlContent := `name: foo
 `
-	appDir := "foo." + testOrigin
+	appDir := "foo." + testDeveloper
 	snapFile := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
-	_, err := installClick(snapFile, AllowUnauthenticated, nil, testOrigin)
+	_, err := installClick(snapFile, AllowUnauthenticated, nil, testDeveloper)
 	c.Assert(err, IsNil)
 	canaryDataFile := filepath.Join(dirs.SnapDataDir, appDir, "1.0", "canary.txt")
 	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
 	c.Assert(err, IsNil)
 
 	snapFile = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
-	_, err = installClick(snapFile, AllowUnauthenticated, nil, testOrigin)
+	_, err = installClick(snapFile, AllowUnauthenticated, nil, testDeveloper)
 	c.Assert(err, IsNil)
 	_, err = os.Stat(filepath.Join(dirs.SnapDataDir, appDir, "2.0", "canary.txt"))
 	c.Assert(err, IsNil)
@@ -610,7 +610,7 @@ apps:
 	// and that it gets removed on remove
 	snapDir := filepath.Join(dirs.SnapSnapsDir, "foo.mvo", "1.0")
 	yamlPath := filepath.Join(snapDir, "meta", "snap.yaml")
-	part, err := NewInstalledSnap(yamlPath, testOrigin)
+	part, err := NewInstalledSnap(yamlPath, testDeveloper)
 	c.Assert(err, IsNil)
 	err = (&Overlord{}).Uninstall(part, &MockProgressMeter{})
 	c.Assert(err, IsNil)
@@ -640,7 +640,7 @@ apps:
    daemon: forking
 version: `
 	snapFile := makeTestSnapPackage(c, snapYamlContent+"1.0")
-	_, err = installClick(snapFile, AllowUnauthenticated, inter, testOrigin)
+	_, err = installClick(snapFile, AllowUnauthenticated, inter, testDeveloper)
 	c.Assert(err, IsNil)
 
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapServicesDir, "foo_svc1_1.0.service")), Equals, true)
@@ -756,7 +756,7 @@ apps:
    daemon: forking
 `
 	snapFile := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
-	_, err := installClick(snapFile, InhibitHooks, nil, testOrigin)
+	_, err := installClick(snapFile, InhibitHooks, nil, testDeveloper)
 	c.Assert(err, IsNil)
 
 	c.Assert(allSystemctl, HasLen, 0)
@@ -1061,7 +1061,7 @@ frameworks:
   - missing
 `
 	snapFile := makeTestSnapPackage(c, snapYamlContent)
-	_, err := installClick(snapFile, 0, nil, testOrigin)
+	_, err := installClick(snapFile, 0, nil, testDeveloper)
 	c.Assert(err, ErrorMatches, `.*missing framework.*`)
 }
 
@@ -1196,7 +1196,7 @@ apps:
 	// and that it gets removed on remove
 	snapDir := filepath.Join(dirs.SnapSnapsDir, "foo.mvo", "1.0")
 	yamlPath := filepath.Join(snapDir, "meta", "snap.yaml")
-	part, err := NewInstalledSnap(yamlPath, testOrigin)
+	part, err := NewInstalledSnap(yamlPath, testDeveloper)
 	c.Assert(err, IsNil)
 	err = (&Overlord{}).Uninstall(part, &MockProgressMeter{})
 	c.Assert(err, IsNil)

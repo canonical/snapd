@@ -38,7 +38,7 @@ const (
 
 var remove = removeSnapData
 
-// Purge a part by a partSpec string, name[.origin][=version]
+// Purge a part by a partSpec string, name[.developer][=version]
 func Purge(partSpec string, flags PurgeFlags, meter progress.Meter) error {
 	var e error
 	datadirs := DataDirs(partSpec)
@@ -55,7 +55,7 @@ func Purge(partSpec string, flags PurgeFlags, meter progress.Meter) error {
 	// snap data path as well as the user data path. They all need to be purged.
 	for _, datadir := range datadirs {
 		yamlPath := filepath.Join(dirs.SnapSnapsDir, datadir.QualifiedName(), datadir.Version, "meta", "snap.yaml")
-		part, err := NewInstalledSnap(yamlPath, datadir.Origin)
+		part, err := NewInstalledSnap(yamlPath, datadir.Developer)
 		if err != nil {
 			// no such part installed
 			continue
