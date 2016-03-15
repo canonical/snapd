@@ -76,7 +76,6 @@ func (r *TaskRunner) run(fn HandlerFunc, task *Task) {
 		} else {
 			task.SetStatus(ErrorStatus)
 		}
-		delete(r.tombs, task.ID())
 
 		return err
 	})
@@ -102,6 +101,12 @@ func (r *TaskRunner) Ensure() {
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
+	for id, tb := range r.tombs {
+		if !tb.Alive() {
+			delete(r.tombs, id)
+		}
+	}
 
 	for _, chg := range r.state.Changes() {
 		if chg.Status() == DoneStatus {
@@ -148,8 +153,23 @@ func (r *TaskRunner) Stop() {
 	r.state.Lock()
 	defer r.state.Unlock()
 
-	for _, tb := range r.tombs {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for id, tb := range r.tombs {
 		tb.Kill(nil)
 		tb.Wait()
+		delete(r.tombs, id)
+	}
+}
+
+// Settle waits for all concurrent activities and returns after that's done.
+func (r *TaskRunner) Settle() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for id, tb := range r.tombs {
+		tb.Wait()
+		delete(r.tombs, id)
 	}
 }
