@@ -106,6 +106,10 @@ func (r *TaskRunner) Ensure() {
 	defer r.mu.Unlock()
 
 	for _, chg := range r.state.Changes() {
+		if chg.Status() == DoneStatus {
+			continue
+		}
+
 		tasks := chg.Tasks()
 		for _, t := range tasks {
 			// done, nothing to do
