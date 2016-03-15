@@ -26,8 +26,8 @@ import (
 )
 
 const (
-	// SideloadedOrigin is the (forced) origin for sideloaded snaps
-	SideloadedOrigin = "sideload"
+	// SideloadedDeveloper is the (forced) developer for sideloaded snaps
+	SideloadedDeveloper = "sideload"
 )
 
 // SnapLocalRepository is the type for a local snap repository
@@ -72,8 +72,8 @@ func (s *SnapLocalRepository) snapsForGlobExpr(globExpr string) (parts []*Snap, 
 			continue
 		}
 
-		origin, _ := originFromYamlPath(realpath)
-		snap, err := NewInstalledSnap(realpath, origin)
+		developer, _ := developerFromYamlPath(realpath)
+		snap, err := NewInstalledSnap(realpath, developer)
 		if err != nil {
 			return nil, err
 		}
@@ -84,7 +84,7 @@ func (s *SnapLocalRepository) snapsForGlobExpr(globExpr string) (parts []*Snap, 
 	return parts, nil
 }
 
-func originFromBasedir(basedir string) (s string) {
+func developerFromBasedir(basedir string) (s string) {
 	ext := filepath.Ext(filepath.Dir(filepath.Clean(basedir)))
 	if len(ext) < 2 {
 		return ""
@@ -93,13 +93,13 @@ func originFromBasedir(basedir string) (s string) {
 	return ext[1:]
 }
 
-// originFromYamlPath *must* return "" if it's returning error.
-func originFromYamlPath(path string) (string, error) {
-	origin := originFromBasedir(filepath.Join(path, "..", ".."))
+// developerFromYamlPath *must* return "" if it's returning error.
+func developerFromYamlPath(path string) (string, error) {
+	developer := developerFromBasedir(filepath.Join(path, "..", ".."))
 
-	if origin == "" {
+	if developer == "" {
 		return "", ErrInvalidPart
 	}
 
-	return origin, nil
+	return developer, nil
 }

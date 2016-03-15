@@ -265,19 +265,19 @@ func getTrustedAccountKey() string {
 }
 
 // New Daemon
-func New() *Daemon {
+func New() (*Daemon, error) {
 	ovld, err := overlord.New()
 	if err != nil {
-		panic(err.Error())
+		return nil, err
 	}
 	db, err := asserts.OpenSysDatabase(getTrustedAccountKey())
 	if err != nil {
-		panic(err.Error())
+		return nil, err
 	}
 	interfacesRepo := interfaces.NewRepository()
 	for _, iface := range builtin.Interfaces() {
 		if err := interfacesRepo.AddInterface(iface); err != nil {
-			panic(err.Error())
+			return nil, err
 		}
 	}
 	return &Daemon{
@@ -288,5 +288,5 @@ func New() *Daemon {
 		interfaces: interfacesRepo,
 		// TODO: Decide when this should be disabled by default.
 		enableInternalInterfaceActions: true,
-	}
+	}, nil
 }

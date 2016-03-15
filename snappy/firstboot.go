@@ -95,7 +95,7 @@ func gadgetConfig() error {
 			return errNoSnapToActivate
 		}
 		if err := snap.activate(false, pb); err != nil {
-			logger.Noticef("failed to activate %s: %s", fmt.Sprintf("%s.%s", snap.Name(), snap.Origin()), err)
+			logger.Noticef("failed to activate %s: %s", fmt.Sprintf("%s.%s", snap.Name(), snap.Developer()), err)
 		}
 	}
 
