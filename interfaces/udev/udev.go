@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,19 +17,25 @@
  *
  */
 
-package snappy
+package udev
 
 import (
-	"github.com/ubuntu-core/snappy/progress"
+	"fmt"
+	"os/exec"
 )
 
-// FIXME: kill once every test is converted
-func installClick(snapFilePath string, flags InstallFlags, inter progress.Meter, developer string) (name string, err error) {
-	overlord := &Overlord{}
-	snapPart, err := overlord.Install(snapFilePath, developer, flags, inter)
+// ReloadRules runs two commands that reload udev rule database.
+//
+// The commands are: udevadm control --reload-rules
+//                   udevadm trigger
+func ReloadRules() error {
+	output, err := exec.Command("udevadm", "control", "--reload-rules").CombinedOutput()
 	if err != nil {
-		return "", err
+		return fmt.Errorf("cannot reload udev rules: %s\nudev output:\n%s", err, string(output))
 	}
-
-	return snapPart.Name(), nil
+	output, err = exec.Command("udevadm", "trigger").CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("cannot run udev triggers: %s\nudev output:\n%s", err, string(output))
+	}
+	return nil
 }

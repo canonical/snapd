@@ -66,7 +66,7 @@ func bestSnap(snaps []*snappy.Snap) (idx int, snap *snappy.Snap) {
 //
 // Also may panic if the remote part is nil and Best() is nil.
 func mapSnap(localSnaps []*snappy.Snap, remotePart snappy.Part) map[string]interface{} {
-	var version, update, rollback, icon, name, origin, _type, description string
+	var version, update, rollback, icon, name, developer, _type, description string
 
 	if len(localSnaps) == 0 && remotePart == nil {
 		panic("no localSnaps & remotePart is nil -- how did i even get here")
@@ -91,7 +91,7 @@ func mapSnap(localSnaps []*snappy.Snap, remotePart snappy.Part) map[string]inter
 
 	if localSnap != nil {
 		name = localSnap.Name()
-		origin = localSnap.Origin()
+		developer = localSnap.Developer()
 		version = localSnap.Version()
 		_type = string(localSnap.Type())
 
@@ -102,7 +102,7 @@ func mapSnap(localSnaps []*snappy.Snap, remotePart snappy.Part) map[string]inter
 		downloadSize = localSnap.DownloadSize()
 	} else {
 		name = remotePart.Name()
-		origin = remotePart.Origin()
+		developer = remotePart.Developer()
 		version = remotePart.Version()
 		_type = string(remotePart.Type())
 	}
@@ -141,7 +141,7 @@ func mapSnap(localSnaps []*snappy.Snap, remotePart snappy.Part) map[string]inter
 	result := map[string]interface{}{
 		"icon":           icon,
 		"name":           name,
-		"origin":         origin,
+		"developer":      developer,
 		"status":         status,
 		"type":           _type,
 		"vendor":         "",
