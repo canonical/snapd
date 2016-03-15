@@ -345,10 +345,21 @@ func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (SharedNames, erro
 }
 
 // Updates returns the available updates
-func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
-	// the store only supports apps, gadget and frameworks currently, so no
-	// sense in sending it our ubuntu-core snap
-	//
+func (s *SnapUbuntuStoreRepository) Updates() ([]Part, error) {
+	snaps, err := s.SnapUpdates()
+	if err != nil {
+		return nil, err
+	}
+
+	parts := make([]Part, len(snaps))
+	for i, snap := range snaps {
+		parts[i] = snap
+	}
+	return parts, nil
+}
+
+// SnapUpdates returns the available updates as RemoteSnap types
+func (s *SnapUbuntuStoreRepository) SnapUpdates() (snaps []*RemoteSnap, err error) {
 	// NOTE this *will* send .sideload apps to the store.
 	installed, err := ActiveSnapIterByType(fullNameWithChannel, snap.TypeApp, snap.TypeFramework, snap.TypeGadget, snap.TypeOS, snap.TypeKernel)
 	if err != nil || len(installed) == 0 {
@@ -386,11 +397,11 @@ func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
 		current := ActiveSnapByName(pkg.Name)
 		if current == nil || current.Version() != pkg.Version {
 			snap := NewRemoteSnap(pkg)
-			parts = append(parts, snap)
+			snaps = append(snaps, snap)
 		}
 	}
 
-	return parts, nil
+	return snaps, nil
 }
 
 // Download downloads the given snap and returns its filename.
