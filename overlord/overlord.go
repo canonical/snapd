@@ -37,7 +37,7 @@ import (
 	"github.com/ubuntu-core/snappy/overlord/state"
 )
 
-var ensureInterval = 3 * time.Second
+var ensureInterval = 5 * time.Second
 
 // Overlord is the central manager of a snappy system, keeping
 // track of all available state managers and related helpers.
@@ -105,19 +105,19 @@ func loadState(backend state.Backend) (*state.State, error) {
 func (o *Overlord) Run() {
 	intv := ensureInterval
 	o.loopTomb.Go(func() error {
-		timer := time.NewTimer(intv)
+		tick := time.NewTicker(intv)
+		defer tick.Stop()
 		for {
 			select {
 			case <-o.loopTomb.Dying():
 				return nil
-			case <-timer.C:
+			case <-tick.C:
 			}
 			err := o.stateEng.Ensure()
 			if err != nil {
 				logger.Noticef("state engine ensure failed: %v", err)
 				// continue to the next Ensure() try for now
 			}
-			timer.Reset(intv)
 		}
 	})
 }
