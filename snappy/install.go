@@ -91,8 +91,8 @@ func doUpdate(mStore *SnapUbuntuStoreRepository, part Part, flags InstallFlags, 
 //
 // convertToInstalledSnaps takes a slice of remote snaps that got
 // updated and returns the corresponding local snap parts.
-func convertToInstalledSnaps(remoteUpdates []Part) ([]*Snap, error) {
-	installed, err := NewLocalSnapRepository().AllSnaps()
+func convertToInstalledSnaps(remoteUpdates []*RemoteSnap) ([]*Snap, error) {
+	installed, err := NewLocalSnapRepository().Installed()
 	if err != nil {
 		return nil, err
 	}
@@ -123,20 +123,26 @@ func Update(name string, flags InstallFlags, meter progress.Meter) ([]*Snap, err
 	mStore := NewUbuntuStoreSnapRepository()
 	// zomg :-(
 	// TODO: query the store for just this package, instead of this
-	updates, err := mStore.Updates()
+	updates, err := mStore.SnapUpdates()
 	if err != nil {
 		return nil, fmt.Errorf("cannot get updates: %s", err)
 	}
-	upd := FindSnapsByName(QualifiedName(cur[0]), updates)
-	if len(upd) < 1 {
+	var update *RemoteSnap
+	for _, upd := range updates {
+		if cur[0].Name() == update.Name() {
+			update = upd
+			break
+		}
+	}
+	if update == nil {
 		return nil, fmt.Errorf("cannot find any update for %q", name)
 	}
 
-	if err := doUpdate(mStore, upd[0], flags, meter); err != nil {
+	if err := doUpdate(mStore, update, flags, meter); err != nil {
 		return nil, err
 	}
 
-	installedUpdates, err := convertToInstalledSnaps(upd)
+	installedUpdates, err := convertToInstalledSnaps([]*RemoteSnap{update})
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +155,7 @@ func Update(name string, flags InstallFlags, meter progress.Meter) ([]*Snap, err
 // fail to apply.
 func UpdateAll(flags InstallFlags, meter progress.Meter) ([]*Snap, error) {
 	mStore := NewUbuntuStoreSnapRepository()
-	updates, err := mStore.Updates()
+	updates, err := mStore.SnapUpdates()
 	if err != nil {
 		return nil, err
 	}
@@ -263,7 +269,7 @@ func GarbageCollect(name string, flags InstallFlags, pb progress.Meter) error {
 	}
 
 	for _, part := range parts[:active-1] {
-		if err := (&Overlord{}).Uninstall(part.(*Snap), pb); err != nil {
+		if err := (&Overlord{}).Uninstall(part, pb); err != nil {
 			return ErrGarbageCollectImpossible(err.Error())
 		}
 	}

@@ -375,7 +375,7 @@ func (s *SnapTestSuite) TestClickSetActive(c *C) {
 	c.Assert(parts[1].IsActive(), Equals, true)
 
 	// set v1 active
-	err = parts[0].(*Snap).activate(false, nil)
+	err = parts[0].activate(false, nil)
 	parts, err = repo.Installed()
 	c.Assert(err, IsNil)
 	c.Assert(parts[0].Version(), Equals, "1.0")

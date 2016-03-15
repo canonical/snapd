@@ -47,26 +47,6 @@ const (
 	UbuntuCoreWireProtocol = "1"
 )
 
-// SharedName is a structure that holds an Alias to the preferred package and
-// the list of all the alternatives.
-type SharedName struct {
-	Alias Part
-	Parts []Part
-}
-
-// SharedNames is a list of all packages and it's SharedName structure.
-type SharedNames map[string]*SharedName
-
-// IsAlias determines if developer is the one that is an alias for the
-// shared name.
-func (f *SharedName) IsAlias(developer string) bool {
-	if alias := f.Alias; alias != nil {
-		return alias.Developer() == developer
-	}
-
-	return false
-}
-
 // NewRemoteSnap returns a new RemoteSnap from the given
 // remote.Snap data
 func NewRemoteSnap(data remote.Snap) *RemoteSnap {
@@ -235,38 +215,8 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string) (*RemoteSnap, err
 	return NewRemoteSnap(detailsData), nil
 }
 
-// Details returns details for the given snap in this repository
-func (s *SnapUbuntuStoreRepository) Details(name, developer, channel string) (parts []Part, err error) {
-	snapName := name
-	if developer != "" {
-		snapName = name + "." + developer
-	}
-	snap, err := s.Snap(snapName, channel)
-	if err != nil {
-		return nil, err
-	}
-	return []Part{snap}, nil
-}
-
-// All (installable) parts from the store
-func (s *SnapUbuntuStoreRepository) All() ([]Part, error) {
-	return s.Find("", "")
-}
-
-// Find (installable) parts from the store, matching the given search term.
-func (s *SnapUbuntuStoreRepository) Find(searchTerm string, channel string) ([]Part, error) {
-	snaps, err := s.FindSnaps(searchTerm, channel)
-	if err != nil {
-		return nil, err
-	}
-	parts := make([]Part, len(snaps))
-	for i, snap := range snaps {
-		parts[i] = snap
-	}
-	return parts, nil
-}
-
-// FindSnaps finds (installable) parts from the store, matching the given search term.
+// FindSnaps finds  (installable) parts from the store, matching the
+// given search term.
 func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string) ([]*RemoteSnap, error) {
 	if channel == "" {
 		channel = release.Get().Channel
@@ -309,66 +259,6 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string)
 	}
 
 	return snaps, nil
-}
-
-// Search searches the repository for the given searchTerm
-func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (SharedNames, error) {
-	u := *s.searchURI // make a copy, so we can mutate it
-	q := u.Query()
-	q.Set("q", searchTerm)
-	u.RawQuery = q.Encode()
-	req, err := http.NewRequest("GET", u.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	// set headers
-	setUbuntuStoreHeaders(req)
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	var searchData searchResults
-
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&searchData); err != nil {
-		return nil, err
-	}
-
-	sharedNames := make(SharedNames, len(searchData.Payload.Packages))
-	for _, pkg := range searchData.Payload.Packages {
-		snap := NewRemoteSnap(pkg)
-		pkgName := snap.Name()
-
-		if _, ok := sharedNames[snap.Name()]; !ok {
-			sharedNames[pkgName] = new(SharedName)
-		}
-
-		sharedNames[pkgName].Parts = append(sharedNames[pkgName].Parts, snap)
-		if pkg.Alias != "" {
-			sharedNames[pkgName].Alias = snap
-		}
-	}
-
-	return sharedNames, nil
-}
-
-// Updates returns the available updates
-func (s *SnapUbuntuStoreRepository) Updates() ([]Part, error) {
-	snaps, err := s.SnapUpdates()
-	if err != nil {
-		return nil, err
-	}
-
-	parts := make([]Part, len(snaps))
-	for i, snap := range snaps {
-		parts[i] = snap
-	}
-	return parts, nil
 }
 
 // SnapUpdates returns the available updates as RemoteSnap types
