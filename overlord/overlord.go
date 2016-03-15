@@ -60,7 +60,7 @@ func New() (*Overlord, error) {
 	}
 
 	backend := &overlordStateBackend{
-		path: dirs.SnapStateFile,
+		path:        dirs.SnapStateFile,
 		ensureAfter: o.ensureAfter,
 	}
 	s, err := loadState(backend)

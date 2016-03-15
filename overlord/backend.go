@@ -26,7 +26,7 @@ import (
 )
 
 type overlordStateBackend struct {
-	path string
+	path        string
 	ensureAfter func(d time.Duration)
 }
 
