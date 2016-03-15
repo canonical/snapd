@@ -81,6 +81,7 @@ func (s *SnapFile) Type() snap.Type {
 	return "app"
 }
 
+// Info returns the snap.Info data.
 func (s *SnapFile) Info() *snap.Info {
 	if info, err := s.deb.Info(); err == nil {
 		// developer is something that no
