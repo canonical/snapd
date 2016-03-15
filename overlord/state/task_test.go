@@ -20,9 +20,12 @@
 package state_test
 
 import (
+	"fmt"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/overlord/state"
+	"github.com/ubuntu-core/snappy/testutil"
 )
 
 type taskSuite struct{}
@@ -191,4 +194,56 @@ func (ts *taskSuite) TestState(c *C) {
 	st.Unlock()
 
 	c.Assert(t.State(), Equals, st)
+}
+
+func (ts *taskSuite) TestTaskMarshalsWaitFor(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("install", "...")
+	t1 := chg.NewTask("download", "1...")
+	t2 := chg.NewTask("install", "2...")
+	t2.WaitFor(t1)
+
+	d, err := t2.MarshalJSON()
+	c.Assert(err, IsNil)
+
+	needle := fmt.Sprintf(`"wait-tasks":["%s"`, t1.ID())
+	c.Assert(string(d), testutil.Contains, needle)
+}
+
+func (ts *taskSuite) TestTaskWaitFor(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("install", "...")
+	t1 := chg.NewTask("download", "1...")
+	t2 := chg.NewTask("install", "2...")
+	t2.WaitFor(t1)
+
+	c.Assert(t2.WaitTasks(), DeepEquals, []*state.Task{t1})
+	c.Assert(t2.Status(), Equals, state.WaitingStatus)
+}
+
+func (cs *taskSuite) TestWaitForNeedsLocked(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	t1 := chg.NewTask("download", "1...")
+	t2 := chg.NewTask("install", "2...")
+	st.Unlock()
+
+	c.Assert(func() { t2.WaitFor(t1) }, PanicMatches, "internal error: accessing state without lock")
+}
+
+func (cs *taskSuite) TestWaitTasksNeedsLocked(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	t := chg.NewTask("download", "1...")
+	st.Unlock()
+
+	c.Assert(func() { t.WaitTasks() }, PanicMatches, "internal error: accessing state without lock")
 }
