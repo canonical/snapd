@@ -53,15 +53,12 @@ type FileState struct {
 // changes performed so far. Information about the performed changes is
 // returned to the caller for any extra processing that might be required (e.g.
 // to run some helper program).
-//
-// The return value is: created, corrected, removed []string, err error
-func EnsureDirState(dir, glob string, content map[string]*FileState) ([]string, []string, []string, error) {
+func EnsureDirState(dir, glob string, content map[string]*FileState) (created, corrected, removed []string, err error) {
 	matches, err := filepath.Glob(path.Join(dir, glob))
 	if err != nil {
 		return nil, nil, nil, err
 	}
 	found := make(map[string]bool)
-	var created, corrected, removed []string
 	// Analyze files that inhabit the subset defined by our glob pattern.
 	for _, name := range matches {
 		baseName := path.Base(name)
