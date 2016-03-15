@@ -112,3 +112,30 @@ func (os *overlordSuite) TestEnsureLoopRunAndStop(c *C) {
 
 	c.Check(ensureCalls >= 2, Equals, true)
 }
+
+func (os *overlordSuite) TestEnsureLoopEnsureAfter(c *C) {
+	restoreIntv := overlord.SetEnsureIntervalForTest(10 * time.Minute)
+	defer restoreIntv()
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	calls := []string{}
+
+	witness := &fakeManager{name: "witness", calls: &calls}
+	o.StateEngine().AddManager(witness)
+
+	o.Run()
+	o.EnsureAfter(10 * time.Millisecond)
+	time.Sleep(25 * time.Millisecond)
+	err = o.Stop()
+	c.Assert(err, IsNil)
+
+	ensureCalls := 0
+	for _, call := range calls {
+		if strings.HasPrefix(call, "ensure:") {
+			ensureCalls++
+		}
+	}
+
+	c.Check(ensureCalls, Equals, 1)
+}
