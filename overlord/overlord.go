@@ -37,7 +37,7 @@ import (
 	"github.com/ubuntu-core/snappy/overlord/state"
 )
 
-var ensureInterval = 5 * time.Second
+var ensureInterval = 5 * time.Minute
 
 // Overlord is the central manager of a snappy system, keeping
 // track of all available state managers and related helpers.
@@ -45,6 +45,7 @@ type Overlord struct {
 	stateEng *StateEngine
 	// ensure loop
 	loopTomb *tomb.Tomb
+	ensureCh chan bool
 	// managers
 	snapMgr   *snapstate.SnapManager
 	assertMgr *assertstate.AssertManager
@@ -53,7 +54,10 @@ type Overlord struct {
 
 // New creates a new Overlord with all its state managers.
 func New() (*Overlord, error) {
-	o := &Overlord{loopTomb: new(tomb.Tomb)}
+	o := &Overlord{
+		loopTomb: new(tomb.Tomb),
+		ensureCh: make(chan bool, 1),
+	}
 
 	backend := state.NewFileBackend(dirs.SnapStateFile)
 	s, err := loadState(backend)
@@ -111,6 +115,7 @@ func (o *Overlord) Run() {
 			select {
 			case <-o.loopTomb.Dying():
 				return nil
+			case <-o.ensureCh:
 			case <-tick.C:
 			}
 			err := o.stateEng.Ensure()
@@ -118,6 +123,18 @@ func (o *Overlord) Run() {
 				logger.Noticef("state engine ensure failed: %v", err)
 				// continue to the next Ensure() try for now
 			}
+		}
+	})
+}
+
+// EnsureAfter asks for an ensure pass to happen sooner after about duration from now.
+func (o *Overlord) EnsureAfter(d time.Duration) {
+	time.AfterFunc(d, func() {
+		// non-blocking, if an Ensure is about to fire anyway
+		// it's good enough
+		select {
+		case o.ensureCh <- true:
+		default:
 		}
 	})
 }
