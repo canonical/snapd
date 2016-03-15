@@ -60,7 +60,7 @@ func (s *interfaceManagerSuite) TearDownTest(c *C) {
 
 func (s *interfaceManagerSuite) TestSmoke(c *C) {
 	s.mgr.Ensure()
-	s.mgr.Settle()
+	s.mgr.Wait()
 }
 
 func (s *interfaceManagerSuite) TestConnectAddsTask(c *C) {
@@ -101,7 +101,7 @@ func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
 	s.state.Unlock()
 
 	s.mgr.Ensure()
-	s.mgr.Settle()
+	s.mgr.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()

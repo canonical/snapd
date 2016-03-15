@@ -163,13 +163,12 @@ func (r *TaskRunner) Stop() {
 	}
 }
 
-// Settle waits for all concurrent activities and returns after that's done.
-func (r *TaskRunner) Settle() {
+// Wait waits for all concurrent activities and returns after that's done.
+func (r *TaskRunner) Wait() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	for id, tb := range r.tombs {
+	for _, tb := range r.tombs {
 		tb.Wait()
-		delete(r.tombs, id)
 	}
 }
