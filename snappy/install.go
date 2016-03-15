@@ -216,7 +216,7 @@ func doInstall(name, channel string, flags InstallFlags, meter progress.Meter) (
 		return "", err
 	}
 
-	cur := FindSnapsByNameAndVersion(QualifiedName(part), part.Version(), installed)
+	cur := FindSnapsByNameAndVersion(QualifiedName(part.Info()), part.Version(), installed)
 	if len(cur) != 0 {
 		return "", ErrAlreadyInstalled
 	}

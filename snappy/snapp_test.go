@@ -450,7 +450,7 @@ func (s *SnapTestSuite) TestUbuntuStoreFind(c *C) {
 }
 
 func mockActiveSnapIterByType(mockSnaps []string) {
-	ActiveSnapIterByType = func(f func(BaseSnap) string, snapTs ...snap.Type) (res []string, err error) {
+	ActiveSnapIterByType = func(f func(*snap.Info) string, snapTs ...snap.Type) (res []string, err error) {
 		return mockSnaps, nil
 	}
 }
@@ -1467,7 +1467,7 @@ func (s *SnapTestSuite) TestIcon(c *C) {
 	err = ioutil.WriteFile(filepath.Join(part.basedir, "meta", "gui", "icon.png"), nil, 0644)
 	c.Assert(err, IsNil)
 
-	c.Check(part.Icon(), Matches, filepath.Join(dirs.SnapSnapsDir, QualifiedName(part), part.Version(), "meta/gui/icon.png"))
+	c.Check(part.Icon(), Matches, filepath.Join(dirs.SnapSnapsDir, QualifiedName(part.Info()), part.Version(), "meta/gui/icon.png"))
 }
 
 func (s *SnapTestSuite) TestIconEmpty(c *C) {
