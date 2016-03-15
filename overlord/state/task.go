@@ -124,7 +124,7 @@ func (t *Task) SetStatus(s Status) {
 	t.status = s
 }
 
-// State returns the pointer to the system State
+// State returns the system State
 func (t *Task) State() *State {
 	return t.state
 }
