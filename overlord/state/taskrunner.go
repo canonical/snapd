@@ -143,7 +143,7 @@ func (r *TaskRunner) Ensure() {
 }
 
 // Stop stops all concurrent activities and returns after that's done.
-// Note that stop will lock the state.
+// Note that Stop will lock the state.
 func (r *TaskRunner) Stop() {
 	r.state.Lock()
 	defer r.state.Unlock()
