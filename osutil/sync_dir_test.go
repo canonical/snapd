@@ -210,23 +210,15 @@ func (s *JanitorSuite) TestTriesToFixFilesWithBadOwnership(c *C) {
 }
 
 func (s *JanitorSuite) TestReportsAbnormalFileName(c *C) {
-	created, corrected, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{
-		"without-namespace": {Content: nil, Mode: 0600, UID: s.uid, GID: s.gid},
-	})
-	c.Assert(err.Error(), Equals, `expected files must match pattern: "without-namespace" (pattern: "*.snap")`)
-	c.Assert(removed, HasLen, 0)
-	c.Assert(created, HasLen, 0)
-	c.Assert(corrected, HasLen, 0)
+	c.Assert(func() {
+		osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{"without-namespace": {}})
+	}, PanicMatches, `EnsureDirState got filename "without-namespace" which doesn't match the glob pattern "\*\.snap"`)
 }
 
 func (s *JanitorSuite) TestReportsAbnormalFileLocation(c *C) {
-	created, corrected, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{
-		"subdir/file.snap": {Content: nil, Mode: 0600, UID: s.uid, GID: s.gid},
-	})
-	c.Assert(err.Error(), Equals, `expected files cannot have path component: "subdir/file.snap"`)
-	c.Assert(removed, HasLen, 0)
-	c.Assert(created, HasLen, 0)
-	c.Assert(corrected, HasLen, 0)
+	c.Assert(func() {
+		osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{"subdir/file.snap": {}})
+	}, PanicMatches, `EnsureDirState got filename "subdir/file.snap" which has a path component`)
 }
 
 func (s *JanitorSuite) TestReportsAbnormalPatterns(c *C) {
