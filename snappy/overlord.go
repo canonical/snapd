@@ -65,7 +65,7 @@ func (o *Overlord) Install(snapFilePath string, developer string, flags InstallF
 		}
 	}
 
-	fullName := QualifiedName(s)
+	fullName := QualifiedName(s.Info())
 	dataDir := filepath.Join(dirs.SnapDataDir, fullName, s.Version())
 
 	var oldPart *Snap
@@ -328,7 +328,7 @@ func (o *Overlord) Uninstall(s *Snap, meter progress.Meter) error {
 		}
 	}
 
-	return RemoveAllHWAccess(QualifiedName(s))
+	return RemoveAllHWAccess(QualifiedName(s.Info()))
 }
 
 // SetActive sets the active state of the given snap

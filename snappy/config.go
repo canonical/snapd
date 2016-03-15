@@ -61,7 +61,7 @@ func snapConfig(snapDir, developer string, rawConfig []byte) (newConfig []byte, 
 		return nil, ErrPackageNotFound
 	}
 
-	name := QualifiedName(part)
+	name := QualifiedName(part.Info())
 	appArmorProfile := fmt.Sprintf("%s_%s_%s", name, "snappy-config", part.Version())
 
 	return runConfigScript(configScript, appArmorProfile, rawConfig, makeSnapHookEnv(part))

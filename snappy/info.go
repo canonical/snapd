@@ -39,42 +39,33 @@ type Configuration interface {
 
 // QualifiedName of a Part is the Name, in most cases qualified with the
 // Developer
-func QualifiedName(p BaseSnap) string {
-	if t := p.Type(); t == snap.TypeFramework || t == snap.TypeGadget {
-		return p.Name()
+func QualifiedName(p *snap.Info) string {
+	if t := p.Type; t == snap.TypeFramework || t == snap.TypeGadget {
+		return p.Name
 	}
-	return p.Name() + "." + p.Developer()
+	return p.Name + "." + p.Developer
 }
 
-// BareName of a BaseSnap is just its Name
-func BareName(p BaseSnap) string {
-	return p.Name()
+// BareName of a snap.Info is just its Name
+func BareName(p *snap.Info) string {
+	return p.Name
 }
 
-// FullName of a BaseSnap is Name.Developer
-func FullName(p BaseSnap) string {
-	return p.Name() + "." + p.Developer()
+// FullName of a snap.Info is Name.Developer
+func FullName(p *snap.Info) string {
+	return p.Name + "." + p.Developer
 }
 
 // FullNameWithChannel returns the FullName, with the channel appended
 // if it has one.
-func fullNameWithChannel(p BaseSnap) string {
+func fullNameWithChannel(p *snap.Info) string {
 	name := FullName(p)
-	ch := p.Channel()
+	ch := p.Channel
 	if ch == "" {
 		return name
 	}
 
 	return fmt.Sprintf("%s/%s", name, ch)
-}
-
-// BaseSnap represents a minimal snap information
-type BaseSnap interface {
-	Name() string
-	Version() string
-	Developer() string
-	Channel() string
-	Type() snap.Type
 }
 
 // ActiveSnapsByType returns all installed snaps with the given type
@@ -102,12 +93,12 @@ func ActiveSnapsByType(snapTs ...snap.Type) (res []*Snap, err error) {
 // function to all active snaps with the given type.
 var ActiveSnapIterByType = activeSnapIterByTypeImpl
 
-func activeSnapIterByTypeImpl(f func(BaseSnap) string, snapTs ...snap.Type) ([]string, error) {
+func activeSnapIterByTypeImpl(f func(*snap.Info) string, snapTs ...snap.Type) ([]string, error) {
 	installed, err := ActiveSnapsByType(snapTs...)
 	res := make([]string, len(installed))
 
 	for i, part := range installed {
-		res[i] = f(part)
+		res[i] = f(part.Info())
 	}
 
 	return res, err
@@ -198,6 +189,6 @@ func PackageNameActive(name string) bool {
 }
 
 // RemoteManifestPath returns the would be path for the store manifest meta data
-func RemoteManifestPath(s BaseSnap) string {
-	return filepath.Join(dirs.SnapMetaDir, fmt.Sprintf("%s_%s.manifest", QualifiedName(s), s.Version()))
+func RemoteManifestPath(s *snap.Info) string {
+	return filepath.Join(dirs.SnapMetaDir, fmt.Sprintf("%s_%s.manifest", QualifiedName(s), s.Version))
 }

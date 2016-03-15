@@ -37,57 +37,22 @@ import (
 var ErrRemoved = errors.New("package is removed")
 
 // Removed represents a removed package.
-type Removed struct {
-	name      string
-	developer string
-	version   string
-	pkgType   snap.Type
-	remote    *remote.Snap
-}
-
-// New removed package.
-func New(name, developer, version string, pkgType snap.Type) snappy.BaseSnap {
-	part := &Removed{
-		name:      name,
-		developer: developer,
-		version:   version,
-		pkgType:   pkgType,
+func New(name, developer, version string, pkgType snap.Type) *snap.Info {
+	info := &snap.Info{
+		Name:      name,
+		Developer: developer,
+		Version:   version,
+		Type:      pkgType,
 	}
 
 	// try to load the remote manifest, that would've been kept
 	// around when installing from the store.
-	content, _ := ioutil.ReadFile(snappy.RemoteManifestPath(part))
-	yaml.Unmarshal(content, &(part.remote))
-
-	return part
-}
-
-// Name from the snappy.Part interface
-func (r *Removed) Name() string { return r.name }
-
-// Version from the snappy.Part interface
-func (r *Removed) Version() string { return r.version }
-
-// Channel from the snappy.Part interface
-func (r *Removed) Channel() string { return "" }
-
-// Description from the snappy.Part interface
-func (r *Removed) Description() string {
-	if r.remote != nil {
-		return r.remote.Description
+	var remote *remote.Snap
+	content, _ := ioutil.ReadFile(snappy.RemoteManifestPath(info))
+	if err := yaml.Unmarshal(content, &remote); err == nil && remote != nil {
+		info.Description = remote.Description
+		info.Developer = remote.Developer
 	}
 
-	return ""
+	return info
 }
-
-// Developer from the snappy.Part interface
-func (r *Removed) Developer() string {
-	if r.remote != nil {
-		return r.remote.Developer
-	}
-
-	return r.developer
-}
-
-// Type from the snappy.Part interface
-func (r *Removed) Type() snap.Type { return r.pkgType }
