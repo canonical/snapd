@@ -85,11 +85,9 @@ func (r *TaskRunner) run(fn HandlerFunc, taskID string) {
 
 // mustWait must be called with the state lock in place
 func (r *TaskRunner) mustWait(t *Task) bool {
-	for _, id := range t.WaitTasks() {
-		if wt, ok := r.state.tasks[id]; ok {
-			if wt.Status() != DoneStatus {
-				return true
-			}
+	for _, wt := range t.WaitTasks() {
+		if wt.Status() != DoneStatus {
+			return true
 		}
 	}
 
