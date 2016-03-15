@@ -360,9 +360,6 @@ func (s *SnapUbuntuStoreRepository) Updates() ([]Part, error) {
 
 // SnapUpdates returns the available updates as RemoteSnap types
 func (s *SnapUbuntuStoreRepository) SnapUpdates() (snaps []*RemoteSnap, err error) {
-	// the store only supports apps, gadget and frameworks currently, so no
-	// sense in sending it our ubuntu-core snap
-	//
 	// NOTE this *will* send .sideload apps to the store.
 	installed, err := ActiveSnapIterByType(fullNameWithChannel, snap.TypeApp, snap.TypeFramework, snap.TypeGadget, snap.TypeOS, snap.TypeKernel)
 	if err != nil || len(installed) == 0 {
