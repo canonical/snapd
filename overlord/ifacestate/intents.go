@@ -32,6 +32,8 @@ type Intent struct {
 }
 
 const (
-	IntentConnect    = "connect"
+	// IntentConnect represents desire to connect a plug to a slot.
+	IntentConnect = "connect"
+	// IntentDisconnect represents desire to disconnect a plug from a slot.
 	IntentDisconnect = "disconnect"
 )
