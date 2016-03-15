@@ -119,13 +119,13 @@ func regenerateAppArmorRulesImpl(snapname string) error {
 	return nil
 }
 
-func udevRulesPathForPart(partid string) string {
+func udevRulesPathForSnap(snapName string) string {
 	// use 70- here so that its read before the Gadget rules
-	return filepath.Join(dirs.SnapUdevRulesDir, fmt.Sprintf("70-snappy_hwassign_%s.rules", partid))
+	return filepath.Join(dirs.SnapUdevRulesDir, fmt.Sprintf("70-snappy_hwassign_%s.rules", snapName))
 }
 
 func addUdevRulesForSnap(snapname string, newRules []string) error {
-	udevRulesFile := udevRulesPathForPart(snapname)
+	udevRulesFile := udevRulesPathForSnap(snapname)
 
 	rules, err := ioutil.ReadFile(udevRulesFile)
 	if nil != err && !os.IsNotExist(err) {
@@ -158,10 +158,14 @@ func writeUdevRuleForDeviceCgroup(snapname, device string) error {
 	// If there's a dedicated .origin then parse it and use that as the origin
 	// to look for in the loop below. In other cases, just ignore origin
 	// altogether.
+	//
+	// NOTE: snapname stays as "$snap.$origin" so that hw-unassign doesn't have
+	// to be changed. This is all meant to be removed anyway.
+	name := snapname
 	origin := ""
 	if strings.Contains(snapname, ".") {
 		l := strings.Split(snapname, ".")
-		snapname, origin = l[0], l[1]
+		name, origin = l[0], l[1]
 	}
 	devicePath := filepath.Base(device)
 
@@ -172,8 +176,8 @@ func writeUdevRuleForDeviceCgroup(snapname, device string) error {
 	}
 	var acls []string
 	for _, snap := range installed {
-		if snap.Name() == snapname && (origin == "" || snap.Origin() == origin) {
-			for _, app := range snap.(*SnapPart).Apps() {
+		if snap.Name() == name && (origin == "" || snap.Origin() == origin) {
+			for _, app := range snap.(*Snap).Apps() {
 				acl := fmt.Sprintf(`KERNEL=="%v", TAG:="snappy-assign", ENV{SNAPPY_APP}:="%s"`+"\n",
 					devicePath, fmt.Sprintf("%s.%s", snap.Name(), app.Name))
 				acls = append(acls, acl)
@@ -257,7 +261,7 @@ func ListHWAccess(snapname string) ([]string, error) {
 }
 
 func removeUdevRuleForSnap(snapname, device string) error {
-	udevRulesFile := udevRulesPathForPart(snapname)
+	udevRulesFile := udevRulesPathForSnap(snapname)
 
 	file, err := os.Open(udevRulesFile)
 	if nil != err && !os.IsNotExist(err) {
@@ -344,7 +348,7 @@ func RemoveHWAccess(snapname, device string) error {
 // RemoveAllHWAccess removes all hw access from the given snap.
 func RemoveAllHWAccess(snapname string) error {
 	for _, fn := range []string{
-		udevRulesPathForPart(snapname),
+		udevRulesPathForSnap(snapname),
 		getHWAccessYamlFile(snapname),
 	} {
 		if err := os.Remove(fn); err != nil && !os.IsNotExist(err) {

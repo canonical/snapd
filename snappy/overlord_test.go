@@ -34,7 +34,7 @@ func (o *overlordTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 }
 
-var helloAppYaml = `name: hello-app
+var helloAppYaml = `name: hello-snap
 version: 1.0
 `
 
@@ -46,5 +46,5 @@ func (o *overlordTestSuite) TestInstalled(c *C) {
 	installed, err := overlord.Installed()
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 1)
-	c.Assert(installed[0].Name(), Equals, "hello-app")
+	c.Assert(installed[0].Name(), Equals, "hello-snap")
 }

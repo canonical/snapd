@@ -1,3 +1,16 @@
+ubuntu-snappy (1.7.3+20160310ubuntu1) xenial; urgency=medium
+
+    - debian: update versionized ubuntu-core-launcher dependency
+    - debian: tweak desktop file dir, ship Xsession.d snip for seamless
+      integration
+    - snappy: fix hw-assign to work with per-app udev tags
+    - snappy: use $snap.$app as per-app udev tag
+    - snap,snappy,systemd: %s/\<SNAP_ORIGIN\>/SNAP_DEVELOPER/g
+    - snappy: add mksquashfs --no-xattrs parameter
+    - snap,snappy,systemd: kill SNAP_FULLNAME
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 10 Mar 2016 09:26:20 +0100
+
 ubuntu-snappy (1.7.3+20160308ubuntu1) xenial; urgency=medium
 
     - snappy,snap: move icon under meta/gui/

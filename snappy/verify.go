@@ -42,13 +42,13 @@ func verifyAppYaml(app *AppYaml) error {
 	return verifyStructStringsAgainstWhitelist(*app, servicesBinariesStringsWhitelist)
 }
 
-func verifyPlugYaml(slot *plugYaml) error {
-	if err := verifyStructStringsAgainstWhitelist(*slot, servicesBinariesStringsWhitelist); err != nil {
+func verifyPlugYaml(plug *plugYaml) error {
+	if err := verifyStructStringsAgainstWhitelist(*plug, servicesBinariesStringsWhitelist); err != nil {
 		return err
 	}
 
-	if slot.Interface != "old-security" {
-		return fmt.Errorf("can not use interface %q, only `old-security` supported", slot.Interface)
+	if plug.Interface != "old-security" {
+		return fmt.Errorf("can not use interface %q, only `old-security` supported", plug.Interface)
 	}
 
 	return nil
