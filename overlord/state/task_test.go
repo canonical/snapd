@@ -186,6 +186,16 @@ func (ts *taskSuite) TestSetProgressNeedsLock(c *C) {
 	c.Assert(func() { t.SetProgress(2, 2) }, PanicMatches, "internal error: accessing state without lock")
 }
 
+func (ts *taskSuite) TestState(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	t := chg.NewTask("download", "1...")
+	st.Unlock()
+
+	c.Assert(t.State(), Equals, st)
+}
+
 func (ts *taskSuite) TestTaskMarshalsWaitFor(c *C) {
 	st := state.New(nil)
 	st.Lock()

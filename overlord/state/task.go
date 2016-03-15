@@ -129,6 +129,11 @@ func (t *Task) SetStatus(s Status) {
 	t.status = s
 }
 
+// State returns the system State
+func (t *Task) State() *State {
+	return t.state
+}
+
 // Progress returns the current progress for the task.
 // If progress is not explicitly set, it returns (0, 1) if the status is
 // RunningStatus or WaitingStatus and (1, 1) otherwise.
