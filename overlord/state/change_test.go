@@ -177,3 +177,12 @@ func (cs *changeSuite) TestStatusDerivedFromTasks(c *C) {
 	t2.SetStatus(state.DoneStatus)
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 }
+
+func (cs *changeSuite) TestState(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	st.Unlock()
+
+	c.Assert(chg.State(), Equals, st)
+}
