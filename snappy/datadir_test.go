@@ -41,10 +41,10 @@ func (s *DataDirSuite) TestSystemDataDirs(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapDataDir, "foo.bar", "v1"), 0755), IsNil)
 	dds := DataDirs("foo")
 	c.Check(dds, DeepEquals, []SnapDataDir{{
-		Base:    dirs.SnapDataDir,
-		Name:    "foo",
-		Origin:  "bar",
-		Version: "v1",
+		Base:      dirs.SnapDataDir,
+		Name:      "foo",
+		Developer: "bar",
+		Version:   "v1",
 	}})
 	c.Check(DataDirs("f"), HasLen, 0)
 	c.Check(DataDirs("foobar"), HasLen, 0)
@@ -57,10 +57,10 @@ func (s *DataDirSuite) TestDataDirsFramework(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapDataDir, "foo", "v1"), 0755), IsNil)
 	dds := DataDirs("foo")
 	c.Check(dds, DeepEquals, []SnapDataDir{{
-		Base:    dirs.SnapDataDir,
-		Name:    "foo",
-		Origin:  "",
-		Version: "v1",
+		Base:      dirs.SnapDataDir,
+		Name:      "foo",
+		Developer: "",
+		Version:   "v1",
 	}})
 	c.Check(DataDirs("foo=v1"), HasLen, 1)
 }
@@ -70,10 +70,10 @@ func (s *DataDirSuite) TestHomeDataDirs(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(home, "foo.bar", "v1"), 0755), IsNil)
 	dds := DataDirs("foo")
 	c.Check(dds, DeepEquals, []SnapDataDir{{
-		Base:    dirs.SnapDataHomeGlob,
-		Name:    "foo",
-		Origin:  "bar",
-		Version: "v1",
+		Base:      dirs.SnapDataHomeGlob,
+		Name:      "foo",
+		Developer: "bar",
+		Version:   "v1",
 	}})
 }
 
@@ -94,32 +94,32 @@ func (s *DataDirSuite) TestEverywhichwhereDataDirs(c *C) {
 		hi = 2
 	}
 	c.Check(dds[hi], DeepEquals, SnapDataDir{
-		Base:    dirs.SnapDataHomeGlob,
-		Name:    "foo",
-		Origin:  "bar",
-		Version: "v0",
+		Base:      dirs.SnapDataHomeGlob,
+		Name:      "foo",
+		Developer: "bar",
+		Version:   "v0",
 	})
 	c.Check(dds[hi+1], DeepEquals, SnapDataDir{
-		Base:    dirs.SnapDataHomeGlob,
-		Name:    "foo",
-		Origin:  "bar",
-		Version: "v1",
+		Base:      dirs.SnapDataHomeGlob,
+		Name:      "foo",
+		Developer: "bar",
+		Version:   "v1",
 	})
 	c.Check(dds[si], DeepEquals, SnapDataDir{
-		Base:    dirs.SnapDataDir,
-		Name:    "foo",
-		Origin:  "",
-		Version: "v3",
+		Base:      dirs.SnapDataDir,
+		Name:      "foo",
+		Developer: "",
+		Version:   "v3",
 	})
 	c.Check(dds[si+1], DeepEquals, SnapDataDir{
-		Base:    dirs.SnapDataDir,
-		Name:    "foo",
-		Origin:  "xyzzy",
-		Version: "v1",
+		Base:      dirs.SnapDataDir,
+		Name:      "foo",
+		Developer: "xyzzy",
+		Version:   "v1",
 	})
 }
 
 func (s *DataDirSuite) TestDataDirQualifiedName(c *C) {
-	c.Check(SnapDataDir{Name: "foo", Origin: "bar"}.QualifiedName(), Equals, "foo.bar")
+	c.Check(SnapDataDir{Name: "foo", Developer: "bar"}.QualifiedName(), Equals, "foo.bar")
 	c.Check(SnapDataDir{Name: "foo"}.QualifiedName(), Equals, "foo")
 }

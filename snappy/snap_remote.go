@@ -56,9 +56,9 @@ func (s *RemoteSnap) Description() string {
 	return s.pkg.Title
 }
 
-// Origin is the origin
-func (s *RemoteSnap) Origin() string {
-	return s.pkg.Origin
+// Developer is the developer
+func (s *RemoteSnap) Developer() string {
+	return s.pkg.Developer
 }
 
 // Hash returns the hash
