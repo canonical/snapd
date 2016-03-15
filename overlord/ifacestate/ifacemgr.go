@@ -22,13 +22,20 @@
 package ifacestate
 
 import (
+	"fmt"
+
+	"github.com/ubuntu-core/snappy/interfaces"
+	"github.com/ubuntu-core/snappy/interfaces/builtin"
 	"github.com/ubuntu-core/snappy/overlord/state"
 )
 
 // InterfaceManager is responsible for the maintenance of interfaces in
 // the system state.  It maintains interface connections, and also observes
 // installed snaps to track the current set of available plugs and slots.
-type InterfaceManager struct{}
+type InterfaceManager struct {
+	state *state.State
+	repo  *interfaces.Repository
+}
 
 // Manager returns a new InterfaceManager.
 func Manager() (*InterfaceManager, error) {
@@ -37,6 +44,15 @@ func Manager() (*InterfaceManager, error) {
 
 // Connect initiates a change connecting an interface.
 func (m *InterfaceManager) Connect(plugSnap, plugName, slotSnap, slotName string) error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	change := m.state.NewChange("connect", fmt.Sprintf("connecting %s:%s to %s:%s",
+		plugSnap, plugName, slotSnap, slotName))
+	change.Set("slot", interfaces.PlugRef{Snap: slotSnap, Name: slotName})
+	change.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
+	change.NewTask("add-connection", fmt.Sprintf("connect %s:%s to %s:%s",
+		plugSnap, plugName, slotSnap, slotName))
 	return nil
 }
 
@@ -47,11 +63,47 @@ func (m *InterfaceManager) Disconnect(plugSnap, plugName, slotSnap, slotName str
 
 // Init implements StateManager.Init.
 func (m *InterfaceManager) Init(s *state.State) error {
+	repo := interfaces.NewRepository()
+	for _, iface := range builtin.Interfaces() {
+		if err := repo.AddInterface(iface); err != nil {
+			return err
+		}
+	}
+	m.state = s
+	m.repo = repo
 	return nil
 }
 
 // Ensure implements StateManager.Ensure.
 func (m *InterfaceManager) Ensure() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	for _, change := range m.state.Changes() {
+		switch change.Kind() {
+		case "connect":
+			for _, task := range change.Tasks() {
+				switch task.Kind() {
+				case "add-connection":
+					var slotRef interfaces.SlotRef
+					if err := change.Get("slot", &slotRef); err != nil {
+						task.SetStatus(state.ErrorStatus)
+						return err
+					}
+					var plugRef interfaces.PlugRef
+					if err := change.Get("plug", &plugRef); err != nil {
+						task.SetStatus(state.ErrorStatus)
+						return err
+					}
+					if err := m.repo.Connect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name); err != nil {
+						task.SetStatus(state.ErrorStatus)
+						return err
+					}
+					task.SetStatus(state.DoneStatus)
+				}
+			}
+		}
+	}
 	return nil
 }
 
