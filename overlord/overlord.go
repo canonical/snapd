@@ -105,18 +105,18 @@ func loadState(backend state.Backend) (*state.State, error) {
 func (o *Overlord) Run() {
 	intv := ensureInterval
 	o.loopTomb.Go(func() error {
-		tim := time.NewTimer(intv)
+		timer := time.NewTimer(intv)
 		for {
 			select {
 			case <-o.loopTomb.Dying():
 				return nil
-			case <-tim.C:
+			case <-timer.C:
 			}
 			err := o.stateEng.Ensure()
 			if err != nil {
 				logger.Panicf("state engine ensure failed not recoverably: %v", err)
 			}
-			tim.Reset(intv)
+			timer.Reset(intv)
 		}
 	})
 }
