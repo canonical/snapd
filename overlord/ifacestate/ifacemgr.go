@@ -80,19 +80,15 @@ func (m *InterfaceManager) Init(s *state.State) error {
 func (m *InterfaceManager) doConnect(task *state.Task) error {
 	var slotRef interfaces.SlotRef
 	if err := task.Get("slot", &slotRef); err != nil {
-		task.SetStatus(state.ErrorStatus)
 		return err
 	}
 	var plugRef interfaces.PlugRef
 	if err := task.Get("plug", &plugRef); err != nil {
-		task.SetStatus(state.ErrorStatus)
 		return err
 	}
 	if err := m.repo.Connect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name); err != nil {
-		task.SetStatus(state.ErrorStatus)
 		return err
 	}
-	task.SetStatus(state.DoneStatus)
 	return nil
 }
 
