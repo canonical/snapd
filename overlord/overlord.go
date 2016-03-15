@@ -59,7 +59,10 @@ func New() (*Overlord, error) {
 		ensureCh: make(chan bool, 1),
 	}
 
-	backend := state.NewFileBackend(dirs.SnapStateFile)
+	backend := &overlordStateBackend{
+		path: dirs.SnapStateFile,
+		ensureAfter: o.ensureAfter,
+	}
 	s, err := loadState(backend)
 	if err != nil {
 		return nil, err
@@ -127,8 +130,7 @@ func (o *Overlord) Run() {
 	})
 }
 
-// EnsureAfter asks for an ensure pass to happen sooner after about duration from now.
-func (o *Overlord) EnsureAfter(d time.Duration) {
+func (o *Overlord) ensureAfter(d time.Duration) {
 	time.AfterFunc(d, func() {
 		// non-blocking, if an Ensure is about to fire anyway
 		// it's good enough
