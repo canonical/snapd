@@ -35,8 +35,8 @@ import (
 )
 
 var (
-	defaultAddr   = "localhost:11028"
-	defaultOrigin = "canonical"
+	defaultAddr      = "localhost:11028"
+	defaultDeveloper = "canonical"
 )
 
 func rootEndpoint(w http.ResponseWriter, req *http.Request) {
@@ -56,9 +56,9 @@ func detailsEndpoint(w http.ResponseWriter, req *http.Request) {
 
 // Store is our snappy software store implementation
 type Store struct {
-	url           string
-	blobDir       string
-	defaultOrigin string
+	url              string
+	blobDir          string
+	defaultDeveloper string
 
 	srv *graceful.Server
 
@@ -69,9 +69,9 @@ type Store struct {
 func NewStore(blobDir string) *Store {
 	mux := http.NewServeMux()
 	store := &Store{
-		blobDir:       blobDir,
-		snaps:         make(map[string]string),
-		defaultOrigin: defaultOrigin,
+		blobDir:          blobDir,
+		snaps:            make(map[string]string),
+		defaultDeveloper: defaultDeveloper,
 
 		url: fmt.Sprintf("http://%s", defaultAddr),
 		srv: &graceful.Server{
@@ -140,7 +140,7 @@ func (s *Store) refreshSnaps() error {
 		if err != nil {
 			return err
 		}
-		s.snaps[fmt.Sprintf("%s.%s", info.Name, s.defaultOrigin)] = fn
+		s.snaps[fmt.Sprintf("%s.%s", info.Name, s.defaultDeveloper)] = fn
 	}
 
 	return nil
@@ -154,7 +154,7 @@ type bulkReplyJSON struct {
 	Status          string `json:"status"`
 	Name            string `json:"name"`
 	PackageName     string `json:"package_name"`
-	Origin          string `json:"origin"`
+	Developer       string `json:"origin"`
 	AnonDownloadURL string `json:"anon_download_url"`
 	Version         string `json:"version"`
 }
@@ -190,9 +190,9 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 
 			replyData = append(replyData, bulkReplyJSON{
 				Status:          "Published",
-				Name:            fmt.Sprintf("%s.%s", info.Name, s.defaultOrigin),
+				Name:            fmt.Sprintf("%s.%s", info.Name, s.defaultDeveloper),
 				PackageName:     info.Name,
-				Origin:          defaultOrigin,
+				Developer:       defaultDeveloper,
 				AnonDownloadURL: fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn)),
 				Version:         info.Version,
 			})

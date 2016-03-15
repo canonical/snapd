@@ -149,9 +149,9 @@ type configExampleSuite struct {
 }
 
 var configTests = []struct {
-	snap    string
-	origin  string
-	message string
+	snap      string
+	developer string
+	message   string
 }{
 	{"config-example", "", "test config example message"},
 	{"config-example-bash", ".canonical", "test config example bash message"},
@@ -159,7 +159,7 @@ var configTests = []struct {
 
 func (s *configExampleSuite) TestPrintMessageFromConfig(c *check.C) {
 	for _, t := range configTests {
-		common.InstallSnap(c, t.snap+t.origin+"/edge")
+		common.InstallSnap(c, t.snap+t.developer+"/edge")
 		defer common.RemoveSnap(c, t.snap)
 
 		config := fmt.Sprintf(`config:

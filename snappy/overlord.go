@@ -41,12 +41,12 @@ type Overlord struct {
 // Install installs the given snap file to the system.
 //
 // It returns the local snap file or an error
-func (o *Overlord) Install(snapFilePath string, origin string, flags InstallFlags, meter progress.Meter) (sp *SnapPart, err error) {
+func (o *Overlord) Install(snapFilePath string, developer string, flags InstallFlags, meter progress.Meter) (sp *Snap, err error) {
 	allowGadget := (flags & AllowGadget) != 0
 	inhibitHooks := (flags & InhibitHooks) != 0
 	allowUnauth := (flags & AllowUnauthenticated) != 0
 
-	s, err := NewSnapFile(snapFilePath, origin, allowUnauth)
+	s, err := NewSnapFile(snapFilePath, developer, allowUnauth)
 	if err != nil {
 		return nil, fmt.Errorf("can not open %s: %s", snapFilePath, err)
 	}
@@ -68,9 +68,9 @@ func (o *Overlord) Install(snapFilePath string, origin string, flags InstallFlag
 	fullName := QualifiedName(s)
 	dataDir := filepath.Join(dirs.SnapDataDir, fullName, s.Version())
 
-	var oldPart *SnapPart
+	var oldPart *Snap
 	if currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(s.instdir, "..", "current")); currentActiveDir != "" {
-		oldPart, err = NewInstalledSnapPart(filepath.Join(currentActiveDir, "meta", "snap.yaml"), s.origin)
+		oldPart, err = NewInstalledSnap(filepath.Join(currentActiveDir, "meta", "snap.yaml"), s.developer)
 		if err != nil {
 			return nil, err
 		}
@@ -155,7 +155,7 @@ func (o *Overlord) Install(snapFilePath string, origin string, flags InstallFlag
 	}
 
 	if !inhibitHooks {
-		newPart, err := newSnapPartFromYaml(filepath.Join(s.instdir, "meta", "snap.yaml"), s.origin, s.m)
+		newPart, err := newSnapFromYaml(filepath.Join(s.instdir, "meta", "snap.yaml"), s.developer, s.m)
 		if err != nil {
 			return nil, err
 		}
@@ -232,12 +232,12 @@ func (o *Overlord) Install(snapFilePath string, origin string, flags InstallFlag
 		}
 	}
 
-	return newSnapPartFromYaml(filepath.Join(s.instdir, "meta", "snap.yaml"), s.origin, s.m)
+	return newSnapFromYaml(filepath.Join(s.instdir, "meta", "snap.yaml"), s.developer, s.m)
 }
 
-// CanInstall checks whether the SnapPart passes a series of tests required for installation
+// CanInstall checks whether the Snap passes a series of tests required for installation
 func canInstall(s *SnapFile, allowGadget bool, inter interacter) error {
-	if err := checkForPackageInstalled(s.m, s.Origin()); err != nil {
+	if err := checkForPackageInstalled(s.m, s.Developer()); err != nil {
 		return err
 	}
 
@@ -274,7 +274,7 @@ func canInstall(s *SnapFile, allowGadget bool, inter interacter) error {
 // Uninstall removes the given local snap from the system.
 //
 // It returns an error on failure
-func (o *Overlord) Uninstall(s *SnapPart, meter progress.Meter) error {
+func (o *Overlord) Uninstall(s *Snap, meter progress.Meter) error {
 	// Gadget snaps should not be removed as they are a key
 	// building block for Gadgets. Prunning non active ones
 	// is acceptible.
@@ -334,7 +334,7 @@ func (o *Overlord) Uninstall(s *SnapPart, meter progress.Meter) error {
 // SetActive sets the active state of the given snap
 //
 // It returns an error on failure
-func (o *Overlord) SetActive(s *SnapPart, active bool, meter progress.Meter) error {
+func (o *Overlord) SetActive(s *Snap, active bool, meter progress.Meter) error {
 	if active {
 		return s.activate(false, meter)
 	}
@@ -345,16 +345,16 @@ func (o *Overlord) SetActive(s *SnapPart, active bool, meter progress.Meter) err
 // Configure configures the given snap
 //
 // It returns an error on failure
-func (o *Overlord) Configure(s *SnapPart, configuration []byte) ([]byte, error) {
+func (o *Overlord) Configure(s *Snap, configuration []byte) ([]byte, error) {
 	if s.m.Type == snap.TypeOS {
 		return coreConfig(configuration)
 	}
 
-	return snapConfig(s.basedir, s.origin, configuration)
+	return snapConfig(s.basedir, s.developer, configuration)
 }
 
 // Installed returns the installed snaps from this repository
-func (o *Overlord) Installed() ([]*SnapPart, error) {
+func (o *Overlord) Installed() ([]*Snap, error) {
 	globExpr := filepath.Join(dirs.SnapSnapsDir, "*", "*", "meta", "snap.yaml")
 	parts, err := o.partsForGlobExpr(globExpr)
 	if err != nil {
@@ -365,7 +365,7 @@ func (o *Overlord) Installed() ([]*SnapPart, error) {
 	return parts, nil
 }
 
-func (o *Overlord) partsForGlobExpr(globExpr string) (parts []*SnapPart, err error) {
+func (o *Overlord) partsForGlobExpr(globExpr string) (parts []*Snap, err error) {
 	matches, err := filepath.Glob(globExpr)
 	if err != nil {
 		return nil, err
@@ -381,8 +381,8 @@ func (o *Overlord) partsForGlobExpr(globExpr string) (parts []*SnapPart, err err
 			continue
 		}
 
-		origin, _ := originFromYamlPath(realpath)
-		snap, err := NewInstalledSnapPart(realpath, origin)
+		developer, _ := developerFromYamlPath(realpath)
+		snap, err := NewInstalledSnap(realpath, developer)
 		if err != nil {
 			return nil, err
 		}

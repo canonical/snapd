@@ -315,12 +315,12 @@ func (r *Repository) Connect(plugSnapName, plugName, slotSnapName, slotName stri
 //
 // Disconnect has three modes of operation that depend on the passed arguments:
 //
-// - If all the arguments are specified then Disconnect() finds a specific plug
-//   slot and a specific plug and disconnects that plug from that plug slot. It is
+// - If all the arguments are specified then Disconnect() finds a specific slot
+//   and a specific plug and disconnects that plug from that plug slot. It is
 //   an error if plug or plug slot cannot be found or if the connect does not
 //   exist.
 // - If plugSnapName and plugName are empty then Disconnect() finds the specified
-//   plug slot and disconnects all the plugs connected there. It is not an error if
+//   slot and disconnects all the plugs connected there. It is not an error if
 //   there are no such plugs but it is still an error if the plug slot does
 //   not exist.
 // - If plugSnapName, plugName and slotName are all empty then Disconnect finds
@@ -553,13 +553,20 @@ func (r *Repository) SecurityFilesForSnap(snapName string) (map[string][]byte, e
 
 func (r *Repository) collectFilesFromSecurityHelper(snapName string, helper securityHelper, buffers map[string]*bytes.Buffer) error {
 	securitySystem := helper.securitySystem()
+	snapVersion, snapOrigin, snapApps, err := ActiveSnapMetaData(snapName)
+	if err != nil {
+		return fmt.Errorf("cannot determine meta-data for snap %s: %v", snapName, err)
+	}
 	appSnippets, err := r.securitySnippetsForSnap(snapName, securitySystem)
 	if err != nil {
 		return fmt.Errorf("cannot determine %s security snippets for snap %s: %v", securitySystem, snapName, err)
 	}
-	for appName, snippets := range appSnippets {
+	for _, appName := range snapApps {
+		// NOTE: this explicitly iterates over all apps, even if they have no granted skills.
+		// This way after revoking a skill permission are updated to reflect that.
+		snippets := appSnippets[appName]
 		writer := &bytes.Buffer{}
-		path := helper.pathForApp(snapName, appName)
+		path := helper.pathForApp(snapName, snapVersion, snapOrigin, appName)
 		doWrite := func(blob []byte) error {
 			_, err = writer.Write(blob)
 			if err != nil {
@@ -567,7 +574,7 @@ func (r *Repository) collectFilesFromSecurityHelper(snapName string, helper secu
 			}
 			return nil
 		}
-		if err := doWrite(helper.headerForApp(snapName, appName)); err != nil {
+		if err := doWrite(helper.headerForApp(snapName, snapVersion, snapOrigin, appName)); err != nil {
 			return err
 		}
 		for _, snippet := range snippets {
@@ -575,7 +582,7 @@ func (r *Repository) collectFilesFromSecurityHelper(snapName string, helper secu
 				return err
 			}
 		}
-		if err := doWrite(helper.footerForApp(snapName, appName)); err != nil {
+		if err := doWrite(helper.footerForApp(snapName, snapVersion, snapOrigin, appName)); err != nil {
 			return err
 		}
 		buffers[path] = writer

@@ -39,11 +39,13 @@ import (
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/notifications"
 	"github.com/ubuntu-core/snappy/osutil"
+	"github.com/ubuntu-core/snappy/overlord"
 )
 
 // A Daemon listens for requests and routes them to the right command
 type Daemon struct {
 	sync.RWMutex // for concurrent access to the tasks map
+	overlord     *overlord.Overlord
 	tasks        map[string]*Task
 	listener     net.Listener
 	tomb         tomb.Tomb
@@ -263,23 +265,28 @@ func getTrustedAccountKey() string {
 }
 
 // New Daemon
-func New() *Daemon {
+func New() (*Daemon, error) {
+	ovld, err := overlord.New()
+	if err != nil {
+		return nil, err
+	}
 	db, err := asserts.OpenSysDatabase(getTrustedAccountKey())
 	if err != nil {
-		panic(err.Error())
+		return nil, err
 	}
 	interfacesRepo := interfaces.NewRepository()
 	for _, iface := range builtin.Interfaces() {
 		if err := interfacesRepo.AddInterface(iface); err != nil {
-			panic(err.Error())
+			return nil, err
 		}
 	}
 	return &Daemon{
+		overlord:   ovld,
 		tasks:      make(map[string]*Task),
 		asserts:    db,
 		hub:        notifications.NewHub(),
 		interfaces: interfacesRepo,
 		// TODO: Decide when this should be disabled by default.
 		enableInternalInterfaceActions: true,
-	}
+	}, nil
 }
