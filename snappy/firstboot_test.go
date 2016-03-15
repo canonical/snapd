@@ -36,7 +36,7 @@ type fakeOverlord struct {
 	configs map[string]string
 }
 
-func (o *fakeOverlord) Configure(s *SnapPart, c []byte) ([]byte, error) {
+func (o *fakeOverlord) Configure(s *Snap, c []byte) ([]byte, error) {
 	o.configs[s.Name()] = string(c)
 	return c, nil
 }
@@ -117,8 +117,8 @@ func (s *FirstBootTestSuite) newOverlord() configurator {
 	return s.fakeOverlord
 }
 
-func (s *FirstBootTestSuite) newFakeApp() *SnapPart {
-	fakeMyApp := SnapPart{
+func (s *FirstBootTestSuite) newFakeApp() *Snap {
+	fakeMyApp := Snap{
 		m: &snapYaml{
 			Name: "myapp",
 			Type: snap.TypeApp,
@@ -145,7 +145,7 @@ func (s *FirstBootTestSuite) TestSoftwareActivate(c *C) {
 	yamlPath, err := makeInstalledMockSnap(dirs.GlobalRootDir, "")
 	c.Assert(err, IsNil)
 
-	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
+	part, err := NewInstalledSnap(yamlPath, testOrigin)
 	c.Assert(err, IsNil)
 	c.Assert(part.IsActive(), Equals, false)
 	name := part.Name()

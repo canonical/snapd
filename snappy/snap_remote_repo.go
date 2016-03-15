@@ -67,10 +67,10 @@ func (f *SharedName) IsAlias(origin string) bool {
 	return false
 }
 
-// NewRemoteSnapPart returns a new RemoteSnapPart from the given
+// NewRemoteSnap returns a new RemoteSnap from the given
 // remote.Snap data
-func NewRemoteSnapPart(data remote.Snap) *RemoteSnapPart {
-	return &RemoteSnapPart{pkg: data}
+func NewRemoteSnap(data remote.Snap) *RemoteSnap {
+	return &RemoteSnap{pkg: data}
 }
 
 // SnapUbuntuStoreRepository represents the ubuntu snap store
@@ -194,8 +194,8 @@ func setUbuntuStoreHeaders(req *http.Request) {
 	}
 }
 
-// Snap returns the RemoteSnapPart for the given name or an error.
-func (s *SnapUbuntuStoreRepository) Snap(name, channel string) (*RemoteSnapPart, error) {
+// Snap returns the RemoteSnap for the given name or an error.
+func (s *SnapUbuntuStoreRepository) Snap(name, channel string) (*RemoteSnap, error) {
 
 	url, err := s.detailsURI.Parse(path.Join(name, channel))
 	if err != nil {
@@ -232,7 +232,7 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string) (*RemoteSnapPart,
 		return nil, err
 	}
 
-	return NewRemoteSnapPart(detailsData), nil
+	return NewRemoteSnap(detailsData), nil
 }
 
 // Details returns details for the given snap in this repository
@@ -292,7 +292,7 @@ func (s *SnapUbuntuStoreRepository) Find(searchTerm string, channel string) ([]P
 
 	parts := make([]Part, len(searchData.Payload.Packages))
 	for i, pkg := range searchData.Payload.Packages {
-		parts[i] = NewRemoteSnapPart(pkg)
+		parts[i] = NewRemoteSnap(pkg)
 	}
 
 	return parts, nil
@@ -328,7 +328,7 @@ func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (SharedNames, erro
 
 	sharedNames := make(SharedNames, len(searchData.Payload.Packages))
 	for _, pkg := range searchData.Payload.Packages {
-		snap := NewRemoteSnapPart(pkg)
+		snap := NewRemoteSnap(pkg)
 		pkgName := snap.Name()
 
 		if _, ok := sharedNames[snap.Name()]; !ok {
@@ -385,7 +385,7 @@ func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
 	for _, pkg := range updateData {
 		current := ActiveSnapByName(pkg.Name)
 		if current == nil || current.Version() != pkg.Version {
-			snap := NewRemoteSnapPart(pkg)
+			snap := NewRemoteSnap(pkg)
 			parts = append(parts, snap)
 		}
 	}
@@ -396,7 +396,7 @@ func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
 // Download downloads the given snap and returns its filename.
 // The file is saved in temporary storage, and should be removed
 // after use to prevent the disk from running out of space.
-func (s *SnapUbuntuStoreRepository) Download(remoteSnap *RemoteSnapPart, pbar progress.Meter) (path string, err error) {
+func (s *SnapUbuntuStoreRepository) Download(remoteSnap *RemoteSnap, pbar progress.Meter) (path string, err error) {
 	w, err := ioutil.TempFile("", remoteSnap.pkg.Name)
 	if err != nil {
 		return "", err
