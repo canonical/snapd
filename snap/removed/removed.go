@@ -39,20 +39,20 @@ var ErrRemoved = errors.New("package is removed")
 
 // Removed represents a removed package.
 type Removed struct {
-	name    string
-	origin  string
-	version string
-	pkgType snap.Type
-	remote  *remote.Snap
+	name      string
+	developer string
+	version   string
+	pkgType   snap.Type
+	remote    *remote.Snap
 }
 
 // New removed package.
-func New(name, origin, version string, pkgType snap.Type) snappy.Part {
+func New(name, developer, version string, pkgType snap.Type) snappy.Part {
 	part := &Removed{
-		name:    name,
-		origin:  origin,
-		version: version,
-		pkgType: pkgType,
+		name:      name,
+		developer: developer,
+		version:   version,
+		pkgType:   pkgType,
 	}
 
 	// try to load the remote manifest, that would've been kept
@@ -78,13 +78,13 @@ func (r *Removed) Description() string {
 	return ""
 }
 
-// Origin from the snappy.Part interface
-func (r *Removed) Origin() string {
+// Developer from the snappy.Part interface
+func (r *Removed) Developer() string {
 	if r.remote != nil {
-		return r.remote.Origin
+		return r.remote.Developer
 	}
 
-	return r.origin
+	return r.developer
 }
 
 // Hash from the snappy.Part interface

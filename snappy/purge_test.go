@@ -63,7 +63,7 @@ func (s *purgeSuite) TestPurgeNonExistingRaisesError(c *C) {
 	c.Check(inter.notified, HasLen, 0)
 }
 
-func (s *purgeSuite) mkpkg(c *C, args ...string) (dataDirs []string, part *SnapPart) {
+func (s *purgeSuite) mkpkg(c *C, args ...string) (dataDirs []string, part *Snap) {
 	version := "1.10"
 	extra := ""
 	switch len(args) {
@@ -76,8 +76,8 @@ func (s *purgeSuite) mkpkg(c *C, args ...string) (dataDirs []string, part *SnapP
 	default:
 		panic("dunno what to do with args")
 	}
-	app := "hello-app." + testOrigin
-	yaml := "version: 1.0\nname: hello-app\nversion: " + version + "\n" + extra
+	app := "hello-snap." + testDeveloper
+	yaml := "version: 1.0\nname: hello-snap\nversion: " + version + "\n" + extra
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml)
 	c.Assert(err, IsNil)
 
@@ -93,7 +93,7 @@ func (s *purgeSuite) mkpkg(c *C, args ...string) (dataDirs []string, part *SnapP
 	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
 	c.Assert(err, IsNil)
 
-	part, err = NewInstalledSnapPart(yamlFile, testOrigin)
+	part, err = NewInstalledSnap(yamlFile, testDeveloper)
 	c.Assert(err, IsNil)
 
 	dataDirs = []string{dataDir, dataHomeDir}
@@ -106,7 +106,7 @@ func (s *purgeSuite) TestPurgeActiveRaisesError(c *C) {
 	_, part := s.mkpkg(c)
 	c.Assert(part.activate(true, inter), IsNil)
 
-	err := Purge("hello-app", 0, inter)
+	err := Purge("hello-snap", 0, inter)
 	c.Check(err, Equals, ErrStillActive)
 	c.Check(inter.notified, HasLen, 0)
 }
@@ -115,7 +115,7 @@ func (s *purgeSuite) TestPurgeInactiveOK(c *C) {
 	inter := &MockProgressMeter{}
 	ddirs, _ := s.mkpkg(c)
 
-	err := Purge("hello-app", 0, inter)
+	err := Purge("hello-snap", 0, inter)
 	c.Check(err, IsNil)
 
 	for _, ddir := range ddirs {
@@ -135,7 +135,7 @@ func (s *purgeSuite) TestPurgeActiveExplicitOK(c *C) {
 		c.Assert(os.Mkdir(canary, 0755), IsNil)
 	}
 
-	err := Purge("hello-app", DoPurgeActive, inter)
+	err := Purge("hello-snap", DoPurgeActive, inter)
 	c.Check(err, IsNil)
 
 	for _, ddir := range ddirs {
@@ -164,7 +164,7 @@ func (s *purgeSuite) TestPurgeActiveRestartServices(c *C) {
 		return []byte("ActiveState=inactive\n"), nil
 	}
 
-	err := Purge("hello-app", DoPurgeActive, inter)
+	err := Purge("hello-snap", DoPurgeActive, inter)
 	c.Check(err, IsNil)
 	for _, ddir := range ddirs {
 		c.Check(osutil.FileExists(filepath.Join(ddir, "canary")), Equals, false)
@@ -183,7 +183,7 @@ func (s *purgeSuite) TestPurgeMultiOK(c *C) {
 	ddirs0, _ := s.mkpkg(c, "v0")
 	ddirs1, _ := s.mkpkg(c, "v1")
 
-	err := Purge("hello-app", 0, inter)
+	err := Purge("hello-snap", 0, inter)
 	c.Check(err, IsNil)
 
 	for _, ddir := range ddirs0 {
@@ -214,7 +214,7 @@ func (s *purgeSuite) TestPurgeMultiContinuesOnFail(c *C) {
 	}
 	defer func() { remove = removeSnapData }()
 
-	err := Purge("hello-app", 0, inter)
+	err := Purge("hello-snap", 0, inter)
 	c.Check(err, Equals, anError)
 	c.Check(count, Equals, 6)
 	for _, ddir := range ddirs0 {
@@ -241,7 +241,7 @@ func (s *purgeSuite) TestPurgeRemovedWorks(c *C) {
 		c.Check(osutil.FileExists(ddir), Equals, true)
 	}
 
-	err = Purge("hello-app", 0, inter)
+	err = Purge("hello-snap", 0, inter)
 	c.Check(err, IsNil)
 	for _, ddir := range ddirs {
 		c.Check(osutil.FileExists(ddir), Equals, false)

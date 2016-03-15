@@ -150,29 +150,29 @@ func (s *BoolFileInterfaceSuite) TestPlugSnippetDereferencesSymlinks(c *C) {
 		"(dereferenced)/sys/class/leds/input27::capslock/brightness rwk,\n"))
 }
 
-func (s *BoolFileInterfaceSuite) TestPlugSecurityDoesNotContainSlotSecurity(c *C) {
+func (s *BoolFileInterfaceSuite) TestPermanentPlugSecurityDoesNotContainSlotSecurity(c *C) {
 	// Use a fake (successful) dereferencing function for the remainder of the test.
 	builtin.MockEvalSymlinks(&s.BaseTest, func(path string) (string, error) {
 		return path, nil
 	})
 	var err error
 	var slotSnippet, plugSnippet []byte
-	plugSnippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.gpioSlot, interfaces.SecurityAppArmor)
+	plugSnippet, err = s.iface.PermanentPlugSnippet(s.plug, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
-	slotSnippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.gpioSlot, interfaces.SecurityAppArmor)
+	slotSnippet, err = s.iface.PermanentSlotSnippet(s.gpioSlot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
-	// Ensure that we don't accidentally give slot-side permissions to plug-side.
+	// Ensure that we don't accidentally give plug-side permissions to slot-side.
 	c.Assert(bytes.Contains(plugSnippet, slotSnippet), Equals, false)
 }
 
-func (s *BoolFileInterfaceSuite) TestPlugSnippetPanicksOnUnsanitizedSlots(c *C) {
+func (s *BoolFileInterfaceSuite) TestConnectedPlugSnippetPanicksOnUnsanitizedSlots(c *C) {
 	// Unsanitized slots should never be used and cause a panic.
 	c.Assert(func() {
 		s.iface.ConnectedPlugSnippet(s.plug, s.missingPathSlot, interfaces.SecurityAppArmor)
 	}, PanicMatches, "slot is not sanitized")
 }
 
-func (s *BoolFileInterfaceSuite) TestPlugSnippetUnusedSecuritySystems(c *C) {
+func (s *BoolFileInterfaceSuite) TestConnectedPlugSnippetUnusedSecuritySystems(c *C) {
 	for _, slot := range []*interfaces.Slot{s.ledSlot, s.gpioSlot} {
 		// No extra seccomp permissions for plug
 		snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecuritySecComp)
@@ -197,33 +197,56 @@ func (s *BoolFileInterfaceSuite) TestPlugSnippetUnusedSecuritySystems(c *C) {
 	}
 }
 
-func (s *BoolFileInterfaceSuite) TestSlotSnippetGivesExtraPermissionsToConfigureGPIOs(c *C) {
+func (s *BoolFileInterfaceSuite) TestPermanentPlugSnippetUnusedSecuritySystems(c *C) {
+	// No extra seccomp permissions for plug
+	snippet, err := s.iface.PermanentPlugSnippet(s.plug, interfaces.SecuritySecComp)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, IsNil)
+	// No extra dbus permissions for plug
+	snippet, err = s.iface.PermanentPlugSnippet(s.plug, interfaces.SecurityDBus)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, IsNil)
+	// No extra udev permissions for plug
+	snippet, err = s.iface.PermanentPlugSnippet(s.plug, interfaces.SecurityUDev)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, IsNil)
+	// No extra udev permissions for plug
+	snippet, err = s.iface.PermanentPlugSnippet(s.plug, interfaces.SecurityUDev)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, IsNil)
+	// Other security types are not recognized
+	snippet, err = s.iface.PermanentPlugSnippet(s.plug, "foo")
+	c.Assert(err, ErrorMatches, `unknown security system`)
+	c.Assert(snippet, IsNil)
+}
+
+func (s *BoolFileInterfaceSuite) TestPermanentSlotSnippetGivesExtraPermissionsToConfigureGPIOs(c *C) {
 	// Extra apparmor permission to provide GPIOs
 	expectedGPIOSnippet := []byte(`
 /sys/class/gpio/export rw,
 /sys/class/gpio/unexport rw,
 /sys/class/gpio/gpio[0-9]+/direction rw,
 `)
-	snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.gpioSlot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.PermanentSlotSnippet(s.gpioSlot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, expectedGPIOSnippet)
 }
 
-func (s *BoolFileInterfaceSuite) TestSlotSnippetGivesNoExtraPermissionsToConfigureLEDs(c *C) {
+func (s *BoolFileInterfaceSuite) TestPermanentSlotSnippetGivesNoExtraPermissionsToConfigureLEDs(c *C) {
 	// No extra apparmor permission to provide LEDs
-	snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.ledSlot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.PermanentSlotSnippet(s.ledSlot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 }
 
-func (s *BoolFileInterfaceSuite) TestSlotSnippetPanicksOnUnsanitizedSlots(c *C) {
+func (s *BoolFileInterfaceSuite) TestPermanentSlotSnippetPanicksOnUnsanitizedSlots(c *C) {
 	// Unsanitized slots should never be used and cause a panic.
 	c.Assert(func() {
-		s.iface.ConnectedSlotSnippet(s.plug, s.missingPathSlot, interfaces.SecurityAppArmor)
+		s.iface.PermanentSlotSnippet(s.missingPathSlot, interfaces.SecurityAppArmor)
 	}, PanicMatches, "slot is not sanitized")
 }
 
-func (s *BoolFileInterfaceSuite) TestSlotSnippetUnusedSecuritySystems(c *C) {
+func (s *BoolFileInterfaceSuite) TestConnectedSlotSnippetUnusedSecuritySystems(c *C) {
 	for _, slot := range []*interfaces.Slot{s.ledSlot, s.gpioSlot} {
 		// No extra seccomp permissions for slot
 		snippet, err := s.iface.ConnectedSlotSnippet(s.plug, slot, interfaces.SecuritySecComp)
@@ -239,6 +262,27 @@ func (s *BoolFileInterfaceSuite) TestSlotSnippetUnusedSecuritySystems(c *C) {
 		c.Assert(snippet, IsNil)
 		// Other security types are not recognized
 		snippet, err = s.iface.ConnectedSlotSnippet(s.plug, slot, "foo")
+		c.Assert(err, ErrorMatches, `unknown security system`)
+		c.Assert(snippet, IsNil)
+	}
+}
+
+func (s *BoolFileInterfaceSuite) TestPermanentSlotSnippetUnusedSecuritySystems(c *C) {
+	for _, slot := range []*interfaces.Slot{s.ledSlot, s.gpioSlot} {
+		// No extra seccomp permissions for slot
+		snippet, err := s.iface.PermanentSlotSnippet(slot, interfaces.SecuritySecComp)
+		c.Assert(err, IsNil)
+		c.Assert(snippet, IsNil)
+		// No extra dbus permissions for slot
+		snippet, err = s.iface.PermanentSlotSnippet(slot, interfaces.SecurityDBus)
+		c.Assert(err, IsNil)
+		c.Assert(snippet, IsNil)
+		// No extra udev permissions for slot
+		snippet, err = s.iface.PermanentSlotSnippet(slot, interfaces.SecurityUDev)
+		c.Assert(err, IsNil)
+		c.Assert(snippet, IsNil)
+		// Other security types are not recognized
+		snippet, err = s.iface.PermanentSlotSnippet(slot, "foo")
 		c.Assert(err, ErrorMatches, `unknown security system`)
 		c.Assert(snippet, IsNil)
 	}

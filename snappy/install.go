@@ -44,7 +44,7 @@ const (
 	AllowGadget
 )
 
-func installRemote(mStore *SnapUbuntuStoreRepository, remoteSnap *RemoteSnapPart, flags InstallFlags, meter progress.Meter) (string, error) {
+func installRemote(mStore *SnapUbuntuStoreRepository, remoteSnap *RemoteSnap, flags InstallFlags, meter progress.Meter) (string, error) {
 	downloadedSnap, err := mStore.Download(remoteSnap, meter)
 	if err != nil {
 		return "", fmt.Errorf("cannot download %s: %s", remoteSnap.Name(), err)
@@ -55,7 +55,7 @@ func installRemote(mStore *SnapUbuntuStoreRepository, remoteSnap *RemoteSnapPart
 		return "", err
 	}
 
-	localSnap, err := (&Overlord{}).Install(downloadedSnap, remoteSnap.Origin(), flags, meter)
+	localSnap, err := (&Overlord{}).Install(downloadedSnap, remoteSnap.Developer(), flags, meter)
 	if err != nil {
 		return "", err
 	}
@@ -64,7 +64,7 @@ func installRemote(mStore *SnapUbuntuStoreRepository, remoteSnap *RemoteSnapPart
 }
 
 func doUpdate(mStore *SnapUbuntuStoreRepository, part Part, flags InstallFlags, meter progress.Meter) error {
-	_, err := installRemote(mStore, part.(*RemoteSnapPart), flags, meter)
+	_, err := installRemote(mStore, part.(*RemoteSnap), flags, meter)
 	if err == ErrSideLoaded {
 		logger.Noticef("Skipping sideloaded package: %s", part.Name())
 		return nil
@@ -195,7 +195,7 @@ func doInstall(name, channel string, flags InstallFlags, meter progress.Meter) (
 			flags |= AllowUnauthenticated
 		}
 
-		return installClick(name, flags, meter, SideloadedOrigin)
+		return installClick(name, flags, meter, SideloadedDeveloper)
 	}
 
 	// check repos next
@@ -263,7 +263,7 @@ func GarbageCollect(name string, flags InstallFlags, pb progress.Meter) error {
 	}
 
 	for _, part := range parts[:active-1] {
-		if err := (&Overlord{}).Uninstall(part.(*SnapPart), pb); err != nil {
+		if err := (&Overlord{}).Uninstall(part.(*Snap), pb); err != nil {
 			return ErrGarbageCollectImpossible(err.Error())
 		}
 	}

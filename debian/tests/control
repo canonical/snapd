@@ -1,0 +1,6 @@
+Tests: integrationtests
+Restrictions: allow-stderr, isolation-container, rw-build-tree
+Depends: @,
+         @builddeps@,
+         bzr,
+         golang-golang-x-net-dev

@@ -37,9 +37,9 @@ import (
 )
 
 const (
-	testOrigin           = "testspacethename"
-	fooComposedName      = "foo.testspacethename"
-	helloAppComposedName = "hello-app.testspacethename"
+	testDeveloper         = "testspacethename"
+	fooComposedName       = "foo.testspacethename"
+	helloSnapComposedName = "hello-snap.testspacethename"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -55,7 +55,7 @@ func init() {
 // makeInstalledMockSnap creates a installed mock snap without any
 // content other than the meta data
 func makeInstalledMockSnap(tempdir, snapYamlContent string) (yamlFile string, err error) {
-	const packageHello = `name: hello-app
+	const packageHello = `name: hello-snap
 version: 1.10
 apps:
  hello:
@@ -75,7 +75,7 @@ apps:
 		return "", err
 	}
 
-	dirName := m.qualifiedName(testOrigin)
+	dirName := m.qualifiedName(testDeveloper)
 	metaDir := filepath.Join(tempdir, "snaps", dirName, m.Version, "meta")
 	if err := os.MkdirAll(metaDir, 0775); err != nil {
 		return "", err
@@ -85,19 +85,19 @@ apps:
 		return "", err
 	}
 
-	if err := addMockDefaultApparmorProfile("hello-app_hello_1.10"); err != nil {
+	if err := addMockDefaultApparmorProfile("hello-snap_hello_1.10"); err != nil {
 		return "", err
 	}
 
-	if err := addMockDefaultApparmorProfile("hello-app_svc1_1.10"); err != nil {
+	if err := addMockDefaultApparmorProfile("hello-snap_svc1_1.10"); err != nil {
 		return "", err
 	}
 
-	if err := addMockDefaultSeccompProfile("hello-app_hello_1.10"); err != nil {
+	if err := addMockDefaultSeccompProfile("hello-snap_hello_1.10"); err != nil {
 		return "", err
 	}
 
-	if err := addMockDefaultSeccompProfile("hello-app_svc1_1.10"); err != nil {
+	if err := addMockDefaultSeccompProfile("hello-snap_svc1_1.10"); err != nil {
 		return "", err
 	}
 
@@ -106,20 +106,20 @@ apps:
 		return "", err
 	}
 
-	if err := storeMinimalRemoteManifest(dirName, m.Name, testOrigin, m.Version, "Hello", "remote-channel"); err != nil {
+	if err := storeMinimalRemoteManifest(dirName, m.Name, testDeveloper, m.Version, "Hello", "remote-channel"); err != nil {
 		return "", err
 	}
 
 	return yamlFile, nil
 }
 
-func storeMinimalRemoteManifest(qn, name, origin, version, desc, channel string) error {
-	if origin == SideloadedOrigin {
+func storeMinimalRemoteManifest(qn, name, developer, version, desc, channel string) error {
+	if developer == SideloadedDeveloper {
 		panic("store remote manifest for sideloaded package")
 	}
 	content, err := yaml.Marshal(remote.Snap{
 		Name:        name,
-		Origin:      origin,
+		Developer:   developer,
 		Version:     version,
 		Description: desc,
 		Channel:     channel,
@@ -240,23 +240,23 @@ func makeTwoTestSnaps(c *C, snapType snap.Type, extra ...string) {
 		snapYamlContent += strings.Join(extra, "\n") + "\n"
 	}
 
-	qn := "foo." + testOrigin
+	qn := "foo." + testDeveloper
 	if snapType != snap.TypeApp {
 		snapYamlContent += fmt.Sprintf("type: %s\n", snapType)
 		qn = "foo"
 	}
 
 	snapFile := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
-	n, err := installClick(snapFile, AllowUnauthenticated|AllowGadget, inter, testOrigin)
+	n, err := installClick(snapFile, AllowUnauthenticated|AllowGadget, inter, testDeveloper)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, "foo")
-	c.Assert(storeMinimalRemoteManifest(qn, "foo", testOrigin, "1.0", "", "remote-channel"), IsNil)
+	c.Assert(storeMinimalRemoteManifest(qn, "foo", testDeveloper, "1.0", "", "remote-channel"), IsNil)
 
 	snapFile = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
-	n, err = installClick(snapFile, AllowUnauthenticated|AllowGadget, inter, testOrigin)
+	n, err = installClick(snapFile, AllowUnauthenticated|AllowGadget, inter, testDeveloper)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, "foo")
-	c.Assert(storeMinimalRemoteManifest(qn, "foo", testOrigin, "2.0", "", "remote-channel"), IsNil)
+	c.Assert(storeMinimalRemoteManifest(qn, "foo", testDeveloper, "2.0", "", "remote-channel"), IsNil)
 
 	installed, err := NewLocalSnapRepository().Installed()
 	c.Assert(err, IsNil)

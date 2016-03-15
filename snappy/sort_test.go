@@ -83,8 +83,8 @@ func (s *SortTestSuite) TestSort(c *C) {
 
 func (s *SortTestSuite) TestSortSnaps(c *C) {
 	snaps := []Part{
-		&RemoteSnapPart{pkg: remote.Snap{Version: "2.0"}},
-		&RemoteSnapPart{pkg: remote.Snap{Version: "1.0"}},
+		&RemoteSnap{pkg: remote.Snap{Version: "2.0"}},
+		&RemoteSnap{pkg: remote.Snap{Version: "1.0"}},
 	}
 	sort.Sort(BySnapVersion(snaps))
 	c.Assert(snaps[0].Version(), Equals, "1.0")
