@@ -21,6 +21,8 @@ package state
 
 import (
 	"encoding/json"
+
+	"github.com/ubuntu-core/snappy/logger"
 )
 
 type progress struct {
@@ -154,6 +156,15 @@ func (t *Task) Progress() (cur, total int) {
 func (t *Task) SetProgress(cur, total int) {
 	t.state.ensureLocked()
 	t.progress = progress{Current: cur, Total: total}
+}
+
+// Logf logs textual information about the progress of the task.
+// Only the most recent entries logged are held in memory, potentially
+// with different behavior for different task statuses. How many entries
+// are held is an implementation detail and may change over time.
+func (t *Task) Logf(format string, args ...interface{}) {
+	// XXX: minimal implementation for now
+	logger.Noticef(format, args...)
 }
 
 // Set associates value with key for future consulting by managers.
