@@ -46,9 +46,6 @@ func Manager() (*InterfaceManager, error) {
 // Connect initiates a change connecting an interface.
 //
 func Connect(change *state.Change, plugSnap, plugName, slotSnap, slotName string) error {
-	change.State().Lock()
-	defer change.State().Unlock()
-
 	task := change.NewTask("connect", fmt.Sprintf("connect %s:%s to %s:%s",
 		plugSnap, plugName, slotSnap, slotName))
 	task.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
@@ -78,6 +75,9 @@ func (m *InterfaceManager) Init(s *state.State) error {
 }
 
 func (m *InterfaceManager) doConnect(task *state.Task) error {
+	task.State().Lock()
+	defer task.State().Unlock()
+
 	var slotRef interfaces.SlotRef
 	if err := task.Get("slot", &slotRef); err != nil {
 		return err
@@ -100,5 +100,6 @@ func (m *InterfaceManager) Ensure() error {
 
 // Stop implements StateManager.Stop.
 func (m *InterfaceManager) Stop() error {
+	m.runner.Stop()
 	return nil
 }
