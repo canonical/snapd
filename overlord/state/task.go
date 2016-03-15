@@ -40,16 +40,17 @@ type Task struct {
 	status    Status
 	progress  progress
 	data      customData
-	waitTasks []string
+	waitTasks taskIDsSet
 }
 
 func newTask(state *State, id, kind, summary string) *Task {
 	return &Task{
-		state:   state,
-		id:      id,
-		kind:    kind,
-		summary: summary,
-		data:    make(customData),
+		state:     state,
+		id:        id,
+		kind:      kind,
+		summary:   summary,
+		data:      make(customData),
+		waitTasks: make(taskIDsSet),
 	}
 }
 
@@ -60,7 +61,7 @@ type marshalledTask struct {
 	Status    Status                      `json:"status"`
 	Progress  progress                    `json:"progress"`
 	Data      map[string]*json.RawMessage `json:"data"`
-	WaitTasks []string                    `json:"wait-tasks"`
+	WaitTasks taskIDsSet                  `json:"wait-tasks"`
 }
 
 // MarshalJSON makes Task a json.Marshaller
@@ -169,10 +170,15 @@ func (t *Task) Get(key string, value interface{}) error {
 func (t *Task) WaitFor(another *Task) {
 	t.state.ensureLocked()
 	t.status = WaitingStatus
-	t.waitTasks = append(t.waitTasks, another.ID())
+	t.waitTasks.add(another.ID())
 }
 
 // WaitTasks returns the list of tasks registered for t to wait for.
-func (t *Task) WaitTasks() []string {
-	return t.waitTasks
+func (t *Task) WaitTasks() []*Task {
+	t.state.ensureLocked()
+	tasks := make([]*Task, 0, len(t.waitTasks))
+	for tid := range t.waitTasks {
+		tasks = append(tasks, t.state.tasks[tid])
+	}
+	return tasks
 }

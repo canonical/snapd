@@ -213,6 +213,6 @@ func (ts *taskSuite) TestTaskWaitFor(c *C) {
 	t2 := chg.NewTask("install", "2...")
 	t2.WaitFor(t1)
 
-	c.Assert(t2.WaitTasks(), DeepEquals, []string{t1.ID()})
+	c.Assert(t2.WaitTasks(), DeepEquals, []*state.Task{t1})
 	c.Assert(t2.Status(), Equals, state.WaitingStatus)
 }
