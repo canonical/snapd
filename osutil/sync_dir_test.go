@@ -43,10 +43,10 @@ func (s *EnsureDirStateSuite) SetUpTest(c *C) {
 
 func (s *EnsureDirStateSuite) TestVerifiesExpectedFiles(c *C) {
 	name := filepath.Join(s.dir, "expected.snap")
-	err := ioutil.WriteFile(name, []byte(`expected`), 0600)
+	err := ioutil.WriteFile(name, []byte("expected"), 0600)
 	c.Assert(err, IsNil)
 	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{
-		"expected.snap": {Content: []byte(`expected`), Mode: 0600},
+		"expected.snap": {Content: []byte("expected"), Mode: 0600},
 	})
 	c.Assert(err, IsNil)
 	// Report says that nothing has changed
@@ -55,7 +55,7 @@ func (s *EnsureDirStateSuite) TestVerifiesExpectedFiles(c *C) {
 	// The content is correct
 	content, err := ioutil.ReadFile(path.Join(s.dir, "expected.snap"))
 	c.Assert(err, IsNil)
-	c.Assert(content, DeepEquals, []byte(`expected`))
+	c.Assert(content, DeepEquals, []byte("expected"))
 	// The permissions are correct
 	stat, err := os.Stat(name)
 	c.Assert(err, IsNil)
@@ -74,7 +74,7 @@ func (s *EnsureDirStateSuite) TestCreatesMissingFiles(c *C) {
 	// The content is correct
 	content, err := ioutil.ReadFile(name)
 	c.Assert(err, IsNil)
-	c.Assert(content, DeepEquals, []byte(`content`))
+	c.Assert(content, DeepEquals, []byte("content"))
 	// The permissions are correct
 	stat, err := os.Stat(name)
 	c.Assert(err, IsNil)
@@ -123,7 +123,7 @@ func (s *EnsureDirStateSuite) TestCorrectsFilesWithDifferentSize(c *C) {
 	// The content is changed
 	content, err := ioutil.ReadFile(name)
 	c.Assert(err, IsNil)
-	c.Assert(content, DeepEquals, []byte(`Hello World`))
+	c.Assert(content, DeepEquals, []byte("Hello World"))
 	// The permissions are what we expect
 	stat, err := os.Stat(name)
 	c.Assert(err, IsNil)
@@ -132,10 +132,10 @@ func (s *EnsureDirStateSuite) TestCorrectsFilesWithDifferentSize(c *C) {
 
 func (s *EnsureDirStateSuite) TestCorrectsFilesWithSameSize(c *C) {
 	name := filepath.Join(s.dir, "differing.snap")
-	err := ioutil.WriteFile(name, []byte(`evil`), 0600)
+	err := ioutil.WriteFile(name, []byte("evil"), 0600)
 	c.Assert(err, IsNil)
 	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{
-		"differing.snap": {Content: []byte(`good`), Mode: 0600},
+		"differing.snap": {Content: []byte("good"), Mode: 0600},
 	})
 	c.Assert(err, IsNil)
 	// changed file is reported
@@ -144,7 +144,7 @@ func (s *EnsureDirStateSuite) TestCorrectsFilesWithSameSize(c *C) {
 	// The content is changed
 	content, err := ioutil.ReadFile(name)
 	c.Assert(err, IsNil)
-	c.Assert(content, DeepEquals, []byte(`good`))
+	c.Assert(content, DeepEquals, []byte("good"))
 	// The permissions are what we expect
 	stat, err := os.Stat(name)
 	c.Assert(err, IsNil)
@@ -154,11 +154,11 @@ func (s *EnsureDirStateSuite) TestCorrectsFilesWithSameSize(c *C) {
 func (s *EnsureDirStateSuite) TestFixesFilesWithBadPermissions(c *C) {
 	name := filepath.Join(s.dir, "sensitive.snap")
 	// NOTE: the file is wide-open for everyone
-	err := ioutil.WriteFile(name, []byte(`password`), 0666)
+	err := ioutil.WriteFile(name, []byte("password"), 0666)
 	c.Assert(err, IsNil)
 	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{
 		// NOTE: we want the file to be private
-		"sensitive.snap": {Content: []byte(`password`), Mode: 0600},
+		"sensitive.snap": {Content: []byte("password"), Mode: 0600},
 	})
 	c.Assert(err, IsNil)
 	// changed file is reported
@@ -167,7 +167,7 @@ func (s *EnsureDirStateSuite) TestFixesFilesWithBadPermissions(c *C) {
 	// The content is still the same
 	content, err := ioutil.ReadFile(name)
 	c.Assert(err, IsNil)
-	c.Assert(content, DeepEquals, []byte(`password`))
+	c.Assert(content, DeepEquals, []byte("password"))
 	// The permissions are changed
 	stat, err := os.Stat(name)
 	c.Assert(err, IsNil)
