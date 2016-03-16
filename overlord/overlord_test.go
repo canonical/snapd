@@ -136,7 +136,7 @@ func (ovs *overlordSuite) TestEnsureLoopRunAndStop(c *C) {
 
 	witness := &witnessManager{
 		expectedEnsure: 2,
-		ensureCalled: make(chan struct{}),
+		ensureCalled:   make(chan struct{}),
 	}
 	o.StateEngine().AddManager(witness)
 
@@ -163,7 +163,7 @@ func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBefore(c *C) {
 
 	witness := &witnessManager{
 		expectedEnsure: 1,
-		ensureCalled: make(chan struct{}),
+		ensureCalled:   make(chan struct{}),
 	}
 	se := o.StateEngine()
 	se.AddManager(witness)
