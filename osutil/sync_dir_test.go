@@ -173,3 +173,9 @@ func (s *EnsureDirStateSuite) TestFixesFilesWithBadPermissions(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(stat.Mode().Perm(), Equals, os.FileMode(0600))
 }
+
+func (s *EnsureDirStateSuite) TestReportsAbnormalFileLocation(c *C) {
+	c.Assert(func() {
+		osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{"subdir/file.snap": {}})
+	}, PanicMatches, `EnsureDirState got filename "subdir/file.snap" which has a path component`)
+}
