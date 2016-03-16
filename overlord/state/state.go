@@ -34,10 +34,10 @@ import (
 )
 
 // A Backend is used by State to checkpoint on every unlock operation
-// and to mediate requests to ensure the state.
+// and to mediate requests to ensure the state sooner.
 type Backend interface {
 	Checkpoint(data []byte) error
-	EnsureAfter(d time.Duration)
+	EnsureBefore(d time.Duration)
 }
 
 type customData map[string]*json.RawMessage
@@ -181,9 +181,11 @@ func (s *State) Unlock() {
 	}
 }
 
-// EnsureAfter asks for an ensure pass to happen sooner after about duration from now.
-func (s *State) EnsureAfter(d time.Duration) {
-	s.backend.EnsureAfter(d)
+// EnsureBefore asks for an ensure pass to happen sooner within duration from now.
+func (s *State) EnsureBefore(d time.Duration) {
+	if s.backend != nil {
+		s.backend.EnsureBefore(d)
+	}
 }
 
 // ErrNoState represents the case of no state entry for a given key.

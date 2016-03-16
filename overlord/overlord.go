@@ -60,8 +60,8 @@ func New() (*Overlord, error) {
 	}
 
 	backend := &overlordStateBackend{
-		path:        dirs.SnapStateFile,
-		ensureAfter: o.ensureAfter,
+		path:         dirs.SnapStateFile,
+		ensureBefore: o.ensureBefore,
 	}
 	s, err := loadState(backend)
 	if err != nil {
@@ -130,7 +130,7 @@ func (o *Overlord) Run() {
 	})
 }
 
-func (o *Overlord) ensureAfter(d time.Duration) {
+func (o *Overlord) ensureBefore(d time.Duration) {
 	time.AfterFunc(d, func() {
 		// non-blocking, if an Ensure is about to fire anyway
 		// it's good enough
