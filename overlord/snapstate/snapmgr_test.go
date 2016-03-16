@@ -20,6 +20,7 @@
 package snapstate_test
 
 import (
+	"sort"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -88,5 +89,6 @@ func (s *snapmgrTestSuite) TestInitInits(c *C) {
 	for hname := range handlers {
 		keys = append(keys, hname)
 	}
+	sort.Strings(keys)
 	c.Assert(keys, DeepEquals, []string{"install-snap", "remove-snap"})
 }
