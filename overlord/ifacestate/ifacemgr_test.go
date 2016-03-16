@@ -31,12 +31,6 @@ import (
 
 func TestInterfaceManager(t *testing.T) { TestingT(t) }
 
-type fakeBackend struct{}
-
-func (backend *fakeBackend) Checkpoint(data []byte) error {
-	return nil
-}
-
 type interfaceManagerSuite struct {
 	state *state.State
 	mgr   *ifacestate.InterfaceManager
@@ -45,7 +39,7 @@ type interfaceManagerSuite struct {
 var _ = Suite(&interfaceManagerSuite{})
 
 func (s *interfaceManagerSuite) SetUpTest(c *C) {
-	state := state.New(&fakeBackend{})
+	state := state.New(nil)
 	mgr, err := ifacestate.Manager()
 	c.Assert(err, IsNil)
 	err = mgr.Init(state)
