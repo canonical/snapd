@@ -22,11 +22,14 @@ package snapstate_test
 import (
 	"sort"
 	"testing"
+	"time"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
+	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/snappy"
 )
 
 func TestSnapManager(t *testing.T) { TestingT(t) }
@@ -91,4 +94,55 @@ func (s *snapmgrTestSuite) TestInitInits(c *C) {
 	}
 	sort.Strings(keys)
 	c.Assert(keys, DeepEquals, []string{"install-snap", "remove-snap"})
+}
+
+func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
+	installName := ""
+	installChannel := ""
+	snapstate.SnappyInstall = func(name, channel string, flags snappy.InstallFlags, meter progress.Meter) (string, error) {
+		installName = name
+		installChannel = channel
+		return "", nil
+	}
+
+	s.state.Lock()
+	chg := s.state.NewChange("install", "install a snap")
+	err := snapstate.Install(chg, "some-snap", "some-channel")
+	s.state.Unlock()
+
+	c.Assert(err, IsNil)
+	s.snapmgr.Ensure()
+
+	// FIXME: use TaskRunner.Wait()
+	for installName == "" {
+		// wait
+		time.Sleep(1 * time.Millisecond)
+	}
+
+	c.Assert(installName, Equals, "some-snap")
+	c.Assert(installChannel, Equals, "some-channel")
+}
+
+func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
+	removeName := ""
+	snapstate.SnappyRemove = func(name string, flags snappy.RemoveFlags, meter progress.Meter) error {
+		removeName = name
+		return nil
+	}
+
+	s.state.Lock()
+	chg := s.state.NewChange("remove", "remove a snap")
+	err := snapstate.Remove(chg, "some-remove-snap")
+	s.state.Unlock()
+
+	c.Assert(err, IsNil)
+	s.snapmgr.Ensure()
+
+	// FIXME: use TaskRunner.Wait()
+	for removeName == "" {
+		// wait
+		time.Sleep(1 * time.Millisecond)
+	}
+
+	c.Assert(removeName, Equals, "some-remove-snap")
 }
