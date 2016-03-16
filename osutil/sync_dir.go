@@ -52,6 +52,11 @@ var errSameState = fmt.Errorf("file state has not changed")
 // returned to the caller for any extra processing that might be required (e.g.
 // to run some helper program).
 func EnsureDirState(dir, glob string, content map[string]*FileState) (changed, removed []string, err error) {
+	for baseName := range content {
+		if filepath.Base(baseName) != baseName {
+			panic(fmt.Sprintf("EnsureDirState got filename %q which has a path component", baseName))
+		}
+	}
 	for baseName, fileState := range content {
 		filePath := filepath.Join(dir, baseName)
 		err := writeFile(filePath, fileState)
