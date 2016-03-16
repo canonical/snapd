@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-03-16 09:24+0100\n"
+        "POT-Creation-Date: 2016-03-16 12:28+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -134,6 +134,10 @@ msgid   "Destroy the classic dimension."
 msgstr  ""
 
 msgid   "Destroy the ubuntu classic dimension."
+msgstr  ""
+
+#, c-format
+msgid   "Disconnecting %s:%s to %s:%s"
 msgstr  ""
 
 msgid   "Disconnects a plug from a slot"
