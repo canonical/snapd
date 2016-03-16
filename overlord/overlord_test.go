@@ -118,6 +118,16 @@ func (wm *witnessManager) Stop() error {
 	return nil
 }
 
+func (ovs *overlordSuite) TestTrivialRunAndStop(c *C) {
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	o.Run()
+
+	err = o.Stop()
+	c.Assert(err, IsNil)
+}
+
 func (ovs *overlordSuite) TestEnsureLoopRunAndStop(c *C) {
 	restoreIntv := overlord.SetEnsureIntervalForTest(10 * time.Millisecond)
 	defer restoreIntv()
