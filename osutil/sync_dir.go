@@ -94,8 +94,11 @@ func EnsureDirState(dir, glob string, content map[string]*FileState) (changed, r
 
 func writeFile(filePath string, fileState *FileState) error {
 	stat, err := os.Stat(filePath)
-	if err != nil {
+	if os.IsNotExist(err) {
 		return AtomicWriteFile(filePath, fileState.Content, fileState.Mode, 0)
+	}
+	if err != nil {
+		return err
 	}
 	if stat.Mode().Perm() == fileState.Mode.Perm() && stat.Size() == int64(len(fileState.Content)) {
 		content, err := ioutil.ReadFile(filePath)
