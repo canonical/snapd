@@ -80,8 +80,12 @@ func Manager() (*SnapManager, error) {
 func (m *SnapManager) doInstallSnap(t *state.Task) error {
 	var name, channel string
 	t.State().Lock()
-	t.Get("name", &name)
-	t.Get("channel", &channel)
+	if err := t.Get("name", &name); err != nil {
+		return err
+	}
+	if err := t.Get("channel", &channel); err != nil {
+		return err
+	}
 	t.State().Unlock()
 	_, err := m.backend.Install(name, channel, 0, &progress.NullProgress{})
 	return err
@@ -90,7 +94,9 @@ func (m *SnapManager) doInstallSnap(t *state.Task) error {
 func (m *SnapManager) doRemoveSnap(t *state.Task) error {
 	var name string
 	t.State().Lock()
-	t.Get("name", &name)
+	if err := t.Get("name", &name); err != nil {
+		return err
+	}
 	t.State().Unlock()
 	return m.backend.Remove(name, 0, &progress.NullProgress{})
 }
