@@ -78,6 +78,7 @@ func (r *TaskRunner) run(fn HandlerFunc, task *Task) {
 		} else {
 			task.SetStatus(ErrorStatus)
 		}
+		// TODO: trigger ensure if we have halted
 
 		return err
 	})
@@ -118,7 +119,7 @@ func (r *TaskRunner) Ensure() {
 		tasks := chg.Tasks()
 		for _, t := range tasks {
 			// done or error are final, nothing to do
-			// TODO: actually for error progate to change and siblings
+			// TODO: actually for error progate to halted and their waited
 			status := t.Status()
 			if status == DoneStatus || status == ErrorStatus {
 				continue

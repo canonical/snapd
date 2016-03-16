@@ -145,6 +145,7 @@ func (ts *taskRunnerSuite) TestErrorIsFinal(c *C) {
 	// ensure just kicks the go routine off
 	r.Ensure()
 	r.Wait()
+	// won't be restarted
 	r.Ensure()
 	r.Wait()
 
