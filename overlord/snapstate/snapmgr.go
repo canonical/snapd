@@ -23,6 +23,8 @@ package snapstate
 import (
 	"fmt"
 
+	"gopkg.in/tomb.v2"
+
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/progress"
@@ -76,7 +78,7 @@ func Manager() (*SnapManager, error) {
 	return &SnapManager{}, nil
 }
 
-func (m *SnapManager) doInstallSnap(t *state.Task) error {
+func (m *SnapManager) doInstallSnap(t *state.Task, _ *tomb.Tomb) error {
 	var name, channel string
 	t.State().Lock()
 	if err := t.Get("name", &name); err != nil {
@@ -90,7 +92,7 @@ func (m *SnapManager) doInstallSnap(t *state.Task) error {
 	return err
 }
 
-func (m *SnapManager) doRemoveSnap(t *state.Task) error {
+func (m *SnapManager) doRemoveSnap(t *state.Task, _ *tomb.Tomb) error {
 	var name string
 	t.State().Lock()
 	if err := t.Get("name", &name); err != nil {
