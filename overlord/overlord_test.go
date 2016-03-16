@@ -23,7 +23,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -34,6 +33,7 @@ import (
 	"github.com/ubuntu-core/snappy/testutil"
 
 	"github.com/ubuntu-core/snappy/overlord"
+	"github.com/ubuntu-core/snappy/overlord/state"
 )
 
 func TestOverlord(t *testing.T) { TestingT(t) }
@@ -91,30 +91,54 @@ func (ovs *overlordSuite) TestNewWithInvalidState(c *C) {
 	c.Assert(err, ErrorMatches, "EOF")
 }
 
+type witnessManager struct {
+	state          *state.State
+	expectedEnsure int
+	flag           chan struct{}
+	ensureLogic    func(s *state.State) error
+}
+
+func (wm *witnessManager) Init(s *state.State) error {
+	wm.state = s
+	return nil
+}
+
+func (wm *witnessManager) Ensure() error {
+	if wm.expectedEnsure--; wm.expectedEnsure == 0 {
+		close(wm.flag)
+		return nil
+	}
+	if wm.ensureLogic != nil {
+		return wm.ensureLogic(wm.state)
+	}
+	return nil
+}
+
+func (wm *witnessManager) Stop() error {
+	return nil
+}
+
 func (ovs *overlordSuite) TestEnsureLoopRunAndStop(c *C) {
 	restoreIntv := overlord.SetEnsureIntervalForTest(10 * time.Millisecond)
 	defer restoreIntv()
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
 
-	calls := []string{}
-
-	witness := &fakeManager{name: "witness", calls: &calls}
+	witness := &witnessManager{expectedEnsure: 2, flag: make(chan struct{})}
 	o.StateEngine().AddManager(witness)
 
 	o.Run()
-	time.Sleep(30 * time.Millisecond)
+
+	t0 := time.Now()
+	select {
+	case <-witness.flag:
+	case <-time.After(2 * time.Second):
+		c.Error("Ensure calls not happening")
+	}
+	c.Check(time.Since(t0) >= 20*time.Millisecond, Equals, true)
+
 	err = o.Stop()
 	c.Assert(err, IsNil)
-
-	ensureCalls := 0
-	for _, call := range calls {
-		if strings.HasPrefix(call, "ensure:") {
-			ensureCalls++
-		}
-	}
-
-	c.Check(ensureCalls >= 2, Equals, true)
 }
 
 func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureAfter(c *C) {
@@ -123,26 +147,53 @@ func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureAfter(c *C) {
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
 
-	calls := []string{}
-
-	witness := &fakeManager{name: "witness", calls: &calls}
+	witness := &witnessManager{expectedEnsure: 1, flag: make(chan struct{})}
 	se := o.StateEngine()
 	se.AddManager(witness)
 
 	o.Run()
 	se.State().EnsureAfter(10 * time.Millisecond)
-	time.Sleep(25 * time.Millisecond)
-	err = o.Stop()
-	c.Assert(err, IsNil)
 
-	ensureCalls := 0
-	for _, call := range calls {
-		if strings.HasPrefix(call, "ensure:") {
-			ensureCalls++
-		}
+	select {
+	case <-witness.flag:
+	case <-time.After(2 * time.Second):
+		c.Error("Ensure calls not happening")
 	}
 
-	c.Check(ensureCalls, Equals, 1)
+	err = o.Stop()
+	c.Assert(err, IsNil)
+}
+
+func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureAfterInEnsure(c *C) {
+	restoreIntv := overlord.SetEnsureIntervalForTest(10 * time.Minute)
+	defer restoreIntv()
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	ensure := func(s *state.State) error {
+		s.EnsureAfter(0)
+		return nil
+	}
+
+	witness := &witnessManager{
+		expectedEnsure: 2,
+		flag:           make(chan struct{}),
+		ensureLogic:    ensure,
+	}
+	se := o.StateEngine()
+	se.AddManager(witness)
+
+	o.Run()
+	se.State().EnsureAfter(0)
+
+	select {
+	case <-witness.flag:
+	case <-time.After(2 * time.Second):
+		c.Error("Ensure calls not happening")
+	}
+
+	err = o.Stop()
+	c.Assert(err, IsNil)
 }
 
 func (ovs *overlordSuite) TestCheckpoint(c *C) {
