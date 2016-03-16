@@ -100,7 +100,6 @@ func (s *snapmgrTestSuite) TestInitInits(c *C) {
 	snapmgr := &snapstate.SnapManager{}
 	snapmgr.Init(st)
 
-	c.Assert(snapstate.SnapManagerState(snapmgr), Equals, st)
 	runner := snapstate.SnapManagerRunner(snapmgr)
 	c.Assert(runner, FitsTypeOf, &state.TaskRunner{})
 
