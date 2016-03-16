@@ -75,3 +75,20 @@ func (s *snapmgrTestSuite) TestRemveAddsTasks(c *C) {
 	c.Assert(chg.Tasks(), HasLen, 1)
 	c.Assert(chg.Tasks()[0].Kind(), Equals, "remove-snap")
 }
+
+func (s *snapmgrTestSuite) TestInitInits(c *C) {
+	st := state.New(s.fakebackend)
+	snapmgr := &snapstate.SnapManager{}
+	snapmgr.Init(st)
+
+	c.Assert(snapstate.SnapManagerState(snapmgr), Equals, st)
+	runner := snapstate.SnapManagerRunner(snapmgr)
+	c.Assert(runner, FitsTypeOf, &state.TaskRunner{})
+
+	handlers := runner.Handlers()
+	keys := make([]string, 0, len(handlers))
+	for hname := range handlers {
+		keys = append(keys, hname)
+	}
+	c.Assert(keys, DeepEquals, []string{"install-snap", "remove-snap"})
+}
