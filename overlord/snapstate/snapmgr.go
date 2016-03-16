@@ -23,6 +23,7 @@ package snapstate
 import (
 	"fmt"
 
+	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snappy"
@@ -31,7 +32,7 @@ import (
 // Install initiates a change installing snap.
 // Note that the state must be locked by the caller.
 func Install(change *state.Change, snap, channel string) error {
-	t := change.NewTask("install-snap", fmt.Sprintf("Installing %q", snap))
+	t := change.NewTask("install-snap", fmt.Sprintf(i18n.G("Installing %q"), snap))
 	t.Set("name", snap)
 	t.Set("channel", channel)
 
@@ -41,7 +42,7 @@ func Install(change *state.Change, snap, channel string) error {
 // Remove initiates a change removing snap.
 // Note that the state must be locked by the caller.
 func Remove(change *state.Change, snap string) error {
-	t := change.NewTask("remove-snap", fmt.Sprintf("Removing %q", snap))
+	t := change.NewTask("remove-snap", fmt.Sprintf(i18n.G("Removing %q"), snap))
 	t.Set("name", snap)
 
 	return nil
