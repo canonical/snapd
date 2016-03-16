@@ -24,6 +24,7 @@ package ifacestate
 import (
 	"fmt"
 
+	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/interfaces/builtin"
 	"github.com/ubuntu-core/snappy/overlord/state"
@@ -46,8 +47,9 @@ func Manager() (*InterfaceManager, error) {
 // Connect initiates a change connecting an interface.
 //
 func Connect(change *state.Change, plugSnap, plugName, slotSnap, slotName string) error {
-	task := change.NewTask("connect", fmt.Sprintf("connect %s:%s to %s:%s",
-		plugSnap, plugName, slotSnap, slotName))
+	summary := fmt.Sprintf(i18n.G("Connecting %s:%s to %s:%s"),
+		plugSnap, plugName, slotSnap, slotName)
+	task := change.NewTask("connect", summary)
 	task.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
 	task.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
 	return nil
