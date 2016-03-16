@@ -20,7 +20,6 @@
 package snapstate_test
 
 import (
-	"sort"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -95,23 +94,6 @@ func (s *snapmgrTestSuite) TestRemveAddsTasks(c *C) {
 	c.Assert(chg.Tasks()[0].Kind(), Equals, "remove-snap")
 }
 
-func (s *snapmgrTestSuite) TestInitInits(c *C) {
-	st := state.New(nil)
-	snapmgr := &snapstate.SnapManager{}
-	snapmgr.Init(st)
-
-	runner := snapstate.SnapManagerRunner(snapmgr)
-	c.Assert(runner, FitsTypeOf, &state.TaskRunner{})
-
-	handlers := runner.Handlers()
-	keys := make([]string, 0, len(handlers))
-	for hname := range handlers {
-		keys = append(keys, hname)
-	}
-	sort.Strings(keys)
-	c.Assert(keys, DeepEquals, []string{"install-snap", "remove-snap"})
-}
-
 func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 	s.state.Lock()
 	chg := s.state.NewChange("install", "install a snap")
@@ -120,8 +102,7 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 
 	c.Assert(err, IsNil)
 	s.snapmgr.Ensure()
-	runner := snapstate.SnapManagerRunner(s.snapmgr)
-	runner.Wait()
+	s.snapmgr.Wait()
 
 	c.Assert(s.fakeBackend.op, Equals, "install")
 	c.Assert(s.fakeBackend.name, Equals, "some-snap")
@@ -136,8 +117,7 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 
 	c.Assert(err, IsNil)
 	s.snapmgr.Ensure()
-	runner := snapstate.SnapManagerRunner(s.snapmgr)
-	runner.Wait()
+	s.snapmgr.Wait()
 
 	c.Assert(s.fakeBackend.op, Equals, "remove")
 	c.Assert(s.fakeBackend.name, Equals, "some-remove-snap")

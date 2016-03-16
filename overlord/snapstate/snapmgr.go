@@ -53,14 +53,13 @@ type backendIF interface {
 	Remove(name string, flags snappy.RemoveFlags, meter progress.Meter) error
 }
 
-type snappyBackend struct {
-}
+type defaultBackend struct{}
 
-func (s *snappyBackend) Install(name, channel string, flags snappy.InstallFlags, meter progress.Meter) (string, error) {
+func (s *defaultBackend) Install(name, channel string, flags snappy.InstallFlags, meter progress.Meter) (string, error) {
 	return snappy.Install(name, channel, flags, meter)
 }
 
-func (s *snappyBackend) Remove(name string, flags snappy.RemoveFlags, meter progress.Meter) error {
+func (s *defaultBackend) Remove(name string, flags snappy.RemoveFlags, meter progress.Meter) error {
 	return snappy.Remove(name, flags, meter)
 }
 
@@ -105,7 +104,7 @@ func (m *SnapManager) doRemoveSnap(t *state.Task) error {
 func (m *SnapManager) Init(s *state.State) error {
 	m.state = s
 	m.runner = state.NewTaskRunner(s)
-	m.backend = &snappyBackend{}
+	m.backend = &defaultBackend{}
 
 	m.runner.AddHandler("install-snap", m.doInstallSnap)
 	m.runner.AddHandler("remove-snap", m.doRemoveSnap)
@@ -117,6 +116,10 @@ func (m *SnapManager) Init(s *state.State) error {
 func (m *SnapManager) Ensure() error {
 	m.runner.Ensure()
 	return nil
+}
+
+func (m *SnapManager) Wait() {
+	m.runner.Wait()
 }
 
 // Stop implements StateManager.Stop.
