@@ -22,13 +22,22 @@
 package ifacestate
 
 import (
+	"fmt"
+
+	"github.com/ubuntu-core/snappy/i18n"
+	"github.com/ubuntu-core/snappy/interfaces"
+	"github.com/ubuntu-core/snappy/interfaces/builtin"
 	"github.com/ubuntu-core/snappy/overlord/state"
 )
 
 // InterfaceManager is responsible for the maintenance of interfaces in
 // the system state.  It maintains interface connections, and also observes
 // installed snaps to track the current set of available plugs and slots.
-type InterfaceManager struct{}
+type InterfaceManager struct {
+	state  *state.State
+	runner *state.TaskRunner
+	repo   *interfaces.Repository
+}
 
 // Manager returns a new InterfaceManager.
 func Manager() (*InterfaceManager, error) {
@@ -36,7 +45,16 @@ func Manager() (*InterfaceManager, error) {
 }
 
 // Connect initiates a change connecting an interface.
-func (m *InterfaceManager) Connect(plugSnap, plugName, slotSnap, slotName string) error {
+//
+func Connect(change *state.Change, plugSnap, plugName, slotSnap, slotName string) error {
+	// TODO: Store the intent-to-connect in the state so that we automatically
+	// try to reconnect on reboot (reconnection can fail or can connect with
+	// different parameters so we cannot store the actual connection details).
+	summary := fmt.Sprintf(i18n.G("Connecting %s:%s to %s:%s"),
+		plugSnap, plugName, slotSnap, slotName)
+	task := change.NewTask("connect", summary)
+	task.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
+	task.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
 	return nil
 }
 
@@ -47,15 +65,46 @@ func (m *InterfaceManager) Disconnect(plugSnap, plugName, slotSnap, slotName str
 
 // Init implements StateManager.Init.
 func (m *InterfaceManager) Init(s *state.State) error {
+	repo := interfaces.NewRepository()
+	for _, iface := range builtin.Interfaces() {
+		if err := repo.AddInterface(iface); err != nil {
+			return err
+		}
+	}
+	runner := state.NewTaskRunner(s)
+	m.state = s
+	m.repo = repo
+	m.runner = runner
+	m.runner.AddHandler("connect", m.doConnect)
+	return nil
+}
+
+func (m *InterfaceManager) doConnect(task *state.Task) error {
+	task.State().Lock()
+	defer task.State().Unlock()
+
+	var slotRef interfaces.SlotRef
+	if err := task.Get("slot", &slotRef); err != nil {
+		return err
+	}
+	var plugRef interfaces.PlugRef
+	if err := task.Get("plug", &plugRef); err != nil {
+		return err
+	}
+	if err := m.repo.Connect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name); err != nil {
+		return err
+	}
 	return nil
 }
 
 // Ensure implements StateManager.Ensure.
 func (m *InterfaceManager) Ensure() error {
+	m.runner.Ensure()
 	return nil
 }
 
 // Stop implements StateManager.Stop.
 func (m *InterfaceManager) Stop() error {
+	m.runner.Stop()
 	return nil
 }
