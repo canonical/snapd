@@ -35,6 +35,9 @@ type StateManager interface {
 	// See StateEngine.Ensure for more details.
 	Ensure() error
 
+	// Wait asks manager to wait for all running activities to finish.
+	Wait() error
+
 	// Stop asks the manager to terminate all activities running concurrently.
 	// It must not return before these activities are finished.
 	Stop() error
