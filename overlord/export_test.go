@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,13 +17,17 @@
  *
  */
 
-package snappy
+package overlord
 
-import "strings"
+import (
+	"time"
+)
 
-// Search searches all repositories with the given keywords in the args slice
-func Search(args []string) (SharedNames, error) {
-	m := NewUbuntuStoreSnapRepository()
-
-	return m.Search(strings.Join(args, ","))
+// SetEnsureIntervalForTest let's change overlord ensure interval for tests.
+func SetEnsureIntervalForTest(d time.Duration) (restore func()) {
+	prev := ensureInterval
+	ensureInterval = d
+	return func() {
+		ensureInterval = prev
+	}
 }

@@ -64,7 +64,7 @@ func Remove(partSpec string, flags RemoveFlags, meter progress.Meter) error {
 
 	overlord := &Overlord{}
 	for _, part := range parts {
-		if err := overlord.Uninstall(part.(*Snap), meter); err != nil {
+		if err := overlord.Uninstall(part, meter); err != nil {
 			return err
 		}
 	}

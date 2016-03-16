@@ -428,55 +428,6 @@ type MockUbuntuStoreServer struct {
 	searchURI string
 }
 
-func (s *SnapTestSuite) TestUbuntuStoreRepositorySearch(c *C) {
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, MockSearchJSON)
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	var err error
-	storeSearchURI, err = url.Parse(mockServer.URL)
-	c.Assert(err, IsNil)
-	snap := NewUbuntuStoreSnapRepository()
-	c.Assert(snap, NotNil)
-
-	results, err := snap.Search(funkyAppName)
-	c.Assert(err, IsNil)
-	c.Assert(results, HasLen, 1)
-	c.Assert(results[funkyAppName], NotNil)
-
-	parts := results[funkyAppName].Parts
-	c.Assert(parts, HasLen, 1)
-	c.Check(parts[0].Name(), Equals, funkyAppName)
-	c.Check(parts[0].Developer(), Equals, funkyAppDeveloper)
-	c.Check(parts[0].Version(), Equals, "42")
-	c.Check(parts[0].Description(), Equals, "Returns for store credit only.")
-}
-
-func (s *SnapTestSuite) TestUbuntuStoreAll(c *C) {
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.URL.RawQuery, Equals, "")
-		io.WriteString(w, MockSearchJSON)
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	var err error
-	storeSearchURI, err = url.Parse(mockServer.URL)
-	c.Assert(err, IsNil)
-	repo := NewUbuntuStoreSnapRepository()
-	c.Assert(repo, NotNil)
-
-	parts, err := repo.All()
-	c.Assert(err, IsNil)
-	c.Assert(parts, HasLen, 1)
-	c.Check(parts[0].Name(), Equals, funkyAppName)
-	c.Check(parts[0].Developer(), Equals, funkyAppDeveloper)
-	c.Check(parts[0].Version(), Equals, "42")
-	c.Check(parts[0].Description(), Equals, "Returns for store credit only.")
-}
-
 func (s *SnapTestSuite) TestUbuntuStoreFind(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.URL.RawQuery, Equals, "q=name%3Afoo")
@@ -492,62 +443,12 @@ func (s *SnapTestSuite) TestUbuntuStoreFind(c *C) {
 	repo := NewUbuntuStoreSnapRepository()
 	c.Assert(repo, NotNil)
 
-	parts, err := repo.Find("foo", "")
+	parts, err := repo.FindSnaps("foo", "")
 	c.Assert(err, IsNil)
 	c.Assert(parts, HasLen, 1)
 	c.Check(parts[0].Name(), Equals, funkyAppName)
 }
 
-func (s *SnapTestSuite) TestUbuntuStoreSearchDoesNotMutateSearchURI(c *C) {
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.URL.RawQuery, Equals, "q=foo")
-		c.Check(storeSearchURI.RawQuery, Equals, "")
-		io.WriteString(w, MockSearchJSON)
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	var err error
-	storeSearchURI, err = url.Parse(mockServer.URL)
-	c.Assert(err, IsNil)
-	repo := NewUbuntuStoreSnapRepository()
-	c.Assert(repo, NotNil)
-
-	repo.Search("foo")
-}
-
-func (s *SnapTestSuite) TestUbuntuStoreRepositoryAliasSearch(c *C) {
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, MockAliasSearchJSON)
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	var err error
-	storeSearchURI, err = url.Parse(mockServer.URL)
-	c.Assert(err, IsNil)
-	snap := NewUbuntuStoreSnapRepository()
-	c.Assert(snap, NotNil)
-
-	results, err := snap.Search("hello-world")
-	c.Assert(err, IsNil)
-	c.Assert(results, HasLen, 1)
-	c.Assert(results["hello-world"], NotNil)
-
-	parts := results["hello-world"].Parts
-	c.Assert(parts, HasLen, 2)
-	c.Check(parts[0].Name(), Equals, "hello-world")
-	c.Check(parts[1].Name(), Equals, "hello-world")
-	c.Check(parts[0].Developer(), Equals, "canonical")
-	c.Check(parts[1].Developer(), Equals, "jdstrand")
-	c.Check(parts[0].Version(), Equals, "1.0.8")
-	c.Check(parts[1].Version(), Equals, "1.4")
-	c.Check(parts[0].Description(), Equals, "hello-world")
-	c.Check(parts[1].Description(), Equals, "hello-world")
-
-	alias := results["hello-world"].Alias
-	c.Assert(alias, DeepEquals, parts[0])
-}
 func mockActiveSnapIterByType(mockSnaps []string) {
 	ActiveSnapIterByType = func(f func(Part) string, snapTs ...snap.Type) (res []string, err error) {
 		return mockSnaps, nil
@@ -576,7 +477,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 	mockActiveSnapIterByType([]string{funkyAppName})
 
 	// the actual test
-	results, err := snap.Updates()
+	results, err := snap.SnapUpdates()
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].Name(), Equals, funkyAppName)
@@ -597,7 +498,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdatesNoSnaps(c *C) {
 	mockActiveSnapIterByType([]string{})
 
 	// the actual test
-	results, err := snap.Updates()
+	results, err := snap.SnapUpdates()
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 0)
 }
@@ -703,12 +604,12 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 	defer mockServer.Close()
 
 	r := &RemoteSnap{}
-	r.pkg.AnonDownloadURL = mockServer.URL + "/snap"
-	r.pkg.IconURL = mockServer.URL + "/icon"
-	r.pkg.Name = "foo"
-	r.pkg.Developer = "bar"
-	r.pkg.Description = "this is a description"
-	r.pkg.Version = "1.0"
+	r.Pkg.AnonDownloadURL = mockServer.URL + "/snap"
+	r.Pkg.IconURL = mockServer.URL + "/icon"
+	r.Pkg.Name = "foo"
+	r.Pkg.Developer = "bar"
+	r.Pkg.Description = "this is a description"
+	r.Pkg.Version = "1.0"
 
 	mStore := NewUbuntuStoreSnapRepository()
 	p := &MockProgressMeter{}
@@ -757,12 +658,12 @@ apps:
 	defer mockServer.Close()
 
 	r := &RemoteSnap{}
-	r.pkg.AnonDownloadURL = mockServer.URL + "/snap"
-	r.pkg.Developer = testDeveloper
-	r.pkg.IconURL = mockServer.URL + "/icon"
-	r.pkg.Name = "foo"
-	r.pkg.Developer = "bar"
-	r.pkg.Version = "1.0"
+	r.Pkg.AnonDownloadURL = mockServer.URL + "/snap"
+	r.Pkg.Developer = testDeveloper
+	r.Pkg.IconURL = mockServer.URL + "/icon"
+	r.Pkg.Name = "foo"
+	r.Pkg.Developer = "bar"
+	r.Pkg.Version = "1.0"
 
 	mStore := NewUbuntuStoreSnapRepository()
 	p := &MockProgressMeter{}
@@ -967,7 +868,7 @@ type: gadget
 	c.Assert(err, IsNil)
 	parts := FindSnapsByName("hello-snap", installed)
 	c.Assert(parts, HasLen, 1)
-	c.Check(s.overlord.Uninstall(parts[0].(*Snap), p), Equals, ErrPackageNotRemovable)
+	c.Check(s.overlord.Uninstall(parts[0], p), Equals, ErrPackageNotRemovable)
 }
 
 var securityBinarySnapYaml = []byte(`name: test-snap

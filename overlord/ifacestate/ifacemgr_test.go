@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,14 +17,12 @@
  *
  */
 
-package snappy
+package ifacestate_test
 
-// ListInstalled returns all installed snaps
-func ListInstalled() ([]*Snap, error) {
-	return NewLocalSnapRepository().Installed()
-}
+import (
+	"testing"
 
-// ListUpdates returns all snaps with updates
-func ListUpdates() ([]*RemoteSnap, error) {
-	return NewUbuntuStoreSnapRepository().SnapUpdates()
-}
+	"gopkg.in/check.v1"
+)
+
+func TestInterfaceManager(t *testing.T) { check.TestingT(t) }

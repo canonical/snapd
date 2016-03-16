@@ -152,7 +152,7 @@ func (s *FirstBootTestSuite) TestSoftwareActivate(c *C) {
 
 	s.m = &snapYaml{Gadget: Gadget{Software: Software{BuiltIn: []string{name}}}}
 
-	all, err := NewLocalSnapRepository().AllSnaps()
+	all, err := NewLocalSnapRepository().Installed()
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	c.Check(all[0].Name(), Equals, name)
@@ -162,7 +162,7 @@ func (s *FirstBootTestSuite) TestSoftwareActivate(c *C) {
 	s.snapMap = map[string]*Snap{name: all[0]}
 	c.Assert(FirstBoot(), IsNil)
 
-	all, err = NewLocalSnapRepository().AllSnaps()
+	all, err = NewLocalSnapRepository().Installed()
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	c.Check(all[0].Name(), Equals, name)
@@ -245,7 +245,7 @@ func (s *FirstBootTestSuite) ensureSystemSnapIsEnabledOnFirstBoot(c *C, yaml str
 	_, err := makeInstalledMockSnap(dirs.GlobalRootDir, yaml)
 	c.Assert(err, IsNil)
 
-	all, err := NewLocalSnapRepository().All()
+	all, err := NewLocalSnapRepository().Installed()
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	c.Check(all[0].IsInstalled(), Equals, true)
@@ -253,7 +253,7 @@ func (s *FirstBootTestSuite) ensureSystemSnapIsEnabledOnFirstBoot(c *C, yaml str
 
 	c.Assert(FirstBoot(), IsNil)
 
-	all, err = NewLocalSnapRepository().All()
+	all, err = NewLocalSnapRepository().Installed()
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	c.Check(all[0].IsInstalled(), Equals, true)

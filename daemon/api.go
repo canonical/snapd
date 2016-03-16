@@ -21,6 +21,7 @@ package daemon
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"mime"
@@ -175,8 +176,8 @@ func sysInfo(c *Command, r *http.Request) Response {
 }
 
 type metarepo interface {
-	Details(string, string, string) ([]snappy.Part, error)
-	Find(string, string) ([]snappy.Part, error)
+	Snap(string, string) (*snappy.RemoteSnap, error)
+	FindSnaps(string, string) ([]*snappy.RemoteSnap, error)
 }
 
 var newRemoteRepo = func() metarepo {
@@ -196,11 +197,9 @@ func getSnapInfo(c *Command, r *http.Request) Response {
 	}
 	defer lock.Unlock()
 
-	repo := newRemoteRepo()
-	var remoteSnap snappy.Part
-	if parts, _ := repo.Details(name, developer, ""); len(parts) > 0 {
-		remoteSnap = parts[0]
-	}
+	fullName := fmt.Sprintf("%s.%s", name, developer)
+	channel := ""
+	remoteSnap, _ := newRemoteRepo().Snap(fullName, channel)
 
 	localSnaps, err := snappy.NewLocalSnapRepository().Snaps(name, developer)
 	if err != nil {
@@ -248,14 +247,6 @@ func webify(result map[string]interface{}, resource string) map[string]interface
 	return result
 }
 
-type byQN []snappy.Part
-
-func (ps byQN) Len() int      { return len(ps) }
-func (ps byQN) Swap(a, b int) { ps[a], ps[b] = ps[b], ps[a] }
-func (ps byQN) Less(a, b int) bool {
-	return snappy.QualifiedName(ps[a]) < snappy.QualifiedName(ps[b])
-}
-
 // plural!
 func getSnapsInfo(c *Command, r *http.Request) Response {
 	route := c.d.router.Get(snapCmd.Path)
@@ -296,7 +287,7 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 	}
 
 	var localSnapsMap map[string][]*snappy.Snap
-	var remoteSnapMap map[string]snappy.Part
+	var remoteSnapMap map[string]*snappy.RemoteSnap
 
 	if includeLocal {
 		sources = append(sources, "local")
@@ -304,7 +295,7 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 	}
 
 	if includeStore {
-		remoteSnapMap = make(map[string]snappy.Part)
+		remoteSnapMap = make(map[string]*snappy.RemoteSnap)
 
 		// repo.Find("") finds all
 		//
@@ -312,12 +303,13 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		//   * if there are no results, return an error response.
 		//   * If there are results at all (perhaps local), include a
 		//     warning in the response
-		found, _ := newRemoteRepo().Find(searchTerm, "")
+		found, _ := newRemoteRepo().FindSnaps(searchTerm, "")
 
 		sources = append(sources, "store")
 
-		for _, part := range found {
-			remoteSnapMap[snappy.FullName(part)] = part
+		for _, snap := range found {
+			fullName := fmt.Sprintf("%s.%s", snap.Name(), snap.Developer())
+			remoteSnapMap[fullName] = snap
 		}
 	}
 
@@ -754,7 +746,7 @@ func postSnap(c *Command, r *http.Request) Response {
 
 const maxReadBuflen = 1024 * 1024
 
-func newSnapImpl(filename string, developer string, unsignedOk bool) (snappy.Part, error) {
+func newSnapImpl(filename string, developer string, unsignedOk bool) (*snappy.SnapFile, error) {
 	return snappy.NewSnapFile(filename, developer, unsignedOk)
 }
 
