@@ -23,6 +23,7 @@ package overlord
 import (
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"gopkg.in/tomb.v2"
@@ -44,8 +45,10 @@ var ensureInterval = 5 * time.Minute
 type Overlord struct {
 	stateEng *StateEngine
 	// ensure loop
-	loopTomb *tomb.Tomb
-	ensureCh chan bool
+	loopTomb    *tomb.Tomb
+	ensureLock  sync.Mutex
+	ensureTimer *time.Timer
+	ensureNext  time.Time
 	// managers
 	snapMgr   *snapstate.SnapManager
 	assertMgr *assertstate.AssertManager
@@ -56,7 +59,6 @@ type Overlord struct {
 func New() (*Overlord, error) {
 	o := &Overlord{
 		loopTomb: new(tomb.Tomb),
-		ensureCh: make(chan bool, 1),
 	}
 
 	backend := &overlordStateBackend{
@@ -108,35 +110,51 @@ func loadState(backend state.Backend) (*state.State, error) {
 	return state.ReadState(backend, r)
 }
 
+func (o *Overlord) ensureTimerSetup() {
+	o.ensureLock.Lock()
+	defer o.ensureLock.Unlock()
+	o.ensureTimer = time.NewTimer(ensureInterval)
+	o.ensureNext = time.Now().Add(ensureInterval)
+}
+
+func (o *Overlord) ensureTimerReset() {
+	o.ensureLock.Lock()
+	defer o.ensureLock.Unlock()
+	now := time.Now()
+	o.ensureTimer.Reset(ensureInterval)
+	o.ensureNext = now.Add(ensureInterval)
+}
+
+func (o *Overlord) ensureBefore(d time.Duration) {
+	o.ensureLock.Lock()
+	defer o.ensureLock.Unlock()
+	if o.ensureTimer == nil {
+		panic("cannot use EnsureBefore before Overlord.Run()")
+	}
+	now := time.Now()
+	next := now.Add(d)
+	if next.Before(o.ensureNext) {
+		o.ensureTimer.Reset(d)
+		o.ensureNext = next
+	}
+}
+
 // Run runs a loop to ensure the current state regularly through StateEngine Ensure().
 func (o *Overlord) Run() {
-	intv := ensureInterval
+	o.ensureTimerSetup()
 	o.loopTomb.Go(func() error {
-		tick := time.NewTicker(intv)
-		defer tick.Stop()
 		for {
 			select {
 			case <-o.loopTomb.Dying():
 				return nil
-			case <-o.ensureCh:
-			case <-tick.C:
+			case <-o.ensureTimer.C:
 			}
+			o.ensureTimerReset()
 			err := o.stateEng.Ensure()
 			if err != nil {
 				logger.Noticef("state engine ensure failed: %v", err)
 				// continue to the next Ensure() try for now
 			}
-		}
-	})
-}
-
-func (o *Overlord) ensureBefore(d time.Duration) {
-	time.AfterFunc(d, func() {
-		// non-blocking, if an Ensure is about to fire anyway
-		// it's good enough
-		select {
-		case o.ensureCh <- true:
-		default:
 		}
 	})
 }
