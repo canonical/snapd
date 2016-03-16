@@ -118,6 +118,7 @@ func (m *SnapManager) Ensure() error {
 	return nil
 }
 
+// Wait implements StateManager.Wait.
 func (m *SnapManager) Wait() {
 	m.runner.Wait()
 }
