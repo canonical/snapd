@@ -79,16 +79,6 @@ func (s *interfaceManagerSuite) TestConnectAddsTask(c *C) {
 	c.Assert(slot.Name, Equals, "slot")
 }
 
-func (s *interfaceManagerSuite) TestConnectChangeCanBeMarshaled(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	change := s.state.NewChange("kind", "summary")
-	// NOTE: Get() calls inside marshal arguments.
-	err := ifacestate.Connect(change, "consumer", "plug", "producer", "slot")
-	c.Assert(err, IsNil)
-}
-
 func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
 	repo := s.mgr.Repository()
 	err := repo.AddInterface(&interfaces.TestInterface{InterfaceName: "test"})
