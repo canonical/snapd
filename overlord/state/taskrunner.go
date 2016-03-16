@@ -119,6 +119,7 @@ func (r *TaskRunner) Ensure() {
 			if t.Status() == DoneStatus {
 				continue
 			}
+
 			// No handler for the given kind of task,
 			// this means another taskrunner is going
 			// to handle this task.
