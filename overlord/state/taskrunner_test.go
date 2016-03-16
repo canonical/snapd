@@ -21,7 +21,6 @@ package state_test
 
 import (
 	"sync"
-	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -62,6 +61,8 @@ func (ts *taskRunnerSuite) TestEnsureTrivial(c *C) {
 	taskCompleted.Add(1)
 	st.Unlock()
 
+	defer r.Stop()
+
 	// ensure just kicks the go routine off
 	r.Ensure()
 	taskCompleted.Wait()
@@ -83,6 +84,8 @@ func (ts *taskRunnerSuite) TestEnsureComplex(c *C) {
 	r.AddHandler("unpack", fn)
 	r.AddHandler("configure", fn)
 
+	defer r.Stop()
+
 	// run in a loop to ensure ordering is correct by pure chance
 	for i := 0; i < 100; i++ {
 		ordering = []string{}
@@ -98,10 +101,9 @@ func (ts *taskRunnerSuite) TestEnsureComplex(c *C) {
 		tConf.WaitFor(tUnp)
 		st.Unlock()
 
-		// ensure just kicks the go routine off
 		for len(ordering) < 3 {
 			r.Ensure()
-			time.Sleep(1 * time.Millisecond)
+			r.Wait()
 		}
 
 		c.Assert(ordering, DeepEquals, []string{"download", "unpack", "configure"})
