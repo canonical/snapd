@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-03-10 11:52+0100\n"
+        "POT-Creation-Date: 2016-03-14 14:48+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -585,15 +585,18 @@ msgid   "architecture: %s\n"
 msgstr  ""
 
 #. TRANSLATORS: the %s is a size
+#. TRANSLATORS: the %s is a size
 #, c-format
 msgid   "binary-size: %v\n"
 msgstr  ""
 
 #. TRANSLATORS: the %s is a channel name
+#. TRANSLATORS: the %s is a channel name
 #, c-format
 msgid   "channel: %s\n"
 msgstr  ""
 
+#. TRANSLATORS: the %s is a size
 #. TRANSLATORS: the %s is a size
 #, c-format
 msgid   "data-size: %s\n"
@@ -604,6 +607,7 @@ msgstr  ""
 msgid   "frameworks: %s\n"
 msgstr  ""
 
+#. TRANSLATORS: the %s is a date
 #. TRANSLATORS: the %s is a date
 #, c-format
 msgid   "installed: %s\n"
@@ -655,10 +659,12 @@ msgid   "unsupported shell %v"
 msgstr  ""
 
 #. TRANSLATORS: the %s is a date
+#. TRANSLATORS: the %s is a date
 #, c-format
 msgid   "updated: %s\n"
 msgstr  ""
 
+#. TRANSLATORS: the %s is a version string
 #. TRANSLATORS: the %s is a version string
 #, c-format
 msgid   "version: %s\n"

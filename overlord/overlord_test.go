@@ -22,7 +22,9 @@ package overlord_test
 import (
 	"io/ioutil"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -83,4 +85,30 @@ func (os *overlordSuite) TestNewWithInvalidState(c *C) {
 
 	_, err = overlord.New()
 	c.Assert(err, ErrorMatches, "EOF")
+}
+
+func (os *overlordSuite) TestEnsureLoopRunAndStop(c *C) {
+	restoreIntv := overlord.SetEnsureIntervalForTest(10 * time.Millisecond)
+	defer restoreIntv()
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	calls := []string{}
+
+	witness := &fakeManager{name: "witness", calls: &calls}
+	o.StateEngine().AddManager(witness)
+
+	o.Run()
+	time.Sleep(30 * time.Millisecond)
+	err = o.Stop()
+	c.Assert(err, IsNil)
+
+	ensureCalls := 0
+	for _, call := range calls {
+		if strings.HasPrefix(call, "ensure:") {
+			ensureCalls++
+		}
+	}
+
+	c.Check(ensureCalls >= 2, Equals, true)
 }

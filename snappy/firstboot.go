@@ -61,7 +61,7 @@ var newOverlord = func() configurator {
 
 func newSnapMapImpl() (map[string]*Snap, error) {
 	repo := NewLocalSnapRepository()
-	all, err := repo.AllSnaps()
+	all, err := repo.Installed()
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +95,7 @@ func gadgetConfig() error {
 			return errNoSnapToActivate
 		}
 		if err := snap.activate(false, pb); err != nil {
-			logger.Noticef("failed to activate %s: %s", fmt.Sprintf("%s.%s", snap.Name(), snap.Origin()), err)
+			logger.Noticef("failed to activate %s: %s", fmt.Sprintf("%s.%s", snap.Name(), snap.Developer()), err)
 		}
 	}
 
@@ -133,7 +133,7 @@ var getActivator = func() activator {
 // on the first boot
 func enableSystemSnaps() error {
 	repo := NewLocalSnapRepository()
-	all, err := repo.All()
+	all, err := repo.Installed()
 	if err != nil {
 		return nil
 	}
@@ -144,7 +144,7 @@ func enableSystemSnaps() error {
 		switch part.Type() {
 		case snap.TypeGadget, snap.TypeKernel, snap.TypeOS:
 			logger.Noticef("Acitvating %s", FullName(part))
-			if err := activator.SetActive(part.(*Snap), true, pb); err != nil {
+			if err := activator.SetActive(part, true, pb); err != nil {
 				// we don't want this to fail for now
 				logger.Noticef("failed to activate %s: %s", FullName(part), err)
 			}

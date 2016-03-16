@@ -405,18 +405,14 @@ func (s *Snap) Dependents() ([]*Snap, error) {
 	}
 
 	name := s.Name()
-	for _, part := range installed {
-		fmks, err := part.Frameworks()
+	for _, snap := range installed {
+		fmks, err := snap.Frameworks()
 		if err != nil {
 			return nil, err
 		}
 		for _, fmk := range fmks {
 			if fmk == name {
-				part, ok := part.(*Snap)
-				if !ok {
-					return nil, ErrInstalledNonSnap
-				}
-				needed = append(needed, part)
+				needed = append(needed, snap)
 			}
 		}
 	}

@@ -47,30 +47,10 @@ const (
 	UbuntuCoreWireProtocol = "1"
 )
 
-// SharedName is a structure that holds an Alias to the preferred package and
-// the list of all the alternatives.
-type SharedName struct {
-	Alias Part
-	Parts []Part
-}
-
-// SharedNames is a list of all packages and it's SharedName structure.
-type SharedNames map[string]*SharedName
-
-// IsAlias determines if developer is the one that is an alias for the
-// shared name.
-func (f *SharedName) IsAlias(developer string) bool {
-	if alias := f.Alias; alias != nil {
-		return alias.Developer() == developer
-	}
-
-	return false
-}
-
 // NewRemoteSnap returns a new RemoteSnap from the given
 // remote.Snap data
 func NewRemoteSnap(data remote.Snap) *RemoteSnap {
-	return &RemoteSnap{pkg: data}
+	return &RemoteSnap{Pkg: data}
 }
 
 // SnapUbuntuStoreRepository represents the ubuntu snap store
@@ -235,26 +215,9 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string) (*RemoteSnap, err
 	return NewRemoteSnap(detailsData), nil
 }
 
-// Details returns details for the given snap in this repository
-func (s *SnapUbuntuStoreRepository) Details(name, developer, channel string) (parts []Part, err error) {
-	snapName := name
-	if developer != "" {
-		snapName = name + "." + developer
-	}
-	snap, err := s.Snap(snapName, channel)
-	if err != nil {
-		return nil, err
-	}
-	return []Part{snap}, nil
-}
-
-// All (installable) parts from the store
-func (s *SnapUbuntuStoreRepository) All() ([]Part, error) {
-	return s.Find("", "")
-}
-
-// Find (installable) parts from the store, matching the given search term.
-func (s *SnapUbuntuStoreRepository) Find(searchTerm string, channel string) ([]Part, error) {
+// FindSnaps finds  (installable) parts from the store, matching the
+// given search term.
+func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string) ([]*RemoteSnap, error) {
 	if channel == "" {
 		channel = release.Get().Channel
 	}
@@ -290,65 +253,16 @@ func (s *SnapUbuntuStoreRepository) Find(searchTerm string, channel string) ([]P
 		return nil, err
 	}
 
-	parts := make([]Part, len(searchData.Payload.Packages))
+	snaps := make([]*RemoteSnap, len(searchData.Payload.Packages))
 	for i, pkg := range searchData.Payload.Packages {
-		parts[i] = NewRemoteSnap(pkg)
+		snaps[i] = NewRemoteSnap(pkg)
 	}
 
-	return parts, nil
+	return snaps, nil
 }
 
-// Search searches the repository for the given searchTerm
-func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (SharedNames, error) {
-	u := *s.searchURI // make a copy, so we can mutate it
-	q := u.Query()
-	q.Set("q", searchTerm)
-	u.RawQuery = q.Encode()
-	req, err := http.NewRequest("GET", u.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	// set headers
-	setUbuntuStoreHeaders(req)
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	var searchData searchResults
-
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&searchData); err != nil {
-		return nil, err
-	}
-
-	sharedNames := make(SharedNames, len(searchData.Payload.Packages))
-	for _, pkg := range searchData.Payload.Packages {
-		snap := NewRemoteSnap(pkg)
-		pkgName := snap.Name()
-
-		if _, ok := sharedNames[snap.Name()]; !ok {
-			sharedNames[pkgName] = new(SharedName)
-		}
-
-		sharedNames[pkgName].Parts = append(sharedNames[pkgName].Parts, snap)
-		if pkg.Alias != "" {
-			sharedNames[pkgName].Alias = snap
-		}
-	}
-
-	return sharedNames, nil
-}
-
-// Updates returns the available updates
-func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
-	// the store only supports apps, gadget and frameworks currently, so no
-	// sense in sending it our ubuntu-core snap
-	//
+// SnapUpdates returns the available updates as RemoteSnap types
+func (s *SnapUbuntuStoreRepository) SnapUpdates() (snaps []*RemoteSnap, err error) {
 	// NOTE this *will* send .sideload apps to the store.
 	installed, err := ActiveSnapIterByType(fullNameWithChannel, snap.TypeApp, snap.TypeFramework, snap.TypeGadget, snap.TypeOS, snap.TypeKernel)
 	if err != nil || len(installed) == 0 {
@@ -386,18 +300,18 @@ func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
 		current := ActiveSnapByName(pkg.Name)
 		if current == nil || current.Version() != pkg.Version {
 			snap := NewRemoteSnap(pkg)
-			parts = append(parts, snap)
+			snaps = append(snaps, snap)
 		}
 	}
 
-	return parts, nil
+	return snaps, nil
 }
 
 // Download downloads the given snap and returns its filename.
 // The file is saved in temporary storage, and should be removed
 // after use to prevent the disk from running out of space.
 func (s *SnapUbuntuStoreRepository) Download(remoteSnap *RemoteSnap, pbar progress.Meter) (path string, err error) {
-	w, err := ioutil.TempFile("", remoteSnap.pkg.Name)
+	w, err := ioutil.TempFile("", remoteSnap.Pkg.Name)
 	if err != nil {
 		return "", err
 	}
@@ -412,9 +326,9 @@ func (s *SnapUbuntuStoreRepository) Download(remoteSnap *RemoteSnap, pbar progre
 	}()
 
 	// try anonymous download first and fallback to authenticated
-	url := remoteSnap.pkg.AnonDownloadURL
+	url := remoteSnap.Pkg.AnonDownloadURL
 	if url == "" {
-		url = remoteSnap.pkg.DownloadURL
+		url = remoteSnap.Pkg.DownloadURL
 	}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {

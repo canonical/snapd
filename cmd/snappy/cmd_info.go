@@ -75,11 +75,26 @@ func snapInfo(pkgname string, includeStore, verbose bool) error {
 	snap := snappy.ActiveSnapByName(pkgname)
 	if snap == nil && includeStore {
 		m := snappy.NewUbuntuStoreSnapRepository()
-		var err error
-		snap, err = m.Snap(pkgname, release.Get().Channel)
+		remote, err := m.Snap(pkgname, release.Get().Channel)
 		if err != nil {
 			return fmt.Errorf("cannot get details for snap %q: %s", pkgname, err)
 		}
+
+		// TRANSLATORS: the %s is a channel name
+		fmt.Printf(i18n.G("channel: %s\n"), remote.Channel())
+		// TRANSLATORS: the %s is a version string
+		fmt.Printf(i18n.G("version: %s\n"), remote.Version())
+		// TRANSLATORS: the %s is a date
+		fmt.Printf(i18n.G("updated: %s\n"), remote.Date())
+		if verbose {
+			// TRANSLATORS: the %s is a date
+			fmt.Printf(i18n.G("installed: %s\n"), "n/a")
+			// TRANSLATORS: the %s is a size
+			fmt.Printf(i18n.G("binary-size: %v\n"), remote.InstalledSize())
+			// TRANSLATORS: the %s is a size
+			fmt.Printf(i18n.G("data-size: %s\n"), "n/a")
+		}
+
 	}
 
 	if snap == nil {
