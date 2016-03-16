@@ -47,9 +47,25 @@ func Remove(change *state.Change, snap string) error {
 	return nil
 }
 
+type backendIF interface {
+	Install(name, channel string, flags snappy.InstallFlags, meter progress.Meter) (string, error)
+	Remove(name string, flags snappy.RemoveFlags, meter progress.Meter) error
+}
+
+type snappyBackend struct {
+}
+
+func (s *snappyBackend) Install(name, channel string, flags snappy.InstallFlags, meter progress.Meter) (string, error) {
+	return snappy.Install(name, channel, flags, meter)
+}
+func (s *snappyBackend) Remove(name string, flags snappy.RemoveFlags, meter progress.Meter) error {
+	return snappy.Remove(name, flags, meter)
+}
+
 // SnapManager is responsible for the installation and removal of snaps.
 type SnapManager struct {
-	state *state.State
+	state   *state.State
+	backend backendIF
 
 	runner *state.TaskRunner
 }
@@ -59,19 +75,13 @@ func Manager() (*SnapManager, error) {
 	return &SnapManager{}, nil
 }
 
-// we need to fake those in the tests
-var (
-	SnappyInstall = snappy.Install
-	SnappyRemove  = snappy.Remove
-)
-
 func (m *SnapManager) doInstallSnap(t *state.Task) error {
 	var name, channel string
 	t.State().Lock()
 	t.Get("name", &name)
 	t.Get("channel", &channel)
 	t.State().Unlock()
-	_, err := SnappyInstall(name, channel, 0, &progress.NullProgress{})
+	_, err := m.backend.Install(name, channel, 0, &progress.NullProgress{})
 	return err
 }
 
@@ -80,13 +90,14 @@ func (m *SnapManager) doRemoveSnap(t *state.Task) error {
 	t.State().Lock()
 	t.Get("name", &name)
 	t.State().Unlock()
-	return SnappyRemove(name, 0, &progress.NullProgress{})
+	return m.backend.Remove(name, 0, &progress.NullProgress{})
 }
 
 // Init implements StateManager.Init.
 func (m *SnapManager) Init(s *state.State) error {
 	m.state = s
 	m.runner = state.NewTaskRunner(s)
+	m.backend = &snappyBackend{}
 
 	m.runner.AddHandler("install-snap", m.doInstallSnap)
 	m.runner.AddHandler("remove-snap", m.doRemoveSnap)

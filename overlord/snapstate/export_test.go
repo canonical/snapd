@@ -31,3 +31,9 @@ func SnapManagerState(s *SnapManager) *state.State {
 func SnapManagerRunner(s *SnapManager) *state.TaskRunner {
 	return s.runner
 }
+
+type BackendIF backendIF
+
+func SetSnapManagerBackend(s *SnapManager, b BackendIF) {
+	s.backend = b
+}
