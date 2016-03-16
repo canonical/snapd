@@ -54,12 +54,11 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 
 func (s *snapmgrTestSuite) TestInstallAddsTasks(c *C) {
 	s.state.Lock()
-	chg := s.state.NewChange("install", "installing foo")
-	s.state.Unlock()
-	snapstate.Install(chg, "foo")
-
-	s.state.Lock()
 	defer s.state.Unlock()
+
+	chg := s.state.NewChange("install", "installing foo")
+	snapstate.Install(chg, "some-snap", "some-channel")
+
 	c.Assert(s.state.Changes(), HasLen, 1)
 	c.Assert(chg.Tasks(), HasLen, 1)
 	c.Assert(chg.Tasks()[0].Kind(), Equals, "install-snap")
@@ -67,12 +66,11 @@ func (s *snapmgrTestSuite) TestInstallAddsTasks(c *C) {
 
 func (s *snapmgrTestSuite) TestRemveAddsTasks(c *C) {
 	s.state.Lock()
+	defer s.state.Unlock()
+
 	chg := s.state.NewChange("remove", "removing foo")
-	s.state.Unlock()
 	snapstate.Remove(chg, "foo")
 
-	s.state.Lock()
-	defer s.state.Unlock()
 	c.Assert(s.state.Changes(), HasLen, 1)
 	c.Assert(chg.Tasks(), HasLen, 1)
 	c.Assert(chg.Tasks()[0].Kind(), Equals, "remove-snap")
