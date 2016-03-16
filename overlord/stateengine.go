@@ -36,11 +36,11 @@ type StateManager interface {
 	Ensure() error
 
 	// Wait asks manager to wait for all running activities to finish.
-	Wait() error
+	Wait()
 
 	// Stop asks the manager to terminate all activities running concurrently.
 	// It must not return before these activities are finished.
-	Stop() error
+	Stop()
 }
 
 // StateEngine controls the dispatching of state changes to state managers.
@@ -105,16 +105,12 @@ func (se *StateEngine) AddManager(m StateManager) {
 
 // Stop asks all managers to terminate activities running concurrently.
 // It returns the first error found after all managers are stopped.
-func (se *StateEngine) Stop() error {
+func (se *StateEngine) Stop() {
 	if len(se.managers) > 0 {
 		for _, m := range se.managers {
-			err := m.Stop()
-			if err != nil {
-				return err
-			}
+			m.Stop()
 		}
 		se.initialize = append(se.initialize, se.managers...)
 		se.managers = nil
 	}
-	return nil
 }

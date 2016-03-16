@@ -47,11 +47,9 @@ func (m *AssertManager) Ensure() error {
 }
 
 // Stop implements StateManager.Stop.
-func (m *AssertManager) Stop() error {
-	return nil
+func (m *AssertManager) Stop() {
 }
 
 // Wait implements StateManager.Wait.
-func (m *AssertManager) Wait() error {
-	return nil
+func (m *AssertManager) Wait() {
 }

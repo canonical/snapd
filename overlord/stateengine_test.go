@@ -57,14 +57,12 @@ func (fm *fakeManager) Ensure() error {
 	return fm.ensureError
 }
 
-func (fm *fakeManager) Stop() error {
+func (fm *fakeManager) Stop() {
 	*fm.calls = append(*fm.calls, "stop:"+fm.name)
-	return fm.stopError
 }
 
-func (fm *fakeManager) Wait() error {
+func (fm *fakeManager) Wait() {
 	*fm.calls = append(*fm.calls, "wait:"+fm.name)
-	return fm.stopError
 }
 
 var _ overlord.StateManager = (*fakeManager)(nil)
@@ -148,36 +146,10 @@ func (ses *stateEngineSuite) TestStop(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(calls, HasLen, 4)
 
-	err = se.Stop()
-	c.Assert(err, IsNil)
+	se.Stop()
 	c.Check(calls, DeepEquals, []string{"init:mgr1", "init:mgr2", "ensure:mgr1", "ensure:mgr2", "stop:mgr1", "stop:mgr2"})
 
 	err = se.Ensure()
 	c.Assert(err, IsNil)
 	c.Check(calls, DeepEquals, []string{"init:mgr1", "init:mgr2", "ensure:mgr1", "ensure:mgr2", "stop:mgr1", "stop:mgr2", "init:mgr1", "init:mgr2", "ensure:mgr1", "ensure:mgr2"})
-}
-
-func (ses *stateEngineSuite) TestStopError(c *C) {
-	s := state.New(nil)
-	se := overlord.NewStateEngine(s)
-
-	calls := []string{}
-
-	err1 := errors.New("boom1")
-	err2 := errors.New("boom2")
-
-	mgr1 := &fakeManager{name: "mgr1", calls: &calls, stopError: err1}
-	mgr2 := &fakeManager{name: "mgr2", calls: &calls, stopError: err2}
-
-	se.AddManager(mgr1)
-	se.AddManager(mgr2)
-
-	err := se.Ensure()
-	c.Assert(err, IsNil)
-	c.Check(calls, HasLen, 4)
-
-	err = se.Stop()
-	c.Check(err, Equals, err1)
-	c.Check(calls, DeepEquals, []string{"init:mgr1", "init:mgr2", "ensure:mgr1", "ensure:mgr2", "stop:mgr1"})
-
 }
