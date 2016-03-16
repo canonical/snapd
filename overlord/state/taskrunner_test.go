@@ -24,6 +24,7 @@ import (
 	"sync"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/tomb.v2"
 
 	"github.com/ubuntu-core/snappy/overlord/state"
 )
@@ -34,7 +35,7 @@ var _ = Suite(&taskRunnerSuite{})
 
 func (ts *taskRunnerSuite) TestAddHandler(c *C) {
 	r := state.NewTaskRunner(nil)
-	fn := func(task *state.Task) error {
+	fn := func(task *state.Task, tomb *tomb.Tomb) error {
 		return nil
 	}
 	r.AddHandler("download", fn)
@@ -49,7 +50,7 @@ func (ts *taskRunnerSuite) TestEnsureTrivial(c *C) {
 	// setup the download handler
 	taskCompleted := sync.WaitGroup{}
 	r := state.NewTaskRunner(st)
-	fn := func(task *state.Task) error {
+	fn := func(task *state.Task, tomb *tomb.Tomb) error {
 		task.State().Lock()
 		defer task.State().Unlock()
 		c.Check(task.Status(), Equals, state.RunningStatus)
@@ -80,7 +81,7 @@ func (ts *taskRunnerSuite) TestEnsureComplex(c *C) {
 	r := state.NewTaskRunner(st)
 
 	var ordering []string
-	fn := func(task *state.Task) error {
+	fn := func(task *state.Task, tomb *tomb.Tomb) error {
 		task.State().Lock()
 		defer task.State().Unlock()
 		c.Check(task.Status(), Equals, state.RunningStatus)
@@ -127,7 +128,7 @@ func (ts *taskRunnerSuite) TestErrorIsFinal(c *C) {
 
 	// setup the download handler
 	r := state.NewTaskRunner(st)
-	fn := func(task *state.Task) error {
+	fn := func(task *state.Task, tomb *tomb.Tomb) error {
 		invocations++
 		return errors.New("boom")
 	}
@@ -146,6 +147,39 @@ func (ts *taskRunnerSuite) TestErrorIsFinal(c *C) {
 	r.Wait()
 	r.Ensure()
 	r.Wait()
+
+	c.Check(invocations, Equals, 1)
+}
+
+func (ts *taskRunnerSuite) TestStopCancelsGoroutines(c *C) {
+	// we need state
+	st := state.New(nil)
+
+	invocations := 0
+
+	// setup the download handler
+	r := state.NewTaskRunner(st)
+
+	fn := func(task *state.Task, tomb *tomb.Tomb) error {
+		select {
+		case <-tomb.Dying():
+		}
+		invocations++
+		return nil
+	}
+	r.AddHandler("download", fn)
+
+	// add a download task to the state tracker
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	chg.NewTask("download", "1...")
+	st.Unlock()
+
+	defer r.Stop()
+
+	// ensure just kicks the go routine off
+	r.Ensure()
+	r.Stop()
 
 	c.Check(invocations, Equals, 1)
 }

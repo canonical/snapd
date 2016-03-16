@@ -26,7 +26,7 @@ import (
 )
 
 // HandlerFunc is the type of function for the handlers
-type HandlerFunc func(task *Task) error
+type HandlerFunc func(task *Task, tomb *tomb.Tomb) error
 
 // TaskRunner controls the running of goroutines to execute known task kinds.
 type TaskRunner struct {
@@ -66,9 +66,10 @@ func (r *TaskRunner) Handlers() map[string]HandlerFunc {
 // run must be called with the state lock in place
 func (r *TaskRunner) run(fn HandlerFunc, task *Task) {
 	task.SetStatus(RunningStatus) // could have been set to waiting
-	r.tombs[task.ID()] = &tomb.Tomb{}
-	r.tombs[task.ID()].Go(func() error {
-		err := fn(task)
+	tomb := &tomb.Tomb{}
+	r.tombs[task.ID()] = tomb
+	tomb.Go(func() error {
+		err := fn(task, tomb)
 
 		r.state.Lock()
 		defer r.state.Unlock()
@@ -155,8 +156,11 @@ func (r *TaskRunner) Stop() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	for id, tb := range r.tombs {
+	for _, tb := range r.tombs {
 		tb.Kill(nil)
+	}
+
+	for id, tb := range r.tombs {
 		tb.Wait()
 		delete(r.tombs, id)
 	}
