@@ -23,6 +23,7 @@ package overlord
 import (
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"gopkg.in/tomb.v2"
@@ -37,14 +38,17 @@ import (
 	"github.com/ubuntu-core/snappy/overlord/state"
 )
 
-var ensureInterval = 5 * time.Second
+var ensureInterval = 5 * time.Minute
 
 // Overlord is the central manager of a snappy system, keeping
 // track of all available state managers and related helpers.
 type Overlord struct {
 	stateEng *StateEngine
 	// ensure loop
-	loopTomb *tomb.Tomb
+	loopTomb    *tomb.Tomb
+	ensureLock  sync.Mutex
+	ensureTimer *time.Timer
+	ensureNext  time.Time
 	// managers
 	snapMgr   *snapstate.SnapManager
 	assertMgr *assertstate.AssertManager
@@ -53,9 +57,14 @@ type Overlord struct {
 
 // New creates a new Overlord with all its state managers.
 func New() (*Overlord, error) {
-	o := &Overlord{loopTomb: new(tomb.Tomb)}
+	o := &Overlord{
+		loopTomb: new(tomb.Tomb),
+	}
 
-	backend := state.NewFileBackend(dirs.SnapStateFile)
+	backend := &overlordStateBackend{
+		path:         dirs.SnapStateFile,
+		ensureBefore: o.ensureBefore,
+	}
 	s, err := loadState(backend)
 	if err != nil {
 		return nil, err
@@ -101,18 +110,46 @@ func loadState(backend state.Backend) (*state.State, error) {
 	return state.ReadState(backend, r)
 }
 
+func (o *Overlord) ensureTimerSetup() {
+	o.ensureLock.Lock()
+	defer o.ensureLock.Unlock()
+	o.ensureTimer = time.NewTimer(ensureInterval)
+	o.ensureNext = time.Now().Add(ensureInterval)
+}
+
+func (o *Overlord) ensureTimerReset() {
+	o.ensureLock.Lock()
+	defer o.ensureLock.Unlock()
+	now := time.Now()
+	o.ensureTimer.Reset(ensureInterval)
+	o.ensureNext = now.Add(ensureInterval)
+}
+
+func (o *Overlord) ensureBefore(d time.Duration) {
+	o.ensureLock.Lock()
+	defer o.ensureLock.Unlock()
+	if o.ensureTimer == nil {
+		panic("cannot use EnsureBefore before Overlord.Run()")
+	}
+	now := time.Now()
+	next := now.Add(d)
+	if next.Before(o.ensureNext) {
+		o.ensureTimer.Reset(d)
+		o.ensureNext = next
+	}
+}
+
 // Run runs a loop to ensure the current state regularly through StateEngine Ensure().
 func (o *Overlord) Run() {
-	intv := ensureInterval
+	o.ensureTimerSetup()
 	o.loopTomb.Go(func() error {
-		tick := time.NewTicker(intv)
-		defer tick.Stop()
 		for {
 			select {
 			case <-o.loopTomb.Dying():
 				return nil
-			case <-tick.C:
+			case <-o.ensureTimer.C:
 			}
+			o.ensureTimerReset()
 			err := o.stateEng.Ensure()
 			if err != nil {
 				logger.Noticef("state engine ensure failed: %v", err)
