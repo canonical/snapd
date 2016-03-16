@@ -59,7 +59,14 @@ func Connect(change *state.Change, plugSnap, plugName, slotSnap, slotName string
 }
 
 // Disconnect initiates a change disconnecting an interface.
-func (m *InterfaceManager) Disconnect(plugSnap, plugName, slotSnap, slotName string) error {
+func Disconnect(change *state.Change, plugSnap, plugName, slotSnap, slotName string) error {
+	// TODO: Remove the intent-to-connect from the state so that we no longer
+	// automatically try to reconnect on reboot.
+	summary := fmt.Sprintf(i18n.G("Disconnecting %s:%s to %s:%s"),
+		plugSnap, plugName, slotSnap, slotName)
+	task := change.NewTask("disconnect", summary)
+	task.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
+	task.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
 	return nil
 }
 
@@ -76,6 +83,7 @@ func (m *InterfaceManager) Init(s *state.State) error {
 	m.repo = repo
 	m.runner = runner
 	m.runner.AddHandler("connect", m.doConnect)
+	m.runner.AddHandler("disconnect", m.doDisconnect)
 	return nil
 }
 
@@ -100,6 +108,20 @@ func (m *InterfaceManager) doConnect(task *state.Task) error {
 		return err
 	}
 	if err := m.repo.Connect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *InterfaceManager) doDisconnect(task *state.Task) error {
+	task.State().Lock()
+	defer task.State().Unlock()
+
+	plugRef, slotRef, err := getPlugAndSlotRefs(task)
+	if err != nil {
+		return err
+	}
+	if err := m.repo.Disconnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name); err != nil {
 		return err
 	}
 	return nil
