@@ -33,9 +33,11 @@ import (
 	"github.com/ubuntu-core/snappy/strutil"
 )
 
-// A Backend is used by State to checkpoint on every unlock operation.
+// A Backend is used by State to checkpoint on every unlock operation
+// and to mediate requests to ensure the state sooner.
 type Backend interface {
 	Checkpoint(data []byte) error
+	EnsureBefore(d time.Duration)
 }
 
 type customData map[string]*json.RawMessage
@@ -176,6 +178,13 @@ func (s *State) Unlock() {
 			time.Sleep(unlockCheckpointRetryInterval)
 		}
 		logger.Panicf("cannot checkpoint even after %v of retries every %v: %v", unlockCheckpointRetryMaxTime, unlockCheckpointRetryInterval, err)
+	}
+}
+
+// EnsureBefore asks for an ensure pass to happen sooner within duration from now.
+func (s *State) EnsureBefore(d time.Duration) {
+	if s.backend != nil {
+		s.backend.EnsureBefore(d)
 	}
 }
 

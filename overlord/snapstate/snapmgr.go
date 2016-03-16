@@ -55,14 +55,13 @@ type backendIF interface {
 	Remove(name string, flags snappy.RemoveFlags, meter progress.Meter) error
 }
 
-type snappyBackend struct {
-}
+type defaultBackend struct{}
 
-func (s *snappyBackend) Install(name, channel string, flags snappy.InstallFlags, meter progress.Meter) (string, error) {
+func (s *defaultBackend) Install(name, channel string, flags snappy.InstallFlags, meter progress.Meter) (string, error) {
 	return snappy.Install(name, channel, flags, meter)
 }
 
-func (s *snappyBackend) Remove(name string, flags snappy.RemoveFlags, meter progress.Meter) error {
+func (s *defaultBackend) Remove(name string, flags snappy.RemoveFlags, meter progress.Meter) error {
 	return snappy.Remove(name, flags, meter)
 }
 
@@ -83,9 +82,15 @@ func (m *SnapManager) doInstallSnap(t *state.Task) error {
 	var name, channel string
 	var flags snappy.InstallFlags
 	t.State().Lock()
-	t.Get("name", &name)
-	t.Get("channel", &channel)
-	t.Get("flags", &flags)
+	if err := t.Get("name", &name); err != nil {
+		return err
+	}
+	if err := t.Get("channel", &channel); err != nil {
+		return err
+	}
+	if err := t.Get("flags", &flags); err != nil {
+		return err
+	}
 	t.State().Unlock()
 
 	_, err := m.backend.Install(name, channel, flags, &progress.NullProgress{})
@@ -97,8 +102,12 @@ func (m *SnapManager) doRemoveSnap(t *state.Task) error {
 	var nameAndDeveloper string
 	var flags snappy.RemoveFlags
 	t.State().Lock()
-	t.Get("name", &nameAndDeveloper)
-	t.Get("flags", &flags)
+	if err := t.Get("name", &nameAndDeveloper); err != nil {
+		return err
+	}
+	if err := t.Get("flags", &flags); err != nil {
+		return err
+	}
 	t.State().Unlock()
 
 	name, _ := snappy.SplitDeveloper(nameAndDeveloper)
@@ -111,7 +120,7 @@ func (m *SnapManager) doRemoveSnap(t *state.Task) error {
 func (m *SnapManager) Init(s *state.State) error {
 	m.state = s
 	m.runner = state.NewTaskRunner(s)
-	m.backend = &snappyBackend{}
+	m.backend = &defaultBackend{}
 
 	m.runner.AddHandler("install-snap", m.doInstallSnap)
 	m.runner.AddHandler("remove-snap", m.doRemoveSnap)
@@ -123,6 +132,11 @@ func (m *SnapManager) Init(s *state.State) error {
 func (m *SnapManager) Ensure() error {
 	m.runner.Ensure()
 	return nil
+}
+
+// Wait implements StateManager.Wait.
+func (m *SnapManager) Wait() {
+	m.runner.Wait()
 }
 
 // Stop implements StateManager.Stop.
