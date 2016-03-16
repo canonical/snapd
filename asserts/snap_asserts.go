@@ -193,17 +193,6 @@ func (snaprev *SnapRevision) Timestamp() time.Time {
 	return snaprev.timestamp
 }
 
-// Implement further consistency checks.
-func (snaprev *SnapRevision) checkConsistency(db RODatabase, acck *AccountKey) error {
-	// TODO: check the associated snap-build exists.
-	// TODO: check the associated snap-build's digest.
-	// TODO: check developer-id matches snap-build's authority-id.
-	return nil
-}
-
-// sanity
-var _ consistencyChecker = (*SnapRevision)(nil)
-
 func assembleSnapRevision(assert assertionBase) (Assertion, error) {
 	// TODO: more parsing/checking of snap-digest
 
