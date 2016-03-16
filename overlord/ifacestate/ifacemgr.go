@@ -47,6 +47,9 @@ func Manager() (*InterfaceManager, error) {
 // Connect initiates a change connecting an interface.
 //
 func Connect(change *state.Change, plugSnap, plugName, slotSnap, slotName string) error {
+	// TODO: Store the intent-to-connect in the state so that we automatically
+	// try to reconnect on reboot (reconnection can fail or can connect with
+	// different parameters so we cannot store the actual connection details).
 	summary := fmt.Sprintf(i18n.G("Connecting %s:%s to %s:%s"),
 		plugSnap, plugName, slotSnap, slotName)
 	task := change.NewTask("connect", summary)
