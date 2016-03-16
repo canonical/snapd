@@ -20,18 +20,6 @@
 // Package snapstate implements the manager and state aspects responsible for the installation and removal of snaps.
 package snapstate
 
-import (
-	"github.com/ubuntu-core/snappy/overlord/state"
-)
-
-func SnapManagerState(s *SnapManager) *state.State {
-	return s.state
-}
-
-func SnapManagerRunner(s *SnapManager) *state.TaskRunner {
-	return s.runner
-}
-
 type BackendIF backendIF
 
 func SetSnapManagerBackend(s *SnapManager, b BackendIF) {
