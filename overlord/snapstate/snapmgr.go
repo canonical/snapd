@@ -31,19 +31,21 @@ import (
 
 // Install initiates a change installing snap.
 // Note that the state must be locked by the caller.
-func Install(change *state.Change, snap, channel string) error {
+func Install(change *state.Change, snap, channel string, flags snappy.InstallFlags) error {
 	t := change.NewTask("install-snap", fmt.Sprintf(i18n.G("Installing %q"), snap))
 	t.Set("name", snap)
 	t.Set("channel", channel)
+	t.Set("flags", flags)
 
 	return nil
 }
 
 // Remove initiates a change removing snap.
 // Note that the state must be locked by the caller.
-func Remove(change *state.Change, snap string) error {
+func Remove(change *state.Change, snap string, flags snappy.RemoveFlags) error {
 	t := change.NewTask("remove-snap", fmt.Sprintf(i18n.G("Removing %q"), snap))
 	t.Set("name", snap)
+	t.Set("flags", flags)
 
 	return nil
 }
@@ -79,20 +81,30 @@ func Manager() (*SnapManager, error) {
 
 func (m *SnapManager) doInstallSnap(t *state.Task) error {
 	var name, channel string
+	var flags snappy.InstallFlags
 	t.State().Lock()
 	t.Get("name", &name)
 	t.Get("channel", &channel)
+	t.Get("flags", &flags)
 	t.State().Unlock()
-	_, err := m.backend.Install(name, channel, 0, &progress.NullProgress{})
+
+	_, err := m.backend.Install(name, channel, flags, &progress.NullProgress{})
+	t.Logf("doInstallSnap: %s from %s: %v", name, channel, err)
 	return err
 }
 
 func (m *SnapManager) doRemoveSnap(t *state.Task) error {
-	var name string
+	var nameAndDeveloper string
+	var flags snappy.RemoveFlags
 	t.State().Lock()
-	t.Get("name", &name)
+	t.Get("name", &nameAndDeveloper)
+	t.Get("flags", &flags)
 	t.State().Unlock()
-	return m.backend.Remove(name, 0, &progress.NullProgress{})
+
+	name, _ := snappy.SplitDeveloper(nameAndDeveloper)
+	err := m.backend.Remove(name, flags, &progress.NullProgress{})
+	t.Logf("doRemoveSnap: %s: %v", name, err)
+	return err
 }
 
 // Init implements StateManager.Init.
