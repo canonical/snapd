@@ -179,3 +179,14 @@ func (s *EnsureDirStateSuite) TestReportsAbnormalFileLocation(c *C) {
 		osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{"subdir/file.snap": {}})
 	}, PanicMatches, `EnsureDirState got filename "subdir/file.snap" which has a path component`)
 }
+
+func (s *EnsureDirStateSuite) TestReportsAbnormalFileName(c *C) {
+	c.Assert(func() {
+		osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{"without-namespace": {}})
+	}, PanicMatches, `EnsureDirState got filename "without-namespace" which doesn't match the glob pattern "\*\.snap"`)
+}
+
+func (s *EnsureDirStateSuite) TestReportsAbnormalPatterns(c *C) {
+	c.Assert(func() { osutil.EnsureDirState(s.dir, "[", nil) },
+		PanicMatches, `EnsureDirState got invalid pattern "\[": syntax error in pattern`)
+}

@@ -52,9 +52,15 @@ var errSameState = fmt.Errorf("file state has not changed")
 // returned to the caller for any extra processing that might be required (e.g.
 // to run some helper program).
 func EnsureDirState(dir, glob string, content map[string]*FileState) (changed, removed []string, err error) {
+	if _, err := filepath.Match(glob, "foo"); err != nil {
+		panic(fmt.Sprintf("EnsureDirState got invalid pattern %q: %s", glob, err))
+	}
 	for baseName := range content {
 		if filepath.Base(baseName) != baseName {
 			panic(fmt.Sprintf("EnsureDirState got filename %q which has a path component", baseName))
+		}
+		if ok, _ := filepath.Match(glob, baseName); !ok {
+			panic(fmt.Sprintf("EnsureDirState got filename %q which doesn't match the glob pattern %q", baseName, glob))
 		}
 	}
 	for baseName, fileState := range content {
