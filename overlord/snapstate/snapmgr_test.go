@@ -82,7 +82,7 @@ func (s *snapmgrTestSuite) TestInstallAddsTasks(c *C) {
 	c.Assert(chg.Tasks()[0].Kind(), Equals, "install-snap")
 }
 
-func (s *snapmgrTestSuite) TestRemveAddsTasks(c *C) {
+func (s *snapmgrTestSuite) TestRemoveAddsTasks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -103,6 +103,7 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 	c.Assert(err, IsNil)
 	s.snapmgr.Ensure()
 	s.snapmgr.Wait()
+	defer s.snapmgr.Stop()
 
 	c.Assert(s.fakeBackend.op, Equals, "install")
 	c.Assert(s.fakeBackend.name, Equals, "some-snap")
@@ -118,6 +119,7 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 	c.Assert(err, IsNil)
 	s.snapmgr.Ensure()
 	s.snapmgr.Wait()
+	defer s.snapmgr.Stop()
 
 	c.Assert(s.fakeBackend.op, Equals, "remove")
 	c.Assert(s.fakeBackend.name, Equals, "some-remove-snap")
