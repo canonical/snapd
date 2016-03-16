@@ -62,7 +62,7 @@ func Connect(change *state.Change, plugSnap, plugName, slotSnap, slotName string
 func Disconnect(change *state.Change, plugSnap, plugName, slotSnap, slotName string) error {
 	// TODO: Remove the intent-to-connect from the state so that we no longer
 	// automatically try to reconnect on reboot.
-	summary := fmt.Sprintf(i18n.G("Disconnecting %s:%s to %s:%s"),
+	summary := fmt.Sprintf(i18n.G("Disconnecting %s:%s from %s:%s"),
 		plugSnap, plugName, slotSnap, slotName)
 	task := change.NewTask("disconnect", summary)
 	task.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
