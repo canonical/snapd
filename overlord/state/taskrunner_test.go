@@ -50,6 +50,9 @@ func (ts *taskRunnerSuite) TestEnsureTrivial(c *C) {
 	taskCompleted := sync.WaitGroup{}
 	r := state.NewTaskRunner(st)
 	fn := func(task *state.Task) error {
+		task.State().Lock()
+		defer task.State().Unlock()
+		c.Check(task.Status(), Equals, state.RunningStatus)
 		taskCompleted.Done()
 		return nil
 	}
@@ -78,6 +81,9 @@ func (ts *taskRunnerSuite) TestEnsureComplex(c *C) {
 
 	var ordering []string
 	fn := func(task *state.Task) error {
+		task.State().Lock()
+		defer task.State().Unlock()
+		c.Check(task.Status(), Equals, state.RunningStatus)
 		ordering = append(ordering, task.Kind())
 		return nil
 	}
