@@ -25,7 +25,7 @@ import (
 	"gopkg.in/tomb.v2"
 )
 
-// HandlerFunc is the type of function for the hanlders
+// HandlerFunc is the type of function for the handlers
 type HandlerFunc func(task *Task) error
 
 // TaskRunner controls the running of goroutines to execute known task kinds.
@@ -76,7 +76,6 @@ func (r *TaskRunner) run(fn HandlerFunc, task *Task) {
 		} else {
 			task.SetStatus(ErrorStatus)
 		}
-		delete(r.tombs, task.ID())
 
 		return err
 	})
@@ -102,6 +101,12 @@ func (r *TaskRunner) Ensure() {
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
+	for id, tb := range r.tombs {
+		if !tb.Alive() {
+			delete(r.tombs, id)
+		}
+	}
 
 	for _, chg := range r.state.Changes() {
 		if chg.Status() == DoneStatus {
@@ -141,14 +146,30 @@ func (r *TaskRunner) Ensure() {
 	}
 }
 
-// Stop stops all concurrent activities and returns after that's done.
-// Note that Stop will lock the state.
+// Stop kills all concurrent activities and returns after that's done.
 func (r *TaskRunner) Stop() {
-	r.state.Lock()
-	defer r.state.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
-	for _, tb := range r.tombs {
+	for id, tb := range r.tombs {
 		tb.Kill(nil)
 		tb.Wait()
+		delete(r.tombs, id)
+	}
+}
+
+// Wait waits for all concurrent activities and returns after that's done.
+func (r *TaskRunner) Wait() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for len(r.tombs) > 0 {
+		for id, t := range r.tombs {
+			r.mu.Unlock()
+			t.Wait()
+			r.mu.Lock()
+			delete(r.tombs, id)
+			break
+		}
 	}
 }
