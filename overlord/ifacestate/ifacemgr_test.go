@@ -80,19 +80,18 @@ func (s *interfaceManagerSuite) TestConnectAddsTask(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
-	s.addPlugSlotAndInterface(c)
-
 	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.addPlugSlotAndInterface(c)
 	change := s.state.NewChange("kind", "summary")
 	err := ifacestate.Connect(change, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
-	s.state.Unlock()
 
+	s.state.Unlock()
 	s.mgr.Ensure()
 	s.mgr.Wait()
-
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	task := change.Tasks()[0]
 	c.Check(task.Kind(), Equals, "connect")
@@ -138,22 +137,21 @@ func (s *interfaceManagerSuite) TestDisconnectAddsTask(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestEnsureProcessesDisconnectTask(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	s.addPlugSlotAndInterface(c)
 	repo := s.mgr.Repository()
 	err := repo.Connect("consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
-
-	s.state.Lock()
 	change := s.state.NewChange("kind", "summary")
 	err = ifacestate.Disconnect(change, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
-	s.state.Unlock()
 
+	s.state.Unlock()
 	s.mgr.Ensure()
 	s.mgr.Wait()
-
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	task := change.Tasks()[0]
 	c.Check(task.Kind(), Equals, "disconnect")
