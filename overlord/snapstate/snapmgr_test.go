@@ -37,16 +37,14 @@ func (backend *fakeBackend) Checkpoint(data []byte) error {
 }
 
 type snapmgrTestSuite struct {
-	state       *state.State
-	fakebackend *fakeBackend
-	snapmgr     *snapstate.SnapManager
+	state   *state.State
+	snapmgr *snapstate.SnapManager
 }
 
 var _ = Suite(&snapmgrTestSuite{})
 
 func (s *snapmgrTestSuite) SetUpTest(c *C) {
-	s.fakebackend = &fakeBackend{}
-	s.state = state.New(s.fakebackend)
+	s.state = state.New(nil)
 
 	s.snapmgr = &snapstate.SnapManager{}
 	s.snapmgr.Init(s.state)
@@ -77,7 +75,7 @@ func (s *snapmgrTestSuite) TestRemveAddsTasks(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestInitInits(c *C) {
-	st := state.New(s.fakebackend)
+	st := state.New(nil)
 	snapmgr := &snapstate.SnapManager{}
 	snapmgr.Init(st)
 
