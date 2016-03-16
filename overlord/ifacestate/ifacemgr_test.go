@@ -87,10 +87,10 @@ func (s *interfaceManagerSuite) TestConnectAddsTask(c *C) {
 
 func (s *interfaceManagerSuite) TestConnectChangeCanBeMarshaled(c *C) {
 	s.state.Lock()
-	// NOTE: Unlock() marshals the change
 	defer s.state.Unlock()
 
 	change := s.state.NewChange("kind", "summary")
+	// NOTE: Get() calls inside marshal arguments.
 	err := ifacestate.Connect(change, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
 }
