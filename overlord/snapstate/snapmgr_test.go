@@ -33,24 +33,42 @@ import (
 
 func TestSnapManager(t *testing.T) { TestingT(t) }
 
-type fakeBackend struct{}
-
-func (backend *fakeBackend) Checkpoint(data []byte) error {
-	return nil
-}
-
 type snapmgrTestSuite struct {
 	state   *state.State
 	snapmgr *snapstate.SnapManager
+
+	fakeBackend *fakeSnappyBackend
+}
+
+type fakeSnappyBackend struct {
+	name    string
+	channel string
+	op      string
+}
+
+func (f *fakeSnappyBackend) Install(name, channel string, flags snappy.InstallFlags, p progress.Meter) (string, error) {
+	f.op = "install"
+	f.name = name
+	f.channel = channel
+	return "", nil
+}
+
+func (f *fakeSnappyBackend) Remove(name string, flags snappy.RemoveFlags, p progress.Meter) error {
+	f.op = "remove"
+	f.name = name
+	return nil
 }
 
 var _ = Suite(&snapmgrTestSuite{})
 
 func (s *snapmgrTestSuite) SetUpTest(c *C) {
+	s.fakeBackend = &fakeSnappyBackend{}
 	s.state = state.New(nil)
 
 	s.snapmgr = &snapstate.SnapManager{}
 	s.snapmgr.Init(s.state)
+
+	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
 }
 
 func (s *snapmgrTestSuite) TestInstallAddsTasks(c *C) {
@@ -96,14 +114,6 @@ func (s *snapmgrTestSuite) TestInitInits(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
-	installName := ""
-	installChannel := ""
-	snapstate.SnappyInstall = func(name, channel string, flags snappy.InstallFlags, meter progress.Meter) (string, error) {
-		installName = name
-		installChannel = channel
-		return "", nil
-	}
-
 	s.state.Lock()
 	chg := s.state.NewChange("install", "install a snap")
 	err := snapstate.Install(chg, "some-snap", "some-channel")
@@ -114,17 +124,12 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 	runner := snapstate.SnapManagerRunner(s.snapmgr)
 	runner.Wait()
 
-	c.Assert(installName, Equals, "some-snap")
-	c.Assert(installChannel, Equals, "some-channel")
+	c.Assert(s.fakeBackend.op, Equals, "install")
+	c.Assert(s.fakeBackend.name, Equals, "some-snap")
+	c.Assert(s.fakeBackend.channel, Equals, "some-channel")
 }
 
 func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
-	removeName := ""
-	snapstate.SnappyRemove = func(name string, flags snappy.RemoveFlags, meter progress.Meter) error {
-		removeName = name
-		return nil
-	}
-
 	s.state.Lock()
 	chg := s.state.NewChange("remove", "remove a snap")
 	err := snapstate.Remove(chg, "some-remove-snap")
@@ -135,5 +140,6 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 	runner := snapstate.SnapManagerRunner(s.snapmgr)
 	runner.Wait()
 
-	c.Assert(removeName, Equals, "some-remove-snap")
+	c.Assert(s.fakeBackend.op, Equals, "remove")
+	c.Assert(s.fakeBackend.name, Equals, "some-remove-snap")
 }
