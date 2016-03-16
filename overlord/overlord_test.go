@@ -138,12 +138,13 @@ func (ovs *overlordSuite) TestEnsureLoopRunAndStop(c *C) {
 	o.StateEngine().AddManager(witness)
 
 	o.Run()
+	defer o.Stop()
 
 	t0 := time.Now()
 	select {
 	case <-witness.flag:
 	case <-time.After(2 * time.Second):
-		c.Error("Ensure calls not happening")
+		c.Fatal("Ensure calls not happening")
 	}
 	c.Check(time.Since(t0) >= 20*time.Millisecond, Equals, true)
 
@@ -162,16 +163,15 @@ func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBefore(c *C) {
 	se.AddManager(witness)
 
 	o.Run()
+	defer o.Stop()
+
 	se.State().EnsureBefore(10 * time.Millisecond)
 
 	select {
 	case <-witness.flag:
 	case <-time.After(2 * time.Second):
-		c.Error("Ensure calls not happening")
+		c.Fatal("Ensure calls not happening")
 	}
-
-	err = o.Stop()
-	c.Assert(err, IsNil)
 }
 
 func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBeforeInEnsure(c *C) {
@@ -194,16 +194,15 @@ func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBeforeInEnsure(c *C) {
 	se.AddManager(witness)
 
 	o.Run()
+	defer o.Stop()
+
 	se.State().EnsureBefore(0)
 
 	select {
 	case <-witness.flag:
 	case <-time.After(2 * time.Second):
-		c.Error("Ensure calls not happening")
+		c.Fatal("Ensure calls not happening")
 	}
-
-	err = o.Stop()
-	c.Assert(err, IsNil)
 }
 
 func (ovs *overlordSuite) TestCheckpoint(c *C) {
