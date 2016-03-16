@@ -104,13 +104,12 @@ func (m *InterfaceManager) Ensure() error {
 }
 
 // Wait implements StateManager.Wait.
-func (m *InterfaceManager) Wait() error {
+func (m *InterfaceManager) Wait() {
 	m.runner.Wait()
-	return nil
 }
 
 // Stop implements StateManager.Stop.
-func (m *InterfaceManager) Stop() error {
+func (m *InterfaceManager) Stop() {
 	m.runner.Stop()
-	return nil
+
 }

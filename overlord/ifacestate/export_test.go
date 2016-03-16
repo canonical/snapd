@@ -26,7 +26,3 @@ import (
 func (m *InterfaceManager) Repository() *interfaces.Repository {
 	return m.repo
 }
-
-func (m *InterfaceManager) Wait() {
-	m.runner.Wait()
-}
