@@ -80,17 +80,11 @@ func (s *interfaceManagerSuite) TestConnectAddsTask(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
-	repo := s.mgr.Repository()
-	err := repo.AddInterface(&interfaces.TestInterface{InterfaceName: "test"})
-	c.Assert(err, IsNil)
-	err = repo.AddSlot(&interfaces.Slot{Snap: "producer", Name: "slot", Interface: "test"})
-	c.Assert(err, IsNil)
-	err = repo.AddPlug(&interfaces.Plug{Snap: "consumer", Name: "plug", Interface: "test"})
-	c.Assert(err, IsNil)
+	s.addPlugSlotAndInterface(c)
 
 	s.state.Lock()
 	change := s.state.NewChange("kind", "summary")
-	err = ifacestate.Connect(change, "consumer", "plug", "producer", "slot")
+	err := ifacestate.Connect(change, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
 	s.state.Unlock()
 
@@ -104,6 +98,7 @@ func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
 	c.Check(task.Kind(), Equals, "connect")
 	c.Check(task.Status(), Equals, state.DoneStatus)
 	c.Check(change.Status(), Equals, state.DoneStatus)
+	repo := s.mgr.Repository()
 	c.Check(repo.Interfaces(), DeepEquals, &interfaces.Interfaces{
 		Slots: []*interfaces.Slot{{
 			Snap:        "producer",
@@ -143,14 +138,9 @@ func (s *interfaceManagerSuite) TestDisconnectAddsTask(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestEnsureProcessesDisconnectTask(c *C) {
+	s.addPlugSlotAndInterface(c)
 	repo := s.mgr.Repository()
-	err := repo.AddInterface(&interfaces.TestInterface{InterfaceName: "test"})
-	c.Assert(err, IsNil)
-	err = repo.AddSlot(&interfaces.Slot{Snap: "producer", Name: "slot", Interface: "test"})
-	c.Assert(err, IsNil)
-	err = repo.AddPlug(&interfaces.Plug{Snap: "consumer", Name: "plug", Interface: "test"})
-	c.Assert(err, IsNil)
-	err = repo.Connect("consumer", "plug", "producer", "slot")
+	err := repo.Connect("consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
@@ -181,4 +171,14 @@ func (s *interfaceManagerSuite) TestEnsureProcessesDisconnectTask(c *C) {
 			Interface: "test",
 		}},
 	})
+}
+
+func (s *interfaceManagerSuite) addPlugSlotAndInterface(c *C) {
+	repo := s.mgr.Repository()
+	err := repo.AddInterface(&interfaces.TestInterface{InterfaceName: "test"})
+	c.Assert(err, IsNil)
+	err = repo.AddSlot(&interfaces.Slot{Snap: "producer", Name: "slot", Interface: "test"})
+	c.Assert(err, IsNil)
+	err = repo.AddPlug(&interfaces.Plug{Snap: "consumer", Name: "plug", Interface: "test"})
+	c.Assert(err, IsNil)
 }
