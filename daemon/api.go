@@ -650,6 +650,7 @@ func (inst *snapInstruction) install() interface{} {
 	state.Unlock()
 
 	inst.overlord.SnapManager().Ensure()
+	inst.overlord.SnapManager().Wait()
 	return err
 	/*
 		_, err := snappyInstall(inst.pkg, inst.Channel, flags, inst)
@@ -684,6 +685,7 @@ func (inst *snapInstruction) remove() interface{} {
 	state.Unlock()
 
 	inst.overlord.SnapManager().Ensure()
+	inst.overlord.SnapManager().Wait()
 	return err
 }
 
