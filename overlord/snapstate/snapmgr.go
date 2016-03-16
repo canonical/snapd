@@ -59,13 +59,19 @@ func Manager() (*SnapManager, error) {
 	return &SnapManager{}, nil
 }
 
+// we need to fake those in the tests
+var (
+	SnappyInstall = snappy.Install
+	SnappyRemove  = snappy.Remove
+)
+
 func (m *SnapManager) doInstallSnap(t *state.Task) error {
 	var name, channel string
 	t.State().Lock()
 	t.Get("name", &name)
-	t.Get("name", &channel)
+	t.Get("channel", &channel)
 	t.State().Unlock()
-	_, err := snappy.Install(name, channel, 0, &progress.NullProgress{})
+	_, err := SnappyInstall(name, channel, 0, &progress.NullProgress{})
 	return err
 }
 
@@ -74,7 +80,7 @@ func (m *SnapManager) doRemoveSnap(t *state.Task) error {
 	t.State().Lock()
 	t.Get("name", &name)
 	t.State().Unlock()
-	return snappy.Remove(name, 0, &progress.NullProgress{})
+	return SnappyRemove(name, 0, &progress.NullProgress{})
 }
 
 // Init implements StateManager.Init.
