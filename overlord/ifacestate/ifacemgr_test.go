@@ -160,16 +160,9 @@ func (s *interfaceManagerSuite) TestEnsureProcessesDisconnectTask(c *C) {
 	c.Check(task.Status(), Equals, state.DoneStatus)
 	c.Check(change.Status(), Equals, state.DoneStatus)
 	c.Check(repo.Interfaces(), DeepEquals, &interfaces.Interfaces{
-		Slots: []*interfaces.Slot{{
-			Snap:      "producer",
-			Name:      "slot",
-			Interface: "test",
-		}},
-		Plugs: []*interfaces.Plug{{
-			Snap:      "consumer",
-			Name:      "plug",
-			Interface: "test",
-		}},
+		// NOTE: the connection is gone now.
+		Slots: []*interfaces.Slot{{Snap: "producer", Name: "slot", Interface: "test"}},
+		Plugs: []*interfaces.Plug{{Snap: "consumer", Name: "plug", Interface: "test"}},
 	})
 }
 
