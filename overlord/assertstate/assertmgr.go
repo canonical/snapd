@@ -50,3 +50,8 @@ func (m *AssertManager) Ensure() error {
 func (m *AssertManager) Stop() error {
 	return nil
 }
+
+// Wait implements StateManager.Wait.
+func (m *AssertManager) Wait() error {
+	return nil
+}

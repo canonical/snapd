@@ -62,6 +62,11 @@ func (fm *fakeManager) Stop() error {
 	return fm.stopError
 }
 
+func (fm *fakeManager) Wait() error {
+	*fm.calls = append(*fm.calls, "wait:"+fm.name)
+	return fm.stopError
+}
+
 var _ overlord.StateManager = (*fakeManager)(nil)
 
 func (ses *stateEngineSuite) TestEnsure(c *C) {
