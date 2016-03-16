@@ -164,7 +164,13 @@ func (r *TaskRunner) Wait() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	for _, tb := range r.tombs {
-		tb.Wait()
+	for len(r.tombs) > 0 {
+		for id, t := range r.tombs {
+			r.mu.Unlock()
+			t.Wait()
+			r.mu.Lock()
+			delete(r.tombs, id)
+			break
+		}
 	}
 }
