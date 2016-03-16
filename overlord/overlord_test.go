@@ -94,8 +94,8 @@ func (ovs *overlordSuite) TestNewWithInvalidState(c *C) {
 type witnessManager struct {
 	state          *state.State
 	expectedEnsure int
-	flag           chan struct{}
-	ensureLogic    func(s *state.State) error
+	ensureCalled   chan struct{}
+	ensureCallack  func(s *state.State) error
 }
 
 func (wm *witnessManager) Init(s *state.State) error {
@@ -105,11 +105,11 @@ func (wm *witnessManager) Init(s *state.State) error {
 
 func (wm *witnessManager) Ensure() error {
 	if wm.expectedEnsure--; wm.expectedEnsure == 0 {
-		close(wm.flag)
+		close(wm.ensureCalled)
 		return nil
 	}
-	if wm.ensureLogic != nil {
-		return wm.ensureLogic(wm.state)
+	if wm.ensureCallack != nil {
+		return wm.ensureCallack(wm.state)
 	}
 	return nil
 }
@@ -134,7 +134,10 @@ func (ovs *overlordSuite) TestEnsureLoopRunAndStop(c *C) {
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
 
-	witness := &witnessManager{expectedEnsure: 2, flag: make(chan struct{})}
+	witness := &witnessManager{
+		expectedEnsure: 2,
+		ensureCalled: make(chan struct{}),
+	}
 	o.StateEngine().AddManager(witness)
 
 	o.Run()
@@ -142,7 +145,7 @@ func (ovs *overlordSuite) TestEnsureLoopRunAndStop(c *C) {
 
 	t0 := time.Now()
 	select {
-	case <-witness.flag:
+	case <-witness.ensureCalled:
 	case <-time.After(2 * time.Second):
 		c.Fatal("Ensure calls not happening")
 	}
@@ -158,7 +161,10 @@ func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBefore(c *C) {
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
 
-	witness := &witnessManager{expectedEnsure: 1, flag: make(chan struct{})}
+	witness := &witnessManager{
+		expectedEnsure: 1,
+		ensureCalled: make(chan struct{}),
+	}
 	se := o.StateEngine()
 	se.AddManager(witness)
 
@@ -168,7 +174,7 @@ func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBefore(c *C) {
 	se.State().EnsureBefore(10 * time.Millisecond)
 
 	select {
-	case <-witness.flag:
+	case <-witness.ensureCalled:
 	case <-time.After(2 * time.Second):
 		c.Fatal("Ensure calls not happening")
 	}
@@ -187,8 +193,8 @@ func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBeforeInEnsure(c *C) {
 
 	witness := &witnessManager{
 		expectedEnsure: 2,
-		flag:           make(chan struct{}),
-		ensureLogic:    ensure,
+		ensureCalled:   make(chan struct{}),
+		ensureCallack:  ensure,
 	}
 	se := o.StateEngine()
 	se.AddManager(witness)
@@ -199,7 +205,7 @@ func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBeforeInEnsure(c *C) {
 	se.State().EnsureBefore(0)
 
 	select {
-	case <-witness.flag:
+	case <-witness.ensureCalled:
 	case <-time.After(2 * time.Second):
 		c.Fatal("Ensure calls not happening")
 	}
