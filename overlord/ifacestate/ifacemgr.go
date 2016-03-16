@@ -107,10 +107,7 @@ func (m *InterfaceManager) doConnect(task *state.Task) error {
 	if err != nil {
 		return err
 	}
-	if err := m.repo.Connect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name); err != nil {
-		return err
-	}
-	return nil
+	return m.repo.Connect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
 }
 
 func (m *InterfaceManager) doDisconnect(task *state.Task) error {
@@ -121,10 +118,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task) error {
 	if err != nil {
 		return err
 	}
-	if err := m.repo.Disconnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name); err != nil {
-		return err
-	}
-	return nil
+	return m.repo.Disconnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
 }
 
 // Ensure implements StateManager.Ensure.
