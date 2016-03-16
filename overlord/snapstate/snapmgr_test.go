@@ -22,7 +22,6 @@ package snapstate_test
 import (
 	"sort"
 	"testing"
-	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -112,12 +111,8 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 
 	c.Assert(err, IsNil)
 	s.snapmgr.Ensure()
-
-	// FIXME: use TaskRunner.Wait()
-	for installName == "" {
-		// wait
-		time.Sleep(1 * time.Millisecond)
-	}
+	runner := snapstate.SnapManagerRunner(s.snapmgr)
+	runner.Wait()
 
 	c.Assert(installName, Equals, "some-snap")
 	c.Assert(installChannel, Equals, "some-channel")
@@ -137,12 +132,8 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 
 	c.Assert(err, IsNil)
 	s.snapmgr.Ensure()
-
-	// FIXME: use TaskRunner.Wait()
-	for removeName == "" {
-		// wait
-		time.Sleep(1 * time.Millisecond)
-	}
+	runner := snapstate.SnapManagerRunner(s.snapmgr)
+	runner.Wait()
 
 	c.Assert(removeName, Equals, "some-remove-snap")
 }
