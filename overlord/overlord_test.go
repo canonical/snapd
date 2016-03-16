@@ -141,7 +141,7 @@ func (ovs *overlordSuite) TestEnsureLoopRunAndStop(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureAfter(c *C) {
+func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBefore(c *C) {
 	restoreIntv := overlord.SetEnsureIntervalForTest(10 * time.Minute)
 	defer restoreIntv()
 	o, err := overlord.New()
@@ -152,7 +152,7 @@ func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureAfter(c *C) {
 	se.AddManager(witness)
 
 	o.Run()
-	se.State().EnsureAfter(10 * time.Millisecond)
+	se.State().EnsureBefore(10 * time.Millisecond)
 
 	select {
 	case <-witness.flag:
@@ -164,14 +164,14 @@ func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureAfter(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureAfterInEnsure(c *C) {
+func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBeforeInEnsure(c *C) {
 	restoreIntv := overlord.SetEnsureIntervalForTest(10 * time.Minute)
 	defer restoreIntv()
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
 
 	ensure := func(s *state.State) error {
-		s.EnsureAfter(0)
+		s.EnsureBefore(0)
 		return nil
 	}
 
@@ -184,7 +184,7 @@ func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureAfterInEnsure(c *C) {
 	se.AddManager(witness)
 
 	o.Run()
-	se.State().EnsureAfter(0)
+	se.State().EnsureBefore(0)
 
 	select {
 	case <-witness.flag:

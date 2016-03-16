@@ -26,14 +26,14 @@ import (
 )
 
 type overlordStateBackend struct {
-	path        string
-	ensureAfter func(d time.Duration)
+	path         string
+	ensureBefore func(d time.Duration)
 }
 
 func (osb *overlordStateBackend) Checkpoint(data []byte) error {
 	return osutil.AtomicWriteFile(osb.path, data, 0600, 0)
 }
 
-func (osb *overlordStateBackend) EnsureAfter(d time.Duration) {
-	osb.ensureAfter(d)
+func (osb *overlordStateBackend) EnsureBefore(d time.Duration) {
+	osb.ensureBefore(d)
 }
