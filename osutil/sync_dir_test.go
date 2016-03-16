@@ -153,7 +153,7 @@ func (s *EnsureDirStateSuite) TestCorrectsFilesWithSameSize(c *C) {
 
 func (s *EnsureDirStateSuite) TestFixesFilesWithBadPermissions(c *C) {
 	name := filepath.Join(s.dir, "sensitive.snap")
-	// NOTE: the file is wide-open for everyone
+	// NOTE: the existing file is currently wide-open for everyone"
 	err := ioutil.WriteFile(name, []byte("password"), 0666)
 	c.Assert(err, IsNil)
 	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{
