@@ -20,6 +20,7 @@
 package state_test
 
 import (
+	"errors"
 	"sync"
 
 	. "gopkg.in/check.v1"
@@ -102,10 +103,43 @@ func (ts *taskRunnerSuite) TestEnsureComplex(c *C) {
 		st.Unlock()
 
 		for len(ordering) < 3 {
+			// ensure just kicks the go routine off
 			r.Ensure()
+			// wait for them to finish
 			r.Wait()
 		}
 
 		c.Assert(ordering, DeepEquals, []string{"download", "unpack", "configure"})
 	}
+}
+
+func (ts *taskRunnerSuite) TestErrorIsFinal(c *C) {
+	// we need state
+	st := state.New(nil)
+
+	invocations := 0
+
+	// setup the download handler
+	r := state.NewTaskRunner(st)
+	fn := func(task *state.Task) error {
+		invocations++
+		return errors.New("boom")
+	}
+	r.AddHandler("download", fn)
+
+	// add a download task to the state tracker
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	chg.NewTask("download", "1...")
+	st.Unlock()
+
+	defer r.Stop()
+
+	// ensure just kicks the go routine off
+	r.Ensure()
+	r.Wait()
+	r.Ensure()
+	r.Wait()
+
+	c.Check(invocations, Equals, 1)
 }

@@ -115,8 +115,10 @@ func (r *TaskRunner) Ensure() {
 
 		tasks := chg.Tasks()
 		for _, t := range tasks {
-			// done, nothing to do
-			if t.Status() == DoneStatus {
+			// done or error are final, nothing to do
+			// TODO: actually for error progate to change and siblings
+			status := t.Status()
+			if status == DoneStatus || status == ErrorStatus {
 				continue
 			}
 
