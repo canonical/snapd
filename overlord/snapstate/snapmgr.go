@@ -59,6 +59,7 @@ type snappyBackend struct {
 func (s *snappyBackend) Install(name, channel string, flags snappy.InstallFlags, meter progress.Meter) (string, error) {
 	return snappy.Install(name, channel, flags, meter)
 }
+
 func (s *snappyBackend) Remove(name string, flags snappy.RemoveFlags, meter progress.Meter) error {
 	return snappy.Remove(name, flags, meter)
 }
