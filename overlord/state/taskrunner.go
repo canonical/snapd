@@ -65,6 +65,7 @@ func (r *TaskRunner) Handlers() map[string]HandlerFunc {
 
 // run must be called with the state lock in place
 func (r *TaskRunner) run(fn HandlerFunc, task *Task) {
+	task.SetStatus(RunningStatus) // could have been set to waiting
 	r.tombs[task.ID()] = &tomb.Tomb{}
 	r.tombs[task.ID()].Go(func() error {
 		err := fn(task)
