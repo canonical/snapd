@@ -100,6 +100,11 @@ type SnapBuild struct {
 	timestamp time.Time
 }
 
+// Series returns the series for which the snap was built.
+func (snapbld *SnapBuild) Series() string {
+	return snapbld.Header("series")
+}
+
 // SnapID returns the snap id of the snap.
 func (snapbld *SnapBuild) SnapID() string {
 	return snapbld.Header("snap-id")
@@ -160,13 +165,19 @@ type SnapRevision struct {
 	timestamp    time.Time
 }
 
+// Series returns the series of the snap submitted to and acknowledged by the
+// store.
+func (snaprev *SnapRevision) Series() string {
+	return snaprev.Header("series")
+}
+
 // SnapID returns the snap id of the snap.
 func (snaprev *SnapRevision) SnapID() string {
 	return snaprev.Header("snap-id")
 }
 
-// SnapDigest returns the digest of the snap submitted to the store. The digest
-// is prefixed with the algorithm used to generate it.
+// SnapDigest returns the digest of the snap submitted to and acknowledged by
+// the store. The digest is prefixed with the algorithm used to generate it.
 func (snaprev *SnapRevision) SnapDigest() string {
 	return snaprev.Header("snap-digest")
 }
