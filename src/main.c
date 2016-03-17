@@ -258,6 +258,30 @@ void setup_private_mount(const char* appname) {
     }
 }
 
+void setup_private_pts() {
+    struct stat st;
+    if (stat("/dev/pts", &st) != 0 || !S_ISDIR(st.st_mode)) {
+        die("/dev/pts doesn't exist or is not a directory");
+    }
+
+    // ptmxmode=000 or 666
+    if (mount("devpts", "/dev/pts", "devpts", MS_MGC_VAL,
+              "newinstance,ptmxmode=0666,mode=0620,gid=5")) {
+        die("unable to mount a new instance of '/dev/pts'");
+    }
+
+    // if /dev/ptmx exists, bind mount over it otherwise, create a symlink
+    if (stat("/dev/ptmx", &st) == 0) {
+	if (mount("/dev/pts/ptmx", "/dev/ptmx", "none", MS_BIND | MS_NOSUID | MS_NOEXEC, 0)) {
+            die("unable to mount '/dev/pts/ptmx'->'/dev/ptmx'");
+	}
+    } else {
+        if (!symlink("/dev/pts/ptmx", "/dev/ptmx")) {
+            die("unable to symlink '/dev/pts/ptmx'->'/dev/ptmx'");
+	}
+    }
+}
+
 void setup_snappy_os_mounts() {
    debug("setup_snappy_os_mounts()\n");
 
@@ -438,6 +462,9 @@ int main(int argc, char **argv)
 
       // set up private mounts
       setup_private_mount(appname);
+
+      // set up private /dev/pts
+      setup_private_pts();
 
       // this needs to happen as root
       if(snappy_udev_setup_required(appname)) {
