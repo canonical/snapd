@@ -63,7 +63,7 @@ func (ts *taskRunnerSuite) TestEnsureTrivial(c *C) {
 	// add a download task to the state tracker
 	st.Lock()
 	chg := st.NewChange("install", "...")
-	chg.NewTask("download", "1...")
+	t := chg.NewTask("download", "1...")
 	taskCompleted.Add(1)
 	st.Unlock()
 
@@ -72,6 +72,10 @@ func (ts *taskRunnerSuite) TestEnsureTrivial(c *C) {
 	// ensure just kicks the go routine off
 	r.Ensure()
 	taskCompleted.Wait()
+
+	st.Lock()
+	defer st.Unlock()
+	c.Check(t.Status(), Equals, state.DoneStatus)
 }
 
 type backend struct {
@@ -190,7 +194,7 @@ func (ts *taskRunnerSuite) TestStopCancelsGoroutines(c *C) {
 	// add a download task to the state tracker
 	st.Lock()
 	chg := st.NewChange("install", "...")
-	chg.NewTask("download", "1...")
+	t := chg.NewTask("download", "1...")
 	st.Unlock()
 
 	defer r.Stop()
@@ -200,6 +204,10 @@ func (ts *taskRunnerSuite) TestStopCancelsGoroutines(c *C) {
 	r.Stop()
 
 	c.Check(invocations, Equals, 1)
+
+	st.Lock()
+	defer st.Unlock()
+	c.Check(t.Status(), Equals, state.RunningStatus)
 }
 
 func (ts *taskRunnerSuite) TestErrorPropagates(c *C) {
@@ -234,5 +242,51 @@ func (ts *taskRunnerSuite) TestErrorPropagates(c *C) {
 
 	c.Check(dep1.Status(), Equals, state.ErrorStatus)
 	c.Check(dep2.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+}
+
+func (ts *taskRunnerSuite) TestCancelTasksThatCannotHelp(c *C) {
+	b := &backend{}
+	// we need state
+	st := state.New(b)
+
+	r := state.NewTaskRunner(st)
+	b.runner = r
+
+	erroring := func(task *state.Task, tomb *tomb.Tomb) error {
+		return errors.New("boom")
+	}
+	longrunning := func(task *state.Task, tomb *tomb.Tomb) error {
+		select {
+		case <-tomb.Dying():
+		}
+		return nil
+	}
+	finish := func(task *state.Task, tomb *tomb.Tomb) error {
+		return nil
+	}
+	r.AddHandler("erroring", erroring)
+	r.AddHandler("longrunning", longrunning)
+	r.AddHandler("finish", finish)
+
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	errTask := chg.NewTask("erroring", "1a...")
+	longTask := chg.NewTask("longrunning", "1b...")
+	finishTask := chg.NewTask("finish", "2...")
+	finishTask.WaitFor(errTask)
+	finishTask.WaitFor(longTask)
+	st.Unlock()
+
+	defer r.Stop()
+
+	r.Ensure()
+	r.Wait()
+
+	st.Lock()
+	defer st.Unlock()
+
+	c.Check(finishTask.Status(), Equals, state.ErrorStatus)
+	c.Check(longTask.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
 }

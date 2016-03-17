@@ -78,16 +78,18 @@ func taskFail(t *Task) {
 // run must be called with the state lock in place
 func (r *TaskRunner) run(fn HandlerFunc, task *Task) {
 	task.SetStatus(RunningStatus) // could have been set to waiting
-	tomb := &tomb.Tomb{}
-	r.tombs[task.ID()] = tomb
-	tomb.Go(func() error {
-		err := fn(task, tomb)
+	tb := &tomb.Tomb{}
+	r.tombs[task.ID()] = tb
+	tb.Go(func() error {
+		err := fn(task, tb)
 
 		r.state.Lock()
 		defer r.state.Unlock()
 		halted := task.HaltTasks()
-		if err == nil {
+		if err == nil && tb.Err() == tomb.ErrStillAlive {
 			task.SetStatus(DoneStatus)
+		} else if err == nil && tb.Err() == nil {
+			// just stopped, preserve status
 		} else {
 			taskFail(task)
 		}
@@ -99,7 +101,7 @@ func (r *TaskRunner) run(fn HandlerFunc, task *Task) {
 }
 
 // mustWait must be called with the state lock in place
-func (r *TaskRunner) mustWait(t *Task) bool {
+func mustWait(t *Task) bool {
 	for _, wt := range t.WaitTasks() {
 		if wt.Status() != DoneStatus {
 			return true
@@ -107,6 +109,21 @@ func (r *TaskRunner) mustWait(t *Task) bool {
 	}
 
 	return false
+}
+
+// isPointless returns true if all the tasks waiting on t are already in error
+// and there are waiting tasks at all
+func isPointless(t *Task) bool {
+	halted := t.HaltTasks()
+	if len(halted) == 0 {
+		return false
+	}
+	for _, ht := range t.HaltTasks() {
+		if ht.Status() != ErrorStatus {
+			return false
+		}
+	}
+	return true
 }
 
 // Ensure starts new goroutines for all known tasks with no pending
@@ -133,7 +150,6 @@ func (r *TaskRunner) Ensure() {
 		tasks := chg.Tasks()
 		for _, t := range tasks {
 			// done or error are final, nothing to do
-			// TODO: actually for error progate to halted and their waited
 			status := t.Status()
 			if status == DoneStatus || status == ErrorStatus {
 				continue
@@ -150,12 +166,15 @@ func (r *TaskRunner) Ensure() {
 			// a task can be in RunningStatus even when it
 			// is not started yet (like when the daemon
 			// process restarts)
-			if _, ok := r.tombs[t.ID()]; ok {
+			if tomb, ok := r.tombs[t.ID()]; ok {
+				if isPointless(t) {
+					tomb.Killf("waiting tasks are already in error")
+				}
 				continue
 			}
 
 			// check if there is anything we need to wait for
-			if r.mustWait(t) {
+			if mustWait(t) {
 				continue
 			}
 
