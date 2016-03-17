@@ -65,12 +65,15 @@ func (r *TaskRunner) Handlers() map[string]HandlerFunc {
 
 // taskFail marks task t and all tasks waiting (directly and indirectly on it) as in ErrorStatus.
 func taskFail(t *Task) {
-	mark := make([]*Task, 1, 10)
-	mark[0] = t
+	t.SetStatus(ErrorStatus)
+	mark := append([]*Task(nil), t.HaltTasks()...)
 	i := 0
 	for i < len(mark) {
-		mark[i].SetStatus(ErrorStatus)
-		mark = append(mark, mark[i].HaltTasks()...)
+		t := mark[i]
+		if t.Status() == WaitingStatus {
+			t.SetStatus(ErrorStatus)
+			mark = append(mark, t.HaltTasks()...)
+		}
 		i++
 	}
 }
