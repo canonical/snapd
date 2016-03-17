@@ -88,11 +88,13 @@ func (r *TaskRunner) run(fn HandlerFunc, task *Task) {
 		halted := task.HaltTasks()
 		if err == nil {
 			task.SetStatus(DoneStatus)
+			if len(halted) > 0 {
+				// give a chance to taskrunners Ensure to start
+				// the waiting ones
+				r.state.EnsureBefore(0)
+			}
 		} else {
 			taskFail(task)
-		}
-		if len(halted) > 0 {
-			r.state.EnsureBefore(0)
 		}
 		return err
 	})
