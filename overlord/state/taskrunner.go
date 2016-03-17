@@ -26,7 +26,7 @@ import (
 )
 
 // HandlerFunc is the type of function for the handlers
-type HandlerFunc func(task *Task) error
+type HandlerFunc func(task *Task, tomb *tomb.Tomb) error
 
 // TaskRunner controls the running of goroutines to execute known task kinds.
 type TaskRunner struct {
@@ -65,9 +65,11 @@ func (r *TaskRunner) Handlers() map[string]HandlerFunc {
 
 // run must be called with the state lock in place
 func (r *TaskRunner) run(fn HandlerFunc, task *Task) {
-	r.tombs[task.ID()] = &tomb.Tomb{}
-	r.tombs[task.ID()].Go(func() error {
-		err := fn(task)
+	task.SetStatus(RunningStatus) // could have been set to waiting
+	tomb := &tomb.Tomb{}
+	r.tombs[task.ID()] = tomb
+	tomb.Go(func() error {
+		err := fn(task, tomb)
 
 		r.state.Lock()
 		defer r.state.Unlock()
@@ -76,6 +78,7 @@ func (r *TaskRunner) run(fn HandlerFunc, task *Task) {
 		} else {
 			task.SetStatus(ErrorStatus)
 		}
+		// TODO: trigger ensure if we have halted
 
 		return err
 	})
@@ -115,8 +118,10 @@ func (r *TaskRunner) Ensure() {
 
 		tasks := chg.Tasks()
 		for _, t := range tasks {
-			// done, nothing to do
-			if t.Status() == DoneStatus {
+			// done or error are final, nothing to do
+			// TODO: actually for error progate to halted and their waited
+			status := t.Status()
+			if status == DoneStatus || status == ErrorStatus {
 				continue
 			}
 
@@ -152,8 +157,11 @@ func (r *TaskRunner) Stop() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	for id, tb := range r.tombs {
+	for _, tb := range r.tombs {
 		tb.Kill(nil)
+	}
+
+	for id, tb := range r.tombs {
 		tb.Wait()
 		delete(r.tombs, id)
 	}
