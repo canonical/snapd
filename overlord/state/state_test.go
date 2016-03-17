@@ -373,3 +373,36 @@ func (ss *stateSuite) TestEnsureBefore(c *C) {
 
 	c.Check(b.ensureBefore, Equals, 10*time.Second)
 }
+
+func (ss *stateSuite) TestTasks(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg1 := st.NewChange("install", "...")
+	t11 := chg1.NewTask("check", "...")
+	t12 := chg1.NewTask("inst", "...")
+	chg2 := st.NewChange("remove", "...")
+	t21 := chg2.NewTask("check", "...")
+	t22 := chg2.NewTask("rm", "...")
+
+	tasks := st.Tasks()
+	c.Check(tasks, HasLen, 4)
+
+	expected := map[string]*state.Task{
+		t11.ID(): t11,
+		t12.ID(): t12,
+		t21.ID(): t21,
+		t22.ID(): t22,
+	}
+
+	for _, t := range tasks {
+		c.Check(t, Equals, expected[t.ID()])
+	}
+}
+
+func (ss *stateSuite) TestTasksNeedsLocked(c *C) {
+	st := state.New(nil)
+
+	c.Assert(func() { st.Tasks() }, PanicMatches, "internal error: accessing state without lock")
+}
