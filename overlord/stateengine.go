@@ -101,6 +101,9 @@ func (se *StateEngine) AddManager(m StateManager) {
 func (se *StateEngine) Stop() {
 	se.mgrLock.Lock()
 	defer se.mgrLock.Unlock()
+	if se.stopped {
+		return
+	}
 	for _, m := range se.managers {
 		m.Stop()
 	}
