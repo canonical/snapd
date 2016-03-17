@@ -373,6 +373,8 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 
 	task0_2 := tasks0[t2ID]
 	c.Check(task0_2.WaitTasks(), DeepEquals, []*state.Task{task0_1})
+
+	c.Check(task0_1.HaltTasks(), DeepEquals, []*state.Task{task0_2})
 }
 
 func (ss *stateSuite) TestEnsureBefore(c *C) {
