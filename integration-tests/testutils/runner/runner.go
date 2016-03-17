@@ -21,8 +21,11 @@
 package runner
 
 import (
+	"bufio"
 	"flag"
+	"fmt"
 	"io"
+	"os"
 	"strings"
 	"testing"
 
@@ -34,6 +37,7 @@ var (
 	filterFlag  string
 	verboseFlag bool
 	streamFlag  bool
+	listFlag    bool
 )
 
 // TestingT uses the same structure of check.TestingT plus allowing
@@ -47,6 +51,15 @@ func TestingT(testingT *testing.T, output io.Writer) {
 		Filter:  filterFlag,
 		Verbose: verboseFlag,
 		Stream:  streamFlag,
+	}
+
+	if listFlag {
+		w := bufio.NewWriter(os.Stdout)
+		for _, name := range check.ListAll(conf) {
+			fmt.Fprintln(w, name)
+		}
+		w.Flush()
+		return
 	}
 
 	result := check.RunAll(conf)
@@ -68,6 +81,8 @@ func initFlags() {
 				verboseFlag = boolValue(f.Value.String())
 			case "vv":
 				streamFlag = boolValue(f.Value.String())
+			case "list":
+				listFlag = boolValue(f.Value.String())
 			}
 		}
 	}
