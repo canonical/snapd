@@ -20,10 +20,11 @@
 package state_test
 
 import (
+	"errors"
 	"sync"
-	"time"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/tomb.v2"
 
 	"github.com/ubuntu-core/snappy/overlord/state"
 )
@@ -34,7 +35,7 @@ var _ = Suite(&taskRunnerSuite{})
 
 func (ts *taskRunnerSuite) TestAddHandler(c *C) {
 	r := state.NewTaskRunner(nil)
-	fn := func(task *state.Task) error {
+	fn := func(task *state.Task, tomb *tomb.Tomb) error {
 		return nil
 	}
 	r.AddHandler("download", fn)
@@ -49,7 +50,10 @@ func (ts *taskRunnerSuite) TestEnsureTrivial(c *C) {
 	// setup the download handler
 	taskCompleted := sync.WaitGroup{}
 	r := state.NewTaskRunner(st)
-	fn := func(task *state.Task) error {
+	fn := func(task *state.Task, tomb *tomb.Tomb) error {
+		task.State().Lock()
+		defer task.State().Unlock()
+		c.Check(task.Status(), Equals, state.RunningStatus)
 		taskCompleted.Done()
 		return nil
 	}
@@ -61,6 +65,8 @@ func (ts *taskRunnerSuite) TestEnsureTrivial(c *C) {
 	chg.NewTask("download", "1...")
 	taskCompleted.Add(1)
 	st.Unlock()
+
+	defer r.Stop()
 
 	// ensure just kicks the go routine off
 	r.Ensure()
@@ -75,13 +81,18 @@ func (ts *taskRunnerSuite) TestEnsureComplex(c *C) {
 	r := state.NewTaskRunner(st)
 
 	var ordering []string
-	fn := func(task *state.Task) error {
+	fn := func(task *state.Task, tomb *tomb.Tomb) error {
+		task.State().Lock()
+		defer task.State().Unlock()
+		c.Check(task.Status(), Equals, state.RunningStatus)
 		ordering = append(ordering, task.Kind())
 		return nil
 	}
 	r.AddHandler("download", fn)
 	r.AddHandler("unpack", fn)
 	r.AddHandler("configure", fn)
+
+	defer r.Stop()
 
 	// run in a loop to ensure ordering is correct by pure chance
 	for i := 0; i < 100; i++ {
@@ -98,12 +109,78 @@ func (ts *taskRunnerSuite) TestEnsureComplex(c *C) {
 		tConf.WaitFor(tUnp)
 		st.Unlock()
 
-		// ensure just kicks the go routine off
 		for len(ordering) < 3 {
+			// ensure just kicks the go routine off
 			r.Ensure()
-			time.Sleep(1 * time.Millisecond)
+			// wait for them to finish
+			r.Wait()
 		}
 
 		c.Assert(ordering, DeepEquals, []string{"download", "unpack", "configure"})
 	}
+}
+
+func (ts *taskRunnerSuite) TestErrorIsFinal(c *C) {
+	// we need state
+	st := state.New(nil)
+
+	invocations := 0
+
+	// setup the download handler
+	r := state.NewTaskRunner(st)
+	fn := func(task *state.Task, tomb *tomb.Tomb) error {
+		invocations++
+		return errors.New("boom")
+	}
+	r.AddHandler("download", fn)
+
+	// add a download task to the state tracker
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	chg.NewTask("download", "1...")
+	st.Unlock()
+
+	defer r.Stop()
+
+	// ensure just kicks the go routine off
+	r.Ensure()
+	r.Wait()
+	// won't be restarted
+	r.Ensure()
+	r.Wait()
+
+	c.Check(invocations, Equals, 1)
+}
+
+func (ts *taskRunnerSuite) TestStopCancelsGoroutines(c *C) {
+	// we need state
+	st := state.New(nil)
+
+	invocations := 0
+
+	// setup the download handler
+	r := state.NewTaskRunner(st)
+
+	fn := func(task *state.Task, tomb *tomb.Tomb) error {
+		select {
+		case <-tomb.Dying():
+		}
+		invocations++
+		return nil
+	}
+	r.AddHandler("download", fn)
+
+	// add a download task to the state tracker
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	chg.NewTask("download", "1...")
+	st.Unlock()
+
+	defer r.Stop()
+
+	// ensure just kicks the go routine off
+	r.Ensure()
+	r.Stop()
+
+	c.Check(invocations, Equals, 1)
 }
