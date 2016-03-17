@@ -32,7 +32,7 @@ type HandlerFunc func(task *Task, tomb *tomb.Tomb) error
 // Retry is returned from a handler to signal that is ok to rerun the
 // task at a later point. It's to be used also when a task goroutine
 // is asked to stop through its tomb.
-var Retry = errors.New("retry ok")
+var Retry = errors.New("task should be retried")
 
 // TaskRunner controls the running of goroutines to execute known task kinds.
 type TaskRunner struct {
@@ -94,7 +94,6 @@ func (r *TaskRunner) run(fn HandlerFunc, task *Task) {
 
 		r.state.Lock()
 		defer r.state.Unlock()
-		halted := task.HaltTasks()
 		switch tomb.Err() {
 		case Retry:
 			// Do nothing. Handler asked to try again later.
@@ -102,7 +101,7 @@ func (r *TaskRunner) run(fn HandlerFunc, task *Task) {
 			// right now things will be retried at the next Ensure
 		case nil:
 			task.SetStatus(DoneStatus)
-			if len(halted) > 0 {
+			if len(task.HaltTasks()) > 0 {
 				// give a chance to taskrunners Ensure to start
 				// the waiting ones
 				r.state.EnsureBefore(0)
