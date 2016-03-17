@@ -74,22 +74,22 @@ func (ts *taskRunnerSuite) TestEnsureTrivial(c *C) {
 	taskCompleted.Wait()
 }
 
-type backend struct {
+type stateBackend struct {
 	runner *state.TaskRunner
 }
 
-func (b *backend) Checkpoint([]byte) error {
+func (b *stateBackend) Checkpoint([]byte) error {
 	return nil
 }
 
-func (b *backend) EnsureBefore(d time.Duration) {
+func (b *stateBackend) EnsureBefore(d time.Duration) {
 	go func() {
 		b.runner.Ensure()
 	}()
 }
 
 func (ts *taskRunnerSuite) TestEnsureComplex(c *C) {
-	b := &backend{}
+	b := &stateBackend{}
 	// we need state
 	st := state.New(b)
 
