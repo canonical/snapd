@@ -163,11 +163,8 @@ func (o *Overlord) Run() {
 func (o *Overlord) Stop() error {
 	o.loopTomb.Kill(nil)
 	err1 := o.loopTomb.Wait()
-	err2 := o.stateEng.Stop()
-	if err1 != nil {
-		return err1
-	}
-	return err2
+	o.stateEng.Stop()
+	return err1
 }
 
 // StateEngine returns the state engine used by the overlord.
