@@ -43,7 +43,7 @@ var errSameState = fmt.Errorf("file state has not changed")
 // removed. Missing files are created and differing files are corrected.  Files
 // not matching the pattern are ignored.
 //
-// Note, that EnsureDirState() only checks for permissions and content. Other
+// Note that EnsureDirState only checks for permissions and content. Other
 // security mechanisms, including file ownership and extended attributes are
 // *not* supported.
 //
