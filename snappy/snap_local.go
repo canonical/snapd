@@ -39,23 +39,23 @@ import (
 
 // Snap represents a generic snap type
 type Snap struct {
-	m        *snapYaml
-	remoteM  *remote.Snap
-	origin   string
-	hash     string
-	isActive bool
+	m         *snapYaml
+	remoteM   *remote.Snap
+	developer string
+	hash      string
+	isActive  bool
 
 	basedir string
 }
 
 // NewInstalledSnap returns a new Snap from the given yamlPath
-func NewInstalledSnap(yamlPath, origin string) (*Snap, error) {
+func NewInstalledSnap(yamlPath, developer string) (*Snap, error) {
 	m, err := parseSnapYamlFile(yamlPath)
 	if err != nil {
 		return nil, err
 	}
 
-	part, err := newSnapFromYaml(yamlPath, origin, m)
+	part, err := newSnapFromYaml(yamlPath, developer, m)
 	if err != nil {
 		return nil, err
 	}
@@ -64,16 +64,16 @@ func NewInstalledSnap(yamlPath, origin string) (*Snap, error) {
 }
 
 // newSnapFromYaml returns a new Snap from the given *snapYaml at yamlPath
-func newSnapFromYaml(yamlPath, origin string, m *snapYaml) (*Snap, error) {
+func newSnapFromYaml(yamlPath, developer string, m *snapYaml) (*Snap, error) {
 	part := &Snap{
-		basedir: filepath.Dir(filepath.Dir(yamlPath)),
-		origin:  origin,
-		m:       m,
+		basedir:   filepath.Dir(filepath.Dir(yamlPath)),
+		developer: developer,
+		m:         m,
 	}
 
 	// override the package's idea of its version
 	// because that could have been rewritten on sideload
-	// and origin is empty for frameworks, even sideloaded ones.
+	// and developer is empty for frameworks, even sideloaded ones.
 	m.Version = filepath.Base(part.basedir)
 
 	// check if the part is active
@@ -137,17 +137,17 @@ func (s *Snap) Description() string {
 	return s.m.Summary
 }
 
-// Origin returns the origin
-func (s *Snap) Origin() string {
+// Developer returns the developer
+func (s *Snap) Developer() string {
 	if r := s.remoteM; r != nil {
-		return r.Origin
+		return r.Developer
 	}
 
-	if s.origin == "" {
-		return SideloadedOrigin
+	if s.developer == "" {
+		return SideloadedDeveloper
 	}
 
-	return s.origin
+	return s.developer
 }
 
 // Hash returns the hash
@@ -243,9 +243,9 @@ func (s *Snap) activate(inhibitHooks bool, inter interacter) error {
 
 	// there is already an active part
 	if currentActiveDir != "" {
-		// TODO: support switching origins
+		// TODO: support switching developers
 		oldYaml := filepath.Join(currentActiveDir, "meta", "snap.yaml")
-		oldPart, err := NewInstalledSnap(oldYaml, s.origin)
+		oldPart, err := NewInstalledSnap(oldYaml, s.developer)
 		if err != nil {
 			return err
 		}
@@ -405,18 +405,14 @@ func (s *Snap) Dependents() ([]*Snap, error) {
 	}
 
 	name := s.Name()
-	for _, part := range installed {
-		fmks, err := part.Frameworks()
+	for _, snap := range installed {
+		fmks, err := snap.Frameworks()
 		if err != nil {
 			return nil, err
 		}
 		for _, fmk := range fmks {
 			if fmk == name {
-				part, ok := part.(*Snap)
-				if !ok {
-					return nil, ErrInstalledNonSnap
-				}
-				needed = append(needed, part)
+				needed = append(needed, snap)
 			}
 		}
 	}

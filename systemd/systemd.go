@@ -169,7 +169,7 @@ type ServiceDescription struct {
 	IsFramework     bool
 	BusName         string
 	UdevAppName     string
-	Origin          string
+	Developer       string
 	Socket          bool
 	SocketFileName  string
 	ListenStream    string
@@ -357,7 +357,7 @@ X-Snappy=yes
 [Service]
 ExecStart=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.FullPathStart}}
 Restart={{.Restart}}
-WorkingDirectory={{.SnapPath}}
+WorkingDirectory=/var/lib{{.SnapPath}}
 Environment="SNAP_APP={{.AppTriple}}" {{.EnvVars}}
 {{if .Stop}}ExecStop=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.FullPathStop}}{{end}}
 {{if .PostStop}}ExecStopPost=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.FullPathPostStop}}{{end}}

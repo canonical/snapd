@@ -220,7 +220,7 @@ X-Snappy=yes
 [Service]
 ExecStart=/usr/bin/ubuntu-core-launcher app%[2]s aa-profile /apps/app%[2]s/1.0/bin/start
 Restart=on-failure
-WorkingDirectory=/apps/app%[2]s/1.0/
+WorkingDirectory=/var/lib/apps/app%[2]s/1.0/
 Environment="SNAP_APP=app_service_1.0" "SNAP=/apps/app%[2]s/1.0/" "SNAP_DATA=/var/lib/apps/app%[2]s/1.0/" "SNAP_NAME=app" "SNAP_VERSION=1.0" "SNAP_DEVELOPER=%[3]s" "SNAP_ARCH=%[5]s" "SNAP_USER_DATA=/root/apps/app%[2]s/1.0/" "SNAP_APP_PATH=/apps/app%[2]s/1.0/" "SNAP_APP_DATA_PATH=/var/lib/apps/app%[2]s/1.0/" "SNAP_APP_USER_DATA_PATH=/root/apps/app%[2]s/1.0/"
 ExecStop=/usr/bin/ubuntu-core-launcher app%[2]s aa-profile /apps/app%[2]s/1.0/bin/stop
 ExecStopPost=/usr/bin/ubuntu-core-launcher app%[2]s aa-profile /apps/app%[2]s/1.0/bin/stop --post
@@ -251,7 +251,7 @@ func (s *SystemdTestSuite) TestGenAppServiceFile(c *C) {
 		StopTimeout: time.Duration(10 * time.Second),
 		AaProfile:   "aa-profile",
 		UdevAppName: "app.mvo",
-		Origin:      "mvo",
+		Developer:   "mvo",
 		Type:        "simple",
 	}
 
@@ -305,7 +305,7 @@ func (s *SystemdTestSuite) TestGenServiceFileWithBusName(c *C) {
 		AaProfile:   "aa-profile",
 		BusName:     "foo.bar.baz",
 		UdevAppName: "app.mvo",
-		Origin:      "mvo",
+		Developer:   "mvo",
 		Type:        "dbus",
 	}
 
@@ -391,22 +391,22 @@ func (s *SystemdTestSuite) TestLogString(c *C) {
 }
 
 func (s *SystemdTestSuite) TestMountUnitPath(c *C) {
-	c.Assert(MountUnitPath("/apps/hello.origin/1.1", "mount"), Equals, filepath.Join(dirs.SnapServicesDir, "apps-hello.origin-1.1.mount"))
+	c.Assert(MountUnitPath("/apps/hello.developer/1.1", "mount"), Equals, filepath.Join(dirs.SnapServicesDir, "apps-hello.developer-1.1.mount"))
 }
 
 func (s *SystemdTestSuite) TestWriteMountUnit(c *C) {
-	mountUnitName, err := New("", nil).WriteMountUnitFile("foo.origin", "/var/lib/snappy/snaps/foo.origin_1.0.snap", "/apps/foo.origin/1.0")
+	mountUnitName, err := New("", nil).WriteMountUnitFile("foo.developer", "/var/lib/snappy/snaps/foo.developer_1.0.snap", "/apps/foo.developer/1.0")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
 	mount, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, mountUnitName))
 	c.Assert(err, IsNil)
 	c.Assert(string(mount), Equals, `[Unit]
-Description=Squashfs mount unit for foo.origin
+Description=Squashfs mount unit for foo.developer
 
 [Mount]
-What=/var/lib/snappy/snaps/foo.origin_1.0.snap
-Where=/apps/foo.origin/1.0
+What=/var/lib/snappy/snaps/foo.developer_1.0.snap
+Where=/apps/foo.developer/1.0
 `)
 }
 

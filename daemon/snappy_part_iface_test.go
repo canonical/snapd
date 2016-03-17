@@ -32,7 +32,7 @@ type tP struct {
 	name          string
 	version       string
 	description   string
-	origin        string
+	developer     string
 	hash          string
 	isActive      bool
 	isInstalled   bool
@@ -59,7 +59,7 @@ type tP struct {
 func (p *tP) Name() string         { return p.name }
 func (p *tP) Version() string      { return p.version }
 func (p *tP) Description() string  { return p.description }
-func (p *tP) Origin() string       { return p.origin }
+func (p *tP) Developer() string    { return p.developer }
 func (p *tP) Hash() string         { return p.hash }
 func (p *tP) IsActive() bool       { return p.isActive }
 func (p *tP) IsInstalled() bool    { return p.isInstalled }
