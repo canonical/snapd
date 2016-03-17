@@ -42,8 +42,23 @@ type InterfaceManager struct {
 }
 
 // Manager returns a new InterfaceManager.
-func Manager() (*InterfaceManager, error) {
-	return &InterfaceManager{}, nil
+func Manager(s *state.State) (*InterfaceManager, error) {
+	repo := interfaces.NewRepository()
+	for _, iface := range builtin.Interfaces() {
+		if err := repo.AddInterface(iface); err != nil {
+			return nil, err
+		}
+	}
+	runner := state.NewTaskRunner(s)
+	m := &InterfaceManager{
+		state:  s,
+		runner: runner,
+		repo:   repo,
+	}
+
+	runner.AddHandler("connect", m.doConnect)
+
+	return m, nil
 }
 
 // Connect initiates a change connecting an interface.
@@ -62,22 +77,6 @@ func Connect(change *state.Change, plugSnap, plugName, slotSnap, slotName string
 
 // Disconnect initiates a change disconnecting an interface.
 func (m *InterfaceManager) Disconnect(plugSnap, plugName, slotSnap, slotName string) error {
-	return nil
-}
-
-// Init implements StateManager.Init.
-func (m *InterfaceManager) Init(s *state.State) error {
-	repo := interfaces.NewRepository()
-	for _, iface := range builtin.Interfaces() {
-		if err := repo.AddInterface(iface); err != nil {
-			return err
-		}
-	}
-	runner := state.NewTaskRunner(s)
-	m.state = s
-	m.repo = repo
-	m.runner = runner
-	m.runner.AddHandler("connect", m.doConnect)
 	return nil
 }
 

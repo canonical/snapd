@@ -20,17 +20,14 @@
 package overlord
 
 import (
+	"sync"
+
 	"github.com/ubuntu-core/snappy/overlord/state"
 )
 
 // StateManager is implemented by types responsible for observing
 // the system and manipulating it to reflect the desired state.
 type StateManager interface {
-	// Init hands the manager the current state it's supposed to track
-	// and update.  The StateEngine may call Init again after a Stop
-	// was observed.
-	Init(s *state.State) error
-
 	// Ensure forces a complete evaluation of the current state.
 	// See StateEngine.Ensure for more details.
 	Ensure() error
@@ -51,9 +48,8 @@ type StateManager interface {
 // solely via the state.
 type StateEngine struct {
 	state *state.State
-	// added managers to initialize
-	initialize []StateManager
 	// managers in use
+	mgrLock  sync.RWMutex
 	managers []StateManager
 }
 
@@ -78,18 +74,7 @@ func (se *StateEngine) State() *state.State {
 // must not perform long running activities during that operation, though.
 // These should be performed in properly tracked changes and tasks.
 func (se *StateEngine) Ensure() error {
-	if len(se.initialize) > 0 {
-		for _, m := range se.initialize {
-			err := m.Init(se.state)
-			if err != nil {
-				return err
-			}
-		}
-		se.managers = append(se.managers, se.initialize...)
-		se.initialize = nil
-	}
-
-	for _, m := range se.managers {
+	for _, m := range se.currentManagers() {
 		err := m.Ensure()
 		if err != nil {
 			return err
@@ -98,19 +83,23 @@ func (se *StateEngine) Ensure() error {
 	return nil
 }
 
+func (se *StateEngine) currentManagers() []StateManager {
+	se.mgrLock.RLock()
+	defer se.mgrLock.RUnlock()
+	return se.managers
+}
+
 // AddManager adds the provided manager to take part in state operations.
 func (se *StateEngine) AddManager(m StateManager) {
-	se.initialize = append(se.initialize, m)
+	se.mgrLock.Lock()
+	defer se.mgrLock.Unlock()
+	se.managers = append(se.managers, m)
 }
 
 // Stop asks all managers to terminate activities running concurrently.
 // It returns the first error found after all managers are stopped.
 func (se *StateEngine) Stop() {
-	if len(se.managers) > 0 {
-		for _, m := range se.managers {
-			m.Stop()
-		}
-		se.initialize = append(se.initialize, se.managers...)
-		se.managers = nil
+	for _, m := range se.currentManagers() {
+		m.Stop()
 	}
 }
