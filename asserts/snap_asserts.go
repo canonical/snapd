@@ -152,8 +152,8 @@ func assembleSnapBuild(assert assertionBase) (Assertion, error) {
 }
 
 // SnapRevision holds a snap-revision assertion, which is a statement by the
-// store acknowledging the receipt of a snap build and labeling it with a snap
-// revision.
+// store acknowledging the receipt of a build of snap-id and labeling it with a
+// snap revision.
 type SnapRevision struct {
 	assertionBase
 	snapSize     uint64
@@ -177,13 +177,13 @@ func (snaprev *SnapRevision) SnapSize() uint64 {
 	return snaprev.snapSize
 }
 
-// SnapRevision returns the revision of the snap-id assigned to this build.
+// SnapRevision returns the revision assigned to this build of snap-id.
 func (snaprev *SnapRevision) SnapRevision() uint64 {
 	return snaprev.snapRevision
 }
 
-// DeveloperID returns the id of the developer that submitted the snap build to
-// the store.
+// DeveloperID returns the id of the developer that submitted this build of
+// snap-id.
 func (snaprev *SnapRevision) DeveloperID() string {
 	return snaprev.Header("developer-id")
 }
