@@ -24,6 +24,8 @@ package ifacestate
 import (
 	"fmt"
 
+	"gopkg.in/tomb.v2"
+
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/interfaces/builtin"
@@ -99,7 +101,7 @@ func getPlugAndSlotRefs(task *state.Task) (*interfaces.PlugRef, *interfaces.Slot
 	return &plugRef, &slotRef, nil
 }
 
-func (m *InterfaceManager) doConnect(task *state.Task) error {
+func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	task.State().Lock()
 	defer task.State().Unlock()
 
@@ -110,7 +112,7 @@ func (m *InterfaceManager) doConnect(task *state.Task) error {
 	return m.repo.Connect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
 }
 
-func (m *InterfaceManager) doDisconnect(task *state.Task) error {
+func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	task.State().Lock()
 	defer task.State().Unlock()
 
