@@ -98,11 +98,6 @@ type witnessManager struct {
 	ensureCallack  func(s *state.State) error
 }
 
-func (wm *witnessManager) Init(s *state.State) error {
-	wm.state = s
-	return nil
-}
-
 func (wm *witnessManager) Ensure() error {
 	if wm.expectedEnsure--; wm.expectedEnsure == 0 {
 		close(wm.ensureCalled)
@@ -137,6 +132,7 @@ func (ovs *overlordSuite) TestEnsureLoopRunAndStop(c *C) {
 	c.Assert(err, IsNil)
 
 	witness := &witnessManager{
+		state:          o.StateEngine().State(),
 		expectedEnsure: 2,
 		ensureCalled:   make(chan struct{}),
 	}
@@ -164,6 +160,7 @@ func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBefore(c *C) {
 	c.Assert(err, IsNil)
 
 	witness := &witnessManager{
+		state:          o.StateEngine().State(),
 		expectedEnsure: 1,
 		ensureCalled:   make(chan struct{}),
 	}
@@ -194,6 +191,7 @@ func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBeforeInEnsure(c *C) {
 	}
 
 	witness := &witnessManager{
+		state:          o.StateEngine().State(),
 		expectedEnsure: 2,
 		ensureCalled:   make(chan struct{}),
 		ensureCallack:  ensure,

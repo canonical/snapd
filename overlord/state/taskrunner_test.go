@@ -63,7 +63,7 @@ func (ts *taskRunnerSuite) TestEnsureTrivial(c *C) {
 	// add a download task to the state tracker
 	st.Lock()
 	chg := st.NewChange("install", "...")
-	chg.NewTask("download", "1...")
+	t := chg.NewTask("download", "1...")
 	taskCompleted.Add(1)
 	st.Unlock()
 
@@ -72,6 +72,10 @@ func (ts *taskRunnerSuite) TestEnsureTrivial(c *C) {
 	// ensure just kicks the go routine off
 	r.Ensure()
 	taskCompleted.Wait()
+
+	st.Lock()
+	defer st.Unlock()
+	c.Check(t.Status(), Equals, state.DoneStatus)
 }
 
 type stateBackend struct {
@@ -179,16 +183,16 @@ func (ts *taskRunnerSuite) TestStopCancelsGoroutines(c *C) {
 	fn := func(task *state.Task, tomb *tomb.Tomb) error {
 		select {
 		case <-tomb.Dying():
+			invocations++
+			return state.Retry
 		}
-		invocations++
-		return nil
 	}
 	r.AddHandler("download", fn)
 
 	// add a download task to the state tracker
 	st.Lock()
 	chg := st.NewChange("install", "...")
-	chg.NewTask("download", "1...")
+	t := chg.NewTask("download", "1...")
 	st.Unlock()
 
 	defer r.Stop()
@@ -198,6 +202,10 @@ func (ts *taskRunnerSuite) TestStopCancelsGoroutines(c *C) {
 	r.Stop()
 
 	c.Check(invocations, Equals, 1)
+
+	st.Lock()
+	defer st.Unlock()
+	c.Check(t.Status(), Equals, state.RunningStatus)
 }
 
 func (ts *taskRunnerSuite) TestErrorPropagates(c *C) {
