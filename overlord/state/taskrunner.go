@@ -73,13 +73,15 @@ func (r *TaskRunner) run(fn HandlerFunc, task *Task) {
 
 		r.state.Lock()
 		defer r.state.Unlock()
+		halted := task.HaltTasks()
 		if err == nil {
 			task.SetStatus(DoneStatus)
 		} else {
 			task.SetStatus(ErrorStatus)
 		}
-		// TODO: trigger ensure if we have halted
-
+		if len(halted) > 0 {
+			r.state.EnsureBefore(0)
+		}
 		return err
 	})
 }
