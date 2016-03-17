@@ -201,3 +201,38 @@ func (ts *taskRunnerSuite) TestStopCancelsGoroutines(c *C) {
 
 	c.Check(invocations, Equals, 1)
 }
+
+func (ts *taskRunnerSuite) TestErrorPropagates(c *C) {
+	st := state.New(nil)
+
+	r := state.NewTaskRunner(st)
+	erroring := func(task *state.Task, tomb *tomb.Tomb) error {
+		return errors.New("boom")
+	}
+	dep := func(task *state.Task, tomb *tomb.Tomb) error {
+		return nil
+	}
+	r.AddHandler("erroring", erroring)
+	r.AddHandler("dep", dep)
+
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	errTask := chg.NewTask("erroring", "1...")
+	dep1 := chg.NewTask("dep", "2...")
+	dep1.WaitFor(errTask)
+	dep2 := chg.NewTask("dep", "3...")
+	dep2.WaitFor(dep1)
+	st.Unlock()
+
+	defer r.Stop()
+
+	r.Ensure()
+	r.Wait()
+
+	st.Lock()
+	defer st.Unlock()
+
+	c.Check(dep1.Status(), Equals, state.ErrorStatus)
+	c.Check(dep2.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+}
