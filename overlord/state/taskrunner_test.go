@@ -83,9 +83,7 @@ func (b *stateBackend) Checkpoint([]byte) error {
 }
 
 func (b *stateBackend) EnsureBefore(d time.Duration) {
-	go func() {
-		b.runner.Ensure()
-	}()
+	go b.runner.Ensure()
 }
 
 func (ts *taskRunnerSuite) TestEnsureComplex(c *C) {
