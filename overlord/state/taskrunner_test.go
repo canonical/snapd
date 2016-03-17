@@ -22,6 +22,7 @@ package state_test
 import (
 	"errors"
 	"sync"
+	"time"
 
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
@@ -62,7 +63,7 @@ func (ts *taskRunnerSuite) TestEnsureTrivial(c *C) {
 	// add a download task to the state tracker
 	st.Lock()
 	chg := st.NewChange("install", "...")
-	chg.NewTask("download", "1...")
+	t := chg.NewTask("download", "1...")
 	taskCompleted.Add(1)
 	st.Unlock()
 
@@ -71,21 +72,41 @@ func (ts *taskRunnerSuite) TestEnsureTrivial(c *C) {
 	// ensure just kicks the go routine off
 	r.Ensure()
 	taskCompleted.Wait()
+
+	st.Lock()
+	defer st.Unlock()
+	c.Check(t.Status(), Equals, state.DoneStatus)
+}
+
+type backend struct {
+	runner *state.TaskRunner
+}
+
+func (b *backend) Checkpoint([]byte) error {
+	return nil
+}
+
+func (b *backend) EnsureBefore(d time.Duration) {
+	go func() {
+		b.runner.Ensure()
+	}()
 }
 
 func (ts *taskRunnerSuite) TestEnsureComplex(c *C) {
+	b := &backend{}
 	// we need state
-	st := state.New(nil)
+	st := state.New(b)
+
+	r := state.NewTaskRunner(st)
+	b.runner = r
 
 	// setup handlers
-	r := state.NewTaskRunner(st)
-
-	var ordering []string
+	orderingCh := make(chan string, 3)
 	fn := func(task *state.Task, tomb *tomb.Tomb) error {
 		task.State().Lock()
 		defer task.State().Unlock()
 		c.Check(task.Status(), Equals, state.RunningStatus)
-		ordering = append(ordering, task.Kind())
+		orderingCh <- task.Kind()
 		return nil
 	}
 	r.AddHandler("download", fn)
@@ -96,8 +117,6 @@ func (ts *taskRunnerSuite) TestEnsureComplex(c *C) {
 
 	// run in a loop to ensure ordering is correct by pure chance
 	for i := 0; i < 100; i++ {
-		ordering = []string{}
-
 		st.Lock()
 		chg := st.NewChange("mock-install", "...")
 
@@ -109,14 +128,16 @@ func (ts *taskRunnerSuite) TestEnsureComplex(c *C) {
 		tConf.WaitFor(tUnp)
 		st.Unlock()
 
-		for len(ordering) < 3 {
-			// ensure just kicks the go routine off
-			r.Ensure()
-			// wait for them to finish
+		// ensure just kicks the go routine off
+		// and then they get scheduled as they finish
+		r.Ensure()
+		// wait for them to finish, need to loop because the runner
+		// Wait in unaware of EnsureBefore
+		for len(orderingCh) < 3 {
 			r.Wait()
 		}
 
-		c.Assert(ordering, DeepEquals, []string{"download", "unpack", "configure"})
+		c.Assert([]string{<-orderingCh, <-orderingCh, <-orderingCh}, DeepEquals, []string{"download", "unpack", "configure"})
 	}
 }
 
@@ -173,7 +194,7 @@ func (ts *taskRunnerSuite) TestStopCancelsGoroutines(c *C) {
 	// add a download task to the state tracker
 	st.Lock()
 	chg := st.NewChange("install", "...")
-	chg.NewTask("download", "1...")
+	t := chg.NewTask("download", "1...")
 	st.Unlock()
 
 	defer r.Stop()
@@ -183,4 +204,89 @@ func (ts *taskRunnerSuite) TestStopCancelsGoroutines(c *C) {
 	r.Stop()
 
 	c.Check(invocations, Equals, 1)
+
+	st.Lock()
+	defer st.Unlock()
+	c.Check(t.Status(), Equals, state.RunningStatus)
+}
+
+func (ts *taskRunnerSuite) TestErrorPropagates(c *C) {
+	st := state.New(nil)
+
+	r := state.NewTaskRunner(st)
+	erroring := func(task *state.Task, tomb *tomb.Tomb) error {
+		return errors.New("boom")
+	}
+	dep := func(task *state.Task, tomb *tomb.Tomb) error {
+		return nil
+	}
+	r.AddHandler("erroring", erroring)
+	r.AddHandler("dep", dep)
+
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	errTask := chg.NewTask("erroring", "1...")
+	dep1 := chg.NewTask("dep", "2...")
+	dep1.WaitFor(errTask)
+	dep2 := chg.NewTask("dep", "3...")
+	dep2.WaitFor(dep1)
+	st.Unlock()
+
+	defer r.Stop()
+
+	r.Ensure()
+	r.Wait()
+
+	st.Lock()
+	defer st.Unlock()
+
+	c.Check(dep1.Status(), Equals, state.ErrorStatus)
+	c.Check(dep2.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+}
+
+func (ts *taskRunnerSuite) TestCancelTasksThatCannotHelp(c *C) {
+	b := &backend{}
+	// we need state
+	st := state.New(b)
+
+	r := state.NewTaskRunner(st)
+	b.runner = r
+
+	erroring := func(task *state.Task, tomb *tomb.Tomb) error {
+		return errors.New("boom")
+	}
+	longrunning := func(task *state.Task, tomb *tomb.Tomb) error {
+		select {
+		case <-tomb.Dying():
+		}
+		return nil
+	}
+	finish := func(task *state.Task, tomb *tomb.Tomb) error {
+		return nil
+	}
+	r.AddHandler("erroring", erroring)
+	r.AddHandler("longrunning", longrunning)
+	r.AddHandler("finish", finish)
+
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	errTask := chg.NewTask("erroring", "1a...")
+	longTask := chg.NewTask("longrunning", "1b...")
+	finishTask := chg.NewTask("finish", "2...")
+	finishTask.WaitFor(errTask)
+	finishTask.WaitFor(longTask)
+	st.Unlock()
+
+	defer r.Stop()
+
+	r.Ensure()
+	r.Wait()
+
+	st.Lock()
+	defer st.Unlock()
+
+	c.Check(finishTask.Status(), Equals, state.ErrorStatus)
+	c.Check(longTask.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
 }
