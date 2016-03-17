@@ -139,7 +139,7 @@ func validateSnapYamlData(file string, yamlData []byte, m *snapYaml) error {
 	}
 
 	// this is to prevent installation of legacy packages such as those that
-	// contain the origin/origin in the package name.
+	// contain the developer/developer in the package name.
 	if strings.ContainsRune(m.Name, '.') {
 		return ErrPackageNameNotSupported
 	}
@@ -192,21 +192,21 @@ func parseSnapYamlData(yamlData []byte, hasConfig bool) (*snapYaml, error) {
 	return &m, nil
 }
 
-func (m *snapYaml) qualifiedName(origin string) string {
+func (m *snapYaml) qualifiedName(developer string) string {
 	if m.Type == snap.TypeFramework || m.Type == snap.TypeGadget {
 		return m.Name
 	}
-	return m.Name + "." + origin
+	return m.Name + "." + developer
 }
 
-func checkForPackageInstalled(m *snapYaml, origin string) error {
+func checkForPackageInstalled(m *snapYaml, developer string) error {
 	part := ActiveSnapByName(m.Name)
 	if part == nil {
 		return nil
 	}
 
-	if part.Origin() != origin {
-		return fmt.Errorf("package %q is already installed with origin %q your origin is %q", m.Name, part.Origin(), origin)
+	if part.Developer() != developer {
+		return fmt.Errorf("package %q is already installed with developer %q your developer is %q", m.Name, part.Developer(), developer)
 	}
 
 	return nil

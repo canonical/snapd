@@ -24,10 +24,10 @@ unspecified, default confinement allows the snap to run as a network client.
 
 Applications are tracked by the system by using the concept of an
 ApplicationId. The `APP_ID is` the composition of the package name, the app's
-origin from the store if applicable -- only snaps of `type: app` (the
-default) use an origin to compose the `APP_ID`), the
+developer from the store if applicable -- only snaps of `type: app` (the
+default) use an developer to compose the `APP_ID`), the
 service/binary name and package version. The `APP_ID` takes the form of
-`<pkgname>.<origin>_<appname>_<version>`. For example, if this is in
+`<pkgname>.<developer>_<appname>_<version>`. For example, if this is in
 `snap.yaml`:
 
     name: foo
@@ -37,8 +37,8 @@ service/binary name and package version. The `APP_ID` takes the form of
       bar:
         start: bin/bar
 
-and the app was uploaded to the `myorigin` origin in the store, then the
-`APP_ID` for the `bar` service is `foo.myorigin_bar_0.1`. The `APP_ID` is used
+and the app was uploaded to the `snapdev` developer in the store, then the
+`APP_ID` for the `bar` service is `foo.snapdev_bar_0.1`. The `APP_ID` is used
 throughout the system including in the enforcement of security policy by the
 app launcher.
 
@@ -50,7 +50,7 @@ Under the hood, the launcher:
    [snappy FHS](https://developer.ubuntu.com/en/snappy/guides/filesystem-layout/) for details.
 * sets up a device cgroup with default devices (eg, /dev/null, /dev/urandom,
   etc) and any devices which are assigned to this app via Gadget snaps or
-  `snappy hw-assign` (eg, `snappy hw-assign foo.myorigin /dev/bar`).
+  `snappy hw-assign` (eg, `snappy hw-assign foo.snapdev /dev/bar`).
 * sets up the seccomp filter
 * executes the app under an AppArmor profile under a default nice value
 
@@ -159,22 +159,22 @@ Eg, consider the following:
         caps: []
 
 
-If this package is uploaded to the store in the `myorigin` origin, then:
+If this package is uploaded to the store in the `snapdev` developer, then:
 
-* `APP_ID` for `bar` is `foo.myorigin_bar_1.0`. It uses the `default` template
+* `APP_ID` for `bar` is `foo.snapdev_bar_1.0`. It uses the `default` template
   and `network-client` (default) cap
-* `APP_ID` for `baz` is `foo.myorigin_baz_1.0`. It uses the `default` template
+* `APP_ID` for `baz` is `foo.snapdev_baz_1.0`. It uses the `default` template
   and the `network-client` and `norf-framework_client` caps
-* `APP_ID` for `qux` is `foo.myorigin_qux_1.0`. It uses the `nondefault`
+* `APP_ID` for `qux` is `foo.snapdev_qux_1.0`. It uses the `nondefault`
   template and `network-client` (default) cap
-* `APP_ID` for `quux` is `foo.myorigin_quux_1.0`. It does not use a
+* `APP_ID` for `quux` is `foo.snapdev_quux_1.0`. It does not use a
   `security-template` or `caps` but instead ships its own AppArmor policy in
   `meta/quux.profile`
   and seccomp filters in `meta/quux.filter`
-* `APP_ID` for `corge` is `foo.myorigin_corge_1.0`. It does not use a
+* `APP_ID` for `corge` is `foo.snapdev_corge_1.0`. It does not use a
   `security-template` or `caps` but instead ships the override files
   `meta/corge.apparmor` and `meta/corge.seccomp`.
-* `APP_ID` for `cli-exe` is `foo.myorigin_cli-exe_1.0`. It uses the `default`
+* `APP_ID` for `cli-exe` is `foo.snapdev_cli-exe_1.0`. It uses the `default`
   template and no `caps`
 
 As mentioned, security policies and store policies work together to provide
@@ -241,9 +241,9 @@ The following is planned:
   socket says that app is ok).
     * `names`: (optional) list of abstract socket names
       (`<name>_<binaryname>` is prepended)
-    * `allowed-clients`: `<name>.<origin>` or
-     `<name>.<origin>_<binaryname>` (ie, omit version and
-     `binaryname` to allow all from snap `<name>.<origin>` or omit
+    * `allowed-clients`: `<name>.<developer>` or
+     `<name>.<developer>_<binaryname>` (ie, omit version and
+     `binaryname` to allow all from snap `<name>.<developer>` or omit
      version to allow only `binaryname` from snap `<name>`)
 
  Eg:

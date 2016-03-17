@@ -123,7 +123,7 @@ func (s *SnapTestSuite) TestLocalSnapSimple(c *C) {
 	snapYaml, err := s.makeInstalledMockSnap()
 	c.Assert(err, IsNil)
 
-	snap, err := NewInstalledSnap(snapYaml, testOrigin)
+	snap, err := NewInstalledSnap(snapYaml, testDeveloper)
 	c.Assert(err, IsNil)
 	c.Assert(snap, NotNil)
 	c.Check(snap.Name(), Equals, "hello-snap")
@@ -150,7 +150,7 @@ func (s *SnapTestSuite) TestLocalSnapActive(c *C) {
 	c.Assert(err, IsNil)
 	makeSnapActive(snapYaml)
 
-	snap, err := NewInstalledSnap(snapYaml, testOrigin)
+	snap, err := NewInstalledSnap(snapYaml, testDeveloper)
 	c.Assert(err, IsNil)
 	c.Assert(snap.IsActive(), Equals, true)
 }
@@ -164,7 +164,7 @@ frameworks:
 `)
 	c.Assert(err, IsNil)
 
-	snap, err := NewInstalledSnap(snapYaml, testOrigin)
+	snap, err := NewInstalledSnap(snapYaml, testDeveloper)
 	c.Assert(err, IsNil)
 	fmk, err := snap.Frameworks()
 	c.Assert(err, IsNil)
@@ -198,12 +198,12 @@ func (s *SnapTestSuite) TestLocalSnapRepositorySimple(c *C) {
 }
 
 const (
-	funkyAppName   = "8nzc1x4iim2xj1g2ul64"
-	funkyAppOrigin = "chipaca"
+	funkyAppName      = "8nzc1x4iim2xj1g2ul64"
+	funkyAppDeveloper = "chipaca"
 )
 
 /* acquired via:
-curl -s -H 'accept: application/hal+json' -H "X-Ubuntu-Release: 15.04-core" -H "X-Ubuntu-Architecture: amd64" "https://search.apps.ubuntu.com/api/v1/search?q=8nzc1x4iim2xj1g2ul64&fields=publisher,package_name,origin,title,icon_url,prices,content,ratings_average,version,anon_download_url,download_url,download_sha512,last_updated,binary_filesize,support_url,revision" | python -m json.tool
+curl -s -H 'accept: application/hal+json' -H "X-Ubuntu-Release: 15.04-core" -H "X-Ubuntu-Architecture: amd64" "https://search.apps.ubuntu.com/api/v1/search?q=8nzc1x4iim2xj1g2ul64&fields=publisher,package_name,developer,title,icon_url,prices,content,ratings_average,version,anon_download_url,download_url,download_sha512,last_updated,binary_filesize,support_url,revision" | python -m json.tool
 */
 const MockSearchJSON = `{
     "_embedded": {
@@ -242,7 +242,7 @@ const MockSearchJSON = `{
             }
         ],
         "self": {
-            "href": "https://search.apps.ubuntu.com/api/v1/search?q=8nzc1x4iim2xj1g2ul64&fields=publisher,package_name,origin,title,icon_url,prices,content,ratings_average,version,anon_download_url,download_url,download_sha512,last_updated,binary_filesize,support_url,revision"
+            "href": "https://search.apps.ubuntu.com/api/v1/search?q=8nzc1x4iim2xj1g2ul64&fields=publisher,package_name,developer,title,icon_url,prices,content,ratings_average,version,anon_download_url,download_url,download_sha512,last_updated,binary_filesize,support_url,revision"
         }
     }
 }
@@ -350,7 +350,7 @@ const MockDetailsJSON = `{
 `
 
 /* acquired via
-curl -s -H 'accept: application/hal+json' -H "X-Ubuntu-Release: 15.04-core" -H "X-Ubuntu-Architecture: amd64" "https://search.apps.ubuntu.com/api/v1/search?q=8nzc1x4iim2xj1g2ul64&fields=publisher,package_name,origin,title,icon_url,prices,content,ratings_average,version,anon_download_url,download_url,download_sha512,last_updated,binary_filesize,support_url,alias,revision" | python -m json.tool
+curl -s -H 'accept: application/hal+json' -H "X-Ubuntu-Release: 15.04-core" -H "X-Ubuntu-Architecture: amd64" "https://search.apps.ubuntu.com/api/v1/search?q=8nzc1x4iim2xj1g2ul64&fields=publisher,package_name,developer,title,icon_url,prices,content,ratings_average,version,anon_download_url,download_url,download_sha512,last_updated,binary_filesize,support_url,alias,revision" | python -m json.tool
 */
 const MockAliasSearchJSON = `{
     "_embedded": {
@@ -414,7 +414,7 @@ const MockAliasSearchJSON = `{
             }
         ],
         "self": {
-            "href": "https://search.apps.ubuntu.com/api/v1/search?q=hello-world&fields=publisher,package_name,origin,title,icon_url,prices,content,ratings_average,version,anon_download_url,download_url,download_sha512,last_updated,binary_filesize,support_url,alias,revision"
+            "href": "https://search.apps.ubuntu.com/api/v1/search?q=hello-world&fields=publisher,package_name,developer,title,icon_url,prices,content,ratings_average,version,anon_download_url,download_url,download_sha512,last_updated,binary_filesize,support_url,alias,revision"
         }
     }
 }
@@ -426,55 +426,6 @@ type MockUbuntuStoreServer struct {
 	quit chan int
 
 	searchURI string
-}
-
-func (s *SnapTestSuite) TestUbuntuStoreRepositorySearch(c *C) {
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, MockSearchJSON)
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	var err error
-	storeSearchURI, err = url.Parse(mockServer.URL)
-	c.Assert(err, IsNil)
-	snap := NewUbuntuStoreSnapRepository()
-	c.Assert(snap, NotNil)
-
-	results, err := snap.Search(funkyAppName)
-	c.Assert(err, IsNil)
-	c.Assert(results, HasLen, 1)
-	c.Assert(results[funkyAppName], NotNil)
-
-	parts := results[funkyAppName].Parts
-	c.Assert(parts, HasLen, 1)
-	c.Check(parts[0].Name(), Equals, funkyAppName)
-	c.Check(parts[0].Origin(), Equals, funkyAppOrigin)
-	c.Check(parts[0].Version(), Equals, "42")
-	c.Check(parts[0].Description(), Equals, "Returns for store credit only.")
-}
-
-func (s *SnapTestSuite) TestUbuntuStoreAll(c *C) {
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.URL.RawQuery, Equals, "")
-		io.WriteString(w, MockSearchJSON)
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	var err error
-	storeSearchURI, err = url.Parse(mockServer.URL)
-	c.Assert(err, IsNil)
-	repo := NewUbuntuStoreSnapRepository()
-	c.Assert(repo, NotNil)
-
-	parts, err := repo.All()
-	c.Assert(err, IsNil)
-	c.Assert(parts, HasLen, 1)
-	c.Check(parts[0].Name(), Equals, funkyAppName)
-	c.Check(parts[0].Origin(), Equals, funkyAppOrigin)
-	c.Check(parts[0].Version(), Equals, "42")
-	c.Check(parts[0].Description(), Equals, "Returns for store credit only.")
 }
 
 func (s *SnapTestSuite) TestUbuntuStoreFind(c *C) {
@@ -492,62 +443,12 @@ func (s *SnapTestSuite) TestUbuntuStoreFind(c *C) {
 	repo := NewUbuntuStoreSnapRepository()
 	c.Assert(repo, NotNil)
 
-	parts, err := repo.Find("foo", "")
+	parts, err := repo.FindSnaps("foo", "")
 	c.Assert(err, IsNil)
 	c.Assert(parts, HasLen, 1)
 	c.Check(parts[0].Name(), Equals, funkyAppName)
 }
 
-func (s *SnapTestSuite) TestUbuntuStoreSearchDoesNotMutateSearchURI(c *C) {
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.URL.RawQuery, Equals, "q=foo")
-		c.Check(storeSearchURI.RawQuery, Equals, "")
-		io.WriteString(w, MockSearchJSON)
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	var err error
-	storeSearchURI, err = url.Parse(mockServer.URL)
-	c.Assert(err, IsNil)
-	repo := NewUbuntuStoreSnapRepository()
-	c.Assert(repo, NotNil)
-
-	repo.Search("foo")
-}
-
-func (s *SnapTestSuite) TestUbuntuStoreRepositoryAliasSearch(c *C) {
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, MockAliasSearchJSON)
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	var err error
-	storeSearchURI, err = url.Parse(mockServer.URL)
-	c.Assert(err, IsNil)
-	snap := NewUbuntuStoreSnapRepository()
-	c.Assert(snap, NotNil)
-
-	results, err := snap.Search("hello-world")
-	c.Assert(err, IsNil)
-	c.Assert(results, HasLen, 1)
-	c.Assert(results["hello-world"], NotNil)
-
-	parts := results["hello-world"].Parts
-	c.Assert(parts, HasLen, 2)
-	c.Check(parts[0].Name(), Equals, "hello-world")
-	c.Check(parts[1].Name(), Equals, "hello-world")
-	c.Check(parts[0].Origin(), Equals, "canonical")
-	c.Check(parts[1].Origin(), Equals, "jdstrand")
-	c.Check(parts[0].Version(), Equals, "1.0.8")
-	c.Check(parts[1].Version(), Equals, "1.4")
-	c.Check(parts[0].Description(), Equals, "hello-world")
-	c.Check(parts[1].Description(), Equals, "hello-world")
-
-	alias := results["hello-world"].Alias
-	c.Assert(alias, DeepEquals, parts[0])
-}
 func mockActiveSnapIterByType(mockSnaps []string) {
 	ActiveSnapIterByType = func(f func(Part) string, snapTs ...snap.Type) (res []string, err error) {
 		return mockSnaps, nil
@@ -576,7 +477,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 	mockActiveSnapIterByType([]string{funkyAppName})
 
 	// the actual test
-	results, err := snap.Updates()
+	results, err := snap.SnapUpdates()
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].Name(), Equals, funkyAppName)
@@ -597,7 +498,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdatesNoSnaps(c *C) {
 	mockActiveSnapIterByType([]string{})
 
 	// the actual test
-	results, err := snap.Updates()
+	results, err := snap.SnapUpdates()
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 0)
 }
@@ -617,7 +518,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 		storeID := r.Header.Get("X-Ubuntu-Store")
 		c.Check(storeID, Equals, "")
 
-		c.Check(r.URL.Path, Equals, fmt.Sprintf("/details/%s.%s/edge", funkyAppName, funkyAppOrigin))
+		c.Check(r.URL.Path, Equals, fmt.Sprintf("/details/%s.%s/edge", funkyAppName, funkyAppDeveloper))
 		io.WriteString(w, MockDetailsJSON)
 	}))
 
@@ -631,10 +532,10 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Assert(snap, NotNil)
 
 	// the actual test
-	result, err := snap.Snap(funkyAppName+"."+funkyAppOrigin, "edge")
+	result, err := snap.Snap(funkyAppName+"."+funkyAppDeveloper, "edge")
 	c.Assert(err, IsNil)
 	c.Check(result.Name(), Equals, funkyAppName)
-	c.Check(result.Origin(), Equals, funkyAppOrigin)
+	c.Check(result.Developer(), Equals, funkyAppDeveloper)
 	c.Check(result.Version(), Equals, "42")
 	c.Check(result.Hash(), Equals, "5364253e4a988f4f5c04380086d542f410455b97d48cc6c69ca2a5877d8aef2a6b2b2f83ec4f688cae61ebc8a6bf2cdbd4dbd8f743f0522fc76540429b79df42")
 	c.Check(result.Date().String(), Equals, "2015-04-15 18:30:16 +0000 UTC")
@@ -703,12 +604,12 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 	defer mockServer.Close()
 
 	r := &RemoteSnap{}
-	r.pkg.AnonDownloadURL = mockServer.URL + "/snap"
-	r.pkg.IconURL = mockServer.URL + "/icon"
-	r.pkg.Name = "foo"
-	r.pkg.Origin = "bar"
-	r.pkg.Description = "this is a description"
-	r.pkg.Version = "1.0"
+	r.Pkg.AnonDownloadURL = mockServer.URL + "/snap"
+	r.Pkg.IconURL = mockServer.URL + "/icon"
+	r.Pkg.Name = "foo"
+	r.Pkg.Developer = "bar"
+	r.Pkg.Description = "this is a description"
+	r.Pkg.Version = "1.0"
 
 	mStore := NewUbuntuStoreSnapRepository()
 	p := &MockProgressMeter{}
@@ -723,7 +624,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 1)
 
-	c.Check(installed[0].Origin(), Equals, "bar")
+	c.Check(installed[0].Developer(), Equals, "bar")
 	c.Check(installed[0].Description(), Equals, "this is a description")
 
 	_, err = os.Stat(filepath.Join(dirs.SnapMetaDir, "foo.bar_1.0.manifest"))
@@ -757,12 +658,12 @@ apps:
 	defer mockServer.Close()
 
 	r := &RemoteSnap{}
-	r.pkg.AnonDownloadURL = mockServer.URL + "/snap"
-	r.pkg.Origin = testOrigin
-	r.pkg.IconURL = mockServer.URL + "/icon"
-	r.pkg.Name = "foo"
-	r.pkg.Origin = "bar"
-	r.pkg.Version = "1.0"
+	r.Pkg.AnonDownloadURL = mockServer.URL + "/snap"
+	r.Pkg.Developer = testDeveloper
+	r.Pkg.IconURL = mockServer.URL + "/icon"
+	r.Pkg.Name = "foo"
+	r.Pkg.Developer = "bar"
+	r.Pkg.Version = "1.0"
 
 	mStore := NewUbuntuStoreSnapRepository()
 	p := &MockProgressMeter{}
@@ -787,7 +688,7 @@ architectures:
 `
 
 	snapPkg := makeTestSnapPackage(c, packageHello)
-	_, err := s.overlord.Install(snapPkg, "origin", 0, &MockProgressMeter{})
+	_, err := s.overlord.Install(snapPkg, "developer", 0, &MockProgressMeter{})
 	errorMsg := fmt.Sprintf("package's supported architectures (yadayada, blahblah) is incompatible with this system (%s)", arch.UbuntuArchitecture())
 	c.Assert(err.Error(), Equals, errorMsg)
 }
@@ -818,12 +719,12 @@ apps:
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, packageHello)
 	c.Assert(err, IsNil)
 
-	snap, err := NewInstalledSnap(yamlFile, testOrigin)
+	snap, err := NewInstalledSnap(yamlFile, testDeveloper)
 	c.Assert(err, IsNil)
 	c.Assert(snap, NotNil)
 
 	c.Assert(snap.Name(), Equals, "hello-snap")
-	c.Assert(snap.Origin(), Equals, testOrigin)
+	c.Assert(snap.Developer(), Equals, testDeveloper)
 	c.Assert(snap.Version(), Equals, "1.10")
 	c.Assert(snap.IsActive(), Equals, false)
 
@@ -967,7 +868,7 @@ type: gadget
 	c.Assert(err, IsNil)
 	parts := FindSnapsByName("hello-snap", installed)
 	c.Assert(parts, HasLen, 1)
-	c.Check(s.overlord.Uninstall(parts[0].(*Snap), p), Equals, ErrPackageNotRemovable)
+	c.Check(s.overlord.Uninstall(parts[0], p), Equals, ErrPackageNotRemovable)
 }
 
 var securityBinarySnapYaml = []byte(`name: test-snap
@@ -1066,10 +967,10 @@ func (s *SnapTestSuite) TestDetectsAlreadyInstalled(c *C) {
 
 	yaml, err := parseSnapYamlData([]byte(data), false)
 	c.Assert(err, IsNil)
-	c.Check(checkForPackageInstalled(yaml, "otherns"), ErrorMatches, ".*is already installed with origin.*")
+	c.Check(checkForPackageInstalled(yaml, "otherns"), ErrorMatches, ".*is already installed with developer.*")
 }
 
-func (s *SnapTestSuite) TestIgnoresAlreadyInstalledSameOrigin(c *C) {
+func (s *SnapTestSuite) TestIgnoresAlreadyInstalledSameDeveloper(c *C) {
 	// NOTE remote snaps are stopped before clickInstall gets to run
 
 	data := "name: afoo\nversion: 1"
@@ -1079,10 +980,10 @@ func (s *SnapTestSuite) TestIgnoresAlreadyInstalledSameOrigin(c *C) {
 
 	yaml, err := parseSnapYamlData([]byte(data), false)
 	c.Assert(err, IsNil)
-	c.Check(checkForPackageInstalled(yaml, testOrigin), IsNil)
+	c.Check(checkForPackageInstalled(yaml, testDeveloper), IsNil)
 }
 
-func (s *SnapTestSuite) TestIgnoresAlreadyInstalledFrameworkSameOrigin(c *C) {
+func (s *SnapTestSuite) TestIgnoresAlreadyInstalledFrameworkSameDeveloper(c *C) {
 	data := "name: afoo\nversion: 1\ntype: framework"
 	yamlPath, err := makeInstalledMockSnap(s.tempdir, data)
 	c.Assert(err, IsNil)
@@ -1090,7 +991,7 @@ func (s *SnapTestSuite) TestIgnoresAlreadyInstalledFrameworkSameOrigin(c *C) {
 
 	yaml, err := parseSnapYamlData([]byte(data), false)
 	c.Assert(err, IsNil)
-	c.Check(checkForPackageInstalled(yaml, testOrigin), IsNil)
+	c.Check(checkForPackageInstalled(yaml, testDeveloper), IsNil)
 }
 
 func (s *SnapTestSuite) TestDetectsAlreadyInstalledFramework(c *C) {
@@ -1101,7 +1002,7 @@ func (s *SnapTestSuite) TestDetectsAlreadyInstalledFramework(c *C) {
 
 	yaml, err := parseSnapYamlData([]byte(data), false)
 	c.Assert(err, IsNil)
-	c.Check(checkForPackageInstalled(yaml, "otherns"), ErrorMatches, ".*is already installed with origin.*")
+	c.Check(checkForPackageInstalled(yaml, "otherns"), ErrorMatches, ".*is already installed with developer.*")
 }
 
 func (s *SnapTestSuite) TestUsesStoreMetaData(c *C) {
@@ -1121,7 +1022,7 @@ func (s *SnapTestSuite) TestUsesStoreMetaData(c *C) {
 	c.Check(snaps[0].Name(), Equals, "afoo")
 	c.Check(snaps[0].Version(), Equals, "1")
 	c.Check(snaps[0].Type(), Equals, snap.TypeFramework)
-	c.Check(snaps[0].Origin(), Equals, "someplace")
+	c.Check(snaps[0].Developer(), Equals, "someplace")
 	c.Check(snaps[0].Description(), Equals, "something nice")
 	c.Check(snaps[0].DownloadSize(), Equals, int64(10))
 }
@@ -1168,7 +1069,7 @@ func (s *SnapTestSuite) TestRefreshDependentsSecurity(c *C) {
 		dirs.SnapAppArmorDir = oldDir
 	}()
 	dirs.SnapAppArmorDir = c.MkDir()
-	fn := filepath.Join(dirs.SnapAppArmorDir, "foo."+testOrigin+"_hello_1.0")
+	fn := filepath.Join(dirs.SnapAppArmorDir, "foo."+testDeveloper+"_hello_1.0")
 	c.Assert(os.Symlink(fn, fn), IsNil)
 
 	_, err := makeInstalledMockSnap(s.tempdir, `name: foo
@@ -1200,7 +1101,7 @@ apps:
 
 	pb := &MockProgressMeter{}
 	m, err := parseSnapYamlData([]byte(yaml), false)
-	part := &Snap{m: m, origin: testOrigin, basedir: d1}
+	part := &Snap{m: m, developer: testDeveloper, basedir: d1}
 	c.Assert(part.RefreshDependentsSecurity(&Snap{basedir: d2}, pb), IsNil)
 	// TODO: verify it was updated
 }
@@ -1219,7 +1120,7 @@ frameworks:
 `)
 	c.Assert(err, IsNil)
 
-	part := &Snap{m: yaml, origin: testOrigin}
+	part := &Snap{m: yaml, developer: testDeveloper}
 	err = s.overlord.Uninstall(part, new(MockProgressMeter))
 	c.Check(err, ErrorMatches, `framework still in use by: foo`)
 }
@@ -1277,8 +1178,8 @@ func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateService(c *C) {
 				},
 			},
 		},
-		origin:  testOrigin,
-		basedir: filepath.Join(dirs.SnapSnapsDir, "part."+testOrigin, "42"),
+		developer: testDeveloper,
+		basedir:   filepath.Join(dirs.SnapSnapsDir, "part."+testDeveloper, "42"),
 	}
 	err := part.RequestSecurityPolicyUpdate(nil, map[string]bool{"foo": true})
 	c.Assert(err, NotNil)
@@ -1301,8 +1202,8 @@ func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateBinary(c *C) {
 				},
 			},
 		},
-		origin:  testOrigin,
-		basedir: filepath.Join(dirs.SnapSnapsDir, "part."+testOrigin, "42"),
+		developer: testDeveloper,
+		basedir:   filepath.Join(dirs.SnapSnapsDir, "part."+testDeveloper, "42"),
 	}
 	err := part.RequestSecurityPolicyUpdate(nil, map[string]bool{"foo": true})
 	c.Check(err, NotNil) // XXX: we should do better than this
@@ -1333,7 +1234,7 @@ func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateNothing(c *C) {
 				},
 			},
 		},
-		origin: testOrigin,
+		developer: testDeveloper,
 	}
 	err := part.RequestSecurityPolicyUpdate(nil, nil)
 	c.Check(err, IsNil)
@@ -1360,16 +1261,16 @@ apps:
 	c.Assert(err, NotNil)
 }
 
-func (s *SnapTestSuite) TestOriginFromPath(c *C) {
-	n, err := originFromYamlPath("/gadget/foo.bar/1.0/meta/snap.yaml")
+func (s *SnapTestSuite) TestDeveloperFromPath(c *C) {
+	n, err := developerFromYamlPath("/gadget/foo.bar/1.0/meta/snap.yaml")
 	c.Check(err, IsNil)
 	c.Check(n, Equals, "bar")
 
-	n, err = originFromYamlPath("/gadget/foo_bar/1.0/meta/snap.yaml")
+	n, err = developerFromYamlPath("/gadget/foo_bar/1.0/meta/snap.yaml")
 	c.Check(err, NotNil)
 	c.Check(n, Equals, "")
 
-	n, err = originFromYamlPath("/oo_bar/1.0/msnap.yaml")
+	n, err = developerFromYamlPath("/oo_bar/1.0/msnap.yaml")
 	c.Check(err, NotNil)
 	c.Check(n, Equals, "")
 }
@@ -1390,7 +1291,7 @@ func (s *SnapTestSuite) TestStructFieldsSurvivesNoTag(c *C) {
 	c.Assert(getStructFields(t{}), DeepEquals, []string{"hello"})
 }
 
-func (s *SnapTestSuite) TestIllegalPackageNameWithOrigin(c *C) {
+func (s *SnapTestSuite) TestIllegalPackageNameWithDeveloper(c *C) {
 	_, err := parseSnapYamlData([]byte(`name: foo.something
 version: 1.0
 `), false)
@@ -1553,13 +1454,13 @@ func (s *SnapTestSuite) TestChannelFromLocalManifest(c *C) {
 	snapYaml, err := s.makeInstalledMockSnap()
 	c.Assert(err, IsNil)
 
-	snap, err := NewInstalledSnap(snapYaml, testOrigin)
+	snap, err := NewInstalledSnap(snapYaml, testDeveloper)
 	c.Assert(snap.Channel(), Equals, "remote-channel")
 }
 
 func (s *SnapTestSuite) TestIcon(c *C) {
 	snapYaml, err := s.makeInstalledMockSnap()
-	part, err := NewInstalledSnap(snapYaml, testOrigin)
+	part, err := NewInstalledSnap(snapYaml, testDeveloper)
 	c.Assert(err, IsNil)
 	err = os.MkdirAll(filepath.Join(part.basedir, "meta", "gui"), 0755)
 	c.Assert(err, IsNil)
@@ -1573,7 +1474,7 @@ func (s *SnapTestSuite) TestIconEmpty(c *C) {
 	snapYaml, err := s.makeInstalledMockSnap(`name: foo
 version: 1.0
 `)
-	part, err := NewInstalledSnap(snapYaml, testOrigin)
+	part, err := NewInstalledSnap(snapYaml, testDeveloper)
 	c.Assert(err, IsNil)
 	// no icon in the yaml!
 	c.Check(part.Icon(), Equals, "")

@@ -21,6 +21,8 @@ package state
 
 import (
 	"encoding/json"
+
+	"github.com/ubuntu-core/snappy/logger"
 )
 
 type progress struct {
@@ -33,44 +35,48 @@ type progress struct {
 //
 // See Change for more details.
 type Task struct {
-	state    *State
-	id       string
-	kind     string
-	summary  string
-	status   Status
-	progress progress
-	data     customData
+	state     *State
+	id        string
+	kind      string
+	summary   string
+	status    Status
+	progress  progress
+	data      customData
+	waitTasks taskIDsSet
 }
 
 func newTask(state *State, id, kind, summary string) *Task {
 	return &Task{
-		state:   state,
-		id:      id,
-		kind:    kind,
-		summary: summary,
-		data:    make(customData),
+		state:     state,
+		id:        id,
+		kind:      kind,
+		summary:   summary,
+		data:      make(customData),
+		waitTasks: make(taskIDsSet),
 	}
 }
 
 type marshalledTask struct {
-	ID       string                      `json:"id"`
-	Kind     string                      `json:"kind"`
-	Summary  string                      `json:"summary"`
-	Status   Status                      `json:"status"`
-	Progress progress                    `json:"progress"`
-	Data     map[string]*json.RawMessage `json:"data"`
+	ID        string                      `json:"id"`
+	Kind      string                      `json:"kind"`
+	Summary   string                      `json:"summary"`
+	Status    Status                      `json:"status"`
+	Progress  progress                    `json:"progress"`
+	Data      map[string]*json.RawMessage `json:"data"`
+	WaitTasks taskIDsSet                  `json:"wait-tasks"`
 }
 
 // MarshalJSON makes Task a json.Marshaller
 func (t *Task) MarshalJSON() ([]byte, error) {
 	t.state.ensureLocked()
 	return json.Marshal(marshalledTask{
-		ID:       t.id,
-		Kind:     t.kind,
-		Summary:  t.summary,
-		Status:   t.status,
-		Progress: t.progress,
-		Data:     t.data,
+		ID:        t.id,
+		Kind:      t.kind,
+		Summary:   t.summary,
+		Status:    t.status,
+		Progress:  t.progress,
+		Data:      t.data,
+		WaitTasks: t.waitTasks,
 	})
 }
 
@@ -90,6 +96,7 @@ func (t *Task) UnmarshalJSON(data []byte) error {
 	t.status = unmarshalled.Status
 	t.progress = unmarshalled.Progress
 	t.data = unmarshalled.Data
+	t.waitTasks = unmarshalled.WaitTasks
 	return nil
 }
 
@@ -124,6 +131,11 @@ func (t *Task) SetStatus(s Status) {
 	t.status = s
 }
 
+// State returns the system State
+func (t *Task) State() *State {
+	return t.state
+}
+
 // Progress returns the current progress for the task.
 // If progress is not explicitly set, it returns (0, 1) if the status is
 // RunningStatus or WaitingStatus and (1, 1) otherwise.
@@ -146,6 +158,15 @@ func (t *Task) SetProgress(cur, total int) {
 	t.progress = progress{Current: cur, Total: total}
 }
 
+// Logf logs textual information about the progress of the task.
+// Only the most recent entries logged are held in memory, potentially
+// with different behavior for different task statuses. How many entries
+// are held is an implementation detail and may change over time.
+func (t *Task) Logf(format string, args ...interface{}) {
+	// XXX: minimal implementation for now
+	logger.Noticef(format, args...)
+}
+
 // Set associates value with key for future consulting by managers.
 // The provided value must properly marshal and unmarshal with encoding/json.
 func (t *Task) Set(key string, value interface{}) {
@@ -158,4 +179,18 @@ func (t *Task) Set(key string, value interface{}) {
 func (t *Task) Get(key string, value interface{}) error {
 	t.state.ensureLocked()
 	return t.data.get(key, value)
+}
+
+// WaitFor registers another task as a requirement for t to make progress
+// and sets the status as WaitingStatus.
+func (t *Task) WaitFor(another *Task) {
+	t.state.ensureLocked()
+	t.status = WaitingStatus
+	t.waitTasks.add(another.ID())
+}
+
+// WaitTasks returns the list of tasks registered for t to wait for.
+func (t *Task) WaitTasks() []*Task {
+	t.state.ensureLocked()
+	return t.waitTasks.tasks(t.state)
 }

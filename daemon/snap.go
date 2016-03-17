@@ -25,7 +25,7 @@ import (
 
 // allSnaps returns all installed snaps, grouped by name
 func allSnaps() (map[string][]*snappy.Snap, error) {
-	all, err := snappy.NewLocalSnapRepository().All()
+	all, err := snappy.NewLocalSnapRepository().Installed()
 	if err != nil {
 		return nil, err
 	}
@@ -34,7 +34,7 @@ func allSnaps() (map[string][]*snappy.Snap, error) {
 
 	for _, part := range all {
 		name := snappy.FullName(part)
-		m[name] = append(m[name], part.(*snappy.Snap))
+		m[name] = append(m[name], part)
 	}
 
 	return m, nil
@@ -65,8 +65,8 @@ func bestSnap(snaps []*snappy.Snap) (idx int, snap *snappy.Snap) {
 // a nil Part. Slice or remotePart may be empty/nil, but not both of them.
 //
 // Also may panic if the remote part is nil and Best() is nil.
-func mapSnap(localSnaps []*snappy.Snap, remotePart snappy.Part) map[string]interface{} {
-	var version, update, rollback, icon, name, origin, _type, description string
+func mapSnap(localSnaps []*snappy.Snap, remotePart *snappy.RemoteSnap) map[string]interface{} {
+	var version, update, rollback, icon, name, developer, _type, description string
 
 	if len(localSnaps) == 0 && remotePart == nil {
 		panic("no localSnaps & remotePart is nil -- how did i even get here")
@@ -91,7 +91,7 @@ func mapSnap(localSnaps []*snappy.Snap, remotePart snappy.Part) map[string]inter
 
 	if localSnap != nil {
 		name = localSnap.Name()
-		origin = localSnap.Origin()
+		developer = localSnap.Developer()
 		version = localSnap.Version()
 		_type = string(localSnap.Type())
 
@@ -102,7 +102,7 @@ func mapSnap(localSnaps []*snappy.Snap, remotePart snappy.Part) map[string]inter
 		downloadSize = localSnap.DownloadSize()
 	} else {
 		name = remotePart.Name()
-		origin = remotePart.Origin()
+		developer = remotePart.Developer()
 		version = remotePart.Version()
 		_type = string(remotePart.Type())
 	}
@@ -141,7 +141,7 @@ func mapSnap(localSnaps []*snappy.Snap, remotePart snappy.Part) map[string]inter
 	result := map[string]interface{}{
 		"icon":           icon,
 		"name":           name,
-		"origin":         origin,
+		"developer":      developer,
 		"status":         status,
 		"type":           _type,
 		"vendor":         "",

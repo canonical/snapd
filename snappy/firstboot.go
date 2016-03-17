@@ -49,7 +49,7 @@ func wrapConfig(pkgName string, conf interface{}) ([]byte, error) {
 	return yaml.Marshal(configWrap)
 }
 
-var newPartMap = newPartMapImpl
+var newSnapMap = newSnapMapImpl
 
 type configurator interface {
 	Configure(*Snap, []byte) ([]byte, error)
@@ -59,14 +59,14 @@ var newOverlord = func() configurator {
 	return (&Overlord{})
 }
 
-func newPartMapImpl() (map[string]Part, error) {
+func newSnapMapImpl() (map[string]*Snap, error) {
 	repo := NewLocalSnapRepository()
-	all, err := repo.All()
+	all, err := repo.Installed()
 	if err != nil {
 		return nil, err
 	}
 
-	m := make(map[string]Part, 2*len(all))
+	m := make(map[string]*Snap, 2*len(all))
 	for _, part := range all {
 		m[FullName(part)] = part
 		m[BareName(part)] = part
@@ -83,28 +83,24 @@ func gadgetConfig() error {
 		return err
 	}
 
-	partMap, err := newPartMap()
+	snapMap, err := newSnapMap()
 	if err != nil {
 		return err
 	}
 
 	pb := progress.MakeProgressBar()
 	for _, pkgName := range gadget.Gadget.Software.BuiltIn {
-		part, ok := partMap[pkgName]
-		if !ok {
-			return errNoSnapToActivate
-		}
-		snap, ok := part.(*Snap)
+		snap, ok := snapMap[pkgName]
 		if !ok {
 			return errNoSnapToActivate
 		}
 		if err := snap.activate(false, pb); err != nil {
-			logger.Noticef("failed to activate %s: %s", FullName(part), err)
+			logger.Noticef("failed to activate %s: %s", fmt.Sprintf("%s.%s", snap.Name(), snap.Developer()), err)
 		}
 	}
 
 	for pkgName, conf := range gadget.Config {
-		snap, ok := partMap[pkgName]
+		snap, ok := snapMap[pkgName]
 		if !ok {
 			// We want to error early as this is a disparity and gadget snap
 			// packaging error.
@@ -117,7 +113,7 @@ func gadgetConfig() error {
 		}
 
 		overlord := newOverlord()
-		if _, err := overlord.Configure(snap.(*Snap), configData); err != nil {
+		if _, err := overlord.Configure(snap, configData); err != nil {
 			return err
 		}
 	}
@@ -137,7 +133,7 @@ var getActivator = func() activator {
 // on the first boot
 func enableSystemSnaps() error {
 	repo := NewLocalSnapRepository()
-	all, err := repo.All()
+	all, err := repo.Installed()
 	if err != nil {
 		return nil
 	}
@@ -148,7 +144,7 @@ func enableSystemSnaps() error {
 		switch part.Type() {
 		case snap.TypeGadget, snap.TypeKernel, snap.TypeOS:
 			logger.Noticef("Acitvating %s", FullName(part))
-			if err := activator.SetActive(part.(*Snap), true, pb); err != nil {
+			if err := activator.SetActive(part, true, pb); err != nil {
 				// we don't want this to fail for now
 				logger.Noticef("failed to activate %s: %s", FullName(part), err)
 			}

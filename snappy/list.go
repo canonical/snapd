@@ -20,11 +20,11 @@
 package snappy
 
 // ListInstalled returns all installed snaps
-func ListInstalled() ([]Part, error) {
+func ListInstalled() ([]*Snap, error) {
 	return NewLocalSnapRepository().Installed()
 }
 
 // ListUpdates returns all snaps with updates
-func ListUpdates() ([]Part, error) {
-	return NewUbuntuStoreSnapRepository().Updates()
+func ListUpdates() ([]*RemoteSnap, error) {
+	return NewUbuntuStoreSnapRepository().SnapUpdates()
 }

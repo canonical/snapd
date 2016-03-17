@@ -229,7 +229,7 @@ func SyncBoot() error {
 		if len(found) != 1 {
 			return fmt.Errorf("can not SyncBoot, expected 1 snap for %s %s found %d", name, ver, len(found))
 		}
-		if err := overlord.SetActive(found[0].(*Snap), true, nil); err != nil {
+		if err := overlord.SetActive(found[0], true, nil); err != nil {
 			return fmt.Errorf("can not SyncBoot, failed to make %s active: %s", found[0].Name(), err)
 		}
 	}
