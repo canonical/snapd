@@ -63,6 +63,21 @@ func (r *TaskRunner) Handlers() map[string]HandlerFunc {
 	return r.handlers
 }
 
+// taskFail marks task t and all tasks waiting (directly and indirectly on it) as in ErrorStatus.
+func taskFail(task *Task) {
+	task.SetStatus(ErrorStatus)
+	mark := append([]*Task(nil), task.HaltTasks()...)
+	i := 0
+	for i < len(mark) {
+		t := mark[i]
+		if t.Status() == WaitingStatus {
+			t.SetStatus(ErrorStatus)
+			mark = append(mark, t.HaltTasks()...)
+		}
+		i++
+	}
+}
+
 // run must be called with the state lock in place
 func (r *TaskRunner) run(fn HandlerFunc, task *Task) {
 	task.SetStatus(RunningStatus) // could have been set to waiting
@@ -73,13 +88,17 @@ func (r *TaskRunner) run(fn HandlerFunc, task *Task) {
 
 		r.state.Lock()
 		defer r.state.Unlock()
+		halted := task.HaltTasks()
 		if err == nil {
 			task.SetStatus(DoneStatus)
+			if len(halted) > 0 {
+				// give a chance to taskrunners Ensure to start
+				// the waiting ones
+				r.state.EnsureBefore(0)
+			}
 		} else {
-			task.SetStatus(ErrorStatus)
+			taskFail(task)
 		}
-		// TODO: trigger ensure if we have halted
-
 		return err
 	})
 }
