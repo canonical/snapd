@@ -397,6 +397,7 @@ func (ss *stateSuite) TestTasks(c *C) {
 	chg2 := st.NewChange("remove", "...")
 	t21 := chg2.NewTask("check", "...")
 	t22 := chg2.NewTask("rm", "...")
+	// TODO: chg1.AddTask(t22) when we have AddTask
 
 	tasks := st.Tasks()
 	c.Check(tasks, HasLen, 4)
