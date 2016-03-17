@@ -201,7 +201,7 @@ func (t *Task) WaitTasks() []*Task {
 	return t.waitTasks.tasks(t.state)
 }
 
-// HaltTasks returns the list of tasks halted waiting for t.
+// HaltTasks returns the list of tasks registered to wait for t.
 func (t *Task) HaltTasks() []*Task {
 	t.state.ensureLocked()
 	return t.haltTasks.tasks(t.state)
