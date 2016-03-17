@@ -20,6 +20,7 @@
 package overlord
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/ubuntu-core/snappy/overlord/state"
@@ -47,9 +48,10 @@ type StateManager interface {
 // cope with Ensure calls in any order, coordinating among themselves
 // solely via the state.
 type StateEngine struct {
-	state *state.State
+	state   *state.State
+	stopped bool
 	// managers in use
-	mgrLock  sync.RWMutex
+	mgrLock  sync.Mutex
 	managers []StateManager
 }
 
@@ -74,19 +76,18 @@ func (se *StateEngine) State() *state.State {
 // must not perform long running activities during that operation, though.
 // These should be performed in properly tracked changes and tasks.
 func (se *StateEngine) Ensure() error {
-	for _, m := range se.currentManagers() {
+	se.mgrLock.Lock()
+	defer se.mgrLock.Unlock()
+	if se.stopped {
+		return fmt.Errorf("state engine already stopped")
+	}
+	for _, m := range se.managers {
 		err := m.Ensure()
 		if err != nil {
 			return err
 		}
 	}
 	return nil
-}
-
-func (se *StateEngine) currentManagers() []StateManager {
-	se.mgrLock.RLock()
-	defer se.mgrLock.RUnlock()
-	return se.managers
 }
 
 // AddManager adds the provided manager to take part in state operations.
@@ -97,9 +98,11 @@ func (se *StateEngine) AddManager(m StateManager) {
 }
 
 // Stop asks all managers to terminate activities running concurrently.
-// It returns the first error found after all managers are stopped.
 func (se *StateEngine) Stop() {
-	for _, m := range se.currentManagers() {
+	se.mgrLock.Lock()
+	defer se.mgrLock.Unlock()
+	for _, m := range se.managers {
 		m.Stop()
 	}
+	se.stopped = true
 }
