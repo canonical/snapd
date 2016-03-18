@@ -328,6 +328,10 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 	t1.SetStatus(state.WaitingStatus)
 	t1.SetProgress(5, 10)
 
+	t2 := chg.NewTask("inst", "2...")
+	t2ID := t2.ID()
+	t2.WaitFor(t1)
+
 	// implicit checkpoint
 	st.Unlock()
 
@@ -346,10 +350,13 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 	c.Assert(chgs, HasLen, 1)
 	chg0 := chgs[0]
 
-	tasks0 := chg0.Tasks()
-	c.Assert(tasks0, HasLen, 1)
+	tasks0 := make(map[string]*state.Task)
+	for _, t := range chg0.Tasks() {
+		tasks0[t.ID()] = t
+	}
+	c.Assert(tasks0, HasLen, 2)
 
-	task0_1 := tasks0[0]
+	task0_1 := tasks0[t1ID]
 	c.Check(task0_1.ID(), Equals, t1ID)
 	c.Check(task0_1.Kind(), Equals, "download")
 	c.Check(task0_1.Summary(), Equals, "1...")
@@ -363,6 +370,11 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 	cur, tot := task0_1.Progress()
 	c.Check(cur, Equals, 5)
 	c.Check(tot, Equals, 10)
+
+	task0_2 := tasks0[t2ID]
+	c.Check(task0_2.WaitTasks(), DeepEquals, []*state.Task{task0_1})
+
+	c.Check(task0_1.HaltTasks(), DeepEquals, []*state.Task{task0_2})
 }
 
 func (ss *stateSuite) TestEnsureBefore(c *C) {
@@ -372,4 +384,38 @@ func (ss *stateSuite) TestEnsureBefore(c *C) {
 	st.EnsureBefore(10 * time.Second)
 
 	c.Check(b.ensureBefore, Equals, 10*time.Second)
+}
+
+func (ss *stateSuite) TestTasks(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg1 := st.NewChange("install", "...")
+	t11 := chg1.NewTask("check", "...")
+	t12 := chg1.NewTask("inst", "...")
+	chg2 := st.NewChange("remove", "...")
+	t21 := chg2.NewTask("check", "...")
+	t22 := chg2.NewTask("rm", "...")
+	// TODO: chg1.AddTask(t22) when we have AddTask
+
+	tasks := st.Tasks()
+	c.Check(tasks, HasLen, 4)
+
+	expected := map[string]*state.Task{
+		t11.ID(): t11,
+		t12.ID(): t12,
+		t21.ID(): t21,
+		t22.ID(): t22,
+	}
+
+	for _, t := range tasks {
+		c.Check(t, Equals, expected[t.ID()])
+	}
+}
+
+func (ss *stateSuite) TestTasksNeedsLocked(c *C) {
+	st := state.New(nil)
+
+	c.Assert(func() { st.Tasks() }, PanicMatches, "internal error: accessing state without lock")
 }

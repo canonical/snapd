@@ -145,10 +145,10 @@ func (s *FirstBootTestSuite) TestSoftwareActivate(c *C) {
 	yamlPath, err := makeInstalledMockSnap(dirs.GlobalRootDir, "")
 	c.Assert(err, IsNil)
 
-	part, err := NewInstalledSnap(yamlPath, testDeveloper)
+	snap, err := NewInstalledSnap(yamlPath, testDeveloper)
 	c.Assert(err, IsNil)
-	c.Assert(part.IsActive(), Equals, false)
-	name := part.Name()
+	c.Assert(snap.IsActive(), Equals, false)
+	name := snap.Name()
 
 	s.m = &snapYaml{Gadget: Gadget{Software: Software{BuiltIn: []string{name}}}}
 
