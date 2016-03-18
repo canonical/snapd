@@ -31,7 +31,6 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/osutil"
-	"github.com/ubuntu-core/snappy/snap"
 )
 
 type SecurityTestSuite struct {
@@ -140,18 +139,6 @@ func (a *SecurityTestSuite) TestSnappyGetSecurityProfileInvalid(c *C) {
 	b := AppYaml{Name: "bin/app"}
 	_, err := getSecurityProfile(&m, b.Name, "/snaps/foo/1.0/")
 	c.Assert(err, Equals, ErrInvalidSnap)
-}
-
-func (a *SecurityTestSuite) TestSnappyGetSecurityProfileFramework(c *C) {
-	m := snapYaml{
-		Name:    "foo",
-		Version: "1.0",
-		Type:    snap.TypeFramework,
-	}
-	b := AppYaml{Name: "bin/app"}
-	ap, err := getSecurityProfile(&m, b.Name, "/snaps/foo.mvo/1.0/")
-	c.Assert(err, IsNil)
-	c.Check(ap, Equals, "foo_bin-app_1.0")
 }
 
 func (a *SecurityTestSuite) TestSecurityGenDbusPath(c *C) {
@@ -965,28 +952,6 @@ func (a *SecurityTestSuite) TestSecurityCompareGeneratePolicyFromFileSideload(c 
 	// nothing changed, ensure compare is happy even for sideloaded pkgs
 	err = CompareGeneratePolicyFromFile(mockSnapYamlFn)
 	c.Assert(err, IsNil)
-}
-
-func (a *SecurityTestSuite) TestSecurityGeneratePolicyForServiceBinaryFramework(c *C) {
-	makeMockSecurityEnv(c)
-
-	sd := &SecurityDefinitions{}
-	m := &snapYaml{
-		Name:    "framework-name",
-		Type:    "framework",
-		Version: "1.0",
-	}
-
-	// generate the apparmor profile
-	err := sd.generatePolicyForServiceBinary(m, "binary", "/snaps/framework-anem/1.0")
-	c.Assert(err, IsNil)
-
-	// ensure its available with the right names
-	aaProfile := filepath.Join(dirs.SnapAppArmorDir, "framework-name_binary_1.0")
-	ensureFileContentMatches(c, aaProfile, ``)
-	scProfile := filepath.Join(dirs.SnapSeccompDir, "framework-name_binary_1.0")
-	ensureFileContentMatches(c, scProfile, `
-`)
 }
 
 func (a *SecurityTestSuite) TestSecurityGeneratePolicyForServiceBinaryErrors(c *C) {

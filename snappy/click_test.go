@@ -34,7 +34,6 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/policy"
-	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/squashfs"
 	"github.com/ubuntu-core/snappy/systemd"
 	"github.com/ubuntu-core/snappy/timeout"
@@ -789,49 +788,6 @@ func (s *SnapTestSuite) TestAddPackageServicesStripsGlobalRootdir(c *C) {
 	}
 }
 
-func (s *SnapTestSuite) TestAddPackageServicesBusPolicyFramework(c *C) {
-	yaml := `name: foo
-version: 1
-type: framework
-apps:
-  bar:
-    bus-name: foo.bar.baz
-    daemon: forking
-`
-	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml)
-	c.Assert(err, IsNil)
-	m, err := parseSnapYamlFile(yamlFile)
-	c.Assert(err, IsNil)
-	baseDir := filepath.Dir(filepath.Dir(yamlFile))
-	err = addPackageServices(m, baseDir, false, nil)
-	c.Assert(err, IsNil)
-
-	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/dbus-1/system.d/foo_bar_1.conf"))
-	c.Assert(err, IsNil)
-	c.Assert(strings.Contains(string(content), "<allow own=\"foo.bar.baz\"/>\n"), Equals, true)
-}
-
-func (s *SnapTestSuite) TestAddPackageServicesBusPolicyNoFramework(c *C) {
-	yaml := `name: foo
-version: 1
-type: app
-apps:
-  bar:
-    bus-name: foo.bar.baz
-    daemon: forking
-`
-	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml)
-	c.Assert(err, IsNil)
-	m, err := parseSnapYamlFile(yamlFile)
-	c.Assert(err, IsNil)
-	baseDir := filepath.Dir(filepath.Dir(yamlFile))
-	err = addPackageServices(m, baseDir, false, nil)
-	c.Assert(err, IsNil)
-
-	_, err = ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/dbus-1/system.d/foo_bar_1.conf"))
-	c.Assert(err, NotNil)
-}
-
 func (s *SnapTestSuite) TestAddPackageBinariesStripsGlobalRootdir(c *C) {
 	// ensure that even with a global rootdir the paths in the generated
 	// .services file are setup correctly (i.e. that the global root
@@ -919,30 +875,6 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceAppWrapper(c *C) {
 	generatedWrapper, err := generateSnapServicesFile(service, pkgPath, aaProfile, &m)
 	c.Assert(err, IsNil)
 	c.Assert(generatedWrapper, Equals, expectedServiceAppWrapper)
-}
-
-func (s *SnapTestSuite) TestSnappyGenerateSnapServiceFmkWrapper(c *C) {
-	service := &AppYaml{
-		Name:        "xkcd-webserver",
-		Command:     "bin/foo start",
-		Stop:        "bin/foo stop",
-		PostStop:    "bin/foo post-stop",
-		StopTimeout: timeout.DefaultTimeout,
-		Description: "A fun webserver",
-		BusName:     "foo.bar.baz",
-		Daemon:      "dbus",
-	}
-	pkgPath := "/snaps/xkcd-webserver/0.3.4/"
-	aaProfile := "xkcd-webserver_xkcd-webserver_0.3.4"
-	m := snapYaml{
-		Name:    "xkcd-webserver",
-		Version: "0.3.4",
-		Type:    snap.TypeFramework,
-	}
-
-	generatedWrapper, err := generateSnapServicesFile(service, pkgPath, aaProfile, &m)
-	c.Assert(err, IsNil)
-	c.Assert(generatedWrapper, Equals, expectedServiceFmkWrapper)
 }
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapServiceRestart(c *C) {

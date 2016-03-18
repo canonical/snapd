@@ -40,7 +40,7 @@ type Configuration interface {
 // QualifiedName of a snap.Info is the Name, in most cases qualified with the
 // Developer
 func QualifiedName(p *snap.Info) string {
-	if t := p.Type; t == snap.TypeFramework || t == snap.TypeGadget {
+	if t := p.Type; t == snap.TypeGadget {
 		return p.Name
 	}
 	return p.Name + "." + p.Developer
