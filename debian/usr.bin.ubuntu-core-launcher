@@ -71,7 +71,6 @@
     mount options=(rw bind) /tmp/snap.*/tmp/ -> /tmp/,
     mount fstype=devpts options=(rw) devpts -> /dev/pts/,
     mount options=(rw bind) /dev/pts/ptmx -> /dev/ptmx,   # for bind mounting
-    /dev/ptmx rw,                                         # if create symlink
 
     # for running snaps on ubuntu
     mount options=(rw rslave) -> /,
