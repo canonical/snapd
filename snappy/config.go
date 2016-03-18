@@ -56,15 +56,15 @@ func snapConfig(snapDir, developer string, rawConfig []byte) (newConfig []byte, 
 		return nil, ErrConfigNotFound
 	}
 
-	part, err := NewInstalledSnap(filepath.Join(snapDir, "meta", "snap.yaml"), developer)
+	snap, err := NewInstalledSnap(filepath.Join(snapDir, "meta", "snap.yaml"), developer)
 	if err != nil {
 		return nil, ErrPackageNotFound
 	}
 
-	name := QualifiedName(part)
-	appArmorProfile := fmt.Sprintf("%s_%s_%s", name, "snappy-config", part.Version())
+	name := QualifiedName(snap.Info())
+	appArmorProfile := fmt.Sprintf("%s_%s_%s", name, "snappy-config", snap.Version())
 
-	return runConfigScript(configScript, appArmorProfile, rawConfig, makeSnapHookEnv(part))
+	return runConfigScript(configScript, appArmorProfile, rawConfig, makeSnapHookEnv(snap))
 }
 
 var runConfigScript = runConfigScriptImpl

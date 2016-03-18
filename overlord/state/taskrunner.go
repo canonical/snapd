@@ -20,6 +20,7 @@
 package state
 
 import (
+	"errors"
 	"sync"
 
 	"gopkg.in/tomb.v2"
@@ -27,6 +28,11 @@ import (
 
 // HandlerFunc is the type of function for the handlers
 type HandlerFunc func(task *Task, tomb *tomb.Tomb) error
+
+// Retry is returned from a handler to signal that is ok to rerun the
+// task at a later point. It's to be used also when a task goroutine
+// is asked to stop through its tomb.
+var Retry = errors.New("task should be retried")
 
 // TaskRunner controls the running of goroutines to execute known task kinds.
 type TaskRunner struct {
@@ -84,22 +90,29 @@ func (r *TaskRunner) run(fn HandlerFunc, task *Task) {
 	tomb := &tomb.Tomb{}
 	r.tombs[task.ID()] = tomb
 	tomb.Go(func() error {
-		err := fn(task, tomb)
+		// capture the error result with tomb.Kill so we can
+		// use tomb.Err uniformily to consider both it or a
+		// overriding previous Kill reason.
+		tomb.Kill(fn(task, tomb))
 
 		r.state.Lock()
 		defer r.state.Unlock()
-		halted := task.HaltTasks()
-		if err == nil {
+		switch tomb.Err() {
+		case Retry:
+			// Do nothing. Handler asked to try again later.
+			// TODO: define how to control retry intervals,
+			// right now things will be retried at the next Ensure
+		case nil:
 			task.SetStatus(DoneStatus)
-			if len(halted) > 0 {
+			if len(task.HaltTasks()) > 0 {
 				// give a chance to taskrunners Ensure to start
 				// the waiting ones
 				r.state.EnsureBefore(0)
 			}
-		} else {
+		default:
 			taskFail(task)
 		}
-		return err
+		return nil
 	})
 }
 

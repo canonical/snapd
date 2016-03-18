@@ -33,7 +33,7 @@ func allSnaps() (map[string][]*snappy.Snap, error) {
 	m := make(map[string][]*snappy.Snap)
 
 	for _, part := range all {
-		name := snappy.FullName(part)
+		name := snappy.FullName(part.Info())
 		m[name] = append(m[name], part)
 	}
 

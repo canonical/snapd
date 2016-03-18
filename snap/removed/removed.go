@@ -25,7 +25,6 @@ package removed
 import (
 	"errors"
 	"io/ioutil"
-	"time"
 
 	"gopkg.in/yaml.v2"
 
@@ -37,99 +36,23 @@ import (
 // ErrRemoved is returned when you ask to operate on a removed package.
 var ErrRemoved = errors.New("package is removed")
 
-// Removed represents a removed package.
-type Removed struct {
-	name      string
-	developer string
-	version   string
-	pkgType   snap.Type
-	remote    *remote.Snap
-}
-
-// New removed package.
-func New(name, developer, version string, pkgType snap.Type) snappy.Part {
-	part := &Removed{
-		name:      name,
-		developer: developer,
-		version:   version,
-		pkgType:   pkgType,
+// New returns the snap.Info for a removed package.
+func New(name, developer, version string, pkgType snap.Type) *snap.Info {
+	info := &snap.Info{
+		Name:      name,
+		Developer: developer,
+		Version:   version,
+		Type:      pkgType,
 	}
 
 	// try to load the remote manifest, that would've been kept
 	// around when installing from the store.
-	content, _ := ioutil.ReadFile(snappy.RemoteManifestPath(part))
-	yaml.Unmarshal(content, &(part.remote))
-
-	return part
-}
-
-// Name from the snappy.Part interface
-func (r *Removed) Name() string { return r.name }
-
-// Version from the snappy.Part interface
-func (r *Removed) Version() string { return r.version }
-
-// Description from the snappy.Part interface
-func (r *Removed) Description() string {
-	if r.remote != nil {
-		return r.remote.Description
+	var remote *remote.Snap
+	content, _ := ioutil.ReadFile(snappy.RemoteManifestPath(info))
+	if err := yaml.Unmarshal(content, &remote); err == nil && remote != nil {
+		info.Description = remote.Description
+		info.Developer = remote.Developer
 	}
 
-	return ""
+	return info
 }
-
-// Developer from the snappy.Part interface
-func (r *Removed) Developer() string {
-	if r.remote != nil {
-		return r.remote.Developer
-	}
-
-	return r.developer
-}
-
-// Hash from the snappy.Part interface
-func (r *Removed) Hash() string { return "" }
-
-// IsActive from the snappy.Part interface
-func (r *Removed) IsActive() bool { return false }
-
-// IsInstalled from the snappy.Part interface
-func (r *Removed) IsInstalled() bool { return false }
-
-// NeedsReboot from the snappy.Part interface
-func (r *Removed) NeedsReboot() bool { return false }
-
-// Date from the snappy.Part interface
-func (r *Removed) Date() time.Time { return time.Time{} } // XXX: keep track of when the package was removed
-// Channel from the snappy.Part interface
-func (r *Removed) Channel() string { return "" }
-
-// Icon from the snappy.Part interface
-func (r *Removed) Icon() string {
-	if r.remote != nil {
-		return r.remote.IconURL
-	}
-
-	return ""
-}
-
-// Type from the snappy.Part interface
-func (r *Removed) Type() snap.Type { return r.pkgType }
-
-// InstalledSize from the snappy.Part interface
-func (r *Removed) InstalledSize() int64 { return -1 }
-
-// DownloadSize from the snappy.Part interface
-func (r *Removed) DownloadSize() int64 {
-	if r.remote != nil {
-		return r.remote.DownloadSize
-	}
-
-	return -1
-}
-
-// Config from the snappy.Part interface
-func (r *Removed) Config(configuration []byte) (newConfig string, err error) { return "", ErrRemoved }
-
-// Frameworks from the snappy.Part interface
-func (r *Removed) Frameworks() ([]string, error) { return nil, ErrRemoved }
