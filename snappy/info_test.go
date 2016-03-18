@@ -37,9 +37,9 @@ version: 1.10
 	c.Assert(err, IsNil)
 	makeSnapActive(yamlPath)
 
-	yamlPath, err = makeInstalledMockSnap(s.tempdir, `name: framework1
+	yamlPath, err = makeInstalledMockSnap(s.tempdir, `name: os2
 version: 1.0
-type: framework
+type: os
 `)
 	c.Assert(err, IsNil)
 	makeSnapActive(yamlPath)
@@ -56,9 +56,9 @@ version: 1.10`)
 	c.Assert(err, IsNil)
 	makeSnapActive(yamlPath)
 
-	yamlPath, err = makeInstalledMockSnap(s.tempdir, `name: fwk
+	yamlPath, err = makeInstalledMockSnap(s.tempdir, `name: os2
 version: 1.0
-type: framework`)
+type: os`)
 	c.Assert(err, IsNil)
 	makeSnapActive(yamlPath)
 
@@ -181,20 +181,20 @@ func (s *SnapTestSuite) TestFindSnapsByNameAndVersion(c *C) {
 }
 
 func (s *SnapTestSuite) TestFindSnapsByNameAndVersionFmk(c *C) {
-	_, err := makeInstalledMockSnap(s.tempdir, "name: fmk\ntype: framework\nversion: 1")
+	_, err := makeInstalledMockSnap(s.tempdir, "name: os2\ntype: os\nversion: 1")
 	repo := NewLocalSnapRepository()
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
 
-	snaps := FindSnapsByNameAndVersion("fmk."+testDeveloper, "1", installed)
+	snaps := FindSnapsByNameAndVersion("os2."+testDeveloper, "1", installed)
 	c.Check(snaps, HasLen, 1)
-	snaps = FindSnapsByNameAndVersion("fmk.badDeveloper", "1", installed)
+	snaps = FindSnapsByNameAndVersion("os2.badDeveloper", "1", installed)
 	c.Check(snaps, HasLen, 0)
 
-	snaps = FindSnapsByNameAndVersion("fmk", "1", installed)
+	snaps = FindSnapsByNameAndVersion("os2", "1", installed)
 	c.Check(snaps, HasLen, 1)
-	snaps = FindSnapsByNameAndVersion("not-fmk", "1", installed)
+	snaps = FindSnapsByNameAndVersion("not-os2", "1", installed)
 	c.Check(snaps, HasLen, 0)
-	snaps = FindSnapsByNameAndVersion("fmk", "2", installed)
+	snaps = FindSnapsByNameAndVersion("os2", "2", installed)
 	c.Check(snaps, HasLen, 0)
 }

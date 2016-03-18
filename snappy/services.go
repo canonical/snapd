@@ -75,7 +75,6 @@ func generateSnapServicesFile(app *AppYaml, baseDir string, aaProfile string, m 
 			PostStop:       app.PostStop,
 			StopTimeout:    time.Duration(app.StopTimeout),
 			AaProfile:      aaProfile,
-			IsFramework:    false,
 			BusName:        app.BusName,
 			Type:           app.Daemon,
 			UdevAppName:    fmt.Sprintf("%s.%s", m.Name, app.Name),

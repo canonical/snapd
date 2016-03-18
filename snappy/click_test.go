@@ -20,7 +20,6 @@
 package snappy
 
 import (
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -420,52 +419,6 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 	c.Assert(generatedWrapper, Equals, expected)
 }
 
-const expectedFrameworkWrapper = `#!/bin/sh
-set -e
-
-# snap info (deprecated)
-export SNAP_APP_PATH="/snaps/fmk/1.4.0.0.1/"
-export SNAP_APP_DATA_PATH="/var/lib/snaps/fmk/1.4.0.0.1/"
-export SNAP_APP_USER_DATA_PATH="$HOME/snaps/fmk/1.4.0.0.1/"
-
-# snap info
-export SNAP="/snaps/fmk/1.4.0.0.1/"
-export SNAP_DATA="/var/lib/snaps/fmk/1.4.0.0.1/"
-export SNAP_NAME="fmk"
-export SNAP_VERSION="1.4.0.0.1"
-export SNAP_DEVELOPER=""
-export SNAP_ARCH="%[1]s"
-export SNAP_USER_DATA="$HOME/snaps/fmk/1.4.0.0.1/"
-
-if [ ! -d "$SNAP_USER_DATA" ]; then
-   mkdir -p "$SNAP_USER_DATA"
-fi
-export HOME="$SNAP_USER_DATA"
-
-# Snap name is: fmk
-# App name is: echo
-# Developer name is: 
-
-# export old pwd
-export SNAP_OLD_PWD="$(pwd)"
-cd $SNAP_DATA
-ubuntu-core-launcher fmk.echo fmk_echo_1.4.0.0.1 /snaps/fmk/1.4.0.0.1/bin/echo "$@"
-`
-
-func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperFmk(c *C) {
-	binary := &AppYaml{Name: "echo", Command: "bin/echo"}
-	pkgPath := "/snaps/fmk/1.4.0.0.1/"
-	aaProfile := "fmk_echo_1.4.0.0.1"
-	m := snapYaml{Name: "fmk",
-		Version: "1.4.0.0.1",
-		Type:    "framework"}
-
-	expected := fmt.Sprintf(expectedFrameworkWrapper, arch.UbuntuArchitecture())
-	generatedWrapper, err := generateSnapBinaryWrapper(binary, pkgPath, aaProfile, &m)
-	c.Assert(err, IsNil)
-	c.Assert(generatedWrapper, Equals, expected)
-}
-
 func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperIllegalChars(c *C) {
 	binary := &AppYaml{Name: "bin/pastebinit\nSomething nasty"}
 	pkgPath := "/snaps/pastebinit.mvo/1.4.0.0.1/"
@@ -547,128 +500,6 @@ apps:
 	c.Assert(err, IsNil)
 	c.Assert(osutil.FileExists(servicesFile), Equals, false)
 	c.Assert(osutil.FileExists(snapDir), Equals, false)
-}
-
-func (s *SnapTestSuite) setupSnappyDependentServices(c *C) (string, *MockProgressMeter) {
-	inter := &MockProgressMeter{}
-	fmkYaml := `name: fmk
-version: 1.0
-type: framework
-version: `
-	fmkFile := makeTestSnapPackage(c, fmkYaml+"1")
-	_, err := installClick(fmkFile, AllowUnauthenticated, inter, "")
-	c.Assert(err, IsNil)
-
-	snapYamlContent := `name: foo
-frameworks:
- - fmk
-apps:
- svc1:
-   command: bin/hello
-   daemon: forking
- svc2:
-   command: bin/bye
-   daemon: forking
-version: `
-	snapFile := makeTestSnapPackage(c, snapYamlContent+"1.0")
-	_, err = installClick(snapFile, AllowUnauthenticated, inter, testDeveloper)
-	c.Assert(err, IsNil)
-
-	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapServicesDir, "foo_svc1_1.0.service")), Equals, true)
-	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapServicesDir, "foo_svc2_1.0.service")), Equals, true)
-
-	return fmkYaml, inter
-}
-
-func (s *SnapTestSuite) TestSnappyHandleDependentServicesOnInstall(c *C) {
-	c.Skip("needs porting to new squashfs based snap activation!")
-
-	fmkYaml, inter := s.setupSnappyDependentServices(c)
-
-	var cmdlog []string
-	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
-		cmdlog = append(cmdlog, cmd[0])
-		return []byte("ActiveState=inactive\n"), nil
-	}
-
-	upFile := makeTestSnapPackage(c, fmkYaml+"2")
-	_, err := installClick(upFile, AllowUnauthenticated, inter, "")
-	c.Assert(err, IsNil)
-	c.Check(cmdlog, DeepEquals, []string{"stop", "show", "stop", "show", "start", "start"})
-
-	// check it got set active
-	content, err := ioutil.ReadFile(filepath.Join(dirs.SnapSnapsDir, "fmk", "current", "meta", "snap.yaml"))
-	c.Assert(err, IsNil)
-	c.Assert(strings.Contains(string(content), "version: 2"), Equals, true)
-
-	// just in case (cf. the following tests)
-	_, err = os.Stat(filepath.Join(dirs.SnapSnapsDir, "fmk", "2"))
-	c.Assert(err, IsNil)
-
-}
-
-func (s *SnapTestSuite) TestSnappyHandleDependentServicesOnInstallFailingToStop(c *C) {
-	c.Skip("needs porting to new squashfs based snap activation!")
-
-	fmkYaml, inter := s.setupSnappyDependentServices(c)
-
-	anError := errors.New("failure")
-	var cmdlog []string
-	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
-		cmdlog = append(cmdlog, cmd[0])
-		if len(cmdlog) == 3 && cmd[0] == "stop" {
-			return nil, anError
-		}
-		return []byte("ActiveState=inactive\n"), nil
-	}
-
-	upFile := makeTestSnapPackage(c, fmkYaml+"2")
-	_, err := installClick(upFile, AllowUnauthenticated, inter, "")
-	c.Check(err, Equals, anError)
-	c.Check(cmdlog, DeepEquals, []string{"stop", "show", "stop", "start"})
-
-	// check it got rolled back
-	content, err := ioutil.ReadFile(filepath.Join(dirs.SnapSnapsDir, "fmk", "current", "meta", "snap.yaml"))
-	c.Assert(err, IsNil)
-	c.Assert(strings.Contains(string(content), "version: 1"), Equals, true)
-
-	// no leftovers from the failed install
-	_, err = os.Stat(filepath.Join(dirs.SnapSnapsDir, "fmk", "2"))
-	c.Assert(err, NotNil)
-}
-
-func (s *SnapTestSuite) TestSnappyHandleDependentServicesOnInstallFailingToStart(c *C) {
-	c.Skip("needs porting to new squashfs based snap activation!")
-
-	fmkYaml, inter := s.setupSnappyDependentServices(c)
-
-	anError := errors.New("failure")
-	var cmdlog []string
-	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
-		cmdlog = append(cmdlog, cmd[0])
-		if len(cmdlog) == 6 && cmd[0] == "start" {
-			return nil, anError
-		}
-		return []byte("ActiveState=inactive\n"), nil
-	}
-
-	upFile := makeTestSnapPackage(c, fmkYaml+"2")
-	_, err := installClick(upFile, AllowUnauthenticated, inter, "")
-	c.Assert(err, Equals, anError)
-	c.Check(cmdlog, DeepEquals, []string{
-		"stop", "show", "stop", "show", "start", "start", // <- this one fails
-		"stop", "show", "start", "start",
-	})
-
-	// check it got rolled back
-	content, err := ioutil.ReadFile(filepath.Join(dirs.SnapSnapsDir, "fmk", "current", "meta", "snap.yaml"))
-	c.Assert(err, IsNil)
-	c.Assert(strings.Contains(string(content), "version: 1"), Equals, true)
-
-	// no leftovers from the failed install
-	_, err = os.Stat(filepath.Join(dirs.SnapSnapsDir, "fmk", "2"))
-	c.Assert(err, NotNil)
-
 }
 
 func (s *SnapTestSuite) TestSnappyHandleServicesOnInstallInhibit(c *C) {

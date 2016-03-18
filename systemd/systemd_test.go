@@ -232,8 +232,8 @@ WantedBy=multi-user.target
 `
 
 var (
-	expectedAppService  = fmt.Sprintf(expectedServiceFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".mvo", "mvo", "Type=simple\n", arch.UbuntuArchitecture())
-	expectedFmkService  = fmt.Sprintf(expectedServiceFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target", "", "", "Type=simple\n", arch.UbuntuArchitecture())
+	expectedAppService = fmt.Sprintf(expectedServiceFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".mvo", "mvo", "Type=simple\n", arch.UbuntuArchitecture())
+
 	expectedDbusService = fmt.Sprintf(expectedServiceFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".mvo", "mvo", "Type=dbus\nBusName=foo.bar.baz", arch.UbuntuArchitecture())
 )
 
@@ -267,27 +267,6 @@ func (s *SystemdTestSuite) TestGenAppServiceFileRestart(c *C) {
 
 		c.Check(New("", nil).GenServiceFile(desc), Matches, `(?ms).*^Restart=`+name+`$.*`, Commentf(name))
 	}
-}
-
-func (s *SystemdTestSuite) TestGenFmkServiceFile(c *C) {
-
-	desc := &ServiceDescription{
-		SnapName:    "app",
-		AppName:     "service",
-		Version:     "1.0",
-		Description: "descr",
-		SnapPath:    "/apps/app/1.0/",
-		Start:       "bin/start",
-		Stop:        "bin/stop",
-		PostStop:    "bin/stop --post",
-		StopTimeout: time.Duration(10 * time.Second),
-		AaProfile:   "aa-profile",
-		IsFramework: true,
-		UdevAppName: "app",
-		Type:        "simple",
-	}
-
-	c.Check(New("", nil).GenServiceFile(desc), Equals, expectedFmkService)
 }
 
 func (s *SystemdTestSuite) TestGenServiceFileWithBusName(c *C) {
