@@ -89,21 +89,6 @@ func (s *RemoteSnap) Info() *snap.Info {
 	}
 }
 
-// IsActive returns true if the snap is active
-func (s *RemoteSnap) IsActive() bool {
-	return false
-}
-
-// IsInstalled returns true if the snap is installed
-func (s *RemoteSnap) IsInstalled() bool {
-	return false
-}
-
-// InstalledSize returns the size of the installed snap
-func (s *RemoteSnap) InstalledSize() int64 {
-	return -1
-}
-
 // DownloadSize returns the dowload size
 func (s *RemoteSnap) DownloadSize() int64 {
 	return s.Pkg.DownloadSize
@@ -140,19 +125,4 @@ func (s *RemoteSnap) saveStoreManifest() error {
 
 	// don't worry about previous contents
 	return osutil.AtomicWriteFile(RemoteManifestPath(s.Info()), content, 0644, 0)
-}
-
-// Config is used to to configure the snap
-func (s *RemoteSnap) Config(configuration []byte) (new string, err error) {
-	return "", err
-}
-
-// NeedsReboot returns true if the snap becomes active on the next reboot
-func (s *RemoteSnap) NeedsReboot() bool {
-	return false
-}
-
-// Frameworks returns the list of frameworks needed by the snap
-func (s *RemoteSnap) Frameworks() ([]string, error) {
-	return nil, ErrNotImplemented
 }
