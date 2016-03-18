@@ -167,6 +167,30 @@ func (o *Overlord) Stop() error {
 	return err1
 }
 
+func (o *Overlord) syncEnsure() time.Time {
+	// XXX
+	o.stateEng.Ensure()
+	return time.Time{}
+}
+
+func (o *Overlord) noImmediateEnsure(longScheduledEnsureHorizon time.Time) (bool, time.Time) {
+	// XXX
+	time.Sleep(100 * time.Millisecond)
+	return true, time.Time{}
+}
+
+// Settle runs first a state engine Ensure and then wait for activities to settle.
+// That's done by waiting for all managers activities to settle while
+// making sure no immediate further Ensure is scheduled.
+func (o *Overlord) Settle() {
+	longScheduledEnsureHorizon := o.syncEnsure()
+	settled := false
+	for !settled {
+		o.stateEng.Wait()
+		settled, longScheduledEnsureHorizon = o.noImmediateEnsure(longScheduledEnsureHorizon)
+	}
+}
+
 // StateEngine returns the state engine used by the overlord.
 func (o *Overlord) StateEngine() *StateEngine {
 	return o.stateEng

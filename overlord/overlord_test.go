@@ -28,6 +28,7 @@ import (
 	"time"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/tomb.v2"
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/testutil"
@@ -233,4 +234,113 @@ func (ovs *overlordSuite) TestCheckpoint(c *C) {
 	content, err := ioutil.ReadFile(dirs.SnapStateFile)
 	c.Assert(err, IsNil)
 	c.Check(string(content), testutil.Contains, `"mark":1`)
+}
+
+type runnerManager struct {
+	runner *state.TaskRunner
+}
+
+func newRunnerManager(s *state.State) *runnerManager {
+	rm := &runnerManager{
+		runner: state.NewTaskRunner(s),
+	}
+
+	rm.runner.AddHandler("runMgr1", func(t *state.Task, _ *tomb.Tomb) error {
+		s := t.State()
+		s.Lock()
+		defer s.Unlock()
+		s.Set("runMgr1Mark", 1)
+		return nil
+	})
+	rm.runner.AddHandler("runMgr2", func(t *state.Task, _ *tomb.Tomb) error {
+		s := t.State()
+		s.Lock()
+		defer s.Unlock()
+		s.Set("runMgr2Mark", 1)
+		return nil
+	})
+
+	return rm
+}
+
+func (rm *runnerManager) Ensure() error {
+	rm.runner.Ensure()
+	return nil
+}
+
+func (rm *runnerManager) Stop() {
+	rm.runner.Stop()
+}
+
+func (rm *runnerManager) Wait() {
+	rm.runner.Wait()
+}
+
+func (ovs *overlordSuite) TestTrivialSettle(c *C) {
+	restoreIntv := overlord.SetEnsureIntervalForTest(1 * time.Minute)
+	defer restoreIntv()
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	se := o.StateEngine()
+	s := se.State()
+	rm1 := newRunnerManager(s)
+	se.AddManager(rm1)
+
+	o.Run()
+	defer o.Stop()
+
+	s.Lock()
+	defer s.Unlock()
+
+	chg := s.NewChange("chg", "...")
+	t1 := chg.NewTask("runMgr1", "1...")
+
+	s.Unlock()
+
+	o.Settle()
+
+	s.Lock()
+	c.Check(t1.Status(), Equals, state.DoneStatus)
+
+	var v int
+	err = s.Get("runMgr1Mark", &v)
+	c.Check(err, IsNil)
+}
+
+func (ovs *overlordSuite) TestSettleChain(c *C) {
+	restoreIntv := overlord.SetEnsureIntervalForTest(1 * time.Minute)
+	defer restoreIntv()
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	se := o.StateEngine()
+	s := se.State()
+	rm1 := newRunnerManager(s)
+	se.AddManager(rm1)
+
+	o.Run()
+	defer o.Stop()
+
+	s.Lock()
+	defer s.Unlock()
+
+	chg := s.NewChange("chg", "...")
+	t1 := chg.NewTask("runMgr1", "1...")
+	t2 := chg.NewTask("runMgr2", "2...")
+	t2.WaitFor(t1)
+
+	s.Unlock()
+
+	o.Settle()
+
+	s.Lock()
+	c.Check(t1.Status(), Equals, state.DoneStatus)
+	c.Check(t2.Status(), Equals, state.DoneStatus)
+
+	var v int
+	err = s.Get("runMgr1Mark", &v)
+	c.Check(err, IsNil)
+	err = s.Get("runMgr2Mark", &v)
+	c.Check(err, IsNil)
 }
