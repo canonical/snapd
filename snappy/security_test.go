@@ -164,7 +164,6 @@ func (a *SecurityTestSuite) TestSecurityFindWhitespacePrefixNeedsQuoting(c *C) {
 	c.Assert(findWhitespacePrefix(s, t), Equals, t)
 }
 
-// FIXME: need additional test for frameworkPolicy
 func (a *SecurityTestSuite) TestSecurityFindTemplateApparmor(c *C) {
 	makeMockApparmorTemplate(c, "mock-template", []byte(`something`))
 
@@ -178,7 +177,6 @@ func (a *SecurityTestSuite) TestSecurityFindTemplateApparmorNotFound(c *C) {
 	c.Assert(err, DeepEquals, &errPolicyNotFound{"template", &securityPolicyTypeAppArmor, "not-available-templ"})
 }
 
-// FIXME: need additional test for frameworkPolicy
 func (a *SecurityTestSuite) TestSecurityFindCaps(c *C) {
 	for _, f := range []string{"cap1", "cap2"} {
 		makeMockApparmorCap(c, f, []byte(f))
