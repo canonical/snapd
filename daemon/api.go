@@ -672,10 +672,12 @@ func (inst *snapInstruction) install() interface{} {
 	chg := state.NewChange("install-snap", msg)
 	err := snapstate.Install(chg, inst.pkg, inst.Channel, flags)
 	state.Unlock()
+	if err != nil {
+		return err
+	}
 
 	inst.overlord.SnapManager().Ensure()
-	waitChange(chg)
-	return err
+	return waitChange(chg)
 	// FIXME: handle license agreement need to happen in the above
 	//        code
 	/*
@@ -703,10 +705,12 @@ func (inst *snapInstruction) update() interface{} {
 	chg := state.NewChange("update-snap", msg)
 	err := snapstate.Update(chg, inst.pkg, inst.Channel, flags)
 	state.Unlock()
+	if err != nil {
+		return err
+	}
 
 	inst.overlord.SnapManager().Ensure()
-	waitChange(chg)
-	return err
+	return waitChange(chg)
 }
 
 func (inst *snapInstruction) remove() interface{} {
@@ -720,10 +724,12 @@ func (inst *snapInstruction) remove() interface{} {
 	chg := state.NewChange("remove-snap", msg)
 	err := snapstate.Remove(chg, inst.pkg, flags)
 	state.Unlock()
+	if err != nil {
+		return err
+	}
 
 	inst.overlord.SnapManager().Ensure()
-	waitChange(chg)
-	return err
+	return waitChange(chg)
 }
 
 func (inst *snapInstruction) purge() interface{} {
