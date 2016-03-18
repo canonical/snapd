@@ -62,7 +62,7 @@ func makeSnapHookEnv(part *Snap) (env []string) {
 		arch.UbuntuArchitecture(),
 		part.basedir,
 		part.Version(),
-		QualifiedName(part),
+		QualifiedName(part.Info()),
 		part.Developer(),
 	}
 

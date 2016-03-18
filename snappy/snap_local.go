@@ -87,7 +87,7 @@ func newSnapFromYaml(yamlPath, developer string, m *snapYaml) (*Snap, error) {
 		part.isActive = true
 	}
 
-	remoteManifestPath := RemoteManifestPath(part)
+	remoteManifestPath := RemoteManifestPath(part.Info())
 	if osutil.FileExists(remoteManifestPath) {
 		content, err := ioutil.ReadFile(remoteManifestPath)
 		if err != nil {
@@ -197,6 +197,18 @@ func (s *Snap) InstalledSize() int64 {
 	return totalSize
 }
 
+// Info returns the snap.Info data.
+func (s *Snap) Info() *snap.Info {
+	return &snap.Info{
+		Name:        s.Name(),
+		Developer:   s.Developer(),
+		Version:     s.Version(),
+		Type:        s.Type(),
+		Channel:     s.Channel(),
+		Description: s.Description(),
+	}
+}
+
 // DownloadSize returns the dowload size
 func (s *Snap) DownloadSize() int64 {
 	if r := s.remoteM; r != nil {
@@ -263,7 +275,7 @@ func (s *Snap) activate(inhibitHooks bool, inter interacter) error {
 	// generate the security policy from the snap.yaml
 	// Note that this must happen before binaries/services are
 	// generated because serices may get started
-	appsDir := filepath.Join(dirs.SnapSnapsDir, QualifiedName(s), s.Version())
+	appsDir := filepath.Join(dirs.SnapSnapsDir, QualifiedName(s.Info()), s.Version())
 	if err := generatePolicy(s.m, appsDir); err != nil {
 		return err
 	}
@@ -285,7 +297,7 @@ func (s *Snap) activate(inhibitHooks bool, inter interacter) error {
 		logger.Noticef("Failed to remove %q: %v", currentActiveSymlink, err)
 	}
 
-	dbase := filepath.Join(dirs.SnapDataDir, QualifiedName(s))
+	dbase := filepath.Join(dirs.SnapDataDir, QualifiedName(s.Info()))
 	currentDataSymlink := filepath.Join(dbase, "current")
 	if err := os.Remove(currentDataSymlink); err != nil && !os.IsNotExist(err) {
 		logger.Noticef("Failed to remove %q: %v", currentDataSymlink, err)
@@ -352,7 +364,7 @@ func (s *Snap) deactivate(inhibitHooks bool, inter interacter) error {
 		logger.Noticef("Failed to remove %q: %v", currentSymlink, err)
 	}
 
-	currentDataSymlink := filepath.Join(dirs.SnapDataDir, QualifiedName(s), "current")
+	currentDataSymlink := filepath.Join(dirs.SnapDataDir, QualifiedName(s.Info()), "current")
 	if err := os.Remove(currentDataSymlink); err != nil && !os.IsNotExist(err) {
 		logger.Noticef("Failed to remove %q: %v", currentDataSymlink, err)
 	}

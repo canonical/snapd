@@ -77,6 +77,18 @@ func (s *RemoteSnap) Icon() string {
 	return s.Pkg.IconURL
 }
 
+// Info returns the snap.Info data.
+func (s *RemoteSnap) Info() *snap.Info {
+	return &snap.Info{
+		Name:        s.Name(),
+		Developer:   s.Developer(),
+		Version:     s.Version(),
+		Type:        s.Type(),
+		Channel:     s.Channel(),
+		Description: s.Description(),
+	}
+}
+
 // IsActive returns true if the snap is active
 func (s *RemoteSnap) IsActive() bool {
 	return false
@@ -127,7 +139,7 @@ func (s *RemoteSnap) saveStoreManifest() error {
 	}
 
 	// don't worry about previous contents
-	return osutil.AtomicWriteFile(RemoteManifestPath(s), content, 0644, 0)
+	return osutil.AtomicWriteFile(RemoteManifestPath(s.Info()), content, 0644, 0)
 }
 
 // Config is used to to configure the snap

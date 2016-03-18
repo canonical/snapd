@@ -83,6 +83,18 @@ func (s *SnapFile) Type() snap.Type {
 	return "app"
 }
 
+// Info returns the snap.Info data.
+func (s *SnapFile) Info() *snap.Info {
+	if info, err := s.deb.Info(); err == nil {
+		// Developer is something that is not part of the snap
+		// squashfs itself, it comes from a external source
+		// like the store.
+		info.Developer = s.developer
+		return info
+	}
+	return nil
+}
+
 // Name returns the name
 func (s *SnapFile) Name() string {
 	return s.m.Name
