@@ -20,7 +20,6 @@
 package snappy
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -31,7 +30,6 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/osutil"
-	"github.com/ubuntu-core/snappy/policy"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/remote"
@@ -73,7 +71,7 @@ func newSnapFromYaml(yamlPath, developer string, m *snapYaml) (*Snap, error) {
 
 	// override the package's idea of its version
 	// because that could have been rewritten on sideload
-	// and developer is empty for frameworks, even sideloaded ones.
+	// and developer is empty sideloaded ones.
 	m.Version = filepath.Base(snap.basedir)
 
 	// check if the snap is active
@@ -266,12 +264,6 @@ func (s *Snap) activate(inhibitHooks bool, inter interacter) error {
 		}
 	}
 
-	if s.Type() == snap.TypeFramework {
-		if err := policy.Install(s.Name(), s.basedir, dirs.GlobalRootDir); err != nil {
-			return err
-		}
-	}
-
 	// generate the security policy from the snap.yaml
 	// Note that this must happen before binaries/services are
 	// generated because serices may get started
@@ -353,12 +345,6 @@ func (s *Snap) deactivate(inhibitHooks bool, inter interacter) error {
 		return err
 	}
 
-	if s.Type() == snap.TypeFramework {
-		if err := policy.Remove(s.Name(), s.basedir, dirs.GlobalRootDir); err != nil {
-			return err
-		}
-	}
-
 	// and finally the current symlink
 	if err := os.Remove(currentSymlink); err != nil {
 		logger.Noticef("Failed to remove %q: %v", currentSymlink, err)
@@ -375,120 +361,4 @@ func (s *Snap) deactivate(inhibitHooks bool, inter interacter) error {
 // NeedsReboot returns true if the snap becomes active on the next reboot
 func (s *Snap) NeedsReboot() bool {
 	return kernelOrOsRebootRequired(s)
-}
-
-// Frameworks returns the list of frameworks needed by the snap
-func (s *Snap) Frameworks() ([]string, error) {
-	return s.m.Frameworks, nil
-}
-
-// DependentNames returns a list of the names of apps installed that
-// depend on this one
-//
-// /!\ not snap of the Snap interface.
-func (s *Snap) DependentNames() ([]string, error) {
-	deps, err := s.Dependents()
-	if err != nil {
-		return nil, err
-	}
-
-	names := make([]string, len(deps))
-	for i, dep := range deps {
-		names[i] = dep.Name()
-	}
-
-	return names, nil
-}
-
-// Dependents gives the list of apps installed that depend on this one
-//
-// /!\ not snap of the Snap interface.
-func (s *Snap) Dependents() ([]*Snap, error) {
-	if s.Type() != snap.TypeFramework {
-		// only frameworks are depended on
-		return nil, nil
-	}
-
-	var needed []*Snap
-
-	installed, err := NewLocalSnapRepository().Installed()
-	if err != nil {
-		return nil, err
-	}
-
-	name := s.Name()
-	for _, snap := range installed {
-		fmks, err := snap.Frameworks()
-		if err != nil {
-			return nil, err
-		}
-		for _, fmk := range fmks {
-			if fmk == name {
-				needed = append(needed, snap)
-			}
-		}
-	}
-
-	return needed, nil
-}
-
-// CanInstall checks whether the Snap passes a series of tests required for installation
-func (s *Snap) CanInstall(allowGadget bool, inter interacter) error {
-	return fmt.Errorf("not possible on a Snap")
-}
-
-// RequestSecurityPolicyUpdate checks whether changes to the given policies and
-// templates impacts the snap, and updates the policy if needed
-func (s *Snap) RequestSecurityPolicyUpdate(policies, templates map[string]bool) error {
-	var foundError error
-	for name, app := range s.Apps() {
-		plug, err := findPlugForApp(s.m, app)
-		if err != nil {
-			logger.Noticef("Failed to find plug for %s: %v", name, err)
-			foundError = err
-			continue
-		}
-		if plug == nil {
-			continue
-		}
-
-		if plug.NeedsAppArmorUpdate(policies, templates) {
-			err := plug.generatePolicyForServiceBinary(s.m, name, s.basedir)
-			if err != nil {
-				logger.Noticef("Failed to regenerate policy for %s: %v", name, err)
-				foundError = err
-			}
-		}
-	}
-
-	// FIXME: if there are multiple errors only the last one
-	//        will be preserved
-	if foundError != nil {
-		return foundError
-	}
-
-	return nil
-}
-
-// RefreshDependentsSecurity refreshes the security policies of dependent snaps
-func (s *Snap) RefreshDependentsSecurity(oldSnap *Snap, inter interacter) (err error) {
-	oldBaseDir := ""
-	if oldSnap != nil {
-		oldBaseDir = oldSnap.basedir
-	}
-	upPol, upTpl := policy.AppArmorDelta(oldBaseDir, s.basedir, s.Name()+"_")
-
-	deps, err := s.Dependents()
-	if err != nil {
-		return err
-	}
-
-	for _, dep := range deps {
-		err := dep.RequestSecurityPolicyUpdate(upPol, upTpl)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
