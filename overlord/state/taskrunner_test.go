@@ -20,10 +20,12 @@
 package state_test
 
 import (
+	"errors"
 	"sync"
 	"time"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/tomb.v2"
 
 	"github.com/ubuntu-core/snappy/overlord/state"
 )
@@ -34,7 +36,7 @@ var _ = Suite(&taskRunnerSuite{})
 
 func (ts *taskRunnerSuite) TestAddHandler(c *C) {
 	r := state.NewTaskRunner(nil)
-	fn := func(task *state.Task) error {
+	fn := func(task *state.Task, tomb *tomb.Tomb) error {
 		return nil
 	}
 	r.AddHandler("download", fn)
@@ -49,7 +51,10 @@ func (ts *taskRunnerSuite) TestEnsureTrivial(c *C) {
 	// setup the download handler
 	taskCompleted := sync.WaitGroup{}
 	r := state.NewTaskRunner(st)
-	fn := func(task *state.Task) error {
+	fn := func(task *state.Task, tomb *tomb.Tomb) error {
+		task.State().Lock()
+		defer task.State().Unlock()
+		c.Check(task.Status(), Equals, state.RunningStatus)
 		taskCompleted.Done()
 		return nil
 	}
@@ -62,31 +67,50 @@ func (ts *taskRunnerSuite) TestEnsureTrivial(c *C) {
 	taskCompleted.Add(1)
 	st.Unlock()
 
+	defer r.Stop()
+
 	// ensure just kicks the go routine off
 	r.Ensure()
 	taskCompleted.Wait()
 }
 
+type stateBackend struct {
+	runner *state.TaskRunner
+}
+
+func (b *stateBackend) Checkpoint([]byte) error {
+	return nil
+}
+
+func (b *stateBackend) EnsureBefore(d time.Duration) {
+	go b.runner.Ensure()
+}
+
 func (ts *taskRunnerSuite) TestEnsureComplex(c *C) {
+	b := &stateBackend{}
 	// we need state
-	st := state.New(nil)
+	st := state.New(b)
+
+	r := state.NewTaskRunner(st)
+	b.runner = r
 
 	// setup handlers
-	r := state.NewTaskRunner(st)
-
-	var ordering []string
-	fn := func(task *state.Task) error {
-		ordering = append(ordering, task.Kind())
+	orderingCh := make(chan string, 3)
+	fn := func(task *state.Task, tomb *tomb.Tomb) error {
+		task.State().Lock()
+		defer task.State().Unlock()
+		c.Check(task.Status(), Equals, state.RunningStatus)
+		orderingCh <- task.Kind()
 		return nil
 	}
 	r.AddHandler("download", fn)
 	r.AddHandler("unpack", fn)
 	r.AddHandler("configure", fn)
 
+	defer r.Stop()
+
 	// run in a loop to ensure ordering is correct by pure chance
 	for i := 0; i < 100; i++ {
-		ordering = []string{}
-
 		st.Lock()
 		chg := st.NewChange("mock-install", "...")
 
@@ -99,11 +123,114 @@ func (ts *taskRunnerSuite) TestEnsureComplex(c *C) {
 		st.Unlock()
 
 		// ensure just kicks the go routine off
-		for len(ordering) < 3 {
-			r.Ensure()
-			time.Sleep(1 * time.Millisecond)
+		// and then they get scheduled as they finish
+		r.Ensure()
+		// wait for them to finish, need to loop because the runner
+		// Wait in unaware of EnsureBefore
+		for len(orderingCh) < 3 {
+			r.Wait()
 		}
 
-		c.Assert(ordering, DeepEquals, []string{"download", "unpack", "configure"})
+		c.Assert([]string{<-orderingCh, <-orderingCh, <-orderingCh}, DeepEquals, []string{"download", "unpack", "configure"})
 	}
+}
+
+func (ts *taskRunnerSuite) TestErrorIsFinal(c *C) {
+	// we need state
+	st := state.New(nil)
+
+	invocations := 0
+
+	// setup the download handler
+	r := state.NewTaskRunner(st)
+	fn := func(task *state.Task, tomb *tomb.Tomb) error {
+		invocations++
+		return errors.New("boom")
+	}
+	r.AddHandler("download", fn)
+
+	// add a download task to the state tracker
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	chg.NewTask("download", "1...")
+	st.Unlock()
+
+	defer r.Stop()
+
+	// ensure just kicks the go routine off
+	r.Ensure()
+	r.Wait()
+	// won't be restarted
+	r.Ensure()
+	r.Wait()
+
+	c.Check(invocations, Equals, 1)
+}
+
+func (ts *taskRunnerSuite) TestStopCancelsGoroutines(c *C) {
+	// we need state
+	st := state.New(nil)
+
+	invocations := 0
+
+	// setup the download handler
+	r := state.NewTaskRunner(st)
+
+	fn := func(task *state.Task, tomb *tomb.Tomb) error {
+		select {
+		case <-tomb.Dying():
+		}
+		invocations++
+		return nil
+	}
+	r.AddHandler("download", fn)
+
+	// add a download task to the state tracker
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	chg.NewTask("download", "1...")
+	st.Unlock()
+
+	defer r.Stop()
+
+	// ensure just kicks the go routine off
+	r.Ensure()
+	r.Stop()
+
+	c.Check(invocations, Equals, 1)
+}
+
+func (ts *taskRunnerSuite) TestErrorPropagates(c *C) {
+	st := state.New(nil)
+
+	r := state.NewTaskRunner(st)
+	erroring := func(task *state.Task, tomb *tomb.Tomb) error {
+		return errors.New("boom")
+	}
+	dep := func(task *state.Task, tomb *tomb.Tomb) error {
+		return nil
+	}
+	r.AddHandler("erroring", erroring)
+	r.AddHandler("dep", dep)
+
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	errTask := chg.NewTask("erroring", "1...")
+	dep1 := chg.NewTask("dep", "2...")
+	dep1.WaitFor(errTask)
+	dep2 := chg.NewTask("dep", "3...")
+	dep2.WaitFor(dep1)
+	st.Unlock()
+
+	defer r.Stop()
+
+	r.Ensure()
+	r.Wait()
+
+	st.Lock()
+	defer st.Unlock()
+
+	c.Check(dep1.Status(), Equals, state.ErrorStatus)
+	c.Check(dep2.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
 }

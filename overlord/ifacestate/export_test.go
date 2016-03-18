@@ -17,17 +17,12 @@
  *
  */
 
-package state
+package ifacestate
 
 import (
-	"time"
+	"github.com/ubuntu-core/snappy/interfaces"
 )
 
-// ChangeUnlockCheckpointRetryParamsForTest let's a test change unlockcheckpointRetryInterval and unlockCheckpointRetryMaxTime.
-func ChangeUnlockCheckpointRetryParamsForTest(newInterval, newMaxTime time.Duration) (oldInterval, oldMaxTime time.Duration) {
-	oldInterval = unlockCheckpointRetryInterval
-	oldMaxTime = unlockCheckpointRetryMaxTime
-	unlockCheckpointRetryInterval = newInterval
-	unlockCheckpointRetryMaxTime = newMaxTime
-	return
+func (m *InterfaceManager) Repository() *interfaces.Repository {
+	return m.repo
 }
