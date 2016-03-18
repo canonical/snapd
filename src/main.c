@@ -264,7 +264,9 @@ void setup_private_pts() {
         die("/dev/pts doesn't exist or is not a directory");
     }
 
-    // ptmxmode=000 or 666
+    // https://www.kernel.org/doc/Documentation/filesystems/devpts.txt
+    // with newinstance, use ptmxmode=0666. The other options are copied from
+    // /etc/default/devpts
     if (mount("devpts", "/dev/pts", "devpts", MS_MGC_VAL,
               "newinstance,ptmxmode=0666,mode=0620,gid=5")) {
         die("unable to mount a new instance of '/dev/pts'");
