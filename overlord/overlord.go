@@ -45,10 +45,11 @@ var ensureInterval = 5 * time.Minute
 type Overlord struct {
 	stateEng *StateEngine
 	// ensure loop
-	loopTomb    *tomb.Tomb
-	ensureLock  sync.Mutex
-	ensureTimer *time.Timer
-	ensureNext  time.Time
+	loopTomb      *tomb.Tomb
+	ensureLock    sync.Mutex
+	ensureTimer   *time.Timer
+	ensureNext    time.Time
+	ensureRunning int
 	// managers
 	snapMgr   *snapstate.SnapManager
 	assertMgr *assertstate.AssertManager
@@ -117,12 +118,31 @@ func (o *Overlord) ensureTimerSetup() {
 	o.ensureNext = time.Now().Add(ensureInterval)
 }
 
-func (o *Overlord) ensureTimerReset() {
+func (o *Overlord) syncEnsurePrep() time.Time {
 	o.ensureLock.Lock()
 	defer o.ensureLock.Unlock()
 	now := time.Now()
 	o.ensureTimer.Reset(ensureInterval)
 	o.ensureNext = now.Add(ensureInterval)
+	o.ensureRunning++
+	return o.ensureNext
+}
+
+func (o *Overlord) syncEnsureDone() {
+	o.ensureLock.Lock()
+	defer o.ensureLock.Unlock()
+	o.ensureRunning--
+}
+
+func (o *Overlord) syncEnsure() time.Time {
+	next := o.syncEnsurePrep()
+	defer o.syncEnsureDone()
+	err := o.stateEng.Ensure()
+	if err != nil {
+		logger.Noticef("state engine ensure failed: %v", err)
+		// continue to the next Ensure() try for now
+	}
+	return next
 }
 
 func (o *Overlord) ensureBefore(d time.Duration) {
@@ -149,12 +169,7 @@ func (o *Overlord) Run() {
 				return nil
 			case <-o.ensureTimer.C:
 			}
-			o.ensureTimerReset()
-			err := o.stateEng.Ensure()
-			if err != nil {
-				logger.Noticef("state engine ensure failed: %v", err)
-				// continue to the next Ensure() try for now
-			}
+			o.syncEnsure()
 		}
 	})
 }
@@ -167,27 +182,29 @@ func (o *Overlord) Stop() error {
 	return err1
 }
 
-func (o *Overlord) syncEnsure() time.Time {
-	// XXX
-	o.stateEng.Ensure()
-	return time.Time{}
-}
-
-func (o *Overlord) noImmediateEnsure(longScheduledEnsureHorizon time.Time) (bool, time.Time) {
-	// XXX
-	time.Sleep(100 * time.Millisecond)
-	return true, time.Time{}
+func (o *Overlord) noImmediateEnsure(longScheduledEnsureHorizon time.Time) bool {
+	o.ensureLock.Lock()
+	defer o.ensureLock.Unlock()
+	next1 := o.ensureNext
+	// something to do is scheduled earlier
+	if next1.Before(longScheduledEnsureHorizon) {
+		return false
+	}
+	if o.ensureRunning > 0 { // may be starting new goroutines right now
+		return false
+	}
+	return true
 }
 
 // Settle runs first a state engine Ensure and then wait for activities to settle.
 // That's done by waiting for all managers activities to settle while
-// making sure no immediate further Ensure is scheduled.
+// making sure no immediate further Ensure is scheduled. Chiefly for tests.
 func (o *Overlord) Settle() {
 	longScheduledEnsureHorizon := o.syncEnsure()
 	settled := false
 	for !settled {
 		o.stateEng.Wait()
-		settled, longScheduledEnsureHorizon = o.noImmediateEnsure(longScheduledEnsureHorizon)
+		settled = o.noImmediateEnsure(longScheduledEnsureHorizon)
 	}
 }
 
