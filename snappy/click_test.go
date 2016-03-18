@@ -471,7 +471,6 @@ export HOME="$SNAP_USER_DATA"
 
 # export old pwd
 export SNAP_OLD_PWD="$(pwd)"
-cd $SNAP_DATA
 ubuntu-core-launcher pastebinit.pastebinit pastebinit.mvo_pastebinit_1.4.0.0.1 /snaps/pastebinit.mvo/1.4.0.0.1/bin/pastebinit "$@"
 `
 
@@ -517,7 +516,6 @@ export HOME="$SNAP_USER_DATA"
 
 # export old pwd
 export SNAP_OLD_PWD="$(pwd)"
-cd $SNAP_DATA
 ubuntu-core-launcher fmk.echo fmk_echo_1.4.0.0.1 /snaps/fmk/1.4.0.0.1/bin/echo "$@"
 `
 
@@ -850,7 +848,6 @@ func (s *SnapTestSuite) TestAddPackageBinariesStripsGlobalRootdir(c *C) {
 	c.Assert(err, IsNil)
 
 	needle := `
-cd $SNAP_DATA
 ubuntu-core-launcher hello-snap.hello hello-snap.testspacethename_hello_1.10 /snaps/hello-snap.testspacethename/1.10/bin/hello "$@"
 `
 	c.Assert(string(content), Matches, "(?ms).*"+regexp.QuoteMeta(needle)+".*")
@@ -865,7 +862,6 @@ X-Snappy=yes
 [Service]
 ExecStart=/usr/bin/ubuntu-core-launcher xkcd-webserver.xkcd-webserver xkcd-webserver%[2]s_xkcd-webserver_0.3.4 /snaps/xkcd-webserver%[2]s/0.3.4/bin/foo start
 Restart=on-failure
-WorkingDirectory=/var/lib/snaps/xkcd-webserver%[2]s/0.3.4/
 Environment="SNAP_APP=xkcd-webserver_xkcd-webserver_0.3.4" "SNAP=/snaps/xkcd-webserver%[2]s/0.3.4/" "SNAP_DATA=/var/lib/snaps/xkcd-webserver%[2]s/0.3.4/" "SNAP_NAME=xkcd-webserver" "SNAP_VERSION=0.3.4" "SNAP_DEVELOPER=%[3]s" "SNAP_ARCH=%[5]s" "SNAP_USER_DATA=/root/snaps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_PATH=/snaps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_DATA_PATH=/var/lib/snaps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_USER_DATA_PATH=/root/snaps/xkcd-webserver%[2]s/0.3.4/"
 ExecStop=/usr/bin/ubuntu-core-launcher xkcd-webserver.xkcd-webserver xkcd-webserver%[2]s_xkcd-webserver_0.3.4 /snaps/xkcd-webserver%[2]s/0.3.4/bin/foo stop
 ExecStopPost=/usr/bin/ubuntu-core-launcher xkcd-webserver.xkcd-webserver xkcd-webserver%[2]s_xkcd-webserver_0.3.4 /snaps/xkcd-webserver%[2]s/0.3.4/bin/foo post-stop
