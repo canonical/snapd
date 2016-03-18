@@ -58,10 +58,12 @@ int seccomp_load_filters(const char *filter_profile)
    //   - capability sys_admin in AppArmor
    // Note that with NO_NEW_PRIVS disabled, CAP_SYS_ADMIN is required to change
    // the seccomp sandbox.
-   rc = seccomp_attr_set(ctx, SCMP_FLTATR_CTL_NNP, 0);
-   if (rc != 0) {
-      fprintf(stderr, "Cannot disable nnp\n");
-      return -1;
+   if (getenv("UBUNTU_CORE_LAUNCHER_NO_ROOT") == NULL) {
+      rc = seccomp_attr_set(ctx, SCMP_FLTATR_CTL_NNP, 0);
+      if (rc != 0) {
+         fprintf(stderr, "Cannot disable nnp\n");
+         return -1;
+      }
    }
 
    if (getenv("SNAPPY_LAUNCHER_SECCOMP_PROFILE_DIR") != NULL)
