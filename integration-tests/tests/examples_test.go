@@ -121,27 +121,6 @@ func (s *goWebserverExampleSuite) TestGetRootPathMustPrintMessage(c *check.C) {
 	c.Assert(string(body), check.Equals, "Hello World\n", check.Commentf("Wrong reply body"))
 }
 
-var _ = check.Suite(&frameworkExampleSuite{})
-
-type frameworkExampleSuite struct {
-	common.SnappySuite
-}
-
-func (s *frameworkExampleSuite) TestFrameworkClient(c *check.C) {
-	common.InstallSnap(c, "hello-dbus-fwk.canonical/edge")
-	defer common.RemoveSnap(c, "hello-dbus-fwk.canonical")
-
-	common.InstallSnap(c, "hello-dbus-app.canonical/edge")
-	defer common.RemoveSnap(c, "hello-dbus-app.canonical")
-
-	output := cli.ExecCommand(c, "hello-dbus-app.client")
-
-	expected := "PASS\n"
-
-	c.Assert(output, check.Equals, expected,
-		check.Commentf("Expected output %s not found, %s", expected, output))
-}
-
 var _ = check.Suite(&configExampleSuite{})
 
 type configExampleSuite struct {
