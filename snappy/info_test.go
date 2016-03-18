@@ -48,11 +48,6 @@ type: framework
 	c.Assert(err, IsNil)
 	c.Assert(snaps, HasLen, 1)
 	c.Assert(snaps[0].Name(), Equals, "app1")
-
-	snaps, err = ActiveSnapsByType(snap.TypeFramework)
-	c.Assert(err, IsNil)
-	c.Assert(snaps, HasLen, 1)
-	c.Assert(snaps[0].Name(), Equals, "framework1")
 }
 
 func (s *SnapTestSuite) TestActiveSnapIterByType(c *C) {
@@ -75,13 +70,9 @@ type: framework`)
 
 	for _, t := range []T{
 		{BareName, snap.TypeApp, "app"},
-		{BareName, snap.TypeFramework, "fwk"},
 		{QualifiedName, snap.TypeApp, "app." + testDeveloper},
-		{QualifiedName, snap.TypeFramework, "fwk"},
 		{FullName, snap.TypeApp, "app." + testDeveloper},
-		{FullName, snap.TypeFramework, "fwk." + testDeveloper},
 		{fullNameWithChannel, snap.TypeApp, "app." + testDeveloper + "/remote-channel"},
-		{fullNameWithChannel, snap.TypeFramework, "fwk." + testDeveloper + "/remote-channel"},
 	} {
 		names, err := ActiveSnapIterByType(t.f, t.t)
 		c.Check(err, IsNil)
@@ -93,22 +84,11 @@ type: framework`)
 	storeMinimalRemoteManifest("fwk", "fwk", testDeveloper, "1.0", "Hello.", "")
 	for _, t := range []T{
 		{fullNameWithChannel, snap.TypeApp, "app." + testDeveloper},
-		{fullNameWithChannel, snap.TypeFramework, "fwk." + testDeveloper},
 	} {
 		names, err := ActiveSnapIterByType(t.f, t.t)
 		c.Check(err, IsNil)
 		c.Check(names, DeepEquals, []string{t.n})
 	}
-
-	nm := make(map[string]bool, 2)
-	names, err := ActiveSnapIterByType(QualifiedName, snap.TypeApp, snap.TypeFramework)
-	c.Check(err, IsNil)
-	c.Assert(names, HasLen, 2)
-	for i := range names {
-		nm[names[i]] = true
-	}
-
-	c.Check(nm, DeepEquals, map[string]bool{"fwk": true, "app." + testDeveloper: true})
 }
 
 func (s *SnapTestSuite) TestFindSnapsByNameNotAvailable(c *C) {

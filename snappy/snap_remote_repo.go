@@ -154,9 +154,6 @@ func NewUbuntuStoreSnapRepository() *SnapUbuntuStoreRepository {
 func setUbuntuStoreHeaders(req *http.Request) {
 	req.Header.Set("Accept", "application/hal+json")
 
-	// frameworks
-	frameworks, _ := ActiveSnapIterByType(BareName, snap.TypeFramework)
-	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(frameworks, ","))
 	req.Header.Set("X-Ubuntu-Architecture", string(arch.UbuntuArchitecture()))
 	req.Header.Set("X-Ubuntu-Release", release.String())
 	req.Header.Set("X-Ubuntu-Wire-Protocol", UbuntuCoreWireProtocol)

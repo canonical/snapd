@@ -155,22 +155,6 @@ func (s *SnapTestSuite) TestLocalSnapActive(c *C) {
 	c.Assert(snap.IsActive(), Equals, true)
 }
 
-func (s *SnapTestSuite) TestLocalSnapFrameworks(c *C) {
-	snapYaml, err := makeInstalledMockSnap(s.tempdir, `name: foo
-version: 1.0
-frameworks:
- - one
- - two
-`)
-	c.Assert(err, IsNil)
-
-	snap, err := NewInstalledSnap(snapYaml, testDeveloper)
-	c.Assert(err, IsNil)
-	fmk, err := snap.Frameworks()
-	c.Assert(err, IsNil)
-	c.Check(fmk, DeepEquals, []string{"one", "two"})
-}
-
 func (s *SnapTestSuite) TestLocalSnapRepositoryInvalidIsStillOk(c *C) {
 	dirs.SnapSnapsDir = "invalid-path"
 	snap := NewLocalSnapRepository()
@@ -983,148 +967,6 @@ func (s *SnapTestSuite) TestIgnoresAlreadyInstalledSameDeveloper(c *C) {
 	c.Check(checkForPackageInstalled(yaml, testDeveloper), IsNil)
 }
 
-func (s *SnapTestSuite) TestIgnoresAlreadyInstalledFrameworkSameDeveloper(c *C) {
-	data := "name: afoo\nversion: 1\ntype: framework"
-	yamlPath, err := makeInstalledMockSnap(s.tempdir, data)
-	c.Assert(err, IsNil)
-	c.Assert(makeSnapActive(yamlPath), IsNil)
-
-	yaml, err := parseSnapYamlData([]byte(data), false)
-	c.Assert(err, IsNil)
-	c.Check(checkForPackageInstalled(yaml, testDeveloper), IsNil)
-}
-
-func (s *SnapTestSuite) TestDetectsAlreadyInstalledFramework(c *C) {
-	data := "name: afoo\nversion: 1\ntype: framework"
-	yamlPath, err := makeInstalledMockSnap(s.tempdir, data)
-	c.Assert(err, IsNil)
-	c.Assert(makeSnapActive(yamlPath), IsNil)
-
-	yaml, err := parseSnapYamlData([]byte(data), false)
-	c.Assert(err, IsNil)
-	c.Check(checkForPackageInstalled(yaml, "otherns"), ErrorMatches, ".*is already installed with developer.*")
-}
-
-func (s *SnapTestSuite) TestUsesStoreMetaData(c *C) {
-	data := "name: afoo\nversion: 1\ntype: framework"
-	yamlPath, err := makeInstalledMockSnap(s.tempdir, data)
-	c.Assert(err, IsNil)
-	c.Assert(makeSnapActive(yamlPath), IsNil)
-
-	data = "name: afoo\nalias: afoo\ndescription: something nice\ndownloadsize: 10\norigin: someplace"
-	err = ioutil.WriteFile(filepath.Join(dirs.SnapMetaDir, "afoo_1.manifest"), []byte(data), 0644)
-	c.Assert(err, IsNil)
-
-	snaps, err := ListInstalled()
-	c.Assert(err, IsNil)
-	c.Assert(snaps, HasLen, 1)
-
-	c.Check(snaps[0].Name(), Equals, "afoo")
-	c.Check(snaps[0].Version(), Equals, "1")
-	c.Check(snaps[0].Type(), Equals, snap.TypeFramework)
-	c.Check(snaps[0].Developer(), Equals, "someplace")
-	c.Check(snaps[0].Description(), Equals, "something nice")
-	c.Check(snaps[0].DownloadSize(), Equals, int64(10))
-}
-
-func (s *SnapTestSuite) TestDetectsMissingFrameworks(c *C) {
-	data := []byte(`name: afoo
-version: 1.0
-frameworks:
- - missing
- - also-missing
-`)
-	yaml, err := parseSnapYamlData(data, false)
-	c.Assert(err, IsNil)
-	err = checkForFrameworks(yaml)
-	c.Assert(err, ErrorMatches, `missing frameworks: missing, also-missing`)
-}
-
-func (s *SnapTestSuite) TestDetectsFrameworksInUse(c *C) {
-	_, err := makeInstalledMockSnap(s.tempdir, `name: foo
-version: 1.0
-frameworks:
- - fmk
-`)
-	c.Assert(err, IsNil)
-
-	yaml, err := parseSnapYamlData([]byte(`name: fmk
-version: 1.0
-type: framework`), false)
-	c.Assert(err, IsNil)
-	snap := &Snap{m: yaml}
-	deps, err := snap.Dependents()
-	c.Assert(err, IsNil)
-	c.Check(deps, HasLen, 1)
-	c.Check(deps[0].Name(), Equals, "foo")
-
-	names, err := snap.DependentNames()
-	c.Assert(err, IsNil)
-	c.Check(names, DeepEquals, []string{"foo"})
-}
-
-func (s *SnapTestSuite) TestRefreshDependentsSecurity(c *C) {
-	oldDir := dirs.SnapAppArmorDir
-	defer func() {
-		dirs.SnapAppArmorDir = oldDir
-	}()
-	dirs.SnapAppArmorDir = c.MkDir()
-	fn := filepath.Join(dirs.SnapAppArmorDir, "foo."+testDeveloper+"_hello_1.0")
-	c.Assert(os.Symlink(fn, fn), IsNil)
-
-	_, err := makeInstalledMockSnap(s.tempdir, `name: foo
-version: 1.0
-frameworks:
- - fmk
-apps:
- hello:
-   command: hello
-   caps:
-    - fmk_foo
-`)
-	c.Assert(err, IsNil)
-
-	d1 := c.MkDir()
-	d2 := c.MkDir()
-	dp := filepath.Join("meta", "framework-policy", "apparmor", "policygroups")
-
-	yaml := "name: fmk\ntype: framework\nversion: 1"
-	_, err = makeInstalledMockSnap(d1, yaml)
-	c.Assert(err, IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(d1, dp), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(d1, dp, "foo"), []byte(""), 0644), IsNil)
-
-	_, err = makeInstalledMockSnap(d2, "name: fmk\ntype: framework\nversion: 2")
-	c.Assert(err, IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(d2, dp), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(d2, dp, "fmk_foo"), []byte("x"), 0644), IsNil)
-
-	pb := &MockProgressMeter{}
-	m, err := parseSnapYamlData([]byte(yaml), false)
-	snap := &Snap{m: m, developer: testDeveloper, basedir: d1}
-	c.Assert(snap.RefreshDependentsSecurity(&Snap{basedir: d2}, pb), IsNil)
-	// TODO: verify it was updated
-}
-
-func (s *SnapTestSuite) TestRemoveChecksFrameworks(c *C) {
-	yamlFile, err := makeInstalledMockSnap(s.tempdir, `name: fmk
-version: 1.0
-type: framework`)
-	c.Assert(err, IsNil)
-	yaml, err := parseSnapYamlFile(yamlFile)
-
-	_, err = makeInstalledMockSnap(s.tempdir, `name: foo
-version: 1.0
-frameworks:
- - fmk
-`)
-	c.Assert(err, IsNil)
-
-	snap := &Snap{m: yaml, developer: testDeveloper}
-	err = s.overlord.Uninstall(snap, new(MockProgressMeter))
-	c.Check(err, ErrorMatches, `framework still in use by: foo`)
-}
-
 func (s *SnapTestSuite) TestNeedsAppArmorUpdateSecurityPolicy(c *C) {
 	// if a security policy is defined, never flag for update
 	sd := &SecurityDefinitions{SecurityPolicy: &SecurityPolicyDefinition{}}
@@ -1395,17 +1237,6 @@ version: 1.0
 
 	udevName := snapYaml.qualifiedName("mvo")
 	c.Assert(udevName, Equals, "foo.mvo")
-}
-
-func (s *SnapTestSuite) TestQualifiedNameNameFramework(c *C) {
-	snapYaml, err := parseSnapYamlData([]byte(`name: foo
-version: 1.0
-type: framework
-`), false)
-	c.Assert(err, IsNil)
-
-	udevName := snapYaml.qualifiedName("")
-	c.Assert(udevName, Equals, "foo")
 }
 
 func (s *SnapTestSuite) TestParseSnapYamlDataChecksName(c *C) {

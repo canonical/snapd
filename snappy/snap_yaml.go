@@ -193,7 +193,7 @@ func parseSnapYamlData(yamlData []byte, hasConfig bool) (*snapYaml, error) {
 }
 
 func (m *snapYaml) qualifiedName(developer string) string {
-	if m.Type == snap.TypeFramework || m.Type == snap.TypeGadget {
+	if m.Type == snap.TypeGadget {
 		return m.Name
 	}
 	return m.Name + "." + developer
