@@ -42,6 +42,8 @@ const (
 	DoInstallGC
 	// AllowGadget allows the installation of Gadget packages, this does not affect updates.
 	AllowGadget
+	// DeveloeprMode will install the snap without confinement
+	DeveloperMode
 )
 
 func installRemote(mStore *SnapUbuntuStoreRepository, remoteSnap *RemoteSnap, flags InstallFlags, meter progress.Meter) (string, error) {

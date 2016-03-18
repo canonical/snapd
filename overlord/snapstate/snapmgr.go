@@ -35,9 +35,11 @@ import (
 // Note that the state must be locked by the caller.
 func Install(change *state.Change, snap, channel string, flags snappy.InstallFlags) error {
 	t := change.NewTask("install-snap", fmt.Sprintf(i18n.G("Installing %q"), snap))
-	t.Set("name", snap)
-	t.Set("channel", channel)
-	t.Set("flags", flags)
+	t.Set("state", installState{
+		Name:    snap,
+		Channel: channel,
+		Flags:   flags,
+	})
 
 	return nil
 }
@@ -46,8 +48,10 @@ func Install(change *state.Change, snap, channel string, flags snappy.InstallFla
 // Note that the state must be locked by the caller.
 func Remove(change *state.Change, snap string, flags snappy.RemoveFlags) error {
 	t := change.NewTask("remove-snap", fmt.Sprintf(i18n.G("Removing %q"), snap))
-	t.Set("name", snap)
-	t.Set("flags", flags)
+	t.Set("state", removeState{
+		Name:  snap,
+		Flags: flags,
+	})
 
 	return nil
 }
@@ -75,46 +79,46 @@ type SnapManager struct {
 	runner *state.TaskRunner
 }
 
+type installState struct {
+	Name    string              `json:"name"`
+	Channel string              `json:"channel"`
+	Flags   snappy.InstallFlags `json:"flags,omitempty"`
+}
+
+type removeState struct {
+	Name  string             `json:"name"`
+	Flags snappy.RemoveFlags `json:"flags,omitempty"`
+}
+
 // Manager returns a new snap manager.
 func Manager() (*SnapManager, error) {
 	return &SnapManager{}, nil
 }
 
 func (m *SnapManager) doInstallSnap(t *state.Task, _ *tomb.Tomb) error {
-	var name, channel string
-	var flags snappy.InstallFlags
+	var inst installState
 	t.State().Lock()
-	if err := t.Get("name", &name); err != nil {
-		return err
-	}
-	if err := t.Get("channel", &channel); err != nil {
-		return err
-	}
-	if err := t.Get("flags", &flags); err != nil {
+	if err := t.Get("state", &inst); err != nil {
 		return err
 	}
 	t.State().Unlock()
 
-	_, err := m.backend.Install(name, channel, flags, &progress.NullProgress{})
-	t.Logf("doInstallSnap: %s from %s: %v", name, channel, err)
+	_, err := m.backend.Install(inst.Name, inst.Channel, inst.Flags, &progress.NullProgress{})
+	t.Logf("doInstallSnap: %s from %s: %v", inst.Name, inst.Channel, err)
 	return err
 }
 
 func (m *SnapManager) doRemoveSnap(t *state.Task, _ *tomb.Tomb) error {
-	var nameAndDeveloper string
-	var flags snappy.RemoveFlags
+	var rm removeState
 
 	t.State().Lock()
-	if err := t.Get("name", &nameAndDeveloper); err != nil {
-		return err
-	}
-	if err := t.Get("flags", &flags); err != nil {
+	if err := t.Get("state", &rm); err != nil {
 		return err
 	}
 	t.State().Unlock()
 
-	name, _ := snappy.SplitDeveloper(nameAndDeveloper)
-	err := m.backend.Remove(name, flags, &progress.NullProgress{})
+	name, _ := snappy.SplitDeveloper(rm.Name)
+	err := m.backend.Remove(name, rm.Flags, &progress.NullProgress{})
 	t.Logf("doRemoveSnap: %s: %v", name, err)
 	return err
 }
