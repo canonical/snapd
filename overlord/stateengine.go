@@ -97,6 +97,18 @@ func (se *StateEngine) AddManager(m StateManager) {
 	se.managers = append(se.managers, m)
 }
 
+// Wait waits for all managers current activities.
+func (se *StateEngine) Wait() {
+	se.mgrLock.Lock()
+	defer se.mgrLock.Unlock()
+	if se.stopped {
+		return
+	}
+	for _, m := range se.managers {
+		m.Wait()
+	}
+}
+
 // Stop asks all managers to terminate activities running concurrently.
 func (se *StateEngine) Stop() {
 	se.mgrLock.Lock()
