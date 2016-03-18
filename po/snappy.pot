@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-03-15 17:39+0100\n"
+        "POT-Creation-Date: 2016-03-18 08:38+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -111,6 +111,10 @@ msgstr  ""
 msgid   "Configures a package. The configuration is a YAML file, provided in the specified file which can be \"-\" for stdin. Output of the command is the current configuration, so running this command with no input file provides a snapshot of the app's current config."
 msgstr  ""
 
+#, c-format
+msgid   "Connecting %s:%s to %s:%s"
+msgstr  ""
+
 msgid   "Connects a plug to a slot"
 msgstr  ""
 
@@ -180,6 +184,10 @@ msgid   "Install a snap to the system"
 msgstr  ""
 
 msgid   "Install snaps even if the signature can not be verified."
+msgstr  ""
+
+#, c-format
+msgid   "Installing %q"
 msgstr  ""
 
 #. TRANSLATORS: the %s is a pkgname
@@ -290,6 +298,10 @@ msgid   "Removes a plug from the system"
 msgstr  ""
 
 msgid   "Removes a slot from the system"
+msgstr  ""
+
+#, c-format
+msgid   "Removing %q"
 msgstr  ""
 
 #. TRANSLATORS: the %s is a pkgname
