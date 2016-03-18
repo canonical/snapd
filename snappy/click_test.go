@@ -862,6 +862,7 @@ X-Snappy=yes
 [Service]
 ExecStart=/usr/bin/ubuntu-core-launcher xkcd-webserver.xkcd-webserver xkcd-webserver%[2]s_xkcd-webserver_0.3.4 /snaps/xkcd-webserver%[2]s/0.3.4/bin/foo start
 Restart=on-failure
+WorkingDirectory=/var/lib/snaps/xkcd-webserver%[2]s/0.3.4/
 Environment="SNAP_APP=xkcd-webserver_xkcd-webserver_0.3.4" "SNAP=/snaps/xkcd-webserver%[2]s/0.3.4/" "SNAP_DATA=/var/lib/snaps/xkcd-webserver%[2]s/0.3.4/" "SNAP_NAME=xkcd-webserver" "SNAP_VERSION=0.3.4" "SNAP_DEVELOPER=%[3]s" "SNAP_ARCH=%[5]s" "SNAP_USER_DATA=/root/snaps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_PATH=/snaps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_DATA_PATH=/var/lib/snaps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_USER_DATA_PATH=/root/snaps/xkcd-webserver%[2]s/0.3.4/"
 ExecStop=/usr/bin/ubuntu-core-launcher xkcd-webserver.xkcd-webserver xkcd-webserver%[2]s_xkcd-webserver_0.3.4 /snaps/xkcd-webserver%[2]s/0.3.4/bin/foo stop
 ExecStopPost=/usr/bin/ubuntu-core-launcher xkcd-webserver.xkcd-webserver xkcd-webserver%[2]s_xkcd-webserver_0.3.4 /snaps/xkcd-webserver%[2]s/0.3.4/bin/foo post-stop
