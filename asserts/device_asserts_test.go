@@ -46,9 +46,9 @@ func (mods *modelSuite) SetUpSuite(c *C) {
 
 const modelExample = "type: model\n" +
 	"authority-id: brand-id1\n" +
+	"series: 16\n" +
 	"brand-id: brand-id1\n" +
 	"model: baz-3000\n" +
-	"series: 16\n" +
 	"os: core\n" +
 	"architecture: amd64\n" +
 	"gadget: brand-gadget\n" +
@@ -70,9 +70,9 @@ func (mods *modelSuite) TestDecodeOK(c *C) {
 	model := a.(*asserts.Model)
 	c.Check(model.AuthorityID(), Equals, "brand-id1")
 	c.Check(model.Timestamp(), Equals, mods.ts)
+	c.Check(model.Series(), Equals, "16")
 	c.Check(model.BrandID(), Equals, "brand-id1")
 	c.Check(model.Model(), Equals, "baz-3000")
-	c.Check(model.Series(), Equals, "16")
 	c.Check(model.Class(), Equals, "fixed")
 	c.Check(model.OS(), Equals, "core")
 	c.Check(model.Architecture(), Equals, "amd64")
@@ -90,7 +90,7 @@ const (
 func (mods *modelSuite) TestDecodeInvalidMandatory(c *C) {
 	encoded := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
 
-	mandatoryHeaders := []string{"brand-id", "model", "series", "os", "architecture", "gadget", "kernel", "store", "allowed-modes", "required-snaps", "class", "timestamp"}
+	mandatoryHeaders := []string{"series", "brand-id", "model", "os", "architecture", "gadget", "kernel", "store", "allowed-modes", "required-snaps", "class", "timestamp"}
 
 	for _, mandatory := range mandatoryHeaders {
 		invalid := strings.Replace(encoded, mandatory+":", "xyz:", 1)

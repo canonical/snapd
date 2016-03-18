@@ -17,17 +17,11 @@
  *
  */
 
-package state
+// Package snapstate implements the manager and state aspects responsible for the installation and removal of snaps.
+package snapstate
 
-import (
-	"time"
-)
+type BackendIF backendIF
 
-// ChangeUnlockCheckpointRetryParamsForTest let's a test change unlockcheckpointRetryInterval and unlockCheckpointRetryMaxTime.
-func ChangeUnlockCheckpointRetryParamsForTest(newInterval, newMaxTime time.Duration) (oldInterval, oldMaxTime time.Duration) {
-	oldInterval = unlockCheckpointRetryInterval
-	oldMaxTime = unlockCheckpointRetryMaxTime
-	unlockCheckpointRetryInterval = newInterval
-	unlockCheckpointRetryMaxTime = newMaxTime
-	return
+func SetSnapManagerBackend(s *SnapManager, b BackendIF) {
+	s.backend = b
 }
