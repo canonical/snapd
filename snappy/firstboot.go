@@ -29,7 +29,6 @@ import (
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/progress"
-	"github.com/ubuntu-core/snappy/snap"
 
 	"gopkg.in/yaml.v2"
 )
@@ -130,9 +129,9 @@ var getActivator = func() activator {
 	return &Overlord{}
 }
 
-// enableSystemSnaps activates the installed kernel/os/gadget snaps
+// enableInstalledSnaps activates the installed preinstalled snaps
 // on the first boot
-func enableSystemSnaps() error {
+func enableInstalledSnaps() error {
 	repo := NewLocalSnapRepository()
 	all, err := repo.Installed()
 	if err != nil {
@@ -142,13 +141,10 @@ func enableSystemSnaps() error {
 	activator := getActivator()
 	pb := progress.MakeProgressBar()
 	for _, sn := range all {
-		switch sn.Type() {
-		case snap.TypeGadget, snap.TypeKernel, snap.TypeOS:
-			logger.Noticef("Acitvating %s", FullName(sn.Info()))
-			if err := activator.SetActive(sn, true, pb); err != nil {
-				// we don't want this to fail for now
-				logger.Noticef("failed to activate %s: %s", FullName(sn.Info()), err)
-			}
+		logger.Noticef("Acitvating %s", FullName(sn.Info()))
+		if err := activator.SetActive(sn, true, pb); err != nil {
+			// we don't want this to fail for now
+			logger.Noticef("failed to activate %s: %s", FullName(sn.Info()), err)
 		}
 	}
 
@@ -165,7 +161,7 @@ func FirstBoot() error {
 	defer stampFirstBoot()
 	defer enableFirstEther()
 
-	if err := enableSystemSnaps(); err != nil {
+	if err := enableInstalledSnaps(); err != nil {
 		return err
 	}
 
