@@ -24,6 +24,8 @@ package ifacestate
 import (
 	"fmt"
 
+	"gopkg.in/tomb.v2"
+
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/interfaces/builtin"
@@ -79,7 +81,7 @@ func (m *InterfaceManager) Init(s *state.State) error {
 	return nil
 }
 
-func (m *InterfaceManager) doConnect(task *state.Task) error {
+func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	task.State().Lock()
 	defer task.State().Unlock()
 
@@ -103,8 +105,13 @@ func (m *InterfaceManager) Ensure() error {
 	return nil
 }
 
+// Wait implements StateManager.Wait.
+func (m *InterfaceManager) Wait() {
+	m.runner.Wait()
+}
+
 // Stop implements StateManager.Stop.
-func (m *InterfaceManager) Stop() error {
+func (m *InterfaceManager) Stop() {
 	m.runner.Stop()
-	return nil
+
 }

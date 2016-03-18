@@ -114,8 +114,10 @@ func (wm *witnessManager) Ensure() error {
 	return nil
 }
 
-func (wm *witnessManager) Stop() error {
-	return nil
+func (wm *witnessManager) Stop() {
+}
+
+func (wm *witnessManager) Wait() {
 }
 
 func (ovs *overlordSuite) TestTrivialRunAndStop(c *C) {

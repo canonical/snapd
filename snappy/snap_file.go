@@ -21,10 +21,8 @@ package snappy
 
 import (
 	"path/filepath"
-	"time"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 )
 
@@ -83,6 +81,18 @@ func (s *SnapFile) Type() snap.Type {
 	return "app"
 }
 
+// Info returns the snap.Info data.
+func (s *SnapFile) Info() *snap.Info {
+	if info, err := s.deb.Info(); err == nil {
+		// Developer is something that is not part of the snap
+		// squashfs itself, it comes from a external source
+		// like the store.
+		info.Developer = s.developer
+		return info
+	}
+	return nil
+}
+
 // Name returns the name
 func (s *SnapFile) Name() string {
 	return s.m.Name
@@ -93,72 +103,7 @@ func (s *SnapFile) Version() string {
 	return s.m.Version
 }
 
-// Channel returns the channel used
-func (s *SnapFile) Channel() string {
-	return ""
-}
-
-// Config is used to to configure the snap
-func (s *SnapFile) Config(configuration []byte) (new string, err error) {
-	return "", err
-}
-
-// Date returns the last update date
-func (s *SnapFile) Date() time.Time {
-	return time.Time{}
-}
-
-// Description returns the description of the snap
-func (s *SnapFile) Description() string {
-	return ""
-}
-
-// DownloadSize returns the download size
-func (s *SnapFile) DownloadSize() int64 {
-	return 0
-}
-
-// InstalledSize returns the installed size
-func (s *SnapFile) InstalledSize() int64 {
-	return 0
-}
-
-// Hash returns the hash
-func (s *SnapFile) Hash() string {
-	return ""
-}
-
-// Icon returns the icon
-func (s *SnapFile) Icon() string {
-	return ""
-}
-
-// IsActive returns whether it is active.
-func (s *SnapFile) IsActive() bool {
-	return false
-}
-
-// IsInstalled returns if its installed
-func (s *SnapFile) IsInstalled() bool {
-	return false
-}
-
-// NeedsReboot tells if the snap needs rebooting
-func (s *SnapFile) NeedsReboot() bool {
-	return false
-}
-
 // Developer returns the developer
 func (s *SnapFile) Developer() string {
 	return s.developer
-}
-
-// Frameworks returns the list of frameworks needed by the snap
-func (s *SnapFile) Frameworks() ([]string, error) {
-	return s.m.Frameworks, nil
-}
-
-// Install installs the snap
-func (s *SnapFile) Install(inter progress.Meter, flags InstallFlags) (name string, err error) {
-	return "", ErrNotImplemented
 }

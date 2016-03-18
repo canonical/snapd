@@ -63,7 +63,7 @@ func (s *purgeSuite) TestPurgeNonExistingRaisesError(c *C) {
 	c.Check(inter.notified, HasLen, 0)
 }
 
-func (s *purgeSuite) mkpkg(c *C, args ...string) (dataDirs []string, part *Snap) {
+func (s *purgeSuite) mkpkg(c *C, args ...string) (dataDirs []string, snap *Snap) {
 	version := "1.10"
 	extra := ""
 	switch len(args) {
@@ -93,18 +93,18 @@ func (s *purgeSuite) mkpkg(c *C, args ...string) (dataDirs []string, part *Snap)
 	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
 	c.Assert(err, IsNil)
 
-	part, err = NewInstalledSnap(yamlFile, testDeveloper)
+	snap, err = NewInstalledSnap(yamlFile, testDeveloper)
 	c.Assert(err, IsNil)
 
 	dataDirs = []string{dataDir, dataHomeDir}
 
-	return dataDirs, part
+	return dataDirs, snap
 }
 
 func (s *purgeSuite) TestPurgeActiveRaisesError(c *C) {
 	inter := &MockProgressMeter{}
-	_, part := s.mkpkg(c)
-	c.Assert(part.activate(true, inter), IsNil)
+	_, snap := s.mkpkg(c)
+	c.Assert(snap.activate(true, inter), IsNil)
 
 	err := Purge("hello-snap", 0, inter)
 	c.Check(err, Equals, ErrStillActive)
@@ -127,8 +127,8 @@ func (s *purgeSuite) TestPurgeInactiveOK(c *C) {
 
 func (s *purgeSuite) TestPurgeActiveExplicitOK(c *C) {
 	inter := &MockProgressMeter{}
-	ddirs, part := s.mkpkg(c)
-	c.Assert(part.activate(true, inter), IsNil)
+	ddirs, snap := s.mkpkg(c)
+	c.Assert(snap.activate(true, inter), IsNil)
 
 	for _, ddir := range ddirs {
 		canary := filepath.Join(ddir, "canary")
@@ -147,12 +147,12 @@ func (s *purgeSuite) TestPurgeActiveExplicitOK(c *C) {
 
 func (s *purgeSuite) TestPurgeActiveRestartServices(c *C) {
 	inter := &MockProgressMeter{}
-	ddirs, part := s.mkpkg(c, "v1", `apps:
+	ddirs, snap := s.mkpkg(c, "v1", `apps:
  svc:
   command: foo
   daemon: forking
 `)
-	c.Assert(part.activate(true, inter), IsNil)
+	c.Assert(snap.activate(true, inter), IsNil)
 	for _, ddir := range ddirs {
 		canary := filepath.Join(ddir, "canary")
 		c.Assert(os.Mkdir(canary, 0755), IsNil)
@@ -233,9 +233,9 @@ func (s *purgeSuite) TestPurgeMultiContinuesOnFail(c *C) {
 
 func (s *purgeSuite) TestPurgeRemovedWorks(c *C) {
 	inter := &MockProgressMeter{}
-	ddirs, part := s.mkpkg(c)
+	ddirs, snap := s.mkpkg(c)
 
-	err := (&Overlord{}).Uninstall(part, &MockProgressMeter{})
+	err := (&Overlord{}).Uninstall(snap, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	for _, ddir := range ddirs {
 		c.Check(osutil.FileExists(ddir), Equals, true)

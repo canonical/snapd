@@ -63,16 +63,16 @@ func installRemote(mStore *SnapUbuntuStoreRepository, remoteSnap *RemoteSnap, fl
 	return localSnap.Name(), nil
 }
 
-func doUpdate(mStore *SnapUbuntuStoreRepository, part Part, flags InstallFlags, meter progress.Meter) error {
-	_, err := installRemote(mStore, part.(*RemoteSnap), flags, meter)
+func doUpdate(mStore *SnapUbuntuStoreRepository, rsnap *RemoteSnap, flags InstallFlags, meter progress.Meter) error {
+	_, err := installRemote(mStore, rsnap, flags, meter)
 	if err == ErrSideLoaded {
-		logger.Noticef("Skipping sideloaded package: %s", part.Name())
+		logger.Noticef("Skipping sideloaded package: %s", rsnap.Name())
 		return nil
 	} else if err != nil {
 		return err
 	}
 
-	if err := GarbageCollect(part.Name(), flags, meter); err != nil {
+	if err := GarbageCollect(rsnap.Name(), flags, meter); err != nil {
 		return err
 	}
 
@@ -90,7 +90,7 @@ func doUpdate(mStore *SnapUbuntuStoreRepository, part Part, flags InstallFlags, 
 //
 //
 // convertToInstalledSnaps takes a slice of remote snaps that got
-// updated and returns the corresponding local snap parts.
+// updated and returns the corresponding local snaps
 func convertToInstalledSnaps(remoteUpdates []*RemoteSnap) ([]*Snap, error) {
 	installed, err := NewLocalSnapRepository().Installed()
 	if err != nil {
@@ -98,9 +98,9 @@ func convertToInstalledSnaps(remoteUpdates []*RemoteSnap) ([]*Snap, error) {
 	}
 
 	installedUpdates := make([]*Snap, 0, len(remoteUpdates))
-	for _, part := range remoteUpdates {
+	for _, snap := range remoteUpdates {
 		for _, installed := range installed {
-			if part.Name() == installed.Name() && part.Version() == installed.Version() {
+			if snap.Name() == installed.Name() && snap.Version() == installed.Version() {
 				installedUpdates = append(installedUpdates, installed)
 			}
 		}
@@ -150,7 +150,7 @@ func Update(name string, flags InstallFlags, meter progress.Meter) ([]*Snap, err
 	return installedUpdates, nil
 }
 
-// UpdateAll the installed snappy packages, it returns the updated Parts
+// UpdateAll the installed snappy packages, it returns the updated Snaps
 // if updates where available and an error and nil if any of the updates
 // fail to apply.
 func UpdateAll(flags InstallFlags, meter progress.Meter) ([]*Snap, error) {
@@ -160,9 +160,9 @@ func UpdateAll(flags InstallFlags, meter progress.Meter) ([]*Snap, error) {
 		return nil, err
 	}
 
-	for _, part := range updates {
-		meter.Notify(fmt.Sprintf("Updating %s (%s)", part.Name(), part.Version()))
-		if err := doUpdate(mStore, part, flags, meter); err != nil {
+	for _, snap := range updates {
+		meter.Notify(fmt.Sprintf("Updating %s (%s)", snap.Name(), snap.Version()))
+		if err := doUpdate(mStore, snap, flags, meter); err != nil {
 			return nil, err
 		}
 	}
@@ -193,7 +193,7 @@ func doInstall(name, channel string, flags InstallFlags, meter progress.Meter) (
 		}
 	}()
 
-	// consume local parts
+	// consume local snaps
 	if fi, err := os.Stat(name); err == nil && fi.Mode().IsRegular() {
 		// we allow unauthenticated package when in developer
 		// mode
@@ -211,27 +211,27 @@ func doInstall(name, channel string, flags InstallFlags, meter progress.Meter) (
 		return "", err
 	}
 
-	part, err := mStore.Snap(name, channel)
+	snap, err := mStore.Snap(name, channel)
 	if err != nil {
 		return "", err
 	}
 
-	cur := FindSnapsByNameAndVersion(QualifiedName(part), part.Version(), installed)
+	cur := FindSnapsByNameAndVersion(QualifiedName(snap.Info()), snap.Version(), installed)
 	if len(cur) != 0 {
 		return "", ErrAlreadyInstalled
 	}
-	if PackageNameActive(part.Name()) {
+	if PackageNameActive(snap.Name()) {
 		return "", ErrPackageNameAlreadyInstalled
 	}
 
-	return installRemote(mStore, part, flags, meter)
+	return installRemote(mStore, snap, flags, meter)
 }
 
 // GarbageCollect removes all versions two older than the current active
 // version, as long as NeedsReboot() is false on all the versions found, and
 // DoInstallGC is set.
 func GarbageCollect(name string, flags InstallFlags, pb progress.Meter) error {
-	var parts BySnapVersion
+	var snaps BySnapVersion
 
 	if (flags & DoInstallGC) == 0 {
 		return nil
@@ -242,24 +242,24 @@ func GarbageCollect(name string, flags InstallFlags, pb progress.Meter) error {
 		return err
 	}
 
-	parts = FindSnapsByName(name, installed)
-	if len(parts) < 3 {
+	snaps = FindSnapsByName(name, installed)
+	if len(snaps) < 3 {
 		// not enough things installed to do gc
 		return nil
 	}
 
-	sort.Sort(parts)
-	active := -1 // active is the index of the active part in parts (-1 if no active part)
+	sort.Sort(snaps)
+	active := -1 // active is the index of the active snap in snaps (-1 if no active snap)
 
-	for i, part := range parts {
-		if part.IsActive() {
+	for i, snap := range snaps {
+		if snap.IsActive() {
 			if active > -1 {
 				return ErrGarbageCollectImpossible("more than one active (should not happen).")
 			}
 			active = i
 		}
-		if part.NeedsReboot() {
-			return nil // don't do gc on parts that need reboot.
+		if snap.NeedsReboot() {
+			return nil // don't do gc on snaps that need reboot.
 		}
 	}
 
@@ -268,8 +268,8 @@ func GarbageCollect(name string, flags InstallFlags, pb progress.Meter) error {
 		return nil
 	}
 
-	for _, part := range parts[:active-1] {
-		if err := (&Overlord{}).Uninstall(part, pb); err != nil {
+	for _, snap := range snaps[:active-1] {
+		if err := (&Overlord{}).Uninstall(snap, pb); err != nil {
 			return ErrGarbageCollectImpossible(err.Error())
 		}
 	}

@@ -65,13 +65,15 @@ func Test(t *testing.T) {
 		report.NewSubunitV2ParserReporter(&report.FileReporter{}))
 	runner.TestingT(t, output)
 
-	cfg, err := config.ReadConfig(config.DefaultFileName)
-	if err != nil {
-		t.Fatalf("Error reading config: %v", err)
-	}
+	if _, err := os.Stat(config.DefaultFileName); err == nil {
+		cfg, err := config.ReadConfig(config.DefaultFileName)
+		if err != nil {
+			t.Fatalf("Error reading config: %v", err)
+		}
 
-	if err := tearDownSnapd(cfg.FromBranch); err != nil {
-		t.Fatalf("Error stopping daemon: %v", err)
+		if err := tearDownSnapd(cfg.FromBranch); err != nil {
+			t.Fatalf("Error stopping daemon: %v", err)
+		}
 	}
 }
 

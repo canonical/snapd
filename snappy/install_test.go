@@ -52,10 +52,10 @@ func (s *SnapTestSuite) TestInstallInstall(c *C) {
 	all, err := NewLocalSnapRepository().Installed()
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
-	part := all[0]
-	c.Check(part.Name(), Equals, name)
-	c.Check(part.IsInstalled(), Equals, true)
-	c.Check(part.IsActive(), Equals, true)
+	snap := all[0]
+	c.Check(snap.Name(), Equals, name)
+	c.Check(snap.IsInstalled(), Equals, true)
+	c.Check(snap.IsActive(), Equals, true)
 }
 
 func (s *SnapTestSuite) TestInstallNoHook(c *C) {
@@ -67,10 +67,10 @@ func (s *SnapTestSuite) TestInstallNoHook(c *C) {
 	all, err := NewLocalSnapRepository().Installed()
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
-	part := all[0]
-	c.Check(part.Name(), Equals, name)
-	c.Check(part.IsInstalled(), Equals, true)
-	c.Check(part.IsActive(), Equals, false) // c.f. TestInstallInstall
+	snap := all[0]
+	c.Check(snap.Name(), Equals, name)
+	c.Check(snap.IsInstalled(), Equals, true)
+	c.Check(snap.IsActive(), Equals, false) // c.f. TestInstallInstall
 }
 
 func (s *SnapTestSuite) TestInstallInstallLicense(c *C) {
@@ -201,9 +201,9 @@ func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "hello-snap.manifest"), []byte(`{"name": "hello-snap"}`), 0644), IsNil)
 	ag := &progress.NullProgress{}
-	part, err := NewInstalledSnap(yamlFile, "potato")
+	snap, err := NewInstalledSnap(yamlFile, "potato")
 	c.Assert(err, IsNil)
-	c.Assert(part.activate(true, ag), IsNil)
+	c.Assert(snap.activate(true, ag), IsNil)
 	current := ActiveSnapByName("hello-snap")
 	c.Assert(current, NotNil)
 
