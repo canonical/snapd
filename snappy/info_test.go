@@ -68,7 +68,7 @@ type: framework`)
 	makeSnapActive(yamlPath)
 
 	type T struct {
-		f func(Part) string
+		f func(*snap.Info) string
 		t snap.Type
 		n string
 	}
