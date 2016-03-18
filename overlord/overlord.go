@@ -78,7 +78,6 @@ func New() (*Overlord, error) {
 	}
 	o.snapMgr = snapMgr
 	o.stateEng.AddManager(o.snapMgr)
-	snapMgr.Init(s)
 
 	assertMgr, err := assertstate.Manager()
 	if err != nil {
