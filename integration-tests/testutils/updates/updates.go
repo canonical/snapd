@@ -23,8 +23,10 @@ package updates
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/check.v1"
 
@@ -95,7 +97,16 @@ func makeFakeUpdateForSnap(c *check.C, snap, targetDir string, changeFunc Change
 }
 
 func copySnap(c *check.C, snap, targetDir string) {
-	sourceDir := filepath.Join("/snaps", snap, "current")
+	// check for sideloaded snaps
+	baseDir := filepath.Join("/snaps", snap)
+	if _, err := os.Stat(baseDir); os.IsNotExist(err) {
+		snapName := strings.Split(snap, ".")[0]
+		baseDir = filepath.Join("/snaps", snapName+".sideload")
+		_, err = os.Stat(baseDir)
+		c.Assert(err, check.IsNil,
+			check.Commentf("%s not found from it's original source not sideloaded", snap))
+	}
+	sourceDir := filepath.Join(baseDir, "current")
 	files, err := filepath.Glob(filepath.Join(sourceDir, "*"))
 	c.Assert(err, check.IsNil)
 	for _, m := range files {
