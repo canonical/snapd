@@ -55,7 +55,7 @@ func (s *SnapLocalRepository) Snaps(name, origin string) ([]*Snap, error) {
 	return s.snapsForGlobExpr(globExpr)
 }
 
-func (s *SnapLocalRepository) snapsForGlobExpr(globExpr string) (parts []*Snap, err error) {
+func (s *SnapLocalRepository) snapsForGlobExpr(globExpr string) (snaps []*Snap, err error) {
 	matches, err := filepath.Glob(globExpr)
 	if err != nil {
 		return nil, err
@@ -77,11 +77,11 @@ func (s *SnapLocalRepository) snapsForGlobExpr(globExpr string) (parts []*Snap, 
 		if err != nil {
 			return nil, err
 		}
-		parts = append(parts, snap)
+		snaps = append(snaps, snap)
 
 	}
 
-	return parts, nil
+	return snaps, nil
 }
 
 func developerFromBasedir(basedir string) (s string) {
@@ -98,7 +98,7 @@ func developerFromYamlPath(path string) (string, error) {
 	developer := developerFromBasedir(filepath.Join(path, "..", ".."))
 
 	if developer == "" {
-		return "", ErrInvalidPart
+		return "", ErrInvalidSnap
 	}
 
 	return developer, nil
