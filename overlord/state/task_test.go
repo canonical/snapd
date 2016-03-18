@@ -225,6 +225,8 @@ func (ts *taskSuite) TestTaskWaitFor(c *C) {
 
 	c.Assert(t2.WaitTasks(), DeepEquals, []*state.Task{t1})
 	c.Assert(t2.Status(), Equals, state.WaitingStatus)
+
+	c.Assert(t1.HaltTasks(), DeepEquals, []*state.Task{t2})
 }
 
 func (cs *taskSuite) TestWaitForNeedsLocked(c *C) {
@@ -246,4 +248,14 @@ func (cs *taskSuite) TestWaitTasksNeedsLocked(c *C) {
 	st.Unlock()
 
 	c.Assert(func() { t.WaitTasks() }, PanicMatches, "internal error: accessing state without lock")
+}
+
+func (cs *taskSuite) TestHaltTasksNeedsLocked(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	t := chg.NewTask("download", "1...")
+	st.Unlock()
+
+	c.Assert(func() { t.HaltTasks() }, PanicMatches, "internal error: accessing state without lock")
 }

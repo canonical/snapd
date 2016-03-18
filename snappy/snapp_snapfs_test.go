@@ -102,11 +102,11 @@ version: 1.10
 
 func (s *SquashfsTestSuite) TestMakeSnapMakesSquashfs(c *C) {
 	snapPkg := makeTestSnapPackage(c, packageHello)
-	part, err := NewSnapFile(snapPkg, "developer", true)
+	snap, err := NewSnapFile(snapPkg, "developer", true)
 	c.Assert(err, IsNil)
 
 	// ensure the right backend got picked up
-	c.Assert(part.deb, FitsTypeOf, &squashfs.Snap{})
+	c.Assert(snap.deb, FitsTypeOf, &squashfs.Snap{})
 }
 
 func (s *SquashfsTestSuite) TestInstallViaSquashfsWorks(c *C) {
@@ -174,10 +174,10 @@ func (s *SquashfsTestSuite) TestRemoveViaSquashfsWorks(c *C) {
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-snap.developer_1.10.snap")), Equals, true)
 
 	// now remove and ensure its gone
-	part, err := NewSnapFile(snapFile, "developer", true)
+	snap, err := NewSnapFile(snapFile, "developer", true)
 	c.Assert(err, IsNil)
-	installedPart, err := newSnapFromYaml(filepath.Join(part.instdir, "meta", "package.yaml"), part.developer, part.m)
-	err = (&Overlord{}).Uninstall(installedPart, &MockProgressMeter{})
+	installedSnap, err := newSnapFromYaml(filepath.Join(snap.instdir, "meta", "package.yaml"), snap.developer, snap.m)
+	err = (&Overlord{}).Uninstall(installedSnap, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-snap.developer_1.10.snap")), Equals, false)
 
@@ -263,11 +263,11 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapRemovesKernelAssets(c *C) {
 	c.Assert(osutil.FileExists(kernelAssetsDir), Equals, true)
 
 	// ensure uninstall cleans the kernel assets
-	part, err := NewSnapFile(snapPkg, "developer", true)
+	snap, err := NewSnapFile(snapPkg, "developer", true)
 	c.Assert(err, IsNil)
-	installedPart, err := newSnapFromYaml(filepath.Join(part.instdir, "meta", "package.yaml"), part.developer, part.m)
-	installedPart.isActive = false
-	err = (&Overlord{}).Uninstall(installedPart, &MockProgressMeter{})
+	installedSnap, err := newSnapFromYaml(filepath.Join(snap.instdir, "meta", "package.yaml"), snap.developer, snap.m)
+	installedSnap.isActive = false
+	err = (&Overlord{}).Uninstall(installedSnap, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	c.Assert(osutil.FileExists(kernelAssetsDir), Equals, false)
 }
@@ -285,10 +285,10 @@ func (s *SquashfsTestSuite) TestActiveKernelNotRemovable(c *C) {
 
 func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernelErrors(c *C) {
 	snapPkg := makeTestSnapPackage(c, packageHello)
-	part, err := NewSnapFile(snapPkg, "developer", true)
+	snap, err := NewSnapFile(snapPkg, "developer", true)
 	c.Assert(err, IsNil)
 
-	err = extractKernelAssets(part, nil, 0)
+	err = extractKernelAssets(snap, nil, 0)
 	c.Assert(err, ErrorMatches, `can not extract kernel assets from snap type "app"`)
 }
 
@@ -296,10 +296,10 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapRemoveAssetsWrongType(c *C) {
 	snapYaml, err := makeInstalledMockSnap(dirs.GlobalRootDir, packageHello)
 	c.Assert(err, IsNil)
 
-	part, err := NewInstalledSnap(snapYaml, testDeveloper)
+	snap, err := NewInstalledSnap(snapYaml, testDeveloper)
 	c.Assert(err, IsNil)
 
-	err = removeKernelAssets(part, nil)
+	err = removeKernelAssets(snap, nil)
 	c.Assert(err, ErrorMatches, `can not remove kernel assets from snap type "app"`)
 }
 
