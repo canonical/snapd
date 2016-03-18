@@ -237,7 +237,8 @@ func (ovs *overlordSuite) TestCheckpoint(c *C) {
 }
 
 type runnerManager struct {
-	runner *state.TaskRunner
+	runner         *state.TaskRunner
+	ensureCallback func()
 }
 
 func newRunnerManager(s *state.State) *runnerManager {
@@ -259,11 +260,21 @@ func newRunnerManager(s *state.State) *runnerManager {
 		s.Set("runMgr2Mark", 1)
 		return nil
 	})
+	rm.runner.AddHandler("runMgrEnsureBefore", func(t *state.Task, _ *tomb.Tomb) error {
+		s := t.State()
+		s.Lock()
+		defer s.Unlock()
+		s.EnsureBefore(20 * time.Millisecond)
+		return nil
+	})
 
 	return rm
 }
 
 func (rm *runnerManager) Ensure() error {
+	if rm.ensureCallback != nil {
+		rm.ensureCallback()
+	}
 	rm.runner.Ensure()
 	return nil
 }
@@ -343,4 +354,44 @@ func (ovs *overlordSuite) TestSettleChain(c *C) {
 	c.Check(err, IsNil)
 	err = s.Get("runMgr2Mark", &v)
 	c.Check(err, IsNil)
+}
+
+func (ovs *overlordSuite) TestExplicitEnsureBefore(c *C) {
+	restoreIntv := overlord.SetEnsureIntervalForTest(1 * time.Minute)
+	defer restoreIntv()
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	se := o.StateEngine()
+	s := se.State()
+	rm1 := newRunnerManager(s)
+	rm1.ensureCallback = func() {
+		s.Lock()
+		defer s.Unlock()
+		v := 0
+		s.Get("ensureCount", &v)
+		s.Set("ensureCount", v+1)
+	}
+
+	se.AddManager(rm1)
+
+	o.Run()
+	defer o.Stop()
+
+	s.Lock()
+	defer s.Unlock()
+
+	chg := s.NewChange("chg", "...")
+	t := chg.NewTask("runMgrEnsureBefore", "...")
+	s.Unlock()
+
+	o.Settle()
+
+	s.Lock()
+	c.Check(t.Status(), Equals, state.DoneStatus)
+
+	var v int
+	err = s.Get("ensureCount", &v)
+	c.Check(err, IsNil)
+	c.Check(v, Equals, 2)
 }
