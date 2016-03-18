@@ -90,6 +90,9 @@ func (r *TaskRunner) run(fn HandlerFunc, task *Task) {
 	tomb := &tomb.Tomb{}
 	r.tombs[task.ID()] = tomb
 	tomb.Go(func() error {
+		// capture the error result with tomb.Kill so we can
+		// use tomb.Err uniformily to consider both it or a
+		// overriding previous Kill reason.
 		tomb.Kill(fn(task, tomb))
 
 		r.state.Lock()
