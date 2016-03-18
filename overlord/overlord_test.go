@@ -298,8 +298,7 @@ func (ovs *overlordSuite) TestTrivialSettle(c *C) {
 	rm1 := newRunnerManager(s)
 	se.AddManager(rm1)
 
-	o.Run()
-	defer o.Stop()
+	defer o.StateEngine().Stop()
 
 	s.Lock()
 	defer s.Unlock()
@@ -330,8 +329,7 @@ func (ovs *overlordSuite) TestSettleChain(c *C) {
 	rm1 := newRunnerManager(s)
 	se.AddManager(rm1)
 
-	o.Run()
-	defer o.Stop()
+	defer o.StateEngine().Stop()
 
 	s.Lock()
 	defer s.Unlock()
@@ -375,8 +373,7 @@ func (ovs *overlordSuite) TestSettleExplicitEnsureBefore(c *C) {
 
 	se.AddManager(rm1)
 
-	o.Run()
-	defer o.Stop()
+	defer o.StateEngine().Stop()
 
 	s.Lock()
 	defer s.Unlock()
