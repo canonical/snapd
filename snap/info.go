@@ -19,7 +19,7 @@
 
 package snap
 
-// Info provides information about packages
+// Info provides information about snaps.
 type Info struct {
 	Name        string
 	Developer   string

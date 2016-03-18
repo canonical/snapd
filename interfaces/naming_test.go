@@ -1,4 +1,4 @@
-// -*- Mode: Go; indent-tabs-mode: t -*-
+// -*- Mote: Go; indent-tabs-mode: t -*-
 
 /*
  * Copyright (C) 2016 Canonical Ltd
@@ -17,17 +17,28 @@
  *
  */
 
-package state
+package interfaces_test
 
 import (
-	"time"
+	. "gopkg.in/check.v1"
+
+	. "github.com/ubuntu-core/snappy/interfaces"
 )
 
-// ChangeUnlockCheckpointRetryParamsForTest let's a test change unlockcheckpointRetryInterval and unlockCheckpointRetryMaxTime.
-func ChangeUnlockCheckpointRetryParamsForTest(newInterval, newMaxTime time.Duration) (oldInterval, oldMaxTime time.Duration) {
-	oldInterval = unlockCheckpointRetryInterval
-	oldMaxTime = unlockCheckpointRetryMaxTime
-	unlockCheckpointRetryInterval = newInterval
-	unlockCheckpointRetryMaxTime = newMaxTime
-	return
+type NamingSuite struct{}
+
+var _ = Suite(&NamingSuite{})
+
+// Tests for WrapperNameForApp()
+
+func (s *NamingSuite) TestWrapperNameForApp(c *C) {
+	c.Assert(WrapperNameForApp("snap", "app"), Equals, "snap.app")
+	c.Assert(WrapperNameForApp("foo", "foo"), Equals, "foo")
+}
+
+// Tests for SecurityTagForApp()
+
+func (s *NamingSuite) TestSecurityTagForApp(c *C) {
+	c.Assert(SecurityTagForApp("snap", "app"), Equals, "snap.app.snap")
+	c.Assert(SecurityTagForApp("foo", "foo"), Equals, "foo.snap")
 }

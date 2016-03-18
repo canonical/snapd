@@ -25,8 +25,8 @@ import (
 	"gopkg.in/tomb.v2"
 )
 
-// HandlerFunc is the type of function for the hanlders
-type HandlerFunc func(task *Task) error
+// HandlerFunc is the type of function for the handlers
+type HandlerFunc func(task *Task, tomb *tomb.Tomb) error
 
 // TaskRunner controls the running of goroutines to execute known task kinds.
 type TaskRunner struct {
@@ -63,21 +63,42 @@ func (r *TaskRunner) Handlers() map[string]HandlerFunc {
 	return r.handlers
 }
 
+// taskFail marks task t and all tasks waiting (directly and indirectly on it) as in ErrorStatus.
+func taskFail(task *Task) {
+	task.SetStatus(ErrorStatus)
+	mark := append([]*Task(nil), task.HaltTasks()...)
+	i := 0
+	for i < len(mark) {
+		t := mark[i]
+		if t.Status() == WaitingStatus {
+			t.SetStatus(ErrorStatus)
+			mark = append(mark, t.HaltTasks()...)
+		}
+		i++
+	}
+}
+
 // run must be called with the state lock in place
 func (r *TaskRunner) run(fn HandlerFunc, task *Task) {
-	r.tombs[task.ID()] = &tomb.Tomb{}
-	r.tombs[task.ID()].Go(func() error {
-		err := fn(task)
+	task.SetStatus(RunningStatus) // could have been set to waiting
+	tomb := &tomb.Tomb{}
+	r.tombs[task.ID()] = tomb
+	tomb.Go(func() error {
+		err := fn(task, tomb)
 
 		r.state.Lock()
 		defer r.state.Unlock()
+		halted := task.HaltTasks()
 		if err == nil {
 			task.SetStatus(DoneStatus)
+			if len(halted) > 0 {
+				// give a chance to taskrunners Ensure to start
+				// the waiting ones
+				r.state.EnsureBefore(0)
+			}
 		} else {
-			task.SetStatus(ErrorStatus)
+			taskFail(task)
 		}
-		delete(r.tombs, task.ID())
-
 		return err
 	})
 }
@@ -103,6 +124,12 @@ func (r *TaskRunner) Ensure() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	for id, tb := range r.tombs {
+		if !tb.Alive() {
+			delete(r.tombs, id)
+		}
+	}
+
 	for _, chg := range r.state.Changes() {
 		if chg.Status() == DoneStatus {
 			continue
@@ -110,8 +137,10 @@ func (r *TaskRunner) Ensure() {
 
 		tasks := chg.Tasks()
 		for _, t := range tasks {
-			// done, nothing to do
-			if t.Status() == DoneStatus {
+			// done or error are final, nothing to do
+			// TODO: actually for error progate to halted and their waited
+			status := t.Status()
+			if status == DoneStatus || status == ErrorStatus {
 				continue
 			}
 
@@ -142,14 +171,33 @@ func (r *TaskRunner) Ensure() {
 	}
 }
 
-// Stop stops all concurrent activities and returns after that's done.
-// Note that Stop will lock the state.
+// Stop kills all concurrent activities and returns after that's done.
 func (r *TaskRunner) Stop() {
-	r.state.Lock()
-	defer r.state.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
 	for _, tb := range r.tombs {
 		tb.Kill(nil)
+	}
+
+	for id, tb := range r.tombs {
 		tb.Wait()
+		delete(r.tombs, id)
+	}
+}
+
+// Wait waits for all concurrent activities and returns after that's done.
+func (r *TaskRunner) Wait() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for len(r.tombs) > 0 {
+		for id, t := range r.tombs {
+			r.mu.Unlock()
+			t.Wait()
+			r.mu.Lock()
+			delete(r.tombs, id)
+			break
+		}
 	}
 }

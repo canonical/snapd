@@ -91,6 +91,7 @@ func (cs *clientSuite) TestClientAsserts(c *C) {
 	cs.header.Add("X-Ubuntu-Assertions-Count", "2")
 	cs.rsp = `type: snap-revision
 authority-id: store-id1
+series: 16
 snap-id: snap-id-1
 snap-digest: sha256 ...
 snap-revision: 1
@@ -104,6 +105,7 @@ openpgp ...
 
 type: snap-revision
 authority-id: store-id1
+series: 16
 snap-id: snap-id-2
 snap-digest: sha256 ...
 snap-revision: 1
