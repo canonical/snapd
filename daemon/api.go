@@ -694,8 +694,18 @@ func (inst *snapInstruction) update() interface{} {
 	if inst.LeaveOld {
 		flags = 0
 	}
+	state := inst.overlord.StateEngine().State()
+	state.Lock()
+	msg := fmt.Sprintf(i18n.G("Update %q snap"), inst.pkg)
+	if inst.Channel != "stable" {
+		msg = fmt.Sprintf(i18n.G("Update %q snap from %q channel"), inst.pkg, inst.Channel)
+	}
+	chg := state.NewChange("update-snap", msg)
+	err := snapstate.Update(chg, inst.pkg, inst.Channel, flags)
+	state.Unlock()
 
-	_, err := snappy.Update(inst.pkg, flags, inst)
+	inst.overlord.SnapManager().Ensure()
+	waitChange(chg)
 	return err
 }
 

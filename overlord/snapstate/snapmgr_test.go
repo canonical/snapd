@@ -53,6 +53,13 @@ func (f *fakeSnappyBackend) Install(name, channel string, flags snappy.InstallFl
 	return "", nil
 }
 
+func (f *fakeSnappyBackend) Update(name, channel string, flags snappy.InstallFlags, p progress.Meter) error {
+	f.op = "update"
+	f.name = name
+	f.channel = channel
+	return nil
+}
+
 func (f *fakeSnappyBackend) Remove(name string, flags snappy.RemoveFlags, p progress.Meter) error {
 	f.op = "remove"
 	f.name = name
@@ -124,4 +131,20 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 
 	c.Assert(s.fakeBackend.op, Equals, "remove")
 	c.Assert(s.fakeBackend.name, Equals, "some-remove-snap")
+}
+
+func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
+	s.state.Lock()
+	chg := s.state.NewChange("udpate", "update a snap")
+	err := snapstate.Update(chg, "some-update-snap", "some-channel", 0)
+	s.state.Unlock()
+
+	c.Assert(err, IsNil)
+	s.snapmgr.Ensure()
+	s.snapmgr.Wait()
+	defer s.snapmgr.Stop()
+
+	c.Assert(s.fakeBackend.op, Equals, "update")
+	c.Assert(s.fakeBackend.name, Equals, "some-update-snap")
+	c.Assert(s.fakeBackend.channel, Equals, "some-channel")
 }

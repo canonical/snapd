@@ -44,6 +44,19 @@ func Install(change *state.Change, snap, channel string, flags snappy.InstallFla
 	return nil
 }
 
+// Update initiates a change updating a snap.
+// Note that the state must be locked by the caller.
+func Update(change *state.Change, snap, channel string, flags snappy.InstallFlags) error {
+	t := change.NewTask("update-snap", fmt.Sprintf(i18n.G("Updating %q"), snap))
+	t.Set("state", installState{
+		Name:    snap,
+		Channel: channel,
+		Flags:   flags,
+	})
+
+	return nil
+}
+
 // Remove initiates a change removing snap.
 // Note that the state must be locked by the caller.
 func Remove(change *state.Change, snap string, flags snappy.RemoveFlags) error {
@@ -59,12 +72,19 @@ func Remove(change *state.Change, snap string, flags snappy.RemoveFlags) error {
 type backendIF interface {
 	Install(name, channel string, flags snappy.InstallFlags, meter progress.Meter) (string, error)
 	Remove(name string, flags snappy.RemoveFlags, meter progress.Meter) error
+	Update(name, channel string, flags snappy.InstallFlags, meter progress.Meter) error
 }
 
 type defaultBackend struct{}
 
 func (s *defaultBackend) Install(name, channel string, flags snappy.InstallFlags, meter progress.Meter) (string, error) {
 	return snappy.Install(name, channel, flags, meter)
+}
+
+func (s *defaultBackend) Update(name, channel string, flags snappy.InstallFlags, meter progress.Meter) error {
+	// FIXME: support "channel" in snappy.Update()
+	_, err := snappy.Update(name, flags, meter)
+	return err
 }
 
 func (s *defaultBackend) Remove(name string, flags snappy.RemoveFlags, meter progress.Meter) error {
@@ -108,6 +128,19 @@ func (m *SnapManager) doInstallSnap(t *state.Task, _ *tomb.Tomb) error {
 	return err
 }
 
+func (m *SnapManager) doUpdateSnap(t *state.Task, _ *tomb.Tomb) error {
+	var inst installState
+	t.State().Lock()
+	if err := t.Get("state", &inst); err != nil {
+		return err
+	}
+	t.State().Unlock()
+
+	err := m.backend.Update(inst.Name, inst.Channel, inst.Flags, &progress.NullProgress{})
+	t.Logf("doUpdateSnap: %s from %s: %v", inst.Name, inst.Channel, err)
+	return err
+}
+
 func (m *SnapManager) doRemoveSnap(t *state.Task, _ *tomb.Tomb) error {
 	var rm removeState
 
@@ -130,6 +163,7 @@ func (m *SnapManager) Init(s *state.State) error {
 	m.backend = &defaultBackend{}
 
 	m.runner.AddHandler("install-snap", m.doInstallSnap)
+	m.runner.AddHandler("update-snap", m.doUpdateSnap)
 	m.runner.AddHandler("remove-snap", m.doRemoveSnap)
 
 	return nil
