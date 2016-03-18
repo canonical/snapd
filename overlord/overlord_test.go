@@ -356,7 +356,7 @@ func (ovs *overlordSuite) TestSettleChain(c *C) {
 	c.Check(err, IsNil)
 }
 
-func (ovs *overlordSuite) TestExplicitEnsureBefore(c *C) {
+func (ovs *overlordSuite) TestSettleExplicitEnsureBefore(c *C) {
 	restoreIntv := overlord.SetEnsureIntervalForTest(1 * time.Minute)
 	defer restoreIntv()
 	o, err := overlord.New()
