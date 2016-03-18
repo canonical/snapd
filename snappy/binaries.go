@@ -80,7 +80,6 @@ cd $SNAP_DATA
 ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 `
 
-	// it's fine for this to error out; we might be in a framework or sth
 	developer := developerFromBasedir(pkgPath)
 
 	if err := verifyAppYaml(app); err != nil {
