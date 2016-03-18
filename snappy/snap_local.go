@@ -55,17 +55,17 @@ func NewInstalledSnap(yamlPath, developer string) (*Snap, error) {
 		return nil, err
 	}
 
-	part, err := newSnapFromYaml(yamlPath, developer, m)
+	snap, err := newSnapFromYaml(yamlPath, developer, m)
 	if err != nil {
 		return nil, err
 	}
 
-	return part, nil
+	return snap, nil
 }
 
 // newSnapFromYaml returns a new Snap from the given *snapYaml at yamlPath
 func newSnapFromYaml(yamlPath, developer string, m *snapYaml) (*Snap, error) {
-	part := &Snap{
+	snap := &Snap{
 		basedir:   filepath.Dir(filepath.Dir(yamlPath)),
 		developer: developer,
 		m:         m,
@@ -74,20 +74,20 @@ func newSnapFromYaml(yamlPath, developer string, m *snapYaml) (*Snap, error) {
 	// override the package's idea of its version
 	// because that could have been rewritten on sideload
 	// and developer is empty for frameworks, even sideloaded ones.
-	m.Version = filepath.Base(part.basedir)
+	m.Version = filepath.Base(snap.basedir)
 
-	// check if the part is active
-	allVersionsDir := filepath.Dir(part.basedir)
+	// check if the snap is active
+	allVersionsDir := filepath.Dir(snap.basedir)
 	p, err := filepath.EvalSymlinks(filepath.Join(allVersionsDir, "current"))
 	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
 
-	if p == part.basedir {
-		part.isActive = true
+	if p == snap.basedir {
+		snap.isActive = true
 	}
 
-	remoteManifestPath := RemoteManifestPath(part.Info())
+	remoteManifestPath := RemoteManifestPath(snap.Info())
 	if osutil.FileExists(remoteManifestPath) {
 		content, err := ioutil.ReadFile(remoteManifestPath)
 		if err != nil {
@@ -98,10 +98,10 @@ func newSnapFromYaml(yamlPath, developer string, m *snapYaml) (*Snap, error) {
 		if err := yaml.Unmarshal(content, &r); err != nil {
 			return nil, &ErrInvalidYaml{File: remoteManifestPath, Err: err, Yaml: content}
 		}
-		part.remoteM = &r
+		snap.remoteM = &r
 	}
 
-	return part, nil
+	return snap, nil
 }
 
 // Type returns the type of the Snap (app, gadget, ...)
@@ -253,15 +253,15 @@ func (s *Snap) activate(inhibitHooks bool, inter interacter) error {
 		return nil
 	}
 
-	// there is already an active part
+	// there is already an active snap
 	if currentActiveDir != "" {
 		// TODO: support switching developers
 		oldYaml := filepath.Join(currentActiveDir, "meta", "snap.yaml")
-		oldPart, err := NewInstalledSnap(oldYaml, s.developer)
+		oldSnap, err := NewInstalledSnap(oldYaml, s.developer)
 		if err != nil {
 			return err
 		}
-		if err := oldPart.deactivate(inhibitHooks, inter); err != nil {
+		if err := oldSnap.deactivate(inhibitHooks, inter); err != nil {
 			return err
 		}
 	}
@@ -385,7 +385,7 @@ func (s *Snap) Frameworks() ([]string, error) {
 // DependentNames returns a list of the names of apps installed that
 // depend on this one
 //
-// /!\ not part of the Part interface.
+// /!\ not snap of the Snap interface.
 func (s *Snap) DependentNames() ([]string, error) {
 	deps, err := s.Dependents()
 	if err != nil {
@@ -402,7 +402,7 @@ func (s *Snap) DependentNames() ([]string, error) {
 
 // Dependents gives the list of apps installed that depend on this one
 //
-// /!\ not part of the Part interface.
+// /!\ not snap of the Snap interface.
 func (s *Snap) Dependents() ([]*Snap, error) {
 	if s.Type() != snap.TypeFramework {
 		// only frameworks are depended on
@@ -471,10 +471,10 @@ func (s *Snap) RequestSecurityPolicyUpdate(policies, templates map[string]bool) 
 }
 
 // RefreshDependentsSecurity refreshes the security policies of dependent snaps
-func (s *Snap) RefreshDependentsSecurity(oldPart *Snap, inter interacter) (err error) {
+func (s *Snap) RefreshDependentsSecurity(oldSnap *Snap, inter interacter) (err error) {
 	oldBaseDir := ""
-	if oldPart != nil {
-		oldBaseDir = oldPart.basedir
+	if oldSnap != nil {
+		oldBaseDir = oldSnap.basedir
 	}
 	upPol, upTpl := policy.AppArmorDelta(oldBaseDir, s.basedir, s.Name()+"_")
 

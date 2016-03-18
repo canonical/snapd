@@ -443,10 +443,10 @@ func (s *SnapTestSuite) TestUbuntuStoreFind(c *C) {
 	repo := NewUbuntuStoreSnapRepository()
 	c.Assert(repo, NotNil)
 
-	parts, err := repo.FindSnaps("foo", "")
+	snaps, err := repo.FindSnaps("foo", "")
 	c.Assert(err, IsNil)
-	c.Assert(parts, HasLen, 1)
-	c.Check(parts[0].Name(), Equals, funkyAppName)
+	c.Assert(snaps, HasLen, 1)
+	c.Check(snaps[0].Name(), Equals, funkyAppName)
 }
 
 func mockActiveSnapIterByType(mockSnaps []string) {
@@ -866,9 +866,9 @@ type: gadget
 	c.Assert(r, NotNil)
 	installed, err := r.Installed()
 	c.Assert(err, IsNil)
-	parts := FindSnapsByName("hello-snap", installed)
-	c.Assert(parts, HasLen, 1)
-	c.Check(s.overlord.Uninstall(parts[0], p), Equals, ErrPackageNotRemovable)
+	snaps := FindSnapsByName("hello-snap", installed)
+	c.Assert(snaps, HasLen, 1)
+	c.Check(s.overlord.Uninstall(snaps[0], p), Equals, ErrPackageNotRemovable)
 }
 
 var securityBinarySnapYaml = []byte(`name: test-snap
@@ -1052,13 +1052,13 @@ frameworks:
 version: 1.0
 type: framework`), false)
 	c.Assert(err, IsNil)
-	part := &Snap{m: yaml}
-	deps, err := part.Dependents()
+	snap := &Snap{m: yaml}
+	deps, err := snap.Dependents()
 	c.Assert(err, IsNil)
 	c.Check(deps, HasLen, 1)
 	c.Check(deps[0].Name(), Equals, "foo")
 
-	names, err := part.DependentNames()
+	names, err := snap.DependentNames()
 	c.Assert(err, IsNil)
 	c.Check(names, DeepEquals, []string{"foo"})
 }
@@ -1101,8 +1101,8 @@ apps:
 
 	pb := &MockProgressMeter{}
 	m, err := parseSnapYamlData([]byte(yaml), false)
-	part := &Snap{m: m, developer: testDeveloper, basedir: d1}
-	c.Assert(part.RefreshDependentsSecurity(&Snap{basedir: d2}, pb), IsNil)
+	snap := &Snap{m: m, developer: testDeveloper, basedir: d1}
+	c.Assert(snap.RefreshDependentsSecurity(&Snap{basedir: d2}, pb), IsNil)
 	// TODO: verify it was updated
 }
 
@@ -1120,8 +1120,8 @@ frameworks:
 `)
 	c.Assert(err, IsNil)
 
-	part := &Snap{m: yaml, developer: testDeveloper}
-	err = s.overlord.Uninstall(part, new(MockProgressMeter))
+	snap := &Snap{m: yaml, developer: testDeveloper}
+	err = s.overlord.Uninstall(snap, new(MockProgressMeter))
 	c.Check(err, ErrorMatches, `framework still in use by: foo`)
 }
 
@@ -1167,9 +1167,9 @@ func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateService(c *C) {
 		Name:     "svc",
 		PlugsRef: []string{"svc"},
 	}
-	part := &Snap{
+	snap := &Snap{
 		m: &snapYaml{
-			Name:    "part",
+			Name:    "snap",
 			Apps:    map[string]*AppYaml{"svc": svc},
 			Version: "42",
 			Plugs: map[string]*plugYaml{
@@ -1179,21 +1179,21 @@ func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateService(c *C) {
 			},
 		},
 		developer: testDeveloper,
-		basedir:   filepath.Join(dirs.SnapSnapsDir, "part."+testDeveloper, "42"),
+		basedir:   filepath.Join(dirs.SnapSnapsDir, "snap."+testDeveloper, "42"),
 	}
-	err := part.RequestSecurityPolicyUpdate(nil, map[string]bool{"foo": true})
+	err := snap.RequestSecurityPolicyUpdate(nil, map[string]bool{"foo": true})
 	c.Assert(err, NotNil)
 }
 
 func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateBinary(c *C) {
-	// if one of the binaries needs updating, the part needs updating
+	// if one of the binaries needs updating, the snap needs updating
 	bin := &AppYaml{
 		Name:     "echo",
 		PlugsRef: []string{"echo"},
 	}
-	part := &Snap{
+	snap := &Snap{
 		m: &snapYaml{
-			Name:    "part",
+			Name:    "snap",
 			Apps:    map[string]*AppYaml{"echo": bin},
 			Version: "42",
 			Plugs: map[string]*plugYaml{
@@ -1203,9 +1203,9 @@ func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateBinary(c *C) {
 			},
 		},
 		developer: testDeveloper,
-		basedir:   filepath.Join(dirs.SnapSnapsDir, "part."+testDeveloper, "42"),
+		basedir:   filepath.Join(dirs.SnapSnapsDir, "snap."+testDeveloper, "42"),
 	}
-	err := part.RequestSecurityPolicyUpdate(nil, map[string]bool{"foo": true})
+	err := snap.RequestSecurityPolicyUpdate(nil, map[string]bool{"foo": true})
 	c.Check(err, NotNil) // XXX: we should do better than this
 }
 
@@ -1218,7 +1218,7 @@ func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateNothing(c *C) {
 		Name:     "echo",
 		PlugsRef: []string{"echo"},
 	}
-	part := &Snap{
+	snap := &Snap{
 		m: &snapYaml{
 			Apps: map[string]*AppYaml{
 				"svc":  svc,
@@ -1236,7 +1236,7 @@ func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateNothing(c *C) {
 		},
 		developer: testDeveloper,
 	}
-	err := part.RequestSecurityPolicyUpdate(nil, nil)
+	err := snap.RequestSecurityPolicyUpdate(nil, nil)
 	c.Check(err, IsNil)
 }
 
@@ -1460,22 +1460,22 @@ func (s *SnapTestSuite) TestChannelFromLocalManifest(c *C) {
 
 func (s *SnapTestSuite) TestIcon(c *C) {
 	snapYaml, err := s.makeInstalledMockSnap()
-	part, err := NewInstalledSnap(snapYaml, testDeveloper)
+	snap, err := NewInstalledSnap(snapYaml, testDeveloper)
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Join(part.basedir, "meta", "gui"), 0755)
+	err = os.MkdirAll(filepath.Join(snap.basedir, "meta", "gui"), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(part.basedir, "meta", "gui", "icon.png"), nil, 0644)
+	err = ioutil.WriteFile(filepath.Join(snap.basedir, "meta", "gui", "icon.png"), nil, 0644)
 	c.Assert(err, IsNil)
 
-	c.Check(part.Icon(), Matches, filepath.Join(dirs.SnapSnapsDir, QualifiedName(part.Info()), part.Version(), "meta/gui/icon.png"))
+	c.Check(snap.Icon(), Matches, filepath.Join(dirs.SnapSnapsDir, QualifiedName(snap.Info()), snap.Version(), "meta/gui/icon.png"))
 }
 
 func (s *SnapTestSuite) TestIconEmpty(c *C) {
 	snapYaml, err := s.makeInstalledMockSnap(`name: foo
 version: 1.0
 `)
-	part, err := NewInstalledSnap(snapYaml, testDeveloper)
+	snap, err := NewInstalledSnap(snapYaml, testDeveloper)
 	c.Assert(err, IsNil)
 	// no icon in the yaml!
-	c.Check(part.Icon(), Equals, "")
+	c.Check(snap.Icon(), Equals, "")
 }
