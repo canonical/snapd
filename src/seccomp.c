@@ -49,6 +49,21 @@ int seccomp_load_filters(const char *filter_profile)
    if (ctx == NULL)
       return ENOMEM;
 
+   // Disable NO_NEW_PRIVS because it interferes with exec transitions in
+   // AppArmor. Unfortunately this means that security policies must be very
+   // careful to not allow, otherwise apps can escape the seccomp sandbox:
+   //   - seccomp syscall
+   //   - prctl with PR_SET_SECCOMP
+   //   - ptrace (trace) in AppArmor
+   //   - capability sys_admin in AppArmor
+   // Note that with NO_NEW_PRIVS disabled, CAP_SYS_ADMIN is required to change
+   // the seccomp sandbox.
+   rc = seccomp_attr_set(ctx, SCMP_FLTATR_CTL_NNP, 0);
+   if (rc != 0) {
+      fprintf(stderr, "Cannot disable nnp\n");
+      return -1;
+   }
+
    if (getenv("SNAPPY_LAUNCHER_SECCOMP_PROFILE_DIR") != NULL)
       filter_profile_dir = getenv("SNAPPY_LAUNCHER_SECCOMP_PROFILE_DIR");
 
