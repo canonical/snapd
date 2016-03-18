@@ -30,16 +30,19 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 
 	"github.com/ubuntu-core/snappy/asserts"
 	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/lockfile"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/overlord"
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
+	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snappy"
@@ -637,21 +640,44 @@ func (inst *snapInstruction) Agreed(intro, license string) bool {
 
 var snappyInstall = snappy.Install
 
+func waitChange(chg *state.Change) error {
+	for {
+		chg.State().Lock()
+		status := chg.Status()
+		chg.State().Unlock()
+		switch status {
+		case state.DoneStatus:
+			return nil
+		case state.ErrorStatus:
+			// FIXME: fish out the error from the failed
+			//        task and pass it on here instead of
+			//        making an error up
+			return fmt.Errorf("change %q failed", chg.ID())
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+}
+
 func (inst *snapInstruction) install() interface{} {
-	// FIXME: handle license agreement
 	flags := snappy.DoInstallGC
 	if inst.LeaveOld {
 		flags = 0
 	}
 	state := inst.overlord.StateEngine().State()
 	state.Lock()
-	chg := state.NewChange("install-snap", fmt.Sprintf("Installing %s from %s", inst.pkg, inst.Channel))
+	msg := fmt.Sprintf(i18n.G("Install %q snap"), inst.pkg)
+	if inst.Channel != "stable" {
+		msg = fmt.Sprintf(i18n.G("Install %q snap from %q channel"), inst.pkg, inst.Channel)
+	}
+	chg := state.NewChange("install-snap", msg)
 	err := snapstate.Install(chg, inst.pkg, inst.Channel, flags)
 	state.Unlock()
 
 	inst.overlord.SnapManager().Ensure()
-	inst.overlord.SnapManager().Wait()
+	waitChange(chg)
 	return err
+	// FIXME: handle license agreement need to happen in the above
+	//        code
 	/*
 		_, err := snappyInstall(inst.pkg, inst.Channel, flags, inst)
 		if err != nil {
@@ -680,12 +706,13 @@ func (inst *snapInstruction) remove() interface{} {
 	}
 	state := inst.overlord.StateEngine().State()
 	state.Lock()
-	chg := state.NewChange("remove-snap", fmt.Sprintf("Removing %s", inst.pkg))
+	msg := fmt.Sprintf(i18n.G("Remove %q snap"), inst.pkg)
+	chg := state.NewChange("remove-snap", msg)
 	err := snapstate.Remove(chg, inst.pkg, flags)
 	state.Unlock()
 
 	inst.overlord.SnapManager().Ensure()
-	inst.overlord.SnapManager().Wait()
+	waitChange(chg)
 	return err
 }
 
