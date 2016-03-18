@@ -238,6 +238,16 @@ func (s *State) Changes() []*Change {
 	return res
 }
 
+// Tasks returns all tasks currently known to the state.
+func (s *State) Tasks() []*Task {
+	s.ensureLocked()
+	res := make([]*Task, 0, len(s.tasks))
+	for _, t := range s.tasks {
+		res = append(res, t)
+	}
+	return res
+}
+
 // ReadState returns the state deserialized from r.
 func ReadState(backend Backend, r io.Reader) (*State, error) {
 	s := new(State)

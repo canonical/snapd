@@ -20,6 +20,7 @@
 package state
 
 import (
+	"errors"
 	"sync"
 
 	"gopkg.in/tomb.v2"
@@ -27,6 +28,11 @@ import (
 
 // HandlerFunc is the type of function for the handlers
 type HandlerFunc func(task *Task, tomb *tomb.Tomb) error
+
+// Retry is returned from a handler to signal that is ok to rerun the
+// task at a later point. It's to be used also when a task goroutine
+// is asked to stop through its tomb.
+var Retry = errors.New("task should be retried")
 
 // TaskRunner controls the running of goroutines to execute known task kinds.
 type TaskRunner struct {
@@ -63,24 +69,50 @@ func (r *TaskRunner) Handlers() map[string]HandlerFunc {
 	return r.handlers
 }
 
+// taskFail marks task t and all tasks waiting (directly and indirectly on it) as in ErrorStatus.
+func taskFail(task *Task) {
+	task.SetStatus(ErrorStatus)
+	mark := append([]*Task(nil), task.HaltTasks()...)
+	i := 0
+	for i < len(mark) {
+		t := mark[i]
+		if t.Status() == WaitingStatus {
+			t.SetStatus(ErrorStatus)
+			mark = append(mark, t.HaltTasks()...)
+		}
+		i++
+	}
+}
+
 // run must be called with the state lock in place
 func (r *TaskRunner) run(fn HandlerFunc, task *Task) {
 	task.SetStatus(RunningStatus) // could have been set to waiting
 	tomb := &tomb.Tomb{}
 	r.tombs[task.ID()] = tomb
 	tomb.Go(func() error {
-		err := fn(task, tomb)
+		// capture the error result with tomb.Kill so we can
+		// use tomb.Err uniformily to consider both it or a
+		// overriding previous Kill reason.
+		tomb.Kill(fn(task, tomb))
 
 		r.state.Lock()
 		defer r.state.Unlock()
-		if err == nil {
+		switch tomb.Err() {
+		case Retry:
+			// Do nothing. Handler asked to try again later.
+			// TODO: define how to control retry intervals,
+			// right now things will be retried at the next Ensure
+		case nil:
 			task.SetStatus(DoneStatus)
-		} else {
-			task.SetStatus(ErrorStatus)
+			if len(task.HaltTasks()) > 0 {
+				// give a chance to taskrunners Ensure to start
+				// the waiting ones
+				r.state.EnsureBefore(0)
+			}
+		default:
+			taskFail(task)
 		}
-		// TODO: trigger ensure if we have halted
-
-		return err
+		return nil
 	})
 }
 

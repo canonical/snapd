@@ -934,7 +934,7 @@ func GeneratePolicyFromFile(fn string, force bool) error {
 	if m.Type == "" || m.Type == snap.TypeApp {
 		_, err = developerFromYamlPath(fn)
 		if err != nil {
-			if err == ErrInvalidPart {
+			if err == ErrInvalidSnap {
 				err = errDeveloperNotFound
 			}
 			return err
@@ -959,8 +959,8 @@ func RegenerateAllPolicy(force bool) error {
 		return err
 	}
 
-	for _, part := range installed {
-		basedir := part.basedir
+	for _, snap := range installed {
+		basedir := snap.basedir
 		yFn := filepath.Join(basedir, "meta", "snap.yaml")
 
 		// FIXME: use ErrPolicyNeedsRegenerating here to check if

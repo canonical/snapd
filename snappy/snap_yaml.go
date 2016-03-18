@@ -200,13 +200,13 @@ func (m *snapYaml) qualifiedName(developer string) string {
 }
 
 func checkForPackageInstalled(m *snapYaml, developer string) error {
-	part := ActiveSnapByName(m.Name)
-	if part == nil {
+	snap := ActiveSnapByName(m.Name)
+	if snap == nil {
 		return nil
 	}
 
-	if part.Developer() != developer {
-		return fmt.Errorf("package %q is already installed with developer %q your developer is %q", m.Name, part.Developer(), developer)
+	if snap.Developer() != developer {
+		return fmt.Errorf("package %q is already installed with developer %q your developer is %q", m.Name, snap.Developer(), developer)
 	}
 
 	return nil
