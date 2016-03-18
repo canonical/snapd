@@ -67,10 +67,10 @@ func newSnapMapImpl() (map[string]*Snap, error) {
 	}
 
 	m := make(map[string]*Snap, 2*len(all))
-	for _, part := range all {
-		info := part.Info()
-		m[FullName(info)] = part
-		m[BareName(info)] = part
+	for _, snap := range all {
+		info := snap.Info()
+		m[FullName(info)] = snap
+		m[BareName(info)] = snap
 	}
 
 	return m, nil
@@ -141,13 +141,13 @@ func enableSystemSnaps() error {
 
 	activator := getActivator()
 	pb := progress.MakeProgressBar()
-	for _, part := range all {
-		switch part.Type() {
+	for _, sn := range all {
+		switch sn.Type() {
 		case snap.TypeGadget, snap.TypeKernel, snap.TypeOS:
-			logger.Noticef("Acitvating %s", FullName(part.Info()))
-			if err := activator.SetActive(part, true, pb); err != nil {
+			logger.Noticef("Acitvating %s", FullName(sn.Info()))
+			if err := activator.SetActive(sn, true, pb); err != nil {
 				// we don't want this to fail for now
-				logger.Noticef("failed to activate %s: %s", FullName(part.Info()), err)
+				logger.Noticef("failed to activate %s: %s", FullName(sn.Info()), err)
 			}
 		}
 	}
