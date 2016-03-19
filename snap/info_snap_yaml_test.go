@@ -591,6 +591,8 @@ plugs:
     foo-socket:
         interface: socket
         # $protocol: foo
+    logging:
+        interface: syslog
 slots:
     foo-socket:
         interface: socket
@@ -607,7 +609,7 @@ slots:
 	c.Check(info.Channel, Equals, "")
 	c.Check(info.Description, Equals, "Foo provides useful services\n")
 	c.Check(info.Apps, HasLen, 2)
-	c.Check(info.Plugs, HasLen, 3)
+	c.Check(info.Plugs, HasLen, 4)
 	c.Check(info.Slots, HasLen, 2)
 
 	app1 := info.Apps["daemon"]
@@ -615,31 +617,35 @@ slots:
 	plug1 := info.Plugs["network"]
 	plug2 := info.Plugs["network-bind"]
 	plug3 := info.Plugs["foo-socket"]
+	plug4 := info.Plugs["logging"]
 	slot1 := info.Slots["foo-socket"]
 	slot2 := info.Slots["tracing"]
 
-	// app1 ("daemon") has two plugs ("network", "network-bind") and two slots
-	// ("foo-socket", "tracing"). The slot "tracing" is global, everything else
-	// is app-bound.
+	// app1 ("daemon") has three plugs ("network", "network-bind", "logging")
+	// and two slots ("foo-socket", "tracing"). The slot "tracing" and plug
+	// "logging" are global, everything else is app-bound.
 
 	c.Assert(app1, Not(IsNil))
 	c.Check(app1.Snap, Equals, info)
 	c.Check(app1.Name, Equals, "daemon")
 	c.Check(app1.Command, Equals, "foo --daemon")
 	c.Check(app1.Plugs, DeepEquals, map[string]*snap.PlugInfo{
-		plug1.Name: plug1, plug2.Name: plug2})
+		plug1.Name: plug1, plug2.Name: plug2, plug4.Name: plug4})
 	c.Check(app1.Slots, DeepEquals, map[string]*snap.SlotInfo{
 		slot1.Name: slot1, slot2.Name: slot2})
 
-	// app2 ("foo") has one plug ("foo-socket") and one slot ( "tracing"). The
-	// slot "tracing" is global while "foo-socket" is app-bound.
+	// app2 ("foo") has two plugs ("foo-socket", "logging") and one slot
+	// ("tracing"). The slot "tracing" and plug "logging" are  global while
+	// "foo-socket" is app-bound.
 
 	c.Assert(app2, Not(IsNil))
 	c.Check(app2.Snap, Equals, info)
 	c.Check(app2.Name, Equals, "foo")
 	c.Check(app2.Command, Equals, "fooctl")
-	c.Check(app2.Plugs, DeepEquals, map[string]*snap.PlugInfo{plug3.Name: plug3})
-	c.Check(app2.Slots, DeepEquals, map[string]*snap.SlotInfo{slot2.Name: slot2})
+	c.Check(app2.Plugs, DeepEquals, map[string]*snap.PlugInfo{
+		plug3.Name: plug3, plug4.Name: plug4})
+	c.Check(app2.Slots, DeepEquals, map[string]*snap.SlotInfo{
+		slot2.Name: slot2})
 
 	// plug1 ("network") is implicitly defined and app-bound to "daemon"
 
@@ -670,6 +676,17 @@ slots:
 	c.Check(plug3.Attrs, HasLen, 0)
 	c.Check(plug3.Label, Equals, "")
 	c.Check(plug3.Apps, DeepEquals, map[string]*snap.AppInfo{app2.Name: app2})
+
+	// plug4 ("logging") is global so it is bound to all apps
+
+	c.Assert(plug4, Not(IsNil))
+	c.Check(plug4.Snap, Equals, info)
+	c.Check(plug4.Name, Equals, "logging")
+	c.Check(plug4.Interface, Equals, "syslog")
+	c.Check(plug4.Attrs, HasLen, 0)
+	c.Check(plug4.Label, Equals, "")
+	c.Check(plug4.Apps, DeepEquals, map[string]*snap.AppInfo{
+		app1.Name: app1, app2.Name: app2})
 
 	// slot1 ("foo-socket") is app-bound to "daemon"
 
