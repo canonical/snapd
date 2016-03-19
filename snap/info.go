@@ -58,28 +58,8 @@ type SlotInfo struct {
 type AppInfo struct {
 	Snap *Info
 
-	Name string
-
-	// TODO: rest of the app fields
-
-	plugs []string
-	slots []string
-}
-
-// Plugs returns all of the plugs bound to this application.
-func (app *AppInfo) Plugs() []*PlugInfo {
-	plugs := make([]*PlugInfo, 0, len(app.plugs))
-	for _, name := range app.plugs {
-		plugs = append(plugs, app.Snap.Plugs[name])
-	}
-	return plugs
-}
-
-// Slots returns all of the slots bound to this application.
-func (app *AppInfo) Slots() []*SlotInfo {
-	slots := make([]*SlotInfo, 0, len(app.slots))
-	for _, name := range app.slots {
-		slots = append(slots, app.Snap.Slots[name])
-	}
-	return slots
+	Name    string
+	Command string
+	Plugs   map[string]*PlugInfo
+	Slots   map[string]*SlotInfo
 }

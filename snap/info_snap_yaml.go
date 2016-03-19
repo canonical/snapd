@@ -53,6 +53,7 @@ type slotYaml struct {
 }
 
 type appYaml struct {
+	Command   string   `yaml:"command"`
 	SlotNames []string `yaml:"slots,omitempty"`
 	PlugNames []string `yaml:"plugs,omitempty"`
 }
@@ -104,15 +105,6 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 			Apps:      make(map[string]*AppInfo),
 		}
 	}
-	// Collect definitions of apps
-	for name, app := range y.Apps {
-		snap.Apps[name] = &AppInfo{
-			Snap:  snap,
-			Name:  name,
-			slots: app.SlotNames,
-			plugs: app.PlugNames,
-		}
-	}
 	// Collect app-level implicit definitions of plugs and slots
 	for _, app := range y.Apps {
 		for _, name := range app.PlugNames {
@@ -136,42 +128,46 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 			}
 		}
 	}
+	// Collect definitions of apps
+	for name, app := range y.Apps {
+		snap.Apps[name] = &AppInfo{
+			Snap:    snap,
+			Name:    name,
+			Command: app.Command,
+			Plugs:   make(map[string]*PlugInfo),
+			Slots:   make(map[string]*SlotInfo),
+		}
+	}
 	// Bind apps to plugs and slots
-	for appName, app := range y.Apps {
-		for _, slotName := range app.SlotNames {
-			snap.Slots[slotName].Apps[appName] = snap.Apps[appName]
-		}
-		for _, plugName := range app.PlugNames {
-			snap.Plugs[plugName].Apps[appName] = snap.Apps[appName]
-		}
-	}
-	// Bind unbound plugs and slots to all apps
-	for _, plug := range snap.Plugs {
-		if len(plug.Apps) == 0 {
-			for name := range y.Apps {
-				plug.Apps[name] = snap.Apps[name]
+	for appName, app := range snap.Apps {
+		if len(y.Apps[appName].PlugNames) > 0 {
+			// Bind only plugs explicitly listed in this app
+			for _, plugName := range y.Apps[appName].PlugNames {
+				plug := snap.Plugs[plugName]
+				app.Plugs[plugName] = plug
+				plug.Apps[appName] = app
+			}
+		} else {
+			// Bind all plugs defined at the top level
+			for plugName := range y.Plugs {
+				plug := snap.Plugs[plugName]
+				app.Plugs[plugName] = plug
+				plug.Apps[appName] = app
 			}
 		}
-	}
-	for _, slot := range snap.Slots {
-		if len(slot.Apps) == 0 {
-			for name := range y.Apps {
-				slot.Apps[name] = snap.Apps[name]
+		if len(y.Apps[appName].SlotNames) > 0 {
+			// Bind only slots explicitly listed in this app
+			for _, slotName := range y.Apps[appName].SlotNames {
+				slot := snap.Slots[slotName]
+				app.Slots[slotName] = slot
+				slot.Apps[appName] = app
 			}
-		}
-	}
-	// Bind unbound apps to all plugs and slots
-	for _, app := range snap.Apps {
-		// NOTE: This used Plugs and Slots so that implicitly defined
-		// (non-top-level) plugs and slots don't get bound here.
-		if len(app.plugs) == 0 {
-			for name := range y.Plugs {
-				app.plugs = append(app.plugs, name)
-			}
-		}
-		if len(app.slots) == 0 {
-			for name := range y.Slots {
-				app.slots = append(app.slots, name)
+		} else {
+			// Bind all slots defined at the top level
+			for slotName := range y.Slots {
+				slot := snap.Slots[slotName]
+				app.Slots[slotName] = slot
+				slot.Apps[appName] = app
 			}
 		}
 	}
