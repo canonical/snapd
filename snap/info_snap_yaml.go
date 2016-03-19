@@ -178,6 +178,7 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 }
 
 func convertToSlotOrPlugData(plugOrSlot, name string, data interface{}) (iface string, attrs map[string]interface{}, err error) {
+	iface = name
 	switch data.(type) {
 	case map[interface{}]interface{}:
 		for keyData, valueData := range data.(map[interface{}]interface{}) {
@@ -203,9 +204,6 @@ func convertToSlotOrPlugData(plugOrSlot, name string, data interface{}) (iface s
 				}
 				attrs[key] = valueData
 			}
-		}
-		if iface == "" {
-			return "", nil, fmt.Errorf("%s %q doesn't define interface name", plugOrSlot, name)
 		}
 		return iface, attrs, nil
 	case string:
