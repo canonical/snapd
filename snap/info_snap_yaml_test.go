@@ -199,7 +199,7 @@ apps:
 	c.Check(plug.Interface, Equals, "network-client")
 	c.Check(plug.Attrs, HasLen, 0)
 	c.Check(plug.Snap, Equals, info)
-	c.Check(plug.Apps(), DeepEquals, []*snap.AppInfo{app})
+	c.Check(plug.Apps, DeepEquals, map[string]*snap.AppInfo{"app": app})
 
 	c.Assert(app, Not(IsNil))
 	c.Check(app.Plugs(), DeepEquals, []*snap.PlugInfo{plug})
@@ -229,7 +229,7 @@ apps:
 	c.Check(plug.Interface, Equals, "network-client")
 	c.Check(plug.Attrs, HasLen, 0)
 	c.Check(plug.Snap, Equals, info)
-	c.Check(plug.Apps(), DeepEquals, []*snap.AppInfo{app})
+	c.Check(plug.Apps, DeepEquals, map[string]*snap.AppInfo{"app": app})
 
 	c.Assert(app, Not(IsNil))
 	c.Check(app.Plugs(), DeepEquals, []*snap.PlugInfo{plug})
@@ -257,7 +257,7 @@ apps:
 	c.Check(plug.Interface, Equals, "network-client")
 	c.Check(plug.Attrs, HasLen, 0)
 	c.Check(plug.Snap, Equals, info)
-	c.Check(plug.Apps(), DeepEquals, []*snap.AppInfo{app})
+	c.Check(plug.Apps, DeepEquals, map[string]*snap.AppInfo{"app": app})
 
 	c.Assert(app, Not(IsNil))
 	c.Check(app.Plugs(), DeepEquals, []*snap.PlugInfo{plug})
@@ -449,7 +449,7 @@ apps:
 	c.Check(slot.Interface, Equals, "network-client")
 	c.Check(slot.Attrs, HasLen, 0)
 	c.Check(slot.Snap, Equals, info)
-	c.Check(slot.Apps(), DeepEquals, []*snap.AppInfo{app})
+	c.Check(slot.Apps, DeepEquals, map[string]*snap.AppInfo{"app": app})
 
 	c.Assert(app, Not(IsNil))
 	c.Check(app.Plugs(), HasLen, 0)
@@ -479,7 +479,7 @@ apps:
 	c.Check(slot.Interface, Equals, "network-client")
 	c.Check(slot.Attrs, HasLen, 0)
 	c.Check(slot.Snap, Equals, info)
-	c.Check(slot.Apps(), DeepEquals, []*snap.AppInfo{app})
+	c.Check(slot.Apps, DeepEquals, map[string]*snap.AppInfo{"app": app})
 
 	c.Assert(app, Not(IsNil))
 	c.Check(app.Plugs(), HasLen, 0)
@@ -507,7 +507,7 @@ apps:
 	c.Check(slot.Interface, Equals, "network-client")
 	c.Check(slot.Attrs, HasLen, 0)
 	c.Check(slot.Snap, Equals, info)
-	c.Check(slot.Apps(), DeepEquals, []*snap.AppInfo{app})
+	c.Check(slot.Apps, DeepEquals, map[string]*snap.AppInfo{"app": app})
 
 	c.Assert(app, Not(IsNil))
 	c.Check(app.Plugs(), HasLen, 0)
