@@ -180,6 +180,10 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 func convertToSlotOrPlugData(plugOrSlot, name string, data interface{}) (iface string, attrs map[string]interface{}, err error) {
 	iface = name
 	switch data.(type) {
+	case string:
+		return data.(string), nil, nil
+	case nil:
+		return name, nil, nil
 	case map[interface{}]interface{}:
 		for keyData, valueData := range data.(map[interface{}]interface{}) {
 			key, ok := keyData.(string)
@@ -206,10 +210,6 @@ func convertToSlotOrPlugData(plugOrSlot, name string, data interface{}) (iface s
 			}
 		}
 		return iface, attrs, nil
-	case string:
-		return data.(string), nil, nil
-	case nil:
-		return name, nil, nil
 	default:
 		return "", nil, fmt.Errorf("%s %q has malformed definition (found %T)", plugOrSlot, name, data)
 	}
