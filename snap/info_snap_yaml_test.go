@@ -264,15 +264,28 @@ apps:
 	c.Check(app.Slots, HasLen, 0)
 }
 
-func (s *YamlSuite) TestUnmarshalCorruptedPlugWithoutInterfaceName(c *C) {
+func (s *YamlSuite) TestUnmarshalPlugWithoutInterfaceName(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	_, err := snap.InfoFromSnapYaml([]byte(`
+	info, err := snap.InfoFromSnapYaml([]byte(`
 name: snap
 plugs:
-    net:
+    network-client:
         ipv6-aware: true
 `))
-	c.Assert(err, ErrorMatches, `plug "net" doesn't define interface name`)
+	c.Assert(err, IsNil)
+	c.Check(info.Name, Equals, "snap")
+	c.Check(info.Plugs, HasLen, 1)
+	c.Check(info.Slots, HasLen, 0)
+	c.Check(info.Apps, HasLen, 0)
+	plug := info.Plugs["network-client"]
+
+	c.Assert(plug, Not(IsNil))
+	c.Check(plug.Snap, Equals, info)
+	c.Check(plug.Name, Equals, "network-client")
+	c.Check(plug.Interface, Equals, "network-client")
+	c.Check(plug.Attrs, DeepEquals, map[string]interface{}{"ipv6-aware": true})
+	c.Check(plug.Label, Equals, "")
+	c.Check(plug.Apps, HasLen, 0)
 }
 
 func (s *YamlSuite) TestUnmarshalCorruptedPlugWithNonStringInterfaceName(c *C) {
@@ -514,15 +527,28 @@ apps:
 	c.Check(app.Slots, DeepEquals, map[string]*snap.SlotInfo{slot.Name: slot})
 }
 
-func (s *YamlSuite) TestUnmarshalCorruptedSlotWithoutInterfaceName(c *C) {
+func (s *YamlSuite) TestUnmarshalSlotWithoutInterfaceName(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
-	_, err := snap.InfoFromSnapYaml([]byte(`
+	info, err := snap.InfoFromSnapYaml([]byte(`
 name: snap
 slots:
-    net:
+    network-client:
         ipv6-aware: true
 `))
-	c.Assert(err, ErrorMatches, `slot "net" doesn't define interface name`)
+	c.Assert(err, IsNil)
+	c.Check(info.Name, Equals, "snap")
+	c.Check(info.Plugs, HasLen, 0)
+	c.Check(info.Slots, HasLen, 1)
+	c.Check(info.Apps, HasLen, 0)
+	slot := info.Slots["network-client"]
+
+	c.Assert(slot, Not(IsNil))
+	c.Check(slot.Snap, Equals, info)
+	c.Check(slot.Name, Equals, "network-client")
+	c.Check(slot.Interface, Equals, "network-client")
+	c.Check(slot.Attrs, DeepEquals, map[string]interface{}{"ipv6-aware": true})
+	c.Check(slot.Label, Equals, "")
+	c.Check(slot.Apps, HasLen, 0)
 }
 
 func (s *YamlSuite) TestUnmarshalCorruptedSlotWithNonStringInterfaceName(c *C) {
