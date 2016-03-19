@@ -477,7 +477,7 @@ int main(int argc, char **argv)
       die("seccomp_load_filters failed with %i", rc);
 
    // Permanently drop if not root
-   if (real_uid != 0) {
+   if (geteuid() != 0) {
       // Note that we do not call setgroups() here because its ok
       // that the user keeps the groups he already belongs to
       if (setgid(real_gid) != 0)
