@@ -127,13 +127,30 @@ int seccomp_load_filters(const char *filter_profile)
       }
    }
 
+   // raise privileges to load seccomp policy since we don't have nnp
+   if (getenv("UBUNTU_CORE_LAUNCHER_NO_ROOT") == NULL) {
+      if (seteuid(0) != 0)
+         die("seteuid failed");
+      if (geteuid() != 0)
+         die("raising privs did not work");
+   }
+
    // load it into the kernel
    rc = seccomp_load(ctx);
+
+   // drop privileges again
+   if (geteuid() == 0) {
+      unsigned real_uid = getuid();
+      if (seteuid(real_uid) != 0)
+         die("seteuid failed");
+      if (geteuid() == 0)
+         die("dropping privs did not work");
+   }
+
    if (rc != 0) {
       fprintf(stderr, "seccomp_load failed with %i\n", rc);
       goto out;
    }
-
 
  out:
    if (f != NULL) {
