@@ -199,11 +199,11 @@ apps:
 	c.Check(plug.Interface, Equals, "network-client")
 	c.Check(plug.Attrs, HasLen, 0)
 	c.Check(plug.Snap, Equals, info)
-	c.Check(plug.Apps, DeepEquals, map[string]*snap.AppInfo{"app": app})
+	c.Check(plug.Apps, DeepEquals, map[string]*snap.AppInfo{app.Name: app})
 
 	c.Assert(app, Not(IsNil))
-	c.Check(app.Plugs(), DeepEquals, []*snap.PlugInfo{plug})
-	c.Check(app.Slots(), HasLen, 0)
+	c.Check(app.Plugs, DeepEquals, map[string]*snap.PlugInfo{plug.Name: plug})
+	c.Check(app.Slots, HasLen, 0)
 }
 
 func (s *YamlSuite) TestUnmarshalPlugsExplicitlyDefinedExplicitlyBoundToApps(c *C) {
@@ -229,11 +229,11 @@ apps:
 	c.Check(plug.Interface, Equals, "network-client")
 	c.Check(plug.Attrs, HasLen, 0)
 	c.Check(plug.Snap, Equals, info)
-	c.Check(plug.Apps, DeepEquals, map[string]*snap.AppInfo{"app": app})
+	c.Check(plug.Apps, DeepEquals, map[string]*snap.AppInfo{app.Name: app})
 
 	c.Assert(app, Not(IsNil))
-	c.Check(app.Plugs(), DeepEquals, []*snap.PlugInfo{plug})
-	c.Check(app.Slots(), HasLen, 0)
+	c.Check(app.Plugs, DeepEquals, map[string]*snap.PlugInfo{plug.Name: plug})
+	c.Check(app.Slots, HasLen, 0)
 }
 
 func (s *YamlSuite) TestUnmarshalPlugsImplicitlyDefinedExplicitlyBoundToApps(c *C) {
@@ -257,11 +257,11 @@ apps:
 	c.Check(plug.Interface, Equals, "network-client")
 	c.Check(plug.Attrs, HasLen, 0)
 	c.Check(plug.Snap, Equals, info)
-	c.Check(plug.Apps, DeepEquals, map[string]*snap.AppInfo{"app": app})
+	c.Check(plug.Apps, DeepEquals, map[string]*snap.AppInfo{app.Name: app})
 
 	c.Assert(app, Not(IsNil))
-	c.Check(app.Plugs(), DeepEquals, []*snap.PlugInfo{plug})
-	c.Check(app.Slots(), HasLen, 0)
+	c.Check(app.Plugs, DeepEquals, map[string]*snap.PlugInfo{plug.Name: plug})
+	c.Check(app.Slots, HasLen, 0)
 }
 
 func (s *YamlSuite) TestUnmarshalCorruptedPlugWithoutInterfaceName(c *C) {
@@ -449,11 +449,11 @@ apps:
 	c.Check(slot.Interface, Equals, "network-client")
 	c.Check(slot.Attrs, HasLen, 0)
 	c.Check(slot.Snap, Equals, info)
-	c.Check(slot.Apps, DeepEquals, map[string]*snap.AppInfo{"app": app})
+	c.Check(slot.Apps, DeepEquals, map[string]*snap.AppInfo{app.Name: app})
 
 	c.Assert(app, Not(IsNil))
-	c.Check(app.Plugs(), HasLen, 0)
-	c.Check(app.Slots(), DeepEquals, []*snap.SlotInfo{slot})
+	c.Check(app.Plugs, HasLen, 0)
+	c.Check(app.Slots, DeepEquals, map[string]*snap.SlotInfo{slot.Name: slot})
 }
 
 func (s *YamlSuite) TestUnmarshalSlotsExplicitlyDefinedExplicitlyBoundToApps(c *C) {
@@ -479,11 +479,11 @@ apps:
 	c.Check(slot.Interface, Equals, "network-client")
 	c.Check(slot.Attrs, HasLen, 0)
 	c.Check(slot.Snap, Equals, info)
-	c.Check(slot.Apps, DeepEquals, map[string]*snap.AppInfo{"app": app})
+	c.Check(slot.Apps, DeepEquals, map[string]*snap.AppInfo{app.Name: app})
 
 	c.Assert(app, Not(IsNil))
-	c.Check(app.Plugs(), HasLen, 0)
-	c.Check(app.Slots(), DeepEquals, []*snap.SlotInfo{slot})
+	c.Check(app.Plugs, HasLen, 0)
+	c.Check(app.Slots, DeepEquals, map[string]*snap.SlotInfo{slot.Name: slot})
 }
 
 func (s *YamlSuite) TestUnmarshalSlotsImplicitlyDefinedExplicitlyBoundToApps(c *C) {
@@ -507,11 +507,11 @@ apps:
 	c.Check(slot.Interface, Equals, "network-client")
 	c.Check(slot.Attrs, HasLen, 0)
 	c.Check(slot.Snap, Equals, info)
-	c.Check(slot.Apps, DeepEquals, map[string]*snap.AppInfo{"app": app})
+	c.Check(slot.Apps, DeepEquals, map[string]*snap.AppInfo{app.Name: app})
 
 	c.Assert(app, Not(IsNil))
-	c.Check(app.Plugs(), HasLen, 0)
-	c.Check(app.Slots(), DeepEquals, []*snap.SlotInfo{slot})
+	c.Check(app.Plugs, HasLen, 0)
+	c.Check(app.Slots, DeepEquals, map[string]*snap.SlotInfo{slot.Name: slot})
 }
 
 func (s *YamlSuite) TestUnmarshalCorruptedSlotWithoutInterfaceName(c *C) {
