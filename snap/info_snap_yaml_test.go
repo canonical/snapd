@@ -86,9 +86,12 @@ plugs:
 	plug := info.Plugs["network-client"]
 
 	c.Assert(plug, Not(IsNil))
+	c.Check(plug.Snap, Equals, info)
 	c.Check(plug.Name, Equals, "network-client")
 	c.Check(plug.Interface, Equals, "network-client")
-	c.Check(plug.Snap, Equals, info)
+	c.Check(plug.Attrs, HasLen, 0)
+	c.Check(plug.Label, Equals, "")
+	c.Check(plug.Apps, HasLen, 0)
 }
 
 func (s *YamlSuite) TestUnmarshalStandaloneAbbreviatedPlug(c *C) {
@@ -105,9 +108,12 @@ plugs:
 	plug := info.Plugs["net"]
 
 	c.Assert(plug, Not(IsNil))
+	c.Check(plug.Snap, Equals, info)
 	c.Check(plug.Name, Equals, "net")
 	c.Check(plug.Interface, Equals, "network-client")
-	c.Check(plug.Snap, Equals, info)
+	c.Check(plug.Attrs, HasLen, 0)
+	c.Check(plug.Label, Equals, "")
+	c.Check(plug.Apps, HasLen, 0)
 }
 
 func (s *YamlSuite) TestUnmarshalStandaloneMinimalisticPlug(c *C) {
@@ -125,9 +131,12 @@ plugs:
 	plug := info.Plugs["net"]
 
 	c.Assert(plug, Not(IsNil))
+	c.Check(plug.Snap, Equals, info)
 	c.Check(plug.Name, Equals, "net")
 	c.Check(plug.Interface, Equals, "network-client")
-	c.Check(plug.Snap, Equals, info)
+	c.Check(plug.Attrs, HasLen, 0)
+	c.Check(plug.Label, Equals, "")
+	c.Check(plug.Apps, HasLen, 0)
 }
 
 func (s *YamlSuite) TestUnmarshalStandaloneCompletePlug(c *C) {
@@ -146,10 +155,12 @@ plugs:
 	plug := info.Plugs["net"]
 
 	c.Assert(plug, Not(IsNil))
+	c.Check(plug.Snap, Equals, info)
 	c.Check(plug.Name, Equals, "net")
 	c.Check(plug.Interface, Equals, "network-client")
 	c.Check(plug.Attrs, DeepEquals, map[string]interface{}{"ipv6-aware": true})
-	c.Check(plug.Snap, Equals, info)
+	c.Check(plug.Label, Equals, "")
+	c.Check(plug.Apps, HasLen, 0)
 }
 
 func (s *YamlSuite) TestUnmarshalLastPlugDefinitionWins(c *C) {
@@ -171,10 +182,12 @@ plugs:
 	plug := info.Plugs["net"]
 
 	c.Assert(plug, Not(IsNil))
+	c.Check(plug.Snap, Equals, info)
 	c.Check(plug.Name, Equals, "net")
 	c.Check(plug.Interface, Equals, "network-client")
 	c.Check(plug.Attrs, DeepEquals, map[string]interface{}{"attr": 2})
-	c.Check(plug.Snap, Equals, info)
+	c.Check(plug.Label, Equals, "")
+	c.Check(plug.Apps, HasLen, 0)
 }
 
 func (s *YamlSuite) TestUnmarshalPlugsExplicitlyDefinedImplicitlyBoundToApps(c *C) {
@@ -195,10 +208,11 @@ apps:
 	app := info.Apps["app"]
 
 	c.Assert(plug, Not(IsNil))
+	c.Check(plug.Snap, Equals, info)
 	c.Check(plug.Name, Equals, "network-client")
 	c.Check(plug.Interface, Equals, "network-client")
 	c.Check(plug.Attrs, HasLen, 0)
-	c.Check(plug.Snap, Equals, info)
+	c.Check(plug.Label, Equals, "")
 	c.Check(plug.Apps, DeepEquals, map[string]*snap.AppInfo{app.Name: app})
 
 	c.Assert(app, Not(IsNil))
@@ -225,10 +239,11 @@ apps:
 	app := info.Apps["app"]
 
 	c.Assert(plug, Not(IsNil))
+	c.Check(plug.Snap, Equals, info)
 	c.Check(plug.Name, Equals, "net")
 	c.Check(plug.Interface, Equals, "network-client")
 	c.Check(plug.Attrs, HasLen, 0)
-	c.Check(plug.Snap, Equals, info)
+	c.Check(plug.Label, Equals, "")
 	c.Check(plug.Apps, DeepEquals, map[string]*snap.AppInfo{app.Name: app})
 
 	c.Assert(app, Not(IsNil))
@@ -253,10 +268,11 @@ apps:
 	app := info.Apps["app"]
 
 	c.Assert(plug, Not(IsNil))
+	c.Check(plug.Snap, Equals, info)
 	c.Check(plug.Name, Equals, "network-client")
 	c.Check(plug.Interface, Equals, "network-client")
 	c.Check(plug.Attrs, HasLen, 0)
-	c.Check(plug.Snap, Equals, info)
+	c.Check(plug.Label, Equals, "")
 	c.Check(plug.Apps, DeepEquals, map[string]*snap.AppInfo{app.Name: app})
 
 	c.Assert(app, Not(IsNil))
@@ -288,6 +304,30 @@ plugs:
 	c.Check(plug.Apps, HasLen, 0)
 }
 
+func (s *YamlSuite) TestUnmarshalPlugWithLabel(c *C) {
+	// NOTE: yaml content cannot use tabs, indent the section with spaces.
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+plugs:
+    bool-file:
+        label: Disk I/O indicator
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.Name, Equals, "snap")
+	c.Check(info.Plugs, HasLen, 1)
+	c.Check(info.Slots, HasLen, 0)
+	c.Check(info.Apps, HasLen, 0)
+	plug := info.Plugs["bool-file"]
+
+	c.Assert(plug, Not(IsNil))
+	c.Check(plug.Snap, Equals, info)
+	c.Check(plug.Name, Equals, "bool-file")
+	c.Check(plug.Interface, Equals, "bool-file")
+	c.Check(plug.Attrs, HasLen, 0)
+	c.Check(plug.Label, Equals, "Disk I/O indicator")
+	c.Check(plug.Apps, HasLen, 0)
+}
+
 func (s *YamlSuite) TestUnmarshalCorruptedPlugWithNonStringInterfaceName(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
 	_, err := snap.InfoFromSnapYaml([]byte(`
@@ -298,6 +338,17 @@ plugs:
         ipv6-aware: true
 `))
 	c.Assert(err, ErrorMatches, `interface name on plug "net" is not a string \(found float64\)`)
+}
+
+func (s *YamlSuite) TestUnmarshalCorruptedPlugWithNonStringLabel(c *C) {
+	// NOTE: yaml content cannot use tabs, indent the section with spaces.
+	_, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+plugs:
+    bool-file:
+        label: 1.0
+`))
+	c.Assert(err, ErrorMatches, `label of plug "bool-file" is not a string \(found float64\)`)
 }
 
 func (s *YamlSuite) TestUnmarshalCorruptedPlugWithNonStringAttributes(c *C) {
@@ -349,9 +400,12 @@ slots:
 	slot := info.Slots["network-client"]
 
 	c.Assert(slot, Not(IsNil))
+	c.Check(slot.Snap, Equals, info)
 	c.Check(slot.Name, Equals, "network-client")
 	c.Check(slot.Interface, Equals, "network-client")
-	c.Check(slot.Snap, Equals, info)
+	c.Check(slot.Attrs, HasLen, 0)
+	c.Check(slot.Label, Equals, "")
+	c.Check(slot.Apps, HasLen, 0)
 }
 
 func (s *YamlSuite) TestUnmarshalStandaloneAbbreviatedSlot(c *C) {
@@ -368,9 +422,12 @@ slots:
 	slot := info.Slots["net"]
 
 	c.Assert(slot, Not(IsNil))
+	c.Check(slot.Snap, Equals, info)
 	c.Check(slot.Name, Equals, "net")
 	c.Check(slot.Interface, Equals, "network-client")
-	c.Check(slot.Snap, Equals, info)
+	c.Check(slot.Attrs, HasLen, 0)
+	c.Check(slot.Label, Equals, "")
+	c.Check(slot.Apps, HasLen, 0)
 }
 
 func (s *YamlSuite) TestUnmarshalStandaloneMinimalisticSlot(c *C) {
@@ -388,9 +445,12 @@ slots:
 	slot := info.Slots["net"]
 
 	c.Assert(slot, Not(IsNil))
+	c.Check(slot.Snap, Equals, info)
 	c.Check(slot.Name, Equals, "net")
 	c.Check(slot.Interface, Equals, "network-client")
-	c.Check(slot.Snap, Equals, info)
+	c.Check(slot.Attrs, HasLen, 0)
+	c.Check(slot.Label, Equals, "")
+	c.Check(slot.Apps, HasLen, 0)
 }
 
 func (s *YamlSuite) TestUnmarshalStandaloneCompleteSlot(c *C) {
@@ -409,10 +469,12 @@ slots:
 	slot := info.Slots["net"]
 
 	c.Assert(slot, Not(IsNil))
+	c.Check(slot.Snap, Equals, info)
 	c.Check(slot.Name, Equals, "net")
 	c.Check(slot.Interface, Equals, "network-client")
 	c.Check(slot.Attrs, DeepEquals, map[string]interface{}{"ipv6-aware": true})
-	c.Check(slot.Snap, Equals, info)
+	c.Check(slot.Label, Equals, "")
+	c.Check(slot.Apps, HasLen, 0)
 }
 
 func (s *YamlSuite) TestUnmarshalLastSlotDefinitionWins(c *C) {
@@ -434,10 +496,12 @@ slots:
 	slot := info.Slots["net"]
 
 	c.Assert(slot, Not(IsNil))
+	c.Check(slot.Snap, Equals, info)
 	c.Check(slot.Name, Equals, "net")
 	c.Check(slot.Interface, Equals, "network-client")
 	c.Check(slot.Attrs, DeepEquals, map[string]interface{}{"attr": 2})
-	c.Check(slot.Snap, Equals, info)
+	c.Check(slot.Label, Equals, "")
+	c.Check(slot.Apps, HasLen, 0)
 }
 
 func (s *YamlSuite) TestUnmarshalSlotsExplicitlyDefinedImplicitlyBoundToApps(c *C) {
@@ -458,10 +522,11 @@ apps:
 	app := info.Apps["app"]
 
 	c.Assert(slot, Not(IsNil))
+	c.Check(slot.Snap, Equals, info)
 	c.Check(slot.Name, Equals, "network-client")
 	c.Check(slot.Interface, Equals, "network-client")
 	c.Check(slot.Attrs, HasLen, 0)
-	c.Check(slot.Snap, Equals, info)
+	c.Check(slot.Label, Equals, "")
 	c.Check(slot.Apps, DeepEquals, map[string]*snap.AppInfo{app.Name: app})
 
 	c.Assert(app, Not(IsNil))
@@ -488,10 +553,11 @@ apps:
 	app := info.Apps["app"]
 
 	c.Assert(slot, Not(IsNil))
+	c.Check(slot.Snap, Equals, info)
 	c.Check(slot.Name, Equals, "net")
 	c.Check(slot.Interface, Equals, "network-client")
 	c.Check(slot.Attrs, HasLen, 0)
-	c.Check(slot.Snap, Equals, info)
+	c.Check(slot.Label, Equals, "")
 	c.Check(slot.Apps, DeepEquals, map[string]*snap.AppInfo{app.Name: app})
 
 	c.Assert(app, Not(IsNil))
@@ -516,10 +582,11 @@ apps:
 	app := info.Apps["app"]
 
 	c.Assert(slot, Not(IsNil))
+	c.Check(slot.Snap, Equals, info)
 	c.Check(slot.Name, Equals, "network-client")
 	c.Check(slot.Interface, Equals, "network-client")
 	c.Check(slot.Attrs, HasLen, 0)
-	c.Check(slot.Snap, Equals, info)
+	c.Check(slot.Label, Equals, "")
 	c.Check(slot.Apps, DeepEquals, map[string]*snap.AppInfo{app.Name: app})
 
 	c.Assert(app, Not(IsNil))
@@ -551,6 +618,31 @@ slots:
 	c.Check(slot.Apps, HasLen, 0)
 }
 
+func (s *YamlSuite) TestUnmarshalSlotWithLabel(c *C) {
+	// NOTE: yaml content cannot use tabs, indent the section with spaces.
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+slots:
+    led0:
+        interface: bool-file
+        label: Front panel LED (red)
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.Name, Equals, "snap")
+	c.Check(info.Plugs, HasLen, 0)
+	c.Check(info.Slots, HasLen, 1)
+	c.Check(info.Apps, HasLen, 0)
+	slot := info.Slots["led0"]
+
+	c.Assert(slot, Not(IsNil))
+	c.Check(slot.Snap, Equals, info)
+	c.Check(slot.Name, Equals, "led0")
+	c.Check(slot.Interface, Equals, "bool-file")
+	c.Check(slot.Attrs, HasLen, 0)
+	c.Check(slot.Label, Equals, "Front panel LED (red)")
+	c.Check(slot.Apps, HasLen, 0)
+}
+
 func (s *YamlSuite) TestUnmarshalCorruptedSlotWithNonStringInterfaceName(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
 	_, err := snap.InfoFromSnapYaml([]byte(`
@@ -561,6 +653,17 @@ slots:
         ipv6-aware: true
 `))
 	c.Assert(err, ErrorMatches, `interface name on slot "net" is not a string \(found float64\)`)
+}
+
+func (s *YamlSuite) TestUnmarshalCorruptedSlotWithNonStringLabel(c *C) {
+	// NOTE: yaml content cannot use tabs, indent the section with spaces.
+	_, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+slots:
+    bool-file:
+        label: 1.0
+`))
+	c.Assert(err, ErrorMatches, `label of slot "bool-file" is not a string \(found float64\)`)
 }
 
 func (s *YamlSuite) TestUnmarshalCorruptedSlotWithNonStringAttributes(c *C) {
