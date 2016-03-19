@@ -132,20 +132,11 @@ int seccomp_load_filters(const char *filter_profile)
       if (seteuid(0) != 0)
          die("seteuid failed");
       if (geteuid() != 0)
-         die("raising privs did not work");
+         die("raising privs before seccomp_load did not work");
    }
 
    // load it into the kernel
    rc = seccomp_load(ctx);
-
-   // drop privileges again
-   if (geteuid() == 0) {
-      unsigned real_uid = getuid();
-      if (seteuid(real_uid) != 0)
-         die("seteuid failed");
-      if (geteuid() == 0)
-         die("dropping privs did not work");
-   }
 
    if (rc != 0) {
       fprintf(stderr, "seccomp_load failed with %i\n", rc);
@@ -153,6 +144,15 @@ int seccomp_load_filters(const char *filter_profile)
    }
 
  out:
+   // drop privileges again
+   if (geteuid() == 0) {
+      unsigned real_uid = getuid();
+      if (seteuid(real_uid) != 0)
+         die("seteuid failed");
+      if (real_uid != 0 && geteuid() == 0)
+         die("dropping privs after seccomp_load did not work");
+   }
+
    if (f != NULL) {
       fclose(f);
    }

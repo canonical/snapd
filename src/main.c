@@ -454,7 +454,9 @@ int main(int argc, char **argv)
       if (seteuid(real_uid) != 0)
          die("setuid failed");
 
-      if (geteuid() == 0 || getegid() == 0)
+      if(real_gid != 0 && (getuid() == 0 || geteuid() == 0))
+         die("dropping privs did not work");
+      if(real_uid != 0 && (getgid() == 0 || getegid() == 0))
          die("dropping privs did not work");
    }
 
@@ -477,7 +479,7 @@ int main(int argc, char **argv)
       die("seccomp_load_filters failed with %i", rc);
 
    // Permanently drop if not root
-   if (geteuid() != 0) {
+   if (geteuid() == 0) {
       // Note that we do not call setgroups() here because its ok
       // that the user keeps the groups he already belongs to
       if (setgid(real_gid) != 0)
@@ -486,9 +488,9 @@ int main(int argc, char **argv)
          die("setuid failed");
 
       if(real_gid != 0 && (getuid() == 0 || geteuid() == 0))
-         die("dropping privs did not work");
+         die("permanently dropping privs did not work");
       if(real_uid != 0 && (getgid() == 0 || getegid() == 0))
-         die("dropping privs did not work");
+         die("permanently dropping privs did not work");
    }
 
    // and exec the new binary
