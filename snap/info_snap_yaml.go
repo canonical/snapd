@@ -79,7 +79,7 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	}
 	// Collect top-level definitions of plugs
 	for name, data := range y.Plugs {
-		iface, attrs, err := convertToSlotOrPlugData("plug", name, data)
+		iface, label, attrs, err := convertToSlotOrPlugData("plug", name, data)
 		if err != nil {
 			return nil, err
 		}
@@ -88,12 +88,13 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 			Name:      name,
 			Interface: iface,
 			Attrs:     attrs,
+			Label:     label,
 			Apps:      make(map[string]*AppInfo),
 		}
 	}
 	// Collect top-level definitions of slots
 	for name, data := range y.Slots {
-		iface, attrs, err := convertToSlotOrPlugData("slot", name, data)
+		iface, label, attrs, err := convertToSlotOrPlugData("slot", name, data)
 		if err != nil {
 			return nil, err
 		}
@@ -102,6 +103,7 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 			Name:      name,
 			Interface: iface,
 			Attrs:     attrs,
+			Label:     label,
 			Apps:      make(map[string]*AppInfo),
 		}
 	}
@@ -177,40 +179,52 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	return snap, nil
 }
 
-func convertToSlotOrPlugData(plugOrSlot, name string, data interface{}) (iface string, attrs map[string]interface{}, err error) {
+func convertToSlotOrPlugData(plugOrSlot, name string, data interface{}) (iface, label string, attrs map[string]interface{}, err error) {
 	iface = name
 	switch data.(type) {
 	case string:
-		return data.(string), nil, nil
+		return data.(string), "", nil, nil
 	case nil:
-		return name, nil, nil
+		return name, "", nil, nil
 	case map[interface{}]interface{}:
 		for keyData, valueData := range data.(map[interface{}]interface{}) {
 			key, ok := keyData.(string)
 			if !ok {
-				return "", nil, fmt.Errorf("%s %q has attribute that is not a string (found %T)",
+				err := fmt.Errorf("%s %q has attribute that is not a string (found %T)",
 					plugOrSlot, name, keyData)
+				return "", "", nil, err
 			}
 			if strings.HasPrefix(key, "$") {
-				return "", nil, fmt.Errorf("%s %q uses reserved attribute %q", plugOrSlot, name, key)
+				err := fmt.Errorf("%s %q uses reserved attribute %q", plugOrSlot, name, key)
+				return "", "", nil, err
 			}
-			// XXX: perhaps we could special-case "label" the same way?
-			if key == "interface" {
+			switch key {
+			case "interface":
 				value, ok := valueData.(string)
 				if !ok {
-					return "", nil, fmt.Errorf("interface name on %s %q is not a string (found %T)",
+					err := fmt.Errorf("interface name on %s %q is not a string (found %T)",
 						plugOrSlot, name, valueData)
+					return "", "", nil, err
 				}
 				iface = value
-			} else {
+			case "label":
+				value, ok := valueData.(string)
+				if !ok {
+					err := fmt.Errorf("label of %s %q is not a string (found %T)",
+						plugOrSlot, name, valueData)
+					return "", "", nil, err
+				}
+				label = value
+			default:
 				if attrs == nil {
 					attrs = make(map[string]interface{})
 				}
 				attrs[key] = valueData
 			}
 		}
-		return iface, attrs, nil
+		return iface, label, attrs, nil
 	default:
-		return "", nil, fmt.Errorf("%s %q has malformed definition (found %T)", plugOrSlot, name, data)
+		err := fmt.Errorf("%s %q has malformed definition (found %T)", plugOrSlot, name, data)
+		return "", "", nil, err
 	}
 }
