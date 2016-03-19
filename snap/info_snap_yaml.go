@@ -87,6 +87,7 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 			Name:      name,
 			Interface: iface,
 			Attrs:     attrs,
+			Apps:      make(map[string]*AppInfo),
 		}
 	}
 	// Collect top-level definitions of slots
@@ -100,6 +101,7 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 			Name:      name,
 			Interface: iface,
 			Attrs:     attrs,
+			Apps:      make(map[string]*AppInfo),
 		}
 	}
 	// Collect definitions of apps
@@ -119,6 +121,7 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 					Snap:      snap,
 					Name:      name,
 					Interface: name,
+					Apps:      make(map[string]*AppInfo),
 				}
 			}
 		}
@@ -128,6 +131,7 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 					Snap:      snap,
 					Name:      name,
 					Interface: name,
+					Apps:      make(map[string]*AppInfo),
 				}
 			}
 		}
@@ -135,26 +139,24 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	// Bind apps to plugs and slots
 	for appName, app := range y.RawApps {
 		for _, slotName := range app.SlotNames {
-			slot := snap.Slots[slotName]
-			slot.apps = append(slot.apps, appName)
+			snap.Slots[slotName].Apps[appName] = snap.Apps[appName]
 		}
 		for _, plugName := range app.PlugNames {
-			plug := snap.Plugs[plugName]
-			plug.apps = append(plug.apps, appName)
+			snap.Plugs[plugName].Apps[appName] = snap.Apps[appName]
 		}
 	}
 	// Bind unbound plugs and slots to all apps
 	for _, plug := range snap.Plugs {
-		if len(plug.apps) == 0 {
+		if len(plug.Apps) == 0 {
 			for name := range y.RawApps {
-				plug.apps = append(plug.apps, name)
+				plug.Apps[name] = snap.Apps[name]
 			}
 		}
 	}
 	for _, slot := range snap.Slots {
-		if len(slot.apps) == 0 {
+		if len(slot.Apps) == 0 {
 			for name := range y.RawApps {
-				slot.apps = append(slot.apps, name)
+				slot.Apps[name] = snap.Apps[name]
 			}
 		}
 	}

@@ -40,17 +40,7 @@ type PlugInfo struct {
 	Interface string
 	Attrs     map[string]interface{}
 	Label     string
-
-	apps []string
-}
-
-// Apps returns all applications bound to this plug.
-func (plug *PlugInfo) Apps() []*AppInfo {
-	apps := make([]*AppInfo, 0, len(plug.apps))
-	for _, name := range plug.apps {
-		apps = append(apps, plug.Snap.Apps[name])
-	}
-	return apps
+	Apps      map[string]*AppInfo
 }
 
 // SlotInfo provides information about a slot.
@@ -61,17 +51,7 @@ type SlotInfo struct {
 	Interface string
 	Attrs     map[string]interface{}
 	Label     string
-
-	apps []string
-}
-
-// Apps returns all applications bound to this slot.
-func (slot *SlotInfo) Apps() []*AppInfo {
-	apps := make([]*AppInfo, 0, len(slot.apps))
-	for _, name := range slot.apps {
-		apps = append(apps, slot.Snap.Apps[name])
-	}
-	return apps
+	Apps      map[string]*AppInfo
 }
 
 // AppInfo provides information about a plug.
