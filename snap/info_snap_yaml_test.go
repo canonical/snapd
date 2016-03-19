@@ -569,3 +569,97 @@ slots:
 `))
 	c.Assert(err, ErrorMatches, `slot "serial" uses reserved attribute "\$baud-rate"`)
 }
+
+func (s *YamlSuite) TestUnmarshalComplexExample(c *C) {
+	// NOTE: yaml content cannot use tabs, indent the section with spaces.
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: foo
+version: 1.2
+developer: Acme Corp Ltd.
+type: app
+description: |
+    Foo provides useful services
+apps:
+    daemon:
+       command: foo --daemon
+       plugs: [network, network-bind]
+       slots: [foo-socket]
+    foo:
+       command: fooctl
+       plugs: [foo-socket]
+plugs:
+    foo-socket:
+        interface: socket
+        # $protocol: foo
+slots:
+    foo-socket:
+        interface: socket
+        path: $SNAP_DATA/socket
+        protocol: foo
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.Name, Equals, "foo")
+	c.Check(info.Developer, Equals, "Acme Corp Ltd.")
+	c.Check(info.Version, Equals, "1.2")
+	c.Check(info.Type, Equals, snap.TypeApp)
+	c.Check(info.Channel, Equals, "")
+	c.Check(info.Description, Equals, "Foo provides useful services\n")
+	c.Check(info.Apps, HasLen, 2)
+	c.Check(info.Plugs, HasLen, 3)
+	c.Check(info.Slots, HasLen, 1)
+
+	app1 := info.Apps["daemon"]
+	app2 := info.Apps["foo"]
+	plug1 := info.Plugs["network"]
+	plug2 := info.Plugs["network-bind"]
+	plug3 := info.Plugs["foo-socket"]
+	slot1 := info.Slots["foo-socket"]
+
+	c.Assert(app1, Not(IsNil))
+	c.Check(app1.Snap, Equals, info)
+	c.Check(app1.Name, Equals, "daemon")
+	c.Check(app1.Command, Equals, "foo --daemon")
+	c.Check(app1.Plugs, DeepEquals, map[string]*snap.PlugInfo{
+		plug1.Name: plug1, plug2.Name: plug2})
+	c.Check(app1.Slots, DeepEquals, map[string]*snap.SlotInfo{slot1.Name: slot1})
+
+	c.Assert(app2, Not(IsNil))
+	c.Check(app2.Snap, Equals, info)
+	c.Check(app2.Name, Equals, "foo")
+	c.Check(app2.Command, Equals, "fooctl")
+	c.Check(app2.Plugs, DeepEquals, map[string]*snap.PlugInfo{plug3.Name: plug3})
+	c.Check(app2.Slots, HasLen, 0)
+
+	c.Assert(plug1, Not(IsNil))
+	c.Check(plug1.Snap, Equals, info)
+	c.Check(plug1.Name, Equals, "network")
+	c.Check(plug1.Interface, Equals, "network")
+	c.Check(plug1.Attrs, HasLen, 0)
+	c.Check(plug1.Label, Equals, "")
+	c.Check(plug1.Apps, DeepEquals, map[string]*snap.AppInfo{app1.Name: app1})
+
+	c.Assert(plug2, Not(IsNil))
+	c.Check(plug2.Snap, Equals, info)
+	c.Check(plug2.Name, Equals, "network-bind")
+	c.Check(plug2.Interface, Equals, "network-bind")
+	c.Check(plug2.Attrs, HasLen, 0)
+	c.Check(plug2.Label, Equals, "")
+	c.Check(plug2.Apps, DeepEquals, map[string]*snap.AppInfo{app1.Name: app1})
+
+	c.Assert(plug3, Not(IsNil))
+	c.Check(plug3.Snap, Equals, info)
+	c.Check(plug3.Name, Equals, "foo-socket")
+	c.Check(plug3.Interface, Equals, "socket")
+	c.Check(plug3.Attrs, HasLen, 0)
+	c.Check(plug3.Label, Equals, "")
+	c.Check(plug3.Apps, DeepEquals, map[string]*snap.AppInfo{app2.Name: app2})
+
+	c.Assert(slot1, Not(IsNil))
+	c.Check(slot1.Snap, Equals, info)
+	c.Check(slot1.Name, Equals, "foo-socket")
+	c.Check(slot1.Interface, Equals, "socket")
+	c.Check(slot1.Attrs, DeepEquals, map[string]interface{}{
+		"protocol": "foo", "path": "$SNAP_DATA/socket"})
+	c.Check(slot1.Label, Equals, "")
+	c.Check(slot1.Apps, DeepEquals, map[string]*snap.AppInfo{app1.Name: app1})
+}
