@@ -33,9 +33,9 @@ type snapYaml struct {
 	Type        Type                   `yaml:"type"`
 	Channel     string                 `yaml:"channel"`
 	Description string                 `yaml:"description"`
-	RawPlugs    map[string]interface{} `yaml:"plugs,omitempty"`
-	RawSlots    map[string]interface{} `yaml:"slots,omitempty"`
-	RawApps     map[string]appYaml     `yaml:"apps,omitempty"`
+	Plugs       map[string]interface{} `yaml:"plugs,omitempty"`
+	Slots       map[string]interface{} `yaml:"slots,omitempty"`
+	Apps        map[string]appYaml     `yaml:"apps,omitempty"`
 }
 
 type plugYaml struct {
@@ -77,7 +77,7 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 		Slots:       make(map[string]*SlotInfo),
 	}
 	// Collect top-level definitions of plugs
-	for name, data := range y.RawPlugs {
+	for name, data := range y.Plugs {
 		iface, attrs, err := convertToSlotOrPlugData("plug", name, data)
 		if err != nil {
 			return nil, err
@@ -91,7 +91,7 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 		}
 	}
 	// Collect top-level definitions of slots
-	for name, data := range y.RawSlots {
+	for name, data := range y.Slots {
 		iface, attrs, err := convertToSlotOrPlugData("slot", name, data)
 		if err != nil {
 			return nil, err
@@ -105,7 +105,7 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 		}
 	}
 	// Collect definitions of apps
-	for name, app := range y.RawApps {
+	for name, app := range y.Apps {
 		snap.Apps[name] = &AppInfo{
 			Snap:  snap,
 			Name:  name,
@@ -114,7 +114,7 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 		}
 	}
 	// Collect app-level implicit definitions of plugs and slots
-	for _, app := range y.RawApps {
+	for _, app := range y.Apps {
 		for _, name := range app.PlugNames {
 			if _, ok := snap.Plugs[name]; !ok {
 				snap.Plugs[name] = &PlugInfo{
@@ -137,7 +137,7 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 		}
 	}
 	// Bind apps to plugs and slots
-	for appName, app := range y.RawApps {
+	for appName, app := range y.Apps {
 		for _, slotName := range app.SlotNames {
 			snap.Slots[slotName].Apps[appName] = snap.Apps[appName]
 		}
@@ -148,29 +148,29 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	// Bind unbound plugs and slots to all apps
 	for _, plug := range snap.Plugs {
 		if len(plug.Apps) == 0 {
-			for name := range y.RawApps {
+			for name := range y.Apps {
 				plug.Apps[name] = snap.Apps[name]
 			}
 		}
 	}
 	for _, slot := range snap.Slots {
 		if len(slot.Apps) == 0 {
-			for name := range y.RawApps {
+			for name := range y.Apps {
 				slot.Apps[name] = snap.Apps[name]
 			}
 		}
 	}
 	// Bind unbound apps to all plugs and slots
 	for _, app := range snap.Apps {
-		// NOTE: This used RawPlugs and RawSlots so that implicitly defined
+		// NOTE: This used Plugs and Slots so that implicitly defined
 		// (non-top-level) plugs and slots don't get bound here.
 		if len(app.plugs) == 0 {
-			for name := range y.RawPlugs {
+			for name := range y.Plugs {
 				app.plugs = append(app.plugs, name)
 			}
 		}
 		if len(app.slots) == 0 {
-			for name := range y.RawSlots {
+			for name := range y.Slots {
 				app.slots = append(app.slots, name)
 			}
 		}
