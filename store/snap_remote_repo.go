@@ -301,10 +301,7 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string) (*snap.Info, erro
 func getSuggestedCurrency(h *http.Header) string {
 	s := h.Get("X-Suggested-Currency")
 	if s == "" {
-		s = os.Getenv("U1_SEARCH_CURRENCY")
-		if s == "" {
-			s = "USD"
-		}
+		s = "USD"
 	}
 	return s
 }
