@@ -36,8 +36,7 @@ type listSuite struct {
 	common.SnappySuite
 }
 
-// FIXME: hardcoded or sideload
-var verRegexp = `(16.04.*|\w{12})`
+var verRegexp = `(\d{2}\.\d{2}.*|\w{12})`
 
 func (s *listSuite) TestListMustPrintCoreVersion(c *check.C) {
 	listOutput := cli.ExecCommand(c, "snappy", "list")
