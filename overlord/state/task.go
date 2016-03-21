@@ -195,6 +195,14 @@ func (t *Task) WaitFor(another *Task) {
 	another.haltTasks.add(t.id)
 }
 
+// WaitAll registers all the tasks in the set as a requirement for t
+// to make progress and sets the status as WaitingStatus.
+func (t *Task) WaitAll(ts TaskSet) {
+	for _, tReq := range ts {
+		t.WaitFor(tReq)
+	}
+}
+
 // WaitTasks returns the list of tasks registered for t to wait for.
 func (t *Task) WaitTasks() []*Task {
 	t.state.ensureLocked()
@@ -205,4 +213,24 @@ func (t *Task) WaitTasks() []*Task {
 func (t *Task) HaltTasks() []*Task {
 	t.state.ensureLocked()
 	return t.haltTasks.tasks(t.state)
+}
+
+// A TaskSet holds a set of tasks.
+type TaskSet map[string]*Task
+
+// NewTaskSet returns a new TaskSet comprising the given tasks.
+func NewTaskSet(tasks ...*Task) TaskSet {
+	ts := make(TaskSet, len(tasks))
+	for _, t := range tasks {
+		ts[t.ID()] = t
+	}
+	return ts
+}
+
+// WaitFor registers a task as a requirement for the tasks in the set
+// to make progress and sets their status as WaitingStatus.
+func (ts TaskSet) WaitFor(another *Task) {
+	for _, t := range ts {
+		t.WaitFor(another)
+	}
 }
