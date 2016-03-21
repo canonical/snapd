@@ -450,13 +450,13 @@ int main(int argc, char **argv)
       // the rest does not so temporarily drop privs back to calling user
       // (we'll permanently drop after loading seccomp)
       if (setegid(real_gid) != 0)
-         die("setgid failed");
+         die("setegid failed");
       if (seteuid(real_uid) != 0)
-         die("setuid failed");
+         die("seteuid failed");
 
-      if(real_gid != 0 && (getuid() == 0 || geteuid() == 0))
+      if(real_gid != 0 && geteuid() == 0)
          die("dropping privs did not work");
-      if(real_uid != 0 && (getgid() == 0 || getegid() == 0))
+      if(real_uid != 0 && getegid() == 0)
          die("dropping privs did not work");
    }
 
