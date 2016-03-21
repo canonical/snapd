@@ -1,9 +1,14 @@
 ubuntu-core-launcher (1.0.20) UNRELEASED; urgency=medium
 
+  * don't set NO_NEW_PRIVS. This requires changing privilege dropping since
+    CAP_SYS_ADMIN is needed with seccomp_load(). This means temporarily
+    dropping until seccomp_load(), then raising before and permanently
+    dropping after the filter is applied. As a result, setuid/setgid is
+    required in all policy (but is still mediated by AppArmor)
   * src/main.c: setup private /dev/pts
   * debian/usr.bin.ubuntu-core-launcher: allow mounting /dev/pts
 
- -- Jamie Strandboge <jamie@ubuntu.com>  Thu, 17 Mar 2016 16:47:20 -0500
+ -- Jamie Strandboge <jamie@ubuntu.com>  Mon, 21 Mar 2016 12:23:41 -0500
 
 ubuntu-core-launcher (1.0.19) xenial; urgency=medium
 

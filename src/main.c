@@ -441,6 +441,8 @@ int main(int argc, char **argv)
    const char *appname = argv[1];
    const char *aa_profile = argv[2];
    const char *binary = argv[3];
+   unsigned real_uid = getuid();
+   unsigned real_gid = getgid();
 
    if(!verify_appname(appname))
       die("appname %s not allowed", appname);
@@ -482,27 +484,23 @@ int main(int argc, char **argv)
          setup_udev_snappy_assign(appname);
       }
 
-      // the rest does not so drop privs back to calling user
-      unsigned real_uid = getuid();
-      unsigned real_gid = getgid();
+      // the rest does not so temporarily drop privs back to calling user
+      // (we'll permanently drop after loading seccomp)
+      if (setegid(real_gid) != 0)
+         die("setegid failed");
+      if (seteuid(real_uid) != 0)
+         die("seteuid failed");
 
-      // Note that we do not call setgroups() here because its ok
-      // that the user keeps the groups he already belongs to
-      if (setgid(real_gid) != 0)
-         die("setgid failed");
-      if (setuid(real_uid) != 0)
-         die("setuid failed");
-
-      if(real_gid != 0 && (getuid() == 0 || geteuid() == 0))
+      if(real_gid != 0 && geteuid() == 0)
          die("dropping privs did not work");
-      if(real_uid != 0 && (getgid() == 0 || getegid() == 0))
+      if(real_uid != 0 && getegid() == 0)
          die("dropping privs did not work");
    }
 
    // Ensure that the user data path exists.
    setup_user_data();
 
-   //https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement#ubuntu-snapp-launch
+   // https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
 
    int rc = 0;
    // set apparmor rules
@@ -516,6 +514,21 @@ int main(int argc, char **argv)
    rc = seccomp_load_filters(aa_profile);
    if (rc != 0)
       die("seccomp_load_filters failed with %i", rc);
+
+   // Permanently drop if not root
+   if (geteuid() == 0) {
+      // Note that we do not call setgroups() here because its ok
+      // that the user keeps the groups he already belongs to
+      if (setgid(real_gid) != 0)
+         die("setgid failed");
+      if (setuid(real_uid) != 0)
+         die("setuid failed");
+
+      if(real_gid != 0 && (getuid() == 0 || geteuid() == 0))
+         die("permanently dropping privs did not work");
+      if(real_uid != 0 && (getgid() == 0 || getegid() == 0))
+         die("permanently dropping privs did not work");
+   }
 
    // and exec the new binary
    argv[NR_ARGS] = (char*)binary,
