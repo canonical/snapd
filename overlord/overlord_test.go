@@ -120,7 +120,7 @@ func (ovs *overlordSuite) TestTrivialRunAndStop(c *C) {
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
 
-	o.Run()
+	o.Loop()
 
 	err = o.Stop()
 	c.Assert(err, IsNil)
@@ -139,7 +139,7 @@ func (ovs *overlordSuite) TestEnsureLoopRunAndStop(c *C) {
 	}
 	o.StateEngine().AddManager(witness)
 
-	o.Run()
+	o.Loop()
 	defer o.Stop()
 
 	t0 := time.Now()
@@ -168,7 +168,7 @@ func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBefore(c *C) {
 	se := o.StateEngine()
 	se.AddManager(witness)
 
-	o.Run()
+	o.Loop()
 	defer o.Stop()
 
 	se.State().EnsureBefore(10 * time.Millisecond)
@@ -200,7 +200,7 @@ func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBeforeInEnsure(c *C) {
 	se := o.StateEngine()
 	se.AddManager(witness)
 
-	o.Run()
+	o.Loop()
 	defer o.Stop()
 
 	se.State().EnsureBefore(0)

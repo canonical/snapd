@@ -140,8 +140,8 @@ func (o *Overlord) ensureBefore(d time.Duration) {
 	}
 }
 
-// Run runs a loop to ensure the current state regularly through StateEngine Ensure().
-func (o *Overlord) Run() {
+// Loop runs a loop in a goroutine to ensure the current state regularly through StateEngine Ensure.
+func (o *Overlord) Loop() {
 	o.ensureTimerSetup()
 	o.loopTomb.Go(func() error {
 		for {
@@ -171,13 +171,13 @@ func (o *Overlord) Stop() error {
 // Settle runs first a state engine Ensure and then wait for activities to settle.
 // That's done by waiting for all managers activities to settle while
 // making sure no immediate further Ensure is scheduled. Chiefly for tests.
-// Cannot be used in conjuction with Run.
+// Cannot be used in conjuction with Loop.
 func (o *Overlord) Settle() {
 	func() {
 		o.ensureLock.Lock()
 		defer o.ensureLock.Unlock()
 		if o.ensureTimer != nil {
-			panic("cannot use Settle with an ensure loop (Overlord.Run)")
+			panic("cannot use Settle concurrently with other Settle or Loop calls")
 		}
 		o.ensureTimer = time.NewTimer(0)
 	}()
