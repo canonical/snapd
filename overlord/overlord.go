@@ -129,7 +129,7 @@ func (o *Overlord) ensureBefore(d time.Duration) {
 	o.ensureLock.Lock()
 	defer o.ensureLock.Unlock()
 	if o.ensureTimer == nil {
-		panic("cannot use EnsureBefore before Overlord.Run()")
+		panic("cannot use EnsureBefore before Overlord.Loop")
 	}
 	now := time.Now()
 	next := now.Add(d)
