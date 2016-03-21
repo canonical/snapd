@@ -27,4 +27,39 @@ type Info struct {
 	Type        Type
 	Channel     string
 	Description string
+	Apps        map[string]*AppInfo
+	Plugs       map[string]*PlugInfo
+	Slots       map[string]*SlotInfo
+}
+
+// PlugInfo provides information about a plug.
+type PlugInfo struct {
+	Snap *Info
+
+	Name      string
+	Interface string
+	Attrs     map[string]interface{}
+	Label     string
+	Apps      map[string]*AppInfo
+}
+
+// SlotInfo provides information about a slot.
+type SlotInfo struct {
+	Snap *Info
+
+	Name      string
+	Interface string
+	Attrs     map[string]interface{}
+	Label     string
+	Apps      map[string]*AppInfo
+}
+
+// AppInfo provides information about a plug.
+type AppInfo struct {
+	Snap *Info
+
+	Name    string
+	Command string
+	Plugs   map[string]*PlugInfo
+	Slots   map[string]*SlotInfo
 }
