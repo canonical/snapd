@@ -37,8 +37,7 @@ func (ts *taskSuite) TestNewTask(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	chg := st.NewChange("install", "...")
-	t := chg.NewTask("download", "1...")
+	t := st.NewTask("download", "1...")
 
 	c.Check(t.Kind(), Equals, "download")
 	c.Check(t.Summary(), Equals, "1...")
@@ -49,8 +48,7 @@ func (ts *taskSuite) TestGetSet(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	chg := st.NewChange("install", "...")
-	t := chg.NewTask("download", "1...")
+	t := st.NewTask("download", "1...")
 
 	t.Set("a", 1)
 
@@ -63,8 +61,7 @@ func (ts *taskSuite) TestGetSet(c *C) {
 func (ts *taskSuite) TestGetNeedsLock(c *C) {
 	st := state.New(nil)
 	st.Lock()
-	chg := st.NewChange("install", "...")
-	t := chg.NewTask("download", "1...")
+	t := st.NewTask("download", "1...")
 	st.Unlock()
 
 	var v int
@@ -74,8 +71,7 @@ func (ts *taskSuite) TestGetNeedsLock(c *C) {
 func (ts *taskSuite) TestSetNeedsLock(c *C) {
 	st := state.New(nil)
 	st.Lock()
-	chg := st.NewChange("install", "...")
-	t := chg.NewTask("download", "1...")
+	t := st.NewTask("download", "1...")
 	st.Unlock()
 
 	c.Assert(func() { t.Set("a", 1) }, PanicMatches, "internal error: accessing state without lock")
@@ -86,8 +82,7 @@ func (ts *taskSuite) TestStatusAndSetStatus(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	chg := st.NewChange("install", "...")
-	t := chg.NewTask("download", "1...")
+	t := st.NewTask("download", "1...")
 
 	c.Check(t.Status(), Equals, state.RunningStatus)
 
@@ -99,8 +94,7 @@ func (ts *taskSuite) TestStatusAndSetStatus(c *C) {
 func (ts *taskSuite) TestStatusNeedsLock(c *C) {
 	st := state.New(nil)
 	st.Lock()
-	chg := st.NewChange("install", "...")
-	t := chg.NewTask("download", "1...")
+	t := st.NewTask("download", "1...")
 	st.Unlock()
 
 	c.Assert(func() { t.Status() }, PanicMatches, "internal error: accessing state without lock")
@@ -109,8 +103,7 @@ func (ts *taskSuite) TestStatusNeedsLock(c *C) {
 func (ts *taskSuite) TestSetStatusNeedsLock(c *C) {
 	st := state.New(nil)
 	st.Lock()
-	chg := st.NewChange("install", "...")
-	t := chg.NewTask("download", "1...")
+	t := st.NewTask("download", "1...")
 	st.Unlock()
 
 	c.Assert(func() { t.SetStatus(state.DoneStatus) }, PanicMatches, "internal error: accessing state without lock")
@@ -121,8 +114,7 @@ func (ts *taskSuite) TestProgressAndSetProgress(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	chg := st.NewChange("install", "...")
-	t := chg.NewTask("download", "1...")
+	t := st.NewTask("download", "1...")
 
 	t.SetProgress(2, 99)
 
@@ -137,8 +129,7 @@ func (ts *taskSuite) TestProgressDefaults(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	chg := st.NewChange("install", "...")
-	t := chg.NewTask("download", "1...")
+	t := st.NewTask("download", "1...")
 
 	c.Check(t.Status(), Equals, state.RunningStatus)
 	cur, tot := t.Progress()
@@ -169,8 +160,7 @@ func (ts *taskSuite) TestProgressDefaults(c *C) {
 func (ts *taskSuite) TestProgressNeedsLock(c *C) {
 	st := state.New(nil)
 	st.Lock()
-	chg := st.NewChange("install", "...")
-	t := chg.NewTask("download", "1...")
+	t := st.NewTask("download", "1...")
 	st.Unlock()
 
 	c.Assert(func() { t.Progress() }, PanicMatches, "internal error: accessing state without lock")
@@ -179,8 +169,7 @@ func (ts *taskSuite) TestProgressNeedsLock(c *C) {
 func (ts *taskSuite) TestSetProgressNeedsLock(c *C) {
 	st := state.New(nil)
 	st.Lock()
-	chg := st.NewChange("install", "...")
-	t := chg.NewTask("download", "1...")
+	t := st.NewTask("download", "1...")
 	st.Unlock()
 
 	c.Assert(func() { t.SetProgress(2, 2) }, PanicMatches, "internal error: accessing state without lock")
@@ -189,8 +178,7 @@ func (ts *taskSuite) TestSetProgressNeedsLock(c *C) {
 func (ts *taskSuite) TestState(c *C) {
 	st := state.New(nil)
 	st.Lock()
-	chg := st.NewChange("install", "...")
-	t := chg.NewTask("download", "1...")
+	t := st.NewTask("download", "1...")
 	st.Unlock()
 
 	c.Assert(t.State(), Equals, st)
@@ -201,9 +189,8 @@ func (ts *taskSuite) TestTaskMarshalsWaitFor(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	chg := st.NewChange("install", "...")
-	t1 := chg.NewTask("download", "1...")
-	t2 := chg.NewTask("install", "2...")
+	t1 := st.NewTask("download", "1...")
+	t2 := st.NewTask("install", "2...")
 	t2.WaitFor(t1)
 
 	d, err := t2.MarshalJSON()
@@ -218,9 +205,8 @@ func (ts *taskSuite) TestTaskWaitFor(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	chg := st.NewChange("install", "...")
-	t1 := chg.NewTask("download", "1...")
-	t2 := chg.NewTask("install", "2...")
+	t1 := st.NewTask("download", "1...")
+	t2 := st.NewTask("install", "2...")
 	t2.WaitFor(t1)
 
 	c.Assert(t2.WaitTasks(), DeepEquals, []*state.Task{t1})
@@ -232,9 +218,8 @@ func (ts *taskSuite) TestTaskWaitFor(c *C) {
 func (cs *taskSuite) TestWaitForNeedsLocked(c *C) {
 	st := state.New(nil)
 	st.Lock()
-	chg := st.NewChange("install", "...")
-	t1 := chg.NewTask("download", "1...")
-	t2 := chg.NewTask("install", "2...")
+	t1 := st.NewTask("download", "1...")
+	t2 := st.NewTask("install", "2...")
 	st.Unlock()
 
 	c.Assert(func() { t2.WaitFor(t1) }, PanicMatches, "internal error: accessing state without lock")
@@ -243,8 +228,7 @@ func (cs *taskSuite) TestWaitForNeedsLocked(c *C) {
 func (cs *taskSuite) TestWaitTasksNeedsLocked(c *C) {
 	st := state.New(nil)
 	st.Lock()
-	chg := st.NewChange("install", "...")
-	t := chg.NewTask("download", "1...")
+	t := st.NewTask("download", "1...")
 	st.Unlock()
 
 	c.Assert(func() { t.WaitTasks() }, PanicMatches, "internal error: accessing state without lock")
@@ -253,9 +237,58 @@ func (cs *taskSuite) TestWaitTasksNeedsLocked(c *C) {
 func (cs *taskSuite) TestHaltTasksNeedsLocked(c *C) {
 	st := state.New(nil)
 	st.Lock()
-	chg := st.NewChange("install", "...")
-	t := chg.NewTask("download", "1...")
+	t := st.NewTask("download", "1...")
 	st.Unlock()
 
 	c.Assert(func() { t.HaltTasks() }, PanicMatches, "internal error: accessing state without lock")
+}
+
+func (cs *taskSuite) TestNewTaskSet(c *C) {
+	ts0 := state.NewTaskSet()
+	c.Check(ts0, HasLen, 0)
+
+	st := state.New(nil)
+	st.Lock()
+	t1 := st.NewTask("download", "1...")
+	t2 := st.NewTask("install", "2...")
+	ts2 := state.NewTaskSet(t1, t2)
+	st.Unlock()
+
+	c.Check(ts2, HasLen, 2)
+}
+
+func (ts *taskSuite) TestTaskWaitAll(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	t1 := st.NewTask("download", "1...")
+	t2 := st.NewTask("install", "2...")
+	t3 := st.NewTask("setup", "3...")
+	t3.WaitAll(state.NewTaskSet(t1, t2))
+
+	c.Assert(t3.WaitTasks(), HasLen, 2)
+	c.Assert(t3.Status(), Equals, state.WaitingStatus)
+
+	c.Assert(t1.HaltTasks(), DeepEquals, []*state.Task{t3})
+	c.Assert(t2.HaltTasks(), DeepEquals, []*state.Task{t3})
+}
+
+func (ts *taskSuite) TestTaskSetWaitFor(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	t1 := st.NewTask("download", "1...")
+	t2 := st.NewTask("install", "2...")
+	t3 := st.NewTask("setup", "3...")
+	ts23 := state.NewTaskSet(t2, t3)
+	ts23.WaitFor(t1)
+
+	c.Assert(t2.Status(), Equals, state.WaitingStatus)
+	c.Assert(t2.WaitTasks(), DeepEquals, []*state.Task{t1})
+	c.Assert(t3.Status(), Equals, state.WaitingStatus)
+	c.Assert(t3.WaitTasks(), DeepEquals, []*state.Task{t1})
+
+	c.Assert(t1.HaltTasks(), HasLen, 2)
 }

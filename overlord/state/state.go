@@ -238,6 +238,17 @@ func (s *State) Changes() []*Change {
 	return res
 }
 
+// NewTask creates a new task.
+// It usually will be registered with a Change using AddTask or
+// through a TaskSet.
+func (s *State) NewTask(kind, summary string) *Task {
+	s.ensureLocked()
+	id := s.genID()
+	t := newTask(s, id, kind, summary)
+	s.tasks[id] = t
+	return t
+}
+
 // Tasks returns all tasks currently known to the state.
 func (s *State) Tasks() []*Task {
 	s.ensureLocked()

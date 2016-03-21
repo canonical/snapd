@@ -304,7 +304,8 @@ func (ovs *overlordSuite) TestTrivialSettle(c *C) {
 	defer s.Unlock()
 
 	chg := s.NewChange("chg", "...")
-	t1 := chg.NewTask("runMgr1", "1...")
+	t1 := s.NewTask("runMgr1", "1...")
+	chg.AddTask(t1)
 
 	s.Unlock()
 
@@ -335,9 +336,10 @@ func (ovs *overlordSuite) TestSettleChain(c *C) {
 	defer s.Unlock()
 
 	chg := s.NewChange("chg", "...")
-	t1 := chg.NewTask("runMgr1", "1...")
-	t2 := chg.NewTask("runMgr2", "2...")
+	t1 := s.NewTask("runMgr1", "1...")
+	t2 := s.NewTask("runMgr2", "2...")
 	t2.WaitFor(t1)
+	chg.AddTasks(state.NewTaskSet(t1, t2))
 
 	s.Unlock()
 
@@ -379,7 +381,8 @@ func (ovs *overlordSuite) TestSettleExplicitEnsureBefore(c *C) {
 	defer s.Unlock()
 
 	chg := s.NewChange("chg", "...")
-	t := chg.NewTask("runMgrEnsureBefore", "...")
+	t := s.NewTask("runMgrEnsureBefore", "...")
+	chg.AddTask(t)
 	s.Unlock()
 
 	o.Settle()
