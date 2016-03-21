@@ -27,6 +27,7 @@ import (
 	"github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/overlord/ifacestate"
 	"github.com/ubuntu-core/snappy/overlord/state"
+	"github.com/ubuntu-core/snappy/snap"
 )
 
 func TestInterfaceManager(t *testing.T) { TestingT(t) }
@@ -100,15 +101,15 @@ func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
 	repo := s.mgr.Repository()
 	c.Check(repo.Interfaces(), DeepEquals, &interfaces.Interfaces{
 		Slots: []*interfaces.Slot{{
-			Snap:        "producer",
-			Name:        "slot",
-			Interface:   "test",
+			SlotInfo: &snap.SlotInfo{
+				Snap: &snap.Info{Name: "producer"}, Name: "slot", Interface: "test",
+			},
 			Connections: []interfaces.PlugRef{{Snap: "consumer", Name: "plug"}},
 		}},
 		Plugs: []*interfaces.Plug{{
-			Snap:        "consumer",
-			Name:        "plug",
-			Interface:   "test",
+			PlugInfo: &snap.PlugInfo{
+				Snap: &snap.Info{Name: "consumer"}, Name: "plug", Interface: "test",
+			},
 			Connections: []interfaces.SlotRef{{Snap: "producer", Name: "slot"}},
 		}},
 	})
@@ -161,8 +162,10 @@ func (s *interfaceManagerSuite) TestEnsureProcessesDisconnectTask(c *C) {
 	c.Check(change.Status(), Equals, state.DoneStatus)
 	c.Check(repo.Interfaces(), DeepEquals, &interfaces.Interfaces{
 		// NOTE: the connection is gone now.
-		Slots: []*interfaces.Slot{{Snap: "producer", Name: "slot", Interface: "test"}},
-		Plugs: []*interfaces.Plug{{Snap: "consumer", Name: "plug", Interface: "test"}},
+		Slots: []*interfaces.Slot{{SlotInfo: &snap.SlotInfo{
+			Snap: &snap.Info{Name: "producer"}, Name: "slot", Interface: "test"}}},
+		Plugs: []*interfaces.Plug{{PlugInfo: &snap.PlugInfo{
+			Snap: &snap.Info{Name: "consumer"}, Name: "plug", Interface: "test"}}},
 	})
 }
 
@@ -170,8 +173,10 @@ func (s *interfaceManagerSuite) addPlugSlotAndInterface(c *C) {
 	repo := s.mgr.Repository()
 	err := repo.AddInterface(&interfaces.TestInterface{InterfaceName: "test"})
 	c.Assert(err, IsNil)
-	err = repo.AddSlot(&interfaces.Slot{Snap: "producer", Name: "slot", Interface: "test"})
+	err = repo.AddSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
+		Snap: &snap.Info{Name: "producer"}, Name: "slot", Interface: "test"}})
 	c.Assert(err, IsNil)
-	err = repo.AddPlug(&interfaces.Plug{Snap: "consumer", Name: "plug", Interface: "test"})
+	err = repo.AddPlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{
+		Snap: &snap.Info{Name: "consumer"}, Name: "plug", Interface: "test"}})
 	c.Assert(err, IsNil)
 }
