@@ -97,8 +97,8 @@ func (ses *stateEngineSuite) TestEnsureError(c *C) {
 	se.AddManager(mgr2)
 
 	err := se.Ensure()
-	c.Check(err, Equals, err1)
-	c.Check(calls, DeepEquals, []string{"ensure:mgr1"})
+	c.Check(err.Error(), DeepEquals, "state ensure errors: [boom1 boom2]")
+	c.Check(calls, DeepEquals, []string{"ensure:mgr1", "ensure:mgr2"})
 }
 
 func (ses *stateEngineSuite) TestStop(c *C) {

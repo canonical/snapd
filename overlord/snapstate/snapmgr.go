@@ -31,23 +31,23 @@ import (
 	"github.com/ubuntu-core/snappy/snappy"
 )
 
-// Install initiates a change installing snap.
+// Install returns a set of tasks for installing snap.
 // Note that the state must be locked by the caller.
-func Install(change *state.Change, snap, channel string) error {
-	t := change.NewTask("install-snap", fmt.Sprintf(i18n.G("Installing %q"), snap))
+func Install(s *state.State, snap, channel string) (state.TaskSet, error) {
+	t := s.NewTask("install-snap", fmt.Sprintf(i18n.G("Installing %q"), snap))
 	t.Set("name", snap)
 	t.Set("channel", channel)
 
-	return nil
+	return state.NewTaskSet(t), nil
 }
 
-// Remove initiates a change removing snap.
+// Remove returns a set of tasks for removing snap.
 // Note that the state must be locked by the caller.
-func Remove(change *state.Change, snap string) error {
-	t := change.NewTask("remove-snap", fmt.Sprintf(i18n.G("Removing %q"), snap))
+func Remove(s *state.State, snap string) (state.TaskSet, error) {
+	t := s.NewTask("remove-snap", fmt.Sprintf(i18n.G("Removing %q"), snap))
 	t.Set("name", snap)
 
-	return nil
+	return state.NewTaskSet(t), nil
 }
 
 type backendIF interface {
