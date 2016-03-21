@@ -75,8 +75,6 @@ export HOME="$SNAP_USER_DATA"
 # App name is: {{.AppName}}
 # Developer name is: {{.Developer}}
 
-# export old pwd
-export SNAP_OLD_PWD="$(pwd)"
 ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 `
 
