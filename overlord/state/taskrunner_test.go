@@ -63,7 +63,8 @@ func (ts *taskRunnerSuite) TestEnsureTrivial(c *C) {
 	// add a download task to the state tracker
 	st.Lock()
 	chg := st.NewChange("install", "...")
-	t := chg.NewTask("download", "1...")
+	t := st.NewTask("download", "1...")
+	chg.AddTask(t)
 	taskCompleted.Add(1)
 	st.Unlock()
 
@@ -119,11 +120,14 @@ func (ts *taskRunnerSuite) TestEnsureComplex(c *C) {
 		chg := st.NewChange("mock-install", "...")
 
 		// create sub-tasks
-		tDl := chg.NewTask("download", "1...")
-		tUnp := chg.NewTask("unpack", "2...")
+		tDl := st.NewTask("download", "1...")
+		tUnp := st.NewTask("unpack", "2...")
 		tUnp.WaitFor(tDl)
-		tConf := chg.NewTask("configure", "3...")
+		chg.AddTask(tDl)
+		chg.AddTask(tUnp)
+		tConf := st.NewTask("configure", "3...")
 		tConf.WaitFor(tUnp)
+		chg.AddTask(tConf)
 		st.Unlock()
 
 		// ensure just kicks the go routine off
@@ -156,7 +160,8 @@ func (ts *taskRunnerSuite) TestErrorIsFinal(c *C) {
 	// add a download task to the state tracker
 	st.Lock()
 	chg := st.NewChange("install", "...")
-	chg.NewTask("download", "1...")
+	t := st.NewTask("download", "1...")
+	chg.AddTask(t)
 	st.Unlock()
 
 	defer r.Stop()
@@ -192,7 +197,8 @@ func (ts *taskRunnerSuite) TestStopCancelsGoroutines(c *C) {
 	// add a download task to the state tracker
 	st.Lock()
 	chg := st.NewChange("install", "...")
-	t := chg.NewTask("download", "1...")
+	t := st.NewTask("download", "1...")
+	chg.AddTask(t)
 	st.Unlock()
 
 	defer r.Stop()
@@ -223,11 +229,14 @@ func (ts *taskRunnerSuite) TestErrorPropagates(c *C) {
 
 	st.Lock()
 	chg := st.NewChange("install", "...")
-	errTask := chg.NewTask("erroring", "1...")
-	dep1 := chg.NewTask("dep", "2...")
+	errTask := st.NewTask("erroring", "1...")
+	dep1 := st.NewTask("dep", "2...")
 	dep1.WaitFor(errTask)
-	dep2 := chg.NewTask("dep", "3...")
+	dep2 := st.NewTask("dep", "3...")
 	dep2.WaitFor(dep1)
+	chg.AddTask(errTask)
+	chg.AddTask(dep1)
+	chg.AddTask(dep2)
 	st.Unlock()
 
 	defer r.Stop()
