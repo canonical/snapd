@@ -49,6 +49,23 @@ int seccomp_load_filters(const char *filter_profile)
    if (ctx == NULL)
       return ENOMEM;
 
+   // Disable NO_NEW_PRIVS because it interferes with exec transitions in
+   // AppArmor. Unfortunately this means that security policies must be very
+   // careful to not allow the following otherwise apps can escape the snadbox:
+   //   - seccomp syscall
+   //   - prctl with PR_SET_SECCOMP
+   //   - ptrace (trace) in AppArmor
+   //   - capability sys_admin in AppArmor
+   // Note that with NO_NEW_PRIVS disabled, CAP_SYS_ADMIN is required to change
+   // the seccomp sandbox.
+   if (getenv("UBUNTU_CORE_LAUNCHER_NO_ROOT") == NULL) {
+      rc = seccomp_attr_set(ctx, SCMP_FLTATR_CTL_NNP, 0);
+      if (rc != 0) {
+         fprintf(stderr, "Cannot disable nnp\n");
+         return -1;
+      }
+   }
+
    if (getenv("SNAPPY_LAUNCHER_SECCOMP_PROFILE_DIR") != NULL)
       filter_profile_dir = getenv("SNAPPY_LAUNCHER_SECCOMP_PROFILE_DIR");
 
@@ -110,15 +127,32 @@ int seccomp_load_filters(const char *filter_profile)
       }
    }
 
+   // raise privileges to load seccomp policy since we don't have nnp
+   if (getenv("UBUNTU_CORE_LAUNCHER_NO_ROOT") == NULL) {
+      if (seteuid(0) != 0)
+         die("seteuid failed");
+      if (geteuid() != 0)
+         die("raising privs before seccomp_load did not work");
+   }
+
    // load it into the kernel
    rc = seccomp_load(ctx);
+
    if (rc != 0) {
       fprintf(stderr, "seccomp_load failed with %i\n", rc);
       goto out;
    }
 
-
  out:
+   // drop privileges again
+   if (geteuid() == 0) {
+      unsigned real_uid = getuid();
+      if (seteuid(real_uid) != 0)
+         die("seteuid failed");
+      if (real_uid != 0 && geteuid() == 0)
+         die("dropping privs after seccomp_load did not work");
+   }
+
    if (f != NULL) {
       fclose(f);
    }

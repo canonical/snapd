@@ -28,6 +28,10 @@ execve
 arch_prctl
 exit_group
 
+# required for not setting nnp
+geteuid
+getuid
+
 # unknown syscalls are ignore
 i-dont-exit
 EOF

@@ -23,6 +23,9 @@ execve
 arch_prctl
 exit_group
 
+geteuid
+getuid
+
 # unknown syscalls are ignore
 i-dont-exit
 EOF
