@@ -83,15 +83,11 @@ plugs:
 	c.Check(info.Name, Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
-	plug := info.Plugs["network-client"]
-
-	c.Assert(plug, Not(IsNil))
-	c.Check(plug.Snap, Equals, info)
-	c.Check(plug.Name, Equals, "network-client")
-	c.Check(plug.Interface, Equals, "network-client")
-	c.Check(plug.Attrs, HasLen, 0)
-	c.Check(plug.Label, Equals, "")
-	c.Check(plug.Apps, HasLen, 0)
+	c.Assert(info.Plugs["network-client"], DeepEquals, &snap.PlugInfo{
+		Snap:      info,
+		Name:      "network-client",
+		Interface: "network-client",
+	})
 }
 
 func (s *YamlSuite) TestUnmarshalStandaloneAbbreviatedPlug(c *C) {
@@ -105,15 +101,11 @@ plugs:
 	c.Check(info.Name, Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
-	plug := info.Plugs["net"]
-
-	c.Assert(plug, Not(IsNil))
-	c.Check(plug.Snap, Equals, info)
-	c.Check(plug.Name, Equals, "net")
-	c.Check(plug.Interface, Equals, "network-client")
-	c.Check(plug.Attrs, HasLen, 0)
-	c.Check(plug.Label, Equals, "")
-	c.Check(plug.Apps, HasLen, 0)
+	c.Assert(info.Plugs["net"], DeepEquals, &snap.PlugInfo{
+		Snap:      info,
+		Name:      "net",
+		Interface: "network-client",
+	})
 }
 
 func (s *YamlSuite) TestUnmarshalStandaloneMinimalisticPlug(c *C) {
@@ -128,15 +120,11 @@ plugs:
 	c.Check(info.Name, Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
-	plug := info.Plugs["net"]
-
-	c.Assert(plug, Not(IsNil))
-	c.Check(plug.Snap, Equals, info)
-	c.Check(plug.Name, Equals, "net")
-	c.Check(plug.Interface, Equals, "network-client")
-	c.Check(plug.Attrs, HasLen, 0)
-	c.Check(plug.Label, Equals, "")
-	c.Check(plug.Apps, HasLen, 0)
+	c.Assert(info.Plugs["net"], DeepEquals, &snap.PlugInfo{
+		Snap:      info,
+		Name:      "net",
+		Interface: "network-client",
+	})
 }
 
 func (s *YamlSuite) TestUnmarshalStandaloneCompletePlug(c *C) {
@@ -152,15 +140,12 @@ plugs:
 	c.Check(info.Name, Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
-	plug := info.Plugs["net"]
-
-	c.Assert(plug, Not(IsNil))
-	c.Check(plug.Snap, Equals, info)
-	c.Check(plug.Name, Equals, "net")
-	c.Check(plug.Interface, Equals, "network-client")
-	c.Check(plug.Attrs, DeepEquals, map[string]interface{}{"ipv6-aware": true})
-	c.Check(plug.Label, Equals, "")
-	c.Check(plug.Apps, HasLen, 0)
+	c.Assert(info.Plugs["net"], DeepEquals, &snap.PlugInfo{
+		Snap:      info,
+		Name:      "net",
+		Interface: "network-client",
+		Attrs:     map[string]interface{}{"ipv6-aware": true},
+	})
 }
 
 func (s *YamlSuite) TestUnmarshalLastPlugDefinitionWins(c *C) {
@@ -179,15 +164,12 @@ plugs:
 	c.Check(info.Name, Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
-	plug := info.Plugs["net"]
-
-	c.Assert(plug, Not(IsNil))
-	c.Check(plug.Snap, Equals, info)
-	c.Check(plug.Name, Equals, "net")
-	c.Check(plug.Interface, Equals, "network-client")
-	c.Check(plug.Attrs, DeepEquals, map[string]interface{}{"attr": 2})
-	c.Check(plug.Label, Equals, "")
-	c.Check(plug.Apps, HasLen, 0)
+	c.Assert(info.Plugs["net"], DeepEquals, &snap.PlugInfo{
+		Snap:      info,
+		Name:      "net",
+		Interface: "network-client",
+		Attrs:     map[string]interface{}{"attr": 2},
+	})
 }
 
 func (s *YamlSuite) TestUnmarshalPlugsExplicitlyDefinedImplicitlyBoundToApps(c *C) {
@@ -204,20 +186,20 @@ apps:
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
 	c.Check(info.Apps, HasLen, 1)
+
 	plug := info.Plugs["network-client"]
 	app := info.Apps["app"]
-
-	c.Assert(plug, Not(IsNil))
-	c.Check(plug.Snap, Equals, info)
-	c.Check(plug.Name, Equals, "network-client")
-	c.Check(plug.Interface, Equals, "network-client")
-	c.Check(plug.Attrs, HasLen, 0)
-	c.Check(plug.Label, Equals, "")
-	c.Check(plug.Apps, DeepEquals, map[string]*snap.AppInfo{app.Name: app})
-
-	c.Assert(app, Not(IsNil))
-	c.Check(app.Plugs, DeepEquals, map[string]*snap.PlugInfo{plug.Name: plug})
-	c.Check(app.Slots, HasLen, 0)
+	c.Assert(plug, DeepEquals, &snap.PlugInfo{
+		Snap:      info,
+		Name:      "network-client",
+		Interface: "network-client",
+		Apps:      map[string]*snap.AppInfo{app.Name: app},
+	})
+	c.Assert(app, DeepEquals, &snap.AppInfo{
+		Snap:  info,
+		Name:  "app",
+		Plugs: map[string]*snap.PlugInfo{plug.Name: plug},
+	})
 }
 
 func (s *YamlSuite) TestUnmarshalPlugsExplicitlyDefinedExplicitlyBoundToApps(c *C) {
@@ -237,18 +219,17 @@ apps:
 	c.Check(info.Apps, HasLen, 1)
 	plug := info.Plugs["net"]
 	app := info.Apps["app"]
-
-	c.Assert(plug, Not(IsNil))
-	c.Check(plug.Snap, Equals, info)
-	c.Check(plug.Name, Equals, "net")
-	c.Check(plug.Interface, Equals, "network-client")
-	c.Check(plug.Attrs, HasLen, 0)
-	c.Check(plug.Label, Equals, "")
-	c.Check(plug.Apps, DeepEquals, map[string]*snap.AppInfo{app.Name: app})
-
-	c.Assert(app, Not(IsNil))
-	c.Check(app.Plugs, DeepEquals, map[string]*snap.PlugInfo{plug.Name: plug})
-	c.Check(app.Slots, HasLen, 0)
+	c.Assert(plug, DeepEquals, &snap.PlugInfo{
+		Snap:      info,
+		Name:      "net",
+		Interface: "network-client",
+		Apps:      map[string]*snap.AppInfo{app.Name: app},
+	})
+	c.Assert(app, DeepEquals, &snap.AppInfo{
+		Snap:  info,
+		Name:  "app",
+		Plugs: map[string]*snap.PlugInfo{plug.Name: plug},
+	})
 }
 
 func (s *YamlSuite) TestUnmarshalPlugsImplicitlyDefinedExplicitlyBoundToApps(c *C) {
@@ -266,18 +247,17 @@ apps:
 	c.Check(info.Apps, HasLen, 1)
 	plug := info.Plugs["network-client"]
 	app := info.Apps["app"]
-
-	c.Assert(plug, Not(IsNil))
-	c.Check(plug.Snap, Equals, info)
-	c.Check(plug.Name, Equals, "network-client")
-	c.Check(plug.Interface, Equals, "network-client")
-	c.Check(plug.Attrs, HasLen, 0)
-	c.Check(plug.Label, Equals, "")
-	c.Check(plug.Apps, DeepEquals, map[string]*snap.AppInfo{app.Name: app})
-
-	c.Assert(app, Not(IsNil))
-	c.Check(app.Plugs, DeepEquals, map[string]*snap.PlugInfo{plug.Name: plug})
-	c.Check(app.Slots, HasLen, 0)
+	c.Assert(plug, DeepEquals, &snap.PlugInfo{
+		Snap:      info,
+		Name:      "network-client",
+		Interface: "network-client",
+		Apps:      map[string]*snap.AppInfo{app.Name: app},
+	})
+	c.Assert(app, DeepEquals, &snap.AppInfo{
+		Snap:  info,
+		Name:  "app",
+		Plugs: map[string]*snap.PlugInfo{plug.Name: plug},
+	})
 }
 
 func (s *YamlSuite) TestUnmarshalPlugWithoutInterfaceName(c *C) {
