@@ -232,8 +232,7 @@ WantedBy=multi-user.target
 `
 
 var (
-	expectedAppService = fmt.Sprintf(expectedServiceFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".mvo", "mvo", "Type=simple\n", arch.UbuntuArchitecture())
-
+	expectedAppService  = fmt.Sprintf(expectedServiceFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".mvo", "mvo", "Type=simple\n", arch.UbuntuArchitecture())
 	expectedDbusService = fmt.Sprintf(expectedServiceFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".mvo", "mvo", "Type=dbus\nBusName=foo.bar.baz", arch.UbuntuArchitecture())
 )
 

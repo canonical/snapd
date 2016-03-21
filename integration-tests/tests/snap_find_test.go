@@ -33,7 +33,7 @@ type searchSuite struct {
 	common.SnappySuite
 }
 
-func (s *searchSuite) TestSearchFrameworkMustPrintMatch(c *check.C) {
+func (s *searchSuite) TestSearchMustPrintMatch(c *check.C) {
 	searchOutput := cli.ExecCommand(c, "snap", "find", "hello-world")
 
 	expected := "(?ms)" +
