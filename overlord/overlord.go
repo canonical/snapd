@@ -29,7 +29,6 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/osutil"
 
 	"github.com/ubuntu-core/snappy/overlord/assertstate"
@@ -117,19 +116,20 @@ func (o *Overlord) ensureTimerSetup() {
 	o.ensureNext = time.Now().Add(ensureInterval)
 }
 
-func (o *Overlord) ensureTimerReset() {
+func (o *Overlord) ensureTimerReset() time.Time {
 	o.ensureLock.Lock()
 	defer o.ensureLock.Unlock()
 	now := time.Now()
 	o.ensureTimer.Reset(ensureInterval)
 	o.ensureNext = now.Add(ensureInterval)
+	return o.ensureNext
 }
 
 func (o *Overlord) ensureBefore(d time.Duration) {
 	o.ensureLock.Lock()
 	defer o.ensureLock.Unlock()
 	if o.ensureTimer == nil {
-		panic("cannot use EnsureBefore before Overlord.Run()")
+		panic("cannot use EnsureBefore before Overlord.Loop")
 	}
 	now := time.Now()
 	next := now.Add(d)
@@ -139,8 +139,8 @@ func (o *Overlord) ensureBefore(d time.Duration) {
 	}
 }
 
-// Run runs a loop to ensure the current state regularly through StateEngine Ensure().
-func (o *Overlord) Run() {
+// Loop runs a loop in a goroutine to ensure the current state regularly through StateEngine Ensure.
+func (o *Overlord) Loop() {
 	o.ensureTimerSetup()
 	o.loopTomb.Go(func() error {
 		for {
@@ -150,11 +150,9 @@ func (o *Overlord) Run() {
 			case <-o.ensureTimer.C:
 			}
 			o.ensureTimerReset()
-			err := o.stateEng.Ensure()
-			if err != nil {
-				logger.Noticef("state engine ensure failed: %v", err)
-				// continue to the next Ensure() try for now
-			}
+			// in case of errors engine logs them,
+			// continue to the next Ensure() try for now
+			o.stateEng.Ensure()
 		}
 	})
 }
@@ -165,6 +163,50 @@ func (o *Overlord) Stop() error {
 	err1 := o.loopTomb.Wait()
 	o.stateEng.Stop()
 	return err1
+}
+
+// Settle runs first a state engine Ensure and then wait for activities to settle.
+// That's done by waiting for all managers activities to settle while
+// making sure no immediate further Ensure is scheduled. Chiefly for tests.
+// Cannot be used in conjuction with Loop.
+func (o *Overlord) Settle() error {
+	func() {
+		o.ensureLock.Lock()
+		defer o.ensureLock.Unlock()
+		if o.ensureTimer != nil {
+			panic("cannot use Settle concurrently with other Settle or Loop calls")
+		}
+		o.ensureTimer = time.NewTimer(0)
+	}()
+
+	defer func() {
+		o.ensureLock.Lock()
+		defer o.ensureLock.Unlock()
+		o.ensureTimer.Stop()
+		o.ensureTimer = nil
+	}()
+
+	done := false
+	var errs []error
+	for !done {
+		next := o.ensureTimerReset()
+		err := o.stateEng.Ensure()
+		switch ee := err.(type) {
+		case nil:
+		case *ensureError:
+			errs = append(errs, ee.errs...)
+		default:
+			errs = append(errs, err)
+		}
+		o.stateEng.Wait()
+		o.ensureLock.Lock()
+		done = o.ensureNext.Equal(next)
+		o.ensureLock.Unlock()
+	}
+	if len(errs) != 0 {
+		return &ensureError{errs}
+	}
+	return nil
 }
 
 // StateEngine returns the state engine used by the overlord.
