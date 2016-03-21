@@ -61,30 +61,30 @@ func Manager(s *state.State) (*InterfaceManager, error) {
 	return m, nil
 }
 
-// Connect initiates a change connecting an interface.
+// Connect returns a set of tasks for connecting an interface.
 //
-func Connect(change *state.Change, plugSnap, plugName, slotSnap, slotName string) error {
+func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (state.TaskSet, error) {
 	// TODO: Store the intent-to-connect in the state so that we automatically
 	// try to reconnect on reboot (reconnection can fail or can connect with
 	// different parameters so we cannot store the actual connection details).
 	summary := fmt.Sprintf(i18n.G("Connect %s:%s to %s:%s"),
 		plugSnap, plugName, slotSnap, slotName)
-	task := change.NewTask("connect", summary)
+	task := s.NewTask("connect", summary)
 	task.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
 	task.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
-	return nil
+	return state.NewTaskSet(task), nil
 }
 
-// Disconnect initiates a change disconnecting an interface.
-func Disconnect(change *state.Change, plugSnap, plugName, slotSnap, slotName string) error {
+// Disconnect returns a set of tasks for  disconnecting an interface.
+func Disconnect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (state.TaskSet, error) {
 	// TODO: Remove the intent-to-connect from the state so that we no longer
 	// automatically try to reconnect on reboot.
 	summary := fmt.Sprintf(i18n.G("Disconnect %s:%s from %s:%s"),
 		plugSnap, plugName, slotSnap, slotName)
-	task := change.NewTask("disconnect", summary)
+	task := s.NewTask("disconnect", summary)
 	task.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
 	task.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
-	return nil
+	return state.NewTaskSet(task), nil
 }
 
 func getPlugAndSlotRefs(task *state.Task) (*interfaces.PlugRef, *interfaces.SlotRef, error) {
