@@ -24,12 +24,14 @@ import (
 
 	"github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/interfaces/builtin"
+	"github.com/ubuntu-core/snappy/snap"
 )
 
 type NetworkBindInterfaceSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface         interfaces.Interface
+	slot          *interfaces.Slot
+	otherSnapSlot *interfaces.Slot
+	plug          *interfaces.Plug
 }
 
 var _ = Suite(&NetworkBindInterfaceSuite{
@@ -37,16 +39,29 @@ var _ = Suite(&NetworkBindInterfaceSuite{
 })
 
 func (s *NetworkBindInterfaceSuite) SetUpTest(c *C) {
-	s.slot = &interfaces.Slot{
-		Snap:      "ubuntu-core",
-		Name:      "network-bind",
-		Interface: "network-bind",
-	}
-	s.plug = &interfaces.Plug{
-		Snap:      "snap",
-		Name:      "network-bind",
-		Interface: "network-bind",
-	}
+	info1, err := snap.InfoFromSnapYaml([]byte(`
+name: ubuntu-core
+slots:
+    network-bind:
+`))
+	c.Assert(err, IsNil)
+	s.slot = &interfaces.Slot{SlotInfo: info1.Slots["network-bind"]}
+
+	info2, err := snap.InfoFromSnapYaml([]byte(`
+name: some-snap
+slots:
+    network-bind:
+`))
+	c.Assert(err, IsNil)
+	s.otherSnapSlot = &interfaces.Slot{SlotInfo: info2.Slots["network-bind"]}
+
+	info3, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+plugs:
+    network-bind:
+`))
+	c.Assert(err, IsNil)
+	s.plug = &interfaces.Plug{PlugInfo: info3.Plugs["network-bind"]}
 }
 
 func (s *NetworkBindInterfaceSuite) TestName(c *C) {
@@ -56,11 +71,7 @@ func (s *NetworkBindInterfaceSuite) TestName(c *C) {
 func (s *NetworkBindInterfaceSuite) TestSanitizeSlot(c *C) {
 	err := s.iface.SanitizeSlot(s.slot)
 	c.Assert(err, IsNil)
-	err = s.iface.SanitizeSlot(&interfaces.Slot{
-		Snap:      "some-snap",
-		Name:      "network-bind",
-		Interface: "network-bind",
-	})
+	err = s.iface.SanitizeSlot(s.otherSnapSlot)
 	c.Assert(err, ErrorMatches, "network-bind slots are reserved for the operating system snap")
 }
 
@@ -70,9 +81,9 @@ func (s *NetworkBindInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *NetworkBindInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{Interface: "other"}) },
+	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
 		PanicMatches, `slot is not of interface "network-bind"`)
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{Interface: "other"}) },
+	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
 		PanicMatches, `plug is not of interface "network-bind"`)
 }
 
