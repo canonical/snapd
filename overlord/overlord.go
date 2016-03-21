@@ -72,21 +72,21 @@ func New() (*Overlord, error) {
 
 	o.stateEng = NewStateEngine(s)
 
-	snapMgr, err := snapstate.Manager()
+	snapMgr, err := snapstate.Manager(s)
 	if err != nil {
 		return nil, err
 	}
 	o.snapMgr = snapMgr
 	o.stateEng.AddManager(o.snapMgr)
 
-	assertMgr, err := assertstate.Manager()
+	assertMgr, err := assertstate.Manager(s)
 	if err != nil {
 		return nil, err
 	}
 	o.assertMgr = assertMgr
 	o.stateEng.AddManager(o.assertMgr)
 
-	ifaceMgr, err := ifacestate.Manager()
+	ifaceMgr, err := ifacestate.Manager(s)
 	if err != nil {
 		return nil, err
 	}

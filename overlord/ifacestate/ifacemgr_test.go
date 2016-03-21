@@ -40,9 +40,7 @@ var _ = Suite(&interfaceManagerSuite{})
 
 func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	state := state.New(nil)
-	mgr, err := ifacestate.Manager()
-	c.Assert(err, IsNil)
-	err = mgr.Init(state)
+	mgr, err := ifacestate.Manager(state)
 	c.Assert(err, IsNil)
 	s.state = state
 	s.mgr = mgr
