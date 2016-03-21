@@ -29,7 +29,6 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/osutil"
 
 	"github.com/ubuntu-core/snappy/overlord/assertstate"
@@ -151,11 +150,9 @@ func (o *Overlord) Loop() {
 			case <-o.ensureTimer.C:
 			}
 			o.ensureTimerReset()
-			err := o.stateEng.Ensure()
-			if err != nil {
-				logger.Noticef("state engine ensure failed: %v", err)
-				// continue to the next Ensure() try for now
-			}
+			// in case of errors engine logs them,
+			// continue to the next Ensure() try for now
+			o.stateEng.Ensure()
 		}
 	})
 }
@@ -172,7 +169,7 @@ func (o *Overlord) Stop() error {
 // That's done by waiting for all managers activities to settle while
 // making sure no immediate further Ensure is scheduled. Chiefly for tests.
 // Cannot be used in conjuction with Loop.
-func (o *Overlord) Settle() {
+func (o *Overlord) Settle() error {
 	func() {
 		o.ensureLock.Lock()
 		defer o.ensureLock.Unlock()
@@ -190,15 +187,26 @@ func (o *Overlord) Settle() {
 	}()
 
 	done := false
+	var errs []error
 	for !done {
 		next := o.ensureTimerReset()
-		o.stateEng.Ensure()
-		// XXX return error
+		err := o.stateEng.Ensure()
+		switch ee := err.(type) {
+		case nil:
+		case *ensureError:
+			errs = append(errs, ee.errs...)
+		default:
+			errs = append(errs, err)
+		}
 		o.stateEng.Wait()
 		o.ensureLock.Lock()
 		done = o.ensureNext.Equal(next)
 		o.ensureLock.Unlock()
 	}
+	if len(errs) != 0 {
+		return &ensureError{errs}
+	}
+	return nil
 }
 
 // StateEngine returns the state engine used by the overlord.
