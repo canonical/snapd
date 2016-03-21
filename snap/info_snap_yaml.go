@@ -89,7 +89,9 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 			Interface: iface,
 			Attrs:     attrs,
 			Label:     label,
-			Apps:      make(map[string]*AppInfo),
+		}
+		if len(y.Apps) > 0 {
+			snap.Plugs[name].Apps = make(map[string]*AppInfo)
 		}
 	}
 	// Collect top-level definitions of slots
@@ -104,7 +106,9 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 			Interface: iface,
 			Attrs:     attrs,
 			Label:     label,
-			Apps:      make(map[string]*AppInfo),
+		}
+		if len(y.Apps) > 0 {
+			snap.Slots[name].Apps = make(map[string]*AppInfo)
 		}
 	}
 	for appName, yApp := range y.Apps {
@@ -113,8 +117,12 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 			Snap:    snap,
 			Name:    appName,
 			Command: yApp.Command,
-			Plugs:   make(map[string]*PlugInfo),
-			Slots:   make(map[string]*SlotInfo),
+		}
+		if len(y.Plugs) > 0 || len(yApp.PlugNames) > 0 {
+			app.Plugs = make(map[string]*PlugInfo)
+		}
+		if len(y.Slots) > 0 || len(yApp.SlotNames) > 0 {
+			app.Slots = make(map[string]*SlotInfo)
 		}
 		snap.Apps[appName] = app
 		// Bind all plugs/slots listed in this app
