@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-03-18 11:33+0100\n"
+        "POT-Creation-Date: 2016-03-21 09:24+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,25 +17,40 @@ msgstr  "Project-Id-Version: snappy\n"
         "Content-Transfer-Encoding: 8bit\n"
 
 #. TRANSLATORS: the %s is a pkgname, the second a comma separated list of paths
+#. TRANSLATORS: the %s is a pkgname, the second a comma separated list of paths
+#. TRANSLATORS: the %s is a pkgname, the second a comma separated list of paths
+#. TRANSLATORS: the %s is a pkgname, the second a comma separated list of paths
 #, c-format
 msgid   "%s: %s\n"
 msgstr  ""
 
+#. TRANSLATORS: the first %s is a pkgname, the second %s is a path
+#. TRANSLATORS: the first %s is a pkgname, the second %s is a path
+#. TRANSLATORS: the first %s is a pkgname, the second %s is a path
 #. TRANSLATORS: the first %s is a pkgname, the second %s is a path
 #, c-format
 msgid   "'%s' is no longer allowed to access '%s'\n"
 msgstr  ""
 
 #. TRANSLATORS: the first %s is a pkgname, the second %s is a path
+#. TRANSLATORS: the first %s is a pkgname, the second %s is a path
+#. TRANSLATORS: the first %s is a pkgname, the second %s is a path
+#. TRANSLATORS: the first %s is a pkgname, the second %s is a path
 #, c-format
 msgid   "'%s' is now allowed to access '%s'\n"
 msgstr  ""
 
 #. TRANSLATORS: the first %s is a pkgname, the second %s is a path
+#. TRANSLATORS: the first %s is a pkgname, the second %s is a path
+#. TRANSLATORS: the first %s is a pkgname, the second %s is a path
+#. TRANSLATORS: the first %s is a pkgname, the second %s is a path
 #, c-format
 msgid   "'%s' previously allowed access to '%s'. Skipping\n"
 msgstr  ""
 
+#. TRANSLATORS: the %s is a pkgname
+#. TRANSLATORS: the %s is a pkgname
+#. TRANSLATORS: the %s is a pkgname
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid   "'%s:' is not allowed to access additional hardware\n"
@@ -112,6 +127,10 @@ msgid   "Configures a package. The configuration is a YAML file, provided in the
 msgstr  ""
 
 #, c-format
+msgid   "Connect %s:%s to %s:%s"
+msgstr  ""
+
+#, c-format
 msgid   "Connecting %s:%s to %s:%s"
 msgstr  ""
 
@@ -134,6 +153,10 @@ msgid   "Destroy the classic dimension."
 msgstr  ""
 
 msgid   "Destroy the ubuntu classic dimension."
+msgstr  ""
+
+#, c-format
+msgid   "Disconnect %s:%s from %s:%s"
 msgstr  ""
 
 msgid   "Disconnects a plug from a slot"
@@ -170,6 +193,9 @@ msgid   "Generate the apparmor policy"
 msgstr  ""
 
 #. TRANSLATORS: the %s is a pkgname
+#. TRANSLATORS: the %s is a pkgname
+#. TRANSLATORS: the %s is a pkgname
+#. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid   "Generated '%s' snap\n"
 msgstr  ""
@@ -190,6 +216,9 @@ msgstr  ""
 msgid   "Installing %q"
 msgstr  ""
 
+#. TRANSLATORS: the %s is a pkgname
+#. TRANSLATORS: the %s is a pkgname
+#. TRANSLATORS: the %s is a pkgname
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid   "Installing %s\n"
@@ -223,6 +252,9 @@ msgid   "Name\tVersion\tSummary"
 msgstr  ""
 
 #. TRANSLATORS: the %s is a pkgname
+#. TRANSLATORS: the %s is a pkgname
+#. TRANSLATORS: the %s is a pkgname
+#. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid   "No snap: '%s' found"
 msgstr  ""
@@ -252,6 +284,9 @@ msgid   "Purge an installed package."
 msgstr  ""
 
 #. TRANSLATORS: the %s is a pkgname
+#. TRANSLATORS: the %s is a pkgname
+#. TRANSLATORS: the %s is a pkgname
+#. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid   "Purging %s\n"
 msgstr  ""
@@ -266,10 +301,19 @@ msgid   "Reboot if necessary to be on the latest running system."
 msgstr  ""
 
 #. TRANSLATORS: the first %s is a pkgname the second a version
+#. TRANSLATORS: the first %s is a pkgname the second a version
+#. TRANSLATORS: the first %s is a pkgname the second a version
+#. TRANSLATORS: the first %s is a pkgname the second a version
 #, c-format
 msgid   "Reboot to use %s version %s."
 msgstr  ""
 
+#. TRANSLATORS: the %s shows a comma separated list
+#. of package names
+#. TRANSLATORS: the %s shows a comma separated list
+#. of package names
+#. TRANSLATORS: the %s shows a comma separated list
+#. of package names
 #. TRANSLATORS: the %s shows a comma separated list
 #. of package names
 #, c-format
@@ -304,6 +348,9 @@ msgstr  ""
 msgid   "Removing %q"
 msgstr  ""
 
+#. TRANSLATORS: the %s is a pkgname
+#. TRANSLATORS: the %s is a pkgname
+#. TRANSLATORS: the %s is a pkgname
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid   "Removing %s\n"
@@ -343,6 +390,9 @@ msgid   "Set properties of system or package\n"
 msgstr  ""
 
 #. TRANSLATORS: the first %s is a pkgname, the second %s is the new version
+#. TRANSLATORS: the first %s is a pkgname, the second %s is the new version
+#. TRANSLATORS: the first %s is a pkgname, the second %s is the new version
+#. TRANSLATORS: the first %s is a pkgname, the second %s is the new version
 #, c-format
 msgid   "Setting %s to version %s\n"
 msgstr  ""
@@ -360,12 +410,18 @@ msgid   "Snap\tService\tState"
 msgstr  ""
 
 #. TRANSLATORS: please keep each line under 80 characters.
+#. TRANSLATORS: please keep each line under 80 characters.
+#. TRANSLATORS: please keep each line under 80 characters.
+#. TRANSLATORS: please keep each line under 80 characters.
 #, c-format
 msgid   "Snappy is updating your system in the background. This may take some minutes.\n"
         "Will try again in %d seconds...\n"
         "Press ctrl-c to cancel.\n"
 msgstr  ""
 
+#. TRANSLATORS: please keep this under 80 characters if possible
+#. TRANSLATORS: please keep this under 80 characters if possible
+#. TRANSLATORS: please keep this under 80 characters if possible
 #. TRANSLATORS: please keep this under 80 characters if possible
 msgid   "Snappy needs to reboot to finish an update. Defer with 'sudo shutdown -c'."
 msgstr  ""
@@ -587,20 +643,38 @@ msgstr  ""
 
 #. TRANSLATORS: the %s represents a list of installed appnames
 #. (e.g. "apps: foo, bar, baz")
+#. TRANSLATORS: the %s represents a list of installed appnames
+#. (e.g. "apps: foo, bar, baz")
+#. TRANSLATORS: the %s represents a list of installed appnames
+#. (e.g. "apps: foo, bar, baz")
+#. TRANSLATORS: the %s represents a list of installed appnames
+#. (e.g. "apps: foo, bar, baz")
 #, c-format
 msgid   "apps: %s\n"
 msgstr  ""
 
+#. TRANSLATORS: the %s an architecture string
+#. TRANSLATORS: the %s an architecture string
+#. TRANSLATORS: the %s an architecture string
 #. TRANSLATORS: the %s an architecture string
 #, c-format
 msgid   "architecture: %s\n"
 msgstr  ""
 
 #. TRANSLATORS: the %s is a size
+#. TRANSLATORS: the %s is a size
+#. TRANSLATORS: the %s is a size
+#. TRANSLATORS: the %s is a size
 #, c-format
 msgid   "binary-size: %v\n"
 msgstr  ""
 
+#. TRANSLATORS: the %s is a channel name
+#. TRANSLATORS: the %s is a channel name
+#. TRANSLATORS: the %s is a channel name
+#. TRANSLATORS: the %s is a channel name
+#. TRANSLATORS: the %s is a channel name
+#. TRANSLATORS: the %s is a channel name
 #. TRANSLATORS: the %s is a channel name
 #. TRANSLATORS: the %s is a channel name
 #, c-format
@@ -609,10 +683,22 @@ msgstr  ""
 
 #. TRANSLATORS: the %s is a size
 #. TRANSLATORS: the %s is a size
+#. TRANSLATORS: the %s is a size
+#. TRANSLATORS: the %s is a size
+#. TRANSLATORS: the %s is a size
+#. TRANSLATORS: the %s is a size
+#. TRANSLATORS: the %s is a size
+#. TRANSLATORS: the %s is a size
 #, c-format
 msgid   "data-size: %s\n"
 msgstr  ""
 
+#. TRANSLATORS: the %s is a date
+#. TRANSLATORS: the %s is a date
+#. TRANSLATORS: the %s is a date
+#. TRANSLATORS: the %s is a date
+#. TRANSLATORS: the %s is a date
+#. TRANSLATORS: the %s is a date
 #. TRANSLATORS: the %s is a date
 #. TRANSLATORS: the %s is a date
 #, c-format
@@ -629,6 +715,9 @@ msgid   "produces manpage"
 msgstr  ""
 
 #. TRANSLATORS: the %s release string
+#. TRANSLATORS: the %s release string
+#. TRANSLATORS: the %s release string
+#. TRANSLATORS: the %s release string
 #, c-format
 msgid   "release: %s\n"
 msgstr  ""
@@ -637,10 +726,16 @@ msgid   "slot\tplug"
 msgstr  ""
 
 #. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
+#. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
+#. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
+#. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
 #, c-format
 msgid   "unable to disable %s's service %s: %v"
 msgstr  ""
 
+#. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
+#. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
+#. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
 #. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
 #, c-format
 msgid   "unable to enable %s's service %s: %v"
@@ -651,10 +746,16 @@ msgid   "unable to get logs: %v"
 msgstr  ""
 
 #. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
+#. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
+#. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
+#. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
 #, c-format
 msgid   "unable to start %s's service %s: %v"
 msgstr  ""
 
+#. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
+#. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
+#. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
 #. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
 #, c-format
 msgid   "unable to stop %s's service %s: %v"
@@ -666,10 +767,22 @@ msgstr  ""
 
 #. TRANSLATORS: the %s is a date
 #. TRANSLATORS: the %s is a date
+#. TRANSLATORS: the %s is a date
+#. TRANSLATORS: the %s is a date
+#. TRANSLATORS: the %s is a date
+#. TRANSLATORS: the %s is a date
+#. TRANSLATORS: the %s is a date
+#. TRANSLATORS: the %s is a date
 #, c-format
 msgid   "updated: %s\n"
 msgstr  ""
 
+#. TRANSLATORS: the %s is a version string
+#. TRANSLATORS: the %s is a version string
+#. TRANSLATORS: the %s is a version string
+#. TRANSLATORS: the %s is a version string
+#. TRANSLATORS: the %s is a version string
+#. TRANSLATORS: the %s is a version string
 #. TRANSLATORS: the %s is a version string
 #. TRANSLATORS: the %s is a version string
 #, c-format

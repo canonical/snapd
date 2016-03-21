@@ -270,6 +270,6 @@ func (s *FirstBootTestSuite) TestSystemSnapsEnablesKernel(c *C) {
 	s.ensureSystemSnapIsEnabledOnFirstBoot(c, mockKernelYaml, true)
 }
 
-func (s *FirstBootTestSuite) TestSystemSnapsDoesNotEnableApps(c *C) {
-	s.ensureSystemSnapIsEnabledOnFirstBoot(c, "", false)
+func (s *FirstBootTestSuite) TestSystemSnapsDoesEnableApps(c *C) {
+	s.ensureSystemSnapIsEnabledOnFirstBoot(c, "", true)
 }
