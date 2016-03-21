@@ -469,8 +469,6 @@ export HOME="$SNAP_USER_DATA"
 # App name is: pastebinit
 # Developer name is: mvo
 
-# export old pwd
-export SNAP_OLD_PWD="$(pwd)"
 ubuntu-core-launcher pastebinit.pastebinit pastebinit.mvo_pastebinit_1.4.0.0.1 /snaps/pastebinit.mvo/1.4.0.0.1/bin/pastebinit "$@"
 `
 
@@ -514,8 +512,6 @@ export HOME="$SNAP_USER_DATA"
 # App name is: echo
 # Developer name is: 
 
-# export old pwd
-export SNAP_OLD_PWD="$(pwd)"
 ubuntu-core-launcher fmk.echo fmk_echo_1.4.0.0.1 /snaps/fmk/1.4.0.0.1/bin/echo "$@"
 `
 
