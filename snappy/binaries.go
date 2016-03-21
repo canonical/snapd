@@ -30,14 +30,13 @@ import (
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/osutil"
-	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/snapenv"
 )
 
 // generate the name
 func generateBinaryName(m *snapYaml, app *AppYaml) string {
 	var binName string
-	if m.Type == snap.TypeFramework {
+	if app.Name == m.Name {
 		binName = filepath.Base(app.Name)
 	} else {
 		binName = fmt.Sprintf("%s.%s", m.Name, filepath.Base(app.Name))
