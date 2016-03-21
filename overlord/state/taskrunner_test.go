@@ -123,11 +123,10 @@ func (ts *taskRunnerSuite) TestEnsureComplex(c *C) {
 		tDl := st.NewTask("download", "1...")
 		tUnp := st.NewTask("unpack", "2...")
 		tUnp.WaitFor(tDl)
-		chg.AddTask(tDl)
-		chg.AddTask(tUnp)
+		chg.AddTasks(state.NewTaskSet(tDl, tUnp))
 		tConf := st.NewTask("configure", "3...")
 		tConf.WaitFor(tUnp)
-		chg.AddTask(tConf)
+		chg.AddTasks(state.NewTaskSet(tConf))
 		st.Unlock()
 
 		// ensure just kicks the go routine off
@@ -234,9 +233,7 @@ func (ts *taskRunnerSuite) TestErrorPropagates(c *C) {
 	dep1.WaitFor(errTask)
 	dep2 := st.NewTask("dep", "3...")
 	dep2.WaitFor(dep1)
-	chg.AddTask(errTask)
-	chg.AddTask(dep1)
-	chg.AddTask(dep2)
+	chg.AddTasks(state.NewTaskSet(errTask, dep1, dep2))
 	st.Unlock()
 
 	defer r.Stop()
