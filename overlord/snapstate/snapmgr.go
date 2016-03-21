@@ -111,8 +111,20 @@ type removeState struct {
 }
 
 // Manager returns a new snap manager.
-func Manager() (*SnapManager, error) {
-	return &SnapManager{}, nil
+func Manager(s *state.State) (*SnapManager, error) {
+	runner := state.NewTaskRunner(s)
+	backend := &defaultBackend{}
+	m := &SnapManager{
+		state:   s,
+		backend: backend,
+		runner:  runner,
+	}
+
+	runner.AddHandler("install-snap", m.doInstallSnap)
+	runner.AddHandler("update-snap", m.doUpdateSnap)
+	runner.AddHandler("remove-snap", m.doRemoveSnap)
+
+	return m, nil
 }
 
 func (m *SnapManager) doInstallSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -154,19 +166,6 @@ func (m *SnapManager) doRemoveSnap(t *state.Task, _ *tomb.Tomb) error {
 	err := m.backend.Remove(name, rm.Flags, &progress.NullProgress{})
 	t.Logf("doRemoveSnap: %s: %v", name, err)
 	return err
-}
-
-// Init implements StateManager.Init.
-func (m *SnapManager) Init(s *state.State) error {
-	m.state = s
-	m.runner = state.NewTaskRunner(s)
-	m.backend = &defaultBackend{}
-
-	m.runner.AddHandler("install-snap", m.doInstallSnap)
-	m.runner.AddHandler("update-snap", m.doUpdateSnap)
-	m.runner.AddHandler("remove-snap", m.doRemoveSnap)
-
-	return nil
 }
 
 // Ensure implements StateManager.Ensure.
