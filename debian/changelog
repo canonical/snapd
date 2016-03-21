@@ -1,11 +1,12 @@
 ubuntu-core-launcher (1.0.20) UNRELEASED; urgency=medium
 
   * don't set NO_NEW_PRIVS. This requires changing privilege dropping since
-    CAP_SYS_ADMIN is needed with seccomp_load(). This means dropping
-    permanently after the filter is applied and setuid/setgid will be
-    required in all policy
+    CAP_SYS_ADMIN is needed with seccomp_load(). This means temporarily
+    dropping until seccomp_load(), then raising before and permanently
+    dropping after the filter is applied. As a result, setuid/setgid is
+    required in all policy (but is still mediated by AppArmor)
 
- -- Jamie Strandboge <jamie@ubuntu.com>  Fri, 18 Mar 2016 21:09:37 -0500
+ -- Jamie Strandboge <jamie@ubuntu.com>  Mon, 21 Mar 2016 12:23:41 -0500
 
 ubuntu-core-launcher (1.0.19) xenial; urgency=medium
 
