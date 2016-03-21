@@ -40,6 +40,7 @@ import (
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
+	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
 )
 
@@ -911,9 +912,9 @@ func getInterfaces(c *Command, r *http.Request) Response {
 
 // interfaceAction is an action performed on the interface system.
 type interfaceAction struct {
-	Action string            `json:"action"`
-	Plugs  []interfaces.Plug `json:"plugs,omitempty"`
-	Slots  []interfaces.Slot `json:"slots,omitempty"`
+	Action string                `json:"action"`
+	Plugs  []interfaces.PlugJSON `json:"plugs,omitempty"`
+	Slots  []interfaces.SlotJSON `json:"slots,omitempty"`
 }
 
 // changeInterfaces controls the interfaces system.
@@ -958,7 +959,34 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 		if len(a.Plugs) == 0 {
 			return BadRequest("at least one plug is required")
 		}
-		err := c.d.interfaces.AddPlug(&a.Plugs[0])
+		// NOTE: This constructs a partial snap.yaml meta-data. Later on it
+		// should reference real meta-data so that it chimes in with real
+		// snaps. Alternatively, this action should be removed.
+		snapInfo := &snap.Info{
+			Name: a.Plugs[0].Snap,
+		}
+		plugInfo := &snap.PlugInfo{
+			Snap:      snapInfo,
+			Name:      a.Plugs[0].Name,
+			Interface: a.Plugs[0].Interface,
+			Attrs:     a.Plugs[0].Attrs,
+			Label:     a.Plugs[0].Label,
+		}
+		for _, appName := range a.Plugs[0].Apps {
+			appInfo := &snap.AppInfo{
+				Snap:  snapInfo,
+				Name:  appName,
+				Plugs: map[string]*snap.PlugInfo{a.Plugs[0].Name: plugInfo},
+			}
+			if snapInfo.Apps == nil {
+				snapInfo.Apps = make(map[string]*snap.AppInfo)
+			}
+			snapInfo.Apps[appName] = appInfo
+		}
+		plugInfo.Apps = snapInfo.Apps
+		snapInfo.Plugs = map[string]*snap.PlugInfo{a.Plugs[0].Name: plugInfo}
+		plug := &interfaces.Plug{PlugInfo: plugInfo}
+		err := c.d.interfaces.AddPlug(plug)
 		if err != nil {
 			return BadRequest("%v", err)
 		}
@@ -979,7 +1007,34 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 		if len(a.Slots) == 0 {
 			return BadRequest("at least one slot is required")
 		}
-		err := c.d.interfaces.AddSlot(&a.Slots[0])
+		// NOTE: This constructs a partial snap.yaml meta-data. Later on it
+		// should reference real meta-data so that it chimes in with real
+		// snaps. Alternatively, this action should be removed.
+		snapInfo := &snap.Info{
+			Name: a.Slots[0].Snap,
+		}
+		slotInfo := &snap.SlotInfo{
+			Snap:      snapInfo,
+			Name:      a.Slots[0].Name,
+			Interface: a.Slots[0].Interface,
+			Attrs:     a.Slots[0].Attrs,
+			Label:     a.Slots[0].Label,
+		}
+		for _, appName := range a.Slots[0].Apps {
+			appInfo := &snap.AppInfo{
+				Snap:  snapInfo,
+				Name:  appName,
+				Slots: map[string]*snap.SlotInfo{a.Slots[0].Name: slotInfo},
+			}
+			if snapInfo.Apps == nil {
+				snapInfo.Apps = make(map[string]*snap.AppInfo)
+			}
+			snapInfo.Apps[appName] = appInfo
+		}
+		slotInfo.Apps = snapInfo.Apps
+		snapInfo.Slots = map[string]*snap.SlotInfo{a.Slots[0].Name: slotInfo}
+		slot := &interfaces.Slot{SlotInfo: slotInfo}
+		err := c.d.interfaces.AddSlot(slot)
 		if err != nil {
 			return BadRequest("%v", err)
 		}
