@@ -173,18 +173,21 @@ func (o *Overlord) Stop() error {
 // making sure no immediate further Ensure is scheduled. Chiefly for tests.
 // Cannot be used in conjuction with Run.
 func (o *Overlord) Settle() {
-	o.ensureLock.Lock()
-	if o.ensureTimer != nil {
-		panic("cannot use Settle with an ensure loop (Overlord.Run)")
-	}
-	o.ensureTimer = time.NewTimer(0)
+	func() {
+		o.ensureLock.Lock()
+		defer o.ensureLock.Unlock()
+		if o.ensureTimer != nil {
+			panic("cannot use Settle with an ensure loop (Overlord.Run)")
+		}
+		o.ensureTimer = time.NewTimer(0)
+	}()
+
 	defer func() {
 		o.ensureLock.Lock()
 		defer o.ensureLock.Unlock()
 		o.ensureTimer.Stop()
 		o.ensureTimer = nil
 	}()
-	o.ensureLock.Unlock()
 
 	done := false
 	for !done {
