@@ -21,8 +21,8 @@ package state
 
 import (
 	"encoding/json"
+	"fmt"
 
-	"github.com/ubuntu-core/snappy/logger"
 )
 
 type progress struct {
@@ -44,6 +44,7 @@ type Task struct {
 	data      customData
 	waitTasks taskIDsSet
 	haltTasks taskIDsSet
+	log       []string
 }
 
 func newTask(state *State, id, kind, summary string) *Task {
@@ -67,6 +68,7 @@ type marshalledTask struct {
 	Data      map[string]*json.RawMessage `json:"data"`
 	WaitTasks taskIDsSet                  `json:"wait-tasks"`
 	HaltTasks taskIDsSet                  `json:"halt-tasks"`
+	Log       []string                    `json:"log"`
 }
 
 // MarshalJSON makes Task a json.Marshaller
@@ -81,6 +83,7 @@ func (t *Task) MarshalJSON() ([]byte, error) {
 		Data:      t.data,
 		WaitTasks: t.waitTasks,
 		HaltTasks: t.haltTasks,
+		Log:       t.log,
 	})
 }
 
@@ -102,6 +105,7 @@ func (t *Task) UnmarshalJSON(data []byte) error {
 	t.data = unmarshalled.Data
 	t.waitTasks = unmarshalled.WaitTasks
 	t.haltTasks = unmarshalled.HaltTasks
+	t.log = unmarshalled.Log
 	return nil
 }
 
@@ -163,13 +167,48 @@ func (t *Task) SetProgress(cur, total int) {
 	t.progress = progress{Current: cur, Total: total}
 }
 
+const (
+	// Messages logged in tasks are guaranteed to use the following strings
+	// plus ": " as a prefix, so these may be handled programatically and
+	// stripped for presentation.
+	LogInfo  = "INFO"
+	LogError = "ERROR"
+)
+
+func (t *Task) logf(kind, format string, args ...interface{}) {
+	if len(t.log) > 9 {
+		copy(t.log, t.log[len(t.log)-9:])
+		t.log = t.log[:9]
+	}
+	t.log = append(t.log, fmt.Sprintf(kind+": "+format, args...))
+}
+
+// Log returns the most recent messages logged into the task.
+//
+// Messages are prefixed with one of the known message kinds.
+// See details about LogInfo and LogError.
+//
+// The returned slice should not be read from without the
+// state lock held, and should not be written to.
+func (t *Task) Log() []string {
+	t.state.ensureLocked()
+	return t.log
+}
+
 // Logf logs textual information about the progress of the task.
 // Only the most recent entries logged are held in memory, potentially
 // with different behavior for different task statuses. How many entries
 // are held is an implementation detail and may change over time.
 func (t *Task) Logf(format string, args ...interface{}) {
-	// XXX: minimal implementation for now
-	logger.Noticef(format, args...)
+	t.state.ensureLocked()
+	t.logf(LogInfo, format, args...)
+}
+
+// Errorf sets the task to ErrorStatus and logs the message as an error.
+func (t *Task) Errorf(format string, args ...interface{}) {
+	t.state.ensureLocked()
+	t.logf(LogError, format, args...)
+	t.status = ErrorStatus
 }
 
 // Set associates value with key for future consulting by managers.
