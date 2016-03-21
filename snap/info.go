@@ -43,6 +43,15 @@ type PlugInfo struct {
 	Apps      map[string]*AppInfo
 }
 
+// AppNames returns a list of applications names.
+func (plug *PlugInfo) AppNames() []string {
+	var names []string
+	for name := range plug.Apps {
+		names = append(names, name)
+	}
+	return names
+}
+
 // SlotInfo provides information about a slot.
 type SlotInfo struct {
 	Snap *Info
@@ -52,6 +61,15 @@ type SlotInfo struct {
 	Attrs     map[string]interface{}
 	Label     string
 	Apps      map[string]*AppInfo
+}
+
+// AppNames returns a list of applications names.
+func (slot *SlotInfo) AppNames() []string {
+	var names []string
+	for name := range slot.Apps {
+		names = append(names, name)
+	}
+	return names
 }
 
 // AppInfo provides information about a plug.
