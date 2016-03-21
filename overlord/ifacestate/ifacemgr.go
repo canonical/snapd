@@ -42,8 +42,23 @@ type InterfaceManager struct {
 }
 
 // Manager returns a new InterfaceManager.
-func Manager() (*InterfaceManager, error) {
-	return &InterfaceManager{}, nil
+func Manager(s *state.State) (*InterfaceManager, error) {
+	repo := interfaces.NewRepository()
+	for _, iface := range builtin.Interfaces() {
+		if err := repo.AddInterface(iface); err != nil {
+			return nil, err
+		}
+	}
+	runner := state.NewTaskRunner(s)
+	m := &InterfaceManager{
+		state:  s,
+		runner: runner,
+		repo:   repo,
+	}
+
+	runner.AddHandler("connect", m.doConnect)
+	runner.AddHandler("disconnect", m.doDisconnect)
+	return m, nil
 }
 
 // Connect initiates a change connecting an interface.
@@ -52,7 +67,7 @@ func Connect(change *state.Change, plugSnap, plugName, slotSnap, slotName string
 	// TODO: Store the intent-to-connect in the state so that we automatically
 	// try to reconnect on reboot (reconnection can fail or can connect with
 	// different parameters so we cannot store the actual connection details).
-	summary := fmt.Sprintf(i18n.G("Connecting %s:%s to %s:%s"),
+	summary := fmt.Sprintf(i18n.G("Connect %s:%s to %s:%s"),
 		plugSnap, plugName, slotSnap, slotName)
 	task := change.NewTask("connect", summary)
 	task.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
@@ -61,42 +76,49 @@ func Connect(change *state.Change, plugSnap, plugName, slotSnap, slotName string
 }
 
 // Disconnect initiates a change disconnecting an interface.
-func (m *InterfaceManager) Disconnect(plugSnap, plugName, slotSnap, slotName string) error {
+func Disconnect(change *state.Change, plugSnap, plugName, slotSnap, slotName string) error {
+	// TODO: Remove the intent-to-connect from the state so that we no longer
+	// automatically try to reconnect on reboot.
+	summary := fmt.Sprintf(i18n.G("Disconnect %s:%s from %s:%s"),
+		plugSnap, plugName, slotSnap, slotName)
+	task := change.NewTask("disconnect", summary)
+	task.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
+	task.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
 	return nil
 }
 
-// Init implements StateManager.Init.
-func (m *InterfaceManager) Init(s *state.State) error {
-	repo := interfaces.NewRepository()
-	for _, iface := range builtin.Interfaces() {
-		if err := repo.AddInterface(iface); err != nil {
-			return err
-		}
+func getPlugAndSlotRefs(task *state.Task) (*interfaces.PlugRef, *interfaces.SlotRef, error) {
+	var plugRef interfaces.PlugRef
+	var slotRef interfaces.SlotRef
+	if err := task.Get("plug", &plugRef); err != nil {
+		return nil, nil, err
 	}
-	runner := state.NewTaskRunner(s)
-	m.state = s
-	m.repo = repo
-	m.runner = runner
-	m.runner.AddHandler("connect", m.doConnect)
-	return nil
+	if err := task.Get("slot", &slotRef); err != nil {
+		return nil, nil, err
+	}
+	return &plugRef, &slotRef, nil
 }
 
 func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	task.State().Lock()
 	defer task.State().Unlock()
 
-	var slotRef interfaces.SlotRef
-	if err := task.Get("slot", &slotRef); err != nil {
+	plugRef, slotRef, err := getPlugAndSlotRefs(task)
+	if err != nil {
 		return err
 	}
-	var plugRef interfaces.PlugRef
-	if err := task.Get("plug", &plugRef); err != nil {
+	return m.repo.Connect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
+}
+
+func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
+	task.State().Lock()
+	defer task.State().Unlock()
+
+	plugRef, slotRef, err := getPlugAndSlotRefs(task)
+	if err != nil {
 		return err
 	}
-	if err := m.repo.Connect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name); err != nil {
-		return err
-	}
-	return nil
+	return m.repo.Disconnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
 }
 
 // Ensure implements StateManager.Ensure.

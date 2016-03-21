@@ -72,8 +72,9 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	s.fakeBackend = &fakeSnappyBackend{}
 	s.state = state.New(nil)
 
-	s.snapmgr = &snapstate.SnapManager{}
-	s.snapmgr.Init(s.state)
+	var err error
+	s.snapmgr, err = snapstate.Manager(s.state)
+	c.Assert(err, IsNil)
 
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
 }

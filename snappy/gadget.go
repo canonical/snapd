@@ -140,28 +140,6 @@ func getGadgetImpl() (*snapYaml, error) {
 	return nil, errors.New("no gadget snap")
 }
 
-func bootAssetFilePaths() map[string]string {
-	gadget, err := getGadget()
-	if err != nil {
-		return nil
-	}
-
-	fileList := make(map[string]string)
-	gadgetPath := filepath.Join(dirs.SnapSnapsDir, gadget.Name, gadget.Version)
-
-	for _, asset := range gadget.Gadget.Hardware.BootAssets.Files {
-		orig := filepath.Join(gadgetPath, asset.Path)
-
-		if asset.Target == "" {
-			fileList[orig] = filepath.Base(orig)
-		} else {
-			fileList[orig] = asset.Target
-		}
-	}
-
-	return fileList
-}
-
 // StoreID returns the store id setup by the gadget package or an empty string
 func StoreID() string {
 	gadget, err := getGadget()
