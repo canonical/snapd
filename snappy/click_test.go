@@ -469,9 +469,6 @@ export HOME="$SNAP_USER_DATA"
 # App name is: pastebinit
 # Developer name is: mvo
 
-# export old pwd
-export SNAP_OLD_PWD="$(pwd)"
-cd $SNAP_DATA
 ubuntu-core-launcher pastebinit.pastebinit pastebinit.mvo_pastebinit_1.4.0.0.1 /snaps/pastebinit.mvo/1.4.0.0.1/bin/pastebinit "$@"
 `
 
@@ -515,9 +512,6 @@ export HOME="$SNAP_USER_DATA"
 # App name is: echo
 # Developer name is: 
 
-# export old pwd
-export SNAP_OLD_PWD="$(pwd)"
-cd $SNAP_DATA
 ubuntu-core-launcher fmk.echo fmk_echo_1.4.0.0.1 /snaps/fmk/1.4.0.0.1/bin/echo "$@"
 `
 
@@ -850,7 +844,6 @@ func (s *SnapTestSuite) TestAddPackageBinariesStripsGlobalRootdir(c *C) {
 	c.Assert(err, IsNil)
 
 	needle := `
-cd $SNAP_DATA
 ubuntu-core-launcher hello-snap.hello hello-snap.testspacethename_hello_1.10 /snaps/hello-snap.testspacethename/1.10/bin/hello "$@"
 `
 	c.Assert(string(content), Matches, "(?ms).*"+regexp.QuoteMeta(needle)+".*")
