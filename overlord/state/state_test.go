@@ -322,15 +322,20 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 	chg := st.NewChange("install", "summary")
 	c.Assert(chg, NotNil)
 
-	t1 := chg.NewTask("download", "1...")
+	t1 := st.NewTask("download", "1...")
+	chg.AddTask(t1)
 	t1ID := t1.ID()
 	t1.Set("a", 1)
 	t1.SetStatus(state.WaitingStatus)
 	t1.SetProgress(5, 10)
 
-	t2 := chg.NewTask("inst", "2...")
+	t2 := st.NewTask("inst", "2...")
+	chg.AddTask(t2)
 	t2ID := t2.ID()
 	t2.WaitFor(t1)
+
+	t3 := st.NewTask("three", "3...")
+	t3ID := t3.ID()
 
 	// implicit checkpoint
 	st.Unlock()
@@ -375,6 +380,13 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 	c.Check(task0_2.WaitTasks(), DeepEquals, []*state.Task{task0_1})
 
 	c.Check(task0_1.HaltTasks(), DeepEquals, []*state.Task{task0_2})
+
+	tasks2 := make(map[string]*state.Task)
+	for _, t := range st2.Tasks() {
+		tasks2[t.ID()] = t
+	}
+	c.Assert(tasks2, HasLen, 3)
+	c.Check(tasks2[t3ID].Kind(), Equals, "three")
 }
 
 func (ss *stateSuite) TestEnsureBefore(c *C) {
@@ -386,18 +398,21 @@ func (ss *stateSuite) TestEnsureBefore(c *C) {
 	c.Check(b.ensureBefore, Equals, 10*time.Second)
 }
 
-func (ss *stateSuite) TestTasks(c *C) {
+func (ss *stateSuite) TestNewTaskAndTasks(c *C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
 
 	chg1 := st.NewChange("install", "...")
-	t11 := chg1.NewTask("check", "...")
-	t12 := chg1.NewTask("inst", "...")
+	t11 := st.NewTask("check", "...")
+	chg1.AddTask(t11)
+	t12 := st.NewTask("inst", "...")
+	chg1.AddTask(t12)
 	chg2 := st.NewChange("remove", "...")
-	t21 := chg2.NewTask("check", "...")
-	t22 := chg2.NewTask("rm", "...")
-	// TODO: chg1.AddTask(t22) when we have AddTask
+	t21 := st.NewTask("check", "...")
+	t22 := st.NewTask("rm", "...")
+	chg2.AddTask(t22)
+	chg1.AddTask(t22)
 
 	tasks := st.Tasks()
 	c.Check(tasks, HasLen, 4)
@@ -412,6 +427,12 @@ func (ss *stateSuite) TestTasks(c *C) {
 	for _, t := range tasks {
 		c.Check(t, Equals, expected[t.ID()])
 	}
+}
+
+func (ss *stateSuite) TestNewTaskNeedsLocked(c *C) {
+	st := state.New(nil)
+
+	c.Assert(func() { st.NewTask("download", "...") }, PanicMatches, "internal error: accessing state without lock")
 }
 
 func (ss *stateSuite) TestTasksNeedsLocked(c *C) {

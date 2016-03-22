@@ -23,6 +23,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/ubuntu-core/snappy/logger"
+
 	"github.com/ubuntu-core/snappy/overlord/state"
 )
 
@@ -67,6 +69,14 @@ func (se *StateEngine) State() *state.State {
 	return se.state
 }
 
+type ensureError struct {
+	errs []error
+}
+
+func (e *ensureError) Error() string {
+	return fmt.Sprintf("state ensure errors: %v", e.errs)
+}
+
 // Ensure asks every manager to ensure that they are doing the necessary
 // work to put the current desired system state in place by calling their
 // respective Ensure methods.
@@ -81,11 +91,16 @@ func (se *StateEngine) Ensure() error {
 	if se.stopped {
 		return fmt.Errorf("state engine already stopped")
 	}
+	var errs []error
 	for _, m := range se.managers {
 		err := m.Ensure()
 		if err != nil {
-			return err
+			logger.Noticef("state ensure error: %v", err)
+			errs = append(errs, err)
 		}
+	}
+	if len(errs) != 0 {
+		return &ensureError{errs}
 	}
 	return nil
 }
@@ -95,6 +110,18 @@ func (se *StateEngine) AddManager(m StateManager) {
 	se.mgrLock.Lock()
 	defer se.mgrLock.Unlock()
 	se.managers = append(se.managers, m)
+}
+
+// Wait waits for all managers current activities.
+func (se *StateEngine) Wait() {
+	se.mgrLock.Lock()
+	defer se.mgrLock.Unlock()
+	if se.stopped {
+		return
+	}
+	for _, m := range se.managers {
+		m.Wait()
+	}
 }
 
 // Stop asks all managers to terminate activities running concurrently.
