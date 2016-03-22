@@ -213,7 +213,7 @@ func (ts *taskSuite) TestNeedsLock(c *C) {
 	t2 := st.NewTask("install", "2...")
 	st.Unlock()
 
-	funcs := []func() {
+	funcs := []func(){
 		func() { t1.Status() },
 		func() { t1.SetStatus(state.DoneStatus) },
 		func() { t1.Set("a", 1) },
