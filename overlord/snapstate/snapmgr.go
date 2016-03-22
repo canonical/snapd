@@ -69,10 +69,23 @@ func Remove(s *state.State, snap string, flags snappy.RemoveFlags) (state.TaskSe
 	return state.NewTaskSet(t), nil
 }
 
+// Purge returns a set of tasks for purging a snap.
+// Note that the state must be locked by the caller.
+func Purge(s *state.State, snap string, flags snappy.PurgeFlags) (state.TaskSet, error) {
+	t := s.NewTask("purge-snap", fmt.Sprintf(i18n.G("Purging %q"), snap))
+	t.Set("state", purgeState{
+		Name:  snap,
+		Flags: flags,
+	})
+
+	return state.NewTaskSet(t), nil
+}
+
 type backendIF interface {
 	Install(name, channel string, flags snappy.InstallFlags, meter progress.Meter) (string, error)
-	Remove(name string, flags snappy.RemoveFlags, meter progress.Meter) error
 	Update(name, channel string, flags snappy.InstallFlags, meter progress.Meter) error
+	Remove(name string, flags snappy.RemoveFlags, meter progress.Meter) error
+	Purge(name string, flags snappy.PurgeFlags, meter progress.Meter) error
 }
 
 type defaultBackend struct{}
@@ -89,6 +102,10 @@ func (s *defaultBackend) Update(name, channel string, flags snappy.InstallFlags,
 
 func (s *defaultBackend) Remove(name string, flags snappy.RemoveFlags, meter progress.Meter) error {
 	return snappy.Remove(name, flags, meter)
+}
+
+func (s *defaultBackend) Purge(name string, flags snappy.PurgeFlags, meter progress.Meter) error {
+	return snappy.Purge(name, flags, meter)
 }
 
 // SnapManager is responsible for the installation and removal of snaps.
@@ -110,6 +127,11 @@ type removeState struct {
 	Flags snappy.RemoveFlags `json:"flags,omitempty"`
 }
 
+type purgeState struct {
+	Name  string            `json:"name"`
+	Flags snappy.PurgeFlags `json:"flags,omitempty"`
+}
+
 // Manager returns a new snap manager.
 func Manager(s *state.State) (*SnapManager, error) {
 	runner := state.NewTaskRunner(s)
@@ -123,6 +145,7 @@ func Manager(s *state.State) (*SnapManager, error) {
 	runner.AddHandler("install-snap", m.doInstallSnap)
 	runner.AddHandler("update-snap", m.doUpdateSnap)
 	runner.AddHandler("remove-snap", m.doRemoveSnap)
+	runner.AddHandler("purge-snap", m.doPurgeSnap)
 
 	// test handlers
 	runner.AddHandler("fake-install-snap", func(t *state.Task, _ *tomb.Tomb) error {
@@ -170,6 +193,20 @@ func (m *SnapManager) doRemoveSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	name, _ := snappy.SplitDeveloper(rm.Name)
 	err := m.backend.Remove(name, rm.Flags, &progress.NullProgress{})
+	return err
+}
+
+func (m *SnapManager) doPurgeSnap(t *state.Task, _ *tomb.Tomb) error {
+	var purge purgeState
+
+	t.State().Lock()
+	if err := t.Get("state", &purge); err != nil {
+		return err
+	}
+	t.State().Unlock()
+
+	name, _ := snappy.SplitDeveloper(purge.Name)
+	err := m.backend.Purge(name, purge.Flags, &progress.NullProgress{})
 	return err
 }
 
