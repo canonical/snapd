@@ -40,42 +40,6 @@ const (
 
 const nStatuses = ErrorStatus + 1
 
-type taskIDsSet map[string]bool
-
-func (ts taskIDsSet) add(tid string) {
-	ts[tid] = true
-}
-
-func (ts taskIDsSet) tasks(s *State) []*Task {
-	res := make([]*Task, 0, len(ts))
-	for tid := range ts {
-		res = append(res, s.tasks[tid])
-	}
-	return res
-}
-
-func (ts taskIDsSet) MarshalJSON() ([]byte, error) {
-	l := make([]string, 0, len(ts))
-	for tid := range ts {
-		l = append(l, tid)
-	}
-	return json.Marshal(l)
-}
-
-// NB: it's a bit odd but this one needs to be and works on *taskIDsSet
-func (ts *taskIDsSet) UnmarshalJSON(data []byte) error {
-	var l []string
-	err := json.Unmarshal(data, &l)
-	if err != nil {
-		return err
-	}
-	*ts = make(map[string]bool, len(l))
-	for _, tid := range l {
-		(*ts)[tid] = true
-	}
-	return nil
-}
-
 // Change represents a tracked modification to the system state.
 //
 // The Change provides both the justification for individual tasks
@@ -93,7 +57,7 @@ type Change struct {
 	summary string
 	status  Status
 	data    customData
-	taskIDs taskIDsSet
+	taskIDs []string
 }
 
 func newChange(state *State, id, kind, summary string) *Change {
@@ -103,7 +67,6 @@ func newChange(state *State, id, kind, summary string) *Change {
 		kind:    kind,
 		summary: summary,
 		data:    make(customData),
-		taskIDs: make(taskIDsSet),
 	}
 }
 
@@ -112,8 +75,8 @@ type marshalledChange struct {
 	Kind    string                      `json:"kind"`
 	Summary string                      `json:"summary"`
 	Status  Status                      `json:"status"`
-	Data    map[string]*json.RawMessage `json:"data"`
-	TaskIDs taskIDsSet                  `json:"task-ids"`
+	Data    map[string]*json.RawMessage `json:"data,omitempty"`
+	TaskIDs []string                    `json:"task-ids,omitempty"`
 }
 
 // MarshalJSON makes Change a json.Marshaller
@@ -191,7 +154,7 @@ func (c *Change) Status() Status {
 	c.state.ensureLocked()
 	if c.status == DefaultStatus {
 		statusStats := make(map[Status]int, nStatuses)
-		for tid := range c.taskIDs {
+		for _, tid := range c.taskIDs {
 			statusStats[c.state.tasks[tid].Status()]++
 		}
 		if statusStats[RunningStatus] > 0 {
@@ -241,7 +204,7 @@ func (c *Change) Err() error {
 		return nil
 	}
 	var errors []taskError
-	for tid := range c.taskIDs {
+	for _, tid := range c.taskIDs {
 		task := c.state.tasks[tid]
 		if task.Status() != ErrorStatus {
 			continue
@@ -264,24 +227,24 @@ func (c *Change) State() *State {
 	return c.state
 }
 
-// AddTask registers a task as a required task for the state change to
+// AddTask registers a task as required for the state change to
 // be accomplished.
 func (c *Change) AddTask(t *Task) {
 	c.state.ensureLocked()
-	c.taskIDs.add(t.ID())
+	c.taskIDs = addOnce(c.taskIDs, t.ID())
 }
 
-// AddTasks registers all the tasks in the set as a required for the
-// state change to be accomplished.
-func (c *Change) AddTasks(ts TaskSet) {
+// AddAll registers all tasks in the set as required for the state
+// change to be accomplished.
+func (c *Change) AddAll(ts *TaskSet) {
 	c.state.ensureLocked()
-	for tid := range ts {
-		c.taskIDs.add(tid)
+	for _, t := range ts.tasks {
+		c.taskIDs = addOnce(c.taskIDs, t.ID())
 	}
 }
 
 // Tasks returns all the tasks this state change depends on.
 func (c *Change) Tasks() []*Task {
 	c.state.ensureLocked()
-	return c.taskIDs.tasks(c.state)
+	return c.state.tasksIn(c.taskIDs)
 }
