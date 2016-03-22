@@ -177,6 +177,7 @@ func (cs *changeSuite) TestErr(c *C) {
 
 	c.Assert(chg.Err(), IsNil)
 
+	// t2 still running so change not yet in ErrorStatus
 	t1.SetStatus(state.ErrorStatus)
 	c.Assert(chg.Err(), IsNil)
 
