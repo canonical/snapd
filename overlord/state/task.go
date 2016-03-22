@@ -174,7 +174,7 @@ const (
 	LogError = "ERROR"
 )
 
-func (t *Task) logf(kind, format string, args ...interface{}) {
+func (t *Task) addLog(kind, format string, args []interface{}) {
 	if len(t.log) > 9 {
 		copy(t.log, t.log[len(t.log)-9:])
 		t.log = t.log[:9]
@@ -200,13 +200,13 @@ func (t *Task) Log() []string {
 // are held is an implementation detail and may change over time.
 func (t *Task) Logf(format string, args ...interface{}) {
 	t.state.ensureLocked()
-	t.logf(LogInfo, format, args...)
+	t.addLog(LogInfo, format, args)
 }
 
 // Errorf sets the task to ErrorStatus and logs the message as an error.
 func (t *Task) Errorf(format string, args ...interface{}) {
 	t.state.ensureLocked()
-	t.logf(LogError, format, args...)
+	t.addLog(LogError, format, args)
 	t.status = ErrorStatus
 }
 
