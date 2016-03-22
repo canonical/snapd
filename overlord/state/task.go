@@ -22,7 +22,6 @@ package state
 import (
 	"encoding/json"
 	"fmt"
-
 )
 
 type progress struct {
