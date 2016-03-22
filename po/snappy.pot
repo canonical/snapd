@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-03-22 12:06+0100\n"
+        "POT-Creation-Date: 2016-03-22 12:23+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -607,11 +607,6 @@ msgid   "data-size: %s\n"
 msgstr  ""
 
 msgid   "deprecated in favour of `snapcraft snap $DIR`"
-msgstr  ""
-
-#. TRANSLATORS: the %s is a comma separated list of framework names
-#, c-format
-msgid   "frameworks: %s\n"
 msgstr  ""
 
 #. TRANSLATORS: the %s is a date

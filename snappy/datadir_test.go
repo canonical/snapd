@@ -53,7 +53,7 @@ func (s *DataDirSuite) TestSystemDataDirs(c *C) {
 	c.Check(DataDirs("foo.bar=v1"), HasLen, 1)
 }
 
-func (s *DataDirSuite) TestDataDirsFramework(c *C) {
+func (s *DataDirSuite) TestDataDirsNoDeveloper(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapDataDir, "foo", "v1"), 0755), IsNil)
 	dds := DataDirs("foo")
 	c.Check(dds, DeepEquals, []SnapDataDir{{

@@ -1,8 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build !excludeintegration
 
 /*
- * Copyright (C) 2015, 2016 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -18,29 +17,16 @@
  *
  */
 
-package tests
+package apparmor
 
 import (
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
-
-	"gopkg.in/check.v1"
+	"github.com/ubuntu-core/snappy/testutil"
 )
 
-var _ = check.Suite(&searchSuite{})
-
-type searchSuite struct {
-	common.SnappySuite
-}
-
-func (s *searchSuite) TestSearchMustPrintMatch(c *check.C) {
-	searchOutput := cli.ExecCommand(c, "snap", "find", "hello-world")
-
-	expected := "(?ms)" +
-		"Name +Version +Summary *\n" +
-		".*" +
-		"^hello-world.canonical +.* +hello-world *\n" +
-		".*"
-
-	c.Assert(searchOutput, check.Matches, expected)
+// MockProfilesPath mocks the file read by LoadedProfiles()
+func MockProfilesPath(t *testutil.BaseTest, profiles string) {
+	profilesPath = profiles
+	t.AddCleanup(func() {
+		profilesPath = realProfilesPath
+	})
 }

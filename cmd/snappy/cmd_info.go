@@ -121,15 +121,12 @@ func snapInfo(pkgname string, includeStore, verbose bool) error {
 func info() error {
 	rel := release.Get()
 	release := fmt.Sprintf("%s/%s", rel.Flavor, rel.Series)
-	frameworks, _ := snappy.ActiveSnapIterByType(snappy.FullName, snap.TypeFramework)
 	apps, _ := snappy.ActiveSnapIterByType(snappy.FullName, snap.TypeApp)
 
 	// TRANSLATORS: the %s release string
 	fmt.Printf(i18n.G("release: %s\n"), release)
 	// TRANSLATORS: the %s an architecture string
 	fmt.Printf(i18n.G("architecture: %s\n"), arch.UbuntuArchitecture())
-	// TRANSLATORS: the %s is a comma separated list of framework names
-	fmt.Printf(i18n.G("frameworks: %s\n"), strings.Join(frameworks, ", "))
 	//TRANSLATORS: the %s represents a list of installed appnames
 	//             (e.g. "apps: foo, bar, baz")
 	fmt.Printf(i18n.G("apps: %s\n"), strings.Join(apps, ", "))

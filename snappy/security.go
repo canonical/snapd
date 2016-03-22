@@ -34,7 +34,6 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/osutil"
-	"github.com/ubuntu-core/snappy/policy"
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snap"
 )
@@ -168,11 +167,6 @@ func (sp *securityPolicyType) policyDir() string {
 	return filepath.Join(dirs.GlobalRootDir, sp.basePolicyDir)
 }
 
-func (sp *securityPolicyType) frameworkPolicyDir() string {
-	frameworkPolicyDir := filepath.Join(policy.SecBase, sp.name)
-	return filepath.Join(dirs.GlobalRootDir, frameworkPolicyDir)
-}
-
 // findTemplate returns the security template content from the template name.
 func (sp *securityPolicyType) findTemplate(templateName string) (string, error) {
 	if templateName == "" {
@@ -181,10 +175,9 @@ func (sp *securityPolicyType) findTemplate(templateName string) (string, error) 
 
 	subdir := filepath.Join("templates", defaultPolicyVendor(), defaultPolicyVersion())
 	systemTemplateDir := filepath.Join(sp.policyDir(), subdir, templateName)
-	fwTemplateDir := filepath.Join(sp.frameworkPolicyDir(), "templates", templateName)
 
 	// Read system and framwork policy, but always prefer system policy
-	fns := []string{systemTemplateDir, fwTemplateDir}
+	fns := []string{systemTemplateDir}
 	for _, fn := range fns {
 		content, err := ioutil.ReadFile(fn)
 		// it is ok if the file does not exists
@@ -225,11 +218,11 @@ func readSingleCapFile(fn string) ([]string, error) {
 
 // findSingleCap returns the security template content for a single
 // security-cap.
-func (sp *securityPolicyType) findSingleCap(capName, systemPolicyDir, fwPolicyDir string) ([]string, error) {
+func (sp *securityPolicyType) findSingleCap(capName, systemPolicyDir string) ([]string, error) {
 	found := false
 	p := []string{}
 
-	policyDirs := []string{systemPolicyDir, fwPolicyDir}
+	policyDirs := []string{systemPolicyDir}
 	for _, dir := range policyDirs {
 		fn := filepath.Join(dir, capName)
 		newCaps, err := readSingleCapFile(fn)
@@ -269,11 +262,10 @@ func (sp *securityPolicyType) findCaps(caps []string, templateName string) ([]st
 
 	subdir := filepath.Join("policygroups", defaultPolicyVendor(), defaultPolicyVersion())
 	parentDir := filepath.Join(sp.policyDir(), subdir)
-	fwParentDir := filepath.Join(sp.frameworkPolicyDir(), "policygroups")
 
 	var p []string
 	for _, c := range caps {
-		newCap, err := sp.findSingleCap(c, parentDir, fwParentDir)
+		newCap, err := sp.findSingleCap(c, parentDir)
 		if err != nil {
 			return nil, err
 		}
@@ -330,7 +322,7 @@ func findWhitespacePrefix(t string, s string) string {
 
 func getSecurityProfile(m *snapYaml, appName, baseDir string) (string, error) {
 	cleanedName := strings.Replace(appName, "/", "-", -1)
-	if m.Type == snap.TypeFramework || m.Type == snap.TypeGadget {
+	if m.Type == snap.TypeGadget {
 		return fmt.Sprintf("%s_%s_%s", m.Name, cleanedName, m.Version), nil
 	}
 
@@ -666,7 +658,7 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinaryResult(m *snapYaml,
 
 	// add the hw-override parts and merge with the other overrides
 	developer := ""
-	if m.Type != snap.TypeFramework && m.Type != snap.TypeGadget {
+	if m.Type != snap.TypeGadget {
 		developer, err = developerFromYamlPath(filepath.Join(baseDir, "meta", "snap.yaml"))
 		if err != nil {
 			return nil, err
@@ -680,16 +672,6 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinaryResult(m *snapYaml,
 
 	sd.mergeAppArmorSecurityOverrides(&hwaccessOverrides)
 	if sd.SecurityPolicy != nil {
-		res.aaPolicy, err = getAppArmorCustomPolicy(m, res.id, filepath.Join(baseDir, sd.SecurityPolicy.AppArmor), sd.SecurityOverride)
-		if err != nil {
-			logger.Noticef("Failed to generate custom AppArmor policy for %s: %v", name, err)
-			return nil, err
-		}
-		res.scPolicy, err = getSeccompCustomPolicy(m, res.id, filepath.Join(baseDir, sd.SecurityPolicy.Seccomp))
-		if err != nil {
-			logger.Noticef("Failed to generate custom seccomp policy for %s: %v", name, err)
-			return nil, err
-		}
 	} else {
 		res.aaPolicy, err = getAppArmorTemplatedPolicy(m, res.id, sd.SecurityTemplate, sd.SecurityCaps, sd.SecurityOverride)
 		if err != nil {
