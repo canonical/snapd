@@ -38,7 +38,7 @@ const (
 
 var remove = removeSnapData
 
-// Purge a snap by a snapSpec string, name[.developer][=version]
+// Purge a snap by a snapSpec string, name[.developer][=revision]
 func Purge(snapSpec string, flags PurgeFlags, meter progress.Meter) error {
 	var e error
 	datadirs := DataDirs(snapSpec)
@@ -54,7 +54,7 @@ func Purge(snapSpec string, flags PurgeFlags, meter progress.Meter) error {
 	// .snap being installed for multiple users, or the .snap using both the
 	// snap data path as well as the user data path. They all need to be purged.
 	for _, datadir := range datadirs {
-		yamlPath := filepath.Join(dirs.SnapSnapsDir, datadir.QualifiedName(), datadir.Version, "meta", "snap.yaml")
+		yamlPath := filepath.Join(dirs.SnapSnapsDir, datadir.QualifiedName(), datadir.Revision, "meta", "snap.yaml")
 		snap, err := NewInstalledSnap(yamlPath, datadir.Developer)
 		if err != nil {
 			// no such snap installed
@@ -81,9 +81,9 @@ func Purge(snapSpec string, flags PurgeFlags, meter progress.Meter) error {
 
 	// Conduct the purge.
 	for _, datadir := range datadirs {
-		if err := remove(datadir.QualifiedName(), datadir.Version); err != nil {
+		if err := remove(datadir.QualifiedName(), datadir.Revision); err != nil {
 			e = err
-			meter.Notify(fmt.Sprintf("unable to purge %s version %s: %s", datadir.QualifiedName(), datadir.Version, err.Error()))
+			meter.Notify(fmt.Sprintf("unable to purge %s version %s: %s", datadir.QualifiedName(), datadir.Revision, err.Error()))
 		}
 	}
 
