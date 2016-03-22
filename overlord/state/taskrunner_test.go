@@ -247,4 +247,5 @@ func (ts *taskRunnerSuite) TestErrorPropagates(c *C) {
 	c.Check(dep1.Status(), Equals, state.ErrorStatus)
 	c.Check(dep2.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.Err(), ErrorMatches, "(?s).*boom.*")
 }

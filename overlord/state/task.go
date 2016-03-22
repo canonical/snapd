@@ -184,6 +184,10 @@ func (t *Task) addLog(kind, format string, args []interface{}) {
 
 // Log returns the most recent messages logged into the task.
 //
+// Only the most recent entries logged are returned, potentially with
+// different behavior for different task statuses. How many entries
+// are returned is an implementation detail and may change over time.
+//
 // Messages are prefixed with one of the known message kinds.
 // See details about LogInfo and LogError.
 //
@@ -194,20 +198,16 @@ func (t *Task) Log() []string {
 	return t.log
 }
 
-// Logf logs textual information about the progress of the task.
-// Only the most recent entries logged are held in memory, potentially
-// with different behavior for different task statuses. How many entries
-// are held is an implementation detail and may change over time.
+// Logf logs information about the progress of the task.
 func (t *Task) Logf(format string, args ...interface{}) {
 	t.state.ensureLocked()
 	t.addLog(LogInfo, format, args)
 }
 
-// Errorf sets the task to ErrorStatus and logs the message as an error.
+// Errorf logs error information about the progress of the task.
 func (t *Task) Errorf(format string, args ...interface{}) {
 	t.state.ensureLocked()
 	t.addLog(LogError, format, args)
-	t.status = ErrorStatus
 }
 
 // Set associates value with key for future consulting by managers.
