@@ -758,8 +758,23 @@ func (inst *snapInstruction) purge() interface{} {
 }
 
 func (inst *snapInstruction) rollback() interface{} {
-	_, err := snappy.Rollback(inst.pkg, "", inst)
-	return err
+	state := inst.overlord.StateEngine().State()
+	state.Lock()
+	msg := fmt.Sprintf(i18n.G("Rollback %q snap"), inst.pkg)
+	chg := state.NewChange("rollback-snap", msg)
+	// use previous version
+	ver := ""
+	ts, err := snapstate.Rollback(state, inst.pkg, ver)
+	if err == nil {
+		chg.AddTasks(ts)
+	}
+	state.Unlock()
+	if err != nil {
+		return err
+	}
+
+	state.EnsureBefore(0)
+	return waitChange(chg)
 }
 
 func (inst *snapInstruction) activate() interface{} {
