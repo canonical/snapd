@@ -4,7 +4,7 @@ set -e
 
 . $(pwd)/common.sh
 
-printf "Test appname whitelist (bad)"
+printf "Test appname whitelist (bad - no trailing newline)"
 
 echo -n "missingnewline" > $TMP/aaprofile
 
