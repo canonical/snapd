@@ -54,24 +54,7 @@ func (cs *changeSuite) TestGetSet(c *C) {
 	c.Check(v, Equals, 1)
 }
 
-func (cs *changeSuite) TestGetNeedsLock(c *C) {
-	st := state.New(nil)
-	st.Lock()
-	chg := st.NewChange("install", "...")
-	st.Unlock()
-
-	var v int
-	c.Assert(func() { chg.Get("a", &v) }, PanicMatches, "internal error: accessing state without lock")
-}
-
-func (cs *changeSuite) TestSetNeedsLock(c *C) {
-	st := state.New(nil)
-	st.Lock()
-	chg := st.NewChange("install", "...")
-	st.Unlock()
-
-	c.Assert(func() { chg.Set("a", 1) }, PanicMatches, "internal error: accessing state without lock")
-}
+// TODO Better testing of full change roundtripping via JSON.
 
 func (cs *changeSuite) TestNewTaskAddTaskAndTasks(c *C) {
 	st := state.New(nil)
@@ -122,33 +105,6 @@ func (cs *changeSuite) TestAddTasks(c *C) {
 	}
 }
 
-func (cs *changeSuite) TestAddTaskNeedsLocked(c *C) {
-	st := state.New(nil)
-	st.Lock()
-	chg := st.NewChange("install", "...")
-	st.Unlock()
-
-	c.Assert(func() { chg.AddTask(nil) }, PanicMatches, "internal error: accessing state without lock")
-}
-
-func (cs *changeSuite) TestAddTasksNeedsLocked(c *C) {
-	st := state.New(nil)
-	st.Lock()
-	chg := st.NewChange("install", "...")
-	st.Unlock()
-
-	c.Assert(func() { chg.AddTasks(nil) }, PanicMatches, "internal error: accessing state without lock")
-}
-
-func (cs *changeSuite) TestTasksNeedsLocked(c *C) {
-	st := state.New(nil)
-	st.Lock()
-	chg := st.NewChange("install", "...")
-	st.Unlock()
-
-	c.Assert(func() { chg.Tasks() }, PanicMatches, "internal error: accessing state without lock")
-}
-
 func (cs *changeSuite) TestStatusAndSetStatus(c *C) {
 	st := state.New(nil)
 	st.Lock()
@@ -162,24 +118,6 @@ func (cs *changeSuite) TestStatusAndSetStatus(c *C) {
 	chg.SetStatus(state.RunningStatus)
 
 	c.Check(chg.Status(), Equals, state.RunningStatus)
-}
-
-func (cs *changeSuite) TestStatusNeedsLock(c *C) {
-	st := state.New(nil)
-	st.Lock()
-	chg := st.NewChange("install", "...")
-	st.Unlock()
-
-	c.Assert(func() { chg.Status() }, PanicMatches, "internal error: accessing state without lock")
-}
-
-func (cs *changeSuite) TestSetStatusNeedsLock(c *C) {
-	st := state.New(nil)
-	st.Lock()
-	chg := st.NewChange("install", "...")
-	st.Unlock()
-
-	c.Assert(func() { chg.SetStatus(state.WaitingStatus) }, PanicMatches, "internal error: accessing state without lock")
 }
 
 func (cs *changeSuite) TestStatusDerivedFromTasks(c *C) {
@@ -222,4 +160,62 @@ func (cs *changeSuite) TestState(c *C) {
 	st.Unlock()
 
 	c.Assert(chg.State(), Equals, st)
+}
+
+func (cs *changeSuite) TestErr(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("install", "...")
+
+	t1 := st.NewTask("download", "Download")
+	t2 := st.NewTask("activate", "Activate")
+
+	chg.AddTask(t1)
+	chg.AddTask(t2)
+
+	c.Assert(chg.Err(), IsNil)
+
+	// t2 still running so change not yet in ErrorStatus
+	t1.SetStatus(state.ErrorStatus)
+	c.Assert(chg.Err(), IsNil)
+
+	t2.SetStatus(state.ErrorStatus)
+	c.Assert(chg.Err(), ErrorMatches, `internal inconsistency: change "install" in ErrorStatus with no task errors logged`)
+
+	t1.Errorf("Download error")
+	c.Assert(chg.Err(), ErrorMatches, ""+
+		"cannot perform the following tasks:\n"+
+		"- Download \\(Download error\\)")
+
+	// TODO Preserve task creation order for presentation purposes.
+	t2.Errorf("Activate error")
+	c.Assert(chg.Err(), ErrorMatches, ""+
+		"cannot perform the following tasks:\n"+
+		"- (Download|Activate) \\((Download|Activate) error\\)\n"+
+		"- (Download|Activate) \\((Download|Activate) error\\)")
+}
+
+func (cs *changeSuite) TestNeedsLock(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	st.Unlock()
+
+	funcs := []func(){
+		func() { chg.Set("a", 1) },
+		func() { chg.Get("a", nil) },
+		func() { chg.Status() },
+		func() { chg.SetStatus(state.WaitingStatus) },
+		func() { chg.AddTask(nil) },
+		func() { chg.AddTasks(nil) },
+		func() { chg.Tasks() },
+		func() { chg.Err() },
+	}
+
+	for i, f := range funcs {
+		c.Logf("Testing function #%d", i)
+		c.Assert(f, PanicMatches, "internal error: accessing state without lock")
+	}
 }
