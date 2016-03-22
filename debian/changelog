@@ -5,6 +5,8 @@ ubuntu-core-launcher (1.0.21) UNRELEASED; urgency=medium
     - add syntax-check and fmt Makefile targets
     - use 'indent -linux'
     - debian/control: Build-Depends on indent
+  * src/seccomp.c: various cleanups from security team audit (also add
+    additional tests)
 
  -- Jamie Strandboge <jamie@ubuntu.com>  Tue, 22 Mar 2016 06:23:38 -0500
 
