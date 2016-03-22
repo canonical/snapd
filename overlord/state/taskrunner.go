@@ -189,11 +189,10 @@ func (r *TaskRunner) Ensure() {
 // wait expectes to be called with th r.mu lock held
 func (r *TaskRunner) wait() {
 	for len(r.tombs) > 0 {
-		for id, t := range r.tombs {
+		for _, t := range r.tombs {
 			r.mu.Unlock()
 			t.Wait()
 			r.mu.Lock()
-			delete(r.tombs, id)
 			break
 		}
 	}
