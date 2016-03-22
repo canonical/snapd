@@ -71,7 +71,7 @@ func (r *TaskRunner) Handlers() map[string]HandlerFunc {
 	return r.handlers
 }
 
-// propagateError sets to ErrorStatus all tasks directly and indirectly waiting on t.
+// propagateError sets all tasks directly and indirectly waiting on t to ErrorStatus.
 func propagateError(task *Task) {
 	mark := append([]*Task(nil), task.HaltTasks()...)
 	i := 0
