@@ -649,10 +649,7 @@ func waitChange(chg *state.Change) error {
 		case state.DoneStatus:
 			return nil
 		case state.ErrorStatus:
-			// FIXME: fish out the error from the failed
-			//        task and pass it on here instead of
-			//        making an error up
-			return fmt.Errorf("change %q failed", chg.ID())
+			return chg.Err()
 		}
 		time.Sleep(250 * time.Millisecond)
 	}
@@ -670,14 +667,16 @@ func (inst *snapInstruction) install() interface{} {
 		msg = fmt.Sprintf(i18n.G("Install %q snap from %q channel"), inst.pkg, inst.Channel)
 	}
 	chg := state.NewChange("install-snap", msg)
-	err := snapstate.Install(chg, inst.pkg, inst.Channel, flags)
+	// FIXME: err
+	ts, err := snapstate.Install(state, inst.pkg, inst.Channel, flags)
+	chg.AddTasks(ts)
 	state.Unlock()
 	if err != nil {
 		return err
 	}
-
 	inst.overlord.SnapManager().Ensure()
-	return waitChange(chg)
+	err = waitChange(chg)
+	return err
 	// FIXME: handle license agreement need to happen in the above
 	//        code
 	/*
@@ -703,7 +702,9 @@ func (inst *snapInstruction) update() interface{} {
 		msg = fmt.Sprintf(i18n.G("Update %q snap from %q channel"), inst.pkg, inst.Channel)
 	}
 	chg := state.NewChange("update-snap", msg)
-	err := snapstate.Update(chg, inst.pkg, inst.Channel, flags)
+	// FIXME: err
+	ts, err := snapstate.Update(state, inst.pkg, inst.Channel, flags)
+	chg.AddTasks(ts)
 	state.Unlock()
 	if err != nil {
 		return err
@@ -722,7 +723,9 @@ func (inst *snapInstruction) remove() interface{} {
 	state.Lock()
 	msg := fmt.Sprintf(i18n.G("Remove %q snap"), inst.pkg)
 	chg := state.NewChange("remove-snap", msg)
-	err := snapstate.Remove(chg, inst.pkg, flags)
+	// FIXME: err!
+	ts, err := snapstate.Remove(state, inst.pkg, flags)
+	chg.AddTasks(ts)
 	state.Unlock()
 	if err != nil {
 		return err
