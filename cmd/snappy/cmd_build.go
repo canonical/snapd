@@ -26,28 +26,25 @@ import (
 
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/snappy"
 )
 
 const clickReview = "click-review"
 
 type cmdBuild struct {
-	Output        string `long:"output" short:"o"`
-	BuildSquashfs bool   `long:"squashfs"`
+	Output string `long:"output" short:"o"`
 }
-
-var longBuildHelp = i18n.G("Creates a snap package and if available, runs the review scripts.")
 
 func init() {
 	cmd, err := parser.AddCommand("build",
-		i18n.G("Builds a snap package"),
-		longBuildHelp,
+		i18n.G("deprecated in favour of `snapcraft snap $DIR`"),
+		i18n.G("deprecated in favour of `snapcraft snap $DIR`"),
 		&cmdBuild{})
 	if err != nil {
 		logger.Panicf("Unable to build: %v", err)
 	}
 
 	cmd.Aliases = append(cmd.Aliases, "bu")
+	cmd.Hidden = true
 	addOptionDescription(cmd, "output", i18n.G("Specify an alternate output directory for the resulting package"))
 }
 
@@ -56,23 +53,12 @@ func (x *cmdBuild) Execute(args []string) (err error) {
 		args = []string{"."}
 	}
 
-	snapPackage, err := snappy.BuildSquashfsSnap(args[0], x.Output)
-	if err != nil {
-		return err
+	if _, err := exec.LookPath("snapcraft"); err != nil {
+		fmt.Fprintf(os.Stderr, `please "sudo apt install snapcraft"`)
+		os.Exit(1)
 	}
 
-	_, err = exec.LookPath(clickReview)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: could not review package (%s not available)\n", clickReview)
-	} else {
-		cmd := exec.Command(clickReview, snapPackage)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		// we ignore the error for now
-		_ = cmd.Run()
-	}
-
-	// TRANSLATORS: the %s is a pkgname
-	fmt.Printf(i18n.G("Generated '%s' snap\n"), snapPackage)
-	return nil
+	cmd := []string{"snapcraft", "snap"}
+	cmd = append(cmd, args...)
+	return exec.Command(cmd[0], cmd[1:]...).Run()
 }
