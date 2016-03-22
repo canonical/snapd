@@ -638,7 +638,7 @@ func (inst *snapInstruction) Agreed(intro, license string) bool {
 	return true
 }
 
-var snappyInstall = snappy.Install
+var snapstateInstall = snapstate.Install
 
 func waitChange(chg *state.Change) error {
 	for {
@@ -669,7 +669,7 @@ func (inst *snapInstruction) install() interface{} {
 	}
 	chg := state.NewChange("install-snap", msg)
 	// FIXME: err
-	ts, err := snapstate.Install(state, inst.pkg, inst.Channel, flags)
+	ts, err := snapstateInstall(state, inst.pkg, inst.Channel, flags)
 	chg.AddTasks(ts)
 	state.Unlock()
 	if err != nil {
