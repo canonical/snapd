@@ -113,7 +113,7 @@ int seccomp_load_filters(const char *filter_profile)
 			continue;
 
 		// check for special "@unrestricted" command
-		if (strncmp(buf, "@unrestricted", sizeof(buf)) == 0)
+		if (strcmp(buf, "@unrestricted") == 0)
 			goto out;
 
 		// syscall not available on this arch/kernel
