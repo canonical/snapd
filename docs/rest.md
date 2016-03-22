@@ -173,7 +173,7 @@ Sample result:
       "icon": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
       "installed_size": -1,          // always -1 if not installed
       "name": "hello-world",
-      "origin": "canonical",
+      "developer": "canonical",
       "resource": "/2.0/snaps/hello-world.canonical",
       "status": "not installed",
       "type": "app",
@@ -186,7 +186,7 @@ Sample result:
       "icon": "/2.0/icons/http.chipaca/icon",
       "installed_size": 1821897,
       "name": "http",
-      "origin": "chipaca",
+      "developer": "chipaca",
       "resource": "/2.0/snaps/http.chipaca",
       "status": "active",
       "type": "app",
@@ -199,7 +199,7 @@ Sample result:
       "icon": "",               // core might not have an icon
       "installed_size": -1,     // core doesn't have installed_size (yet)
       "name": "ubuntu-core",
-      "origin": "ubuntu",
+      "developer": "ubuntu",
       "resource": "/2.0/snaps/ubuntu-core.ubuntu",
       "status": "active",
       "type": "os",

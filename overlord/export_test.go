@@ -17,21 +17,17 @@
  *
  */
 
-package state
+package overlord
 
 import (
-	"github.com/ubuntu-core/snappy/osutil"
+	"time"
 )
 
-type fileBackend struct {
-	path string
-}
-
-// NewFileBackend creates a new file based state backend
-func NewFileBackend(path string) Backend {
-	return &fileBackend{path: path}
-}
-
-func (sf *fileBackend) Checkpoint(data []byte) error {
-	return osutil.AtomicWriteFile(sf.path, data, 0600, 0)
+// SetEnsureIntervalForTest let's change overlord ensure interval for tests.
+func SetEnsureIntervalForTest(d time.Duration) (restore func()) {
+	prev := ensureInterval
+	ensureInterval = d
+	return func() {
+		ensureInterval = prev
+	}
 }

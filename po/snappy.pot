@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-03-10 11:52+0100\n"
+        "POT-Creation-Date: 2016-03-18 21:38+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -111,6 +111,10 @@ msgstr  ""
 msgid   "Configures a package. The configuration is a YAML file, provided in the specified file which can be \"-\" for stdin. Output of the command is the current configuration, so running this command with no input file provides a snapshot of the app's current config."
 msgstr  ""
 
+#, c-format
+msgid   "Connect %s:%s to %s:%s"
+msgstr  ""
+
 msgid   "Connects a plug to a slot"
 msgstr  ""
 
@@ -130,6 +134,10 @@ msgid   "Destroy the classic dimension."
 msgstr  ""
 
 msgid   "Destroy the ubuntu classic dimension."
+msgstr  ""
+
+#, c-format
+msgid   "Disconnect %s:%s from %s:%s"
 msgstr  ""
 
 msgid   "Disconnects a plug from a slot"
@@ -180,6 +188,10 @@ msgid   "Install a snap to the system"
 msgstr  ""
 
 msgid   "Install snaps even if the signature can not be verified."
+msgstr  ""
+
+#, c-format
+msgid   "Installing %q"
 msgstr  ""
 
 #. TRANSLATORS: the %s is a pkgname
@@ -290,6 +302,10 @@ msgid   "Removes a plug from the system"
 msgstr  ""
 
 msgid   "Removes a slot from the system"
+msgstr  ""
+
+#, c-format
+msgid   "Removing %q"
 msgstr  ""
 
 #. TRANSLATORS: the %s is a pkgname
@@ -590,10 +606,12 @@ msgid   "binary-size: %v\n"
 msgstr  ""
 
 #. TRANSLATORS: the %s is a channel name
+#. TRANSLATORS: the %s is a channel name
 #, c-format
 msgid   "channel: %s\n"
 msgstr  ""
 
+#. TRANSLATORS: the %s is a size
 #. TRANSLATORS: the %s is a size
 #, c-format
 msgid   "data-size: %s\n"
@@ -604,6 +622,7 @@ msgstr  ""
 msgid   "frameworks: %s\n"
 msgstr  ""
 
+#. TRANSLATORS: the %s is a date
 #. TRANSLATORS: the %s is a date
 #, c-format
 msgid   "installed: %s\n"
@@ -655,10 +674,12 @@ msgid   "unsupported shell %v"
 msgstr  ""
 
 #. TRANSLATORS: the %s is a date
+#. TRANSLATORS: the %s is a date
 #, c-format
 msgid   "updated: %s\n"
 msgstr  ""
 
+#. TRANSLATORS: the %s is a version string
 #. TRANSLATORS: the %s is a version string
 #, c-format
 msgid   "version: %s\n"

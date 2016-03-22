@@ -26,8 +26,8 @@ import (
 )
 
 const (
-	// SideloadedOrigin is the (forced) origin for sideloaded snaps
-	SideloadedOrigin = "sideload"
+	// SideloadedDeveloper is the (forced) developer for sideloaded snaps
+	SideloadedDeveloper = "sideload"
 )
 
 // SnapLocalRepository is the type for a local snap repository
@@ -44,34 +44,18 @@ func NewLocalSnapRepository() *SnapLocalRepository {
 }
 
 // Installed returns the installed snaps from this repository
-func (s *SnapLocalRepository) Installed() (parts []Part, err error) {
+func (s *SnapLocalRepository) Installed() ([]*Snap, error) {
 	globExpr := filepath.Join(s.path, "*", "*", "meta", "snap.yaml")
-	return s.partsForGlobExpr(globExpr)
-}
-
-// All the parts (ie all installed + removed-but-not-purged)
-//
-// TODO: that thing about removed
-func (s *SnapLocalRepository) All() ([]Part, error) {
-	return s.Installed()
+	return s.snapsForGlobExpr(globExpr)
 }
 
 // Snaps gets all the snaps with the given name and origin
 func (s *SnapLocalRepository) Snaps(name, origin string) ([]*Snap, error) {
 	globExpr := filepath.Join(s.path, name+"."+origin, "*", "meta", "snap.yaml")
-	parts, err := s.partsForGlobExpr(globExpr)
-	if err != nil {
-		return nil, err
-	}
-
-	snaps := make([]*Snap, len(parts))
-	for i, part := range parts {
-		snaps[i] = part.(*Snap)
-	}
-
-	return snaps, nil
+	return s.snapsForGlobExpr(globExpr)
 }
-func (s *SnapLocalRepository) partsForGlobExpr(globExpr string) (parts []Part, err error) {
+
+func (s *SnapLocalRepository) snapsForGlobExpr(globExpr string) (snaps []*Snap, err error) {
 	matches, err := filepath.Glob(globExpr)
 	if err != nil {
 		return nil, err
@@ -88,19 +72,19 @@ func (s *SnapLocalRepository) partsForGlobExpr(globExpr string) (parts []Part, e
 			continue
 		}
 
-		origin, _ := originFromYamlPath(realpath)
-		snap, err := NewInstalledSnap(realpath, origin)
+		developer, _ := developerFromYamlPath(realpath)
+		snap, err := NewInstalledSnap(realpath, developer)
 		if err != nil {
 			return nil, err
 		}
-		parts = append(parts, snap)
+		snaps = append(snaps, snap)
 
 	}
 
-	return parts, nil
+	return snaps, nil
 }
 
-func originFromBasedir(basedir string) (s string) {
+func developerFromBasedir(basedir string) (s string) {
 	ext := filepath.Ext(filepath.Dir(filepath.Clean(basedir)))
 	if len(ext) < 2 {
 		return ""
@@ -109,13 +93,13 @@ func originFromBasedir(basedir string) (s string) {
 	return ext[1:]
 }
 
-// originFromYamlPath *must* return "" if it's returning error.
-func originFromYamlPath(path string) (string, error) {
-	origin := originFromBasedir(filepath.Join(path, "..", ".."))
+// developerFromYamlPath *must* return "" if it's returning error.
+func developerFromYamlPath(path string) (string, error) {
+	developer := developerFromBasedir(filepath.Join(path, "..", ".."))
 
-	if origin == "" {
-		return "", ErrInvalidPart
+	if developer == "" {
+		return "", ErrInvalidSnap
 	}
 
-	return origin, nil
+	return developer, nil
 }

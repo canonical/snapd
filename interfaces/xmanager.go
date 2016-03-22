@@ -34,11 +34,11 @@ func activeSnapMetaDataImpl(snapName string) (version, origin string, apps []str
 	for _, snap := range installed {
 		if snap.Name() == snapName && snap.IsActive() {
 			// XXX: .Apps() should be in the interface
-			for _, app := range snap.(*snappy.Snap).Apps() {
+			for _, app := range snap.Apps() {
 				apps = append(apps, app.Name)
 			}
 			version = snap.Version()
-			origin = snap.Origin()
+			origin = snap.Developer()
 			return
 		}
 	}

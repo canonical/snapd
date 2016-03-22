@@ -131,8 +131,9 @@ func (ss *stateSuite) TestGetUnmarshalProblem(c *C) {
 }
 
 type fakeStateBackend struct {
-	checkpoints [][]byte
-	error       func() error
+	checkpoints  [][]byte
+	error        func() error
+	ensureBefore time.Duration
 }
 
 func (b *fakeStateBackend) Checkpoint(data []byte) error {
@@ -141,6 +142,10 @@ func (b *fakeStateBackend) Checkpoint(data []byte) error {
 		return b.error()
 	}
 	return nil
+}
+
+func (b *fakeStateBackend) EnsureBefore(d time.Duration) {
+	b.ensureBefore = d
 }
 
 func (ss *stateSuite) TestImplicitCheckpointAndRead(c *C) {
@@ -317,11 +322,20 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 	chg := st.NewChange("install", "summary")
 	c.Assert(chg, NotNil)
 
-	t1 := chg.NewTask("download", "1...")
+	t1 := st.NewTask("download", "1...")
+	chg.AddTask(t1)
 	t1ID := t1.ID()
 	t1.Set("a", 1)
 	t1.SetStatus(state.WaitingStatus)
 	t1.SetProgress(5, 10)
+
+	t2 := st.NewTask("inst", "2...")
+	chg.AddTask(t2)
+	t2ID := t2.ID()
+	t2.WaitFor(t1)
+
+	t3 := st.NewTask("three", "3...")
+	t3ID := t3.ID()
 
 	// implicit checkpoint
 	st.Unlock()
@@ -341,10 +355,13 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 	c.Assert(chgs, HasLen, 1)
 	chg0 := chgs[0]
 
-	tasks0 := chg0.Tasks()
-	c.Assert(tasks0, HasLen, 1)
+	tasks0 := make(map[string]*state.Task)
+	for _, t := range chg0.Tasks() {
+		tasks0[t.ID()] = t
+	}
+	c.Assert(tasks0, HasLen, 2)
 
-	task0_1 := tasks0[0]
+	task0_1 := tasks0[t1ID]
 	c.Check(task0_1.ID(), Equals, t1ID)
 	c.Check(task0_1.Kind(), Equals, "download")
 	c.Check(task0_1.Summary(), Equals, "1...")
@@ -358,4 +375,68 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 	cur, tot := task0_1.Progress()
 	c.Check(cur, Equals, 5)
 	c.Check(tot, Equals, 10)
+
+	task0_2 := tasks0[t2ID]
+	c.Check(task0_2.WaitTasks(), DeepEquals, []*state.Task{task0_1})
+
+	c.Check(task0_1.HaltTasks(), DeepEquals, []*state.Task{task0_2})
+
+	tasks2 := make(map[string]*state.Task)
+	for _, t := range st2.Tasks() {
+		tasks2[t.ID()] = t
+	}
+	c.Assert(tasks2, HasLen, 3)
+	c.Check(tasks2[t3ID].Kind(), Equals, "three")
+}
+
+func (ss *stateSuite) TestEnsureBefore(c *C) {
+	b := new(fakeStateBackend)
+	st := state.New(b)
+
+	st.EnsureBefore(10 * time.Second)
+
+	c.Check(b.ensureBefore, Equals, 10*time.Second)
+}
+
+func (ss *stateSuite) TestNewTaskAndTasks(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg1 := st.NewChange("install", "...")
+	t11 := st.NewTask("check", "...")
+	chg1.AddTask(t11)
+	t12 := st.NewTask("inst", "...")
+	chg1.AddTask(t12)
+	chg2 := st.NewChange("remove", "...")
+	t21 := st.NewTask("check", "...")
+	t22 := st.NewTask("rm", "...")
+	chg2.AddTask(t22)
+	chg1.AddTask(t22)
+
+	tasks := st.Tasks()
+	c.Check(tasks, HasLen, 4)
+
+	expected := map[string]*state.Task{
+		t11.ID(): t11,
+		t12.ID(): t12,
+		t21.ID(): t21,
+		t22.ID(): t22,
+	}
+
+	for _, t := range tasks {
+		c.Check(t, Equals, expected[t.ID()])
+	}
+}
+
+func (ss *stateSuite) TestNewTaskNeedsLocked(c *C) {
+	st := state.New(nil)
+
+	c.Assert(func() { st.NewTask("download", "...") }, PanicMatches, "internal error: accessing state without lock")
+}
+
+func (ss *stateSuite) TestTasksNeedsLocked(c *C) {
+	st := state.New(nil)
+
+	c.Assert(func() { st.Tasks() }, PanicMatches, "internal error: accessing state without lock")
 }

@@ -82,13 +82,13 @@ func OSSnapName(c *check.C) string {
 	return strings.Split(snappyOS, ".")[0]
 }
 
-// snappyOS returns the name of the OS snap in the form name.origin_version.snap
+// snappyOS returns the name of the OS snap in the form name.developer_version.snap
 // This is a workaround for https://bugs.launchpad.net/snappy/+bug/1532245
 func snappyOS() (string, error) {
 	return confValue("snappy_os")
 }
 
-// SnappyKernel returns the name of the Kernel snap in the form name.origin_version.snap
+// SnappyKernel returns the name of the Kernel snap in the form name.developer_version.snap
 // This is a workaround for https://bugs.launchpad.net/snappy/+bug/1532245
 func SnappyKernel() (string, error) {
 	return confValue("snappy_kernel")

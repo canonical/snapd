@@ -19,11 +19,19 @@
 
 package snappy
 
-import "strings"
+import (
+	"path/filepath"
 
-// Search searches all repositories with the given keywords in the args slice
-func Search(args []string) (SharedNames, error) {
-	m := NewUbuntuStoreSnapRepository()
+	. "gopkg.in/check.v1"
 
-	return m.Search(strings.Join(args, ","))
+	"github.com/ubuntu-core/snappy/dirs"
+)
+
+type binariesTestSuite struct{}
+
+var _ = Suite(&binariesTestSuite{})
+
+func (s *SnapTestSuite) TestGenerateBinaryName(c *C) {
+	c.Check(generateBinaryName(&snapYaml{Name: "foo"}, &AppYaml{Name: "bar"}), Equals, filepath.Join(dirs.SnapBinariesDir, "foo.bar"))
+	c.Check(generateBinaryName(&snapYaml{Name: "foo"}, &AppYaml{Name: "foo"}), Equals, filepath.Join(dirs.SnapBinariesDir, "foo"))
 }

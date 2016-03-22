@@ -33,9 +33,11 @@ import (
 	"github.com/ubuntu-core/snappy/strutil"
 )
 
-// A Backend is used by State to checkpoint on every unlock operation.
+// A Backend is used by State to checkpoint on every unlock operation
+// and to mediate requests to ensure the state sooner.
 type Backend interface {
 	Checkpoint(data []byte) error
+	EnsureBefore(d time.Duration)
 }
 
 type customData map[string]*json.RawMessage
@@ -179,6 +181,13 @@ func (s *State) Unlock() {
 	}
 }
 
+// EnsureBefore asks for an ensure pass to happen sooner within duration from now.
+func (s *State) EnsureBefore(d time.Duration) {
+	if s.backend != nil {
+		s.backend.EnsureBefore(d)
+	}
+}
+
 // ErrNoState represents the case of no state entry for a given key.
 var ErrNoState = errors.New("no state entry for key")
 
@@ -225,6 +234,27 @@ func (s *State) Changes() []*Change {
 	res := make([]*Change, 0, len(s.changes))
 	for _, chg := range s.changes {
 		res = append(res, chg)
+	}
+	return res
+}
+
+// NewTask creates a new task.
+// It usually will be registered with a Change using AddTask or
+// through a TaskSet.
+func (s *State) NewTask(kind, summary string) *Task {
+	s.ensureLocked()
+	id := s.genID()
+	t := newTask(s, id, kind, summary)
+	s.tasks[id] = t
+	return t
+}
+
+// Tasks returns all tasks currently known to the state.
+func (s *State) Tasks() []*Task {
+	s.ensureLocked()
+	res := make([]*Task, 0, len(s.tasks))
+	for _, t := range s.tasks {
+		res = append(res, t)
 	}
 	return res
 }

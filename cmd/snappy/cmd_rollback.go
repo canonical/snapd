@@ -75,8 +75,13 @@ func (x *cmdRollback) doRollback() error {
 		return err
 	}
 
-	parts := snappy.FindSnapsByNameAndVersion(pkg, nowVersion, installed)
-	showVerboseList(parts, os.Stdout)
+	snaps := []*snappy.Snap{}
+	for _, installed := range installed {
+		if pkg == installed.Name() && nowVersion == installed.Version() {
+			snaps = append(snaps, installed)
+		}
+	}
+	showVerboseList(snaps, os.Stdout)
 
 	return nil
 }
