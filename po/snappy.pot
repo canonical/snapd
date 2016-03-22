@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-03-22 08:49+0100\n"
+        "POT-Creation-Date: 2016-03-22 16:41+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -54,6 +54,10 @@ msgid   "A concise summary of key attributes of the snappy system, such as the r
         "Providing a package name will display information about a specific installed package.\n"
         "\n"
         "The verbose version of the info command for a package will also tell you the available channels for that package, when it was installed for the first time, disk space utilization, and in the case of frameworks, which apps are able to use the framework."
+msgstr  ""
+
+#, c-format
+msgid   "Activate %q snap"
 msgstr  ""
 
 msgid   "Activate a package"
@@ -119,6 +123,10 @@ msgid   "Connects a plug to a slot"
 msgstr  ""
 
 msgid   "Creates a snap package and if available, runs the review scripts."
+msgstr  ""
+
+#, c-format
+msgid   "Deactivate %q snap"
 msgstr  ""
 
 msgid   "Deactivate a package"
@@ -257,10 +265,18 @@ msgstr  ""
 msgid   "Provides more detailed information"
 msgstr  ""
 
+#, c-format
+msgid   "Purge %q snap"
+msgstr  ""
+
 msgid   "Purge a snap's data from the system"
 msgstr  ""
 
 msgid   "Purge an installed package."
+msgstr  ""
+
+#, c-format
+msgid   "Purging %q"
 msgstr  ""
 
 #. TRANSLATORS: the %s is a pkgname
@@ -325,10 +341,18 @@ msgstr  ""
 msgid   "Removing %s\n"
 msgstr  ""
 
+#, c-format
+msgid   "Rollback %q snap"
+msgstr  ""
+
 msgid   "Rollback a snap to its previous known-good version"
 msgstr  ""
 
 msgid   "Rollback to a previous version of a package"
+msgstr  ""
+
+#, c-format
+msgid   "Rolling back %q"
 msgstr  ""
 
 msgid   "Run snappy console interface"
@@ -340,10 +364,18 @@ msgstr  ""
 msgid   "Runs unsupported experimental commands"
 msgstr  ""
 
+#, c-format
+msgid   "Set active %q"
+msgstr  ""
+
 msgid   "Set configuration for a specific installed package"
 msgstr  ""
 
 msgid   "Set configuration for an installed package."
+msgstr  ""
+
+#, c-format
+msgid   "Set inactive %q"
 msgstr  ""
 
 msgid   "Set properties of system or package"
