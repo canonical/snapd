@@ -41,6 +41,7 @@ type TaskRunner struct {
 	// locking
 	mu       sync.Mutex
 	handlers map[string]HandlerFunc
+	stopped  bool
 
 	// go-routines lifecycle
 	tombs map[string]*tomb.Tomb
@@ -145,6 +146,11 @@ func (r *TaskRunner) Ensure() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	if r.stopped {
+		// we are stopping, don't run another ensure
+		return
+	}
+
 	for _, chg := range r.state.Changes() {
 		if chg.Status() == DoneStatus {
 			continue
@@ -202,6 +208,8 @@ func (r *TaskRunner) wait() {
 func (r *TaskRunner) Stop() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
+	r.stopped = true
 
 	for _, tb := range r.tombs {
 		tb.Kill(nil)
