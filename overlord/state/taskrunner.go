@@ -88,8 +88,16 @@ func taskFail(task *Task) {
 func (r *TaskRunner) run(fn HandlerFunc, task *Task) {
 	task.SetStatus(RunningStatus) // could have been set to waiting
 	tomb := &tomb.Tomb{}
-	r.tombs[task.ID()] = tomb
+	id := task.ID()
+	r.tombs[id] = tomb
 	tomb.Go(func() error {
+		defer func() {
+			r.mu.Lock()
+			defer r.mu.Unlock()
+
+			delete(r.tombs, id)
+		}()
+
 		// capture the error result with tomb.Kill so we can
 		// use tomb.Err uniformily to consider both it or a
 		// overriding previous Kill reason.
@@ -137,12 +145,6 @@ func (r *TaskRunner) Ensure() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	for id, tb := range r.tombs {
-		if !tb.Alive() {
-			delete(r.tombs, id)
-		}
-	}
-
 	for _, chg := range r.state.Changes() {
 		if chg.Status() == DoneStatus {
 			continue
@@ -184,26 +186,8 @@ func (r *TaskRunner) Ensure() {
 	}
 }
 
-// Stop kills all concurrent activities and returns after that's done.
-func (r *TaskRunner) Stop() {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	for _, tb := range r.tombs {
-		tb.Kill(nil)
-	}
-
-	for id, tb := range r.tombs {
-		tb.Wait()
-		delete(r.tombs, id)
-	}
-}
-
-// Wait waits for all concurrent activities and returns after that's done.
-func (r *TaskRunner) Wait() {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
+// wait expectes to be called with th r.mu lock held
+func (r *TaskRunner) wait() {
 	for len(r.tombs) > 0 {
 		for id, t := range r.tombs {
 			r.mu.Unlock()
@@ -213,4 +197,24 @@ func (r *TaskRunner) Wait() {
 			break
 		}
 	}
+}
+
+// Stop kills all concurrent activities and returns after that's done.
+func (r *TaskRunner) Stop() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for _, tb := range r.tombs {
+		tb.Kill(nil)
+	}
+
+	r.wait()
+}
+
+// Wait waits for all concurrent activities and returns after that's done.
+func (r *TaskRunner) Wait() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.wait()
 }
