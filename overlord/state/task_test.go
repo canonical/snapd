@@ -187,7 +187,6 @@ func (cs *taskSuite) TestErrorf(c *C) {
 
 	t.Errorf("Some %s", "error")
 	c.Assert(t.Log(), DeepEquals, []string{"ERROR: Some error"})
-	c.Assert(t.Status(), Equals, state.ErrorStatus)
 }
 
 func (ts *taskSuite) TestTaskMarshalsLog(c *C) {

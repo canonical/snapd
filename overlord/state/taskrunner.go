@@ -69,9 +69,8 @@ func (r *TaskRunner) Handlers() map[string]HandlerFunc {
 	return r.handlers
 }
 
-// taskFail marks task t and all tasks waiting (directly and indirectly on it) as in ErrorStatus.
-func taskFail(task *Task) {
-	task.SetStatus(ErrorStatus)
+// propagateError sets all tasks directly and indirectly waiting on t to ErrorStatus.
+func propagateError(task *Task) {
 	mark := append([]*Task(nil), task.HaltTasks()...)
 	i := 0
 	for i < len(mark) {
@@ -97,7 +96,7 @@ func (r *TaskRunner) run(fn HandlerFunc, task *Task) {
 
 		r.state.Lock()
 		defer r.state.Unlock()
-		switch tomb.Err() {
+		switch err := tomb.Err(); err {
 		case Retry:
 			// Do nothing. Handler asked to try again later.
 			// TODO: define how to control retry intervals,
@@ -110,7 +109,9 @@ func (r *TaskRunner) run(fn HandlerFunc, task *Task) {
 				r.state.EnsureBefore(0)
 			}
 		default:
-			taskFail(task)
+			task.SetStatus(ErrorStatus)
+			task.Errorf("%s", err)
+			propagateError(task)
 		}
 		return nil
 	})
