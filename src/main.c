@@ -272,17 +272,18 @@ void setup_private_pts()
 {
 	// See https://www.kernel.org/doc/Documentation/filesystems/devpts.txt
 	//
-	// Ubuntu by default uses devpts 'single-instance' mode where /dev/pts/ptmx
-	// is mounted with ptmxmode=0000. We don't want to change the startup
-	// scripts though, so we follow the instructions in point '4' of
-	// 'User-space changes' in the above doc. In other words, after
-	// unshare(CLONE_NEWNS), we mount devpts with -o newinstance,ptmxmode=0666
-	// and then bind mount /dev/pts/ptmx onto /dev/ptmx
+	// Ubuntu by default uses devpts 'single-instance' mode where
+	// /dev/pts/ptmx is mounted with ptmxmode=0000. We don't want to change
+	// the startup scripts though, so we follow the instructions in point
+	// '4' of 'User-space changes' in the above doc. In other words, after
+	// unshare(CLONE_NEWNS), we mount devpts with -o
+	// newinstance,ptmxmode=0666 and then bind mount /dev/pts/ptmx onto
+	// /dev/ptmx
 
 	struct stat st;
 
-	// Make sure /dev/pts/ptmx exists, otherwise we are in legacy mode which
-	// doesn't provide the isolation we require.
+	// Make sure /dev/pts/ptmx exists, otherwise we are in legacy mode
+	// which doesn't provide the isolation we require.
 	if (stat("/dev/pts/ptmx", &st) != 0) {
 		die("/dev/pts/ptmx does not exist");
 	}
@@ -290,8 +291,8 @@ void setup_private_pts()
 	if (stat("/dev/ptmx", &st) != 0) {
 		die("/dev/ptmx does not exist");
 	}
-	// Since multi-instance, use ptmxmode=0666. The other options are copied
-	// from /etc/default/devpts
+	// Since multi-instance, use ptmxmode=0666. The other options are
+	// copied from /etc/default/devpts
 	if (mount("devpts", "/dev/pts", "devpts", MS_MGC_VAL,
 		  "newinstance,ptmxmode=0666,mode=0620,gid=5")) {
 		die("unable to mount a new instance of '/dev/pts'");
@@ -361,8 +362,8 @@ void mkpath(const char *const path)
 	if (strlen(path) == 0) {
 		return;
 	}
-	// We're going to use strtok_r, which needs to modify the path, so we'll make
-	// a copy of it.
+	// We're going to use strtok_r, which needs to modify the path, so
+	// we'll make a copy of it.
 	char *path_copy = strdup(path);
 	if (path_copy == NULL) {
 		die("failed to create user data directory");
@@ -373,10 +374,10 @@ void mkpath(const char *const path)
 	// - Only open a directory (fail otherwise)
 	int open_flags = O_NOFOLLOW | O_CLOEXEC | O_DIRECTORY;
 
-	// We're going to create each path segment via openat/mkdirat calls instead
-	// of mkdir calls, to avoid following symlinks and placing the user data
-	// directory somewhere we never intended for it to go. The first step is to
-	// get an initial file descriptor.
+	// We're going to create each path segment via openat/mkdirat calls
+	// instead of mkdir calls, to avoid following symlinks and placing the
+	// user data directory somewhere we never intended for it to go. The
+	// first step is to get an initial file descriptor.
 	int fd = AT_FDCWD;
 	if (path_copy[0] == '/') {
 		fd = open("/", open_flags);
@@ -391,15 +392,15 @@ void mkpath(const char *const path)
 	// Initialize tokenizer and obtain first path segment.
 	char *path_segment = strtok_r(path_copy, "/", &path_walker);
 	while (path_segment) {
-		// Try to create the directory. It's okay if it already existed, but any
-		// other error is fatal.
+		// Try to create the directory. It's okay if it already
+		// existed, but any other error is fatal.
 		if (mkdirat(fd, path_segment, 0755) < 0 && errno != EEXIST) {
 			close(fd);
 			free(path_copy);
 			die("failed to create user data directory");
 		}
-		// Open the parent directory we just made (and close the previous one) so
-		// we can continue down the path.
+		// Open the parent directory we just made (and close the
+		// previous one) so we can continue down the path.
 		int previous_fd = fd;
 		fd = openat(fd, path_segment, open_flags);
 		close(previous_fd);
@@ -425,8 +426,8 @@ void setup_user_data()
 	// $SNAP_APP_USER_DATA_PATH.
 	if (user_data == NULL) {
 		user_data = getenv("SNAP_APP_USER_DATA_PATH");
-		// If it's still not defined, there's nothing to do. No need to die,
-		// there's simply no directory to create.
+		// If it's still not defined, there's nothing to do. No need to
+		// die, there's simply no directory to create.
 		if (user_data == NULL) {
 			return;
 		}
@@ -489,8 +490,8 @@ int main(int argc, char **argv)
 			setup_devices_cgroup(appname);
 			setup_udev_snappy_assign(appname);
 		}
-		// the rest does not so temporarily drop privs back to calling user
-		// (we'll permanently drop after loading seccomp)
+		// the rest does not so temporarily drop privs back to calling
+		// user (we'll permanently drop after loading seccomp)
 		if (setegid(real_gid) != 0)
 			die("setegid failed");
 		if (seteuid(real_uid) != 0)
