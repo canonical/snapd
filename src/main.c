@@ -259,7 +259,7 @@ void setup_private_mount(const char *appname)
 		die("unable to chown tmpdir");
 	}
 	// ensure we set the various TMPDIRs to our newly created tmpdir
-	const char *tmpd[] = { "TMPDIR", "TEMPDIR", "SNAP_APP_TMPDIR", NULL };
+	const char *tmpd[] = { "TMPDIR", "TEMPDIR", NULL };
 	int i;
 	for (i = 0; tmpd[i] != NULL; i++) {
 		if (setenv(tmpd[i], "/tmp", 1) != 0) {
@@ -425,12 +425,8 @@ void setup_user_data()
 	// If $SNAP_USER_DATA wasn't defined, check the deprecated
 	// $SNAP_APP_USER_DATA_PATH.
 	if (user_data == NULL) {
-		user_data = getenv("SNAP_APP_USER_DATA_PATH");
-		// If it's still not defined, there's nothing to do. No need to
 		// die, there's simply no directory to create.
-		if (user_data == NULL) {
-			return;
-		}
+		return;
 	}
 	// Only support absolute paths.
 	if (user_data[0] != '/') {

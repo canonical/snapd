@@ -7,6 +7,7 @@ ubuntu-core-launcher (1.0.21) UNRELEASED; urgency=medium
     - debian/control: Build-Depends on indent
   * src/seccomp.c: various cleanups from security team audit (also add
     additional tests)
+  * don't support obsoleted SNAP_APP_TMPDIR and SNAP_APP_USER_DATA_PATH
 
  -- Jamie Strandboge <jamie@ubuntu.com>  Tue, 22 Mar 2016 06:23:38 -0500
 
