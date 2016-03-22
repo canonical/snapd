@@ -49,13 +49,13 @@ func (s *SnapTestSuite) TestInstallInstall(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
-	all, err := NewLocalSnapRepository().All()
+	all, err := NewLocalSnapRepository().Installed()
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
-	part := all[0]
-	c.Check(part.Name(), Equals, name)
-	c.Check(part.IsInstalled(), Equals, true)
-	c.Check(part.IsActive(), Equals, true)
+	snap := all[0]
+	c.Check(snap.Name(), Equals, name)
+	c.Check(snap.IsInstalled(), Equals, true)
+	c.Check(snap.IsActive(), Equals, true)
 }
 
 func (s *SnapTestSuite) TestInstallNoHook(c *C) {
@@ -64,13 +64,13 @@ func (s *SnapTestSuite) TestInstallNoHook(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
-	all, err := NewLocalSnapRepository().All()
+	all, err := NewLocalSnapRepository().Installed()
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
-	part := all[0]
-	c.Check(part.Name(), Equals, name)
-	c.Check(part.IsInstalled(), Equals, true)
-	c.Check(part.IsActive(), Equals, false) // c.f. TestInstallInstall
+	snap := all[0]
+	c.Check(snap.Name(), Equals, name)
+	c.Check(snap.IsInstalled(), Equals, true)
+	c.Check(snap.IsActive(), Equals, false) // c.f. TestInstallInstall
 }
 
 func (s *SnapTestSuite) TestInstallInstallLicense(c *C) {
@@ -162,7 +162,7 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 			io.WriteString(w, `{
 "package_name": "foo",
 "version": "2",
-"origin": "test",
+"developer": "test",
 "anon_download_url": "`+dlURL+`",
 "icon_url": "`+iconURL+`"
 }`)
@@ -201,9 +201,9 @@ func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "hello-snap.manifest"), []byte(`{"name": "hello-snap"}`), 0644), IsNil)
 	ag := &progress.NullProgress{}
-	part, err := NewInstalledSnap(yamlFile, "potato")
+	snap, err := NewInstalledSnap(yamlFile, "potato")
 	c.Assert(err, IsNil)
-	c.Assert(part.activate(true, ag), IsNil)
+	c.Assert(snap.activate(true, ag), IsNil)
 	current := ActiveSnapByName("hello-snap")
 	c.Assert(current, NotNil)
 
@@ -211,7 +211,7 @@ func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 		switch r.URL.Path {
 		case "/details/hello-snap.potato/ch":
 			io.WriteString(w, `{
-"origin": "potato",
+"developer": "potato",
 "package_name": "hello-snap",
 "version": "2",
 "anon_download_url": "blah"
@@ -250,11 +250,11 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 	var dlURL, iconURL string
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/details/foo." + testOrigin:
+		case "/details/foo." + testDeveloper:
 			io.WriteString(w, `{
 "package_name": "foo",
 "version": "2",
-"origin": "`+testOrigin+`",
+"developer": "`+testDeveloper+`",
 "anon_download_url": "`+dlURL+`",
 "icon_url": "`+iconURL+`"
 }`)
@@ -281,7 +281,7 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 		io.WriteString(w, `[{
 	"package_name": "foo",
 	"version": "2",
-        "origin": "`+testOrigin+`",
+        "origin": "`+testDeveloper+`",
 	"anon_download_url": "`+dlURL+`",
 	"icon_url": "`+iconURL+`"
 }]`)

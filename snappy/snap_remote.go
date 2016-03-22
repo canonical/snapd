@@ -33,67 +33,65 @@ import (
 
 // RemoteSnap represents a snap available on the server
 type RemoteSnap struct {
-	pkg remote.Snap
+	// FIXME: exported for testing
+	Pkg remote.Snap
 }
 
 // Type returns the type of the Snap (app, gadget, ...)
 func (s *RemoteSnap) Type() snap.Type {
-	return s.pkg.Type
+	return s.Pkg.Type
 }
 
 // Name returns the name
 func (s *RemoteSnap) Name() string {
-	return s.pkg.Name
+	return s.Pkg.Name
 }
 
 // Version returns the version
 func (s *RemoteSnap) Version() string {
-	return s.pkg.Version
+	return s.Pkg.Version
 }
 
 // Description returns the description
 func (s *RemoteSnap) Description() string {
-	return s.pkg.Title
+	return s.Pkg.Title
 }
 
-// Origin is the origin
-func (s *RemoteSnap) Origin() string {
-	return s.pkg.Origin
+// Developer is the developer
+func (s *RemoteSnap) Developer() string {
+	return s.Pkg.Developer
 }
 
 // Hash returns the hash
 func (s *RemoteSnap) Hash() string {
-	return s.pkg.DownloadSha512
+	return s.Pkg.DownloadSha512
 }
 
 // Channel returns the channel used
 func (s *RemoteSnap) Channel() string {
-	return s.pkg.Channel
+	return s.Pkg.Channel
 }
 
 // Icon returns the icon
 func (s *RemoteSnap) Icon() string {
-	return s.pkg.IconURL
+	return s.Pkg.IconURL
 }
 
-// IsActive returns true if the snap is active
-func (s *RemoteSnap) IsActive() bool {
-	return false
-}
-
-// IsInstalled returns true if the snap is installed
-func (s *RemoteSnap) IsInstalled() bool {
-	return false
-}
-
-// InstalledSize returns the size of the installed snap
-func (s *RemoteSnap) InstalledSize() int64 {
-	return -1
+// Info returns the snap.Info data.
+func (s *RemoteSnap) Info() *snap.Info {
+	return &snap.Info{
+		Name:        s.Name(),
+		Developer:   s.Developer(),
+		Version:     s.Version(),
+		Type:        s.Type(),
+		Channel:     s.Channel(),
+		Description: s.Description(),
+	}
 }
 
 // DownloadSize returns the dowload size
 func (s *RemoteSnap) DownloadSize() int64 {
-	return s.pkg.DownloadSize
+	return s.Pkg.DownloadSize
 }
 
 // Date returns the last update time
@@ -106,7 +104,7 @@ func (s *RemoteSnap) Date() time.Time {
 		"2006-01-02T15:04:05.000Z",
 		"2006-01-02T15:04:05.000000Z",
 	} {
-		p, err = time.Parse(fmt, s.pkg.LastUpdated)
+		p, err = time.Parse(fmt, s.Pkg.LastUpdated)
 		if err == nil {
 			break
 		}
@@ -116,7 +114,7 @@ func (s *RemoteSnap) Date() time.Time {
 }
 
 func (s *RemoteSnap) saveStoreManifest() error {
-	content, err := yaml.Marshal(s.pkg)
+	content, err := yaml.Marshal(s.Pkg)
 	if err != nil {
 		return err
 	}
@@ -126,20 +124,5 @@ func (s *RemoteSnap) saveStoreManifest() error {
 	}
 
 	// don't worry about previous contents
-	return osutil.AtomicWriteFile(RemoteManifestPath(s), content, 0644, 0)
-}
-
-// Config is used to to configure the snap
-func (s *RemoteSnap) Config(configuration []byte) (new string, err error) {
-	return "", err
-}
-
-// NeedsReboot returns true if the snap becomes active on the next reboot
-func (s *RemoteSnap) NeedsReboot() bool {
-	return false
-}
-
-// Frameworks returns the list of frameworks needed by the snap
-func (s *RemoteSnap) Frameworks() ([]string, error) {
-	return nil, ErrNotImplemented
+	return osutil.AtomicWriteFile(RemoteManifestPath(s.Info()), content, 0644, 0)
 }

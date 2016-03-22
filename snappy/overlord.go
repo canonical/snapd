@@ -41,12 +41,12 @@ type Overlord struct {
 // Install installs the given snap file to the system.
 //
 // It returns the local snap file or an error
-func (o *Overlord) Install(snapFilePath string, origin string, flags InstallFlags, meter progress.Meter) (sp *Snap, err error) {
+func (o *Overlord) Install(snapFilePath string, developer string, flags InstallFlags, meter progress.Meter) (sp *Snap, err error) {
 	allowGadget := (flags & AllowGadget) != 0
 	inhibitHooks := (flags & InhibitHooks) != 0
 	allowUnauth := (flags & AllowUnauthenticated) != 0
 
-	s, err := NewSnapFile(snapFilePath, origin, allowUnauth)
+	s, err := NewSnapFile(snapFilePath, developer, allowUnauth)
 	if err != nil {
 		return nil, fmt.Errorf("can not open %s: %s", snapFilePath, err)
 	}
@@ -58,19 +58,19 @@ func (o *Overlord) Install(snapFilePath string, origin string, flags InstallFlag
 		return nil, err
 	}
 
-	// the "gadget" parts are special
+	// the "gadget" snaps are special
 	if s.Type() == snap.TypeGadget {
 		if err := installGadgetHardwareUdevRules(s.m); err != nil {
 			return nil, err
 		}
 	}
 
-	fullName := QualifiedName(s)
+	fullName := QualifiedName(s.Info())
 	dataDir := filepath.Join(dirs.SnapDataDir, fullName, s.Version())
 
-	var oldPart *Snap
+	var oldSnap *Snap
 	if currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(s.instdir, "..", "current")); currentActiveDir != "" {
-		oldPart, err = NewInstalledSnap(filepath.Join(currentActiveDir, "meta", "snap.yaml"), s.origin)
+		oldSnap, err = NewInstalledSnap(filepath.Join(currentActiveDir, "meta", "snap.yaml"), s.developer)
 		if err != nil {
 			return nil, err
 		}
@@ -123,12 +123,12 @@ func (o *Overlord) Install(snapFilePath string, origin string, flags InstallFlag
 	// started then copy the data
 	//
 	// otherwise just create a empty data dir
-	if oldPart != nil {
+	if oldSnap != nil {
 		// we need to stop making it active
-		err = oldPart.deactivate(inhibitHooks, meter)
+		err = oldSnap.deactivate(inhibitHooks, meter)
 		defer func() {
 			if err != nil {
-				if cerr := oldPart.activate(inhibitHooks, meter); cerr != nil {
+				if cerr := oldSnap.activate(inhibitHooks, meter); cerr != nil {
 					logger.Noticef("Setting old version back to active failed: %v", cerr)
 				}
 			}
@@ -137,7 +137,7 @@ func (o *Overlord) Install(snapFilePath string, origin string, flags InstallFlag
 			return nil, err
 		}
 
-		err = copySnapData(fullName, oldPart.Version(), s.Version())
+		err = copySnapData(fullName, oldSnap.Version(), s.Version())
 	} else {
 		err = os.MkdirAll(dataDir, 0755)
 	}
@@ -155,16 +155,16 @@ func (o *Overlord) Install(snapFilePath string, origin string, flags InstallFlag
 	}
 
 	if !inhibitHooks {
-		newPart, err := newSnapFromYaml(filepath.Join(s.instdir, "meta", "snap.yaml"), s.origin, s.m)
+		newSnap, err := newSnapFromYaml(filepath.Join(s.instdir, "meta", "snap.yaml"), s.developer, s.m)
 		if err != nil {
 			return nil, err
 		}
 
 		// and finally make active
-		err = newPart.activate(inhibitHooks, meter)
+		err = newSnap.activate(inhibitHooks, meter)
 		defer func() {
-			if err != nil && oldPart != nil {
-				if cerr := oldPart.activate(inhibitHooks, meter); cerr != nil {
+			if err != nil && oldSnap != nil {
+				if cerr := oldSnap.activate(inhibitHooks, meter); cerr != nil {
 					logger.Noticef("When setting old %s version back to active: %v", s.Name(), cerr)
 				}
 			}
@@ -174,7 +174,7 @@ func (o *Overlord) Install(snapFilePath string, origin string, flags InstallFlag
 		}
 
 		// oh, one more thing: refresh the security bits
-		deps, err := newPart.Dependents()
+		deps, err := newSnap.Dependents()
 		if err != nil {
 			return nil, err
 		}
@@ -209,7 +209,7 @@ func (o *Overlord) Install(snapFilePath string, origin string, flags InstallFlag
 			}
 		}
 
-		if err := newPart.RefreshDependentsSecurity(oldPart, meter); err != nil {
+		if err := newSnap.RefreshDependentsSecurity(oldSnap, meter); err != nil {
 			return nil, err
 		}
 
@@ -232,12 +232,12 @@ func (o *Overlord) Install(snapFilePath string, origin string, flags InstallFlag
 		}
 	}
 
-	return newSnapFromYaml(filepath.Join(s.instdir, "meta", "snap.yaml"), s.origin, s.m)
+	return newSnapFromYaml(filepath.Join(s.instdir, "meta", "snap.yaml"), s.developer, s.m)
 }
 
 // CanInstall checks whether the Snap passes a series of tests required for installation
 func canInstall(s *SnapFile, allowGadget bool, inter interacter) error {
-	if err := checkForPackageInstalled(s.m, s.Origin()); err != nil {
+	if err := checkForPackageInstalled(s.m, s.Developer()); err != nil {
 		return err
 	}
 
@@ -328,7 +328,7 @@ func (o *Overlord) Uninstall(s *Snap, meter progress.Meter) error {
 		}
 	}
 
-	return RemoveAllHWAccess(QualifiedName(s))
+	return RemoveAllHWAccess(QualifiedName(s.Info()))
 }
 
 // SetActive sets the active state of the given snap
@@ -350,22 +350,22 @@ func (o *Overlord) Configure(s *Snap, configuration []byte) ([]byte, error) {
 		return coreConfig(configuration)
 	}
 
-	return snapConfig(s.basedir, s.origin, configuration)
+	return snapConfig(s.basedir, s.developer, configuration)
 }
 
 // Installed returns the installed snaps from this repository
 func (o *Overlord) Installed() ([]*Snap, error) {
 	globExpr := filepath.Join(dirs.SnapSnapsDir, "*", "*", "meta", "snap.yaml")
-	parts, err := o.partsForGlobExpr(globExpr)
+	snaps, err := o.snapsForGlobExpr(globExpr)
 	if err != nil {
 		return nil, fmt.Errorf("Can not get the installed snaps: %s", err)
 
 	}
 
-	return parts, nil
+	return snaps, nil
 }
 
-func (o *Overlord) partsForGlobExpr(globExpr string) (parts []*Snap, err error) {
+func (o *Overlord) snapsForGlobExpr(globExpr string) (snaps []*Snap, err error) {
 	matches, err := filepath.Glob(globExpr)
 	if err != nil {
 		return nil, err
@@ -381,13 +381,13 @@ func (o *Overlord) partsForGlobExpr(globExpr string) (parts []*Snap, err error) 
 			continue
 		}
 
-		origin, _ := originFromYamlPath(realpath)
-		snap, err := NewInstalledSnap(realpath, origin)
+		developer, _ := developerFromYamlPath(realpath)
+		snap, err := NewInstalledSnap(realpath, developer)
 		if err != nil {
 			return nil, err
 		}
-		parts = append(parts, snap)
+		snaps = append(snaps, snap)
 	}
 
-	return parts, nil
+	return snaps, nil
 }

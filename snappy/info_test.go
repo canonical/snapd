@@ -44,15 +44,15 @@ type: framework
 	c.Assert(err, IsNil)
 	makeSnapActive(yamlPath)
 
-	parts, err := ActiveSnapsByType(snap.TypeApp)
+	snaps, err := ActiveSnapsByType(snap.TypeApp)
 	c.Assert(err, IsNil)
-	c.Assert(parts, HasLen, 1)
-	c.Assert(parts[0].Name(), Equals, "app1")
+	c.Assert(snaps, HasLen, 1)
+	c.Assert(snaps[0].Name(), Equals, "app1")
 
-	parts, err = ActiveSnapsByType(snap.TypeFramework)
+	snaps, err = ActiveSnapsByType(snap.TypeFramework)
 	c.Assert(err, IsNil)
-	c.Assert(parts, HasLen, 1)
-	c.Assert(parts[0].Name(), Equals, "framework1")
+	c.Assert(snaps, HasLen, 1)
+	c.Assert(snaps[0].Name(), Equals, "framework1")
 }
 
 func (s *SnapTestSuite) TestActiveSnapIterByType(c *C) {
@@ -68,7 +68,7 @@ type: framework`)
 	makeSnapActive(yamlPath)
 
 	type T struct {
-		f func(Part) string
+		f func(*snap.Info) string
 		t snap.Type
 		n string
 	}
@@ -76,12 +76,12 @@ type: framework`)
 	for _, t := range []T{
 		{BareName, snap.TypeApp, "app"},
 		{BareName, snap.TypeFramework, "fwk"},
-		{QualifiedName, snap.TypeApp, "app." + testOrigin},
+		{QualifiedName, snap.TypeApp, "app." + testDeveloper},
 		{QualifiedName, snap.TypeFramework, "fwk"},
-		{FullName, snap.TypeApp, "app." + testOrigin},
-		{FullName, snap.TypeFramework, "fwk." + testOrigin},
-		{fullNameWithChannel, snap.TypeApp, "app." + testOrigin + "/remote-channel"},
-		{fullNameWithChannel, snap.TypeFramework, "fwk." + testOrigin + "/remote-channel"},
+		{FullName, snap.TypeApp, "app." + testDeveloper},
+		{FullName, snap.TypeFramework, "fwk." + testDeveloper},
+		{fullNameWithChannel, snap.TypeApp, "app." + testDeveloper + "/remote-channel"},
+		{fullNameWithChannel, snap.TypeFramework, "fwk." + testDeveloper + "/remote-channel"},
 	} {
 		names, err := ActiveSnapIterByType(t.f, t.t)
 		c.Check(err, IsNil)
@@ -89,11 +89,11 @@ type: framework`)
 	}
 
 	// now remove the channel
-	storeMinimalRemoteManifest("app."+testOrigin, "app", testOrigin, "1.10", "Hello.", "")
-	storeMinimalRemoteManifest("fwk", "fwk", testOrigin, "1.0", "Hello.", "")
+	storeMinimalRemoteManifest("app."+testDeveloper, "app", testDeveloper, "1.10", "Hello.", "")
+	storeMinimalRemoteManifest("fwk", "fwk", testDeveloper, "1.0", "Hello.", "")
 	for _, t := range []T{
-		{fullNameWithChannel, snap.TypeApp, "app." + testOrigin},
-		{fullNameWithChannel, snap.TypeFramework, "fwk." + testOrigin},
+		{fullNameWithChannel, snap.TypeApp, "app." + testDeveloper},
+		{fullNameWithChannel, snap.TypeFramework, "fwk." + testDeveloper},
 	} {
 		names, err := ActiveSnapIterByType(t.f, t.t)
 		c.Check(err, IsNil)
@@ -108,7 +108,7 @@ type: framework`)
 		nm[names[i]] = true
 	}
 
-	c.Check(nm, DeepEquals, map[string]bool{"fwk": true, "app." + testOrigin: true})
+	c.Check(nm, DeepEquals, map[string]bool{"fwk": true, "app." + testDeveloper: true})
 }
 
 func (s *SnapTestSuite) TestFindSnapsByNameNotAvailable(c *C) {
@@ -117,8 +117,8 @@ func (s *SnapTestSuite) TestFindSnapsByNameNotAvailable(c *C) {
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
 
-	parts := FindSnapsByName("not-available", installed)
-	c.Assert(parts, HasLen, 0)
+	snaps := FindSnapsByName("not-available", installed)
+	c.Assert(snaps, HasLen, 0)
 }
 
 func (s *SnapTestSuite) TestFindSnapsByNameFound(c *C) {
@@ -128,32 +128,32 @@ func (s *SnapTestSuite) TestFindSnapsByNameFound(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 1)
 
-	parts := FindSnapsByName("hello-snap", installed)
-	c.Assert(parts, HasLen, 1)
-	c.Assert(parts[0].Name(), Equals, "hello-snap")
+	snaps := FindSnapsByName("hello-snap", installed)
+	c.Assert(snaps, HasLen, 1)
+	c.Assert(snaps[0].Name(), Equals, "hello-snap")
 }
 
-func (s *SnapTestSuite) TestFindSnapsByNameWithOrigin(c *C) {
+func (s *SnapTestSuite) TestFindSnapsByNameWithDeveloper(c *C) {
 	_, err := makeInstalledMockSnap(s.tempdir, "")
 	repo := NewLocalSnapRepository()
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 1)
 
-	parts := FindSnapsByName("hello-snap."+testOrigin, installed)
-	c.Assert(parts, HasLen, 1)
-	c.Assert(parts[0].Name(), Equals, "hello-snap")
+	snaps := FindSnapsByName("hello-snap."+testDeveloper, installed)
+	c.Assert(snaps, HasLen, 1)
+	c.Assert(snaps[0].Name(), Equals, "hello-snap")
 }
 
-func (s *SnapTestSuite) TestFindSnapsByNameWithOriginNotThere(c *C) {
+func (s *SnapTestSuite) TestFindSnapsByNameWithDeveloperNotThere(c *C) {
 	_, err := makeInstalledMockSnap(s.tempdir, "")
 	repo := NewLocalSnapRepository()
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 1)
 
-	parts := FindSnapsByName("hello-snap.otherns", installed)
-	c.Assert(parts, HasLen, 0)
+	snaps := FindSnapsByName("hello-snap.otherns", installed)
+	c.Assert(snaps, HasLen, 0)
 }
 
 func (s *SnapTestSuite) TestPackageNameInstalled(c *C) {
@@ -167,13 +167,13 @@ func (s *SnapTestSuite) TestPackageNameInstalled(c *C) {
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "hello-snap.manifest"), []byte(`{"name": "hello-snap"}`), 0644), IsNil)
 	ag := &progress.NullProgress{}
 
-	part, err := NewInstalledSnap(yamlFile, testOrigin)
+	snap, err := NewInstalledSnap(yamlFile, testDeveloper)
 	c.Assert(err, IsNil)
 
-	c.Assert(part.activate(true, ag), IsNil)
+	c.Assert(snap.activate(true, ag), IsNil)
 
 	c.Check(PackageNameActive("hello-snap"), Equals, true)
-	c.Assert(part.deactivate(true, ag), IsNil)
+	c.Assert(snap.deactivate(true, ag), IsNil)
 	c.Check(PackageNameActive("hello-snap"), Equals, false)
 }
 
@@ -183,21 +183,21 @@ func (s *SnapTestSuite) TestFindSnapsByNameAndVersion(c *C) {
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
 
-	parts := FindSnapsByNameAndVersion("hello-snap."+testOrigin, "1.10", installed)
-	c.Check(parts, HasLen, 1)
-	parts = FindSnapsByNameAndVersion("bad-app."+testOrigin, "1.10", installed)
-	c.Check(parts, HasLen, 0)
-	parts = FindSnapsByNameAndVersion("hello-snap.badOrigin", "1.10", installed)
-	c.Check(parts, HasLen, 0)
-	parts = FindSnapsByNameAndVersion("hello-snap."+testOrigin, "2.20", installed)
-	c.Check(parts, HasLen, 0)
+	snaps := FindSnapsByNameAndVersion("hello-snap."+testDeveloper, "1.10", installed)
+	c.Check(snaps, HasLen, 1)
+	snaps = FindSnapsByNameAndVersion("bad-app."+testDeveloper, "1.10", installed)
+	c.Check(snaps, HasLen, 0)
+	snaps = FindSnapsByNameAndVersion("hello-snap.badDeveloper", "1.10", installed)
+	c.Check(snaps, HasLen, 0)
+	snaps = FindSnapsByNameAndVersion("hello-snap."+testDeveloper, "2.20", installed)
+	c.Check(snaps, HasLen, 0)
 
-	parts = FindSnapsByNameAndVersion("hello-snap", "1.10", installed)
-	c.Check(parts, HasLen, 1)
-	parts = FindSnapsByNameAndVersion("bad-app", "1.10", installed)
-	c.Check(parts, HasLen, 0)
-	parts = FindSnapsByNameAndVersion("hello-snap", "2.20", installed)
-	c.Check(parts, HasLen, 0)
+	snaps = FindSnapsByNameAndVersion("hello-snap", "1.10", installed)
+	c.Check(snaps, HasLen, 1)
+	snaps = FindSnapsByNameAndVersion("bad-app", "1.10", installed)
+	c.Check(snaps, HasLen, 0)
+	snaps = FindSnapsByNameAndVersion("hello-snap", "2.20", installed)
+	c.Check(snaps, HasLen, 0)
 }
 
 func (s *SnapTestSuite) TestFindSnapsByNameAndVersionFmk(c *C) {
@@ -206,15 +206,15 @@ func (s *SnapTestSuite) TestFindSnapsByNameAndVersionFmk(c *C) {
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
 
-	parts := FindSnapsByNameAndVersion("fmk."+testOrigin, "1", installed)
-	c.Check(parts, HasLen, 1)
-	parts = FindSnapsByNameAndVersion("fmk.badOrigin", "1", installed)
-	c.Check(parts, HasLen, 0)
+	snaps := FindSnapsByNameAndVersion("fmk."+testDeveloper, "1", installed)
+	c.Check(snaps, HasLen, 1)
+	snaps = FindSnapsByNameAndVersion("fmk.badDeveloper", "1", installed)
+	c.Check(snaps, HasLen, 0)
 
-	parts = FindSnapsByNameAndVersion("fmk", "1", installed)
-	c.Check(parts, HasLen, 1)
-	parts = FindSnapsByNameAndVersion("not-fmk", "1", installed)
-	c.Check(parts, HasLen, 0)
-	parts = FindSnapsByNameAndVersion("fmk", "2", installed)
-	c.Check(parts, HasLen, 0)
+	snaps = FindSnapsByNameAndVersion("fmk", "1", installed)
+	c.Check(snaps, HasLen, 1)
+	snaps = FindSnapsByNameAndVersion("not-fmk", "1", installed)
+	c.Check(snaps, HasLen, 0)
+	snaps = FindSnapsByNameAndVersion("fmk", "2", installed)
+	c.Check(snaps, HasLen, 0)
 }

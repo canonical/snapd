@@ -119,20 +119,20 @@ var (
 	// but does not provide a configuration.
 	ErrNoGadgetConfiguration = errors.New("no configuration entry found in the gadget snap")
 
-	// ErrInstalledNonSnap is returned if a part that is purportedly
+	// ErrInstalledNonSnap is returned if a snap that is purportedly
 	// installed turns out to not be a Snap.
 	ErrInstalledNonSnap = errors.New("installed dependent snap is not a Snap")
 
 	// ErrSideLoaded is returned on system update if the system was
-	// created with a custom enablement part.
+	// created with a custom enablement snap.
 	ErrSideLoaded = errors.New("cannot update system that uses custom enablement")
 
 	// ErrPackageNameNotSupported is returned when installing legacy package such as those
-	// that have the origin specified in their package names.
-	ErrPackageNameNotSupported = errors.New("package name with origin not supported")
+	// that have the developer specified in their package names.
+	ErrPackageNameNotSupported = errors.New("package name with developer not supported")
 
-	// ErrInvalidPart is returned when something on the filesystem does not make sense
-	ErrInvalidPart = errors.New("invalid package on system")
+	// ErrInvalidSnap is returned when something on the filesystem does not make sense
+	ErrInvalidSnap = errors.New("invalid package on system")
 
 	// ErrInvalidSeccompPolicy is returned when policy-version and policy-vender are not set together
 	ErrInvalidSeccompPolicy = errors.New("policy-version and policy-vendor must be specified together")

@@ -45,11 +45,11 @@ func (s *removedSuite) SetUpTest(c *check.C) {
 
 func (s *removedSuite) MkStoreYaml(c *check.C, pkgType snap.Type) {
 	// creating the part to get its manifest path is cheating, a little
-	part := &Removed{
-		name:    "foo",
-		origin:  "bar",
-		version: "1",
-		pkgType: pkgType,
+	info := &snap.Info{
+		Name:      "foo",
+		Developer: "bar",
+		Version:   "1",
+		Type:      pkgType,
 	}
 
 	content := `
@@ -62,52 +62,34 @@ description: |-
 iconurl: http://i.stack.imgur.com/i8q1U.jpg
 downloadsize: 5554242
 `
-	p := snappy.RemoteManifestPath(part)
+	p := snappy.RemoteManifestPath(info)
 	c.Assert(os.MkdirAll(filepath.Dir(p), 0755), check.IsNil)
 	c.Assert(ioutil.WriteFile(p, []byte(content), 0644), check.IsNil)
 
 }
 
 func (s *removedSuite) TestNoStore(c *check.C) {
-	part := New("foo", "bar", "1", snap.TypeApp)
+	info := New("foo", "bar", "1", snap.TypeApp)
 
-	c.Check(part.Name(), check.Equals, "foo")
-	c.Check(part.Origin(), check.Equals, "bar")
-	c.Check(part.Version(), check.Equals, "1")
-	c.Check(part.Description(), check.Equals, "")
-	c.Check(part.Hash(), check.Equals, "")
-	c.Check(part.Icon(), check.Equals, "")
-	c.Check(part.DownloadSize(), check.Equals, int64(-1))
-
-	c.Check(part.InstalledSize(), check.Equals, int64(-1))
-	c.Check(part.IsActive(), check.Equals, false)
-	c.Check(part.IsInstalled(), check.Equals, false)
-	c.Check(part.NeedsReboot(), check.Equals, false)
+	c.Check(info.Name, check.Equals, "foo")
+	c.Check(info.Developer, check.Equals, "bar")
+	c.Check(info.Version, check.Equals, "1")
 }
 
-func (s *removedSuite) TestNoOrigin(c *check.C) {
-	part := New("foo", "", "1", snap.TypeFramework)
-	c.Check(part.Origin(), check.Equals, "")
+func (s *removedSuite) TestNoDeveloper(c *check.C) {
+	info := New("foo", "", "1", snap.TypeFramework)
+	c.Check(info.Developer, check.Equals, "")
 
 	s.MkStoreYaml(c, snap.TypeFramework)
-	part = New("foo", "", "1", snap.TypeFramework)
-	c.Check(part.Origin(), check.Equals, "bar")
+	info = New("foo", "", "1", snap.TypeFramework)
+	c.Check(info.Developer, check.Equals, "bar")
 }
 
 func (s *removedSuite) TestWithStore(c *check.C) {
 	s.MkStoreYaml(c, snap.TypeApp)
-	part := New("foo", "bar", "1", snap.TypeApp)
+	info := New("foo", "bar", "1", snap.TypeApp)
 
-	c.Check(part.Name(), check.Equals, "foo")
-	c.Check(part.Origin(), check.Equals, "bar")
-	c.Check(part.Version(), check.Equals, "1")
-	c.Check(part.Description(), check.Equals, "bla bla bla")
-	c.Check(part.Hash(), check.Equals, "")
-	c.Check(part.Icon(), check.Equals, "http://i.stack.imgur.com/i8q1U.jpg")
-	c.Check(part.DownloadSize(), check.Equals, int64(5554242))
-
-	c.Check(part.InstalledSize(), check.Equals, int64(-1))
-	c.Check(part.IsActive(), check.Equals, false)
-	c.Check(part.IsInstalled(), check.Equals, false)
-	c.Check(part.NeedsReboot(), check.Equals, false)
+	c.Check(info.Name, check.Equals, "foo")
+	c.Check(info.Developer, check.Equals, "bar")
+	c.Check(info.Version, check.Equals, "1")
 }

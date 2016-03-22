@@ -32,13 +32,8 @@ import (
 type AssertManager struct{}
 
 // Manager returns a new assertion manager.
-func Manager() (*AssertManager, error) {
+func Manager(s *state.State) (*AssertManager, error) {
 	return &AssertManager{}, nil
-}
-
-// Init implements StateManager.Init.
-func (m *AssertManager) Init(s *state.State) error {
-	return nil
 }
 
 // Ensure implements StateManager.Ensure.
@@ -47,6 +42,9 @@ func (m *AssertManager) Ensure() error {
 }
 
 // Stop implements StateManager.Stop.
-func (m *AssertManager) Stop() error {
-	return nil
+func (m *AssertManager) Stop() {
+}
+
+// Wait implements StateManager.Wait.
+func (m *AssertManager) Wait() {
 }

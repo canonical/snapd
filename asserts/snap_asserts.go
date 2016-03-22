@@ -100,6 +100,11 @@ type SnapBuild struct {
 	timestamp time.Time
 }
 
+// Series returns the series for which the snap was built.
+func (snapbld *SnapBuild) Series() string {
+	return snapbld.Header("series")
+}
+
 // SnapID returns the snap id of the snap.
 func (snapbld *SnapBuild) SnapID() string {
 	return snapbld.Header("snap-id")
@@ -152,12 +157,19 @@ func assembleSnapBuild(assert assertionBase) (Assertion, error) {
 }
 
 // SnapRevision holds a snap-revision assertion, which is a statement by the
-// store acknowledging the receipt of a snap build and labeling it with a snap
-// revision.
+// store acknowledging the receipt of a build of a snap and labeling it with a
+// snap revision.
 type SnapRevision struct {
 	assertionBase
+	snapSize     uint64
 	snapRevision uint64
 	timestamp    time.Time
+}
+
+// Series returns the series of the snap submitted to and acknowledged by the
+// store.
+func (snaprev *SnapRevision) Series() string {
+	return snaprev.Header("series")
 }
 
 // SnapID returns the snap id of the snap.
@@ -165,24 +177,24 @@ func (snaprev *SnapRevision) SnapID() string {
 	return snaprev.Header("snap-id")
 }
 
-// SnapDigest returns the digest of the snap submitted to the store. The digest
-// is prefixed with the algorithm used to generate it.
+// SnapDigest returns the digest of the snap submitted to and acknowledged by
+// the store. The digest is prefixed with the algorithm used to generate it.
 func (snaprev *SnapRevision) SnapDigest() string {
 	return snaprev.Header("snap-digest")
 }
 
-// SnapRevision returns the revision of the snap-id assigned to this build.
+// SnapSize returns the size in bytes of the snap submitted to the store.
+func (snaprev *SnapRevision) SnapSize() uint64 {
+	return snaprev.snapSize
+}
+
+// SnapRevision returns the revision assigned to this build of the snap.
 func (snaprev *SnapRevision) SnapRevision() uint64 {
 	return snaprev.snapRevision
 }
 
-// SnapBuild returns the digest of the associated snap-build.
-func (snaprev *SnapRevision) SnapBuild() string {
-	return snaprev.Header("snap-build")
-}
-
-// DeveloperID returns the id of the developer that submitted the snap build to
-// the store.
+// DeveloperID returns the id of the developer that submitted this build of the
+// snap.
 func (snaprev *SnapRevision) DeveloperID() string {
 	return snaprev.Header("developer-id")
 }
@@ -194,9 +206,6 @@ func (snaprev *SnapRevision) Timestamp() time.Time {
 
 // Implement further consistency checks.
 func (snaprev *SnapRevision) checkConsistency(db RODatabase, acck *AccountKey) error {
-	// TODO: check the associated snap-build exists.
-	// TODO: check the associated snap-build's digest.
-	// TODO: check developer-id matches snap-build's authority-id.
 	return nil
 }
 
@@ -206,12 +215,12 @@ var _ consistencyChecker = (*SnapRevision)(nil)
 func assembleSnapRevision(assert assertionBase) (Assertion, error) {
 	// TODO: more parsing/checking of snap-digest
 
-	snapRevision, err := checkUint(assert.headers, "snap-revision", 64)
+	snapSize, err := checkUint(assert.headers, "snap-size", 64)
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = checkMandatory(assert.headers, "snap-build")
+	snapRevision, err := checkUint(assert.headers, "snap-revision", 64)
 	if err != nil {
 		return nil, err
 	}
@@ -228,6 +237,7 @@ func assembleSnapRevision(assert assertionBase) (Assertion, error) {
 
 	return &SnapRevision{
 		assertionBase: assert,
+		snapSize:      snapSize,
 		snapRevision:  snapRevision,
 		timestamp:     timestamp,
 	}, nil

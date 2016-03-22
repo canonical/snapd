@@ -49,21 +49,21 @@ func stripGlobalRootDirImpl(dir string) string {
 // The returned environment contains additional SNAP_* variables that
 // are required when calling a meta/hook/ script and that will override
 // any already existing SNAP_* variables in os.Environment()
-func makeSnapHookEnv(part *Snap) (env []string) {
+func makeSnapHookEnv(snap *Snap) (env []string) {
 	desc := struct {
 		SnapName    string
 		SnapArch    string
 		SnapPath    string
 		Version     string
 		UdevAppName string
-		Origin      string
+		Developer   string
 	}{
-		part.Name(),
+		snap.Name(),
 		arch.UbuntuArchitecture(),
-		part.basedir,
-		part.Version(),
-		QualifiedName(part),
-		part.Origin(),
+		snap.basedir,
+		snap.Version(),
+		QualifiedName(snap.Info()),
+		snap.Developer(),
 	}
 
 	vars := snapenv.GetBasicSnapEnvVars(desc)

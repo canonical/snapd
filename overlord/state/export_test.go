@@ -31,5 +31,3 @@ func ChangeUnlockCheckpointRetryParamsForTest(newInterval, newMaxTime time.Durat
 	unlockCheckpointRetryMaxTime = newMaxTime
 	return
 }
-
-var FileBackend = &fileBackend{}

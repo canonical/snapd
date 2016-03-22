@@ -69,16 +69,11 @@ func FindServices(snapName string, serviceName string, pb progress.Meter) (Servi
 
 	installed, _ := NewLocalSnapRepository().Installed()
 	foundSnap := false
-	for _, part := range installed {
-		if !part.IsActive() {
+	for _, snap := range installed {
+		if !snap.IsActive() {
 			continue
 		}
 
-		snap, ok := part.(*Snap)
-		if !ok {
-			// can't happen
-			continue
-		}
 		if snapName != "" && snapName != snap.Name() {
 			continue
 		}
