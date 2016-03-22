@@ -196,6 +196,7 @@ func (d *Daemon) addRoutes() {
 // Start the Daemon
 func (d *Daemon) Start() {
 	d.tomb.Go(func() error {
+		d.overlord.Loop()
 		if err := http.Serve(d.listener, logit(d.router)); err != nil && d.tomb.Err() == tomb.ErrStillAlive {
 			return err
 		}
@@ -208,6 +209,7 @@ func (d *Daemon) Start() {
 func (d *Daemon) Stop() error {
 	d.tomb.Kill(nil)
 	d.listener.Close()
+	d.overlord.Stop()
 	return d.tomb.Wait()
 }
 
