@@ -20,7 +20,10 @@
 package state
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"strings"
 )
 
 // Status is used for status values for changes and tasks.
@@ -209,6 +212,51 @@ func (c *Change) Status() Status {
 func (c *Change) SetStatus(s Status) {
 	c.state.ensureLocked()
 	c.status = s
+}
+
+// changeError holds a set of task errors.
+type changeError struct {
+	errors []taskError
+}
+
+type taskError struct {
+	task  string
+	error string
+}
+
+func (e *changeError) Error() string {
+	var buf bytes.Buffer
+	buf.WriteString("cannot perform the following tasks:\n")
+	for _, te := range e.errors {
+		fmt.Fprintf(&buf, "- %s (%s)\n", te.task, te.error)
+	}
+	return strings.TrimSuffix(buf.String(), "\n")
+}
+
+// Err returns an error value based on errors that were logged for tasks registered
+// in this change, or nil if the change is not in ErrorStatus.
+func (c *Change) Err() error {
+	c.state.ensureLocked()
+	if c.Status() != ErrorStatus {
+		return nil
+	}
+	var errors []taskError
+	for tid := range c.taskIDs {
+		task := c.state.tasks[tid]
+		if task.Status() != ErrorStatus {
+			continue
+		}
+		for _, msg := range task.Log() {
+			if strings.HasPrefix(msg, LogError+": ") {
+				msg = strings.TrimPrefix(msg, LogError+": ")
+				errors = append(errors, taskError{task.Summary(), msg})
+			}
+		}
+	}
+	if len(errors) == 0 {
+		return fmt.Errorf("internal inconsistency: change %q in ErrorStatus with no task errors logged", c.Kind())
+	}
+	return &changeError{errors}
 }
 
 // State returns the system State
