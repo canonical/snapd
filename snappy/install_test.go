@@ -128,7 +128,7 @@ func (s *SnapTestSuite) TestClickInstallGCSimple(c *C) {
 
 	globs, err := filepath.Glob(filepath.Join(dirs.SnapSnapsDir, "foo.sideload", "*"))
 	c.Check(err, IsNil)
-	c.Check(globs, HasLen, 2+1) // +1 for "current"
+	c.Check(globs, HasLen, 1+1) // "current" and the thing it points to
 
 	// gc should leave one more data than app
 	globs, err = filepath.Glob(filepath.Join(dirs.SnapDataDir, "foo.sideload", "*"))

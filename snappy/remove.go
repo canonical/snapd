@@ -36,7 +36,7 @@ const (
 
 // Remove a snap by a snapSpec string, name[.developer][=version]
 func Remove(snapSpec string, flags RemoveFlags, meter progress.Meter) error {
-	var snaps BySnapVersion
+	var snaps []*Snap
 
 	installed, err := NewLocalSnapRepository().Installed()
 	if err != nil {
