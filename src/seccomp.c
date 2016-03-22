@@ -83,7 +83,7 @@ int seccomp_load_filters(const char *filter_profile)
 	if (f == NULL) {
 		fprintf(stderr, "Can not open %s (%s)\n", profile_path,
 			strerror(errno));
-		return -1;
+		die("aborting");
 	}
 	// 80 characters + '\n' + '\0'
 	char buf[82];
@@ -104,8 +104,8 @@ int seccomp_load_filters(const char *filter_profile)
 			fprintf(stderr,
 				"seccomp filter line %zu was too long (%zu characters max)\n",
 				lineno, sizeof(buf) - 2);
-			rc = -1;
-			goto out;
+			errno = 0;
+			die("aborting");
 		}
 		// kill final newline
 		len = trim_right(buf, len);
@@ -132,7 +132,8 @@ int seccomp_load_filters(const char *filter_profile)
 				fprintf(stderr,
 					"seccomp_rule_add failed with %i for '%s'\n",
 					rc, buf);
-				goto out;
+				errno = 0;
+				die("aborting");
 			}
 		}
 	}
@@ -149,7 +150,7 @@ int seccomp_load_filters(const char *filter_profile)
 
 	if (rc != 0) {
 		fprintf(stderr, "seccomp_load failed with %i\n", rc);
-		goto out;
+		die("aborting");
 	}
 
  out:
