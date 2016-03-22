@@ -114,7 +114,7 @@ func (ts *taskRunnerSuite) TestEnsureComplex(c *C) {
 
 	defer r.Stop()
 
-	// run in a loop to ensure ordering is correct by pure chance
+	// run in a loop to ensure ordering is not correct by pure chance
 	for i := 0; i < 100; i++ {
 		st.Lock()
 		chg := st.NewChange("mock-install", "...")
