@@ -230,20 +230,6 @@ func (e ErrNameClash) Error() string {
 	return fmt.Sprintf("you can't have a binary and service both called %s", string(e))
 }
 
-// ErrMissingFrameworks reports a conflict between the frameworks needed by an app and those installed in the system
-type ErrMissingFrameworks []string
-
-func (e ErrMissingFrameworks) Error() string {
-	return fmt.Sprintf("missing frameworks: %s", strings.Join(e, ", "))
-}
-
-// ErrFrameworkInUse reports that a framework is still needed by apps currently installed
-type ErrFrameworkInUse []string
-
-func (e ErrFrameworkInUse) Error() string {
-	return fmt.Sprintf("framework still in use by: %s", strings.Join(e, ", "))
-}
-
 // ErrApparmorGenerate is reported if the apparmor profile generation fails
 type ErrApparmorGenerate struct {
 	ExitCode int
