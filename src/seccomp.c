@@ -51,14 +51,15 @@ int seccomp_load_filters(const char *filter_profile)
 		return ENOMEM;
 
 	// Disable NO_NEW_PRIVS because it interferes with exec transitions in
-	// AppArmor. Unfortunately this means that security policies must be very
-	// careful to not allow the following otherwise apps can escape the snadbox:
+	// AppArmor. Unfortunately this means that security policies must be
+	// very careful to not allow the following otherwise apps can escape
+	// the snadbox:
 	//   - seccomp syscall
 	//   - prctl with PR_SET_SECCOMP
 	//   - ptrace (trace) in AppArmor
 	//   - capability sys_admin in AppArmor
-	// Note that with NO_NEW_PRIVS disabled, CAP_SYS_ADMIN is required to change
-	// the seccomp sandbox.
+	// Note that with NO_NEW_PRIVS disabled, CAP_SYS_ADMIN is required to
+	// change the seccomp sandbox.
 	if (getenv("UBUNTU_CORE_LAUNCHER_NO_ROOT") == NULL) {
 		rc = seccomp_attr_set(ctx, SCMP_FLTATR_CTL_NNP, 0);
 		if (rc != 0) {
@@ -116,7 +117,8 @@ int seccomp_load_filters(const char *filter_profile)
 			goto out;
 
 		// syscall not available on this arch/kernel
-		// as this is a syscall whitelist its ok and the error can be ignored
+		// as this is a syscall whitelist its ok and the error can be
+		// ignored
 		syscall_nr = seccomp_syscall_resolve_name(buf);
 		if (syscall_nr == __NR_SCMP_ERROR)
 			continue;
