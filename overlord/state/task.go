@@ -48,11 +48,11 @@ type Task struct {
 
 func newTask(state *State, id, kind, summary string) *Task {
 	return &Task{
-		state:     state,
-		id:        id,
-		kind:      kind,
-		summary:   summary,
-		data:      make(customData),
+		state:   state,
+		id:      id,
+		kind:    kind,
+		summary: summary,
+		data:    make(customData),
 	}
 }
 
