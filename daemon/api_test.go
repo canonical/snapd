@@ -1293,7 +1293,7 @@ func (s *apiSuite) TestInstallLicensedIntegration(c *check.C) {
 
 // Tests for GET /2.0/interfaces
 
-func makeTypicalPlug(ifaceName string) *interfaces.Plug {
+func makePlug(ifaceName string) *interfaces.Plug {
 	snapInfo := &snap.Info{
 		Name: "producer",
 	}
@@ -1315,13 +1315,13 @@ func makeTypicalPlug(ifaceName string) *interfaces.Plug {
 	return &interfaces.Plug{PlugInfo: plugInfo}
 }
 
-func makeTypicalConnectedPlug() *interfaces.Plug {
-	plug := makeTypicalPlug("interface")
+func makeConnectedPlug() *interfaces.Plug {
+	plug := makePlug("interface")
 	plug.Connections = []interfaces.SlotRef{{Snap: "consumer", Name: "slot"}}
 	return plug
 }
 
-func makeTypicalSlot(ifaceName string) *interfaces.Slot {
+func makeSlot(ifaceName string) *interfaces.Slot {
 	snapInfo := &snap.Info{
 		Name: "consumer",
 	}
@@ -1343,8 +1343,8 @@ func makeTypicalSlot(ifaceName string) *interfaces.Slot {
 	return &interfaces.Slot{SlotInfo: slotInfo}
 }
 
-func makeTypicalConnectedSlot() *interfaces.Slot {
-	slot := makeTypicalSlot("interface")
+func makeConnectedSlot() *interfaces.Slot {
+	slot := makeSlot("interface")
 	slot.Connections = []interfaces.PlugRef{{Snap: "producer", Name: "plug"}}
 	return slot
 }
@@ -1352,8 +1352,8 @@ func makeTypicalConnectedSlot() *interfaces.Slot {
 func (s *apiSuite) TestGetPlugs(c *check.C) {
 	d := newTestDaemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(makeTypicalPlug("interface"))
-	d.interfaces.AddSlot(makeTypicalSlot("interface"))
+	d.interfaces.AddPlug(makePlug("interface"))
+	d.interfaces.AddSlot(makeSlot("interface"))
 	d.interfaces.Connect("producer", "plug", "consumer", "slot")
 	req, err := http.NewRequest("GET", "/2.0/interfaces", nil)
 	c.Assert(err, check.IsNil)
@@ -1403,8 +1403,8 @@ func (s *apiSuite) TestGetPlugs(c *check.C) {
 func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 	d := newTestDaemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(makeTypicalPlug("interface"))
-	d.interfaces.AddSlot(makeTypicalSlot("interface"))
+	d.interfaces.AddPlug(makePlug("interface"))
+	d.interfaces.AddSlot(makeSlot("interface"))
 	action := &interfaceAction{
 		Action: "connect",
 		Plugs:  []interfaces.PlugJSON{{Snap: "producer", Name: "plug"}},
@@ -1428,8 +1428,8 @@ func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 		"type":        "sync",
 	})
 	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
-		Plugs: []*interfaces.Plug{makeTypicalConnectedPlug()},
-		Slots: []*interfaces.Slot{makeTypicalConnectedSlot()},
+		Plugs: []*interfaces.Plug{makeConnectedPlug()},
+		Slots: []*interfaces.Slot{makeConnectedSlot()},
 	})
 }
 
@@ -1437,8 +1437,8 @@ func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 	d := newTestDaemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "other-interface"})
-	d.interfaces.AddPlug(makeTypicalPlug("interface"))
-	d.interfaces.AddSlot(makeTypicalSlot("other-interface"))
+	d.interfaces.AddPlug(makePlug("interface"))
+	d.interfaces.AddSlot(makeSlot("other-interface"))
 	action := &interfaceAction{
 		Action: "connect",
 		Plugs:  []interfaces.PlugJSON{{Snap: "producer", Name: "plug"}},
@@ -1464,15 +1464,15 @@ func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 		"type":        "error",
 	})
 	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
-		Plugs: []*interfaces.Plug{makeTypicalPlug("interface")},
-		Slots: []*interfaces.Slot{makeTypicalSlot("other-interface")},
+		Plugs: []*interfaces.Plug{makePlug("interface")},
+		Slots: []*interfaces.Slot{makeSlot("other-interface")},
 	})
 }
 
 func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 	d := newTestDaemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddSlot(makeTypicalSlot("interface"))
+	d.interfaces.AddSlot(makeSlot("interface"))
 	action := &interfaceAction{
 		Action: "connect",
 		Plugs:  []interfaces.PlugJSON{{Snap: "producer", Name: "plug"}},
@@ -1498,14 +1498,14 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 		"type":        "error",
 	})
 	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
-		Slots: []*interfaces.Slot{makeTypicalSlot("interface")},
+		Slots: []*interfaces.Slot{makeSlot("interface")},
 	})
 }
 
 func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 	d := newTestDaemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(makeTypicalPlug("interface"))
+	d.interfaces.AddPlug(makePlug("interface"))
 	action := &interfaceAction{
 		Action: "connect",
 		Plugs:  []interfaces.PlugJSON{{Snap: "producer", Name: "plug"}},
@@ -1531,15 +1531,15 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 		"type":        "error",
 	})
 	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
-		Plugs: []*interfaces.Plug{makeTypicalPlug("interface")},
+		Plugs: []*interfaces.Plug{makePlug("interface")},
 	})
 }
 
 func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
 	d := newTestDaemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(makeTypicalPlug("interface"))
-	d.interfaces.AddSlot(makeTypicalSlot("interface"))
+	d.interfaces.AddPlug(makePlug("interface"))
+	d.interfaces.AddSlot(makeSlot("interface"))
 	d.interfaces.Connect("producer", "plug", "consumer", "slot")
 	action := &interfaceAction{
 		Action: "disconnect",
@@ -1564,15 +1564,15 @@ func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
 		"type":        "sync",
 	})
 	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
-		Plugs: []*interfaces.Plug{makeTypicalPlug("interface")},
-		Slots: []*interfaces.Slot{makeTypicalSlot("interface")},
+		Plugs: []*interfaces.Plug{makePlug("interface")},
+		Slots: []*interfaces.Slot{makeSlot("interface")},
 	})
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 	d := newTestDaemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddSlot(makeTypicalSlot("interface"))
+	d.interfaces.AddSlot(makeSlot("interface"))
 	action := &interfaceAction{
 		Action: "disconnect",
 		Plugs:  []interfaces.PlugJSON{{Snap: "producer", Name: "plug"}},
@@ -1598,14 +1598,14 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 		"type":        "error",
 	})
 	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
-		Slots: []*interfaces.Slot{makeTypicalSlot("interface")},
+		Slots: []*interfaces.Slot{makeSlot("interface")},
 	})
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 	d := newTestDaemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(makeTypicalPlug("interface"))
+	d.interfaces.AddPlug(makePlug("interface"))
 	action := &interfaceAction{
 		Action: "disconnect",
 		Plugs:  []interfaces.PlugJSON{{Snap: "producer", Name: "plug"}},
@@ -1631,15 +1631,15 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 		"type":        "error",
 	})
 	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
-		Plugs: []*interfaces.Plug{makeTypicalPlug("interface")},
+		Plugs: []*interfaces.Plug{makePlug("interface")},
 	})
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 	d := newTestDaemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(makeTypicalPlug("interface"))
-	d.interfaces.AddSlot(makeTypicalSlot("interface"))
+	d.interfaces.AddPlug(makePlug("interface"))
+	d.interfaces.AddSlot(makeSlot("interface"))
 	action := &interfaceAction{
 		Action: "disconnect",
 		Plugs:  []interfaces.PlugJSON{{Snap: "producer", Name: "plug"}},
@@ -1665,8 +1665,8 @@ func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 		"type":        "error",
 	})
 	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
-		Plugs: []*interfaces.Plug{makeTypicalPlug("interface")},
-		Slots: []*interfaces.Slot{makeTypicalSlot("interface")},
+		Plugs: []*interfaces.Plug{makePlug("interface")},
+		Slots: []*interfaces.Slot{makeSlot("interface")},
 	})
 }
 
@@ -1701,7 +1701,7 @@ func (s *apiSuite) TestAddPlugSuccess(c *check.C) {
 		"status_code": 201.0,
 		"type":        "sync",
 	})
-	c.Check(d.interfaces.Plug("producer", "plug"), check.DeepEquals, makeTypicalPlug("interface"))
+	c.Check(d.interfaces.Plug("producer", "plug"), check.DeepEquals, makePlug("interface"))
 }
 
 func (s *apiSuite) TestAddPlugDisabled(c *check.C) {
@@ -1787,7 +1787,7 @@ func (s *apiSuite) TestAddPlugFailure(c *check.C) {
 func (s *apiSuite) TestRemovePlugSuccess(c *check.C) {
 	d := newTestDaemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(makeTypicalPlug("interface"))
+	d.interfaces.AddPlug(makePlug("interface"))
 	action := &interfaceAction{
 		Action: "remove-plug",
 		Plugs:  []interfaces.PlugJSON{{Snap: "producer", Name: "plug"}},
@@ -1815,7 +1815,7 @@ func (s *apiSuite) TestRemovePlugSuccess(c *check.C) {
 func (s *apiSuite) TestRemovePlugDisabled(c *check.C) {
 	d := newTestDaemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(makeTypicalPlug("interface"))
+	d.interfaces.AddPlug(makePlug("interface"))
 	d.enableInternalInterfaceActions = false
 	action := &interfaceAction{
 		Action: "remove-plug",
@@ -1846,8 +1846,8 @@ func (s *apiSuite) TestRemovePlugDisabled(c *check.C) {
 func (s *apiSuite) TestRemovePlugFailure(c *check.C) {
 	d := newTestDaemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(makeTypicalPlug("interface"))
-	d.interfaces.AddSlot(makeTypicalSlot("interface"))
+	d.interfaces.AddPlug(makePlug("interface"))
+	d.interfaces.AddSlot(makeSlot("interface"))
 	d.interfaces.Connect("producer", "plug", "consumer", "slot")
 	action := &interfaceAction{
 		Action: "remove-plug",
@@ -1906,7 +1906,7 @@ func (s *apiSuite) TestAddSlotSuccess(c *check.C) {
 		"status_code": 201.0,
 		"type":        "sync",
 	})
-	expected := makeTypicalSlot("interface")
+	expected := makeSlot("interface")
 	c.Check(d.interfaces.Slot("consumer", "slot"), check.DeepEquals, expected)
 }
 
@@ -1991,7 +1991,7 @@ func (s *apiSuite) TestAddSlotFailure(c *check.C) {
 func (s *apiSuite) TestRemoveSlotSuccess(c *check.C) {
 	d := newTestDaemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddSlot(makeTypicalSlot("interface"))
+	d.interfaces.AddSlot(makeSlot("interface"))
 	action := &interfaceAction{
 		Action: "remove-slot",
 		Slots:  []interfaces.SlotJSON{{Snap: "consumer", Name: "slot"}},
@@ -2019,7 +2019,7 @@ func (s *apiSuite) TestRemoveSlotSuccess(c *check.C) {
 func (s *apiSuite) TestRemoveSlotDisabled(c *check.C) {
 	d := newTestDaemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddSlot(makeTypicalSlot("interface"))
+	d.interfaces.AddSlot(makeSlot("interface"))
 	d.enableInternalInterfaceActions = false
 	action := &interfaceAction{
 		Action: "remove-slot",
@@ -2050,8 +2050,8 @@ func (s *apiSuite) TestRemoveSlotDisabled(c *check.C) {
 func (s *apiSuite) TestRemoveSlotFailure(c *check.C) {
 	d := newTestDaemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(makeTypicalPlug("interface"))
-	d.interfaces.AddSlot(makeTypicalSlot("interface"))
+	d.interfaces.AddPlug(makePlug("interface"))
+	d.interfaces.AddSlot(makeSlot("interface"))
 	d.interfaces.Connect("producer", "plug", "consumer", "slot")
 	action := &interfaceAction{
 		Action: "remove-slot",
