@@ -113,10 +113,12 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 	o, err := overlord.New()
 	c.Assert(err, check.IsNil)
 	s.stateOverlord = o
+	s.stateOverlord.Loop()
 }
 
 func (s *apiSuite) TearDownTest(c *check.C) {
 	findServices = snappy.FindServices
+	s.stateOverlord.Stop()
 }
 
 func (s *apiSuite) mkInstalled(c *check.C, name, developer, version string, active bool, extraYaml string) {

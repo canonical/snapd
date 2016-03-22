@@ -676,7 +676,7 @@ func (inst *snapInstruction) install() interface{} {
 	if err != nil {
 		return err
 	}
-	inst.overlord.SnapManager().Ensure()
+	state.EnsureBefore(0)
 	err = waitChange(chg)
 	return err
 	// FIXME: handle license agreement need to happen in the above
@@ -713,7 +713,7 @@ func (inst *snapInstruction) update() interface{} {
 		return err
 	}
 
-	inst.overlord.SnapManager().Ensure()
+	state.EnsureBefore(0)
 	return waitChange(chg)
 }
 
@@ -735,7 +735,7 @@ func (inst *snapInstruction) remove() interface{} {
 		return err
 	}
 
-	inst.overlord.SnapManager().Ensure()
+	state.EnsureBefore(0)
 	return waitChange(chg)
 }
 
