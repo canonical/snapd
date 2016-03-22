@@ -42,7 +42,7 @@ type snapmgrTestSuite struct {
 type fakeSnappyBackend struct {
 	name    string
 	channel string
-	flags   snappy.InstallFlags
+	flags   int
 	op      string
 }
 
@@ -62,6 +62,12 @@ func (f *fakeSnappyBackend) Update(name, channel string, flags snappy.InstallFla
 
 func (f *fakeSnappyBackend) Remove(name string, flags snappy.RemoveFlags, p progress.Meter) error {
 	f.op = "remove"
+	f.name = name
+	return nil
+}
+
+func (f *fakeSnappyBackend) Purge(name string, flags snappy.PurgeFlags, p progress.Meter) error {
+	f.op = "purge"
 	f.name = name
 	return nil
 }

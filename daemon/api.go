@@ -740,7 +740,21 @@ func (inst *snapInstruction) remove() interface{} {
 }
 
 func (inst *snapInstruction) purge() interface{} {
-	return snappy.Purge(inst.pkg, 0, inst)
+	state := inst.overlord.StateEngine().State()
+	state.Lock()
+	msg := fmt.Sprintf(i18n.G("Purge %q snap"), inst.pkg)
+	chg := state.NewChange("purge-snap", msg)
+	ts, err := snapstate.Purge(state, inst.pkg, 0)
+	if err == nil {
+		chg.AddTasks(ts)
+	}
+	state.Unlock()
+	if err != nil {
+		return err
+	}
+
+	state.EnsureBefore(0)
+	return waitChange(chg)
 }
 
 func (inst *snapInstruction) rollback() interface{} {
