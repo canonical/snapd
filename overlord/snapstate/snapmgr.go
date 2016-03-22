@@ -100,7 +100,7 @@ func SetActive(s *state.State, snap string, active bool) (state.TaskSet, error) 
 	if active {
 		msg = fmt.Sprintf(i18n.G("Set active %q"), snap)
 	} else {
-		fmt.Sprintf(i18n.G("Set inactive %q"), snap)
+		msg = fmt.Sprintf(i18n.G("Set inactive %q"), snap)
 	}
 	t := s.NewTask("set-active-snap", msg)
 	t.Set("state", setActiveState{
