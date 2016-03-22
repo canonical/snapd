@@ -75,7 +75,7 @@ var profilesPath = realProfilesPath
 
 // LoadedProfiles interrogates the kernel and returns a list of loaded apparmor profiles.
 //
-// Snappy manages apparmor profiles named *.snap. Other profiles might exist on
+// Snappy manages apparmor profiles named "snap.*". Other profiles might exist on
 // the system (via snappy dimension) and those are filtered-out.
 func LoadedProfiles() ([]Profile, error) {
 	file, err := os.Open(profilesPath)
@@ -97,7 +97,7 @@ func LoadedProfiles() ([]Profile, error) {
 			return nil, err
 		}
 		mode = strings.Trim(mode, "()")
-		if strings.HasSuffix(name, ".snap") {
+		if strings.HasPrefix(name, "snap.") {
 			profiles = append(profiles, Profile{Name: name, Mode: mode})
 		}
 	}

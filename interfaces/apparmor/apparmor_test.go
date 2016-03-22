@@ -124,16 +124,16 @@ func (s *appArmorSuite) TestLoadedApparmorProfilesParsesAndFiltersData(c *C) {
 /usr/lib/telepathy/telepathy-* (enforce)
 /usr/lib/telepathy/telepathy-*//pxgsettings (enforce)
 /usr/lib/telepathy/telepathy-*//sanitized_helper (enforce)
-pi2-piglow.background.snap (enforce)
-pi2-piglow.foreground.snap (enforce)
+snap.pi2-piglow.background (enforce)
+snap.pi2-piglow.foreground (enforce)
 webbrowser-app (enforce)
 webbrowser-app//oxide_helper (enforce)
 `), 0600)
 	profiles, err := apparmor.LoadedProfiles()
 	c.Assert(err, IsNil)
 	c.Check(profiles, DeepEquals, []apparmor.Profile{
-		{"pi2-piglow.background.snap", "enforce"},
-		{"pi2-piglow.foreground.snap", "enforce"},
+		{"snap.pi2-piglow.background", "enforce"},
+		{"snap.pi2-piglow.foreground", "enforce"},
 	})
 }
 
