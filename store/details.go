@@ -90,3 +90,25 @@ type Purchase struct {
 	ItemSKU         string `json:"item_sku,omitempty"`
 	PurchaseID      string `json:"purchase_id,omitempty"`
 }
+
+/*
+PurchaseInstruction encapsulates the data that must be sent
+in order to make a purchase from the store.
+*/
+type PurchaseInstruction struct {
+	DeviceID  string  `json:"device_id,omitempty"`
+	Name      string  `json:"name"`
+	ItemSKU   string  `json:"item_sku,omitempty"`
+	Amount    float64 `json:"amount,omitempty"`
+	Currency  string  `json:"currency,omitempty"`
+	BackendID string  `json:"backend_id,omitempty"`
+	MethodID  int64   `json:"method_id,omitempty"`
+}
+
+/*
+AuthError contains the reason behind an authentication failure
+*/
+type AuthError struct {
+	Threshold int64  `json:"threshold"`
+	Error     string `json:"error"`
+}

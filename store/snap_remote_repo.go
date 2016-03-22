@@ -386,7 +386,7 @@ func (s *SnapUbuntuStoreRepository) getPurchases(name string) (purchasesResults,
 		case resp.StatusCode == http.StatusNotFound:
 			break
 		case resp.StatusCode == http.StatusUnauthorized:
-			return nil, ErrScaAuthFailed
+			return nil, getUnauthorizedError(resp.Body)
 		case resp.StatusCode != http.StatusOK:
 			return nil, fmt.Errorf("SnapUbuntuStoreRepository: unexpected HTTP status code %d while looking for snap purcahses: %q", resp.StatusCode, name)
 		default:
@@ -421,7 +421,7 @@ func (s *SnapUbuntuStoreRepository) getAllPurchases() (map[string]purchasesResul
 		case resp.StatusCode == http.StatusNotFound:
 			return nil, ErrSnapNotFound
 		case resp.StatusCode == http.StatusUnauthorized:
-			return nil, ErrScaAuthFailed
+			return nil, getUnauthorizedError(resp.Body)
 		case resp.StatusCode != http.StatusOK:
 			return nil, fmt.Errorf("SnapUbuntuStoreRepository: unexpected HTTP status code %d while looking for purchases", resp.StatusCode)
 		}
@@ -594,6 +594,93 @@ var download = func(name string, w io.Writer, req *http.Request, pbar progress.M
 	}
 
 	return err
+}
+
+// Buy the specified snap using the default currency and payment method
+func (s *SnapUbuntuStoreRepository) Buy(name string, inter progress.Meter) (string, error) {
+	client := &http.Client{}
+
+	// First ask the CPI for the suggested currency
+
+	detailsURL, err := s.detailsURI.Parse(name)
+	if err != nil {
+		return "", err
+	}
+
+	detailsReq, err := http.NewRequest("GET", detailsURL.String(), nil)
+	if err != nil {
+		return "", err
+	}
+
+	// set headers
+	s.applyUbuntuStoreHeaders(detailsReq, "")
+
+	detailsResp, err := client.Do(detailsReq)
+	if err != nil {
+		return "", err
+	}
+	defer detailsResp.Body.Close()
+
+	// we don't care about the JSON, just the header
+
+	suggestedCurrency := getSuggestedCurrency(&detailsResp.Header)
+
+	// Now create the purchase instruction, including the currency
+
+	jsonData, err := json.Marshal(PurchaseInstruction{
+		Name:     name,
+		Currency: suggestedCurrency,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	req, err := http.NewRequest("POST", s.purchasesURI.String(), bytes.NewBuffer(jsonData))
+	if err != nil {
+		return "", err
+	}
+
+	// set headers
+	s.configureStoreReq(req, "")
+
+	// tell the server we're sending JSON
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	// check statusCode
+	switch {
+	case resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated:
+		// user already purchased or purchase successful
+		var purchase Purchase
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&purchase); err != nil {
+			return "", err
+		}
+		return purchase.State, nil
+	case resp.StatusCode == http.StatusUnauthorized:
+		// auth token failure
+		return "", getUnauthorizedError(resp.Body)
+	default:
+		return "", fmt.Errorf("SnapUbuntuStoreRepository: unexpected HTTP status code %d while buying snap %q", resp.StatusCode, name)
+	}
+}
+
+func getUnauthorizedError(body io.ReadCloser) error {
+	// we get a error code, check json details
+	var msg AuthError
+	dec := json.NewDecoder(body)
+	if err := dec.Decode(&msg); err != nil {
+		return err
+	}
+	if msg.Error == "TOKEN_NEEDS_REFRESH" {
+		return ErrTokenNeedsRefresh
+	}
+	return ErrInvalidCredentials
 }
 
 type assertionSvcError struct {

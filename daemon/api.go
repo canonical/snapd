@@ -623,6 +623,10 @@ func (inst *snapInstruction) deactivate() interface{} {
 	return waitChange(chg)
 }
 
+func (inst *snapInstruction) buy() interface{} {
+	return snappy.Buy(inst.pkg, inst)
+}
+
 func (inst *snapInstruction) dispatch() func() interface{} {
 	switch inst.Action {
 	case "install":
@@ -637,6 +641,8 @@ func (inst *snapInstruction) dispatch() func() interface{} {
 		return inst.activate
 	case "deactivate":
 		return inst.deactivate
+	case "buy":
+		return inst.buy
 	default:
 		return nil
 	}

@@ -306,6 +306,12 @@ const MockPurchaseJSON = `{
 }
 `
 
+const MockTokenNeedsRefreshJSON = `{
+  "threshold": 999,
+  "error": "TOKEN_NEEDS_REFRESH"
+}
+`
+
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	mockStoreToken := StoreToken{TokenName: "meep"}
 	err := WriteStoreToken(mockStoreToken)
@@ -662,4 +668,115 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNotFound(c *C) {
 
 	_, err = repo.Assertion(asserts.SnapDeclarationType, "16", "snapidfoo")
 	c.Check(err, Equals, ErrAssertionNotFound)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryBuy(c *C) {
+	mockStoreToken := StoreToken{TokenName: "meep"}
+	err := WriteStoreToken(mockStoreToken)
+	c.Assert(err, IsNil)
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.URL.Path, Equals, fmt.Sprintf("/details/%s.%s", funkyAppName, funkyAppDeveloper))
+
+		w.Header().Set("X-Suggested-Currency", "GBP")
+		w.WriteHeader(http.StatusOK)
+
+		io.WriteString(w, MockDetailsJSON)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case "GET":
+			c.Check(r.URL.Path, Equals, fmt.Sprintf("/click/purchases/%s.%s/", funkyAppName, funkyAppDeveloper))
+			c.Check(r.URL.Query().Get("include_item_purchases"), Equals, "true")
+			c.Assert(r.Header.Get("Authorization"), Matches, "OAuth .*")
+			io.WriteString(w, MockPurchasesJSON)
+		case "POST":
+			c.Check(r.URL.Path, Equals, "/click/purchases/")
+			b, err := ioutil.ReadAll(r.Body)
+			c.Assert(err, IsNil)
+			c.Check(string(b), Equals, "{\"name\":\"8nzc1x4iim2xj1g2ul64.chipaca\",\"currency\":\"GBP\"}")
+			c.Assert(r.Header.Get("Authorization"), Matches, "OAuth .*")
+			io.WriteString(w, MockPurchaseJSON)
+		}
+	}))
+
+	c.Assert(mockPurchasesServer, NotNil)
+	defer mockPurchasesServer.Close()
+
+	storeDetailsURI, err := url.Parse(mockServer.URL + "/details/")
+	c.Assert(err, IsNil)
+	purchasesURI, err := url.Parse(mockPurchasesServer.URL + "/click/purchases/")
+	c.Assert(err, IsNil)
+
+	cfg := SnapUbuntuStoreConfig{
+		DetailsURI:   storeDetailsURI,
+		PurchasesURI: purchasesURI,
+	}
+	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	c.Assert(repo, NotNil)
+
+	// the actual test
+	status, err := repo.Buy(funkyAppName+"."+funkyAppDeveloper, nil)
+	c.Assert(err, IsNil)
+	c.Check(status, Equals, "Complete")
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryBuyTokenNeedsRefresh(c *C) {
+	mockStoreToken := StoreToken{TokenName: "meep"}
+	err := WriteStoreToken(mockStoreToken)
+	c.Assert(err, IsNil)
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.URL.Path, Equals, fmt.Sprintf("/details/%s.%s", funkyAppName, funkyAppDeveloper))
+
+		w.Header().Set("X-Suggested-Currency", "GBP")
+		w.WriteHeader(http.StatusOK)
+
+		io.WriteString(w, MockDetailsJSON)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case "GET":
+			c.Check(r.URL.Path, Equals, fmt.Sprintf("/click/purchases/%s.%s/", funkyAppName, funkyAppDeveloper))
+			c.Check(r.URL.Query().Get("include_item_purchases"), Equals, "true")
+			c.Assert(r.Header.Get("Authorization"), Matches, "OAuth .*")
+			io.WriteString(w, MockPurchasesJSON)
+		case "POST":
+			c.Check(r.URL.Path, Equals, "/click/purchases/")
+			b, err := ioutil.ReadAll(r.Body)
+			c.Assert(err, IsNil)
+			c.Check(string(b), Equals, "{\"name\":\"8nzc1x4iim2xj1g2ul64.chipaca\",\"currency\":\"GBP\"}")
+			c.Assert(r.Header.Get("Authorization"), Matches, "OAuth .*")
+			w.WriteHeader(http.StatusUnauthorized)
+			io.WriteString(w, MockTokenNeedsRefreshJSON)
+		}
+	}))
+
+	c.Assert(mockPurchasesServer, NotNil)
+	defer mockPurchasesServer.Close()
+
+	storeDetailsURI, err := url.Parse(mockServer.URL + "/details/")
+	c.Assert(err, IsNil)
+	purchasesURI, err := url.Parse(mockPurchasesServer.URL + "/click/purchases/")
+	c.Assert(err, IsNil)
+
+	cfg := SnapUbuntuStoreConfig{
+		DetailsURI:   storeDetailsURI,
+		PurchasesURI: purchasesURI,
+	}
+	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	c.Assert(repo, NotNil)
+
+	// the actual test
+	status, err := repo.Buy(funkyAppName+"."+funkyAppDeveloper, nil)
+	c.Assert(err, NotNil)
+	c.Check(status, Equals, "")
 }

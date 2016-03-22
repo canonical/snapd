@@ -89,6 +89,9 @@ msgstr  ""
 msgid   "Builds a snap package"
 msgstr  ""
 
+msgid   "Buy a paid snap"
+msgstr  ""
+
 msgid   "Classic dimension destroyed on this snappy system."
 msgstr  ""
 
@@ -476,6 +479,10 @@ msgid   "\n"
         "The activate command activates an installed but inactive snap.\n"
         "\n"
         "Snaps that are not active don't have their apps available for use.\n"
+msgstr  ""
+
+msgid   "\n"
+        "The buy command purchases a paid snap.\n"
 msgstr  ""
 
 msgid   "\n"
