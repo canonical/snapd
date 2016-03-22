@@ -111,36 +111,6 @@ func (s *SnapTestSuite) TestConfigOS(c *C) {
 	c.Assert(cfg, DeepEquals, inCfg)
 }
 
-func (s *SnapTestSuite) TestConfigGeneratesRightAA(c *C) {
-	aas := []string{}
-	runConfigScript = func(cs, aa string, rc []byte, env []string) ([]byte, error) {
-		aas = append(aas, aa)
-		return nil, nil
-	}
-	defer func() { runConfigScript = runConfigScriptImpl }()
-
-	mockConfig := fmt.Sprintf(configPassthroughScript, s.tempdir)
-
-	snapDir, err := s.makeInstalledMockSnapWithConfig(c, mockConfig, `name: fmk
-type: framework
-version: 42`)
-	c.Assert(err, IsNil)
-	_, err = snapConfig(snapDir, testDeveloper, []byte(configYaml))
-	c.Assert(err, IsNil)
-
-	snapDir, err = s.makeInstalledMockSnapWithConfig(c, mockConfig, `name: potato
-type: potato
-version: 42`)
-	c.Assert(err, IsNil)
-	_, err = snapConfig(snapDir, testDeveloper, []byte(configYaml))
-	c.Assert(err, IsNil)
-
-	c.Check(aas, DeepEquals, []string{
-		"fmk_snappy-config_42",
-		"potato." + testDeveloper + "_snappy-config_42",
-	})
-}
-
 func (s *SnapTestSuite) TestConfigError(c *C) {
 	snapDir, err := s.makeInstalledMockSnapWithConfig(c, configErrorScript)
 	c.Assert(err, IsNil)

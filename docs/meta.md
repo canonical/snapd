@@ -55,9 +55,6 @@ The following keys are optional:
             * `tagname`: a free form name, some names have meaning like "ui"
                 * `port`: (optional) see above
                 * `negotiable`: (optional) see above
-    * `bus-name`: (optional) message bus connection name for the service.
-      May only be specified for snaps of 'type: framework' (see above). See
-      frameworks.md for details.
     * `socket`: (optional) Set to "true" if the service is socket activated.
                 Must be specified with `listen-stream`.
     * `listen-stream`: (optional) The full path of the stream socket or an
