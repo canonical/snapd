@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
@@ -31,7 +30,6 @@ import (
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/squashfs"
-	"github.com/ubuntu-core/snappy/systemd"
 )
 
 // Overlord is responsible for the overall system state.
@@ -172,64 +170,6 @@ func (o *Overlord) Install(snapFilePath string, developer string, flags InstallF
 		if err != nil {
 			return nil, err
 		}
-
-		// oh, one more thing: refresh the security bits
-		deps, err := newSnap.Dependents()
-		if err != nil {
-			return nil, err
-		}
-
-		sysd := systemd.New(dirs.GlobalRootDir, meter)
-		stopped := make(map[string]time.Duration)
-		defer func() {
-			if err != nil {
-				for serviceName := range stopped {
-					if e := sysd.Start(serviceName); e != nil {
-						meter.Notify(fmt.Sprintf("unable to restart %s with the old %s: %s", serviceName, s.Name(), e))
-					}
-				}
-			}
-		}()
-
-		for _, dep := range deps {
-			if !dep.IsActive() {
-				continue
-			}
-			for _, svc := range dep.Apps() {
-				if svc.Daemon == "" {
-					continue
-				}
-				serviceName := filepath.Base(generateServiceFileName(dep.m, svc))
-				timeout := time.Duration(svc.StopTimeout)
-				if err = sysd.Stop(serviceName, timeout); err != nil {
-					meter.Notify(fmt.Sprintf("unable to stop %s; aborting install: %s", serviceName, err))
-					return nil, err
-				}
-				stopped[serviceName] = timeout
-			}
-		}
-
-		if err := newSnap.RefreshDependentsSecurity(oldSnap, meter); err != nil {
-			return nil, err
-		}
-
-		started := make(map[string]time.Duration)
-		defer func() {
-			if err != nil {
-				for serviceName, timeout := range started {
-					if e := sysd.Stop(serviceName, timeout); e != nil {
-						meter.Notify(fmt.Sprintf("unable to stop %s with the old %s: %s", serviceName, s.Name(), e))
-					}
-				}
-			}
-		}()
-		for serviceName, timeout := range stopped {
-			if err = sysd.Start(serviceName); err != nil {
-				meter.Notify(fmt.Sprintf("unable to restart %s; aborting install: %s", serviceName, err))
-				return nil, err
-			}
-			started[serviceName] = timeout
-		}
 	}
 
 	return newSnapFromYaml(filepath.Join(s.instdir, "meta", "snap.yaml"), s.developer, s.m)
@@ -244,10 +184,6 @@ func canInstall(s *SnapFile, allowGadget bool, inter interacter) error {
 	// verify we have a valid architecture
 	if !arch.IsSupportedArchitecture(s.m.Architectures) {
 		return &ErrArchitectureNotSupported{s.m.Architectures}
-	}
-
-	if err := checkForFrameworks(s.m); err != nil {
-		return err
 	}
 
 	if s.Type() == snap.TypeGadget {
@@ -291,14 +227,6 @@ func (o *Overlord) Uninstall(s *Snap, meter progress.Meter) error {
 		return ErrPackageNotRemovable
 	}
 
-	deps, err := s.DependentNames()
-	if err != nil {
-		return err
-	}
-	if len(deps) != 0 {
-		return ErrFrameworkInUse(deps)
-	}
-
 	if err := s.deactivate(false, meter); err != nil && err != ErrSnapNotActive {
 		return err
 	}
@@ -308,8 +236,7 @@ func (o *Overlord) Uninstall(s *Snap, meter progress.Meter) error {
 		return err
 	}
 
-	err = os.RemoveAll(s.basedir)
-	if err != nil {
+	if err := os.RemoveAll(s.basedir); err != nil {
 		return err
 	}
 

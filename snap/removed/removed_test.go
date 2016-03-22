@@ -76,15 +76,6 @@ func (s *removedSuite) TestNoStore(c *check.C) {
 	c.Check(info.Version, check.Equals, "1")
 }
 
-func (s *removedSuite) TestNoDeveloper(c *check.C) {
-	info := New("foo", "", "1", snap.TypeFramework)
-	c.Check(info.Developer, check.Equals, "")
-
-	s.MkStoreYaml(c, snap.TypeFramework)
-	info = New("foo", "", "1", snap.TypeFramework)
-	c.Check(info.Developer, check.Equals, "bar")
-}
-
 func (s *removedSuite) TestWithStore(c *check.C) {
 	s.MkStoreYaml(c, snap.TypeApp)
 	info := New("foo", "bar", "1", snap.TypeApp)

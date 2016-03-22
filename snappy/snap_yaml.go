@@ -26,7 +26,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
 	"time"
 
@@ -86,9 +85,6 @@ type snapYaml struct {
 	Summary          string
 	Description      string
 	Architectures    []string `yaml:"architectures"`
-
-	// FIXME: kill once we really no longer support frameworks
-	Frameworks []string `yaml:"frameworks,omitempty"`
 
 	// Apps can be both binary or service
 	Apps map[string]*AppYaml `yaml:"apps,omitempty"`
@@ -193,7 +189,7 @@ func parseSnapYamlData(yamlData []byte, hasConfig bool) (*snapYaml, error) {
 }
 
 func (m *snapYaml) qualifiedName(developer string) string {
-	if m.Type == snap.TypeFramework || m.Type == snap.TypeGadget {
+	if m.Type == snap.TypeGadget {
 		return m.Name
 	}
 	return m.Name + "." + developer
@@ -207,29 +203,6 @@ func checkForPackageInstalled(m *snapYaml, developer string) error {
 
 	if snap.Developer() != developer {
 		return fmt.Errorf("package %q is already installed with developer %q your developer is %q", m.Name, snap.Developer(), developer)
-	}
-
-	return nil
-}
-
-func checkForFrameworks(m *snapYaml) error {
-	installed, err := ActiveSnapIterByType(BareName, snap.TypeFramework)
-	if err != nil {
-		return err
-	}
-	sort.Strings(installed)
-
-	missing := make([]string, 0, len(m.Frameworks))
-
-	for _, f := range m.Frameworks {
-		i := sort.SearchStrings(installed, f)
-		if i >= len(installed) || installed[i] != f {
-			missing = append(missing, f)
-		}
-	}
-
-	if len(missing) > 0 {
-		return ErrMissingFrameworks(missing)
 	}
 
 	return nil
