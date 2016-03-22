@@ -41,6 +41,7 @@ import (
 	"github.com/ubuntu-core/snappy/asserts"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/interfaces"
+	"github.com/ubuntu-core/snappy/overlord"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snap"
@@ -58,6 +59,8 @@ type apiSuite struct {
 	searchTerm string
 	channel    string
 	overlord   *fakeOverlord
+
+	stateOverlord *overlord.Overlord
 }
 
 var _ = check.Suite(&apiSuite{})
@@ -94,6 +97,8 @@ func (s *apiSuite) TearDownSuite(c *check.C) {
 
 func (s *apiSuite) SetUpTest(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
+	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
+	c.Assert(err, check.IsNil)
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapLockFile), 0755), check.IsNil)
 	c.Assert(os.MkdirAll(dirs.SnapSnapsDir, 0755), check.IsNil)
 
@@ -103,6 +108,9 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 	s.overlord = &fakeOverlord{
 		configs: map[string]string{},
 	}
+	o, err := overlord.New()
+	c.Assert(err, check.IsNil)
+	s.stateOverlord = o
 }
 
 func (s *apiSuite) TearDownTest(c *check.C) {
@@ -1185,13 +1193,14 @@ func (s *apiSuite) TestInstall(c *check.C) {
 	}
 
 	inst := &snapInstruction{
-		Action: "install",
+		overlord: s.stateOverlord,
+		Action:   "install",
 	}
 
-	err := inst.dispatch()()
+	err2 := inst.dispatch()()
 
 	c.Check(calledFlags, check.Equals, snappy.DoInstallGC)
-	c.Check(err, check.IsNil)
+	c.Check(err2, check.IsNil)
 }
 
 func (s *apiSuite) TestInstallLeaveOld(c *check.C) {
@@ -1207,6 +1216,7 @@ func (s *apiSuite) TestInstallLeaveOld(c *check.C) {
 	}
 
 	inst := &snapInstruction{
+		overlord: s.stateOverlord,
 		Action:   "install",
 		LeaveOld: true,
 	}
@@ -1230,7 +1240,8 @@ func (s *apiSuite) TestInstallLicensed(c *check.C) {
 	}
 
 	inst := &snapInstruction{
-		Action: "install",
+		overlord: s.stateOverlord,
+		Action:   "install",
 	}
 
 	lic, ok := inst.dispatch()().(*licenseData)

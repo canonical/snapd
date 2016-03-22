@@ -644,12 +644,13 @@ func waitChange(chg *state.Change) error {
 	for {
 		chg.State().Lock()
 		status := chg.Status()
+		err := chg.Err()
 		chg.State().Unlock()
 		switch status {
 		case state.DoneStatus:
 			return nil
 		case state.ErrorStatus:
-			return chg.Err()
+			return err
 		}
 		time.Sleep(250 * time.Millisecond)
 	}
