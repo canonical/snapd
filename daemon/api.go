@@ -668,9 +668,10 @@ func (inst *snapInstruction) install() interface{} {
 		msg = fmt.Sprintf(i18n.G("Install %q snap from %q channel"), inst.pkg, inst.Channel)
 	}
 	chg := state.NewChange("install-snap", msg)
-	// FIXME: err
 	ts, err := snapstateInstall(state, inst.pkg, inst.Channel, flags)
-	chg.AddTasks(ts)
+	if err == nil {
+		chg.AddTasks(ts)
+	}
 	state.Unlock()
 	if err != nil {
 		return err
@@ -703,9 +704,10 @@ func (inst *snapInstruction) update() interface{} {
 		msg = fmt.Sprintf(i18n.G("Update %q snap from %q channel"), inst.pkg, inst.Channel)
 	}
 	chg := state.NewChange("update-snap", msg)
-	// FIXME: err
 	ts, err := snapstate.Update(state, inst.pkg, inst.Channel, flags)
-	chg.AddTasks(ts)
+	if err == nil {
+		chg.AddTasks(ts)
+	}
 	state.Unlock()
 	if err != nil {
 		return err
@@ -724,9 +726,10 @@ func (inst *snapInstruction) remove() interface{} {
 	state.Lock()
 	msg := fmt.Sprintf(i18n.G("Remove %q snap"), inst.pkg)
 	chg := state.NewChange("remove-snap", msg)
-	// FIXME: err!
 	ts, err := snapstate.Remove(state, inst.pkg, flags)
-	chg.AddTasks(ts)
+	if err == nil {
+		chg.AddTasks(ts)
+	}
 	state.Unlock()
 	if err != nil {
 		return err
