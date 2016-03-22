@@ -144,9 +144,6 @@ func (m *SnapManager) doInstallSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.State().Unlock()
 
 	_, err := m.backend.Install(inst.Name, inst.Channel, inst.Flags, &progress.NullProgress{})
-	t.State().Lock()
-	t.Logf("doInstallSnap: %s from %s: %v", inst.Name, inst.Channel, err)
-	t.State().Unlock()
 	return err
 }
 
@@ -159,9 +156,6 @@ func (m *SnapManager) doUpdateSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.State().Unlock()
 
 	err := m.backend.Update(inst.Name, inst.Channel, inst.Flags, &progress.NullProgress{})
-	t.State().Lock()
-	t.Logf("doUpdateSnap: %s from %s: %v", inst.Name, inst.Channel, err)
-	t.State().Unlock()
 	return err
 }
 
@@ -176,9 +170,6 @@ func (m *SnapManager) doRemoveSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	name, _ := snappy.SplitDeveloper(rm.Name)
 	err := m.backend.Remove(name, rm.Flags, &progress.NullProgress{})
-	t.State().Lock()
-	t.Logf("doRemoveSnap: %s: %v", name, err)
-	t.State().Unlock()
 	return err
 }
 
