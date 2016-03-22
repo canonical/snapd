@@ -449,8 +449,8 @@ int main(int argc, char **argv)
 	const char *appname = argv[1];
 	const char *aa_profile = argv[2];
 	const char *binary = argv[3];
-	unsigned real_uid = getuid();
-	unsigned real_gid = getgid();
+	uid_t real_uid = getuid();
+	gid_t real_gid = getgid();
 
 	if (!verify_appname(appname))
 		die("appname %s not allowed", appname);
