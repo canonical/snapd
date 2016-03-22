@@ -14,6 +14,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #include <errno.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -45,6 +49,7 @@ int seccomp_load_filters(const char *filter_profile)
 	scmp_filter_ctx ctx = NULL;
 	FILE *f = NULL;
 	size_t lineno = 0;
+	uid_t real_uid, effective_uid, saved_uid;
 
 	ctx = seccomp_init(SCMP_ACT_KILL);
 	if (ctx == NULL)
@@ -60,7 +65,12 @@ int seccomp_load_filters(const char *filter_profile)
 	//   - capability sys_admin in AppArmor
 	// Note that with NO_NEW_PRIVS disabled, CAP_SYS_ADMIN is required to
 	// change the seccomp sandbox.
-	if (getenv("UBUNTU_CORE_LAUNCHER_NO_ROOT") == NULL) {
+
+	if (getresuid(&real_uid, &effective_uid, &saved_uid) != 0)
+		die("could not find user IDs");
+
+	// If running privileged or capable of raising, disable nnp
+	if (real_uid == 0 || effective_uid == 0 || saved_uid == 0) {
 		rc = seccomp_attr_set(ctx, SCMP_FLTATR_CTL_NNP, 0);
 		if (rc != 0) {
 			fprintf(stderr, "Cannot disable nnp\n");
@@ -139,8 +149,9 @@ int seccomp_load_filters(const char *filter_profile)
 		}
 	}
 
-	// raise privileges to load seccomp policy since we don't have nnp
-	if (getenv("UBUNTU_CORE_LAUNCHER_NO_ROOT") == NULL) {
+	// If not root but can raise, then raise privileges to load seccomp
+	// policy since we don't have nnp
+	if (effective_uid != 0 && saved_uid == 0) {
 		if (seteuid(0) != 0)
 			die("seteuid failed");
 		if (geteuid() != 0)
@@ -153,8 +164,7 @@ int seccomp_load_filters(const char *filter_profile)
 		fprintf(stderr, "seccomp_load failed with %i\n", rc);
 		die("aborting");
 	}
-
- out:
+	//
 	// drop privileges again
 	if (geteuid() == 0) {
 		unsigned real_uid = getuid();
@@ -164,6 +174,7 @@ int seccomp_load_filters(const char *filter_profile)
 			die("dropping privs after seccomp_load did not work");
 	}
 
+ out:
 	if (f != NULL) {
 		fclose(f);
 	}
