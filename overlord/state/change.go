@@ -234,7 +234,7 @@ func (e *changeError) Error() string {
 }
 
 // Err returns an error value based on errors that were logged for tasks registered
-// in this change, or nil if the task is not in ErrorStatus.
+// in this change, or nil if the change is not in ErrorStatus.
 func (c *Change) Err() error {
 	c.state.ensureLocked()
 	if c.Status() != ErrorStatus {
