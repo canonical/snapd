@@ -59,10 +59,11 @@ func (s *interfaceManagerSuite) TestConnectAddsTask(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	change := s.state.NewChange("kind", "summary")
-	err := ifacestate.Connect(change, "consumer", "plug", "producer", "slot")
+	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
-	c.Assert(change.Tasks(), HasLen, 1)
+
+	change := s.state.NewChange("kind", "summary")
+	change.AddTasks(ts)
 	task := change.Tasks()[0]
 	c.Assert(task.Kind(), Equals, "connect")
 	var plug interfaces.PlugRef
@@ -83,8 +84,9 @@ func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
 
 	s.addPlugSlotAndInterface(c)
 	change := s.state.NewChange("kind", "summary")
-	err := ifacestate.Connect(change, "consumer", "plug", "producer", "slot")
+	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
+	change.AddTasks(ts)
 
 	s.state.Unlock()
 	s.mgr.Ensure()
@@ -116,10 +118,11 @@ func (s *interfaceManagerSuite) TestDisconnectAddsTask(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	change := s.state.NewChange("kind", "summary")
-	err := ifacestate.Disconnect(change, "consumer", "plug", "producer", "slot")
+	ts, err := ifacestate.Disconnect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
-	c.Assert(change.Tasks(), HasLen, 1)
+
+	change := s.state.NewChange("kind", "summary")
+	change.AddTasks(ts)
 	task := change.Tasks()[0]
 	c.Assert(task.Kind(), Equals, "disconnect")
 	var plug interfaces.PlugRef
@@ -143,8 +146,9 @@ func (s *interfaceManagerSuite) TestEnsureProcessesDisconnectTask(c *C) {
 	err := repo.Connect("consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
 	change := s.state.NewChange("kind", "summary")
-	err = ifacestate.Disconnect(change, "consumer", "plug", "producer", "slot")
+	ts, err := ifacestate.Disconnect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
+	change.AddTasks(ts)
 
 	s.state.Unlock()
 	s.mgr.Ensure()

@@ -216,18 +216,21 @@ func (c *Change) State() *State {
 	return c.state
 }
 
-// NewTask creates a new task and registers it as a required task for the
-// state change to be accomplished.
-func (c *Change) NewTask(kind, summary string) *Task {
+// AddTask registers a task as a required task for the state change to
+// be accomplished.
+func (c *Change) AddTask(t *Task) {
 	c.state.ensureLocked()
-	id := c.state.genID()
-	t := newTask(c.state, id, kind, summary)
-	c.state.tasks[id] = t
-	c.taskIDs.add(id)
-	return t
+	c.taskIDs.add(t.ID())
 }
 
-// TODO: AddTask
+// AddTasks registers all the tasks in the set as a required for the
+// state change to be accomplished.
+func (c *Change) AddTasks(ts TaskSet) {
+	c.state.ensureLocked()
+	for tid := range ts {
+		c.taskIDs.add(tid)
+	}
+}
 
 // Tasks returns all the tasks this state change depends on.
 func (c *Change) Tasks() []*Task {
