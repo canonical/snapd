@@ -778,11 +778,39 @@ func (inst *snapInstruction) rollback() interface{} {
 }
 
 func (inst *snapInstruction) activate() interface{} {
-	return snappy.SetActive(inst.pkg, true, inst)
+	state := inst.overlord.StateEngine().State()
+	state.Lock()
+	msg := fmt.Sprintf(i18n.G("Activate %q snap"), inst.pkg)
+	chg := state.NewChange("activate-snap", msg)
+	ts, err := snapstate.SetActive(state, inst.pkg, true)
+	if err == nil {
+		chg.AddTasks(ts)
+	}
+	state.Unlock()
+	if err != nil {
+		return err
+	}
+
+	state.EnsureBefore(0)
+	return waitChange(chg)
 }
 
 func (inst *snapInstruction) deactivate() interface{} {
-	return snappy.SetActive(inst.pkg, false, inst)
+	state := inst.overlord.StateEngine().State()
+	state.Lock()
+	msg := fmt.Sprintf(i18n.G("Deactivate %q snap"), inst.pkg)
+	chg := state.NewChange("deactivate-snap", msg)
+	ts, err := snapstate.SetActive(state, inst.pkg, false)
+	if err == nil {
+		chg.AddTasks(ts)
+	}
+	state.Unlock()
+	if err != nil {
+		return err
+	}
+
+	state.EnsureBefore(0)
+	return waitChange(chg)
 }
 
 func (inst *snapInstruction) dispatch() func() interface{} {
