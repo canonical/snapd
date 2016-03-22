@@ -72,10 +72,10 @@ int seccomp_load_filters(const char *filter_profile)
 		filter_profile_dir =
 		    getenv("SNAPPY_LAUNCHER_SECCOMP_PROFILE_DIR");
 
-	char profile_path[128];
-	if (snprintf
-	    (profile_path, sizeof(profile_path), "%s/%s", filter_profile_dir,
-	     filter_profile) < 0) {
+	char profile_path[512];	// arbitrary path name limit
+	int snprintf_rc = snprintf(profile_path, sizeof(profile_path), "%s/%s",
+				   filter_profile_dir, filter_profile);
+	if (snprintf_rc < 0 || snprintf_rc >= 512) {
 		goto out;
 	}
 
