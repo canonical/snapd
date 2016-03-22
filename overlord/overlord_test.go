@@ -339,7 +339,7 @@ func (ovs *overlordSuite) TestSettleChain(c *C) {
 	t1 := s.NewTask("runMgr1", "1...")
 	t2 := s.NewTask("runMgr2", "2...")
 	t2.WaitFor(t1)
-	chg.AddTasks(state.NewTaskSet(t1, t2))
+	chg.AddAll(state.NewTaskSet(t1, t2))
 
 	s.Unlock()
 
