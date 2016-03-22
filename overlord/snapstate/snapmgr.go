@@ -93,12 +93,31 @@ func Rollback(s *state.State, snap, ver string) (state.TaskSet, error) {
 	return state.NewTaskSet(t), nil
 }
 
+// SetActive returns a set of tasks for setting a snap active.
+// Note that the state must be locked by the caller.
+func SetActive(s *state.State, snap string, active bool) (state.TaskSet, error) {
+	var msg string
+	if active {
+		msg = fmt.Sprintf(i18n.G("Set active %q"), snap)
+	} else {
+		fmt.Sprintf(i18n.G("Set inactive %q"), snap)
+	}
+	t := s.NewTask("set-active-snap", msg)
+	t.Set("state", setActiveState{
+		Name:   snap,
+		Active: active,
+	})
+
+	return state.NewTaskSet(t), nil
+}
+
 type backendIF interface {
 	Install(name, channel string, flags snappy.InstallFlags, meter progress.Meter) (string, error)
 	Update(name, channel string, flags snappy.InstallFlags, meter progress.Meter) error
 	Remove(name string, flags snappy.RemoveFlags, meter progress.Meter) error
 	Purge(name string, flags snappy.PurgeFlags, meter progress.Meter) error
 	Rollback(name, ver string, meter progress.Meter) (string, error)
+	SetActive(name string, active bool, meter progress.Meter) error
 }
 
 type defaultBackend struct{}
@@ -123,6 +142,10 @@ func (s *defaultBackend) Purge(name string, flags snappy.PurgeFlags, meter progr
 
 func (s *defaultBackend) Rollback(name, ver string, meter progress.Meter) (string, error) {
 	return snappy.Rollback(name, ver, meter)
+}
+
+func (s *defaultBackend) SetActive(name string, active bool, meter progress.Meter) error {
+	return snappy.SetActive(name, active, meter)
 }
 
 // SnapManager is responsible for the installation and removal of snaps.
@@ -154,6 +177,11 @@ type rollbackState struct {
 	Version string `json:"version,omitempty"`
 }
 
+type setActiveState struct {
+	Name   string `json:"name"`
+	Active bool   `json:"active"`
+}
+
 // Manager returns a new snap manager.
 func Manager(s *state.State) (*SnapManager, error) {
 	runner := state.NewTaskRunner(s)
@@ -169,6 +197,7 @@ func Manager(s *state.State) (*SnapManager, error) {
 	runner.AddHandler("remove-snap", m.doRemoveSnap)
 	runner.AddHandler("purge-snap", m.doPurgeSnap)
 	runner.AddHandler("rollback-snap", m.doRollbackSnap)
+	runner.AddHandler("set-active-snap", m.doSetActiveSnap)
 
 	// test handlers
 	runner.AddHandler("fake-install-snap", func(t *state.Task, _ *tomb.Tomb) error {
@@ -245,6 +274,19 @@ func (m *SnapManager) doRollbackSnap(t *state.Task, _ *tomb.Tomb) error {
 	name, _ := snappy.SplitDeveloper(rollback.Name)
 	_, err := m.backend.Rollback(name, rollback.Version, &progress.NullProgress{})
 	return err
+}
+
+func (m *SnapManager) doSetActiveSnap(t *state.Task, _ *tomb.Tomb) error {
+	var setActive setActiveState
+
+	t.State().Lock()
+	if err := t.Get("state", &setActive); err != nil {
+		return err
+	}
+	t.State().Unlock()
+
+	name, _ := snappy.SplitDeveloper(setActive.Name)
+	return m.backend.SetActive(name, setActive.Active, &progress.NullProgress{})
 }
 
 // Ensure implements StateManager.Ensure.

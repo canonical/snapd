@@ -44,6 +44,7 @@ type fakeSnappyBackend struct {
 	ver     string
 	channel string
 	flags   int
+	active  bool
 	op      string
 }
 
@@ -78,6 +79,13 @@ func (f *fakeSnappyBackend) Rollback(name, ver string, p progress.Meter) (string
 	f.name = name
 	f.ver = ver
 	return "", nil
+}
+
+func (f *fakeSnappyBackend) SetActive(name string, active bool, p progress.Meter) error {
+	f.op = "set-active"
+	f.name = name
+	f.active = active
+	return nil
 }
 
 var _ = Suite(&snapmgrTestSuite{})
@@ -212,4 +220,42 @@ func (s *snapmgrTestSuite) TestRollbackIntegration(c *C) {
 	c.Assert(s.fakeBackend.op, Equals, "rollback")
 	c.Assert(s.fakeBackend.name, Equals, "some-snap-to-rollback")
 	c.Assert(s.fakeBackend.ver, Equals, "1.0")
+}
+
+func (s *snapmgrTestSuite) TestSetActive(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	chg := s.state.NewChange("setActive", "make snap active")
+	ts, err := snapstate.SetActive(s.state, "some-snap-to-activate", true)
+	c.Assert(err, IsNil)
+	chg.AddTasks(ts)
+
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.snapmgr.Wait()
+	defer s.snapmgr.Stop()
+	s.state.Lock()
+
+	c.Assert(s.fakeBackend.op, Equals, "set-active")
+	c.Assert(s.fakeBackend.name, Equals, "some-snap-to-activate")
+	c.Assert(s.fakeBackend.active, Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestSetInactive(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	chg := s.state.NewChange("set-inactive", "make snap inactive")
+	ts, err := snapstate.SetActive(s.state, "some-snap-to-inactivate", false)
+	c.Assert(err, IsNil)
+	chg.AddTasks(ts)
+
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.snapmgr.Wait()
+	defer s.snapmgr.Stop()
+	s.state.Lock()
+
+	c.Assert(s.fakeBackend.op, Equals, "set-active")
+	c.Assert(s.fakeBackend.name, Equals, "some-snap-to-inactivate")
+	c.Assert(s.fakeBackend.active, Equals, false)
 }
