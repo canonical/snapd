@@ -195,8 +195,9 @@ func (d *Daemon) addRoutes() {
 
 // Start the Daemon
 func (d *Daemon) Start() {
+	// the loop runs in its own goroutine
+	d.overlord.Loop()
 	d.tomb.Go(func() error {
-		d.overlord.Loop()
 		if err := http.Serve(d.listener, logit(d.router)); err != nil && d.tomb.Err() == tomb.ErrStillAlive {
 			return err
 		}
