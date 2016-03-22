@@ -28,10 +28,9 @@ import (
 )
 
 type NetworkBindInterfaceSuite struct {
-	iface         interfaces.Interface
-	slot          *interfaces.Slot
-	otherSnapSlot *interfaces.Slot
-	plug          *interfaces.Plug
+	iface interfaces.Interface
+	slot  *interfaces.Slot
+	plug  *interfaces.Plug
 }
 
 var _ = Suite(&NetworkBindInterfaceSuite{
@@ -48,20 +47,12 @@ slots:
 	s.slot = &interfaces.Slot{SlotInfo: info1.Slots["network-bind"]}
 
 	info2, err := snap.InfoFromSnapYaml([]byte(`
-name: some-snap
-slots:
-    network-bind:
-`))
-	c.Assert(err, IsNil)
-	s.otherSnapSlot = &interfaces.Slot{SlotInfo: info2.Slots["network-bind"]}
-
-	info3, err := snap.InfoFromSnapYaml([]byte(`
 name: snap
 plugs:
     network-bind:
 `))
 	c.Assert(err, IsNil)
-	s.plug = &interfaces.Plug{PlugInfo: info3.Plugs["network-bind"]}
+	s.plug = &interfaces.Plug{PlugInfo: info2.Plugs["network-bind"]}
 }
 
 func (s *NetworkBindInterfaceSuite) TestName(c *C) {
@@ -71,7 +62,11 @@ func (s *NetworkBindInterfaceSuite) TestName(c *C) {
 func (s *NetworkBindInterfaceSuite) TestSanitizeSlot(c *C) {
 	err := s.iface.SanitizeSlot(s.slot)
 	c.Assert(err, IsNil)
-	err = s.iface.SanitizeSlot(s.otherSnapSlot)
+	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
+		Snap:      &snap.Info{Name: "some-snap"},
+		Name:      "network-bind",
+		Interface: "network-bind",
+	}})
 	c.Assert(err, ErrorMatches, "network-bind slots are reserved for the operating system snap")
 }
 
