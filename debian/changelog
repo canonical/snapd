@@ -1,6 +1,10 @@
 ubuntu-core-launcher (1.0.21) UNRELEASED; urgency=medium
   * src/main.c: setup private /dev/pts
   * debian/usr.bin.ubuntu-core-launcher: allow mounting /dev/pts
+  * enforce coding style:
+    - add syntax-check and fmt Makefile targets
+    - use 'indent -linux'
+    - debian/control: Build-Depends on indent
 
  -- Jamie Strandboge <jamie@ubuntu.com>  Tue, 22 Mar 2016 06:23:38 -0500
 
