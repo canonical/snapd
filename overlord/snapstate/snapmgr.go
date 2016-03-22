@@ -124,6 +124,14 @@ func Manager(s *state.State) (*SnapManager, error) {
 	runner.AddHandler("update-snap", m.doUpdateSnap)
 	runner.AddHandler("remove-snap", m.doRemoveSnap)
 
+	// test handlers
+	runner.AddHandler("fake-install-snap", func(t *state.Task, _ *tomb.Tomb) error {
+		return nil
+	})
+	runner.AddHandler("fake-install-snap-error", func(t *state.Task, _ *tomb.Tomb) error {
+		return fmt.Errorf("fake-install-snap-error errored")
+	})
+
 	return m, nil
 }
 
