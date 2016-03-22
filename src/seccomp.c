@@ -112,7 +112,8 @@ int seccomp_load_filters(const char *filter_profile)
 		if (len == 0)
 			continue;
 
-		// check for special "@unrestricted" command
+		// check for special "@unrestricted" rule which short-circuits
+		// seccomp sandbox
 		if (strcmp(buf, "@unrestricted") == 0)
 			goto out;
 
