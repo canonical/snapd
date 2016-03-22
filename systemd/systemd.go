@@ -166,7 +166,6 @@ type ServiceDescription struct {
 	Restart         RestartCondition
 	Type            string
 	AaProfile       string
-	IsFramework     bool
 	BusName         string
 	UdevAppName     string
 	Developer       string
@@ -348,10 +347,8 @@ func (s *systemd) Stop(serviceName string, timeout time.Duration) error {
 func (s *systemd) GenServiceFile(desc *ServiceDescription) string {
 	serviceTemplate := `[Unit]
 Description={{.Description}}
-{{if .IsFramework}}Before=ubuntu-snappy.frameworks.target
-After=ubuntu-snappy.frameworks-pre.target{{ if .Socket }} {{.SocketFileName}}{{end}}
-Requires=ubuntu-snappy.frameworks-pre.target{{ if .Socket }} {{.SocketFileName}}{{end}}{{else}}After=ubuntu-snappy.frameworks.target{{ if .Socket }} {{.SocketFileName}}{{end}}
-Requires=ubuntu-snappy.frameworks.target{{ if .Socket }} {{.SocketFileName}}{{end}}{{end}}
+After=ubuntu-snappy.frameworks.target{{ if .Socket }} {{.SocketFileName}}{{end}}
+Requires=ubuntu-snappy.frameworks.target{{ if .Socket }} {{.SocketFileName}}{{end}}
 X-Snappy=yes
 
 [Service]

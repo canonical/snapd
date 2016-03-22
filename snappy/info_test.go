@@ -37,9 +37,9 @@ version: 1.10
 	c.Assert(err, IsNil)
 	makeSnapActive(yamlPath)
 
-	yamlPath, err = makeInstalledMockSnap(s.tempdir, `name: framework1
+	yamlPath, err = makeInstalledMockSnap(s.tempdir, `name: os2
 version: 1.0
-type: framework
+type: os
 `)
 	c.Assert(err, IsNil)
 	makeSnapActive(yamlPath)
@@ -48,11 +48,6 @@ type: framework
 	c.Assert(err, IsNil)
 	c.Assert(snaps, HasLen, 1)
 	c.Assert(snaps[0].Name(), Equals, "app1")
-
-	snaps, err = ActiveSnapsByType(snap.TypeFramework)
-	c.Assert(err, IsNil)
-	c.Assert(snaps, HasLen, 1)
-	c.Assert(snaps[0].Name(), Equals, "framework1")
 }
 
 func (s *SnapTestSuite) TestActiveSnapIterByType(c *C) {
@@ -61,9 +56,9 @@ version: 1.10`)
 	c.Assert(err, IsNil)
 	makeSnapActive(yamlPath)
 
-	yamlPath, err = makeInstalledMockSnap(s.tempdir, `name: fwk
+	yamlPath, err = makeInstalledMockSnap(s.tempdir, `name: os2
 version: 1.0
-type: framework`)
+type: os`)
 	c.Assert(err, IsNil)
 	makeSnapActive(yamlPath)
 
@@ -75,13 +70,9 @@ type: framework`)
 
 	for _, t := range []T{
 		{BareName, snap.TypeApp, "app"},
-		{BareName, snap.TypeFramework, "fwk"},
 		{QualifiedName, snap.TypeApp, "app." + testDeveloper},
-		{QualifiedName, snap.TypeFramework, "fwk"},
 		{FullName, snap.TypeApp, "app." + testDeveloper},
-		{FullName, snap.TypeFramework, "fwk." + testDeveloper},
 		{fullNameWithChannel, snap.TypeApp, "app." + testDeveloper + "/remote-channel"},
-		{fullNameWithChannel, snap.TypeFramework, "fwk." + testDeveloper + "/remote-channel"},
 	} {
 		names, err := ActiveSnapIterByType(t.f, t.t)
 		c.Check(err, IsNil)
@@ -93,22 +84,11 @@ type: framework`)
 	storeMinimalRemoteManifest("fwk", "fwk", testDeveloper, "1.0", "Hello.", "")
 	for _, t := range []T{
 		{fullNameWithChannel, snap.TypeApp, "app." + testDeveloper},
-		{fullNameWithChannel, snap.TypeFramework, "fwk." + testDeveloper},
 	} {
 		names, err := ActiveSnapIterByType(t.f, t.t)
 		c.Check(err, IsNil)
 		c.Check(names, DeepEquals, []string{t.n})
 	}
-
-	nm := make(map[string]bool, 2)
-	names, err := ActiveSnapIterByType(QualifiedName, snap.TypeApp, snap.TypeFramework)
-	c.Check(err, IsNil)
-	c.Assert(names, HasLen, 2)
-	for i := range names {
-		nm[names[i]] = true
-	}
-
-	c.Check(nm, DeepEquals, map[string]bool{"fwk": true, "app." + testDeveloper: true})
 }
 
 func (s *SnapTestSuite) TestFindSnapsByNameNotAvailable(c *C) {
@@ -201,20 +181,20 @@ func (s *SnapTestSuite) TestFindSnapsByNameAndVersion(c *C) {
 }
 
 func (s *SnapTestSuite) TestFindSnapsByNameAndVersionFmk(c *C) {
-	_, err := makeInstalledMockSnap(s.tempdir, "name: fmk\ntype: framework\nversion: 1")
+	_, err := makeInstalledMockSnap(s.tempdir, "name: os2\ntype: os\nversion: 1")
 	repo := NewLocalSnapRepository()
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
 
-	snaps := FindSnapsByNameAndVersion("fmk."+testDeveloper, "1", installed)
+	snaps := FindSnapsByNameAndVersion("os2."+testDeveloper, "1", installed)
 	c.Check(snaps, HasLen, 1)
-	snaps = FindSnapsByNameAndVersion("fmk.badDeveloper", "1", installed)
+	snaps = FindSnapsByNameAndVersion("os2.badDeveloper", "1", installed)
 	c.Check(snaps, HasLen, 0)
 
-	snaps = FindSnapsByNameAndVersion("fmk", "1", installed)
+	snaps = FindSnapsByNameAndVersion("os2", "1", installed)
 	c.Check(snaps, HasLen, 1)
-	snaps = FindSnapsByNameAndVersion("not-fmk", "1", installed)
+	snaps = FindSnapsByNameAndVersion("not-os2", "1", installed)
 	c.Check(snaps, HasLen, 0)
-	snaps = FindSnapsByNameAndVersion("fmk", "2", installed)
+	snaps = FindSnapsByNameAndVersion("os2", "2", installed)
 	c.Check(snaps, HasLen, 0)
 }

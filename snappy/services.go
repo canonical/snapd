@@ -29,7 +29,6 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/osutil"
-	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/systemd"
 )
 
@@ -76,7 +75,6 @@ func generateSnapServicesFile(app *AppYaml, baseDir string, aaProfile string, m 
 			PostStop:       app.PostStop,
 			StopTimeout:    time.Duration(app.StopTimeout),
 			AaProfile:      aaProfile,
-			IsFramework:    m.Type == snap.TypeFramework,
 			BusName:        app.BusName,
 			Type:           app.Daemon,
 			UdevAppName:    fmt.Sprintf("%s.%s", m.Name, app.Name),
@@ -155,20 +153,6 @@ func addPackageServices(m *snapYaml, baseDir string, inhibitHooks bool, inter in
 				return err
 			}
 		}
-		// If necessary, generate the DBus policy file so the framework
-		// service is allowed to start
-		if m.Type == snap.TypeFramework && app.BusName != "" {
-			content, err := genBusPolicyFile(app.BusName)
-			if err != nil {
-				return err
-			}
-			policyFilename := generateBusPolicyFileName(m, app)
-			os.MkdirAll(filepath.Dir(policyFilename), 0755)
-			if err := osutil.AtomicWriteFile(policyFilename, []byte(content), 0644, 0); err != nil {
-				return err
-			}
-		}
-
 		// daemon-reload and start only if we are not in the
 		// inhibitHooks mode
 		//
