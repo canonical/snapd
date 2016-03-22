@@ -58,25 +58,6 @@ func (ts *taskSuite) TestGetSet(c *C) {
 	c.Check(v, Equals, 1)
 }
 
-func (ts *taskSuite) TestGetNeedsLock(c *C) {
-	st := state.New(nil)
-	st.Lock()
-	t := st.NewTask("download", "1...")
-	st.Unlock()
-
-	var v int
-	c.Assert(func() { t.Get("a", &v) }, PanicMatches, "internal error: accessing state without lock")
-}
-
-func (ts *taskSuite) TestSetNeedsLock(c *C) {
-	st := state.New(nil)
-	st.Lock()
-	t := st.NewTask("download", "1...")
-	st.Unlock()
-
-	c.Assert(func() { t.Set("a", 1) }, PanicMatches, "internal error: accessing state without lock")
-}
-
 func (ts *taskSuite) TestStatusAndSetStatus(c *C) {
 	st := state.New(nil)
 	st.Lock()
@@ -89,24 +70,6 @@ func (ts *taskSuite) TestStatusAndSetStatus(c *C) {
 	t.SetStatus(state.DoneStatus)
 
 	c.Check(t.Status(), Equals, state.DoneStatus)
-}
-
-func (ts *taskSuite) TestStatusNeedsLock(c *C) {
-	st := state.New(nil)
-	st.Lock()
-	t := st.NewTask("download", "1...")
-	st.Unlock()
-
-	c.Assert(func() { t.Status() }, PanicMatches, "internal error: accessing state without lock")
-}
-
-func (ts *taskSuite) TestSetStatusNeedsLock(c *C) {
-	st := state.New(nil)
-	st.Lock()
-	t := st.NewTask("download", "1...")
-	st.Unlock()
-
-	c.Assert(func() { t.SetStatus(state.DoneStatus) }, PanicMatches, "internal error: accessing state without lock")
 }
 
 func (ts *taskSuite) TestProgressAndSetProgress(c *C) {
@@ -157,24 +120,6 @@ func (ts *taskSuite) TestProgressDefaults(c *C) {
 	c.Check(tot, Equals, 1)
 }
 
-func (ts *taskSuite) TestProgressNeedsLock(c *C) {
-	st := state.New(nil)
-	st.Lock()
-	t := st.NewTask("download", "1...")
-	st.Unlock()
-
-	c.Assert(func() { t.Progress() }, PanicMatches, "internal error: accessing state without lock")
-}
-
-func (ts *taskSuite) TestSetProgressNeedsLock(c *C) {
-	st := state.New(nil)
-	st.Lock()
-	t := st.NewTask("download", "1...")
-	st.Unlock()
-
-	c.Assert(func() { t.SetProgress(2, 2) }, PanicMatches, "internal error: accessing state without lock")
-}
-
 func (ts *taskSuite) TestState(c *C) {
 	st := state.New(nil)
 	st.Lock()
@@ -215,32 +160,78 @@ func (ts *taskSuite) TestTaskWaitFor(c *C) {
 	c.Assert(t1.HaltTasks(), DeepEquals, []*state.Task{t2})
 }
 
-func (cs *taskSuite) TestWaitForNeedsLocked(c *C) {
+func (cs *taskSuite) TestLogf(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	t := st.NewTask("download", "1...")
+
+	for i := 0; i < 20; i++ {
+		t.Logf("Message #%d", i)
+	}
+
+	log := t.Log()
+	c.Assert(log, HasLen, 10)
+	for i := 0; i < 10; i++ {
+		c.Assert(log[i], Equals, fmt.Sprintf("INFO: Message #%d", i+10))
+	}
+}
+
+func (cs *taskSuite) TestErrorf(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	t := st.NewTask("download", "1...")
+
+	t.Errorf("Some %s", "error")
+	c.Assert(t.Log(), DeepEquals, []string{"ERROR: Some error"})
+	c.Assert(t.Status(), Equals, state.ErrorStatus)
+}
+
+func (ts *taskSuite) TestTaskMarshalsLog(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	t := st.NewTask("download", "1...")
+	t.Logf("foo")
+
+	d, err := t.MarshalJSON()
+	c.Assert(err, IsNil)
+
+	c.Assert(string(d), testutil.Contains, `"log":["INFO: foo"]`)
+}
+
+// TODO: Better testing of full task roundtripping via JSON.
+
+func (ts *taskSuite) TestNeedsLock(c *C) {
 	st := state.New(nil)
 	st.Lock()
 	t1 := st.NewTask("download", "1...")
 	t2 := st.NewTask("install", "2...")
 	st.Unlock()
 
-	c.Assert(func() { t2.WaitFor(t1) }, PanicMatches, "internal error: accessing state without lock")
-}
+	funcs := []func(){
+		func() { t1.Status() },
+		func() { t1.SetStatus(state.DoneStatus) },
+		func() { t1.Set("a", 1) },
+		func() { t1.Get("a", nil) },
+		func() { t1.WaitTasks() },
+		func() { t2.WaitFor(t1) },
+		func() { t1.HaltTasks() },
+		func() { t1.SetProgress(2, 2) },
+		func() { t1.Progress() },
+		func() { t1.Log() },
+		func() { t1.Logf("") },
+		func() { t1.Errorf("") },
+	}
 
-func (cs *taskSuite) TestWaitTasksNeedsLocked(c *C) {
-	st := state.New(nil)
-	st.Lock()
-	t := st.NewTask("download", "1...")
-	st.Unlock()
-
-	c.Assert(func() { t.WaitTasks() }, PanicMatches, "internal error: accessing state without lock")
-}
-
-func (cs *taskSuite) TestHaltTasksNeedsLocked(c *C) {
-	st := state.New(nil)
-	st.Lock()
-	t := st.NewTask("download", "1...")
-	st.Unlock()
-
-	c.Assert(func() { t.HaltTasks() }, PanicMatches, "internal error: accessing state without lock")
+	for i, f := range funcs {
+		c.Logf("Testing function #%d", i)
+		c.Assert(f, PanicMatches, "internal error: accessing state without lock")
+	}
 }
 
 func (cs *taskSuite) TestNewTaskSet(c *C) {
