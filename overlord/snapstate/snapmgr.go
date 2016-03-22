@@ -81,11 +81,24 @@ func Purge(s *state.State, snap string, flags snappy.PurgeFlags) (state.TaskSet,
 	return state.NewTaskSet(t), nil
 }
 
+// Rollback returns a set of tasks for rolling back a snap.
+// Note that the state must be locked by the caller.
+func Rollback(s *state.State, snap, ver string) (state.TaskSet, error) {
+	t := s.NewTask("rollback-snap", fmt.Sprintf(i18n.G("Rolling back %q"), snap))
+	t.Set("state", rollbackState{
+		Name:    snap,
+		Version: ver,
+	})
+
+	return state.NewTaskSet(t), nil
+}
+
 type backendIF interface {
 	Install(name, channel string, flags snappy.InstallFlags, meter progress.Meter) (string, error)
 	Update(name, channel string, flags snappy.InstallFlags, meter progress.Meter) error
 	Remove(name string, flags snappy.RemoveFlags, meter progress.Meter) error
 	Purge(name string, flags snappy.PurgeFlags, meter progress.Meter) error
+	Rollback(name, ver string, meter progress.Meter) (string, error)
 }
 
 type defaultBackend struct{}
@@ -106,6 +119,10 @@ func (s *defaultBackend) Remove(name string, flags snappy.RemoveFlags, meter pro
 
 func (s *defaultBackend) Purge(name string, flags snappy.PurgeFlags, meter progress.Meter) error {
 	return snappy.Purge(name, flags, meter)
+}
+
+func (s *defaultBackend) Rollback(name, ver string, meter progress.Meter) (string, error) {
+	return snappy.Rollback(name, ver, meter)
 }
 
 // SnapManager is responsible for the installation and removal of snaps.
@@ -132,6 +149,11 @@ type purgeState struct {
 	Flags snappy.PurgeFlags `json:"flags,omitempty"`
 }
 
+type rollbackState struct {
+	Name    string `json:"name"`
+	Version string `json:"version,omitempty"`
+}
+
 // Manager returns a new snap manager.
 func Manager(s *state.State) (*SnapManager, error) {
 	runner := state.NewTaskRunner(s)
@@ -146,6 +168,7 @@ func Manager(s *state.State) (*SnapManager, error) {
 	runner.AddHandler("update-snap", m.doUpdateSnap)
 	runner.AddHandler("remove-snap", m.doRemoveSnap)
 	runner.AddHandler("purge-snap", m.doPurgeSnap)
+	runner.AddHandler("rollback-snap", m.doRollbackSnap)
 
 	// test handlers
 	runner.AddHandler("fake-install-snap", func(t *state.Task, _ *tomb.Tomb) error {
@@ -207,6 +230,20 @@ func (m *SnapManager) doPurgeSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	name, _ := snappy.SplitDeveloper(purge.Name)
 	err := m.backend.Purge(name, purge.Flags, &progress.NullProgress{})
+	return err
+}
+
+func (m *SnapManager) doRollbackSnap(t *state.Task, _ *tomb.Tomb) error {
+	var rollback rollbackState
+
+	t.State().Lock()
+	if err := t.Get("state", &rollback); err != nil {
+		return err
+	}
+	t.State().Unlock()
+
+	name, _ := snappy.SplitDeveloper(rollback.Name)
+	_, err := m.backend.Rollback(name, rollback.Version, &progress.NullProgress{})
 	return err
 }
 

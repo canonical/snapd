@@ -41,6 +41,7 @@ type snapmgrTestSuite struct {
 
 type fakeSnappyBackend struct {
 	name    string
+	ver     string
 	channel string
 	flags   int
 	op      string
@@ -70,6 +71,13 @@ func (f *fakeSnappyBackend) Purge(name string, flags snappy.PurgeFlags, p progre
 	f.op = "purge"
 	f.name = name
 	return nil
+}
+
+func (f *fakeSnappyBackend) Rollback(name, ver string, p progress.Meter) (string, error) {
+	f.op = "rollback"
+	f.name = name
+	f.ver = ver
+	return "", nil
 }
 
 var _ = Suite(&snapmgrTestSuite{})
@@ -167,4 +175,41 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 	c.Assert(s.fakeBackend.op, Equals, "update")
 	c.Assert(s.fakeBackend.name, Equals, "some-update-snap")
 	c.Assert(s.fakeBackend.channel, Equals, "some-channel")
+}
+
+func (s *snapmgrTestSuite) TestPurgeIntegration(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	chg := s.state.NewChange("purge", "purge a snap")
+	ts, err := snapstate.Purge(s.state, "some-snap-to-purge", 0)
+	c.Assert(err, IsNil)
+	chg.AddTasks(ts)
+
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.snapmgr.Wait()
+	defer s.snapmgr.Stop()
+	s.state.Lock()
+
+	c.Assert(s.fakeBackend.op, Equals, "purge")
+	c.Assert(s.fakeBackend.name, Equals, "some-snap-to-purge")
+}
+
+func (s *snapmgrTestSuite) TestRollbackIntegration(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	chg := s.state.NewChange("rollback", "rollback a snap")
+	ts, err := snapstate.Rollback(s.state, "some-snap-to-rollback", "1.0")
+	c.Assert(err, IsNil)
+	chg.AddTasks(ts)
+
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.snapmgr.Wait()
+	defer s.snapmgr.Stop()
+	s.state.Lock()
+
+	c.Assert(s.fakeBackend.op, Equals, "rollback")
+	c.Assert(s.fakeBackend.name, Equals, "some-snap-to-rollback")
+	c.Assert(s.fakeBackend.ver, Equals, "1.0")
 }
