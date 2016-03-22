@@ -78,9 +78,9 @@ int seccomp_load_filters(const char *filter_profile)
 		}
 	}
 
-	if (getenv("SNAPPY_LAUNCHER_SECCOMP_PROFILE_DIR") != NULL)
+	if (secure_getenv("SNAPPY_LAUNCHER_SECCOMP_PROFILE_DIR") != NULL)
 		filter_profile_dir =
-		    getenv("SNAPPY_LAUNCHER_SECCOMP_PROFILE_DIR");
+		    secure_getenv("SNAPPY_LAUNCHER_SECCOMP_PROFILE_DIR");
 
 	char profile_path[512];	// arbitrary path name limit
 	int snprintf_rc = snprintf(profile_path, sizeof(profile_path), "%s/%s",

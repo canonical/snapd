@@ -457,7 +457,8 @@ int main(int argc, char **argv)
 
 	// this code always needs to run as root for the cgroup/udev setup,
 	// however for the tests we allow it to run as non-root
-	if (geteuid() != 0 && getenv("UBUNTU_CORE_LAUNCHER_NO_ROOT") == NULL) {
+	if (geteuid() != 0
+	    && secure_getenv("UBUNTU_CORE_LAUNCHER_NO_ROOT") == NULL) {
 		die("need to run as root or suid");
 	}
 
@@ -511,7 +512,7 @@ int main(int argc, char **argv)
 	// set apparmor rules
 	rc = aa_change_onexec(aa_profile);
 	if (rc != 0) {
-		if (getenv("SNAPPY_LAUNCHER_INSIDE_TESTS") == NULL)
+		if (secure_getenv("SNAPPY_LAUNCHER_INSIDE_TESTS") == NULL)
 			die("aa_change_onexec failed with %i", rc);
 	}
 	// set seccomp
