@@ -1,0 +1,20 @@
+#!/bin/sh
+
+set -e
+
+. $(pwd)/common.sh
+
+printf "Test appname whitelist (bad)"
+
+cat >$TMP/aaprofile <<EOF
+# some comment
+baddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+EOF
+
+if $L appname aaprofile /bin/true 2>/dev/null; then
+    # true returned successfully, length test failed
+    FAIL
+fi
+
+# all good
+PASS
