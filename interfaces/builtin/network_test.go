@@ -28,10 +28,9 @@ import (
 )
 
 type NetworkInterfaceSuite struct {
-	iface         interfaces.Interface
-	slot          *interfaces.Slot
-	otherSnapSlot *interfaces.Slot
-	plug          *interfaces.Plug
+	iface interfaces.Interface
+	slot  *interfaces.Slot
+	plug  *interfaces.Plug
 }
 
 var _ = Suite(&NetworkInterfaceSuite{
@@ -48,20 +47,12 @@ slots:
 	s.slot = &interfaces.Slot{SlotInfo: info1.Slots["network"]}
 
 	info2, err := snap.InfoFromSnapYaml([]byte(`
-name: some-snap
-slots:
-    network:
-`))
-	c.Assert(err, IsNil)
-	s.otherSnapSlot = &interfaces.Slot{SlotInfo: info2.Slots["network"]}
-
-	info3, err := snap.InfoFromSnapYaml([]byte(`
 name: snap
 plugs:
     network:
 `))
 	c.Assert(err, IsNil)
-	s.plug = &interfaces.Plug{PlugInfo: info3.Plugs["network"]}
+	s.plug = &interfaces.Plug{PlugInfo: info2.Plugs["network"]}
 }
 
 func (s *NetworkInterfaceSuite) TestName(c *C) {
@@ -71,7 +62,11 @@ func (s *NetworkInterfaceSuite) TestName(c *C) {
 func (s *NetworkInterfaceSuite) TestSanitizeSlot(c *C) {
 	err := s.iface.SanitizeSlot(s.slot)
 	c.Assert(err, IsNil)
-	err = s.iface.SanitizeSlot(s.otherSnapSlot)
+	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
+		Snap:      &snap.Info{Name: "some-snap"},
+		Name:      "network",
+		Interface: "network",
+	}})
 	c.Assert(err, ErrorMatches, "network slots are reserved for the operating system snap")
 }
 
