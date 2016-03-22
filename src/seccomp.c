@@ -53,7 +53,7 @@ int seccomp_load_filters(const char *filter_profile)
 	// Disable NO_NEW_PRIVS because it interferes with exec transitions in
 	// AppArmor. Unfortunately this means that security policies must be
 	// very careful to not allow the following otherwise apps can escape
-	// the snadbox:
+	// the sandbox:
 	//   - seccomp syscall
 	//   - prctl with PR_SET_SECCOMP
 	//   - ptrace (trace) in AppArmor
