@@ -75,24 +75,6 @@ slots:
 	c.Assert(err, IsNil)
 }
 
-// plugFromYaml parses the given Yaml and returns Plug with the given name.
-func plugFromYaml(c *C, plugName string, yaml []byte) *Plug {
-	info, err := snap.InfoFromSnapYaml(yaml)
-	c.Assert(err, IsNil)
-	plugInfo := info.Plugs[plugName]
-	c.Assert(plugInfo, Not(IsNil))
-	return &Plug{PlugInfo: plugInfo}
-}
-
-// slotFromYaml parses the given Yaml and returns Slot with the given name.
-func slotFromYaml(c *C, slotName string, yaml []byte) *Slot {
-	info, err := snap.InfoFromSnapYaml(yaml)
-	c.Assert(err, IsNil)
-	slotInfo := info.Slots[slotName]
-	c.Assert(slotInfo, Not(IsNil))
-	return &Slot{SlotInfo: slotInfo}
-}
-
 func addPlugsSlots(c *C, repo *Repository, yamls ...string) []*snap.Info {
 	result := make([]*snap.Info, len(yamls))
 	for i, yaml := range yamls {
@@ -189,22 +171,26 @@ func (s *RepositorySuite) TestAddPlugClash(c *C) {
 }
 
 func (s *RepositorySuite) TestAddPlugFailsWithInvalidSnapName(c *C) {
-	plug := plugFromYaml(c, "name", []byte(`
-name: bad-snap-
-plugs:
-    name: interface
-`))
+	plug := &Plug{
+		PlugInfo: &snap.PlugInfo{
+			Snap:      &snap.Info{Name: "bad-snap-"},
+			Name:      "interface",
+			Interface: "interface",
+		},
+	}
 	err := s.testRepo.AddPlug(plug)
 	c.Assert(err, ErrorMatches, `invalid snap name: "bad-snap-"`)
 	c.Assert(s.testRepo.AllPlugs(""), HasLen, 0)
 }
 
 func (s *RepositorySuite) TestAddPlugFailsWithInvalidPlugName(c *C) {
-	plug := plugFromYaml(c, "bad-name-", []byte(`
-name: snap
-plugs:
-    bad-name-: interface
-`))
+	plug := &Plug{
+		PlugInfo: &snap.PlugInfo{
+			Snap:      &snap.Info{Name: "snap"},
+			Name:      "bad-name-",
+			Interface: "interface",
+		},
+	}
 	err := s.testRepo.AddPlug(plug)
 	c.Assert(err, ErrorMatches, `invalid interface name: "bad-name-"`)
 	c.Assert(s.testRepo.AllPlugs(""), HasLen, 0)
@@ -436,22 +422,26 @@ func (s *RepositorySuite) TestAddSlotFailsWhenInterfaceIsUnknown(c *C) {
 }
 
 func (s *RepositorySuite) TestAddSlotFailsWhenSlotNameIsInvalid(c *C) {
-	slot := slotFromYaml(c, "bad-name-", []byte(`
-name: snap
-slots:
-    bad-name-: interface
-`))
+	slot := &Slot{
+		SlotInfo: &snap.SlotInfo{
+			Snap:      &snap.Info{Name: "snap"},
+			Name:      "bad-name-",
+			Interface: "interface",
+		},
+	}
 	err := s.emptyRepo.AddSlot(slot)
 	c.Assert(err, ErrorMatches, `invalid interface name: "bad-name-"`)
 	c.Assert(s.emptyRepo.AllSlots(""), HasLen, 0)
 }
 
 func (s *RepositorySuite) TestAddSlotFailsWithInvalidSnapName(c *C) {
-	slot := slotFromYaml(c, "slot", []byte(`
-name: bad-snap-
-slots:
-    slot: interface
-`))
+	slot := &Slot{
+		SlotInfo: &snap.SlotInfo{
+			Snap:      &snap.Info{Name: "bad-snap-"},
+			Name:      "slot",
+			Interface: "interface",
+		},
+	}
 	err := s.emptyRepo.AddSlot(slot)
 	c.Assert(err, ErrorMatches, `invalid snap name: "bad-snap-"`)
 	c.Assert(s.emptyRepo.AllSlots(""), HasLen, 0)
@@ -567,11 +557,13 @@ func (s *RepositorySuite) TestConnectSucceedsWhenIdenticalConnectExists(c *C) {
 func (s *RepositorySuite) TestConnectFailsWhenSlotAndPlugAreIncompatible(c *C) {
 	otherInterface := &TestInterface{InterfaceName: "other-interface"}
 	err := s.testRepo.AddInterface(otherInterface)
-	plug := plugFromYaml(c, "plug", []byte(`
-name: provider
-plugs:
-    plug: other-interface
-`))
+	plug := &Plug{
+		PlugInfo: &snap.PlugInfo{
+			Snap:      &snap.Info{Name: "provider"},
+			Name:      "plug",
+			Interface: "other-interface",
+		},
+	}
 	c.Assert(err, IsNil)
 	err = s.testRepo.AddPlug(plug)
 	c.Assert(err, IsNil)
