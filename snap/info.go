@@ -24,6 +24,7 @@ type Info struct {
 	Name        string
 	Developer   string
 	Version     string
+	Revision    int
 	Type        Type
 	Channel     string
 	Description string

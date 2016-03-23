@@ -25,6 +25,8 @@ import (
 
 	"github.com/ubuntu-core/snappy/asserts"
 	"github.com/ubuntu-core/snappy/i18n"
+
+	"github.com/jessevdk/go-flags"
 )
 
 type cmdKnown struct {
@@ -42,7 +44,7 @@ shown must also have the specified headers matching the provided values.
 `)
 
 func init() {
-	addCommand("known", shortKnownHelp, longKnownHelp, func() interface{} {
+	addCommand("known", shortKnownHelp, longKnownHelp, func() flags.Commander {
 		return &cmdKnown{}
 	})
 }

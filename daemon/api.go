@@ -641,17 +641,15 @@ func (inst *snapInstruction) Agreed(intro, license string) bool {
 var snapstateInstall = snapstate.Install
 
 func waitChange(chg *state.Change) error {
+	st := chg.State()
 	for {
-		chg.State().Lock()
-		status := chg.Status()
-		err := chg.Err()
-		chg.State().Unlock()
-		switch status {
-		case state.DoneStatus:
-			return nil
-		case state.ErrorStatus:
-			return err
+		st.Lock()
+		s := chg.Status()
+		if s == state.DoneStatus || s == state.ErrorStatus {
+			defer st.Unlock()
+			return chg.Err()
 		}
+		st.Unlock()
 		time.Sleep(250 * time.Millisecond)
 	}
 }
@@ -782,7 +780,7 @@ func (inst *snapInstruction) activate() interface{} {
 	state.Lock()
 	msg := fmt.Sprintf(i18n.G("Activate %q snap"), inst.pkg)
 	chg := state.NewChange("activate-snap", msg)
-	ts, err := snapstate.SetActive(state, inst.pkg, true)
+	ts, err := snapstate.Activate(state, inst.pkg, true)
 	if err == nil {
 		chg.AddAll(ts)
 	}
@@ -800,7 +798,7 @@ func (inst *snapInstruction) deactivate() interface{} {
 	state.Lock()
 	msg := fmt.Sprintf(i18n.G("Deactivate %q snap"), inst.pkg)
 	chg := state.NewChange("deactivate-snap", msg)
-	ts, err := snapstate.SetActive(state, inst.pkg, false)
+	ts, err := snapstate.Activate(state, inst.pkg, false)
 	if err == nil {
 		chg.AddAll(ts)
 	}

@@ -126,6 +126,15 @@ func (s *Snap) Version() string {
 	return s.m.Version
 }
 
+// Revision returns the revision
+func (s *Snap) Revision() int {
+	if s.remoteM != nil {
+		return s.remoteM.Revision
+	}
+
+	return 0
+}
+
 // Description returns the summary description
 func (s *Snap) Description() string {
 	if r := s.remoteM; r != nil {
@@ -201,6 +210,7 @@ func (s *Snap) Info() *snap.Info {
 		Name:        s.Name(),
 		Developer:   s.Developer(),
 		Version:     s.Version(),
+		Revision:    s.Revision(),
 		Type:        s.Type(),
 		Channel:     s.Channel(),
 		Description: s.Description(),
