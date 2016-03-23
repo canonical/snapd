@@ -26,7 +26,6 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/ubuntu-core/snappy/overlord/state"
-	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snappy"
 )
 
@@ -100,7 +99,8 @@ func (m *SnapManager) doInstallSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 	t.State().Unlock()
 
-	_, err := m.backend.Install(inst.Name, inst.Channel, inst.Flags, &progress.NullProgress{})
+	pb := &TaskProgressAdapter{task: t}
+	_, err := m.backend.Install(inst.Name, inst.Channel, inst.Flags, pb)
 	return err
 }
 
@@ -112,7 +112,8 @@ func (m *SnapManager) doUpdateSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 	t.State().Unlock()
 
-	err := m.backend.Update(inst.Name, inst.Channel, inst.Flags, &progress.NullProgress{})
+	pb := &TaskProgressAdapter{task: t}
+	err := m.backend.Update(inst.Name, inst.Channel, inst.Flags, pb)
 	return err
 }
 
@@ -125,8 +126,9 @@ func (m *SnapManager) doRemoveSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 	t.State().Unlock()
 
+	pb := &TaskProgressAdapter{task: t}
 	name, _ := snappy.SplitDeveloper(rm.Name)
-	err := m.backend.Remove(name, rm.Flags, &progress.NullProgress{})
+	err := m.backend.Remove(name, rm.Flags, pb)
 	return err
 }
 
@@ -139,8 +141,9 @@ func (m *SnapManager) doPurgeSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 	t.State().Unlock()
 
+	pb := &TaskProgressAdapter{task: t}
 	name, _ := snappy.SplitDeveloper(purge.Name)
-	err := m.backend.Purge(name, purge.Flags, &progress.NullProgress{})
+	err := m.backend.Purge(name, purge.Flags, pb)
 	return err
 }
 
@@ -153,8 +156,9 @@ func (m *SnapManager) doRollbackSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 	t.State().Unlock()
 
+	pb := &TaskProgressAdapter{task: t}
 	name, _ := snappy.SplitDeveloper(rollback.Name)
-	_, err := m.backend.Rollback(name, rollback.Version, &progress.NullProgress{})
+	_, err := m.backend.Rollback(name, rollback.Version, pb)
 	return err
 }
 
@@ -167,8 +171,9 @@ func (m *SnapManager) doActivateSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 	t.State().Unlock()
 
+	pb := &TaskProgressAdapter{task: t}
 	name, _ := snappy.SplitDeveloper(activate.Name)
-	return m.backend.Activate(name, activate.Active, &progress.NullProgress{})
+	return m.backend.Activate(name, activate.Active, pb)
 }
 
 // Ensure implements StateManager.Ensure.
