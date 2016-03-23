@@ -43,6 +43,7 @@ type TaskRunner struct {
 	// locking
 	mu       sync.Mutex
 	handlers map[string]HandlerFunc
+	stopped  bool
 
 	// go-routines lifecycle
 	tombs map[string]*tomb.Tomb
@@ -89,8 +90,16 @@ func propagateError(task *Task) {
 func (r *TaskRunner) run(fn HandlerFunc, task *Task) {
 	task.SetStatus(RunningStatus) // could have been set to waiting
 	tomb := &tomb.Tomb{}
-	r.tombs[task.ID()] = tomb
+	id := task.ID()
+	r.tombs[id] = tomb
 	tomb.Go(func() error {
+		defer func() {
+			r.mu.Lock()
+			defer r.mu.Unlock()
+
+			delete(r.tombs, id)
+		}()
+
 		// capture the error result with tomb.Kill so we can
 		// use tomb.Err uniformily to consider both it or a
 		// overriding previous Kill reason.
@@ -140,10 +149,9 @@ func (r *TaskRunner) Ensure() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	for id, tb := range r.tombs {
-		if !tb.Alive() {
-			delete(r.tombs, id)
-		}
+	if r.stopped {
+		// we are stopping, don't run another ensure
+		return
 	}
 
 	for _, chg := range r.state.Changes() {
@@ -189,19 +197,30 @@ func (r *TaskRunner) Ensure() {
 	}
 }
 
+// wait expectes to be called with th r.mu lock held
+func (r *TaskRunner) wait() {
+	for len(r.tombs) > 0 {
+		for _, t := range r.tombs {
+			r.mu.Unlock()
+			t.Wait()
+			r.mu.Lock()
+			break
+		}
+	}
+}
+
 // Stop kills all concurrent activities and returns after that's done.
 func (r *TaskRunner) Stop() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	r.stopped = true
+
 	for _, tb := range r.tombs {
 		tb.Kill(nil)
 	}
 
-	for id, tb := range r.tombs {
-		tb.Wait()
-		delete(r.tombs, id)
-	}
+	r.wait()
 }
 
 // Wait waits for all concurrent activities and returns after that's done.
@@ -209,13 +228,5 @@ func (r *TaskRunner) Wait() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	for len(r.tombs) > 0 {
-		for id, t := range r.tombs {
-			r.mu.Unlock()
-			t.Wait()
-			r.mu.Lock()
-			delete(r.tombs, id)
-			break
-		}
-	}
+	r.wait()
 }

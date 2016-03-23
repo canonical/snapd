@@ -670,7 +670,7 @@ func (inst *snapInstruction) install() interface{} {
 	chg := state.NewChange("install-snap", msg)
 	ts, err := snapstateInstall(state, inst.pkg, inst.Channel, flags)
 	if err == nil {
-		chg.AddTasks(ts)
+		chg.AddAll(ts)
 	}
 	state.Unlock()
 	if err != nil {
@@ -706,7 +706,7 @@ func (inst *snapInstruction) update() interface{} {
 	chg := state.NewChange("update-snap", msg)
 	ts, err := snapstate.Update(state, inst.pkg, inst.Channel, flags)
 	if err == nil {
-		chg.AddTasks(ts)
+		chg.AddAll(ts)
 	}
 	state.Unlock()
 	if err != nil {
@@ -728,7 +728,7 @@ func (inst *snapInstruction) remove() interface{} {
 	chg := state.NewChange("remove-snap", msg)
 	ts, err := snapstate.Remove(state, inst.pkg, flags)
 	if err == nil {
-		chg.AddTasks(ts)
+		chg.AddAll(ts)
 	}
 	state.Unlock()
 	if err != nil {
@@ -746,7 +746,7 @@ func (inst *snapInstruction) purge() interface{} {
 	chg := state.NewChange("purge-snap", msg)
 	ts, err := snapstate.Purge(state, inst.pkg, 0)
 	if err == nil {
-		chg.AddTasks(ts)
+		chg.AddAll(ts)
 	}
 	state.Unlock()
 	if err != nil {
@@ -766,7 +766,7 @@ func (inst *snapInstruction) rollback() interface{} {
 	ver := ""
 	ts, err := snapstate.Rollback(state, inst.pkg, ver)
 	if err == nil {
-		chg.AddTasks(ts)
+		chg.AddAll(ts)
 	}
 	state.Unlock()
 	if err != nil {
@@ -784,7 +784,7 @@ func (inst *snapInstruction) activate() interface{} {
 	chg := state.NewChange("activate-snap", msg)
 	ts, err := snapstate.SetActive(state, inst.pkg, true)
 	if err == nil {
-		chg.AddTasks(ts)
+		chg.AddAll(ts)
 	}
 	state.Unlock()
 	if err != nil {
@@ -802,7 +802,7 @@ func (inst *snapInstruction) deactivate() interface{} {
 	chg := state.NewChange("deactivate-snap", msg)
 	ts, err := snapstate.SetActive(state, inst.pkg, false)
 	if err == nil {
-		chg.AddTasks(ts)
+		chg.AddAll(ts)
 	}
 	state.Unlock()
 	if err != nil {

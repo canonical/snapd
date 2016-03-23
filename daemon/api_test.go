@@ -1187,7 +1187,7 @@ func (s *apiSuite) TestPkgInstructionMismatch(c *check.C) {
 func (s *apiSuite) TestInstall(c *check.C) {
 	calledFlags := snappy.InstallFlags(42)
 
-	snapstateInstall = func(s *state.State, name, channel string, flags snappy.InstallFlags) (state.TaskSet, error) {
+	snapstateInstall = func(s *state.State, name, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
 		calledFlags = flags
 
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
@@ -1206,7 +1206,7 @@ func (s *apiSuite) TestInstall(c *check.C) {
 }
 
 func (s *apiSuite) TestInstallFails(c *check.C) {
-	snapstateInstall = func(s *state.State, name, channel string, flags snappy.InstallFlags) (state.TaskSet, error) {
+	snapstateInstall = func(s *state.State, name, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
 		t := s.NewTask("fake-install-snap-error", "Install task")
 		return state.NewTaskSet(t), nil
 	}
@@ -1224,7 +1224,7 @@ func (s *apiSuite) TestInstallFails(c *check.C) {
 func (s *apiSuite) TestInstallLeaveOld(c *check.C) {
 	calledFlags := snappy.InstallFlags(42)
 
-	snapstateInstall = func(s *state.State, name, channel string, flags snappy.InstallFlags) (state.TaskSet, error) {
+	snapstateInstall = func(s *state.State, name, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
 		calledFlags = flags
 
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
