@@ -235,7 +235,7 @@ func (ts *taskSuite) TestNeedsLock(c *C) {
 
 func (cs *taskSuite) TestNewTaskSet(c *C) {
 	ts0 := state.NewTaskSet()
-	c.Check(ts0, HasLen, 0)
+	c.Check(ts0.Tasks(), HasLen, 0)
 
 	st := state.New(nil)
 	st.Lock()
@@ -244,7 +244,7 @@ func (cs *taskSuite) TestNewTaskSet(c *C) {
 	ts2 := state.NewTaskSet(t1, t2)
 	st.Unlock()
 
-	c.Check(ts2, HasLen, 2)
+	c.Assert(ts2.Tasks(), DeepEquals, []*state.Task{t1, t2})
 }
 
 func (ts *taskSuite) TestTaskWaitAll(c *C) {

@@ -33,7 +33,7 @@ import (
 
 // Install returns a set of tasks for installing snap.
 // Note that the state must be locked by the caller.
-func Install(s *state.State, snap, channel string, flags snappy.InstallFlags) (state.TaskSet, error) {
+func Install(s *state.State, snap, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
 	t := s.NewTask("install-snap", fmt.Sprintf(i18n.G("Installing %q"), snap))
 	t.Set("state", installState{
 		Name:    snap,
@@ -46,7 +46,7 @@ func Install(s *state.State, snap, channel string, flags snappy.InstallFlags) (s
 
 // Update initiates a change updating a snap.
 // Note that the state must be locked by the caller.
-func Update(s *state.State, snap, channel string, flags snappy.InstallFlags) (state.TaskSet, error) {
+func Update(s *state.State, snap, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
 	t := s.NewTask("update-snap", fmt.Sprintf(i18n.G("Updating %q"), snap))
 	t.Set("state", installState{
 		Name:    snap,
@@ -59,7 +59,7 @@ func Update(s *state.State, snap, channel string, flags snappy.InstallFlags) (st
 
 // Remove returns a set of tasks for removing snap.
 // Note that the state must be locked by the caller.
-func Remove(s *state.State, snap string, flags snappy.RemoveFlags) (state.TaskSet, error) {
+func Remove(s *state.State, snap string, flags snappy.RemoveFlags) (*state.TaskSet, error) {
 	t := s.NewTask("remove-snap", fmt.Sprintf(i18n.G("Removing %q"), snap))
 	t.Set("state", removeState{
 		Name:  snap,
@@ -71,7 +71,7 @@ func Remove(s *state.State, snap string, flags snappy.RemoveFlags) (state.TaskSe
 
 // Purge returns a set of tasks for purging a snap.
 // Note that the state must be locked by the caller.
-func Purge(s *state.State, snap string, flags snappy.PurgeFlags) (state.TaskSet, error) {
+func Purge(s *state.State, snap string, flags snappy.PurgeFlags) (*state.TaskSet, error) {
 	t := s.NewTask("purge-snap", fmt.Sprintf(i18n.G("Purging %q"), snap))
 	t.Set("state", purgeState{
 		Name:  snap,
@@ -83,7 +83,7 @@ func Purge(s *state.State, snap string, flags snappy.PurgeFlags) (state.TaskSet,
 
 // Rollback returns a set of tasks for rolling back a snap.
 // Note that the state must be locked by the caller.
-func Rollback(s *state.State, snap, ver string) (state.TaskSet, error) {
+func Rollback(s *state.State, snap, ver string) (*state.TaskSet, error) {
 	t := s.NewTask("rollback-snap", fmt.Sprintf(i18n.G("Rolling back %q"), snap))
 	t.Set("state", rollbackState{
 		Name:    snap,
@@ -95,7 +95,7 @@ func Rollback(s *state.State, snap, ver string) (state.TaskSet, error) {
 
 // SetActive returns a set of tasks for setting a snap active.
 // Note that the state must be locked by the caller.
-func SetActive(s *state.State, snap string, active bool) (state.TaskSet, error) {
+func SetActive(s *state.State, snap string, active bool) (*state.TaskSet, error) {
 	var msg string
 	if active {
 		msg = fmt.Sprintf(i18n.G("Set active %q"), snap)

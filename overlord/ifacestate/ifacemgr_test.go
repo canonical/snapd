@@ -55,16 +55,14 @@ func (s *interfaceManagerSuite) TestSmoke(c *C) {
 	s.mgr.Wait()
 }
 
-func (s *interfaceManagerSuite) TestConnectAddsTask(c *C) {
+func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
 
-	change := s.state.NewChange("kind", "summary")
-	change.AddTasks(ts)
-	task := change.Tasks()[0]
+	task := ts.Tasks()[0]
 	c.Assert(task.Kind(), Equals, "connect")
 	var plug interfaces.PlugRef
 	err = task.Get("plug", &plug)
@@ -86,7 +84,7 @@ func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
 	change := s.state.NewChange("kind", "summary")
 	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
-	change.AddTasks(ts)
+	change.AddAll(ts)
 
 	s.state.Unlock()
 	s.mgr.Ensure()
@@ -114,16 +112,14 @@ func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
 	})
 }
 
-func (s *interfaceManagerSuite) TestDisconnectAddsTask(c *C) {
+func (s *interfaceManagerSuite) TestDisconnectTask(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	ts, err := ifacestate.Disconnect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
 
-	change := s.state.NewChange("kind", "summary")
-	change.AddTasks(ts)
-	task := change.Tasks()[0]
+	task := ts.Tasks()[0]
 	c.Assert(task.Kind(), Equals, "disconnect")
 	var plug interfaces.PlugRef
 	err = task.Get("plug", &plug)
@@ -148,7 +144,7 @@ func (s *interfaceManagerSuite) TestEnsureProcessesDisconnectTask(c *C) {
 	change := s.state.NewChange("kind", "summary")
 	ts, err := ifacestate.Disconnect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
-	change.AddTasks(ts)
+	change.AddAll(ts)
 
 	s.state.Unlock()
 	s.mgr.Ensure()

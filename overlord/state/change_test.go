@@ -69,19 +69,10 @@ func (cs *changeSuite) TestNewTaskAddTaskAndTasks(c *C) {
 	chg.AddTask(t2)
 
 	tasks := chg.Tasks()
-	c.Check(tasks, HasLen, 2)
-
-	expected := map[string]*state.Task{
-		t1.ID(): t1,
-		t2.ID(): t2,
-	}
-
-	for _, t := range tasks {
-		c.Check(t, Equals, expected[t.ID()])
-	}
+	c.Check(tasks, DeepEquals, []*state.Task{t1, t2})
 }
 
-func (cs *changeSuite) TestAddTasks(c *C) {
+func (cs *changeSuite) TestAddAll(c *C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
@@ -90,19 +81,10 @@ func (cs *changeSuite) TestAddTasks(c *C) {
 
 	t1 := st.NewTask("download", "1...")
 	t2 := st.NewTask("verify", "2...")
-	chg.AddTasks(state.NewTaskSet(t1, t2))
+	chg.AddAll(state.NewTaskSet(t1, t2))
 
 	tasks := chg.Tasks()
-	c.Check(tasks, HasLen, 2)
-
-	expected := map[string]*state.Task{
-		t1.ID(): t1,
-		t2.ID(): t2,
-	}
-
-	for _, t := range tasks {
-		c.Check(t, Equals, expected[t.ID()])
-	}
+	c.Check(tasks, DeepEquals, []*state.Task{t1, t2})
 }
 
 func (cs *changeSuite) TestStatusAndSetStatus(c *C) {
@@ -189,12 +171,11 @@ func (cs *changeSuite) TestErr(c *C) {
 		"cannot perform the following tasks:\n"+
 		"- Download \\(Download error\\)")
 
-	// TODO Preserve task creation order for presentation purposes.
 	t2.Errorf("Activate error")
 	c.Assert(chg.Err(), ErrorMatches, ""+
 		"cannot perform the following tasks:\n"+
-		"- (Download|Activate) \\((Download|Activate) error\\)\n"+
-		"- (Download|Activate) \\((Download|Activate) error\\)")
+		"- Download \\(Download error\\)\n"+
+		"- Activate \\(Activate error\\)")
 }
 
 func (cs *changeSuite) TestNeedsLock(c *C) {
@@ -209,7 +190,7 @@ func (cs *changeSuite) TestNeedsLock(c *C) {
 		func() { chg.Status() },
 		func() { chg.SetStatus(state.WaitingStatus) },
 		func() { chg.AddTask(nil) },
-		func() { chg.AddTasks(nil) },
+		func() { chg.AddAll(nil) },
 		func() { chg.Tasks() },
 		func() { chg.Err() },
 	}
