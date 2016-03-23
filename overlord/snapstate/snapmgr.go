@@ -111,43 +111,6 @@ func SetActive(s *state.State, snap string, active bool) (*state.TaskSet, error)
 	return state.NewTaskSet(t), nil
 }
 
-type backendIF interface {
-	Install(name, channel string, flags snappy.InstallFlags, meter progress.Meter) (string, error)
-	Update(name, channel string, flags snappy.InstallFlags, meter progress.Meter) error
-	Remove(name string, flags snappy.RemoveFlags, meter progress.Meter) error
-	Purge(name string, flags snappy.PurgeFlags, meter progress.Meter) error
-	Rollback(name, ver string, meter progress.Meter) (string, error)
-	SetActive(name string, active bool, meter progress.Meter) error
-}
-
-type defaultBackend struct{}
-
-func (s *defaultBackend) Install(name, channel string, flags snappy.InstallFlags, meter progress.Meter) (string, error) {
-	return snappy.Install(name, channel, flags, meter)
-}
-
-func (s *defaultBackend) Update(name, channel string, flags snappy.InstallFlags, meter progress.Meter) error {
-	// FIXME: support "channel" in snappy.Update()
-	_, err := snappy.Update(name, flags, meter)
-	return err
-}
-
-func (s *defaultBackend) Remove(name string, flags snappy.RemoveFlags, meter progress.Meter) error {
-	return snappy.Remove(name, flags, meter)
-}
-
-func (s *defaultBackend) Purge(name string, flags snappy.PurgeFlags, meter progress.Meter) error {
-	return snappy.Purge(name, flags, meter)
-}
-
-func (s *defaultBackend) Rollback(name, ver string, meter progress.Meter) (string, error) {
-	return snappy.Rollback(name, ver, meter)
-}
-
-func (s *defaultBackend) SetActive(name string, active bool, meter progress.Meter) error {
-	return snappy.SetActive(name, active, meter)
-}
-
 // SnapManager is responsible for the installation and removal of snaps.
 type SnapManager struct {
 	state   *state.State
