@@ -19,7 +19,9 @@
 
 package builtin
 
-import "github.com/ubuntu-core/snappy/interfaces"
+import (
+	"github.com/ubuntu-core/snappy/interfaces"
+)
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/firewall-control
 const firewallControlConnectedPlugAppArmor = `
