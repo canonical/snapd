@@ -326,7 +326,7 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 	chg.AddTask(t1)
 	t1ID := t1.ID()
 	t1.Set("a", 1)
-	t1.SetStatus(state.WaitingStatus)
+	t1.SetStatus(state.DoneStatus)
 	t1.SetProgress(5, 10)
 
 	t2 := st.NewTask("inst", "2...")
@@ -370,7 +370,7 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 	err = task0_1.Get("a", &v)
 	c.Check(v, Equals, 1)
 
-	c.Check(task0_1.Status(), Equals, state.WaitingStatus)
+	c.Check(task0_1.Status(), Equals, state.DoneStatus)
 
 	cur, tot := task0_1.Progress()
 	c.Check(cur, Equals, 5)

@@ -31,14 +31,33 @@ type Status int
 
 // Admitted status values for changes and tasks.
 const (
+	// DefaultStatus is the standard computed status for a change or task.
+	// For tasks it's always mapped to DoStatus, and for change its mapped
+	// to an aggregation of its tasks' statuses. See Change.Status for details.
 	DefaultStatus Status = 0
-	RunningStatus Status = 1
-	WaitingStatus Status = 2
-	DoneStatus    Status = 3
-	ErrorStatus   Status = 4
+
+	// DoStatus means the change or task is ready to start or has started.
+	DoStatus Status = 1
+
+	// DoneStatus means the change or task was accomplished successfully.
+	DoneStatus Status = 2
+
+	// UndoStatus means the change or task is about to be undone after an error elsewhere.
+	UndoStatus Status = 3
+
+	// UndoneStatus means a task was first done and then undone after an error elsewhere.
+	// Changes go directly into the error status instead of being marked as undone.
+	UndoneStatus Status = 4
+
+	// ErrorStatus means the change or task has failed.
+	ErrorStatus Status = 5
 )
 
 const nStatuses = ErrorStatus + 1
+
+func (s Status) String() string {
+	return []string{"Default", "Do", "Done", "Undo", "Undone", "Error"}[s]
+}
 
 // Change represents a tracked modification to the system state.
 //
@@ -145,28 +164,37 @@ func (c *Change) Get(key string, value interface{}) error {
 // of the individual tasks related to the change, according to the following
 // decision sequence:
 //
-//     - With at least one task in RunningStatus, return RunningStatus
-//     - With at least one task in WaitingStatus, return WaitingStatus
+//     - With at least one task in DoStatus, return DoStatus
 //     - With at least one task in ErrorStatus, return ErrorStatus
 //     - Otherwise, return DoneStatus
 //
 func (c *Change) Status() Status {
 	c.state.ensureLocked()
 	if c.status == DefaultStatus {
-		statusStats := make(map[Status]int, nStatuses)
+		if len(c.taskIDs) == 0 {
+			return DoStatus
+		}
+		statusStats := make([]int, nStatuses)
 		for _, tid := range c.taskIDs {
 			statusStats[c.state.tasks[tid].Status()]++
 		}
-		if statusStats[RunningStatus] > 0 {
-			return RunningStatus
+		if statusStats[DoStatus] > 0 {
+			return DoStatus
 		}
-		if statusStats[WaitingStatus] > 0 {
-			return WaitingStatus
+		if statusStats[UndoStatus] > 0 {
+			return UndoStatus
 		}
 		if statusStats[ErrorStatus] > 0 {
 			return ErrorStatus
 		}
-		return DoneStatus
+		if statusStats[DoneStatus] > 0 {
+			return DoneStatus
+		}
+		// Shouldn't happen in real cases but possible.
+		if statusStats[UndoneStatus] == len(c.taskIDs) {
+			return UndoneStatus
+		}
+		panic(fmt.Sprintf("internal error: cannot process change status: %v", statusStats))
 	}
 	return c.status
 }

@@ -126,7 +126,7 @@ func (t *Task) Status() Status {
 	t.state.ensureLocked()
 	// default status for tasks is running
 	if t.status == DefaultStatus {
-		return RunningStatus
+		return DoStatus
 	}
 	return t.status
 }
@@ -143,17 +143,15 @@ func (t *Task) State() *State {
 }
 
 // Progress returns the current progress for the task.
-// If progress is not explicitly set, it returns (0, 1) if the status is
-// RunningStatus or WaitingStatus and (1, 1) otherwise.
+// If progress is not explicitly set, it returns
+// (0, 1) if the status is DoStatus and (1, 1) otherwise.
 func (t *Task) Progress() (cur, total int) {
 	t.state.ensureLocked()
 	if t.progress == nil {
-		switch t.Status() {
-		case RunningStatus, WaitingStatus:
+		if t.Status() == DoStatus {
 			return 0, 1
-		case DoneStatus, ErrorStatus:
-			return 1, 1
 		}
+		return 1, 1
 	}
 	return t.progress.Current, t.progress.Total
 }
@@ -236,17 +234,15 @@ func addOnce(set []string, s string) []string {
 	return append(set, s)
 }
 
-// WaitFor registers another task as a requirement for t to make progress
-// and sets the status as WaitingStatus.
+// WaitFor registers another task as a requirement for t to make progress.
 func (t *Task) WaitFor(another *Task) {
 	t.state.ensureLocked()
-	t.status = WaitingStatus
 	t.waitTasks = addOnce(t.waitTasks, another.id)
 	another.haltTasks = addOnce(another.haltTasks, t.id)
 }
 
 // WaitAll registers all the tasks in the set as a requirement for t
-// to make progress and sets the status as WaitingStatus.
+// to make progress.
 func (t *Task) WaitAll(ts *TaskSet) {
 	for _, req := range ts.tasks {
 		t.WaitFor(req)
@@ -276,7 +272,7 @@ func NewTaskSet(tasks ...*Task) *TaskSet {
 }
 
 // WaitFor registers a task as a requirement for the tasks in the set
-// to make progress and sets their status as WaitingStatus.
+// to make progress.
 func (ts TaskSet) WaitFor(another *Task) {
 	for _, t := range ts.tasks {
 		t.WaitFor(another)

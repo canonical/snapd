@@ -54,7 +54,7 @@ func (ts *taskRunnerSuite) TestEnsureTrivial(c *C) {
 	fn := func(task *state.Task, tomb *tomb.Tomb) error {
 		task.State().Lock()
 		defer task.State().Unlock()
-		c.Check(task.Status(), Equals, state.RunningStatus)
+		c.Check(task.Status(), Equals, state.DoStatus)
 		taskCompleted.Done()
 		return nil
 	}
@@ -104,7 +104,7 @@ func (ts *taskRunnerSuite) TestEnsureComplex(c *C) {
 	fn := func(task *state.Task, tomb *tomb.Tomb) error {
 		task.State().Lock()
 		defer task.State().Unlock()
-		c.Check(task.Status(), Equals, state.RunningStatus)
+		c.Check(task.Status(), Equals, state.DoStatus)
 		orderingCh <- task.Kind()
 		return nil
 	}
@@ -210,7 +210,7 @@ func (ts *taskRunnerSuite) TestStopCancelsGoroutines(c *C) {
 
 	st.Lock()
 	defer st.Unlock()
-	c.Check(t.Status(), Equals, state.RunningStatus)
+	c.Check(t.Status(), Equals, state.DoStatus)
 }
 
 func (ts *taskRunnerSuite) TestErrorPropagates(c *C) {
