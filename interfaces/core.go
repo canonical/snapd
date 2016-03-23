@@ -149,6 +149,30 @@ const (
 	SecurityUDev SecuritySystem = "udev"
 )
 
+// SecurityConfigurator abstracts knowledge to configure a security system.
+type SecurityConfigurator interface {
+	// ConfigureSnapSecurity creates and loads security artefacts specific to a
+	// given snap. The snap can be in developer mode to make security
+	// violations non-fatal to the offending application process.
+	//
+	// This method should be called after changing plug, slots, connections
+	// between them or application present in the snap.
+	ConfigureSnapSecurity(repo *Repository, snapInfo *snap.Info, developerMode bool) error
+
+	// DeconfigureSnapSecurity removes security artefacts of a given snap.
+	//
+	// This method should be called after removing a snap.
+	DeconfigureSnapSecurity(snapInfo *snap.Info) error
+
+	// Finalize performs optional post-processing steps after
+	// configuring/deconfiguring any number of snaps.
+	//
+	// This method should be called unconditionally to finalize changes made
+	// earlier. Some changes are buffered so that the cost is only incurred
+	// once.
+	Finalize() error
+}
+
 var (
 	// ErrUnknownSecurity is reported when a interface is unable to deal with a given security system.
 	ErrUnknownSecurity = errors.New("unknown security system")
