@@ -702,6 +702,7 @@ func (s *apiSuite) TestGetOpInfoIntegration(c *check.C) {
 		"created_at":       FormatTime(t.CreatedAt()),
 		"updated_at":       FormatTime(t.UpdatedAt()),
 		"output":           nil,
+		"progress_msg":     "",
 		"progress_current": 0,
 		"progress_total":   0,
 	})
@@ -721,6 +722,7 @@ func (s *apiSuite) TestGetOpInfoIntegration(c *check.C) {
 		"created_at":       FormatTime(t.CreatedAt()),
 		"updated_at":       FormatTime(t.UpdatedAt()),
 		"output":           "hello",
+		"progress_msg":     "",
 		"progress_current": 0,
 		"progress_total":   0,
 	})

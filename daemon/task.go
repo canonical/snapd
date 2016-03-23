@@ -37,6 +37,7 @@ type Task struct {
 
 	// progress
 	mu    sync.Mutex
+	msg   string
 	cur   int
 	total int
 }
@@ -118,6 +119,7 @@ func (t *Task) Map(route *mux.Route) map[string]interface{} {
 		"updated_at":       FormatTime(t.UpdatedAt()),
 		"may_cancel":       false,
 		"output":           t.Output(),
+		"progress_msg":     t.msg,
 		"progress_current": t.cur,
 		"progress_total":   t.total,
 	}

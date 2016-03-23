@@ -28,7 +28,7 @@ import (
 type Operation interface {
 	Running() bool
 	Err() error
-	Progress() (int64, int64)
+	Progress() (string, int64, int64)
 }
 
 // Operation fetches information about an operation given its UUID
@@ -43,8 +43,9 @@ type operation struct {
 	Status string          `json:"status"`
 	Output json.RawMessage `json:"output"`
 
-	ProgressCurrent int64 `json:"progress_current"`
-	ProgressTotal   int64 `json:"progress_total"`
+	ProgressMessage string `json:"progress_msg"`
+	ProgressCurrent int64  `json:"progress_current"`
+	ProgressTotal   int64  `json:"progress_total"`
 }
 
 func (op *operation) Err() error {
@@ -64,6 +65,6 @@ func (op *operation) Running() bool {
 	return op.Status == "running"
 }
 
-func (op *operation) Progress() (cur, total int64) {
-	return op.ProgressCurrent, op.ProgressTotal
+func (op *operation) Progress() (msg string, cur, total int64) {
+	return op.ProgressMessage, op.ProgressCurrent, op.ProgressTotal
 }
