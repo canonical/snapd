@@ -37,6 +37,7 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, DeepContains, builtin.NewHomeInterface())
 	c.Check(all, DeepContains, builtin.NewLocaleControlInterface())
 	c.Check(all, DeepContains, builtin.NewLogObserveInterface())
+	c.Check(all, DeepContains, builtin.NewMountObserveInterface())
 	c.Check(all, DeepContains, builtin.NewNetworkInterface())
 	c.Check(all, DeepContains, builtin.NewNetworkBindInterface())
 }
