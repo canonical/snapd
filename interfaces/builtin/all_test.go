@@ -43,4 +43,5 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, DeepContains, builtin.NewNetworkControlInterface())
 	c.Check(all, DeepContains, builtin.NewNetworkObserveInterface())
 	c.Check(all, DeepContains, builtin.NewSnapControlInterface())
+	c.Check(all, DeepContains, builtin.NewSystemObserveInterface())
 }
