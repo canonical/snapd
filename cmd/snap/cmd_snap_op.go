@@ -24,6 +24,8 @@ import (
 
 	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
+
+	"github.com/jessevdk/go-flags"
 )
 
 func wait(client *client.Client, uuid string) error {
@@ -151,9 +153,9 @@ func init() {
 		{"deactivate", shortDeactivateHelp, longDeactivateHelp, (*client.Client).DeactivateSnap},
 	} {
 		op := s.op
-		addCommand(s.name, s.short, s.long, func() interface{} { return &cmdOp{op: op} })
+		addCommand(s.name, s.short, s.long, func() flags.Commander { return &cmdOp{op: op} })
 	}
 
-	addCommand("install", shortInstallHelp, longInstallHelp, func() interface{} { return &cmdInstall{} })
-	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() interface{} { return &cmdRefresh{} })
+	addCommand("install", shortInstallHelp, longInstallHelp, func() flags.Commander { return &cmdInstall{} })
+	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} })
 }
