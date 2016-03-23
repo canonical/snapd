@@ -35,25 +35,21 @@ type NetworkBindInterfaceSuite struct {
 
 var _ = Suite(&NetworkBindInterfaceSuite{
 	iface: builtin.NewNetworkBindInterface(),
+	slot: &interfaces.Slot{
+		SlotInfo: &snap.SlotInfo{
+			Snap:      &snap.Info{Name: "ubuntu-core"},
+			Name:      "network-bind",
+			Interface: "network-bind",
+		},
+	},
+	plug: &interfaces.Plug{
+		PlugInfo: &snap.PlugInfo{
+			Snap:      &snap.Info{Name: "other"},
+			Name:      "network-bind",
+			Interface: "network-bind",
+		},
+	},
 })
-
-func (s *NetworkBindInterfaceSuite) SetUpTest(c *C) {
-	info1, err := snap.InfoFromSnapYaml([]byte(`
-name: ubuntu-core
-slots:
-    network-bind:
-`))
-	c.Assert(err, IsNil)
-	s.slot = &interfaces.Slot{SlotInfo: info1.Slots["network-bind"]}
-
-	info2, err := snap.InfoFromSnapYaml([]byte(`
-name: snap
-plugs:
-    network-bind:
-`))
-	c.Assert(err, IsNil)
-	s.plug = &interfaces.Plug{PlugInfo: info2.Plugs["network-bind"]}
-}
 
 func (s *NetworkBindInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "network-bind")
