@@ -23,8 +23,8 @@ import (
 	"encoding/json"
 )
 
-// PlugJSON aids in marshaling Plug into JSON.
-type PlugJSON struct {
+// plugJSON aids in marshaling Plug into JSON.
+type plugJSON struct {
 	Snap        string                 `json:"snap"`
 	Name        string                 `json:"plug"`
 	Interface   string                 `json:"interface"`
@@ -36,7 +36,7 @@ type PlugJSON struct {
 
 // MarshalJSON returns the JSON encoding of plug.
 func (plug *Plug) MarshalJSON() ([]byte, error) {
-	return json.Marshal(&PlugJSON{
+	return json.Marshal(&plugJSON{
 		Snap:        plug.Snap.Name,
 		Name:        plug.Name,
 		Interface:   plug.Interface,
@@ -47,8 +47,8 @@ func (plug *Plug) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// SlotJSON aids in marshaling Slot into JSON.
-type SlotJSON struct {
+// slotJSON aids in marshaling Slot into JSON.
+type slotJSON struct {
 	Snap        string                 `json:"snap"`
 	Name        string                 `json:"slot"`
 	Interface   string                 `json:"interface"`
@@ -60,7 +60,7 @@ type SlotJSON struct {
 
 // MarshalJSON returns the JSON encoding of slot.
 func (slot *Slot) MarshalJSON() ([]byte, error) {
-	return json.Marshal(&SlotJSON{
+	return json.Marshal(&slotJSON{
 		Snap:        slot.Snap.Name,
 		Name:        slot.Name,
 		Interface:   slot.Interface,

@@ -910,11 +910,33 @@ func getInterfaces(c *Command, r *http.Request) Response {
 	return SyncResponse(c.d.interfaces.Interfaces())
 }
 
+// plugJSON aids in marshaling Plug into JSON.
+type plugJSON struct {
+	Snap        string                 `json:"snap"`
+	Name        string                 `json:"plug"`
+	Interface   string                 `json:"interface"`
+	Attrs       map[string]interface{} `json:"attrs,omitempty"`
+	Apps        []string               `json:"apps,omitempty"`
+	Label       string                 `json:"label"`
+	Connections []interfaces.SlotRef   `json:"connections,omitempty"`
+}
+
+// slotJSON aids in marshaling Slot into JSON.
+type slotJSON struct {
+	Snap        string                 `json:"snap"`
+	Name        string                 `json:"slot"`
+	Interface   string                 `json:"interface"`
+	Attrs       map[string]interface{} `json:"attrs,omitempty"`
+	Apps        []string               `json:"apps,omitempty"`
+	Label       string                 `json:"label"`
+	Connections []interfaces.PlugRef   `json:"connections,omitempty"`
+}
+
 // interfaceAction is an action performed on the interface system.
 type interfaceAction struct {
-	Action string                `json:"action"`
-	Plugs  []interfaces.PlugJSON `json:"plugs,omitempty"`
-	Slots  []interfaces.SlotJSON `json:"slots,omitempty"`
+	Action string     `json:"action"`
+	Plugs  []plugJSON `json:"plugs,omitempty"`
+	Slots  []slotJSON `json:"slots,omitempty"`
 }
 
 // changeInterfaces controls the interfaces system.
