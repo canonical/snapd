@@ -33,6 +33,7 @@ var allInterfaces = []interfaces.Interface{
 	NewNetworkInterface(),
 	NewNetworkBindInterface(),
 	NewNetworkControlInterface(),
+	NewNetworkObserveInterface(),
 }
 
 // Interfaces returns all of the built-in interfaces.
