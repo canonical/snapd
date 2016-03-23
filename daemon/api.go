@@ -494,7 +494,7 @@ func snapService(c *Command, r *http.Request) Response {
 
 	reachedAsync = true
 
-	return AsyncResponse(c.d.AddTask(func() interface{} {
+	return AsyncResponse(c.d.AddTask(func(t *Task) interface{} {
 		defer lock.Unlock()
 
 		switch action {
@@ -618,6 +618,7 @@ type snapInstruction struct {
 	LeaveOld bool         `json:"leave_old"`
 	License  *licenseData `json:"license"`
 	pkg      string
+	task     *Task
 }
 
 // Agreed is part of the progress.Meter interface (q.v.)
@@ -629,6 +630,23 @@ func (inst *snapInstruction) Agreed(intro, license string) bool {
 	}
 
 	return true
+}
+
+func (inst *snapInstruction) Start(pkg string, total float64) {
+	inst.task.total = int(total)
+}
+
+func (inst *snapInstruction) Set(current float64) {
+	inst.task.cur = int(current)
+}
+
+func (inst *snapInstruction) SetTotal(total float64) {
+	inst.task.total = int(total)
+}
+
+func (inst *snapInstruction) Write(p []byte) (n int, err error) {
+	inst.task.cur += len(p)
+	return len(p), nil
 }
 
 var snappyInstall = snappy.Install
@@ -734,12 +752,13 @@ func postSnap(c *Command, r *http.Request) Response {
 		return BadRequest("unknown action %s", inst.Action)
 	}
 
-	return AsyncResponse(c.d.AddTask(func() interface{} {
+	return AsyncResponse(c.d.AddTask(func(t *Task) interface{} {
 		lock, err := lockfile.Lock(dirs.SnapLockFile, true)
 		if err != nil {
 			return err
 		}
 		defer lock.Unlock()
+		inst.task = t
 		return f()
 	}).Map(route))
 }
@@ -812,7 +831,7 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 		return InternalError("can't copy request into tempfile: %v", err)
 	}
 
-	return AsyncResponse(c.d.AddTask(func() interface{} {
+	return AsyncResponse(c.d.AddTask(func(t *Task) interface{} {
 		defer os.Remove(tmpf.Name())
 
 		_, err := newSnap(tmpf.Name(), snappy.SideloadedDeveloper, unsignedOk)

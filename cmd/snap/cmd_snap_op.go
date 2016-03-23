@@ -29,17 +29,22 @@ import (
 
 func wait(client *client.Client, uuid string) error {
 	pb := progress.NewTextProgress()
-	pb.Start("", 1.0)
+	started := false
 	for {
 		op, err := client.Operation(uuid)
 		if err != nil {
 			return err
 		}
 
-		if op.Progress() == 0.0 {
+		cur, total := op.Progress()
+		if cur == 0 && total == 0 {
 			pb.Spin("")
 		} else {
-			pb.Set(op.Progress())
+			if !started {
+				pb.Start("", float64(total))
+				started = true
+			}
+			pb.Set(float64(cur))
 		}
 
 		if !op.Running() {

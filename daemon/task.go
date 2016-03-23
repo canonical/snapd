@@ -119,7 +119,7 @@ func (t *Task) Map(route *mux.Route) map[string]interface{} {
 }
 
 // RunTask creates a Task for the given function and runs it.
-func RunTask(f func() interface{}) *Task {
+func RunTask(f func(t *Task) interface{}) *Task {
 	id := UUID4()
 	t0 := time.Now()
 	t := &Task{
@@ -132,7 +132,7 @@ func RunTask(f func() interface{}) *Task {
 		defer func() {
 			t.tf = time.Now()
 		}()
-		out := f()
+		out := f(t)
 		t.output = out
 
 		switch out := out.(type) {

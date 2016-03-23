@@ -671,7 +671,7 @@ func (s *apiSuite) TestGetOpInfoIntegration(c *check.C) {
 
 	ch := make(chan struct{})
 
-	t := d.AddTask(func() interface{} {
+	t := d.AddTask(func(t *Task) interface{} {
 		ch <- struct{}{}
 		return "hello"
 	})
