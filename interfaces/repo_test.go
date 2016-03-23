@@ -93,10 +93,10 @@ func slotFromYaml(c *C, slotName string, yaml []byte) *Slot {
 	return &Slot{SlotInfo: slotInfo}
 }
 
-func addPlugsAndSlotsFromYaml(c *C, repo *Repository, yamls ...[]byte) []*snap.Info {
+func addPlugsSlots(c *C, repo *Repository, yamls ...string) []*snap.Info {
 	result := make([]*snap.Info, len(yamls))
 	for i, yaml := range yamls {
-		info, err := snap.InfoFromSnapYaml(yaml)
+		info, err := snap.InfoFromSnapYaml([]byte(yaml))
 		c.Assert(err, IsNil)
 		result[i] = info
 		for _, plugInfo := range info.Plugs {
@@ -240,19 +240,19 @@ func (s *RepositorySuite) TestPlug(c *C) {
 }
 
 func (s *RepositorySuite) TestPlugSearch(c *C) {
-	addPlugsAndSlotsFromYaml(c, s.testRepo, []byte(`
+	addPlugsSlots(c, s.testRepo, `
 name: x
 plugs:
     a: interface
     b: interface
     c: interface
-`), []byte(`
+`, `
 name: y
 plugs:
     a: interface
     b: interface
     c: interface
-`))
+`)
 	// Plug() correctly finds plugs
 	c.Assert(s.testRepo.Plug("x", "a"), Not(IsNil))
 	c.Assert(s.testRepo.Plug("x", "b"), Not(IsNil))
@@ -295,17 +295,17 @@ func (s *RepositorySuite) TestRemovePlugFailsWhenPlugIsConnected(c *C) {
 // Tests for Repository.AllPlugs()
 
 func (s *RepositorySuite) TestAllPlugsWithoutInterfaceName(c *C) {
-	snaps := addPlugsAndSlotsFromYaml(c, s.testRepo, []byte(`
+	snaps := addPlugsSlots(c, s.testRepo, `
 name: snap-a
 plugs:
     name-a: interface
-`), []byte(`
+`, `
 name: snap-b
 plugs:
     name-a: interface
     name-b: interface
     name-c: interface
-`))
+`)
 	// The result is sorted by snap and name
 	c.Assert(s.testRepo.AllPlugs(""), DeepEquals, []*Plug{
 		{PlugInfo: snaps[0].Plugs["name-a"]},
@@ -319,17 +319,17 @@ func (s *RepositorySuite) TestAllPlugsWithInterfaceName(c *C) {
 	// Add another interface so that we can look for it
 	err := s.testRepo.AddInterface(&TestInterface{InterfaceName: "other-interface"})
 	c.Assert(err, IsNil)
-	snaps := addPlugsAndSlotsFromYaml(c, s.testRepo, []byte(`
+	snaps := addPlugsSlots(c, s.testRepo, `
 name: snap-a
 plugs:
     name-a: interface
-`), []byte(`
+`, `
 name: snap-b
 plugs:
     name-a: interface
     name-b: other-interface
     name-c: interface
-`))
+`)
 	c.Assert(s.testRepo.AllPlugs("other-interface"), DeepEquals, []*Plug{
 		{PlugInfo: snaps[1].Plugs["name-b"]},
 	})
@@ -338,17 +338,17 @@ plugs:
 // Tests for Repository.Plugs()
 
 func (s *RepositorySuite) TestPlugs(c *C) {
-	snaps := addPlugsAndSlotsFromYaml(c, s.testRepo, []byte(`
+	snaps := addPlugsSlots(c, s.testRepo, `
 name: snap-a
 plugs:
     name-a: interface
-`), []byte(`
+`, `
 name: snap-b
 plugs:
     name-a: interface
     name-b: interface
     name-c: interface
-`))
+`)
 	// The result is sorted by snap and name
 	c.Assert(s.testRepo.Plugs("snap-b"), DeepEquals, []*Plug{
 		{PlugInfo: snaps[1].Plugs["name-a"]},
@@ -364,16 +364,16 @@ plugs:
 func (s *RepositorySuite) TestAllSlots(c *C) {
 	err := s.testRepo.AddInterface(&TestInterface{InterfaceName: "other-interface"})
 	c.Assert(err, IsNil)
-	snaps := addPlugsAndSlotsFromYaml(c, s.testRepo, []byte(`
+	snaps := addPlugsSlots(c, s.testRepo, `
 name: snap-a
 slots:
     name-a: interface
     name-b: interface
-`), []byte(`
+`, `
 name: snap-b
 slots:
     name-a: other-interface
-`))
+`)
 	// AllSlots("") returns all slots, sorted by snap and slot name
 	c.Assert(s.testRepo.AllSlots(""), DeepEquals, []*Slot{
 		{SlotInfo: snaps[0].Slots["name-a"]},
@@ -389,16 +389,16 @@ slots:
 // Tests for Repository.Slots()
 
 func (s *RepositorySuite) TestSlots(c *C) {
-	snaps := addPlugsAndSlotsFromYaml(c, s.testRepo, []byte(`
+	snaps := addPlugsSlots(c, s.testRepo, `
 name: snap-a
 slots:
     name-a: interface
     name-b: interface
-`), []byte(`
+`, `
 name: snap-b
 slots:
     name-a: interface
-`))
+`)
 	// Slots("snap-a") returns slots present in that snap
 	c.Assert(s.testRepo.Slots("snap-a"), DeepEquals, []*Slot{
 		{SlotInfo: snaps[0].Slots["name-a"]},
