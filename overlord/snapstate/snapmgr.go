@@ -22,6 +22,7 @@ package snapstate
 
 import (
 	"fmt"
+	"os"
 
 	"gopkg.in/tomb.v2"
 
@@ -38,9 +39,11 @@ type SnapManager struct {
 }
 
 type installState struct {
-	Name    string              `json:"name"`
-	Channel string              `json:"channel"`
-	Flags   snappy.InstallFlags `json:"flags,omitempty"`
+	Name           string              `json:"name"`
+	Channel        string              `json:"channel"`
+	Flags          snappy.InstallFlags `json:"flags,omitempty"`
+	Developer      string              `json:"developer"`
+	DownloadedSnap string
 }
 
 type removeState struct {
@@ -73,7 +76,9 @@ func Manager(s *state.State) (*SnapManager, error) {
 		runner:  runner,
 	}
 
-	runner.AddHandler("install-snap", m.doInstallSnap)
+	runner.AddHandler("download-snap", m.doDownloadSnap)
+	runner.AddHandler("install-local-snap", m.doInstallLocalSnap)
+
 	runner.AddHandler("update-snap", m.doUpdateSnap)
 	runner.AddHandler("remove-snap", m.doRemoveSnap)
 	runner.AddHandler("purge-snap", m.doPurgeSnap)
@@ -91,7 +96,7 @@ func Manager(s *state.State) (*SnapManager, error) {
 	return m, nil
 }
 
-func (m *SnapManager) doInstallSnap(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 	var inst installState
 	t.State().Lock()
 	if err := t.Get("install-state", &inst); err != nil {
@@ -99,9 +104,46 @@ func (m *SnapManager) doInstallSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 	t.State().Unlock()
 
+	// see if it is a local snap, if we, nothing to download
+	if fi, err := os.Stat(inst.Name); err == nil && fi.Mode().IsRegular() {
+		inst.DownloadedSnap = inst.Name
+		inst.Developer = snappy.SideloadedDeveloper
+	} else {
+		pb := &TaskProgressAdapter{task: t}
+		downloadedSnapFile, developer, err := m.backend.Download(inst.Name, inst.Channel, pb)
+		if err != nil {
+			return err
+		}
+		inst.DownloadedSnap = downloadedSnapFile
+		inst.Developer = developer
+	}
+
+	// update instState for the next task
+	t.State().Lock()
+	t.Set("install-state", inst)
+	t.State().Unlock()
+
+	return nil
+}
+
+func (m *SnapManager) doInstallLocalSnap(t *state.Task, _ *tomb.Tomb) error {
+	var inst installState
+	var dlTaskID string
+
+	t.State().Lock()
+	if err := t.Get("download-task-id", &dlTaskID); err != nil {
+		return err
+	}
+	tDl := t.State().Task(dlTaskID)
+	if err := tDl.Get("install-state", &inst); err != nil {
+		return err
+	}
+	t.State().Unlock()
+
+	defer os.Remove(inst.DownloadedSnap)
+
 	pb := &TaskProgressAdapter{task: t}
-	_, err := m.backend.Install(inst.Name, inst.Channel, inst.Flags, pb)
-	return err
+	return m.backend.InstallLocal(inst.DownloadedSnap, inst.Developer, inst.Flags, pb)
 }
 
 func (m *SnapManager) doUpdateSnap(t *state.Task, _ *tomb.Tomb) error {
