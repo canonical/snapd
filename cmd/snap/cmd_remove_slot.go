@@ -21,6 +21,8 @@ package main
 
 import (
 	"github.com/ubuntu-core/snappy/i18n"
+
+	"github.com/jessevdk/go-flags"
 )
 
 type cmdRemoveSlot struct {
@@ -39,7 +41,7 @@ It will be removed in one of the future releases.
 `)
 
 func init() {
-	addExperimentalCommand("remove-slot", shortRemoveSlotHelp, longRemoveSlotHelp, func() interface{} {
+	addExperimentalCommand("remove-slot", shortRemoveSlotHelp, longRemoveSlotHelp, func() flags.Commander {
 		return &cmdRemoveSlot{}
 	})
 }
