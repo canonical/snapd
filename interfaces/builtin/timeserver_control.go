@@ -23,23 +23,21 @@ import (
 	"github.com/ubuntu-core/snappy/interfaces"
 )
 
-var allInterfaces = []interfaces.Interface{
-	&BoolFileInterface{},
-	NewFirewallControlInterface(),
-	NewHomeInterface(),
-	NewLocaleControlInterface(),
-	NewLogObserveInterface(),
-	NewMountObserveInterface(),
-	NewNetworkInterface(),
-	NewNetworkBindInterface(),
-	NewNetworkControlInterface(),
-	NewNetworkObserveInterface(),
-	NewSnapControlInterface(),
-	NewSystemObserveInterface(),
-	NewTimeserverControlInterface(),
-}
+// http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/timeserver-control
+const timeserverControlConnectedPlugAppArmor = `
+# Description: Can manage timeservers directly separate from config ubuntu-core.
+# Usage: reserved
 
-// Interfaces returns all of the built-in interfaces.
-func Interfaces() []interfaces.Interface {
-	return allInterfaces
+# Won't work until LP: #1504657 is fixed. Requires reboot until timesyncd
+# notices the change or systemd restarts it.
+/etc/systemd/timesyncd.conf rw,
+`
+
+// NewTimeserverControlInterface returns a new "timeserver-control" interface.
+func NewTimeserverControlInterface() interfaces.Interface {
+	return &commonInterface{
+		name: "timeserver-control",
+		connectedPlugAppArmor: timeserverControlConnectedPlugAppArmor,
+		reservedForOS:         true,
+	}
 }
