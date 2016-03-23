@@ -39,7 +39,7 @@ type Task struct {
 	kind      string
 	summary   string
 	status    Status
-	progress  progress
+	progress  *progress
 	data      customData
 	waitTasks []string
 	haltTasks []string
@@ -61,7 +61,7 @@ type marshalledTask struct {
 	Kind      string                      `json:"kind"`
 	Summary   string                      `json:"summary"`
 	Status    Status                      `json:"status"`
-	Progress  progress                    `json:"progress"`
+	Progress  *progress                   `json:"progress,omitempty"`
 	Data      map[string]*json.RawMessage `json:"data,omitempty"`
 	WaitTasks []string                    `json:"wait-tasks,omitempty"`
 	HaltTasks []string                    `json:"halt-tasks,omitempty"`
@@ -147,7 +147,7 @@ func (t *Task) State() *State {
 // RunningStatus or WaitingStatus and (1, 1) otherwise.
 func (t *Task) Progress() (cur, total int) {
 	t.state.ensureLocked()
-	if t.progress.Total == 0 {
+	if t.progress == nil {
 		switch t.Status() {
 		case RunningStatus, WaitingStatus:
 			return 0, 1
@@ -161,7 +161,12 @@ func (t *Task) Progress() (cur, total int) {
 // SetProgress sets the task progress to cur out of total steps.
 func (t *Task) SetProgress(cur, total int) {
 	t.state.ensureLocked()
-	t.progress = progress{Current: cur, Total: total}
+	if total <= 0 || cur > total {
+		// Doing math wrong is easy. Be conservative.
+		t.progress = nil
+	} else {
+		t.progress = &progress{Current: cur, Total: total}
+	}
 }
 
 const (
