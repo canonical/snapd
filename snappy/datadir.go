@@ -31,7 +31,7 @@ type SnapDataDir struct {
 	Base      string
 	Name      string
 	Developer string
-	Version   string
+	Revision  string
 }
 
 // QualifiedName returns the filesystem directory name for this SnapDataDir
@@ -46,13 +46,13 @@ func data1(spec, basedir string) []SnapDataDir {
 	var snaps []SnapDataDir
 	var filterns bool
 
-	verglob := "*"
+	revglob := "*"
 	specns := "*"
 
-	// Note that "=" is not legal in a snap name or a snap version
+	// Note that "=" is not legal in a snap name or a snap revision
 	idx := strings.IndexRune(spec, '=')
 	if idx > -1 {
-		verglob = spec[idx+1:]
+		revglob = spec[idx+1:]
 		spec = spec[:idx]
 	}
 
@@ -65,7 +65,7 @@ func data1(spec, basedir string) []SnapDataDir {
 		nameglob = spec + "." + specns
 	}
 
-	dirs, _ := filepath.Glob(filepath.Join(basedir, nameglob, verglob))
+	dirs, _ := filepath.Glob(filepath.Join(basedir, nameglob, revglob))
 
 	// “but, Chipaca”, I hear you say, “why are you doing all this all over
 	// again, when you could just use .Installed() on an appropriate repo,
@@ -76,8 +76,8 @@ func data1(spec, basedir string) []SnapDataDir {
 	// removed a package its snap.yaml is gone, its data is still there,
 	// and you want us to be able to clean that up.
 	for _, dir := range dirs {
-		version := filepath.Base(dir)
-		if version == "current" {
+		revision := filepath.Base(dir)
+		if revision == "current" {
 			continue
 		}
 		name := filepath.Base(filepath.Dir(dir))
@@ -98,7 +98,7 @@ func data1(spec, basedir string) []SnapDataDir {
 			Base:      basedir,
 			Name:      name,
 			Developer: developer,
-			Version:   version,
+			Revision:  revision,
 		})
 	}
 
