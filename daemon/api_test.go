@@ -1407,8 +1407,8 @@ func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 	d.interfaces.AddSlot(makeSlot("interface"))
 	action := &interfaceAction{
 		Action: "connect",
-		Plugs:  []interfaces.PlugJSON{{Snap: "producer", Name: "plug"}},
-		Slots:  []interfaces.SlotJSON{{Snap: "consumer", Name: "slot"}},
+		Plugs:  []plugJSON{{Snap: "producer", Name: "plug"}},
+		Slots:  []slotJSON{{Snap: "consumer", Name: "slot"}},
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -1441,8 +1441,8 @@ func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 	d.interfaces.AddSlot(makeSlot("other-interface"))
 	action := &interfaceAction{
 		Action: "connect",
-		Plugs:  []interfaces.PlugJSON{{Snap: "producer", Name: "plug"}},
-		Slots:  []interfaces.SlotJSON{{Snap: "consumer", Name: "slot"}},
+		Plugs:  []plugJSON{{Snap: "producer", Name: "plug"}},
+		Slots:  []slotJSON{{Snap: "consumer", Name: "slot"}},
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -1475,8 +1475,8 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 	d.interfaces.AddSlot(makeSlot("interface"))
 	action := &interfaceAction{
 		Action: "connect",
-		Plugs:  []interfaces.PlugJSON{{Snap: "producer", Name: "plug"}},
-		Slots:  []interfaces.SlotJSON{{Snap: "consumer", Name: "slot"}},
+		Plugs:  []plugJSON{{Snap: "producer", Name: "plug"}},
+		Slots:  []slotJSON{{Snap: "consumer", Name: "slot"}},
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -1508,8 +1508,8 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 	d.interfaces.AddPlug(makePlug("interface"))
 	action := &interfaceAction{
 		Action: "connect",
-		Plugs:  []interfaces.PlugJSON{{Snap: "producer", Name: "plug"}},
-		Slots:  []interfaces.SlotJSON{{Snap: "consumer", Name: "slot"}},
+		Plugs:  []plugJSON{{Snap: "producer", Name: "plug"}},
+		Slots:  []slotJSON{{Snap: "consumer", Name: "slot"}},
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -1543,8 +1543,8 @@ func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
 	d.interfaces.Connect("producer", "plug", "consumer", "slot")
 	action := &interfaceAction{
 		Action: "disconnect",
-		Plugs:  []interfaces.PlugJSON{{Snap: "producer", Name: "plug"}},
-		Slots:  []interfaces.SlotJSON{{Snap: "consumer", Name: "slot"}},
+		Plugs:  []plugJSON{{Snap: "producer", Name: "plug"}},
+		Slots:  []slotJSON{{Snap: "consumer", Name: "slot"}},
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -1575,8 +1575,8 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 	d.interfaces.AddSlot(makeSlot("interface"))
 	action := &interfaceAction{
 		Action: "disconnect",
-		Plugs:  []interfaces.PlugJSON{{Snap: "producer", Name: "plug"}},
-		Slots:  []interfaces.SlotJSON{{Snap: "consumer", Name: "slot"}},
+		Plugs:  []plugJSON{{Snap: "producer", Name: "plug"}},
+		Slots:  []slotJSON{{Snap: "consumer", Name: "slot"}},
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -1608,8 +1608,8 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 	d.interfaces.AddPlug(makePlug("interface"))
 	action := &interfaceAction{
 		Action: "disconnect",
-		Plugs:  []interfaces.PlugJSON{{Snap: "producer", Name: "plug"}},
-		Slots:  []interfaces.SlotJSON{{Snap: "consumer", Name: "slot"}},
+		Plugs:  []plugJSON{{Snap: "producer", Name: "plug"}},
+		Slots:  []slotJSON{{Snap: "consumer", Name: "slot"}},
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -1642,8 +1642,8 @@ func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 	d.interfaces.AddSlot(makeSlot("interface"))
 	action := &interfaceAction{
 		Action: "disconnect",
-		Plugs:  []interfaces.PlugJSON{{Snap: "producer", Name: "plug"}},
-		Slots:  []interfaces.SlotJSON{{Snap: "consumer", Name: "slot"}},
+		Plugs:  []plugJSON{{Snap: "producer", Name: "plug"}},
+		Slots:  []slotJSON{{Snap: "consumer", Name: "slot"}},
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -1675,7 +1675,7 @@ func (s *apiSuite) TestAddPlugSuccess(c *check.C) {
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	action := &interfaceAction{
 		Action: "add-plug",
-		Plugs: []interfaces.PlugJSON{{
+		Plugs: []plugJSON{{
 			Snap:      "producer",
 			Name:      "plug",
 			Label:     "label",
@@ -1712,7 +1712,7 @@ func (s *apiSuite) TestAddPlugDisabled(c *check.C) {
 	d.enableInternalInterfaceActions = false
 	action := &interfaceAction{
 		Action: "add-plug",
-		Plugs: []interfaces.PlugJSON{{
+		Plugs: []plugJSON{{
 			Snap:      "producer",
 			Name:      "plug",
 			Label:     "label",
@@ -1753,7 +1753,7 @@ func (s *apiSuite) TestAddPlugFailure(c *check.C) {
 	})
 	action := &interfaceAction{
 		Action: "add-plug",
-		Plugs: []interfaces.PlugJSON{{
+		Plugs: []plugJSON{{
 			Snap:      "producer",
 			Name:      "plug",
 			Label:     "label",
@@ -1790,7 +1790,7 @@ func (s *apiSuite) TestRemovePlugSuccess(c *check.C) {
 	d.interfaces.AddPlug(makePlug("interface"))
 	action := &interfaceAction{
 		Action: "remove-plug",
-		Plugs:  []interfaces.PlugJSON{{Snap: "producer", Name: "plug"}},
+		Plugs:  []plugJSON{{Snap: "producer", Name: "plug"}},
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -1819,7 +1819,7 @@ func (s *apiSuite) TestRemovePlugDisabled(c *check.C) {
 	d.enableInternalInterfaceActions = false
 	action := &interfaceAction{
 		Action: "remove-plug",
-		Plugs:  []interfaces.PlugJSON{{Snap: "producer", Name: "plug"}},
+		Plugs:  []plugJSON{{Snap: "producer", Name: "plug"}},
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -1851,7 +1851,7 @@ func (s *apiSuite) TestRemovePlugFailure(c *check.C) {
 	d.interfaces.Connect("producer", "plug", "consumer", "slot")
 	action := &interfaceAction{
 		Action: "remove-plug",
-		Plugs:  []interfaces.PlugJSON{{Snap: "producer", Name: "plug"}},
+		Plugs:  []plugJSON{{Snap: "producer", Name: "plug"}},
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -1880,7 +1880,7 @@ func (s *apiSuite) TestAddSlotSuccess(c *check.C) {
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	action := &interfaceAction{
 		Action: "add-slot",
-		Slots: []interfaces.SlotJSON{{
+		Slots: []slotJSON{{
 			Snap:      "consumer",
 			Name:      "slot",
 			Label:     "label",
@@ -1916,7 +1916,7 @@ func (s *apiSuite) TestAddSlotDisabled(c *check.C) {
 	d.enableInternalInterfaceActions = false
 	action := &interfaceAction{
 		Action: "add-slot",
-		Slots: []interfaces.SlotJSON{{
+		Slots: []slotJSON{{
 			Snap:      "consumer",
 			Name:      "slot",
 			Label:     "label",
@@ -1957,7 +1957,7 @@ func (s *apiSuite) TestAddSlotFailure(c *check.C) {
 	})
 	action := &interfaceAction{
 		Action: "add-slot",
-		Slots: []interfaces.SlotJSON{{
+		Slots: []slotJSON{{
 			Snap:      "consumer",
 			Name:      "slot",
 			Label:     "label",
@@ -1994,7 +1994,7 @@ func (s *apiSuite) TestRemoveSlotSuccess(c *check.C) {
 	d.interfaces.AddSlot(makeSlot("interface"))
 	action := &interfaceAction{
 		Action: "remove-slot",
-		Slots:  []interfaces.SlotJSON{{Snap: "consumer", Name: "slot"}},
+		Slots:  []slotJSON{{Snap: "consumer", Name: "slot"}},
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -2023,7 +2023,7 @@ func (s *apiSuite) TestRemoveSlotDisabled(c *check.C) {
 	d.enableInternalInterfaceActions = false
 	action := &interfaceAction{
 		Action: "remove-slot",
-		Slots:  []interfaces.SlotJSON{{Snap: "consumer", Name: "slot"}},
+		Slots:  []slotJSON{{Snap: "consumer", Name: "slot"}},
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -2055,7 +2055,7 @@ func (s *apiSuite) TestRemoveSlotFailure(c *check.C) {
 	d.interfaces.Connect("producer", "plug", "consumer", "slot")
 	action := &interfaceAction{
 		Action: "remove-slot",
-		Slots:  []interfaces.SlotJSON{{Snap: "consumer", Name: "slot"}},
+		Slots:  []slotJSON{{Snap: "consumer", Name: "slot"}},
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
