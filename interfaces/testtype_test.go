@@ -25,6 +25,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	. "github.com/ubuntu-core/snappy/interfaces"
+	"github.com/ubuntu-core/snappy/snap"
 )
 
 type TestInterfaceSuite struct {
@@ -35,20 +36,21 @@ type TestInterfaceSuite struct {
 
 var _ = Suite(&TestInterfaceSuite{
 	iface: &TestInterface{InterfaceName: "test"},
+	plug: &Plug{
+		PlugInfo: &snap.PlugInfo{
+			Snap:      &snap.Info{Name: "snap"},
+			Name:      "name",
+			Interface: "test",
+		},
+	},
+	slot: &Slot{
+		SlotInfo: &snap.SlotInfo{
+			Snap:      &snap.Info{Name: "snap"},
+			Name:      "name",
+			Interface: "test",
+		},
+	},
 })
-
-func (s *TestInterfaceSuite) SetUpTest(c *C) {
-	s.plug = plugFromYaml(c, "name", []byte(`
-name: snap
-plugs:
-    name: test
-`))
-	s.slot = slotFromYaml(c, "name", []byte(`
-name: snap
-slots:
-    name: test
-`))
-}
 
 // TestInterface has a working Name() function
 func (s *TestInterfaceSuite) TestName(c *C) {
@@ -75,11 +77,13 @@ func (s *TestInterfaceSuite) TestSanitizePlugError(c *C) {
 
 // TestInterface sanitization still checks for interface identity
 func (s *TestInterfaceSuite) TestSanitizePlugWrongInterface(c *C) {
-	plug := plugFromYaml(c, "name", []byte(`
-name: snap
-plugs:
-    name: other-interface 
-`))
+	plug := &Plug{
+		PlugInfo: &snap.PlugInfo{
+			Snap:      &snap.Info{Name: "snap"},
+			Name:      "name",
+			Interface: "other-interface",
+		},
+	}
 	c.Assert(func() { s.iface.SanitizePlug(plug) }, Panics, "plug is not of interface \"test\"")
 }
 
@@ -103,11 +107,13 @@ func (s *TestInterfaceSuite) TestSanitizeSlotError(c *C) {
 
 // TestInterface sanitization still checks for interface identity
 func (s *TestInterfaceSuite) TestSanitizeSlotWrongInterface(c *C) {
-	slot := slotFromYaml(c, "name", []byte(`
-name: snap
-slots:
-    name: other-interface 
-`))
+	slot := &Slot{
+		SlotInfo: &snap.SlotInfo{
+			Snap:      &snap.Info{Name: "snap"},
+			Name:      "name",
+			Interface: "interface",
+		},
+	}
 	c.Assert(func() { s.iface.SanitizeSlot(slot) }, Panics, "slot is not of interface \"test\"")
 }
 
