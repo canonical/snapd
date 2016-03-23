@@ -1203,6 +1203,7 @@ func getChanges(c *Command, r *http.Request) Response {
 		}
 		logTail = n
 	}
+	// XXX: default this to "Done"?
 	excludeStatuses := strings.Split(query.Get("exclude-statuses"), ",")
 	for i, v := range excludeStatuses {
 		excludeStatuses[i] = strings.ToLower(v)
