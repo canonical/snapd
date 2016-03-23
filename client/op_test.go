@@ -31,12 +31,15 @@ func (cs *clientSuite) TestClientOpRunning(c *check.C) {
   "created_at": "2010-01-01T01:01:01.010101Z",
   "updated_at": "2016-01-01T01:01:01.010101Z",
   "may_cancel": false,
-  "output": {}
+  "output": {},
+  "progress_current": 24,
+  "progress_total": 100
 }}`
 	op, err := cs.cli.Operation("foo")
 	c.Assert(err, check.IsNil)
 	c.Check(op.Running(), check.Equals, true)
 	c.Check(op.Err(), check.IsNil)
+	c.Check(op.Progress(), check.Equals, 0.24)
 }
 
 func (cs *clientSuite) TestClientOpFailed(c *check.C) {

@@ -24,16 +24,26 @@ import (
 
 	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
+	"github.com/ubuntu-core/snappy/progress"
 )
 
 func wait(client *client.Client, uuid string) error {
+	pb := progress.NewTextProgress()
+	pb.Start("", 1.0)
 	for {
 		op, err := client.Operation(uuid)
 		if err != nil {
 			return err
 		}
 
+		if op.Progress() == 0.0 {
+			pb.Spin("")
+		} else {
+			pb.Set(op.Progress())
+		}
+
 		if !op.Running() {
+			pb.Finished()
 			return op.Err()
 		}
 

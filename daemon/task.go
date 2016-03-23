@@ -33,6 +33,9 @@ type Task struct {
 	t0     time.Time
 	tf     time.Time
 	output interface{}
+	// progress
+	cur   int
+	total int
 }
 
 // A task can be in one of three states
@@ -104,12 +107,14 @@ func FormatTime(t time.Time) string {
 // Map the task onto a map[string]interface{}, using the given route for the Location()
 func (t *Task) Map(route *mux.Route) map[string]interface{} {
 	return map[string]interface{}{
-		"resource":   t.Location(route),
-		"status":     t.State(),
-		"created_at": FormatTime(t.CreatedAt()),
-		"updated_at": FormatTime(t.UpdatedAt()),
-		"may_cancel": false,
-		"output":     t.Output(),
+		"resource":         t.Location(route),
+		"status":           t.State(),
+		"created_at":       FormatTime(t.CreatedAt()),
+		"updated_at":       FormatTime(t.UpdatedAt()),
+		"may_cancel":       false,
+		"output":           t.Output(),
+		"progress_current": t.cur,
+		"progress_total":   t.total,
 	}
 }
 
