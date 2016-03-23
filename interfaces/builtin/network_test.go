@@ -35,25 +35,21 @@ type NetworkInterfaceSuite struct {
 
 var _ = Suite(&NetworkInterfaceSuite{
 	iface: builtin.NewNetworkInterface(),
+	slot: &interfaces.Slot{
+		SlotInfo: &snap.SlotInfo{
+			Snap:      &snap.Info{Name: "ubuntu-core"},
+			Name:      "network",
+			Interface: "network",
+		},
+	},
+	plug: &interfaces.Plug{
+		PlugInfo: &snap.PlugInfo{
+			Snap:      &snap.Info{Name: "other"},
+			Name:      "network",
+			Interface: "network",
+		},
+	},
 })
-
-func (s *NetworkInterfaceSuite) SetUpTest(c *C) {
-	info1, err := snap.InfoFromSnapYaml([]byte(`
-name: ubuntu-core
-slots:
-    network:
-`))
-	c.Assert(err, IsNil)
-	s.slot = &interfaces.Slot{SlotInfo: info1.Slots["network"]}
-
-	info2, err := snap.InfoFromSnapYaml([]byte(`
-name: snap
-plugs:
-    network:
-`))
-	c.Assert(err, IsNil)
-	s.plug = &interfaces.Plug{PlugInfo: info2.Plugs["network"]}
-}
 
 func (s *NetworkInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "network")
