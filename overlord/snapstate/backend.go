@@ -24,7 +24,7 @@ import (
 	"github.com/ubuntu-core/snappy/snappy"
 )
 
-type backendIF interface {
+type managerBackend interface {
 	Install(name, channel string, flags snappy.InstallFlags, meter progress.Meter) (string, error)
 	Update(name, channel string, flags snappy.InstallFlags, meter progress.Meter) error
 	Remove(name string, flags snappy.RemoveFlags, meter progress.Meter) error

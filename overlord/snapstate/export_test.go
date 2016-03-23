@@ -19,8 +19,8 @@
 
 package snapstate
 
-type BackendIF backendIF
+type ManagerBackend managerBackend
 
-func SetSnapManagerBackend(s *SnapManager, b BackendIF) {
+func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
 	s.backend = b
 }
