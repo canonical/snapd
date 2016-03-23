@@ -63,7 +63,7 @@ func Manager(s *state.State) (*InterfaceManager, error) {
 
 // Connect returns a set of tasks for connecting an interface.
 //
-func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (state.TaskSet, error) {
+func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
 	// TODO: Store the intent-to-connect in the state so that we automatically
 	// try to reconnect on reboot (reconnection can fail or can connect with
 	// different parameters so we cannot store the actual connection details).
@@ -76,7 +76,7 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (sta
 }
 
 // Disconnect returns a set of tasks for  disconnecting an interface.
-func Disconnect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (state.TaskSet, error) {
+func Disconnect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
 	// TODO: Remove the intent-to-connect from the state so that we no longer
 	// automatically try to reconnect on reboot.
 	summary := fmt.Sprintf(i18n.G("Disconnect %s:%s from %s:%s"),
