@@ -110,6 +110,12 @@ func (ts *taskSuite) TestProgressAndSetProgress(c *C) {
 	c.Check(cur, Equals, 0)
 	c.Check(tot, Equals, 1)
 	c.Check(jsonStr(t), Not(testutil.Contains), "progress")
+
+	t.SetProgress(2, 1)
+	cur, tot = t.Progress()
+	c.Check(cur, Equals, 0)
+	c.Check(tot, Equals, 1)
+	c.Check(jsonStr(t), Not(testutil.Contains), "progress")
 }
 
 func (ts *taskSuite) TestProgressDefaults(c *C) {
