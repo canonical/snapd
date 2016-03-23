@@ -20,6 +20,7 @@
 package state_test
 
 import (
+	"encoding/json"
 	"fmt"
 
 	. "gopkg.in/check.v1"
@@ -72,6 +73,14 @@ func (ts *taskSuite) TestStatusAndSetStatus(c *C) {
 	c.Check(t.Status(), Equals, state.DoneStatus)
 }
 
+func jsonStr(m json.Marshaler) string {
+	data, err := m.MarshalJSON()
+	if err != nil {
+		panic(err)
+	}
+	return string(data)
+}
+
 func (ts *taskSuite) TestProgressAndSetProgress(c *C) {
 	st := state.New(nil)
 	st.Lock()
@@ -80,11 +89,33 @@ func (ts *taskSuite) TestProgressAndSetProgress(c *C) {
 	t := st.NewTask("download", "1...")
 
 	t.SetProgress(2, 99)
-
 	cur, tot := t.Progress()
-
 	c.Check(cur, Equals, 2)
 	c.Check(tot, Equals, 99)
+
+	t.SetProgress(0, 0)
+	cur, tot = t.Progress()
+	c.Check(cur, Equals, 0)
+	c.Check(tot, Equals, 1)
+	c.Check(jsonStr(t), Not(testutil.Contains), "progress")
+
+	t.SetProgress(0, -1)
+	cur, tot = t.Progress()
+	c.Check(cur, Equals, 0)
+	c.Check(tot, Equals, 1)
+	c.Check(jsonStr(t), Not(testutil.Contains), "progress")
+
+	t.SetProgress(0, -1)
+	cur, tot = t.Progress()
+	c.Check(cur, Equals, 0)
+	c.Check(tot, Equals, 1)
+	c.Check(jsonStr(t), Not(testutil.Contains), "progress")
+
+	t.SetProgress(2, 1)
+	cur, tot = t.Progress()
+	c.Check(cur, Equals, 0)
+	c.Check(tot, Equals, 1)
+	c.Check(jsonStr(t), Not(testutil.Contains), "progress")
 }
 
 func (ts *taskSuite) TestProgressDefaults(c *C) {
@@ -235,7 +266,7 @@ func (ts *taskSuite) TestNeedsLock(c *C) {
 
 func (cs *taskSuite) TestNewTaskSet(c *C) {
 	ts0 := state.NewTaskSet()
-	c.Check(ts0, HasLen, 0)
+	c.Check(ts0.Tasks(), HasLen, 0)
 
 	st := state.New(nil)
 	st.Lock()
@@ -244,7 +275,7 @@ func (cs *taskSuite) TestNewTaskSet(c *C) {
 	ts2 := state.NewTaskSet(t1, t2)
 	st.Unlock()
 
-	c.Check(ts2, HasLen, 2)
+	c.Assert(ts2.Tasks(), DeepEquals, []*state.Task{t1, t2})
 }
 
 func (ts *taskSuite) TestTaskWaitAll(c *C) {

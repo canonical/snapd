@@ -41,15 +41,30 @@ type snapmgrTestSuite struct {
 
 type fakeSnappyBackend struct {
 	name    string
+	ver     string
 	channel string
+	flags   int
+	active  bool
 	op      string
+
+	fakeCurrentProgress int
+	fakeTotalProgress   int
 }
 
 func (f *fakeSnappyBackend) Install(name, channel string, flags snappy.InstallFlags, p progress.Meter) (string, error) {
 	f.op = "install"
 	f.name = name
 	f.channel = channel
+	p.SetTotal(float64(f.fakeTotalProgress))
+	p.Set(float64(f.fakeCurrentProgress))
 	return "", nil
+}
+
+func (f *fakeSnappyBackend) Update(name, channel string, flags snappy.InstallFlags, p progress.Meter) error {
+	f.op = "update"
+	f.name = name
+	f.channel = channel
+	return nil
 }
 
 func (f *fakeSnappyBackend) Remove(name string, flags snappy.RemoveFlags, p progress.Meter) error {
@@ -58,10 +73,33 @@ func (f *fakeSnappyBackend) Remove(name string, flags snappy.RemoveFlags, p prog
 	return nil
 }
 
+func (f *fakeSnappyBackend) Purge(name string, flags snappy.PurgeFlags, p progress.Meter) error {
+	f.op = "purge"
+	f.name = name
+	return nil
+}
+
+func (f *fakeSnappyBackend) Rollback(name, ver string, p progress.Meter) (string, error) {
+	f.op = "rollback"
+	f.name = name
+	f.ver = ver
+	return "", nil
+}
+
+func (f *fakeSnappyBackend) Activate(name string, active bool, p progress.Meter) error {
+	f.op = "activate"
+	f.name = name
+	f.active = active
+	return nil
+}
+
 var _ = Suite(&snapmgrTestSuite{})
 
 func (s *snapmgrTestSuite) SetUpTest(c *C) {
-	s.fakeBackend = &fakeSnappyBackend{}
+	s.fakeBackend = &fakeSnappyBackend{
+		fakeCurrentProgress: 75,
+		fakeTotalProgress:   100,
+	}
 	s.state = state.New(nil)
 
 	var err error
@@ -71,30 +109,26 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
 }
 
-func (s *snapmgrTestSuite) TestInstallAddsTasks(c *C) {
+func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	ts, err := snapstate.Install(s.state, "some-snap", "some-channel")
+	ts, err := snapstate.Install(s.state, "some-snap", "some-channel", 0)
 	c.Assert(err, IsNil)
 
-	chg := s.state.NewChange("install", "installing foo")
-	chg.AddTasks(ts)
-	c.Assert(chg.Tasks(), HasLen, 1)
-	c.Assert(chg.Tasks()[0].Kind(), Equals, "install-snap")
+	c.Assert(ts.Tasks(), HasLen, 1)
+	c.Assert(ts.Tasks()[0].Kind(), Equals, "install-snap")
 }
 
-func (s *snapmgrTestSuite) TestRemoveAddsTasks(c *C) {
+func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	ts, err := snapstate.Remove(s.state, "foo")
+	ts, err := snapstate.Remove(s.state, "foo", 0)
 	c.Assert(err, IsNil)
 
-	chg := s.state.NewChange("remove", "removing foo")
-	chg.AddTasks(ts)
-	c.Assert(chg.Tasks(), HasLen, 1)
-	c.Assert(chg.Tasks()[0].Kind(), Equals, "remove-snap")
+	c.Assert(ts.Tasks(), HasLen, 1)
+	c.Assert(ts.Tasks()[0].Kind(), Equals, "remove-snap")
 }
 
 func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
@@ -102,9 +136,9 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 	defer s.state.Unlock()
 
 	chg := s.state.NewChange("install", "install a snap")
-	ts, err := snapstate.Install(s.state, "some-snap", "some-channel")
+	ts, err := snapstate.Install(s.state, "some-snap", "some-channel", 0)
 	c.Assert(err, IsNil)
-	chg.AddTasks(ts)
+	chg.AddAll(ts)
 
 	s.state.Unlock()
 	s.snapmgr.Ensure()
@@ -116,15 +150,21 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 	c.Assert(s.fakeBackend.op, Equals, "install")
 	c.Assert(s.fakeBackend.name, Equals, "some-snap")
 	c.Assert(s.fakeBackend.channel, Equals, "some-channel")
+
+	// check progress
+	task := ts.Tasks()[0]
+	cur, total := task.Progress()
+	c.Assert(cur, Equals, s.fakeBackend.fakeCurrentProgress)
+	c.Assert(total, Equals, s.fakeBackend.fakeTotalProgress)
 }
 
 func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	chg := s.state.NewChange("remove", "remove a snap")
-	ts, err := snapstate.Remove(s.state, "some-remove-snap")
+	ts, err := snapstate.Remove(s.state, "some-remove-snap", 0)
 	c.Assert(err, IsNil)
-	chg.AddTasks(ts)
+	chg.AddAll(ts)
 
 	s.state.Unlock()
 	s.snapmgr.Ensure()
@@ -134,4 +174,98 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 
 	c.Assert(s.fakeBackend.op, Equals, "remove")
 	c.Assert(s.fakeBackend.name, Equals, "some-remove-snap")
+}
+
+func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	chg := s.state.NewChange("udpate", "update a snap")
+	ts, err := snapstate.Update(s.state, "some-update-snap", "some-channel", 0)
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.snapmgr.Wait()
+	defer s.snapmgr.Stop()
+	s.state.Lock()
+
+	c.Assert(s.fakeBackend.op, Equals, "update")
+	c.Assert(s.fakeBackend.name, Equals, "some-update-snap")
+	c.Assert(s.fakeBackend.channel, Equals, "some-channel")
+}
+
+func (s *snapmgrTestSuite) TestPurgeIntegration(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	chg := s.state.NewChange("purge", "purge a snap")
+	ts, err := snapstate.Purge(s.state, "some-snap-to-purge", 0)
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.snapmgr.Wait()
+	defer s.snapmgr.Stop()
+	s.state.Lock()
+
+	c.Assert(s.fakeBackend.op, Equals, "purge")
+	c.Assert(s.fakeBackend.name, Equals, "some-snap-to-purge")
+}
+
+func (s *snapmgrTestSuite) TestRollbackIntegration(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	chg := s.state.NewChange("rollback", "rollback a snap")
+	ts, err := snapstate.Rollback(s.state, "some-snap-to-rollback", "1.0")
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.snapmgr.Wait()
+	defer s.snapmgr.Stop()
+	s.state.Lock()
+
+	c.Assert(s.fakeBackend.op, Equals, "rollback")
+	c.Assert(s.fakeBackend.name, Equals, "some-snap-to-rollback")
+	c.Assert(s.fakeBackend.ver, Equals, "1.0")
+}
+
+func (s *snapmgrTestSuite) TestActivate(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	chg := s.state.NewChange("setActive", "make snap active")
+	ts, err := snapstate.Activate(s.state, "some-snap-to-activate", true)
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.snapmgr.Wait()
+	defer s.snapmgr.Stop()
+	s.state.Lock()
+
+	c.Assert(s.fakeBackend.op, Equals, "activate")
+	c.Assert(s.fakeBackend.name, Equals, "some-snap-to-activate")
+	c.Assert(s.fakeBackend.active, Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestSetInactive(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	chg := s.state.NewChange("set-inactive", "make snap inactive")
+	ts, err := snapstate.Activate(s.state, "some-snap-to-inactivate", false)
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.snapmgr.Wait()
+	defer s.snapmgr.Stop()
+	s.state.Lock()
+
+	c.Assert(s.fakeBackend.op, Equals, "activate")
+	c.Assert(s.fakeBackend.name, Equals, "some-snap-to-inactivate")
+	c.Assert(s.fakeBackend.active, Equals, false)
 }

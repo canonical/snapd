@@ -39,22 +39,20 @@ type Task struct {
 	kind      string
 	summary   string
 	status    Status
-	progress  progress
+	progress  *progress
 	data      customData
-	waitTasks taskIDsSet
-	haltTasks taskIDsSet
+	waitTasks []string
+	haltTasks []string
 	log       []string
 }
 
 func newTask(state *State, id, kind, summary string) *Task {
 	return &Task{
-		state:     state,
-		id:        id,
-		kind:      kind,
-		summary:   summary,
-		data:      make(customData),
-		waitTasks: make(taskIDsSet),
-		haltTasks: make(taskIDsSet),
+		state:   state,
+		id:      id,
+		kind:    kind,
+		summary: summary,
+		data:    make(customData),
 	}
 }
 
@@ -63,11 +61,11 @@ type marshalledTask struct {
 	Kind      string                      `json:"kind"`
 	Summary   string                      `json:"summary"`
 	Status    Status                      `json:"status"`
-	Progress  progress                    `json:"progress"`
-	Data      map[string]*json.RawMessage `json:"data"`
-	WaitTasks taskIDsSet                  `json:"wait-tasks"`
-	HaltTasks taskIDsSet                  `json:"halt-tasks"`
-	Log       []string                    `json:"log"`
+	Progress  *progress                   `json:"progress,omitempty"`
+	Data      map[string]*json.RawMessage `json:"data,omitempty"`
+	WaitTasks []string                    `json:"wait-tasks,omitempty"`
+	HaltTasks []string                    `json:"halt-tasks,omitempty"`
+	Log       []string                    `json:"log,omitempty"`
 }
 
 // MarshalJSON makes Task a json.Marshaller
@@ -149,7 +147,7 @@ func (t *Task) State() *State {
 // RunningStatus or WaitingStatus and (1, 1) otherwise.
 func (t *Task) Progress() (cur, total int) {
 	t.state.ensureLocked()
-	if t.progress.Total == 0 {
+	if t.progress == nil {
 		switch t.Status() {
 		case RunningStatus, WaitingStatus:
 			return 0, 1
@@ -163,7 +161,12 @@ func (t *Task) Progress() (cur, total int) {
 // SetProgress sets the task progress to cur out of total steps.
 func (t *Task) SetProgress(cur, total int) {
 	t.state.ensureLocked()
-	t.progress = progress{Current: cur, Total: total}
+	if total <= 0 || cur > total {
+		// Doing math wrong is easy. Be conservative.
+		t.progress = nil
+	} else {
+		t.progress = &progress{Current: cur, Total: total}
+	}
 }
 
 const (
@@ -224,51 +227,64 @@ func (t *Task) Get(key string, value interface{}) error {
 	return t.data.get(key, value)
 }
 
+func addOnce(set []string, s string) []string {
+	for _, cur := range set {
+		if s == cur {
+			return set
+		}
+	}
+	return append(set, s)
+}
+
 // WaitFor registers another task as a requirement for t to make progress
 // and sets the status as WaitingStatus.
 func (t *Task) WaitFor(another *Task) {
 	t.state.ensureLocked()
 	t.status = WaitingStatus
-	t.waitTasks.add(another.ID())
-	another.haltTasks.add(t.id)
+	t.waitTasks = addOnce(t.waitTasks, another.id)
+	another.haltTasks = addOnce(another.haltTasks, t.id)
 }
 
 // WaitAll registers all the tasks in the set as a requirement for t
 // to make progress and sets the status as WaitingStatus.
-func (t *Task) WaitAll(ts TaskSet) {
-	for _, tReq := range ts {
-		t.WaitFor(tReq)
+func (t *Task) WaitAll(ts *TaskSet) {
+	for _, req := range ts.tasks {
+		t.WaitFor(req)
 	}
 }
 
 // WaitTasks returns the list of tasks registered for t to wait for.
 func (t *Task) WaitTasks() []*Task {
 	t.state.ensureLocked()
-	return t.waitTasks.tasks(t.state)
+	return t.state.tasksIn(t.waitTasks)
 }
 
 // HaltTasks returns the list of tasks registered to wait for t.
 func (t *Task) HaltTasks() []*Task {
 	t.state.ensureLocked()
-	return t.haltTasks.tasks(t.state)
+	return t.state.tasksIn(t.haltTasks)
 }
 
 // A TaskSet holds a set of tasks.
-type TaskSet map[string]*Task
+type TaskSet struct {
+	tasks []*Task
+}
 
 // NewTaskSet returns a new TaskSet comprising the given tasks.
-func NewTaskSet(tasks ...*Task) TaskSet {
-	ts := make(TaskSet, len(tasks))
-	for _, t := range tasks {
-		ts[t.ID()] = t
-	}
-	return ts
+func NewTaskSet(tasks ...*Task) *TaskSet {
+	return &TaskSet{tasks}
 }
 
 // WaitFor registers a task as a requirement for the tasks in the set
 // to make progress and sets their status as WaitingStatus.
 func (ts TaskSet) WaitFor(another *Task) {
-	for _, t := range ts {
+	for _, t := range ts.tasks {
 		t.WaitFor(another)
 	}
+}
+
+// Tasks returns the tasks in the task set.
+func (ts TaskSet) Tasks() []*Task {
+	// Return something mutable, just like every other Tasks method.
+	return append([]*Task(nil), ts.tasks...)
 }

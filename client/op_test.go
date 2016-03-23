@@ -39,7 +39,9 @@ func (cs *clientSuite) TestClientOpRunning(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(op.Running(), check.Equals, true)
 	c.Check(op.Err(), check.IsNil)
-	c.Check(op.Progress(), check.Equals, 0.24)
+	cur, total := op.Progress()
+	c.Check(cur, check.Equals, int64(24))
+	c.Check(total, check.Equals, int64(100))
 }
 
 func (cs *clientSuite) TestClientOpFailed(c *check.C) {

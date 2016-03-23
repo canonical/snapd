@@ -295,7 +295,7 @@ func (s *SnapUbuntuStoreRepository) SnapUpdates() (snaps []*RemoteSnap, err erro
 
 	for _, pkg := range updateData {
 		current := ActiveSnapByName(pkg.Name)
-		if current == nil || current.Version() != pkg.Version {
+		if current == nil || current.Revision() != pkg.Revision {
 			snap := NewRemoteSnap(pkg)
 			snaps = append(snaps, snap)
 		}
