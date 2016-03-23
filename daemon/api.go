@@ -1211,7 +1211,7 @@ func getChanges(c *Command, r *http.Request) Response {
 	exclude := func(status string) bool {
 		s := strings.ToLower(status)
 		i := sort.SearchStrings(excludeStatuses, s)
-		return  i < len(excludeStatuses) && s == excludeStatuses[i]
+		return i < len(excludeStatuses) && s == excludeStatuses[i]
 	}
 
 	state := c.d.overlord.StateEngine().State()
