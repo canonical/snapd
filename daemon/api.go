@@ -29,6 +29,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -67,6 +69,7 @@ var api = []*Command{
 	assertsCmd,
 	assertsFindManyCmd,
 	eventsCmd,
+	stateChangesCmd,
 }
 
 var (
@@ -155,6 +158,12 @@ var (
 	eventsCmd = &Command{
 		Path: "/2.0/events",
 		GET:  getEvents,
+	}
+
+	stateChangesCmd = &Command{
+		Path:   "/2.0/state-changes",
+		UserOK: true,
+		GET:    getChanges,
 	}
 )
 
@@ -1167,4 +1176,76 @@ func assertsFindMany(c *Command, r *http.Request) Response {
 
 func getEvents(c *Command, r *http.Request) Response {
 	return EventResponse(c.d.hub)
+}
+
+type changeInfo struct {
+	Kind    string      `json:"kind"`
+	Summary string      `json:"summary"`
+	Status  string      `json:"status"`
+	Tasks   []*taskInfo `json:"tasks,omitempty"`
+}
+
+type taskInfo struct {
+	Kind    string   `json:"kind"`
+	Summary string   `json:"summary"`
+	Status  string   `json:"status"`
+	Log     []string `json:"log,omitempty"`
+}
+
+func getChanges(c *Command, r *http.Request) Response {
+	query := r.URL.Query()
+	logTail := 1
+	qLogTail := query.Get("log-tail")
+	if qLogTail != "" {
+		n, err := strconv.Atoi(qLogTail)
+		if err != nil || n < 0 {
+			return BadRequest("invalid log-tail numeric value")
+		}
+		logTail = n
+	}
+	excludeStatuses := strings.Split(query.Get("exclude-statuses"), ",")
+	for i, v := range excludeStatuses {
+		excludeStatuses[i] = strings.ToLower(v)
+	}
+	sort.Strings(excludeStatuses)
+	exclude := func(status string) bool {
+		s := strings.ToLower(status)
+		i := sort.SearchStrings(excludeStatuses, s)
+		return  i < len(excludeStatuses) && s == excludeStatuses[i]
+	}
+
+	state := c.d.overlord.StateEngine().State()
+	state.Lock()
+	defer state.Unlock()
+	chgs := state.Changes()
+	chgInfos := make([]*changeInfo, 0, len(chgs))
+	for _, chg := range chgs {
+		status := chg.Status().String()
+		if exclude(status) {
+			continue
+		}
+		chgInfo := &changeInfo{
+			Kind:    chg.Kind(),
+			Summary: chg.Summary(),
+			Status:  status,
+		}
+		tasks := chg.Tasks()
+		taskInfos := make([]*taskInfo, len(tasks))
+		for j, t := range tasks {
+			log := t.Log()
+			if len(log) > logTail {
+				log = log[len(log)-logTail:]
+			}
+			taskInfo := &taskInfo{
+				Kind:    t.Kind(),
+				Summary: t.Summary(),
+				Status:  t.Status().String(),
+				Log:     log,
+			}
+			taskInfos[j] = taskInfo
+		}
+		chgInfo.Tasks = taskInfos
+		chgInfos = append(chgInfos, chgInfo)
+	}
+	return SyncResponse(chgInfos)
 }
