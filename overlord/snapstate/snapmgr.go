@@ -33,7 +33,7 @@ import (
 // SnapManager is responsible for the installation and removal of snaps.
 type SnapManager struct {
 	state   *state.State
-	backend backendIF
+	backend managerBackend
 
 	runner *state.TaskRunner
 }
