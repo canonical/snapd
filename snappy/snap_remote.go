@@ -52,6 +52,11 @@ func (s *RemoteSnap) Version() string {
 	return s.Pkg.Version
 }
 
+// Revision returns the revision
+func (s *RemoteSnap) Revision() int {
+	return s.Pkg.Revision
+}
+
 // Description returns the description
 func (s *RemoteSnap) Description() string {
 	return s.Pkg.Title
@@ -83,6 +88,7 @@ func (s *RemoteSnap) Info() *snap.Info {
 		Name:        s.Name(),
 		Developer:   s.Developer(),
 		Version:     s.Version(),
+		Revision:    s.Revision(),
 		Type:        s.Type(),
 		Channel:     s.Channel(),
 		Description: s.Description(),

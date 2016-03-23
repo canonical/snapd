@@ -24,13 +24,13 @@ import (
 	"github.com/ubuntu-core/snappy/snappy"
 )
 
-type backendIF interface {
+type managerBackend interface {
 	Install(name, channel string, flags snappy.InstallFlags, meter progress.Meter) (string, error)
 	Update(name, channel string, flags snappy.InstallFlags, meter progress.Meter) error
 	Remove(name string, flags snappy.RemoveFlags, meter progress.Meter) error
 	Purge(name string, flags snappy.PurgeFlags, meter progress.Meter) error
 	Rollback(name, ver string, meter progress.Meter) (string, error)
-	SetActive(name string, active bool, meter progress.Meter) error
+	Activate(name string, active bool, meter progress.Meter) error
 }
 
 type defaultBackend struct{}
@@ -57,6 +57,6 @@ func (s *defaultBackend) Rollback(name, ver string, meter progress.Meter) (strin
 	return snappy.Rollback(name, ver, meter)
 }
 
-func (s *defaultBackend) SetActive(name string, active bool, meter progress.Meter) error {
+func (s *defaultBackend) Activate(name string, active bool, meter progress.Meter) error {
 	return snappy.SetActive(name, active, meter)
 }

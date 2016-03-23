@@ -32,7 +32,7 @@ import (
 // SnapManager is responsible for the installation and removal of snaps.
 type SnapManager struct {
 	state   *state.State
-	backend backendIF
+	backend managerBackend
 
 	runner *state.TaskRunner
 }
@@ -58,7 +58,7 @@ type rollbackState struct {
 	Version string `json:"version,omitempty"`
 }
 
-type setActiveState struct {
+type activateState struct {
 	Name   string `json:"name"`
 	Active bool   `json:"active"`
 }
@@ -78,7 +78,7 @@ func Manager(s *state.State) (*SnapManager, error) {
 	runner.AddHandler("remove-snap", m.doRemoveSnap)
 	runner.AddHandler("purge-snap", m.doPurgeSnap)
 	runner.AddHandler("rollback-snap", m.doRollbackSnap)
-	runner.AddHandler("set-active-snap", m.doSetActiveSnap)
+	runner.AddHandler("activate-snap", m.doActivateSnap)
 
 	// test handlers
 	runner.AddHandler("fake-install-snap", func(t *state.Task, _ *tomb.Tomb) error {
@@ -94,7 +94,7 @@ func Manager(s *state.State) (*SnapManager, error) {
 func (m *SnapManager) doInstallSnap(t *state.Task, _ *tomb.Tomb) error {
 	var inst installState
 	t.State().Lock()
-	if err := t.Get("state", &inst); err != nil {
+	if err := t.Get("install-state", &inst); err != nil {
 		return err
 	}
 	t.State().Unlock()
@@ -107,7 +107,7 @@ func (m *SnapManager) doInstallSnap(t *state.Task, _ *tomb.Tomb) error {
 func (m *SnapManager) doUpdateSnap(t *state.Task, _ *tomb.Tomb) error {
 	var inst installState
 	t.State().Lock()
-	if err := t.Get("state", &inst); err != nil {
+	if err := t.Get("update-state", &inst); err != nil {
 		return err
 	}
 	t.State().Unlock()
@@ -121,7 +121,7 @@ func (m *SnapManager) doRemoveSnap(t *state.Task, _ *tomb.Tomb) error {
 	var rm removeState
 
 	t.State().Lock()
-	if err := t.Get("state", &rm); err != nil {
+	if err := t.Get("remove-state", &rm); err != nil {
 		return err
 	}
 	t.State().Unlock()
@@ -136,7 +136,7 @@ func (m *SnapManager) doPurgeSnap(t *state.Task, _ *tomb.Tomb) error {
 	var purge purgeState
 
 	t.State().Lock()
-	if err := t.Get("state", &purge); err != nil {
+	if err := t.Get("purge-state", &purge); err != nil {
 		return err
 	}
 	t.State().Unlock()
@@ -151,7 +151,7 @@ func (m *SnapManager) doRollbackSnap(t *state.Task, _ *tomb.Tomb) error {
 	var rollback rollbackState
 
 	t.State().Lock()
-	if err := t.Get("state", &rollback); err != nil {
+	if err := t.Get("rollback-state", &rollback); err != nil {
 		return err
 	}
 	t.State().Unlock()
@@ -162,18 +162,18 @@ func (m *SnapManager) doRollbackSnap(t *state.Task, _ *tomb.Tomb) error {
 	return err
 }
 
-func (m *SnapManager) doSetActiveSnap(t *state.Task, _ *tomb.Tomb) error {
-	var setActive setActiveState
+func (m *SnapManager) doActivateSnap(t *state.Task, _ *tomb.Tomb) error {
+	var activate activateState
 
 	t.State().Lock()
-	if err := t.Get("state", &setActive); err != nil {
+	if err := t.Get("activate-state", &activate); err != nil {
 		return err
 	}
 	t.State().Unlock()
 
 	pb := &TaskProgressAdapter{task: t}
-	name, _ := snappy.SplitDeveloper(setActive.Name)
-	return m.backend.SetActive(name, setActive.Active, pb)
+	name, _ := snappy.SplitDeveloper(activate.Name)
+	return m.backend.Activate(name, activate.Active, pb)
 }
 
 // Ensure implements StateManager.Ensure.
