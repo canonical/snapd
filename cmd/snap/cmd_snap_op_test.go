@@ -36,7 +36,8 @@ func (s *SnapSuite) TestInstall(c *check.C) {
 			c.Check(r.Method, check.Equals, "POST")
 			c.Check(r.URL.Path, check.Equals, "/2.0/snaps/foo.bar")
 			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
-				"action": "install",
+				"action":  "install",
+				"channel": "chan",
 			})
 			w.WriteHeader(http.StatusAccepted)
 			fmt.Fprintln(w, `{"type":"async", "result":{"resource": "/2.0/operations/42"}, "status_code": 202}`)
@@ -54,9 +55,11 @@ func (s *SnapSuite) TestInstall(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"install", "foo.bar"})
+	rest, err := snap.Parser().ParseArgs([]string{"install", "--channel", "chan", "foo.bar"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, "")
 	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(n, check.Equals, 3)
 }
