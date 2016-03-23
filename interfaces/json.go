@@ -36,12 +36,16 @@ type plugJSON struct {
 
 // MarshalJSON returns the JSON encoding of plug.
 func (plug *Plug) MarshalJSON() ([]byte, error) {
+	var names []string
+	for name := range plug.Apps {
+		names = append(names, name)
+	}
 	return json.Marshal(&plugJSON{
 		Snap:        plug.Snap.Name,
 		Name:        plug.Name,
 		Interface:   plug.Interface,
 		Attrs:       plug.Attrs,
-		Apps:        plug.AppNames(),
+		Apps:        names,
 		Label:       plug.Label,
 		Connections: plug.Connections,
 	})
@@ -60,12 +64,16 @@ type slotJSON struct {
 
 // MarshalJSON returns the JSON encoding of slot.
 func (slot *Slot) MarshalJSON() ([]byte, error) {
+	var names []string
+	for name := range slot.Apps {
+		names = append(names, name)
+	}
 	return json.Marshal(&slotJSON{
 		Snap:        slot.Snap.Name,
 		Name:        slot.Name,
 		Interface:   slot.Interface,
 		Attrs:       slot.Attrs,
-		Apps:        slot.AppNames(),
+		Apps:        names,
 		Label:       slot.Label,
 		Connections: slot.Connections,
 	})
