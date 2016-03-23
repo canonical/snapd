@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"regexp"
 
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap"
 )
 
@@ -171,6 +172,14 @@ type SecurityConfigurator interface {
 	// earlier. Some changes are buffered so that the cost is only incurred
 	// once.
 	Finalize() error
+}
+
+// SecurityBackend is the common interface for low-level SecurityConfigurator API
+type SecurityBackend interface {
+	SecurityConfigurator
+	SecuritySystem() SecuritySystem
+	DirStateForInstalledSnap(snapInfo *snap.Info, developerMode bool, snippets map[string][][]byte) (dir, glob string, content map[string]*osutil.FileState, err error)
+	DirStateForRemovedSnap(snapInfo *snap.Info) (dir, glob string)
 }
 
 var (
