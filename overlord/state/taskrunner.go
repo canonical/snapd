@@ -24,6 +24,8 @@ import (
 	"sync"
 
 	"gopkg.in/tomb.v2"
+
+	"github.com/ubuntu-core/snappy/logger"
 )
 
 // HandlerFunc is the type of function for the handlers
@@ -156,6 +158,7 @@ func (r *TaskRunner) Ensure() {
 		if chg.Status() == DoneStatus {
 			continue
 		}
+		logger.Debugf("Working on change %s: %s", chg.ID(), chg.summary)
 
 		tasks := chg.Tasks()
 		for _, t := range tasks {
@@ -186,6 +189,7 @@ func (r *TaskRunner) Ensure() {
 				continue
 			}
 
+			logger.Debugf("Running task %s: %s", t.id, t.summary)
 			// the task is ready to run (all prerequists done)
 			// so full steam ahead!
 			r.run(r.handlers[t.Kind()], t)
