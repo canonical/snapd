@@ -75,20 +75,15 @@ func (r *TaskRunner) Handlers() map[string]HandlerFunc {
 // propagateError sets all tasks directly and indirectly waiting on t to ErrorStatus.
 func propagateError(task *Task) {
 	mark := append([]*Task(nil), task.HaltTasks()...)
-	i := 0
-	for i < len(mark) {
+	for i := 0; i < len(mark); i++ {
 		t := mark[i]
-		if t.Status() == WaitingStatus {
-			t.SetStatus(ErrorStatus)
-			mark = append(mark, t.HaltTasks()...)
-		}
-		i++
+		t.SetStatus(ErrorStatus)
+		mark = append(mark, t.HaltTasks()...)
 	}
 }
 
 // run must be called with the state lock in place
 func (r *TaskRunner) run(fn HandlerFunc, task *Task) {
-	task.SetStatus(RunningStatus) // could have been set to waiting
 	tomb := &tomb.Tomb{}
 	id := task.ID()
 	r.tombs[id] = tomb
@@ -128,8 +123,8 @@ func (r *TaskRunner) run(fn HandlerFunc, task *Task) {
 	})
 }
 
-// mustWait must be called with the state lock in place
-func (r *TaskRunner) mustWait(t *Task) bool {
+// mustWait returns whether task t must wait for other tasks to be done.
+func mustWait(t *Task) bool {
 	for _, wt := range t.WaitTasks() {
 		if wt.Status() != DoneStatus {
 			return true
@@ -143,9 +138,6 @@ func (r *TaskRunner) mustWait(t *Task) bool {
 // dependencies.
 // Note that Ensure will lock the state.
 func (r *TaskRunner) Ensure() {
-	r.state.Lock()
-	defer r.state.Unlock()
-
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -153,6 +145,9 @@ func (r *TaskRunner) Ensure() {
 		// we are stopping, don't run another ensure
 		return
 	}
+
+	r.state.Lock()
+	defer r.state.Unlock()
 
 	for _, chg := range r.state.Changes() {
 		if chg.Status() == DoneStatus {
@@ -177,7 +172,7 @@ func (r *TaskRunner) Ensure() {
 			}
 
 			// we look at the Tomb instead of Status because
-			// a task can be in RunningStatus even when it
+			// a task can be in DoStatus even when it
 			// is not started yet (like when the daemon
 			// process restarts)
 			if _, ok := r.tombs[t.ID()]; ok {
@@ -185,7 +180,7 @@ func (r *TaskRunner) Ensure() {
 			}
 
 			// check if there is anything we need to wait for
-			if r.mustWait(t) {
+			if mustWait(t) {
 				continue
 			}
 
