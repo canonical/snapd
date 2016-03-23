@@ -48,7 +48,7 @@ func (s *RepositorySuite) SetUpTest(c *C) {
 	provider, err := snap.InfoFromSnapYaml([]byte(`
 name: provider
 apps:
-    meta/hooks/plug:
+    app:
 plugs:
     plug:
         interface: interface
@@ -767,7 +767,7 @@ func (s *RepositorySuite) TestSlotSnippetsForSnapSuccess(c *C) {
 	snippets, err := repo.SecuritySnippetsForSnap(s.plug.Snap.Name, testSecurity)
 	c.Assert(err, IsNil)
 	c.Check(snippets, DeepEquals, map[string][][]byte{
-		"meta/hooks/plug": [][]byte{
+		"app": [][]byte{
 			[]byte(`static plug snippet`),
 		},
 	})
@@ -784,7 +784,7 @@ func (s *RepositorySuite) TestSlotSnippetsForSnapSuccess(c *C) {
 	snippets, err = repo.SecuritySnippetsForSnap(s.plug.Snap.Name, testSecurity)
 	c.Assert(err, IsNil)
 	c.Check(snippets, DeepEquals, map[string][][]byte{
-		"meta/hooks/plug": [][]byte{
+		"app": [][]byte{
 			[]byte(`static plug snippet`),
 			[]byte(`connection-specific plug snippet`),
 		},
