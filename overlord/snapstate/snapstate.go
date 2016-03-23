@@ -31,14 +31,20 @@ import (
 // Install returns a set of tasks for installing snap.
 // Note that the state must be locked by the caller.
 func Install(s *state.State, snap, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
-	t := s.NewTask("install-snap", fmt.Sprintf(i18n.G("Installing %q"), snap))
-	t.Set("install-state", installState{
+	ist := installState{
 		Name:    snap,
 		Channel: channel,
 		Flags:   flags,
-	})
+	}
+	t := s.NewTask("download-snap", fmt.Sprintf(i18n.G("Downloading %q"), snap))
+	t.Set("install-state", ist)
 
-	return state.NewTaskSet(t), nil
+	t2 := s.NewTask("install-local-snap", fmt.Sprintf(i18n.G("Installing %q"), snap))
+	t2.Set("install-state", ist)
+	t2.Set("download-task-id", t.ID())
+	t2.WaitFor(t)
+
+	return state.NewTaskSet(t, t2), nil
 }
 
 // Update initiates a change updating a snap.

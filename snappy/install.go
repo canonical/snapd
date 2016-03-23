@@ -53,7 +53,7 @@ func installRemote(mStore *SnapUbuntuStoreRepository, remoteSnap *RemoteSnap, fl
 	}
 	defer os.Remove(downloadedSnap)
 
-	if err := remoteSnap.saveStoreManifest(); err != nil {
+	if err := remoteSnap.SaveStoreManifest(); err != nil {
 		return "", err
 	}
 
