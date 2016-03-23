@@ -27,6 +27,7 @@ var allInterfaces = []interfaces.Interface{
 	&BoolFileInterface{},
 	NewFirewallControlInterface(),
 	NewHomeInterface(),
+	NewLocaleControlInterface(),
 	NewNetworkInterface(),
 	NewNetworkBindInterface(),
 }
