@@ -38,12 +38,12 @@ func wait(client *client.Client, uuid string) error {
 			return err
 		}
 
-		cur, total := op.Progress()
+		msg, cur, total := op.Progress()
 		if cur == 0 && total == 0 {
 			pb.Spin("")
 		} else {
 			if !started {
-				pb.Start("", float64(total))
+				pb.Start(msg, float64(total))
 				started = true
 			}
 			pb.Set(float64(cur))

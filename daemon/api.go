@@ -623,7 +623,7 @@ type snapInstruction struct {
 	LeaveOld bool         `json:"leave_old"`
 	License  *licenseData `json:"license"`
 	pkg      string
-	task     Task
+	task     *Task
 
 	overlord *overlord.Overlord
 }
@@ -639,48 +639,30 @@ func (inst *snapInstruction) Agreed(intro, license string) bool {
 	return true
 }
 
-func (inst *snapInstruction) Start(pkg string, total float64) {
-	inst.task.mu.Lock()
-	defer inst.task.mu.Unlock()
-
-	inst.task.total = int(total)
-}
-
-func (inst *snapInstruction) Set(current float64) {
-	inst.task.mu.Lock()
-	defer inst.task.mu.Unlock()
-
-	inst.task.cur = int(current)
-}
-
-func (inst *snapInstruction) SetTotal(total float64) {
-	inst.task.mu.Lock()
-	defer inst.task.mu.Unlock()
-
-	inst.task.total = int(total)
-}
-
-func (inst *snapInstruction) Write(p []byte) (n int, err error) {
-	inst.task.mu.Lock()
-	defer inst.task.mu.Unlock()
-
-	inst.task.cur += len(p)
-	return len(p), nil
-}
-
 var snapstateInstall = snapstate.Install
 
-func waitChange(chg *state.Change) error {
+func (inst *snapInstruction) waitChange(chg *state.Change) error {
 	st := chg.State()
 	for {
 		st.Lock()
 		s := chg.Status()
+		inst.task.msg = chg.Summary()
+		// FIXME: way too simplistic, report only the first
+		//        active task via the progress
+		for _, t := range chg.Tasks() {
+			cur, total := t.Progress()
+			if cur > 0 && cur != total {
+				inst.task.cur = cur
+				inst.task.total = total
+				break
+			}
+		}
 		if s == state.DoneStatus || s == state.ErrorStatus {
 			defer st.Unlock()
 			return chg.Err()
 		}
 		st.Unlock()
-		time.Sleep(250 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 	}
 }
 
@@ -705,7 +687,7 @@ func (inst *snapInstruction) install() interface{} {
 		return err
 	}
 	state.EnsureBefore(0)
-	err = waitChange(chg)
+	err = inst.waitChange(chg)
 	return err
 	// FIXME: handle license agreement need to happen in the above
 	//        code
@@ -742,7 +724,7 @@ func (inst *snapInstruction) update() interface{} {
 	}
 
 	state.EnsureBefore(0)
-	return waitChange(chg)
+	return inst.waitChange(chg)
 }
 
 func (inst *snapInstruction) remove() interface{} {
@@ -764,7 +746,7 @@ func (inst *snapInstruction) remove() interface{} {
 	}
 
 	state.EnsureBefore(0)
-	return waitChange(chg)
+	return inst.waitChange(chg)
 }
 
 func (inst *snapInstruction) purge() interface{} {
@@ -782,7 +764,7 @@ func (inst *snapInstruction) purge() interface{} {
 	}
 
 	state.EnsureBefore(0)
-	return waitChange(chg)
+	return inst.waitChange(chg)
 }
 
 func (inst *snapInstruction) rollback() interface{} {
@@ -802,7 +784,7 @@ func (inst *snapInstruction) rollback() interface{} {
 	}
 
 	state.EnsureBefore(0)
-	return waitChange(chg)
+	return inst.waitChange(chg)
 }
 
 func (inst *snapInstruction) activate() interface{} {
@@ -820,7 +802,7 @@ func (inst *snapInstruction) activate() interface{} {
 	}
 
 	state.EnsureBefore(0)
-	return waitChange(chg)
+	return inst.waitChange(chg)
 }
 
 func (inst *snapInstruction) deactivate() interface{} {
@@ -838,7 +820,7 @@ func (inst *snapInstruction) deactivate() interface{} {
 	}
 
 	state.EnsureBefore(0)
-	return waitChange(chg)
+	return inst.waitChange(chg)
 }
 
 func (inst *snapInstruction) dispatch() func() interface{} {
@@ -895,7 +877,7 @@ func postSnap(c *Command, r *http.Request) Response {
 			return err
 		}
 		defer lock.Unlock()
-		inst.task = *t
+		inst.task = t
 		return f()
 	}).Map(route))
 }
