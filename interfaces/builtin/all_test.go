@@ -47,4 +47,5 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, DeepContains, builtin.NewTimeserverControlInterface())
 	c.Check(all, DeepContains, builtin.NewTimezoneControlInterface())
 	c.Check(all, DeepContains, builtin.NewUnity7Interface())
+	c.Check(all, DeepContains, builtin.NewXInterface())
 }
