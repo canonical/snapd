@@ -17,10 +17,15 @@
  *
  */
 
-package interfaces
+package apparmor
+
+// defaultTemplate contains default apparmor template.
+//
+// It can be overridden for testing using MockTemplate().
+var defaultTemplate = realDefaultTemplate
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/templates/ubuntu-core/16.04/default
-const defaultAppArmorTemplate = `
+const realDefaultTemplate = `
 # Description: Allows access to app-specific directories and basic runtime
 # Usage: common
 

@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"regexp"
 
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap"
 )
 
@@ -148,6 +149,38 @@ const (
 	// SecurityUDev identifies the UDev security system.
 	SecurityUDev SecuritySystem = "udev"
 )
+
+// SecurityConfigurator abstracts knowledge to configure a security system.
+type SecurityConfigurator interface {
+	// ConfigureSnapSecurity creates and loads security artefacts specific to a
+	// given snap. The snap can be in developer mode to make security
+	// violations non-fatal to the offending application process.
+	//
+	// This method should be called after changing plug, slots, connections
+	// between them or application present in the snap.
+	ConfigureSnapSecurity(repo *Repository, snapInfo *snap.Info, developerMode bool) error
+
+	// DeconfigureSnapSecurity removes security artefacts of a given snap.
+	//
+	// This method should be called after removing a snap.
+	DeconfigureSnapSecurity(snapInfo *snap.Info) error
+
+	// Finalize performs optional post-processing steps after
+	// configuring/deconfiguring any number of snaps.
+	//
+	// This method should be called unconditionally to finalize changes made
+	// earlier. Some changes are buffered so that the cost is only incurred
+	// once.
+	Finalize() error
+}
+
+// SecurityBackend is the common interface for low-level SecurityConfigurator API
+type SecurityBackend interface {
+	SecurityConfigurator
+	SecuritySystem() SecuritySystem
+	DirStateForInstalledSnap(snapInfo *snap.Info, developerMode bool, snippets map[string][][]byte) (dir, glob string, content map[string]*osutil.FileState, err error)
+	DirStateForRemovedSnap(snapInfo *snap.Info) (dir, glob string)
+}
 
 var (
 	// ErrUnknownSecurity is reported when a interface is unable to deal with a given security system.

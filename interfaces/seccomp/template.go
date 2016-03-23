@@ -17,10 +17,15 @@
  *
  */
 
-package interfaces
+package seccomp
+
+// defaultTemplate contains default seccomp template.
+//
+// It can be overridden for testing using MockTemplate().
+var defaultTemplate = []byte(realDefaultTemplate)
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/templates/ubuntu-core/16.04/default
-const defaultSecCompTemplate = `
+const realDefaultTemplate = `
 # Description: Allows access to app-specific directories and basic runtime
 # Usage: common
 #
