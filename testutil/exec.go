@@ -72,6 +72,9 @@ func (cmd *MockCmd) Restore() {
 // Calls returns a list of calls that were made to the mock command.
 func (cmd *MockCmd) Calls() []string {
 	calls, err := ioutil.ReadFile(cmd.logFile)
+	if os.IsNotExist(err) {
+		return nil
+	}
 	if err != nil {
 		panic(err)
 	}
