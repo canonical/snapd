@@ -71,30 +71,26 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
 }
 
-func (s *snapmgrTestSuite) TestInstallAddsTasks(c *C) {
+func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	ts, err := snapstate.Install(s.state, "some-snap", "some-channel")
 	c.Assert(err, IsNil)
 
-	chg := s.state.NewChange("install", "installing foo")
-	chg.AddTasks(ts)
-	c.Assert(chg.Tasks(), HasLen, 1)
-	c.Assert(chg.Tasks()[0].Kind(), Equals, "install-snap")
+	c.Assert(ts.Tasks(), HasLen, 1)
+	c.Assert(ts.Tasks()[0].Kind(), Equals, "install-snap")
 }
 
-func (s *snapmgrTestSuite) TestRemoveAddsTasks(c *C) {
+func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	ts, err := snapstate.Remove(s.state, "foo")
 	c.Assert(err, IsNil)
 
-	chg := s.state.NewChange("remove", "removing foo")
-	chg.AddTasks(ts)
-	c.Assert(chg.Tasks(), HasLen, 1)
-	c.Assert(chg.Tasks()[0].Kind(), Equals, "remove-snap")
+	c.Assert(ts.Tasks(), HasLen, 1)
+	c.Assert(ts.Tasks()[0].Kind(), Equals, "remove-snap")
 }
 
 func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
@@ -104,7 +100,7 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 	chg := s.state.NewChange("install", "install a snap")
 	ts, err := snapstate.Install(s.state, "some-snap", "some-channel")
 	c.Assert(err, IsNil)
-	chg.AddTasks(ts)
+	chg.AddAll(ts)
 
 	s.state.Unlock()
 	s.snapmgr.Ensure()
@@ -124,7 +120,7 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 	chg := s.state.NewChange("remove", "remove a snap")
 	ts, err := snapstate.Remove(s.state, "some-remove-snap")
 	c.Assert(err, IsNil)
-	chg.AddTasks(ts)
+	chg.AddAll(ts)
 
 	s.state.Unlock()
 	s.snapmgr.Ensure()

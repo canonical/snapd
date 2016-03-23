@@ -33,7 +33,7 @@ import (
 
 // Install returns a set of tasks for installing snap.
 // Note that the state must be locked by the caller.
-func Install(s *state.State, snap, channel string) (state.TaskSet, error) {
+func Install(s *state.State, snap, channel string) (*state.TaskSet, error) {
 	t := s.NewTask("install-snap", fmt.Sprintf(i18n.G("Installing %q"), snap))
 	t.Set("name", snap)
 	t.Set("channel", channel)
@@ -43,7 +43,7 @@ func Install(s *state.State, snap, channel string) (state.TaskSet, error) {
 
 // Remove returns a set of tasks for removing snap.
 // Note that the state must be locked by the caller.
-func Remove(s *state.State, snap string) (state.TaskSet, error) {
+func Remove(s *state.State, snap string) (*state.TaskSet, error) {
 	t := s.NewTask("remove-snap", fmt.Sprintf(i18n.G("Removing %q"), snap))
 	t.Set("name", snap)
 
