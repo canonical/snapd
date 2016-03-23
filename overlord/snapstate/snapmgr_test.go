@@ -46,12 +46,17 @@ type fakeSnappyBackend struct {
 	flags   int
 	active  bool
 	op      string
+
+	fakeCurrentProgress int
+	fakeTotalProgress   int
 }
 
 func (f *fakeSnappyBackend) Install(name, channel string, flags snappy.InstallFlags, p progress.Meter) (string, error) {
 	f.op = "install"
 	f.name = name
 	f.channel = channel
+	p.SetTotal(float64(f.fakeTotalProgress))
+	p.Set(float64(f.fakeCurrentProgress))
 	return "", nil
 }
 
@@ -91,7 +96,10 @@ func (f *fakeSnappyBackend) SetActive(name string, active bool, p progress.Meter
 var _ = Suite(&snapmgrTestSuite{})
 
 func (s *snapmgrTestSuite) SetUpTest(c *C) {
-	s.fakeBackend = &fakeSnappyBackend{}
+	s.fakeBackend = &fakeSnappyBackend{
+		fakeCurrentProgress: 75,
+		fakeTotalProgress:   100,
+	}
 	s.state = state.New(nil)
 
 	var err error
@@ -142,6 +150,12 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 	c.Assert(s.fakeBackend.op, Equals, "install")
 	c.Assert(s.fakeBackend.name, Equals, "some-snap")
 	c.Assert(s.fakeBackend.channel, Equals, "some-channel")
+
+	// check progress
+	task := ts.Tasks()[0]
+	cur, total := task.Progress()
+	c.Assert(cur, Equals, s.fakeBackend.fakeCurrentProgress)
+	c.Assert(total, Equals, s.fakeBackend.fakeTotalProgress)
 }
 
 func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
