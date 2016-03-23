@@ -618,7 +618,7 @@ type snapInstruction struct {
 	LeaveOld bool         `json:"leave_old"`
 	License  *licenseData `json:"license"`
 	pkg      string
-	task     *Task
+	task     Task
 }
 
 // Agreed is part of the progress.Meter interface (q.v.)
@@ -770,7 +770,7 @@ func postSnap(c *Command, r *http.Request) Response {
 			return err
 		}
 		defer lock.Unlock()
-		inst.task = t
+		inst.task = *t
 		return f()
 	}).Map(route))
 }
