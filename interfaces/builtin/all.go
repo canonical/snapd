@@ -25,6 +25,7 @@ import (
 
 var allInterfaces = []interfaces.Interface{
 	&BoolFileInterface{},
+	NewFirewallControlInterface(),
 	NewNetworkInterface(),
 	NewNetworkBindInterface(),
 }
