@@ -20,6 +20,7 @@
 package daemon
 
 import (
+	"sync"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -33,7 +34,9 @@ type Task struct {
 	t0     time.Time
 	tf     time.Time
 	output interface{}
+
 	// progress
+	mu    sync.Mutex
 	cur   int
 	total int
 }
@@ -106,6 +109,8 @@ func FormatTime(t time.Time) string {
 
 // Map the task onto a map[string]interface{}, using the given route for the Location()
 func (t *Task) Map(route *mux.Route) map[string]interface{} {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	return map[string]interface{}{
 		"resource":         t.Location(route),
 		"status":           t.State(),

@@ -633,18 +633,30 @@ func (inst *snapInstruction) Agreed(intro, license string) bool {
 }
 
 func (inst *snapInstruction) Start(pkg string, total float64) {
+	inst.task.mu.Lock()
+	defer inst.task.mu.Unlock()
+
 	inst.task.total = int(total)
 }
 
 func (inst *snapInstruction) Set(current float64) {
+	inst.task.mu.Lock()
+	defer inst.task.mu.Unlock()
+
 	inst.task.cur = int(current)
 }
 
 func (inst *snapInstruction) SetTotal(total float64) {
+	inst.task.mu.Lock()
+	defer inst.task.mu.Unlock()
+
 	inst.task.total = int(total)
 }
 
 func (inst *snapInstruction) Write(p []byte) (n int, err error) {
+	inst.task.mu.Lock()
+	defer inst.task.mu.Unlock()
+
 	inst.task.cur += len(p)
 	return len(p), nil
 }
