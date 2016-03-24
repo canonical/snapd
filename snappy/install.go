@@ -157,6 +157,8 @@ func snapUpdates(repo *store.SnapUbuntuStoreRepository) (snaps []*store.RemoteSn
 
 var storeConfig = (*store.SnapUbuntuStoreConfig)(nil)
 
+// TODO: kill this function once fewer places make a store on the fly
+
 // NewConfiguredUbuntuStoreSnapRepository creates a new fully configured store.SnapUbuntuStoreRepository with the store id selected by the gadget.
 func NewConfiguredUbuntuStoreSnapRepository() *store.SnapUbuntuStoreRepository {
 	storeID := ""
