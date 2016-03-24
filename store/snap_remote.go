@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,16 +17,11 @@
  *
  */
 
-package snappy
+package store
 
 import (
-	"os"
 	"time"
 
-	"gopkg.in/yaml.v2"
-
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/remote"
 )
@@ -117,18 +112,4 @@ func (s *RemoteSnap) Date() time.Time {
 	}
 
 	return p
-}
-
-func (s *RemoteSnap) SaveStoreManifest() error {
-	content, err := yaml.Marshal(s.Pkg)
-	if err != nil {
-		return err
-	}
-
-	if err := os.MkdirAll(dirs.SnapMetaDir, 0755); err != nil {
-		return err
-	}
-
-	// don't worry about previous contents
-	return osutil.AtomicWriteFile(RemoteManifestPath(s.Info()), content, 0644, 0)
 }
