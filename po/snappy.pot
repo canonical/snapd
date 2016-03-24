@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-03-22 16:41+0100\n"
+        "POT-Creation-Date: 2016-03-24 08:14+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -67,12 +67,6 @@ msgid   "Activate a package that has previously been deactivated. If the package
 msgstr  ""
 
 msgid   "Activate a snap that is installed but inactive"
-msgstr  ""
-
-msgid   "Adds a plug to the system"
-msgstr  ""
-
-msgid   "Adds a slot to the system"
 msgstr  ""
 
 msgid   "Adds an assertion to the system"
@@ -326,12 +320,6 @@ msgstr  ""
 msgid   "Remove hardware from a specific installed package"
 msgstr  ""
 
-msgid   "Removes a plug from the system"
-msgstr  ""
-
-msgid   "Removes a slot from the system"
-msgstr  ""
-
 #, c-format
 msgid   "Removing %q"
 msgstr  ""
@@ -509,20 +497,6 @@ msgid   "\n"
 msgstr  ""
 
 msgid   "\n"
-        "The add-plug command adds a new plug to the system.\n"
-        "\n"
-        "This command is only for experimentation with interfaces.\n"
-        "It will be removed in one of the future releases.\n"
-msgstr  ""
-
-msgid   "\n"
-        "The add-slot command adds a new slot to the system.\n"
-        "\n"
-        "This command is only for experimentation with interfaces.\n"
-        "It will be removed in one of the future releases.\n"
-msgstr  ""
-
-msgid   "\n"
         "The connect command connects a plug to a slot.\n"
         "It may be called in the following ways:\n"
         "\n"
@@ -619,20 +593,6 @@ msgid   "\n"
         "\n"
         "The snap's data is currently not removed; use purge for that. This behaviour\n"
         "will change before 16.04 is final.\n"
-msgstr  ""
-
-msgid   "\n"
-        "The remove-plug command removes a plug from the system.\n"
-        "\n"
-        "This command is only for experimentation with interfaces.\n"
-        "It will be removed in one of the future releases.\n"
-msgstr  ""
-
-msgid   "\n"
-        "The remove-slot command removes a slot from the system.\n"
-        "\n"
-        "This command is only for experimentation with interfaces.\n"
-        "It will be removed in one of the future releases.\n"
 msgstr  ""
 
 msgid   "\n"
