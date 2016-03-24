@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-03-24 10:01+0100\n"
+        "POT-Creation-Date: 2016-03-24 19:38+0000\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -228,6 +228,9 @@ msgstr  ""
 msgid   "List assigned hardware for a specific installed package"
 msgstr  ""
 
+msgid   "List installed snaps"
+msgstr  ""
+
 msgid   "Lists interfaces in the system"
 msgstr  ""
 
@@ -238,6 +241,9 @@ msgid   "Login successful"
 msgstr  ""
 
 msgid   "Name\tDate\tVersion\t"
+msgstr  ""
+
+msgid   "Name\tDate\tVersion\tDeveloper"
 msgstr  ""
 
 msgid   "Name\tDate\tVersion\tDeveloper\t"
@@ -611,6 +617,10 @@ msgid   "\n"
 msgstr  ""
 
 msgid   "\n"
+        "The list command displays a summary of snaps installed in the current system."
+msgstr  ""
+
+msgid   "\n"
         "The purge command removes the data of the named snap from the system.\n"
 msgstr  ""
 
@@ -684,6 +694,9 @@ msgid   "installed: %s\n"
 msgstr  ""
 
 msgid   "must supply path to snap.yaml"
+msgstr  ""
+
+msgid   "no snaps found"
 msgstr  ""
 
 msgid   "package name is required"
