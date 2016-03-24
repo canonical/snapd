@@ -65,7 +65,7 @@ func (s *defaultBackend) Activate(name string, active bool, meter progress.Meter
 }
 
 func (s *defaultBackend) Download(name, channel string, meter progress.Meter) (string, string, error) {
-	mStore := snappy.NewUbuntuStoreSnapRepository()
+	mStore := snappy.NewConfiguredUbuntuStoreSnapRepository()
 	snap, err := mStore.Snap(name, channel)
 	if err != nil {
 		return "", "", err
@@ -78,7 +78,7 @@ func (s *defaultBackend) Download(name, channel string, meter progress.Meter) (s
 
 	// FIXME: add undo task so that we delete the store manifest
 	//        again if we can not install the snap
-	if err := snap.SaveStoreManifest(); err != nil {
+	if err := snappy.SaveStoreManifest(snap); err != nil {
 		return "", "", err
 	}
 

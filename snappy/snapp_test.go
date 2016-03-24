@@ -36,6 +36,7 @@ import (
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/snapenv"
+	"github.com/ubuntu-core/snappy/store"
 	"github.com/ubuntu-core/snappy/systemd"
 
 	. "gopkg.in/check.v1"
@@ -44,6 +45,7 @@ import (
 type SnapTestSuite struct {
 	tempdir  string
 	secbase  string
+	storeCfg *store.SnapUbuntuStoreConfig
 	overlord Overlord
 }
 
@@ -74,9 +76,13 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	}
 
 	// do not attempt to hit the real store servers in the tests
-	storeSearchURI, _ = url.Parse("")
-	storeDetailsURI, _ = url.Parse("")
-	storeBulkURI, _ = url.Parse("")
+	nowhereURI, _ := url.Parse("")
+	s.storeCfg = &store.SnapUbuntuStoreConfig{
+		SearchURI:  nowhereURI,
+		DetailsURI: nowhereURI,
+		BulkURI:    nowhereURI,
+	}
+	storeConfig = s.storeCfg
 
 	aaExec = filepath.Join(s.tempdir, "aa-exec")
 	err := ioutil.WriteFile(aaExec, []byte(mockAaExecScript), 0755)
@@ -89,6 +95,7 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 
 func (s *SnapTestSuite) TearDownTest(c *C) {
 	// ensure all functions are back to their original state
+	storeConfig = nil
 	policy.SecBase = s.secbase
 	regenerateAppArmorRules = regenerateAppArmorRulesImpl
 	ActiveSnapIterByType = activeSnapIterByTypeImpl
@@ -187,52 +194,6 @@ const (
 )
 
 /* acquired via:
-curl -s -H 'accept: application/hal+json' -H "X-Ubuntu-Release: 15.04-core" -H "X-Ubuntu-Architecture: amd64" "https://search.apps.ubuntu.com/api/v1/search?q=8nzc1x4iim2xj1g2ul64&fields=publisher,package_name,developer,title,icon_url,prices,content,ratings_average,version,anon_download_url,download_url,download_sha512,last_updated,binary_filesize,support_url,revision" | python -m json.tool
-*/
-const MockSearchJSON = `{
-    "_embedded": {
-        "clickindex:package": [
-            {
-                "_links": {
-                    "self": {
-                        "href": "https://search.apps.ubuntu.com/api/v1/package/8nzc1x4iim2xj1g2ul64.chipaca"
-                    }
-                },
-                "anon_download_url": "https://public.apps.ubuntu.com/anon/download/chipaca/8nzc1x4iim2xj1g2ul64.chipaca/8nzc1x4iim2xj1g2ul64.chipaca_42_all.snap",
-                "binary_filesize": 65375,
-                "content": "application",
-                "download_sha512": "5364253e4a988f4f5c04380086d542f410455b97d48cc6c69ca2a5877d8aef2a6b2b2f83ec4f688cae61ebc8a6bf2cdbd4dbd8f743f0522fc76540429b79df42",
-                "download_url": "https://public.apps.ubuntu.com/download/chipaca/8nzc1x4iim2xj1g2ul64.chipaca/8nzc1x4iim2xj1g2ul64.chipaca_42_all.snap",
-                "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/04/hello.svg_Dlrd3L4.png",
-                "last_updated": "2015-04-15T18:30:16Z",
-                "origin": "chipaca",
-                "package_name": "8nzc1x4iim2xj1g2ul64",
-                "prices": {},
-                "publisher": "John Lenton",
-                "ratings_average": 0.0,
-                "revision": 7,
-                "support_url": "http://lmgtfy.com",
-                "title": "Returns for store credit only.",
-                "version": "42"
-            }
-        ]
-    },
-    "_links": {
-        "curies": [
-            {
-                "href": "https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex#reltype_{rel}",
-                "name": "clickindex",
-                "templated": true
-            }
-        ],
-        "self": {
-            "href": "https://search.apps.ubuntu.com/api/v1/search?q=8nzc1x4iim2xj1g2ul64&fields=publisher,package_name,developer,title,icon_url,prices,content,ratings_average,version,anon_download_url,download_url,download_sha512,last_updated,binary_filesize,support_url,revision"
-        }
-    }
-}
-`
-
-/* acquired via:
 curl -s --data-binary '{"name":["8nzc1x4iim2xj1g2ul64.chipaca"]}'  -H 'content-type: application/json' https://search.apps.ubuntu.com/api/v1/click-metadata
 */
 const MockUpdatesJSON = `[
@@ -253,184 +214,10 @@ const MockUpdatesJSON = `[
     }
 ]`
 
-/* acquired via
-   curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: 15.04-core" https://search.apps.ubuntu.com/api/v1/package/8nzc1x4iim2xj1g2ul64.chipaca | python -m json.tool
-*/
-const MockDetailsJSON = `{
-    "_links": {
-        "curies": [
-            {
-                "href": "https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex#reltype_{rel}",
-                "name": "clickindex",
-                "templated": true
-            }
-        ],
-        "self": {
-            "href": "https://search.apps.ubuntu.com/api/v1/package/8nzc1x4iim2xj1g2ul64.chipaca"
-        }
-    },
-    "alias": null,
-    "allow_unauthenticated": true,
-    "anon_download_url": "https://public.apps.ubuntu.com/anon/download/chipaca/8nzc1x4iim2xj1g2ul64.chipaca/8nzc1x4iim2xj1g2ul64.chipaca_42_all.snap",
-    "architecture": [
-        "all"
-    ],
-    "binary_filesize": 65375,
-    "blacklist_country_codes": [
-        "AX"
-    ],
-    "channel": "edge",
-    "changelog": "",
-    "click_framework": [],
-    "click_version": "0.1",
-    "company_name": "",
-    "content": "application",
-    "date_published": "2015-04-15T18:34:40.060874Z",
-    "department": [
-        "food-drink"
-    ],
-    "description": "Returns for store credit only.\nThis is a simple hello world example.",
-    "developer_name": "John Lenton",
-    "download_sha512": "5364253e4a988f4f5c04380086d542f410455b97d48cc6c69ca2a5877d8aef2a6b2b2f83ec4f688cae61ebc8a6bf2cdbd4dbd8f743f0522fc76540429b79df42",
-    "download_url": "https://public.apps.ubuntu.com/download/chipaca/8nzc1x4iim2xj1g2ul64.chipaca/8nzc1x4iim2xj1g2ul64.chipaca_42_all.snap",
-    "framework": [],
-    "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/04/hello.svg_Dlrd3L4.png",
-    "icon_urls": {
-        "256": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/04/hello.svg_Dlrd3L4.png"
-    },
-    "id": 2333,
-    "keywords": [],
-    "last_updated": "2015-04-15T18:30:16Z",
-    "license": "Proprietary",
-    "name": "8nzc1x4iim2xj1g2ul64.chipaca",
-    "origin": "chipaca",
-    "package_name": "8nzc1x4iim2xj1g2ul64",
-    "price": 0.0,
-    "prices": {},
-    "publisher": "John Lenton",
-    "ratings_average": 0.0,
-    "release": [
-        "15.04-core"
-    ],
-    "revision": 15,
-    "screenshot_url": null,
-    "screenshot_urls": [],
-    "status": "Published",
-    "stores": {
-        "ubuntu": {
-            "status": "Published"
-        }
-    },
-    "support_url": "http://lmgtfy.com",
-    "terms_of_service": "",
-    "title": "Returns for store credit only.",
-    "translations": {},
-    "version": "42",
-    "video_embedded_html_urls": [],
-    "video_urls": [],
-    "website": "",
-    "whitelist_country_codes": []
-}
-`
-
-/* acquired via
-curl -s -H 'accept: application/hal+json' -H "X-Ubuntu-Release: 15.04-core" -H "X-Ubuntu-Architecture: amd64" "https://search.apps.ubuntu.com/api/v1/search?q=8nzc1x4iim2xj1g2ul64&fields=publisher,package_name,developer,title,icon_url,prices,content,ratings_average,version,anon_download_url,download_url,download_sha512,last_updated,binary_filesize,support_url,alias,revision" | python -m json.tool
-*/
-const MockAliasSearchJSON = `{
-    "_embedded": {
-        "clickindex:package": [
-            {
-                "_links": {
-                    "self": {
-                        "href": "https://search.apps.ubuntu.com/api/v1/package/hello-world.canonical"
-                    }
-                },
-                "alias": "hello-world",
-                "anon_download_url": "https://public.apps.ubuntu.com/anon/download/canonical/hello-world.canonical/hello-world.canonical_1.0.8_all.snap",
-                "binary_filesize": 32409,
-                "content": "application",
-                "download_sha512": "70381281e979f2914851296ae70ea2f5d964724e8cebb3bdd98d2d51e07ebb19ab56c1009c3c78c91246076ba726b7abbccd97aaec40c9fdd7ac3f1025c3cf52",
-                "download_url": "https://public.apps.ubuntu.com/download/canonical/hello-world.canonical/hello-world.canonical_1.0.8_all.snap",
-                "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
-                "last_updated": "2015-04-16T16:13:58.104820Z",
-                "origin": "canonical",
-                "package_name": "hello-world",
-                "prices": {},
-                "publisher": "Canonical",
-                "ratings_average": 0.0,
-                "revision": 6,
-                "support_url": "mailto:snappy-devel@lists.ubuntu.com",
-                "title": "hello-world",
-                "version": "1.0.8"
-            },
-            {
-                "_links": {
-                    "self": {
-                        "href": "https://search.apps.ubuntu.com/api/v1/package/hello-world.jdstrand"
-                    }
-                },
-                "alias": null,
-                "anon_download_url": "https://public.apps.ubuntu.com/anon/download/jdstrand/hello-world.jdstrand/hello-world.jdstrand_1.4_all.snap",
-                "binary_filesize": 32487,
-                "content": "application",
-                "download_sha512": "1cf102ace19a5b3605038cebcfddd2778a946a7f3fb7f66a9b7d0824f01c1ee805b2d9fa5cc644270547d790e848e9eb00a23998e8c4bc517db5ef8d943448cc",
-                "download_url": "https://public.apps.ubuntu.com/download/jdstrand/hello-world.jdstrand/hello-world.jdstrand_1.4_all.snap",
-                "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg.png",
-                "last_updated": "2015-04-16T15:32:09.118993Z",
-                "origin": "jdstrand",
-                "package_name": "hello-world",
-                "prices": {},
-                "publisher": "Jamie Strandboge",
-                "ratings_average": 0.0,
-                "revision": 7,
-                "support_url": "mailto:jamie@strandboge.com",
-                "title": "hello-world",
-                "version": "1.4"
-            }
-        ]
-    },
-    "_links": {
-        "curies": [
-            {
-                "href": "https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex#reltype_{rel}",
-                "name": "clickindex",
-                "templated": true
-            }
-        ],
-        "self": {
-            "href": "https://search.apps.ubuntu.com/api/v1/search?q=hello-world&fields=publisher,package_name,developer,title,icon_url,prices,content,ratings_average,version,anon_download_url,download_url,download_sha512,last_updated,binary_filesize,support_url,alias,revision"
-        }
-    }
-}
-`
-
-const MockNoDetailsJSON = `{"errors": ["No such package"], "result": "error"}`
-
 type MockUbuntuStoreServer struct {
 	quit chan int
 
 	searchURI string
-}
-
-func (s *SnapTestSuite) TestUbuntuStoreFind(c *C) {
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.URL.RawQuery, Equals, "q=name%3Afoo")
-		io.WriteString(w, MockSearchJSON)
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	var err error
-	storeSearchURI, err = url.Parse(mockServer.URL)
-	c.Assert(err, IsNil)
-
-	repo := NewUbuntuStoreSnapRepository()
-	c.Assert(repo, NotNil)
-
-	snaps, err := repo.FindSnaps("foo", "")
-	c.Assert(err, IsNil)
-	c.Assert(snaps, HasLen, 1)
-	c.Check(snaps[0].Name(), Equals, funkyAppName)
 }
 
 func mockActiveSnapIterByType(mockSnaps []string) {
@@ -451,9 +238,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 	defer mockServer.Close()
 
 	var err error
-	storeBulkURI, err = url.Parse(mockServer.URL + "/updates/")
+	s.storeCfg.BulkURI, err = url.Parse(mockServer.URL + "/updates/")
 	c.Assert(err, IsNil)
-	snap := NewUbuntuStoreSnapRepository()
+	snap := store.NewUbuntuStoreSnapRepository(s.storeCfg, "")
 	c.Assert(snap, NotNil)
 
 	// override the real ActiveSnapIterByType to return our
@@ -461,7 +248,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 	mockActiveSnapIterByType([]string{funkyAppName})
 
 	// the actual test
-	results, err := snap.SnapUpdates()
+	results, err := snapUpdates(snap)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].Name(), Equals, funkyAppName)
@@ -471,82 +258,17 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdatesNoSnaps(c *C) {
 
 	var err error
-	storeDetailsURI, err = url.Parse("https://some-uri")
+	s.storeCfg.DetailsURI, err = url.Parse("https://some-uri")
 	c.Assert(err, IsNil)
-	snap := NewUbuntuStoreSnapRepository()
+	snap := store.NewUbuntuStoreSnapRepository(s.storeCfg, "")
 	c.Assert(snap, NotNil)
 
-	// ensure we do not hit the net if there is nothing installed
-	// (otherwise the store will send us all snaps)
-	snap.bulkURI = "http://i-do.not-exist.really-not"
 	mockActiveSnapIterByType([]string{})
 
 	// the actual test
-	results, err := snap.SnapUpdates()
+	results, err := snapUpdates(snap)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 0)
-}
-
-func (s *SnapTestSuite) TestUbuntuStoreRepositoryHeaders(c *C) {
-	req, err := http.NewRequest("GET", "http://example.com", nil)
-	c.Assert(err, IsNil)
-
-	setUbuntuStoreHeaders(req)
-
-	c.Assert(req.Header.Get("X-Ubuntu-Release"), Equals, release.String())
-}
-
-func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// no store ID by default
-		storeID := r.Header.Get("X-Ubuntu-Store")
-		c.Check(storeID, Equals, "")
-
-		c.Check(r.URL.Path, Equals, fmt.Sprintf("/details/%s.%s/edge", funkyAppName, funkyAppDeveloper))
-		io.WriteString(w, MockDetailsJSON)
-	}))
-
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	var err error
-	storeDetailsURI, err = url.Parse(mockServer.URL + "/details/")
-	c.Assert(err, IsNil)
-	snap := NewUbuntuStoreSnapRepository()
-	c.Assert(snap, NotNil)
-
-	// the actual test
-	result, err := snap.Snap(funkyAppName+"."+funkyAppDeveloper, "edge")
-	c.Assert(err, IsNil)
-	c.Check(result.Name(), Equals, funkyAppName)
-	c.Check(result.Developer(), Equals, funkyAppDeveloper)
-	c.Check(result.Version(), Equals, "42")
-	c.Check(result.Hash(), Equals, "5364253e4a988f4f5c04380086d542f410455b97d48cc6c69ca2a5877d8aef2a6b2b2f83ec4f688cae61ebc8a6bf2cdbd4dbd8f743f0522fc76540429b79df42")
-	c.Check(result.Date().String(), Equals, "2015-04-15 18:30:16 +0000 UTC")
-	c.Check(result.DownloadSize(), Equals, int64(65375))
-	c.Check(result.Channel(), Equals, "edge")
-}
-
-func (s *SnapTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Assert(r.URL.Path, Equals, "/details/no-such-pkg/edge")
-		w.WriteHeader(404)
-		io.WriteString(w, MockNoDetailsJSON)
-	}))
-
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	var err error
-	storeDetailsURI, err = url.Parse(mockServer.URL + "/details/")
-	c.Assert(err, IsNil)
-	snap := NewUbuntuStoreSnapRepository()
-	c.Assert(snap, NotNil)
-
-	// the actual test
-	result, err := snap.Snap("no-such-pkg", "edge")
-	c.Assert(err, NotNil)
-	c.Assert(result, IsNil)
 }
 
 func (s *SnapTestSuite) TestMakeConfigEnv(c *C) {
@@ -587,7 +309,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	r := &RemoteSnap{}
+	r := &store.RemoteSnap{}
 	r.Pkg.AnonDownloadURL = mockServer.URL + "/snap"
 	r.Pkg.IconURL = mockServer.URL + "/icon"
 	r.Pkg.Name = "foo"
@@ -595,7 +317,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 	r.Pkg.Description = "this is a description"
 	r.Pkg.Version = "1.0"
 
-	mStore := NewUbuntuStoreSnapRepository()
+	mStore := store.NewUbuntuStoreSnapRepository(s.storeCfg, "")
 	p := &MockProgressMeter{}
 	name, err := installRemote(mStore, r, 0, p)
 	c.Assert(err, IsNil)
@@ -641,7 +363,7 @@ apps:
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	r := &RemoteSnap{}
+	r := &store.RemoteSnap{}
 	r.Pkg.AnonDownloadURL = mockServer.URL + "/snap"
 	r.Pkg.Developer = testDeveloper
 	r.Pkg.IconURL = mockServer.URL + "/icon"
@@ -649,7 +371,7 @@ apps:
 	r.Pkg.Developer = "bar"
 	r.Pkg.Version = "1.0"
 
-	mStore := NewUbuntuStoreSnapRepository()
+	mStore := store.NewUbuntuStoreSnapRepository(s.storeCfg, "")
 	p := &MockProgressMeter{}
 	name, err := installRemote(mStore, r, 0, p)
 	c.Assert(err, IsNil)
@@ -816,9 +538,9 @@ type: gadget
 	c.Assert(err, IsNil)
 	makeSnapActive(snapYamlFn)
 
-	storeDetailsURI, err = url.Parse(mockServer.URL)
+	s.storeCfg.DetailsURI, err = url.Parse(mockServer.URL)
 	c.Assert(err, IsNil)
-	repo := NewUbuntuStoreSnapRepository()
+	repo := NewConfiguredUbuntuStoreSnapRepository()
 	c.Assert(repo, NotNil)
 
 	// we just ensure that the right header is set
@@ -1038,22 +760,6 @@ func (s *SnapTestSuite) TestDeveloperFromPath(c *C) {
 	c.Check(n, Equals, "")
 }
 
-func (s *SnapTestSuite) TestStructFields(c *C) {
-	type t struct {
-		Foo int `json:"hello"`
-		Bar int `json:"potato,stuff"`
-	}
-	c.Assert(getStructFields(t{}), DeepEquals, []string{"hello", "potato"})
-}
-
-func (s *SnapTestSuite) TestStructFieldsSurvivesNoTag(c *C) {
-	type t struct {
-		Foo int `json:"hello"`
-		Bar int
-	}
-	c.Assert(getStructFields(t{}), DeepEquals, []string{"hello"})
-}
-
 func (s *SnapTestSuite) TestIllegalPackageNameWithDeveloper(c *C) {
 	_, err := parseSnapYamlData([]byte(`name: foo.something
 version: 1.0
@@ -1178,28 +884,6 @@ func (s *SnapTestSuite) TestParseSnapYamlDataChecksMultiple(c *C) {
 	_, err := parseSnapYamlData([]byte(`
 `), false)
 	c.Assert(err, ErrorMatches, "can not parse snap.yaml: missing required fields 'name, version'.*")
-}
-
-func (s *SnapTestSuite) TestCpiURLDependsOnEnviron(c *C) {
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", ""), IsNil)
-	before := cpiURL()
-
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", "1"), IsNil)
-	defer os.Setenv("SNAPPY_USE_STAGING_CPI", "")
-	after := cpiURL()
-
-	c.Check(before, Not(Equals), after)
-}
-
-func (s *SnapTestSuite) TestAuthURLDependsOnEnviron(c *C) {
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", ""), IsNil)
-	before := authURL()
-
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", "1"), IsNil)
-	defer os.Setenv("SNAPPY_USE_STAGING_CPI", "")
-	after := authURL()
-
-	c.Check(before, Not(Equals), after)
 }
 
 func (s *SnapTestSuite) TestChannelFromLocalManifest(c *C) {

@@ -181,7 +181,7 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 	dlURL = mockServer.URL + "/dl"
 	iconURL = mockServer.URL + "/icon"
 
-	storeDetailsURI, err = url.Parse(mockServer.URL + "/details/")
+	s.storeCfg.DetailsURI, err = url.Parse(mockServer.URL + "/details/")
 	c.Assert(err, IsNil)
 
 	name, err := Install("foo", "ch", 0, &progress.NullProgress{})
@@ -221,7 +221,7 @@ func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 		}
 	}))
 
-	storeDetailsURI, err = url.Parse(mockServer.URL + "/details/")
+	s.storeCfg.DetailsURI, err = url.Parse(mockServer.URL + "/details/")
 	c.Assert(err, IsNil)
 
 	c.Assert(mockServer, NotNil)
@@ -274,7 +274,7 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 	dlURL = mockServer.URL + "/dl"
 	iconURL = mockServer.URL + "/icon"
 
-	storeDetailsURI, err = url.Parse(mockServer.URL + "/details/")
+	s.storeCfg.DetailsURI, err = url.Parse(mockServer.URL + "/details/")
 	c.Assert(err, IsNil)
 
 	// bulk
@@ -289,7 +289,7 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 }]`)
 	}))
 
-	storeBulkURI, err = url.Parse(mockServer.URL)
+	s.storeCfg.BulkURI, err = url.Parse(mockServer.URL)
 	c.Assert(err, IsNil)
 
 	c.Assert(mockServer, NotNil)

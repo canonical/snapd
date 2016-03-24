@@ -24,9 +24,15 @@ import (
 	"os"
 	"sort"
 
+	"gopkg.in/yaml.v2"
+
+	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/provisioning"
+	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/store"
 )
 
 // InstallFlags can be used to pass additional flags to the install of a
@@ -42,18 +48,18 @@ const (
 	DoInstallGC
 	// AllowGadget allows the installation of Gadget packages, this does not affect updates.
 	AllowGadget
-	// DeveloeprMode will install the snap without confinement
+	// DeveloperMode will install the snap without confinement
 	DeveloperMode
 )
 
-func installRemote(mStore *SnapUbuntuStoreRepository, remoteSnap *RemoteSnap, flags InstallFlags, meter progress.Meter) (string, error) {
+func installRemote(mStore *store.SnapUbuntuStoreRepository, remoteSnap *store.RemoteSnap, flags InstallFlags, meter progress.Meter) (string, error) {
 	downloadedSnap, err := mStore.Download(remoteSnap, meter)
 	if err != nil {
 		return "", fmt.Errorf("cannot download %s: %s", remoteSnap.Name(), err)
 	}
 	defer os.Remove(downloadedSnap)
 
-	if err := remoteSnap.SaveStoreManifest(); err != nil {
+	if err := SaveStoreManifest(remoteSnap); err != nil {
 		return "", err
 	}
 
@@ -65,7 +71,22 @@ func installRemote(mStore *SnapUbuntuStoreRepository, remoteSnap *RemoteSnap, fl
 	return localSnap.Name(), nil
 }
 
-func doUpdate(mStore *SnapUbuntuStoreRepository, rsnap *RemoteSnap, flags InstallFlags, meter progress.Meter) error {
+// SaveStoreManifest saves the store manifest of the snap at the designated location.
+func SaveStoreManifest(s *store.RemoteSnap) error {
+	content, err := yaml.Marshal(s.Pkg)
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(dirs.SnapMetaDir, 0755); err != nil {
+		return err
+	}
+
+	// don't worry about previous contents
+	return osutil.AtomicWriteFile(RemoteManifestPath(s.Info()), content, 0644, 0)
+}
+
+func doUpdate(mStore *store.SnapUbuntuStoreRepository, rsnap *store.RemoteSnap, flags InstallFlags, meter progress.Meter) error {
 	_, err := installRemote(mStore, rsnap, flags, meter)
 	if err == ErrSideLoaded {
 		logger.Noticef("Skipping sideloaded package: %s", rsnap.Name())
@@ -93,7 +114,7 @@ func doUpdate(mStore *SnapUbuntuStoreRepository, rsnap *RemoteSnap, flags Instal
 //
 // convertToInstalledSnaps takes a slice of remote snaps that got
 // updated and returns the corresponding local snaps
-func convertToInstalledSnaps(remoteUpdates []*RemoteSnap) ([]*Snap, error) {
+func convertToInstalledSnaps(remoteUpdates []*store.RemoteSnap) ([]*Snap, error) {
 	installed, err := NewLocalSnapRepository().Installed()
 	if err != nil {
 		return nil, err
@@ -111,6 +132,44 @@ func convertToInstalledSnaps(remoteUpdates []*RemoteSnap) ([]*Snap, error) {
 	return installedUpdates, nil
 }
 
+// snapUpdates identifies which snaps have updates in the store.
+func snapUpdates(repo *store.SnapUbuntuStoreRepository) (snaps []*store.RemoteSnap, err error) {
+	// NOTE this *will* send .sideload apps to the store.
+	installed, err := ActiveSnapIterByType(fullNameWithChannel, snap.TypeApp, snap.TypeGadget, snap.TypeOS, snap.TypeKernel)
+	if err != nil || len(installed) == 0 {
+		return nil, err
+	}
+
+	rsnaps, err := repo.Updates(installed)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, rsnap := range rsnaps {
+		current := ActiveSnapByName(rsnap.Name())
+		if current == nil || current.Revision() != rsnap.Revision() {
+			snaps = append(snaps, rsnap)
+		}
+	}
+
+	return snaps, nil
+}
+
+var storeConfig = (*store.SnapUbuntuStoreConfig)(nil)
+
+// TODO: kill this function once fewer places make a store on the fly
+
+// NewConfiguredUbuntuStoreSnapRepository creates a new fully configured store.SnapUbuntuStoreRepository with the store id selected by the gadget.
+func NewConfiguredUbuntuStoreSnapRepository() *store.SnapUbuntuStoreRepository {
+	storeID := ""
+	if cand := os.Getenv("UBUNTU_STORE_ID"); cand != "" {
+		storeID = cand
+	} else if cand := StoreID(); cand != "" {
+		storeID = cand
+	}
+	return store.NewUbuntuStoreSnapRepository(storeConfig, storeID)
+}
+
 // Update updates the selected name
 func Update(name string, flags InstallFlags, meter progress.Meter) ([]*Snap, error) {
 	installed, err := NewLocalSnapRepository().Installed()
@@ -122,14 +181,14 @@ func Update(name string, flags InstallFlags, meter progress.Meter) ([]*Snap, err
 		return nil, ErrNotInstalled
 	}
 
-	mStore := NewUbuntuStoreSnapRepository()
+	mStore := NewConfiguredUbuntuStoreSnapRepository()
 	// zomg :-(
 	// TODO: query the store for just this package, instead of this
-	updates, err := mStore.SnapUpdates()
+	updates, err := snapUpdates(mStore)
 	if err != nil {
 		return nil, fmt.Errorf("cannot get updates: %s", err)
 	}
-	var update *RemoteSnap
+	var update *store.RemoteSnap
 	for _, upd := range updates {
 		if cur[0].Name() == update.Name() {
 			update = upd
@@ -144,7 +203,7 @@ func Update(name string, flags InstallFlags, meter progress.Meter) ([]*Snap, err
 		return nil, err
 	}
 
-	installedUpdates, err := convertToInstalledSnaps([]*RemoteSnap{update})
+	installedUpdates, err := convertToInstalledSnaps([]*store.RemoteSnap{update})
 	if err != nil {
 		return nil, err
 	}
@@ -156,8 +215,8 @@ func Update(name string, flags InstallFlags, meter progress.Meter) ([]*Snap, err
 // if updates where available and an error and nil if any of the updates
 // fail to apply.
 func UpdateAll(flags InstallFlags, meter progress.Meter) ([]*Snap, error) {
-	mStore := NewUbuntuStoreSnapRepository()
-	updates, err := mStore.SnapUpdates()
+	mStore := NewConfiguredUbuntuStoreSnapRepository()
+	updates, err := snapUpdates(mStore)
 	if err != nil {
 		return nil, err
 	}
@@ -207,7 +266,7 @@ func doInstall(name, channel string, flags InstallFlags, meter progress.Meter) (
 	}
 
 	// check repos next
-	mStore := NewUbuntuStoreSnapRepository()
+	mStore := NewConfiguredUbuntuStoreSnapRepository()
 	installed, err := NewLocalSnapRepository().Installed()
 	if err != nil {
 		return "", err
