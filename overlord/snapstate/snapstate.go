@@ -40,7 +40,7 @@ func Install(s *state.State, snap, channel string, flags snappy.InstallFlags) (*
 
 	// check if it is a local snap, those are special
 	if fi, err := os.Stat(snap); err == nil && fi.Mode().IsRegular() {
-		inst.LocalFileName = snap
+		inst.SnapPath = snap
 		tl := s.NewTask("install-snap", fmt.Sprintf(i18n.G("Installing %q"), snap))
 		tl.Set("install-state", inst)
 		return state.NewTaskSet(tl), nil
@@ -51,8 +51,8 @@ func Install(s *state.State, snap, channel string, flags snappy.InstallFlags) (*
 	t.Set("install-state", inst)
 
 	t2 := s.NewTask("install-snap", fmt.Sprintf(i18n.G("Installing %q"), snap))
+	inst.DownloadTaskID = t.ID()
 	t2.Set("install-state", inst)
-	t2.Set("download-task-id", t.ID())
 	t2.WaitFor(t)
 
 	return state.NewTaskSet(t, t2), nil

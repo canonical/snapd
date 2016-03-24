@@ -76,6 +76,8 @@ func (s *defaultBackend) Download(name, channel string, meter progress.Meter) (s
 		return "", "", err
 	}
 
+	// FIXME: add undo task so that we delete the store manifest
+	//        again if we can not install the snap
 	if err := snap.SaveStoreManifest(); err != nil {
 		return "", "", err
 	}
