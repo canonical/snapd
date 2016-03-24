@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,7 +17,8 @@
  *
  */
 
-package snappy
+// Package store has support to use the Ubuntu Store for querying and downloading of snaps, and the related services.
+package store
 
 import (
 	"bytes"
@@ -36,7 +37,6 @@ import (
 	"github.com/ubuntu-core/snappy/oauth"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
-	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/remote"
 )
 
@@ -53,18 +53,20 @@ func NewRemoteSnap(data remote.Snap) *RemoteSnap {
 	return &RemoteSnap{Pkg: data}
 }
 
-// SnapUbuntuStoreRepository represents the ubuntu snap store
-type SnapUbuntuStoreRepository struct {
-	searchURI  *url.URL
-	detailsURI *url.URL
-	bulkURI    string
+// SnapUbuntuStoreConfig represents the configuration to access the snap store
+type SnapUbuntuStoreConfig struct {
+	SearchURI  *url.URL
+	DetailsURI *url.URL
+	BulkURI    *url.URL
 }
 
-var (
-	storeSearchURI  *url.URL
-	storeDetailsURI *url.URL
-	storeBulkURI    *url.URL
-)
+// SnapUbuntuStoreRepository represents the ubuntu snap store
+type SnapUbuntuStoreRepository struct {
+	storeID    string
+	searchURI  *url.URL
+	detailsURI *url.URL
+	bulkURI    *url.URL
+}
 
 func getStructFields(s interface{}) []string {
 	st := reflect.TypeOf(s)
@@ -103,32 +105,32 @@ func authURL() string {
 	return "https://login.ubuntu.com/api/v2"
 }
 
+var defaultConfig = SnapUbuntuStoreConfig{}
+
 func init() {
 	storeBaseURI, err := url.Parse(cpiURL())
 	if err != nil {
 		panic(err)
 	}
 
-	storeSearchURI, err = storeBaseURI.Parse("search")
+	defaultConfig.SearchURI, err = storeBaseURI.Parse("search")
 	if err != nil {
 		panic(err)
 	}
-
 	v := url.Values{}
 	v.Set("fields", strings.Join(getStructFields(remote.Snap{}), ","))
-	storeSearchURI.RawQuery = v.Encode()
+	defaultConfig.SearchURI.RawQuery = v.Encode()
 
-	storeDetailsURI, err = storeBaseURI.Parse("package/")
-
+	defaultConfig.DetailsURI, err = storeBaseURI.Parse("package/")
 	if err != nil {
 		panic(err)
 	}
 
-	storeBulkURI, err = storeBaseURI.Parse("click-metadata")
+	defaultConfig.BulkURI, err = storeBaseURI.Parse("click-metadata")
 	if err != nil {
 		panic(err)
 	}
-	storeBulkURI.RawQuery = v.Encode()
+	defaultConfig.BulkURI.RawQuery = v.Encode()
 }
 
 type searchResults struct {
@@ -137,31 +139,30 @@ type searchResults struct {
 	} `json:"_embedded"`
 }
 
-// NewUbuntuStoreSnapRepository creates a new SnapUbuntuStoreRepository
-func NewUbuntuStoreSnapRepository() *SnapUbuntuStoreRepository {
-	if storeSearchURI == nil && storeDetailsURI == nil && storeBulkURI == nil {
-		return nil
+// NewUbuntuStoreSnapRepository creates a new SnapUbuntuStoreRepository with the given access configuration and for given the store id.
+func NewUbuntuStoreSnapRepository(cfg *SnapUbuntuStoreConfig, storeID string) *SnapUbuntuStoreRepository {
+	if cfg == nil {
+		cfg = &defaultConfig
 	}
 	// see https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex
 	return &SnapUbuntuStoreRepository{
-		searchURI:  storeSearchURI,
-		detailsURI: storeDetailsURI,
-		bulkURI:    storeBulkURI.String(),
+		storeID:    storeID,
+		searchURI:  cfg.SearchURI,
+		detailsURI: cfg.DetailsURI,
+		bulkURI:    cfg.BulkURI,
 	}
 }
 
 // small helper that sets the correct http headers for the ubuntu store
-func setUbuntuStoreHeaders(req *http.Request) {
+func (s *SnapUbuntuStoreRepository) setUbuntuStoreHeaders(req *http.Request) {
 	req.Header.Set("Accept", "application/hal+json")
 
 	req.Header.Set("X-Ubuntu-Architecture", string(arch.UbuntuArchitecture()))
 	req.Header.Set("X-Ubuntu-Release", release.String())
 	req.Header.Set("X-Ubuntu-Wire-Protocol", UbuntuCoreWireProtocol)
 
-	if storeID := os.Getenv("UBUNTU_STORE_ID"); storeID != "" {
-		req.Header.Set("X-Ubuntu-Store", storeID)
-	} else if storeID := StoreID(); storeID != "" {
-		req.Header.Set("X-Ubuntu-Store", storeID)
+	if s.storeID != "" {
+		req.Header.Set("X-Ubuntu-Store", s.storeID)
 	}
 
 	// sso
@@ -185,7 +186,7 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string) (*RemoteSnap, err
 	}
 
 	// set headers
-	setUbuntuStoreHeaders(req)
+	s.setUbuntuStoreHeaders(req)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -197,7 +198,7 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string) (*RemoteSnap, err
 	// check statusCode
 	switch {
 	case resp.StatusCode == 404:
-		return nil, ErrPackageNotFound
+		return nil, ErrSnapNotFound
 	case resp.StatusCode != 200:
 		return nil, fmt.Errorf("SnapUbuntuStoreRepository: unexpected HTTP status code %d while looking forsnap %q/%q", resp.StatusCode, name, channel)
 	}
@@ -233,7 +234,7 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string)
 	}
 
 	// set headers
-	setUbuntuStoreHeaders(req)
+	s.setUbuntuStoreHeaders(req)
 	req.Header.Set("X-Ubuntu-Device-Channnel", channel)
 
 	client := &http.Client{}
@@ -258,24 +259,19 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string)
 	return snaps, nil
 }
 
-// SnapUpdates returns the available updates as RemoteSnap types
-func (s *SnapUbuntuStoreRepository) SnapUpdates() (snaps []*RemoteSnap, err error) {
-	// NOTE this *will* send .sideload apps to the store.
-	installed, err := ActiveSnapIterByType(fullNameWithChannel, snap.TypeApp, snap.TypeGadget, snap.TypeOS, snap.TypeKernel)
-	if err != nil || len(installed) == 0 {
-		return nil, err
-	}
+// Updates returns the available updates for a list of snap identified by fullname with channel.
+func (s *SnapUbuntuStoreRepository) Updates(installed []string) (snaps []*RemoteSnap, err error) {
 	jsonData, err := json.Marshal(map[string][]string{"name": installed})
 	if err != nil {
 		return nil, err
 	}
 
-	req, err := http.NewRequest("POST", s.bulkURI, bytes.NewBuffer([]byte(jsonData)))
+	req, err := http.NewRequest("POST", s.bulkURI.String(), bytes.NewBuffer([]byte(jsonData)))
 	if err != nil {
 		return nil, err
 	}
 	// set headers
-	setUbuntuStoreHeaders(req)
+	s.setUbuntuStoreHeaders(req)
 	// the updates call is a special snowflake right now
 	// (see LP: #1427155)
 	req.Header.Set("Accept", "application/json")
@@ -293,15 +289,13 @@ func (s *SnapUbuntuStoreRepository) SnapUpdates() (snaps []*RemoteSnap, err erro
 		return nil, err
 	}
 
-	for _, pkg := range updateData {
-		current := ActiveSnapByName(pkg.Name)
-		if current == nil || current.Revision() != pkg.Revision {
-			snap := NewRemoteSnap(pkg)
-			snaps = append(snaps, snap)
-		}
+	// TODO: untangle remote.Snap vs RemoteSnap
+	res := make([]*RemoteSnap, len(updateData))
+	for i, rsnap := range updateData {
+		res[i] = NewRemoteSnap(rsnap)
 	}
 
-	return snaps, nil
+	return res, nil
 }
 
 // Download downloads the given snap and returns its filename.
@@ -331,7 +325,7 @@ func (s *SnapUbuntuStoreRepository) Download(remoteSnap *RemoteSnap, pbar progre
 	if err != nil {
 		return "", err
 	}
-	setUbuntuStoreHeaders(req)
+	s.setUbuntuStoreHeaders(req)
 
 	if err := download(remoteSnap.Name(), w, req, pbar); err != nil {
 		return "", err
