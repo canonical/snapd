@@ -39,7 +39,7 @@ func Install(s *state.State, snap, channel string, flags snappy.InstallFlags) (*
 	t := s.NewTask("download-snap", fmt.Sprintf(i18n.G("Downloading %q"), snap))
 	t.Set("install-state", ist)
 
-	t2 := s.NewTask("install-local-snap", fmt.Sprintf(i18n.G("Installing %q"), snap))
+	t2 := s.NewTask("install-snap", fmt.Sprintf(i18n.G("Installing %q"), snap))
 	t2.Set("install-state", ist)
 	t2.Set("download-task-id", t.ID())
 	t2.WaitFor(t)

@@ -62,7 +62,7 @@ func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
 
 	c.Assert(ts.Tasks(), HasLen, 2)
 	c.Assert(ts.Tasks()[0].Kind(), Equals, "download-snap")
-	c.Assert(ts.Tasks()[1].Kind(), Equals, "install-local-snap")
+	c.Assert(ts.Tasks()[1].Kind(), Equals, "install-snap")
 }
 
 func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
