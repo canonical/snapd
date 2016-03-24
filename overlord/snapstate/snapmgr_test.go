@@ -20,12 +20,15 @@
 package snapstate_test
 
 import (
+	"io/ioutil"
+	"path/filepath"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
+	"github.com/ubuntu-core/snappy/snappy"
 )
 
 func TestSnapManager(t *testing.T) { TestingT(t) }
@@ -112,6 +115,32 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 	cur, total := task.Progress()
 	c.Assert(cur, Equals, s.fakeBackend.fakeCurrentProgress)
 	c.Assert(total, Equals, s.fakeBackend.fakeTotalProgress)
+}
+
+func (s *snapmgrTestSuite) TestInstallLocalIntegration(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	mockSnap := filepath.Join(c.MkDir(), "mock.snap")
+	err := ioutil.WriteFile(mockSnap, nil, 0644)
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("install", "install a local snap")
+	ts, err := snapstate.Install(s.state, mockSnap, "", 0)
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.snapmgr.Wait()
+	defer s.snapmgr.Stop()
+	s.state.Lock()
+
+	// ensure only local install was run
+	c.Assert(s.fakeBackend.ops, HasLen, 1)
+	c.Check(s.fakeBackend.ops[0].op, Equals, "install-local")
+	c.Check(s.fakeBackend.ops[0].name, Matches, `.*/mock.snap`)
+	c.Check(s.fakeBackend.ops[0].developer, Equals, snappy.SideloadedDeveloper)
 }
 
 func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
