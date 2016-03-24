@@ -39,6 +39,12 @@ func (cs *changeSuite) TestNewChange(c *C) {
 	c.Check(chg.Summary(), Equals, "summary...")
 }
 
+func (cs *changeSuite) TestStatusString(c *C) {
+	for s := state.Status(0); s < state.ErrorStatus+1; s++ {
+		c.Assert(s.String(), Matches, ".+")
+	}
+}
+
 func (cs *changeSuite) TestGetSet(c *C) {
 	st := state.New(nil)
 	st.Lock()
@@ -101,31 +107,40 @@ func (cs *changeSuite) TestStatusDerivedFromTasks(c *C) {
 
 	chg := st.NewChange("install", "...")
 
-	// Default with no tasks.
-	c.Check(chg.Status(), Equals, state.DoStatus)
+	// Nothing to do with it if there are no tasks.
+	c.Assert(chg.Status(), Equals, state.HoldStatus)
 
-	t1 := st.NewTask("download", "1...")
-	chg.AddTask(t1)
-	t2 := st.NewTask("verify", "2...")
-	chg.AddTask(t2)
+	tasks := make(map[state.Status]*state.Task)
 
-	c.Check(chg.Status(), Equals, state.DoStatus)
+	for s := state.DefaultStatus+1; s < state.ErrorStatus+1; s++ {
+		t := st.NewTask("download", s.String())
+		t.SetStatus(s)
+		chg.AddTask(t)
+		tasks[s] = t
+	}
 
-	t1.SetStatus(state.ErrorStatus)
-	c.Check(chg.Status(), Equals, state.DoStatus)
+	order := []state.Status{
+		state.AbortStatus,
+		state.UndoingStatus,
+		state.UndoStatus,
+		state.DoingStatus,
+		state.DoStatus,
+		state.ErrorStatus,
+		state.UndoneStatus,
+		state.DoneStatus,
+		state.HoldStatus,
+	}
 
-	t2.SetStatus(state.UndoStatus)
-	c.Check(chg.Status(), Equals, state.UndoStatus)
-
-	t2.SetStatus(state.UndoneStatus)
-	c.Check(chg.Status(), Equals, state.ErrorStatus)
-
-	// For correctness and completeness. Not expected in real changes.
-	t1.SetStatus(state.UndoneStatus)
-	c.Check(chg.Status(), Equals, state.UndoneStatus)
-
-	t2.SetStatus(state.DoneStatus)
-	c.Check(chg.Status(), Equals, state.DoneStatus)
+	for _, s := range order {
+		// Set all tasks with previous statuses to s as well.
+		for _, s2 := range order {
+			if s == s2 {
+				break
+			}
+			tasks[s2].SetStatus(s)
+		}
+		c.Assert(chg.Status(), Equals, s)
+	}
 }
 
 func (cs *changeSuite) TestState(c *C) {
@@ -191,5 +206,41 @@ func (cs *changeSuite) TestNeedsLock(c *C) {
 	for i, f := range funcs {
 		c.Logf("Testing function #%d", i)
 		c.Assert(f, PanicMatches, "internal error: accessing state without lock")
+	}
+}
+
+func (cs *changeSuite) TestAbort(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("install", "...")
+
+	for s := state.DefaultStatus+1; s < state.ErrorStatus+1; s++ {
+		t := st.NewTask("download", s.String())
+		t.SetStatus(s)
+		t.Set("old-status", s)
+		chg.AddTask(t)
+	}
+
+	chg.Abort()
+
+	tasks := chg.Tasks()
+	for _, t := range tasks {
+		var s state.Status
+		err := t.Get("old-status", &s)
+		c.Assert(err, IsNil)
+
+		c.Logf("Checking %s task after abort", t.Summary())
+		switch s {
+		case state.DoStatus:
+			c.Assert(t.Status(), Equals, state.HoldStatus)
+		case state.DoneStatus:
+			c.Assert(t.Status(), Equals, state.UndoStatus)
+		case state.DoingStatus:
+			c.Assert(t.Status(), Equals, state.AbortStatus)
+		default:
+			c.Assert(t.Status(), Equals, s)
+		}
 	}
 }
