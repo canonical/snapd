@@ -108,35 +108,3 @@ func (client *Client) Disconnect(plugSnapName, plugName, slotSnapName, slotName 
 		Slots:  []Slot{{Snap: slotSnapName, Name: slotName}},
 	})
 }
-
-// AddPlug adds a plug to the interface system.
-func (client *Client) AddPlug(plug *Plug) error {
-	return client.performInterfaceAction(&InterfaceAction{
-		Action: "add-plug",
-		Plugs:  []Plug{*plug},
-	})
-}
-
-// RemovePlug removes a plug from the interface system.
-func (client *Client) RemovePlug(snapName, plugName string) error {
-	return client.performInterfaceAction(&InterfaceAction{
-		Action: "remove-plug",
-		Plugs:  []Plug{{Snap: snapName, Name: plugName}},
-	})
-}
-
-// AddSlot adds a slot to the system.
-func (client *Client) AddSlot(slot *Slot) error {
-	return client.performInterfaceAction(&InterfaceAction{
-		Action: "add-slot",
-		Slots:  []Slot{*slot},
-	})
-}
-
-// RemoveSlot removes a slot from the system.
-func (client *Client) RemoveSlot(snapName, slotName string) error {
-	return client.performInterfaceAction(&InterfaceAction{
-		Action: "remove-slot",
-		Slots:  []Slot{{Snap: snapName, Name: slotName}},
-	})
-}
