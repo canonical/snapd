@@ -40,12 +40,3 @@ func MockSecCompHeader(test *testutil.BaseTest, header []byte) {
 		secCompHeader = orig
 	})
 }
-
-// MockAppArmorHeader replaces the real apparmor header blob
-func MockAppArmorHeader(test *testutil.BaseTest, header []byte) {
-	orig := appArmorHeader
-	appArmorHeader = header
-	test.AddCleanup(func() {
-		appArmorHeader = orig
-	})
-}
