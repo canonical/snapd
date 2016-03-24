@@ -119,7 +119,7 @@ func (s *RemoteSnap) Date() time.Time {
 	return p
 }
 
-func (s *RemoteSnap) saveStoreManifest() error {
+func (s *RemoteSnap) SaveStoreManifest() error {
 	content, err := yaml.Marshal(s.Pkg)
 	if err != nil {
 		return err
