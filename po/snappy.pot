@@ -554,6 +554,9 @@ msgstr  ""
 msgid   "data-size: %s\n"
 msgstr  ""
 
+msgid   "free"
+msgstr  ""
+
 #. TRANSLATORS: the %s is a date
 #. TRANSLATORS: the %s is a date
 #, c-format
