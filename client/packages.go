@@ -24,20 +24,22 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 )
 
 // Snap holds the data for a snap as obtained from snapd.
 type Snap struct {
-	Summary       string `json:"summary"`
-	Description   string `json:"description"`
-	DownloadSize  int64  `json:"download-size"`
-	Icon          string `json:"icon"`
-	InstalledSize int64  `json:"installed-size"`
-	Name          string `json:"name"`
-	Developer     string `json:"developer"`
-	Status        string `json:"status"`
-	Type          string `json:"type"`
-	Version       string `json:"version"`
+	Summary       string    `json:"summary"`
+	Description   string    `json:"description"`
+	DownloadSize  int64     `json:"download-size"`
+	Icon          string    `json:"icon"`
+	InstalledSize int64     `json:"installed-size"`
+	InstallDate   time.Time `json:"install-date"`
+	Name          string    `json:"name"`
+	Developer     string    `json:"developer"`
+	Status        string    `json:"status"`
+	Type          string    `json:"type"`
+	Version       string    `json:"version"`
 }
 
 // SnapFilter is used to filter snaps by source, name and/or type

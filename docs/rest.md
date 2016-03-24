@@ -205,6 +205,7 @@ Sample result:
       "download-size": 1578272,
       "icon": "/v2/icons/http/icon",
       "installed-size": 1821897,
+      "install-date": "2016-03-10T13:16:52Z",
       "name": "http",
       "developer": "chipaca",
       "resource": "/v2/snaps/http",
@@ -220,6 +221,7 @@ Sample result:
       "download-size": 19845748,
       "icon": "",               // core might not have an icon
       "installed-size": -1,     // core doesn't have installed-size (yet)
+      "install-date": "2016-03-08T11:29:21Z",
       "name": "ubuntu-core",
       "developer": "canonical",
       "resource": "/v2/snaps/ubuntu-core",

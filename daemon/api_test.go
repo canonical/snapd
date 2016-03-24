@@ -231,6 +231,9 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	// installed-size depends on vagaries of the filesystem, just check type
 	c.Check(m["installed-size"], check.FitsTypeOf, int64(0))
 	delete(m, "installed-size")
+	// ditto install-date
+	c.Check(m["install-date"], check.FitsTypeOf, time.Time{})
+	delete(m, "install-date")
 
 	expected := &resp{
 		Type:   ResponseTypeSync,
