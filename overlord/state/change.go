@@ -36,27 +36,71 @@ const (
 	// to an aggregation of its tasks' statuses. See Change.Status for details.
 	DefaultStatus Status = 0
 
-	// DoStatus means the change or task is ready to start or has started.
-	DoStatus Status = 1
+	// HoldStatus means the task should not run, perhaps as a consequence of an error on another task.
+	HoldStatus Status = 1
+
+	// DoStatus means the change or task is ready to start.
+	DoStatus Status = 2
+
+	// DoingStatus means the change or task is running or an attempt was made to run it.
+	DoingStatus Status = 3
 
 	// DoneStatus means the change or task was accomplished successfully.
-	DoneStatus Status = 2
+	DoneStatus Status = 4
 
-	// UndoStatus means the change or task is about to be undone after an error elsewhere.
-	UndoStatus Status = 3
+	// AbortStatus means the task should stop doing its activities and then undo.
+	AbortStatus Status = 5
+
+	// UndoStatus means the change or task should be undone, probably due to an error elsewhere.
+	UndoStatus Status = 6
+
+	// UndoingStatus means the change or task is being undone or an attempt was made to undo it.
+	UndoingStatus Status = 7
 
 	// UndoneStatus means a task was first done and then undone after an error elsewhere.
 	// Changes go directly into the error status instead of being marked as undone.
-	UndoneStatus Status = 4
+	UndoneStatus Status = 8
 
-	// ErrorStatus means the change or task has failed.
-	ErrorStatus Status = 5
+	// ErrorStatus means the change or task has errored out while running or being undone.
+	ErrorStatus Status = 9
+
+	nStatuses = iota
 )
 
-const nStatuses = ErrorStatus + 1
+// Ready returns whether a task or change with this status needs further
+// work or has completed its attempt to perform the current goal.
+func (s Status) Ready() bool {
+	switch s {
+	case DoneStatus, UndoneStatus, HoldStatus, ErrorStatus:
+		return true
+	}
+	return false
+}
 
 func (s Status) String() string {
-	return []string{"Default", "Do", "Done", "Undo", "Undone", "Error"}[s]
+	switch s {
+	case DefaultStatus:
+		return "Default"
+	case DoStatus:
+		return "Do"
+	case DoingStatus:
+		return "Doing"
+	case DoneStatus:
+		return "Done"
+	case AbortStatus:
+		return "Abort"
+	case UndoStatus:
+		return "Undo"
+	case UndoingStatus:
+		return "Undoing"
+	case UndoneStatus:
+		return "Undone"
+	case HoldStatus:
+		return "Hold"
+	case ErrorStatus:
+		return "Error"
+	}
+	panic(fmt.Sprintf("internal error: unknown task status code: %d", s))
 }
 
 // Change represents a tracked modification to the system state.
@@ -159,6 +203,24 @@ func (c *Change) Get(key string, value interface{}) error {
 	return c.data.get(key, value)
 }
 
+var statusOrder = []Status{
+	AbortStatus,
+	UndoingStatus,
+	UndoStatus,
+	DoingStatus,
+	DoStatus,
+	ErrorStatus,
+	UndoneStatus,
+	DoneStatus,
+	HoldStatus,
+}
+
+func init() {
+	if len(statusOrder) != nStatuses-1 {
+		panic("statusOrder has wrong number of elements")
+	}
+}
+
 // Status returns the current status of the change.
 // If the status was not explicitly set the result is derived from the status
 // of the individual tasks related to the change, according to the following
@@ -172,27 +234,16 @@ func (c *Change) Status() Status {
 	c.state.ensureLocked()
 	if c.status == DefaultStatus {
 		if len(c.taskIDs) == 0 {
-			return DoStatus
+			return HoldStatus
 		}
 		statusStats := make([]int, nStatuses)
 		for _, tid := range c.taskIDs {
 			statusStats[c.state.tasks[tid].Status()]++
 		}
-		if statusStats[DoStatus] > 0 {
-			return DoStatus
-		}
-		if statusStats[UndoStatus] > 0 {
-			return UndoStatus
-		}
-		if statusStats[ErrorStatus] > 0 {
-			return ErrorStatus
-		}
-		if statusStats[DoneStatus] > 0 {
-			return DoneStatus
-		}
-		// Shouldn't happen in real cases but possible.
-		if statusStats[UndoneStatus] == len(c.taskIDs) {
-			return UndoneStatus
+		for _, s := range statusOrder {
+			if statusStats[s] > 0 {
+				return s
+			}
 		}
 		panic(fmt.Sprintf("internal error: cannot process change status: %v", statusStats))
 	}
@@ -279,4 +330,23 @@ func (c *Change) AddAll(ts *TaskSet) {
 func (c *Change) Tasks() []*Task {
 	c.state.ensureLocked()
 	return c.state.tasksIn(c.taskIDs)
+}
+
+// Abort cancels the change, whether in progress or not.
+func (c *Change) Abort() {
+	c.state.ensureLocked()
+	for _, tid := range c.taskIDs {
+		t := c.state.tasks[tid]
+		switch t.Status() {
+		case DoStatus:
+			// Still pending so don't even start.
+			t.SetStatus(HoldStatus)
+		case DoneStatus:
+			// Already done so undo it.
+			t.SetStatus(UndoStatus)
+		case DoingStatus:
+			// In progress so stop and undo it.
+			t.SetStatus(AbortStatus)
+		}
+	}
 }

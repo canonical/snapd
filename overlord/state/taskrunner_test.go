@@ -21,217 +21,257 @@ package state_test
 
 import (
 	"errors"
-	"sync"
 	"time"
 
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 
 	"github.com/ubuntu-core/snappy/overlord/state"
+	"strings"
 )
 
 type taskRunnerSuite struct{}
 
 var _ = Suite(&taskRunnerSuite{})
 
-func (ts *taskRunnerSuite) TestEnsureTrivial(c *C) {
-	st := state.New(nil)
-
-	// setup the download handler
-	taskCompleted := sync.WaitGroup{}
-	r := state.NewTaskRunner(st)
-	fn := func(task *state.Task, tomb *tomb.Tomb) error {
-		task.State().Lock()
-		defer task.State().Unlock()
-		c.Check(task.Status(), Equals, state.DoStatus)
-		taskCompleted.Done()
-		return nil
+func ensureChange(r *state.TaskRunner, chg *state.Change) {
+	abort := time.After(5 * time.Second)
+	for {
+		r.Ensure()
+		chg.State().Lock()
+		s := chg.Status()
+		chg.State().Unlock()
+		if s.Ready() {
+			return
+		}
+		select {
+		case <-time.After(50 * time.Millisecond):
+		case <-abort:
+			panic("timeout waiting for change to reach final state")
+		}
 	}
-	r.AddHandler("download", fn)
+}
 
-	// add a download task to the state tracker
+// The result field encodes the expected order in which the task
+// handlers will be called, assuming the provided setup is in place.
+//
+// Setup options:
+//     <task>:was-<status>    - set task status before calling ensure (must be sensible)
+//     <task>:(do|undo)-block - block handler until task tomb dies
+//     <task>:(do|undo)-retry - return from handler with with state.Retry
+//     <task>:(do|undo)-error - return from handler with an error
+//     chg:abort              - call abort on the change
+//
+// Task wait order: ( t11 | t12 ) => ( t21 ) => ( t31 | t32 )
+//
+// Task t12 has no undo.
+//
+// Final task statuses are tested based on the resulting events list.
+//
+var sequenceTests = []struct{ setup, result string }{{
+	setup:  "",
+	result: "t11:do t12:do t21:do t31:do t32:do",
+}, {
+	setup:  "t11:was-done t12:was-doing",
+	result: "t12:do t21:do t31:do t32:do",
+}, {
+	setup:  "t11:was-done t12:was-doing chg:abort",
+	result: "t11:undo",
+}, {
+	setup:  "t12:do-retry",
+	result: "t11:do t12:do t12:do-retry t12:do t21:do t31:do t32:do",
+}, {
+	setup:  "t11:do-block t12:do-error",
+	result: "t11:do t11:do-block t12:do t12:do-error t11:do-unblock t11:undo",
+}, {
+	setup:  "t11:do-error t12:do-block",
+	result: "t11:do t11:do-error t12:do t12:do-block t12:do-unblock",
+}, {
+	setup:  "t11:do-block t11:do-retry t12:do-error",
+	result: "t11:do t11:do-block t12:do t12:do-error t11:do-unblock t11:do-retry t11:undo",
+}, {
+	setup:  "t11:do-error t12:do-block t12:do-retry",
+	result: "t11:do t11:do-error t12:do t12:do-block t12:do-unblock t12:do-retry",
+}, {
+	setup:  "t31:do-error t21:undo-error",
+	result: "t11:do t12:do t21:do t31:do t31:do-error t32:do t32:undo t21:undo t21:undo-error t11:undo",
+}}
+
+func (ts *taskRunnerSuite) TestSequenceTests(c *C) {
+	st := state.New(nil)
+	r := state.NewTaskRunner(st)
+	defer r.Stop()
+
+	ch := make(chan string, 256)
+	fn := func(label string) state.HandlerFunc {
+		return func(task *state.Task, tomb *tomb.Tomb) error {
+			st.Lock()
+			defer st.Unlock()
+			ch <- task.Summary() + ":" + label
+			var isSet bool
+			if task.Get(label+"-block", &isSet) == nil && isSet {
+				ch <- task.Summary() + ":" + label + "-block"
+				st.Unlock()
+				<-tomb.Dying()
+				st.Lock()
+				ch <- task.Summary() + ":" + label + "-unblock"
+			}
+			if task.Get(label+"-retry", &isSet) == nil && isSet {
+				task.Set(label+"-retry", false)
+				ch <- task.Summary() + ":" + label + "-retry"
+				return state.Retry
+			}
+			if task.Get(label+"-error", &isSet) == nil && isSet {
+				ch <- task.Summary() + ":" + label + "-error"
+				return errors.New("boom")
+			}
+			return nil
+		}
+	}
+	r.AddHandler("do", fn("do"), nil)
+	r.AddHandler("do-undo", fn("do"), fn("undo"))
+
 	st.Lock()
 	chg := st.NewChange("install", "...")
-	t := st.NewTask("download", "1...")
-	chg.AddTask(t)
-	taskCompleted.Add(1)
+	tasks := make(map[string]*state.Task)
+	for _, name := range strings.Fields("t11 t12 t21 t31 t32") {
+		if name == "t12" {
+			tasks[name] = st.NewTask("do", name)
+		} else {
+			tasks[name] = st.NewTask("do-undo", name)
+		}
+		chg.AddTask(tasks[name])
+	}
+	tasks["t21"].WaitFor(tasks["t11"])
+	tasks["t21"].WaitFor(tasks["t12"])
+	tasks["t31"].WaitFor(tasks["t21"])
+	tasks["t32"].WaitFor(tasks["t21"])
 	st.Unlock()
 
-	defer r.Stop()
+	for _, test := range sequenceTests {
+		c.Logf("-----")
+		c.Logf("Testing setup: %s", test.setup)
 
-	// ensure just kicks the go routine off
-	r.Ensure()
-	taskCompleted.Wait()
+		statuses := make(map[string]state.Status)
+		for s := state.DefaultStatus; s <= state.ErrorStatus; s++ {
+			statuses[strings.ToLower(s.String())] = s
+		}
 
-	st.Lock()
-	defer st.Unlock()
-	c.Check(t.Status(), Equals, state.DoneStatus)
-}
-
-type stateBackend struct {
-	runner *state.TaskRunner
-}
-
-func (b *stateBackend) Checkpoint([]byte) error {
-	return nil
-}
-
-func (b *stateBackend) EnsureBefore(d time.Duration) {
-	go b.runner.Ensure()
-}
-
-func (ts *taskRunnerSuite) TestEnsureComplex(c *C) {
-	b := &stateBackend{}
-	st := state.New(b)
-
-	r := state.NewTaskRunner(st)
-	b.runner = r
-
-	// setup handlers
-	orderingCh := make(chan string, 3)
-	fn := func(task *state.Task, tomb *tomb.Tomb) error {
-		task.State().Lock()
-		defer task.State().Unlock()
-		c.Check(task.Status(), Equals, state.DoStatus)
-		orderingCh <- task.Kind()
-		return nil
-	}
-	r.AddHandler("download", fn)
-	r.AddHandler("unpack", fn)
-	r.AddHandler("configure", fn)
-
-	defer r.Stop()
-
-	// run in a loop to ensure ordering is not correct by pure chance
-	for i := 0; i < 100; i++ {
+		// Reset and prepare initial task state.
 		st.Lock()
-		chg := st.NewChange("mock-install", "...")
-
-		// create sub-tasks
-		tDl := st.NewTask("download", "1...")
-		tUnp := st.NewTask("unpack", "2...")
-		tUnp.WaitFor(tDl)
-		chg.AddAll(state.NewTaskSet(tDl, tUnp))
-		tConf := st.NewTask("configure", "3...")
-		tConf.WaitFor(tUnp)
-		chg.AddAll(state.NewTaskSet(tConf))
+		for _, t := range chg.Tasks() {
+			t.SetStatus(state.DefaultStatus)
+			t.Set("do-error", false)
+			t.Set("do-block", false)
+			t.Set("undo-error", false)
+			t.Set("undo-block", false)
+		}
+		for _, item := range strings.Fields(test.setup) {
+			if item == "chg:abort" {
+				chg.Abort()
+				continue
+			}
+			kv := strings.Split(item, ":")
+			if strings.HasPrefix(kv[1], "was-") {
+				tasks[kv[0]].SetStatus(statuses[kv[1][4:]])
+			} else {
+				tasks[kv[0]].Set(kv[1], true)
+			}
+		}
 		st.Unlock()
 
-		// ensure just kicks the go routine off
-		// and then they get scheduled as they finish
-		r.Ensure()
-		// wait for them to finish, need to loop because the runner
-		// Wait in unaware of EnsureBefore
-		for len(orderingCh) < 3 {
-			r.Wait()
+		// Run change until final.
+		ensureChange(r, chg)
+
+		// Compute order of events observed.
+		var events []string
+		var done bool
+		for !done {
+			select {
+			case ev := <-ch:
+				events = append(events, ev)
+				// Make t11/t12 and t31/t32 always show up in the
+				// same order if they're next to each other.
+				for i := len(events) - 2; i >= 0; i-- {
+					prev := events[i]
+					next := events[i+1]
+					switch strings.Split(next, ":")[1] {
+					case "do-unblock", "undo-unblock":
+					default:
+						if prev[1] == next[1] && prev[2] > next[2] {
+							events[i], events[i+1] = next, prev
+							continue
+						}
+					}
+					break
+				}
+			default:
+				done = true
+			}
 		}
 
-		c.Assert([]string{<-orderingCh, <-orderingCh, <-orderingCh}, DeepEquals, []string{"download", "unpack", "configure"})
-	}
-}
+		c.Logf("Expected result: %s", test.result)
+		c.Assert(strings.Join(events, " "), Equals, test.result, Commentf("setup: %s", test.setup))
 
-func (ts *taskRunnerSuite) TestErrorIsFinal(c *C) {
-	st := state.New(nil)
-
-	invocations := 0
-
-	// setup the download handler
-	r := state.NewTaskRunner(st)
-	fn := func(task *state.Task, tomb *tomb.Tomb) error {
-		invocations++
-		return errors.New("boom")
-	}
-	r.AddHandler("download", fn)
-
-	// add a download task to the state tracker
-	st.Lock()
-	chg := st.NewChange("install", "...")
-	t := st.NewTask("download", "1...")
-	chg.AddTask(t)
-	st.Unlock()
-
-	defer r.Stop()
-
-	// ensure just kicks the go routine off
-	r.Ensure()
-	r.Wait()
-	// won't be restarted
-	r.Ensure()
-	r.Wait()
-
-	c.Check(invocations, Equals, 1)
-}
-
-func (ts *taskRunnerSuite) TestStopCancelsGoroutines(c *C) {
-	st := state.New(nil)
-
-	invocations := 0
-
-	// setup the download handler
-	r := state.NewTaskRunner(st)
-
-	fn := func(task *state.Task, tomb *tomb.Tomb) error {
-		select {
-		case <-tomb.Dying():
-			invocations++
-			return state.Retry
+		// Compute final expected status for tasks.
+		finalStatus := make(map[string]state.Status)
+		// ... default when no handler is called
+		for tname := range tasks {
+			finalStatus[tname] = state.HoldStatus
 		}
+		// ... overwrite based on relevant setup
+		for _, item := range strings.Fields(test.setup) {
+			if item == "chg:abort" && strings.Contains(test.setup, "t12:was-doing") {
+				// t12 has no undo so must hold if asked to abort when was doing.
+				finalStatus["t12"] = state.HoldStatus
+			}
+			kv := strings.Split(item, ":")
+			if !strings.HasPrefix(kv[1], "was-") {
+				continue
+			}
+			switch strings.TrimPrefix(kv[1], "was-") {
+			case "do", "doing", "done":
+				finalStatus[kv[0]] = state.DoneStatus
+			case "abort", "undo", "undoing", "undone":
+				if kv[0] == "t12" {
+					finalStatus[kv[0]] = state.DoneStatus // no undo for t12
+				} else {
+					finalStatus[kv[0]] = state.UndoneStatus
+				}
+			case "was-error":
+				finalStatus[kv[0]] = state.ErrorStatus
+			case "was-hold":
+				finalStatus[kv[0]] = state.ErrorStatus
+			}
+		}
+		// ... and overwrite based on events observed.
+		for _, ev := range events {
+			kv := strings.Split(ev, ":")
+			switch kv[1] {
+			case "do":
+				finalStatus[kv[0]] = state.DoneStatus
+			case "undo":
+				finalStatus[kv[0]] = state.UndoneStatus
+			case "do-error", "undo-error":
+				finalStatus[kv[0]] = state.ErrorStatus
+			case "do-retry":
+				if kv[0] == "t12" && finalStatus["t11"] == state.ErrorStatus {
+					// t12 has no undo so must hold if asked to abort on retry.
+					finalStatus["t12"] = state.HoldStatus
+				}
+			}
+		}
+
+		st.Lock()
+		var gotStatus, wantStatus []string
+		for _, task := range chg.Tasks() {
+			gotStatus = append(gotStatus, task.Summary()+":"+task.Status().String())
+			wantStatus = append(wantStatus, task.Summary()+":"+finalStatus[task.Summary()].String())
+		}
+		st.Unlock()
+
+		c.Logf("Expected statuses: %s", strings.Join(wantStatus, " "))
+		comment := Commentf("calls: %s", test.result)
+		c.Assert(strings.Join(gotStatus, " "), Equals, strings.Join(wantStatus, " "), comment)
 	}
-	r.AddHandler("download", fn)
-
-	// add a download task to the state tracker
-	st.Lock()
-	chg := st.NewChange("install", "...")
-	t := st.NewTask("download", "1...")
-	chg.AddTask(t)
-	st.Unlock()
-
-	defer r.Stop()
-
-	// ensure just kicks the go routine off
-	r.Ensure()
-	r.Stop()
-
-	c.Check(invocations, Equals, 1)
-
-	st.Lock()
-	defer st.Unlock()
-	c.Check(t.Status(), Equals, state.DoStatus)
-}
-
-func (ts *taskRunnerSuite) TestErrorPropagates(c *C) {
-	st := state.New(nil)
-
-	r := state.NewTaskRunner(st)
-	erroring := func(task *state.Task, tomb *tomb.Tomb) error {
-		return errors.New("boom")
-	}
-	dep := func(task *state.Task, tomb *tomb.Tomb) error {
-		return nil
-	}
-	r.AddHandler("erroring", erroring)
-	r.AddHandler("dep", dep)
-
-	st.Lock()
-	chg := st.NewChange("install", "...")
-	errTask := st.NewTask("erroring", "1...")
-	dep1 := st.NewTask("dep", "2...")
-	dep1.WaitFor(errTask)
-	dep2 := st.NewTask("dep", "3...")
-	dep2.WaitFor(dep1)
-	chg.AddAll(state.NewTaskSet(errTask, dep1, dep2))
-	st.Unlock()
-
-	defer r.Stop()
-
-	r.Ensure()
-	r.Wait()
-
-	st.Lock()
-	defer st.Unlock()
-
-	c.Check(dep1.Status(), Equals, state.ErrorStatus)
-	c.Check(dep2.Status(), Equals, state.ErrorStatus)
-	c.Check(chg.Status(), Equals, state.ErrorStatus)
-	c.Check(chg.Err(), ErrorMatches, "(?s).*boom.*")
 }
