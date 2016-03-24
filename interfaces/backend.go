@@ -30,15 +30,12 @@ type SecurityBackend interface {
 	// given snap. The snap can be in developer mode to make security violations
 	// non-fatal to the offending application process.
 	//
-	// This method should be called after changing plug, slots, connections between
-	// them or application present in the snap.
+	// This method should be called after changing plug, slots, connections
+	// between them or application present in the snap.
 	ConfigureSnapSecurity(snapInfo *snap.Info, repo *Repository, developerMode bool) error
 
 	// DeconfigureSnapSecurity removes security artefacts of a given snap.
 	//
 	// This method should be called after removing a snap.
 	DeconfigureSnapSecurity(snapInfo *snap.Info) error
-
-	// CommitDeferredChanges commits any buffered changes made so far.
-	CommitDeferredChanges() error
 }
