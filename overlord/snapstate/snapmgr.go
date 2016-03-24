@@ -42,6 +42,9 @@ type installState struct {
 	Name    string              `json:"name"`
 	Channel string              `json:"channel"`
 	Flags   snappy.InstallFlags `json:"flags,omitempty"`
+
+	DownloadTaskID string `json:"download-task-id,omitempty"`
+	LocalFileName  string `json:"local-file-name,omitempty"`
 }
 
 type downloadState struct {
@@ -109,19 +112,13 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 	t.State().Unlock()
 
-	// see if it is a local snap, if we have it we are done
-	if fi, err := os.Stat(inst.Name); err == nil && fi.Mode().IsRegular() {
-		dl.DownloadedSnap = inst.Name
-		dl.Developer = snappy.SideloadedDeveloper
-	} else {
-		pb := &TaskProgressAdapter{task: t}
-		downloadedSnapFile, developer, err := m.backend.Download(inst.Name, inst.Channel, pb)
-		if err != nil {
-			return err
-		}
-		dl.DownloadedSnap = downloadedSnapFile
-		dl.Developer = developer
+	pb := &TaskProgressAdapter{task: t}
+	downloadedSnapFile, developer, err := m.backend.Download(inst.Name, inst.Channel, pb)
+	if err != nil {
+		return err
 	}
+	dl.DownloadedSnap = downloadedSnapFile
+	dl.Developer = developer
 
 	// update instState for the next task
 	t.State().Lock()
@@ -140,6 +137,16 @@ func (m *SnapManager) doInstallLocalSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err := t.Get("install-state", &inst); err != nil {
 		return err
 	}
+	t.State().Unlock()
+
+	// local snaps are special
+	if inst.LocalFileName != "" {
+		pb := &TaskProgressAdapter{task: t}
+		return m.backend.InstallLocal(inst.LocalFileName, snappy.SideloadedDeveloper, inst.Flags, pb)
+	}
+
+	t.State().Lock()
+	// the snap just got downloaded
 	if err := t.Get("download-task-id", &dlTaskID); err != nil {
 		return err
 	}
