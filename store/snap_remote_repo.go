@@ -596,7 +596,8 @@ var download = func(name string, w io.Writer, req *http.Request, pbar progress.M
 	return err
 }
 
-// Buy the specified snap using the default currency and payment method
+// Buy the specified snap using the default currency and payment method.
+// Returns the state of the purchase: Complete, Cancelled or Pending.
 func (s *SnapUbuntuStoreRepository) Buy(name string, inter progress.Meter) (string, error) {
 	client := &http.Client{}
 

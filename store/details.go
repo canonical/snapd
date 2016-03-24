@@ -92,8 +92,7 @@ type Purchase struct {
 }
 
 /*
-PurchaseInstruction encapsulates the data that must be sent
-in order to make a purchase from the store.
+PurchaseInstruction encapsulates the data that must be sent in order to make a purchase from the store.
 */
 type PurchaseInstruction struct {
 	DeviceID  string  `json:"device_id,omitempty"`

@@ -312,7 +312,7 @@ See `sources` for `/v2/snaps`.
 
 ### POST
 
-* Description: install, update, remove, activate, deactivate,
+* Description: Install, update, remove, activate, deactivate,
   rollback or buy the snap
 * Access: trusted
 * Operation: async
