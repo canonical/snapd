@@ -23,16 +23,20 @@ import (
 	"github.com/ubuntu-core/snappy/interfaces"
 )
 
-var allInterfaces = []interfaces.Interface{
-	&BoolFileInterface{},
-	NewFirewallControlInterface(),
-	NewHomeInterface(),
-	NewLocaleControlInterface(),
-	NewNetworkInterface(),
-	NewNetworkBindInterface(),
-}
+// http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/locale-control
+const localeControlConnectedPlugAppArmor = `
+# Description: Can manage locales directly separate from 'config ubuntu-core'.
+# Usage: reserved
 
-// Interfaces returns all of the built-in interfaces.
-func Interfaces() []interfaces.Interface {
-	return allInterfaces
+# TODO: this won't work until snappy exposes this configurability
+/etc/default/locale rw,
+`
+
+// NewLocaleControlInterface returns a new "locale-control" interface.
+func NewLocaleControlInterface() interfaces.Interface {
+	return &commonInterface{
+		name: "locale-control",
+		connectedPlugAppArmor: localeControlConnectedPlugAppArmor,
+		reservedForOS:         true,
+	}
 }
