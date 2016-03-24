@@ -80,7 +80,7 @@ func Manager(s *state.State) (*SnapManager, error) {
 	}
 
 	runner.AddHandler("download-snap", m.doDownloadSnap)
-	runner.AddHandler("install-local-snap", m.doInstallLocalSnap)
+	runner.AddHandler("install-snap", m.doInstallLocalSnap)
 
 	runner.AddHandler("update-snap", m.doUpdateSnap)
 	runner.AddHandler("remove-snap", m.doRemoveSnap)
