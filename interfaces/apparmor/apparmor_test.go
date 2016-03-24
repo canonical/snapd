@@ -27,6 +27,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/interfaces/apparmor"
+	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/testutil"
 )
 
@@ -146,4 +147,9 @@ func (s *appArmorSuite) TestLoadedApparmorProfilesHandlesParsingErrors(c *C) {
 	profiles, err = apparmor.LoadedProfiles()
 	c.Assert(err, ErrorMatches, `syntax error, expected: name \(mode\)`)
 	c.Check(profiles, IsNil)
+}
+
+func (s *appArmorSuite) TestProfileName(c *C) {
+	appInfo := &snap.AppInfo{Snap: &snap.Info{Name: "SNAP"}, Name: "APP"}
+	c.Assert(apparmor.ProfileName(appInfo), Equals, "snap.SNAP.APP")
 }

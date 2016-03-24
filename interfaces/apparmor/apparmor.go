@@ -31,6 +31,9 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/ubuntu-core/snappy/interfaces"
+	"github.com/ubuntu-core/snappy/snap"
 )
 
 // LoadProfile loads an apparmor profile from the given file.
@@ -103,4 +106,9 @@ func LoadedProfiles() ([]Profile, error) {
 		}
 	}
 	return profiles, nil
+}
+
+// ProfileName returns the name of apparmor profile for a given application.
+func ProfileName(appInfo *snap.AppInfo) string {
+	return interfaces.SecurityTag(appInfo)
 }
