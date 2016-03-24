@@ -38,7 +38,7 @@ func (s *searchSuite) TestSearchMustPrintMatch(c *check.C) {
 
 	// XXX: Summary is empty atm, waiting for store support
 	expected := "(?ms)" +
-		"Name +Version +Price +Summary *\n" +
+		"Name +Version +Price +Status +Summary *\n" +
 		".*" +
 		"^hello-world +.* *\n" +
 		".*"
