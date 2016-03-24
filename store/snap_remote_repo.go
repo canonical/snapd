@@ -40,7 +40,7 @@ import (
 	"github.com/ubuntu-core/snappy/snap/remote"
 )
 
-// TODO: better shorter/names are probably in order once fewer legacy places are using this
+// TODO: better/shorter names are probably in order once fewer legacy places are using this
 
 const (
 	// UbuntuCoreWireProtocol is the protocol level we support when
