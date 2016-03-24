@@ -39,11 +39,14 @@ type SnapManager struct {
 }
 
 type installState struct {
-	Name           string              `json:"name"`
-	Channel        string              `json:"channel"`
-	Flags          snappy.InstallFlags `json:"flags,omitempty"`
-	Developer      string              `json:"developer"`
-	DownloadedSnap string
+	Name    string              `json:"name"`
+	Channel string              `json:"channel"`
+	Flags   snappy.InstallFlags `json:"flags,omitempty"`
+}
+
+type downloadState struct {
+	Developer      string `json:"developer"`
+	DownloadedSnap string `json:"downloaded-snap"`
 }
 
 type removeState struct {
@@ -98,29 +101,31 @@ func Manager(s *state.State) (*SnapManager, error) {
 
 func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 	var inst installState
+	var dl downloadState
+
 	t.State().Lock()
 	if err := t.Get("install-state", &inst); err != nil {
 		return err
 	}
 	t.State().Unlock()
 
-	// see if it is a local snap, if we, nothing to download
+	// see if it is a local snap, if we have it we are done
 	if fi, err := os.Stat(inst.Name); err == nil && fi.Mode().IsRegular() {
-		inst.DownloadedSnap = inst.Name
-		inst.Developer = snappy.SideloadedDeveloper
+		dl.DownloadedSnap = inst.Name
+		dl.Developer = snappy.SideloadedDeveloper
 	} else {
 		pb := &TaskProgressAdapter{task: t}
 		downloadedSnapFile, developer, err := m.backend.Download(inst.Name, inst.Channel, pb)
 		if err != nil {
 			return err
 		}
-		inst.DownloadedSnap = downloadedSnapFile
-		inst.Developer = developer
+		dl.DownloadedSnap = downloadedSnapFile
+		dl.Developer = developer
 	}
 
 	// update instState for the next task
 	t.State().Lock()
-	t.Set("install-state", inst)
+	t.Set("download-state", dl)
 	t.State().Unlock()
 
 	return nil
@@ -128,22 +133,26 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 
 func (m *SnapManager) doInstallLocalSnap(t *state.Task, _ *tomb.Tomb) error {
 	var inst installState
+	var dl downloadState
 	var dlTaskID string
 
 	t.State().Lock()
+	if err := t.Get("install-state", &inst); err != nil {
+		return err
+	}
 	if err := t.Get("download-task-id", &dlTaskID); err != nil {
 		return err
 	}
 	tDl := t.State().Task(dlTaskID)
-	if err := tDl.Get("install-state", &inst); err != nil {
+	if err := tDl.Get("download-state", &dl); err != nil {
 		return err
 	}
 	t.State().Unlock()
 
-	defer os.Remove(inst.DownloadedSnap)
+	defer os.Remove(dl.DownloadedSnap)
 
 	pb := &TaskProgressAdapter{task: t}
-	return m.backend.InstallLocal(inst.DownloadedSnap, inst.Developer, inst.Flags, pb)
+	return m.backend.InstallLocal(dl.DownloadedSnap, dl.Developer, inst.Flags, pb)
 }
 
 func (m *SnapManager) doUpdateSnap(t *state.Task, _ *tomb.Tomb) error {
