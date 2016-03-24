@@ -28,7 +28,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/snappy"
+	"github.com/ubuntu-core/snappy/store"
 )
 
 type cmdLogin struct {
@@ -52,12 +52,12 @@ func init() {
 	addOptionDescription(arg, "userid", i18n.G("Username for the login"))
 }
 
-func requestStoreTokenWith2faRetry(username, password, tokenName string) (*snappy.StoreToken, error) {
+func requestStoreTokenWith2faRetry(username, password, tokenName string) (*store.StoreToken, error) {
 	// first try without otp
-	token, err := snappy.RequestStoreToken(username, password, tokenName, "")
+	token, err := store.RequestStoreToken(username, password, tokenName, "")
 
 	// check if we need 2fa
-	if err == snappy.ErrAuthenticationNeeds2fa {
+	if err == store.ErrAuthenticationNeeds2fa {
 		fmt.Print(i18n.G("2fa code: "))
 		reader := bufio.NewReader(os.Stdin)
 		// the browser shows it as well (and Sergio wants to see it ;)
@@ -65,7 +65,7 @@ func requestStoreTokenWith2faRetry(username, password, tokenName string) (*snapp
 		if err != nil {
 			return nil, err
 		}
-		return snappy.RequestStoreToken(username, password, tokenName, string(otp))
+		return store.RequestStoreToken(username, password, tokenName, string(otp))
 	}
 
 	return token, err
@@ -88,5 +88,5 @@ func (x *cmdLogin) Execute(args []string) error {
 	}
 	fmt.Println(i18n.G("Login successful"))
 
-	return snappy.WriteStoreToken(*token)
+	return store.WriteStoreToken(*token)
 }
