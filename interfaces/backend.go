@@ -26,16 +26,16 @@ import (
 // SecurityBackend abstracts interactions between the interface system and the
 // needs of a particular security system.
 type SecurityBackend interface {
-	// ConfigureSnapSecurity creates and loads security artefacts specific to a
-	// given snap. The snap can be in developer mode to make security violations
-	// non-fatal to the offending application process.
+	// Configure creates and loads security artefacts specific to a given snap.
+	// The snap can be in developer mode to make security violations non-fatal
+	// to the offending application process.
 	//
 	// This method should be called after changing plug, slots, connections
 	// between them or application present in the snap.
-	ConfigureSnapSecurity(snapInfo *snap.Info, repo *Repository, developerMode bool) error
+	Configure(snapInfo *snap.Info, repo *Repository, developerMode bool) error
 
-	// DeconfigureSnapSecurity removes security artefacts of a given snap.
+	// Deconfigure removes security artefacts of a given snap.
 	//
-	// This method should be called after removing a snap.
-	DeconfigureSnapSecurity(snapInfo *snap.Info) error
+	// This method should be called during the process of removing a snap.
+	Deconfigure(snapInfo *snap.Info) error
 }
