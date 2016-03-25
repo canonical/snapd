@@ -67,6 +67,9 @@ void run_snappy_app_dev_add(struct udev *u, const char *path,
 
 	int status = 0;
 	pid_t pid = fork();
+	if (pid < 0) {
+		die("could not fork");
+	}
 	if (pid == 0) {
 		char buf[64];
 		unsigned major = MAJOR(devnum);
