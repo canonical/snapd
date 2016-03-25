@@ -541,8 +541,8 @@ int main(int argc, char **argv)
 			die("permanently dropping privs did not work");
 	}
 	// and exec the new binary
-	argv[NR_ARGS] = (char *)binary,
-	    execv(binary, (char *const *)&argv[NR_ARGS]);
+	argv[NR_ARGS] = (char *)binary;
+	execv(binary, (char *const *)&argv[NR_ARGS]);
 	perror("execv failed");
 	return 1;
 }
