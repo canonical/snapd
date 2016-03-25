@@ -164,7 +164,6 @@ int seccomp_load_filters(const char *filter_profile)
 		fprintf(stderr, "seccomp_load failed with %i\n", rc);
 		die("aborting");
 	}
-	//
 	// drop privileges again
 	if (geteuid() == 0) {
 		unsigned real_uid = getuid();
