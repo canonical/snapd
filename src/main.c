@@ -201,7 +201,8 @@ bool snappy_udev_setup_required(const char *appname)
 	if (fd < 0)
 		return false;
 	int n = read(fd, content, sizeof(content));
-	close(fd);
+	if (close(fd) != 0)
+		die("could not close override");
 	if (n < sizeof(content))
 		return false;
 
@@ -398,7 +399,7 @@ void mkpath(const char *const path)
 		// Try to create the directory. It's okay if it already
 		// existed, but any other error is fatal.
 		if (mkdirat(fd, path_segment, 0755) < 0 && errno != EEXIST) {
-			close(fd);
+			close(fd);	// we die regardless of return code
 			free(path_copy);
 			die("failed to create user data directory");
 		}
@@ -406,7 +407,10 @@ void mkpath(const char *const path)
 		// previous one) so we can continue down the path.
 		int previous_fd = fd;
 		fd = openat(fd, path_segment, open_flags);
-		close(previous_fd);
+		if (close(previous_fd) != 0) {
+			free(path_copy);
+			die("could not close path segment");
+		}
 		if (fd < 0) {
 			free(path_copy);
 			die("failed to create user data directory");
@@ -416,7 +420,10 @@ void mkpath(const char *const path)
 	}
 
 	// Close the descriptor for the final directory in the path.
-	close(fd);
+	if (close(fd) != 0) {
+		free(path_copy);
+		die("could not close final directory");
+	}
 
 	free(path_copy);
 }

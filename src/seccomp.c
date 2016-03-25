@@ -176,7 +176,8 @@ int seccomp_load_filters(const char *filter_profile)
 
  out:
 	if (f != NULL) {
-		fclose(f);
+		if (fclose(f) != 0)
+			die("could not close seccomp file");
 	}
 	seccomp_release(ctx);
 	return rc;
