@@ -100,6 +100,23 @@ func (cs *changeSuite) TestAddAll(c *C) {
 	c.Check(t2.Change(), Equals, chg)
 }
 
+func (cs *changeSuite) TestStatusExplicitlyDefined(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("install", "...")
+	c.Assert(chg.Status(), Equals, state.HoldStatus)
+
+	t := st.NewTask("download", "...")
+	chg.AddTask(t)
+
+	t.SetStatus(state.DoingStatus)
+	c.Assert(chg.Status(), Equals, state.DoingStatus)
+	chg.SetStatus(state.ErrorStatus)
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
+}
+
 func (cs *changeSuite) TestStatusDerivedFromTasks(c *C) {
 	st := state.New(nil)
 	st.Lock()
@@ -140,6 +157,62 @@ func (cs *changeSuite) TestStatusDerivedFromTasks(c *C) {
 			tasks[s2].SetStatus(s)
 		}
 		c.Assert(chg.Status(), Equals, s)
+	}
+}
+
+func (cs *changeSuite) TestCloseReadyOnExplicitStatus(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("install", "...")
+
+	select {
+	case <-chg.Ready():
+		c.Fatalf("Change should not be ready")
+	default:
+	}
+
+	chg.SetStatus(state.ErrorStatus)
+
+	select {
+	case <-chg.Ready():
+	default:
+		c.Fatalf("Change should be ready")
+	}
+}
+
+func (cs *changeSuite) TestCloseReadyWhenTasksReady(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("install", "...")
+	t1 := st.NewTask("download", "...")
+	t2 := st.NewTask("download", "...")
+	chg.AddTask(t1)
+	chg.AddTask(t2)
+
+	select {
+	case <-chg.Ready():
+		c.Fatalf("Change should not be ready")
+	default:
+	}
+
+	t1.SetStatus(state.DoneStatus)
+
+	select {
+	case <-chg.Ready():
+		c.Fatalf("Change should not be ready")
+	default:
+	}
+
+	t2.SetStatus(state.DoneStatus)
+
+	select {
+	case <-chg.Ready():
+	default:
+		c.Fatalf("Change should be ready")
 	}
 }
 

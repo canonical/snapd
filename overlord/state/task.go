@@ -135,9 +135,14 @@ func (t *Task) Status() Status {
 }
 
 // SetStatus sets the task status, overriding the default behavior (see Status method).
-func (t *Task) SetStatus(s Status) {
+func (t *Task) SetStatus(new Status) {
 	t.state.ensureLocked()
-	t.status = s
+	old := t.status
+	t.status = new
+	chg := t.Change()
+	if chg != nil {
+		chg.taskStatusChanged(t, old, new)
+	}
 }
 
 // State returns the system State
