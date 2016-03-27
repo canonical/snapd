@@ -641,17 +641,13 @@ func (inst *snapInstruction) Agreed(intro, license string) bool {
 var snapstateInstall = snapstate.Install
 
 func waitChange(chg *state.Change) error {
-	st := chg.State()
-	for {
-		st.Lock()
-		s := chg.Status()
-		if s == state.DoneStatus || s == state.ErrorStatus {
-			defer st.Unlock()
-			return chg.Err()
-		}
-		st.Unlock()
-		time.Sleep(250 * time.Millisecond)
+	select {
+	case <-chg.Ready():
+	// TODO case <-daemon.Dying():
 	}
+	st.Lock()
+	defer st.Unlock()
+	return chg.Err()
 }
 
 func (inst *snapInstruction) install() interface{} {
