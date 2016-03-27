@@ -22,6 +22,7 @@ package snapstate
 
 import (
 	"fmt"
+	"os"
 
 	"gopkg.in/tomb.v2"
 
@@ -41,6 +42,14 @@ type installState struct {
 	Name    string              `json:"name"`
 	Channel string              `json:"channel"`
 	Flags   snappy.InstallFlags `json:"flags,omitempty"`
+
+	DownloadTaskID string `json:"download-task-id,omitempty"`
+	SnapPath       string `json:"snap-path,omitempty"`
+}
+
+type downloadState struct {
+	Developer string `json:"developer"`
+	SnapPath  string `json:"snap-path,omitempty"`
 }
 
 type removeState struct {
@@ -73,7 +82,9 @@ func Manager(s *state.State) (*SnapManager, error) {
 		runner:  runner,
 	}
 
-	runner.AddHandler("install-snap", m.doInstallSnap, nil)
+	runner.AddHandler("download-snap", m.doDownloadSnap, nil)
+	runner.AddHandler("install-snap", m.doInstallLocalSnap, nil)
+
 	runner.AddHandler("update-snap", m.doUpdateSnap, nil)
 	runner.AddHandler("remove-snap", m.doRemoveSnap, nil)
 	runner.AddHandler("purge-snap", m.doPurgeSnap, nil)
@@ -91,8 +102,10 @@ func Manager(s *state.State) (*SnapManager, error) {
 	return m, nil
 }
 
-func (m *SnapManager) doInstallSnap(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 	var inst installState
+	var dl downloadState
+
 	t.State().Lock()
 	if err := t.Get("install-state", &inst); err != nil {
 		return err
@@ -100,8 +113,53 @@ func (m *SnapManager) doInstallSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.State().Unlock()
 
 	pb := &TaskProgressAdapter{task: t}
-	_, err := m.backend.Install(inst.Name, inst.Channel, inst.Flags, pb)
-	return err
+	downloadedSnapFile, developer, err := m.backend.Download(inst.Name, inst.Channel, pb)
+	if err != nil {
+		return err
+	}
+	dl.SnapPath = downloadedSnapFile
+	dl.Developer = developer
+
+	// update instState for the next task
+	t.State().Lock()
+	t.Set("download-state", dl)
+	t.State().Unlock()
+
+	return nil
+}
+
+func (m *SnapManager) doInstallLocalSnap(t *state.Task, _ *tomb.Tomb) error {
+	var inst installState
+	var dl downloadState
+
+	t.State().Lock()
+	if err := t.Get("install-state", &inst); err != nil {
+		return err
+	}
+	t.State().Unlock()
+
+	// local snaps are special
+	var snapPath string
+	var developer string
+	if inst.SnapPath != "" {
+		snapPath = inst.SnapPath
+		developer = snappy.SideloadedDeveloper
+	} else if inst.DownloadTaskID != "" {
+		t.State().Lock()
+		tDl := t.State().Task(inst.DownloadTaskID)
+		if err := tDl.Get("download-state", &dl); err != nil {
+			return err
+		}
+		t.State().Unlock()
+		defer os.Remove(dl.SnapPath)
+		snapPath = dl.SnapPath
+		developer = dl.Developer
+	} else {
+		return fmt.Errorf("internal error: install-snap created without a snap path source")
+	}
+
+	pb := &TaskProgressAdapter{task: t}
+	return m.backend.InstallLocal(snapPath, developer, inst.Flags, pb)
 }
 
 func (m *SnapManager) doUpdateSnap(t *state.Task, _ *tomb.Tomb) error {

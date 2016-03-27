@@ -365,6 +365,7 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 	c.Check(task0_1.ID(), Equals, t1ID)
 	c.Check(task0_1.Kind(), Equals, "download")
 	c.Check(task0_1.Summary(), Equals, "1...")
+	c.Check(task0_1.Change(), Equals, chg0)
 
 	var v int
 	err = task0_1.Get("a", &v)
