@@ -29,6 +29,7 @@ import (
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/snappy"
+	"github.com/ubuntu-core/snappy/store"
 )
 
 type cmdList struct {
@@ -137,7 +138,7 @@ func showRebootMessage(installed []*snappy.Snap, o io.Writer) {
 	}
 }
 
-func showUpdatesList(installed []*snappy.Snap, updates []*snappy.RemoteSnap, o io.Writer) {
+func showUpdatesList(installed []*snappy.Snap, updates []*store.RemoteSnap, o io.Writer) {
 	// TODO tabwriter and output in general to adapt to the spec
 	w := tabwriter.NewWriter(o, 5, 3, 1, ' ', 0)
 	defer w.Flush()

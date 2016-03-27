@@ -17,22 +17,26 @@
  *
  */
 
-package builtin
+package dbus_test
 
 import (
-	"github.com/ubuntu-core/snappy/interfaces"
+	"testing"
+
+	"github.com/ubuntu-core/snappy/interfaces/dbus"
+
+	. "gopkg.in/check.v1"
 )
 
-var allInterfaces = []interfaces.Interface{
-	&BoolFileInterface{},
-	NewFirewallControlInterface(),
-	NewHomeInterface(),
-	NewLocaleControlInterface(),
-	NewNetworkInterface(),
-	NewNetworkBindInterface(),
+func Test(t *testing.T) {
+	TestingT(t)
 }
 
-// Interfaces returns all of the built-in interfaces.
-func Interfaces() []interfaces.Interface {
-	return allInterfaces
+type dBusSuite struct{}
+
+var _ = Suite(&dBusSuite{})
+
+func (s *dBusSuite) TestSecurityGenDbusPath(c *C) {
+	c.Assert(dbus.SafePath("foo"), Equals, "foo")
+	c.Assert(dbus.SafePath("foo bar"), Equals, "foo_20bar")
+	c.Assert(dbus.SafePath("foo/bar"), Equals, "foo_2fbar")
 }

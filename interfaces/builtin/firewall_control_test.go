@@ -27,58 +27,58 @@ import (
 	"github.com/ubuntu-core/snappy/snap"
 )
 
-type NetworkInterfaceSuite struct {
+type FirewallControlInterfaceSuite struct {
 	iface interfaces.Interface
 	slot  *interfaces.Slot
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&NetworkInterfaceSuite{
-	iface: builtin.NewNetworkInterface(),
+var _ = Suite(&FirewallControlInterfaceSuite{
+	iface: builtin.NewFirewallControlInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{Name: "ubuntu-core"},
-			Name:      "network",
-			Interface: "network",
+			Name:      "firewall-control",
+			Interface: "firewall-control",
 		},
 	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap:      &snap.Info{Name: "other"},
-			Name:      "network",
-			Interface: "network",
+			Name:      "firewall-control",
+			Interface: "firewall-control",
 		},
 	},
 })
 
-func (s *NetworkInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "network")
+func (s *FirewallControlInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "firewall-control")
 }
 
-func (s *NetworkInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *FirewallControlInterfaceSuite) TestSanitizeSlot(c *C) {
 	err := s.iface.SanitizeSlot(s.slot)
 	c.Assert(err, IsNil)
 	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{Name: "some-snap"},
-		Name:      "network",
-		Interface: "network",
+		Name:      "firewall-control",
+		Interface: "firewall-control",
 	}})
-	c.Assert(err, ErrorMatches, "network slots are reserved for the operating system snap")
+	c.Assert(err, ErrorMatches, "firewall-control slots are reserved for the operating system snap")
 }
 
-func (s *NetworkInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *FirewallControlInterfaceSuite) TestSanitizePlug(c *C) {
 	err := s.iface.SanitizePlug(s.plug)
 	c.Assert(err, IsNil)
 }
 
-func (s *NetworkInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
+func (s *FirewallControlInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "network"`)
+		PanicMatches, `slot is not of interface "firewall-control"`)
 	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "network"`)
+		PanicMatches, `plug is not of interface "firewall-control"`)
 }
 
-func (s *NetworkInterfaceSuite) TestUnusedSecuritySystems(c *C) {
+func (s *FirewallControlInterfaceSuite) TestUnusedSecuritySystems(c *C) {
 	systems := [...]interfaces.SecuritySystem{interfaces.SecurityAppArmor,
 		interfaces.SecuritySecComp, interfaces.SecurityDBus,
 		interfaces.SecurityUDev}
@@ -101,7 +101,7 @@ func (s *NetworkInterfaceSuite) TestUnusedSecuritySystems(c *C) {
 	c.Assert(snippet, IsNil)
 }
 
-func (s *NetworkInterfaceSuite) TestUsedSecuritySystems(c *C) {
+func (s *FirewallControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
@@ -112,7 +112,7 @@ func (s *NetworkInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(snippet, Not(IsNil))
 }
 
-func (s *NetworkInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
+func (s *FirewallControlInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 	snippet, err := s.iface.PermanentPlugSnippet(s.plug, "foo")
 	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
 	c.Assert(snippet, IsNil)

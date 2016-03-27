@@ -27,58 +27,58 @@ import (
 	"github.com/ubuntu-core/snappy/snap"
 )
 
-type NetworkInterfaceSuite struct {
+type HomeInterfaceSuite struct {
 	iface interfaces.Interface
 	slot  *interfaces.Slot
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&NetworkInterfaceSuite{
-	iface: builtin.NewNetworkInterface(),
+var _ = Suite(&HomeInterfaceSuite{
+	iface: builtin.NewHomeInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{Name: "ubuntu-core"},
-			Name:      "network",
-			Interface: "network",
+			Name:      "home",
+			Interface: "home",
 		},
 	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap:      &snap.Info{Name: "other"},
-			Name:      "network",
-			Interface: "network",
+			Name:      "home",
+			Interface: "home",
 		},
 	},
 })
 
-func (s *NetworkInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "network")
+func (s *HomeInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "home")
 }
 
-func (s *NetworkInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *HomeInterfaceSuite) TestSanitizeSlot(c *C) {
 	err := s.iface.SanitizeSlot(s.slot)
 	c.Assert(err, IsNil)
 	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{Name: "some-snap"},
-		Name:      "network",
-		Interface: "network",
+		Name:      "home",
+		Interface: "home",
 	}})
-	c.Assert(err, ErrorMatches, "network slots are reserved for the operating system snap")
+	c.Assert(err, ErrorMatches, "home slots are reserved for the operating system snap")
 }
 
-func (s *NetworkInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *HomeInterfaceSuite) TestSanitizePlug(c *C) {
 	err := s.iface.SanitizePlug(s.plug)
 	c.Assert(err, IsNil)
 }
 
-func (s *NetworkInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
+func (s *HomeInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "network"`)
+		PanicMatches, `slot is not of interface "home"`)
 	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "network"`)
+		PanicMatches, `plug is not of interface "home"`)
 }
 
-func (s *NetworkInterfaceSuite) TestUnusedSecuritySystems(c *C) {
+func (s *HomeInterfaceSuite) TestUnusedSecuritySystems(c *C) {
 	systems := [...]interfaces.SecuritySystem{interfaces.SecurityAppArmor,
 		interfaces.SecuritySecComp, interfaces.SecurityDBus,
 		interfaces.SecurityUDev}
@@ -101,18 +101,14 @@ func (s *NetworkInterfaceSuite) TestUnusedSecuritySystems(c *C) {
 	c.Assert(snippet, IsNil)
 }
 
-func (s *NetworkInterfaceSuite) TestUsedSecuritySystems(c *C) {
+func (s *HomeInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
-	// connected plugs have a non-nil security snippet for seccomp
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, Not(IsNil))
 }
 
-func (s *NetworkInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
+func (s *HomeInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 	snippet, err := s.iface.PermanentPlugSnippet(s.plug, "foo")
 	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
 	c.Assert(snippet, IsNil)
