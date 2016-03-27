@@ -112,7 +112,7 @@ func (cs *changeSuite) TestStatusDerivedFromTasks(c *C) {
 
 	tasks := make(map[state.Status]*state.Task)
 
-	for s := state.DefaultStatus+1; s < state.ErrorStatus+1; s++ {
+	for s := state.DefaultStatus + 1; s < state.ErrorStatus+1; s++ {
 		t := st.NewTask("download", s.String())
 		t.SetStatus(s)
 		chg.AddTask(t)
@@ -216,7 +216,7 @@ func (cs *changeSuite) TestAbort(c *C) {
 
 	chg := st.NewChange("install", "...")
 
-	for s := state.DefaultStatus+1; s < state.ErrorStatus+1; s++ {
+	for s := state.DefaultStatus + 1; s < state.ErrorStatus+1; s++ {
 		t := st.NewTask("download", s.String())
 		t.SetStatus(s)
 		t.Set("old-status", s)
