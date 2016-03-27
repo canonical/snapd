@@ -74,7 +74,7 @@ func (x *cmdInfo) Execute(args []string) (err error) {
 func snapInfo(pkgname string, includeStore, verbose bool) error {
 	snap := snappy.ActiveSnapByName(pkgname)
 	if snap == nil && includeStore {
-		m := snappy.NewUbuntuStoreSnapRepository()
+		m := snappy.NewConfiguredUbuntuStoreSnapRepository()
 		remote, err := m.Snap(pkgname, release.Get().Channel)
 		if err != nil {
 			return fmt.Errorf("cannot get details for snap %q: %s", pkgname, err)
