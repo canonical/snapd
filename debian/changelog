@@ -1,12 +1,19 @@
-ubuntu-core-launcher (1.0.22) UNRELEASED; urgency=medium
-
+ubuntu-core-launcher (1.0.23) UNRELEASED; urgency=medium
   * src/seccomp.c: various cleanups from security team audit (also add
     additional tests)
   * don't support obsoleted SNAP_APP_TMPDIR and SNAP_APP_USER_DATA_PATH
 
+ -- Jamie Strandboge <jamie@ubuntu.com>  Mon, 28 Mar 2016 16:40:50 -0500
+
+ubuntu-core-launcher (1.0.22) xenial; urgency=medium
+
+  * debian/usr.bin.ubuntu-core-launcher: update unconfined change_profile
+    checks to actually work (LP: #1562989)
+
  -- Jamie Strandboge <jamie@ubuntu.com>  Mon, 28 Mar 2016 10:42:57 -0500
 
 ubuntu-core-launcher (1.0.21) xenial; urgency=medium
+
   * src/main.c: setup private /dev/pts
   * debian/usr.bin.ubuntu-core-launcher: allow mounting /dev/pts
   * enforce coding style:
