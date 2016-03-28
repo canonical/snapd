@@ -215,7 +215,7 @@ latest version.
 
 Because of the nature of this kind of tests, they need some initial state to be present in the
 system before executing, the image must be updatable. For that reason, they can not be executed
-with the complete suite, the other tests doesn't make any assumption, and this test is guarded
+with the complete suite, the other tests don't make any assumption, and this test is guarded
 by the `rollbackstress` build tag. Taking into account both requirements and assuming that you
 have an updatable system running on ip `<updatable_ip>` with ssh listening on port `<updatable_port>`,
 this tests can be executed with:
