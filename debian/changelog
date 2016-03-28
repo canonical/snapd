@@ -1,3 +1,9 @@
+ubuntu-core-launcher (1.0.22) UNRELEASED; urgency=medium
+
+  * 
+
+ -- Jamie Strandboge <jamie@ubuntu.com>  Mon, 28 Mar 2016 10:42:57 -0500
+
 ubuntu-core-launcher (1.0.21) xenial; urgency=medium
   * src/main.c: setup private /dev/pts
   * debian/usr.bin.ubuntu-core-launcher: allow mounting /dev/pts
