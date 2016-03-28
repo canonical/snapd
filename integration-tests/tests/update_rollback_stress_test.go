@@ -50,7 +50,7 @@ type updateRollbackSuite struct {
 	cm *cycleManager
 }
 
-func (s *updateRollbackSuite) SetUpSuite(c *check.C) {
+func (s *updateRollbackSuite) SetUpTest(c *check.C) {
 	s.SnappySuite.SetUpTest(c)
 
 	err := os.MkdirAll(basePath, 0777)
