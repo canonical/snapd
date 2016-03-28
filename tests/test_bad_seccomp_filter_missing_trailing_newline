@@ -4,12 +4,9 @@ set -e
 
 . $(pwd)/common.sh
 
-printf "Test appname whitelist (bad)"
+printf "Test seccomp filter (bad - no trailing newline)"
 
-cat >$TMP/aaprofile <<EOF
-# some comment
-baddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-EOF
+echo -n "missingnewline" > $TMP/aaprofile
 
 if $L appname aaprofile /bin/true 2>/dev/null; then
     # true returned successfully, length test failed
