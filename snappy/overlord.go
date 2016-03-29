@@ -36,11 +36,26 @@ import (
 type Overlord struct {
 }
 
+func CheckSnap(snapFilePath, developer string, flags InstallFlags, meter progress.Meter) error {
+	allowGadget := (flags & AllowGadget) != 0
+	allowUnauth := (flags & AllowUnauthenticated) != 0
+
+	s, err := NewSnapFile(snapFilePath, developer, allowUnauth)
+	if err != nil {
+		return err
+	}
+
+	// we do not security Verify() (check hashes) the package here.
+	// This is done earlier in
+	// NewSnapFile() to ensure that we do not mount/inspect
+	// potentially dangerous snaps
+	return canInstall(s, allowGadget, meter)
+}
+
 // Install installs the given snap file to the system.
 //
 // It returns the local snap file or an error
 func (o *Overlord) Install(snapFilePath string, developer string, flags InstallFlags, meter progress.Meter) (sp *Snap, err error) {
-	allowGadget := (flags & AllowGadget) != 0
 	inhibitHooks := (flags & InhibitHooks) != 0
 	allowUnauth := (flags & AllowUnauthenticated) != 0
 
@@ -52,7 +67,7 @@ func (o *Overlord) Install(snapFilePath string, developer string, flags InstallF
 	// we do not Verify() the package here. This is done earlier in
 	// NewSnapFile() to ensure that we do not mount/inspect
 	// potentially dangerous snaps
-	if err := canInstall(s, allowGadget, meter); err != nil {
+	if err := CheckSnap(snapFilePath, developer, flags, meter); err != nil {
 		return nil, err
 	}
 
