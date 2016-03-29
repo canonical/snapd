@@ -103,6 +103,6 @@ func (b *Backend) aaHeader(appInfo *snap.AppInfo, developerMode bool) []byte {
 		text = strings.Replace(text, "(attach_disconnected)", "(attach_disconnected,complain)", 1)
 	}
 	text = strings.Replace(text, "###PROFILEATTACH###",
-		fmt.Sprintf("profile \"%s\"", ProfileName(appInfo)), 1)
+		fmt.Sprintf("profile \"%s\"", interfaces.SecurityTag(appInfo)), 1)
 	return []byte(text)
 }
