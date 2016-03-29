@@ -100,6 +100,7 @@ func (r *TaskRunner) run(t *Task) {
 		// overriding previous Kill reason.
 		tomb.Kill(handler(t, tomb))
 
+		// Locks must be acquired in the same order everywhere.
 		r.mu.Lock()
 		defer r.mu.Unlock()
 		r.state.Lock()
@@ -184,6 +185,7 @@ func (r *TaskRunner) Ensure() {
 		return
 	}
 
+	// Locks must be acquired in the same order everywhere.
 	r.state.Lock()
 	defer r.state.Unlock()
 
