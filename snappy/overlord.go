@@ -177,12 +177,29 @@ func UndoCopyData(newSnap *Snap, flags InstallFlags, meter progress.Meter) {
 	}
 }
 
+func FinalizeSnap(newSnap *Snap, flags InstallFlags, meter progress.Meter) error {
+	inhibitHooks := (flags & InhibitHooks) != 0
+	if inhibitHooks {
+		return nil
+	}
+	return newSnap.activate(inhibitHooks, meter)
+}
+
+func UndoFinalizeSnap(newSnap *Snap, flags InstallFlags, meter progress.Meter) {
+	inhibitHooks := (flags & InhibitHooks) != 0
+	oldSnap := oldSnap(newSnap)
+	if oldSnap == nil {
+		return
+	}
+	if err := oldSnap.activate(inhibitHooks, meter); err != nil {
+		logger.Noticef("When setting old %s version back to active: %v", newSnap.Name(), err)
+	}
+}
+
 // Install installs the given snap file to the system.
 //
 // It returns the local snap file or an error
 func (o *Overlord) Install(snapFilePath string, developer string, flags InstallFlags, meter progress.Meter) (sp *Snap, err error) {
-	inhibitHooks := (flags & InhibitHooks) != 0
-
 	if err := CheckSnap(snapFilePath, developer, flags, meter); err != nil {
 		return nil, err
 	}
@@ -197,7 +214,7 @@ func (o *Overlord) Install(snapFilePath string, developer string, flags InstallF
 		return nil, err
 	}
 
-	// we have a installed snap at this point
+	// we have an installed snap at this point
 	newSnap, err := NewInstalledSnap(filepath.Join(instPath, "meta", "snap.yaml"), developer)
 	if err != nil {
 		return nil, err
@@ -214,20 +231,15 @@ func (o *Overlord) Install(snapFilePath string, developer string, flags InstallF
 		return nil, err
 	}
 
-	if !inhibitHooks {
-		// and finally make active
-		err = newSnap.activate(inhibitHooks, meter)
-		defer func() {
-			oldSnap := oldSnap(newSnap)
-			if err != nil && oldSnap != nil {
-				if cerr := oldSnap.activate(inhibitHooks, meter); cerr != nil {
-					logger.Noticef("When setting old %s version back to active: %v", newSnap.Name(), cerr)
-				}
-			}
-		}()
+	// and finally make active
+	err = FinalizeSnap(newSnap, flags, meter)
+	defer func() {
 		if err != nil {
-			return nil, err
+			UndoFinalizeSnap(newSnap, flags, meter)
 		}
+	}()
+	if err != nil {
+		return nil, err
 	}
 
 	return newSnap, nil
