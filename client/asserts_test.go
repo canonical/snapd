@@ -42,13 +42,13 @@ func (cs *clientSuite) TestClientAssert(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(body, DeepEquals, a)
 	c.Check(cs.req.Method, Equals, "POST")
-	c.Check(cs.req.URL.Path, Equals, "/2.0/assertions")
+	c.Check(cs.req.URL.Path, Equals, "/v2/assertions")
 }
 
 func (cs *clientSuite) TestClientAssertsCallsEndpoint(c *C) {
 	_, _ = cs.cli.Known("snap-revision", nil)
 	c.Check(cs.req.Method, Equals, "GET")
-	c.Check(cs.req.URL.Path, Equals, "/2.0/assertions/snap-revision")
+	c.Check(cs.req.URL.Path, Equals, "/v2/assertions/snap-revision")
 }
 
 func (cs *clientSuite) TestClientAssertsCallsEndpointWithFilter(c *C) {
@@ -58,7 +58,7 @@ func (cs *clientSuite) TestClientAssertsCallsEndpointWithFilter(c *C) {
 	})
 	u, err := url.ParseRequestURI(cs.req.URL.String())
 	c.Assert(err, IsNil)
-	c.Check(u.Path, Equals, "/2.0/assertions/snap-revision")
+	c.Check(u.Path, Equals, "/v2/assertions/snap-revision")
 	c.Check(u.Query(), DeepEquals, url.Values{
 		"snap-digest": []string{"sha256 digest..."},
 		"snap-id":     []string{"snap-id-1"},
