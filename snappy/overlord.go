@@ -345,8 +345,15 @@ func (o *Overlord) Install(snapFilePath string, developer string, flags InstallF
 		return nil, err
 	}
 
-	// we have an installed snap at this point
-	newSnap, err := NewInstalledSnap(filepath.Join(instPath, "meta", "snap.yaml"), developer)
+	// we have an installed snap at this point but it may not be
+	// mounted so we need some tricky :((( to pretend for u-d-f
+	// that it is an installed snap
+	allowUnauth := (flags & AllowUnauthenticated) != 0
+	s, err := NewSnapFile(snapFilePath, developer, allowUnauth)
+	if err != nil {
+		return nil, err
+	}
+	newSnap, err := newSnapFromYaml(filepath.Join(instPath, "meta", "snap.yaml"), developer, s.m)
 	if err != nil {
 		return nil, err
 	}
