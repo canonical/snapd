@@ -54,7 +54,7 @@ func (x *cmdBuild) Execute(args []string) (err error) {
 	}
 
 	if _, err := exec.LookPath("snapcraft"); err != nil {
-		fmt.Fprintf(os.Stderr, `please "sudo apt install snapcraft"`)
+		fmt.Fprintf(os.Stderr, i18n.G(`error: build command needs snapcraft available`))
 		os.Exit(1)
 	}
 
