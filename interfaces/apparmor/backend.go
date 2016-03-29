@@ -75,7 +75,8 @@ func (b *Backend) Configure(snapInfo *snap.Info, developerMode bool, repo *inter
 	if err != nil {
 		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapInfo.Name, err)
 	}
-	changed, removed, err := osutil.EnsureDirState(b.Directory(), b.FileGlob(snapInfo), content)
+	glob := interfaces.SecurityTagGlob(snapInfo)
+	changed, removed, err := osutil.EnsureDirState(b.Directory(), glob, content)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapInfo.Name, err)
 	}
@@ -88,7 +89,8 @@ func (b *Backend) Configure(snapInfo *snap.Info, developerMode bool, repo *inter
 
 // Deconfigure removes security artefacts of a given snap.
 func (b *Backend) Deconfigure(snapInfo *snap.Info) error {
-	_, removed, err := osutil.EnsureDirState(b.Directory(), b.FileGlob(snapInfo), nil)
+	glob := interfaces.SecurityTagGlob(snapInfo)
+	_, removed, err := osutil.EnsureDirState(b.Directory(), glob, nil)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapInfo.Name, err)
 	}
@@ -112,7 +114,8 @@ func (b *Backend) CombineSnippets(snapInfo *snap.Info, developerMode bool, snipp
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
 		}
-		content[b.FileName(appInfo)] = &osutil.FileState{
+		fname := interfaces.SecurityTag(appInfo)
+		content[fname] = &osutil.FileState{
 			Content: fileContent,
 			Mode:    0644,
 		}
@@ -146,14 +149,4 @@ func (b *Backend) ObserveChanges(changed, removed []string) error {
 // loads profiles on boot.
 func (b *Backend) Directory() string {
 	return dirs.SnapAppArmorDir
-}
-
-// FileName returns the name of security file associated with a given application.
-func (b *Backend) FileName(appInfo *snap.AppInfo) string {
-	return interfaces.SecurityTag(appInfo)
-}
-
-// FileGlob returns the pattern describing all security files associated with a given snap.
-func (b *Backend) FileGlob(snapInfo *snap.Info) string {
-	return interfaces.SecurityTagGlob(snapInfo)
 }

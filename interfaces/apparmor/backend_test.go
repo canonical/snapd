@@ -319,7 +319,7 @@ snippet2
 func (s *backendSuite) TestCombineSnippets(c *C) {
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(sambaYamlV1))
 	c.Assert(err, IsNil)
-	glob := s.backend.FileGlob(snapInfo)
+	glob := "snap.samba.*"
 	// NOTE: replace the real template with a shorter variant
 	restore := apparmor.MockTemplate("\n" +
 		"###VAR###\n" +
@@ -345,19 +345,6 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 			c.Check(filepath.Base(name), Equals, name)
 		}
 	}
-}
-
-func (s *backendSuite) TestFileName(c *C) {
-	snapInfo, err := snap.InfoFromSnapYaml([]byte(sambaYamlV1))
-	c.Assert(err, IsNil)
-	appInfo := snapInfo.Apps["smbd"]
-	c.Assert(s.backend.FileName(appInfo), Equals, "snap.samba.smbd")
-}
-
-func (s *backendSuite) TestFileGlob(c *C) {
-	snapInfo, err := snap.InfoFromSnapYaml([]byte(sambaYamlV1))
-	c.Assert(err, IsNil)
-	c.Check(s.backend.FileGlob(snapInfo), Equals, "snap.samba.*")
 }
 
 // Support code for tests
