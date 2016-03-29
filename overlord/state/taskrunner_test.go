@@ -34,18 +34,7 @@ type taskRunnerSuite struct{}
 
 var _ = Suite(&taskRunnerSuite{})
 
-func (ts *taskRunnerSuite) TestAddHandler(c *C) {
-	r := state.NewTaskRunner(nil)
-	fn := func(task *state.Task, tomb *tomb.Tomb) error {
-		return nil
-	}
-	r.AddHandler("download", fn)
-
-	c.Assert(r.Handlers(), HasLen, 1)
-}
-
 func (ts *taskRunnerSuite) TestEnsureTrivial(c *C) {
-	// we need state
 	st := state.New(nil)
 
 	// setup the download handler
@@ -54,7 +43,7 @@ func (ts *taskRunnerSuite) TestEnsureTrivial(c *C) {
 	fn := func(task *state.Task, tomb *tomb.Tomb) error {
 		task.State().Lock()
 		defer task.State().Unlock()
-		c.Check(task.Status(), Equals, state.RunningStatus)
+		c.Check(task.Status(), Equals, state.DoStatus)
 		taskCompleted.Done()
 		return nil
 	}
@@ -93,7 +82,6 @@ func (b *stateBackend) EnsureBefore(d time.Duration) {
 
 func (ts *taskRunnerSuite) TestEnsureComplex(c *C) {
 	b := &stateBackend{}
-	// we need state
 	st := state.New(b)
 
 	r := state.NewTaskRunner(st)
@@ -104,7 +92,7 @@ func (ts *taskRunnerSuite) TestEnsureComplex(c *C) {
 	fn := func(task *state.Task, tomb *tomb.Tomb) error {
 		task.State().Lock()
 		defer task.State().Unlock()
-		c.Check(task.Status(), Equals, state.RunningStatus)
+		c.Check(task.Status(), Equals, state.DoStatus)
 		orderingCh <- task.Kind()
 		return nil
 	}
@@ -114,7 +102,7 @@ func (ts *taskRunnerSuite) TestEnsureComplex(c *C) {
 
 	defer r.Stop()
 
-	// run in a loop to ensure ordering is correct by pure chance
+	// run in a loop to ensure ordering is not correct by pure chance
 	for i := 0; i < 100; i++ {
 		st.Lock()
 		chg := st.NewChange("mock-install", "...")
@@ -123,10 +111,10 @@ func (ts *taskRunnerSuite) TestEnsureComplex(c *C) {
 		tDl := st.NewTask("download", "1...")
 		tUnp := st.NewTask("unpack", "2...")
 		tUnp.WaitFor(tDl)
-		chg.AddTasks(state.NewTaskSet(tDl, tUnp))
+		chg.AddAll(state.NewTaskSet(tDl, tUnp))
 		tConf := st.NewTask("configure", "3...")
 		tConf.WaitFor(tUnp)
-		chg.AddTasks(state.NewTaskSet(tConf))
+		chg.AddAll(state.NewTaskSet(tConf))
 		st.Unlock()
 
 		// ensure just kicks the go routine off
@@ -143,7 +131,6 @@ func (ts *taskRunnerSuite) TestEnsureComplex(c *C) {
 }
 
 func (ts *taskRunnerSuite) TestErrorIsFinal(c *C) {
-	// we need state
 	st := state.New(nil)
 
 	invocations := 0
@@ -176,7 +163,6 @@ func (ts *taskRunnerSuite) TestErrorIsFinal(c *C) {
 }
 
 func (ts *taskRunnerSuite) TestStopCancelsGoroutines(c *C) {
-	// we need state
 	st := state.New(nil)
 
 	invocations := 0
@@ -210,7 +196,7 @@ func (ts *taskRunnerSuite) TestStopCancelsGoroutines(c *C) {
 
 	st.Lock()
 	defer st.Unlock()
-	c.Check(t.Status(), Equals, state.RunningStatus)
+	c.Check(t.Status(), Equals, state.DoStatus)
 }
 
 func (ts *taskRunnerSuite) TestErrorPropagates(c *C) {
@@ -233,7 +219,7 @@ func (ts *taskRunnerSuite) TestErrorPropagates(c *C) {
 	dep1.WaitFor(errTask)
 	dep2 := st.NewTask("dep", "3...")
 	dep2.WaitFor(dep1)
-	chg.AddTasks(state.NewTaskSet(errTask, dep1, dep2))
+	chg.AddAll(state.NewTaskSet(errTask, dep1, dep2))
 	st.Unlock()
 
 	defer r.Stop()
@@ -247,4 +233,5 @@ func (ts *taskRunnerSuite) TestErrorPropagates(c *C) {
 	c.Check(dep1.Status(), Equals, state.ErrorStatus)
 	c.Check(dep2.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.Err(), ErrorMatches, "(?s).*boom.*")
 }

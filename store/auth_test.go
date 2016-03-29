@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,7 +17,7 @@
  *
  */
 
-package snappy
+package store
 
 import (
 	"io"
@@ -32,6 +32,16 @@ import (
 
 	. "gopkg.in/check.v1"
 )
+
+type authTestSuite struct {
+	tempdir string
+}
+
+var _ = Suite(&authTestSuite{})
+
+func (s *authTestSuite) SetUpTest(c *C) {
+	s.tempdir = c.MkDir()
+}
 
 const mockStoreInvalidLoginCode = 401
 const mockStoreInvalidLogin = `
@@ -65,7 +75,7 @@ const mockStoreReturnToken = `
 }
 `
 
-func (s *SnapTestSuite) TestRequestStoreToken(c *C) {
+func (s *authTestSuite) TestRequestStoreToken(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, mockStoreReturnToken)
 	}))
@@ -81,7 +91,7 @@ func (s *SnapTestSuite) TestRequestStoreToken(c *C) {
 	c.Assert(token.ConsumerKey, Equals, "the-consumer-key")
 }
 
-func (s *SnapTestSuite) TestRequestStoreTokenNeeds2fa(c *C) {
+func (s *authTestSuite) TestRequestStoreTokenNeeds2fa(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(mockStoreNeeds2faHTTPCode)
 		io.WriteString(w, mockStoreNeeds2fa)
@@ -94,7 +104,7 @@ func (s *SnapTestSuite) TestRequestStoreTokenNeeds2fa(c *C) {
 	c.Assert(err, Equals, ErrAuthenticationNeeds2fa)
 }
 
-func (s *SnapTestSuite) TestRequestStoreTokenInvalidLogin(c *C) {
+func (s *authTestSuite) TestRequestStoreTokenInvalidLogin(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(mockStoreInvalidLoginCode)
 		io.WriteString(w, mockStoreInvalidLogin)
@@ -107,7 +117,7 @@ func (s *SnapTestSuite) TestRequestStoreTokenInvalidLogin(c *C) {
 	c.Assert(err, Equals, ErrInvalidCredentials)
 }
 
-func (s *SnapTestSuite) TestWriteStoreToken(c *C) {
+func (s *authTestSuite) TestWriteStoreToken(c *C) {
 	os.Setenv("HOME", s.tempdir)
 	mockStoreToken := StoreToken{TokenName: "meep"}
 	err := WriteStoreToken(mockStoreToken)
@@ -130,7 +140,7 @@ func (s *SnapTestSuite) TestWriteStoreToken(c *C) {
 }`)
 }
 
-func (s *SnapTestSuite) TestReadStoreToken(c *C) {
+func (s *authTestSuite) TestReadStoreToken(c *C) {
 	os.Setenv("HOME", s.tempdir)
 	mockStoreToken := StoreToken{
 		TokenName: "meep",

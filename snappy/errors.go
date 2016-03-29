@@ -22,7 +22,6 @@ package snappy
 import (
 	"errors"
 	"fmt"
-	"net/url"
 	"strings"
 
 	"github.com/ubuntu-core/snappy/arch"
@@ -59,10 +58,6 @@ var (
 	// that is already in the hwaccess list
 	ErrHWAccessAlreadyAdded = errors.New("device is already in hw-access list")
 
-	// ErrAuthenticationNeeds2fa is returned if the authentication
-	// needs 2factor
-	ErrAuthenticationNeeds2fa = errors.New("authentication needs second factor")
-
 	// ErrNotInstalled is returned when the snap is not installed
 	ErrNotInstalled = errors.New("the given snap is not installed")
 
@@ -84,9 +79,6 @@ var (
 	// cannot be performed since an existing privileged operation is
 	// still running.
 	ErrPrivOpInProgress = errors.New("privileged operation already in progress")
-
-	// ErrInvalidCredentials is returned on login error
-	ErrInvalidCredentials = errors.New("invalid credentials")
 
 	// ErrSnapNotActive is returned if you try to unset a snap from
 	// active to inactive
@@ -139,16 +131,6 @@ var (
 	// ErrNoSeccompPolicy is returned when an expected seccomp policy is not provided.
 	ErrNoSeccompPolicy = errors.New("no seccomp policy provided")
 )
-
-// ErrDownload represents a download error
-type ErrDownload struct {
-	Code int
-	URL  *url.URL
-}
-
-func (e *ErrDownload) Error() string {
-	return fmt.Sprintf("received an unexpected http response code (%v) when trying to download %s", e.Code, e.URL)
-}
 
 // ErrArchitectureNotSupported is returned when trying to install a snappy package that
 // is not supported on the system

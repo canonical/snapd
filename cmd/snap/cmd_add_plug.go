@@ -22,6 +22,8 @@ package main
 import (
 	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
+
+	"github.com/jessevdk/go-flags"
 )
 
 type cmdAddInterface struct {
@@ -44,7 +46,7 @@ It will be removed in one of the future releases.
 `)
 
 func init() {
-	addExperimentalCommand("add-plug", shortAddPlugHelp, longAddPlugHelp, func() interface{} {
+	addExperimentalCommand("add-plug", shortAddPlugHelp, longAddPlugHelp, func() flags.Commander {
 		return &cmdAddInterface{}
 	})
 }

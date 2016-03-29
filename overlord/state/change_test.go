@@ -69,19 +69,15 @@ func (cs *changeSuite) TestNewTaskAddTaskAndTasks(c *C) {
 	chg.AddTask(t2)
 
 	tasks := chg.Tasks()
-	c.Check(tasks, HasLen, 2)
+	c.Check(tasks, DeepEquals, []*state.Task{t1, t2})
+	c.Check(t1.Change(), Equals, chg)
+	c.Check(t2.Change(), Equals, chg)
 
-	expected := map[string]*state.Task{
-		t1.ID(): t1,
-		t2.ID(): t2,
-	}
-
-	for _, t := range tasks {
-		c.Check(t, Equals, expected[t.ID()])
-	}
+	chg2 := st.NewChange("install", "...")
+	c.Check(func() { chg2.AddTask(t1) }, PanicMatches, `internal error: cannot add one "download" task to multiple changes`)
 }
 
-func (cs *changeSuite) TestAddTasks(c *C) {
+func (cs *changeSuite) TestAddAll(c *C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
@@ -90,34 +86,12 @@ func (cs *changeSuite) TestAddTasks(c *C) {
 
 	t1 := st.NewTask("download", "1...")
 	t2 := st.NewTask("verify", "2...")
-	chg.AddTasks(state.NewTaskSet(t1, t2))
+	chg.AddAll(state.NewTaskSet(t1, t2))
 
 	tasks := chg.Tasks()
-	c.Check(tasks, HasLen, 2)
-
-	expected := map[string]*state.Task{
-		t1.ID(): t1,
-		t2.ID(): t2,
-	}
-
-	for _, t := range tasks {
-		c.Check(t, Equals, expected[t.ID()])
-	}
-}
-
-func (cs *changeSuite) TestStatusAndSetStatus(c *C) {
-	st := state.New(nil)
-	st.Lock()
-	defer st.Unlock()
-
-	chg := st.NewChange("install", "...")
-
-	// default with no tasks will end up as DoneStatus
-	c.Check(chg.Status(), Equals, state.DoneStatus)
-
-	chg.SetStatus(state.RunningStatus)
-
-	c.Check(chg.Status(), Equals, state.RunningStatus)
+	c.Check(tasks, DeepEquals, []*state.Task{t1, t2})
+	c.Check(t1.Change(), Equals, chg)
+	c.Check(t2.Change(), Equals, chg)
 }
 
 func (cs *changeSuite) TestStatusDerivedFromTasks(c *C) {
@@ -127,27 +101,28 @@ func (cs *changeSuite) TestStatusDerivedFromTasks(c *C) {
 
 	chg := st.NewChange("install", "...")
 
+	// Default with no tasks.
+	c.Check(chg.Status(), Equals, state.DoStatus)
+
 	t1 := st.NewTask("download", "1...")
 	chg.AddTask(t1)
 	t2 := st.NewTask("verify", "2...")
 	chg.AddTask(t2)
 
-	c.Check(chg.Status(), Equals, state.RunningStatus)
-
-	t1.SetStatus(state.WaitingStatus)
-	c.Check(chg.Status(), Equals, state.RunningStatus)
-
-	t2.SetStatus(state.WaitingStatus)
-	c.Check(chg.Status(), Equals, state.WaitingStatus)
+	c.Check(chg.Status(), Equals, state.DoStatus)
 
 	t1.SetStatus(state.ErrorStatus)
-	c.Check(chg.Status(), Equals, state.WaitingStatus)
+	c.Check(chg.Status(), Equals, state.DoStatus)
 
-	t2.SetStatus(state.ErrorStatus)
+	t2.SetStatus(state.UndoStatus)
+	c.Check(chg.Status(), Equals, state.UndoStatus)
+
+	t2.SetStatus(state.UndoneStatus)
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
 
-	t1.SetStatus(state.DoneStatus)
-	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	// For correctness and completeness. Not expected in real changes.
+	t1.SetStatus(state.UndoneStatus)
+	c.Check(chg.Status(), Equals, state.UndoneStatus)
 
 	t2.SetStatus(state.DoneStatus)
 	c.Check(chg.Status(), Equals, state.DoneStatus)
@@ -189,12 +164,11 @@ func (cs *changeSuite) TestErr(c *C) {
 		"cannot perform the following tasks:\n"+
 		"- Download \\(Download error\\)")
 
-	// TODO Preserve task creation order for presentation purposes.
 	t2.Errorf("Activate error")
 	c.Assert(chg.Err(), ErrorMatches, ""+
 		"cannot perform the following tasks:\n"+
-		"- (Download|Activate) \\((Download|Activate) error\\)\n"+
-		"- (Download|Activate) \\((Download|Activate) error\\)")
+		"- Download \\(Download error\\)\n"+
+		"- Activate \\(Activate error\\)")
 }
 
 func (cs *changeSuite) TestNeedsLock(c *C) {
@@ -207,9 +181,9 @@ func (cs *changeSuite) TestNeedsLock(c *C) {
 		func() { chg.Set("a", 1) },
 		func() { chg.Get("a", nil) },
 		func() { chg.Status() },
-		func() { chg.SetStatus(state.WaitingStatus) },
+		func() { chg.SetStatus(state.DoStatus) },
 		func() { chg.AddTask(nil) },
-		func() { chg.AddTasks(nil) },
+		func() { chg.AddAll(nil) },
 		func() { chg.Tasks() },
 		func() { chg.Err() },
 	}

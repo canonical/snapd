@@ -20,6 +20,7 @@
 package state_test
 
 import (
+	"encoding/json"
 	"fmt"
 
 	. "gopkg.in/check.v1"
@@ -65,11 +66,19 @@ func (ts *taskSuite) TestStatusAndSetStatus(c *C) {
 
 	t := st.NewTask("download", "1...")
 
-	c.Check(t.Status(), Equals, state.RunningStatus)
+	c.Check(t.Status(), Equals, state.DoStatus)
 
 	t.SetStatus(state.DoneStatus)
 
 	c.Check(t.Status(), Equals, state.DoneStatus)
+}
+
+func jsonStr(m json.Marshaler) string {
+	data, err := m.MarshalJSON()
+	if err != nil {
+		panic(err)
+	}
+	return string(data)
 }
 
 func (ts *taskSuite) TestProgressAndSetProgress(c *C) {
@@ -80,11 +89,33 @@ func (ts *taskSuite) TestProgressAndSetProgress(c *C) {
 	t := st.NewTask("download", "1...")
 
 	t.SetProgress(2, 99)
-
 	cur, tot := t.Progress()
-
 	c.Check(cur, Equals, 2)
 	c.Check(tot, Equals, 99)
+
+	t.SetProgress(0, 0)
+	cur, tot = t.Progress()
+	c.Check(cur, Equals, 0)
+	c.Check(tot, Equals, 1)
+	c.Check(jsonStr(t), Not(testutil.Contains), "progress")
+
+	t.SetProgress(0, -1)
+	cur, tot = t.Progress()
+	c.Check(cur, Equals, 0)
+	c.Check(tot, Equals, 1)
+	c.Check(jsonStr(t), Not(testutil.Contains), "progress")
+
+	t.SetProgress(0, -1)
+	cur, tot = t.Progress()
+	c.Check(cur, Equals, 0)
+	c.Check(tot, Equals, 1)
+	c.Check(jsonStr(t), Not(testutil.Contains), "progress")
+
+	t.SetProgress(2, 1)
+	cur, tot = t.Progress()
+	c.Check(cur, Equals, 0)
+	c.Check(tot, Equals, 1)
+	c.Check(jsonStr(t), Not(testutil.Contains), "progress")
 }
 
 func (ts *taskSuite) TestProgressDefaults(c *C) {
@@ -94,17 +125,12 @@ func (ts *taskSuite) TestProgressDefaults(c *C) {
 
 	t := st.NewTask("download", "1...")
 
-	c.Check(t.Status(), Equals, state.RunningStatus)
+	c.Check(t.Status(), Equals, state.DoStatus)
 	cur, tot := t.Progress()
 	c.Check(cur, Equals, 0)
 	c.Check(tot, Equals, 1)
 
-	t.SetStatus(state.WaitingStatus)
-	cur, tot = t.Progress()
-	c.Check(cur, Equals, 0)
-	c.Check(tot, Equals, 1)
-
-	t.SetStatus(state.RunningStatus)
+	t.SetStatus(state.DoStatus)
 	cur, tot = t.Progress()
 	c.Check(cur, Equals, 0)
 	c.Check(tot, Equals, 1)
@@ -155,8 +181,6 @@ func (ts *taskSuite) TestTaskWaitFor(c *C) {
 	t2.WaitFor(t1)
 
 	c.Assert(t2.WaitTasks(), DeepEquals, []*state.Task{t1})
-	c.Assert(t2.Status(), Equals, state.WaitingStatus)
-
 	c.Assert(t1.HaltTasks(), DeepEquals, []*state.Task{t2})
 }
 
@@ -187,7 +211,6 @@ func (cs *taskSuite) TestErrorf(c *C) {
 
 	t.Errorf("Some %s", "error")
 	c.Assert(t.Log(), DeepEquals, []string{"ERROR: Some error"})
-	c.Assert(t.Status(), Equals, state.ErrorStatus)
 }
 
 func (ts *taskSuite) TestTaskMarshalsLog(c *C) {
@@ -236,7 +259,7 @@ func (ts *taskSuite) TestNeedsLock(c *C) {
 
 func (cs *taskSuite) TestNewTaskSet(c *C) {
 	ts0 := state.NewTaskSet()
-	c.Check(ts0, HasLen, 0)
+	c.Check(ts0.Tasks(), HasLen, 0)
 
 	st := state.New(nil)
 	st.Lock()
@@ -245,7 +268,7 @@ func (cs *taskSuite) TestNewTaskSet(c *C) {
 	ts2 := state.NewTaskSet(t1, t2)
 	st.Unlock()
 
-	c.Check(ts2, HasLen, 2)
+	c.Assert(ts2.Tasks(), DeepEquals, []*state.Task{t1, t2})
 }
 
 func (ts *taskSuite) TestTaskWaitAll(c *C) {
@@ -259,8 +282,6 @@ func (ts *taskSuite) TestTaskWaitAll(c *C) {
 	t3.WaitAll(state.NewTaskSet(t1, t2))
 
 	c.Assert(t3.WaitTasks(), HasLen, 2)
-	c.Assert(t3.Status(), Equals, state.WaitingStatus)
-
 	c.Assert(t1.HaltTasks(), DeepEquals, []*state.Task{t3})
 	c.Assert(t2.HaltTasks(), DeepEquals, []*state.Task{t3})
 }
@@ -276,10 +297,7 @@ func (ts *taskSuite) TestTaskSetWaitFor(c *C) {
 	ts23 := state.NewTaskSet(t2, t3)
 	ts23.WaitFor(t1)
 
-	c.Assert(t2.Status(), Equals, state.WaitingStatus)
 	c.Assert(t2.WaitTasks(), DeepEquals, []*state.Task{t1})
-	c.Assert(t3.Status(), Equals, state.WaitingStatus)
 	c.Assert(t3.WaitTasks(), DeepEquals, []*state.Task{t1})
-
 	c.Assert(t1.HaltTasks(), HasLen, 2)
 }

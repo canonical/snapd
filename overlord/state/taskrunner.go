@@ -24,6 +24,8 @@ import (
 	"sync"
 
 	"gopkg.in/tomb.v2"
+
+	"github.com/ubuntu-core/snappy/logger"
 )
 
 // HandlerFunc is the type of function for the handlers
@@ -41,6 +43,7 @@ type TaskRunner struct {
 	// locking
 	mu       sync.Mutex
 	handlers map[string]HandlerFunc
+	stopped  bool
 
 	// go-routines lifecycle
 	tombs map[string]*tomb.Tomb
@@ -64,32 +67,29 @@ func (r *TaskRunner) AddHandler(kind string, fn HandlerFunc) {
 	r.handlers[kind] = fn
 }
 
-// Handlers returns the map of name/handler functions
-func (r *TaskRunner) Handlers() map[string]HandlerFunc {
-	return r.handlers
-}
-
-// taskFail marks task t and all tasks waiting (directly and indirectly on it) as in ErrorStatus.
-func taskFail(task *Task) {
-	task.SetStatus(ErrorStatus)
+// propagateError sets all tasks directly and indirectly waiting on t to ErrorStatus.
+func propagateError(task *Task) {
 	mark := append([]*Task(nil), task.HaltTasks()...)
-	i := 0
-	for i < len(mark) {
+	for i := 0; i < len(mark); i++ {
 		t := mark[i]
-		if t.Status() == WaitingStatus {
-			t.SetStatus(ErrorStatus)
-			mark = append(mark, t.HaltTasks()...)
-		}
-		i++
+		t.SetStatus(ErrorStatus)
+		mark = append(mark, t.HaltTasks()...)
 	}
 }
 
 // run must be called with the state lock in place
 func (r *TaskRunner) run(fn HandlerFunc, task *Task) {
-	task.SetStatus(RunningStatus) // could have been set to waiting
 	tomb := &tomb.Tomb{}
-	r.tombs[task.ID()] = tomb
+	id := task.ID()
+	r.tombs[id] = tomb
 	tomb.Go(func() error {
+		defer func() {
+			r.mu.Lock()
+			defer r.mu.Unlock()
+
+			delete(r.tombs, id)
+		}()
+
 		// capture the error result with tomb.Kill so we can
 		// use tomb.Err uniformily to consider both it or a
 		// overriding previous Kill reason.
@@ -97,7 +97,7 @@ func (r *TaskRunner) run(fn HandlerFunc, task *Task) {
 
 		r.state.Lock()
 		defer r.state.Unlock()
-		switch tomb.Err() {
+		switch err := tomb.Err(); err {
 		case Retry:
 			// Do nothing. Handler asked to try again later.
 			// TODO: define how to control retry intervals,
@@ -110,14 +110,16 @@ func (r *TaskRunner) run(fn HandlerFunc, task *Task) {
 				r.state.EnsureBefore(0)
 			}
 		default:
-			taskFail(task)
+			task.SetStatus(ErrorStatus)
+			task.Errorf("%s", err)
+			propagateError(task)
 		}
 		return nil
 	})
 }
 
-// mustWait must be called with the state lock in place
-func (r *TaskRunner) mustWait(t *Task) bool {
+// mustWait returns whether task t must wait for other tasks to be done.
+func mustWait(t *Task) bool {
 	for _, wt := range t.WaitTasks() {
 		if wt.Status() != DoneStatus {
 			return true
@@ -131,22 +133,22 @@ func (r *TaskRunner) mustWait(t *Task) bool {
 // dependencies.
 // Note that Ensure will lock the state.
 func (r *TaskRunner) Ensure() {
-	r.state.Lock()
-	defer r.state.Unlock()
-
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	for id, tb := range r.tombs {
-		if !tb.Alive() {
-			delete(r.tombs, id)
-		}
+	if r.stopped {
+		// we are stopping, don't run another ensure
+		return
 	}
+
+	r.state.Lock()
+	defer r.state.Unlock()
 
 	for _, chg := range r.state.Changes() {
 		if chg.Status() == DoneStatus {
 			continue
 		}
+		logger.Debugf("Working on change %s: %s", chg.ID(), chg.summary)
 
 		tasks := chg.Tasks()
 		for _, t := range tasks {
@@ -165,7 +167,7 @@ func (r *TaskRunner) Ensure() {
 			}
 
 			// we look at the Tomb instead of Status because
-			// a task can be in RunningStatus even when it
+			// a task can be in DoStatus even when it
 			// is not started yet (like when the daemon
 			// process restarts)
 			if _, ok := r.tombs[t.ID()]; ok {
@@ -173,13 +175,26 @@ func (r *TaskRunner) Ensure() {
 			}
 
 			// check if there is anything we need to wait for
-			if r.mustWait(t) {
+			if mustWait(t) {
 				continue
 			}
 
+			logger.Debugf("Running task %s: %s", t.id, t.summary)
 			// the task is ready to run (all prerequists done)
 			// so full steam ahead!
 			r.run(r.handlers[t.Kind()], t)
+		}
+	}
+}
+
+// wait expectes to be called with th r.mu lock held
+func (r *TaskRunner) wait() {
+	for len(r.tombs) > 0 {
+		for _, t := range r.tombs {
+			r.mu.Unlock()
+			t.Wait()
+			r.mu.Lock()
+			break
 		}
 	}
 }
@@ -189,14 +204,13 @@ func (r *TaskRunner) Stop() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	r.stopped = true
+
 	for _, tb := range r.tombs {
 		tb.Kill(nil)
 	}
 
-	for id, tb := range r.tombs {
-		tb.Wait()
-		delete(r.tombs, id)
-	}
+	r.wait()
 }
 
 // Wait waits for all concurrent activities and returns after that's done.
@@ -204,13 +218,5 @@ func (r *TaskRunner) Wait() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	for len(r.tombs) > 0 {
-		for id, t := range r.tombs {
-			r.mu.Unlock()
-			t.Wait()
-			r.mu.Lock()
-			delete(r.tombs, id)
-			break
-		}
-	}
+	r.wait()
 }

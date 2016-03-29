@@ -181,7 +181,7 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 	dlURL = mockServer.URL + "/dl"
 	iconURL = mockServer.URL + "/icon"
 
-	storeDetailsURI, err = url.Parse(mockServer.URL + "/details/")
+	s.storeCfg.DetailsURI, err = url.Parse(mockServer.URL + "/details/")
 	c.Assert(err, IsNil)
 
 	name, err := Install("foo", "ch", 0, &progress.NullProgress{})
@@ -221,7 +221,7 @@ func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 		}
 	}))
 
-	storeDetailsURI, err = url.Parse(mockServer.URL + "/details/")
+	s.storeCfg.DetailsURI, err = url.Parse(mockServer.URL + "/details/")
 	c.Assert(err, IsNil)
 
 	c.Assert(mockServer, NotNil)
@@ -254,6 +254,7 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 			io.WriteString(w, `{
 "package_name": "foo",
 "version": "2",
+"revision": 1,
 "developer": "`+testDeveloper+`",
 "anon_download_url": "`+dlURL+`",
 "icon_url": "`+iconURL+`"
@@ -273,7 +274,7 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 	dlURL = mockServer.URL + "/dl"
 	iconURL = mockServer.URL + "/icon"
 
-	storeDetailsURI, err = url.Parse(mockServer.URL + "/details/")
+	s.storeCfg.DetailsURI, err = url.Parse(mockServer.URL + "/details/")
 	c.Assert(err, IsNil)
 
 	// bulk
@@ -281,13 +282,14 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 		io.WriteString(w, `[{
 	"package_name": "foo",
 	"version": "2",
+        "revision": 1,
         "origin": "`+testDeveloper+`",
 	"anon_download_url": "`+dlURL+`",
 	"icon_url": "`+iconURL+`"
 }]`)
 	}))
 
-	storeBulkURI, err = url.Parse(mockServer.URL)
+	s.storeCfg.BulkURI, err = url.Parse(mockServer.URL)
 	c.Assert(err, IsNil)
 
 	c.Assert(mockServer, NotNil)
@@ -299,6 +301,7 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 	c.Assert(updates, HasLen, 1)
 	c.Check(updates[0].Name(), Equals, "foo")
 	c.Check(updates[0].Version(), Equals, "2")
+	c.Check(updates[0].Revision(), Equals, 1)
 	// ensure that we get a "local" snap back - not a remote one
 	c.Check(updates[0], FitsTypeOf, &Snap{})
 }

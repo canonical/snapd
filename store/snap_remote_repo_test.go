@@ -1,0 +1,417 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2014-2016 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+package store
+
+import (
+	"fmt"
+	"io"
+	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"os"
+	"testing"
+
+	. "gopkg.in/check.v1"
+
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/osutil"
+	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/release"
+)
+
+type remoteRepoTestSuite struct {
+	store *SnapUbuntuStoreRepository
+
+	origDownloadFunc func(string, io.Writer, *http.Request, progress.Meter) error
+}
+
+func TestStore(t *testing.T) { TestingT(t) }
+
+var _ = Suite(&remoteRepoTestSuite{})
+
+func (t *remoteRepoTestSuite) SetUpTest(c *C) {
+	t.store = NewUbuntuStoreSnapRepository(nil, "")
+	t.origDownloadFunc = download
+	dirs.SetRootDir(c.MkDir())
+	c.Assert(os.MkdirAll(dirs.SnapSnapsDir, 0755), IsNil)
+}
+
+func (t *remoteRepoTestSuite) TearDownTest(c *C) {
+	download = t.origDownloadFunc
+}
+
+func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
+	download = func(name string, w io.Writer, req *http.Request, pbar progress.Meter) error {
+		w.Write([]byte("I was downloaded"))
+		return nil
+	}
+
+	path, err := t.store.Download(&RemoteSnap{}, nil)
+	c.Assert(err, IsNil)
+	defer os.Remove(path)
+
+	content, err := ioutil.ReadFile(path)
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, "I was downloaded")
+}
+
+func (t *remoteRepoTestSuite) TestDownloadFails(c *C) {
+	var tmpfile *os.File
+	download = func(name string, w io.Writer, req *http.Request, pbar progress.Meter) error {
+		tmpfile = w.(*os.File)
+		return fmt.Errorf("uh, it failed")
+	}
+
+	// simulate a failed download
+	path, err := t.store.Download(&RemoteSnap{}, nil)
+	c.Assert(err, ErrorMatches, "uh, it failed")
+	c.Assert(path, Equals, "")
+	// ... and ensure that the tempfile is removed
+	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
+}
+
+func (t *remoteRepoTestSuite) TestDownloadSyncFails(c *C) {
+	var tmpfile *os.File
+	download = func(name string, w io.Writer, req *http.Request, pbar progress.Meter) error {
+		tmpfile = w.(*os.File)
+		w.Write([]byte("sync will fail"))
+		err := tmpfile.Close()
+		c.Assert(err, IsNil)
+		return nil
+	}
+
+	// simulate a failed sync
+	path, err := t.store.Download(&RemoteSnap{}, nil)
+	c.Assert(err, ErrorMatches, "fsync:.*")
+	c.Assert(path, Equals, "")
+	// ... and ensure that the tempfile is removed
+	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryHeaders(c *C) {
+	req, err := http.NewRequest("GET", "http://example.com", nil)
+	c.Assert(err, IsNil)
+
+	t.store.setUbuntuStoreHeaders(req)
+
+	c.Assert(req.Header.Get("X-Ubuntu-Release"), Equals, release.String())
+}
+
+const (
+	funkyAppName      = "8nzc1x4iim2xj1g2ul64"
+	funkyAppDeveloper = "chipaca"
+)
+
+/* acquired via
+   curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: 15.04-core" https://search.apps.ubuntu.com/api/v1/package/8nzc1x4iim2xj1g2ul64.chipaca | python -m json.tool
+*/
+const MockDetailsJSON = `{
+    "_links": {
+        "curies": [
+            {
+                "href": "https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex#reltype_{rel}",
+                "name": "clickindex",
+                "templated": true
+            }
+        ],
+        "self": {
+            "href": "https://search.apps.ubuntu.com/api/v1/package/8nzc1x4iim2xj1g2ul64.chipaca"
+        }
+    },
+    "alias": null,
+    "allow_unauthenticated": true,
+    "anon_download_url": "https://public.apps.ubuntu.com/anon/download/chipaca/8nzc1x4iim2xj1g2ul64.chipaca/8nzc1x4iim2xj1g2ul64.chipaca_42_all.snap",
+    "architecture": [
+        "all"
+    ],
+    "binary_filesize": 65375,
+    "blacklist_country_codes": [
+        "AX"
+    ],
+    "channel": "edge",
+    "changelog": "",
+    "click_framework": [],
+    "click_version": "0.1",
+    "company_name": "",
+    "content": "application",
+    "date_published": "2015-04-15T18:34:40.060874Z",
+    "department": [
+        "food-drink"
+    ],
+    "description": "Returns for store credit only.\nThis is a simple hello world example.",
+    "developer_name": "John Lenton",
+    "download_sha512": "5364253e4a988f4f5c04380086d542f410455b97d48cc6c69ca2a5877d8aef2a6b2b2f83ec4f688cae61ebc8a6bf2cdbd4dbd8f743f0522fc76540429b79df42",
+    "download_url": "https://public.apps.ubuntu.com/download/chipaca/8nzc1x4iim2xj1g2ul64.chipaca/8nzc1x4iim2xj1g2ul64.chipaca_42_all.snap",
+    "framework": [],
+    "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/04/hello.svg_Dlrd3L4.png",
+    "icon_urls": {
+        "256": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/04/hello.svg_Dlrd3L4.png"
+    },
+    "id": 2333,
+    "keywords": [],
+    "last_updated": "2015-04-15T18:30:16Z",
+    "license": "Proprietary",
+    "name": "8nzc1x4iim2xj1g2ul64.chipaca",
+    "origin": "chipaca",
+    "package_name": "8nzc1x4iim2xj1g2ul64",
+    "price": 0.0,
+    "prices": {},
+    "publisher": "John Lenton",
+    "ratings_average": 0.0,
+    "release": [
+        "15.04-core"
+    ],
+    "revision": 15,
+    "screenshot_url": null,
+    "screenshot_urls": [],
+    "status": "Published",
+    "stores": {
+        "ubuntu": {
+            "status": "Published"
+        }
+    },
+    "support_url": "http://lmgtfy.com",
+    "terms_of_service": "",
+    "title": "Returns for store credit only.",
+    "translations": {},
+    "version": "42",
+    "video_embedded_html_urls": [],
+    "video_urls": [],
+    "website": "",
+    "whitelist_country_codes": []
+}
+`
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// no store ID by default
+		storeID := r.Header.Get("X-Ubuntu-Store")
+		c.Check(storeID, Equals, "")
+
+		c.Check(r.URL.Path, Equals, fmt.Sprintf("/details/%s.%s/edge", funkyAppName, funkyAppDeveloper))
+		io.WriteString(w, MockDetailsJSON)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var err error
+	detailsURI, err := url.Parse(mockServer.URL + "/details/")
+	c.Assert(err, IsNil)
+	cfg := SnapUbuntuStoreConfig{
+		DetailsURI: detailsURI,
+	}
+	snap := NewUbuntuStoreSnapRepository(&cfg, "")
+	c.Assert(snap, NotNil)
+
+	// the actual test
+	result, err := snap.Snap(funkyAppName+"."+funkyAppDeveloper, "edge")
+	c.Assert(err, IsNil)
+	c.Check(result.Name(), Equals, funkyAppName)
+	c.Check(result.Developer(), Equals, funkyAppDeveloper)
+	c.Check(result.Version(), Equals, "42")
+	c.Check(result.Hash(), Equals, "5364253e4a988f4f5c04380086d542f410455b97d48cc6c69ca2a5877d8aef2a6b2b2f83ec4f688cae61ebc8a6bf2cdbd4dbd8f743f0522fc76540429b79df42")
+	c.Check(result.Date().String(), Equals, "2015-04-15 18:30:16 +0000 UTC")
+	c.Check(result.DownloadSize(), Equals, int64(65375))
+	c.Check(result.Channel(), Equals, "edge")
+}
+
+const MockNoDetailsJSON = `{"errors": ["No such package"], "result": "error"}`
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Assert(r.URL.Path, Equals, "/details/no-such-pkg/edge")
+		w.WriteHeader(404)
+		io.WriteString(w, MockNoDetailsJSON)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var err error
+	detailsURI, err := url.Parse(mockServer.URL + "/details/")
+	c.Assert(err, IsNil)
+	cfg := SnapUbuntuStoreConfig{
+		DetailsURI: detailsURI,
+	}
+	snap := NewUbuntuStoreSnapRepository(&cfg, "")
+	c.Assert(snap, NotNil)
+
+	// the actual test
+	result, err := snap.Snap("no-such-pkg", "edge")
+	c.Assert(err, NotNil)
+	c.Assert(result, IsNil)
+}
+
+func (t *remoteRepoTestSuite) TestStructFields(c *C) {
+	type s struct {
+		Foo int `json:"hello"`
+		Bar int `json:"potato,stuff"`
+	}
+	c.Assert(getStructFields(s{}), DeepEquals, []string{"hello", "potato"})
+}
+
+/* acquired via:
+curl -s -H 'accept: application/hal+json' -H "X-Ubuntu-Release: 15.04-core" -H "X-Ubuntu-Architecture: amd64" "https://search.apps.ubuntu.com/api/v1/search?q=8nzc1x4iim2xj1g2ul64&fields=publisher,package_name,developer,title,icon_url,prices,content,ratings_average,version,anon_download_url,download_url,download_sha512,last_updated,binary_filesize,support_url,revision" | python -m json.tool
+*/
+const MockSearchJSON = `{
+    "_embedded": {
+        "clickindex:package": [
+            {
+                "_links": {
+                    "self": {
+                        "href": "https://search.apps.ubuntu.com/api/v1/package/8nzc1x4iim2xj1g2ul64.chipaca"
+                    }
+                },
+                "anon_download_url": "https://public.apps.ubuntu.com/anon/download/chipaca/8nzc1x4iim2xj1g2ul64.chipaca/8nzc1x4iim2xj1g2ul64.chipaca_42_all.snap",
+                "binary_filesize": 65375,
+                "content": "application",
+                "download_sha512": "5364253e4a988f4f5c04380086d542f410455b97d48cc6c69ca2a5877d8aef2a6b2b2f83ec4f688cae61ebc8a6bf2cdbd4dbd8f743f0522fc76540429b79df42",
+                "download_url": "https://public.apps.ubuntu.com/download/chipaca/8nzc1x4iim2xj1g2ul64.chipaca/8nzc1x4iim2xj1g2ul64.chipaca_42_all.snap",
+                "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/04/hello.svg_Dlrd3L4.png",
+                "last_updated": "2015-04-15T18:30:16Z",
+                "origin": "chipaca",
+                "package_name": "8nzc1x4iim2xj1g2ul64",
+                "prices": {},
+                "publisher": "John Lenton",
+                "ratings_average": 0.0,
+                "revision": 7,
+                "support_url": "http://lmgtfy.com",
+                "title": "Returns for store credit only.",
+                "version": "42"
+            }
+        ]
+    },
+    "_links": {
+        "curies": [
+            {
+                "href": "https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex#reltype_{rel}",
+                "name": "clickindex",
+                "templated": true
+            }
+        ],
+        "self": {
+            "href": "https://search.apps.ubuntu.com/api/v1/search?q=8nzc1x4iim2xj1g2ul64&fields=publisher,package_name,developer,title,icon_url,prices,content,ratings_average,version,anon_download_url,download_url,download_sha512,last_updated,binary_filesize,support_url,revision"
+        }
+    }
+}
+`
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreFind(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.URL.RawQuery, Equals, "q=name%3Afoo")
+		io.WriteString(w, MockSearchJSON)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var err error
+	searchURI, err := url.Parse(mockServer.URL)
+	c.Assert(err, IsNil)
+	cfg := SnapUbuntuStoreConfig{
+		SearchURI: searchURI,
+	}
+	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	c.Assert(repo, NotNil)
+
+	snaps, err := repo.FindSnaps("foo", "")
+	c.Assert(err, IsNil)
+	c.Assert(snaps, HasLen, 1)
+	c.Check(snaps[0].Name(), Equals, funkyAppName)
+}
+
+/* acquired via:
+curl -s --data-binary '{"name":["8nzc1x4iim2xj1g2ul64.chipaca"]}'  -H 'content-type: application/json' https://search.apps.ubuntu.com/api/v1/click-metadata
+*/
+const MockUpdatesJSON = `[
+    {
+        "status": "Published",
+        "name": "8nzc1x4iim2xj1g2ul64.chipaca",
+        "package_name": "8nzc1x4iim2xj1g2ul64",
+        "origin": "chipaca",
+        "changelog": "",
+        "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/04/hello.svg_Dlrd3L4.png",
+        "title": "Returns for store credit only.",
+        "binary_filesize": 65375,
+        "anon_download_url": "https://public.apps.ubuntu.com/anon/download/chipaca/8nzc1x4iim2xj1g2ul64.chipaca/8nzc1x4iim2xj1g2ul64.chipaca_42_all.snap",
+        "allow_unauthenticated": true,
+        "version": "42",
+        "download_url": "https://public.apps.ubuntu.com/download/chipaca/8nzc1x4iim2xj1g2ul64.chipaca/8nzc1x4iim2xj1g2ul64.chipaca_42_all.snap",
+        "download_sha512": "5364253e4a988f4f5c04380086d542f410455b97d48cc6c69ca2a5877d8aef2a6b2b2f83ec4f688cae61ebc8a6bf2cdbd4dbd8f743f0522fc76540429b79df42"
+    }
+]`
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		c.Assert(string(jsonReq), Equals, `{"name":["`+funkyAppName+`"]}`)
+		io.WriteString(w, MockUpdatesJSON)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var err error
+	bulkURI, err := url.Parse(mockServer.URL + "/updates/")
+	c.Assert(err, IsNil)
+	cfg := SnapUbuntuStoreConfig{
+		BulkURI: bulkURI,
+	}
+	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	c.Assert(repo, NotNil)
+
+	results, err := repo.Updates([]string{funkyAppName})
+	c.Assert(err, IsNil)
+	c.Assert(results, HasLen, 1)
+	c.Assert(results[0].Name(), Equals, funkyAppName)
+	c.Assert(results[0].Version(), Equals, "42")
+}
+
+func (t *remoteRepoTestSuite) TestStructFieldsSurvivesNoTag(c *C) {
+	type s struct {
+		Foo int `json:"hello"`
+		Bar int
+	}
+	c.Assert(getStructFields(s{}), DeepEquals, []string{"hello"})
+}
+
+func (t *remoteRepoTestSuite) TestCpiURLDependsOnEnviron(c *C) {
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", ""), IsNil)
+	before := cpiURL()
+
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", "1"), IsNil)
+	defer os.Setenv("SNAPPY_USE_STAGING_CPI", "")
+	after := cpiURL()
+
+	c.Check(before, Not(Equals), after)
+}
+
+func (t *remoteRepoTestSuite) TestAuthURLDependsOnEnviron(c *C) {
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", ""), IsNil)
+	before := authURL()
+
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", "1"), IsNil)
+	defer os.Setenv("SNAPPY_USE_STAGING_CPI", "")
+	after := authURL()
+
+	c.Check(before, Not(Equals), after)
+}

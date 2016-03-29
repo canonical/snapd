@@ -31,49 +31,32 @@ type Status int
 
 // Admitted status values for changes and tasks.
 const (
+	// DefaultStatus is the standard computed status for a change or task.
+	// For tasks it's always mapped to DoStatus, and for change its mapped
+	// to an aggregation of its tasks' statuses. See Change.Status for details.
 	DefaultStatus Status = 0
-	RunningStatus Status = 1
-	WaitingStatus Status = 2
-	DoneStatus    Status = 3
-	ErrorStatus   Status = 4
+
+	// DoStatus means the change or task is ready to start or has started.
+	DoStatus Status = 1
+
+	// DoneStatus means the change or task was accomplished successfully.
+	DoneStatus Status = 2
+
+	// UndoStatus means the change or task is about to be undone after an error elsewhere.
+	UndoStatus Status = 3
+
+	// UndoneStatus means a task was first done and then undone after an error elsewhere.
+	// Changes go directly into the error status instead of being marked as undone.
+	UndoneStatus Status = 4
+
+	// ErrorStatus means the change or task has failed.
+	ErrorStatus Status = 5
 )
 
 const nStatuses = ErrorStatus + 1
 
-type taskIDsSet map[string]bool
-
-func (ts taskIDsSet) add(tid string) {
-	ts[tid] = true
-}
-
-func (ts taskIDsSet) tasks(s *State) []*Task {
-	res := make([]*Task, 0, len(ts))
-	for tid := range ts {
-		res = append(res, s.tasks[tid])
-	}
-	return res
-}
-
-func (ts taskIDsSet) MarshalJSON() ([]byte, error) {
-	l := make([]string, 0, len(ts))
-	for tid := range ts {
-		l = append(l, tid)
-	}
-	return json.Marshal(l)
-}
-
-// NB: it's a bit odd but this one needs to be and works on *taskIDsSet
-func (ts *taskIDsSet) UnmarshalJSON(data []byte) error {
-	var l []string
-	err := json.Unmarshal(data, &l)
-	if err != nil {
-		return err
-	}
-	*ts = make(map[string]bool, len(l))
-	for _, tid := range l {
-		(*ts)[tid] = true
-	}
-	return nil
+func (s Status) String() string {
+	return []string{"Default", "Do", "Done", "Undo", "Undone", "Error"}[s]
 }
 
 // Change represents a tracked modification to the system state.
@@ -93,7 +76,7 @@ type Change struct {
 	summary string
 	status  Status
 	data    customData
-	taskIDs taskIDsSet
+	taskIDs []string
 }
 
 func newChange(state *State, id, kind, summary string) *Change {
@@ -103,7 +86,6 @@ func newChange(state *State, id, kind, summary string) *Change {
 		kind:    kind,
 		summary: summary,
 		data:    make(customData),
-		taskIDs: make(taskIDsSet),
 	}
 }
 
@@ -112,8 +94,8 @@ type marshalledChange struct {
 	Kind    string                      `json:"kind"`
 	Summary string                      `json:"summary"`
 	Status  Status                      `json:"status"`
-	Data    map[string]*json.RawMessage `json:"data"`
-	TaskIDs taskIDsSet                  `json:"task-ids"`
+	Data    map[string]*json.RawMessage `json:"data,omitempty"`
+	TaskIDs []string                    `json:"task-ids,omitempty"`
 }
 
 // MarshalJSON makes Change a json.Marshaller
@@ -182,28 +164,37 @@ func (c *Change) Get(key string, value interface{}) error {
 // of the individual tasks related to the change, according to the following
 // decision sequence:
 //
-//     - With at least one task in RunningStatus, return RunningStatus
-//     - With at least one task in WaitingStatus, return WaitingStatus
+//     - With at least one task in DoStatus, return DoStatus
 //     - With at least one task in ErrorStatus, return ErrorStatus
 //     - Otherwise, return DoneStatus
 //
 func (c *Change) Status() Status {
 	c.state.ensureLocked()
 	if c.status == DefaultStatus {
-		statusStats := make(map[Status]int, nStatuses)
-		for tid := range c.taskIDs {
+		if len(c.taskIDs) == 0 {
+			return DoStatus
+		}
+		statusStats := make([]int, nStatuses)
+		for _, tid := range c.taskIDs {
 			statusStats[c.state.tasks[tid].Status()]++
 		}
-		if statusStats[RunningStatus] > 0 {
-			return RunningStatus
+		if statusStats[DoStatus] > 0 {
+			return DoStatus
 		}
-		if statusStats[WaitingStatus] > 0 {
-			return WaitingStatus
+		if statusStats[UndoStatus] > 0 {
+			return UndoStatus
 		}
 		if statusStats[ErrorStatus] > 0 {
 			return ErrorStatus
 		}
-		return DoneStatus
+		if statusStats[DoneStatus] > 0 {
+			return DoneStatus
+		}
+		// Shouldn't happen in real cases but possible.
+		if statusStats[UndoneStatus] == len(c.taskIDs) {
+			return UndoneStatus
+		}
+		panic(fmt.Sprintf("internal error: cannot process change status: %v", statusStats))
 	}
 	return c.status
 }
@@ -241,7 +232,7 @@ func (c *Change) Err() error {
 		return nil
 	}
 	var errors []taskError
-	for tid := range c.taskIDs {
+	for _, tid := range c.taskIDs {
 		task := c.state.tasks[tid]
 		if task.Status() != ErrorStatus {
 			continue
@@ -264,24 +255,28 @@ func (c *Change) State() *State {
 	return c.state
 }
 
-// AddTask registers a task as a required task for the state change to
+// AddTask registers a task as required for the state change to
 // be accomplished.
 func (c *Change) AddTask(t *Task) {
 	c.state.ensureLocked()
-	c.taskIDs.add(t.ID())
+	if t.change != "" {
+		panic(fmt.Sprintf("internal error: cannot add one %q task to multiple changes", t.Kind()))
+	}
+	t.change = c.id
+	c.taskIDs = addOnce(c.taskIDs, t.ID())
 }
 
-// AddTasks registers all the tasks in the set as a required for the
-// state change to be accomplished.
-func (c *Change) AddTasks(ts TaskSet) {
+// AddAll registers all tasks in the set as required for the state
+// change to be accomplished.
+func (c *Change) AddAll(ts *TaskSet) {
 	c.state.ensureLocked()
-	for tid := range ts {
-		c.taskIDs.add(tid)
+	for _, t := range ts.tasks {
+		c.AddTask(t)
 	}
 }
 
 // Tasks returns all the tasks this state change depends on.
 func (c *Change) Tasks() []*Task {
 	c.state.ensureLocked()
-	return c.taskIDs.tasks(c.state)
+	return c.state.tasksIn(c.taskIDs)
 }

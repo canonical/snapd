@@ -17,11 +17,10 @@
  *
  */
 
-// Package snapstate implements the manager and state aspects responsible for the installation and removal of snaps.
 package snapstate
 
-type BackendIF backendIF
+type ManagerBackend managerBackend
 
-func SetSnapManagerBackend(s *SnapManager, b BackendIF) {
+func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
 	s.backend = b
 }

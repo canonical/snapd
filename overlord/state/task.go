@@ -39,22 +39,21 @@ type Task struct {
 	kind      string
 	summary   string
 	status    Status
-	progress  progress
+	progress  *progress
 	data      customData
-	waitTasks taskIDsSet
-	haltTasks taskIDsSet
+	waitTasks []string
+	haltTasks []string
 	log       []string
+	change    string
 }
 
 func newTask(state *State, id, kind, summary string) *Task {
 	return &Task{
-		state:     state,
-		id:        id,
-		kind:      kind,
-		summary:   summary,
-		data:      make(customData),
-		waitTasks: make(taskIDsSet),
-		haltTasks: make(taskIDsSet),
+		state:   state,
+		id:      id,
+		kind:    kind,
+		summary: summary,
+		data:    make(customData),
 	}
 }
 
@@ -63,11 +62,12 @@ type marshalledTask struct {
 	Kind      string                      `json:"kind"`
 	Summary   string                      `json:"summary"`
 	Status    Status                      `json:"status"`
-	Progress  progress                    `json:"progress"`
-	Data      map[string]*json.RawMessage `json:"data"`
-	WaitTasks taskIDsSet                  `json:"wait-tasks"`
-	HaltTasks taskIDsSet                  `json:"halt-tasks"`
-	Log       []string                    `json:"log"`
+	Progress  *progress                   `json:"progress,omitempty"`
+	Data      map[string]*json.RawMessage `json:"data,omitempty"`
+	WaitTasks []string                    `json:"wait-tasks,omitempty"`
+	HaltTasks []string                    `json:"halt-tasks,omitempty"`
+	Log       []string                    `json:"log,omitempty"`
+	Change    string                      `json:"change"`
 }
 
 // MarshalJSON makes Task a json.Marshaller
@@ -83,6 +83,7 @@ func (t *Task) MarshalJSON() ([]byte, error) {
 		WaitTasks: t.waitTasks,
 		HaltTasks: t.haltTasks,
 		Log:       t.log,
+		Change:    t.change,
 	})
 }
 
@@ -105,6 +106,7 @@ func (t *Task) UnmarshalJSON(data []byte) error {
 	t.waitTasks = unmarshalled.WaitTasks
 	t.haltTasks = unmarshalled.HaltTasks
 	t.log = unmarshalled.Log
+	t.change = unmarshalled.Change
 	return nil
 }
 
@@ -126,9 +128,8 @@ func (t *Task) Summary() string {
 // Status returns the current task status.
 func (t *Task) Status() Status {
 	t.state.ensureLocked()
-	// default status for tasks is running
 	if t.status == DefaultStatus {
-		return RunningStatus
+		return DoStatus
 	}
 	return t.status
 }
@@ -144,18 +145,22 @@ func (t *Task) State() *State {
 	return t.state
 }
 
+// Change returns the change the task is registered with.
+func (t *Task) Change() *Change {
+	t.state.ensureLocked()
+	return t.state.changes[t.change]
+}
+
 // Progress returns the current progress for the task.
-// If progress is not explicitly set, it returns (0, 1) if the status is
-// RunningStatus or WaitingStatus and (1, 1) otherwise.
+// If progress is not explicitly set, it returns
+// (0, 1) if the status is DoStatus and (1, 1) otherwise.
 func (t *Task) Progress() (cur, total int) {
 	t.state.ensureLocked()
-	if t.progress.Total == 0 {
-		switch t.Status() {
-		case RunningStatus, WaitingStatus:
+	if t.progress == nil {
+		if t.Status() == DoStatus {
 			return 0, 1
-		case DoneStatus, ErrorStatus:
-			return 1, 1
 		}
+		return 1, 1
 	}
 	return t.progress.Current, t.progress.Total
 }
@@ -163,7 +168,12 @@ func (t *Task) Progress() (cur, total int) {
 // SetProgress sets the task progress to cur out of total steps.
 func (t *Task) SetProgress(cur, total int) {
 	t.state.ensureLocked()
-	t.progress = progress{Current: cur, Total: total}
+	if total <= 0 || cur > total {
+		// Doing math wrong is easy. Be conservative.
+		t.progress = nil
+	} else {
+		t.progress = &progress{Current: cur, Total: total}
+	}
 }
 
 const (
@@ -184,6 +194,10 @@ func (t *Task) addLog(kind, format string, args []interface{}) {
 
 // Log returns the most recent messages logged into the task.
 //
+// Only the most recent entries logged are returned, potentially with
+// different behavior for different task statuses. How many entries
+// are returned is an implementation detail and may change over time.
+//
 // Messages are prefixed with one of the known message kinds.
 // See details about LogInfo and LogError.
 //
@@ -194,20 +208,16 @@ func (t *Task) Log() []string {
 	return t.log
 }
 
-// Logf logs textual information about the progress of the task.
-// Only the most recent entries logged are held in memory, potentially
-// with different behavior for different task statuses. How many entries
-// are held is an implementation detail and may change over time.
+// Logf logs information about the progress of the task.
 func (t *Task) Logf(format string, args ...interface{}) {
 	t.state.ensureLocked()
 	t.addLog(LogInfo, format, args)
 }
 
-// Errorf sets the task to ErrorStatus and logs the message as an error.
+// Errorf logs error information about the progress of the task.
 func (t *Task) Errorf(format string, args ...interface{}) {
 	t.state.ensureLocked()
 	t.addLog(LogError, format, args)
-	t.status = ErrorStatus
 }
 
 // Set associates value with key for future consulting by managers.
@@ -224,51 +234,62 @@ func (t *Task) Get(key string, value interface{}) error {
 	return t.data.get(key, value)
 }
 
-// WaitFor registers another task as a requirement for t to make progress
-// and sets the status as WaitingStatus.
+func addOnce(set []string, s string) []string {
+	for _, cur := range set {
+		if s == cur {
+			return set
+		}
+	}
+	return append(set, s)
+}
+
+// WaitFor registers another task as a requirement for t to make progress.
 func (t *Task) WaitFor(another *Task) {
 	t.state.ensureLocked()
-	t.status = WaitingStatus
-	t.waitTasks.add(another.ID())
-	another.haltTasks.add(t.id)
+	t.waitTasks = addOnce(t.waitTasks, another.id)
+	another.haltTasks = addOnce(another.haltTasks, t.id)
 }
 
 // WaitAll registers all the tasks in the set as a requirement for t
-// to make progress and sets the status as WaitingStatus.
-func (t *Task) WaitAll(ts TaskSet) {
-	for _, tReq := range ts {
-		t.WaitFor(tReq)
+// to make progress.
+func (t *Task) WaitAll(ts *TaskSet) {
+	for _, req := range ts.tasks {
+		t.WaitFor(req)
 	}
 }
 
 // WaitTasks returns the list of tasks registered for t to wait for.
 func (t *Task) WaitTasks() []*Task {
 	t.state.ensureLocked()
-	return t.waitTasks.tasks(t.state)
+	return t.state.tasksIn(t.waitTasks)
 }
 
 // HaltTasks returns the list of tasks registered to wait for t.
 func (t *Task) HaltTasks() []*Task {
 	t.state.ensureLocked()
-	return t.haltTasks.tasks(t.state)
+	return t.state.tasksIn(t.haltTasks)
 }
 
 // A TaskSet holds a set of tasks.
-type TaskSet map[string]*Task
+type TaskSet struct {
+	tasks []*Task
+}
 
 // NewTaskSet returns a new TaskSet comprising the given tasks.
-func NewTaskSet(tasks ...*Task) TaskSet {
-	ts := make(TaskSet, len(tasks))
-	for _, t := range tasks {
-		ts[t.ID()] = t
-	}
-	return ts
+func NewTaskSet(tasks ...*Task) *TaskSet {
+	return &TaskSet{tasks}
 }
 
 // WaitFor registers a task as a requirement for the tasks in the set
-// to make progress and sets their status as WaitingStatus.
+// to make progress.
 func (ts TaskSet) WaitFor(another *Task) {
-	for _, t := range ts {
+	for _, t := range ts.tasks {
 		t.WaitFor(another)
 	}
+}
+
+// Tasks returns the tasks in the task set.
+func (ts TaskSet) Tasks() []*Task {
+	// Return something mutable, just like every other Tasks method.
+	return append([]*Task(nil), ts.tasks...)
 }

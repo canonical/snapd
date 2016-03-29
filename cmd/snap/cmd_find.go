@@ -26,6 +26,8 @@ import (
 
 	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
+
+	"github.com/jessevdk/go-flags"
 )
 
 var shortFindHelp = i18n.G("Finds packages to install")
@@ -40,7 +42,7 @@ type cmdFind struct {
 }
 
 func init() {
-	addCommand("find", shortFindHelp, longFindHelp, func() interface{} {
+	addCommand("find", shortFindHelp, longFindHelp, func() flags.Commander {
 		return &cmdFind{}
 	})
 }

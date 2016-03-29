@@ -24,6 +24,8 @@ import (
 
 	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
+
+	"github.com/jessevdk/go-flags"
 )
 
 func wait(client *client.Client, uuid string) error {
@@ -93,6 +95,16 @@ type cmdOp struct {
 	op func(*client.Client, string) (string, error)
 }
 
+func (x *cmdOp) Execute([]string) error {
+	cli := Client()
+	uuid, err := x.op(cli, x.Positional.Snap)
+	if err != nil {
+		return err
+	}
+
+	return wait(cli, uuid)
+}
+
 type cmdInstall struct {
 	Channel    string `long:"channel" description:"Install from this channel instead of the device's default"`
 	Positional struct {
@@ -100,11 +112,31 @@ type cmdInstall struct {
 	} `positional-args:"yes" required:"yes"`
 }
 
+func (x *cmdInstall) Execute([]string) error {
+	cli := Client()
+	uuid, err := cli.InstallSnap(x.Positional.Snap, x.Channel)
+	if err != nil {
+		return err
+	}
+
+	return wait(cli, uuid)
+}
+
 type cmdRefresh struct {
 	Channel    string `long:"channel" description:"Refresh to the latest on this channel, and track this channel henceforth"`
 	Positional struct {
 		Snap string `positional-arg-name:"<snap>"`
 	} `positional-args:"yes" required:"yes"`
+}
+
+func (x *cmdRefresh) Execute([]string) error {
+	cli := Client()
+	uuid, err := cli.RefreshSnap(x.Positional.Snap, x.Channel)
+	if err != nil {
+		return err
+	}
+
+	return wait(cli, uuid)
 }
 
 func init() {
@@ -121,19 +153,9 @@ func init() {
 		{"deactivate", shortDeactivateHelp, longDeactivateHelp, (*client.Client).DeactivateSnap},
 	} {
 		op := s.op
-		addCommand(s.name, s.short, s.long, func() interface{} { return &cmdOp{op: op} })
+		addCommand(s.name, s.short, s.long, func() flags.Commander { return &cmdOp{op: op} })
 	}
 
-	addCommand("install", shortInstallHelp, longInstallHelp, func() interface{} { return &cmdInstall{} })
-	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() interface{} { return &cmdRefresh{} })
-}
-
-func (x *cmdOp) Execute([]string) error {
-	cli := Client()
-	uuid, err := x.op(cli, x.Positional.Snap)
-	if err != nil {
-		return err
-	}
-
-	return wait(cli, uuid)
+	addCommand("install", shortInstallHelp, longInstallHelp, func() flags.Commander { return &cmdInstall{} })
+	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} })
 }
