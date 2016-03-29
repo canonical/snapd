@@ -2001,7 +2001,7 @@ func setupChanges(st *state.State) {
 func (s *apiSuite) TestStateChanges(c *check.C) {
 	// Setup
 	d := newTestDaemon(c)
-	st := d.overlord.StateEngine().State()
+	st := d.overlord.State()
 	st.Lock()
 	setupChanges(st)
 	st.Unlock()
@@ -2026,7 +2026,7 @@ func (s *apiSuite) TestStateChanges(c *check.C) {
 func (s *apiSuite) TestStateChangesExludeStatuses(c *check.C) {
 	// Setup
 	d := newTestDaemon(c)
-	st := d.overlord.StateEngine().State()
+	st := d.overlord.State()
 	st.Lock()
 	setupChanges(st)
 	st.Unlock()

@@ -1186,7 +1186,7 @@ func getChanges(c *Command, r *http.Request) Response {
 		return i < len(excludeStatuses) && s == excludeStatuses[i]
 	}
 
-	state := c.d.overlord.StateEngine().State()
+	state := c.d.overlord.State()
 	state.Lock()
 	defer state.Unlock()
 	chgs := state.Changes()
