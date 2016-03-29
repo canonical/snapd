@@ -1212,7 +1212,9 @@ func doAssert(c *Command, r *http.Request) Response {
 	if err != nil {
 		return BadRequest("can't decode request body into an assertion: %v", err)
 	}
-	if err := c.d.asserts.Add(a); err != nil {
+	// TODO/XXX: turn this into a Change/Task combination
+	amgr := c.d.overlord.AssertManager()
+	if err := amgr.DB().Add(a); err != nil {
 		// TODO: have a specific error to be able to return  409 for not newer revision?
 		return BadRequest("assert failed: %v", err)
 	}
@@ -1234,7 +1236,8 @@ func assertsFindMany(c *Command, r *http.Request) Response {
 	for k := range q {
 		headers[k] = q.Get(k)
 	}
-	assertions, err := c.d.asserts.FindMany(assertType, headers)
+	amgr := c.d.overlord.AssertManager()
+	assertions, err := amgr.DB().FindMany(assertType, headers)
 	if err == asserts.ErrNotFound {
 		return AssertResponse(nil, true)
 	} else if err != nil {
