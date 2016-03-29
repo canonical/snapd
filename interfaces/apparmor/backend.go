@@ -71,7 +71,7 @@ func (b *Backend) Configure(snapInfo *snap.Info, developerMode bool, repo *inter
 		return fmt.Errorf("cannot obtain security snippets for snap %q: %s", snapInfo.Name, err)
 	}
 	// Get the files that this snap should have
-	content, err := b.CombineSnippets(snapInfo, developerMode, snippets)
+	content, err := b.combineSnippets(snapInfo, developerMode, snippets)
 	if err != nil {
 		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapInfo.Name, err)
 	}
@@ -101,10 +101,10 @@ func (b *Backend) Deconfigure(snapInfo *snap.Info) error {
 	return nil
 }
 
-// CombineSnippets combines security snippets collected from all the interfaces
+// combineSnippets combines security snippets collected from all the interfaces
 // affecting a given snap into a content map applicable to EnsureDirState. The
 // backend delegates writing those files to higher layers.
-func (b *Backend) CombineSnippets(snapInfo *snap.Info, developerMode bool, snippets map[string][][]byte) (content map[string]*osutil.FileState, err error) {
+func (b *Backend) combineSnippets(snapInfo *snap.Info, developerMode bool, snippets map[string][][]byte) (content map[string]*osutil.FileState, err error) {
 	for _, appInfo := range snapInfo.Apps {
 		s := make([][]byte, 0, len(snippets[appInfo.Name])+2)
 		s = append(s, b.aaHeader(appInfo, developerMode))

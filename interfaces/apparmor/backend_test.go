@@ -21,6 +21,7 @@ package apparmor_test
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -29,7 +30,6 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/interfaces/apparmor"
-	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/testutil"
 )
@@ -37,28 +37,13 @@ import (
 type backendSuite struct {
 	backend *apparmor.Backend
 	repo    *interfaces.Repository
-	iface   interfaces.Interface
+	iface   *interfaces.TestInterface
 	rootDir string
 	cmds    map[string]*testutil.MockCmd
 }
 
 var _ = Suite(&backendSuite{
 	backend: &apparmor.Backend{},
-	iface: &interfaces.TestInterface{
-		InterfaceName: "iface",
-		SlotSnippetCallback: func(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-			return []byte("plug snippet"), nil
-		},
-		PlugSnippetCallback: func(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-			return []byte("plug snippet"), nil
-		},
-		PermanentPlugSnippetCallback: func(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-			return []byte("permanent plug snippet"), nil
-		},
-		PermanentSlotSnippetCallback: func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-			return []byte("permanent slot snippet"), nil
-		},
-	},
 })
 
 func (s *backendSuite) SetUpTest(c *C) {
@@ -74,6 +59,7 @@ func (s *backendSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	// Create a fresh repository for each test
 	s.repo = interfaces.NewRepository()
+	s.iface = &interfaces.TestInterface{InterfaceName: "iface"}
 	err = s.repo.AddInterface(s.iface)
 	c.Assert(err, IsNil)
 }
@@ -92,6 +78,8 @@ version: 1
 developer: acme
 apps:
     smbd:
+slots:
+    iface:
 `
 const sambaYamlV1WithNmbd = `
 name: samba
@@ -100,6 +88,8 @@ developer: acme
 apps:
     smbd:
     nmbd:
+slots:
+    iface:
 `
 const sambaYamlV2 = `
 name: samba
@@ -107,6 +97,8 @@ version: 2
 developer: acme
 apps:
     smbd:
+slots:
+    iface:
 `
 
 func (s *backendSuite) TestInstallingSnapWritesAndLoadsProfiles(c *C) {
@@ -130,6 +122,7 @@ func (s *backendSuite) TestSecurityIsStable(c *C) {
 		c.Assert(err, IsNil)
 		// profiles are not re-compiled or re-loaded when nothing changes
 		c.Check(s.cmds["apparmor_parser"].Calls(), HasLen, 0)
+		s.removeSnap(c, snapInfo)
 	}
 }
 
@@ -160,6 +153,7 @@ func (s *backendSuite) TestUpdatingSnapMakesNeccesaryChanges(c *C) {
 		c.Check(s.cmds["apparmor_parser"].Calls(), DeepEquals, []string{
 			fmt.Sprintf("--replace --write-cache -O no-expr-simplify --cache-loc=/var/cache/apparmor %s", profile),
 		})
+		s.removeSnap(c, snapInfo)
 	}
 }
 
@@ -176,6 +170,7 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 		c.Check(s.cmds["apparmor_parser"].Calls(), DeepEquals, []string{
 			fmt.Sprintf("--replace --write-cache -O no-expr-simplify --cache-loc=/var/cache/apparmor %s", profile),
 		})
+		s.removeSnap(c, snapInfo)
 	}
 }
 
@@ -190,20 +185,19 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 		c.Check(os.IsNotExist(err), Equals, true)
 		// apparmor_parser was used to remove the unused profile
 		c.Check(s.cmds["apparmor_parser"].Calls(), DeepEquals, []string{"--remove snap.samba.nmbd"})
+		s.removeSnap(c, snapInfo)
 	}
 }
-
-// Low level tests for constituent parts of backend API
-
-// Tests for Backend.CombineSnippets()
 
 func (s *backendSuite) TestRealDefaultTemplateIsNormallyUsed(c *C) {
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(sambaYamlV1))
 	c.Assert(err, IsNil)
 	// NOTE: we don't call apparmor.MockTemplate()
-	content, err := s.backend.CombineSnippets(snapInfo, false, nil)
+	err = s.backend.Configure(snapInfo, false, s.repo)
 	c.Assert(err, IsNil)
-	profile := string(content["snap.samba.smbd"].Content)
+	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+	data, err := ioutil.ReadFile(profile)
+	c.Assert(err, IsNil)
 	for _, line := range []string{
 		// NOTE: a few randomly picked lines from the real profile.  Comments
 		// and empty lines are avoided as those can be discarded in the future.
@@ -211,7 +205,7 @@ func (s *backendSuite) TestRealDefaultTemplateIsNormallyUsed(c *C) {
 		"/tmp/   r,\n",
 		"/sys/class/ r,\n",
 	} {
-		c.Assert(profile, testutil.Contains, line)
+		c.Assert(string(data), testutil.Contains, line)
 	}
 }
 
@@ -226,32 +220,30 @@ func (s *backendSuite) TestCustomTemplateUsedOnRequest(c *C) {
 `
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(sambaYamlV1))
 	c.Assert(err, IsNil)
-	content, err := s.backend.CombineSnippets(snapInfo, false, nil)
+	err = s.backend.Configure(snapInfo, false, s.repo)
 	c.Assert(err, IsNil)
-	profile := string(content["snap.samba.smbd"].Content)
+	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+	data, err := ioutil.ReadFile(profile)
+	c.Assert(err, IsNil)
 	// Our custom template was used
-	c.Assert(profile, testutil.Contains, "FOO")
+	c.Assert(string(data), testutil.Contains, "FOO")
 	// Custom profile can rely on legacy variables
 	for _, legacyVarName := range []string{
 		"APP_APPNAME", "APP_ID_DBUS", "APP_PKGNAME_DBUS",
 		"APP_PKGNAME", "APP_VERSION", "INSTALL_DIR",
 	} {
-		c.Assert(profile, testutil.Contains, fmt.Sprintf("@{%s}=", legacyVarName))
+		c.Assert(string(data), testutil.Contains, fmt.Sprintf("@{%s}=", legacyVarName))
 	}
 }
 
 type combineSnippetsScenario struct {
 	developerMode bool
-	snippets      map[string][][]byte
-	content       map[string]*osutil.FileState
+	snippet       string
+	content       string
 }
 
 var combineSnippetsScenarios = []combineSnippetsScenario{{
-	// NOTE: no snippets
-	content: map[string]*osutil.FileState{
-		"snap.samba.smbd": {
-			Mode: 0644,
-			Content: []byte(`
+	content: `
 @{APP_APPNAME}="smbd"
 @{APP_ID_DBUS}="samba_2eacme_5fsmbd_5f1"
 @{APP_PKGNAME_DBUS}="samba_2eacme"
@@ -260,15 +252,10 @@ var combineSnippetsScenarios = []combineSnippetsScenario{{
 @{INSTALL_DIR}="{/snaps,/gadget}"
 profile "snap.samba.smbd" (attach_disconnected) {
 }
-`),
-		}}}, {
-	snippets: map[string][][]byte{
-		"smbd": {[]byte("snippet1"), []byte("snippet2")},
-	},
-	content: map[string]*osutil.FileState{
-		"snap.samba.smbd": {
-			Mode: 0644,
-			Content: []byte(`
+`,
+}, {
+	snippet: "snippet",
+	content: `
 @{APP_APPNAME}="smbd"
 @{APP_ID_DBUS}="samba_2eacme_5fsmbd_5f1"
 @{APP_PKGNAME_DBUS}="samba_2eacme"
@@ -276,16 +263,12 @@ profile "snap.samba.smbd" (attach_disconnected) {
 @{APP_VERSION}="1"
 @{INSTALL_DIR}="{/snaps,/gadget}"
 profile "snap.samba.smbd" (attach_disconnected) {
-snippet1
-snippet2
+snippet
 }
-`),
-		}}}, {
+`,
+}, {
 	developerMode: true,
-	content: map[string]*osutil.FileState{
-		"snap.samba.smbd": {
-			Mode: 0644,
-			Content: []byte(`
+	content: `
 @{APP_APPNAME}="smbd"
 @{APP_ID_DBUS}="samba_2eacme_5fsmbd_5f1"
 @{APP_PKGNAME_DBUS}="samba_2eacme"
@@ -294,16 +277,11 @@ snippet2
 @{INSTALL_DIR}="{/snaps,/gadget}"
 profile "snap.samba.smbd" (attach_disconnected,complain) {
 }
-`),
-		}}}, {
+`,
+}, {
 	developerMode: true,
-	snippets: map[string][][]byte{
-		"smbd": {[]byte("snippet1"), []byte("snippet2")},
-	},
-	content: map[string]*osutil.FileState{
-		"snap.samba.smbd": {
-			Mode: 0644,
-			Content: []byte(`
+	snippet:       "snippet",
+	content: `
 @{APP_APPNAME}="smbd"
 @{APP_ID_DBUS}="samba_2eacme_5fsmbd_5f1"
 @{APP_PKGNAME_DBUS}="samba_2eacme"
@@ -311,15 +289,11 @@ profile "snap.samba.smbd" (attach_disconnected,complain) {
 @{APP_VERSION}="1"
 @{INSTALL_DIR}="{/snaps,/gadget}"
 profile "snap.samba.smbd" (attach_disconnected,complain) {
-snippet1
-snippet2
+snippet
 }
-`)}}}}
+`}}
 
 func (s *backendSuite) TestCombineSnippets(c *C) {
-	snapInfo, err := snap.InfoFromSnapYaml([]byte(sambaYamlV1))
-	c.Assert(err, IsNil)
-	glob := "snap.samba.*"
 	// NOTE: replace the real template with a shorter variant
 	restore := apparmor.MockTemplate("\n" +
 		"###VAR###\n" +
@@ -327,23 +301,20 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 		"}\n")
 	defer restore()
 	for _, scenario := range combineSnippetsScenarios {
-		content, err := s.backend.CombineSnippets(
-			snapInfo, scenario.developerMode, scenario.snippets)
-		c.Assert(err, IsNil)
-		c.Check(string(content["snap.samba.smbd"].Content), Equals,
-			string(scenario.content["snap.samba.smbd"].Content))
-		c.Check(content["snap.samba.smbd"].Mode, Equals,
-			scenario.content["snap.samba.smbd"].Mode)
-		c.Check(content, DeepEquals, scenario.content)
-		// Sanity checking as required by osutil.EnsureDirState()
-		for name := range content {
-			// Ensure that the file name matches the returned glob.
-			matched, err := filepath.Match(glob, name)
-			c.Assert(err, IsNil)
-			c.Check(matched, Equals, true)
-			// Ensure that the file name has no directory component
-			c.Check(filepath.Base(name), Equals, name)
+		s.iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+			if scenario.snippet == "" {
+				return nil, nil
+			}
+			return []byte(scenario.snippet), nil
 		}
+		snapInfo := s.installSnap(c, scenario.developerMode, sambaYamlV1)
+		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+		data, err := ioutil.ReadFile(profile)
+		c.Assert(err, IsNil)
+		c.Check(string(data), Equals, scenario.content)
+		stat, err := os.Stat(profile)
+		c.Check(stat.Mode(), Equals, os.FileMode(0644))
+		s.removeSnap(c, snapInfo)
 	}
 }
 
@@ -373,9 +344,9 @@ func (s *backendSuite) updateSnap(c *C, oldSnapInfo *snap.Info, developerMode bo
 
 // removeSnap "removes" an "installed" snap.
 func (s *backendSuite) removeSnap(c *C, snapInfo *snap.Info) {
-	s.removePlugsSlots(c, snapInfo)
 	err := s.backend.Deconfigure(snapInfo)
 	c.Assert(err, IsNil)
+	s.removePlugsSlots(c, snapInfo)
 }
 
 func (s *backendSuite) addPlugsSlots(c *C, snapInfo *snap.Info) {
@@ -383,13 +354,11 @@ func (s *backendSuite) addPlugsSlots(c *C, snapInfo *snap.Info) {
 		plug := &interfaces.Plug{PlugInfo: plugInfo}
 		err := s.repo.AddPlug(plug)
 		c.Assert(err, IsNil)
-		c.Logf("added plug: %s", plug)
 	}
 	for _, slotInfo := range snapInfo.Slots {
 		slot := &interfaces.Slot{SlotInfo: slotInfo}
 		err := s.repo.AddSlot(slot)
 		c.Assert(err, IsNil)
-		c.Logf("added slot: %s", slot)
 	}
 }
 
@@ -397,11 +366,9 @@ func (s *backendSuite) removePlugsSlots(c *C, snapInfo *snap.Info) {
 	for _, plug := range s.repo.Plugs(snapInfo.Name) {
 		err := s.repo.RemovePlug(plug.Snap.Name, plug.Name)
 		c.Assert(err, IsNil)
-		c.Logf("removed plug: %s", plug)
 	}
 	for _, slot := range s.repo.Slots(snapInfo.Name) {
 		err := s.repo.RemoveSlot(slot.Snap.Name, slot.Name)
 		c.Assert(err, IsNil)
-		c.Logf("removed slot: %s", slot)
 	}
 }
