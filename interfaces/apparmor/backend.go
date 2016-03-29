@@ -76,7 +76,7 @@ func (b *Backend) Configure(snapInfo *snap.Info, developerMode bool, repo *inter
 		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapInfo.Name, err)
 	}
 	glob := interfaces.SecurityTagGlob(snapInfo)
-	changed, removed, err := osutil.EnsureDirState(b.Directory(), glob, content)
+	changed, removed, err := osutil.EnsureDirState(dirs.SnapAppArmorDir, glob, content)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapInfo.Name, err)
 	}
@@ -90,7 +90,7 @@ func (b *Backend) Configure(snapInfo *snap.Info, developerMode bool, repo *inter
 // Deconfigure removes security artefacts of a given snap.
 func (b *Backend) Deconfigure(snapInfo *snap.Info) error {
 	glob := interfaces.SecurityTagGlob(snapInfo)
-	_, removed, err := osutil.EnsureDirState(b.Directory(), glob, nil)
+	_, removed, err := osutil.EnsureDirState(dirs.SnapAppArmorDir, glob, nil)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapInfo.Name, err)
 	}
@@ -127,7 +127,7 @@ func (b *Backend) CombineSnippets(snapInfo *snap.Info, developerMode bool, snipp
 func (b *Backend) ObserveChanges(changed, removed []string) error {
 	// Reload changed profiles
 	for _, baseName := range changed {
-		fname := filepath.Join(b.Directory(), baseName)
+		fname := filepath.Join(dirs.SnapAppArmorDir, baseName)
 		err := LoadProfile(fname)
 		if err != nil {
 			return fmt.Errorf("cannot load apparmor profile %q: %s", baseName, err)
@@ -141,12 +141,4 @@ func (b *Backend) ObserveChanges(changed, removed []string) error {
 		}
 	}
 	return nil
-}
-
-// Directory returns the apparmor configuration directory.
-//
-// The return value must be changed in lock-step with the systemd job that
-// loads profiles on boot.
-func (b *Backend) Directory() string {
-	return dirs.SnapAppArmorDir
 }
