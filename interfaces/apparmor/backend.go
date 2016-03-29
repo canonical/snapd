@@ -64,7 +64,7 @@ type Backend struct {
 //
 // This method should be called after changing plug, slots, connections between
 // them or application present in the snap.
-func (b *Backend) Configure(snapInfo *snap.Info, repo *interfaces.Repository, developerMode bool) error {
+func (b *Backend) Configure(snapInfo *snap.Info, developerMode bool, repo *interfaces.Repository) error {
 	// Get the snippets that apply to this snap
 	snippets, err := repo.SecuritySnippetsForSnap(snapInfo.Name, b.SecuritySystem())
 	if err != nil {
