@@ -31,3 +31,8 @@ func SetEnsureIntervalForTest(d time.Duration) (restore func()) {
 		ensureInterval = prev
 	}
 }
+
+// Engine exposes the state engine in an Overlord for tests.
+func (o *Overlord) Engine() *StateEngine {
+	return o.stateEng
+}
