@@ -78,64 +78,64 @@ var (
 	}
 
 	sysInfoCmd = &Command{
-		Path:    "/2.0/system-info",
+		Path:    "/v2/system-info",
 		GuestOK: true,
 		GET:     sysInfo,
 	}
 
 	appIconCmd = &Command{
-		Path:   "/2.0/icons/{name}.{developer}/icon",
+		Path:   "/v2/icons/{name}.{developer}/icon",
 		UserOK: true,
 		GET:    appIconGet,
 	}
 
 	snapsCmd = &Command{
-		Path:   "/2.0/snaps",
+		Path:   "/v2/snaps",
 		UserOK: true,
 		GET:    getSnapsInfo,
 		POST:   sideloadSnap,
 	}
 
 	snapCmd = &Command{
-		Path:   "/2.0/snaps/{name}.{developer}",
+		Path:   "/v2/snaps/{name}.{developer}",
 		UserOK: true,
 		GET:    getSnapInfo,
 		POST:   postSnap,
 	}
 
 	snapConfigCmd = &Command{
-		Path: "/2.0/snaps/{name}.{developer}/config",
+		Path: "/v2/snaps/{name}.{developer}/config",
 		GET:  snapConfig,
 		PUT:  snapConfig,
 	}
 
 	snapSvcsCmd = &Command{
-		Path:   "/2.0/snaps/{name}.{developer}/services",
+		Path:   "/v2/snaps/{name}.{developer}/services",
 		UserOK: true,
 		GET:    snapService,
 		PUT:    snapService,
 	}
 
 	snapSvcCmd = &Command{
-		Path:   "/2.0/snaps/{name}.{developer}/services/{service}",
+		Path:   "/v2/snaps/{name}.{developer}/services/{service}",
 		UserOK: true,
 		GET:    snapService,
 		PUT:    snapService,
 	}
 
 	snapSvcLogsCmd = &Command{
-		Path: "/2.0/snaps/{name}.{developer}/services/{service}/logs",
+		Path: "/v2/snaps/{name}.{developer}/services/{service}/logs",
 		GET:  getLogs,
 	}
 
 	operationCmd = &Command{
-		Path:   "/2.0/operations/{uuid}",
+		Path:   "/v2/operations/{uuid}",
 		GET:    getOpInfo,
 		DELETE: deleteOp,
 	}
 
 	interfacesCmd = &Command{
-		Path:   "/2.0/interfaces",
+		Path:   "/v2/interfaces",
 		UserOK: true,
 		GET:    getInterfaces,
 		POST:   changeInterfaces,
@@ -143,18 +143,18 @@ var (
 
 	// TODO: allow to post assertions for UserOK? they are verified anyway
 	assertsCmd = &Command{
-		Path: "/2.0/assertions",
+		Path: "/v2/assertions",
 		POST: doAssert,
 	}
 
 	assertsFindManyCmd = &Command{
-		Path:   "/2.0/assertions/{assertType}",
+		Path:   "/v2/assertions/{assertType}",
 		UserOK: true,
 		GET:    assertsFindMany,
 	}
 
 	eventsCmd = &Command{
-		Path: "/2.0/events",
+		Path: "/v2/events",
 		GET:  getEvents,
 	}
 )
