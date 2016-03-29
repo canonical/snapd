@@ -44,6 +44,7 @@ type Task struct {
 	waitTasks []string
 	haltTasks []string
 	log       []string
+	change    string
 }
 
 func newTask(state *State, id, kind, summary string) *Task {
@@ -66,6 +67,7 @@ type marshalledTask struct {
 	WaitTasks []string                    `json:"wait-tasks,omitempty"`
 	HaltTasks []string                    `json:"halt-tasks,omitempty"`
 	Log       []string                    `json:"log,omitempty"`
+	Change    string                      `json:"change"`
 }
 
 // MarshalJSON makes Task a json.Marshaller
@@ -81,6 +83,7 @@ func (t *Task) MarshalJSON() ([]byte, error) {
 		WaitTasks: t.waitTasks,
 		HaltTasks: t.haltTasks,
 		Log:       t.log,
+		Change:    t.change,
 	})
 }
 
@@ -103,6 +106,7 @@ func (t *Task) UnmarshalJSON(data []byte) error {
 	t.waitTasks = unmarshalled.WaitTasks
 	t.haltTasks = unmarshalled.HaltTasks
 	t.log = unmarshalled.Log
+	t.change = unmarshalled.Change
 	return nil
 }
 
@@ -124,7 +128,6 @@ func (t *Task) Summary() string {
 // Status returns the current task status.
 func (t *Task) Status() Status {
 	t.state.ensureLocked()
-	// default status for tasks is running
 	if t.status == DefaultStatus {
 		return DoStatus
 	}
@@ -140,6 +143,12 @@ func (t *Task) SetStatus(s Status) {
 // State returns the system State
 func (t *Task) State() *State {
 	return t.state
+}
+
+// Change returns the change the task is registered with.
+func (t *Task) Change() *Change {
+	t.state.ensureLocked()
+	return t.state.changes[t.change]
 }
 
 // Progress returns the current progress for the task.

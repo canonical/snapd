@@ -46,6 +46,7 @@ import (
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snappy"
+	"github.com/ubuntu-core/snappy/store"
 )
 
 // increase this every time you make a minor (backwards-compatible)
@@ -181,12 +182,12 @@ func sysInfo(c *Command, r *http.Request) Response {
 }
 
 type metarepo interface {
-	Snap(string, string) (*snappy.RemoteSnap, error)
-	FindSnaps(string, string) ([]*snappy.RemoteSnap, error)
+	Snap(string, string) (*store.RemoteSnap, error)
+	FindSnaps(string, string) ([]*store.RemoteSnap, error)
 }
 
 var newRemoteRepo = func() metarepo {
-	return snappy.NewUbuntuStoreSnapRepository()
+	return snappy.NewConfiguredUbuntuStoreSnapRepository()
 }
 
 var muxVars = mux.Vars
@@ -292,7 +293,7 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 	}
 
 	var localSnapsMap map[string][]*snappy.Snap
-	var remoteSnapMap map[string]*snappy.RemoteSnap
+	var remoteSnapMap map[string]*store.RemoteSnap
 
 	if includeLocal {
 		sources = append(sources, "local")
@@ -300,7 +301,7 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 	}
 
 	if includeStore {
-		remoteSnapMap = make(map[string]*snappy.RemoteSnap)
+		remoteSnapMap = make(map[string]*store.RemoteSnap)
 
 		// repo.Find("") finds all
 		//

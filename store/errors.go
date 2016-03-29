@@ -17,18 +17,32 @@
  *
  */
 
-package snappy
+package store
 
 import (
-	"github.com/ubuntu-core/snappy/store"
+	"errors"
+	"fmt"
+	"net/url"
 )
 
-// ListInstalled returns all installed snaps
-func ListInstalled() ([]*Snap, error) {
-	return NewLocalSnapRepository().Installed()
+var (
+	// ErrSnapNotFound is returned when a snap can not be found
+	ErrSnapNotFound = errors.New("snap not found")
+
+	// ErrAuthenticationNeeds2fa is returned if the authentication
+	// needs 2factor
+	ErrAuthenticationNeeds2fa = errors.New("authentication needs second factor")
+
+	// ErrInvalidCredentials is returned on login error
+	ErrInvalidCredentials = errors.New("invalid credentials")
+)
+
+// ErrDownload represents a download error
+type ErrDownload struct {
+	Code int
+	URL  *url.URL
 }
 
-// ListUpdates returns all snaps with updates
-func ListUpdates() ([]*store.RemoteSnap, error) {
-	return snapUpdates(NewConfiguredUbuntuStoreSnapRepository())
+func (e *ErrDownload) Error() string {
+	return fmt.Sprintf("received an unexpected http response code (%v) when trying to download %s", e.Code, e.URL)
 }

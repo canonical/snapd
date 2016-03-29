@@ -21,6 +21,7 @@ package daemon
 
 import (
 	"github.com/ubuntu-core/snappy/snappy"
+	"github.com/ubuntu-core/snappy/store"
 )
 
 // allSnaps returns all installed snaps, grouped by name
@@ -65,7 +66,7 @@ func bestSnap(snaps []*snappy.Snap) (idx int, snap *snappy.Snap) {
 // a nil Part. Slice or remotePart may be empty/nil, but not both of them.
 //
 // Also may panic if the remote part is nil and Best() is nil.
-func mapSnap(localSnaps []*snappy.Snap, remotePart *snappy.RemoteSnap) map[string]interface{} {
+func mapSnap(localSnaps []*snappy.Snap, remotePart *store.RemoteSnap) map[string]interface{} {
 	var version, update, rollback, icon, name, developer, _type, description string
 
 	if len(localSnaps) == 0 && remotePart == nil {
