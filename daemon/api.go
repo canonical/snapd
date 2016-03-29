@@ -30,7 +30,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/gorilla/mux"
 
@@ -645,8 +644,9 @@ var snapstateInstall = snapstate.Install
 func waitChange(chg *state.Change) error {
 	select {
 	case <-chg.Ready():
-	// TODO case <-daemon.Dying():
 	}
+	// TODO case <-daemon.Dying():
+	st := chg.State()
 	st.Lock()
 	defer st.Unlock()
 	return chg.Err()

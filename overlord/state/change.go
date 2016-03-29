@@ -177,6 +177,13 @@ func (c *Change) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// finishUnmarshal is called after the state and tasks are accessible.
+func (c *Change) finishUnmarshal() {
+	if c.Status().Ready() {
+		close(c.ready)
+	}
+}
+
 // ID returns the individual random key for the change.
 func (c *Change) ID() string {
 	return c.id
