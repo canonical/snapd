@@ -787,7 +787,7 @@ func (s *apiSuite) TestPostSnap(c *check.C) {
 	m := rsp.Result.(map[string]interface{})
 	c.Assert(m["resource"], check.Matches, "/v2/operations/.*")
 
-	uuid := m["resource"].(string)[16:]
+	uuid := m["resource"].(string)[len("/v2/operations/"):]
 
 	task := d.GetTask(uuid)
 	c.Assert(task, check.NotNil)
