@@ -120,15 +120,7 @@ func (b *Backend) CombineSnippets(snapInfo *snap.Info, developerMode bool, snipp
 	return content, nil
 }
 
-// ObserveChanges informs the backend about changes made to the set of managed
-// files by a higher layer.
-//
-// The backend may choose to react to those changes immediately or to buffer
-// them until the higher layer signals that no more changes are coming by
-// calling FinishChanges.
-//
-// Buffering the changes is desirable when a constant cost can be incurred
-// regardless of the number of changes made.
+// ObserveChanges informs the backend about changes made to the set of managed files.
 func (b *Backend) ObserveChanges(changed, removed []string) error {
 	// Reload changed profiles
 	for _, baseName := range changed {
