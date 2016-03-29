@@ -199,6 +199,19 @@ func UndoFinalizeSnap(oldSnap, newSnap *Snap, flags InstallFlags, meter progress
 	}
 }
 
+func GenerateSecurityProfile(s *Snap) error {
+	// generate the security policy from the snap.yaml
+	// Note that this must happen before binaries/services are
+	// generated because serices may get started
+	instDir := filepath.Join(dirs.SnapSnapsDir, QualifiedName(s.Info()), s.Version())
+	return generatePolicy(s.m, instDir)
+}
+
+func UndoGenerateSecurityProfile(s *Snap) error {
+	instDir := filepath.Join(dirs.SnapSnapsDir, QualifiedName(s.Info()), s.Version())
+	return removePolicy(s.m, instDir)
+}
+
 func ActivateSnap(s *Snap, inhibitHooks bool, inter interacter) error {
 	currentActiveSymlink := filepath.Join(s.basedir, "..", "current")
 	currentActiveDir, _ := filepath.EvalSymlinks(currentActiveSymlink)
@@ -224,8 +237,7 @@ func ActivateSnap(s *Snap, inhibitHooks bool, inter interacter) error {
 	// generate the security policy from the snap.yaml
 	// Note that this must happen before binaries/services are
 	// generated because serices may get started
-	appsDir := filepath.Join(dirs.SnapSnapsDir, QualifiedName(s.Info()), s.Version())
-	if err := generatePolicy(s.m, appsDir); err != nil {
+	if err := GenerateSecurityProfile(s); err != nil {
 		return err
 	}
 
