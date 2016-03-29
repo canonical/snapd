@@ -259,6 +259,12 @@ func (s *State) Tasks() []*Task {
 	return res
 }
 
+// Task returns the task for the given ID.
+func (s *State) Task(id string) *Task {
+	s.ensureLocked()
+	return s.tasks[id]
+}
+
 func (s *State) tasksIn(tids []string) []*Task {
 	res := make([]*Task, len(tids))
 	for i, tid := range tids {

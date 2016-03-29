@@ -48,13 +48,14 @@ import (
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/remote"
 	"github.com/ubuntu-core/snappy/snappy"
+	"github.com/ubuntu-core/snappy/store"
 	"github.com/ubuntu-core/snappy/systemd"
 	"github.com/ubuntu-core/snappy/testutil"
 	"github.com/ubuntu-core/snappy/timeout"
 )
 
 type apiSuite struct {
-	parts      []*snappy.RemoteSnap
+	parts      []*store.RemoteSnap
 	err        error
 	vars       map[string]string
 	searchTerm string
@@ -66,14 +67,14 @@ type apiSuite struct {
 
 var _ = check.Suite(&apiSuite{})
 
-func (s *apiSuite) Snap(string, string) (*snappy.RemoteSnap, error) {
+func (s *apiSuite) Snap(string, string) (*store.RemoteSnap, error) {
 	if len(s.parts) > 0 {
 		return s.parts[0], s.err
 	}
 	return nil, s.err
 }
 
-func (s *apiSuite) FindSnaps(searchTerm, channel string) ([]*snappy.RemoteSnap, error) {
+func (s *apiSuite) FindSnaps(searchTerm, channel string) ([]*store.RemoteSnap, error) {
 	s.searchTerm = searchTerm
 	s.channel = channel
 
@@ -166,8 +167,8 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	s.vars = map[string]string{"name": "foo", "developer": "bar"}
 
 	// the store tells us about v2
-	s.parts = []*snappy.RemoteSnap{
-		&snappy.RemoteSnap{
+	s.parts = []*store.RemoteSnap{
+		&store.RemoteSnap{
 			Pkg: remote.Snap{
 				Name:    "foo",
 				Version: "v2",
@@ -252,8 +253,8 @@ func (s *apiSuite) TestSnapInfoWeirdRoute(c *check.C) {
 	// use the wrong command to force the issue
 	wrongCmd := &Command{Path: "/{what}", d: d}
 	s.vars = map[string]string{"name": "foo", "developer": "bar"}
-	s.parts = []*snappy.RemoteSnap{
-		&snappy.RemoteSnap{
+	s.parts = []*store.RemoteSnap{
+		&store.RemoteSnap{
 			Pkg: remote.Snap{
 				Name: "foo",
 			},
@@ -272,8 +273,8 @@ func (s *apiSuite) TestSnapInfoBadRoute(c *check.C) {
 	c.Assert(route.Name("foo").GetError(), check.NotNil)
 
 	s.vars = map[string]string{"name": "foo", "developer": "bar"}
-	s.parts = []*snappy.RemoteSnap{
-		&snappy.RemoteSnap{
+	s.parts = []*store.RemoteSnap{
+		&store.RemoteSnap{
 			Pkg: remote.Snap{
 				Name: "foo",
 			},
@@ -455,8 +456,8 @@ func (s *apiSuite) TestSnapsInfoOnePerIntegration(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapsInfoOnlyLocal(c *check.C) {
-	s.parts = []*snappy.RemoteSnap{
-		&snappy.RemoteSnap{
+	s.parts = []*store.RemoteSnap{
+		&store.RemoteSnap{
 			Pkg: remote.Snap{
 				Name:      "store",
 				Developer: "foo",
@@ -479,8 +480,8 @@ func (s *apiSuite) TestSnapsInfoOnlyLocal(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
-	s.parts = []*snappy.RemoteSnap{
-		&snappy.RemoteSnap{
+	s.parts = []*store.RemoteSnap{
+		&store.RemoteSnap{
 			Pkg: remote.Snap{
 				Name:      "store",
 				Developer: "foo",
@@ -503,8 +504,8 @@ func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapsInfoLocalAndStore(c *check.C) {
-	s.parts = []*snappy.RemoteSnap{
-		&snappy.RemoteSnap{
+	s.parts = []*store.RemoteSnap{
+		&store.RemoteSnap{
 			Pkg: remote.Snap{
 				Name:      "remote",
 				Developer: "foo",
@@ -526,8 +527,8 @@ func (s *apiSuite) TestSnapsInfoLocalAndStore(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapsInfoDefaultSources(c *check.C) {
-	s.parts = []*snappy.RemoteSnap{
-		&snappy.RemoteSnap{
+	s.parts = []*store.RemoteSnap{
+		&store.RemoteSnap{
 			Pkg: remote.Snap{
 				Name:      "remote",
 				Developer: "foo",
@@ -546,8 +547,8 @@ func (s *apiSuite) TestSnapsInfoDefaultSources(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapsInfoUnknownSource(c *check.C) {
-	s.parts = []*snappy.RemoteSnap{
-		&snappy.RemoteSnap{
+	s.parts = []*store.RemoteSnap{
+		&store.RemoteSnap{
 			Pkg: remote.Snap{
 				Name:      "remote",
 				Developer: "foo",

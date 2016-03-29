@@ -22,6 +22,7 @@ package snapstate
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/overlord/state"
@@ -31,14 +32,30 @@ import (
 // Install returns a set of tasks for installing snap.
 // Note that the state must be locked by the caller.
 func Install(s *state.State, snap, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
-	t := s.NewTask("install-snap", fmt.Sprintf(i18n.G("Installing %q"), snap))
-	t.Set("install-state", installState{
+	inst := installState{
 		Name:    snap,
 		Channel: channel,
 		Flags:   flags,
-	})
+	}
 
-	return state.NewTaskSet(t), nil
+	// check if it is a local snap, those are special
+	if fi, err := os.Stat(snap); err == nil && fi.Mode().IsRegular() {
+		inst.SnapPath = snap
+		tl := s.NewTask("install-snap", fmt.Sprintf(i18n.G("Installing %q"), snap))
+		tl.Set("install-state", inst)
+		return state.NewTaskSet(tl), nil
+	}
+
+	// remote snap, queue download
+	t := s.NewTask("download-snap", fmt.Sprintf(i18n.G("Downloading %q"), snap))
+	t.Set("install-state", inst)
+
+	t2 := s.NewTask("install-snap", fmt.Sprintf(i18n.G("Installing %q"), snap))
+	inst.DownloadTaskID = t.ID()
+	t2.Set("install-state", inst)
+	t2.WaitFor(t)
+
+	return state.NewTaskSet(t, t2), nil
 }
 
 // Update initiates a change updating a snap.

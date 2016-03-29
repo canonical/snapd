@@ -259,6 +259,10 @@ func (c *Change) State() *State {
 // be accomplished.
 func (c *Change) AddTask(t *Task) {
 	c.state.ensureLocked()
+	if t.change != "" {
+		panic(fmt.Sprintf("internal error: cannot add one %q task to multiple changes", t.Kind()))
+	}
+	t.change = c.id
 	c.taskIDs = addOnce(c.taskIDs, t.ID())
 }
 
@@ -267,7 +271,7 @@ func (c *Change) AddTask(t *Task) {
 func (c *Change) AddAll(ts *TaskSet) {
 	c.state.ensureLocked()
 	for _, t := range ts.tasks {
-		c.taskIDs = addOnce(c.taskIDs, t.ID())
+		c.AddTask(t)
 	}
 }
 
