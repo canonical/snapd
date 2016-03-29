@@ -51,8 +51,8 @@ func (b *stateBackend) EnsureBefore(d time.Duration) {
 }
 
 func ensureChange(c *C, r *state.TaskRunner, sb *stateBackend, chg *state.Change) {
-	sb.ensureBefore = 0
-	for sb.ensureBefore == 0 {
+	for i := 0; i < 10; i++ {
+		sb.ensureBefore = time.Hour
 		r.Ensure()
 		r.Wait()
 		chg.State().Lock()
@@ -61,11 +61,16 @@ func ensureChange(c *C, r *state.TaskRunner, sb *stateBackend, chg *state.Change
 		if s.Ready() {
 			return
 		}
+		if sb.ensureBefore > 0 {
+			break
+		}
 	}
 	var statuses []string
+	chg.State().Lock()
 	for _, t := range chg.Tasks() {
 		statuses = append(statuses, t.Summary()+":"+t.Status().String())
 	}
+	chg.State().Unlock()
 	c.Fatalf("Change didn't reach final state without blocking: %s", strings.Join(statuses, " "))
 }
 
