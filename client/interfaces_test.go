@@ -30,7 +30,7 @@ import (
 func (cs *clientSuite) TestClientInterfacesCallsEndpoint(c *check.C) {
 	_, _ = cs.cli.Interfaces()
 	c.Check(cs.req.Method, check.Equals, "GET")
-	c.Check(cs.req.URL.Path, check.Equals, "/2.0/interfaces")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/interfaces")
 }
 
 func (cs *clientSuite) TestClientInterfaces(c *check.C) {
@@ -98,7 +98,7 @@ func (cs *clientSuite) TestClientInterfaces(c *check.C) {
 func (cs *clientSuite) TestClientConnectCallsEndpoint(c *check.C) {
 	_ = cs.cli.Connect("producer", "plug", "consumer", "slot")
 	c.Check(cs.req.Method, check.Equals, "POST")
-	c.Check(cs.req.URL.Path, check.Equals, "/2.0/interfaces")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/interfaces")
 }
 
 func (cs *clientSuite) TestClientConnect(c *check.C) {
@@ -132,7 +132,7 @@ func (cs *clientSuite) TestClientConnect(c *check.C) {
 func (cs *clientSuite) TestClientDisconnectCallsEndpoint(c *check.C) {
 	_ = cs.cli.Disconnect("producer", "plug", "consumer", "slot")
 	c.Check(cs.req.Method, check.Equals, "POST")
-	c.Check(cs.req.URL.Path, check.Equals, "/2.0/interfaces")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/interfaces")
 }
 
 func (cs *clientSuite) TestClientDisconnect(c *check.C) {
