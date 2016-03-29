@@ -58,9 +58,9 @@ type Backend struct {
 	CustomTemplate string
 }
 
-// Configure creates and loads security artefacts specific to a given snap. The
-// snap can be in developer mode to make security violations non-fatal to the
-// offending application process.
+// Configure creates and loads apparmor security profiles specific to a given
+// snap. The snap can be in developer mode to make security violations
+// non-fatal to the offending application process.
 //
 // This method should be called after changing plug, slots, connections between
 // them or application present in the snap.
