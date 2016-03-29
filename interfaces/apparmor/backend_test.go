@@ -93,6 +93,14 @@ developer: acme
 apps:
     smbd:
 `
+const sambaYamlV1WithNmbd = `
+name: samba
+version: 1
+developer: acme
+apps:
+    smbd:
+    nmbd:
+`
 const sambaYamlV2 = `
 name: samba
 version: 2
@@ -156,26 +164,10 @@ func (s *backendSuite) TestUpdatingSnapMakesNeccesaryChanges(c *C) {
 }
 
 func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
-	const before = `
-name: samba
-version: 1
-developer: acme
-apps:
-    smbd:
-`
-	// NOTE: the version is the same so that no unrelated changes are made
-	const after = `
-name: samba
-version: 1
-developer: acme
-apps:
-    smbd:
-    nmbd:
-`
 	for _, developerMode := range []bool{true, false} {
-		snapInfo := s.installSnap(c, developerMode, before)
+		snapInfo := s.installSnap(c, developerMode, sambaYamlV1)
 		s.cmds["apparmor_parser"].ForgetCalls()
-		snapInfo = s.updateSnap(c, snapInfo, developerMode, after)
+		snapInfo = s.updateSnap(c, snapInfo, developerMode, sambaYamlV1WithNmbd)
 		profile := filepath.Join(s.backend.Directory(), "snap.samba.nmbd")
 		// file called "snap.sambda.nmbd" was created
 		_, err := os.Stat(profile)
@@ -188,26 +180,10 @@ apps:
 }
 
 func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
-	const before = `
-name: samba
-version: 1
-developer: acme
-apps:
-    smbd:
-    nmbd:
-`
-	// NOTE: the version is the same so that no unrelated changes are made
-	const after = `
-name: samba
-version: 1
-developer: acme
-apps:
-    smbd:
-`
 	for _, developerMode := range []bool{true, false} {
-		snapInfo := s.installSnap(c, developerMode, before)
+		snapInfo := s.installSnap(c, developerMode, sambaYamlV1WithNmbd)
 		s.cmds["apparmor_parser"].ForgetCalls()
-		snapInfo = s.updateSnap(c, snapInfo, developerMode, after)
+		snapInfo = s.updateSnap(c, snapInfo, developerMode, sambaYamlV1)
 		profile := filepath.Join(s.backend.Directory(), "snap.samba.nmbd")
 		// file called "snap.sambda.nmbd" was removed
 		_, err := os.Stat(profile)
