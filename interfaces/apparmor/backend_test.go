@@ -96,13 +96,13 @@ developer: acme
 apps:
     smbd:
 `)
-	aaProfile := filepath.Join(s.backend.Directory(), "snap.samba.smbd")
+	profile := filepath.Join(s.backend.Directory(), "snap.samba.smbd")
 	// file called "snap.sambda.smbd" was created
-	_, err := os.Stat(aaProfile)
+	_, err := os.Stat(profile)
 	c.Check(err, IsNil)
 	// apparmor_parser was was used to load that file
 	c.Check(s.cmds["apparmor_parser"].Calls(), DeepEquals, []string{
-		fmt.Sprintf("--replace --write-cache -O no-expr-simplify --cache-loc=/var/cache/apparmor %s", aaProfile),
+		fmt.Sprintf("--replace --write-cache -O no-expr-simplify --cache-loc=/var/cache/apparmor %s", profile),
 	})
 }
 
@@ -136,9 +136,9 @@ apps:
 		snapInfo := s.installSnap(c, developerMode, yaml)
 		s.cmds["apparmor_parser"].ForgetCalls()
 		s.removeSnap(c, snapInfo)
-		aaProfile := filepath.Join(s.backend.Directory(), "snap.samba.smbd")
+		profile := filepath.Join(s.backend.Directory(), "snap.samba.smbd")
 		// file called "snap.sambda.smbd" was removed
-		_, err := os.Stat(aaProfile)
+		_, err := os.Stat(profile)
 		c.Check(os.IsNotExist(err), Equals, true)
 		// apparmor_parser was was used to unload the profile
 		c.Check(s.cmds["apparmor_parser"].Calls(), DeepEquals, []string{
@@ -166,11 +166,11 @@ apps:
 		snapInfo := s.installSnap(c, developerMode, before)
 		s.cmds["apparmor_parser"].ForgetCalls()
 		snapInfo = s.updateSnap(c, snapInfo, developerMode, after)
-		aaProfile := filepath.Join(s.backend.Directory(), "snap.samba.smbd")
+		profile := filepath.Join(s.backend.Directory(), "snap.samba.smbd")
 		// apparmor_parser was used to reload the profile because snap version is
 		// inside the generated policy.
 		c.Check(s.cmds["apparmor_parser"].Calls(), DeepEquals, []string{
-			fmt.Sprintf("--replace --write-cache -O no-expr-simplify --cache-loc=/var/cache/apparmor %s", aaProfile),
+			fmt.Sprintf("--replace --write-cache -O no-expr-simplify --cache-loc=/var/cache/apparmor %s", profile),
 		})
 	}
 }
@@ -196,13 +196,13 @@ apps:
 		snapInfo := s.installSnap(c, developerMode, before)
 		s.cmds["apparmor_parser"].ForgetCalls()
 		snapInfo = s.updateSnap(c, snapInfo, developerMode, after)
-		aaProfile := filepath.Join(s.backend.Directory(), "snap.samba.nmbd")
+		profile := filepath.Join(s.backend.Directory(), "snap.samba.nmbd")
 		// file called "snap.sambda.nmbd" was created
-		_, err := os.Stat(aaProfile)
+		_, err := os.Stat(profile)
 		c.Check(err, IsNil)
 		// apparmor_parser was used to load the new profile
 		c.Check(s.cmds["apparmor_parser"].Calls(), DeepEquals, []string{
-			fmt.Sprintf("--replace --write-cache -O no-expr-simplify --cache-loc=/var/cache/apparmor %s", aaProfile),
+			fmt.Sprintf("--replace --write-cache -O no-expr-simplify --cache-loc=/var/cache/apparmor %s", profile),
 		})
 	}
 }
@@ -228,9 +228,9 @@ apps:
 		snapInfo := s.installSnap(c, developerMode, before)
 		s.cmds["apparmor_parser"].ForgetCalls()
 		snapInfo = s.updateSnap(c, snapInfo, developerMode, after)
-		aaProfile := filepath.Join(s.backend.Directory(), "snap.samba.nmbd")
+		profile := filepath.Join(s.backend.Directory(), "snap.samba.nmbd")
 		// file called "snap.sambda.nmbd" was removed
-		_, err := os.Stat(aaProfile)
+		_, err := os.Stat(profile)
 		c.Check(os.IsNotExist(err), Equals, true)
 		// apparmor_parser was used to remove the unused profile
 		c.Check(s.cmds["apparmor_parser"].Calls(), DeepEquals, []string{"--remove snap.samba.nmbd"})
