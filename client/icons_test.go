@@ -34,7 +34,7 @@ const (
 func (cs *clientSuite) TestClientIconCallsEndpoint(c *C) {
 	_, _ = cs.cli.Icon(pkgID)
 	c.Assert(cs.req.Method, Equals, "GET")
-	c.Assert(cs.req.URL.Path, Equals, fmt.Sprintf("/2.0/icons/%s/icon", pkgID))
+	c.Assert(cs.req.URL.Path, Equals, fmt.Sprintf("/v2/icons/%s/icon", pkgID))
 }
 
 func (cs *clientSuite) TestClientIconHttpError(c *C) {

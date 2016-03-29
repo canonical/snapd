@@ -365,6 +365,7 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 	c.Check(task0_1.ID(), Equals, t1ID)
 	c.Check(task0_1.Kind(), Equals, "download")
 	c.Check(task0_1.Summary(), Equals, "1...")
+	c.Check(task0_1.Change(), Equals, chg0)
 
 	var v int
 	err = task0_1.Get("a", &v)
@@ -408,11 +409,11 @@ func (ss *stateSuite) TestNewTaskAndTasks(c *C) {
 	chg1.AddTask(t11)
 	t12 := st.NewTask("inst", "...")
 	chg1.AddTask(t12)
+
 	chg2 := st.NewChange("remove", "...")
 	t21 := st.NewTask("check", "...")
 	t22 := st.NewTask("rm", "...")
 	chg2.AddTask(t22)
-	chg1.AddTask(t22)
 
 	tasks := st.Tasks()
 	c.Check(tasks, HasLen, 4)

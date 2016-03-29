@@ -72,10 +72,24 @@ func (cmd *MockCmd) Restore() {
 // Calls returns a list of calls that were made to the mock command.
 func (cmd *MockCmd) Calls() []string {
 	calls, err := ioutil.ReadFile(cmd.logFile)
+	if os.IsNotExist(err) {
+		return nil
+	}
 	if err != nil {
 		panic(err)
 	}
 	text := string(calls)
 	text = strings.TrimSuffix(text, "\n")
 	return strings.Split(text, "\n")
+}
+
+// ForgetCalls purges the list of calls made so far
+func (cmd *MockCmd) ForgetCalls() {
+	err := os.Remove(cmd.logFile)
+	if os.IsNotExist(err) {
+		return
+	}
+	if err != nil {
+		panic(err)
+	}
 }

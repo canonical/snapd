@@ -28,7 +28,7 @@ import (
 // the system default channel if not), returning the UUID of the background
 // operation upon success.
 func (client *Client) InstallSnap(name, channel string) (string, error) {
-	path := fmt.Sprintf("/2.0/snaps/%s", name)
+	path := fmt.Sprintf("/v2/snaps/%s", name)
 	body := strings.NewReader(fmt.Sprintf(`{"action":"install","channel":%q}`, channel))
 
 	return client.doAsync("POST", path, nil, body)
@@ -37,7 +37,7 @@ func (client *Client) InstallSnap(name, channel string) (string, error) {
 // RemoveSnap removes the snap with the given name, returning the UUID of the
 // background operation upon success.
 func (client *Client) RemoveSnap(name string) (string, error) {
-	path := fmt.Sprintf("/2.0/snaps/%s", name)
+	path := fmt.Sprintf("/v2/snaps/%s", name)
 	body := strings.NewReader(`{"action":"remove"}`)
 
 	return client.doAsync("POST", path, nil, body)
@@ -47,7 +47,7 @@ func (client *Client) RemoveSnap(name string) (string, error) {
 // the given channel if given), returning the UUID of the background operation
 // upon success.
 func (client *Client) RefreshSnap(name, channel string) (string, error) {
-	path := fmt.Sprintf("/2.0/snaps/%s", name)
+	path := fmt.Sprintf("/v2/snaps/%s", name)
 	body := strings.NewReader(fmt.Sprintf(`{"action":"update","channel":%q}`, channel))
 
 	return client.doAsync("POST", path, nil, body)
@@ -58,7 +58,7 @@ func (client *Client) RefreshSnap(name, channel string) (string, error) {
 //
 // TODO: nuke purge, when we have snapshots/backups done
 func (client *Client) PurgeSnap(name string) (string, error) {
-	path := fmt.Sprintf("/2.0/snaps/%s", name)
+	path := fmt.Sprintf("/v2/snaps/%s", name)
 	body := strings.NewReader(`{"action":"purge"}`)
 
 	return client.doAsync("POST", path, nil, body)
@@ -67,7 +67,7 @@ func (client *Client) PurgeSnap(name string) (string, error) {
 // RollbackSnap rolls back the snap with the given name, returning the UUID of
 // the background operation upon success.
 func (client *Client) RollbackSnap(name string) (string, error) {
-	path := fmt.Sprintf("/2.0/snaps/%s", name)
+	path := fmt.Sprintf("/v2/snaps/%s", name)
 	body := strings.NewReader(`{"action":"rollback"}`)
 
 	return client.doAsync("POST", path, nil, body)
@@ -76,7 +76,7 @@ func (client *Client) RollbackSnap(name string) (string, error) {
 // ActivateSnap activates the snap with the given name, returning the UUID of
 // the background operation upon success.
 func (client *Client) ActivateSnap(name string) (string, error) {
-	path := fmt.Sprintf("/2.0/snaps/%s", name)
+	path := fmt.Sprintf("/v2/snaps/%s", name)
 	body := strings.NewReader(`{"action":"activate"}`)
 
 	return client.doAsync("POST", path, nil, body)
@@ -85,7 +85,7 @@ func (client *Client) ActivateSnap(name string) (string, error) {
 // DeactivateSnap deactivates the snap with the given name, returning the UUID
 // of the background operation upon success.
 func (client *Client) DeactivateSnap(name string) (string, error) {
-	path := fmt.Sprintf("/2.0/snaps/%s", name)
+	path := fmt.Sprintf("/v2/snaps/%s", name)
 	body := strings.NewReader(`{"action":"deactivate"}`)
 
 	return client.doAsync("POST", path, nil, body)
