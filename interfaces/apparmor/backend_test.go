@@ -347,15 +347,6 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 	}
 }
 
-func (s *backendSuite) TestSecuritySystem(c *C) {
-	c.Assert(s.backend.SecuritySystem(), Equals, interfaces.SecurityAppArmor)
-}
-
-func (s *backendSuite) TestDirectory(c *C) {
-	dirs.SetRootDir("/")
-	c.Assert(s.backend.Directory(), Equals, "/var/lib/snappy/apparmor/profiles")
-}
-
 func (s *backendSuite) TestFileName(c *C) {
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(sambaYamlV1))
 	c.Assert(err, IsNil)

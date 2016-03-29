@@ -66,7 +66,7 @@ type Backend struct {
 // them or application present in the snap.
 func (b *Backend) Configure(snapInfo *snap.Info, developerMode bool, repo *interfaces.Repository) error {
 	// Get the snippets that apply to this snap
-	snippets, err := repo.SecuritySnippetsForSnap(snapInfo.Name, b.SecuritySystem())
+	snippets, err := repo.SecuritySnippetsForSnap(snapInfo.Name, interfaces.SecurityAppArmor)
 	if err != nil {
 		return fmt.Errorf("cannot obtain security snippets for snap %q: %s", snapInfo.Name, err)
 	}
@@ -138,11 +138,6 @@ func (b *Backend) ObserveChanges(changed, removed []string) error {
 		}
 	}
 	return nil
-}
-
-// SecuritySystem returns the name of the managed security system.
-func (b *Backend) SecuritySystem() interfaces.SecuritySystem {
-	return interfaces.SecurityAppArmor
 }
 
 // Directory returns the apparmor configuration directory.
