@@ -34,6 +34,7 @@ import (
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/partition"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/store"
+	"github.com/ubuntu-core/snappy/snap"
 )
 
 // ChangeFakeUpdateSnap is the type of the functions used to modify a snap before it is served as
@@ -74,7 +75,7 @@ func CallFakeOSUpdate(c *check.C) string {
 	return CallFakeUpdate(c, partition.OSSnapName(c)+".canonical", NoOp)
 }
 
-func makeFakeUpdateForSnap(c *check.C, snap, targetDir string, changeFunc ChangeFakeUpdateSnap) error {
+func makeFakeUpdateForSnap(c *check.C, snapName, targetDir string, changeFunc ChangeFakeUpdateSnap) error {
 
 	// make a fake update snap in /var/tmp (which is not a tempfs)
 	fakeUpdateDir, err := ioutil.TempDir("/var/tmp", "snap-build-")
@@ -84,9 +85,21 @@ func makeFakeUpdateForSnap(c *check.C, snap, targetDir string, changeFunc Change
 	cli.ExecCommand(c, "sudo", "chmod", "0755", fakeUpdateDir)
 	defer cli.ExecCommand(c, "sudo", "rm", "-rf", fakeUpdateDir)
 
-	copySnap(c, snap, fakeUpdateDir)
+	copySnap(c, snapName, fakeUpdateDir)
 
-	// fake new version
+	// get current revision
+	snapYamlPath := filepath.Join(fakeUpdateDir, "meta/snap.yaml")
+	snapYaml, err := ioutil.ReadFile(snapYamlPath)
+	c.Assert(err, check.IsNil, check.Commentf("Error reading the snap.yaml file: %v", err))
+	info, err := snap.InfoFromSnapYaml(snapYaml)
+	c.Assert(err, check.IsNil, check.Commentf("Error loading the snap info: %v", err))
+
+	// fake new revision
+	cli.ExecCommand(
+		c, "sudo", "sed", "-i",
+		fmt.Sprintf(`s/revision:\(.*\)/revision:%d/`, info.Revision+1),
+		snapYamlPath)
+	// set a different version
 	cli.ExecCommand(c, "sudo", "sed", "-i", `s/version:\(.*\)/version:\1+fake1/`, filepath.Join(fakeUpdateDir, "meta/snap.yaml"))
 
 	if err := changeFunc(fakeUpdateDir); err != nil {
