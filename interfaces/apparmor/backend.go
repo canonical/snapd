@@ -80,7 +80,7 @@ func (b *Backend) Configure(snapInfo *snap.Info, developerMode bool, repo *inter
 	if err != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapInfo.Name, err)
 	}
-	err = b.ObserveChanges(changed, removed)
+	err = b.observeChanges(changed, removed)
 	if err != nil {
 		return err
 	}
@@ -94,7 +94,7 @@ func (b *Backend) Deconfigure(snapInfo *snap.Info) error {
 	if err != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapInfo.Name, err)
 	}
-	err = b.ObserveChanges(nil, removed)
+	err = b.observeChanges(nil, removed)
 	if err != nil {
 		return err
 	}
@@ -123,8 +123,8 @@ func (b *Backend) CombineSnippets(snapInfo *snap.Info, developerMode bool, snipp
 	return content, nil
 }
 
-// ObserveChanges informs the backend about changes made to the set of managed files.
-func (b *Backend) ObserveChanges(changed, removed []string) error {
+// observeChanges informs the backend about changes made to the set of managed files.
+func (b *Backend) observeChanges(changed, removed []string) error {
 	// Reload changed profiles
 	for _, baseName := range changed {
 		fname := filepath.Join(dirs.SnapAppArmorDir, baseName)
