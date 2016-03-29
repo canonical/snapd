@@ -140,8 +140,6 @@ func (b *Backend) ObserveChanges(changed, removed []string) error {
 	}
 	// Unload removed profiles
 	for _, baseName := range removed {
-		// XXX: This depends on FileName() and ProfileName() returning the same
-		// value. This is true since both of those use SecurityTag().
 		err := UnloadProfile(baseName)
 		if err != nil {
 			return fmt.Errorf("cannot unload apparmor profile %q: %s", baseName, err)
