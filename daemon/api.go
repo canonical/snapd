@@ -48,6 +48,7 @@ import (
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snappy"
+	"github.com/ubuntu-core/snappy/store"
 )
 
 // increase this every time you make a minor (backwards-compatible)
@@ -80,64 +81,64 @@ var (
 	}
 
 	sysInfoCmd = &Command{
-		Path:    "/2.0/system-info",
+		Path:    "/v2/system-info",
 		GuestOK: true,
 		GET:     sysInfo,
 	}
 
 	appIconCmd = &Command{
-		Path:   "/2.0/icons/{name}.{developer}/icon",
+		Path:   "/v2/icons/{name}.{developer}/icon",
 		UserOK: true,
 		GET:    appIconGet,
 	}
 
 	snapsCmd = &Command{
-		Path:   "/2.0/snaps",
+		Path:   "/v2/snaps",
 		UserOK: true,
 		GET:    getSnapsInfo,
 		POST:   sideloadSnap,
 	}
 
 	snapCmd = &Command{
-		Path:   "/2.0/snaps/{name}.{developer}",
+		Path:   "/v2/snaps/{name}.{developer}",
 		UserOK: true,
 		GET:    getSnapInfo,
 		POST:   postSnap,
 	}
 
 	snapConfigCmd = &Command{
-		Path: "/2.0/snaps/{name}.{developer}/config",
+		Path: "/v2/snaps/{name}.{developer}/config",
 		GET:  snapConfig,
 		PUT:  snapConfig,
 	}
 
 	snapSvcsCmd = &Command{
-		Path:   "/2.0/snaps/{name}.{developer}/services",
+		Path:   "/v2/snaps/{name}.{developer}/services",
 		UserOK: true,
 		GET:    snapService,
 		PUT:    snapService,
 	}
 
 	snapSvcCmd = &Command{
-		Path:   "/2.0/snaps/{name}.{developer}/services/{service}",
+		Path:   "/v2/snaps/{name}.{developer}/services/{service}",
 		UserOK: true,
 		GET:    snapService,
 		PUT:    snapService,
 	}
 
 	snapSvcLogsCmd = &Command{
-		Path: "/2.0/snaps/{name}.{developer}/services/{service}/logs",
+		Path: "/v2/snaps/{name}.{developer}/services/{service}/logs",
 		GET:  getLogs,
 	}
 
 	operationCmd = &Command{
-		Path:   "/2.0/operations/{uuid}",
+		Path:   "/v2/operations/{uuid}",
 		GET:    getOpInfo,
 		DELETE: deleteOp,
 	}
 
 	interfacesCmd = &Command{
-		Path:   "/2.0/interfaces",
+		Path:   "/v2/interfaces",
 		UserOK: true,
 		GET:    getInterfaces,
 		POST:   changeInterfaces,
@@ -145,18 +146,18 @@ var (
 
 	// TODO: allow to post assertions for UserOK? they are verified anyway
 	assertsCmd = &Command{
-		Path: "/2.0/assertions",
+		Path: "/v2/assertions",
 		POST: doAssert,
 	}
 
 	assertsFindManyCmd = &Command{
-		Path:   "/2.0/assertions/{assertType}",
+		Path:   "/v2/assertions/{assertType}",
 		UserOK: true,
 		GET:    assertsFindMany,
 	}
 
 	eventsCmd = &Command{
-		Path: "/2.0/events",
+		Path: "/v2/events",
 		GET:  getEvents,
 	}
 
@@ -190,12 +191,12 @@ func sysInfo(c *Command, r *http.Request) Response {
 }
 
 type metarepo interface {
-	Snap(string, string) (*snappy.RemoteSnap, error)
-	FindSnaps(string, string) ([]*snappy.RemoteSnap, error)
+	Snap(string, string) (*store.RemoteSnap, error)
+	FindSnaps(string, string) ([]*store.RemoteSnap, error)
 }
 
 var newRemoteRepo = func() metarepo {
-	return snappy.NewUbuntuStoreSnapRepository()
+	return snappy.NewConfiguredUbuntuStoreSnapRepository()
 }
 
 var muxVars = mux.Vars
@@ -301,7 +302,7 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 	}
 
 	var localSnapsMap map[string][]*snappy.Snap
-	var remoteSnapMap map[string]*snappy.RemoteSnap
+	var remoteSnapMap map[string]*store.RemoteSnap
 
 	if includeLocal {
 		sources = append(sources, "local")
@@ -309,7 +310,7 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 	}
 
 	if includeStore {
-		remoteSnapMap = make(map[string]*snappy.RemoteSnap)
+		remoteSnapMap = make(map[string]*store.RemoteSnap)
 
 		// repo.Find("") finds all
 		//
@@ -1043,11 +1044,33 @@ func getInterfaces(c *Command, r *http.Request) Response {
 	return SyncResponse(c.d.interfaces.Interfaces())
 }
 
+// plugJSON aids in marshaling Plug into JSON.
+type plugJSON struct {
+	Snap        string                 `json:"snap"`
+	Name        string                 `json:"plug"`
+	Interface   string                 `json:"interface"`
+	Attrs       map[string]interface{} `json:"attrs,omitempty"`
+	Apps        []string               `json:"apps,omitempty"`
+	Label       string                 `json:"label"`
+	Connections []interfaces.SlotRef   `json:"connections,omitempty"`
+}
+
+// slotJSON aids in marshaling Slot into JSON.
+type slotJSON struct {
+	Snap        string                 `json:"snap"`
+	Name        string                 `json:"slot"`
+	Interface   string                 `json:"interface"`
+	Attrs       map[string]interface{} `json:"attrs,omitempty"`
+	Apps        []string               `json:"apps,omitempty"`
+	Label       string                 `json:"label"`
+	Connections []interfaces.PlugRef   `json:"connections,omitempty"`
+}
+
 // interfaceAction is an action performed on the interface system.
 type interfaceAction struct {
-	Action string            `json:"action"`
-	Plugs  []interfaces.Plug `json:"plugs,omitempty"`
-	Slots  []interfaces.Slot `json:"slots,omitempty"`
+	Action string     `json:"action"`
+	Plugs  []plugJSON `json:"plugs,omitempty"`
+	Slots  []slotJSON `json:"slots,omitempty"`
 }
 
 // changeInterfaces controls the interfaces system.
@@ -1084,48 +1107,6 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 			return BadRequest("at least one plug and slot is required")
 		}
 		err := c.d.interfaces.Disconnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
-		if err != nil {
-			return BadRequest("%v", err)
-		}
-		return SyncResponse(nil)
-	case "add-plug":
-		if len(a.Plugs) == 0 {
-			return BadRequest("at least one plug is required")
-		}
-		err := c.d.interfaces.AddPlug(&a.Plugs[0])
-		if err != nil {
-			return BadRequest("%v", err)
-		}
-		return &resp{
-			Type:   ResponseTypeSync,
-			Status: http.StatusCreated,
-		}
-	case "remove-plug":
-		if len(a.Plugs) == 0 {
-			return BadRequest("at least one plug is required")
-		}
-		err := c.d.interfaces.RemovePlug(a.Plugs[0].Snap, a.Plugs[0].Name)
-		if err != nil {
-			return BadRequest("%v", err)
-		}
-		return SyncResponse(nil)
-	case "add-slot":
-		if len(a.Slots) == 0 {
-			return BadRequest("at least one slot is required")
-		}
-		err := c.d.interfaces.AddSlot(&a.Slots[0])
-		if err != nil {
-			return BadRequest("%v", err)
-		}
-		return &resp{
-			Type:   ResponseTypeSync,
-			Status: http.StatusCreated,
-		}
-	case "remove-slot":
-		if len(a.Slots) == 0 {
-			return BadRequest("at least one slot is required")
-		}
-		err := c.d.interfaces.RemoveSlot(a.Slots[0].Snap, a.Slots[0].Name)
 		if err != nil {
 			return BadRequest("%v", err)
 		}

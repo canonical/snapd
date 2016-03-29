@@ -67,7 +67,7 @@ type ServiceStatus struct {
 func (client *Client) Services(pkg string) (map[string]*Service, error) {
 	var services map[string]*Service
 
-	path := fmt.Sprintf("/2.0/snaps/%s/services", pkg)
+	path := fmt.Sprintf("/v2/snaps/%s/services", pkg)
 	if err := client.doSync("GET", path, nil, nil, &services); err != nil {
 		return nil, fmt.Errorf("cannot list services: %s", err)
 	}

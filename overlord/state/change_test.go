@@ -70,6 +70,11 @@ func (cs *changeSuite) TestNewTaskAddTaskAndTasks(c *C) {
 
 	tasks := chg.Tasks()
 	c.Check(tasks, DeepEquals, []*state.Task{t1, t2})
+	c.Check(t1.Change(), Equals, chg)
+	c.Check(t2.Change(), Equals, chg)
+
+	chg2 := st.NewChange("install", "...")
+	c.Check(func() { chg2.AddTask(t1) }, PanicMatches, `internal error: cannot add one "download" task to multiple changes`)
 }
 
 func (cs *changeSuite) TestAddAll(c *C) {
@@ -85,6 +90,8 @@ func (cs *changeSuite) TestAddAll(c *C) {
 
 	tasks := chg.Tasks()
 	c.Check(tasks, DeepEquals, []*state.Task{t1, t2})
+	c.Check(t1.Change(), Equals, chg)
+	c.Check(t2.Change(), Equals, chg)
 }
 
 func (cs *changeSuite) TestStatusDerivedFromTasks(c *C) {

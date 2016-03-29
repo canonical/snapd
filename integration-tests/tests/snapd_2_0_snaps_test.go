@@ -77,7 +77,7 @@ func (s *snapd20SnapsTestSuite) TearDownTest(c *check.C) {
 }
 
 func (s *snapd20SnapsTestSuite) resource() string {
-	return baseURL + "/2.0/snaps"
+	return baseURL + "/v2/snaps"
 }
 
 func (s *snapd20SnapsTestSuite) TestResource(c *check.C) {

@@ -67,11 +67,6 @@ func (r *TaskRunner) AddHandler(kind string, fn HandlerFunc) {
 	r.handlers[kind] = fn
 }
 
-// Handlers returns the map of name/handler functions
-func (r *TaskRunner) Handlers() map[string]HandlerFunc {
-	return r.handlers
-}
-
 // propagateError sets all tasks directly and indirectly waiting on t to ErrorStatus.
 func propagateError(task *Task) {
 	mark := append([]*Task(nil), task.HaltTasks()...)

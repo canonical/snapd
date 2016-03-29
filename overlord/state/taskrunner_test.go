@@ -34,18 +34,7 @@ type taskRunnerSuite struct{}
 
 var _ = Suite(&taskRunnerSuite{})
 
-func (ts *taskRunnerSuite) TestAddHandler(c *C) {
-	r := state.NewTaskRunner(nil)
-	fn := func(task *state.Task, tomb *tomb.Tomb) error {
-		return nil
-	}
-	r.AddHandler("download", fn)
-
-	c.Assert(r.Handlers(), HasLen, 1)
-}
-
 func (ts *taskRunnerSuite) TestEnsureTrivial(c *C) {
-	// we need state
 	st := state.New(nil)
 
 	// setup the download handler
@@ -93,7 +82,6 @@ func (b *stateBackend) EnsureBefore(d time.Duration) {
 
 func (ts *taskRunnerSuite) TestEnsureComplex(c *C) {
 	b := &stateBackend{}
-	// we need state
 	st := state.New(b)
 
 	r := state.NewTaskRunner(st)
@@ -143,7 +131,6 @@ func (ts *taskRunnerSuite) TestEnsureComplex(c *C) {
 }
 
 func (ts *taskRunnerSuite) TestErrorIsFinal(c *C) {
-	// we need state
 	st := state.New(nil)
 
 	invocations := 0
@@ -176,7 +163,6 @@ func (ts *taskRunnerSuite) TestErrorIsFinal(c *C) {
 }
 
 func (ts *taskRunnerSuite) TestStopCancelsGoroutines(c *C) {
-	// we need state
 	st := state.New(nil)
 
 	invocations := 0
