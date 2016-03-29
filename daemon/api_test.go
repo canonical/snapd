@@ -815,7 +815,6 @@ func (s *apiSuite) TestPostSnapDispatch(c *check.C) {
 		{"install", inst.install},
 		{"update", inst.update},
 		{"remove", inst.remove},
-		{"purge", inst.purge},
 		{"rollback", inst.rollback},
 		{"xyzzy", nil},
 	}
