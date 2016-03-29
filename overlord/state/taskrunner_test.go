@@ -21,35 +21,57 @@ package state_test
 
 import (
 	"errors"
+	"strings"
+	"sync"
 	"time"
 
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 
 	"github.com/ubuntu-core/snappy/overlord/state"
-	"strings"
 )
 
 type taskRunnerSuite struct{}
 
 var _ = Suite(&taskRunnerSuite{})
 
-func ensureChange(r *state.TaskRunner, chg *state.Change) {
-	abort := time.After(5 * time.Second)
-	for {
+type stateBackend struct {
+	mu           sync.Mutex
+	ensureBefore time.Duration
+}
+
+func (b *stateBackend) Checkpoint([]byte) error { return nil }
+
+func (b *stateBackend) EnsureBefore(d time.Duration) {
+	b.mu.Lock()
+	if d < b.ensureBefore {
+		b.ensureBefore = d
+	}
+	b.mu.Unlock()
+}
+
+func ensureChange(c *C, r *state.TaskRunner, sb *stateBackend, chg *state.Change) {
+	for i := 0; i < 10; i++ {
+		sb.ensureBefore = time.Hour
 		r.Ensure()
+		r.Wait()
 		chg.State().Lock()
 		s := chg.Status()
 		chg.State().Unlock()
 		if s.Ready() {
 			return
 		}
-		select {
-		case <-time.After(50 * time.Millisecond):
-		case <-abort:
-			panic("timeout waiting for change to reach final state")
+		if sb.ensureBefore > 0 {
+			break
 		}
 	}
+	var statuses []string
+	chg.State().Lock()
+	for _, t := range chg.Tasks() {
+		statuses = append(statuses, t.Summary()+":"+t.Status().String())
+	}
+	chg.State().Unlock()
+	c.Fatalf("Change didn't reach final state without blocking: %s", strings.Join(statuses, " "))
 }
 
 // The result field encodes the expected order in which the task
@@ -98,7 +120,8 @@ var sequenceTests = []struct{ setup, result string }{{
 }}
 
 func (ts *taskRunnerSuite) TestSequenceTests(c *C) {
-	st := state.New(nil)
+	sb := &stateBackend{}
+	st := state.New(sb)
 	r := state.NewTaskRunner(st)
 	defer r.Stop()
 
@@ -181,7 +204,7 @@ func (ts *taskRunnerSuite) TestSequenceTests(c *C) {
 		st.Unlock()
 
 		// Run change until final.
-		ensureChange(r, chg)
+		ensureChange(c, r, sb, chg)
 
 		// Compute order of events observed.
 		var events []string
@@ -274,4 +297,34 @@ func (ts *taskRunnerSuite) TestSequenceTests(c *C) {
 		comment := Commentf("calls: %s", test.result)
 		c.Assert(strings.Join(gotStatus, " "), Equals, strings.Join(wantStatus, " "), comment)
 	}
+}
+
+func (ts *taskRunnerSuite) TestExternalAbort(c *C) {
+	sb := &stateBackend{}
+	st := state.New(sb)
+	r := state.NewTaskRunner(st)
+	defer r.Stop()
+
+	ch := make(chan bool)
+	r.AddHandler("blocking", func(t *state.Task, tb *tomb.Tomb) error {
+		ch <- true
+		<-tb.Dying()
+		return nil
+	}, nil)
+
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	t := st.NewTask("blocking", "...")
+	chg.AddTask(t)
+	st.Unlock()
+
+	r.Ensure()
+	<-ch
+
+	st.Lock()
+	chg.Abort()
+	st.Unlock()
+
+	// The Abort above must make Ensure kill the task, or this will never end.
+	ensureChange(c, r, sb, chg)
 }

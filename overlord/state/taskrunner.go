@@ -100,6 +100,7 @@ func (r *TaskRunner) run(t *Task) {
 		// overriding previous Kill reason.
 		tomb.Kill(handler(t, tomb))
 
+		// Locks must be acquired in the same order everywhere.
 		r.mu.Lock()
 		defer r.mu.Unlock()
 		r.state.Lock()
@@ -134,11 +135,42 @@ func (r *TaskRunner) run(t *Task) {
 		default:
 			t.SetStatus(ErrorStatus)
 			t.Errorf("%s", err)
-			t.Change().Abort()
+			r.abortChange(t.Change())
 		}
 
 		return nil
 	})
+}
+
+func (r *TaskRunner) abortChange(chg *Change) {
+	chg.Abort()
+	scheduled := false
+	for _, t := range chg.Tasks() {
+		if t.Status() == AbortStatus {
+			if tb, ok := r.tombs[t.ID()]; ok {
+				tb.Kill(nil)
+			}
+		}
+		if !scheduled && !t.Status().Ready() {
+			r.state.EnsureBefore(0)
+			scheduled = true
+		}
+	}
+}
+
+// swapAbort replaces the status of a knowingly aborted task.
+func (r *TaskRunner) swapAbort(t *Task) {
+	if t.Status() == AbortStatus && r.handlers[t.Kind()].undo == nil {
+		// Cannot undo but it was stopped in flight.
+		// Hold so it doesn't look like it finished.
+		t.SetStatus(HoldStatus)
+		if len(t.WaitTasks()) > 0 {
+			r.state.EnsureBefore(0)
+		}
+	} else {
+		t.SetStatus(UndoStatus)
+		r.state.EnsureBefore(0)
+	}
 }
 
 // Ensure starts new goroutines for all known tasks with no pending
@@ -153,6 +185,7 @@ func (r *TaskRunner) Ensure() {
 		return
 	}
 
+	// Locks must be acquired in the same order everywhere.
 	r.state.Lock()
 	defer r.state.Unlock()
 
@@ -216,19 +249,6 @@ func mustWait(t *Task) bool {
 		}
 	}
 	return false
-}
-
-func (r *TaskRunner) swapAbort(t *Task) {
-	if t.Status() == AbortStatus && r.handlers[t.Kind()].undo == nil {
-		// Cannot undo but it was stopped in flight.
-		// Hold so it doesn't look like it finished.
-		t.SetStatus(HoldStatus)
-		if len(t.WaitTasks()) > 0 {
-			r.state.EnsureBefore(0)
-		}
-	} else {
-		t.SetStatus(UndoStatus)
-	}
 }
 
 // wait expectes to be called with th r.mu lock held
