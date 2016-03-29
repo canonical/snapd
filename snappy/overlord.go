@@ -36,10 +36,14 @@ import (
 type Overlord struct {
 }
 
+// CheckSnap ensures that the snap can be installed
 func CheckSnap(snapFilePath, developer string, flags InstallFlags, meter progress.Meter) error {
 	allowGadget := (flags & AllowGadget) != 0
 	allowUnauth := (flags & AllowUnauthenticated) != 0
 
+	// warning: NewSnapFile generates a new sideloaded version
+	//          everytime it is run.
+	//          so all paths on disk are different even if the same snap
 	s, err := NewSnapFile(snapFilePath, developer, allowUnauth)
 	if err != nil {
 		return err
@@ -52,17 +56,73 @@ func CheckSnap(snapFilePath, developer string, flags InstallFlags, meter progres
 	return canInstall(s, allowGadget, meter)
 }
 
+// SetupSnap does prepare and mount the snap for further processing
+// It returns the installed path and an error
+func SetupSnap(snapFilePath, developer string, flags InstallFlags, meter progress.Meter) (string, error) {
+	inhibitHooks := (flags & InhibitHooks) != 0
+	allowUnauth := (flags & AllowUnauthenticated) != 0
+
+	// warning: NewSnapFile generates a new sideloaded version
+	//          everytime it is run
+	//          so all paths on disk are different even if the same snap
+	s, err := NewSnapFile(snapFilePath, developer, allowUnauth)
+	if err != nil {
+		return s.instdir, err
+	}
+
+	// the "gadget" snaps are special
+	if s.Type() == snap.TypeGadget {
+		if err := installGadgetHardwareUdevRules(s.m); err != nil {
+			return s.instdir, err
+		}
+	}
+
+	if err := os.MkdirAll(s.instdir, 0755); err != nil {
+		logger.Noticef("Can not create %q: %v", s.instdir, err)
+		return s.instdir, err
+	}
+
+	if err := s.deb.Install(s.instdir); err != nil {
+		return s.instdir, err
+	}
+
+	// generate the mount unit for the squashfs
+	if err := addSquashfsMount(s.m, s.instdir, inhibitHooks, meter); err != nil {
+		return s.instdir, err
+	}
+
+	// FIXME: special handling is bad 'mkay
+	if s.m.Type == snap.TypeKernel {
+		if err := extractKernelAssets(s, meter, flags); err != nil {
+			return s.instdir, fmt.Errorf("failed to install kernel %s", err)
+		}
+	}
+
+	return s.instdir, err
+}
+
+func UndoSetupSnap(installDir, developer string, meter progress.Meter) {
+	if s, err := NewInstalledSnap(filepath.Join(installDir, "meta", "snap.yaml"), developer); err == nil {
+		if err := removeSquashfsMount(s.m, s.basedir, meter); err != nil {
+			fullName := QualifiedName(s.Info())
+			logger.Noticef("Failed to remove mount unit for  %s: %s", fullName, err)
+		}
+	}
+	if err := os.RemoveAll(installDir); err != nil && !os.IsNotExist(err) {
+		logger.Noticef("Failed to remove %q: %v", installDir, err)
+	}
+
+	// FIXME: undo extract kernel assets via removeKernelAssets
+	//
+	// FIXME2: undo installGadgetHardwareUdevRules via
+	//         cleanupGadgetHardwareUdevRules
+}
+
 // Install installs the given snap file to the system.
 //
 // It returns the local snap file or an error
 func (o *Overlord) Install(snapFilePath string, developer string, flags InstallFlags, meter progress.Meter) (sp *Snap, err error) {
 	inhibitHooks := (flags & InhibitHooks) != 0
-	allowUnauth := (flags & AllowUnauthenticated) != 0
-
-	s, err := NewSnapFile(snapFilePath, developer, allowUnauth)
-	if err != nil {
-		return nil, fmt.Errorf("can not open %s: %s", snapFilePath, err)
-	}
 
 	// we do not Verify() the package here. This is done earlier in
 	// NewSnapFile() to ensure that we do not mount/inspect
@@ -71,61 +131,31 @@ func (o *Overlord) Install(snapFilePath string, developer string, flags InstallF
 		return nil, err
 	}
 
-	// the "gadget" snaps are special
-	if s.Type() == snap.TypeGadget {
-		if err := installGadgetHardwareUdevRules(s.m); err != nil {
-			return nil, err
+	// prepare the snap for further processing
+	instPath, err := SetupSnap(snapFilePath, developer, flags, meter)
+	defer func() {
+		if err != nil {
+			UndoSetupSnap(instPath, developer, meter)
 		}
+	}()
+	if err != nil {
+		return nil, err
 	}
 
-	fullName := QualifiedName(s.Info())
-	dataDir := filepath.Join(dirs.SnapDataDir, fullName, s.Version())
+	// we have a installed snap at this point
+	newSnap, err := NewInstalledSnap(filepath.Join(instPath, "meta", "snap.yaml"), developer)
+	if err != nil {
+		return nil, err
+	}
+
+	fullName := QualifiedName(newSnap.Info())
+	dataDir := filepath.Join(dirs.SnapDataDir, fullName, newSnap.Version())
 
 	var oldSnap *Snap
-	if currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(s.instdir, "..", "current")); currentActiveDir != "" {
-		oldSnap, err = NewInstalledSnap(filepath.Join(currentActiveDir, "meta", "snap.yaml"), s.developer)
+	if currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(newSnap.basedir, "..", "current")); currentActiveDir != "" {
+		oldSnap, err = NewInstalledSnap(filepath.Join(currentActiveDir, "meta", "snap.yaml"), newSnap.developer)
 		if err != nil {
 			return nil, err
-		}
-	}
-
-	if err := os.MkdirAll(s.instdir, 0755); err != nil {
-		logger.Noticef("Can not create %q: %v", s.instdir, err)
-		return nil, err
-	}
-
-	// if anything goes wrong here we cleanup
-	defer func() {
-		if err != nil {
-			if e := os.RemoveAll(s.instdir); e != nil && !os.IsNotExist(e) {
-				logger.Noticef("Failed to remove %q: %v", s.instdir, e)
-			}
-		}
-	}()
-
-	// we need to call the external helper so that we can reliable drop
-	// privs
-	if err := s.deb.Install(s.instdir); err != nil {
-		return nil, err
-	}
-
-	// generate the mount unit for the squashfs
-	if err := addSquashfsMount(s.m, s.instdir, inhibitHooks, meter); err != nil {
-		return nil, err
-	}
-	// if anything goes wrong we ensure we stop
-	defer func() {
-		if err != nil {
-			if e := removeSquashfsMount(s.m, s.instdir, meter); e != nil {
-				logger.Noticef("Failed to remove mount unit for  %s: %s", fullName, e)
-			}
-		}
-	}()
-
-	// FIXME: special handling is bad 'mkay
-	if s.m.Type == snap.TypeKernel {
-		if err := extractKernelAssets(s, meter, flags); err != nil {
-			return nil, fmt.Errorf("failed to install kernel %s", err)
 		}
 	}
 
@@ -150,15 +180,15 @@ func (o *Overlord) Install(snapFilePath string, developer string, flags InstallF
 			return nil, err
 		}
 
-		err = copySnapData(fullName, oldSnap.Version(), s.Version())
+		err = copySnapData(fullName, oldSnap.Version(), newSnap.Version())
 	} else {
 		err = os.MkdirAll(dataDir, 0755)
 	}
 
 	defer func() {
 		if err != nil {
-			if cerr := removeSnapData(fullName, s.Version()); cerr != nil {
-				logger.Noticef("When cleaning up data for %s %s: %v", s.Name(), s.Version(), cerr)
+			if cerr := removeSnapData(fullName, newSnap.Version()); cerr != nil {
+				logger.Noticef("When cleaning up data for %s %s: %v", newSnap.Name(), newSnap.Version(), cerr)
 			}
 		}
 	}()
@@ -168,17 +198,12 @@ func (o *Overlord) Install(snapFilePath string, developer string, flags InstallF
 	}
 
 	if !inhibitHooks {
-		newSnap, err := newSnapFromYaml(filepath.Join(s.instdir, "meta", "snap.yaml"), s.developer, s.m)
-		if err != nil {
-			return nil, err
-		}
-
 		// and finally make active
 		err = newSnap.activate(inhibitHooks, meter)
 		defer func() {
 			if err != nil && oldSnap != nil {
 				if cerr := oldSnap.activate(inhibitHooks, meter); cerr != nil {
-					logger.Noticef("When setting old %s version back to active: %v", s.Name(), cerr)
+					logger.Noticef("When setting old %s version back to active: %v", newSnap.Name(), cerr)
 				}
 			}
 		}()
@@ -187,7 +212,7 @@ func (o *Overlord) Install(snapFilePath string, developer string, flags InstallF
 		}
 	}
 
-	return newSnapFromYaml(filepath.Join(s.instdir, "meta", "snap.yaml"), s.developer, s.m)
+	return newSnap, nil
 }
 
 // CanInstall checks whether the Snap passes a series of tests required for installation
