@@ -2231,7 +2231,7 @@ func (s *apiSuite) TestAssertOK(c *check.C) {
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Status, check.Equals, http.StatusOK)
 	// Verify (internal)
-	_, err = d.asserts.Find(asserts.AccountKeyType, map[string]string{
+	_, err = d.overlord.AssertManager().DB().Find(asserts.AccountKeyType, map[string]string{
 		"account-id":    "developer1",
 		"public-key-id": "adea89b00094c337",
 	})
@@ -2275,7 +2275,7 @@ func (s *apiSuite) TestAssertsFindManyAll(c *check.C) {
 	d := newTestDaemon(c)
 	a, err := asserts.Decode([]byte(testAccKey))
 	c.Assert(err, check.IsNil)
-	err = d.asserts.Add(a)
+	err = d.overlord.AssertManager().DB().Add(a)
 	c.Assert(err, check.IsNil)
 	// Execute
 	req, err := http.NewRequest("POST", "/2.0/assertions/account-key", nil)
@@ -2310,7 +2310,7 @@ func (s *apiSuite) TestAssertsFindManyFilter(c *check.C) {
 	d := newTestDaemon(c)
 	a, err := asserts.Decode([]byte(testAccKey))
 	c.Assert(err, check.IsNil)
-	err = d.asserts.Add(a)
+	err = d.overlord.AssertManager().DB().Add(a)
 	c.Assert(err, check.IsNil)
 	// Execute
 	req, err := http.NewRequest("POST", "/2.0/assertions/account-key?account-id=developer1", nil)
@@ -2338,7 +2338,7 @@ func (s *apiSuite) TestAssertsFindManyNoResults(c *check.C) {
 	d := newTestDaemon(c)
 	a, err := asserts.Decode([]byte(testAccKey))
 	c.Assert(err, check.IsNil)
-	err = d.asserts.Add(a)
+	err = d.overlord.AssertManager().DB().Add(a)
 	c.Assert(err, check.IsNil)
 	// Execute
 	req, err := http.NewRequest("POST", "/2.0/assertions/account-key?account-id=xyzzyx", nil)
