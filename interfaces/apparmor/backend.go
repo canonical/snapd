@@ -51,7 +51,7 @@ import (
 
 // Backend is responsible for maintaining apparmor profiles for ubuntu-core-launcher.
 type Backend struct {
-	// Custom template exists to support old-security which goes
+	// CustomTemplate exists to support old-security which goes
 	// beyond what is possible with pure security snippets.
 	//
 	// If non-empty then it overrides the built-in template.
