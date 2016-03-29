@@ -175,7 +175,7 @@ apps:
 	}
 }
 
-func (s *backendSuite) TestUpdatingSnapMakesToOneWithMoreApps(c *C) {
+func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 	const before = `
 name: samba
 version: 1
@@ -207,7 +207,7 @@ apps:
 	}
 }
 
-func (s *backendSuite) TestUpdatingSnapMakesToOneWithFewerApps(c *C) {
+func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 	const before = `
 name: samba
 version: 1
@@ -460,7 +460,7 @@ func (s *backendSuite) installSnap(c *C, developerMode bool, snapYaml string) *s
 	return snapInfo
 }
 
-// installSnap "updates" an existing snap from YAML.
+// updateSnap "updates" an existing snap from YAML.
 func (s *backendSuite) updateSnap(c *C, oldSnapInfo *snap.Info, developerMode bool, snapYaml string) *snap.Info {
 	newSnapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
