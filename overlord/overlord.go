@@ -209,9 +209,9 @@ func (o *Overlord) Settle() error {
 	return nil
 }
 
-// StateEngine returns the state engine used by the overlord.
-func (o *Overlord) StateEngine() *StateEngine {
-	return o.stateEng
+// State returns the system state managed by the overlord.
+func (o *Overlord) State() *state.State {
+	return o.stateEng.State()
 }
 
 // SnapManager returns the snap manager responsible for snaps under

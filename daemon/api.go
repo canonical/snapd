@@ -668,7 +668,7 @@ func (inst *snapInstruction) install() interface{} {
 	if inst.LeaveOld {
 		flags = 0
 	}
-	state := inst.overlord.StateEngine().State()
+	state := inst.overlord.State()
 	state.Lock()
 	msg := fmt.Sprintf(i18n.G("Install %q snap"), inst.pkg)
 	if inst.Channel != "stable" {
@@ -704,7 +704,7 @@ func (inst *snapInstruction) update() interface{} {
 	if inst.LeaveOld {
 		flags = 0
 	}
-	state := inst.overlord.StateEngine().State()
+	state := inst.overlord.State()
 	state.Lock()
 	msg := fmt.Sprintf(i18n.G("Update %q snap"), inst.pkg)
 	if inst.Channel != "stable" {
@@ -729,7 +729,7 @@ func (inst *snapInstruction) remove() interface{} {
 	if inst.LeaveOld {
 		flags = 0
 	}
-	state := inst.overlord.StateEngine().State()
+	state := inst.overlord.State()
 	state.Lock()
 	msg := fmt.Sprintf(i18n.G("Remove %q snap"), inst.pkg)
 	chg := state.NewChange("remove-snap", msg)
@@ -747,7 +747,7 @@ func (inst *snapInstruction) remove() interface{} {
 }
 
 func (inst *snapInstruction) purge() interface{} {
-	state := inst.overlord.StateEngine().State()
+	state := inst.overlord.State()
 	state.Lock()
 	msg := fmt.Sprintf(i18n.G("Purge %q snap"), inst.pkg)
 	chg := state.NewChange("purge-snap", msg)
@@ -765,7 +765,7 @@ func (inst *snapInstruction) purge() interface{} {
 }
 
 func (inst *snapInstruction) rollback() interface{} {
-	state := inst.overlord.StateEngine().State()
+	state := inst.overlord.State()
 	state.Lock()
 	msg := fmt.Sprintf(i18n.G("Rollback %q snap"), inst.pkg)
 	chg := state.NewChange("rollback-snap", msg)
@@ -785,7 +785,7 @@ func (inst *snapInstruction) rollback() interface{} {
 }
 
 func (inst *snapInstruction) activate() interface{} {
-	state := inst.overlord.StateEngine().State()
+	state := inst.overlord.State()
 	state.Lock()
 	msg := fmt.Sprintf(i18n.G("Activate %q snap"), inst.pkg)
 	chg := state.NewChange("activate-snap", msg)
@@ -803,7 +803,7 @@ func (inst *snapInstruction) activate() interface{} {
 }
 
 func (inst *snapInstruction) deactivate() interface{} {
-	state := inst.overlord.StateEngine().State()
+	state := inst.overlord.State()
 	state.Lock()
 	msg := fmt.Sprintf(i18n.G("Deactivate %q snap"), inst.pkg)
 	chg := state.NewChange("deactivate-snap", msg)
