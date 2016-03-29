@@ -107,6 +107,11 @@ func SetupSnap(snapFilePath, developer string, flags InstallFlags, meter progres
 
 func UndoSetupSnap(installDir, developer string, meter progress.Meter) {
 	if s, err := NewInstalledSnap(filepath.Join(installDir, "meta", "snap.yaml"), developer); err == nil {
+		if s.Type() == snap.TypeKernel {
+			if err := removeKernelAssets(s, meter); err != nil {
+				logger.Noticef("Failed to cleanup kernel assets %q: %v", installDir, err)
+			}
+		}
 		if err := removeSquashfsMount(s.m, s.basedir, meter); err != nil {
 			fullName := QualifiedName(s.Info())
 			logger.Noticef("Failed to remove mount unit for  %s: %s", fullName, err)
@@ -116,23 +121,22 @@ func UndoSetupSnap(installDir, developer string, meter progress.Meter) {
 		logger.Noticef("Failed to remove %q: %v", installDir, err)
 	}
 
-	// FIXME: undo extract kernel assets via removeKernelAssets
-	//
-	// FIXME2: undo installGadgetHardwareUdevRules via
-	//         cleanupGadgetHardwareUdevRules
+	// FIXME: do we need to undo installGadgetHardwareUdevRules via
+	//        cleanupGadgetHardwareUdevRules ? it will go away
+	//        and can only be used during install right now
 }
 
-func oldSnap(newSnap *Snap) *Snap {
+func currentSnap(newSnap *Snap) *Snap {
 	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(newSnap.basedir, "..", "current"))
 	if currentActiveDir == "" {
 		return nil
 	}
 
-	oldSnap, err := NewInstalledSnap(filepath.Join(currentActiveDir, "meta", "snap.yaml"), newSnap.developer)
+	currentSnap, err := NewInstalledSnap(filepath.Join(currentActiveDir, "meta", "snap.yaml"), newSnap.developer)
 	if err != nil {
 		return nil
 	}
-	return oldSnap
+	return currentSnap
 }
 
 func CopyData(newSnap *Snap, flags InstallFlags, meter progress.Meter) error {
@@ -148,7 +152,7 @@ func CopyData(newSnap *Snap, flags InstallFlags, meter progress.Meter) error {
 	// started then copy the data
 	//
 	// otherwise just create a empty data dir
-	oldSnap := oldSnap(newSnap)
+	oldSnap := currentSnap(newSnap)
 	if oldSnap == nil {
 		return os.MkdirAll(dataDir, 0755)
 	}
@@ -165,7 +169,7 @@ func UndoCopyData(newSnap *Snap, flags InstallFlags, meter progress.Meter) {
 	inhibitHooks := (flags & InhibitHooks) != 0
 
 	fullName := QualifiedName(newSnap.Info())
-	oldSnap := oldSnap(newSnap)
+	oldSnap := currentSnap(newSnap)
 	if oldSnap != nil {
 		if err := oldSnap.activate(inhibitHooks, meter); err != nil {
 			logger.Noticef("Setting old version back to active failed: %v", err)
@@ -182,16 +186,15 @@ func FinalizeSnap(newSnap *Snap, flags InstallFlags, meter progress.Meter) error
 	if inhibitHooks {
 		return nil
 	}
-	return newSnap.activate(inhibitHooks, meter)
+	return ActivateSnap(newSnap, inhibitHooks, meter)
 }
 
-func UndoFinalizeSnap(newSnap *Snap, flags InstallFlags, meter progress.Meter) {
+func UndoFinalizeSnap(oldSnap, newSnap *Snap, flags InstallFlags, meter progress.Meter) {
 	inhibitHooks := (flags & InhibitHooks) != 0
-	oldSnap := oldSnap(newSnap)
 	if oldSnap == nil {
 		return
 	}
-	if err := oldSnap.activate(inhibitHooks, meter); err != nil {
+	if err := ActivateSnap(oldSnap, inhibitHooks, meter); err != nil {
 		logger.Noticef("When setting old %s version back to active: %v", newSnap.Name(), err)
 	}
 }
@@ -336,6 +339,9 @@ func (o *Overlord) Install(snapFilePath string, developer string, flags InstallF
 		return nil, err
 	}
 
+	// we need this for later
+	oldSnap := currentSnap(newSnap)
+
 	// deal with the data
 	err = CopyData(newSnap, flags, meter)
 	defer func() {
@@ -351,7 +357,7 @@ func (o *Overlord) Install(snapFilePath string, developer string, flags InstallF
 	err = FinalizeSnap(newSnap, flags, meter)
 	defer func() {
 		if err != nil {
-			UndoFinalizeSnap(newSnap, flags, meter)
+			UndoFinalizeSnap(oldSnap, newSnap, flags, meter)
 		}
 	}()
 	if err != nil {
