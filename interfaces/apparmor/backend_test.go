@@ -117,7 +117,7 @@ apps:
 	for _, developerMode := range []bool{true, false} {
 		snapInfo := s.installSnap(c, developerMode, yaml)
 		s.cmds["apparmor_parser"].ForgetCalls()
-		err := s.backend.Configure(snapInfo, s.repo, developerMode)
+		err := s.backend.Configure(snapInfo, developerMode, s.repo)
 		c.Assert(err, IsNil)
 		// profiles are not re-compiled or re-loaded when nothing changes
 		c.Check(s.cmds["apparmor_parser"].Calls(), HasLen, 0)
@@ -456,7 +456,7 @@ func (s *backendSuite) installSnap(c *C, developerMode bool, snapYaml string) *s
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
 	s.addPlugsSlots(c, snapInfo)
-	err = s.backend.Configure(snapInfo, s.repo, developerMode)
+	err = s.backend.Configure(snapInfo, developerMode, s.repo)
 	c.Assert(err, IsNil)
 	return snapInfo
 }
@@ -468,7 +468,7 @@ func (s *backendSuite) updateSnap(c *C, oldSnapInfo *snap.Info, developerMode bo
 	c.Assert(newSnapInfo.Name, Equals, oldSnapInfo.Name)
 	s.removePlugsSlots(c, oldSnapInfo)
 	s.addPlugsSlots(c, newSnapInfo)
-	err = s.backend.Configure(newSnapInfo, s.repo, developerMode)
+	err = s.backend.Configure(newSnapInfo, developerMode, s.repo)
 	c.Assert(err, IsNil)
 	return newSnapInfo
 }
