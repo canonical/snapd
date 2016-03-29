@@ -30,7 +30,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -1175,15 +1174,6 @@ type taskInfo struct {
 
 func getChanges(c *Command, r *http.Request) Response {
 	query := r.URL.Query()
-	logTail := 1
-	qLogTail := query.Get("log-tail")
-	if qLogTail != "" {
-		n, err := strconv.Atoi(qLogTail)
-		if err != nil || n < 0 {
-			return BadRequest("invalid log-tail numeric value")
-		}
-		logTail = n
-	}
 	// XXX: default this to "Done"?
 	excludeStatuses := strings.Split(query.Get("exclude-statuses"), ",")
 	for i, v := range excludeStatuses {
@@ -1214,15 +1204,11 @@ func getChanges(c *Command, r *http.Request) Response {
 		tasks := chg.Tasks()
 		taskInfos := make([]*taskInfo, len(tasks))
 		for j, t := range tasks {
-			log := t.Log()
-			if len(log) > logTail {
-				log = log[len(log)-logTail:]
-			}
 			taskInfo := &taskInfo{
 				Kind:    t.Kind(),
 				Summary: t.Summary(),
 				Status:  t.Status().String(),
-				Log:     log,
+				Log:     t.Log(),
 			}
 			taskInfos[j] = taskInfo
 		}

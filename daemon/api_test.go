@@ -2019,30 +2019,6 @@ func (s *apiSuite) TestStateChanges(c *check.C) {
 	res, err := rsp.MarshalJSON()
 	c.Assert(err, check.IsNil)
 
-	c.Check(string(res), testutil.Contains, `{"kind":"install","summary":"install...","status":"Do","tasks":[{"kind":"download","summary":"1...","status":"Do","log":["INFO: l12"]}`)
-	c.Check(string(res), testutil.Contains, `{"kind":"remove","summary":"remove..","status":"Error","tasks":[{"kind":"unlink","summary":"1...","status":"Error","log":["ERROR: rm failed"]}]}`)
-}
-
-func (s *apiSuite) TestStateChangesLogTail(c *check.C) {
-	// Setup
-	d := newTestDaemon(c)
-	st := d.overlord.StateEngine().State()
-	st.Lock()
-	setupChanges(st)
-	st.Unlock()
-
-	// Execute
-	req, err := http.NewRequest("GET", "/v2/changes?log-tail=2", nil)
-	c.Assert(err, check.IsNil)
-	rsp := getChanges(stateChangesCmd, req).(*resp)
-
-	// Verify
-	c.Check(rsp.Status, check.Equals, http.StatusOK)
-	c.Assert(rsp.Result, check.HasLen, 2)
-
-	res, err := rsp.MarshalJSON()
-	c.Assert(err, check.IsNil)
-
 	c.Check(string(res), testutil.Contains, `{"kind":"install","summary":"install...","status":"Do","tasks":[{"kind":"download","summary":"1...","status":"Do","log":["INFO: l11","INFO: l12"]}`)
 	c.Check(string(res), testutil.Contains, `{"kind":"remove","summary":"remove..","status":"Error","tasks":[{"kind":"unlink","summary":"1...","status":"Error","log":["ERROR: rm failed"]}]}`)
 }
