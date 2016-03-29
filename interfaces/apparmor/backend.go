@@ -80,7 +80,11 @@ func (b *Backend) Configure(snapInfo *snap.Info, developerMode bool, repo *inter
 	if err != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapInfo.Name, err)
 	}
-	err = b.observeChanges(changed, removed)
+	err = reloadProfiles(changed)
+	if err != nil {
+		return err
+	}
+	err = unloadProfiles(removed)
 	if err != nil {
 		return err
 	}
@@ -94,7 +98,7 @@ func (b *Backend) Deconfigure(snapInfo *snap.Info) error {
 	if err != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapInfo.Name, err)
 	}
-	err = b.observeChanges(nil, removed)
+	err = unloadProfiles(removed)
 	if err != nil {
 		return err
 	}
@@ -123,21 +127,22 @@ func (b *Backend) combineSnippets(snapInfo *snap.Info, developerMode bool, snipp
 	return content, nil
 }
 
-// observeChanges informs the backend about changes made to the set of managed files.
-func (b *Backend) observeChanges(changed, removed []string) error {
-	// Reload changed profiles
-	for _, baseName := range changed {
-		fname := filepath.Join(dirs.SnapAppArmorDir, baseName)
+func reloadProfiles(profiles []string) error {
+	for _, profile := range profiles {
+		fname := filepath.Join(dirs.SnapAppArmorDir, profile)
 		err := LoadProfile(fname)
 		if err != nil {
-			return fmt.Errorf("cannot load apparmor profile %q: %s", baseName, err)
+			return fmt.Errorf("cannot load apparmor profile %q: %s", profile, err)
 		}
 	}
-	// Unload removed profiles
-	for _, baseName := range removed {
-		err := UnloadProfile(baseName)
+	return nil
+}
+
+func unloadProfiles(profiles []string) error {
+	for _, profile := range profiles {
+		err := UnloadProfile(profile)
 		if err != nil {
-			return fmt.Errorf("cannot unload apparmor profile %q: %s", baseName, err)
+			return fmt.Errorf("cannot unload apparmor profile %q: %s", profile, err)
 		}
 	}
 	return nil
