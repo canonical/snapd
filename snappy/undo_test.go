@@ -135,6 +135,42 @@ version: 2.0`)
 
 }
 
+func (s *undoTestSuite) TestUndoForSecurityPolicy(c *C) {
+	makeMockSecurityEnv(c)
+	runAppArmorParser = mockRunAppArmorParser
+
+	yaml, err := makeInstalledMockSnap(dirs.SnapSnapsDir, `name: hello
+version: 1.0
+apps:
+ binary:
+   plugs: [binary]
+plugs:
+ binary:
+  interface: old-security
+  caps: []
+`)
+	c.Assert(err, IsNil)
+	// remove the mocks created by makeInstalledMockSnap
+	os.RemoveAll(dirs.SnapAppArmorDir)
+	os.RemoveAll(dirs.SnapSeccompDir)
+
+	sn, err := NewInstalledSnap(yaml, testDeveloper)
+	c.Assert(err, IsNil)
+
+	err = GenerateSecurityProfile(sn)
+	c.Assert(err, IsNil)
+	l, _ := filepath.Glob(filepath.Join(dirs.SnapAppArmorDir, "*"))
+	c.Assert(l, HasLen, 1)
+	l, _ = filepath.Glob(filepath.Join(dirs.SnapSeccompDir, "*"))
+	c.Assert(l, HasLen, 1)
+
+	UndoGenerateSecurityProfile(sn)
+	l, _ = filepath.Glob(filepath.Join(dirs.SnapAppArmorDir, "*"))
+	c.Assert(l, HasLen, 0)
+	l, _ = filepath.Glob(filepath.Join(dirs.SnapSeccompDir, "*"))
+	c.Assert(l, HasLen, 0)
+}
+
 func (s *undoTestSuite) TestUndoForFinalize(c *C) {
 	v1yaml, err := makeInstalledMockSnap(dirs.SnapSnapsDir, `name: hello
 version: 1.0`)
