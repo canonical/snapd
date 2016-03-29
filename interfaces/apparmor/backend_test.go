@@ -240,6 +240,82 @@ func (s *backendSuite) TestCustomTemplateUsedOnRequest(c *C) {
 	}
 }
 
+type combineSnippetsScenario struct {
+	developerMode bool
+	snippets      map[string][][]byte
+	content       map[string]*osutil.FileState
+}
+
+var combineSnippetsScenarios = []combineSnippetsScenario{{
+	// NOTE: no snippets
+	content: map[string]*osutil.FileState{
+		"snap.samba.smbd": {
+			Mode: 0644,
+			Content: []byte(`
+@{APP_APPNAME}="smbd"
+@{APP_ID_DBUS}="samba_2eacme_5fsmbd_5f1"
+@{APP_PKGNAME_DBUS}="samba_2eacme"
+@{APP_PKGNAME}="samba.acme"
+@{APP_VERSION}="1"
+@{INSTALL_DIR}="{/snaps,/gadget}"
+profile "snap.samba.smbd" (attach_disconnected) {
+}
+`),
+		}}}, {
+	snippets: map[string][][]byte{
+		"smbd": {[]byte("snippet1"), []byte("snippet2")},
+	},
+	content: map[string]*osutil.FileState{
+		"snap.samba.smbd": {
+			Mode: 0644,
+			Content: []byte(`
+@{APP_APPNAME}="smbd"
+@{APP_ID_DBUS}="samba_2eacme_5fsmbd_5f1"
+@{APP_PKGNAME_DBUS}="samba_2eacme"
+@{APP_PKGNAME}="samba.acme"
+@{APP_VERSION}="1"
+@{INSTALL_DIR}="{/snaps,/gadget}"
+profile "snap.samba.smbd" (attach_disconnected) {
+snippet1
+snippet2
+}
+`),
+		}}}, {
+	developerMode: true,
+	content: map[string]*osutil.FileState{
+		"snap.samba.smbd": {
+			Mode: 0644,
+			Content: []byte(`
+@{APP_APPNAME}="smbd"
+@{APP_ID_DBUS}="samba_2eacme_5fsmbd_5f1"
+@{APP_PKGNAME_DBUS}="samba_2eacme"
+@{APP_PKGNAME}="samba.acme"
+@{APP_VERSION}="1"
+@{INSTALL_DIR}="{/snaps,/gadget}"
+profile "snap.samba.smbd" (attach_disconnected,complain) {
+}
+`),
+		}}}, {
+	developerMode: true,
+	snippets: map[string][][]byte{
+		"smbd": {[]byte("snippet1"), []byte("snippet2")},
+	},
+	content: map[string]*osutil.FileState{
+		"snap.samba.smbd": {
+			Mode: 0644,
+			Content: []byte(`
+@{APP_APPNAME}="smbd"
+@{APP_ID_DBUS}="samba_2eacme_5fsmbd_5f1"
+@{APP_PKGNAME_DBUS}="samba_2eacme"
+@{APP_PKGNAME}="samba.acme"
+@{APP_VERSION}="1"
+@{INSTALL_DIR}="{/snaps,/gadget}"
+profile "snap.samba.smbd" (attach_disconnected,complain) {
+snippet1
+snippet2
+}
+`)}}}}
+
 func (s *backendSuite) TestCombineSnippets(c *C) {
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(sambaYamlV1))
 	c.Assert(err, IsNil)
@@ -250,93 +326,7 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 		"###PROFILEATTACH### (attach_disconnected) {\n" +
 		"}\n")
 	defer restore()
-	for _, scenario := range []struct {
-		developerMode bool
-		snippets      map[string][][]byte
-		content       map[string]*osutil.FileState
-	}{
-		// no snippets, no just the default template
-		{
-			content: map[string]*osutil.FileState{
-				"snap.samba.smbd": {
-					Mode: 0644,
-					Content: []byte(`
-@{APP_APPNAME}="smbd"
-@{APP_ID_DBUS}="samba_2eacme_5fsmbd_5f1"
-@{APP_PKGNAME_DBUS}="samba_2eacme"
-@{APP_PKGNAME}="samba.acme"
-@{APP_VERSION}="1"
-@{INSTALL_DIR}="{/snaps,/gadget}"
-profile "snap.samba.smbd" (attach_disconnected) {
-}
-`),
-				},
-			},
-		},
-		{
-			snippets: map[string][][]byte{
-				"smbd": {[]byte("snippet1"), []byte("snippet2")},
-			},
-			content: map[string]*osutil.FileState{
-				"snap.samba.smbd": {
-					Mode: 0644,
-					Content: []byte(`
-@{APP_APPNAME}="smbd"
-@{APP_ID_DBUS}="samba_2eacme_5fsmbd_5f1"
-@{APP_PKGNAME_DBUS}="samba_2eacme"
-@{APP_PKGNAME}="samba.acme"
-@{APP_VERSION}="1"
-@{INSTALL_DIR}="{/snaps,/gadget}"
-profile "snap.samba.smbd" (attach_disconnected) {
-snippet1
-snippet2
-}
-`),
-				},
-			},
-		},
-		{
-			developerMode: true,
-			content: map[string]*osutil.FileState{
-				"snap.samba.smbd": {
-					Mode: 0644,
-					Content: []byte(`
-@{APP_APPNAME}="smbd"
-@{APP_ID_DBUS}="samba_2eacme_5fsmbd_5f1"
-@{APP_PKGNAME_DBUS}="samba_2eacme"
-@{APP_PKGNAME}="samba.acme"
-@{APP_VERSION}="1"
-@{INSTALL_DIR}="{/snaps,/gadget}"
-profile "snap.samba.smbd" (attach_disconnected,complain) {
-}
-`),
-				},
-			},
-		},
-		{
-			developerMode: true,
-			snippets: map[string][][]byte{
-				"smbd": {[]byte("snippet1"), []byte("snippet2")},
-			},
-			content: map[string]*osutil.FileState{
-				"snap.samba.smbd": {
-					Mode: 0644,
-					Content: []byte(`
-@{APP_APPNAME}="smbd"
-@{APP_ID_DBUS}="samba_2eacme_5fsmbd_5f1"
-@{APP_PKGNAME_DBUS}="samba_2eacme"
-@{APP_PKGNAME}="samba.acme"
-@{APP_VERSION}="1"
-@{INSTALL_DIR}="{/snaps,/gadget}"
-profile "snap.samba.smbd" (attach_disconnected,complain) {
-snippet1
-snippet2
-}
-`),
-				},
-			},
-		},
-	} {
+	for _, scenario := range combineSnippetsScenarios {
 		content, err := s.backend.CombineSnippets(
 			snapInfo, scenario.developerMode, scenario.snippets)
 		c.Assert(err, IsNil)
