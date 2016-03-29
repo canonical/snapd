@@ -162,7 +162,7 @@ var (
 	}
 
 	stateChangesCmd = &Command{
-		Path:   "/2.0/state-changes",
+		Path:   "/v2/changes",
 		UserOK: true,
 		GET:    getChanges,
 	}
