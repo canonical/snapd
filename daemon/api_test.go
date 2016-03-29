@@ -2389,12 +2389,12 @@ func (s *apiSuite) TestGetEvents(c *check.C) {
 func setupChanges(st *state.State) {
 	chg1 := st.NewChange("install", "install...")
 	t1 := st.NewTask("download", "1...")
-	t2 := st.NewTask("inst", "2...")
+	t2 := st.NewTask("activate", "2...")
 	chg1.AddAll(state.NewTaskSet(t1, t2))
 	t1.Logf("l11")
 	t1.Logf("l12")
 	chg2 := st.NewChange("remove", "remove..")
-	t3 := st.NewTask("rm", "1...")
+	t3 := st.NewTask("unlink", "1...")
 	chg2.AddTask(t3)
 	t3.SetStatus(state.ErrorStatus)
 	t3.Errorf("rm failed")
@@ -2422,7 +2422,7 @@ func (s *apiSuite) TestStateChanges(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	c.Check(string(res), testutil.Contains, `{"kind":"install","summary":"install...","status":"Do","tasks":[{"kind":"download","summary":"1...","status":"Do","log":["INFO: l12"]}`)
-	c.Check(string(res), testutil.Contains, `{"kind":"remove","summary":"remove..","status":"Error","tasks":[{"kind":"rm","summary":"1...","status":"Error","log":["ERROR: rm failed"]}]}`)
+	c.Check(string(res), testutil.Contains, `{"kind":"remove","summary":"remove..","status":"Error","tasks":[{"kind":"unlink","summary":"1...","status":"Error","log":["ERROR: rm failed"]}]}`)
 }
 
 func (s *apiSuite) TestStateChangesLogTail(c *check.C) {
@@ -2446,7 +2446,7 @@ func (s *apiSuite) TestStateChangesLogTail(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	c.Check(string(res), testutil.Contains, `{"kind":"install","summary":"install...","status":"Do","tasks":[{"kind":"download","summary":"1...","status":"Do","log":["INFO: l11","INFO: l12"]}`)
-	c.Check(string(res), testutil.Contains, `{"kind":"remove","summary":"remove..","status":"Error","tasks":[{"kind":"rm","summary":"1...","status":"Error","log":["ERROR: rm failed"]}]}`)
+	c.Check(string(res), testutil.Contains, `{"kind":"remove","summary":"remove..","status":"Error","tasks":[{"kind":"unlink","summary":"1...","status":"Error","log":["ERROR: rm failed"]}]}`)
 }
 
 func (s *apiSuite) TestStateChangesExludeStatuses(c *check.C) {
@@ -2469,5 +2469,5 @@ func (s *apiSuite) TestStateChangesExludeStatuses(c *check.C) {
 	res, err := rsp.MarshalJSON()
 	c.Assert(err, check.IsNil)
 
-	c.Check(string(res), testutil.Contains, `{"kind":"remove","summary":"remove..","status":"Error","tasks":[{"kind":"rm","summary":"1...","status":"Error","log":["ERROR: rm failed"]}]}`)
+	c.Check(string(res), testutil.Contains, `{"kind":"remove","summary":"remove..","status":"Error","tasks":[{"kind":"unlink","summary":"1...","status":"Error","log":["ERROR: rm failed"]}]}`)
 }
