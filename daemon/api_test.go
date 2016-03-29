@@ -2007,7 +2007,7 @@ func (s *apiSuite) TestStateChanges(c *check.C) {
 	st.Unlock()
 
 	// Execute
-	req, err := http.NewRequest("GET", "/2.0/state-changes", nil)
+	req, err := http.NewRequest("GET", "/v2/changes", nil)
 	c.Assert(err, check.IsNil)
 	rsp := getChanges(stateChangesCmd, req).(*resp)
 
@@ -2032,7 +2032,7 @@ func (s *apiSuite) TestStateChangesLogTail(c *check.C) {
 	st.Unlock()
 
 	// Execute
-	req, err := http.NewRequest("GET", "/2.0/state-changes?log-tail=2", nil)
+	req, err := http.NewRequest("GET", "/v2/changes?log-tail=2", nil)
 	c.Assert(err, check.IsNil)
 	rsp := getChanges(stateChangesCmd, req).(*resp)
 
@@ -2056,7 +2056,7 @@ func (s *apiSuite) TestStateChangesExludeStatuses(c *check.C) {
 	st.Unlock()
 
 	// Execute
-	req, err := http.NewRequest("GET", "/2.0/state-changes?exclude-statuses=do,Done", nil)
+	req, err := http.NewRequest("GET", "/v2/changes?exclude-statuses=do,Done", nil)
 	c.Assert(err, check.IsNil)
 	rsp := getChanges(stateChangesCmd, req).(*resp)
 
