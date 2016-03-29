@@ -31,38 +31,6 @@ type securityHelper interface {
 	footerForApp(snapName, snapVersion, snapOrigin, appName string) []byte
 }
 
-// secComp is a security subsystem that writes additional seccomp rules.
-//
-// Rules use a simple line-oriented record structure.  Each line specifies a
-// system call that is allowed. Lines starting with "deny" specify system
-// calls that are explicitly not allowed. Lines starting with '#' are treated
-// as comments and are ignored.
-//
-// NOTE: This subsystem interacts with ubuntu-core-launcher. The launcher reads
-// a single profile from a specific path, parses it and loads a seccomp profile
-// (using Berkley packet filter as a low level mechanism).
-type secComp struct{}
-
-func (sc *secComp) securitySystem() SecuritySystem {
-	return SecuritySecComp
-}
-
-func (sc *secComp) pathForApp(snapName, snapVersion, snapOrigin, appName string) string {
-	// NOTE: This path has to be synchronized with ubuntu-core-launcher.
-	return fmt.Sprintf("/var/lib/snappy/seccomp/profiles/%s",
-		SecurityTagForApp(snapName, appName))
-}
-
-var secCompHeader = []byte(defaultSecCompTemplate)
-
-func (sc *secComp) headerForApp(snapName, snapVersion, snapOrigin, appName string) []byte {
-	return secCompHeader
-}
-
-func (sc *secComp) footerForApp(snapName, snapVersion, snapOrigin, appName string) []byte {
-	return nil // seccomp doesn't require a footer
-}
-
 // uDev is a security subsystem that writes additional udev rules (one per snap).
 //
 // Each rule looks like this:
