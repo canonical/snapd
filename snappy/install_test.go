@@ -45,7 +45,7 @@ func makeCloudInitMetaData(c *C, content string) string {
 
 func (s *SnapTestSuite) TestInstallInstall(c *C) {
 	snapFile := makeTestSnapPackage(c, "")
-	name, err := Install(snapFile, "", AllowUnauthenticated|DoInstallGC, &progress.NullProgress{})
+	name, err := Install(snapFile, "channel", AllowUnauthenticated|DoInstallGC, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
