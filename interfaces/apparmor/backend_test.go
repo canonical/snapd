@@ -402,6 +402,7 @@ snippet2
 		content, err := s.backend.CombineSnippets(
 			snapInfo, scenario.developerMode, scenario.snippets)
 		c.Assert(err, IsNil)
+		c.Check(content, DeepEquals, scenario.content)
 		// Sanity checking as required by osutil.EnsureDirState()
 		for name := range content {
 			// Ensure that the file name matches the returned glob.
