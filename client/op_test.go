@@ -31,12 +31,19 @@ func (cs *clientSuite) TestClientOpRunning(c *check.C) {
   "created_at": "2010-01-01T01:01:01.010101Z",
   "updated_at": "2016-01-01T01:01:01.010101Z",
   "may_cancel": false,
-  "output": {}
+  "output": {},
+  "progress_msg": "downloading the frobinator app",
+  "progress_current": 24,
+  "progress_total": 100
 }}`
 	op, err := cs.cli.Operation("foo")
 	c.Assert(err, check.IsNil)
 	c.Check(op.Running(), check.Equals, true)
 	c.Check(op.Err(), check.IsNil)
+	msg, cur, total := op.Progress()
+	c.Check(msg, check.Equals, "downloading the frobinator app")
+	c.Check(cur, check.Equals, int64(24))
+	c.Check(total, check.Equals, int64(100))
 }
 
 func (cs *clientSuite) TestClientOpFailed(c *check.C) {

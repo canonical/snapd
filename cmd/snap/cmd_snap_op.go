@@ -24,18 +24,33 @@ import (
 
 	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
+	"github.com/ubuntu-core/snappy/progress"
 
 	"github.com/jessevdk/go-flags"
 )
 
 func wait(client *client.Client, uuid string) error {
+	pb := progress.NewTextProgress()
+	started := false
 	for {
 		op, err := client.Operation(uuid)
 		if err != nil {
 			return err
 		}
 
+		msg, cur, total := op.Progress()
+		if cur == 0 && total == 0 {
+			pb.Spin("")
+		} else {
+			if !started {
+				pb.Start(msg, float64(total))
+				started = true
+			}
+			pb.Set(float64(cur))
+		}
+
 		if !op.Running() {
+			pb.Finished()
 			return op.Err()
 		}
 

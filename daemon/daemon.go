@@ -220,7 +220,7 @@ func (d *Daemon) Dying() <-chan struct{} {
 }
 
 // AddTask runs the given function as a task
-func (d *Daemon) AddTask(f func() interface{}) *Task {
+func (d *Daemon) AddTask(f func(t *Task) interface{}) *Task {
 	t := RunTask(f)
 	d.Lock()
 	defer d.Unlock()

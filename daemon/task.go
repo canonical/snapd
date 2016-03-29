@@ -20,6 +20,7 @@
 package daemon
 
 import (
+	"sync"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -33,6 +34,12 @@ type Task struct {
 	t0     time.Time
 	tf     time.Time
 	output interface{}
+
+	// progress
+	mu    sync.Mutex
+	msg   string
+	cur   int
+	total int
 }
 
 // A task can be in one of three states
@@ -103,18 +110,23 @@ func FormatTime(t time.Time) string {
 
 // Map the task onto a map[string]interface{}, using the given route for the Location()
 func (t *Task) Map(route *mux.Route) map[string]interface{} {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	return map[string]interface{}{
-		"resource":   t.Location(route),
-		"status":     t.State(),
-		"created_at": FormatTime(t.CreatedAt()),
-		"updated_at": FormatTime(t.UpdatedAt()),
-		"may_cancel": false,
-		"output":     t.Output(),
+		"resource":         t.Location(route),
+		"status":           t.State(),
+		"created_at":       FormatTime(t.CreatedAt()),
+		"updated_at":       FormatTime(t.UpdatedAt()),
+		"may_cancel":       false,
+		"output":           t.Output(),
+		"progress_msg":     t.msg,
+		"progress_current": t.cur,
+		"progress_total":   t.total,
 	}
 }
 
 // RunTask creates a Task for the given function and runs it.
-func RunTask(f func() interface{}) *Task {
+func RunTask(f func(t *Task) interface{}) *Task {
 	id := UUID4()
 	t0 := time.Now()
 	t := &Task{
@@ -127,7 +139,7 @@ func RunTask(f func() interface{}) *Task {
 		defer func() {
 			t.tf = time.Now()
 		}()
-		out := f()
+		out := f(t)
 		t.output = out
 
 		switch out := out.(type) {

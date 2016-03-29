@@ -26,20 +26,28 @@ import (
 // Adapt the snappy.progress.Meter to the task progress until we
 // have native install/update/remove
 type TaskProgressAdapter struct {
-	task  *state.Task
+	task *state.Task
+
 	total float64
+	cur   float64
 }
 
 // Start sets total
 func (t *TaskProgressAdapter) Start(pkg string, total float64) {
+	t.task.State().Lock()
+	defer t.task.State().Unlock()
+
 	t.total = total
+	t.cur = 0
 }
 
 // Set sets the current progress
 func (t *TaskProgressAdapter) Set(current float64) {
 	t.task.State().Lock()
 	defer t.task.State().Unlock()
-	t.task.SetProgress(int(current), int(t.total))
+
+	t.cur = current
+	t.task.SetProgress(int(t.cur), int(t.total))
 }
 
 // SetTotal sets tht maximum progress
@@ -51,16 +59,25 @@ func (t *TaskProgressAdapter) SetTotal(total float64) {
 func (t *TaskProgressAdapter) Finished() {
 	t.task.State().Lock()
 	defer t.task.State().Unlock()
+
 	t.task.SetProgress(int(t.total), int(t.total))
 }
 
-// Write does nothing
+// Write tracks IO progress
 func (t *TaskProgressAdapter) Write(p []byte) (n int, err error) {
+	t.task.State().Lock()
+	defer t.task.State().Unlock()
+
+	t.cur += float64(len(p))
+	t.task.SetProgress(int(t.cur), int(t.total))
 	return len(p), nil
 }
 
 // Notify notifies
 func (t *TaskProgressAdapter) Notify(msg string) {
+	t.task.State().Lock()
+	defer t.task.State().Unlock()
+
 	t.task.Logf(msg)
 }
 

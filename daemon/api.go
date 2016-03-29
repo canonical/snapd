@@ -501,7 +501,7 @@ func snapService(c *Command, r *http.Request) Response {
 
 	reachedAsync = true
 
-	return AsyncResponse(c.d.AddTask(func() interface{} {
+	return AsyncResponse(c.d.AddTask(func(t *Task) interface{} {
 		defer lock.Unlock()
 
 		switch action {
@@ -625,6 +625,7 @@ type snapInstruction struct {
 	LeaveOld bool         `json:"leave_old"`
 	License  *licenseData `json:"license"`
 	pkg      string
+	task     *Task
 
 	overlord *overlord.Overlord
 }
@@ -642,17 +643,28 @@ func (inst *snapInstruction) Agreed(intro, license string) bool {
 
 var snapstateInstall = snapstate.Install
 
-func waitChange(chg *state.Change) error {
+func (inst *snapInstruction) waitChange(chg *state.Change) error {
 	st := chg.State()
 	for {
 		st.Lock()
 		s := chg.Status()
+		inst.task.msg = chg.Summary()
+		// FIXME: way too simplistic, report only the first
+		//        active task via the progress
+		for _, t := range chg.Tasks() {
+			cur, total := t.Progress()
+			if cur > 0 && cur != total {
+				inst.task.cur = cur
+				inst.task.total = total
+				break
+			}
+		}
 		if s == state.DoneStatus || s == state.ErrorStatus {
 			defer st.Unlock()
 			return chg.Err()
 		}
 		st.Unlock()
-		time.Sleep(250 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 	}
 }
 
@@ -677,7 +689,7 @@ func (inst *snapInstruction) install() interface{} {
 		return err
 	}
 	state.EnsureBefore(0)
-	err = waitChange(chg)
+	err = inst.waitChange(chg)
 	return err
 	// FIXME: handle license agreement need to happen in the above
 	//        code
@@ -714,7 +726,7 @@ func (inst *snapInstruction) update() interface{} {
 	}
 
 	state.EnsureBefore(0)
-	return waitChange(chg)
+	return inst.waitChange(chg)
 }
 
 func (inst *snapInstruction) remove() interface{} {
@@ -736,7 +748,7 @@ func (inst *snapInstruction) remove() interface{} {
 	}
 
 	state.EnsureBefore(0)
-	return waitChange(chg)
+	return inst.waitChange(chg)
 }
 
 func (inst *snapInstruction) purge() interface{} {
@@ -754,7 +766,7 @@ func (inst *snapInstruction) purge() interface{} {
 	}
 
 	state.EnsureBefore(0)
-	return waitChange(chg)
+	return inst.waitChange(chg)
 }
 
 func (inst *snapInstruction) rollback() interface{} {
@@ -774,7 +786,7 @@ func (inst *snapInstruction) rollback() interface{} {
 	}
 
 	state.EnsureBefore(0)
-	return waitChange(chg)
+	return inst.waitChange(chg)
 }
 
 func (inst *snapInstruction) activate() interface{} {
@@ -792,7 +804,7 @@ func (inst *snapInstruction) activate() interface{} {
 	}
 
 	state.EnsureBefore(0)
-	return waitChange(chg)
+	return inst.waitChange(chg)
 }
 
 func (inst *snapInstruction) deactivate() interface{} {
@@ -810,7 +822,7 @@ func (inst *snapInstruction) deactivate() interface{} {
 	}
 
 	state.EnsureBefore(0)
-	return waitChange(chg)
+	return inst.waitChange(chg)
 }
 
 func (inst *snapInstruction) dispatch() func() interface{} {
@@ -861,12 +873,13 @@ func postSnap(c *Command, r *http.Request) Response {
 		return BadRequest("unknown action %s", inst.Action)
 	}
 
-	return AsyncResponse(c.d.AddTask(func() interface{} {
+	return AsyncResponse(c.d.AddTask(func(t *Task) interface{} {
 		lock, err := lockfile.Lock(dirs.SnapLockFile, true)
 		if err != nil {
 			return err
 		}
 		defer lock.Unlock()
+		inst.task = t
 		return f()
 	}).Map(route))
 }
@@ -939,7 +952,7 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 		return InternalError("can't copy request into tempfile: %v", err)
 	}
 
-	return AsyncResponse(c.d.AddTask(func() interface{} {
+	return AsyncResponse(c.d.AddTask(func(t *Task) interface{} {
 		defer os.Remove(tmpf.Name())
 
 		_, err := newSnap(tmpf.Name(), snappy.SideloadedDeveloper, unsignedOk)

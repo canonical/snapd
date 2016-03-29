@@ -684,7 +684,7 @@ func (s *apiSuite) TestGetOpInfoIntegration(c *check.C) {
 
 	ch := make(chan struct{})
 
-	t := d.AddTask(func() interface{} {
+	t := d.AddTask(func(t *Task) interface{} {
 		ch <- struct{}{}
 		return "hello"
 	})
@@ -697,12 +697,15 @@ func (s *apiSuite) TestGetOpInfoIntegration(c *check.C) {
 	c.Check(rsp.Status, check.Equals, http.StatusOK)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Result, check.DeepEquals, map[string]interface{}{
-		"resource":   "/2.0/operations/" + id,
-		"status":     TaskRunning,
-		"may_cancel": false,
-		"created_at": FormatTime(t.CreatedAt()),
-		"updated_at": FormatTime(t.UpdatedAt()),
-		"output":     nil,
+		"resource":         "/2.0/operations/" + id,
+		"status":           TaskRunning,
+		"may_cancel":       false,
+		"created_at":       FormatTime(t.CreatedAt()),
+		"updated_at":       FormatTime(t.UpdatedAt()),
+		"output":           nil,
+		"progress_msg":     "",
+		"progress_current": 0,
+		"progress_total":   0,
 	})
 	tf1 := t.UpdatedAt().UTC().UnixNano()
 
@@ -714,12 +717,15 @@ func (s *apiSuite) TestGetOpInfoIntegration(c *check.C) {
 	c.Check(rsp.Status, check.Equals, http.StatusOK)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Result, check.DeepEquals, map[string]interface{}{
-		"resource":   "/2.0/operations/" + id,
-		"status":     TaskSucceeded,
-		"may_cancel": false,
-		"created_at": FormatTime(t.CreatedAt()),
-		"updated_at": FormatTime(t.UpdatedAt()),
-		"output":     "hello",
+		"resource":         "/2.0/operations/" + id,
+		"status":           TaskSucceeded,
+		"may_cancel":       false,
+		"created_at":       FormatTime(t.CreatedAt()),
+		"updated_at":       FormatTime(t.UpdatedAt()),
+		"output":           "hello",
+		"progress_msg":     "",
+		"progress_current": 0,
+		"progress_total":   0,
 	})
 
 	tf2 := t.UpdatedAt().UTC().UnixNano()

@@ -37,7 +37,7 @@ func (s *taskSuite) TestTask(c *check.C) {
 
 	ch := make(chan struct{})
 
-	t := RunTask(func() interface{} {
+	t := RunTask(func(t *Task) interface{} {
 		ch <- struct{}{}
 		return 42
 	})
@@ -63,7 +63,7 @@ func (s *taskSuite) TestFails(c *check.C) {
 	ch := make(chan struct{})
 	err := errors.New("everything is broken")
 
-	t := RunTask(func() interface{} {
+	t := RunTask(func(t *Task) interface{} {
 		ch <- struct{}{}
 		return err
 	})
