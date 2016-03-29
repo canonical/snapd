@@ -86,16 +86,24 @@ func (s *backendSuite) TearDownTest(c *C) {
 }
 
 // Tests for Configure() and Deconfigure()
-
-func (s *backendSuite) TestInstallingSnapWritesAndLoadsProfiles(c *C) {
-	developerMode := false
-	s.installSnap(c, developerMode, `
+const sambaYamlV1 = `
 name: samba
-version: version
+version: 1
 developer: acme
 apps:
     smbd:
-`)
+`
+const sambaYamlV2 = `
+name: samba
+version: 2
+developer: acme
+apps:
+    smbd:
+`
+
+func (s *backendSuite) TestInstallingSnapWritesAndLoadsProfiles(c *C) {
+	developerMode := false
+	s.installSnap(c, developerMode, sambaYamlV1)
 	profile := filepath.Join(s.backend.Directory(), "snap.samba.smbd")
 	// file called "snap.sambda.smbd" was created
 	_, err := os.Stat(profile)
@@ -107,15 +115,8 @@ apps:
 }
 
 func (s *backendSuite) TestSecurityIsStable(c *C) {
-	const yaml = `
-name: samba
-version: version
-developer: acme
-apps:
-    smbd:
-`
 	for _, developerMode := range []bool{true, false} {
-		snapInfo := s.installSnap(c, developerMode, yaml)
+		snapInfo := s.installSnap(c, developerMode, sambaYamlV1)
 		s.cmds["apparmor_parser"].ForgetCalls()
 		err := s.backend.Configure(snapInfo, developerMode, s.repo)
 		c.Assert(err, IsNil)
@@ -125,15 +126,8 @@ apps:
 }
 
 func (s *backendSuite) TestRemovingSnapRemovesAndUnloadsProfiles(c *C) {
-	const yaml = `
-name: samba
-version: 1
-developer: acme
-apps:
-    smbd:
-`
 	for _, developerMode := range []bool{true, false} {
-		snapInfo := s.installSnap(c, developerMode, yaml)
+		snapInfo := s.installSnap(c, developerMode, sambaYamlV1)
 		s.cmds["apparmor_parser"].ForgetCalls()
 		s.removeSnap(c, snapInfo)
 		profile := filepath.Join(s.backend.Directory(), "snap.samba.smbd")
@@ -148,24 +142,10 @@ apps:
 }
 
 func (s *backendSuite) TestUpdatingSnapMakesNeccesaryChanges(c *C) {
-	const before = `
-name: samba
-version: 1
-developer: acme
-apps:
-    smbd:
-`
-	const after = `
-name: samba
-version: 2
-developer: acme
-apps:
-    smbd:
-`
 	for _, developerMode := range []bool{true, false} {
-		snapInfo := s.installSnap(c, developerMode, before)
+		snapInfo := s.installSnap(c, developerMode, sambaYamlV1)
 		s.cmds["apparmor_parser"].ForgetCalls()
-		snapInfo = s.updateSnap(c, snapInfo, developerMode, after)
+		snapInfo = s.updateSnap(c, snapInfo, developerMode, sambaYamlV2)
 		profile := filepath.Join(s.backend.Directory(), "snap.samba.smbd")
 		// apparmor_parser was used to reload the profile because snap version is
 		// inside the generated policy.
@@ -242,18 +222,12 @@ apps:
 // Tests for Backend.CombineSnippets()
 
 func (s *backendSuite) TestRealDefaultTemplateIsNormallyUsed(c *C) {
-	snapInfo, err := snap.InfoFromSnapYaml([]byte(`
-name: SNAP
-version: VERSION
-developer: DEVELOPER
-apps:
-    APP:
-`))
+	snapInfo, err := snap.InfoFromSnapYaml([]byte(sambaYamlV1))
 	c.Assert(err, IsNil)
 	// NOTE: we don't call apparmor.MockTemplate()
 	content, err := s.backend.CombineSnippets(snapInfo, false, nil)
 	c.Assert(err, IsNil)
-	profile := string(content["snap.SNAP.APP"].Content)
+	profile := string(content["snap.samba.smbd"].Content)
 	for _, line := range []string{
 		// NOTE: a few randomly picked lines from the real profile.  Comments
 		// and empty lines are avoided as those can be discarded in the future.
@@ -274,17 +248,11 @@ func (s *backendSuite) TestCustomTemplateUsedOnRequest(c *C) {
 	FOO
 }
 `
-	snapInfo, err := snap.InfoFromSnapYaml([]byte(`
-name: SNAP
-version: VERSION
-developer: DEVELOPER
-apps:
-    APP:
-`))
+	snapInfo, err := snap.InfoFromSnapYaml([]byte(sambaYamlV1))
 	c.Assert(err, IsNil)
 	content, err := s.backend.CombineSnippets(snapInfo, false, nil)
 	c.Assert(err, IsNil)
-	profile := string(content["snap.SNAP.APP"].Content)
+	profile := string(content["snap.samba.smbd"].Content)
 	// Our custom template was used
 	c.Assert(profile, testutil.Contains, "FOO")
 	// Custom profile can rely on legacy variables
@@ -297,13 +265,7 @@ apps:
 }
 
 func (s *backendSuite) TestCombineSnippets(c *C) {
-	snapInfo, err := snap.InfoFromSnapYaml([]byte(`
-name: SNAP
-version: VERSION
-developer: DEVELOPER
-apps:
-    APP:
-`))
+	snapInfo, err := snap.InfoFromSnapYaml([]byte(sambaYamlV1))
 	c.Assert(err, IsNil)
 	glob := s.backend.FileGlob(snapInfo)
 	// NOTE: replace the real template with a shorter variant
@@ -320,16 +282,16 @@ apps:
 		// no snippets, no just the default template
 		{
 			content: map[string]*osutil.FileState{
-				"snap.SNAP.APP": {
+				"snap.samba.smbd": {
 					Mode: 0644,
 					Content: []byte(`
-@{APP_APPNAME}="APP"
-@{APP_ID_DBUS}="SNAP_2eDEVELOPER_5fAPP_5fVERSION"
-@{APP_PKGNAME_DBUS}="SNAP_2eDEVELOPER"
-@{APP_PKGNAME}="SNAP.DEVELOPER"
-@{APP_VERSION}="VERSION"
+@{APP_APPNAME}="smbd"
+@{APP_ID_DBUS}="samba_2eacme_5fsmbd_5f1"
+@{APP_PKGNAME_DBUS}="samba_2eacme"
+@{APP_PKGNAME}="samba.acme"
+@{APP_VERSION}="1"
 @{INSTALL_DIR}="{/snaps,/gadget}"
-profile "snap.SNAP.APP" (attach_disconnected) {
+profile "snap.samba.smbd" (attach_disconnected) {
 }
 `),
 				},
@@ -337,19 +299,19 @@ profile "snap.SNAP.APP" (attach_disconnected) {
 		},
 		{
 			snippets: map[string][][]byte{
-				"APP": {[]byte("snippet1"), []byte("snippet2")},
+				"smbd": {[]byte("snippet1"), []byte("snippet2")},
 			},
 			content: map[string]*osutil.FileState{
-				"snap.SNAP.APP": {
+				"snap.samba.smbd": {
 					Mode: 0644,
 					Content: []byte(`
-@{APP_APPNAME}="APP"
-@{APP_ID_DBUS}="SNAP_2eDEVELOPER_5fAPP_5fVERSION"
-@{APP_PKGNAME_DBUS}="SNAP_2eDEVELOPER"
-@{APP_PKGNAME}="SNAP.DEVELOPER"
-@{APP_VERSION}="VERSION"
+@{APP_APPNAME}="smbd"
+@{APP_ID_DBUS}="samba_2eacme_5fsmbd_5f1"
+@{APP_PKGNAME_DBUS}="samba_2eacme"
+@{APP_PKGNAME}="samba.acme"
+@{APP_VERSION}="1"
 @{INSTALL_DIR}="{/snaps,/gadget}"
-profile "snap.SNAP.APP" (attach_disconnected) {
+profile "snap.samba.smbd" (attach_disconnected) {
 snippet1
 snippet2
 }
@@ -360,16 +322,16 @@ snippet2
 		{
 			developerMode: true,
 			content: map[string]*osutil.FileState{
-				"snap.SNAP.APP": {
+				"snap.samba.smbd": {
 					Mode: 0644,
 					Content: []byte(`
-@{APP_APPNAME}="APP"
-@{APP_ID_DBUS}="SNAP_2eDEVELOPER_5fAPP_5fVERSION"
-@{APP_PKGNAME_DBUS}="SNAP_2eDEVELOPER"
-@{APP_PKGNAME}="SNAP.DEVELOPER"
-@{APP_VERSION}="VERSION"
+@{APP_APPNAME}="smbd"
+@{APP_ID_DBUS}="samba_2eacme_5fsmbd_5f1"
+@{APP_PKGNAME_DBUS}="samba_2eacme"
+@{APP_PKGNAME}="samba.acme"
+@{APP_VERSION}="1"
 @{INSTALL_DIR}="{/snaps,/gadget}"
-profile "snap.SNAP.APP" (attach_disconnected,complain) {
+profile "snap.samba.smbd" (attach_disconnected,complain) {
 }
 `),
 				},
@@ -378,19 +340,19 @@ profile "snap.SNAP.APP" (attach_disconnected,complain) {
 		{
 			developerMode: true,
 			snippets: map[string][][]byte{
-				"APP": {[]byte("snippet1"), []byte("snippet2")},
+				"smbd": {[]byte("snippet1"), []byte("snippet2")},
 			},
 			content: map[string]*osutil.FileState{
-				"snap.SNAP.APP": {
+				"snap.samba.smbd": {
 					Mode: 0644,
 					Content: []byte(`
-@{APP_APPNAME}="APP"
-@{APP_ID_DBUS}="SNAP_2eDEVELOPER_5fAPP_5fVERSION"
-@{APP_PKGNAME_DBUS}="SNAP_2eDEVELOPER"
-@{APP_PKGNAME}="SNAP.DEVELOPER"
-@{APP_VERSION}="VERSION"
+@{APP_APPNAME}="smbd"
+@{APP_ID_DBUS}="samba_2eacme_5fsmbd_5f1"
+@{APP_PKGNAME_DBUS}="samba_2eacme"
+@{APP_PKGNAME}="samba.acme"
+@{APP_VERSION}="1"
 @{INSTALL_DIR}="{/snaps,/gadget}"
-profile "snap.SNAP.APP" (attach_disconnected,complain) {
+profile "snap.samba.smbd" (attach_disconnected,complain) {
 snippet1
 snippet2
 }
@@ -402,6 +364,10 @@ snippet2
 		content, err := s.backend.CombineSnippets(
 			snapInfo, scenario.developerMode, scenario.snippets)
 		c.Assert(err, IsNil)
+		c.Check(string(content["snap.samba.smbd"].Content), Equals,
+			string(scenario.content["snap.samba.smbd"].Content))
+		c.Check(content["snap.samba.smbd"].Mode, Equals,
+			scenario.content["snap.samba.smbd"].Mode)
 		c.Check(content, DeepEquals, scenario.content)
 		// Sanity checking as required by osutil.EnsureDirState()
 		for name := range content {
@@ -425,28 +391,16 @@ func (s *backendSuite) TestDirectory(c *C) {
 }
 
 func (s *backendSuite) TestFileName(c *C) {
-	snapInfo, err := snap.InfoFromSnapYaml([]byte(`
-name: SNAP
-version: VERSION
-developer: DEVELOPER
-apps:
-    APP:
-`))
+	snapInfo, err := snap.InfoFromSnapYaml([]byte(sambaYamlV1))
 	c.Assert(err, IsNil)
-	appInfo := snapInfo.Apps["APP"]
-	c.Assert(s.backend.FileName(appInfo), Equals, "snap.SNAP.APP")
+	appInfo := snapInfo.Apps["smbd"]
+	c.Assert(s.backend.FileName(appInfo), Equals, "snap.samba.smbd")
 }
 
 func (s *backendSuite) TestFileGlob(c *C) {
-	snapInfo, err := snap.InfoFromSnapYaml([]byte(`
-name: SNAP
-version: VERSION
-developer: DEVELOPER
-apps:
-    APP:
-`))
+	snapInfo, err := snap.InfoFromSnapYaml([]byte(sambaYamlV1))
 	c.Assert(err, IsNil)
-	c.Check(s.backend.FileGlob(snapInfo), Equals, "snap.SNAP.*")
+	c.Check(s.backend.FileGlob(snapInfo), Equals, "snap.samba.*")
 }
 
 // Support code for tests
