@@ -41,6 +41,10 @@ func CheckSnap(snapFilePath, developer string, flags InstallFlags, meter progres
 	allowGadget := (flags & AllowGadget) != 0
 	allowUnauth := (flags & AllowUnauthenticated) != 0
 
+	// we do not Verify() the package here. This is done earlier in
+	// NewSnapFile() to ensure that we do not mount/inspect
+	// potentially dangerous snaps
+
 	// warning: NewSnapFile generates a new sideloaded version
 	//          everytime it is run.
 	//          so all paths on disk are different even if the same snap
@@ -118,20 +122,71 @@ func UndoSetupSnap(installDir, developer string, meter progress.Meter) {
 	//         cleanupGadgetHardwareUdevRules
 }
 
+func oldSnap(newSnap *Snap) *Snap {
+	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(newSnap.basedir, "..", "current"))
+	if currentActiveDir == "" {
+		return nil
+	}
+
+	oldSnap, err := NewInstalledSnap(filepath.Join(currentActiveDir, "meta", "snap.yaml"), newSnap.developer)
+	if err != nil {
+		return nil
+	}
+	return oldSnap
+}
+
+func CopyData(newSnap *Snap, flags InstallFlags, meter progress.Meter) error {
+	inhibitHooks := (flags & InhibitHooks) != 0
+
+	fullName := QualifiedName(newSnap.Info())
+	dataDir := filepath.Join(dirs.SnapDataDir, fullName, newSnap.Version())
+
+	// deal with the data:
+	//
+	// if there was a previous version, stop it
+	// from being active so that it stops running and can no longer be
+	// started then copy the data
+	//
+	// otherwise just create a empty data dir
+	oldSnap := oldSnap(newSnap)
+	if oldSnap == nil {
+		return os.MkdirAll(dataDir, 0755)
+	}
+
+	// we need to stop making it active
+	if err := oldSnap.deactivate(inhibitHooks, meter); err != nil {
+		return err
+	}
+
+	return copySnapData(fullName, oldSnap.Version(), newSnap.Version())
+}
+
+func UndoCopyData(newSnap *Snap, flags InstallFlags, meter progress.Meter) {
+	inhibitHooks := (flags & InhibitHooks) != 0
+
+	fullName := QualifiedName(newSnap.Info())
+	oldSnap := oldSnap(newSnap)
+	if oldSnap != nil {
+		if err := oldSnap.activate(inhibitHooks, meter); err != nil {
+			logger.Noticef("Setting old version back to active failed: %v", err)
+		}
+	}
+
+	if err := removeSnapData(fullName, newSnap.Version()); err != nil {
+		logger.Noticef("When cleaning up data for %s %s: %v", newSnap.Name(), newSnap.Version(), err)
+	}
+}
+
 // Install installs the given snap file to the system.
 //
 // It returns the local snap file or an error
 func (o *Overlord) Install(snapFilePath string, developer string, flags InstallFlags, meter progress.Meter) (sp *Snap, err error) {
 	inhibitHooks := (flags & InhibitHooks) != 0
 
-	// we do not Verify() the package here. This is done earlier in
-	// NewSnapFile() to ensure that we do not mount/inspect
-	// potentially dangerous snaps
 	if err := CheckSnap(snapFilePath, developer, flags, meter); err != nil {
 		return nil, err
 	}
 
-	// prepare the snap for further processing
 	instPath, err := SetupSnap(snapFilePath, developer, flags, meter)
 	defer func() {
 		if err != nil {
@@ -148,51 +203,13 @@ func (o *Overlord) Install(snapFilePath string, developer string, flags InstallF
 		return nil, err
 	}
 
-	fullName := QualifiedName(newSnap.Info())
-	dataDir := filepath.Join(dirs.SnapDataDir, fullName, newSnap.Version())
-
-	var oldSnap *Snap
-	if currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(newSnap.basedir, "..", "current")); currentActiveDir != "" {
-		oldSnap, err = NewInstalledSnap(filepath.Join(currentActiveDir, "meta", "snap.yaml"), newSnap.developer)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// deal with the data:
-	//
-	// if there was a previous version, stop it
-	// from being active so that it stops running and can no longer be
-	// started then copy the data
-	//
-	// otherwise just create a empty data dir
-	if oldSnap != nil {
-		// we need to stop making it active
-		err = oldSnap.deactivate(inhibitHooks, meter)
-		defer func() {
-			if err != nil {
-				if cerr := oldSnap.activate(inhibitHooks, meter); cerr != nil {
-					logger.Noticef("Setting old version back to active failed: %v", cerr)
-				}
-			}
-		}()
-		if err != nil {
-			return nil, err
-		}
-
-		err = copySnapData(fullName, oldSnap.Version(), newSnap.Version())
-	} else {
-		err = os.MkdirAll(dataDir, 0755)
-	}
-
+	// deal with the data
+	err = CopyData(newSnap, flags, meter)
 	defer func() {
 		if err != nil {
-			if cerr := removeSnapData(fullName, newSnap.Version()); cerr != nil {
-				logger.Noticef("When cleaning up data for %s %s: %v", newSnap.Name(), newSnap.Version(), cerr)
-			}
+			UndoCopyData(newSnap, flags, meter)
 		}
 	}()
-
 	if err != nil {
 		return nil, err
 	}
@@ -201,6 +218,7 @@ func (o *Overlord) Install(snapFilePath string, developer string, flags InstallF
 		// and finally make active
 		err = newSnap.activate(inhibitHooks, meter)
 		defer func() {
+			oldSnap := oldSnap(newSnap)
 			if err != nil && oldSnap != nil {
 				if cerr := oldSnap.activate(inhibitHooks, meter); cerr != nil {
 					logger.Noticef("When setting old %s version back to active: %v", newSnap.Name(), cerr)
