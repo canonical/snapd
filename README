@@ -8,8 +8,8 @@ $ ubuntu-core-launcher /path/to/rootdir security-profile /path/to/binary additio
 
 == Apparmor ==
 
-The apparmor part is similar to aa-exec -p, i.e. it will load the
-given apparmor profile for the application.
+The apparmor part is similar to aa-exec -p, i.e. it will launch the application
+under the given apparmor profile.
 
 
 == Seccomp ==
@@ -43,3 +43,14 @@ It works like this:
 - on install of snaps with a special hardware:\n assign yaml udev rules are generated that add tags and properties to the matching hardware
 - this launcher creates a device cgroup that is deny-all by default, then adds itself to the group and also adds all devices that match the given snappy-assign tag and the appname property
 - the app is executed and now the normal device permissions/apparmor rules apply
+
+
+== private /tmp ==
+
+The launcher will create a private mount namespace for the application and
+mount a per-app /tmp directory under it.
+
+
+== devpts newinstance ==
+
+The launcher will setup a new instance devpts for each application.
