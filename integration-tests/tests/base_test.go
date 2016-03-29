@@ -52,9 +52,7 @@ func init() {
 
 	cfg, err := config.ReadConfig(config.DefaultFileName)
 	if err == nil {
-		if cfg.FromBranch {
-			setUpSnapd(c, cfg.FromBranch)
-		}
+		setUpSnapd(c, cfg.FromBranch)
 	}
 }
 
