@@ -237,13 +237,6 @@ apps:
 	}
 }
 
-// removeSnap "removes" an "installed" snap.
-func (s *backendSuite) removeSnap(c *C, snapInfo *snap.Info) {
-	s.removePlugsSlots(c, snapInfo)
-	err := s.backend.Deconfigure(snapInfo)
-	c.Assert(err, IsNil)
-}
-
 // Low level tests for constituent parts of backend API
 
 // Tests for Backend.CombineSnippets()
@@ -477,6 +470,13 @@ func (s *backendSuite) updateSnap(c *C, oldSnapInfo *snap.Info, developerMode bo
 	err = s.backend.Configure(newSnapInfo, s.repo, developerMode)
 	c.Assert(err, IsNil)
 	return newSnapInfo
+}
+
+// removeSnap "removes" an "installed" snap.
+func (s *backendSuite) removeSnap(c *C, snapInfo *snap.Info) {
+	s.removePlugsSlots(c, snapInfo)
+	err := s.backend.Deconfigure(snapInfo)
+	c.Assert(err, IsNil)
 }
 
 func (s *backendSuite) addPlugsSlots(c *C, snapInfo *snap.Info) {
