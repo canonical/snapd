@@ -45,7 +45,6 @@ import (
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
-	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
 	"github.com/ubuntu-core/snappy/store"
 )
@@ -1099,102 +1098,6 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 			return BadRequest("at least one plug and slot is required")
 		}
 		err := c.d.interfaces.Disconnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
-		if err != nil {
-			return BadRequest("%v", err)
-		}
-		return SyncResponse(nil)
-	case "add-plug":
-		if len(a.Plugs) == 0 {
-			return BadRequest("at least one plug is required")
-		}
-		// NOTE: This constructs a partial snap.yaml meta-data. Later on it
-		// should reference real meta-data so that it chimes in with real
-		// snaps. Alternatively, this action should be removed.
-		snapInfo := &snap.Info{
-			Name: a.Plugs[0].Snap,
-		}
-		plugInfo := &snap.PlugInfo{
-			Snap:      snapInfo,
-			Name:      a.Plugs[0].Name,
-			Interface: a.Plugs[0].Interface,
-			Attrs:     a.Plugs[0].Attrs,
-			Label:     a.Plugs[0].Label,
-		}
-		for _, appName := range a.Plugs[0].Apps {
-			appInfo := &snap.AppInfo{
-				Snap:  snapInfo,
-				Name:  appName,
-				Plugs: map[string]*snap.PlugInfo{a.Plugs[0].Name: plugInfo},
-			}
-			if snapInfo.Apps == nil {
-				snapInfo.Apps = make(map[string]*snap.AppInfo)
-			}
-			snapInfo.Apps[appName] = appInfo
-		}
-		plugInfo.Apps = snapInfo.Apps
-		snapInfo.Plugs = map[string]*snap.PlugInfo{a.Plugs[0].Name: plugInfo}
-		plug := &interfaces.Plug{PlugInfo: plugInfo}
-		err := c.d.interfaces.AddPlug(plug)
-		if err != nil {
-			return BadRequest("%v", err)
-		}
-		return &resp{
-			Type:   ResponseTypeSync,
-			Status: http.StatusCreated,
-		}
-	case "remove-plug":
-		if len(a.Plugs) == 0 {
-			return BadRequest("at least one plug is required")
-		}
-		err := c.d.interfaces.RemovePlug(a.Plugs[0].Snap, a.Plugs[0].Name)
-		if err != nil {
-			return BadRequest("%v", err)
-		}
-		return SyncResponse(nil)
-	case "add-slot":
-		if len(a.Slots) == 0 {
-			return BadRequest("at least one slot is required")
-		}
-		// NOTE: This constructs a partial snap.yaml meta-data. Later on it
-		// should reference real meta-data so that it chimes in with real
-		// snaps. Alternatively, this action should be removed.
-		snapInfo := &snap.Info{
-			Name: a.Slots[0].Snap,
-		}
-		slotInfo := &snap.SlotInfo{
-			Snap:      snapInfo,
-			Name:      a.Slots[0].Name,
-			Interface: a.Slots[0].Interface,
-			Attrs:     a.Slots[0].Attrs,
-			Label:     a.Slots[0].Label,
-		}
-		for _, appName := range a.Slots[0].Apps {
-			appInfo := &snap.AppInfo{
-				Snap:  snapInfo,
-				Name:  appName,
-				Slots: map[string]*snap.SlotInfo{a.Slots[0].Name: slotInfo},
-			}
-			if snapInfo.Apps == nil {
-				snapInfo.Apps = make(map[string]*snap.AppInfo)
-			}
-			snapInfo.Apps[appName] = appInfo
-		}
-		slotInfo.Apps = snapInfo.Apps
-		snapInfo.Slots = map[string]*snap.SlotInfo{a.Slots[0].Name: slotInfo}
-		slot := &interfaces.Slot{SlotInfo: slotInfo}
-		err := c.d.interfaces.AddSlot(slot)
-		if err != nil {
-			return BadRequest("%v", err)
-		}
-		return &resp{
-			Type:   ResponseTypeSync,
-			Status: http.StatusCreated,
-		}
-	case "remove-slot":
-		if len(a.Slots) == 0 {
-			return BadRequest("at least one slot is required")
-		}
-		err := c.d.interfaces.RemoveSlot(a.Slots[0].Snap, a.Slots[0].Name)
 		if err != nil {
 			return BadRequest("%v", err)
 		}
