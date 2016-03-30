@@ -34,6 +34,7 @@ import (
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/partition"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/store"
+	"github.com/ubuntu-core/snappy/snap"
 )
 
 // ChangeFakeUpdateSnap is the type of the functions used to modify a snap before it is served as
@@ -61,7 +62,8 @@ func CallFakeUpdate(c *check.C, snap string, changeFunc ChangeFakeUpdateSnap) st
 	c.Assert(err, check.IsNil)
 	defer fakeStore.Stop()
 
-	makeFakeUpdateForSnap(c, snap, blobDir, changeFunc)
+	err = makeFakeUpdateForSnap(c, snap, blobDir, changeFunc)
+	c.Assert(err, check.IsNil)
 
 	return cli.ExecCommand(c, "sudo", "TMPDIR=/var/tmp", fmt.Sprintf("SNAPPY_FORCE_CPI_URL=%s", fakeStore.URL()), "snappy", "update")
 }
@@ -74,7 +76,7 @@ func CallFakeOSUpdate(c *check.C) string {
 	return CallFakeUpdate(c, partition.OSSnapName(c)+".canonical", NoOp)
 }
 
-func makeFakeUpdateForSnap(c *check.C, snap, targetDir string, changeFunc ChangeFakeUpdateSnap) error {
+func makeFakeUpdateForSnap(c *check.C, snapName, targetDir string, changeFunc ChangeFakeUpdateSnap) error {
 
 	// make a fake update snap in /var/tmp (which is not a tempfs)
 	fakeUpdateDir, err := ioutil.TempDir("/var/tmp", "snap-build-")
@@ -84,15 +86,39 @@ func makeFakeUpdateForSnap(c *check.C, snap, targetDir string, changeFunc Change
 	cli.ExecCommand(c, "sudo", "chmod", "0755", fakeUpdateDir)
 	defer cli.ExecCommand(c, "sudo", "rm", "-rf", fakeUpdateDir)
 
-	copySnap(c, snap, fakeUpdateDir)
+	copySnap(c, snapName, fakeUpdateDir)
 
-	// fake new version
-	cli.ExecCommand(c, "sudo", "sed", "-i", `s/version:\(.*\)/version:\1+fake1/`, filepath.Join(fakeUpdateDir, "meta/snap.yaml"))
+	snapYamlPath := filepath.Join(fakeUpdateDir, "meta/snap.yaml")
+	// set a different version
+	cli.ExecCommand(c, "sudo", "sed", "-i", `s/version:\(.*\)/version:\1+fake1/`, snapYamlPath)
+	if err := fakeRevision(c, snapYamlPath); err != nil {
+		return err
+	}
 
-	if err := changeFunc(fakeUpdateDir); err != nil {
+	if err = changeFunc(fakeUpdateDir); err != nil {
 		return err
 	}
 	buildSnap(c, fakeUpdateDir, targetDir)
+	return nil
+}
+
+func fakeRevision(c *check.C, snapYamlPath string) error {
+	snapYaml, err := ioutil.ReadFile(snapYamlPath)
+	if err != nil {
+		return err
+	}
+	if strings.Contains(string(snapYaml), "revision") {
+		info, err := snap.InfoFromSnapYaml(snapYaml)
+		if err != nil {
+			return err
+		}
+		cli.ExecCommand(
+			c, "sudo", "sed", "-i",
+			fmt.Sprintf(`s/revision:\(.*\)/revision: %d/`, info.Revision+1),
+			snapYamlPath)
+	} else {
+		cli.ExecCommand(c, "sudo", "sed", "-i", "$ a revision: 1", snapYamlPath)
+	}
 	return nil
 }
 

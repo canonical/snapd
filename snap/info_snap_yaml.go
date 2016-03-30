@@ -30,6 +30,7 @@ type snapYaml struct {
 	Name        string                 `yaml:"name"`
 	Developer   string                 `yaml:"developer"`
 	Version     string                 `yaml:"version"`
+	Revision    int                    `yaml:"revision"`
 	Type        Type                   `yaml:"type"`
 	Channel     string                 `yaml:"channel"`
 	Description string                 `yaml:"description"`
@@ -70,6 +71,7 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 		Name:        y.Name,
 		Developer:   y.Developer,
 		Version:     y.Version,
+		Revision:    y.Revision,
 		Type:        y.Type,
 		Channel:     y.Channel,
 		Description: y.Description,
