@@ -63,7 +63,7 @@ const (
 // Snaps returns the list of all snaps installed on the system and
 // available for install from the store for this system.
 func (client *Client) Snaps() (map[string]*Snap, error) {
-	return client.snapsFromPath("/2.0/snaps", nil)
+	return client.snapsFromPath("/v2/snaps", nil)
 }
 
 // FilterSnaps returns a list of snaps per Snaps() but filtered by source, name
@@ -83,7 +83,7 @@ func (client *Client) FilterSnaps(filter SnapFilter) (map[string]*Snap, error) {
 		q.Set("types", strings.Join(filter.Types, ","))
 	}
 
-	return client.snapsFromPath("/2.0/snaps", q)
+	return client.snapsFromPath("/v2/snaps", q)
 }
 
 func (client *Client) snapsFromPath(path string, query url.Values) (map[string]*Snap, error) {
@@ -112,7 +112,7 @@ func (client *Client) snapsFromPath(path string, query url.Values) (map[string]*
 func (client *Client) Snap(name string) (*Snap, error) {
 	var pkg *Snap
 
-	path := fmt.Sprintf("/2.0/snaps/%s", name)
+	path := fmt.Sprintf("/v2/snaps/%s", name)
 	if err := client.doSync("GET", path, nil, nil, &pkg); err != nil {
 		return nil, fmt.Errorf("cannot retrieve snap %q: %s", name, err)
 	}

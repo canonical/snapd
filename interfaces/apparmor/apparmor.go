@@ -49,20 +49,11 @@ func LoadProfile(fname string) error {
 	return nil
 }
 
-// Profile contains the name and mode of an apparmor profile loaded into the kernel.
-type Profile struct {
-	// Name of the profile. This is is either full path of the executable or an
-	// arbitrary string without spaces.
-	Name string
-	// Mode is either "enforce" or "complain".
-	Mode string
-}
-
-// Unload removes a profile from the running kernel.
+// UnloadProfile removes the named profile from the running kernel.
 //
 // The operation is done with: apparmor_parser --remove $name
-func (profile *Profile) Unload() error {
-	output, err := exec.Command("apparmor_parser", "--remove", profile.Name).CombinedOutput()
+func UnloadProfile(name string) error {
+	output, err := exec.Command("apparmor_parser", "--remove", name).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("cannot unload apparmor profile: %s\napparmor_parser output:\n%s", err, string(output))
 	}
@@ -78,13 +69,13 @@ var profilesPath = realProfilesPath
 //
 // Snappy manages apparmor profiles named "snap.*". Other profiles might exist on
 // the system (via snappy dimension) and those are filtered-out.
-func LoadedProfiles() ([]Profile, error) {
+func LoadedProfiles() ([]string, error) {
 	file, err := os.Open(profilesPath)
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
-	var profiles []Profile
+	var profiles []string
 	for {
 		var name, mode string
 		n, err := fmt.Fscanf(file, "%s %s\n", &name, &mode)
@@ -97,9 +88,8 @@ func LoadedProfiles() ([]Profile, error) {
 		if err != nil {
 			return nil, err
 		}
-		mode = strings.Trim(mode, "()")
 		if strings.HasPrefix(name, "snap.") {
-			profiles = append(profiles, Profile{Name: name, Mode: mode})
+			profiles = append(profiles, name)
 		}
 	}
 	return profiles, nil
