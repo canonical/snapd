@@ -474,7 +474,14 @@ func (o *Overlord) Uninstall(s *Snap, meter progress.Meter) error {
 		}
 	}
 
-	return RemoveAllHWAccess(QualifiedName(s.Info()))
+	qn := QualifiedName(s.Info())
+
+	// purge the data
+	if err := removeSnapData(qn, s.Version()); err != nil {
+		return err
+	}
+
+	return RemoveAllHWAccess(qn)
 }
 
 // SetActive sets the active state of the given snap
