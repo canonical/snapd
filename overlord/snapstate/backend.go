@@ -25,8 +25,18 @@ import (
 )
 
 type managerBackend interface {
+	// needs to go, its the huge all-in-one install thing
 	InstallLocal(snap, developer string, flags snappy.InstallFlags, meter progress.Meter) error
+
+	// the individual tasks for installing a snap
 	Download(name, channel string, meter progress.Meter) (string, string, error)
+	CheckSnap(snapFilePath, developer string, flags snappy.InstallFlags) error
+	SetupSnap(snapFilePath, developer string, flags snappy.InstallFlags) (string, error)
+	CopySnapData(instSnapPath, developer string, flags snappy.InstallFlags) error
+	GenerateSecurityProfile(instSnapPath, developer string) error
+	FinalizeSnap(instSnapPath, developer string, flags snappy.InstallFlags) error
+
+	// TODO: need to be split into fine grained tasks
 	Update(name, channel string, flags snappy.InstallFlags, meter progress.Meter) error
 	Remove(name string, flags snappy.RemoveFlags, meter progress.Meter) error
 	Purge(name string, flags snappy.PurgeFlags, meter progress.Meter) error
@@ -83,4 +93,38 @@ func (s *defaultBackend) Download(name, channel string, meter progress.Meter) (s
 	}
 
 	return downloadedSnapFile, snap.Developer(), nil
+}
+
+func (s *defaultBackend) CheckSnap(snapFilePath, developer string, flags snappy.InstallFlags) error {
+	meter := &progress.NullProgress{}
+	return snappy.CheckSnap(snapFilePath, developer, flags, meter)
+}
+
+func (s *defaultBackend) SetupSnap(snapFilePath, developer string, flags snappy.InstallFlags) (string, error) {
+	meter := &progress.NullProgress{}
+	return snappy.SetupSnap(snapFilePath, developer, flags, meter)
+}
+
+func (s *defaultBackend) CopySnapData(snapInstPath, developer string, flags snappy.InstallFlags) error {
+	sn, err := snappy.NewInstalledSnap(snapInstPath, developer)
+	if err != nil {
+		return err
+	}
+	return snappy.CopyData(sn, flags, &progress.NullProgress{})
+}
+
+func (s *defaultBackend) GenerateSecurityProfile(snapInstPath, developer string) error {
+	sn, err := snappy.NewInstalledSnap(snapInstPath, developer)
+	if err != nil {
+		return err
+	}
+	return snappy.GenerateSecurityProfile(sn)
+}
+
+func (s *defaultBackend) FinalizeSnap(snapInstPath, developer string, flags snappy.InstallFlags) error {
+	sn, err := snappy.NewInstalledSnap(snapInstPath, developer)
+	if err != nil {
+		return err
+	}
+	return snappy.FinalizeSnap(sn, flags, &progress.NullProgress{})
 }

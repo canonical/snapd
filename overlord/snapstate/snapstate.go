@@ -22,9 +22,9 @@ package snapstate
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/ubuntu-core/snappy/i18n"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snappy"
 )
@@ -38,24 +38,43 @@ func Install(s *state.State, snap, channel string, flags snappy.InstallFlags) (*
 		Flags:   flags,
 	}
 
-	// check if it is a local snap, those are special
-	if fi, err := os.Stat(snap); err == nil && fi.Mode().IsRegular() {
+	// download (if needed)
+	var download *state.Task
+	if !osutil.FileExists(snap) {
+		download = s.NewTask("download-snap", fmt.Sprintf(i18n.G("Downloading %q"), snap))
+		inst.DownloadTaskID = download.ID()
+	} else {
+		download = s.NewTask("nop", "")
 		inst.SnapPath = snap
-		tl := s.NewTask("install-snap", fmt.Sprintf(i18n.G("Installing %q"), snap))
-		tl.Set("install-state", inst)
-		return state.NewTaskSet(tl), nil
 	}
+	download.Set("install-state", inst)
 
-	// remote snap, queue download
-	t := s.NewTask("download-snap", fmt.Sprintf(i18n.G("Downloading %q"), snap))
-	t.Set("install-state", inst)
+	// check
+	check := s.NewTask("check-snap", fmt.Sprintf(i18n.G("Checking %q"), snap))
+	check.Set("install-state", inst)
+	check.WaitFor(download)
 
-	t2 := s.NewTask("install-snap", fmt.Sprintf(i18n.G("Installing %q"), snap))
-	inst.DownloadTaskID = t.ID()
-	t2.Set("install-state", inst)
-	t2.WaitFor(t)
+	// mount
+	mount := s.NewTask("mount-snap", fmt.Sprintf(i18n.G("Mounting %q"), snap))
+	mount.Set("install-state", inst)
+	mount.WaitFor(check)
 
-	return state.NewTaskSet(t, t2), nil
+	// security
+	generateSecurity := s.NewTask("generate-security", fmt.Sprintf(i18n.G("Generating security profile for %q"), snap))
+	generateSecurity.Set("install-state", inst)
+	generateSecurity.WaitFor(mount)
+
+	// copy-data (needs to stop services)
+	copyData := s.NewTask("copy-snap-data", fmt.Sprintf(i18n.G("Copying snap data for %q"), snap))
+	copyData.Set("install-state", inst)
+	copyData.WaitFor(generateSecurity)
+
+	// finalize: update current symlink, start new services
+	finalize := s.NewTask("finalize-snap-install", fmt.Sprintf(i18n.G("Finalizing install of %q"), snap))
+	finalize.Set("install-state", inst)
+	finalize.WaitFor(copyData)
+
+	return state.NewTaskSet(download, check, mount, generateSecurity, copyData, finalize), nil
 }
 
 // Update initiates a change updating a snap.

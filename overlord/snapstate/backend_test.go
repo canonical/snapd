@@ -104,3 +104,48 @@ func (f *fakeSnappyBackend) Activate(name string, active bool, p progress.Meter)
 	})
 	return nil
 }
+
+func (f *fakeSnappyBackend) CheckSnap(snapFilePath, developer string, flags snappy.InstallFlags) error {
+	f.ops = append(f.ops, fakeOp{
+		op:        "check-snap",
+		name:      snapFilePath,
+		developer: developer,
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) SetupSnap(snapFilePath, developer string, flags snappy.InstallFlags) (string, error) {
+	f.ops = append(f.ops, fakeOp{
+		op:        "setup-snap",
+		name:      snapFilePath,
+		developer: developer,
+	})
+	return "some-inst-path", nil
+}
+
+func (f *fakeSnappyBackend) CopySnapData(instSnapPath, developer string, flags snappy.InstallFlags) error {
+	f.ops = append(f.ops, fakeOp{
+		op:        "copy-data",
+		name:      instSnapPath,
+		developer: developer,
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) GenerateSecurityProfile(instSnapPath, developer string) error {
+	f.ops = append(f.ops, fakeOp{
+		op:        "generate-security-profile",
+		name:      instSnapPath,
+		developer: developer,
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) FinalizeSnap(instSnapPath, developer string, flags snappy.InstallFlags) error {
+	f.ops = append(f.ops, fakeOp{
+		op:        "finalize-snap",
+		name:      instSnapPath,
+		developer: developer,
+	})
+	return nil
+}
