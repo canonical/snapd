@@ -44,7 +44,9 @@ type overlordSuite struct{}
 var _ = Suite(&overlordSuite{})
 
 func (ovs *overlordSuite) SetUpTest(c *C) {
-	dirs.SnapStateFile = filepath.Join(c.MkDir(), "test.json")
+	tmpdir := c.MkDir()
+	dirs.SetRootDir(tmpdir)
+	dirs.SnapStateFile = filepath.Join(tmpdir, "test.json")
 }
 
 func (ovs *overlordSuite) TearDownTest(c *C) {
