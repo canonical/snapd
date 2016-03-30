@@ -51,22 +51,11 @@ import (
 
 // Backend is responsible for maintaining apparmor profiles for ubuntu-core-launcher.
 type Backend struct {
-	// Parsed chunks of the template
-	imports, body []byte
-	// legacy indicates that 15.04 compatible apparmor variables are required.
-	legacy bool
-}
-
-// UseLegacyTemplate uses the given apparmor template.
-func (b *Backend) UseLegacyTemplate(template []byte) error {
-	imports, body, err := parseTemplate(template)
-	if err != nil {
-		return err
-	}
-	b.imports = imports
-	b.body = body
-	b.legacy = true
-	return nil
+	// CustomTemplate exists to support old-security which goes
+	// beyond what is possible with pure security snippets.
+	//
+	// If non-empty then it overrides the built-in template.
+	CustomTemplate string
 }
 
 // Configure creates and loads apparmor security profiles specific to a given
@@ -81,7 +70,11 @@ func (b *Backend) Configure(snapInfo *snap.Info, developerMode bool, repo *inter
 	if err != nil {
 		return fmt.Errorf("cannot obtain security snippets for snap %q: %s", snapInfo.Name, err)
 	}
-	content := b.combineSnippets(snapInfo, developerMode, snippets)
+	// Get the files that this snap should have
+	content, err := b.combineSnippets(snapInfo, developerMode, snippets)
+	if err != nil {
+		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapInfo.Name, err)
+	}
 	glob := interfaces.SecurityTagGlob(snapInfo)
 	changed, removed, err := osutil.EnsureDirState(dirs.SnapAppArmorDir, glob, content)
 	if err != nil {
@@ -115,43 +108,23 @@ func (b *Backend) Deconfigure(snapInfo *snap.Info) error {
 // combineSnippets combines security snippets collected from all the interfaces
 // affecting a given snap into a content map applicable to EnsureDirState. The
 // backend delegates writing those files to higher layers.
-func (b *Backend) combineSnippets(snapInfo *snap.Info, developerMode bool, snippets map[string][][]byte) (content map[string]*osutil.FileState) {
-	b.parseDefaultTemplateIfNeeded()
+func (b *Backend) combineSnippets(snapInfo *snap.Info, developerMode bool, snippets map[string][][]byte) (content map[string]*osutil.FileState, err error) {
 	for _, appInfo := range snapInfo.Apps {
-		var buf bytes.Buffer
-		buf.Write(b.imports)
-		if b.legacy {
-			writeLegacyVariables(&buf, appInfo)
-		} else {
-			writeModernVariables(&buf, appInfo)
-		}
-		writeProfileAttach(&buf, appInfo, developerMode)
-		buf.Write(b.body)
-		for _, snippet := range snippets[appInfo.Name] {
-			buf.Write(snippet)
-			buf.WriteRune('\n')
-		}
-		buf.WriteString("}\n")
+		s := make([][]byte, 0, len(snippets[appInfo.Name])+2)
+		s = append(s, b.aaHeader(appInfo, developerMode))
+		s = append(s, snippets[appInfo.Name]...)
+		s = append(s, []byte("}\n"))
+		fileContent := bytes.Join(s, []byte("\n"))
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
 		}
-		content[interfaces.SecurityTag(appInfo)] = &osutil.FileState{Content: buf.Bytes(), Mode: 0644}
-	}
-	return content
-}
-
-func (b *Backend) parseDefaultTemplateIfNeeded() {
-	if b.imports == nil || b.body == nil {
-		imports, body, err := parseTemplate(defaultTemplate)
-		if err != nil {
-			panic(err)
+		fname := interfaces.SecurityTag(appInfo)
+		content[fname] = &osutil.FileState{
+			Content: fileContent,
+			Mode:    0644,
 		}
-		b.imports = imports
-		b.body = body
-		// TODO: switch to non-legacy mode when default template
-		// uses only modern variables.
-		b.legacy = true
 	}
+	return content, nil
 }
 
 func reloadProfiles(profiles []string) error {
