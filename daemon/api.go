@@ -738,24 +738,6 @@ func (inst *snapInstruction) remove() interface{} {
 	return waitChange(chg)
 }
 
-func (inst *snapInstruction) purge() interface{} {
-	state := inst.overlord.State()
-	state.Lock()
-	msg := fmt.Sprintf(i18n.G("Purge %q snap"), inst.pkg)
-	chg := state.NewChange("purge-snap", msg)
-	ts, err := snapstate.Purge(state, inst.pkg, 0)
-	if err == nil {
-		chg.AddAll(ts)
-	}
-	state.Unlock()
-	if err != nil {
-		return err
-	}
-
-	state.EnsureBefore(0)
-	return waitChange(chg)
-}
-
 func (inst *snapInstruction) rollback() interface{} {
 	state := inst.overlord.State()
 	state.Lock()
@@ -820,8 +802,6 @@ func (inst *snapInstruction) dispatch() func() interface{} {
 		return inst.update
 	case "remove":
 		return inst.remove
-	case "purge":
-		return inst.purge
 	case "rollback":
 		return inst.rollback
 	case "activate":

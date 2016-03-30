@@ -83,18 +83,6 @@ func Remove(s *state.State, snap string, flags snappy.RemoveFlags) (*state.TaskS
 	return state.NewTaskSet(t), nil
 }
 
-// Purge returns a set of tasks for purging a snap.
-// Note that the state must be locked by the caller.
-func Purge(s *state.State, snap string, flags snappy.PurgeFlags) (*state.TaskSet, error) {
-	t := s.NewTask("purge-snap", fmt.Sprintf(i18n.G("Purging %q"), snap))
-	t.Set("purge-state", purgeState{
-		Name:  snap,
-		Flags: flags,
-	})
-
-	return state.NewTaskSet(t), nil
-}
-
 // Rollback returns a set of tasks for rolling back a snap.
 // Note that the state must be locked by the caller.
 func Rollback(s *state.State, snap, ver string) (*state.TaskSet, error) {
