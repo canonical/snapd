@@ -1,6 +1,7 @@
 ubuntu-core-launcher (1.0.23) UNRELEASED; urgency=medium
 
   * update README for recent commits
+  * add README.syscalls
 
  -- Jamie Strandboge <jamie@ubuntu.com>  Tue, 29 Mar 2016 16:07:13 -0500
 
