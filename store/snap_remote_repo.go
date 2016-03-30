@@ -157,6 +157,16 @@ func NewUbuntuStoreSnapRepository(cfg *SnapUbuntuStoreConfig, storeID string) *S
 
 // small helper that sets the correct http headers for the ubuntu store
 func (s *SnapUbuntuStoreRepository) setUbuntuStoreHeaders(req *http.Request) {
+	var token *oauth.Token
+	ssoToken, _ := ReadStoreToken()
+	if ssoToken != nil {
+		token = &ssoToken.Token
+	}
+	s.setUbuntuStoreHeadersWithToken(req, token)
+}
+
+// same as above, but sometimes the request depends on the token, so you need to get it first
+func (s *SnapUbuntuStoreRepository) setUbuntuStoreHeadersWithToken(req *http.Request, token *oauth.Token) {
 	req.Header.Set("Accept", "application/hal+json")
 
 	req.Header.Set("X-Ubuntu-Architecture", string(arch.UbuntuArchitecture()))
@@ -167,10 +177,8 @@ func (s *SnapUbuntuStoreRepository) setUbuntuStoreHeaders(req *http.Request) {
 		req.Header.Set("X-Ubuntu-Store", s.storeID)
 	}
 
-	// sso
-	ssoToken, err := ReadStoreToken()
-	if err == nil {
-		req.Header.Set("Authorization", oauth.MakePlaintextSignature(&ssoToken.Token))
+	if token != nil {
+		req.Header.Set("Authorization", oauth.MakePlaintextSignature(token))
 	}
 }
 
@@ -318,16 +326,22 @@ func (s *SnapUbuntuStoreRepository) Download(remoteSnap *RemoteSnap, pbar progre
 		}
 	}()
 
-	// try anonymous download first and fallback to authenticated
+	var token *oauth.Token
+	ssoToken, _ := ReadStoreToken()
+	if ssoToken != nil {
+		token = &ssoToken.Token
+	}
+
 	url := remoteSnap.Pkg.AnonDownloadURL
-	if url == "" {
+	if url == "" || ssoToken != nil {
 		url = remoteSnap.Pkg.DownloadURL
 	}
+
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return "", err
 	}
-	s.setUbuntuStoreHeaders(req)
+	s.setUbuntuStoreHeadersWithToken(req, token)
 
 	if err := download(remoteSnap.Name(), w, req, pbar); err != nil {
 		return "", err
