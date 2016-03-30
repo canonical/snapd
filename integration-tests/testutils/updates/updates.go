@@ -62,7 +62,8 @@ func CallFakeUpdate(c *check.C, snap string, changeFunc ChangeFakeUpdateSnap) st
 	c.Assert(err, check.IsNil)
 	defer fakeStore.Stop()
 
-	makeFakeUpdateForSnap(c, snap, blobDir, changeFunc)
+	err = makeFakeUpdateForSnap(c, snap, blobDir, changeFunc)
+	c.Assert(err, check.IsNil)
 
 	return cli.ExecCommand(c, "sudo", "TMPDIR=/var/tmp", fmt.Sprintf("SNAPPY_FORCE_CPI_URL=%s", fakeStore.URL()), "snappy", "update")
 }
@@ -87,25 +88,37 @@ func makeFakeUpdateForSnap(c *check.C, snapName, targetDir string, changeFunc Ch
 
 	copySnap(c, snapName, fakeUpdateDir)
 
-	// get current revision
 	snapYamlPath := filepath.Join(fakeUpdateDir, "meta/snap.yaml")
-	snapYaml, err := ioutil.ReadFile(snapYamlPath)
-	c.Assert(err, check.IsNil, check.Commentf("Error reading the snap.yaml file: %v", err))
-	info, err := snap.InfoFromSnapYaml(snapYaml)
-	c.Assert(err, check.IsNil, check.Commentf("Error loading the snap info: %v", err))
-
-	// fake new revision
-	cli.ExecCommand(
-		c, "sudo", "sed", "-i",
-		fmt.Sprintf(`s/revision:\(.*\)/revision:%d/`, info.Revision+1),
-		snapYamlPath)
 	// set a different version
-	cli.ExecCommand(c, "sudo", "sed", "-i", `s/version:\(.*\)/version:\1+fake1/`, filepath.Join(fakeUpdateDir, "meta/snap.yaml"))
+	cli.ExecCommand(c, "sudo", "sed", "-i", `s/version:\(.*\)/version:\1+fake1/`, snapYamlPath)
+	if err := fakeRevision(c, snapYamlPath); err != nil {
+		return err
+	}
 
-	if err := changeFunc(fakeUpdateDir); err != nil {
+	if err = changeFunc(fakeUpdateDir); err != nil {
 		return err
 	}
 	buildSnap(c, fakeUpdateDir, targetDir)
+	return nil
+}
+
+func fakeRevision(c *check.C, snapYamlPath string) error {
+	snapYaml, err := ioutil.ReadFile(snapYamlPath)
+	if err != nil {
+		return err
+	}
+	if strings.Contains(string(snapYaml), "revision") {
+		info, err := snap.InfoFromSnapYaml(snapYaml)
+		if err != nil {
+			return err
+		}
+		cli.ExecCommand(
+			c, "sudo", "sed", "-i",
+			fmt.Sprintf(`s/revision:\(.*\)/revision: %d/`, info.Revision+1),
+			snapYamlPath)
+	} else {
+		cli.ExecCommand(c, "sudo", "sed", "-i", "$ a revision: 1", snapYamlPath)
+	}
 	return nil
 }
 
