@@ -56,14 +56,12 @@ func makeSnapHookEnv(snap *Snap) (env []string) {
 		SnapPath    string
 		Version     string
 		UdevAppName string
-		Developer   string
 	}{
 		snap.Name(),
 		arch.UbuntuArchitecture(),
 		snap.basedir,
 		snap.Version(),
-		QualifiedName(snap.Info()),
-		snap.Developer(),
+		snap.Name(),
 	}
 
 	vars := snapenv.GetBasicSnapEnvVars(desc)

@@ -37,23 +37,22 @@ import (
 
 // Snap represents a generic snap type
 type Snap struct {
-	m         *snapYaml
-	remoteM   *remote.Snap
-	developer string
-	hash      string
-	isActive  bool
+	m        *snapYaml
+	remoteM  *remote.Snap
+	hash     string
+	isActive bool
 
 	basedir string
 }
 
 // NewInstalledSnap returns a new Snap from the given yamlPath
-func NewInstalledSnap(yamlPath, developer string) (*Snap, error) {
+func NewInstalledSnap(yamlPath string) (*Snap, error) {
 	m, err := parseSnapYamlFile(yamlPath)
 	if err != nil {
 		return nil, err
 	}
 
-	snap, err := newSnapFromYaml(yamlPath, developer, m)
+	snap, err := newSnapFromYaml(yamlPath, m)
 	if err != nil {
 		return nil, err
 	}
@@ -62,11 +61,10 @@ func NewInstalledSnap(yamlPath, developer string) (*Snap, error) {
 }
 
 // newSnapFromYaml returns a new Snap from the given *snapYaml at yamlPath
-func newSnapFromYaml(yamlPath, developer string, m *snapYaml) (*Snap, error) {
+func newSnapFromYaml(yamlPath string, m *snapYaml) (*Snap, error) {
 	snap := &Snap{
-		basedir:   filepath.Dir(filepath.Dir(yamlPath)),
-		developer: developer,
-		m:         m,
+		basedir: filepath.Dir(filepath.Dir(yamlPath)),
+		m:       m,
 	}
 
 	// override the package's idea of its version
@@ -150,11 +148,7 @@ func (s *Snap) Developer() string {
 		return r.Developer
 	}
 
-	if s.developer == "" {
-		return SideloadedDeveloper
-	}
-
-	return s.developer
+	return SideloadedDeveloper
 }
 
 // Hash returns the hash
@@ -265,7 +259,7 @@ func (s *Snap) activate(inhibitHooks bool, inter interacter) error {
 	if currentActiveDir != "" {
 		// TODO: support switching developers
 		oldYaml := filepath.Join(currentActiveDir, "meta", "snap.yaml")
-		oldSnap, err := NewInstalledSnap(oldYaml, s.developer)
+		oldSnap, err := NewInstalledSnap(oldYaml)
 		if err != nil {
 			return err
 		}
@@ -277,7 +271,7 @@ func (s *Snap) activate(inhibitHooks bool, inter interacter) error {
 	// generate the security policy from the snap.yaml
 	// Note that this must happen before binaries/services are
 	// generated because serices may get started
-	appsDir := filepath.Join(dirs.SnapSnapsDir, QualifiedName(s.Info()), s.Version())
+	appsDir := filepath.Join(dirs.SnapSnapsDir, s.Name(), s.Version())
 	if err := generatePolicy(s.m, appsDir); err != nil {
 		return err
 	}
@@ -299,7 +293,7 @@ func (s *Snap) activate(inhibitHooks bool, inter interacter) error {
 		logger.Noticef("Failed to remove %q: %v", currentActiveSymlink, err)
 	}
 
-	dbase := filepath.Join(dirs.SnapDataDir, QualifiedName(s.Info()))
+	dbase := filepath.Join(dirs.SnapDataDir, s.Name())
 	currentDataSymlink := filepath.Join(dbase, "current")
 	if err := os.Remove(currentDataSymlink); err != nil && !os.IsNotExist(err) {
 		logger.Noticef("Failed to remove %q: %v", currentDataSymlink, err)
@@ -360,7 +354,7 @@ func (s *Snap) deactivate(inhibitHooks bool, inter interacter) error {
 		logger.Noticef("Failed to remove %q: %v", currentSymlink, err)
 	}
 
-	currentDataSymlink := filepath.Join(dirs.SnapDataDir, QualifiedName(s.Info()), "current")
+	currentDataSymlink := filepath.Join(dirs.SnapDataDir, s.Name(), "current")
 	if err := os.Remove(currentDataSymlink); err != nil && !os.IsNotExist(err) {
 		logger.Noticef("Failed to remove %q: %v", currentDataSymlink, err)
 	}

@@ -50,8 +50,8 @@ func (s *SnapLocalRepository) Installed() ([]*Snap, error) {
 }
 
 // Snaps gets all the snaps with the given name and origin
-func (s *SnapLocalRepository) Snaps(name, origin string) ([]*Snap, error) {
-	globExpr := filepath.Join(s.path, name+"."+origin, "*", "meta", "snap.yaml")
+func (s *SnapLocalRepository) Snaps(name string) ([]*Snap, error) {
+	globExpr := filepath.Join(s.path, name, "*", "meta", "snap.yaml")
 	return s.snapsForGlobExpr(globExpr)
 }
 
@@ -72,8 +72,7 @@ func (s *SnapLocalRepository) snapsForGlobExpr(globExpr string) (snaps []*Snap, 
 			continue
 		}
 
-		developer, _ := developerFromYamlPath(realpath)
-		snap, err := NewInstalledSnap(realpath, developer)
+		snap, err := NewInstalledSnap(realpath)
 		if err != nil {
 			return nil, err
 		}
@@ -82,24 +81,4 @@ func (s *SnapLocalRepository) snapsForGlobExpr(globExpr string) (snaps []*Snap, 
 	}
 
 	return snaps, nil
-}
-
-func developerFromBasedir(basedir string) (s string) {
-	ext := filepath.Ext(filepath.Dir(filepath.Clean(basedir)))
-	if len(ext) < 2 {
-		return ""
-	}
-
-	return ext[1:]
-}
-
-// developerFromYamlPath *must* return "" if it's returning error.
-func developerFromYamlPath(path string) (string, error) {
-	developer := developerFromBasedir(filepath.Join(path, "..", ".."))
-
-	if developer == "" {
-		return "", ErrInvalidSnap
-	}
-
-	return developer, nil
 }
