@@ -112,14 +112,14 @@ func authURL() string {
 
 func assertsURL() string {
 	if os.Getenv("SNAPPY_USE_STAGING_SAS") != "" {
-		return "https://assertions.staging.ubuntu.com/v1"
+		return "https://assertions.staging.ubuntu.com/v1/"
 	}
 
 	if os.Getenv("SNAPPY_FORCE_SAS_URL") != "" {
 		return os.Getenv("SNAPPY_FORCE_SAS_URL")
 	}
 
-	return "https://assertions.ubuntu.com/v1"
+	return "https://assertions.ubuntu.com/v1/"
 }
 
 var defaultConfig = SnapUbuntuStoreConfig{}
