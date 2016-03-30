@@ -81,12 +81,12 @@ func (cs *clientSuite) TestClientOpSnapBadType(c *check.C) {
 	cs.rsp = `{"type": "what"}`
 	for _, s := range ops {
 		_, err := s.op(cs.cli, pkgName)
-		c.Check(err, check.ErrorMatches, `.*expected async response for "POST" on "/2.0/snaps/`+pkgName+`", got "what"`, check.Commentf(s.action))
+		c.Check(err, check.ErrorMatches, `.*expected async response for "POST" on "/v2/snaps/`+pkgName+`", got "what"`, check.Commentf(s.action))
 	}
 
 	for _, s := range chanops {
 		_, err := s.op(cs.cli, pkgName, chanName)
-		c.Check(err, check.ErrorMatches, `.*expected async response for "POST" on "/2.0/snaps/`+pkgName+`", got "what"`, check.Commentf(s.action))
+		c.Check(err, check.ErrorMatches, `.*expected async response for "POST" on "/v2/snaps/`+pkgName+`", got "what"`, check.Commentf(s.action))
 	}
 }
 
@@ -162,7 +162,7 @@ func (cs *clientSuite) TestClientOpSnapInvalidResource(c *check.C) {
 func (cs *clientSuite) TestClientOpSnap(c *check.C) {
 	cs.rsp = `{
 		"result": {
-			"resource": "/2.0/operations/5a70dffa-66b3-3567-d728-55b0da48bdc7"
+			"resource": "/v2/operations/5a70dffa-66b3-3567-d728-55b0da48bdc7"
 		},
 		"status_code": 202,
 		"type": "async"
@@ -179,7 +179,7 @@ func (cs *clientSuite) TestClientOpSnap(c *check.C) {
 		c.Check(jsonBody, check.HasLen, 1, check.Commentf(s.action))
 
 		c.Check(cs.req.Method, check.Equals, "POST", check.Commentf(s.action))
-		c.Check(cs.req.URL.Path, check.Equals, fmt.Sprintf("/2.0/snaps/%s", pkgName), check.Commentf(s.action))
+		c.Check(cs.req.URL.Path, check.Equals, fmt.Sprintf("/v2/snaps/%s", pkgName), check.Commentf(s.action))
 		c.Check(uuid, check.Equals, "5a70dffa-66b3-3567-d728-55b0da48bdc7", check.Commentf(s.action))
 	}
 
@@ -196,7 +196,7 @@ func (cs *clientSuite) TestClientOpSnap(c *check.C) {
 		c.Check(jsonBody, check.HasLen, 2, check.Commentf(s.action))
 
 		c.Check(cs.req.Method, check.Equals, "POST", check.Commentf(s.action))
-		c.Check(cs.req.URL.Path, check.Equals, fmt.Sprintf("/2.0/snaps/%s", pkgName), check.Commentf(s.action))
+		c.Check(cs.req.URL.Path, check.Equals, fmt.Sprintf("/v2/snaps/%s", pkgName), check.Commentf(s.action))
 		c.Check(uuid, check.Equals, "5a70dffa-66b3-3567-d728-55b0da48bdc7", check.Commentf(s.action))
 	}
 }

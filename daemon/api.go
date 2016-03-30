@@ -44,7 +44,6 @@ import (
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
-	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
 	"github.com/ubuntu-core/snappy/store"
 )
@@ -78,64 +77,64 @@ var (
 	}
 
 	sysInfoCmd = &Command{
-		Path:    "/2.0/system-info",
+		Path:    "/v2/system-info",
 		GuestOK: true,
 		GET:     sysInfo,
 	}
 
 	appIconCmd = &Command{
-		Path:   "/2.0/icons/{name}.{developer}/icon",
+		Path:   "/v2/icons/{name}.{developer}/icon",
 		UserOK: true,
 		GET:    appIconGet,
 	}
 
 	snapsCmd = &Command{
-		Path:   "/2.0/snaps",
+		Path:   "/v2/snaps",
 		UserOK: true,
 		GET:    getSnapsInfo,
 		POST:   sideloadSnap,
 	}
 
 	snapCmd = &Command{
-		Path:   "/2.0/snaps/{name}.{developer}",
+		Path:   "/v2/snaps/{name}.{developer}",
 		UserOK: true,
 		GET:    getSnapInfo,
 		POST:   postSnap,
 	}
 
 	snapConfigCmd = &Command{
-		Path: "/2.0/snaps/{name}.{developer}/config",
+		Path: "/v2/snaps/{name}.{developer}/config",
 		GET:  snapConfig,
 		PUT:  snapConfig,
 	}
 
 	snapSvcsCmd = &Command{
-		Path:   "/2.0/snaps/{name}.{developer}/services",
+		Path:   "/v2/snaps/{name}.{developer}/services",
 		UserOK: true,
 		GET:    snapService,
 		PUT:    snapService,
 	}
 
 	snapSvcCmd = &Command{
-		Path:   "/2.0/snaps/{name}.{developer}/services/{service}",
+		Path:   "/v2/snaps/{name}.{developer}/services/{service}",
 		UserOK: true,
 		GET:    snapService,
 		PUT:    snapService,
 	}
 
 	snapSvcLogsCmd = &Command{
-		Path: "/2.0/snaps/{name}.{developer}/services/{service}/logs",
+		Path: "/v2/snaps/{name}.{developer}/services/{service}/logs",
 		GET:  getLogs,
 	}
 
 	operationCmd = &Command{
-		Path:   "/2.0/operations/{uuid}",
+		Path:   "/v2/operations/{uuid}",
 		GET:    getOpInfo,
 		DELETE: deleteOp,
 	}
 
 	interfacesCmd = &Command{
-		Path:   "/2.0/interfaces",
+		Path:   "/v2/interfaces",
 		UserOK: true,
 		GET:    getInterfaces,
 		POST:   changeInterfaces,
@@ -143,18 +142,18 @@ var (
 
 	// TODO: allow to post assertions for UserOK? they are verified anyway
 	assertsCmd = &Command{
-		Path: "/2.0/assertions",
+		Path: "/v2/assertions",
 		POST: doAssert,
 	}
 
 	assertsFindManyCmd = &Command{
-		Path:   "/2.0/assertions/{assertType}",
+		Path:   "/v2/assertions/{assertType}",
 		UserOK: true,
 		GET:    assertsFindMany,
 	}
 
 	eventsCmd = &Command{
-		Path: "/2.0/events",
+		Path: "/v2/events",
 		GET:  getEvents,
 	}
 )
@@ -657,7 +656,7 @@ func (inst *snapInstruction) install() interface{} {
 	if inst.LeaveOld {
 		flags = 0
 	}
-	state := inst.overlord.StateEngine().State()
+	state := inst.overlord.State()
 	state.Lock()
 	msg := fmt.Sprintf(i18n.G("Install %q snap"), inst.pkg)
 	if inst.Channel != "stable" {
@@ -693,7 +692,7 @@ func (inst *snapInstruction) update() interface{} {
 	if inst.LeaveOld {
 		flags = 0
 	}
-	state := inst.overlord.StateEngine().State()
+	state := inst.overlord.State()
 	state.Lock()
 	msg := fmt.Sprintf(i18n.G("Update %q snap"), inst.pkg)
 	if inst.Channel != "stable" {
@@ -718,7 +717,7 @@ func (inst *snapInstruction) remove() interface{} {
 	if inst.LeaveOld {
 		flags = 0
 	}
-	state := inst.overlord.StateEngine().State()
+	state := inst.overlord.State()
 	state.Lock()
 	msg := fmt.Sprintf(i18n.G("Remove %q snap"), inst.pkg)
 	chg := state.NewChange("remove-snap", msg)
@@ -735,26 +734,8 @@ func (inst *snapInstruction) remove() interface{} {
 	return waitChange(chg)
 }
 
-func (inst *snapInstruction) purge() interface{} {
-	state := inst.overlord.StateEngine().State()
-	state.Lock()
-	msg := fmt.Sprintf(i18n.G("Purge %q snap"), inst.pkg)
-	chg := state.NewChange("purge-snap", msg)
-	ts, err := snapstate.Purge(state, inst.pkg, 0)
-	if err == nil {
-		chg.AddAll(ts)
-	}
-	state.Unlock()
-	if err != nil {
-		return err
-	}
-
-	state.EnsureBefore(0)
-	return waitChange(chg)
-}
-
 func (inst *snapInstruction) rollback() interface{} {
-	state := inst.overlord.StateEngine().State()
+	state := inst.overlord.State()
 	state.Lock()
 	msg := fmt.Sprintf(i18n.G("Rollback %q snap"), inst.pkg)
 	chg := state.NewChange("rollback-snap", msg)
@@ -774,7 +755,7 @@ func (inst *snapInstruction) rollback() interface{} {
 }
 
 func (inst *snapInstruction) activate() interface{} {
-	state := inst.overlord.StateEngine().State()
+	state := inst.overlord.State()
 	state.Lock()
 	msg := fmt.Sprintf(i18n.G("Activate %q snap"), inst.pkg)
 	chg := state.NewChange("activate-snap", msg)
@@ -792,7 +773,7 @@ func (inst *snapInstruction) activate() interface{} {
 }
 
 func (inst *snapInstruction) deactivate() interface{} {
-	state := inst.overlord.StateEngine().State()
+	state := inst.overlord.State()
 	state.Lock()
 	msg := fmt.Sprintf(i18n.G("Deactivate %q snap"), inst.pkg)
 	chg := state.NewChange("deactivate-snap", msg)
@@ -817,8 +798,6 @@ func (inst *snapInstruction) dispatch() func() interface{} {
 		return inst.update
 	case "remove":
 		return inst.remove
-	case "purge":
-		return inst.purge
 	case "rollback":
 		return inst.rollback
 	case "activate":
@@ -1095,102 +1074,6 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 			return BadRequest("at least one plug and slot is required")
 		}
 		err := c.d.interfaces.Disconnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
-		if err != nil {
-			return BadRequest("%v", err)
-		}
-		return SyncResponse(nil)
-	case "add-plug":
-		if len(a.Plugs) == 0 {
-			return BadRequest("at least one plug is required")
-		}
-		// NOTE: This constructs a partial snap.yaml meta-data. Later on it
-		// should reference real meta-data so that it chimes in with real
-		// snaps. Alternatively, this action should be removed.
-		snapInfo := &snap.Info{
-			Name: a.Plugs[0].Snap,
-		}
-		plugInfo := &snap.PlugInfo{
-			Snap:      snapInfo,
-			Name:      a.Plugs[0].Name,
-			Interface: a.Plugs[0].Interface,
-			Attrs:     a.Plugs[0].Attrs,
-			Label:     a.Plugs[0].Label,
-		}
-		for _, appName := range a.Plugs[0].Apps {
-			appInfo := &snap.AppInfo{
-				Snap:  snapInfo,
-				Name:  appName,
-				Plugs: map[string]*snap.PlugInfo{a.Plugs[0].Name: plugInfo},
-			}
-			if snapInfo.Apps == nil {
-				snapInfo.Apps = make(map[string]*snap.AppInfo)
-			}
-			snapInfo.Apps[appName] = appInfo
-		}
-		plugInfo.Apps = snapInfo.Apps
-		snapInfo.Plugs = map[string]*snap.PlugInfo{a.Plugs[0].Name: plugInfo}
-		plug := &interfaces.Plug{PlugInfo: plugInfo}
-		err := c.d.interfaces.AddPlug(plug)
-		if err != nil {
-			return BadRequest("%v", err)
-		}
-		return &resp{
-			Type:   ResponseTypeSync,
-			Status: http.StatusCreated,
-		}
-	case "remove-plug":
-		if len(a.Plugs) == 0 {
-			return BadRequest("at least one plug is required")
-		}
-		err := c.d.interfaces.RemovePlug(a.Plugs[0].Snap, a.Plugs[0].Name)
-		if err != nil {
-			return BadRequest("%v", err)
-		}
-		return SyncResponse(nil)
-	case "add-slot":
-		if len(a.Slots) == 0 {
-			return BadRequest("at least one slot is required")
-		}
-		// NOTE: This constructs a partial snap.yaml meta-data. Later on it
-		// should reference real meta-data so that it chimes in with real
-		// snaps. Alternatively, this action should be removed.
-		snapInfo := &snap.Info{
-			Name: a.Slots[0].Snap,
-		}
-		slotInfo := &snap.SlotInfo{
-			Snap:      snapInfo,
-			Name:      a.Slots[0].Name,
-			Interface: a.Slots[0].Interface,
-			Attrs:     a.Slots[0].Attrs,
-			Label:     a.Slots[0].Label,
-		}
-		for _, appName := range a.Slots[0].Apps {
-			appInfo := &snap.AppInfo{
-				Snap:  snapInfo,
-				Name:  appName,
-				Slots: map[string]*snap.SlotInfo{a.Slots[0].Name: slotInfo},
-			}
-			if snapInfo.Apps == nil {
-				snapInfo.Apps = make(map[string]*snap.AppInfo)
-			}
-			snapInfo.Apps[appName] = appInfo
-		}
-		slotInfo.Apps = snapInfo.Apps
-		snapInfo.Slots = map[string]*snap.SlotInfo{a.Slots[0].Name: slotInfo}
-		slot := &interfaces.Slot{SlotInfo: slotInfo}
-		err := c.d.interfaces.AddSlot(slot)
-		if err != nil {
-			return BadRequest("%v", err)
-		}
-		return &resp{
-			Type:   ResponseTypeSync,
-			Status: http.StatusCreated,
-		}
-	case "remove-slot":
-		if len(a.Slots) == 0 {
-			return BadRequest("at least one slot is required")
-		}
-		err := c.d.interfaces.RemoveSlot(a.Slots[0].Snap, a.Slots[0].Name)
 		if err != nil {
 			return BadRequest("%v", err)
 		}

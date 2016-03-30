@@ -21,15 +21,11 @@ package interfaces
 
 import (
 	"fmt"
+
+	"github.com/ubuntu-core/snappy/snap"
 )
 
-// WrapperNameForApp returns the name of the wrapper for a given application.
-//
-// A wrapper is a generated helper executable that assists in setting up
-// environment for running a particular application.
-//
-// In general, the wrapper has the form: "$snap.$app". When both snap name and
-// app name are the same then the tag is simplified to just "$snap".
+// DEPRECATED: Remove after backends are converted to SecurityBackend.
 func WrapperNameForApp(snapName, appName string) string {
 	if appName == snapName {
 		return snapName
@@ -37,10 +33,21 @@ func WrapperNameForApp(snapName, appName string) string {
 	return fmt.Sprintf("%s.%s", snapName, appName)
 }
 
-// SecurityTagForApp returns the unified tag used for all security systems.
-//
-// In general, the tag has the form: "$snap.$app.snap". When both snap name and
-// app name are the same then the tag is simplified to just "$snap.snap".
+// DEPRECATED: Remove after backends are converted to SecurityBackend.
 func SecurityTagForApp(snapName, appName string) string {
 	return fmt.Sprintf("%s.snap", WrapperNameForApp(snapName, appName))
+}
+
+// SecurityTag returns application-specific security tag.
+//
+// Security tags are used by various security subsystems as "profile names" and
+// sometimes also as a part of the file name.
+func SecurityTag(appInfo *snap.AppInfo) string {
+	return fmt.Sprintf("snap.%s.%s", appInfo.Snap.Name, appInfo.Name)
+}
+
+// SecurityTagGlob returns a pattern that matches all security tags belonging to
+// the same snap as the given app.
+func SecurityTagGlob(snapInfo *snap.Info) string {
+	return fmt.Sprintf("snap.%s.%s", snapInfo.Name, "*")
 }
