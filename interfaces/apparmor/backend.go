@@ -21,9 +21,9 @@
 // ubuntu-core-launcher around apparmor.
 //
 // Snappy creates apparmor profiles for each application (for each snap)
-// present in the system.  Upon each execution of ubuntu-core-launcher, the
-// profile is attached to the running process. Prior to that the profile must
-// be parsed, compiled and loaded into the kernel using the support tool
+// present in the system.  Upon each execution of ubuntu-core-launcher
+// application process is launched under the profile. Prior to that the profile
+// must be parsed, compiled and loaded into the kernel using the support tool
 // "apparmor_parser".
 //
 // Each apparmor profile contains a simple <header><content><footer> structure.
