@@ -73,11 +73,12 @@ func legacyVariables(appInfo *snap.AppInfo) string {
 //
 // ...have everything work correctly?
 func modernVariables(appInfo *snap.AppInfo) string {
-	return "" +
-		fmt.Sprintf("@{APP_NAME}=\"%s\"\n", appInfo.Name) +
-		fmt.Sprintf("@{APP_SECURITY_TAG}=\"%s\"\n", interfaces.SecurityTag(appInfo)) +
-		fmt.Sprintf("@{SNAP_NAME}=\"%s\"\n", appInfo.Snap.Name) +
-		"@{INSTALL_DIR}=\"{/snaps,/gadget}\"\n"
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "@{APP_NAME}=\"%s\"\n", appInfo.Name)
+	fmt.Fprintf(&buf, "@{APP_SECURITY_TAG}=\"%s\"\n", interfaces.SecurityTag(appInfo))
+	fmt.Fprintf(&buf, "@{SNAP_NAME}=\"%s\"\n", appInfo.Snap.Name)
+	fmt.Fprintf(&buf, "@{INSTALL_DIR}=\"{/snaps,/gadget}\"\n")
+	return buf.String()
 }
 
 // aaHeader returns the topmost part of the generated apparmor profile.
