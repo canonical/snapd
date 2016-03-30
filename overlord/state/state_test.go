@@ -312,6 +312,52 @@ func (ss *stateSuite) TestNewChangeAndCheckpoint(c *C) {
 	c.Check(v, Equals, 1)
 
 	c.Check(chg0.Status(), Equals, state.ErrorStatus)
+
+	select {
+	case <-chg0.Ready():
+	default:
+		c.Errorf("Change didn't preserve Ready channel closed after deserialization")
+	}
+}
+
+func (ss *stateSuite) TestNewChangeAndCheckpointTaskDerivedStatus(c *C) {
+	b := new(fakeStateBackend)
+	st := state.New(b)
+	st.Lock()
+
+	chg := st.NewChange("install", "summary")
+	c.Assert(chg, NotNil)
+	chgID := chg.ID()
+
+	t1 := st.NewTask("download", "1...")
+	t1.SetStatus(state.DoneStatus)
+	chg.AddTask(t1)
+
+	// implicit checkpoint
+	st.Unlock()
+
+	c.Assert(b.checkpoints, HasLen, 1)
+	buf := bytes.NewBuffer(b.checkpoints[0])
+
+	st2, err := state.ReadState(nil, buf)
+	c.Assert(err, IsNil)
+
+	st2.Lock()
+	defer st2.Unlock()
+
+	chgs := st2.Changes()
+
+	c.Assert(chgs, HasLen, 1)
+
+	chg0 := chgs[0]
+	c.Check(chg0.ID(), Equals, chgID)
+	c.Check(chg0.Status(), Equals, state.DoneStatus)
+
+	select {
+	case <-chg0.Ready():
+	default:
+		c.Errorf("Change didn't preserve Ready channel closed after deserialization")
+	}
 }
 
 func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {

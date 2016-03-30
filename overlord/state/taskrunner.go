@@ -24,8 +24,6 @@ import (
 	"sync"
 
 	"gopkg.in/tomb.v2"
-
-	"github.com/ubuntu-core/snappy/logger"
 )
 
 // HandlerFunc is the type of function for the handlers
@@ -42,91 +40,138 @@ type TaskRunner struct {
 
 	// locking
 	mu       sync.Mutex
-	handlers map[string]HandlerFunc
+	handlers map[string]handlerPair
 	stopped  bool
 
 	// go-routines lifecycle
 	tombs map[string]*tomb.Tomb
 }
 
+type handlerPair struct {
+	do, undo HandlerFunc
+}
+
 // NewTaskRunner creates a new TaskRunner
 func NewTaskRunner(s *State) *TaskRunner {
 	return &TaskRunner{
 		state:    s,
-		handlers: make(map[string]HandlerFunc),
+		handlers: make(map[string]handlerPair),
 		tombs:    make(map[string]*tomb.Tomb),
 	}
 }
 
-// AddHandler registers the function to concurrently call for handling
-// tasks of the given kind.
-func (r *TaskRunner) AddHandler(kind string, fn HandlerFunc) {
+// AddHandler registers the functions to concurrently call for doing and
+// undoing tasks of the given kind. The undo handler may be nil.
+func (r *TaskRunner) AddHandler(kind string, do, undo HandlerFunc) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.handlers[kind] = fn
-}
-
-// propagateError sets all tasks directly and indirectly waiting on t to ErrorStatus.
-func propagateError(task *Task) {
-	mark := append([]*Task(nil), task.HaltTasks()...)
-	for i := 0; i < len(mark); i++ {
-		t := mark[i]
-		t.SetStatus(ErrorStatus)
-		mark = append(mark, t.HaltTasks()...)
-	}
+	r.handlers[kind] = handlerPair{do, undo}
 }
 
 // run must be called with the state lock in place
-func (r *TaskRunner) run(fn HandlerFunc, task *Task) {
+func (r *TaskRunner) run(t *Task) {
+	var handler HandlerFunc
+	switch t.Status() {
+	case DoStatus:
+		t.SetStatus(DoingStatus)
+		fallthrough
+	case DoingStatus:
+		handler = r.handlers[t.Kind()].do
+
+	case UndoStatus:
+		t.SetStatus(UndoingStatus)
+		fallthrough
+	case UndoingStatus:
+		handler = r.handlers[t.Kind()].undo
+
+	default:
+		panic("internal error: attempted to run task in status " + t.Status().String())
+	}
+	if handler == nil {
+		panic("internal error: attempted to run task with nil handler for status " + t.Status().String())
+	}
+
 	tomb := &tomb.Tomb{}
-	id := task.ID()
-	r.tombs[id] = tomb
+	r.tombs[t.ID()] = tomb
 	tomb.Go(func() error {
-		defer func() {
-			r.mu.Lock()
-			defer r.mu.Unlock()
-
-			delete(r.tombs, id)
-		}()
-
-		// capture the error result with tomb.Kill so we can
+		// Capture the error result with tomb.Kill so we can
 		// use tomb.Err uniformily to consider both it or a
 		// overriding previous Kill reason.
-		tomb.Kill(fn(task, tomb))
+		tomb.Kill(handler(t, tomb))
 
+		// Locks must be acquired in the same order everywhere.
+		r.mu.Lock()
+		defer r.mu.Unlock()
 		r.state.Lock()
 		defer r.state.Unlock()
+
+		delete(r.tombs, t.ID())
+
 		switch err := tomb.Err(); err {
 		case Retry:
-			// Do nothing. Handler asked to try again later.
-			// TODO: define how to control retry intervals,
-			// right now things will be retried at the next Ensure
+			// Handler asked to be called again later.
+			// TODO Allow postponing retries past the next Ensure.
+			if t.Status() == AbortStatus {
+				// Would work without it but might take two ensures.
+				r.tryUndo(t)
+			}
 		case nil:
-			task.SetStatus(DoneStatus)
-			if len(task.HaltTasks()) > 0 {
-				// give a chance to taskrunners Ensure to start
-				// the waiting ones
+			var next []*Task
+			switch t.Status() {
+			case DoingStatus:
+				t.SetStatus(DoneStatus)
+				next = t.HaltTasks()
+			case AbortStatus:
+				t.SetStatus(DoneStatus) // Not actually aborted.
+				r.tryUndo(t)
+			case UndoingStatus:
+				t.SetStatus(UndoneStatus)
+				next = t.WaitTasks()
+			}
+			if len(next) > 0 {
 				r.state.EnsureBefore(0)
 			}
 		default:
-			task.SetStatus(ErrorStatus)
-			task.Errorf("%s", err)
-			propagateError(task)
+			t.SetStatus(ErrorStatus)
+			t.Errorf("%s", err)
+			r.abortChange(t.Change())
 		}
+
 		return nil
 	})
 }
 
-// mustWait returns whether task t must wait for other tasks to be done.
-func mustWait(t *Task) bool {
-	for _, wt := range t.WaitTasks() {
-		if wt.Status() != DoneStatus {
-			return true
+func (r *TaskRunner) abortChange(chg *Change) {
+	chg.Abort()
+	ensureScheduled := false
+	for _, t := range chg.Tasks() {
+		status := t.Status()
+		if status == AbortStatus {
+			if tb, ok := r.tombs[t.ID()]; ok {
+				tb.Kill(nil)
+			}
+		}
+		if !ensureScheduled && !status.Ready() {
+			ensureScheduled = true
+			r.state.EnsureBefore(0)
 		}
 	}
+}
 
-	return false
+// tryUndo replaces the status of a knowingly aborted task.
+func (r *TaskRunner) tryUndo(t *Task) {
+	if t.Status() == AbortStatus && r.handlers[t.Kind()].undo == nil {
+		// Cannot undo but it was stopped in flight.
+		// Hold so it doesn't look like it finished.
+		t.SetStatus(HoldStatus)
+		if len(t.WaitTasks()) > 0 {
+			r.state.EnsureBefore(0)
+		}
+	} else {
+		t.SetStatus(UndoStatus)
+		r.state.EnsureBefore(0)
+	}
 }
 
 // Ensure starts new goroutines for all known tasks with no pending
@@ -141,50 +186,70 @@ func (r *TaskRunner) Ensure() {
 		return
 	}
 
+	// Locks must be acquired in the same order everywhere.
 	r.state.Lock()
 	defer r.state.Unlock()
 
-	for _, chg := range r.state.Changes() {
-		if chg.Status() == DoneStatus {
+	for _, t := range r.state.Tasks() {
+		handlers, ok := r.handlers[t.Kind()]
+		if !ok {
+			// Handled by a different runner instance.
 			continue
 		}
-		logger.Debugf("Working on change %s: %s", chg.ID(), chg.summary)
 
-		tasks := chg.Tasks()
-		for _, t := range tasks {
-			// done or error are final, nothing to do
-			// TODO: actually for error progate to halted and their waited
-			status := t.Status()
-			if status == DoneStatus || status == ErrorStatus {
+		tb := r.tombs[t.ID()]
+
+		if t.Status() == AbortStatus {
+			if tb != nil {
+				tb.Kill(nil)
 				continue
 			}
+			r.tryUndo(t)
+		}
 
-			// No handler for the given kind of task,
-			// this means another taskrunner is going
-			// to handle this task.
-			if _, ok := r.handlers[t.Kind()]; !ok {
-				continue
+		if tb != nil {
+			// Already being handled.
+			continue
+		}
+
+		status := t.Status()
+		if status.Ready() {
+			continue
+		}
+		if status == UndoStatus && handlers.undo == nil {
+			// Cannot undo. Revert to done status.
+			t.SetStatus(DoneStatus)
+			if len(t.WaitTasks()) > 0 {
+				r.state.EnsureBefore(0)
 			}
+			continue
+		}
 
-			// we look at the Tomb instead of Status because
-			// a task can be in DoStatus even when it
-			// is not started yet (like when the daemon
-			// process restarts)
-			if _, ok := r.tombs[t.ID()]; ok {
-				continue
+		if mustWait(t) {
+			// Dependencies still unhandled.
+			continue
+		}
+		r.run(t)
+	}
+}
+
+// mustWait returns whether task t must wait for other tasks to be done.
+func mustWait(t *Task) bool {
+	switch t.Status() {
+	case DoStatus:
+		for _, wt := range t.WaitTasks() {
+			if wt.Status() != DoneStatus {
+				return true
 			}
-
-			// check if there is anything we need to wait for
-			if mustWait(t) {
-				continue
+		}
+	case UndoStatus:
+		for _, ht := range t.HaltTasks() {
+			if !ht.Status().Ready() {
+				return true
 			}
-
-			logger.Debugf("Running task %s: %s", t.id, t.summary)
-			// the task is ready to run (all prerequists done)
-			// so full steam ahead!
-			r.run(r.handlers[t.Kind()], t)
 		}
 	}
+	return false
 }
 
 // wait expectes to be called with th r.mu lock held
