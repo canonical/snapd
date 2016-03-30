@@ -191,6 +191,7 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 				http.Error(w, fmt.Sprintf("can get info for: %v: %v", fn, err), http.StatusBadRequest)
 				return
 			}
+			n := strings.Count(info.Version, "+fake") + 1
 
 			replyData = append(replyData, bulkReplyJSON{
 				Status:          "Published",
@@ -199,7 +200,7 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 				Developer:       defaultDeveloper,
 				AnonDownloadURL: fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn)),
 				Version:         info.Version,
-				Revision:        defaultRevision,
+				Revision:        n * defaultRevision,
 			})
 		}
 	}
