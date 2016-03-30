@@ -164,10 +164,8 @@ func (s *SnapTestSuite) TestLocalSnapActive(c *C) {
 
 func (s *SnapTestSuite) TestLocalSnapRepositoryInvalidIsStillOk(c *C) {
 	dirs.SnapSnapsDir = "invalid-path"
-	snap := NewLocalSnapRepository()
-	c.Assert(snap, NotNil)
 
-	installed, err := snap.Installed()
+	installed, err := (&Overlord{}).Installed()
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 0)
 }
@@ -178,10 +176,7 @@ func (s *SnapTestSuite) TestLocalSnapRepositorySimple(c *C) {
 	err = makeSnapActive(yamlPath)
 	c.Assert(err, IsNil)
 
-	snap := NewLocalSnapRepository()
-	c.Assert(snap, NotNil)
-
-	installed, err := snap.Installed()
+	installed, err := (&Overlord{}).Installed()
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 1)
 	c.Assert(installed[0].Name(), Equals, "hello-snap")
@@ -568,9 +563,7 @@ type: gadget
 
 	p := &MockProgressMeter{}
 
-	r := NewLocalSnapRepository()
-	c.Assert(r, NotNil)
-	installed, err := r.Installed()
+	installed, err := (&Overlord{}).Installed()
 	c.Assert(err, IsNil)
 	snaps := FindSnapsByName("hello-snap", installed)
 	c.Assert(snaps, HasLen, 1)

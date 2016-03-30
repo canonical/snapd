@@ -49,7 +49,7 @@ func (s *SnapTestSuite) TestInstallInstall(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
-	all, err := NewLocalSnapRepository().Installed()
+	all, err := (&Overlord{}).Installed()
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	snap := all[0]
@@ -64,7 +64,7 @@ func (s *SnapTestSuite) TestInstallNoHook(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
-	all, err := NewLocalSnapRepository().Installed()
+	all, err := (&Overlord{}).Installed()
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	snap := all[0]
@@ -235,7 +235,7 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 	yamlPath, err := s.makeInstalledMockSnap("name: foo\nversion: 1")
 	c.Assert(err, IsNil)
 	makeSnapActive(yamlPath)
-	installed, err := NewLocalSnapRepository().Installed()
+	installed, err := (&Overlord{}).Installed()
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 1)
 	c.Assert(ActiveSnapByName("foo"), NotNil)

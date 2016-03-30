@@ -25,7 +25,7 @@ import (
 
 // ListInstalled returns all installed snaps
 func ListInstalled() ([]*Snap, error) {
-	return NewLocalSnapRepository().Installed()
+	return (&Overlord{}).Installed()
 }
 
 // ListUpdates returns all snaps with updates

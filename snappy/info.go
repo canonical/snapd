@@ -29,6 +29,11 @@ import (
 	"github.com/ubuntu-core/snappy/snap"
 )
 
+const (
+	// SideloadedDeveloper is the (forced) developer for sideloaded snaps
+	SideloadedDeveloper = "sideload"
+)
+
 // SystemConfig is a config map holding configs for multiple packages
 type SystemConfig map[string]interface{}
 
@@ -70,7 +75,7 @@ func fullNameWithChannel(p *snap.Info) string {
 
 // ActiveSnapsByType returns all installed snaps with the given type
 func ActiveSnapsByType(snapTs ...snap.Type) (res []*Snap, err error) {
-	installed, err := NewLocalSnapRepository().Installed()
+	installed, err := (&Overlord{}).Installed()
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +111,7 @@ func activeSnapIterByTypeImpl(f func(*snap.Info) string, snapTs ...snap.Type) ([
 
 // ActiveSnapByName returns all active snaps with the given name
 func ActiveSnapByName(needle string) *Snap {
-	installed, err := NewLocalSnapRepository().Installed()
+	installed, err := (&Overlord{}).Installed()
 	if err != nil {
 		return nil
 	}
@@ -166,7 +171,7 @@ func FindSnapsByNameAndVersion(needle, version string, haystack []*Snap) []*Snap
 // MakeSnapActiveByNameAndVersion makes the given snap version the active
 // version
 func makeSnapActiveByNameAndVersion(pkg, ver string, inter progress.Meter) error {
-	installed, err := NewLocalSnapRepository().Installed()
+	installed, err := (&Overlord{}).Installed()
 	if err != nil {
 		return err
 	}
@@ -191,4 +196,24 @@ func PackageNameActive(name string) bool {
 // RemoteManifestPath returns the would be path for the store manifest meta data
 func RemoteManifestPath(s *snap.Info) string {
 	return filepath.Join(dirs.SnapMetaDir, fmt.Sprintf("%s_%s.manifest", QualifiedName(s), s.Version))
+}
+
+func developerFromBasedir(basedir string) (s string) {
+	ext := filepath.Ext(filepath.Dir(filepath.Clean(basedir)))
+	if len(ext) < 2 {
+		return ""
+	}
+
+	return ext[1:]
+}
+
+// developerFromYamlPath *must* return "" if it's returning error.
+func developerFromYamlPath(path string) (string, error) {
+	developer := developerFromBasedir(filepath.Join(path, "..", ".."))
+
+	if developer == "" {
+		return "", ErrInvalidSnap
+	}
+
+	return developer, nil
 }
