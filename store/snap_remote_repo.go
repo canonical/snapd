@@ -71,6 +71,8 @@ type SnapUbuntuStoreRepository struct {
 	detailsURI    *url.URL
 	bulkURI       *url.URL
 	assertionsURI *url.URL
+	// reused http client
+	client *http.Client
 }
 
 func getStructFields(s interface{}) []string {
@@ -179,6 +181,7 @@ func NewUbuntuStoreSnapRepository(cfg *SnapUbuntuStoreConfig, storeID string) *S
 		detailsURI:    cfg.DetailsURI,
 		bulkURI:       cfg.BulkURI,
 		assertionsURI: cfg.AssertionsURI,
+		client:        &http.Client{},
 	}
 }
 
@@ -235,8 +238,7 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string) (*RemoteSnap, err
 	// set headers
 	s.configureStoreReq(req, "")
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := s.client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -284,8 +286,7 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string)
 	s.configureStoreReq(req, "")
 	req.Header.Set("X-Ubuntu-Device-Channnel", channel)
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := s.client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -322,8 +323,7 @@ func (s *SnapUbuntuStoreRepository) Updates(installed []string) (snaps []*Remote
 	// (see LP: #1427155)
 	s.configureStoreReq(req, "application/json")
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := s.client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -431,8 +431,7 @@ func (s *SnapUbuntuStoreRepository) Assertion(assertType *asserts.AssertionType,
 	configureAuthHeader(req)
 	req.Header.Set("Accept", asserts.MediaType)
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := s.client.Do(req)
 	if err != nil {
 		return nil, err
 	}
