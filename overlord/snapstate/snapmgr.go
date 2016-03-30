@@ -22,7 +22,6 @@ package snapstate
 
 import (
 	"fmt"
-	"os"
 
 	"gopkg.in/tomb.v2"
 
@@ -82,8 +81,17 @@ func Manager(s *state.State) (*SnapManager, error) {
 		runner:  runner,
 	}
 
+	// this handler does nothing
+	runner.AddHandler("nop", func(t *state.Task, _ *tomb.Tomb) error {
+		return nil
+	})
+
 	runner.AddHandler("download-snap", m.doDownloadSnap)
-	runner.AddHandler("install-snap", m.doInstallLocalSnap)
+	runner.AddHandler("check-snap", m.doCheckSnap)
+	runner.AddHandler("mount-snap", m.doMountSnap)
+	runner.AddHandler("copy-snap-data", m.doCopySnapData)
+	runner.AddHandler("generate-security", m.doGenerateSecurity)
+	runner.AddHandler("finalize-snap-install", m.doFinalizeSnap)
 
 	runner.AddHandler("update-snap", m.doUpdateSnap)
 	runner.AddHandler("remove-snap", m.doRemoveSnap)
@@ -107,10 +115,11 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 	var dl downloadState
 
 	t.State().Lock()
-	if err := t.Get("install-state", &inst); err != nil {
+	err := t.Get("install-state", &inst)
+	t.State().Unlock()
+	if err != nil {
 		return err
 	}
-	t.State().Unlock()
 
 	pb := &TaskProgressAdapter{task: t}
 	downloadedSnapFile, developer, err := m.backend.Download(inst.Name, inst.Channel, pb)
@@ -128,95 +137,62 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) doInstallLocalSnap(t *state.Task, _ *tomb.Tomb) error {
-	var inst installState
-	var dl downloadState
-
-	t.State().Lock()
-	if err := t.Get("install-state", &inst); err != nil {
-		return err
-	}
-	t.State().Unlock()
-
-	// local snaps are special
-	var snapPath string
-	var developer string
-	if inst.SnapPath != "" {
-		snapPath = inst.SnapPath
-		developer = snappy.SideloadedDeveloper
-	} else if inst.DownloadTaskID != "" {
-		t.State().Lock()
-		tDl := t.State().Task(inst.DownloadTaskID)
-		if err := tDl.Get("download-state", &dl); err != nil {
-			return err
-		}
-		t.State().Unlock()
-		defer os.Remove(dl.SnapPath)
-		snapPath = dl.SnapPath
-		developer = dl.Developer
-	} else {
-		return fmt.Errorf("internal error: install-snap created without a snap path source")
-	}
-
-	pb := &TaskProgressAdapter{task: t}
-	return m.backend.InstallLocal(snapPath, developer, inst.Flags, pb)
-}
-
 func (m *SnapManager) doUpdateSnap(t *state.Task, _ *tomb.Tomb) error {
 	var inst installState
 	t.State().Lock()
-	if err := t.Get("update-state", &inst); err != nil {
+	err := t.Get("update-state", &inst)
+	t.State().Unlock()
+	if err != nil {
 		return err
 	}
-	t.State().Unlock()
 
 	pb := &TaskProgressAdapter{task: t}
-	err := m.backend.Update(inst.Name, inst.Channel, inst.Flags, pb)
-	return err
+	return m.backend.Update(inst.Name, inst.Channel, inst.Flags, pb)
 }
 
 func (m *SnapManager) doRemoveSnap(t *state.Task, _ *tomb.Tomb) error {
 	var rm removeState
 
 	t.State().Lock()
-	if err := t.Get("remove-state", &rm); err != nil {
+	err := t.Get("remove-state", &rm)
+	t.State().Unlock()
+	if err != nil {
 		return err
 	}
-	t.State().Unlock()
 
 	pb := &TaskProgressAdapter{task: t}
 	name, _ := snappy.SplitDeveloper(rm.Name)
-	err := m.backend.Remove(name, rm.Flags, pb)
-	return err
+	return m.backend.Remove(name, rm.Flags, pb)
 }
 
 func (m *SnapManager) doPurgeSnap(t *state.Task, _ *tomb.Tomb) error {
 	var purge purgeState
 
 	t.State().Lock()
-	if err := t.Get("purge-state", &purge); err != nil {
+	err := t.Get("purge-state", &purge)
+	t.State().Unlock()
+	if err != nil {
 		return err
 	}
-	t.State().Unlock()
 
 	pb := &TaskProgressAdapter{task: t}
 	name, _ := snappy.SplitDeveloper(purge.Name)
-	err := m.backend.Purge(name, purge.Flags, pb)
-	return err
+	return m.backend.Purge(name, purge.Flags, pb)
 }
 
 func (m *SnapManager) doRollbackSnap(t *state.Task, _ *tomb.Tomb) error {
 	var rollback rollbackState
 
 	t.State().Lock()
-	if err := t.Get("rollback-state", &rollback); err != nil {
+	err := t.Get("rollback-state", &rollback)
+	t.State().Unlock()
+	if err != nil {
 		return err
 	}
-	t.State().Unlock()
 
 	pb := &TaskProgressAdapter{task: t}
 	name, _ := snappy.SplitDeveloper(rollback.Name)
-	_, err := m.backend.Rollback(name, rollback.Version, pb)
+	_, err = m.backend.Rollback(name, rollback.Version, pb)
 	return err
 }
 
@@ -224,10 +200,11 @@ func (m *SnapManager) doActivateSnap(t *state.Task, _ *tomb.Tomb) error {
 	var activate activateState
 
 	t.State().Lock()
-	if err := t.Get("activate-state", &activate); err != nil {
+	err := t.Get("activate-state", &activate)
+	t.State().Unlock()
+	if err != nil {
 		return err
 	}
-	t.State().Unlock()
 
 	pb := &TaskProgressAdapter{task: t}
 	name, _ := snappy.SplitDeveloper(activate.Name)
@@ -248,4 +225,118 @@ func (m *SnapManager) Wait() {
 // Stop implements StateManager.Stop.
 func (m *SnapManager) Stop() {
 	m.runner.Stop()
+}
+
+// helper to find the path and developer from an installState
+// (it may either be a local snap or downloaded from the store)
+func snapPathAndDeveloperFromInstState(t *state.Task, inst *installState) (string, string, error) {
+	if inst.SnapPath != "" {
+		return inst.SnapPath, snappy.SideloadedDeveloper, nil
+	} else if inst.DownloadTaskID != "" {
+		var dl downloadState
+
+		t.State().Lock()
+		tDl := t.State().Task(inst.DownloadTaskID)
+		err := tDl.Get("download-state", &dl)
+		t.State().Unlock()
+		if err != nil {
+			return "", "", err
+		}
+		return dl.SnapPath, dl.Developer, nil
+	}
+
+	return "", "", fmt.Errorf("internal error: installState created without a snap path source")
+}
+
+func (m *SnapManager) doCheckSnap(t *state.Task, _ *tomb.Tomb) error {
+	var inst installState
+
+	t.State().Lock()
+	err := t.Get("install-state", &inst)
+	t.State().Unlock()
+	if err != nil {
+		return err
+	}
+
+	snapPath, developer, err := snapPathAndDeveloperFromInstState(t, &inst)
+	if err != nil {
+		return err
+	}
+
+	return m.backend.CheckSnap(snapPath, developer, inst.Flags)
+}
+
+func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
+	var inst installState
+
+	t.State().Lock()
+	err := t.Get("install-state", &inst)
+	t.State().Unlock()
+	if err != nil {
+		return err
+	}
+
+	snapPath, developer, err := snapPathAndDeveloperFromInstState(t, &inst)
+	if err != nil {
+		return err
+	}
+
+	instPath, err := m.backend.SetupSnap(snapPath, developer, inst.Flags)
+	// FIXME: set instPath
+	println(instPath)
+	return err
+}
+
+func (m *SnapManager) doGenerateSecurity(t *state.Task, _ *tomb.Tomb) error {
+	var inst installState
+
+	t.State().Lock()
+	err := t.Get("install-state", &inst)
+	t.State().Unlock()
+	if err != nil {
+		return err
+	}
+
+	snapPath, developer, err := snapPathAndDeveloperFromInstState(t, &inst)
+	if err != nil {
+		return err
+	}
+
+	return m.backend.GenerateSecurityProfile(snapPath, developer)
+}
+
+func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
+	var inst installState
+
+	t.State().Lock()
+	err := t.Get("install-state", &inst)
+	t.State().Unlock()
+	if err != nil {
+		return err
+	}
+
+	snapPath, developer, err := snapPathAndDeveloperFromInstState(t, &inst)
+	if err != nil {
+		return err
+	}
+
+	return m.backend.CopySnapData(snapPath, developer, inst.Flags)
+}
+
+func (m *SnapManager) doFinalizeSnap(t *state.Task, _ *tomb.Tomb) error {
+	var inst installState
+
+	t.State().Lock()
+	err := t.Get("install-state", &inst)
+	t.State().Unlock()
+	if err != nil {
+		return err
+	}
+
+	snapPath, developer, err := snapPathAndDeveloperFromInstState(t, &inst)
+	if err != nil {
+		return err
+	}
+
+	return m.backend.FinalizeSnap(snapPath, developer, inst.Flags)
 }
