@@ -242,52 +242,36 @@ type combineSnippetsScenario struct {
 	content       string
 }
 
-var combineSnippetsScenarios = []combineSnippetsScenario{{
-	content: `
+const commonPrefix = `
 @{APP_APPNAME}="smbd"
 @{APP_ID_DBUS}="samba_2eacme_5fsmbd_5f1"
 @{APP_PKGNAME_DBUS}="samba_2eacme"
 @{APP_PKGNAME}="samba.acme"
 @{APP_VERSION}="1"
-@{INSTALL_DIR}="{/snaps,/gadget}"
+@{INSTALL_DIR}="{/snaps,/gadget}"`
+
+var combineSnippetsScenarios = []combineSnippetsScenario{{
+	content: commonPrefix + `
 profile "snap.samba.smbd" (attach_disconnected) {
 }
 `,
 }, {
 	snippet: "snippet",
-	content: `
-@{APP_APPNAME}="smbd"
-@{APP_ID_DBUS}="samba_2eacme_5fsmbd_5f1"
-@{APP_PKGNAME_DBUS}="samba_2eacme"
-@{APP_PKGNAME}="samba.acme"
-@{APP_VERSION}="1"
-@{INSTALL_DIR}="{/snaps,/gadget}"
+	content: commonPrefix + `
 profile "snap.samba.smbd" (attach_disconnected) {
 snippet
 }
 `,
 }, {
 	developerMode: true,
-	content: `
-@{APP_APPNAME}="smbd"
-@{APP_ID_DBUS}="samba_2eacme_5fsmbd_5f1"
-@{APP_PKGNAME_DBUS}="samba_2eacme"
-@{APP_PKGNAME}="samba.acme"
-@{APP_VERSION}="1"
-@{INSTALL_DIR}="{/snaps,/gadget}"
+	content: commonPrefix + `
 profile "snap.samba.smbd" (attach_disconnected,complain) {
 }
 `,
 }, {
 	developerMode: true,
 	snippet:       "snippet",
-	content: `
-@{APP_APPNAME}="smbd"
-@{APP_ID_DBUS}="samba_2eacme_5fsmbd_5f1"
-@{APP_PKGNAME_DBUS}="samba_2eacme"
-@{APP_PKGNAME}="samba.acme"
-@{APP_VERSION}="1"
-@{INSTALL_DIR}="{/snaps,/gadget}"
+	content: commonPrefix + `
 profile "snap.samba.smbd" (attach_disconnected,complain) {
 snippet
 }
