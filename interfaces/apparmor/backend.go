@@ -27,9 +27,8 @@
 // "apparmor_parser".
 //
 // Each apparmor profile contains a simple <header><content><footer> structure.
-// The header specified an identifier that is relevant to the kernel. The
-// identifier can be either the full path of the executable or an abstract
-// identifier not related to the executable name.
+// The header specifies the profile name that the launcher will use to launch a
+// process under this profile.
 //
 // The actual profiles are stored in /var/lib/snappy/apparmor/profiles.
 // This directory is also hard-coded in ubuntu-core-launcher.
