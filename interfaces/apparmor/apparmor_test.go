@@ -53,21 +53,21 @@ func (s *appArmorSuite) SetUpTest(c *C) {
 func (s *appArmorSuite) TestLoadProfileRunsAppArmorParserReplace(c *C) {
 	cmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer cmd.Restore()
-	err := apparmor.LoadProfile("foo.snap")
+	err := apparmor.LoadProfile("/path/to/snap.samba.smbd")
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, []string{
-		"--replace --write-cache -O no-expr-simplify --cache-loc=/var/cache/apparmor foo.snap"})
+		"--replace --write-cache -O no-expr-simplify --cache-loc=/var/cache/apparmor /path/to/snap.samba.smbd"})
 }
 
 func (s *appArmorSuite) TestLoadProfileReportsErrors(c *C) {
 	cmd := testutil.MockCommand(c, "apparmor_parser", "exit 42")
 	defer cmd.Restore()
-	err := apparmor.LoadProfile("foo.snap")
+	err := apparmor.LoadProfile("/path/to/snap.samba.smbd")
 	c.Assert(err.Error(), Equals, `cannot load apparmor profile: exit status 42
 apparmor_parser output:
 `)
 	c.Assert(cmd.Calls(), DeepEquals, []string{
-		"--replace --write-cache -O no-expr-simplify --cache-loc=/var/cache/apparmor foo.snap"})
+		"--replace --write-cache -O no-expr-simplify --cache-loc=/var/cache/apparmor /path/to/snap.samba.smbd"})
 }
 
 // Tests for Profile.Unload()
@@ -75,17 +75,15 @@ apparmor_parser output:
 func (s *appArmorSuite) TestUnloadProfileRunsAppArmorParserRemove(c *C) {
 	cmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer cmd.Restore()
-	profile := apparmor.Profile{Name: "foo.snap"}
-	err := profile.Unload()
+	err := apparmor.UnloadProfile("snap.samba.smbd")
 	c.Assert(err, IsNil)
-	c.Assert(cmd.Calls(), DeepEquals, []string{"--remove foo.snap"})
+	c.Assert(cmd.Calls(), DeepEquals, []string{"--remove snap.samba.smbd"})
 }
 
 func (s *appArmorSuite) TestUnloadProfileReportsErrors(c *C) {
 	cmd := testutil.MockCommand(c, "apparmor_parser", "exit 42")
 	defer cmd.Restore()
-	profile := apparmor.Profile{Name: "foo.snap"}
-	err := profile.Unload()
+	err := apparmor.UnloadProfile("snap.samba.smbd")
 	c.Assert(err.Error(), Equals, `cannot unload apparmor profile: exit status 42
 apparmor_parser output:
 `)
@@ -131,9 +129,9 @@ webbrowser-app//oxide_helper (enforce)
 `), 0600)
 	profiles, err := apparmor.LoadedProfiles()
 	c.Assert(err, IsNil)
-	c.Check(profiles, DeepEquals, []apparmor.Profile{
-		{"snap.pi2-piglow.background", "enforce"},
-		{"snap.pi2-piglow.foreground", "enforce"},
+	c.Check(profiles, DeepEquals, []string{
+		"snap.pi2-piglow.background",
+		"snap.pi2-piglow.foreground",
 	})
 }
 
