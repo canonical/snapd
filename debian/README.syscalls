@@ -13,7 +13,7 @@ NOTE: syscall() isn't actually a syscall, it is a glibc wrapping to reference
 a syscall by number (therefore, it should be omitted from filter policy). ARM
 OABI did define this, but it has been obsoleted in EABI.
 
-For example, on Ubuntu 16.04 with the 4.3.0 Linux kernel, these are the
+For example, on Ubuntu 16.04 with the 4.4.0-16.32 Linux kernel, these are the
 syscalls:
 accept
 accept4
@@ -189,6 +189,7 @@ mkdirat
 mknod
 mknodat
 mlock
+mlock2
 mlockall
 mmap
 mmap2
