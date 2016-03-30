@@ -191,6 +191,18 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 				http.Error(w, fmt.Sprintf("can get info for: %v: %v", fn, err), http.StatusBadRequest)
 				return
 			}
+			// TODO: This is a hack to ensure we have higher
+			//       revisions here than locally. The fake
+			//       snaps get versions like
+			//          "1.0+fake1+fake1+fake1"
+			//       so we can use this for now to generate
+			//       fake revisions. However in the longer
+			//       term we should read the real revision
+			//       of the snap, increment and add a ".aux"
+			//       file to the download directory of the
+			//       store that contains the revision and the
+			//       developer. The fake-store can then read
+			//       that file when sending the reply.
 			n := strings.Count(info.Version, "+fake") + 1
 
 			replyData = append(replyData, bulkReplyJSON{
