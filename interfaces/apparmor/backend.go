@@ -33,7 +33,7 @@
 //
 // The actual profiles are stored in /var/lib/snappy/apparmor/profiles.
 //
-// NOTE: A systemd job (TODO: specify which) loads all snappy-specific apparmor
+// NOTE: A systemd job (apparmor.service) loads all snappy-specific apparmor
 // profiles into the kernel during the boot process.
 package apparmor
 
