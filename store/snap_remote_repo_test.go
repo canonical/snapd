@@ -59,12 +59,43 @@ func (t *remoteRepoTestSuite) TearDownTest(c *C) {
 }
 
 func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
+
 	download = func(name string, w io.Writer, req *http.Request, pbar progress.Meter) error {
+		c.Check(req.URL.String(), Equals, "anon")
 		w.Write([]byte("I was downloaded"))
 		return nil
 	}
 
-	path, err := t.store.Download(&RemoteSnap{}, nil)
+	snap := &RemoteSnap{}
+	snap.Pkg.AnonDownloadURL = "anon"
+	snap.Pkg.DownloadURL = "AUTH"
+	path, err := t.store.Download(snap, nil)
+	c.Assert(err, IsNil)
+	defer os.Remove(path)
+
+	content, err := ioutil.ReadFile(path)
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, "I was downloaded")
+}
+
+func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
+	home := os.Getenv("HOME")
+	os.Setenv("HOME", c.MkDir())
+	defer os.Setenv("HOME", home)
+	mockStoreToken := StoreToken{TokenName: "meep"}
+	err := WriteStoreToken(mockStoreToken)
+	c.Assert(err, IsNil)
+
+	download = func(name string, w io.Writer, req *http.Request, pbar progress.Meter) error {
+		c.Check(req.URL.String(), Equals, "AUTH")
+		w.Write([]byte("I was downloaded"))
+		return nil
+	}
+
+	snap := &RemoteSnap{}
+	snap.Pkg.AnonDownloadURL = "anon"
+	snap.Pkg.DownloadURL = "AUTH"
+	path, err := t.store.Download(snap, nil)
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
 

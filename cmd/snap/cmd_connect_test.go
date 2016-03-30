@@ -63,7 +63,7 @@ Help Options:
 func (s *SnapSuite) TestConnectExplicitEverything(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "POST")
-		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
+		c.Check(r.URL.Path, Equals, "/v2/interfaces")
 		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
 			"action": "connect",
 			"plugs": []interface{}{
@@ -89,7 +89,7 @@ func (s *SnapSuite) TestConnectExplicitEverything(c *C) {
 func (s *SnapSuite) TestConnectExplicitPlugImplicitSlot(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "POST")
-		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
+		c.Check(r.URL.Path, Equals, "/v2/interfaces")
 		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
 			"action": "connect",
 			"plugs": []interface{}{
@@ -115,7 +115,7 @@ func (s *SnapSuite) TestConnectExplicitPlugImplicitSlot(c *C) {
 func (s *SnapSuite) TestConnectImplicitPlugExplicitSlot(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "POST")
-		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
+		c.Check(r.URL.Path, Equals, "/v2/interfaces")
 		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
 			"action": "connect",
 			"plugs": []interface{}{
@@ -141,7 +141,7 @@ func (s *SnapSuite) TestConnectImplicitPlugExplicitSlot(c *C) {
 func (s *SnapSuite) TestConnectImplicitPlugImplicitSlot(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "POST")
-		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
+		c.Check(r.URL.Path, Equals, "/v2/interfaces")
 		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
 			"action": "connect",
 			"plugs": []interface{}{

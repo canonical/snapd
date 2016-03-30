@@ -60,11 +60,6 @@ type removeState struct {
 	Flags snappy.RemoveFlags `json:"flags,omitempty"`
 }
 
-type purgeState struct {
-	Name  string            `json:"name"`
-	Flags snappy.PurgeFlags `json:"flags,omitempty"`
-}
-
 type rollbackState struct {
 	Name    string `json:"name"`
 	Version string `json:"version,omitempty"`
@@ -99,7 +94,6 @@ func Manager(s *state.State) (*SnapManager, error) {
 
 	runner.AddHandler("update-snap", m.doUpdateSnap)
 	runner.AddHandler("remove-snap", m.doRemoveSnap)
-	runner.AddHandler("purge-snap", m.doPurgeSnap)
 	runner.AddHandler("rollback-snap", m.doRollbackSnap)
 	runner.AddHandler("activate-snap", m.doActivateSnap)
 
@@ -167,21 +161,6 @@ func (m *SnapManager) doRemoveSnap(t *state.Task, _ *tomb.Tomb) error {
 	pb := &TaskProgressAdapter{task: t}
 	name, _ := snappy.SplitDeveloper(rm.Name)
 	return m.backend.Remove(name, rm.Flags, pb)
-}
-
-func (m *SnapManager) doPurgeSnap(t *state.Task, _ *tomb.Tomb) error {
-	var purge purgeState
-
-	t.State().Lock()
-	err := t.Get("purge-state", &purge)
-	t.State().Unlock()
-	if err != nil {
-		return err
-	}
-
-	pb := &TaskProgressAdapter{task: t}
-	name, _ := snappy.SplitDeveloper(purge.Name)
-	return m.backend.Purge(name, purge.Flags, pb)
 }
 
 func (m *SnapManager) doRollbackSnap(t *state.Task, _ *tomb.Tomb) error {
