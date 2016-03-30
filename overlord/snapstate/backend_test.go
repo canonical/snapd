@@ -79,14 +79,6 @@ func (f *fakeSnappyBackend) Remove(name string, flags snappy.RemoveFlags, p prog
 	return nil
 }
 
-func (f *fakeSnappyBackend) Purge(name string, flags snappy.PurgeFlags, p progress.Meter) error {
-	f.ops = append(f.ops, fakeOp{
-		op:   "purge",
-		name: name,
-	})
-	return nil
-}
-
 func (f *fakeSnappyBackend) Rollback(name, ver string, p progress.Meter) (string, error) {
 	f.ops = append(f.ops, fakeOp{
 		op:   "rollback",

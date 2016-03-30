@@ -34,20 +34,20 @@ func (s *SnapSuite) TestInstall(c *check.C) {
 		switch n {
 		case 0:
 			c.Check(r.Method, check.Equals, "POST")
-			c.Check(r.URL.Path, check.Equals, "/2.0/snaps/foo.bar")
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo.bar")
 			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
 				"action":  "install",
 				"channel": "chan",
 			})
 			w.WriteHeader(http.StatusAccepted)
-			fmt.Fprintln(w, `{"type":"async", "result":{"resource": "/2.0/operations/42"}, "status_code": 202}`)
+			fmt.Fprintln(w, `{"type":"async", "result":{"resource": "/v2/operations/42"}, "status_code": 202}`)
 		case 1:
 			c.Check(r.Method, check.Equals, "GET")
-			c.Check(r.URL.Path, check.Equals, "/2.0/operations/42")
+			c.Check(r.URL.Path, check.Equals, "/v2/operations/42")
 			fmt.Fprintln(w, `{"type": "sync", "result": {"status": "running"}}`)
 		case 2:
 			c.Check(r.Method, check.Equals, "GET")
-			c.Check(r.URL.Path, check.Equals, "/2.0/operations/42")
+			c.Check(r.URL.Path, check.Equals, "/v2/operations/42")
 			fmt.Fprintln(w, `{"type": "sync", "result": {"status": "succeeded"}}`)
 		default:
 			c.Fatalf("expected to get 3 requests, now on %d", n)
