@@ -149,11 +149,9 @@ func (s *backendSuite) TestRealDefaultTemplateIsNormallyUsed(c *C) {
 	for _, line := range []string{
 		// NOTE: a few randomly picked lines from the real profile.  Comments
 		// and empty lines are avoided as those can be discarded in the future.
-		"deny kexec_load\n",
-		"deny create_module\n",
-		"symlink\n",
-		"socket\n",
-		"pwritev\n",
+		"deny init_module\n",
+		"open\n",
+		"getuid\n",
 	} {
 		c.Assert(string(data), testutil.Contains, line)
 	}
