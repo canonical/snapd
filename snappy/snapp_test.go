@@ -240,15 +240,15 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 	var err error
 	s.storeCfg.BulkURI, err = url.Parse(mockServer.URL + "/updates/")
 	c.Assert(err, IsNil)
-	snap := store.NewUbuntuStoreSnapRepository(s.storeCfg, "")
-	c.Assert(snap, NotNil)
+	repo := store.NewUbuntuStoreSnapRepository(s.storeCfg, "")
+	c.Assert(repo, NotNil)
 
 	// override the real ActiveSnapIterByType to return our
 	// mock data
 	mockActiveSnapIterByType([]string{funkyAppName})
 
 	// the actual test
-	results, err := snapUpdates(snap)
+	results, err := snapUpdates(repo)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].Name(), Equals, funkyAppName)
@@ -260,13 +260,13 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdatesNoSnaps(c *C) {
 	var err error
 	s.storeCfg.DetailsURI, err = url.Parse("https://some-uri")
 	c.Assert(err, IsNil)
-	snap := store.NewUbuntuStoreSnapRepository(s.storeCfg, "")
-	c.Assert(snap, NotNil)
+	repo := store.NewUbuntuStoreSnapRepository(s.storeCfg, "")
+	c.Assert(repo, NotNil)
 
 	mockActiveSnapIterByType([]string{})
 
 	// the actual test
-	results, err := snapUpdates(snap)
+	results, err := snapUpdates(repo)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 0)
 }
