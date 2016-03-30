@@ -50,7 +50,9 @@ func (s *backendSuite) SetUpTest(c *C) {
 	s.rootDir = c.MkDir()
 	dirs.SetRootDir(s.rootDir)
 	// Mock away any real apparmor interaction
-	s.cmds = apparmor.MockExternalCommands(c)
+	s.cmds = map[string]*testutil.MockCmd{
+		"apparmor_parser": testutil.MockCommand(c, "apparmor_parser", ""),
+	}
 	// Prepare a directory for apparmor profiles.
 	// NOTE: Normally this is a part of the OS snap.
 	err := os.MkdirAll(dirs.SnapAppArmorDir, 0700)
