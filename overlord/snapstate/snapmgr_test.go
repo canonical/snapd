@@ -131,17 +131,17 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 		},
 		fakeOp{
 			op:        "generate-security-profile",
-			name:      "downloaded-snap-path",
+			name:      "some-inst-path",
 			developer: "some-developer",
 		},
 		fakeOp{
 			op:        "copy-data",
-			name:      "downloaded-snap-path",
+			name:      "some-inst-path",
 			developer: "some-developer",
 		},
 		fakeOp{
 			op:        "finalize-snap",
-			name:      "downloaded-snap-path",
+			name:      "some-inst-path",
 			developer: "some-developer",
 		},
 	})
