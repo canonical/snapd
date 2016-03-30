@@ -20,6 +20,8 @@
 package snapstate
 
 import (
+	"path/filepath"
+
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snappy"
 )
@@ -101,7 +103,7 @@ func (s *defaultBackend) SetupSnap(snapFilePath, developer string, flags snappy.
 }
 
 func (s *defaultBackend) CopySnapData(snapInstPath, developer string, flags snappy.InstallFlags) error {
-	sn, err := snappy.NewInstalledSnap(snapInstPath, developer)
+	sn, err := snappy.NewInstalledSnap(filepath.Join(snapInstPath, "meta", "snap.yaml"), developer)
 	if err != nil {
 		return err
 	}
@@ -109,7 +111,7 @@ func (s *defaultBackend) CopySnapData(snapInstPath, developer string, flags snap
 }
 
 func (s *defaultBackend) GenerateSecurityProfile(snapInstPath, developer string) error {
-	sn, err := snappy.NewInstalledSnap(snapInstPath, developer)
+	sn, err := snappy.NewInstalledSnap(filepath.Join(snapInstPath, "meta", "snap.yaml"), developer)
 	if err != nil {
 		return err
 	}
@@ -117,7 +119,7 @@ func (s *defaultBackend) GenerateSecurityProfile(snapInstPath, developer string)
 }
 
 func (s *defaultBackend) FinalizeSnap(snapInstPath, developer string, flags snappy.InstallFlags) error {
-	sn, err := snappy.NewInstalledSnap(snapInstPath, developer)
+	sn, err := snappy.NewInstalledSnap(filepath.Join(snapInstPath, "meta", "snap.yaml"), developer)
 	if err != nil {
 		return err
 	}
