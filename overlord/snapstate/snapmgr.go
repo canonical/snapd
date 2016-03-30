@@ -83,27 +83,27 @@ func Manager(s *state.State) (*SnapManager, error) {
 	// this handler does nothing
 	runner.AddHandler("nop", func(t *state.Task, _ *tomb.Tomb) error {
 		return nil
-	})
+	}, nil)
 
-	runner.AddHandler("download-snap", m.doDownloadSnap)
-	runner.AddHandler("check-snap", m.doCheckSnap)
-	runner.AddHandler("mount-snap", m.doMountSnap)
-	runner.AddHandler("copy-snap-data", m.doCopySnapData)
-	runner.AddHandler("generate-security", m.doGenerateSecurity)
-	runner.AddHandler("finalize-snap-install", m.doFinalizeSnap)
+	runner.AddHandler("download-snap", m.doDownloadSnap, nil)
+	runner.AddHandler("check-snap", m.doCheckSnap, nil)
+	runner.AddHandler("mount-snap", m.doMountSnap, nil)
+	runner.AddHandler("copy-snap-data", m.doCopySnapData, nil)
+	runner.AddHandler("generate-security", m.doGenerateSecurity, nil)
+	runner.AddHandler("finalize-snap-install", m.doFinalizeSnap, nil)
 
-	runner.AddHandler("update-snap", m.doUpdateSnap)
-	runner.AddHandler("remove-snap", m.doRemoveSnap)
-	runner.AddHandler("rollback-snap", m.doRollbackSnap)
-	runner.AddHandler("activate-snap", m.doActivateSnap)
+	runner.AddHandler("update-snap", m.doUpdateSnap, nil)
+	runner.AddHandler("remove-snap", m.doRemoveSnap, nil)
+	runner.AddHandler("rollback-snap", m.doRollbackSnap, nil)
+	runner.AddHandler("activate-snap", m.doActivateSnap, nil)
 
 	// test handlers
 	runner.AddHandler("fake-install-snap", func(t *state.Task, _ *tomb.Tomb) error {
 		return nil
-	})
+	}, nil)
 	runner.AddHandler("fake-install-snap-error", func(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("fake-install-snap-error errored")
-	})
+	}, nil)
 
 	return m, nil
 }
