@@ -32,7 +32,6 @@
 // names.
 //
 // The actual profiles are stored in /var/lib/snappy/apparmor/profiles.
-// This directory is also hard-coded in ubuntu-core-launcher.
 //
 // NOTE: A systemd job (TODO: specify which) loads all snappy-specific apparmor
 // profiles into the kernel during the boot process.
