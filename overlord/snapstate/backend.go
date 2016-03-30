@@ -37,6 +37,11 @@ type managerBackend interface {
 	CopySnapData(instSnapPath, developer string, flags snappy.InstallFlags) error
 	GenerateSecurityProfile(instSnapPath, developer string) error
 	FinalizeSnap(instSnapPath, developer string, flags snappy.InstallFlags) error
+	// the undoers
+	UndoSetupSnap(snapFilePath, developer string) error
+	UndoGenerateSecurityProfile(instSnapPath, developer string) error
+	UndoCopySnapData(instSnapPath, developer string, flags snappy.InstallFlags) error
+	UndoFinalizeSnap(oldInstSnapPath, instSnapPath, developer string, flags snappy.InstallFlags) error
 
 	// TODO: need to be split into fine grained tasks
 	Update(name, channel string, flags snappy.InstallFlags, meter progress.Meter) error
@@ -124,4 +129,41 @@ func (s *defaultBackend) FinalizeSnap(snapInstPath, developer string, flags snap
 		return err
 	}
 	return snappy.FinalizeSnap(sn, flags, &progress.NullProgress{})
+}
+
+func (s *defaultBackend) UndoSetupSnap(snapFilePath, developer string) error {
+	meter := &progress.NullProgress{}
+	snappy.UndoSetupSnap(snapFilePath, developer, meter)
+	return nil
+}
+
+func (s *defaultBackend) UndoGenerateSecurityProfile(instSnapPath, developer string) error {
+	sn, err := snappy.NewInstalledSnap(filepath.Join(instSnapPath, "meta", "snap.yaml"), developer)
+	if err != nil {
+		return err
+	}
+	snappy.UndoGenerateSecurityProfile(sn)
+	return nil
+}
+func (s *defaultBackend) UndoCopySnapData(instSnapPath, developer string, flags snappy.InstallFlags) error {
+	sn, err := snappy.NewInstalledSnap(filepath.Join(instSnapPath, "meta", "snap.yaml"), developer)
+	if err != nil {
+		return err
+	}
+	meter := &progress.NullProgress{}
+	snappy.UndoCopyData(sn, flags, meter)
+	return nil
+}
+func (s *defaultBackend) UndoFinalizeSnap(oldInstSnapPath, instSnapPath, developer string, flags snappy.InstallFlags) error {
+	new, err := snappy.NewInstalledSnap(filepath.Join(instSnapPath, "meta", "snap.yaml"), developer)
+	if err != nil {
+		return err
+	}
+	old, err := snappy.NewInstalledSnap(filepath.Join(oldInstSnapPath, "meta", "snap.yaml"), developer)
+	if err != nil {
+		return err
+	}
+	meter := &progress.NullProgress{}
+	snappy.UndoFinalizeSnap(old, new, flags, meter)
+	return nil
 }
