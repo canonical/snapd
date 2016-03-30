@@ -39,7 +39,7 @@ func MockProfilesPath(t *testutil.BaseTest, profiles string) {
 // replace it with a shorter snippet.
 func MockTemplate(fakeTemplate string) (restore func()) {
 	orig := defaultTemplate
-	defaultTemplate = fakeTemplate
+	defaultTemplate = []byte(fakeTemplate)
 	return func() { defaultTemplate = orig }
 }
 
