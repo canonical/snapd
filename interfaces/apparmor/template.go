@@ -24,7 +24,7 @@ package apparmor
 // It can be overridden for testing using MockTemplate().
 //
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/templates/ubuntu-core/16.04/default
-var defaultTemplate = []byte(`
+var defaultTemplate = `
 # Description: Allows access to app-specific directories and basic runtime
 # Usage: common
 
@@ -286,6 +286,5 @@ var defaultTemplate = []byte(`
   /sys/devices/**/ r,
   /sys/class/ r,
   /sys/class/**/ r,
-`)
-
-// NOTE: there is no trailing } above ^^
+}
+`

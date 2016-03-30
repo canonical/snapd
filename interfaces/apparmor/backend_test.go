@@ -42,10 +42,12 @@ type backendSuite struct {
 	cmds    map[string]*testutil.MockCmd
 }
 
-var _ = Suite(&backendSuite{})
+var _ = Suite(&backendSuite{
+	backend: &apparmor.Backend{},
+})
 
 func (s *backendSuite) SetUpTest(c *C) {
-	s.backend = &apparmor.Backend{}
+	s.backend.CustomTemplate = ""
 	// Isolate this test to a temporary directory
 	s.rootDir = c.MkDir()
 	dirs.SetRootDir(s.rootDir)
@@ -210,15 +212,14 @@ func (s *backendSuite) TestRealDefaultTemplateIsNormallyUsed(c *C) {
 }
 
 func (s *backendSuite) TestCustomTemplateUsedOnRequest(c *C) {
-	err := s.backend.UseLegacyTemplate([]byte(`
+	s.backend.CustomTemplate = `
 # Description: Custom template for testing
 ###VAR###
 
 ###PROFILEATTACH### (attach_disconnected) {
 	FOO
 }
-`))
-	c.Assert(err, IsNil)
+`
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(sambaYamlV1))
 	c.Assert(err, IsNil)
 	err = s.backend.Configure(snapInfo, false, s.repo)
