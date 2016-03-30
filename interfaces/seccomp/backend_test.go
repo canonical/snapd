@@ -172,11 +172,11 @@ var combineSnippetsScenarios = []combineSnippetsScenario{{
 	content: "default\nsnippet\n",
 }, {
 	developerMode: true,
-	content:       "@unrestricted\n",
+	content:       "@complain\ndefault\n",
 }, {
 	developerMode: true,
 	snippet:       "snippet",
-	content:       "@unrestricted\n",
+	content:       "@complain\ndefault\nsnippet\n",
 }}
 
 func (s *backendSuite) TestCombineSnippets(c *C) {

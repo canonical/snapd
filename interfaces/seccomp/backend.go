@@ -87,20 +87,19 @@ func (b *Backend) combineSnippets(snapInfo *snap.Info, developerMode bool, snipp
 	for _, appInfo := range snapInfo.Apps {
 		var buf bytes.Buffer
 		if developerMode {
-			// NOTE: This is understood by ubuntu-core-launcher
-			buf.WriteString("@unrestricted\n")
-		} else {
-			// TODO: maybe process snippets for nicer results:
-			// - discard content including and after '#' (comments)
-			// - trim spaces
-			// - discard empty lines
-			// - sort output (preferably with /deny .+/ before everything else).
-			// - remove duplicates
-			buf.Write(defaultTemplate)
-			for _, snippet := range snippets[appInfo.Name] {
-				buf.Write(snippet)
-				buf.WriteRune('\n')
-			}
+			// NOTE: This is going to be understood by ubuntu-core-launcher
+			buf.WriteString("@complain\n")
+		}
+		// TODO: maybe process snippets for nicer results:
+		// - discard content including and after '#' (comments)
+		// - trim spaces
+		// - discard empty lines
+		// - sort output (preferably with /deny .+/ before everything else).
+		// - remove duplicates
+		buf.Write(defaultTemplate)
+		for _, snippet := range snippets[appInfo.Name] {
+			buf.Write(snippet)
+			buf.WriteRune('\n')
 		}
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
