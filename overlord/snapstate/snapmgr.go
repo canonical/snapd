@@ -51,6 +51,10 @@ type downloadState struct {
 	SnapPath  string `json:"snap-path,omitempty"`
 }
 
+type setupState struct {
+	InstallPath string `json:"install-path"`
+}
+
 type removeState struct {
 	Name  string             `json:"name"`
 	Flags snappy.RemoveFlags `json:"flags,omitempty"`
@@ -248,6 +252,22 @@ func snapPathAndDeveloperFromInstState(t *state.Task, inst *installState) (strin
 	return "", "", fmt.Errorf("internal error: installState created without a snap path source")
 }
 
+func getSnapSetupState(t *state.Task, setup *setupState) error {
+	var id string
+	t.State().Lock()
+	err := t.Get("setup-snap-id", &id)
+	t.State().Unlock()
+	if err != nil {
+		return nil
+	}
+	t.State().Lock()
+	ts := t.State().Task(id)
+	err = ts.Get("setup-state", setup)
+	t.State().Unlock()
+
+	return err
+}
+
 func (m *SnapManager) doCheckSnap(t *state.Task, _ *tomb.Tomb) error {
 	var inst installState
 
@@ -282,13 +302,20 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	instPath, err := m.backend.SetupSnap(snapPath, developer, inst.Flags)
-	// FIXME: set instPath
-	println(instPath)
-	return err
+	if err != nil {
+		return err
+	}
+
+	t.State().Lock()
+	t.Set("setup-state", &setupState{InstallPath: instPath})
+	t.State().Unlock()
+
+	return nil
 }
 
 func (m *SnapManager) doGenerateSecurity(t *state.Task, _ *tomb.Tomb) error {
 	var inst installState
+	var setup setupState
 
 	t.State().Lock()
 	err := t.Get("install-state", &inst)
@@ -296,17 +323,20 @@ func (m *SnapManager) doGenerateSecurity(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-
-	snapPath, developer, err := snapPathAndDeveloperFromInstState(t, &inst)
+	_, developer, err := snapPathAndDeveloperFromInstState(t, &inst)
 	if err != nil {
 		return err
 	}
+	if err := getSnapSetupState(t, &setup); err != nil {
+		return err
+	}
 
-	return m.backend.GenerateSecurityProfile(snapPath, developer)
+	return m.backend.GenerateSecurityProfile(setup.InstallPath, developer)
 }
 
 func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	var inst installState
+	var setup setupState
 
 	t.State().Lock()
 	err := t.Get("install-state", &inst)
@@ -315,16 +345,20 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	snapPath, developer, err := snapPathAndDeveloperFromInstState(t, &inst)
+	_, developer, err := snapPathAndDeveloperFromInstState(t, &inst)
 	if err != nil {
 		return err
 	}
+	if err := getSnapSetupState(t, &setup); err != nil {
+		return err
+	}
 
-	return m.backend.CopySnapData(snapPath, developer, inst.Flags)
+	return m.backend.CopySnapData(setup.InstallPath, developer, inst.Flags)
 }
 
 func (m *SnapManager) doFinalizeSnap(t *state.Task, _ *tomb.Tomb) error {
 	var inst installState
+	var setup setupState
 
 	t.State().Lock()
 	err := t.Get("install-state", &inst)
@@ -333,10 +367,13 @@ func (m *SnapManager) doFinalizeSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	snapPath, developer, err := snapPathAndDeveloperFromInstState(t, &inst)
+	_, developer, err := snapPathAndDeveloperFromInstState(t, &inst)
 	if err != nil {
 		return err
 	}
+	if err := getSnapSetupState(t, &setup); err != nil {
+		return err
+	}
 
-	return m.backend.FinalizeSnap(snapPath, developer, inst.Flags)
+	return m.backend.FinalizeSnap(setup.InstallPath, developer, inst.Flags)
 }
