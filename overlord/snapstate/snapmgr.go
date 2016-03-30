@@ -77,21 +77,20 @@ func Manager(s *state.State) (*SnapManager, error) {
 		runner:  runner,
 	}
 
-	runner.AddHandler("download-snap", m.doDownloadSnap)
-	runner.AddHandler("install-snap", m.doInstallLocalSnap)
-
-	runner.AddHandler("update-snap", m.doUpdateSnap)
-	runner.AddHandler("remove-snap", m.doRemoveSnap)
-	runner.AddHandler("rollback-snap", m.doRollbackSnap)
-	runner.AddHandler("activate-snap", m.doActivateSnap)
+	runner.AddHandler("download-snap", m.doDownloadSnap, nil)
+	runner.AddHandler("install-snap", m.doInstallLocalSnap, nil)
+	runner.AddHandler("update-snap", m.doUpdateSnap, nil)
+	runner.AddHandler("remove-snap", m.doRemoveSnap, nil)
+	runner.AddHandler("rollback-snap", m.doRollbackSnap, nil)
+	runner.AddHandler("activate-snap", m.doActivateSnap, nil)
 
 	// test handlers
 	runner.AddHandler("fake-install-snap", func(t *state.Task, _ *tomb.Tomb) error {
 		return nil
-	})
+	}, nil)
 	runner.AddHandler("fake-install-snap-error", func(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("fake-install-snap-error errored")
-	})
+	}, nil)
 
 	return m, nil
 }
