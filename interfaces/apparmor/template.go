@@ -286,6 +286,5 @@ var defaultTemplate = []byte(`
   /sys/devices/**/ r,
   /sys/class/ r,
   /sys/class/**/ r,
+}
 `)
-
-// NOTE: there is no trailing } above ^^
