@@ -35,8 +35,11 @@ import (
 )
 
 var (
-	defaultAddr      = "localhost:11028"
+	defaultAddr = "localhost:11028"
+	// FIXME: make both hardcoded values configurable via
+	//        e.g. a "foo_1.0.snap.info" file next to the snap
 	defaultDeveloper = "canonical"
+	defaultRevision  = 424242
 )
 
 func rootEndpoint(w http.ResponseWriter, req *http.Request) {
@@ -196,7 +199,7 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 				Developer:       defaultDeveloper,
 				AnonDownloadURL: fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn)),
 				Version:         info.Version,
-				Revision:        info.Revision,
+				Revision:        defaultRevision,
 			})
 		}
 	}
