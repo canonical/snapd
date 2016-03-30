@@ -197,7 +197,7 @@ func configureAuthHeader(req *http.Request) {
 	}
 }
 
-// // small helper that sets the correct http headers for the ubuntu store
+// small helper that sets the correct http headers for the ubuntu store
 func (s *SnapUbuntuStoreRepository) applyUbuntuStoreHeaders(req *http.Request, accept string) {
 	if accept == "" {
 		accept = "application/hal+json"
