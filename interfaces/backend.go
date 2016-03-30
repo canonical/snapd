@@ -32,7 +32,7 @@ type SecurityBackend interface {
 	//
 	// This method should be called after changing plug, slots, connections
 	// between them or application present in the snap.
-	Configure(snapInfo *snap.Info, repo *Repository, developerMode bool) error
+	Configure(snapInfo *snap.Info, developerMode bool, repo *Repository) error
 
 	// Deconfigure removes security artefacts of a given snap.
 	//

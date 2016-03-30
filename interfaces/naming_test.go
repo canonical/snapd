@@ -23,6 +23,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	. "github.com/ubuntu-core/snappy/interfaces"
+	"github.com/ubuntu-core/snappy/snap"
 )
 
 type NamingSuite struct{}
@@ -36,9 +37,17 @@ func (s *NamingSuite) TestWrapperNameForApp(c *C) {
 	c.Assert(WrapperNameForApp("foo", "foo"), Equals, "foo")
 }
 
-// Tests for SecurityTagForApp()
-
 func (s *NamingSuite) TestSecurityTagForApp(c *C) {
 	c.Assert(SecurityTagForApp("snap", "app"), Equals, "snap.app.snap")
 	c.Assert(SecurityTagForApp("foo", "foo"), Equals, "foo.snap")
+}
+
+func (s *NamingSuite) TestSecurityTag(c *C) {
+	appInfo := &snap.AppInfo{Snap: &snap.Info{Name: "http"}, Name: "GET"}
+	c.Check(SecurityTag(appInfo), Equals, "snap.http.GET")
+}
+
+func (s *NamingSuite) TestSecurityTagGlob(c *C) {
+	snapInfo := &snap.Info{Name: "http"}
+	c.Check(SecurityTagGlob(snapInfo), Equals, "snap.http.*")
 }
