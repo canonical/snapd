@@ -130,10 +130,10 @@ func (s *SnapTestSuite) TestClickInstallGCSimple(c *C) {
 	c.Check(err, IsNil)
 	c.Check(globs, HasLen, 2+1) // +1 for "current"
 
-	// gc should leave one more data than app
+	// gc should no longer leave one more data than app
 	globs, err = filepath.Glob(filepath.Join(dirs.SnapDataDir, "foo.sideload", "*"))
 	c.Check(err, IsNil)
-	c.Check(globs, HasLen, 3+1) // +1 for "current"
+	c.Check(globs, HasLen, 2+1) // +1 for "current"
 }
 
 // check that if flags does not include DoInstallGC, no gc is done
