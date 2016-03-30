@@ -121,6 +121,7 @@ type Change struct {
 	status  Status
 	data    customData
 	taskIDs []string
+	ready   chan struct{}
 }
 
 func newChange(state *State, id, kind, summary string) *Change {
@@ -130,6 +131,7 @@ func newChange(state *State, id, kind, summary string) *Change {
 		kind:    kind,
 		summary: summary,
 		data:    make(customData),
+		ready:   make(chan struct{}),
 	}
 }
 
@@ -171,7 +173,15 @@ func (c *Change) UnmarshalJSON(data []byte) error {
 	c.status = unmarshalled.Status
 	c.data = unmarshalled.Data
 	c.taskIDs = unmarshalled.TaskIDs
+	c.ready = make(chan struct{})
 	return nil
+}
+
+// finishUnmarshal is called after the state and tasks are accessible.
+func (c *Change) finishUnmarshal() {
+	if c.Status().Ready() {
+		close(c.ready)
+	}
 }
 
 // ID returns the individual random key for the change.
@@ -254,6 +264,40 @@ func (c *Change) Status() Status {
 func (c *Change) SetStatus(s Status) {
 	c.state.ensureLocked()
 	c.status = s
+	if s.Ready() {
+		select {
+		case <-c.ready:
+		default:
+			close(c.ready)
+		}
+	}
+}
+
+// Ready returns a channel that is closed the first time the change becomes ready.
+func (c *Change) Ready() <-chan struct{} {
+	return c.ready
+}
+
+// taskStatusChanged is called by tasks when their status is changed,
+// to give the oportunity for the change to close its ready channel.
+func (c *Change) taskStatusChanged(t *Task, old, new Status) {
+	if old.Ready() == new.Ready() {
+		return
+	}
+	for _, tid := range c.taskIDs {
+		task := c.state.tasks[tid]
+		if task != t && !task.status.Ready() {
+			return
+		}
+	}
+	// Here is the exact moment when a change goes from unready to ready,
+	// and from ready to unready. For now handle only the first of those.
+	// For the latter the channel might be replaced in the future.
+	select {
+	case <-c.ready:
+	default:
+		close(c.ready)
+	}
 }
 
 // changeError holds a set of task errors.
