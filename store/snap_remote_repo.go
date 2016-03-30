@@ -182,15 +182,23 @@ func NewUbuntuStoreSnapRepository(cfg *SnapUbuntuStoreConfig, storeID string) *S
 	}
 }
 
-// setAuthHeader sets the authorization header
-func (s *SnapUbuntuStoreRepository) setAuthHeader(req *http.Request, token *StoreToken) {
+// setAuthHeader sets the authorization header.
+func setAuthHeader(req *http.Request, token *StoreToken) {
 	if token != nil {
 		req.Header.Set("Authorization", oauth.MakePlaintextSignature(&token.Token))
 	}
 }
 
+// configureAuthHeader optionally sets the auth header if a token is available.
+func configureAuthHeader(req *http.Request) {
+	ssoToken, err := ReadStoreToken()
+	if err != nil {
+		setAuthHeader(req, ssoToken)
+	}
+}
+
 // // small helper that sets the correct http headers for the ubuntu store
-func (s *SnapUbuntuStoreRepository) setUbuntuStoreHeaders(req *http.Request, accept string) {
+func (s *SnapUbuntuStoreRepository) applyUbuntuStoreHeaders(req *http.Request, accept string) {
 	if accept == "" {
 		accept = "application/hal+json"
 	}
@@ -206,10 +214,9 @@ func (s *SnapUbuntuStoreRepository) setUbuntuStoreHeaders(req *http.Request, acc
 }
 
 // small helper that sets the correct http headers for a store request including auth
-func (s *SnapUbuntuStoreRepository) setStoreReqHeaders(req *http.Request, accept string) {
-	ssoToken, _ := ReadStoreToken()
-	s.setAuthHeader(req, ssoToken)
-	s.setUbuntuStoreHeaders(req, accept)
+func (s *SnapUbuntuStoreRepository) configureStoreReq(req *http.Request, accept string) {
+	configureAuthHeader(req)
+	s.applyUbuntuStoreHeaders(req, accept)
 }
 
 // Snap returns the RemoteSnap for the given name or an error.
@@ -226,7 +233,7 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string) (*RemoteSnap, err
 	}
 
 	// set headers
-	s.setStoreReqHeaders(req, "")
+	s.configureStoreReq(req, "")
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -274,7 +281,7 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string)
 	}
 
 	// set headers
-	s.setStoreReqHeaders(req, "")
+	s.configureStoreReq(req, "")
 	req.Header.Set("X-Ubuntu-Device-Channnel", channel)
 
 	client := &http.Client{}
@@ -313,7 +320,7 @@ func (s *SnapUbuntuStoreRepository) Updates(installed []string) (snaps []*Remote
 	// set headers
 	// the updates call is a special snowflake right now
 	// (see LP: #1427155)
-	s.setStoreReqHeaders(req, "application/json")
+	s.configureStoreReq(req, "application/json")
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -366,8 +373,8 @@ func (s *SnapUbuntuStoreRepository) Download(remoteSnap *RemoteSnap, pbar progre
 	if err != nil {
 		return "", err
 	}
-	s.setAuthHeader(req, ssoToken)
-	s.setUbuntuStoreHeaders(req, "")
+	setAuthHeader(req, ssoToken)
+	s.applyUbuntuStoreHeaders(req, "")
 
 	if err := download(remoteSnap.Name(), w, req, pbar); err != nil {
 		return "", err
@@ -421,10 +428,7 @@ func (s *SnapUbuntuStoreRepository) Assertion(assertType *asserts.AssertionType,
 		return nil, err
 	}
 
-	ssoToken, err := ReadStoreToken()
-	if err != nil {
-		s.setAuthHeader(req, ssoToken)
-	}
+	configureAuthHeader(req)
 	req.Header.Set("Accept", asserts.MediaType)
 
 	client := &http.Client{}
