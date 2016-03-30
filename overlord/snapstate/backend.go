@@ -39,7 +39,6 @@ type managerBackend interface {
 	// TODO: need to be split into fine grained tasks
 	Update(name, channel string, flags snappy.InstallFlags, meter progress.Meter) error
 	Remove(name string, flags snappy.RemoveFlags, meter progress.Meter) error
-	Purge(name string, flags snappy.PurgeFlags, meter progress.Meter) error
 	Rollback(name, ver string, meter progress.Meter) (string, error)
 	Activate(name string, active bool, meter progress.Meter) error
 }
@@ -60,10 +59,6 @@ func (s *defaultBackend) Update(name, channel string, flags snappy.InstallFlags,
 
 func (s *defaultBackend) Remove(name string, flags snappy.RemoveFlags, meter progress.Meter) error {
 	return snappy.Remove(name, flags, meter)
-}
-
-func (s *defaultBackend) Purge(name string, flags snappy.PurgeFlags, meter progress.Meter) error {
-	return snappy.Purge(name, flags, meter)
 }
 
 func (s *defaultBackend) Rollback(name, ver string, meter progress.Meter) (string, error) {

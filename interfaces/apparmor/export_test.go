@@ -20,6 +20,8 @@
 package apparmor
 
 import (
+	"gopkg.in/check.v1"
+
 	"github.com/ubuntu-core/snappy/testutil"
 )
 
@@ -29,4 +31,22 @@ func MockProfilesPath(t *testutil.BaseTest, profiles string) {
 	t.AddCleanup(func() {
 		profilesPath = realProfilesPath
 	})
+}
+
+// MockTemplate replaces apprmor template.
+//
+// NOTE: The real apparmor template is long. For testing it is convenient for
+// replace it with a shorter snippet.
+func MockTemplate(fakeTemplate string) (restore func()) {
+	orig := defaultTemplate
+	defaultTemplate = fakeTemplate
+	return func() { defaultTemplate = orig }
+}
+
+// MockExternalCommands mocks and returns MockCmd for each of the external
+// commands used in this package.
+func MockExternalCommands(c *check.C) map[string]*testutil.MockCmd {
+	return map[string]*testutil.MockCmd{
+		"apparmor_parser": testutil.MockCommand(c, "apparmor_parser", ""),
+	}
 }

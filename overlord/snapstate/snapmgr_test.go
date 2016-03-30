@@ -213,23 +213,6 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 	c.Assert(s.fakeBackend.ops[0].channel, Equals, "some-channel")
 }
 
-func (s *snapmgrTestSuite) TestPurgeIntegration(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-	chg := s.state.NewChange("purge", "purge a snap")
-	ts, err := snapstate.Purge(s.state, "some-snap-to-purge", 0)
-	c.Assert(err, IsNil)
-	chg.AddAll(ts)
-
-	s.state.Unlock()
-	s.settle()
-	defer s.snapmgr.Stop()
-	s.state.Lock()
-
-	c.Assert(s.fakeBackend.ops[0].op, Equals, "purge")
-	c.Assert(s.fakeBackend.ops[0].name, Equals, "some-snap-to-purge")
-}
-
 func (s *snapmgrTestSuite) TestRollbackIntegration(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
