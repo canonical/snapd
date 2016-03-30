@@ -20,8 +20,6 @@
 package apparmor
 
 import (
-	"gopkg.in/check.v1"
-
 	"github.com/ubuntu-core/snappy/testutil"
 )
 
@@ -41,12 +39,4 @@ func MockTemplate(fakeTemplate string) (restore func()) {
 	orig := defaultTemplate
 	defaultTemplate = []byte(fakeTemplate)
 	return func() { defaultTemplate = orig }
-}
-
-// MockExternalCommands mocks and returns MockCmd for each of the external
-// commands used in this package.
-func MockExternalCommands(c *check.C) map[string]*testutil.MockCmd {
-	return map[string]*testutil.MockCmd{
-		"apparmor_parser": testutil.MockCommand(c, "apparmor_parser", ""),
-	}
 }
