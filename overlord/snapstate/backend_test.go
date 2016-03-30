@@ -141,3 +141,36 @@ func (f *fakeSnappyBackend) FinalizeSnap(instSnapPath, developer string, flags s
 	})
 	return nil
 }
+
+func (f *fakeSnappyBackend) UndoSetupSnap(snapFilePath, developer string) error {
+	f.ops = append(f.ops, fakeOp{
+		op:        "undo-setup-snap",
+		name:      snapFilePath,
+		developer: developer,
+	})
+	return nil
+}
+func (f *fakeSnappyBackend) UndoGenerateSecurityProfile(instSnapPath, developer string) error {
+	f.ops = append(f.ops, fakeOp{
+		op:        "undo-generate-security-profile",
+		name:      instSnapPath,
+		developer: developer,
+	})
+	return nil
+}
+func (f *fakeSnappyBackend) UndoCopySnapData(instSnapPath, developer string, flags snappy.InstallFlags) error {
+	f.ops = append(f.ops, fakeOp{
+		op:        "undo-copy-snap-data",
+		name:      instSnapPath,
+		developer: developer,
+	})
+	return nil
+}
+func (f *fakeSnappyBackend) UndoFinalizeSnap(oldInstSnapPath, instSnapPath, developer string, flags snappy.InstallFlags) error {
+	f.ops = append(f.ops, fakeOp{
+		op:        "undo-finalize-snap",
+		name:      instSnapPath,
+		developer: developer,
+	})
+	return nil
+}
