@@ -31,6 +31,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ubuntu-core/snappy/asserts"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/progress"
@@ -141,9 +142,14 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryHeaders(c *C) {
 	req, err := http.NewRequest("GET", "http://example.com", nil)
 	c.Assert(err, IsNil)
 
-	t.store.setUbuntuStoreHeaders(req)
+	t.store.setStoreReqHeaders(req, "")
 
 	c.Assert(req.Header.Get("X-Ubuntu-Release"), Equals, release.String())
+	c.Check(req.Header.Get("Accept"), Equals, "application/hal+json")
+
+	t.store.setStoreReqHeaders(req, "application/json")
+
+	c.Check(req.Header.Get("Accept"), Equals, "application/json")
 }
 
 const (
@@ -445,4 +451,79 @@ func (t *remoteRepoTestSuite) TestAuthURLDependsOnEnviron(c *C) {
 	after := authURL()
 
 	c.Check(before, Not(Equals), after)
+}
+
+func (t *remoteRepoTestSuite) TestAssertsURLDependsOnEnviron(c *C) {
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_SAS", ""), IsNil)
+	before := assertsURL()
+
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_SAS", "1"), IsNil)
+	defer os.Setenv("SNAPPY_USE_STAGING_SAS", "")
+	after := assertsURL()
+
+	c.Check(before, Not(Equals), after)
+}
+
+var testAssertion = `type: snap-declaration
+authority-id: super
+series: 16
+snap-id: snapidfoo
+gates: 
+publisher-id: devidbaz
+snap-name: mysnap
+timestamp: 2016-03-30T12:22:16Z
+
+openpgp wsBcBAABCAAQBQJW+8VBCRDWhXkqAWcrfgAAQ9gIABZFgMPByJZeUE835FkX3/y2hORn
+AzE3R1ktDkQEVe/nfVDMACAuaw1fKmUS4zQ7LIrx/AZYw5i0vKVmJszL42LBWVsqR0+p9Cxebzv9
+U2VUSIajEsUUKkBwzD8wxFzagepFlScif1NvCGZx0vcGUOu0Ent0v+gqgAv21of4efKqEW7crlI1
+T/A8LqZYmIzKRHGwCVucCyAUD8xnwt9nyWLgLB+LLPOVFNK8SR6YyNsX05Yz1BUSndBfaTN8j/k8
+8isKGZE6P0O9ozBbNIAE8v8NMWQegJ4uWuil7D3psLkzQIrxSypk9TrQ2GlIG2hJdUovc5zBuroe
+xS4u9rVT6UY=`
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertion(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
+		c.Check(r.URL.Path, Equals, "/assertions/snap-declaration/16/snapidfoo")
+		io.WriteString(w, testAssertion)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var err error
+	assertionsURI, err := url.Parse(mockServer.URL + "/assertions/")
+	c.Assert(err, IsNil)
+	cfg := SnapUbuntuStoreConfig{
+		AssertionsURI: assertionsURI,
+	}
+	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+
+	a, err := repo.Assertion(asserts.SnapDeclarationType, "16", "snapidfoo")
+	c.Assert(err, IsNil)
+	c.Check(a, NotNil)
+	c.Check(a.Type(), Equals, asserts.SnapDeclarationType)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNotFound(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
+		c.Check(r.URL.Path, Equals, "/assertions/snap-declaration/16/snapidfoo")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(404)
+		io.WriteString(w, `{"status": 404,"title": "not found"}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var err error
+	assertionsURI, err := url.Parse(mockServer.URL + "/assertions/")
+	c.Assert(err, IsNil)
+	cfg := SnapUbuntuStoreConfig{
+		AssertionsURI: assertionsURI,
+	}
+	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+
+	_, err = repo.Assertion(asserts.SnapDeclarationType, "16", "snapidfoo")
+	c.Check(err, Equals, ErrAssertionNotFound)
 }
