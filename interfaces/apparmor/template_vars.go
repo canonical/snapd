@@ -20,6 +20,7 @@
 package apparmor
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 
@@ -44,22 +45,23 @@ import (
 // interface since there the base template is provided by a particular 3rd
 // party snap, not by snappy.
 func legacyVariables(appInfo *snap.AppInfo) string {
-	return "" +
-		fmt.Sprintf("@{APP_APPNAME}=\"%s\"\n", appInfo.Name) +
-		// TODO: replace with app.SecurityTag()
-		fmt.Sprintf("@{APP_ID_DBUS}=\"%s\"\n",
-			dbus.SafePath(fmt.Sprintf("%s.%s_%s_%s",
-				appInfo.Snap.Name, appInfo.Snap.Developer, appInfo.Name, appInfo.Snap.Version))) +
-		// XXX: How is this different from APP_ID_DBUS?
-		fmt.Sprintf("@{APP_PKGNAME_DBUS}=\"%s\"\n",
-			dbus.SafePath(fmt.Sprintf("%s.%s",
-				appInfo.Snap.Name, appInfo.Snap.Developer))) +
-		// TODO: stop using .Developer, investigate how this is used.
-		fmt.Sprintf("@{APP_PKGNAME}=\"%s\"\n", fmt.Sprintf("%s.%s",
-			appInfo.Snap.Name, appInfo.Snap.Developer)) +
-		// TODO: switch to .Revision
-		fmt.Sprintf("@{APP_VERSION}=\"%s\"\n", appInfo.Snap.Version) +
-		"@{INSTALL_DIR}=\"{/snaps,/gadget}\"\n"
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "@{APP_APPNAME}=\"%s\"\n", appInfo.Name)
+	// TODO: replace with app.SecurityTag()
+	fmt.Fprintf(&buf, "@{APP_ID_DBUS}=\"%s\"\n",
+		dbus.SafePath(fmt.Sprintf("%s.%s_%s_%s",
+			appInfo.Snap.Name, appInfo.Snap.Developer, appInfo.Name, appInfo.Snap.Version)))
+	// XXX: How is this different from APP_ID_DBUS?
+	fmt.Fprintf(&buf, "@{APP_PKGNAME_DBUS}=\"%s\"\n",
+		dbus.SafePath(fmt.Sprintf("%s.%s", appInfo.Snap.Name,
+			appInfo.Snap.Developer)))
+	// TODO: stop using .Developer, investigate how this is used.
+	fmt.Fprintf(&buf, "@{APP_PKGNAME}=\"%s\"\n", fmt.Sprintf("%s.%s",
+		appInfo.Snap.Name, appInfo.Snap.Developer))
+	// TODO: switch to .Revision
+	fmt.Fprintf(&buf, "@{APP_VERSION}=\"%s\"\n", appInfo.Snap.Version)
+	fmt.Fprintf(&buf, "@{INSTALL_DIR}=\"{/snaps,/gadget}\"\n")
+	return buf.String()
 }
 
 // modenVariables returns text defining some apparmor variables that
