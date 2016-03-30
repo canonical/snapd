@@ -97,7 +97,7 @@ type apiInteractions []apiInteraction
 
 // all the api test suites must satisfy this interface
 type apiExerciser interface {
-	// returns the path of the resource to be tested, as in "/2.0/snaps"
+	// returns the path of the resource to be tested, as in "/v2/snaps"
 	resource() string
 }
 
