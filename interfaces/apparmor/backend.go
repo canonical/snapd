@@ -28,7 +28,8 @@
 //
 // Each apparmor profile contains a simple <header><content><footer> structure.
 // The header specifies the profile name that the launcher will use to launch a
-// process under this profile.
+// process under this profile.  Snappy uses "abstract identifiers" as profile
+// names.
 //
 // The actual profiles are stored in /var/lib/snappy/apparmor/profiles.
 // This directory is also hard-coded in ubuntu-core-launcher.
