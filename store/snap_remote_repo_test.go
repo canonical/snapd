@@ -250,11 +250,11 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	cfg := SnapUbuntuStoreConfig{
 		DetailsURI: detailsURI,
 	}
-	snap := NewUbuntuStoreSnapRepository(&cfg, "")
-	c.Assert(snap, NotNil)
+	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	c.Assert(repo, NotNil)
 
 	// the actual test
-	result, err := snap.Snap(funkyAppName+"."+funkyAppDeveloper, "edge")
+	result, err := repo.Snap(funkyAppName+"."+funkyAppDeveloper, "edge")
 	c.Assert(err, IsNil)
 	c.Check(result.Name(), Equals, funkyAppName)
 	c.Check(result.Developer(), Equals, funkyAppDeveloper)
@@ -283,11 +283,11 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
 	cfg := SnapUbuntuStoreConfig{
 		DetailsURI: detailsURI,
 	}
-	snap := NewUbuntuStoreSnapRepository(&cfg, "")
-	c.Assert(snap, NotNil)
+	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	c.Assert(repo, NotNil)
 
 	// the actual test
-	result, err := snap.Snap("no-such-pkg", "edge")
+	result, err := repo.Snap("no-such-pkg", "edge")
 	c.Assert(err, NotNil)
 	c.Assert(result, IsNil)
 }
