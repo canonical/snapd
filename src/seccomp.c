@@ -23,6 +23,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <ctype.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <sys/prctl.h>
 
@@ -32,6 +33,10 @@
 
 char *filter_profile_dir = "/var/lib/snappy/seccomp/profiles/";
 
+struct preprocess {
+	bool unrestricted;
+};
+
 // strip whitespace from the end of the given string (inplace)
 size_t trim_right(char *s, size_t slen)
 {
@@ -39,6 +44,60 @@ size_t trim_right(char *s, size_t slen)
 		s[--slen] = 0;
 	}
 	return slen;
+}
+
+size_t read_line(char *buf, size_t lineno)
+{
+	size_t len = 0;
+
+	// comment, ignore
+	if (buf[0] == '#')
+		return len;
+
+	// ensure the entire line was read
+	len = strlen(buf);
+	if (len == 0)
+		return len;
+	else if (buf[len - 1] != '\n' && len > (sizeof(buf) - 2)) {
+		fprintf(stderr,
+			"seccomp filter line %zu was too long (%zu characters max)\n",
+			lineno, sizeof(buf) - 2);
+		errno = 0;
+		die("aborting");
+	}
+	// kill final newline
+	len = trim_right(buf, len);
+
+	return len;
+}
+
+int preprocess_filter(FILE * f, struct preprocess *p)
+{
+	int rc = 0;
+	size_t len = 0;
+	size_t lineno = 0;
+
+	p->unrestricted = false;
+
+	// 80 characters + '\n' + '\0'
+	char buf[82];
+	while (fgets(buf, sizeof(buf), f) != NULL) {
+		lineno++;
+
+		len = read_line(buf, lineno);
+		if (len == 0)
+			continue;
+
+		// check for special "@unrestricted" rule which short-circuits
+		// seccomp sandbox
+		if (strcmp(buf, "@unrestricted") == 0)
+			p->unrestricted = true;
+	}
+
+	if (fseek(f, 0L, SEEK_SET) != 0)
+		die("could not rewind file");
+
+	return rc;
 }
 
 int seccomp_load_filters(const char *filter_profile)
@@ -50,6 +109,7 @@ int seccomp_load_filters(const char *filter_profile)
 	FILE *f = NULL;
 	size_t lineno = 0;
 	uid_t real_uid, effective_uid, saved_uid;
+	struct preprocess pre;
 
 	ctx = seccomp_init(SCMP_ACT_KILL);
 	if (ctx == NULL)
@@ -95,6 +155,13 @@ int seccomp_load_filters(const char *filter_profile)
 			strerror(errno));
 		die("aborting");
 	}
+
+	if (preprocess_filter(f, &pre) != 0)
+		die("could not preprocess file");
+
+	if (pre.unrestricted)
+		goto out;
+
 	// 80 characters + '\n' + '\0'
 	char buf[82];
 	while (fgets(buf, sizeof(buf), f) != NULL) {
@@ -102,30 +169,9 @@ int seccomp_load_filters(const char *filter_profile)
 
 		lineno++;
 
-		// comment, ignore
-		if (buf[0] == '#')
-			continue;
-
-		// ensure the entire line was read
-		len = strlen(buf);
+		len = read_line(buf, lineno);
 		if (len == 0)
 			continue;
-		else if (buf[len - 1] != '\n' && len > (sizeof(buf) - 2)) {
-			fprintf(stderr,
-				"seccomp filter line %zu was too long (%zu characters max)\n",
-				lineno, sizeof(buf) - 2);
-			errno = 0;
-			die("aborting");
-		}
-		// kill final newline
-		len = trim_right(buf, len);
-		if (len == 0)
-			continue;
-
-		// check for special "@unrestricted" rule which short-circuits
-		// seccomp sandbox
-		if (strcmp(buf, "@unrestricted") == 0)
-			goto out;
 
 		// syscall not available on this arch/kernel
 		// as this is a syscall whitelist its ok and the error can be
