@@ -114,7 +114,7 @@ func (r *TaskRunner) run(t *Task) {
 			// TODO Allow postponing retries past the next Ensure.
 			if t.Status() == AbortStatus {
 				// Would work without it but might take two ensures.
-				r.swapAbort(t)
+				r.tryUndo(t)
 			}
 		case nil:
 			var next []*Task
@@ -124,7 +124,7 @@ func (r *TaskRunner) run(t *Task) {
 				next = t.HaltTasks()
 			case AbortStatus:
 				t.SetStatus(DoneStatus) // Not actually aborted.
-				r.swapAbort(t)
+				r.tryUndo(t)
 			case UndoingStatus:
 				t.SetStatus(UndoneStatus)
 				next = t.WaitTasks()
@@ -144,22 +144,23 @@ func (r *TaskRunner) run(t *Task) {
 
 func (r *TaskRunner) abortChange(chg *Change) {
 	chg.Abort()
-	scheduled := false
+	ensureScheduled := false
 	for _, t := range chg.Tasks() {
-		if t.Status() == AbortStatus {
+		status := t.Status()
+		if status == AbortStatus {
 			if tb, ok := r.tombs[t.ID()]; ok {
 				tb.Kill(nil)
 			}
 		}
-		if !scheduled && !t.Status().Ready() {
+		if !ensureScheduled && !status.Ready() {
+			ensureScheduled = true
 			r.state.EnsureBefore(0)
-			scheduled = true
 		}
 	}
 }
 
-// swapAbort replaces the status of a knowingly aborted task.
-func (r *TaskRunner) swapAbort(t *Task) {
+// tryUndo replaces the status of a knowingly aborted task.
+func (r *TaskRunner) tryUndo(t *Task) {
 	if t.Status() == AbortStatus && r.handlers[t.Kind()].undo == nil {
 		// Cannot undo but it was stopped in flight.
 		// Hold so it doesn't look like it finished.
@@ -203,7 +204,7 @@ func (r *TaskRunner) Ensure() {
 				tb.Kill(nil)
 				continue
 			}
-			r.swapAbort(t)
+			r.tryUndo(t)
 		}
 
 		if tb != nil {
