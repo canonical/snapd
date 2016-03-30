@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-03-24 10:01+0100\n"
+        "POT-Creation-Date: 2016-03-30 14:37+0200\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -95,6 +95,10 @@ msgstr  ""
 msgid   "Builds a snap package"
 msgstr  ""
 
+#, c-format
+msgid   "Checking %q"
+msgstr  ""
+
 msgid   "Classic dimension destroyed on this snappy system."
 msgstr  ""
 
@@ -120,6 +124,10 @@ msgid   "Connect %s:%s to %s:%s"
 msgstr  ""
 
 msgid   "Connects a plug to a slot"
+msgstr  ""
+
+#, c-format
+msgid   "Copying snap data for %q"
 msgstr  ""
 
 msgid   "Creates a snap package and if available, runs the review scripts."
@@ -173,6 +181,10 @@ msgstr  ""
 msgid   "Entering classic dimension"
 msgstr  ""
 
+#, c-format
+msgid   "Finalizing install of %q"
+msgstr  ""
+
 msgid   "Finds packages to install"
 msgstr  ""
 
@@ -188,6 +200,10 @@ msgstr  ""
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid   "Generated '%s' snap\n"
+msgstr  ""
+
+#, c-format
+msgid   "Generating security profile for %q"
 msgstr  ""
 
 msgid   "Include information about packages from the snappy store"
@@ -208,10 +224,6 @@ msgid   "Install a snap to the system"
 msgstr  ""
 
 msgid   "Install snaps even if the signature can not be verified."
-msgstr  ""
-
-#, c-format
-msgid   "Installing %q"
 msgstr  ""
 
 #. TRANSLATORS: the %s is a pkgname
@@ -235,6 +247,10 @@ msgid   "Log into the store"
 msgstr  ""
 
 msgid   "Login successful"
+msgstr  ""
+
+#, c-format
+msgid   "Mounting %q"
 msgstr  ""
 
 msgid   "Name\tDate\tVersion\t"
