@@ -56,8 +56,8 @@ func Manager(s *state.State) (*InterfaceManager, error) {
 		repo:   repo,
 	}
 
-	runner.AddHandler("connect", m.doConnect)
-	runner.AddHandler("disconnect", m.doDisconnect)
+	runner.AddHandler("connect", m.doConnect, nil)
+	runner.AddHandler("disconnect", m.doDisconnect, nil)
 	return m, nil
 }
 
