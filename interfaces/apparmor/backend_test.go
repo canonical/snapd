@@ -108,7 +108,7 @@ func (s *backendSuite) TestInstallingSnapWritesAndLoadsProfiles(c *C) {
 	// file called "snap.sambda.smbd" was created
 	_, err := os.Stat(profile)
 	c.Check(err, IsNil)
-	// apparmor_parser was was used to load that file
+	// apparmor_parser was used to load that file
 	c.Check(s.cmds["apparmor_parser"].Calls(), DeepEquals, []string{
 		fmt.Sprintf("--replace --write-cache -O no-expr-simplify --cache-loc=/var/cache/apparmor %s", profile),
 	})
@@ -135,7 +135,7 @@ func (s *backendSuite) TestRemovingSnapRemovesAndUnloadsProfiles(c *C) {
 		// file called "snap.sambda.smbd" was removed
 		_, err := os.Stat(profile)
 		c.Check(os.IsNotExist(err), Equals, true)
-		// apparmor_parser was was used to unload the profile
+		// apparmor_parser was used to unload the profile
 		c.Check(s.cmds["apparmor_parser"].Calls(), DeepEquals, []string{
 			"--remove snap.samba.smbd",
 		})
