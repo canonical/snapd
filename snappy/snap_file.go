@@ -31,12 +31,11 @@ type SnapFile struct {
 	m   *snapYaml
 	deb snap.File
 
-	developer string
-	instdir   string
+	instdir string
 }
 
 // NewSnapFile loads a snap from the given snapFile
-func NewSnapFile(snapFile string, developer string, unsignedOk bool) (*SnapFile, error) {
+func NewSnapFile(snapFile string, unsignedOk bool) (*SnapFile, error) {
 	d, err := snap.Open(snapFile)
 	if err != nil {
 		return nil, err
@@ -56,18 +55,12 @@ func NewSnapFile(snapFile string, developer string, unsignedOk bool) (*SnapFile,
 	}
 
 	targetDir := dirs.SnapSnapsDir
-	if developer == SideloadedDeveloper {
-		m.Version = newSideloadVersion()
-	}
-
-	fullName := m.qualifiedName(developer)
-	instDir := filepath.Join(targetDir, fullName, m.Version)
+	instDir := filepath.Join(targetDir, m.Name, m.Version)
 
 	return &SnapFile{
-		instdir:   instDir,
-		developer: developer,
-		m:         m,
-		deb:       d,
+		instdir: instDir,
+		m:       m,
+		deb:     d,
 	}, nil
 }
 
@@ -84,10 +77,6 @@ func (s *SnapFile) Type() snap.Type {
 // Info returns the snap.Info data.
 func (s *SnapFile) Info() *snap.Info {
 	if info, err := s.deb.Info(); err == nil {
-		// Developer is something that is not part of the snap
-		// squashfs itself, it comes from a external source
-		// like the store.
-		info.Developer = s.developer
 		return info
 	}
 	return nil
@@ -101,9 +90,4 @@ func (s *SnapFile) Name() string {
 // Version returns the version
 func (s *SnapFile) Version() string {
 	return s.m.Version
-}
-
-// Developer returns the developer
-func (s *SnapFile) Developer() string {
-	return s.developer
 }

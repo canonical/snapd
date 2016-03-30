@@ -63,7 +63,7 @@ func installRemote(mStore *store.SnapUbuntuStoreRepository, remoteSnap *store.Re
 		return "", err
 	}
 
-	localSnap, err := (&Overlord{}).Install(downloadedSnap, remoteSnap.Developer(), flags, meter)
+	localSnap, err := (&Overlord{}).Install(downloadedSnap, flags, meter)
 	if err != nil {
 		return "", err
 	}
@@ -262,7 +262,7 @@ func doInstall(name, channel string, flags InstallFlags, meter progress.Meter) (
 			flags |= AllowUnauthenticated
 		}
 
-		return installClick(name, flags, meter, SideloadedDeveloper)
+		return installClick(name, flags, meter)
 	}
 
 	// check repos next
@@ -277,7 +277,7 @@ func doInstall(name, channel string, flags InstallFlags, meter progress.Meter) (
 		return "", err
 	}
 
-	cur := FindSnapsByNameAndVersion(QualifiedName(snap.Info()), snap.Version(), installed)
+	cur := FindSnapsByNameAndVersion(snap.Name(), snap.Version(), installed)
 	if len(cur) != 0 {
 		return "", ErrAlreadyInstalled
 	}

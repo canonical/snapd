@@ -70,7 +70,6 @@ type: os`)
 
 	for _, t := range []T{
 		{BareName, snap.TypeApp, "app"},
-		{QualifiedName, snap.TypeApp, "app." + testDeveloper},
 		{FullName, snap.TypeApp, "app." + testDeveloper},
 		{fullNameWithChannel, snap.TypeApp, "app." + testDeveloper + "/remote-channel"},
 	} {
@@ -80,8 +79,8 @@ type: os`)
 	}
 
 	// now remove the channel
-	storeMinimalRemoteManifest("app."+testDeveloper, "app", testDeveloper, "1.10", "Hello.", "")
-	storeMinimalRemoteManifest("fwk", "fwk", testDeveloper, "1.0", "Hello.", "")
+	storeMinimalRemoteManifest("app", testDeveloper, "1.10", "Hello.", "")
+	storeMinimalRemoteManifest("fwk", testDeveloper, "1.0", "Hello.", "")
 	for _, t := range []T{
 		{fullNameWithChannel, snap.TypeApp, "app." + testDeveloper},
 	} {
@@ -147,7 +146,7 @@ func (s *SnapTestSuite) TestPackageNameInstalled(c *C) {
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "hello-snap.manifest"), []byte(`{"name": "hello-snap"}`), 0644), IsNil)
 	ag := &progress.NullProgress{}
 
-	snap, err := NewInstalledSnap(yamlFile, testDeveloper)
+	snap, err := NewInstalledSnap(yamlFile)
 	c.Assert(err, IsNil)
 
 	c.Assert(snap.activate(true, ag), IsNil)
