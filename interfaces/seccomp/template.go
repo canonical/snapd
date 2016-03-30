@@ -326,23 +326,24 @@ semtimedop
 sendfile
 sendfile64
 
-# snappy doesn't currently support per-app UID/GIDs so don't allow this family
-# of syscalls. To properly support these, we need to have syscall arg filtering
-# (LP: #1446748) and per-app UID/GIDs.
-#setgid
-#setgid32
+# While we don't yet have seccomp arg filtering (LP: #1446748), we must allow
+# these because the launcher drops privileges after seccomp_load(). Eventually
+# we will only allow dropping to particular UIDs. For now, we mediate this with
+# AppArmor
+setgid
+setgid32
+setregid
+setregid32
+setresgid
+setresgid32
+setresuid
+setresuid32
+setreuid
+setreuid32
+setuid
+setuid32
 #setgroups
 #setgroups32
-#setregid
-#setregid32
-#setresgid
-#setresgid32
-#setresuid
-#setresuid32
-#setreuid
-#setreuid32
-#setuid
-#setuid32
 
 # These break isolation but are common and can't be mediated at the seccomp
 # level with arg filtering
