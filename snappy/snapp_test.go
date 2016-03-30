@@ -261,7 +261,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdatesNoSnaps(c *C) {
 	s.storeCfg.DetailsURI, err = url.Parse("https://some-uri")
 	c.Assert(err, IsNil)
 	repo := store.NewUbuntuStoreSnapRepository(s.storeCfg, "")
-	c.Assert(snap, NotNil)
+	c.Assert(repo, NotNil)
 
 	mockActiveSnapIterByType([]string{})
 
