@@ -159,7 +159,7 @@ func (client *Client) doAsync(method, path string, query url.Values, body io.Rea
 		return "", fmt.Errorf("cannot unmarshal result: %v", err)
 	}
 
-	const opPrefix = "/2.0/operations/"
+	const opPrefix = "/v2/operations/"
 	if !strings.HasPrefix(result.Resource, opPrefix) {
 		return "", fmt.Errorf("invalid resource location %q", result.Resource)
 	}
@@ -229,7 +229,7 @@ func parseError(r *http.Response) error {
 func (client *Client) SysInfo() (*SysInfo, error) {
 	var sysInfo SysInfo
 
-	if err := client.doSync("GET", "/2.0/system-info", nil, nil, &sysInfo); err != nil {
+	if err := client.doSync("GET", "/v2/system-info", nil, nil, &sysInfo); err != nil {
 		return nil, fmt.Errorf("bad sysinfo result: %v", err)
 	}
 

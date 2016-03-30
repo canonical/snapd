@@ -60,9 +60,9 @@ func (ovs *overlordSuite) TestNew(c *C) {
 	c.Check(o.AssertManager(), NotNil)
 	c.Check(o.InterfaceManager(), NotNil)
 
-	c.Check(o.StateEngine(), NotNil)
-
-	c.Check(o.StateEngine().State(), NotNil)
+	s := o.State()
+	c.Check(s, NotNil)
+	c.Check(o.Engine().State(), Equals, s)
 }
 
 func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
@@ -73,7 +73,7 @@ func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
 	o, err := overlord.New()
 
 	c.Assert(err, IsNil)
-	state := o.StateEngine().State()
+	state := o.State()
 	c.Assert(err, IsNil)
 	state.Lock()
 	defer state.Unlock()
@@ -133,11 +133,11 @@ func (ovs *overlordSuite) TestEnsureLoopRunAndStop(c *C) {
 	c.Assert(err, IsNil)
 
 	witness := &witnessManager{
-		state:          o.StateEngine().State(),
+		state:          o.State(),
 		expectedEnsure: 2,
 		ensureCalled:   make(chan struct{}),
 	}
-	o.StateEngine().AddManager(witness)
+	o.Engine().AddManager(witness)
 
 	o.Loop()
 	defer o.Stop()
@@ -161,11 +161,11 @@ func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBefore(c *C) {
 	c.Assert(err, IsNil)
 
 	witness := &witnessManager{
-		state:          o.StateEngine().State(),
+		state:          o.State(),
 		expectedEnsure: 1,
 		ensureCalled:   make(chan struct{}),
 	}
-	se := o.StateEngine()
+	se := o.Engine()
 	se.AddManager(witness)
 
 	o.Loop()
@@ -192,12 +192,12 @@ func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBeforeInEnsure(c *C) {
 	}
 
 	witness := &witnessManager{
-		state:          o.StateEngine().State(),
+		state:          o.State(),
 		expectedEnsure: 2,
 		ensureCalled:   make(chan struct{}),
 		ensureCallack:  ensure,
 	}
-	se := o.StateEngine()
+	se := o.Engine()
 	se.AddManager(witness)
 
 	o.Loop()
@@ -222,7 +222,7 @@ func (ovs *overlordSuite) TestCheckpoint(c *C) {
 	_, err = os.Stat(dirs.SnapStateFile)
 	c.Check(os.IsNotExist(err), Equals, true)
 
-	s := o.StateEngine().State()
+	s := o.State()
 	s.Lock()
 	s.Set("mark", 1)
 	s.Unlock()
@@ -293,12 +293,12 @@ func (ovs *overlordSuite) TestTrivialSettle(c *C) {
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
 
-	se := o.StateEngine()
+	se := o.Engine()
 	s := se.State()
 	rm1 := newRunnerManager(s)
 	se.AddManager(rm1)
 
-	defer o.StateEngine().Stop()
+	defer o.Engine().Stop()
 
 	s.Lock()
 	defer s.Unlock()
@@ -325,12 +325,12 @@ func (ovs *overlordSuite) TestSettleChain(c *C) {
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
 
-	se := o.StateEngine()
+	se := o.Engine()
 	s := se.State()
 	rm1 := newRunnerManager(s)
 	se.AddManager(rm1)
 
-	defer o.StateEngine().Stop()
+	defer o.Engine().Stop()
 
 	s.Lock()
 	defer s.Unlock()
@@ -362,7 +362,7 @@ func (ovs *overlordSuite) TestSettleExplicitEnsureBefore(c *C) {
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
 
-	se := o.StateEngine()
+	se := o.Engine()
 	s := se.State()
 	rm1 := newRunnerManager(s)
 	rm1.ensureCallback = func() {
@@ -375,7 +375,7 @@ func (ovs *overlordSuite) TestSettleExplicitEnsureBefore(c *C) {
 
 	se.AddManager(rm1)
 
-	defer o.StateEngine().Stop()
+	defer o.Engine().Stop()
 
 	s.Lock()
 	defer s.Unlock()

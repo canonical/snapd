@@ -157,6 +157,7 @@ type bulkReplyJSON struct {
 	Developer       string `json:"origin"`
 	AnonDownloadURL string `json:"anon_download_url"`
 	Version         string `json:"version"`
+	Revision        int    `json:"revision"`
 }
 
 func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
@@ -195,6 +196,7 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 				Developer:       defaultDeveloper,
 				AnonDownloadURL: fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn)),
 				Version:         info.Version,
+				Revision:        info.Revision,
 			})
 		}
 	}
