@@ -91,7 +91,7 @@ func (b *Backend) Configure(snapInfo *snap.Info, developerMode bool, repo *inter
 	if err != nil {
 		return err
 	}
-	err = unloadProfiles(removed)
+	err = unloadAndRemoveCachedProfiles(removed)
 	if err != nil {
 		return err
 	}
@@ -105,7 +105,7 @@ func (b *Backend) Deconfigure(snapInfo *snap.Info) error {
 	if err != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapInfo.Name, err)
 	}
-	err = unloadProfiles(removed)
+	err = unloadAndRemoveCachedProfiles(removed)
 	if err != nil {
 		return err
 	}
@@ -169,11 +169,13 @@ func reloadProfiles(profiles []string) error {
 	return nil
 }
 
-func unloadProfiles(profiles []string) error {
+func unloadAndRemoveCachedProfiles(profiles []string) error {
 	for _, profile := range profiles {
-		err := UnloadProfile(profile)
-		if err != nil {
+		if err := UnloadProfile(profile); err != nil {
 			return fmt.Errorf("cannot unload apparmor profile %q: %s", profile, err)
+		}
+		if err := RemoveCachedProfile(profile); err != nil {
+			return fmt.Errorf("cannot remove cached apparmor profile %q: %s", profile, err)
 		}
 	}
 	return nil
