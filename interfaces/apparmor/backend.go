@@ -42,6 +42,7 @@ import (
 	"bytes"
 	"fmt"
 	"path/filepath"
+	"regexp"
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/interfaces"
@@ -112,22 +113,47 @@ func (b *Backend) Deconfigure(snapInfo *snap.Info) error {
 	return nil
 }
 
+var (
+	templatePattern          = regexp.MustCompile("(###[A-Z]+###)")
+	placeholderVar           = []byte("###VAR###")
+	placeholderSnippets      = []byte("###SNIPPETS###")
+	placeholderProfileAttach = []byte("###PROFILEATTACH###")
+	// XXX: This needs to be verified by security team.
+	attachPattern  = regexp.MustCompile(`\(attach_disconnected\)`)
+	attachComplain = []byte("(attach_disconnected,complain)")
+)
+
 // combineSnippets combines security snippets collected from all the interfaces
 // affecting a given snap into a content map applicable to EnsureDirState. The
 // backend delegates writing those files to higher layers.
 func (b *Backend) combineSnippets(snapInfo *snap.Info, developerMode bool, snippets map[string][][]byte) (content map[string]*osutil.FileState, err error) {
 	for _, appInfo := range snapInfo.Apps {
-		s := make([][]byte, 0, len(snippets[appInfo.Name])+2)
-		s = append(s, b.aaHeader(appInfo, developerMode))
-		s = append(s, snippets[appInfo.Name]...)
-		s = append(s, []byte("}\n"))
-		fileContent := bytes.Join(s, []byte("\n"))
+		policy := b.legacyTemplate
+		if policy == nil {
+			policy = defaultTemplate
+		}
+		if developerMode {
+			policy = attachPattern.ReplaceAll(policy, attachComplain)
+		}
+		policy = templatePattern.ReplaceAllFunc(policy, func(placeholder []byte) []byte {
+			switch {
+			case bytes.Equal(placeholder, placeholderVar):
+				// TODO: use modern variables when default template is compatible
+				// with them and the custom template is not used.
+				return legacyVariables(appInfo)
+			case bytes.Equal(placeholder, placeholderProfileAttach):
+				return []byte(fmt.Sprintf("profile \"%s\"", interfaces.SecurityTag(appInfo)))
+			case bytes.Equal(placeholder, placeholderSnippets):
+				return bytes.Join(snippets[appInfo.Name], []byte("\n"))
+			}
+			return nil
+		})
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
 		}
 		fname := interfaces.SecurityTag(appInfo)
 		content[fname] = &osutil.FileState{
-			Content: fileContent,
+			Content: policy,
 			Mode:    0644,
 		}
 	}

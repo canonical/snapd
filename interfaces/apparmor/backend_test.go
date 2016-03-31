@@ -217,6 +217,7 @@ func (s *backendSuite) TestCustomTemplateUsedOnRequest(c *C) {
 ###VAR###
 
 ###PROFILEATTACH### (attach_disconnected) {
+	###SNIPPETS###
 	FOO
 }
 `))
@@ -255,6 +256,7 @@ const commonPrefix = `
 var combineSnippetsScenarios = []combineSnippetsScenario{{
 	content: commonPrefix + `
 profile "snap.samba.smbd" (attach_disconnected) {
+
 }
 `,
 }, {
@@ -268,6 +270,7 @@ snippet
 	developerMode: true,
 	content: commonPrefix + `
 profile "snap.samba.smbd" (attach_disconnected,complain) {
+
 }
 `,
 }, {
@@ -284,6 +287,7 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 	restore := apparmor.MockTemplate([]byte("\n" +
 		"###VAR###\n" +
 		"###PROFILEATTACH### (attach_disconnected) {\n" +
+		"###SNIPPETS###\n" +
 		"}\n"))
 	defer restore()
 	for _, scenario := range combineSnippetsScenarios {
