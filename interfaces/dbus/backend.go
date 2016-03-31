@@ -78,7 +78,7 @@ func (b *Backend) Deconfigure(snapInfo *snap.Info) error {
 // affecting a given snap into a content map applicable to EnsureDirState.
 func (b *Backend) combineSnippets(snapInfo *snap.Info, developerMode bool, snippets map[string][][]byte) (content map[string]*osutil.FileState, err error) {
 	for _, appInfo := range snapInfo.Apps {
-		if len(snippets) > 0 {
+		if len(snippets[appInfo.Name]) > 0 {
 			var buf bytes.Buffer
 			buf.Write(xmlHeader)
 			for _, snippet := range snippets[appInfo.Name] {
