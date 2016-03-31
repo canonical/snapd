@@ -95,7 +95,7 @@ var (
 // profile. That same content also decides if the profile is enforcing or
 // advisory (complain). This is used to implement developer mode.
 func (b *Backend) aaHeader(appInfo *snap.AppInfo, developerMode bool) []byte {
-	header := b.CustomTemplate
+	header := b.customTemplate
 	if header == nil {
 		header = []byte(defaultTemplate)
 	}
