@@ -46,19 +46,53 @@ var _ = Suite(&backendSuite{
 	backend: &apparmor.Backend{},
 })
 
+// fakeAppAprmorParser contains shell program that creates fake binary cache entries
+// in accordance with what real apparmor_parser would do.
+const fakeAppArmorParser = `
+cache_dir=""
+profile=""
+write=""
+while [ -n "$1" ]; do
+	case "$1" in
+		--cache-loc=*)
+			cache_dir="$(echo "$1" | cut -d = -f 2)" || exit 1
+			;;
+		--write-cache)
+			write=yes
+			;;
+		--replace|--remove)
+			# Ignore
+			;;
+		-O)
+			# Ignore, discard argument
+			shift
+			;;
+		*)
+			profile=$(basename "$1")
+			;;
+	esac
+	shift
+done
+if [ "$write" = yes ]; then
+	echo fake > "$cache_dir/$profile"
+fi
+`
+
 func (s *backendSuite) SetUpTest(c *C) {
 	s.backend.UseLegacyTemplate(nil)
 	// Isolate this test to a temporary directory
 	s.rootDir = c.MkDir()
 	dirs.SetRootDir(s.rootDir)
-	// Mock away any real apparmor interaction
-	s.cmds = map[string]*testutil.MockCmd{
-		"apparmor_parser": testutil.MockCommand(c, "apparmor_parser", ""),
-	}
 	// Prepare a directory for apparmor profiles.
 	// NOTE: Normally this is a part of the OS snap.
 	err := os.MkdirAll(dirs.SnapAppArmorDir, 0700)
 	c.Assert(err, IsNil)
+	err = os.MkdirAll(dirs.AppArmorCacheDir, 0700)
+	c.Assert(err, IsNil)
+	// Mock away any real apparmor interaction
+	s.cmds = map[string]*testutil.MockCmd{
+		"apparmor_parser": testutil.MockCommand(c, "apparmor_parser", fakeAppArmorParser),
+	}
 	// Create a fresh repository for each test
 	s.repo = interfaces.NewRepository()
 	s.iface = &interfaces.TestInterface{InterfaceName: "iface"}
@@ -136,6 +170,10 @@ func (s *backendSuite) TestRemovingSnapRemovesAndUnloadsProfiles(c *C) {
 		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 		// file called "snap.sambda.smbd" was removed
 		_, err := os.Stat(profile)
+		c.Check(os.IsNotExist(err), Equals, true)
+		// apparmor cache file was removed
+		cache := filepath.Join(dirs.AppArmorCacheDir, "snap.samba.smbd")
+		_, err = os.Stat(cache)
 		c.Check(os.IsNotExist(err), Equals, true)
 		// apparmor_parser was used to unload the profile
 		c.Check(s.cmds["apparmor_parser"].Calls(), DeepEquals, []string{
