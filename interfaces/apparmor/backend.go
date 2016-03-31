@@ -21,20 +21,19 @@
 // ubuntu-core-launcher around apparmor.
 //
 // Snappy creates apparmor profiles for each application (for each snap)
-// present in the system.  Upon each execution of ubuntu-core-launcher, the
-// profile is attached to the running process. Prior to that the profile must
-// be parsed, compiled and loaded into the kernel using the support tool
+// present in the system.  Upon each execution of ubuntu-core-launcher
+// application process is launched under the profile. Prior to that the profile
+// must be parsed, compiled and loaded into the kernel using the support tool
 // "apparmor_parser".
 //
 // Each apparmor profile contains a simple <header><content><footer> structure.
-// The header specified an identifier that is relevant to the kernel. The
-// identifier can be either the full path of the executable or an abstract
-// identifier not related to the executable name.
+// The header specifies the profile name that the launcher will use to launch a
+// process under this profile.  Snappy uses "abstract identifiers" as profile
+// names.
 //
 // The actual profiles are stored in /var/lib/snappy/apparmor/profiles.
-// This directory is also hard-coded in ubuntu-core-launcher.
 //
-// NOTE: A systemd job (TODO: specify which) loads all snappy-specific apparmor
+// NOTE: A systemd job (apparmor.service) loads all snappy-specific apparmor
 // profiles into the kernel during the boot process.
 package apparmor
 
