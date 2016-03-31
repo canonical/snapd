@@ -43,8 +43,7 @@ import (
 )
 
 // Backend is responsible for maintaining seccomp profiles for ubuntu-core-launcher.
-type Backend struct {
-}
+type Backend struct{}
 
 // Configure creates seccomp security profiles specific to a given snap. The
 // snap can be in developer mode to make security violations non-fatal to the
