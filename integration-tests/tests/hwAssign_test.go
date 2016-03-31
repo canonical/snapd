@@ -34,7 +34,7 @@ import (
 const (
 	snapName          = "dev-kmsg"
 	binName           = snapName + ".reader"
-	installedSnapName = snapName + ".sideload"
+	installedSnapName = snapName
 	hwName            = "/dev/kmsg"
 	hwAssignError     = "dd: failed to open '" + hwName + "': Permission denied\n"
 )
