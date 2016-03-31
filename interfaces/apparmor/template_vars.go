@@ -22,6 +22,7 @@ package apparmor
 import (
 	"bytes"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/ubuntu-core/snappy/interfaces"
@@ -44,7 +45,7 @@ import (
 // In addition, the set of variables listed here interacts with old-security
 // interface since there the base template is provided by a particular 3rd
 // party snap, not by snappy.
-func legacyVariables(appInfo *snap.AppInfo) string {
+func legacyVariables(appInfo *snap.AppInfo) []byte {
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, "@{APP_APPNAME}=\"%s\"\n", appInfo.Name)
 	// TODO: replace with app.SecurityTag()
@@ -58,8 +59,8 @@ func legacyVariables(appInfo *snap.AppInfo) string {
 	fmt.Fprintf(&buf, "@{APP_PKGNAME}=\"%s.%s\"\n", appInfo.Snap.Name, appInfo.Snap.Developer)
 	// TODO: switch to .Revision
 	fmt.Fprintf(&buf, "@{APP_VERSION}=\"%s\"\n", appInfo.Snap.Version)
-	fmt.Fprintf(&buf, "@{INSTALL_DIR}=\"{/snaps,/gadget}\"\n")
-	return buf.String()
+	fmt.Fprintf(&buf, "@{INSTALL_DIR}=\"{/snaps,/gadget}\"")
+	return buf.Bytes()
 }
 
 // modenVariables returns text defining some apparmor variables that
@@ -72,14 +73,16 @@ func legacyVariables(appInfo *snap.AppInfo) string {
 // @{SNAP_NAME}=app.SnapName
 //
 // ...have everything work correctly?
-func modernVariables(appInfo *snap.AppInfo) string {
+func modernVariables(appInfo *snap.AppInfo) []byte {
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, "@{APP_NAME}=\"%s\"\n", appInfo.Name)
 	fmt.Fprintf(&buf, "@{APP_SECURITY_TAG}=\"%s\"\n", interfaces.SecurityTag(appInfo))
 	fmt.Fprintf(&buf, "@{SNAP_NAME}=\"%s\"\n", appInfo.Snap.Name)
-	fmt.Fprintf(&buf, "@{INSTALL_DIR}=\"{/snaps,/gadget}\"\n")
-	return buf.String()
+	fmt.Fprintf(&buf, "@{INSTALL_DIR}=\"{/snaps,/gadget}\"")
+	return buf.Bytes()
 }
+
+var templatePattern = regexp.MustCompile("(###[^#]+###)")
 
 // aaHeader returns the topmost part of the generated apparmor profile.
 //
@@ -89,21 +92,25 @@ func modernVariables(appInfo *snap.AppInfo) string {
 // advisory (complain). This is used to implement developer mode.
 func (b *Backend) aaHeader(appInfo *snap.AppInfo, developerMode bool) []byte {
 	var text string
-	// Use a different template when requested.
 	if len(b.CustomTemplate) == 0 {
-		text = strings.TrimRight(defaultTemplate, "\n}")
-		// TODO: switch to modernVariables() after the default template is
-		// compatible with them.
-		text = strings.Replace(text, "###VAR###\n", legacyVariables(appInfo), 1)
+		text = defaultTemplate
 	} else {
-		text = strings.TrimRight(b.CustomTemplate, "\n}")
-		text = strings.Replace(text, "###VAR###\n", legacyVariables(appInfo), 1)
+		text = b.CustomTemplate
 	}
+	text = strings.TrimRight(text, "\n}")
 	if developerMode {
 		// XXX: This needs to be verified by security team.
 		text = strings.Replace(text, "(attach_disconnected)", "(attach_disconnected,complain)", 1)
 	}
-	text = strings.Replace(text, "###PROFILEATTACH###",
-		fmt.Sprintf("profile \"%s\"", interfaces.SecurityTag(appInfo)), 1)
-	return []byte(text)
+	return templatePattern.ReplaceAllFunc([]byte(text), func(in []byte) []byte {
+		switch string(in) {
+		case "###VAR###":
+			// TODO: use modern variables when default template is compatible
+			// with them and the custom template is not used.
+			return legacyVariables(appInfo)
+		case "###PROFILEATTACH###":
+			return []byte(fmt.Sprintf("profile \"%s\"", interfaces.SecurityTag(appInfo)))
+		}
+		return nil
+	})
 }
