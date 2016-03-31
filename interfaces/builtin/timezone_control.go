@@ -23,26 +23,21 @@ import (
 	"github.com/ubuntu-core/snappy/interfaces"
 )
 
-var allInterfaces = []interfaces.Interface{
-	&BoolFileInterface{},
-	NewFirewallControlInterface(),
-	NewHomeInterface(),
-	NewLocaleControlInterface(),
-	NewLogObserveInterface(),
-	NewMountObserveInterface(),
-	NewNetworkInterface(),
-	NewNetworkBindInterface(),
-	NewNetworkControlInterface(),
-	NewNetworkObserveInterface(),
-	NewSnapControlInterface(),
-	NewSystemObserveInterface(),
-	NewTimeserverControlInterface(),
-	NewTimezoneControlInterface(),
-	NewUnity7Interface(),
-	NewXInterface(),
-}
+// http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/timezone-control
+const timezoneControlConnectedPlugAppArmor = `
+# Description: Can manage timezones directly separate from 'config ubuntu-core'.
+# Usage: reserved
 
-// Interfaces returns all of the built-in interfaces.
-func Interfaces() []interfaces.Interface {
-	return allInterfaces
+/usr/share/zoneinfo/      r,
+/usr/share/zoneinfo/**    r,
+/etc/{,writable/}timezone rw,
+`
+
+// NewTimezoneControlInterface returns a new "timezone-control" interface.
+func NewTimezoneControlInterface() interfaces.Interface {
+	return &commonInterface{
+		name: "timezone-control",
+		connectedPlugAppArmor: timezoneControlConnectedPlugAppArmor,
+		reservedForOS:         true,
+	}
 }
