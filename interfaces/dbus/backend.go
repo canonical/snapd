@@ -24,9 +24,7 @@
 //
 // Each configuration is an XML file containing <busconfig>...</busconfig>.
 // Particular security snippets define whole <policy>...</policy> entires.
-//
-// NOTE: This interacts with systemd.
-// TODO: Explain how this works (security).
+// This is explained in detail in https://dbus.freedesktop.org/doc/dbus-daemon.1.html
 package dbus
 
 import (
