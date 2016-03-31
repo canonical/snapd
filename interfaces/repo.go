@@ -52,7 +52,6 @@ func NewRepository() *Repository {
 		securityHelpers: []securityHelper{
 			&secComp{},
 			&uDev{},
-			&dBus{},
 		},
 	}
 }
