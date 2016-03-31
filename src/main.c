@@ -432,12 +432,8 @@ void setup_user_data()
 {
 	const char *user_data = getenv("SNAP_USER_DATA");
 
-	// If $SNAP_USER_DATA wasn't defined, check the deprecated
-	// $SNAP_APP_USER_DATA_PATH.
-	if (user_data == NULL) {
-		// die, there's simply no directory to create.
+	if (user_data == NULL)
 		return;
-	}
 	// Only support absolute paths.
 	if (user_data[0] != '/') {
 		die("user data directory must be an absolute path");

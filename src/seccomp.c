@@ -77,7 +77,8 @@ int seccomp_load_filters(const char *filter_profile)
 			return -1;
 		}
 	}
-
+	// Note that secure_gettenv will always return NULL when suid, so
+	// SNAPPY_LAUNCHER_SECCOMP_PROFILE_DIR can't be (ab)used in that case.
 	if (secure_getenv("SNAPPY_LAUNCHER_SECCOMP_PROFILE_DIR") != NULL)
 		filter_profile_dir =
 		    secure_getenv("SNAPPY_LAUNCHER_SECCOMP_PROFILE_DIR");
