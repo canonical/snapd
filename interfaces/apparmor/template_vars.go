@@ -97,7 +97,7 @@ var (
 func (b *Backend) aaHeader(appInfo *snap.AppInfo, developerMode bool) []byte {
 	header := b.legacyTemplate
 	if header == nil {
-		header = []byte(defaultTemplate)
+		header = defaultTemplate
 	}
 	header = bytes.TrimRight(header, "\n}")
 	if developerMode {

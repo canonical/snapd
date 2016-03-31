@@ -281,10 +281,10 @@ snippet
 
 func (s *backendSuite) TestCombineSnippets(c *C) {
 	// NOTE: replace the real template with a shorter variant
-	restore := apparmor.MockTemplate("\n" +
+	restore := apparmor.MockTemplate([]byte("\n" +
 		"###VAR###\n" +
 		"###PROFILEATTACH### (attach_disconnected) {\n" +
-		"}\n")
+		"}\n"))
 	defer restore()
 	for _, scenario := range combineSnippetsScenarios {
 		s.iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
