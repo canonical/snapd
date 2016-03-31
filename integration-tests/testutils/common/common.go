@@ -63,14 +63,6 @@ func (s *SnappySuite) SetUpSuite(c *check.C) {
 	var err error
 	Cfg, err = config.ReadConfig(config.DefaultFileName)
 	c.Assert(err, check.IsNil, check.Commentf("Error reading config: %v", err))
-	// XXX: hack until u-d-f is in sync, fixup remote manifests
-	manifests, err := filepath.Glob("/var/lib/snappy/meta/ubuntu-core.canonical_*.manifest")
-	if err != nil {
-		panic(err)
-	}
-	for _, fname := range manifests {
-		cli.ExecCommand(c, "sudo", "cp", fname, strings.Replace(fname, ".canonical", "", 1))
-	}
 
 	if !IsInRebootProcess() {
 		if Cfg.Update || Cfg.Rollback {
