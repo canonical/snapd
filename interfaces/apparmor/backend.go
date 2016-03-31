@@ -51,18 +51,18 @@ import (
 
 // Backend is responsible for maintaining apparmor profiles for ubuntu-core-launcher.
 type Backend struct {
-	// customTemplate exists to support old-security which goes
+	// legacyTemplate exists to support old-security which goes
 	// beyond what is possible with pure security snippets.
 	//
 	// If non-empty then it overrides the built-in template.
-	customTemplate []byte
+	legacyTemplate []byte
 }
 
 // UseLegacyTemplate switches from default apparmor template to a custom
 // template. This also implies that a fixed set of apparmor variables will be
 // injected into this template. The set is compatible with Ubuntu core 15.04.
 func (b *Backend) UseLegacyTemplate(template []byte) {
-	b.customTemplate = template
+	b.legacyTemplate = template
 }
 
 // Configure creates and loads apparmor security profiles specific to a given
