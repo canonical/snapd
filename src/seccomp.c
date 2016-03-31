@@ -71,9 +71,8 @@ size_t read_line(char *buf, size_t lineno)
 	return len;
 }
 
-int preprocess_filter(FILE * f, struct preprocess *p)
+void preprocess_filter(FILE * f, struct preprocess *p)
 {
-	int rc = 0;
 	size_t len = 0;
 	size_t lineno = 0;
 
@@ -97,7 +96,7 @@ int preprocess_filter(FILE * f, struct preprocess *p)
 	if (fseek(f, 0L, SEEK_SET) != 0)
 		die("could not rewind file");
 
-	return rc;
+	return;
 }
 
 void seccomp_load_filters(const char *filter_profile)
@@ -155,9 +154,8 @@ void seccomp_load_filters(const char *filter_profile)
 			strerror(errno));
 		die("aborting");
 	}
-
-	if (preprocess_filter(f, &pre) != 0)
-		die("could not preprocess file");
+	// Note, preprocess_filter() die()s on error
+	preprocess_filter(f, &pre);
 
 	if (pre.unrestricted)
 		goto out;
