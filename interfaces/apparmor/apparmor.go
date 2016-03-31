@@ -30,6 +30,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/ubuntu-core/snappy/dirs"
@@ -49,6 +50,11 @@ func LoadProfile(fname string) error {
 		return fmt.Errorf("cannot load apparmor profile: %s\napparmor_parser output:\n%s", err, string(output))
 	}
 	return nil
+}
+
+// RemoveCachedProfile removes binary cache file from /var/cache/apparmor
+func RemoveCachedProfile(profile string) error {
+	return os.Remove(filepath.Join(dirs.AppArmorCacheDir, profile))
 }
 
 // UnloadProfile removes the named profile from the running kernel.
