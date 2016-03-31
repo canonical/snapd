@@ -47,12 +47,14 @@ var _ = Suite(&backendSuite{
 })
 
 func (s *backendSuite) SetUpTest(c *C) {
-	s.backend.CustomTemplate = ""
+	s.backend.UseLegacyTemplate(nil)
 	// Isolate this test to a temporary directory
 	s.rootDir = c.MkDir()
 	dirs.SetRootDir(s.rootDir)
 	// Mock away any real apparmor interaction
-	s.cmds = apparmor.MockExternalCommands(c)
+	s.cmds = map[string]*testutil.MockCmd{
+		"apparmor_parser": testutil.MockCommand(c, "apparmor_parser", ""),
+	}
 	// Prepare a directory for apparmor profiles.
 	// NOTE: Normally this is a part of the OS snap.
 	err := os.MkdirAll(dirs.SnapAppArmorDir, 0700)
@@ -210,14 +212,15 @@ func (s *backendSuite) TestRealDefaultTemplateIsNormallyUsed(c *C) {
 }
 
 func (s *backendSuite) TestCustomTemplateUsedOnRequest(c *C) {
-	s.backend.CustomTemplate = `
+	s.backend.UseLegacyTemplate([]byte(`
 # Description: Custom template for testing
 ###VAR###
 
 ###PROFILEATTACH### (attach_disconnected) {
+	###SNIPPETS###
 	FOO
 }
-`
+`))
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(sambaYamlV1))
 	c.Assert(err, IsNil)
 	err = s.backend.Configure(snapInfo, false, s.repo)
@@ -253,6 +256,7 @@ const commonPrefix = `
 var combineSnippetsScenarios = []combineSnippetsScenario{{
 	content: commonPrefix + `
 profile "snap.samba.smbd" (attach_disconnected) {
+
 }
 `,
 }, {
@@ -266,6 +270,7 @@ snippet
 	developerMode: true,
 	content: commonPrefix + `
 profile "snap.samba.smbd" (attach_disconnected,complain) {
+
 }
 `,
 }, {
@@ -279,10 +284,11 @@ snippet
 
 func (s *backendSuite) TestCombineSnippets(c *C) {
 	// NOTE: replace the real template with a shorter variant
-	restore := apparmor.MockTemplate("\n" +
+	restore := apparmor.MockTemplate([]byte("\n" +
 		"###VAR###\n" +
 		"###PROFILEATTACH### (attach_disconnected) {\n" +
-		"}\n")
+		"###SNIPPETS###\n" +
+		"}\n"))
 	defer restore()
 	for _, scenario := range combineSnippetsScenarios {
 		s.iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {

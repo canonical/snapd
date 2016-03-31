@@ -41,6 +41,7 @@ import (
 	"bytes"
 	"fmt"
 	"path/filepath"
+	"regexp"
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/interfaces"
@@ -50,11 +51,18 @@ import (
 
 // Backend is responsible for maintaining apparmor profiles for ubuntu-core-launcher.
 type Backend struct {
-	// CustomTemplate exists to support old-security which goes
+	// legacyTemplate exists to support old-security which goes
 	// beyond what is possible with pure security snippets.
 	//
 	// If non-empty then it overrides the built-in template.
-	CustomTemplate string
+	legacyTemplate []byte
+}
+
+// UseLegacyTemplate switches from default apparmor template to a custom
+// template. This also implies that a fixed set of apparmor variables will be
+// injected into this template. The set is compatible with Ubuntu core 15.04.
+func (b *Backend) UseLegacyTemplate(template []byte) {
+	b.legacyTemplate = template
 }
 
 // Configure creates and loads apparmor security profiles specific to a given
@@ -104,22 +112,46 @@ func (b *Backend) Deconfigure(snapInfo *snap.Info) error {
 	return nil
 }
 
+var (
+	templatePattern          = regexp.MustCompile("(###[A-Z]+###)")
+	placeholderVar           = []byte("###VAR###")
+	placeholderSnippets      = []byte("###SNIPPETS###")
+	placeholderProfileAttach = []byte("###PROFILEATTACH###")
+	attachPattern            = regexp.MustCompile(`\(attach_disconnected\)`)
+	attachComplain           = []byte("(attach_disconnected,complain)")
+)
+
 // combineSnippets combines security snippets collected from all the interfaces
 // affecting a given snap into a content map applicable to EnsureDirState. The
 // backend delegates writing those files to higher layers.
 func (b *Backend) combineSnippets(snapInfo *snap.Info, developerMode bool, snippets map[string][][]byte) (content map[string]*osutil.FileState, err error) {
 	for _, appInfo := range snapInfo.Apps {
-		s := make([][]byte, 0, len(snippets[appInfo.Name])+2)
-		s = append(s, b.aaHeader(appInfo, developerMode))
-		s = append(s, snippets[appInfo.Name]...)
-		s = append(s, []byte("}\n"))
-		fileContent := bytes.Join(s, []byte("\n"))
+		policy := b.legacyTemplate
+		if policy == nil {
+			policy = defaultTemplate
+		}
+		if developerMode {
+			policy = attachPattern.ReplaceAll(policy, attachComplain)
+		}
+		policy = templatePattern.ReplaceAllFunc(policy, func(placeholder []byte) []byte {
+			switch {
+			case bytes.Equal(placeholder, placeholderVar):
+				// TODO: use modern variables when default template is compatible
+				// with them and the custom template is not used.
+				return legacyVariables(appInfo)
+			case bytes.Equal(placeholder, placeholderProfileAttach):
+				return []byte(fmt.Sprintf("profile \"%s\"", interfaces.SecurityTag(appInfo)))
+			case bytes.Equal(placeholder, placeholderSnippets):
+				return bytes.Join(snippets[appInfo.Name], []byte("\n"))
+			}
+			return nil
+		})
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
 		}
 		fname := interfaces.SecurityTag(appInfo)
 		content[fname] = &osutil.FileState{
-			Content: fileContent,
+			Content: policy,
 			Mode:    0644,
 		}
 	}
