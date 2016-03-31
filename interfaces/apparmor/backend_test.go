@@ -47,7 +47,7 @@ var _ = Suite(&backendSuite{
 })
 
 func (s *backendSuite) SetUpTest(c *C) {
-	s.backend.CustomTemplate = ""
+	s.backend.CustomTemplate = nil
 	// Isolate this test to a temporary directory
 	s.rootDir = c.MkDir()
 	dirs.SetRootDir(s.rootDir)
@@ -212,14 +212,14 @@ func (s *backendSuite) TestRealDefaultTemplateIsNormallyUsed(c *C) {
 }
 
 func (s *backendSuite) TestCustomTemplateUsedOnRequest(c *C) {
-	s.backend.CustomTemplate = `
+	s.backend.CustomTemplate = []byte(`
 # Description: Custom template for testing
 ###VAR###
 
 ###PROFILEATTACH### (attach_disconnected) {
 	FOO
 }
-`
+`)
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(sambaYamlV1))
 	c.Assert(err, IsNil)
 	err = s.backend.Configure(snapInfo, false, s.repo)

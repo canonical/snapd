@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"fmt"
 	"regexp"
-	"strings"
 
 	"github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/interfaces/dbus"
@@ -96,14 +95,11 @@ var (
 // profile. That same content also decides if the profile is enforcing or
 // advisory (complain). This is used to implement developer mode.
 func (b *Backend) aaHeader(appInfo *snap.AppInfo, developerMode bool) []byte {
-	var text string
-	if len(b.CustomTemplate) == 0 {
-		text = defaultTemplate
-	} else {
-		text = b.CustomTemplate
+	header := b.CustomTemplate
+	if header == nil {
+		header = []byte(defaultTemplate)
 	}
-	text = strings.TrimRight(text, "\n}")
-	header := []byte(text)
+	header = bytes.TrimRight(header, "\n}")
 	if developerMode {
 		header = attachPattern.ReplaceAll(header, attachComplain)
 	}
