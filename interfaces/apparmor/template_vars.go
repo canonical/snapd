@@ -22,7 +22,6 @@ package apparmor
 import (
 	"bytes"
 	"fmt"
-	"regexp"
 
 	"github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/interfaces/dbus"
@@ -79,41 +78,4 @@ func modernVariables(appInfo *snap.AppInfo) []byte {
 	fmt.Fprintf(&buf, "@{SNAP_NAME}=\"%s\"\n", appInfo.Snap.Name)
 	fmt.Fprintf(&buf, "@{INSTALL_DIR}=\"{/snaps,/gadget}\"")
 	return buf.Bytes()
-}
-
-var (
-	templatePattern          = regexp.MustCompile("(###[^#]+###)")
-	placeholderVar           = []byte("###VAR###")
-	placeholderProfileAttach = []byte("###PROFILEATTACH###")
-	// XXX: This needs to be verified by security team.
-	attachPattern  = regexp.MustCompile(`\(attach_disconnected\)`)
-	attachComplain = []byte("(attach_disconnected,complain)")
-)
-
-// aaHeader returns the topmost part of the generated apparmor profile.
-//
-// The header contains a few lines of apparmor variables that are referenced by
-// the template as well as the syntax that begins the content of the actual
-// profile. That same content also decides if the profile is enforcing or
-// advisory (complain). This is used to implement developer mode.
-func (b *Backend) aaHeader(appInfo *snap.AppInfo, developerMode bool) []byte {
-	template := b.legacyTemplate
-	if template == nil {
-		template = defaultTemplate
-	}
-	template = bytes.TrimRight(template, "\n}")
-	if developerMode {
-		template = attachPattern.ReplaceAll(template, attachComplain)
-	}
-	return templatePattern.ReplaceAllFunc(template, func(placeholder []byte) []byte {
-		switch {
-		case bytes.Equal(placeholder, placeholderVar):
-			// TODO: use modern variables when default template is compatible
-			// with them and the custom template is not used.
-			return legacyVariables(appInfo)
-		case bytes.Equal(placeholder, placeholderProfileAttach):
-			return []byte(fmt.Sprintf("profile \"%s\"", interfaces.SecurityTag(appInfo)))
-		}
-		return nil
-	})
 }
