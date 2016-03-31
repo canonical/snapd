@@ -42,7 +42,7 @@ type Backend struct{}
 
 // Configure creates dbus configuration files specific to a given snap.
 //
-// NOTE: DBus has no concept of a complain mode so developer mode is not supported.
+// DBus has no concept of a complain mode, developerMode is ignored.
 func (b *Backend) Configure(snapInfo *snap.Info, developerMode bool, repo *interfaces.Repository) error {
 	// Get the snippets that apply to this snap
 	snippets, err := repo.SecuritySnippetsForSnap(snapInfo.Name, interfaces.SecurityDBus)
