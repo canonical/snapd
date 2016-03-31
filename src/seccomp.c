@@ -31,6 +31,8 @@
 
 #include "utils.h"
 
+#define SC_MAX_LINE_LENGTH	82	// 80 + '\n' + '\0'
+
 char *filter_profile_dir = "/var/lib/snappy/seccomp/profiles/";
 
 struct preprocess {
@@ -46,6 +48,9 @@ size_t trim_right(char *s, size_t slen)
 	return slen;
 }
 
+// Read a relevant line and return the length. Comments, empty lines and lines
+// with only whitespace are ignored ('0' returned). The line buffer is right
+// whitespaced trimmed and the final length of the trimmed line is returned.
 size_t read_line(char *buf, size_t lineno)
 {
 	size_t len = 0;
@@ -73,18 +78,16 @@ size_t read_line(char *buf, size_t lineno)
 
 void preprocess_filter(FILE * f, struct preprocess *p)
 {
-	size_t len = 0;
+	char buf[SC_MAX_LINE_LENGTH];
 	size_t lineno = 0;
 
 	p->unrestricted = false;
 
-	// 80 characters + '\n' + '\0'
-	char buf[82];
 	while (fgets(buf, sizeof(buf), f) != NULL) {
 		lineno++;
 
-		len = read_line(buf, lineno);
-		if (len == 0)
+		// skip policy-irrelevant lines
+		if (read_line(buf, lineno) == 0)
 			continue;
 
 		// check for special "@unrestricted" rule which short-circuits
@@ -160,15 +163,12 @@ void seccomp_load_filters(const char *filter_profile)
 	if (pre.unrestricted)
 		goto out;
 
-	// 80 characters + '\n' + '\0'
-	char buf[82];
+	char buf[SC_MAX_LINE_LENGTH];
 	while (fgets(buf, sizeof(buf), f) != NULL) {
-		size_t len;
-
 		lineno++;
 
-		len = read_line(buf, lineno);
-		if (len == 0)
+		// skip policy-irrelevant lines
+		if (read_line(buf, lineno) == 0)
 			continue;
 
 		// syscall not available on this arch/kernel
