@@ -55,7 +55,7 @@ type Backend struct {
 	// beyond what is possible with pure security snippets.
 	//
 	// If non-empty then it overrides the built-in template.
-	CustomTemplate string
+	CustomTemplate []byte
 }
 
 // Configure creates and loads apparmor security profiles specific to a given
