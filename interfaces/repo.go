@@ -51,7 +51,6 @@ func NewRepository() *Repository {
 		plugSlots: make(map[*Plug]map[*Slot]bool),
 		securityHelpers: []securityHelper{
 			&uDev{},
-			&dBus{},
 		},
 	}
 }

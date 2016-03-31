@@ -66,36 +66,3 @@ func (udev *uDev) headerForApp(snapName, snapVersion, snapOrigin, appName string
 func (udev *uDev) footerForApp(snapName, snapVersion, snapOrigin, appName string) []byte {
 	return nil // udev doesn't require a footer
 }
-
-// dBus is a security subsystem that writes DBus "firewall" configuration files.
-//
-// Each configuration is an XML file with <policy>...</policy>. Particular
-// security snippets must be complete policy declarations.
-//
-// NOTE: This interacts with systemd.
-// TODO: Explain how this works (security).
-type dBus struct{}
-
-func (dbus *dBus) securitySystem() SecuritySystem {
-	return SecurityDBus
-}
-
-func (dbus *dBus) pathForApp(snapName, snapVersion, snapOrigin, appName string) string {
-	// XXX: Is the name of this file relevant or can everything be contained
-	// in particular snippets?
-	// XXX: At this level we don't know the bus name.
-	return fmt.Sprintf("/etc/dbus-1/system.d/%s.conf", SecurityTagForApp(snapName, appName))
-}
-
-func (dbus *dBus) headerForApp(snapName, snapVersion, snapOrigin, appName string) []byte {
-	return []byte("" +
-		"<!DOCTYPE busconfig PUBLIC\n" +
-		" \"-//freedesktop//DTD D-BUS Bus Configuration 1.0//EN\"\n" +
-		" \"http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd\">\n" +
-		"<busconfig>\n")
-}
-
-func (dbus *dBus) footerForApp(snapName, snapVersion, snapOrigin, appName string) []byte {
-	return []byte("" +
-		"</busconfig>\n")
-}
