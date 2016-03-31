@@ -82,7 +82,12 @@ func modernVariables(appInfo *snap.AppInfo) []byte {
 	return buf.Bytes()
 }
 
-var templatePattern = regexp.MustCompile("(###[^#]+###)")
+var (
+	templatePattern = regexp.MustCompile("(###[^#]+###)")
+	// XXX: This needs to be verified by security team.
+	attachPattern  = regexp.MustCompile(`\(attach_disconnected\)`)
+	attachComplain = []byte("(attach_disconnected,complain)")
+)
 
 // aaHeader returns the topmost part of the generated apparmor profile.
 //
@@ -98,11 +103,11 @@ func (b *Backend) aaHeader(appInfo *snap.AppInfo, developerMode bool) []byte {
 		text = b.CustomTemplate
 	}
 	text = strings.TrimRight(text, "\n}")
+	header := []byte(text)
 	if developerMode {
-		// XXX: This needs to be verified by security team.
-		text = strings.Replace(text, "(attach_disconnected)", "(attach_disconnected,complain)", 1)
+		header = attachPattern.ReplaceAll(header, attachComplain)
 	}
-	return templatePattern.ReplaceAllFunc([]byte(text), func(in []byte) []byte {
+	return templatePattern.ReplaceAllFunc(header, func(in []byte) []byte {
 		switch string(in) {
 		case "###VAR###":
 			// TODO: use modern variables when default template is compatible
