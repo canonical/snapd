@@ -14,6 +14,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #include <errno.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -37,7 +41,7 @@ size_t trim_right(char *s, size_t slen)
 	return slen;
 }
 
-int seccomp_load_filters(const char *filter_profile)
+void seccomp_load_filters(const char *filter_profile)
 {
 	debug("seccomp_load_filters %s", filter_profile);
 	int rc = 0;
@@ -45,45 +49,51 @@ int seccomp_load_filters(const char *filter_profile)
 	scmp_filter_ctx ctx = NULL;
 	FILE *f = NULL;
 	size_t lineno = 0;
+	uid_t real_uid, effective_uid, saved_uid;
 
 	ctx = seccomp_init(SCMP_ACT_KILL);
-	if (ctx == NULL)
-		return ENOMEM;
-
+	if (ctx == NULL) {
+		errno = ENOMEM;
+		die("seccomp_init() failed");
+	}
 	// Disable NO_NEW_PRIVS because it interferes with exec transitions in
 	// AppArmor. Unfortunately this means that security policies must be
 	// very careful to not allow the following otherwise apps can escape
-	// the snadbox:
+	// the sandbox:
 	//   - seccomp syscall
 	//   - prctl with PR_SET_SECCOMP
 	//   - ptrace (trace) in AppArmor
 	//   - capability sys_admin in AppArmor
 	// Note that with NO_NEW_PRIVS disabled, CAP_SYS_ADMIN is required to
 	// change the seccomp sandbox.
-	if (getenv("UBUNTU_CORE_LAUNCHER_NO_ROOT") == NULL) {
-		rc = seccomp_attr_set(ctx, SCMP_FLTATR_CTL_NNP, 0);
-		if (rc != 0) {
-			fprintf(stderr, "Cannot disable nnp\n");
-			return -1;
-		}
-	}
 
-	if (getenv("SNAPPY_LAUNCHER_SECCOMP_PROFILE_DIR") != NULL)
+	if (getresuid(&real_uid, &effective_uid, &saved_uid) != 0)
+		die("could not find user IDs");
+
+	// If running privileged or capable of raising, disable nnp
+	if (real_uid == 0 || effective_uid == 0 || saved_uid == 0)
+		if (seccomp_attr_set(ctx, SCMP_FLTATR_CTL_NNP, 0) != 0)
+			die("Cannot disable nnp");
+
+	// Note that secure_gettenv will always return NULL when suid, so
+	// SNAPPY_LAUNCHER_SECCOMP_PROFILE_DIR can't be (ab)used in that case.
+	if (secure_getenv("SNAPPY_LAUNCHER_SECCOMP_PROFILE_DIR") != NULL)
 		filter_profile_dir =
-		    getenv("SNAPPY_LAUNCHER_SECCOMP_PROFILE_DIR");
+		    secure_getenv("SNAPPY_LAUNCHER_SECCOMP_PROFILE_DIR");
 
-	char profile_path[128];
-	if (snprintf
-	    (profile_path, sizeof(profile_path), "%s/%s", filter_profile_dir,
-	     filter_profile) < 0) {
-		goto out;
+	char profile_path[512];	// arbitrary path name limit
+	int snprintf_rc = snprintf(profile_path, sizeof(profile_path), "%s/%s",
+				   filter_profile_dir, filter_profile);
+	if (snprintf_rc < 0 || snprintf_rc >= 512) {
+		errno = 0;
+		die("snprintf returned unexpected value");
 	}
 
 	f = fopen(profile_path, "r");
 	if (f == NULL) {
 		fprintf(stderr, "Can not open %s (%s)\n", profile_path,
 			strerror(errno));
-		return -1;
+		die("aborting");
 	}
 	// 80 characters + '\n' + '\0'
 	char buf[82];
@@ -104,16 +114,17 @@ int seccomp_load_filters(const char *filter_profile)
 			fprintf(stderr,
 				"seccomp filter line %zu was too long (%zu characters max)\n",
 				lineno, sizeof(buf) - 2);
-			rc = -1;
-			goto out;
+			errno = 0;
+			die("aborting");
 		}
 		// kill final newline
 		len = trim_right(buf, len);
 		if (len == 0)
 			continue;
 
-		// check for special "@unrestricted" command
-		if (strncmp(buf, "@unrestricted", sizeof(buf)) == 0)
+		// check for special "@unrestricted" rule which short-circuits
+		// seccomp sandbox
+		if (strcmp(buf, "@unrestricted") == 0)
 			goto out;
 
 		// syscall not available on this arch/kernel
@@ -132,13 +143,15 @@ int seccomp_load_filters(const char *filter_profile)
 				fprintf(stderr,
 					"seccomp_rule_add failed with %i for '%s'\n",
 					rc, buf);
-				goto out;
+				errno = 0;
+				die("aborting");
 			}
 		}
 	}
 
-	// raise privileges to load seccomp policy since we don't have nnp
-	if (getenv("UBUNTU_CORE_LAUNCHER_NO_ROOT") == NULL) {
+	// If not root but can raise, then raise privileges to load seccomp
+	// policy since we don't have nnp
+	if (effective_uid != 0 && saved_uid == 0) {
 		if (seteuid(0) != 0)
 			die("seteuid failed");
 		if (geteuid() != 0)
@@ -149,10 +162,8 @@ int seccomp_load_filters(const char *filter_profile)
 
 	if (rc != 0) {
 		fprintf(stderr, "seccomp_load failed with %i\n", rc);
-		goto out;
+		die("aborting");
 	}
-
- out:
 	// drop privileges again
 	if (geteuid() == 0) {
 		unsigned real_uid = getuid();
@@ -162,9 +173,11 @@ int seccomp_load_filters(const char *filter_profile)
 			die("dropping privs after seccomp_load did not work");
 	}
 
+ out:
 	if (f != NULL) {
-		fclose(f);
+		if (fclose(f) != 0)
+			die("could not close seccomp file");
 	}
 	seccomp_release(ctx);
-	return rc;
+	return;
 }

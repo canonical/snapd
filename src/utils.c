@@ -70,7 +70,8 @@ void write_string_to_file(const char *filepath, const char *buf)
 		die("fwrite failed");
 	if (fflush(f) != 0)
 		die("fflush failed");
-	fclose(f);
+	if (fclose(f) != 0)
+		die("fclose failed");
 }
 
 int must_snprintf(char *str, size_t size, const char *format, ...)

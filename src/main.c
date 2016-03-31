@@ -67,6 +67,9 @@ void run_snappy_app_dev_add(struct udev *u, const char *path,
 
 	int status = 0;
 	pid_t pid = fork();
+	if (pid < 0) {
+		die("could not fork");
+	}
 	if (pid == 0) {
 		char buf[64];
 		unsigned major = MAJOR(devnum);
@@ -198,7 +201,8 @@ bool snappy_udev_setup_required(const char *appname)
 	if (fd < 0)
 		return false;
 	int n = read(fd, content, sizeof(content));
-	close(fd);
+	if (close(fd) != 0)
+		die("could not close override");
 	if (n < sizeof(content))
 		return false;
 
@@ -259,7 +263,7 @@ void setup_private_mount(const char *appname)
 		die("unable to chown tmpdir");
 	}
 	// ensure we set the various TMPDIRs to our newly created tmpdir
-	const char *tmpd[] = { "TMPDIR", "TEMPDIR", "SNAP_APP_TMPDIR", NULL };
+	const char *tmpd[] = { "TMPDIR", "TEMPDIR", NULL };
 	int i;
 	for (i = 0; tmpd[i] != NULL; i++) {
 		if (setenv(tmpd[i], "/tmp", 1) != 0) {
@@ -395,7 +399,7 @@ void mkpath(const char *const path)
 		// Try to create the directory. It's okay if it already
 		// existed, but any other error is fatal.
 		if (mkdirat(fd, path_segment, 0755) < 0 && errno != EEXIST) {
-			close(fd);
+			close(fd);	// we die regardless of return code
 			free(path_copy);
 			die("failed to create user data directory");
 		}
@@ -403,7 +407,10 @@ void mkpath(const char *const path)
 		// previous one) so we can continue down the path.
 		int previous_fd = fd;
 		fd = openat(fd, path_segment, open_flags);
-		close(previous_fd);
+		if (close(previous_fd) != 0) {
+			free(path_copy);
+			die("could not close path segment");
+		}
 		if (fd < 0) {
 			free(path_copy);
 			die("failed to create user data directory");
@@ -413,7 +420,10 @@ void mkpath(const char *const path)
 	}
 
 	// Close the descriptor for the final directory in the path.
-	close(fd);
+	if (close(fd) != 0) {
+		free(path_copy);
+		die("could not close final directory");
+	}
 
 	free(path_copy);
 }
@@ -422,16 +432,8 @@ void setup_user_data()
 {
 	const char *user_data = getenv("SNAP_USER_DATA");
 
-	// If $SNAP_USER_DATA wasn't defined, check the deprecated
-	// $SNAP_APP_USER_DATA_PATH.
-	if (user_data == NULL) {
-		user_data = getenv("SNAP_APP_USER_DATA_PATH");
-		// If it's still not defined, there's nothing to do. No need to
-		// die, there's simply no directory to create.
-		if (user_data == NULL) {
-			return;
-		}
-	}
+	if (user_data == NULL)
+		return;
 	// Only support absolute paths.
 	if (user_data[0] != '/') {
 		die("user data directory must be an absolute path");
@@ -449,15 +451,16 @@ int main(int argc, char **argv)
 	const char *appname = argv[1];
 	const char *aa_profile = argv[2];
 	const char *binary = argv[3];
-	unsigned real_uid = getuid();
-	unsigned real_gid = getgid();
+	uid_t real_uid = getuid();
+	gid_t real_gid = getgid();
 
 	if (!verify_appname(appname))
 		die("appname %s not allowed", appname);
 
 	// this code always needs to run as root for the cgroup/udev setup,
 	// however for the tests we allow it to run as non-root
-	if (geteuid() != 0 && getenv("UBUNTU_CORE_LAUNCHER_NO_ROOT") == NULL) {
+	if (geteuid() != 0
+	    && secure_getenv("UBUNTU_CORE_LAUNCHER_NO_ROOT") == NULL) {
 		die("need to run as root or suid");
 	}
 
@@ -511,13 +514,11 @@ int main(int argc, char **argv)
 	// set apparmor rules
 	rc = aa_change_onexec(aa_profile);
 	if (rc != 0) {
-		if (getenv("SNAPPY_LAUNCHER_INSIDE_TESTS") == NULL)
+		if (secure_getenv("SNAPPY_LAUNCHER_INSIDE_TESTS") == NULL)
 			die("aa_change_onexec failed with %i", rc);
 	}
-	// set seccomp
-	rc = seccomp_load_filters(aa_profile);
-	if (rc != 0)
-		die("seccomp_load_filters failed with %i", rc);
+	// set seccomp (note: seccomp_load_filters die()s on all failures)
+	seccomp_load_filters(aa_profile);
 
 	// Permanently drop if not root
 	if (geteuid() == 0) {
@@ -534,8 +535,7 @@ int main(int argc, char **argv)
 			die("permanently dropping privs did not work");
 	}
 	// and exec the new binary
-	argv[NR_ARGS] = (char *)binary,
-	    execv(binary, (char *const *)&argv[NR_ARGS]);
+	execv(binary, (char *const *)&argv[NR_ARGS]);
 	perror("execv failed");
 	return 1;
 }

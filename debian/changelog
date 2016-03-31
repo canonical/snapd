@@ -2,6 +2,9 @@ ubuntu-core-launcher (1.0.23) UNRELEASED; urgency=medium
 
   * update README for recent commits
   * add README.syscalls
+  * src/seccomp.c: various cleanups from security team audit (also add
+    additional tests)
+  * don't support obsoleted SNAP_APP_TMPDIR and SNAP_APP_USER_DATA_PATH
 
  -- Jamie Strandboge <jamie@ubuntu.com>  Tue, 29 Mar 2016 16:07:13 -0500
 
