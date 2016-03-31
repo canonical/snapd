@@ -517,10 +517,8 @@ int main(int argc, char **argv)
 		if (secure_getenv("SNAPPY_LAUNCHER_INSIDE_TESTS") == NULL)
 			die("aa_change_onexec failed with %i", rc);
 	}
-	// set seccomp
-	rc = seccomp_load_filters(aa_profile);
-	if (rc != 0)
-		die("seccomp_load_filters failed with %i", rc);
+	// set seccomp (note: seccomp_load_filters die()s on all failures)
+	seccomp_load_filters(aa_profile);
 
 	// Permanently drop if not root
 	if (geteuid() == 0) {

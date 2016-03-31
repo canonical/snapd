@@ -41,7 +41,7 @@ size_t trim_right(char *s, size_t slen)
 	return slen;
 }
 
-int seccomp_load_filters(const char *filter_profile)
+void seccomp_load_filters(const char *filter_profile)
 {
 	debug("seccomp_load_filters %s", filter_profile);
 	int rc = 0;
@@ -52,9 +52,10 @@ int seccomp_load_filters(const char *filter_profile)
 	uid_t real_uid, effective_uid, saved_uid;
 
 	ctx = seccomp_init(SCMP_ACT_KILL);
-	if (ctx == NULL)
-		return ENOMEM;
-
+	if (ctx == NULL) {
+		errno = ENOMEM;
+		die("seccomp_init() failed");
+	}
 	// Disable NO_NEW_PRIVS because it interferes with exec transitions in
 	// AppArmor. Unfortunately this means that security policies must be
 	// very careful to not allow the following otherwise apps can escape
@@ -70,13 +71,10 @@ int seccomp_load_filters(const char *filter_profile)
 		die("could not find user IDs");
 
 	// If running privileged or capable of raising, disable nnp
-	if (real_uid == 0 || effective_uid == 0 || saved_uid == 0) {
-		rc = seccomp_attr_set(ctx, SCMP_FLTATR_CTL_NNP, 0);
-		if (rc != 0) {
-			fprintf(stderr, "Cannot disable nnp\n");
-			return -1;
-		}
-	}
+	if (real_uid == 0 || effective_uid == 0 || saved_uid == 0)
+		if (seccomp_attr_set(ctx, SCMP_FLTATR_CTL_NNP, 0) != 0)
+			die("Cannot disable nnp");
+
 	// Note that secure_gettenv will always return NULL when suid, so
 	// SNAPPY_LAUNCHER_SECCOMP_PROFILE_DIR can't be (ab)used in that case.
 	if (secure_getenv("SNAPPY_LAUNCHER_SECCOMP_PROFILE_DIR") != NULL)
@@ -87,7 +85,8 @@ int seccomp_load_filters(const char *filter_profile)
 	int snprintf_rc = snprintf(profile_path, sizeof(profile_path), "%s/%s",
 				   filter_profile_dir, filter_profile);
 	if (snprintf_rc < 0 || snprintf_rc >= 512) {
-		goto out;
+		errno = 0;
+		die("snprintf returned unexpected value");
 	}
 
 	f = fopen(profile_path, "r");
@@ -180,5 +179,5 @@ int seccomp_load_filters(const char *filter_profile)
 			die("could not close seccomp file");
 	}
 	seccomp_release(ctx);
-	return rc;
+	return;
 }
