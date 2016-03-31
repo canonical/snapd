@@ -17,23 +17,11 @@
  *
  */
 
-package apparmor
+package seccomp
 
-import (
-	"github.com/ubuntu-core/snappy/testutil"
-)
-
-// MockProfilesPath mocks the file read by LoadedProfiles()
-func MockProfilesPath(t *testutil.BaseTest, profiles string) {
-	profilesPath = profiles
-	t.AddCleanup(func() {
-		profilesPath = realProfilesPath
-	})
-}
-
-// MockTemplate replaces apprmor template.
+// MockTemplate replaces seccomp template.
 //
-// NOTE: The real apparmor template is long. For testing it is convenient for
+// NOTE: The real seccomp template is long. For testing it is convenient for
 // replace it with a shorter snippet.
 func MockTemplate(fakeTemplate []byte) (restore func()) {
 	orig := defaultTemplate

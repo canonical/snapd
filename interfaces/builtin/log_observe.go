@@ -23,26 +23,24 @@ import (
 	"github.com/ubuntu-core/snappy/interfaces"
 )
 
-var allInterfaces = []interfaces.Interface{
-	&BoolFileInterface{},
-	NewFirewallControlInterface(),
-	NewHomeInterface(),
-	NewLocaleControlInterface(),
-	NewLogObserveInterface(),
-	NewMountObserveInterface(),
-	NewNetworkInterface(),
-	NewNetworkBindInterface(),
-	NewNetworkControlInterface(),
-	NewNetworkObserveInterface(),
-	NewSnapControlInterface(),
-	NewSystemObserveInterface(),
-	NewTimeserverControlInterface(),
-	NewTimezoneControlInterface(),
-	NewUnity7Interface(),
-	NewXInterface(),
-}
+// http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/log-observe
+const logObserveConnectedPlugAppArmor = `
+# Description: Can read system logs.
+# Usage: reserved
 
-// Interfaces returns all of the built-in interfaces.
-func Interfaces() []interfaces.Interface {
-	return allInterfaces
+/var/log/ r,
+/var/log/** r,
+
+# Needed since we are root and the owner/group doesn't match :\
+# So long as we have this, the cap must be reserved.
+capability dac_override,
+`
+
+// NewLogObserveInterface returns a new "log-observe" interface.
+func NewLogObserveInterface() interfaces.Interface {
+	return &commonInterface{
+		name: "log-observe",
+		connectedPlugAppArmor: logObserveConnectedPlugAppArmor,
+		reservedForOS:         true,
+	}
 }

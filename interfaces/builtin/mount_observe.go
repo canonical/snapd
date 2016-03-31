@@ -23,26 +23,21 @@ import (
 	"github.com/ubuntu-core/snappy/interfaces"
 )
 
-var allInterfaces = []interfaces.Interface{
-	&BoolFileInterface{},
-	NewFirewallControlInterface(),
-	NewHomeInterface(),
-	NewLocaleControlInterface(),
-	NewLogObserveInterface(),
-	NewMountObserveInterface(),
-	NewNetworkInterface(),
-	NewNetworkBindInterface(),
-	NewNetworkControlInterface(),
-	NewNetworkObserveInterface(),
-	NewSnapControlInterface(),
-	NewSystemObserveInterface(),
-	NewTimeserverControlInterface(),
-	NewTimezoneControlInterface(),
-	NewUnity7Interface(),
-	NewXInterface(),
-}
+// http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/mount-observe
+const mountObserveConnectedPlugAppArmor = `
+# Description: Can query system mount information. This is restricted because
+# it gives privileged read access to mount arguments and should only be used
+# with trusted apps.
+# Usage: reserved
+# Needed by 'df'. This is an information leak
+owner @{PROC}/@{pid}/mounts r,
+`
 
-// Interfaces returns all of the built-in interfaces.
-func Interfaces() []interfaces.Interface {
-	return allInterfaces
+// NewMountObserveInterface returns a new "mount-observe" interface.
+func NewMountObserveInterface() interfaces.Interface {
+	return &commonInterface{
+		name: "mount-observe",
+		connectedPlugAppArmor: mountObserveConnectedPlugAppArmor,
+		reservedForOS:         true,
+	}
 }

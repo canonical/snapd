@@ -17,26 +17,19 @@
  *
  */
 
-package apparmor
+package dbus
 
-import (
-	"github.com/ubuntu-core/snappy/testutil"
-)
-
-// MockProfilesPath mocks the file read by LoadedProfiles()
-func MockProfilesPath(t *testutil.BaseTest, profiles string) {
-	profilesPath = profiles
-	t.AddCleanup(func() {
-		profilesPath = realProfilesPath
-	})
-}
-
-// MockTemplate replaces apprmor template.
+// MockXMLEnvelope replaces dbus XML envelope.
 //
-// NOTE: The real apparmor template is long. For testing it is convenient for
-// replace it with a shorter snippet.
-func MockTemplate(fakeTemplate []byte) (restore func()) {
-	orig := defaultTemplate
-	defaultTemplate = fakeTemplate
-	return func() { defaultTemplate = orig }
+// NOTE: The real XML envelope is not long but is tedious to put into every
+// test. For testing it is convenient for replace it with a shorter version.
+func MockXMLEnvelope(fakeHeader, fakeFooter []byte) (restore func()) {
+	origHeader := xmlHeader
+	origFooter := xmlFooter
+	xmlHeader = fakeHeader
+	xmlFooter = fakeFooter
+	return func() {
+		xmlHeader = origHeader
+		xmlFooter = origFooter
+	}
 }
