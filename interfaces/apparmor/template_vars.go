@@ -95,15 +95,15 @@ var (
 // profile. That same content also decides if the profile is enforcing or
 // advisory (complain). This is used to implement developer mode.
 func (b *Backend) aaHeader(appInfo *snap.AppInfo, developerMode bool) []byte {
-	header := b.legacyTemplate
-	if header == nil {
-		header = defaultTemplate
+	template := b.legacyTemplate
+	if template == nil {
+		template = defaultTemplate
 	}
-	header = bytes.TrimRight(header, "\n}")
+	template = bytes.TrimRight(template, "\n}")
 	if developerMode {
-		header = attachPattern.ReplaceAll(header, attachComplain)
+		template = attachPattern.ReplaceAll(template, attachComplain)
 	}
-	return templatePattern.ReplaceAllFunc(header, func(in []byte) []byte {
+	return templatePattern.ReplaceAllFunc(template, func(in []byte) []byte {
 		switch string(in) {
 		case "###VAR###":
 			// TODO: use modern variables when default template is compatible
