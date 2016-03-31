@@ -1,6 +1,6 @@
 ubuntu-core-launcher (1.0.23) UNRELEASED; urgency=medium
 
-  * update README for recent commits
+  * update README for devpts
   * add README.syscalls
   * src/seccomp.c: various cleanups from security team audit (also add
     additional tests)
