@@ -82,7 +82,9 @@ func modernVariables(appInfo *snap.AppInfo) []byte {
 }
 
 var (
-	templatePattern = regexp.MustCompile("(###[^#]+###)")
+	templatePattern          = regexp.MustCompile("(###[^#]+###)")
+	placeholderVar           = []byte("###VAR###")
+	placeholderProfileAttach = []byte("###PROFILEATTACH###")
 	// XXX: This needs to be verified by security team.
 	attachPattern  = regexp.MustCompile(`\(attach_disconnected\)`)
 	attachComplain = []byte("(attach_disconnected,complain)")
@@ -103,13 +105,13 @@ func (b *Backend) aaHeader(appInfo *snap.AppInfo, developerMode bool) []byte {
 	if developerMode {
 		template = attachPattern.ReplaceAll(template, attachComplain)
 	}
-	return templatePattern.ReplaceAllFunc(template, func(in []byte) []byte {
-		switch string(in) {
-		case "###VAR###":
+	return templatePattern.ReplaceAllFunc(template, func(placeholder []byte) []byte {
+		switch {
+		case bytes.Equal(placeholder, placeholderVar):
 			// TODO: use modern variables when default template is compatible
 			// with them and the custom template is not used.
 			return legacyVariables(appInfo)
-		case "###PROFILEATTACH###":
+		case bytes.Equal(placeholder, placeholderProfileAttach):
 			return []byte(fmt.Sprintf("profile \"%s\"", interfaces.SecurityTag(appInfo)))
 		}
 		return nil
