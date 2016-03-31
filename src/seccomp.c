@@ -48,9 +48,10 @@ size_t trim_right(char *s, size_t slen)
 	return slen;
 }
 
-// Read a relevant line and return the length. Comments, empty lines and lines
-// with only whitespace are ignored ('0' returned). The line buffer is right
-// whitespaced trimmed and the final length of the trimmed line is returned.
+// Read a relevant line and return the length. Return length '0' for comments,
+// empty lines and lines with only whitespace (so a caller can easily skip
+// them). The line buffer is right whitespaced trimmed and the final length of
+// the trimmed line is returned.
 size_t read_line(char *buf, size_t lineno)
 {
 	size_t len = 0;
