@@ -21,11 +21,14 @@ package apparmor_test
 
 import (
 	"io/ioutil"
+	"os"
 	"path"
+	"path/filepath"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/interfaces/apparmor"
 	"github.com/ubuntu-core/snappy/testutil"
 )
@@ -68,6 +71,22 @@ apparmor_parser output:
 `)
 	c.Assert(cmd.Calls(), DeepEquals, []string{
 		"--replace --write-cache -O no-expr-simplify --cache-loc=/var/cache/apparmor /path/to/snap.samba.smbd"})
+}
+
+// Tests for RemoveCachedProfile()
+
+func (s *appArmorSuite) TestRemoveCachedProfile(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+	err := os.MkdirAll(dirs.AppArmorCacheDir, 0755)
+	c.Assert(err, IsNil)
+
+	fname := filepath.Join(dirs.AppArmorCacheDir, "profile")
+	ioutil.WriteFile(fname, []byte("blob"), 0600)
+	err = apparmor.RemoveCachedProfile("profile")
+	c.Assert(err, IsNil)
+	_, err = os.Stat(fname)
+	c.Check(os.IsNotExist(err), Equals, true)
 }
 
 // Tests for Profile.Unload()
