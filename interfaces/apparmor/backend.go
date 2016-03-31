@@ -118,9 +118,8 @@ var (
 	placeholderVar           = []byte("###VAR###")
 	placeholderSnippets      = []byte("###SNIPPETS###")
 	placeholderProfileAttach = []byte("###PROFILEATTACH###")
-	// XXX: This needs to be verified by security team.
-	attachPattern  = regexp.MustCompile(`\(attach_disconnected\)`)
-	attachComplain = []byte("(attach_disconnected,complain)")
+	attachPattern            = regexp.MustCompile(`\(attach_disconnected\)`)
+	attachComplain           = []byte("(attach_disconnected,complain)")
 )
 
 // combineSnippets combines security snippets collected from all the interfaces
