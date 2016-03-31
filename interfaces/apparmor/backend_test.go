@@ -112,7 +112,7 @@ func (s *backendSuite) TestInstallingSnapWritesAndLoadsProfiles(c *C) {
 	c.Check(err, IsNil)
 	// apparmor_parser was used to load that file
 	c.Check(s.cmds["apparmor_parser"].Calls(), DeepEquals, []string{
-		fmt.Sprintf("--replace --write-cache -O no-expr-simplify --cache-loc=/var/cache/apparmor %s", profile),
+		fmt.Sprintf("--replace --write-cache -O no-expr-simplify --cache-loc=%s/var/cache/apparmor %s", s.rootDir, profile),
 	})
 }
 
@@ -153,7 +153,7 @@ func (s *backendSuite) TestUpdatingSnapMakesNeccesaryChanges(c *C) {
 		// apparmor_parser was used to reload the profile because snap version is
 		// inside the generated policy.
 		c.Check(s.cmds["apparmor_parser"].Calls(), DeepEquals, []string{
-			fmt.Sprintf("--replace --write-cache -O no-expr-simplify --cache-loc=/var/cache/apparmor %s", profile),
+			fmt.Sprintf("--replace --write-cache -O no-expr-simplify --cache-loc=%s/var/cache/apparmor %s", s.rootDir, profile),
 		})
 		s.removeSnap(c, snapInfo)
 	}
@@ -170,7 +170,7 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 		c.Check(err, IsNil)
 		// apparmor_parser was used to load the new profile
 		c.Check(s.cmds["apparmor_parser"].Calls(), DeepEquals, []string{
-			fmt.Sprintf("--replace --write-cache -O no-expr-simplify --cache-loc=/var/cache/apparmor %s", profile),
+			fmt.Sprintf("--replace --write-cache -O no-expr-simplify --cache-loc=%s/var/cache/apparmor %s", s.rootDir, profile),
 		})
 		s.removeSnap(c, snapInfo)
 	}

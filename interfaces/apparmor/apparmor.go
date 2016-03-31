@@ -31,6 +31,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/ubuntu-core/snappy/dirs"
 )
 
 // LoadProfile loads an apparmor profile from the given file.
@@ -41,7 +43,7 @@ func LoadProfile(fname string) error {
 	// Use no-expr-simplify since expr-simplify is actually slower on armhf (LP: #1383858)
 	output, err := exec.Command(
 		"apparmor_parser", "--replace", "--write-cache", "-O",
-		"no-expr-simplify", "--cache-loc=/var/cache/apparmor",
+		"no-expr-simplify", fmt.Sprintf("--cache-loc=%s", dirs.AppArmorCacheDir),
 		fname).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("cannot load apparmor profile: %s\napparmor_parser output:\n%s", err, string(output))
