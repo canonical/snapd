@@ -213,7 +213,10 @@ version: 1.0
 	for _, filenameAndContent := range files {
 		filename := filenameAndContent[0]
 		content := filenameAndContent[1]
-		err := ioutil.WriteFile(filepath.Join(tmpdir, filename), []byte(content), 0644)
+		basedir := filepath.Dir(filepath.Join(tmpdir, filename))
+		err := os.MkdirAll(basedir, 0755)
+		c.Assert(err, IsNil)
+		err = ioutil.WriteFile(filepath.Join(tmpdir, filename), []byte(content), 0644)
 		c.Assert(err, IsNil)
 	}
 
