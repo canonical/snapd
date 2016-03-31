@@ -432,12 +432,8 @@ void setup_user_data()
 {
 	const char *user_data = getenv("SNAP_USER_DATA");
 
-	// If $SNAP_USER_DATA wasn't defined, check the deprecated
-	// $SNAP_APP_USER_DATA_PATH.
-	if (user_data == NULL) {
-		// die, there's simply no directory to create.
+	if (user_data == NULL)
 		return;
-	}
 	// Only support absolute paths.
 	if (user_data[0] != '/') {
 		die("user data directory must be an absolute path");
@@ -521,10 +517,8 @@ int main(int argc, char **argv)
 		if (secure_getenv("SNAPPY_LAUNCHER_INSIDE_TESTS") == NULL)
 			die("aa_change_onexec failed with %i", rc);
 	}
-	// set seccomp
-	rc = seccomp_load_filters(aa_profile);
-	if (rc != 0)
-		die("seccomp_load_filters failed with %i", rc);
+	// set seccomp (note: seccomp_load_filters die()s on all failures)
+	seccomp_load_filters(aa_profile);
 
 	// Permanently drop if not root
 	if (geteuid() == 0) {
