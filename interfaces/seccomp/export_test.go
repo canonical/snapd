@@ -17,17 +17,14 @@
  *
  */
 
-package interfaces
+package seccomp
 
-import (
-	"github.com/ubuntu-core/snappy/testutil"
-)
-
-// MockActiveSnapMetaData replaces the function used to determine version and origin of a given snap.
-func MockActiveSnapMetaData(test *testutil.BaseTest, fn func(string) (string, string, []string, error)) {
-	orig := ActiveSnapMetaData
-	ActiveSnapMetaData = fn
-	test.AddCleanup(func() {
-		ActiveSnapMetaData = orig
-	})
+// MockTemplate replaces seccomp template.
+//
+// NOTE: The real seccomp template is long. For testing it is convenient for
+// replace it with a shorter snippet.
+func MockTemplate(fakeTemplate []byte) (restore func()) {
+	orig := defaultTemplate
+	defaultTemplate = fakeTemplate
+	return func() { defaultTemplate = orig }
 }

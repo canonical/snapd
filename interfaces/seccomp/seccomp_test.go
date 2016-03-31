@@ -17,17 +17,14 @@
  *
  */
 
-package interfaces
+package seccomp_test
 
 import (
-	"github.com/ubuntu-core/snappy/testutil"
+	"testing"
+
+	. "gopkg.in/check.v1"
 )
 
-// MockActiveSnapMetaData replaces the function used to determine version and origin of a given snap.
-func MockActiveSnapMetaData(test *testutil.BaseTest, fn func(string) (string, string, []string, error)) {
-	orig := ActiveSnapMetaData
-	ActiveSnapMetaData = fn
-	test.AddCleanup(func() {
-		ActiveSnapMetaData = orig
-	})
+func Test(t *testing.T) {
+	TestingT(t)
 }
