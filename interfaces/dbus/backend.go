@@ -50,7 +50,7 @@ func (b *Backend) Configure(snapInfo *snap.Info, developerMode bool, repo *inter
 		return fmt.Errorf("cannot obtain DBus security snippets for snap %q: %s", snapInfo.Name, err)
 	}
 	// Get the files that this snap should have
-	content, err := b.combineSnippets(snapInfo, developerMode, snippets)
+	content, err := b.combineSnippets(snapInfo, snippets)
 	if err != nil {
 		return fmt.Errorf("cannot obtain expected DBus configuration files for snap %q: %s", snapInfo.Name, err)
 	}
@@ -76,7 +76,7 @@ func (b *Backend) Deconfigure(snapInfo *snap.Info) error {
 
 // combineSnippets combines security snippets collected from all the interfaces
 // affecting a given snap into a content map applicable to EnsureDirState.
-func (b *Backend) combineSnippets(snapInfo *snap.Info, developerMode bool, snippets map[string][][]byte) (content map[string]*osutil.FileState, err error) {
+func (b *Backend) combineSnippets(snapInfo *snap.Info, snippets map[string][][]byte) (content map[string]*osutil.FileState, err error) {
 	for _, appInfo := range snapInfo.Apps {
 		if len(snippets[appInfo.Name]) > 0 {
 			var buf bytes.Buffer
