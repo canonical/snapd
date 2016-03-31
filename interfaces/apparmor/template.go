@@ -286,5 +286,7 @@ var defaultTemplate = []byte(`
   /sys/devices/**/ r,
   /sys/class/ r,
   /sys/class/**/ r,
+
+###SNIPPETS###
 }
 `)
