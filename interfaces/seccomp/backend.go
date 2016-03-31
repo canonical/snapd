@@ -89,12 +89,6 @@ func (b *Backend) combineSnippets(snapInfo *snap.Info, developerMode bool, snipp
 			// NOTE: This is going to be understood by ubuntu-core-launcher
 			buf.WriteString("@complain\n")
 		}
-		// TODO: maybe process snippets for nicer results:
-		// - discard content including and after '#' (comments)
-		// - trim spaces
-		// - discard empty lines
-		// - sort output (preferably with /deny .+/ before everything else).
-		// - remove duplicates
 		buf.Write(defaultTemplate)
 		for _, snippet := range snippets[appInfo.Name] {
 			buf.Write(snippet)
