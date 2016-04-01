@@ -188,23 +188,3 @@ func PackageNameActive(name string) bool {
 func RemoteManifestPath(s *snap.Info) string {
 	return filepath.Join(dirs.SnapMetaDir, fmt.Sprintf("%s_%s.manifest", s.Name, s.Version))
 }
-
-func developerFromBasedir(basedir string) (s string) {
-	ext := filepath.Ext(filepath.Dir(filepath.Clean(basedir)))
-	if len(ext) < 2 {
-		return ""
-	}
-
-	return ext[1:]
-}
-
-// developerFromYamlPath *must* return "" if it's returning error.
-func developerFromYamlPath(path string) (string, error) {
-	developer := developerFromBasedir(filepath.Join(path, "..", ".."))
-
-	if developer == "" {
-		return "", ErrInvalidSnap
-	}
-
-	return developer, nil
-}
