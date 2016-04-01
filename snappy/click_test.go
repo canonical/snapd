@@ -278,8 +278,7 @@ func (s *SnapTestSuite) TestClickSetActive(c *C) {
 	c.Assert(err, IsNil)
 
 	// ensure v2 is active
-	repo := NewLocalSnapRepository()
-	snaps, err := repo.Installed()
+	snaps, err := (&Overlord{}).Installed()
 	c.Assert(err, IsNil)
 	c.Assert(snaps, HasLen, 2)
 	c.Assert(snaps[0].Version(), Equals, "1.0")
@@ -289,7 +288,7 @@ func (s *SnapTestSuite) TestClickSetActive(c *C) {
 
 	// set v1 active
 	err = snaps[0].activate(false, nil)
-	snaps, err = repo.Installed()
+	snaps, err = (&Overlord{}).Installed()
 	c.Assert(err, IsNil)
 	c.Assert(snaps[0].Version(), Equals, "1.0")
 	c.Assert(snaps[0].IsActive(), Equals, true)
