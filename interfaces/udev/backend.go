@@ -56,7 +56,9 @@ func (b *Backend) Configure(snapInfo *snap.Info, developerMode bool, repo *inter
 		return fmt.Errorf("cannot synchronize udev rules for snap %q: %s", snapInfo.Name, err)
 	}
 	if len(changed) > 0 || len(removed) > 0 {
-		return ReloadRules()
+		if err := ReloadRules(); err != nil {
+			return fmt.Errorf("cannot reload udev rules: %s", err)
+		}
 	}
 	return nil
 }
@@ -65,14 +67,22 @@ func (b *Backend) Configure(snapInfo *snap.Info, developerMode bool, repo *inter
 // If any of the rules are removed then udev database is reloaded.
 //
 // This method should be called after removing a snap.
+//
+// If the method fails it should be re-tried (with a sensible strategy) by the .
 func (b *Backend) Deconfigure(snapInfo *snap.Info) error {
 	glob := fmt.Sprintf("70-%s.rules", interfaces.SecurityTagGlob(snapInfo))
 	changed, removed, err := osutil.EnsureDirState(dirs.SnapUdevRulesDir, glob, nil)
-	if err != nil {
+	if err != nil && (len(changed) > 0 || len(removed) > 0) {
+		// Try reload the rules and regardless of that failing or not return
+		// the original error. The task which this method is responsible for
+		// re-trying the operation.
+		ReloadRules()
 		return fmt.Errorf("cannot synchronize udev rules for snap %q: %s", snapInfo.Name, err)
 	}
 	if len(changed) > 0 || len(removed) > 0 {
-		return ReloadRules()
+		if err := ReloadRules(); err != nil {
+			return fmt.Errorf("cannot reload udev rules: %s", err)
+		}
 	}
 	return nil
 }
