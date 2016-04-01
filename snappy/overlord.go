@@ -162,11 +162,10 @@ func CopyData(newSnap *Snap, flags InstallFlags, meter progress.Meter) error {
 }
 
 func UndoCopyData(newSnap *Snap, flags InstallFlags, meter progress.Meter) {
-	inhibitHooks := (flags & InhibitHooks) != 0
-
+	// XXX we were copying data, assume InhibitHooks was false
 	oldSnap := currentSnap(newSnap)
 	if oldSnap != nil {
-		if err := activateSnap(oldSnap, inhibitHooks, meter); err != nil {
+		if err := ActivateSnap(oldSnap, meter); err != nil {
 			logger.Noticef("Setting old version back to active failed: %v", err)
 		}
 	}
@@ -176,29 +175,16 @@ func UndoCopyData(newSnap *Snap, flags InstallFlags, meter progress.Meter) {
 	}
 }
 
-func FinalizeSnap(newSnap *Snap, flags InstallFlags, meter progress.Meter) error {
-	inhibitHooks := (flags & InhibitHooks) != 0
-	if inhibitHooks {
-		return nil
-	}
-	return activateSnap(newSnap, inhibitHooks, meter)
-}
-
-func UndoFinalizeSnap(oldSnap, newSnap *Snap, flags InstallFlags, meter progress.Meter) {
-	inhibitHooks := (flags & InhibitHooks) != 0
+func UndoActivateSnap(oldSnap, newSnap *Snap, meter progress.Meter) {
 	if oldSnap == nil {
 		return
 	}
-	if err := activateSnap(oldSnap, inhibitHooks, meter); err != nil {
+	if err := ActivateSnap(oldSnap, meter); err != nil {
 		logger.Noticef("When setting old %s version back to active: %v", newSnap.Name(), err)
 	}
 }
 
 func ActivateSnap(s *Snap, inter interacter) error {
-	return activateSnap(s, false, inter)
-}
-
-func activateSnap(s *Snap, inhibitHooks bool, inter interacter) error {
 	currentActiveSymlink := filepath.Join(s.basedir, "..", "current")
 	currentActiveDir, _ := filepath.EvalSymlinks(currentActiveSymlink)
 
@@ -233,7 +219,7 @@ func activateSnap(s *Snap, inhibitHooks bool, inter interacter) error {
 		return err
 	}
 	// add the daemons from the snap.yaml
-	if err := addPackageServices(s.m, s.basedir, inhibitHooks, inter); err != nil {
+	if err := addPackageServices(s.m, s.basedir, false, inter); err != nil {
 		return err
 	}
 	// add the desktop files
@@ -360,10 +346,16 @@ func (o *Overlord) Install(snapFilePath string, flags InstallFlags, meter progre
 	}
 
 	// and finally make active
-	err = FinalizeSnap(newSnap, flags, meter)
+
+	if (flags & InhibitHooks) != 0 {
+		// XXX kill InhibitHooks flag but used by u-d-f atm
+		return newSnap, nil
+	}
+
+	err = ActivateSnap(newSnap, meter)
 	defer func() {
 		if err != nil {
-			UndoFinalizeSnap(oldSnap, newSnap, flags, meter)
+			UndoActivateSnap(oldSnap, newSnap, meter)
 		}
 	}()
 	if err != nil {
