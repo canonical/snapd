@@ -29,7 +29,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/gorilla/mux"
@@ -1153,16 +1152,20 @@ type taskInfo struct {
 
 func getChanges(c *Command, r *http.Request) Response {
 	query := r.URL.Query()
-	// XXX: default this to "Done"?
-	excludeStatuses := strings.Split(query.Get("exclude-statuses"), ",")
-	for i, v := range excludeStatuses {
-		excludeStatuses[i] = strings.ToLower(v)
+	qselect := query.Get("select")
+	if qselect == "" {
+		qselect = "in-progress"
 	}
-	sort.Strings(excludeStatuses)
-	exclude := func(status string) bool {
-		s := strings.ToLower(status)
-		i := sort.SearchStrings(excludeStatuses, s)
-		return i < len(excludeStatuses) && s == excludeStatuses[i]
+	var filter func(*state.Change) bool
+	switch qselect {
+	case "all":
+		filter = func(*state.Change) bool { return true }
+	case "in-progress":
+		filter = func(chg *state.Change) bool { return !chg.Status().Ready() }
+	case "ready":
+		filter = func(chg *state.Change) bool { return chg.Status().Ready() }
+	default:
+		return BadRequest("select should be one of: all,in-progress,ready")
 	}
 
 	state := c.d.overlord.State()
@@ -1171,14 +1174,13 @@ func getChanges(c *Command, r *http.Request) Response {
 	chgs := state.Changes()
 	chgInfos := make([]*changeInfo, 0, len(chgs))
 	for _, chg := range chgs {
-		status := chg.Status().String()
-		if exclude(status) {
+		if !filter(chg) {
 			continue
 		}
 		chgInfo := &changeInfo{
 			Kind:    chg.Kind(),
 			Summary: chg.Summary(),
-			Status:  status,
+			Status:  chg.Status().String(),
 		}
 		tasks := chg.Tasks()
 		taskInfos := make([]*taskInfo, len(tasks))
