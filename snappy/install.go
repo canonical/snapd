@@ -134,6 +134,7 @@ func convertToInstalledSnaps(remoteUpdates []*store.RemoteSnap) ([]*Snap, error)
 
 // snapUpdates identifies which snaps have updates in the store.
 func snapUpdates(repo *store.SnapUbuntuStoreRepository) (snaps []*store.RemoteSnap, err error) {
+	// TODO: this should eventually be snap-id based
 	// NOTE this *will* send .sideload apps to the store.
 	installed, err := ActiveSnapIterByType(fullNameWithChannel, snap.TypeApp, snap.TypeGadget, snap.TypeOS, snap.TypeKernel)
 	if err != nil || len(installed) == 0 {
