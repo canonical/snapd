@@ -54,25 +54,6 @@ func (ss *stateSuite) TestLockUnlock(c *C) {
 	st.Unlock()
 }
 
-func (ss *stateSuite) TestSetNeedsLocked(c *C) {
-	st := state.New(nil)
-	mSt1 := &mgrState1{A: "foo"}
-
-	c.Assert(func() { st.Set("mgr1", mSt1) }, PanicMatches, "internal error: accessing state without lock")
-
-	st.Lock()
-	defer st.Unlock()
-	// fine
-	st.Set("mgr1", mSt1)
-}
-
-func (ss *stateSuite) TestGetNeedsLocked(c *C) {
-	st := state.New(nil)
-
-	var v int
-	c.Assert(func() { st.Get("foo", &v) }, PanicMatches, "internal error: accessing state without lock")
-}
-
 func (ss *stateSuite) TestGetAndSet(c *C) {
 	st := state.New(nil)
 	st.Lock()
@@ -168,7 +149,7 @@ func (ss *stateSuite) TestImplicitCheckpointAndRead(c *C) {
 
 	st2, err := state.ReadState(nil, buf)
 	c.Assert(err, IsNil)
-	c.Assert(st2, NotNil)
+	c.Assert(st2.Modified(), Equals, false)
 
 	st2.Lock()
 	defer st2.Unlock()
@@ -190,11 +171,8 @@ func (ss *stateSuite) TestImplicitCheckpointAndRead(c *C) {
 }
 
 func (ss *stateSuite) TestImplicitCheckpointRetry(c *C) {
-	prevInterval, prevMaxTime := state.ChangeUnlockCheckpointRetryParamsForTest(
-		2*time.Millisecond,
-		1*time.Second,
-	)
-	defer state.ChangeUnlockCheckpointRetryParamsForTest(prevInterval, prevMaxTime)
+	restore := state.MockCheckpointRetryDelay(2*time.Millisecond, 1*time.Second)
+	defer restore()
 
 	retries := 0
 	boom := errors.New("boom")
@@ -216,11 +194,8 @@ func (ss *stateSuite) TestImplicitCheckpointRetry(c *C) {
 }
 
 func (ss *stateSuite) TestImplicitCheckpointPanicsAfterFailedRetries(c *C) {
-	prevInterval, prevMaxTime := state.ChangeUnlockCheckpointRetryParamsForTest(
-		2*time.Millisecond,
-		10*time.Millisecond,
-	)
-	defer state.ChangeUnlockCheckpointRetryParamsForTest(prevInterval, prevMaxTime)
+	restore := state.MockCheckpointRetryDelay(2*time.Millisecond, 10*time.Millisecond)
+	defer restore()
 
 	boom := errors.New("boom")
 	retries := 0
@@ -238,6 +213,26 @@ func (ss *stateSuite) TestImplicitCheckpointPanicsAfterFailedRetries(c *C) {
 	// we did at least a couple
 	c.Check(retries > 2, Equals, true)
 	c.Check(time.Since(t0) > 10*time.Millisecond, Equals, true)
+}
+
+func (ss *stateSuite) TestImplicitCheckpointModifiedOnly(c *C) {
+	restore := state.MockCheckpointRetryDelay(2*time.Millisecond, 1*time.Second)
+	defer restore()
+
+	b := &fakeStateBackend{}
+	st := state.New(b)
+	st.Lock()
+	st.Unlock()
+	st.Lock()
+	st.Unlock()
+
+	c.Assert(b.checkpoints, HasLen, 1)
+
+	st.Lock()
+	st.Set("foo", "bar")
+	st.Unlock()
+
+	c.Assert(b.checkpoints, HasLen, 2)
 }
 
 func (ss *stateSuite) TestNewChangeAndChanges(c *C) {
@@ -259,18 +254,6 @@ func (ss *stateSuite) TestNewChangeAndChanges(c *C) {
 	for _, chg := range chgs {
 		c.Check(chg, Equals, expected[chg.ID()])
 	}
-}
-
-func (ss *stateSuite) TestNewChangeNeedsLocked(c *C) {
-	st := state.New(nil)
-
-	c.Assert(func() { st.NewChange("install", "...") }, PanicMatches, "internal error: accessing state without lock")
-}
-
-func (ss *stateSuite) TestChangesNeedsLocked(c *C) {
-	st := state.New(nil)
-
-	c.Assert(func() { st.Changes() }, PanicMatches, "internal error: accessing state without lock")
 }
 
 func (ss *stateSuite) TestNewChangeAndCheckpoint(c *C) {
@@ -476,14 +459,39 @@ func (ss *stateSuite) TestNewTaskAndTasks(c *C) {
 	}
 }
 
-func (ss *stateSuite) TestNewTaskNeedsLocked(c *C) {
-	st := state.New(nil)
+func (ss *stateSuite) TestMethodEntrance(c *C) {
+	st := state.New(&fakeStateBackend{})
+	// Reset modified flag.
+	st.Lock()
+	st.Unlock()
 
-	c.Assert(func() { st.NewTask("download", "...") }, PanicMatches, "internal error: accessing state without lock")
-}
+	writes := []func(){
+		func() { st.Set("foo", 1) },
+		func() { st.NewChange("install", "...") },
+		func() { st.NewTask("download", "...") },
+		func() { st.UnmarshalJSON(nil) },
+	}
 
-func (ss *stateSuite) TestTasksNeedsLocked(c *C) {
-	st := state.New(nil)
+	reads := []func(){
+		func() { st.Get("foo", nil) },
+		func() { st.Changes() },
+		func() { st.Tasks() },
+		func() { st.MarshalJSON() },
+	}
 
-	c.Assert(func() { st.Tasks() }, PanicMatches, "internal error: accessing state without lock")
+	for i, f := range reads {
+		c.Logf("Testing read function #%d", i)
+		c.Assert(f, PanicMatches, "internal error: accessing state without lock")
+		c.Assert(st.Modified(), Equals, false)
+	}
+
+	for i, f := range writes {
+		st.Lock()
+		st.Unlock()
+		c.Assert(st.Modified(), Equals, false)
+
+		c.Logf("Testing write function #%d", i)
+		c.Assert(f, PanicMatches, "internal error: accessing state without lock")
+		c.Assert(st.Modified(), Equals, true)
+	}
 }
