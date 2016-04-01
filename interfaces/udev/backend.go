@@ -41,6 +41,8 @@ type Backend struct{}
 // If any of the rules are changed or removed then udev database is reloaded.
 //
 // Since udev has no concept of a complain mode, developerMode is ignored.
+//
+// If the method fails it should be re-tried (with a sensible strategy) by the caller.
 func (b *Backend) Configure(snapInfo *snap.Info, developerMode bool, repo *interfaces.Repository) error {
 	snippets, err := repo.SecuritySnippetsForSnap(snapInfo.Name, interfaces.SecurityUDev)
 	if err != nil {
@@ -52,15 +54,7 @@ func (b *Backend) Configure(snapInfo *snap.Info, developerMode bool, repo *inter
 	}
 	glob := fmt.Sprintf("70-%s.rules", interfaces.SecurityTagGlob(snapInfo))
 	changed, removed, err := osutil.EnsureDirState(dirs.SnapUdevRulesDir, glob, content)
-	if err != nil {
-		return fmt.Errorf("cannot synchronize udev rules for snap %q: %s", snapInfo.Name, err)
-	}
-	if len(changed) > 0 || len(removed) > 0 {
-		if err := ReloadRules(); err != nil {
-			return fmt.Errorf("cannot reload udev rules: %s", err)
-		}
-	}
-	return nil
+	return handleChanges(changed, removed, err, snapInfo)
 }
 
 // Deconfigure removes udev rules specific to a given snap.
@@ -68,15 +62,21 @@ func (b *Backend) Configure(snapInfo *snap.Info, developerMode bool, repo *inter
 //
 // This method should be called after removing a snap.
 //
-// If the method fails it should be re-tried (with a sensible strategy) by the .
+// If the method fails it should be re-tried (with a sensible strategy) by the caller.
 func (b *Backend) Deconfigure(snapInfo *snap.Info) error {
 	glob := fmt.Sprintf("70-%s.rules", interfaces.SecurityTagGlob(snapInfo))
 	changed, removed, err := osutil.EnsureDirState(dirs.SnapUdevRulesDir, glob, nil)
-	if err != nil && (len(changed) > 0 || len(removed) > 0) {
-		// Try reload the rules and regardless of that failing or not return
-		// the original error. The task which this method is responsible for
-		// re-trying the operation.
-		ReloadRules()
+	return handleChanges(changed, removed, err, snapInfo)
+}
+
+func handleChanges(changed, removed []string, err error, snapInfo *snap.Info) error {
+	if err != nil {
+		if len(changed) > 0 || len(removed) > 0 {
+			// Try reload the rules and regardless of that failing or not return
+			// the original error. The task which this method is responsible for
+			// re-trying the operation.
+			ReloadRules()
+		}
 		return fmt.Errorf("cannot synchronize udev rules for snap %q: %s", snapInfo.Name, err)
 	}
 	if len(changed) > 0 || len(removed) > 0 {
