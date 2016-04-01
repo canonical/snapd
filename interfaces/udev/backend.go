@@ -53,8 +53,7 @@ func (b *Backend) Configure(snapInfo *snap.Info, developerMode bool, repo *inter
 		return fmt.Errorf("cannot obtain expected udev rules for snap %q: %s", snapInfo.Name, err)
 	}
 	glob := fmt.Sprintf("70-%s.rules", interfaces.SecurityTagGlob(snapInfo))
-	changed, removed, err := osutil.EnsureDirState(dirs.SnapUdevRulesDir, glob, content)
-	return handleChanges(changed, removed, err, snapInfo)
+	return ensureDirState(dirs.SnapUdevRulesDir, glob, content, snapInfo)
 }
 
 // Deconfigure removes udev rules specific to a given snap.
@@ -65,11 +64,11 @@ func (b *Backend) Configure(snapInfo *snap.Info, developerMode bool, repo *inter
 // If the method fails it should be re-tried (with a sensible strategy) by the caller.
 func (b *Backend) Deconfigure(snapInfo *snap.Info) error {
 	glob := fmt.Sprintf("70-%s.rules", interfaces.SecurityTagGlob(snapInfo))
-	changed, removed, err := osutil.EnsureDirState(dirs.SnapUdevRulesDir, glob, nil)
-	return handleChanges(changed, removed, err, snapInfo)
+	return ensureDirState(dirs.SnapUdevRulesDir, glob, nil, snapInfo)
 }
 
-func handleChanges(changed, removed []string, err error, snapInfo *snap.Info) error {
+func ensureDirState(dir, glob string, content map[string]*osutil.FileState, snapInfo *snap.Info) error {
+	changed, removed, err := osutil.EnsureDirState(dir, glob, content)
 	if err != nil {
 		if len(changed) > 0 || len(removed) > 0 {
 			// Try reload the rules and regardless of that failing or not return
