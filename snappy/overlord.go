@@ -139,8 +139,6 @@ func currentSnap(newSnap *Snap) *Snap {
 }
 
 func CopyData(newSnap *Snap, flags InstallFlags, meter progress.Meter) error {
-	inhibitHooks := (flags & InhibitHooks) != 0
-
 	dataDir := filepath.Join(dirs.SnapDataDir, newSnap.Name(), newSnap.Version())
 
 	// deal with the data:
@@ -156,7 +154,7 @@ func CopyData(newSnap *Snap, flags InstallFlags, meter progress.Meter) error {
 	}
 
 	// we need to stop making it active
-	if err := oldSnap.deactivate(inhibitHooks, meter); err != nil {
+	if err := DeactivateSnap(oldSnap, meter); err != nil {
 		return err
 	}
 
@@ -213,7 +211,7 @@ func ActivateSnap(s *Snap, inhibitHooks bool, inter interacter) error {
 		if err != nil {
 			return err
 		}
-		if err := oldSnap.deactivate(inhibitHooks, inter); err != nil {
+		if err := DeactivateSnap(oldSnap, inter); err != nil {
 			return err
 		}
 	}
@@ -419,7 +417,7 @@ func (o *Overlord) Uninstall(s *Snap, meter progress.Meter) error {
 		return ErrPackageNotRemovable
 	}
 
-	if err := s.deactivate(false, meter); err != nil && err != ErrSnapNotActive {
+	if err := DeactivateSnap(s, meter); err != nil && err != ErrSnapNotActive {
 		return err
 	}
 
@@ -463,7 +461,7 @@ func (o *Overlord) SetActive(s *Snap, active bool, meter progress.Meter) error {
 		return s.activate(false, meter)
 	}
 
-	return s.deactivate(false, meter)
+	return DeactivateSnap(s, meter)
 }
 
 // Configure configures the given snap
