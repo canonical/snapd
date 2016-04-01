@@ -122,7 +122,7 @@ func makeSnapActive(snapYamlPath string) (err error) {
 }
 
 func (s *SnapTestSuite) TestLocalSnapInvalidPath(c *C) {
-	_, err := NewInstalledSnap("invalid-path", "")
+	_, err := NewInstalledSnap("invalid-path")
 	c.Assert(err, NotNil)
 }
 
@@ -130,7 +130,7 @@ func (s *SnapTestSuite) TestLocalSnapSimple(c *C) {
 	snapYaml, err := s.makeInstalledMockSnap()
 	c.Assert(err, IsNil)
 
-	snap, err := NewInstalledSnap(snapYaml, testDeveloper)
+	snap, err := NewInstalledSnap(snapYaml)
 	c.Assert(err, IsNil)
 	c.Assert(snap, NotNil)
 	c.Check(snap.Name(), Equals, "hello-snap")
@@ -157,7 +157,7 @@ func (s *SnapTestSuite) TestLocalSnapActive(c *C) {
 	c.Assert(err, IsNil)
 	makeSnapActive(snapYaml)
 
-	snap, err := NewInstalledSnap(snapYaml, testDeveloper)
+	snap, err := NewInstalledSnap(snapYaml)
 	c.Assert(err, IsNil)
 	c.Assert(snap.IsActive(), Equals, true)
 }
@@ -269,7 +269,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdatesNoSnaps(c *C) {
 func (s *SnapTestSuite) TestMakeConfigEnv(c *C) {
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, "")
 	c.Assert(err, IsNil)
-	snap, err := NewInstalledSnap(yamlFile, "sergiusens")
+	snap, err := NewInstalledSnap(yamlFile)
 	c.Assert(err, IsNil)
 	c.Assert(snap, NotNil)
 
@@ -328,7 +328,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 	c.Check(installed[0].Developer(), Equals, "bar")
 	c.Check(installed[0].Description(), Equals, "this is a description")
 
-	_, err = os.Stat(filepath.Join(dirs.SnapMetaDir, "foo.bar_1.0.manifest"))
+	_, err = os.Stat(filepath.Join(dirs.SnapMetaDir, "foo_1.0.manifest"))
 	c.Check(err, IsNil)
 }
 
@@ -389,7 +389,7 @@ architectures:
 `
 
 	snapPkg := makeTestSnapPackage(c, packageHello)
-	_, err := s.overlord.Install(snapPkg, "developer", 0, &MockProgressMeter{})
+	_, err := s.overlord.Install(snapPkg, 0, &MockProgressMeter{})
 	errorMsg := fmt.Sprintf("package's supported architectures (yadayada, blahblah) is incompatible with this system (%s)", arch.UbuntuArchitecture())
 	c.Assert(err.Error(), Equals, errorMsg)
 }
@@ -420,7 +420,7 @@ apps:
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, packageHello)
 	c.Assert(err, IsNil)
 
-	snap, err := NewInstalledSnap(yamlFile, testDeveloper)
+	snap, err := NewInstalledSnap(yamlFile)
 	c.Assert(err, IsNil)
 	c.Assert(snap, NotNil)
 
@@ -658,30 +658,6 @@ func (s *SnapTestSuite) TestSnapYamlSecurityServiceParsing(c *C) {
 	c.Assert(m.Plugs["testme-service"].SecurityTemplate, Equals, "foo_template")
 }
 
-func (s *SnapTestSuite) TestDetectsAlreadyInstalled(c *C) {
-	data := "name: afoo\nversion: 1"
-	yamlPath, err := makeInstalledMockSnap(s.tempdir, data)
-	c.Assert(err, IsNil)
-	c.Assert(makeSnapActive(yamlPath), IsNil)
-
-	yaml, err := parseSnapYamlData([]byte(data), false)
-	c.Assert(err, IsNil)
-	c.Check(checkForPackageInstalled(yaml, "otherns"), ErrorMatches, ".*is already installed with developer.*")
-}
-
-func (s *SnapTestSuite) TestIgnoresAlreadyInstalledSameDeveloper(c *C) {
-	// NOTE remote snaps are stopped before clickInstall gets to run
-
-	data := "name: afoo\nversion: 1"
-	yamlPath, err := makeInstalledMockSnap(s.tempdir, data)
-	c.Assert(err, IsNil)
-	c.Assert(makeSnapActive(yamlPath), IsNil)
-
-	yaml, err := parseSnapYamlData([]byte(data), false)
-	c.Assert(err, IsNil)
-	c.Check(checkForPackageInstalled(yaml, testDeveloper), IsNil)
-}
-
 func (s *SnapTestSuite) TestNeedsAppArmorUpdateSecurityPolicy(c *C) {
 	// if a security policy is defined, never flag for update
 	sd := &SecurityDefinitions{SecurityPolicy: &SecurityPolicyDefinition{}}
@@ -737,20 +713,6 @@ apps:
    daemon: forking
 `), false)
 	c.Assert(err, NotNil)
-}
-
-func (s *SnapTestSuite) TestDeveloperFromPath(c *C) {
-	n, err := developerFromYamlPath("/gadget/foo.bar/1.0/meta/snap.yaml")
-	c.Check(err, IsNil)
-	c.Check(n, Equals, "bar")
-
-	n, err = developerFromYamlPath("/gadget/foo_bar/1.0/meta/snap.yaml")
-	c.Check(err, NotNil)
-	c.Check(n, Equals, "")
-
-	n, err = developerFromYamlPath("/oo_bar/1.0/msnap.yaml")
-	c.Check(err, NotNil)
-	c.Check(n, Equals, "")
 }
 
 func (s *SnapTestSuite) TestIllegalPackageNameWithDeveloper(c *C) {
@@ -849,16 +811,6 @@ func (s *SnapTestSuite) TestWriteHardwareUdevActivate(c *C) {
 	c.Assert(cmds, HasLen, 2)
 }
 
-func (s *SnapTestSuite) TestQualifiedNameName(c *C) {
-	snapYaml, err := parseSnapYamlData([]byte(`name: foo
-version: 1.0
-`), false)
-	c.Assert(err, IsNil)
-
-	udevName := snapYaml.qualifiedName("mvo")
-	c.Assert(udevName, Equals, "foo.mvo")
-}
-
 func (s *SnapTestSuite) TestParseSnapYamlDataChecksName(c *C) {
 	_, err := parseSnapYamlData([]byte(`
 version: 1.0
@@ -883,27 +835,27 @@ func (s *SnapTestSuite) TestChannelFromLocalManifest(c *C) {
 	snapYaml, err := s.makeInstalledMockSnap()
 	c.Assert(err, IsNil)
 
-	snap, err := NewInstalledSnap(snapYaml, testDeveloper)
+	snap, err := NewInstalledSnap(snapYaml)
 	c.Assert(snap.Channel(), Equals, "remote-channel")
 }
 
 func (s *SnapTestSuite) TestIcon(c *C) {
 	snapYaml, err := s.makeInstalledMockSnap()
-	snap, err := NewInstalledSnap(snapYaml, testDeveloper)
+	snap, err := NewInstalledSnap(snapYaml)
 	c.Assert(err, IsNil)
 	err = os.MkdirAll(filepath.Join(snap.basedir, "meta", "gui"), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(snap.basedir, "meta", "gui", "icon.png"), nil, 0644)
 	c.Assert(err, IsNil)
 
-	c.Check(snap.Icon(), Matches, filepath.Join(dirs.SnapSnapsDir, QualifiedName(snap.Info()), snap.Version(), "meta/gui/icon.png"))
+	c.Check(snap.Icon(), Matches, filepath.Join(dirs.SnapSnapsDir, snap.Name(), snap.Version(), "meta/gui/icon.png"))
 }
 
 func (s *SnapTestSuite) TestIconEmpty(c *C) {
 	snapYaml, err := s.makeInstalledMockSnap(`name: foo
 version: 1.0
 `)
-	snap, err := NewInstalledSnap(snapYaml, testDeveloper)
+	snap, err := NewInstalledSnap(snapYaml)
 	c.Assert(err, IsNil)
 	// no icon in the yaml!
 	c.Check(snap.Icon(), Equals, "")

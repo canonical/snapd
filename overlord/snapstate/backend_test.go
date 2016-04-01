@@ -27,12 +27,11 @@ import (
 type fakeOp struct {
 	op string
 
-	name      string
-	ver       string
-	channel   string
-	developer string
-	flags     int
-	active    bool
+	name    string
+	ver     string
+	channel string
+	flags   int
+	active  bool
 }
 
 type fakeSnappyBackend struct {
@@ -42,11 +41,10 @@ type fakeSnappyBackend struct {
 	fakeTotalProgress   int
 }
 
-func (f *fakeSnappyBackend) InstallLocal(path, developer string, flags snappy.InstallFlags, p progress.Meter) error {
+func (f *fakeSnappyBackend) InstallLocal(path string, flags snappy.InstallFlags, p progress.Meter) error {
 	f.ops = append(f.ops, fakeOp{
-		op:        "install-local",
-		name:      path,
-		developer: developer,
+		op:   "install-local",
+		name: path,
 	})
 	return nil
 }

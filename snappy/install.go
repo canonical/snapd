@@ -63,7 +63,7 @@ func installRemote(mStore *store.SnapUbuntuStoreRepository, remoteSnap *store.Re
 		return "", err
 	}
 
-	localSnap, err := (&Overlord{}).Install(downloadedSnap, remoteSnap.Developer(), flags, meter)
+	localSnap, err := (&Overlord{}).Install(downloadedSnap, flags, meter)
 	if err != nil {
 		return "", err
 	}
@@ -134,6 +134,7 @@ func convertToInstalledSnaps(remoteUpdates []*store.RemoteSnap) ([]*Snap, error)
 
 // snapUpdates identifies which snaps have updates in the store.
 func snapUpdates(repo *store.SnapUbuntuStoreRepository) (snaps []*store.RemoteSnap, err error) {
+	// TODO: this should eventually be snap-id based
 	// NOTE this *will* send .sideload apps to the store.
 	installed, err := ActiveSnapIterByType(fullNameWithChannel, snap.TypeApp, snap.TypeGadget, snap.TypeOS, snap.TypeKernel)
 	if err != nil || len(installed) == 0 {
@@ -262,7 +263,7 @@ func doInstall(name, channel string, flags InstallFlags, meter progress.Meter) (
 			flags |= AllowUnauthenticated
 		}
 
-		return installClick(name, flags, meter, SideloadedDeveloper)
+		return installClick(name, flags, meter)
 	}
 
 	// check repos next
@@ -277,7 +278,7 @@ func doInstall(name, channel string, flags InstallFlags, meter progress.Meter) (
 		return "", err
 	}
 
-	cur := FindSnapsByNameAndVersion(QualifiedName(snap.Info()), snap.Version(), installed)
+	cur := FindSnapsByNameAndVersion(snap.Name(), snap.Version(), installed)
 	if len(cur) != 0 {
 		return "", ErrAlreadyInstalled
 	}
