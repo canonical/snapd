@@ -248,10 +248,6 @@ func (s *Snap) activate(inhibitHooks bool, inter interacter) error {
 	return ActivateSnap(s, inhibitHooks, inter)
 }
 
-func (s *Snap) deactivate(inhibitHooks bool, inter interacter) error {
-	return DeactivateSnap(s, inter)
-}
-
 // NeedsReboot returns true if the snap becomes active on the next reboot
 func (s *Snap) NeedsReboot() bool {
 	return kernelOrOsRebootRequired(s)
