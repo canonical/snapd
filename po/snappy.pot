@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-03-29 12:40+0200\n"
+        "POT-Creation-Date: 2016-03-29 21:48+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -269,23 +269,7 @@ msgstr  ""
 msgid   "Provides more detailed information"
 msgstr  ""
 
-#, c-format
-msgid   "Purge %q snap"
-msgstr  ""
-
 msgid   "Purge a snap's data from the system"
-msgstr  ""
-
-msgid   "Purge an installed package."
-msgstr  ""
-
-#, c-format
-msgid   "Purging %q"
-msgstr  ""
-
-#. TRANSLATORS: the %s is a pkgname
-#, c-format
-msgid   "Purging %s\n"
 msgstr  ""
 
 msgid   "Query and modify snappy services"
@@ -319,12 +303,6 @@ msgid   "Remove a snap from the system"
 msgstr  ""
 
 msgid   "Remove a snapp part"
-msgstr  ""
-
-msgid   "Remove all the data from the listed packages"
-msgstr  ""
-
-msgid   "Remove all the data from the listed packages. Normally this is used for packages that have been removed and attempting to purge data for an installed package will result in an error. The --installed option  overrides that and enables the administrator to purge all data for an installed package (effectively resetting the package completely)."
 msgstr  ""
 
 msgid   "Remove hardware from a specific installed package"

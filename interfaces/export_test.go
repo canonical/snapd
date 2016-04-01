@@ -31,21 +31,3 @@ func MockActiveSnapMetaData(test *testutil.BaseTest, fn func(string) (string, st
 		ActiveSnapMetaData = orig
 	})
 }
-
-// MockSecCompHeader replaces the real seccomp header blob
-func MockSecCompHeader(test *testutil.BaseTest, header []byte) {
-	orig := secCompHeader
-	secCompHeader = header
-	test.AddCleanup(func() {
-		secCompHeader = orig
-	})
-}
-
-// MockAppArmorHeader replaces the real apparmor header blob
-func MockAppArmorHeader(test *testutil.BaseTest, header []byte) {
-	orig := appArmorHeader
-	appArmorHeader = header
-	test.AddCleanup(func() {
-		appArmorHeader = orig
-	})
-}

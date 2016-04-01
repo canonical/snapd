@@ -27,10 +27,12 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ubuntu-core/snappy/asserts"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/progress"
@@ -59,12 +61,43 @@ func (t *remoteRepoTestSuite) TearDownTest(c *C) {
 }
 
 func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
+
 	download = func(name string, w io.Writer, req *http.Request, pbar progress.Meter) error {
+		c.Check(req.URL.String(), Equals, "anon")
 		w.Write([]byte("I was downloaded"))
 		return nil
 	}
 
-	path, err := t.store.Download(&RemoteSnap{}, nil)
+	snap := &RemoteSnap{}
+	snap.Pkg.AnonDownloadURL = "anon"
+	snap.Pkg.DownloadURL = "AUTH"
+	path, err := t.store.Download(snap, nil)
+	c.Assert(err, IsNil)
+	defer os.Remove(path)
+
+	content, err := ioutil.ReadFile(path)
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, "I was downloaded")
+}
+
+func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
+	home := os.Getenv("HOME")
+	os.Setenv("HOME", c.MkDir())
+	defer os.Setenv("HOME", home)
+	mockStoreToken := StoreToken{TokenName: "meep"}
+	err := WriteStoreToken(mockStoreToken)
+	c.Assert(err, IsNil)
+
+	download = func(name string, w io.Writer, req *http.Request, pbar progress.Meter) error {
+		c.Check(req.URL.String(), Equals, "AUTH")
+		w.Write([]byte("I was downloaded"))
+		return nil
+	}
+
+	snap := &RemoteSnap{}
+	snap.Pkg.AnonDownloadURL = "anon"
+	snap.Pkg.DownloadURL = "AUTH"
+	path, err := t.store.Download(snap, nil)
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
 
@@ -110,9 +143,14 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryHeaders(c *C) {
 	req, err := http.NewRequest("GET", "http://example.com", nil)
 	c.Assert(err, IsNil)
 
-	t.store.setUbuntuStoreHeaders(req)
+	t.store.configureStoreReq(req, "")
 
 	c.Assert(req.Header.Get("X-Ubuntu-Release"), Equals, release.String())
+	c.Check(req.Header.Get("Accept"), Equals, "application/hal+json")
+
+	t.store.configureStoreReq(req, "application/json")
+
+	c.Check(req.Header.Get("Accept"), Equals, "application/json")
 }
 
 const (
@@ -219,11 +257,11 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	cfg := SnapUbuntuStoreConfig{
 		DetailsURI: detailsURI,
 	}
-	snap := NewUbuntuStoreSnapRepository(&cfg, "")
-	c.Assert(snap, NotNil)
+	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	c.Assert(repo, NotNil)
 
 	// the actual test
-	result, err := snap.Snap(funkyAppName+"."+funkyAppDeveloper, "edge")
+	result, err := repo.Snap(funkyAppName+"."+funkyAppDeveloper, "edge")
 	c.Assert(err, IsNil)
 	c.Check(result.Name(), Equals, funkyAppName)
 	c.Check(result.Developer(), Equals, funkyAppDeveloper)
@@ -252,11 +290,11 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
 	cfg := SnapUbuntuStoreConfig{
 		DetailsURI: detailsURI,
 	}
-	snap := NewUbuntuStoreSnapRepository(&cfg, "")
-	c.Assert(snap, NotNil)
+	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	c.Assert(repo, NotNil)
 
 	// the actual test
-	result, err := snap.Snap("no-such-pkg", "edge")
+	result, err := repo.Snap("no-such-pkg", "edge")
 	c.Assert(err, NotNil)
 	c.Assert(result, IsNil)
 }
@@ -414,4 +452,86 @@ func (t *remoteRepoTestSuite) TestAuthURLDependsOnEnviron(c *C) {
 	after := authURL()
 
 	c.Check(before, Not(Equals), after)
+}
+
+func (t *remoteRepoTestSuite) TestAssertsURLDependsOnEnviron(c *C) {
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_SAS", ""), IsNil)
+	before := assertsURL()
+
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_SAS", "1"), IsNil)
+	defer os.Setenv("SNAPPY_USE_STAGING_SAS", "")
+	after := assertsURL()
+
+	c.Check(before, Not(Equals), after)
+}
+
+func (t *remoteRepoTestSuite) TestDefaultConfig(c *C) {
+	c.Check(strings.HasPrefix(defaultConfig.SearchURI.String(), "https://search.apps.ubuntu.com/api/v1/search?"), Equals, true)
+	c.Check(defaultConfig.DetailsURI.String(), Equals, "https://search.apps.ubuntu.com/api/v1/package/")
+	c.Check(strings.HasPrefix(defaultConfig.BulkURI.String(), "https://search.apps.ubuntu.com/api/v1/click-metadata?"), Equals, true)
+	c.Check(defaultConfig.AssertionsURI.String(), Equals, "https://assertions.ubuntu.com/v1/assertions/")
+}
+
+var testAssertion = `type: snap-declaration
+authority-id: super
+series: 16
+snap-id: snapidfoo
+gates: 
+publisher-id: devidbaz
+snap-name: mysnap
+timestamp: 2016-03-30T12:22:16Z
+
+openpgp wsBcBAABCAAQBQJW+8VBCRDWhXkqAWcrfgAAQ9gIABZFgMPByJZeUE835FkX3/y2hORn
+AzE3R1ktDkQEVe/nfVDMACAuaw1fKmUS4zQ7LIrx/AZYw5i0vKVmJszL42LBWVsqR0+p9Cxebzv9
+U2VUSIajEsUUKkBwzD8wxFzagepFlScif1NvCGZx0vcGUOu0Ent0v+gqgAv21of4efKqEW7crlI1
+T/A8LqZYmIzKRHGwCVucCyAUD8xnwt9nyWLgLB+LLPOVFNK8SR6YyNsX05Yz1BUSndBfaTN8j/k8
+8isKGZE6P0O9ozBbNIAE8v8NMWQegJ4uWuil7D3psLkzQIrxSypk9TrQ2GlIG2hJdUovc5zBuroe
+xS4u9rVT6UY=`
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertion(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
+		c.Check(r.URL.Path, Equals, "/assertions/snap-declaration/16/snapidfoo")
+		io.WriteString(w, testAssertion)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var err error
+	assertionsURI, err := url.Parse(mockServer.URL + "/assertions/")
+	c.Assert(err, IsNil)
+	cfg := SnapUbuntuStoreConfig{
+		AssertionsURI: assertionsURI,
+	}
+	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+
+	a, err := repo.Assertion(asserts.SnapDeclarationType, "16", "snapidfoo")
+	c.Assert(err, IsNil)
+	c.Check(a, NotNil)
+	c.Check(a.Type(), Equals, asserts.SnapDeclarationType)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNotFound(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
+		c.Check(r.URL.Path, Equals, "/assertions/snap-declaration/16/snapidfoo")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(404)
+		io.WriteString(w, `{"status": 404,"title": "not found"}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var err error
+	assertionsURI, err := url.Parse(mockServer.URL + "/assertions/")
+	c.Assert(err, IsNil)
+	cfg := SnapUbuntuStoreConfig{
+		AssertionsURI: assertionsURI,
+	}
+	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+
+	_, err = repo.Assertion(asserts.SnapDeclarationType, "16", "snapidfoo")
+	c.Check(err, Equals, ErrAssertionNotFound)
 }

@@ -223,8 +223,7 @@ Sample result:
 #### Fields
 * `snaps`
     * `status`: can be either `not installed`, `installed`, `active` (i.e. is
-      current), `removed` (but data present); there is no `purged` state, as a
-      purged snap is undistinguishable from a non-installed snap.
+      current).
     * `name`: the snap name.
     * `version`: a string representing the version.
     * `icon`: a url to the snap icon, possibly relative to this server.
@@ -311,7 +310,7 @@ See `sources` for `/v2/snaps`.
 
 ### POST
 
-* Description: Install, update, remove, purge, activate, deactivate, or
+* Description: Install, update, remove, activate, deactivate, or
   rollback the snap
 * Access: trusted
 * Operation: async
@@ -329,7 +328,7 @@ See `sources` for `/v2/snaps`.
 
 field      | ignored except in action | description
 -----------|-------------------|------------
-`action`   |                   | Required; a string, one of `install`, `update`, `remove`, `purge`, `activate`, `deactivate`, or `rollback`.
+`action`   |                   | Required; a string, one of `install`, `update`, `remove`, `activate`, `deactivate`, or `rollback`.
 `channel`  | `install` `update` | From which channel to pull the new package (and track henceforth). Channels are a means to discern the maturity of a package or the software it contains, although the exact meaning is left to the application developer. One of `edge`, `beta`, `candidate`, and `stable` which is the default.
 `leave_old`| `install` `update` `remove` | A boolean, equivalent to commandline's `--no-gc`. Default is false (do not leave old snaps around).
 `license`  | `install` `update` | A JSON object with `intro`, `license`, and `agreed` fields, the first two of which must match the license (see the section "A note on licenses", below).
