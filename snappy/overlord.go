@@ -175,15 +175,6 @@ func UndoCopyData(newSnap *Snap, flags InstallFlags, meter progress.Meter) {
 	}
 }
 
-func UndoActivateSnap(oldSnap, newSnap *Snap, meter progress.Meter) {
-	if oldSnap == nil {
-		return
-	}
-	if err := ActivateSnap(oldSnap, meter); err != nil {
-		logger.Noticef("When setting old %s version back to active: %v", newSnap.Name(), err)
-	}
-}
-
 func ActivateSnap(s *Snap, inter interacter) error {
 	currentActiveSymlink := filepath.Join(s.basedir, "..", "current")
 	currentActiveDir, _ := filepath.EvalSymlinks(currentActiveSymlink)
@@ -354,8 +345,10 @@ func (o *Overlord) Install(snapFilePath string, flags InstallFlags, meter progre
 
 	err = ActivateSnap(newSnap, meter)
 	defer func() {
-		if err != nil {
-			UndoActivateSnap(oldSnap, newSnap, meter)
+		if err != nil && oldSnap != nil {
+			if err := ActivateSnap(oldSnap, meter); err != nil {
+				logger.Noticef("When setting old %s version back to active: %v", newSnap.Name(), err)
+			}
 		}
 	}()
 	if err != nil {
