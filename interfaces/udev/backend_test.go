@@ -103,9 +103,9 @@ func (s *backendSuite) TestInstallingSnapWritesAndLoadsRules(c *C) {
 	for _, developerMode := range []bool{true, false} {
 		s.udevadmCmd.ForgetCalls()
 		snapInfo := s.installSnap(c, developerMode, sambaYamlV1)
-		profile := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.smbd.rules")
+		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.smbd.rules")
 		// file called "70-snap.sambda.smbd.rules" was created
-		_, err := os.Stat(profile)
+		_, err := os.Stat(fname)
 		c.Check(err, IsNil)
 		// udevadm was used to reload rules and re-run triggers
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, []string{
@@ -140,9 +140,9 @@ func (s *backendSuite) TestRemovingSnapRemovesAndReloadsRules(c *C) {
 		snapInfo := s.installSnap(c, developerMode, sambaYamlV1)
 		s.udevadmCmd.ForgetCalls()
 		s.removeSnap(c, snapInfo)
-		profile := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.smbd.rules")
+		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.smbd.rules")
 		// file called "70-snap.sambda.smbd.rules" was removed
-		_, err := os.Stat(profile)
+		_, err := os.Stat(fname)
 		c.Check(os.IsNotExist(err), Equals, true)
 		// udevadm was used to reload rules and re-run triggers
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, []string{
@@ -161,9 +161,9 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 		s.udevadmCmd.ForgetCalls()
 		snapInfo = s.updateSnap(c, snapInfo, developerMode, sambaYamlV1WithNmbd)
 		// NOTE the application is "nmbd", not "smbd"
-		profile := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.nmbd.rules")
+		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.nmbd.rules")
 		// file called "70-snap.sambda.nmbd.rules" was created
-		_, err := os.Stat(profile)
+		_, err := os.Stat(fname)
 		c.Check(err, IsNil)
 		// udevadm was used to reload rules and re-run triggers
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, []string{
@@ -183,9 +183,9 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 		s.udevadmCmd.ForgetCalls()
 		snapInfo = s.updateSnap(c, snapInfo, developerMode, sambaYamlV1)
 		// NOTE the application is "nmbd", not "smbd"
-		profile := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.nmbd.rules")
+		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.nmbd.rules")
 		// file called "70-snap.sambda.nmbd.rules" was removed
-		_, err := os.Stat(profile)
+		_, err := os.Stat(fname)
 		c.Check(os.IsNotExist(err), Equals, true)
 		// udevadm was used to reload rules and re-run triggers
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, []string{
