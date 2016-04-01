@@ -67,7 +67,7 @@ size_t validate_line(char *buf, size_t buf_len, size_t lineno)
 	else if (buf[len - 1] != '\n' && len > (buf_len - 2)) {
 		fprintf(stderr,
 			"seccomp filter line %zu was too long (%zu characters max)\n",
-			lineno, sizeof(buf) - 2);
+			lineno, buf_len - 2);
 		errno = 0;
 		die("aborting");
 	}
