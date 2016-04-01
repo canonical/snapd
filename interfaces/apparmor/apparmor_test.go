@@ -73,22 +73,6 @@ apparmor_parser output:
 		"--replace --write-cache -O no-expr-simplify --cache-loc=/var/cache/apparmor /path/to/snap.samba.smbd"})
 }
 
-// Tests for RemoveCachedProfile()
-
-func (s *appArmorSuite) TestRemoveCachedProfile(c *C) {
-	dirs.SetRootDir(c.MkDir())
-	defer dirs.SetRootDir("")
-	err := os.MkdirAll(dirs.AppArmorCacheDir, 0755)
-	c.Assert(err, IsNil)
-
-	fname := filepath.Join(dirs.AppArmorCacheDir, "profile")
-	ioutil.WriteFile(fname, []byte("blob"), 0600)
-	err = apparmor.RemoveCachedProfile("profile")
-	c.Assert(err, IsNil)
-	_, err = os.Stat(fname)
-	c.Check(os.IsNotExist(err), Equals, true)
-}
-
 // Tests for Profile.Unload()
 
 func (s *appArmorSuite) TestUnloadProfileRunsAppArmorParserRemove(c *C) {
@@ -106,6 +90,23 @@ func (s *appArmorSuite) TestUnloadProfileReportsErrors(c *C) {
 	c.Assert(err.Error(), Equals, `cannot unload apparmor profile: exit status 42
 apparmor_parser output:
 `)
+}
+
+func (s *appArmorSuite) TestUnloadRemovesCachedProfile(c *C) {
+	cmd := testutil.MockCommand(c, "apparmor_parser", "")
+	defer cmd.Restore()
+
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+	err := os.MkdirAll(dirs.AppArmorCacheDir, 0755)
+	c.Assert(err, IsNil)
+
+	fname := filepath.Join(dirs.AppArmorCacheDir, "profile")
+	ioutil.WriteFile(fname, []byte("blob"), 0600)
+	err = apparmor.UnloadProfile("profile")
+	c.Assert(err, IsNil)
+	_, err = os.Stat(fname)
+	c.Check(os.IsNotExist(err), Equals, true)
 }
 
 // Tests for LoadedProfiles()

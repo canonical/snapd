@@ -52,18 +52,19 @@ func LoadProfile(fname string) error {
 	return nil
 }
 
-// RemoveCachedProfile removes binary cache file from /var/cache/apparmor
-func RemoveCachedProfile(profile string) error {
-	return os.Remove(filepath.Join(dirs.AppArmorCacheDir, profile))
-}
-
 // UnloadProfile removes the named profile from the running kernel.
 //
 // The operation is done with: apparmor_parser --remove $name
+// The binary cache file is removed from /var/cache/apparmor
 func UnloadProfile(name string) error {
 	output, err := exec.Command("apparmor_parser", "--remove", name).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("cannot unload apparmor profile: %s\napparmor_parser output:\n%s", err, string(output))
+	}
+	err = os.Remove(filepath.Join(dirs.AppArmorCacheDir, name))
+	// It is not an error if the cache file wasn't there to remove.
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("cannot remove apparmor profile cache: %s", err)
 	}
 	return nil
 }
