@@ -39,7 +39,7 @@ func (s *searchSuite) TestSearchMustPrintMatch(c *check.C) {
 	expected := "(?ms)" +
 		"Name +Version +Summary *\n" +
 		".*" +
-		"^hello-world.canonical +.* +hello-world *\n" +
+		"^hello-world +.* +hello-world *\n" +
 		".*"
 
 	c.Assert(searchOutput, check.Matches, expected)
