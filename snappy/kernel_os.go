@@ -217,7 +217,7 @@ func SyncBoot() error {
 	kernelSnap, _ := bootloader.GetBootVar("snappy_kernel")
 	osSnap, _ := bootloader.GetBootVar("snappy_os")
 
-	installed, err := NewLocalSnapRepository().Installed()
+	installed, err := (&Overlord{}).Installed()
 	if err != nil {
 		return fmt.Errorf("failed to run SyncBoot: %s", err)
 	}

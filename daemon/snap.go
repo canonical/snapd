@@ -26,16 +26,16 @@ import (
 
 // allSnaps returns all installed snaps, grouped by name
 func allSnaps() (map[string][]*snappy.Snap, error) {
-	all, err := snappy.NewLocalSnapRepository().Installed()
+	all, err := (&snappy.Overlord{}).Installed()
 	if err != nil {
 		return nil, err
 	}
 
 	m := make(map[string][]*snappy.Snap)
 
-	for _, part := range all {
-		name := snappy.FullName(part.Info())
-		m[name] = append(m[name], part)
+	for _, snap := range all {
+		name := snap.Name()
+		m[name] = append(m[name], snap)
 	}
 
 	return m, nil

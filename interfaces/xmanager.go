@@ -26,7 +26,7 @@ import (
 )
 
 func activeSnapMetaDataImpl(snapName string) (version, origin string, apps []string, err error) {
-	installed, err2 := snappy.NewLocalSnapRepository().Installed()
+	installed, err2 := (&snappy.Overlord{}).Installed()
 	if err2 != nil {
 		err = fmt.Errorf("cannot list installed snaps: %v", err2)
 		return
