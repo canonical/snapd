@@ -39,7 +39,7 @@ type backendSuite struct {
 	repo    *interfaces.Repository
 	iface   *interfaces.TestInterface
 	rootDir string
-	cmds    map[string]*testutil.MockCmd
+	mockCmd *testutil.MockCmd
 }
 
 var _ = Suite(&backendSuite{
@@ -90,9 +90,7 @@ func (s *backendSuite) SetUpTest(c *C) {
 	err = os.MkdirAll(dirs.AppArmorCacheDir, 0700)
 	c.Assert(err, IsNil)
 	// Mock away any real apparmor interaction
-	s.cmds = map[string]*testutil.MockCmd{
-		"apparmor_parser": testutil.MockCommand(c, "apparmor_parser", fakeAppArmorParser),
-	}
+	s.mockCmd = testutil.MockCommand(c, "apparmor_parser", fakeAppArmorParser)
 	// Create a fresh repository for each test
 	s.repo = interfaces.NewRepository()
 	s.iface = &interfaces.TestInterface{InterfaceName: "iface"}
@@ -101,9 +99,7 @@ func (s *backendSuite) SetUpTest(c *C) {
 }
 
 func (s *backendSuite) TearDownTest(c *C) {
-	for _, cmd := range s.cmds {
-		cmd.Restore()
-	}
+	s.mockCmd.Restore()
 	dirs.SetRootDir("/")
 }
 
@@ -145,7 +141,7 @@ func (s *backendSuite) TestInstallingSnapWritesAndLoadsProfiles(c *C) {
 	_, err := os.Stat(profile)
 	c.Check(err, IsNil)
 	// apparmor_parser was used to load that file
-	c.Check(s.cmds["apparmor_parser"].Calls(), DeepEquals, []string{
+	c.Check(s.mockCmd.Calls(), DeepEquals, []string{
 		fmt.Sprintf("--replace --write-cache -O no-expr-simplify --cache-loc=%s/var/cache/apparmor %s", s.rootDir, profile),
 	})
 }
@@ -153,11 +149,11 @@ func (s *backendSuite) TestInstallingSnapWritesAndLoadsProfiles(c *C) {
 func (s *backendSuite) TestSecurityIsStable(c *C) {
 	for _, developerMode := range []bool{true, false} {
 		snapInfo := s.installSnap(c, developerMode, sambaYamlV1)
-		s.cmds["apparmor_parser"].ForgetCalls()
+		s.mockCmd.ForgetCalls()
 		err := s.backend.Configure(snapInfo, developerMode, s.repo)
 		c.Assert(err, IsNil)
 		// profiles are not re-compiled or re-loaded when nothing changes
-		c.Check(s.cmds["apparmor_parser"].Calls(), HasLen, 0)
+		c.Check(s.mockCmd.Calls(), HasLen, 0)
 		s.removeSnap(c, snapInfo)
 	}
 }
@@ -165,7 +161,7 @@ func (s *backendSuite) TestSecurityIsStable(c *C) {
 func (s *backendSuite) TestRemovingSnapRemovesAndUnloadsProfiles(c *C) {
 	for _, developerMode := range []bool{true, false} {
 		snapInfo := s.installSnap(c, developerMode, sambaYamlV1)
-		s.cmds["apparmor_parser"].ForgetCalls()
+		s.mockCmd.ForgetCalls()
 		s.removeSnap(c, snapInfo)
 		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 		// file called "snap.sambda.smbd" was removed
@@ -176,7 +172,7 @@ func (s *backendSuite) TestRemovingSnapRemovesAndUnloadsProfiles(c *C) {
 		_, err = os.Stat(cache)
 		c.Check(os.IsNotExist(err), Equals, true)
 		// apparmor_parser was used to unload the profile
-		c.Check(s.cmds["apparmor_parser"].Calls(), DeepEquals, []string{
+		c.Check(s.mockCmd.Calls(), DeepEquals, []string{
 			"--remove snap.samba.smbd",
 		})
 	}
@@ -185,12 +181,12 @@ func (s *backendSuite) TestRemovingSnapRemovesAndUnloadsProfiles(c *C) {
 func (s *backendSuite) TestUpdatingSnapMakesNeccesaryChanges(c *C) {
 	for _, developerMode := range []bool{true, false} {
 		snapInfo := s.installSnap(c, developerMode, sambaYamlV1)
-		s.cmds["apparmor_parser"].ForgetCalls()
+		s.mockCmd.ForgetCalls()
 		snapInfo = s.updateSnap(c, snapInfo, developerMode, sambaYamlV2)
 		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 		// apparmor_parser was used to reload the profile because snap version is
 		// inside the generated policy.
-		c.Check(s.cmds["apparmor_parser"].Calls(), DeepEquals, []string{
+		c.Check(s.mockCmd.Calls(), DeepEquals, []string{
 			fmt.Sprintf("--replace --write-cache -O no-expr-simplify --cache-loc=%s/var/cache/apparmor %s", s.rootDir, profile),
 		})
 		s.removeSnap(c, snapInfo)
@@ -200,14 +196,14 @@ func (s *backendSuite) TestUpdatingSnapMakesNeccesaryChanges(c *C) {
 func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 	for _, developerMode := range []bool{true, false} {
 		snapInfo := s.installSnap(c, developerMode, sambaYamlV1)
-		s.cmds["apparmor_parser"].ForgetCalls()
+		s.mockCmd.ForgetCalls()
 		snapInfo = s.updateSnap(c, snapInfo, developerMode, sambaYamlV1WithNmbd)
 		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.nmbd")
 		// file called "snap.sambda.nmbd" was created
 		_, err := os.Stat(profile)
 		c.Check(err, IsNil)
 		// apparmor_parser was used to load the new profile
-		c.Check(s.cmds["apparmor_parser"].Calls(), DeepEquals, []string{
+		c.Check(s.mockCmd.Calls(), DeepEquals, []string{
 			fmt.Sprintf("--replace --write-cache -O no-expr-simplify --cache-loc=%s/var/cache/apparmor %s", s.rootDir, profile),
 		})
 		s.removeSnap(c, snapInfo)
@@ -217,14 +213,14 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 	for _, developerMode := range []bool{true, false} {
 		snapInfo := s.installSnap(c, developerMode, sambaYamlV1WithNmbd)
-		s.cmds["apparmor_parser"].ForgetCalls()
+		s.mockCmd.ForgetCalls()
 		snapInfo = s.updateSnap(c, snapInfo, developerMode, sambaYamlV1)
 		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.nmbd")
 		// file called "snap.sambda.nmbd" was removed
 		_, err := os.Stat(profile)
 		c.Check(os.IsNotExist(err), Equals, true)
 		// apparmor_parser was used to remove the unused profile
-		c.Check(s.cmds["apparmor_parser"].Calls(), DeepEquals, []string{"--remove snap.samba.nmbd"})
+		c.Check(s.mockCmd.Calls(), DeepEquals, []string{"--remove snap.samba.nmbd"})
 		s.removeSnap(c, snapInfo)
 	}
 }
