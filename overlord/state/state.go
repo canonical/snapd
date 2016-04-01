@@ -143,6 +143,7 @@ func (s *State) UnmarshalJSON(data []byte) error {
 	}
 	for _, chg := range s.changes {
 		chg.state = s
+		chg.finishUnmarshal()
 	}
 	return nil
 }

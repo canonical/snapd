@@ -24,9 +24,9 @@ import (
 )
 
 // FIXME: kill once every test is converted
-func installClick(snapFilePath string, flags InstallFlags, inter progress.Meter, developer string) (name string, err error) {
+func installClick(snapFilePath string, flags InstallFlags, inter progress.Meter) (name string, err error) {
 	overlord := &Overlord{}
-	snapPart, err := overlord.Install(snapFilePath, developer, flags, inter)
+	snapPart, err := overlord.Install(snapFilePath, flags, inter)
 	if err != nil {
 		return "", err
 	}

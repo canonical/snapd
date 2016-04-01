@@ -169,8 +169,7 @@ func writeUdevRuleForDeviceCgroup(snapname, device string) error {
 	}
 	devicePath := filepath.Base(device)
 
-	repo := NewLocalSnapRepository()
-	installed, err := repo.Installed()
+	installed, err := (&Overlord{}).Installed()
 	if err != nil {
 		return err
 	}

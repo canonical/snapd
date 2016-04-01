@@ -55,14 +55,14 @@ version: 1.0
 func (s *undoTestSuite) TestUndoForSetupSnapSimple(c *C) {
 	snapFile := makeTestSnapPackage(c, helloSnap)
 
-	instDir, err := SetupSnap(snapFile, "developer", 0, &s.meter)
+	instDir, err := SetupSnap(snapFile, 0, &s.meter)
 	c.Assert(err, IsNil)
-	c.Assert(instDir, Equals, filepath.Join(dirs.SnapSnapsDir, "hello-snap.developer/1.0"))
+	c.Assert(instDir, Equals, filepath.Join(dirs.SnapSnapsDir, "hello-snap/1.0"))
 	l, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
 	c.Assert(l, HasLen, 1)
 
 	// undo undoes the mount unit and the instdir creation
-	UndoSetupSnap(instDir, "developer", &s.meter)
+	UndoSetupSnap(instDir, &s.meter)
 	l, _ = filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
 	c.Assert(l, HasLen, 0)
 	c.Assert(osutil.FileExists(instDir), Equals, false)
@@ -90,13 +90,13 @@ modules: lib/modules/4.4.0-14-generic
 firmware: lib/firmware
 `, testFiles)
 
-	instDir, err := SetupSnap(snapFile, "developer", 0, &s.meter)
+	instDir, err := SetupSnap(snapFile, 0, &s.meter)
 	c.Assert(err, IsNil)
 	l, _ := filepath.Glob(filepath.Join(bootloader.Dir(), "*"))
 	c.Assert(l, HasLen, 1)
 
 	// undo deletes the kernel assets again
-	UndoSetupSnap(instDir, "developer", &s.meter)
+	UndoSetupSnap(instDir, &s.meter)
 	l, _ = filepath.Glob(filepath.Join(bootloader.Dir(), "*"))
 	c.Assert(l, HasLen, 0)
 }
@@ -107,7 +107,7 @@ version: 1.0`)
 	c.Assert(err, IsNil)
 	makeSnapActive(v1)
 	// add some data
-	datadir := filepath.Join(dirs.SnapDataDir, "hello."+testDeveloper+"/1.0")
+	datadir := filepath.Join(dirs.SnapDataDir, "hello/1.0")
 	subdir := filepath.Join(datadir, "random-subdir")
 	err = os.MkdirAll(subdir, 0755)
 	c.Assert(err, IsNil)
@@ -119,13 +119,13 @@ version: 1.0`)
 version: 2.0`)
 	c.Assert(err, IsNil)
 
-	sn, err := NewInstalledSnap(v2, testDeveloper)
+	sn, err := NewInstalledSnap(v2)
 	c.Assert(err, IsNil)
 
 	// copy data
 	err = CopyData(sn, 0, &s.meter)
 	c.Assert(err, IsNil)
-	v2data := filepath.Join(dirs.SnapDataDir, "hello."+testDeveloper+"/2.0")
+	v2data := filepath.Join(dirs.SnapDataDir, "hello/2.0")
 	l, _ := filepath.Glob(filepath.Join(v2data, "*"))
 	c.Assert(l, HasLen, 1)
 
@@ -145,9 +145,9 @@ version: 1.0`)
 version: 2.0`)
 	c.Assert(err, IsNil)
 
-	v1sn, err := NewInstalledSnap(v1yaml, testDeveloper)
+	v1sn, err := NewInstalledSnap(v1yaml)
 	c.Assert(err, IsNil)
-	v2sn, err := NewInstalledSnap(v2yaml, testDeveloper)
+	v2sn, err := NewInstalledSnap(v2yaml)
 	c.Assert(err, IsNil)
 
 	err = FinalizeSnap(v2sn, 0, &s.meter)
