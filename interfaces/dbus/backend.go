@@ -78,20 +78,22 @@ func (b *Backend) Deconfigure(snapInfo *snap.Info) error {
 // affecting a given snap into a content map applicable to EnsureDirState.
 func (b *Backend) combineSnippets(snapInfo *snap.Info, snippets map[string][][]byte) (content map[string]*osutil.FileState, err error) {
 	for _, appInfo := range snapInfo.Apps {
-		if len(snippets[appInfo.Name]) > 0 {
-			var buf bytes.Buffer
-			buf.Write(xmlHeader)
-			for _, snippet := range snippets[appInfo.Name] {
-				buf.Write(snippet)
-				buf.WriteRune('\n')
-			}
-			buf.Write(xmlFooter)
-			if content == nil {
-				content = make(map[string]*osutil.FileState)
-			}
-			fname := fmt.Sprintf("%s.conf", interfaces.SecurityTag(appInfo))
-			content[fname] = &osutil.FileState{Content: buf.Bytes(), Mode: 0644}
+		appSnippets := snippets[appInfo.Name]
+		if len(appSnippets) == 0 {
+			continue
 		}
+		var buf bytes.Buffer
+		buf.Write(xmlHeader)
+		for _, snippet := range appSnippets {
+			buf.Write(snippet)
+			buf.WriteRune('\n')
+		}
+		buf.Write(xmlFooter)
+		if content == nil {
+			content = make(map[string]*osutil.FileState)
+		}
+		fname := fmt.Sprintf("%s.conf", interfaces.SecurityTag(appInfo))
+		content[fname] = &osutil.FileState{Content: buf.Bytes(), Mode: 0644}
 	}
 	return content, nil
 }
