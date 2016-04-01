@@ -395,9 +395,6 @@ func snapService(c *Command, r *http.Request) Response {
 
 	vars := muxVars(r)
 	snapName := vars["name"]
-	if snapName == "" {
-		return BadRequest("missing name")
-	}
 	appName := vars["service"]
 
 	action := "status"
