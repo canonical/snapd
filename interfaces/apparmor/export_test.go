@@ -30,3 +30,13 @@ func MockProfilesPath(t *testutil.BaseTest, profiles string) {
 		profilesPath = realProfilesPath
 	})
 }
+
+// MockTemplate replaces apprmor template.
+//
+// NOTE: The real apparmor template is long. For testing it is convenient for
+// replace it with a shorter snippet.
+func MockTemplate(fakeTemplate []byte) (restore func()) {
+	orig := defaultTemplate
+	defaultTemplate = fakeTemplate
+	return func() { defaultTemplate = orig }
+}
