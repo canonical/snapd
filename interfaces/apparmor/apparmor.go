@@ -30,7 +30,10 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
+
+	"github.com/ubuntu-core/snappy/dirs"
 )
 
 // LoadProfile loads an apparmor profile from the given file.
@@ -41,7 +44,7 @@ func LoadProfile(fname string) error {
 	// Use no-expr-simplify since expr-simplify is actually slower on armhf (LP: #1383858)
 	output, err := exec.Command(
 		"apparmor_parser", "--replace", "--write-cache", "-O",
-		"no-expr-simplify", "--cache-loc=/var/cache/apparmor",
+		"no-expr-simplify", fmt.Sprintf("--cache-loc=%s", dirs.AppArmorCacheDir),
 		fname).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("cannot load apparmor profile: %s\napparmor_parser output:\n%s", err, string(output))
@@ -52,10 +55,16 @@ func LoadProfile(fname string) error {
 // UnloadProfile removes the named profile from the running kernel.
 //
 // The operation is done with: apparmor_parser --remove $name
+// The binary cache file is removed from /var/cache/apparmor
 func UnloadProfile(name string) error {
 	output, err := exec.Command("apparmor_parser", "--remove", name).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("cannot unload apparmor profile: %s\napparmor_parser output:\n%s", err, string(output))
+	}
+	err = os.Remove(filepath.Join(dirs.AppArmorCacheDir, name))
+	// It is not an error if the cache file wasn't there to remove.
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("cannot remove apparmor profile cache: %s", err)
 	}
 	return nil
 }

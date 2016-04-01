@@ -70,7 +70,6 @@ type: os`)
 
 	for _, t := range []T{
 		{BareName, snap.TypeApp, "app"},
-		{QualifiedName, snap.TypeApp, "app." + testDeveloper},
 		{FullName, snap.TypeApp, "app." + testDeveloper},
 		{fullNameWithChannel, snap.TypeApp, "app." + testDeveloper + "/remote-channel"},
 	} {
@@ -80,8 +79,7 @@ type: os`)
 	}
 
 	// now remove the channel
-	storeMinimalRemoteManifest("app."+testDeveloper, "app", testDeveloper, "1.10", "Hello.", "")
-	storeMinimalRemoteManifest("fwk", "fwk", testDeveloper, "1.0", "Hello.", "")
+	storeMinimalRemoteManifest("app", testDeveloper, "1.10", "Hello.", "")
 	for _, t := range []T{
 		{fullNameWithChannel, snap.TypeApp, "app." + testDeveloper},
 	} {
@@ -93,7 +91,7 @@ type: os`)
 
 func (s *SnapTestSuite) TestFindSnapsByNameNotAvailable(c *C) {
 	_, err := makeInstalledMockSnap(s.tempdir, "")
-	repo := NewLocalSnapRepository()
+	repo := &Overlord{}
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
 
@@ -103,7 +101,7 @@ func (s *SnapTestSuite) TestFindSnapsByNameNotAvailable(c *C) {
 
 func (s *SnapTestSuite) TestFindSnapsByNameFound(c *C) {
 	_, err := makeInstalledMockSnap(s.tempdir, "")
-	repo := NewLocalSnapRepository()
+	repo := &Overlord{}
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 1)
@@ -115,7 +113,7 @@ func (s *SnapTestSuite) TestFindSnapsByNameFound(c *C) {
 
 func (s *SnapTestSuite) TestFindSnapsByNameWithDeveloper(c *C) {
 	_, err := makeInstalledMockSnap(s.tempdir, "")
-	repo := NewLocalSnapRepository()
+	repo := &Overlord{}
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 1)
@@ -127,7 +125,7 @@ func (s *SnapTestSuite) TestFindSnapsByNameWithDeveloper(c *C) {
 
 func (s *SnapTestSuite) TestFindSnapsByNameWithDeveloperNotThere(c *C) {
 	_, err := makeInstalledMockSnap(s.tempdir, "")
-	repo := NewLocalSnapRepository()
+	repo := &Overlord{}
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 1)
@@ -147,7 +145,7 @@ func (s *SnapTestSuite) TestPackageNameInstalled(c *C) {
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "hello-snap.manifest"), []byte(`{"name": "hello-snap"}`), 0644), IsNil)
 	ag := &progress.NullProgress{}
 
-	snap, err := NewInstalledSnap(yamlFile, testDeveloper)
+	snap, err := NewInstalledSnap(yamlFile)
 	c.Assert(err, IsNil)
 
 	c.Assert(snap.activate(true, ag), IsNil)
@@ -159,7 +157,7 @@ func (s *SnapTestSuite) TestPackageNameInstalled(c *C) {
 
 func (s *SnapTestSuite) TestFindSnapsByNameAndVersion(c *C) {
 	_, err := makeInstalledMockSnap(s.tempdir, "")
-	repo := NewLocalSnapRepository()
+	repo := &Overlord{}
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
 
@@ -182,7 +180,7 @@ func (s *SnapTestSuite) TestFindSnapsByNameAndVersion(c *C) {
 
 func (s *SnapTestSuite) TestFindSnapsByNameAndVersionFmk(c *C) {
 	_, err := makeInstalledMockSnap(s.tempdir, "name: os2\ntype: os\nversion: 1")
-	repo := NewLocalSnapRepository()
+	repo := &Overlord{}
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
 

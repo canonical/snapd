@@ -78,7 +78,6 @@ func generateSnapServicesFile(app *AppYaml, baseDir string, aaProfile string, m 
 			BusName:        app.BusName,
 			Type:           app.Daemon,
 			UdevAppName:    fmt.Sprintf("%s.%s", m.Name, app.Name),
-			Developer:      developerFromBasedir(baseDir),
 			Socket:         app.Socket,
 			SocketFileName: socketFileName,
 			Restart:        app.RestartCond,
@@ -122,10 +121,7 @@ func addPackageServices(m *snapYaml, baseDir string, inhibitHooks bool, inter in
 		if app.Daemon == "" {
 			continue
 		}
-		aaProfile, err := getSecurityProfile(m, app.Name, baseDir)
-		if err != nil {
-			return err
-		}
+		aaProfile := getSecurityProfile(m, app.Name, baseDir)
 		// this will remove the global base dir when generating the
 		// service file, this ensures that /snaps/foo/1.0/bin/start
 		// is in the service file when the SetRoot() option

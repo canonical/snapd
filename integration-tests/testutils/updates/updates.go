@@ -98,13 +98,18 @@ func makeFakeUpdateForSnap(c *check.C, snap, targetDir string, changeFunc Change
 
 func copySnap(c *check.C, snap, targetDir string) {
 	// check for sideloaded snaps
+	// XXX: simplify this down to consider only the name (and not origin)
+	// in the directory once everything is moved to that
 	baseDir := filepath.Join("/snaps", snap)
 	if _, err := os.Stat(baseDir); os.IsNotExist(err) {
 		snapName := strings.Split(snap, ".")[0]
-		baseDir = filepath.Join("/snaps", snapName+".sideload")
-		_, err = os.Stat(baseDir)
-		c.Assert(err, check.IsNil,
-			check.Commentf("%s not found from it's original source not sideloaded", snap))
+		baseDir = filepath.Join("/snaps", snapName)
+		if _, err := os.Stat(baseDir); os.IsNotExist(err) {
+			baseDir = filepath.Join("/snaps", snapName+".sideload")
+			_, err = os.Stat(baseDir)
+			c.Assert(err, check.IsNil,
+				check.Commentf("%s not found from it's original source not sideloaded", snap))
+		}
 	}
 	sourceDir := filepath.Join(baseDir, "current")
 	files, err := filepath.Glob(filepath.Join(sourceDir, "*"))
