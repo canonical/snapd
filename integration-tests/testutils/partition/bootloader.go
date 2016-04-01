@@ -79,7 +79,8 @@ func Mode() (mode string, err error) {
 func OSSnapName(c *check.C) string {
 	snappyOS, err := snappyOS()
 	c.Assert(err, check.IsNil, check.Commentf("Error getting the name of the OS snap: %s", err))
-	return strings.Split(snappyOS, ".")[0]
+	front := strings.Split(snappyOS, "_")[0]
+	return strings.Split(front, ".")[0]
 }
 
 // snappyOS returns the name of the OS snap in the form name.developer_version.snap

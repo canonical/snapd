@@ -20,7 +20,6 @@
 package snappy
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -79,7 +78,7 @@ func (s *SnapTestSuite) TestRemovePackageDesktopFiles(c *C) {
 func (s *SnapTestSuite) TestDesktopFileIsAddedAndRemoved(c *C) {
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, string(desktopAppYaml))
 	c.Assert(err, IsNil)
-	snap, err := NewInstalledSnap(yamlFile, testDeveloper)
+	snap, err := NewInstalledSnap(yamlFile)
 	c.Assert(err, IsNil)
 
 	// create a mock desktop file
@@ -95,10 +94,10 @@ func (s *SnapTestSuite) TestDesktopFileIsAddedAndRemoved(c *C) {
 	mockDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar.desktop")
 	content, err := ioutil.ReadFile(mockDesktopFilePath)
 	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, fmt.Sprintf(`
+	c.Assert(string(content), Equals, `
 [Desktop Entry]
 Name=foo
-Icon=/snaps/foo.%s/1.0/foo.png`, testDeveloper))
+Icon=/snaps/foo/1.0/foo.png`)
 
 	// deactivate removes it again
 	err = snap.deactivate(false, nil)
