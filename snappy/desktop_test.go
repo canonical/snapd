@@ -88,7 +88,7 @@ func (s *SnapTestSuite) TestDesktopFileIsAddedAndRemoved(c *C) {
 	c.Assert(err, IsNil)
 
 	// ensure that activate creates the desktop file
-	err = snap.activate(false, nil)
+	err = ActivateSnap(snap, nil)
 	c.Assert(err, IsNil)
 
 	mockDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar.desktop")

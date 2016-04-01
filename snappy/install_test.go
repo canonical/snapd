@@ -203,7 +203,7 @@ func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 	ag := &progress.NullProgress{}
 	snap, err := NewInstalledSnap(yamlFile)
 	c.Assert(err, IsNil)
-	c.Assert(snap.activate(true, ag), IsNil)
+	c.Assert(activateSnap(snap, true, ag), IsNil)
 	current := ActiveSnapByName("hello-snap")
 	c.Assert(current, NotNil)
 
