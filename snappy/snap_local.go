@@ -244,10 +244,6 @@ func (s *Snap) Install(inter progress.Meter, flags InstallFlags) (name string, e
 	return "", ErrAlreadyInstalled
 }
 
-func (s *Snap) activate(inhibitHooks bool, inter interacter) error {
-	return ActivateSnap(s, inhibitHooks, inter)
-}
-
 // NeedsReboot returns true if the snap becomes active on the next reboot
 func (s *Snap) NeedsReboot() bool {
 	return kernelOrOsRebootRequired(s)

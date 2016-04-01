@@ -166,7 +166,7 @@ func UndoCopyData(newSnap *Snap, flags InstallFlags, meter progress.Meter) {
 
 	oldSnap := currentSnap(newSnap)
 	if oldSnap != nil {
-		if err := oldSnap.activate(inhibitHooks, meter); err != nil {
+		if err := activateSnap(oldSnap, inhibitHooks, meter); err != nil {
 			logger.Noticef("Setting old version back to active failed: %v", err)
 		}
 	}
@@ -181,7 +181,7 @@ func FinalizeSnap(newSnap *Snap, flags InstallFlags, meter progress.Meter) error
 	if inhibitHooks {
 		return nil
 	}
-	return ActivateSnap(newSnap, inhibitHooks, meter)
+	return activateSnap(newSnap, inhibitHooks, meter)
 }
 
 func UndoFinalizeSnap(oldSnap, newSnap *Snap, flags InstallFlags, meter progress.Meter) {
@@ -189,12 +189,16 @@ func UndoFinalizeSnap(oldSnap, newSnap *Snap, flags InstallFlags, meter progress
 	if oldSnap == nil {
 		return
 	}
-	if err := ActivateSnap(oldSnap, inhibitHooks, meter); err != nil {
+	if err := activateSnap(oldSnap, inhibitHooks, meter); err != nil {
 		logger.Noticef("When setting old %s version back to active: %v", newSnap.Name(), err)
 	}
 }
 
-func ActivateSnap(s *Snap, inhibitHooks bool, inter interacter) error {
+func ActivateSnap(s *Snap, inter interacter) error {
+	return activateSnap(s, false, inter)
+}
+
+func activateSnap(s *Snap, inhibitHooks bool, inter interacter) error {
 	currentActiveSymlink := filepath.Join(s.basedir, "..", "current")
 	currentActiveDir, _ := filepath.EvalSymlinks(currentActiveSymlink)
 
@@ -458,7 +462,7 @@ func (o *Overlord) Uninstall(s *Snap, meter progress.Meter) error {
 // It returns an error on failure
 func (o *Overlord) SetActive(s *Snap, active bool, meter progress.Meter) error {
 	if active {
-		return s.activate(false, meter)
+		return ActivateSnap(s, meter)
 	}
 
 	return DeactivateSnap(s, meter)

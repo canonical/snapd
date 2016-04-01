@@ -133,7 +133,7 @@ license-version: 2
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testDeveloper+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
 	snap, err := NewInstalledSnap(yamlFile)
 	c.Assert(err, IsNil)
-	c.Assert(snap.activate(true, ag), IsNil)
+	c.Assert(ActivateSnap(snap, ag), IsNil)
 
 	pkg := makeTestSnapPackage(c, yaml+"version: 2")
 	_, err = installClick(pkg, 0, ag)
@@ -157,7 +157,7 @@ version: 1.0
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testDeveloper+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
 	snap, err := NewInstalledSnap(yamlFile)
 	c.Assert(err, IsNil)
-	c.Assert(snap.activate(true, ag), IsNil)
+	c.Assert(ActivateSnap(snap, ag), IsNil)
 
 	pkg := makeTestSnapPackage(c, yaml+"version: 2\nlicense-agreement: explicit\n")
 	_, err = installClick(pkg, 0, ag)
@@ -179,7 +179,7 @@ license-agreement: explicit
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testDeveloper+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
 	snap, err := NewInstalledSnap(yamlFile)
 	c.Assert(err, IsNil)
-	c.Assert(snap.activate(true, ag), IsNil)
+	c.Assert(ActivateSnap(snap, ag), IsNil)
 
 	pkg := makeTestSnapPackage(c, yaml+"license-version: 3\nversion: 2")
 	_, err = installClick(pkg, 0, ag)
@@ -287,7 +287,7 @@ func (s *SnapTestSuite) TestClickSetActive(c *C) {
 	c.Assert(snaps[1].IsActive(), Equals, true)
 
 	// set v1 active
-	err = snaps[0].activate(false, nil)
+	err = ActivateSnap(snaps[0], nil)
 	snaps, err = (&Overlord{}).Installed()
 	c.Assert(err, IsNil)
 	c.Assert(snaps[0].Version(), Equals, "1.0")
