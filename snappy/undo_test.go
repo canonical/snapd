@@ -135,7 +135,7 @@ version: 2.0`)
 
 }
 
-func (s *undoTestSuite) TestUndoForFinalize(c *C) {
+func (s *undoTestSuite) TestUndoForActivate(c *C) {
 	v1yaml, err := makeInstalledMockSnap(dirs.SnapSnapsDir, `name: hello
 version: 1.0`)
 	c.Assert(err, IsNil)
@@ -150,12 +150,12 @@ version: 2.0`)
 	v2sn, err := NewInstalledSnap(v2yaml)
 	c.Assert(err, IsNil)
 
-	err = FinalizeSnap(v2sn, 0, &s.meter)
+	err = ActivateSnap(v2sn, &s.meter)
 	c.Assert(err, IsNil)
 	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(v2sn.basedir, "..", "current"))
 	c.Assert(currentActiveDir, Matches, ".*/2.0")
 
-	UndoFinalizeSnap(v1sn, v2sn, 0, &s.meter)
+	UndoActivateSnap(v1sn, v2sn, &s.meter)
 	currentActiveDir, _ = filepath.EvalSymlinks(filepath.Join(v2sn.basedir, "..", "current"))
 	c.Assert(currentActiveDir, Matches, ".*/1.0")
 }
