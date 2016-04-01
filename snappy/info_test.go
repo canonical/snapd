@@ -148,10 +148,10 @@ func (s *SnapTestSuite) TestPackageNameInstalled(c *C) {
 	snap, err := NewInstalledSnap(yamlFile)
 	c.Assert(err, IsNil)
 
-	c.Assert(snap.activate(true, ag), IsNil)
+	c.Assert(ActivateSnap(snap, ag), IsNil)
 
 	c.Check(PackageNameActive("hello-snap"), Equals, true)
-	c.Assert(snap.deactivate(true, ag), IsNil)
+	c.Assert(DeactivateSnap(snap, ag), IsNil)
 	c.Check(PackageNameActive("hello-snap"), Equals, false)
 }
 
