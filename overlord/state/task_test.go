@@ -229,31 +229,47 @@ func (ts *taskSuite) TestTaskMarshalsLog(c *C) {
 
 // TODO: Better testing of full task roundtripping via JSON.
 
-func (ts *taskSuite) TestNeedsLock(c *C) {
-	st := state.New(nil)
+func (cs *taskSuite) TestMethodEntrance(c *C) {
+	st := state.New(&fakeStateBackend{})
 	st.Lock()
 	t1 := st.NewTask("download", "1...")
 	t2 := st.NewTask("install", "2...")
 	st.Unlock()
 
-	funcs := []func(){
-		func() { t1.Status() },
+	writes := []func(){
 		func() { t1.SetStatus(state.DoneStatus) },
 		func() { t1.Set("a", 1) },
-		func() { t1.Get("a", nil) },
-		func() { t1.WaitTasks() },
 		func() { t2.WaitFor(t1) },
-		func() { t1.HaltTasks() },
 		func() { t1.SetProgress(2, 2) },
-		func() { t1.Progress() },
-		func() { t1.Log() },
 		func() { t1.Logf("") },
 		func() { t1.Errorf("") },
+		func() { t1.UnmarshalJSON(nil) },
 	}
 
-	for i, f := range funcs {
-		c.Logf("Testing function #%d", i)
+	reads := []func(){
+		func() { t1.Status() },
+		func() { t1.Get("a", nil) },
+		func() { t1.WaitTasks() },
+		func() { t1.HaltTasks() },
+		func() { t1.Progress() },
+		func() { t1.Log() },
+		func() { t1.MarshalJSON() },
+	}
+
+	for i, f := range reads {
+		c.Logf("Testing read function #%d", i)
 		c.Assert(f, PanicMatches, "internal error: accessing state without lock")
+		c.Assert(st.Modified(), Equals, false)
+	}
+
+	for i, f := range writes {
+		st.Lock()
+		st.Unlock()
+		c.Assert(st.Modified(), Equals, false)
+
+		c.Logf("Testing write function #%d", i)
+		c.Assert(f, PanicMatches, "internal error: accessing state without lock")
+		c.Assert(st.Modified(), Equals, true)
 	}
 }
 

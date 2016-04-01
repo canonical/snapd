@@ -146,7 +146,7 @@ type marshalledChange struct {
 
 // MarshalJSON makes Change a json.Marshaller
 func (c *Change) MarshalJSON() ([]byte, error) {
-	c.state.ensureLocked()
+	c.state.reading()
 	return json.Marshal(marshalledChange{
 		ID:      c.id,
 		Kind:    c.kind,
@@ -160,7 +160,7 @@ func (c *Change) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON makes Change a json.Unmarshaller
 func (c *Change) UnmarshalJSON(data []byte) error {
 	if c.state != nil {
-		c.state.ensureLocked()
+		c.state.writing()
 	}
 	var unmarshalled marshalledChange
 	err := json.Unmarshal(data, &unmarshalled)
@@ -202,14 +202,14 @@ func (c *Change) Summary() string {
 // Set associates value with key for future consulting by managers.
 // The provided value must properly marshal and unmarshal with encoding/json.
 func (c *Change) Set(key string, value interface{}) {
-	c.state.ensureLocked()
+	c.state.writing()
 	c.data.set(key, value)
 }
 
 // Get unmarshals the stored value associated with the provided key
 // into the value parameter.
 func (c *Change) Get(key string, value interface{}) error {
-	c.state.ensureLocked()
+	c.state.reading()
 	return c.data.get(key, value)
 }
 
@@ -241,7 +241,7 @@ func init() {
 //     - Otherwise, return DoneStatus
 //
 func (c *Change) Status() Status {
-	c.state.ensureLocked()
+	c.state.reading()
 	if c.status == DefaultStatus {
 		if len(c.taskIDs) == 0 {
 			return HoldStatus
@@ -262,7 +262,7 @@ func (c *Change) Status() Status {
 
 // SetStatus sets the change status, overriding the default behavior (see Status method).
 func (c *Change) SetStatus(s Status) {
-	c.state.ensureLocked()
+	c.state.writing()
 	c.status = s
 	if s.Ready() {
 		select {
@@ -322,7 +322,7 @@ func (e *changeError) Error() string {
 // Err returns an error value based on errors that were logged for tasks registered
 // in this change, or nil if the change is not in ErrorStatus.
 func (c *Change) Err() error {
-	c.state.ensureLocked()
+	c.state.reading()
 	if c.Status() != ErrorStatus {
 		return nil
 	}
@@ -353,7 +353,7 @@ func (c *Change) State() *State {
 // AddTask registers a task as required for the state change to
 // be accomplished.
 func (c *Change) AddTask(t *Task) {
-	c.state.ensureLocked()
+	c.state.writing()
 	if t.change != "" {
 		panic(fmt.Sprintf("internal error: cannot add one %q task to multiple changes", t.Kind()))
 	}
@@ -364,7 +364,7 @@ func (c *Change) AddTask(t *Task) {
 // AddAll registers all tasks in the set as required for the state
 // change to be accomplished.
 func (c *Change) AddAll(ts *TaskSet) {
-	c.state.ensureLocked()
+	c.state.writing()
 	for _, t := range ts.tasks {
 		c.AddTask(t)
 	}
@@ -372,13 +372,13 @@ func (c *Change) AddAll(ts *TaskSet) {
 
 // Tasks returns all the tasks this state change depends on.
 func (c *Change) Tasks() []*Task {
-	c.state.ensureLocked()
+	c.state.reading()
 	return c.state.tasksIn(c.taskIDs)
 }
 
 // Abort cancels the change, whether in progress or not.
 func (c *Change) Abort() {
-	c.state.ensureLocked()
+	c.state.writing()
 	for _, tid := range c.taskIDs {
 		t := c.state.tasks[tid]
 		switch t.Status() {

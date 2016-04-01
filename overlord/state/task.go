@@ -72,7 +72,7 @@ type marshalledTask struct {
 
 // MarshalJSON makes Task a json.Marshaller
 func (t *Task) MarshalJSON() ([]byte, error) {
-	t.state.ensureLocked()
+	t.state.reading()
 	return json.Marshal(marshalledTask{
 		ID:        t.id,
 		Kind:      t.kind,
@@ -90,7 +90,7 @@ func (t *Task) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON makes Task a json.Unmarshaller
 func (t *Task) UnmarshalJSON(data []byte) error {
 	if t.state != nil {
-		t.state.ensureLocked()
+		t.state.writing()
 	}
 	var unmarshalled marshalledTask
 	err := json.Unmarshal(data, &unmarshalled)
@@ -127,7 +127,7 @@ func (t *Task) Summary() string {
 
 // Status returns the current task status.
 func (t *Task) Status() Status {
-	t.state.ensureLocked()
+	t.state.reading()
 	if t.status == DefaultStatus {
 		return DoStatus
 	}
@@ -136,7 +136,7 @@ func (t *Task) Status() Status {
 
 // SetStatus sets the task status, overriding the default behavior (see Status method).
 func (t *Task) SetStatus(new Status) {
-	t.state.ensureLocked()
+	t.state.writing()
 	old := t.status
 	t.status = new
 	chg := t.Change()
@@ -152,7 +152,7 @@ func (t *Task) State() *State {
 
 // Change returns the change the task is registered with.
 func (t *Task) Change() *Change {
-	t.state.ensureLocked()
+	t.state.reading()
 	return t.state.changes[t.change]
 }
 
@@ -160,7 +160,7 @@ func (t *Task) Change() *Change {
 // If progress is not explicitly set, it returns
 // (0, 1) if the status is DoStatus and (1, 1) otherwise.
 func (t *Task) Progress() (cur, total int) {
-	t.state.ensureLocked()
+	t.state.reading()
 	if t.progress == nil {
 		if t.Status() == DoStatus {
 			return 0, 1
@@ -172,7 +172,7 @@ func (t *Task) Progress() (cur, total int) {
 
 // SetProgress sets the task progress to cur out of total steps.
 func (t *Task) SetProgress(cur, total int) {
-	t.state.ensureLocked()
+	t.state.writing()
 	if total <= 0 || cur > total {
 		// Doing math wrong is easy. Be conservative.
 		t.progress = nil
@@ -209,33 +209,33 @@ func (t *Task) addLog(kind, format string, args []interface{}) {
 // The returned slice should not be read from without the
 // state lock held, and should not be written to.
 func (t *Task) Log() []string {
-	t.state.ensureLocked()
+	t.state.reading()
 	return t.log
 }
 
 // Logf logs information about the progress of the task.
 func (t *Task) Logf(format string, args ...interface{}) {
-	t.state.ensureLocked()
+	t.state.writing()
 	t.addLog(LogInfo, format, args)
 }
 
 // Errorf logs error information about the progress of the task.
 func (t *Task) Errorf(format string, args ...interface{}) {
-	t.state.ensureLocked()
+	t.state.writing()
 	t.addLog(LogError, format, args)
 }
 
 // Set associates value with key for future consulting by managers.
 // The provided value must properly marshal and unmarshal with encoding/json.
 func (t *Task) Set(key string, value interface{}) {
-	t.state.ensureLocked()
+	t.state.writing()
 	t.data.set(key, value)
 }
 
 // Get unmarshals the stored value associated with the provided key
 // into the value parameter.
 func (t *Task) Get(key string, value interface{}) error {
-	t.state.ensureLocked()
+	t.state.reading()
 	return t.data.get(key, value)
 }
 
@@ -250,7 +250,7 @@ func addOnce(set []string, s string) []string {
 
 // WaitFor registers another task as a requirement for t to make progress.
 func (t *Task) WaitFor(another *Task) {
-	t.state.ensureLocked()
+	t.state.writing()
 	t.waitTasks = addOnce(t.waitTasks, another.id)
 	another.haltTasks = addOnce(another.haltTasks, t.id)
 }
@@ -265,13 +265,13 @@ func (t *Task) WaitAll(ts *TaskSet) {
 
 // WaitTasks returns the list of tasks registered for t to wait for.
 func (t *Task) WaitTasks() []*Task {
-	t.state.ensureLocked()
+	t.state.reading()
 	return t.state.tasksIn(t.waitTasks)
 }
 
 // HaltTasks returns the list of tasks registered to wait for t.
 func (t *Task) HaltTasks() []*Task {
-	t.state.ensureLocked()
+	t.state.reading()
 	return t.state.tasksIn(t.haltTasks)
 }
 
