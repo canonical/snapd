@@ -171,8 +171,7 @@ func reloadProfiles(profiles []string) error {
 
 func unloadProfiles(profiles []string) error {
 	for _, profile := range profiles {
-		err := UnloadProfile(profile)
-		if err != nil {
+		if err := UnloadProfile(profile); err != nil {
 			return fmt.Errorf("cannot unload apparmor profile %q: %s", profile, err)
 		}
 	}
