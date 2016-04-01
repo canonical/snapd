@@ -26,7 +26,7 @@ import (
 
 // allSnaps returns all installed snaps, grouped by name
 func allSnaps() (map[string][]*snappy.Snap, error) {
-	all, err := snappy.NewLocalSnapRepository().Installed()
+	all, err := (&snappy.Overlord{}).Installed()
 	if err != nil {
 		return nil, err
 	}
