@@ -6,9 +6,9 @@ set -e
 
 printf "Test seccomp filter (bad - no trailing newline)"
 
-echo -n "missingnewline" > $TMP/aaprofile
+echo -n "missingnewline" > $TMP/myprofile
 
-if $L appname aaprofile /bin/true 2>/dev/null; then
+if $L appname myprofile /bin/true 2>/dev/null; then
     # true returned successfully, length test failed
     FAIL
 fi

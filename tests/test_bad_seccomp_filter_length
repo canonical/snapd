@@ -6,12 +6,12 @@ set -e
 
 printf "Test seccomp filter (bad - too long)"
 
-cat >$TMP/aaprofile <<EOF
+cat >$TMP/myprofile <<EOF
 # some comment
 baddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
 EOF
 
-if $L appname aaprofile /bin/true 2>/dev/null; then
+if $L appname myprofile /bin/true 2>/dev/null; then
     # true returned successfully, length test failed
     FAIL
 fi
