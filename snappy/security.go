@@ -906,7 +906,7 @@ func GeneratePolicyFromFile(fn string, force bool) error {
 
 // RegenerateAllPolicy will re-generate all policy that needs re-generating
 func RegenerateAllPolicy(force bool) error {
-	installed, err := NewLocalSnapRepository().Installed()
+	installed, err := (&Overlord{}).Installed()
 	if err != nil {
 		return err
 	}
