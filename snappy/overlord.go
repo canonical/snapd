@@ -39,12 +39,12 @@ type Overlord struct {
 // Install installs the given snap file to the system.
 //
 // It returns the local snap file or an error
-func (o *Overlord) Install(snapFilePath string, developer string, flags InstallFlags, meter progress.Meter) (sp *Snap, err error) {
+func (o *Overlord) Install(snapFilePath string, flags InstallFlags, meter progress.Meter) (sp *Snap, err error) {
 	allowGadget := (flags & AllowGadget) != 0
 	inhibitHooks := (flags & InhibitHooks) != 0
 	allowUnauth := (flags & AllowUnauthenticated) != 0
 
-	s, err := NewSnapFile(snapFilePath, developer, allowUnauth)
+	s, err := NewSnapFile(snapFilePath, allowUnauth)
 	if err != nil {
 		return nil, fmt.Errorf("can not open %s: %s", snapFilePath, err)
 	}
@@ -63,12 +63,11 @@ func (o *Overlord) Install(snapFilePath string, developer string, flags InstallF
 		}
 	}
 
-	fullName := QualifiedName(s.Info())
-	dataDir := filepath.Join(dirs.SnapDataDir, fullName, s.Version())
+	dataDir := filepath.Join(dirs.SnapDataDir, s.Name(), s.Version())
 
 	var oldSnap *Snap
 	if currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(s.instdir, "..", "current")); currentActiveDir != "" {
-		oldSnap, err = NewInstalledSnap(filepath.Join(currentActiveDir, "meta", "snap.yaml"), s.developer)
+		oldSnap, err = NewInstalledSnap(filepath.Join(currentActiveDir, "meta", "snap.yaml"))
 		if err != nil {
 			return nil, err
 		}
@@ -102,7 +101,7 @@ func (o *Overlord) Install(snapFilePath string, developer string, flags InstallF
 	defer func() {
 		if err != nil {
 			if e := removeSquashfsMount(s.m, s.instdir, meter); e != nil {
-				logger.Noticef("Failed to remove mount unit for  %s: %s", fullName, e)
+				logger.Noticef("Failed to remove mount unit for  %s: %s", s.Name(), e)
 			}
 		}
 	}()
@@ -135,14 +134,14 @@ func (o *Overlord) Install(snapFilePath string, developer string, flags InstallF
 			return nil, err
 		}
 
-		err = copySnapData(fullName, oldSnap.Version(), s.Version())
+		err = copySnapData(s.Name(), oldSnap.Version(), s.Version())
 	} else {
 		err = os.MkdirAll(dataDir, 0755)
 	}
 
 	defer func() {
 		if err != nil {
-			if cerr := removeSnapData(fullName, s.Version()); cerr != nil {
+			if cerr := removeSnapData(s.Name(), s.Version()); cerr != nil {
 				logger.Noticef("When cleaning up data for %s %s: %v", s.Name(), s.Version(), cerr)
 			}
 		}
@@ -153,7 +152,7 @@ func (o *Overlord) Install(snapFilePath string, developer string, flags InstallF
 	}
 
 	if !inhibitHooks {
-		newSnap, err := newSnapFromYaml(filepath.Join(s.instdir, "meta", "snap.yaml"), s.developer, s.m)
+		newSnap, err := newSnapFromYaml(filepath.Join(s.instdir, "meta", "snap.yaml"), s.m)
 		if err != nil {
 			return nil, err
 		}
@@ -172,15 +171,11 @@ func (o *Overlord) Install(snapFilePath string, developer string, flags InstallF
 		}
 	}
 
-	return newSnapFromYaml(filepath.Join(s.instdir, "meta", "snap.yaml"), s.developer, s.m)
+	return newSnapFromYaml(filepath.Join(s.instdir, "meta", "snap.yaml"), s.m)
 }
 
 // CanInstall checks whether the Snap passes a series of tests required for installation
 func canInstall(s *SnapFile, allowGadget bool, inter interacter) error {
-	if err := checkForPackageInstalled(s.m, s.Developer()); err != nil {
-		return err
-	}
-
 	// verify we have a valid architecture
 	if !arch.IsSupportedArchitecture(s.m.Architectures) {
 		return &ErrArchitectureNotSupported{s.m.Architectures}
@@ -255,14 +250,12 @@ func (o *Overlord) Uninstall(s *Snap, meter progress.Meter) error {
 		}
 	}
 
-	qn := QualifiedName(s.Info())
-
 	// purge the data
-	if err := removeSnapData(qn, s.Version()); err != nil {
+	if err := removeSnapData(s.Name(), s.Version()); err != nil {
 		return err
 	}
 
-	return RemoveAllHWAccess(qn)
+	return RemoveAllHWAccess(s.Name())
 }
 
 // SetActive sets the active state of the given snap
@@ -284,7 +277,7 @@ func (o *Overlord) Configure(s *Snap, configuration []byte) ([]byte, error) {
 		return coreConfig(configuration)
 	}
 
-	return snapConfig(s.basedir, s.developer, configuration)
+	return snapConfig(s.basedir, configuration)
 }
 
 // Installed returns the installed snaps from this repository
@@ -315,8 +308,7 @@ func (o *Overlord) snapsForGlobExpr(globExpr string) (snaps []*Snap, err error) 
 			continue
 		}
 
-		developer, _ := developerFromYamlPath(realpath)
-		snap, err := NewInstalledSnap(realpath, developer)
+		snap, err := NewInstalledSnap(realpath)
 		if err != nil {
 			return nil, err
 		}

@@ -145,7 +145,7 @@ func (s *FirstBootTestSuite) TestSoftwareActivate(c *C) {
 	yamlPath, err := makeInstalledMockSnap(dirs.GlobalRootDir, "")
 	c.Assert(err, IsNil)
 
-	snap, err := NewInstalledSnap(yamlPath, testDeveloper)
+	snap, err := NewInstalledSnap(yamlPath)
 	c.Assert(err, IsNil)
 	c.Assert(snap.IsActive(), Equals, false)
 	name := snap.Name()
