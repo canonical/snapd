@@ -44,7 +44,9 @@ type overlordSuite struct{}
 var _ = Suite(&overlordSuite{})
 
 func (ovs *overlordSuite) SetUpTest(c *C) {
-	dirs.SnapStateFile = filepath.Join(c.MkDir(), "test.json")
+	tmpdir := c.MkDir()
+	dirs.SetRootDir(tmpdir)
+	dirs.SnapStateFile = filepath.Join(tmpdir, "test.json")
 }
 
 func (ovs *overlordSuite) TearDownTest(c *C) {
@@ -252,21 +254,21 @@ func newRunnerManager(s *state.State) *runnerManager {
 		defer s.Unlock()
 		s.Set("runMgr1Mark", 1)
 		return nil
-	})
+	}, nil)
 	rm.runner.AddHandler("runMgr2", func(t *state.Task, _ *tomb.Tomb) error {
 		s := t.State()
 		s.Lock()
 		defer s.Unlock()
 		s.Set("runMgr2Mark", 1)
 		return nil
-	})
+	}, nil)
 	rm.runner.AddHandler("runMgrEnsureBefore", func(t *state.Task, _ *tomb.Tomb) error {
 		s := t.State()
 		s.Lock()
 		defer s.Unlock()
 		s.EnsureBefore(20 * time.Millisecond)
 		return nil
-	})
+	}, nil)
 
 	return rm
 }
