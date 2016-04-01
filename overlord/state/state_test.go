@@ -149,7 +149,7 @@ func (ss *stateSuite) TestImplicitCheckpointAndRead(c *C) {
 
 	st2, err := state.ReadState(nil, buf)
 	c.Assert(err, IsNil)
-	c.Assert(st2, NotNil)
+	c.Assert(st2.Modified(), Equals, false)
 
 	st2.Lock()
 	defer st2.Unlock()

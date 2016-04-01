@@ -302,5 +302,6 @@ func ReadState(backend Backend, r io.Reader) (*State, error) {
 		return nil, err
 	}
 	s.backend = backend
+	s.modified = false
 	return s, err
 }
