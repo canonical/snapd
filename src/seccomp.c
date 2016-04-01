@@ -52,7 +52,7 @@ size_t trim_right(char *s, size_t slen)
 // empty lines and lines with only whitespace (so a caller can easily skip
 // them). The line buffer is right whitespaced trimmed and the final length of
 // the trimmed line is returned.
-size_t validate_line(char *buf, size_t buf_len, size_t lineno)
+size_t validate_and_trim_line(char *buf, size_t buf_len, size_t lineno)
 {
 	size_t len = 0;
 
@@ -88,7 +88,7 @@ void preprocess_filter(FILE * f, struct preprocess *p)
 		lineno++;
 
 		// skip policy-irrelevant lines
-		if (validate_line(buf, sizeof(buf), lineno) == 0)
+		if (validate_and_trim_line(buf, sizeof(buf), lineno) == 0)
 			continue;
 
 		// check for special "@unrestricted" rule which short-circuits
@@ -169,7 +169,7 @@ void seccomp_load_filters(const char *filter_profile)
 		lineno++;
 
 		// skip policy-irrelevant lines
-		if (validate_line(buf, sizeof(buf), lineno) == 0)
+		if (validate_and_trim_line(buf, sizeof(buf), lineno) == 0)
 			continue;
 
 		// syscall not available on this arch/kernel
