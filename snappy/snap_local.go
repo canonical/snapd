@@ -249,7 +249,7 @@ func (s *Snap) activate(inhibitHooks bool, inter interacter) error {
 }
 
 func (s *Snap) deactivate(inhibitHooks bool, inter interacter) error {
-	return DeactivateSnap(s, inhibitHooks, inter)
+	return DeactivateSnap(s, inter)
 }
 
 // NeedsReboot returns true if the snap becomes active on the next reboot
