@@ -27,8 +27,6 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
@@ -244,122 +242,6 @@ func (s *Snap) GadgetConfig() SystemConfig {
 // installed snap
 func (s *Snap) Install(inter progress.Meter, flags InstallFlags) (name string, err error) {
 	return "", ErrAlreadyInstalled
-}
-
-func (s *Snap) activate(inhibitHooks bool, inter interacter) error {
-	currentActiveSymlink := filepath.Join(s.basedir, "..", "current")
-	currentActiveDir, _ := filepath.EvalSymlinks(currentActiveSymlink)
-
-	// already active, nothing to do
-	if s.basedir == currentActiveDir {
-		return nil
-	}
-
-	// there is already an active snap
-	if currentActiveDir != "" {
-		// TODO: support switching developers
-		oldYaml := filepath.Join(currentActiveDir, "meta", "snap.yaml")
-		oldSnap, err := NewInstalledSnap(oldYaml)
-		if err != nil {
-			return err
-		}
-		if err := oldSnap.deactivate(inhibitHooks, inter); err != nil {
-			return err
-		}
-	}
-
-	// generate the security policy from the snap.yaml
-	// Note that this must happen before binaries/services are
-	// generated because serices may get started
-	appsDir := filepath.Join(dirs.SnapSnapsDir, s.Name(), s.Version())
-	if err := generatePolicy(s.m, appsDir); err != nil {
-		return err
-	}
-
-	// add the CLI apps from the snap.yaml
-	if err := addPackageBinaries(s.m, s.basedir); err != nil {
-		return err
-	}
-	// add the daemons from the snap.yaml
-	if err := addPackageServices(s.m, s.basedir, inhibitHooks, inter); err != nil {
-		return err
-	}
-	// add the desktop files
-	if err := addPackageDesktopFiles(s.m, s.basedir); err != nil {
-		return err
-	}
-
-	if err := os.Remove(currentActiveSymlink); err != nil && !os.IsNotExist(err) {
-		logger.Noticef("Failed to remove %q: %v", currentActiveSymlink, err)
-	}
-
-	dbase := filepath.Join(dirs.SnapDataDir, s.Name())
-	currentDataSymlink := filepath.Join(dbase, "current")
-	if err := os.Remove(currentDataSymlink); err != nil && !os.IsNotExist(err) {
-		logger.Noticef("Failed to remove %q: %v", currentDataSymlink, err)
-	}
-
-	// symlink is relative to parent dir
-	if err := os.Symlink(filepath.Base(s.basedir), currentActiveSymlink); err != nil {
-		return err
-	}
-
-	if err := os.MkdirAll(filepath.Join(dbase, s.Version()), 0755); err != nil {
-		return err
-	}
-
-	// FIXME: create {Os,Kernel}Snap type instead of adding special
-	//        cases here
-	if err := setNextBoot(s); err != nil {
-		return err
-	}
-
-	return os.Symlink(filepath.Base(s.basedir), currentDataSymlink)
-}
-
-func (s *Snap) deactivate(inhibitHooks bool, inter interacter) error {
-	currentSymlink := filepath.Join(s.basedir, "..", "current")
-
-	// sanity check
-	currentActiveDir, err := filepath.EvalSymlinks(currentSymlink)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return ErrSnapNotActive
-		}
-		return err
-	}
-	if s.basedir != currentActiveDir {
-		return ErrSnapNotActive
-	}
-
-	// remove generated services, binaries, security policy
-	if err := removePackageBinaries(s.m, s.basedir); err != nil {
-		return err
-	}
-
-	if err := removePackageServices(s.m, s.basedir, inter); err != nil {
-		return err
-	}
-
-	if err := removePackageDesktopFiles(s.m); err != nil {
-		return err
-	}
-
-	if err := removePolicy(s.m, s.basedir); err != nil {
-		return err
-	}
-
-	// and finally the current symlink
-	if err := os.Remove(currentSymlink); err != nil {
-		logger.Noticef("Failed to remove %q: %v", currentSymlink, err)
-	}
-
-	currentDataSymlink := filepath.Join(dirs.SnapDataDir, s.Name(), "current")
-	if err := os.Remove(currentDataSymlink); err != nil && !os.IsNotExist(err) {
-		logger.Noticef("Failed to remove %q: %v", currentDataSymlink, err)
-	}
-
-	return nil
 }
 
 // NeedsReboot returns true if the snap becomes active on the next reboot

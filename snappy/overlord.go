@@ -36,82 +36,110 @@ import (
 type Overlord struct {
 }
 
-// Install installs the given snap file to the system.
-//
-// It returns the local snap file or an error
-func (o *Overlord) Install(snapFilePath string, flags InstallFlags, meter progress.Meter) (sp *Snap, err error) {
+// CheckSnap ensures that the snap can be installed
+func CheckSnap(snapFilePath string, flags InstallFlags, meter progress.Meter) error {
 	allowGadget := (flags & AllowGadget) != 0
-	inhibitHooks := (flags & InhibitHooks) != 0
 	allowUnauth := (flags & AllowUnauthenticated) != 0
-
-	s, err := NewSnapFile(snapFilePath, allowUnauth)
-	if err != nil {
-		return nil, fmt.Errorf("can not open %s: %s", snapFilePath, err)
-	}
 
 	// we do not Verify() the package here. This is done earlier in
 	// NewSnapFile() to ensure that we do not mount/inspect
 	// potentially dangerous snaps
-	if err := canInstall(s, allowGadget, meter); err != nil {
-		return nil, err
+
+	// warning: NewSnapFile generates a new sideloaded version
+	//          everytime it is run.
+	//          so all paths on disk are different even if the same snap
+	s, err := NewSnapFile(snapFilePath, allowUnauth)
+	if err != nil {
+		return err
+	}
+
+	// we do not security Verify() (check hashes) the package here.
+	// This is done earlier in
+	// NewSnapFile() to ensure that we do not mount/inspect
+	// potentially dangerous snaps
+	return canInstall(s, allowGadget, meter)
+}
+
+// SetupSnap does prepare and mount the snap for further processing
+// It returns the installed path and an error
+func SetupSnap(snapFilePath string, flags InstallFlags, meter progress.Meter) (string, error) {
+	inhibitHooks := (flags & InhibitHooks) != 0
+	allowUnauth := (flags & AllowUnauthenticated) != 0
+
+	// warning: NewSnapFile generates a new sideloaded version
+	//          everytime it is run
+	//          so all paths on disk are different even if the same snap
+	s, err := NewSnapFile(snapFilePath, allowUnauth)
+	if err != nil {
+		return s.instdir, err
 	}
 
 	// the "gadget" snaps are special
 	if s.Type() == snap.TypeGadget {
 		if err := installGadgetHardwareUdevRules(s.m); err != nil {
-			return nil, err
-		}
-	}
-
-	dataDir := filepath.Join(dirs.SnapDataDir, s.Name(), s.Version())
-
-	var oldSnap *Snap
-	if currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(s.instdir, "..", "current")); currentActiveDir != "" {
-		oldSnap, err = NewInstalledSnap(filepath.Join(currentActiveDir, "meta", "snap.yaml"))
-		if err != nil {
-			return nil, err
+			return s.instdir, err
 		}
 	}
 
 	if err := os.MkdirAll(s.instdir, 0755); err != nil {
 		logger.Noticef("Can not create %q: %v", s.instdir, err)
-		return nil, err
+		return s.instdir, err
 	}
 
-	// if anything goes wrong here we cleanup
-	defer func() {
-		if err != nil {
-			if e := os.RemoveAll(s.instdir); e != nil && !os.IsNotExist(e) {
-				logger.Noticef("Failed to remove %q: %v", s.instdir, e)
-			}
-		}
-	}()
-
-	// we need to call the external helper so that we can reliable drop
-	// privs
 	if err := s.deb.Install(s.instdir); err != nil {
-		return nil, err
+		return s.instdir, err
 	}
 
 	// generate the mount unit for the squashfs
 	if err := addSquashfsMount(s.m, s.instdir, inhibitHooks, meter); err != nil {
-		return nil, err
+		return s.instdir, err
 	}
-	// if anything goes wrong we ensure we stop
-	defer func() {
-		if err != nil {
-			if e := removeSquashfsMount(s.m, s.instdir, meter); e != nil {
-				logger.Noticef("Failed to remove mount unit for  %s: %s", s.Name(), e)
-			}
-		}
-	}()
 
 	// FIXME: special handling is bad 'mkay
 	if s.m.Type == snap.TypeKernel {
 		if err := extractKernelAssets(s, meter, flags); err != nil {
-			return nil, fmt.Errorf("failed to install kernel %s", err)
+			return s.instdir, fmt.Errorf("failed to install kernel %s", err)
 		}
 	}
+
+	return s.instdir, err
+}
+
+func UndoSetupSnap(installDir string, meter progress.Meter) {
+	if s, err := NewInstalledSnap(filepath.Join(installDir, "meta", "snap.yaml")); err == nil {
+		if s.Type() == snap.TypeKernel {
+			if err := removeKernelAssets(s, meter); err != nil {
+				logger.Noticef("Failed to cleanup kernel assets %q: %v", installDir, err)
+			}
+		}
+		if err := removeSquashfsMount(s.m, s.basedir, meter); err != nil {
+			logger.Noticef("Failed to remove mount unit for  %s: %s", s.Name(), err)
+		}
+	}
+	if err := os.RemoveAll(installDir); err != nil && !os.IsNotExist(err) {
+		logger.Noticef("Failed to remove %q: %v", installDir, err)
+	}
+
+	// FIXME: do we need to undo installGadgetHardwareUdevRules via
+	//        cleanupGadgetHardwareUdevRules ? it will go away
+	//        and can only be used during install right now
+}
+
+func currentSnap(newSnap *Snap) *Snap {
+	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(newSnap.basedir, "..", "current"))
+	if currentActiveDir == "" {
+		return nil
+	}
+
+	currentSnap, err := NewInstalledSnap(filepath.Join(currentActiveDir, "meta", "snap.yaml"))
+	if err != nil {
+		return nil
+	}
+	return currentSnap
+}
+
+func CopyData(newSnap *Snap, flags InstallFlags, meter progress.Meter) error {
+	dataDir := filepath.Join(dirs.SnapDataDir, newSnap.Name(), newSnap.Version())
 
 	// deal with the data:
 	//
@@ -120,58 +148,214 @@ func (o *Overlord) Install(snapFilePath string, flags InstallFlags, meter progre
 	// started then copy the data
 	//
 	// otherwise just create a empty data dir
-	if oldSnap != nil {
-		// we need to stop making it active
-		err = oldSnap.deactivate(inhibitHooks, meter)
-		defer func() {
-			if err != nil {
-				if cerr := oldSnap.activate(inhibitHooks, meter); cerr != nil {
-					logger.Noticef("Setting old version back to active failed: %v", cerr)
-				}
-			}
-		}()
-		if err != nil {
-			return nil, err
-		}
-
-		err = copySnapData(s.Name(), oldSnap.Version(), s.Version())
-	} else {
-		err = os.MkdirAll(dataDir, 0755)
+	oldSnap := currentSnap(newSnap)
+	if oldSnap == nil {
+		return os.MkdirAll(dataDir, 0755)
 	}
 
+	// we need to stop making it active
+	if err := DeactivateSnap(oldSnap, meter); err != nil {
+		return err
+	}
+
+	return copySnapData(newSnap.Name(), oldSnap.Version(), newSnap.Version())
+}
+
+func UndoCopyData(newSnap *Snap, flags InstallFlags, meter progress.Meter) {
+	// XXX we were copying data, assume InhibitHooks was false
+	oldSnap := currentSnap(newSnap)
+	if oldSnap != nil {
+		if err := ActivateSnap(oldSnap, meter); err != nil {
+			logger.Noticef("Setting old version back to active failed: %v", err)
+		}
+	}
+
+	if err := removeSnapData(newSnap.Name(), newSnap.Version()); err != nil {
+		logger.Noticef("When cleaning up data for %s %s: %v", newSnap.Name(), newSnap.Version(), err)
+	}
+}
+
+func ActivateSnap(s *Snap, inter interacter) error {
+	currentActiveSymlink := filepath.Join(s.basedir, "..", "current")
+	currentActiveDir, _ := filepath.EvalSymlinks(currentActiveSymlink)
+
+	// already active, nothing to do
+	if s.basedir == currentActiveDir {
+		return nil
+	}
+
+	// there is already an active snap
+	if currentActiveDir != "" {
+		// TODO: support switching developers
+		oldYaml := filepath.Join(currentActiveDir, "meta", "snap.yaml")
+		oldSnap, err := NewInstalledSnap(oldYaml)
+		if err != nil {
+			return err
+		}
+		if err := DeactivateSnap(oldSnap, inter); err != nil {
+			return err
+		}
+	}
+
+	// generate the security policy from the snap.yaml
+	// Note that this must happen before binaries/services are
+	// generated because serices may get started
+	appsDir := filepath.Join(dirs.SnapSnapsDir, s.Name(), s.Version())
+	if err := generatePolicy(s.m, appsDir); err != nil {
+		return err
+	}
+
+	// add the CLI apps from the snap.yaml
+	if err := addPackageBinaries(s.m, s.basedir); err != nil {
+		return err
+	}
+	// add the daemons from the snap.yaml
+	if err := addPackageServices(s.m, s.basedir, false, inter); err != nil {
+		return err
+	}
+	// add the desktop files
+	if err := addPackageDesktopFiles(s.m, s.basedir); err != nil {
+		return err
+	}
+
+	if err := os.Remove(currentActiveSymlink); err != nil && !os.IsNotExist(err) {
+		logger.Noticef("Failed to remove %q: %v", currentActiveSymlink, err)
+	}
+
+	dbase := filepath.Join(dirs.SnapDataDir, s.Name())
+	currentDataSymlink := filepath.Join(dbase, "current")
+	if err := os.Remove(currentDataSymlink); err != nil && !os.IsNotExist(err) {
+		logger.Noticef("Failed to remove %q: %v", currentDataSymlink, err)
+	}
+
+	// symlink is relative to parent dir
+	if err := os.Symlink(filepath.Base(s.basedir), currentActiveSymlink); err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(filepath.Join(dbase, s.Version()), 0755); err != nil {
+		return err
+	}
+
+	// FIXME: create {Os,Kernel}Snap type instead of adding special
+	//        cases here
+	if err := setNextBoot(s); err != nil {
+		return err
+	}
+
+	return os.Symlink(filepath.Base(s.basedir), currentDataSymlink)
+}
+
+func DeactivateSnap(s *Snap, inter interacter) error {
+	currentSymlink := filepath.Join(s.basedir, "..", "current")
+
+	// sanity check
+	currentActiveDir, err := filepath.EvalSymlinks(currentSymlink)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return ErrSnapNotActive
+		}
+		return err
+	}
+	if s.basedir != currentActiveDir {
+		return ErrSnapNotActive
+	}
+
+	// remove generated services, binaries, security policy
+	if err := removePackageBinaries(s.m, s.basedir); err != nil {
+		return err
+	}
+
+	if err := removePackageServices(s.m, s.basedir, inter); err != nil {
+		return err
+	}
+
+	if err := removePackageDesktopFiles(s.m); err != nil {
+		return err
+	}
+
+	if err := removePolicy(s.m, s.basedir); err != nil {
+		return err
+	}
+
+	// and finally the current symlink
+	if err := os.Remove(currentSymlink); err != nil {
+		logger.Noticef("Failed to remove %q: %v", currentSymlink, err)
+	}
+
+	currentDataSymlink := filepath.Join(dirs.SnapDataDir, s.Name(), "current")
+	if err := os.Remove(currentDataSymlink); err != nil && !os.IsNotExist(err) {
+		logger.Noticef("Failed to remove %q: %v", currentDataSymlink, err)
+	}
+
+	return nil
+}
+
+// Install installs the given snap file to the system.
+//
+// It returns the local snap file or an error
+func (o *Overlord) Install(snapFilePath string, flags InstallFlags, meter progress.Meter) (sp *Snap, err error) {
+	if err := CheckSnap(snapFilePath, flags, meter); err != nil {
+		return nil, err
+	}
+
+	instPath, err := SetupSnap(snapFilePath, flags, meter)
 	defer func() {
 		if err != nil {
-			if cerr := removeSnapData(s.Name(), s.Version()); cerr != nil {
-				logger.Noticef("When cleaning up data for %s %s: %v", s.Name(), s.Version(), cerr)
-			}
+			UndoSetupSnap(instPath, meter)
 		}
 	}()
-
 	if err != nil {
 		return nil, err
 	}
 
-	if !inhibitHooks {
-		newSnap, err := newSnapFromYaml(filepath.Join(s.instdir, "meta", "snap.yaml"), s.m)
-		if err != nil {
-			return nil, err
-		}
-
-		// and finally make active
-		err = newSnap.activate(inhibitHooks, meter)
-		defer func() {
-			if err != nil && oldSnap != nil {
-				if cerr := oldSnap.activate(inhibitHooks, meter); cerr != nil {
-					logger.Noticef("When setting old %s version back to active: %v", s.Name(), cerr)
-				}
-			}
-		}()
-		if err != nil {
-			return nil, err
-		}
+	// we have an installed snap at this point but it may not be
+	// mounted so we need some tricky :((( to pretend for u-d-f
+	// that it is an installed snap
+	allowUnauth := (flags & AllowUnauthenticated) != 0
+	s, err := NewSnapFile(snapFilePath, allowUnauth)
+	if err != nil {
+		return nil, err
+	}
+	newSnap, err := newSnapFromYaml(filepath.Join(instPath, "meta", "snap.yaml"), s.m)
+	if err != nil {
+		return nil, err
 	}
 
-	return newSnapFromYaml(filepath.Join(s.instdir, "meta", "snap.yaml"), s.m)
+	// we need this for later
+	oldSnap := currentSnap(newSnap)
+
+	// deal with the data
+	err = CopyData(newSnap, flags, meter)
+	defer func() {
+		if err != nil {
+			UndoCopyData(newSnap, flags, meter)
+		}
+	}()
+	if err != nil {
+		return nil, err
+	}
+
+	// and finally make active
+
+	if (flags & InhibitHooks) != 0 {
+		// XXX kill InhibitHooks flag but used by u-d-f atm
+		return newSnap, nil
+	}
+
+	err = ActivateSnap(newSnap, meter)
+	defer func() {
+		if err != nil && oldSnap != nil {
+			if err := ActivateSnap(oldSnap, meter); err != nil {
+				logger.Noticef("When setting old %s version back to active: %v", newSnap.Name(), err)
+			}
+		}
+	}()
+	if err != nil {
+		return nil, err
+	}
+
+	return newSnap, nil
 }
 
 // CanInstall checks whether the Snap passes a series of tests required for installation
@@ -222,7 +406,7 @@ func (o *Overlord) Uninstall(s *Snap, meter progress.Meter) error {
 		return ErrPackageNotRemovable
 	}
 
-	if err := s.deactivate(false, meter); err != nil && err != ErrSnapNotActive {
+	if err := DeactivateSnap(s, meter); err != nil && err != ErrSnapNotActive {
 		return err
 	}
 
@@ -263,10 +447,10 @@ func (o *Overlord) Uninstall(s *Snap, meter progress.Meter) error {
 // It returns an error on failure
 func (o *Overlord) SetActive(s *Snap, active bool, meter progress.Meter) error {
 	if active {
-		return s.activate(false, meter)
+		return ActivateSnap(s, meter)
 	}
 
-	return s.deactivate(false, meter)
+	return DeactivateSnap(s, meter)
 }
 
 // Configure configures the given snap
