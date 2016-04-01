@@ -78,7 +78,7 @@ func ensureDirState(dir, glob string, content map[string]*osutil.FileState, snap
 		return fmt.Errorf("cannot synchronize udev rules for snap %q: %s", snapInfo.Name, errEnsure)
 	}
 	if errReload != nil {
-		return fmt.Errorf("cannot reload udev rules: %s", errReload)
+		return errReload
 	}
 	return nil
 }
