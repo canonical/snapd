@@ -68,20 +68,17 @@ func (b *Backend) Deconfigure(snapInfo *snap.Info) error {
 }
 
 func ensureDirState(dir, glob string, content map[string]*osutil.FileState, snapInfo *snap.Info) error {
-	changed, removed, err := osutil.EnsureDirState(dir, glob, content)
-	if err != nil {
-		if len(changed) > 0 || len(removed) > 0 {
-			// Try reload the rules and regardless of that failing or not return
-			// the original error. The task which this method is responsible for
-			// re-trying the operation.
-			ReloadRules()
-		}
-		return fmt.Errorf("cannot synchronize udev rules for snap %q: %s", snapInfo.Name, err)
-	}
+	var errReload error
+	changed, removed, errEnsure := osutil.EnsureDirState(dir, glob, content)
 	if len(changed) > 0 || len(removed) > 0 {
-		if err := ReloadRules(); err != nil {
-			return fmt.Errorf("cannot reload udev rules: %s", err)
-		}
+		// Try reload the rules and regardless of errEnsure.
+		errReload = ReloadRules()
+	}
+	if errEnsure != nil {
+		return fmt.Errorf("cannot synchronize udev rules for snap %q: %s", snapInfo.Name, errEnsure)
+	}
+	if errReload != nil {
+		return fmt.Errorf("cannot reload udev rules: %s", errReload)
 	}
 	return nil
 }
