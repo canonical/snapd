@@ -6,6 +6,7 @@ access. It uses apparmor and seccomp to do this.
 Run with:
 $ ubuntu-core-launcher /path/to/rootdir security-profile /path/to/binary additional args
 
+
 == Apparmor ==
 
 The apparmor part is similar to aa-exec -p, i.e. it will launch the application
@@ -40,9 +41,13 @@ write
 == devices cgroup ==
 
 It works like this:
-- on install of snaps with a special hardware:\n assign yaml udev rules are generated that add tags and properties to the matching hardware
-- this launcher creates a device cgroup that is deny-all by default, then adds itself to the group and also adds all devices that match the given snappy-assign tag and the appname property
-- the app is executed and now the normal device permissions/apparmor rules apply
+- on install of snaps with a special hardware: assign yaml udev rules are
+  generated that add tags and properties to the matching hardware
+- this launcher creates a device cgroup that is deny-all by default, then adds
+  itself to the group and also adds all devices that match the given
+  snap.$APPNAME tag
+- the app is executed and now the normal device permissions/apparmor rules
+  apply
 
 
 == private /tmp ==

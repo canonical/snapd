@@ -38,12 +38,27 @@
 #include <fcntl.h>
 #include <glob.h>
 
+#include <ctype.h>
+
 #include "libudev.h"
 
 #include "utils.h"
 #include "seccomp.h"
 
 #define MAX_BUF 1000
+
+// Devices that must always be present
+const char *static_devices[] = {
+	"/sys/class/mem/null",
+	"/sys/class/mem/full",
+	"/sys/class/mem/zero",
+	"/sys/class/mem/random",
+	"/sys/class/mem/urandom",
+	"/sys/class/tty/tty",
+	"/sys/class/tty/console",
+	"/sys/class/tty/ptmx",
+	NULL,
+};
 
 bool verify_appname(const char *appname)
 {
@@ -100,17 +115,6 @@ void setup_udev_snappy_assign(const char *appname)
 	if (u == NULL)
 		die("udev_new failed");
 
-	const char *static_devices[] = {
-		"/sys/class/mem/null",
-		"/sys/class/mem/full",
-		"/sys/class/mem/zero",
-		"/sys/class/mem/random",
-		"/sys/class/mem/urandom",
-		"/sys/class/tty/tty",
-		"/sys/class/tty/console",
-		"/sys/class/tty/ptmx",
-		NULL,
-	};
 	int i;
 	for (i = 0; static_devices[i] != NULL; i++) {
 		run_snappy_app_dev_add(u, static_devices[i], appname);
@@ -120,12 +124,11 @@ void setup_udev_snappy_assign(const char *appname)
 	if (devices == NULL)
 		die("udev_enumerate_new failed");
 
-	if (udev_enumerate_add_match_tag(devices, "snappy-assign") != 0)
+	char snapudev_appname[MAX_BUF] = { 0 };
+	must_snprintf(snapudev_appname, sizeof(snapudev_appname), "snap.%s",
+		      appname);
+	if (udev_enumerate_add_match_tag(devices, snapudev_appname) != 0)
 		die("udev_enumerate_add_match_tag");
-
-	if (udev_enumerate_add_match_property(devices, "SNAPPY_APP", appname) !=
-	    0)
-		die("udev_enumerate_add_match_property");
 
 	if (udev_enumerate_scan_devices(devices) != 0)
 		die("udev_enumerate_scan failed");
@@ -172,51 +175,48 @@ void setup_devices_cgroup(const char *appname)
 	must_snprintf(cgroup_file, sizeof(cgroup_file), "%s%s", cgroup_dir,
 		      "devices.deny");
 	write_string_to_file(cgroup_file, "a");
-
 }
 
 bool snappy_udev_setup_required(const char *appname)
 {
 	debug("snappy_udev_setup_required");
+	bool rc = false;
 
 	// extra paranoia
 	if (!verify_appname(appname))
 		die("appname %s not allowed", appname);
 
-	char override_file[PATH_MAX];
-	must_snprintf(override_file, sizeof(override_file),
-		      "/var/lib/apparmor/clicks/%s.json.additional", appname);
+	// determine the minimum number of devices
+	int min;
+	for (min = 0; static_devices[min] != NULL; min++) ;
 
-	// if a snap package gets unrestricted apparmor access we need to setup
-	// a device cgroup.
-	//
-	// the "needle" string is what gives this access so we search for that
-	// here
-	const char *needle =
-	    "{" "\n"
-	    " \"write_path\": [" "\n"
-	    "   \"/dev/**\"" "\n"
-	    " ]," "\n"
-	    " \"read_path\": [" "\n" "   \"/run/udev/data/*\"" "\n" " ]\n" "}";
-	debug("looking for: '%s'", needle);
-	char content[strlen(needle)];
+	struct udev *u = udev_new();
+	if (u == NULL)
+		die("udev_new failed");
 
-	int fd = open(override_file, O_CLOEXEC | O_NOFOLLOW | O_RDONLY);
-	if (fd < 0)
-		return false;
-	int n = read(fd, content, sizeof(content));
-	if (close(fd) != 0)
-		die("could not close override");
-	if (n < sizeof(content))
-		return false;
+	struct udev_enumerate *devices = udev_enumerate_new(u);
+	if (devices == NULL)
+		die("udev_enumerate_new failed");
 
-	// memcpy so that we don't have to deal with \0 in the input
-	if (memcmp(content, needle, strlen(needle)) == 0) {
-		debug("found needle, need to apply udev setup");
-		return true;
-	}
+	// TAG+="snap.<appname>"
+	char snapudev_appname[MAX_BUF] = { 0 };
+	must_snprintf(snapudev_appname, sizeof(snapudev_appname), "snap.%s",
+		      appname);
+	if (udev_enumerate_add_match_tag(devices, snapudev_appname) != 0)
+		die("udev_enumerate_add_match_tag");
 
-	return false;
+	if (udev_enumerate_scan_devices(devices) != 0)
+		die("udev_enumerate_scan failed");
+
+	struct udev_list_entry *l = udev_enumerate_get_list_entry(devices);
+	if (l != NULL)
+		rc = true;
+	if (rc)
+		printf("HERE: udev setup is required\n");
+
+	udev_enumerate_unref(devices);
+	udev_unref(u);
+	return rc;
 }
 
 bool is_running_on_classic_ubuntu()
