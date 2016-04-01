@@ -71,7 +71,7 @@ func ensureDirState(dir, glob string, content map[string]*osutil.FileState, snap
 	var errReload error
 	changed, removed, errEnsure := osutil.EnsureDirState(dir, glob, content)
 	if len(changed) > 0 || len(removed) > 0 {
-		// Try reload the rules and regardless of errEnsure.
+		// Try reload the rules regardless of errEnsure.
 		errReload = ReloadRules()
 	}
 	if errEnsure != nil {
