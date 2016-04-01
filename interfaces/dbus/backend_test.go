@@ -182,6 +182,32 @@ func (s *backendSuite) TestCombineSnippetsWithoutAnySnippets(c *C) {
 	}
 }
 
+const sambaYamlWithIfaceBoundToNmbd = `
+name: samba
+version: 1
+developer: acme
+apps:
+    smbd:
+    nmbd:
+        slots: [iface]
+`
+
+func (s *backendSuite) TestAppBoundIfaces(c *C) {
+	// NOTE: Hand out a permanent snippet so that .conf file is generated.
+	s.iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+		return []byte("<policy/>"), nil
+	}
+	// Install a snap with two apps, only one of which needs a .conf file
+	// because the interface is app-bound.
+	snapInfo := s.installSnap(c, false, sambaYamlWithIfaceBoundToNmbd)
+	defer s.removeSnap(c, snapInfo)
+	// Check that only one of the .conf files is actually created
+	_, err := os.Stat(filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.smbd.conf"))
+	c.Check(os.IsNotExist(err), Equals, true)
+	_, err = os.Stat(filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.nmbd.conf"))
+	c.Check(err, IsNil)
+}
+
 // Support code for tests
 
 // installSnap "installs" a snap from YAML.

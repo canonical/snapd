@@ -42,7 +42,7 @@ type Backend struct{}
 
 // Configure creates dbus configuration files specific to a given snap.
 //
-// DBus has no concept of a complain mode, developerMode is ignored.
+// DBus has no concept of a complain mode so developerMode is not supported
 func (b *Backend) Configure(snapInfo *snap.Info, developerMode bool, repo *interfaces.Repository) error {
 	// Get the snippets that apply to this snap
 	snippets, err := repo.SecuritySnippetsForSnap(snapInfo.Name, interfaces.SecurityDBus)
@@ -50,7 +50,7 @@ func (b *Backend) Configure(snapInfo *snap.Info, developerMode bool, repo *inter
 		return fmt.Errorf("cannot obtain DBus security snippets for snap %q: %s", snapInfo.Name, err)
 	}
 	// Get the files that this snap should have
-	content, err := b.combineSnippets(snapInfo, developerMode, snippets)
+	content, err := b.combineSnippets(snapInfo, snippets)
 	if err != nil {
 		return fmt.Errorf("cannot obtain expected DBus configuration files for snap %q: %s", snapInfo.Name, err)
 	}
@@ -76,22 +76,24 @@ func (b *Backend) Deconfigure(snapInfo *snap.Info) error {
 
 // combineSnippets combines security snippets collected from all the interfaces
 // affecting a given snap into a content map applicable to EnsureDirState.
-func (b *Backend) combineSnippets(snapInfo *snap.Info, developerMode bool, snippets map[string][][]byte) (content map[string]*osutil.FileState, err error) {
+func (b *Backend) combineSnippets(snapInfo *snap.Info, snippets map[string][][]byte) (content map[string]*osutil.FileState, err error) {
 	for _, appInfo := range snapInfo.Apps {
-		if len(snippets) > 0 {
-			var buf bytes.Buffer
-			buf.Write(xmlHeader)
-			for _, snippet := range snippets[appInfo.Name] {
-				buf.Write(snippet)
-				buf.WriteRune('\n')
-			}
-			buf.Write(xmlFooter)
-			if content == nil {
-				content = make(map[string]*osutil.FileState)
-			}
-			fname := fmt.Sprintf("%s.conf", interfaces.SecurityTag(appInfo))
-			content[fname] = &osutil.FileState{Content: buf.Bytes(), Mode: 0644}
+		appSnippets := snippets[appInfo.Name]
+		if len(appSnippets) == 0 {
+			continue
 		}
+		var buf bytes.Buffer
+		buf.Write(xmlHeader)
+		for _, snippet := range appSnippets {
+			buf.Write(snippet)
+			buf.WriteRune('\n')
+		}
+		buf.Write(xmlFooter)
+		if content == nil {
+			content = make(map[string]*osutil.FileState)
+		}
+		fname := fmt.Sprintf("%s.conf", interfaces.SecurityTag(appInfo))
+		content[fname] = &osutil.FileState{Content: buf.Bytes(), Mode: 0644}
 	}
 	return content, nil
 }
