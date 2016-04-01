@@ -84,7 +84,7 @@ var (
 	}
 
 	appIconCmd = &Command{
-		Path:   "/v2/icons/{name}.{developer}/icon",
+		Path:   "/v2/icons/{name}/icon",
 		UserOK: true,
 		GET:    appIconGet,
 	}
@@ -97,34 +97,34 @@ var (
 	}
 
 	snapCmd = &Command{
-		Path:   "/v2/snaps/{name}.{developer}",
+		Path:   "/v2/snaps/{name}",
 		UserOK: true,
 		GET:    getSnapInfo,
 		POST:   postSnap,
 	}
 
 	snapConfigCmd = &Command{
-		Path: "/v2/snaps/{name}.{developer}/config",
+		Path: "/v2/snaps/{name}/config",
 		GET:  snapConfig,
 		PUT:  snapConfig,
 	}
 
 	snapSvcsCmd = &Command{
-		Path:   "/v2/snaps/{name}.{developer}/services",
+		Path:   "/v2/snaps/{name}/services",
 		UserOK: true,
 		GET:    snapService,
 		PUT:    snapService,
 	}
 
 	snapSvcCmd = &Command{
-		Path:   "/v2/snaps/{name}.{developer}/services/{service}",
+		Path:   "/v2/snaps/{name}/services/{service}",
 		UserOK: true,
 		GET:    snapService,
 		PUT:    snapService,
 	}
 
 	snapSvcLogsCmd = &Command{
-		Path: "/v2/snaps/{name}.{developer}/services/{service}/logs",
+		Path: "/v2/snaps/{name}/services/{service}/logs",
 		GET:  getLogs,
 	}
 
@@ -201,7 +201,6 @@ var muxVars = mux.Vars
 func getSnapInfo(c *Command, r *http.Request) Response {
 	vars := muxVars(r)
 	name := vars["name"]
-	developer := vars["developer"]
 
 	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
 	if err != nil {
@@ -209,27 +208,27 @@ func getSnapInfo(c *Command, r *http.Request) Response {
 	}
 	defer lock.Unlock()
 
-	fullName := fmt.Sprintf("%s.%s", name, developer)
 	channel := ""
-	remoteSnap, _ := newRemoteRepo().Snap(fullName, channel)
+	remoteSnap, _ := newRemoteRepo().Snap(name, channel)
 
-	localSnaps, err := snappy.NewLocalSnapRepository().Snaps(name, developer)
+	installed, err := (&snappy.Overlord{}).Installed()
 	if err != nil {
 		return InternalError("cannot load snaps: %v", err)
 	}
+	localSnaps := snappy.FindSnapsByName(name, installed)
 
 	if len(localSnaps) == 0 && remoteSnap == nil {
-		return NotFound("unable to find snap with name %q and developer %q", name, developer)
+		return NotFound("unable to find snap with name %q", name)
 	}
 
 	route := c.d.router.Get(c.Path)
 	if route == nil {
-		return InternalError("router can't find route for snap %s.%s", name, developer)
+		return InternalError("router can't find route for snap %s", name)
 	}
 
-	url, err := route.URL("name", name, "developer", developer)
+	url, err := route.URL("name", name)
 	if err != nil {
-		return InternalError("route can't build URL for snap %s.%s: %v", name, developer, err)
+		return InternalError("route can't build URL for snap %s: %v", name, err)
 	}
 
 	result := webify(mapSnap(localSnaps, remoteSnap), url.String())
@@ -249,8 +248,7 @@ func webify(result map[string]interface{}, resource string) map[string]interface
 	route := appIconCmd.d.router.Get(appIconCmd.Path)
 	if route != nil {
 		name, _ := result["name"].(string)
-		developer, _ := result["developer"].(string)
-		url, err := route.URL("name", name, "developer", developer)
+		url, err := route.URL("name", name)
 		if err == nil {
 			result["icon"] = url.String()
 		}
@@ -320,32 +318,28 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		sources = append(sources, "store")
 
 		for _, snap := range found {
-			fullName := fmt.Sprintf("%s.%s", snap.Name(), snap.Developer())
-			remoteSnapMap[fullName] = snap
+			remoteSnapMap[snap.Name()] = snap
 		}
 	}
 
-	for fullname, localSnaps := range localSnapsMap {
+	for name, localSnaps := range localSnapsMap {
 		// strings.Contains(fullname, "") is true
-		if !strings.Contains(fullname, searchTerm) {
+		if !strings.Contains(name, searchTerm) {
 			continue
 		}
 
-		m := mapSnap(localSnaps, remoteSnapMap[fullname])
-		name, _ := m["name"].(string)
-		developer, _ := m["developer"].(string)
-
+		m := mapSnap(localSnaps, remoteSnapMap[name])
 		resource := "no resource URL for this resource"
-		url, err := route.URL("name", name, "developer", developer)
+		url, err := route.URL("name", name)
 		if err == nil {
 			resource = url.String()
 		}
 
-		results[fullname] = webify(m, resource)
+		results[name] = webify(m, resource)
 	}
 
-	for fullname, remoteSnap := range remoteSnapMap {
-		if _, ok := results[fullname]; ok {
+	for name, remoteSnap := range remoteSnapMap {
+		if _, ok := results[name]; ok {
 			// already done
 			continue
 		}
@@ -353,12 +347,12 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		m := mapSnap(nil, remoteSnap)
 
 		resource := "no resource URL for this resource"
-		url, err := route.URL("name", remoteSnap.Name(), "developer", remoteSnap.Developer())
+		url, err := route.URL("name", remoteSnap.Name())
 		if err == nil {
 			resource = url.String()
 		}
 
-		results[fullname] = webify(m, resource)
+		results[name] = webify(m, resource)
 	}
 
 	// TODO: it should be possible to search on the "content" field on the store
@@ -407,13 +401,8 @@ func snapService(c *Command, r *http.Request) Response {
 	}
 
 	vars := muxVars(r)
-	name := vars["name"]
-	developer := vars["developer"]
-	if name == "" || developer == "" {
-		return BadRequest("missing name or developer")
-	}
+	snapName := vars["name"]
 	appName := vars["service"]
-	pkgName := name + "." + developer
 
 	action := "status"
 
@@ -447,16 +436,17 @@ func snapService(c *Command, r *http.Request) Response {
 		return BadRequest("unknown action %s", action)
 	}
 
-	snaps, err := snappy.NewLocalSnapRepository().Snaps(name, developer)
+	installed, err := (&snappy.Overlord{}).Installed()
+	snaps := snappy.FindSnapsByName(snapName, installed)
 	_, snap := bestSnap(snaps)
 	if err != nil || snap == nil || !snap.IsActive() {
-		return NotFound("unable to find snap with name %q and developer %q", name, developer)
+		return NotFound("unable to find snap with name %q", snapName)
 	}
 
 	apps := snap.Apps()
 
 	if len(apps) == 0 {
-		return NotFound("snap %q has no services", pkgName)
+		return NotFound("snap %q has no services", snapName)
 	}
 
 	appmap := make(map[string]*appDesc, len(apps))
@@ -468,19 +458,18 @@ func snapService(c *Command, r *http.Request) Response {
 	}
 
 	if appName != "" && appmap[appName] == nil {
-		return NotFound("snap %q has no service %q", pkgName, appName)
+		return NotFound("snap %q has no service %q", snapName, appName)
 	}
 
-	// note findServices takes the *bare* name
-	actor, err := findServices(name, appName, &progress.NullProgress{})
+	actor, err := findServices(snapName, appName, &progress.NullProgress{})
 	if err != nil {
-		return InternalError("no services for %q [%q] found: %v", pkgName, appName, err)
+		return InternalError("no services for %q [%q] found: %v", snapName, appName, err)
 	}
 
 	f := func() interface{} {
 		status, err := actor.ServiceStatus()
 		if err != nil {
-			logger.Noticef("unable to get status for %q [%q]: %v", pkgName, appName, err)
+			logger.Noticef("unable to get status for %q [%q]: %v", snapName, appName, err)
 			return err
 		}
 
@@ -523,7 +512,7 @@ func snapService(c *Command, r *http.Request) Response {
 		}
 
 		if err != nil {
-			logger.Noticef("unable to %s %q [%q]: %v\n", action, pkgName, appName, err)
+			logger.Noticef("unable to %s %q [%q]: %v\n", action, snapName, appName, err)
 			return err
 		}
 
@@ -541,12 +530,7 @@ var getConfigurator = func() configurator {
 
 func snapConfig(c *Command, r *http.Request) Response {
 	vars := muxVars(r)
-	name := vars["name"]
-	developer := vars["developer"]
-	if name == "" || developer == "" {
-		return BadRequest("missing name or developer")
-	}
-	pkgName := name + "." + developer
+	snapName := vars["name"]
 
 	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
 	if err != nil {
@@ -554,10 +538,11 @@ func snapConfig(c *Command, r *http.Request) Response {
 	}
 	defer lock.Unlock()
 
-	snaps, err := snappy.NewLocalSnapRepository().Snaps(name, developer)
+	installed, err := (&snappy.Overlord{}).Installed()
+	snaps := snappy.FindSnapsByName(snapName, installed)
 	_, part := bestSnap(snaps)
 	if err != nil || part == nil {
-		return NotFound("no snap found with name %q and developer %q", name, developer)
+		return NotFound("no snap found with name %q", snapName)
 	}
 
 	if !part.IsActive() {
@@ -572,7 +557,7 @@ func snapConfig(c *Command, r *http.Request) Response {
 	overlord := getConfigurator()
 	config, err := overlord.Configure(part, bs)
 	if err != nil {
-		return InternalError("unable to retrieve config for %s: %v", pkgName, err)
+		return InternalError("unable to retrieve config for %s: %v", snapName, err)
 	}
 
 	return SyncResponse(string(config))
@@ -835,7 +820,7 @@ func postSnap(c *Command, r *http.Request) Response {
 	}
 
 	vars := muxVars(r)
-	inst.pkg = vars["name"] + "." + vars["developer"]
+	inst.pkg = vars["name"]
 	inst.overlord = c.d.overlord
 
 	f := pkgActionDispatch(&inst)
@@ -855,8 +840,8 @@ func postSnap(c *Command, r *http.Request) Response {
 
 const maxReadBuflen = 1024 * 1024
 
-func newSnapImpl(filename string, developer string, unsignedOk bool) (*snappy.SnapFile, error) {
-	return snappy.NewSnapFile(filename, developer, unsignedOk)
+func newSnapImpl(filename string, unsignedOk bool) (*snappy.SnapFile, error) {
+	return snappy.NewSnapFile(filename, unsignedOk)
 }
 
 var newSnap = newSnapImpl
@@ -924,7 +909,7 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 	return AsyncResponse(c.d.AddTask(func() interface{} {
 		defer os.Remove(tmpf.Name())
 
-		_, err := newSnap(tmpf.Name(), snappy.SideloadedDeveloper, unsignedOk)
+		_, err := newSnap(tmpf.Name(), unsignedOk)
 		if err != nil {
 			return err
 		}
@@ -940,7 +925,7 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 			flags |= snappy.AllowUnauthenticated
 		}
 		overlord := &snappy.Overlord{}
-		name, err := overlord.Install(tmpf.Name(), snappy.SideloadedDeveloper, flags, &progress.NullProgress{})
+		name, err := overlord.Install(tmpf.Name(), flags, &progress.NullProgress{})
 		if err != nil {
 			return err
 		}
@@ -983,17 +968,18 @@ func getLogs(c *Command, r *http.Request) Response {
 	return SyncResponse(logs)
 }
 
-func iconGet(name, developer string) Response {
+func iconGet(name string) Response {
 	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
 	if err != nil {
 		return InternalError("unable to acquire lock: %v", err)
 	}
 	defer lock.Unlock()
 
-	snaps, err := snappy.NewLocalSnapRepository().Snaps(name, developer)
+	installed, err := (&snappy.Overlord{}).Installed()
+	snaps := snappy.FindSnapsByName(name, installed)
 	_, snap := bestSnap(snaps)
 	if err != nil || snap == nil {
-		return NotFound("unable to find snap with name %q and developer %q", name, developer)
+		return NotFound("unable to find snap with name %q", name)
 	}
 
 	path := filepath.Clean(snap.Icon())
@@ -1008,9 +994,8 @@ func iconGet(name, developer string) Response {
 func appIconGet(c *Command, r *http.Request) Response {
 	vars := muxVars(r)
 	name := vars["name"]
-	developer := vars["developer"]
 
-	return iconGet(name, developer)
+	return iconGet(name)
 }
 
 // getInterfaces returns all plugs and slots.

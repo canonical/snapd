@@ -42,7 +42,7 @@ import (
 
 // AppYaml represents an application (binary or service)
 type AppYaml struct {
-	// name is partent key
+	// name is parent key
 	Name string
 	// part of the yaml
 	Version string `yaml:"version"`
@@ -186,26 +186,6 @@ func parseSnapYamlData(yamlData []byte, hasConfig bool) (*snapYaml, error) {
 	}
 
 	return &m, nil
-}
-
-func (m *snapYaml) qualifiedName(developer string) string {
-	if m.Type == snap.TypeGadget {
-		return m.Name
-	}
-	return m.Name + "." + developer
-}
-
-func checkForPackageInstalled(m *snapYaml, developer string) error {
-	snap := ActiveSnapByName(m.Name)
-	if snap == nil {
-		return nil
-	}
-
-	if snap.Developer() != developer {
-		return fmt.Errorf("package %q is already installed with developer %q your developer is %q", m.Name, snap.Developer(), developer)
-	}
-
-	return nil
 }
 
 // checkLicenseAgreement returns nil if it's ok to proceed with installing the

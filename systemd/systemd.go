@@ -168,7 +168,6 @@ type ServiceDescription struct {
 	AaProfile       string
 	BusName         string
 	UdevAppName     string
-	Developer       string
 	Socket          bool
 	SocketFileName  string
 	ListenStream    string
