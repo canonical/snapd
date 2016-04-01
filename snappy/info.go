@@ -42,15 +42,6 @@ type Configuration interface {
 	GadgetConfig() SystemConfig
 }
 
-// QualifiedName of a snap.Info is the Name, in most cases qualified with the
-// Developer
-func QualifiedName(p *snap.Info) string {
-	if t := p.Type; t == snap.TypeGadget {
-		return p.Name
-	}
-	return p.Name + "." + p.Developer
-}
-
 // BareName of a snap.Info is just its Name
 func BareName(p *snap.Info) string {
 	return p.Name
@@ -195,7 +186,7 @@ func PackageNameActive(name string) bool {
 
 // RemoteManifestPath returns the would be path for the store manifest meta data
 func RemoteManifestPath(s *snap.Info) string {
-	return filepath.Join(dirs.SnapMetaDir, fmt.Sprintf("%s_%s.manifest", QualifiedName(s), s.Version))
+	return filepath.Join(dirs.SnapMetaDir, fmt.Sprintf("%s_%s.manifest", s.Name, s.Version))
 }
 
 func developerFromBasedir(basedir string) (s string) {
