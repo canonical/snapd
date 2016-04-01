@@ -267,7 +267,7 @@ func ActivateSnap(s *Snap, inhibitHooks bool, inter interacter) error {
 	return os.Symlink(filepath.Base(s.basedir), currentDataSymlink)
 }
 
-func DeactivateSnap(s *Snap, inhibitHooks bool, inter interacter) error {
+func DeactivateSnap(s *Snap, inter interacter) error {
 	currentSymlink := filepath.Join(s.basedir, "..", "current")
 
 	// sanity check
