@@ -36,7 +36,7 @@ import (
 	"github.com/ubuntu-core/snappy/timeout"
 )
 
-func (s *SnapTestSuite) testLocalSnapInstall(c *C) string {
+func (s *SnapTestSuite) TestLocalSnapInstall(c *C) string {
 	snapFile := makeTestSnapPackage(c, "")
 	name, err := installClick(snapFile, 0, nil)
 	c.Assert(err, IsNil)
@@ -48,10 +48,6 @@ func (s *SnapTestSuite) testLocalSnapInstall(c *C) string {
 	c.Assert(err, IsNil)
 
 	return snapFile
-}
-
-func (s *SnapTestSuite) TestLocalSnapInstall(c *C) {
-	s.testLocalSnapInstall(c)
 }
 
 // if the snap asks for accepting a license, and an agreer isn't provided,
