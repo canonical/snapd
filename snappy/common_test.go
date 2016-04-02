@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -247,15 +247,13 @@ func makeTwoTestSnaps(c *C, snapType snap.Type, extra ...string) {
 	}
 
 	snapFile := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
-	n, err := installClick(snapFile, AllowUnauthenticated|AllowGadget, inter)
+	_, err := (&Overlord{}).Install(snapFile, AllowUnauthenticated|AllowGadget, inter)
 	c.Assert(err, IsNil)
-	c.Assert(n, Equals, "foo")
 	c.Assert(storeMinimalRemoteManifest("foo", testDeveloper, "1.0", "", "remote-channel"), IsNil)
 
 	snapFile = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
-	n, err = installClick(snapFile, AllowUnauthenticated|AllowGadget, inter)
+	_, err = (&Overlord{}).Install(snapFile, AllowUnauthenticated|AllowGadget, inter)
 	c.Assert(err, IsNil)
-	c.Assert(n, Equals, "foo")
 	c.Assert(storeMinimalRemoteManifest("foo", testDeveloper, "2.0", "", "remote-channel"), IsNil)
 
 	installed, err := (&Overlord{}).Installed()

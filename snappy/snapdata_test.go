@@ -20,16 +20,16 @@
 package snappy
 
 import (
-	"github.com/ubuntu-core/snappy/progress"
+	. "gopkg.in/check.v1"
 )
 
-// FIXME: kill once every test is converted
-func installClick(snapFilePath string, flags InstallFlags, inter progress.Meter) (name string, err error) {
-	overlord := &Overlord{}
-	snapPart, err := overlord.Install(snapFilePath, flags, inter)
-	if err != nil {
-		return "", err
-	}
-
-	return snapPart.Name(), nil
+func (s *SnapTestSuite) TestCopySnapDataDirectoryError(c *C) {
+	oldPath := c.MkDir()
+	newPath := "/nonono-i-can-not-write-here"
+	err := copySnapDataDirectory(oldPath, newPath)
+	c.Assert(err, DeepEquals, &ErrDataCopyFailed{
+		OldPath:  oldPath,
+		NewPath:  newPath,
+		ExitCode: 1,
+	})
 }
