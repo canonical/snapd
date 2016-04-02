@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,10 +20,12 @@
 package snappy
 
 import (
+	"fmt"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
 )
 
@@ -34,4 +36,71 @@ var _ = Suite(&binariesTestSuite{})
 func (s *SnapTestSuite) TestGenerateBinaryName(c *C) {
 	c.Check(generateBinaryName(&snapYaml{Name: "foo"}, &AppYaml{Name: "bar"}), Equals, filepath.Join(dirs.SnapBinariesDir, "foo.bar"))
 	c.Check(generateBinaryName(&snapYaml{Name: "foo"}, &AppYaml{Name: "foo"}), Equals, filepath.Join(dirs.SnapBinariesDir, "foo"))
+}
+
+const expectedWrapper = `#!/bin/sh
+set -e
+
+# snap info (deprecated)
+export SNAP_APP_PATH="/snaps/pastebinit/1.4.0.0.1/"
+export SNAP_APP_DATA_PATH="/var/lib/snaps/pastebinit/1.4.0.0.1/"
+export SNAP_APP_USER_DATA_PATH="$HOME/snaps/pastebinit/1.4.0.0.1/"
+
+# snap info
+export SNAP="/snaps/pastebinit/1.4.0.0.1/"
+export SNAP_DATA="/var/lib/snaps/pastebinit/1.4.0.0.1/"
+export SNAP_NAME="pastebinit"
+export SNAP_VERSION="1.4.0.0.1"
+export SNAP_ARCH="%[1]s"
+export SNAP_USER_DATA="$HOME/snaps/pastebinit/1.4.0.0.1/"
+
+if [ ! -d "$SNAP_USER_DATA" ]; then
+   mkdir -p "$SNAP_USER_DATA"
+fi
+export HOME="$SNAP_USER_DATA"
+
+# Snap name is: pastebinit
+# App name is: pastebinit
+
+ubuntu-core-launcher pastebinit.pastebinit pastebinit_pastebinit_1.4.0.0.1 /snaps/pastebinit/1.4.0.0.1/bin/pastebinit "$@"
+`
+
+func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
+	binary := &AppYaml{Name: "pastebinit", Command: "bin/pastebinit"}
+	pkgPath := "/snaps/pastebinit/1.4.0.0.1/"
+	aaProfile := "pastebinit_pastebinit_1.4.0.0.1"
+	m := snapYaml{Name: "pastebinit",
+		Version: "1.4.0.0.1"}
+
+	expected := fmt.Sprintf(expectedWrapper, arch.UbuntuArchitecture())
+
+	generatedWrapper, err := generateSnapBinaryWrapper(binary, pkgPath, aaProfile, &m)
+	c.Assert(err, IsNil)
+	c.Assert(generatedWrapper, Equals, expected)
+}
+
+func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperIllegalChars(c *C) {
+	binary := &AppYaml{Name: "bin/pastebinit\nSomething nasty"}
+	pkgPath := "/snaps/pastebinit.mvo/1.4.0.0.1/"
+	aaProfile := "pastebinit.mvo_pastebinit_1.4.0.0.1"
+	m := snapYaml{Name: "pastebinit",
+		Version: "1.4.0.0.1"}
+
+	_, err := generateSnapBinaryWrapper(binary, pkgPath, aaProfile, &m)
+	c.Assert(err, NotNil)
+}
+
+func (s *SnapTestSuite) TestSnappyBinPathForBinaryNoExec(c *C) {
+	binary := &AppYaml{Name: "pastebinit", Command: "bin/pastebinit"}
+	pkgPath := "/snaps/pastebinit.mvo/1.0/"
+	c.Assert(binPathForBinary(pkgPath, binary), Equals, "/snaps/pastebinit.mvo/1.0/bin/pastebinit")
+}
+
+func (s *SnapTestSuite) TestSnappyBinPathForBinaryWithExec(c *C) {
+	binary := &AppYaml{
+		Name:    "pastebinit",
+		Command: "bin/random-pastebin",
+	}
+	pkgPath := "/snaps/pastebinit.mvo/1.1/"
+	c.Assert(binPathForBinary(pkgPath, binary), Equals, "/snaps/pastebinit.mvo/1.1/bin/random-pastebin")
 }
