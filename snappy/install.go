@@ -263,7 +263,12 @@ func doInstall(name, channel string, flags InstallFlags, meter progress.Meter) (
 			flags |= AllowUnauthenticated
 		}
 
-		return installClick(name, flags, meter)
+		snap, err := (&Overlord{}).Install(name, flags, meter)
+		if err != nil {
+			return "", err
+		}
+
+		return snap.Name(), nil
 	}
 
 	// check repos next
