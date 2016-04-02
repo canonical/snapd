@@ -115,18 +115,22 @@ void setup_udev_snappy_assign(const char *appname)
 	if (u == NULL)
 		die("udev_new failed");
 
+	char snapudev_appname[MAX_BUF] = { 0 };
+	must_snprintf(snapudev_appname, sizeof(snapudev_appname), "snap_%s",
+		      appname);
+	for (int i=0; i < strlen(snapudev_appname); i++)
+		if (snapudev_appname[i] == '.')
+			snapudev_appname[i] = '_';
+
 	int i;
 	for (i = 0; static_devices[i] != NULL; i++) {
-		run_snappy_app_dev_add(u, static_devices[i], appname);
+		run_snappy_app_dev_add(u, static_devices[i], snapudev_appname);
 	}
 
 	struct udev_enumerate *devices = udev_enumerate_new(u);
 	if (devices == NULL)
 		die("udev_enumerate_new failed");
 
-	char snapudev_appname[MAX_BUF] = { 0 };
-	must_snprintf(snapudev_appname, sizeof(snapudev_appname), "snap.%s",
-		      appname);
 	if (udev_enumerate_add_match_tag(devices, snapudev_appname) != 0)
 		die("udev_enumerate_add_match_tag");
 
@@ -138,7 +142,7 @@ void setup_udev_snappy_assign(const char *appname)
 		const char *path = udev_list_entry_get_name(l);
 		if (path == NULL)
 			die("udev_list_entry_get_name failed");
-		run_snappy_app_dev_add(u, path, appname);
+		run_snappy_app_dev_add(u, path, snapudev_appname);
 		l = udev_list_entry_get_next(l);
 	}
 
@@ -156,8 +160,9 @@ void setup_devices_cgroup(const char *appname)
 
 	// create devices cgroup controller
 	char cgroup_dir[PATH_MAX];
+
 	must_snprintf(cgroup_dir, sizeof(cgroup_dir),
-		      "/sys/fs/cgroup/devices/snappy.%s/", appname);
+		      "/sys/fs/cgroup/devices/snap.%s/", appname);
 
 	if (mkdir(cgroup_dir, 0755) < 0 && errno != EEXIST)
 		die("mkdir failed");
@@ -186,10 +191,6 @@ bool snappy_udev_setup_required(const char *appname)
 	if (!verify_appname(appname))
 		die("appname %s not allowed", appname);
 
-	// determine the minimum number of devices
-	int min;
-	for (min = 0; static_devices[min] != NULL; min++) ;
-
 	struct udev *u = udev_new();
 	if (u == NULL)
 		die("udev_new failed");
@@ -198,10 +199,14 @@ bool snappy_udev_setup_required(const char *appname)
 	if (devices == NULL)
 		die("udev_enumerate_new failed");
 
-	// TAG+="snap.<appname>"
+	// TAG+="snap_<appname>" (udev doesn't like '.' in the tag name)
 	char snapudev_appname[MAX_BUF] = { 0 };
-	must_snprintf(snapudev_appname, sizeof(snapudev_appname), "snap.%s",
+	must_snprintf(snapudev_appname, sizeof(snapudev_appname), "snap_%s",
 		      appname);
+	for (int i=0; i < strlen(snapudev_appname); i++)
+		if (snapudev_appname[i] == '.')
+			snapudev_appname[i] = '_';
+
 	if (udev_enumerate_add_match_tag(devices, snapudev_appname) != 0)
 		die("udev_enumerate_add_match_tag");
 
@@ -212,7 +217,7 @@ bool snappy_udev_setup_required(const char *appname)
 	if (l != NULL)
 		rc = true;
 	if (rc)
-		printf("HERE: udev setup is required\n");
+		printf("HERE: udev setup is required for %s\n", snapudev_appname);
 
 	udev_enumerate_unref(devices);
 	udev_unref(u);
