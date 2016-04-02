@@ -90,6 +90,14 @@ void run_snappy_app_dev_add(struct udev *u, const char *path,
 		die("could not fork");
 	}
 	if (pid == 0) {
+		// can't update the cgroup unless the real_uid is 0, euid as
+		// 0 is not enough. TODO: investigate
+		uid_t real_uid, effective_uid, saved_uid;
+		if (getresuid(&real_uid, &effective_uid, &saved_uid) != 0)
+			die("could not find user IDs");
+		if (real_uid != 0 && effective_uid ==0)
+			if (setuid(0) != 0)
+				die("setuid failed");
 		char buf[64];
 		unsigned major = MAJOR(devnum);
 		unsigned minor = MINOR(devnum);
