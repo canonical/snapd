@@ -243,17 +243,16 @@ func (s *snapmgrTestSuite) TestSnapInfo(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("")
 
-	// Write a snap.yaml with fake name and version
+	// Write a snap.yaml with fake name
 	dname := filepath.Join(dirs.SnapSnapsDir, "samba", "123", "meta")
 	err := os.MkdirAll(dname, 0775)
 	c.Assert(err, IsNil)
 	fname := filepath.Join(dname, "snap.yaml")
-	err = ioutil.WriteFile(fname, []byte("name: ---\nversion: ---\n"), 0644)
+	err = ioutil.WriteFile(fname, []byte("name: ---\n"), 0644)
 	c.Assert(err, IsNil)
 
-	// Ensure that name and version are overridden
+	// Ensure that name is overridden
 	snapInfo, err := snapstate.SnapInfo(s.state, "samba", "123")
 	c.Assert(err, IsNil)
 	c.Check(snapInfo.Name, Equals, "samba")
-	c.Check(snapInfo.Version, Equals, "123")
 }

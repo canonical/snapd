@@ -242,6 +242,5 @@ func SnapInfo(state *state.State, snapName, snapVersion string) (*snap.Info, err
 	}
 	// XXX: requested by pedronis
 	info.Name = snapName
-	info.Version = snapVersion
 	return info, nil
 }
