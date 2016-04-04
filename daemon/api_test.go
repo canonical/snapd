@@ -189,19 +189,17 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	s.vars = map[string]string{"name": "foo"}
 
 	// the store tells us about v2
-	s.rsnaps = []*snap.Info{
-		&snap.Info{
-			Name:        "foo",
-			Type:        snap.TypeApp,
-			Version:     "v2",
-			Description: "description",
-			Developer:   "bar",
-			Store: &snap.StoreInfo{
-				IconURL:      "meta/gui/icon.svg",
-				DownloadSize: 2,
-			},
+	s.rsnaps = []*snap.Info{{
+		Name:        "foo",
+		Type:        snap.TypeApp,
+		Version:     "v2",
+		Description: "description",
+		Developer:   "bar",
+		Store: &snap.StoreInfo{
+			IconURL:      "meta/gui/icon.svg",
+			DownloadSize: 2,
 		},
-	}
+	}}
 
 	// we have v0 installed
 	s.mkInstalled(c, "foo", "bar", "v0", false, "")
@@ -274,11 +272,9 @@ func (s *apiSuite) TestSnapInfoWeirdRoute(c *check.C) {
 	// use the wrong command to force the issue
 	wrongCmd := &Command{Path: "/{what}", d: d}
 	s.vars = map[string]string{"name": "foo"}
-	s.rsnaps = []*snap.Info{
-		&snap.Info{
-			Name: "foo",
-		},
-	}
+	s.rsnaps = []*snap.Info{{
+		Name: "foo",
+	}}
 	c.Check(getSnapInfo(wrongCmd, nil).Self(nil, nil).(*resp).Status, check.Equals, http.StatusInternalServerError)
 }
 
@@ -292,11 +288,9 @@ func (s *apiSuite) TestSnapInfoBadRoute(c *check.C) {
 	c.Assert(route.Name("foo").GetError(), check.NotNil)
 
 	s.vars = map[string]string{"name": "foo"}
-	s.rsnaps = []*snap.Info{
-		&snap.Info{
-			Name: "foo",
-		},
-	}
+	s.rsnaps = []*snap.Info{{
+		Name: "foo",
+	}}
 
 	rsp := getSnapInfo(snapCmd, nil).Self(nil, nil).(*resp)
 
@@ -472,12 +466,10 @@ func (s *apiSuite) TestSnapsInfoOnePerIntegration(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapsInfoOnlyLocal(c *check.C) {
-	s.rsnaps = []*snap.Info{
-		&snap.Info{
-			Name:      "store",
-			Developer: "foo",
-		},
-	}
+	s.rsnaps = []*snap.Info{{
+		Name:      "store",
+		Developer: "foo",
+	}}
 	s.mkInstalled(c, "local", "foo", "v1", true, "")
 
 	req, err := http.NewRequest("GET", "/v2/snaps?sources=local", nil)
@@ -494,13 +486,11 @@ func (s *apiSuite) TestSnapsInfoOnlyLocal(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
-	s.rsnaps = []*snap.Info{
-		&snap.Info{
-			Name:      "store",
-			Developer: "foo",
-			Store:     &snap.StoreInfo{},
-		},
-	}
+	s.rsnaps = []*snap.Info{{
+		Name:      "store",
+		Developer: "foo",
+		Store:     &snap.StoreInfo{},
+	}}
 	s.mkInstalled(c, "local", "foo", "v1", true, "")
 
 	req, err := http.NewRequest("GET", "/v2/snaps?sources=store", nil)
@@ -517,13 +507,11 @@ func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapsInfoLocalAndStore(c *check.C) {
-	s.rsnaps = []*snap.Info{
-		&snap.Info{
-			Name:      "remote",
-			Developer: "foo",
-			Store:     &snap.StoreInfo{},
-		},
-	}
+	s.rsnaps = []*snap.Info{{
+		Name:      "remote",
+		Developer: "foo",
+		Store:     &snap.StoreInfo{},
+	}}
 	s.mkInstalled(c, "local", "foo", "v1", true, "")
 
 	req, err := http.NewRequest("GET", "/v2/snaps?sources=local,store", nil)
@@ -539,13 +527,11 @@ func (s *apiSuite) TestSnapsInfoLocalAndStore(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapsInfoDefaultSources(c *check.C) {
-	s.rsnaps = []*snap.Info{
-		&snap.Info{
-			Name:      "remote",
-			Developer: "foo",
-			Store:     &snap.StoreInfo{},
-		},
-	}
+	s.rsnaps = []*snap.Info{{
+		Name:      "remote",
+		Developer: "foo",
+		Store:     &snap.StoreInfo{},
+	}}
 	s.mkInstalled(c, "local", "foo", "v1", true, "")
 
 	req, err := http.NewRequest("GET", "/v2/snaps", nil)
@@ -558,12 +544,10 @@ func (s *apiSuite) TestSnapsInfoDefaultSources(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapsInfoUnknownSource(c *check.C) {
-	s.rsnaps = []*snap.Info{
-		&snap.Info{
-			Name:      "remote",
-			Developer: "foo",
-		},
-	}
+	s.rsnaps = []*snap.Info{{
+		Name:      "remote",
+		Developer: "foo",
+	}}
 	s.mkInstalled(c, "local", "foo", "v1", true, "")
 
 	req, err := http.NewRequest("GET", "/v2/snaps?sources=unknown", nil)
