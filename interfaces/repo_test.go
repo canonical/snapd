@@ -26,6 +26,7 @@ import (
 
 	. "github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/testutil"
 )
 
 type RepositorySuite struct {
@@ -847,4 +848,404 @@ func (s *RepositorySuite) TestSecuritySnippetsForSnapFailureWithPermanentSnippet
 	snippets, err = repo.SecuritySnippetsForSnap(s.slot.Snap.Name, testSecurity)
 	c.Assert(err, ErrorMatches, "cannot compute static snippet for consumer")
 	c.Check(snippets, IsNil)
+}
+
+// Tests for Refresh()
+
+type RefreshSuite struct {
+	repo *Repository
+}
+
+var _ = Suite(&RefreshSuite{})
+
+func (s *RefreshSuite) SetUpTest(c *C) {
+	s.repo = NewRepository()
+	err := s.repo.AddInterface(&TestInterface{InterfaceName: "iface"})
+	c.Assert(err, IsNil)
+	err = s.repo.AddInterface(&TestInterface{InterfaceName: "other-iface"})
+	c.Assert(err, IsNil)
+	err = s.repo.AddInterface(&TestInterface{
+		InterfaceName:        "invalid",
+		SanitizePlugCallback: func(plug *Plug) error { return fmt.Errorf("invalid") },
+		SanitizeSlotCallback: func(slot *Slot) error { return fmt.Errorf("invalid") },
+	})
+	c.Assert(err, IsNil)
+}
+
+func (s *RefreshSuite) refresh(c *C, yaml string) (*snap.Info, []*snap.Info) {
+	snapInfo, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+	return snapInfo, s.repo.Refresh(snapInfo)
+}
+
+const testConsumerYaml = `
+name: consumer
+apps:
+    app:
+        plugs: [iface]
+`
+const testDifferentIfaceConsumerYaml = `
+name: consumer
+apps:
+    app:
+        plugs: [iface]
+plugs:
+    iface:
+        interface: other-iface
+`
+const testDifferentAttrsConsumerYaml = `
+name: consumer
+apps:
+    app:
+        plugs: [iface]
+plugs:
+    iface:
+        attr: extra
+`
+const testUnknownIfaceConsumerYaml = `
+name: consumer
+apps:
+    app:
+        plugs: [unknown]
+`
+const testInvalidIfaceConsumerYaml = `
+name: consumer
+apps:
+    app:
+        plugs: [invalid]
+`
+const testDifferentLabelConsumerYaml = `
+name: consumer
+apps:
+    app:
+        plugs: [iface]
+plugs:
+    iface:
+        label: New Label
+`
+const testBareConsumerYaml = `
+name: consumer
+apps:
+    app:
+`
+
+func (s *RefreshSuite) TestRefreshAddsPlugsOnInstall(c *C) {
+	// Installing a snap can add a new plug.
+	consumer, affected := s.refresh(c, testConsumerYaml)
+	// The plug was added
+	c.Assert(s.repo.Plug("consumer", "iface"), Not(IsNil))
+	// The snap itself was affected
+	c.Check(affected, DeepEquals, []*snap.Info{consumer})
+}
+
+func (s *RefreshSuite) TestRefreshAddsPlugsOnUpgrade(c *C) {
+	// Updating a snap can add a new plug.
+	_, _ = s.refresh(c, testBareConsumerYaml)
+	consumer, affected := s.refresh(c, testConsumerYaml)
+	// The plug was added
+	c.Assert(s.repo.Plug("consumer", "iface"), Not(IsNil))
+	// The snap itself was affected
+	c.Check(affected, DeepEquals, []*snap.Info{consumer})
+}
+
+func (s *RefreshSuite) TestRefreshRemovesPlugsOnUpgrade(c *C) {
+	// Updating a snap can remove an existing plug.
+	_, _ = s.refresh(c, testConsumerYaml)
+	consumer, affected := s.refresh(c, testBareConsumerYaml)
+	// The plug was removed
+	c.Check(s.repo.Plug("consumer", "iface"), IsNil)
+	// The snap itself was affected
+	c.Check(affected, DeepEquals, []*snap.Info{consumer})
+}
+
+func (s *RefreshSuite) TestRefreshRemovesPlugsWithUnknownInterfaceOnUpgrade(c *C) {
+	// Updating a snap can change an existing plug to use an unknown interface.
+	// This removes the plug.
+	_, _ = s.refresh(c, testConsumerYaml)
+	consumer, affected := s.refresh(c, testUnknownIfaceConsumerYaml)
+	// The plug was removed
+	c.Check(s.repo.Plug("consumer", "iface"), IsNil)
+	// The snap itself was affected
+	c.Check(affected, DeepEquals, []*snap.Info{consumer})
+}
+
+func (s *RefreshSuite) TestRefreshRemovesPlugsWithInvalidInterfaceOnUpgrade(c *C) {
+	// Updating a snap can change an existing plug in a way which causes it not
+	// to validate. This removes the plug.
+	_, _ = s.refresh(c, testConsumerYaml)
+	consumer, affected := s.refresh(c, testInvalidIfaceConsumerYaml)
+	// The plug was removed
+	c.Check(s.repo.Plug("consumer", "iface"), IsNil)
+	// The snap itself was affected
+	c.Check(affected, DeepEquals, []*snap.Info{consumer})
+}
+
+func (s *RefreshSuite) TestRefreshRemovesPlugAndSeversConnectionOnUpgrade(c *C) {
+	// Updating a snap can remove an existing plug.
+	// This severs connections made from that plug.
+	_, _ = s.refresh(c, testConsumerYaml)
+	producer, _ := s.refresh(c, testProducerYaml)
+	err := s.repo.Connect("consumer", "iface", "producer", "iface")
+	c.Assert(err, IsNil)
+	consumer, affected := s.refresh(c, testBareConsumerYaml)
+	// The consumer plug was removed
+	c.Check(s.repo.Plug("consumer", "iface"), IsNil)
+	// The connection was severed
+	slot := s.repo.Slot("producer", "iface")
+	c.Check(slot.Connections, HasLen, 0)
+	// Both snaps were affected
+	c.Check(affected, testutil.Contains, consumer)
+	c.Check(affected, testutil.Contains, producer)
+}
+
+func (s *RefreshSuite) TestRefreshUpdatesPlugToNewInterfaceAndSeversConnectionOnUpgrade(c *C) {
+	// Updating a snap can change a plug interface.
+	// This severs connections made from that plug.
+	_, _ = s.refresh(c, testConsumerYaml)
+	producer, _ := s.refresh(c, testProducerYaml)
+	err := s.repo.Connect("consumer", "iface", "producer", "iface")
+	c.Assert(err, IsNil)
+	consumer, affected := s.refresh(c, testDifferentIfaceConsumerYaml)
+	// The consumer plug was updated
+	plug := s.repo.Plug("consumer", "iface")
+	c.Assert(plug, Not(IsNil))
+	c.Check(plug.Interface, Equals, "other-iface")
+	// The connection was severed
+	slot := s.repo.Slot("producer", "iface")
+	c.Check(slot.Connections, HasLen, 0)
+	c.Check(plug.Connections, HasLen, 0)
+	// Both snaps were affected
+	c.Check(affected, testutil.Contains, consumer)
+	c.Check(affected, testutil.Contains, producer)
+}
+
+func (s *RefreshSuite) TestRefreshUpdatesPlugToNewAttrsAndSeversConnectionOnUpgrade(c *C) {
+	// Updating a snap can change a plug attributes.
+	// This severs connections made from that plug.
+	_, _ = s.refresh(c, testConsumerYaml)
+	producer, _ := s.refresh(c, testProducerYaml)
+	err := s.repo.Connect("consumer", "iface", "producer", "iface")
+	c.Assert(err, IsNil)
+	consumer, affected := s.refresh(c, testDifferentAttrsConsumerYaml)
+	// The consumer plug was updated
+	plug := s.repo.Plug("consumer", "iface")
+	c.Assert(plug, Not(IsNil))
+	c.Check(plug.Attrs, DeepEquals, map[string]interface{}{"attr": "extra"})
+	// The connection was severed
+	slot := s.repo.Slot("producer", "iface")
+	c.Check(slot.Connections, HasLen, 0)
+	c.Check(plug.Connections, HasLen, 0)
+	// Both snaps were affected
+	c.Check(affected, testutil.Contains, consumer)
+	c.Check(affected, testutil.Contains, producer)
+}
+
+func (s *RefreshSuite) TestRefreshUpdatesPlugToNewLabelAndKeepsConnectionOnUpgrade(c *C) {
+	// Updating a snap can change a plug label.
+	// This doesn't sever existing connection
+	_, _ = s.refresh(c, testConsumerYaml)
+	_, _ = s.refresh(c, testProducerYaml)
+	err := s.repo.Connect("consumer", "iface", "producer", "iface")
+	c.Assert(err, IsNil)
+	_, affected := s.refresh(c, testDifferentLabelConsumerYaml)
+	// The consumer plug was updated
+	plug := s.repo.Plug("consumer", "iface")
+	c.Assert(plug, Not(IsNil))
+	c.Check(plug.Label, Equals, "New Label")
+	// The connection was not severed
+	slot := s.repo.Slot("producer", "iface")
+	c.Check(slot.Connections, HasLen, 1)
+	c.Check(plug.Connections, HasLen, 1)
+	// No snaps are affected by label changes.
+	c.Check(affected, HasLen, 0)
+}
+
+// NOTE: The following tests are copy-pasted from the tests above
+//
+// They are fixed using the following vim expression
+// :'<,'>s/Consumer/000/g | '<,'>s/Producer/Consumer/g | '<,'>s/000/Producer/g | '<,'>s/consumer/AAA/g | '<,'>s/producer/consumer/g | '<,'>s/AAA/producer/g | '<,'>s/Plug/BBB/g |
+//  '<,'>s/Slot/Plug/g | '<,'>s/BBB/Slot/g | '<,'>s/plug/CCC/g | '<,'>s/slot/plug/ | '<,'>s/CCC/slot/g
+// The only exception is the .Connect() calls that have fixed order of arguments.
+// Those are manually changed to be identical as in the test block above.
+
+const testProducerYaml = `
+name: producer
+apps:
+    app:
+        slots: [iface]
+`
+const testDifferentIfaceProducerYaml = `
+name: producer
+apps:
+    app:
+        slots: [iface]
+slots:
+    iface:
+        interface: other-iface
+`
+const testDifferentAttrsProducerYaml = `
+name: producer
+apps:
+    app:
+        slots: [iface]
+slots:
+    iface:
+        attr: extra
+`
+const testUnknownIfaceProducerYaml = `
+name: producer
+apps:
+    app:
+        slots: [unknown]
+`
+const testInvalidIfaceProducerYaml = `
+name: producer
+apps:
+    app:
+        slots: [invalid]
+`
+const testDifferentLabelProducerYaml = `
+name: producer
+apps:
+    app:
+        slots: [iface]
+slots:
+    iface:
+        label: New Label
+`
+const testBareProducerYaml = `
+name: producer
+apps:
+    app:
+`
+
+func (s *RefreshSuite) TestRefreshAddsSlotsOnInstall(c *C) {
+	// Installing a snap can add a new slot.
+	producer, affected := s.refresh(c, testProducerYaml)
+	// The slot was added
+	c.Assert(s.repo.Slot("producer", "iface"), Not(IsNil))
+	// The snap itself was affected
+	c.Check(affected, DeepEquals, []*snap.Info{producer})
+}
+
+func (s *RefreshSuite) TestRefreshAddsSlotsOnUpgrade(c *C) {
+	// Updating a snap can add a new slot.
+	_, _ = s.refresh(c, testBareProducerYaml)
+	producer, affected := s.refresh(c, testProducerYaml)
+	// The slot was added
+	c.Assert(s.repo.Slot("producer", "iface"), Not(IsNil))
+	// The snap itself was affected
+	c.Check(affected, DeepEquals, []*snap.Info{producer})
+}
+
+func (s *RefreshSuite) TestRefreshRemovesSlotsOnUpgrade(c *C) {
+	// Updating a snap can remove an existing slot.
+	_, _ = s.refresh(c, testProducerYaml)
+	producer, affected := s.refresh(c, testBareProducerYaml)
+	// The slot was removed
+	c.Check(s.repo.Slot("producer", "iface"), IsNil)
+	// The snap itself was affected
+	c.Check(affected, DeepEquals, []*snap.Info{producer})
+}
+
+func (s *RefreshSuite) TestRefreshRemovesSlotsWithUnknownInterfaceOnUpgrade(c *C) {
+	// Updating a snap can change an existing slot to use an unknown interface.
+	// This removes the slot.
+	_, _ = s.refresh(c, testProducerYaml)
+	producer, affected := s.refresh(c, testUnknownIfaceProducerYaml)
+	// The slot was removed
+	c.Check(s.repo.Slot("producer", "iface"), IsNil)
+	// The snap itself was affected
+	c.Check(affected, DeepEquals, []*snap.Info{producer})
+}
+
+func (s *RefreshSuite) TestRefreshRemovesSlotsWithInvalidInterfaceOnUpgrade(c *C) {
+	// Updating a snap can change an existing slot in a way which causes it not
+	// to validate. This removes the slot.
+	_, _ = s.refresh(c, testProducerYaml)
+	producer, affected := s.refresh(c, testInvalidIfaceProducerYaml)
+	// The slot was removed
+	c.Check(s.repo.Slot("producer", "iface"), IsNil)
+	// The snap itself was affected
+	c.Check(affected, DeepEquals, []*snap.Info{producer})
+}
+
+func (s *RefreshSuite) TestRefreshRemovesSlotAndSeversConnectionOnUpgrade(c *C) {
+	// Updating a snap can remove an existing slot.
+	// This severs connections made from that slot.
+	_, _ = s.refresh(c, testProducerYaml)
+	consumer, _ := s.refresh(c, testConsumerYaml)
+	err := s.repo.Connect("consumer", "iface", "producer", "iface")
+	c.Assert(err, IsNil)
+	producer, affected := s.refresh(c, testBareProducerYaml)
+	// The producer slot was removed
+	c.Check(s.repo.Slot("producer", "iface"), IsNil)
+	// The connection was severed
+	plug := s.repo.Plug("consumer", "iface")
+	c.Check(plug.Connections, HasLen, 0)
+	// Both snaps were affected
+	c.Check(affected, testutil.Contains, producer)
+	c.Check(affected, testutil.Contains, consumer)
+}
+
+func (s *RefreshSuite) TestRefreshUpdatesSlotToNewInterfaceAndSeversConnectionOnUpgrade(c *C) {
+	// Updating a snap can change a slot interface.
+	// This severs connections made from that slot.
+	_, _ = s.refresh(c, testProducerYaml)
+	consumer, _ := s.refresh(c, testConsumerYaml)
+	err := s.repo.Connect("consumer", "iface", "producer", "iface")
+	c.Assert(err, IsNil)
+	producer, affected := s.refresh(c, testDifferentIfaceProducerYaml)
+	// The producer slot was updated
+	slot := s.repo.Slot("producer", "iface")
+	c.Assert(slot, Not(IsNil))
+	c.Check(slot.Interface, Equals, "other-iface")
+	// The connection was severed
+	plug := s.repo.Plug("consumer", "iface")
+	c.Check(plug.Connections, HasLen, 0)
+	c.Check(slot.Connections, HasLen, 0)
+	// Both snaps were affected
+	c.Check(affected, testutil.Contains, producer)
+	c.Check(affected, testutil.Contains, consumer)
+}
+
+func (s *RefreshSuite) TestRefreshUpdatesSlotToNewAttrsAndSeversConnectionOnUpgrade(c *C) {
+	// Updating a snap can change a slot attributes.
+	// This severs connections made from that slot.
+	_, _ = s.refresh(c, testProducerYaml)
+	consumer, _ := s.refresh(c, testConsumerYaml)
+	err := s.repo.Connect("consumer", "iface", "producer", "iface")
+	c.Assert(err, IsNil)
+	producer, affected := s.refresh(c, testDifferentAttrsProducerYaml)
+	// The producer slot was updated
+	slot := s.repo.Slot("producer", "iface")
+	c.Assert(slot, Not(IsNil))
+	c.Check(slot.Attrs, DeepEquals, map[string]interface{}{"attr": "extra"})
+	// The connection was severed
+	plug := s.repo.Plug("consumer", "iface")
+	c.Check(plug.Connections, HasLen, 0)
+	c.Check(slot.Connections, HasLen, 0)
+	// Both snaps were affected
+	c.Check(affected, testutil.Contains, producer)
+	c.Check(affected, testutil.Contains, consumer)
+}
+
+func (s *RefreshSuite) TestRefreshUpdatesSlotToNewLabelAndKeepsConnectionOnUpgrade(c *C) {
+	// Updating a snap can change a slot label.
+	// This doesn't sever existing connection
+	_, _ = s.refresh(c, testProducerYaml)
+	_, _ = s.refresh(c, testConsumerYaml)
+	err := s.repo.Connect("consumer", "iface", "producer", "iface")
+	c.Assert(err, IsNil)
+	_, affected := s.refresh(c, testDifferentLabelProducerYaml)
+	// The producer slot was updated
+	slot := s.repo.Slot("producer", "iface")
+	c.Assert(slot, Not(IsNil))
+	c.Check(slot.Label, Equals, "New Label")
+	// The connection was not severed
+	plug := s.repo.Plug("consumer", "iface")
+	c.Check(plug.Connections, HasLen, 1)
+	c.Check(slot.Connections, HasLen, 1)
+	// No snaps are affected by label changes.
+	c.Check(affected, HasLen, 0)
 }
