@@ -131,15 +131,6 @@ func (s *Snap) Revision() int {
 	return 0
 }
 
-// Description returns the summary description
-func (s *Snap) Description() string {
-	if r := s.remoteM; r != nil {
-		return r.Description
-	}
-
-	return s.m.Summary
-}
-
 // Developer returns the developer
 func (s *Snap) Developer() string {
 	if r := s.remoteM; r != nil {
@@ -196,6 +187,15 @@ func (s *Snap) InstalledSize() int64 {
 	return totalSize
 }
 
+func (s *Snap) description() string {
+	// store edits win!
+	if r := s.remoteM; r != nil {
+		return r.Description
+	}
+
+	return s.m.Description
+}
+
 // Info returns the snap.Info data.
 func (s *Snap) Info() *snap.Info {
 	return &snap.Info{
@@ -205,7 +205,8 @@ func (s *Snap) Info() *snap.Info {
 		Revision:    s.Revision(),
 		Type:        s.Type(),
 		Channel:     s.Channel(),
-		Description: s.Description(),
+		Summary:     s.m.Summary, // XXX: doesn't exist in the store yet anyway
+		Description: s.description(),
 	}
 }
 
