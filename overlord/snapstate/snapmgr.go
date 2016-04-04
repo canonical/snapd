@@ -92,7 +92,8 @@ func Manager(s *state.State) (*SnapManager, error) {
 	runner.AddHandler("mount-snap", m.doMountSnap, m.undoMountSnap)
 	runner.AddHandler("copy-snap-data", m.doCopySnapData, m.undoCopySnapData)
 	runner.AddHandler("generate-security", m.doGenerateSecurity, m.undoGenerateSecurity)
-	runner.AddHandler("finalize-snap-install", m.doFinalizeSnap, m.undoFinalizeSnap)
+	runner.AddHandler("generate-wrappers", m.doGenerateWrappers, m.undoGenerateWrappers)
+	runner.AddHandler("update-current-symlink", m.doUpdateCurrentSymlink, m.undoUpdateCurrentSymlink)
 
 	runner.AddHandler("update-snap", m.doUpdateSnap, nil)
 	runner.AddHandler("remove-snap", m.doRemoveSnap, nil)
@@ -385,7 +386,7 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 
 	return m.backend.CopySnapData(setup.InstallPath, inst.Flags)
 }
-func (m *SnapManager) undoFinalizeSnap(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) undoGenerateWrappers(t *state.Task, _ *tomb.Tomb) error {
 	var inst installState
 	var setup setupState
 
@@ -400,10 +401,10 @@ func (m *SnapManager) undoFinalizeSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	return m.backend.UndoFinalizeSnap(setup.OldInstallPath, setup.InstallPath, inst.Flags)
+	return m.backend.UndoGenerateWrappers(setup.InstallPath)
 }
 
-func (m *SnapManager) doFinalizeSnap(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) doGenerateWrappers(t *state.Task, _ *tomb.Tomb) error {
 	var inst installState
 	var setup setupState
 
@@ -418,5 +419,41 @@ func (m *SnapManager) doFinalizeSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	return m.backend.FinalizeSnap(setup.InstallPath, inst.Flags)
+	return m.backend.GenerateWrappers(setup.InstallPath)
+}
+
+func (m *SnapManager) undoUpdateCurrentSymlink(t *state.Task, _ *tomb.Tomb) error {
+	var inst installState
+	var setup setupState
+
+	t.State().Lock()
+	err := t.Get("install-state", &inst)
+	t.State().Unlock()
+	if err != nil {
+		return err
+	}
+
+	if err := getSnapSetupState(t, &setup); err != nil {
+		return err
+	}
+
+	return m.backend.UndoUpdateCurrentSymlink(setup.OldInstallPath, setup.InstallPath)
+}
+
+func (m *SnapManager) doUpdateCurrentSymlink(t *state.Task, _ *tomb.Tomb) error {
+	var inst installState
+	var setup setupState
+
+	t.State().Lock()
+	err := t.Get("install-state", &inst)
+	t.State().Unlock()
+	if err != nil {
+		return err
+	}
+
+	if err := getSnapSetupState(t, &setup); err != nil {
+		return err
+	}
+
+	return m.backend.UpdateCurrentSymlink(setup.InstallPath)
 }

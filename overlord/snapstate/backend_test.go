@@ -127,9 +127,17 @@ func (f *fakeSnappyBackend) GenerateSecurityProfile(instSnapPath string) error {
 	return nil
 }
 
-func (f *fakeSnappyBackend) FinalizeSnap(instSnapPath string, flags snappy.InstallFlags) error {
+func (f *fakeSnappyBackend) GenerateWrappers(instSnapPath string) error {
 	f.ops = append(f.ops, fakeOp{
-		op:   "finalize-snap",
+		op:   "generate-wrappers",
+		name: instSnapPath,
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) UpdateCurrentSymlink(instSnapPath string) error {
+	f.ops = append(f.ops, fakeOp{
+		op:   "update-current-symlink",
 		name: instSnapPath,
 	})
 	return nil
@@ -142,6 +150,7 @@ func (f *fakeSnappyBackend) UndoSetupSnap(snapFilePath string) error {
 	})
 	return nil
 }
+
 func (f *fakeSnappyBackend) UndoGenerateSecurityProfile(instSnapPath string) error {
 	f.ops = append(f.ops, fakeOp{
 		op:   "undo-generate-security-profile",
@@ -149,6 +158,7 @@ func (f *fakeSnappyBackend) UndoGenerateSecurityProfile(instSnapPath string) err
 	})
 	return nil
 }
+
 func (f *fakeSnappyBackend) UndoCopySnapData(instSnapPath string, flags snappy.InstallFlags) error {
 	f.ops = append(f.ops, fakeOp{
 		op:   "undo-copy-snap-data",
@@ -156,9 +166,18 @@ func (f *fakeSnappyBackend) UndoCopySnapData(instSnapPath string, flags snappy.I
 	})
 	return nil
 }
-func (f *fakeSnappyBackend) UndoFinalizeSnap(oldInstSnapPath, instSnapPath string, flags snappy.InstallFlags) error {
+
+func (f *fakeSnappyBackend) UndoGenerateWrappers(instSnapPath string) error {
 	f.ops = append(f.ops, fakeOp{
-		op:   "undo-finalize-snap",
+		op:   "undo-generate-wrappers",
+		name: instSnapPath,
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) UndoUpdateCurrentSymlink(oldInstSnapPath, instSnapPath string) error {
+	f.ops = append(f.ops, fakeOp{
+		op:   "undo-update-current-symlink",
 		name: instSnapPath,
 	})
 	return nil
