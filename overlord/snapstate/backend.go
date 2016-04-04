@@ -110,7 +110,8 @@ func (s *defaultBackend) CopySnapData(snapInstPath string, flags snappy.InstallF
 	if err != nil {
 		return err
 	}
-	return snappy.CopyData(sn, flags, &progress.NullProgress{})
+	meter := &progress.NullProgress{}
+	return snappy.CopyData(sn, flags, meter)
 }
 
 func (s *defaultBackend) GenerateSecurityProfile(snapInstPath string) error {
