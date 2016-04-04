@@ -81,11 +81,11 @@ func snapInfo(pkgname string, includeStore, verbose bool) error {
 		}
 
 		// TRANSLATORS: the %s is a channel name
-		fmt.Printf(i18n.G("channel: %s\n"), remote.Channel())
+		fmt.Printf(i18n.G("channel: %s\n"), remote.Channel)
 		// TRANSLATORS: the %s is a version string
-		fmt.Printf(i18n.G("version: %s\n"), remote.Version())
+		fmt.Printf(i18n.G("version: %s\n"), remote.Version)
 		// TRANSLATORS: the %s is a date
-		fmt.Printf(i18n.G("updated: %s\n"), remote.Date())
+		fmt.Printf(i18n.G("updated: %s\n"), remote.Store.LastUpdated)
 		if verbose {
 			// TRANSLATORS: the %s is a date
 			fmt.Printf(i18n.G("installed: %s\n"), "n/a")

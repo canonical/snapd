@@ -30,13 +30,12 @@ import (
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/remote"
 )
 
 // Snap represents a generic snap type
 type Snap struct {
 	m        *snapYaml
-	remoteM  *remote.Snap
+	manifest *diskManifest
 	hash     string
 	isActive bool
 
@@ -81,18 +80,18 @@ func newSnapFromYaml(yamlPath string, m *snapYaml) (*Snap, error) {
 		snap.isActive = true
 	}
 
-	remoteManifestPath := RemoteManifestPath(snap.Info())
-	if osutil.FileExists(remoteManifestPath) {
-		content, err := ioutil.ReadFile(remoteManifestPath)
+	manifestPath := ManifestPath(snap.Info())
+	if osutil.FileExists(manifestPath) {
+		content, err := ioutil.ReadFile(manifestPath)
 		if err != nil {
 			return nil, err
 		}
 
-		var r remote.Snap
-		if err := yaml.Unmarshal(content, &r); err != nil {
-			return nil, &ErrInvalidYaml{File: remoteManifestPath, Err: err, Yaml: content}
+		var manifest diskManifest
+		if err := yaml.Unmarshal(content, &manifest); err != nil {
+			return nil, &ErrInvalidYaml{File: manifestPath, Err: err, Yaml: content}
 		}
-		snap.remoteM = &r
+		snap.manifest = &manifest
 	}
 
 	return snap, nil
@@ -110,6 +109,7 @@ func (s *Snap) Type() snap.Type {
 
 // Name returns the name
 func (s *Snap) Name() string {
+	// XXX: we actually should not trust snap.yaml name!
 	return s.m.Name
 }
 
@@ -124,8 +124,8 @@ func (s *Snap) Version() string {
 
 // Revision returns the revision
 func (s *Snap) Revision() int {
-	if s.remoteM != nil {
-		return s.remoteM.Revision
+	if mf := s.manifest; mf != nil {
+		return mf.Revision
 	}
 
 	return 0
@@ -133,8 +133,8 @@ func (s *Snap) Revision() int {
 
 // Developer returns the developer
 func (s *Snap) Developer() string {
-	if r := s.remoteM; r != nil {
-		return r.Developer
+	if mf := s.manifest; mf != nil {
+		return mf.Developer
 	}
 
 	return SideloadedDeveloper
@@ -147,8 +147,8 @@ func (s *Snap) Hash() string {
 
 // Channel returns the channel used
 func (s *Snap) Channel() string {
-	if r := s.remoteM; r != nil {
-		return r.Channel
+	if mf := s.manifest; mf != nil {
+		return mf.Channel
 	}
 
 	// default for compat with older installs
@@ -189,8 +189,8 @@ func (s *Snap) InstalledSize() int64 {
 
 func (s *Snap) description() string {
 	// store edits win!
-	if r := s.remoteM; r != nil {
-		return r.Description
+	if mf := s.manifest; mf != nil {
+		return mf.Description
 	}
 
 	return s.m.Description
@@ -212,10 +212,6 @@ func (s *Snap) Info() *snap.Info {
 
 // DownloadSize returns the dowload size
 func (s *Snap) DownloadSize() int64 {
-	if r := s.remoteM; r != nil {
-		return r.DownloadSize
-	}
-
 	return -1
 }
 

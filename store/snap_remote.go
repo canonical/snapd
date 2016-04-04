@@ -74,6 +74,9 @@ func (s *RemoteSnap) Icon() string {
 
 // Info returns the snap.Info data.
 func (s *RemoteSnap) Info() *snap.Info {
+	if s == nil {
+		return nil
+	}
 	return &snap.Info{
 		Name:        s.Name(),
 		Developer:   s.Developer(),
@@ -83,6 +86,9 @@ func (s *RemoteSnap) Info() *snap.Info {
 		Channel:     s.Channel(),
 		Summary:     "",                // XXX: should be summary when the store provides it
 		Description: s.Pkg.Description, // XXX not quite right but ok for now
+		Store: &snap.StoreInfo{
+			DownloadSize: s.Pkg.DownloadSize,
+		},
 	}
 }
 

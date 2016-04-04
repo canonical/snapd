@@ -33,7 +33,6 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/remote"
 )
 
 const (
@@ -119,11 +118,8 @@ func storeMinimalRemoteManifest(name, developer, version, title, desc, channel s
 	if developer == SideloadedDeveloper {
 		panic("store remote manifest for sideloaded package")
 	}
-	content, err := yaml.Marshal(remote.Snap{
-		Name:        name,
+	content, err := yaml.Marshal(diskManifest{
 		Developer:   developer,
-		Version:     version,
-		Title:       title,
 		Description: desc,
 		Channel:     channel,
 	})

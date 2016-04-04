@@ -19,6 +19,10 @@
 
 package snap
 
+import (
+	"time"
+)
+
 // Info provides information about snaps.
 type Info struct {
 	Name        string
@@ -32,6 +36,8 @@ type Info struct {
 	Apps        map[string]*AppInfo
 	Plugs       map[string]*PlugInfo
 	Slots       map[string]*SlotInfo
+	// info for store hosted snaps
+	Store *StoreInfo
 }
 
 // PlugInfo provides information about a plug.
@@ -56,7 +62,7 @@ type SlotInfo struct {
 	Apps      map[string]*AppInfo
 }
 
-// AppInfo provides information about a plug.
+// AppInfo provides information about a app.
 type AppInfo struct {
 	Snap *Info
 
@@ -64,4 +70,14 @@ type AppInfo struct {
 	Command string
 	Plugs   map[string]*PlugInfo
 	Slots   map[string]*SlotInfo
+}
+
+// StoreInfo provides specific information for a store hosted snap.
+type StoreInfo struct {
+	LastUpdated     time.Time
+	DownloadSha512  string
+	DownloadSize    int64
+	AnonDownloadURL string
+	DownloadURL     string
+	IconURL         string
 }

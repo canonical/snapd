@@ -184,7 +184,7 @@ func PackageNameActive(name string) bool {
 	return ActiveSnapByName(name) != nil
 }
 
-// RemoteManifestPath returns the would be path for the store manifest meta data
-func RemoteManifestPath(s *snap.Info) string {
+// ManifestPath returns the would be path for the snap manifest.
+func ManifestPath(s *snap.Info) string {
 	return filepath.Join(dirs.SnapMetaDir, fmt.Sprintf("%s_%s.manifest", s.Name, s.Version))
 }
