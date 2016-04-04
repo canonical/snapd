@@ -60,6 +60,13 @@ const char *static_devices[] = {
 	NULL,
 };
 
+struct snappy_udev {
+	struct udev *udev;
+	struct udev_enumerate *devices;
+	struct udev_list_entry *assigned;
+	char tagname[MAX_BUF];
+};
+
 bool verify_appname(const char *appname)
 {
 	// these chars are allowed in a appname
@@ -74,11 +81,12 @@ bool verify_appname(const char *appname)
 	return (status == 0);
 }
 
-void run_snappy_app_dev_add(struct udev *u, const char *path,
-			    const char *appname)
+void run_snappy_app_dev_add(struct snappy_udev *udev_s, const char *path)
 {
-	debug("run_snappy_app_dev_add: %s %s", path, appname);
-	struct udev_device *d = udev_device_new_from_syspath(u, path);
+	debug("run_snappy_app_dev_add: %s %s", path, udev_s->tagname);
+
+	struct udev_device *d =
+	    udev_device_new_from_syspath(udev_s->udev, path);
 	if (d == NULL)
 		die("can not find %s", path);
 	dev_t devnum = udev_device_get_devnum(d);
@@ -95,7 +103,7 @@ void run_snappy_app_dev_add(struct udev *u, const char *path,
 		uid_t real_uid, effective_uid, saved_uid;
 		if (getresuid(&real_uid, &effective_uid, &saved_uid) != 0)
 			die("could not find user IDs");
-		if (real_uid != 0 && effective_uid ==0)
+		if (real_uid != 0 && effective_uid == 0)
 			if (setuid(0) != 0)
 				die("setuid failed");
 		char buf[64];
@@ -104,7 +112,7 @@ void run_snappy_app_dev_add(struct udev *u, const char *path,
 		must_snprintf(buf, sizeof(buf), "%u:%u", major, minor);
 		if (execl
 		    ("/lib/udev/snappy-app-dev", "/lib/udev/snappy-app-dev",
-		     "add", appname, path, buf, NULL) != 0)
+		     "add", udev_s->tagname, path, buf, NULL) != 0)
 			die("execlp failed");
 	}
 	if (waitpid(pid, &status, 0) < 0)
@@ -115,52 +123,47 @@ void run_snappy_app_dev_add(struct udev *u, const char *path,
 		die("child died with signal %i", WTERMSIG(status));
 }
 
-void setup_udev_snappy_assign(const char *appname)
+void snappy_setup_udev(const char *appname, struct snappy_udev *udev_s)
 {
-	debug("setup_udev_snappy_assign");
+	debug("snappy_udev_setup_required");
 
-	struct udev *u = udev_new();
-	if (u == NULL)
+	// extra paranoia
+	if (!verify_appname(appname))
+		die("appname %s not allowed", appname);
+
+	// TAG+="snap_<appname>" (udev doesn't like '.' in the tag name)
+	must_snprintf(udev_s->tagname, MAX_BUF, "snap_%s", appname);
+	for (int i = 0; i < strlen(udev_s->tagname); i++)
+		if (udev_s->tagname[i] == '.')
+			udev_s->tagname[i] = '_';
+
+	udev_s->udev = udev_new();
+	if (udev_s->udev == NULL)
 		die("udev_new failed");
 
-	char snapudev_appname[MAX_BUF] = { 0 };
-	must_snprintf(snapudev_appname, sizeof(snapudev_appname), "snap_%s",
-		      appname);
-	for (int i=0; i < strlen(snapudev_appname); i++)
-		if (snapudev_appname[i] == '.')
-			snapudev_appname[i] = '_';
-
-	int i;
-	for (i = 0; static_devices[i] != NULL; i++) {
-		run_snappy_app_dev_add(u, static_devices[i], snapudev_appname);
-	}
-
-	struct udev_enumerate *devices = udev_enumerate_new(u);
-	if (devices == NULL)
+	udev_s->devices = udev_enumerate_new(udev_s->udev);
+	if (udev_s->devices == NULL)
 		die("udev_enumerate_new failed");
 
-	if (udev_enumerate_add_match_tag(devices, snapudev_appname) != 0)
+	if (udev_enumerate_add_match_tag(udev_s->devices, udev_s->tagname) != 0)
 		die("udev_enumerate_add_match_tag");
 
-	if (udev_enumerate_scan_devices(devices) != 0)
+	if (udev_enumerate_scan_devices(udev_s->devices) != 0)
 		die("udev_enumerate_scan failed");
 
-	struct udev_list_entry *l = udev_enumerate_get_list_entry(devices);
-	while (l != NULL) {
-		const char *path = udev_list_entry_get_name(l);
-		if (path == NULL)
-			die("udev_list_entry_get_name failed");
-		run_snappy_app_dev_add(u, path, snapudev_appname);
-		l = udev_list_entry_get_next(l);
+	udev_s->assigned = udev_enumerate_get_list_entry(udev_s->devices);
+	// nothing assigned, cleanup
+	if (udev_s->assigned == NULL) {
+		udev_enumerate_unref(udev_s->devices);
+		udev_unref(udev_s->udev);
 	}
-
-	udev_enumerate_unref(devices);
-	udev_unref(u);
 }
 
-void setup_devices_cgroup(const char *appname)
+void setup_devices_cgroup(const char *appname, struct snappy_udev *udev_s)
 {
 	debug("setup_devices_cgroup");
+	if (udev_s == NULL)
+		die("snappy_udev is NULL");
 
 	// extra paranoia
 	if (!verify_appname(appname))
@@ -188,48 +191,21 @@ void setup_devices_cgroup(const char *appname)
 	must_snprintf(cgroup_file, sizeof(cgroup_file), "%s%s", cgroup_dir,
 		      "devices.deny");
 	write_string_to_file(cgroup_file, "a");
-}
 
-bool snappy_udev_setup_required(const char *appname)
-{
-	debug("snappy_udev_setup_required");
-	bool rc = false;
+	// add the common devices
+	for (int i = 0; static_devices[i] != NULL; i++)
+		run_snappy_app_dev_add(udev_s, static_devices[i]);
 
-	// extra paranoia
-	if (!verify_appname(appname))
-		die("appname %s not allowed", appname);
-
-	struct udev *u = udev_new();
-	if (u == NULL)
-		die("udev_new failed");
-
-	struct udev_enumerate *devices = udev_enumerate_new(u);
-	if (devices == NULL)
-		die("udev_enumerate_new failed");
-
-	// TAG+="snap_<appname>" (udev doesn't like '.' in the tag name)
-	char snapudev_appname[MAX_BUF] = { 0 };
-	must_snprintf(snapudev_appname, sizeof(snapudev_appname), "snap_%s",
-		      appname);
-	for (int i=0; i < strlen(snapudev_appname); i++)
-		if (snapudev_appname[i] == '.')
-			snapudev_appname[i] = '_';
-
-	if (udev_enumerate_add_match_tag(devices, snapudev_appname) != 0)
-		die("udev_enumerate_add_match_tag");
-
-	if (udev_enumerate_scan_devices(devices) != 0)
-		die("udev_enumerate_scan failed");
-
-	struct udev_list_entry *l = udev_enumerate_get_list_entry(devices);
-	if (l != NULL)
-		rc = true;
-	if (rc)
-		printf("HERE: udev setup is required for %s\n", snapudev_appname);
-
-	udev_enumerate_unref(devices);
-	udev_unref(u);
-	return rc;
+	// add the assigned devices
+	while (udev_s->assigned != NULL) {
+		const char *path = udev_list_entry_get_name(udev_s->assigned);
+		if (path == NULL)
+			die("udev_list_entry_get_name failed");
+		run_snappy_app_dev_add(udev_s, path);
+		udev_s->assigned = udev_list_entry_get_next(udev_s->assigned);
+	}
+	udev_enumerate_unref(udev_s->devices);
+	udev_unref(udev_s->udev);
 }
 
 bool is_running_on_classic_ubuntu()
@@ -506,10 +482,11 @@ int main(int argc, char **argv)
 		setup_private_pts();
 
 		// this needs to happen as root
-		if (snappy_udev_setup_required(appname)) {
-			setup_devices_cgroup(appname);
-			setup_udev_snappy_assign(appname);
-		}
+		struct snappy_udev udev_s;
+		snappy_setup_udev(appname, &udev_s);
+		if (udev_s.assigned != NULL)
+			setup_devices_cgroup(appname, &udev_s);
+
 		// the rest does not so temporarily drop privs back to calling
 		// user (we'll permanently drop after loading seccomp)
 		if (setegid(real_gid) != 0)
