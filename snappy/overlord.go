@@ -244,7 +244,9 @@ func UpdateCurrentSymlink(s *Snap, inter interacter) error {
 }
 
 func UndoUpdateCurrentSymlink(oldSnap, newSnap *Snap, inter interacter) error {
-	removeCurrentSymlink(newSnap, inter)
+	if err := removeCurrentSymlink(newSnap, inter); err != nil {
+		return err
+	}
 	return UpdateCurrentSymlink(oldSnap, inter)
 }
 
