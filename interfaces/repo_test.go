@@ -848,3 +848,173 @@ func (s *RepositorySuite) TestSecuritySnippetsForSnapFailureWithPermanentSnippet
 	c.Assert(err, ErrorMatches, "cannot compute static snippet for consumer")
 	c.Check(snippets, IsNil)
 }
+
+// Tests for AddSnap and RemoveSnap
+
+type AddRemoveSuite struct {
+	repo *Repository
+}
+
+var _ = Suite(&AddRemoveSuite{})
+
+func (s *AddRemoveSuite) SetUpTest(c *C) {
+	s.repo = NewRepository()
+	err := s.repo.AddInterface(&TestInterface{InterfaceName: "iface"})
+	c.Assert(err, IsNil)
+	err = s.repo.AddInterface(&TestInterface{
+		InterfaceName:        "invalid",
+		SanitizePlugCallback: func(plug *Plug) error { return fmt.Errorf("plug is invalid") },
+		SanitizeSlotCallback: func(slot *Slot) error { return fmt.Errorf("slot is invalid") },
+	})
+	c.Assert(err, IsNil)
+}
+
+const testConsumerYaml = `
+name: consumer
+apps:
+    app:
+        plugs: [iface]
+`
+const testDifferentIfaceConsumerYaml = `
+name: consumer
+apps:
+    app:
+        plugs: [iface]
+plugs:
+    iface:
+        interface: other-iface
+`
+const testDifferentAttrsConsumerYaml = `
+name: consumer
+apps:
+    app:
+        plugs: [iface]
+plugs:
+    iface:
+        attr: extra
+`
+const testUnknownIfaceConsumerYaml = `
+name: consumer
+apps:
+    app:
+        plugs: [unknown]
+`
+const testInvalidIfaceConsumerYaml = `
+name: consumer
+apps:
+    app:
+        plugs: [invalid]
+`
+const testDifferentLabelConsumerYaml = `
+name: consumer
+apps:
+    app:
+        plugs: [iface]
+plugs:
+    iface:
+        label: New Label
+`
+const testBareConsumerYaml = `
+name: consumer
+apps:
+    app:
+`
+
+const testProducerYaml = `
+name: producer
+apps:
+    app:
+        slots: [iface]
+`
+const testDifferentIfaceProducerYaml = `
+name: producer
+apps:
+    app:
+        slots: [iface]
+slots:
+    iface:
+        interface: other-iface
+`
+const testDifferentAttrsProducerYaml = `
+name: producer
+apps:
+    app:
+        slots: [iface]
+slots:
+    iface:
+        attr: extra
+`
+const testUnknownIfaceProducerYaml = `
+name: producer
+apps:
+    app:
+        slots: [unknown]
+`
+const testInvalidIfaceProducerYaml = `
+name: producer
+apps:
+    app:
+        slots: [invalid]
+`
+const testDifferentLabelProducerYaml = `
+name: producer
+apps:
+    app:
+        slots: [iface]
+slots:
+    iface:
+        label: New Label
+`
+const testBareProducerYaml = `
+name: producer
+apps:
+    app:
+`
+
+func (s *AddRemoveSuite) addSnap(c *C, yaml string) (*snap.Info, []error) {
+	snapInfo, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+	return snapInfo, s.repo.AddSnap(snapInfo)
+}
+
+func (s *AddRemoveSuite) TestAddSnapAddsPlugs(c *C) {
+	_, errors := s.addSnap(c, testConsumerYaml)
+	// The plug was added
+	c.Assert(s.repo.Plug("consumer", "iface"), Not(IsNil))
+	// There were no errors
+	c.Assert(errors, HasLen, 0)
+}
+
+func (s *AddRemoveSuite) TestAddSnapSkipsPlugsWithUnknownInterface(c *C) {
+	_, errors := s.addSnap(c, testUnknownIfaceConsumerYaml)
+	// The plug was skipped
+	c.Check(s.repo.Plug("consumer", "iface"), IsNil)
+	// There is a trail why it was skipped
+	c.Assert(errors, HasLen, 1)
+	c.Check(errors[0], ErrorMatches, "ignoring plug consumer.unknown, interface unknown is not supported")
+}
+
+func (s *AddRemoveSuite) TestAddSkipsPlugsWithInvalidInterface(c *C) {
+	_, errors := s.addSnap(c, testInvalidIfaceConsumerYaml)
+	// The plug was skipped
+	c.Check(s.repo.Plug("consumer", "iface"), IsNil)
+	// There is a trail why it was skipped
+	c.Assert(errors, HasLen, 1)
+	c.Check(errors[0], ErrorMatches, "ignoring plug consumer.invalid, plug is invalid")
+}
+
+func (s AddRemoveSuite) TestRemoveRemovesPlugs(c *C) {
+	consumer, _ := s.addSnap(c, testConsumerYaml)
+	s.repo.RemoveSnap(consumer)
+	c.Assert(s.repo.Plug("consumer", "iface"), IsNil)
+}
+
+func (s *AddRemoveSuite) TestRemoveSnapPanicOnStillConnectedSnap(c *C) {
+	consumer, _ := s.addSnap(c, testConsumerYaml)
+	_, _ = s.addSnap(c, testProducerYaml)
+	err := s.repo.Connect("consumer", "iface", "producer", "iface")
+	c.Assert(err, IsNil)
+	c.Assert(func() { s.repo.RemoveSnap(consumer) }, PanicMatches, "cannot remove connected plug consumer.iface")
+}
+
+// TODO: add more tests for the flip side
