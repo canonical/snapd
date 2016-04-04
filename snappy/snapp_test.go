@@ -306,6 +306,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 
 	r := &store.RemoteSnap{}
 	r.Pkg.AnonDownloadURL = mockServer.URL + "/snap"
+	r.Pkg.DownloadURL = mockServer.URL + "/snap"
 	r.Pkg.IconURL = mockServer.URL + "/icon"
 	r.Pkg.Name = "foo"
 	r.Pkg.Developer = "bar"
@@ -360,6 +361,7 @@ apps:
 
 	r := &store.RemoteSnap{}
 	r.Pkg.AnonDownloadURL = mockServer.URL + "/snap"
+	r.Pkg.DownloadURL = mockServer.URL + "/snap"
 	r.Pkg.Developer = testDeveloper
 	r.Pkg.IconURL = mockServer.URL + "/icon"
 	r.Pkg.Name = "foo"
