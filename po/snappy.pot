@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-03-30 21:05+0200\n"
+        "POT-Creation-Date: 2016-04-04 12:46+0200\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -175,10 +175,6 @@ msgstr  ""
 msgid   "Entering classic dimension"
 msgstr  ""
 
-#, c-format
-msgid   "Finalizing install of %q"
-msgstr  ""
-
 msgid   "Finds packages to install"
 msgstr  ""
 
@@ -198,6 +194,10 @@ msgstr  ""
 
 #, c-format
 msgid   "Generating security profile for %q"
+msgstr  ""
+
+#, c-format
+msgid   "Generating wrappers for %q"
 msgstr  ""
 
 msgid   "Include information about packages from the snappy store"
@@ -244,6 +244,10 @@ msgid   "Log into the store"
 msgstr  ""
 
 msgid   "Login successful"
+msgstr  ""
+
+#, c-format
+msgid   "Making %q current"
 msgstr  ""
 
 #, c-format
