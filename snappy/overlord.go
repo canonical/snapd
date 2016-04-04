@@ -175,23 +175,6 @@ func UndoCopyData(newSnap *Snap, flags InstallFlags, meter progress.Meter) {
 	}
 }
 
-func FinalizeSnap(newSnap *Snap, flags InstallFlags, meter progress.Meter) error {
-	inhibitHooks := (flags & InhibitHooks) != 0
-	if inhibitHooks {
-		return nil
-	}
-	return ActivateSnap(newSnap, meter)
-}
-
-func UndoFinalizeSnap(oldSnap, newSnap *Snap, flags InstallFlags, meter progress.Meter) {
-	if oldSnap == nil {
-		return
-	}
-	if err := ActivateSnap(oldSnap, meter); err != nil {
-		logger.Noticef("When setting old %s version back to active: %v", newSnap.Name(), err)
-	}
-}
-
 func GenerateSecurityProfile(s *Snap) error {
 	// generate the security policy from the snap.yaml
 	// Note that this must happen before binaries/services are
@@ -201,32 +184,17 @@ func GenerateSecurityProfile(s *Snap) error {
 }
 
 func UndoGenerateSecurityProfile(s *Snap) error {
-	instDir := filepath.Join(dirs.SnapSnapsDir, s.Name(), s.Version())
-	return removePolicy(s.m, instDir)
+	return removeSecurityProfile(s)
 }
 
-func ActivateSnap(s *Snap, inter interacter) error {
-	currentActiveSymlink := filepath.Join(s.basedir, "..", "current")
-	currentActiveDir, _ := filepath.EvalSymlinks(currentActiveSymlink)
+func removeSecurityProfile(s *Snap) error {
+	// generate the security policy from the snap.yaml
+	// Note that this must happen before binaries/services are
+	// generated because serices may get started
+	return removePolicy(s.m, s.basedir)
+}
 
-	// already active, nothing to do
-	if s.basedir == currentActiveDir {
-		return nil
-	}
-
-	// there is already an active snap
-	if currentActiveDir != "" {
-		// TODO: support switching developers
-		oldYaml := filepath.Join(currentActiveDir, "meta", "snap.yaml")
-		oldSnap, err := NewInstalledSnap(oldYaml)
-		if err != nil {
-			return err
-		}
-		if err := DeactivateSnap(oldSnap, inter); err != nil {
-			return err
-		}
-	}
-
+func GenerateWrappers(s *Snap, inter interacter) error {
 	// add the CLI apps from the snap.yaml
 	if err := addPackageBinaries(s.m, s.basedir); err != nil {
 		return err
@@ -239,6 +207,33 @@ func ActivateSnap(s *Snap, inter interacter) error {
 	if err := addPackageDesktopFiles(s.m, s.basedir); err != nil {
 		return err
 	}
+
+	return nil
+}
+
+func UndoGenerateWrappers(s *Snap, inter interacter) error {
+	return removeGenerateWrappers(s, inter)
+}
+
+func removeGenerateWrappers(s *Snap, inter interacter) error {
+	// remove generated services, binaries, security policy
+	if err := removePackageBinaries(s.m, s.basedir); err != nil {
+		logger.Noticef("Failed to remove binaries for %q: %v", s.Name(), err)
+	}
+
+	if err := removePackageServices(s.m, s.basedir, inter); err != nil {
+		logger.Noticef("Failed to remove services for %q: %v", s.Name(), err)
+	}
+
+	if err := removePackageDesktopFiles(s.m); err != nil {
+		logger.Noticef("Failed to remove desktop files for %q: %v", s.Name(), err)
+	}
+
+	return nil
+}
+
+func UpdateCurrentSymlink(s *Snap, inter interacter) error {
+	currentActiveSymlink := filepath.Join(s.basedir, "..", "current")
 
 	if err := os.Remove(currentActiveSymlink); err != nil && !os.IsNotExist(err) {
 		logger.Noticef("Failed to remove %q: %v", currentActiveSymlink, err)
@@ -266,6 +261,57 @@ func ActivateSnap(s *Snap, inter interacter) error {
 	}
 
 	return os.Symlink(filepath.Base(s.basedir), currentDataSymlink)
+}
+
+func UndoUpdateCurrentSymlink(oldSnap, newSnap *Snap, inter interacter) error {
+	removeCurrentSymlink(newSnap, inter)
+	return UpdateCurrentSymlink(oldSnap, inter)
+}
+
+func removeCurrentSymlink(s *Snap, inter interacter) error {
+	currentActiveSymlink := filepath.Join(s.basedir, "..", "current")
+
+	// and finally the current symlink
+	if err := os.Remove(currentActiveSymlink); err != nil {
+		logger.Noticef("Failed to remove %q: %v", currentActiveSymlink, err)
+	}
+
+	currentDataSymlink := filepath.Join(dirs.SnapDataDir, s.Name(), "current")
+	if err := os.Remove(currentDataSymlink); err != nil && !os.IsNotExist(err) {
+		logger.Noticef("Failed to remove %q: %v", currentDataSymlink, err)
+	}
+
+	return nil
+}
+
+// ActivateSnap is a wrapper around
+// (generate-security-profile, generate-wrappers, update-current-symlink)
+func ActivateSnap(s *Snap, inter interacter) error {
+	currentActiveSymlink := filepath.Join(s.basedir, "..", "current")
+	currentActiveDir, _ := filepath.EvalSymlinks(currentActiveSymlink)
+
+	// already active, nothing to do
+	if s.basedir == currentActiveDir {
+		return nil
+	}
+
+	// there is already an active snap
+	if currentActiveDir != "" {
+		return fmt.Errorf("there is already an active snap: %v", currentActiveDir)
+	}
+
+	// generate the security policy from the snap.yaml
+	// Note that this must happen before binaries/services are
+	// generated because serices may get started
+	if err := GenerateSecurityProfile(s); err != nil {
+		return err
+	}
+
+	if err := GenerateWrappers(s, inter); err != nil {
+		return err
+	}
+
+	return UpdateCurrentSymlink(s, inter)
 }
 
 func DeactivateSnap(s *Snap, inter interacter) error {
@@ -296,17 +342,11 @@ func DeactivateSnap(s *Snap, inter interacter) error {
 		return err
 	}
 
-	// and finally the current symlink
-	if err := os.Remove(currentSymlink); err != nil {
-		logger.Noticef("Failed to remove %q: %v", currentSymlink, err)
+	if err := removeSecurityProfile(s); err != nil {
+		return err
 	}
 
-	currentDataSymlink := filepath.Join(dirs.SnapDataDir, s.Name(), "current")
-	if err := os.Remove(currentDataSymlink); err != nil && !os.IsNotExist(err) {
-		logger.Noticef("Failed to remove %q: %v", currentDataSymlink, err)
-	}
-
-	return nil
+	return removeCurrentSymlink(s, inter)
 }
 
 // Install installs the given snap file to the system.
@@ -348,21 +388,6 @@ func (o *Overlord) Install(snapFilePath string, flags InstallFlags, meter progre
 	defer func() {
 		if err != nil {
 			UndoCopyData(newSnap, flags, meter)
-		}
-	}()
-	if err != nil {
-		return nil, err
-	}
-
-	// generate the security policy from the snap.yaml
-	// Note that this must happen before binaries/services are
-	// generated because serices may get started
-	if err := GenerateSecurityProfile(newSnap); err != nil {
-		return nil, err
-	}
-	defer func() {
-		if err != nil {
-			UndoGenerateSecurityProfile(newSnap)
 		}
 	}()
 	if err != nil {
@@ -484,6 +509,12 @@ func (o *Overlord) Uninstall(s *Snap, meter progress.Meter) error {
 // It returns an error on failure
 func (o *Overlord) SetActive(s *Snap, active bool, meter progress.Meter) error {
 	if active {
+		// deactivate current first
+		if current := ActiveSnapByName(s.Name()); current != nil {
+			if err := (&Overlord{}).SetActive(current, false, meter); err != nil {
+				return err
+			}
+		}
 		return ActivateSnap(s, meter)
 	}
 
