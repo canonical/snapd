@@ -175,23 +175,6 @@ func UndoCopyData(newSnap *Snap, flags InstallFlags, meter progress.Meter) {
 	}
 }
 
-func FinalizeSnap(newSnap *Snap, flags InstallFlags, meter progress.Meter) error {
-	inhibitHooks := (flags & InhibitHooks) != 0
-	if inhibitHooks {
-		return nil
-	}
-	return ActivateSnap(newSnap, meter)
-}
-
-func UndoFinalizeSnap(oldSnap, newSnap *Snap, flags InstallFlags, meter progress.Meter) {
-	if oldSnap == nil {
-		return
-	}
-	if err := ActivateSnap(oldSnap, meter); err != nil {
-		logger.Noticef("When setting old %s version back to active: %v", newSnap.Name(), err)
-	}
-}
-
 func GenerateSecurityProfile(s *Snap) error {
 	// generate the security policy from the snap.yaml
 	// Note that this must happen before binaries/services are
