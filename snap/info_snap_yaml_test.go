@@ -651,7 +651,7 @@ func (s *YamlSuite) TestUnmarshalComplexExample(c *C) {
 	info, err := snap.InfoFromSnapYaml([]byte(`
 name: foo
 version: 1.2
-developer: Acme Corp Ltd.
+summary: foo app
 type: app
 description: |
     Foo provides useful services
@@ -679,14 +679,16 @@ slots:
 `))
 	c.Assert(err, IsNil)
 	c.Check(info.Name, Equals, "foo")
-	c.Check(info.Developer, Equals, "Acme Corp Ltd.")
 	c.Check(info.Version, Equals, "1.2")
 	c.Check(info.Type, Equals, snap.TypeApp)
-	c.Check(info.Channel, Equals, "")
+	c.Check(info.Summary, Equals, "foo app")
 	c.Check(info.Description, Equals, "Foo provides useful services\n")
 	c.Check(info.Apps, HasLen, 2)
 	c.Check(info.Plugs, HasLen, 4)
 	c.Check(info.Slots, HasLen, 2)
+	// these don't come from snap.yaml
+	c.Check(info.Developer, Equals, "")
+	c.Check(info.Channel, Equals, "")
 
 	app1 := info.Apps["daemon"]
 	app2 := info.Apps["foo"]
