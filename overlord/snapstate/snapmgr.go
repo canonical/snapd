@@ -22,11 +22,15 @@ package snapstate
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/overlord/state"
+	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
 )
 
@@ -223,4 +227,21 @@ func (m *SnapManager) Wait() {
 // Stop implements StateManager.Stop.
 func (m *SnapManager) Stop() {
 	m.runner.Stop()
+}
+
+// SnapInfo returns snap.Info for a given snap name and snap version.
+func SnapInfo(state *state.State, snapName, snapVersion string) (*snap.Info, error) {
+	fname := filepath.Join(dirs.SnapSnapsDir, snapName, snapVersion, "meta", "snap.yaml")
+	yamlData, err := ioutil.ReadFile(fname)
+	if err != nil {
+		return nil, err
+	}
+	info, err := snap.InfoFromSnapYaml(yamlData)
+	if err != nil {
+		return nil, err
+	}
+	// XXX: requested by pedronis
+	info.Name = snapName
+	info.Version = snapVersion
+	return info, nil
 }
