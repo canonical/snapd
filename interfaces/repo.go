@@ -516,3 +516,101 @@ func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem Sec
 	}
 	return snippets, nil
 }
+
+// AddSnap adds plugs and slots declared by the given snap to the repository.
+//
+// This function can be used to implement snap install or, when used along with
+// RemoveSnap, snap upgrade.
+//
+// Plugs/slots that are already present in the repository are not changed. Only
+// new plugs/slots are added.
+//
+// Each added plug/slot is validated according to the corresponding interface.
+// Unknown interfaces and plugs/slots that don't validate are not added.
+// Information about those failures are returned to the caller.
+func (r *Repository) AddSnap(snapInfo *snap.Info) []error {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	var errors []error
+
+	for plugName, plugInfo := range snapInfo.Plugs {
+		if _, ok := r.plugs[snapInfo.Name][plugName]; !ok {
+			iface, ok := r.ifaces[plugInfo.Interface]
+			if !ok {
+				err := fmt.Errorf("ignoring plug %s.%s, interface %s is not supported", snapInfo.Name, plugName, plugInfo.Interface)
+				errors = append(errors, err)
+				continue
+			}
+			plug := &Plug{PlugInfo: plugInfo}
+			if err := iface.SanitizePlug(plug); err != nil {
+				err := fmt.Errorf("ignoring plug %s.%s, %s", snapInfo.Name, plugName, err)
+				errors = append(errors, err)
+				continue
+			}
+			if r.plugs[snapInfo.Name] == nil {
+				r.plugs[snapInfo.Name] = make(map[string]*Plug)
+			}
+			r.plugs[snapInfo.Name][plugName] = plug
+		}
+	}
+
+	for slotName, slotInfo := range snapInfo.Slots {
+		if _, ok := r.slots[snapInfo.Name][slotName]; !ok {
+			iface, ok := r.ifaces[slotInfo.Interface]
+			if !ok {
+				err := fmt.Errorf("ignoring slot %s.%s, interface %s is not supported", snapInfo.Name, slotName, slotInfo.Interface)
+				errors = append(errors, err)
+				continue
+			}
+			slot := &Slot{SlotInfo: slotInfo}
+			if err := iface.SanitizeSlot(slot); err != nil {
+				err := fmt.Errorf("ignoring slot %s.%s, %s", snapInfo.Name, slotName, err)
+				errors = append(errors, err)
+				continue
+			}
+			if r.slots[snapInfo.Name] == nil {
+				r.slots[snapInfo.Name] = make(map[string]*Slot)
+			}
+			r.slots[snapInfo.Name][slotName] = slot
+		}
+	}
+
+	return errors
+}
+
+// RemoveSnap removes all the plugs and slots associated with a given snap.
+//
+// This function can be used to implement snap removal or, when used along with
+// AddSnap, snap upgrade.
+//
+// RemoveSnap does not remove connections. The caller is responsible to ensure
+// that connections are broken before calling this method.
+func (r *Repository) RemoveSnap(snapInfo *snap.Info) {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	snapName := snapInfo.Name
+
+	for plugName, plug := range r.plugs[snapName] {
+		if len(plug.Connections) > 0 {
+			panic(fmt.Errorf("cannot remove connected plug %s.%s", snapName, plugName))
+		}
+	}
+	for slotName, slot := range r.slots[snapName] {
+		if len(slot.Connections) > 0 {
+			panic(fmt.Errorf("cannot remove connected slot %s.%s", snapName, slotName))
+		}
+	}
+
+	for _, plug := range r.plugs[snapName] {
+		// delete(r.plugs[snapInfo.Name], plugName)
+		delete(r.plugSlots, plug)
+	}
+	delete(r.plugs, snapName)
+	for _, slot := range r.slots[snapName] {
+		//delete(r.slots[snapInfo.Name], slotName)
+		delete(r.slotPlugs, slot)
+	}
+	delete(r.slots, snapName)
+}
