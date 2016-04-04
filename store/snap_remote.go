@@ -52,11 +52,6 @@ func (s *RemoteSnap) Revision() int {
 	return s.Pkg.Revision
 }
 
-// Description returns the description
-func (s *RemoteSnap) Description() string {
-	return s.Pkg.Title
-}
-
 // Developer is the developer
 func (s *RemoteSnap) Developer() string {
 	return s.Pkg.Developer
@@ -86,7 +81,8 @@ func (s *RemoteSnap) Info() *snap.Info {
 		Revision:    s.Revision(),
 		Type:        s.Type(),
 		Channel:     s.Channel(),
-		Description: s.Description(),
+		Summary:     s.Pkg.Title,       // XXX: should be summary when the store provides it
+		Description: s.Pkg.Description, // XXX not quite right but ok for now
 	}
 }
 
