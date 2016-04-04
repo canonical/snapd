@@ -32,12 +32,14 @@ import (
 	"path"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/asserts"
 	"github.com/ubuntu-core/snappy/oauth"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
+	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/remote"
 )
 
@@ -50,10 +52,44 @@ const (
 	UbuntuCoreWireProtocol = "1"
 )
 
-// NewRemoteSnap returns a new RemoteSnap from the given
-// remote.Snap data
-func NewRemoteSnap(data remote.Snap) *RemoteSnap {
-	return &RemoteSnap{Pkg: data}
+func parseLastUpdated(data remote.Snap) time.Time {
+	var p time.Time
+	var err error
+
+	for _, fmt := range []string{
+		"2006-01-02T15:04:05Z",
+		"2006-01-02T15:04:05.000Z",
+		"2006-01-02T15:04:05.000000Z",
+	} {
+		p, err = time.Parse(fmt, data.LastUpdated)
+		if err == nil {
+			break
+		}
+	}
+
+	return p
+}
+
+func infoFromRemote(data remote.Snap) *snap.Info {
+	return &snap.Info{
+		Name:        data.Name,
+		Revision:    data.Revision,
+		Type:        data.Type,
+		Version:     data.Version,
+		Summary:     "", // XXX: should be summary when the store provides it
+		Description: data.Description,
+		// aslo vs setting Summary
+		Developer: data.Developer,
+		Channel:   data.Channel,
+		Store: &snap.StoreInfo{
+			LastUpdated:     parseLastUpdated(data),
+			DownloadSha512:  data.DownloadSha512,
+			DownloadSize:    data.DownloadSize,
+			AnonDownloadURL: data.AnonDownloadURL,
+			DownloadURL:     data.DownloadURL,
+			IconURL:         data.IconURL,
+		},
+	}
 }
 
 // SnapUbuntuStoreConfig represents the configuration to access the snap store
@@ -222,8 +258,8 @@ func (s *SnapUbuntuStoreRepository) configureStoreReq(req *http.Request, accept 
 	s.applyUbuntuStoreHeaders(req, accept)
 }
 
-// Snap returns the RemoteSnap for the given name or an error.
-func (s *SnapUbuntuStoreRepository) Snap(name, channel string) (*RemoteSnap, error) {
+// Snap returns the snap.Info for the store hosted snap with the given name or an error.
+func (s *SnapUbuntuStoreRepository) Snap(name, channel string) (*snap.Info, error) {
 
 	url, err := s.detailsURI.Parse(path.Join(name, channel))
 	if err != nil {
@@ -259,12 +295,12 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string) (*RemoteSnap, err
 		return nil, err
 	}
 
-	return NewRemoteSnap(detailsData), nil
+	return infoFromRemote(detailsData), nil
 }
 
 // FindSnaps finds  (installable) snaps from the store, matching the
 // given search term.
-func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string) ([]*RemoteSnap, error) {
+func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string) ([]*snap.Info, error) {
 	if channel == "" {
 		channel = release.Get().Channel
 	}
@@ -299,16 +335,16 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string)
 		return nil, err
 	}
 
-	snaps := make([]*RemoteSnap, len(searchData.Payload.Packages))
+	snaps := make([]*snap.Info, len(searchData.Payload.Packages))
 	for i, pkg := range searchData.Payload.Packages {
-		snaps[i] = NewRemoteSnap(pkg)
+		snaps[i] = infoFromRemote(pkg)
 	}
 
 	return snaps, nil
 }
 
 // Updates returns the available updates for a list of snap identified by fullname with channel.
-func (s *SnapUbuntuStoreRepository) Updates(installed []string) (snaps []*RemoteSnap, err error) {
+func (s *SnapUbuntuStoreRepository) Updates(installed []string) (snaps []*snap.Info, err error) {
 	jsonData, err := json.Marshal(map[string][]string{"name": installed})
 	if err != nil {
 		return nil, err
@@ -335,10 +371,9 @@ func (s *SnapUbuntuStoreRepository) Updates(installed []string) (snaps []*Remote
 		return nil, err
 	}
 
-	// TODO: untangle remote.Snap vs RemoteSnap
-	res := make([]*RemoteSnap, len(updateData))
+	res := make([]*snap.Info, len(updateData))
 	for i, rsnap := range updateData {
-		res[i] = NewRemoteSnap(rsnap)
+		res[i] = infoFromRemote(rsnap)
 	}
 
 	return res, nil
@@ -347,8 +382,8 @@ func (s *SnapUbuntuStoreRepository) Updates(installed []string) (snaps []*Remote
 // Download downloads the given snap and returns its filename.
 // The file is saved in temporary storage, and should be removed
 // after use to prevent the disk from running out of space.
-func (s *SnapUbuntuStoreRepository) Download(remoteSnap *RemoteSnap, pbar progress.Meter) (path string, err error) {
-	w, err := ioutil.TempFile("", remoteSnap.Pkg.Name)
+func (s *SnapUbuntuStoreRepository) Download(remoteSnap *snap.Info, pbar progress.Meter) (path string, err error) {
+	w, err := ioutil.TempFile("", remoteSnap.Name)
 	if err != nil {
 		return "", err
 	}
@@ -364,9 +399,9 @@ func (s *SnapUbuntuStoreRepository) Download(remoteSnap *RemoteSnap, pbar progre
 
 	ssoToken, _ := ReadStoreToken()
 
-	url := remoteSnap.Pkg.AnonDownloadURL
+	url := remoteSnap.Store.AnonDownloadURL
 	if url == "" || ssoToken != nil {
-		url = remoteSnap.Pkg.DownloadURL
+		url = remoteSnap.Store.DownloadURL
 	}
 
 	req, err := http.NewRequest("GET", url, nil)
@@ -376,7 +411,7 @@ func (s *SnapUbuntuStoreRepository) Download(remoteSnap *RemoteSnap, pbar progre
 	setAuthHeader(req, ssoToken)
 	s.applyUbuntuStoreHeaders(req, "")
 
-	if err := download(remoteSnap.Name(), w, req, pbar); err != nil {
+	if err := download(remoteSnap.Name, w, req, pbar); err != nil {
 		return "", err
 	}
 
