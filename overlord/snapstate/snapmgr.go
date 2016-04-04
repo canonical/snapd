@@ -259,12 +259,12 @@ func (m *SnapManager) doCheckSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	snapPath, developer, err := snapPathAndDeveloperFromInstState(t, &inst)
+	snapPath, _, err := snapPathAndDeveloperFromInstState(t, &inst)
 	if err != nil {
 		return err
 	}
 
-	return m.backend.CheckSnap(snapPath, developer, inst.Flags)
+	return m.backend.CheckSnap(snapPath, inst.Flags)
 }
 
 func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -277,12 +277,12 @@ func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	snapPath, developer, err := snapPathAndDeveloperFromInstState(t, &inst)
+	snapPath, _, err := snapPathAndDeveloperFromInstState(t, &inst)
 	if err != nil {
 		return err
 	}
 
-	return m.backend.UndoSetupSnap(snapPath, developer)
+	return m.backend.UndoSetupSnap(snapPath)
 }
 
 func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -295,12 +295,12 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	snapPath, developer, err := snapPathAndDeveloperFromInstState(t, &inst)
+	snapPath, _, err := snapPathAndDeveloperFromInstState(t, &inst)
 	if err != nil {
 		return err
 	}
 
-	instPath, err := m.backend.SetupSnap(snapPath, developer, inst.Flags)
+	instPath, err := m.backend.SetupSnap(snapPath, inst.Flags)
 	if err != nil {
 		return err
 	}
@@ -326,15 +326,11 @@ func (m *SnapManager) undoGenerateSecurity(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	_, developer, err := snapPathAndDeveloperFromInstState(t, &inst)
-	if err != nil {
-		return err
-	}
 	if err := getSnapSetupState(t, &setup); err != nil {
 		return err
 	}
 
-	return m.backend.UndoGenerateSecurityProfile(setup.InstallPath, developer)
+	return m.backend.UndoGenerateSecurityProfile(setup.InstallPath)
 }
 
 func (m *SnapManager) doGenerateSecurity(t *state.Task, _ *tomb.Tomb) error {
@@ -347,15 +343,11 @@ func (m *SnapManager) doGenerateSecurity(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	_, developer, err := snapPathAndDeveloperFromInstState(t, &inst)
-	if err != nil {
-		return err
-	}
 	if err := getSnapSetupState(t, &setup); err != nil {
 		return err
 	}
 
-	return m.backend.GenerateSecurityProfile(setup.InstallPath, developer)
+	return m.backend.GenerateSecurityProfile(setup.InstallPath)
 }
 
 func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
@@ -369,15 +361,11 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	_, developer, err := snapPathAndDeveloperFromInstState(t, &inst)
-	if err != nil {
-		return err
-	}
 	if err := getSnapSetupState(t, &setup); err != nil {
 		return err
 	}
 
-	return m.backend.UndoCopySnapData(setup.InstallPath, developer, inst.Flags)
+	return m.backend.UndoCopySnapData(setup.InstallPath, inst.Flags)
 }
 
 func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
@@ -391,15 +379,11 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	_, developer, err := snapPathAndDeveloperFromInstState(t, &inst)
-	if err != nil {
-		return err
-	}
 	if err := getSnapSetupState(t, &setup); err != nil {
 		return err
 	}
 
-	return m.backend.CopySnapData(setup.InstallPath, developer, inst.Flags)
+	return m.backend.CopySnapData(setup.InstallPath, inst.Flags)
 }
 func (m *SnapManager) undoFinalizeSnap(t *state.Task, _ *tomb.Tomb) error {
 	var inst installState
@@ -412,15 +396,11 @@ func (m *SnapManager) undoFinalizeSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	_, developer, err := snapPathAndDeveloperFromInstState(t, &inst)
-	if err != nil {
-		return err
-	}
 	if err := getSnapSetupState(t, &setup); err != nil {
 		return err
 	}
 
-	return m.backend.UndoFinalizeSnap(setup.OldInstallPath, setup.InstallPath, developer, inst.Flags)
+	return m.backend.UndoFinalizeSnap(setup.OldInstallPath, setup.InstallPath, inst.Flags)
 }
 
 func (m *SnapManager) doFinalizeSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -434,13 +414,9 @@ func (m *SnapManager) doFinalizeSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	_, developer, err := snapPathAndDeveloperFromInstState(t, &inst)
-	if err != nil {
-		return err
-	}
 	if err := getSnapSetupState(t, &setup); err != nil {
 		return err
 	}
 
-	return m.backend.FinalizeSnap(setup.InstallPath, developer, inst.Flags)
+	return m.backend.FinalizeSnap(setup.InstallPath, inst.Flags)
 }

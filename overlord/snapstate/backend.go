@@ -27,21 +27,17 @@ import (
 )
 
 type managerBackend interface {
-	// needs to go, its the huge all-in-one install thing
-	InstallLocal(snap, developer string, flags snappy.InstallFlags, meter progress.Meter) error
-
-	// the individual tasks for installing a snap
 	Download(name, channel string, meter progress.Meter) (string, string, error)
-	CheckSnap(snapFilePath, developer string, flags snappy.InstallFlags) error
-	SetupSnap(snapFilePath, developer string, flags snappy.InstallFlags) (string, error)
-	CopySnapData(instSnapPath, developer string, flags snappy.InstallFlags) error
-	GenerateSecurityProfile(instSnapPath, developer string) error
-	FinalizeSnap(instSnapPath, developer string, flags snappy.InstallFlags) error
+	CheckSnap(snapFilePath string, flags snappy.InstallFlags) error
+	SetupSnap(snapFilePath string, flags snappy.InstallFlags) (string, error)
+	CopySnapData(instSnapPath string, flags snappy.InstallFlags) error
+	GenerateSecurityProfile(instSnapPath string) error
+	FinalizeSnap(instSnapPath string, flags snappy.InstallFlags) error
 	// the undoers
-	UndoSetupSnap(snapFilePath, developer string) error
-	UndoGenerateSecurityProfile(instSnapPath, developer string) error
-	UndoCopySnapData(instSnapPath, developer string, flags snappy.InstallFlags) error
-	UndoFinalizeSnap(oldInstSnapPath, instSnapPath, developer string, flags snappy.InstallFlags) error
+	UndoSetupSnap(snapFilePath string) error
+	UndoGenerateSecurityProfile(instSnapPath string) error
+	UndoCopySnapData(instSnapPath string, flags snappy.InstallFlags) error
+	UndoFinalizeSnap(oldInstSnapPath, instSnapPath string, flags snappy.InstallFlags) error
 
 	// TODO: need to be split into fine grained tasks
 	Update(name, channel string, flags snappy.InstallFlags, meter progress.Meter) error
@@ -52,9 +48,9 @@ type managerBackend interface {
 
 type defaultBackend struct{}
 
-func (s *defaultBackend) InstallLocal(snap, developer string, flags snappy.InstallFlags, meter progress.Meter) error {
+func (s *defaultBackend) InstallLocal(snap string, flags snappy.InstallFlags, meter progress.Meter) error {
 	// FIXME: the name `snappy.Overlord` is confusing :/
-	_, err := (&snappy.Overlord{}).Install(snap, developer, flags, meter)
+	_, err := (&snappy.Overlord{}).Install(snap, flags, meter)
 	return err
 }
 
@@ -97,56 +93,56 @@ func (s *defaultBackend) Download(name, channel string, meter progress.Meter) (s
 	return downloadedSnapFile, snap.Developer(), nil
 }
 
-func (s *defaultBackend) CheckSnap(snapFilePath, developer string, flags snappy.InstallFlags) error {
+func (s *defaultBackend) CheckSnap(snapFilePath string, flags snappy.InstallFlags) error {
 	meter := &progress.NullProgress{}
-	return snappy.CheckSnap(snapFilePath, developer, flags, meter)
+	return snappy.CheckSnap(snapFilePath, flags, meter)
 }
 
-func (s *defaultBackend) SetupSnap(snapFilePath, developer string, flags snappy.InstallFlags) (string, error) {
+func (s *defaultBackend) SetupSnap(snapFilePath string, flags snappy.InstallFlags) (string, error) {
 	meter := &progress.NullProgress{}
-	return snappy.SetupSnap(snapFilePath, developer, flags, meter)
+	return snappy.SetupSnap(snapFilePath, flags, meter)
 }
 
-func (s *defaultBackend) CopySnapData(snapInstPath, developer string, flags snappy.InstallFlags) error {
-	sn, err := snappy.NewInstalledSnap(filepath.Join(snapInstPath, "meta", "snap.yaml"), developer)
+func (s *defaultBackend) CopySnapData(snapInstPath string, flags snappy.InstallFlags) error {
+	sn, err := snappy.NewInstalledSnap(filepath.Join(snapInstPath, "meta", "snap.yaml"))
 	if err != nil {
 		return err
 	}
 	return snappy.CopyData(sn, flags, &progress.NullProgress{})
 }
 
-func (s *defaultBackend) GenerateSecurityProfile(snapInstPath, developer string) error {
-	sn, err := snappy.NewInstalledSnap(filepath.Join(snapInstPath, "meta", "snap.yaml"), developer)
+func (s *defaultBackend) GenerateSecurityProfile(snapInstPath string) error {
+	sn, err := snappy.NewInstalledSnap(filepath.Join(snapInstPath, "meta", "snap.yaml"))
 	if err != nil {
 		return err
 	}
 	return snappy.GenerateSecurityProfile(sn)
 }
 
-func (s *defaultBackend) FinalizeSnap(snapInstPath, developer string, flags snappy.InstallFlags) error {
-	sn, err := snappy.NewInstalledSnap(filepath.Join(snapInstPath, "meta", "snap.yaml"), developer)
+func (s *defaultBackend) FinalizeSnap(snapInstPath string, flags snappy.InstallFlags) error {
+	sn, err := snappy.NewInstalledSnap(filepath.Join(snapInstPath, "meta", "snap.yaml"))
 	if err != nil {
 		return err
 	}
 	return snappy.FinalizeSnap(sn, flags, &progress.NullProgress{})
 }
 
-func (s *defaultBackend) UndoSetupSnap(snapFilePath, developer string) error {
+func (s *defaultBackend) UndoSetupSnap(snapFilePath string) error {
 	meter := &progress.NullProgress{}
-	snappy.UndoSetupSnap(snapFilePath, developer, meter)
+	snappy.UndoSetupSnap(snapFilePath, meter)
 	return nil
 }
 
-func (s *defaultBackend) UndoGenerateSecurityProfile(instSnapPath, developer string) error {
-	sn, err := snappy.NewInstalledSnap(filepath.Join(instSnapPath, "meta", "snap.yaml"), developer)
+func (s *defaultBackend) UndoGenerateSecurityProfile(instSnapPath string) error {
+	sn, err := snappy.NewInstalledSnap(filepath.Join(instSnapPath, "meta", "snap.yaml"))
 	if err != nil {
 		return err
 	}
 	snappy.UndoGenerateSecurityProfile(sn)
 	return nil
 }
-func (s *defaultBackend) UndoCopySnapData(instSnapPath, developer string, flags snappy.InstallFlags) error {
-	sn, err := snappy.NewInstalledSnap(filepath.Join(instSnapPath, "meta", "snap.yaml"), developer)
+func (s *defaultBackend) UndoCopySnapData(instSnapPath string, flags snappy.InstallFlags) error {
+	sn, err := snappy.NewInstalledSnap(filepath.Join(instSnapPath, "meta", "snap.yaml"))
 	if err != nil {
 		return err
 	}
@@ -154,12 +150,12 @@ func (s *defaultBackend) UndoCopySnapData(instSnapPath, developer string, flags 
 	snappy.UndoCopyData(sn, flags, meter)
 	return nil
 }
-func (s *defaultBackend) UndoFinalizeSnap(oldInstSnapPath, instSnapPath, developer string, flags snappy.InstallFlags) error {
-	new, err := snappy.NewInstalledSnap(filepath.Join(instSnapPath, "meta", "snap.yaml"), developer)
+func (s *defaultBackend) UndoFinalizeSnap(oldInstSnapPath, instSnapPath string, flags snappy.InstallFlags) error {
+	new, err := snappy.NewInstalledSnap(filepath.Join(instSnapPath, "meta", "snap.yaml"))
 	if err != nil {
 		return err
 	}
-	old, err := snappy.NewInstalledSnap(filepath.Join(oldInstSnapPath, "meta", "snap.yaml"), developer)
+	old, err := snappy.NewInstalledSnap(filepath.Join(oldInstSnapPath, "meta", "snap.yaml"))
 	if err != nil {
 		return err
 	}
