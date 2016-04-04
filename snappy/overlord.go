@@ -205,15 +205,7 @@ func ActivateSnap(s *Snap, inter interacter) error {
 
 	// there is already an active snap
 	if currentActiveDir != "" {
-		// TODO: support switching developers
-		oldYaml := filepath.Join(currentActiveDir, "meta", "snap.yaml")
-		oldSnap, err := NewInstalledSnap(oldYaml)
-		if err != nil {
-			return err
-		}
-		if err := DeactivateSnap(oldSnap, inter); err != nil {
-			return err
-		}
+		return fmt.Errorf("there is already an active snap: %v", currentActiveDir)
 	}
 
 	// generate the security policy from the snap.yaml
@@ -469,6 +461,12 @@ func (o *Overlord) Uninstall(s *Snap, meter progress.Meter) error {
 // It returns an error on failure
 func (o *Overlord) SetActive(s *Snap, active bool, meter progress.Meter) error {
 	if active {
+		// deactivate current first
+		if current := ActiveSnapByName(s.Name()); current != nil {
+			if err := (&Overlord{}).SetActive(current, false, meter); err != nil {
+				return err
+			}
+		}
 		return ActivateSnap(s, meter)
 	}
 
