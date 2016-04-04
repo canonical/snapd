@@ -22,11 +22,15 @@ package snapstate
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/overlord/state"
+	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
 )
 
@@ -223,4 +227,26 @@ func (m *SnapManager) Wait() {
 // Stop implements StateManager.Stop.
 func (m *SnapManager) Stop() {
 	m.runner.Stop()
+}
+
+// SnapInfo returns the snap.Info for a snap in the system.
+//
+// Today this function is looking at data directly from the mounted snap, but soon it will
+// be changed so it looks first at the state for the snap details (Revision, Developer, etc),
+// and then complements it with information from the snap itself.
+func SnapInfo(state *state.State, snapName, snapVersion string) (*snap.Info, error) {
+	fname := filepath.Join(dirs.SnapSnapsDir, snapName, snapVersion, "meta", "snap.yaml")
+	yamlData, err := ioutil.ReadFile(fname)
+	if err != nil {
+		return nil, err
+	}
+	info, err := snap.InfoFromSnapYaml(yamlData)
+	if err != nil {
+		return nil, err
+	}
+	// Overwrite the name which doesn't belong in snap.yaml and is actually
+	// defined by snap declaration assertion.
+	info.Name = snapName
+	// TODO: use state to retrieve additional information
+	return info, nil
 }
