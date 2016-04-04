@@ -40,7 +40,6 @@ import (
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/remote"
 )
 
 // TODO: better/shorter names are probably in order once fewer legacy places are using this
@@ -52,7 +51,7 @@ const (
 	UbuntuCoreWireProtocol = "1"
 )
 
-func parseLastUpdated(data remote.Snap) time.Time {
+func parseLastUpdated(d snapDetails) time.Time {
 	var p time.Time
 	var err error
 
@@ -61,7 +60,7 @@ func parseLastUpdated(data remote.Snap) time.Time {
 		"2006-01-02T15:04:05.000Z",
 		"2006-01-02T15:04:05.000000Z",
 	} {
-		p, err = time.Parse(fmt, data.LastUpdated)
+		p, err = time.Parse(fmt, d.LastUpdated)
 		if err == nil {
 			break
 		}
@@ -70,24 +69,24 @@ func parseLastUpdated(data remote.Snap) time.Time {
 	return p
 }
 
-func infoFromRemote(data remote.Snap) *snap.Info {
+func infoFromRemote(d snapDetails) *snap.Info {
 	return &snap.Info{
-		Name:        data.Name,
-		Revision:    data.Revision,
-		Type:        data.Type,
-		Version:     data.Version,
+		Name:        d.Name,
+		Revision:    d.Revision,
+		Type:        d.Type,
+		Version:     d.Version,
 		Summary:     "", // XXX: should be summary when the store provides it
-		Description: data.Description,
+		Description: d.Description,
 		// aslo vs setting Summary
-		Developer: data.Developer,
-		Channel:   data.Channel,
+		Developer: d.Developer,
+		Channel:   d.Channel,
 		Store: &snap.StoreInfo{
-			LastUpdated:     parseLastUpdated(data),
-			DownloadSha512:  data.DownloadSha512,
-			DownloadSize:    data.DownloadSize,
-			AnonDownloadURL: data.AnonDownloadURL,
-			DownloadURL:     data.DownloadURL,
-			IconURL:         data.IconURL,
+			LastUpdated:     parseLastUpdated(d),
+			DownloadSha512:  d.DownloadSha512,
+			DownloadSize:    d.DownloadSize,
+			AnonDownloadURL: d.AnonDownloadURL,
+			DownloadURL:     d.DownloadURL,
+			IconURL:         d.IconURL,
 		},
 	}
 }
@@ -173,7 +172,7 @@ func init() {
 		panic(err)
 	}
 	v := url.Values{}
-	v.Set("fields", strings.Join(getStructFields(remote.Snap{}), ","))
+	v.Set("fields", strings.Join(getStructFields(snapDetails{}), ","))
 	defaultConfig.SearchURI.RawQuery = v.Encode()
 
 	defaultConfig.DetailsURI, err = storeBaseURI.Parse("package/")
@@ -201,7 +200,7 @@ func init() {
 
 type searchResults struct {
 	Payload struct {
-		Packages []remote.Snap `json:"clickindex:package"`
+		Packages []snapDetails `json:"clickindex:package"`
 	} `json:"_embedded"`
 }
 
@@ -289,7 +288,7 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string) (*snap.Info, erro
 	}
 
 	// and decode json
-	var detailsData remote.Snap
+	var detailsData snapDetails
 	dec := json.NewDecoder(resp.Body)
 	if err := dec.Decode(&detailsData); err != nil {
 		return nil, err
@@ -365,7 +364,7 @@ func (s *SnapUbuntuStoreRepository) Updates(installed []string) (snaps []*snap.I
 	}
 	defer resp.Body.Close()
 
-	var updateData []remote.Snap
+	var updateData []snapDetails
 	dec := json.NewDecoder(resp.Body)
 	if err := dec.Decode(&updateData); err != nil {
 		return nil, err
