@@ -30,18 +30,6 @@ type NamingSuite struct{}
 
 var _ = Suite(&NamingSuite{})
 
-// Tests for WrapperNameForApp()
-
-func (s *NamingSuite) TestWrapperNameForApp(c *C) {
-	c.Assert(WrapperNameForApp("snap", "app"), Equals, "snap.app")
-	c.Assert(WrapperNameForApp("foo", "foo"), Equals, "foo")
-}
-
-func (s *NamingSuite) TestSecurityTagForApp(c *C) {
-	c.Assert(SecurityTagForApp("snap", "app"), Equals, "snap.app.snap")
-	c.Assert(SecurityTagForApp("foo", "foo"), Equals, "foo.snap")
-}
-
 func (s *NamingSuite) TestSecurityTag(c *C) {
 	appInfo := &snap.AppInfo{Snap: &snap.Info{Name: "http"}, Name: "GET"}
 	c.Check(SecurityTag(appInfo), Equals, "snap.http.GET")
