@@ -28,14 +28,14 @@ import (
 
 type snapYaml struct {
 	Name        string                 `yaml:"name"`
-	Developer   string                 `yaml:"developer"`
 	Version     string                 `yaml:"version"`
 	Type        Type                   `yaml:"type"`
-	Channel     string                 `yaml:"channel"`
 	Description string                 `yaml:"description"`
+	Summary     string                 `yaml:"summary"`
 	Plugs       map[string]interface{} `yaml:"plugs,omitempty"`
 	Slots       map[string]interface{} `yaml:"slots,omitempty"`
 	Apps        map[string]appYaml     `yaml:"apps,omitempty"`
+	// TODO: missing fields still
 }
 
 type plugYaml struct {
@@ -68,11 +68,10 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	// Construct snap skeleton, without apps, plugs and slots
 	snap := &Info{
 		Name:        y.Name,
-		Developer:   y.Developer,
 		Version:     y.Version,
 		Type:        y.Type,
-		Channel:     y.Channel,
 		Description: y.Description,
+		Summary:     y.Summary,
 		Apps:        make(map[string]*AppInfo),
 		Plugs:       make(map[string]*PlugInfo),
 		Slots:       make(map[string]*SlotInfo),
