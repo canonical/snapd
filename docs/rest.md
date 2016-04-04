@@ -159,48 +159,48 @@ Reserved for human-readable content describing the service.
 * Return: list of snaps this Ubuntu Core system can handle.
 
 The result is a JSON object with a `snaps` key; its value is itself a
-JSON object whose keys are qualified snap names (e.g.,
-`hello-world.canonical`), and whose values describe that snap.
+JSON object whose keys are snap names (e.g., `hello-world`), and whose
+values describe that snap.
 
 Sample result:
 
 ```javascript
 {
  "snaps": {
-    "hello-world.canonical": {
+    "hello-world": {
       "description": "hello-world",
       "download_size": 22212,
       "icon": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
       "installed_size": -1,          // always -1 if not installed
       "name": "hello-world",
       "developer": "canonical",
-      "resource": "/v2/snaps/hello-world.canonical",
+      "resource": "/v2/snaps/hello-world",
       "status": "not installed",
       "type": "app",
       "version": "1.0.18",
       "channel": "stable"
     },
-    "http.chipaca": {
+    "http": {
       "description": "HTTPie in a snap\nno description",
       "download_size": 1578272,
-      "icon": "/v2/icons/http.chipaca/icon",
+      "icon": "/v2/icons/http/icon",
       "installed_size": 1821897,
       "name": "http",
       "developer": "chipaca",
-      "resource": "/v2/snaps/http.chipaca",
+      "resource": "/v2/snaps/http",
       "status": "active",
       "type": "app",
       "version": "3.1",
       "channel": "stable"
     },
-    "ubuntu-core.ubuntu": {
+    "ubuntu-core": {
       "description": "A secure, minimal transactional OS for devices and containers.",
       "download_size": 19845748,
       "icon": "",               // core might not have an icon
       "installed_size": -1,     // core doesn't have installed_size (yet)
       "name": "ubuntu-core",
-      "developer": "ubuntu",
-      "resource": "/v2/snaps/ubuntu-core.ubuntu",
+      "developer": "canonical",
+      "resource": "/v2/snaps/ubuntu-core",
       "status": "active",
       "type": "os",
       "update_available": "247",

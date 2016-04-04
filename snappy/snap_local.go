@@ -35,23 +35,22 @@ import (
 
 // Snap represents a generic snap type
 type Snap struct {
-	m         *snapYaml
-	remoteM   *remote.Snap
-	developer string
-	hash      string
-	isActive  bool
+	m        *snapYaml
+	remoteM  *remote.Snap
+	hash     string
+	isActive bool
 
 	basedir string
 }
 
 // NewInstalledSnap returns a new Snap from the given yamlPath
-func NewInstalledSnap(yamlPath, developer string) (*Snap, error) {
+func NewInstalledSnap(yamlPath string) (*Snap, error) {
 	m, err := parseSnapYamlFile(yamlPath)
 	if err != nil {
 		return nil, err
 	}
 
-	snap, err := newSnapFromYaml(yamlPath, developer, m)
+	snap, err := newSnapFromYaml(yamlPath, m)
 	if err != nil {
 		return nil, err
 	}
@@ -60,11 +59,10 @@ func NewInstalledSnap(yamlPath, developer string) (*Snap, error) {
 }
 
 // newSnapFromYaml returns a new Snap from the given *snapYaml at yamlPath
-func newSnapFromYaml(yamlPath, developer string, m *snapYaml) (*Snap, error) {
+func newSnapFromYaml(yamlPath string, m *snapYaml) (*Snap, error) {
 	snap := &Snap{
-		basedir:   filepath.Dir(filepath.Dir(yamlPath)),
-		developer: developer,
-		m:         m,
+		basedir: filepath.Dir(filepath.Dir(yamlPath)),
+		m:       m,
 	}
 
 	// override the package's idea of its version
@@ -148,11 +146,7 @@ func (s *Snap) Developer() string {
 		return r.Developer
 	}
 
-	if s.developer == "" {
-		return SideloadedDeveloper
-	}
-
-	return s.developer
+	return SideloadedDeveloper
 }
 
 // Hash returns the hash
@@ -248,14 +242,6 @@ func (s *Snap) GadgetConfig() SystemConfig {
 // installed snap
 func (s *Snap) Install(inter progress.Meter, flags InstallFlags) (name string, err error) {
 	return "", ErrAlreadyInstalled
-}
-
-func (s *Snap) activate(inhibitHooks bool, inter interacter) error {
-	return ActivateSnap(s, inhibitHooks, inter)
-}
-
-func (s *Snap) deactivate(inhibitHooks bool, inter interacter) error {
-	return DeactivateSnap(s, inhibitHooks, inter)
 }
 
 // NeedsReboot returns true if the snap becomes active on the next reboot

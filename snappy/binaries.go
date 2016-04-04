@@ -72,12 +72,9 @@ export HOME="$SNAP_USER_DATA"
 
 # Snap name is: {{.SnapName}}
 # App name is: {{.AppName}}
-# Developer name is: {{.Developer}}
 
 ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 `
-
-	developer := developerFromBasedir(pkgPath)
 
 	if err := verifyAppYaml(app); err != nil {
 		return "", err
@@ -94,7 +91,6 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 		SnapPath    string
 		Version     string
 		UdevAppName string
-		Developer   string
 		Home        string
 		Target      string
 		AaProfile   string
@@ -107,7 +103,6 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 		SnapPath:    pkgPath,
 		Version:     m.Version,
 		UdevAppName: fmt.Sprintf("%s.%s", m.Name, app.Name),
-		Developer:   developer,
 		Home:        "$HOME",
 		Target:      actualBinPath,
 		AaProfile:   aaProfile,
@@ -143,10 +138,7 @@ func addPackageBinaries(m *snapYaml, baseDir string) error {
 			continue
 		}
 
-		aaProfile, err := getSecurityProfile(m, app.Name, baseDir)
-		if err != nil {
-			return err
-		}
+		aaProfile := getSecurityProfile(m, app.Name, baseDir)
 		// this will remove the global base dir when generating the
 		// service file, this ensures that /snaps/foo/1.0/bin/start
 		// is in the service file when the SetRoot() option

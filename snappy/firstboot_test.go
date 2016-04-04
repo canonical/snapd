@@ -145,14 +145,14 @@ func (s *FirstBootTestSuite) TestSoftwareActivate(c *C) {
 	yamlPath, err := makeInstalledMockSnap(dirs.GlobalRootDir, "")
 	c.Assert(err, IsNil)
 
-	snap, err := NewInstalledSnap(yamlPath, testDeveloper)
+	snap, err := NewInstalledSnap(yamlPath)
 	c.Assert(err, IsNil)
 	c.Assert(snap.IsActive(), Equals, false)
 	name := snap.Name()
 
 	s.m = &snapYaml{Gadget: Gadget{Software: Software{BuiltIn: []string{name}}}}
 
-	all, err := NewLocalSnapRepository().Installed()
+	all, err := (&Overlord{}).Installed()
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	c.Check(all[0].Name(), Equals, name)
@@ -162,7 +162,7 @@ func (s *FirstBootTestSuite) TestSoftwareActivate(c *C) {
 	s.snapMap = map[string]*Snap{name: all[0]}
 	c.Assert(FirstBoot(), IsNil)
 
-	all, err = NewLocalSnapRepository().Installed()
+	all, err = (&Overlord{}).Installed()
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	c.Check(all[0].Name(), Equals, name)
@@ -245,7 +245,7 @@ func (s *FirstBootTestSuite) ensureSystemSnapIsEnabledOnFirstBoot(c *C, yaml str
 	_, err := makeInstalledMockSnap(dirs.GlobalRootDir, yaml)
 	c.Assert(err, IsNil)
 
-	all, err := NewLocalSnapRepository().Installed()
+	all, err := (&Overlord{}).Installed()
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	c.Check(all[0].IsInstalled(), Equals, true)
@@ -253,7 +253,7 @@ func (s *FirstBootTestSuite) ensureSystemSnapIsEnabledOnFirstBoot(c *C, yaml str
 
 	c.Assert(FirstBoot(), IsNil)
 
-	all, err = NewLocalSnapRepository().Installed()
+	all, err = (&Overlord{}).Installed()
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	c.Check(all[0].IsInstalled(), Equals, true)

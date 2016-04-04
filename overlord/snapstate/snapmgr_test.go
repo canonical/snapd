@@ -28,7 +28,6 @@ import (
 
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
-	"github.com/ubuntu-core/snappy/snappy"
 )
 
 func TestSnapManager(t *testing.T) { TestingT(t) }
@@ -105,9 +104,8 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 		channel: "some-channel",
 	})
 	c.Check(s.fakeBackend.ops[1], DeepEquals, fakeOp{
-		op:        "install-local",
-		name:      "downloaded-snap-path",
-		developer: "some-developer",
+		op:   "install-local",
+		name: "downloaded-snap-path",
 	})
 
 	// check progress
@@ -140,7 +138,6 @@ func (s *snapmgrTestSuite) TestInstallLocalIntegration(c *C) {
 	c.Assert(s.fakeBackend.ops, HasLen, 1)
 	c.Check(s.fakeBackend.ops[0].op, Equals, "install-local")
 	c.Check(s.fakeBackend.ops[0].name, Matches, `.*/mock.snap`)
-	c.Check(s.fakeBackend.ops[0].developer, Equals, snappy.SideloadedDeveloper)
 }
 
 func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
