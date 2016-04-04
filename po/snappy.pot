@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-04-04 12:46+0200\n"
+        "POT-Creation-Date: 2016-04-04 22:24+0200\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -190,10 +190,6 @@ msgstr  ""
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid   "Generated '%s' snap\n"
-msgstr  ""
-
-#, c-format
-msgid   "Generating security profile for %q"
 msgstr  ""
 
 #, c-format
@@ -389,6 +385,10 @@ msgstr  ""
 #. TRANSLATORS: the first %s is a pkgname, the second %s is the new version
 #, c-format
 msgid   "Setting %s to version %s\n"
+msgstr  ""
+
+#, c-format
+msgid   "Setting up security profile for %q"
 msgstr  ""
 
 msgid   "Show available updates (requires network)"
