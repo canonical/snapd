@@ -29,6 +29,9 @@ var (
 	// ErrSnapNotFound is returned when a snap can not be found
 	ErrSnapNotFound = errors.New("snap not found")
 
+	// ErrAssertionNotFound is returned when an assertion can not be found
+	ErrAssertionNotFound = errors.New("assertion not found")
+
 	// ErrAuthenticationNeeds2fa is returned if the authentication
 	// needs 2factor
 	ErrAuthenticationNeeds2fa = errors.New("authentication needs second factor")

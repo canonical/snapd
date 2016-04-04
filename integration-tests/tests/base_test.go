@@ -47,11 +47,13 @@ func init() {
 	// here by --fgimenez - 2015-10-15
 	wait.ForFunction(c, "regular", partition.Mode)
 
-	cli.ExecCommand(c, "sudo", "systemctl", "stop", "snappy-autopilot.timer")
-	cli.ExecCommand(c, "sudo", "systemctl", "disable", "snappy-autopilot.timer")
+	if _, err := os.Stat(config.DefaultFileName); err == nil {
+		cli.ExecCommand(c, "sudo", "systemctl", "stop", "snappy-autopilot.timer")
+		cli.ExecCommand(c, "sudo", "systemctl", "disable", "snappy-autopilot.timer")
 
-	cfg, err := config.ReadConfig(config.DefaultFileName)
-	if err == nil {
+		cfg, err := config.ReadConfig(config.DefaultFileName)
+		c.Assert(err, check.IsNil, check.Commentf("Error reading config: %v", err))
+
 		setUpSnapd(c, cfg.FromBranch)
 	}
 }

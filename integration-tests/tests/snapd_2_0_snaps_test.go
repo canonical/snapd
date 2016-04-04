@@ -95,7 +95,7 @@ func (s *snapd20SnapsTestSuite) postInteractions() apiInteractions {
 		waitPattern: `(?U){.*,"status":"active".*"status":"OK","status_code":200,"type":"sync"}`,
 		waitFunction: func() (string, error) {
 			output, err := makeRequest(&requestOptions{
-				resource: s.resource() + "/" + data.BasicConfigSnapName + ".sideload",
+				resource: s.resource() + "/" + data.BasicConfigSnapName,
 				verb:     "GET",
 			})
 			return string(output), err

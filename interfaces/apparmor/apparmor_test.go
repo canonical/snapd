@@ -21,11 +21,14 @@ package apparmor_test
 
 import (
 	"io/ioutil"
+	"os"
 	"path"
+	"path/filepath"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/interfaces/apparmor"
 	"github.com/ubuntu-core/snappy/testutil"
 )
@@ -87,6 +90,23 @@ func (s *appArmorSuite) TestUnloadProfileReportsErrors(c *C) {
 	c.Assert(err.Error(), Equals, `cannot unload apparmor profile: exit status 42
 apparmor_parser output:
 `)
+}
+
+func (s *appArmorSuite) TestUnloadRemovesCachedProfile(c *C) {
+	cmd := testutil.MockCommand(c, "apparmor_parser", "")
+	defer cmd.Restore()
+
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+	err := os.MkdirAll(dirs.AppArmorCacheDir, 0755)
+	c.Assert(err, IsNil)
+
+	fname := filepath.Join(dirs.AppArmorCacheDir, "profile")
+	ioutil.WriteFile(fname, []byte("blob"), 0600)
+	err = apparmor.UnloadProfile("profile")
+	c.Assert(err, IsNil)
+	_, err = os.Stat(fname)
+	c.Check(os.IsNotExist(err), Equals, true)
 }
 
 // Tests for LoadedProfiles()

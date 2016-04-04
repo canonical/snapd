@@ -39,6 +39,12 @@ func (cs *changeSuite) TestNewChange(c *C) {
 	c.Check(chg.Summary(), Equals, "summary...")
 }
 
+func (cs *changeSuite) TestStatusString(c *C) {
+	for s := state.Status(0); s < state.ErrorStatus+1; s++ {
+		c.Assert(s.String(), Matches, ".+")
+	}
+}
+
 func (cs *changeSuite) TestGetSet(c *C) {
 	st := state.New(nil)
 	st.Lock()
@@ -94,6 +100,23 @@ func (cs *changeSuite) TestAddAll(c *C) {
 	c.Check(t2.Change(), Equals, chg)
 }
 
+func (cs *changeSuite) TestStatusExplicitlyDefined(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("install", "...")
+	c.Assert(chg.Status(), Equals, state.HoldStatus)
+
+	t := st.NewTask("download", "...")
+	chg.AddTask(t)
+
+	t.SetStatus(state.DoingStatus)
+	c.Assert(chg.Status(), Equals, state.DoingStatus)
+	chg.SetStatus(state.ErrorStatus)
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
+}
+
 func (cs *changeSuite) TestStatusDerivedFromTasks(c *C) {
 	st := state.New(nil)
 	st.Lock()
@@ -101,31 +124,96 @@ func (cs *changeSuite) TestStatusDerivedFromTasks(c *C) {
 
 	chg := st.NewChange("install", "...")
 
-	// Default with no tasks.
-	c.Check(chg.Status(), Equals, state.DoStatus)
+	// Nothing to do with it if there are no tasks.
+	c.Assert(chg.Status(), Equals, state.HoldStatus)
 
-	t1 := st.NewTask("download", "1...")
+	tasks := make(map[state.Status]*state.Task)
+
+	for s := state.DefaultStatus + 1; s < state.ErrorStatus+1; s++ {
+		t := st.NewTask("download", s.String())
+		t.SetStatus(s)
+		chg.AddTask(t)
+		tasks[s] = t
+	}
+
+	order := []state.Status{
+		state.AbortStatus,
+		state.UndoingStatus,
+		state.UndoStatus,
+		state.DoingStatus,
+		state.DoStatus,
+		state.ErrorStatus,
+		state.UndoneStatus,
+		state.DoneStatus,
+		state.HoldStatus,
+	}
+
+	for _, s := range order {
+		// Set all tasks with previous statuses to s as well.
+		for _, s2 := range order {
+			if s == s2 {
+				break
+			}
+			tasks[s2].SetStatus(s)
+		}
+		c.Assert(chg.Status(), Equals, s)
+	}
+}
+
+func (cs *changeSuite) TestCloseReadyOnExplicitStatus(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("install", "...")
+
+	select {
+	case <-chg.Ready():
+		c.Fatalf("Change should not be ready")
+	default:
+	}
+
+	chg.SetStatus(state.ErrorStatus)
+
+	select {
+	case <-chg.Ready():
+	default:
+		c.Fatalf("Change should be ready")
+	}
+}
+
+func (cs *changeSuite) TestCloseReadyWhenTasksReady(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("install", "...")
+	t1 := st.NewTask("download", "...")
+	t2 := st.NewTask("download", "...")
 	chg.AddTask(t1)
-	t2 := st.NewTask("verify", "2...")
 	chg.AddTask(t2)
 
-	c.Check(chg.Status(), Equals, state.DoStatus)
+	select {
+	case <-chg.Ready():
+		c.Fatalf("Change should not be ready")
+	default:
+	}
 
-	t1.SetStatus(state.ErrorStatus)
-	c.Check(chg.Status(), Equals, state.DoStatus)
+	t1.SetStatus(state.DoneStatus)
 
-	t2.SetStatus(state.UndoStatus)
-	c.Check(chg.Status(), Equals, state.UndoStatus)
-
-	t2.SetStatus(state.UndoneStatus)
-	c.Check(chg.Status(), Equals, state.ErrorStatus)
-
-	// For correctness and completeness. Not expected in real changes.
-	t1.SetStatus(state.UndoneStatus)
-	c.Check(chg.Status(), Equals, state.UndoneStatus)
+	select {
+	case <-chg.Ready():
+		c.Fatalf("Change should not be ready")
+	default:
+	}
 
 	t2.SetStatus(state.DoneStatus)
-	c.Check(chg.Status(), Equals, state.DoneStatus)
+
+	select {
+	case <-chg.Ready():
+	default:
+		c.Fatalf("Change should be ready")
+	}
 }
 
 func (cs *changeSuite) TestState(c *C) {
@@ -171,25 +259,77 @@ func (cs *changeSuite) TestErr(c *C) {
 		"- Activate \\(Activate error\\)")
 }
 
-func (cs *changeSuite) TestNeedsLock(c *C) {
-	st := state.New(nil)
+func (cs *changeSuite) TestMethodEntrance(c *C) {
+	st := state.New(&fakeStateBackend{})
 	st.Lock()
 	chg := st.NewChange("install", "...")
 	st.Unlock()
 
-	funcs := []func(){
+	writes := []func(){
 		func() { chg.Set("a", 1) },
-		func() { chg.Get("a", nil) },
-		func() { chg.Status() },
 		func() { chg.SetStatus(state.DoStatus) },
 		func() { chg.AddTask(nil) },
 		func() { chg.AddAll(nil) },
-		func() { chg.Tasks() },
-		func() { chg.Err() },
+		func() { chg.UnmarshalJSON(nil) },
 	}
 
-	for i, f := range funcs {
-		c.Logf("Testing function #%d", i)
+	reads := []func(){
+		func() { chg.Get("a", nil) },
+		func() { chg.Status() },
+		func() { chg.Tasks() },
+		func() { chg.Err() },
+		func() { chg.MarshalJSON() },
+	}
+
+	for i, f := range reads {
+		c.Logf("Testing read function #%d", i)
 		c.Assert(f, PanicMatches, "internal error: accessing state without lock")
+		c.Assert(st.Modified(), Equals, false)
+	}
+
+	for i, f := range writes {
+		st.Lock()
+		st.Unlock()
+		c.Assert(st.Modified(), Equals, false)
+
+		c.Logf("Testing write function #%d", i)
+		c.Assert(f, PanicMatches, "internal error: accessing state without lock")
+		c.Assert(st.Modified(), Equals, true)
+	}
+}
+
+func (cs *changeSuite) TestAbort(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("install", "...")
+
+	for s := state.DefaultStatus + 1; s < state.ErrorStatus+1; s++ {
+		t := st.NewTask("download", s.String())
+		t.SetStatus(s)
+		t.Set("old-status", s)
+		chg.AddTask(t)
+	}
+
+	chg.Abort()
+
+	tasks := chg.Tasks()
+	for _, t := range tasks {
+		var s state.Status
+		err := t.Get("old-status", &s)
+		c.Assert(err, IsNil)
+
+		c.Logf("Checking %s task after abort", t.Summary())
+		switch s {
+		case state.DoStatus:
+			c.Assert(t.Status(), Equals, state.HoldStatus)
+		case state.DoneStatus:
+			c.Assert(t.Status(), Equals, state.UndoStatus)
+		case state.DoingStatus:
+			c.Assert(t.Status(), Equals, state.AbortStatus)
+		default:
+			c.Assert(t.Status(), Equals, s)
+		}
 	}
 }
