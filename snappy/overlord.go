@@ -183,15 +183,15 @@ func GenerateSecurityProfile(s *Snap) error {
 	return generatePolicy(s.m, instDir)
 }
 
-func RemoveSecurityProfile(s *Snap) error {
+func UndoGenerateSecurityProfile(s *Snap) error {
+	return removeSecurityProfile(s)
+}
+
+func removeSecurityProfile(s *Snap) error {
 	// generate the security policy from the snap.yaml
 	// Note that this must happen before binaries/services are
 	// generated because serices may get started
 	return removePolicy(s.m, s.basedir)
-}
-
-func UndoGenerateSecurityProfile(s *Snap) error {
-	return RemoveSecurityProfile(s)
 }
 
 func GenerateWrappers(s *Snap, inter interacter) error {
@@ -206,6 +206,27 @@ func GenerateWrappers(s *Snap, inter interacter) error {
 	// add the desktop files
 	if err := addPackageDesktopFiles(s.m, s.basedir); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func UndoGenerateWrappers(s *Snap, inter interacter) error {
+	return removeGenerateWrappers(s, inter)
+}
+
+func removeGenerateWrappers(s *Snap, inter interacter) error {
+	// remove generated services, binaries, security policy
+	if err := removePackageBinaries(s.m, s.basedir); err != nil {
+		logger.Noticef("Failed to remove binaries for %q: %v", s.Name(), err)
+	}
+
+	if err := removePackageServices(s.m, s.basedir, inter); err != nil {
+		logger.Noticef("Failed to remove services for %q: %v", s.Name(), err)
+	}
+
+	if err := removePackageDesktopFiles(s.m); err != nil {
+		logger.Noticef("Failed to remove desktop files for %q: %v", s.Name(), err)
 	}
 
 	return nil
@@ -240,6 +261,27 @@ func UpdateCurrentSymlink(s *Snap, inter interacter) error {
 	}
 
 	return os.Symlink(filepath.Base(s.basedir), currentDataSymlink)
+}
+
+func UndoUpdateCurrentSymlink(oldSnap, newSnap *Snap, inter interacter) error {
+	removeCurrentSymlink(newSnap, inter)
+	return UpdateCurrentSymlink(oldSnap, inter)
+}
+
+func removeCurrentSymlink(s *Snap, inter interacter) error {
+	currentActiveSymlink := filepath.Join(s.basedir, "..", "current")
+
+	// and finally the current symlink
+	if err := os.Remove(currentActiveSymlink); err != nil {
+		logger.Noticef("Failed to remove %q: %v", currentActiveSymlink, err)
+	}
+
+	currentDataSymlink := filepath.Join(dirs.SnapDataDir, s.Name(), "current")
+	if err := os.Remove(currentDataSymlink); err != nil && !os.IsNotExist(err) {
+		logger.Noticef("Failed to remove %q: %v", currentDataSymlink, err)
+	}
+
+	return nil
 }
 
 // ActivateSnap is a wrapper around
@@ -300,21 +342,11 @@ func DeactivateSnap(s *Snap, inter interacter) error {
 		return err
 	}
 
-	if err := RemoveSecurityProfile(s); err != nil {
+	if err := removeSecurityProfile(s); err != nil {
 		return err
 	}
 
-	// and finally the current symlink
-	if err := os.Remove(currentSymlink); err != nil {
-		logger.Noticef("Failed to remove %q: %v", currentSymlink, err)
-	}
-
-	currentDataSymlink := filepath.Join(dirs.SnapDataDir, s.Name(), "current")
-	if err := os.Remove(currentDataSymlink); err != nil && !os.IsNotExist(err) {
-		logger.Noticef("Failed to remove %q: %v", currentDataSymlink, err)
-	}
-
-	return nil
+	return removeCurrentSymlink(s, inter)
 }
 
 // Install installs the given snap file to the system.
