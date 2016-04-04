@@ -141,8 +141,7 @@ func (s *defaultBackend) UpdateCurrentSymlink(snapInstPath string) error {
 
 func (s *defaultBackend) UndoSetupSnap(snapFilePath string) error {
 	meter := &progress.NullProgress{}
-	snappy.UndoSetupSnap(snapFilePath, meter)
-	return nil
+	return snappy.UndoSetupSnap(snapFilePath, meter)
 }
 
 func (s *defaultBackend) UndoGenerateSecurityProfile(instSnapPath string) error {
@@ -159,8 +158,7 @@ func (s *defaultBackend) UndoCopySnapData(instSnapPath string, flags snappy.Inst
 		return err
 	}
 	meter := &progress.NullProgress{}
-	snappy.UndoCopyData(sn, flags, meter)
-	return nil
+	return snappy.UndoCopyData(sn, flags, meter)
 }
 
 func (s *defaultBackend) UndoGenerateWrappers(instSnapPath string) error {
@@ -169,8 +167,7 @@ func (s *defaultBackend) UndoGenerateWrappers(instSnapPath string) error {
 		return err
 	}
 	meter := &progress.NullProgress{}
-	snappy.RemoveGeneratedWrappers(sn, meter)
-	return nil
+	return snappy.RemoveGeneratedWrappers(sn, meter)
 }
 
 func (s *defaultBackend) UndoUpdateCurrentSymlink(oldInstSnapPath, instSnapPath string) error {
@@ -183,6 +180,5 @@ func (s *defaultBackend) UndoUpdateCurrentSymlink(oldInstSnapPath, instSnapPath 
 		return err
 	}
 	meter := &progress.NullProgress{}
-	snappy.UndoUpdateCurrentSymlink(old, new, meter)
-	return nil
+	return snappy.UndoUpdateCurrentSymlink(old, new, meter)
 }
