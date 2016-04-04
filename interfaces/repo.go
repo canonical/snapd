@@ -22,6 +22,8 @@ package interfaces
 import (
 	"bytes"
 	"fmt"
+	"log"
+	"reflect"
 	"sort"
 	"sync"
 
@@ -577,4 +579,119 @@ func (r *Repository) collectFilesFromSecurityHelper(snapName string, helper secu
 		buffers[path] = writer
 	}
 	return nil
+}
+
+// Refresh updates the state of plugs and slots in the repository to be
+// consistent with the given snap.
+//
+// Plugs and slots that are not present in the repository but are present in
+// the snap are added to the repository. They have no initial connections.
+//
+// Plugs/slots matching one of those criteria are removed.
+//  - no longer present in the snap
+//  - has different interface in the repository and in the snap
+//  - has different attributes in the repository and in the snap
+// All connections between such plug/slot are severed.
+//
+// Information about severed connections is returned to the caller as a list of
+// snaps that were affected by the refresh operation. Those snaps should have
+// their security configured.
+func (r *Repository) Refresh(snapInfo *snap.Info) []*snap.Info {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	changedSnaps := make(map[string]*snap.Info)
+
+	for plugName, plug := range r.plugs[snapInfo.Name] {
+		plugInfo, ok := snapInfo.Plugs[plugName]
+		if !ok || plug.Interface != plugInfo.Interface || !reflect.DeepEqual(plug.Attrs, plugInfo.Attrs) {
+			// Delete plugs that are present in the repository but:
+			//  - are missing in the snap, or
+			//  - have different interface definitions, or
+			//  - have different attributes
+			for slot := range r.plugSlots[plug] {
+				r.disconnect(plug, slot)
+				changedSnaps[slot.Snap.Name] = slot.Snap
+			}
+			changedSnaps[snapInfo.Name] = snapInfo
+			delete(r.plugs[snapInfo.Name], plugName)
+			delete(r.plugSlots, plug)
+		}
+	}
+	for plugName, plugInfo := range snapInfo.Plugs {
+		if plug, ok := r.plugs[snapInfo.Name][plugName]; ok {
+			plug.PlugInfo = plugInfo
+		} else {
+			iface, ok := r.ifaces[plugInfo.Interface]
+			// Skip unknown and invalid interfaces without an error (future proof)
+			if !ok {
+				log.Printf("unknown interface: %q", plugInfo.Interface)
+				continue
+			}
+			plug := &Plug{PlugInfo: plugInfo}
+			if err := iface.SanitizePlug(plug); err != nil {
+				log.Printf("cannot sanitize plug %s.%s: %q", plugInfo.Snap.Name, plugInfo.Name, err)
+				continue
+			}
+			if r.plugs[snapInfo.Name] == nil {
+				r.plugs[snapInfo.Name] = make(map[string]*Plug)
+			}
+			r.plugs[snapInfo.Name][plugName] = plug
+			changedSnaps[snapInfo.Name] = snapInfo
+		}
+	}
+	if len(r.plugs[snapInfo.Name]) == 0 {
+		delete(r.plugs, snapInfo.Name)
+	}
+
+	// NOTE: this is a copy-paste of the code above, with slots in place of plugs
+
+	for slotName, slot := range r.slots[snapInfo.Name] {
+		slotInfo, ok := snapInfo.Slots[slotName]
+		if !ok || slot.Interface != slotInfo.Interface || !reflect.DeepEqual(slot.Attrs, slotInfo.Attrs) {
+			// Delete slots that are present in the repository but:
+			//  - are missing in the snap, or
+			//  - have different interface definitions, or
+			//  - have different attributes
+			for plug := range r.slotPlugs[slot] {
+				r.disconnect(plug, slot)
+				changedSnaps[plug.Snap.Name] = plug.Snap
+			}
+			changedSnaps[snapInfo.Name] = snapInfo
+			delete(r.slots[snapInfo.Name], slotName)
+			delete(r.slotPlugs, slot)
+		}
+	}
+	for slotName, slotInfo := range snapInfo.Slots {
+		if slot, ok := r.slots[snapInfo.Name][slotName]; ok {
+			slot.SlotInfo = slotInfo
+		} else {
+			iface, ok := r.ifaces[slotInfo.Interface]
+			// Skip unknown and invalid interfaces without an error (future proof)
+			if !ok {
+				log.Printf("unknown interface: %q", slotInfo.Interface)
+				continue
+			}
+			slot := &Slot{SlotInfo: slotInfo}
+			if err := iface.SanitizeSlot(slot); err != nil {
+				log.Printf("cannot sanitize slot %s.%s: %q", slotInfo.Snap.Name, slotInfo.Name, err)
+				continue
+			}
+			if r.slots[snapInfo.Name] == nil {
+				r.slots[snapInfo.Name] = make(map[string]*Slot)
+			}
+			r.slots[snapInfo.Name][slotName] = slot
+			changedSnaps[snapInfo.Name] = snapInfo
+		}
+	}
+	if len(r.slots[snapInfo.Name]) == 0 {
+		delete(r.slots, snapInfo.Name)
+	}
+
+	// Flatten the map and return
+	var snapInfos = make([]*snap.Info, 0, len(changedSnaps))
+	for _, snapInfo := range changedSnaps {
+		snapInfos = append(snapInfos, snapInfo)
+	}
+	return snapInfos
 }
