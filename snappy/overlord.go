@@ -177,20 +177,6 @@ func UndoCopyData(newSnap *Snap, flags InstallFlags, meter progress.Meter) {
 	}
 }
 
-func GenerateSecurityProfile(s *Snap) error {
-	// generate the security policy from the snap.yaml
-	// Note that this must happen before binaries/services are
-	// generated because serices may get started
-	instDir := filepath.Join(dirs.SnapSnapsDir, s.Name(), s.Version())
-	return generatePolicy(s.m, instDir)
-}
-
-func RemoveGeneratedSecurityProfile(s *Snap) error {
-	// XXX this will go away entirely (together with security.go)
-	//     when we switch to interfaces
-	return removePolicy(s.m, s.basedir)
-}
-
 func GenerateWrappers(s *Snap, inter interacter) error {
 	// add the CLI apps from the snap.yaml
 	if err := addPackageBinaries(s.m, s.basedir); err != nil {
@@ -483,7 +469,7 @@ func (o *Overlord) Uninstall(s *Snap, meter progress.Meter) error {
 		return err
 	}
 
-	if err := removePolicy(s.m, s.basedir); err != nil {
+	if err := RemoveGeneratedSecurityProfile(s); err != nil {
 		return err
 	}
 
