@@ -89,7 +89,7 @@ func Manager(s *state.State) (*SnapManager, error) {
 
 	runner.AddHandler("download-snap", m.doDownloadSnap, nil)
 	runner.AddHandler("check-snap", m.doCheckSnap, nil)
-	runner.AddHandler("mount-snap", m.doMountSnap, nil)
+	runner.AddHandler("mount-snap", m.doMountSnap, m.undoMountSnap)
 	runner.AddHandler("copy-snap-data", m.doCopySnapData, m.undoCopySnapData)
 	runner.AddHandler("generate-security", m.doGenerateSecurity, m.undoGenerateSecurity)
 	runner.AddHandler("finalize-snap-install", m.doFinalizeSnap, m.undoFinalizeSnap)
