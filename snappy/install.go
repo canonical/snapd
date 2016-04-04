@@ -63,7 +63,7 @@ func installRemote(mStore *store.SnapUbuntuStoreRepository, remoteSnap *store.Re
 		return "", err
 	}
 
-	localSnap, err := (&Overlord{}).Install(downloadedSnap, remoteSnap.Developer(), flags, meter)
+	localSnap, err := (&Overlord{}).Install(downloadedSnap, flags, meter)
 	if err != nil {
 		return "", err
 	}
@@ -115,7 +115,7 @@ func doUpdate(mStore *store.SnapUbuntuStoreRepository, rsnap *store.RemoteSnap, 
 // convertToInstalledSnaps takes a slice of remote snaps that got
 // updated and returns the corresponding local snaps
 func convertToInstalledSnaps(remoteUpdates []*store.RemoteSnap) ([]*Snap, error) {
-	installed, err := NewLocalSnapRepository().Installed()
+	installed, err := (&Overlord{}).Installed()
 	if err != nil {
 		return nil, err
 	}
@@ -134,6 +134,7 @@ func convertToInstalledSnaps(remoteUpdates []*store.RemoteSnap) ([]*Snap, error)
 
 // snapUpdates identifies which snaps have updates in the store.
 func snapUpdates(repo *store.SnapUbuntuStoreRepository) (snaps []*store.RemoteSnap, err error) {
+	// TODO: this should eventually be snap-id based
 	// NOTE this *will* send .sideload apps to the store.
 	installed, err := ActiveSnapIterByType(fullNameWithChannel, snap.TypeApp, snap.TypeGadget, snap.TypeOS, snap.TypeKernel)
 	if err != nil || len(installed) == 0 {
@@ -172,7 +173,7 @@ func NewConfiguredUbuntuStoreSnapRepository() *store.SnapUbuntuStoreRepository {
 
 // Update updates the selected name
 func Update(name string, flags InstallFlags, meter progress.Meter) ([]*Snap, error) {
-	installed, err := NewLocalSnapRepository().Installed()
+	installed, err := (&Overlord{}).Installed()
 	if err != nil {
 		return nil, err
 	}
@@ -262,12 +263,17 @@ func doInstall(name, channel string, flags InstallFlags, meter progress.Meter) (
 			flags |= AllowUnauthenticated
 		}
 
-		return installClick(name, flags, meter, SideloadedDeveloper)
+		snap, err := (&Overlord{}).Install(name, flags, meter)
+		if err != nil {
+			return "", err
+		}
+
+		return snap.Name(), nil
 	}
 
 	// check repos next
 	mStore := NewConfiguredUbuntuStoreSnapRepository()
-	installed, err := NewLocalSnapRepository().Installed()
+	installed, err := (&Overlord{}).Installed()
 	if err != nil {
 		return "", err
 	}
@@ -277,7 +283,7 @@ func doInstall(name, channel string, flags InstallFlags, meter progress.Meter) (
 		return "", err
 	}
 
-	cur := FindSnapsByNameAndVersion(QualifiedName(snap.Info()), snap.Version(), installed)
+	cur := FindSnapsByNameAndVersion(snap.Name(), snap.Version(), installed)
 	if len(cur) != 0 {
 		return "", ErrAlreadyInstalled
 	}
@@ -298,7 +304,7 @@ func GarbageCollect(name string, flags InstallFlags, pb progress.Meter) error {
 		return nil
 	}
 
-	installed, err := NewLocalSnapRepository().Installed()
+	installed, err := (&Overlord{}).Installed()
 	if err != nil {
 		return err
 	}

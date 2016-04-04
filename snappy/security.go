@@ -35,7 +35,6 @@ import (
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/release"
-	"github.com/ubuntu-core/snappy/snap"
 )
 
 type errPolicyNotFound struct {
@@ -320,15 +319,10 @@ func findWhitespacePrefix(t string, s string) string {
 	return subs[1]
 }
 
-func getSecurityProfile(m *snapYaml, appName, baseDir string) (string, error) {
+func getSecurityProfile(m *snapYaml, appName, baseDir string) string {
 	cleanedName := strings.Replace(appName, "/", "-", -1)
-	if m.Type == snap.TypeGadget {
-		return fmt.Sprintf("%s_%s_%s", m.Name, cleanedName, m.Version), nil
-	}
 
-	developer, err := developerFromYamlPath(filepath.Join(baseDir, "meta", "snap.yaml"))
-
-	return fmt.Sprintf("%s.%s_%s_%s", m.Name, developer, cleanedName, m.Version), err
+	return fmt.Sprintf("%s_%s_%s", m.Name, cleanedName, m.Version)
 }
 
 type securityAppID struct {
@@ -552,10 +546,7 @@ var loadAppArmorPolicy = func(fn string) ([]byte, error) {
 }
 
 func removeOneSecurityPolicy(m *snapYaml, name, baseDir string) error {
-	profileName, err := getSecurityProfile(m, filepath.Base(name), baseDir)
-	if err != nil {
-		return err
-	}
+	profileName := getSecurityProfile(m, filepath.Base(name), baseDir)
 
 	// seccomp profile
 	fn := filepath.Join(dirs.SnapSeccompDir, profileName)
@@ -639,33 +630,22 @@ func (sd *SecurityDefinitions) warnDeprecatedKeys() {
 	}
 }
 
-func (sd *SecurityDefinitions) generatePolicyForServiceBinaryResult(m *snapYaml, name string, baseDir string) (*securityPolicyResult, error) {
+func (sd *SecurityDefinitions) generatePolicyForServiceBinaryResult(m *snapYaml, appName string, baseDir string) (*securityPolicyResult, error) {
 	res := &securityPolicyResult{}
-	appID, err := getSecurityProfile(m, name, baseDir)
-	if err != nil {
-		logger.Noticef("Failed to obtain security profile for %s: %v", name, err)
-		return nil, err
-	}
+	appID := getSecurityProfile(m, appName, baseDir)
 
-	res.id, err = newAppID(appID)
+	resID, err := newAppID(appID)
 	if err != nil {
-		logger.Noticef("Failed to obtain APP_ID for %s: %v", name, err)
+		logger.Noticef("Failed to obtain APP_ID for %s: %v", appName, err)
 		return nil, err
 	}
+	res.id = resID
 
 	// warn about deprecated
 	sd.warnDeprecatedKeys()
 
 	// add the hw-override parts and merge with the other overrides
-	developer := ""
-	if m.Type != snap.TypeGadget {
-		developer, err = developerFromYamlPath(filepath.Join(baseDir, "meta", "snap.yaml"))
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	hwaccessOverrides, err := readHWAccessYamlFile(m.qualifiedName(developer))
+	hwaccessOverrides, err := readHWAccessYamlFile(m.Name)
 	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
@@ -675,13 +655,13 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinaryResult(m *snapYaml,
 	} else {
 		res.aaPolicy, err = getAppArmorTemplatedPolicy(m, res.id, sd.SecurityTemplate, sd.SecurityCaps, sd.SecurityOverride)
 		if err != nil {
-			logger.Noticef("Failed to generate AppArmor policy for %s: %v", name, err)
+			logger.Noticef("Failed to generate AppArmor policy for %s: %v", appName, err)
 			return nil, err
 		}
 
 		res.scPolicy, err = getSeccompTemplatedPolicy(m, res.id, sd.SecurityTemplate, sd.SecurityCaps, sd.SecurityOverride)
 		if err != nil {
-			logger.Noticef("Failed to generate seccomp policy for %s: %v", name, err)
+			logger.Noticef("Failed to generate seccomp policy for %s: %v", appName, err)
 			return nil, err
 		}
 	}
@@ -691,8 +671,8 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinaryResult(m *snapYaml,
 	return res, nil
 }
 
-func (sd *SecurityDefinitions) generatePolicyForServiceBinary(m *snapYaml, name string, baseDir string) error {
-	p, err := sd.generatePolicyForServiceBinaryResult(m, name, baseDir)
+func (sd *SecurityDefinitions) generatePolicyForServiceBinary(m *snapYaml, appName string, baseDir string) error {
+	p, err := sd.generatePolicyForServiceBinaryResult(m, appName, baseDir)
 	if err != nil {
 		return err
 	}
@@ -700,19 +680,19 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinary(m *snapYaml, name 
 	os.MkdirAll(filepath.Dir(p.scFn), 0755)
 	err = osutil.AtomicWriteFile(p.scFn, []byte(p.scPolicy), 0644, 0)
 	if err != nil {
-		logger.Noticef("Failed to write seccomp policy for %s: %v", name, err)
+		logger.Noticef("Failed to write seccomp policy for %s: %v", appName, err)
 		return err
 	}
 
 	os.MkdirAll(filepath.Dir(p.aaFn), 0755)
 	err = osutil.AtomicWriteFile(p.aaFn, []byte(p.aaPolicy), 0644, 0)
 	if err != nil {
-		logger.Noticef("Failed to write AppArmor policy for %s: %v", name, err)
+		logger.Noticef("Failed to write AppArmor policy for %s: %v", appName, err)
 		return err
 	}
 	out, err := loadAppArmorPolicy(p.aaFn)
 	if err != nil {
-		logger.Noticef("Failed to load AppArmor policy for %s: %v\n:%s", name, err, out)
+		logger.Noticef("Failed to load AppArmor policy for %s: %v\n:%s", appName, err, out)
 		return err
 	}
 
@@ -913,16 +893,6 @@ func GeneratePolicyFromFile(fn string, force bool) error {
 		return err
 	}
 
-	if m.Type == "" || m.Type == snap.TypeApp {
-		_, err = developerFromYamlPath(fn)
-		if err != nil {
-			if err == ErrInvalidSnap {
-				err = errDeveloperNotFound
-			}
-			return err
-		}
-	}
-
 	// TODO: verify cache files here
 
 	baseDir := filepath.Dir(filepath.Dir(fn))
@@ -936,7 +906,7 @@ func GeneratePolicyFromFile(fn string, force bool) error {
 
 // RegenerateAllPolicy will re-generate all policy that needs re-generating
 func RegenerateAllPolicy(force bool) error {
-	installed, err := NewLocalSnapRepository().Installed()
+	installed, err := (&Overlord{}).Installed()
 	if err != nil {
 		return err
 	}

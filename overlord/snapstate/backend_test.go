@@ -27,12 +27,11 @@ import (
 type fakeOp struct {
 	op string
 
-	name      string
-	ver       string
-	channel   string
-	developer string
-	flags     int
-	active    bool
+	name    string
+	ver     string
+	channel string
+	flags   int
+	active  bool
 }
 
 type fakeSnappyBackend struct {
@@ -42,11 +41,10 @@ type fakeSnappyBackend struct {
 	fakeTotalProgress   int
 }
 
-func (f *fakeSnappyBackend) InstallLocal(path, developer string, flags snappy.InstallFlags, p progress.Meter) error {
+func (f *fakeSnappyBackend) InstallLocal(path string, flags snappy.InstallFlags, p progress.Meter) error {
 	f.ops = append(f.ops, fakeOp{
-		op:        "install-local",
-		name:      path,
-		developer: developer,
+		op:   "install-local",
+		name: path,
 	})
 	return nil
 }
@@ -97,80 +95,71 @@ func (f *fakeSnappyBackend) Activate(name string, active bool, p progress.Meter)
 	return nil
 }
 
-func (f *fakeSnappyBackend) CheckSnap(snapFilePath, developer string, flags snappy.InstallFlags) error {
+func (f *fakeSnappyBackend) CheckSnap(snapFilePath string, flags snappy.InstallFlags) error {
 	f.ops = append(f.ops, fakeOp{
-		op:        "check-snap",
-		name:      snapFilePath,
-		developer: developer,
+		op:   "check-snap",
+		name: snapFilePath,
 	})
 	return nil
 }
 
-func (f *fakeSnappyBackend) SetupSnap(snapFilePath, developer string, flags snappy.InstallFlags) (string, error) {
+func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, flags snappy.InstallFlags) (string, error) {
 	f.ops = append(f.ops, fakeOp{
-		op:        "setup-snap",
-		name:      snapFilePath,
-		developer: developer,
+		op:   "setup-snap",
+		name: snapFilePath,
 	})
 	return "some-inst-path", nil
 }
 
-func (f *fakeSnappyBackend) CopySnapData(instSnapPath, developer string, flags snappy.InstallFlags) error {
+func (f *fakeSnappyBackend) CopySnapData(instSnapPath string, flags snappy.InstallFlags) error {
 	f.ops = append(f.ops, fakeOp{
-		op:        "copy-data",
-		name:      instSnapPath,
-		developer: developer,
+		op:   "copy-data",
+		name: instSnapPath,
 	})
 	return nil
 }
 
-func (f *fakeSnappyBackend) GenerateSecurityProfile(instSnapPath, developer string) error {
+func (f *fakeSnappyBackend) GenerateSecurityProfile(instSnapPath string) error {
 	f.ops = append(f.ops, fakeOp{
-		op:        "generate-security-profile",
-		name:      instSnapPath,
-		developer: developer,
+		op:   "generate-security-profile",
+		name: instSnapPath,
 	})
 	return nil
 }
 
-func (f *fakeSnappyBackend) FinalizeSnap(instSnapPath, developer string, flags snappy.InstallFlags) error {
+func (f *fakeSnappyBackend) FinalizeSnap(instSnapPath string, flags snappy.InstallFlags) error {
 	f.ops = append(f.ops, fakeOp{
-		op:        "finalize-snap",
-		name:      instSnapPath,
-		developer: developer,
+		op:   "finalize-snap",
+		name: instSnapPath,
 	})
 	return nil
 }
 
-func (f *fakeSnappyBackend) UndoSetupSnap(snapFilePath, developer string) error {
+func (f *fakeSnappyBackend) UndoSetupSnap(snapFilePath string) error {
 	f.ops = append(f.ops, fakeOp{
-		op:        "undo-setup-snap",
-		name:      snapFilePath,
-		developer: developer,
+		op:   "undo-setup-snap",
+		name: snapFilePath,
 	})
 	return nil
 }
-func (f *fakeSnappyBackend) UndoGenerateSecurityProfile(instSnapPath, developer string) error {
+func (f *fakeSnappyBackend) UndoGenerateSecurityProfile(instSnapPath string) error {
 	f.ops = append(f.ops, fakeOp{
-		op:        "undo-generate-security-profile",
-		name:      instSnapPath,
-		developer: developer,
+		op:   "undo-generate-security-profile",
+		name: instSnapPath,
 	})
 	return nil
 }
-func (f *fakeSnappyBackend) UndoCopySnapData(instSnapPath, developer string, flags snappy.InstallFlags) error {
+func (f *fakeSnappyBackend) UndoCopySnapData(instSnapPath string, flags snappy.InstallFlags) error {
 	f.ops = append(f.ops, fakeOp{
-		op:        "undo-copy-snap-data",
-		name:      instSnapPath,
-		developer: developer,
+		op:   "undo-copy-snap-data",
+		name: instSnapPath,
 	})
 	return nil
 }
-func (f *fakeSnappyBackend) UndoFinalizeSnap(oldInstSnapPath, instSnapPath, developer string, flags snappy.InstallFlags) error {
+func (f *fakeSnappyBackend) UndoFinalizeSnap(oldInstSnapPath, instSnapPath string, flags snappy.InstallFlags) error {
 	f.ops = append(f.ops, fakeOp{
-		op:        "undo-finalize-snap",
-		name:      instSnapPath,
-		developer: developer,
+		op:   "undo-finalize-snap",
+		name: instSnapPath,
 	})
 	return nil
 }

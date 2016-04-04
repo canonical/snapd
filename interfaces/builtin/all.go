@@ -28,8 +28,18 @@ var allInterfaces = []interfaces.Interface{
 	NewFirewallControlInterface(),
 	NewHomeInterface(),
 	NewLocaleControlInterface(),
+	NewLogObserveInterface(),
+	NewMountObserveInterface(),
 	NewNetworkInterface(),
 	NewNetworkBindInterface(),
+	NewNetworkControlInterface(),
+	NewNetworkObserveInterface(),
+	NewSnapControlInterface(),
+	NewSystemObserveInterface(),
+	NewTimeserverControlInterface(),
+	NewTimezoneControlInterface(),
+	NewUnity7Interface(),
+	NewXInterface(),
 }
 
 // Interfaces returns all of the built-in interfaces.

@@ -31,38 +31,6 @@ type securityHelper interface {
 	footerForApp(snapName, snapVersion, snapOrigin, appName string) []byte
 }
 
-// secComp is a security subsystem that writes additional seccomp rules.
-//
-// Rules use a simple line-oriented record structure.  Each line specifies a
-// system call that is allowed. Lines starting with "deny" specify system
-// calls that are explicitly not allowed. Lines starting with '#' are treated
-// as comments and are ignored.
-//
-// NOTE: This subsystem interacts with ubuntu-core-launcher. The launcher reads
-// a single profile from a specific path, parses it and loads a seccomp profile
-// (using Berkley packet filter as a low level mechanism).
-type secComp struct{}
-
-func (sc *secComp) securitySystem() SecuritySystem {
-	return SecuritySecComp
-}
-
-func (sc *secComp) pathForApp(snapName, snapVersion, snapOrigin, appName string) string {
-	// NOTE: This path has to be synchronized with ubuntu-core-launcher.
-	return fmt.Sprintf("/var/lib/snappy/seccomp/profiles/%s",
-		SecurityTagForApp(snapName, appName))
-}
-
-var secCompHeader = []byte(defaultSecCompTemplate)
-
-func (sc *secComp) headerForApp(snapName, snapVersion, snapOrigin, appName string) []byte {
-	return secCompHeader
-}
-
-func (sc *secComp) footerForApp(snapName, snapVersion, snapOrigin, appName string) []byte {
-	return nil // seccomp doesn't require a footer
-}
-
 // uDev is a security subsystem that writes additional udev rules (one per snap).
 //
 // Each rule looks like this:
@@ -97,37 +65,4 @@ func (udev *uDev) headerForApp(snapName, snapVersion, snapOrigin, appName string
 
 func (udev *uDev) footerForApp(snapName, snapVersion, snapOrigin, appName string) []byte {
 	return nil // udev doesn't require a footer
-}
-
-// dBus is a security subsystem that writes DBus "firewall" configuration files.
-//
-// Each configuration is an XML file with <policy>...</policy>. Particular
-// security snippets must be complete policy declarations.
-//
-// NOTE: This interacts with systemd.
-// TODO: Explain how this works (security).
-type dBus struct{}
-
-func (dbus *dBus) securitySystem() SecuritySystem {
-	return SecurityDBus
-}
-
-func (dbus *dBus) pathForApp(snapName, snapVersion, snapOrigin, appName string) string {
-	// XXX: Is the name of this file relevant or can everything be contained
-	// in particular snippets?
-	// XXX: At this level we don't know the bus name.
-	return fmt.Sprintf("/etc/dbus-1/system.d/%s.conf", SecurityTagForApp(snapName, appName))
-}
-
-func (dbus *dBus) headerForApp(snapName, snapVersion, snapOrigin, appName string) []byte {
-	return []byte("" +
-		"<!DOCTYPE busconfig PUBLIC\n" +
-		" \"-//freedesktop//DTD D-BUS Bus Configuration 1.0//EN\"\n" +
-		" \"http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd\">\n" +
-		"<busconfig>\n")
-}
-
-func (dbus *dBus) footerForApp(snapName, snapVersion, snapOrigin, appName string) []byte {
-	return []byte("" +
-		"</busconfig>\n")
 }

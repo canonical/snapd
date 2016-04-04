@@ -28,7 +28,6 @@ import (
 
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
-	"github.com/ubuntu-core/snappy/snappy"
 )
 
 func TestSnapManager(t *testing.T) { TestingT(t) }
@@ -120,29 +119,24 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 			channel: "some-channel",
 		},
 		fakeOp{
-			op:        "check-snap",
-			name:      "downloaded-snap-path",
-			developer: "some-developer",
+			op:   "check-snap",
+			name: "downloaded-snap-path",
 		},
 		fakeOp{
-			op:        "setup-snap",
-			name:      "downloaded-snap-path",
-			developer: "some-developer",
+			op:   "setup-snap",
+			name: "downloaded-snap-path",
 		},
 		fakeOp{
-			op:        "generate-security-profile",
-			name:      "some-inst-path",
-			developer: "some-developer",
+			op:   "generate-security-profile",
+			name: "some-inst-path",
 		},
 		fakeOp{
-			op:        "copy-data",
-			name:      "some-inst-path",
-			developer: "some-developer",
+			op:   "copy-data",
+			name: "some-inst-path",
 		},
 		fakeOp{
-			op:        "finalize-snap",
-			name:      "some-inst-path",
-			developer: "some-developer",
+			op:   "finalize-snap",
+			name: "some-inst-path",
 		},
 	})
 
@@ -175,7 +169,6 @@ func (s *snapmgrTestSuite) TestInstallLocalIntegration(c *C) {
 	c.Assert(s.fakeBackend.ops, HasLen, 5)
 	c.Check(s.fakeBackend.ops[0].op, Equals, "check-snap")
 	c.Check(s.fakeBackend.ops[0].name, Matches, `.*/mock.snap`)
-	c.Check(s.fakeBackend.ops[0].developer, Equals, snappy.SideloadedDeveloper)
 }
 
 func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {

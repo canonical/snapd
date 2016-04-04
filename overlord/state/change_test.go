@@ -259,26 +259,42 @@ func (cs *changeSuite) TestErr(c *C) {
 		"- Activate \\(Activate error\\)")
 }
 
-func (cs *changeSuite) TestNeedsLock(c *C) {
-	st := state.New(nil)
+func (cs *changeSuite) TestMethodEntrance(c *C) {
+	st := state.New(&fakeStateBackend{})
 	st.Lock()
 	chg := st.NewChange("install", "...")
 	st.Unlock()
 
-	funcs := []func(){
+	writes := []func(){
 		func() { chg.Set("a", 1) },
-		func() { chg.Get("a", nil) },
-		func() { chg.Status() },
 		func() { chg.SetStatus(state.DoStatus) },
 		func() { chg.AddTask(nil) },
 		func() { chg.AddAll(nil) },
-		func() { chg.Tasks() },
-		func() { chg.Err() },
+		func() { chg.UnmarshalJSON(nil) },
 	}
 
-	for i, f := range funcs {
-		c.Logf("Testing function #%d", i)
+	reads := []func(){
+		func() { chg.Get("a", nil) },
+		func() { chg.Status() },
+		func() { chg.Tasks() },
+		func() { chg.Err() },
+		func() { chg.MarshalJSON() },
+	}
+
+	for i, f := range reads {
+		c.Logf("Testing read function #%d", i)
 		c.Assert(f, PanicMatches, "internal error: accessing state without lock")
+		c.Assert(st.Modified(), Equals, false)
+	}
+
+	for i, f := range writes {
+		st.Lock()
+		st.Unlock()
+		c.Assert(st.Modified(), Equals, false)
+
+		c.Logf("Testing write function #%d", i)
+		c.Assert(f, PanicMatches, "internal error: accessing state without lock")
+		c.Assert(st.Modified(), Equals, true)
 	}
 }
 
