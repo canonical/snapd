@@ -153,7 +153,8 @@ func CopyData(newSnap *Snap, flags InstallFlags, meter progress.Meter) error {
 		return os.MkdirAll(dataDir, 0755)
 	}
 
-	// we need to stop making it active
+	// we need to stop any services and make the commands unavailable
+	// so that the data can be safely copied
 	if err := DeactivateSnap(oldSnap, meter); err != nil {
 		return err
 	}
@@ -165,6 +166,7 @@ func UndoCopyData(newSnap *Snap, flags InstallFlags, meter progress.Meter) {
 	// XXX we were copying data, assume InhibitHooks was false
 	oldSnap := currentSnap(newSnap)
 	if oldSnap != nil {
+		// reactivate the previously inactivated snap
 		if err := ActivateSnap(oldSnap, meter); err != nil {
 			logger.Noticef("Setting old version back to active failed: %v", err)
 		}
