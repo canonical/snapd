@@ -230,6 +230,10 @@ func (m *SnapManager) Stop() {
 }
 
 // SnapInfo returns snap.Info for a given snap name and snap version.
+//
+// Snap name and version are used to locate the snap.yaml in the filesystem.
+// Some information is not present in the YAML and is looked up in the state
+// instead.
 func SnapInfo(state *state.State, snapName, snapVersion string) (*snap.Info, error) {
 	fname := filepath.Join(dirs.SnapSnapsDir, snapName, snapVersion, "meta", "snap.yaml")
 	yamlData, err := ioutil.ReadFile(fname)
@@ -240,7 +244,9 @@ func SnapInfo(state *state.State, snapName, snapVersion string) (*snap.Info, err
 	if err != nil {
 		return nil, err
 	}
-	// XXX: requested by pedronis
+	// Overwrite the name which doesn't belong in snap.yaml and is actually
+	// defined by snap declaration assertion.
 	info.Name = snapName
+	// TODO: use state to retrieve additional information
 	return info, nil
 }
