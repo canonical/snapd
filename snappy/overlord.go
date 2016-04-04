@@ -183,9 +183,15 @@ func GenerateSecurityProfile(s *Snap) error {
 	return generatePolicy(s.m, instDir)
 }
 
+func RemoveSecurityProfile(s *Snap) error {
+	// generate the security policy from the snap.yaml
+	// Note that this must happen before binaries/services are
+	// generated because serices may get started
+	return removePolicy(s.m, s.basedir)
+}
+
 func UndoGenerateSecurityProfile(s *Snap) error {
-	instDir := filepath.Join(dirs.SnapSnapsDir, s.Name(), s.Version())
-	return removePolicy(s.m, instDir)
+	return RemoveSecurityProfile(s)
 }
 
 func ActivateSnap(s *Snap, inter interacter) error {
@@ -208,6 +214,13 @@ func ActivateSnap(s *Snap, inter interacter) error {
 		if err := DeactivateSnap(oldSnap, inter); err != nil {
 			return err
 		}
+	}
+
+	// generate the security policy from the snap.yaml
+	// Note that this must happen before binaries/services are
+	// generated because serices may get started
+	if err := GenerateSecurityProfile(s); err != nil {
+		return err
 	}
 
 	// add the CLI apps from the snap.yaml
@@ -279,6 +292,10 @@ func DeactivateSnap(s *Snap, inter interacter) error {
 		return err
 	}
 
+	if err := RemoveSecurityProfile(s); err != nil {
+		return err
+	}
+
 	// and finally the current symlink
 	if err := os.Remove(currentSymlink); err != nil {
 		logger.Noticef("Failed to remove %q: %v", currentSymlink, err)
@@ -331,21 +348,6 @@ func (o *Overlord) Install(snapFilePath string, flags InstallFlags, meter progre
 	defer func() {
 		if err != nil {
 			UndoCopyData(newSnap, flags, meter)
-		}
-	}()
-	if err != nil {
-		return nil, err
-	}
-
-	// generate the security policy from the snap.yaml
-	// Note that this must happen before binaries/services are
-	// generated because serices may get started
-	if err := GenerateSecurityProfile(newSnap); err != nil {
-		return nil, err
-	}
-	defer func() {
-		if err != nil {
-			UndoGenerateSecurityProfile(newSnap)
 		}
 	}()
 	if err != nil {
