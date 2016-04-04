@@ -21,11 +21,13 @@ package snapstate_test
 
 import (
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
 )
@@ -264,4 +266,31 @@ func (s *snapmgrTestSuite) TestSetInactive(c *C) {
 	c.Assert(s.fakeBackend.ops[0].op, Equals, "activate")
 	c.Assert(s.fakeBackend.ops[0].name, Equals, "some-snap-to-inactivate")
 	c.Assert(s.fakeBackend.ops[0].active, Equals, false)
+}
+
+func (s *snapmgrTestSuite) TestSnapInfo(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	// Write a snap.yaml with fake name
+	dname := filepath.Join(dirs.SnapSnapsDir, "name", "version", "meta")
+	err := os.MkdirAll(dname, 0775)
+	c.Assert(err, IsNil)
+	fname := filepath.Join(dname, "snap.yaml")
+	err = ioutil.WriteFile(fname, []byte(`
+name: ignored
+description: |
+    Lots of text`), 0644)
+	c.Assert(err, IsNil)
+
+	snapInfo, err := snapstate.SnapInfo(s.state, "name", "version")
+	c.Assert(err, IsNil)
+
+	// Check that the name in the YAML is being ignored.
+	c.Check(snapInfo.Name, Equals, "name")
+	// Check that other values are read from YAML
+	c.Check(snapInfo.Description, Equals, "Lots of text")
 }

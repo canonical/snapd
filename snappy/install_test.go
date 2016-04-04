@@ -164,6 +164,7 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 "version": "2",
 "developer": "test",
 "anon_download_url": "`+dlURL+`",
+"download_url": "`+dlURL+`",
 "icon_url": "`+iconURL+`"
 }`)
 		case "/dl":
@@ -285,6 +286,7 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
         "revision": 1,
         "origin": "`+testDeveloper+`",
 	"anon_download_url": "`+dlURL+`",
+	"download_url": "`+dlURL+`",
 	"icon_url": "`+iconURL+`"
 }]`)
 	}))
