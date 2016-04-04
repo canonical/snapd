@@ -20,7 +20,6 @@
 package interfaces
 
 import (
-	"bytes"
 	"fmt"
 	"sort"
 	"sync"
@@ -34,11 +33,10 @@ type Repository struct {
 	m      sync.Mutex
 	ifaces map[string]Interface
 	// Indexed by [snapName][plugName]
-	plugs           map[string]map[string]*Plug
-	slots           map[string]map[string]*Slot
-	slotPlugs       map[*Slot]map[*Plug]bool
-	plugSlots       map[*Plug]map[*Slot]bool
-	securityHelpers []securityHelper
+	plugs     map[string]map[string]*Plug
+	slots     map[string]map[string]*Slot
+	slotPlugs map[*Slot]map[*Plug]bool
+	plugSlots map[*Plug]map[*Slot]bool
 }
 
 // NewRepository creates an empty plug repository.
@@ -49,9 +47,6 @@ func NewRepository() *Repository {
 		slots:     make(map[string]map[string]*Slot),
 		slotPlugs: make(map[*Slot]map[*Plug]bool),
 		plugSlots: make(map[*Plug]map[*Slot]bool),
-		securityHelpers: []securityHelper{
-			&uDev{},
-		},
 	}
 }
 
@@ -520,61 +515,4 @@ func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem Sec
 		}
 	}
 	return snippets, nil
-}
-
-// SecurityFilesForSnap returns the paths and contents of security files for a given snap.
-func (r *Repository) SecurityFilesForSnap(snapName string) (map[string][]byte, error) {
-	r.m.Lock()
-	defer r.m.Unlock()
-
-	buffers := make(map[string]*bytes.Buffer)
-	for _, helper := range r.securityHelpers {
-		if err := r.collectFilesFromSecurityHelper(snapName, helper, buffers); err != nil {
-			return nil, err
-		}
-	}
-	blobs := make(map[string][]byte)
-	for name, buffer := range buffers {
-		blobs[name] = buffer.Bytes()
-	}
-	return blobs, nil
-}
-
-func (r *Repository) collectFilesFromSecurityHelper(snapName string, helper securityHelper, buffers map[string]*bytes.Buffer) error {
-	securitySystem := helper.securitySystem()
-	snapVersion, snapOrigin, snapApps, err := ActiveSnapMetaData(snapName)
-	if err != nil {
-		return fmt.Errorf("cannot determine meta-data for snap %s: %v", snapName, err)
-	}
-	appSnippets, err := r.securitySnippetsForSnap(snapName, securitySystem)
-	if err != nil {
-		return fmt.Errorf("cannot determine %s security snippets for snap %s: %v", securitySystem, snapName, err)
-	}
-	for _, appName := range snapApps {
-		// NOTE: this explicitly iterates over all apps, even if they have no granted skills.
-		// This way after revoking a skill permission are updated to reflect that.
-		snippets := appSnippets[appName]
-		writer := &bytes.Buffer{}
-		path := helper.pathForApp(snapName, snapVersion, snapOrigin, appName)
-		doWrite := func(blob []byte) error {
-			_, err = writer.Write(blob)
-			if err != nil {
-				return fmt.Errorf("cannot write %s file for snap %s (app %s): %v", securitySystem, snapName, appName, err)
-			}
-			return nil
-		}
-		if err := doWrite(helper.headerForApp(snapName, snapVersion, snapOrigin, appName)); err != nil {
-			return err
-		}
-		for _, snippet := range snippets {
-			if err := doWrite(snippet); err != nil {
-				return err
-			}
-		}
-		if err := doWrite(helper.footerForApp(snapName, snapVersion, snapOrigin, appName)); err != nil {
-			return err
-		}
-		buffers[path] = writer
-	}
-	return nil
 }
