@@ -126,7 +126,8 @@ func (s *defaultBackend) GenerateWrappers(snapInstPath string) error {
 	if err != nil {
 		return err
 	}
-	return snappy.GenerateWrappers(sn, &progress.NullProgress{})
+	meter := &progress.NullProgress{}
+	return snappy.GenerateWrappers(sn, meter)
 }
 
 func (s *defaultBackend) UpdateCurrentSymlink(snapInstPath string) error {
@@ -134,7 +135,8 @@ func (s *defaultBackend) UpdateCurrentSymlink(snapInstPath string) error {
 	if err != nil {
 		return err
 	}
-	return snappy.UpdateCurrentSymlink(sn, &progress.NullProgress{})
+	meter := &progress.NullProgress{}
+	return snappy.UpdateCurrentSymlink(sn, meter)
 }
 
 func (s *defaultBackend) UndoSetupSnap(snapFilePath string) error {
