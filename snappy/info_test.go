@@ -79,7 +79,7 @@ type: os`)
 	}
 
 	// now remove the channel
-	storeMinimalRemoteManifest("app", testDeveloper, "1.10", "hello", "Hello.", "")
+	storeMinimalRemoteManifest("app", testDeveloper, "1.10", "Hello.", "")
 	for _, t := range []T{
 		{fullNameWithChannel, snap.TypeApp, "app." + testDeveloper},
 	} {
