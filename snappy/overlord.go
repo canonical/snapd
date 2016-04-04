@@ -194,27 +194,7 @@ func UndoGenerateSecurityProfile(s *Snap) error {
 	return RemoveSecurityProfile(s)
 }
 
-func ActivateSnap(s *Snap, inter interacter) error {
-	currentActiveSymlink := filepath.Join(s.basedir, "..", "current")
-	currentActiveDir, _ := filepath.EvalSymlinks(currentActiveSymlink)
-
-	// already active, nothing to do
-	if s.basedir == currentActiveDir {
-		return nil
-	}
-
-	// there is already an active snap
-	if currentActiveDir != "" {
-		return fmt.Errorf("there is already an active snap: %v", currentActiveDir)
-	}
-
-	// generate the security policy from the snap.yaml
-	// Note that this must happen before binaries/services are
-	// generated because serices may get started
-	if err := GenerateSecurityProfile(s); err != nil {
-		return err
-	}
-
+func GenerateWrappers(s *Snap, inter interacter) error {
 	// add the CLI apps from the snap.yaml
 	if err := addPackageBinaries(s.m, s.basedir); err != nil {
 		return err
@@ -227,6 +207,12 @@ func ActivateSnap(s *Snap, inter interacter) error {
 	if err := addPackageDesktopFiles(s.m, s.basedir); err != nil {
 		return err
 	}
+
+	return nil
+}
+
+func UpdateCurrentSymlink(s *Snap, inter interacter) error {
+	currentActiveSymlink := filepath.Join(s.basedir, "..", "current")
 
 	if err := os.Remove(currentActiveSymlink); err != nil && !os.IsNotExist(err) {
 		logger.Noticef("Failed to remove %q: %v", currentActiveSymlink, err)
@@ -254,6 +240,36 @@ func ActivateSnap(s *Snap, inter interacter) error {
 	}
 
 	return os.Symlink(filepath.Base(s.basedir), currentDataSymlink)
+}
+
+// ActivateSnap is a wrapper around
+// (generate-security-profile, generate-wrappers, update-current-symlink)
+func ActivateSnap(s *Snap, inter interacter) error {
+	currentActiveSymlink := filepath.Join(s.basedir, "..", "current")
+	currentActiveDir, _ := filepath.EvalSymlinks(currentActiveSymlink)
+
+	// already active, nothing to do
+	if s.basedir == currentActiveDir {
+		return nil
+	}
+
+	// there is already an active snap
+	if currentActiveDir != "" {
+		return fmt.Errorf("there is already an active snap: %v", currentActiveDir)
+	}
+
+	// generate the security policy from the snap.yaml
+	// Note that this must happen before binaries/services are
+	// generated because serices may get started
+	if err := GenerateSecurityProfile(s); err != nil {
+		return err
+	}
+
+	if err := GenerateWrappers(s, inter); err != nil {
+		return err
+	}
+
+	return UpdateCurrentSymlink(s, inter)
 }
 
 func DeactivateSnap(s *Snap, inter interacter) error {
