@@ -21,11 +21,13 @@ package snapstate_test
 
 import (
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
 )
@@ -232,4 +234,26 @@ func (s *snapmgrTestSuite) TestSetInactive(c *C) {
 	c.Assert(s.fakeBackend.ops[0].op, Equals, "activate")
 	c.Assert(s.fakeBackend.ops[0].name, Equals, "some-snap-to-inactivate")
 	c.Assert(s.fakeBackend.ops[0].active, Equals, false)
+}
+
+func (s *snapmgrTestSuite) TestSnapInfo(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	// Write a snap.yaml with fake name and version
+	dname := filepath.Join(dirs.SnapSnapsDir, "samba", "123", "meta")
+	err := os.MkdirAll(dname, 0775)
+	c.Assert(err, IsNil)
+	fname := filepath.Join(dname, "snap.yaml")
+	err = ioutil.WriteFile(fname, []byte("name: ---\nversion: ---\n"), 0644)
+	c.Assert(err, IsNil)
+
+	// Ensure that name and version are overridden
+	snapInfo, err := snapstate.SnapInfo(s.state, "samba", "123")
+	c.Assert(err, IsNil)
+	c.Check(snapInfo.Name, Equals, "samba")
+	c.Check(snapInfo.Version, Equals, "123")
 }
