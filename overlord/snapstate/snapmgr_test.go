@@ -248,11 +248,17 @@ func (s *snapmgrTestSuite) TestSnapInfo(c *C) {
 	err := os.MkdirAll(dname, 0775)
 	c.Assert(err, IsNil)
 	fname := filepath.Join(dname, "snap.yaml")
-	err = ioutil.WriteFile(fname, []byte("name: ignored"), 0644)
+	err = ioutil.WriteFile(fname, []byte(`
+name: ignored
+description: |
+    Lots of text`), 0644)
+	c.Assert(err, IsNil)
+
+	snapInfo, err := snapstate.SnapInfo(s.state, "name", "version")
 	c.Assert(err, IsNil)
 
 	// Check that the name in the YAML is being ignored.
-	snapInfo, err := snapstate.SnapInfo(s.state, "name", "version")
-	c.Assert(err, IsNil)
 	c.Check(snapInfo.Name, Equals, "name")
+	// Check that other values are read from YAML
+	c.Check(snapInfo.Description, Equals, "Lots of text")
 }
