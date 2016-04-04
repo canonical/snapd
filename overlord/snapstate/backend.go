@@ -148,7 +148,7 @@ func (s *defaultBackend) UndoGenerateSecurityProfile(instSnapPath string) error 
 	if err != nil {
 		return err
 	}
-	snappy.UndoGenerateSecurityProfile(sn)
+	snappy.RemoveGeneratedSecurityProfile(sn)
 	return nil
 }
 func (s *defaultBackend) UndoCopySnapData(instSnapPath string, flags snappy.InstallFlags) error {
@@ -167,7 +167,7 @@ func (s *defaultBackend) UndoGenerateWrappers(instSnapPath string) error {
 		return err
 	}
 	meter := &progress.NullProgress{}
-	snappy.UndoGenerateWrappers(sn, meter)
+	snappy.RemoveGeneratedWrappers(sn, meter)
 	return nil
 }
 
