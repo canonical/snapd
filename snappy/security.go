@@ -652,6 +652,17 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinaryResult(m *snapYaml,
 
 	sd.mergeAppArmorSecurityOverrides(&hwaccessOverrides)
 	if sd.SecurityPolicy != nil {
+		res.aaPolicy, err = getAppArmorCustomPolicy(m, res.id, filepath.Join(baseDir, sd.SecurityPolicy.AppArmor), sd.SecurityOverride)
+		if err != nil {
+			logger.Noticef("Failed to generate custom AppArmor policy for %s: %v", m.Name, err)
+			return nil, err
+		}
+		res.scPolicy, err = getSeccompCustomPolicy(m, res.id, filepath.Join(baseDir, sd.SecurityPolicy.Seccomp))
+		if err != nil {
+			logger.Noticef("Failed to generate custom seccomp policy for %s: %v", m.Name, err)
+			return nil, err
+		}
+
 	} else {
 		res.aaPolicy, err = getAppArmorTemplatedPolicy(m, res.id, sd.SecurityTemplate, sd.SecurityCaps, sd.SecurityOverride)
 		if err != nil {
