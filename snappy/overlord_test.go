@@ -244,7 +244,7 @@ type: gadget
 `)
 	_, err := (&Overlord{}).Install(snapFile, AllowGadget, nil)
 	c.Assert(err, IsNil)
-	c.Assert(storeMinimalRemoteManifest("foo", testDeveloper, "1.0", "", "remote-channel"), IsNil)
+	c.Assert(storeMinimalRemoteManifest("foo", testDeveloper, "1.0", "", "", "remote-channel"), IsNil)
 
 	contentFile := filepath.Join(s.tempdir, "snaps", "foo", "1.0", "bin", "foo")
 	_, err = os.Stat(contentFile)
@@ -257,7 +257,7 @@ type: gadget
 `)
 	_, err = (&Overlord{}).Install(snapFile, 0, nil)
 	c.Check(err, IsNil)
-	c.Assert(storeMinimalRemoteManifest("foo", testDeveloper, "2.0", "", "remote-channel"), IsNil)
+	c.Assert(storeMinimalRemoteManifest("foo", testDeveloper, "2.0", "", "", "remote-channel"), IsNil)
 
 	// a package name fork, IOW, a different Gadget package.
 	snapFile = makeTestSnapPackage(c, `name: foo-fork
