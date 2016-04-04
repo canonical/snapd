@@ -91,7 +91,7 @@ func Manager(s *state.State) (*SnapManager, error) {
 	runner.AddHandler("check-snap", m.doCheckSnap, nil)
 	runner.AddHandler("mount-snap", m.doMountSnap, m.undoMountSnap)
 	runner.AddHandler("copy-snap-data", m.doCopySnapData, m.undoCopySnapData)
-	runner.AddHandler("generate-security", m.doGenerateSecurity, m.undoGenerateSecurity)
+	runner.AddHandler("setup-snap-security", m.doGenerateSecurity, m.undoGenerateSecurity)
 	runner.AddHandler("generate-wrappers", m.doGenerateWrappers, m.undoGenerateWrappers)
 	runner.AddHandler("update-current-symlink", m.doUpdateCurrentSymlink, m.undoUpdateCurrentSymlink)
 

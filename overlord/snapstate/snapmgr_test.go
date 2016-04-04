@@ -80,7 +80,7 @@ func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "copy-snap-data")
 	i++
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "generate-security")
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "setup-snap-security")
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "generate-wrappers")
 	i++
@@ -133,7 +133,7 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 			name: "some-inst-path",
 		},
 		fakeOp{
-			op:   "generate-security-profile",
+			op:   "setup-snap-security",
 			name: "some-inst-path",
 		},
 		fakeOp{

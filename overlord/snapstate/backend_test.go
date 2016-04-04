@@ -121,7 +121,7 @@ func (f *fakeSnappyBackend) CopySnapData(instSnapPath string, flags snappy.Insta
 
 func (f *fakeSnappyBackend) GenerateSecurityProfile(instSnapPath string) error {
 	f.ops = append(f.ops, fakeOp{
-		op:   "generate-security-profile",
+		op:   "setup-snap-security",
 		name: instSnapPath,
 	})
 	return nil
@@ -153,7 +153,7 @@ func (f *fakeSnappyBackend) UndoSetupSnap(snapFilePath string) error {
 
 func (f *fakeSnappyBackend) UndoGenerateSecurityProfile(instSnapPath string) error {
 	f.ops = append(f.ops, fakeOp{
-		op:   "undo-generate-security-profile",
+		op:   "undo-setup-snap-security",
 		name: instSnapPath,
 	})
 	return nil
