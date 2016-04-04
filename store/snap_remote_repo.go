@@ -75,11 +75,10 @@ func infoFromRemote(d snapDetails) *snap.Info {
 		Revision:    d.Revision,
 		Type:        d.Type,
 		Version:     d.Version,
-		Summary:     "", // XXX: should be summary when the store provides it
-		Description: d.Description,
-		// aslo vs setting Summary
-		Developer: d.Developer,
-		Channel:   d.Channel,
+		Summary:     "",            // XXX: should be summary when the store provides it
+		Description: d.Description, // XXX not quite right but ok for now
+		Developer:   d.Developer,
+		Channel:     d.Channel,
 		Store: &snap.StoreInfo{
 			LastUpdated:     parseLastUpdated(d),
 			DownloadSha512:  d.DownloadSha512,
