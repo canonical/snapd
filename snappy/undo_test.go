@@ -163,7 +163,9 @@ plugs:
 	l, _ = filepath.Glob(filepath.Join(dirs.SnapSeccompDir, "*"))
 	c.Assert(l, HasLen, 1)
 
-	UndoGenerateSecurityProfile(sn)
+	// the undo of GeneratedSecurityProfile is
+	// RemoveGenerateSecurityProfile
+	RemoveGeneratedSecurityProfile(sn)
 	l, _ = filepath.Glob(filepath.Join(dirs.SnapAppArmorDir, "*"))
 	c.Assert(l, HasLen, 0)
 	l, _ = filepath.Glob(filepath.Join(dirs.SnapSeccompDir, "*"))
