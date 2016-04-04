@@ -81,7 +81,7 @@ func (s *RemoteSnap) Info() *snap.Info {
 		Revision:    s.Revision(),
 		Type:        s.Type(),
 		Channel:     s.Channel(),
-		Summary:     "",       // XXX: should be summary when the store provides it
+		Summary:     "",                // XXX: should be summary when the store provides it
 		Description: s.Pkg.Description, // XXX not quite right but ok for now
 	}
 }
