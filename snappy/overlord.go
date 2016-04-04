@@ -286,6 +286,8 @@ func removeCurrentSymlink(s *Snap, inter interacter) error {
 
 // ActivateSnap is a wrapper around
 // (generate-security-profile, generate-wrappers, update-current-symlink)
+//
+// Note that the snap must not be activated when this is called.
 func ActivateSnap(s *Snap, inter interacter) error {
 	currentActiveSymlink := filepath.Join(s.basedir, "..", "current")
 	currentActiveDir, _ := filepath.EvalSymlinks(currentActiveSymlink)
@@ -511,7 +513,7 @@ func (o *Overlord) SetActive(s *Snap, active bool, meter progress.Meter) error {
 	if active {
 		// deactivate current first
 		if current := ActiveSnapByName(s.Name()); current != nil {
-			if err := (&Overlord{}).SetActive(current, false, meter); err != nil {
+			if err := DeactivateSnap(current, meter); err != nil {
 				return err
 			}
 		}
