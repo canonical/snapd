@@ -313,6 +313,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 	r.Description = "this is a description"
 	r.Version = "1.0"
 	r.Store.AnonDownloadURL = mockServer.URL + "/snap"
+	r.Store.DownloadURL = mockServer.URL + "/snap"
 	r.Store.IconURL = mockServer.URL + "/icon"
 
 	mStore := store.NewUbuntuStoreSnapRepository(s.storeCfg, "")
@@ -367,6 +368,7 @@ apps:
 	r.Version = "1.0"
 	r.Developer = testDeveloper
 	r.Store.AnonDownloadURL = mockServer.URL + "/snap"
+	r.Store.DownloadURL = mockServer.URL + "/snap"
 	r.Store.IconURL = mockServer.URL + "/icon"
 
 	mStore := store.NewUbuntuStoreSnapRepository(s.storeCfg, "")
