@@ -97,7 +97,7 @@ func mapSnap(localSnaps []*snappy.Snap, remotePart *store.RemoteSnap) map[string
 		_type = string(localSnap.Type())
 
 		icon = localSnap.Icon()
-		description = localSnap.Description()
+		description = localSnap.Info().Description
 		installedSize = localSnap.InstalledSize()
 
 		downloadSize = localSnap.DownloadSize()
@@ -113,7 +113,7 @@ func mapSnap(localSnaps []*snappy.Snap, remotePart *store.RemoteSnap) map[string
 			icon = remotePart.Icon()
 		}
 		if description == "" {
-			description = remotePart.Description()
+			description = remotePart.Info().Description
 		}
 
 		downloadSize = remotePart.DownloadSize()
