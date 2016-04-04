@@ -213,18 +213,20 @@ func (m *SnapManager) Stop() {
 	m.runner.Stop()
 }
 
-// helper to find the path and developer from an installState
+// pathAndDeveloper is a helper that returns the path and developer
+// from an installState
 // (it may either be a local snap or downloaded from the store)
-func snapPathAndDeveloperFromInstState(t *state.Task, inst *installState) (string, string, error) {
+func pathAndDeveloper(t *state.Task, inst *installState) (string, string, error) {
 	if inst.SnapPath != "" {
 		return inst.SnapPath, snappy.SideloadedDeveloper, nil
 	} else if inst.DownloadTaskID != "" {
 		var dl downloadState
 
-		t.State().Lock()
-		tDl := t.State().Task(inst.DownloadTaskID)
+		st := t.State()
+		st.Lock()
+		tDl := st.Task(inst.DownloadTaskID)
 		err := tDl.Get("download-state", &dl)
-		t.State().Unlock()
+		st.Unlock()
 		if err != nil {
 			return "", "", err
 		}
@@ -236,16 +238,19 @@ func snapPathAndDeveloperFromInstState(t *state.Task, inst *installState) (strin
 
 func getSnapSetupState(t *state.Task, setup *setupState) error {
 	var id string
-	t.State().Lock()
+
+	st := t.State()
+	st.Lock()
 	err := t.Get("setup-snap-id", &id)
-	t.State().Unlock()
+	st.Unlock()
 	if err != nil {
 		return nil
 	}
-	t.State().Lock()
-	ts := t.State().Task(id)
+
+	st.Lock()
+	ts := st.Task(id)
 	err = ts.Get("setup-state", setup)
-	t.State().Unlock()
+	st.Unlock()
 
 	return err
 }
@@ -260,7 +265,7 @@ func (m *SnapManager) doCheckSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	snapPath, _, err := snapPathAndDeveloperFromInstState(t, &inst)
+	snapPath, _, err := pathAndDeveloper(t, &inst)
 	if err != nil {
 		return err
 	}
@@ -278,7 +283,7 @@ func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	snapPath, _, err := snapPathAndDeveloperFromInstState(t, &inst)
+	snapPath, _, err := pathAndDeveloper(t, &inst)
 	if err != nil {
 		return err
 	}
@@ -296,7 +301,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	snapPath, _, err := snapPathAndDeveloperFromInstState(t, &inst)
+	snapPath, _, err := pathAndDeveloper(t, &inst)
 	if err != nil {
 		return err
 	}
