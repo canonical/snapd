@@ -217,10 +217,9 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	s.parts = []*store.RemoteSnap{
 		&store.RemoteSnap{
 			Pkg: remote.Snap{
-				Name:    "foo",
-				Version: "v2",
-				// FIXME: sucks that title is descripton!
-				Title:        "description",
+				Name:         "foo",
+				Version:      "v2",
+				Description:  "description",
 				Developer:    "bar",
 				IconURL:      "meta/gui/icon.svg",
 				Type:         snap.TypeApp,

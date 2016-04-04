@@ -28,6 +28,7 @@ type Info struct {
 	Type        Type
 	Channel     string
 	Description string
+	Summary     string
 	Apps        map[string]*AppInfo
 	Plugs       map[string]*PlugInfo
 	Slots       map[string]*SlotInfo

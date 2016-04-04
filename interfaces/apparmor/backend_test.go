@@ -107,7 +107,6 @@ func (s *backendSuite) TearDownTest(c *C) {
 const sambaYamlV1 = `
 name: samba
 version: 1
-developer: acme
 apps:
     smbd:
 slots:
@@ -116,7 +115,6 @@ slots:
 const sambaYamlV1WithNmbd = `
 name: samba
 version: 1
-developer: acme
 apps:
     smbd:
     nmbd:
@@ -126,7 +124,6 @@ slots:
 const sambaYamlV2 = `
 name: samba
 version: 2
-developer: acme
 apps:
     smbd:
 slots:
@@ -348,6 +345,8 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 func (s *backendSuite) installSnap(c *C, developerMode bool, snapYaml string) *snap.Info {
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
+	// this won't come from snap.yaml
+	snapInfo.Developer = "acme"
 	s.addPlugsSlots(c, snapInfo)
 	err = s.backend.Configure(snapInfo, developerMode, s.repo)
 	c.Assert(err, IsNil)
@@ -358,6 +357,8 @@ func (s *backendSuite) installSnap(c *C, developerMode bool, snapYaml string) *s
 func (s *backendSuite) updateSnap(c *C, oldSnapInfo *snap.Info, developerMode bool, snapYaml string) *snap.Info {
 	newSnapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
+	// this won't come from snap.yaml
+	newSnapInfo.Developer = "acme"
 	c.Assert(newSnapInfo.Name, Equals, oldSnapInfo.Name)
 	s.removePlugsSlots(c, oldSnapInfo)
 	s.addPlugsSlots(c, newSnapInfo)
