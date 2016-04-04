@@ -32,12 +32,14 @@ type managerBackend interface {
 	SetupSnap(snapFilePath string, flags snappy.InstallFlags) (string, error)
 	CopySnapData(instSnapPath string, flags snappy.InstallFlags) error
 	GenerateSecurityProfile(instSnapPath string) error
-	FinalizeSnap(instSnapPath string, flags snappy.InstallFlags) error
+	GenerateWrappers(instSnapPath string) error
+	UpdateCurrentSymlink(instSnapPath string) error
 	// the undoers
 	UndoSetupSnap(snapFilePath string) error
 	UndoGenerateSecurityProfile(instSnapPath string) error
 	UndoCopySnapData(instSnapPath string, flags snappy.InstallFlags) error
-	UndoFinalizeSnap(oldInstSnapPath, instSnapPath string, flags snappy.InstallFlags) error
+	UndoGenerateWrappers(instSnapPath string) error
+	UndoUpdateCurrentSymlink(oldInstSnapPath, instSnapPath string) error
 
 	// TODO: need to be split into fine grained tasks
 	Update(name, channel string, flags snappy.InstallFlags, meter progress.Meter) error
@@ -119,12 +121,20 @@ func (s *defaultBackend) GenerateSecurityProfile(snapInstPath string) error {
 	return snappy.GenerateSecurityProfile(sn)
 }
 
-func (s *defaultBackend) FinalizeSnap(snapInstPath string, flags snappy.InstallFlags) error {
+func (s *defaultBackend) GenerateWrappers(snapInstPath string) error {
 	sn, err := snappy.NewInstalledSnap(filepath.Join(snapInstPath, "meta", "snap.yaml"))
 	if err != nil {
 		return err
 	}
-	return snappy.FinalizeSnap(sn, flags, &progress.NullProgress{})
+	return snappy.GenerateWrappers(sn, &progress.NullProgress{})
+}
+
+func (s *defaultBackend) UpdateCurrentSymlink(snapInstPath string) error {
+	sn, err := snappy.NewInstalledSnap(filepath.Join(snapInstPath, "meta", "snap.yaml"))
+	if err != nil {
+		return err
+	}
+	return snappy.UpdateCurrentSymlink(sn, &progress.NullProgress{})
 }
 
 func (s *defaultBackend) UndoSetupSnap(snapFilePath string) error {
@@ -150,7 +160,18 @@ func (s *defaultBackend) UndoCopySnapData(instSnapPath string, flags snappy.Inst
 	snappy.UndoCopyData(sn, flags, meter)
 	return nil
 }
-func (s *defaultBackend) UndoFinalizeSnap(oldInstSnapPath, instSnapPath string, flags snappy.InstallFlags) error {
+
+func (s *defaultBackend) UndoGenerateWrappers(instSnapPath string) error {
+	sn, err := snappy.NewInstalledSnap(filepath.Join(instSnapPath, "meta", "snap.yaml"))
+	if err != nil {
+		return err
+	}
+	meter := &progress.NullProgress{}
+	snappy.UndoGenerateWrappers(sn, meter)
+	return nil
+}
+
+func (s *defaultBackend) UndoUpdateCurrentSymlink(oldInstSnapPath, instSnapPath string) error {
 	new, err := snappy.NewInstalledSnap(filepath.Join(instSnapPath, "meta", "snap.yaml"))
 	if err != nil {
 		return err
@@ -160,6 +181,6 @@ func (s *defaultBackend) UndoFinalizeSnap(oldInstSnapPath, instSnapPath string, 
 		return err
 	}
 	meter := &progress.NullProgress{}
-	snappy.UndoFinalizeSnap(old, new, flags, meter)
+	snappy.UndoUpdateCurrentSymlink(old, new, meter)
 	return nil
 }

@@ -59,25 +59,31 @@ func Install(s *state.State, snap, channel string, flags snappy.InstallFlags) (*
 	mount.Set("install-state", inst)
 	mount.WaitFor(check)
 
-	// security
-	generateSecurity := s.NewTask("generate-security", fmt.Sprintf(i18n.G("Generating security profile for %q"), snap))
-	generateSecurity.Set("install-state", inst)
-	generateSecurity.Set("setup-snap-id", mount.ID())
-	generateSecurity.WaitFor(mount)
-
 	// copy-data (needs to stop services)
 	copyData := s.NewTask("copy-snap-data", fmt.Sprintf(i18n.G("Copying snap data for %q"), snap))
 	copyData.Set("install-state", inst)
 	copyData.Set("setup-snap-id", mount.ID())
-	copyData.WaitFor(generateSecurity)
+	copyData.WaitFor(mount)
 
-	// finalize: update current symlink, start new services
-	finalize := s.NewTask("finalize-snap-install", fmt.Sprintf(i18n.G("Finalizing install of %q"), snap))
-	finalize.Set("install-state", inst)
-	finalize.Set("setup-snap-id", mount.ID())
-	finalize.WaitFor(copyData)
+	// security
+	generateSecurity := s.NewTask("generate-security", fmt.Sprintf(i18n.G("Generating security profile for %q"), snap))
+	generateSecurity.Set("install-state", inst)
+	generateSecurity.Set("setup-snap-id", mount.ID())
+	generateSecurity.WaitFor(copyData)
 
-	return state.NewTaskSet(download, check, mount, generateSecurity, copyData, finalize), nil
+	// wrappers
+	generateWrappers := s.NewTask("generate-wrappers", fmt.Sprintf(i18n.G("Generating wrappers for %q"), snap))
+	generateWrappers.Set("install-state", inst)
+	generateWrappers.Set("setup-snap-id", mount.ID())
+	generateWrappers.WaitFor(generateSecurity)
+
+	// current symlink
+	makeCurrent := s.NewTask("update-current-symlink", fmt.Sprintf(i18n.G("Making %q current"), snap))
+	makeCurrent.Set("install-state", inst)
+	makeCurrent.Set("setup-snap-id", mount.ID())
+	makeCurrent.WaitFor(generateWrappers)
+
+	return state.NewTaskSet(download, check, mount, copyData, generateSecurity, generateWrappers, makeCurrent), nil
 }
 
 // Update initiates a change updating a snap.
