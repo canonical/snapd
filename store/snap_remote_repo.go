@@ -365,7 +365,7 @@ func (s *SnapUbuntuStoreRepository) Download(remoteSnap *RemoteSnap, pbar progre
 	ssoToken, _ := ReadStoreToken()
 
 	url := remoteSnap.Pkg.AnonDownloadURL
-	if url == "" || ssoToken != nil {
+	if url == "" || (ssoToken != nil && remoteSnap.Pkg.DownloadURL != "") {
 		url = remoteSnap.Pkg.DownloadURL
 	}
 
