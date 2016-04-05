@@ -230,3 +230,8 @@ func SaveManifest(rsnap *snap.Info) error {
 	// don't worry about previous contents
 	return osutil.AtomicWriteFile(ManifestPath(rsnap), content, 0644, 0)
 }
+
+// BaseDir returns the base directory of the snap.
+func BaseDir(s *snap.Info) string {
+	return filepath.Join(dirs.SnapSnapsDir, s.Name, s.Version)
+}

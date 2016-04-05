@@ -179,7 +179,7 @@ func UndoCopyData(newSnap *Snap, flags InstallFlags, meter progress.Meter) {
 
 func GenerateWrappers(s *Snap, inter interacter) error {
 	// add the CLI apps from the snap.yaml
-	if err := addPackageBinaries(s.m, s.basedir); err != nil {
+	if err := addPackageBinaries(s.Info()); err != nil {
 		return err
 	}
 	// add the daemons from the snap.yaml
@@ -198,7 +198,7 @@ func GenerateWrappers(s *Snap, inter interacter) error {
 // wrappers
 func RemoveGeneratedWrappers(s *Snap, inter interacter) error {
 
-	err1 := removePackageBinaries(s.m, s.basedir)
+	err1 := removePackageBinaries(s.Info())
 	if err1 != nil {
 		logger.Noticef("Failed to remove binaries for %q: %v", s.Name(), err1)
 	}

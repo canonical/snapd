@@ -111,7 +111,7 @@ func isValidLocalizedDesktopFilePrefix(line string) bool {
 func rewriteExecLine(m *snapYaml, line string) (string, error) {
 	cmd := strings.SplitN(line, "=", 2)[1]
 	for _, app := range m.Apps {
-		validCmd := filepath.Base(generateBinaryName(m, app))
+		validCmd := filepath.Base(oldGenerateBinaryName(m, app))
 		// check the prefix to allow %flag style args
 		// this is ok because desktop files are not run through sh
 		// so we don't have to worry about the arguments too much
