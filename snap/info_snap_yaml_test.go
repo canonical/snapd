@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/timeout"
 
 	. "gopkg.in/check.v1"
 )
@@ -850,4 +851,57 @@ license-version: 12`)
 	c.Assert(err, IsNil)
 	c.Assert(info.LicenseAgreement, Equals, "explicit")
 	c.Assert(info.LicenseVersion, Equals, "12")
+}
+
+// apps
+
+func (s *YamlSuite) TestSimpleAppExample(c *C) {
+	y := []byte(`name: wat
+version: 42
+apps:
+ cm:
+   command: cm0
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+	c.Check(info.Apps, DeepEquals, map[string]*snap.AppInfo{
+		"cm": {
+			Snap:    info,
+			Name:    "cm",
+			Command: "cm0",
+		},
+	})
+}
+
+func (s *YamlSuite) TestDaemonEverythingExample(c *C) {
+	y := []byte(`name: wat
+version: 42
+apps:
+ svc:
+   command: svc1
+   description: svc one
+   stop-timeout: 25
+   daemon: forking
+   stop-command: stop-cmd
+   post-stop-command: post-stop-cmd
+   restart-condition: on-abnormal
+   # XXX: also?
+   # bus-name
+   # socket-mode
+   # listen-stream
+   socket: yes
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+	c.Check(info.Apps, DeepEquals, map[string]*snap.AppInfo{
+		"svc": {
+			Snap:    info,
+			Name:    "svc",
+			Command: "svc1",
+			Daemon:  "forking",
+			// XXX: stop-timeout seems broken in term of parsing
+			StopTimeout: timeout.Timeout(25),
+			// XXX: more stuff
+		},
+	})
 }

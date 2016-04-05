@@ -24,6 +24,9 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v2"
+
+	"github.com/ubuntu-core/snappy/systemd"
+	"github.com/ubuntu-core/snappy/timeout"
 )
 
 type snapYaml struct {
@@ -38,7 +41,8 @@ type snapYaml struct {
 	Plugs            map[string]interface{} `yaml:"plugs,omitempty"`
 	Slots            map[string]interface{} `yaml:"slots,omitempty"`
 	Apps             map[string]appYaml     `yaml:"apps,omitempty"`
-	// TODO: missing fields still
+
+	// TODO: missing legacy stuff still: config, gadget, kernel
 }
 
 type plugYaml struct {
@@ -56,9 +60,24 @@ type slotYaml struct {
 }
 
 type appYaml struct {
-	Command   string   `yaml:"command"`
-	SlotNames []string `yaml:"slots,omitempty"`
-	PlugNames []string `yaml:"plugs,omitempty"`
+	Command string `yaml:"command"`
+
+	Daemon      string `yaml:"daemon"`
+	Description string `yaml:"description,omitempty"`
+
+	Stop        string          `yaml:"stop-command,omitempty"`
+	PostStop    string          `yaml:"post-stop-command,omitempty"`
+	StopTimeout timeout.Timeout `yaml:"stop-timeout,omitempty"`
+
+	RestartCond systemd.RestartCondition `yaml:"restart-condition,omitempty"`
+	SlotNames   []string                 `yaml:"slots,omitempty"`
+	PlugNames   []string                 `yaml:"plugs,omitempty"`
+
+	BusName string `yaml:"bus-name,omitempty"`
+
+	Socket       bool   `yaml:"socket,omitempty"`
+	ListenStream string `yaml:"listen-stream,omitempty"`
+	SocketMode   string `yaml:"socket-mode,omitempty"`
 }
 
 // InfoFromSnapYaml creates a new info based on the given snap.yaml data
@@ -128,9 +147,11 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	for appName, yApp := range y.Apps {
 		// Collect all apps
 		app := &AppInfo{
-			Snap:    snap,
-			Name:    appName,
-			Command: yApp.Command,
+			Snap:        snap,
+			Name:        appName,
+			Command:     yApp.Command,
+			Daemon:      yApp.Daemon,
+			StopTimeout: yApp.StopTimeout,
 		}
 		if len(y.Plugs) > 0 || len(yApp.PlugNames) > 0 {
 			app.Plugs = make(map[string]*PlugInfo)
