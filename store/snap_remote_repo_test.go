@@ -290,7 +290,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Check(result.Developer, Equals, funkyAppDeveloper)
 	c.Check(result.Version, Equals, "42")
 	c.Check(result.Store.DownloadSha512, Equals, "5364253e4a988f4f5c04380086d542f410455b97d48cc6c69ca2a5877d8aef2a6b2b2f83ec4f688cae61ebc8a6bf2cdbd4dbd8f743f0522fc76540429b79df42")
-	c.Check(result.Store.LastUpdated.String(), Equals, "2015-04-15 18:30:16 +0000 UTC")
 	c.Check(result.Store.DownloadSize, Equals, int64(65375))
 	c.Check(result.Channel, Equals, "edge")
 }
