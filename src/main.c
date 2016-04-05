@@ -65,7 +65,7 @@ struct snappy_udev {
 	struct udev_enumerate *devices;
 	struct udev_list_entry *assigned;
 	char tagname[MAX_BUF];
-	char tagname_len;
+	size_t tagname_len;
 };
 
 bool verify_appname(const char *appname)
@@ -178,8 +178,8 @@ int snappy_udev_init(const char *appname, struct snappy_udev *udev_s)
 
 void snappy_udev_cleanup(struct snappy_udev *udev_s)
 {
-	// udev_s->assigned does not need to be unreferenced since
-	// unreferencing udev_s->devices handles that
+	// udev_s->assigned does not need to be unreferenced since it is a
+	// pointer into udev_s->devices
 	if (udev_s->devices != NULL)
 		udev_enumerate_unref(udev_s->devices);
 	if (udev_s->udev != NULL)
@@ -223,12 +223,10 @@ void setup_devices_cgroup(const char *appname, struct snappy_udev *udev_s)
 	must_snprintf(buf, sizeof(buf), "%i", getpid());
 	write_string_to_file(cgroup_file, buf);
 
-	// deny by default. Writing 'a' to devices.deny removes all existing
-	// devices that were added in previous launcher invocations such that
-	// if an app has a device assigned and the launcher is started, the
-	// device is added to the cgroup, but if the device is removed, the
-	// next time the launcher starts the app, all devices are removed with
-	// this write and then built back up again.
+	// deny by default. Write 'a' to devices.deny to remove all existing
+	// devices that were added in previous launcher invocations, then add
+	// the static and assigned devices. This ensures that at application
+	// launch the cgroup only has what is currently assigned.
 	must_snprintf(cgroup_file, sizeof(cgroup_file), "%s%s", cgroup_dir,
 		      "devices.deny");
 	write_string_to_file(cgroup_file, "a");
