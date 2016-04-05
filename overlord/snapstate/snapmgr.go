@@ -41,23 +41,19 @@ type SnapManager struct {
 	runner *state.TaskRunner
 }
 
-type installState struct {
-	Name    string              `json:"name"`
-	Channel string              `json:"channel"`
-	Flags   snappy.InstallFlags `json:"flags,omitempty"`
-
-	DownloadTaskID string `json:"download-task-id,omitempty"`
-	SnapPath       string `json:"snap-path,omitempty"`
-}
-
 type downloadState struct {
-	Developer string `json:"developer"`
-	SnapPath  string `json:"snap-path,omitempty"`
+	Name      string              `json:"name"`
+	Developer string              `json:"developer"`
+	Channel   string              `json:"channel"`
+	Flags     snappy.InstallFlags `json:"flags,omitempty"`
+
+	SnapPath string `json:"snap-path,omitempty"`
 }
 
 type mountState struct {
-	InstallPath    string `json:"install-path"`
-	OldInstallPath string `json:"old-install-path"`
+	InstallPath    string              `json:"install-path"`
+	OldInstallPath string              `json:"old-install-path"`
+	Flags          snappy.InstallFlags `json:"flags,omitempty"`
 }
 
 type removeState struct {
@@ -113,18 +109,17 @@ func Manager(s *state.State) (*SnapManager, error) {
 }
 
 func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
-	var inst installState
 	var dl downloadState
 
 	t.State().Lock()
-	err := t.Get("install-state", &inst)
+	err := t.Get("download-state", &dl)
 	t.State().Unlock()
 	if err != nil {
 		return err
 	}
 
 	pb := &TaskProgressAdapter{task: t}
-	downloadedSnapFile, developer, err := m.backend.Download(inst.Name, inst.Channel, pb)
+	downloadedSnapFile, developer, err := m.backend.Download(dl.Name, dl.Channel, pb)
 	if err != nil {
 		return err
 	}
@@ -140,16 +135,16 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) doUpdateSnap(t *state.Task, _ *tomb.Tomb) error {
-	var inst installState
+	var dl downloadState
 	t.State().Lock()
-	err := t.Get("update-state", &inst)
+	err := t.Get("update-state", &dl)
 	t.State().Unlock()
 	if err != nil {
 		return err
 	}
 
 	pb := &TaskProgressAdapter{task: t}
-	return m.backend.Update(inst.Name, inst.Channel, inst.Flags, pb)
+	return m.backend.Update(dl.Name, dl.Channel, dl.Flags, pb)
 }
 
 func (m *SnapManager) doRemoveSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -214,29 +209,6 @@ func (m *SnapManager) Stop() {
 	m.runner.Stop()
 }
 
-// pathAndDeveloper is a helper that returns the path and developer
-// from an installState
-// (it may either be a local snap or downloaded from the store)
-func pathAndDeveloper(t *state.Task, inst *installState) (string, string, error) {
-	if inst.SnapPath != "" {
-		return inst.SnapPath, snappy.SideloadedDeveloper, nil
-	} else if inst.DownloadTaskID != "" {
-		var dl downloadState
-
-		st := t.State()
-		st.Lock()
-		tDl := st.Task(inst.DownloadTaskID)
-		err := tDl.Get("download-state", &dl)
-		st.Unlock()
-		if err != nil {
-			return "", "", err
-		}
-		return dl.SnapPath, dl.Developer, nil
-	}
-
-	return "", "", fmt.Errorf("internal error: installState created without a snap path source")
-}
-
 func getSnapMountState(t *state.Task, mount *mountState) error {
 	var id string
 
@@ -245,7 +217,7 @@ func getSnapMountState(t *state.Task, mount *mountState) error {
 	err := t.Get("mount-snap-id", &id)
 	st.Unlock()
 	if err != nil {
-		return nil
+		return err
 	}
 
 	st.Lock()
@@ -257,43 +229,39 @@ func getSnapMountState(t *state.Task, mount *mountState) error {
 }
 
 func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
-	var inst installState
-
-	t.State().Lock()
-	err := t.Get("install-state", &inst)
-	t.State().Unlock()
-	if err != nil {
+	var mount mountState
+	if err := getSnapMountState(t, &mount); err != nil {
 		return err
 	}
 
-	snapPath, _, err := pathAndDeveloper(t, &inst)
-	if err != nil {
-		return err
-	}
-
-	return m.backend.UndoSetupSnap(snapPath)
+	return m.backend.UndoSetupSnap(mount.InstallPath)
 }
 
 func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
-	var inst installState
+	var id string
 
-	t.State().Lock()
-	err := t.Get("install-state", &inst)
-	t.State().Unlock()
+	st := t.State()
+	st.Lock()
+	err := t.Get("download-snap-id", &id)
+	st.Unlock()
 	if err != nil {
 		return err
 	}
 
-	snapPath, _, err := pathAndDeveloper(t, &inst)
+	var dl downloadState
+	st.Lock()
+	ts := st.Task(id)
+	err = ts.Get("download-state", &dl)
+	st.Unlock()
 	if err != nil {
 		return err
 	}
 
-	if err := m.backend.CheckSnap(snapPath, inst.Flags); err != nil {
+	if err := m.backend.CheckSnap(dl.SnapPath, dl.Flags); err != nil {
 		return err
 	}
 
-	instPath, err := m.backend.SetupSnap(snapPath, inst.Flags)
+	instPath, err := m.backend.SetupSnap(dl.SnapPath, dl.Flags)
 	if err != nil {
 		return err
 	}
@@ -303,6 +271,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.Set("mount-state", &mountState{
 		InstallPath:    instPath,
 		OldInstallPath: oldInstPath,
+		Flags:          dl.Flags,
 	})
 	t.State().Unlock()
 
@@ -310,15 +279,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) undoGenerateSecurity(t *state.Task, _ *tomb.Tomb) error {
-	var inst installState
 	var mount mountState
-
-	t.State().Lock()
-	err := t.Get("install-state", &inst)
-	t.State().Unlock()
-	if err != nil {
-		return err
-	}
 	if err := getSnapMountState(t, &mount); err != nil {
 		return err
 	}
@@ -327,15 +288,7 @@ func (m *SnapManager) undoGenerateSecurity(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) doGenerateSecurity(t *state.Task, _ *tomb.Tomb) error {
-	var inst installState
 	var mount mountState
-
-	t.State().Lock()
-	err := t.Get("install-state", &inst)
-	t.State().Unlock()
-	if err != nil {
-		return err
-	}
 	if err := getSnapMountState(t, &mount); err != nil {
 		return err
 	}
@@ -344,51 +297,24 @@ func (m *SnapManager) doGenerateSecurity(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
-	var inst installState
 	var mount mountState
-
-	t.State().Lock()
-	err := t.Get("install-state", &inst)
-	t.State().Unlock()
-	if err != nil {
-		return err
-	}
-
 	if err := getSnapMountState(t, &mount); err != nil {
 		return err
 	}
 
-	return m.backend.UndoCopySnapData(mount.InstallPath, inst.Flags)
+	return m.backend.UndoCopySnapData(mount.InstallPath, mount.Flags)
 }
 
 func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
-	var inst installState
 	var mount mountState
-
-	t.State().Lock()
-	err := t.Get("install-state", &inst)
-	t.State().Unlock()
-	if err != nil {
-		return err
-	}
-
 	if err := getSnapMountState(t, &mount); err != nil {
 		return err
 	}
 
-	return m.backend.CopySnapData(mount.InstallPath, inst.Flags)
+	return m.backend.CopySnapData(mount.InstallPath, mount.Flags)
 }
 func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
-	var inst installState
 	var mount mountState
-
-	t.State().Lock()
-	err := t.Get("install-state", &inst)
-	t.State().Unlock()
-	if err != nil {
-		return err
-	}
-
 	if err := getSnapMountState(t, &mount); err != nil {
 		return err
 	}
@@ -401,16 +327,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
-	var inst installState
 	var mount mountState
-
-	t.State().Lock()
-	err := t.Get("install-state", &inst)
-	t.State().Unlock()
-	if err != nil {
-		return err
-	}
-
 	if err := getSnapMountState(t, &mount); err != nil {
 		return err
 	}

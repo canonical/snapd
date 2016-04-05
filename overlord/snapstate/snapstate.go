@@ -32,43 +32,38 @@ import (
 // Install returns a set of tasks for installing snap.
 // Note that the state must be locked by the caller.
 func Install(s *state.State, snap, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
-	inst := installState{
+	// download
+	var download *state.Task
+	dl := downloadState{
 		Name:    snap,
 		Channel: channel,
 		Flags:   flags,
 	}
-
-	// download (if needed)
-	var download *state.Task
 	if !osutil.FileExists(snap) {
 		download = s.NewTask("download-snap", fmt.Sprintf(i18n.G("Downloading %q"), snap))
-		inst.DownloadTaskID = download.ID()
 	} else {
 		download = s.NewTask("nop", "")
-		inst.SnapPath = snap
+		dl.SnapPath = snap
 	}
-	download.Set("install-state", inst)
+	download.Set("download-state", dl)
 
 	// mount
 	mount := s.NewTask("mount-snap", fmt.Sprintf(i18n.G("Mounting %q"), snap))
-	mount.Set("install-state", inst)
+	mount.Set("download-snap-id", download.ID())
 	mount.WaitFor(download)
 
 	// copy-data (needs to stop services)
 	copyData := s.NewTask("copy-snap-data", fmt.Sprintf(i18n.G("Copying snap data for %q"), snap))
-	copyData.Set("install-state", inst)
 	copyData.Set("mount-snap-id", mount.ID())
 	copyData.WaitFor(mount)
 
 	// security
 	generateSecurity := s.NewTask("setup-snap-security", fmt.Sprintf(i18n.G("Setting up security profile for %q"), snap))
-	generateSecurity.Set("install-state", inst)
 	generateSecurity.Set("mount-snap-id", mount.ID())
 	generateSecurity.WaitFor(copyData)
 
 	// finalize (wrappers+current symlink)
 	linkSnap := s.NewTask("link-snap", fmt.Sprintf(i18n.G("Final step for %q"), snap))
-	linkSnap.Set("install-state", inst)
 	linkSnap.Set("mount-snap-id", mount.ID())
 	linkSnap.WaitFor(generateSecurity)
 
@@ -79,7 +74,7 @@ func Install(s *state.State, snap, channel string, flags snappy.InstallFlags) (*
 // Note that the state must be locked by the caller.
 func Update(s *state.State, snap, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
 	t := s.NewTask("update-snap", fmt.Sprintf(i18n.G("Updating %q"), snap))
-	t.Set("update-state", installState{
+	t.Set("update-state", downloadState{
 		Name:    snap,
 		Channel: channel,
 		Flags:   flags,
