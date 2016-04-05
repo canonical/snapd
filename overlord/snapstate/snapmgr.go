@@ -91,7 +91,6 @@ func Manager(s *state.State) (*SnapManager, error) {
 	}, nil)
 
 	runner.AddHandler("download-snap", m.doDownloadSnap, nil)
-	runner.AddHandler("check-snap", m.doCheckSnap, nil)
 	runner.AddHandler("mount-snap", m.doMountSnap, m.undoMountSnap)
 	runner.AddHandler("copy-snap-data", m.doCopySnapData, m.undoCopySnapData)
 	runner.AddHandler("setup-snap-security", m.doGenerateSecurity, m.undoGenerateSecurity)
@@ -258,24 +257,6 @@ func getSnapSetupState(t *state.Task, setup *setupState) error {
 	return err
 }
 
-func (m *SnapManager) doCheckSnap(t *state.Task, _ *tomb.Tomb) error {
-	var inst installState
-
-	t.State().Lock()
-	err := t.Get("install-state", &inst)
-	t.State().Unlock()
-	if err != nil {
-		return err
-	}
-
-	snapPath, _, err := pathAndDeveloper(t, &inst)
-	if err != nil {
-		return err
-	}
-
-	return m.backend.CheckSnap(snapPath, inst.Flags)
-}
-
 func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	var inst installState
 
@@ -306,6 +287,10 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	snapPath, _, err := pathAndDeveloper(t, &inst)
 	if err != nil {
+		return err
+	}
+
+	if err := m.backend.CheckSnap(snapPath, inst.Flags); err != nil {
 		return err
 	}
 

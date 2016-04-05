@@ -49,15 +49,10 @@ func Install(s *state.State, snap, channel string, flags snappy.InstallFlags) (*
 	}
 	download.Set("install-state", inst)
 
-	// check
-	check := s.NewTask("check-snap", fmt.Sprintf(i18n.G("Checking %q"), snap))
-	check.Set("install-state", inst)
-	check.WaitFor(download)
-
 	// mount
 	mount := s.NewTask("mount-snap", fmt.Sprintf(i18n.G("Mounting %q"), snap))
 	mount.Set("install-state", inst)
-	mount.WaitFor(check)
+	mount.WaitFor(download)
 
 	// copy-data (needs to stop services)
 	copyData := s.NewTask("copy-snap-data", fmt.Sprintf(i18n.G("Copying snap data for %q"), snap))
@@ -83,7 +78,7 @@ func Install(s *state.State, snap, channel string, flags snappy.InstallFlags) (*
 	makeCurrent.Set("setup-snap-id", mount.ID())
 	makeCurrent.WaitFor(generateWrappers)
 
-	return state.NewTaskSet(download, check, mount, copyData, generateSecurity, generateWrappers, makeCurrent), nil
+	return state.NewTaskSet(download, mount, copyData, generateSecurity, generateWrappers, makeCurrent), nil
 }
 
 // Update initiates a change updating a snap.
