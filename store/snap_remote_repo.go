@@ -38,7 +38,7 @@ import (
 	"github.com/ubuntu-core/snappy/oauth"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
-	"github.com/ubuntu-core/snappy/snap/remote"
+	"github.com/ubuntu-core/snappy/snap"
 )
 
 // TODO: better/shorter names are probably in order once fewer legacy places are using this
@@ -50,10 +50,22 @@ const (
 	UbuntuCoreWireProtocol = "1"
 )
 
-// NewRemoteSnap returns a new RemoteSnap from the given
-// remote.Snap data
-func NewRemoteSnap(data remote.Snap) *RemoteSnap {
-	return &RemoteSnap{Pkg: data}
+func infoFromRemote(d snapDetails) *snap.Info {
+	return &snap.Info{
+		Name:            d.Name,
+		Revision:        d.Revision,
+		Type:            d.Type,
+		Version:         d.Version,
+		Summary:         "",            // XXX: should be summary when the store provides it
+		Description:     d.Description, // XXX not quite right but ok for now
+		Developer:       d.Developer,
+		Channel:         d.Channel,
+		Sha512:          d.DownloadSha512,
+		Size:            d.DownloadSize,
+		AnonDownloadURL: d.AnonDownloadURL,
+		DownloadURL:     d.DownloadURL,
+		IconURL:         d.IconURL,
+	}
 }
 
 // SnapUbuntuStoreConfig represents the configuration to access the snap store
@@ -137,7 +149,7 @@ func init() {
 		panic(err)
 	}
 	v := url.Values{}
-	v.Set("fields", strings.Join(getStructFields(remote.Snap{}), ","))
+	v.Set("fields", strings.Join(getStructFields(snapDetails{}), ","))
 	defaultConfig.SearchURI.RawQuery = v.Encode()
 
 	defaultConfig.DetailsURI, err = storeBaseURI.Parse("package/")
@@ -165,7 +177,7 @@ func init() {
 
 type searchResults struct {
 	Payload struct {
-		Packages []remote.Snap `json:"clickindex:package"`
+		Packages []snapDetails `json:"clickindex:package"`
 	} `json:"_embedded"`
 }
 
@@ -222,8 +234,8 @@ func (s *SnapUbuntuStoreRepository) configureStoreReq(req *http.Request, accept 
 	s.applyUbuntuStoreHeaders(req, accept)
 }
 
-// Snap returns the RemoteSnap for the given name or an error.
-func (s *SnapUbuntuStoreRepository) Snap(name, channel string) (*RemoteSnap, error) {
+// Snap returns the snap.Info for the store hosted snap with the given name or an error.
+func (s *SnapUbuntuStoreRepository) Snap(name, channel string) (*snap.Info, error) {
 
 	url, err := s.detailsURI.Parse(path.Join(name, channel))
 	if err != nil {
@@ -253,18 +265,18 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string) (*RemoteSnap, err
 	}
 
 	// and decode json
-	var detailsData remote.Snap
+	var detailsData snapDetails
 	dec := json.NewDecoder(resp.Body)
 	if err := dec.Decode(&detailsData); err != nil {
 		return nil, err
 	}
 
-	return NewRemoteSnap(detailsData), nil
+	return infoFromRemote(detailsData), nil
 }
 
 // FindSnaps finds  (installable) snaps from the store, matching the
 // given search term.
-func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string) ([]*RemoteSnap, error) {
+func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string) ([]*snap.Info, error) {
 	if channel == "" {
 		channel = release.Get().Channel
 	}
@@ -299,16 +311,16 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string)
 		return nil, err
 	}
 
-	snaps := make([]*RemoteSnap, len(searchData.Payload.Packages))
+	snaps := make([]*snap.Info, len(searchData.Payload.Packages))
 	for i, pkg := range searchData.Payload.Packages {
-		snaps[i] = NewRemoteSnap(pkg)
+		snaps[i] = infoFromRemote(pkg)
 	}
 
 	return snaps, nil
 }
 
 // Updates returns the available updates for a list of snap identified by fullname with channel.
-func (s *SnapUbuntuStoreRepository) Updates(installed []string) (snaps []*RemoteSnap, err error) {
+func (s *SnapUbuntuStoreRepository) Updates(installed []string) (snaps []*snap.Info, err error) {
 	jsonData, err := json.Marshal(map[string][]string{"name": installed})
 	if err != nil {
 		return nil, err
@@ -329,16 +341,15 @@ func (s *SnapUbuntuStoreRepository) Updates(installed []string) (snaps []*Remote
 	}
 	defer resp.Body.Close()
 
-	var updateData []remote.Snap
+	var updateData []snapDetails
 	dec := json.NewDecoder(resp.Body)
 	if err := dec.Decode(&updateData); err != nil {
 		return nil, err
 	}
 
-	// TODO: untangle remote.Snap vs RemoteSnap
-	res := make([]*RemoteSnap, len(updateData))
+	res := make([]*snap.Info, len(updateData))
 	for i, rsnap := range updateData {
-		res[i] = NewRemoteSnap(rsnap)
+		res[i] = infoFromRemote(rsnap)
 	}
 
 	return res, nil
@@ -347,8 +358,8 @@ func (s *SnapUbuntuStoreRepository) Updates(installed []string) (snaps []*Remote
 // Download downloads the given snap and returns its filename.
 // The file is saved in temporary storage, and should be removed
 // after use to prevent the disk from running out of space.
-func (s *SnapUbuntuStoreRepository) Download(remoteSnap *RemoteSnap, pbar progress.Meter) (path string, err error) {
-	w, err := ioutil.TempFile("", remoteSnap.Pkg.Name)
+func (s *SnapUbuntuStoreRepository) Download(remoteSnap *snap.Info, pbar progress.Meter) (path string, err error) {
+	w, err := ioutil.TempFile("", remoteSnap.Name)
 	if err != nil {
 		return "", err
 	}
@@ -364,9 +375,9 @@ func (s *SnapUbuntuStoreRepository) Download(remoteSnap *RemoteSnap, pbar progre
 
 	ssoToken, _ := ReadStoreToken()
 
-	url := remoteSnap.Pkg.AnonDownloadURL
-	if url == "" || (ssoToken != nil && remoteSnap.Pkg.DownloadURL != "") {
-		url = remoteSnap.Pkg.DownloadURL
+	url := remoteSnap.AnonDownloadURL
+	if url == "" || ssoToken != nil {
+		url = remoteSnap.DownloadURL
 	}
 
 	req, err := http.NewRequest("GET", url, nil)
@@ -376,7 +387,7 @@ func (s *SnapUbuntuStoreRepository) Download(remoteSnap *RemoteSnap, pbar progre
 	setAuthHeader(req, ssoToken)
 	s.applyUbuntuStoreHeaders(req, "")
 
-	if err := download(remoteSnap.Name(), w, req, pbar); err != nil {
+	if err := download(remoteSnap.Name, w, req, pbar); err != nil {
 		return "", err
 	}
 
