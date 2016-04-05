@@ -81,7 +81,7 @@ func (x *cmdFind) Execute([]string) error {
 
 	for _, name := range names {
 		snap := snaps[name]
-		fmt.Fprintf(w, "%s\t%s\t%s\n", name, snap.Version, snap.Description)
+		fmt.Fprintf(w, "%s\t%s\t%s\n", name, snap.Version, snap.Summary)
 	}
 
 	return nil

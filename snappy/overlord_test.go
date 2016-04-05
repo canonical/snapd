@@ -36,7 +36,7 @@ var helloAppYaml = `name: hello-snap
 version: 1.0
 `
 
-func (o *SnapTestSuite) TestInstalled(c *C) {
+func (s *SnapTestSuite) TestInstalled(c *C) {
 	_, err := makeInstalledMockSnap(dirs.GlobalRootDir, helloAppYaml)
 	c.Assert(err, IsNil)
 
