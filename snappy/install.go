@@ -24,11 +24,7 @@ import (
 	"os"
 	"sort"
 
-	"gopkg.in/yaml.v2"
-
-	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/provisioning"
 	"github.com/ubuntu-core/snappy/snap"
@@ -69,38 +65,6 @@ func installRemote(mStore *store.SnapUbuntuStoreRepository, remoteSnap *snap.Inf
 	}
 
 	return localSnap.Name(), nil
-}
-
-/// XXX: temporary step until we know if we still need this (vs overlord state)
-// and to find out what we absolutely need from it
-type diskManifest struct {
-	// XXX likely we want also name and snap-id and summary
-	Revision    int    `yaml:"revision"`
-	Channel     string `yaml:"channel"`
-	Developer   string `yaml:"developer"`
-	Description string `yaml:"description"`
-}
-
-// SaveManifest saves the manifest at the designated location for the snap containing information not in the snap.yaml.
-func SaveManifest(rsnap *snap.Info) error {
-	m := &diskManifest{
-		Revision:  rsnap.Revision,
-		Channel:   rsnap.Channel,
-		Developer: rsnap.Developer,
-		// XXX capture also Summary?
-		Description: rsnap.Description,
-	}
-	content, err := yaml.Marshal(m)
-	if err != nil {
-		return err
-	}
-
-	if err := os.MkdirAll(dirs.SnapMetaDir, 0755); err != nil {
-		return err
-	}
-
-	// don't worry about previous contents
-	return osutil.AtomicWriteFile(ManifestPath(rsnap), content, 0644, 0)
 }
 
 func doUpdate(mStore *store.SnapUbuntuStoreRepository, rsnap *snap.Info, flags InstallFlags, meter progress.Meter) error {
