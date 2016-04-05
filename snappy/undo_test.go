@@ -134,3 +134,120 @@ version: 2.0`)
 	c.Assert(l, HasLen, 0)
 
 }
+func (s *undoTestSuite) TestUndoForSecurityPolicy(c *C) {
+	makeMockSecurityEnv(c)
+	runAppArmorParser = mockRunAppArmorParser
+
+	yaml, err := makeInstalledMockSnap(dirs.SnapSnapsDir, `name: hello
+version: 1.0
+apps:
+ binary:
+   plugs: [binary]
+plugs:
+ binary:
+  interface: old-security
+  caps: []
+`)
+	c.Assert(err, IsNil)
+	// remove the mocks created by makeInstalledMockSnap
+	os.RemoveAll(dirs.SnapAppArmorDir)
+	os.RemoveAll(dirs.SnapSeccompDir)
+
+	sn, err := NewInstalledSnap(yaml)
+	c.Assert(err, IsNil)
+
+	err = GenerateSecurityProfile(sn)
+	c.Assert(err, IsNil)
+	l, _ := filepath.Glob(filepath.Join(dirs.SnapAppArmorDir, "*"))
+	c.Assert(l, HasLen, 1)
+	l, _ = filepath.Glob(filepath.Join(dirs.SnapSeccompDir, "*"))
+	c.Assert(l, HasLen, 1)
+
+	// the undo of GeneratedSecurityProfile is
+	// RemoveGenerateSecurityProfile
+	RemoveGeneratedSecurityProfile(sn)
+	l, _ = filepath.Glob(filepath.Join(dirs.SnapAppArmorDir, "*"))
+	c.Assert(l, HasLen, 0)
+	l, _ = filepath.Glob(filepath.Join(dirs.SnapSeccompDir, "*"))
+	c.Assert(l, HasLen, 0)
+}
+
+func (s *undoTestSuite) TestUndoForGenerateWrappers(c *C) {
+	makeMockSecurityEnv(c)
+	runAppArmorParser = mockRunAppArmorParser
+
+	yaml, err := makeInstalledMockSnap(dirs.SnapSnapsDir, `name: hello
+version: 1.0
+apps:
+ bin:
+   command: bin
+ svc:
+   command: svc
+   daemon: simple
+`)
+	c.Assert(err, IsNil)
+
+	sn, err := NewInstalledSnap(yaml)
+	c.Assert(err, IsNil)
+
+	err = GenerateWrappers(sn, &s.meter)
+	c.Assert(err, IsNil)
+
+	l, err := filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
+	c.Assert(err, IsNil)
+	c.Assert(l, HasLen, 1)
+	l, err = filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.service"))
+	c.Assert(err, IsNil)
+	c.Assert(l, HasLen, 1)
+
+	// undo via remove
+	err = RemoveGeneratedWrappers(sn, &s.meter)
+	l, err = filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
+	c.Assert(err, IsNil)
+	c.Assert(l, HasLen, 0)
+	l, err = filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.service"))
+	c.Assert(err, IsNil)
+	c.Assert(l, HasLen, 0)
+}
+
+func (s *undoTestSuite) TestUndoForUpdateCurrentSymlink(c *C) {
+	v1yaml, err := makeInstalledMockSnap(dirs.SnapSnapsDir, `name: hello
+version: 1.0
+`)
+	c.Assert(err, IsNil)
+	makeSnapActive(v1yaml)
+
+	v2yaml, err := makeInstalledMockSnap(dirs.SnapSnapsDir, `name: hello
+version: 2.0
+`)
+	c.Assert(err, IsNil)
+
+	v1, err := NewInstalledSnap(v1yaml)
+	c.Assert(err, IsNil)
+	v2, err := NewInstalledSnap(v2yaml)
+	c.Assert(err, IsNil)
+
+	err = UpdateCurrentSymlink(v2, &s.meter)
+	c.Assert(err, IsNil)
+
+	currentActiveSymlink := filepath.Join(v2.basedir, "..", "current")
+	currentActiveDir, err := filepath.EvalSymlinks(currentActiveSymlink)
+	c.Assert(err, IsNil)
+	c.Assert(currentActiveDir, Equals, v2.basedir)
+
+	currentDataSymlink := filepath.Join(dirs.SnapDataDir, v2.Name(), "current")
+	currentDataDir, err := filepath.EvalSymlinks(currentDataSymlink)
+	c.Assert(err, IsNil)
+	c.Assert(currentDataDir, Matches, `.*/2.0`)
+
+	// undo sets the symlink back
+	err = UndoUpdateCurrentSymlink(v1, v2, &s.meter)
+	currentActiveDir, err = filepath.EvalSymlinks(currentActiveSymlink)
+	c.Assert(err, IsNil)
+	c.Assert(currentActiveDir, Equals, v1.basedir)
+
+	currentDataDir, err = filepath.EvalSymlinks(currentDataSymlink)
+	c.Assert(err, IsNil)
+	c.Assert(currentDataDir, Matches, `.*/1.0`)
+
+}
