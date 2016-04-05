@@ -20,7 +20,7 @@
 package snappy
 
 import (
-	"github.com/ubuntu-core/snappy/store"
+	"github.com/ubuntu-core/snappy/snap"
 )
 
 // ListInstalled returns all installed snaps
@@ -29,6 +29,6 @@ func ListInstalled() ([]*Snap, error) {
 }
 
 // ListUpdates returns all snaps with updates
-func ListUpdates() ([]*store.RemoteSnap, error) {
+func ListUpdates() ([]*snap.Info, error) {
 	return snapUpdates(NewConfiguredUbuntuStoreSnapRepository())
 }

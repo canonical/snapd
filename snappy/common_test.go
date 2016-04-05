@@ -33,7 +33,6 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/remote"
 )
 
 const (
@@ -107,38 +106,25 @@ apps:
 		return "", err
 	}
 
-	if err := storeMinimalRemoteManifest(m.Name, testDeveloper, m.Version, "hello-title", "Hello...", "remote-channel"); err != nil {
+	if err := storeMinimalRemoteManifest(m.Name, testDeveloper, m.Version, "Hello...", "remote-channel"); err != nil {
 		return "", err
 	}
 
 	return yamlFile, nil
 }
 
-func storeMinimalRemoteManifest(name, developer, version, title, desc, channel string) error {
-	// XXX: title is unfortunate
+func storeMinimalRemoteManifest(name, developer, version, desc, channel string) error {
 	if developer == SideloadedDeveloper {
 		panic("store remote manifest for sideloaded package")
 	}
-	content, err := yaml.Marshal(remote.Snap{
+	info := &snap.Info{
 		Name:        name,
-		Developer:   developer,
 		Version:     version,
-		Title:       title,
+		Developer:   developer,
 		Description: desc,
 		Channel:     channel,
-	})
-	if err != nil {
-		return err
 	}
-
-	if err := os.MkdirAll(dirs.SnapMetaDir, 0755); err != nil {
-		return err
-	}
-	if err := ioutil.WriteFile(filepath.Join(dirs.SnapMetaDir, fmt.Sprintf("%s_%s.manifest", name, version)), content, 0644); err != nil {
-		return err
-	}
-
-	return nil
+	return SaveManifest(info)
 }
 
 func addMockDefaultApparmorProfile(appid string) error {
@@ -253,12 +239,12 @@ func makeTwoTestSnaps(c *C, snapType snap.Type, extra ...string) {
 	snapFile := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
 	_, err := (&Overlord{}).Install(snapFile, AllowUnauthenticated|AllowGadget, inter)
 	c.Assert(err, IsNil)
-	c.Assert(storeMinimalRemoteManifest("foo", testDeveloper, "1.0", "", "", "remote-channel"), IsNil)
+	c.Assert(storeMinimalRemoteManifest("foo", testDeveloper, "1.0", "", "remote-channel"), IsNil)
 
 	snapFile = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
 	_, err = (&Overlord{}).Install(snapFile, AllowUnauthenticated|AllowGadget, inter)
 	c.Assert(err, IsNil)
-	c.Assert(storeMinimalRemoteManifest("foo", testDeveloper, "2.0", "", "", "remote-channel"), IsNil)
+	c.Assert(storeMinimalRemoteManifest("foo", testDeveloper, "2.0", "", "remote-channel"), IsNil)
 
 	installed, err := (&Overlord{}).Installed()
 	c.Assert(err, IsNil)
