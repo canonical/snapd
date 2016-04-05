@@ -70,11 +70,9 @@ func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
 	}
 
 	snap := &snap.Info{
-		Name: "foo",
-		Store: &snap.StoreInfo{
-			AnonDownloadURL: "anon-url",
-			DownloadURL:     "AUTH-URL",
-		},
+		Name:            "foo",
+		AnonDownloadURL: "anon-url",
+		DownloadURL:     "AUTH-URL",
 	}
 	path, err := t.store.Download(snap, nil)
 	c.Assert(err, IsNil)
@@ -100,11 +98,9 @@ func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
 	}
 
 	snap := &snap.Info{
-		Name: "foo",
-		Store: &snap.StoreInfo{
-			AnonDownloadURL: "anon-url",
-			DownloadURL:     "AUTH-URL",
-		},
+		Name:            "foo",
+		AnonDownloadURL: "anon-url",
+		DownloadURL:     "AUTH-URL",
 	}
 	path, err := t.store.Download(snap, nil)
 	c.Assert(err, IsNil)
@@ -123,11 +119,9 @@ func (t *remoteRepoTestSuite) TestDownloadFails(c *C) {
 	}
 
 	snap := &snap.Info{
-		Name: "foo",
-		Store: &snap.StoreInfo{
-			AnonDownloadURL: "anon-url",
-			DownloadURL:     "AUTH-URL",
-		},
+		Name:            "foo",
+		AnonDownloadURL: "anon-url",
+		DownloadURL:     "AUTH-URL",
 	}
 	// simulate a failed download
 	path, err := t.store.Download(snap, nil)
@@ -148,11 +142,9 @@ func (t *remoteRepoTestSuite) TestDownloadSyncFails(c *C) {
 	}
 
 	snap := &snap.Info{
-		Name: "foo",
-		Store: &snap.StoreInfo{
-			AnonDownloadURL: "anon-url",
-			DownloadURL:     "AUTH-URL",
-		},
+		Name:            "foo",
+		AnonDownloadURL: "anon-url",
+		DownloadURL:     "AUTH-URL",
 	}
 	// simulate a failed sync
 	path, err := t.store.Download(snap, nil)
@@ -289,8 +281,8 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Check(result.Name, Equals, funkyAppName)
 	c.Check(result.Developer, Equals, funkyAppDeveloper)
 	c.Check(result.Version, Equals, "42")
-	c.Check(result.Store.DownloadSha512, Equals, "5364253e4a988f4f5c04380086d542f410455b97d48cc6c69ca2a5877d8aef2a6b2b2f83ec4f688cae61ebc8a6bf2cdbd4dbd8f743f0522fc76540429b79df42")
-	c.Check(result.Store.DownloadSize, Equals, int64(65375))
+	c.Check(result.Sha512, Equals, "5364253e4a988f4f5c04380086d542f410455b97d48cc6c69ca2a5877d8aef2a6b2b2f83ec4f688cae61ebc8a6bf2cdbd4dbd8f743f0522fc76540429b79df42")
+	c.Check(result.Size, Equals, int64(65375))
 	c.Check(result.Channel, Equals, "edge")
 }
 

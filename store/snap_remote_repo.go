@@ -52,21 +52,19 @@ const (
 
 func infoFromRemote(d snapDetails) *snap.Info {
 	return &snap.Info{
-		Name:        d.Name,
-		Revision:    d.Revision,
-		Type:        d.Type,
-		Version:     d.Version,
-		Summary:     "",            // XXX: should be summary when the store provides it
-		Description: d.Description, // XXX not quite right but ok for now
-		Developer:   d.Developer,
-		Channel:     d.Channel,
-		Store: &snap.StoreInfo{
-			DownloadSha512:  d.DownloadSha512,
-			DownloadSize:    d.DownloadSize,
-			AnonDownloadURL: d.AnonDownloadURL,
-			DownloadURL:     d.DownloadURL,
-			IconURL:         d.IconURL,
-		},
+		Name:            d.Name,
+		Revision:        d.Revision,
+		Type:            d.Type,
+		Version:         d.Version,
+		Summary:         "",            // XXX: should be summary when the store provides it
+		Description:     d.Description, // XXX not quite right but ok for now
+		Developer:       d.Developer,
+		Channel:         d.Channel,
+		Sha512:          d.DownloadSha512,
+		Size:            d.DownloadSize,
+		AnonDownloadURL: d.AnonDownloadURL,
+		DownloadURL:     d.DownloadURL,
+		IconURL:         d.IconURL,
 	}
 }
 
@@ -377,9 +375,9 @@ func (s *SnapUbuntuStoreRepository) Download(remoteSnap *snap.Info, pbar progres
 
 	ssoToken, _ := ReadStoreToken()
 
-	url := remoteSnap.Store.AnonDownloadURL
+	url := remoteSnap.AnonDownloadURL
 	if url == "" || ssoToken != nil {
-		url = remoteSnap.Store.DownloadURL
+		url = remoteSnap.DownloadURL
 	}
 
 	req, err := http.NewRequest("GET", url, nil)

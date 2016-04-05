@@ -110,13 +110,13 @@ func mapSnap(localSnaps []*snappy.Snap, remoteSnap *snap.Info) map[string]interf
 
 	if remoteSnap != nil {
 		if icon == "" {
-			icon = remoteSnap.Store.IconURL
+			icon = remoteSnap.IconURL
 		}
 		if description == "" {
 			description = remoteSnap.Description
 		}
 
-		downloadSize = remoteSnap.Store.DownloadSize
+		downloadSize = remoteSnap.Size
 	}
 
 	if localSnap != nil && localSnap.IsActive() {

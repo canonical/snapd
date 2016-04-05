@@ -195,10 +195,8 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 		Version:     "v2",
 		Description: "description",
 		Developer:   "bar",
-		Store: &snap.StoreInfo{
-			IconURL:      "meta/gui/icon.svg",
-			DownloadSize: 2,
-		},
+		Size:        2,
+		IconURL:     "meta/gui/icon.svg",
 	}}
 
 	// we have v0 installed
@@ -489,7 +487,6 @@ func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
 	s.rsnaps = []*snap.Info{{
 		Name:      "store",
 		Developer: "foo",
-		Store:     &snap.StoreInfo{},
 	}}
 	s.mkInstalled(c, "local", "foo", "v1", true, "")
 
@@ -510,7 +507,6 @@ func (s *apiSuite) TestSnapsInfoLocalAndStore(c *check.C) {
 	s.rsnaps = []*snap.Info{{
 		Name:      "remote",
 		Developer: "foo",
-		Store:     &snap.StoreInfo{},
 	}}
 	s.mkInstalled(c, "local", "foo", "v1", true, "")
 
@@ -530,7 +526,6 @@ func (s *apiSuite) TestSnapsInfoDefaultSources(c *check.C) {
 	s.rsnaps = []*snap.Info{{
 		Name:      "remote",
 		Developer: "foo",
-		Store:     &snap.StoreInfo{},
 	}}
 	s.mkInstalled(c, "local", "foo", "v1", true, "")
 
