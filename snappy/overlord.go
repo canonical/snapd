@@ -306,7 +306,7 @@ func ActivateSnap(s *Snap, inter interacter) error {
 	// generate the security policy from the snap.yaml
 	// Note that this must happen before binaries/services are
 	// generated because serices may get started
-	if err := GenerateSecurityProfile(s); err != nil {
+	if err := SetupSnapSecurity(s); err != nil {
 		return err
 	}
 
@@ -345,7 +345,7 @@ func DeactivateSnap(s *Snap, inter interacter) error {
 		return err
 	}
 
-	if err := RemoveGeneratedSecurityProfile(s); err != nil {
+	if err := RemoveGeneratedSnapSecurity(s); err != nil {
 		return err
 	}
 
@@ -471,7 +471,7 @@ func (o *Overlord) Uninstall(s *Snap, meter progress.Meter) error {
 		return err
 	}
 
-	if err := RemoveGeneratedSecurityProfile(s); err != nil {
+	if err := RemoveGeneratedSnapSecurity(s); err != nil {
 		return err
 	}
 

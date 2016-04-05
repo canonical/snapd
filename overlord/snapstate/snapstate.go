@@ -58,16 +58,16 @@ func Install(s *state.State, snap, channel string, flags snappy.InstallFlags) (*
 	copyData.WaitFor(mount)
 
 	// security
-	generateSecurity := s.NewTask("setup-snap-security", fmt.Sprintf(i18n.G("Setting up security profile for %q"), snap))
-	generateSecurity.Set("mount-snap-id", mount.ID())
-	generateSecurity.WaitFor(copyData)
+	setupSecurity := s.NewTask("setup-snap-security", fmt.Sprintf(i18n.G("Setting up security profile for %q"), snap))
+	setupSecurity.Set("mount-snap-id", mount.ID())
+	setupSecurity.WaitFor(copyData)
 
 	// finalize (wrappers+current symlink)
 	linkSnap := s.NewTask("link-snap", fmt.Sprintf(i18n.G("Final step for %q"), snap))
 	linkSnap.Set("mount-snap-id", mount.ID())
-	linkSnap.WaitFor(generateSecurity)
+	linkSnap.WaitFor(setupSecurity)
 
-	return state.NewTaskSet(download, mount, copyData, generateSecurity, linkSnap), nil
+	return state.NewTaskSet(download, mount, copyData, setupSecurity, linkSnap), nil
 }
 
 // Update initiates a change updating a snap.

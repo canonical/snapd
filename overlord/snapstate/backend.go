@@ -31,12 +31,12 @@ type managerBackend interface {
 	CheckSnap(snapFilePath string, flags snappy.InstallFlags) error
 	SetupSnap(snapFilePath string, flags snappy.InstallFlags) (string, error)
 	CopySnapData(instSnapPath string, flags snappy.InstallFlags) error
-	GenerateSecurityProfile(instSnapPath string) error
+	SetupSnapSecurity(instSnapPath string) error
 	GenerateWrappers(instSnapPath string) error
 	UpdateCurrentSymlink(instSnapPath string) error
 	// the undoers
 	UndoSetupSnap(snapFilePath string) error
-	UndoGenerateSecurityProfile(instSnapPath string) error
+	UndoSetupSnapSecurity(instSnapPath string) error
 	UndoCopySnapData(instSnapPath string, flags snappy.InstallFlags) error
 	UndoGenerateWrappers(instSnapPath string) error
 	UndoUpdateCurrentSymlink(oldInstSnapPath, instSnapPath string) error
@@ -116,12 +116,12 @@ func (s *defaultBackend) CopySnapData(snapInstPath string, flags snappy.InstallF
 	return snappy.CopyData(sn, flags, meter)
 }
 
-func (s *defaultBackend) GenerateSecurityProfile(snapInstPath string) error {
+func (s *defaultBackend) SetupSnapSecurity(snapInstPath string) error {
 	sn, err := snappy.NewInstalledSnap(filepath.Join(snapInstPath, "meta", "snap.yaml"))
 	if err != nil {
 		return err
 	}
-	return snappy.GenerateSecurityProfile(sn)
+	return snappy.SetupSnapSecurity(sn)
 }
 
 func (s *defaultBackend) GenerateWrappers(snapInstPath string) error {
@@ -148,12 +148,12 @@ func (s *defaultBackend) UndoSetupSnap(snapFilePath string) error {
 	return nil
 }
 
-func (s *defaultBackend) UndoGenerateSecurityProfile(instSnapPath string) error {
+func (s *defaultBackend) UndoSetupSnapSecurity(instSnapPath string) error {
 	sn, err := snappy.NewInstalledSnap(filepath.Join(instSnapPath, "meta", "snap.yaml"))
 	if err != nil {
 		return err
 	}
-	snappy.RemoveGeneratedSecurityProfile(sn)
+	snappy.RemoveGeneratedSnapSecurity(sn)
 	return nil
 }
 func (s *defaultBackend) UndoCopySnapData(instSnapPath string, flags snappy.InstallFlags) error {
