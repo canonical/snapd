@@ -27,6 +27,7 @@ import (
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/wait"
+	"github.com/ubuntu-core/snappy/testutil"
 
 	"gopkg.in/check.v1"
 )
@@ -38,7 +39,10 @@ type snapHelloWorldExampleSuite struct {
 }
 
 func installSnap(c *check.C, packageName string) string {
-	return cli.ExecCommand(c, "sudo", "snap", "install", packageName)
+	cli.ExecCommand(c, "sudo", "snap", "install", packageName)
+	// FIXME: should `snap install` shold show a list afterards?
+	//        like `snappy install`?
+	return cli.ExecCommand(c, "snap", "list")
 }
 
 func removeSnap(c *check.C, packageName string) string {
@@ -106,8 +110,9 @@ type snapGoWebserverExampleSuite struct {
 
 func (s *snapGoWebserverExampleSuite) TestGetRootPathMustPrintMessage(c *check.C) {
 	appName := "go-example-webserver"
-	installSnap(c, appName)
+	output := installSnap(c, appName)
 	defer removeSnap(c, appName)
+	c.Assert(output, testutil.Contains, "go-example-webserver")
 
 	err := wait.ForServerOnPort(c, "tcp6", 8081)
 	c.Assert(err, check.IsNil, check.Commentf("Error waiting for server: %s", err))
