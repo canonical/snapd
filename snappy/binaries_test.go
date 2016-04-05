@@ -27,6 +27,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/snap"
 )
 
 type binariesTestSuite struct{}
@@ -34,8 +35,15 @@ type binariesTestSuite struct{}
 var _ = Suite(&binariesTestSuite{})
 
 func (s *SnapTestSuite) TestGenerateBinaryName(c *C) {
-	c.Check(generateBinaryName(&snapYaml{Name: "foo"}, &AppYaml{Name: "bar"}), Equals, filepath.Join(dirs.SnapBinariesDir, "foo.bar"))
-	c.Check(generateBinaryName(&snapYaml{Name: "foo"}, &AppYaml{Name: "foo"}), Equals, filepath.Join(dirs.SnapBinariesDir, "foo"))
+	info, err := snap.InfoFromSnapYaml([]byte(`name: foo
+apps:
+   foo:
+   bar:
+`))
+	c.Assert(err, IsNil)
+
+	c.Check(generateBinaryName(info.Apps["bar"]), Equals, filepath.Join(dirs.SnapBinariesDir, "foo.bar"))
+	c.Check(generateBinaryName(info.Apps["foo"]), Equals, filepath.Join(dirs.SnapBinariesDir, "foo"))
 }
 
 const expectedWrapper = `#!/bin/sh
@@ -66,38 +74,49 @@ ubuntu-core-launcher pastebinit.pastebinit pastebinit_pastebinit_1.4.0.0.1 /snap
 `
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
-	binary := &AppYaml{Name: "pastebinit", Command: "bin/pastebinit"}
 	pkgPath := "/snaps/pastebinit/1.4.0.0.1/"
 	aaProfile := "pastebinit_pastebinit_1.4.0.0.1"
-	m := snapYaml{Name: "pastebinit",
-		Version: "1.4.0.0.1"}
+	info := &snap.Info{
+		Name:    "pastebinit",
+		Version: "1.4.0.0.1",
+	}
+	binary := &snap.AppInfo{
+		Snap:    info,
+		Name:    "pastebinit",
+		Command: "bin/pastebinit",
+	}
 
 	expected := fmt.Sprintf(expectedWrapper, arch.UbuntuArchitecture())
 
-	generatedWrapper, err := generateSnapBinaryWrapper(binary, pkgPath, aaProfile, &m)
+	generatedWrapper, err := generateSnapBinaryWrapper(binary, pkgPath, aaProfile)
 	c.Assert(err, IsNil)
 	c.Assert(generatedWrapper, Equals, expected)
 }
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperIllegalChars(c *C) {
-	binary := &AppYaml{Name: "bin/pastebinit\nSomething nasty"}
 	pkgPath := "/snaps/pastebinit.mvo/1.4.0.0.1/"
 	aaProfile := "pastebinit.mvo_pastebinit_1.4.0.0.1"
-	m := snapYaml{Name: "pastebinit",
-		Version: "1.4.0.0.1"}
+	info := &snap.Info{
+		Name:    "pastebinit",
+		Version: "1.4.0.0.1",
+	}
+	binary := &snap.AppInfo{
+		Snap: info,
+		Name: "bin/pastebinit\nSomething nasty",
+	}
 
-	_, err := generateSnapBinaryWrapper(binary, pkgPath, aaProfile, &m)
+	_, err := generateSnapBinaryWrapper(binary, pkgPath, aaProfile)
 	c.Assert(err, NotNil)
 }
 
 func (s *SnapTestSuite) TestSnappyBinPathForBinaryNoExec(c *C) {
-	binary := &AppYaml{Name: "pastebinit", Command: "bin/pastebinit"}
+	binary := &snap.AppInfo{Name: "pastebinit", Command: "bin/pastebinit"}
 	pkgPath := "/snaps/pastebinit.mvo/1.0/"
 	c.Assert(binPathForBinary(pkgPath, binary), Equals, "/snaps/pastebinit.mvo/1.0/bin/pastebinit")
 }
 
 func (s *SnapTestSuite) TestSnappyBinPathForBinaryWithExec(c *C) {
-	binary := &AppYaml{
+	binary := &snap.AppInfo{
 		Name:    "pastebinit",
 		Command: "bin/random-pastebin",
 	}

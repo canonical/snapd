@@ -69,8 +69,10 @@ func (s *SnapTestSuite) TestAddPackageBinariesStripsGlobalRootdir(c *C) {
 	c.Assert(err, IsNil)
 	m, err := parseSnapYamlFile(yamlFile)
 	c.Assert(err, IsNil)
-	baseDir := filepath.Dir(filepath.Dir(yamlFile))
-	err = addPackageBinaries(m, baseDir)
+	snap, err := newSnapFromYaml(yamlFile, m)
+	c.Assert(err, IsNil)
+
+	err = addPackageBinaries(snap.Info())
 	c.Assert(err, IsNil)
 
 	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/snaps/bin/hello-snap.hello"))
