@@ -202,7 +202,7 @@ type diskManifest struct {
 	Developer   string `yaml:"developer"`
 	Description string `yaml:"description"`
 	Size        int64  `yaml:"size"`
-	Sha512      string `yaml:"sha512`
+	Sha512      string `yaml:"sha512"`
 	IconURL     string `yaml:"icon-url"`
 }
 
