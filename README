@@ -59,6 +59,15 @@ It works like this:
   run /lib/udev/snappy-app-dev to handle device events for devices tagged with
   snap_*.
 
+Note, /sys/fs/cgroups/devices/snap.<snap name>.<app> is not (currently) removed
+on unassignment and the contents of the cgroup for the app are managed entirely
+by the launcher. When an application is started, the cgroup is reset by
+removing all previously added devices and then the list of assigned devices is
+built back up before launch. In this manner, devices can be assigned, changed,
+and unassigned and the app will always get the correct device added to the
+cgroup, but what is in /sys/fs/cgroups/devices/snap.<snap name>.<app> will not
+reflect assignment/unassignment until after the application is started.
+
 
 == private /tmp ==
 
