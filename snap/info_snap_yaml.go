@@ -27,14 +27,17 @@ import (
 )
 
 type snapYaml struct {
-	Name        string                 `yaml:"name"`
-	Version     string                 `yaml:"version"`
-	Type        Type                   `yaml:"type"`
-	Description string                 `yaml:"description"`
-	Summary     string                 `yaml:"summary"`
-	Plugs       map[string]interface{} `yaml:"plugs,omitempty"`
-	Slots       map[string]interface{} `yaml:"slots,omitempty"`
-	Apps        map[string]appYaml     `yaml:"apps,omitempty"`
+	Name             string                 `yaml:"name"`
+	Version          string                 `yaml:"version"`
+	Type             Type                   `yaml:"type"`
+	Architectures    []string               `yaml:"architectures,omitempty"`
+	Description      string                 `yaml:"description"`
+	Summary          string                 `yaml:"summary"`
+	LicenseAgreement string                 `yaml:"license-agreement,omitempty"`
+	LicenseVersion   string                 `yaml:"license-version,omitempty"`
+	Plugs            map[string]interface{} `yaml:"plugs,omitempty"`
+	Slots            map[string]interface{} `yaml:"slots,omitempty"`
+	Apps             map[string]appYaml     `yaml:"apps,omitempty"`
 	// TODO: missing fields still
 }
 
@@ -65,16 +68,28 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	if err != nil {
 		return nil, fmt.Errorf("info failed to parse: %s", err)
 	}
+	// Defaults
+	architectures := []string{"all"}
+	if len(y.Architectures) != 0 {
+		architectures = y.Architectures
+	}
+	typ := TypeApp
+	if y.Type != "" {
+		typ = y.Type
+	}
 	// Construct snap skeleton, without apps, plugs and slots
 	snap := &Info{
-		Name:        y.Name,
-		Version:     y.Version,
-		Type:        y.Type,
-		Description: y.Description,
-		Summary:     y.Summary,
-		Apps:        make(map[string]*AppInfo),
-		Plugs:       make(map[string]*PlugInfo),
-		Slots:       make(map[string]*SlotInfo),
+		Name:             y.Name,
+		Version:          y.Version,
+		Type:             typ,
+		Architectures:    architectures,
+		Description:      y.Description,
+		Summary:          y.Summary,
+		LicenseAgreement: y.LicenseAgreement,
+		LicenseVersion:   y.LicenseVersion,
+		Apps:             make(map[string]*AppInfo),
+		Plugs:            make(map[string]*PlugInfo),
+		Slots:            make(map[string]*SlotInfo),
 	}
 	// Collect top-level definitions of plugs
 	for name, data := range y.Plugs {

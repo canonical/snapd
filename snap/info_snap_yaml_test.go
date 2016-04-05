@@ -788,3 +788,66 @@ slots:
 	c.Check(slot2.Apps, DeepEquals, map[string]*snap.AppInfo{
 		app1.Name: app1, app2.Name: app2})
 }
+
+// type and architectures
+
+func (s *YamlSuite) TestSnapYamlTypeDefault(c *C) {
+	y := []byte(`name: fatbinary
+version: 1.0
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+	c.Assert(info.Type, Equals, snap.TypeApp)
+}
+
+func (s *YamlSuite) TestSnapYamlMultipleArchitecturesParsing(c *C) {
+	y := []byte(`name: fatbinary
+version: 1.0
+architectures: [i386, armhf]
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+	c.Assert(info.Architectures, DeepEquals, []string{"i386", "armhf"})
+}
+
+func (s *YamlSuite) TestSnapYamlSingleArchitecturesParsing(c *C) {
+	y := []byte(`name: fatbinary
+version: 1.0
+architectures: [i386]
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+	c.Assert(info.Architectures, DeepEquals, []string{"i386"})
+}
+
+func (s *YamlSuite) TestSnapYamlNoArchitecturesParsing(c *C) {
+	y := []byte(`name: fatbinary
+version: 1.0
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+	c.Assert(info.Architectures, DeepEquals, []string{"all"})
+}
+
+func (s *YamlSuite) TestSnapYamlBadArchitectureParsing(c *C) {
+	data := []byte(`name: fatbinary
+version: 1.0
+architectures:
+  armhf:
+    no
+`)
+	_, err := snap.InfoFromSnapYaml(data)
+	c.Assert(err, NotNil)
+}
+
+func (s *YamlSuite) TestSnapYamlLicenseParsing(c *C) {
+	y := []byte(`
+name: foo
+version: 1.0
+license-agreement: explicit
+license-version: 12`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+	c.Assert(info.LicenseAgreement, Equals, "explicit")
+	c.Assert(info.LicenseVersion, Equals, "12")
+}

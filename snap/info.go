@@ -21,17 +21,20 @@ package snap
 
 // Info provides information about snaps.
 type Info struct {
-	Name        string
-	Developer   string
-	Version     string
-	Revision    int
-	Type        Type
-	Channel     string
-	Description string
-	Summary     string
-	Apps        map[string]*AppInfo
-	Plugs       map[string]*PlugInfo
-	Slots       map[string]*SlotInfo
+	Name             string
+	Developer        string
+	Version          string
+	Revision         int
+	Type             Type
+	Architectures    []string
+	Channel          string
+	Description      string
+	Summary          string
+	LicenseAgreement string
+	LicenseVersion   string
+	Apps             map[string]*AppInfo
+	Plugs            map[string]*PlugInfo
+	Slots            map[string]*SlotInfo
 }
 
 // PlugInfo provides information about a plug.
