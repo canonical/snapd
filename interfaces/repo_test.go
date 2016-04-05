@@ -985,6 +985,11 @@ func (s *AddRemoveSuite) TestAddSnapAddsPlugs(c *C) {
 	c.Assert(errors, HasLen, 0)
 }
 
+func (s *AddRemoveSuite) TestAddSnapPanicsOnExistingSnaps(c *C) {
+	_, _ = s.addSnap(c, testConsumerYaml)
+	c.Assert(func() { s.addSnap(c, testConsumerYaml) }, PanicMatches, "cannot add plug consumer.iface: existing plug in the way")
+}
+
 func (s *AddRemoveSuite) TestAddSnapSkipsPlugsWithUnknownInterface(c *C) {
 	_, errors := s.addSnap(c, testUnknownIfaceConsumerYaml)
 	// The plug was skipped
