@@ -197,19 +197,23 @@ func GenerateWrappers(s *Snap, inter interacter) error {
 // RemoveGeneratedWrappers removes the generated services, binaries, desktop
 // wrappers
 func RemoveGeneratedWrappers(s *Snap, inter interacter) error {
-	if err := removePackageBinaries(s.m, s.basedir); err != nil {
-		logger.Noticef("Failed to remove binaries for %q: %v", s.Name(), err)
+
+	err1 := removePackageBinaries(s.m, s.basedir)
+	if err1 != nil {
+		logger.Noticef("Failed to remove binaries for %q: %v", s.Name(), err1)
 	}
 
-	if err := removePackageServices(s.m, s.basedir, inter); err != nil {
-		logger.Noticef("Failed to remove services for %q: %v", s.Name(), err)
+	err2 := removePackageServices(s.m, s.basedir, inter)
+	if err2 != nil {
+		logger.Noticef("Failed to remove services for %q: %v", s.Name(), err2)
 	}
 
-	if err := removePackageDesktopFiles(s.m); err != nil {
-		logger.Noticef("Failed to remove desktop files for %q: %v", s.Name(), err)
+	err3 := removePackageDesktopFiles(s.m)
+	if err3 != nil {
+		logger.Noticef("Failed to remove desktop files for %q: %v", s.Name(), err3)
 	}
 
-	return nil
+	return firstErr(err1, err2, err3)
 }
 
 func UpdateCurrentSymlink(s *Snap, inter interacter) error {
@@ -317,6 +321,8 @@ func ActivateSnap(s *Snap, inter interacter) error {
 	return UpdateCurrentSymlink(s, inter)
 }
 
+// FIXME: this needs to become task based too so that each step
+//        has a clear undo
 func DeactivateSnap(s *Snap, inter interacter) error {
 	currentSymlink := filepath.Join(s.basedir, "..", "current")
 
@@ -333,15 +339,15 @@ func DeactivateSnap(s *Snap, inter interacter) error {
 	}
 
 	// remove generated services, binaries, security policy
-	if err := RemoveGeneratedWrappers(s, inter); err != nil {
-		return err
-	}
+	err1 := RemoveGeneratedWrappers(s, inter)
 
-	if err := RemoveGeneratedSecurityProfile(s); err != nil {
-		return err
-	}
+	// remove generated security
+	err2 := RemoveGeneratedSecurityProfile(s)
 
-	return removeCurrentSymlink(s, inter)
+	// and finally remove current symlink
+	err3 := removeCurrentSymlink(s, inter)
+
+	return firstErr(err1, err2, err3)
 }
 
 // Install installs the given snap file to the system.

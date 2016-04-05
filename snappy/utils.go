@@ -108,3 +108,13 @@ func getattr(i interface{}, name string) interface{} {
 	}
 	return v.FieldByName(name).Interface()
 }
+
+// firstErr returns the first error of the given error list
+func firstErr(err ...error) error {
+	for _, e := range err {
+		if e != nil {
+			return e
+		}
+	}
+	return nil
+}
