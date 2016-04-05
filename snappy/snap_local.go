@@ -207,11 +207,15 @@ func (s *Snap) Info() *snap.Info {
 		Channel:     s.Channel(),
 		Summary:     s.m.Summary, // XXX: doesn't exist in the store yet anyway
 		Description: s.description(),
+		Size:        s.DownloadSize(),
 	}
 }
 
 // DownloadSize returns the dowload size
 func (s *Snap) DownloadSize() int64 {
+	if mf := s.manifest; mf != nil {
+		return mf.Size
+	}
 	return -1
 }
 
