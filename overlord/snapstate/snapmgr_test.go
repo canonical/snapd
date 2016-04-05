@@ -73,7 +73,7 @@ func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
 	c.Assert(err, IsNil)
 
 	i := 0
-	c.Assert(ts.Tasks(), HasLen, 6)
+	c.Assert(ts.Tasks(), HasLen, 5)
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "download-snap")
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "mount-snap")
@@ -82,9 +82,7 @@ func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "setup-snap-security")
 	i++
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "generate-wrappers")
-	i++
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "update-current-symlink")
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "link-snap")
 }
 
 func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {

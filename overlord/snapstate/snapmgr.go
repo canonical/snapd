@@ -94,8 +94,7 @@ func Manager(s *state.State) (*SnapManager, error) {
 	runner.AddHandler("mount-snap", m.doMountSnap, m.undoMountSnap)
 	runner.AddHandler("copy-snap-data", m.doCopySnapData, m.undoCopySnapData)
 	runner.AddHandler("setup-snap-security", m.doGenerateSecurity, m.undoGenerateSecurity)
-	runner.AddHandler("generate-wrappers", m.doGenerateWrappers, m.undoGenerateWrappers)
-	runner.AddHandler("update-current-symlink", m.doUpdateCurrentSymlink, m.undoUpdateCurrentSymlink)
+	runner.AddHandler("link-snap", m.doLinkSnap, m.undoLinkSnap)
 
 	runner.AddHandler("update-snap", m.doUpdateSnap, nil)
 	runner.AddHandler("remove-snap", m.doRemoveSnap, nil)
@@ -379,7 +378,7 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 
 	return m.backend.CopySnapData(setup.InstallPath, inst.Flags)
 }
-func (m *SnapManager) undoGenerateWrappers(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	var inst installState
 	var setup setupState
 
@@ -394,61 +393,33 @@ func (m *SnapManager) undoGenerateWrappers(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	return m.backend.UndoGenerateWrappers(setup.InstallPath)
-}
-
-func (m *SnapManager) doGenerateWrappers(t *state.Task, _ *tomb.Tomb) error {
-	var inst installState
-	var setup setupState
-
-	t.State().Lock()
-	err := t.Get("install-state", &inst)
-	t.State().Unlock()
-	if err != nil {
-		return err
-	}
-
-	if err := getSnapSetupState(t, &setup); err != nil {
-		return err
-	}
-
-	return m.backend.GenerateWrappers(setup.InstallPath)
-}
-
-func (m *SnapManager) undoUpdateCurrentSymlink(t *state.Task, _ *tomb.Tomb) error {
-	var inst installState
-	var setup setupState
-
-	t.State().Lock()
-	err := t.Get("install-state", &inst)
-	t.State().Unlock()
-	if err != nil {
-		return err
-	}
-
-	if err := getSnapSetupState(t, &setup); err != nil {
-		return err
-	}
-
-	return m.backend.UndoUpdateCurrentSymlink(setup.OldInstallPath, setup.InstallPath)
-}
-
-func (m *SnapManager) doUpdateCurrentSymlink(t *state.Task, _ *tomb.Tomb) error {
-	var inst installState
-	var setup setupState
-
-	t.State().Lock()
-	err := t.Get("install-state", &inst)
-	t.State().Unlock()
-	if err != nil {
-		return err
-	}
-
-	if err := getSnapSetupState(t, &setup); err != nil {
+	if err := m.backend.GenerateWrappers(setup.InstallPath); err != nil {
 		return err
 	}
 
 	return m.backend.UpdateCurrentSymlink(setup.InstallPath)
+}
+
+func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
+	var inst installState
+	var setup setupState
+
+	t.State().Lock()
+	err := t.Get("install-state", &inst)
+	t.State().Unlock()
+	if err != nil {
+		return err
+	}
+
+	if err := getSnapSetupState(t, &setup); err != nil {
+		return err
+	}
+
+	if err := m.backend.UndoGenerateWrappers(setup.InstallPath); err != nil {
+		return err
+	}
+
+	return m.backend.UndoUpdateCurrentSymlink(setup.OldInstallPath, setup.InstallPath)
 }
 
 // SnapInfo returns the snap.Info for a snap in the system.
