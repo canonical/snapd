@@ -41,7 +41,7 @@ func Validate(info *Info) error {
 	return nil
 }
 
-// Validate verifies the content in the app info.
+// ValidateApp verifies the content in the app info.
 func ValidateApp(appInfo *AppInfo) error {
 	return nil
 }

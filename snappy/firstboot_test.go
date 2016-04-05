@@ -119,7 +119,7 @@ func (s *FirstBootTestSuite) newOverlord() configurator {
 
 func (s *FirstBootTestSuite) newFakeApp() *Snap {
 	fakeMyApp := Snap{
-		m: &snapYaml{
+		info: &snap.Info{
 			Name: "myapp",
 			Type: snap.TypeApp,
 		},
