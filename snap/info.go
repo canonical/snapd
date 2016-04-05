@@ -19,10 +19,6 @@
 
 package snap
 
-import (
-	"time"
-)
-
 // Info provides information about snaps.
 type Info struct {
 	Name        string
@@ -74,7 +70,6 @@ type AppInfo struct {
 
 // StoreInfo provides specific information for a store hosted snap.
 type StoreInfo struct {
-	LastUpdated     time.Time
 	DownloadSha512  string
 	DownloadSize    int64
 	AnonDownloadURL string

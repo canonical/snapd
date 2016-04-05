@@ -32,7 +32,6 @@ import (
 	"path"
 	"reflect"
 	"strings"
-	"time"
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/asserts"
@@ -51,24 +50,6 @@ const (
 	UbuntuCoreWireProtocol = "1"
 )
 
-func parseLastUpdated(d snapDetails) time.Time {
-	var p time.Time
-	var err error
-
-	for _, fmt := range []string{
-		"2006-01-02T15:04:05Z",
-		"2006-01-02T15:04:05.000Z",
-		"2006-01-02T15:04:05.000000Z",
-	} {
-		p, err = time.Parse(fmt, d.LastUpdated)
-		if err == nil {
-			break
-		}
-	}
-
-	return p
-}
-
 func infoFromRemote(d snapDetails) *snap.Info {
 	return &snap.Info{
 		Name:        d.Name,
@@ -80,7 +61,6 @@ func infoFromRemote(d snapDetails) *snap.Info {
 		Developer:   d.Developer,
 		Channel:     d.Channel,
 		Store: &snap.StoreInfo{
-			LastUpdated:     parseLastUpdated(d),
 			DownloadSha512:  d.DownloadSha512,
 			DownloadSize:    d.DownloadSize,
 			AnonDownloadURL: d.AnonDownloadURL,
