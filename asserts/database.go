@@ -89,6 +89,13 @@ var (
 	ErrNotFound = errors.New("assertion not found")
 )
 
+// InvalidRevisionError describes an error related to the revision of an assertion.
+type InvalidRevisionError string
+
+func (err InvalidRevisionError) Error() string {
+	return string(err)
+}
+
 // A RODatabase exposes read-only access to an assertion database.
 type RODatabase interface {
 	// Find an assertion based on arbitrary headers.
