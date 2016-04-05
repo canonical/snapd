@@ -550,39 +550,39 @@ func (r *Repository) AddSnap(snapInfo *snap.Info) []error {
 	for plugName, plugInfo := range snapInfo.Plugs {
 		iface, ok := r.ifaces[plugInfo.Interface]
 		if !ok {
-			err := fmt.Errorf("ignoring plug %s.%s, interface %s is not supported", snapInfo.Name, plugName, plugInfo.Interface)
+			err := fmt.Errorf("ignoring plug %s.%s, interface %s is not supported", snapName, plugName, plugInfo.Interface)
 			errors = append(errors, err)
 			continue
 		}
 		plug := &Plug{PlugInfo: plugInfo}
 		if err := iface.SanitizePlug(plug); err != nil {
-			err := fmt.Errorf("ignoring plug %s.%s, %s", snapInfo.Name, plugName, err)
+			err := fmt.Errorf("ignoring plug %s.%s, %s", snapName, plugName, err)
 			errors = append(errors, err)
 			continue
 		}
-		if r.plugs[snapInfo.Name] == nil {
-			r.plugs[snapInfo.Name] = make(map[string]*Plug)
+		if r.plugs[snapName] == nil {
+			r.plugs[snapName] = make(map[string]*Plug)
 		}
-		r.plugs[snapInfo.Name][plugName] = plug
+		r.plugs[snapName][plugName] = plug
 	}
 
 	for slotName, slotInfo := range snapInfo.Slots {
 		iface, ok := r.ifaces[slotInfo.Interface]
 		if !ok {
-			err := fmt.Errorf("ignoring slot %s.%s, interface %s is not supported", snapInfo.Name, slotName, slotInfo.Interface)
+			err := fmt.Errorf("ignoring slot %s.%s, interface %s is not supported", snapName, slotName, slotInfo.Interface)
 			errors = append(errors, err)
 			continue
 		}
 		slot := &Slot{SlotInfo: slotInfo}
 		if err := iface.SanitizeSlot(slot); err != nil {
-			err := fmt.Errorf("ignoring slot %s.%s, %s", snapInfo.Name, slotName, err)
+			err := fmt.Errorf("ignoring slot %s.%s, %s", snapName, slotName, err)
 			errors = append(errors, err)
 			continue
 		}
-		if r.slots[snapInfo.Name] == nil {
-			r.slots[snapInfo.Name] = make(map[string]*Slot)
+		if r.slots[snapName] == nil {
+			r.slots[snapName] = make(map[string]*Slot)
 		}
-		r.slots[snapInfo.Name][slotName] = slot
+		r.slots[snapName][slotName] = slot
 	}
 
 	return errors
