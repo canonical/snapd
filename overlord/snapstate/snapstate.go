@@ -57,19 +57,19 @@ func Install(s *state.State, snap, channel string, flags snappy.InstallFlags) (*
 	// copy-data (needs to stop services)
 	copyData := s.NewTask("copy-snap-data", fmt.Sprintf(i18n.G("Copying snap data for %q"), snap))
 	copyData.Set("install-state", inst)
-	copyData.Set("setup-snap-id", mount.ID())
+	copyData.Set("mount-snap-id", mount.ID())
 	copyData.WaitFor(mount)
 
 	// security
 	generateSecurity := s.NewTask("setup-snap-security", fmt.Sprintf(i18n.G("Setting up security profile for %q"), snap))
 	generateSecurity.Set("install-state", inst)
-	generateSecurity.Set("setup-snap-id", mount.ID())
+	generateSecurity.Set("mount-snap-id", mount.ID())
 	generateSecurity.WaitFor(copyData)
 
 	// finalize (wrappers+current symlink)
 	linkSnap := s.NewTask("link-snap", fmt.Sprintf(i18n.G("Final step for %q"), snap))
 	linkSnap.Set("install-state", inst)
-	linkSnap.Set("setup-snap-id", mount.ID())
+	linkSnap.Set("mount-snap-id", mount.ID())
 	linkSnap.WaitFor(generateSecurity)
 
 	return state.NewTaskSet(download, mount, copyData, generateSecurity, linkSnap), nil
