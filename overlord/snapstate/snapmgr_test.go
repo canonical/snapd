@@ -73,10 +73,8 @@ func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
 	c.Assert(err, IsNil)
 
 	i := 0
-	c.Assert(ts.Tasks(), HasLen, 7)
+	c.Assert(ts.Tasks(), HasLen, 6)
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "download-snap")
-	i++
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "check-snap")
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "mount-snap")
 	i++
