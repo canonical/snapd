@@ -19,6 +19,10 @@
 
 package snap
 
+import (
+	"github.com/ubuntu-core/snappy/timeout"
+)
+
 // Info provides information about snaps.
 type Info struct {
 	Name             string
@@ -63,8 +67,13 @@ type SlotInfo struct {
 type AppInfo struct {
 	Snap *Info
 
-	Name    string
-	Command string
-	Plugs   map[string]*PlugInfo
-	Slots   map[string]*SlotInfo
+	Name        string
+	Command     string
+	Description string
+
+	Daemon      string
+	StopTimeout timeout.Timeout
+
+	Plugs map[string]*PlugInfo
+	Slots map[string]*SlotInfo
 }
