@@ -164,6 +164,7 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 "version": "2",
 "developer": "test",
 "anon_download_url": "`+dlURL+`",
+"download_url": "`+dlURL+`",
 "icon_url": "`+iconURL+`"
 }`)
 		case "/dl":
@@ -282,9 +283,10 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 		io.WriteString(w, `[{
 	"package_name": "foo",
 	"version": "2",
-        "revision": 1,
+        "revision": 3,
         "origin": "`+testDeveloper+`",
 	"anon_download_url": "`+dlURL+`",
+	"download_url": "`+dlURL+`",
 	"icon_url": "`+iconURL+`"
 }]`)
 	}))
@@ -301,7 +303,7 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 	c.Assert(updates, HasLen, 1)
 	c.Check(updates[0].Name(), Equals, "foo")
 	c.Check(updates[0].Version(), Equals, "2")
-	c.Check(updates[0].Revision(), Equals, 1)
+	c.Check(updates[0].Revision(), Equals, 3)
 	// ensure that we get a "local" snap back - not a remote one
 	c.Check(updates[0], FitsTypeOf, &Snap{})
 }
