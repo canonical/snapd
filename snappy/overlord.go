@@ -272,11 +272,11 @@ func removeCurrentSymlink(s *Snap, inter interacter) error {
 	}
 
 	if err1 != nil && err2 != nil {
-		return fmt.Errorf("removeCurrentSymlink failed with: %v and %v", err1, err2)
+		return fmt.Errorf("cannot remove snap current symlink: %v and %v", err1, err2)
 	} else if err1 != nil {
-		return fmt.Errorf("removeCurrentSymlink failed with: %v", err1)
+		return fmt.Errorf("cannot remove snap current symlink: %v", err1)
 	} else if err2 != nil {
-		return fmt.Errorf("removeCurrentSymlink failed with: %v", err2)
+		return fmt.Errorf("cannot remove snap current symlink: %v", err2)
 	}
 
 	return nil
@@ -300,7 +300,7 @@ func ActivateSnap(s *Snap, inter interacter) error {
 
 	// there is already an active snap
 	if currentActiveDir != "" {
-		return fmt.Errorf("there is already an active snap: %v", currentActiveDir)
+		return fmt.Errorf("cannot activate snap while another one is active: %v", currentActiveDir)
 	}
 
 	// generate the security policy from the snap.yaml
@@ -333,15 +333,7 @@ func DeactivateSnap(s *Snap, inter interacter) error {
 	}
 
 	// remove generated services, binaries, security policy
-	if err := removePackageBinaries(s.m, s.basedir); err != nil {
-		return err
-	}
-
-	if err := removePackageServices(s.m, s.basedir, inter); err != nil {
-		return err
-	}
-
-	if err := removePackageDesktopFiles(s.m); err != nil {
+	if err := RemoveGeneratedWrappers(s, inter); err != nil {
 		return err
 	}
 
