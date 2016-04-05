@@ -196,12 +196,14 @@ func ManifestPath(s *snap.Info) string {
 /// XXX: temporary step until we know if we still need this (vs overlord state)
 // and to find out what we absolutely need from it
 type diskManifest struct {
-	// XXX likely we want also name and snap-id and summary
+	// XXX likely we want also snap-id and summary and name? (but name breaks immutability)
 	Revision    int    `yaml:"revision"`
 	Channel     string `yaml:"channel"`
 	Developer   string `yaml:"developer"`
 	Description string `yaml:"description"`
 	Size        int64  `yaml:"size"`
+	Sha512      string `yaml:"sha512`
+	IconURL     string `yaml:"icon-url"`
 }
 
 // SaveManifest saves the manifest at the designated location for the snap containing information not in the snap.yaml.
@@ -213,6 +215,8 @@ func SaveManifest(rsnap *snap.Info) error {
 		// XXX capture also Summary?
 		Description: rsnap.Description,
 		Size:        rsnap.Size,
+		Sha512:      rsnap.Sha512,
+		IconURL:     rsnap.IconURL,
 	}
 	content, err := yaml.Marshal(m)
 	if err != nil {
