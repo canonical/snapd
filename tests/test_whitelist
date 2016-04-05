@@ -6,26 +6,26 @@ set -e
 
 printf "Test appname whitelist"
 
-cat >$TMP/aaprofile <<EOF
+cat >$TMP/myprofile <<EOF
 # some comment
 @unrestricted
 EOF
 
 # good
-$L appname aaprofile /bin/true
-$L pkg.binary aaprofile /bin/true
-$L pkg-foo.0binary-bar+baz aaprofile /bin/true
+$L appname myprofile /bin/true
+$L pkg.binary myprofile /bin/true
+$L pkg-foo.0binary-bar+baz myprofile /bin/true
 
 # and now the bad ones
-if $L appname/.. aaprofile /bin/true 2>/dev/null; then
+if $L appname/.. myprofile /bin/true 2>/dev/null; then
     # true returned successfully, our appname whitelist is broken!
    FAIL
 fi
 
-if $L 'appname space' aaprofile /bin/true 2>/dev/null; then
+if $L 'appname space' myprofile /bin/true 2>/dev/null; then
     # true returned successfully, our appname whitelist is broken!
    FAIL
 fi
 
 # all good
-PASS 
+PASS

@@ -23,6 +23,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <ctype.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <sys/prctl.h>
 
@@ -30,7 +31,13 @@
 
 #include "utils.h"
 
+#define SC_MAX_LINE_LENGTH	82	// 80 + '\n' + '\0'
+
 char *filter_profile_dir = "/var/lib/snappy/seccomp/profiles/";
+
+struct preprocess {
+	bool unrestricted;
+};
 
 // strip whitespace from the end of the given string (inplace)
 size_t trim_right(char *s, size_t slen)
@@ -39,6 +46,61 @@ size_t trim_right(char *s, size_t slen)
 		s[--slen] = 0;
 	}
 	return slen;
+}
+
+// Read a relevant line and return the length. Return length '0' for comments,
+// empty lines and lines with only whitespace (so a caller can easily skip
+// them). The line buffer is right whitespaced trimmed and the final length of
+// the trimmed line is returned.
+size_t validate_and_trim_line(char *buf, size_t buf_len, size_t lineno)
+{
+	size_t len = 0;
+
+	// comment, ignore
+	if (buf[0] == '#')
+		return len;
+
+	// ensure the entire line was read
+	len = strlen(buf);
+	if (len == 0)
+		return len;
+	else if (buf[len - 1] != '\n' && len > (buf_len - 2)) {
+		fprintf(stderr,
+			"seccomp filter line %zu was too long (%zu characters max)\n",
+			lineno, buf_len - 2);
+		errno = 0;
+		die("aborting");
+	}
+	// kill final newline
+	len = trim_right(buf, len);
+
+	return len;
+}
+
+void preprocess_filter(FILE * f, struct preprocess *p)
+{
+	char buf[SC_MAX_LINE_LENGTH];
+	size_t lineno = 0;
+
+	p->unrestricted = false;
+
+	while (fgets(buf, sizeof(buf), f) != NULL) {
+		lineno++;
+
+		// skip policy-irrelevant lines
+		if (validate_and_trim_line(buf, sizeof(buf), lineno) == 0)
+			continue;
+
+		// check for special "@unrestricted" rule which short-circuits
+		// seccomp sandbox
+		if (strcmp(buf, "@unrestricted") == 0)
+			p->unrestricted = true;
+	}
+
+	if (fseek(f, 0L, SEEK_SET) != 0)
+		die("could not rewind file");
+
+	return;
 }
 
 void seccomp_load_filters(const char *filter_profile)
@@ -50,6 +112,7 @@ void seccomp_load_filters(const char *filter_profile)
 	FILE *f = NULL;
 	size_t lineno = 0;
 	uid_t real_uid, effective_uid, saved_uid;
+	struct preprocess pre;
 
 	ctx = seccomp_init(SCMP_ACT_KILL);
 	if (ctx == NULL) {
@@ -95,37 +158,19 @@ void seccomp_load_filters(const char *filter_profile)
 			strerror(errno));
 		die("aborting");
 	}
-	// 80 characters + '\n' + '\0'
-	char buf[82];
-	while (fgets(buf, sizeof(buf), f) != NULL) {
-		size_t len;
+	// Note, preprocess_filter() die()s on error
+	preprocess_filter(f, &pre);
 
+	if (pre.unrestricted)
+		goto out;
+
+	char buf[SC_MAX_LINE_LENGTH];
+	while (fgets(buf, sizeof(buf), f) != NULL) {
 		lineno++;
 
-		// comment, ignore
-		if (buf[0] == '#')
+		// skip policy-irrelevant lines
+		if (validate_and_trim_line(buf, sizeof(buf), lineno) == 0)
 			continue;
-
-		// ensure the entire line was read
-		len = strlen(buf);
-		if (len == 0)
-			continue;
-		else if (buf[len - 1] != '\n' && len > (sizeof(buf) - 2)) {
-			fprintf(stderr,
-				"seccomp filter line %zu was too long (%zu characters max)\n",
-				lineno, sizeof(buf) - 2);
-			errno = 0;
-			die("aborting");
-		}
-		// kill final newline
-		len = trim_right(buf, len);
-		if (len == 0)
-			continue;
-
-		// check for special "@unrestricted" rule which short-circuits
-		// seccomp sandbox
-		if (strcmp(buf, "@unrestricted") == 0)
-			goto out;
 
 		// syscall not available on this arch/kernel
 		// as this is a syscall whitelist its ok and the error can be
