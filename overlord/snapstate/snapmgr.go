@@ -29,6 +29,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
@@ -249,4 +250,26 @@ func SnapInfo(state *state.State, snapName, snapVersion string) (*snap.Info, err
 	info.Name = snapName
 	// TODO: use state to retrieve additional information
 	return info, nil
+}
+
+// ConfigureSecurity creates a task for configuring the security of a given snap.
+//
+// This method should be used when the snap is being installed or upgraded.
+func ConfigureSecurity(s *state.State, snapInfo *snap.Info) (*state.TaskSet, error) {
+	summary := fmt.Sprintf(i18n.G("Configure security for %s"), snapInfo.Name)
+	task := s.NewTask("configure-security", summary)
+	task.Set("snap-name", snapInfo.Name)
+	task.Set("snap-version", snapInfo.Version)
+	return state.NewTaskSet(task), nil
+}
+
+// DeconfigureSecurity creates a task for deconfiguring security of a given snap.
+//
+// This method should be used when the snap is being removed.
+func DeconfigureSecurity(s *state.State, snapInfo *snap.Info) (*state.TaskSet, error) {
+	summary := fmt.Sprintf(i18n.G("Deconfigure security for %s"), snapInfo.Name)
+	task := s.NewTask("deconfigure-security", summary)
+	task.Set("snap-name", snapInfo.Name)
+	task.Set("snap-version", snapInfo.Version)
+	return state.NewTaskSet(task), nil
 }

@@ -58,7 +58,34 @@ func Manager(s *state.State) (*InterfaceManager, error) {
 
 	runner.AddHandler("connect", m.doConnect, nil)
 	runner.AddHandler("disconnect", m.doDisconnect, nil)
+	runner.AddHandler("configure-security", m.doConfigureSecurity, nil)
+	runner.AddHandler("deconfigure-security", m.doConfigureSecurity, nil)
 	return m, nil
+}
+
+func (m *InterfaceManager) doConfigureSecurity(task *state.Task, _ *tomb.Tomb) error {
+	task.State().Lock()
+	defer task.State().Unlock()
+	// TODO: disconnect all connections affecting given snap
+	// TODO:  - remembering affected snaps
+	// TODO: remove old version of the snap from repository
+	// TODO: add new version of the snap to repository
+	// TODO: re-connect all connection affecting given snap
+	// TODO:  - remembering affected snaps
+	// TODO: configure security of all affected snaps
+	return nil
+}
+
+func (m *InterfaceManager) doDeconfigureSecurity(task *state.Task, _ *tomb.Tomb) error {
+	task.State().Lock()
+	defer task.State().Unlock()
+	// TODO: disconnect all connections affecting given snap
+	// TODO:  - remembering affected snaps
+	// TODO: remove the snap from repository
+	// TODO: configure security of all affected snaps
+	//
+	// XXX: should we forget any persistent intents here?
+	return nil
 }
 
 // Connect returns a set of tasks for connecting an interface.
