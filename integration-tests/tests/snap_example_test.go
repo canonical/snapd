@@ -38,7 +38,7 @@ type snapHelloWorldExampleSuite struct {
 }
 
 func installSnap(c *check.C, packageName string) string {
-	return cli.ExecCommand(c, "sudo", "snap", "install", packageName, "--allow-unauthenticated")
+	return cli.ExecCommand(c, "sudo", "snap", "install", packageName)
 }
 
 func removeSnap(c *check.C, packageName string) string {
@@ -46,7 +46,7 @@ func removeSnap(c *check.C, packageName string) string {
 }
 
 func (s *snapHelloWorldExampleSuite) TestCallHelloWorldBinary(c *check.C) {
-	installSnap(c, "hello-world/edge")
+	installSnap(c, "hello-world")
 	s.AddCleanup(func() {
 		removeSnap(c, "hello-world")
 	})
@@ -58,7 +58,7 @@ func (s *snapHelloWorldExampleSuite) TestCallHelloWorldBinary(c *check.C) {
 }
 
 func (s *snapHelloWorldExampleSuite) TestCallHelloWorldEvilMustPrintPermissionDeniedError(c *check.C) {
-	installSnap(c, "hello-world/edge")
+	installSnap(c, "hello-world")
 	s.AddCleanup(func() {
 		removeSnap(c, "hello-world")
 	})
@@ -86,7 +86,7 @@ type snapPythonWebserverExampleSuite struct {
 func (s *snapPythonWebserverExampleSuite) TestNetworkingServiceMustBeStarted(c *check.C) {
 	baseAppName := "xkcd-webserver"
 	appName := baseAppName + ".canonical"
-	installSnap(c, appName+"/edge")
+	installSnap(c, appName)
 	defer removeSnap(c, appName)
 
 	err := wait.ForServerOnPort(c, "tcp", 80)
@@ -106,7 +106,7 @@ type snapGoWebserverExampleSuite struct {
 
 func (s *snapGoWebserverExampleSuite) TestGetRootPathMustPrintMessage(c *check.C) {
 	appName := "go-example-webserver"
-	installSnap(c, appName+"/edge")
+	installSnap(c, appName)
 	defer removeSnap(c, appName)
 
 	err := wait.ForServerOnPort(c, "tcp6", 8081)
