@@ -156,7 +156,7 @@ plugs:
 	sn, err := NewInstalledSnap(yaml)
 	c.Assert(err, IsNil)
 
-	err = GenerateSecurityProfile(sn)
+	err = SetupSnapSecurity(sn)
 	c.Assert(err, IsNil)
 	l, _ := filepath.Glob(filepath.Join(dirs.SnapAppArmorDir, "*"))
 	c.Assert(l, HasLen, 1)
@@ -165,7 +165,7 @@ plugs:
 
 	// the undo of GeneratedSecurityProfile is
 	// RemoveGenerateSecurityProfile
-	RemoveGeneratedSecurityProfile(sn)
+	RemoveGeneratedSnapSecurity(sn)
 	l, _ = filepath.Glob(filepath.Join(dirs.SnapAppArmorDir, "*"))
 	c.Assert(l, HasLen, 0)
 	l, _ = filepath.Glob(filepath.Join(dirs.SnapSeccompDir, "*"))

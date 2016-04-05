@@ -89,7 +89,7 @@ func Manager(s *state.State) (*SnapManager, error) {
 	runner.AddHandler("download-snap", m.doDownloadSnap, nil)
 	runner.AddHandler("mount-snap", m.doMountSnap, m.undoMountSnap)
 	runner.AddHandler("copy-snap-data", m.doCopySnapData, m.undoCopySnapData)
-	runner.AddHandler("setup-snap-security", m.doGenerateSecurity, m.undoGenerateSecurity)
+	runner.AddHandler("setup-snap-security", m.doSetupSnapSecurity, m.undoSetupSnapSecurity)
 	runner.AddHandler("link-snap", m.doLinkSnap, m.undoLinkSnap)
 
 	runner.AddHandler("update-snap", m.doUpdateSnap, nil)
@@ -278,22 +278,22 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) undoGenerateSecurity(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) undoSetupSnapSecurity(t *state.Task, _ *tomb.Tomb) error {
 	var mount mountState
 	if err := getSnapMountState(t, &mount); err != nil {
 		return err
 	}
 
-	return m.backend.UndoGenerateSecurityProfile(mount.BaseDir)
+	return m.backend.UndoSetupSnapSecurity(mount.BaseDir)
 }
 
-func (m *SnapManager) doGenerateSecurity(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) doSetupSnapSecurity(t *state.Task, _ *tomb.Tomb) error {
 	var mount mountState
 	if err := getSnapMountState(t, &mount); err != nil {
 		return err
 	}
 
-	return m.backend.GenerateSecurityProfile(mount.BaseDir)
+	return m.backend.SetupSnapSecurity(mount.BaseDir)
 }
 
 func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
