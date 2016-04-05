@@ -51,9 +51,9 @@ type downloadState struct {
 }
 
 type mountState struct {
-	InstallPath    string              `json:"install-path"`
-	OldInstallPath string              `json:"old-install-path"`
-	Flags          snappy.InstallFlags `json:"flags,omitempty"`
+	BaseDir    string              `json:"base-dir"`
+	OldBaseDir string              `json:"old-base-dir"`
+	Flags      snappy.InstallFlags `json:"flags,omitempty"`
 }
 
 type removeState struct {
@@ -234,7 +234,7 @@ func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	return m.backend.UndoSetupSnap(mount.InstallPath)
+	return m.backend.UndoSetupSnap(mount.BaseDir)
 }
 
 func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -269,9 +269,9 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	t.State().Lock()
 	t.Set("mount-state", &mountState{
-		InstallPath:    instPath,
-		OldInstallPath: oldInstPath,
-		Flags:          dl.Flags,
+		BaseDir:    instPath,
+		OldBaseDir: oldInstPath,
+		Flags:      dl.Flags,
 	})
 	t.State().Unlock()
 
@@ -284,7 +284,7 @@ func (m *SnapManager) undoGenerateSecurity(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	return m.backend.UndoGenerateSecurityProfile(mount.InstallPath)
+	return m.backend.UndoGenerateSecurityProfile(mount.BaseDir)
 }
 
 func (m *SnapManager) doGenerateSecurity(t *state.Task, _ *tomb.Tomb) error {
@@ -293,7 +293,7 @@ func (m *SnapManager) doGenerateSecurity(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	return m.backend.GenerateSecurityProfile(mount.InstallPath)
+	return m.backend.GenerateSecurityProfile(mount.BaseDir)
 }
 
 func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
@@ -302,7 +302,7 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	return m.backend.UndoCopySnapData(mount.InstallPath, mount.Flags)
+	return m.backend.UndoCopySnapData(mount.BaseDir, mount.Flags)
 }
 
 func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
@@ -311,7 +311,7 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	return m.backend.CopySnapData(mount.InstallPath, mount.Flags)
+	return m.backend.CopySnapData(mount.BaseDir, mount.Flags)
 }
 func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	var mount mountState
@@ -319,11 +319,11 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if err := m.backend.GenerateWrappers(mount.InstallPath); err != nil {
+	if err := m.backend.GenerateWrappers(mount.BaseDir); err != nil {
 		return err
 	}
 
-	return m.backend.UpdateCurrentSymlink(mount.InstallPath)
+	return m.backend.UpdateCurrentSymlink(mount.BaseDir)
 }
 
 func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -332,11 +332,11 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if err := m.backend.UndoGenerateWrappers(mount.InstallPath); err != nil {
+	if err := m.backend.UndoGenerateWrappers(mount.BaseDir); err != nil {
 		return err
 	}
 
-	return m.backend.UndoUpdateCurrentSymlink(mount.OldInstallPath, mount.InstallPath)
+	return m.backend.UndoUpdateCurrentSymlink(mount.OldBaseDir, mount.BaseDir)
 }
 
 // SnapInfo returns the snap.Info for a snap in the system.
