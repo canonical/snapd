@@ -481,6 +481,17 @@ func (t *remoteRepoTestSuite) TestAssertsURLDependsOnEnviron(c *C) {
 	c.Check(before, Not(Equals), after)
 }
 
+func (t *remoteRepoTestSuite) TestMyAppsURLDependsOnEnviron(c *C) {
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_MYAPPS", ""), IsNil)
+	before := myappsURL()
+
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_MYAPPS", "1"), IsNil)
+	defer os.Setenv("SNAPPY_USE_STAGING_MYAPPS", "")
+	after := myappsURL()
+
+	c.Check(before, Not(Equals), after)
+}
+
 func (t *remoteRepoTestSuite) TestDefaultConfig(c *C) {
 	c.Check(strings.HasPrefix(defaultConfig.SearchURI.String(), "https://search.apps.ubuntu.com/api/v1/search?"), Equals, true)
 	c.Check(defaultConfig.DetailsURI.String(), Equals, "https://search.apps.ubuntu.com/api/v1/package/")
