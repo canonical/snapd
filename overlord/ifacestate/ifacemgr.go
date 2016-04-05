@@ -59,7 +59,7 @@ func Manager(s *state.State) (*InterfaceManager, error) {
 	runner.AddHandler("connect", m.doConnect, nil)
 	runner.AddHandler("disconnect", m.doDisconnect, nil)
 	runner.AddHandler("configure-security", m.doConfigureSecurity, nil)
-	runner.AddHandler("deconfigure-security", m.doConfigureSecurity, nil)
+	runner.AddHandler("deconfigure-security", m.doDeconfigureSecurity, nil)
 	return m, nil
 }
 
