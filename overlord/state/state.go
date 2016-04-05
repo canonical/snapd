@@ -81,6 +81,8 @@ type State struct {
 	tasks   map[string]*Task
 
 	modified bool
+
+	cache map[interface{}]interface{}
 }
 
 // New returns a new empty state.
@@ -91,6 +93,7 @@ func New(backend Backend) *State {
 		changes:  make(map[string]*Change),
 		tasks:    make(map[string]*Task),
 		modified: true,
+		cache:    make(map[interface{}]interface{}),
 	}
 }
 
@@ -222,6 +225,24 @@ func (s *State) Get(key string, value interface{}) error {
 func (s *State) Set(key string, value interface{}) {
 	s.writing()
 	s.data.set(key, value)
+}
+
+// Cached returns the cached value associated with the provided key.
+// It returns nil if there is no entry for key.
+func (s *State) Cached(key interface{}) interface{} {
+	s.reading()
+	return s.cache[key]
+}
+
+// Cache associates value with key for future consulting by managers.
+// The cached value is not persisted.
+func (s *State) Cache(key, value interface{}) {
+	s.reading() // Doesn't touch persisted data.
+	if value == nil {
+		delete(s.cache, key)
+	} else {
+		s.cache[key] = value
+	}
 }
 
 func (s *State) genID() string {

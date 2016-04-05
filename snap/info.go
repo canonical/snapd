@@ -39,6 +39,11 @@ type Info struct {
 	Apps             map[string]*AppInfo
 	Plugs            map[string]*PlugInfo
 	Slots            map[string]*SlotInfo
+	Sha512           string
+	Size             int64
+	AnonDownloadURL  string
+	DownloadURL      string
+	IconURL          string
 }
 
 // PlugInfo provides information about a plug.
@@ -63,7 +68,7 @@ type SlotInfo struct {
 	Apps      map[string]*AppInfo
 }
 
-// AppInfo provides information about a plug.
+// AppInfo provides information about a app.
 type AppInfo struct {
 	Snap *Info
 

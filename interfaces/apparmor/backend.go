@@ -83,33 +83,27 @@ func (b *Backend) Configure(snapInfo *snap.Info, developerMode bool, repo *inter
 		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapInfo.Name, err)
 	}
 	glob := interfaces.SecurityTagGlob(snapInfo)
-	changed, removed, err := osutil.EnsureDirState(dirs.SnapAppArmorDir, glob, content)
-	if err != nil {
-		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapInfo.Name, err)
+	changed, removed, errEnsure := osutil.EnsureDirState(dirs.SnapAppArmorDir, glob, content)
+	errReload := reloadProfiles(changed)
+	errUnload := unloadProfiles(removed)
+	if errEnsure != nil {
+		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapInfo.Name, errEnsure)
 	}
-	err = reloadProfiles(changed)
-	if err != nil {
-		return err
+	if errReload != nil {
+		return errReload
 	}
-	err = unloadProfiles(removed)
-	if err != nil {
-		return err
-	}
-	return nil
+	return errUnload
 }
 
 // Deconfigure removes security artefacts of a given snap.
 func (b *Backend) Deconfigure(snapInfo *snap.Info) error {
 	glob := interfaces.SecurityTagGlob(snapInfo)
-	_, removed, err := osutil.EnsureDirState(dirs.SnapAppArmorDir, glob, nil)
-	if err != nil {
-		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapInfo.Name, err)
+	_, removed, errEnsure := osutil.EnsureDirState(dirs.SnapAppArmorDir, glob, nil)
+	errUnload := unloadProfiles(removed)
+	if errEnsure != nil {
+		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapInfo.Name, errEnsure)
 	}
-	err = unloadProfiles(removed)
-	if err != nil {
-		return err
-	}
-	return nil
+	return errUnload
 }
 
 var (
