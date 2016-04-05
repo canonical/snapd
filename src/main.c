@@ -187,7 +187,12 @@ void setup_devices_cgroup(const char *appname, struct snappy_udev *udev_s)
 	must_snprintf(buf, sizeof(buf), "%i", getpid());
 	write_string_to_file(cgroup_file, buf);
 
-	// deny by default
+	// deny by default. Writing 'a' to devices.deny removes all existing
+	// devices that were added in previous launcher invocations such that
+	// if an app has a device assigned and the launcher is started, the
+	// device is added to the cgroup, but if the device is removed, the
+	// next time the launcher starts the app, all devices are removed with
+	// this write and then built back up again.
 	must_snprintf(cgroup_file, sizeof(cgroup_file), "%s%s", cgroup_dir,
 		      "devices.deny");
 	write_string_to_file(cgroup_file, "a");
