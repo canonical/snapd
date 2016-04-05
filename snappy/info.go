@@ -28,9 +28,9 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/osutil"
 )
 
 const (
@@ -201,6 +201,7 @@ type diskManifest struct {
 	Channel     string `yaml:"channel"`
 	Developer   string `yaml:"developer"`
 	Description string `yaml:"description"`
+	Size        int64  `yaml:"size"`
 }
 
 // SaveManifest saves the manifest at the designated location for the snap containing information not in the snap.yaml.
@@ -211,6 +212,7 @@ func SaveManifest(rsnap *snap.Info) error {
 		Developer: rsnap.Developer,
 		// XXX capture also Summary?
 		Description: rsnap.Description,
+		Size:        rsnap.Size,
 	}
 	content, err := yaml.Marshal(m)
 	if err != nil {
