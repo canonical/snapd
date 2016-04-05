@@ -21,17 +21,9 @@
 package tests
 
 import (
-	"bufio"
-	"bytes"
-	"fmt"
-	"io"
 	"io/ioutil"
 	"net/http"
-	"os"
-	"os/exec"
-	"regexp"
 
-	"github.com/kr/pty"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/wait"
@@ -41,19 +33,19 @@ import (
 
 var _ = check.Suite(&helloWorldExampleSuite{})
 
-type helloWorldExampleSuite struct {
+type snapHelloWorldExampleSuite struct {
 	common.SnappySuite
 }
 
 func installSnap(c *check.C, packageName string) string {
-	cli.ExecCommand(c, "sudo", "snap", "install", packageName, "--allow-unauthenticated")
+	return cli.ExecCommand(c, "sudo", "snap", "install", packageName, "--allow-unauthenticated")
 }
 
 func removeSnap(c *check.C, packageName string) string {
 	return cli.ExecCommand(c, "sudo", "snap", "remove", packageName)
 }
 
-func (s *helloWorldExampleSuite) TestCallHelloWorldBinary(c *check.C) {
+func (s *snapHelloWorldExampleSuite) TestCallHelloWorldBinary(c *check.C) {
 	installSnap(c, "hello-world/edge")
 	s.AddCleanup(func() {
 		removeSnap(c, "hello-world")
@@ -65,7 +57,7 @@ func (s *helloWorldExampleSuite) TestCallHelloWorldBinary(c *check.C) {
 		check.Commentf("Wrong output from hello-world binary"))
 }
 
-func (s *helloWorldExampleSuite) TestCallHelloWorldEvilMustPrintPermissionDeniedError(c *check.C) {
+func (s *snapHelloWorldExampleSuite) TestCallHelloWorldEvilMustPrintPermissionDeniedError(c *check.C) {
 	installSnap(c, "hello-world/edge")
 	s.AddCleanup(func() {
 		removeSnap(c, "hello-world")
@@ -85,13 +77,13 @@ func (s *helloWorldExampleSuite) TestCallHelloWorldEvilMustPrintPermissionDenied
 	c.Assert(string(echoOutput), check.Matches, expected)
 }
 
-var _ = check.Suite(&pythonWebserverExampleSuite{})
+var _ = check.Suite(&snapPythonWebserverExampleSuite{})
 
-type pythonWebserverExampleSuite struct {
+type snapPythonWebserverExampleSuite struct {
 	common.SnappySuite
 }
 
-func (s *pythonWebserverExampleSuite) TestNetworkingServiceMustBeStarted(c *check.C) {
+func (s *snapPythonWebserverExampleSuite) TestNetworkingServiceMustBeStarted(c *check.C) {
 	baseAppName := "xkcd-webserver"
 	appName := baseAppName + ".canonical"
 	installSnap(c, appName+"/edge")
@@ -106,13 +98,13 @@ func (s *pythonWebserverExampleSuite) TestNetworkingServiceMustBeStarted(c *chec
 	c.Assert(resp.Proto, check.Equals, "HTTP/1.0", check.Commentf("Wrong reply protocol"))
 }
 
-var _ = check.Suite(&goWebserverExampleSuite{})
+var _ = check.Suite(&snapGoWebserverExampleSuite{})
 
-type goWebserverExampleSuite struct {
+type snapGoWebserverExampleSuite struct {
 	common.SnappySuite
 }
 
-func (s *goWebserverExampleSuite) TestGetRootPathMustPrintMessage(c *check.C) {
+func (s *snapGoWebserverExampleSuite) TestGetRootPathMustPrintMessage(c *check.C) {
 	appName := "go-example-webserver"
 	installSnap(c, appName+"/edge")
 	defer removeSnap(c, appName)
