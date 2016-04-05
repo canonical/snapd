@@ -204,6 +204,7 @@ const MockUpdatesJSON = `[
         "binary_filesize": 65375,
         "anon_download_url": "https://public.apps.ubuntu.com/anon/download/chipaca/8nzc1x4iim2xj1g2ul64.chipaca/8nzc1x4iim2xj1g2ul64.chipaca_42_all.snap",
         "allow_unauthenticated": true,
+        "revision": 3,
         "version": "42",
         "download_url": "https://public.apps.ubuntu.com/download/chipaca/8nzc1x4iim2xj1g2ul64.chipaca/8nzc1x4iim2xj1g2ul64.chipaca_42_all.snap",
         "download_sha512": "5364253e4a988f4f5c04380086d542f410455b97d48cc6c69ca2a5877d8aef2a6b2b2f83ec4f688cae61ebc8a6bf2cdbd4dbd8f743f0522fc76540429b79df42"
@@ -247,8 +248,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 	results, err := snapUpdates(repo)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].Name(), Equals, funkyAppName)
-	c.Assert(results[0].Version(), Equals, "42")
+	c.Assert(results[0].Name, Equals, funkyAppName)
+	c.Assert(results[0].Revision, Equals, 3)
+	c.Assert(results[0].Version, Equals, "42")
 }
 
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdatesNoSnaps(c *C) {
@@ -305,14 +307,14 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	r := &store.RemoteSnap{}
-	r.Pkg.AnonDownloadURL = mockServer.URL + "/snap"
-	r.Pkg.DownloadURL = mockServer.URL + "/snap"
-	r.Pkg.IconURL = mockServer.URL + "/icon"
-	r.Pkg.Name = "foo"
-	r.Pkg.Developer = "bar"
-	r.Pkg.Description = "this is a description"
-	r.Pkg.Version = "1.0"
+	r := &snap.Info{}
+	r.Name = "foo"
+	r.Developer = "bar"
+	r.Description = "this is a description"
+	r.Version = "1.0"
+	r.AnonDownloadURL = mockServer.URL + "/snap"
+	r.DownloadURL = mockServer.URL + "/snap"
+	r.IconURL = mockServer.URL + "/icon"
 
 	mStore := store.NewUbuntuStoreSnapRepository(s.storeCfg, "")
 	p := &MockProgressMeter{}
@@ -360,14 +362,14 @@ apps:
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	r := &store.RemoteSnap{}
-	r.Pkg.AnonDownloadURL = mockServer.URL + "/snap"
-	r.Pkg.DownloadURL = mockServer.URL + "/snap"
-	r.Pkg.Developer = testDeveloper
-	r.Pkg.IconURL = mockServer.URL + "/icon"
-	r.Pkg.Name = "foo"
-	r.Pkg.Developer = "bar"
-	r.Pkg.Version = "1.0"
+	r := &snap.Info{}
+	r.Name = "foo"
+	r.Developer = "bar"
+	r.Version = "1.0"
+	r.Developer = testDeveloper
+	r.AnonDownloadURL = mockServer.URL + "/snap"
+	r.DownloadURL = mockServer.URL + "/snap"
+	r.IconURL = mockServer.URL + "/icon"
 
 	mStore := store.NewUbuntuStoreSnapRepository(s.storeCfg, "")
 	p := &MockProgressMeter{}
