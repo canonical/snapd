@@ -25,13 +25,11 @@ import (
 
 // Info provides information about snaps.
 type Info struct {
-	Name             string
-	Developer        string
-	Version          string
-	Revision         int
-	Type             Type
-	Architectures    []string
-	Channel          string
+	Name          string
+	Version       string
+	Type          Type
+	Architectures []string
+
 	Description      string
 	Summary          string
 	LicenseAgreement string
@@ -39,11 +37,16 @@ type Info struct {
 	Apps             map[string]*AppInfo
 	Plugs            map[string]*PlugInfo
 	Slots            map[string]*SlotInfo
-	Sha512           string
-	Size             int64
-	AnonDownloadURL  string
-	DownloadURL      string
-	IconURL          string
+
+	// The information in these fields is not present inside the snap blob itself.
+	Revision        int
+	Developer       string
+	Channel         string
+	Sha512          string
+	Size            int64
+	AnonDownloadURL string
+	DownloadURL     string
+	IconURL         string
 }
 
 // PlugInfo provides information about a plug.
