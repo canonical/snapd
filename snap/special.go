@@ -38,7 +38,7 @@ var implicitSlots = []string{
 	"timeserver-control",
 	"timezone-control",
 	// XXX: those two should perhaps not be added by default
-	"unit7",
+	"unity7",
 	"x",
 }
 
