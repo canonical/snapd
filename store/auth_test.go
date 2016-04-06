@@ -83,6 +83,8 @@ const mockStoreReturnMacaroon = `
 
 const mockStoreReturnNoMacaroon = `{}`
 
+const mockStoreServerErrorHTTPCode = 500
+
 func (s *authTestSuite) TestRequestStoreToken(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, mockStoreReturnToken)
@@ -148,6 +150,20 @@ func (s *authTestSuite) TestRequestPackageAccessMacaroonMissingData(c *C) {
 
 	macaroon, err := RequestPackageAccessMacaroon()
 	c.Assert(err, NotNil)
+	c.Assert(macaroon, Equals, "")
+}
+
+func (s *authTestSuite) TestRequestPackageAccessMacaroonErrorShowsOopsId(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Oops-Id", "[42]")
+		w.WriteHeader(mockStoreServerErrorHTTPCode)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+	myappsPackageAccessAPI = mockServer.URL + "/acl/package_access/"
+
+	macaroon, err := RequestPackageAccessMacaroon()
+	c.Assert(err, ErrorMatches, "failed to get store token: 500 Internal Server Error \\[42\\]")
 	c.Assert(macaroon, Equals, "")
 }
 
