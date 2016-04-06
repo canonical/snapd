@@ -42,9 +42,7 @@ func (s *SnapTestSuite) TestAddPackageServicesStripsGlobalRootdir(c *C) {
 
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, "")
 	c.Assert(err, IsNil)
-	m, err := parseSnapYamlFile(yamlFile)
-	c.Assert(err, IsNil)
-	snap, err := newSnapFromYaml(yamlFile, m)
+	snap, err := NewInstalledSnap(yamlFile)
 	c.Assert(err, IsNil)
 
 	err = addPackageServices(snap.Info(), nil)
@@ -70,9 +68,7 @@ func (s *SnapTestSuite) TestAddPackageBinariesStripsGlobalRootdir(c *C) {
 
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, "")
 	c.Assert(err, IsNil)
-	m, err := parseSnapYamlFile(yamlFile)
-	c.Assert(err, IsNil)
-	snap, err := newSnapFromYaml(yamlFile, m)
+	snap, err := NewInstalledSnap(yamlFile)
 	c.Assert(err, IsNil)
 
 	err = addPackageBinaries(snap.Info())
@@ -210,9 +206,7 @@ apps:
    daemon: forking
 `)
 	c.Assert(err, IsNil)
-	m, err := parseSnapYamlFile(yamlFile)
-	c.Assert(err, IsNil)
-	snap, err := newSnapFromYaml(yamlFile, m)
+	snap, err := NewInstalledSnap(yamlFile)
 	c.Assert(err, IsNil)
 
 	inter := &MockProgressMeter{}
