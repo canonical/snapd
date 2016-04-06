@@ -137,3 +137,13 @@ func (m *InterfaceManager) Stop() {
 	m.runner.Stop()
 
 }
+
+func getIntents(s *state.State) Intents {
+	var intents Intents
+	s.Get("connection-intents", &intents)
+	return intents
+}
+
+func setIntents(s *state.State, intents Intents) {
+	s.Set("connection-intents", intents)
+}
