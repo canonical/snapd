@@ -605,8 +605,9 @@ func (r *Repository) AddSnap(snapInfo *snap.Info) error {
 // AddSnap, snap upgrade.
 //
 // RemoveSnap does not remove connections. The caller is responsible to ensure
-// that connections are broken before calling this method.
-func (r *Repository) RemoveSnap(snapInfo *snap.Info) {
+// that connections are broken before calling this method. If this constraint
+// is violated then no changes are made and an error is returned.
+func (r *Repository) RemoveSnap(snapInfo *snap.Info) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -614,12 +615,12 @@ func (r *Repository) RemoveSnap(snapInfo *snap.Info) {
 
 	for plugName, plug := range r.plugs[snapName] {
 		if len(plug.Connections) > 0 {
-			panic(fmt.Errorf("cannot remove connected plug %s.%s", snapName, plugName))
+			return fmt.Errorf("cannot remove connected plug %s.%s", snapName, plugName)
 		}
 	}
 	for slotName, slot := range r.slots[snapName] {
 		if len(slot.Connections) > 0 {
-			panic(fmt.Errorf("cannot remove connected slot %s.%s", snapName, slotName))
+			return fmt.Errorf("cannot remove connected slot %s.%s", snapName, slotName)
 		}
 	}
 
@@ -633,4 +634,6 @@ func (r *Repository) RemoveSnap(snapInfo *snap.Info) {
 		delete(r.slotPlugs, slot)
 	}
 	delete(r.slots, snapName)
+
+	return nil
 }
