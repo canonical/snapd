@@ -56,6 +56,7 @@ type snapSetup struct {
 	SnapPath string `json:"snap-path"`
 }
 
+// XXX: use snap.Info() here? It has a BaseDir() method as well
 func (s *snapSetup) BaseDir() string {
 	return filepath.Join(dirs.SnapSnapsDir, s.Name, s.Version)
 }
@@ -128,10 +129,10 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 	ss.SnapPath = downloadedSnapFile
 	ss.Version = version
 
-	oldInstPath, _ := filepath.EvalSymlinks(filepath.Join(ss.BaseDir(), "..", "current", "meta", "snap.yaml"))
-	if sn, err := snappy.NewInstalledSnap(oldInstPath); err == nil {
-		ss.OldName = sn.Name()
-		ss.OldVersion = sn.Version()
+	// find current active and store in case we need to undo
+	if info := m.backend.ActiveSnap(ss.Name); info != nil {
+		ss.OldName = info.Name
+		ss.OldVersion = info.Version
 	}
 
 	// update snap-setup for the following tasks

@@ -101,7 +101,7 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 	defer s.state.Unlock()
 
 	chg := s.state.NewChange("install", "install a snap")
-	ts, err := snapstate.Install(s.state, "some-snap", "some-channel", 0)
+	ts, err := snapstate.Install(s.state, "some-snap.mvo", "some-channel", 0)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -115,7 +115,7 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 	c.Assert(s.fakeBackend.ops, DeepEquals, []fakeOp{
 		fakeOp{
 			op:      "download",
-			name:    "some-snap",
+			name:    "some-snap.mvo",
 			channel: "some-channel",
 		},
 		fakeOp{
@@ -145,6 +145,23 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 	cur, total := task.Progress()
 	c.Assert(cur, Equals, s.fakeBackend.fakeCurrentProgress)
 	c.Assert(total, Equals, s.fakeBackend.fakeTotalProgress)
+
+	// verify snapSetup info
+	var ss snapstate.SnapSetup
+	err = task.Get("snap-setup", &ss)
+	c.Assert(err, IsNil)
+	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
+		Name:      "some-snap",
+		Developer: "mvo",
+		Channel:   "some-channel",
+		Version:   "1.0",
+
+		SnapPath: "downloaded-snap-path",
+
+		OldName:    "an-active-snap",
+		OldVersion: "1.64872",
+	})
+
 }
 
 func (s *snapmgrTestSuite) TestInstallLocalIntegration(c *C) {
