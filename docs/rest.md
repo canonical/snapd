@@ -189,7 +189,7 @@ Sample result:
       "developer": "chipaca",
       "price": 2.99,
       "resource": "/v2/snaps/http",
-      "status": "active",
+      "status": "priced",
       "type": "app",
       "version": "3.1",
       "channel": "stable"
@@ -223,8 +223,8 @@ Sample result:
 
 #### Fields
 * `snaps`
-    * `status`: can be either `not installed`, `installed`, `active` (i.e. is
-      current).
+    * `status`: may transition as `available` => `installed` => `active`. For paid snaps,
+      the initial state is `priced` and once bought it becomes `available`.
     * `name`: the snap name.
     * `version`: a string representing the version.
     * `icon`: a url to the snap icon, possibly relative to this server.

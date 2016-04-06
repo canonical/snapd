@@ -73,12 +73,15 @@ func mapSnap(localSnaps []*snappy.Snap, remoteSnap *snap.Info) map[string]interf
 		panic("no localSnaps & remoteSnap is nil -- how did i even get here")
 	}
 
-	status := "not installed"
+	status := "available"
 	installedSize := int64(-1)
 	downloadSize := int64(-1)
 	price := float64(-1)
 
 	if remoteSnap != nil {
+		if remoteSnap.RequiresPurchase {
+			status = "priced"
+		}
 		price = remoteSnap.Price
 	}
 
@@ -88,8 +91,6 @@ func mapSnap(localSnaps []*snappy.Snap, remoteSnap *snap.Info) map[string]interf
 			status = "active"
 		} else if localSnap.IsInstalled() {
 			status = "installed"
-		} else {
-			status = "removed"
 		}
 	} else if remoteSnap == nil {
 		panic("unable to load a valid snap")

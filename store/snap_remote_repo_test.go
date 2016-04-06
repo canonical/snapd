@@ -40,6 +40,13 @@ import (
 	"github.com/ubuntu-core/snappy/snap"
 )
 
+func newEmptyPurchasesServer(c *C) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.URL.Path, Equals, "/click/purchases/")
+		io.WriteString(w, "[]")
+	}))
+}
+
 type remoteRepoTestSuite struct {
 	store *SnapUbuntuStoreRepository
 
@@ -59,6 +66,7 @@ func (t *remoteRepoTestSuite) SetUpTest(c *C) {
 
 func (t *remoteRepoTestSuite) TearDownTest(c *C) {
 	download = t.origDownloadFunc
+	DeleteStoreToken()
 }
 
 func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
@@ -262,7 +270,47 @@ const MockDetailsJSON = `{
 }
 `
 
+/* acquired via https://myapps.developer.ubuntu.com/docs/api/click-purchases.html
+ */
+const MockPurchasesJSON = `[
+  {
+    "open_id": "https://login.staging.ubuntu.com/+id/open_id",
+    "package_name": "8nzc1x4iim2xj1g2ul64.chipaca",
+    "refundable_until": "2015-07-15 18:46:21",
+    "state": "Complete"
+  },
+  {
+    "open_id": "https://login.staging.ubuntu.com/+id/open_id",
+    "package_name": "8nzc1x4iim2xj1g2ul64.chipaca",
+    "item_sku": "item-1-sku",
+    "purchase_id": "1",
+    "refundable_until": null,
+    "state": "Complete"
+  },
+  {
+    "open_id": "https://login.staging.ubuntu.com/+id/open_id",
+    "package_name": "com.ubuntu.developer.dev.otherapp",
+    "refundable_until": "2015-07-17 11:33:29",
+    "state": "Complete"
+  }
+]
+`
+
+/* acquired via https://myapps.developer.ubuntu.com/docs/api/click-purchases.html
+ */
+const MockPurchaseJSON = `{
+  "open_id": "https://login.staging.ubuntu.com/+id/open_id",
+  "package_name": "8nzc1x4iim2xj1g2ul64.chipaca",
+  "refundable_until": "2015-07-15 18:46:21",
+  "state": "Complete"
+}
+`
+
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
+	mockStoreToken := StoreToken{TokenName: "meep"}
+	err := WriteStoreToken(mockStoreToken)
+	c.Assert(err, IsNil)
+
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// no store ID by default
 		storeID := r.Header.Get("X-Ubuntu-Store")
@@ -279,11 +327,22 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	var err error
+	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.URL.Path, Equals, fmt.Sprintf("/click/purchases/%s.%s/", funkyAppName, funkyAppDeveloper))
+		c.Check(r.URL.Query().Get("include_item_purchases"), Equals, "true")
+		io.WriteString(w, MockPurchasesJSON)
+	}))
+
+	c.Assert(mockPurchasesServer, NotNil)
+	defer mockPurchasesServer.Close()
+
 	detailsURI, err := url.Parse(mockServer.URL + "/details/")
 	c.Assert(err, IsNil)
+	purchasesURI, err := url.Parse(mockPurchasesServer.URL + "/click/purchases/")
+	c.Assert(err, IsNil)
 	cfg := SnapUbuntuStoreConfig{
-		DetailsURI: detailsURI,
+		DetailsURI:   detailsURI,
+		PurchasesURI: purchasesURI,
 	}
 	repo := NewUbuntuStoreSnapRepository(&cfg, "")
 	c.Assert(repo, NotNil)
@@ -300,6 +359,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Check(result.Description(), Equals, "Returns for store credit only.\nThis is a simple hello world example.")
 	c.Check(result.Summary(), Equals, "hello world example")
 	c.Check(result.Price, Equals, float64(1.23))
+	c.Check(result.RequiresPurchase, Equals, false) // this app has been purchased, according to the mock
 }
 
 const MockNoDetailsJSON = `{"errors": ["No such package"], "result": "error"}`
@@ -314,11 +374,22 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
+	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.URL.Path, Equals, "/click/purchases/no-such-pkg/")
+		c.Check(r.URL.Query().Get("include_item_purchases"), Equals, "true")
+		io.WriteString(w, MockPurchasesJSON)
+	}))
+	c.Assert(mockPurchasesServer, NotNil)
+	defer mockPurchasesServer.Close()
+
 	var err error
 	detailsURI, err := url.Parse(mockServer.URL + "/details/")
 	c.Assert(err, IsNil)
+	purchasesURI, err := url.Parse(mockPurchasesServer.URL + "/click/purchases/")
+	c.Assert(err, IsNil)
 	cfg := SnapUbuntuStoreConfig{
-		DetailsURI: detailsURI,
+		DetailsURI:   detailsURI,
+		PurchasesURI: purchasesURI,
 	}
 	repo := NewUbuntuStoreSnapRepository(&cfg, "")
 	c.Assert(repo, NotNil)
@@ -391,11 +462,18 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFind(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
+	mockPurchasesServer := newEmptyPurchasesServer(c)
+	c.Assert(mockPurchasesServer, NotNil)
+	defer mockPurchasesServer.Close()
+
 	var err error
 	searchURI, err := url.Parse(mockServer.URL)
 	c.Assert(err, IsNil)
+	purchasesURI, err := url.Parse(mockPurchasesServer.URL + "/click/purchases/")
+	c.Assert(err, IsNil)
 	cfg := SnapUbuntuStoreConfig{
-		SearchURI: searchURI,
+		SearchURI:    searchURI,
+		PurchasesURI: purchasesURI,
 	}
 	repo := NewUbuntuStoreSnapRepository(&cfg, "")
 	c.Assert(repo, NotNil)
@@ -439,11 +517,18 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
+	mockPurchasesServer := newEmptyPurchasesServer(c)
+	c.Assert(mockPurchasesServer, NotNil)
+	defer mockPurchasesServer.Close()
+
 	var err error
 	bulkURI, err := url.Parse(mockServer.URL + "/updates/")
 	c.Assert(err, IsNil)
+	purchasesURI, err := url.Parse(mockPurchasesServer.URL + "/click/purchases/")
+	c.Assert(err, IsNil)
 	cfg := SnapUbuntuStoreConfig{
-		BulkURI: bulkURI,
+		BulkURI:      bulkURI,
+		PurchasesURI: purchasesURI,
 	}
 	repo := NewUbuntuStoreSnapRepository(&cfg, "")
 	c.Assert(repo, NotNil)

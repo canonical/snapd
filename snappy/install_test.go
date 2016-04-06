@@ -265,10 +265,18 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
+	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "[]") // no purchases
+	}))
+	c.Assert(mockPurchasesServer, NotNil)
+	defer mockPurchasesServer.Close()
+
 	dlURL = mockServer.URL + "/dl"
 	iconURL = mockServer.URL + "/icon"
 
 	s.storeCfg.DetailsURI, err = url.Parse(mockServer.URL + "/details/")
+	c.Assert(err, IsNil)
+	s.storeCfg.PurchasesURI, err = url.Parse(mockPurchasesServer.URL + "/click/purchases/")
 	c.Assert(err, IsNil)
 
 	// bulk

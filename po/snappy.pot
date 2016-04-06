@@ -249,7 +249,7 @@ msgstr  ""
 msgid   "Name\tDate\tVersion\tDeveloper\t"
 msgstr  ""
 
-msgid   "Name\tVersion\tPrice\tSummary"
+msgid   "Name\tVersion\tPrice\tStatus\tSummary"
 msgstr  ""
 
 #. TRANSLATORS: the %s is a pkgname

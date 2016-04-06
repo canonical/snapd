@@ -78,9 +78,10 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	// do not attempt to hit the real store servers in the tests
 	nowhereURI, _ := url.Parse("")
 	s.storeCfg = &store.SnapUbuntuStoreConfig{
-		SearchURI:  nowhereURI,
-		DetailsURI: nowhereURI,
-		BulkURI:    nowhereURI,
+		SearchURI:    nowhereURI,
+		DetailsURI:   nowhereURI,
+		BulkURI:      nowhereURI,
+		PurchasesURI: nowhereURI,
 	}
 	storeConfig = s.storeCfg
 
@@ -208,6 +209,13 @@ func mockActiveSnapIterByType(mockSnaps []string) {
 	}
 }
 
+func newEmptyPurchasesServer(c *C) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.URL.Path, Equals, "/click/purchases/")
+		io.WriteString(w, "[]")
+	}))
+}
+
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		jsonReq, err := ioutil.ReadAll(r.Body)
@@ -219,8 +227,14 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
+	mockPurchasesServer := newEmptyPurchasesServer(c)
+	c.Assert(mockPurchasesServer, NotNil)
+	defer mockPurchasesServer.Close()
+
 	var err error
 	s.storeCfg.BulkURI, err = url.Parse(mockServer.URL + "/updates/")
+	c.Assert(err, IsNil)
+	s.storeCfg.PurchasesURI, err = url.Parse(mockPurchasesServer.URL + "/click/purchases/")
 	c.Assert(err, IsNil)
 	repo := store.NewUbuntuStoreSnapRepository(s.storeCfg, "")
 	c.Assert(repo, NotNil)
@@ -242,6 +256,8 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdatesNoSnaps(c *C) {
 
 	var err error
 	s.storeCfg.DetailsURI, err = url.Parse("https://some-uri")
+	c.Assert(err, IsNil)
+	s.storeCfg.PurchasesURI, err = url.Parse("https://some-uri")
 	c.Assert(err, IsNil)
 	repo := store.NewUbuntuStoreSnapRepository(s.storeCfg, "")
 	c.Assert(repo, NotNil)
@@ -291,6 +307,10 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
+
+	mockPurchasesServer := newEmptyPurchasesServer(c)
+	c.Assert(mockPurchasesServer, NotNil)
+	defer mockPurchasesServer.Close()
 
 	r := &snap.Info{}
 	r.OfficialName = "foo"

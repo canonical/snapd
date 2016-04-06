@@ -38,6 +38,9 @@ var (
 
 	// ErrInvalidCredentials is returned on login error
 	ErrInvalidCredentials = errors.New("invalid credentials")
+
+	// ErrScaAuthFailed is returned when purchase server authorization fails
+	ErrScaAuthFailed = errors.New("invalid store token")
 )
 
 // ErrDownload represents a download error
