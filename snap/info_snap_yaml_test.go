@@ -832,13 +832,13 @@ version: 1.0
 }
 
 func (s *YamlSuite) TestSnapYamlBadArchitectureParsing(c *C) {
-	data := []byte(`name: fatbinary
+	y := []byte(`name: fatbinary
 version: 1.0
 architectures:
   armhf:
     no
 `)
-	_, err := snap.InfoFromSnapYaml(data)
+	_, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, NotNil)
 }
 
