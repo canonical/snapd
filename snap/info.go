@@ -75,9 +75,8 @@ type SlotInfo struct {
 type AppInfo struct {
 	Snap *Info
 
-	Name        string
-	Command     string
-	Description string
+	Name    string
+	Command string
 
 	Daemon      string
 	StopTimeout timeout.Timeout
