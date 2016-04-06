@@ -31,7 +31,7 @@ import (
 	"github.com/ubuntu-core/snappy/store"
 )
 
-// InstallFlags can be used to pass additional flags to the install of a
+// SetupFlags can be used to pass additional flags to the install of a
 // snap
 type InstallFlags uint
 

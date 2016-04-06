@@ -30,7 +30,6 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snappy"
 )
 
 // SnapManager is responsible for the installation and removal of snaps.
@@ -41,6 +40,9 @@ type SnapManager struct {
 	runner *state.TaskRunner
 }
 
+// SetupFlags are the install/remove flags
+type SetupFlags int
+
 type snapSetup struct {
 	Name      string `json:"name"`
 	Developer string `json:"developer"`
@@ -50,8 +52,7 @@ type snapSetup struct {
 	OldName    string `json:"old-name"`
 	OldVersion string `json:"old-version"`
 
-	InstallFlags snappy.InstallFlags `json:"inst-flags,omitempty"`
-	RemoveFlags  snappy.RemoveFlags  `json:"rm-flags,omitempty"`
+	SetupFlags SetupFlags `json:"setup-flags,omitempty"`
 
 	SnapPath string `json:"snap-path"`
 }
@@ -154,7 +155,7 @@ func (m *SnapManager) doUpdateSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	pb := &TaskProgressAdapter{task: t}
-	return m.backend.Update(ss.Name, ss.Channel, ss.InstallFlags, pb)
+	return m.backend.Update(ss.Name, ss.Channel, ss.SetupFlags, pb)
 }
 
 func (m *SnapManager) doRemoveSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -168,7 +169,7 @@ func (m *SnapManager) doRemoveSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	pb := &TaskProgressAdapter{task: t}
-	return m.backend.Remove(ss.Name, ss.RemoveFlags, pb)
+	return m.backend.Remove(ss.Name, ss.SetupFlags, pb)
 }
 
 func (m *SnapManager) doRollbackSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -260,11 +261,11 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if err := m.backend.CheckSnap(ss.SnapPath, ss.InstallFlags); err != nil {
+	if err := m.backend.CheckSnap(ss.SnapPath, ss.SetupFlags); err != nil {
 		return err
 	}
 
-	return m.backend.SetupSnap(ss.SnapPath, ss.InstallFlags)
+	return m.backend.SetupSnap(ss.SnapPath, ss.SetupFlags)
 }
 
 func (m *SnapManager) undoSetupSnapSecurity(t *state.Task, _ *tomb.Tomb) error {
@@ -291,7 +292,7 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	return m.backend.UndoCopySnapData(ss.BaseDir(), ss.InstallFlags)
+	return m.backend.UndoCopySnapData(ss.BaseDir(), ss.SetupFlags)
 }
 
 func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
@@ -300,7 +301,7 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	return m.backend.CopySnapData(ss.BaseDir(), ss.InstallFlags)
+	return m.backend.CopySnapData(ss.BaseDir(), ss.SetupFlags)
 }
 func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	var ss snapSetup
