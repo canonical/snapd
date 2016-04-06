@@ -21,6 +21,7 @@ package snapstate_test
 
 import (
 	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
 )
 
@@ -165,4 +166,11 @@ func (f *fakeSnappyBackend) UndoLinkSnap(oldInstSnapPath, instSnapPath string) e
 		name: instSnapPath,
 	})
 	return nil
+}
+
+func (f *fakeSnappyBackend) ActiveSnap(name string) *snap.Info {
+	return &snap.Info{
+		Name:    "an-active-snap",
+		Version: "1.64872",
+	}
 }

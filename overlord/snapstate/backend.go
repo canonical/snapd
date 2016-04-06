@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 
 	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
 )
 
@@ -44,9 +45,19 @@ type managerBackend interface {
 	Remove(name string, flags snappy.RemoveFlags, meter progress.Meter) error
 	Rollback(name, ver string, meter progress.Meter) (string, error)
 	Activate(name string, active bool, meter progress.Meter) error
+
+	// info
+	ActiveSnap(name string) *snap.Info
 }
 
 type defaultBackend struct{}
+
+func (s *defaultBackend) ActiveSnap(name string) *snap.Info {
+	if snap := snappy.ActiveSnapByName(name); snap != nil {
+		return snap.Info()
+	}
+	return nil
+}
 
 func (s *defaultBackend) InstallLocal(snap string, flags snappy.InstallFlags, meter progress.Meter) error {
 	// FIXME: the name `snappy.Overlord` is confusing :/
