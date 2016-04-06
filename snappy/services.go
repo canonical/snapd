@@ -164,10 +164,7 @@ func addPackageServices(s *snap.Info, inter interacter) error {
 				return err
 			}
 		}
-		// daemon-reload and start only if we are not in the
-		// inhibitHooks mode
-		//
-		// *but* always run enable (which just sets a symlink)
+		// daemon-reload and enable plus start
 		serviceName := filepath.Base(generateServiceFileName(app))
 		sysd := systemd.New(dirs.GlobalRootDir, inter)
 
@@ -175,7 +172,7 @@ func addPackageServices(s *snap.Info, inter interacter) error {
 			return err
 		}
 
-		// we always enable the service even in inhibit hooks
+		// enable the service
 		if err := sysd.Enable(serviceName); err != nil {
 			return err
 		}
@@ -186,7 +183,7 @@ func addPackageServices(s *snap.Info, inter interacter) error {
 
 		if app.Socket {
 			socketName := filepath.Base(generateSocketFileName(app))
-			// we always enable the socket even in inhibit hooks
+			// enable the socket
 			if err := sysd.Enable(socketName); err != nil {
 				return err
 			}
