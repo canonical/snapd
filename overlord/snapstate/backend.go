@@ -32,14 +32,12 @@ type managerBackend interface {
 	SetupSnap(snapFilePath string, flags snappy.InstallFlags) error
 	CopySnapData(instSnapPath string, flags snappy.InstallFlags) error
 	SetupSnapSecurity(instSnapPath string) error
-	GenerateWrappers(instSnapPath string) error
-	UpdateCurrentSymlink(instSnapPath string) error
+	LinkSnap(instSnapPath string) error
 	// the undoers
 	UndoSetupSnap(snapFilePath string) error
 	UndoSetupSnapSecurity(instSnapPath string) error
 	UndoCopySnapData(instSnapPath string, flags snappy.InstallFlags) error
-	UndoGenerateWrappers(instSnapPath string) error
-	UndoUpdateCurrentSymlink(oldInstSnapPath, instSnapPath string) error
+	UndoLinkSnap(oldInstSnapPath, instSnapPath string) error
 
 	// TODO: need to be split into fine grained tasks
 	Update(name, channel string, flags snappy.InstallFlags, meter progress.Meter) error
@@ -125,21 +123,16 @@ func (s *defaultBackend) SetupSnapSecurity(snapInstPath string) error {
 	return snappy.SetupSnapSecurity(sn)
 }
 
-func (s *defaultBackend) GenerateWrappers(snapInstPath string) error {
+func (s *defaultBackend) LinkSnap(snapInstPath string) error {
 	sn, err := snappy.NewInstalledSnap(filepath.Join(snapInstPath, "meta", "snap.yaml"))
 	if err != nil {
 		return err
 	}
 	meter := &progress.NullProgress{}
-	return snappy.GenerateWrappers(sn, meter)
-}
+	if err := snappy.GenerateWrappers(sn, meter); err != nil {
+		return err
+	}
 
-func (s *defaultBackend) UpdateCurrentSymlink(snapInstPath string) error {
-	sn, err := snappy.NewInstalledSnap(filepath.Join(snapInstPath, "meta", "snap.yaml"))
-	if err != nil {
-		return err
-	}
-	meter := &progress.NullProgress{}
 	return snappy.UpdateCurrentSymlink(sn, meter)
 }
 
@@ -167,16 +160,7 @@ func (s *defaultBackend) UndoCopySnapData(instSnapPath string, flags snappy.Inst
 	return nil
 }
 
-func (s *defaultBackend) UndoGenerateWrappers(instSnapPath string) error {
-	sn, err := snappy.NewInstalledSnap(filepath.Join(instSnapPath, "meta", "snap.yaml"))
-	if err != nil {
-		return err
-	}
-	meter := &progress.NullProgress{}
-	return snappy.RemoveGeneratedWrappers(sn, meter)
-}
-
-func (s *defaultBackend) UndoUpdateCurrentSymlink(oldInstSnapPath, instSnapPath string) error {
+func (s *defaultBackend) UndoLinkSnap(oldInstSnapPath, instSnapPath string) error {
 	new, err := snappy.NewInstalledSnap(filepath.Join(instSnapPath, "meta", "snap.yaml"))
 	if err != nil {
 		return err
@@ -185,6 +169,14 @@ func (s *defaultBackend) UndoUpdateCurrentSymlink(oldInstSnapPath, instSnapPath 
 	if err != nil {
 		return err
 	}
+
 	meter := &progress.NullProgress{}
-	return snappy.UndoUpdateCurrentSymlink(old, new, meter)
+	err1 := snappy.RemoveGeneratedWrappers(new, meter)
+	err2 := snappy.UndoUpdateCurrentSymlink(old, new, meter)
+
+	// return firstErr
+	if err1 != nil {
+		return err1
+	}
+	return err2
 }

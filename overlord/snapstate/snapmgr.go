@@ -307,11 +307,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if err := m.backend.GenerateWrappers(ss.BaseDir()); err != nil {
-		return err
-	}
-
-	return m.backend.UpdateCurrentSymlink(ss.BaseDir())
+	return m.backend.LinkSnap(ss.BaseDir())
 }
 
 func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -320,11 +316,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if err := m.backend.UndoGenerateWrappers(ss.BaseDir()); err != nil {
-		return err
-	}
-
-	return m.backend.UndoUpdateCurrentSymlink(ss.OldBaseDir(), ss.BaseDir())
+	return m.backend.UndoLinkSnap(ss.OldBaseDir(), ss.BaseDir())
 }
 
 // SnapInfo returns the snap.Info for a snap in the system.

@@ -111,7 +111,7 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 	s.state.Lock()
 
 	// ensure all our tasks ran
-	c.Assert(s.fakeBackend.ops, HasLen, 7)
+	c.Assert(s.fakeBackend.ops, HasLen, 6)
 	c.Assert(s.fakeBackend.ops, DeepEquals, []fakeOp{
 		fakeOp{
 			op:      "download",
@@ -135,11 +135,7 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 			name: "/snaps/some-snap/1.0",
 		},
 		fakeOp{
-			op:   "generate-wrappers",
-			name: "/snaps/some-snap/1.0",
-		},
-		fakeOp{
-			op:   "update-current-symlink",
+			op:   "link-snap",
 			name: "/snaps/some-snap/1.0",
 		},
 	})
@@ -170,7 +166,7 @@ func (s *snapmgrTestSuite) TestInstallLocalIntegration(c *C) {
 	s.state.Lock()
 
 	// ensure only local install was run, i.e. first action is check-snap
-	c.Assert(s.fakeBackend.ops, HasLen, 6)
+	c.Assert(s.fakeBackend.ops, HasLen, 5)
 	c.Check(s.fakeBackend.ops[0].op, Equals, "check-snap")
 	c.Check(s.fakeBackend.ops[0].name, Matches, `.*/mock.snap`)
 }
