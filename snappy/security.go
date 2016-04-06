@@ -320,7 +320,7 @@ func findWhitespacePrefix(t string, s string) string {
 	return subs[1]
 }
 
-// XXX: what to use really?
+// XXX: what to use really? likely move something out to interfaces to Info
 func getSecurityProfile2(s *snap.Info, appName, baseDir string) string {
 	cleanedName := strings.Replace(appName, "/", "-", -1)
 
