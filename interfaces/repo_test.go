@@ -971,18 +971,17 @@ apps:
     app:
 `
 
-func (s *AddRemoveSuite) addSnap(c *C, yaml string) (*snap.Info, []error) {
+func (s *AddRemoveSuite) addSnap(c *C, yaml string) (*snap.Info, error) {
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 	return snapInfo, s.repo.AddSnap(snapInfo)
 }
 
 func (s *AddRemoveSuite) TestAddSnapAddsPlugs(c *C) {
-	_, errors := s.addSnap(c, testConsumerYaml)
+	_, err := s.addSnap(c, testConsumerYaml)
+	c.Assert(err, IsNil)
 	// The plug was added
 	c.Assert(s.repo.Plug("consumer", "iface"), Not(IsNil))
-	// There were no errors
-	c.Assert(errors, HasLen, 0)
 }
 
 func (s *AddRemoveSuite) TestAddSnapPanicsOnExistingSnaps(c *C) {
@@ -991,21 +990,21 @@ func (s *AddRemoveSuite) TestAddSnapPanicsOnExistingSnaps(c *C) {
 }
 
 func (s *AddRemoveSuite) TestAddSnapSkipsPlugsWithUnknownInterface(c *C) {
-	_, errors := s.addSnap(c, testUnknownIfaceConsumerYaml)
+	_, err := s.addSnap(c, testUnknownIfaceConsumerYaml)
 	// The plug was skipped
 	c.Check(s.repo.Plug("consumer", "iface"), IsNil)
 	// There is a trail why it was skipped
-	c.Assert(errors, HasLen, 1)
-	c.Check(errors[0], ErrorMatches, "ignoring plug consumer.unknown, interface unknown is not supported")
+	c.Check(err, ErrorMatches,
+		`errors while adding snap: \[ignoring plug consumer.unknown, interface unknown is not supported\]`)
 }
 
 func (s *AddRemoveSuite) TestAddSkipsPlugsWithInvalidInterface(c *C) {
-	_, errors := s.addSnap(c, testInvalidIfaceConsumerYaml)
+	_, err := s.addSnap(c, testInvalidIfaceConsumerYaml)
 	// The plug was skipped
 	c.Check(s.repo.Plug("consumer", "iface"), IsNil)
 	// There is a trail why it was skipped
-	c.Assert(errors, HasLen, 1)
-	c.Check(errors[0], ErrorMatches, "ignoring plug consumer.invalid, plug is invalid")
+	c.Check(err, ErrorMatches,
+		`errors while adding snap: \[ignoring plug consumer.invalid, plug is invalid\]`)
 }
 
 func (s AddRemoveSuite) TestRemoveRemovesPlugs(c *C) {
