@@ -81,7 +81,7 @@ type: os`)
 	// now remove the channel
 	storeMinimalRemoteManifest("app", testDeveloper, "1.10", "hello", "Hello.", "")
 	for _, t := range []T{
-		{fullNameWithChannel, snap.TypeApp, "app." + testDeveloper},
+		{fullNameWithChannel, snap.TypeApp, "app." + testDeveloper + "/stable"},
 	} {
 		names, err := ActiveSnapIterByType(t.f, t.t)
 		c.Check(err, IsNil)

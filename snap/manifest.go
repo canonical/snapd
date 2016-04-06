@@ -50,8 +50,8 @@ func ManifestFromInfo(info *Info) *Manifest {
 	}
 }
 
-// CompleteInfo uses values from the given manifest to complete the info.
-// mf can be nil resulting in a nop.
+// CompleteInfo complete the info using values from the given manifest.
+// mf can be nil in which case nothing is done.
 func CompleteInfo(info *Info, mf *Manifest) {
 	if mf == nil {
 		return

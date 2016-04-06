@@ -60,25 +60,6 @@ func NewInstalledSnap(yamlPath string) (*Snap, error) {
 	return snap, nil
 }
 
-func completeInfo(info *snap.Info, manifest *diskManifest) {
-	// XXX: we actually should not trust snap.yaml name!
-
-	info.Developer = SideloadedDeveloper
-	// default for compat with older installs
-	info.Channel = "stable"
-	info.Size = 0
-
-	if manifest != nil {
-		info.Revision = manifest.Revision
-		info.Developer = manifest.Developer
-		info.Channel = manifest.Channel
-		// store edits win!
-		info.Description = manifest.Description
-		info.Summary = manifest.Summary
-		info.Size = manifest.Size
-	}
-}
-
 // newSnapFromYaml returns a new Snap from the given *snapYaml at yamlPath
 func newSnapFromYaml(yamlPath string, m *snapYaml) (*Snap, error) {
 	s := &Snap{
@@ -118,7 +99,7 @@ func newSnapFromYaml(yamlPath string, m *snapYaml) (*Snap, error) {
 	}
 	s.info = info
 
-	var manifest *diskManifest
+	var manifest *snap.Manifest
 	manifestPath := ManifestPath(info)
 	if osutil.FileExists(manifestPath) {
 		content, err := ioutil.ReadFile(manifestPath)
@@ -126,13 +107,16 @@ func newSnapFromYaml(yamlPath string, m *snapYaml) (*Snap, error) {
 			return nil, err
 		}
 
-		manifest = new(diskManifest)
+		manifest = new(snap.Manifest)
 		if err := yaml.Unmarshal(content, manifest); err != nil {
 			return nil, &ErrInvalidYaml{File: manifestPath, Err: err, Yaml: content}
 		}
 	}
 
-	completeInfo(info, manifest)
+	info.Developer = SideloadedDeveloper
+	// default for compat with older installs
+	info.Channel = "stable"
+	snap.CompleteInfo(info, manifest)
 
 	// XXX: FIXME: just some tests need this atm
 	// override the package's idea of its version
