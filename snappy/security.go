@@ -35,7 +35,6 @@ import (
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/release"
-	"github.com/ubuntu-core/snappy/snap"
 )
 
 type errPolicyNotFound struct {
@@ -318,13 +317,6 @@ func findWhitespacePrefix(t string, s string) string {
 	}
 
 	return subs[1]
-}
-
-// XXX: what to use really? likely move something out to interfaces to Info
-func getSecurityProfile2(s *snap.Info, appName, baseDir string) string {
-	cleanedName := strings.Replace(appName, "/", "-", -1)
-
-	return fmt.Sprintf("%s_%s_%s", s.Name, cleanedName, s.Version)
 }
 
 func getSecurityProfile(m *snapYaml, appName, baseDir string) string {

@@ -34,6 +34,14 @@ import (
 	"github.com/ubuntu-core/snappy/snap/snapenv"
 )
 
+// XXX: this needs to change in the new interfaces world!
+// it will need to be a SecurityTag value
+func getSecurityProfileFromApp(app *snap.AppInfo) string {
+	cleanedName := strings.Replace(app.Name, "/", "-", -1)
+
+	return fmt.Sprintf("%s_%s_%s", app.Snap.Name, cleanedName, app.Snap.Version)
+}
+
 // generate the name
 // TODO: => AppInfo.WrapperPath
 func generateBinaryName(app *snap.AppInfo) string {
@@ -58,7 +66,7 @@ func quoteEnvVar(envVar string) string {
 	return "export " + strings.Replace(envVar, "=", "=\"", 1) + "\""
 }
 
-func generateSnapBinaryWrapper(app *snap.AppInfo, pkgPath, aaProfile string) (string, error) {
+func generateSnapBinaryWrapper(app *snap.AppInfo, pkgPath string) (string, error) {
 	wrapperTemplate := `#!/bin/sh
 set -e
 
@@ -84,6 +92,7 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 	}
 
 	actualBinPath := binPathForBinary(pkgPath, app)
+	aaProfile := getSecurityProfileFromApp(app)
 
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("wrapper").Parse(wrapperTemplate))
@@ -144,14 +153,12 @@ func addPackageBinaries(s *snap.Info) error {
 			continue
 		}
 
-		// XXX: this needs to change in the new world!
-		aaProfile := getSecurityProfile2(s, app.Name, baseDir)
 		// this will remove the global base dir when generating the
 		// service file, this ensures that /snaps/foo/1.0/bin/start
 		// is in the service file when the SetRoot() option
 		// is used
 		realBaseDir := stripGlobalRootDir(baseDir)
-		content, err := generateSnapBinaryWrapper(app, realBaseDir, aaProfile)
+		content, err := generateSnapBinaryWrapper(app, realBaseDir)
 		if err != nil {
 			return err
 		}

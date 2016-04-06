@@ -58,7 +58,7 @@ func serviceStopTimeout(app *snap.AppInfo) time.Duration {
 	return time.Duration(tout)
 }
 
-func generateSnapServicesFile(app *snap.AppInfo, baseDir string, aaProfile string) (string, error) {
+func generateSnapServicesFile(app *snap.AppInfo, baseDir string) (string, error) {
 	if err := snap.ValidateApp(app); err != nil {
 		return "", err
 	}
@@ -70,6 +70,7 @@ func generateSnapServicesFile(app *snap.AppInfo, baseDir string, aaProfile strin
 		socketFileName = filepath.Base(generateSocketFileName(app))
 	}
 
+	aaProfile := getSecurityProfileFromApp(app)
 	return systemd.New(dirs.GlobalRootDir, nil).GenServiceFile(
 		&systemd.ServiceDescription{
 			SnapName:       app.Snap.Name,
@@ -90,7 +91,8 @@ func generateSnapServicesFile(app *snap.AppInfo, baseDir string, aaProfile strin
 			Restart:        app.RestartCond,
 		}), nil
 }
-func generateSnapSocketFile(app *snap.AppInfo, baseDir string, aaProfile string) (string, error) {
+
+func generateSnapSocketFile(app *snap.AppInfo, baseDir string) (string, error) {
 	if err := snap.ValidateApp(app); err != nil {
 		return "", err
 	}
@@ -134,14 +136,14 @@ func addPackageServices(s *snap.Info, inter interacter) error {
 		if app.Daemon == "" {
 			continue
 		}
-		aaProfile := getSecurityProfile2(s, app.Name, baseDir)
+
 		// this will remove the global base dir when generating the
 		// service file, this ensures that /snaps/foo/1.0/bin/start
 		// is in the service file when the SetRoot() option
 		// is used
 		realBaseDir := stripGlobalRootDir(baseDir)
 		// Generate service file
-		content, err := generateSnapServicesFile(app, realBaseDir, aaProfile)
+		content, err := generateSnapServicesFile(app, realBaseDir)
 		if err != nil {
 			return err
 		}
@@ -152,7 +154,7 @@ func addPackageServices(s *snap.Info, inter interacter) error {
 		}
 		// Generate systemd socket file if needed
 		if app.Socket {
-			content, err := generateSnapSocketFile(app, realBaseDir, aaProfile)
+			content, err := generateSnapSocketFile(app, realBaseDir)
 			if err != nil {
 				return err
 			}
