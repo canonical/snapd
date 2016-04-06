@@ -231,22 +231,18 @@ func (m *SnapManager) Stop() {
 }
 
 func getSnapSetup(t *state.Task, ss *snapSetup) error {
-	var id string
-
 	st := t.State()
 	st.Lock()
+	defer st.Unlock()
+
+	var id string
 	err := t.Get("snap-setup-task", &id)
-	st.Unlock()
 	if err != nil {
 		return err
 	}
 
-	st.Lock()
 	ts := st.Task(id)
-	err = ts.Get("snap-setup", ss)
-	st.Unlock()
-
-	return err
+	return ts.Get("snap-setup", ss)
 }
 
 func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
