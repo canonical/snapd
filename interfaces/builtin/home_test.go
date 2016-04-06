@@ -122,3 +122,7 @@ func (s *HomeInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
 	c.Assert(snippet, IsNil)
 }
+
+func (s *HomeInterfaceSuite) TestAutoConnect(c *C) {
+	c.Check(s.iface.AutoConnect(), Equals, false)
+}

@@ -126,3 +126,7 @@ func (s *NetworkBindInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
 	c.Assert(snippet, IsNil)
 }
+
+func (s *NetworkBindInterfaceSuite) TestAutoConnect(c *C) {
+	c.Check(s.iface.AutoConnect(), Equals, true)
+}

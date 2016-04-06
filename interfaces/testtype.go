@@ -40,6 +40,8 @@ type TestInterface struct {
 	PlugSnippetCallback func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
 	// PermanentPlugSnippetCallback is the callback invoked inside PermanentPlugSnippet()
 	PermanentPlugSnippetCallback func(plug *Plug, securitySystem SecuritySystem) ([]byte, error)
+	// AutoConnectCallback is the callback invoked in inside AutoConnect()
+	AutoConnectCallback func() bool
 }
 
 // String() returns the same value as Name().
@@ -108,4 +110,13 @@ func (t *TestInterface) PermanentSlotSnippet(slot *Slot, securitySystem Security
 		return t.PermanentSlotSnippetCallback(slot, securitySystem)
 	}
 	return nil, nil
+}
+
+// AutoConnect returns true if plugs and slots should be implicitly
+// auto-connected when an unambiguous connection candidate is available.
+func (t *TestInterface) AutoConnect() bool {
+	if t.AutoConnectCallback != nil {
+		return t.AutoConnectCallback()
+	}
+	return false
 }

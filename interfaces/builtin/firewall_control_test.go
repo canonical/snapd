@@ -126,3 +126,7 @@ func (s *FirewallControlInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
 	c.Assert(snippet, IsNil)
 }
+
+func (s *FirewallControlInterfaceSuite) TestAutoConnect(c *C) {
+	c.Check(s.iface.AutoConnect(), Equals, false)
+}
