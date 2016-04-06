@@ -111,6 +111,28 @@ func (ss *stateSuite) TestGetUnmarshalProblem(c *C) {
 	c.Check(err, ErrorMatches, `internal error: could not unmarshal state entry "mgr9": json: cannot unmarshal .*`)
 }
 
+func (ss *stateSuite) TestCache(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	type key1 struct{}
+	type key2 struct{}
+
+	c.Assert(st.Cached(key1{}), Equals, nil)
+
+	st.Cache(key1{}, "value1")
+	st.Cache(key2{}, "value2")
+	c.Assert(st.Cached(key1{}), Equals, "value1")
+	c.Assert(st.Cached(key2{}), Equals, "value2")
+
+	st.Cache(key1{}, nil)
+	c.Assert(st.Cached(key1{}), Equals, nil)
+
+	_, ok := st.Cached("key3").(string)
+	c.Assert(ok, Equals, false)
+}
+
 type fakeStateBackend struct {
 	checkpoints  [][]byte
 	error        func() error
@@ -474,6 +496,8 @@ func (ss *stateSuite) TestMethodEntrance(c *C) {
 
 	reads := []func(){
 		func() { st.Get("foo", nil) },
+		func() { st.Cached("foo") },
+		func() { st.Cache("foo", 1) },
 		func() { st.Changes() },
 		func() { st.Tasks() },
 		func() { st.MarshalJSON() },
