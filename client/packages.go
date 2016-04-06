@@ -29,16 +29,17 @@ import (
 // Snap holds the data for a snap as obtained from snapd.
 type Snap struct {
 	// XXX: actually add summary to the REST api when the store provides it
-	Summary       string `json:"summary"`
-	Description   string `json:"description"`
-	DownloadSize  int64  `json:"download_size"`
-	Icon          string `json:"icon"`
-	InstalledSize int64  `json:"installed_size"`
-	Name          string `json:"name"`
-	Developer     string `json:"developer"`
-	Status        string `json:"status"`
-	Type          string `json:"type"`
-	Version       string `json:"version"`
+	Summary       string  `json:"summary"`
+	Description   string  `json:"description"`
+	DownloadSize  int64   `json:"download_size"`
+	Icon          string  `json:"icon"`
+	InstalledSize int64   `json:"installed_size"`
+	Name          string  `json:"name"`
+	Developer     string  `json:"developer"`
+	Status        string  `json:"status"`
+	Type          string  `json:"type"`
+	Version       string  `json:"version"`
+	Price         float64 `json:"price"`
 }
 
 // SnapFilter is used to filter snaps by source, name and/or type

@@ -187,6 +187,7 @@ Sample result:
       "installed_size": 1821897,
       "name": "http",
       "developer": "chipaca",
+      "price": 2.99,
       "resource": "/v2/snaps/http",
       "status": "active",
       "type": "app",
@@ -238,6 +239,7 @@ Sample result:
       be rolled back to the version specified as a value to this entry.
     * `update_available`: if present and not empty, it means the snap can be
       updated to the version specified as a value to this entry.
+    * `price`: 0 means free, >0 implies a cost in the currently selected currency
     * `channel`: which channel the package is currently tracking.
 * `paging`
     * `count`: the number of snaps on this page
