@@ -136,7 +136,7 @@ func (s *SnapTestSuite) TestLocalSnapSimple(c *C) {
 	c.Check(snap.Name(), Equals, "hello-snap")
 	c.Check(snap.Version(), Equals, "1.10")
 	c.Check(snap.IsActive(), Equals, false)
-	c.Check(snap.Info().Summary, Equals, "hello")
+	c.Check(snap.Info().Summary, Equals, "hello in summary")
 	c.Check(snap.Info().Description, Equals, "Hello...")
 	c.Check(snap.IsInstalled(), Equals, true)
 

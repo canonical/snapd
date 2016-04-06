@@ -106,14 +106,14 @@ apps:
 		return "", err
 	}
 
-	if err := storeMinimalRemoteManifest(m.Name, testDeveloper, m.Version, "Hello...", "remote-channel"); err != nil {
+	if err := storeMinimalRemoteManifest(m.Name, testDeveloper, m.Version, "hello in summary", "Hello...", "remote-channel"); err != nil {
 		return "", err
 	}
 
 	return yamlFile, nil
 }
 
-func storeMinimalRemoteManifest(name, developer, version, desc, channel string) error {
+func storeMinimalRemoteManifest(name, developer, version, summary, desc, channel string) error {
 	if developer == SideloadedDeveloper {
 		panic("store remote manifest for sideloaded package")
 	}
@@ -121,6 +121,7 @@ func storeMinimalRemoteManifest(name, developer, version, desc, channel string) 
 		Name:        name,
 		Version:     version,
 		Developer:   developer,
+		Summary:     summary,
 		Description: desc,
 		Channel:     channel,
 	}
@@ -239,12 +240,12 @@ func makeTwoTestSnaps(c *C, snapType snap.Type, extra ...string) {
 	snapFile := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
 	_, err := (&Overlord{}).Install(snapFile, AllowUnauthenticated|AllowGadget, inter)
 	c.Assert(err, IsNil)
-	c.Assert(storeMinimalRemoteManifest("foo", testDeveloper, "1.0", "", "remote-channel"), IsNil)
+	c.Assert(storeMinimalRemoteManifest("foo", testDeveloper, "1.0", "", "", "remote-channel"), IsNil)
 
 	snapFile = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
 	_, err = (&Overlord{}).Install(snapFile, AllowUnauthenticated|AllowGadget, inter)
 	c.Assert(err, IsNil)
-	c.Assert(storeMinimalRemoteManifest("foo", testDeveloper, "2.0", "", "remote-channel"), IsNil)
+	c.Assert(storeMinimalRemoteManifest("foo", testDeveloper, "2.0", "", "", "remote-channel"), IsNil)
 
 	installed, err := (&Overlord{}).Installed()
 	c.Assert(err, IsNil)

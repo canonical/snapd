@@ -74,7 +74,7 @@ func completeInfo(info *snap.Info, manifest *diskManifest) {
 		info.Channel = manifest.Channel
 		// store edits win!
 		info.Description = manifest.Description
-		// XXX: Summary doesn't exist in the store yet anyway
+		info.Summary = manifest.Summary
 		info.Size = manifest.Size
 	}
 }
