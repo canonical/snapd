@@ -72,14 +72,6 @@ export HOME="$SNAP_USER_DATA"
 
 ubuntu-core-launcher pastebinit.pastebinit pastebinit_pastebinit_1.4.0.0.1 /snaps/pastebinit/1.4.0.0.1/bin/pastebinit "$@"
 `
-
-var pastebinitYaml = []byte(`name: pastebinit
-version: 1.4.0.0.1
-apps:
-  pastebinit:
-    command: bin/pastebinit
-`)
-
 func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 	pkgPath := "/snaps/pastebinit/1.4.0.0.1/"
 	info := &snap.Info{}
