@@ -517,6 +517,14 @@ func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem Sec
 	return snippets, nil
 }
 
+type addSnapError struct {
+	errs []error
+}
+
+func (e *addSnapError) Error() string {
+	return fmt.Sprintf("errors while adding snap: %v", e.errs)
+}
+
 // AddSnap adds plugs and slots declared by the given snap to the repository.
 //
 // This function can be used to implement snap install or, when used along with
@@ -528,7 +536,7 @@ func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem Sec
 // Each added plug/slot is validated according to the corresponding interface.
 // Unknown interfaces and plugs/slots that don't validate are not added.
 // Information about those failures are returned to the caller.
-func (r *Repository) AddSnap(snapInfo *snap.Info) []error {
+func (r *Repository) AddSnap(snapInfo *snap.Info) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -585,7 +593,10 @@ func (r *Repository) AddSnap(snapInfo *snap.Info) []error {
 		r.slots[snapName][slotName] = slot
 	}
 
-	return errors
+	if len(errors) > 0 {
+		return &addSnapError{errs: errors}
+	}
+	return nil
 }
 
 // RemoveSnap removes all the plugs and slots associated with a given snap.
