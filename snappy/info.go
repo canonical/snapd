@@ -196,7 +196,7 @@ func ManifestPath(s *snap.Info) string {
 // SaveManifest saves the manifest at the designated location for the snap containing information not in the snap.yaml.
 func SaveManifest(rsnap *snap.Info) error {
 	// XXX: we store OfficialName though it may not be the blessed one later
-	content, err := yaml.Marshal(rsnap.SideInfo)
+	content, err := yaml.Marshal(&rsnap.SideInfo)
 	if err != nil {
 		return err
 	}
