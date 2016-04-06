@@ -43,8 +43,8 @@ func (s *infoSuite) TestSideInfoOverrides(c *C) {
 		Revision:          1,
 	}
 
-	c.Check(info.ZName(), Equals, "newname")
-	c.Check(info.ZSummary(), Equals, "fixed summary")
-	c.Check(info.ZDescription(), Equals, "fixed desc")
+	c.Check(info.Name(), Equals, "newname")
+	c.Check(info.Summary(), Equals, "fixed summary")
+	c.Check(info.Description(), Equals, "fixed desc")
 	c.Check(info.Revision, Equals, 1)
 }

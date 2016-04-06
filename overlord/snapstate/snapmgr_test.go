@@ -258,7 +258,7 @@ description: |
 	c.Assert(err, IsNil)
 
 	// Check that the name in the YAML is being ignored.
-	c.Check(snapInfo.ZName(), Equals, "name")
+	c.Check(snapInfo.Name(), Equals, "name")
 	// Check that other values are read from YAML
-	c.Check(snapInfo.ZDescription(), Equals, "Lots of text")
+	c.Check(snapInfo.Description(), Equals, "Lots of text")
 }

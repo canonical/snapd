@@ -239,7 +239,7 @@ func (s *backendSuite) installSnap(c *C, developerMode bool, snapYaml string) *s
 func (s *backendSuite) updateSnap(c *C, oldSnapInfo *snap.Info, developerMode bool, snapYaml string) *snap.Info {
 	newSnapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
-	c.Assert(newSnapInfo.ZName(), Equals, oldSnapInfo.ZName())
+	c.Assert(newSnapInfo.Name(), Equals, oldSnapInfo.Name())
 	s.removePlugsSlots(c, oldSnapInfo)
 	s.addPlugsSlots(c, newSnapInfo)
 	err = s.backend.Configure(newSnapInfo, developerMode, s.repo)
@@ -268,12 +268,12 @@ func (s *backendSuite) addPlugsSlots(c *C, snapInfo *snap.Info) {
 }
 
 func (s *backendSuite) removePlugsSlots(c *C, snapInfo *snap.Info) {
-	for _, plug := range s.repo.Plugs(snapInfo.ZName()) {
-		err := s.repo.RemovePlug(plug.Snap.ZName(), plug.Name)
+	for _, plug := range s.repo.Plugs(snapInfo.Name()) {
+		err := s.repo.RemovePlug(plug.Snap.Name(), plug.Name)
 		c.Assert(err, IsNil)
 	}
-	for _, slot := range s.repo.Slots(snapInfo.ZName()) {
-		err := s.repo.RemoveSlot(slot.Snap.ZName(), slot.Name)
+	for _, slot := range s.repo.Slots(snapInfo.Name()) {
+		err := s.repo.RemoveSlot(slot.Snap.Name(), slot.Name)
 		c.Assert(err, IsNil)
 	}
 }

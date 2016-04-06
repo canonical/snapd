@@ -136,8 +136,8 @@ func (s *SnapTestSuite) TestLocalSnapSimple(c *C) {
 	c.Check(snap.Name(), Equals, "hello-snap")
 	c.Check(snap.Version(), Equals, "1.10")
 	c.Check(snap.IsActive(), Equals, false)
-	c.Check(snap.Info().ZSummary(), Equals, "hello in summary")
-	c.Check(snap.Info().ZDescription(), Equals, "Hello...")
+	c.Check(snap.Info().Summary(), Equals, "hello in summary")
+	c.Check(snap.Info().Description(), Equals, "Hello...")
 	c.Check(snap.IsInstalled(), Equals, true)
 
 	apps := snap.Apps()
@@ -248,7 +248,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 	results, err := snapUpdates(repo)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].ZName(), Equals, funkyAppName)
+	c.Assert(results[0].Name(), Equals, funkyAppName)
 	c.Assert(results[0].Revision, Equals, 3)
 	c.Assert(results[0].Version, Equals, "42")
 }
@@ -330,7 +330,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 	c.Assert(installed, HasLen, 1)
 
 	c.Check(installed[0].Developer(), Equals, "bar")
-	c.Check(installed[0].Info().ZDescription(), Equals, "this is a description")
+	c.Check(installed[0].Info().Description(), Equals, "this is a description")
 
 	_, err = os.Stat(filepath.Join(dirs.SnapMetaDir, "foo_1.0.manifest"))
 	c.Check(err, IsNil)

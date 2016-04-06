@@ -66,7 +66,7 @@ type Info struct {
 }
 
 // Name returns the blessed name for the snap.
-func (s *Info) ZName() string {
+func (s *Info) Name() string {
 	if s.OfficialName != "" {
 		return s.OfficialName
 	}
@@ -74,7 +74,7 @@ func (s *Info) ZName() string {
 }
 
 // Summary returns the blessed summary for the snap.
-func (s *Info) ZSummary() string {
+func (s *Info) Summary() string {
 	if s.EditedSummary != "" {
 		return s.EditedSummary
 	}
@@ -82,7 +82,7 @@ func (s *Info) ZSummary() string {
 }
 
 // Description returns the blessed description for the snap.
-func (s *Info) ZDescription() string {
+func (s *Info) Description() string {
 	if s.EditedDescription != "" {
 		return s.EditedDescription
 	}
@@ -91,7 +91,7 @@ func (s *Info) ZDescription() string {
 
 // BaseDir returns the base directory of the snap.
 func (s *Info) BaseDir() string {
-	return filepath.Join(dirs.SnapSnapsDir, s.ZName(), s.Version)
+	return filepath.Join(dirs.SnapSnapsDir, s.Name(), s.Version)
 }
 
 // PlugInfo provides information about a plug.
