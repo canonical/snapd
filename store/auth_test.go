@@ -147,7 +147,7 @@ func (s *authTestSuite) TestRequestPackageAccessMacaroonMissingData(c *C) {
 	myappsPackageAccessAPI = mockServer.URL + "/acl/package_access/"
 
 	macaroon, err := RequestPackageAccessMacaroon()
-	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, "cannot get package access macaroon from store: empty macaroon returned")
 	c.Assert(macaroon, Equals, "")
 }
 
