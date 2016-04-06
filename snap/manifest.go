@@ -25,7 +25,7 @@ package snap
 type Manifest struct {
 	Name string `yaml:"name,omitempty" json:"name,omitempty"`
 	// XXX likely we want also snap-id
-	Revision    int    `yaml:"revision" "json:"revision"`
+	Revision    int    `yaml:"revision" json:"revision"`
 	Channel     string `yaml:"channel,omitempty" json:"channel,omitempty"`
 	Developer   string `yaml:"developer,omitempty" json:"developer,omitempty"`
 	Summary     string `yaml:"summary,omitempty" json:"summary,omitempty"`
