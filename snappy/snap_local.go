@@ -34,9 +34,10 @@ import (
 
 // Snap represents a generic snap type
 type Snap struct {
-	m *snapYaml
-
 	info *snap.Info
+
+	// XXX: this should go away, and actually snappy.Snap itself
+	m *snapYaml
 
 	hash     string
 	isActive bool
