@@ -129,7 +129,6 @@ func (s *authTestSuite) TestRequestPackageAccessMacaroon(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, mockStoreReturnMacaroon)
 	}))
-	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 	myappsPackageAccessAPI = mockServer.URL + "/acl/package_access/"
 
@@ -142,7 +141,6 @@ func (s *authTestSuite) TestRequestPackageAccessMacaroonMissingData(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, mockStoreReturnNoMacaroon)
 	}))
-	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 	myappsPackageAccessAPI = mockServer.URL + "/acl/package_access/"
 
@@ -155,7 +153,6 @@ func (s *authTestSuite) TestRequestPackageAccessMacaroonError(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(500)
 	}))
-	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 	myappsPackageAccessAPI = mockServer.URL + "/acl/package_access/"
 
