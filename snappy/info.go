@@ -21,10 +21,14 @@ package snappy
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
+	"gopkg.in/yaml.v2"
+
 	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 )
@@ -184,7 +188,45 @@ func PackageNameActive(name string) bool {
 	return ActiveSnapByName(name) != nil
 }
 
-// RemoteManifestPath returns the would be path for the store manifest meta data
-func RemoteManifestPath(s *snap.Info) string {
+// ManifestPath returns the would be path for the snap manifest.
+func ManifestPath(s *snap.Info) string {
 	return filepath.Join(dirs.SnapMetaDir, fmt.Sprintf("%s_%s.manifest", s.Name, s.Version))
+}
+
+/// XXX: temporary step until we know if we still need this (vs overlord state)
+// and to find out what we absolutely need from it
+type diskManifest struct {
+	// XXX likely we want also snap-id and summary and name? (but name breaks immutability)
+	Revision    int    `yaml:"revision"`
+	Channel     string `yaml:"channel"`
+	Developer   string `yaml:"developer"`
+	Description string `yaml:"description"`
+	Size        int64  `yaml:"size"`
+	Sha512      string `yaml:"sha512"`
+	IconURL     string `yaml:"icon-url"`
+}
+
+// SaveManifest saves the manifest at the designated location for the snap containing information not in the snap.yaml.
+func SaveManifest(rsnap *snap.Info) error {
+	m := &diskManifest{
+		Revision:  rsnap.Revision,
+		Channel:   rsnap.Channel,
+		Developer: rsnap.Developer,
+		// XXX capture also Summary?
+		Description: rsnap.Description,
+		Size:        rsnap.Size,
+		Sha512:      rsnap.Sha512,
+		IconURL:     rsnap.IconURL,
+	}
+	content, err := yaml.Marshal(m)
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(dirs.SnapMetaDir, 0755); err != nil {
+		return err
+	}
+
+	// don't worry about previous contents
+	return osutil.AtomicWriteFile(ManifestPath(rsnap), content, 0644, 0)
 }

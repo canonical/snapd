@@ -44,8 +44,8 @@ import (
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
+	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
-	"github.com/ubuntu-core/snappy/store"
 )
 
 // increase this every time you make a minor (backwards-compatible)
@@ -181,8 +181,8 @@ func sysInfo(c *Command, r *http.Request) Response {
 }
 
 type metarepo interface {
-	Snap(string, string) (*store.RemoteSnap, error)
-	FindSnaps(string, string) ([]*store.RemoteSnap, error)
+	Snap(string, string) (*snap.Info, error)
+	FindSnaps(string, string) ([]*snap.Info, error)
 }
 
 var newRemoteRepo = func() metarepo {
@@ -290,7 +290,7 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 	}
 
 	var localSnapsMap map[string][]*snappy.Snap
-	var remoteSnapMap map[string]*store.RemoteSnap
+	var remoteSnapMap map[string]*snap.Info
 
 	if includeLocal {
 		sources = append(sources, "local")
@@ -298,7 +298,7 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 	}
 
 	if includeStore {
-		remoteSnapMap = make(map[string]*store.RemoteSnap)
+		remoteSnapMap = make(map[string]*snap.Info)
 
 		// repo.Find("") finds all
 		//
@@ -311,7 +311,7 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		sources = append(sources, "store")
 
 		for _, snap := range found {
-			remoteSnapMap[snap.Name()] = snap
+			remoteSnapMap[snap.Name] = snap
 		}
 	}
 
@@ -340,7 +340,7 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		m := mapSnap(nil, remoteSnap)
 
 		resource := "no resource URL for this resource"
-		url, err := route.URL("name", remoteSnap.Name())
+		url, err := route.URL("name", remoteSnap.Name)
 		if err == nil {
 			resource = url.String()
 		}

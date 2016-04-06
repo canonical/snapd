@@ -23,8 +23,8 @@ import (
 	"github.com/ubuntu-core/snappy/overlord/state"
 )
 
-// Adapt the snappy.progress.Meter to the task progress until we
-// have native install/update/remove
+// TaskProgressAdapter adapts the progress.Meter to the task progress
+// until we have native install/update/remove.
 type TaskProgressAdapter struct {
 	task  *state.Task
 	total float64
@@ -61,6 +61,8 @@ func (t *TaskProgressAdapter) Write(p []byte) (n int, err error) {
 
 // Notify notifies
 func (t *TaskProgressAdapter) Notify(msg string) {
+	t.task.State().Lock()
+	defer t.task.State().Unlock()
 	t.task.Logf(msg)
 }
 

@@ -25,19 +25,6 @@ import (
 	"github.com/ubuntu-core/snappy/snap"
 )
 
-// DEPRECATED: Remove after backends are converted to SecurityBackend.
-func WrapperNameForApp(snapName, appName string) string {
-	if appName == snapName {
-		return snapName
-	}
-	return fmt.Sprintf("%s.%s", snapName, appName)
-}
-
-// DEPRECATED: Remove after backends are converted to SecurityBackend.
-func SecurityTagForApp(snapName, appName string) string {
-	return fmt.Sprintf("%s.snap", WrapperNameForApp(snapName, appName))
-}
-
 // SecurityTag returns application-specific security tag.
 //
 // Security tags are used by various security subsystems as "profile names" and

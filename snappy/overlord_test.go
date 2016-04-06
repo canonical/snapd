@@ -36,7 +36,7 @@ var helloAppYaml = `name: hello-snap
 version: 1.0
 `
 
-func (o *SnapTestSuite) TestInstalled(c *C) {
+func (s *SnapTestSuite) TestInstalled(c *C) {
 	_, err := makeInstalledMockSnap(dirs.GlobalRootDir, helloAppYaml)
 	c.Assert(err, IsNil)
 
@@ -292,6 +292,8 @@ func (s *SnapTestSuite) TestClickSetActive(c *C) {
 	c.Assert(snaps[1].Version(), Equals, "2.0")
 	c.Assert(snaps[1].IsActive(), Equals, true)
 
+	// deactivate v2
+	err = DeactivateSnap(snaps[1], nil)
 	// set v1 active
 	err = ActivateSnap(snaps[0], nil)
 	snaps, err = (&Overlord{}).Installed()

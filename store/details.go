@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,18 +17,17 @@
  *
  */
 
-package remote
+package store
 
 import (
 	"github.com/ubuntu-core/snappy/snap"
 )
 
-// A Snap encapsulates the data sent to us from the store.
+// snapDetails encapsulates the data sent to us from the store.
 //
 // Full json available via:
 // curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: rolling-core" https://search.apps.ubuntu.com/api/v1/package/ubuntu-core.canonical | python -m json.tool
-type Snap struct {
-	Alias           string             `json:"alias,omitempty"`
+type snapDetails struct {
 	AnonDownloadURL string             `json:"anon_download_url,omitempty"`
 	Channel         string             `json:"channel,omitempty"`
 	DownloadSha512  string             `json:"download_sha512,omitempty"`
