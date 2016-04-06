@@ -163,27 +163,26 @@ func ReadStoreToken() (*StoreToken, error) {
 
 // RequestPackageAccessMacaroon requests a macaroon for accessing package data from the ubuntu store
 func RequestPackageAccessMacaroon() (string, error) {
-	const errorPrefix = "cannot get package access macaroon from store: %v"
+	const errorPrefix = "cannot get package access macaroon from store: "
 
 	emptyJSONData := "{}"
 	req, err := http.NewRequest("POST", myappsPackageAccessAPI, strings.NewReader(emptyJSONData))
 	req.Header.Set("accept", "application/json")
 	req.Header.Set("content-type", "application/json")
 	if err != nil {
-		return "", fmt.Errorf(errorPrefix, err)
+		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf(errorPrefix, err)
+		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
 	defer resp.Body.Close()
 
 	// check return code, error on anything !200
 	if resp.StatusCode != 200 {
-		errorMsg := fmt.Sprintf("store server returned status %d", resp.StatusCode)
-		return "", fmt.Errorf(errorPrefix, errorMsg)
+		return "", fmt.Errorf(errorPrefix+"store server returned status %d", resp.StatusCode)
 	}
 
 	dec := json.NewDecoder(resp.Body)
@@ -191,11 +190,11 @@ func RequestPackageAccessMacaroon() (string, error) {
 		Macaroon string `json:"macaroon"`
 	}
 	if err := dec.Decode(&responseData); err != nil {
-		return "", fmt.Errorf(errorPrefix, err)
+		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
 
 	if responseData.Macaroon == "" {
-		return "", fmt.Errorf(errorPrefix, "empty macaroon returned")
+		return "", fmt.Errorf(errorPrefix + "empty macaroon returned")
 	}
 	return responseData.Macaroon, nil
 }
