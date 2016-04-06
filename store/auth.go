@@ -168,7 +168,7 @@ func RequestPackageAccessMacaroon() (string, error) {
 	req.Header.Set("accept", "application/json")
 	req.Header.Set("content-type", "application/json")
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("cannot get package access macaroon from store: %v", err)
 	}
 
 	client := &http.Client{}
@@ -178,22 +178,29 @@ func RequestPackageAccessMacaroon() (string, error) {
 	}
 	defer resp.Body.Close()
 
-	// check return code, error on anything !200
-	if !httpStatusCodeSuccess(resp.StatusCode) {
-		// unexpected result, bail
-		return "", fmt.Errorf("failed to get store macaroon: %v (%v)", resp.StatusCode, resp)
+	// check return code, error on 4xx and anything !200
+	switch {
+	case httpStatusCodeClientError(resp.StatusCode):
+		// unexpected client error, no user data is sent in the request
+		return "", fmt.Errorf("failed to get store token: %v", resp.Status)
+
+	case !httpStatusCodeSuccess(resp.StatusCode):
+		// unexpected server error, get Oops Id
+		oopsId := resp.Header.Get("X-Oops-Id")
+		return "", fmt.Errorf("failed to get store token: %v %v", resp.Status, oopsId)
 	}
 
 	dec := json.NewDecoder(resp.Body)
-	responseData := map[string]string{}
+	var responseData struct {
+		Macaroon string `json:"macaroon"`
+	}
 	if err := dec.Decode(&responseData); err != nil {
 		return "", err
 	}
 
-	macaroon, available := responseData["macaroon"]
-	if !available {
-		return "", fmt.Errorf("missing store macaroon: %v (%v)", resp.StatusCode, resp)
+	macaroon := responseData.Macaroon
+	if macaroon == "" {
+		return "", fmt.Errorf("store returned empty package access macaroon")
 	}
-
 	return macaroon, nil
 }
