@@ -37,6 +37,7 @@ import (
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
+	"github.com/ubuntu-core/snappy/snap"
 )
 
 type remoteRepoTestSuite struct {
@@ -63,14 +64,16 @@ func (t *remoteRepoTestSuite) TearDownTest(c *C) {
 func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
 
 	download = func(name string, w io.Writer, req *http.Request, pbar progress.Meter) error {
-		c.Check(req.URL.String(), Equals, "anon")
+		c.Check(req.URL.String(), Equals, "anon-url")
 		w.Write([]byte("I was downloaded"))
 		return nil
 	}
 
-	snap := &RemoteSnap{}
-	snap.Pkg.AnonDownloadURL = "anon"
-	snap.Pkg.DownloadURL = "AUTH"
+	snap := &snap.Info{
+		Name:            "foo",
+		AnonDownloadURL: "anon-url",
+		DownloadURL:     "AUTH-URL",
+	}
 	path, err := t.store.Download(snap, nil)
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
@@ -89,14 +92,16 @@ func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
 	c.Assert(err, IsNil)
 
 	download = func(name string, w io.Writer, req *http.Request, pbar progress.Meter) error {
-		c.Check(req.URL.String(), Equals, "AUTH")
+		c.Check(req.URL.String(), Equals, "AUTH-URL")
 		w.Write([]byte("I was downloaded"))
 		return nil
 	}
 
-	snap := &RemoteSnap{}
-	snap.Pkg.AnonDownloadURL = "anon"
-	snap.Pkg.DownloadURL = "AUTH"
+	snap := &snap.Info{
+		Name:            "foo",
+		AnonDownloadURL: "anon-url",
+		DownloadURL:     "AUTH-URL",
+	}
 	path, err := t.store.Download(snap, nil)
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
@@ -113,8 +118,13 @@ func (t *remoteRepoTestSuite) TestDownloadFails(c *C) {
 		return fmt.Errorf("uh, it failed")
 	}
 
+	snap := &snap.Info{
+		Name:            "foo",
+		AnonDownloadURL: "anon-url",
+		DownloadURL:     "AUTH-URL",
+	}
 	// simulate a failed download
-	path, err := t.store.Download(&RemoteSnap{}, nil)
+	path, err := t.store.Download(snap, nil)
 	c.Assert(err, ErrorMatches, "uh, it failed")
 	c.Assert(path, Equals, "")
 	// ... and ensure that the tempfile is removed
@@ -131,8 +141,13 @@ func (t *remoteRepoTestSuite) TestDownloadSyncFails(c *C) {
 		return nil
 	}
 
+	snap := &snap.Info{
+		Name:            "foo",
+		AnonDownloadURL: "anon-url",
+		DownloadURL:     "AUTH-URL",
+	}
 	// simulate a failed sync
-	path, err := t.store.Download(&RemoteSnap{}, nil)
+	path, err := t.store.Download(snap, nil)
 	c.Assert(err, ErrorMatches, "fsync:.*")
 	c.Assert(path, Equals, "")
 	// ... and ensure that the tempfile is removed
@@ -263,13 +278,12 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	// the actual test
 	result, err := repo.Snap(funkyAppName+"."+funkyAppDeveloper, "edge")
 	c.Assert(err, IsNil)
-	c.Check(result.Name(), Equals, funkyAppName)
-	c.Check(result.Developer(), Equals, funkyAppDeveloper)
-	c.Check(result.Version(), Equals, "42")
-	c.Check(result.Hash(), Equals, "5364253e4a988f4f5c04380086d542f410455b97d48cc6c69ca2a5877d8aef2a6b2b2f83ec4f688cae61ebc8a6bf2cdbd4dbd8f743f0522fc76540429b79df42")
-	c.Check(result.Date().String(), Equals, "2015-04-15 18:30:16 +0000 UTC")
-	c.Check(result.DownloadSize(), Equals, int64(65375))
-	c.Check(result.Channel(), Equals, "edge")
+	c.Check(result.Name, Equals, funkyAppName)
+	c.Check(result.Developer, Equals, funkyAppDeveloper)
+	c.Check(result.Version, Equals, "42")
+	c.Check(result.Sha512, Equals, "5364253e4a988f4f5c04380086d542f410455b97d48cc6c69ca2a5877d8aef2a6b2b2f83ec4f688cae61ebc8a6bf2cdbd4dbd8f743f0522fc76540429b79df42")
+	c.Check(result.Size, Equals, int64(65375))
+	c.Check(result.Channel, Equals, "edge")
 }
 
 const MockNoDetailsJSON = `{"errors": ["No such package"], "result": "error"}`
@@ -373,7 +387,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFind(c *C) {
 	snaps, err := repo.FindSnaps("foo", "")
 	c.Assert(err, IsNil)
 	c.Assert(snaps, HasLen, 1)
-	c.Check(snaps[0].Name(), Equals, funkyAppName)
+	c.Check(snaps[0].Name, Equals, funkyAppName)
 }
 
 /* acquired via:
@@ -391,6 +405,7 @@ const MockUpdatesJSON = `[
         "binary_filesize": 65375,
         "anon_download_url": "https://public.apps.ubuntu.com/anon/download/chipaca/8nzc1x4iim2xj1g2ul64.chipaca/8nzc1x4iim2xj1g2ul64.chipaca_42_all.snap",
         "allow_unauthenticated": true,
+        "revision": 3,
         "version": "42",
         "download_url": "https://public.apps.ubuntu.com/download/chipaca/8nzc1x4iim2xj1g2ul64.chipaca/8nzc1x4iim2xj1g2ul64.chipaca_42_all.snap",
         "download_sha512": "5364253e4a988f4f5c04380086d542f410455b97d48cc6c69ca2a5877d8aef2a6b2b2f83ec4f688cae61ebc8a6bf2cdbd4dbd8f743f0522fc76540429b79df42"
@@ -420,8 +435,9 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 	results, err := repo.Updates([]string{funkyAppName})
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].Name(), Equals, funkyAppName)
-	c.Assert(results[0].Version(), Equals, "42")
+	c.Assert(results[0].Name, Equals, funkyAppName)
+	c.Assert(results[0].Revision, Equals, 3)
+	c.Assert(results[0].Version, Equals, "42")
 }
 
 func (t *remoteRepoTestSuite) TestStructFieldsSurvivesNoTag(c *C) {
@@ -461,6 +477,17 @@ func (t *remoteRepoTestSuite) TestAssertsURLDependsOnEnviron(c *C) {
 	c.Assert(os.Setenv("SNAPPY_USE_STAGING_SAS", "1"), IsNil)
 	defer os.Setenv("SNAPPY_USE_STAGING_SAS", "")
 	after := assertsURL()
+
+	c.Check(before, Not(Equals), after)
+}
+
+func (t *remoteRepoTestSuite) TestMyAppsURLDependsOnEnviron(c *C) {
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_MYAPPS", ""), IsNil)
+	before := myappsURL()
+
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_MYAPPS", "1"), IsNil)
+	defer os.Setenv("SNAPPY_USE_STAGING_MYAPPS", "")
+	after := myappsURL()
 
 	c.Check(before, Not(Equals), after)
 }

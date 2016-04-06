@@ -27,33 +27,29 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/remote"
 )
 
 // Snap represents a generic snap type
 type Snap struct {
-	m         *snapYaml
-	remoteM   *remote.Snap
-	developer string
-	hash      string
-	isActive  bool
+	m        *snapYaml
+	manifest *diskManifest
+	hash     string
+	isActive bool
 
 	basedir string
 }
 
 // NewInstalledSnap returns a new Snap from the given yamlPath
-func NewInstalledSnap(yamlPath, developer string) (*Snap, error) {
+func NewInstalledSnap(yamlPath string) (*Snap, error) {
 	m, err := parseSnapYamlFile(yamlPath)
 	if err != nil {
 		return nil, err
 	}
 
-	snap, err := newSnapFromYaml(yamlPath, developer, m)
+	snap, err := newSnapFromYaml(yamlPath, m)
 	if err != nil {
 		return nil, err
 	}
@@ -62,11 +58,10 @@ func NewInstalledSnap(yamlPath, developer string) (*Snap, error) {
 }
 
 // newSnapFromYaml returns a new Snap from the given *snapYaml at yamlPath
-func newSnapFromYaml(yamlPath, developer string, m *snapYaml) (*Snap, error) {
+func newSnapFromYaml(yamlPath string, m *snapYaml) (*Snap, error) {
 	snap := &Snap{
-		basedir:   filepath.Dir(filepath.Dir(yamlPath)),
-		developer: developer,
-		m:         m,
+		basedir: filepath.Dir(filepath.Dir(yamlPath)),
+		m:       m,
 	}
 
 	// override the package's idea of its version
@@ -85,18 +80,18 @@ func newSnapFromYaml(yamlPath, developer string, m *snapYaml) (*Snap, error) {
 		snap.isActive = true
 	}
 
-	remoteManifestPath := RemoteManifestPath(snap.Info())
-	if osutil.FileExists(remoteManifestPath) {
-		content, err := ioutil.ReadFile(remoteManifestPath)
+	manifestPath := ManifestPath(snap.Info())
+	if osutil.FileExists(manifestPath) {
+		content, err := ioutil.ReadFile(manifestPath)
 		if err != nil {
 			return nil, err
 		}
 
-		var r remote.Snap
-		if err := yaml.Unmarshal(content, &r); err != nil {
-			return nil, &ErrInvalidYaml{File: remoteManifestPath, Err: err, Yaml: content}
+		var manifest diskManifest
+		if err := yaml.Unmarshal(content, &manifest); err != nil {
+			return nil, &ErrInvalidYaml{File: manifestPath, Err: err, Yaml: content}
 		}
-		snap.remoteM = &r
+		snap.manifest = &manifest
 	}
 
 	return snap, nil
@@ -114,6 +109,7 @@ func (s *Snap) Type() snap.Type {
 
 // Name returns the name
 func (s *Snap) Name() string {
+	// XXX: we actually should not trust snap.yaml name!
 	return s.m.Name
 }
 
@@ -128,33 +124,20 @@ func (s *Snap) Version() string {
 
 // Revision returns the revision
 func (s *Snap) Revision() int {
-	if s.remoteM != nil {
-		return s.remoteM.Revision
+	if mf := s.manifest; mf != nil {
+		return mf.Revision
 	}
 
 	return 0
 }
 
-// Description returns the summary description
-func (s *Snap) Description() string {
-	if r := s.remoteM; r != nil {
-		return r.Description
-	}
-
-	return s.m.Summary
-}
-
 // Developer returns the developer
 func (s *Snap) Developer() string {
-	if r := s.remoteM; r != nil {
-		return r.Developer
+	if mf := s.manifest; mf != nil {
+		return mf.Developer
 	}
 
-	if s.developer == "" {
-		return SideloadedDeveloper
-	}
-
-	return s.developer
+	return SideloadedDeveloper
 }
 
 // Hash returns the hash
@@ -164,8 +147,8 @@ func (s *Snap) Hash() string {
 
 // Channel returns the channel used
 func (s *Snap) Channel() string {
-	if r := s.remoteM; r != nil {
-		return r.Channel
+	if mf := s.manifest; mf != nil {
+		return mf.Channel
 	}
 
 	// default for compat with older installs
@@ -204,6 +187,15 @@ func (s *Snap) InstalledSize() int64 {
 	return totalSize
 }
 
+func (s *Snap) description() string {
+	// store edits win!
+	if mf := s.manifest; mf != nil {
+		return mf.Description
+	}
+
+	return s.m.Description
+}
+
 // Info returns the snap.Info data.
 func (s *Snap) Info() *snap.Info {
 	return &snap.Info{
@@ -213,16 +205,17 @@ func (s *Snap) Info() *snap.Info {
 		Revision:    s.Revision(),
 		Type:        s.Type(),
 		Channel:     s.Channel(),
-		Description: s.Description(),
+		Summary:     s.m.Summary, // XXX: doesn't exist in the store yet anyway
+		Description: s.description(),
+		Size:        s.DownloadSize(),
 	}
 }
 
 // DownloadSize returns the dowload size
 func (s *Snap) DownloadSize() int64 {
-	if r := s.remoteM; r != nil {
-		return r.DownloadSize
+	if mf := s.manifest; mf != nil {
+		return mf.Size
 	}
-
 	return -1
 }
 
@@ -250,122 +243,6 @@ func (s *Snap) GadgetConfig() SystemConfig {
 // installed snap
 func (s *Snap) Install(inter progress.Meter, flags InstallFlags) (name string, err error) {
 	return "", ErrAlreadyInstalled
-}
-
-func (s *Snap) activate(inhibitHooks bool, inter interacter) error {
-	currentActiveSymlink := filepath.Join(s.basedir, "..", "current")
-	currentActiveDir, _ := filepath.EvalSymlinks(currentActiveSymlink)
-
-	// already active, nothing to do
-	if s.basedir == currentActiveDir {
-		return nil
-	}
-
-	// there is already an active snap
-	if currentActiveDir != "" {
-		// TODO: support switching developers
-		oldYaml := filepath.Join(currentActiveDir, "meta", "snap.yaml")
-		oldSnap, err := NewInstalledSnap(oldYaml, s.developer)
-		if err != nil {
-			return err
-		}
-		if err := oldSnap.deactivate(inhibitHooks, inter); err != nil {
-			return err
-		}
-	}
-
-	// generate the security policy from the snap.yaml
-	// Note that this must happen before binaries/services are
-	// generated because serices may get started
-	appsDir := filepath.Join(dirs.SnapSnapsDir, QualifiedName(s.Info()), s.Version())
-	if err := generatePolicy(s.m, appsDir); err != nil {
-		return err
-	}
-
-	// add the CLI apps from the snap.yaml
-	if err := addPackageBinaries(s.m, s.basedir); err != nil {
-		return err
-	}
-	// add the daemons from the snap.yaml
-	if err := addPackageServices(s.m, s.basedir, inhibitHooks, inter); err != nil {
-		return err
-	}
-	// add the desktop files
-	if err := addPackageDesktopFiles(s.m, s.basedir); err != nil {
-		return err
-	}
-
-	if err := os.Remove(currentActiveSymlink); err != nil && !os.IsNotExist(err) {
-		logger.Noticef("Failed to remove %q: %v", currentActiveSymlink, err)
-	}
-
-	dbase := filepath.Join(dirs.SnapDataDir, QualifiedName(s.Info()))
-	currentDataSymlink := filepath.Join(dbase, "current")
-	if err := os.Remove(currentDataSymlink); err != nil && !os.IsNotExist(err) {
-		logger.Noticef("Failed to remove %q: %v", currentDataSymlink, err)
-	}
-
-	// symlink is relative to parent dir
-	if err := os.Symlink(filepath.Base(s.basedir), currentActiveSymlink); err != nil {
-		return err
-	}
-
-	if err := os.MkdirAll(filepath.Join(dbase, s.Version()), 0755); err != nil {
-		return err
-	}
-
-	// FIXME: create {Os,Kernel}Snap type instead of adding special
-	//        cases here
-	if err := setNextBoot(s); err != nil {
-		return err
-	}
-
-	return os.Symlink(filepath.Base(s.basedir), currentDataSymlink)
-}
-
-func (s *Snap) deactivate(inhibitHooks bool, inter interacter) error {
-	currentSymlink := filepath.Join(s.basedir, "..", "current")
-
-	// sanity check
-	currentActiveDir, err := filepath.EvalSymlinks(currentSymlink)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return ErrSnapNotActive
-		}
-		return err
-	}
-	if s.basedir != currentActiveDir {
-		return ErrSnapNotActive
-	}
-
-	// remove generated services, binaries, security policy
-	if err := removePackageBinaries(s.m, s.basedir); err != nil {
-		return err
-	}
-
-	if err := removePackageServices(s.m, s.basedir, inter); err != nil {
-		return err
-	}
-
-	if err := removePackageDesktopFiles(s.m); err != nil {
-		return err
-	}
-
-	if err := removePolicy(s.m, s.basedir); err != nil {
-		return err
-	}
-
-	// and finally the current symlink
-	if err := os.Remove(currentSymlink); err != nil {
-		logger.Noticef("Failed to remove %q: %v", currentSymlink, err)
-	}
-
-	currentDataSymlink := filepath.Join(dirs.SnapDataDir, QualifiedName(s.Info()), "current")
-	if err := os.Remove(currentDataSymlink); err != nil && !os.IsNotExist(err) {
-		logger.Noticef("Failed to remove %q: %v", currentDataSymlink, err)
-	}
-
-	return nil
 }
 
 // NeedsReboot returns true if the snap becomes active on the next reboot

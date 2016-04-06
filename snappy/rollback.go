@@ -34,7 +34,7 @@ func Rollback(pkg, ver string, inter progress.Meter) (version string, err error)
 
 	// no version specified, find the previous one
 	if ver == "" {
-		installed, err := NewLocalSnapRepository().Installed()
+		installed, err := (&Overlord{}).Installed()
 		if err != nil {
 			return "", err
 		}

@@ -22,11 +22,15 @@ package snapstate
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/overlord/state"
+	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
 )
 
@@ -133,10 +137,8 @@ func (m *SnapManager) doInstallLocalSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// local snaps are special
 	var snapPath string
-	var developer string
 	if inst.SnapPath != "" {
 		snapPath = inst.SnapPath
-		developer = snappy.SideloadedDeveloper
 	} else if inst.DownloadTaskID != "" {
 		t.State().Lock()
 		tDl := t.State().Task(inst.DownloadTaskID)
@@ -146,13 +148,12 @@ func (m *SnapManager) doInstallLocalSnap(t *state.Task, _ *tomb.Tomb) error {
 		t.State().Unlock()
 		defer os.Remove(dl.SnapPath)
 		snapPath = dl.SnapPath
-		developer = dl.Developer
 	} else {
 		return fmt.Errorf("internal error: install-snap created without a snap path source")
 	}
 
 	pb := &TaskProgressAdapter{task: t}
-	return m.backend.InstallLocal(snapPath, developer, inst.Flags, pb)
+	return m.backend.InstallLocal(snapPath, inst.Flags, pb)
 }
 
 func (m *SnapManager) doUpdateSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -226,4 +227,26 @@ func (m *SnapManager) Wait() {
 // Stop implements StateManager.Stop.
 func (m *SnapManager) Stop() {
 	m.runner.Stop()
+}
+
+// SnapInfo returns the snap.Info for a snap in the system.
+//
+// Today this function is looking at data directly from the mounted snap, but soon it will
+// be changed so it looks first at the state for the snap details (Revision, Developer, etc),
+// and then complements it with information from the snap itself.
+func SnapInfo(state *state.State, snapName, snapVersion string) (*snap.Info, error) {
+	fname := filepath.Join(dirs.SnapSnapsDir, snapName, snapVersion, "meta", "snap.yaml")
+	yamlData, err := ioutil.ReadFile(fname)
+	if err != nil {
+		return nil, err
+	}
+	info, err := snap.InfoFromSnapYaml(yamlData)
+	if err != nil {
+		return nil, err
+	}
+	// Overwrite the name which doesn't belong in snap.yaml and is actually
+	// defined by snap declaration assertion.
+	info.Name = snapName
+	// TODO: use state to retrieve additional information
+	return info, nil
 }

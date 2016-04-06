@@ -56,14 +56,12 @@ func makeSnapHookEnv(snap *Snap) (env []string) {
 		SnapPath    string
 		Version     string
 		UdevAppName string
-		Developer   string
 	}{
 		snap.Name(),
 		arch.UbuntuArchitecture(),
 		snap.basedir,
 		snap.Version(),
-		QualifiedName(snap.Info()),
-		snap.Developer(),
+		snap.Name(),
 	}
 
 	vars := snapenv.GetBasicSnapEnvVars(desc)
@@ -109,4 +107,14 @@ func getattr(i interface{}, name string) interface{} {
 		v = v.Elem()
 	}
 	return v.FieldByName(name).Interface()
+}
+
+// firstErr returns the first error of the given error list
+func firstErr(err ...error) error {
+	for _, e := range err {
+		if e != nil {
+			return e
+		}
+	}
+	return nil
 }

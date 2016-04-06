@@ -25,7 +25,7 @@ import (
 )
 
 type managerBackend interface {
-	InstallLocal(snap, developer string, flags snappy.InstallFlags, meter progress.Meter) error
+	InstallLocal(snap string, flags snappy.InstallFlags, meter progress.Meter) error
 	Download(name, channel string, meter progress.Meter) (string, string, error)
 	Update(name, channel string, flags snappy.InstallFlags, meter progress.Meter) error
 	Remove(name string, flags snappy.RemoveFlags, meter progress.Meter) error
@@ -35,9 +35,9 @@ type managerBackend interface {
 
 type defaultBackend struct{}
 
-func (s *defaultBackend) InstallLocal(snap, developer string, flags snappy.InstallFlags, meter progress.Meter) error {
+func (s *defaultBackend) InstallLocal(snap string, flags snappy.InstallFlags, meter progress.Meter) error {
 	// FIXME: the name `snappy.Overlord` is confusing :/
-	_, err := (&snappy.Overlord{}).Install(snap, developer, flags, meter)
+	_, err := (&snappy.Overlord{}).Install(snap, flags, meter)
 	return err
 }
 
@@ -73,9 +73,11 @@ func (s *defaultBackend) Download(name, channel string, meter progress.Meter) (s
 
 	// FIXME: add undo task so that we delete the store manifest
 	//        again if we can not install the snap
-	if err := snappy.SaveStoreManifest(snap); err != nil {
+	// XXX: do this a bit later?
+	// XXX: pass in also info from the parsed yaml from the file?
+	if err := snappy.SaveManifest(snap); err != nil {
 		return "", "", err
 	}
 
-	return downloadedSnapFile, snap.Developer(), nil
+	return downloadedSnapFile, snap.Developer, nil
 }

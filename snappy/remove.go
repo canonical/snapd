@@ -38,7 +38,7 @@ const (
 func Remove(snapSpec string, flags RemoveFlags, meter progress.Meter) error {
 	var snaps BySnapVersion
 
-	installed, err := NewLocalSnapRepository().Installed()
+	installed, err := (&Overlord{}).Installed()
 	if err != nil {
 		return err
 	}
