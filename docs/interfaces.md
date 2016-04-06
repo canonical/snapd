@@ -12,9 +12,6 @@ Slots may support multiple connections to plugs.  For example the OS snap
 exposes the ``network`` slot and all applications that can talk over the
 network connect their plugs there.
 
-Plugs may support multiple connections to slots. There are no examples of this
-functionality at this time.
-
 ## Supported Interfaces
 
 ### firewall-control
