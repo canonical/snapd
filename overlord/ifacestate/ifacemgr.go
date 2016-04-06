@@ -81,13 +81,18 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 
 // Disconnect returns a set of tasks for  disconnecting an interface.
 func Disconnect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
-	// TODO: Remove the intent-to-connect from the state so that we no longer
-	// automatically try to reconnect on reboot.
+	plugRef := interfaces.PlugRef{Snap: plugSnap, Name: plugName}
+	slotRef := interfaces.SlotRef{Snap: slotSnap, Name: slotName}
+	// Remove the intent to connect if one is present
+	intents := getIntents(s)
+	intents.Remove(Intent{Plug: plugRef, Slot: slotRef})
+	setIntents(s, intents)
+	// Create a task to do the actual disconnect operation
 	summary := fmt.Sprintf(i18n.G("Disconnect %s:%s from %s:%s"),
 		plugSnap, plugName, slotSnap, slotName)
 	task := s.NewTask("disconnect", summary)
-	task.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
-	task.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
+	task.Set("plug", plugRef)
+	task.Set("slot", slotRef)
 	return state.NewTaskSet(task), nil
 }
 
