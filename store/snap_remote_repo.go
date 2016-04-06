@@ -136,6 +136,13 @@ func assertsURL() string {
 	return "https://assertions.ubuntu.com/v1/"
 }
 
+func myappsURL() string {
+	if os.Getenv("SNAPPY_USE_STAGING_MYAPPS") != "" {
+		return "https://myapps.developer.staging.ubuntu.com/api/2.0"
+	}
+	return "https://myapps.developer.ubuntu.com/api/2.0"
+}
+
 var defaultConfig = SnapUbuntuStoreConfig{}
 
 func init() {
