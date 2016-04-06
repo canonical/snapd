@@ -235,7 +235,7 @@ const MockDetailsJSON = `{
     "origin": "chipaca",
     "package_name": "8nzc1x4iim2xj1g2ul64",
     "price": 0.0,
-    "prices": {},
+    "prices": {"GBP": 1.23, "USD": 4.56},
     "publisher": "John Lenton",
     "ratings_average": 0.0,
     "release": [
@@ -269,6 +269,10 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 		c.Check(storeID, Equals, "")
 
 		c.Check(r.URL.Path, Equals, fmt.Sprintf("/details/%s.%s/edge", funkyAppName, funkyAppDeveloper))
+
+		w.Header().Set("X-Suggested-Currency", "GBP")
+		w.WriteHeader(http.StatusOK)
+
 		io.WriteString(w, MockDetailsJSON)
 	}))
 
@@ -295,6 +299,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Check(result.Channel, Equals, "edge")
 	c.Check(result.Description(), Equals, "Returns for store credit only.\nThis is a simple hello world example.")
 	c.Check(result.Summary(), Equals, "hello world example")
+	c.Check(result.Price, Equals, float64(1.23))
 }
 
 const MockNoDetailsJSON = `{"errors": ["No such package"], "result": "error"}`
@@ -353,7 +358,7 @@ const MockSearchJSON = `{
                 "last_updated": "2015-04-15T18:30:16Z",
                 "origin": "chipaca",
                 "package_name": "8nzc1x4iim2xj1g2ul64",
-                "prices": {},
+                "prices": {"GBP": 1.23, "USD": 4.56},
                 "publisher": "John Lenton",
                 "ratings_average": 0.0,
                 "revision": 7,

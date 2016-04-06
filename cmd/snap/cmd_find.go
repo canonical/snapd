@@ -77,11 +77,17 @@ func (x *cmdFind) Execute([]string) error {
 	w := tabwriter.NewWriter(Stdout, 5, 3, 1, ' ', 0)
 	defer w.Flush()
 
-	fmt.Fprintln(w, i18n.G("Name\tVersion\tSummary"))
+	fmt.Fprintln(w, i18n.G("Name\tVersion\tPrice\tSummary"))
 
 	for _, name := range names {
 		snap := snaps[name]
-		fmt.Fprintf(w, "%s\t%s\t%s\n", name, snap.Version, snap.Summary)
+		var price string
+		if snap.Price > 0 {
+			price = fmt.Sprintf("%v", snap.Price)
+		} else {
+			price = "free"
+		}
+		fmt.Fprintf(w, "%s\t%s\t%v\t%s\n", name, snap.Version, price, snap.Summary)
 	}
 
 	return nil

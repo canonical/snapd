@@ -208,6 +208,7 @@ Sample result:
       "install-date": "2016-03-10T13:16:52Z",
       "name": "http",
       "developer": "chipaca",
+      "price": 2.99,
       "resource": "/v2/snaps/http",
       "status": "active",
       "type": "app",
@@ -265,6 +266,7 @@ Sample result:
       be rolled back to the revision specified as a value to this entry.
     * `update-available`: if present and not empty, it means the snap can be
       updated to the revision specified as a value to this entry.
+    * `price`: 0 means free, >0 implies a cost in the currently selected currency
     * `channel`: which channel the package is currently tracking.
 * `paging`
     * `count`: the number of snaps on this page
