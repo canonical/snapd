@@ -22,11 +22,11 @@ package snap_test
 import (
 	"testing"
 
+	. "gopkg.in/check.v1"
+
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/systemd"
 	"github.com/ubuntu-core/snappy/timeout"
-
-	. "gopkg.in/check.v1"
 )
 
 // Hook up check.v1 into the "go test" runner
