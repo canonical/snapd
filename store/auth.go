@@ -176,7 +176,7 @@ func RequestPackageAccessMacaroon() (string, error) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf(errorPrefix, err)
 	}
 	defer resp.Body.Close()
 
