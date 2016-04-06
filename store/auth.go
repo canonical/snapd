@@ -163,7 +163,7 @@ func ReadStoreToken() (*StoreToken, error) {
 
 // RequestPackageAccessMacaroon requests a macaroon for accessing package data from the ubuntu store
 func RequestPackageAccessMacaroon() (string, error) {
-	emptyJsonData := ""
+	emptyJsonData := "{}"
 	req, err := http.NewRequest("POST", myappsPackageAccessAPI, strings.NewReader(emptyJsonData))
 	req.Header.Set("accept", "application/json")
 	req.Header.Set("content-type", "application/json")
