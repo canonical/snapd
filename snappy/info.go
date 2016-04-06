@@ -193,33 +193,11 @@ func ManifestPath(s *snap.Info) string {
 	return filepath.Join(dirs.SnapMetaDir, fmt.Sprintf("%s_%s.manifest", s.Name, s.Version))
 }
 
-/// XXX: temporary step until we know if we still need this (vs overlord state)
-// and to find out what we absolutely need from it
-type diskManifest struct {
-	// XXX likely we want also snap-id and name? (but name breaks immutability)
-	Revision    int    `yaml:"revision"`
-	Channel     string `yaml:"channel"`
-	Developer   string `yaml:"developer"`
-	Summary     string `yaml:"summary"`
-	Description string `yaml:"description"`
-	Size        int64  `yaml:"size"`
-	Sha512      string `yaml:"sha512"`
-	IconURL     string `yaml:"icon-url"`
-}
-
 // SaveManifest saves the manifest at the designated location for the snap containing information not in the snap.yaml.
 func SaveManifest(rsnap *snap.Info) error {
-	m := &diskManifest{
-		Revision:    rsnap.Revision,
-		Channel:     rsnap.Channel,
-		Developer:   rsnap.Developer,
-		Summary:     rsnap.Summary,
-		Description: rsnap.Description,
-		Size:        rsnap.Size,
-		Sha512:      rsnap.Sha512,
-		IconURL:     rsnap.IconURL,
-	}
-	content, err := yaml.Marshal(m)
+	mf := snap.ManifestFromInfo(rsnap)
+	mf.Name = "" // don't store the name, it break immutability of the disk manifest
+	content, err := yaml.Marshal(mf)
 	if err != nil {
 		return err
 	}
