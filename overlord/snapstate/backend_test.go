@@ -127,17 +127,9 @@ func (f *fakeSnappyBackend) SetupSnapSecurity(instSnapPath string) error {
 	return nil
 }
 
-func (f *fakeSnappyBackend) GenerateWrappers(instSnapPath string) error {
+func (f *fakeSnappyBackend) LinkSnap(instSnapPath string) error {
 	f.ops = append(f.ops, fakeOp{
-		op:   "generate-wrappers",
-		name: instSnapPath,
-	})
-	return nil
-}
-
-func (f *fakeSnappyBackend) UpdateCurrentSymlink(instSnapPath string) error {
-	f.ops = append(f.ops, fakeOp{
-		op:   "update-current-symlink",
+		op:   "link-snap",
 		name: instSnapPath,
 	})
 	return nil
@@ -167,17 +159,9 @@ func (f *fakeSnappyBackend) UndoCopySnapData(instSnapPath string, flags snappy.I
 	return nil
 }
 
-func (f *fakeSnappyBackend) UndoGenerateWrappers(instSnapPath string) error {
+func (f *fakeSnappyBackend) UndoLinkSnap(oldInstSnapPath, instSnapPath string) error {
 	f.ops = append(f.ops, fakeOp{
-		op:   "undo-generate-wrappers",
-		name: instSnapPath,
-	})
-	return nil
-}
-
-func (f *fakeSnappyBackend) UndoUpdateCurrentSymlink(oldInstSnapPath, instSnapPath string) error {
-	f.ops = append(f.ops, fakeOp{
-		op:   "undo-update-current-symlink",
+		op:   "undo-link-snap",
 		name: instSnapPath,
 	})
 	return nil
