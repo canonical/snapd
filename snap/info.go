@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 
 	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/systemd"
 	"github.com/ubuntu-core/snappy/timeout"
 )
 
@@ -90,6 +91,13 @@ type AppInfo struct {
 	StopTimeout timeout.Timeout
 	Stop        string
 	PostStop    string
+	RestartCond systemd.RestartCondition
+
+	Socket       bool
+	SocketMode   string
+	ListenStream string
+
+	BusName string
 
 	Plugs map[string]*PlugInfo
 	Slots map[string]*SlotInfo
