@@ -125,7 +125,7 @@ func (s *apiSuite) mkManifest(c *check.C, pkgType snap.Type) {
 	info := &snap.Info{
 		Name:        "foo",
 		Developer:   "bar",
-		Revision:    999999999999,
+		Revision:    2147483647,
 		Version:     "1",
 		Type:        pkgType,
 		Description: " bla bla bla",
