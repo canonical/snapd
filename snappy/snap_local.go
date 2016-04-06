@@ -141,7 +141,7 @@ func (s *Snap) Type() snap.Type {
 
 // Name returns the name
 func (s *Snap) Name() string {
-	return s.info.ZName()
+	return s.info.Name()
 }
 
 // Version returns the version

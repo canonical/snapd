@@ -39,17 +39,17 @@ import (
 func getSecurityProfileFromApp(app *snap.AppInfo) string {
 	cleanedName := strings.Replace(app.Name, "/", "-", -1)
 
-	return fmt.Sprintf("%s_%s_%s", app.Snap.ZName(), cleanedName, app.Snap.Version)
+	return fmt.Sprintf("%s_%s_%s", app.Snap.Name(), cleanedName, app.Snap.Version)
 }
 
 // generate the name
 // TODO: => AppInfo.WrapperPath
 func generateBinaryName(app *snap.AppInfo) string {
 	var binName string
-	if app.Name == app.Snap.ZName() {
+	if app.Name == app.Snap.Name() {
 		binName = filepath.Base(app.Name)
 	} else {
-		binName = fmt.Sprintf("%s.%s", app.Snap.ZName(), filepath.Base(app.Name))
+		binName = fmt.Sprintf("%s.%s", app.Snap.Name(), filepath.Base(app.Name))
 	}
 
 	return filepath.Join(dirs.SnapBinariesDir, binName)
@@ -109,12 +109,12 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 		OldAppVars  string
 		NewAppVars  string
 	}{
-		SnapName:    app.Snap.ZName(),
+		SnapName:    app.Snap.Name(),
 		AppName:     app.Name,
 		SnapArch:    arch.UbuntuArchitecture(),
 		SnapPath:    pkgPath,
 		Version:     app.Snap.Version,
-		UdevAppName: fmt.Sprintf("%s.%s", app.Snap.ZName(), app.Name),
+		UdevAppName: fmt.Sprintf("%s.%s", app.Snap.Name(), app.Name),
 		Home:        "$HOME",
 		Target:      actualBinPath,
 		AaProfile:   aaProfile,

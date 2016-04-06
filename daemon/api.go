@@ -311,7 +311,7 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		sources = append(sources, "store")
 
 		for _, snap := range found {
-			remoteSnapMap[snap.ZName()] = snap
+			remoteSnapMap[snap.Name()] = snap
 		}
 	}
 
@@ -340,7 +340,7 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		m := mapSnap(nil, remoteSnap)
 
 		resource := "no resource URL for this resource"
-		url, err := route.URL("name", remoteSnap.ZName())
+		url, err := route.URL("name", remoteSnap.Name())
 		if err == nil {
 			resource = url.String()
 		}

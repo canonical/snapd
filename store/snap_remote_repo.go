@@ -366,7 +366,7 @@ func (s *SnapUbuntuStoreRepository) Updates(installed []string) (snaps []*snap.I
 // The file is saved in temporary storage, and should be removed
 // after use to prevent the disk from running out of space.
 func (s *SnapUbuntuStoreRepository) Download(remoteSnap *snap.Info, pbar progress.Meter) (path string, err error) {
-	w, err := ioutil.TempFile("", remoteSnap.ZName())
+	w, err := ioutil.TempFile("", remoteSnap.Name())
 	if err != nil {
 		return "", err
 	}
@@ -394,7 +394,7 @@ func (s *SnapUbuntuStoreRepository) Download(remoteSnap *snap.Info, pbar progres
 	setAuthHeader(req, ssoToken)
 	s.applyUbuntuStoreHeaders(req, "")
 
-	if err := download(remoteSnap.ZName(), w, req, pbar); err != nil {
+	if err := download(remoteSnap.Name(), w, req, pbar); err != nil {
 		return "", err
 	}
 

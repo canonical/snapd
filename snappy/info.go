@@ -48,12 +48,12 @@ type Configuration interface {
 
 // BareName of a snap.Info is just its Name
 func BareName(p *snap.Info) string {
-	return p.ZName()
+	return p.Name()
 }
 
 // FullName of a snap.Info is Name.Developer
 func FullName(p *snap.Info) string {
-	return p.ZName() + "." + p.Developer
+	return p.Name() + "." + p.Developer
 }
 
 // FullNameWithChannel returns the FullName, with the channel appended
@@ -190,7 +190,7 @@ func PackageNameActive(name string) bool {
 
 // ManifestPath returns the would be path for the snap manifest.
 func ManifestPath(s *snap.Info) string {
-	return filepath.Join(dirs.SnapMetaDir, fmt.Sprintf("%s_%s.manifest", s.ZName(), s.Version))
+	return filepath.Join(dirs.SnapMetaDir, fmt.Sprintf("%s_%s.manifest", s.Name(), s.Version))
 }
 
 // SaveManifest saves the manifest at the designated location for the snap containing information not in the snap.yaml.

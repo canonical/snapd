@@ -51,7 +51,7 @@ const (
 func installRemote(mStore *store.SnapUbuntuStoreRepository, remoteSnap *snap.Info, flags InstallFlags, meter progress.Meter) (string, error) {
 	downloadedSnap, err := mStore.Download(remoteSnap, meter)
 	if err != nil {
-		return "", fmt.Errorf("cannot download %s: %s", remoteSnap.ZName(), err)
+		return "", fmt.Errorf("cannot download %s: %s", remoteSnap.Name(), err)
 	}
 	defer os.Remove(downloadedSnap)
 
@@ -70,13 +70,13 @@ func installRemote(mStore *store.SnapUbuntuStoreRepository, remoteSnap *snap.Inf
 func doUpdate(mStore *store.SnapUbuntuStoreRepository, rsnap *snap.Info, flags InstallFlags, meter progress.Meter) error {
 	_, err := installRemote(mStore, rsnap, flags, meter)
 	if err == ErrSideLoaded {
-		logger.Noticef("Skipping sideloaded package: %s", rsnap.ZName())
+		logger.Noticef("Skipping sideloaded package: %s", rsnap.Name())
 		return nil
 	} else if err != nil {
 		return err
 	}
 
-	if err := GarbageCollect(rsnap.ZName(), flags, meter); err != nil {
+	if err := GarbageCollect(rsnap.Name(), flags, meter); err != nil {
 		return err
 	}
 
@@ -104,7 +104,7 @@ func convertToInstalledSnaps(remoteUpdates []*snap.Info) ([]*Snap, error) {
 	installedUpdates := make([]*Snap, 0, len(remoteUpdates))
 	for _, snap := range remoteUpdates {
 		for _, installed := range installed {
-			if snap.ZName() == installed.Name() && snap.Version == installed.Version() {
+			if snap.Name() == installed.Name() && snap.Version == installed.Version() {
 				installedUpdates = append(installedUpdates, installed)
 			}
 		}
@@ -128,7 +128,7 @@ func snapUpdates(repo *store.SnapUbuntuStoreRepository) (snaps []*snap.Info, err
 	}
 
 	for _, rsnap := range rsnaps {
-		current := ActiveSnapByName(rsnap.ZName())
+		current := ActiveSnapByName(rsnap.Name())
 		if current == nil || current.Revision() != rsnap.Revision {
 			snaps = append(snaps, rsnap)
 		}
@@ -172,7 +172,7 @@ func Update(name string, flags InstallFlags, meter progress.Meter) ([]*Snap, err
 	}
 	var update *snap.Info
 	for _, upd := range updates {
-		if cur[0].Name() == upd.ZName() {
+		if cur[0].Name() == upd.Name() {
 			update = upd
 			break
 		}
@@ -204,7 +204,7 @@ func UpdateAll(flags InstallFlags, meter progress.Meter) ([]*Snap, error) {
 	}
 
 	for _, snap := range updates {
-		meter.Notify(fmt.Sprintf("Updating %s (%s)", snap.ZName(), snap.Version))
+		meter.Notify(fmt.Sprintf("Updating %s (%s)", snap.Name(), snap.Version))
 		if err := doUpdate(mStore, snap, flags, meter); err != nil {
 			return nil, err
 		}
@@ -264,11 +264,11 @@ func doInstall(name, channel string, flags InstallFlags, meter progress.Meter) (
 		return "", err
 	}
 
-	cur := FindSnapsByNameAndVersion(snap.ZName(), snap.Version, installed)
+	cur := FindSnapsByNameAndVersion(snap.Name(), snap.Version, installed)
 	if len(cur) != 0 {
 		return "", ErrAlreadyInstalled
 	}
-	if PackageNameActive(snap.ZName()) {
+	if PackageNameActive(snap.Name()) {
 		return "", ErrPackageNameAlreadyInstalled
 	}
 
