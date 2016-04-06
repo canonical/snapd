@@ -122,9 +122,8 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceTypeForking(c *C) {
 		Daemon:      "forking",
 	}
 	pkgPath := "/snaps/xkcd-webserver/0.3.4/"
-	aaProfile := "xkcd-webserver_xkcd-webserver_0.3.4"
 
-	generatedWrapper, err := generateSnapServicesFile(service, pkgPath, aaProfile)
+	generatedWrapper, err := generateSnapServicesFile(service, pkgPath)
 	c.Assert(err, IsNil)
 	c.Assert(generatedWrapper, Equals, expectedTypeForkingFmkWrapper)
 }
@@ -143,9 +142,8 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceAppWrapper(c *C) {
 		Daemon:      "simple",
 	}
 	pkgPath := "/snaps/xkcd-webserver/0.3.4/"
-	aaProfile := "xkcd-webserver_xkcd-webserver_0.3.4"
 
-	generatedWrapper, err := generateSnapServicesFile(service, pkgPath, aaProfile)
+	generatedWrapper, err := generateSnapServicesFile(service, pkgPath)
 	c.Assert(err, IsNil)
 	c.Assert(generatedWrapper, Equals, expectedServiceAppWrapper)
 }
@@ -161,9 +159,8 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceRestart(c *C) {
 		Daemon:      "simple",
 	}
 	pkgPath := "/snaps/xkcd-webserver/0.3.4/"
-	aaProfile := "xkcd-webserver_xkcd-webserver_0.3.4"
 
-	generatedWrapper, err := generateSnapServicesFile(service, pkgPath, aaProfile)
+	generatedWrapper, err := generateSnapServicesFile(service, pkgPath)
 	c.Assert(err, IsNil)
 	c.Assert(generatedWrapper, Matches, `(?ms).*^Restart=on-abort$.*`)
 }
@@ -182,9 +179,8 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWrapperWhitelist(c *C) {
 		Daemon:      "simple",
 	}
 	pkgPath := "/snaps/xkcd-webserver.canonical/0.3.4/"
-	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
 
-	_, err := generateSnapServicesFile(service, pkgPath, aaProfile)
+	_, err := generateSnapServicesFile(service, pkgPath)
 	c.Assert(err, NotNil)
 }
 
@@ -234,9 +230,8 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapSocket(c *C) {
 		Daemon:       "simple",
 	}
 	pkgPath := "/snaps/xkcd-webserver.canonical/0.3.4/"
-	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
 
-	content, err := generateSnapSocketFile(service, pkgPath, aaProfile)
+	content, err := generateSnapSocketFile(service, pkgPath)
 	c.Assert(err, IsNil)
 	c.Assert(content, Equals, `[Unit]
 Description= Socket Unit File
@@ -267,8 +262,8 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWithSocket(c *C) {
 		Daemon:      "simple",
 	}
 	pkgPath := "/snaps/xkcd-webserver/0.3.4/"
-	aaProfile := "xkcd-webserver_xkcd-webserver_0.3.4"
-	generatedWrapper, err := generateSnapServicesFile(service, pkgPath, aaProfile)
+
+	generatedWrapper, err := generateSnapServicesFile(service, pkgPath)
 	c.Assert(err, IsNil)
 	c.Assert(generatedWrapper, Equals, expectedSocketUsingWrapper)
 }
@@ -278,16 +273,15 @@ func (s *SnapTestSuite) TestGenerateSnapSocketFile(c *C) {
 		Snap: &snap.Info{},
 	}
 	baseDir := "/base/dir"
-	aaProfile := "pkg_app_1.0"
 
 	// no socket mode means 0660
-	content, err := generateSnapSocketFile(srv, baseDir, aaProfile)
+	content, err := generateSnapSocketFile(srv, baseDir)
 	c.Assert(err, IsNil)
 	c.Assert(content, Matches, "(?ms).*SocketMode=0660")
 
 	// SocketMode itself is honored
 	srv.SocketMode = "0600"
-	content, err = generateSnapSocketFile(srv, baseDir, aaProfile)
+	content, err = generateSnapSocketFile(srv, baseDir)
 	c.Assert(err, IsNil)
 	c.Assert(content, Matches, "(?ms).*SocketMode=0600")
 

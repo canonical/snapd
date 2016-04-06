@@ -75,7 +75,6 @@ ubuntu-core-launcher pastebinit.pastebinit pastebinit_pastebinit_1.4.0.0.1 /snap
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 	pkgPath := "/snaps/pastebinit/1.4.0.0.1/"
-	aaProfile := "pastebinit_pastebinit_1.4.0.0.1"
 	info := &snap.Info{
 		Name:    "pastebinit",
 		Version: "1.4.0.0.1",
@@ -88,14 +87,13 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 
 	expected := fmt.Sprintf(expectedWrapper, arch.UbuntuArchitecture())
 
-	generatedWrapper, err := generateSnapBinaryWrapper(binary, pkgPath, aaProfile)
+	generatedWrapper, err := generateSnapBinaryWrapper(binary, pkgPath)
 	c.Assert(err, IsNil)
 	c.Assert(generatedWrapper, Equals, expected)
 }
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperIllegalChars(c *C) {
 	pkgPath := "/snaps/pastebinit.mvo/1.4.0.0.1/"
-	aaProfile := "pastebinit.mvo_pastebinit_1.4.0.0.1"
 	info := &snap.Info{
 		Name:    "pastebinit",
 		Version: "1.4.0.0.1",
@@ -105,7 +103,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperIllegalChars(c *C) {
 		Name: "bin/pastebinit\nSomething nasty",
 	}
 
-	_, err := generateSnapBinaryWrapper(binary, pkgPath, aaProfile)
+	_, err := generateSnapBinaryWrapper(binary, pkgPath)
 	c.Assert(err, NotNil)
 }
 
