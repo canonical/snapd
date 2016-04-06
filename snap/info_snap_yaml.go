@@ -146,13 +146,18 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	for appName, yApp := range y.Apps {
 		// Collect all apps
 		app := &AppInfo{
-			Snap:        snap,
-			Name:        appName,
-			Command:     yApp.Command,
-			Daemon:      yApp.Daemon,
-			StopTimeout: yApp.StopTimeout,
-			Stop:        yApp.Stop,
-			PostStop:    yApp.PostStop,
+			Snap:         snap,
+			Name:         appName,
+			Command:      yApp.Command,
+			Daemon:       yApp.Daemon,
+			StopTimeout:  yApp.StopTimeout,
+			Stop:         yApp.Stop,
+			PostStop:     yApp.PostStop,
+			RestartCond:  yApp.RestartCond,
+			Socket:       yApp.Socket,
+			SocketMode:   yApp.SocketMode,
+			ListenStream: yApp.ListenStream,
+			BusName:      yApp.BusName,
 		}
 		if len(y.Plugs) > 0 || len(yApp.PlugNames) > 0 {
 			app.Plugs = make(map[string]*PlugInfo)

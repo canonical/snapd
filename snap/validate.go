@@ -67,12 +67,9 @@ func ValidateApp(app *AppInfo) error {
 		"command":           app.Command,
 		"stop-command":      app.Stop,
 		"post-stop-command": app.PostStop,
-		/*
-			BusName string `yaml:"bus-name,omitempty"`
-
-			ListenStream string `yaml:"listen-stream,omitempty"`
-			SocketMode   string `yaml:"socket-mode,omitempty"`
-		*/
+		"socket-mode":       app.SocketMode,
+		"listen-stream":     app.ListenStream,
+		"bus-name":          app.BusName,
 	}
 
 	for name, value := range checks {

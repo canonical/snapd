@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/systemd"
 	"github.com/ubuntu-core/snappy/timeout"
 
 	. "gopkg.in/check.v1"
@@ -885,25 +886,28 @@ apps:
    stop-command: stop-cmd
    post-stop-command: post-stop-cmd
    restart-condition: on-abnormal
-   # XXX: also?
-   # bus-name
-   # socket-mode
-   # listen-stream
+   socket-mode: socket_mode
+   listen-stream: listen_stream
+   bus-name: busName
    socket: yes
 `)
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, IsNil)
 	c.Check(info.Apps, DeepEquals, map[string]*snap.AppInfo{
 		"svc": {
-			Snap:    info,
-			Name:    "svc",
-			Command: "svc1",
-			Daemon:  "forking",
+			Snap:        info,
+			Name:        "svc",
+			Command:     "svc1",
+			Daemon:      "forking",
+			RestartCond: systemd.RestartOnAbnormal,
 			// XXX: stop-timeout seems broken in term of parsing
-			StopTimeout: timeout.Timeout(25),
-			Stop:        "stop-cmd",
-			PostStop:    "post-stop-cmd",
-			// XXX: more stuff
+			StopTimeout:  timeout.Timeout(25),
+			Stop:         "stop-cmd",
+			PostStop:     "post-stop-cmd",
+			Socket:       true,
+			SocketMode:   "socket_mode",
+			ListenStream: "listen_stream",
+			BusName:      "busName",
 		},
 	})
 }

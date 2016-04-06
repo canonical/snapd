@@ -183,7 +183,7 @@ func GenerateWrappers(s *Snap, inter interacter) error {
 		return err
 	}
 	// add the daemons from the snap.yaml
-	if err := addPackageServices(s.m, s.basedir, false, inter); err != nil {
+	if err := addPackageServices(s.Info(), inter); err != nil {
 		return err
 	}
 	// add the desktop files
@@ -203,7 +203,7 @@ func RemoveGeneratedWrappers(s *Snap, inter interacter) error {
 		logger.Noticef("Failed to remove binaries for %q: %v", s.Name(), err1)
 	}
 
-	err2 := removePackageServices(s.m, s.basedir, inter)
+	err2 := removePackageServices(s.Info(), inter)
 	if err2 != nil {
 		logger.Noticef("Failed to remove services for %q: %v", s.Name(), err2)
 	}
