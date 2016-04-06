@@ -65,7 +65,6 @@ func (s *ValidateSuite) TestValidateName(c *C) {
 
 func (s *ValidateSuite) TestServiceWhitelistSimple(c *C) {
 	c.Check(ValidateApp(&AppInfo{Name: "foo"}), IsNil)
-	c.Check(ValidateApp(&AppInfo{Description: "foo"}), IsNil)
 	c.Check(ValidateApp(&AppInfo{Command: "foo"}), IsNil)
 	c.Check(ValidateApp(&AppInfo{Stop: "foo"}), IsNil)
 	c.Check(ValidateApp(&AppInfo{PostStop: "foo"}), IsNil)
