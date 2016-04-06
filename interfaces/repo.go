@@ -544,12 +544,12 @@ func (r *Repository) AddSnap(snapInfo *snap.Info) error {
 
 	for plugName := range snapInfo.Plugs {
 		if _, ok := r.plugs[snapName][plugName]; ok {
-			panic(fmt.Errorf("cannot add plug %s.%s: existing plug in the way", snapName, plugName))
+			return fmt.Errorf("cannot add plug %s.%s: existing plug in the way", snapName, plugName)
 		}
 	}
 	for slotName := range snapInfo.Slots {
 		if _, ok := r.slots[snapName][slotName]; ok {
-			panic(fmt.Errorf("cannot add slot %s.%s: existing slot in the way", snapName, slotName))
+			return fmt.Errorf("cannot add slot %s.%s: existing slot in the way", snapName, slotName)
 		}
 	}
 
