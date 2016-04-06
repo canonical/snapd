@@ -20,6 +20,9 @@
 package snap
 
 import (
+	"path/filepath"
+
+	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/timeout"
 )
 
@@ -47,6 +50,11 @@ type Info struct {
 	AnonDownloadURL string
 	DownloadURL     string
 	IconURL         string
+}
+
+// BaseDir returns the base directory of the snap.
+func (s *Info) BaseDir() string {
+	return filepath.Join(dirs.SnapSnapsDir, s.Name, s.Version)
 }
 
 // PlugInfo provides information about a plug.
