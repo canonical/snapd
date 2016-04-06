@@ -24,6 +24,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
+	"github.com/ubuntu-core/snappy/osutil"
 
 	"github.com/jessevdk/go-flags"
 )
@@ -113,8 +114,15 @@ type cmdInstall struct {
 }
 
 func (x *cmdInstall) Execute([]string) error {
+	var uuid string
+	var err error
+
 	cli := Client()
-	uuid, err := cli.InstallSnap(x.Positional.Snap, x.Channel)
+	if osutil.FileExists(x.Positional.Snap) {
+		uuid, err = cli.SideloadSnap(x.Positional.Snap)
+	} else {
+		uuid, err = cli.InstallSnap(x.Positional.Snap, x.Channel)
+	}
 	if err != nil {
 		return err
 	}
