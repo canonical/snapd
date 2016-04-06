@@ -62,8 +62,7 @@ type slotYaml struct {
 type appYaml struct {
 	Command string `yaml:"command"`
 
-	Daemon      string `yaml:"daemon"`
-	Description string `yaml:"description,omitempty"`
+	Daemon string `yaml:"daemon"`
 
 	Stop        string          `yaml:"stop-command,omitempty"`
 	PostStop    string          `yaml:"post-stop-command,omitempty"`
