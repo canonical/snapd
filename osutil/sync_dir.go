@@ -74,6 +74,7 @@ func EnsureDirState(dir, glob string, content map[string]*FileState) (changed, r
 			panic(fmt.Sprintf("EnsureDirState got filename %q which doesn't match the glob pattern %q", baseName, glob))
 		}
 	}
+	// Change phase (create/change files described by content)
 	var firstErr error
 	for baseName, fileState := range content {
 		filePath := filepath.Join(dir, baseName)
@@ -93,6 +94,7 @@ func EnsureDirState(dir, glob string, content map[string]*FileState) (changed, r
 		}
 		changed = append(changed, baseName)
 	}
+	// Delete phase (remove files matching the glob that are not in content)
 	matches, err := filepath.Glob(filepath.Join(dir, glob))
 	if err != nil {
 		sort.Strings(changed)
