@@ -530,8 +530,10 @@ func (e *addSnapError) Error() string {
 // This function can be used to implement snap install or, when used along with
 // RemoveSnap, snap upgrade.
 //
-// Plugs/slots that are already present in the repository are not changed. Only
-// new plugs/slots are added.
+// AddSnap doesn't change existing plugs/slots. The caller is responsible for
+// ensuring that the snap is not present in the repository in any way prior to
+// calling this function. If this constraint is violated then no changes are
+// made and an error is returned.
 //
 // Each added plug/slot is validated according to the corresponding interface.
 // Unknown interfaces and plugs/slots that don't validate are not added.
@@ -604,9 +606,9 @@ func (r *Repository) AddSnap(snapInfo *snap.Info) error {
 // This function can be used to implement snap removal or, when used along with
 // AddSnap, snap upgrade.
 //
-// RemoveSnap does not remove connections. The caller is responsible to ensure
-// that connections are broken before calling this method. If this constraint
-// is violated then no changes are made and an error is returned.
+// RemoveSnap does not remove connections. The caller is responsible for
+// ensuring that connections are broken before calling this method. If this
+// constraint is violated then no changes are made and an error is returned.
 func (r *Repository) RemoveSnap(snapInfo *snap.Info) error {
 	r.m.Lock()
 	defer r.m.Unlock()
