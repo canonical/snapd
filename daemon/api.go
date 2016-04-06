@@ -833,11 +833,11 @@ func postSnap(c *Command, r *http.Request) Response {
 
 const maxReadBuflen = 1024 * 1024
 
-func newSnapImpl(filename string, unsignedOk bool) (*snappy.SnapFile, error) {
-	return snappy.NewSnapFile(filename, unsignedOk)
+func checkSnapImpl(filename string, flags snappy.InstallFlags) error {
+	return snappy.CheckSnap(filename, flags, &progress.NullProgress{})
 }
 
-var newSnap = newSnapImpl
+var checkSnap = checkSnapImpl
 
 func sideloadSnap(c *Command, r *http.Request) Response {
 	route := c.d.router.Get(operationCmd.Path)
@@ -902,7 +902,12 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 	return AsyncResponse(c.d.AddTask(func() interface{} {
 		defer os.Remove(tmpf.Name())
 
-		_, err := newSnap(tmpf.Name(), unsignedOk)
+		var flags snappy.InstallFlags
+		if unsignedOk {
+			flags |= snappy.AllowUnauthenticated
+		}
+
+		err := checkSnap(tmpf.Name(), flags)
 		if err != nil {
 			return err
 		}
@@ -913,10 +918,6 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 		}
 		defer lock.Unlock()
 
-		var flags snappy.InstallFlags
-		if unsignedOk {
-			flags |= snappy.AllowUnauthenticated
-		}
 		overlord := &snappy.Overlord{}
 		name, err := overlord.Install(tmpf.Name(), flags, &progress.NullProgress{})
 		if err != nil {
