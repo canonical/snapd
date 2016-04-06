@@ -91,3 +91,13 @@ func (s *intentSuite) TestAdd(c *check.C) {
 	intents.Add(s.otherIntent)
 	c.Assert(intents, check.DeepEquals, ifacestate.Intents{s.intent, s.otherIntent})
 }
+
+func (s *intentSuite) TestRemove(c *check.C) {
+	intents := ifacestate.Intents{s.intent}
+	// Removing intents that are not present is harmless
+	intents.Remove(s.otherIntent)
+	c.Assert(intents, check.HasLen, 1)
+	// Removing intents that are present works
+	intents.Remove(s.intent)
+	c.Assert(intents, check.HasLen, 0)
+}

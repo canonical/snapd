@@ -42,3 +42,13 @@ func (intents *Intents) Add(intent Intent) {
 	}
 	*intents = append(*intents, intent)
 }
+
+// Remove an intent from the list.
+func (intents *Intents) Remove(intent Intent) {
+	for i, otherIntent := range *intents {
+		if otherIntent == intent {
+			*intents = append((*intents)[:i], (*intents)[i+1:]...)
+			break
+		}
+	}
+}
