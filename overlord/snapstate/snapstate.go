@@ -40,6 +40,9 @@ func Install(s *state.State, snap, channel string, flags snappy.InstallFlags) (*
 		InstallFlags: flags,
 	}
 	if !osutil.FileExists(snap) {
+		name, developer := snappy.SplitDeveloper(snap)
+		ss.Name = name
+		ss.Developer = developer
 		download = s.NewTask("download-snap", fmt.Sprintf(i18n.G("Downloading %q"), snap))
 	} else {
 		download = s.NewTask("nop", "")

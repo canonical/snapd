@@ -42,9 +42,10 @@ type SnapManager struct {
 }
 
 type snapSetup struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
-	Channel string `json:"channel"`
+	Name      string `json:"name"`
+	Developer string `json:"developer"`
+	Version   string `json:"version"`
+	Channel   string `json:"channel"`
 
 	OldName    string `json:"old-name"`
 	OldVersion string `json:"old-version"`
@@ -56,16 +57,14 @@ type snapSetup struct {
 }
 
 func (s *snapSetup) BaseDir() string {
-	name, _ := snappy.SplitDeveloper(s.Name)
-	return filepath.Join(dirs.SnapSnapsDir, name, s.Version)
+	return filepath.Join(dirs.SnapSnapsDir, s.Name, s.Version)
 }
 
 func (s *snapSetup) OldBaseDir() string {
 	if s.OldName == "" || s.OldVersion == "" {
 		return ""
 	}
-	oldname, _ := snappy.SplitDeveloper(s.OldName)
-	return filepath.Join(dirs.SnapSnapsDir, oldname, s.OldVersion)
+	return filepath.Join(dirs.SnapSnapsDir, s.OldName, s.OldVersion)
 }
 
 // Manager returns a new snap manager.
@@ -116,8 +115,13 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	// construct the store name
+	name := ss.Name
+	if ss.Developer != "" {
+		name = fmt.Sprintf("%s.%s", ss.Name, ss.Developer)
+	}
 	pb := &TaskProgressAdapter{task: t}
-	downloadedSnapFile, version, err := m.backend.Download(ss.Name, ss.Channel, pb)
+	downloadedSnapFile, version, err := m.backend.Download(name, ss.Channel, pb)
 	if err != nil {
 		return err
 	}
