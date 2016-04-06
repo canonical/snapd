@@ -57,7 +57,6 @@ type snapSetup struct {
 	SnapPath string `json:"snap-path"`
 }
 
-// XXX: use snap.Info() here? It has a BaseDir() method as well
 func (s *snapSetup) BaseDir() string {
 	return filepath.Join(dirs.SnapSnapsDir, s.Name, s.Version)
 }
