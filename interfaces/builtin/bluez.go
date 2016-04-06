@@ -47,9 +47,6 @@ func (iface *BluezInterface) PermanentPlugSnippet(plug *interfaces.Plug, securit
     <allow send_interface="org.freedesktop.DBus.ObjectManager"/>
     <allow send_interface="org.freedesktop.DBus.Properties"/>
   </policy>
-  <policy at_console="true">
-    <allow send_destination="org.bluez"/>
-  </policy>
   <policy context="default">
     <deny send_destination="org.bluez"/>
   </policy>`), nil
