@@ -37,6 +37,7 @@ type commonInterface struct {
 	connectedPlugAppArmor string
 	connectedPlugSecComp  string
 	reservedForOS         bool
+	autoConnect           bool
 }
 
 // Name returns the interface name.
@@ -127,4 +128,10 @@ func (iface *commonInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *
 	default:
 		return nil, interfaces.ErrUnknownSecurity
 	}
+}
+
+// AutoConnect returns true if plugs and slots should be implicitly
+// auto-connected when an unambiguous connection candidate is available.
+func (iface *commonInterface) AutoConnect() bool {
+	return iface.autoConnect
 }
