@@ -21,27 +21,38 @@
 package tests
 
 import (
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
+	"os"
+
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/build"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/data"
 
 	"gopkg.in/check.v1"
 )
 
-var _ = check.Suite(&searchSuite{})
+var _ = check.Suite(&snapBuildSuite{})
 
-type searchSuite struct {
+type snapBuildSuite struct {
 	common.SnappySuite
 }
 
-func (s *searchSuite) TestSearchMustPrintMatch(c *check.C) {
-	searchOutput := cli.ExecCommand(c, "snap", "find", "hello-world")
+func (s *snapBuildSuite) TestBuildBasicSnapOnSnappy(c *check.C) {
+	c.Skip("sideloading snaps via the `snap` command is not supported yet")
 
-	// XXX: Summary is empty atm, waiting for store support
+	// build basic snap and check output
+	snapPath, err := build.LocalSnap(c, data.BasicSnapName)
+	defer os.Remove(snapPath)
+	c.Assert(err, check.IsNil, check.Commentf("Error building local snap: %s", err))
+
+	// install built snap and check output
+	installOutput := installSnap(c, snapPath)
+	defer removeSnap(c, data.BasicSnapName)
 	expected := "(?ms)" +
-		"Name +Version +Summary *\n" +
+		"Installing " + snapPath + "\n" +
+		"Name +Date +Version +Developer \n" +
 		".*" +
-		"^hello-world +.* *\n" +
+		data.BasicSnapName + " +.* +.* +sideload  \n" +
 		".*"
 
-	c.Assert(searchOutput, check.Matches, expected)
+	c.Check(installOutput, check.Matches, expected)
 }

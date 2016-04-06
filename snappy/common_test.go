@@ -33,7 +33,6 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/remote"
 )
 
 const (
@@ -57,6 +56,8 @@ func init() {
 func makeInstalledMockSnap(tempdir, snapYamlContent string) (yamlFile string, err error) {
 	const packageHello = `name: hello-snap
 version: 1.10
+summary: hello
+description: Hello...
 apps:
  hello:
   command: bin/hello
@@ -105,7 +106,7 @@ apps:
 		return "", err
 	}
 
-	if err := storeMinimalRemoteManifest(m.Name, testDeveloper, m.Version, "Hello", "remote-channel"); err != nil {
+	if err := storeMinimalRemoteManifest(m.Name, testDeveloper, m.Version, "Hello...", "remote-channel"); err != nil {
 		return "", err
 	}
 
@@ -116,25 +117,14 @@ func storeMinimalRemoteManifest(name, developer, version, desc, channel string) 
 	if developer == SideloadedDeveloper {
 		panic("store remote manifest for sideloaded package")
 	}
-	content, err := yaml.Marshal(remote.Snap{
+	info := &snap.Info{
 		Name:        name,
-		Developer:   developer,
 		Version:     version,
+		Developer:   developer,
 		Description: desc,
 		Channel:     channel,
-	})
-	if err != nil {
-		return err
 	}
-
-	if err := os.MkdirAll(dirs.SnapMetaDir, 0755); err != nil {
-		return err
-	}
-	if err := ioutil.WriteFile(filepath.Join(dirs.SnapMetaDir, fmt.Sprintf("%s_%s.manifest", name, version)), content, 0644); err != nil {
-		return err
-	}
-
-	return nil
+	return SaveManifest(info)
 }
 
 func addMockDefaultApparmorProfile(appid string) error {
