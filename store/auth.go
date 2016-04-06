@@ -80,10 +80,10 @@ func RequestStoreToken(username, password, tokenName, otp string) (*StoreToken, 
 	}
 
 	req, err := http.NewRequest("POST", ubuntuoneOauthAPI, strings.NewReader(string(jsonData)))
-	req.Header.Set("content-type", "application/json")
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set("content-type", "application/json")
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -167,11 +167,11 @@ func RequestPackageAccessMacaroon() (string, error) {
 
 	emptyJSONData := "{}"
 	req, err := http.NewRequest("POST", myappsPackageAccessAPI, strings.NewReader(emptyJSONData))
-	req.Header.Set("accept", "application/json")
-	req.Header.Set("content-type", "application/json")
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
+	req.Header.Set("accept", "application/json")
+	req.Header.Set("content-type", "application/json")
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
