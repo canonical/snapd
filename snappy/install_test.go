@@ -45,11 +45,11 @@ func makeCloudInitMetaData(c *C, content string) string {
 
 func (s *SnapTestSuite) TestInstallInstall(c *C) {
 	snapFile := makeTestSnapPackage(c, "")
-	name, err := Install(snapFile, "", AllowUnauthenticated|DoInstallGC, &progress.NullProgress{})
+	name, err := Install(snapFile, "channel", AllowUnauthenticated|DoInstallGC, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
-	all, err := NewLocalSnapRepository().Installed()
+	all, err := (&Overlord{}).Installed()
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	snap := all[0]
@@ -64,7 +64,7 @@ func (s *SnapTestSuite) TestInstallNoHook(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
-	all, err := NewLocalSnapRepository().Installed()
+	all, err := (&Overlord{}).Installed()
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	snap := all[0]
@@ -126,12 +126,12 @@ func (s *SnapTestSuite) installThree(c *C, flags InstallFlags) {
 func (s *SnapTestSuite) TestClickInstallGCSimple(c *C) {
 	s.installThree(c, AllowUnauthenticated|DoInstallGC)
 
-	globs, err := filepath.Glob(filepath.Join(dirs.SnapSnapsDir, "foo.sideload", "*"))
+	globs, err := filepath.Glob(filepath.Join(dirs.SnapSnapsDir, "foo", "*"))
 	c.Check(err, IsNil)
 	c.Check(globs, HasLen, 2+1) // +1 for "current"
 
 	// gc should no longer leave one more data than app
-	globs, err = filepath.Glob(filepath.Join(dirs.SnapDataDir, "foo.sideload", "*"))
+	globs, err = filepath.Glob(filepath.Join(dirs.SnapDataDir, "foo", "*"))
 	c.Check(err, IsNil)
 	c.Check(globs, HasLen, 2+1) // +1 for "current"
 }
@@ -140,11 +140,11 @@ func (s *SnapTestSuite) TestClickInstallGCSimple(c *C) {
 func (s *SnapTestSuite) TestClickInstallGCSuppressed(c *C) {
 	s.installThree(c, AllowUnauthenticated)
 
-	globs, err := filepath.Glob(filepath.Join(dirs.SnapSnapsDir, "foo.sideload", "*"))
+	globs, err := filepath.Glob(filepath.Join(dirs.SnapSnapsDir, "foo", "*"))
 	c.Assert(err, IsNil)
 	c.Assert(globs, HasLen, 3+1) // +1 for "current"
 
-	globs, err = filepath.Glob(filepath.Join(dirs.SnapDataDir, "foo.sideload", "*"))
+	globs, err = filepath.Glob(filepath.Join(dirs.SnapDataDir, "foo", "*"))
 	c.Check(err, IsNil)
 	c.Check(globs, HasLen, 3+1) // +1 for "current"
 }
@@ -164,6 +164,7 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 "version": "2",
 "developer": "test",
 "anon_download_url": "`+dlURL+`",
+"download_url": "`+dlURL+`",
 "icon_url": "`+iconURL+`"
 }`)
 		case "/dl":
@@ -201,9 +202,9 @@ func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "hello-snap.manifest"), []byte(`{"name": "hello-snap"}`), 0644), IsNil)
 	ag := &progress.NullProgress{}
-	snap, err := NewInstalledSnap(yamlFile, "potato")
+	snap, err := NewInstalledSnap(yamlFile)
 	c.Assert(err, IsNil)
-	c.Assert(snap.activate(true, ag), IsNil)
+	c.Assert(ActivateSnap(snap, ag), IsNil)
 	current := ActiveSnapByName("hello-snap")
 	c.Assert(current, NotNil)
 
@@ -235,7 +236,7 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 	yamlPath, err := s.makeInstalledMockSnap("name: foo\nversion: 1")
 	c.Assert(err, IsNil)
 	makeSnapActive(yamlPath)
-	installed, err := NewLocalSnapRepository().Installed()
+	installed, err := (&Overlord{}).Installed()
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 1)
 	c.Assert(ActiveSnapByName("foo"), NotNil)
@@ -282,9 +283,10 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 		io.WriteString(w, `[{
 	"package_name": "foo",
 	"version": "2",
-        "revision": 1,
+        "revision": 3,
         "origin": "`+testDeveloper+`",
 	"anon_download_url": "`+dlURL+`",
+	"download_url": "`+dlURL+`",
 	"icon_url": "`+iconURL+`"
 }]`)
 	}))
@@ -301,7 +303,7 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 	c.Assert(updates, HasLen, 1)
 	c.Check(updates[0].Name(), Equals, "foo")
 	c.Check(updates[0].Version(), Equals, "2")
-	c.Check(updates[0].Revision(), Equals, 1)
+	c.Check(updates[0].Revision(), Equals, 3)
 	// ensure that we get a "local" snap back - not a remote one
 	c.Check(updates[0], FitsTypeOf, &Snap{})
 }

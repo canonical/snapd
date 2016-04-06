@@ -17,7 +17,7 @@
  *
  */
 
-package dbus_test
+package udev_test
 
 import (
 	"io/ioutil"
@@ -28,26 +28,30 @@ import (
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/interfaces"
-	"github.com/ubuntu-core/snappy/interfaces/dbus"
+	"github.com/ubuntu-core/snappy/interfaces/udev"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/testutil"
 )
 
 type backendSuite struct {
-	backend *dbus.Backend
-	repo    *interfaces.Repository
-	iface   *interfaces.TestInterface
-	rootDir string
+	backend    interfaces.SecurityBackend
+	repo       *interfaces.Repository
+	iface      *interfaces.TestInterface
+	rootDir    string
+	udevadmCmd *testutil.MockCmd
 }
 
-var _ = Suite(&backendSuite{backend: &dbus.Backend{}})
+var _ = Suite(&backendSuite{backend: &udev.Backend{}})
 
 func (s *backendSuite) SetUpTest(c *C) {
 	// Isolate this test to a temporary directory
 	s.rootDir = c.MkDir()
 	dirs.SetRootDir(s.rootDir)
-	// Prepare a directory for DBus configuration files.
+	// Mock away any real udev interaction
+	s.udevadmCmd = testutil.MockCommand(c, "udevadm", "")
+	// Prepare a directory for udev rules
 	// NOTE: Normally this is a part of the OS snap.
-	err := os.MkdirAll(dirs.SnapBusPolicyDir, 0700)
+	err := os.MkdirAll(dirs.SnapUdevRulesDir, 0700)
 	c.Assert(err, IsNil)
 	// Create a fresh repository for each test
 	s.repo = interfaces.NewRepository()
@@ -57,6 +61,7 @@ func (s *backendSuite) SetUpTest(c *C) {
 }
 
 func (s *backendSuite) TearDownTest(c *C) {
+	s.udevadmCmd.Restore()
 	dirs.SetRootDir("/")
 }
 
@@ -90,82 +95,118 @@ slots:
     iface:
 `
 
-func (s *backendSuite) TestInstallingSnapWritesConfigFiles(c *C) {
-	// NOTE: Hand out a permanent snippet so that .conf file is generated.
+func (s *backendSuite) TestInstallingSnapWritesAndLoadsRules(c *C) {
+	// NOTE: Hand out a permanent snippet so that .rules file is generated.
 	s.iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("<policy/>"), nil
+		return []byte("dummy"), nil
 	}
 	for _, developerMode := range []bool{true, false} {
+		s.udevadmCmd.ForgetCalls()
 		snapInfo := s.installSnap(c, developerMode, sambaYamlV1)
-		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.smbd.conf")
-		// file called "snap.sambda.smbd.conf" was created
-		_, err := os.Stat(profile)
+		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.smbd.rules")
+		// file called "70-snap.sambda.smbd.rules" was created
+		_, err := os.Stat(fname)
 		c.Check(err, IsNil)
+		// udevadm was used to reload rules and re-run triggers
+		c.Check(s.udevadmCmd.Calls(), DeepEquals, []string{
+			"control --reload-rules", "trigger",
+		})
 		s.removeSnap(c, snapInfo)
 	}
 }
 
-func (s *backendSuite) TestRemovingSnapRemovesConfigFiles(c *C) {
-	// NOTE: Hand out a permanent snippet so that .conf file is generated.
+func (s *backendSuite) TestSecurityIsStable(c *C) {
+	// NOTE: Hand out a permanent snippet so that .rules file is generated.
 	s.iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("<policy/>"), nil
+		return []byte("dummy"), nil
 	}
 	for _, developerMode := range []bool{true, false} {
 		snapInfo := s.installSnap(c, developerMode, sambaYamlV1)
+		s.udevadmCmd.ForgetCalls()
+		err := s.backend.Configure(snapInfo, developerMode, s.repo)
+		c.Assert(err, IsNil)
+		// rules are not re-loaded when nothing changes
+		c.Check(s.udevadmCmd.Calls(), HasLen, 0)
 		s.removeSnap(c, snapInfo)
-		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.smbd.conf")
-		// file called "snap.sambda.smbd.conf" was removed
-		_, err := os.Stat(profile)
+	}
+}
+
+func (s *backendSuite) TestRemovingSnapRemovesAndReloadsRules(c *C) {
+	// NOTE: Hand out a permanent snippet so that .rules file is generated.
+	s.iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+		return []byte("dummy"), nil
+	}
+	for _, developerMode := range []bool{true, false} {
+		snapInfo := s.installSnap(c, developerMode, sambaYamlV1)
+		s.udevadmCmd.ForgetCalls()
+		s.removeSnap(c, snapInfo)
+		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.smbd.rules")
+		// file called "70-snap.sambda.smbd.rules" was removed
+		_, err := os.Stat(fname)
 		c.Check(os.IsNotExist(err), Equals, true)
+		// udevadm was used to reload rules and re-run triggers
+		c.Check(s.udevadmCmd.Calls(), DeepEquals, []string{
+			"control --reload-rules", "trigger",
+		})
 	}
 }
 
 func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
-	// NOTE: Hand out a permanent snippet so that .conf file is generated.
+	// NOTE: Hand out a permanent snippet so that .rules file is generated.
 	s.iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("<policy/>"), nil
+		return []byte("dummy"), nil
 	}
 	for _, developerMode := range []bool{true, false} {
 		snapInfo := s.installSnap(c, developerMode, sambaYamlV1)
+		s.udevadmCmd.ForgetCalls()
 		snapInfo = s.updateSnap(c, snapInfo, developerMode, sambaYamlV1WithNmbd)
-		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.nmbd.conf")
-		// file called "snap.sambda.nmbd.conf" was created
-		_, err := os.Stat(profile)
+		// NOTE the application is "nmbd", not "smbd"
+		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.nmbd.rules")
+		// file called "70-snap.sambda.nmbd.rules" was created
+		_, err := os.Stat(fname)
 		c.Check(err, IsNil)
+		// udevadm was used to reload rules and re-run triggers
+		c.Check(s.udevadmCmd.Calls(), DeepEquals, []string{
+			"control --reload-rules", "trigger",
+		})
 		s.removeSnap(c, snapInfo)
 	}
 }
 
 func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
-	// NOTE: Hand out a permanent snippet so that .conf file is generated.
+	// NOTE: Hand out a permanent snippet so that .rules file is generated.
 	s.iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("<policy/>"), nil
+		return []byte("dummy"), nil
 	}
 	for _, developerMode := range []bool{true, false} {
 		snapInfo := s.installSnap(c, developerMode, sambaYamlV1WithNmbd)
+		s.udevadmCmd.ForgetCalls()
 		snapInfo = s.updateSnap(c, snapInfo, developerMode, sambaYamlV1)
-		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.nmbd.conf")
-		// file called "snap.sambda.nmbd.conf" was removed
-		_, err := os.Stat(profile)
+		// NOTE the application is "nmbd", not "smbd"
+		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.nmbd.rules")
+		// file called "70-snap.sambda.nmbd.rules" was removed
+		_, err := os.Stat(fname)
 		c.Check(os.IsNotExist(err), Equals, true)
+		// udevadm was used to reload rules and re-run triggers
+		c.Check(s.udevadmCmd.Calls(), DeepEquals, []string{
+			"control --reload-rules", "trigger",
+		})
 		s.removeSnap(c, snapInfo)
 	}
 }
 
 func (s *backendSuite) TestCombineSnippetsWithActualSnippets(c *C) {
-	// NOTE: replace the real template with a shorter variant
-	restore := dbus.MockXMLEnvelope([]byte("<?xml>\n"), []byte("</xml>"))
-	defer restore()
+	// NOTE: Hand out a permanent snippet so that .rules file is generated.
 	s.iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("<policy>...</policy>"), nil
+		return []byte("dummy"), nil
 	}
 	for _, developerMode := range []bool{false, true} {
 		snapInfo := s.installSnap(c, developerMode, sambaYamlV1)
-		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.smbd.conf")
-		data, err := ioutil.ReadFile(profile)
+		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.smbd.rules")
+		data, err := ioutil.ReadFile(fname)
 		c.Assert(err, IsNil)
-		c.Check(string(data), Equals, "<?xml>\n<policy>...</policy>\n</xml>")
-		stat, err := os.Stat(profile)
+		c.Check(string(data), Equals, "# This file is automatically generated.\ndummy\n")
+		stat, err := os.Stat(fname)
 		c.Check(stat.Mode(), Equals, os.FileMode(0644))
 		s.removeSnap(c, snapInfo)
 	}
@@ -174,38 +215,12 @@ func (s *backendSuite) TestCombineSnippetsWithActualSnippets(c *C) {
 func (s *backendSuite) TestCombineSnippetsWithoutAnySnippets(c *C) {
 	for _, developerMode := range []bool{false, true} {
 		snapInfo := s.installSnap(c, developerMode, sambaYamlV1)
-		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.smbd.conf")
-		_, err := os.Stat(profile)
-		// Without any snippets, there the .conf file is not created.
+		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.smbd.rules")
+		_, err := os.Stat(fname)
+		// Without any snippets, there the .rules file is not created.
 		c.Check(os.IsNotExist(err), Equals, true)
 		s.removeSnap(c, snapInfo)
 	}
-}
-
-const sambaYamlWithIfaceBoundToNmbd = `
-name: samba
-version: 1
-developer: acme
-apps:
-    smbd:
-    nmbd:
-        slots: [iface]
-`
-
-func (s *backendSuite) TestAppBoundIfaces(c *C) {
-	// NOTE: Hand out a permanent snippet so that .conf file is generated.
-	s.iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("<policy/>"), nil
-	}
-	// Install a snap with two apps, only one of which needs a .conf file
-	// because the interface is app-bound.
-	snapInfo := s.installSnap(c, false, sambaYamlWithIfaceBoundToNmbd)
-	defer s.removeSnap(c, snapInfo)
-	// Check that only one of the .conf files is actually created
-	_, err := os.Stat(filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.smbd.conf"))
-	c.Check(os.IsNotExist(err), Equals, true)
-	_, err = os.Stat(filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.nmbd.conf"))
-	c.Check(err, IsNil)
 }
 
 // Support code for tests
