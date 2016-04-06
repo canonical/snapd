@@ -45,7 +45,7 @@ It works like this:
   generated that add tags to matching hardware. These assign rules are added to
   udev via /etc/udev/rules.d/70-snap.... for each app within a snap. The tags
   are of the form 'snap_<snap name>_<app>'.
-- when an application is launched, the launcher queries udev to detects if any
+- when an application is launched, the launcher queries udev to detect if any
   devices are tagged for this application. If no devices are tagged for this
   application, a device cgroup is not setup
 - if there are devices tagged for this application, the launcher creates a
