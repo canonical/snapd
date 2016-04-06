@@ -23,16 +23,141 @@ import (
 	"github.com/ubuntu-core/snappy/interfaces"
 )
 
-type BluezInterface struct{}
+var bluezPermanentSlotAppArmor = []byte(`
+# Description: Allow operating as the bluez service. Reserved because this
+#  gives privileged access to the system.
+# Usage: reserved
 
-func (iface *BluezInterface) Name() string {
-	return "bluez"
-}
+  network bluetooth,
 
-func (iface *BluezInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityDBus:
-		return []byte(`
+  capability net_admin,
+  capability net_bind_service,
+
+  # File accesses
+  /sys/bus/usb/drivers/btusb/     r,
+  /sys/bus/usb/drivers/btusb/**   r,
+  /sys/class/bluetooth/           r,
+  /sys/devices/**/bluetooth/      rw,
+  /sys/devices/**/bluetooth/**    rw,
+  /sys/devices/**/id/chassis_type r,
+
+  # TODO: use snappy hardware assignment for this once LP: #1498917 is fixed
+  /dev/rfkill rw,
+
+  # DBus accesses
+  #include <abstractions/dbus-strict>
+  dbus (send)
+     bus=system
+     path=/org/freedesktop/DBus
+     interface=org.freedesktop.DBus
+     member={Request,Release}Name
+     peer=(name=org.freedesktop.DBus),
+
+  dbus (send)
+    bus=system
+    path=/org/freedesktop/*
+    interface=org.freedesktop.DBus.Properties
+    peer=(label=unconfined),
+
+  # Allow binding the service to the requested connection name
+  dbus (bind)
+      bus=system
+      name="org.bluez",
+
+  # Allow traffic to/from our path and interface with any method
+  dbus (receive, send)
+      bus=system
+      path=/org/bluez{,/**}
+      interface=org.bluez.*,
+
+  # Allow traffic to/from org.freedesktop.DBus for bluez service
+  dbus (receive, send)
+      bus=system
+      path=/
+      interface=org.freedesktop.DBus.**,
+  dbus (receive, send)
+      bus=system
+      path=/org/bluez{,/**}
+      interface=org.freedesktop.DBus.**,
+`)
+
+var bluezPermanentPlugAppArmor = []byte(`
+# Description: Allow using bluez service. Reserved because this gives
+#  privileged access to the bluez service.
+# Usage: reserved
+
+#include <abstractions/dbus-strict>
+
+# Allow all access to bluez service
+dbus (receive, send)
+    bus=system
+    peer=(label=bluez5_bluez_*),
+
+dbus (send)
+    bus=system
+    peer=(name=org.bluez, label=unconfined),
+
+dbus (send)
+    bus=system
+    peer=(name=org.bluez.obex, label=unconfined),
+
+dbus (receive)
+    bus=system
+    path=/
+    interface=org.freedesktop.DBus.ObjectManager
+    peer=(label=unconfined),
+
+dbus (receive)
+    bus=system
+    path=/org/bluez{,/**}
+    interface=org.freedesktop.DBus.*
+    peer=(label=unconfined),
+`)
+
+var bluezPermanentSlotSecComp = []byte(`
+# Description: Allow operating as the bluez service. Reserved because this
+# gives
+#  privileged access to the system.
+# Usage: reserved
+accept
+accept4
+bind
+connect
+getpeername
+getsockname
+getsockopt
+listen
+recv
+recvfrom
+recvmmsg
+recvmsg
+send
+sendmmsg
+sendmsg
+sendto
+setsockopt
+shutdown
+socketpair
+socket
+`)
+
+var bluezPermanentPlugSecComp = []byte(`
+# Description: Allow using bluez service. Reserved because this gives
+#  privileged access to the bluez service.
+# Usage: reserved
+
+# Can communicate with DBus system service
+connect
+getsockname
+recv
+recvmsg
+send
+sendto
+sendmsg
+socket
+`)
+
+var bluezPermanentPlugDBus = []byte(`
 <policy user="root">
     <allow own="org.bluez"/>
     <allow send_destination="org.bluez"/>
@@ -46,12 +171,27 @@ func (iface *BluezInterface) PermanentPlugSnippet(plug *interfaces.Plug, securit
     <allow send_interface="org.bluez.GattDescriptor1"/>
     <allow send_interface="org.freedesktop.DBus.ObjectManager"/>
     <allow send_interface="org.freedesktop.DBus.Properties"/>
-  </policy>
-  <policy context="default">
+</policy>
+<policy context="default">
     <deny send_destination="org.bluez"/>
-  </policy>`), nil
-	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp,
-		interfaces.SecurityUDev:
+</policy>
+`)
+
+type BluezInterface struct{}
+
+func (iface *BluezInterface) Name() string {
+	return "bluez"
+}
+
+func (iface *BluezInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	switch securitySystem {
+	case interfaces.SecurityDBus:
+		return bluezPermanentPlugDBus, nil
+	case interfaces.SecurityAppArmor:
+		return bluezPermanentPlugAppArmor, nil
+	case interfaces.SecuritySecComp:
+		return bluezPermanentPlugSecComp, nil
+	case interfaces.SecurityUDev:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -63,7 +203,16 @@ func (iface *BluezInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *i
 }
 
 func (iface *BluezInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
+	switch securitySystem {
+	case interfaces.SecurityAppArmor:
+		return bluezPermanentSlotAppArmor, nil
+	case interfaces.SecuritySecComp:
+		return bluezPermanentSlotSecComp, nil
+	case interfaces.SecurityUDev, interfaces.SecurityDBus:
+		return nil, nil
+	default:
+		return nil, interfaces.ErrUnknownSecurity
+	}
 }
 
 func (iface *BluezInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
