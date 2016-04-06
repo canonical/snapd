@@ -1,7 +1,7 @@
 # Interfaces
 
 Interfaces allow snaps to communicate or share resources according to the
-protocol defined by the interface.
+protocol established by the interface.
 
 Each connection has two ends, a “plug” (consumer) and a “slot” (provider).  A
 plug and a slot can be connected if they use the same interface name.  The
