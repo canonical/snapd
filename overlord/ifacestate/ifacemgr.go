@@ -30,6 +30,7 @@ import (
 	"github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/interfaces/builtin"
 	"github.com/ubuntu-core/snappy/overlord/state"
+	"github.com/ubuntu-core/snappy/snap"
 )
 
 // InterfaceManager is responsible for the maintenance of interfaces in
@@ -59,6 +60,45 @@ func Manager(s *state.State) (*InterfaceManager, error) {
 	runner.AddHandler("connect", m.doConnect, nil)
 	runner.AddHandler("disconnect", m.doDisconnect, nil)
 	return m, nil
+}
+
+// breakConnections breaks all the connections affecting a given snap.
+//
+// The return value is a list of snap.Info's that were affected by the
+// disconnects taking place.
+//
+// This function will only fail if the disconnecting any of the plugs will
+// fail. Before hooks are added and a hook fails to honor the disconnection
+// this should never fail in practice.
+func (m *InterfaceManager) breakConnections(snapInfo *snap.Info) ([]*snap.Info, error) {
+	snapName := snapInfo.Name
+	seen := make(map[*snap.Info]bool)
+
+	for _, plug := range m.repo.Plugs(snapName) {
+		for _, slotRef := range plug.Connections {
+			err := m.repo.Disconnect(plug.Snap.Name, plug.Name, slotRef.Snap, slotRef.Name)
+			if err != nil {
+				return nil, err
+			}
+			seen[plug.Snap] = true
+		}
+	}
+
+	for _, slot := range m.repo.Slots(snapName) {
+		for _, plugRef := range slot.Connections {
+			err := m.repo.Disconnect(plugRef.Snap, plugRef.Name, slot.Snap.Name, slot.Name)
+			if err != nil {
+				return nil, err
+			}
+			seen[slot.Snap] = true
+		}
+	}
+
+	result := make([]*snap.Info, 0, len(seen))
+	for info := range seen {
+		result = append(result, info)
+	}
+	return result, nil
 }
 
 // Connect returns a set of tasks for connecting an interface.
