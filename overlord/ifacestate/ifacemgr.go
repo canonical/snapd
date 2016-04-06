@@ -64,14 +64,18 @@ func Manager(s *state.State) (*InterfaceManager, error) {
 // Connect returns a set of tasks for connecting an interface.
 //
 func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
-	// TODO: Store the intent-to-connect in the state so that we automatically
-	// try to reconnect on reboot (reconnection can fail or can connect with
-	// different parameters so we cannot store the actual connection details).
+	plugRef := interfaces.PlugRef{Snap: plugSnap, Name: plugName}
+	slotRef := interfaces.SlotRef{Snap: slotSnap, Name: slotName}
+	// Store the intent to connect
+	intents := getIntents(s)
+	intents.Add(Intent{Plug: plugRef, Slot: slotRef})
+	setIntents(s, intents)
+	// Create a task to do the actual connect operation
 	summary := fmt.Sprintf(i18n.G("Connect %s:%s to %s:%s"),
 		plugSnap, plugName, slotSnap, slotName)
 	task := s.NewTask("connect", summary)
-	task.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
-	task.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
+	task.Set("plug", plugRef)
+	task.Set("slot", slotRef)
 	return state.NewTaskSet(task), nil
 }
 
