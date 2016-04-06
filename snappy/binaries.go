@@ -34,16 +34,6 @@ import (
 	"github.com/ubuntu-core/snappy/snap/snapenv"
 )
 
-func oldGenerateBinaryName(m *snapYaml, app *AppYaml) string {
-	var binName string
-	if app.Name == m.Name {
-		binName = filepath.Base(app.Name)
-	} else {
-		binName = fmt.Sprintf("%s.%s", m.Name, filepath.Base(app.Name))
-	}
-	return filepath.Join(dirs.SnapBinariesDir, binName)
-}
-
 // generate the name
 func generateBinaryName(app *snap.AppInfo) string {
 	var binName string
