@@ -145,7 +145,7 @@ func addPackageBinaries(s *snap.Info) error {
 		return err
 	}
 
-	baseDir := BaseDir(s)
+	baseDir := s.BaseDir()
 
 	for _, app := range s.Apps {
 		if app.Daemon != "" {
