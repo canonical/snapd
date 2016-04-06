@@ -20,19 +20,19 @@
 package builtin
 
 import (
-    "github.com/ubuntu-core/snappy/interfaces"
+	"github.com/ubuntu-core/snappy/interfaces"
 )
 
-type BluezInterface struct { }
+type BluezInterface struct{}
 
 func (iface *BluezInterface) Name() string {
-    return "bluez"
+	return "bluez"
 }
 
 func (iface *BluezInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-    switch securitySystem {
-    case interfaces.SecurityDBus:
-        return []byte(`
+	switch securitySystem {
+	case interfaces.SecurityDBus:
+		return []byte(`
 <policy user="root">
     <allow own="org.bluez"/>
     <allow send_destination="org.bluez"/>
@@ -53,30 +53,30 @@ func (iface *BluezInterface) PermanentPlugSnippet(plug *interfaces.Plug, securit
   <policy context="default">
     <deny send_destination="org.bluez"/>
   </policy>`), nil
-    case interfaces.SecurityAppArmor, interfaces.SecuritySecComp,
-interfaces.SecurityUDev:
-        return nil, nil
-    default:
-        return nil, interfaces.ErrUnknownSecurity
-    }
+	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp,
+		interfaces.SecurityUDev:
+		return nil, nil
+	default:
+		return nil, interfaces.ErrUnknownSecurity
+	}
 }
 
 func (iface *BluezInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-    return nil, nil
+	return nil, nil
 }
 
 func (iface *BluezInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-    return nil, nil
+	return nil, nil
 }
 
 func (iface *BluezInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-    return nil, nil
+	return nil, nil
 }
 
 func (iface *BluezInterface) SanitizePlug(slot *interfaces.Plug) error {
-    return nil
+	return nil
 }
 
 func (iface *BluezInterface) SanitizeSlot(slot *interfaces.Slot) error {
-    return nil
+	return nil
 }
