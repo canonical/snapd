@@ -75,6 +75,14 @@ const mockStoreReturnToken = `
 }
 `
 
+const mockStoreReturnMacaroon = `
+{
+    "macaroon": "the-root-macaroon-serialized-data"
+}
+`
+
+const mockStoreReturnNoMacaroon = `{}`
+
 func (s *authTestSuite) TestRequestStoreToken(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, mockStoreReturnToken)
@@ -115,6 +123,32 @@ func (s *authTestSuite) TestRequestStoreTokenInvalidLogin(c *C) {
 
 	_, err := RequestStoreToken("foo@example.com", "passwd", "some-token-name", "")
 	c.Assert(err, Equals, ErrInvalidCredentials)
+}
+
+func (s *authTestSuite) TestRequestPackageAccessMacaroon(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, mockStoreReturnMacaroon)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+	myappsPackageAccessAPI = mockServer.URL + "/acl/package_access/"
+
+	macaroon, err := RequestPackageAccessMacaroon()
+	c.Assert(err, IsNil)
+	c.Assert(macaroon, Equals, "the-root-macaroon-serialized-data")
+}
+
+func (s *authTestSuite) TestRequestPackageAccessMacaroonMissingData(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, mockStoreReturnNoMacaroon)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+	myappsPackageAccessAPI = mockServer.URL + "/acl/package_access/"
+
+	macaroon, err := RequestPackageAccessMacaroon()
+	c.Assert(err, NotNil)
+	c.Assert(macaroon, Equals, "")
 }
 
 func (s *authTestSuite) TestWriteStoreToken(c *C) {

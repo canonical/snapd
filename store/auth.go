@@ -32,8 +32,10 @@ import (
 )
 
 var (
-	ubuntuoneAPIBase  = authURL()
-	ubuntuoneOauthAPI = ubuntuoneAPIBase + "/tokens/oauth"
+	myappsAPIBase          = myappsURL()
+	myappsPackageAccessAPI = myappsAPIBase + "/acl/package_access/"
+	ubuntuoneAPIBase       = authURL()
+	ubuntuoneOauthAPI      = ubuntuoneAPIBase + "/tokens/oauth"
 )
 
 // StoreToken contains the personal token to access the store
@@ -157,4 +159,41 @@ func ReadStoreToken() (*StoreToken, error) {
 	}
 
 	return &readStoreToken, nil
+}
+
+// RequestPackageAccessMacaroon requests a macaroon for accessing package data from the ubuntu store
+func RequestPackageAccessMacaroon() (string, error) {
+	emptyJsonData := ""
+	req, err := http.NewRequest("POST", myappsPackageAccessAPI, strings.NewReader(emptyJsonData))
+	req.Header.Set("accept", "application/json")
+	req.Header.Set("content-type", "application/json")
+	if err != nil {
+		return "", err
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	// check return code, error on anything !200
+	if !httpStatusCodeSuccess(resp.StatusCode) {
+		// unexpected result, bail
+		return "", fmt.Errorf("failed to get store macaroon: %v (%v)", resp.StatusCode, resp)
+	}
+
+	dec := json.NewDecoder(resp.Body)
+	responseData := map[string]string{}
+	if err := dec.Decode(&responseData); err != nil {
+		return "", err
+	}
+
+	macaroon, available := responseData["macaroon"]
+	if !available {
+		return "", fmt.Errorf("missing store macaroon: %v (%v)", resp.StatusCode, resp)
+	}
+
+	return macaroon, nil
 }
