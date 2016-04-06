@@ -97,17 +97,17 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	}
 	// Construct snap skeleton, without apps, plugs and slots
 	snap := &Info{
-		Name:             y.Name,
-		Version:          y.Version,
-		Type:             typ,
-		Architectures:    architectures,
-		Description:      y.Description,
-		Summary:          y.Summary,
-		LicenseAgreement: y.LicenseAgreement,
-		LicenseVersion:   y.LicenseVersion,
-		Apps:             make(map[string]*AppInfo),
-		Plugs:            make(map[string]*PlugInfo),
-		Slots:            make(map[string]*SlotInfo),
+		SuggestedName:       y.Name,
+		Version:             y.Version,
+		Type:                typ,
+		Architectures:       architectures,
+		OriginalDescription: y.Description,
+		OriginalSummary:     y.Summary,
+		LicenseAgreement:    y.LicenseAgreement,
+		LicenseVersion:      y.LicenseVersion,
+		Apps:                make(map[string]*AppInfo),
+		Plugs:               make(map[string]*PlugInfo),
+		Slots:               make(map[string]*SlotInfo),
 	}
 	// Collect top-level definitions of plugs
 	for name, data := range y.Plugs {

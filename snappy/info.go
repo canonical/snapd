@@ -48,12 +48,12 @@ type Configuration interface {
 
 // BareName of a snap.Info is just its Name
 func BareName(p *snap.Info) string {
-	return p.Name
+	return p.ZName()
 }
 
 // FullName of a snap.Info is Name.Developer
 func FullName(p *snap.Info) string {
-	return p.Name + "." + p.Developer
+	return p.ZName() + "." + p.Developer
 }
 
 // FullNameWithChannel returns the FullName, with the channel appended
@@ -190,14 +190,13 @@ func PackageNameActive(name string) bool {
 
 // ManifestPath returns the would be path for the snap manifest.
 func ManifestPath(s *snap.Info) string {
-	return filepath.Join(dirs.SnapMetaDir, fmt.Sprintf("%s_%s.manifest", s.Name, s.Version))
+	return filepath.Join(dirs.SnapMetaDir, fmt.Sprintf("%s_%s.manifest", s.ZName(), s.Version))
 }
 
 // SaveManifest saves the manifest at the designated location for the snap containing information not in the snap.yaml.
 func SaveManifest(rsnap *snap.Info) error {
-	mf := snap.ManifestFromInfo(rsnap)
-	mf.Name = "" // don't store the name, it break immutability of the disk manifest
-	content, err := yaml.Marshal(mf)
+	// XXX: we store OfficialName though it may not be the blessed one later
+	content, err := yaml.Marshal(rsnap.SideInfo)
 	if err != nil {
 		return err
 	}
@@ -206,6 +205,7 @@ func SaveManifest(rsnap *snap.Info) error {
 		return err
 	}
 
+	p := ManifestPath(rsnap)
 	// don't worry about previous contents
-	return osutil.AtomicWriteFile(ManifestPath(rsnap), content, 0644, 0)
+	return osutil.AtomicWriteFile(p, content, 0644, 0)
 }

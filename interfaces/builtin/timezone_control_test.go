@@ -37,14 +37,14 @@ var _ = Suite(&TimezoneControlInterfaceSuite{
 	iface: builtin.NewTimezoneControlInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{Name: "ubuntu-core"},
+			Snap:      &snap.Info{SuggestedName: "ubuntu-core"},
 			Name:      "timezone-control",
 			Interface: "timezone-control",
 		},
 	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{Name: "other"},
+			Snap:      &snap.Info{SuggestedName: "other"},
 			Name:      "timezone-control",
 			Interface: "timezone-control",
 		},
@@ -59,7 +59,7 @@ func (s *TimezoneControlInterfaceSuite) TestSanitizeSlot(c *C) {
 	err := s.iface.SanitizeSlot(s.slot)
 	c.Assert(err, IsNil)
 	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{Name: "some-snap"},
+		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "timezone-control",
 		Interface: "timezone-control",
 	}})
