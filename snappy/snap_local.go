@@ -66,7 +66,7 @@ func completeInfo(info *snap.Info, manifest *diskManifest) {
 	info.Developer = SideloadedDeveloper
 	// default for compat with older installs
 	info.Channel = "stable"
-	info.Size = -1
+	info.Size = 0
 
 	if manifest != nil {
 		info.Revision = manifest.Revision
