@@ -1019,7 +1019,8 @@ func (s *AddRemoveSuite) TestRemoveSnapPanicOnStillConnectedSnap(c *C) {
 	_, _ = s.addSnap(c, testProducerYaml)
 	err := s.repo.Connect("consumer", "iface", "producer", "iface")
 	c.Assert(err, IsNil)
-	c.Assert(func() { s.repo.RemoveSnap(consumer) }, PanicMatches, "cannot remove connected plug consumer.iface")
+	err = s.repo.RemoveSnap(consumer)
+	c.Assert(err, ErrorMatches, "cannot remove connected plug consumer.iface")
 }
 
 // TODO: add more tests for the flip side
