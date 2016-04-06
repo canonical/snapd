@@ -12,18 +12,43 @@ Slots may support multiple connections to plugs.  For example the OS snap
 exposes the ``network`` slot and all applications that can talk over the
 network connect their plugs there.
 
-## Supported Interfaces
+## Supported Interfaces - Basic
 
-### firewall-control
+### network
 
-Description: Can configure firewall. This is restricted because it gives
-privileged access to networking and should only be used with trusted apps.
+Description: Can access the network as a client.
+Usage: common
+
+### network-bind
+
+Description: Can access the network as a server.
+Usage: common
+
+### unity7
+
+Description: Can access Unity7. Restricted because Unity 7 runs on X and
+requires access to various DBus services and this enviroment does not prevent
+eavesdropping or apps interfering with one another.
+Usage: reserved
+
+### x
+
+Description: Can access the X server. Restricted because X does not prevent
+eavesdropping or apps interfering with one another.
 Usage: reserved
 
 ### home
 
 Description: Can access non-hidden files in user's $HOME. This is restricted
 because it gives file access to all of the user's $HOME.
+Usage: reserved
+
+## Supported Interfaces - Advanced
+
+### firewall-control
+
+Description: Can configure firewall. This is restricted because it gives
+privileged access to networking and should only be used with trusted apps.
 Usage: reserved
 
 ### locale-control
@@ -42,16 +67,6 @@ Description: Can query system mount information. This is restricted because it
 gives privileged read access to mount arguments and should only be used with
 trusted apps.
 Usage: reserved
-
-### network
-
-Description: Can access the network as a client.
-Usage: common
-
-### network-bind
-
-Description: Can access the network as a server.
-Usage: common
 
 ### network-control
 
@@ -84,15 +99,3 @@ Usage: reserved
 Description: Can manage timeservers directly separate from config ubuntu-core.
 Usage: reserved
 
-### unity7
-
-Description: Can access Unity7. Restricted because Unity 7 runs on X and
-requires access to various DBus services and this enviroment does not prevent
-eavesdropping or apps interfering with one another.
-Usage: reserved
-
-### x
-
-Description: Can access the X server. Restricted because X does not prevent
-eavesdropping or apps interfering with one another.
-Usage: reserved
