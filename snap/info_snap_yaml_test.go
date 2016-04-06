@@ -794,7 +794,7 @@ slots:
 // type and architectures
 
 func (s *YamlSuite) TestSnapYamlTypeDefault(c *C) {
-	y := []byte(`name: fatbinary
+	y := []byte(`name: binary
 version: 1.0
 `)
 	info, err := snap.InfoFromSnapYaml(y)
@@ -803,7 +803,7 @@ version: 1.0
 }
 
 func (s *YamlSuite) TestSnapYamlMultipleArchitecturesParsing(c *C) {
-	y := []byte(`name: fatbinary
+	y := []byte(`name: binary
 version: 1.0
 architectures: [i386, armhf]
 `)
@@ -813,7 +813,7 @@ architectures: [i386, armhf]
 }
 
 func (s *YamlSuite) TestSnapYamlSingleArchitecturesParsing(c *C) {
-	y := []byte(`name: fatbinary
+	y := []byte(`name: binary
 version: 1.0
 architectures: [i386]
 `)
@@ -823,7 +823,7 @@ architectures: [i386]
 }
 
 func (s *YamlSuite) TestSnapYamlNoArchitecturesParsing(c *C) {
-	y := []byte(`name: fatbinary
+	y := []byte(`name: binary
 version: 1.0
 `)
 	info, err := snap.InfoFromSnapYaml(y)
@@ -832,7 +832,7 @@ version: 1.0
 }
 
 func (s *YamlSuite) TestSnapYamlBadArchitectureParsing(c *C) {
-	y := []byte(`name: fatbinary
+	y := []byte(`name: binary
 version: 1.0
 architectures:
   armhf:
