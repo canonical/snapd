@@ -143,7 +143,7 @@ func (s *Store) refreshSnaps() error {
 		if err != nil {
 			return err
 		}
-		s.snaps[fmt.Sprintf("%s.%s", info.Name, s.defaultDeveloper)] = fn
+		s.snaps[fmt.Sprintf("%s.%s", info.Name(), s.defaultDeveloper)] = fn
 	}
 
 	return nil
@@ -207,7 +207,7 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 
 			replyData = append(replyData, bulkReplyJSON{
 				Status:          "Published",
-				Name:            fmt.Sprintf("%s.%s", info.Name, s.defaultDeveloper),
+				Name:            fmt.Sprintf("%s.%s", info.Name(), s.defaultDeveloper),
 				PackageName:     info.Name,
 				Developer:       defaultDeveloper,
 				AnonDownloadURL: fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn)),
