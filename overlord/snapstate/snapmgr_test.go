@@ -128,19 +128,19 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 		},
 		fakeOp{
 			op:   "copy-data",
-			name: "some-inst-path",
+			name: "/snaps/some-snap/1.0",
 		},
 		fakeOp{
 			op:   "setup-snap-security",
-			name: "some-inst-path",
+			name: "/snaps/some-snap/1.0",
 		},
 		fakeOp{
 			op:   "generate-wrappers",
-			name: "some-inst-path",
+			name: "/snaps/some-snap/1.0",
 		},
 		fakeOp{
 			op:   "update-current-symlink",
-			name: "some-inst-path",
+			name: "/snaps/some-snap/1.0",
 		},
 	})
 
@@ -232,7 +232,7 @@ func (s *snapmgrTestSuite) TestActivate(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	chg := s.state.NewChange("setActive", "make snap active")
-	ts, err := snapstate.Activate(s.state, "some-snap-to-activate", true)
+	ts, err := snapstate.Activate(s.state, "some-snap-to-activate")
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -250,7 +250,7 @@ func (s *snapmgrTestSuite) TestSetInactive(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	chg := s.state.NewChange("set-inactive", "make snap inactive")
-	ts, err := snapstate.Activate(s.state, "some-snap-to-inactivate", false)
+	ts, err := snapstate.Deactivate(s.state, "some-snap-to-inactivate")
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 

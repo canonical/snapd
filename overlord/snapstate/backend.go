@@ -29,7 +29,7 @@ import (
 type managerBackend interface {
 	Download(name, channel string, meter progress.Meter) (string, string, error)
 	CheckSnap(snapFilePath string, flags snappy.InstallFlags) error
-	SetupSnap(snapFilePath string, flags snappy.InstallFlags) (string, error)
+	SetupSnap(snapFilePath string, flags snappy.InstallFlags) error
 	CopySnapData(instSnapPath string, flags snappy.InstallFlags) error
 	SetupSnapSecurity(instSnapPath string) error
 	GenerateWrappers(instSnapPath string) error
@@ -94,7 +94,7 @@ func (s *defaultBackend) Download(name, channel string, meter progress.Meter) (s
 		return "", "", err
 	}
 
-	return downloadedSnapFile, snap.Developer, nil
+	return downloadedSnapFile, snap.Version, nil
 }
 
 func (s *defaultBackend) CheckSnap(snapFilePath string, flags snappy.InstallFlags) error {
@@ -102,9 +102,10 @@ func (s *defaultBackend) CheckSnap(snapFilePath string, flags snappy.InstallFlag
 	return snappy.CheckSnap(snapFilePath, flags, meter)
 }
 
-func (s *defaultBackend) SetupSnap(snapFilePath string, flags snappy.InstallFlags) (string, error) {
+func (s *defaultBackend) SetupSnap(snapFilePath string, flags snappy.InstallFlags) error {
 	meter := &progress.NullProgress{}
-	return snappy.SetupSnap(snapFilePath, flags, meter)
+	_, err := snappy.SetupSnap(snapFilePath, flags, meter)
+	return err
 }
 
 func (s *defaultBackend) CopySnapData(snapInstPath string, flags snappy.InstallFlags) error {
