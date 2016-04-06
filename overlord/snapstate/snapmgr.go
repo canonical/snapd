@@ -56,14 +56,16 @@ type snapSetup struct {
 }
 
 func (s *snapSetup) BaseDir() string {
-	return filepath.Join(dirs.SnapSnapsDir, s.Name, s.Version)
+	name, _ := snappy.SplitDeveloper(s.Name)
+	return filepath.Join(dirs.SnapSnapsDir, name, s.Version)
 }
 
 func (s *snapSetup) OldBaseDir() string {
 	if s.OldName == "" || s.OldVersion == "" {
 		return ""
 	}
-	return filepath.Join(dirs.SnapSnapsDir, s.OldName, s.OldVersion)
+	oldname, _ := snappy.SplitDeveloper(s.OldName)
+	return filepath.Join(dirs.SnapSnapsDir, oldname, s.OldVersion)
 }
 
 // Manager returns a new snap manager.
@@ -161,8 +163,7 @@ func (m *SnapManager) doRemoveSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	pb := &TaskProgressAdapter{task: t}
-	name, _ := snappy.SplitDeveloper(ss.Name)
-	return m.backend.Remove(name, ss.RemoveFlags, pb)
+	return m.backend.Remove(ss.Name, ss.RemoveFlags, pb)
 }
 
 func (m *SnapManager) doRollbackSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -176,8 +177,7 @@ func (m *SnapManager) doRollbackSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	pb := &TaskProgressAdapter{task: t}
-	name, _ := snappy.SplitDeveloper(ss.Name)
-	_, err = m.backend.Rollback(name, ss.Version, pb)
+	_, err = m.backend.Rollback(ss.Name, ss.Version, pb)
 	return err
 }
 
@@ -192,8 +192,7 @@ func (m *SnapManager) doActivateSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	pb := &TaskProgressAdapter{task: t}
-	name, _ := snappy.SplitDeveloper(ss.Name)
-	return m.backend.Activate(name, true, pb)
+	return m.backend.Activate(ss.Name, true, pb)
 }
 
 func (m *SnapManager) doDeactivateSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -207,8 +206,7 @@ func (m *SnapManager) doDeactivateSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	pb := &TaskProgressAdapter{task: t}
-	name, _ := snappy.SplitDeveloper(ss.Name)
-	return m.backend.Activate(name, false, pb)
+	return m.backend.Activate(ss.Name, false, pb)
 }
 
 // Ensure implements StateManager.Ensure.
