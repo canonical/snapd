@@ -29,7 +29,7 @@ Usage: common
 ### unity7
 
 Can access Unity7. Restricted because Unity 7 runs on X and requires access to
-various DBus services and this enviroment does not prevent eavesdropping or
+various DBus services and this environment does not prevent eavesdropping or
 apps interfering with one another.
 
 Usage: reserved
