@@ -57,7 +57,7 @@ func (f *fakeSnappyBackend) Download(name, channel string, p progress.Meter) (st
 	})
 	p.SetTotal(float64(f.fakeTotalProgress))
 	p.Set(float64(f.fakeCurrentProgress))
-	return "downloaded-snap-path", "some-developer", nil
+	return "downloaded-snap-path", "1.0", nil
 }
 
 func (f *fakeSnappyBackend) Update(name, channel string, flags snappy.InstallFlags, p progress.Meter) error {
@@ -103,12 +103,12 @@ func (f *fakeSnappyBackend) CheckSnap(snapFilePath string, flags snappy.InstallF
 	return nil
 }
 
-func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, flags snappy.InstallFlags) (string, error) {
+func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, flags snappy.InstallFlags) error {
 	f.ops = append(f.ops, fakeOp{
 		op:   "setup-snap",
 		name: snapFilePath,
 	})
-	return "some-inst-path", nil
+	return nil
 }
 
 func (f *fakeSnappyBackend) CopySnapData(instSnapPath string, flags snappy.InstallFlags) error {
