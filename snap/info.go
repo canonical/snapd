@@ -81,6 +81,8 @@ type AppInfo struct {
 
 	Daemon      string
 	StopTimeout timeout.Timeout
+	Stop        string
+	PostStop    string
 
 	Plugs map[string]*PlugInfo
 	Slots map[string]*SlotInfo

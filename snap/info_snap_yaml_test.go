@@ -901,6 +901,8 @@ apps:
 			Daemon:  "forking",
 			// XXX: stop-timeout seems broken in term of parsing
 			StopTimeout: timeout.Timeout(25),
+			Stop:        "stop-cmd",
+			PostStop:    "post-stop-cmd",
 			// XXX: more stuff
 		},
 	})

@@ -152,6 +152,8 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 			Command:     yApp.Command,
 			Daemon:      yApp.Daemon,
 			StopTimeout: yApp.StopTimeout,
+			Stop:        yApp.Stop,
+			PostStop:    yApp.PostStop,
 		}
 		if len(y.Plugs) > 0 || len(yApp.PlugNames) > 0 {
 			app.Plugs = make(map[string]*PlugInfo)
