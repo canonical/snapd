@@ -35,6 +35,7 @@ import (
 )
 
 // generate the name
+// TODO: => AppInfo.WrapperPath
 func generateBinaryName(app *snap.AppInfo) string {
 	var binName string
 	if app.Name == app.Snap.Name {
@@ -46,6 +47,7 @@ func generateBinaryName(app *snap.AppInfo) string {
 	return filepath.Join(dirs.SnapBinariesDir, binName)
 }
 
+// TODO: => AppInfo.CommandLine
 func binPathForBinary(pkgPath string, app *snap.AppInfo) string {
 	return filepath.Join(pkgPath, app.Command)
 }
