@@ -53,6 +53,7 @@ func (s *classicDimensionSuite) destroyClassic(c *check.C) {
 }
 
 func (s *classicDimensionSuite) TestClassicShell(c *check.C) {
+	c.Skip("Skipping until LP: #1563193 is fixed")
 	s.enableClassic(c)
 	defer s.destroyClassic(c)
 
@@ -77,6 +78,7 @@ func (s *classicDimensionSuite) TestDestroyUnexistingClassicMustPrintError(c *ch
 }
 
 func (s *classicDimensionSuite) TestReEnableClassicMustPrintError(c *check.C) {
+	c.Skip("Skipping until LP: #1563193 is fixed")
 	s.enableClassic(c)
 	defer s.destroyClassic(c)
 	output, err := cli.ExecCommandErr("sudo", "snappy", "enable-classic")
