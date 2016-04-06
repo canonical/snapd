@@ -44,7 +44,7 @@ var implicitSlots = []string{
 
 // AddCommonSlotsToOSSnap adds slots of well-known interfaces to the OS snap.
 //
-// This function is indented to be used temporarily, before the OS snap is
+// This function is intended to be used temporarily, before the OS snap is
 // updated to contain appropriate slot definitions.
 //
 // It is assumed that slots have names matching the interface name. Existing
