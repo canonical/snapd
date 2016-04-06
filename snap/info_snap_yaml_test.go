@@ -23,6 +23,8 @@ import (
 	"testing"
 
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/systemd"
+	"github.com/ubuntu-core/snappy/timeout"
 
 	. "gopkg.in/check.v1"
 )
@@ -787,4 +789,125 @@ slots:
 	c.Check(slot2.Label, Equals, "")
 	c.Check(slot2.Apps, DeepEquals, map[string]*snap.AppInfo{
 		app1.Name: app1, app2.Name: app2})
+}
+
+// type and architectures
+
+func (s *YamlSuite) TestSnapYamlTypeDefault(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+	c.Assert(info.Type, Equals, snap.TypeApp)
+}
+
+func (s *YamlSuite) TestSnapYamlMultipleArchitecturesParsing(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+architectures: [i386, armhf]
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+	c.Assert(info.Architectures, DeepEquals, []string{"i386", "armhf"})
+}
+
+func (s *YamlSuite) TestSnapYamlSingleArchitecturesParsing(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+architectures: [i386]
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+	c.Assert(info.Architectures, DeepEquals, []string{"i386"})
+}
+
+func (s *YamlSuite) TestSnapYamlNoArchitecturesParsing(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+	c.Assert(info.Architectures, DeepEquals, []string{"all"})
+}
+
+func (s *YamlSuite) TestSnapYamlBadArchitectureParsing(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+architectures:
+  armhf:
+    no
+`)
+	_, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, NotNil)
+}
+
+func (s *YamlSuite) TestSnapYamlLicenseParsing(c *C) {
+	y := []byte(`
+name: foo
+version: 1.0
+license-agreement: explicit
+license-version: 12`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+	c.Assert(info.LicenseAgreement, Equals, "explicit")
+	c.Assert(info.LicenseVersion, Equals, "12")
+}
+
+// apps
+
+func (s *YamlSuite) TestSimpleAppExample(c *C) {
+	y := []byte(`name: wat
+version: 42
+apps:
+ cm:
+   command: cm0
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+	c.Check(info.Apps, DeepEquals, map[string]*snap.AppInfo{
+		"cm": {
+			Snap:    info,
+			Name:    "cm",
+			Command: "cm0",
+		},
+	})
+}
+
+func (s *YamlSuite) TestDaemonEverythingExample(c *C) {
+	y := []byte(`name: wat
+version: 42
+apps:
+ svc:
+   command: svc1
+   description: svc one
+   stop-timeout: 25
+   daemon: forking
+   stop-command: stop-cmd
+   post-stop-command: post-stop-cmd
+   restart-condition: on-abnormal
+   socket-mode: socket_mode
+   listen-stream: listen_stream
+   bus-name: busName
+   socket: yes
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+	c.Check(info.Apps, DeepEquals, map[string]*snap.AppInfo{
+		"svc": {
+			Snap:        info,
+			Name:        "svc",
+			Command:     "svc1",
+			Daemon:      "forking",
+			RestartCond: systemd.RestartOnAbnormal,
+			// XXX: stop-timeout seems broken in term of parsing
+			StopTimeout:  timeout.Timeout(25),
+			Stop:         "stop-cmd",
+			PostStop:     "post-stop-cmd",
+			Socket:       true,
+			SocketMode:   "socket_mode",
+			ListenStream: "listen_stream",
+			BusName:      "busName",
+		},
+	})
 }
