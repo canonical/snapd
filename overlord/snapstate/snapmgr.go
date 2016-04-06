@@ -246,7 +246,8 @@ func SnapInfo(state *state.State, snapName, snapVersion string) (*snap.Info, err
 	}
 	// Overwrite the name which doesn't belong in snap.yaml and is actually
 	// defined by snap declaration assertion.
-	info.Name = snapName
+	// TODO: use a full SideInfo
+	info.OfficialName = snapName
 	// TODO: use state to retrieve additional information
 	return info, nil
 }

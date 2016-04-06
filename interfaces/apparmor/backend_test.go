@@ -359,7 +359,7 @@ func (s *backendSuite) updateSnap(c *C, oldSnapInfo *snap.Info, developerMode bo
 	c.Assert(err, IsNil)
 	// this won't come from snap.yaml
 	newSnapInfo.Developer = "acme"
-	c.Assert(newSnapInfo.Name, Equals, oldSnapInfo.Name)
+	c.Assert(newSnapInfo.ZName(), Equals, oldSnapInfo.ZName())
 	s.removePlugsSlots(c, oldSnapInfo)
 	s.addPlugsSlots(c, newSnapInfo)
 	err = s.backend.Configure(newSnapInfo, developerMode, s.repo)
@@ -388,12 +388,12 @@ func (s *backendSuite) addPlugsSlots(c *C, snapInfo *snap.Info) {
 }
 
 func (s *backendSuite) removePlugsSlots(c *C, snapInfo *snap.Info) {
-	for _, plug := range s.repo.Plugs(snapInfo.Name) {
-		err := s.repo.RemovePlug(plug.Snap.Name, plug.Name)
+	for _, plug := range s.repo.Plugs(snapInfo.ZName()) {
+		err := s.repo.RemovePlug(plug.Snap.ZName(), plug.Name)
 		c.Assert(err, IsNil)
 	}
-	for _, slot := range s.repo.Slots(snapInfo.Name) {
-		err := s.repo.RemoveSlot(slot.Snap.Name, slot.Name)
+	for _, slot := range s.repo.Slots(snapInfo.ZName()) {
+		err := s.repo.RemoveSlot(slot.Snap.ZName(), slot.Name)
 		c.Assert(err, IsNil)
 	}
 }

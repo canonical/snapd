@@ -120,8 +120,8 @@ func (s *FirstBootTestSuite) newOverlord() configurator {
 func (s *FirstBootTestSuite) newFakeApp() *Snap {
 	fakeMyApp := Snap{
 		info: &snap.Info{
-			Name: "myapp",
-			Type: snap.TypeApp,
+			SuggestedName: "myapp",
+			Type:          snap.TypeApp,
 		},
 	}
 	s.snapMap = make(map[string]*Snap)

@@ -117,15 +117,15 @@ func storeMinimalRemoteManifest(name, developer, version, summary, desc, channel
 	if developer == SideloadedDeveloper {
 		panic("store remote manifest for sideloaded package")
 	}
-	info := &snap.Info{
-		Name:        name,
-		Version:     version,
-		Developer:   developer,
-		Summary:     summary,
-		Description: desc,
-		Channel:     channel,
+	sideInfo := snap.SideInfo{
+		OfficialName: name,
+		//Version:           version,
+		Developer:         developer,
+		EditedSummary:     summary,
+		EditedDescription: desc,
+		Channel:           channel,
 	}
-	return SaveManifest(info)
+	return SaveManifest(&snap.Info{Version: version, SideInfo: sideInfo})
 }
 
 func addMockDefaultApparmorProfile(appid string) error {

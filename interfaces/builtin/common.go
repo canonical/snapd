@@ -53,7 +53,7 @@ func (iface *commonInterface) SanitizeSlot(slot *interfaces.Slot) error {
 		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
 	}
 	// TODO: use slot.Snap.Type here (and snap.TypeOS)
-	if iface.reservedForOS && slot.Snap.Name != "ubuntu-core" {
+	if iface.reservedForOS && slot.Snap.ZName() != "ubuntu-core" {
 		return fmt.Errorf("%s slots are reserved for the operating system snap", iface.name)
 	}
 	return nil

@@ -44,13 +44,13 @@ type Backend struct{}
 //
 // If the method fails it should be re-tried (with a sensible strategy) by the caller.
 func (b *Backend) Configure(snapInfo *snap.Info, developerMode bool, repo *interfaces.Repository) error {
-	snippets, err := repo.SecuritySnippetsForSnap(snapInfo.Name, interfaces.SecurityUDev)
+	snippets, err := repo.SecuritySnippetsForSnap(snapInfo.ZName(), interfaces.SecurityUDev)
 	if err != nil {
-		return fmt.Errorf("cannot obtain udev security snippets for snap %q: %s", snapInfo.Name, err)
+		return fmt.Errorf("cannot obtain udev security snippets for snap %q: %s", snapInfo.ZName(), err)
 	}
 	content, err := b.combineSnippets(snapInfo, snippets)
 	if err != nil {
-		return fmt.Errorf("cannot obtain expected udev rules for snap %q: %s", snapInfo.Name, err)
+		return fmt.Errorf("cannot obtain expected udev rules for snap %q: %s", snapInfo.ZName(), err)
 	}
 	glob := fmt.Sprintf("70-%s.rules", interfaces.SecurityTagGlob(snapInfo))
 	return ensureDirState(dirs.SnapUdevRulesDir, glob, content, snapInfo)
@@ -75,7 +75,7 @@ func ensureDirState(dir, glob string, content map[string]*osutil.FileState, snap
 		errReload = ReloadRules()
 	}
 	if errEnsure != nil {
-		return fmt.Errorf("cannot synchronize udev rules for snap %q: %s", snapInfo.Name, errEnsure)
+		return fmt.Errorf("cannot synchronize udev rules for snap %q: %s", snapInfo.ZName(), errEnsure)
 	}
 	return errReload
 }

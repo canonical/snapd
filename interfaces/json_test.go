@@ -35,7 +35,7 @@ var _ = Suite(&JSONSuite{})
 func (s *JSONSuite) TestPlugMarshalJSON(c *C) {
 	plug := &Plug{
 		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{Name: "snap-name"},
+			Snap:      &snap.Info{SuggestedName: "snap-name"},
 			Name:      "plug-name",
 			Interface: "interface",
 			Attrs:     map[string]interface{}{"key": "value"},
@@ -72,7 +72,7 @@ func (s *JSONSuite) TestPlugMarshalJSON(c *C) {
 func (s *JSONSuite) TestSlotMarshalJSON(c *C) {
 	slot := &Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{Name: "snap-name"},
+			Snap:      &snap.Info{SuggestedName: "snap-name"},
 			Name:      "slot-name",
 			Interface: "interface",
 			Attrs:     map[string]interface{}{"key": "value"},

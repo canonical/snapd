@@ -20,6 +20,8 @@
 package snappy
 
 import (
+	//"fmt"
+
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -97,9 +99,9 @@ func newSnapFromYaml(yamlPath string, m *snapYaml) (*Snap, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	s.info = info
 
-	var manifest *snap.Manifest
 	manifestPath := ManifestPath(info)
 	if osutil.FileExists(manifestPath) {
 		content, err := ioutil.ReadFile(manifestPath)
@@ -107,16 +109,20 @@ func newSnapFromYaml(yamlPath string, m *snapYaml) (*Snap, error) {
 			return nil, err
 		}
 
-		manifest = new(snap.Manifest)
-		if err := yaml.Unmarshal(content, manifest); err != nil {
+		var manifest snap.SideInfo
+		if err := yaml.Unmarshal(content, &manifest); err != nil {
 			return nil, &ErrInvalidYaml{File: manifestPath, Err: err, Yaml: content}
 		}
+		info.SideInfo = manifest
 	}
 
-	info.Developer = SideloadedDeveloper
-	// default for compat with older installs
-	info.Channel = "stable"
-	snap.CompleteInfo(info, manifest)
+	if info.Developer == "" {
+		info.Developer = SideloadedDeveloper
+	}
+	if info.Channel == "" {
+		// default for compat with older installs
+		info.Channel = "stable"
+	}
 
 	// XXX: FIXME: just some tests need this atm
 	// override the package's idea of its version
@@ -135,7 +141,7 @@ func (s *Snap) Type() snap.Type {
 
 // Name returns the name
 func (s *Snap) Name() string {
-	return s.info.Name
+	return s.info.ZName()
 }
 
 // Version returns the version
