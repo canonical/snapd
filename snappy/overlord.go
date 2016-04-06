@@ -187,7 +187,7 @@ func GenerateWrappers(s *Snap, inter interacter) error {
 		return err
 	}
 	// add the desktop files
-	if err := addPackageDesktopFiles(s.m, s.basedir); err != nil {
+	if err := addPackageDesktopFiles(s.Info()); err != nil {
 		return err
 	}
 
@@ -208,7 +208,7 @@ func RemoveGeneratedWrappers(s *Snap, inter interacter) error {
 		logger.Noticef("Failed to remove services for %q: %v", s.Name(), err2)
 	}
 
-	err3 := removePackageDesktopFiles(s.m)
+	err3 := removePackageDesktopFiles(s.Info())
 	if err3 != nil {
 		logger.Noticef("Failed to remove desktop files for %q: %v", s.Name(), err3)
 	}
