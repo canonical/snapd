@@ -27,6 +27,8 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/partition"
+	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/legacygadget"
 	"github.com/ubuntu-core/snappy/snap/squashfs"
 	"github.com/ubuntu-core/snappy/systemd"
 	"github.com/ubuntu-core/snappy/testutil"
@@ -126,13 +128,15 @@ func (s *SquashfsTestSuite) TestInstallViaSquashfsWorks(c *C) {
 }
 
 func (s *SquashfsTestSuite) TestAddSquashfsMount(c *C) {
-	m := &snapYaml{
-		Name:          "foo",
+	info := &snap.Info{
+		SideInfo: snap.SideInfo{
+			OfficialName: "foo",
+		},
 		Version:       "1.0",
 		Architectures: []string{"all"},
 	}
 	inter := &MockProgressMeter{}
-	err := addSquashfsMount(m, filepath.Join(dirs.SnapSnapsDir, "foo/1.0"), true, inter)
+	err := addSquashfsMount(info, filepath.Join(dirs.SnapSnapsDir, "foo/1.0"), true, inter)
 	c.Assert(err, IsNil)
 
 	// ensure correct mount unit
@@ -149,9 +153,9 @@ Where=/snaps/foo/1.0
 }
 
 func (s *SquashfsTestSuite) TestRemoveSquashfsMountUnit(c *C) {
-	m := &snapYaml{}
+	info := &snap.Info{}
 	inter := &MockProgressMeter{}
-	err := addSquashfsMount(m, filepath.Join(dirs.SnapSnapsDir, "foo/1.0"), true, inter)
+	err := addSquashfsMount(info, filepath.Join(dirs.SnapSnapsDir, "foo/1.0"), true, inter)
 	c.Assert(err, IsNil)
 
 	// ensure we have the files
@@ -159,7 +163,7 @@ func (s *SquashfsTestSuite) TestRemoveSquashfsMountUnit(c *C) {
 	c.Assert(osutil.FileExists(p), Equals, true)
 
 	// now call remove and ensure they are gone
-	err = removeSquashfsMount(filepath.Join(dirs.SnapSnapsDir, "foo/1.0"), inter)
+	err = removeSquashfsMount(filepath.Join(dirs.SnapSnapsDir, "foo/1.0"), i)
 	c.Assert(err, IsNil)
 	p = filepath.Join(dirs.SnapServicesDir, "snaps-foo-1.0.mount")
 	c.Assert(osutil.FileExists(p), Equals, false)
@@ -342,11 +346,13 @@ func (s *SquashfsTestSuite) TestInstallKernelRebootRequired(c *C) {
 	c.Assert(snap.NeedsReboot(), Equals, false)
 }
 
-func getFakeGrubGadget() (*snapYaml, error) {
-	return &snapYaml{
-		Gadget: Gadget{
-			Hardware: Hardware{
-				Bootloader: "grub",
+func getFakeGrubGadget() (*snap.Info, error) {
+	return &snap.Info{
+		Legacy: &snap.LegacyYaml{
+			Gadget: legacygadget.Gadget{
+				Hardware: legacygadget.Hardware{
+					Bootloader: "grub",
+				},
 			},
 		},
 	}, nil

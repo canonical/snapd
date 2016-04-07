@@ -30,6 +30,7 @@ import (
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/legacygadget"
 )
 
 // Snap represents a generic snap type
@@ -227,8 +228,8 @@ func (s *Snap) Apps() map[string]*AppYaml {
 }
 
 // GadgetConfig return a list of packages to configure
-func (s *Snap) GadgetConfig() SystemConfig {
-	return s.m.Config
+func (s *Snap) GadgetConfig() legacygadget.SystemConfig {
+	return s.info.Legacy.Config
 }
 
 // Install installs the snap (which does not make sense for an already

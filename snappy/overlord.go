@@ -66,43 +66,44 @@ func SetupSnap(snapFilePath string, flags InstallFlags, meter progress.Meter) (s
 	inhibitHooks := (flags & InhibitHooks) != 0
 	allowUnauth := (flags & AllowUnauthenticated) != 0
 
-	// warning: NewSnapFile generates a new sideloaded version
-	//          everytime it is run
-	//          so all paths on disk are different even if the same snap
-	s, err := NewSnapFile(snapFilePath, allowUnauth)
+	sf, err := NewSnapFile(snapFilePath, allowUnauth)
 	if err != nil {
 		return "", err
 	}
 
+	s := sf.Info()
+	instdir := s.BaseDir()
+	blobf := sf.deb
+
 	// the "gadget" snaps are special
-	if s.Type() == snap.TypeGadget {
+	if s.Type == snap.TypeGadget {
 		if err := installGadgetHardwareUdevRules(s.m); err != nil {
 			return "", err
 		}
 	}
 
-	if err := os.MkdirAll(s.instdir, 0755); err != nil {
-		logger.Noticef("Can not create %q: %v", s.instdir, err)
-		return s.instdir, err
+	if err := os.MkdirAll(instdir, 0755); err != nil {
+		logger.Noticef("Can not create %q: %v", instdir, err)
+		return instdir, err
 	}
 
-	if err := s.deb.Install(s.instdir); err != nil {
-		return s.instdir, err
+	if err := blobf.Install(instdir); err != nil {
+		return instdir, err
 	}
 
 	// generate the mount unit for the squashfs
-	if err := addSquashfsMount(s.m, s.instdir, inhibitHooks, meter); err != nil {
-		return s.instdir, err
+	if err := addSquashfsMount(s, instdir, inhibitHooks, meter); err != nil {
+		return instdir, err
 	}
 
 	// FIXME: special handling is bad 'mkay
-	if s.m.Type == snap.TypeKernel {
-		if err := extractKernelAssets(s, meter, flags); err != nil {
-			return s.instdir, fmt.Errorf("failed to install kernel %s", err)
+	if s.Type == snap.TypeKernel {
+		if err := extractKernelAssets(sf, meter, flags); err != nil {
+			return instdir, fmt.Errorf("failed to install kernel %s", err)
 		}
 	}
 
-	return s.instdir, err
+	return instdir, err
 }
 
 func UndoSetupSnap(installDir string, meter progress.Meter) {
@@ -433,7 +434,7 @@ func canInstall(s *SnapFile, allowGadget bool, inter interacter) error {
 	if s.Type() == snap.TypeGadget {
 		if !allowGadget {
 			if currentGadget, err := getGadget(); err == nil {
-				if currentGadget.Name != s.Name() {
+				if currentGadget.Name() != s.Name() {
 					return ErrGadgetPackageInstall
 				}
 			} else {
@@ -472,20 +473,22 @@ func CanRemove(s *Snap) bool {
 
 // RemoveSnapFiles removes the snap files from the disk
 func RemoveSnapFiles(s *Snap, meter progress.Meter) error {
+	basedir = s.Info().Basedir()
 	// this also ensures that the mount unit stops
-	if err := removeSquashfsMount(s.basedir, meter); err != nil {
+	if err := removeSquashfsMount(basedir, meter); err != nil {
 		return err
 	}
 
-	if err := os.RemoveAll(s.basedir); err != nil {
+	if err := os.RemoveAll(basedir); err != nil {
 		return err
 	}
 
 	// best effort(?)
-	os.Remove(filepath.Dir(s.basedir))
+	os.Remove(filepath.Dir(basedir))
 
 	// remove the snap
-	if err := os.RemoveAll(squashfs.BlobPath(s.basedir)); err != nil {
+	// XXX: fix BlobPath
+	if err := os.RemoveAll(squashfs.BlobPath(basedir)); err != nil {
 		return err
 	}
 

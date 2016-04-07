@@ -58,6 +58,9 @@ type Info struct {
 	Plugs            map[string]*PlugInfo
 	Slots            map[string]*SlotInfo
 
+	// legacy fields collected
+	Legacy *LegacyYaml
+
 	// The information in these fields is not present inside the snap blob itself.
 	SideInfo
 

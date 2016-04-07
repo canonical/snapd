@@ -35,6 +35,7 @@ import (
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/legacygadget"
 	"github.com/ubuntu-core/snappy/snap/squashfs"
 	"github.com/ubuntu-core/snappy/systemd"
 	"github.com/ubuntu-core/snappy/timeout"
@@ -95,8 +96,8 @@ type snapYaml struct {
 	// FIXME: clarify those
 
 	// gadget snap only
-	Gadget Gadget       `yaml:"gadget,omitempty"`
-	Config SystemConfig `yaml:"config,omitempty"`
+	Gadget legacygadget.Gadget       `yaml:"gadget,omitempty"`
+	Config legacygadget.SystemConfig `yaml:"config,omitempty"`
 
 	// FIXME: move into a special kernel struct
 	Kernel string `yaml:"kernel,omitempty"`
@@ -188,6 +189,8 @@ func parseSnapYamlData(yamlData []byte, hasConfig bool) (*snapYaml, error) {
 	return &m, nil
 }
 
+// XXX: things below won't belong here soon, move them!
+
 // checkLicenseAgreement returns nil if it's ok to proceed with installing the
 // package, as deduced from the license agreement (which might involve asking
 // the user), or an error that explains the reason why installation should not
@@ -226,12 +229,14 @@ func checkLicenseAgreement(m *snapYaml, ag agreer, d snap.File, currentActiveDir
 	return nil
 }
 
-func addSquashfsMount(m *snapYaml, baseDir string, inhibitHooks bool, inter interacter) error {
+// XXX: don't take baseDir ?
+func addSquashfsMount(s *snap.Info, baseDir string, inhibitHooks bool, inter interacter) error {
+	// XXX: fix BlobPath
 	squashfsPath := stripGlobalRootDir(squashfs.BlobPath(baseDir))
 	whereDir := stripGlobalRootDir(baseDir)
 
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
-	mountUnitName, err := sysd.WriteMountUnitFile(m.Name, squashfsPath, whereDir)
+	mountUnitName, err := sysd.WriteMountUnitFile(s.Name(), squashfsPath, whereDir)
 	if err != nil {
 		return err
 	}
