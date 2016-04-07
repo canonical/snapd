@@ -949,38 +949,38 @@ func (s *AddRemoveSuite) TestAddSnapErrorsOnExistingSnapSlots(c *C) {
 }
 
 func (s AddRemoveSuite) TestRemoveRemovesPlugs(c *C) {
-	consumer, err := s.addSnap(c, testConsumerYaml)
+	_, err := s.addSnap(c, testConsumerYaml)
 	c.Assert(err, IsNil)
-	s.repo.RemoveSnap(consumer)
+	s.repo.RemoveSnap("consumer")
 	c.Assert(s.repo.Plug("consumer", "iface"), IsNil)
 }
 
 func (s AddRemoveSuite) TestRemoveRemovesSlots(c *C) {
-	producer, err := s.addSnap(c, testProducerYaml)
+	_, err := s.addSnap(c, testProducerYaml)
 	c.Assert(err, IsNil)
-	s.repo.RemoveSnap(producer)
+	s.repo.RemoveSnap("producer")
 	c.Assert(s.repo.Plug("producer", "iface"), IsNil)
 }
 
 func (s *AddRemoveSuite) TestRemoveSnapErrorsOnStillConnectedPlug(c *C) {
-	consumer, err := s.addSnap(c, testConsumerYaml)
+	_, err := s.addSnap(c, testConsumerYaml)
 	c.Assert(err, IsNil)
 	_, err = s.addSnap(c, testProducerYaml)
 	c.Assert(err, IsNil)
 	err = s.repo.Connect("consumer", "iface", "producer", "iface")
 	c.Assert(err, IsNil)
-	err = s.repo.RemoveSnap(consumer)
+	err = s.repo.RemoveSnap("consumer")
 	c.Assert(err, ErrorMatches, "cannot remove connected plug consumer.iface")
 }
 
 func (s *AddRemoveSuite) TestRemoveSnapErrorsOnStillConnectedSlot(c *C) {
 	_, err := s.addSnap(c, testConsumerYaml)
 	c.Assert(err, IsNil)
-	producer, err := s.addSnap(c, testProducerYaml)
+	_, err = s.addSnap(c, testProducerYaml)
 	c.Assert(err, IsNil)
 	err = s.repo.Connect("consumer", "iface", "producer", "iface")
 	c.Assert(err, IsNil)
-	err = s.repo.RemoveSnap(producer)
+	err = s.repo.RemoveSnap("producer")
 	c.Assert(err, ErrorMatches, "cannot remove connected slot producer.iface")
 }
 
