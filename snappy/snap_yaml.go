@@ -195,8 +195,8 @@ func parseSnapYamlData(yamlData []byte, hasConfig bool) (*snapYaml, error) {
 // package, as deduced from the license agreement (which might involve asking
 // the user), or an error that explains the reason why installation should not
 // proceed.
-func checkLicenseAgreement(m *snapYaml, ag agreer, d snap.File, currentActiveDir string) error {
-	if m.LicenseAgreement != "explicit" {
+func checkLicenseAgreement(s *snap.Info, blobf snap.File, cur *snap.Info, ag agreer) error {
+	if s.LicenseAgreement != "explicit" {
 		return nil
 	}
 
@@ -204,24 +204,19 @@ func checkLicenseAgreement(m *snapYaml, ag agreer, d snap.File, currentActiveDir
 		return ErrLicenseNotAccepted
 	}
 
-	license, err := d.MetaMember("license.txt")
+	license, err := blobf.MetaMember("license.txt")
 	if err != nil || len(license) == 0 {
 		return ErrLicenseNotProvided
-	}
-
-	oldM, err := parseSnapYamlFile(filepath.Join(currentActiveDir, "meta", "snap.yaml"))
-	if err != nil && !os.IsNotExist(err) {
-		return err
 	}
 
 	// don't ask for the license if
 	// * the previous version also asked for license confirmation, and
 	// * the license version is the same
-	if err == nil && (oldM.LicenseAgreement == "explicit") && oldM.LicenseVersion == m.LicenseVersion {
+	if cur != nil && (cur.LicenseAgreement == "explicit") && cur.LicenseVersion == s.LicenseVersion {
 		return nil
 	}
 
-	msg := fmt.Sprintf("%s requires that you accept the following license before continuing", m.Name)
+	msg := fmt.Sprintf("%s requires that you accept the following license before continuing", s.Name())
 	if !ag.Agreed(msg, string(license)) {
 		return ErrLicenseNotAccepted
 	}
