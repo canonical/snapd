@@ -23,19 +23,14 @@ import (
 	"fmt"
 
 	"io/ioutil"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
-	"time"
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/squashfs"
 	"github.com/ubuntu-core/snappy/systemd"
 	"github.com/ubuntu-core/snappy/timeout"
 )
@@ -175,82 +170,4 @@ func parseSnapYamlData(yamlData []byte, hasConfig bool) (*snapYaml, error) {
 	}
 
 	return &m, nil
-}
-
-// XXX: things below won't belong here soon, move them!
-
-// checkLicenseAgreement returns nil if it's ok to proceed with installing the
-// package, as deduced from the license agreement (which might involve asking
-// the user), or an error that explains the reason why installation should not
-// proceed.
-func checkLicenseAgreement(s *snap.Info, blobf snap.File, cur *snap.Info, ag agreer) error {
-	if s.LicenseAgreement != "explicit" {
-		return nil
-	}
-
-	if ag == nil {
-		return ErrLicenseNotAccepted
-	}
-
-	license, err := blobf.MetaMember("license.txt")
-	if err != nil || len(license) == 0 {
-		return ErrLicenseNotProvided
-	}
-
-	// don't ask for the license if
-	// * the previous version also asked for license confirmation, and
-	// * the license version is the same
-	if cur != nil && (cur.LicenseAgreement == "explicit") && cur.LicenseVersion == s.LicenseVersion {
-		return nil
-	}
-
-	msg := fmt.Sprintf("%s requires that you accept the following license before continuing", s.Name())
-	if !ag.Agreed(msg, string(license)) {
-		return ErrLicenseNotAccepted
-	}
-
-	return nil
-}
-
-func addSquashfsMount(s *snap.Info, inhibitHooks bool, inter interacter) error {
-	baseDir := s.BaseDir()
-	// XXX: fix BlobPath
-	squashfsPath := stripGlobalRootDir(squashfs.BlobPath(baseDir))
-	whereDir := stripGlobalRootDir(baseDir)
-
-	sysd := systemd.New(dirs.GlobalRootDir, inter)
-	mountUnitName, err := sysd.WriteMountUnitFile(s.Name(), squashfsPath, whereDir)
-	if err != nil {
-		return err
-	}
-
-	// we always enable the mount unit even in inhibit hooks
-	if err := sysd.Enable(mountUnitName); err != nil {
-		return err
-	}
-
-	if !inhibitHooks {
-		return sysd.Start(mountUnitName)
-	}
-
-	return nil
-}
-
-func removeSquashfsMount(baseDir string, inter interacter) error {
-	sysd := systemd.New(dirs.GlobalRootDir, inter)
-	unit := systemd.MountUnitPath(stripGlobalRootDir(baseDir), "mount")
-	if osutil.FileExists(unit) {
-		// we ignore errors, nothing should stop removals
-		if err := sysd.Disable(filepath.Base(unit)); err != nil {
-			logger.Noticef("Failed to disable %q: %s, but continuing anyway.", unit, err)
-		}
-		if err := sysd.Stop(filepath.Base(unit), time.Duration(1*time.Second)); err != nil {
-			logger.Noticef("Failed to stop %q: %s, but continuing anyway.", unit, err)
-		}
-		if err := os.Remove(unit); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
