@@ -22,24 +22,24 @@ package main
 import (
 	"fmt"
 
+	"github.com/jessevdk/go-flags"
+
 	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/snappy"
 )
 
-type cmdInternalFirstBootGadgetConfig struct{}
+type cmdInternalFirstBoot struct{}
 
 func init() {
-	_, err := parser.AddCommand("firstboot",
+	cmd := addCommand("firstboot",
 		"internal",
-		"internal",
-		&cmdInternalFirstBootGadgetConfig{})
-	if err != nil {
-		logger.Panicf("Unable to first_boot: %v", err)
-	}
+		"internal", func() flags.Commander {
+			return &cmdInternalFirstBoot{}
+		})
+	cmd.hidden = true
 }
 
-func (x *cmdInternalFirstBootGadgetConfig) Execute(args []string) error {
+func (x *cmdInternalFirstBoot) Execute(args []string) error {
 	err := snappy.FirstBoot()
 	if err == snappy.ErrNotFirstBoot {
 		fmt.Println(i18n.G("First boot has already run"))
