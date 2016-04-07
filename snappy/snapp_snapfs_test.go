@@ -298,7 +298,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernelErrors(c *C) {
 	snap, err := NewSnapFile(snapPkg, true)
 	c.Assert(err, IsNil)
 
-	err = extractKernelAssets(snap, nil, 0)
+	err = extractKernelAssets(snap.Info(), snap.deb, 0, nil)
 	c.Assert(err, ErrorMatches, `can not extract kernel assets from snap type "app"`)
 }
 
@@ -309,7 +309,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapRemoveAssetsWrongType(c *C) {
 	snap, err := NewInstalledSnap(snapYaml)
 	c.Assert(err, IsNil)
 
-	err = removeKernelAssets(snap, nil)
+	err = removeKernelAssets(snap.Info(), nil)
 	c.Assert(err, ErrorMatches, `can not remove kernel assets from snap type "app"`)
 }
 

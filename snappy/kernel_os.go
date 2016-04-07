@@ -44,9 +44,9 @@ var findBootloader = partition.FindBootloader
 
 // removeKernelAssets removes the unpacked kernel/initrd for the given
 // kernel snap
-func removeKernelAssets(s *Snap, inter interacter) error {
-	if s.m.Type != snap.TypeKernel {
-		return fmt.Errorf("can not remove kernel assets from snap type %q", s.Type())
+func removeKernelAssets(s *snap.Info, inter interacter) error {
+	if s.Type != snap.TypeKernel {
+		return fmt.Errorf("can not remove kernel assets from snap type %q", s.Type)
 	}
 
 	bootloader, err := findBootloader()
@@ -55,7 +55,8 @@ func removeKernelAssets(s *Snap, inter interacter) error {
 	}
 
 	// remove the kernel blob
-	blobName := filepath.Base(squashfs.BlobPath(s.basedir))
+	// XXX: fix BlobPath
+	blobName := filepath.Base(squashfs.BlobPath(s.BaseDir()))
 	dstDir := filepath.Join(bootloader.Dir(), blobName)
 	if err := os.RemoveAll(dstDir); err != nil {
 		return err
@@ -67,9 +68,9 @@ func removeKernelAssets(s *Snap, inter interacter) error {
 // extractKernelAssets extracts kernel/initrd/dtb data from the given
 // Snap to a versionized bootloader directory so that the bootloader
 // can use it.
-func extractKernelAssets(s *SnapFile, inter progress.Meter, flags InstallFlags) error {
-	if s.m.Type != snap.TypeKernel {
-		return fmt.Errorf("can not extract kernel assets from snap type %q", s.Type())
+func extractKernelAssets(s *snap.Info, blobf snap.File, flags InstallFlags, inter progress.Meter) error {
+	if s.Type != snap.TypeKernel {
+		return fmt.Errorf("can not extract kernel assets from snap type %q", s.Type)
 	}
 
 	bootloader, err := findBootloader()
@@ -88,7 +89,8 @@ func extractKernelAssets(s *SnapFile, inter progress.Meter, flags InstallFlags) 
 	// FIXME: feels wrong to use the instdir here, need something better
 	//
 	// now do the kernel specific bits
-	blobName := filepath.Base(squashfs.BlobPath(s.instdir))
+	// XXX: fix BlobPath
+	blobName := filepath.Base(squashfs.BlobPath(s.BaseDir()))
 	dstDir := filepath.Join(bootloader.Dir(), blobName)
 	if err := os.MkdirAll(dstDir, 0755); err != nil {
 		return err
@@ -99,11 +101,11 @@ func extractKernelAssets(s *SnapFile, inter progress.Meter, flags InstallFlags) 
 	}
 	defer dir.Close()
 
-	for _, src := range []string{s.m.Kernel, s.m.Initrd} {
+	for _, src := range []string{s.Legacy.Kernel, s.Legacy.Initrd} {
 		if src == "" {
 			continue
 		}
-		if err := s.deb.Unpack(src, dstDir); err != nil {
+		if err := blobf.Unpack(src, dstDir); err != nil {
 			return err
 		}
 		src = filepath.Join(dstDir, src)
@@ -115,10 +117,10 @@ func extractKernelAssets(s *SnapFile, inter progress.Meter, flags InstallFlags) 
 			return err
 		}
 	}
-	if s.m.Dtbs != "" {
-		src := filepath.Join(s.m.Dtbs, "*")
+	if s.Legacy.Dtbs != "" {
+		src := filepath.Join(s.Legacy.Dtbs, "*")
 		dst := dstDir
-		if err := s.deb.Unpack(src, dst); err != nil {
+		if err := blobf.Unpack(src, dst); err != nil {
 			return err
 		}
 	}

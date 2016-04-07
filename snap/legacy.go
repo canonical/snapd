@@ -28,4 +28,9 @@ type LegacyYaml struct {
 	// gadget snap only
 	Gadget legacygadget.Gadget       `yaml:"gadget,omitempty"`
 	Config legacygadget.SystemConfig `yaml:"config,omitempty"`
+
+	// legacy kernel snap support
+	Kernel string `yaml:"kernel,omitempty"`
+	Initrd string `yaml:"initrd,omitempty"`
+	Dtbs   string `yaml:"dtbs,omitempty"`
 }

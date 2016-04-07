@@ -98,7 +98,7 @@ func SetupSnap(snapFilePath string, flags InstallFlags, meter progress.Meter) (s
 
 	// FIXME: special handling is bad 'mkay
 	if s.Type == snap.TypeKernel {
-		if err := extractKernelAssets(sf, meter, flags); err != nil {
+		if err := extractKernelAssets(s, blobf, flags, meter); err != nil {
 			return instdir, fmt.Errorf("failed to install kernel %s", err)
 		}
 	}
@@ -478,16 +478,11 @@ func CanRemove(s *Snap) bool {
 	return true
 }
 
-<<<<<<< 0659bb853f5ac4a82b1de46b3593db46c2d4b397
 // RemoveSnapFiles removes the snap files from the disk
 func RemoveSnapFiles(s *Snap, meter progress.Meter) error {
 	basedir = s.Info().Basedir()
 	// this also ensures that the mount unit stops
 	if err := removeSquashfsMount(basedir, meter); err != nil {
-=======
-	// ensure mount unit stops
-	if err := removeSquashfsMount(s.Info(), meter); err != nil {
->>>>>>> narrower signature for squashfs mount helpers
 		return err
 	}
 
@@ -506,7 +501,7 @@ func RemoveSnapFiles(s *Snap, meter progress.Meter) error {
 
 	// remove the kernel assets (if any)
 	if s.m.Type == snap.TypeKernel {
-		if err := removeKernelAssets(s, meter); err != nil {
+		if err := removeKernelAssets(s.Info(), meter); err != nil {
 			logger.Noticef("removing kernel assets failed with %s", err)
 		}
 	}
