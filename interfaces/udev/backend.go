@@ -37,13 +37,13 @@ import (
 // Backend is responsible for maintaining udev rules.
 type Backend struct{}
 
-// Configure creates udev rules specific to a given snap.
+// Setup creates udev rules specific to a given snap.
 // If any of the rules are changed or removed then udev database is reloaded.
 //
 // Since udev has no concept of a complain mode, developerMode is ignored.
 //
 // If the method fails it should be re-tried (with a sensible strategy) by the caller.
-func (b *Backend) Configure(snapInfo *snap.Info, developerMode bool, repo *interfaces.Repository) error {
+func (b *Backend) Setup(snapInfo *snap.Info, developerMode bool, repo *interfaces.Repository) error {
 	snippets, err := repo.SecuritySnippetsForSnap(snapInfo.Name(), interfaces.SecurityUDev)
 	if err != nil {
 		return fmt.Errorf("cannot obtain udev security snippets for snap %q: %s", snapInfo.Name(), err)
@@ -56,13 +56,13 @@ func (b *Backend) Configure(snapInfo *snap.Info, developerMode bool, repo *inter
 	return ensureDirState(dirs.SnapUdevRulesDir, glob, content, snapInfo)
 }
 
-// Deconfigure removes udev rules specific to a given snap.
+// Remove removes udev rules specific to a given snap.
 // If any of the rules are removed then udev database is reloaded.
 //
 // This method should be called after removing a snap.
 //
 // If the method fails it should be re-tried (with a sensible strategy) by the caller.
-func (b *Backend) Deconfigure(snapInfo *snap.Info) error {
+func (b *Backend) Remove(snapInfo *snap.Info) error {
 	glob := fmt.Sprintf("70-%s.rules", interfaces.SecurityTagGlob(snapInfo))
 	return ensureDirState(dirs.SnapUdevRulesDir, glob, nil, snapInfo)
 }
