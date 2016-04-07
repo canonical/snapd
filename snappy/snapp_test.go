@@ -110,7 +110,7 @@ func (s *SnapTestSuite) makeInstalledMockSnap(yamls ...string) (yamlFile string,
 		yaml = yamls[0]
 	}
 
-	return makeInstalledMockSnap(s.tempdir, yaml)
+	return makeInstalledMockSnap(yaml)
 }
 
 func makeSnapActive(snapYamlPath string) (err error) {
@@ -136,8 +136,8 @@ func (s *SnapTestSuite) TestLocalSnapSimple(c *C) {
 	c.Check(snap.Name(), Equals, "hello-snap")
 	c.Check(snap.Version(), Equals, "1.10")
 	c.Check(snap.IsActive(), Equals, false)
-	c.Check(snap.Info().Summary, Equals, "hello")
-	c.Check(snap.Info().Description, Equals, "Hello...")
+	c.Check(snap.Info().Summary(), Equals, "hello in summary")
+	c.Check(snap.Info().Description(), Equals, "Hello...")
 	c.Check(snap.IsInstalled(), Equals, true)
 
 	apps := snap.Apps()
@@ -248,7 +248,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 	results, err := snapUpdates(repo)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].Name, Equals, funkyAppName)
+	c.Assert(results[0].Name(), Equals, funkyAppName)
 	c.Assert(results[0].Revision, Equals, 3)
 	c.Assert(results[0].Version, Equals, "42")
 }
@@ -270,7 +270,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdatesNoSnaps(c *C) {
 }
 
 func (s *SnapTestSuite) TestMakeConfigEnv(c *C) {
-	yamlFile, err := makeInstalledMockSnap(s.tempdir, "")
+	yamlFile, err := makeInstalledMockSnap("")
 	c.Assert(err, IsNil)
 	snap, err := NewInstalledSnap(yamlFile)
 	c.Assert(err, IsNil)
@@ -308,9 +308,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 	defer mockServer.Close()
 
 	r := &snap.Info{}
-	r.Name = "foo"
+	r.OfficialName = "foo"
 	r.Developer = "bar"
-	r.Description = "this is a description"
+	r.EditedDescription = "this is a description"
 	r.Version = "1.0"
 	r.AnonDownloadURL = mockServer.URL + "/snap"
 	r.DownloadURL = mockServer.URL + "/snap"
@@ -330,7 +330,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 	c.Assert(installed, HasLen, 1)
 
 	c.Check(installed[0].Developer(), Equals, "bar")
-	c.Check(installed[0].Info().Description, Equals, "this is a description")
+	c.Check(installed[0].Info().Description(), Equals, "this is a description")
 
 	_, err = os.Stat(filepath.Join(dirs.SnapMetaDir, "foo_1.0.manifest"))
 	c.Check(err, IsNil)
@@ -363,7 +363,7 @@ apps:
 	defer mockServer.Close()
 
 	r := &snap.Info{}
-	r.Name = "foo"
+	r.OfficialName = "foo"
 	r.Developer = "bar"
 	r.Version = "1.0"
 	r.Developer = testDeveloper
@@ -422,7 +422,7 @@ apps:
    description: "Service #2"
 `
 
-	yamlFile, err := makeInstalledMockSnap(s.tempdir, packageHello)
+	yamlFile, err := makeInstalledMockSnap(packageHello)
 	c.Assert(err, IsNil)
 
 	snap, err := NewInstalledSnap(yamlFile)
@@ -528,7 +528,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryGadgetStoreId(c *C) {
 	defer mockServer.Close()
 
 	// install custom gadget snap with store-id
-	snapYamlFn, err := makeInstalledMockSnap(s.tempdir, `name: gadget-test
+	snapYamlFn, err := makeInstalledMockSnap(`name: gadget-test
 version: 1.0
 gadget:
   store:
@@ -549,7 +549,7 @@ type: gadget
 
 func (s *SnapTestSuite) TestUninstallBuiltIn(c *C) {
 	// install custom gadget snap with store-id
-	gadgetYaml, err := makeInstalledMockSnap(s.tempdir, `name: gadget-test
+	gadgetYaml, err := makeInstalledMockSnap(`name: gadget-test
 version: 1.0
 gadget:
   store:
@@ -562,7 +562,7 @@ type: gadget
 	c.Assert(err, IsNil)
 	makeSnapActive(gadgetYaml)
 
-	snapYamlFn, err := makeInstalledMockSnap(s.tempdir, "")
+	snapYamlFn, err := makeInstalledMockSnap("")
 	c.Assert(err, IsNil)
 	makeSnapActive(snapYamlFn)
 

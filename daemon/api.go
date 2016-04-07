@@ -311,7 +311,7 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		sources = append(sources, "store")
 
 		for _, snap := range found {
-			remoteSnapMap[snap.Name] = snap
+			remoteSnapMap[snap.Name()] = snap
 		}
 	}
 
@@ -340,7 +340,7 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		m := mapSnap(nil, remoteSnap)
 
 		resource := "no resource URL for this resource"
-		url, err := route.URL("name", remoteSnap.Name)
+		url, err := route.URL("name", remoteSnap.Name())
 		if err == nil {
 			resource = url.String()
 		}
@@ -744,7 +744,7 @@ func (inst *snapInstruction) activate() interface{} {
 	state.Lock()
 	msg := fmt.Sprintf(i18n.G("Activate %q snap"), inst.pkg)
 	chg := state.NewChange("activate-snap", msg)
-	ts, err := snapstate.Activate(state, inst.pkg, true)
+	ts, err := snapstate.Activate(state, inst.pkg)
 	if err == nil {
 		chg.AddAll(ts)
 	}
@@ -762,7 +762,7 @@ func (inst *snapInstruction) deactivate() interface{} {
 	state.Lock()
 	msg := fmt.Sprintf(i18n.G("Deactivate %q snap"), inst.pkg)
 	chg := state.NewChange("deactivate-snap", msg)
-	ts, err := snapstate.Activate(state, inst.pkg, false)
+	ts, err := snapstate.Deactivate(state, inst.pkg)
 	if err == nil {
 		chg.AddAll(ts)
 	}

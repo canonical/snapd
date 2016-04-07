@@ -152,7 +152,7 @@ func showUpdatesList(installed []*snappy.Snap, updates []*snap.Info, o io.Writer
 		ver := installed.Version()
 		date := installed.Date()
 		for _, update := range updates {
-			if update.Name == installed.Name() {
+			if update.Name() == installed.Name() {
 				hasUpdate = "*"
 				ver = update.Version
 				break

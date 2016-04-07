@@ -102,7 +102,7 @@ firmware: lib/firmware
 }
 
 func (s *undoTestSuite) TestUndoForCopyData(c *C) {
-	v1, err := makeInstalledMockSnap(dirs.SnapSnapsDir, `name: hello
+	v1, err := makeInstalledMockSnap(`name: hello
 version: 1.0`)
 	c.Assert(err, IsNil)
 	makeSnapActive(v1)
@@ -115,7 +115,7 @@ version: 1.0`)
 	c.Assert(err, IsNil)
 
 	// pretend we install a new version
-	v2, err := makeInstalledMockSnap(dirs.SnapSnapsDir, `name: hello
+	v2, err := makeInstalledMockSnap(`name: hello
 version: 2.0`)
 	c.Assert(err, IsNil)
 
@@ -138,7 +138,7 @@ func (s *undoTestSuite) TestUndoForSecurityPolicy(c *C) {
 	makeMockSecurityEnv(c)
 	runAppArmorParser = mockRunAppArmorParser
 
-	yaml, err := makeInstalledMockSnap(dirs.SnapSnapsDir, `name: hello
+	yaml, err := makeInstalledMockSnap(`name: hello
 version: 1.0
 apps:
  binary:
@@ -156,7 +156,7 @@ plugs:
 	sn, err := NewInstalledSnap(yaml)
 	c.Assert(err, IsNil)
 
-	err = GenerateSecurityProfile(sn)
+	err = SetupSnapSecurity(sn)
 	c.Assert(err, IsNil)
 	l, _ := filepath.Glob(filepath.Join(dirs.SnapAppArmorDir, "*"))
 	c.Assert(l, HasLen, 1)
@@ -165,7 +165,7 @@ plugs:
 
 	// the undo of GeneratedSecurityProfile is
 	// RemoveGenerateSecurityProfile
-	RemoveGeneratedSecurityProfile(sn)
+	RemoveGeneratedSnapSecurity(sn)
 	l, _ = filepath.Glob(filepath.Join(dirs.SnapAppArmorDir, "*"))
 	c.Assert(l, HasLen, 0)
 	l, _ = filepath.Glob(filepath.Join(dirs.SnapSeccompDir, "*"))
@@ -176,7 +176,7 @@ func (s *undoTestSuite) TestUndoForGenerateWrappers(c *C) {
 	makeMockSecurityEnv(c)
 	runAppArmorParser = mockRunAppArmorParser
 
-	yaml, err := makeInstalledMockSnap(dirs.SnapSnapsDir, `name: hello
+	yaml, err := makeInstalledMockSnap(`name: hello
 version: 1.0
 apps:
  bin:
@@ -211,13 +211,13 @@ apps:
 }
 
 func (s *undoTestSuite) TestUndoForUpdateCurrentSymlink(c *C) {
-	v1yaml, err := makeInstalledMockSnap(dirs.SnapSnapsDir, `name: hello
+	v1yaml, err := makeInstalledMockSnap(`name: hello
 version: 1.0
 `)
 	c.Assert(err, IsNil)
 	makeSnapActive(v1yaml)
 
-	v2yaml, err := makeInstalledMockSnap(dirs.SnapSnapsDir, `name: hello
+	v2yaml, err := makeInstalledMockSnap(`name: hello
 version: 2.0
 `)
 	c.Assert(err, IsNil)
