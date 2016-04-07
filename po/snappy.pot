@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-04-05 16:21+0200\n"
+        "POT-Creation-Date: 2016-04-07 12:23+0200\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -134,6 +134,10 @@ msgid   "Deactivate a package. If the package is already deactivated, do nothing
 msgstr  ""
 
 msgid   "Deactivate an installed active snap"
+msgstr  ""
+
+#, c-format
+msgid   "Deactivating %q"
 msgstr  ""
 
 msgid   "Destroy the classic dimension."
@@ -316,13 +320,21 @@ msgstr  ""
 msgid   "Remove hardware from a specific installed package"
 msgstr  ""
 
-#, c-format
-msgid   "Removing %q"
-msgstr  ""
-
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid   "Removing %s\n"
+msgstr  ""
+
+#, c-format
+msgid   "Removing data for %q"
+msgstr  ""
+
+#, c-format
+msgid   "Removing files for %q"
+msgstr  ""
+
+#, c-format
+msgid   "Removing security profile for %q"
 msgstr  ""
 
 #, c-format

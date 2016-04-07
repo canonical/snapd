@@ -19,14 +19,29 @@
 
 package snapstate
 
-type ManagerBackend managerBackend
+import (
+	. "gopkg.in/check.v1"
+)
 
-func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
-	s.backend = b
+type snapstateTestSuite struct{}
+
+var _ = Suite(&snapstateTestSuite{})
+
+func (s *snapstateTestSuite) TestParseSnapSec(c *C) {
+	for _, t := range []struct {
+		snapSpec string
+		name     string
+		version  string
+	}{
+		{"foo", "foo", ""},
+		{"foo=2.0", "foo", "2.0"},
+		{"foo.mvo", "foo.mvo", ""},
+		{"foo.mvo=2.0", "foo.mvo", "2.0"},
+	} {
+
+		name, ver := parseSnapSpec(t.snapSpec)
+		c.Assert(name, Equals, t.name)
+		c.Assert(ver, Equals, t.version)
+	}
+
 }
-
-func SetSnapstateBackend(b ManagerBackend) {
-	backend = b
-}
-
-type SnapSetup snapSetup
