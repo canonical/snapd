@@ -38,7 +38,6 @@ type managerBackend interface {
 	LinkSnap(instSnapPath string) error
 	// the undoers for install
 	UndoSetupSnap(snapFilePath string) error
-	UndoSetupSnapSecurity(instSnapPath string) error
 	UndoCopySnapData(instSnapPath string, flags int) error
 	UndoLinkSnap(oldInstSnapPath, instSnapPath string) error
 
@@ -151,14 +150,6 @@ func (s *defaultBackend) UndoSetupSnap(snapFilePath string) error {
 	return nil
 }
 
-func (s *defaultBackend) UndoSetupSnapSecurity(instSnapPath string) error {
-	sn, err := snappy.NewInstalledSnap(filepath.Join(instSnapPath, "meta", "snap.yaml"))
-	if err != nil {
-		return err
-	}
-	snappy.RemoveGeneratedSnapSecurity(sn)
-	return nil
-}
 func (s *defaultBackend) UndoCopySnapData(instSnapPath string, flags int) error {
 	sn, err := snappy.NewInstalledSnap(filepath.Join(instSnapPath, "meta", "snap.yaml"))
 	if err != nil {

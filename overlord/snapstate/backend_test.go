@@ -143,14 +143,6 @@ func (f *fakeSnappyBackend) UndoSetupSnap(snapFilePath string) error {
 	return nil
 }
 
-func (f *fakeSnappyBackend) UndoSetupSnapSecurity(instSnapPath string) error {
-	f.ops = append(f.ops, fakeOp{
-		op:   "undo-setup-snap-security",
-		name: instSnapPath,
-	})
-	return nil
-}
-
 func (f *fakeSnappyBackend) UndoCopySnapData(instSnapPath string, flags int) error {
 	f.ops = append(f.ops, fakeOp{
 		op:   "undo-copy-snap-data",

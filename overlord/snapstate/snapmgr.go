@@ -84,7 +84,7 @@ func Manager(s *state.State) (*SnapManager, error) {
 	runner.AddHandler("download-snap", m.doDownloadSnap, nil)
 	runner.AddHandler("mount-snap", m.doMountSnap, m.undoMountSnap)
 	runner.AddHandler("copy-snap-data", m.doCopySnapData, m.undoCopySnapData)
-	runner.AddHandler("setup-snap-security", m.doSetupSnapSecurity, m.undoSetupSnapSecurity)
+	runner.AddHandler("setup-snap-security", m.doSetupSnapSecurity, m.doRemoveSnapSecurity)
 	runner.AddHandler("link-snap", m.doLinkSnap, m.undoLinkSnap)
 
 	// remove releated
@@ -307,15 +307,6 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	return m.backend.SetupSnap(ss.SnapPath, ss.SetupFlags)
-}
-
-func (m *SnapManager) undoSetupSnapSecurity(t *state.Task, _ *tomb.Tomb) error {
-	var ss snapSetup
-	if err := getSnapSetup(t, &ss); err != nil {
-		return err
-	}
-
-	return m.backend.UndoSetupSnapSecurity(ss.BaseDir())
 }
 
 func (m *SnapManager) doSetupSnapSecurity(t *state.Task, _ *tomb.Tomb) error {
