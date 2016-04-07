@@ -20,9 +20,6 @@
 package snappy
 
 import (
-	"path/filepath"
-
-	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/snap"
 )
 
@@ -30,8 +27,6 @@ import (
 type SnapFile struct {
 	m   *snapYaml
 	deb snap.File
-
-	instdir string
 }
 
 // NewSnapFile loads a snap from the given snapFile
@@ -54,24 +49,10 @@ func NewSnapFile(snapFile string, unsignedOk bool) (*SnapFile, error) {
 		return nil, err
 	}
 
-	targetDir := dirs.SnapSnapsDir
-	instDir := filepath.Join(targetDir, m.Name, m.Version)
-
 	return &SnapFile{
-		instdir: instDir,
-		m:       m,
-		deb:     d,
+		m:   m,
+		deb: d,
 	}, nil
-}
-
-// Type returns the type of the Snap (app, gadget, ...)
-func (s *SnapFile) Type() snap.Type {
-	if s.m.Type != "" {
-		return s.m.Type
-	}
-
-	// if not declared its a app
-	return "app"
 }
 
 // Info returns the snap.Info data.
@@ -80,14 +61,4 @@ func (s *SnapFile) Info() *snap.Info {
 		return info
 	}
 	return nil
-}
-
-// Name returns the name
-func (s *SnapFile) Name() string {
-	return s.m.Name
-}
-
-// Version returns the version
-func (s *SnapFile) Version() string {
-	return s.m.Version
 }

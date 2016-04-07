@@ -177,16 +177,13 @@ func (s *SquashfsTestSuite) TestRemoveSquashfsMountUnit(c *C) {
 
 func (s *SquashfsTestSuite) TestRemoveViaSquashfsWorks(c *C) {
 	snapFile := makeTestSnapPackage(c, packageHello)
-	_, err := (&Overlord{}).Install(snapFile, 0, &MockProgressMeter{})
+	installedSnap, err := (&Overlord{}).Install(snapFile, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 
 	// after install the blob is in the right dir
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-snap_1.10.snap")), Equals, true)
 
 	// now remove and ensure its gone
-	snap, err := NewSnapFile(snapFile, true)
-	c.Assert(err, IsNil)
-	installedSnap, err := newSnapFromYaml(filepath.Join(snap.instdir, "meta", "package.yaml"), snap.m)
 	err = (&Overlord{}).Uninstall(installedSnap, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-snap_1.10.snap")), Equals, false)
@@ -267,16 +264,12 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapRemovesKernelAssets(c *C) {
 		{"initrd.img-4.2", "...and I'm an initrd"},
 	}
 	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
-	_, err := (&Overlord{}).Install(snapPkg, 0, &MockProgressMeter{})
+	installedSnap, err := (&Overlord{}).Install(snapPkg, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	kernelAssetsDir := filepath.Join(s.bootloader.Dir(), "ubuntu-kernel_4.0-1.snap")
 	c.Assert(osutil.FileExists(kernelAssetsDir), Equals, true)
 
 	// ensure uninstall cleans the kernel assets
-	snap, err := NewSnapFile(snapPkg, true)
-	c.Assert(err, IsNil)
-	installedSnap, err := newSnapFromYaml(filepath.Join(snap.instdir, "meta", "package.yaml"), snap.m)
-	installedSnap.isActive = false
 	err = (&Overlord{}).Uninstall(installedSnap, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	c.Assert(osutil.FileExists(kernelAssetsDir), Equals, false)
