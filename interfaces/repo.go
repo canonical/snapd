@@ -627,12 +627,10 @@ func (r *Repository) RemoveSnap(snapInfo *snap.Info) error {
 	}
 
 	for _, plug := range r.plugs[snapName] {
-		// delete(r.plugs[snapInfo.Name], plugName)
 		delete(r.plugSlots, plug)
 	}
 	delete(r.plugs, snapName)
 	for _, slot := range r.slots[snapName] {
-		//delete(r.slots[snapInfo.Name], slotName)
 		delete(r.slotPlugs, slot)
 	}
 	delete(r.slots, snapName)
