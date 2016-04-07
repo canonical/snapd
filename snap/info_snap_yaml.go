@@ -110,7 +110,7 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 		Plugs:               make(map[string]*PlugInfo),
 		Slots:               make(map[string]*SlotInfo),
 
-		// XXX: test this a bit here
+		// just expose the parsed legacy yaml bits
 		Legacy: &y.Legacy,
 	}
 	// Collect top-level definitions of plugs
