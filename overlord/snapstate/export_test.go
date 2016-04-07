@@ -24,3 +24,5 @@ type ManagerBackend managerBackend
 func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
 	s.backend = b
 }
+
+type SnapSetup snapSetup

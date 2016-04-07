@@ -310,7 +310,7 @@ func ActivateSnap(s *Snap, inter interacter) error {
 	// generate the security policy from the snap.yaml
 	// Note that this must happen before binaries/services are
 	// generated because serices may get started
-	if err := GenerateSecurityProfile(s); err != nil {
+	if err := SetupSnapSecurity(s); err != nil {
 		return err
 	}
 
@@ -342,7 +342,7 @@ func DeactivateSnap(s *Snap, inter interacter) error {
 	err1 := RemoveGeneratedWrappers(s, inter)
 
 	// remove generated security
-	err2 := RemoveGeneratedSecurityProfile(s)
+	err2 := RemoveGeneratedSnapSecurity(s)
 
 	// and finally remove current symlink
 	err3 := removeCurrentSymlink(s, inter)
@@ -469,7 +469,7 @@ func (o *Overlord) Uninstall(s *Snap, meter progress.Meter) error {
 		return err
 	}
 
-	if err := RemoveGeneratedSecurityProfile(s); err != nil {
+	if err := RemoveGeneratedSnapSecurity(s); err != nil {
 		return err
 	}
 
