@@ -38,13 +38,12 @@ const (
 	SideloadedDeveloper = "sideload"
 )
 
-// SystemConfig is a config map holding configs for multiple packages
-type SystemConfig map[string]interface{}
-
+/*
 // Configuration allows requesting a gadget snappy package type's config
 type Configuration interface {
 	GadgetConfig() SystemConfig
 }
+*/
 
 // BareName of a snap.Info is just its Name
 func BareName(p *snap.Info) string {
