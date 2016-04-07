@@ -35,7 +35,6 @@ import (
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap"
-	//"github.com/ubuntu-core/snappy/snap/legacygadget"
 	"github.com/ubuntu-core/snappy/snap/squashfs"
 	"github.com/ubuntu-core/snappy/systemd"
 	"github.com/ubuntu-core/snappy/timeout"
@@ -92,18 +91,6 @@ type snapYaml struct {
 
 	// Plugs maps the used "interfaces" to the apps
 	Plugs map[string]*plugYaml `yaml:"plugs,omitempty"`
-
-	// FIXME: clarify those
-
-	// gadget snap only
-	//Gadget legacygadget.Gadget       `yaml:"gadget,omitempty"`
-	//Config legacygadget.SystemConfig `yaml:"config,omitempty"`
-
-	// FIXME: move into a special kernel struct
-	// XXX: xxx
-	//Kernel string `yaml:"kernel,omitempty"`
-	//Initrd string `yaml:"initrd,omitempty"`
-	//Dtbs   string `yaml:"dtbs,omitempty"`
 }
 
 func parseSnapYamlFile(yamlPath string) (*snapYaml, error) {
