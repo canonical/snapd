@@ -45,19 +45,19 @@ func CheckSnap(snapFilePath string, flags InstallFlags, meter progress.Meter) er
 	// NewSnapFile() to ensure that we do not mount/inspect
 	// potentially dangerous snaps
 
-	// warning: NewSnapFile generates a new sideloaded version
-	//          everytime it is run.
-	//          so all paths on disk are different even if the same snap
-	s, err := NewSnapFile(snapFilePath, allowUnauth)
+	sf, err := NewSnapFile(snapFilePath, allowUnauth)
 	if err != nil {
 		return err
 	}
+
+	s := sf.Info()
+	blobf := sf.deb
 
 	// we do not security Verify() (check hashes) the package here.
 	// This is done earlier in
 	// NewSnapFile() to ensure that we do not mount/inspect
 	// potentially dangerous snaps
-	return canInstall(s, allowGadget, meter)
+	return canInstall(s, blobf, allowGadget, meter)
 }
 
 // SetupSnap does prepare and mount the snap for further processing
@@ -134,8 +134,9 @@ func UndoSetupSnap(installDir string, meter progress.Meter) {
 	//        and can only be used during install right now
 }
 
-func currentSnap(newSnap *Snap) *Snap {
-	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(newSnap.basedir, "..", "current"))
+// XXX: really should go from Info to Info
+func currentSnap(newSnap *snap.Info) *Snap {
+	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(newSnap.BaseDir(), "..", "current"))
 	if currentActiveDir == "" {
 		return nil
 	}
@@ -157,7 +158,7 @@ func CopyData(newSnap *Snap, flags InstallFlags, meter progress.Meter) error {
 	// started then copy the data
 	//
 	// otherwise just create a empty data dir
-	oldSnap := currentSnap(newSnap)
+	oldSnap := currentSnap(newSnap.Info())
 	if oldSnap == nil {
 		return os.MkdirAll(dataDir, 0755)
 	}
@@ -173,7 +174,7 @@ func CopyData(newSnap *Snap, flags InstallFlags, meter progress.Meter) error {
 
 func UndoCopyData(newSnap *Snap, flags InstallFlags, meter progress.Meter) {
 	// XXX we were copying data, assume InhibitHooks was false
-	oldSnap := currentSnap(newSnap)
+	oldSnap := currentSnap(newSnap.Info())
 	if oldSnap != nil {
 		// reactivate the previously inactivated snap
 		if err := ActivateSnap(oldSnap, meter); err != nil {
@@ -389,7 +390,7 @@ func (o *Overlord) Install(snapFilePath string, flags InstallFlags, meter progre
 	}
 
 	// we need this for later
-	oldSnap := currentSnap(newSnap)
+	oldSnap := currentSnap(newSnap.Info())
 
 	// deal with the data
 	err = CopyData(newSnap, flags, meter)
@@ -425,13 +426,13 @@ func (o *Overlord) Install(snapFilePath string, flags InstallFlags, meter progre
 }
 
 // CanInstall checks whether the Snap passes a series of tests required for installation
-func canInstall(s *SnapFile, allowGadget bool, inter interacter) error {
+func canInstall(s *snap.Info, blobf snap.File, allowGadget bool, inter interacter) error {
 	// verify we have a valid architecture
-	if !arch.IsSupportedArchitecture(s.m.Architectures) {
-		return &ErrArchitectureNotSupported{s.m.Architectures}
+	if !arch.IsSupportedArchitecture(s.Architectures) {
+		return &ErrArchitectureNotSupported{s.Architectures}
 	}
 
-	if s.Type() == snap.TypeGadget {
+	if s.Type == snap.TypeGadget {
 		if !allowGadget {
 			if currentGadget, err := getGadget(); err == nil {
 				if currentGadget.Name() != s.Name() {
@@ -444,8 +445,14 @@ func canInstall(s *SnapFile, allowGadget bool, inter interacter) error {
 		}
 	}
 
-	curr, _ := filepath.EvalSymlinks(filepath.Join(s.instdir, "..", "current"))
-	if err := checkLicenseAgreement(s.m, inter, s.deb, curr); err != nil {
+	// XXX: can be cleaner later
+	currSnap := currentSnap(s)
+	var curr *snap.Info
+	if currSnap != nil {
+		curr = currSnap.Info()
+	}
+
+	if err := checkLicenseAgreement(s, blobf, curr, inter); err != nil {
 		return err
 	}
 
