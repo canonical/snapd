@@ -66,7 +66,7 @@ func removeKernelAssets(s *snap.Info, inter interacter) error {
 // extractKernelAssets extracts kernel/initrd/dtb data from the given
 // Snap to a versionized bootloader directory so that the bootloader
 // can use it.
-func extractKernelAssets(s *snap.Info, blobf snap.File, flags InstallFlags, inter progress.Meter) error {
+func extractKernelAssets(s *snap.Info, snapf snap.File, flags InstallFlags, inter progress.Meter) error {
 	if s.Type != snap.TypeKernel {
 		return fmt.Errorf("can not extract kernel assets from snap type %q", s.Type)
 	}
@@ -100,7 +100,7 @@ func extractKernelAssets(s *snap.Info, blobf snap.File, flags InstallFlags, inte
 		if src == "" {
 			continue
 		}
-		if err := blobf.Unpack(src, dstDir); err != nil {
+		if err := snapf.Unpack(src, dstDir); err != nil {
 			return err
 		}
 		src = filepath.Join(dstDir, src)
@@ -115,7 +115,7 @@ func extractKernelAssets(s *snap.Info, blobf snap.File, flags InstallFlags, inte
 	if s.Legacy.Dtbs != "" {
 		src := filepath.Join(s.Legacy.Dtbs, "*")
 		dst := dstDir
-		if err := blobf.Unpack(src, dst); err != nil {
+		if err := snapf.Unpack(src, dst); err != nil {
 			return err
 		}
 	}
