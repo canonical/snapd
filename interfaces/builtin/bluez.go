@@ -160,7 +160,9 @@ socket
 var bluezPermanentPlugDBus = []byte(`
 <policy user="root">
     <allow own="org.bluez"/>
+    <allow own="org.bluez.obex"/>
     <allow send_destination="org.bluez"/>
+    <allow send_destination="org.bluez.obex"/>
     <allow send_interface="org.bluez.Agent1"/>
     <allow send_interface="org.bluez.ThermometerWatcher1"/>
     <allow send_interface="org.bluez.AlertAgent1"/>
