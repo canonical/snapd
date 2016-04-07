@@ -151,6 +151,6 @@ func (s *TestInterfaceSuite) TestSlotSnippet(c *C) {
 
 func (s *TestInterfaceSuite) TestAutoConnect(c *C) {
 	c.Assert(s.iface.AutoConnect(), Equals, false)
-	iface := &TestInterface{AutoConnectCallback: func() bool { return true }}
+	iface := &TestInterface{AutoConnectFlag: true}
 	c.Assert(iface.AutoConnect(), Equals, true)
 }
