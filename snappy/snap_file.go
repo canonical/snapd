@@ -25,10 +25,10 @@ import (
 
 // openSnapBlob opens a snap blob returning both a snap.Info completed
 // with sideInfo (if not nil) and a corresponding snap.File.
-func openSnapFile(snapFile string, unsignedOk bool, sideInfo *snap.SideInfo) (*snap.Info, snap.File, error) {
+func openSnapFile(snapPath string, unsignedOk bool, sideInfo *snap.SideInfo) (*snap.Info, snap.File, error) {
 	// TODO: what precautions to take if unsignedOk == false ?
 
-	snapf, err := snap.Open(snapFile)
+	snapf, err := snap.Open(snapPath)
 	if err != nil {
 		return nil, nil, err
 	}

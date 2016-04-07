@@ -163,19 +163,19 @@ connect
 
 // makeTestSnapPackage creates a real snap package that can be installed on
 // disk using snapYamlContent as its meta/snap.yaml
-func makeTestSnapPackage(c *C, snapYamlContent string) (snapFile string) {
+func makeTestSnapPackage(c *C, snapYamlContent string) (snapPath string) {
 	return makeTestSnapPackageFull(c, snapYamlContent, true)
 }
 
-func makeTestSnapPackageWithFiles(c *C, snapYamlContent string, files [][]string) (snapFile string) {
+func makeTestSnapPackageWithFiles(c *C, snapYamlContent string, files [][]string) (snapPath string) {
 	return makeTestSnapPackageFullWithFiles(c, snapYamlContent, true, files)
 }
 
-func makeTestSnapPackageFull(c *C, snapYamlContent string, makeLicense bool) (snapFile string) {
+func makeTestSnapPackageFull(c *C, snapYamlContent string, makeLicense bool) (snapPath string) {
 	return makeTestSnapPackageFullWithFiles(c, snapYamlContent, makeLicense, [][]string{})
 }
 
-func makeTestSnapPackageFullWithFiles(c *C, snapYamlContent string, makeLicense bool, files [][]string) (snapFile string) {
+func makeTestSnapPackageFullWithFiles(c *C, snapYamlContent string, makeLicense bool, files [][]string) (snapPath string) {
 	tmpdir := c.MkDir()
 	// content
 	os.MkdirAll(filepath.Join(tmpdir, "bin"), 0755)
@@ -212,12 +212,12 @@ version: 1.0
 	// build it
 	err := osutil.ChDir(tmpdir, func() error {
 		var err error
-		snapFile, err = snapBuilderFunc(tmpdir, "")
+		snapPath, err = snapBuilderFunc(tmpdir, "")
 		c.Assert(err, IsNil)
 		return err
 	})
 	c.Assert(err, IsNil)
-	return filepath.Join(tmpdir, snapFile)
+	return filepath.Join(tmpdir, snapPath)
 }
 
 // makeTwoTestSnaps creates two real snaps of snap.Type of name
@@ -236,13 +236,13 @@ func makeTwoTestSnaps(c *C, snapType snap.Type, extra ...string) {
 		snapYamlContent += fmt.Sprintf("type: %s\n", snapType)
 	}
 
-	snapFile := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
-	_, err := (&Overlord{}).Install(snapFile, AllowUnauthenticated|AllowGadget, inter)
+	snapPath := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
+	_, err := (&Overlord{}).Install(snapPath, AllowUnauthenticated|AllowGadget, inter)
 	c.Assert(err, IsNil)
 	c.Assert(storeMinimalRemoteManifest("foo", testDeveloper, "1.0", "", "", "remote-channel"), IsNil)
 
-	snapFile = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
-	_, err = (&Overlord{}).Install(snapFile, AllowUnauthenticated|AllowGadget, inter)
+	snapPath = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
+	_, err = (&Overlord{}).Install(snapPath, AllowUnauthenticated|AllowGadget, inter)
 	c.Assert(err, IsNil)
 	c.Assert(storeMinimalRemoteManifest("foo", testDeveloper, "2.0", "", "", "remote-channel"), IsNil)
 
