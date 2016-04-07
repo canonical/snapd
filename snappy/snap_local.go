@@ -42,8 +42,6 @@ type Snap struct {
 
 	hash     string
 	isActive bool
-
-	basedir string
 }
 
 // NewInstalledSnap returns a new Snap from the given yamlPath
@@ -63,19 +61,20 @@ func NewInstalledSnap(yamlPath string) (*Snap, error) {
 
 // newSnapFromYaml returns a new Snap from the given *snapYaml at yamlPath
 func newSnapFromYaml(yamlPath string, m *snapYaml) (*Snap, error) {
+	mountDir := filepath.Dir(filepath.Dir(yamlPath))
+
 	s := &Snap{
-		basedir: filepath.Dir(filepath.Dir(yamlPath)),
-		m:       m,
+		m: m,
 	}
 
 	// check if the snap is active
-	allVersionsDir := filepath.Dir(s.basedir)
+	allVersionsDir := filepath.Dir(mountDir)
 	p, err := filepath.EvalSymlinks(filepath.Join(allVersionsDir, "current"))
 	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
 
-	if p == s.basedir {
+	if p == mountDir {
 		s.isActive = true
 	}
 
@@ -127,7 +126,7 @@ func newSnapFromYaml(yamlPath string, m *snapYaml) (*Snap, error) {
 	// override the package's idea of its version
 	// because that could have been rewritten on sideload
 	// and developer is empty sideloaded ones.
-	m.Version = filepath.Base(s.basedir)
+	m.Version = filepath.Base(mountDir)
 	info.Version = m.Version
 
 	return s, nil
@@ -172,7 +171,7 @@ func (s *Snap) Channel() string {
 
 // Icon returns the path to the icon
 func (s *Snap) Icon() string {
-	found, _ := filepath.Glob(filepath.Join(s.basedir, "meta", "gui", "icon.*"))
+	found, _ := filepath.Glob(filepath.Join(s.info.MountDir(), "meta", "gui", "icon.*"))
 	if len(found) == 0 {
 		return ""
 	}
@@ -198,7 +197,7 @@ func (s *Snap) InstalledSize() int64 {
 		totalSize += info.Size()
 		return err
 	}
-	filepath.Walk(s.basedir, f)
+	filepath.Walk(s.info.MountDir(), f)
 	return totalSize
 }
 
@@ -214,7 +213,7 @@ func (s *Snap) DownloadSize() int64 {
 
 // Date returns the last update date
 func (s *Snap) Date() time.Time {
-	st, err := os.Stat(s.basedir)
+	st, err := os.Stat(s.info.MountDir())
 	if err != nil {
 		return time.Time{}
 	}

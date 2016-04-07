@@ -144,12 +144,13 @@ func (s *SnapTestSuite) TestLocalSnapSimple(c *C) {
 	c.Assert(apps, HasLen, 2)
 	c.Assert(apps["svc1"].Name, Equals, "svc1")
 
+	mountDir := snap.Info().MountDir()
 	// ensure we get valid Date()
-	st, err := os.Stat(snap.basedir)
+	st, err := os.Stat(mountDir)
 	c.Assert(err, IsNil)
 	c.Assert(snap.Date(), Equals, st.ModTime())
 
-	c.Assert(snap.basedir, Equals, filepath.Join(s.tempdir, "snaps", helloSnapComposedName, "1.10"))
+	c.Assert(mountDir, Equals, filepath.Join(s.tempdir, "snaps", helloSnapComposedName, "1.10"))
 	c.Assert(snap.InstalledSize(), Not(Equals), -1)
 }
 
@@ -442,14 +443,6 @@ apps:
 
 	c.Assert(apps["svc2"].Name, Equals, "svc2")
 	c.Assert(apps["svc2"].Description, Equals, "Service #2")
-
-	// ensure we get valid Date()
-	st, err := os.Stat(snap.basedir)
-	c.Assert(err, IsNil)
-	c.Assert(snap.Date(), Equals, st.ModTime())
-
-	c.Assert(snap.basedir, Equals, filepath.Join(s.tempdir, "snaps", helloSnapComposedName, "1.10"))
-	c.Assert(snap.InstalledSize(), Not(Equals), -1)
 }
 
 func (s *SnapTestSuite) TestSnapYamlMultipleArchitecturesParsing(c *C) {
@@ -849,12 +842,13 @@ func (s *SnapTestSuite) TestIcon(c *C) {
 	snapYaml, err := s.makeInstalledMockSnap()
 	snap, err := NewInstalledSnap(snapYaml)
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Join(snap.basedir, "meta", "gui"), 0755)
+	mountDir := snap.Info().MountDir()
+	err = os.MkdirAll(filepath.Join(mountDir, "meta", "gui"), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(snap.basedir, "meta", "gui", "icon.png"), nil, 0644)
+	err = ioutil.WriteFile(filepath.Join(mountDir, "meta", "gui", "icon.png"), nil, 0644)
 	c.Assert(err, IsNil)
 
-	c.Check(snap.Icon(), Matches, filepath.Join(dirs.SnapSnapsDir, snap.Name(), snap.Version(), "meta/gui/icon.png"))
+	c.Check(snap.Icon(), Matches, filepath.Join(mountDir, "meta/gui/icon.png"))
 }
 
 func (s *SnapTestSuite) TestIconEmpty(c *C) {
