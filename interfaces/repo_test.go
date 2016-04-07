@@ -26,6 +26,7 @@ import (
 
 	. "github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/testutil"
 )
 
 type RepositorySuite struct {
@@ -981,4 +982,82 @@ func (s *AddRemoveSuite) TestRemoveSnapErrorsOnStillConnectedSlot(c *C) {
 	c.Assert(err, IsNil)
 	err = s.repo.RemoveSnap(producer)
 	c.Assert(err, ErrorMatches, "cannot remove connected slot producer.iface")
+}
+
+type DisconnectSnapSuite struct {
+	repo   *Repository
+	s1, s2 *snap.Info
+}
+
+var _ = Suite(&DisconnectSnapSuite{})
+
+func (s *DisconnectSnapSuite) SetUpTest(c *C) {
+	s.repo = NewRepository()
+
+	err := s.repo.AddInterface(&TestInterface{InterfaceName: "iface-a"})
+	c.Assert(err, IsNil)
+	err = s.repo.AddInterface(&TestInterface{InterfaceName: "iface-b"})
+	c.Assert(err, IsNil)
+
+	s.s1, err = snap.InfoFromSnapYaml([]byte(`
+name: s1
+plugs:
+    iface-a:
+slots:
+    iface-b:
+`))
+	c.Assert(err, IsNil)
+	err = s.repo.AddSnap(s.s1)
+	c.Assert(err, IsNil)
+
+	s.s2, err = snap.InfoFromSnapYaml([]byte(`
+name: s2
+plugs:
+    iface-b:
+slots:
+    iface-a:
+`))
+	c.Assert(err, IsNil)
+	err = s.repo.AddSnap(s.s2)
+	c.Assert(err, IsNil)
+}
+
+func (s *DisconnectSnapSuite) TestNotConnected(c *C) {
+	affected, err := s.repo.DisconnectSnap("s1")
+	c.Assert(err, IsNil)
+	c.Check(affected, HasLen, 0)
+}
+
+func (s *DisconnectSnapSuite) TestOutgoingConnection(c *C) {
+	err := s.repo.Connect("s1", "iface-a", "s2", "iface-a")
+	c.Assert(err, IsNil)
+	// Disconnect s1 with which has an outgoing connection to s2
+	affected, err := s.repo.DisconnectSnap("s1")
+	c.Assert(err, IsNil)
+	c.Check(affected, testutil.Contains, s.s1)
+	c.Check(affected, testutil.Contains, s.s2)
+}
+
+func (s *DisconnectSnapSuite) TestIncomingConnection(c *C) {
+	err := s.repo.Connect("s2", "iface-b", "s1", "iface-b")
+	c.Assert(err, IsNil)
+	// Disconnect s1 with which has an incoming connection from s2
+	affected, err := s.repo.DisconnectSnap("s1")
+	c.Assert(err, IsNil)
+	c.Check(affected, testutil.Contains, s.s1)
+	c.Check(affected, testutil.Contains, s.s2)
+}
+
+func (s *DisconnectSnapSuite) TestCrossConnection(c *C) {
+	// This test is symmetric wrt s1 <-> s2 connections
+	for _, snapName := range []string{"s1", "s2"} {
+		err := s.repo.Connect("s1", "iface-a", "s2", "iface-a")
+		c.Assert(err, IsNil)
+		err = s.repo.Connect("s2", "iface-b", "s1", "iface-b")
+		c.Assert(err, IsNil)
+		affected, err := s.repo.DisconnectSnap(snapName)
+		c.Assert(err, IsNil)
+		c.Check(affected, testutil.Contains, s.s1)
+		c.Check(affected, testutil.Contains, s.s2)
+	}
 }
