@@ -71,13 +71,13 @@ func SetupSnap(snapFilePath string, flags InstallFlags, meter progress.Meter) (s
 	//          so all paths on disk are different even if the same snap
 	s, err := NewSnapFile(snapFilePath, allowUnauth)
 	if err != nil {
-		return s.instdir, err
+		return "", err
 	}
 
 	// the "gadget" snaps are special
 	if s.Type() == snap.TypeGadget {
 		if err := installGadgetHardwareUdevRules(s.m); err != nil {
-			return s.instdir, err
+			return "", err
 		}
 	}
 
@@ -106,18 +106,26 @@ func SetupSnap(snapFilePath string, flags InstallFlags, meter progress.Meter) (s
 }
 
 func UndoSetupSnap(installDir string, meter progress.Meter) {
+	// SetupSnap did it not made far enough
+	if installDir == "" {
+		return
+	}
+
+	// SetupSnap made it far enough to mount the snap, easy
 	if s, err := NewInstalledSnap(filepath.Join(installDir, "meta", "snap.yaml")); err == nil {
-		if s.Type() == snap.TypeKernel {
-			if err := removeKernelAssets(s, meter); err != nil {
-				logger.Noticef("Failed to cleanup kernel assets %q: %v", installDir, err)
-			}
-		}
-		if err := removeSquashfsMount(s.m, s.basedir, meter); err != nil {
-			logger.Noticef("Failed to remove mount unit for  %s: %s", s.Name(), err)
+		if err := RemoveSnapFiles(s, meter); err != nil {
+			logger.Noticef("cannot remove snap files: %s", err)
 		}
 	}
-	if err := os.RemoveAll(installDir); err != nil && !os.IsNotExist(err) {
-		logger.Noticef("Failed to remove %q: %v", installDir, err)
+
+	// remove install dir and the snap blob itself
+	for _, path := range []string{
+		installDir,
+		squashfs.BlobPath(installDir),
+	} {
+		if err := os.RemoveAll(path); err != nil {
+			logger.Noticef("cannot remove snap package at %v: %s", installDir, err)
+		}
 	}
 
 	// FIXME: do we need to undo installGadgetHardwareUdevRules via
@@ -465,7 +473,7 @@ func CanRemove(s *Snap) bool {
 // RemoveSnapFiles removes the snap files from the disk
 func RemoveSnapFiles(s *Snap, meter progress.Meter) error {
 	// this also ensures that the mount unit stops
-	if err := removeSquashfsMount(s.m, s.basedir, meter); err != nil {
+	if err := removeSquashfsMount(s.basedir, meter); err != nil {
 		return err
 	}
 

@@ -159,7 +159,7 @@ func (s *SquashfsTestSuite) TestRemoveSquashfsMountUnit(c *C) {
 	c.Assert(osutil.FileExists(p), Equals, true)
 
 	// now call remove and ensure they are gone
-	err = removeSquashfsMount(m, filepath.Join(dirs.SnapSnapsDir, "foo/1.0"), inter)
+	err = removeSquashfsMount(filepath.Join(dirs.SnapSnapsDir, "foo/1.0"), inter)
 	c.Assert(err, IsNil)
 	p = filepath.Join(dirs.SnapServicesDir, "snaps-foo-1.0.mount")
 	c.Assert(osutil.FileExists(p), Equals, false)
