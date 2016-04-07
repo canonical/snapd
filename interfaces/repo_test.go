@@ -870,24 +870,34 @@ func (s *AddRemoveSuite) SetUpTest(c *C) {
 }
 
 func (s *AddRemoveSuite) TestAddSnapComplexErrorHandling(c *C) {
+	err := s.repo.AddInterface(&TestInterface{
+		InterfaceName:        "invalid-plug-iface",
+		SanitizePlugCallback: func(plug *Plug) error { return fmt.Errorf("plug is invalid") },
+		SanitizeSlotCallback: func(slot *Slot) error { return fmt.Errorf("slot is invalid") },
+	})
+	err = s.repo.AddInterface(&TestInterface{
+		InterfaceName:        "invalid-slot-iface",
+		SanitizePlugCallback: func(plug *Plug) error { return fmt.Errorf("plug is invalid") },
+		SanitizeSlotCallback: func(slot *Slot) error { return fmt.Errorf("slot is invalid") },
+	})
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(`
 name: complex
 plugs:
-    invalid:
-    unknown:
+    invalid-plug-iface:
+    unknown-plug-iface:
 slots:
-    invalid:
-    unknown:
+    invalid-slot-iface:
+    unknown-slot-iface:
 `))
 	c.Assert(err, IsNil)
 	err = s.repo.AddSnap(snapInfo)
 	c.Check(err, ErrorMatches,
-		`snap "complex" has unsupported interfaces: invalid \(slot is invalid\); unknown \(unknown interface\)`)
+		`snap "complex" has unsupported interfaces: invalid-plug-iface \(plug is invalid\); unknown-plug-iface, unknown-slot-iface \(unknown interface\); invalid-slot-iface \(slot is invalid\)`)
 	// Nothing was added
-	c.Check(s.repo.Plug("complex", "invalid"), IsNil)
-	c.Check(s.repo.Plug("complex", "unknown"), IsNil)
-	c.Check(s.repo.Slot("complex", "invalid"), IsNil)
-	c.Check(s.repo.Slot("complex", "unknown"), IsNil)
+	c.Check(s.repo.Plug("complex", "invalid-plug-iface"), IsNil)
+	c.Check(s.repo.Plug("complex", "unknown-plug-iface"), IsNil)
+	c.Check(s.repo.Slot("complex", "invalid-slot-iface"), IsNil)
+	c.Check(s.repo.Slot("complex", "unknown-slot-iface"), IsNil)
 }
 
 const testConsumerYaml = `
