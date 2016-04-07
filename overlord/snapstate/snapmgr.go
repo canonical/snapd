@@ -40,9 +40,6 @@ type SnapManager struct {
 	runner *state.TaskRunner
 }
 
-// SetupFlags are the install/remove flags
-type SetupFlags int
-
 type snapSetup struct {
 	Name      string `json:"name"`
 	Developer string `json:"developer"`
@@ -52,7 +49,7 @@ type snapSetup struct {
 	OldName    string `json:"old-name"`
 	OldVersion string `json:"old-version"`
 
-	SetupFlags SetupFlags `json:"setup-flags,omitempty"`
+	SetupFlags int `json:"setup-flags,omitempty"`
 
 	SnapPath string `json:"snap-path"`
 }
