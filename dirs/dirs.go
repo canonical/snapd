@@ -78,8 +78,8 @@ func SetRootDir(rootdir string) {
 	GlobalRootDir = rootdir
 
 	SnapSnapsDir = filepath.Join(rootdir, "/snap")
-	SnapDataDir = filepath.Join(rootdir, "/var/snaps")
-	SnapDataHomeGlob = filepath.Join(rootdir, "/home/*/snaps/")
+	SnapDataDir = filepath.Join(rootdir, "/var/snap")
+	SnapDataHomeGlob = filepath.Join(rootdir, "/home/*/snap/")
 	SnapAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "profiles")
 	AppArmorCacheDir = filepath.Join(rootdir, "/var/cache/apparmor")
 	SnapAppArmorAdditionalDir = filepath.Join(rootdir, snappyDir, "apparmor", "additional")
@@ -92,7 +92,7 @@ func SetRootDir(rootdir string) {
 	SnapdSocket = filepath.Join(rootdir, "/run/snapd.socket")
 
 	SnapAssertsDBDir = filepath.Join(rootdir, snappyDir, "assertions")
-	SnapTrustedAccountKey = filepath.Join(rootdir, "/usr/share/snappy/trusted.acckey")
+	SnapTrustedAccountKey = filepath.Join(rootdir, "/usr/share/snapd/trusted.acckey")
 
 	SnapStateFile = filepath.Join(rootdir, snappyDir, "state.json")
 
