@@ -28,7 +28,7 @@ type fakeOp struct {
 	op string
 
 	name    string
-	ver     string
+	version string
 	channel string
 	flags   int
 	active  bool
@@ -79,9 +79,9 @@ func (f *fakeSnappyBackend) Remove(name string, flags int, p progress.Meter) err
 
 func (f *fakeSnappyBackend) Rollback(name, ver string, p progress.Meter) (string, error) {
 	f.ops = append(f.ops, fakeOp{
-		op:   "rollback",
-		name: name,
-		ver:  ver,
+		op:      "rollback",
+		name:    name,
+		version: ver,
 	})
 	return "", nil
 }
@@ -143,14 +143,6 @@ func (f *fakeSnappyBackend) UndoSetupSnap(snapFilePath string) error {
 	return nil
 }
 
-func (f *fakeSnappyBackend) UndoSetupSnapSecurity(instSnapPath string) error {
-	f.ops = append(f.ops, fakeOp{
-		op:   "undo-setup-snap-security",
-		name: instSnapPath,
-	})
-	return nil
-}
-
 func (f *fakeSnappyBackend) UndoCopySnapData(instSnapPath string, flags int) error {
 	f.ops = append(f.ops, fakeOp{
 		op:   "undo-copy-snap-data",
@@ -172,4 +164,45 @@ func (f *fakeSnappyBackend) ActiveSnap(name string) *snap.Info {
 		SuggestedName: "an-active-snap",
 		Version:       "1.64872",
 	}
+}
+
+func (f *fakeSnappyBackend) CanRemove(instSnapPath string) error {
+	f.ops = append(f.ops, fakeOp{
+		op:   "can-remove",
+		name: instSnapPath,
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) UnlinkSnap(instSnapPath string, meter progress.Meter) error {
+	f.ops = append(f.ops, fakeOp{
+		op:   "unlink-snap",
+		name: instSnapPath,
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) RemoveSnapSecurity(instSnapPath string) error {
+	f.ops = append(f.ops, fakeOp{
+		op:   "remove-snap-security",
+		name: instSnapPath,
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) RemoveSnapFiles(instSnapPath string, meter progress.Meter) error {
+	f.ops = append(f.ops, fakeOp{
+		op:   "remove-snap-files",
+		name: instSnapPath,
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) RemoveSnapData(name, version string) error {
+	f.ops = append(f.ops, fakeOp{
+		op:      "remove-snap-data",
+		name:    name,
+		version: version,
+	})
+	return nil
 }
