@@ -544,15 +544,8 @@ func (r *Repository) AddSnap(snapInfo *snap.Info) error {
 
 	snapName := snapInfo.Name
 
-	for plugName := range snapInfo.Plugs {
-		if _, ok := r.plugs[snapName][plugName]; ok {
-			return fmt.Errorf("cannot add plug %s.%s: existing plug in the way", snapName, plugName)
-		}
-	}
-	for slotName := range snapInfo.Slots {
-		if _, ok := r.slots[snapName][slotName]; ok {
-			return fmt.Errorf("cannot add slot %s.%s: existing slot in the way", snapName, slotName)
-		}
+	if r.plugs[snapName] != nil || r.slots[snapName] != nil {
+		return fmt.Errorf("cannot register interfaces for snap %q more than once", snapName)
 	}
 
 	var errors []error

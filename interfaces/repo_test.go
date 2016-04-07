@@ -987,7 +987,7 @@ func (s *AddRemoveSuite) TestAddSnapAddsPlugs(c *C) {
 func (s *AddRemoveSuite) TestAddSnapPanicsOnExistingSnaps(c *C) {
 	_, _ = s.addSnap(c, testConsumerYaml)
 	_, err := s.addSnap(c, testConsumerYaml)
-	c.Assert(err, ErrorMatches, "cannot add plug consumer.iface: existing plug in the way")
+	c.Assert(err, ErrorMatches, `cannot register interfaces for snap "consumer" more than once`)
 }
 
 func (s *AddRemoveSuite) TestAddSnapSkipsPlugsWithUnknownInterface(c *C) {
