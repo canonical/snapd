@@ -34,8 +34,11 @@ import (
 
 // Snap represents a generic snap type
 type Snap struct {
-	m        *snapYaml
-	manifest *diskManifest
+	info *snap.Info
+
+	// XXX: this should go away, and actually snappy.Snap itself
+	m *snapYaml
+
 	hash     string
 	isActive bool
 
@@ -57,87 +60,115 @@ func NewInstalledSnap(yamlPath string) (*Snap, error) {
 	return snap, nil
 }
 
+func completeInfo(info *snap.Info, manifest *diskManifest) {
+	// XXX: we actually should not trust snap.yaml name!
+
+	info.Developer = SideloadedDeveloper
+	// default for compat with older installs
+	info.Channel = "stable"
+	info.Size = 0
+
+	if manifest != nil {
+		info.Revision = manifest.Revision
+		info.Developer = manifest.Developer
+		info.Channel = manifest.Channel
+		// store edits win!
+		info.Description = manifest.Description
+		// XXX: Summary doesn't exist in the store yet anyway
+		info.Size = manifest.Size
+	}
+}
+
 // newSnapFromYaml returns a new Snap from the given *snapYaml at yamlPath
 func newSnapFromYaml(yamlPath string, m *snapYaml) (*Snap, error) {
-	snap := &Snap{
+	s := &Snap{
 		basedir: filepath.Dir(filepath.Dir(yamlPath)),
 		m:       m,
 	}
 
-	// override the package's idea of its version
-	// because that could have been rewritten on sideload
-	// and developer is empty sideloaded ones.
-	m.Version = filepath.Base(snap.basedir)
-
 	// check if the snap is active
-	allVersionsDir := filepath.Dir(snap.basedir)
+	allVersionsDir := filepath.Dir(s.basedir)
 	p, err := filepath.EvalSymlinks(filepath.Join(allVersionsDir, "current"))
 	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
 
-	if p == snap.basedir {
-		snap.isActive = true
+	if p == s.basedir {
+		s.isActive = true
 	}
 
-	manifestPath := ManifestPath(snap.Info())
+	// XXX: temp ugly hack for now
+	var yamlBits []byte
+	if osutil.FileExists(yamlPath) {
+		yamlBits, err = ioutil.ReadFile(yamlPath)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		// XXX: ugly serialize and reparse
+		yamlBits, err = yaml.Marshal(m)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	info, err := snap.InfoFromSnapYaml(yamlBits)
+	if err != nil {
+		return nil, err
+	}
+	s.info = info
+
+	var manifest *diskManifest
+	manifestPath := ManifestPath(info)
 	if osutil.FileExists(manifestPath) {
 		content, err := ioutil.ReadFile(manifestPath)
 		if err != nil {
 			return nil, err
 		}
 
-		var manifest diskManifest
-		if err := yaml.Unmarshal(content, &manifest); err != nil {
+		manifest = new(diskManifest)
+		if err := yaml.Unmarshal(content, manifest); err != nil {
 			return nil, &ErrInvalidYaml{File: manifestPath, Err: err, Yaml: content}
 		}
-		snap.manifest = &manifest
 	}
 
-	return snap, nil
+	completeInfo(info, manifest)
+
+	// XXX: FIXME: just some tests need this atm
+	// override the package's idea of its version
+	// because that could have been rewritten on sideload
+	// and developer is empty sideloaded ones.
+	m.Version = filepath.Base(s.basedir)
+	info.Version = m.Version
+
+	return s, nil
 }
 
 // Type returns the type of the Snap (app, gadget, ...)
 func (s *Snap) Type() snap.Type {
-	if s.m.Type != "" {
-		return s.m.Type
-	}
-
-	// if not declared its a app
-	return "app"
+	return s.info.Type
 }
 
 // Name returns the name
 func (s *Snap) Name() string {
-	// XXX: we actually should not trust snap.yaml name!
-	return s.m.Name
+	return s.info.Name
 }
 
 // Version returns the version
 func (s *Snap) Version() string {
-	if s.basedir != "" {
-		return filepath.Base(s.basedir)
-	}
-
-	return s.m.Version
+	return s.info.Version
 }
 
 // Revision returns the revision
 func (s *Snap) Revision() int {
-	if mf := s.manifest; mf != nil {
-		return mf.Revision
-	}
+	return s.info.Revision
 
-	return 0
 }
 
 // Developer returns the developer
 func (s *Snap) Developer() string {
-	if mf := s.manifest; mf != nil {
-		return mf.Developer
-	}
+	return s.info.Developer
 
-	return SideloadedDeveloper
 }
 
 // Hash returns the hash
@@ -147,12 +178,7 @@ func (s *Snap) Hash() string {
 
 // Channel returns the channel used
 func (s *Snap) Channel() string {
-	if mf := s.manifest; mf != nil {
-		return mf.Channel
-	}
-
-	// default for compat with older installs
-	return "stable"
+	return s.info.Channel
 }
 
 // Icon returns the path to the icon
@@ -187,36 +213,14 @@ func (s *Snap) InstalledSize() int64 {
 	return totalSize
 }
 
-func (s *Snap) description() string {
-	// store edits win!
-	if mf := s.manifest; mf != nil {
-		return mf.Description
-	}
-
-	return s.m.Description
-}
-
 // Info returns the snap.Info data.
 func (s *Snap) Info() *snap.Info {
-	return &snap.Info{
-		Name:        s.Name(),
-		Developer:   s.Developer(),
-		Version:     s.Version(),
-		Revision:    s.Revision(),
-		Type:        s.Type(),
-		Channel:     s.Channel(),
-		Summary:     s.m.Summary, // XXX: doesn't exist in the store yet anyway
-		Description: s.description(),
-		Size:        s.DownloadSize(),
-	}
+	return s.info
 }
 
 // DownloadSize returns the dowload size
 func (s *Snap) DownloadSize() int64 {
-	if mf := s.manifest; mf != nil {
-		return mf.Size
-	}
-	return -1
+	return s.info.Size
 }
 
 // Date returns the last update date
