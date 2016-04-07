@@ -38,7 +38,7 @@ var backend managerBackend = &defaultBackend{}
 func Install(s *state.State, snap, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
 	// download
 	var download *state.Task
-	ss := snapSetup{
+	ss := SnapSetup{
 		Name:       snap,
 		Channel:    channel,
 		SetupFlags: int(flags),
@@ -81,7 +81,7 @@ func Install(s *state.State, snap, channel string, flags snappy.InstallFlags) (*
 // Note that the state must be locked by the caller.
 func Update(s *state.State, snap, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
 	t := s.NewTask("update-snap", fmt.Sprintf(i18n.G("Updating %q"), snap))
-	t.Set("snap-setup", snapSetup{
+	t.Set("snap-setup", SnapSetup{
 		Name:       snap,
 		Channel:    channel,
 		SetupFlags: int(flags),
@@ -114,7 +114,7 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 		version = info.Version
 	}
 
-	ss := snapSetup{
+	ss := SnapSetup{
 		Name:       name,
 		Developer:  developer,
 		Version:    version,
@@ -148,7 +148,7 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 // Note that the state must be locked by the caller.
 func Rollback(s *state.State, snap, ver string) (*state.TaskSet, error) {
 	t := s.NewTask("rollback-snap", fmt.Sprintf(i18n.G("Rolling back %q"), snap))
-	t.Set("snap-setup", snapSetup{
+	t.Set("snap-setup", SnapSetup{
 		Name:    snap,
 		Version: ver,
 	})
@@ -161,7 +161,7 @@ func Rollback(s *state.State, snap, ver string) (*state.TaskSet, error) {
 func Activate(s *state.State, snap string) (*state.TaskSet, error) {
 	msg := fmt.Sprintf(i18n.G("Set active %q"), snap)
 	t := s.NewTask("activate-snap", msg)
-	t.Set("snap-setup", snapSetup{
+	t.Set("snap-setup", SnapSetup{
 		Name: snap,
 	})
 
@@ -173,7 +173,7 @@ func Activate(s *state.State, snap string) (*state.TaskSet, error) {
 func Deactivate(s *state.State, snap string) (*state.TaskSet, error) {
 	msg := fmt.Sprintf(i18n.G("Set inactive %q"), snap)
 	t := s.NewTask("deactivate-snap", msg)
-	t.Set("snap-setup", snapSetup{
+	t.Set("snap-setup", SnapSetup{
 		Name: snap,
 	})
 

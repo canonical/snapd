@@ -28,5 +28,3 @@ func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
 func SetSnapstateBackend(b ManagerBackend) {
 	backend = b
 }
-
-type SnapSetup snapSetup
