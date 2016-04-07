@@ -532,7 +532,7 @@ func (e *BadInterfacesError) Error() string {
 		inverted[reason] = append(inverted[reason], name)
 	}
 	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "snap %q has unsupported interfaces: ", e.snap)
+	fmt.Fprintf(&buf, "snap %q has bad plugs or slots: ", e.snap)
 	reasons := make([]string, 0, len(inverted))
 	for reason := range inverted {
 		reasons = append(reasons, reason)
