@@ -58,7 +58,7 @@ type loginSuite struct {
 }
 
 func (s *loginSuite) TestEmptyLoginNameError(c *check.C) {
-	output, err := cli.ExecCommandErr("snappy", "login")
+	output, err := cli.ExecCommandErr("snap", "login")
 
 	c.Assert(err, check.NotNil, check.Commentf("expecting empty login error"))
 	c.Assert(output, check.Equals, "the required argument `userid` was not provided\n")
@@ -132,7 +132,7 @@ func ipTablesCommand(action, serverAddrPort string) []string {
 }
 
 func (s *loginSuite) writeCredentials(loginName string) error {
-	cmds, _ := cli.AddOptionsToCommand([]string{"snappy", "login", loginName})
+	cmds, _ := cli.AddOptionsToCommand([]string{"snap", "login", loginName})
 	cmd := exec.Command(cmds[0], cmds[1:]...)
 	f, err := pty.Start(cmd)
 	if err != nil {
