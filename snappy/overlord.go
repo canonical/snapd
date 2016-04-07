@@ -84,7 +84,7 @@ func SetupSnap(snapFilePath string, flags InstallFlags, meter progress.Meter) (s
 		return instdir, err
 	}
 
-	if err := blobf.Install(instdir); err != nil {
+	if err := blobf.Install(s.MountFile(), instdir); err != nil {
 		return instdir, err
 	}
 
