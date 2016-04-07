@@ -118,8 +118,8 @@ func (x *cmdInstall) Execute([]string) error {
 	var err error
 
 	cli := Client()
-	if osutil.FileExists(x.Positional.Snap) {
-		uuid, err = cli.SideloadSnap(x.Positional.Snap)
+	if strings.Contains(x.Positional.Snap, "/") {
+		uuid, err = cli.InstallSnapFile(x.Positional.Snap)
 	} else {
 		uuid, err = cli.InstallSnap(x.Positional.Snap, x.Channel)
 	}

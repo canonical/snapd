@@ -35,11 +35,11 @@ func (client *Client) InstallSnap(name, channel string) (string, error) {
 	return client.doAsync("POST", path, nil, body)
 }
 
-// SideloadSnap sideloads the snap with the given path, returning the UUID
+// InstallSnapFile sideloads the snap with the given path, returning the UUID
 // of the background operation upon success.
 //
 // XXX: add support for "X-Allow-Unsigned"
-func (client *Client) SideloadSnap(path string) (string, error) {
+func (client *Client) InstallSnapFile(path string) (string, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return "", fmt.Errorf("cannot open: %q", path)
