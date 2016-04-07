@@ -30,22 +30,33 @@ import (
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/osutil"
+	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/snapenv"
 )
 
+// XXX: this needs to change in the new interfaces world!
+// it will need to be a SecurityTag value
+func getSecurityProfileFromApp(app *snap.AppInfo) string {
+	cleanedName := strings.Replace(app.Name, "/", "-", -1)
+
+	return fmt.Sprintf("%s_%s_%s", app.Snap.Name, cleanedName, app.Snap.Version)
+}
+
 // generate the name
-func generateBinaryName(m *snapYaml, app *AppYaml) string {
+// TODO: => AppInfo.WrapperPath
+func generateBinaryName(app *snap.AppInfo) string {
 	var binName string
-	if app.Name == m.Name {
+	if app.Name == app.Snap.Name {
 		binName = filepath.Base(app.Name)
 	} else {
-		binName = fmt.Sprintf("%s.%s", m.Name, filepath.Base(app.Name))
+		binName = fmt.Sprintf("%s.%s", app.Snap.Name, filepath.Base(app.Name))
 	}
 
 	return filepath.Join(dirs.SnapBinariesDir, binName)
 }
 
-func binPathForBinary(pkgPath string, app *AppYaml) string {
+// TODO: => AppInfo.CommandLine
+func binPathForBinary(pkgPath string, app *snap.AppInfo) string {
 	return filepath.Join(pkgPath, app.Command)
 }
 
@@ -55,7 +66,7 @@ func quoteEnvVar(envVar string) string {
 	return "export " + strings.Replace(envVar, "=", "=\"", 1) + "\""
 }
 
-func generateSnapBinaryWrapper(app *AppYaml, pkgPath, aaProfile string, m *snapYaml) (string, error) {
+func generateSnapBinaryWrapper(app *snap.AppInfo, pkgPath string) (string, error) {
 	wrapperTemplate := `#!/bin/sh
 set -e
 
@@ -76,11 +87,12 @@ export HOME="$SNAP_USER_DATA"
 ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 `
 
-	if err := verifyAppYaml(app); err != nil {
+	if err := snap.ValidateApp(app); err != nil {
 		return "", err
 	}
 
 	actualBinPath := binPathForBinary(pkgPath, app)
+	aaProfile := getSecurityProfileFromApp(app)
 
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("wrapper").Parse(wrapperTemplate))
@@ -97,12 +109,12 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 		OldAppVars  string
 		NewAppVars  string
 	}{
-		SnapName:    m.Name,
+		SnapName:    app.Snap.Name,
 		AppName:     app.Name,
 		SnapArch:    arch.UbuntuArchitecture(),
 		SnapPath:    pkgPath,
-		Version:     m.Version,
-		UdevAppName: fmt.Sprintf("%s.%s", m.Name, app.Name),
+		Version:     app.Snap.Version,
+		UdevAppName: fmt.Sprintf("%s.%s", app.Snap.Name, app.Name),
 		Home:        "$HOME",
 		Target:      actualBinPath,
 		AaProfile:   aaProfile,
@@ -128,28 +140,30 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 
 	return templateOut.String(), nil
 }
-func addPackageBinaries(m *snapYaml, baseDir string) error {
+
+func addPackageBinaries(s *snap.Info) error {
 	if err := os.MkdirAll(dirs.SnapBinariesDir, 0755); err != nil {
 		return err
 	}
 
-	for _, app := range m.Apps {
+	baseDir := s.BaseDir()
+
+	for _, app := range s.Apps {
 		if app.Daemon != "" {
 			continue
 		}
 
-		aaProfile := getSecurityProfile(m, app.Name, baseDir)
 		// this will remove the global base dir when generating the
 		// service file, this ensures that /snaps/foo/1.0/bin/start
 		// is in the service file when the SetRoot() option
 		// is used
 		realBaseDir := stripGlobalRootDir(baseDir)
-		content, err := generateSnapBinaryWrapper(app, realBaseDir, aaProfile, m)
+		content, err := generateSnapBinaryWrapper(app, realBaseDir)
 		if err != nil {
 			return err
 		}
 
-		if err := osutil.AtomicWriteFile(generateBinaryName(m, app), []byte(content), 0755, 0); err != nil {
+		if err := osutil.AtomicWriteFile(generateBinaryName(app), []byte(content), 0755, 0); err != nil {
 			return err
 		}
 	}
@@ -157,9 +171,9 @@ func addPackageBinaries(m *snapYaml, baseDir string) error {
 	return nil
 }
 
-func removePackageBinaries(m *snapYaml, baseDir string) error {
-	for _, app := range m.Apps {
-		os.Remove(generateBinaryName(m, app))
+func removePackageBinaries(s *snap.Info) error {
+	for _, app := range s.Apps {
+		os.Remove(generateBinaryName(app))
 	}
 
 	return nil

@@ -19,24 +19,43 @@
 
 package snap
 
+import (
+	"path/filepath"
+
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/systemd"
+	"github.com/ubuntu-core/snappy/timeout"
+)
+
 // Info provides information about snaps.
 type Info struct {
-	Name            string
-	Developer       string
-	Version         string
+	Name          string
+	Version       string
+	Type          Type
+	Architectures []string
+
+	Description      string
+	Summary          string
+	LicenseAgreement string
+	LicenseVersion   string
+	Apps             map[string]*AppInfo
+	Plugs            map[string]*PlugInfo
+	Slots            map[string]*SlotInfo
+
+	// The information in these fields is not present inside the snap blob itself.
 	Revision        int
-	Type            Type
+	Developer       string
 	Channel         string
-	Description     string
-	Summary         string
-	Apps            map[string]*AppInfo
-	Plugs           map[string]*PlugInfo
-	Slots           map[string]*SlotInfo
 	Sha512          string
 	Size            int64
 	AnonDownloadURL string
 	DownloadURL     string
 	IconURL         string
+}
+
+// BaseDir returns the base directory of the snap.
+func (s *Info) BaseDir() string {
+	return filepath.Join(dirs.SnapSnapsDir, s.Name, s.Version)
 }
 
 // PlugInfo provides information about a plug.
@@ -67,6 +86,22 @@ type AppInfo struct {
 
 	Name    string
 	Command string
-	Plugs   map[string]*PlugInfo
-	Slots   map[string]*SlotInfo
+
+	Daemon      string
+	StopTimeout timeout.Timeout
+	Stop        string
+	PostStop    string
+	RestartCond systemd.RestartCondition
+
+	Socket       bool
+	SocketMode   string
+	ListenStream string
+
+	// TODO: this should go away once we have more plumbing and can change
+	// things vs refactor
+	// https://github.com/ubuntu-core/snappy/pull/794#discussion_r58688496
+	BusName string
+
+	Plugs map[string]*PlugInfo
+	Slots map[string]*SlotInfo
 }

@@ -179,15 +179,15 @@ func UndoCopyData(newSnap *Snap, flags InstallFlags, meter progress.Meter) {
 
 func GenerateWrappers(s *Snap, inter interacter) error {
 	// add the CLI apps from the snap.yaml
-	if err := addPackageBinaries(s.m, s.basedir); err != nil {
+	if err := addPackageBinaries(s.Info()); err != nil {
 		return err
 	}
 	// add the daemons from the snap.yaml
-	if err := addPackageServices(s.m, s.basedir, false, inter); err != nil {
+	if err := addPackageServices(s.Info(), inter); err != nil {
 		return err
 	}
 	// add the desktop files
-	if err := addPackageDesktopFiles(s.m, s.basedir); err != nil {
+	if err := addPackageDesktopFiles(s.Info()); err != nil {
 		return err
 	}
 
@@ -198,17 +198,17 @@ func GenerateWrappers(s *Snap, inter interacter) error {
 // wrappers
 func RemoveGeneratedWrappers(s *Snap, inter interacter) error {
 
-	err1 := removePackageBinaries(s.m, s.basedir)
+	err1 := removePackageBinaries(s.Info())
 	if err1 != nil {
 		logger.Noticef("Failed to remove binaries for %q: %v", s.Name(), err1)
 	}
 
-	err2 := removePackageServices(s.m, s.basedir, inter)
+	err2 := removePackageServices(s.Info(), inter)
 	if err2 != nil {
 		logger.Noticef("Failed to remove services for %q: %v", s.Name(), err2)
 	}
 
-	err3 := removePackageDesktopFiles(s.m)
+	err3 := removePackageDesktopFiles(s.Info())
 	if err3 != nil {
 		logger.Noticef("Failed to remove desktop files for %q: %v", s.Name(), err3)
 	}
