@@ -6,7 +6,7 @@ DefaultDependencies=false
 
 [Service]
 Type=oneshot
-ExecStart=/bin/sh -c "set -ex; if ! cmp /usr/share/snappy/security-policy-version /var/lib/snappy/security-policy-version; then /usr/bin/snappy policygen --regenerate-all; cp /usr/share/snappy/security-policy-version /var/lib/snappy/; fi"
+ExecStart=/bin/sh -c "set -ex; if ! cmp /usr/share/snappy/security-policy-version /var/lib/snappy/security-policy-version; then /usr/bin/snap policygen --regenerate-all; cp /usr/share/snappy/security-policy-version /var/lib/snappy/; fi"
 
 [Install]
 WantedBy=multi-user.target
