@@ -230,12 +230,15 @@ version: 2.0
 	err = UpdateCurrentSymlink(v2, &s.meter)
 	c.Assert(err, IsNil)
 
-	currentActiveSymlink := filepath.Join(v2.basedir, "..", "current")
+	v1MountDir := v1.Info().MountDir()
+	v2MountDir := v2.Info().MountDir()
+	v2DataDir := v2.Info().DataDir()
+	currentActiveSymlink := filepath.Join(v2MountDir, "..", "current")
 	currentActiveDir, err := filepath.EvalSymlinks(currentActiveSymlink)
 	c.Assert(err, IsNil)
-	c.Assert(currentActiveDir, Equals, v2.basedir)
+	c.Assert(currentActiveDir, Equals, v2MountDir)
 
-	currentDataSymlink := filepath.Join(dirs.SnapDataDir, v2.Name(), "current")
+	currentDataSymlink := filepath.Join(filepath.Dir(v2DataDir), "current")
 	currentDataDir, err := filepath.EvalSymlinks(currentDataSymlink)
 	c.Assert(err, IsNil)
 	c.Assert(currentDataDir, Matches, `.*/2.0`)
@@ -244,7 +247,7 @@ version: 2.0
 	err = UndoUpdateCurrentSymlink(v1, v2, &s.meter)
 	currentActiveDir, err = filepath.EvalSymlinks(currentActiveSymlink)
 	c.Assert(err, IsNil)
-	c.Assert(currentActiveDir, Equals, v1.basedir)
+	c.Assert(currentActiveDir, Equals, v1MountDir)
 
 	currentDataDir, err = filepath.EvalSymlinks(currentDataSymlink)
 	c.Assert(err, IsNil)
