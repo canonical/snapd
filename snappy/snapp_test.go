@@ -110,7 +110,7 @@ func (s *SnapTestSuite) makeInstalledMockSnap(yamls ...string) (yamlFile string,
 		yaml = yamls[0]
 	}
 
-	return makeInstalledMockSnap(s.tempdir, yaml)
+	return makeInstalledMockSnap(yaml)
 }
 
 func makeSnapActive(snapYamlPath string) (err error) {
@@ -270,7 +270,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdatesNoSnaps(c *C) {
 }
 
 func (s *SnapTestSuite) TestMakeConfigEnv(c *C) {
-	yamlFile, err := makeInstalledMockSnap(s.tempdir, "")
+	yamlFile, err := makeInstalledMockSnap("")
 	c.Assert(err, IsNil)
 	snap, err := NewInstalledSnap(yamlFile)
 	c.Assert(err, IsNil)
@@ -422,7 +422,7 @@ apps:
    description: "Service #2"
 `
 
-	yamlFile, err := makeInstalledMockSnap(s.tempdir, packageHello)
+	yamlFile, err := makeInstalledMockSnap(packageHello)
 	c.Assert(err, IsNil)
 
 	snap, err := NewInstalledSnap(yamlFile)
@@ -528,7 +528,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryGadgetStoreId(c *C) {
 	defer mockServer.Close()
 
 	// install custom gadget snap with store-id
-	snapYamlFn, err := makeInstalledMockSnap(s.tempdir, `name: gadget-test
+	snapYamlFn, err := makeInstalledMockSnap(`name: gadget-test
 version: 1.0
 gadget:
   store:
@@ -549,7 +549,7 @@ type: gadget
 
 func (s *SnapTestSuite) TestUninstallBuiltIn(c *C) {
 	// install custom gadget snap with store-id
-	gadgetYaml, err := makeInstalledMockSnap(s.tempdir, `name: gadget-test
+	gadgetYaml, err := makeInstalledMockSnap(`name: gadget-test
 version: 1.0
 gadget:
   store:
@@ -562,7 +562,7 @@ type: gadget
 	c.Assert(err, IsNil)
 	makeSnapActive(gadgetYaml)
 
-	snapYamlFn, err := makeInstalledMockSnap(s.tempdir, "")
+	snapYamlFn, err := makeInstalledMockSnap("")
 	c.Assert(err, IsNil)
 	makeSnapActive(snapYamlFn)
 
