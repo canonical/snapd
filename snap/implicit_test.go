@@ -1,4 +1,4 @@
-// -*- Mote: Go; indent-tabs-mode: t -*-
+// -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
  * Copyright (C) 2016 Canonical Ltd
@@ -17,25 +17,24 @@
  *
  */
 
-package interfaces_test
+package snap_test
 
 import (
-	. "gopkg.in/check.v1"
-
-	. "github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/snap"
+
+	. "gopkg.in/check.v1"
 )
 
-type NamingSuite struct{}
+type SpecialSuite struct{}
 
-var _ = Suite(&NamingSuite{})
+var _ = Suite(&SpecialSuite{})
 
-func (s *NamingSuite) TestSecurityTag(c *C) {
-	appInfo := &snap.AppInfo{Snap: &snap.Info{SuggestedName: "http"}, Name: "GET"}
-	c.Check(SecurityTag(appInfo), Equals, "snap.http.GET")
-}
-
-func (s *NamingSuite) TestSecurityTagGlob(c *C) {
-	snapInfo := &snap.Info{SuggestedName: "http"}
-	c.Check(SecurityTagGlob(snapInfo), Equals, "snap.http.*")
+func (s *InfoSnapYamlTestSuite) TestAddImplicitSlots(c *C) {
+	osYaml := []byte("name: ubuntu-core\ntype: os\n")
+	info, err := snap.InfoFromSnapYaml(osYaml)
+	c.Assert(err, IsNil)
+	snap.AddImplicitSlots(info)
+	c.Assert(info.Slots["network"].Interface, Equals, "network")
+	c.Assert(info.Slots["network"].Snap, Equals, info)
+	c.Assert(info.Slots, HasLen, 15)
 }

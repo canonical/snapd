@@ -37,14 +37,14 @@ var _ = Suite(&XInterfaceSuite{
 	iface: builtin.NewXInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{Name: "ubuntu-core"},
+			Snap:      &snap.Info{SuggestedName: "ubuntu-core"},
 			Name:      "x",
 			Interface: "x",
 		},
 	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{Name: "other"},
+			Snap:      &snap.Info{SuggestedName: "other"},
 			Name:      "x",
 			Interface: "x",
 		},
@@ -59,7 +59,7 @@ func (s *XInterfaceSuite) TestSanitizeSlot(c *C) {
 	err := s.iface.SanitizeSlot(s.slot)
 	c.Assert(err, IsNil)
 	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{Name: "some-snap"},
+		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "x",
 		Interface: "x",
 	}})
@@ -125,4 +125,8 @@ func (s *XInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, "foo")
 	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
 	c.Assert(snippet, IsNil)
+}
+
+func (s *XInterfaceSuite) TestAutoConnect(c *C) {
+	c.Check(s.iface.AutoConnect(), Equals, false)
 }

@@ -122,16 +122,18 @@ func (s *apiSuite) TearDownTest(c *check.C) {
 
 func (s *apiSuite) mkManifest(c *check.C, pkgType snap.Type) {
 	// creating the part to get its manifest path is cheating, a little
-	info := &snap.Info{
-		Name:        "foo",
-		Developer:   "bar",
-		Revision:    999999999999,
-		Version:     "1",
-		Type:        pkgType,
-		Description: " bla bla bla",
+	sideInfo := snap.SideInfo{
+		OfficialName:      "foo",
+		Developer:         "bar",
+		Revision:          2147483647,
+		EditedDescription: " bla bla bla",
 	}
 
-	c.Assert(snappy.SaveManifest(info), check.IsNil)
+	c.Assert(snappy.SaveManifest(&snap.Info{
+		Type:     pkgType,
+		Version:  "1",
+		SideInfo: sideInfo,
+	}), check.IsNil)
 }
 
 func (s *apiSuite) mkInstalled(c *check.C, name, developer, version string, active bool, extraYaml string) {
@@ -190,13 +192,15 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 
 	// the store tells us about v2
 	s.rsnaps = []*snap.Info{{
-		Name:        "foo",
-		Type:        snap.TypeApp,
-		Version:     "v2",
-		Description: "description",
-		Developer:   "bar",
-		Size:        2,
-		IconURL:     "meta/gui/icon.svg",
+		Type:    snap.TypeApp,
+		Version: "v2",
+		SideInfo: snap.SideInfo{
+			OfficialName:      "foo",
+			EditedDescription: "description",
+			Developer:         "bar",
+			Size:              2,
+			IconURL:           "meta/gui/icon.svg",
+		},
 	}}
 
 	// we have v0 installed
@@ -271,7 +275,9 @@ func (s *apiSuite) TestSnapInfoWeirdRoute(c *check.C) {
 	wrongCmd := &Command{Path: "/{what}", d: d}
 	s.vars = map[string]string{"name": "foo"}
 	s.rsnaps = []*snap.Info{{
-		Name: "foo",
+		SideInfo: snap.SideInfo{
+			OfficialName: "foo",
+		},
 	}}
 	c.Check(getSnapInfo(wrongCmd, nil).Self(nil, nil).(*resp).Status, check.Equals, http.StatusInternalServerError)
 }
@@ -287,7 +293,9 @@ func (s *apiSuite) TestSnapInfoBadRoute(c *check.C) {
 
 	s.vars = map[string]string{"name": "foo"}
 	s.rsnaps = []*snap.Info{{
-		Name: "foo",
+		SideInfo: snap.SideInfo{
+			OfficialName: "foo",
+		},
 	}}
 
 	rsp := getSnapInfo(snapCmd, nil).Self(nil, nil).(*resp)
@@ -465,8 +473,10 @@ func (s *apiSuite) TestSnapsInfoOnePerIntegration(c *check.C) {
 
 func (s *apiSuite) TestSnapsInfoOnlyLocal(c *check.C) {
 	s.rsnaps = []*snap.Info{{
-		Name:      "store",
-		Developer: "foo",
+		SideInfo: snap.SideInfo{
+			OfficialName: "store",
+			Developer:    "foo",
+		},
 	}}
 	s.mkInstalled(c, "local", "foo", "v1", true, "")
 
@@ -485,8 +495,10 @@ func (s *apiSuite) TestSnapsInfoOnlyLocal(c *check.C) {
 
 func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
 	s.rsnaps = []*snap.Info{{
-		Name:      "store",
-		Developer: "foo",
+		SideInfo: snap.SideInfo{
+			OfficialName: "store",
+			Developer:    "foo",
+		},
 	}}
 	s.mkInstalled(c, "local", "foo", "v1", true, "")
 
@@ -505,8 +517,10 @@ func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
 
 func (s *apiSuite) TestSnapsInfoLocalAndStore(c *check.C) {
 	s.rsnaps = []*snap.Info{{
-		Name:      "remote",
-		Developer: "foo",
+		SideInfo: snap.SideInfo{
+			OfficialName: "remote",
+			Developer:    "foo",
+		},
 	}}
 	s.mkInstalled(c, "local", "foo", "v1", true, "")
 
@@ -524,8 +538,10 @@ func (s *apiSuite) TestSnapsInfoLocalAndStore(c *check.C) {
 
 func (s *apiSuite) TestSnapsInfoDefaultSources(c *check.C) {
 	s.rsnaps = []*snap.Info{{
-		Name:      "remote",
-		Developer: "foo",
+		SideInfo: snap.SideInfo{
+			OfficialName: "remote",
+			Developer:    "foo",
+		},
 	}}
 	s.mkInstalled(c, "local", "foo", "v1", true, "")
 
@@ -540,8 +556,10 @@ func (s *apiSuite) TestSnapsInfoDefaultSources(c *check.C) {
 
 func (s *apiSuite) TestSnapsInfoUnknownSource(c *check.C) {
 	s.rsnaps = []*snap.Info{{
-		Name:      "remote",
-		Developer: "foo",
+		SideInfo: snap.SideInfo{
+			OfficialName: "remote",
+			Developer:    "foo",
+		},
 	}}
 	s.mkInstalled(c, "local", "foo", "v1", true, "")
 
@@ -1306,7 +1324,7 @@ func (s *apiSuite) TestInstallLicensedIntegration(c *check.C) {
 
 func makePlug(ifaceName string) *interfaces.Plug {
 	snapInfo := &snap.Info{
-		Name: "producer",
+		SuggestedName: "producer",
 	}
 	plugInfo := &snap.PlugInfo{
 		Snap:      snapInfo,
@@ -1334,7 +1352,7 @@ func makeConnectedPlug() *interfaces.Plug {
 
 func makeSlot(ifaceName string) *interfaces.Slot {
 	snapInfo := &snap.Info{
-		Name: "consumer",
+		SuggestedName: "consumer",
 	}
 	slotInfo := &snap.SlotInfo{
 		Snap:      snapInfo,

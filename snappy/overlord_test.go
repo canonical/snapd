@@ -37,7 +37,7 @@ version: 1.0
 `
 
 func (s *SnapTestSuite) TestInstalled(c *C) {
-	_, err := makeInstalledMockSnap(dirs.GlobalRootDir, helloAppYaml)
+	_, err := makeInstalledMockSnap(helloAppYaml)
 	c.Assert(err, IsNil)
 
 	installed, err := (&Overlord{}).Installed()
@@ -133,7 +133,7 @@ func (s *SnapTestSuite) TestPreviouslyAcceptedLicense(c *C) {
 license-agreement: explicit
 license-version: 2
 `
-	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml+"version: 1")
+	yamlFile, err := makeInstalledMockSnap(yaml + "version: 1")
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testDeveloper+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
@@ -157,7 +157,7 @@ func (s *SnapTestSuite) TestSameLicenseVersionButNotRequired(c *C) {
 license-version: 2
 version: 1.0
 `
-	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml+"version: 1")
+	yamlFile, err := makeInstalledMockSnap(yaml + "version: 1")
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testDeveloper+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
@@ -179,7 +179,7 @@ func (s *SnapTestSuite) TestDifferentLicenseVersion(c *C) {
 	yaml := `name: foox
 license-agreement: explicit
 `
-	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml+"license-version: 2\nversion: 1")
+	yamlFile, err := makeInstalledMockSnap(yaml + "license-version: 2\nversion: 1")
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testDeveloper+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
@@ -244,7 +244,7 @@ type: gadget
 `)
 	_, err := (&Overlord{}).Install(snapFile, AllowGadget, nil)
 	c.Assert(err, IsNil)
-	c.Assert(storeMinimalRemoteManifest("foo", testDeveloper, "1.0", "", "remote-channel"), IsNil)
+	c.Assert(storeMinimalRemoteManifest("foo", testDeveloper, "1.0", "", "", "remote-channel"), IsNil)
 
 	contentFile := filepath.Join(s.tempdir, "snaps", "foo", "1.0", "bin", "foo")
 	_, err = os.Stat(contentFile)
@@ -257,7 +257,7 @@ type: gadget
 `)
 	_, err = (&Overlord{}).Install(snapFile, 0, nil)
 	c.Check(err, IsNil)
-	c.Assert(storeMinimalRemoteManifest("foo", testDeveloper, "2.0", "", "remote-channel"), IsNil)
+	c.Assert(storeMinimalRemoteManifest("foo", testDeveloper, "2.0", "", "", "remote-channel"), IsNil)
 
 	// a package name fork, IOW, a different Gadget package.
 	snapFile = makeTestSnapPackage(c, `name: foo-fork
@@ -292,6 +292,8 @@ func (s *SnapTestSuite) TestClickSetActive(c *C) {
 	c.Assert(snaps[1].Version(), Equals, "2.0")
 	c.Assert(snaps[1].IsActive(), Equals, true)
 
+	// deactivate v2
+	err = UnlinkSnap(snaps[1], nil)
 	// set v1 active
 	err = ActivateSnap(snaps[0], nil)
 	snaps, err = (&Overlord{}).Installed()
