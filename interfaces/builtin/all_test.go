@@ -42,7 +42,7 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, DeepContains, builtin.NewNetworkBindInterface())
 	c.Check(all, DeepContains, builtin.NewNetworkControlInterface())
 	c.Check(all, DeepContains, builtin.NewNetworkObserveInterface())
-	c.Check(all, DeepContains, builtin.NewSnapControlInterface())
+	c.Check(all, DeepContains, builtin.NewSnapdControlInterface())
 	c.Check(all, DeepContains, builtin.NewSystemObserveInterface())
 	c.Check(all, DeepContains, builtin.NewTimeserverControlInterface())
 	c.Check(all, DeepContains, builtin.NewTimezoneControlInterface())
