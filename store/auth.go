@@ -200,9 +200,9 @@ func RequestPackageAccessMacaroon() (string, error) {
 	return responseData.Macaroon, nil
 }
 
-// RequestDischargeMacaroon requests a discharge macaroon for an existing macaroon
-func RequestDischargeMacaroon(username, password, macaroon, otp string) (string, error) {
-	const errorPrefix = "cannot get discharge macaroon: "
+// DischargeAuthCaveat returns a macaroon with the store auth caveat discharged
+func DischargeAuthCaveat(username, password, macaroon, otp string) (string, error) {
+	const errorPrefix = "cannot get discharge macaroon from store: "
 
 	data := map[string]string{
 		"email":    username,
@@ -244,7 +244,10 @@ func RequestDischargeMacaroon(username, password, macaroon, otp string) (string,
 			return "", ErrAuthenticationNeeds2fa
 		}
 
-		return "", fmt.Errorf(errorPrefix+"%v", msg.Message)
+		if msg.Message != "" {
+			return "", fmt.Errorf(errorPrefix+"%v", msg.Message)
+		}
+		fallthrough
 
 	case !httpStatusCodeSuccess(resp.StatusCode):
 		return "", fmt.Errorf(errorPrefix+"server returned status %d", resp.StatusCode)
