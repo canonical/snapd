@@ -20,8 +20,6 @@
 package snappy
 
 import (
-	//"fmt"
-
 	"io/ioutil"
 	"os"
 	"path/filepath"
