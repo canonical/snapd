@@ -128,7 +128,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// find current active and store in case we need to undo
 	if info := m.backend.ActiveSnap(ss.Name); info != nil {
-		ss.OldName = info.Name
+		ss.OldName = info.Name()
 		ss.OldVersion = info.Version
 	}
 
