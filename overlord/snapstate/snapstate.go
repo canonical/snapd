@@ -22,12 +22,16 @@ package snapstate
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snappy"
 )
+
+// allow exchange in the tests
+var backend managerBackend = &defaultBackend{}
 
 // Install returns a set of tasks for installing snap.
 // Note that the state must be locked by the caller.
@@ -86,16 +90,54 @@ func Update(s *state.State, snap, channel string, flags snappy.InstallFlags) (*s
 	return state.NewTaskSet(t), nil
 }
 
+// parseSnapspec parses a string like: name[.developer][=version]
+func parseSnapSpec(snapSpec string) (string, string) {
+	l := strings.Split(snapSpec, "=")
+	if len(l) == 2 {
+		return l[0], l[1]
+	}
+	return snapSpec, ""
+}
+
 // Remove returns a set of tasks for removing snap.
 // Note that the state must be locked by the caller.
-func Remove(s *state.State, snap string, flags snappy.RemoveFlags) (*state.TaskSet, error) {
-	t := s.NewTask("remove-snap", fmt.Sprintf(i18n.G("Removing %q"), snap))
-	t.Set("snap-setup", snapSetup{
-		Name:       snap,
-		SetupFlags: int(flags),
-	})
+func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.TaskSet, error) {
+	// allow remove by version so that we can remove snaps that are
+	// not active
+	name, version := parseSnapSpec(snapSpec)
+	name, developer := snappy.SplitDeveloper(name)
+	if version == "" {
+		info := backend.ActiveSnap(name)
+		if info == nil {
+			return nil, fmt.Errorf("cannot find active snap for %q", name)
+		}
+		version = info.Version
+	}
 
-	return state.NewTaskSet(t), nil
+	// FIXME: check for snappy.CanRemove()
+
+	ss := snapSetup{
+		Name:       name,
+		Developer:  developer,
+		Version:    version,
+		SetupFlags: int(flags),
+	}
+	unlink := s.NewTask("unlink-snap", fmt.Sprintf(i18n.G("Deactivating %q"), snapSpec))
+	unlink.Set("snap-setup", ss)
+
+	removeSecurity := s.NewTask("remove-snap-security", fmt.Sprintf(i18n.G("Removing security profile for %q"), snapSpec))
+	removeSecurity.Set("snap-setup", ss)
+	removeSecurity.WaitFor(unlink)
+
+	removeFiles := s.NewTask("remove-snap-files", fmt.Sprintf(i18n.G("Removing files for %q"), snapSpec))
+	removeFiles.Set("snap-setup", ss)
+	removeFiles.WaitFor(removeSecurity)
+
+	removeData := s.NewTask("remove-snap-data", fmt.Sprintf(i18n.G("Removing data for %q"), snapSpec))
+	removeData.Set("snap-setup", ss)
+	removeData.WaitFor(removeFiles)
+
+	return state.NewTaskSet(unlink, removeSecurity, removeFiles, removeData), nil
 }
 
 // Rollback returns a set of tasks for rolling back a snap.

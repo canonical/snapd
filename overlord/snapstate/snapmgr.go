@@ -80,14 +80,20 @@ func Manager(s *state.State) (*SnapManager, error) {
 		return nil
 	}, nil)
 
+	// install releated
 	runner.AddHandler("download-snap", m.doDownloadSnap, nil)
 	runner.AddHandler("mount-snap", m.doMountSnap, m.undoMountSnap)
 	runner.AddHandler("copy-snap-data", m.doCopySnapData, m.undoCopySnapData)
 	runner.AddHandler("setup-snap-security", m.doSetupSnapSecurity, m.undoSetupSnapSecurity)
 	runner.AddHandler("link-snap", m.doLinkSnap, m.undoLinkSnap)
 
+	// remove releated
+	runner.AddHandler("unlink-snap", m.doUnlinkSnap, nil)
+	runner.AddHandler("remove-snap-security", m.doRemoveSnapSecurity, nil)
+	runner.AddHandler("remove-snap-files", m.doRemoveSnapFiles, nil)
+	runner.AddHandler("remove-snap-data", m.doRemoveSnapData, nil)
+
 	runner.AddHandler("update-snap", m.doUpdateSnap, nil)
-	runner.AddHandler("remove-snap", m.doRemoveSnap, nil)
 	runner.AddHandler("rollback-snap", m.doRollbackSnap, nil)
 	runner.AddHandler("activate-snap", m.doActivateSnap, nil)
 	runner.AddHandler("deactivate-snap", m.doDeactivateSnap, nil)
@@ -154,7 +160,7 @@ func (m *SnapManager) doUpdateSnap(t *state.Task, _ *tomb.Tomb) error {
 	return m.backend.Update(ss.Name, ss.Channel, ss.SetupFlags, pb)
 }
 
-func (m *SnapManager) doRemoveSnap(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	var ss snapSetup
 
 	t.State().Lock()
@@ -165,7 +171,46 @@ func (m *SnapManager) doRemoveSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	pb := &TaskProgressAdapter{task: t}
-	return m.backend.Remove(ss.Name, ss.SetupFlags, pb)
+	return m.backend.UnlinkSnap(ss.BaseDir(), pb)
+}
+
+func (m *SnapManager) doRemoveSnapSecurity(t *state.Task, _ *tomb.Tomb) error {
+	var ss snapSetup
+
+	t.State().Lock()
+	err := t.Get("snap-setup", &ss)
+	t.State().Unlock()
+	if err != nil {
+		return err
+	}
+
+	return m.backend.RemoveSnapSecurity(ss.BaseDir())
+}
+
+func (m *SnapManager) doRemoveSnapFiles(t *state.Task, _ *tomb.Tomb) error {
+	var ss snapSetup
+
+	t.State().Lock()
+	err := t.Get("snap-setup", &ss)
+	t.State().Unlock()
+	if err != nil {
+		return err
+	}
+
+	pb := &TaskProgressAdapter{task: t}
+	return m.backend.RemoveSnapFiles(ss.BaseDir(), pb)
+}
+func (m *SnapManager) doRemoveSnapData(t *state.Task, _ *tomb.Tomb) error {
+	var ss snapSetup
+
+	t.State().Lock()
+	err := t.Get("snap-setup", &ss)
+	t.State().Unlock()
+	if err != nil {
+		return err
+	}
+
+	return m.backend.RemoveSnapData(ss.Name, ss.Version)
 }
 
 func (m *SnapManager) doRollbackSnap(t *state.Task, _ *tomb.Tomb) error {
