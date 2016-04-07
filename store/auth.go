@@ -162,7 +162,7 @@ func ReadStoreToken() (*StoreToken, error) {
 	return &readStoreToken, nil
 }
 
-// RequestPackageAccessMacaroon requests a macaroon for accessing package data from the ubuntu store
+// RequestPackageAccessMacaroon requests a macaroon for accessing package data from the ubuntu store.
 func RequestPackageAccessMacaroon() (string, error) {
 	const errorPrefix = "cannot get package access macaroon from store: "
 
@@ -200,7 +200,7 @@ func RequestPackageAccessMacaroon() (string, error) {
 	return responseData.Macaroon, nil
 }
 
-// DischargeAuthCaveat returns a macaroon with the store auth caveat discharged
+// DischargeAuthCaveat returns a macaroon with the store auth caveat discharged.
 func DischargeAuthCaveat(username, password, macaroon, otp string) (string, error) {
 	const errorPrefix = "cannot get discharge macaroon from store: "
 
