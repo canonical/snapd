@@ -36,6 +36,5 @@ func (s *NamingSuite) TestSecurityTag(c *C) {
 }
 
 func (s *NamingSuite) TestSecurityTagGlob(c *C) {
-	snapInfo := &snap.Info{SuggestedName: "http"}
-	c.Check(SecurityTagGlob(snapInfo), Equals, "snap.http.*")
+	c.Check(SecurityTagGlob("http"), Equals, "snap.http.*")
 }

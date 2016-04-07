@@ -72,22 +72,23 @@ func (b *Backend) UseLegacyTemplate(template []byte) {
 // This method should be called after changing plug, slots, connections between
 // them or application present in the snap.
 func (b *Backend) Setup(snapInfo *snap.Info, developerMode bool, repo *interfaces.Repository) error {
+	snapName := snapInfo.Name()
 	// Get the snippets that apply to this snap
-	snippets, err := repo.SecuritySnippetsForSnap(snapInfo.Name(), interfaces.SecurityAppArmor)
+	snippets, err := repo.SecuritySnippetsForSnap(snapName, interfaces.SecurityAppArmor)
 	if err != nil {
-		return fmt.Errorf("cannot obtain security snippets for snap %q: %s", snapInfo.Name(), err)
+		return fmt.Errorf("cannot obtain security snippets for snap %q: %s", snapName, err)
 	}
 	// Get the files that this snap should have
 	content, err := b.combineSnippets(snapInfo, developerMode, snippets)
 	if err != nil {
-		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapInfo.Name(), err)
+		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapName, err)
 	}
-	glob := interfaces.SecurityTagGlob(snapInfo)
+	glob := interfaces.SecurityTagGlob(snapInfo.Name())
 	changed, removed, errEnsure := osutil.EnsureDirState(dirs.SnapAppArmorDir, glob, content)
 	errReload := reloadProfiles(changed)
 	errUnload := unloadProfiles(removed)
 	if errEnsure != nil {
-		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapInfo.Name(), errEnsure)
+		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, errEnsure)
 	}
 	if errReload != nil {
 		return errReload
@@ -96,12 +97,12 @@ func (b *Backend) Setup(snapInfo *snap.Info, developerMode bool, repo *interface
 }
 
 // Remove removes and unloads apparmor profiles of a given snap.
-func (b *Backend) Remove(snapInfo *snap.Info) error {
-	glob := interfaces.SecurityTagGlob(snapInfo)
+func (b *Backend) Remove(snapName string) error {
+	glob := interfaces.SecurityTagGlob(snapName)
 	_, removed, errEnsure := osutil.EnsureDirState(dirs.SnapAppArmorDir, glob, nil)
 	errUnload := unloadProfiles(removed)
 	if errEnsure != nil {
-		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapInfo.Name(), errEnsure)
+		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, errEnsure)
 	}
 	return errUnload
 }
