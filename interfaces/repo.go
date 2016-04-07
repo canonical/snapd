@@ -533,7 +533,13 @@ func (e *BadInterfacesError) Error() string {
 	}
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, "snap %q has unsupported interfaces: ", e.snap)
-	for reason, names := range inverted {
+	reasons := make([]string, 0, len(inverted))
+	for reason := range inverted {
+		reasons = append(reasons, reason)
+	}
+	sort.Strings(reasons)
+	for _, reason := range reasons {
+		names := inverted[reason]
 		sort.Strings(names)
 		for i, name := range names {
 			if i > 0 {
