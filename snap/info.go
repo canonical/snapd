@@ -20,6 +20,7 @@
 package snap
 
 import (
+	"fmt"
 	"path/filepath"
 
 	"github.com/ubuntu-core/snappy/dirs"
@@ -95,6 +96,11 @@ func (s *Info) Description() string {
 // BaseDir returns the base directory of the snap.
 func (s *Info) BaseDir() string {
 	return filepath.Join(dirs.SnapSnapsDir, s.Name(), s.Version)
+}
+
+// MountFile returns the path where the snap file that is mounted is installed.
+func (s *Info) MountFile() string {
+	return filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", s.Name(), s.Version))
 }
 
 // PlugInfo provides information about a plug.
