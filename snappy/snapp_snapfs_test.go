@@ -273,7 +273,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapRemovesKernelAssets(c *C) {
 }
 
 func (s *SquashfsTestSuite) TestActiveKernelNotRemovable(c *C) {
-	snapYaml, err := makeInstalledMockSnap(dirs.GlobalRootDir, packageKernel)
+	snapYaml, err := makeInstalledMockSnap(packageKernel)
 	c.Assert(err, IsNil)
 
 	snap, err := NewInstalledSnap(snapYaml)
@@ -293,7 +293,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernelErrors(c *C) {
 }
 
 func (s *SquashfsTestSuite) TestInstallKernelSnapRemoveAssetsWrongType(c *C) {
-	snapYaml, err := makeInstalledMockSnap(dirs.GlobalRootDir, packageHello)
+	snapYaml, err := makeInstalledMockSnap(packageHello)
 	c.Assert(err, IsNil)
 
 	snap, err := NewInstalledSnap(snapYaml)
@@ -304,7 +304,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapRemoveAssetsWrongType(c *C) {
 }
 
 func (s *SquashfsTestSuite) TestActiveOSNotRemovable(c *C) {
-	snapYaml, err := makeInstalledMockSnap(dirs.GlobalRootDir, packageOS)
+	snapYaml, err := makeInstalledMockSnap(packageOS)
 	c.Assert(err, IsNil)
 
 	snap, err := NewInstalledSnap(snapYaml)
@@ -315,7 +315,7 @@ func (s *SquashfsTestSuite) TestActiveOSNotRemovable(c *C) {
 }
 
 func (s *SquashfsTestSuite) TestInstallOsRebootRequired(c *C) {
-	snapYaml, err := makeInstalledMockSnap(dirs.GlobalRootDir, packageOS)
+	snapYaml, err := makeInstalledMockSnap(packageOS)
 	c.Assert(err, IsNil)
 	snap, err := NewInstalledSnap(snapYaml)
 	c.Assert(err, IsNil)
@@ -326,7 +326,7 @@ func (s *SquashfsTestSuite) TestInstallOsRebootRequired(c *C) {
 }
 
 func (s *SquashfsTestSuite) TestInstallKernelRebootRequired(c *C) {
-	snapYaml, err := makeInstalledMockSnap(dirs.GlobalRootDir, packageKernel)
+	snapYaml, err := makeInstalledMockSnap(packageKernel)
 	c.Assert(err, IsNil)
 
 	snap, err := NewInstalledSnap(snapYaml)

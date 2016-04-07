@@ -31,13 +31,13 @@ import (
 )
 
 func (s *SnapTestSuite) TestActiveSnapByType(c *C) {
-	yamlPath, err := makeInstalledMockSnap(s.tempdir, `name: app1
+	yamlPath, err := makeInstalledMockSnap(`name: app1
 version: 1.10
 `)
 	c.Assert(err, IsNil)
 	makeSnapActive(yamlPath)
 
-	yamlPath, err = makeInstalledMockSnap(s.tempdir, `name: os2
+	yamlPath, err = makeInstalledMockSnap(`name: os2
 version: 1.0
 type: os
 `)
@@ -51,12 +51,12 @@ type: os
 }
 
 func (s *SnapTestSuite) TestActiveSnapIterByType(c *C) {
-	yamlPath, err := makeInstalledMockSnap(s.tempdir, `name: app
+	yamlPath, err := makeInstalledMockSnap(`name: app
 version: 1.10`)
 	c.Assert(err, IsNil)
 	makeSnapActive(yamlPath)
 
-	yamlPath, err = makeInstalledMockSnap(s.tempdir, `name: os2
+	yamlPath, err = makeInstalledMockSnap(`name: os2
 version: 1.0
 type: os`)
 	c.Assert(err, IsNil)
@@ -90,7 +90,7 @@ type: os`)
 }
 
 func (s *SnapTestSuite) TestFindSnapsByNameNotAvailable(c *C) {
-	_, err := makeInstalledMockSnap(s.tempdir, "")
+	_, err := makeInstalledMockSnap("")
 	repo := &Overlord{}
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
@@ -100,7 +100,7 @@ func (s *SnapTestSuite) TestFindSnapsByNameNotAvailable(c *C) {
 }
 
 func (s *SnapTestSuite) TestFindSnapsByNameFound(c *C) {
-	_, err := makeInstalledMockSnap(s.tempdir, "")
+	_, err := makeInstalledMockSnap("")
 	repo := &Overlord{}
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
@@ -112,7 +112,7 @@ func (s *SnapTestSuite) TestFindSnapsByNameFound(c *C) {
 }
 
 func (s *SnapTestSuite) TestFindSnapsByNameWithDeveloper(c *C) {
-	_, err := makeInstalledMockSnap(s.tempdir, "")
+	_, err := makeInstalledMockSnap("")
 	repo := &Overlord{}
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
@@ -124,7 +124,7 @@ func (s *SnapTestSuite) TestFindSnapsByNameWithDeveloper(c *C) {
 }
 
 func (s *SnapTestSuite) TestFindSnapsByNameWithDeveloperNotThere(c *C) {
-	_, err := makeInstalledMockSnap(s.tempdir, "")
+	_, err := makeInstalledMockSnap("")
 	repo := &Overlord{}
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
@@ -137,7 +137,7 @@ func (s *SnapTestSuite) TestFindSnapsByNameWithDeveloperNotThere(c *C) {
 func (s *SnapTestSuite) TestPackageNameInstalled(c *C) {
 	c.Check(PackageNameActive("hello-snap"), Equals, false)
 
-	yamlFile, err := makeInstalledMockSnap(s.tempdir, "")
+	yamlFile, err := makeInstalledMockSnap("")
 	c.Assert(err, IsNil)
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 
@@ -156,7 +156,7 @@ func (s *SnapTestSuite) TestPackageNameInstalled(c *C) {
 }
 
 func (s *SnapTestSuite) TestFindSnapsByNameAndVersion(c *C) {
-	_, err := makeInstalledMockSnap(s.tempdir, "")
+	_, err := makeInstalledMockSnap("")
 	repo := &Overlord{}
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
@@ -179,7 +179,7 @@ func (s *SnapTestSuite) TestFindSnapsByNameAndVersion(c *C) {
 }
 
 func (s *SnapTestSuite) TestFindSnapsByNameAndVersionFmk(c *C) {
-	_, err := makeInstalledMockSnap(s.tempdir, "name: os2\ntype: os\nversion: 1")
+	_, err := makeInstalledMockSnap("name: os2\ntype: os\nversion: 1")
 	repo := &Overlord{}
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)

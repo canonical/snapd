@@ -37,7 +37,7 @@ version: 1.0
 `
 
 func (s *SnapTestSuite) TestInstalled(c *C) {
-	_, err := makeInstalledMockSnap(dirs.GlobalRootDir, helloAppYaml)
+	_, err := makeInstalledMockSnap(helloAppYaml)
 	c.Assert(err, IsNil)
 
 	installed, err := (&Overlord{}).Installed()
@@ -133,7 +133,7 @@ func (s *SnapTestSuite) TestPreviouslyAcceptedLicense(c *C) {
 license-agreement: explicit
 license-version: 2
 `
-	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml+"version: 1")
+	yamlFile, err := makeInstalledMockSnap(yaml + "version: 1")
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testDeveloper+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
@@ -157,7 +157,7 @@ func (s *SnapTestSuite) TestSameLicenseVersionButNotRequired(c *C) {
 license-version: 2
 version: 1.0
 `
-	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml+"version: 1")
+	yamlFile, err := makeInstalledMockSnap(yaml + "version: 1")
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testDeveloper+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
@@ -179,7 +179,7 @@ func (s *SnapTestSuite) TestDifferentLicenseVersion(c *C) {
 	yaml := `name: foox
 license-agreement: explicit
 `
-	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml+"license-version: 2\nversion: 1")
+	yamlFile, err := makeInstalledMockSnap(yaml + "license-version: 2\nversion: 1")
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testDeveloper+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)

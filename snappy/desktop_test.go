@@ -45,7 +45,7 @@ func (s *SnapTestSuite) TestAddPackageDesktopFiles(c *C) {
 	expectedDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar.desktop")
 	c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, false)
 
-	yamlFile, err := makeInstalledMockSnap(s.tempdir, desktopAppYaml)
+	yamlFile, err := makeInstalledMockSnap(desktopAppYaml)
 	c.Assert(err, IsNil)
 
 	snap, err := NewInstalledSnap(yamlFile)
@@ -80,7 +80,7 @@ func (s *SnapTestSuite) TestRemovePackageDesktopFiles(c *C) {
 }
 
 func (s *SnapTestSuite) TestDesktopFileIsAddedAndRemoved(c *C) {
-	yamlFile, err := makeInstalledMockSnap(s.tempdir, string(desktopAppYaml))
+	yamlFile, err := makeInstalledMockSnap(string(desktopAppYaml))
 	c.Assert(err, IsNil)
 	snap, err := NewInstalledSnap(yamlFile)
 	c.Assert(err, IsNil)
