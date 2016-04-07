@@ -892,7 +892,7 @@ slots:
 	c.Assert(err, IsNil)
 	err = s.repo.AddSnap(snapInfo)
 	c.Check(err, ErrorMatches,
-		`snap "complex" has unsupported interfaces: invalid-plug-iface \(plug is invalid\); invalid-slot-iface \(slot is invalid\); unknown-plug-iface, unknown-slot-iface \(unknown interface\)`)
+		`snap "complex" has bad plugs or slots: invalid-plug-iface \(plug is invalid\); invalid-slot-iface \(slot is invalid\); unknown-plug-iface, unknown-slot-iface \(unknown interface\)`)
 	// Nothing was added
 	c.Check(s.repo.Plug("complex", "invalid-plug-iface"), IsNil)
 	c.Check(s.repo.Plug("complex", "unknown-plug-iface"), IsNil)
