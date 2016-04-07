@@ -53,7 +53,7 @@ func init() {
 
 // makeInstalledMockSnap creates a installed mock snap without any
 // content other than the meta data
-func makeInstalledMockSnap(tempdir, snapYamlContent string) (yamlFile string, err error) {
+func makeInstalledMockSnap(snapYamlContent string) (yamlFile string, err error) {
 	const packageHello = `name: hello-snap
 version: 1.10
 summary: hello
@@ -76,7 +76,7 @@ apps:
 		return "", err
 	}
 
-	metaDir := filepath.Join(tempdir, "snaps", m.Name, m.Version, "meta")
+	metaDir := filepath.Join(dirs.GlobalRootDir, "snaps", m.Name, m.Version, "meta")
 	if err := os.MkdirAll(metaDir, 0775); err != nil {
 		return "", err
 	}

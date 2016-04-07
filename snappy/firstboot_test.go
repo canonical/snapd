@@ -142,7 +142,7 @@ func (s *FirstBootTestSuite) TestFirstBootConfigure(c *C) {
 }
 
 func (s *FirstBootTestSuite) TestSoftwareActivate(c *C) {
-	yamlPath, err := makeInstalledMockSnap(dirs.GlobalRootDir, "")
+	yamlPath, err := makeInstalledMockSnap("")
 	c.Assert(err, IsNil)
 
 	snap, err := NewInstalledSnap(yamlPath)
@@ -242,7 +242,7 @@ type: kernel
 `
 
 func (s *FirstBootTestSuite) ensureSystemSnapIsEnabledOnFirstBoot(c *C, yaml string, expectActivated bool) {
-	_, err := makeInstalledMockSnap(dirs.GlobalRootDir, yaml)
+	_, err := makeInstalledMockSnap(yaml)
 	c.Assert(err, IsNil)
 
 	all, err := (&Overlord{}).Installed()

@@ -40,7 +40,7 @@ func (s *SnapTestSuite) TestAddPackageServicesStripsGlobalRootdir(c *C) {
 	// is stripped)
 	c.Assert(dirs.GlobalRootDir, Not(Equals), "/")
 
-	yamlFile, err := makeInstalledMockSnap(s.tempdir, "")
+	yamlFile, err := makeInstalledMockSnap("")
 	c.Assert(err, IsNil)
 	snap, err := NewInstalledSnap(yamlFile)
 	c.Assert(err, IsNil)
@@ -66,7 +66,7 @@ func (s *SnapTestSuite) TestAddPackageBinariesStripsGlobalRootdir(c *C) {
 	// is stripped)
 	c.Assert(dirs.GlobalRootDir, Not(Equals), "/")
 
-	yamlFile, err := makeInstalledMockSnap(s.tempdir, "")
+	yamlFile, err := makeInstalledMockSnap("")
 	c.Assert(err, IsNil)
 	snap, err := NewInstalledSnap(yamlFile)
 	c.Assert(err, IsNil)
@@ -193,7 +193,7 @@ func (s *SnapTestSuite) TestRemovePackageServiceKills(c *C) {
 		sysdLog = append(sysdLog, cmd)
 		return []byte("ActiveState=active\n"), nil
 	}
-	yamlFile, err := makeInstalledMockSnap(s.tempdir, `name: wat
+	yamlFile, err := makeInstalledMockSnap(`name: wat
 version: 42
 apps:
  wat:
