@@ -169,7 +169,7 @@ func (f *fakeSnappyBackend) UndoLinkSnap(oldInstSnapPath, instSnapPath string) e
 
 func (f *fakeSnappyBackend) ActiveSnap(name string) *snap.Info {
 	return &snap.Info{
-		Name:    "an-active-snap",
-		Version: "1.64872",
+		SuggestedName: "an-active-snap",
+		Version:       "1.64872",
 	}
 }
