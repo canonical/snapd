@@ -21,7 +21,7 @@ package snapstate_test
 
 import (
 	"github.com/ubuntu-core/snappy/progress"
-	"github.com/ubuntu-core/snappy/snappy"
+	"github.com/ubuntu-core/snappy/snap"
 )
 
 type fakeOp struct {
@@ -41,7 +41,7 @@ type fakeSnappyBackend struct {
 	fakeTotalProgress   int
 }
 
-func (f *fakeSnappyBackend) InstallLocal(path string, flags snappy.InstallFlags, p progress.Meter) error {
+func (f *fakeSnappyBackend) InstallLocal(path string, flags int, p progress.Meter) error {
 	f.ops = append(f.ops, fakeOp{
 		op:   "install-local",
 		name: path,
@@ -57,10 +57,10 @@ func (f *fakeSnappyBackend) Download(name, channel string, p progress.Meter) (st
 	})
 	p.SetTotal(float64(f.fakeTotalProgress))
 	p.Set(float64(f.fakeCurrentProgress))
-	return "downloaded-snap-path", "some-developer", nil
+	return "downloaded-snap-path", "1.0", nil
 }
 
-func (f *fakeSnappyBackend) Update(name, channel string, flags snappy.InstallFlags, p progress.Meter) error {
+func (f *fakeSnappyBackend) Update(name, channel string, flags int, p progress.Meter) error {
 	f.ops = append(f.ops, fakeOp{
 		op:      "update",
 		name:    name,
@@ -69,7 +69,7 @@ func (f *fakeSnappyBackend) Update(name, channel string, flags snappy.InstallFla
 	return nil
 }
 
-func (f *fakeSnappyBackend) Remove(name string, flags snappy.RemoveFlags, p progress.Meter) error {
+func (f *fakeSnappyBackend) Remove(name string, flags int, p progress.Meter) error {
 	f.ops = append(f.ops, fakeOp{
 		op:   "remove",
 		name: name,
@@ -93,4 +93,83 @@ func (f *fakeSnappyBackend) Activate(name string, active bool, p progress.Meter)
 		active: active,
 	})
 	return nil
+}
+
+func (f *fakeSnappyBackend) CheckSnap(snapFilePath string, flags int) error {
+	f.ops = append(f.ops, fakeOp{
+		op:   "check-snap",
+		name: snapFilePath,
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, flags int) error {
+	f.ops = append(f.ops, fakeOp{
+		op:   "setup-snap",
+		name: snapFilePath,
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) CopySnapData(instSnapPath string, flags int) error {
+	f.ops = append(f.ops, fakeOp{
+		op:   "copy-data",
+		name: instSnapPath,
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) SetupSnapSecurity(instSnapPath string) error {
+	f.ops = append(f.ops, fakeOp{
+		op:   "setup-snap-security",
+		name: instSnapPath,
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) LinkSnap(instSnapPath string) error {
+	f.ops = append(f.ops, fakeOp{
+		op:   "link-snap",
+		name: instSnapPath,
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) UndoSetupSnap(snapFilePath string) error {
+	f.ops = append(f.ops, fakeOp{
+		op:   "undo-setup-snap",
+		name: snapFilePath,
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) UndoSetupSnapSecurity(instSnapPath string) error {
+	f.ops = append(f.ops, fakeOp{
+		op:   "undo-setup-snap-security",
+		name: instSnapPath,
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) UndoCopySnapData(instSnapPath string, flags int) error {
+	f.ops = append(f.ops, fakeOp{
+		op:   "undo-copy-snap-data",
+		name: instSnapPath,
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) UndoLinkSnap(oldInstSnapPath, instSnapPath string) error {
+	f.ops = append(f.ops, fakeOp{
+		op:   "undo-link-snap",
+		name: instSnapPath,
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) ActiveSnap(name string) *snap.Info {
+	return &snap.Info{
+		Name:    "an-active-snap",
+		Version: "1.64872",
+	}
 }

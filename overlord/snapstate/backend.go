@@ -20,35 +20,53 @@
 package snapstate
 
 import (
+	"path/filepath"
+
 	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
 )
 
 type managerBackend interface {
-	InstallLocal(snap string, flags snappy.InstallFlags, meter progress.Meter) error
 	Download(name, channel string, meter progress.Meter) (string, string, error)
-	Update(name, channel string, flags snappy.InstallFlags, meter progress.Meter) error
-	Remove(name string, flags snappy.RemoveFlags, meter progress.Meter) error
+	CheckSnap(snapFilePath string, flags int) error
+	SetupSnap(snapFilePath string, flags int) error
+	CopySnapData(instSnapPath string, flags int) error
+	SetupSnapSecurity(instSnapPath string) error
+	LinkSnap(instSnapPath string) error
+	// the undoers
+	UndoSetupSnap(snapFilePath string) error
+	UndoSetupSnapSecurity(instSnapPath string) error
+	UndoCopySnapData(instSnapPath string, flags int) error
+	UndoLinkSnap(oldInstSnapPath, instSnapPath string) error
+
+	// TODO: need to be split into fine grained tasks
+	Update(name, channel string, flags int, meter progress.Meter) error
+	Remove(name string, flags int, meter progress.Meter) error
 	Rollback(name, ver string, meter progress.Meter) (string, error)
 	Activate(name string, active bool, meter progress.Meter) error
+
+	// info
+	ActiveSnap(name string) *snap.Info
 }
 
 type defaultBackend struct{}
 
-func (s *defaultBackend) InstallLocal(snap string, flags snappy.InstallFlags, meter progress.Meter) error {
-	// FIXME: the name `snappy.Overlord` is confusing :/
-	_, err := (&snappy.Overlord{}).Install(snap, flags, meter)
-	return err
+func (s *defaultBackend) ActiveSnap(name string) *snap.Info {
+	if snap := snappy.ActiveSnapByName(name); snap != nil {
+		return snap.Info()
+	}
+	return nil
 }
 
-func (s *defaultBackend) Update(name, channel string, flags snappy.InstallFlags, meter progress.Meter) error {
+func (s *defaultBackend) Update(name, channel string, flags int, meter progress.Meter) error {
 	// FIXME: support "channel" in snappy.Update()
-	_, err := snappy.Update(name, flags, meter)
+	_, err := snappy.Update(name, snappy.InstallFlags(flags), meter)
 	return err
 }
 
-func (s *defaultBackend) Remove(name string, flags snappy.RemoveFlags, meter progress.Meter) error {
-	return snappy.Remove(name, flags, meter)
+func (s *defaultBackend) Remove(name string, flags int, meter progress.Meter) error {
+	return snappy.Remove(name, snappy.RemoveFlags(flags), meter)
 }
 
 func (s *defaultBackend) Rollback(name, ver string, meter progress.Meter) (string, error) {
@@ -79,5 +97,91 @@ func (s *defaultBackend) Download(name, channel string, meter progress.Meter) (s
 		return "", "", err
 	}
 
-	return downloadedSnapFile, snap.Developer, nil
+	return downloadedSnapFile, snap.Version, nil
+}
+
+func (s *defaultBackend) CheckSnap(snapFilePath string, flags int) error {
+	meter := &progress.NullProgress{}
+	return snappy.CheckSnap(snapFilePath, snappy.InstallFlags(flags), meter)
+}
+
+func (s *defaultBackend) SetupSnap(snapFilePath string, flags int) error {
+	meter := &progress.NullProgress{}
+	_, err := snappy.SetupSnap(snapFilePath, snappy.InstallFlags(flags), meter)
+	return err
+}
+
+func (s *defaultBackend) CopySnapData(snapInstPath string, flags int) error {
+	sn, err := snappy.NewInstalledSnap(filepath.Join(snapInstPath, "meta", "snap.yaml"))
+	if err != nil {
+		return err
+	}
+	meter := &progress.NullProgress{}
+	return snappy.CopyData(sn, snappy.InstallFlags(flags), meter)
+}
+
+func (s *defaultBackend) SetupSnapSecurity(snapInstPath string) error {
+	sn, err := snappy.NewInstalledSnap(filepath.Join(snapInstPath, "meta", "snap.yaml"))
+	if err != nil {
+		return err
+	}
+	return snappy.SetupSnapSecurity(sn)
+}
+
+func (s *defaultBackend) LinkSnap(snapInstPath string) error {
+	sn, err := snappy.NewInstalledSnap(filepath.Join(snapInstPath, "meta", "snap.yaml"))
+	if err != nil {
+		return err
+	}
+	meter := &progress.NullProgress{}
+	if err := snappy.GenerateWrappers(sn, meter); err != nil {
+		return err
+	}
+
+	return snappy.UpdateCurrentSymlink(sn, meter)
+}
+
+func (s *defaultBackend) UndoSetupSnap(snapFilePath string) error {
+	meter := &progress.NullProgress{}
+	snappy.UndoSetupSnap(snapFilePath, meter)
+	return nil
+}
+
+func (s *defaultBackend) UndoSetupSnapSecurity(instSnapPath string) error {
+	sn, err := snappy.NewInstalledSnap(filepath.Join(instSnapPath, "meta", "snap.yaml"))
+	if err != nil {
+		return err
+	}
+	snappy.RemoveGeneratedSnapSecurity(sn)
+	return nil
+}
+func (s *defaultBackend) UndoCopySnapData(instSnapPath string, flags int) error {
+	sn, err := snappy.NewInstalledSnap(filepath.Join(instSnapPath, "meta", "snap.yaml"))
+	if err != nil {
+		return err
+	}
+	meter := &progress.NullProgress{}
+	snappy.UndoCopyData(sn, snappy.InstallFlags(flags), meter)
+	return nil
+}
+
+func (s *defaultBackend) UndoLinkSnap(oldInstSnapPath, instSnapPath string) error {
+	new, err := snappy.NewInstalledSnap(filepath.Join(instSnapPath, "meta", "snap.yaml"))
+	if err != nil {
+		return err
+	}
+	old, err := snappy.NewInstalledSnap(filepath.Join(oldInstSnapPath, "meta", "snap.yaml"))
+	if err != nil {
+		return err
+	}
+
+	meter := &progress.NullProgress{}
+	err1 := snappy.RemoveGeneratedWrappers(new, meter)
+	err2 := snappy.UndoUpdateCurrentSymlink(old, new, meter)
+
+	// return firstErr
+	if err1 != nil {
+		return err1
+	}
+	return err2
 }

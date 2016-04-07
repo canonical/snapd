@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-04-05 09:43+0200\n"
+        "POT-Creation-Date: 2016-04-05 16:21+0200\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -116,6 +116,10 @@ msgstr  ""
 msgid   "Connects a plug to a slot"
 msgstr  ""
 
+#, c-format
+msgid   "Copying snap data for %q"
+msgstr  ""
+
 msgid   "Creates a snap package and if available, runs the review scripts."
 msgstr  ""
 
@@ -167,6 +171,10 @@ msgstr  ""
 msgid   "Entering classic dimension"
 msgstr  ""
 
+#, c-format
+msgid   "Final step for %q"
+msgstr  ""
+
 msgid   "Finds packages to install"
 msgstr  ""
 
@@ -204,10 +212,6 @@ msgstr  ""
 msgid   "Install snaps even if the signature can not be verified."
 msgstr  ""
 
-#, c-format
-msgid   "Installing %q"
-msgstr  ""
-
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid   "Installing %s\n"
@@ -232,6 +236,10 @@ msgid   "Log into the store"
 msgstr  ""
 
 msgid   "Login successful"
+msgstr  ""
+
+#, c-format
+msgid   "Mounting %q"
 msgstr  ""
 
 msgid   "Name\tDate\tVersion\t"
@@ -369,6 +377,10 @@ msgstr  ""
 #. TRANSLATORS: the first %s is a pkgname, the second %s is the new version
 #, c-format
 msgid   "Setting %s to version %s\n"
+msgstr  ""
+
+#, c-format
+msgid   "Setting up security profile for %q"
 msgstr  ""
 
 msgid   "Show available updates (requires network)"
