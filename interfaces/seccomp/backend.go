@@ -45,13 +45,13 @@ import (
 // Backend is responsible for maintaining seccomp profiles for ubuntu-core-launcher.
 type Backend struct{}
 
-// Configure creates seccomp security profiles specific to a given snap. The
-// snap can be in developer mode to make security violations non-fatal to the
-// offending application process.
+// Setup creates seccomp profiles specific to a given snap.
+// The snap can be in developer mode to make security violations non-fatal to
+// the offending application process.
 //
 // This method should be called after changing plug, slots, connections between
 // them or application present in the snap.
-func (b *Backend) Configure(snapInfo *snap.Info, developerMode bool, repo *interfaces.Repository) error {
+func (b *Backend) Setup(snapInfo *snap.Info, developerMode bool, repo *interfaces.Repository) error {
 	// Get the snippets that apply to this snap
 	snippets, err := repo.SecuritySnippetsForSnap(snapInfo.Name(), interfaces.SecuritySecComp)
 	if err != nil {
@@ -70,8 +70,8 @@ func (b *Backend) Configure(snapInfo *snap.Info, developerMode bool, repo *inter
 	return nil
 }
 
-// Deconfigure removes security artefacts of a given snap.
-func (b *Backend) Deconfigure(snapInfo *snap.Info) error {
+// Remove removes seccomp profiles of a given snap.
+func (b *Backend) Remove(snapInfo *snap.Info) error {
 	glob := interfaces.SecurityTagGlob(snapInfo)
 	_, _, err := osutil.EnsureDirState(dirs.SnapSeccompDir, glob, nil)
 	if err != nil {
