@@ -656,3 +656,35 @@ func (r *Repository) RemoveSnap(snapInfo *snap.Info) error {
 
 	return nil
 }
+
+// DisconnectSnap disconnects all the connections to and from a given snap.
+//
+// The return value is a list of snap.Info's that were affected.
+func (r *Repository) DisconnectSnap(snapName string) ([]*snap.Info, error) {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	seen := make(map[*snap.Info]bool)
+
+	for _, plug := range r.plugs[snapName] {
+		for slot := range r.plugSlots[plug] {
+			r.disconnect(plug, slot)
+			seen[plug.Snap] = true
+			seen[slot.Snap] = true
+		}
+	}
+
+	for _, slot := range r.slots[snapName] {
+		for plug := range r.slotPlugs[slot] {
+			r.disconnect(plug, slot)
+			seen[plug.Snap] = true
+			seen[slot.Snap] = true
+		}
+	}
+
+	result := make([]*snap.Info, 0, len(seen))
+	for info := range seen {
+		result = append(result, info)
+	}
+	return result, nil
+}
