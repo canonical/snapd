@@ -174,6 +174,14 @@ func (f *fakeSnappyBackend) ActiveSnap(name string) *snap.Info {
 	}
 }
 
+func (f *fakeSnappyBackend) CanRemove(instSnapPath string) error {
+	f.ops = append(f.ops, fakeOp{
+		op:   "can-remove",
+		name: instSnapPath,
+	})
+	return nil
+}
+
 func (f *fakeSnappyBackend) UnlinkSnap(instSnapPath string, meter progress.Meter) error {
 	f.ops = append(f.ops, fakeOp{
 		op:   "unlink-snap",

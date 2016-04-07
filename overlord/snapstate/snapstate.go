@@ -114,14 +114,18 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 		version = info.Version
 	}
 
-	// FIXME: check for snappy.CanRemove()
-
 	ss := snapSetup{
 		Name:       name,
 		Developer:  developer,
 		Version:    version,
 		SetupFlags: int(flags),
 	}
+	// check if this is something that can be removed
+	if err := backend.CanRemove(ss.BaseDir()); err != nil {
+		return nil, err
+	}
+
+	// trigger remove
 	unlink := s.NewTask("unlink-snap", fmt.Sprintf(i18n.G("Deactivating %q"), snapSpec))
 	unlink.Set("snap-setup", ss)
 

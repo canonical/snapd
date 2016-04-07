@@ -20,6 +20,7 @@
 package snapstate
 
 import (
+	"fmt"
 	"path/filepath"
 
 	"github.com/ubuntu-core/snappy/progress"
@@ -42,6 +43,7 @@ type managerBackend interface {
 	UndoLinkSnap(oldInstSnapPath, instSnapPath string) error
 
 	// remove releated
+	CanRemove(instSnapPath string) error
 	UnlinkSnap(instSnapPath string, meter progress.Meter) error
 	RemoveSnapSecurity(instSnapPath string) error
 	RemoveSnapFiles(instSnapPath string, meter progress.Meter) error
@@ -186,6 +188,17 @@ func (s *defaultBackend) UndoLinkSnap(oldInstSnapPath, instSnapPath string) erro
 		return err1
 	}
 	return err2
+}
+
+func (s *defaultBackend) CanRemove(instSnapPath string) error {
+	sn, err := snappy.NewInstalledSnap(filepath.Join(instSnapPath, "meta", "snap.yaml"))
+	if err != nil {
+		return err
+	}
+	if !snappy.CanRemove(sn) {
+		return fmt.Errorf("snap %q is not removable", sn.Name())
+	}
+	return nil
 }
 
 func (s *defaultBackend) UnlinkSnap(instSnapPath string, meter progress.Meter) error {
