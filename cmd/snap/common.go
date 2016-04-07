@@ -44,6 +44,9 @@ func isAutoUpdateRunning() bool {
 
 // withMutexAndRetry runs the given function with a filelock mutex and provides
 // automatic re-try and helpful messages if the lock is already taken
+//
+// FIXME: This function is a left over from the old CLI and a major
+// red flag. No client-side locks should exist.
 func withMutexAndRetry(f func() error) error {
 	if sys.Getuid() != 0 {
 		return snappy.ErrNeedRoot
