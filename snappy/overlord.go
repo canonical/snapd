@@ -155,7 +155,7 @@ func CopyData(newSnap *Snap, flags InstallFlags, meter progress.Meter) error {
 
 	// we need to stop any services and make the commands unavailable
 	// so that the data can be safely copied
-	if err := DeactivateSnap(oldSnap, meter); err != nil {
+	if err := UnlinkSnap(oldSnap, meter); err != nil {
 		return err
 	}
 
@@ -172,7 +172,7 @@ func UndoCopyData(newSnap *Snap, flags InstallFlags, meter progress.Meter) {
 		}
 	}
 
-	if err := removeSnapData(newSnap.Name(), newSnap.Version()); err != nil {
+	if err := RemoveSnapData(newSnap.Name(), newSnap.Version()); err != nil {
 		logger.Noticef("When cleaning up data for %s %s: %v", newSnap.Name(), newSnap.Version(), err)
 	}
 }
@@ -321,12 +321,9 @@ func ActivateSnap(s *Snap, inter interacter) error {
 	return UpdateCurrentSymlink(s, inter)
 }
 
-// FIXME: this needs to become task based too so that each step
-//        has a clear undo
-func DeactivateSnap(s *Snap, inter interacter) error {
+// UnlinkSnap deactivates the given active snap.
+func UnlinkSnap(s *Snap, inter interacter) error {
 	currentSymlink := filepath.Join(s.basedir, "..", "current")
-
-	// sanity check
 	currentActiveDir, err := filepath.EvalSymlinks(currentSymlink)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -347,6 +344,7 @@ func DeactivateSnap(s *Snap, inter interacter) error {
 	// and finally remove current symlink
 	err3 := removeCurrentSymlink(s, inter)
 
+	// FIXME: aggregate errors instead
 	return firstErr(err1, err2, err3)
 }
 
@@ -445,35 +443,28 @@ func canInstall(s *SnapFile, allowGadget bool, inter interacter) error {
 	return nil
 }
 
-// Uninstall removes the given local snap from the system.
-//
-// It returns an error on failure
-func (o *Overlord) Uninstall(s *Snap, meter progress.Meter) error {
+func CanRemove(s *Snap) bool {
 	// Gadget snaps should not be removed as they are a key
 	// building block for Gadgets. Prunning non active ones
 	// is acceptible.
 	if s.m.Type == snap.TypeGadget && s.IsActive() {
-		return ErrPackageNotRemovable
+		return false
 	}
 
 	// You never want to remove an active kernel or OS
 	if (s.m.Type == snap.TypeKernel || s.m.Type == snap.TypeOS) && s.IsActive() {
-		return ErrPackageNotRemovable
+		return false
 	}
 
 	if IsBuiltInSoftware(s.Name()) && s.IsActive() {
-		return ErrPackageNotRemovable
+		return false
 	}
+	return true
+}
 
-	if err := DeactivateSnap(s, meter); err != nil && err != ErrSnapNotActive {
-		return err
-	}
-
-	if err := RemoveGeneratedSnapSecurity(s); err != nil {
-		return err
-	}
-
-	// ensure mount unit stops
+// RemoveSnapFiles removes the snap files from the disk
+func RemoveSnapFiles(s *Snap, meter progress.Meter) error {
+	// this also ensures that the mount unit stops
 	if err := removeSquashfsMount(s.m, s.basedir, meter); err != nil {
 		return err
 	}
@@ -497,12 +488,25 @@ func (o *Overlord) Uninstall(s *Snap, meter progress.Meter) error {
 		}
 	}
 
-	// purge the data
-	if err := removeSnapData(s.Name(), s.Version()); err != nil {
+	return RemoveAllHWAccess(s.Name())
+}
+
+// Uninstall removes the given local snap from the system.
+//
+// It returns an error on failure
+func (o *Overlord) Uninstall(s *Snap, meter progress.Meter) error {
+	if !CanRemove(s) {
+		return ErrPackageNotRemovable
+	}
+
+	if err := UnlinkSnap(s, meter); err != nil && err != ErrSnapNotActive {
+		return err
+	}
+	if err := RemoveSnapFiles(s, meter); err != nil {
 		return err
 	}
 
-	return RemoveAllHWAccess(s.Name())
+	return RemoveSnapData(s.Name(), s.Version())
 }
 
 // SetActive sets the active state of the given snap
@@ -512,14 +516,14 @@ func (o *Overlord) SetActive(s *Snap, active bool, meter progress.Meter) error {
 	if active {
 		// deactivate current first
 		if current := ActiveSnapByName(s.Name()); current != nil {
-			if err := DeactivateSnap(current, meter); err != nil {
+			if err := UnlinkSnap(current, meter); err != nil {
 				return err
 			}
 		}
 		return ActivateSnap(s, meter)
 	}
 
-	return DeactivateSnap(s, meter)
+	return UnlinkSnap(s, meter)
 }
 
 // Configure configures the given snap

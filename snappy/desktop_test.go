@@ -103,8 +103,8 @@ func (s *SnapTestSuite) TestDesktopFileIsAddedAndRemoved(c *C) {
 Name=foo
 Icon=/snaps/foo/1.0/foo.png`)
 
-	// deactivate removes it again
-	err = DeactivateSnap(snap, nil)
+	// unlink (deactivate) removes it again
+	err = UnlinkSnap(snap, nil)
 	c.Assert(err, IsNil)
 	c.Assert(osutil.FileExists(mockDesktopFilePath), Equals, false)
 }
