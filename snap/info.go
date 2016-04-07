@@ -103,6 +103,11 @@ func (s *Info) MountFile() string {
 	return filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", s.Name(), s.Version))
 }
 
+// DataDir returns the data directory of the snap.
+func (s *Info) DataDir() string {
+	return filepath.Join(dirs.SnapDataDir, s.Name(), s.Version)
+}
+
 // PlugInfo provides information about a plug.
 type PlugInfo struct {
 	Snap *Info
