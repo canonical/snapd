@@ -20,8 +20,10 @@
 package interfaces
 
 import (
+	"bytes"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/ubuntu-core/snappy/snap"
@@ -517,12 +519,31 @@ func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem Sec
 	return snippets, nil
 }
 
-type addSnapError struct {
-	errs []error
+// BadInterfacesError is returned when some snap interfaces could not be registered.
+// Those interfaces not mentioned in the error were successfully registered.
+type BadInterfacesError struct {
+	snap   string
+	issues map[string]string // slot or plug name => message
 }
 
-func (e *addSnapError) Error() string {
-	return fmt.Sprintf("errors while adding snap: %v", e.errs)
+func (e *BadInterfacesError) Error() string {
+	inverted := make(map[string][]string)
+	for name, reason := range e.issues {
+		inverted[reason] = append(inverted[reason], name)
+	}
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "snap %q has unsupported interfaces: ", e.snap)
+	for reason, names := range inverted {
+		sort.Strings(names)
+		for i, name := range names {
+			if i > 0 {
+				buf.WriteString(", ")
+			}
+			buf.WriteString(name)
+		}
+		fmt.Fprintf(&buf, " (%s); ", reason)
+	}
+	return strings.TrimSuffix(buf.String(), "; ")
 }
 
 // AddSnap adds plugs and slots declared by the given snap to the repository.
@@ -548,19 +569,20 @@ func (r *Repository) AddSnap(snapInfo *snap.Info) error {
 		return fmt.Errorf("cannot register interfaces for snap %q more than once", snapName)
 	}
 
-	var errors []error
+	bad := BadInterfacesError{
+		snap:   snapName,
+		issues: make(map[string]string),
+	}
 
 	for plugName, plugInfo := range snapInfo.Plugs {
 		iface, ok := r.ifaces[plugInfo.Interface]
 		if !ok {
-			err := fmt.Errorf("ignoring plug %s.%s, interface %s is not supported", snapName, plugName, plugInfo.Interface)
-			errors = append(errors, err)
+			bad.issues[plugName] = "unknown interface"
 			continue
 		}
 		plug := &Plug{PlugInfo: plugInfo}
 		if err := iface.SanitizePlug(plug); err != nil {
-			err := fmt.Errorf("ignoring plug %s.%s, %s", snapName, plugName, err)
-			errors = append(errors, err)
+			bad.issues[plugName] = err.Error()
 			continue
 		}
 		if r.plugs[snapName] == nil {
@@ -572,14 +594,12 @@ func (r *Repository) AddSnap(snapInfo *snap.Info) error {
 	for slotName, slotInfo := range snapInfo.Slots {
 		iface, ok := r.ifaces[slotInfo.Interface]
 		if !ok {
-			err := fmt.Errorf("ignoring slot %s.%s, interface %s is not supported", snapName, slotName, slotInfo.Interface)
-			errors = append(errors, err)
+			bad.issues[slotName] = "unknown interface"
 			continue
 		}
 		slot := &Slot{SlotInfo: slotInfo}
 		if err := iface.SanitizeSlot(slot); err != nil {
-			err := fmt.Errorf("ignoring slot %s.%s, %s", snapName, slotName, err)
-			errors = append(errors, err)
+			bad.issues[slotName] = err.Error()
 			continue
 		}
 		if r.slots[snapName] == nil {
@@ -588,8 +608,8 @@ func (r *Repository) AddSnap(snapInfo *snap.Info) error {
 		r.slots[snapName][slotName] = slot
 	}
 
-	if len(errors) > 0 {
-		return &addSnapError{errs: errors}
+	if len(bad.issues) > 0 {
+		return &bad
 	}
 	return nil
 }

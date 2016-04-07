@@ -996,7 +996,8 @@ func (s *AddRemoveSuite) TestAddSnapSkipsPlugsWithUnknownInterface(c *C) {
 	c.Check(s.repo.Plug("consumer", "iface"), IsNil)
 	// There is a trail why it was skipped
 	c.Check(err, ErrorMatches,
-		`errors while adding snap: \[ignoring plug consumer.unknown, interface unknown is not supported\]`)
+		`snap "consumer" has unsupported interfaces: unknown \(unknown interface\)`)
+
 }
 
 func (s *AddRemoveSuite) TestAddSkipsPlugsWithInvalidInterface(c *C) {
@@ -1005,7 +1006,7 @@ func (s *AddRemoveSuite) TestAddSkipsPlugsWithInvalidInterface(c *C) {
 	c.Check(s.repo.Plug("consumer", "iface"), IsNil)
 	// There is a trail why it was skipped
 	c.Check(err, ErrorMatches,
-		`errors while adding snap: \[ignoring plug consumer.invalid, plug is invalid\]`)
+		`snap "consumer" has unsupported interfaces: invalid \(plug is invalid\)`)
 }
 
 func (s AddRemoveSuite) TestRemoveRemovesPlugs(c *C) {
