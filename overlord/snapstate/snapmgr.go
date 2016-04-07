@@ -54,11 +54,11 @@ type SnapSetup struct {
 	SnapPath string `json:"snap-path"`
 }
 
-func (ss *SnapSetup) BaseDir() string {
+func (ss *SnapSetup) MountDir() string {
 	return filepath.Join(dirs.SnapSnapsDir, ss.Name, ss.Version)
 }
 
-func (ss *SnapSetup) OldBaseDir() string {
+func (ss *SnapSetup) OldMountDir() string {
 	if ss.OldName == "" || ss.OldVersion == "" {
 		return ""
 	}
@@ -171,7 +171,7 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	pb := &TaskProgressAdapter{task: t}
-	return m.backend.UnlinkSnap(ss.BaseDir(), pb)
+	return m.backend.UnlinkSnap(ss.MountDir(), pb)
 }
 
 func (m *SnapManager) doRemoveSnapSecurity(t *state.Task, _ *tomb.Tomb) error {
@@ -184,7 +184,7 @@ func (m *SnapManager) doRemoveSnapSecurity(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	return m.backend.RemoveSnapSecurity(ss.BaseDir())
+	return m.backend.RemoveSnapSecurity(ss.MountDir())
 }
 
 func (m *SnapManager) doRemoveSnapFiles(t *state.Task, _ *tomb.Tomb) error {
@@ -198,7 +198,7 @@ func (m *SnapManager) doRemoveSnapFiles(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	pb := &TaskProgressAdapter{task: t}
-	return m.backend.RemoveSnapFiles(ss.BaseDir(), pb)
+	return m.backend.RemoveSnapFiles(ss.MountDir(), pb)
 }
 func (m *SnapManager) doRemoveSnapData(t *state.Task, _ *tomb.Tomb) error {
 	var ss SnapSetup
@@ -298,7 +298,7 @@ func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	return m.backend.UndoSetupSnap(ss.BaseDir())
+	return m.backend.UndoSetupSnap(ss.MountDir())
 }
 
 func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -320,7 +320,7 @@ func (m *SnapManager) doSetupSnapSecurity(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	return m.backend.SetupSnapSecurity(ss.BaseDir())
+	return m.backend.SetupSnapSecurity(ss.MountDir())
 }
 
 func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
@@ -329,7 +329,7 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	return m.backend.UndoCopySnapData(ss.BaseDir(), ss.SetupFlags)
+	return m.backend.UndoCopySnapData(ss.MountDir(), ss.SetupFlags)
 }
 
 func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
@@ -338,7 +338,7 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	return m.backend.CopySnapData(ss.BaseDir(), ss.SetupFlags)
+	return m.backend.CopySnapData(ss.MountDir(), ss.SetupFlags)
 }
 func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	ss, err := TaskSnapSetup(t)
@@ -346,7 +346,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	return m.backend.LinkSnap(ss.BaseDir())
+	return m.backend.LinkSnap(ss.MountDir())
 }
 
 func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -355,7 +355,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	return m.backend.UndoLinkSnap(ss.OldBaseDir(), ss.BaseDir())
+	return m.backend.UndoLinkSnap(ss.OldMountDir(), ss.MountDir())
 }
 
 // SnapInfo returns the snap.Info for a snap in the system.

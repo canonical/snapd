@@ -121,7 +121,7 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 		SetupFlags: int(flags),
 	}
 	// check if this is something that can be removed
-	if err := backend.CanRemove(ss.BaseDir()); err != nil {
+	if err := backend.CanRemove(ss.MountDir()); err != nil {
 		return nil, err
 	}
 
