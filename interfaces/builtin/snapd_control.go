@@ -23,16 +23,16 @@ import (
 	"github.com/ubuntu-core/snappy/interfaces"
 )
 
-// http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/snap-control
-const snapControlConnectedPlugAppArmor = `
+// http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/snapd-control
+const snapdControlConnectedPlugAppArmor = `
 # Description: Can manage snaps via snapd.
 # Usage: reserved
 
 /run/snapd.socket rw,
 `
 
-// http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/snap-control
-const snapControlConnectedPlugSecComp = `
+// http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/snapd-control
+const snapdControlConnectedPlugSecComp = `
 # Description: Can use snapd.
 # Usage: reserved
 
@@ -48,12 +48,12 @@ socket
 socketpair
 `
 
-// NewSnapControlInterface returns a new "snap-control" interface.
-func NewSnapControlInterface() interfaces.Interface {
+// NewSnapdControlInterface returns a new "snapd-control" interface.
+func NewSnapdControlInterface() interfaces.Interface {
 	return &commonInterface{
-		name: "snap-control",
-		connectedPlugAppArmor: snapControlConnectedPlugAppArmor,
-		connectedPlugSecComp:  snapControlConnectedPlugSecComp,
+		name: "snapd-control",
+		connectedPlugAppArmor: snapdControlConnectedPlugAppArmor,
+		connectedPlugSecComp:  snapdControlConnectedPlugSecComp,
 		reservedForOS:         true,
 	}
 }
