@@ -96,7 +96,7 @@ func SetRootDir(rootdir string) {
 
 	SnapStateFile = filepath.Join(rootdir, snappyDir, "state.json")
 
-	SnapBinariesDir = filepath.Join(SnapSnapsDir, "bin")
+	SnapBinariesDir = filepath.Join(rootdir, snappyDir, "bin")
 	SnapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")
 	SnapBusPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/system.d")
 

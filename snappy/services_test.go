@@ -74,7 +74,7 @@ func (s *SnapTestSuite) TestAddPackageBinariesStripsGlobalRootdir(c *C) {
 	err = addPackageBinaries(snap.Info())
 	c.Assert(err, IsNil)
 
-	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/snaps/bin/hello-snap.hello"))
+	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/var/lib/snappy/bin/hello-snap.hello"))
 	c.Assert(err, IsNil)
 
 	needle := `
