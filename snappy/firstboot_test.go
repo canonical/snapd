@@ -119,9 +119,9 @@ func (s *FirstBootTestSuite) newOverlord() configurator {
 
 func (s *FirstBootTestSuite) newFakeApp() *Snap {
 	fakeMyApp := Snap{
-		m: &snapYaml{
-			Name: "myapp",
-			Type: snap.TypeApp,
+		info: &snap.Info{
+			SuggestedName: "myapp",
+			Type:          snap.TypeApp,
 		},
 	}
 	s.snapMap = make(map[string]*Snap)
@@ -142,7 +142,7 @@ func (s *FirstBootTestSuite) TestFirstBootConfigure(c *C) {
 }
 
 func (s *FirstBootTestSuite) TestSoftwareActivate(c *C) {
-	yamlPath, err := makeInstalledMockSnap(dirs.GlobalRootDir, "")
+	yamlPath, err := makeInstalledMockSnap("")
 	c.Assert(err, IsNil)
 
 	snap, err := NewInstalledSnap(yamlPath)
@@ -242,7 +242,7 @@ type: kernel
 `
 
 func (s *FirstBootTestSuite) ensureSystemSnapIsEnabledOnFirstBoot(c *C, yaml string, expectActivated bool) {
-	_, err := makeInstalledMockSnap(dirs.GlobalRootDir, yaml)
+	_, err := makeInstalledMockSnap(yaml)
 	c.Assert(err, IsNil)
 
 	all, err := (&Overlord{}).Installed()
