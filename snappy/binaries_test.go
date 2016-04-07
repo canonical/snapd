@@ -75,10 +75,9 @@ ubuntu-core-launcher pastebinit.pastebinit pastebinit_pastebinit_1.4.0.0.1 /snap
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 	pkgPath := "/snaps/pastebinit/1.4.0.0.1/"
-	info := &snap.Info{
-		Name:    "pastebinit",
-		Version: "1.4.0.0.1",
-	}
+	info := &snap.Info{}
+	info.SuggestedName = "pastebinit"
+	info.Version = "1.4.0.0.1"
 	binary := &snap.AppInfo{
 		Snap:    info,
 		Name:    "pastebinit",
@@ -93,11 +92,10 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 }
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperIllegalChars(c *C) {
-	pkgPath := "/snaps/pastebinit.mvo/1.4.0.0.1/"
-	info := &snap.Info{
-		Name:    "pastebinit",
-		Version: "1.4.0.0.1",
-	}
+	pkgPath := "/snaps/pastebinit/1.4.0.0.1/"
+	info := &snap.Info{}
+	info.SuggestedName = "pastebinit"
+	info.Version = "1.4.0.0.1"
 	binary := &snap.AppInfo{
 		Snap: info,
 		Name: "bin/pastebinit\nSomething nasty",

@@ -182,7 +182,7 @@ func addPackageDesktopFiles(s *snap.Info) error {
 		realBaseDir := stripGlobalRootDir(baseDir)
 		content = sanitizeDesktopFile(s, realBaseDir, content)
 
-		installedDesktopFileName := filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s", s.Name, filepath.Base(df)))
+		installedDesktopFileName := filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s", s.Name(), filepath.Base(df)))
 		if err := osutil.AtomicWriteFile(installedDesktopFileName, []byte(content), 0755, 0); err != nil {
 			return err
 		}
@@ -192,7 +192,7 @@ func addPackageDesktopFiles(s *snap.Info) error {
 }
 
 func removePackageDesktopFiles(s *snap.Info) error {
-	glob := filepath.Join(dirs.SnapDesktopFilesDir, s.Name+"_*.desktop")
+	glob := filepath.Join(dirs.SnapDesktopFilesDir, s.Name()+"_*.desktop")
 	activeDesktopFiles, err := filepath.Glob(glob)
 	if err != nil {
 		return fmt.Errorf("cannot get desktop files for %v: %s", glob, err)

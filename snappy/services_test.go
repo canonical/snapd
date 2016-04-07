@@ -111,8 +111,8 @@ WantedBy=multi-user.target
 func (s *SnapTestSuite) TestSnappyGenerateSnapServiceTypeForking(c *C) {
 	service := &snap.AppInfo{
 		Snap: &snap.Info{
-			Name:    "xkcd-webserver",
-			Version: "0.3.4",
+			SuggestedName: "xkcd-webserver",
+			Version:       "0.3.4",
 		},
 		Name:        "xkcd-webserver",
 		Command:     "bin/foo start",
@@ -131,8 +131,8 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceTypeForking(c *C) {
 func (s *SnapTestSuite) TestSnappyGenerateSnapServiceAppWrapper(c *C) {
 	service := &snap.AppInfo{
 		Snap: &snap.Info{
-			Name:    "xkcd-webserver",
-			Version: "0.3.4",
+			SuggestedName: "xkcd-webserver",
+			Version:       "0.3.4",
 		},
 		Name:        "xkcd-webserver",
 		Command:     "bin/foo start",
@@ -151,8 +151,8 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceAppWrapper(c *C) {
 func (s *SnapTestSuite) TestSnappyGenerateSnapServiceRestart(c *C) {
 	service := &snap.AppInfo{
 		Snap: &snap.Info{
-			Name:    "xkcd-webserver",
-			Version: "0.3.4",
+			SuggestedName: "xkcd-webserver",
+			Version:       "0.3.4",
 		},
 		Name:        "xkcd-webserver",
 		RestartCond: systemd.RestartOnAbort,
@@ -168,8 +168,8 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceRestart(c *C) {
 func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWrapperWhitelist(c *C) {
 	service := &snap.AppInfo{
 		Snap: &snap.Info{
-			Name:    "xkcd-webserver",
-			Version: "0.3.4",
+			SuggestedName: "xkcd-webserver",
+			Version:       "0.3.4",
 		},
 		Name:        "xkcd-webserver",
 		Command:     "bin/foo start\n",
@@ -219,8 +219,8 @@ apps:
 func (s *SnapTestSuite) TestSnappyGenerateSnapSocket(c *C) {
 	service := &snap.AppInfo{
 		Snap: &snap.Info{
-			Name:    "xkcd-webserver",
-			Version: "0.3.4",
+			SuggestedName: "xkcd-webserver",
+			Version:       "0.3.4",
 		},
 		Name:         "xkcd-webserver",
 		Command:      "bin/foo start",
@@ -250,8 +250,8 @@ WantedBy=sockets.target
 func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWithSocket(c *C) {
 	service := &snap.AppInfo{
 		Snap: &snap.Info{
-			Name:    "xkcd-webserver",
-			Version: "0.3.4",
+			SuggestedName: "xkcd-webserver",
+			Version:       "0.3.4",
 		},
 		Name:        "xkcd-webserver",
 		Command:     "bin/foo start",

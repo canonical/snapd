@@ -97,12 +97,12 @@ func mapSnap(localSnaps []*snappy.Snap, remoteSnap *snap.Info) map[string]interf
 		_type = string(localSnap.Type())
 
 		icon = localSnap.Icon()
-		description = localSnap.Info().Description
+		description = localSnap.Info().Description()
 		installedSize = localSnap.InstalledSize()
 
 		downloadSize = localSnap.DownloadSize()
 	} else {
-		name = remoteSnap.Name
+		name = remoteSnap.Name()
 		developer = remoteSnap.Developer
 		version = remoteSnap.Version
 		_type = string(remoteSnap.Type)
@@ -113,7 +113,7 @@ func mapSnap(localSnaps []*snappy.Snap, remoteSnap *snap.Info) map[string]interf
 			icon = remoteSnap.IconURL
 		}
 		if description == "" {
-			description = remoteSnap.Description
+			description = remoteSnap.Description()
 		}
 
 		downloadSize = remoteSnap.Size
