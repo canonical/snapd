@@ -1015,7 +1015,7 @@ func (s AddRemoveSuite) TestRemoveRemovesPlugs(c *C) {
 	c.Assert(s.repo.Plug("consumer", "iface"), IsNil)
 }
 
-func (s *AddRemoveSuite) TestRemoveSnapPanicOnStillConnectedSnap(c *C) {
+func (s *AddRemoveSuite) TestRemoveSnapErrorsOnStillConnectedSnap(c *C) {
 	consumer, _ := s.addSnap(c, testConsumerYaml)
 	_, _ = s.addSnap(c, testProducerYaml)
 	err := s.repo.Connect("consumer", "iface", "producer", "iface")
