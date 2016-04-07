@@ -869,6 +869,27 @@ func (s *AddRemoveSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (s *AddRemoveSuite) TestAddSnapComplexErrorHandling(c *C) {
+	snapInfo, err := snap.InfoFromSnapYaml([]byte(`
+name: complex
+plugs:
+    invalid:
+    unknown:
+slots:
+    invalid:
+    unknown:
+`))
+	c.Assert(err, IsNil)
+	err = s.repo.AddSnap(snapInfo)
+	c.Check(err, ErrorMatches,
+		`snap "complex" has unsupported interfaces: invalid \(slot is invalid\); unknown \(unknown interface\)`)
+	// Nothing was added
+	c.Check(s.repo.Plug("complex", "invalid"), IsNil)
+	c.Check(s.repo.Plug("complex", "unknown"), IsNil)
+	c.Check(s.repo.Slot("complex", "invalid"), IsNil)
+	c.Check(s.repo.Slot("complex", "unknown"), IsNil)
+}
+
 const testConsumerYaml = `
 name: consumer
 apps:
