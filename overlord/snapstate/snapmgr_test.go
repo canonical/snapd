@@ -136,15 +136,15 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 		},
 		fakeOp{
 			op:   "copy-data",
-			name: "/snaps/some-snap/1.0",
+			name: "/snap/some-snap/1.0",
 		},
 		fakeOp{
 			op:   "setup-snap-security",
-			name: "/snaps/some-snap/1.0",
+			name: "/snap/some-snap/1.0",
 		},
 		fakeOp{
 			op:   "link-snap",
-			name: "/snaps/some-snap/1.0",
+			name: "/snap/some-snap/1.0",
 		},
 	})
 
@@ -212,19 +212,19 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 	c.Assert(s.fakeBackend.ops, DeepEquals, []fakeOp{
 		fakeOp{
 			op:   "can-remove",
-			name: "/snaps/some-snap/1.64872",
+			name: "/snap/some-snap/1.64872",
 		},
 		fakeOp{
 			op:   "unlink-snap",
-			name: "/snaps/some-snap/1.64872",
+			name: "/snap/some-snap/1.64872",
 		},
 		fakeOp{
 			op:   "remove-snap-security",
-			name: "/snaps/some-snap/1.64872",
+			name: "/snap/some-snap/1.64872",
 		},
 		fakeOp{
 			op:   "remove-snap-files",
-			name: "/snaps/some-snap/1.64872",
+			name: "/snap/some-snap/1.64872",
 		},
 		fakeOp{
 			op:      "remove-snap-data",
