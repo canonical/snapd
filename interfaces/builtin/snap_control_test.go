@@ -37,14 +37,14 @@ var _ = Suite(&SnapControlInterfaceSuite{
 	iface: builtin.NewSnapControlInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{Name: "ubuntu-core"},
+			Snap:      &snap.Info{SuggestedName: "ubuntu-core"},
 			Name:      "snap-control",
 			Interface: "snap-control",
 		},
 	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{Name: "other"},
+			Snap:      &snap.Info{SuggestedName: "other"},
 			Name:      "snap-control",
 			Interface: "snap-control",
 		},
@@ -59,7 +59,7 @@ func (s *SnapControlInterfaceSuite) TestSanitizeSlot(c *C) {
 	err := s.iface.SanitizeSlot(s.slot)
 	c.Assert(err, IsNil)
 	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{Name: "some-snap"},
+		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "snap-control",
 		Interface: "snap-control",
 	}})

@@ -38,14 +38,14 @@ var _ = Suite(&TestInterfaceSuite{
 	iface: &TestInterface{InterfaceName: "test"},
 	plug: &Plug{
 		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{Name: "snap"},
+			Snap:      &snap.Info{SuggestedName: "snap"},
 			Name:      "name",
 			Interface: "test",
 		},
 	},
 	slot: &Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{Name: "snap"},
+			Snap:      &snap.Info{SuggestedName: "snap"},
 			Name:      "name",
 			Interface: "test",
 		},
@@ -79,7 +79,7 @@ func (s *TestInterfaceSuite) TestSanitizePlugError(c *C) {
 func (s *TestInterfaceSuite) TestSanitizePlugWrongInterface(c *C) {
 	plug := &Plug{
 		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{Name: "snap"},
+			Snap:      &snap.Info{SuggestedName: "snap"},
 			Name:      "name",
 			Interface: "other-interface",
 		},
@@ -109,7 +109,7 @@ func (s *TestInterfaceSuite) TestSanitizeSlotError(c *C) {
 func (s *TestInterfaceSuite) TestSanitizeSlotWrongInterface(c *C) {
 	slot := &Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{Name: "snap"},
+			Snap:      &snap.Info{SuggestedName: "snap"},
 			Name:      "name",
 			Interface: "interface",
 		},

@@ -121,7 +121,7 @@ func (r *Repository) AddPlug(plug *Plug) error {
 	defer r.m.Unlock()
 
 	// Reject snaps with invalid names
-	if err := snap.ValidateName(plug.Snap.Name); err != nil {
+	if err := snap.ValidateName(plug.Snap.Name()); err != nil {
 		return err
 	}
 	// Reject plug with invalid names
@@ -136,13 +136,13 @@ func (r *Repository) AddPlug(plug *Plug) error {
 	if err := i.SanitizePlug(plug); err != nil {
 		return fmt.Errorf("cannot add plug: %v", err)
 	}
-	if _, ok := r.plugs[plug.Snap.Name][plug.Name]; ok {
-		return fmt.Errorf("cannot add plug, snap %q already has plug %q", plug.Snap.Name, plug.Name)
+	if _, ok := r.plugs[plug.Snap.Name()][plug.Name]; ok {
+		return fmt.Errorf("cannot add plug, snap %q already has plug %q", plug.Snap.Name(), plug.Name)
 	}
-	if r.plugs[plug.Snap.Name] == nil {
-		r.plugs[plug.Snap.Name] = make(map[string]*Plug)
+	if r.plugs[plug.Snap.Name()] == nil {
+		r.plugs[plug.Snap.Name()] = make(map[string]*Plug)
 	}
-	r.plugs[plug.Snap.Name][plug.Name] = plug
+	r.plugs[plug.Snap.Name()][plug.Name] = plug
 	return nil
 }
 
@@ -215,7 +215,7 @@ func (r *Repository) AddSlot(slot *Slot) error {
 	defer r.m.Unlock()
 
 	// Reject snaps with invalid names
-	if err := snap.ValidateName(slot.Snap.Name); err != nil {
+	if err := snap.ValidateName(slot.Snap.Name()); err != nil {
 		return err
 	}
 	// Reject plug with invalid names
@@ -230,13 +230,13 @@ func (r *Repository) AddSlot(slot *Slot) error {
 	if err := i.SanitizeSlot(slot); err != nil {
 		return fmt.Errorf("cannot add slot: %v", err)
 	}
-	if _, ok := r.slots[slot.Snap.Name][slot.Name]; ok {
-		return fmt.Errorf("cannot add slot, snap %q already has slot %q", slot.Snap.Name, slot.Name)
+	if _, ok := r.slots[slot.Snap.Name()][slot.Name]; ok {
+		return fmt.Errorf("cannot add slot, snap %q already has slot %q", slot.Snap.Name(), slot.Name)
 	}
-	if r.slots[slot.Snap.Name] == nil {
-		r.slots[slot.Snap.Name] = make(map[string]*Slot)
+	if r.slots[slot.Snap.Name()] == nil {
+		r.slots[slot.Snap.Name()] = make(map[string]*Slot)
 	}
-	r.slots[slot.Snap.Name][slot.Name] = slot
+	r.slots[slot.Snap.Name()][slot.Name] = slot
 	return nil
 }
 
@@ -298,8 +298,8 @@ func (r *Repository) Connect(plugSnapName, plugName, slotSnapName, slotName stri
 	}
 	r.slotPlugs[slot][plug] = true
 	r.plugSlots[plug][slot] = true
-	slot.Connections = append(slot.Connections, PlugRef{plug.Snap.Name, plug.Name})
-	plug.Connections = append(plug.Connections, SlotRef{slot.Snap.Name, slot.Name})
+	slot.Connections = append(slot.Connections, PlugRef{plug.Snap.Name(), plug.Name})
+	plug.Connections = append(plug.Connections, SlotRef{slot.Snap.Name(), slot.Name})
 	return nil
 }
 
@@ -395,7 +395,7 @@ func (r *Repository) disconnect(plug *Plug, slot *Slot) {
 		delete(r.plugSlots, plug)
 	}
 	for i, plugRef := range slot.Connections {
-		if plugRef.Snap == plug.Snap.Name && plugRef.Name == plug.Name {
+		if plugRef.Snap == plug.Snap.Name() && plugRef.Name == plug.Name {
 			slot.Connections[i] = slot.Connections[len(slot.Connections)-1]
 			slot.Connections = slot.Connections[:len(slot.Connections)-1]
 			if len(slot.Connections) == 0 {
@@ -405,7 +405,7 @@ func (r *Repository) disconnect(plug *Plug, slot *Slot) {
 		}
 	}
 	for i, slotRef := range plug.Connections {
-		if slotRef.Snap == slot.Snap.Name && slotRef.Name == slot.Name {
+		if slotRef.Snap == slot.Snap.Name() && slotRef.Name == slot.Name {
 			plug.Connections[i] = plug.Connections[len(plug.Connections)-1]
 			plug.Connections = plug.Connections[:len(plug.Connections)-1]
 			if len(plug.Connections) == 0 {
