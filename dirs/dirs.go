@@ -59,7 +59,7 @@ var (
 
 var (
 	// not exported because it does not honor the global rootdir
-	snappyDir = filepath.Join("var", "lib", "snappy")
+	snappyDir = filepath.Join("var", "lib", "snapd")
 )
 
 func init() {
@@ -77,15 +77,15 @@ func init() {
 func SetRootDir(rootdir string) {
 	GlobalRootDir = rootdir
 
-	SnapSnapsDir = filepath.Join(rootdir, "/snaps")
-	SnapDataDir = filepath.Join(rootdir, "/var/lib/snaps")
+	SnapSnapsDir = filepath.Join(rootdir, "/snap")
+	SnapDataDir = filepath.Join(rootdir, "/var/snaps")
 	SnapDataHomeGlob = filepath.Join(rootdir, "/home/*/snaps/")
 	SnapAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "profiles")
 	AppArmorCacheDir = filepath.Join(rootdir, "/var/cache/apparmor")
 	SnapAppArmorAdditionalDir = filepath.Join(rootdir, snappyDir, "apparmor", "additional")
 	SnapSeccompDir = filepath.Join(rootdir, snappyDir, "seccomp", "profiles")
 	SnapMetaDir = filepath.Join(rootdir, snappyDir, "meta")
-	SnapLockFile = filepath.Join(rootdir, "/run/snappy.lock")
+	SnapLockFile = filepath.Join(rootdir, "/run/snapd-legacy.lock")
 	SnapBlobDir = filepath.Join(rootdir, snappyDir, "snaps")
 	SnapDesktopFilesDir = filepath.Join(rootdir, snappyDir, "desktop", "applications")
 	// keep in sync with the debian/ubuntu-snappy.snapd.socket file:
