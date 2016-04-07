@@ -195,7 +195,7 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 
 func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 	// install one:
-	yamlFile, err := makeInstalledMockSnap(s.tempdir, "")
+	yamlFile, err := makeInstalledMockSnap("")
 	c.Assert(err, IsNil)
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 
