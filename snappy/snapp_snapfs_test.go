@@ -136,7 +136,7 @@ func (s *SquashfsTestSuite) TestAddSquashfsMount(c *C) {
 		Architectures: []string{"all"},
 	}
 	inter := &MockProgressMeter{}
-	err := addSquashfsMount(info, filepath.Join(dirs.SnapSnapsDir, "foo/1.0"), true, inter)
+	err := addSquashfsMount(info, true, inter)
 	c.Assert(err, IsNil)
 
 	// ensure correct mount unit
@@ -153,9 +153,15 @@ Where=/snaps/foo/1.0
 }
 
 func (s *SquashfsTestSuite) TestRemoveSquashfsMountUnit(c *C) {
-	info := &snap.Info{}
+	info := &snap.Info{
+		SideInfo: snap.SideInfo{
+			OfficialName: "foo",
+		},
+		Version:       "1.0",
+		Architectures: []string{"all"},
+	}
 	inter := &MockProgressMeter{}
-	err := addSquashfsMount(info, filepath.Join(dirs.SnapSnapsDir, "foo/1.0"), true, inter)
+	err := addSquashfsMount(info, true, inter)
 	c.Assert(err, IsNil)
 
 	// ensure we have the files
@@ -163,7 +169,7 @@ func (s *SquashfsTestSuite) TestRemoveSquashfsMountUnit(c *C) {
 	c.Assert(osutil.FileExists(p), Equals, true)
 
 	// now call remove and ensure they are gone
-	err = removeSquashfsMount(filepath.Join(dirs.SnapSnapsDir, "foo/1.0"), i)
+	err = removeSquashfsMount(info.BaseDir(), i)
 	c.Assert(err, IsNil)
 	p = filepath.Join(dirs.SnapServicesDir, "snaps-foo-1.0.mount")
 	c.Assert(osutil.FileExists(p), Equals, false)

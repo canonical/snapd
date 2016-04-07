@@ -92,7 +92,7 @@ func SetupSnap(snapFilePath string, flags InstallFlags, meter progress.Meter) (s
 	}
 
 	// generate the mount unit for the squashfs
-	if err := addSquashfsMount(s, instdir, inhibitHooks, meter); err != nil {
+	if err := addSquashfsMount(s, inhibitHooks, meter); err != nil {
 		return instdir, err
 	}
 
@@ -471,11 +471,16 @@ func CanRemove(s *Snap) bool {
 	return true
 }
 
+<<<<<<< 0659bb853f5ac4a82b1de46b3593db46c2d4b397
 // RemoveSnapFiles removes the snap files from the disk
 func RemoveSnapFiles(s *Snap, meter progress.Meter) error {
 	basedir = s.Info().Basedir()
 	// this also ensures that the mount unit stops
 	if err := removeSquashfsMount(basedir, meter); err != nil {
+=======
+	// ensure mount unit stops
+	if err := removeSquashfsMount(s.Info(), meter); err != nil {
+>>>>>>> narrower signature for squashfs mount helpers
 		return err
 	}
 
