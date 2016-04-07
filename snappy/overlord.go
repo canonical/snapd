@@ -77,7 +77,7 @@ func SetupSnap(snapFilePath string, flags InstallFlags, meter progress.Meter) (s
 
 	// the "gadget" snaps are special
 	if s.Type == snap.TypeGadget {
-		if err := installGadgetHardwareUdevRules(s.m); err != nil {
+		if err := installGadgetHardwareUdevRules(s); err != nil {
 			return "", err
 		}
 	}
@@ -480,7 +480,7 @@ func CanRemove(s *Snap) bool {
 
 // RemoveSnapFiles removes the snap files from the disk
 func RemoveSnapFiles(s *Snap, meter progress.Meter) error {
-	basedir = s.Info().Basedir()
+	basedir := s.Info().BaseDir()
 	// this also ensures that the mount unit stops
 	if err := removeSquashfsMount(basedir, meter); err != nil {
 		return err

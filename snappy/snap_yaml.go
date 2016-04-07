@@ -236,7 +236,7 @@ func addSquashfsMount(s *snap.Info, inhibitHooks bool, inter interacter) error {
 	return nil
 }
 
-<func removeSquashfsMount(baseDir string, inter interacter) error {
+func removeSquashfsMount(baseDir string, inter interacter) error {
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
 	unit := systemd.MountUnitPath(stripGlobalRootDir(baseDir), "mount")
 	if osutil.FileExists(unit) {
