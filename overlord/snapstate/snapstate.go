@@ -37,7 +37,7 @@ func Install(s *state.State, snap, channel string, flags snappy.InstallFlags) (*
 	ss := snapSetup{
 		Name:       snap,
 		Channel:    channel,
-		SetupFlags: SetupFlags(flags),
+		SetupFlags: int(flags),
 	}
 	if !osutil.FileExists(snap) {
 		name, developer := snappy.SplitDeveloper(snap)
@@ -80,7 +80,7 @@ func Update(s *state.State, snap, channel string, flags snappy.InstallFlags) (*s
 	t.Set("snap-setup", snapSetup{
 		Name:       snap,
 		Channel:    channel,
-		SetupFlags: SetupFlags(flags),
+		SetupFlags: int(flags),
 	})
 
 	return state.NewTaskSet(t), nil
@@ -92,7 +92,7 @@ func Remove(s *state.State, snap string, flags snappy.RemoveFlags) (*state.TaskS
 	t := s.NewTask("remove-snap", fmt.Sprintf(i18n.G("Removing %q"), snap))
 	t.Set("snap-setup", snapSetup{
 		Name:       snap,
-		SetupFlags: SetupFlags(flags),
+		SetupFlags: int(flags),
 	})
 
 	return state.NewTaskSet(t), nil

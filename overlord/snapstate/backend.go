@@ -29,20 +29,20 @@ import (
 
 type managerBackend interface {
 	Download(name, channel string, meter progress.Meter) (string, string, error)
-	CheckSnap(snapFilePath string, flags SetupFlags) error
-	SetupSnap(snapFilePath string, flags SetupFlags) error
-	CopySnapData(instSnapPath string, flags SetupFlags) error
+	CheckSnap(snapFilePath string, flags int) error
+	SetupSnap(snapFilePath string, flags int) error
+	CopySnapData(instSnapPath string, flags int) error
 	SetupSnapSecurity(instSnapPath string) error
 	LinkSnap(instSnapPath string) error
 	// the undoers
 	UndoSetupSnap(snapFilePath string) error
 	UndoSetupSnapSecurity(instSnapPath string) error
-	UndoCopySnapData(instSnapPath string, flags SetupFlags) error
+	UndoCopySnapData(instSnapPath string, flags int) error
 	UndoLinkSnap(oldInstSnapPath, instSnapPath string) error
 
 	// TODO: need to be split into fine grained tasks
-	Update(name, channel string, flags SetupFlags, meter progress.Meter) error
-	Remove(name string, flags SetupFlags, meter progress.Meter) error
+	Update(name, channel string, flags int, meter progress.Meter) error
+	Remove(name string, flags int, meter progress.Meter) error
 	Rollback(name, ver string, meter progress.Meter) (string, error)
 	Activate(name string, active bool, meter progress.Meter) error
 
@@ -59,13 +59,13 @@ func (s *defaultBackend) ActiveSnap(name string) *snap.Info {
 	return nil
 }
 
-func (s *defaultBackend) Update(name, channel string, flags SetupFlags, meter progress.Meter) error {
+func (s *defaultBackend) Update(name, channel string, flags int, meter progress.Meter) error {
 	// FIXME: support "channel" in snappy.Update()
 	_, err := snappy.Update(name, snappy.InstallFlags(flags), meter)
 	return err
 }
 
-func (s *defaultBackend) Remove(name string, flags SetupFlags, meter progress.Meter) error {
+func (s *defaultBackend) Remove(name string, flags int, meter progress.Meter) error {
 	return snappy.Remove(name, snappy.RemoveFlags(flags), meter)
 }
 
@@ -100,18 +100,18 @@ func (s *defaultBackend) Download(name, channel string, meter progress.Meter) (s
 	return downloadedSnapFile, snap.Version, nil
 }
 
-func (s *defaultBackend) CheckSnap(snapFilePath string, flags SetupFlags) error {
+func (s *defaultBackend) CheckSnap(snapFilePath string, flags int) error {
 	meter := &progress.NullProgress{}
 	return snappy.CheckSnap(snapFilePath, snappy.InstallFlags(flags), meter)
 }
 
-func (s *defaultBackend) SetupSnap(snapFilePath string, flags SetupFlags) error {
+func (s *defaultBackend) SetupSnap(snapFilePath string, flags int) error {
 	meter := &progress.NullProgress{}
 	_, err := snappy.SetupSnap(snapFilePath, snappy.InstallFlags(flags), meter)
 	return err
 }
 
-func (s *defaultBackend) CopySnapData(snapInstPath string, flags SetupFlags) error {
+func (s *defaultBackend) CopySnapData(snapInstPath string, flags int) error {
 	sn, err := snappy.NewInstalledSnap(filepath.Join(snapInstPath, "meta", "snap.yaml"))
 	if err != nil {
 		return err
@@ -155,7 +155,7 @@ func (s *defaultBackend) UndoSetupSnapSecurity(instSnapPath string) error {
 	snappy.RemoveGeneratedSnapSecurity(sn)
 	return nil
 }
-func (s *defaultBackend) UndoCopySnapData(instSnapPath string, flags SetupFlags) error {
+func (s *defaultBackend) UndoCopySnapData(instSnapPath string, flags int) error {
 	sn, err := snappy.NewInstalledSnap(filepath.Join(instSnapPath, "meta", "snap.yaml"))
 	if err != nil {
 		return err
