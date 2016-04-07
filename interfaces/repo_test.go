@@ -906,100 +906,11 @@ apps:
     app:
         plugs: [iface]
 `
-const testDifferentIfaceConsumerYaml = `
-name: consumer
-apps:
-    app:
-        plugs: [iface]
-plugs:
-    iface:
-        interface: other-iface
-`
-const testDifferentAttrsConsumerYaml = `
-name: consumer
-apps:
-    app:
-        plugs: [iface]
-plugs:
-    iface:
-        attr: extra
-`
-const testUnknownIfaceConsumerYaml = `
-name: consumer
-apps:
-    app:
-        plugs: [unknown]
-`
-const testInvalidIfaceConsumerYaml = `
-name: consumer
-apps:
-    app:
-        plugs: [invalid]
-`
-const testDifferentLabelConsumerYaml = `
-name: consumer
-apps:
-    app:
-        plugs: [iface]
-plugs:
-    iface:
-        label: New Label
-`
-const testBareConsumerYaml = `
-name: consumer
-apps:
-    app:
-`
-
 const testProducerYaml = `
 name: producer
 apps:
     app:
         slots: [iface]
-`
-const testDifferentIfaceProducerYaml = `
-name: producer
-apps:
-    app:
-        slots: [iface]
-slots:
-    iface:
-        interface: other-iface
-`
-const testDifferentAttrsProducerYaml = `
-name: producer
-apps:
-    app:
-        slots: [iface]
-slots:
-    iface:
-        attr: extra
-`
-const testUnknownIfaceProducerYaml = `
-name: producer
-apps:
-    app:
-        slots: [unknown]
-`
-const testInvalidIfaceProducerYaml = `
-name: producer
-apps:
-    app:
-        slots: [invalid]
-`
-const testDifferentLabelProducerYaml = `
-name: producer
-apps:
-    app:
-        slots: [iface]
-slots:
-    iface:
-        label: New Label
-`
-const testBareProducerYaml = `
-name: producer
-apps:
-    app:
 `
 
 func (s *AddRemoveSuite) addSnap(c *C, yaml string) (*snap.Info, error) {
@@ -1019,25 +930,6 @@ func (s *AddRemoveSuite) TestAddSnapErrorsOnExistingSnaps(c *C) {
 	_, _ = s.addSnap(c, testConsumerYaml)
 	_, err := s.addSnap(c, testConsumerYaml)
 	c.Assert(err, ErrorMatches, `cannot register interfaces for snap "consumer" more than once`)
-}
-
-func (s *AddRemoveSuite) TestAddSnapSkipsPlugsWithUnknownInterface(c *C) {
-	_, err := s.addSnap(c, testUnknownIfaceConsumerYaml)
-	// The plug was skipped
-	c.Check(s.repo.Plug("consumer", "iface"), IsNil)
-	// There is a trail why it was skipped
-	c.Check(err, ErrorMatches,
-		`snap "consumer" has unsupported interfaces: unknown \(unknown interface\)`)
-
-}
-
-func (s *AddRemoveSuite) TestAddSkipsPlugsWithInvalidInterface(c *C) {
-	_, err := s.addSnap(c, testInvalidIfaceConsumerYaml)
-	// The plug was skipped
-	c.Check(s.repo.Plug("consumer", "iface"), IsNil)
-	// There is a trail why it was skipped
-	c.Check(err, ErrorMatches,
-		`snap "consumer" has unsupported interfaces: invalid \(plug is invalid\)`)
 }
 
 func (s AddRemoveSuite) TestRemoveRemovesPlugs(c *C) {
