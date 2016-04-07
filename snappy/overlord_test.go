@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	. "gopkg.in/check.v1"
@@ -46,7 +47,18 @@ func (s *SnapTestSuite) TestInstalled(c *C) {
 	c.Assert(installed[0].Name(), Equals, "hello-snap")
 }
 
-func (s *SnapTestSuite) TestLocalSnapInstall(c *C) string {
+func listDir(c *C, p string) []string {
+	dir, err := os.Open(p)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	c.Assert(err, IsNil)
+	names, err := dir.Readdirnames(-1)
+	sort.Strings(names)
+	return names
+}
+
+func (s *SnapTestSuite) TestLocalSnapInstallX(c *C) string {
 	snapPath := makeTestSnapPackage(c, "")
 	snap, err := (&Overlord{}).Install(snapPath, 0, nil)
 	c.Assert(err, IsNil)
@@ -54,8 +66,12 @@ func (s *SnapTestSuite) TestLocalSnapInstall(c *C) string {
 
 	baseDir := filepath.Join(dirs.SnapSnapsDir, fooComposedName, "1.0")
 	c.Assert(osutil.FileExists(baseDir), Equals, true)
-	_, err = os.Stat(filepath.Join(s.tempdir, "var", "lib", "snaps", "foo", "1.0"))
-	c.Assert(err, IsNil)
+
+	snapEntries := listDir(c, filepath.Join(dirs.SnapSnapsDir, fooComposedName))
+	c.Check(snapEntries, DeepEquals, []string{"1.0", "current"})
+
+	snapDataEntries := listDir(c, filepath.Join(dirs.SnapDataDir, fooComposedName))
+	c.Check(snapDataEntries, DeepEquals, []string{"1.0", "current"})
 
 	return snapPath
 }
