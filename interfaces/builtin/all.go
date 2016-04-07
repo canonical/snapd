@@ -39,7 +39,7 @@ var allInterfaces = []interfaces.Interface{
 	NewTimeserverControlInterface(),
 	NewTimezoneControlInterface(),
 	NewUnity7Interface(),
-	NewXInterface(),
+	NewX11Interface(),
 }
 
 // Interfaces returns all of the built-in interfaces.
