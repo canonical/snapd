@@ -49,7 +49,7 @@ type snapSetup struct {
 	OldName    string `json:"old-name"`
 	OldVersion string `json:"old-version"`
 
-	Flags int `json:"setup-flags,omitempty"`
+	Flags int `json:"flags,omitempty"`
 
 	SnapPath string `json:"snap-path"`
 }
