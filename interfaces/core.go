@@ -134,8 +134,9 @@ type Interface interface {
 	// system.
 	ConnectedSlotSnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
 
-	// AutoConnect returns true if plugs and slots should be implicitly
-	// auto-connected when an unambiguous connection candidate is available.
+	// AutoConnect returns whether plugs and slots should be implicitly
+	// auto-connected when an unambiguous connection candidate is available in
+	// the OS snap.
 	AutoConnect() bool
 }
 
