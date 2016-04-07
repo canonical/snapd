@@ -70,7 +70,7 @@ func SetupSnap(snapFilePath string, flags InstallFlags, meter progress.Meter) (s
 	if err != nil {
 		return "", err
 	}
-	instdir := s.BaseDir()
+	instdir := s.MountDir()
 
 	// the "gadget" snaps are special
 	if s.Type == snap.TypeGadget {
@@ -105,7 +105,7 @@ func SetupSnap(snapFilePath string, flags InstallFlags, meter progress.Meter) (s
 
 func addSquashfsMount(s *snap.Info, inhibitHooks bool, inter interacter) error {
 	squashfsPath := stripGlobalRootDir(s.MountFile())
-	whereDir := stripGlobalRootDir(s.BaseDir())
+	whereDir := stripGlobalRootDir(s.MountDir())
 
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
 	mountUnitName, err := sysd.WriteMountUnitFile(s.Name(), squashfsPath, whereDir)
@@ -177,7 +177,7 @@ func UndoSetupSnap(installDir string, meter progress.Meter) {
 
 // XXX: ideally should go from Info to Info, likely we will move to something else anyway
 func currentSnap(newSnap *snap.Info) *Snap {
-	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(newSnap.BaseDir(), "..", "current"))
+	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(newSnap.MountDir(), "..", "current"))
 	if currentActiveDir == "" {
 		return nil
 	}
@@ -558,7 +558,7 @@ func CanRemove(s *Snap) bool {
 // RemoveSnapFiles removes the snap files from the disk
 func RemoveSnapFiles(s *Snap, meter progress.Meter) error {
 	info := s.Info()
-	basedir := info.BaseDir()
+	basedir := info.MountDir()
 	snapFile := info.MountFile()
 	// this also ensures that the mount unit stops
 	if err := removeSquashfsMount(basedir, meter); err != nil {
