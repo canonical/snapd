@@ -228,3 +228,7 @@ func (iface *BluezInterface) SanitizePlug(slot *interfaces.Plug) error {
 func (iface *BluezInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
+
+func (iface *BluezInterface) AutoConnect() bool {
+    return false
+}
