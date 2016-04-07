@@ -23,7 +23,7 @@ import (
 	"github.com/ubuntu-core/snappy/snap"
 )
 
-// openSnapBlob opens a snap blob returning both a snap.Info completed
+// openSnapFile opens a snap blob returning both a snap.Info completed
 // with sideInfo (if not nil) and a corresponding snap.File.
 func openSnapFile(snapPath string, unsignedOk bool, sideInfo *snap.SideInfo) (*snap.Info, snap.File, error) {
 	// TODO: what precautions to take if unsignedOk == false ?

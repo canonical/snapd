@@ -44,7 +44,7 @@ func CheckSnap(snapFilePath string, flags InstallFlags, meter progress.Meter) er
 	allowUnauth := (flags & AllowUnauthenticated) != 0
 
 	// we do not Verify() the package here. This is done earlier in
-	// NewSnapFile() to ensure that we do not mount/inspect
+	// openSnapFile() to ensure that we do not mount/inspect
 	// potentially dangerous snaps
 
 	s, snapf, err := openSnapFile(snapFilePath, allowUnauth, nil)
@@ -54,7 +54,7 @@ func CheckSnap(snapFilePath string, flags InstallFlags, meter progress.Meter) er
 
 	// we do not security Verify() (check hashes) the package here.
 	// This is done earlier in
-	// NewSnapFile() to ensure that we do not mount/inspect
+	// openSnapFile() to ensure that we do not mount/inspect
 	// potentially dangerous snaps
 	return canInstall(s, snapf, allowGadget, meter)
 }
