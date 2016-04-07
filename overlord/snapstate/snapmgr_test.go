@@ -208,8 +208,12 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 	defer s.snapmgr.Stop()
 	s.state.Lock()
 
-	c.Assert(s.fakeBackend.ops, HasLen, 4)
+	c.Assert(s.fakeBackend.ops, HasLen, 5)
 	c.Assert(s.fakeBackend.ops, DeepEquals, []fakeOp{
+		fakeOp{
+			op:   "can-remove",
+			name: "/snaps/some-snap/1.64872",
+		},
 		fakeOp{
 			op:   "unlink-snap",
 			name: "/snaps/some-snap/1.64872",
