@@ -102,20 +102,20 @@ const packageHello = `name: hello-snap
 version: 1.10
 `
 
-func (s *SquashfsTestSuite) TestOpenSnapBlob(c *C) {
+func (s *SquashfsTestSuite) TestOpenSnapFile(c *C) {
 	snapPkg := makeTestSnapPackage(c, packageHello)
-	info, blobf, err := openSnapBlob(snapPkg, true, nil)
+	info, snapf, err := openSnapFile(snapPkg, true, nil)
 	c.Assert(err, IsNil)
 
 	// ensure the right backend got picked up
-	c.Assert(blobf, FitsTypeOf, &squashfs.Snap{})
+	c.Assert(snapf, FitsTypeOf, &squashfs.Snap{})
 	c.Check(info.Name(), Equals, "hello-snap")
 }
 
-func (s *SquashfsTestSuite) TestOpenSnapBlobSideInfo(c *C) {
+func (s *SquashfsTestSuite) TestOpenSnapFilebSideInfo(c *C) {
 	snapPkg := makeTestSnapPackage(c, packageHello)
 	si := snap.SideInfo{OfficialName: "blessed", Revision: 42}
-	info, _, err := openSnapBlob(snapPkg, true, &si)
+	info, _, err := openSnapFile(snapPkg, true, &si)
 	c.Assert(err, IsNil)
 
 	// check side info
@@ -306,10 +306,10 @@ func (s *SquashfsTestSuite) TestActiveKernelNotRemovable(c *C) {
 
 func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernelErrors(c *C) {
 	snapPkg := makeTestSnapPackage(c, packageHello)
-	snap, blobf, err := openSnapBlob(snapPkg, true, nil)
+	snap, snapf, err := openSnapFile(snapPkg, true, nil)
 	c.Assert(err, IsNil)
 
-	err = extractKernelAssets(snap, blobf, 0, nil)
+	err = extractKernelAssets(snap, snapf, 0, nil)
 	c.Assert(err, ErrorMatches, `can not extract kernel assets from snap type "app"`)
 }
 

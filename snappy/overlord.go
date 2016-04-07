@@ -47,7 +47,7 @@ func CheckSnap(snapFilePath string, flags InstallFlags, meter progress.Meter) er
 	// NewSnapFile() to ensure that we do not mount/inspect
 	// potentially dangerous snaps
 
-	s, blobf, err := openSnapBlob(snapFilePath, allowUnauth, nil)
+	s, snapf, err := openSnapFile(snapFilePath, allowUnauth, nil)
 	if err != nil {
 		return err
 	}
@@ -56,7 +56,7 @@ func CheckSnap(snapFilePath string, flags InstallFlags, meter progress.Meter) er
 	// This is done earlier in
 	// NewSnapFile() to ensure that we do not mount/inspect
 	// potentially dangerous snaps
-	return canInstall(s, blobf, allowGadget, meter)
+	return canInstall(s, snapf, allowGadget, meter)
 }
 
 // SetupSnap does prepare and mount the snap for further processing
@@ -66,7 +66,7 @@ func SetupSnap(snapFilePath string, flags InstallFlags, meter progress.Meter) (s
 	allowUnauth := (flags & AllowUnauthenticated) != 0
 
 	// XXX: soon need to fill or get a sideinfo with at least revision
-	s, blobf, err := openSnapBlob(snapFilePath, allowUnauth, nil)
+	s, snapf, err := openSnapFile(snapFilePath, allowUnauth, nil)
 	if err != nil {
 		return "", err
 	}
@@ -84,7 +84,7 @@ func SetupSnap(snapFilePath string, flags InstallFlags, meter progress.Meter) (s
 		return instdir, err
 	}
 
-	if err := blobf.Install(s.MountFile(), instdir); err != nil {
+	if err := snapf.Install(s.MountFile(), instdir); err != nil {
 		return instdir, err
 	}
 
@@ -95,7 +95,7 @@ func SetupSnap(snapFilePath string, flags InstallFlags, meter progress.Meter) (s
 
 	// FIXME: special handling is bad 'mkay
 	if s.Type == snap.TypeKernel {
-		if err := extractKernelAssets(s, blobf, flags, meter); err != nil {
+		if err := extractKernelAssets(s, snapf, flags, meter); err != nil {
 			return instdir, fmt.Errorf("failed to install kernel %s", err)
 		}
 	}
@@ -420,7 +420,7 @@ func (o *Overlord) Install(snapFilePath string, flags InstallFlags, meter progre
 
 	allowUnauth := (flags & AllowUnauthenticated) != 0
 	// XXX: soon need optionally to fill or get a sideinfo with at least revision
-	newInfo, _, err := openSnapBlob(snapFilePath, allowUnauth, nil)
+	newInfo, _, err := openSnapFile(snapFilePath, allowUnauth, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -470,7 +470,7 @@ func (o *Overlord) Install(snapFilePath string, flags InstallFlags, meter progre
 }
 
 // CanInstall checks whether the Snap passes a series of tests required for installation
-func canInstall(s *snap.Info, blobf snap.File, allowGadget bool, inter interacter) error {
+func canInstall(s *snap.Info, snapf snap.File, allowGadget bool, inter interacter) error {
 	// verify we have a valid architecture
 	if !arch.IsSupportedArchitecture(s.Architectures) {
 		return &ErrArchitectureNotSupported{s.Architectures}
@@ -496,7 +496,7 @@ func canInstall(s *snap.Info, blobf snap.File, allowGadget bool, inter interacte
 		curr = currSnap.Info()
 	}
 
-	if err := checkLicenseAgreement(s, blobf, curr, inter); err != nil {
+	if err := checkLicenseAgreement(s, snapf, curr, inter); err != nil {
 		return err
 	}
 
@@ -507,7 +507,7 @@ func canInstall(s *snap.Info, blobf snap.File, allowGadget bool, inter interacte
 // package, as deduced from the license agreement (which might involve asking
 // the user), or an error that explains the reason why installation should not
 // proceed.
-func checkLicenseAgreement(s *snap.Info, blobf snap.File, cur *snap.Info, ag agreer) error {
+func checkLicenseAgreement(s *snap.Info, snapf snap.File, cur *snap.Info, ag agreer) error {
 	if s.LicenseAgreement != "explicit" {
 		return nil
 	}
@@ -516,7 +516,7 @@ func checkLicenseAgreement(s *snap.Info, blobf snap.File, cur *snap.Info, ag agr
 		return ErrLicenseNotAccepted
 	}
 
-	license, err := blobf.MetaMember("license.txt")
+	license, err := snapf.MetaMember("license.txt")
 	if err != nil || len(license) == 0 {
 		return ErrLicenseNotProvided
 	}
