@@ -60,25 +60,6 @@ func NewInstalledSnap(yamlPath string) (*Snap, error) {
 	return snap, nil
 }
 
-func completeInfo(info *snap.Info, manifest *diskManifest) {
-	// XXX: we actually should not trust snap.yaml name!
-
-	info.Developer = SideloadedDeveloper
-	// default for compat with older installs
-	info.Channel = "stable"
-	info.Size = 0
-
-	if manifest != nil {
-		info.Revision = manifest.Revision
-		info.Developer = manifest.Developer
-		info.Channel = manifest.Channel
-		// store edits win!
-		info.Description = manifest.Description
-		// XXX: Summary doesn't exist in the store yet anyway
-		info.Size = manifest.Size
-	}
-}
-
 // newSnapFromYaml returns a new Snap from the given *snapYaml at yamlPath
 func newSnapFromYaml(yamlPath string, m *snapYaml) (*Snap, error) {
 	s := &Snap{
@@ -116,9 +97,9 @@ func newSnapFromYaml(yamlPath string, m *snapYaml) (*Snap, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	s.info = info
 
-	var manifest *diskManifest
 	manifestPath := ManifestPath(info)
 	if osutil.FileExists(manifestPath) {
 		content, err := ioutil.ReadFile(manifestPath)
@@ -126,13 +107,20 @@ func newSnapFromYaml(yamlPath string, m *snapYaml) (*Snap, error) {
 			return nil, err
 		}
 
-		manifest = new(diskManifest)
-		if err := yaml.Unmarshal(content, manifest); err != nil {
+		var manifest snap.SideInfo
+		if err := yaml.Unmarshal(content, &manifest); err != nil {
 			return nil, &ErrInvalidYaml{File: manifestPath, Err: err, Yaml: content}
 		}
+		info.SideInfo = manifest
 	}
 
-	completeInfo(info, manifest)
+	if info.Developer == "" {
+		info.Developer = SideloadedDeveloper
+	}
+	if info.Channel == "" {
+		// default for compat with older installs
+		info.Channel = "stable"
+	}
 
 	// XXX: FIXME: just some tests need this atm
 	// override the package's idea of its version
@@ -151,7 +139,7 @@ func (s *Snap) Type() snap.Type {
 
 // Name returns the name
 func (s *Snap) Name() string {
-	return s.info.Name
+	return s.info.Name()
 }
 
 // Version returns the version
