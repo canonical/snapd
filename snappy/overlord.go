@@ -158,12 +158,12 @@ func UndoSetupSnap(installDir string, meter progress.Meter) {
 		}
 	}
 
-	snapFile := s.Info().MountFile()
+	snapPath := s.Info().MountFile()
 
 	// remove install dir and the snap blob itself
 	for _, path := range []string{
 		installDir,
-		snapFile,
+		snapPath,
 	} {
 		if err := os.RemoveAll(path); err != nil {
 			logger.Noticef("cannot remove snap package at %v: %s", installDir, err)
@@ -559,7 +559,7 @@ func CanRemove(s *Snap) bool {
 func RemoveSnapFiles(s *Snap, meter progress.Meter) error {
 	info := s.Info()
 	basedir := info.MountDir()
-	snapFile := info.MountFile()
+	snapPath := info.MountFile()
 	// this also ensures that the mount unit stops
 	if err := removeSquashfsMount(basedir, meter); err != nil {
 		return err
@@ -573,7 +573,7 @@ func RemoveSnapFiles(s *Snap, meter progress.Meter) error {
 	os.Remove(filepath.Dir(basedir))
 
 	// remove the snap
-	if err := os.RemoveAll(snapFile); err != nil {
+	if err := os.RemoveAll(snapPath); err != nil {
 		return err
 	}
 

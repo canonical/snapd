@@ -188,8 +188,8 @@ func (s *SquashfsTestSuite) TestRemoveSquashfsMountUnit(c *C) {
 }
 
 func (s *SquashfsTestSuite) TestRemoveViaSquashfsWorks(c *C) {
-	snapFile := makeTestSnapPackage(c, packageHello)
-	snap, err := (&Overlord{}).Install(snapFile, 0, &MockProgressMeter{})
+	snapPath := makeTestSnapPackage(c, packageHello)
+	snap, err := (&Overlord{}).Install(snapPath, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	installedSnap, err := NewInstalledSnap(filepath.Join(snap.MountDir(), "meta", "snap.yaml"))
 	c.Assert(err, IsNil)

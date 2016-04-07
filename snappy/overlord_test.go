@@ -47,8 +47,8 @@ func (s *SnapTestSuite) TestInstalled(c *C) {
 }
 
 func (s *SnapTestSuite) TestLocalSnapInstall(c *C) string {
-	snapFile := makeTestSnapPackage(c, "")
-	snap, err := (&Overlord{}).Install(snapFile, 0, nil)
+	snapPath := makeTestSnapPackage(c, "")
+	snap, err := (&Overlord{}).Install(snapPath, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(snap.Name(), Equals, "foo")
 
@@ -57,7 +57,7 @@ func (s *SnapTestSuite) TestLocalSnapInstall(c *C) string {
 	_, err = os.Stat(filepath.Join(s.tempdir, "var", "lib", "snaps", "foo", "1.0"))
 	c.Assert(err, IsNil)
 
-	return snapFile
+	return snapPath
 }
 
 // if the snap asks for accepting a license, and an agreer isn't provided,
@@ -225,11 +225,11 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 }
 
 func (s *SnapTestSuite) TestLocalGadgetSnapInstall(c *C) {
-	snapFile := makeTestSnapPackage(c, `name: foo
+	snapPath := makeTestSnapPackage(c, `name: foo
 version: 1.0
 type: gadget
 `)
-	_, err := (&Overlord{}).Install(snapFile, AllowGadget, nil)
+	_, err := (&Overlord{}).Install(snapPath, AllowGadget, nil)
 	c.Assert(err, IsNil)
 
 	contentFile := filepath.Join(s.tempdir, "snaps", "foo", "1.0", "bin", "foo")
@@ -238,11 +238,11 @@ type: gadget
 }
 
 func (s *SnapTestSuite) TestLocalGadgetSnapInstallVariants(c *C) {
-	snapFile := makeTestSnapPackage(c, `name: foo
+	snapPath := makeTestSnapPackage(c, `name: foo
 version: 1.0
 type: gadget
 `)
-	_, err := (&Overlord{}).Install(snapFile, AllowGadget, nil)
+	_, err := (&Overlord{}).Install(snapPath, AllowGadget, nil)
 	c.Assert(err, IsNil)
 	c.Assert(storeMinimalRemoteManifest("foo", testDeveloper, "1.0", "", "", "remote-channel"), IsNil)
 
@@ -251,36 +251,36 @@ type: gadget
 	c.Assert(err, IsNil)
 
 	// a package update
-	snapFile = makeTestSnapPackage(c, `name: foo
+	snapPath = makeTestSnapPackage(c, `name: foo
 version: 2.0
 type: gadget
 `)
-	_, err = (&Overlord{}).Install(snapFile, 0, nil)
+	_, err = (&Overlord{}).Install(snapPath, 0, nil)
 	c.Check(err, IsNil)
 	c.Assert(storeMinimalRemoteManifest("foo", testDeveloper, "2.0", "", "", "remote-channel"), IsNil)
 
 	// a package name fork, IOW, a different Gadget package.
-	snapFile = makeTestSnapPackage(c, `name: foo-fork
+	snapPath = makeTestSnapPackage(c, `name: foo-fork
 version: 2.0
 type: gadget
 `)
-	_, err = (&Overlord{}).Install(snapFile, 0, nil)
+	_, err = (&Overlord{}).Install(snapPath, 0, nil)
 	c.Check(err, Equals, ErrGadgetPackageInstall)
 
 	// this will cause chaos, but let's test if it works
-	_, err = (&Overlord{}).Install(snapFile, AllowGadget, nil)
+	_, err = (&Overlord{}).Install(snapPath, AllowGadget, nil)
 	c.Check(err, IsNil)
 }
 
 func (s *SnapTestSuite) TestClickSetActive(c *C) {
 	snapYamlContent := `name: foo
 `
-	snapFile := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
-	_, err := (&Overlord{}).Install(snapFile, AllowUnauthenticated, nil)
+	snapPath := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
+	_, err := (&Overlord{}).Install(snapPath, AllowUnauthenticated, nil)
 	c.Assert(err, IsNil)
 
-	snapFile = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
-	_, err = (&Overlord{}).Install(snapFile, AllowUnauthenticated, nil)
+	snapPath = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
+	_, err = (&Overlord{}).Install(snapPath, AllowUnauthenticated, nil)
 	c.Assert(err, IsNil)
 
 	// ensure v2 is active
@@ -317,8 +317,8 @@ func (s *SnapTestSuite) TestClickCopyData(c *C) {
 `
 	canaryData := []byte("ni ni ni")
 
-	snapFile := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
-	_, err = (&Overlord{}).Install(snapFile, AllowUnauthenticated, nil)
+	snapPath := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
+	_, err = (&Overlord{}).Install(snapPath, AllowUnauthenticated, nil)
 	c.Assert(err, IsNil)
 	canaryDataFile := filepath.Join(dirs.SnapDataDir, appDir, "1.0", "canary.txt")
 	err = ioutil.WriteFile(canaryDataFile, canaryData, 0644)
@@ -326,8 +326,8 @@ func (s *SnapTestSuite) TestClickCopyData(c *C) {
 	err = ioutil.WriteFile(filepath.Join(homeData, "canary.home"), canaryData, 0644)
 	c.Assert(err, IsNil)
 
-	snapFile = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
-	_, err = (&Overlord{}).Install(snapFile, AllowUnauthenticated, nil)
+	snapPath = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
+	_, err = (&Overlord{}).Install(snapPath, AllowUnauthenticated, nil)
 	c.Assert(err, IsNil)
 	newCanaryDataFile := filepath.Join(dirs.SnapDataDir, appDir, "2.0", "canary.txt")
 	content, err := ioutil.ReadFile(newCanaryDataFile)
@@ -349,15 +349,15 @@ func (s *SnapTestSuite) TestClickCopyDataNoUserHomes(c *C) {
 	snapYamlContent := `name: foo
 `
 	appDir := "foo"
-	snapFile := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
-	_, err := (&Overlord{}).Install(snapFile, AllowUnauthenticated, nil)
+	snapPath := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
+	_, err := (&Overlord{}).Install(snapPath, AllowUnauthenticated, nil)
 	c.Assert(err, IsNil)
 	canaryDataFile := filepath.Join(dirs.SnapDataDir, appDir, "1.0", "canary.txt")
 	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
 	c.Assert(err, IsNil)
 
-	snapFile = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
-	_, err = (&Overlord{}).Install(snapFile, AllowUnauthenticated, nil)
+	snapPath = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
+	_, err = (&Overlord{}).Install(snapPath, AllowUnauthenticated, nil)
 	c.Assert(err, IsNil)
 	_, err = os.Stat(filepath.Join(dirs.SnapDataDir, appDir, "2.0", "canary.txt"))
 	c.Assert(err, IsNil)
@@ -369,8 +369,8 @@ apps:
  bar:
   command: bin/bar
 `
-	snapFile := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
-	_, err := (&Overlord{}).Install(snapFile, AllowUnauthenticated, nil)
+	snapPath := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
+	_, err := (&Overlord{}).Install(snapPath, AllowUnauthenticated, nil)
 	c.Assert(err, IsNil)
 
 	// ensure that the binary wrapper file go generated with the right
@@ -382,8 +382,8 @@ apps:
 	c.Assert(strings.Contains(string(content), oldSnapBin), Equals, true)
 
 	// and that it gets updated on upgrade
-	snapFile = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
-	_, err = (&Overlord{}).Install(snapFile, AllowUnauthenticated, nil)
+	snapPath = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
+	_, err = (&Overlord{}).Install(snapPath, AllowUnauthenticated, nil)
 	c.Assert(err, IsNil)
 	newSnapBin := filepath.Join(dirs.SnapSnapsDir[len(dirs.GlobalRootDir):], "foo", "2.0", "bin", "bar")
 	content, err = ioutil.ReadFile(binaryWrapper)
@@ -398,8 +398,8 @@ apps:
    command: bin/hello
    daemon: forking
 `
-	snapFile := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
-	_, err := (&Overlord{}).Install(snapFile, AllowUnauthenticated, nil)
+	snapPath := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
+	_, err := (&Overlord{}).Install(snapPath, AllowUnauthenticated, nil)
 	c.Assert(err, IsNil)
 
 	servicesFile := filepath.Join(dirs.SnapServicesDir, "foo_service_1.0.service")
@@ -435,8 +435,8 @@ apps:
    command: bin/hello
    daemon: forking
 `
-	snapFile := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
-	_, err := (&Overlord{}).Install(snapFile, InhibitHooks, nil)
+	snapPath := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
+	_, err := (&Overlord{}).Install(snapPath, InhibitHooks, nil)
 	c.Assert(err, IsNil)
 
 	c.Assert(allSystemctl, HasLen, 0)
@@ -449,8 +449,8 @@ apps:
  bar:
   command: bin/bar
 `
-	snapFile := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
-	_, err := (&Overlord{}).Install(snapFile, AllowUnauthenticated, nil)
+	snapPath := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
+	_, err := (&Overlord{}).Install(snapPath, AllowUnauthenticated, nil)
 	c.Assert(err, IsNil)
 
 	// ensure that the binary wrapper file go generated with the right
