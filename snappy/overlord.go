@@ -31,7 +31,6 @@ import (
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/squashfs"
 	"github.com/ubuntu-core/snappy/systemd"
 )
 
@@ -105,10 +104,8 @@ func SetupSnap(snapFilePath string, flags InstallFlags, meter progress.Meter) (s
 }
 
 func addSquashfsMount(s *snap.Info, inhibitHooks bool, inter interacter) error {
-	baseDir := s.BaseDir()
-	// XXX: fix BlobPath
-	squashfsPath := stripGlobalRootDir(squashfs.BlobPath(baseDir))
-	whereDir := stripGlobalRootDir(baseDir)
+	squashfsPath := stripGlobalRootDir(s.MountFile())
+	whereDir := stripGlobalRootDir(s.BaseDir())
 
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
 	mountUnitName, err := sysd.WriteMountUnitFile(s.Name(), squashfsPath, whereDir)
@@ -154,16 +151,19 @@ func UndoSetupSnap(installDir string, meter progress.Meter) {
 	}
 
 	// SetupSnap made it far enough to mount the snap, easy
-	if s, err := NewInstalledSnap(filepath.Join(installDir, "meta", "snap.yaml")); err == nil {
+	s, err := NewInstalledSnap(filepath.Join(installDir, "meta", "snap.yaml"))
+	if err == nil {
 		if err := RemoveSnapFiles(s, meter); err != nil {
 			logger.Noticef("cannot remove snap files: %s", err)
 		}
 	}
 
+	snapFile := s.Info().MountFile()
+
 	// remove install dir and the snap blob itself
 	for _, path := range []string{
 		installDir,
-		squashfs.BlobPath(installDir),
+		snapFile,
 	} {
 		if err := os.RemoveAll(path); err != nil {
 			logger.Noticef("cannot remove snap package at %v: %s", installDir, err)
@@ -557,7 +557,9 @@ func CanRemove(s *Snap) bool {
 
 // RemoveSnapFiles removes the snap files from the disk
 func RemoveSnapFiles(s *Snap, meter progress.Meter) error {
-	basedir := s.Info().BaseDir()
+	info := s.Info()
+	basedir := info.BaseDir()
+	snapFile := info.MountFile()
 	// this also ensures that the mount unit stops
 	if err := removeSquashfsMount(basedir, meter); err != nil {
 		return err
@@ -571,14 +573,13 @@ func RemoveSnapFiles(s *Snap, meter progress.Meter) error {
 	os.Remove(filepath.Dir(basedir))
 
 	// remove the snap
-	// XXX: fix BlobPath
-	if err := os.RemoveAll(squashfs.BlobPath(basedir)); err != nil {
+	if err := os.RemoveAll(snapFile); err != nil {
 		return err
 	}
 
 	// remove the kernel assets (if any)
 	if s.m.Type == snap.TypeKernel {
-		if err := removeKernelAssets(s.Info(), meter); err != nil {
+		if err := removeKernelAssets(info, meter); err != nil {
 			logger.Noticef("removing kernel assets failed with %s", err)
 		}
 	}

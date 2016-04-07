@@ -29,7 +29,6 @@ import (
 	"github.com/ubuntu-core/snappy/partition"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/squashfs"
 )
 
 // dropVersionSuffix drops the kernel/initrd version suffix,
@@ -55,8 +54,7 @@ func removeKernelAssets(s *snap.Info, inter interacter) error {
 	}
 
 	// remove the kernel blob
-	// XXX: fix BlobPath
-	blobName := filepath.Base(squashfs.BlobPath(s.BaseDir()))
+	blobName := filepath.Base(s.MountFile())
 	dstDir := filepath.Join(bootloader.Dir(), blobName)
 	if err := os.RemoveAll(dstDir); err != nil {
 		return err
@@ -86,11 +84,8 @@ func extractKernelAssets(s *snap.Info, blobf snap.File, flags InstallFlags, inte
 		}
 	}
 
-	// FIXME: feels wrong to use the instdir here, need something better
-	//
 	// now do the kernel specific bits
-	// XXX: fix BlobPath
-	blobName := filepath.Base(squashfs.BlobPath(s.BaseDir()))
+	blobName := filepath.Base(s.MountFile())
 	dstDir := filepath.Join(bootloader.Dir(), blobName)
 	if err := os.MkdirAll(dstDir, 0755); err != nil {
 		return err
@@ -147,7 +142,7 @@ func setNextBoot(s *Snap) error {
 	case snap.TypeKernel:
 		bootvar = "snappy_kernel"
 	}
-	blobName := filepath.Base(squashfs.BlobPath(s.basedir))
+	blobName := filepath.Base(s.Info().MountFile())
 	if err := bootloader.SetBootVar(bootvar, blobName); err != nil {
 		return err
 	}
@@ -189,7 +184,7 @@ func kernelOrOsRebootRequired(s *Snap) bool {
 		return false
 	}
 
-	squashfsName := filepath.Base(stripGlobalRootDir(squashfs.BlobPath(s.basedir)))
+	squashfsName := filepath.Base(s.Info().MountFile())
 	if nextBootVer == squashfsName && goodBootVer != nextBootVer {
 		return true
 	}
