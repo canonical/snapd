@@ -23,30 +23,30 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/jessevdk/go-flags"
+
 	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/snappy"
 )
 
+// FIXME: remove once the native security via interfaces is in place
 type cmdPolicygen struct {
 	RegenerateAll bool `long:"regenerate-all"`
 	Compare       bool `long:"compare"`
-	Force         bool `short:"f" long:"force"`
+	Force         bool `short:"f" long:"force" description:"Force policy generation."`
 	Positional    struct {
-		SnapYaml string `positional-arg-name:"snap.yaml path"`
+		SnapYaml string `positional-arg-name:"snap.yaml path" description:"The path to the snap.yaml used to generate the apparmor policy."`
 	} `positional-args:"yes"`
 }
 
 func init() {
-	arg, err := parser.AddCommand("policygen",
+	cmd := addCommand("policygen",
 		i18n.G("Generate the apparmor policy"),
 		i18n.G("Generate the apparmor policy"),
-		&cmdPolicygen{})
-	if err != nil {
-		logger.Panicf("Unable to install: %v", err)
-	}
-	addOptionDescription(arg, "force", i18n.G("Force policy generation."))
-	addOptionDescription(arg, "snap.yaml path", i18n.G("The path to the snap.yaml used to generate the apparmor policy."))
+		func() flags.Commander {
+			return &cmdPolicygen{}
+		})
+	cmd.hidden = true
 }
 
 func (x *cmdPolicygen) Execute(args []string) error {
