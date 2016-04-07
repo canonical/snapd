@@ -118,8 +118,7 @@ func storeMinimalRemoteManifest(name, developer, version, summary, desc, channel
 		panic("store remote manifest for sideloaded package")
 	}
 	sideInfo := snap.SideInfo{
-		OfficialName: name,
-		//Version:           version,
+		OfficialName:      name,
 		Developer:         developer,
 		EditedSummary:     summary,
 		EditedDescription: desc,
