@@ -133,6 +133,11 @@ type Interface interface {
 	// is returned when the plug cannot deal with the requested security
 	// system.
 	ConnectedSlotSnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
+
+	// AutoConnect returns whether plugs and slots should be implicitly
+	// auto-connected when an unambiguous connection candidate is available in
+	// the OS snap.
+	AutoConnect() bool
 }
 
 // SecuritySystem is a name of a security system.
