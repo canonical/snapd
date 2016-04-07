@@ -229,8 +229,8 @@ func checkLicenseAgreement(m *snapYaml, ag agreer, d snap.File, currentActiveDir
 	return nil
 }
 
-// XXX: don't take baseDir ?
-func addSquashfsMount(s *snap.Info, baseDir string, inhibitHooks bool, inter interacter) error {
+func addSquashfsMount(s *snap.Info, inhibitHooks bool, inter interacter) error {
+	baseDir := s.BaseDir()
 	// XXX: fix BlobPath
 	squashfsPath := stripGlobalRootDir(squashfs.BlobPath(baseDir))
 	whereDir := stripGlobalRootDir(baseDir)
@@ -253,7 +253,7 @@ func addSquashfsMount(s *snap.Info, baseDir string, inhibitHooks bool, inter int
 	return nil
 }
 
-func removeSquashfsMount(baseDir string, inter interacter) error {
+<func removeSquashfsMount(baseDir string, inter interacter) error {
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
 	unit := systemd.MountUnitPath(stripGlobalRootDir(baseDir), "mount")
 	if osutil.FileExists(unit) {
