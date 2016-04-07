@@ -64,26 +64,35 @@ func Manager(s *state.State) (*InterfaceManager, error) {
 // Connect returns a set of tasks for connecting an interface.
 //
 func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
-	// TODO: Store the intent-to-connect in the state so that we automatically
-	// try to reconnect on reboot (reconnection can fail or can connect with
-	// different parameters so we cannot store the actual connection details).
+	plugRef := interfaces.PlugRef{Snap: plugSnap, Name: plugName}
+	slotRef := interfaces.SlotRef{Snap: slotSnap, Name: slotName}
+	// Store the intent to connect
+	intents := getIntents(s)
+	intents.Add(Intent{Plug: plugRef, Slot: slotRef})
+	setIntents(s, intents)
+	// Create a task to do the actual connect operation
 	summary := fmt.Sprintf(i18n.G("Connect %s:%s to %s:%s"),
 		plugSnap, plugName, slotSnap, slotName)
 	task := s.NewTask("connect", summary)
-	task.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
-	task.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
+	task.Set("plug", plugRef)
+	task.Set("slot", slotRef)
 	return state.NewTaskSet(task), nil
 }
 
 // Disconnect returns a set of tasks for  disconnecting an interface.
 func Disconnect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
-	// TODO: Remove the intent-to-connect from the state so that we no longer
-	// automatically try to reconnect on reboot.
+	plugRef := interfaces.PlugRef{Snap: plugSnap, Name: plugName}
+	slotRef := interfaces.SlotRef{Snap: slotSnap, Name: slotName}
+	// Remove the intent to connect if one is present
+	intents := getIntents(s)
+	intents.Remove(Intent{Plug: plugRef, Slot: slotRef})
+	setIntents(s, intents)
+	// Create a task to do the actual disconnect operation
 	summary := fmt.Sprintf(i18n.G("Disconnect %s:%s from %s:%s"),
 		plugSnap, plugName, slotSnap, slotName)
 	task := s.NewTask("disconnect", summary)
-	task.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
-	task.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
+	task.Set("plug", plugRef)
+	task.Set("slot", slotRef)
 	return state.NewTaskSet(task), nil
 }
 
@@ -136,4 +145,14 @@ func (m *InterfaceManager) Wait() {
 func (m *InterfaceManager) Stop() {
 	m.runner.Stop()
 
+}
+
+func getIntents(s *state.State) Intents {
+	var intents Intents
+	s.Get("connection-intents", &intents)
+	return intents
+}
+
+func setIntents(s *state.State, intents Intents) {
+	s.Set("connection-intents", intents)
 }

@@ -63,6 +63,16 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
 
+	// Connect stored the intent to connect
+	var intents ifacestate.Intents
+	err = s.state.Get("connection-intents", &intents)
+	c.Assert(err, IsNil)
+	c.Check(intents, DeepEquals, ifacestate.Intents{{
+		Plug: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		Slot: interfaces.SlotRef{Snap: "producer", Name: "slot"},
+	}})
+
+	// Connect created a task with appropriate data
 	task := ts.Tasks()[0]
 	c.Assert(task.Kind(), Equals, "connect")
 	var plug interfaces.PlugRef
@@ -117,9 +127,21 @@ func (s *interfaceManagerSuite) TestDisconnectTask(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	intents := ifacestate.Intents{{
+		Plug: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		Slot: interfaces.SlotRef{Snap: "producer", Name: "slot"},
+	}}
+	s.state.Set("connection-intents", intents)
+
 	ts, err := ifacestate.Disconnect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
 
+	// Disconnect removed the intent to connect
+	err = s.state.Get("connection-intents", &intents)
+	c.Assert(err, IsNil)
+	c.Check(intents, HasLen, 0)
+
+	// Disconnect created a task with appropriate data
 	task := ts.Tasks()[0]
 	c.Assert(task.Kind(), Equals, "disconnect")
 	var plug interfaces.PlugRef
