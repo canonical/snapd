@@ -40,7 +40,7 @@ type SnapManager struct {
 	runner *state.TaskRunner
 }
 
-type snapSetup struct {
+type SnapSetup struct {
 	Name      string `json:"name"`
 	Developer string `json:"developer"`
 	Version   string `json:"version"`
@@ -54,11 +54,11 @@ type snapSetup struct {
 	SnapPath string `json:"snap-path"`
 }
 
-func (ss *snapSetup) BaseDir() string {
+func (ss *SnapSetup) BaseDir() string {
 	return filepath.Join(dirs.SnapSnapsDir, ss.Name, ss.Version)
 }
 
-func (ss *snapSetup) OldBaseDir() string {
+func (ss *SnapSetup) OldBaseDir() string {
 	if ss.OldName == "" || ss.OldVersion == "" {
 		return ""
 	}
@@ -110,7 +110,7 @@ func Manager(s *state.State) (*SnapManager, error) {
 }
 
 func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
-	var ss snapSetup
+	var ss SnapSetup
 
 	t.State().Lock()
 	err := t.Get("snap-setup", &ss)
@@ -147,7 +147,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) doUpdateSnap(t *state.Task, _ *tomb.Tomb) error {
-	var ss snapSetup
+	var ss SnapSetup
 
 	t.State().Lock()
 	err := t.Get("snap-setup", &ss)
@@ -161,7 +161,7 @@ func (m *SnapManager) doUpdateSnap(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
-	var ss snapSetup
+	var ss SnapSetup
 
 	t.State().Lock()
 	err := t.Get("snap-setup", &ss)
@@ -175,7 +175,7 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) doRemoveSnapSecurity(t *state.Task, _ *tomb.Tomb) error {
-	var ss snapSetup
+	var ss SnapSetup
 
 	t.State().Lock()
 	err := t.Get("snap-setup", &ss)
@@ -188,7 +188,7 @@ func (m *SnapManager) doRemoveSnapSecurity(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) doRemoveSnapFiles(t *state.Task, _ *tomb.Tomb) error {
-	var ss snapSetup
+	var ss SnapSetup
 
 	t.State().Lock()
 	err := t.Get("snap-setup", &ss)
@@ -201,7 +201,7 @@ func (m *SnapManager) doRemoveSnapFiles(t *state.Task, _ *tomb.Tomb) error {
 	return m.backend.RemoveSnapFiles(ss.BaseDir(), pb)
 }
 func (m *SnapManager) doRemoveSnapData(t *state.Task, _ *tomb.Tomb) error {
-	var ss snapSetup
+	var ss SnapSetup
 
 	t.State().Lock()
 	err := t.Get("snap-setup", &ss)
@@ -214,7 +214,7 @@ func (m *SnapManager) doRemoveSnapData(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) doRollbackSnap(t *state.Task, _ *tomb.Tomb) error {
-	var ss snapSetup
+	var ss SnapSetup
 
 	t.State().Lock()
 	err := t.Get("snap-setup", &ss)
@@ -229,7 +229,7 @@ func (m *SnapManager) doRollbackSnap(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) doActivateSnap(t *state.Task, _ *tomb.Tomb) error {
-	var ss snapSetup
+	var ss SnapSetup
 
 	t.State().Lock()
 	err := t.Get("snap-setup", &ss)
@@ -243,7 +243,7 @@ func (m *SnapManager) doActivateSnap(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) doDeactivateSnap(t *state.Task, _ *tomb.Tomb) error {
-	var ss snapSetup
+	var ss SnapSetup
 
 	t.State().Lock()
 	err := t.Get("snap-setup", &ss)
@@ -272,7 +272,9 @@ func (m *SnapManager) Stop() {
 	m.runner.Stop()
 }
 
-func getSnapSetup(t *state.Task, ss *snapSetup) error {
+func TaskSnapSetup(t *state.Task) (*SnapSetup, error) {
+	var ss SnapSetup
+
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -280,16 +282,19 @@ func getSnapSetup(t *state.Task, ss *snapSetup) error {
 	var id string
 	err := t.Get("snap-setup-task", &id)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	ts := st.Task(id)
-	return ts.Get("snap-setup", ss)
+	if err := ts.Get("snap-setup", &ss); err != nil {
+		return nil, err
+	}
+	return &ss, nil
 }
 
 func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
-	var ss snapSetup
-	if err := getSnapSetup(t, &ss); err != nil {
+	ss, err := TaskSnapSetup(t)
+	if err != nil {
 		return err
 	}
 
@@ -297,8 +302,8 @@ func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
-	var ss snapSetup
-	if err := getSnapSetup(t, &ss); err != nil {
+	ss, err := TaskSnapSetup(t)
+	if err != nil {
 		return err
 	}
 
@@ -310,8 +315,8 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) doSetupSnapSecurity(t *state.Task, _ *tomb.Tomb) error {
-	var ss snapSetup
-	if err := getSnapSetup(t, &ss); err != nil {
+	ss, err := TaskSnapSetup(t)
+	if err != nil {
 		return err
 	}
 
@@ -319,8 +324,8 @@ func (m *SnapManager) doSetupSnapSecurity(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
-	var ss snapSetup
-	if err := getSnapSetup(t, &ss); err != nil {
+	ss, err := TaskSnapSetup(t)
+	if err != nil {
 		return err
 	}
 
@@ -328,16 +333,16 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
-	var ss snapSetup
-	if err := getSnapSetup(t, &ss); err != nil {
+	ss, err := TaskSnapSetup(t)
+	if err != nil {
 		return err
 	}
 
 	return m.backend.CopySnapData(ss.BaseDir(), ss.SetupFlags)
 }
 func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
-	var ss snapSetup
-	if err := getSnapSetup(t, &ss); err != nil {
+	ss, err := TaskSnapSetup(t)
+	if err != nil {
 		return err
 	}
 
@@ -345,8 +350,8 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
-	var ss snapSetup
-	if err := getSnapSetup(t, &ss); err != nil {
+	ss, err := TaskSnapSetup(t)
+	if err != nil {
 		return err
 	}
 
