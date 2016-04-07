@@ -115,7 +115,7 @@ func (actor *serviceActor) Status() ([]string, error) {
 	// TODO: make this a [i.String() for i in actor.ServiceStatus()]
 	var stati []string
 	for _, svc := range actor.svcs {
-		svcname := filepath.Base(generateServiceFileName(svc.m, svc.svc))
+		svcname := filepath.Base(oldGenerateServiceFileName(svc.m, svc.svc))
 		status, err := actor.sysd.Status(svcname)
 		if err != nil {
 			return nil, err
@@ -139,7 +139,7 @@ type PackageServiceStatus struct {
 func (actor *serviceActor) ServiceStatus() ([]*PackageServiceStatus, error) {
 	var stati []*PackageServiceStatus
 	for _, svc := range actor.svcs {
-		svcname := filepath.Base(generateServiceFileName(svc.m, svc.svc))
+		svcname := filepath.Base(oldGenerateServiceFileName(svc.m, svc.svc))
 		status, err := actor.sysd.ServiceStatus(svcname)
 		if err != nil {
 			return nil, err
@@ -158,7 +158,7 @@ func (actor *serviceActor) ServiceStatus() ([]*PackageServiceStatus, error) {
 // Start all the found services.
 func (actor *serviceActor) Start() error {
 	for _, svc := range actor.svcs {
-		svcname := filepath.Base(generateServiceFileName(svc.m, svc.svc))
+		svcname := filepath.Base(oldGenerateServiceFileName(svc.m, svc.svc))
 		if err := actor.sysd.Start(svcname); err != nil {
 			// TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
 			return fmt.Errorf(i18n.G("unable to start %s's service %s: %v"), svc.m.Name, svc.svc.Name, err)
@@ -171,7 +171,7 @@ func (actor *serviceActor) Start() error {
 // Stop all the found services.
 func (actor *serviceActor) Stop() error {
 	for _, svc := range actor.svcs {
-		svcname := filepath.Base(generateServiceFileName(svc.m, svc.svc))
+		svcname := filepath.Base(oldGenerateServiceFileName(svc.m, svc.svc))
 		if err := actor.sysd.Stop(svcname, time.Duration(svc.svc.StopTimeout)); err != nil {
 			// TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
 			return fmt.Errorf(i18n.G("unable to stop %s's service %s: %v"), svc.m.Name, svc.svc.Name, err)
@@ -194,7 +194,7 @@ func (actor *serviceActor) Restart() error {
 // Enable all the found services.
 func (actor *serviceActor) Enable() error {
 	for _, svc := range actor.svcs {
-		svcname := filepath.Base(generateServiceFileName(svc.m, svc.svc))
+		svcname := filepath.Base(oldGenerateServiceFileName(svc.m, svc.svc))
 		if err := actor.sysd.Enable(svcname); err != nil {
 			// TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
 			return fmt.Errorf(i18n.G("unable to enable %s's service %s: %v"), svc.m.Name, svc.svc.Name, err)
@@ -209,7 +209,7 @@ func (actor *serviceActor) Enable() error {
 // Disable all the found services.
 func (actor *serviceActor) Disable() error {
 	for _, svc := range actor.svcs {
-		svcname := filepath.Base(generateServiceFileName(svc.m, svc.svc))
+		svcname := filepath.Base(oldGenerateServiceFileName(svc.m, svc.svc))
 		if err := actor.sysd.Disable(svcname); err != nil {
 			// TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
 			return fmt.Errorf(i18n.G("unable to disable %s's service %s: %v"), svc.m.Name, svc.svc.Name, err)
@@ -226,7 +226,7 @@ func (actor *serviceActor) Logs() ([]systemd.Log, error) {
 	var svcnames []string
 
 	for _, svc := range actor.svcs {
-		svcname := filepath.Base(generateServiceFileName(svc.m, svc.svc))
+		svcname := filepath.Base(oldGenerateServiceFileName(svc.m, svc.svc))
 		svcnames = append(svcnames, svcname)
 	}
 

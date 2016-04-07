@@ -1,4 +1,4 @@
-// -*- Mote: Go; indent-tabs-mode: t -*-
+// -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
  * Copyright (C) 2016 Canonical Ltd
@@ -17,25 +17,31 @@
  *
  */
 
-package interfaces_test
+package snapstate
 
 import (
 	. "gopkg.in/check.v1"
-
-	. "github.com/ubuntu-core/snappy/interfaces"
-	"github.com/ubuntu-core/snappy/snap"
 )
 
-type NamingSuite struct{}
+type snapstateTestSuite struct{}
 
-var _ = Suite(&NamingSuite{})
+var _ = Suite(&snapstateTestSuite{})
 
-func (s *NamingSuite) TestSecurityTag(c *C) {
-	appInfo := &snap.AppInfo{Snap: &snap.Info{SuggestedName: "http"}, Name: "GET"}
-	c.Check(SecurityTag(appInfo), Equals, "snap.http.GET")
-}
+func (s *snapstateTestSuite) TestParseSnapSec(c *C) {
+	for _, t := range []struct {
+		snapSpec string
+		name     string
+		version  string
+	}{
+		{"foo", "foo", ""},
+		{"foo=2.0", "foo", "2.0"},
+		{"foo.mvo", "foo.mvo", ""},
+		{"foo.mvo=2.0", "foo.mvo", "2.0"},
+	} {
 
-func (s *NamingSuite) TestSecurityTagGlob(c *C) {
-	snapInfo := &snap.Info{SuggestedName: "http"}
-	c.Check(SecurityTagGlob(snapInfo), Equals, "snap.http.*")
+		name, ver := parseSnapSpec(t.snapSpec)
+		c.Assert(name, Equals, t.name)
+		c.Assert(ver, Equals, t.version)
+	}
+
 }

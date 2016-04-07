@@ -32,7 +32,7 @@ import (
 	"gopkg.in/check.v1"
 )
 
-var _ = check.Suite(&helloWorldExampleSuite{})
+var _ = check.Suite(&snapHelloWorldExampleSuite{})
 
 type snapHelloWorldExampleSuite struct {
 	common.SnappySuite
@@ -46,7 +46,10 @@ func installSnap(c *check.C, packageName string) string {
 }
 
 func removeSnap(c *check.C, packageName string) string {
-	return cli.ExecCommand(c, "sudo", "snap", "remove", packageName)
+	cli.ExecCommand(c, "sudo", "snap", "remove", packageName)
+	// FIXME: should `snap remove` shold show a list afterards?
+	//        like `snappy install`?
+	return cli.ExecCommand(c, "snap", "list")
 }
 
 func (s *snapHelloWorldExampleSuite) TestCallHelloWorldBinary(c *check.C) {

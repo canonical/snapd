@@ -48,12 +48,12 @@ type Configuration interface {
 
 // BareName of a snap.Info is just its Name
 func BareName(p *snap.Info) string {
-	return p.Name
+	return p.Name()
 }
 
 // FullName of a snap.Info is Name.Developer
 func FullName(p *snap.Info) string {
-	return p.Name + "." + p.Developer
+	return p.Name() + "." + p.Developer
 }
 
 // FullNameWithChannel returns the FullName, with the channel appended
@@ -190,35 +190,13 @@ func PackageNameActive(name string) bool {
 
 // ManifestPath returns the would be path for the snap manifest.
 func ManifestPath(s *snap.Info) string {
-	return filepath.Join(dirs.SnapMetaDir, fmt.Sprintf("%s_%s.manifest", s.Name, s.Version))
-}
-
-/// XXX: temporary step until we know if we still need this (vs overlord state)
-// and to find out what we absolutely need from it
-type diskManifest struct {
-	// XXX likely we want also snap-id and summary and name? (but name breaks immutability)
-	Revision    int    `yaml:"revision"`
-	Channel     string `yaml:"channel"`
-	Developer   string `yaml:"developer"`
-	Description string `yaml:"description"`
-	Size        int64  `yaml:"size"`
-	Sha512      string `yaml:"sha512"`
-	IconURL     string `yaml:"icon-url"`
+	return filepath.Join(dirs.SnapMetaDir, fmt.Sprintf("%s_%s.manifest", s.Name(), s.Version))
 }
 
 // SaveManifest saves the manifest at the designated location for the snap containing information not in the snap.yaml.
 func SaveManifest(rsnap *snap.Info) error {
-	m := &diskManifest{
-		Revision:  rsnap.Revision,
-		Channel:   rsnap.Channel,
-		Developer: rsnap.Developer,
-		// XXX capture also Summary?
-		Description: rsnap.Description,
-		Size:        rsnap.Size,
-		Sha512:      rsnap.Sha512,
-		IconURL:     rsnap.IconURL,
-	}
-	content, err := yaml.Marshal(m)
+	// XXX: we store OfficialName though it may not be the blessed one later
+	content, err := yaml.Marshal(&rsnap.SideInfo)
 	if err != nil {
 		return err
 	}
@@ -227,6 +205,7 @@ func SaveManifest(rsnap *snap.Info) error {
 		return err
 	}
 
+	p := ManifestPath(rsnap)
 	// don't worry about previous contents
-	return osutil.AtomicWriteFile(ManifestPath(rsnap), content, 0644, 0)
+	return osutil.AtomicWriteFile(p, content, 0644, 0)
 }

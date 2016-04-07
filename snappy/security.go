@@ -569,7 +569,9 @@ func removeOneSecurityPolicy(m *snapYaml, name, baseDir string) error {
 	return nil
 }
 
-func removePolicy(m *snapYaml, baseDir string) error {
+func RemoveGeneratedSnapSecurity(s *Snap) error {
+	m := s.m
+	baseDir := s.basedir
 	for _, app := range m.Apps {
 		if app.Daemon == "" {
 			continue
@@ -730,8 +732,11 @@ func findPlugForApp(m *snapYaml, app *AppYaml) (*plugYaml, error) {
 	return plug, nil
 }
 
-func generatePolicy(m *snapYaml, baseDir string) error {
+func SetupSnapSecurity(s *Snap) error {
 	var foundError error
+
+	m := s.m
+	baseDir := s.basedir
 
 	// generate default security config for snappy-config
 	if hasConfig(baseDir) {
@@ -898,21 +903,12 @@ func parseSnapYamlFileWithVersion(fn string) (*snapYaml, error) {
 // GeneratePolicyFromFile is used to generate security policy on the system
 // from the specified manifest file name
 func GeneratePolicyFromFile(fn string, force bool) error {
-	// FIXME: force not used yet
-	m, err := parseSnapYamlFileWithVersion(fn)
+	s, err := NewInstalledSnap(fn)
 	if err != nil {
 		return err
 	}
 
-	// TODO: verify cache files here
-
-	baseDir := filepath.Dir(filepath.Dir(fn))
-	err = generatePolicy(m, baseDir)
-	if err != nil {
-		return err
-	}
-
-	return err
+	return SetupSnapSecurity(s)
 }
 
 // RegenerateAllPolicy will re-generate all policy that needs re-generating

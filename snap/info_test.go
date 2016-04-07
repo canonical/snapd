@@ -1,7 +1,7 @@
-// -*- Mote: Go; indent-tabs-mode: t -*-
+// -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2014-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,25 +17,34 @@
  *
  */
 
-package interfaces_test
+package snap_test
 
 import (
 	. "gopkg.in/check.v1"
 
-	. "github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/snap"
 )
 
-type NamingSuite struct{}
+type infoSuite struct{}
 
-var _ = Suite(&NamingSuite{})
+var _ = Suite(&infoSuite{})
 
-func (s *NamingSuite) TestSecurityTag(c *C) {
-	appInfo := &snap.AppInfo{Snap: &snap.Info{SuggestedName: "http"}, Name: "GET"}
-	c.Check(SecurityTag(appInfo), Equals, "snap.http.GET")
-}
+func (s *infoSuite) TestSideInfoOverrides(c *C) {
+	info := &snap.Info{
+		SuggestedName:       "name",
+		OriginalSummary:     "summary",
+		OriginalDescription: "desc",
+	}
 
-func (s *NamingSuite) TestSecurityTagGlob(c *C) {
-	snapInfo := &snap.Info{SuggestedName: "http"}
-	c.Check(SecurityTagGlob(snapInfo), Equals, "snap.http.*")
+	info.SideInfo = snap.SideInfo{
+		OfficialName:      "newname",
+		EditedSummary:     "fixed summary",
+		EditedDescription: "fixed desc",
+		Revision:          1,
+	}
+
+	c.Check(info.Name(), Equals, "newname")
+	c.Check(info.Summary(), Equals, "fixed summary")
+	c.Check(info.Description(), Equals, "fixed desc")
+	c.Check(info.Revision, Equals, 1)
 }

@@ -1,7 +1,7 @@
-// -*- Mote: Go; indent-tabs-mode: t -*-
+// -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2014-2015 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,25 +17,34 @@
  *
  */
 
-package interfaces_test
+package main
 
 import (
-	. "gopkg.in/check.v1"
+	"fmt"
 
-	. "github.com/ubuntu-core/snappy/interfaces"
-	"github.com/ubuntu-core/snappy/snap"
+	"github.com/jessevdk/go-flags"
+
+	"github.com/ubuntu-core/snappy/i18n"
+	"github.com/ubuntu-core/snappy/snappy"
 )
 
-type NamingSuite struct{}
+type cmdInternalFirstBoot struct{}
 
-var _ = Suite(&NamingSuite{})
-
-func (s *NamingSuite) TestSecurityTag(c *C) {
-	appInfo := &snap.AppInfo{Snap: &snap.Info{SuggestedName: "http"}, Name: "GET"}
-	c.Check(SecurityTag(appInfo), Equals, "snap.http.GET")
+func init() {
+	cmd := addCommand("firstboot",
+		"internal",
+		"internal", func() flags.Commander {
+			return &cmdInternalFirstBoot{}
+		})
+	cmd.hidden = true
 }
 
-func (s *NamingSuite) TestSecurityTagGlob(c *C) {
-	snapInfo := &snap.Info{SuggestedName: "http"}
-	c.Check(SecurityTagGlob(snapInfo), Equals, "snap.http.*")
+func (x *cmdInternalFirstBoot) Execute(args []string) error {
+	err := snappy.FirstBoot()
+	if err == snappy.ErrNotFirstBoot {
+		fmt.Println(i18n.G("First boot has already run"))
+		return nil
+	}
+
+	return err
 }
