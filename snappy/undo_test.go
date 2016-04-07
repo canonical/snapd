@@ -123,13 +123,13 @@ version: 2.0`)
 	c.Assert(err, IsNil)
 
 	// copy data
-	err = CopyData(sn, 0, &s.meter)
+	err = CopyData(sn.Info(), 0, &s.meter)
 	c.Assert(err, IsNil)
 	v2data := filepath.Join(dirs.SnapDataDir, "hello/2.0")
 	l, _ := filepath.Glob(filepath.Join(v2data, "*"))
 	c.Assert(l, HasLen, 1)
 
-	UndoCopyData(sn, 0, &s.meter)
+	UndoCopyData(sn.Info(), 0, &s.meter)
 	l, _ = filepath.Glob(filepath.Join(v2data, "*"))
 	c.Assert(l, HasLen, 0)
 

@@ -102,13 +102,25 @@ const packageHello = `name: hello-snap
 version: 1.10
 `
 
-func (s *SquashfsTestSuite) TestMakeSnapMakesSquashfs(c *C) {
+func (s *SquashfsTestSuite) TestOpenSnapBlob(c *C) {
 	snapPkg := makeTestSnapPackage(c, packageHello)
-	snap, err := NewSnapFile(snapPkg, true)
+	info, blobf, err := openSnapBlob(snapPkg, true, nil)
 	c.Assert(err, IsNil)
 
 	// ensure the right backend got picked up
-	c.Assert(snap.deb, FitsTypeOf, &squashfs.Snap{})
+	c.Assert(blobf, FitsTypeOf, &squashfs.Snap{})
+	c.Check(info.Name(), Equals, "hello-snap")
+}
+
+func (s *SquashfsTestSuite) TestOpenSnapBlobSideInfo(c *C) {
+	snapPkg := makeTestSnapPackage(c, packageHello)
+	si := snap.SideInfo{OfficialName: "blessed", Revision: 42}
+	info, _, err := openSnapBlob(snapPkg, true, &si)
+	c.Assert(err, IsNil)
+
+	// check side info
+	c.Check(info.Name(), Equals, "blessed")
+	c.Check(info.Revision, Equals, 42)
 }
 
 func (s *SquashfsTestSuite) TestInstallViaSquashfsWorks(c *C) {
@@ -177,7 +189,9 @@ func (s *SquashfsTestSuite) TestRemoveSquashfsMountUnit(c *C) {
 
 func (s *SquashfsTestSuite) TestRemoveViaSquashfsWorks(c *C) {
 	snapFile := makeTestSnapPackage(c, packageHello)
-	installedSnap, err := (&Overlord{}).Install(snapFile, 0, &MockProgressMeter{})
+	snap, err := (&Overlord{}).Install(snapFile, 0, &MockProgressMeter{})
+	c.Assert(err, IsNil)
+	installedSnap, err := NewInstalledSnap(filepath.Join(snap.BaseDir(), "meta", "snap.yaml"))
 	c.Assert(err, IsNil)
 
 	// after install the blob is in the right dir
@@ -264,8 +278,12 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapRemovesKernelAssets(c *C) {
 		{"initrd.img-4.2", "...and I'm an initrd"},
 	}
 	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
-	installedSnap, err := (&Overlord{}).Install(snapPkg, 0, &MockProgressMeter{})
+	snap, err := (&Overlord{}).Install(snapPkg, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
+	installedSnap, err := NewInstalledSnap(filepath.Join(snap.BaseDir(), "meta", "snap.yaml"))
+	c.Assert(err, IsNil)
+	installedSnap.isActive = false
+
 	kernelAssetsDir := filepath.Join(s.bootloader.Dir(), "ubuntu-kernel_4.0-1.snap")
 	c.Assert(osutil.FileExists(kernelAssetsDir), Equals, true)
 
@@ -288,10 +306,10 @@ func (s *SquashfsTestSuite) TestActiveKernelNotRemovable(c *C) {
 
 func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernelErrors(c *C) {
 	snapPkg := makeTestSnapPackage(c, packageHello)
-	snap, err := NewSnapFile(snapPkg, true)
+	snap, blobf, err := openSnapBlob(snapPkg, true, nil)
 	c.Assert(err, IsNil)
 
-	err = extractKernelAssets(snap.Info(), snap.deb, 0, nil)
+	err = extractKernelAssets(snap, blobf, 0, nil)
 	c.Assert(err, ErrorMatches, `can not extract kernel assets from snap type "app"`)
 }
 

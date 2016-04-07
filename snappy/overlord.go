@@ -48,13 +48,10 @@ func CheckSnap(snapFilePath string, flags InstallFlags, meter progress.Meter) er
 	// NewSnapFile() to ensure that we do not mount/inspect
 	// potentially dangerous snaps
 
-	sf, err := NewSnapFile(snapFilePath, allowUnauth)
+	s, blobf, err := openSnapBlob(snapFilePath, allowUnauth, nil)
 	if err != nil {
 		return err
 	}
-
-	s := sf.Info()
-	blobf := sf.deb
 
 	// we do not security Verify() (check hashes) the package here.
 	// This is done earlier in
@@ -69,14 +66,12 @@ func SetupSnap(snapFilePath string, flags InstallFlags, meter progress.Meter) (s
 	inhibitHooks := (flags & InhibitHooks) != 0
 	allowUnauth := (flags & AllowUnauthenticated) != 0
 
-	sf, err := NewSnapFile(snapFilePath, allowUnauth)
+	// XXX: soon need to fill or get a sideinfo with at least revision
+	s, blobf, err := openSnapBlob(snapFilePath, allowUnauth, nil)
 	if err != nil {
 		return "", err
 	}
-
-	s := sf.Info()
 	instdir := s.BaseDir()
-	blobf := sf.deb
 
 	// the "gadget" snaps are special
 	if s.Type == snap.TypeGadget {
@@ -180,7 +175,7 @@ func UndoSetupSnap(installDir string, meter progress.Meter) {
 	//        and can only be used during install right now
 }
 
-// XXX: really should go from Info to Info
+// XXX: ideally should go from Info to Info, likely we will move to something else anyway
 func currentSnap(newSnap *snap.Info) *Snap {
 	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(newSnap.BaseDir(), "..", "current"))
 	if currentActiveDir == "" {
@@ -194,8 +189,8 @@ func currentSnap(newSnap *snap.Info) *Snap {
 	return currentSnap
 }
 
-func CopyData(newSnap *Snap, flags InstallFlags, meter progress.Meter) error {
-	dataDir := filepath.Join(dirs.SnapDataDir, newSnap.Name(), newSnap.Version())
+func CopyData(newSnap *snap.Info, flags InstallFlags, meter progress.Meter) error {
+	dataDir := filepath.Join(dirs.SnapDataDir, newSnap.Name(), newSnap.Version)
 
 	// deal with the data:
 	//
@@ -204,7 +199,7 @@ func CopyData(newSnap *Snap, flags InstallFlags, meter progress.Meter) error {
 	// started then copy the data
 	//
 	// otherwise just create a empty data dir
-	oldSnap := currentSnap(newSnap.Info())
+	oldSnap := currentSnap(newSnap)
 	if oldSnap == nil {
 		return os.MkdirAll(dataDir, 0755)
 	}
@@ -215,12 +210,13 @@ func CopyData(newSnap *Snap, flags InstallFlags, meter progress.Meter) error {
 		return err
 	}
 
-	return copySnapData(newSnap.Name(), oldSnap.Version(), newSnap.Version())
+	return copySnapData(newSnap.Name(), oldSnap.Version(), newSnap.Version)
 }
 
-func UndoCopyData(newSnap *Snap, flags InstallFlags, meter progress.Meter) {
+func UndoCopyData(newInfo *snap.Info, flags InstallFlags, meter progress.Meter) {
 	// XXX we were copying data, assume InhibitHooks was false
-	oldSnap := currentSnap(newSnap.Info())
+
+	oldSnap := currentSnap(newInfo)
 	if oldSnap != nil {
 		// reactivate the previously inactivated snap
 		if err := ActivateSnap(oldSnap, meter); err != nil {
@@ -228,8 +224,8 @@ func UndoCopyData(newSnap *Snap, flags InstallFlags, meter progress.Meter) {
 		}
 	}
 
-	if err := RemoveSnapData(newSnap.Name(), newSnap.Version()); err != nil {
-		logger.Noticef("When cleaning up data for %s %s: %v", newSnap.Name(), newSnap.Version(), err)
+	if err := RemoveSnapData(newInfo.Name(), newInfo.Version); err != nil {
+		logger.Noticef("When cleaning up data for %s %s: %v", newInfo.Name(), newInfo.Version, err)
 	}
 }
 
@@ -407,7 +403,7 @@ func UnlinkSnap(s *Snap, inter interacter) error {
 // Install installs the given snap file to the system.
 //
 // It returns the local snap file or an error
-func (o *Overlord) Install(snapFilePath string, flags InstallFlags, meter progress.Meter) (sp *Snap, err error) {
+func (o *Overlord) Install(snapFilePath string, flags InstallFlags, meter progress.Meter) (sp *snap.Info, err error) {
 	if err := CheckSnap(snapFilePath, flags, meter); err != nil {
 		return nil, err
 	}
@@ -422,27 +418,21 @@ func (o *Overlord) Install(snapFilePath string, flags InstallFlags, meter progre
 		return nil, err
 	}
 
-	// we have an installed snap at this point but it may not be
-	// mounted so we need some tricky :((( to pretend for u-d-f
-	// that it is an installed snap
 	allowUnauth := (flags & AllowUnauthenticated) != 0
-	s, err := NewSnapFile(snapFilePath, allowUnauth)
-	if err != nil {
-		return nil, err
-	}
-	newSnap, err := newSnapFromYaml(filepath.Join(instPath, "meta", "snap.yaml"), s.m)
+	// XXX: soon need optionally to fill or get a sideinfo with at least revision
+	newInfo, _, err := openSnapBlob(snapFilePath, allowUnauth, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	// we need this for later
-	oldSnap := currentSnap(newSnap.Info())
+	oldSnap := currentSnap(newInfo)
 
 	// deal with the data
-	err = CopyData(newSnap, flags, meter)
+	err = CopyData(newInfo, flags, meter)
 	defer func() {
 		if err != nil {
-			UndoCopyData(newSnap, flags, meter)
+			UndoCopyData(newInfo, flags, meter)
 		}
 	}()
 	if err != nil {
@@ -452,8 +442,16 @@ func (o *Overlord) Install(snapFilePath string, flags InstallFlags, meter progre
 	// and finally make active
 
 	if (flags & InhibitHooks) != 0 {
-		// XXX kill InhibitHooks flag but used by u-d-f atm
-		return newSnap, nil
+		// XXX: kill InhibitHooks flag but used by u-d-f atm
+		return newInfo, nil
+	}
+
+	// if get this far we know the snap is actually mounted.
+	// XXX: use infos further but anyway this is going away mostly
+	// once we simplify u-d-f
+	newSnap, err := NewInstalledSnap(filepath.Join(instPath, "meta", "snap.yaml"))
+	if err != nil {
+		return nil, err
 	}
 
 	err = ActivateSnap(newSnap, meter)
@@ -468,7 +466,7 @@ func (o *Overlord) Install(snapFilePath string, flags InstallFlags, meter progre
 		return nil, err
 	}
 
-	return newSnap, nil
+	return newSnap.Info(), nil
 }
 
 // CanInstall checks whether the Snap passes a series of tests required for installation
