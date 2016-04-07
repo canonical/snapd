@@ -44,16 +44,17 @@ type Backend struct{}
 //
 // If the method fails it should be re-tried (with a sensible strategy) by the caller.
 func (b *Backend) Setup(snapInfo *snap.Info, developerMode bool, repo *interfaces.Repository) error {
+	snapName := snapInfo.Name()
 	snippets, err := repo.SecuritySnippetsForSnap(snapInfo.Name(), interfaces.SecurityUDev)
 	if err != nil {
-		return fmt.Errorf("cannot obtain udev security snippets for snap %q: %s", snapInfo.Name(), err)
+		return fmt.Errorf("cannot obtain udev security snippets for snap %q: %s", snapName, err)
 	}
 	content, err := b.combineSnippets(snapInfo, snippets)
 	if err != nil {
-		return fmt.Errorf("cannot obtain expected udev rules for snap %q: %s", snapInfo.Name(), err)
+		return fmt.Errorf("cannot obtain expected udev rules for snap %q: %s", snapName, err)
 	}
-	glob := fmt.Sprintf("70-%s.rules", interfaces.SecurityTagGlob(snapInfo))
-	return ensureDirState(dirs.SnapUdevRulesDir, glob, content, snapInfo)
+	glob := fmt.Sprintf("70-%s.rules", interfaces.SecurityTagGlob(snapName))
+	return ensureDirState(dirs.SnapUdevRulesDir, glob, content, snapName)
 }
 
 // Remove removes udev rules specific to a given snap.
@@ -62,12 +63,12 @@ func (b *Backend) Setup(snapInfo *snap.Info, developerMode bool, repo *interface
 // This method should be called after removing a snap.
 //
 // If the method fails it should be re-tried (with a sensible strategy) by the caller.
-func (b *Backend) Remove(snapInfo *snap.Info) error {
-	glob := fmt.Sprintf("70-%s.rules", interfaces.SecurityTagGlob(snapInfo))
-	return ensureDirState(dirs.SnapUdevRulesDir, glob, nil, snapInfo)
+func (b *Backend) Remove(snapName string) error {
+	glob := fmt.Sprintf("70-%s.rules", interfaces.SecurityTagGlob(snapName))
+	return ensureDirState(dirs.SnapUdevRulesDir, glob, nil, snapName)
 }
 
-func ensureDirState(dir, glob string, content map[string]*osutil.FileState, snapInfo *snap.Info) error {
+func ensureDirState(dir, glob string, content map[string]*osutil.FileState, snapName string) error {
 	var errReload error
 	changed, removed, errEnsure := osutil.EnsureDirState(dir, glob, content)
 	if len(changed) > 0 || len(removed) > 0 {
@@ -75,7 +76,7 @@ func ensureDirState(dir, glob string, content map[string]*osutil.FileState, snap
 		errReload = ReloadRules()
 	}
 	if errEnsure != nil {
-		return fmt.Errorf("cannot synchronize udev rules for snap %q: %s", snapInfo.Name(), errEnsure)
+		return fmt.Errorf("cannot synchronize udev rules for snap %q: %s", snapName, errEnsure)
 	}
 	return errReload
 }

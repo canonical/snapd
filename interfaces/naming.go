@@ -35,6 +35,6 @@ func SecurityTag(appInfo *snap.AppInfo) string {
 
 // SecurityTagGlob returns a pattern that matches all security tags belonging to
 // the same snap as the given app.
-func SecurityTagGlob(snapInfo *snap.Info) string {
-	return fmt.Sprintf("snap.%s.%s", snapInfo.Name(), "*")
+func SecurityTagGlob(snapName string) string {
+	return fmt.Sprintf("snap.%s.%s", snapName, "*")
 }
