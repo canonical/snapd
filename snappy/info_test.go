@@ -151,7 +151,7 @@ func (s *SnapTestSuite) TestPackageNameInstalled(c *C) {
 	c.Assert(ActivateSnap(snap, ag), IsNil)
 
 	c.Check(PackageNameActive("hello-snap"), Equals, true)
-	c.Assert(DeactivateSnap(snap, ag), IsNil)
+	c.Assert(UnlinkSnap(snap, ag), IsNil)
 	c.Check(PackageNameActive("hello-snap"), Equals, false)
 }
 
