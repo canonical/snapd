@@ -984,7 +984,7 @@ func (s *AddRemoveSuite) TestAddSnapAddsPlugs(c *C) {
 	c.Assert(s.repo.Plug("consumer", "iface"), Not(IsNil))
 }
 
-func (s *AddRemoveSuite) TestAddSnapPanicsOnExistingSnaps(c *C) {
+func (s *AddRemoveSuite) TestAddSnapErrorsOnExistingSnaps(c *C) {
 	_, _ = s.addSnap(c, testConsumerYaml)
 	_, err := s.addSnap(c, testConsumerYaml)
 	c.Assert(err, ErrorMatches, `cannot register interfaces for snap "consumer" more than once`)
