@@ -926,10 +926,23 @@ func (s *AddRemoveSuite) TestAddSnapAddsPlugs(c *C) {
 	c.Assert(s.repo.Plug("consumer", "iface"), Not(IsNil))
 }
 
-func (s *AddRemoveSuite) TestAddSnapErrorsOnExistingSnaps(c *C) {
+func (s *AddRemoveSuite) TestAddSnapErrorsOnExistingSnapPlugs(c *C) {
 	_, _ = s.addSnap(c, testConsumerYaml)
 	_, err := s.addSnap(c, testConsumerYaml)
 	c.Assert(err, ErrorMatches, `cannot register interfaces for snap "consumer" more than once`)
+}
+
+func (s *AddRemoveSuite) TestAddSnapAddsSlots(c *C) {
+	_, err := s.addSnap(c, testProducerYaml)
+	c.Assert(err, IsNil)
+	// The slot was added
+	c.Assert(s.repo.Slot("producer", "iface"), Not(IsNil))
+}
+
+func (s *AddRemoveSuite) TestAddSnapErrorsOnExistingSnapSlots(c *C) {
+	_, _ = s.addSnap(c, testProducerYaml)
+	_, err := s.addSnap(c, testProducerYaml)
+	c.Assert(err, ErrorMatches, `cannot register interfaces for snap "producer" more than once`)
 }
 
 func (s AddRemoveSuite) TestRemoveRemovesPlugs(c *C) {
@@ -938,7 +951,13 @@ func (s AddRemoveSuite) TestRemoveRemovesPlugs(c *C) {
 	c.Assert(s.repo.Plug("consumer", "iface"), IsNil)
 }
 
-func (s *AddRemoveSuite) TestRemoveSnapErrorsOnStillConnectedSnap(c *C) {
+func (s AddRemoveSuite) TestRemoveRemovesSlots(c *C) {
+	producer, _ := s.addSnap(c, testProducerYaml)
+	s.repo.RemoveSnap(producer)
+	c.Assert(s.repo.Plug("producer", "iface"), IsNil)
+}
+
+func (s *AddRemoveSuite) TestRemoveSnapErrorsOnStillConnectedPlug(c *C) {
 	consumer, _ := s.addSnap(c, testConsumerYaml)
 	_, _ = s.addSnap(c, testProducerYaml)
 	err := s.repo.Connect("consumer", "iface", "producer", "iface")
@@ -947,4 +966,11 @@ func (s *AddRemoveSuite) TestRemoveSnapErrorsOnStillConnectedSnap(c *C) {
 	c.Assert(err, ErrorMatches, "cannot remove connected plug consumer.iface")
 }
 
-// TODO: add more tests for the flip side
+func (s *AddRemoveSuite) TestRemoveSnapErrorsOnStillConnectedSlot(c *C) {
+	_, _ = s.addSnap(c, testConsumerYaml)
+	producer, _ := s.addSnap(c, testProducerYaml)
+	err := s.repo.Connect("consumer", "iface", "producer", "iface")
+	c.Assert(err, IsNil)
+	err = s.repo.RemoveSnap(producer)
+	c.Assert(err, ErrorMatches, "cannot remove connected slot producer.iface")
+}
