@@ -628,11 +628,9 @@ func (r *Repository) AddSnap(snapInfo *snap.Info) error {
 // RemoveSnap does not remove connections. The caller is responsible for
 // ensuring that connections are broken before calling this method. If this
 // constraint is violated then no changes are made and an error is returned.
-func (r *Repository) RemoveSnap(snapInfo *snap.Info) error {
+func (r *Repository) RemoveSnap(snapName string) error {
 	r.m.Lock()
 	defer r.m.Unlock()
-
-	snapName := snapInfo.Name()
 
 	for plugName, plug := range r.plugs[snapName] {
 		if len(plug.Connections) > 0 {
