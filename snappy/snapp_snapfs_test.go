@@ -118,11 +118,11 @@ func (s *SquashfsTestSuite) TestInstallViaSquashfsWorks(c *C) {
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-snap_1.10.snap")), Equals, true)
 
 	// ensure the right unit is created
-	mup := systemd.MountUnitPath("/snaps/hello-snap/1.10", "mount")
+	mup := systemd.MountUnitPath("/snap/hello-snap/1.10", "mount")
 	content, err := ioutil.ReadFile(mup)
 	c.Assert(err, IsNil)
-	c.Assert(string(content), Matches, "(?ms).*^Where=/snaps/hello-snap/1.10")
-	c.Assert(string(content), Matches, "(?ms).*^What=/var/lib/snappy/snaps/hello-snap_1.10.snap")
+	c.Assert(string(content), Matches, "(?ms).*^Where=/snap/hello-snap/1.10")
+	c.Assert(string(content), Matches, "(?ms).*^What=/var/lib/snapd/snaps/hello-snap_1.10.snap")
 }
 
 func (s *SquashfsTestSuite) TestAddSquashfsMount(c *C) {
@@ -136,14 +136,14 @@ func (s *SquashfsTestSuite) TestAddSquashfsMount(c *C) {
 	c.Assert(err, IsNil)
 
 	// ensure correct mount unit
-	mount, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, "snaps-foo-1.0.mount"))
+	mount, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, "snap-foo-1.0.mount"))
 	c.Assert(err, IsNil)
 	c.Assert(string(mount), Equals, `[Unit]
 Description=Squashfs mount unit for foo
 
 [Mount]
-What=/var/lib/snappy/snaps/foo_1.0.snap
-Where=/snaps/foo/1.0
+What=/var/lib/snapd/snaps/foo_1.0.snap
+Where=/snap/foo/1.0
 `)
 
 }
@@ -155,7 +155,7 @@ func (s *SquashfsTestSuite) TestRemoveSquashfsMountUnit(c *C) {
 	c.Assert(err, IsNil)
 
 	// ensure we have the files
-	p := filepath.Join(dirs.SnapServicesDir, "snaps-foo-1.0.mount")
+	p := filepath.Join(dirs.SnapServicesDir, "snap-foo-1.0.mount")
 	c.Assert(osutil.FileExists(p), Equals, true)
 
 	// now call remove and ensure they are gone
@@ -388,14 +388,14 @@ plugs:
 	c.Assert(err, ErrorMatches, "could not find specified template: not-there.*")
 
 	// ensure the mount unit is not there
-	mup := systemd.MountUnitPath("/snaps/hello/1.10", "mount")
+	mup := systemd.MountUnitPath("/snap/hello/1.10", "mount")
 	c.Assert(osutil.FileExists(mup), Equals, false)
 
 	// ensure that the mount gets unmounted and stopped
 	c.Assert(s.systemdCmds, DeepEquals, [][]string{
-		{"start", "snaps-hello-1.10.mount"},
-		{"--root", dirs.GlobalRootDir, "disable", "snaps-hello-1.10.mount"},
-		{"stop", "snaps-hello-1.10.mount"},
-		{"show", "--property=ActiveState", "snaps-hello-1.10.mount"},
+		{"start", "snap-hello-1.10.mount"},
+		{"--root", dirs.GlobalRootDir, "disable", "snap-hello-1.10.mount"},
+		{"stop", "snap-hello-1.10.mount"},
+		{"show", "--property=ActiveState", "snap-hello-1.10.mount"},
 	})
 }

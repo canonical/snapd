@@ -149,7 +149,7 @@ func (s *SnapTestSuite) TestLocalSnapSimple(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snap.Date(), Equals, st.ModTime())
 
-	c.Assert(snap.basedir, Equals, filepath.Join(s.tempdir, "snaps", helloSnapComposedName, "1.10"))
+	c.Assert(snap.basedir, Equals, filepath.Join(s.tempdir, "snap", helloSnapComposedName, "1.10"))
 	c.Assert(snap.InstalledSize(), Not(Equals), -1)
 }
 
@@ -448,7 +448,7 @@ apps:
 	c.Assert(err, IsNil)
 	c.Assert(snap.Date(), Equals, st.ModTime())
 
-	c.Assert(snap.basedir, Equals, filepath.Join(s.tempdir, "snaps", helloSnapComposedName, "1.10"))
+	c.Assert(snap.basedir, Equals, filepath.Join(s.tempdir, "snap", helloSnapComposedName, "1.10"))
 	c.Assert(snap.InstalledSize(), Not(Equals), -1)
 }
 

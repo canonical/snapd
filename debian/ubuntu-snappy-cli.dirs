@@ -1,2 +1,2 @@
-var/lib/snappy/snaps
-usr/lib/snappy
+var/lib/snapd/snaps
+usr/lib/snapd

@@ -62,7 +62,7 @@ func fillSnapEnvVars(desc interface{}, vars []string) []string {
 func GetBasicSnapEnvVars(desc interface{}) []string {
 	return fillSnapEnvVars(desc, []string{
 		"SNAP={{.SnapPath}}",
-		"SNAP_DATA=/var/lib{{.SnapPath}}",
+		"SNAP_DATA=/var{{.SnapPath}}",
 		"SNAP_NAME={{.SnapName}}",
 		"SNAP_VERSION={{.Version}}",
 		"SNAP_ARCH={{.SnapArch}}",
@@ -88,7 +88,7 @@ func GetDeprecatedBasicSnapEnvVars(desc interface{}) []string {
 	return fillSnapEnvVars(desc, []string{
 		// SNAP_
 		"SNAP_APP_PATH={{.SnapPath}}",
-		"SNAP_APP_DATA_PATH=/var/lib{{.SnapPath}}",
+		"SNAP_APP_DATA_PATH=/var{{.SnapPath}}",
 	})
 }
 

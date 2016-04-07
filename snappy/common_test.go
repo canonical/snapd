@@ -76,7 +76,7 @@ apps:
 		return "", err
 	}
 
-	metaDir := filepath.Join(dirs.GlobalRootDir, "snaps", m.Name, m.Version, "meta")
+	metaDir := filepath.Join(dirs.GlobalRootDir, "snap", m.Name, m.Version, "meta")
 	if err := os.MkdirAll(metaDir, 0775); err != nil {
 		return "", err
 	}
