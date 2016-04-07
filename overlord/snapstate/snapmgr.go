@@ -54,15 +54,15 @@ type snapSetup struct {
 	SnapPath string `json:"snap-path"`
 }
 
-func (s *snapSetup) BaseDir() string {
-	return filepath.Join(dirs.SnapSnapsDir, s.Name, s.Version)
+func (ss *snapSetup) BaseDir() string {
+	return filepath.Join(dirs.SnapSnapsDir, ss.Name, ss.Version)
 }
 
-func (s *snapSetup) OldBaseDir() string {
-	if s.OldName == "" || s.OldVersion == "" {
+func (ss *snapSetup) OldBaseDir() string {
+	if ss.OldName == "" || ss.OldVersion == "" {
 		return ""
 	}
-	return filepath.Join(dirs.SnapSnapsDir, s.OldName, s.OldVersion)
+	return filepath.Join(dirs.SnapSnapsDir, ss.OldName, ss.OldVersion)
 }
 
 // Manager returns a new snap manager.
