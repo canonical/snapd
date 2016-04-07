@@ -29,12 +29,11 @@ type SpecialSuite struct{}
 
 var _ = Suite(&SpecialSuite{})
 
-func (s *InfoSnapYamlTestSuite) TestAddCommonSlotsToOSSnap(c *C) {
+func (s *InfoSnapYamlTestSuite) TestAddImplicitSlots(c *C) {
 	osYaml := []byte("name: ubuntu-core\ntype: os\n")
 	info, err := snap.InfoFromSnapYaml(osYaml)
 	c.Assert(err, IsNil)
-	err = snap.AddCommonSlotsToOSSnap(info)
-	c.Assert(err, IsNil)
+	snap.AddImplicitSlots(info)
 	c.Assert(info.Slots["network"].Interface, Equals, "network")
 	c.Assert(info.Slots["network"].Snap, Equals, info)
 	c.Assert(info.Slots, HasLen, 15)

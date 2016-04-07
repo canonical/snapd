@@ -19,10 +19,6 @@
 
 package snap
 
-import (
-	"fmt"
-)
-
 var implicitSlots = []string{
 	"firewall-control",
 	"home",
@@ -42,16 +38,15 @@ var implicitSlots = []string{
 	"x",
 }
 
-// AddCommonSlotsToOSSnap adds slots of well-known interfaces to the OS snap.
+// AddImplicitSlots adds implicitly defined slots to a given snap.
 //
-// This function is intended to be used temporarily, before the OS snap is
-// updated to contain appropriate slot definitions.
+// Only the OS snap has implicit slots.
 //
 // It is assumed that slots have names matching the interface name. Existing
 // slots are not changed, only missing slots are added.
-func AddCommonSlotsToOSSnap(snapInfo *Info) error {
+func AddImplicitSlots(snapInfo *Info) {
 	if snapInfo.Type != TypeOS {
-		return fmt.Errorf("common slots can only be added to the OS snap")
+		return
 	}
 	for _, ifaceName := range implicitSlots {
 		if _, ok := snapInfo.Slots[ifaceName]; !ok {
@@ -61,5 +56,4 @@ func AddCommonSlotsToOSSnap(snapInfo *Info) error {
 			}
 		}
 	}
-	return nil
 }
