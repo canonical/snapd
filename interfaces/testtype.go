@@ -28,6 +28,9 @@ import (
 type TestInterface struct {
 	// InterfaceName is the name of this interface
 	InterfaceName string
+	// AutoConnectFlag indicates whether plugs and slots should be implicitly
+	// auto-connected.
+	AutoConnectFlag bool
 	// SanitizePlugCallback is the callback invoked inside SanitizePlug()
 	SanitizePlugCallback func(plug *Plug) error
 	// SanitizeSlotCallback is the callback invoked inside SanitizeSlot()
@@ -108,4 +111,11 @@ func (t *TestInterface) PermanentSlotSnippet(slot *Slot, securitySystem Security
 		return t.PermanentSlotSnippetCallback(slot, securitySystem)
 	}
 	return nil, nil
+}
+
+// AutoConnect returns whether plugs and slots should be implicitly
+// auto-connected when an unambiguous connection candidate is available in
+// the OS snap.
+func (t *TestInterface) AutoConnect() bool {
+	return t.AutoConnectFlag
 }
