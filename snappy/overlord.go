@@ -502,6 +502,7 @@ func (o *Overlord) Uninstall(s *Snap, meter progress.Meter) error {
 	if err := UnlinkSnap(s, meter); err != nil && err != ErrSnapNotActive {
 		return err
 	}
+
 	if err := RemoveSnapFiles(s, meter); err != nil {
 		return err
 	}
