@@ -29,6 +29,8 @@ import (
 	"github.com/ubuntu-core/snappy/progress"
 )
 
+// FIXME: Implement feature via "snap install classic"
+
 type cmdEnableClassic struct{}
 type cmdDestroyClassic struct{}
 
