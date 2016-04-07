@@ -20,11 +20,11 @@
 package main
 
 import (
+	"strings"
 	"time"
 
 	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/osutil"
 
 	"github.com/jessevdk/go-flags"
 )
