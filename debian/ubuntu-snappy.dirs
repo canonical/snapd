@@ -1,2 +1,2 @@
-/snaps
-/var/lib/snappy/apparmor/additional
+/snap
+/var/lib/snapd/apparmor/additional

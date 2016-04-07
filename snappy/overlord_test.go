@@ -54,7 +54,7 @@ func (s *SnapTestSuite) TestLocalSnapInstall(c *C) string {
 
 	baseDir := filepath.Join(dirs.SnapSnapsDir, fooComposedName, "1.0")
 	c.Assert(osutil.FileExists(baseDir), Equals, true)
-	_, err = os.Stat(filepath.Join(s.tempdir, "var", "lib", "snaps", "foo", "1.0"))
+	_, err = os.Stat(filepath.Join(s.tempdir, "var", "snap", "foo", "1.0"))
 	c.Assert(err, IsNil)
 
 	return snapFile
@@ -203,7 +203,7 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 		return nil, nil
 	}
 
-	targetDir := filepath.Join(s.tempdir, "snaps")
+	targetDir := filepath.Join(s.tempdir, "snap")
 	_, err := (&Overlord{}).Install(makeTestSnapPackage(c, ""), 0, nil)
 	c.Assert(err, IsNil)
 
@@ -232,7 +232,7 @@ type: gadget
 	_, err := (&Overlord{}).Install(snapFile, AllowGadget, nil)
 	c.Assert(err, IsNil)
 
-	contentFile := filepath.Join(s.tempdir, "snaps", "foo", "1.0", "bin", "foo")
+	contentFile := filepath.Join(s.tempdir, "snap", "foo", "1.0", "bin", "foo")
 	_, err = os.Stat(contentFile)
 	c.Assert(err, IsNil)
 }
@@ -246,7 +246,7 @@ type: gadget
 	c.Assert(err, IsNil)
 	c.Assert(storeMinimalRemoteManifest("foo", testDeveloper, "1.0", "", "", "remote-channel"), IsNil)
 
-	contentFile := filepath.Join(s.tempdir, "snaps", "foo", "1.0", "bin", "foo")
+	contentFile := filepath.Join(s.tempdir, "snap", "foo", "1.0", "bin", "foo")
 	_, err = os.Stat(contentFile)
 	c.Assert(err, IsNil)
 
@@ -306,8 +306,8 @@ func (s *SnapTestSuite) TestClickSetActive(c *C) {
 }
 
 func (s *SnapTestSuite) TestClickCopyData(c *C) {
-	dirs.SnapDataHomeGlob = filepath.Join(s.tempdir, "home", "*", "snaps")
-	homeDir := filepath.Join(s.tempdir, "home", "user1", "snaps")
+	dirs.SnapDataHomeGlob = filepath.Join(s.tempdir, "home", "*", "snap")
+	homeDir := filepath.Join(s.tempdir, "home", "user1", "snap")
 	appDir := "foo"
 	homeData := filepath.Join(homeDir, appDir, "1.0")
 	err := os.MkdirAll(homeData, 0755)
@@ -344,7 +344,7 @@ func (s *SnapTestSuite) TestClickCopyData(c *C) {
 // system data gets copied
 func (s *SnapTestSuite) TestClickCopyDataNoUserHomes(c *C) {
 	// this home dir path does not exist
-	dirs.SnapDataHomeGlob = filepath.Join(s.tempdir, "no-such-home", "*", "snaps")
+	dirs.SnapDataHomeGlob = filepath.Join(s.tempdir, "no-such-home", "*", "snap")
 
 	snapYamlContent := `name: foo
 `

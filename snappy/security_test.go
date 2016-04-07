@@ -125,7 +125,7 @@ func (a *SecurityTestSuite) TestSnappyGetSecurityProfile(c *C) {
 		Version: "1.0",
 	}
 	b := AppYaml{Name: "bin/app"}
-	ap := getSecurityProfile(&m, b.Name, "/snaps/foo/1.0/")
+	ap := getSecurityProfile(&m, b.Name, "/snap/foo/1.0/")
 	c.Check(ap, Equals, "foo_bin-app_1.0")
 }
 
@@ -551,7 +551,7 @@ sc-network-client
 	}
 
 	// generate the apparmor profile
-	err := sd.generatePolicyForServiceBinary(m, "binary", "/snaps/app/1.0")
+	err := sd.generatePolicyForServiceBinary(m, "binary", "/snap/app/1.0")
 	c.Assert(err, IsNil)
 
 	// ensure the apparmor policy got loaded
