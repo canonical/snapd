@@ -181,7 +181,7 @@ func (s *SquashfsTestSuite) TestRemoveSquashfsMountUnit(c *C) {
 	c.Assert(osutil.FileExists(p), Equals, true)
 
 	// now call remove and ensure they are gone
-	err = removeSquashfsMount(info.BaseDir(), inter)
+	err = removeSquashfsMount(info.MountDir(), inter)
 	c.Assert(err, IsNil)
 	p = filepath.Join(dirs.SnapServicesDir, "snaps-foo-1.0.mount")
 	c.Assert(osutil.FileExists(p), Equals, false)
@@ -191,7 +191,7 @@ func (s *SquashfsTestSuite) TestRemoveViaSquashfsWorks(c *C) {
 	snapFile := makeTestSnapPackage(c, packageHello)
 	snap, err := (&Overlord{}).Install(snapFile, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
-	installedSnap, err := NewInstalledSnap(filepath.Join(snap.BaseDir(), "meta", "snap.yaml"))
+	installedSnap, err := NewInstalledSnap(filepath.Join(snap.MountDir(), "meta", "snap.yaml"))
 	c.Assert(err, IsNil)
 
 	// after install the blob is in the right dir
@@ -280,7 +280,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapRemovesKernelAssets(c *C) {
 	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
 	snap, err := (&Overlord{}).Install(snapPkg, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
-	installedSnap, err := NewInstalledSnap(filepath.Join(snap.BaseDir(), "meta", "snap.yaml"))
+	installedSnap, err := NewInstalledSnap(filepath.Join(snap.MountDir(), "meta", "snap.yaml"))
 	c.Assert(err, IsNil)
 	installedSnap.isActive = false
 
