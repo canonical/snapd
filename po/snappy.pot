@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-04-05 09:43+0200\n"
+        "POT-Creation-Date: 2016-04-07 12:23+0200\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -116,6 +116,10 @@ msgstr  ""
 msgid   "Connects a plug to a slot"
 msgstr  ""
 
+#, c-format
+msgid   "Copying snap data for %q"
+msgstr  ""
+
 msgid   "Creates a snap package and if available, runs the review scripts."
 msgstr  ""
 
@@ -130,6 +134,10 @@ msgid   "Deactivate a package. If the package is already deactivated, do nothing
 msgstr  ""
 
 msgid   "Deactivate an installed active snap"
+msgstr  ""
+
+#, c-format
+msgid   "Deactivating %q"
 msgstr  ""
 
 msgid   "Destroy the classic dimension."
@@ -165,6 +173,10 @@ msgid   "Ensures system is running with latest parts"
 msgstr  ""
 
 msgid   "Entering classic dimension"
+msgstr  ""
+
+#, c-format
+msgid   "Final step for %q"
 msgstr  ""
 
 msgid   "Finds packages to install"
@@ -204,10 +216,6 @@ msgstr  ""
 msgid   "Install snaps even if the signature can not be verified."
 msgstr  ""
 
-#, c-format
-msgid   "Installing %q"
-msgstr  ""
-
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid   "Installing %s\n"
@@ -232,6 +240,10 @@ msgid   "Log into the store"
 msgstr  ""
 
 msgid   "Login successful"
+msgstr  ""
+
+#, c-format
+msgid   "Mounting %q"
 msgstr  ""
 
 msgid   "Name\tDate\tVersion\t"
@@ -308,13 +320,21 @@ msgstr  ""
 msgid   "Remove hardware from a specific installed package"
 msgstr  ""
 
-#, c-format
-msgid   "Removing %q"
-msgstr  ""
-
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid   "Removing %s\n"
+msgstr  ""
+
+#, c-format
+msgid   "Removing data for %q"
+msgstr  ""
+
+#, c-format
+msgid   "Removing files for %q"
+msgstr  ""
+
+#, c-format
+msgid   "Removing security profile for %q"
 msgstr  ""
 
 #, c-format
@@ -369,6 +389,10 @@ msgstr  ""
 #. TRANSLATORS: the first %s is a pkgname, the second %s is the new version
 #, c-format
 msgid   "Setting %s to version %s\n"
+msgstr  ""
+
+#, c-format
+msgid   "Setting up security profile for %q"
 msgstr  ""
 
 msgid   "Show available updates (requires network)"

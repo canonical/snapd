@@ -53,19 +53,19 @@ type Backend struct{}
 // them or application present in the snap.
 func (b *Backend) Configure(snapInfo *snap.Info, developerMode bool, repo *interfaces.Repository) error {
 	// Get the snippets that apply to this snap
-	snippets, err := repo.SecuritySnippetsForSnap(snapInfo.Name, interfaces.SecuritySecComp)
+	snippets, err := repo.SecuritySnippetsForSnap(snapInfo.Name(), interfaces.SecuritySecComp)
 	if err != nil {
-		return fmt.Errorf("cannot obtain security snippets for snap %q: %s", snapInfo.Name, err)
+		return fmt.Errorf("cannot obtain security snippets for snap %q: %s", snapInfo.Name(), err)
 	}
 	// Get the files that this snap should have
 	content, err := b.combineSnippets(snapInfo, developerMode, snippets)
 	if err != nil {
-		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapInfo.Name, err)
+		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapInfo.Name(), err)
 	}
 	glob := interfaces.SecurityTagGlob(snapInfo)
 	_, _, err = osutil.EnsureDirState(dirs.SnapSeccompDir, glob, content)
 	if err != nil {
-		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapInfo.Name, err)
+		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapInfo.Name(), err)
 	}
 	return nil
 }
@@ -75,7 +75,7 @@ func (b *Backend) Deconfigure(snapInfo *snap.Info) error {
 	glob := interfaces.SecurityTagGlob(snapInfo)
 	_, _, err := osutil.EnsureDirState(dirs.SnapSeccompDir, glob, nil)
 	if err != nil {
-		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapInfo.Name, err)
+		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapInfo.Name(), err)
 	}
 	return nil
 }

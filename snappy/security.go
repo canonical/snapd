@@ -569,7 +569,7 @@ func removeOneSecurityPolicy(m *snapYaml, name, baseDir string) error {
 	return nil
 }
 
-func RemoveGeneratedSecurityProfile(s *Snap) error {
+func RemoveGeneratedSnapSecurity(s *Snap) error {
 	m := s.m
 	baseDir := s.basedir
 	for _, app := range m.Apps {
@@ -732,7 +732,7 @@ func findPlugForApp(m *snapYaml, app *AppYaml) (*plugYaml, error) {
 	return plug, nil
 }
 
-func GenerateSecurityProfile(s *Snap) error {
+func SetupSnapSecurity(s *Snap) error {
 	var foundError error
 
 	m := s.m
@@ -908,7 +908,7 @@ func GeneratePolicyFromFile(fn string, force bool) error {
 		return err
 	}
 
-	return GenerateSecurityProfile(s)
+	return SetupSnapSecurity(s)
 }
 
 // RegenerateAllPolicy will re-generate all policy that needs re-generating

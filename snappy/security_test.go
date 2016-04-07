@@ -600,7 +600,7 @@ read
 write
 `))
 
-	mockSnapYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecuritySnapYaml)
+	mockSnapYamlFn, err := makeInstalledMockSnap(mockSecuritySnapYaml)
 	c.Assert(err, IsNil)
 
 	// the acutal thing that gets tested
@@ -636,7 +636,7 @@ read
 write
 `))
 
-	mockSnapYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecuritySnapYaml)
+	mockSnapYamlFn, err := makeInstalledMockSnap(mockSecuritySnapYaml)
 	c.Assert(err, IsNil)
 	configHook := filepath.Join(filepath.Dir(mockSnapYamlFn), "hooks", "config")
 	os.MkdirAll(filepath.Dir(configHook), 0755)
@@ -665,7 +665,7 @@ deny kexec
 read
 write
 `))
-	mockSnapYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecuritySnapYaml)
+	mockSnapYamlFn, err := makeInstalledMockSnap(mockSecuritySnapYaml)
 	c.Assert(err, IsNil)
 
 	err = GeneratePolicyFromFile(mockSnapYamlFn, false)
@@ -696,7 +696,7 @@ deny kexec
 read
 write
 `))
-	mockSnapYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecuritySnapYaml)
+	mockSnapYamlFn, err := makeInstalledMockSnap(mockSecuritySnapYaml)
 	c.Assert(err, IsNil)
 	err = GeneratePolicyFromFile(mockSnapYamlFn, false)
 	c.Assert(err, IsNil)
@@ -733,7 +733,7 @@ deny kexec
 read
 write
 `))
-	mockSnapYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecuritySnapYaml)
+	mockSnapYamlFn, err := makeInstalledMockSnap(mockSecuritySnapYaml)
 	c.Assert(err, IsNil)
 
 	err = GeneratePolicyFromFile(mockSnapYamlFn, false)
@@ -842,7 +842,7 @@ func (a *SecurityTestSuite) TestSecurityWarnsNot(c *C) {
 	ml := &mockLogger{}
 	logger.SetLogger(ml)
 
-	mockSnapYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecurityDeprecatedSnapYaml)
+	mockSnapYamlFn, err := makeInstalledMockSnap(mockSecurityDeprecatedSnapYaml)
 	c.Assert(err, IsNil)
 
 	err = GeneratePolicyFromFile(mockSnapYamlFn, false)
@@ -860,7 +860,7 @@ func (a *SecurityTestSuite) TestSecurityWarnsOnDeprecatedApparmor(c *C) {
 		ml := &mockLogger{}
 		logger.SetLogger(ml)
 
-		mockSnapYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecurityDeprecatedSnapYaml+s)
+		mockSnapYamlFn, err := makeInstalledMockSnap(mockSecurityDeprecatedSnapYaml + s)
 		c.Assert(err, IsNil)
 
 		err = GeneratePolicyFromFile(mockSnapYamlFn, false)
@@ -879,7 +879,7 @@ func (a *SecurityTestSuite) TestSecurityWarnsOnDeprecatedSeccomp(c *C) {
 		ml := &mockLogger{}
 		logger.SetLogger(ml)
 
-		mockSnapYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecurityDeprecatedSnapYaml+s)
+		mockSnapYamlFn, err := makeInstalledMockSnap(mockSecurityDeprecatedSnapYaml + s)
 		c.Assert(err, IsNil)
 
 		err = GeneratePolicyFromFile(mockSnapYamlFn, false)
@@ -890,7 +890,7 @@ func (a *SecurityTestSuite) TestSecurityWarnsOnDeprecatedSeccomp(c *C) {
 }
 
 func makeInstalledMockSnapSideloaded(c *C) string {
-	mockSnapYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecuritySnapYaml)
+	mockSnapYamlFn, err := makeInstalledMockSnap(mockSecuritySnapYaml)
 	c.Assert(err, IsNil)
 	// pretend its sideloaded
 	basePath := regexp.MustCompile(`(.*)/hello-world`).FindString(mockSnapYamlFn)
