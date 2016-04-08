@@ -43,6 +43,8 @@ type fakeSnappyBackend struct {
 
 	fakeCurrentProgress int
 	fakeTotalProgress   int
+
+	activeSnaps map[string]*snap.Info
 }
 
 func (f *fakeSnappyBackend) InstallLocal(path string, flags int, p progress.Meter) error {
@@ -110,8 +112,9 @@ func (f *fakeSnappyBackend) Activate(name string, active bool, p progress.Meter)
 
 func (f *fakeSnappyBackend) CheckSnap(snapFilePath string, flags int) error {
 	f.ops = append(f.ops, fakeOp{
-		op:   "check-snap",
-		name: snapFilePath,
+		op:    "check-snap",
+		name:  snapFilePath,
+		flags: flags,
 	})
 	return nil
 }
@@ -124,6 +127,7 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, si *snap.SideInfo, fl
 	f.ops = append(f.ops, fakeOp{
 		op:    "setup-snap",
 		name:  snapFilePath,
+		flags: flags,
 		revno: revno,
 	})
 	return nil
@@ -131,8 +135,9 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, si *snap.SideInfo, fl
 
 func (f *fakeSnappyBackend) CopySnapData(instSnapPath string, flags int) error {
 	f.ops = append(f.ops, fakeOp{
-		op:   "copy-data",
-		name: instSnapPath,
+		op:    "copy-data",
+		name:  instSnapPath,
+		flags: flags,
 	})
 	return nil
 }
@@ -178,14 +183,7 @@ func (f *fakeSnappyBackend) UndoLinkSnap(oldInstSnapPath, instSnapPath string) e
 }
 
 func (f *fakeSnappyBackend) ActiveSnap(name string) *snap.Info {
-	return &snap.Info{
-		SideInfo: snap.SideInfo{
-			OfficialName: "an-active-snap",
-			Revision:     7,
-		},
-		SuggestedName: "old-name",
-		Version:       "1.64872",
-	}
+	return f.activeSnaps[name]
 }
 
 func (f *fakeSnappyBackend) SnapByNameAndVersion(name, version string) *snap.Info {
@@ -236,6 +234,15 @@ func (f *fakeSnappyBackend) RemoveSnapData(name string, revno int) error {
 		op:    "remove-snap-data",
 		name:  name,
 		revno: revno,
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) GarbageCollect(name string, flags int, meter progress.Meter) error {
+	f.ops = append(f.ops, fakeOp{
+		op:    "garbage-collect",
+		name:  name,
+		flags: flags,
 	})
 	return nil
 }

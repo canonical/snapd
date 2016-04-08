@@ -33,9 +33,7 @@ import (
 // allow exchange in the tests
 var backend managerBackend = &defaultBackend{}
 
-// Install returns a set of tasks for installing snap.
-// Note that the state must be locked by the caller.
-func Install(s *state.State, snap, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
+func doInstall(s *state.State, snap, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
 	// download
 	var download *state.Task
 	ss := SnapSetup{
@@ -77,17 +75,28 @@ func Install(s *state.State, snap, channel string, flags snappy.InstallFlags) (*
 	return state.NewTaskSet(download, mount, copyData, setupSecurity, linkSnap), nil
 }
 
+// Install returns a set of tasks for installing snap.
+// Note that the state must be locked by the caller.
+func Install(s *state.State, snap, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
+	name, _ := snappy.SplitDeveloper(snap)
+	info := backend.ActiveSnap(name)
+	if info != nil {
+		return nil, fmt.Errorf("snap %q already installed", snap)
+	}
+
+	return doInstall(s, snap, channel, flags)
+}
+
 // Update initiates a change updating a snap.
 // Note that the state must be locked by the caller.
 func Update(s *state.State, snap, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
-	t := s.NewTask("update-snap", fmt.Sprintf(i18n.G("Updating %q"), snap))
-	t.Set("snap-setup", SnapSetup{
-		Name:    snap,
-		Channel: channel,
-		Flags:   int(flags),
-	})
+	name, _ := snappy.SplitDeveloper(snap)
+	info := backend.ActiveSnap(name)
+	if info == nil {
+		return nil, fmt.Errorf("cannot find snap %q", snap)
+	}
 
-	return state.NewTaskSet(t), nil
+	return doInstall(s, snap, channel, flags)
 }
 
 // parseSnapspec parses a string like: name[.developer][=version]

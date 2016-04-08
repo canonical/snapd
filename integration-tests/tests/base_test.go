@@ -21,6 +21,7 @@
 package tests
 
 import (
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -54,7 +55,7 @@ func init() {
 		cfg, err := config.ReadConfig(config.DefaultFileName)
 		c.Assert(err, check.IsNil, check.Commentf("Error reading config: %v", err))
 
-		setUpSnapd(c, cfg.FromBranch)
+		setUpSnapd(c, cfg.FromBranch, "")
 	}
 }
 
@@ -77,7 +78,7 @@ func Test(t *testing.T) {
 	}
 }
 
-func setUpSnapd(c *check.C, fromBranch bool) {
+func setUpSnapd(c *check.C, fromBranch bool, extraEnv string) {
 	cli.ExecCommand(c, "sudo", "systemctl", "stop",
 		"snapd.snapd.service", "snapd.snapd.socket")
 
@@ -90,7 +91,7 @@ func setUpSnapd(c *check.C, fromBranch bool) {
 		c.Assert(err, check.IsNil)
 	}
 
-	err := writeEnvConfig()
+	err := writeEnvConfig(extraEnv)
 	c.Assert(err, check.IsNil)
 
 	_, err = cli.ExecCommandErr("sudo", "systemctl", "daemon-reload")
@@ -128,7 +129,7 @@ func tearDownSnapd(fromBranch bool) error {
 	return nil
 }
 
-func writeEnvConfig() error {
+func writeEnvConfig(extraEnv string) error {
 	if _, err := cli.ExecCommandErr("sudo", "mkdir", "-p", cfgDir); err != nil {
 		return err
 	}
@@ -140,9 +141,9 @@ func writeEnvConfig() error {
 		return err
 	}
 
-	cfgContent := []byte(`[Service]
-Environment="SNAPPY_TRUSTED_ACCOUNT_KEY=` + trustedKey + `"
-`)
+	cfgContent := []byte(fmt.Sprintf(`[Service]
+Environment="SNAPPY_TRUSTED_ACCOUNT_KEY=%s" "%s"
+`, trustedKey, extraEnv))
 	if err = ioutil.WriteFile("/tmp/snapd.env.conf", cfgContent, os.ModeExclusive); err != nil {
 		return err
 	}
