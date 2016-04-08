@@ -51,26 +51,8 @@ func (s *BuildTestSuite) SetUpTest(c *C) {
 	err = os.Chdir(c.MkDir())
 	c.Assert(err, IsNil)
 
-	// fake "du"
-	s.makeFakeDuCommand(c)
-
 	// use fake root
 	dirs.SetRootDir(c.MkDir())
-}
-
-func (s *BuildTestSuite) makeFakeDuCommand(c *C) {
-	tempdir := c.MkDir()
-	duCmdPath := filepath.Join(tempdir, "du")
-	fakeDuContent := `#!/bin/sh
-echo 17 some-dir`
-	err := ioutil.WriteFile(duCmdPath, []byte(fakeDuContent), 0755)
-	c.Assert(err, IsNil)
-
-	// cleanup later
-	origDuCmd := duCmd
-	s.AddCleanup(func() { duCmd = origDuCmd })
-	// replace real du with our mock
-	duCmd = duCmdPath
 }
 
 func makeExampleSnapSourceDir(c *C, snapYamlContent string) string {

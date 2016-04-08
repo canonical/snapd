@@ -35,14 +35,6 @@ import (
 	"github.com/ubuntu-core/snappy/progress"
 )
 
-func makeCloudInitMetaData(c *C, content string) string {
-	w, err := ioutil.TempFile("", "meta-data")
-	c.Assert(err, IsNil)
-	w.Write([]byte(content))
-	w.Sync()
-	return w.Name()
-}
-
 func (s *SnapTestSuite) TestInstallInstall(c *C) {
 	snapPath := makeTestSnapPackage(c, "")
 	name, err := Install(snapPath, "channel", AllowUnauthenticated|DoInstallGC, &progress.NullProgress{})
