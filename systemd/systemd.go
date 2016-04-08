@@ -392,6 +392,7 @@ WantedBy={{.ServiceSystemdTarget}}
 		filepath.Join(desc.SnapPath, desc.Start),
 		filepath.Join(desc.SnapPath, desc.Stop),
 		filepath.Join(desc.SnapPath, desc.PostStop),
+		// XXX: do we still need to offer a SNAP_APP=AppTriple??
 		fmt.Sprintf("%s_%s_%s", desc.SnapName, desc.AppName, desc.Version),
 		servicesSystemdTarget,
 		arch.UbuntuArchitecture(),
