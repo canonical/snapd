@@ -57,7 +57,7 @@ func legacyVariables(appInfo *snap.AppInfo) []byte {
 	fmt.Fprintf(&buf, "@{APP_PKGNAME}=\"%s.%s\"\n", appInfo.Snap.Name(), appInfo.Snap.Developer)
 	// TODO: switch to .Revision
 	fmt.Fprintf(&buf, "@{APP_VERSION}=\"%s\"\n", appInfo.Snap.Version)
-	fmt.Fprintf(&buf, "@{INSTALL_DIR}=\"{/snaps,/gadget}\"")
+	fmt.Fprintf(&buf, "@{INSTALL_DIR}=\"{/snap}\"")
 	return buf.Bytes()
 }
 

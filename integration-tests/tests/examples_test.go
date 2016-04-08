@@ -70,8 +70,8 @@ func (s *helloWorldExampleSuite) TestCallHelloWorldEvilMustPrintPermissionDenied
 		"Hello Evil World!\n" +
 		"This example demonstrates the app confinement\n" +
 		"You should see a permission denied error next\n" +
-		"/snaps/hello-world/.*/bin/evil: \\d+: " +
-		"/snaps/hello-world/.*/bin/evil: " +
+		"/snap/hello-world/.*/bin/evil: \\d+: " +
+		"/snap/hello-world/.*/bin/evil: " +
 		"cannot create /var/tmp/myevil.txt: Permission denied\n"
 
 	c.Assert(string(echoOutput), check.Matches, expected)
