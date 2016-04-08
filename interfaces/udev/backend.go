@@ -37,7 +37,8 @@ import (
 // Backend is responsible for maintaining udev rules.
 type Backend struct{}
 
-func (b *Backend) String() string {
+// Name returns the name of the backend.
+func (b *Backend) Name() string {
 	return "udev"
 }
 

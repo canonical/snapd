@@ -45,7 +45,8 @@ import (
 // Backend is responsible for maintaining seccomp profiles for ubuntu-core-launcher.
 type Backend struct{}
 
-func (b *Backend) String() string {
+// Name returns the name of the backend.
+func (b *Backend) Name() string {
 	return "seccomp"
 }
 
