@@ -99,7 +99,6 @@ func (s *SnapTestSuite) TearDownTest(c *C) {
 	policy.SecBase = s.secbase
 	regenerateAppArmorRules = regenerateAppArmorRulesImpl
 	ActiveSnapIterByType = activeSnapIterByTypeImpl
-	duCmd = "du"
 	stripGlobalRootDir = stripGlobalRootDirImpl
 	runUdevAdm = runUdevAdmImpl
 }
@@ -178,8 +177,7 @@ func (s *SnapTestSuite) TestLocalSnapRepositorySimple(c *C) {
 }
 
 const (
-	funkyAppName      = "8nzc1x4iim2xj1g2ul64"
-	funkyAppDeveloper = "chipaca"
+	funkyAppName = "8nzc1x4iim2xj1g2ul64"
 )
 
 /* acquired via:
@@ -203,12 +201,6 @@ const MockUpdatesJSON = `[
         "download_sha512": "5364253e4a988f4f5c04380086d542f410455b97d48cc6c69ca2a5877d8aef2a6b2b2f83ec4f688cae61ebc8a6bf2cdbd4dbd8f743f0522fc76540429b79df42"
     }
 ]`
-
-type MockUbuntuStoreServer struct {
-	quit chan int
-
-	searchURI string
-}
 
 func mockActiveSnapIterByType(mockSnaps []string) {
 	ActiveSnapIterByType = func(f func(*snap.Info) string, snapTs ...snap.Type) (res []string, err error) {
