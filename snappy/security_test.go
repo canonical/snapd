@@ -36,8 +36,6 @@ type SecurityTestSuite struct {
 	tempDir               string
 	buildDir              string
 	m                     *snapYaml
-	scFilterGenCall       []string
-	scFilterGenCallReturn []byte
 
 	loadAppArmorPolicyCalled bool
 }
