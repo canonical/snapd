@@ -49,6 +49,8 @@ func NoOp(snapPath string) error {
 // The fake is made copying the currently installed snap.
 // changeFunc can be used to modify the snap before it is built and served.
 func CallFakeSnapRefresh(c *check.C, snap string, changeFunc ChangeFakeUpdateSnap) string {
+	c.Skip("we need a way to run the daemon with the SNAPPY_FORCE_CPI_URL for this test to run")
+
 	c.Log("Preparing fake and calling update.")
 
 	// use /var/tmp is not a tempfs
