@@ -65,7 +65,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	var err error
 	s.snapmgr, err = snapstate.Manager(s.state)
 	c.Assert(err, IsNil)
-
+	s.snapmgr.AddForeignTaskHandlers()
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
 	snapstate.SetSnapstateBackend(s.fakeBackend)
 }
@@ -123,9 +123,9 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "remove-snap-security")
 	i++
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "remove-snap-files")
-	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "remove-snap-data")
+	i++
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "remove-snap-files")
 }
 
 func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
@@ -160,10 +160,6 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 		},
 		fakeOp{
 			op:   "copy-data",
-			name: "/snaps/some-snap/11",
-		},
-		fakeOp{
-			op:   "setup-snap-security",
 			name: "/snaps/some-snap/11",
 		},
 		fakeOp{
@@ -243,10 +239,6 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 			flags: int(snappy.DoInstallGC),
 		},
 		fakeOp{
-			op:   "setup-snap-security",
-			name: "/snaps/some-snap/11",
-		},
-		fakeOp{
 			op:   "link-snap",
 			name: "/snaps/some-snap/11",
 		},
@@ -301,7 +293,7 @@ func (s *snapmgrTestSuite) TestInstallLocalIntegration(c *C) {
 	s.state.Lock()
 
 	// ensure only local install was run, i.e. first action is check-snap
-	c.Assert(s.fakeBackend.ops, HasLen, 5)
+	c.Assert(s.fakeBackend.ops, HasLen, 4)
 	c.Check(s.fakeBackend.ops[0].op, Equals, "check-snap")
 	c.Check(s.fakeBackend.ops[0].name, Matches, `.*/mock.snap`)
 }
@@ -327,7 +319,7 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 	defer s.snapmgr.Stop()
 	s.state.Lock()
 
-	c.Assert(s.fakeBackend.ops, HasLen, 5)
+	c.Assert(s.fakeBackend.ops, HasLen, 4)
 	c.Assert(s.fakeBackend.ops, DeepEquals, []fakeOp{
 		fakeOp{
 			op:   "can-remove",
@@ -338,17 +330,13 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 			name: "/snaps/some-snap/7",
 		},
 		fakeOp{
-			op:   "remove-snap-security",
-			name: "/snaps/some-snap/7",
+			op:    "remove-snap-data",
+			name:  "some-snap",
+			revno: 7,
 		},
 		fakeOp{
 			op:   "remove-snap-files",
 			name: "/snaps/some-snap/7",
-		},
-		fakeOp{
-			op:    "remove-snap-data",
-			name:  "some-snap",
-			revno: 7,
 		},
 	})
 

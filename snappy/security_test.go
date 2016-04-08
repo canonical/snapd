@@ -33,11 +33,9 @@ import (
 )
 
 type SecurityTestSuite struct {
-	tempDir               string
-	buildDir              string
-	m                     *snapYaml
-	scFilterGenCall       []string
-	scFilterGenCallReturn []byte
+	tempDir  string
+	buildDir string
+	m        *snapYaml
 
 	loadAppArmorPolicyCalled bool
 }
