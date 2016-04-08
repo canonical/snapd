@@ -36,6 +36,20 @@ var backend managerBackend = &defaultBackend{}
 // Install returns a set of tasks for installing snap.
 // Note that the state must be locked by the caller.
 func Install(s *state.State, snap, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
+
+	// check prereq
+	tasks := []*state.Task{}
+	// FIXME: all hardcoded, horrible!
+	info := backend.ActiveSnap("ubuntu-core")
+	if info == nil {
+		var err error
+		ts, err := Install(s, "ubuntu-core", channel, 0)
+		if err != nil {
+			return nil, fmt.Errorf("cannot queue 'ubuntu-core' for install: %s", err)
+		}
+		tasks = ts.Tasks()
+	}
+
 	// download
 	var download *state.Task
 	ss := SnapSetup{
@@ -74,7 +88,9 @@ func Install(s *state.State, snap, channel string, flags snappy.InstallFlags) (*
 	linkSnap.Set("snap-setup-task", download.ID())
 	linkSnap.WaitFor(setupSecurity)
 
-	return state.NewTaskSet(download, mount, copyData, setupSecurity, linkSnap), nil
+	// construct final ts
+	tasks = append(tasks, download, mount, copyData, setupSecurity, linkSnap)
+	return state.NewTaskSet(tasks...), nil
 }
 
 // Update initiates a change updating a snap.
