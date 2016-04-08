@@ -48,3 +48,8 @@ func (s *infoSuite) TestSideInfoOverrides(c *C) {
 	c.Check(info.Description(), Equals, "fixed desc")
 	c.Check(info.Revision, Equals, 1)
 }
+
+func (s *infoSuite) TestSecurityTag(c *C) {
+	appInfo := &snap.AppInfo{Snap: &snap.Info{SuggestedName: "http"}, Name: "GET"}
+	c.Check(appInfo.SecurityTag(), Equals, "snap.http.GET")
+}
