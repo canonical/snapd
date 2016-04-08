@@ -214,7 +214,7 @@ func setAuthHeader(req *http.Request, token *StoreToken) {
 // configureAuthHeader optionally sets the auth header if a token is available.
 func configureAuthHeader(req *http.Request) {
 	ssoToken, err := ReadStoreToken()
-	if err != nil {
+	if err == nil {
 		setAuthHeader(req, ssoToken)
 	}
 }
