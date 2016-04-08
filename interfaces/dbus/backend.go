@@ -40,6 +40,10 @@ import (
 // Backend is responsible for maintaining DBus policy files.
 type Backend struct{}
 
+func (b *Backend) String() string {
+	return "dbus"
+}
+
 // Setup creates dbus configuration files specific to a given snap.
 //
 // DBus has no concept of a complain mode so developerMode is not supported
