@@ -87,12 +87,14 @@ func Manager(s *state.State) (*SnapManager, error) {
 		return nil
 	}, nil)
 
-	// install releated
+	// install/update releated
 	runner.AddHandler("download-snap", m.doDownloadSnap, nil)
 	runner.AddHandler("mount-snap", m.doMountSnap, m.undoMountSnap)
 	runner.AddHandler("copy-snap-data", m.doCopySnapData, m.undoCopySnapData)
 	runner.AddHandler("setup-snap-security", m.doSetupSnapSecurity, m.doRemoveSnapSecurity)
 	runner.AddHandler("link-snap", m.doLinkSnap, m.undoLinkSnap)
+	// FIXME: port to native tasks and rename
+	//runner.AddHandler("garbage-collect", m.doGarbageCollect, nil)
 
 	// remove releated
 	runner.AddHandler("unlink-snap", m.doUnlinkSnap, nil)
@@ -100,7 +102,7 @@ func Manager(s *state.State) (*SnapManager, error) {
 	runner.AddHandler("remove-snap-files", m.doRemoveSnapFiles, nil)
 	runner.AddHandler("remove-snap-data", m.doRemoveSnapData, nil)
 
-	runner.AddHandler("update-snap", m.doUpdateSnap, nil)
+	// FIXME: work on those
 	runner.AddHandler("rollback-snap", m.doRollbackSnap, nil)
 	runner.AddHandler("activate-snap", m.doActivateSnap, nil)
 	runner.AddHandler("deactivate-snap", m.doDeactivateSnap, nil)
@@ -152,20 +154,6 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.State().Unlock()
 
 	return nil
-}
-
-func (m *SnapManager) doUpdateSnap(t *state.Task, _ *tomb.Tomb) error {
-	var ss SnapSetup
-
-	t.State().Lock()
-	err := t.Get("snap-setup", &ss)
-	t.State().Unlock()
-	if err != nil {
-		return err
-	}
-
-	pb := &TaskProgressAdapter{task: t}
-	return m.backend.Update(ss.Name, ss.Channel, ss.Flags, pb)
 }
 
 func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -377,6 +365,18 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	return m.backend.UndoLinkSnap(ss.OldMountDir(), ss.MountDir())
+}
+
+func (m *SnapManager) doGarbageCollect(t *state.Task, _ *tomb.Tomb) error {
+	t.State().Lock()
+	ss, err := TaskSnapSetup(t)
+	t.State().Unlock()
+	if err != nil {
+		return err
+	}
+
+	pb := &TaskProgressAdapter{task: t}
+	return m.backend.GarbageCollect(ss.Name, ss.Flags, pb)
 }
 
 // SnapInfo returns the snap.Info for a snap in the system.

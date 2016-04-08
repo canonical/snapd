@@ -31,6 +31,7 @@ import (
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snappy"
 )
 
 func TestSnapManager(t *testing.T) { TestingT(t) }
@@ -56,6 +57,8 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	s.fakeBackend = &fakeSnappyBackend{
 		fakeCurrentProgress: 75,
 		fakeTotalProgress:   100,
+
+		activeSnaps: make(map[string]*snap.Info),
 	}
 	s.state = state.New(nil)
 
@@ -67,13 +70,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	snapstate.SetSnapstateBackend(s.fakeBackend)
 }
 
-func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	ts, err := snapstate.Install(s.state, "some-snap", "some-channel", 0)
-	c.Assert(err, IsNil)
-
+func verifyInstallUpdateTasks(c *C, ts *state.TaskSet) {
 	i := 0
 	c.Assert(ts.Tasks(), HasLen, 5)
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "download-snap")
@@ -87,7 +84,33 @@ func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "link-snap")
 }
 
+func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ts, err := snapstate.Install(s.state, "some-snap", "some-channel", 0)
+	c.Assert(err, IsNil)
+	verifyInstallUpdateTasks(c, ts)
+}
+
+func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
+	s.fakeBackend.activeSnaps["some-snap"] = &snap.Info{
+		SuggestedName: "some-snap",
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", 0)
+	c.Assert(err, IsNil)
+	verifyInstallUpdateTasks(c, ts)
+}
+
 func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
+	s.fakeBackend.activeSnaps["foo"] = &snap.Info{
+		SuggestedName: "foo",
+	}
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -120,7 +143,6 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 	s.state.Lock()
 
 	// ensure all our tasks ran
-	c.Assert(s.fakeBackend.ops, HasLen, 6)
 	c.Assert(s.fakeBackend.ops, DeepEquals, []fakeOp{
 		fakeOp{
 			op:      "download",
@@ -160,7 +182,6 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 	var ss snapstate.SnapSetup
 	err = task.Get("snap-setup", &ss)
 	c.Assert(err, IsNil)
-
 	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
 		Name:      "some-snap",
 		Developer: "mvo",
@@ -174,8 +195,89 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 		Revision: 11,
 
 		SnapPath: "downloaded-snap-path",
+	})
+}
 
-		OldName:     "an-active-snap",
+func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
+	s.fakeBackend.activeSnaps["some-snap"] = &snap.Info{
+		SideInfo: snap.SideInfo{
+			OfficialName: "some-snap",
+			Revision:     7,
+		},
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("install", "install a snap")
+	ts, err := snapstate.Update(s.state, "some-snap.mvo", "some-channel", snappy.DoInstallGC)
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	s.settle()
+	defer s.snapmgr.Stop()
+	s.state.Lock()
+
+	// ensure all our tasks ran
+	c.Assert(s.fakeBackend.ops, DeepEquals, []fakeOp{
+		fakeOp{
+			op:      "download",
+			name:    "some-snap.mvo",
+			channel: "some-channel",
+		},
+		fakeOp{
+			op:    "check-snap",
+			name:  "downloaded-snap-path",
+			flags: int(snappy.DoInstallGC),
+		},
+		fakeOp{
+			op:    "setup-snap",
+			name:  "downloaded-snap-path",
+			flags: int(snappy.DoInstallGC),
+			revno: 11,
+		},
+		fakeOp{
+			op:    "copy-data",
+			name:  "/snaps/some-snap/11",
+			flags: int(snappy.DoInstallGC),
+		},
+		fakeOp{
+			op:   "setup-snap-security",
+			name: "/snaps/some-snap/11",
+		},
+		fakeOp{
+			op:   "link-snap",
+			name: "/snaps/some-snap/11",
+		},
+	})
+
+	// check progress
+	task := ts.Tasks()[0]
+	cur, total := task.Progress()
+	c.Assert(cur, Equals, s.fakeBackend.fakeCurrentProgress)
+	c.Assert(total, Equals, s.fakeBackend.fakeTotalProgress)
+
+	// verify snapSetup info
+	var ss snapstate.SnapSetup
+	err = task.Get("snap-setup", &ss)
+	c.Assert(err, IsNil)
+	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
+		Name:      "some-snap",
+		Developer: "mvo",
+		Channel:   "some-channel",
+		Flags:     int(snappy.DoInstallGC),
+
+		SideInfo: &snap.SideInfo{
+			OfficialName: "some-snap",
+			Channel:      "some-channel",
+			Revision:     11,
+		},
+		Revision: 11,
+
+		SnapPath: "downloaded-snap-path",
+
+		OldName:     "some-snap",
 		OldRevision: 7,
 	})
 }
@@ -205,6 +307,14 @@ func (s *snapmgrTestSuite) TestInstallLocalIntegration(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
+	s.fakeBackend.activeSnaps["some-snap"] = &snap.Info{
+		SideInfo: snap.SideInfo{
+			OfficialName: "some-name",
+			Developer:    "mvo",
+			Revision:     7,
+		},
+	}
+
 	s.state.Lock()
 	defer s.state.Unlock()
 	chg := s.state.NewChange("remove", "remove a snap")
@@ -253,24 +363,6 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 		Revision:  7,
 	})
 
-}
-
-func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-	chg := s.state.NewChange("udpate", "update a snap")
-	ts, err := snapstate.Update(s.state, "some-update-snap", "some-channel", 0)
-	c.Assert(err, IsNil)
-	chg.AddAll(ts)
-
-	s.state.Unlock()
-	s.settle()
-	defer s.snapmgr.Stop()
-	s.state.Lock()
-
-	c.Assert(s.fakeBackend.ops[0].op, Equals, "update")
-	c.Assert(s.fakeBackend.ops[0].name, Equals, "some-update-snap")
-	c.Assert(s.fakeBackend.ops[0].channel, Equals, "some-channel")
 }
 
 func (s *snapmgrTestSuite) TestRollbackIntegration(c *C) {
