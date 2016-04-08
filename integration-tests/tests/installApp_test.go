@@ -39,6 +39,8 @@ type installAppSuite struct {
 }
 
 func (s *installAppSuite) TestInstallAppMustPrintPackageInformation(c *check.C) {
+	c.Skip("port to snapd")
+
 	snapPath, err := build.LocalSnap(c, data.BasicSnapName)
 	defer os.Remove(snapPath)
 	c.Assert(err, check.IsNil, check.Commentf("Error building local snap: %s", err))
@@ -56,6 +58,8 @@ func (s *installAppSuite) TestInstallAppMustPrintPackageInformation(c *check.C) 
 }
 
 func (s *installAppSuite) TestCallSuccessfulBinaryFromInstalledSnap(c *check.C) {
+	c.Skip("port to snapd")
+
 	snapPath, err := build.LocalSnap(c, data.BasicBinariesSnapName)
 	defer os.Remove(snapPath)
 	c.Assert(err, check.IsNil, check.Commentf("Error building local snap: %s", err))
@@ -67,6 +71,8 @@ func (s *installAppSuite) TestCallSuccessfulBinaryFromInstalledSnap(c *check.C) 
 }
 
 func (s *installAppSuite) TestCallFailBinaryFromInstalledSnap(c *check.C) {
+	c.Skip("port to snapd")
+
 	snapPath, err := build.LocalSnap(c, data.BasicBinariesSnapName)
 	defer os.Remove(snapPath)
 	c.Assert(err, check.IsNil, check.Commentf("Error building local snap: %s", err))
@@ -89,6 +95,8 @@ func (s *installAppSuite) TestInstallUnexistingAppMustPrintError(c *check.C) {
 }
 
 func (s *installAppSuite) TestInstallFromStoreMetadata(c *check.C) {
+	c.Skip("port to snapd")
+
 	common.InstallSnap(c, "hello-world/edge")
 	defer common.RemoveSnap(c, "hello-world")
 
