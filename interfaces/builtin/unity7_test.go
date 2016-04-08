@@ -126,3 +126,7 @@ func (s *Unity7InterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
 	c.Assert(snippet, IsNil)
 }
+
+func (s *Unity7InterfaceSuite) TestAutoConnect(c *C) {
+	c.Check(s.iface.AutoConnect(), Equals, false)
+}
