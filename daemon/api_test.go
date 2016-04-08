@@ -46,6 +46,7 @@ import (
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
+	"github.com/ubuntu-core/snappy/store"
 	"github.com/ubuntu-core/snappy/testutil"
 )
 
@@ -436,6 +437,135 @@ func (s *apiSuite) TestSysInfoStore(c *check.C) {
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Result, check.DeepEquals, expected)
+}
+
+func (s *apiSuite) makeMyAppsServer(statusCode int, data string) *httptest.Server {
+	mockMyAppsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(statusCode)
+		io.WriteString(w, data)
+	}))
+	store.MyAppsPackageAccessAPI = mockMyAppsServer.URL + "/acl/package_access/"
+	return mockMyAppsServer
+}
+
+func (s *apiSuite) makeSSOServer(statusCode int, data string) *httptest.Server {
+	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(statusCode)
+		io.WriteString(w, data)
+	}))
+	store.UbuntuoneDischargeAPI = mockSSOServer.URL + "/tokens/discharge"
+	return mockSSOServer
+}
+
+func (s *apiSuite) TestLoginUser(c *check.C) {
+	macaroon := `{"macaroon": "the-macaroon-serialized-data"}`
+	mockMyAppsServer := s.makeMyAppsServer(200, macaroon)
+	defer mockMyAppsServer.Close()
+
+	discharge := `{"discharge_macaroon": "the-discharge-macaroon-serialized-data"}`
+	mockSSOServer := s.makeSSOServer(200, discharge)
+	defer mockSSOServer.Close()
+
+	rsp := getOpInfo(operationCmd, nil).Self(nil, nil).(*resp)
+	buf := bytes.NewBufferString(`{"username": "username", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp = loginUser(snapCmd, req).(*resp)
+
+	expected := map[string]interface{}{
+		"macaroon":   "the-macaroon-serialized-data",
+		"discharges": []string{"the-discharge-macaroon-serialized-data"},
+	}
+
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+
+	var macaroons struct {
+		Macaroon   string   `json:"macaroon"`
+		Discharges []string `json:"discharges"`
+	}
+	state := snapCmd.d.overlord.State()
+	state.Lock()
+	state.Get("macaroons", &macaroons)
+	state.Unlock()
+	c.Check(macaroons.Macaroon, check.Equals, expected["macaroon"])
+	c.Check(macaroons.Discharges, check.DeepEquals, expected["discharges"])
+}
+
+func (s *apiSuite) TestLoginUserBadRequest(c *check.C) {
+	rsp := getOpInfo(operationCmd, nil).Self(nil, nil).(*resp)
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, http.StatusNotFound)
+
+	buf := bytes.NewBufferString(`hello`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp = loginUser(snapCmd, req).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
+	c.Check(rsp.Result, check.NotNil)
+}
+
+func (s *apiSuite) TestLoginUserMyAppsError(c *check.C) {
+	mockMyAppsServer := s.makeMyAppsServer(200, "{}")
+	defer mockMyAppsServer.Close()
+
+	rsp := getOpInfo(operationCmd, nil).Self(nil, nil).(*resp)
+	buf := bytes.NewBufferString(`{"username": "username", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp = loginUser(snapCmd, req).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, http.StatusInternalServerError)
+	c.Check(rsp.Result.(*errorResult).Message, check.Equals, "couldn't get package access macaroon")
+}
+
+func (s *apiSuite) TestLoginUserTwoFactorRequiredError(c *check.C) {
+	macaroon := `{"macaroon": "the-macaroon-serialized-data"}`
+	mockMyAppsServer := s.makeMyAppsServer(200, macaroon)
+	defer mockMyAppsServer.Close()
+
+	discharge := `{"code": "TWOFACTOR_REQUIRED"}`
+	mockSSOServer := s.makeSSOServer(401, discharge)
+	defer mockSSOServer.Close()
+
+	rsp := getOpInfo(operationCmd, nil).Self(nil, nil).(*resp)
+	buf := bytes.NewBufferString(`{"username": "username", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp = loginUser(snapCmd, req).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, http.StatusUnauthorized)
+	c.Check(rsp.Result.(*errorResult).Message, check.Equals, "TWOFACTOR_REQUIRED")
+}
+
+func (s *apiSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
+	macaroon := `{"macaroon": "the-macaroon-serialized-data"}`
+	mockMyAppsServer := s.makeMyAppsServer(200, macaroon)
+	defer mockMyAppsServer.Close()
+
+	discharge := `{"code": "INVALID_CREDENTIALS"}`
+	mockSSOServer := s.makeSSOServer(401, discharge)
+	defer mockSSOServer.Close()
+
+	rsp := getOpInfo(operationCmd, nil).Self(nil, nil).(*resp)
+	buf := bytes.NewBufferString(`{"username": "username", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp = loginUser(snapCmd, req).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, http.StatusUnauthorized)
+	c.Check(rsp.Result.(*errorResult).Message, check.Equals, "couldn't get discharge authorization")
 }
 
 func (s *apiSuite) TestSnapsInfoOnePerIntegration(c *check.C) {
