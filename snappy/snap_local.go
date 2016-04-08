@@ -79,8 +79,8 @@ func newSnapFromYaml(yamlPath string, m *snapYaml) (*Snap, error) {
 	}
 
 	// check if the snap is active
-	allVersionsDir := filepath.Dir(mountDir)
-	p, err := filepath.EvalSymlinks(filepath.Join(allVersionsDir, "current"))
+	allRevnosDir := filepath.Dir(mountDir)
+	p, err := filepath.EvalSymlinks(filepath.Join(allRevnosDir, "current"))
 	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
