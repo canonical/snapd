@@ -208,7 +208,7 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 	s.fakeBackend.activeSnaps["some-snap"] = &snap.Info{
 		SideInfo: snap.SideInfo{
-			OfficialName: "some-name",
+			OfficialName: "some-snap",
 			Revision:     7,
 		},
 	}
