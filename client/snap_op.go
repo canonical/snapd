@@ -21,6 +21,7 @@ package client
 
 import (
 	"fmt"
+	"os"
 	"strings"
 )
 
@@ -32,6 +33,19 @@ func (client *Client) InstallSnap(name, channel string) (string, error) {
 	body := strings.NewReader(fmt.Sprintf(`{"action":"install","channel":%q}`, channel))
 
 	return client.doAsync("POST", path, nil, body)
+}
+
+// InstallSnapFile sideloads the snap with the given path, returning the UUID
+// of the background operation upon success.
+//
+// XXX: add support for "X-Allow-Unsigned"
+func (client *Client) InstallSnapFile(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", fmt.Errorf("cannot open: %q", path)
+	}
+
+	return client.doAsync("POST", "/v2/snaps", nil, f)
 }
 
 // RemoveSnap removes the snap with the given name, returning the UUID of the
