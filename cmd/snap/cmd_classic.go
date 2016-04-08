@@ -22,31 +22,32 @@ package main
 import (
 	"fmt"
 
+	"github.com/jessevdk/go-flags"
+
 	"github.com/ubuntu-core/snappy/classic"
 	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/progress"
 )
+
+// FIXME: Implement feature via "snap install classic"
 
 type cmdEnableClassic struct{}
 type cmdDestroyClassic struct{}
 
 func init() {
-	_, err := parser.AddCommand("enable-classic",
+	addCommand("enable-classic",
 		i18n.G("Enable classic dimension."),
 		i18n.G("Enable the ubuntu classic dimension."),
-		&cmdEnableClassic{})
-	if err != nil {
-		logger.Panicf("Unable to enable-classic: %v", err)
-	}
+		func() flags.Commander {
+			return &cmdEnableClassic{}
+		})
 
-	_, err = parser.AddCommand("destroy-classic",
+	addCommand("destroy-classic",
 		i18n.G("Destroy the classic dimension."),
 		i18n.G("Destroy the ubuntu classic dimension."),
-		&cmdDestroyClassic{})
-	if err != nil {
-		logger.Panicf("Unable to destroy-classic: %v", err)
-	}
+		func() flags.Commander {
+			return &cmdDestroyClassic{}
+		})
 }
 
 func (x *cmdEnableClassic) Execute(args []string) (err error) {

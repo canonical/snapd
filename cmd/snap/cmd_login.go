@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -24,16 +24,18 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/jessevdk/go-flags"
 	"golang.org/x/crypto/ssh/terminal"
 
 	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/store"
 )
 
 type cmdLogin struct {
 	Positional struct {
-		UserName string `positional-arg-name:"userid"`
+		// FIXME: add support for translated descriptions
+		//        (see cmd/snappy/common.go:addOptionDescription)
+		UserName string `positional-arg-name:"userid" description:"Username for the login"`
 	} `positional-args:"yes" required:"yes"`
 }
 
@@ -42,14 +44,12 @@ var shortLoginHelp = i18n.G("Log into the store")
 var longLoginHelp = i18n.G("This command logs the given username into the store")
 
 func init() {
-	arg, err := parser.AddCommand("login",
+	addCommand("login",
 		shortLoginHelp,
 		longLoginHelp,
-		&cmdLogin{})
-	if err != nil {
-		logger.Panicf("Unable to login: %v", err)
-	}
-	addOptionDescription(arg, "userid", i18n.G("Username for the login"))
+		func() flags.Commander {
+			return &cmdLogin{}
+		})
 }
 
 func requestStoreTokenWith2faRetry(username, password, tokenName string) (*store.StoreToken, error) {

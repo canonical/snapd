@@ -166,7 +166,7 @@ func addPackageDesktopFiles(s *snap.Info) error {
 		return err
 	}
 
-	baseDir := s.BaseDir()
+	baseDir := s.MountDir()
 
 	desktopFiles, err := filepath.Glob(filepath.Join(baseDir, "meta", "gui", "*.desktop"))
 	if err != nil {

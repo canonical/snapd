@@ -751,14 +751,15 @@ gadget:
 `)
 
 func (s *SnapTestSuite) TestParseHardwareYaml(c *C) {
-	m, err := parseSnapYamlData(hardwareYaml, false)
+	info, err := snap.InfoFromSnapYaml(hardwareYaml)
 	c.Assert(err, IsNil)
-	c.Assert(m.Gadget.Hardware.Assign[0].PartID, Equals, "device-hive-iot-hal")
-	c.Assert(m.Gadget.Hardware.Assign[0].Rules[0].Kernel, Equals, "ttyUSB0")
-	c.Assert(m.Gadget.Hardware.Assign[0].Rules[1].Subsystem, Equals, "tty")
-	c.Assert(m.Gadget.Hardware.Assign[0].Rules[1].WithDriver, Equals, "pl2303")
-	c.Assert(m.Gadget.Hardware.Assign[0].Rules[1].WithAttrs[0], Equals, "idVendor=0xf00f00")
-	c.Assert(m.Gadget.Hardware.Assign[0].Rules[1].WithAttrs[1], Equals, "idProduct=0xb00")
+
+	c.Assert(info.Legacy.Gadget.Hardware.Assign[0].PartID, Equals, "device-hive-iot-hal")
+	c.Assert(info.Legacy.Gadget.Hardware.Assign[0].Rules[0].Kernel, Equals, "ttyUSB0")
+	c.Assert(info.Legacy.Gadget.Hardware.Assign[0].Rules[1].Subsystem, Equals, "tty")
+	c.Assert(info.Legacy.Gadget.Hardware.Assign[0].Rules[1].WithDriver, Equals, "pl2303")
+	c.Assert(info.Legacy.Gadget.Hardware.Assign[0].Rules[1].WithAttrs[0], Equals, "idVendor=0xf00f00")
+	c.Assert(info.Legacy.Gadget.Hardware.Assign[0].Rules[1].WithAttrs[1], Equals, "idProduct=0xb00")
 }
 
 var expectedUdevRule = `KERNEL=="ttyUSB0", TAG:="snappy-assign", ENV{SNAPPY_APP}:="device-hive-iot-hal"
@@ -768,33 +769,33 @@ SUBSYSTEM=="tty", SUBSYSTEMS=="usb-serial", DRIVER=="pl2303", ATTRS{idVendor}=="
 `
 
 func (s *SnapTestSuite) TestGenerateHardwareYamlData(c *C) {
-	m, err := parseSnapYamlData(hardwareYaml, false)
+	info, err := snap.InfoFromSnapYaml(hardwareYaml)
 	c.Assert(err, IsNil)
 
-	output, err := m.Gadget.Hardware.Assign[0].generateUdevRuleContent()
+	output, err := generateUdevRuleContent(&info.Legacy.Gadget.Hardware.Assign[0])
 	c.Assert(err, IsNil)
 
 	c.Assert(output, Equals, expectedUdevRule)
 }
 
 func (s *SnapTestSuite) TestWriteHardwareUdevEtc(c *C) {
-	m, err := parseSnapYamlData(hardwareYaml, false)
+	info, err := snap.InfoFromSnapYaml(hardwareYaml)
 	c.Assert(err, IsNil)
 
 	dirs.SnapUdevRulesDir = c.MkDir()
-	writeGadgetHardwareUdevRules(m)
+	writeGadgetHardwareUdevRules(info)
 
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapUdevRulesDir, "80-snappy_gadget-foo_device-hive-iot-hal.rules")), Equals, true)
 }
 
 func (s *SnapTestSuite) TestWriteHardwareUdevCleanup(c *C) {
-	m, err := parseSnapYamlData(hardwareYaml, false)
+	info, err := snap.InfoFromSnapYaml(hardwareYaml)
 	c.Assert(err, IsNil)
 
 	dirs.SnapUdevRulesDir = c.MkDir()
 	udevRulesFile := filepath.Join(dirs.SnapUdevRulesDir, "80-snappy_gadget-foo_device-hive-iot-hal.rules")
 	c.Assert(ioutil.WriteFile(udevRulesFile, nil, 0644), Equals, nil)
-	cleanupGadgetHardwareUdevRules(m)
+	cleanupGadgetHardwareUdevRules(info)
 
 	c.Assert(osutil.FileExists(udevRulesFile), Equals, false)
 }
