@@ -20,7 +20,6 @@
 package snapstate_test
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -190,7 +189,6 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 	var ss snapstate.SnapSetup
 	err = task.Get("snap-setup", &ss)
 	c.Assert(err, IsNil)
-
 	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
 		Name:      "some-snap",
 		Developer: "mvo",
@@ -276,9 +274,6 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 	// verify snapSetup info
 	var ss snapstate.SnapSetup
 	err = task.Get("snap-setup", &ss)
-
-	fmt.Println(ss.SideInfo)
-
 	c.Assert(err, IsNil)
 	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
 		Name:      "some-snap",
