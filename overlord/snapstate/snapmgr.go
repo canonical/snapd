@@ -49,7 +49,7 @@ type SnapSetup struct {
 	OldName    string `json:"old-name"`
 	OldVersion string `json:"old-version"`
 
-	SetupFlags int `json:"setup-flags,omitempty"`
+	Flags int `json:"flags,omitempty"`
 
 	SnapPath string `json:"snap-path"`
 }
@@ -294,11 +294,11 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if err := m.backend.CheckSnap(ss.SnapPath, ss.SetupFlags); err != nil {
+	if err := m.backend.CheckSnap(ss.SnapPath, ss.Flags); err != nil {
 		return err
 	}
 
-	return m.backend.SetupSnap(ss.SnapPath, ss.SetupFlags)
+	return m.backend.SetupSnap(ss.SnapPath, ss.Flags)
 }
 
 func (m *SnapManager) doSetupSnapSecurity(t *state.Task, _ *tomb.Tomb) error {
@@ -316,7 +316,7 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	return m.backend.UndoCopySnapData(ss.MountDir(), ss.SetupFlags)
+	return m.backend.UndoCopySnapData(ss.MountDir(), ss.Flags)
 }
 
 func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
@@ -325,7 +325,7 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	return m.backend.CopySnapData(ss.MountDir(), ss.SetupFlags)
+	return m.backend.CopySnapData(ss.MountDir(), ss.Flags)
 }
 func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	ss, err := TaskSnapSetup(t)
@@ -352,7 +352,7 @@ func (m *SnapManager) doGarbageCollect(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	pb := &TaskProgressAdapter{task: t}
-	return m.backend.GarbageCollect(ss.Name, ss.SetupFlags, pb)
+	return m.backend.GarbageCollect(ss.Name, ss.Flags, pb)
 }
 
 // SnapInfo returns the snap.Info for a snap in the system.
