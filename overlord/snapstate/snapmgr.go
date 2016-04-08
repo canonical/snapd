@@ -47,8 +47,7 @@ type SnapSetup struct {
 	Revision  int    `json:"revision"`
 	Channel   string `json:"channel"`
 
-	// XXX: strawman is to have this here
-	SideInfo *snap.SideInfo `json:"blessed-metadata"`
+	SideInfo *snap.SideInfo `json:"side-info"`
 
 	OldName     string `json:"old-name"`
 	OldRevision int    `json:"old-version"`
