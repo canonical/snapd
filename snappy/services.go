@@ -70,7 +70,6 @@ func generateSnapServicesFile(app *snap.AppInfo, baseDir string) (string, error)
 		socketFileName = filepath.Base(generateSocketFileName(app))
 	}
 
-	aaProfile := getSecurityProfileFromApp(app)
 	return systemd.New(dirs.GlobalRootDir, nil).GenServiceFile(
 		&systemd.ServiceDescription{
 			SnapName:       app.Snap.Name(),
@@ -82,10 +81,10 @@ func generateSnapServicesFile(app *snap.AppInfo, baseDir string) (string, error)
 			Stop:           app.Stop,
 			PostStop:       app.PostStop,
 			StopTimeout:    serviceStopTimeout(app),
-			AaProfile:      aaProfile,
+			AaProfile:      app.SecurityTag(),
 			BusName:        app.BusName,
 			Type:           app.Daemon,
-			UdevAppName:    fmt.Sprintf("%s.%s", app.Snap.Name(), app.Name),
+			UdevAppName:    app.SecurityTag(),
 			Socket:         app.Socket,
 			SocketFileName: socketFileName,
 			Restart:        app.RestartCond,
