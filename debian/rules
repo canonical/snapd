@@ -15,15 +15,11 @@ RELEASE = $(shell lsb_release -c -s)
 override_dh_systemd_enable:
 	# enable boot-ok
 	dh_systemd_enable \
-		-psnapd-dangerous \
+		-pubuntu-core-snapd-units \
 		snapd.boot-ok.service
-	# enable the security policy generation
-	dh_systemd_enable \
-		-psnapd-dangerous \
-		snapd.run-hooks.service
 	# enable the first boot service
 	dh_systemd_enable \
-		-psnapd-dangerous \
+		-pubuntu-core-snapd-units \
 		snapd.firstboot.service
 	# we want the autopilot timer enabled by default
 	dh_systemd_enable \
@@ -42,12 +38,8 @@ override_dh_systemd_enable:
 override_dh_systemd_start:
 	# start boot-ok
 	dh_systemd_start \
-		-psnapd-dangerous \
+		-pubuntu-core-snapd-units \
 		snapd.boot-ok.service
-	# start run-hooks
-	dh_systemd_start \
-		-psnapd-dangerous \
-		snapd.run-hooks.service
 	# we want to start the autopilot timer
 	dh_systemd_start \
 		-psnapd \
