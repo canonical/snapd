@@ -30,13 +30,13 @@ import (
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/updates"
 )
 
-var _ = check.Suite(&snaprefreshAppSuite{})
+var _ = check.Suite(&snapRefreshAppSuite{})
 
-type snaprefreshAppSuite struct {
+type snapRefreshAppSuite struct {
 	common.SnappySuite
 }
 
-func (s *snaprefreshAppSuite) TestAppUpdate(c *check.C) {
+func (s *snapRefreshAppSuite) TestAppUpdate(c *check.C) {
 	snap := "hello-world.canonical"
 	storeSnap := fmt.Sprintf("%s", snap)
 
