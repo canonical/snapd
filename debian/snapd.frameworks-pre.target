@@ -2,7 +2,7 @@
 
 [Unit]
 Description=Ready for frameworks
-After=ubuntu-snappy.firstboot.service
+After=snapd.firstboot.service
 After=cloud-init.service
-After=ubuntu-snappy.run-hooks.service
+After=snapd.run-hooks.service
 

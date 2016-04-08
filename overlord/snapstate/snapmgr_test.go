@@ -20,6 +20,7 @@
 package snapstate_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -157,20 +158,21 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 			name: "downloaded-snap-path",
 		},
 		fakeOp{
-			op:   "setup-snap",
-			name: "downloaded-snap-path",
+			op:    "setup-snap",
+			name:  "downloaded-snap-path",
+			revno: 11,
 		},
 		fakeOp{
 			op:   "copy-data",
-			name: "/snaps/some-snap/1.0",
+			name: "/snaps/some-snap/11",
 		},
 		fakeOp{
 			op:   "setup-snap-security",
-			name: "/snaps/some-snap/1.0",
+			name: "/snaps/some-snap/11",
 		},
 		fakeOp{
 			op:   "link-snap",
-			name: "/snaps/some-snap/1.0",
+			name: "/snaps/some-snap/11",
 		},
 		fakeOp{
 			op:   "garbage-collect",
@@ -188,11 +190,18 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 	var ss snapstate.SnapSetup
 	err = task.Get("snap-setup", &ss)
 	c.Assert(err, IsNil)
+
 	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
 		Name:      "some-snap",
 		Developer: "mvo",
 		Channel:   "some-channel",
-		Version:   "1.0",
+
+		SideInfo: &snap.SideInfo{
+			OfficialName: "some-snap",
+			Channel:      "some-channel",
+			Revision:     11,
+		},
+		Revision: 11,
 
 		SnapPath: "downloaded-snap-path",
 	})
@@ -200,8 +209,10 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 
 func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 	s.fakeBackend.activeSnaps["some-snap"] = &snap.Info{
-		SuggestedName: "some-snap",
-		Version:       "1.64872",
+		SideInfo: snap.SideInfo{
+			OfficialName: "some-name",
+			Revision:     7,
+		},
 	}
 
 	s.state.Lock()
@@ -234,19 +245,20 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 			op:    "setup-snap",
 			name:  "downloaded-snap-path",
 			flags: int(snappy.DoInstallGC),
+			revno: 11,
 		},
 		fakeOp{
 			op:    "copy-data",
-			name:  "/snaps/some-snap/1.0",
+			name:  "/snaps/some-snap/11",
 			flags: int(snappy.DoInstallGC),
 		},
 		fakeOp{
 			op:   "setup-snap-security",
-			name: "/snaps/some-snap/1.0",
+			name: "/snaps/some-snap/11",
 		},
 		fakeOp{
 			op:   "link-snap",
-			name: "/snaps/some-snap/1.0",
+			name: "/snaps/some-snap/11",
 		},
 		fakeOp{
 			op:    "garbage-collect",
@@ -264,18 +276,27 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 	// verify snapSetup info
 	var ss snapstate.SnapSetup
 	err = task.Get("snap-setup", &ss)
+
+	fmt.Println(ss.SideInfo)
+
 	c.Assert(err, IsNil)
 	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
 		Name:      "some-snap",
 		Developer: "mvo",
 		Channel:   "some-channel",
-		Version:   "1.0",
 		Flags:     int(snappy.DoInstallGC),
+
+		SideInfo: &snap.SideInfo{
+			OfficialName: "some-snap",
+			Channel:      "some-channel",
+			Revision:     11,
+		},
+		Revision: 11,
 
 		SnapPath: "downloaded-snap-path",
 
-		OldName:    "some-snap",
-		OldVersion: "1.64872",
+		OldName:     "some-snap",
+		OldRevision: 7,
 	})
 }
 
@@ -305,8 +326,11 @@ func (s *snapmgrTestSuite) TestInstallLocalIntegration(c *C) {
 
 func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 	s.fakeBackend.activeSnaps["some-snap"] = &snap.Info{
-		SuggestedName: "some-snap",
-		Version:       "1.64872",
+		SideInfo: snap.SideInfo{
+			OfficialName: "some-name",
+			Developer:    "mvo",
+			Revision:     7,
+		},
 	}
 
 	s.state.Lock()
@@ -325,24 +349,24 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 	c.Assert(s.fakeBackend.ops, DeepEquals, []fakeOp{
 		fakeOp{
 			op:   "can-remove",
-			name: "/snaps/some-snap/1.64872",
+			name: "/snaps/some-snap/7",
 		},
 		fakeOp{
 			op:   "unlink-snap",
-			name: "/snaps/some-snap/1.64872",
+			name: "/snaps/some-snap/7",
 		},
 		fakeOp{
 			op:   "remove-snap-security",
-			name: "/snaps/some-snap/1.64872",
+			name: "/snaps/some-snap/7",
 		},
 		fakeOp{
 			op:   "remove-snap-files",
-			name: "/snaps/some-snap/1.64872",
+			name: "/snaps/some-snap/7",
 		},
 		fakeOp{
-			op:      "remove-snap-data",
-			name:    "some-snap",
-			version: "1.64872",
+			op:    "remove-snap-data",
+			name:  "some-snap",
+			revno: 7,
 		},
 	})
 
@@ -354,7 +378,7 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
 		Name:      "some-snap",
 		Developer: "mvo",
-		Version:   "1.64872",
+		Revision:  7,
 	})
 
 }
@@ -374,7 +398,7 @@ func (s *snapmgrTestSuite) TestRollbackIntegration(c *C) {
 
 	c.Assert(s.fakeBackend.ops[0].op, Equals, "rollback")
 	c.Assert(s.fakeBackend.ops[0].name, Equals, "some-snap-to-rollback")
-	c.Assert(s.fakeBackend.ops[0].version, Equals, "1.0")
+	c.Assert(s.fakeBackend.ops[0].rollback, Equals, "1.0")
 }
 
 func (s *snapmgrTestSuite) TestActivate(c *C) {

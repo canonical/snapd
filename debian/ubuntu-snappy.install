@@ -1,3 +1,0 @@
-debian/ubuntu-snappy.boot-ok.service /lib/systemd/system/
-debian/ubuntu-snappy.firstboot.service /lib/systemd/system/
-debian/ubuntu-snappy.run-hooks.service /lib/systemd/system/

@@ -58,6 +58,11 @@ type Backend struct {
 	legacyTemplate []byte
 }
 
+// Name returns the name of the backend.
+func (b *Backend) Name() string {
+	return "apparmor"
+}
+
 // UseLegacyTemplate switches from default apparmor template to a custom
 // template. This also implies that a fixed set of apparmor variables will be
 // injected into this template. The set is compatible with Ubuntu core 15.04.

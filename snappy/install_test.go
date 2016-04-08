@@ -101,6 +101,7 @@ license-agreement: explicit
 }
 
 func (s *SnapTestSuite) installThree(c *C, flags InstallFlags) {
+	c.Skip("can't really install 3 separate snap version just through the old snappy.Install interface, they all get revision 0!")
 	dirs.SnapDataHomeGlob = filepath.Join(s.tempdir, "home", "*", "snaps")
 	homeDir := filepath.Join(s.tempdir, "home", "user1", "snaps")
 	homeData := filepath.Join(homeDir, "foo", "1.0")
@@ -195,7 +196,7 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 
 func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 	// install one:
-	yamlFile, err := makeInstalledMockSnap("")
+	yamlFile, err := makeInstalledMockSnap("", 11)
 	c.Assert(err, IsNil)
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 
@@ -233,7 +234,7 @@ func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 }
 
 func (s *SnapTestSuite) TestUpdate(c *C) {
-	yamlPath, err := s.makeInstalledMockSnap("name: foo\nversion: 1")
+	yamlPath, err := makeInstalledMockSnap("name: foo\nversion: 1", 25)
 	c.Assert(err, IsNil)
 	makeSnapActive(yamlPath)
 	installed, err := (&Overlord{}).Installed()
@@ -255,7 +256,7 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 			io.WriteString(w, `{
 "package_name": "foo",
 "version": "2",
-"revision": 1,
+"revision": 27,
 "developer": "`+testDeveloper+`",
 "anon_download_url": "`+dlURL+`",
 "icon_url": "`+iconURL+`"

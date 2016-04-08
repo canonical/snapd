@@ -1,7 +1,7 @@
 [Unit]
 Description=Regenerate snappy security policies
 After=local-fs.target apparmor.service
-Before=ubuntu-snappy.firstboot.service
+Before=snapd.firstboot.service
 DefaultDependencies=false
 
 [Service]
