@@ -46,8 +46,8 @@ Depends: ${misc:Depends}, ${shlibs:Depends}, adduser, lsb-release,
  squashfs-tools, ubuntu-core-launcher (>= 1.0.19),
  ubuntu-core-security-seccomp, ubuntu-core-security-apparmor,
  ubuntu-core-security-utils,
-Replaces: ubuntu-snappy (<< 1.8+20160311ubuntu1), ubuntu-snappy-cli (<< 1.8+20160311ubuntu1)
-Breaks: ubuntu-snappy (<< 1.8+20160311ubuntu1), ubuntu-snappy-cli (<< 1.8+20160311ubuntu1)
+Replaces: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9)
+Breaks: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9)
 Conflicts: snappy, snap (<< 2013-11-29-1ubuntu1)
 Built-Using: ${misc:Built-Using}
 Description: Tool to interact with Ubuntu Core Snappy.
@@ -56,8 +56,8 @@ Description: Tool to interact with Ubuntu Core Snappy.
 Package: snapd-dangerous
 Architecture: any
 Depends: snapd
-Replaces: ubuntu-snappy (<< 1.8+20160311ubuntu1)
-Breaks: ubuntu-snappy (<< 1.8+20160311ubuntu1)
+Replaces: ubuntu-snappy (<< 1.9)
+Breaks: ubuntu-snappy (<< 1.9)
 Conflicts: snap (<< 2013-11-29-1ubuntu1)
 Built-Using: ${misc:Built-Using}
 Description: Scripts for snapd that should only run on ubuntu core.
