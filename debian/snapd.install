@@ -20,7 +20,7 @@ debian/*.timer /lib/systemd/system/
 debian/snappy-autopilot.service /lib/systemd/system/
 # snapd
 debian/*.socket /lib/systemd/system/
-debian/ubuntu-snappy.snapd.service /lib/systemd/system/
+debian/snapd.service /lib/systemd/system/
 # targets
 debian/*.target /lib/systemd/system/
 
