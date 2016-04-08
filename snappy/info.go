@@ -38,13 +38,6 @@ const (
 	SideloadedDeveloper = "sideload"
 )
 
-/*
-// Configuration allows requesting a gadget snappy package type's config
-type Configuration interface {
-	GadgetConfig() SystemConfig
-}
-*/
-
 // BareName of a snap.Info is just its Name
 func BareName(p *snap.Info) string {
 	return p.Name()
