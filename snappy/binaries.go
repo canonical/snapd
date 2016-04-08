@@ -113,10 +113,10 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 		SnapArch:    arch.UbuntuArchitecture(),
 		SnapPath:    pkgPath,
 		Version:     app.Snap.Version,
-		UdevAppName: fmt.Sprintf("snap.%s.%s", app.Snap.Name(), app.Name),
+		UdevAppName: app.SecurityTag(),
 		Home:        "$HOME",
 		Target:      actualBinPath,
-		AaProfile:   fmt.Sprintf("snap.%s.%s", app.Snap.Name(), app.Name),
+		AaProfile:   app.SecurityTag(),
 	}
 
 	oldVars := []string{}
