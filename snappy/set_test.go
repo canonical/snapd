@@ -84,7 +84,7 @@ func (s *SnapTestSuite) TestSetActive(c *C) {
 
 	path, err = filepath.EvalSymlinks(filepath.Join(dirs.SnapDataDir, fooComposedName, "current"))
 	c.Assert(err, IsNil)
-	c.Check(path, Equals, filepath.Join(dirs.SnapDataDir, fooComposedName, "2.0"))
+	c.Check(path, Equals, filepath.Join(dirs.SnapDataDir, fooComposedName, "200"))
 
 	meter := &MockProgressMeter{}
 
@@ -102,5 +102,5 @@ func (s *SnapTestSuite) TestSetActive(c *C) {
 	path, _ = filepath.EvalSymlinks(filepath.Join(dirs.SnapSnapsDir, fooComposedName, "current"))
 	c.Check(path, Equals, filepath.Join(dirs.SnapSnapsDir, fooComposedName, "100"))
 	path, _ = filepath.EvalSymlinks(filepath.Join(dirs.SnapDataDir, fooComposedName, "current"))
-	c.Check(path, Equals, filepath.Join(dirs.SnapDataDir, fooComposedName, "1.0"))
+	c.Check(path, Equals, filepath.Join(dirs.SnapDataDir, fooComposedName, "100"))
 }
