@@ -52,7 +52,7 @@ func (s *SnapTestSuite) TestAddPackageDesktopFiles(c *C) {
 	c.Assert(err, IsNil)
 
 	// generate .desktop file in the package baseDir
-	baseDir := snap.Info().BaseDir()
+	baseDir := snap.Info().MountDir()
 	err = os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0755)
 	c.Assert(err, IsNil)
 

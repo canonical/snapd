@@ -341,7 +341,7 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"maxReadBuflen",
 		"muxVars",
 		"newRemoteRepo",
-		"newSnap",
+		"checkSnap",
 		"pkgActionDispatch",
 		// snapInstruction vars:
 		"snapstateInstall",
@@ -1036,9 +1036,13 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, unsignedExpected bo
 	c.Check(err, check.IsNil)
 
 	// setup done
+	var expectedFlags snappy.InstallFlags
+	if unsignedExpected {
+		expectedFlags |= snappy.AllowUnauthenticated
+	}
 
-	newSnap = func(fn string, unauthOk bool) (*snappy.SnapFile, error) {
-		c.Check(unauthOk, check.Equals, unsignedExpected)
+	checkSnap = func(fn string, flags snappy.InstallFlags) error {
+		c.Check(flags, check.Equals, expectedFlags)
 
 		bs, err := ioutil.ReadFile(fn)
 		c.Check(err, check.IsNil)
@@ -1046,9 +1050,9 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, unsignedExpected bo
 
 		ch <- struct{}{}
 
-		return &snappy.SnapFile{}, nil
+		return nil
 	}
-	defer func() { newSnap = newSnapImpl }()
+	defer func() { checkSnap = checkSnapImpl }()
 
 	req, err := http.NewRequest("POST", "/v2/snaps", tmpfile)
 	c.Assert(err, check.IsNil)

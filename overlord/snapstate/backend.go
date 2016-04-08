@@ -120,7 +120,7 @@ func (s *defaultBackend) CopySnapData(snapInstPath string, flags int) error {
 		return err
 	}
 	meter := &progress.NullProgress{}
-	return snappy.CopyData(sn, snappy.InstallFlags(flags), meter)
+	return snappy.CopyData(sn.Info(), snappy.InstallFlags(flags), meter)
 }
 
 func (s *defaultBackend) SetupSnapSecurity(snapInstPath string) error {
@@ -156,7 +156,7 @@ func (s *defaultBackend) UndoCopySnapData(instSnapPath string, flags int) error 
 		return err
 	}
 	meter := &progress.NullProgress{}
-	snappy.UndoCopyData(sn, snappy.InstallFlags(flags), meter)
+	snappy.UndoCopyData(sn.Info(), snappy.InstallFlags(flags), meter)
 	return nil
 }
 
