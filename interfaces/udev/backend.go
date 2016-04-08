@@ -37,6 +37,10 @@ import (
 // Backend is responsible for maintaining udev rules.
 type Backend struct{}
 
+func (b *Backend) String() string {
+	return "udev"
+}
+
 // Setup creates udev rules specific to a given snap.
 // If any of the rules are changed or removed then udev database is reloaded.
 //
