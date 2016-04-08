@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
+	"strconv"
 
 	"gopkg.in/tomb.v2"
 
@@ -43,26 +44,32 @@ type SnapManager struct {
 type SnapSetup struct {
 	Name      string `json:"name"`
 	Developer string `json:"developer"`
-	Version   string `json:"version"`
+	Revision  int    `json:"revision"`
 	Channel   string `json:"channel"`
 
-	OldName    string `json:"old-name"`
-	OldVersion string `json:"old-version"`
+	SideInfo *snap.SideInfo `json:"side-info"`
+
+	OldName     string `json:"old-name"`
+	OldRevision int    `json:"old-version"`
+
+	// XXX: should be switched to use Revision instead
+	RollbackVersion string `json:"rollback-version"`
 
 	Flags int `json:"flags,omitempty"`
 
 	SnapPath string `json:"snap-path"`
 }
 
+// XXX: best this should helper from snap
 func (ss *SnapSetup) MountDir() string {
-	return filepath.Join(dirs.SnapSnapsDir, ss.Name, ss.Version)
+	return filepath.Join(dirs.SnapSnapsDir, ss.Name, strconv.Itoa(ss.Revision))
 }
 
 func (ss *SnapSetup) OldMountDir() string {
-	if ss.OldName == "" || ss.OldVersion == "" {
+	if ss.OldName == "" {
 		return ""
 	}
-	return filepath.Join(dirs.SnapSnapsDir, ss.OldName, ss.OldVersion)
+	return filepath.Join(dirs.SnapSnapsDir, ss.OldName, strconv.Itoa(ss.OldRevision))
 }
 
 // Manager returns a new snap manager.
@@ -125,17 +132,18 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		name = fmt.Sprintf("%s.%s", ss.Name, ss.Developer)
 	}
 	pb := &TaskProgressAdapter{task: t}
-	downloadedSnapFile, version, err := m.backend.Download(name, ss.Channel, pb)
+	storeInfo, downloadedSnapFile, err := m.backend.Download(name, ss.Channel, pb)
 	if err != nil {
 		return err
 	}
 	ss.SnapPath = downloadedSnapFile
-	ss.Version = version
+	ss.SideInfo = &storeInfo.SideInfo
+	ss.Revision = storeInfo.Revision
 
 	// find current active and store in case we need to undo
 	if info := m.backend.ActiveSnap(ss.Name); info != nil {
 		ss.OldName = info.Name()
-		ss.OldVersion = info.Version
+		ss.OldRevision = info.Revision
 	}
 
 	// update snap-setup for the following tasks
@@ -205,7 +213,7 @@ func (m *SnapManager) doRemoveSnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	return m.backend.RemoveSnapData(ss.Name, ss.Version)
+	return m.backend.RemoveSnapData(ss.Name, ss.Revision)
 }
 
 func (m *SnapManager) doRollbackSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -219,7 +227,7 @@ func (m *SnapManager) doRollbackSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	pb := &TaskProgressAdapter{task: t}
-	_, err = m.backend.Rollback(ss.Name, ss.Version, pb)
+	_, err = m.backend.Rollback(ss.Name, ss.RollbackVersion, pb)
 	return err
 }
 
@@ -308,7 +316,12 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	return m.backend.SetupSnap(ss.SnapPath, ss.Flags)
+	sideInfo := ss.SideInfo
+	if sideInfo == nil && ss.Revision != 0 {
+		sideInfo = &snap.SideInfo{Revision: ss.Revision}
+	}
+
+	return m.backend.SetupSnap(ss.SnapPath, sideInfo, ss.Flags)
 }
 
 func (m *SnapManager) doSetupSnapSecurity(t *state.Task, _ *tomb.Tomb) error {

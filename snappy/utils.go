@@ -59,7 +59,7 @@ func makeSnapHookEnv(snap *Snap) (env []string) {
 	}{
 		snap.Name(),
 		arch.UbuntuArchitecture(),
-		snap.basedir,
+		snap.Info().MountDir(),
 		snap.Version(),
 		snap.Name(),
 	}

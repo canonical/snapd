@@ -39,7 +39,7 @@ func mockRegenerateAppArmorRules() *bool {
 }
 
 func (s *SnapTestSuite) TestAddHWAccessSimple(c *C) {
-	makeInstalledMockSnap("")
+	makeInstalledMockSnap("", 11)
 	regenerateAppArmorRulesWasCalled := mockRegenerateAppArmorRules()
 
 	err := AddHWAccess("hello-snap", "/dev/ttyUSB0")
@@ -58,7 +58,7 @@ write-paths:
 
 func (s *SnapTestSuite) TestAddHWAccessInvalidDevice(c *C) {
 	regenerateAppArmorRulesWasCalled := mockRegenerateAppArmorRules()
-	makeInstalledMockSnap("")
+	makeInstalledMockSnap("", 11)
 
 	err := AddHWAccess("hello-snap", "ttyUSB0")
 	c.Assert(err, Equals, ErrInvalidHWDevice)
@@ -66,7 +66,7 @@ func (s *SnapTestSuite) TestAddHWAccessInvalidDevice(c *C) {
 }
 
 func (s *SnapTestSuite) TestAddHWAccessMultiplePaths(c *C) {
-	makeInstalledMockSnap("")
+	makeInstalledMockSnap("", 11)
 
 	err := AddHWAccess("hello-snap", "/dev/ttyUSB0")
 	c.Assert(err, IsNil)
@@ -86,7 +86,7 @@ write-paths:
 }
 
 func (s *SnapTestSuite) TestAddHWAccessAddSameDeviceTwice(c *C) {
-	makeInstalledMockSnap("")
+	makeInstalledMockSnap("", 11)
 
 	err := AddHWAccess("hello-snap", "/dev/ttyUSB0")
 	c.Assert(err, IsNil)
@@ -115,7 +115,7 @@ func (s *SnapTestSuite) TestAddHWAccessIllegalPackage(c *C) {
 }
 
 func (s *SnapTestSuite) TestListHWAccessNoAdditionalAccess(c *C) {
-	makeInstalledMockSnap("")
+	makeInstalledMockSnap("", 11)
 
 	writePaths, err := ListHWAccess("hello-snap")
 	c.Assert(err, IsNil)
@@ -123,7 +123,7 @@ func (s *SnapTestSuite) TestListHWAccessNoAdditionalAccess(c *C) {
 }
 
 func (s *SnapTestSuite) TestListHWAccess(c *C) {
-	makeInstalledMockSnap("")
+	makeInstalledMockSnap("", 11)
 	err := AddHWAccess("hello-snap", "/dev/ttyUSB0")
 	c.Assert(err, IsNil)
 
@@ -146,7 +146,7 @@ func (s *SnapTestSuite) TestRemoveHWAccessInvalidDevice(c *C) {
 }
 
 func (s *SnapTestSuite) TestRemoveHWAccess(c *C) {
-	makeInstalledMockSnap("")
+	makeInstalledMockSnap("", 11)
 	err := AddHWAccess("hello-snap", "/dev/ttyUSB0")
 
 	// check that the udev rules file got created
@@ -176,7 +176,7 @@ func (s *SnapTestSuite) TestRemoveHWAccess(c *C) {
 }
 
 func (s *SnapTestSuite) TestRemoveHWAccessMultipleDevices(c *C) {
-	makeInstalledMockSnap("")
+	makeInstalledMockSnap("", 11)
 
 	// setup
 	err := AddHWAccess("hello-snap", "/dev/bar")
@@ -248,7 +248,7 @@ func (s *SnapTestSuite) TestRemoveHWAccessFail(c *C) {
 	var runUdevAdmCalls [][]string
 	runUdevAdm = makeRunUdevAdmMock(&runUdevAdmCalls)
 
-	makeInstalledMockSnap("")
+	makeInstalledMockSnap("", 11)
 	err := AddHWAccess("hello-snap", "/dev/ttyUSB0")
 	c.Assert(err, IsNil)
 
@@ -266,7 +266,8 @@ version: 1.0
 apps:
   app:
    command: cmd
-`)
+`, 11)
+
 	var runUdevAdmCalls [][]string
 	runUdevAdm = makeRunUdevAdmMock(&runUdevAdmCalls)
 
@@ -283,7 +284,7 @@ apps:
 }
 
 func (s *SnapTestSuite) TestRemoveAllHWAccess(c *C) {
-	makeInstalledMockSnap("")
+	makeInstalledMockSnap("", 11)
 
 	err := AddHWAccess("hello-snap", "/dev/ttyUSB0")
 	c.Assert(err, IsNil)
@@ -298,7 +299,7 @@ func (s *SnapTestSuite) TestRemoveAllHWAccess(c *C) {
 }
 
 func (s *SnapTestSuite) TestAddSysDevice(c *C) {
-	makeInstalledMockSnap("")
+	makeInstalledMockSnap("", 11)
 	regenerateAppArmorRulesWasCalled := mockRegenerateAppArmorRules()
 
 	err := AddHWAccess("hello-snap", "/sys/devices/foo1")
