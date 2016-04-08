@@ -48,25 +48,14 @@ func NoOp(snapPath string) error {
 // CallFakeSnapRefresh calls snappy update after faking a new version available for the specified snap.
 // The fake is made copying the currently installed snap.
 // changeFunc can be used to modify the snap before it is built and served.
-func CallFakeSnapRefresh(c *check.C, snap string, changeFunc ChangeFakeUpdateSnap) string {
-	c.Skip("we need a way to run the daemon with the SNAPPY_FORCE_CPI_URL for this test to run")
-
+func CallFakeSnapRefresh(c *check.C, snap string, changeFunc ChangeFakeUpdateSnap, fakeStore *store.Store) string {
 	c.Log("Preparing fake and calling update.")
 
-	// use /var/tmp is not a tempfs
-	blobDir, err := ioutil.TempDir("/var/tmp", "snap-fake-store-blobs-")
-	c.Assert(err, check.IsNil)
-	defer cli.ExecCommand(c, "sudo", "rm", "-rf", blobDir)
-
-	fakeStore := store.NewStore(blobDir)
-	err = fakeStore.Start()
-	c.Assert(err, check.IsNil)
-	defer fakeStore.Stop()
-
+	blobDir := fakeStore.SnapsDir()
 	makeFakeUpdateForSnap(c, snap, blobDir, changeFunc)
 
 	// FIMXE: there is no "snap refresh" that updates all snaps
-	cli.ExecCommand(c, "sudo", "TMPDIR=/var/tmp", fmt.Sprintf("SNAPPY_FORCE_CPI_URL=%s", fakeStore.URL()), "snap", "refresh", snap)
+	cli.ExecCommand(c, "sudo", "TMPDIR=/var/tmp", "snap", "refresh", snap)
 
 	// FIXME: do we want an automatic `snap list` output after
 	//        `snap update` (like in the old snappy world)?
