@@ -31,6 +31,7 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snappy"
 )
 
 // SnapManager is responsible for the installation and removal of snaps.
@@ -394,6 +395,12 @@ func SnapInfo(state *state.State, snapName, snapVersion string) (*snap.Info, err
 	if err != nil {
 		return nil, err
 	}
+	// XXX: Gross hack, Use NewInstalledSnap to get the revision
+	otherSnap, err := snappy.NewInstalledSnap(fname)
+	if err != nil {
+		return nil, err
+	}
+	info.Revision = otherSnap.Revision()
 	// Overwrite the name which doesn't belong in snap.yaml and is actually
 	// defined by snap declaration assertion.
 	// TODO: use a full SideInfo
