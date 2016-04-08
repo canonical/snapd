@@ -64,8 +64,10 @@ func NewInstalledSnap(yamlPath string) (*Snap, error) {
 // newSnapFromYaml returns a new Snap from the given *snapYaml at yamlPath
 func newSnapFromYaml(yamlPath string, m *snapYaml) (*Snap, error) {
 	mountDir := filepath.Dir(filepath.Dir(yamlPath))
-	// XXX: hack the revision out of the path for now
+
+	// XXX: hack the name and revision out of the path for now
 	// snapstate primitives shouldn't need this
+	name := filepath.Base(filepath.Dir(mountDir))
 	revnoStr := filepath.Base(mountDir)
 	revno, err := strconv.Atoi(revnoStr)
 	if err != nil {
@@ -110,7 +112,7 @@ func newSnapFromYaml(yamlPath string, m *snapYaml) (*Snap, error) {
 	s.info = info
 
 	if revno != 0 {
-		mfPath := manifestPath(info, revno)
+		mfPath := manifestPath(name, revno)
 		if osutil.FileExists(mfPath) {
 			content, err := ioutil.ReadFile(mfPath)
 			if err != nil {

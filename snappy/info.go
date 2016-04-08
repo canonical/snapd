@@ -181,8 +181,8 @@ func PackageNameActive(name string) bool {
 }
 
 // manifestPath returns the would be path for the snap manifest.
-func manifestPath(s *snap.Info, revno int) string {
-	return filepath.Join(dirs.SnapMetaDir, fmt.Sprintf("%s_%d.manifest", s.Name(), revno))
+func manifestPath(name string, revno int) string {
+	return filepath.Join(dirs.SnapMetaDir, fmt.Sprintf("%s_%d.manifest", name, revno))
 }
 
 // SaveManifest saves the manifest at the designated location for the snap containing information not in the snap.yaml.
@@ -201,7 +201,7 @@ func SaveManifest(rsnap *snap.Info) error {
 		return err
 	}
 
-	p := manifestPath(rsnap, rsnap.Revision)
+	p := manifestPath(rsnap.Name(), rsnap.Revision)
 	// don't worry about previous contents
 	return osutil.AtomicWriteFile(p, content, 0644, 0)
 }

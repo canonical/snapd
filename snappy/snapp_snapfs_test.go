@@ -125,18 +125,21 @@ func (s *SquashfsTestSuite) TestOpenSnapFilebSideInfo(c *C) {
 
 func (s *SquashfsTestSuite) TestInstallViaSquashfsWorks(c *C) {
 	snapPkg := makeTestSnapPackage(c, packageHello)
-	// revision will be 0
-	_, err := (&Overlord{}).Install(snapPkg, 0, &MockProgressMeter{})
+	si := &snap.SideInfo{
+		OfficialName: "hello-snap",
+		Revision:     16,
+	}
+	_, err := (&Overlord{}).InstallWithSideMetadata(snapPkg, si, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 
 	// after install the blob is in the right dir
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-snap_1.10.snap")), Equals, true)
 
 	// ensure the right unit is created
-	mup := systemd.MountUnitPath("/snaps/hello-snap/0", "mount")
+	mup := systemd.MountUnitPath("/snaps/hello-snap/16", "mount")
 	content, err := ioutil.ReadFile(mup)
 	c.Assert(err, IsNil)
-	c.Assert(string(content), Matches, "(?ms).*^Where=/snaps/hello-snap/0")
+	c.Assert(string(content), Matches, "(?ms).*^Where=/snaps/hello-snap/16")
 	c.Assert(string(content), Matches, "(?ms).*^What=/var/lib/snappy/snaps/hello-snap_1.10.snap")
 }
 
