@@ -37,7 +37,7 @@ var _ = Suite(&HomeInterfaceSuite{
 	iface: builtin.NewHomeInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "ubuntu-core"},
+			Snap:      &snap.Info{SuggestedName: "ubuntu-core", Type: snap.TypeOS},
 			Name:      "home",
 			Interface: "home",
 		},
