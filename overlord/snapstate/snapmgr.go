@@ -93,7 +93,8 @@ func Manager(s *state.State) (*SnapManager, error) {
 	runner.AddHandler("copy-snap-data", m.doCopySnapData, m.undoCopySnapData)
 	runner.AddHandler("setup-snap-security", m.doSetupSnapSecurity, m.doRemoveSnapSecurity)
 	runner.AddHandler("link-snap", m.doLinkSnap, m.undoLinkSnap)
-	runner.AddHandler("garbage-collect", m.doGarbageCollect, nil)
+	// FIXME: port to native tasks and rename
+	//runner.AddHandler("garbage-collect", m.doGarbageCollect, nil)
 
 	// remove releated
 	runner.AddHandler("unlink-snap", m.doUnlinkSnap, nil)
