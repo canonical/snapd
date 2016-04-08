@@ -9,7 +9,7 @@ ConditionPathExists=!/var/lib/snappy/firstboot/stamp
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/snappy firstboot
+ExecStart=/usr/bin/snap firstboot
 RemainAfterExit=yes
 
 [Install]

@@ -35,8 +35,11 @@ import (
 )
 
 var (
-	defaultAddr      = "localhost:11028"
+	defaultAddr = "localhost:11028"
+	// FIXME: make both hardcoded values configurable via
+	//        e.g. a "foo_1.0.snap.info" file next to the snap
 	defaultDeveloper = "canonical"
+	defaultRevision  = 424242
 )
 
 func rootEndpoint(w http.ResponseWriter, req *http.Request) {
@@ -140,7 +143,7 @@ func (s *Store) refreshSnaps() error {
 		if err != nil {
 			return err
 		}
-		s.snaps[fmt.Sprintf("%s.%s", info.Name, s.defaultDeveloper)] = fn
+		s.snaps[fmt.Sprintf("%s.%s", info.Name(), s.defaultDeveloper)] = fn
 	}
 
 	return nil
@@ -157,6 +160,7 @@ type bulkReplyJSON struct {
 	Developer       string `json:"origin"`
 	AnonDownloadURL string `json:"anon_download_url"`
 	Version         string `json:"version"`
+	Revision        int    `json:"revision"`
 }
 
 func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
@@ -187,14 +191,28 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 				http.Error(w, fmt.Sprintf("can get info for: %v: %v", fn, err), http.StatusBadRequest)
 				return
 			}
+			// TODO: This is a hack to ensure we have higher
+			//       revisions here than locally. The fake
+			//       snaps get versions like
+			//          "1.0+fake1+fake1+fake1"
+			//       so we can use this for now to generate
+			//       fake revisions. However in the longer
+			//       term we should read the real revision
+			//       of the snap, increment and add a ".aux"
+			//       file to the download directory of the
+			//       store that contains the revision and the
+			//       developer. The fake-store can then read
+			//       that file when sending the reply.
+			n := strings.Count(info.Version, "+fake") + 1
 
 			replyData = append(replyData, bulkReplyJSON{
 				Status:          "Published",
-				Name:            fmt.Sprintf("%s.%s", info.Name, s.defaultDeveloper),
-				PackageName:     info.Name,
+				Name:            fmt.Sprintf("%s.%s", info.Name(), s.defaultDeveloper),
+				PackageName:     info.Name(),
 				Developer:       defaultDeveloper,
 				AnonDownloadURL: fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn)),
 				Version:         info.Version,
+				Revision:        n * defaultRevision,
 			})
 		}
 	}

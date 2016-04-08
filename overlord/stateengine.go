@@ -20,24 +20,27 @@
 package overlord
 
 import (
+	"fmt"
+	"sync"
+
+	"github.com/ubuntu-core/snappy/logger"
+
 	"github.com/ubuntu-core/snappy/overlord/state"
 )
 
 // StateManager is implemented by types responsible for observing
 // the system and manipulating it to reflect the desired state.
 type StateManager interface {
-	// Init hands the manager the current state it's supposed to track
-	// and update.  The StateEngine may call Init again after a Stop
-	// was observed.
-	Init(s *state.State) error
-
 	// Ensure forces a complete evaluation of the current state.
 	// See StateEngine.Ensure for more details.
 	Ensure() error
 
+	// Wait asks manager to wait for all running activities to finish.
+	Wait()
+
 	// Stop asks the manager to terminate all activities running concurrently.
 	// It must not return before these activities are finished.
-	Stop() error
+	Stop()
 }
 
 // StateEngine controls the dispatching of state changes to state managers.
@@ -47,10 +50,10 @@ type StateManager interface {
 // cope with Ensure calls in any order, coordinating among themselves
 // solely via the state.
 type StateEngine struct {
-	state *state.State
-	// added managers to initialize
-	initialize []StateManager
+	state   *state.State
+	stopped bool
 	// managers in use
+	mgrLock  sync.Mutex
 	managers []StateManager
 }
 
@@ -66,6 +69,14 @@ func (se *StateEngine) State() *state.State {
 	return se.state
 }
 
+type ensureError struct {
+	errs []error
+}
+
+func (e *ensureError) Error() string {
+	return fmt.Sprintf("state ensure errors: %v", e.errs)
+}
+
 // Ensure asks every manager to ensure that they are doing the necessary
 // work to put the current desired system state in place by calling their
 // respective Ensure methods.
@@ -75,43 +86,53 @@ func (se *StateEngine) State() *state.State {
 // must not perform long running activities during that operation, though.
 // These should be performed in properly tracked changes and tasks.
 func (se *StateEngine) Ensure() error {
-	if len(se.initialize) > 0 {
-		for _, m := range se.initialize {
-			err := m.Init(se.state)
-			if err != nil {
-				return err
-			}
-		}
-		se.managers = append(se.managers, se.initialize...)
-		se.initialize = nil
+	se.mgrLock.Lock()
+	defer se.mgrLock.Unlock()
+	if se.stopped {
+		return fmt.Errorf("state engine already stopped")
 	}
-
+	var errs []error
 	for _, m := range se.managers {
 		err := m.Ensure()
 		if err != nil {
-			return err
+			logger.Noticef("state ensure error: %v", err)
+			errs = append(errs, err)
 		}
+	}
+	if len(errs) != 0 {
+		return &ensureError{errs}
 	}
 	return nil
 }
 
 // AddManager adds the provided manager to take part in state operations.
 func (se *StateEngine) AddManager(m StateManager) {
-	se.initialize = append(se.initialize, m)
+	se.mgrLock.Lock()
+	defer se.mgrLock.Unlock()
+	se.managers = append(se.managers, m)
+}
+
+// Wait waits for all managers current activities.
+func (se *StateEngine) Wait() {
+	se.mgrLock.Lock()
+	defer se.mgrLock.Unlock()
+	if se.stopped {
+		return
+	}
+	for _, m := range se.managers {
+		m.Wait()
+	}
 }
 
 // Stop asks all managers to terminate activities running concurrently.
-// It returns the first error found after all managers are stopped.
-func (se *StateEngine) Stop() error {
-	if len(se.managers) > 0 {
-		for _, m := range se.managers {
-			err := m.Stop()
-			if err != nil {
-				return err
-			}
-		}
-		se.initialize = append(se.initialize, se.managers...)
-		se.managers = nil
+func (se *StateEngine) Stop() {
+	se.mgrLock.Lock()
+	defer se.mgrLock.Unlock()
+	if se.stopped {
+		return
 	}
-	return nil
+	for _, m := range se.managers {
+		m.Stop()
+	}
+	se.stopped = true
 }

@@ -34,37 +34,37 @@ const (
 	DoRemoveGC RemoveFlags = 1 << iota
 )
 
-// Remove a part by a partSpec string, name[.developer][=version]
-func Remove(partSpec string, flags RemoveFlags, meter progress.Meter) error {
-	var parts BySnapVersion
+// Remove a snap by a snapSpec string, name[.developer][=version]
+func Remove(snapSpec string, flags RemoveFlags, meter progress.Meter) error {
+	var snaps BySnapVersion
 
-	installed, err := NewLocalSnapRepository().Installed()
+	installed, err := (&Overlord{}).Installed()
 	if err != nil {
 		return err
 	}
 	// Note that "=" is not legal in a snap name or a snap version
-	l := strings.Split(partSpec, "=")
+	l := strings.Split(snapSpec, "=")
 	if len(l) == 2 {
 		name := l[0]
 		version := l[1]
-		parts = FindSnapsByNameAndVersion(name, version, installed)
+		snaps = FindSnapsByNameAndVersion(name, version, installed)
 	} else {
 		if (flags & DoRemoveGC) == 0 {
-			if part := ActiveSnapByName(partSpec); part != nil {
-				parts = append(parts, part)
+			if snap := ActiveSnapByName(snapSpec); snap != nil {
+				snaps = append(snaps, snap)
 			}
 		} else {
-			parts = FindSnapsByName(partSpec, installed)
+			snaps = FindSnapsByName(snapSpec, installed)
 		}
 	}
 
-	if len(parts) == 0 {
+	if len(snaps) == 0 {
 		return ErrPackageNotFound
 	}
 
 	overlord := &Overlord{}
-	for _, part := range parts {
-		if err := overlord.Uninstall(part.(*Snap), meter); err != nil {
+	for _, snap := range snaps {
+		if err := overlord.Uninstall(snap, meter); err != nil {
 			return err
 		}
 	}

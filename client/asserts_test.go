@@ -42,13 +42,13 @@ func (cs *clientSuite) TestClientAssert(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(body, DeepEquals, a)
 	c.Check(cs.req.Method, Equals, "POST")
-	c.Check(cs.req.URL.Path, Equals, "/2.0/assertions")
+	c.Check(cs.req.URL.Path, Equals, "/v2/assertions")
 }
 
 func (cs *clientSuite) TestClientAssertsCallsEndpoint(c *C) {
 	_, _ = cs.cli.Known("snap-revision", nil)
 	c.Check(cs.req.Method, Equals, "GET")
-	c.Check(cs.req.URL.Path, Equals, "/2.0/assertions/snap-revision")
+	c.Check(cs.req.URL.Path, Equals, "/v2/assertions/snap-revision")
 }
 
 func (cs *clientSuite) TestClientAssertsCallsEndpointWithFilter(c *C) {
@@ -58,7 +58,7 @@ func (cs *clientSuite) TestClientAssertsCallsEndpointWithFilter(c *C) {
 	})
 	u, err := url.ParseRequestURI(cs.req.URL.String())
 	c.Assert(err, IsNil)
-	c.Check(u.Path, Equals, "/2.0/assertions/snap-revision")
+	c.Check(u.Path, Equals, "/v2/assertions/snap-revision")
 	c.Check(u.Query(), DeepEquals, url.Values{
 		"snap-digest": []string{"sha256 digest..."},
 		"snap-id":     []string{"snap-id-1"},
@@ -91,10 +91,11 @@ func (cs *clientSuite) TestClientAsserts(c *C) {
 	cs.header.Add("X-Ubuntu-Assertions-Count", "2")
 	cs.rsp = `type: snap-revision
 authority-id: store-id1
+series: 16
 snap-id: snap-id-1
 snap-digest: sha256 ...
+snap-size: 123
 snap-revision: 1
-snap-build: sha256 ...
 developer-id: dev-id1
 revision: 1
 timestamp: 2015-11-25T20:00:00Z
@@ -104,10 +105,11 @@ openpgp ...
 
 type: snap-revision
 authority-id: store-id1
+series: 16
 snap-id: snap-id-2
 snap-digest: sha256 ...
+snap-size: 456
 snap-revision: 1
-snap-build: sha256 ...
 developer-id: dev-id1
 revision: 1
 timestamp: 2015-11-30T20:00:00Z

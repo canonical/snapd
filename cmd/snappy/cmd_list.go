@@ -28,6 +28,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
 )
 
@@ -89,7 +90,7 @@ func formatDate(t time.Time) string {
 	return fmt.Sprintf("%v-%02d-%02d", t.Year(), int(t.Month()), t.Day())
 }
 
-func showInstalledList(installed []snappy.Part, o io.Writer) {
+func showInstalledList(installed []*snappy.Snap, o io.Writer) {
 	w := tabwriter.NewWriter(o, 5, 3, 1, ' ', 0)
 
 	fmt.Fprintln(w, "Name\tDate\tVersion\tDeveloper\t")
@@ -103,7 +104,7 @@ func showInstalledList(installed []snappy.Part, o io.Writer) {
 	showRebootMessage(installed, o)
 }
 
-func showVerboseList(installed []snappy.Part, o io.Writer) {
+func showVerboseList(installed []*snappy.Snap, o io.Writer) {
 	w := tabwriter.NewWriter(o, 5, 3, 1, ' ', 0)
 
 	fmt.Fprintln(w, i18n.G("Name\tDate\tVersion\tDeveloper\t"))
@@ -125,7 +126,7 @@ func showVerboseList(installed []snappy.Part, o io.Writer) {
 	showRebootMessage(installed, o)
 }
 
-func showRebootMessage(installed []snappy.Part, o io.Writer) {
+func showRebootMessage(installed []*snappy.Snap, o io.Writer) {
 	// display all parts that require a reboot
 	for _, part := range installed {
 		if !part.NeedsReboot() {
@@ -137,25 +138,26 @@ func showRebootMessage(installed []snappy.Part, o io.Writer) {
 	}
 }
 
-func showUpdatesList(installed []snappy.Part, updates []snappy.Part, o io.Writer) {
+func showUpdatesList(installed []*snappy.Snap, updates []*snap.Info, o io.Writer) {
 	// TODO tabwriter and output in general to adapt to the spec
 	w := tabwriter.NewWriter(o, 5, 3, 1, ' ', 0)
 	defer w.Flush()
 
 	fmt.Fprintln(w, i18n.G("Name\tDate\tVersion\t"))
-	for _, part := range installed {
-		if !part.IsActive() {
+	for _, installed := range installed {
+		if !installed.IsActive() {
 			continue
 		}
 		hasUpdate := ""
-		ver := part.Version()
-		date := part.Date()
-		update := snappy.FindSnapsByName(part.Name(), updates)
-		if len(update) == 1 {
-			hasUpdate = "*"
-			ver = update[0].Version()
-			date = update[0].Date()
+		ver := installed.Version()
+		date := installed.Date()
+		for _, update := range updates {
+			if update.Name() == installed.Name() {
+				hasUpdate = "*"
+				ver = update.Version
+				break
+			}
 		}
-		fmt.Fprintln(w, fmt.Sprintf("%s%s\t%v\t%s\t", part.Name(), hasUpdate, formatDate(date), ver))
+		fmt.Fprintln(w, fmt.Sprintf("%s%s\t%v\t%s\t", installed.Name(), hasUpdate, formatDate(date), ver))
 	}
 }

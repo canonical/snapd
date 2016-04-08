@@ -23,6 +23,8 @@ import (
 	"os"
 
 	"github.com/ubuntu-core/snappy/i18n"
+
+	"github.com/jessevdk/go-flags"
 )
 
 type cmdMan struct{}
@@ -31,7 +33,7 @@ var shortManHelp = i18n.G("produces manpage")
 var longManHelp = i18n.G("produces manpage")
 
 func init() {
-	cmd := addCommand("man", shortManHelp, longManHelp, func() interface{} {
+	cmd := addCommand("man", shortManHelp, longManHelp, func() flags.Commander {
 		return &cmdMan{}
 	})
 	cmd.hidden = true

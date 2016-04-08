@@ -37,6 +37,7 @@ type commonInterface struct {
 	connectedPlugAppArmor string
 	connectedPlugSecComp  string
 	reservedForOS         bool
+	autoConnect           bool
 }
 
 // Name returns the interface name.
@@ -52,7 +53,8 @@ func (iface *commonInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
 	}
-	if iface.reservedForOS && slot.Snap != "ubuntu-core" {
+	// TODO: use slot.Snap.Type here (and snap.TypeOS)
+	if iface.reservedForOS && slot.Snap.Name() != "ubuntu-core" {
 		return fmt.Errorf("%s slots are reserved for the operating system snap", iface.name)
 	}
 	return nil
@@ -126,4 +128,10 @@ func (iface *commonInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *
 	default:
 		return nil, interfaces.ErrUnknownSecurity
 	}
+}
+
+// AutoConnect returns true if plugs and slots should be implicitly
+// auto-connected when an unambiguous connection candidate is available.
+func (iface *commonInterface) AutoConnect() bool {
+	return iface.autoConnect
 }

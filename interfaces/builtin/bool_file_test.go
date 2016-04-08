@@ -28,6 +28,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/interfaces/builtin"
+	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/testutil"
 )
 
@@ -50,41 +51,40 @@ type BoolFileInterfaceSuite struct {
 
 var _ = Suite(&BoolFileInterfaceSuite{
 	iface: &builtin.BoolFileInterface{},
-	gpioSlot: &interfaces.Slot{
-		Interface: "bool-file",
-		Attrs: map[string]interface{}{
-			"path": "/sys/class/gpio/gpio13/value",
-		},
-	},
-	ledSlot: &interfaces.Slot{
-		Interface: "bool-file",
-		Attrs: map[string]interface{}{
-			"path": "/sys/class/leds/input27::capslock/brightness",
-		},
-	},
-	missingPathSlot: &interfaces.Slot{
-		Interface: "bool-file",
-	},
-	badPathSlot: &interfaces.Slot{
-		Interface: "bool-file",
-		Attrs:     map[string]interface{}{"path": "path"},
-	},
-	parentDirPathSlot: &interfaces.Slot{
-		Interface: "bool-file",
-		Attrs: map[string]interface{}{
-			"path": "/sys/class/gpio/../value",
-		},
-	},
-	badInterfaceSlot: &interfaces.Slot{
-		Interface: "other-interface",
-	},
-	plug: &interfaces.Plug{
-		Interface: "bool-file",
-	},
-	badInterfacePlug: &interfaces.Plug{
-		Interface: "other-interface",
-	},
 })
+
+func (s *BoolFileInterfaceSuite) SetUpTest(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: ubuntu-core
+slots:
+    gpio:
+        interface: bool-file
+        path: /sys/class/gpio/gpio13/value
+    led:
+        interface: bool-file
+        path: "/sys/class/leds/input27::capslock/brightness"
+    missing-path: bool-file
+    bad-path:
+        interface: bool-file
+        path: path
+    parent-dir-path:
+        interface: bool-file
+        path: "/sys/class/gpio/../value"
+    bad-interface: other-interface
+plugs:
+    plug: bool-file
+    bad-interface: other-interface
+`))
+	c.Assert(err, IsNil)
+	s.gpioSlot = &interfaces.Slot{SlotInfo: info.Slots["gpio"]}
+	s.ledSlot = &interfaces.Slot{SlotInfo: info.Slots["led"]}
+	s.missingPathSlot = &interfaces.Slot{SlotInfo: info.Slots["missing-path"]}
+	s.badPathSlot = &interfaces.Slot{SlotInfo: info.Slots["bad-path"]}
+	s.parentDirPathSlot = &interfaces.Slot{SlotInfo: info.Slots["parent-dir-path"]}
+	s.badInterfaceSlot = &interfaces.Slot{SlotInfo: info.Slots["bad-interface"]}
+	s.plug = &interfaces.Plug{PlugInfo: info.Plugs["plug"]}
+	s.badInterfacePlug = &interfaces.Plug{PlugInfo: info.Plugs["bad-interface"]}
+}
 
 func (s *BoolFileInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "bool-file")
@@ -286,4 +286,8 @@ func (s *BoolFileInterfaceSuite) TestPermanentSlotSnippetUnusedSecuritySystems(c
 		c.Assert(err, ErrorMatches, `unknown security system`)
 		c.Assert(snippet, IsNil)
 	}
+}
+
+func (s *BoolFileInterfaceSuite) TestAutoConnect(c *C) {
+	c.Check(s.iface.AutoConnect(), Equals, false)
 }

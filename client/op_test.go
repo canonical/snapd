@@ -26,7 +26,7 @@ import (
 func (cs *clientSuite) TestClientOpRunning(c *check.C) {
 	cs.rsp = `{
 "type": "sync", "result": {
-  "resource": "/2.0/operations/foo",
+  "resource": "/v2/operations/foo",
   "status":   "running",
   "created_at": "2010-01-01T01:01:01.010101Z",
   "updated_at": "2016-01-01T01:01:01.010101Z",
@@ -42,7 +42,7 @@ func (cs *clientSuite) TestClientOpRunning(c *check.C) {
 func (cs *clientSuite) TestClientOpFailed(c *check.C) {
 	cs.rsp = `{
 "type": "sync", "result": {
-  "resource": "/2.0/operations/foo",
+  "resource": "/v2/operations/foo",
   "status":   "failed",
   "created_at": "2010-01-01T01:01:01.010101Z",
   "updated_at": "2016-01-01T01:01:01.010101Z",
@@ -58,7 +58,7 @@ func (cs *clientSuite) TestClientOpFailed(c *check.C) {
 func (cs *clientSuite) TestClientOpFailedFailure(c *check.C) {
 	cs.rsp = `{
 "type": "sync", "result": {
-  "resource": "/2.0/operations/foo",
+  "resource": "/v2/operations/foo",
   "status":   "failed",
   "created_at": "2010-01-01T01:01:01.010101Z",
   "updated_at": "2016-01-01T01:01:01.010101Z",
@@ -74,7 +74,7 @@ func (cs *clientSuite) TestClientOpFailedFailure(c *check.C) {
 func (cs *clientSuite) TestClientOpSucceeded(c *check.C) {
 	cs.rsp = `{
 "type": "sync", "result": {
-  "resource": "/2.0/operations/foo",
+  "resource": "/v2/operations/foo",
   "status":   "succeeded",
   "created_at": "2010-01-01T01:01:01.010101Z",
   "updated_at": "2016-01-01T01:01:01.010101Z",

@@ -44,58 +44,58 @@ func makeCloudInitMetaData(c *C, content string) string {
 }
 
 func (s *SnapTestSuite) TestInstallInstall(c *C) {
-	snapFile := makeTestSnapPackage(c, "")
-	name, err := Install(snapFile, "", AllowUnauthenticated|DoInstallGC, &progress.NullProgress{})
+	snapPath := makeTestSnapPackage(c, "")
+	name, err := Install(snapPath, "channel", AllowUnauthenticated|DoInstallGC, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
-	all, err := NewLocalSnapRepository().All()
+	all, err := (&Overlord{}).Installed()
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
-	part := all[0]
-	c.Check(part.Name(), Equals, name)
-	c.Check(part.IsInstalled(), Equals, true)
-	c.Check(part.IsActive(), Equals, true)
+	snap := all[0]
+	c.Check(snap.Name(), Equals, name)
+	c.Check(snap.IsInstalled(), Equals, true)
+	c.Check(snap.IsActive(), Equals, true)
 }
 
 func (s *SnapTestSuite) TestInstallNoHook(c *C) {
-	snapFile := makeTestSnapPackage(c, "")
-	name, err := Install(snapFile, "", AllowUnauthenticated|DoInstallGC|InhibitHooks, &progress.NullProgress{})
+	snapPath := makeTestSnapPackage(c, "")
+	name, err := Install(snapPath, "", AllowUnauthenticated|DoInstallGC|InhibitHooks, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
-	all, err := NewLocalSnapRepository().All()
+	all, err := (&Overlord{}).Installed()
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
-	part := all[0]
-	c.Check(part.Name(), Equals, name)
-	c.Check(part.IsInstalled(), Equals, true)
-	c.Check(part.IsActive(), Equals, false) // c.f. TestInstallInstall
+	snap := all[0]
+	c.Check(snap.Name(), Equals, name)
+	c.Check(snap.IsInstalled(), Equals, true)
+	c.Check(snap.IsActive(), Equals, false) // c.f. TestInstallInstall
 }
 
 func (s *SnapTestSuite) TestInstallInstallLicense(c *C) {
-	snapFile := makeTestSnapPackage(c, `
+	snapPath := makeTestSnapPackage(c, `
 name: foo
 version: 1.0
 vendor: Foo Bar <foo@example.com>
 license-agreement: explicit
 `)
 	ag := &MockProgressMeter{y: true}
-	name, err := Install(snapFile, "", AllowUnauthenticated|DoInstallGC, ag)
+	name, err := Install(snapPath, "", AllowUnauthenticated|DoInstallGC, ag)
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 	c.Check(ag.license, Equals, "WTFPL")
 }
 
 func (s *SnapTestSuite) TestInstallInstallLicenseNo(c *C) {
-	snapFile := makeTestSnapPackage(c, `
+	snapPath := makeTestSnapPackage(c, `
 name: foo
 version: 1.0
 vendor: Foo Bar <foo@example.com>
 license-agreement: explicit
 `)
 	ag := &MockProgressMeter{y: false}
-	_, err := Install(snapFile, "", AllowUnauthenticated|DoInstallGC, ag)
+	_, err := Install(snapPath, "", AllowUnauthenticated|DoInstallGC, ag)
 	c.Assert(IsLicenseNotAccepted(err), Equals, true)
 	c.Check(ag.license, Equals, "WTFPL")
 }
@@ -109,16 +109,16 @@ func (s *SnapTestSuite) installThree(c *C, flags InstallFlags) {
 
 	snapYamlContent := `name: foo
 `
-	snapFile := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
-	_, err = Install(snapFile, "", flags, &progress.NullProgress{})
+	snapPath := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
+	_, err = Install(snapPath, "", flags, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 
-	snapFile = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
-	_, err = Install(snapFile, "", flags, &progress.NullProgress{})
+	snapPath = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
+	_, err = Install(snapPath, "", flags, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 
-	snapFile = makeTestSnapPackage(c, snapYamlContent+"version: 3.0")
-	_, err = Install(snapFile, "", flags, &progress.NullProgress{})
+	snapPath = makeTestSnapPackage(c, snapYamlContent+"version: 3.0")
+	_, err = Install(snapPath, "", flags, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 }
 
@@ -126,25 +126,25 @@ func (s *SnapTestSuite) installThree(c *C, flags InstallFlags) {
 func (s *SnapTestSuite) TestClickInstallGCSimple(c *C) {
 	s.installThree(c, AllowUnauthenticated|DoInstallGC)
 
-	globs, err := filepath.Glob(filepath.Join(dirs.SnapSnapsDir, "foo.sideload", "*"))
+	globs, err := filepath.Glob(filepath.Join(dirs.SnapSnapsDir, "foo", "*"))
 	c.Check(err, IsNil)
 	c.Check(globs, HasLen, 2+1) // +1 for "current"
 
-	// gc should leave one more data than app
-	globs, err = filepath.Glob(filepath.Join(dirs.SnapDataDir, "foo.sideload", "*"))
+	// gc should no longer leave one more data than app
+	globs, err = filepath.Glob(filepath.Join(dirs.SnapDataDir, "foo", "*"))
 	c.Check(err, IsNil)
-	c.Check(globs, HasLen, 3+1) // +1 for "current"
+	c.Check(globs, HasLen, 2+1) // +1 for "current"
 }
 
 // check that if flags does not include DoInstallGC, no gc is done
 func (s *SnapTestSuite) TestClickInstallGCSuppressed(c *C) {
 	s.installThree(c, AllowUnauthenticated)
 
-	globs, err := filepath.Glob(filepath.Join(dirs.SnapSnapsDir, "foo.sideload", "*"))
+	globs, err := filepath.Glob(filepath.Join(dirs.SnapSnapsDir, "foo", "*"))
 	c.Assert(err, IsNil)
 	c.Assert(globs, HasLen, 3+1) // +1 for "current"
 
-	globs, err = filepath.Glob(filepath.Join(dirs.SnapDataDir, "foo.sideload", "*"))
+	globs, err = filepath.Glob(filepath.Join(dirs.SnapDataDir, "foo", "*"))
 	c.Check(err, IsNil)
 	c.Check(globs, HasLen, 3+1) // +1 for "current"
 }
@@ -164,6 +164,7 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 "version": "2",
 "developer": "test",
 "anon_download_url": "`+dlURL+`",
+"download_url": "`+dlURL+`",
 "icon_url": "`+iconURL+`"
 }`)
 		case "/dl":
@@ -181,7 +182,7 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 	dlURL = mockServer.URL + "/dl"
 	iconURL = mockServer.URL + "/icon"
 
-	storeDetailsURI, err = url.Parse(mockServer.URL + "/details/")
+	s.storeCfg.DetailsURI, err = url.Parse(mockServer.URL + "/details/")
 	c.Assert(err, IsNil)
 
 	name, err := Install("foo", "ch", 0, &progress.NullProgress{})
@@ -194,16 +195,16 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 
 func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 	// install one:
-	yamlFile, err := makeInstalledMockSnap(s.tempdir, "")
+	yamlFile, err := makeInstalledMockSnap("")
 	c.Assert(err, IsNil)
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "hello-snap.manifest"), []byte(`{"name": "hello-snap"}`), 0644), IsNil)
 	ag := &progress.NullProgress{}
-	part, err := NewInstalledSnap(yamlFile, "potato")
+	snap, err := NewInstalledSnap(yamlFile)
 	c.Assert(err, IsNil)
-	c.Assert(part.activate(true, ag), IsNil)
+	c.Assert(ActivateSnap(snap, ag), IsNil)
 	current := ActiveSnapByName("hello-snap")
 	c.Assert(current, NotNil)
 
@@ -221,7 +222,7 @@ func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 		}
 	}))
 
-	storeDetailsURI, err = url.Parse(mockServer.URL + "/details/")
+	s.storeCfg.DetailsURI, err = url.Parse(mockServer.URL + "/details/")
 	c.Assert(err, IsNil)
 
 	c.Assert(mockServer, NotNil)
@@ -235,7 +236,7 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 	yamlPath, err := s.makeInstalledMockSnap("name: foo\nversion: 1")
 	c.Assert(err, IsNil)
 	makeSnapActive(yamlPath)
-	installed, err := NewLocalSnapRepository().Installed()
+	installed, err := (&Overlord{}).Installed()
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 1)
 	c.Assert(ActiveSnapByName("foo"), NotNil)
@@ -254,6 +255,7 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 			io.WriteString(w, `{
 "package_name": "foo",
 "version": "2",
+"revision": 1,
 "developer": "`+testDeveloper+`",
 "anon_download_url": "`+dlURL+`",
 "icon_url": "`+iconURL+`"
@@ -273,7 +275,7 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 	dlURL = mockServer.URL + "/dl"
 	iconURL = mockServer.URL + "/icon"
 
-	storeDetailsURI, err = url.Parse(mockServer.URL + "/details/")
+	s.storeCfg.DetailsURI, err = url.Parse(mockServer.URL + "/details/")
 	c.Assert(err, IsNil)
 
 	// bulk
@@ -281,13 +283,15 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 		io.WriteString(w, `[{
 	"package_name": "foo",
 	"version": "2",
+        "revision": 3,
         "origin": "`+testDeveloper+`",
 	"anon_download_url": "`+dlURL+`",
+	"download_url": "`+dlURL+`",
 	"icon_url": "`+iconURL+`"
 }]`)
 	}))
 
-	storeBulkURI, err = url.Parse(mockServer.URL)
+	s.storeCfg.BulkURI, err = url.Parse(mockServer.URL)
 	c.Assert(err, IsNil)
 
 	c.Assert(mockServer, NotNil)
@@ -299,6 +303,7 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 	c.Assert(updates, HasLen, 1)
 	c.Check(updates[0].Name(), Equals, "foo")
 	c.Check(updates[0].Version(), Equals, "2")
+	c.Check(updates[0].Revision(), Equals, 3)
 	// ensure that we get a "local" snap back - not a remote one
 	c.Check(updates[0], FitsTypeOf, &Snap{})
 }

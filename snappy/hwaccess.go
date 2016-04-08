@@ -169,15 +169,14 @@ func writeUdevRuleForDeviceCgroup(snapname, device string) error {
 	}
 	devicePath := filepath.Base(device)
 
-	repo := NewLocalSnapRepository()
-	installed, err := repo.Installed()
+	installed, err := (&Overlord{}).Installed()
 	if err != nil {
 		return err
 	}
 	var acls []string
 	for _, snap := range installed {
 		if snap.Name() == name && (developer == "" || snap.Developer() == developer) {
-			for _, app := range snap.(*Snap).Apps() {
+			for _, app := range snap.Apps() {
 				acl := fmt.Sprintf(`KERNEL=="%v", TAG:="snappy-assign", ENV{SNAPPY_APP}:="%s"`+"\n",
 					devicePath, fmt.Sprintf("%s.%s", snap.Name(), app.Name))
 				acls = append(acls, acl)

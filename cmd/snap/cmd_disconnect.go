@@ -21,6 +21,8 @@ package main
 
 import (
 	"github.com/ubuntu-core/snappy/i18n"
+
+	"github.com/jessevdk/go-flags"
 )
 
 type cmdDisconnect struct {
@@ -49,7 +51,7 @@ Disconnects all plugs from the provided snap.
 `)
 
 func init() {
-	addCommand("disconnect", shortDisconnectHelp, longDisconnectHelp, func() interface{} {
+	addCommand("disconnect", shortDisconnectHelp, longDisconnectHelp, func() flags.Commander {
 		return &cmdDisconnect{}
 	})
 }

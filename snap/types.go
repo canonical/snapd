@@ -28,12 +28,11 @@ type Type string
 
 // The various types of snap parts we support
 const (
-	TypeApp       Type = "app"
-	TypeCore      Type = "core"
-	TypeFramework Type = "framework"
-	TypeGadget    Type = "gadget"
-	TypeOS        Type = "os"
-	TypeKernel    Type = "kernel"
+	TypeApp    Type = "app"
+	TypeCore   Type = "core"
+	TypeGadget Type = "gadget"
+	TypeOS     Type = "os"
+	TypeKernel Type = "kernel"
 )
 
 // MarshalJSON returns *m as the JSON encoding of m.

@@ -27,9 +27,11 @@ import (
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/provisioning"
+	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/store"
 )
 
-// InstallFlags can be used to pass additional flags to the install of a
+// SetupFlags can be used to pass additional flags to the install of a
 // snap
 type InstallFlags uint
 
@@ -42,20 +44,22 @@ const (
 	DoInstallGC
 	// AllowGadget allows the installation of Gadget packages, this does not affect updates.
 	AllowGadget
+	// DeveloperMode will install the snap without confinement
+	DeveloperMode
 )
 
-func installRemote(mStore *SnapUbuntuStoreRepository, remoteSnap *RemoteSnap, flags InstallFlags, meter progress.Meter) (string, error) {
+func installRemote(mStore *store.SnapUbuntuStoreRepository, remoteSnap *snap.Info, flags InstallFlags, meter progress.Meter) (string, error) {
 	downloadedSnap, err := mStore.Download(remoteSnap, meter)
 	if err != nil {
 		return "", fmt.Errorf("cannot download %s: %s", remoteSnap.Name(), err)
 	}
 	defer os.Remove(downloadedSnap)
 
-	if err := remoteSnap.saveStoreManifest(); err != nil {
+	if err := SaveManifest(remoteSnap); err != nil {
 		return "", err
 	}
 
-	localSnap, err := (&Overlord{}).Install(downloadedSnap, remoteSnap.Developer(), flags, meter)
+	localSnap, err := (&Overlord{}).Install(downloadedSnap, flags, meter)
 	if err != nil {
 		return "", err
 	}
@@ -63,16 +67,16 @@ func installRemote(mStore *SnapUbuntuStoreRepository, remoteSnap *RemoteSnap, fl
 	return localSnap.Name(), nil
 }
 
-func doUpdate(mStore *SnapUbuntuStoreRepository, part Part, flags InstallFlags, meter progress.Meter) error {
-	_, err := installRemote(mStore, part.(*RemoteSnap), flags, meter)
+func doUpdate(mStore *store.SnapUbuntuStoreRepository, rsnap *snap.Info, flags InstallFlags, meter progress.Meter) error {
+	_, err := installRemote(mStore, rsnap, flags, meter)
 	if err == ErrSideLoaded {
-		logger.Noticef("Skipping sideloaded package: %s", part.Name())
+		logger.Noticef("Skipping sideloaded package: %s", rsnap.Name())
 		return nil
 	} else if err != nil {
 		return err
 	}
 
-	if err := GarbageCollect(part.Name(), flags, meter); err != nil {
+	if err := GarbageCollect(rsnap.Name(), flags, meter); err != nil {
 		return err
 	}
 
@@ -90,28 +94,67 @@ func doUpdate(mStore *SnapUbuntuStoreRepository, part Part, flags InstallFlags, 
 //
 //
 // convertToInstalledSnaps takes a slice of remote snaps that got
-// updated and returns the corresponding local snap parts.
-func convertToInstalledSnaps(remoteUpdates []Part) ([]Part, error) {
-	installed, err := NewLocalSnapRepository().Installed()
+// updated and returns the corresponding local snaps
+func convertToInstalledSnaps(remoteUpdates []*snap.Info) ([]*Snap, error) {
+	installed, err := (&Overlord{}).Installed()
 	if err != nil {
 		return nil, err
 	}
 
-	installedUpdates := make([]Part, 0, len(remoteUpdates))
-	for _, part := range remoteUpdates {
-		localPart := FindSnapsByNameAndVersion(part.Name(), part.Version(), installed)
-		if len(localPart) != 1 {
-			return nil, fmt.Errorf("expected one local part for the update %v, got %v", part, len(localPart))
+	installedUpdates := make([]*Snap, 0, len(remoteUpdates))
+	for _, snap := range remoteUpdates {
+		for _, installed := range installed {
+			if snap.Name() == installed.Name() && snap.Version == installed.Version() {
+				installedUpdates = append(installedUpdates, installed)
+			}
 		}
-		installedUpdates = append(installedUpdates, localPart[0])
 	}
 
 	return installedUpdates, nil
 }
 
+// snapUpdates identifies which snaps have updates in the store.
+func snapUpdates(repo *store.SnapUbuntuStoreRepository) (snaps []*snap.Info, err error) {
+	// TODO: this should eventually be snap-id based
+	// NOTE this *will* send .sideload apps to the store.
+	installed, err := ActiveSnapIterByType(fullNameWithChannel, snap.TypeApp, snap.TypeGadget, snap.TypeOS, snap.TypeKernel)
+	if err != nil || len(installed) == 0 {
+		return nil, err
+	}
+
+	rsnaps, err := repo.Updates(installed)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, rsnap := range rsnaps {
+		current := ActiveSnapByName(rsnap.Name())
+		if current == nil || current.Revision() != rsnap.Revision {
+			snaps = append(snaps, rsnap)
+		}
+	}
+
+	return snaps, nil
+}
+
+var storeConfig = (*store.SnapUbuntuStoreConfig)(nil)
+
+// TODO: kill this function once fewer places make a store on the fly
+
+// NewConfiguredUbuntuStoreSnapRepository creates a new fully configured store.SnapUbuntuStoreRepository with the store id selected by the gadget.
+func NewConfiguredUbuntuStoreSnapRepository() *store.SnapUbuntuStoreRepository {
+	storeID := ""
+	if cand := os.Getenv("UBUNTU_STORE_ID"); cand != "" {
+		storeID = cand
+	} else if cand := StoreID(); cand != "" {
+		storeID = cand
+	}
+	return store.NewUbuntuStoreSnapRepository(storeConfig, storeID)
+}
+
 // Update updates the selected name
-func Update(name string, flags InstallFlags, meter progress.Meter) ([]Part, error) {
-	installed, err := NewLocalSnapRepository().Installed()
+func Update(name string, flags InstallFlags, meter progress.Meter) ([]*Snap, error) {
+	installed, err := (&Overlord{}).Installed()
 	if err != nil {
 		return nil, err
 	}
@@ -120,23 +163,29 @@ func Update(name string, flags InstallFlags, meter progress.Meter) ([]Part, erro
 		return nil, ErrNotInstalled
 	}
 
-	mStore := NewUbuntuStoreSnapRepository()
+	mStore := NewConfiguredUbuntuStoreSnapRepository()
 	// zomg :-(
 	// TODO: query the store for just this package, instead of this
-	updates, err := mStore.Updates()
+	updates, err := snapUpdates(mStore)
 	if err != nil {
 		return nil, fmt.Errorf("cannot get updates: %s", err)
 	}
-	upd := FindSnapsByName(QualifiedName(cur[0]), updates)
-	if len(upd) < 1 {
+	var update *snap.Info
+	for _, upd := range updates {
+		if cur[0].Name() == upd.Name() {
+			update = upd
+			break
+		}
+	}
+	if update == nil {
 		return nil, fmt.Errorf("cannot find any update for %q", name)
 	}
 
-	if err := doUpdate(mStore, upd[0], flags, meter); err != nil {
+	if err := doUpdate(mStore, update, flags, meter); err != nil {
 		return nil, err
 	}
 
-	installedUpdates, err := convertToInstalledSnaps(upd)
+	installedUpdates, err := convertToInstalledSnaps([]*snap.Info{update})
 	if err != nil {
 		return nil, err
 	}
@@ -144,19 +193,19 @@ func Update(name string, flags InstallFlags, meter progress.Meter) ([]Part, erro
 	return installedUpdates, nil
 }
 
-// UpdateAll the installed snappy packages, it returns the updated Parts
+// UpdateAll the installed snappy packages, it returns the updated Snaps
 // if updates where available and an error and nil if any of the updates
 // fail to apply.
-func UpdateAll(flags InstallFlags, meter progress.Meter) ([]Part, error) {
-	mStore := NewUbuntuStoreSnapRepository()
-	updates, err := mStore.Updates()
+func UpdateAll(flags InstallFlags, meter progress.Meter) ([]*Snap, error) {
+	mStore := NewConfiguredUbuntuStoreSnapRepository()
+	updates, err := snapUpdates(mStore)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, part := range updates {
-		meter.Notify(fmt.Sprintf("Updating %s (%s)", part.Name(), part.Version()))
-		if err := doUpdate(mStore, part, flags, meter); err != nil {
+	for _, snap := range updates {
+		meter.Notify(fmt.Sprintf("Updating %s (%s)", snap.Name(), snap.Version))
+		if err := doUpdate(mStore, snap, flags, meter); err != nil {
 			return nil, err
 		}
 	}
@@ -187,7 +236,7 @@ func doInstall(name, channel string, flags InstallFlags, meter progress.Meter) (
 		}
 	}()
 
-	// consume local parts
+	// consume local snaps
 	if fi, err := os.Stat(name); err == nil && fi.Mode().IsRegular() {
 		// we allow unauthenticated package when in developer
 		// mode
@@ -195,65 +244,70 @@ func doInstall(name, channel string, flags InstallFlags, meter progress.Meter) (
 			flags |= AllowUnauthenticated
 		}
 
-		return installClick(name, flags, meter, SideloadedDeveloper)
+		snap, err := (&Overlord{}).Install(name, flags, meter)
+		if err != nil {
+			return "", err
+		}
+
+		return snap.Name(), nil
 	}
 
 	// check repos next
-	mStore := NewUbuntuStoreSnapRepository()
-	installed, err := NewLocalSnapRepository().Installed()
+	mStore := NewConfiguredUbuntuStoreSnapRepository()
+	installed, err := (&Overlord{}).Installed()
 	if err != nil {
 		return "", err
 	}
 
-	part, err := mStore.Snap(name, channel)
+	snap, err := mStore.Snap(name, channel)
 	if err != nil {
 		return "", err
 	}
 
-	cur := FindSnapsByNameAndVersion(QualifiedName(part), part.Version(), installed)
+	cur := FindSnapsByNameAndVersion(snap.Name(), snap.Version, installed)
 	if len(cur) != 0 {
 		return "", ErrAlreadyInstalled
 	}
-	if PackageNameActive(part.Name()) {
+	if PackageNameActive(snap.Name()) {
 		return "", ErrPackageNameAlreadyInstalled
 	}
 
-	return installRemote(mStore, part, flags, meter)
+	return installRemote(mStore, snap, flags, meter)
 }
 
 // GarbageCollect removes all versions two older than the current active
 // version, as long as NeedsReboot() is false on all the versions found, and
 // DoInstallGC is set.
 func GarbageCollect(name string, flags InstallFlags, pb progress.Meter) error {
-	var parts BySnapVersion
+	var snaps BySnapVersion
 
 	if (flags & DoInstallGC) == 0 {
 		return nil
 	}
 
-	installed, err := NewLocalSnapRepository().Installed()
+	installed, err := (&Overlord{}).Installed()
 	if err != nil {
 		return err
 	}
 
-	parts = FindSnapsByName(name, installed)
-	if len(parts) < 3 {
+	snaps = FindSnapsByName(name, installed)
+	if len(snaps) < 3 {
 		// not enough things installed to do gc
 		return nil
 	}
 
-	sort.Sort(parts)
-	active := -1 // active is the index of the active part in parts (-1 if no active part)
+	sort.Sort(snaps)
+	active := -1 // active is the index of the active snap in snaps (-1 if no active snap)
 
-	for i, part := range parts {
-		if part.IsActive() {
+	for i, snap := range snaps {
+		if snap.IsActive() {
 			if active > -1 {
 				return ErrGarbageCollectImpossible("more than one active (should not happen).")
 			}
 			active = i
 		}
-		if part.NeedsReboot() {
-			return nil // don't do gc on parts that need reboot.
+		if snap.NeedsReboot() {
+			return nil // don't do gc on snaps that need reboot.
 		}
 	}
 
@@ -262,8 +316,8 @@ func GarbageCollect(name string, flags InstallFlags, pb progress.Meter) error {
 		return nil
 	}
 
-	for _, part := range parts[:active-1] {
-		if err := (&Overlord{}).Uninstall(part.(*Snap), pb); err != nil {
+	for _, snap := range snaps[:active-1] {
+		if err := (&Overlord{}).Uninstall(snap, pb); err != nil {
 			return ErrGarbageCollectImpossible(err.Error())
 		}
 	}

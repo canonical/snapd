@@ -30,6 +30,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/osutil"
+	"github.com/ubuntu-core/snappy/snap"
 )
 
 // valid simple prefixes
@@ -108,10 +109,10 @@ func isValidLocalizedDesktopFilePrefix(line string) bool {
 	return false
 }
 
-func rewriteExecLine(m *snapYaml, line string) (string, error) {
+func rewriteExecLine(s *snap.Info, line string) (string, error) {
 	cmd := strings.SplitN(line, "=", 2)[1]
-	for _, app := range m.Apps {
-		validCmd := filepath.Base(generateBinaryName(m, app))
+	for _, app := range s.Apps {
+		validCmd := filepath.Base(generateBinaryName(app))
 		// check the prefix to allow %flag style args
 		// this is ok because desktop files are not run through sh
 		// so we don't have to worry about the arguments too much
@@ -125,7 +126,7 @@ func rewriteExecLine(m *snapYaml, line string) (string, error) {
 	return "", fmt.Errorf("invalid exec command: %q", cmd)
 }
 
-func sanitizeDesktopFile(m *snapYaml, realBaseDir string, rawcontent []byte) []byte {
+func sanitizeDesktopFile(s *snap.Info, realBaseDir string, rawcontent []byte) []byte {
 	newContent := []string{}
 
 	scanner := bufio.NewScanner(bytes.NewReader(rawcontent))
@@ -145,7 +146,7 @@ func sanitizeDesktopFile(m *snapYaml, realBaseDir string, rawcontent []byte) []b
 		// rewrite exec lines to an absolute path for the binary
 		if strings.HasPrefix(line, "Exec=") {
 			var err error
-			line, err = rewriteExecLine(m, line)
+			line, err = rewriteExecLine(s, line)
 			if err != nil {
 				// something went wrong, ignore the line
 				continue
@@ -160,10 +161,12 @@ func sanitizeDesktopFile(m *snapYaml, realBaseDir string, rawcontent []byte) []b
 	return []byte(strings.Join(newContent, "\n"))
 }
 
-func addPackageDesktopFiles(m *snapYaml, baseDir string) error {
+func addPackageDesktopFiles(s *snap.Info) error {
 	if err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0755); err != nil {
 		return err
 	}
+
+	baseDir := s.MountDir()
 
 	desktopFiles, err := filepath.Glob(filepath.Join(baseDir, "meta", "gui", "*.desktop"))
 	if err != nil {
@@ -177,9 +180,9 @@ func addPackageDesktopFiles(m *snapYaml, baseDir string) error {
 		}
 
 		realBaseDir := stripGlobalRootDir(baseDir)
-		content = sanitizeDesktopFile(m, realBaseDir, content)
+		content = sanitizeDesktopFile(s, realBaseDir, content)
 
-		installedDesktopFileName := filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s", m.Name, filepath.Base(df)))
+		installedDesktopFileName := filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s", s.Name(), filepath.Base(df)))
 		if err := osutil.AtomicWriteFile(installedDesktopFileName, []byte(content), 0755, 0); err != nil {
 			return err
 		}
@@ -188,8 +191,8 @@ func addPackageDesktopFiles(m *snapYaml, baseDir string) error {
 	return nil
 }
 
-func removePackageDesktopFiles(m *snapYaml) error {
-	glob := filepath.Join(dirs.SnapDesktopFilesDir, m.Name+"_*.desktop")
+func removePackageDesktopFiles(s *snap.Info) error {
+	glob := filepath.Join(dirs.SnapDesktopFilesDir, s.Name()+"_*.desktop")
 	activeDesktopFiles, err := filepath.Glob(glob)
 	if err != nil {
 		return fmt.Errorf("cannot get desktop files for %v: %s", glob, err)

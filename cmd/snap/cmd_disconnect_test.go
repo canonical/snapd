@@ -58,7 +58,7 @@ Help Options:
 func (s *SnapSuite) TestDisconnectExplicitEverything(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "POST")
-		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
+		c.Check(r.URL.Path, Equals, "/v2/interfaces")
 		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
 			"action": "disconnect",
 			"plugs": []interface{}{
@@ -86,7 +86,7 @@ func (s *SnapSuite) TestDisconnectExplicitEverything(c *C) {
 func (s *SnapSuite) TestDisconnectEverythingFromSpecificSlot(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "POST")
-		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
+		c.Check(r.URL.Path, Equals, "/v2/interfaces")
 		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
 			"action": "disconnect",
 			"plugs": []interface{}{
@@ -114,7 +114,7 @@ func (s *SnapSuite) TestDisconnectEverythingFromSpecificSlot(c *C) {
 func (s *SnapSuite) TestDisconnectEverythingFromSpecificSnap(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "POST")
-		c.Check(r.URL.Path, Equals, "/2.0/interfaces")
+		c.Check(r.URL.Path, Equals, "/v2/interfaces")
 		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
 			"action": "disconnect",
 			"plugs": []interface{}{

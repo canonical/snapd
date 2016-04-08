@@ -21,13 +21,20 @@ package overlord_test
 
 import (
 	"io/ioutil"
+	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
+	"time"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/tomb.v2"
 
 	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/testutil"
+
 	"github.com/ubuntu-core/snappy/overlord"
+	"github.com/ubuntu-core/snappy/overlord/state"
 )
 
 func TestOverlord(t *testing.T) { TestingT(t) }
@@ -36,15 +43,17 @@ type overlordSuite struct{}
 
 var _ = Suite(&overlordSuite{})
 
-func (os *overlordSuite) SetUpTest(c *C) {
-	dirs.SnapStateFile = filepath.Join(c.MkDir(), "test.json")
+func (ovs *overlordSuite) SetUpTest(c *C) {
+	tmpdir := c.MkDir()
+	dirs.SetRootDir(tmpdir)
+	dirs.SnapStateFile = filepath.Join(tmpdir, "test.json")
 }
 
-func (os *overlordSuite) TearDownTest(c *C) {
+func (ovs *overlordSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 }
 
-func (os *overlordSuite) TestNew(c *C) {
+func (ovs *overlordSuite) TestNew(c *C) {
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
 	c.Check(o, NotNil)
@@ -53,12 +62,12 @@ func (os *overlordSuite) TestNew(c *C) {
 	c.Check(o.AssertManager(), NotNil)
 	c.Check(o.InterfaceManager(), NotNil)
 
-	c.Check(o.StateEngine(), NotNil)
-
-	c.Check(o.StateEngine().State(), NotNil)
+	s := o.State()
+	c.Check(s, NotNil)
+	c.Check(o.Engine().State(), Equals, s)
 }
 
-func (os *overlordSuite) TestNewWithGoodState(c *C) {
+func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
 	fakeState := []byte(`{"data":{"some":"data"},"changes":null,"tasks":null}`)
 	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, IsNil)
@@ -66,7 +75,7 @@ func (os *overlordSuite) TestNewWithGoodState(c *C) {
 	o, err := overlord.New()
 
 	c.Assert(err, IsNil)
-	state := o.StateEngine().State()
+	state := o.State()
 	c.Assert(err, IsNil)
 	state.Lock()
 	defer state.Unlock()
@@ -76,11 +85,315 @@ func (os *overlordSuite) TestNewWithGoodState(c *C) {
 	c.Assert(string(d), DeepEquals, string(fakeState))
 }
 
-func (os *overlordSuite) TestNewWithInvalidState(c *C) {
+func (ovs *overlordSuite) TestNewWithInvalidState(c *C) {
 	fakeState := []byte(``)
 	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, IsNil)
 
 	_, err = overlord.New()
 	c.Assert(err, ErrorMatches, "EOF")
+}
+
+type witnessManager struct {
+	state          *state.State
+	expectedEnsure int
+	ensureCalled   chan struct{}
+	ensureCallack  func(s *state.State) error
+}
+
+func (wm *witnessManager) Ensure() error {
+	if wm.expectedEnsure--; wm.expectedEnsure == 0 {
+		close(wm.ensureCalled)
+		return nil
+	}
+	if wm.ensureCallack != nil {
+		return wm.ensureCallack(wm.state)
+	}
+	return nil
+}
+
+func (wm *witnessManager) Stop() {
+}
+
+func (wm *witnessManager) Wait() {
+}
+
+func (ovs *overlordSuite) TestTrivialRunAndStop(c *C) {
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	o.Loop()
+
+	err = o.Stop()
+	c.Assert(err, IsNil)
+}
+
+func (ovs *overlordSuite) TestEnsureLoopRunAndStop(c *C) {
+	restoreIntv := overlord.SetEnsureIntervalForTest(10 * time.Millisecond)
+	defer restoreIntv()
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	witness := &witnessManager{
+		state:          o.State(),
+		expectedEnsure: 2,
+		ensureCalled:   make(chan struct{}),
+	}
+	o.Engine().AddManager(witness)
+
+	o.Loop()
+	defer o.Stop()
+
+	t0 := time.Now()
+	select {
+	case <-witness.ensureCalled:
+	case <-time.After(2 * time.Second):
+		c.Fatal("Ensure calls not happening")
+	}
+	c.Check(time.Since(t0) >= 20*time.Millisecond, Equals, true)
+
+	err = o.Stop()
+	c.Assert(err, IsNil)
+}
+
+func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBefore(c *C) {
+	restoreIntv := overlord.SetEnsureIntervalForTest(10 * time.Minute)
+	defer restoreIntv()
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	witness := &witnessManager{
+		state:          o.State(),
+		expectedEnsure: 1,
+		ensureCalled:   make(chan struct{}),
+	}
+	se := o.Engine()
+	se.AddManager(witness)
+
+	o.Loop()
+	defer o.Stop()
+
+	se.State().EnsureBefore(10 * time.Millisecond)
+
+	select {
+	case <-witness.ensureCalled:
+	case <-time.After(2 * time.Second):
+		c.Fatal("Ensure calls not happening")
+	}
+}
+
+func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBeforeInEnsure(c *C) {
+	restoreIntv := overlord.SetEnsureIntervalForTest(10 * time.Minute)
+	defer restoreIntv()
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	ensure := func(s *state.State) error {
+		s.EnsureBefore(0)
+		return nil
+	}
+
+	witness := &witnessManager{
+		state:          o.State(),
+		expectedEnsure: 2,
+		ensureCalled:   make(chan struct{}),
+		ensureCallack:  ensure,
+	}
+	se := o.Engine()
+	se.AddManager(witness)
+
+	o.Loop()
+	defer o.Stop()
+
+	se.State().EnsureBefore(0)
+
+	select {
+	case <-witness.ensureCalled:
+	case <-time.After(2 * time.Second):
+		c.Fatal("Ensure calls not happening")
+	}
+}
+
+func (ovs *overlordSuite) TestCheckpoint(c *C) {
+	oldUmask := syscall.Umask(0)
+	defer syscall.Umask(oldUmask)
+
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	_, err = os.Stat(dirs.SnapStateFile)
+	c.Check(os.IsNotExist(err), Equals, true)
+
+	s := o.State()
+	s.Lock()
+	s.Set("mark", 1)
+	s.Unlock()
+
+	st, err := os.Stat(dirs.SnapStateFile)
+	c.Assert(err, IsNil)
+	c.Assert(st.Mode(), Equals, os.FileMode(0600))
+
+	content, err := ioutil.ReadFile(dirs.SnapStateFile)
+	c.Assert(err, IsNil)
+	c.Check(string(content), testutil.Contains, `"mark":1`)
+}
+
+type runnerManager struct {
+	runner         *state.TaskRunner
+	ensureCallback func()
+}
+
+func newRunnerManager(s *state.State) *runnerManager {
+	rm := &runnerManager{
+		runner: state.NewTaskRunner(s),
+	}
+
+	rm.runner.AddHandler("runMgr1", func(t *state.Task, _ *tomb.Tomb) error {
+		s := t.State()
+		s.Lock()
+		defer s.Unlock()
+		s.Set("runMgr1Mark", 1)
+		return nil
+	}, nil)
+	rm.runner.AddHandler("runMgr2", func(t *state.Task, _ *tomb.Tomb) error {
+		s := t.State()
+		s.Lock()
+		defer s.Unlock()
+		s.Set("runMgr2Mark", 1)
+		return nil
+	}, nil)
+	rm.runner.AddHandler("runMgrEnsureBefore", func(t *state.Task, _ *tomb.Tomb) error {
+		s := t.State()
+		s.Lock()
+		defer s.Unlock()
+		s.EnsureBefore(20 * time.Millisecond)
+		return nil
+	}, nil)
+
+	return rm
+}
+
+func (rm *runnerManager) Ensure() error {
+	if rm.ensureCallback != nil {
+		rm.ensureCallback()
+	}
+	rm.runner.Ensure()
+	return nil
+}
+
+func (rm *runnerManager) Stop() {
+	rm.runner.Stop()
+}
+
+func (rm *runnerManager) Wait() {
+	rm.runner.Wait()
+}
+
+func (ovs *overlordSuite) TestTrivialSettle(c *C) {
+	restoreIntv := overlord.SetEnsureIntervalForTest(1 * time.Minute)
+	defer restoreIntv()
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	se := o.Engine()
+	s := se.State()
+	rm1 := newRunnerManager(s)
+	se.AddManager(rm1)
+
+	defer o.Engine().Stop()
+
+	s.Lock()
+	defer s.Unlock()
+
+	chg := s.NewChange("chg", "...")
+	t1 := s.NewTask("runMgr1", "1...")
+	chg.AddTask(t1)
+
+	s.Unlock()
+
+	o.Settle()
+
+	s.Lock()
+	c.Check(t1.Status(), Equals, state.DoneStatus)
+
+	var v int
+	err = s.Get("runMgr1Mark", &v)
+	c.Check(err, IsNil)
+}
+
+func (ovs *overlordSuite) TestSettleChain(c *C) {
+	restoreIntv := overlord.SetEnsureIntervalForTest(1 * time.Minute)
+	defer restoreIntv()
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	se := o.Engine()
+	s := se.State()
+	rm1 := newRunnerManager(s)
+	se.AddManager(rm1)
+
+	defer o.Engine().Stop()
+
+	s.Lock()
+	defer s.Unlock()
+
+	chg := s.NewChange("chg", "...")
+	t1 := s.NewTask("runMgr1", "1...")
+	t2 := s.NewTask("runMgr2", "2...")
+	t2.WaitFor(t1)
+	chg.AddAll(state.NewTaskSet(t1, t2))
+
+	s.Unlock()
+
+	o.Settle()
+
+	s.Lock()
+	c.Check(t1.Status(), Equals, state.DoneStatus)
+	c.Check(t2.Status(), Equals, state.DoneStatus)
+
+	var v int
+	err = s.Get("runMgr1Mark", &v)
+	c.Check(err, IsNil)
+	err = s.Get("runMgr2Mark", &v)
+	c.Check(err, IsNil)
+}
+
+func (ovs *overlordSuite) TestSettleExplicitEnsureBefore(c *C) {
+	restoreIntv := overlord.SetEnsureIntervalForTest(1 * time.Minute)
+	defer restoreIntv()
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	se := o.Engine()
+	s := se.State()
+	rm1 := newRunnerManager(s)
+	rm1.ensureCallback = func() {
+		s.Lock()
+		defer s.Unlock()
+		v := 0
+		s.Get("ensureCount", &v)
+		s.Set("ensureCount", v+1)
+	}
+
+	se.AddManager(rm1)
+
+	defer o.Engine().Stop()
+
+	s.Lock()
+	defer s.Unlock()
+
+	chg := s.NewChange("chg", "...")
+	t := s.NewTask("runMgrEnsureBefore", "...")
+	chg.AddTask(t)
+	s.Unlock()
+
+	o.Settle()
+
+	s.Lock()
+	c.Check(t.Status(), Equals, state.DoneStatus)
+
+	var v int
+	err = s.Get("ensureCount", &v)
+	c.Check(err, IsNil)
+	c.Check(v, Equals, 2)
 }

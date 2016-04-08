@@ -118,6 +118,7 @@ func (sbs *snapBuildSuite) SetUpSuite(c *C) {
 func (sbs *snapBuildSuite) TestDecodeOK(c *C) {
 	encoded := "type: snap-build\n" +
 		"authority-id: dev-id1\n" +
+		"series: 16\n" +
 		"snap-id: snap-id-1\n" +
 		"snap-digest: sha256 ...\n" +
 		"grade: stable\n" +
@@ -132,6 +133,7 @@ func (sbs *snapBuildSuite) TestDecodeOK(c *C) {
 	snapBuild := a.(*asserts.SnapBuild)
 	c.Check(snapBuild.AuthorityID(), Equals, "dev-id1")
 	c.Check(snapBuild.Timestamp(), Equals, sbs.ts)
+	c.Check(snapBuild.Series(), Equals, "16")
 	c.Check(snapBuild.SnapID(), Equals, "snap-id-1")
 	c.Check(snapBuild.SnapDigest(), Equals, "sha256 ...")
 	c.Check(snapBuild.SnapSize(), Equals, uint64(10000))
@@ -145,6 +147,7 @@ const (
 func (sbs *snapBuildSuite) TestDecodeInvalid(c *C) {
 	encoded := "type: snap-build\n" +
 		"authority-id: dev-id1\n" +
+		"series: 16\n" +
 		"snap-id: snap-id-1\n" +
 		"snap-digest: sha256 ...\n" +
 		"grade: stable\n" +
@@ -155,6 +158,7 @@ func (sbs *snapBuildSuite) TestDecodeInvalid(c *C) {
 		"openpgp c2ln"
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
+		{"series: 16\n", "", `"series" header is mandatory`},
 		{"snap-id: snap-id-1\n", "", `"snap-id" header is mandatory`},
 		{"snap-digest: sha256 ...\n", "", `"snap-digest" header is mandatory`},
 		{"grade: stable\n", "", `"grade" header is mandatory`},
@@ -224,6 +228,7 @@ func (sbs *snapBuildSuite) TestSnapBuildCheck(c *C) {
 
 	headers := map[string]string{
 		"authority-id": "dev-id1",
+		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-digest":  "sha256 ...",
 		"grade":        "devel",
@@ -242,6 +247,7 @@ func (sbs *snapBuildSuite) TestSnapBuildCheckInconsistentTimestamp(c *C) {
 
 	headers := map[string]string{
 		"authority-id": "dev-id1",
+		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-digest":  "sha256 ...",
 		"grade":        "devel",
@@ -269,10 +275,11 @@ func (srs *snapRevSuite) SetUpSuite(c *C) {
 func (srs *snapRevSuite) makeValidEncoded() string {
 	return "type: snap-revision\n" +
 		"authority-id: store-id1\n" +
+		"series: 16\n" +
 		"snap-id: snap-id-1\n" +
 		"snap-digest: sha256 ...\n" +
+		"snap-size: 123\n" +
 		"snap-revision: 1\n" +
-		"snap-build: sha256 ...\n" +
 		"developer-id: dev-id1\n" +
 		"revision: 1\n" +
 		srs.tsLine +
@@ -284,10 +291,11 @@ func (srs *snapRevSuite) makeValidEncoded() string {
 func (srs *snapRevSuite) makeHeaders(overrides map[string]string) map[string]string {
 	headers := map[string]string{
 		"authority-id":  "store-id1",
+		"series":        "16",
 		"snap-id":       "snap-id-1",
 		"snap-digest":   "sha256 ...",
+		"snap-size":     "123",
 		"snap-revision": "1",
-		"snap-build":    "sha256 ...",
 		"developer-id":  "dev-id1",
 		"revision":      "1",
 		"timestamp":     "2015-11-25T20:00:00Z",
@@ -306,10 +314,11 @@ func (srs *snapRevSuite) TestDecodeOK(c *C) {
 	snapRev := a.(*asserts.SnapRevision)
 	c.Check(snapRev.AuthorityID(), Equals, "store-id1")
 	c.Check(snapRev.Timestamp(), Equals, srs.ts)
+	c.Check(snapRev.Series(), Equals, "16")
 	c.Check(snapRev.SnapID(), Equals, "snap-id-1")
 	c.Check(snapRev.SnapDigest(), Equals, "sha256 ...")
+	c.Check(snapRev.SnapSize(), Equals, uint64(123))
 	c.Check(snapRev.SnapRevision(), Equals, uint64(1))
-	c.Check(snapRev.SnapBuild(), Equals, "sha256 ...")
 	c.Check(snapRev.DeveloperID(), Equals, "dev-id1")
 	c.Check(snapRev.Revision(), Equals, 1)
 }
@@ -321,12 +330,15 @@ const (
 func (srs *snapRevSuite) TestDecodeInvalid(c *C) {
 	encoded := srs.makeValidEncoded()
 	invalidTests := []struct{ original, invalid, expectedErr string }{
+		{"series: 16\n", "", `"series" header is mandatory`},
 		{"snap-id: snap-id-1\n", "", `"snap-id" header is mandatory`},
 		{"snap-digest: sha256 ...\n", "", `"snap-digest" header is mandatory`},
+		{"snap-size: 123\n", "", `"snap-size" header is mandatory`},
+		{"snap-size: 123\n", "snap-size: -1\n", `"snap-size" header is not an unsigned integer: -1`},
+		{"snap-size: 123\n", "snap-size: zzz\n", `"snap-size" header is not an unsigned integer: zzz`},
 		{"snap-revision: 1\n", "", `"snap-revision" header is mandatory`},
 		{"snap-revision: 1\n", "snap-revision: -1\n", `"snap-revision" header is not an unsigned integer: -1`},
 		{"snap-revision: 1\n", "snap-revision: zzz\n", `"snap-revision" header is not an unsigned integer: zzz`},
-		{"snap-build: sha256 ...\n", "", `"snap-build" header is mandatory`},
 		{"developer-id: dev-id1\n", "", `"developer-id" header is mandatory`},
 		{srs.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
 	}
@@ -372,6 +384,7 @@ func (srs *snapRevSuite) TestPrimaryKey(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = db.Find(asserts.SnapRevisionType, map[string]string{
+		"series":      "16",
 		"snap-id":     headers["snap-id"],
 		"snap-digest": headers["snap-digest"],
 	})

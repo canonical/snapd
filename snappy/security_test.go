@@ -20,7 +20,6 @@
 package snappy
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -31,7 +30,6 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/osutil"
-	"github.com/ubuntu-core/snappy/snap"
 )
 
 type SecurityTestSuite struct {
@@ -127,30 +125,7 @@ func (a *SecurityTestSuite) TestSnappyGetSecurityProfile(c *C) {
 		Version: "1.0",
 	}
 	b := AppYaml{Name: "bin/app"}
-	ap, err := getSecurityProfile(&m, b.Name, "/snaps/foo.mvo/1.0/")
-	c.Assert(err, IsNil)
-	c.Check(ap, Equals, "foo.mvo_bin-app_1.0")
-}
-
-func (a *SecurityTestSuite) TestSnappyGetSecurityProfileInvalid(c *C) {
-	m := snapYaml{
-		Name:    "foo",
-		Version: "1.0",
-	}
-	b := AppYaml{Name: "bin/app"}
-	_, err := getSecurityProfile(&m, b.Name, "/snaps/foo/1.0/")
-	c.Assert(err, Equals, ErrInvalidPart)
-}
-
-func (a *SecurityTestSuite) TestSnappyGetSecurityProfileFramework(c *C) {
-	m := snapYaml{
-		Name:    "foo",
-		Version: "1.0",
-		Type:    snap.TypeFramework,
-	}
-	b := AppYaml{Name: "bin/app"}
-	ap, err := getSecurityProfile(&m, b.Name, "/snaps/foo.mvo/1.0/")
-	c.Assert(err, IsNil)
+	ap := getSecurityProfile(&m, b.Name, "/snaps/foo/1.0/")
 	c.Check(ap, Equals, "foo_bin-app_1.0")
 }
 
@@ -177,7 +152,6 @@ func (a *SecurityTestSuite) TestSecurityFindWhitespacePrefixNeedsQuoting(c *C) {
 	c.Assert(findWhitespacePrefix(s, t), Equals, t)
 }
 
-// FIXME: need additional test for frameworkPolicy
 func (a *SecurityTestSuite) TestSecurityFindTemplateApparmor(c *C) {
 	makeMockApparmorTemplate(c, "mock-template", []byte(`something`))
 
@@ -191,7 +165,6 @@ func (a *SecurityTestSuite) TestSecurityFindTemplateApparmorNotFound(c *C) {
 	c.Assert(err, DeepEquals, &errPolicyNotFound{"template", &securityPolicyTypeAppArmor, "not-available-templ"})
 }
 
-// FIXME: need additional test for frameworkPolicy
 func (a *SecurityTestSuite) TestSecurityFindCaps(c *C) {
 	for _, f := range []string{"cap1", "cap2"} {
 		makeMockApparmorCap(c, f, []byte(f))
@@ -578,19 +551,19 @@ sc-network-client
 	}
 
 	// generate the apparmor profile
-	err := sd.generatePolicyForServiceBinary(m, "binary", "/snaps/app.developer/1.0")
+	err := sd.generatePolicyForServiceBinary(m, "binary", "/snaps/app/1.0")
 	c.Assert(err, IsNil)
 
 	// ensure the apparmor policy got loaded
 	c.Assert(a.loadAppArmorPolicyCalled, Equals, true)
 
-	aaProfile := filepath.Join(dirs.SnapAppArmorDir, "pkg.developer_binary_1.0")
+	aaProfile := filepath.Join(dirs.SnapAppArmorDir, "pkg_binary_1.0")
 	ensureFileContentMatches(c, aaProfile, `# apparmor
 # Rules specified via caps (policy groups)
 
 aa-network-client
 `)
-	scProfile := filepath.Join(dirs.SnapSeccompDir, "pkg.developer_binary_1.0")
+	scProfile := filepath.Join(dirs.SnapSeccompDir, "pkg_binary_1.0")
 	ensureFileContentMatches(c, scProfile, `write
 
 sc-network-client`)
@@ -627,7 +600,7 @@ read
 write
 `))
 
-	mockSnapYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecuritySnapYaml)
+	mockSnapYamlFn, err := makeInstalledMockSnap(mockSecuritySnapYaml)
 	c.Assert(err, IsNil)
 
 	// the acutal thing that gets tested
@@ -638,12 +611,12 @@ write
 	c.Assert(a.loadAppArmorPolicyCalled, Equals, true)
 
 	// apparmor
-	generatedProfileFn := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("hello-world.%s_binary1_1.0", testDeveloper))
+	generatedProfileFn := filepath.Join(dirs.SnapAppArmorDir, "hello-world_binary1_1.0")
 	ensureFileContentMatches(c, generatedProfileFn, `# some header
 # No caps (policy groups) specified
 `)
 	// ... and seccomp
-	generatedProfileFn = filepath.Join(dirs.SnapSeccompDir, fmt.Sprintf("hello-world.%s_binary1_1.0", testDeveloper))
+	generatedProfileFn = filepath.Join(dirs.SnapSeccompDir, "hello-world_binary1_1.0")
 	ensureFileContentMatches(c, generatedProfileFn, `
 # EXPLICITLY DENIED: kexec
 read
@@ -663,7 +636,7 @@ read
 write
 `))
 
-	mockSnapYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecuritySnapYaml)
+	mockSnapYamlFn, err := makeInstalledMockSnap(mockSecuritySnapYaml)
 	c.Assert(err, IsNil)
 	configHook := filepath.Join(filepath.Dir(mockSnapYamlFn), "hooks", "config")
 	os.MkdirAll(filepath.Dir(configHook), 0755)
@@ -675,7 +648,7 @@ write
 	c.Assert(err, IsNil)
 
 	// and for snappy-config
-	generatedProfileFn := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("hello-world.%s_snappy-config_1.0", testDeveloper))
+	generatedProfileFn := filepath.Join(dirs.SnapAppArmorDir, "hello-world_snappy-config_1.0")
 	ensureFileContentMatches(c, generatedProfileFn, `# some header
 # No caps (policy groups) specified
 `)
@@ -692,7 +665,7 @@ deny kexec
 read
 write
 `))
-	mockSnapYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecuritySnapYaml)
+	mockSnapYamlFn, err := makeInstalledMockSnap(mockSecuritySnapYaml)
 	c.Assert(err, IsNil)
 
 	err = GeneratePolicyFromFile(mockSnapYamlFn, false)
@@ -723,21 +696,21 @@ deny kexec
 read
 write
 `))
-	mockSnapYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecuritySnapYaml)
+	mockSnapYamlFn, err := makeInstalledMockSnap(mockSecuritySnapYaml)
 	c.Assert(err, IsNil)
 	err = GeneratePolicyFromFile(mockSnapYamlFn, false)
 	c.Assert(err, IsNil)
 
 	// ensure that AddHWAccess does the right thing
 	a.loadAppArmorPolicyCalled = false
-	err = AddHWAccess("hello-world."+testDeveloper, "/dev/kmesg")
+	err = AddHWAccess("hello-world", "/dev/kmesg")
 	c.Assert(err, IsNil)
 
 	// ensure the apparmor policy got loaded
 	c.Check(a.loadAppArmorPolicyCalled, Equals, true)
 
 	// apparmor got updated with the new read path
-	generatedProfileFn := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("hello-world.%s_binary1_1.0", testDeveloper))
+	generatedProfileFn := filepath.Join(dirs.SnapAppArmorDir, "hello-world_binary1_1.0")
 	ensureFileContentMatches(c, generatedProfileFn, `# some header
 # No caps (policy groups) specified
 # Additional read-paths from security-override
@@ -760,7 +733,7 @@ deny kexec
 read
 write
 `))
-	mockSnapYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecuritySnapYaml)
+	mockSnapYamlFn, err := makeInstalledMockSnap(mockSecuritySnapYaml)
 	c.Assert(err, IsNil)
 
 	err = GeneratePolicyFromFile(mockSnapYamlFn, false)
@@ -775,7 +748,7 @@ write
 	c.Assert(err, IsNil)
 
 	// ensure apparmor got updated with the new read path
-	generatedProfileFn := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("hello-world.%s_binary1_1.0", testDeveloper))
+	generatedProfileFn := filepath.Join(dirs.SnapAppArmorDir, "hello-world_binary1_1.0")
 	ensureFileContentMatches(c, generatedProfileFn, `# some different header
 # No caps (policy groups) specified
 `)
@@ -869,7 +842,7 @@ func (a *SecurityTestSuite) TestSecurityWarnsNot(c *C) {
 	ml := &mockLogger{}
 	logger.SetLogger(ml)
 
-	mockSnapYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecurityDeprecatedSnapYaml)
+	mockSnapYamlFn, err := makeInstalledMockSnap(mockSecurityDeprecatedSnapYaml)
 	c.Assert(err, IsNil)
 
 	err = GeneratePolicyFromFile(mockSnapYamlFn, false)
@@ -887,7 +860,7 @@ func (a *SecurityTestSuite) TestSecurityWarnsOnDeprecatedApparmor(c *C) {
 		ml := &mockLogger{}
 		logger.SetLogger(ml)
 
-		mockSnapYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecurityDeprecatedSnapYaml+s)
+		mockSnapYamlFn, err := makeInstalledMockSnap(mockSecurityDeprecatedSnapYaml + s)
 		c.Assert(err, IsNil)
 
 		err = GeneratePolicyFromFile(mockSnapYamlFn, false)
@@ -906,7 +879,7 @@ func (a *SecurityTestSuite) TestSecurityWarnsOnDeprecatedSeccomp(c *C) {
 		ml := &mockLogger{}
 		logger.SetLogger(ml)
 
-		mockSnapYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecurityDeprecatedSnapYaml+s)
+		mockSnapYamlFn, err := makeInstalledMockSnap(mockSecurityDeprecatedSnapYaml + s)
 		c.Assert(err, IsNil)
 
 		err = GeneratePolicyFromFile(mockSnapYamlFn, false)
@@ -917,10 +890,10 @@ func (a *SecurityTestSuite) TestSecurityWarnsOnDeprecatedSeccomp(c *C) {
 }
 
 func makeInstalledMockSnapSideloaded(c *C) string {
-	mockSnapYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecuritySnapYaml)
+	mockSnapYamlFn, err := makeInstalledMockSnap(mockSecuritySnapYaml)
 	c.Assert(err, IsNil)
 	// pretend its sideloaded
-	basePath := regexp.MustCompile(`(.*)/hello-world.` + testDeveloper).FindString(mockSnapYamlFn)
+	basePath := regexp.MustCompile(`(.*)/hello-world`).FindString(mockSnapYamlFn)
 	oldPath := filepath.Join(basePath, "1.0")
 	newPath := filepath.Join(basePath, "IsSideloadVer")
 	err = os.Rename(oldPath, newPath)
@@ -944,11 +917,11 @@ func (a *SecurityTestSuite) TestSecurityGeneratePolicyFromFileSideload(c *C) {
 	c.Assert(a.loadAppArmorPolicyCalled, Equals, true)
 
 	// apparmor
-	generatedProfileFn := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("hello-world.%s_binary1_IsSideloadVer", testDeveloper))
+	generatedProfileFn := filepath.Join(dirs.SnapAppArmorDir, "hello-world_binary1_IsSideloadVer")
 	c.Assert(osutil.FileExists(generatedProfileFn), Equals, true)
 
 	// ... and seccomp
-	generatedProfileFn = filepath.Join(dirs.SnapSeccompDir, fmt.Sprintf("hello-world.%s_binary1_IsSideloadVer", testDeveloper))
+	generatedProfileFn = filepath.Join(dirs.SnapSeccompDir, "hello-world_binary1_IsSideloadVer")
 	c.Assert(osutil.FileExists(generatedProfileFn), Equals, true)
 }
 
@@ -965,42 +938,6 @@ func (a *SecurityTestSuite) TestSecurityCompareGeneratePolicyFromFileSideload(c 
 	// nothing changed, ensure compare is happy even for sideloaded pkgs
 	err = CompareGeneratePolicyFromFile(mockSnapYamlFn)
 	c.Assert(err, IsNil)
-}
-
-func (a *SecurityTestSuite) TestSecurityGeneratePolicyForServiceBinaryFramework(c *C) {
-	makeMockSecurityEnv(c)
-
-	sd := &SecurityDefinitions{}
-	m := &snapYaml{
-		Name:    "framework-name",
-		Type:    "framework",
-		Version: "1.0",
-	}
-
-	// generate the apparmor profile
-	err := sd.generatePolicyForServiceBinary(m, "binary", "/snaps/framework-anem/1.0")
-	c.Assert(err, IsNil)
-
-	// ensure its available with the right names
-	aaProfile := filepath.Join(dirs.SnapAppArmorDir, "framework-name_binary_1.0")
-	ensureFileContentMatches(c, aaProfile, ``)
-	scProfile := filepath.Join(dirs.SnapSeccompDir, "framework-name_binary_1.0")
-	ensureFileContentMatches(c, scProfile, `
-`)
-}
-
-func (a *SecurityTestSuite) TestSecurityGeneratePolicyForServiceBinaryErrors(c *C) {
-	makeMockSecurityEnv(c)
-
-	sd := &SecurityDefinitions{}
-	m := &snapYaml{
-		Name:    "app",
-		Version: "1.0",
-	}
-
-	// ensure invalid packages generate an error
-	err := sd.generatePolicyForServiceBinary(m, "binary", "/snaps/app-no-developer/1.0")
-	c.Assert(err, ErrorMatches, "invalid package on system")
 }
 
 func (a *SecurityTestSuite) TestParseSnapYamlWithVersion(c *C) {

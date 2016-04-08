@@ -27,27 +27,26 @@ import (
 
 // SetActive sets the active state of the given package
 func SetActive(fullName string, active bool, meter progress.Meter) error {
-	// TODO: switch this to using lightweights
-	installed, err := NewLocalSnapRepository().Installed()
+	installed, err := (&Overlord{}).Installed()
 	if err != nil {
 		return err
 	}
 
-	parts := FindSnapsByName(fullName, installed)
-	if len(parts) == 0 {
+	snaps := FindSnapsByName(fullName, installed)
+	if len(snaps) == 0 {
 		return ErrPackageNotFound
 	}
 
-	sort.Sort(sort.Reverse(BySnapVersion(parts)))
+	sort.Sort(sort.Reverse(BySnapVersion(snaps)))
 
-	part := parts[0]
-	for i := range parts {
-		if parts[i].IsActive() {
-			part = parts[i]
+	snap := snaps[0]
+	for i := range snaps {
+		if snaps[i].IsActive() {
+			snap = snaps[i]
 			break
 		}
 	}
 
 	overlord := &Overlord{}
-	return overlord.SetActive(part.(*Snap), active, meter)
+	return overlord.SetActive(snap, active, meter)
 }

@@ -47,14 +47,14 @@ func init() {
 	// here by --fgimenez - 2015-10-15
 	wait.ForFunction(c, "regular", partition.Mode)
 
-	cli.ExecCommand(c, "sudo", "systemctl", "stop", "snappy-autopilot.timer")
-	cli.ExecCommand(c, "sudo", "systemctl", "disable", "snappy-autopilot.timer")
+	if _, err := os.Stat(config.DefaultFileName); err == nil {
+		cli.ExecCommand(c, "sudo", "systemctl", "stop", "snappy-autopilot.timer")
+		cli.ExecCommand(c, "sudo", "systemctl", "disable", "snappy-autopilot.timer")
 
-	cfg, err := config.ReadConfig(config.DefaultFileName)
-	if err == nil {
-		if cfg.FromBranch {
-			setUpSnapdFromBranch(c)
-		}
+		cfg, err := config.ReadConfig(config.DefaultFileName)
+		c.Assert(err, check.IsNil, check.Commentf("Error reading config: %v", err))
+
+		setUpSnapd(c, cfg.FromBranch)
 	}
 }
 
@@ -65,30 +65,32 @@ func Test(t *testing.T) {
 		report.NewSubunitV2ParserReporter(&report.FileReporter{}))
 	runner.TestingT(t, output)
 
-	cfg, err := config.ReadConfig(config.DefaultFileName)
-	if err != nil {
-		t.Fatalf("Error reading config: %v", err)
-	}
+	if _, err := os.Stat(config.DefaultFileName); err == nil {
+		cfg, err := config.ReadConfig(config.DefaultFileName)
+		if err != nil {
+			t.Fatalf("Error reading config: %v", err)
+		}
 
-	if cfg.FromBranch {
-		if err := tearDownSnapdFromBranch(); err != nil {
+		if err := tearDownSnapd(cfg.FromBranch); err != nil {
 			t.Fatalf("Error stopping daemon: %v", err)
 		}
 	}
 }
 
-func setUpSnapdFromBranch(c *check.C) {
+func setUpSnapd(c *check.C, fromBranch bool) {
 	cli.ExecCommand(c, "sudo", "systemctl", "stop",
 		"snapd.snapd.service", "snapd.snapd.socket")
 
-	binPath, err := filepath.Abs("integration-tests/bin/snapd")
-	c.Assert(err, check.IsNil)
+	if fromBranch {
+		binPath, err := filepath.Abs("integration-tests/bin/snapd")
+		c.Assert(err, check.IsNil)
 
-	_, err = cli.ExecCommandErr("sudo", "mount", "-o", "bind",
-		binPath, "/usr/lib/snappy/snapd")
-	c.Assert(err, check.IsNil)
+		_, err = cli.ExecCommandErr("sudo", "mount", "-o", "bind",
+			binPath, "/usr/lib/snappy/snapd")
+		c.Assert(err, check.IsNil)
+	}
 
-	err = writeEnvConfig()
+	err := writeEnvConfig()
 	c.Assert(err, check.IsNil)
 
 	_, err = cli.ExecCommandErr("sudo", "systemctl", "daemon-reload")
@@ -98,7 +100,7 @@ func setUpSnapdFromBranch(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
-func tearDownSnapdFromBranch() error {
+func tearDownSnapd(fromBranch bool) error {
 	if _, err := cli.ExecCommandErr("sudo", "systemctl", "stop",
 		"snapd.snapd.service"); err != nil {
 		return err
@@ -108,8 +110,10 @@ func tearDownSnapdFromBranch() error {
 		return err
 	}
 
-	if _, err := cli.ExecCommandErr("sudo", "umount", "/usr/lib/snappy/snapd"); err != nil {
-		return err
+	if fromBranch {
+		if _, err := cli.ExecCommandErr("sudo", "umount", "/usr/lib/snappy/snapd"); err != nil {
+			return err
+		}
 	}
 
 	if _, err := cli.ExecCommandErr("sudo", "systemctl", "daemon-reload"); err != nil {

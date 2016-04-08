@@ -34,7 +34,7 @@ const (
 func (cs *clientSuite) TestClientServicesCallsEndpoint(c *C) {
 	_, _ = cs.cli.Services(appID)
 	c.Check(cs.req.Method, Equals, "GET")
-	c.Check(cs.req.URL.Path, Equals, fmt.Sprintf("/2.0/snaps/%s/services", appID))
+	c.Check(cs.req.URL.Path, Equals, fmt.Sprintf("/v2/snaps/%s/services", appID))
 }
 
 func (cs *clientSuite) TestClientServices(c *C) {

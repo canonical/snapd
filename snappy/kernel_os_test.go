@@ -61,19 +61,19 @@ type: os
 func (s *kernelTestSuite) TestSyncBoot(c *C) {
 	// make an OS
 	s.bootloader.SetBootVar("snappy_os", "core_v1.snap")
-	_, err := makeInstalledMockSnap(dirs.GlobalRootDir, osYaml+"version: v1")
+	_, err := makeInstalledMockSnap(osYaml + "version: v1")
 	c.Assert(err, IsNil)
 
 	// make two kernels, v1 and v2 and activate v2
-	_, err = makeInstalledMockSnap(dirs.GlobalRootDir, kernelYaml+"version: v1")
+	_, err = makeInstalledMockSnap(kernelYaml + "version: v1")
 	c.Assert(err, IsNil)
-	v2, err := makeInstalledMockSnap(dirs.GlobalRootDir, kernelYaml+"version: v2")
+	v2, err := makeInstalledMockSnap(kernelYaml + "version: v2")
 	c.Assert(err, IsNil)
 	err = makeSnapActive(v2)
 	c.Assert(err, IsNil)
 
 	// ensure our mock env is correct, 3 snaps (1 os + 2 kernels)
-	installed, err := NewLocalSnapRepository().Installed()
+	installed, err := (&Overlord{}).Installed()
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 3)
 	// ensure that v2 is the active one
@@ -96,7 +96,7 @@ func (s *kernelTestSuite) TestSyncBoot(c *C) {
 	c.Assert(err, IsNil)
 
 	// ensure that v1 is active now
-	installed, err = NewLocalSnapRepository().Installed()
+	installed, err = (&Overlord{}).Installed()
 	c.Assert(err, IsNil)
 	found = FindSnapsByNameAndVersion("linux", "v1", installed)
 	c.Assert(found, HasLen, 1)

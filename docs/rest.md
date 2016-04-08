@@ -1,8 +1,8 @@
 # Snappy Ubuntu Core REST API
 
-Version: 2.0pre0
+Version: v2pre0
 
-Note: The 2.0 API is going to be very different from the 1.0; right now, not
+Note: The v2 API is going to be very different from the 1.0; right now, not
 so much.
 
 ## Versioning
@@ -71,7 +71,7 @@ The body is a JSON object with the following structure:
 ```javascript
 {
  "result": {
-   "resource": "/2.0/operations/[uuid]",     // see below
+   "resource": "/v2/operations/[uuid]",     // see below
    "status": "running",
    "created_at": "..."                       // and other operation fields
  },
@@ -130,7 +130,7 @@ UTC. For example, `2009-02-13T23:31:31.234567Z`.
 
 Reserved for human-readable content describing the service.
 
-## `/2.0/system-info`
+## `/v2/system-info`
 ### `GET`
 
 * Description: Server configuration and environment information
@@ -150,7 +150,7 @@ Reserved for human-readable content describing the service.
 }
 ```
 
-## /2.0/snaps
+## /v2/snaps
 ### GET
 
 * Description: List of snaps
@@ -159,48 +159,48 @@ Reserved for human-readable content describing the service.
 * Return: list of snaps this Ubuntu Core system can handle.
 
 The result is a JSON object with a `snaps` key; its value is itself a
-JSON object whose keys are qualified snap names (e.g.,
-`hello-world.canonical`), and whose values describe that snap.
+JSON object whose keys are snap names (e.g., `hello-world`), and whose
+values describe that snap.
 
 Sample result:
 
 ```javascript
 {
  "snaps": {
-    "hello-world.canonical": {
+    "hello-world": {
       "description": "hello-world",
       "download_size": 22212,
       "icon": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
       "installed_size": -1,          // always -1 if not installed
       "name": "hello-world",
       "developer": "canonical",
-      "resource": "/2.0/snaps/hello-world.canonical",
+      "resource": "/v2/snaps/hello-world",
       "status": "not installed",
       "type": "app",
       "version": "1.0.18",
       "channel": "stable"
     },
-    "http.chipaca": {
+    "http": {
       "description": "HTTPie in a snap\nno description",
       "download_size": 1578272,
-      "icon": "/2.0/icons/http.chipaca/icon",
+      "icon": "/v2/icons/http/icon",
       "installed_size": 1821897,
       "name": "http",
       "developer": "chipaca",
-      "resource": "/2.0/snaps/http.chipaca",
+      "resource": "/v2/snaps/http",
       "status": "active",
       "type": "app",
       "version": "3.1",
       "channel": "stable"
     },
-    "ubuntu-core.ubuntu": {
+    "ubuntu-core": {
       "description": "A secure, minimal transactional OS for devices and containers.",
       "download_size": 19845748,
       "icon": "",               // core might not have an icon
       "installed_size": -1,     // core doesn't have installed_size (yet)
       "name": "ubuntu-core",
-      "developer": "ubuntu",
-      "resource": "/2.0/snaps/ubuntu-core.ubuntu",
+      "developer": "canonical",
+      "resource": "/v2/snaps/ubuntu-core",
       "status": "active",
       "type": "os",
       "update_available": "247",
@@ -223,8 +223,7 @@ Sample result:
 #### Fields
 * `snaps`
     * `status`: can be either `not installed`, `installed`, `active` (i.e. is
-      current), `removed` (but data present); there is no `purged` state, as a
-      purged snap is undistinguishable from a non-installed snap.
+      current).
     * `name`: the snap name.
     * `version`: a string representing the version.
     * `icon`: a url to the snap icon, possibly relative to this server.
@@ -295,23 +294,23 @@ It's also possible to provide the snap as the entire body of a `POST` (not a
 multipart request). In this case the header `X-Allow-Unsigned` may be used to
 allow sideloading unsigned snaps.
 
-## /2.0/snaps/[name]
+## /v2/snaps/[name]
 ### GET
 
 * Description: Details for a snap
 * Access: authenticated
 * Operation: sync
-* Return: snap details (as in `/2.0/snaps`)
+* Return: snap details (as in `/v2/snaps`)
 
 ### Parameters
 
 #### `sources`
 
-See `sources` for `/2.0/snaps`.
+See `sources` for `/v2/snaps`.
 
 ### POST
 
-* Description: Install, update, remove, purge, activate, deactivate, or
+* Description: Install, update, remove, activate, deactivate, or
   rollback the snap
 * Access: trusted
 * Operation: async
@@ -329,7 +328,7 @@ See `sources` for `/2.0/snaps`.
 
 field      | ignored except in action | description
 -----------|-------------------|------------
-`action`   |                   | Required; a string, one of `install`, `update`, `remove`, `purge`, `activate`, `deactivate`, or `rollback`.
+`action`   |                   | Required; a string, one of `install`, `update`, `remove`, `activate`, `deactivate`, or `rollback`.
 `channel`  | `install` `update` | From which channel to pull the new package (and track henceforth). Channels are a means to discern the maturity of a package or the software it contains, although the exact meaning is left to the application developer. One of `edge`, `beta`, `candidate`, and `stable` which is the default.
 `leave_old`| `install` `update` `remove` | A boolean, equivalent to commandline's `--no-gc`. Default is false (do not leave old snaps around).
 `license`  | `install` `update` | A JSON object with `intro`, `license`, and `agreed` fields, the first two of which must match the license (see the section "A note on licenses", below).
@@ -355,7 +354,7 @@ field would be
 }
 ```
 
-## /2.0/snaps/[name]/services
+## /v2/snaps/[name]/services
 
 Query an active snap for information about its services, and alter the
 state of those services. Commands under `.../services` will return an error if
@@ -421,7 +420,7 @@ provide description about the service as well as its systemd unit.
 }
 ```
 
-## /2.0/snaps/[name]/services/[name]
+## /v2/snaps/[name]/services/[name]
 
 ### GET
 
@@ -432,7 +431,7 @@ provide description about the service as well as its systemd unit.
 
 The result is a JSON object with a `result` key where the value is a JSON object
 that includes a single object from the list of the upper level endpoint
-(`/2.0/snaps/[name]/services`).
+(`/v2/snaps/[name]/services`).
 
 #### Sample result:
 
@@ -480,7 +479,7 @@ that includes a single object from the list of the upper level endpoint
 }
 ```
 
-## /2.0/snaps/[name]/services/[name]/logs
+## /v2/snaps/[name]/services/[name]/logs
 
 ### GET
 
@@ -506,7 +505,7 @@ that includes a single object from the list of the upper level endpoint
 ]
 ```
 
-## /2.0/snaps/[name]/config
+## /v2/snaps/[name]/config
 
 Query an active snap for information about its configuration, and alter
 that configuration. Will return an error if the snap is not active.
@@ -545,7 +544,7 @@ Notes: user facing implementations in text form must show this data using yaml.
 "config:\n  ubuntu-core:\n    autopilot: true\n    timezone: Europe/Berlin\n    hostname: localhost.localdomain\n"
 ```
 
-## /2.0/operations/[uuid]
+## /v2/operations/[uuid]
 
 ### GET
 
@@ -560,7 +559,7 @@ Notes: user facing implementations in text form must show this data using yaml.
 {
  "created_at": "1415639996123456",      // Creation timestamp
  "output": {},
- "resource": "/2.0/snaps/camlistore.sergiusens",
+ "resource": "/v2/snaps/camlistore.sergiusens",
  "status": "running",                   // or "succeeded" or "failed"
  "updated_at": "1415639996451214"       // Last update timestamp
 }
@@ -574,7 +573,7 @@ Notes: user facing implementations in text form must show this data using yaml.
 * Operation: sync
 * Return: standard return value or standard error
 
-## /2.0/icons/[name]/icon
+## /v2/icons/[name]/icon
 
 ### GET
 
@@ -588,7 +587,7 @@ Notes: user facing implementations in text form must show this data using yaml.
 
 This is *not* a standard return type.
 
-## /2.0/assertions
+## /v2/assertions
 
 ### POST
 
@@ -603,7 +602,7 @@ To succeed the assertion must be valid, its signature verified with a
 known public key and the assertion consistent with and its
 prerequisite in the database.
 
-## /2.0/assertions/[assertionType]
+## /v2/assertions/[assertionType]
 ### GET
 
 * Description: Get all the assertions in the system assertion database of the given type matching the header filters passed as query parameters
@@ -615,7 +614,7 @@ The response is a stream of assertions separated by double newlines.
 The X-Ubuntu-Assertions-Count header is set to the number of
 returned assertions, 0 or more.
 
-## /2.0/interfaces
+## /v2/interfaces
 
 ### GET
 
@@ -675,7 +674,7 @@ Sample input:
 }
 ```
 
-## /2.0/events
+## /v2/events
 
 ### GET
 

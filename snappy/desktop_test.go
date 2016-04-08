@@ -20,7 +20,6 @@
 package snappy
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -29,12 +28,13 @@ import (
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/osutil"
+	"github.com/ubuntu-core/snappy/snap"
 )
 
-var desktopAppYaml = []byte(`
+var desktopAppYaml = `
 name: foo
 version: 1.0
-`)
+`
 
 var mockDesktopFile = []byte(`
 [Desktop Entry]
@@ -45,18 +45,21 @@ func (s *SnapTestSuite) TestAddPackageDesktopFiles(c *C) {
 	expectedDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar.desktop")
 	c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, false)
 
-	m, err := parseSnapYamlData(desktopAppYaml, false)
+	yamlFile, err := makeInstalledMockSnap(desktopAppYaml)
+	c.Assert(err, IsNil)
+
+	snap, err := NewInstalledSnap(yamlFile)
 	c.Assert(err, IsNil)
 
 	// generate .desktop file in the package baseDir
-	baseDir := c.MkDir()
+	baseDir := snap.Info().MountDir()
 	err = os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0755)
 	c.Assert(err, IsNil)
 
 	err = ioutil.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar.desktop"), mockDesktopFile, 0644)
 	c.Assert(err, IsNil)
 
-	err = addPackageDesktopFiles(m, baseDir)
+	err = addPackageDesktopFiles(snap.Info())
 	c.Assert(err, IsNil)
 	c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, true)
 }
@@ -68,18 +71,18 @@ func (s *SnapTestSuite) TestRemovePackageDesktopFiles(c *C) {
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(mockDesktopFilePath, mockDesktopFile, 0644)
 	c.Assert(err, IsNil)
-	m, err := parseSnapYamlData(desktopAppYaml, false)
+	snap, err := snap.InfoFromSnapYaml([]byte(desktopAppYaml))
 	c.Assert(err, IsNil)
 
-	err = removePackageDesktopFiles(m)
+	err = removePackageDesktopFiles(snap)
 	c.Assert(err, IsNil)
 	c.Assert(osutil.FileExists(mockDesktopFilePath), Equals, false)
 }
 
 func (s *SnapTestSuite) TestDesktopFileIsAddedAndRemoved(c *C) {
-	yamlFile, err := makeInstalledMockSnap(s.tempdir, string(desktopAppYaml))
+	yamlFile, err := makeInstalledMockSnap(string(desktopAppYaml))
 	c.Assert(err, IsNil)
-	part, err := NewInstalledSnap(yamlFile, testDeveloper)
+	snap, err := NewInstalledSnap(yamlFile)
 	c.Assert(err, IsNil)
 
 	// create a mock desktop file
@@ -89,25 +92,25 @@ func (s *SnapTestSuite) TestDesktopFileIsAddedAndRemoved(c *C) {
 	c.Assert(err, IsNil)
 
 	// ensure that activate creates the desktop file
-	err = part.activate(false, nil)
+	err = ActivateSnap(snap, nil)
 	c.Assert(err, IsNil)
 
 	mockDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar.desktop")
 	content, err := ioutil.ReadFile(mockDesktopFilePath)
 	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, fmt.Sprintf(`
+	c.Assert(string(content), Equals, `
 [Desktop Entry]
 Name=foo
-Icon=/snaps/foo.%s/1.0/foo.png`, testDeveloper))
+Icon=/snaps/foo/1.0/foo.png`)
 
-	// deactivate removes it again
-	err = part.deactivate(false, nil)
+	// unlink (deactivate) removes it again
+	err = UnlinkSnap(snap, nil)
 	c.Assert(err, IsNil)
 	c.Assert(osutil.FileExists(mockDesktopFilePath), Equals, false)
 }
 
 func (s *SnapTestSuite) TestDesktopFileSanitizeIgnoreNotWhitelisted(c *C) {
-	m := &snapYaml{}
+	snap := &snap.Info{}
 	desktopContent := []byte(`[Desktop Entry]
 Name=foo
 UnknownKey=baz
@@ -116,7 +119,7 @@ Icon=${SNAP}/meep
 
 # the empty line above is fine`)
 
-	e := sanitizeDesktopFile(m, "/my/basedir", desktopContent)
+	e := sanitizeDesktopFile(snap, "/my/basedir", desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Entry]
 Name=foo
 Icon=/my/basedir/meep
@@ -125,58 +128,58 @@ Icon=/my/basedir/meep
 }
 
 func (s *SnapTestSuite) TestDesktopFileSanitizeFiltersExec(c *C) {
-	m, err := parseSnapYamlData([]byte(`
+	snap, err := snap.InfoFromSnapYaml([]byte(`
 name: snap
 version: 1.0
 apps:
  app:
   command: cmd
-`), false)
+`))
 	c.Assert(err, IsNil)
 	desktopContent := []byte(`[Desktop Entry]
 Name=foo
 Exec=baz
 `)
 
-	e := sanitizeDesktopFile(m, "/my/basedir", desktopContent)
+	e := sanitizeDesktopFile(snap, "/my/basedir", desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Entry]
 Name=foo`)
 }
 
 func (s *SnapTestSuite) TestDesktopFileSanitizeFiltersExecPrefix(c *C) {
-	m, err := parseSnapYamlData([]byte(`
+	snap, err := snap.InfoFromSnapYaml([]byte(`
 name: snap
 version: 1.0
 apps:
  app:
   command: cmd
-`), false)
+`))
 	c.Assert(err, IsNil)
 	desktopContent := []byte(`[Desktop Entry]
 Name=foo
 Exec=snap.app.evil.evil
 `)
 
-	e := sanitizeDesktopFile(m, "/my/basedir", desktopContent)
+	e := sanitizeDesktopFile(snap, "/my/basedir", desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Entry]
 Name=foo`)
 }
 
 func (s *SnapTestSuite) TestDesktopFileSanitizeFiltersExecOk(c *C) {
-	m, err := parseSnapYamlData([]byte(`
+	snap, err := snap.InfoFromSnapYaml([]byte(`
 name: snap
 version: 1.0
 apps:
  app:
   command: cmd
-`), false)
+`))
 	c.Assert(err, IsNil)
 	desktopContent := []byte(`[Desktop Entry]
 Name=foo
 Exec=snap.app %U
 `)
 
-	e := sanitizeDesktopFile(m, "/my/basedir", desktopContent)
+	e := sanitizeDesktopFile(snap, "/my/basedir", desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Entry]
 Name=foo
 Exec=/snaps/bin/snap.app %U`)
@@ -185,26 +188,26 @@ Exec=/snaps/bin/snap.app %U`)
 // we do not support TryExec (even if its a valid line), this test ensures
 // we do not accidentally enable it
 func (s *SnapTestSuite) TestDesktopFileSanitizeFiltersTryExecIgnored(c *C) {
-	m, err := parseSnapYamlData([]byte(`
+	snap, err := snap.InfoFromSnapYaml([]byte(`
 name: snap
 version: 1.0
 apps:
  app:
   command: cmd
-`), false)
+`))
 	c.Assert(err, IsNil)
 	desktopContent := []byte(`[Desktop Entry]
 Name=foo
 TryExec=snap.app %U
 `)
 
-	e := sanitizeDesktopFile(m, "/my/basedir", desktopContent)
+	e := sanitizeDesktopFile(snap, "/my/basedir", desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Entry]
 Name=foo`)
 }
 
 func (s *SnapTestSuite) TestDesktopFileSanitizeWorthWithI18n(c *C) {
-	m := &snapYaml{}
+	snap := &snap.Info{}
 	desktopContent := []byte(`[Desktop Entry]
 Name=foo
 GenericName=bar
@@ -215,7 +218,7 @@ Invalid=key
 Invalid[i18n]=key
 `)
 
-	e := sanitizeDesktopFile(m, "/my/basedir", desktopContent)
+	e := sanitizeDesktopFile(snap, "/my/basedir", desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Entry]
 Name=foo
 GenericName=bar
@@ -225,31 +228,31 @@ GenericName[ca@valencia]=Hola!`)
 }
 
 func (s *SnapTestSuite) TestDesktopFileRewriteExecLineInvalid(c *C) {
-	m := &snapYaml{}
-	_, err := rewriteExecLine(m, "Exec=invalid")
+	snap := &snap.Info{}
+	_, err := rewriteExecLine(snap, "Exec=invalid")
 	c.Assert(err, ErrorMatches, `invalid exec command: "invalid"`)
 }
 
 func (s *SnapTestSuite) TestDesktopFileRewriteExecLineOk(c *C) {
-	m, err := parseSnapYamlData([]byte(`
+	snap, err := snap.InfoFromSnapYaml([]byte(`
 name: snap
 version: 1.0
 apps:
  app:
   command: cmd
-`), false)
+`))
 	c.Assert(err, IsNil)
 
-	newl, err := rewriteExecLine(m, "Exec=snap.app")
+	newl, err := rewriteExecLine(snap, "Exec=snap.app")
 	c.Assert(err, IsNil)
 	c.Assert(newl, Equals, "Exec=/snaps/bin/snap.app")
 }
 
 func (s *SnapTestSuite) TestDesktopFileSanitizeDesktopActionsOk(c *C) {
-	m := &snapYaml{}
+	snap := &snap.Info{}
 	desktopContent := []byte(`[Desktop Action is-ok]`)
 
-	e := sanitizeDesktopFile(m, "/my/basedir", desktopContent)
+	e := sanitizeDesktopFile(snap, "/my/basedir", desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Action is-ok]`)
 }
 

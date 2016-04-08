@@ -40,16 +40,9 @@ func (ses *stateEngineSuite) TestNewAndState(c *C) {
 }
 
 type fakeManager struct {
-	name                              string
-	state                             *state.State
-	calls                             *[]string
-	initError, ensureError, stopError error
-}
-
-func (fm *fakeManager) Init(s *state.State) error {
-	fm.state = s
-	*fm.calls = append(*fm.calls, "init:"+fm.name)
-	return fm.initError
+	name                   string
+	calls                  *[]string
+	ensureError, stopError error
 }
 
 func (fm *fakeManager) Ensure() error {
@@ -57,9 +50,12 @@ func (fm *fakeManager) Ensure() error {
 	return fm.ensureError
 }
 
-func (fm *fakeManager) Stop() error {
+func (fm *fakeManager) Stop() {
 	*fm.calls = append(*fm.calls, "stop:"+fm.name)
-	return fm.stopError
+}
+
+func (fm *fakeManager) Wait() {
+	*fm.calls = append(*fm.calls, "wait:"+fm.name)
 }
 
 var _ overlord.StateManager = (*fakeManager)(nil)
@@ -78,33 +74,11 @@ func (ses *stateEngineSuite) TestEnsure(c *C) {
 
 	err := se.Ensure()
 	c.Assert(err, IsNil)
-	c.Check(calls, DeepEquals, []string{"init:mgr1", "init:mgr2", "ensure:mgr1", "ensure:mgr2"})
-	c.Check(mgr1.state, Equals, s)
-	c.Check(mgr2.state, Equals, s)
+	c.Check(calls, DeepEquals, []string{"ensure:mgr1", "ensure:mgr2"})
 
 	err = se.Ensure()
 	c.Assert(err, IsNil)
-	c.Check(calls, DeepEquals, []string{"init:mgr1", "init:mgr2", "ensure:mgr1", "ensure:mgr2", "ensure:mgr1", "ensure:mgr2"})
-}
-
-func (ses *stateEngineSuite) TestEnsureInitError(c *C) {
-	s := state.New(nil)
-	se := overlord.NewStateEngine(s)
-
-	calls := []string{}
-
-	err1 := errors.New("boom1")
-	err2 := errors.New("boom2")
-
-	mgr1 := &fakeManager{name: "mgr1", calls: &calls, initError: err1}
-	mgr2 := &fakeManager{name: "mgr2", calls: &calls, initError: err2}
-
-	se.AddManager(mgr1)
-	se.AddManager(mgr2)
-
-	err := se.Ensure()
-	c.Check(err, Equals, err1)
-	c.Check(calls, DeepEquals, []string{"init:mgr1"})
+	c.Check(calls, DeepEquals, []string{"ensure:mgr1", "ensure:mgr2", "ensure:mgr1", "ensure:mgr2"})
 }
 
 func (ses *stateEngineSuite) TestEnsureError(c *C) {
@@ -123,8 +97,8 @@ func (ses *stateEngineSuite) TestEnsureError(c *C) {
 	se.AddManager(mgr2)
 
 	err := se.Ensure()
-	c.Check(err, Equals, err1)
-	c.Check(calls, DeepEquals, []string{"init:mgr1", "init:mgr2", "ensure:mgr1"})
+	c.Check(err.Error(), DeepEquals, "state ensure errors: [boom1 boom2]")
+	c.Check(calls, DeepEquals, []string{"ensure:mgr1", "ensure:mgr2"})
 }
 
 func (ses *stateEngineSuite) TestStop(c *C) {
@@ -139,40 +113,11 @@ func (ses *stateEngineSuite) TestStop(c *C) {
 	se.AddManager(mgr1)
 	se.AddManager(mgr2)
 
-	err := se.Ensure()
-	c.Assert(err, IsNil)
-	c.Check(calls, HasLen, 4)
-
-	err = se.Stop()
-	c.Assert(err, IsNil)
-	c.Check(calls, DeepEquals, []string{"init:mgr1", "init:mgr2", "ensure:mgr1", "ensure:mgr2", "stop:mgr1", "stop:mgr2"})
-
-	err = se.Ensure()
-	c.Assert(err, IsNil)
-	c.Check(calls, DeepEquals, []string{"init:mgr1", "init:mgr2", "ensure:mgr1", "ensure:mgr2", "stop:mgr1", "stop:mgr2", "init:mgr1", "init:mgr2", "ensure:mgr1", "ensure:mgr2"})
-}
-
-func (ses *stateEngineSuite) TestStopError(c *C) {
-	s := state.New(nil)
-	se := overlord.NewStateEngine(s)
-
-	calls := []string{}
-
-	err1 := errors.New("boom1")
-	err2 := errors.New("boom2")
-
-	mgr1 := &fakeManager{name: "mgr1", calls: &calls, stopError: err1}
-	mgr2 := &fakeManager{name: "mgr2", calls: &calls, stopError: err2}
-
-	se.AddManager(mgr1)
-	se.AddManager(mgr2)
+	se.Stop()
+	c.Check(calls, DeepEquals, []string{"stop:mgr1", "stop:mgr2"})
+	se.Stop()
+	c.Check(calls, HasLen, 2)
 
 	err := se.Ensure()
-	c.Assert(err, IsNil)
-	c.Check(calls, HasLen, 4)
-
-	err = se.Stop()
-	c.Check(err, Equals, err1)
-	c.Check(calls, DeepEquals, []string{"init:mgr1", "init:mgr2", "ensure:mgr1", "ensure:mgr2", "stop:mgr1"})
-
+	c.Check(err, ErrorMatches, "state engine already stopped")
 }

@@ -26,6 +26,8 @@ import (
 
 	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
+
+	"github.com/jessevdk/go-flags"
 )
 
 var shortFindHelp = i18n.G("Finds packages to install")
@@ -40,7 +42,7 @@ type cmdFind struct {
 }
 
 func init() {
-	addCommand("find", shortFindHelp, longFindHelp, func() interface{} {
+	addCommand("find", shortFindHelp, longFindHelp, func() flags.Commander {
 		return &cmdFind{}
 	})
 }
@@ -79,7 +81,7 @@ func (x *cmdFind) Execute([]string) error {
 
 	for _, name := range names {
 		snap := snaps[name]
-		fmt.Fprintf(w, "%s\t%s\t%s\n", name, snap.Version, snap.Description)
+		fmt.Fprintf(w, "%s\t%s\t%s\n", name, snap.Version, snap.Summary)
 	}
 
 	return nil

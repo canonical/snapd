@@ -54,12 +54,7 @@ func (id *Identity) Timestamp() time.Time {
 }
 
 func assembleIdentity(assert assertionBase) (Assertion, error) {
-	_, err := checkMandatory(assert.headers, "account-id")
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = checkMandatory(assert.headers, "display-name")
+	_, err := checkMandatory(assert.headers, "display-name")
 	if err != nil {
 		return nil, err
 	}

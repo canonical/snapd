@@ -22,6 +22,12 @@
 package assertstate
 
 import (
+	"os"
+
+	"github.com/ubuntu-core/snappy/asserts"
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/osutil"
+
 	"github.com/ubuntu-core/snappy/overlord/state"
 )
 
@@ -29,16 +35,27 @@ import (
 // system states. It manipulates the observed system state to ensure
 // nothing in it violates existing assertions, or misses required
 // ones.
-type AssertManager struct{}
-
-// Manager returns a new assertion manager.
-func Manager() (*AssertManager, error) {
-	return &AssertManager{}, nil
+type AssertManager struct {
+	db *asserts.Database
 }
 
-// Init implements StateManager.Init.
-func (m *AssertManager) Init(s *state.State) error {
-	return nil
+func getTrustedAccountKey() string {
+	if !osutil.FileExists(dirs.SnapTrustedAccountKey) {
+		// XXX: allow this fallback here for integration tests,
+		// until we have a proper trusted public key shared
+		// with the store and decide possibly for a different strategy
+		return os.Getenv("SNAPPY_TRUSTED_ACCOUNT_KEY")
+	}
+	return dirs.SnapTrustedAccountKey
+}
+
+// Manager returns a new assertion manager.
+func Manager(s *state.State) (*AssertManager, error) {
+	db, err := asserts.OpenSysDatabase(getTrustedAccountKey())
+	if err != nil {
+		return nil, err
+	}
+	return &AssertManager{db: db}, nil
 }
 
 // Ensure implements StateManager.Ensure.
@@ -47,6 +64,14 @@ func (m *AssertManager) Ensure() error {
 }
 
 // Stop implements StateManager.Stop.
-func (m *AssertManager) Stop() error {
-	return nil
+func (m *AssertManager) Stop() {
+}
+
+// Wait implements StateManager.Wait.
+func (m *AssertManager) Wait() {
+}
+
+// DB returns the assertion database under the manager.
+func (m *AssertManager) DB() *asserts.Database {
+	return m.db
 }

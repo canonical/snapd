@@ -82,7 +82,7 @@ func (s *ServiceActorSuite) SetUpTest(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/multi-user.target.wants"), 0755), IsNil)
 	systemd.SystemctlCmd = s.myRun
 	systemd.JournalctlCmd = s.myJctl
-	_, err := makeInstalledMockSnap(dirs.GlobalRootDir, `name: hello-snap
+	_, err := makeInstalledMockSnap(`name: hello-snap
 version: 1.09
 apps:
  svc1:
@@ -92,7 +92,7 @@ apps:
    command: something
 `)
 	c.Assert(err, IsNil)
-	f, err := makeInstalledMockSnap(dirs.GlobalRootDir, `name: hello-snap
+	f, err := makeInstalledMockSnap(`name: hello-snap
 version: 1.10
 apps:
  svc1:

@@ -25,8 +25,21 @@ import (
 
 var allInterfaces = []interfaces.Interface{
 	&BoolFileInterface{},
+	NewFirewallControlInterface(),
+	NewHomeInterface(),
+	NewLocaleControlInterface(),
+	NewLogObserveInterface(),
+	NewMountObserveInterface(),
 	NewNetworkInterface(),
 	NewNetworkBindInterface(),
+	NewNetworkControlInterface(),
+	NewNetworkObserveInterface(),
+	NewSnapdControlInterface(),
+	NewSystemObserveInterface(),
+	NewTimeserverControlInterface(),
+	NewTimezoneControlInterface(),
+	NewUnity7Interface(),
+	NewX11Interface(),
 }
 
 // Interfaces returns all of the built-in interfaces.

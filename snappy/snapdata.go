@@ -28,8 +28,8 @@ import (
 	"github.com/ubuntu-core/snappy/osutil"
 )
 
-// removeSnapData removes the data for the given version of the given snap
-func removeSnapData(fullName, version string) error {
+// RemoveSnapData removes the data for the given version of the given snap
+func RemoveSnapData(fullName, version string) error {
 	dirs, err := snapDataDirs(fullName, version)
 	if err != nil {
 		return err
