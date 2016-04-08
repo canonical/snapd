@@ -39,6 +39,8 @@ type buildSuite struct {
 }
 
 func (s *buildSuite) TestBuildBasicSnapOnSnappy(c *check.C) {
+	c.Skip("FIXME: port to snap")
+
 	// build basic snap and check output
 	snapPath, err := build.LocalSnap(c, data.BasicSnapName)
 	defer os.Remove(snapPath)

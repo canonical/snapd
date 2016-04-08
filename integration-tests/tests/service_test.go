@@ -70,6 +70,8 @@ func isServiceRunning(c *check.C) bool {
 }
 
 func installSnapWithService(c *check.C) {
+	c.Skip("port to snapd")
+
 	snapPath, err := build.LocalSnap(c, data.BasicServiceSnapName)
 	defer os.Remove(snapPath)
 	c.Assert(err, check.IsNil, check.Commentf("Error building local snap: %s", err))
