@@ -40,7 +40,7 @@ func wait(client *client.Client, uuid string) error {
 			return op.Err()
 		}
 
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(1000 * time.Millisecond)
 	}
 }
 
