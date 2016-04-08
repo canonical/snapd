@@ -130,7 +130,7 @@ func generateBusPolicyFileName(app *snap.AppInfo) string {
 }
 
 func addPackageServices(s *snap.Info, inter interacter) error {
-	baseDir := s.BaseDir()
+	baseDir := s.MountDir()
 
 	for _, app := range s.Apps {
 		if app.Daemon == "" {

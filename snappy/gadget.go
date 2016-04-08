@@ -34,70 +34,10 @@ import (
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/legacygadget"
 )
 
-// Gadget represents the structure inside the snap.yaml for the gadget component
-// of a gadget package type.
-type Gadget struct {
-	Store                Store    `yaml:"store,omitempty"`
-	Hardware             Hardware `yaml:"hardware,omitempty"`
-	Software             Software `yaml:"software,omitempty"`
-	SkipIfupProvisioning bool     `yaml:"skip-ifup-provisioning"`
-}
-
-// Hardware describes the hardware provided by the gadget snap
-type Hardware struct {
-	Assign     []HardwareAssign `yaml:"assign,omitempty"`
-	BootAssets *BootAssets      `yaml:"boot-assets,omitempty"`
-	Bootloader string           `yaml:"bootloader,omitempty"`
-}
-
-// Store holds information relevant to the store provided by a Gadget snap
-type Store struct {
-	ID string `yaml:"id,omitempty"`
-}
-
-// Software describes the installed software provided by a Gadget snap
-type Software struct {
-	BuiltIn []string `yaml:"built-in,omitempty"`
-}
-
-// BootAssets represent all the artifacts required for booting a system
-// that are particular to the board.
-type BootAssets struct {
-	Files    []BootAssetFiles    `yaml:"files,omitempty"`
-	RawFiles []BootAssetRawFiles `yaml:"raw-files,omitempty"`
-}
-
-// BootAssetRawFiles represent all the artifacts required for booting a system
-// that are particular to the board and require copying to specific sectors of
-// the disk
-type BootAssetRawFiles struct {
-	Path   string `yaml:"path"`
-	Offset string `yaml:"offset"`
-}
-
-// BootAssetFiles represent all the files required for booting a system
-// that are particular to the board
-type BootAssetFiles struct {
-	Path   string `yaml:"path"`
-	Target string `yaml:"target,omitempty"`
-}
-
-// HardwareAssign describes the hardware a app can use
-type HardwareAssign struct {
-	PartID string `yaml:"part-id,omitempty"`
-	Rules  []struct {
-		Kernel         string   `yaml:"kernel,omitempty"`
-		Subsystem      string   `yaml:"subsystem,omitempty"`
-		WithSubsystems string   `yaml:"with-subsystems,omitempty"`
-		WithDriver     string   `yaml:"with-driver,omitempty"`
-		WithAttrs      []string `yaml:"with-attrs,omitempty"`
-		WithProps      []string `yaml:"with-props,omitempty"`
-	} `yaml:"rules,omitempty"`
-}
-
-func (hw *HardwareAssign) generateUdevRuleContent() (string, error) {
+func generateUdevRuleContent(hw *legacygadget.HardwareAssign) (string, error) {
 	s := ""
 	for _, r := range hw.Rules {
 		if r.Kernel != "" {
@@ -131,10 +71,10 @@ func (hw *HardwareAssign) generateUdevRuleContent() (string, error) {
 // logic for a gadget package in every other function
 var getGadget = getGadgetImpl
 
-func getGadgetImpl() (*snapYaml, error) {
+func getGadgetImpl() (*snap.Info, error) {
 	gadgets, _ := ActiveSnapsByType(snap.TypeGadget)
 	if len(gadgets) == 1 {
-		return gadgets[0].m, nil
+		return gadgets[0].Info(), nil
 	}
 
 	return nil, errors.New("no gadget snap")
@@ -147,7 +87,7 @@ func StoreID() string {
 		return ""
 	}
 
-	return gadget.Gadget.Store.ID
+	return gadget.Legacy.Gadget.Store.ID
 }
 
 // IsBuiltInSoftware returns true if the package is part of the built-in software
@@ -158,7 +98,7 @@ func IsBuiltInSoftware(name string) bool {
 		return false
 	}
 
-	for _, builtin := range gadget.Gadget.Software.BuiltIn {
+	for _, builtin := range gadget.Legacy.Gadget.Software.BuiltIn {
 		if builtin == name {
 			return true
 		}
@@ -167,8 +107,8 @@ func IsBuiltInSoftware(name string) bool {
 	return false
 }
 
-func cleanupGadgetHardwareUdevRules(m *snapYaml) error {
-	oldFiles, err := filepath.Glob(filepath.Join(dirs.SnapUdevRulesDir, fmt.Sprintf("80-snappy_%s_*.rules", m.Name)))
+func cleanupGadgetHardwareUdevRules(s *snap.Info) error {
+	oldFiles, err := filepath.Glob(filepath.Join(dirs.SnapUdevRulesDir, fmt.Sprintf("80-snappy_%s_*.rules", s.Name())))
 	if err != nil {
 		return err
 	}
@@ -178,7 +118,7 @@ func cleanupGadgetHardwareUdevRules(m *snapYaml) error {
 	}
 
 	// cleanup the additional files
-	for _, h := range m.Gadget.Hardware.Assign {
+	for _, h := range s.Legacy.Gadget.Hardware.Assign {
 		jsonAdditionalPath := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("%s.json.additional", h.PartID))
 		err = os.Remove(jsonAdditionalPath)
 		if err != nil && !os.IsNotExist(err) {
@@ -189,20 +129,20 @@ func cleanupGadgetHardwareUdevRules(m *snapYaml) error {
 	return nil
 }
 
-func writeGadgetHardwareUdevRules(m *snapYaml) error {
+func writeGadgetHardwareUdevRules(s *snap.Info) error {
 	os.MkdirAll(dirs.SnapUdevRulesDir, 0755)
 
 	// cleanup
-	if err := cleanupGadgetHardwareUdevRules(m); err != nil {
+	if err := cleanupGadgetHardwareUdevRules(s); err != nil {
 		return err
 	}
 	// write new files
-	for _, h := range m.Gadget.Hardware.Assign {
-		rulesContent, err := h.generateUdevRuleContent()
+	for _, h := range s.Legacy.Gadget.Hardware.Assign {
+		rulesContent, err := generateUdevRuleContent(&h)
 		if err != nil {
 			return err
 		}
-		outfile := filepath.Join(dirs.SnapUdevRulesDir, fmt.Sprintf("80-snappy_%s_%s.rules", m.Name, h.PartID))
+		outfile := filepath.Join(dirs.SnapUdevRulesDir, fmt.Sprintf("80-snappy_%s_%s.rules", s.Name(), h.PartID))
 		if err := osutil.AtomicWriteFile(outfile, []byte(rulesContent), 0644, 0); err != nil {
 			return err
 		}
@@ -245,12 +185,12 @@ const apparmorAdditionalContent = `{
 // default apparmor will not allow access to /dev. We grant access here
 // and the ubuntu-core-launcher is then used to generate a confinement
 // based on the devices cgroup.
-func writeApparmorAdditionalFile(m *snapYaml) error {
+func writeApparmorAdditionalFile(s *snap.Info) error {
 	if err := os.MkdirAll(dirs.SnapAppArmorDir, 0755); err != nil {
 		return err
 	}
 
-	for _, h := range m.Gadget.Hardware.Assign {
+	for _, h := range s.Legacy.Gadget.Hardware.Assign {
 		jsonAdditionalPath := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("%s.json.additional", h.PartID))
 		if err := osutil.AtomicWriteFile(jsonAdditionalPath, []byte(apparmorAdditionalContent), 0644, 0); err != nil {
 			return err
@@ -260,12 +200,12 @@ func writeApparmorAdditionalFile(m *snapYaml) error {
 	return nil
 }
 
-func installGadgetHardwareUdevRules(m *snapYaml) error {
-	if err := writeGadgetHardwareUdevRules(m); err != nil {
+func installGadgetHardwareUdevRules(s *snap.Info) error {
+	if err := writeGadgetHardwareUdevRules(s); err != nil {
 		return err
 	}
 
-	if err := writeApparmorAdditionalFile(m); err != nil {
+	if err := writeApparmorAdditionalFile(s); err != nil {
 		return err
 	}
 
