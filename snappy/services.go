@@ -124,10 +124,6 @@ func generateSocketFileName(app *snap.AppInfo) string {
 	return filepath.Join(dirs.SnapServicesDir, fmt.Sprintf("%s_%s_%s.socket", app.Snap.Name(), app.Name, app.Snap.Version))
 }
 
-func generateBusPolicyFileName(app *snap.AppInfo) string {
-	return filepath.Join(dirs.SnapBusPolicyDir, fmt.Sprintf("%s_%s_%s.conf", app.Snap.Name(), app.Name, app.Snap.Version))
-}
-
 func addPackageServices(s *snap.Info, inter interacter) error {
 	baseDir := s.MountDir()
 
@@ -228,12 +224,6 @@ func removePackageServices(s *snap.Info, inter interacter) error {
 
 		if err := os.Remove(generateSocketFileName(app)); err != nil && !os.IsNotExist(err) {
 			logger.Noticef("Failed to remove socket file for %q: %v", serviceName, err)
-		}
-
-		// XXX where/when is this generated? genBusPolicyFile is never alled atm
-		// Also remove DBus system policy file
-		if err := os.Remove(generateBusPolicyFileName(app)); err != nil && !os.IsNotExist(err) {
-			logger.Noticef("Failed to remove bus policy file for service %q: %v", serviceName, err)
 		}
 	}
 
