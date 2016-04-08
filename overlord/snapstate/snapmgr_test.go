@@ -341,6 +341,7 @@ func (s *snapmgrTestSuite) TestSnapInfo(c *C) {
 	fname := filepath.Join(dname, "snap.yaml")
 	err = ioutil.WriteFile(fname, []byte(`
 name: ignored
+version: 1.2
 description: |
     Lots of text`), 0644)
 	c.Assert(err, IsNil)
@@ -352,4 +353,7 @@ description: |
 	c.Check(snapInfo.Name(), Equals, "name")
 	// Check that other values are read from YAML
 	c.Check(snapInfo.Description(), Equals, "Lots of text")
+	c.Check(snapInfo.Version, Equals, "1.2")
+	// TODO: not doing a tests for revision due to crazy temp hack involving
+	// NewInstalledSnap()
 }
