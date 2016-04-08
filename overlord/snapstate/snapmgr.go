@@ -390,7 +390,5 @@ func SnapInfo(state *state.State, name string, revision int) (*snap.Info, error)
 	if err != nil {
 		return nil, err
 	}
-	snapInfo := sn.Info()
-	snapInfo.OfficialName = name
-	return snapInfo, nil
+	return sn.Info(), nil
 }
