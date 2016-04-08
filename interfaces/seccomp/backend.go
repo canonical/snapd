@@ -103,7 +103,7 @@ func (b *Backend) combineSnippets(snapInfo *snap.Info, developerMode bool, snipp
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
 		}
-		fname := interfaces.SecurityTag(appInfo)
+		fname := appInfo.SecurityTag()
 		content[fname] = &osutil.FileState{
 			Content: buf.Bytes(),
 			Mode:    0644,
