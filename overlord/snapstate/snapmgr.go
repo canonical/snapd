@@ -86,6 +86,7 @@ func Manager(s *state.State) (*SnapManager, error) {
 	runner.AddHandler("copy-snap-data", m.doCopySnapData, m.undoCopySnapData)
 	runner.AddHandler("setup-snap-security", m.doSetupSnapSecurity, m.doRemoveSnapSecurity)
 	runner.AddHandler("link-snap", m.doLinkSnap, m.undoLinkSnap)
+	runner.AddHandler("garbage-collect", m.doGarbageCollect, nil)
 
 	// remove releated
 	runner.AddHandler("unlink-snap", m.doUnlinkSnap, nil)
@@ -342,6 +343,16 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	return m.backend.UndoLinkSnap(ss.OldMountDir(), ss.MountDir())
+}
+
+func (m *SnapManager) doGarbageCollect(t *state.Task, _ *tomb.Tomb) error {
+	ss, err := TaskSnapSetup(t)
+	if err != nil {
+		return err
+	}
+
+	pb := &TaskProgressAdapter{task: t}
+	return m.backend.GarbageCollect(ss.Name, ss.SetupFlags, pb)
 }
 
 // SnapInfo returns the snap.Info for a snap in the system.

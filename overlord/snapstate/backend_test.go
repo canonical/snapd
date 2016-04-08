@@ -99,24 +99,27 @@ func (f *fakeSnappyBackend) Activate(name string, active bool, p progress.Meter)
 
 func (f *fakeSnappyBackend) CheckSnap(snapFilePath string, flags int) error {
 	f.ops = append(f.ops, fakeOp{
-		op:   "check-snap",
-		name: snapFilePath,
+		op:    "check-snap",
+		name:  snapFilePath,
+		flags: flags,
 	})
 	return nil
 }
 
 func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, flags int) error {
 	f.ops = append(f.ops, fakeOp{
-		op:   "setup-snap",
-		name: snapFilePath,
+		op:    "setup-snap",
+		name:  snapFilePath,
+		flags: flags,
 	})
 	return nil
 }
 
 func (f *fakeSnappyBackend) CopySnapData(instSnapPath string, flags int) error {
 	f.ops = append(f.ops, fakeOp{
-		op:   "copy-data",
-		name: instSnapPath,
+		op:    "copy-data",
+		name:  instSnapPath,
+		flags: flags,
 	})
 	return nil
 }
@@ -202,6 +205,15 @@ func (f *fakeSnappyBackend) RemoveSnapData(name, version string) error {
 		op:      "remove-snap-data",
 		name:    name,
 		version: version,
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) GarbageCollect(name string, flags int, meter progress.Meter) error {
+	f.ops = append(f.ops, fakeOp{
+		op:    "garbage-collect",
+		name:  name,
+		flags: flags,
 	})
 	return nil
 }

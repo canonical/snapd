@@ -36,6 +36,7 @@ type managerBackend interface {
 	CopySnapData(instSnapPath string, flags int) error
 	SetupSnapSecurity(instSnapPath string) error
 	LinkSnap(instSnapPath string) error
+	GarbageCollect(snap string, flags int, meter progress.Meter) error
 	// the undoers for install
 	UndoSetupSnap(snapFilePath string) error
 	UndoCopySnapData(instSnapPath string, flags int) error
@@ -219,4 +220,8 @@ func (s *defaultBackend) RemoveSnapFiles(instSnapPath string, meter progress.Met
 func (s *defaultBackend) RemoveSnapData(name, version string) error {
 
 	return snappy.RemoveSnapData(name, version)
+}
+
+func (s *defaultBackend) GarbageCollect(snap string, flags int, meter progress.Meter) error {
+	return snappy.GarbageCollect(snap, snappy.InstallFlags(flags), meter)
 }
