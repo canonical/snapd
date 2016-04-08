@@ -173,3 +173,15 @@ type AppInfo struct {
 func (app *AppInfo) SecurityTag() string {
 	return fmt.Sprintf("snap.%s.%s", app.Snap.Name(), app.Name)
 }
+
+// WrapperPath returns the path to wrapper invoking the app binary.
+func (app *AppInfo) WrapperPath() string {
+	var binName string
+	if app.Name == app.Snap.Name() {
+		binName = filepath.Base(app.Name)
+	} else {
+		binName = fmt.Sprintf("%s.%s", app.Snap.Name(), filepath.Base(app.Name))
+	}
+
+	return filepath.Join(dirs.SnapBinariesDir, binName)
+}
