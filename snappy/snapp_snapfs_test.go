@@ -27,6 +27,8 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/partition"
+	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/legacygadget"
 	"github.com/ubuntu-core/snappy/snap/squashfs"
 	"github.com/ubuntu-core/snappy/systemd"
 	"github.com/ubuntu-core/snappy/testutil"
@@ -100,13 +102,25 @@ const packageHello = `name: hello-snap
 version: 1.10
 `
 
-func (s *SquashfsTestSuite) TestMakeSnapMakesSquashfs(c *C) {
+func (s *SquashfsTestSuite) TestOpenSnapFile(c *C) {
 	snapPkg := makeTestSnapPackage(c, packageHello)
-	snap, err := NewSnapFile(snapPkg, true)
+	info, snapf, err := openSnapFile(snapPkg, true, nil)
 	c.Assert(err, IsNil)
 
 	// ensure the right backend got picked up
-	c.Assert(snap.deb, FitsTypeOf, &squashfs.Snap{})
+	c.Assert(snapf, FitsTypeOf, &squashfs.Snap{})
+	c.Check(info.Name(), Equals, "hello-snap")
+}
+
+func (s *SquashfsTestSuite) TestOpenSnapFilebSideInfo(c *C) {
+	snapPkg := makeTestSnapPackage(c, packageHello)
+	si := snap.SideInfo{OfficialName: "blessed", Revision: 42}
+	info, _, err := openSnapFile(snapPkg, true, &si)
+	c.Assert(err, IsNil)
+
+	// check side info
+	c.Check(info.Name(), Equals, "blessed")
+	c.Check(info.Revision, Equals, 42)
 }
 
 func (s *SquashfsTestSuite) TestInstallViaSquashfsWorks(c *C) {
@@ -126,13 +140,15 @@ func (s *SquashfsTestSuite) TestInstallViaSquashfsWorks(c *C) {
 }
 
 func (s *SquashfsTestSuite) TestAddSquashfsMount(c *C) {
-	m := &snapYaml{
-		Name:          "foo",
+	info := &snap.Info{
+		SideInfo: snap.SideInfo{
+			OfficialName: "foo",
+		},
 		Version:       "1.0",
 		Architectures: []string{"all"},
 	}
 	inter := &MockProgressMeter{}
-	err := addSquashfsMount(m, filepath.Join(dirs.SnapSnapsDir, "foo/1.0"), true, inter)
+	err := addSquashfsMount(info, true, inter)
 	c.Assert(err, IsNil)
 
 	// ensure correct mount unit
@@ -149,9 +165,15 @@ Where=/snaps/foo/1.0
 }
 
 func (s *SquashfsTestSuite) TestRemoveSquashfsMountUnit(c *C) {
-	m := &snapYaml{}
+	info := &snap.Info{
+		SideInfo: snap.SideInfo{
+			OfficialName: "foo",
+		},
+		Version:       "1.0",
+		Architectures: []string{"all"},
+	}
 	inter := &MockProgressMeter{}
-	err := addSquashfsMount(m, filepath.Join(dirs.SnapSnapsDir, "foo/1.0"), true, inter)
+	err := addSquashfsMount(info, true, inter)
 	c.Assert(err, IsNil)
 
 	// ensure we have the files
@@ -159,24 +181,23 @@ func (s *SquashfsTestSuite) TestRemoveSquashfsMountUnit(c *C) {
 	c.Assert(osutil.FileExists(p), Equals, true)
 
 	// now call remove and ensure they are gone
-	err = removeSquashfsMount(filepath.Join(dirs.SnapSnapsDir, "foo/1.0"), inter)
+	err = removeSquashfsMount(info.MountDir(), inter)
 	c.Assert(err, IsNil)
 	p = filepath.Join(dirs.SnapServicesDir, "snaps-foo-1.0.mount")
 	c.Assert(osutil.FileExists(p), Equals, false)
 }
 
 func (s *SquashfsTestSuite) TestRemoveViaSquashfsWorks(c *C) {
-	snapFile := makeTestSnapPackage(c, packageHello)
-	_, err := (&Overlord{}).Install(snapFile, 0, &MockProgressMeter{})
+	snapPath := makeTestSnapPackage(c, packageHello)
+	snap, err := (&Overlord{}).Install(snapPath, 0, &MockProgressMeter{})
+	c.Assert(err, IsNil)
+	installedSnap, err := NewInstalledSnap(filepath.Join(snap.MountDir(), "meta", "snap.yaml"))
 	c.Assert(err, IsNil)
 
 	// after install the blob is in the right dir
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-snap_1.10.snap")), Equals, true)
 
 	// now remove and ensure its gone
-	snap, err := NewSnapFile(snapFile, true)
-	c.Assert(err, IsNil)
-	installedSnap, err := newSnapFromYaml(filepath.Join(snap.instdir, "meta", "package.yaml"), snap.m)
 	err = (&Overlord{}).Uninstall(installedSnap, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-snap_1.10.snap")), Equals, false)
@@ -257,16 +278,16 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapRemovesKernelAssets(c *C) {
 		{"initrd.img-4.2", "...and I'm an initrd"},
 	}
 	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
-	_, err := (&Overlord{}).Install(snapPkg, 0, &MockProgressMeter{})
+	snap, err := (&Overlord{}).Install(snapPkg, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
+	installedSnap, err := NewInstalledSnap(filepath.Join(snap.MountDir(), "meta", "snap.yaml"))
+	c.Assert(err, IsNil)
+	installedSnap.isActive = false
+
 	kernelAssetsDir := filepath.Join(s.bootloader.Dir(), "ubuntu-kernel_4.0-1.snap")
 	c.Assert(osutil.FileExists(kernelAssetsDir), Equals, true)
 
 	// ensure uninstall cleans the kernel assets
-	snap, err := NewSnapFile(snapPkg, true)
-	c.Assert(err, IsNil)
-	installedSnap, err := newSnapFromYaml(filepath.Join(snap.instdir, "meta", "package.yaml"), snap.m)
-	installedSnap.isActive = false
 	err = (&Overlord{}).Uninstall(installedSnap, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	c.Assert(osutil.FileExists(kernelAssetsDir), Equals, false)
@@ -285,10 +306,10 @@ func (s *SquashfsTestSuite) TestActiveKernelNotRemovable(c *C) {
 
 func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernelErrors(c *C) {
 	snapPkg := makeTestSnapPackage(c, packageHello)
-	snap, err := NewSnapFile(snapPkg, true)
+	snap, snapf, err := openSnapFile(snapPkg, true, nil)
 	c.Assert(err, IsNil)
 
-	err = extractKernelAssets(snap, nil, 0)
+	err = extractKernelAssets(snap, snapf, 0, nil)
 	c.Assert(err, ErrorMatches, `can not extract kernel assets from snap type "app"`)
 }
 
@@ -299,7 +320,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapRemoveAssetsWrongType(c *C) {
 	snap, err := NewInstalledSnap(snapYaml)
 	c.Assert(err, IsNil)
 
-	err = removeKernelAssets(snap, nil)
+	err = removeKernelAssets(snap.Info(), nil)
 	c.Assert(err, ErrorMatches, `can not remove kernel assets from snap type "app"`)
 }
 
@@ -342,11 +363,13 @@ func (s *SquashfsTestSuite) TestInstallKernelRebootRequired(c *C) {
 	c.Assert(snap.NeedsReboot(), Equals, false)
 }
 
-func getFakeGrubGadget() (*snapYaml, error) {
-	return &snapYaml{
-		Gadget: Gadget{
-			Hardware: Hardware{
-				Bootloader: "grub",
+func getFakeGrubGadget() (*snap.Info, error) {
+	return &snap.Info{
+		Legacy: &snap.LegacyYaml{
+			Gadget: legacygadget.Gadget{
+				Hardware: legacygadget.Hardware{
+					Bootloader: "grub",
+				},
 			},
 		},
 	}, nil

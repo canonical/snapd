@@ -42,7 +42,8 @@ type snapYaml struct {
 	Slots            map[string]interface{} `yaml:"slots,omitempty"`
 	Apps             map[string]appYaml     `yaml:"apps,omitempty"`
 
-	// TODO: missing legacy stuff still: config, gadget, kernel
+	// legacy fields collected
+	Legacy LegacyYaml `yaml:",inline"`
 }
 
 type plugYaml struct {
@@ -108,6 +109,9 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 		Apps:                make(map[string]*AppInfo),
 		Plugs:               make(map[string]*PlugInfo),
 		Slots:               make(map[string]*SlotInfo),
+
+		// just expose the parsed legacy yaml bits
+		Legacy: &y.Legacy,
 	}
 	// Collect top-level definitions of plugs
 	for name, data := range y.Plugs {
