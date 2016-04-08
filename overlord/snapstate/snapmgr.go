@@ -386,6 +386,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 // and then complements it with information from the snap itself.
 func SnapInfo(state *state.State, name string, revision int) (*snap.Info, error) {
 	fname := filepath.Join(dirs.SnapSnapsDir, name, strconv.Itoa(revision), "meta", "snap.yaml")
+	// XXX: This hacky and should not be needed.
 	sn, err := snappy.NewInstalledSnap(fname)
 	if err != nil {
 		return nil, err
