@@ -58,10 +58,8 @@ var (
 	// AppArmor cache dir
 	aaCacheDir = "/var/cache/apparmor"
 
-	errDeveloperNotFound  = errors.New("could not detect developer")
-	errPolicyTypeNotFound = errors.New("could not find specified policy type")
-	errInvalidAppID       = errors.New("invalid APP_ID")
-	errPolicyGen          = errors.New("errors found when generating policy")
+	errInvalidAppID = errors.New("invalid APP_ID")
+	errPolicyGen    = errors.New("errors found when generating policy")
 
 	// snappyConfig is the default securityDefinition for a snappy
 	// config fragment
