@@ -81,6 +81,7 @@ func Install(s *state.State, snap, channel string, flags snappy.InstallFlags) (*
 // Note that the state must be locked by the caller.
 func Update(s *state.State, snap, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
 	t := s.NewTask("update-snap", fmt.Sprintf(i18n.G("Updating %q"), snap))
+	t.Set("snap-setup-task", t.ID())
 	t.Set("snap-setup", SnapSetup{
 		Name:    snap,
 		Channel: channel,
@@ -135,6 +136,7 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 	// trigger remove
 	unlink := s.NewTask("unlink-snap", fmt.Sprintf(i18n.G("Deactivating %q"), snapSpec))
 	unlink.Set("snap-setup", ss)
+	unlink.Set("snap-setup-task", unlink.ID())
 
 	removeSecurity := s.NewTask("remove-snap-security", fmt.Sprintf(i18n.G("Removing security profile for %q"), snapSpec))
 	removeSecurity.WaitFor(unlink)
@@ -155,6 +157,7 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 // Note that the state must be locked by the caller.
 func Rollback(s *state.State, snap, ver string) (*state.TaskSet, error) {
 	t := s.NewTask("rollback-snap", fmt.Sprintf(i18n.G("Rolling back %q"), snap))
+	t.Set("snap-setup-task", t.ID())
 	t.Set("snap-setup", SnapSetup{
 		Name:            snap,
 		RollbackVersion: ver,
@@ -168,6 +171,7 @@ func Rollback(s *state.State, snap, ver string) (*state.TaskSet, error) {
 func Activate(s *state.State, snap string) (*state.TaskSet, error) {
 	msg := fmt.Sprintf(i18n.G("Set active %q"), snap)
 	t := s.NewTask("activate-snap", msg)
+	t.Set("snap-setup-task", t.ID())
 	t.Set("snap-setup", SnapSetup{
 		Name: snap,
 	})
@@ -180,6 +184,7 @@ func Activate(s *state.State, snap string) (*state.TaskSet, error) {
 func Deactivate(s *state.State, snap string) (*state.TaskSet, error) {
 	msg := fmt.Sprintf(i18n.G("Set inactive %q"), snap)
 	t := s.NewTask("deactivate-snap", msg)
+	t.Set("snap-setup-task", t.ID())
 	t.Set("snap-setup", SnapSetup{
 		Name: snap,
 	})
