@@ -37,7 +37,7 @@ var _ = Suite(&NetworkInterfaceSuite{
 	iface: builtin.NewNetworkInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "ubuntu-core"},
+			Snap:      &snap.Info{SuggestedName: "ubuntu-core", Type: snap.TypeOS},
 			Name:      "network",
 			Interface: "network",
 		},
