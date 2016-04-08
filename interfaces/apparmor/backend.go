@@ -40,6 +40,7 @@ package apparmor
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
 
@@ -89,7 +90,11 @@ func (b *Backend) Setup(snapInfo *snap.Info, developerMode bool, repo *interface
 		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapName, err)
 	}
 	glob := interfaces.SecurityTagGlob(snapInfo.Name())
-	changed, removed, errEnsure := osutil.EnsureDirState(dirs.SnapAppArmorDir, glob, content)
+	dir := dirs.SnapAppArmorDir
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("cannot create directory for apparmor profiles %q: %s", dir, err)
+	}
+	changed, removed, errEnsure := osutil.EnsureDirState(dir, glob, content)
 	errReload := reloadProfiles(changed)
 	errUnload := unloadProfiles(removed)
 	if errEnsure != nil {
