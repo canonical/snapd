@@ -129,7 +129,7 @@ func (s *SquashfsTestSuite) TestInstallViaSquashfsWorks(c *C) {
 		OfficialName: "hello-snap",
 		Revision:     16,
 	}
-	_, err := (&Overlord{}).InstallWithSideMetadata(snapPkg, si, 0, &MockProgressMeter{})
+	_, err := (&Overlord{}).InstallWithSideInfo(snapPkg, si, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 
 	// after install the blob is in the right dir
@@ -199,7 +199,7 @@ func (s *SquashfsTestSuite) TestRemoveViaSquashfsWorks(c *C) {
 		OfficialName: "hello-snap",
 		Revision:     16,
 	}
-	snap, err := (&Overlord{}).InstallWithSideMetadata(snapPath, si, 0, &MockProgressMeter{})
+	snap, err := (&Overlord{}).InstallWithSideInfo(snapPath, si, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	installedSnap, err := NewInstalledSnap(filepath.Join(snap.MountDir(), "meta", "snap.yaml"))
 	c.Assert(err, IsNil)
@@ -227,7 +227,7 @@ func (s *SquashfsTestSuite) TestInstallOsSnapUpdatesBootloader(c *C) {
 		OfficialName: "ubuntu-core",
 		Revision:     160,
 	}
-	_, err := (&Overlord{}).InstallWithSideMetadata(snapPkg, si, 0, &MockProgressMeter{})
+	_, err := (&Overlord{}).InstallWithSideInfo(snapPkg, si, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 
 	c.Assert(s.bootloader.bootvars, DeepEquals, map[string]string{
@@ -256,7 +256,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
 		OfficialName: "ubuntu-kernel",
 		Revision:     40,
 	}
-	_, err := (&Overlord{}).InstallWithSideMetadata(snapPkg, si, 0, &MockProgressMeter{})
+	_, err := (&Overlord{}).InstallWithSideInfo(snapPkg, si, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 
 	c.Assert(s.bootloader.bootvars, DeepEquals, map[string]string{
@@ -275,7 +275,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernel(c *C) {
 		OfficialName: "ubuntu-kernel",
 		Revision:     42,
 	}
-	_, err := (&Overlord{}).InstallWithSideMetadata(snapPkg, si, 0, &MockProgressMeter{})
+	_, err := (&Overlord{}).InstallWithSideInfo(snapPkg, si, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 
 	// this is where the kernel/initrd is unpacked
@@ -304,7 +304,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapRemovesKernelAssets(c *C) {
 		OfficialName: "ubuntu-kernel",
 		Revision:     42,
 	}
-	snap, err := (&Overlord{}).InstallWithSideMetadata(snapPkg, si, 0, &MockProgressMeter{})
+	snap, err := (&Overlord{}).InstallWithSideInfo(snapPkg, si, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	installedSnap, err := NewInstalledSnap(filepath.Join(snap.MountDir(), "meta", "snap.yaml"))
 	c.Assert(err, IsNil)

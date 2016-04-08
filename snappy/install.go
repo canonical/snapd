@@ -55,7 +55,7 @@ func installRemote(mStore *store.SnapUbuntuStoreRepository, remoteSnap *snap.Inf
 	}
 	defer os.Remove(downloadedSnap)
 
-	localSnap, err := (&Overlord{}).InstallWithSideMetadata(downloadedSnap, &remoteSnap.SideInfo, flags, meter)
+	localSnap, err := (&Overlord{}).InstallWithSideInfo(downloadedSnap, &remoteSnap.SideInfo, flags, meter)
 	if err != nil {
 		return "", err
 	}

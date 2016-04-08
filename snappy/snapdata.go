@@ -58,15 +58,15 @@ func snapDataDirs(snap *snap.Info) ([]string, error) {
 	return found, nil
 }
 
-// Copy all data for oldRevno to newRevno
+// Copy all data for oldSnap to newSnap
 // (but never overwrite)
-func copySnapData(oldRevno, newRevno *snap.Info) (err error) {
-	oldDataDirs, err := snapDataDirs(oldRevno)
+func copySnapData(oldSnap, newSnap *snap.Info) (err error) {
+	oldDataDirs, err := snapDataDirs(oldSnap)
 	if err != nil {
 		return err
 	}
 
-	newSuffix := filepath.Base(newRevno.DataDir())
+	newSuffix := filepath.Base(newSnap.DataDir())
 	for _, oldDir := range oldDataDirs {
 		// replace the trailing "../$old-suffix" with the "../$new-suffix"
 		newDir := filepath.Join(filepath.Dir(oldDir), newSuffix)

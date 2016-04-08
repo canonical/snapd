@@ -419,14 +419,14 @@ func UnlinkSnap(s *Snap, inter interacter) error {
 //
 // It returns the local snap file or an error
 func (o *Overlord) Install(snapFilePath string, flags InstallFlags, meter progress.Meter) (sp *snap.Info, err error) {
-	return o.InstallWithSideMetadata(snapFilePath, nil, flags, meter)
+	return o.InstallWithSideInfo(snapFilePath, nil, flags, meter)
 }
 
-// InstallWithSideMetadata installs the given snap file to the system
-// considering the provided side metadata in sideInfo about it.
+// InstallWithSideInfo installs the given snap file to the system
+// considering the provided side info.
 //
 // It returns the local snap file or an error
-func (o *Overlord) InstallWithSideMetadata(snapFilePath string, sideInfo *snap.SideInfo, flags InstallFlags, meter progress.Meter) (sp *snap.Info, err error) {
+func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideInfo, flags InstallFlags, meter progress.Meter) (sp *snap.Info, err error) {
 	if err := CheckSnap(snapFilePath, flags, meter); err != nil {
 		return nil, err
 	}
