@@ -239,7 +239,7 @@ func makeTwoTestSnaps(c *C, snapType snap.Type, extra ...string) {
 		Revision:     100,
 		Channel:      "remote-channel",
 	}
-	_, err := (&Overlord{}).InstallWithSideMetadata(snapPath, foo10, AllowUnauthenticated|AllowGadget, inter)
+	_, err := (&Overlord{}).InstallWithSideInfo(snapPath, foo10, AllowUnauthenticated|AllowGadget, inter)
 	c.Assert(err, IsNil)
 
 	snapPath = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
@@ -249,7 +249,7 @@ func makeTwoTestSnaps(c *C, snapType snap.Type, extra ...string) {
 		Revision:     200,
 		Channel:      "remote-channel",
 	}
-	_, err = (&Overlord{}).InstallWithSideMetadata(snapPath, foo20, AllowUnauthenticated|AllowGadget, inter)
+	_, err = (&Overlord{}).InstallWithSideInfo(snapPath, foo20, AllowUnauthenticated|AllowGadget, inter)
 	c.Assert(err, IsNil)
 
 	installed, err := (&Overlord{}).Installed()
