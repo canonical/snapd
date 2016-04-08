@@ -175,11 +175,7 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) doRemoveSnapSecurity(t *state.Task, _ *tomb.Tomb) error {
-	var ss SnapSetup
-
-	t.State().Lock()
-	err := t.Get("snap-setup", &ss)
-	t.State().Unlock()
+	ss, err := TaskSnapSetup(t)
 	if err != nil {
 		return err
 	}
@@ -188,11 +184,7 @@ func (m *SnapManager) doRemoveSnapSecurity(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) doRemoveSnapFiles(t *state.Task, _ *tomb.Tomb) error {
-	var ss SnapSetup
-
-	t.State().Lock()
-	err := t.Get("snap-setup", &ss)
-	t.State().Unlock()
+	ss, err := TaskSnapSetup(t)
 	if err != nil {
 		return err
 	}
@@ -201,11 +193,7 @@ func (m *SnapManager) doRemoveSnapFiles(t *state.Task, _ *tomb.Tomb) error {
 	return m.backend.RemoveSnapFiles(ss.MountDir(), pb)
 }
 func (m *SnapManager) doRemoveSnapData(t *state.Task, _ *tomb.Tomb) error {
-	var ss SnapSetup
-
-	t.State().Lock()
-	err := t.Get("snap-setup", &ss)
-	t.State().Unlock()
+	ss, err := TaskSnapSetup(t)
 	if err != nil {
 		return err
 	}
