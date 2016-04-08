@@ -37,7 +37,7 @@ var _ = Suite(&NetworkBindInterfaceSuite{
 	iface: builtin.NewNetworkBindInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "ubuntu-core"},
+			Snap:      &snap.Info{SuggestedName: "ubuntu-core", Type: snap.TypeOS},
 			Name:      "network-bind",
 			Interface: "network-bind",
 		},
