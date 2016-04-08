@@ -46,6 +46,7 @@ import (
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
+	"github.com/ubuntu-core/snappy/store"
 )
 
 // increase this every time you make a minor (backwards-compatible)
@@ -55,6 +56,7 @@ const apiCompatLevel = "0"
 var api = []*Command{
 	rootCmd,
 	sysInfoCmd,
+	loginCmd,
 	appIconCmd,
 	snapsCmd,
 	snapCmd,
@@ -80,6 +82,11 @@ var (
 		Path:    "/v2/system-info",
 		GuestOK: true,
 		GET:     sysInfo,
+	}
+
+	loginCmd = &Command{
+		Path: "/v2/login",
+		POST: loginUser,
 	}
 
 	appIconCmd = &Command{
@@ -178,6 +185,46 @@ func sysInfo(c *Command, r *http.Request) Response {
 	}
 
 	return SyncResponse(m)
+}
+
+func loginUser(c *Command, r *http.Request) Response {
+	var loginData struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+		Otp      string `json:"otp"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&loginData); err != nil {
+		return BadRequest("can't decode login data from request body: %v", err)
+	}
+
+	macaroon, err := store.RequestPackageAccessMacaroon()
+	if err != nil {
+		return InternalError("couldn't get package access macaroon")
+	}
+
+	discharge, err := store.DischargeAuthCaveat(loginData.Username, loginData.Password, macaroon, loginData.Otp)
+	if err == store.ErrAuthenticationNeeds2fa {
+		return Unauthorized("TWOFACTOR_REQUIRED")
+	}
+	if err != nil {
+		return Unauthorized("couldn't get discharge authorization")
+	}
+
+	discharges := []string{discharge}
+	macaroons := map[string]interface{}{
+		"macaroon":   macaroon,
+		"discharges": discharges,
+	}
+
+	overlord := c.d.overlord
+	state := overlord.State()
+	state.Lock()
+	state.Set("macaroons", macaroons)
+	state.Unlock()
+
+	return SyncResponse(macaroons)
 }
 
 type metarepo interface {
