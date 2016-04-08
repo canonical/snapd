@@ -81,7 +81,7 @@ var bluezPermanentSlotAppArmor = []byte(`
       interface=org.freedesktop.DBus.**,
 `)
 
-var bluezPermanentPlugAppArmor = []byte(`
+var bluezConnectedPlugAppArmor = []byte(`
 # Description: Allow using bluez service. Reserved because this gives
 #  privileged access to the bluez service.
 # Usage: reserved
@@ -141,7 +141,7 @@ socketpair
 socket
 `)
 
-var bluezPermanentPlugSecComp = []byte(`
+var bluezConnectedPlugSecComp = []byte(`
 # Description: Allow using bluez service. Reserved because this gives
 #  privileged access to the bluez service.
 # Usage: reserved
@@ -157,7 +157,7 @@ sendmsg
 socket
 `)
 
-var bluezPermanentPlugDBus = []byte(`
+var bluezConnectedPlugDBus = []byte(`
 <policy user="root">
     <allow own="org.bluez"/>
     <allow own="org.bluez.obex"/>
@@ -187,13 +187,7 @@ func (iface *BluezInterface) Name() string {
 
 func (iface *BluezInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityDBus:
-		return bluezPermanentPlugDBus, nil
-	case interfaces.SecurityAppArmor:
-		return bluezPermanentPlugAppArmor, nil
-	case interfaces.SecuritySecComp:
-		return bluezPermanentPlugSecComp, nil
-	case interfaces.SecurityUDev:
+	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -201,7 +195,18 @@ func (iface *BluezInterface) PermanentPlugSnippet(plug *interfaces.Plug, securit
 }
 
 func (iface *BluezInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
+	switch securitySystem {
+	case interfaces.SecurityDBus:
+		return bluezConnectedPlugDBus, nil
+	case interfaces.SecurityAppArmor:
+		return bluezConnectedPlugAppArmor, nil
+	case interfaces.SecuritySecComp:
+		return bluezConnectedPlugSecComp, nil
+	case interfaces.SecurityUDev:
+		return nil, nil
+	default:
+		return nil, interfaces.ErrUnknownSecurity
+	}
 }
 
 func (iface *BluezInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -218,7 +223,12 @@ func (iface *BluezInterface) PermanentSlotSnippet(slot *interfaces.Slot, securit
 }
 
 func (iface *BluezInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	return nil, nil
+	switch securitySystem {
+	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev:
+		return nil, nil
+	default:
+		return nil, interfaces.ErrUnknownSecurity
+	}
 }
 
 func (iface *BluezInterface) SanitizePlug(slot *interfaces.Plug) error {
@@ -230,5 +240,5 @@ func (iface *BluezInterface) SanitizeSlot(slot *interfaces.Slot) error {
 }
 
 func (iface *BluezInterface) AutoConnect() bool {
-    return false
+	return false
 }
