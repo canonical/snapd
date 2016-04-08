@@ -130,15 +130,15 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 	unlink.Set("snap-setup", ss)
 
 	removeSecurity := s.NewTask("remove-snap-security", fmt.Sprintf(i18n.G("Removing security profile for %q"), snapSpec))
-	removeSecurity.Set("snap-setup", ss)
 	removeSecurity.WaitFor(unlink)
+	removeSecurity.Set("snap-setup-task", unlink.ID())
 
 	removeFiles := s.NewTask("remove-snap-files", fmt.Sprintf(i18n.G("Removing files for %q"), snapSpec))
-	removeFiles.Set("snap-setup", ss)
+	removeFiles.Set("snap-setup-task", unlink.ID())
 	removeFiles.WaitFor(removeSecurity)
 
 	removeData := s.NewTask("remove-snap-data", fmt.Sprintf(i18n.G("Removing data for %q"), snapSpec))
-	removeData.Set("snap-setup", ss)
+	removeData.Set("snap-setup-task", unlink.ID())
 	removeData.WaitFor(removeFiles)
 
 	return state.NewTaskSet(unlink, removeSecurity, removeFiles, removeData), nil
