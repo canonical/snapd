@@ -20,9 +20,11 @@
 package snappy
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"gopkg.in/yaml.v2"
@@ -62,6 +64,13 @@ func NewInstalledSnap(yamlPath string) (*Snap, error) {
 // newSnapFromYaml returns a new Snap from the given *snapYaml at yamlPath
 func newSnapFromYaml(yamlPath string, m *snapYaml) (*Snap, error) {
 	mountDir := filepath.Dir(filepath.Dir(yamlPath))
+	// XXX: hack the revision out of the path for now
+	// snapstate primitives shouldn't need this
+	revnoStr := filepath.Base(mountDir)
+	revno, err := strconv.Atoi(revnoStr)
+	if err != nil {
+		return nil, fmt.Errorf("broken snap directory path: %q", mountDir)
+	}
 
 	s := &Snap{
 		m: m,
@@ -100,18 +109,20 @@ func newSnapFromYaml(yamlPath string, m *snapYaml) (*Snap, error) {
 
 	s.info = info
 
-	manifestPath := ManifestPath(info)
-	if osutil.FileExists(manifestPath) {
-		content, err := ioutil.ReadFile(manifestPath)
-		if err != nil {
-			return nil, err
-		}
+	if revno != 0 {
+		mfPath := manifestPath(info, revno)
+		if osutil.FileExists(mfPath) {
+			content, err := ioutil.ReadFile(mfPath)
+			if err != nil {
+				return nil, err
+			}
 
-		var manifest snap.SideInfo
-		if err := yaml.Unmarshal(content, &manifest); err != nil {
-			return nil, &ErrInvalidYaml{File: manifestPath, Err: err, Yaml: content}
+			var manifest snap.SideInfo
+			if err := yaml.Unmarshal(content, &manifest); err != nil {
+				return nil, &ErrInvalidYaml{File: mfPath, Err: err, Yaml: content}
+			}
+			info.SideInfo = manifest
 		}
-		info.SideInfo = manifest
 	}
 
 	if info.Developer == "" {

@@ -327,7 +327,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 	c.Check(installed[0].Developer(), Equals, "bar")
 	c.Check(installed[0].Info().Description(), Equals, "this is a description")
 
-	_, err = os.Stat(filepath.Join(dirs.SnapMetaDir, "foo_1.0.manifest"))
+	_, err = os.Stat(filepath.Join(dirs.SnapMetaDir, "foo_42.manifest"))
 	c.Check(err, IsNil)
 }
 
