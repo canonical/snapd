@@ -70,7 +70,7 @@ export HOME="$SNAP_USER_DATA"
 # Snap name is: pastebinit
 # App name is: pastebinit
 
-ubuntu-core-launcher pastebinit.pastebinit pastebinit_pastebinit_1.4.0.0.1 /snaps/pastebinit/1.4.0.0.1/bin/pastebinit "$@"
+ubuntu-core-launcher snap.pastebinit.pastebinit snap.pastebinit.pastebinit /snaps/pastebinit/1.4.0.0.1/bin/pastebinit "$@"
 `
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
