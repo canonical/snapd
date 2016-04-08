@@ -123,9 +123,9 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "remove-snap-security")
 	i++
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "remove-snap-files")
-	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "remove-snap-data")
+	i++
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "remove-snap-files")
 }
 
 func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
@@ -342,13 +342,13 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 			name: "/snaps/some-snap/7",
 		},
 		fakeOp{
-			op:   "remove-snap-files",
-			name: "/snaps/some-snap/7",
-		},
-		fakeOp{
 			op:    "remove-snap-data",
 			name:  "some-snap",
 			revno: 7,
+		},
+		fakeOp{
+			op:   "remove-snap-files",
+			name: "/snaps/some-snap/7",
 		},
 	})
 
@@ -433,6 +433,7 @@ func (s *snapmgrTestSuite) TestSnapInfo(c *C) {
 	fname := filepath.Join(dname, "snap.yaml")
 	err = ioutil.WriteFile(fname, []byte(`
 name: ignored
+version: 1.2
 description: |
     Lots of text`), 0644)
 	c.Assert(err, IsNil)
@@ -440,8 +441,11 @@ description: |
 	snapInfo, err := snapstate.SnapInfo(s.state, "name", 11)
 	c.Assert(err, IsNil)
 
-	// Check that the name in the YAML is being ignored.
-	c.Check(snapInfo.Name(), Equals, "name")
+	// TODO: This test is not faking the manifest so SideInfo is not present.
+	// The test and the actual implementation need to be improved so that this
+	// is not so hacky and that the manifest can go away.
+	c.Check(snapInfo.Name(), Equals, "ignored")
 	// Check that other values are read from YAML
 	c.Check(snapInfo.Description(), Equals, "Lots of text")
+	c.Check(snapInfo.Version, Equals, "1.2")
 }

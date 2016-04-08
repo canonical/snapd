@@ -30,6 +30,7 @@ package dbus
 import (
 	"bytes"
 	"fmt"
+	"os"
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/interfaces"
@@ -61,7 +62,11 @@ func (b *Backend) Setup(snapInfo *snap.Info, developerMode bool, repo *interface
 		return fmt.Errorf("cannot obtain expected DBus configuration files for snap %q: %s", snapName, err)
 	}
 	glob := fmt.Sprintf("%s.conf", interfaces.SecurityTagGlob(snapName))
-	_, _, err = osutil.EnsureDirState(dirs.SnapBusPolicyDir, glob, content)
+	dir := dirs.SnapBusPolicyDir
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("cannot create directory for DBus configuration files %q: %s", dir, err)
+	}
+	_, _, err = osutil.EnsureDirState(dir, glob, content)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize DBus configuration files for snap %q: %s", snapName, err)
 	}
