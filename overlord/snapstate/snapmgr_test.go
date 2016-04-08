@@ -123,9 +123,9 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "remove-snap-security")
 	i++
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "remove-snap-files")
-	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "remove-snap-data")
+	i++
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "remove-snap-files")
 }
 
 func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
@@ -342,13 +342,13 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 			name: "/snaps/some-snap/7",
 		},
 		fakeOp{
-			op:   "remove-snap-files",
-			name: "/snaps/some-snap/7",
-		},
-		fakeOp{
 			op:    "remove-snap-data",
 			name:  "some-snap",
 			revno: 7,
+		},
+		fakeOp{
+			op:   "remove-snap-files",
+			name: "/snaps/some-snap/7",
 		},
 	})
 
