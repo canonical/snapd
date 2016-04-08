@@ -185,3 +185,13 @@ func (app *AppInfo) WrapperPath() string {
 
 	return filepath.Join(dirs.SnapBinariesDir, binName)
 }
+
+// ServiceFile returns the systemd service file path for the daemon app.
+func (app *AppInfo) ServiceFile() string {
+	return filepath.Join(dirs.SnapServicesDir, fmt.Sprintf("snap_%s_%s_%d.service", app.Snap.Name(), app.Name, app.Snap.Revision))
+}
+
+// ServiceSocketFile returns the systemd socket file path for the daemon app.
+func (app *AppInfo) ServiceSocketFile() string {
+	return filepath.Join(dirs.SnapServicesDir, fmt.Sprintf("snap_%s_%s_%d.socket", app.Snap.Name(), app.Name, app.Snap.Revision))
+}
