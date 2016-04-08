@@ -22,6 +22,7 @@ package snap
 import (
 	"fmt"
 	"path/filepath"
+	"strconv"
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/systemd"
@@ -93,9 +94,13 @@ func (s *Info) Description() string {
 	return s.OriginalDescription
 }
 
+func (s *Info) strRevno() string {
+	return strconv.Itoa(s.Revision)
+}
+
 // MountDir returns the base directory of the snap where it gets mounted.
 func (s *Info) MountDir() string {
-	return filepath.Join(dirs.SnapSnapsDir, s.Name(), s.Version)
+	return filepath.Join(dirs.SnapSnapsDir, s.Name(), s.strRevno())
 }
 
 // MountFile returns the path where the snap file that is mounted is installed.

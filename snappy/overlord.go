@@ -61,12 +61,11 @@ func CheckSnap(snapFilePath string, flags InstallFlags, meter progress.Meter) er
 
 // SetupSnap does prepare and mount the snap for further processing
 // It returns the installed path and an error
-func SetupSnap(snapFilePath string, flags InstallFlags, meter progress.Meter) (string, error) {
+func SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, flags InstallFlags, meter progress.Meter) (string, error) {
 	inhibitHooks := (flags & InhibitHooks) != 0
 	allowUnauth := (flags & AllowUnauthenticated) != 0
 
-	// XXX: soon need to fill or get a sideinfo with at least revision
-	s, snapf, err := openSnapFile(snapFilePath, allowUnauth, nil)
+	s, snapf, err := openSnapFile(snapFilePath, allowUnauth, sideInfo)
 	if err != nil {
 		return "", err
 	}
@@ -82,6 +81,13 @@ func SetupSnap(snapFilePath string, flags InstallFlags, meter progress.Meter) (s
 	if err := os.MkdirAll(instdir, 0755); err != nil {
 		logger.Noticef("Can not create %q: %v", instdir, err)
 		return instdir, err
+	}
+
+	// XXX: do this here as long as we are manifest based
+	if s.Revision != 0 { // not sideloaded
+		if err := SaveManifest(s); err != nil {
+			return instdir, err
+		}
 	}
 
 	if err := snapf.Install(s.MountFile(), instdir); err != nil {
@@ -190,7 +196,7 @@ func currentSnap(newSnap *snap.Info) *Snap {
 }
 
 func CopyData(newSnap *snap.Info, flags InstallFlags, meter progress.Meter) error {
-	dataDir := filepath.Join(dirs.SnapDataDir, newSnap.Name(), newSnap.Version)
+	dataDir := newSnap.DataDir()
 
 	// deal with the data:
 	//
@@ -413,13 +419,22 @@ func UnlinkSnap(s *Snap, inter interacter) error {
 //
 // It returns the local snap file or an error
 func (o *Overlord) Install(snapFilePath string, flags InstallFlags, meter progress.Meter) (sp *snap.Info, err error) {
+	return o.InstallWithSideMetadata(snapFilePath, nil, flags, meter)
+}
+
+// InstallWithSideMetadata installs the given snap file to the system
+// considering the provided side metadata in sideInfo about it.
+//
+// It returns the local snap file or an error
+func (o *Overlord) InstallWithSideMetadata(snapFilePath string, sideInfo *snap.SideInfo, flags InstallFlags, meter progress.Meter) (sp *snap.Info, err error) {
 	if err := CheckSnap(snapFilePath, flags, meter); err != nil {
 		return nil, err
 	}
 
-	instPath, err := SetupSnap(snapFilePath, flags, meter)
+	instPath, err := SetupSnap(snapFilePath, sideInfo, flags, meter)
 	defer func() {
 		if err != nil {
+			// XXX: needs sideInfo?
 			UndoSetupSnap(instPath, meter)
 		}
 	}()
@@ -428,8 +443,7 @@ func (o *Overlord) Install(snapFilePath string, flags InstallFlags, meter progre
 	}
 
 	allowUnauth := (flags & AllowUnauthenticated) != 0
-	// XXX: soon need optionally to fill or get a sideinfo with at least revision
-	newInfo, _, err := openSnapFile(snapFilePath, allowUnauth, nil)
+	newInfo, _, err := openSnapFile(snapFilePath, allowUnauth, sideInfo)
 	if err != nil {
 		return nil, err
 	}
