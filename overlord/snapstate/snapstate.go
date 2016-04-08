@@ -72,12 +72,7 @@ func doInstall(s *state.State, snap, channel string, flags snappy.InstallFlags) 
 	linkSnap.Set("snap-setup-task", download.ID())
 	linkSnap.WaitFor(setupSecurity)
 
-	// garbage collect old versions
-	garbageCollect := s.NewTask("garbage-collect", fmt.Sprintf(i18n.G("Garbage collecting for %q"), snap))
-	garbageCollect.Set("snap-setup-task", download.ID())
-	garbageCollect.WaitFor(linkSnap)
-
-	return state.NewTaskSet(download, mount, copyData, setupSecurity, linkSnap, garbageCollect), nil
+	return state.NewTaskSet(download, mount, copyData, setupSecurity, linkSnap), nil
 }
 
 // Install returns a set of tasks for installing snap.

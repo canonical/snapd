@@ -72,7 +72,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 
 func verifyInstallUpdateTasks(c *C, ts *state.TaskSet) {
 	i := 0
-	c.Assert(ts.Tasks(), HasLen, 6)
+	c.Assert(ts.Tasks(), HasLen, 5)
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "download-snap")
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "mount-snap")
@@ -82,8 +82,6 @@ func verifyInstallUpdateTasks(c *C, ts *state.TaskSet) {
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "setup-snap-security")
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "link-snap")
-	i++
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "garbage-collect")
 }
 
 func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
@@ -145,7 +143,6 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 	s.state.Lock()
 
 	// ensure all our tasks ran
-	c.Assert(s.fakeBackend.ops, HasLen, 7)
 	c.Assert(s.fakeBackend.ops, DeepEquals, []fakeOp{
 		fakeOp{
 			op:      "download",
@@ -172,10 +169,6 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 		fakeOp{
 			op:   "link-snap",
 			name: "/snaps/some-snap/11",
-		},
-		fakeOp{
-			op:   "garbage-collect",
-			name: "some-snap",
 		},
 	})
 
@@ -227,7 +220,6 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 	s.state.Lock()
 
 	// ensure all our tasks ran
-	c.Assert(s.fakeBackend.ops, HasLen, 7)
 	c.Assert(s.fakeBackend.ops, DeepEquals, []fakeOp{
 		fakeOp{
 			op:      "download",
@@ -257,11 +249,6 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 		fakeOp{
 			op:   "link-snap",
 			name: "/snaps/some-snap/11",
-		},
-		fakeOp{
-			op:    "garbage-collect",
-			name:  "some-snap",
-			flags: int(snappy.DoInstallGC),
 		},
 	})
 
@@ -314,7 +301,7 @@ func (s *snapmgrTestSuite) TestInstallLocalIntegration(c *C) {
 	s.state.Lock()
 
 	// ensure only local install was run, i.e. first action is check-snap
-	c.Assert(s.fakeBackend.ops, HasLen, 6)
+	c.Assert(s.fakeBackend.ops, HasLen, 5)
 	c.Check(s.fakeBackend.ops[0].op, Equals, "check-snap")
 	c.Check(s.fakeBackend.ops[0].name, Matches, `.*/mock.snap`)
 }
