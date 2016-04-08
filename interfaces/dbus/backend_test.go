@@ -90,6 +90,10 @@ slots:
     iface:
 `
 
+func (s *backendSuite) TestName(c *C) {
+	c.Check(s.backend.Name(), Equals, "dbus")
+}
+
 func (s *backendSuite) TestInstallingSnapWritesConfigFiles(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
 	s.iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {

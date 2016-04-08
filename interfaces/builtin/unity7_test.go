@@ -37,7 +37,7 @@ var _ = Suite(&Unity7InterfaceSuite{
 	iface: builtin.NewUnity7Interface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "ubuntu-core"},
+			Snap:      &snap.Info{SuggestedName: "ubuntu-core", Type: snap.TypeOS},
 			Name:      "unity7",
 			Interface: "unity7",
 		},

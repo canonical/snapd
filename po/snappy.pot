@@ -352,9 +352,6 @@ msgstr  ""
 msgid   "Rolling back %q"
 msgstr  ""
 
-msgid   "Run snappy console interface"
-msgstr  ""
-
 msgid   "Run snappy shell interface"
 msgstr  ""
 
@@ -446,9 +443,6 @@ msgid   "The hardware device path (e.g. /dev/ttyUSB0)"
 msgstr  ""
 
 msgid   "The package to rollback "
-msgstr  ""
-
-msgid   "The type of shell you want"
 msgstr  ""
 
 msgid   "The version to rollback to"
