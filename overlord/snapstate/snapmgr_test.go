@@ -349,11 +349,11 @@ description: |
 	snapInfo, err := snapstate.SnapInfo(s.state, "name", 11)
 	c.Assert(err, IsNil)
 
-	// Check that the name in the YAML is being ignored.
-	c.Check(snapInfo.Name(), Equals, "name")
+	// TODO: This test is not faking the manifest so SideInfo is not present.
+	// The test and the actual implementation need to be improved so that this
+	// is not so hacky and that the manifest can go away.
+	c.Check(snapInfo.Name(), Equals, "ignored")
 	// Check that other values are read from YAML
 	c.Check(snapInfo.Description(), Equals, "Lots of text")
 	c.Check(snapInfo.Version, Equals, "1.2")
-	// TODO: not doing a tests for revision due to crazy temp hack involving
-	// NewInstalledSnap()
 }
