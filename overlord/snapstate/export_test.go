@@ -19,6 +19,12 @@
 
 package snapstate
 
+import (
+	"gopkg.in/tomb.v2"
+
+	"github.com/ubuntu-core/snappy/overlord/state"
+)
+
 type ManagerBackend managerBackend
 
 func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
@@ -27,4 +33,12 @@ func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
 
 func SetSnapstateBackend(b ManagerBackend) {
 	backend = b
+}
+
+// AddForeignTaskHandlers registers handlers for tasks handled outside of the snap manager.
+func (m *SnapManager) AddForeignTaskHandlers() {
+	// Add fake handlers for tasks handled by interfaces manager
+	fakeHandler := func(task *state.Task, _ *tomb.Tomb) error { return nil }
+	m.runner.AddHandler("setup-snap-security", fakeHandler, fakeHandler)
+	m.runner.AddHandler("remove-snap-security", fakeHandler, fakeHandler)
 }

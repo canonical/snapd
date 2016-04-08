@@ -65,7 +65,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	var err error
 	s.snapmgr, err = snapstate.Manager(s.state)
 	c.Assert(err, IsNil)
-
+	s.snapmgr.AddForeignTaskHandlers()
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
 	snapstate.SetSnapstateBackend(s.fakeBackend)
 }
@@ -163,10 +163,6 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 			name: "/snaps/some-snap/11",
 		},
 		fakeOp{
-			op:   "setup-snap-security",
-			name: "/snaps/some-snap/11",
-		},
-		fakeOp{
 			op:   "link-snap",
 			name: "/snaps/some-snap/11",
 		},
@@ -243,10 +239,6 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 			flags: int(snappy.DoInstallGC),
 		},
 		fakeOp{
-			op:   "setup-snap-security",
-			name: "/snaps/some-snap/11",
-		},
-		fakeOp{
 			op:   "link-snap",
 			name: "/snaps/some-snap/11",
 		},
@@ -301,7 +293,7 @@ func (s *snapmgrTestSuite) TestInstallLocalIntegration(c *C) {
 	s.state.Lock()
 
 	// ensure only local install was run, i.e. first action is check-snap
-	c.Assert(s.fakeBackend.ops, HasLen, 5)
+	c.Assert(s.fakeBackend.ops, HasLen, 4)
 	c.Check(s.fakeBackend.ops[0].op, Equals, "check-snap")
 	c.Check(s.fakeBackend.ops[0].name, Matches, `.*/mock.snap`)
 }
@@ -327,7 +319,7 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 	defer s.snapmgr.Stop()
 	s.state.Lock()
 
-	c.Assert(s.fakeBackend.ops, HasLen, 5)
+	c.Assert(s.fakeBackend.ops, HasLen, 4)
 	c.Assert(s.fakeBackend.ops, DeepEquals, []fakeOp{
 		fakeOp{
 			op:   "can-remove",
@@ -335,10 +327,6 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 		},
 		fakeOp{
 			op:   "unlink-snap",
-			name: "/snaps/some-snap/7",
-		},
-		fakeOp{
-			op:   "remove-snap-security",
 			name: "/snaps/some-snap/7",
 		},
 		fakeOp{
