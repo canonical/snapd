@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"path/filepath"
 
 	"gopkg.in/check.v1"
 
@@ -169,6 +170,7 @@ func (cs *clientSuite) TestClientOpSnap(c *check.C) {
 	}`
 	for _, s := range ops {
 		uuid, err := s.op(cs.cli, pkgName)
+		c.Assert(err, check.IsNil)
 
 		body, err := ioutil.ReadAll(cs.req.Body)
 		c.Assert(err, check.IsNil, check.Commentf(s.action))
@@ -185,6 +187,7 @@ func (cs *clientSuite) TestClientOpSnap(c *check.C) {
 
 	for _, s := range chanops {
 		uuid, err := s.op(cs.cli, pkgName, chanName)
+		c.Assert(err, check.IsNil)
 
 		body, err := ioutil.ReadAll(cs.req.Body)
 		c.Assert(err, check.IsNil, check.Commentf(s.action))
@@ -199,4 +202,30 @@ func (cs *clientSuite) TestClientOpSnap(c *check.C) {
 		c.Check(cs.req.URL.Path, check.Equals, fmt.Sprintf("/v2/snaps/%s", pkgName), check.Commentf(s.action))
 		c.Check(uuid, check.Equals, "5a70dffa-66b3-3567-d728-55b0da48bdc7", check.Commentf(s.action))
 	}
+}
+
+func (cs *clientSuite) TestClientOpSideload(c *check.C) {
+	cs.rsp = `{
+		"result": {
+			"resource": "/v2/operations/5a70dffa-66b3-3567-d728-55b0da48bdc7"
+		},
+		"status_code": 202,
+		"type": "async"
+	}`
+	bodyData := []byte("snap-data")
+
+	snap := filepath.Join(c.MkDir(), "foo.snap")
+	err := ioutil.WriteFile(snap, bodyData, 0644)
+	c.Assert(err, check.IsNil)
+
+	uuid, err := (*client.Client).InstallSnapFile(cs.cli, snap)
+	c.Assert(err, check.IsNil)
+
+	body, err := ioutil.ReadAll(cs.req.Body)
+	c.Assert(err, check.IsNil)
+	c.Assert(body, check.DeepEquals, bodyData)
+
+	c.Check(cs.req.Method, check.Equals, "POST")
+	c.Check(cs.req.URL.Path, check.Equals, fmt.Sprintf("/v2/snaps"))
+	c.Check(uuid, check.Equals, "5a70dffa-66b3-3567-d728-55b0da48bdc7")
 }

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,29 +22,33 @@ package main
 import (
 	"fmt"
 
-	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/logger"
+	"github.com/jessevdk/go-flags"
+
+	"github.com/ubuntu-core/snappy/partition"
 	"github.com/ubuntu-core/snappy/snappy"
 )
 
-type cmdInternalFirstBootGadgetConfig struct{}
+type cmdBooted struct{}
 
 func init() {
-	_, err := parser.AddCommand("firstboot",
+	cmd := addCommand("booted",
 		"internal",
 		"internal",
-		&cmdInternalFirstBootGadgetConfig{})
-	if err != nil {
-		logger.Panicf("Unable to first_boot: %v", err)
-	}
+		func() flags.Commander {
+			return &cmdFind{}
+		})
+	cmd.hidden = true
 }
 
-func (x *cmdInternalFirstBootGadgetConfig) Execute(args []string) error {
-	err := snappy.FirstBoot()
-	if err == snappy.ErrNotFirstBoot {
-		fmt.Println(i18n.G("First boot has already run"))
-		return nil
+func (x *cmdBooted) doBooted() error {
+	bootloader, err := partition.FindBootloader()
+	if err != nil {
+		return fmt.Errorf("can not mark boot successful: %s", err)
 	}
 
-	return err
+	if err := partition.MarkBootSuccessful(bootloader); err != nil {
+		return err
+	}
+
+	return snappy.SyncBoot()
 }
