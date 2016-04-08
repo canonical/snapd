@@ -571,7 +571,7 @@ func removeOneSecurityPolicy(m *snapYaml, name, baseDir string) error {
 
 func RemoveGeneratedSnapSecurity(s *Snap) error {
 	m := s.m
-	baseDir := s.basedir
+	baseDir := s.Info().MountDir()
 	for _, app := range m.Apps {
 		if app.Daemon == "" {
 			continue
@@ -736,7 +736,7 @@ func SetupSnapSecurity(s *Snap) error {
 	var foundError error
 
 	m := s.m
-	baseDir := s.basedir
+	baseDir := s.Info().MountDir()
 
 	// generate default security config for snappy-config
 	if hasConfig(baseDir) {
@@ -919,7 +919,7 @@ func RegenerateAllPolicy(force bool) error {
 	}
 
 	for _, snap := range installed {
-		basedir := snap.basedir
+		basedir := snap.Info().MountDir()
 		yFn := filepath.Join(basedir, "meta", "snap.yaml")
 
 		// FIXME: use ErrPolicyNeedsRegenerating here to check if

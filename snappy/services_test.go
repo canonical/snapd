@@ -40,7 +40,7 @@ func (s *SnapTestSuite) TestAddPackageServicesStripsGlobalRootdir(c *C) {
 	// is stripped)
 	c.Assert(dirs.GlobalRootDir, Not(Equals), "/")
 
-	yamlFile, err := makeInstalledMockSnap("")
+	yamlFile, err := makeInstalledMockSnap("", 12)
 	c.Assert(err, IsNil)
 	snap, err := NewInstalledSnap(yamlFile)
 	c.Assert(err, IsNil)
@@ -51,7 +51,7 @@ func (s *SnapTestSuite) TestAddPackageServicesStripsGlobalRootdir(c *C) {
 	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/systemd/system/hello-snap_svc1_1.10.service"))
 	c.Assert(err, IsNil)
 
-	baseDirWithoutRootPrefix := "/snaps/" + helloSnapComposedName + "/1.10"
+	baseDirWithoutRootPrefix := "/snaps/" + helloSnapComposedName + "/12"
 	verbs := []string{"Start", "Stop", "StopPost"}
 	bins := []string{"hello", "goodbye", "missya"}
 	for i := range verbs {
@@ -67,7 +67,7 @@ func (s *SnapTestSuite) TestAddPackageBinariesStripsGlobalRootdir(c *C) {
 	// is stripped)
 	c.Assert(dirs.GlobalRootDir, Not(Equals), "/")
 
-	yamlFile, err := makeInstalledMockSnap("")
+	yamlFile, err := makeInstalledMockSnap("", 11)
 	c.Assert(err, IsNil)
 	snap, err := NewInstalledSnap(yamlFile)
 	c.Assert(err, IsNil)
@@ -79,7 +79,7 @@ func (s *SnapTestSuite) TestAddPackageBinariesStripsGlobalRootdir(c *C) {
 	c.Assert(err, IsNil)
 
 	needle := `
-ubuntu-core-launcher snap.hello-snap.hello snap.hello-snap.hello /snaps/hello-snap/1.10/bin/hello "$@"
+ubuntu-core-launcher snap.hello-snap.hello snap.hello-snap.hello /snaps/hello-snap/11/bin/hello "$@"
 `
 	c.Assert(string(content), Matches, "(?ms).*"+regexp.QuoteMeta(needle)+".*")
 }
@@ -103,10 +103,10 @@ TimeoutStopSec=30
 [Install]
 WantedBy=multi-user.target
 `
-	expectedServiceAppWrapper     = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", "Type=simple\n", arch.UbuntuArchitecture())
-	expectedServiceFmkWrapper     = fmt.Sprintf(expectedServiceWrapperFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target", "Type=dbus\nBusName=foo.bar.baz", arch.UbuntuArchitecture())
-	expectedSocketUsingWrapper    = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target xkcd-webserver_xkcd-webserver_0.3.4.socket\nRequires=ubuntu-snappy.frameworks.target xkcd-webserver_xkcd-webserver_0.3.4.socket", "Type=simple\n", arch.UbuntuArchitecture())
-	expectedTypeForkingFmkWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", "Type=forking\n", arch.UbuntuArchitecture())
+	expectedServiceAppWrapper     = fmt.Sprintf(expectedServiceWrapperFmt, "After=snapd.frameworks.target\nRequires=snapd.frameworks.target", "Type=simple\n", arch.UbuntuArchitecture())
+	expectedServiceFmkWrapper     = fmt.Sprintf(expectedServiceWrapperFmt, "Before=snapd.frameworks.target\nAfter=snapd.frameworks-pre.target\nRequires=snapd.frameworks-pre.target", "Type=dbus\nBusName=foo.bar.baz", arch.UbuntuArchitecture())
+	expectedSocketUsingWrapper    = fmt.Sprintf(expectedServiceWrapperFmt, "After=snapd.frameworks.target xkcd-webserver_xkcd-webserver_0.3.4.socket\nRequires=snapd.frameworks.target xkcd-webserver_xkcd-webserver_0.3.4.socket", "Type=simple\n", arch.UbuntuArchitecture())
+	expectedTypeForkingFmkWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "After=snapd.frameworks.target\nRequires=snapd.frameworks.target", "Type=forking\n", arch.UbuntuArchitecture())
 )
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapServiceTypeForking(c *C) {
@@ -201,7 +201,8 @@ apps:
    command: wat
    stop-timeout: 25
    daemon: forking
-`)
+`, 11)
+
 	c.Assert(err, IsNil)
 	snap, err := NewInstalledSnap(yamlFile)
 	c.Assert(err, IsNil)
