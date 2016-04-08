@@ -105,7 +105,7 @@ func (s *Info) MountDir() string {
 
 // MountFile returns the path where the snap file that is mounted is installed.
 func (s *Info) MountFile() string {
-	return filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", s.Name(), s.Version))
+	return filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%d.snap", s.Name(), s.Revision))
 }
 
 // DataDir returns the data directory of the snap.

@@ -155,6 +155,23 @@ func FindSnapsByNameAndVersion(needle, version string, haystack []*Snap) []*Snap
 	return found
 }
 
+// XXX test this
+// FindSnapsByNameAndRevision returns the snaps with the name/version in the
+// given slice of snaps
+func FindSnapsByNameAndRevision(needle string, revno int, haystack []*Snap) []*Snap {
+	name, developer := SplitDeveloper(needle)
+	ignorens := developer == ""
+	var found []*Snap
+
+	for _, snap := range haystack {
+		if snap.Name() == name && snap.Revision() == revno && (ignorens || snap.Developer() == developer) {
+			found = append(found, snap)
+		}
+	}
+
+	return found
+}
+
 // MakeSnapActiveByNameAndVersion makes the given snap version the active
 // version
 func makeSnapActiveByNameAndVersion(pkg, ver string, inter progress.Meter) error {

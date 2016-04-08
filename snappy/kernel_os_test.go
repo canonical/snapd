@@ -40,14 +40,14 @@ func (s *kernelTestSuite) SetUpTest(c *C) {
 	}
 }
 
-func (s *kernelTestSuite) TestNameAndVersionFromSnap(c *C) {
-	name, ver := nameAndVersionFromSnap("canonical-pc-linux.canonical_4.3.0-5-1.snap")
+func (s *kernelTestSuite) TestNameAndRevnoFromSnap(c *C) {
+	name, revno := nameAndRevnoFromSnap("canonical-pc-linux.canonical_101.snap")
 	c.Check(name, Equals, "canonical-pc-linux.canonical")
-	c.Check(ver, Equals, "4.3.0-5-1")
+	c.Check(revno, Equals, 101)
 
-	name, ver = nameAndVersionFromSnap("ubuntu-core.canonical_16.04.0-7.snap")
+	name, revno = nameAndRevnoFromSnap("ubuntu-core.canonical_103.snap")
 	c.Check(name, Equals, "ubuntu-core.canonical")
-	c.Check(ver, Equals, "16.04.0-7")
+	c.Check(revno, Equals, 103)
 }
 
 var kernelYaml = `name: linux
@@ -60,9 +60,9 @@ type: os
 
 func (s *kernelTestSuite) TestSyncBoot(c *C) {
 	// make an OS
-	s.bootloader.SetBootVar("snappy_os", "core_v1.snap")
 	_, err := makeInstalledMockSnap(osYaml+"version: v1", 10)
 	c.Assert(err, IsNil)
+	s.bootloader.SetBootVar("snappy_os", "core_10.snap")
 
 	// make two kernels, v1 and v2 and activate v2
 	_, err = makeInstalledMockSnap(kernelYaml+"version: v1", 20)
@@ -77,9 +77,10 @@ func (s *kernelTestSuite) TestSyncBoot(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 3)
 	// ensure that v2 is the active one
-	found := FindSnapsByNameAndVersion("linux", "v2", installed)
+	found := FindSnapsByNameAndRevision("linux", 21, installed)
 	c.Assert(found, HasLen, 1)
 	c.Assert(found[0].Name(), Equals, "linux")
+	c.Assert(found[0].Revision(), Equals, 21)
 	c.Assert(found[0].Version(), Equals, "v2")
 	c.Assert(found[0].IsActive(), Equals, true)
 
@@ -89,7 +90,7 @@ func (s *kernelTestSuite) TestSyncBoot(c *C) {
 	// After such a failed boot the filesystem will still point
 	// to v2 as the active version even though this is not true
 	// because we booted with v1.
-	s.bootloader.SetBootVar("snappy_kernel", "linux_v1.snap")
+	s.bootloader.SetBootVar("snappy_kernel", "linux_20.snap")
 
 	// run SyncBoot - this will correct the situation
 	err = SyncBoot()
@@ -101,6 +102,7 @@ func (s *kernelTestSuite) TestSyncBoot(c *C) {
 	found = FindSnapsByNameAndVersion("linux", "v1", installed)
 	c.Assert(found, HasLen, 1)
 	c.Assert(found[0].Name(), Equals, "linux")
+	c.Assert(found[0].Revision(), Equals, 20)
 	c.Assert(found[0].Version(), Equals, "v1")
 	c.Assert(found[0].IsActive(), Equals, true)
 }
