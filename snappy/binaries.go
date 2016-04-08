@@ -34,14 +34,6 @@ import (
 	"github.com/ubuntu-core/snappy/snap/snapenv"
 )
 
-// XXX: this needs to change in the new interfaces world!
-// it will need to be a SecurityTag value
-func getSecurityProfileFromApp(app *snap.AppInfo) string {
-	cleanedName := strings.Replace(app.Name, "/", "-", -1)
-
-	return fmt.Sprintf("%s_%s_%s", app.Snap.Name(), cleanedName, app.Snap.Version)
-}
-
 // generate the name
 // TODO: => AppInfo.WrapperPath
 func generateBinaryName(app *snap.AppInfo) string {
