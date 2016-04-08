@@ -156,9 +156,12 @@ func init() {
 	}{
 		{"remove", shortRemoveHelp, longRemoveHelp, (*client.Client).RemoveSnap},
 		{"purge", shortPurgeHelp, longPurgeHelp, (*client.Client).PurgeSnap},
-		{"rollback", shortRollbackHelp, longRollbackHelp, (*client.Client).RollbackSnap},
-		{"activate", shortActivateHelp, longActivateHelp, (*client.Client).ActivateSnap},
-		{"deactivate", shortDeactivateHelp, longDeactivateHelp, (*client.Client).DeactivateSnap},
+		// FIXME: re-enable once the state engine is ready
+		/*
+			{"rollback", shortRollbackHelp, longRollbackHelp, (*client.Client).RollbackSnap},
+			{"activate", shortActivateHelp, longActivateHelp, (*client.Client).ActivateSnap},
+			{"deactivate", shortDeactivateHelp, longDeactivateHelp, (*client.Client).DeactivateSnap},
+		*/
 	} {
 		op := s.op
 		addCommand(s.name, s.short, s.long, func() flags.Commander { return &cmdOp{op: op} })
