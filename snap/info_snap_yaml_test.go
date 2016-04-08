@@ -911,3 +911,20 @@ apps:
 		},
 	})
 }
+
+// legacy
+
+func (s *YamlSuite) TestLegacyParsing(c *C) {
+	y := []byte(`name: gadget-test
+version: 1.0
+gadget:
+  store:
+    id: my-store
+type: gadget
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+
+	c.Assert(info.Legacy, NotNil)
+	c.Check(info.Legacy.Gadget.Store.ID, Equals, "my-store")
+}

@@ -20,6 +20,7 @@
 package snap
 
 import (
+	"fmt"
 	"path/filepath"
 
 	"github.com/ubuntu-core/snappy/dirs"
@@ -58,6 +59,9 @@ type Info struct {
 	Plugs            map[string]*PlugInfo
 	Slots            map[string]*SlotInfo
 
+	// legacy fields collected
+	Legacy *LegacyYaml
+
 	// The information in these fields is not present inside the snap blob itself.
 	SideInfo
 
@@ -89,9 +93,14 @@ func (s *Info) Description() string {
 	return s.OriginalDescription
 }
 
-// BaseDir returns the base directory of the snap.
-func (s *Info) BaseDir() string {
+// MountDir returns the base directory of the snap where it gets mounted.
+func (s *Info) MountDir() string {
 	return filepath.Join(dirs.SnapSnapsDir, s.Name(), s.Version)
+}
+
+// MountFile returns the path where the snap file that is mounted is installed.
+func (s *Info) MountFile() string {
+	return filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", s.Name(), s.Version))
 }
 
 // PlugInfo provides information about a plug.

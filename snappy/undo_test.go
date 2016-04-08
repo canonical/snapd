@@ -53,9 +53,9 @@ version: 1.0
 `
 
 func (s *undoTestSuite) TestUndoForSetupSnapSimple(c *C) {
-	snapFile := makeTestSnapPackage(c, helloSnap)
+	snapPath := makeTestSnapPackage(c, helloSnap)
 
-	instDir, err := SetupSnap(snapFile, 0, &s.meter)
+	instDir, err := SetupSnap(snapPath, 0, &s.meter)
 	c.Assert(err, IsNil)
 	c.Assert(instDir, Equals, filepath.Join(dirs.SnapSnapsDir, "hello-snap/1.0"))
 	l, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
@@ -80,7 +80,7 @@ func (s *undoTestSuite) TestUndoForSetupSnapKernelUboot(c *C) {
 		{"lib/modules/4.4.0-14-generic/foo.ko", "a module"},
 		{"lib/firmware/bar.bin", "some firmware"},
 	}
-	snapFile := makeTestSnapPackageWithFiles(c, `name: kernel-snap
+	snapPath := makeTestSnapPackageWithFiles(c, `name: kernel-snap
 version: 1.0
 type: kernel
 
@@ -90,7 +90,7 @@ modules: lib/modules/4.4.0-14-generic
 firmware: lib/firmware
 `, testFiles)
 
-	instDir, err := SetupSnap(snapFile, 0, &s.meter)
+	instDir, err := SetupSnap(snapPath, 0, &s.meter)
 	c.Assert(err, IsNil)
 	l, _ := filepath.Glob(filepath.Join(bootloader.Dir(), "*"))
 	c.Assert(l, HasLen, 1)
@@ -123,13 +123,13 @@ version: 2.0`)
 	c.Assert(err, IsNil)
 
 	// copy data
-	err = CopyData(sn, 0, &s.meter)
+	err = CopyData(sn.Info(), 0, &s.meter)
 	c.Assert(err, IsNil)
 	v2data := filepath.Join(dirs.SnapDataDir, "hello/2.0")
 	l, _ := filepath.Glob(filepath.Join(v2data, "*"))
 	c.Assert(l, HasLen, 1)
 
-	UndoCopyData(sn, 0, &s.meter)
+	UndoCopyData(sn.Info(), 0, &s.meter)
 	l, _ = filepath.Glob(filepath.Join(v2data, "*"))
 	c.Assert(l, HasLen, 0)
 
