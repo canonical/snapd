@@ -165,6 +165,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryHeaders(c *C) {
 	t.store.configureStoreReq(req, "application/json")
 
 	c.Check(req.Header.Get("Accept"), Equals, "application/json")
+	c.Assert(req.Header.Get("Authorization"), Equals, "")
 
 	mockStoreToken := StoreToken{TokenName: "meep"}
 	err = WriteStoreToken(mockStoreToken)
