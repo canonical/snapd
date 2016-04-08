@@ -61,7 +61,7 @@ func (s *loginSuite) TestEmptyLoginNameError(c *check.C) {
 	output, err := cli.ExecCommandErr("snap", "login")
 
 	c.Assert(err, check.NotNil, check.Commentf("expecting empty login error"))
-	c.Assert(output, check.Equals, "the required argument `userid` was not provided\n")
+	c.Assert(output, check.Equals, "error: the required argument `userid` was not provided\n")
 }
 
 func (s *loginSuite) TestInvalidCredentialsError(c *check.C) {
