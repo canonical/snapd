@@ -167,7 +167,7 @@ func FirstBoot() error {
 }
 
 // NOTE: if you change stampFile, update the condition in
-// ubuntu-snappy.firstboot.service to match
+// snapd.firstboot.service to match
 var stampFile = "/var/lib/snappy/firstboot/stamp"
 
 func stampFirstBoot() error {

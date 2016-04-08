@@ -1,2 +1,4 @@
 /snaps
 /var/lib/snappy/apparmor/additional
+var/lib/snappy/snaps
+usr/lib/snappy
