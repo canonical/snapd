@@ -354,7 +354,9 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) doGarbageCollect(t *state.Task, _ *tomb.Tomb) error {
+	t.State().Lock()
 	ss, err := TaskSnapSetup(t)
+	t.State().Unlock()
 	if err != nil {
 		return err
 	}
