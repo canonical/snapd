@@ -58,7 +58,8 @@ type Backend struct {
 	legacyTemplate []byte
 }
 
-func (b *Backend) String() string {
+// Name returns the name of the backend.
+func (b *Backend) Name() string {
 	return "apparmor"
 }
 
