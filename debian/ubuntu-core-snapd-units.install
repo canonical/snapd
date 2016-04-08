@@ -1,3 +1,2 @@
 debian/snapd.boot-ok.service /lib/systemd/system/
 debian/snapd.firstboot.service /lib/systemd/system/
-debian/snapd.run-hooks.service /lib/systemd/system/
