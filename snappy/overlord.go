@@ -359,13 +359,6 @@ func ActivateSnap(s *Snap, inter interacter) error {
 		return fmt.Errorf("cannot activate snap while another one is active: %v", currentActiveDir)
 	}
 
-	// generate the security policy from the snap.yaml
-	// Note that this must happen before binaries/services are
-	// generated because serices may get started
-	if err := SetupSnapSecurity(s); err != nil {
-		return err
-	}
-
 	if err := GenerateWrappers(s, inter); err != nil {
 		return err
 	}
