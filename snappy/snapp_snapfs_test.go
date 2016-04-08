@@ -133,14 +133,14 @@ func (s *SquashfsTestSuite) TestInstallViaSquashfsWorks(c *C) {
 	c.Assert(err, IsNil)
 
 	// after install the blob is in the right dir
-	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-snap_1.10.snap")), Equals, true)
+	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-snap_16.snap")), Equals, true)
 
 	// ensure the right unit is created
 	mup := systemd.MountUnitPath("/snaps/hello-snap/16", "mount")
 	content, err := ioutil.ReadFile(mup)
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Matches, "(?ms).*^Where=/snaps/hello-snap/16")
-	c.Assert(string(content), Matches, "(?ms).*^What=/var/lib/snappy/snaps/hello-snap_1.10.snap")
+	c.Assert(string(content), Matches, "(?ms).*^What=/var/lib/snappy/snaps/hello-snap_16.snap")
 }
 
 func (s *SquashfsTestSuite) TestAddSquashfsMount(c *C) {
@@ -163,7 +163,7 @@ func (s *SquashfsTestSuite) TestAddSquashfsMount(c *C) {
 Description=Squashfs mount unit for foo
 
 [Mount]
-What=/var/lib/snappy/snaps/foo_1.1.snap
+What=/var/lib/snappy/snaps/foo_13.snap
 Where=/snaps/foo/13
 `)
 
@@ -195,18 +195,22 @@ func (s *SquashfsTestSuite) TestRemoveSquashfsMountUnit(c *C) {
 
 func (s *SquashfsTestSuite) TestRemoveViaSquashfsWorks(c *C) {
 	snapPath := makeTestSnapPackage(c, packageHello)
-	snap, err := (&Overlord{}).Install(snapPath, 0, &MockProgressMeter{})
+	si := &snap.SideInfo{
+		OfficialName: "hello-snap",
+		Revision:     16,
+	}
+	snap, err := (&Overlord{}).InstallWithSideMetadata(snapPath, si, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	installedSnap, err := NewInstalledSnap(filepath.Join(snap.MountDir(), "meta", "snap.yaml"))
 	c.Assert(err, IsNil)
 
 	// after install the blob is in the right dir
-	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-snap_1.10.snap")), Equals, true)
+	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-snap_16.snap")), Equals, true)
 
 	// now remove and ensure its gone
 	err = (&Overlord{}).Uninstall(installedSnap, &MockProgressMeter{})
 	c.Assert(err, IsNil)
-	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-snap_1.10.snap")), Equals, false)
+	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-snap_16.snap")), Equals, false)
 
 }
 
@@ -219,11 +223,15 @@ vendor: Someone
 
 func (s *SquashfsTestSuite) TestInstallOsSnapUpdatesBootloader(c *C) {
 	snapPkg := makeTestSnapPackage(c, packageOS)
-	_, err := (&Overlord{}).Install(snapPkg, 0, &MockProgressMeter{})
+	si := &snap.SideInfo{
+		OfficialName: "ubuntu-core",
+		Revision:     160,
+	}
+	_, err := (&Overlord{}).InstallWithSideMetadata(snapPkg, si, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 
 	c.Assert(s.bootloader.bootvars, DeepEquals, map[string]string{
-		"snappy_os":   "ubuntu-core_15.10-1.snap",
+		"snappy_os":   "ubuntu-core_160.snap",
 		"snappy_mode": "try",
 	})
 }
@@ -244,11 +252,15 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
 		{"initrd.img-4.2", "...and I'm an initrd"},
 	}
 	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
-	_, err := (&Overlord{}).Install(snapPkg, 0, &MockProgressMeter{})
+	si := &snap.SideInfo{
+		OfficialName: "ubuntu-kernel",
+		Revision:     40,
+	}
+	_, err := (&Overlord{}).InstallWithSideMetadata(snapPkg, si, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 
 	c.Assert(s.bootloader.bootvars, DeepEquals, map[string]string{
-		"snappy_kernel": "ubuntu-kernel_4.0-1.snap",
+		"snappy_kernel": "ubuntu-kernel_40.snap",
 		"snappy_mode":   "try",
 	})
 }
@@ -259,20 +271,24 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernel(c *C) {
 		{"initrd.img-4.2", "...and I'm an initrd"},
 	}
 	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
-	_, err := (&Overlord{}).Install(snapPkg, 0, &MockProgressMeter{})
+	si := &snap.SideInfo{
+		OfficialName: "ubuntu-kernel",
+		Revision:     42,
+	}
+	_, err := (&Overlord{}).InstallWithSideMetadata(snapPkg, si, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 
 	// this is where the kernel/initrd is unpacked
 	bootdir := s.bootloader.Dir()
 
 	// kernel is here and normalized
-	vmlinuz := filepath.Join(bootdir, "ubuntu-kernel_4.0-1.snap", "vmlinuz")
+	vmlinuz := filepath.Join(bootdir, "ubuntu-kernel_42.snap", "vmlinuz")
 	content, err := ioutil.ReadFile(vmlinuz)
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, files[0][1])
 
 	// and so is initrd
-	initrd := filepath.Join(bootdir, "ubuntu-kernel_4.0-1.snap", "initrd.img")
+	initrd := filepath.Join(bootdir, "ubuntu-kernel_42.snap", "initrd.img")
 	content, err = ioutil.ReadFile(initrd)
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, files[1][1])
@@ -284,13 +300,17 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapRemovesKernelAssets(c *C) {
 		{"initrd.img-4.2", "...and I'm an initrd"},
 	}
 	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
-	snap, err := (&Overlord{}).Install(snapPkg, 0, &MockProgressMeter{})
+	si := &snap.SideInfo{
+		OfficialName: "ubuntu-kernel",
+		Revision:     42,
+	}
+	snap, err := (&Overlord{}).InstallWithSideMetadata(snapPkg, si, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	installedSnap, err := NewInstalledSnap(filepath.Join(snap.MountDir(), "meta", "snap.yaml"))
 	c.Assert(err, IsNil)
 	installedSnap.isActive = false
 
-	kernelAssetsDir := filepath.Join(s.bootloader.Dir(), "ubuntu-kernel_4.0-1.snap")
+	kernelAssetsDir := filepath.Join(s.bootloader.Dir(), "ubuntu-kernel_42.snap")
 	c.Assert(osutil.FileExists(kernelAssetsDir), Equals, true)
 
 	// ensure uninstall cleans the kernel assets
@@ -342,18 +362,18 @@ func (s *SquashfsTestSuite) TestActiveOSNotRemovable(c *C) {
 }
 
 func (s *SquashfsTestSuite) TestInstallOsRebootRequired(c *C) {
-	snapYaml, err := makeInstalledMockSnap(packageOS, 11)
+	snapYaml, err := makeInstalledMockSnap(packageOS, 160)
 	c.Assert(err, IsNil)
 	snap, err := NewInstalledSnap(snapYaml)
 	c.Assert(err, IsNil)
 
 	snap.isActive = false
-	s.bootloader.bootvars["snappy_os"] = "ubuntu-core_15.10-1.snap"
+	s.bootloader.bootvars["snappy_os"] = "ubuntu-core_160.snap"
 	c.Assert(snap.NeedsReboot(), Equals, true)
 }
 
 func (s *SquashfsTestSuite) TestInstallKernelRebootRequired(c *C) {
-	snapYaml, err := makeInstalledMockSnap(packageKernel, 11)
+	snapYaml, err := makeInstalledMockSnap(packageKernel, 40)
 	c.Assert(err, IsNil)
 
 	snap, err := NewInstalledSnap(snapYaml)
@@ -361,11 +381,11 @@ func (s *SquashfsTestSuite) TestInstallKernelRebootRequired(c *C) {
 	c.Assert(snap.NeedsReboot(), Equals, false)
 
 	snap.isActive = false
-	s.bootloader.bootvars["snappy_kernel"] = "ubuntu-kernel_4.0-1.snap"
+	s.bootloader.bootvars["snappy_kernel"] = "ubuntu-kernel_40.snap"
 	c.Assert(snap.NeedsReboot(), Equals, true)
 
 	// simulate we booted the kernel successfully
-	s.bootloader.bootvars["snappy_good_kernel"] = "ubuntu-kernel_4.0-1.snap"
+	s.bootloader.bootvars["snappy_good_kernel"] = "ubuntu-kernel_40.snap"
 	c.Assert(snap.NeedsReboot(), Equals, false)
 }
 
