@@ -266,11 +266,11 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 	err = task.Get("snap-setup", &ss)
 	c.Assert(err, IsNil)
 	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
-		Name:       "some-snap",
-		Developer:  "mvo",
-		Channel:    "some-channel",
-		Version:    "1.0",
-		SetupFlags: int(snappy.DoInstallGC),
+		Name:      "some-snap",
+		Developer: "mvo",
+		Channel:   "some-channel",
+		Version:   "1.0",
+		Flags:     int(snappy.DoInstallGC),
 
 		SnapPath: "downloaded-snap-path",
 

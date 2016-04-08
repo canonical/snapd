@@ -37,9 +37,9 @@ func doInstall(s *state.State, snap, channel string, flags snappy.InstallFlags) 
 	// download
 	var download *state.Task
 	ss := SnapSetup{
-		Name:       snap,
-		Channel:    channel,
-		SetupFlags: int(flags),
+		Name:    snap,
+		Channel: channel,
+		Flags:   int(flags),
 	}
 	if !osutil.FileExists(snap) {
 		name, developer := snappy.SplitDeveloper(snap)
@@ -129,10 +129,10 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 	}
 
 	ss := SnapSetup{
-		Name:       name,
-		Developer:  developer,
-		Version:    version,
-		SetupFlags: int(flags),
+		Name:      name,
+		Developer: developer,
+		Version:   version,
+		Flags:     int(flags),
 	}
 	// check if this is something that can be removed
 	if err := backend.CanRemove(ss.MountDir()); err != nil {
