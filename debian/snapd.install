@@ -4,7 +4,6 @@ debian/*.target /lib/systemd/system/
 debian/*.timer /lib/systemd/system/
 /usr/bin/snap
 /usr/bin/snapd usr/lib/snappy/
-/usr/bin/snappy
 data/completion/snappy /usr/share/bash-completion/completions/
 # i18n stuff
 ../../share /usr
