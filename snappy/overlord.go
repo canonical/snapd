@@ -216,7 +216,7 @@ func CopyData(newSnap *snap.Info, flags InstallFlags, meter progress.Meter) erro
 		return err
 	}
 
-	return copySnapData(newSnap.Name(), oldSnap.Version(), newSnap.Version)
+	return copySnapData(oldSnap.Info(), newSnap)
 }
 
 func UndoCopyData(newInfo *snap.Info, flags InstallFlags, meter progress.Meter) {
@@ -230,7 +230,7 @@ func UndoCopyData(newInfo *snap.Info, flags InstallFlags, meter progress.Meter) 
 		}
 	}
 
-	if err := RemoveSnapData(newInfo.Name(), newInfo.Version); err != nil {
+	if err := RemoveSnapData(newInfo); err != nil {
 		logger.Noticef("When cleaning up data for %s %s: %v", newInfo.Name(), newInfo.Version, err)
 	}
 }
@@ -295,7 +295,7 @@ func UpdateCurrentSymlink(s *Snap, inter interacter) error {
 		return err
 	}
 
-	if err := os.MkdirAll(filepath.Join(dbase, s.Version()), 0755); err != nil {
+	if err := os.MkdirAll(info.DataDir(), 0755); err != nil {
 		return err
 	}
 
@@ -626,7 +626,7 @@ func (o *Overlord) Uninstall(s *Snap, meter progress.Meter) error {
 		return err
 	}
 
-	return RemoveSnapData(s.Name(), s.Version())
+	return RemoveSnapData(s.Info())
 }
 
 // SetActive sets the active state of the given snap

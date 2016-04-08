@@ -110,7 +110,12 @@ func (s *Info) MountFile() string {
 
 // DataDir returns the data directory of the snap.
 func (s *Info) DataDir() string {
-	return filepath.Join(dirs.SnapDataDir, s.Name(), s.Version)
+	return filepath.Join(dirs.SnapDataDir, s.Name(), s.strRevno())
+}
+
+// DataHomeDir returns the per user data directory of the snap.
+func (s *Info) DataHomeDir() string {
+	return filepath.Join(dirs.SnapDataHomeGlob, s.Name(), s.strRevno())
 }
 
 // PlugInfo provides information about a plug.

@@ -73,7 +73,7 @@ func (s *SnapTestSuite) TestLocalSnapInstall(c *C) string {
 	c.Check(snapEntries, DeepEquals, []string{"0", "current"})
 
 	snapDataEntries := listDir(c, filepath.Join(dirs.SnapDataDir, fooComposedName))
-	c.Check(snapDataEntries, DeepEquals, []string{"1.0", "current"})
+	c.Check(snapDataEntries, DeepEquals, []string{"0", "current"})
 
 	return snapPath
 }
@@ -98,7 +98,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallWithBlessedMetadata(c *C) {
 	c.Check(snapEntries, DeepEquals, []string{"40", "current"})
 
 	snapDataEntries := listDir(c, filepath.Join(dirs.SnapDataDir, fooComposedName))
-	c.Check(snapDataEntries, DeepEquals, []string{"1.0", "current"})
+	c.Check(snapDataEntries, DeepEquals, []string{"40", "current"})
 }
 
 func (s *SnapTestSuite) TestLocalSnapInstallWithBlessedMetadataOverridingName(c *C) {
@@ -388,11 +388,11 @@ func (s *SnapTestSuite) TestClickSetActive(c *C) {
 
 }
 
-func (s *SnapTestSuite) TestClickCopyData(c *C) {
+func (s *SnapTestSuite) TestCopyData(c *C) {
 	dirs.SnapDataHomeGlob = filepath.Join(s.tempdir, "home", "*", "snaps")
 	homeDir := filepath.Join(s.tempdir, "home", "user1", "snaps")
 	appDir := "foo"
-	homeData := filepath.Join(homeDir, appDir, "1.0")
+	homeData := filepath.Join(homeDir, appDir, "10")
 	err := os.MkdirAll(homeData, 0755)
 	c.Assert(err, IsNil)
 
@@ -403,7 +403,7 @@ func (s *SnapTestSuite) TestClickCopyData(c *C) {
 	snapPath := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
 	_, err = (&Overlord{}).InstallWithSideMetadata(snapPath, fooSI10, AllowUnauthenticated, nil)
 	c.Assert(err, IsNil)
-	canaryDataFile := filepath.Join(dirs.SnapDataDir, appDir, "1.0", "canary.txt")
+	canaryDataFile := filepath.Join(dirs.SnapDataDir, appDir, "10", "canary.txt")
 	err = ioutil.WriteFile(canaryDataFile, canaryData, 0644)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(homeData, "canary.home"), canaryData, 0644)
@@ -412,12 +412,12 @@ func (s *SnapTestSuite) TestClickCopyData(c *C) {
 	snapPath = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
 	_, err = (&Overlord{}).InstallWithSideMetadata(snapPath, fooSI20, AllowUnauthenticated, nil)
 	c.Assert(err, IsNil)
-	newCanaryDataFile := filepath.Join(dirs.SnapDataDir, appDir, "2.0", "canary.txt")
+	newCanaryDataFile := filepath.Join(dirs.SnapDataDir, appDir, "20", "canary.txt")
 	content, err := ioutil.ReadFile(newCanaryDataFile)
 	c.Assert(err, IsNil)
 	c.Assert(content, DeepEquals, canaryData)
 
-	newHomeDataCanaryFile := filepath.Join(homeDir, appDir, "2.0", "canary.home")
+	newHomeDataCanaryFile := filepath.Join(homeDir, appDir, "20", "canary.home")
 	content, err = ioutil.ReadFile(newHomeDataCanaryFile)
 	c.Assert(err, IsNil)
 	c.Assert(content, DeepEquals, canaryData)
@@ -425,26 +425,27 @@ func (s *SnapTestSuite) TestClickCopyData(c *C) {
 
 // ensure that even with no home dir there is no error and the
 // system data gets copied
-func (s *SnapTestSuite) TestClickCopyDataNoUserHomes(c *C) {
+func (s *SnapTestSuite) TestCopyDataNoUserHomes(c *C) {
 	// this home dir path does not exist
 	dirs.SnapDataHomeGlob = filepath.Join(s.tempdir, "no-such-home", "*", "snaps")
 
 	snapYamlContent := `name: foo
 `
-	appDir := "foo"
-
 	snapPath := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
-	_, err := (&Overlord{}).InstallWithSideMetadata(snapPath, fooSI10, AllowUnauthenticated, nil)
+	snap, err := (&Overlord{}).InstallWithSideMetadata(snapPath, fooSI10, AllowUnauthenticated, nil)
 	c.Assert(err, IsNil)
-	canaryDataFile := filepath.Join(dirs.SnapDataDir, appDir, "1.0", "canary.txt")
+	canaryDataFile := filepath.Join(snap.DataDir(), "canary.txt")
 	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
 	c.Assert(err, IsNil)
 
 	snapPath = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
-	_, err = (&Overlord{}).InstallWithSideMetadata(snapPath, fooSI20, AllowUnauthenticated, nil)
+	snap2, err := (&Overlord{}).InstallWithSideMetadata(snapPath, fooSI20, AllowUnauthenticated, nil)
 	c.Assert(err, IsNil)
-	_, err = os.Stat(filepath.Join(dirs.SnapDataDir, appDir, "2.0", "canary.txt"))
+	_, err = os.Stat(filepath.Join(snap2.DataDir(), "canary.txt"))
 	c.Assert(err, IsNil)
+
+	// sanity atm
+	c.Check(snap.DataDir(), Not(Equals), snap2.DataDir())
 }
 
 func (s *SnapTestSuite) TestSnappyHandleBinariesOnUpgrade(c *C) {
