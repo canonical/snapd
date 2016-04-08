@@ -60,6 +60,8 @@ func fullNameWithChannel(p *snap.Info) string {
 	return fmt.Sprintf("%s/%s", name, ch)
 }
 
+// TODO/XXX: most of the stuff here should really be snapstate functionality
+
 // ActiveSnapsByType returns all installed snaps with the given type
 func ActiveSnapsByType(snapTs ...snap.Type) (res []*Snap, err error) {
 	installed, err := (&Overlord{}).Installed()
@@ -157,13 +159,13 @@ func FindSnapsByNameAndVersion(needle, version string, haystack []*Snap) []*Snap
 
 // FindSnapsByNameAndRevision returns the snaps with the name/version in the
 // given slice of snaps
-func FindSnapsByNameAndRevision(needle string, revno int, haystack []*Snap) []*Snap {
+func FindSnapsByNameAndRevision(needle string, revision int, haystack []*Snap) []*Snap {
 	name, developer := SplitDeveloper(needle)
 	ignorens := developer == ""
 	var found []*Snap
 
 	for _, snap := range haystack {
-		if snap.Name() == name && snap.Revision() == revno && (ignorens || snap.Developer() == developer) {
+		if snap.Name() == name && snap.Revision() == revision && (ignorens || snap.Developer() == developer) {
 			found = append(found, snap)
 		}
 	}
