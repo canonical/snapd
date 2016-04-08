@@ -36,7 +36,7 @@ type classicDimensionSuite struct {
 }
 
 func (s *classicDimensionSuite) enableClassic(c *check.C) {
-	output := cli.ExecCommand(c, "sudo", "env", "https_proxy="+os.Getenv("https_proxy"), "snappy", "enable-classic")
+	output := cli.ExecCommand(c, "sudo", "env", "https_proxy="+os.Getenv("https_proxy"), "snap", "enable-classic")
 
 	expected := "(?ms)" +
 		".*" +
