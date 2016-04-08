@@ -63,7 +63,9 @@ func CallFakeSnapRefresh(c *check.C, snap string, changeFunc ChangeFakeUpdateSna
 
 	makeFakeUpdateForSnap(c, snap, blobDir, changeFunc)
 
-	cli.ExecCommand(c, "sudo", "TMPDIR=/var/tmp", fmt.Sprintf("SNAPPY_FORCE_CPI_URL=%s", fakeStore.URL()), "snap", "refresh")
+	// FIMXE: there is no "snap refresh" that updates all snaps
+	cli.ExecCommand(c, "sudo", "TMPDIR=/var/tmp", fmt.Sprintf("SNAPPY_FORCE_CPI_URL=%s", fakeStore.URL()), "snap", "refresh", snap)
+
 	// FIXME: do we want an automatic `snap list` output after
 	//        `snap update` (like in the old snappy world)?
 	return cli.ExecCommand(c, "snap", "list")
