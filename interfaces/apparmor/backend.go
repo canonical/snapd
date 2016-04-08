@@ -140,7 +140,7 @@ func (b *Backend) combineSnippets(snapInfo *snap.Info, developerMode bool, snipp
 				// with them and the custom template is not used.
 				return legacyVariables(appInfo)
 			case bytes.Equal(placeholder, placeholderProfileAttach):
-				return []byte(fmt.Sprintf("profile \"%s\"", interfaces.SecurityTag(appInfo)))
+				return []byte(fmt.Sprintf("profile \"%s\"", appInfo.SecurityTag()))
 			case bytes.Equal(placeholder, placeholderSnippets):
 				return bytes.Join(snippets[appInfo.Name], []byte("\n"))
 			}
@@ -149,7 +149,7 @@ func (b *Backend) combineSnippets(snapInfo *snap.Info, developerMode bool, snipp
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
 		}
-		fname := interfaces.SecurityTag(appInfo)
+		fname := appInfo.SecurityTag()
 		content[fname] = &osutil.FileState{
 			Content: policy,
 			Mode:    0644,
