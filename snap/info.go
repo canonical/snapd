@@ -150,3 +150,11 @@ type AppInfo struct {
 	Plugs map[string]*PlugInfo
 	Slots map[string]*SlotInfo
 }
+
+// SecurityTag returns application-specific security tag.
+//
+// Security tags are used by various security subsystems as "profile names" and
+// sometimes also as a part of the file name.
+func (app *AppInfo) SecurityTag() string {
+	return fmt.Sprintf("snap.%s.%s", app.Snap.Name(), app.Name)
+}
