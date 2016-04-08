@@ -180,13 +180,17 @@ func PackageNameActive(name string) bool {
 	return ActiveSnapByName(name) != nil
 }
 
-// ManifestPath returns the would be path for the snap manifest.
-func ManifestPath(s *snap.Info) string {
-	return filepath.Join(dirs.SnapMetaDir, fmt.Sprintf("%s_%s.manifest", s.Name(), s.Version))
+// manifestPath returns the would be path for the snap manifest.
+func manifestPath(s *snap.Info, revno int) string {
+	return filepath.Join(dirs.SnapMetaDir, fmt.Sprintf("%s_%d.manifest", s.Name(), revno))
 }
 
 // SaveManifest saves the manifest at the designated location for the snap containing information not in the snap.yaml.
 func SaveManifest(rsnap *snap.Info) error {
+	if rsnap.Revision == 0 {
+		return fmt.Errorf("internal error: should not be storring manifests for sideloaded snaps")
+	}
+
 	// XXX: we store OfficialName though it may not be the blessed one later
 	content, err := yaml.Marshal(&rsnap.SideInfo)
 	if err != nil {
@@ -197,7 +201,7 @@ func SaveManifest(rsnap *snap.Info) error {
 		return err
 	}
 
-	p := ManifestPath(rsnap)
+	p := manifestPath(rsnap, rsnap.Revision)
 	// don't worry about previous contents
 	return osutil.AtomicWriteFile(p, content, 0644, 0)
 }
