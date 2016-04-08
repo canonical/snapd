@@ -220,8 +220,8 @@ X-Snappy=yes
 [Service]
 ExecStart=/usr/bin/ubuntu-core-launcher app aa-profile /apps/app/1.0/bin/start
 Restart=on-failure
-WorkingDirectory=/var/lib/apps/app/1.0/
-Environment="SNAP_APP=app_service_1.0" "SNAP=/apps/app/1.0/" "SNAP_DATA=/var/lib/apps/app/1.0/" "SNAP_NAME=app" "SNAP_VERSION=1.0" "SNAP_ARCH=%[3]s" "SNAP_USER_DATA=/root/apps/app/1.0/" "SNAP_APP_PATH=/apps/app/1.0/" "SNAP_APP_DATA_PATH=/var/lib/apps/app/1.0/" "SNAP_APP_USER_DATA_PATH=/root/apps/app/1.0/"
+WorkingDirectory=/var/apps/app/1.0/
+Environment="SNAP_APP=app_service_1.0" "SNAP=/apps/app/1.0/" "SNAP_DATA=/var/apps/app/1.0/" "SNAP_NAME=app" "SNAP_VERSION=1.0" "SNAP_ARCH=%[3]s" "SNAP_USER_DATA=/root/apps/app/1.0/" "SNAP_APP_PATH=/apps/app/1.0/" "SNAP_APP_DATA_PATH=/var/apps/app/1.0/" "SNAP_APP_USER_DATA_PATH=/root/apps/app/1.0/"
 ExecStop=/usr/bin/ubuntu-core-launcher app aa-profile /apps/app/1.0/bin/stop
 ExecStopPost=/usr/bin/ubuntu-core-launcher app aa-profile /apps/app/1.0/bin/stop --post
 TimeoutStopSec=10
