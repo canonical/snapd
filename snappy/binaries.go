@@ -92,7 +92,6 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 	}
 
 	actualBinPath := binPathForBinary(pkgPath, app)
-	aaProfile := getSecurityProfileFromApp(app)
 
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("wrapper").Parse(wrapperTemplate))
@@ -114,10 +113,10 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 		SnapArch:    arch.UbuntuArchitecture(),
 		SnapPath:    pkgPath,
 		Version:     app.Snap.Version,
-		UdevAppName: fmt.Sprintf("%s.%s", app.Snap.Name(), app.Name),
+		UdevAppName: fmt.Sprintf("snap.%s.%s", app.Snap.Name(), app.Name),
 		Home:        "$HOME",
 		Target:      actualBinPath,
-		AaProfile:   aaProfile,
+		AaProfile:   fmt.Sprintf("snap.%s.%s", app.Snap.Name(), app.Name),
 	}
 
 	oldVars := []string{}
