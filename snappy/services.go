@@ -112,10 +112,6 @@ func generateSnapSocketFile(app *snap.AppInfo, baseDir string) (string, error) {
 		}), nil
 }
 
-func oldGenerateServiceFileName(m *snapYaml, app *AppYaml) string {
-	return filepath.Join(dirs.SnapServicesDir, fmt.Sprintf("%s_%s_%s.service", m.Name, app.Name, m.Version))
-}
-
 func addPackageServices(s *snap.Info, inter interacter) error {
 	baseDir := s.MountDir()
 
