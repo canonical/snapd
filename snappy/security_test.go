@@ -203,9 +203,9 @@ func (a *SecurityTestSuite) TestSecurityGetAppArmorVars(c *C) {
 @{APP_PKGNAME_DBUS}="pkgname"
 @{APP_PKGNAME}="pkgname"
 @{APP_VERSION}="1.0"
-@{INSTALL_DIR}="{/snap}"
+@{INSTALL_DIR}="/snap"
 # Deprecated:
-@{CLICK_DIR}="{/snap}"`)
+@{CLICK_DIR}="/snap"`)
 }
 
 func (a *SecurityTestSuite) TestSecurityGenAppArmorPathRuleSimple(c *C) {
@@ -291,9 +291,9 @@ var expectedGeneratedAaProfile = `
 @{APP_PKGNAME_DBUS}="foo"
 @{APP_PKGNAME}="foo"
 @{APP_VERSION}="1.0"
-@{INSTALL_DIR}="{/snap}"
+@{INSTALL_DIR}="/snap"
 # Deprecated:
-@{CLICK_DIR}="{/snap}"
+@{CLICK_DIR}="/snap"
 
 # v2 compatible wildly permissive profile
 profile "" (attach_disconnected) {
@@ -421,9 +421,9 @@ var expectedAaCustomPolicy = `
 @{APP_PKGNAME_DBUS}="foo"
 @{APP_PKGNAME}="foo"
 @{APP_VERSION}="1.0"
-@{INSTALL_DIR}="{/snap}"
+@{INSTALL_DIR}="/snap"
 # Deprecated:
-@{CLICK_DIR}="{/snap}"
+@{CLICK_DIR}="/snap"
 
 # v2 compatible wildly permissive profile
 profile "foo_bar_1.0" (attach_disconnected) {

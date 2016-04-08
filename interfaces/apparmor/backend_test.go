@@ -278,7 +278,7 @@ const commonPrefix = `
 @{APP_PKGNAME_DBUS}="samba_2eacme"
 @{APP_PKGNAME}="samba"
 @{APP_VERSION}="1"
-@{INSTALL_DIR}="{/snap}"`
+@{INSTALL_DIR}="/snap"`
 
 var combineSnippetsScenarios = []combineSnippetsScenario{{
 	content: commonPrefix + `
