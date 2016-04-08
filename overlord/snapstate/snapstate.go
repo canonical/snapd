@@ -149,15 +149,15 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 	removeSecurity.WaitFor(unlink)
 	removeSecurity.Set("snap-setup-task", unlink.ID())
 
-	removeFiles := s.NewTask("remove-snap-files", fmt.Sprintf(i18n.G("Removing files for %q"), snapSpec))
-	removeFiles.Set("snap-setup-task", unlink.ID())
-	removeFiles.WaitFor(removeSecurity)
-
 	removeData := s.NewTask("remove-snap-data", fmt.Sprintf(i18n.G("Removing data for %q"), snapSpec))
 	removeData.Set("snap-setup-task", unlink.ID())
-	removeData.WaitFor(removeFiles)
+	removeData.WaitFor(removeSecurity)
 
-	return state.NewTaskSet(unlink, removeSecurity, removeFiles, removeData), nil
+	removeFiles := s.NewTask("remove-snap-files", fmt.Sprintf(i18n.G("Removing files for %q"), snapSpec))
+	removeFiles.Set("snap-setup-task", unlink.ID())
+	removeFiles.WaitFor(removeData)
+
+	return state.NewTaskSet(unlink, removeSecurity, removeData, removeFiles), nil
 }
 
 // Rollback returns a set of tasks for rolling back a snap.
