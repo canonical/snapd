@@ -67,7 +67,7 @@ func generateSnapServicesFile(app *snap.AppInfo, baseDir string) (string, error)
 
 	socketFileName := ""
 	if app.Socket {
-		socketFileName = filepath.Base(generateSocketFileName(app))
+		socketFileName = filepath.Base(app.ServiceSocketFile())
 	}
 
 	return systemd.New(dirs.GlobalRootDir, nil).GenServiceFile(
@@ -102,7 +102,7 @@ func generateSnapSocketFile(app *snap.AppInfo, baseDir string) (string, error) {
 		app.SocketMode = "0660"
 	}
 
-	serviceFileName := filepath.Base(generateServiceFileName(app))
+	serviceFileName := filepath.Base(app.ServiceFile())
 
 	return systemd.New(dirs.GlobalRootDir, nil).GenSocketFile(
 		&systemd.ServiceDescription{
@@ -114,14 +114,6 @@ func generateSnapSocketFile(app *snap.AppInfo, baseDir string) (string, error) {
 
 func oldGenerateServiceFileName(m *snapYaml, app *AppYaml) string {
 	return filepath.Join(dirs.SnapServicesDir, fmt.Sprintf("%s_%s_%s.service", m.Name, app.Name, m.Version))
-}
-
-func generateServiceFileName(app *snap.AppInfo) string {
-	return filepath.Join(dirs.SnapServicesDir, fmt.Sprintf("%s_%s_%s.service", app.Snap.Name(), app.Name, app.Snap.Version))
-}
-
-func generateSocketFileName(app *snap.AppInfo) string {
-	return filepath.Join(dirs.SnapServicesDir, fmt.Sprintf("%s_%s_%s.socket", app.Snap.Name(), app.Name, app.Snap.Version))
 }
 
 func addPackageServices(s *snap.Info, inter interacter) error {
@@ -142,9 +134,9 @@ func addPackageServices(s *snap.Info, inter interacter) error {
 		if err != nil {
 			return err
 		}
-		serviceFilename := generateServiceFileName(app)
-		os.MkdirAll(filepath.Dir(serviceFilename), 0755)
-		if err := osutil.AtomicWriteFile(serviceFilename, []byte(content), 0644, 0); err != nil {
+		svcFilePath := app.ServiceFile()
+		os.MkdirAll(filepath.Dir(svcFilePath), 0755)
+		if err := osutil.AtomicWriteFile(svcFilePath, []byte(content), 0644, 0); err != nil {
 			return err
 		}
 		// Generate systemd socket file if needed
@@ -153,14 +145,14 @@ func addPackageServices(s *snap.Info, inter interacter) error {
 			if err != nil {
 				return err
 			}
-			socketFilename := generateSocketFileName(app)
-			os.MkdirAll(filepath.Dir(socketFilename), 0755)
-			if err := osutil.AtomicWriteFile(socketFilename, []byte(content), 0644, 0); err != nil {
+			svcSocketFilePath := app.ServiceSocketFile()
+			os.MkdirAll(filepath.Dir(svcSocketFilePath), 0755)
+			if err := osutil.AtomicWriteFile(svcSocketFilePath, []byte(content), 0644, 0); err != nil {
 				return err
 			}
 		}
 		// daemon-reload and enable plus start
-		serviceName := filepath.Base(generateServiceFileName(app))
+		serviceName := filepath.Base(app.ServiceFile())
 		sysd := systemd.New(dirs.GlobalRootDir, inter)
 
 		if err := sysd.DaemonReload(); err != nil {
@@ -177,7 +169,7 @@ func addPackageServices(s *snap.Info, inter interacter) error {
 		}
 
 		if app.Socket {
-			socketName := filepath.Base(generateSocketFileName(app))
+			socketName := filepath.Base(app.ServiceSocketFile())
 			// enable the socket
 			if err := sysd.Enable(socketName); err != nil {
 				return err
@@ -203,7 +195,7 @@ func removePackageServices(s *snap.Info, inter interacter) error {
 		}
 		nservices++
 
-		serviceName := filepath.Base(generateServiceFileName(app))
+		serviceName := filepath.Base(app.ServiceFile())
 		if err := sysd.Disable(serviceName); err != nil {
 			return err
 		}
@@ -218,11 +210,11 @@ func removePackageServices(s *snap.Info, inter interacter) error {
 			sysd.Kill(serviceName, "KILL")
 		}
 
-		if err := os.Remove(generateServiceFileName(app)); err != nil && !os.IsNotExist(err) {
+		if err := os.Remove(app.ServiceFile()); err != nil && !os.IsNotExist(err) {
 			logger.Noticef("Failed to remove service file for %q: %v", serviceName, err)
 		}
 
-		if err := os.Remove(generateSocketFileName(app)); err != nil && !os.IsNotExist(err) {
+		if err := os.Remove(app.ServiceSocketFile()); err != nil && !os.IsNotExist(err) {
 			logger.Noticef("Failed to remove socket file for %q: %v", serviceName, err)
 		}
 	}

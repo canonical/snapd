@@ -483,12 +483,17 @@ apps:
    command: bin/hello
    daemon: forking
 `
+	si := &snap.SideInfo{
+		OfficialName: "foo",
+		Revision:     32,
+	}
+
 	snapPath := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
 	// revision will be 0
-	_, err := (&Overlord{}).Install(snapPath, AllowUnauthenticated, nil)
+	_, err := (&Overlord{}).InstallWithSideInfo(snapPath, si, AllowUnauthenticated, nil)
 	c.Assert(err, IsNil)
 
-	servicesFile := filepath.Join(dirs.SnapServicesDir, "foo_service_1.0.service")
+	servicesFile := filepath.Join(dirs.SnapServicesDir, "snap_foo_service_32.service")
 	c.Assert(osutil.FileExists(servicesFile), Equals, true)
 	st, err := os.Stat(servicesFile)
 	c.Assert(err, IsNil)
@@ -496,7 +501,7 @@ apps:
 	c.Assert(st.Mode().String(), Equals, "-rw-r--r--")
 
 	// and that it gets removed on remove
-	snapDir := filepath.Join(dirs.SnapSnapsDir, "foo", "0")
+	snapDir := filepath.Join(dirs.SnapSnapsDir, "foo", "32")
 	yamlPath := filepath.Join(snapDir, "meta", "snap.yaml")
 	snap, err := NewInstalledSnap(yamlPath)
 	c.Assert(err, IsNil)
