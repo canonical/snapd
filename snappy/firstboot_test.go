@@ -51,7 +51,6 @@ type FirstBootTestSuite struct {
 	e            error
 	snapMap      map[string]*Snap
 	snapMapErr   error
-	verifyCmd    string
 	fakeOverlord *fakeOverlord
 }
 
