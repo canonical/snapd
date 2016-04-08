@@ -28,6 +28,7 @@ package apparmor
 import (
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -41,6 +42,7 @@ import (
 // If no such profile was previously loaded then it is simply added to the kernel.
 // If there was a profile with the same name before, that profile is replaced.
 func LoadProfile(fname string) error {
+	log.Printf("Loading apparmor profile: %q\n", fname)
 	// Use no-expr-simplify since expr-simplify is actually slower on armhf (LP: #1383858)
 	output, err := exec.Command(
 		"apparmor_parser", "--replace", "--write-cache", "-O",
@@ -57,6 +59,7 @@ func LoadProfile(fname string) error {
 // The operation is done with: apparmor_parser --remove $name
 // The binary cache file is removed from /var/cache/apparmor
 func UnloadProfile(name string) error {
+	log.Printf("Unloading apparmor profile: %q\n", name)
 	output, err := exec.Command("apparmor_parser", "--remove", name).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("cannot unload apparmor profile: %s\napparmor_parser output:\n%s", err, string(output))

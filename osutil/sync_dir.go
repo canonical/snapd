@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -63,6 +64,10 @@ var errSameState = fmt.Errorf("file state has not changed")
 //
 // In all cases, the function returns the first error it has encountered.
 func EnsureDirState(dir, glob string, content map[string]*FileState) (changed, removed []string, err error) {
+	log.Printf("EnsureDirState: ENTER, on %q (glob %q) len(content): %d\n", dir, glob, len(content))
+	for name, fs := range content {
+		log.Printf("  %q: %q\n", name, string(fs.Content[:25]))
+	}
 	if _, err := filepath.Match(glob, "foo"); err != nil {
 		panic(fmt.Sprintf("EnsureDirState got invalid pattern %q: %s", glob, err))
 	}
@@ -116,6 +121,8 @@ func EnsureDirState(dir, glob string, content map[string]*FileState) (changed, r
 	}
 	sort.Strings(changed)
 	sort.Strings(removed)
+	log.Printf("EnsureDirState: LEAVE, changed: %q, removed: %q, firstErr: %s\n",
+		changed, removed, firstErr)
 	return changed, removed, firstErr
 }
 
