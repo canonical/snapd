@@ -104,15 +104,6 @@ func (s *SnapTestSuite) TearDownTest(c *C) {
 	runUdevAdm = runUdevAdmImpl
 }
 
-func (s *SnapTestSuite) makeInstalledMockSnap(yamls ...string) (yamlFile string, err error) {
-	yaml := ""
-	if len(yamls) > 0 {
-		yaml = yamls[0]
-	}
-
-	return makeInstalledMockSnap(yaml)
-}
-
 func makeSnapActive(snapYamlPath string) (err error) {
 	snapdir := filepath.Dir(filepath.Dir(snapYamlPath))
 	parent := filepath.Dir(snapdir)
@@ -127,7 +118,7 @@ func (s *SnapTestSuite) TestLocalSnapInvalidPath(c *C) {
 }
 
 func (s *SnapTestSuite) TestLocalSnapSimple(c *C) {
-	snapYaml, err := s.makeInstalledMockSnap()
+	snapYaml, err := makeInstalledMockSnap("", 15)
 	c.Assert(err, IsNil)
 
 	snap, err := NewInstalledSnap(snapYaml)
@@ -138,6 +129,7 @@ func (s *SnapTestSuite) TestLocalSnapSimple(c *C) {
 	c.Check(snap.IsActive(), Equals, false)
 	c.Check(snap.Info().Summary(), Equals, "hello in summary")
 	c.Check(snap.Info().Description(), Equals, "Hello...")
+	c.Check(snap.Info().Revision, Equals, 15)
 	c.Check(snap.IsInstalled(), Equals, true)
 
 	apps := snap.Apps()
@@ -150,12 +142,12 @@ func (s *SnapTestSuite) TestLocalSnapSimple(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snap.Date(), Equals, st.ModTime())
 
-	c.Assert(mountDir, Equals, filepath.Join(s.tempdir, "snaps", helloSnapComposedName, "1.10"))
+	c.Assert(mountDir, Equals, filepath.Join(s.tempdir, "snaps", helloSnapComposedName, "15"))
 	c.Assert(snap.InstalledSize(), Not(Equals), -1)
 }
 
 func (s *SnapTestSuite) TestLocalSnapActive(c *C) {
-	snapYaml, err := s.makeInstalledMockSnap()
+	snapYaml, err := makeInstalledMockSnap("", 11)
 	c.Assert(err, IsNil)
 	makeSnapActive(snapYaml)
 
@@ -173,7 +165,7 @@ func (s *SnapTestSuite) TestLocalSnapRepositoryInvalidIsStillOk(c *C) {
 }
 
 func (s *SnapTestSuite) TestLocalSnapRepositorySimple(c *C) {
-	yamlPath, err := s.makeInstalledMockSnap()
+	yamlPath, err := makeInstalledMockSnap("", 11)
 	c.Assert(err, IsNil)
 	err = makeSnapActive(yamlPath)
 	c.Assert(err, IsNil)
@@ -271,7 +263,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdatesNoSnaps(c *C) {
 }
 
 func (s *SnapTestSuite) TestMakeConfigEnv(c *C) {
-	yamlFile, err := makeInstalledMockSnap("")
+	yamlFile, err := makeInstalledMockSnap("", 11)
 	c.Assert(err, IsNil)
 	snap, err := NewInstalledSnap(yamlFile)
 	c.Assert(err, IsNil)
@@ -310,6 +302,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 
 	r := &snap.Info{}
 	r.OfficialName = "foo"
+	r.Revision = 42
 	r.Developer = "bar"
 	r.EditedDescription = "this is a description"
 	r.Version = "1.0"
@@ -330,6 +323,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 1)
 
+	c.Check(installed[0].Info().Revision, Equals, 42)
 	c.Check(installed[0].Developer(), Equals, "bar")
 	c.Check(installed[0].Info().Description(), Equals, "this is a description")
 
@@ -423,7 +417,7 @@ apps:
    description: "Service #2"
 `
 
-	yamlFile, err := makeInstalledMockSnap(packageHello)
+	yamlFile, err := makeInstalledMockSnap(packageHello, 11)
 	c.Assert(err, IsNil)
 
 	snap, err := NewInstalledSnap(yamlFile)
@@ -527,7 +521,8 @@ gadget:
   store:
     id: my-store
 type: gadget
-`)
+`, 11)
+
 	c.Assert(err, IsNil)
 	makeSnapActive(snapYamlFn)
 
@@ -551,11 +546,12 @@ gadget:
     built-in:
       - hello-snap
 type: gadget
-`)
+`, 11)
+
 	c.Assert(err, IsNil)
 	makeSnapActive(gadgetYaml)
 
-	snapYamlFn, err := makeInstalledMockSnap("")
+	snapYamlFn, err := makeInstalledMockSnap("", 11)
 	c.Assert(err, IsNil)
 	makeSnapActive(snapYamlFn)
 
@@ -831,7 +827,7 @@ func (s *SnapTestSuite) TestParseSnapYamlDataChecksMultiple(c *C) {
 }
 
 func (s *SnapTestSuite) TestChannelFromLocalManifest(c *C) {
-	snapYaml, err := s.makeInstalledMockSnap()
+	snapYaml, err := makeInstalledMockSnap("", 11)
 	c.Assert(err, IsNil)
 
 	snap, err := NewInstalledSnap(snapYaml)
@@ -839,7 +835,7 @@ func (s *SnapTestSuite) TestChannelFromLocalManifest(c *C) {
 }
 
 func (s *SnapTestSuite) TestIcon(c *C) {
-	snapYaml, err := s.makeInstalledMockSnap()
+	snapYaml, err := makeInstalledMockSnap("", 11)
 	snap, err := NewInstalledSnap(snapYaml)
 	c.Assert(err, IsNil)
 	mountDir := snap.Info().MountDir()
@@ -852,9 +848,9 @@ func (s *SnapTestSuite) TestIcon(c *C) {
 }
 
 func (s *SnapTestSuite) TestIconEmpty(c *C) {
-	snapYaml, err := s.makeInstalledMockSnap(`name: foo
+	snapYaml, err := makeInstalledMockSnap(`name: foo
 version: 1.0
-`)
+`, 11)
 	snap, err := NewInstalledSnap(snapYaml)
 	c.Assert(err, IsNil)
 	// no icon in the yaml!

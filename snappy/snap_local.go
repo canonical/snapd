@@ -122,13 +122,6 @@ func newSnapFromYaml(yamlPath string, m *snapYaml) (*Snap, error) {
 		info.Channel = "stable"
 	}
 
-	// XXX: FIXME: just some tests need this atm
-	// override the package's idea of its version
-	// because that could have been rewritten on sideload
-	// and developer is empty sideloaded ones.
-	m.Version = filepath.Base(mountDir)
-	info.Version = m.Version
-
 	return s, nil
 }
 

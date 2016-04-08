@@ -61,13 +61,13 @@ type: os
 func (s *kernelTestSuite) TestSyncBoot(c *C) {
 	// make an OS
 	s.bootloader.SetBootVar("snappy_os", "core_v1.snap")
-	_, err := makeInstalledMockSnap(osYaml + "version: v1")
+	_, err := makeInstalledMockSnap(osYaml+"version: v1", 10)
 	c.Assert(err, IsNil)
 
 	// make two kernels, v1 and v2 and activate v2
-	_, err = makeInstalledMockSnap(kernelYaml + "version: v1")
+	_, err = makeInstalledMockSnap(kernelYaml+"version: v1", 20)
 	c.Assert(err, IsNil)
-	v2, err := makeInstalledMockSnap(kernelYaml + "version: v2")
+	v2, err := makeInstalledMockSnap(kernelYaml+"version: v2", 21)
 	c.Assert(err, IsNil)
 	err = makeSnapActive(v2)
 	c.Assert(err, IsNil)

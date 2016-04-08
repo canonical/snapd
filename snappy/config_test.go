@@ -60,8 +60,8 @@ config:
     key: value
 `
 
-func (s *SnapTestSuite) makeInstalledMockSnapWithConfig(c *C, configScript string, yamls ...string) (snapDir string, err error) {
-	yamlFile, err := s.makeInstalledMockSnap(yamls...)
+func (s *SnapTestSuite) makeInstalledMockSnapWithConfig(c *C, configScript string, yaml string, revno int) (snapDir string, err error) {
+	yamlFile, err := makeInstalledMockSnap(yaml, revno)
 	c.Assert(err, IsNil)
 	metaDir := filepath.Dir(yamlFile)
 	err = os.Mkdir(filepath.Join(metaDir, "hooks"), 0755)
@@ -81,7 +81,7 @@ type: os
 
 func (s *SnapTestSuite) TestConfigSimple(c *C) {
 	mockConfig := fmt.Sprintf(configPassthroughScript, s.tempdir)
-	snapDir, err := s.makeInstalledMockSnapWithConfig(c, mockConfig)
+	snapDir, err := s.makeInstalledMockSnapWithConfig(c, mockConfig, "", 11)
 	c.Assert(err, IsNil)
 
 	newConfig, err := snapConfig(snapDir, []byte(configYaml))
@@ -93,7 +93,7 @@ func (s *SnapTestSuite) TestConfigSimple(c *C) {
 }
 
 func (s *SnapTestSuite) TestConfigOS(c *C) {
-	snapYaml, err := s.makeInstalledMockSnap(mockOsSnap)
+	snapYaml, err := makeInstalledMockSnap(mockOsSnap, 11)
 	c.Assert(err, IsNil)
 	snap, err := NewInstalledSnap(snapYaml)
 	c.Assert(err, IsNil)
@@ -112,7 +112,7 @@ func (s *SnapTestSuite) TestConfigOS(c *C) {
 }
 
 func (s *SnapTestSuite) TestConfigError(c *C) {
-	snapDir, err := s.makeInstalledMockSnapWithConfig(c, configErrorScript)
+	snapDir, err := s.makeInstalledMockSnapWithConfig(c, configErrorScript, "", 11)
 	c.Assert(err, IsNil)
 
 	newConfig, err := snapConfig(snapDir, []byte(configYaml))

@@ -40,7 +40,7 @@ func (s *SnapTestSuite) TestAddPackageServicesStripsGlobalRootdir(c *C) {
 	// is stripped)
 	c.Assert(dirs.GlobalRootDir, Not(Equals), "/")
 
-	yamlFile, err := makeInstalledMockSnap("")
+	yamlFile, err := makeInstalledMockSnap("", 12)
 	c.Assert(err, IsNil)
 	snap, err := NewInstalledSnap(yamlFile)
 	c.Assert(err, IsNil)
@@ -51,7 +51,7 @@ func (s *SnapTestSuite) TestAddPackageServicesStripsGlobalRootdir(c *C) {
 	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/systemd/system/hello-snap_svc1_1.10.service"))
 	c.Assert(err, IsNil)
 
-	baseDirWithoutRootPrefix := "/snaps/" + helloSnapComposedName + "/1.10"
+	baseDirWithoutRootPrefix := "/snaps/" + helloSnapComposedName + "/12"
 	verbs := []string{"Start", "Stop", "StopPost"}
 	bins := []string{"hello", "goodbye", "missya"}
 	for i := range verbs {
@@ -66,7 +66,7 @@ func (s *SnapTestSuite) TestAddPackageBinariesStripsGlobalRootdir(c *C) {
 	// is stripped)
 	c.Assert(dirs.GlobalRootDir, Not(Equals), "/")
 
-	yamlFile, err := makeInstalledMockSnap("")
+	yamlFile, err := makeInstalledMockSnap("", 11)
 	c.Assert(err, IsNil)
 	snap, err := NewInstalledSnap(yamlFile)
 	c.Assert(err, IsNil)
@@ -78,7 +78,7 @@ func (s *SnapTestSuite) TestAddPackageBinariesStripsGlobalRootdir(c *C) {
 	c.Assert(err, IsNil)
 
 	needle := `
-ubuntu-core-launcher hello-snap.hello hello-snap_hello_1.10 /snaps/hello-snap/1.10/bin/hello "$@"
+ubuntu-core-launcher hello-snap.hello hello-snap_hello_1.10 /snaps/hello-snap/11/bin/hello "$@"
 `
 	c.Assert(string(content), Matches, "(?ms).*"+regexp.QuoteMeta(needle)+".*")
 }
@@ -200,7 +200,8 @@ apps:
    command: wat
    stop-timeout: 25
    daemon: forking
-`)
+`, 11)
+
 	c.Assert(err, IsNil)
 	snap, err := NewInstalledSnap(yamlFile)
 	c.Assert(err, IsNil)

@@ -125,6 +125,7 @@ func (s *SquashfsTestSuite) TestOpenSnapFilebSideInfo(c *C) {
 
 func (s *SquashfsTestSuite) TestInstallViaSquashfsWorks(c *C) {
 	snapPkg := makeTestSnapPackage(c, packageHello)
+	// revision will be 0
 	_, err := (&Overlord{}).Install(snapPkg, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 
@@ -132,10 +133,10 @@ func (s *SquashfsTestSuite) TestInstallViaSquashfsWorks(c *C) {
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-snap_1.10.snap")), Equals, true)
 
 	// ensure the right unit is created
-	mup := systemd.MountUnitPath("/snaps/hello-snap/1.10", "mount")
+	mup := systemd.MountUnitPath("/snaps/hello-snap/0", "mount")
 	content, err := ioutil.ReadFile(mup)
 	c.Assert(err, IsNil)
-	c.Assert(string(content), Matches, "(?ms).*^Where=/snaps/hello-snap/1.10")
+	c.Assert(string(content), Matches, "(?ms).*^Where=/snaps/hello-snap/0")
 	c.Assert(string(content), Matches, "(?ms).*^What=/var/lib/snappy/snaps/hello-snap_1.10.snap")
 }
 
@@ -143,8 +144,9 @@ func (s *SquashfsTestSuite) TestAddSquashfsMount(c *C) {
 	info := &snap.Info{
 		SideInfo: snap.SideInfo{
 			OfficialName: "foo",
+			Revision:     13,
 		},
-		Version:       "1.0",
+		Version:       "1.1",
 		Architectures: []string{"all"},
 	}
 	inter := &MockProgressMeter{}
@@ -152,14 +154,14 @@ func (s *SquashfsTestSuite) TestAddSquashfsMount(c *C) {
 	c.Assert(err, IsNil)
 
 	// ensure correct mount unit
-	mount, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, "snaps-foo-1.0.mount"))
+	mount, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, "snaps-foo-13.mount"))
 	c.Assert(err, IsNil)
 	c.Assert(string(mount), Equals, `[Unit]
 Description=Squashfs mount unit for foo
 
 [Mount]
-What=/var/lib/snappy/snaps/foo_1.0.snap
-Where=/snaps/foo/1.0
+What=/var/lib/snappy/snaps/foo_1.1.snap
+Where=/snaps/foo/13
 `)
 
 }
@@ -168,8 +170,9 @@ func (s *SquashfsTestSuite) TestRemoveSquashfsMountUnit(c *C) {
 	info := &snap.Info{
 		SideInfo: snap.SideInfo{
 			OfficialName: "foo",
+			Revision:     13,
 		},
-		Version:       "1.0",
+		Version:       "1.1",
 		Architectures: []string{"all"},
 	}
 	inter := &MockProgressMeter{}
@@ -177,13 +180,13 @@ func (s *SquashfsTestSuite) TestRemoveSquashfsMountUnit(c *C) {
 	c.Assert(err, IsNil)
 
 	// ensure we have the files
-	p := filepath.Join(dirs.SnapServicesDir, "snaps-foo-1.0.mount")
+	p := filepath.Join(dirs.SnapServicesDir, "snaps-foo-13.mount")
 	c.Assert(osutil.FileExists(p), Equals, true)
 
 	// now call remove and ensure they are gone
 	err = removeSquashfsMount(info.MountDir(), inter)
 	c.Assert(err, IsNil)
-	p = filepath.Join(dirs.SnapServicesDir, "snaps-foo-1.0.mount")
+	p = filepath.Join(dirs.SnapServicesDir, "snaps-foo-13.mount")
 	c.Assert(osutil.FileExists(p), Equals, false)
 }
 
@@ -294,7 +297,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapRemovesKernelAssets(c *C) {
 }
 
 func (s *SquashfsTestSuite) TestActiveKernelNotRemovable(c *C) {
-	snapYaml, err := makeInstalledMockSnap(packageKernel)
+	snapYaml, err := makeInstalledMockSnap(packageKernel, 11)
 	c.Assert(err, IsNil)
 
 	snap, err := NewInstalledSnap(snapYaml)
@@ -314,7 +317,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernelErrors(c *C) {
 }
 
 func (s *SquashfsTestSuite) TestInstallKernelSnapRemoveAssetsWrongType(c *C) {
-	snapYaml, err := makeInstalledMockSnap(packageHello)
+	snapYaml, err := makeInstalledMockSnap(packageHello, 11)
 	c.Assert(err, IsNil)
 
 	snap, err := NewInstalledSnap(snapYaml)
@@ -325,7 +328,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapRemoveAssetsWrongType(c *C) {
 }
 
 func (s *SquashfsTestSuite) TestActiveOSNotRemovable(c *C) {
-	snapYaml, err := makeInstalledMockSnap(packageOS)
+	snapYaml, err := makeInstalledMockSnap(packageOS, 11)
 	c.Assert(err, IsNil)
 
 	snap, err := NewInstalledSnap(snapYaml)
@@ -336,7 +339,7 @@ func (s *SquashfsTestSuite) TestActiveOSNotRemovable(c *C) {
 }
 
 func (s *SquashfsTestSuite) TestInstallOsRebootRequired(c *C) {
-	snapYaml, err := makeInstalledMockSnap(packageOS)
+	snapYaml, err := makeInstalledMockSnap(packageOS, 11)
 	c.Assert(err, IsNil)
 	snap, err := NewInstalledSnap(snapYaml)
 	c.Assert(err, IsNil)
@@ -347,7 +350,7 @@ func (s *SquashfsTestSuite) TestInstallOsRebootRequired(c *C) {
 }
 
 func (s *SquashfsTestSuite) TestInstallKernelRebootRequired(c *C) {
-	snapYaml, err := makeInstalledMockSnap(packageKernel)
+	snapYaml, err := makeInstalledMockSnap(packageKernel, 11)
 	c.Assert(err, IsNil)
 
 	snap, err := NewInstalledSnap(snapYaml)
@@ -407,6 +410,7 @@ plugs:
   security-template: not-there
 `)
 	// install but our missing security-template will break the install
+	// revision will be 0
 	_, err := (&Overlord{}).Install(snapPkg, 0, &MockProgressMeter{})
 	c.Assert(err, ErrorMatches, "could not find specified template: not-there.*")
 
@@ -416,9 +420,9 @@ plugs:
 
 	// ensure that the mount gets unmounted and stopped
 	c.Assert(s.systemdCmds, DeepEquals, [][]string{
-		{"start", "snaps-hello-1.10.mount"},
-		{"--root", dirs.GlobalRootDir, "disable", "snaps-hello-1.10.mount"},
-		{"stop", "snaps-hello-1.10.mount"},
-		{"show", "--property=ActiveState", "snaps-hello-1.10.mount"},
+		{"start", "snaps-hello-0.mount"},
+		{"--root", dirs.GlobalRootDir, "disable", "snaps-hello-0.mount"},
+		{"stop", "snaps-hello-0.mount"},
+		{"show", "--property=ActiveState", "snaps-hello-0.mount"},
 	})
 }

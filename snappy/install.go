@@ -55,11 +55,7 @@ func installRemote(mStore *store.SnapUbuntuStoreRepository, remoteSnap *snap.Inf
 	}
 	defer os.Remove(downloadedSnap)
 
-	if err := SaveManifest(remoteSnap); err != nil {
-		return "", err
-	}
-
-	localSnap, err := (&Overlord{}).Install(downloadedSnap, flags, meter)
+	localSnap, err := (&Overlord{}).InstallWithSideMetadata(downloadedSnap, &remoteSnap.SideInfo, flags, meter)
 	if err != nil {
 		return "", err
 	}
@@ -296,6 +292,7 @@ func GarbageCollect(name string, flags InstallFlags, pb progress.Meter) error {
 		return nil
 	}
 
+	// FIXME: sort by revision sequence
 	sort.Sort(snaps)
 	active := -1 // active is the index of the active snap in snaps (-1 if no active snap)
 
