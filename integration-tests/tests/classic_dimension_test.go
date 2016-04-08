@@ -73,7 +73,7 @@ func (s *classicDimensionSuite) TestDestroyUnexistingClassicMustPrintError(c *ch
 	c.Check(err, check.NotNil,
 		check.Commentf("Trying to destroy unexisting classic dimension did not exit with an error"))
 	c.Assert(string(output), check.Equals,
-		"Classic dimension is not enabled.\n",
+		"error: Classic dimension is not enabled.\n",
 		check.Commentf("Wrong error message"))
 }
 
