@@ -24,6 +24,8 @@ import (
 	"text/tabwriter"
 
 	"github.com/ubuntu-core/snappy/i18n"
+
+	"github.com/jessevdk/go-flags"
 )
 
 type cmdInterfaces struct {
@@ -53,7 +55,7 @@ Filters the complete output so only plugs and/or slots matching the provided det
 `)
 
 func init() {
-	addCommand("interfaces", shortInterfacesHelp, longInterfacesHelp, func() interface{} {
+	addCommand("interfaces", shortInterfacesHelp, longInterfacesHelp, func() flags.Commander {
 		return &cmdInterfaces{}
 	})
 }

@@ -2,9 +2,10 @@
 Description=Ubuntu Core Snappy AutoUpdate
 
 [Timer]
-OnCalendar=hourly
+OnCalendar=23,05,11,17:00
+RandomizedDelaySec=6h
+AccuracySec=10min
 Persistent=true
-AccuracySec=15min
 Unit=snappy-autopilot.service
 
 [Install]

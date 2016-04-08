@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"os"
 	"sync"
 	"time"
 
@@ -32,13 +31,10 @@ import (
 	"github.com/gorilla/mux"
 	"gopkg.in/tomb.v2"
 
-	"github.com/ubuntu-core/snappy/asserts"
-	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/interfaces/builtin"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/notifications"
-	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/overlord"
 )
 
@@ -50,7 +46,6 @@ type Daemon struct {
 	listener     net.Listener
 	tomb         tomb.Tomb
 	router       *mux.Router
-	asserts      *asserts.Database
 	hub          *notifications.Hub
 	interfaces   *interfaces.Repository
 	// enableInternalInterfaceActions controls if adding and removing slots and plugs is allowed.
@@ -195,6 +190,8 @@ func (d *Daemon) addRoutes() {
 
 // Start the Daemon
 func (d *Daemon) Start() {
+	// the loop runs in its own goroutine
+	d.overlord.Loop()
 	d.tomb.Go(func() error {
 		if err := http.Serve(d.listener, logit(d.router)); err != nil && d.tomb.Err() == tomb.ErrStillAlive {
 			return err
@@ -208,6 +205,7 @@ func (d *Daemon) Start() {
 func (d *Daemon) Stop() error {
 	d.tomb.Kill(nil)
 	d.listener.Close()
+	d.overlord.Stop()
 	return d.tomb.Wait()
 }
 
@@ -254,23 +252,9 @@ func (d *Daemon) DeleteTask(uuid string) error {
 	return errTaskStillRunning
 }
 
-func getTrustedAccountKey() string {
-	if !osutil.FileExists(dirs.SnapTrustedAccountKey) {
-		// XXX: allow this fallback here for integration tests,
-		// until we have a proper trusted public key shared
-		// with the store
-		return os.Getenv("SNAPPY_TRUSTED_ACCOUNT_KEY")
-	}
-	return dirs.SnapTrustedAccountKey
-}
-
 // New Daemon
 func New() (*Daemon, error) {
 	ovld, err := overlord.New()
-	if err != nil {
-		return nil, err
-	}
-	db, err := asserts.OpenSysDatabase(getTrustedAccountKey())
 	if err != nil {
 		return nil, err
 	}
@@ -283,7 +267,6 @@ func New() (*Daemon, error) {
 	return &Daemon{
 		overlord:   ovld,
 		tasks:      make(map[string]*Task),
-		asserts:    db,
 		hub:        notifications.NewHub(),
 		interfaces: interfacesRepo,
 		// TODO: Decide when this should be disabled by default.

@@ -33,9 +33,11 @@ import (
 	"github.com/ubuntu-core/snappy/strutil"
 )
 
-// A Backend is used by State to checkpoint on every unlock operation.
+// A Backend is used by State to checkpoint on every unlock operation
+// and to mediate requests to ensure the state sooner.
 type Backend interface {
 	Checkpoint(data []byte) error
+	EnsureBefore(d time.Duration)
 }
 
 type customData map[string]*json.RawMessage
@@ -70,24 +72,34 @@ func (data customData) set(key string, value interface{}) {
 // The state is persisted on every unlock operation via the StateBackend
 // it was initialized with.
 type State struct {
-	// locking
 	mu  sync.Mutex
 	muC int32
-	// storage
+
 	backend Backend
 	data    customData
 	changes map[string]*Change
 	tasks   map[string]*Task
+
+	modified bool
+
+	cache map[interface{}]interface{}
 }
 
 // New returns a new empty state.
 func New(backend Backend) *State {
 	return &State{
-		backend: backend,
-		data:    make(customData),
-		changes: make(map[string]*Change),
-		tasks:   make(map[string]*Task),
+		backend:  backend,
+		data:     make(customData),
+		changes:  make(map[string]*Change),
+		tasks:    make(map[string]*Task),
+		modified: true,
+		cache:    make(map[interface{}]interface{}),
 	}
+}
+
+// Modified returns whether the state was modified since the last checkpoint.
+func (s *State) Modified() bool {
+	return s.modified
 }
 
 // Lock acquires the state lock.
@@ -96,9 +108,15 @@ func (s *State) Lock() {
 	atomic.AddInt32(&s.muC, 1)
 }
 
-func (s *State) ensureLocked() {
-	c := atomic.LoadInt32(&s.muC)
-	if c != 1 {
+func (s *State) reading() {
+	if atomic.LoadInt32(&s.muC) != 1 {
+		panic("internal error: accessing state without lock")
+	}
+}
+
+func (s *State) writing() {
+	s.modified = true
+	if atomic.LoadInt32(&s.muC) != 1 {
 		panic("internal error: accessing state without lock")
 	}
 }
@@ -116,7 +134,7 @@ type marshalledState struct {
 
 // MarshalJSON makes State a json.Marshaller
 func (s *State) MarshalJSON() ([]byte, error) {
-	s.ensureLocked()
+	s.reading()
 	return json.Marshal(marshalledState{
 		Data:    s.data,
 		Changes: s.changes,
@@ -126,7 +144,7 @@ func (s *State) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON makes State a json.Unmarshaller
 func (s *State) UnmarshalJSON(data []byte) error {
-	s.ensureLocked()
+	s.writing()
 	var unmarshalled marshalledState
 	err := json.Unmarshal(data, &unmarshalled)
 	if err != nil {
@@ -141,6 +159,7 @@ func (s *State) UnmarshalJSON(data []byte) error {
 	}
 	for _, chg := range s.changes {
 		chg.state = s
+		chg.finishUnmarshal()
 	}
 	return nil
 }
@@ -165,17 +184,28 @@ var (
 // After too many unsuccessful checkpoint attempts, it panics.
 func (s *State) Unlock() {
 	defer s.unlock()
-	if s.backend != nil {
-		data := s.checkpointData()
-		var err error
-		start := time.Now()
-		for time.Since(start) <= unlockCheckpointRetryMaxTime {
-			if err = s.backend.Checkpoint(data); err == nil {
-				return
-			}
-			time.Sleep(unlockCheckpointRetryInterval)
+
+	if !s.modified || s.backend == nil {
+		return
+	}
+
+	data := s.checkpointData()
+	var err error
+	start := time.Now()
+	for time.Since(start) <= unlockCheckpointRetryMaxTime {
+		if err = s.backend.Checkpoint(data); err == nil {
+			s.modified = false
+			return
 		}
-		logger.Panicf("cannot checkpoint even after %v of retries every %v: %v", unlockCheckpointRetryMaxTime, unlockCheckpointRetryInterval, err)
+		time.Sleep(unlockCheckpointRetryInterval)
+	}
+	logger.Panicf("cannot checkpoint even after %v of retries every %v: %v", unlockCheckpointRetryMaxTime, unlockCheckpointRetryInterval, err)
+}
+
+// EnsureBefore asks for an ensure pass to happen sooner within duration from now.
+func (s *State) EnsureBefore(d time.Duration) {
+	if s.backend != nil {
+		s.backend.EnsureBefore(d)
 	}
 }
 
@@ -186,15 +216,33 @@ var ErrNoState = errors.New("no state entry for key")
 // into the value parameter.
 // It returns ErrNoState if there is no entry for key.
 func (s *State) Get(key string, value interface{}) error {
-	s.ensureLocked()
+	s.reading()
 	return s.data.get(key, value)
 }
 
 // Set associates value with key for future consulting by managers.
 // The provided value must properly marshal and unmarshal with encoding/json.
 func (s *State) Set(key string, value interface{}) {
-	s.ensureLocked()
+	s.writing()
 	s.data.set(key, value)
+}
+
+// Cached returns the cached value associated with the provided key.
+// It returns nil if there is no entry for key.
+func (s *State) Cached(key interface{}) interface{} {
+	s.reading()
+	return s.cache[key]
+}
+
+// Cache associates value with key for future consulting by managers.
+// The cached value is not persisted.
+func (s *State) Cache(key, value interface{}) {
+	s.reading() // Doesn't touch persisted data.
+	if value == nil {
+		delete(s.cache, key)
+	} else {
+		s.cache[key] = value
+	}
 }
 
 func (s *State) genID() string {
@@ -212,7 +260,7 @@ func (s *State) genID() string {
 
 // NewChange adds a new change to the state.
 func (s *State) NewChange(kind, summary string) *Change {
-	s.ensureLocked()
+	s.writing()
 	id := s.genID()
 	chg := newChange(s, id, kind, summary)
 	s.changes[id] = chg
@@ -221,10 +269,45 @@ func (s *State) NewChange(kind, summary string) *Change {
 
 // Changes returns all changes currently known to the state.
 func (s *State) Changes() []*Change {
-	s.ensureLocked()
+	s.reading()
 	res := make([]*Change, 0, len(s.changes))
 	for _, chg := range s.changes {
 		res = append(res, chg)
+	}
+	return res
+}
+
+// NewTask creates a new task.
+// It usually will be registered with a Change using AddTask or
+// through a TaskSet.
+func (s *State) NewTask(kind, summary string) *Task {
+	s.writing()
+	id := s.genID()
+	t := newTask(s, id, kind, summary)
+	s.tasks[id] = t
+	return t
+}
+
+// Tasks returns all tasks currently known to the state.
+func (s *State) Tasks() []*Task {
+	s.reading()
+	res := make([]*Task, 0, len(s.tasks))
+	for _, t := range s.tasks {
+		res = append(res, t)
+	}
+	return res
+}
+
+// Task returns the task for the given ID.
+func (s *State) Task(id string) *Task {
+	s.reading()
+	return s.tasks[id]
+}
+
+func (s *State) tasksIn(tids []string) []*Task {
+	res := make([]*Task, len(tids))
+	for i, tid := range tids {
+		res[i] = s.tasks[tid]
 	}
 	return res
 }
@@ -240,5 +323,6 @@ func ReadState(backend Backend, r io.Reader) (*State, error) {
 		return nil, err
 	}
 	s.backend = backend
+	s.modified = false
 	return s, err
 }

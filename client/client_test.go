@@ -81,7 +81,7 @@ func (cs *clientSuite) TestNewPanics(c *check.C) {
 
 func (cs *clientSuite) TestNewCustomURL(c *check.C) {
 	f := func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.URL.Path, check.Equals, "/2.0/system-info")
+		c.Check(r.URL.Path, check.Equals, "/v2/system-info")
 		c.Check(r.URL.RawQuery, check.Equals, "")
 		fmt.Fprintln(w, `{"type":"sync", "result":{"store":"X"}}`)
 	}
@@ -141,7 +141,7 @@ func (cs *clientSuite) TestClientIntegration(c *check.C) {
 	}
 
 	f := func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.URL.Path, check.Equals, "/2.0/system-info")
+		c.Check(r.URL.Path, check.Equals, "/v2/system-info")
 		c.Check(r.URL.RawQuery, check.Equals, "")
 
 		fmt.Fprintln(w, `{"type":"sync", "result":{"store":"X"}}`)

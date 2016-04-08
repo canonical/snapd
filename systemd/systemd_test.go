@@ -218,23 +218,22 @@ Description=descr
 X-Snappy=yes
 
 [Service]
-ExecStart=/usr/bin/ubuntu-core-launcher app%[2]s aa-profile /apps/app%[2]s/1.0/bin/start
+ExecStart=/usr/bin/ubuntu-core-launcher app aa-profile /apps/app/1.0/bin/start
 Restart=on-failure
-WorkingDirectory=/apps/app%[2]s/1.0/
-Environment="SNAP_APP=app_service_1.0" "SNAP=/apps/app%[2]s/1.0/" "SNAP_DATA=/var/lib/apps/app%[2]s/1.0/" "SNAP_NAME=app" "SNAP_VERSION=1.0" "SNAP_DEVELOPER=%[3]s" "SNAP_ARCH=%[5]s" "SNAP_USER_DATA=/root/apps/app%[2]s/1.0/" "SNAP_APP_PATH=/apps/app%[2]s/1.0/" "SNAP_APP_DATA_PATH=/var/lib/apps/app%[2]s/1.0/" "SNAP_APP_USER_DATA_PATH=/root/apps/app%[2]s/1.0/"
-ExecStop=/usr/bin/ubuntu-core-launcher app%[2]s aa-profile /apps/app%[2]s/1.0/bin/stop
-ExecStopPost=/usr/bin/ubuntu-core-launcher app%[2]s aa-profile /apps/app%[2]s/1.0/bin/stop --post
+WorkingDirectory=/var/lib/apps/app/1.0/
+Environment="SNAP_APP=app_service_1.0" "SNAP=/apps/app/1.0/" "SNAP_DATA=/var/lib/apps/app/1.0/" "SNAP_NAME=app" "SNAP_VERSION=1.0" "SNAP_ARCH=%[3]s" "SNAP_USER_DATA=/root/apps/app/1.0/" "SNAP_APP_PATH=/apps/app/1.0/" "SNAP_APP_DATA_PATH=/var/lib/apps/app/1.0/" "SNAP_APP_USER_DATA_PATH=/root/apps/app/1.0/"
+ExecStop=/usr/bin/ubuntu-core-launcher app aa-profile /apps/app/1.0/bin/stop
+ExecStopPost=/usr/bin/ubuntu-core-launcher app aa-profile /apps/app/1.0/bin/stop --post
 TimeoutStopSec=10
-%[4]s
+%[2]s
 
 [Install]
 WantedBy=multi-user.target
 `
 
 var (
-	expectedAppService  = fmt.Sprintf(expectedServiceFmt, "After=snapd.frameworks.target\nRequires=snapd.frameworks.target", ".mvo", "mvo", "Type=simple\n", arch.UbuntuArchitecture())
-	expectedFmkService  = fmt.Sprintf(expectedServiceFmt, "Before=snapd.frameworks.target\nAfter=snapd.frameworks-pre.target\nRequires=snapd.frameworks-pre.target", "", "", "Type=simple\n", arch.UbuntuArchitecture())
-	expectedDbusService = fmt.Sprintf(expectedServiceFmt, "After=snapd.frameworks.target\nRequires=snapd.frameworks.target", ".mvo", "mvo", "Type=dbus\nBusName=foo.bar.baz", arch.UbuntuArchitecture())
+	expectedAppService  = fmt.Sprintf(expectedServiceFmt, "After=snapd.frameworks.target\nRequires=snapd.frameworks.target", "Type=simple\n", arch.UbuntuArchitecture())
+	expectedDbusService = fmt.Sprintf(expectedServiceFmt, "After=snapd.frameworks.target\nRequires=snapd.frameworks.target", "Type=dbus\nBusName=foo.bar.baz", arch.UbuntuArchitecture())
 )
 
 func (s *SystemdTestSuite) TestGenAppServiceFile(c *C) {
@@ -244,14 +243,13 @@ func (s *SystemdTestSuite) TestGenAppServiceFile(c *C) {
 		AppName:     "service",
 		Version:     "1.0",
 		Description: "descr",
-		SnapPath:    "/apps/app.mvo/1.0/",
+		SnapPath:    "/apps/app/1.0/",
 		Start:       "bin/start",
 		Stop:        "bin/stop",
 		PostStop:    "bin/stop --post",
 		StopTimeout: time.Duration(10 * time.Second),
 		AaProfile:   "aa-profile",
-		UdevAppName: "app.mvo",
-		Developer:   "mvo",
+		UdevAppName: "app",
 		Type:        "simple",
 	}
 
@@ -269,7 +267,7 @@ func (s *SystemdTestSuite) TestGenAppServiceFileRestart(c *C) {
 	}
 }
 
-func (s *SystemdTestSuite) TestGenFmkServiceFile(c *C) {
+func (s *SystemdTestSuite) TestGenServiceFileWithBusName(c *C) {
 
 	desc := &ServiceDescription{
 		SnapName:    "app",
@@ -282,30 +280,8 @@ func (s *SystemdTestSuite) TestGenFmkServiceFile(c *C) {
 		PostStop:    "bin/stop --post",
 		StopTimeout: time.Duration(10 * time.Second),
 		AaProfile:   "aa-profile",
-		IsFramework: true,
-		UdevAppName: "app",
-		Type:        "simple",
-	}
-
-	c.Check(New("", nil).GenServiceFile(desc), Equals, expectedFmkService)
-}
-
-func (s *SystemdTestSuite) TestGenServiceFileWithBusName(c *C) {
-
-	desc := &ServiceDescription{
-		SnapName:    "app",
-		AppName:     "service",
-		Version:     "1.0",
-		Description: "descr",
-		SnapPath:    "/apps/app.mvo/1.0/",
-		Start:       "bin/start",
-		Stop:        "bin/stop",
-		PostStop:    "bin/stop --post",
-		StopTimeout: time.Duration(10 * time.Second),
-		AaProfile:   "aa-profile",
 		BusName:     "foo.bar.baz",
-		UdevAppName: "app.mvo",
-		Developer:   "mvo",
+		UdevAppName: "app",
 		Type:        "dbus",
 	}
 
@@ -391,22 +367,22 @@ func (s *SystemdTestSuite) TestLogString(c *C) {
 }
 
 func (s *SystemdTestSuite) TestMountUnitPath(c *C) {
-	c.Assert(MountUnitPath("/apps/hello.developer/1.1", "mount"), Equals, filepath.Join(dirs.SnapServicesDir, "apps-hello.developer-1.1.mount"))
+	c.Assert(MountUnitPath("/apps/hello/1.1", "mount"), Equals, filepath.Join(dirs.SnapServicesDir, "apps-hello-1.1.mount"))
 }
 
 func (s *SystemdTestSuite) TestWriteMountUnit(c *C) {
-	mountUnitName, err := New("", nil).WriteMountUnitFile("foo.developer", "/var/lib/snappy/snaps/foo.developer_1.0.snap", "/apps/foo.developer/1.0")
+	mountUnitName, err := New("", nil).WriteMountUnitFile("foo", "/var/lib/snappy/snaps/foo_1.0.snap", "/apps/foo/1.0")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
 	mount, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, mountUnitName))
 	c.Assert(err, IsNil)
 	c.Assert(string(mount), Equals, `[Unit]
-Description=Squashfs mount unit for foo.developer
+Description=Squashfs mount unit for foo
 
 [Mount]
-What=/var/lib/snappy/snaps/foo.developer_1.0.snap
-Where=/apps/foo.developer/1.0
+What=/var/lib/snappy/snaps/foo_1.0.snap
+Where=/apps/foo/1.0
 `)
 }
 

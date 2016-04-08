@@ -46,7 +46,7 @@ var optionsData options
 // cmdInfo holds information needed to call parser.AddCommand(...).
 type cmdInfo struct {
 	name, shortHelp, longHelp string
-	builder                   func() interface{}
+	builder                   func() flags.Commander
 	hidden                    bool
 }
 
@@ -58,7 +58,7 @@ var experimentalCommands []*cmdInfo
 
 // addCommand replaces parser.addCommand() in a way that is compatible with
 // re-constructing a pristine parser.
-func addCommand(name, shortHelp, longHelp string, builder func() interface{}) *cmdInfo {
+func addCommand(name, shortHelp, longHelp string, builder func() flags.Commander) *cmdInfo {
 	info := &cmdInfo{
 		name:      name,
 		shortHelp: shortHelp,
@@ -72,7 +72,7 @@ func addCommand(name, shortHelp, longHelp string, builder func() interface{}) *c
 // addExperimentalCommand replaces parser.addCommand() in a way that is
 // compatible with re-constructing a pristine parser. It is meant for
 // adding experimental commands.
-func addExperimentalCommand(name, shortHelp, longHelp string, builder func() interface{}) *cmdInfo {
+func addExperimentalCommand(name, shortHelp, longHelp string, builder func() flags.Commander) *cmdInfo {
 	info := &cmdInfo{
 		name:      name,
 		shortHelp: shortHelp,

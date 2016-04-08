@@ -20,21 +20,22 @@
 package daemon
 
 import (
+	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
 )
 
 // allSnaps returns all installed snaps, grouped by name
 func allSnaps() (map[string][]*snappy.Snap, error) {
-	all, err := snappy.NewLocalSnapRepository().All()
+	all, err := (&snappy.Overlord{}).Installed()
 	if err != nil {
 		return nil, err
 	}
 
 	m := make(map[string][]*snappy.Snap)
 
-	for _, part := range all {
-		name := snappy.FullName(part)
-		m[name] = append(m[name], part.(*snappy.Snap))
+	for _, snap := range all {
+		name := snap.Name()
+		m[name] = append(m[name], snap)
 	}
 
 	return m, nil
@@ -59,17 +60,17 @@ func bestSnap(snaps []*snappy.Snap) (idx int, snap *snappy.Snap) {
 
 // Map a slice of *snapppy.Snaps that share a name into a
 // map[string]interface{}, augmenting it with the given (purportedly remote)
-// Part.
+// snap.
 //
 // It is a programming error (->panic) to call Map on a nil/empty slice with
-// a nil Part. Slice or remotePart may be empty/nil, but not both of them.
+// a nil remotSnap. Slice or remoteSnap may be empty/nil, but not both of them.
 //
-// Also may panic if the remote part is nil and Best() is nil.
-func mapSnap(localSnaps []*snappy.Snap, remotePart snappy.Part) map[string]interface{} {
+// Also may panic if the remoteSnap is nil and Best() is nil.
+func mapSnap(localSnaps []*snappy.Snap, remoteSnap *snap.Info) map[string]interface{} {
 	var version, update, rollback, icon, name, developer, _type, description string
 
-	if len(localSnaps) == 0 && remotePart == nil {
-		panic("no localSnaps & remotePart is nil -- how did i even get here")
+	if len(localSnaps) == 0 && remoteSnap == nil {
+		panic("no localSnaps & remoteSnap is nil -- how did i even get here")
 	}
 
 	status := "not installed"
@@ -85,8 +86,8 @@ func mapSnap(localSnaps []*snappy.Snap, remotePart snappy.Part) map[string]inter
 		} else {
 			status = "removed"
 		}
-	} else if remotePart == nil {
-		panic("unable to load a valid part")
+	} else if remoteSnap == nil {
+		panic("unable to load a valid snap")
 	}
 
 	if localSnap != nil {
@@ -96,35 +97,36 @@ func mapSnap(localSnaps []*snappy.Snap, remotePart snappy.Part) map[string]inter
 		_type = string(localSnap.Type())
 
 		icon = localSnap.Icon()
-		description = localSnap.Description()
+		description = localSnap.Info().Description()
 		installedSize = localSnap.InstalledSize()
 
 		downloadSize = localSnap.DownloadSize()
 	} else {
-		name = remotePart.Name()
-		developer = remotePart.Developer()
-		version = remotePart.Version()
-		_type = string(remotePart.Type())
+		name = remoteSnap.Name()
+		developer = remoteSnap.Developer
+		version = remoteSnap.Version
+		_type = string(remoteSnap.Type)
 	}
 
-	if remotePart != nil {
+	if remoteSnap != nil {
 		if icon == "" {
-			icon = remotePart.Icon()
+			icon = remoteSnap.IconURL
 		}
 		if description == "" {
-			description = remotePart.Description()
+			description = remoteSnap.Description()
 		}
 
-		downloadSize = remotePart.DownloadSize()
+		downloadSize = remoteSnap.Size
 	}
 
 	if localSnap != nil && localSnap.IsActive() {
-		if remotePart != nil && version != remotePart.Version() {
+		// XXX: this should use revision actually!!!
+		if remoteSnap != nil && version != remoteSnap.Version {
 			// XXX: this does not handle the case where the
 			// one in the store is not the greatest version
 			// (e.g.: store has 1.1, locally available 1.1,
 			// 1.2, active 1.2)
-			update = remotePart.Version()
+			update = remoteSnap.Version
 		}
 
 		// WARNING this'll only get the right* rollback if

@@ -70,13 +70,18 @@ func (x *cmdRollback) doRollback() error {
 	// TRANSLATORS: the first %s is a pkgname, the second %s is the new version
 	fmt.Printf(i18n.G("Setting %s to version %s\n"), pkg, nowVersion)
 
-	installed, err := snappy.NewLocalSnapRepository().Installed()
+	installed, err := (&snappy.Overlord{}).Installed()
 	if err != nil {
 		return err
 	}
 
-	parts := snappy.FindSnapsByNameAndVersion(pkg, nowVersion, installed)
-	showVerboseList(parts, os.Stdout)
+	snaps := []*snappy.Snap{}
+	for _, installed := range installed {
+		if pkg == installed.Name() && nowVersion == installed.Version() {
+			snaps = append(snaps, installed)
+		}
+	}
+	showVerboseList(snaps, os.Stdout)
 
 	return nil
 }

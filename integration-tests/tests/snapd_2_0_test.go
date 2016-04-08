@@ -33,7 +33,7 @@ func (s *snapd20TestSuite) TestResource(c *check.C) {
 }
 
 func (s *snapd20TestSuite) resource() string {
-	return baseURL + "/2.0/system-info"
+	return baseURL + "/v2/system-info"
 }
 
 func (s *snapd20TestSuite) getInteractions() apiInteractions {

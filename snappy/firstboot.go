@@ -29,7 +29,6 @@ import (
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/progress"
-	"github.com/ubuntu-core/snappy/snap"
 
 	"gopkg.in/yaml.v2"
 )
@@ -60,16 +59,16 @@ var newOverlord = func() configurator {
 }
 
 func newSnapMapImpl() (map[string]*Snap, error) {
-	repo := NewLocalSnapRepository()
-	all, err := repo.AllSnaps()
+	all, err := (&Overlord{}).Installed()
 	if err != nil {
 		return nil, err
 	}
 
 	m := make(map[string]*Snap, 2*len(all))
-	for _, part := range all {
-		m[FullName(part)] = part
-		m[BareName(part)] = part
+	for _, snap := range all {
+		info := snap.Info()
+		m[FullName(info)] = snap
+		m[BareName(info)] = snap
 	}
 
 	return m, nil
@@ -89,17 +88,17 @@ func gadgetConfig() error {
 	}
 
 	pb := progress.MakeProgressBar()
-	for _, pkgName := range gadget.Gadget.Software.BuiltIn {
+	for _, pkgName := range gadget.Legacy.Gadget.Software.BuiltIn {
 		snap, ok := snapMap[pkgName]
 		if !ok {
 			return errNoSnapToActivate
 		}
-		if err := snap.activate(false, pb); err != nil {
+		if err := ActivateSnap(snap, pb); err != nil {
 			logger.Noticef("failed to activate %s: %s", fmt.Sprintf("%s.%s", snap.Name(), snap.Developer()), err)
 		}
 	}
 
-	for pkgName, conf := range gadget.Config {
+	for pkgName, conf := range gadget.Legacy.Config {
 		snap, ok := snapMap[pkgName]
 		if !ok {
 			// We want to error early as this is a disparity and gadget snap
@@ -129,25 +128,21 @@ var getActivator = func() activator {
 	return &Overlord{}
 }
 
-// enableSystemSnaps activates the installed kernel/os/gadget snaps
+// enableInstalledSnaps activates the installed preinstalled snaps
 // on the first boot
-func enableSystemSnaps() error {
-	repo := NewLocalSnapRepository()
-	all, err := repo.All()
+func enableInstalledSnaps() error {
+	all, err := (&Overlord{}).Installed()
 	if err != nil {
 		return nil
 	}
 
 	activator := getActivator()
 	pb := progress.MakeProgressBar()
-	for _, part := range all {
-		switch part.Type() {
-		case snap.TypeGadget, snap.TypeKernel, snap.TypeOS:
-			logger.Noticef("Acitvating %s", FullName(part))
-			if err := activator.SetActive(part.(*Snap), true, pb); err != nil {
-				// we don't want this to fail for now
-				logger.Noticef("failed to activate %s: %s", FullName(part), err)
-			}
+	for _, sn := range all {
+		logger.Noticef("Acitvating %s", FullName(sn.Info()))
+		if err := activator.SetActive(sn, true, pb); err != nil {
+			// we don't want this to fail for now
+			logger.Noticef("failed to activate %s: %s", FullName(sn.Info()), err)
 		}
 	}
 
@@ -164,7 +159,7 @@ func FirstBoot() error {
 	defer stampFirstBoot()
 	defer enableFirstEther()
 
-	if err := enableSystemSnaps(); err != nil {
+	if err := enableInstalledSnaps(); err != nil {
 		return err
 	}
 
@@ -194,7 +189,7 @@ var ifup = "/sbin/ifup"
 
 func enableFirstEther() error {
 	gadget, _ := getGadget()
-	if gadget != nil && gadget.Gadget.SkipIfupProvisioning {
+	if gadget != nil && gadget.Legacy.Gadget.SkipIfupProvisioning {
 		return nil
 	}
 

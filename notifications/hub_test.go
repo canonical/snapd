@@ -113,13 +113,13 @@ func (s *HubSuite) TestPublishFilteredNotifications(c *C) {
 	c.Assert(conn1.message, HasLen, 0)
 	c.Assert(conn2.message, HasLen, 0)
 
-	s.h.Publish(&Notification{Resource: "/2.0/operations/23"})
+	s.h.Publish(&Notification{Resource: "/v2/operations/23"})
 	c.Assert(conn1.message, HasLen, 0)
 	c.Assert(conn2.message, Not(HasLen), 0)
 
 	conn2.message = []byte{}
 
-	s.h.Publish(&Notification{Resource: "/2.0/operations/999"})
+	s.h.Publish(&Notification{Resource: "/v2/operations/999"})
 	c.Assert(conn1.message, HasLen, 0)
 	c.Assert(conn2.message, HasLen, 0)
 }

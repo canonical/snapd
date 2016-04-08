@@ -70,8 +70,8 @@ func (s *helloWorldExampleSuite) TestCallHelloWorldEvilMustPrintPermissionDenied
 		"Hello Evil World!\n" +
 		"This example demonstrates the app confinement\n" +
 		"You should see a permission denied error next\n" +
-		"/snaps/hello-world.canonical/.*/bin/evil: \\d+: " +
-		"/snaps/hello-world.canonical/.*/bin/evil: " +
+		"/snaps/hello-world/.*/bin/evil: \\d+: " +
+		"/snaps/hello-world/.*/bin/evil: " +
 		"cannot create /var/tmp/myevil.txt: Permission denied\n"
 
 	c.Assert(string(echoOutput), check.Matches, expected)
@@ -119,27 +119,6 @@ func (s *goWebserverExampleSuite) TestGetRootPathMustPrintMessage(c *check.C) {
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, check.IsNil, check.Commentf("Error reading the reply body: %s", err))
 	c.Assert(string(body), check.Equals, "Hello World\n", check.Commentf("Wrong reply body"))
-}
-
-var _ = check.Suite(&frameworkExampleSuite{})
-
-type frameworkExampleSuite struct {
-	common.SnappySuite
-}
-
-func (s *frameworkExampleSuite) TestFrameworkClient(c *check.C) {
-	common.InstallSnap(c, "hello-dbus-fwk.canonical/edge")
-	defer common.RemoveSnap(c, "hello-dbus-fwk.canonical")
-
-	common.InstallSnap(c, "hello-dbus-app.canonical/edge")
-	defer common.RemoveSnap(c, "hello-dbus-app.canonical")
-
-	output := cli.ExecCommand(c, "hello-dbus-app.client")
-
-	expected := "PASS\n"
-
-	c.Assert(output, check.Equals, expected,
-		check.Commentf("Expected output %s not found, %s", expected, output))
 }
 
 var _ = check.Suite(&configExampleSuite{})

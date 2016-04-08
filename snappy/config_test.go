@@ -84,7 +84,7 @@ func (s *SnapTestSuite) TestConfigSimple(c *C) {
 	snapDir, err := s.makeInstalledMockSnapWithConfig(c, mockConfig)
 	c.Assert(err, IsNil)
 
-	newConfig, err := snapConfig(snapDir, "sergiusens", []byte(configYaml))
+	newConfig, err := snapConfig(snapDir, []byte(configYaml))
 	c.Assert(err, IsNil)
 	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "config.out"))
 	c.Assert(err, IsNil)
@@ -95,7 +95,7 @@ func (s *SnapTestSuite) TestConfigSimple(c *C) {
 func (s *SnapTestSuite) TestConfigOS(c *C) {
 	snapYaml, err := s.makeInstalledMockSnap(mockOsSnap)
 	c.Assert(err, IsNil)
-	snap, err := NewInstalledSnap(snapYaml, testDeveloper)
+	snap, err := NewInstalledSnap(snapYaml)
 	c.Assert(err, IsNil)
 
 	var cfg []byte
@@ -111,41 +111,11 @@ func (s *SnapTestSuite) TestConfigOS(c *C) {
 	c.Assert(cfg, DeepEquals, inCfg)
 }
 
-func (s *SnapTestSuite) TestConfigGeneratesRightAA(c *C) {
-	aas := []string{}
-	runConfigScript = func(cs, aa string, rc []byte, env []string) ([]byte, error) {
-		aas = append(aas, aa)
-		return nil, nil
-	}
-	defer func() { runConfigScript = runConfigScriptImpl }()
-
-	mockConfig := fmt.Sprintf(configPassthroughScript, s.tempdir)
-
-	snapDir, err := s.makeInstalledMockSnapWithConfig(c, mockConfig, `name: fmk
-type: framework
-version: 42`)
-	c.Assert(err, IsNil)
-	_, err = snapConfig(snapDir, testDeveloper, []byte(configYaml))
-	c.Assert(err, IsNil)
-
-	snapDir, err = s.makeInstalledMockSnapWithConfig(c, mockConfig, `name: potato
-type: potato
-version: 42`)
-	c.Assert(err, IsNil)
-	_, err = snapConfig(snapDir, testDeveloper, []byte(configYaml))
-	c.Assert(err, IsNil)
-
-	c.Check(aas, DeepEquals, []string{
-		"fmk_snappy-config_42",
-		"potato." + testDeveloper + "_snappy-config_42",
-	})
-}
-
 func (s *SnapTestSuite) TestConfigError(c *C) {
 	snapDir, err := s.makeInstalledMockSnapWithConfig(c, configErrorScript)
 	c.Assert(err, IsNil)
 
-	newConfig, err := snapConfig(snapDir, "sergiusens", []byte(configYaml))
+	newConfig, err := snapConfig(snapDir, []byte(configYaml))
 	c.Assert(err, NotNil)
 	c.Assert(newConfig, IsNil)
 	c.Assert(err, ErrorMatches, ".*failed with: 'error: some error'.*")

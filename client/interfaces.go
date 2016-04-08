@@ -73,7 +73,7 @@ type InterfaceAction struct {
 
 // Interfaces returns all plugs, slots and their connections.
 func (client *Client) Interfaces() (interfaces Interfaces, err error) {
-	err = client.doSync("GET", "/2.0/interfaces", nil, nil, &interfaces)
+	err = client.doSync("GET", "/v2/interfaces", nil, nil, &interfaces)
 	return
 }
 
@@ -84,7 +84,7 @@ func (client *Client) performInterfaceAction(sa *InterfaceAction) error {
 		return err
 	}
 	var rsp interface{}
-	if err := client.doSync("POST", "/2.0/interfaces", nil, bytes.NewReader(b), &rsp); err != nil {
+	if err := client.doSync("POST", "/v2/interfaces", nil, bytes.NewReader(b), &rsp); err != nil {
 		return err
 	}
 	return nil
@@ -106,37 +106,5 @@ func (client *Client) Disconnect(plugSnapName, plugName, slotSnapName, slotName 
 		Action: "disconnect",
 		Plugs:  []Plug{{Snap: plugSnapName, Name: plugName}},
 		Slots:  []Slot{{Snap: slotSnapName, Name: slotName}},
-	})
-}
-
-// AddPlug adds a plug to the interface system.
-func (client *Client) AddPlug(plug *Plug) error {
-	return client.performInterfaceAction(&InterfaceAction{
-		Action: "add-plug",
-		Plugs:  []Plug{*plug},
-	})
-}
-
-// RemovePlug removes a plug from the interface system.
-func (client *Client) RemovePlug(snapName, plugName string) error {
-	return client.performInterfaceAction(&InterfaceAction{
-		Action: "remove-plug",
-		Plugs:  []Plug{{Snap: snapName, Name: plugName}},
-	})
-}
-
-// AddSlot adds a slot to the system.
-func (client *Client) AddSlot(slot *Slot) error {
-	return client.performInterfaceAction(&InterfaceAction{
-		Action: "add-slot",
-		Slots:  []Slot{*slot},
-	})
-}
-
-// RemoveSlot removes a slot from the system.
-func (client *Client) RemoveSlot(snapName, slotName string) error {
-	return client.performInterfaceAction(&InterfaceAction{
-		Action: "remove-slot",
-		Slots:  []Slot{{Snap: snapName, Name: slotName}},
 	})
 }

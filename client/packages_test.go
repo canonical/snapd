@@ -30,7 +30,7 @@ import (
 func (cs *clientSuite) TestClientSnapsCallsEndpoint(c *check.C) {
 	_, _ = cs.cli.Snaps()
 	c.Check(cs.req.Method, check.Equals, "GET")
-	c.Check(cs.req.URL.Path, check.Equals, "/2.0/snaps")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/snaps")
 }
 
 func (cs *clientSuite) TestClientSnapsResultJSONHasNoSnaps(c *check.C) {
@@ -65,7 +65,7 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 					"installed_size": -1,
 					"name": "hello-world",
 					"developer": "canonical",
-					"resource": "/2.0/snaps/hello-world.canonical",
+					"resource": "/v2/snaps/hello-world.canonical",
 					"status": "not installed",
 					"type": "app",
 					"version": "1.0.18"
@@ -96,15 +96,15 @@ func (cs *clientSuite) TestClientFilterSnaps(c *check.C) {
 		path   string
 		query  string
 	}{
-		{client.SnapFilter{}, "/2.0/snaps", ""},
-		{client.SnapFilter{Sources: []string{"local"}}, "/2.0/snaps", "sources=local"},
-		{client.SnapFilter{Sources: []string{"store"}}, "/2.0/snaps", "sources=store"},
-		{client.SnapFilter{Sources: []string{"local", "store"}}, "/2.0/snaps", "sources=local%2Cstore"},
-		{client.SnapFilter{Types: []string{"app"}}, "/2.0/snaps", "types=app"},
-		{client.SnapFilter{Types: []string{"app", "framework"}}, "/2.0/snaps", "types=app%2Cframework"},
-		{client.SnapFilter{Sources: []string{"local"}, Types: []string{"app"}}, "/2.0/snaps", "sources=local&types=app"},
-		{client.SnapFilter{Query: "foo"}, "/2.0/snaps", "q=foo"},
-		{client.SnapFilter{Query: "foo", Sources: []string{"local"}, Types: []string{"app"}}, "/2.0/snaps", "q=foo&sources=local&types=app"},
+		{client.SnapFilter{}, "/v2/snaps", ""},
+		{client.SnapFilter{Sources: []string{"local"}}, "/v2/snaps", "sources=local"},
+		{client.SnapFilter{Sources: []string{"store"}}, "/v2/snaps", "sources=store"},
+		{client.SnapFilter{Sources: []string{"local", "store"}}, "/v2/snaps", "sources=local%2Cstore"},
+		{client.SnapFilter{Types: []string{"app"}}, "/v2/snaps", "types=app"},
+		{client.SnapFilter{Types: []string{"app", "framework"}}, "/v2/snaps", "types=app%2Cframework"},
+		{client.SnapFilter{Sources: []string{"local"}, Types: []string{"app"}}, "/v2/snaps", "sources=local&types=app"},
+		{client.SnapFilter{Query: "foo"}, "/v2/snaps", "q=foo"},
+		{client.SnapFilter{Query: "foo", Sources: []string{"local"}, Types: []string{"app"}}, "/v2/snaps", "q=foo&sources=local&types=app"},
 	}
 
 	for _, tt := range filterTests {
@@ -124,11 +124,11 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 		"result": {
 			"description": "WebRTC Video chat server for Snappy",
 			"download_size": 6930947,
-			"icon": "/2.0/icons/chatroom.ogra/icon",
+			"icon": "/v2/icons/chatroom.ogra/icon",
 			"installed_size": 18976651,
 			"name": "chatroom",
 			"developer": "ogra",
-			"resource": "/2.0/snaps/chatroom.ogra",
+			"resource": "/v2/snaps/chatroom.ogra",
 			"status": "active",
 			"type": "app",
 			"vendor": "",
@@ -137,12 +137,12 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 	}`
 	pkg, err := cs.cli.Snap(pkgName)
 	c.Assert(cs.req.Method, check.Equals, "GET")
-	c.Assert(cs.req.URL.Path, check.Equals, fmt.Sprintf("/2.0/snaps/%s", pkgName))
+	c.Assert(cs.req.URL.Path, check.Equals, fmt.Sprintf("/v2/snaps/%s", pkgName))
 	c.Assert(err, check.IsNil)
 	c.Assert(pkg, check.DeepEquals, &client.Snap{
 		Description:   "WebRTC Video chat server for Snappy",
 		DownloadSize:  6930947,
-		Icon:          "/2.0/icons/chatroom.ogra/icon",
+		Icon:          "/v2/icons/chatroom.ogra/icon",
 		InstalledSize: 18976651,
 		Name:          "chatroom",
 		Developer:     "ogra",

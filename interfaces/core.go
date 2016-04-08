@@ -23,17 +23,14 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+
+	"github.com/ubuntu-core/snappy/snap"
 )
 
 // Plug represents the potential of a given snap to connect to a slot.
 type Plug struct {
-	Snap        string                 `json:"snap"`
-	Name        string                 `json:"plug"`
-	Interface   string                 `json:"interface"`
-	Attrs       map[string]interface{} `json:"attrs,omitempty"`
-	Apps        []string               `json:"apps,omitempty"`
-	Label       string                 `json:"label"`
-	Connections []SlotRef              `json:"connections,omitempty"`
+	*snap.PlugInfo
+	Connections []SlotRef `json:"connections,omitempty"`
 }
 
 // PlugRef is a reference to a plug.
@@ -44,13 +41,8 @@ type PlugRef struct {
 
 // Slot represents a capacity offered by a snap.
 type Slot struct {
-	Snap        string                 `json:"snap"`
-	Name        string                 `json:"slot"`
-	Interface   string                 `json:"interface"`
-	Attrs       map[string]interface{} `json:"attrs,omitempty"`
-	Apps        []string               `json:"apps,omitempty"`
-	Label       string                 `json:"label"`
-	Connections []PlugRef              `json:"connections,omitempty"`
+	*snap.SlotInfo
+	Connections []PlugRef `json:"connections,omitempty"`
 }
 
 // SlotRef is a reference to a slot.
@@ -141,6 +133,11 @@ type Interface interface {
 	// is returned when the plug cannot deal with the requested security
 	// system.
 	ConnectedSlotSnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
+
+	// AutoConnect returns whether plugs and slots should be implicitly
+	// auto-connected when an unambiguous connection candidate is available in
+	// the OS snap.
+	AutoConnect() bool
 }
 
 // SecuritySystem is a name of a security system.

@@ -25,117 +25,132 @@ import (
 	. "gopkg.in/check.v1"
 
 	. "github.com/ubuntu-core/snappy/interfaces"
+	"github.com/ubuntu-core/snappy/snap"
 )
 
 type TestInterfaceSuite struct {
-	i Interface
+	iface Interface
+	plug  *Plug
+	slot  *Slot
 }
 
 var _ = Suite(&TestInterfaceSuite{
-	i: &TestInterface{InterfaceName: "test"},
+	iface: &TestInterface{InterfaceName: "test"},
+	plug: &Plug{
+		PlugInfo: &snap.PlugInfo{
+			Snap:      &snap.Info{SuggestedName: "snap"},
+			Name:      "name",
+			Interface: "test",
+		},
+	},
+	slot: &Slot{
+		SlotInfo: &snap.SlotInfo{
+			Snap:      &snap.Info{SuggestedName: "snap"},
+			Name:      "name",
+			Interface: "test",
+		},
+	},
 })
 
 // TestInterface has a working Name() function
 func (s *TestInterfaceSuite) TestName(c *C) {
-	c.Assert(s.i.Name(), Equals, "test")
+	c.Assert(s.iface.Name(), Equals, "test")
 }
 
 // TestInterface doesn't do any sanitization by default
 func (s *TestInterfaceSuite) TestSanitizePlugOK(c *C) {
-	plug := &Plug{
-		Interface: "test",
-	}
-	err := s.i.SanitizePlug(plug)
+	err := s.iface.SanitizePlug(s.plug)
 	c.Assert(err, IsNil)
 }
 
 // TestInterface has provisions to customize sanitization
 func (s *TestInterfaceSuite) TestSanitizePlugError(c *C) {
-	i := &TestInterface{
+	iface := &TestInterface{
 		InterfaceName: "test",
 		SanitizePlugCallback: func(plug *Plug) error {
 			return fmt.Errorf("sanitize plug failed")
 		},
 	}
-	plug := &Plug{
-		Interface: "test",
-	}
-	err := i.SanitizePlug(plug)
+	err := iface.SanitizePlug(s.plug)
 	c.Assert(err, ErrorMatches, "sanitize plug failed")
 }
 
 // TestInterface sanitization still checks for interface identity
 func (s *TestInterfaceSuite) TestSanitizePlugWrongInterface(c *C) {
 	plug := &Plug{
-		Interface: "other-interface",
+		PlugInfo: &snap.PlugInfo{
+			Snap:      &snap.Info{SuggestedName: "snap"},
+			Name:      "name",
+			Interface: "other-interface",
+		},
 	}
-	c.Assert(func() { s.i.SanitizePlug(plug) }, Panics, "plug is not of interface \"test\"")
+	c.Assert(func() { s.iface.SanitizePlug(plug) }, Panics, "plug is not of interface \"test\"")
 }
 
 // TestInterface doesn't do any sanitization by default
 func (s *TestInterfaceSuite) TestSanitizeSlotOK(c *C) {
-	slot := &Slot{
-		Interface: "test",
-	}
-	err := s.i.SanitizeSlot(slot)
+	err := s.iface.SanitizeSlot(s.slot)
 	c.Assert(err, IsNil)
 }
 
 // TestInterface has provisions to customize sanitization
 func (s *TestInterfaceSuite) TestSanitizeSlotError(c *C) {
-	i := &TestInterface{
+	iface := &TestInterface{
 		InterfaceName: "test",
 		SanitizeSlotCallback: func(slot *Slot) error {
 			return fmt.Errorf("sanitize slot failed")
 		},
 	}
-	slot := &Slot{
-		Interface: "test",
-	}
-	err := i.SanitizeSlot(slot)
+	err := iface.SanitizeSlot(s.slot)
 	c.Assert(err, ErrorMatches, "sanitize slot failed")
 }
 
 // TestInterface sanitization still checks for interface identity
 func (s *TestInterfaceSuite) TestSanitizeSlotWrongInterface(c *C) {
 	slot := &Slot{
-		Interface: "other-interface",
+		SlotInfo: &snap.SlotInfo{
+			Snap:      &snap.Info{SuggestedName: "snap"},
+			Name:      "name",
+			Interface: "interface",
+		},
 	}
-	c.Assert(func() { s.i.SanitizeSlot(slot) }, Panics, "slot is not of interface \"test\"")
+	c.Assert(func() { s.iface.SanitizeSlot(slot) }, Panics, "slot is not of interface \"test\"")
 }
 
 // TestInterface hands out empty plug security snippets
 func (s *TestInterfaceSuite) TestPlugSnippet(c *C) {
-	plug := &Plug{Interface: "test"}
-	slot := &Slot{Interface: "test"}
-	snippet, err := s.i.ConnectedPlugSnippet(plug, slot, SecurityAppArmor)
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.i.ConnectedPlugSnippet(plug, slot, SecuritySecComp)
+	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.i.ConnectedPlugSnippet(plug, slot, SecurityDBus)
+	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, SecurityDBus)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.i.ConnectedPlugSnippet(plug, slot, "foo")
+	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, "foo")
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 }
 
 // TestInterface hands out empty slot security snippets
 func (s *TestInterfaceSuite) TestSlotSnippet(c *C) {
-	plug := &Plug{Interface: "test"}
-	slot := &Slot{Interface: "test"}
-	snippet, err := s.i.ConnectedSlotSnippet(plug, slot, SecurityAppArmor)
+	snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.slot, SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.i.ConnectedSlotSnippet(plug, slot, SecuritySecComp)
+	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.i.ConnectedSlotSnippet(plug, slot, SecurityDBus)
+	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, SecurityDBus)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.i.ConnectedSlotSnippet(plug, slot, "foo")
+	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, "foo")
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
+}
+
+func (s *TestInterfaceSuite) TestAutoConnect(c *C) {
+	c.Assert(s.iface.AutoConnect(), Equals, false)
+	iface := &TestInterface{AutoConnectFlag: true}
+	c.Assert(iface.AutoConnect(), Equals, true)
 }

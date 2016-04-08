@@ -23,13 +23,14 @@ import (
 	"time"
 )
 
-// ChangeUnlockCheckpointRetryParamsForTest let's a test change unlockcheckpointRetryInterval and unlockCheckpointRetryMaxTime.
-func ChangeUnlockCheckpointRetryParamsForTest(newInterval, newMaxTime time.Duration) (oldInterval, oldMaxTime time.Duration) {
-	oldInterval = unlockCheckpointRetryInterval
-	oldMaxTime = unlockCheckpointRetryMaxTime
-	unlockCheckpointRetryInterval = newInterval
-	unlockCheckpointRetryMaxTime = newMaxTime
-	return
+// MockCheckpointRetryDelay changes unlockCheckpointRetryInterval and unlockCheckpointRetryMaxTime.
+func MockCheckpointRetryDelay(retryInterval, retryMaxTime time.Duration) (restore func()) {
+	oldInterval := unlockCheckpointRetryInterval
+	oldMaxTime := unlockCheckpointRetryMaxTime
+	unlockCheckpointRetryInterval = retryInterval
+	unlockCheckpointRetryMaxTime = retryMaxTime
+	return func() {
+		unlockCheckpointRetryInterval = oldInterval
+		unlockCheckpointRetryMaxTime = oldMaxTime
+	}
 }
-
-var FileBackend = &fileBackend{}

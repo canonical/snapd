@@ -24,6 +24,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/interfaces/builtin"
+	"github.com/ubuntu-core/snappy/snap"
 )
 
 type NetworkInterfaceSuite struct {
@@ -34,20 +35,21 @@ type NetworkInterfaceSuite struct {
 
 var _ = Suite(&NetworkInterfaceSuite{
 	iface: builtin.NewNetworkInterface(),
+	slot: &interfaces.Slot{
+		SlotInfo: &snap.SlotInfo{
+			Snap:      &snap.Info{SuggestedName: "ubuntu-core"},
+			Name:      "network",
+			Interface: "network",
+		},
+	},
+	plug: &interfaces.Plug{
+		PlugInfo: &snap.PlugInfo{
+			Snap:      &snap.Info{SuggestedName: "other"},
+			Name:      "network",
+			Interface: "network",
+		},
+	},
 })
-
-func (s *NetworkInterfaceSuite) SetUpTest(c *C) {
-	s.slot = &interfaces.Slot{
-		Snap:      "ubuntu-core",
-		Name:      "network",
-		Interface: "network",
-	}
-	s.plug = &interfaces.Plug{
-		Snap:      "snap",
-		Name:      "network",
-		Interface: "network",
-	}
-}
 
 func (s *NetworkInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "network")
@@ -56,11 +58,11 @@ func (s *NetworkInterfaceSuite) TestName(c *C) {
 func (s *NetworkInterfaceSuite) TestSanitizeSlot(c *C) {
 	err := s.iface.SanitizeSlot(s.slot)
 	c.Assert(err, IsNil)
-	err = s.iface.SanitizeSlot(&interfaces.Slot{
-		Snap:      "some-snap",
+	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
+		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "network",
 		Interface: "network",
-	})
+	}})
 	c.Assert(err, ErrorMatches, "network slots are reserved for the operating system snap")
 }
 
@@ -70,9 +72,9 @@ func (s *NetworkInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *NetworkInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{Interface: "other"}) },
+	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
 		PanicMatches, `slot is not of interface "network"`)
-	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{Interface: "other"}) },
+	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
 		PanicMatches, `plug is not of interface "network"`)
 }
 
@@ -123,4 +125,8 @@ func (s *NetworkInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, "foo")
 	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
 	c.Assert(snippet, IsNil)
+}
+
+func (s *NetworkInterfaceSuite) TestAutoConnect(c *C) {
+	c.Check(s.iface.AutoConnect(), Equals, true)
 }

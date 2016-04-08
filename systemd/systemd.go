@@ -166,10 +166,8 @@ type ServiceDescription struct {
 	Restart         RestartCondition
 	Type            string
 	AaProfile       string
-	IsFramework     bool
 	BusName         string
 	UdevAppName     string
-	Developer       string
 	Socket          bool
 	SocketFileName  string
 	ListenStream    string
@@ -348,16 +346,14 @@ func (s *systemd) Stop(serviceName string, timeout time.Duration) error {
 func (s *systemd) GenServiceFile(desc *ServiceDescription) string {
 	serviceTemplate := `[Unit]
 Description={{.Description}}
-{{if .IsFramework}}Before=snapd.frameworks.target
-After=snapd.frameworks-pre.target{{ if .Socket }} {{.SocketFileName}}{{end}}
-Requires=snapd.frameworks-pre.target{{ if .Socket }} {{.SocketFileName}}{{end}}{{else}}After=snapd.frameworks.target{{ if .Socket }} {{.SocketFileName}}{{end}}
-Requires=snapd.frameworks.target{{ if .Socket }} {{.SocketFileName}}{{end}}{{end}}
+After=snapd.frameworks.target{{ if .Socket }} {{.SocketFileName}}{{end}}
+Requires=snapd.frameworks.target{{ if .Socket }} {{.SocketFileName}}{{end}}
 X-Snappy=yes
 
 [Service]
 ExecStart=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.FullPathStart}}
 Restart={{.Restart}}
-WorkingDirectory={{.SnapPath}}
+WorkingDirectory=/var/lib{{.SnapPath}}
 Environment="SNAP_APP={{.AppTriple}}" {{.EnvVars}}
 {{if .Stop}}ExecStop=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.FullPathStop}}{{end}}
 {{if .PostStop}}ExecStopPost=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.FullPathPostStop}}{{end}}

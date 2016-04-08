@@ -21,6 +21,8 @@ package main
 
 import (
 	"github.com/ubuntu-core/snappy/i18n"
+
+	"github.com/jessevdk/go-flags"
 )
 
 type cmdConnect struct {
@@ -54,7 +56,7 @@ proceeds as above.
 `)
 
 func init() {
-	addCommand("connect", shortConnectHelp, longConnectHelp, func() interface{} {
+	addCommand("connect", shortConnectHelp, longConnectHelp, func() flags.Commander {
 		return &cmdConnect{}
 	})
 }

@@ -36,8 +36,7 @@ type listSuite struct {
 	common.SnappySuite
 }
 
-// FIXME: hardcoded for now
-var verRegexp = "16.04.*"
+var verRegexp = `(\d{2}\.\d{2}.*|\w{12})`
 
 func (s *listSuite) TestListMustPrintCoreVersion(c *check.C) {
 	listOutput := cli.ExecCommand(c, "snappy", "list")
@@ -45,7 +44,7 @@ func (s *listSuite) TestListMustPrintCoreVersion(c *check.C) {
 	expected := "(?ms)" +
 		"Name +Date +Version +Developer *\n" +
 		".*" +
-		fmt.Sprintf("^%s +.* +%s +canonical *\n", partition.OSSnapName(c), verRegexp) +
+		fmt.Sprintf("^%s +.* +%s +(canonical|sideload) *\n", partition.OSSnapName(c), verRegexp) +
 		".*"
 	c.Assert(listOutput, check.Matches, expected)
 }

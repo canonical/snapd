@@ -54,25 +54,6 @@ func (ss *stateSuite) TestLockUnlock(c *C) {
 	st.Unlock()
 }
 
-func (ss *stateSuite) TestSetNeedsLocked(c *C) {
-	st := state.New(nil)
-	mSt1 := &mgrState1{A: "foo"}
-
-	c.Assert(func() { st.Set("mgr1", mSt1) }, PanicMatches, "internal error: accessing state without lock")
-
-	st.Lock()
-	defer st.Unlock()
-	// fine
-	st.Set("mgr1", mSt1)
-}
-
-func (ss *stateSuite) TestGetNeedsLocked(c *C) {
-	st := state.New(nil)
-
-	var v int
-	c.Assert(func() { st.Get("foo", &v) }, PanicMatches, "internal error: accessing state without lock")
-}
-
 func (ss *stateSuite) TestGetAndSet(c *C) {
 	st := state.New(nil)
 	st.Lock()
@@ -130,9 +111,32 @@ func (ss *stateSuite) TestGetUnmarshalProblem(c *C) {
 	c.Check(err, ErrorMatches, `internal error: could not unmarshal state entry "mgr9": json: cannot unmarshal .*`)
 }
 
+func (ss *stateSuite) TestCache(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	type key1 struct{}
+	type key2 struct{}
+
+	c.Assert(st.Cached(key1{}), Equals, nil)
+
+	st.Cache(key1{}, "value1")
+	st.Cache(key2{}, "value2")
+	c.Assert(st.Cached(key1{}), Equals, "value1")
+	c.Assert(st.Cached(key2{}), Equals, "value2")
+
+	st.Cache(key1{}, nil)
+	c.Assert(st.Cached(key1{}), Equals, nil)
+
+	_, ok := st.Cached("key3").(string)
+	c.Assert(ok, Equals, false)
+}
+
 type fakeStateBackend struct {
-	checkpoints [][]byte
-	error       func() error
+	checkpoints  [][]byte
+	error        func() error
+	ensureBefore time.Duration
 }
 
 func (b *fakeStateBackend) Checkpoint(data []byte) error {
@@ -141,6 +145,10 @@ func (b *fakeStateBackend) Checkpoint(data []byte) error {
 		return b.error()
 	}
 	return nil
+}
+
+func (b *fakeStateBackend) EnsureBefore(d time.Duration) {
+	b.ensureBefore = d
 }
 
 func (ss *stateSuite) TestImplicitCheckpointAndRead(c *C) {
@@ -163,7 +171,7 @@ func (ss *stateSuite) TestImplicitCheckpointAndRead(c *C) {
 
 	st2, err := state.ReadState(nil, buf)
 	c.Assert(err, IsNil)
-	c.Assert(st2, NotNil)
+	c.Assert(st2.Modified(), Equals, false)
 
 	st2.Lock()
 	defer st2.Unlock()
@@ -185,11 +193,8 @@ func (ss *stateSuite) TestImplicitCheckpointAndRead(c *C) {
 }
 
 func (ss *stateSuite) TestImplicitCheckpointRetry(c *C) {
-	prevInterval, prevMaxTime := state.ChangeUnlockCheckpointRetryParamsForTest(
-		2*time.Millisecond,
-		1*time.Second,
-	)
-	defer state.ChangeUnlockCheckpointRetryParamsForTest(prevInterval, prevMaxTime)
+	restore := state.MockCheckpointRetryDelay(2*time.Millisecond, 1*time.Second)
+	defer restore()
 
 	retries := 0
 	boom := errors.New("boom")
@@ -211,11 +216,8 @@ func (ss *stateSuite) TestImplicitCheckpointRetry(c *C) {
 }
 
 func (ss *stateSuite) TestImplicitCheckpointPanicsAfterFailedRetries(c *C) {
-	prevInterval, prevMaxTime := state.ChangeUnlockCheckpointRetryParamsForTest(
-		2*time.Millisecond,
-		10*time.Millisecond,
-	)
-	defer state.ChangeUnlockCheckpointRetryParamsForTest(prevInterval, prevMaxTime)
+	restore := state.MockCheckpointRetryDelay(2*time.Millisecond, 10*time.Millisecond)
+	defer restore()
 
 	boom := errors.New("boom")
 	retries := 0
@@ -233,6 +235,26 @@ func (ss *stateSuite) TestImplicitCheckpointPanicsAfterFailedRetries(c *C) {
 	// we did at least a couple
 	c.Check(retries > 2, Equals, true)
 	c.Check(time.Since(t0) > 10*time.Millisecond, Equals, true)
+}
+
+func (ss *stateSuite) TestImplicitCheckpointModifiedOnly(c *C) {
+	restore := state.MockCheckpointRetryDelay(2*time.Millisecond, 1*time.Second)
+	defer restore()
+
+	b := &fakeStateBackend{}
+	st := state.New(b)
+	st.Lock()
+	st.Unlock()
+	st.Lock()
+	st.Unlock()
+
+	c.Assert(b.checkpoints, HasLen, 1)
+
+	st.Lock()
+	st.Set("foo", "bar")
+	st.Unlock()
+
+	c.Assert(b.checkpoints, HasLen, 2)
 }
 
 func (ss *stateSuite) TestNewChangeAndChanges(c *C) {
@@ -254,18 +276,6 @@ func (ss *stateSuite) TestNewChangeAndChanges(c *C) {
 	for _, chg := range chgs {
 		c.Check(chg, Equals, expected[chg.ID()])
 	}
-}
-
-func (ss *stateSuite) TestNewChangeNeedsLocked(c *C) {
-	st := state.New(nil)
-
-	c.Assert(func() { st.NewChange("install", "...") }, PanicMatches, "internal error: accessing state without lock")
-}
-
-func (ss *stateSuite) TestChangesNeedsLocked(c *C) {
-	st := state.New(nil)
-
-	c.Assert(func() { st.Changes() }, PanicMatches, "internal error: accessing state without lock")
 }
 
 func (ss *stateSuite) TestNewChangeAndCheckpoint(c *C) {
@@ -307,6 +317,52 @@ func (ss *stateSuite) TestNewChangeAndCheckpoint(c *C) {
 	c.Check(v, Equals, 1)
 
 	c.Check(chg0.Status(), Equals, state.ErrorStatus)
+
+	select {
+	case <-chg0.Ready():
+	default:
+		c.Errorf("Change didn't preserve Ready channel closed after deserialization")
+	}
+}
+
+func (ss *stateSuite) TestNewChangeAndCheckpointTaskDerivedStatus(c *C) {
+	b := new(fakeStateBackend)
+	st := state.New(b)
+	st.Lock()
+
+	chg := st.NewChange("install", "summary")
+	c.Assert(chg, NotNil)
+	chgID := chg.ID()
+
+	t1 := st.NewTask("download", "1...")
+	t1.SetStatus(state.DoneStatus)
+	chg.AddTask(t1)
+
+	// implicit checkpoint
+	st.Unlock()
+
+	c.Assert(b.checkpoints, HasLen, 1)
+	buf := bytes.NewBuffer(b.checkpoints[0])
+
+	st2, err := state.ReadState(nil, buf)
+	c.Assert(err, IsNil)
+
+	st2.Lock()
+	defer st2.Unlock()
+
+	chgs := st2.Changes()
+
+	c.Assert(chgs, HasLen, 1)
+
+	chg0 := chgs[0]
+	c.Check(chg0.ID(), Equals, chgID)
+	c.Check(chg0.Status(), Equals, state.DoneStatus)
+
+	select {
+	case <-chg0.Ready():
+	default:
+		c.Errorf("Change didn't preserve Ready channel closed after deserialization")
+	}
 }
 
 func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
@@ -317,11 +373,20 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 	chg := st.NewChange("install", "summary")
 	c.Assert(chg, NotNil)
 
-	t1 := chg.NewTask("download", "1...")
+	t1 := st.NewTask("download", "1...")
+	chg.AddTask(t1)
 	t1ID := t1.ID()
 	t1.Set("a", 1)
-	t1.SetStatus(state.WaitingStatus)
+	t1.SetStatus(state.DoneStatus)
 	t1.SetProgress(5, 10)
+
+	t2 := st.NewTask("inst", "2...")
+	chg.AddTask(t2)
+	t2ID := t2.ID()
+	t2.WaitFor(t1)
+
+	t3 := st.NewTask("three", "3...")
+	t3ID := t3.ID()
 
 	// implicit checkpoint
 	st.Unlock()
@@ -341,21 +406,116 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 	c.Assert(chgs, HasLen, 1)
 	chg0 := chgs[0]
 
-	tasks0 := chg0.Tasks()
-	c.Assert(tasks0, HasLen, 1)
+	tasks0 := make(map[string]*state.Task)
+	for _, t := range chg0.Tasks() {
+		tasks0[t.ID()] = t
+	}
+	c.Assert(tasks0, HasLen, 2)
 
-	task0_1 := tasks0[0]
+	task0_1 := tasks0[t1ID]
 	c.Check(task0_1.ID(), Equals, t1ID)
 	c.Check(task0_1.Kind(), Equals, "download")
 	c.Check(task0_1.Summary(), Equals, "1...")
+	c.Check(task0_1.Change(), Equals, chg0)
 
 	var v int
 	err = task0_1.Get("a", &v)
 	c.Check(v, Equals, 1)
 
-	c.Check(task0_1.Status(), Equals, state.WaitingStatus)
+	c.Check(task0_1.Status(), Equals, state.DoneStatus)
 
 	cur, tot := task0_1.Progress()
 	c.Check(cur, Equals, 5)
 	c.Check(tot, Equals, 10)
+
+	task0_2 := tasks0[t2ID]
+	c.Check(task0_2.WaitTasks(), DeepEquals, []*state.Task{task0_1})
+
+	c.Check(task0_1.HaltTasks(), DeepEquals, []*state.Task{task0_2})
+
+	tasks2 := make(map[string]*state.Task)
+	for _, t := range st2.Tasks() {
+		tasks2[t.ID()] = t
+	}
+	c.Assert(tasks2, HasLen, 3)
+	c.Check(tasks2[t3ID].Kind(), Equals, "three")
+}
+
+func (ss *stateSuite) TestEnsureBefore(c *C) {
+	b := new(fakeStateBackend)
+	st := state.New(b)
+
+	st.EnsureBefore(10 * time.Second)
+
+	c.Check(b.ensureBefore, Equals, 10*time.Second)
+}
+
+func (ss *stateSuite) TestNewTaskAndTasks(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg1 := st.NewChange("install", "...")
+	t11 := st.NewTask("check", "...")
+	chg1.AddTask(t11)
+	t12 := st.NewTask("inst", "...")
+	chg1.AddTask(t12)
+
+	chg2 := st.NewChange("remove", "...")
+	t21 := st.NewTask("check", "...")
+	t22 := st.NewTask("rm", "...")
+	chg2.AddTask(t22)
+
+	tasks := st.Tasks()
+	c.Check(tasks, HasLen, 4)
+
+	expected := map[string]*state.Task{
+		t11.ID(): t11,
+		t12.ID(): t12,
+		t21.ID(): t21,
+		t22.ID(): t22,
+	}
+
+	for _, t := range tasks {
+		c.Check(t, Equals, expected[t.ID()])
+	}
+}
+
+func (ss *stateSuite) TestMethodEntrance(c *C) {
+	st := state.New(&fakeStateBackend{})
+	// Reset modified flag.
+	st.Lock()
+	st.Unlock()
+
+	writes := []func(){
+		func() { st.Set("foo", 1) },
+		func() { st.NewChange("install", "...") },
+		func() { st.NewTask("download", "...") },
+		func() { st.UnmarshalJSON(nil) },
+	}
+
+	reads := []func(){
+		func() { st.Get("foo", nil) },
+		func() { st.Cached("foo") },
+		func() { st.Cache("foo", 1) },
+		func() { st.Changes() },
+		func() { st.Tasks() },
+		func() { st.MarshalJSON() },
+	}
+
+	for i, f := range reads {
+		c.Logf("Testing read function #%d", i)
+		c.Assert(f, PanicMatches, "internal error: accessing state without lock")
+		c.Assert(st.Modified(), Equals, false)
+	}
+
+	for i, f := range writes {
+		st.Lock()
+		st.Unlock()
+		c.Assert(st.Modified(), Equals, false)
+
+		c.Logf("Testing write function #%d", i)
+		c.Assert(f, PanicMatches, "internal error: accessing state without lock")
+		c.Assert(st.Modified(), Equals, true)
+	}
 }

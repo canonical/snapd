@@ -60,3 +60,34 @@ func (s *ValidateSuite) TestValidateName(c *C) {
 		c.Assert(err, ErrorMatches, `invalid snap name: ".*"`)
 	}
 }
+
+// ValidateApp
+
+func (s *ValidateSuite) TestAppWhitelistSimple(c *C) {
+	c.Check(ValidateApp(&AppInfo{Name: "foo"}), IsNil)
+	c.Check(ValidateApp(&AppInfo{Command: "foo"}), IsNil)
+	c.Check(ValidateApp(&AppInfo{Stop: "foo"}), IsNil)
+	c.Check(ValidateApp(&AppInfo{PostStop: "foo"}), IsNil)
+}
+
+func (s *ValidateSuite) TestAppWhitelistIllegal(c *C) {
+	c.Check(ValidateApp(&AppInfo{Name: "x\n"}), NotNil)
+	c.Check(ValidateApp(&AppInfo{Name: "test!me"}), NotNil)
+	c.Check(ValidateApp(&AppInfo{Command: "foo\n"}), NotNil)
+	c.Check(ValidateApp(&AppInfo{Stop: "foo\n"}), NotNil)
+	c.Check(ValidateApp(&AppInfo{PostStop: "foo\n"}), NotNil)
+	c.Check(ValidateApp(&AppInfo{SocketMode: "foo\n"}), NotNil)
+	c.Check(ValidateApp(&AppInfo{ListenStream: "foo\n"}), NotNil)
+	c.Check(ValidateApp(&AppInfo{BusName: "foo\n"}), NotNil)
+}
+
+func (s *ValidateSuite) TestAppDaemonValue(c *C) {
+	c.Check(ValidateApp(&AppInfo{Daemon: "oneshot"}), IsNil)
+	c.Check(ValidateApp(&AppInfo{Daemon: "nono"}), ErrorMatches, `"daemon" field contains invalid value "nono"`)
+}
+
+func (s *ValidateSuite) TestAppWhitelistError(c *C) {
+	err := ValidateApp(&AppInfo{Name: "x\n"})
+	c.Assert(err, NotNil)
+	c.Check(err.Error(), Equals, `app description field 'name' contains illegal "x\n" (legal: '^[A-Za-z0-9/. _#:-]*$')`)
+}

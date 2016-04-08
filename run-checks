@@ -102,7 +102,7 @@ if [ ! -z "$STATIC" ]; then
     if [ -n "$lint" ]; then
         echo "Lint complains:"
         echo "$lint"
-        exit 1
+        # don't exit 1
     fi
 
     # pot file

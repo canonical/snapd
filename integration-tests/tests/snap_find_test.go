@@ -33,13 +33,14 @@ type searchSuite struct {
 	common.SnappySuite
 }
 
-func (s *searchSuite) TestSearchFrameworkMustPrintMatch(c *check.C) {
-	searchOutput := cli.ExecCommand(c, "snap", "find", "hello-dbus-fwk")
+func (s *searchSuite) TestSearchMustPrintMatch(c *check.C) {
+	searchOutput := cli.ExecCommand(c, "snap", "find", "hello-world")
 
+	// XXX: Summary is empty atm, waiting for store support
 	expected := "(?ms)" +
 		"Name +Version +Summary *\n" +
 		".*" +
-		"^hello-dbus-fwk.canonical +.* +hello-dbus-fwk *\n" +
+		"^hello-world +.* *\n" +
 		".*"
 
 	c.Assert(searchOutput, check.Matches, expected)
