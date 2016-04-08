@@ -384,8 +384,8 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 // Today this function is looking at data directly from the mounted snap, but soon it will
 // be changed so it looks first at the state for the snap details (Revision, Developer, etc),
 // and then complements it with information from the snap itself.
-func SnapInfo(state *state.State, snapName, snapVersion string) (*snap.Info, error) {
-	fname := filepath.Join(dirs.SnapSnapsDir, snapName, snapVersion, "meta", "snap.yaml")
+func SnapInfo(state *state.State, snapName string, snapRevision int) (*snap.Info, error) {
+	fname := filepath.Join(dirs.SnapSnapsDir, snapName, strconv.Itoa(snapRevision), "meta", "snap.yaml")
 	yamlData, err := ioutil.ReadFile(fname)
 	if err != nil {
 		return nil, err
