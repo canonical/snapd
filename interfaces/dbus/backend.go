@@ -44,20 +44,21 @@ type Backend struct{}
 //
 // DBus has no concept of a complain mode so developerMode is not supported
 func (b *Backend) Setup(snapInfo *snap.Info, developerMode bool, repo *interfaces.Repository) error {
+	snapName := snapInfo.Name()
 	// Get the snippets that apply to this snap
 	snippets, err := repo.SecuritySnippetsForSnap(snapInfo.Name(), interfaces.SecurityDBus)
 	if err != nil {
-		return fmt.Errorf("cannot obtain DBus security snippets for snap %q: %s", snapInfo.Name(), err)
+		return fmt.Errorf("cannot obtain DBus security snippets for snap %q: %s", snapName, err)
 	}
 	// Get the files that this snap should have
 	content, err := b.combineSnippets(snapInfo, snippets)
 	if err != nil {
-		return fmt.Errorf("cannot obtain expected DBus configuration files for snap %q: %s", snapInfo.Name(), err)
+		return fmt.Errorf("cannot obtain expected DBus configuration files for snap %q: %s", snapName, err)
 	}
-	glob := fmt.Sprintf("%s.conf", interfaces.SecurityTagGlob(snapInfo))
+	glob := fmt.Sprintf("%s.conf", interfaces.SecurityTagGlob(snapName))
 	_, _, err = osutil.EnsureDirState(dirs.SnapBusPolicyDir, glob, content)
 	if err != nil {
-		return fmt.Errorf("cannot synchronize DBus configuration files for snap %q: %s", snapInfo.Name(), err)
+		return fmt.Errorf("cannot synchronize DBus configuration files for snap %q: %s", snapName, err)
 	}
 	return nil
 }
@@ -65,11 +66,11 @@ func (b *Backend) Setup(snapInfo *snap.Info, developerMode bool, repo *interface
 // Remove removes dbus configuration files of a given snap.
 //
 // This method should be called after removing a snap.
-func (b *Backend) Remove(snapInfo *snap.Info) error {
-	glob := fmt.Sprintf("%s.conf", interfaces.SecurityTagGlob(snapInfo))
+func (b *Backend) Remove(snapName string) error {
+	glob := fmt.Sprintf("%s.conf", interfaces.SecurityTagGlob(snapName))
 	_, _, err := osutil.EnsureDirState(dirs.SnapBusPolicyDir, glob, nil)
 	if err != nil {
-		return fmt.Errorf("cannot synchronize DBus configuration files for snap %q: %s", snapInfo.Name(), err)
+		return fmt.Errorf("cannot synchronize DBus configuration files for snap %q: %s", snapName, err)
 	}
 	return nil
 }
