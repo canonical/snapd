@@ -37,7 +37,7 @@ var _ = Suite(&TimeserverControlInterfaceSuite{
 	iface: builtin.NewTimeserverControlInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "ubuntu-core"},
+			Snap:      &snap.Info{SuggestedName: "ubuntu-core", Type: snap.TypeOS},
 			Name:      "timeserver-control",
 			Interface: "timeserver-control",
 		},

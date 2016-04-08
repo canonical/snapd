@@ -90,7 +90,8 @@ apps:
    daemon: forking
  non-svc2:
    command: something
-`)
+`, 11)
+
 	c.Assert(err, IsNil)
 	f, err := makeInstalledMockSnap(`name: hello-snap
 version: 1.10
@@ -100,7 +101,8 @@ apps:
    daemon: forking
  non-svc2:
    command: something
-`)
+`, 11)
+
 	c.Assert(err, IsNil)
 	c.Assert(makeSnapActive(f), IsNil)
 	s.i = 0

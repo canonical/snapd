@@ -26,6 +26,10 @@ import (
 // SecurityBackend abstracts interactions between the interface system and the
 // needs of a particular security system.
 type SecurityBackend interface {
+	// Name returns the name of the backend.
+	// This is intended for diagnostic messages.
+	Name() string
+
 	// Setup creates and loads security artefacts specific to a given snap.
 	// The snap can be in developer mode to make security violations non-fatal
 	// to the offending application process.

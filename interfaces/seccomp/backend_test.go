@@ -93,6 +93,10 @@ slots:
     iface:
 `
 
+func (s *backendSuite) TestName(c *C) {
+	c.Check(s.backend.Name(), Equals, "seccomp")
+}
+
 func (s *backendSuite) TestInstallingSnapWritesProfiles(c *C) {
 	developerMode := false
 	s.installSnap(c, developerMode, sambaYamlV1)

@@ -106,18 +106,25 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 	// not active
 	name, version := parseSnapSpec(snapSpec)
 	name, developer := snappy.SplitDeveloper(name)
+	revision := 0
 	if version == "" {
 		info := backend.ActiveSnap(name)
 		if info == nil {
 			return nil, fmt.Errorf("cannot find active snap for %q", name)
 		}
-		version = info.Version
+		revision = info.Revision
+	} else {
+		info := backend.SnapByNameAndVersion(name, version)
+		if info == nil {
+			return nil, fmt.Errorf("cannot find snap for %q and version %q", name, version)
+		}
+		revision = info.Revision
 	}
 
 	ss := SnapSetup{
 		Name:      name,
 		Developer: developer,
-		Version:   version,
+		Revision:  revision,
 		Flags:     int(flags),
 	}
 	// check if this is something that can be removed
@@ -149,8 +156,8 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 func Rollback(s *state.State, snap, ver string) (*state.TaskSet, error) {
 	t := s.NewTask("rollback-snap", fmt.Sprintf(i18n.G("Rolling back %q"), snap))
 	t.Set("snap-setup", SnapSetup{
-		Name:    snap,
-		Version: ver,
+		Name:            snap,
+		RollbackVersion: ver,
 	})
 
 	return state.NewTaskSet(t), nil

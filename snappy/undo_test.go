@@ -24,12 +24,14 @@ import (
 	"os"
 	"path/filepath"
 
+	. "gopkg.in/check.v1"
+
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/partition"
 	"github.com/ubuntu-core/snappy/progress"
-
-	. "gopkg.in/check.v1"
+	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/systemd"
 )
 
 type undoTestSuite struct {
@@ -42,6 +44,10 @@ func (s *undoTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc", "systemd", "system", "multi-user.target.wants"), 0755)
 	c.Assert(err, IsNil)
+
+	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+		return []byte("ActiveState=inactive\n"), nil
+	}
 }
 
 func (s *undoTestSuite) TearDownTest(c *C) {
@@ -55,9 +61,14 @@ version: 1.0
 func (s *undoTestSuite) TestUndoForSetupSnapSimple(c *C) {
 	snapPath := makeTestSnapPackage(c, helloSnap)
 
-	instDir, err := SetupSnap(snapPath, 0, &s.meter)
+	si := snap.SideInfo{
+		OfficialName: "hello-snap",
+		Revision:     14,
+	}
+
+	instDir, err := SetupSnap(snapPath, &si, 0, &s.meter)
 	c.Assert(err, IsNil)
-	c.Assert(instDir, Equals, filepath.Join(dirs.SnapSnapsDir, "hello-snap/1.0"))
+	c.Assert(instDir, Equals, filepath.Join(dirs.SnapSnapsDir, "hello-snap/14"))
 	l, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
 	c.Assert(l, HasLen, 1)
 
@@ -90,7 +101,12 @@ modules: lib/modules/4.4.0-14-generic
 firmware: lib/firmware
 `, testFiles)
 
-	instDir, err := SetupSnap(snapPath, 0, &s.meter)
+	si := snap.SideInfo{
+		OfficialName: "kernel-snap",
+		Revision:     140,
+	}
+
+	instDir, err := SetupSnap(snapPath, &si, 0, &s.meter)
 	c.Assert(err, IsNil)
 	l, _ := filepath.Glob(filepath.Join(bootloader.Dir(), "*"))
 	c.Assert(l, HasLen, 1)
@@ -103,11 +119,12 @@ firmware: lib/firmware
 
 func (s *undoTestSuite) TestUndoForCopyData(c *C) {
 	v1, err := makeInstalledMockSnap(`name: hello
-version: 1.0`)
+version: 1.0`, 11)
+
 	c.Assert(err, IsNil)
 	makeSnapActive(v1)
 	// add some data
-	datadir := filepath.Join(dirs.SnapDataDir, "hello/1.0")
+	datadir := filepath.Join(dirs.SnapDataDir, "hello/11")
 	subdir := filepath.Join(datadir, "random-subdir")
 	err = os.MkdirAll(subdir, 0755)
 	c.Assert(err, IsNil)
@@ -116,7 +133,8 @@ version: 1.0`)
 
 	// pretend we install a new version
 	v2, err := makeInstalledMockSnap(`name: hello
-version: 2.0`)
+version: 2.0`, 12)
+
 	c.Assert(err, IsNil)
 
 	sn, err := NewInstalledSnap(v2)
@@ -125,7 +143,7 @@ version: 2.0`)
 	// copy data
 	err = CopyData(sn.Info(), 0, &s.meter)
 	c.Assert(err, IsNil)
-	v2data := filepath.Join(dirs.SnapDataDir, "hello/2.0")
+	v2data := filepath.Join(dirs.SnapDataDir, "hello/12")
 	l, _ := filepath.Glob(filepath.Join(v2data, "*"))
 	c.Assert(l, HasLen, 1)
 
@@ -147,7 +165,8 @@ plugs:
  binary:
   interface: old-security
   caps: []
-`)
+`, 11)
+
 	c.Assert(err, IsNil)
 	// remove the mocks created by makeInstalledMockSnap
 	os.RemoveAll(dirs.SnapAppArmorDir)
@@ -184,7 +203,8 @@ apps:
  svc:
    command: svc
    daemon: simple
-`)
+`, 11)
+
 	c.Assert(err, IsNil)
 
 	sn, err := NewInstalledSnap(yaml)
@@ -213,13 +233,15 @@ apps:
 func (s *undoTestSuite) TestUndoForUpdateCurrentSymlink(c *C) {
 	v1yaml, err := makeInstalledMockSnap(`name: hello
 version: 1.0
-`)
+`, 11)
+
 	c.Assert(err, IsNil)
 	makeSnapActive(v1yaml)
 
 	v2yaml, err := makeInstalledMockSnap(`name: hello
 version: 2.0
-`)
+`, 22)
+
 	c.Assert(err, IsNil)
 
 	v1, err := NewInstalledSnap(v1yaml)
@@ -230,24 +252,27 @@ version: 2.0
 	err = UpdateCurrentSymlink(v2, &s.meter)
 	c.Assert(err, IsNil)
 
-	currentActiveSymlink := filepath.Join(v2.basedir, "..", "current")
+	v1MountDir := v1.Info().MountDir()
+	v2MountDir := v2.Info().MountDir()
+	v2DataDir := v2.Info().DataDir()
+	currentActiveSymlink := filepath.Join(v2MountDir, "..", "current")
 	currentActiveDir, err := filepath.EvalSymlinks(currentActiveSymlink)
 	c.Assert(err, IsNil)
-	c.Assert(currentActiveDir, Equals, v2.basedir)
+	c.Assert(currentActiveDir, Equals, v2MountDir)
 
-	currentDataSymlink := filepath.Join(dirs.SnapDataDir, v2.Name(), "current")
+	currentDataSymlink := filepath.Join(filepath.Dir(v2DataDir), "current")
 	currentDataDir, err := filepath.EvalSymlinks(currentDataSymlink)
 	c.Assert(err, IsNil)
-	c.Assert(currentDataDir, Matches, `.*/2.0`)
+	c.Assert(currentDataDir, Matches, `.*/22`)
 
 	// undo sets the symlink back
 	err = UndoUpdateCurrentSymlink(v1, v2, &s.meter)
 	currentActiveDir, err = filepath.EvalSymlinks(currentActiveSymlink)
 	c.Assert(err, IsNil)
-	c.Assert(currentActiveDir, Equals, v1.basedir)
+	c.Assert(currentActiveDir, Equals, v1MountDir)
 
 	currentDataDir, err = filepath.EvalSymlinks(currentDataSymlink)
 	c.Assert(err, IsNil)
-	c.Assert(currentDataDir, Matches, `.*/1.0`)
+	c.Assert(currentDataDir, Matches, `.*/11`)
 
 }
