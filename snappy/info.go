@@ -155,7 +155,6 @@ func FindSnapsByNameAndVersion(needle, version string, haystack []*Snap) []*Snap
 	return found
 }
 
-// XXX test this
 // FindSnapsByNameAndRevision returns the snaps with the name/version in the
 // given slice of snaps
 func FindSnapsByNameAndRevision(needle string, revno int, haystack []*Snap) []*Snap {

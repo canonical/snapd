@@ -210,3 +210,26 @@ func (s *SnapTestSuite) TestFindSnapsByNameAndVersionFmk(c *C) {
 	snaps = FindSnapsByNameAndVersion("os2", "2", installed)
 	c.Check(snaps, HasLen, 0)
 }
+
+func (s *SnapTestSuite) TestFindSnapsByNameAndRevision(c *C) {
+	_, err := makeInstalledMockSnap("", 11)
+	repo := &Overlord{}
+	installed, err := repo.Installed()
+	c.Assert(err, IsNil)
+
+	snaps := FindSnapsByNameAndRevision("hello-snap."+testDeveloper, 11, installed)
+	c.Check(snaps, HasLen, 1)
+	snaps = FindSnapsByNameAndRevision("bad-app."+testDeveloper, 11, installed)
+	c.Check(snaps, HasLen, 0)
+	snaps = FindSnapsByNameAndRevision("hello-snap.badDeveloper", 11, installed)
+	c.Check(snaps, HasLen, 0)
+	snaps = FindSnapsByNameAndRevision("hello-snap."+testDeveloper, 22, installed)
+	c.Check(snaps, HasLen, 0)
+
+	snaps = FindSnapsByNameAndRevision("hello-snap", 11, installed)
+	c.Check(snaps, HasLen, 1)
+	snaps = FindSnapsByNameAndRevision("bad-app", 11, installed)
+	c.Check(snaps, HasLen, 0)
+	snaps = FindSnapsByNameAndRevision("hello-snap", 22, installed)
+	c.Check(snaps, HasLen, 0)
+}
