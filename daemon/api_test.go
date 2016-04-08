@@ -43,13 +43,10 @@ import (
 	"github.com/ubuntu-core/snappy/overlord"
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
-	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
-	"github.com/ubuntu-core/snappy/systemd"
 	"github.com/ubuntu-core/snappy/testutil"
-	"github.com/ubuntu-core/snappy/timeout"
 )
 
 type apiSuite struct {
@@ -116,7 +113,6 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 }
 
 func (s *apiSuite) TearDownTest(c *check.C) {
-	findServices = snappy.FindServices
 	s.stateOverlord.Stop()
 }
 
@@ -346,7 +342,6 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 	exceptions := []string{ // keep sorted, for scanning ease
 		"apiCompatLevel",
 		"api",
-		"findServices",
 		"maxReadBuflen",
 		"muxVars",
 		"newRemoteRepo",
@@ -976,54 +971,6 @@ func (s *apiSuite) TestSnapPutConfigNoConfig(c *check.C) {
 	c.Check(rsp.Status, check.Equals, http.StatusInternalServerError)
 }
 
-func (s *apiSuite) TestSnapServiceGet(c *check.C) {
-	findServices = func(string, string, progress.Meter) (snappy.ServiceActor, error) {
-		return &tSA{ssout: []*snappy.PackageServiceStatus{{AppName: "svc"}}}, nil
-	}
-
-	req, err := http.NewRequest("GET", "/v2/snaps/foo/services", nil)
-	c.Assert(err, check.IsNil)
-
-	s.mkInstalled(c, "foo", "bar", "v1", 10, true, `apps:
- svc:
-  daemon: forking
-`)
-	s.vars = map[string]string{"name": "foo"} // NB: no service specified
-
-	rsp := snapService(snapSvcsCmd, req).(*resp)
-	c.Assert(rsp, check.NotNil)
-	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Check(rsp.Status, check.Equals, http.StatusOK)
-
-	m := rsp.Result.(map[string]*appDesc)
-	c.Assert(m["svc"], check.FitsTypeOf, new(appDesc))
-	c.Check(m["svc"].Op, check.Equals, "status")
-	c.Check(m["svc"].Spec, check.DeepEquals, &snappy.AppYaml{Name: "svc", Daemon: "forking", StopTimeout: timeout.DefaultTimeout})
-	c.Check(m["svc"].Status, check.DeepEquals, &snappy.PackageServiceStatus{AppName: "svc"})
-}
-
-func (s *apiSuite) TestSnapServicePut(c *check.C) {
-	findServices = func(string, string, progress.Meter) (snappy.ServiceActor, error) {
-		return &tSA{ssout: []*snappy.PackageServiceStatus{{AppName: "svc"}}}, nil
-	}
-
-	buf := bytes.NewBufferString(`{"action": "stop"}`)
-	req, err := http.NewRequest("PUT", "/v2/snaps/foo/services", buf)
-	c.Assert(err, check.IsNil)
-
-	s.mkInstalled(c, "foo", "bar", "v1", 10, true, `apps:
- svc:
-  command: svc
-  daemon: forking
-`)
-	s.vars = map[string]string{"name": "foo"} // NB: no service specified
-
-	rsp := snapService(snapSvcsCmd, req).(*resp)
-	c.Assert(rsp, check.NotNil)
-	c.Check(rsp.Type, check.Equals, ResponseTypeAsync)
-	c.Check(rsp.Status, check.Equals, http.StatusAccepted)
-}
-
 func (s *apiSuite) TestSideloadSnap(c *check.C) {
 	// try a direct upload, with no x-allow-unsigned header
 	s.sideloadCheck(c, "xyzzy", false, nil)
@@ -1073,27 +1020,6 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, unsignedExpected bo
 	c.Check(rsp.Type, check.Equals, ResponseTypeAsync)
 
 	<-ch
-}
-
-func (s *apiSuite) TestServiceLogs(c *check.C) {
-	log := systemd.Log{
-		"__REALTIME_TIMESTAMP": "42",
-		"MESSAGE":              "hi",
-	}
-
-	findServices = func(string, string, progress.Meter) (snappy.ServiceActor, error) {
-		return &tSA{lgout: []systemd.Log{log}}, nil
-	}
-
-	req, err := http.NewRequest("GET", "/v2/snaps/foo/services/baz/logs", nil)
-	c.Assert(err, check.IsNil)
-
-	rsp := getLogs(snapSvcLogsCmd, req).(*resp)
-	c.Assert(rsp, check.DeepEquals, &resp{
-		Type:   ResponseTypeSync,
-		Status: http.StatusOK,
-		Result: []map[string]interface{}{{"message": "hi", "timestamp": "1970-01-01T00:00:00.000042Z", "raw": log}},
-	})
 }
 
 func (s *apiSuite) TestAppIconGet(c *check.C) {
