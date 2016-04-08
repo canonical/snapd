@@ -22,7 +22,9 @@ package snapstate
 import (
 	"fmt"
 	"path/filepath"
+	"strconv"
 
+	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
@@ -30,9 +32,9 @@ import (
 
 type managerBackend interface {
 	// install releated
-	Download(name, channel string, meter progress.Meter) (string, string, error)
+	Download(name, channel string, meter progress.Meter) (*snap.Info, string, error)
 	CheckSnap(snapFilePath string, flags int) error
-	SetupSnap(snapFilePath string, flags int) error
+	SetupSnap(snapFilePath string, si *snap.SideInfo, flags int) error
 	CopySnapData(instSnapPath string, flags int) error
 	SetupSnapSecurity(instSnapPath string) error
 	LinkSnap(instSnapPath string) error
@@ -46,15 +48,17 @@ type managerBackend interface {
 	UnlinkSnap(instSnapPath string, meter progress.Meter) error
 	RemoveSnapSecurity(instSnapPath string) error
 	RemoveSnapFiles(instSnapPath string, meter progress.Meter) error
-	RemoveSnapData(name, version string) error
+	RemoveSnapData(name string, revision int) error
 
 	// TODO: need to be split into fine grained tasks
 	Update(name, channel string, flags int, meter progress.Meter) error
-	Rollback(name, ver string, meter progress.Meter) (string, error)
 	Activate(name string, active bool, meter progress.Meter) error
+	// XXX: this one needs to be revno based as well
+	Rollback(name, ver string, meter progress.Meter) (string, error)
 
 	// info
 	ActiveSnap(name string) *snap.Info
+	SnapByNameAndVersion(name, version string) *snap.Info
 }
 
 type defaultBackend struct{}
@@ -64,6 +68,20 @@ func (s *defaultBackend) ActiveSnap(name string) *snap.Info {
 		return snap.Info()
 	}
 	return nil
+}
+
+func (s *defaultBackend) SnapByNameAndVersion(name, version string) *snap.Info {
+	// XXX: use snapstate stuff!
+	installed, err := (&snappy.Overlord{}).Installed()
+	if err != nil {
+		return nil
+	}
+	found := snappy.FindSnapsByNameAndVersion(name, version, installed)
+	if len(found) == 0 {
+		return nil
+	}
+	// XXX: could be many now, pick one for now
+	return found[0].Info()
 }
 
 func (s *defaultBackend) Update(name, channel string, flags int, meter progress.Meter) error {
@@ -80,27 +98,19 @@ func (s *defaultBackend) Activate(name string, active bool, meter progress.Meter
 	return snappy.SetActive(name, active, meter)
 }
 
-func (s *defaultBackend) Download(name, channel string, meter progress.Meter) (string, string, error) {
+func (s *defaultBackend) Download(name, channel string, meter progress.Meter) (*snap.Info, string, error) {
 	mStore := snappy.NewConfiguredUbuntuStoreSnapRepository()
 	snap, err := mStore.Snap(name, channel)
 	if err != nil {
-		return "", "", err
+		return nil, "", err
 	}
 
 	downloadedSnapFile, err := mStore.Download(snap, meter)
 	if err != nil {
-		return "", "", err
+		return nil, "", err
 	}
 
-	// FIXME: add undo task so that we delete the store manifest
-	//        again if we can not install the snap
-	// XXX: do this a bit later?
-	// XXX: pass in also info from the parsed yaml from the file?
-	if err := snappy.SaveManifest(snap); err != nil {
-		return "", "", err
-	}
-
-	return downloadedSnapFile, snap.Version, nil
+	return snap, downloadedSnapFile, nil
 }
 
 func (s *defaultBackend) CheckSnap(snapFilePath string, flags int) error {
@@ -108,9 +118,9 @@ func (s *defaultBackend) CheckSnap(snapFilePath string, flags int) error {
 	return snappy.CheckSnap(snapFilePath, snappy.InstallFlags(flags), meter)
 }
 
-func (s *defaultBackend) SetupSnap(snapFilePath string, flags int) error {
+func (s *defaultBackend) SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, flags int) error {
 	meter := &progress.NullProgress{}
-	_, err := snappy.SetupSnap(snapFilePath, snappy.InstallFlags(flags), meter)
+	_, err := snappy.SetupSnap(snapFilePath, sideInfo, snappy.InstallFlags(flags), meter)
 	return err
 }
 
@@ -216,7 +226,12 @@ func (s *defaultBackend) RemoveSnapFiles(instSnapPath string, meter progress.Met
 	}
 	return snappy.RemoveSnapFiles(sn, meter)
 }
-func (s *defaultBackend) RemoveSnapData(name, version string) error {
+func (s *defaultBackend) RemoveSnapData(name string, revision int) error {
+	// XXX: hack for now
+	sn, err := snappy.NewInstalledSnap(filepath.Join(dirs.SnapSnapsDir, name, strconv.Itoa(revision), "meta", "snap.yaml"))
+	if err != nil {
+		return err
+	}
 
-	return snappy.RemoveSnapData(name, version)
+	return snappy.RemoveSnapData(sn.Info())
 }
