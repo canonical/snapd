@@ -17,10 +17,6 @@ override_dh_systemd_enable:
 	dh_systemd_enable \
 		-pubuntu-core-snapd-units \
 		snapd.boot-ok.service
-	# enable the security policy generation
-	dh_systemd_enable \
-		-pubuntu-core-snapd-units \
-		snapd.run-hooks.service
 	# enable the first boot service
 	dh_systemd_enable \
 		-pubuntu-core-snapd-units \
@@ -44,10 +40,6 @@ override_dh_systemd_start:
 	dh_systemd_start \
 		-pubuntu-core-snapd-units \
 		snapd.boot-ok.service
-	# start run-hooks
-	dh_systemd_start \
-		-pubuntu-core-snapd-units \
-		snapd.run-hooks.service
 	# we want to start the autopilot timer
 	dh_systemd_start \
 		-psnapd \
