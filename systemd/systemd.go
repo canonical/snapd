@@ -346,8 +346,8 @@ func (s *systemd) Stop(serviceName string, timeout time.Duration) error {
 func (s *systemd) GenServiceFile(desc *ServiceDescription) string {
 	serviceTemplate := `[Unit]
 Description={{.Description}}
-After=ubuntu-snappy.frameworks.target{{ if .Socket }} {{.SocketFileName}}{{end}}
-Requires=ubuntu-snappy.frameworks.target{{ if .Socket }} {{.SocketFileName}}{{end}}
+After=snapd.frameworks.target{{ if .Socket }} {{.SocketFileName}}{{end}}
+Requires=snapd.frameworks.target{{ if .Socket }} {{.SocketFileName}}{{end}}
 X-Snappy=yes
 
 [Service]

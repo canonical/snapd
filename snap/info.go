@@ -20,7 +20,9 @@
 package snap
 
 import (
+	"fmt"
 	"path/filepath"
+	"strconv"
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/systemd"
@@ -58,6 +60,9 @@ type Info struct {
 	Plugs            map[string]*PlugInfo
 	Slots            map[string]*SlotInfo
 
+	// legacy fields collected
+	Legacy *LegacyYaml
+
 	// The information in these fields is not present inside the snap blob itself.
 	SideInfo
 
@@ -89,9 +94,28 @@ func (s *Info) Description() string {
 	return s.OriginalDescription
 }
 
-// BaseDir returns the base directory of the snap.
-func (s *Info) BaseDir() string {
-	return filepath.Join(dirs.SnapSnapsDir, s.Name(), s.Version)
+func (s *Info) strRevno() string {
+	return strconv.Itoa(s.Revision)
+}
+
+// MountDir returns the base directory of the snap where it gets mounted.
+func (s *Info) MountDir() string {
+	return filepath.Join(dirs.SnapSnapsDir, s.Name(), s.strRevno())
+}
+
+// MountFile returns the path where the snap file that is mounted is installed.
+func (s *Info) MountFile() string {
+	return filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%d.snap", s.Name(), s.Revision))
+}
+
+// DataDir returns the data directory of the snap.
+func (s *Info) DataDir() string {
+	return filepath.Join(dirs.SnapDataDir, s.Name(), s.strRevno())
+}
+
+// DataHomeDir returns the per user data directory of the snap.
+func (s *Info) DataHomeDir() string {
+	return filepath.Join(dirs.SnapDataHomeGlob, s.Name(), s.strRevno())
 }
 
 // PlugInfo provides information about a plug.
@@ -140,4 +164,12 @@ type AppInfo struct {
 
 	Plugs map[string]*PlugInfo
 	Slots map[string]*SlotInfo
+}
+
+// SecurityTag returns application-specific security tag.
+//
+// Security tags are used by various security subsystems as "profile names" and
+// sometimes also as a part of the file name.
+func (app *AppInfo) SecurityTag() string {
+	return fmt.Sprintf("snap.%s.%s", app.Snap.Name(), app.Name)
 }

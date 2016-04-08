@@ -37,7 +37,7 @@ var _ = Suite(&FirewallControlInterfaceSuite{
 	iface: builtin.NewFirewallControlInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "ubuntu-core"},
+			Snap:      &snap.Info{SuggestedName: "ubuntu-core", Type: snap.TypeOS},
 			Name:      "firewall-control",
 			Interface: "firewall-control",
 		},
@@ -125,4 +125,8 @@ func (s *FirewallControlInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, "foo")
 	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
 	c.Assert(snippet, IsNil)
+}
+
+func (s *FirewallControlInterfaceSuite) TestAutoConnect(c *C) {
+	c.Check(s.iface.AutoConnect(), Equals, false)
 }

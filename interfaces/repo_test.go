@@ -26,6 +26,7 @@ import (
 
 	. "github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/testutil"
 )
 
 type RepositorySuite struct {
@@ -847,4 +848,216 @@ func (s *RepositorySuite) TestSecuritySnippetsForSnapFailureWithPermanentSnippet
 	snippets, err = repo.SecuritySnippetsForSnap(s.slot.Snap.Name(), testSecurity)
 	c.Assert(err, ErrorMatches, "cannot compute static snippet for consumer")
 	c.Check(snippets, IsNil)
+}
+
+// Tests for AddSnap and RemoveSnap
+
+type AddRemoveSuite struct {
+	repo *Repository
+}
+
+var _ = Suite(&AddRemoveSuite{})
+
+func (s *AddRemoveSuite) SetUpTest(c *C) {
+	s.repo = NewRepository()
+	err := s.repo.AddInterface(&TestInterface{InterfaceName: "iface"})
+	c.Assert(err, IsNil)
+	err = s.repo.AddInterface(&TestInterface{
+		InterfaceName:        "invalid",
+		SanitizePlugCallback: func(plug *Plug) error { return fmt.Errorf("plug is invalid") },
+		SanitizeSlotCallback: func(slot *Slot) error { return fmt.Errorf("slot is invalid") },
+	})
+	c.Assert(err, IsNil)
+}
+
+func (s *AddRemoveSuite) TestAddSnapComplexErrorHandling(c *C) {
+	err := s.repo.AddInterface(&TestInterface{
+		InterfaceName:        "invalid-plug-iface",
+		SanitizePlugCallback: func(plug *Plug) error { return fmt.Errorf("plug is invalid") },
+		SanitizeSlotCallback: func(slot *Slot) error { return fmt.Errorf("slot is invalid") },
+	})
+	err = s.repo.AddInterface(&TestInterface{
+		InterfaceName:        "invalid-slot-iface",
+		SanitizePlugCallback: func(plug *Plug) error { return fmt.Errorf("plug is invalid") },
+		SanitizeSlotCallback: func(slot *Slot) error { return fmt.Errorf("slot is invalid") },
+	})
+	snapInfo, err := snap.InfoFromSnapYaml([]byte(`
+name: complex
+plugs:
+    invalid-plug-iface:
+    unknown-plug-iface:
+slots:
+    invalid-slot-iface:
+    unknown-slot-iface:
+`))
+	c.Assert(err, IsNil)
+	err = s.repo.AddSnap(snapInfo)
+	c.Check(err, ErrorMatches,
+		`snap "complex" has bad plugs or slots: invalid-plug-iface \(plug is invalid\); invalid-slot-iface \(slot is invalid\); unknown-plug-iface, unknown-slot-iface \(unknown interface\)`)
+	// Nothing was added
+	c.Check(s.repo.Plug("complex", "invalid-plug-iface"), IsNil)
+	c.Check(s.repo.Plug("complex", "unknown-plug-iface"), IsNil)
+	c.Check(s.repo.Slot("complex", "invalid-slot-iface"), IsNil)
+	c.Check(s.repo.Slot("complex", "unknown-slot-iface"), IsNil)
+}
+
+const testConsumerYaml = `
+name: consumer
+apps:
+    app:
+        plugs: [iface]
+`
+const testProducerYaml = `
+name: producer
+apps:
+    app:
+        slots: [iface]
+`
+
+func (s *AddRemoveSuite) addSnap(c *C, yaml string) (*snap.Info, error) {
+	snapInfo, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+	return snapInfo, s.repo.AddSnap(snapInfo)
+}
+
+func (s *AddRemoveSuite) TestAddSnapAddsPlugs(c *C) {
+	_, err := s.addSnap(c, testConsumerYaml)
+	c.Assert(err, IsNil)
+	// The plug was added
+	c.Assert(s.repo.Plug("consumer", "iface"), Not(IsNil))
+}
+
+func (s *AddRemoveSuite) TestAddSnapErrorsOnExistingSnapPlugs(c *C) {
+	_, err := s.addSnap(c, testConsumerYaml)
+	c.Assert(err, IsNil)
+	_, err = s.addSnap(c, testConsumerYaml)
+	c.Assert(err, ErrorMatches, `cannot register interfaces for snap "consumer" more than once`)
+}
+
+func (s *AddRemoveSuite) TestAddSnapAddsSlots(c *C) {
+	_, err := s.addSnap(c, testProducerYaml)
+	c.Assert(err, IsNil)
+	// The slot was added
+	c.Assert(s.repo.Slot("producer", "iface"), Not(IsNil))
+}
+
+func (s *AddRemoveSuite) TestAddSnapErrorsOnExistingSnapSlots(c *C) {
+	_, err := s.addSnap(c, testProducerYaml)
+	c.Assert(err, IsNil)
+	_, err = s.addSnap(c, testProducerYaml)
+	c.Assert(err, ErrorMatches, `cannot register interfaces for snap "producer" more than once`)
+}
+
+func (s AddRemoveSuite) TestRemoveRemovesPlugs(c *C) {
+	_, err := s.addSnap(c, testConsumerYaml)
+	c.Assert(err, IsNil)
+	s.repo.RemoveSnap("consumer")
+	c.Assert(s.repo.Plug("consumer", "iface"), IsNil)
+}
+
+func (s AddRemoveSuite) TestRemoveRemovesSlots(c *C) {
+	_, err := s.addSnap(c, testProducerYaml)
+	c.Assert(err, IsNil)
+	s.repo.RemoveSnap("producer")
+	c.Assert(s.repo.Plug("producer", "iface"), IsNil)
+}
+
+func (s *AddRemoveSuite) TestRemoveSnapErrorsOnStillConnectedPlug(c *C) {
+	_, err := s.addSnap(c, testConsumerYaml)
+	c.Assert(err, IsNil)
+	_, err = s.addSnap(c, testProducerYaml)
+	c.Assert(err, IsNil)
+	err = s.repo.Connect("consumer", "iface", "producer", "iface")
+	c.Assert(err, IsNil)
+	err = s.repo.RemoveSnap("consumer")
+	c.Assert(err, ErrorMatches, "cannot remove connected plug consumer.iface")
+}
+
+func (s *AddRemoveSuite) TestRemoveSnapErrorsOnStillConnectedSlot(c *C) {
+	_, err := s.addSnap(c, testConsumerYaml)
+	c.Assert(err, IsNil)
+	_, err = s.addSnap(c, testProducerYaml)
+	c.Assert(err, IsNil)
+	err = s.repo.Connect("consumer", "iface", "producer", "iface")
+	c.Assert(err, IsNil)
+	err = s.repo.RemoveSnap("producer")
+	c.Assert(err, ErrorMatches, "cannot remove connected slot producer.iface")
+}
+
+type DisconnectSnapSuite struct {
+	repo   *Repository
+	s1, s2 *snap.Info
+}
+
+var _ = Suite(&DisconnectSnapSuite{})
+
+func (s *DisconnectSnapSuite) SetUpTest(c *C) {
+	s.repo = NewRepository()
+
+	err := s.repo.AddInterface(&TestInterface{InterfaceName: "iface-a"})
+	c.Assert(err, IsNil)
+	err = s.repo.AddInterface(&TestInterface{InterfaceName: "iface-b"})
+	c.Assert(err, IsNil)
+
+	s.s1, err = snap.InfoFromSnapYaml([]byte(`
+name: s1
+plugs:
+    iface-a:
+slots:
+    iface-b:
+`))
+	c.Assert(err, IsNil)
+	err = s.repo.AddSnap(s.s1)
+	c.Assert(err, IsNil)
+
+	s.s2, err = snap.InfoFromSnapYaml([]byte(`
+name: s2
+plugs:
+    iface-b:
+slots:
+    iface-a:
+`))
+	c.Assert(err, IsNil)
+	err = s.repo.AddSnap(s.s2)
+	c.Assert(err, IsNil)
+}
+
+func (s *DisconnectSnapSuite) TestNotConnected(c *C) {
+	affected, err := s.repo.DisconnectSnap("s1")
+	c.Assert(err, IsNil)
+	c.Check(affected, HasLen, 0)
+}
+
+func (s *DisconnectSnapSuite) TestOutgoingConnection(c *C) {
+	err := s.repo.Connect("s1", "iface-a", "s2", "iface-a")
+	c.Assert(err, IsNil)
+	// Disconnect s1 with which has an outgoing connection to s2
+	affected, err := s.repo.DisconnectSnap("s1")
+	c.Assert(err, IsNil)
+	c.Check(affected, testutil.Contains, s.s1)
+	c.Check(affected, testutil.Contains, s.s2)
+}
+
+func (s *DisconnectSnapSuite) TestIncomingConnection(c *C) {
+	err := s.repo.Connect("s2", "iface-b", "s1", "iface-b")
+	c.Assert(err, IsNil)
+	// Disconnect s1 with which has an incoming connection from s2
+	affected, err := s.repo.DisconnectSnap("s1")
+	c.Assert(err, IsNil)
+	c.Check(affected, testutil.Contains, s.s1)
+	c.Check(affected, testutil.Contains, s.s2)
+}
+
+func (s *DisconnectSnapSuite) TestCrossConnection(c *C) {
+	// This test is symmetric wrt s1 <-> s2 connections
+	for _, snapName := range []string{"s1", "s2"} {
+		err := s.repo.Connect("s1", "iface-a", "s2", "iface-a")
+		c.Assert(err, IsNil)
+		err = s.repo.Connect("s2", "iface-b", "s1", "iface-b")
+		c.Assert(err, IsNil)
+		affected, err := s.repo.DisconnectSnap(snapName)
+		c.Assert(err, IsNil)
+		c.Check(affected, testutil.Contains, s.s1)
+		c.Check(affected, testutil.Contains, s.s2)
+	}
 }

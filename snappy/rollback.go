@@ -42,6 +42,7 @@ func Rollback(pkg, ver string, inter progress.Meter) (version string, err error)
 		if len(snaps) < 2 {
 			return "", fmt.Errorf("no version to rollback to")
 		}
+		// FIXME: sort by revision sequence
 		sort.Sort(BySnapVersion(snaps))
 		// -1 is the most recent, -2 the previous one
 		ver = snaps[len(snaps)-2].Version()

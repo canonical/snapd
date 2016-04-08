@@ -1,4 +1,4 @@
-Source: ubuntu-snappy
+Source: snapd
 Section: devel
 Priority: optional
 Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
@@ -40,22 +40,40 @@ Depends: ${misc:Depends}
 Description: snappy development go packages.
  Use these to use the snappy API.
 
-Package: ubuntu-snappy
-Architecture: all
-Depends: ubuntu-snappy-cli (= ${binary:Version}),
-         ${misc:Depends}
-Description: System components for Ubuntu Core Snappy.
- Components and services that take care of an Ubuntu system with snappy.
-
-Package: ubuntu-snappy-cli
+Package: snapd
 Architecture: any
 Depends: ${misc:Depends}, ${shlibs:Depends}, adduser, lsb-release,
  squashfs-tools, ubuntu-core-launcher (>= 1.0.19),
  ubuntu-core-security-seccomp, ubuntu-core-security-apparmor,
  ubuntu-core-security-utils,
-Replaces: ubuntu-core-snappy (<< 0.2~ppa90)
-Breaks: ubuntu-core-snappy (<< 0.2~ppa90)
-Conflicts: snappy
+Replaces: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9)
+Breaks: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9)
+Conflicts: snappy, snap (<< 2013-11-29-1ubuntu1)
 Built-Using: ${misc:Built-Using}
 Description: Tool to interact with Ubuntu Core Snappy.
  Manage an Ubuntu system with snappy.
+
+Package: snapd-dangerous
+Architecture: any
+Depends: snapd
+Replaces: ubuntu-snappy (<< 1.9)
+Breaks: ubuntu-snappy (<< 1.9)
+Conflicts: snap (<< 2013-11-29-1ubuntu1)
+Built-Using: ${misc:Built-Using}
+Description: Scripts for snapd that should only run on ubuntu core.
+ This package contains systemd services that need to run on ubuntu core
+ systems.
+
+Package: ubuntu-snappy
+Architecture: all
+Depends: snapd, ${misc:Depends}
+Section: oldlibs
+Description: transitional dummy package
+ This is a transitional dummy package. It can safely be removed.
+
+Package: ubuntu-snappy-cli
+Architecture: all
+Depends: snapd,  ${misc:Depends}
+Section: oldlibs
+Description: transitional dummy package
+ This is a transitional dummy package. It can safely be removed.

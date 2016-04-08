@@ -32,7 +32,7 @@ import (
 	"gopkg.in/check.v1"
 )
 
-var _ = check.Suite(&helloWorldExampleSuite{})
+var _ = check.Suite(&snapHelloWorldExampleSuite{})
 
 type snapHelloWorldExampleSuite struct {
 	common.SnappySuite

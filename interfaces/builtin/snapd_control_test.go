@@ -27,58 +27,58 @@ import (
 	"github.com/ubuntu-core/snappy/snap"
 )
 
-type SnapControlInterfaceSuite struct {
+type SnapdControlInterfaceSuite struct {
 	iface interfaces.Interface
 	slot  *interfaces.Slot
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&SnapControlInterfaceSuite{
-	iface: builtin.NewSnapControlInterface(),
+var _ = Suite(&SnapdControlInterfaceSuite{
+	iface: builtin.NewSnapdControlInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "ubuntu-core"},
-			Name:      "snap-control",
-			Interface: "snap-control",
+			Snap:      &snap.Info{SuggestedName: "ubuntu-core", Type: snap.TypeOS},
+			Name:      "snapd-control",
+			Interface: "snapd-control",
 		},
 	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "snap-control",
-			Interface: "snap-control",
+			Name:      "snapd-control",
+			Interface: "snapd-control",
 		},
 	},
 })
 
-func (s *SnapControlInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "snap-control")
+func (s *SnapdControlInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "snapd-control")
 }
 
-func (s *SnapControlInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *SnapdControlInterfaceSuite) TestSanitizeSlot(c *C) {
 	err := s.iface.SanitizeSlot(s.slot)
 	c.Assert(err, IsNil)
 	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "snap-control",
-		Interface: "snap-control",
+		Name:      "snapd-control",
+		Interface: "snapd-control",
 	}})
-	c.Assert(err, ErrorMatches, "snap-control slots are reserved for the operating system snap")
+	c.Assert(err, ErrorMatches, "snapd-control slots are reserved for the operating system snap")
 }
 
-func (s *SnapControlInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *SnapdControlInterfaceSuite) TestSanitizePlug(c *C) {
 	err := s.iface.SanitizePlug(s.plug)
 	c.Assert(err, IsNil)
 }
 
-func (s *SnapControlInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
+func (s *SnapdControlInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "snap-control"`)
+		PanicMatches, `slot is not of interface "snapd-control"`)
 	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "snap-control"`)
+		PanicMatches, `plug is not of interface "snapd-control"`)
 }
 
-func (s *SnapControlInterfaceSuite) TestUnusedSecuritySystems(c *C) {
+func (s *SnapdControlInterfaceSuite) TestUnusedSecuritySystems(c *C) {
 	systems := [...]interfaces.SecuritySystem{interfaces.SecurityAppArmor,
 		interfaces.SecuritySecComp, interfaces.SecurityDBus,
 		interfaces.SecurityUDev}
@@ -101,7 +101,7 @@ func (s *SnapControlInterfaceSuite) TestUnusedSecuritySystems(c *C) {
 	c.Assert(snippet, IsNil)
 }
 
-func (s *SnapControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
+func (s *SnapdControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
@@ -112,7 +112,7 @@ func (s *SnapControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(snippet, Not(IsNil))
 }
 
-func (s *SnapControlInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
+func (s *SnapdControlInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 	snippet, err := s.iface.PermanentPlugSnippet(s.plug, "foo")
 	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
 	c.Assert(snippet, IsNil)
@@ -125,4 +125,8 @@ func (s *SnapControlInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, "foo")
 	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
 	c.Assert(snippet, IsNil)
+}
+
+func (s *SnapdControlInterfaceSuite) TestAutoConnect(c *C) {
+	c.Check(s.iface.AutoConnect(), Equals, false)
 }

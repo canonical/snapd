@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/interfaces/dbus"
 	"github.com/ubuntu-core/snappy/snap"
 )
@@ -54,7 +53,7 @@ func legacyVariables(appInfo *snap.AppInfo) []byte {
 	fmt.Fprintf(&buf, "@{APP_PKGNAME_DBUS}=\"%s\"\n",
 		dbus.SafePath(fmt.Sprintf("%s.%s", appInfo.Snap.Name(), appInfo.Snap.Developer)))
 	// TODO: stop using .Developer, investigate how this is used.
-	fmt.Fprintf(&buf, "@{APP_PKGNAME}=\"%s.%s\"\n", appInfo.Snap.Name(), appInfo.Snap.Developer)
+	fmt.Fprintf(&buf, "@{APP_PKGNAME}=\"%s\"\n", appInfo.Snap.Name())
 	// TODO: switch to .Revision
 	fmt.Fprintf(&buf, "@{APP_VERSION}=\"%s\"\n", appInfo.Snap.Version)
 	fmt.Fprintf(&buf, "@{INSTALL_DIR}=\"{/snap}\"")
@@ -74,7 +73,7 @@ func legacyVariables(appInfo *snap.AppInfo) []byte {
 func modernVariables(appInfo *snap.AppInfo) []byte {
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, "@{APP_NAME}=\"%s\"\n", appInfo.Name)
-	fmt.Fprintf(&buf, "@{APP_SECURITY_TAG}=\"%s\"\n", interfaces.SecurityTag(appInfo))
+	fmt.Fprintf(&buf, "@{APP_SECURITY_TAG}=\"%s\"\n", appInfo.SecurityTag())
 	fmt.Fprintf(&buf, "@{SNAP_NAME}=\"%s\"\n", appInfo.Snap.Name())
 	fmt.Fprintf(&buf, "@{INSTALL_DIR}=\"{/snaps,/gadget}\"")
 	return buf.Bytes()

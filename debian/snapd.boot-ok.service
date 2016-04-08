@@ -4,7 +4,7 @@ After=multi-user.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/snappy booted
+ExecStart=/usr/bin/snap booted
 
 [Install]
 WantedBy=multi-user.target

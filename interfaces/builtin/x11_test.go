@@ -27,58 +27,58 @@ import (
 	"github.com/ubuntu-core/snappy/snap"
 )
 
-type XInterfaceSuite struct {
+type X11InterfaceSuite struct {
 	iface interfaces.Interface
 	slot  *interfaces.Slot
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&XInterfaceSuite{
-	iface: builtin.NewXInterface(),
+var _ = Suite(&X11InterfaceSuite{
+	iface: builtin.NewX11Interface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "ubuntu-core"},
-			Name:      "x",
-			Interface: "x",
+			Snap:      &snap.Info{SuggestedName: "ubuntu-core", Type: snap.TypeOS},
+			Name:      "x11",
+			Interface: "x11",
 		},
 	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "x",
-			Interface: "x",
+			Name:      "x11",
+			Interface: "x11",
 		},
 	},
 })
 
-func (s *XInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "x")
+func (s *X11InterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "x11")
 }
 
-func (s *XInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *X11InterfaceSuite) TestSanitizeSlot(c *C) {
 	err := s.iface.SanitizeSlot(s.slot)
 	c.Assert(err, IsNil)
 	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "x",
-		Interface: "x",
+		Name:      "x11",
+		Interface: "x11",
 	}})
-	c.Assert(err, ErrorMatches, "x slots are reserved for the operating system snap")
+	c.Assert(err, ErrorMatches, "x11 slots are reserved for the operating system snap")
 }
 
-func (s *XInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *X11InterfaceSuite) TestSanitizePlug(c *C) {
 	err := s.iface.SanitizePlug(s.plug)
 	c.Assert(err, IsNil)
 }
 
-func (s *XInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
+func (s *X11InterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "x"`)
+		PanicMatches, `slot is not of interface "x11"`)
 	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "x"`)
+		PanicMatches, `plug is not of interface "x11"`)
 }
 
-func (s *XInterfaceSuite) TestUnusedSecuritySystems(c *C) {
+func (s *X11InterfaceSuite) TestUnusedSecuritySystems(c *C) {
 	systems := [...]interfaces.SecuritySystem{interfaces.SecurityAppArmor,
 		interfaces.SecuritySecComp, interfaces.SecurityDBus,
 		interfaces.SecurityUDev}
@@ -101,7 +101,7 @@ func (s *XInterfaceSuite) TestUnusedSecuritySystems(c *C) {
 	c.Assert(snippet, IsNil)
 }
 
-func (s *XInterfaceSuite) TestUsedSecuritySystems(c *C) {
+func (s *X11InterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
@@ -112,7 +112,7 @@ func (s *XInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(snippet, Not(IsNil))
 }
 
-func (s *XInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
+func (s *X11InterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 	snippet, err := s.iface.PermanentPlugSnippet(s.plug, "foo")
 	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
 	c.Assert(snippet, IsNil)
@@ -125,4 +125,8 @@ func (s *XInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, "foo")
 	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
 	c.Assert(snippet, IsNil)
+}
+
+func (s *X11InterfaceSuite) TestAutoConnect(c *C) {
+	c.Check(s.iface.AutoConnect(), Equals, false)
 }

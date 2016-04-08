@@ -1,0 +1,9 @@
+[Unit]
+Description=Snappy daemon
+#FIXME: snappy on ubuntu does not have a snapd.firstboot snap installed
+#After=snapd.firstboot.service
+Before=snapd.frameworks-pre.target
+Requires=snapd.socket
+
+[Service]
+ExecStart=/usr/lib/snappy/snapd

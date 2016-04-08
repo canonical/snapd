@@ -24,7 +24,7 @@ import (
 )
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/x
-const xConnectedPlugAppArmor = `
+const x11ConnectedPlugAppArmor = `
 # Description: Can access the X server. Restricted because X does not prevent
 # eavesdropping or apps interfering with one another.
 # Usage: reserved
@@ -33,7 +33,7 @@ const xConnectedPlugAppArmor = `
 `
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/x
-const xConnectedPlugSecComp = `
+const x11ConnectedPlugSecComp = `
 # Description: Can access the X server. Restricted because X does not prevent
 # eavesdropping or apps interfering with one another.
 # Usage: reserved
@@ -44,12 +44,12 @@ recvmsg
 shutdown
 `
 
-// NewXInterface returns a new "x" interface.
-func NewXInterface() interfaces.Interface {
+// NewX11Interface returns a new "x11" interface.
+func NewX11Interface() interfaces.Interface {
 	return &commonInterface{
-		name: "x",
-		connectedPlugAppArmor: xConnectedPlugAppArmor,
-		connectedPlugSecComp:  xConnectedPlugSecComp,
+		name: "x11",
+		connectedPlugAppArmor: x11ConnectedPlugAppArmor,
+		connectedPlugSecComp:  x11ConnectedPlugSecComp,
 		reservedForOS:         true,
 	}
 }

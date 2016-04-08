@@ -37,7 +37,7 @@ var _ = Suite(&MountObserveInterfaceSuite{
 	iface: builtin.NewMountObserveInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "ubuntu-core"},
+			Snap:      &snap.Info{SuggestedName: "ubuntu-core", Type: snap.TypeOS},
 			Name:      "mount-observe",
 			Interface: "mount-observe",
 		},
@@ -121,4 +121,8 @@ func (s *MountObserveInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, "foo")
 	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
 	c.Assert(snippet, IsNil)
+}
+
+func (s *MountObserveInterfaceSuite) TestAutoConnect(c *C) {
+	c.Check(s.iface.AutoConnect(), Equals, false)
 }

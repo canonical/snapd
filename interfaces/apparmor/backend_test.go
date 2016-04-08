@@ -103,7 +103,7 @@ func (s *backendSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 }
 
-// Tests for Configure() and Deconfigure()
+// Tests for Setup() and Remove()
 const sambaYamlV1 = `
 name: samba
 version: 1
@@ -130,6 +130,10 @@ slots:
     iface:
 `
 
+func (s *backendSuite) TestName(c *C) {
+	c.Check(s.backend.Name(), Equals, "apparmor")
+}
+
 func (s *backendSuite) TestInstallingSnapWritesAndLoadsProfiles(c *C) {
 	developerMode := false
 	s.installSnap(c, developerMode, sambaYamlV1)
@@ -147,7 +151,7 @@ func (s *backendSuite) TestSecurityIsStable(c *C) {
 	for _, developerMode := range []bool{true, false} {
 		snapInfo := s.installSnap(c, developerMode, sambaYamlV1)
 		s.parserCmd.ForgetCalls()
-		err := s.backend.Configure(snapInfo, developerMode, s.repo)
+		err := s.backend.Setup(snapInfo, developerMode, s.repo)
 		c.Assert(err, IsNil)
 		// profiles are not re-compiled or re-loaded when nothing changes
 		c.Check(s.parserCmd.Calls(), HasLen, 0)
@@ -226,7 +230,7 @@ func (s *backendSuite) TestRealDefaultTemplateIsNormallyUsed(c *C) {
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(sambaYamlV1))
 	c.Assert(err, IsNil)
 	// NOTE: we don't call apparmor.MockTemplate()
-	err = s.backend.Configure(snapInfo, false, s.repo)
+	err = s.backend.Setup(snapInfo, false, s.repo)
 	c.Assert(err, IsNil)
 	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 	data, err := ioutil.ReadFile(profile)
@@ -254,7 +258,7 @@ func (s *backendSuite) TestCustomTemplateUsedOnRequest(c *C) {
 `))
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(sambaYamlV1))
 	c.Assert(err, IsNil)
-	err = s.backend.Configure(snapInfo, false, s.repo)
+	err = s.backend.Setup(snapInfo, false, s.repo)
 	c.Assert(err, IsNil)
 	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 	data, err := ioutil.ReadFile(profile)
@@ -280,7 +284,7 @@ const commonPrefix = `
 @{APP_APPNAME}="smbd"
 @{APP_ID_DBUS}="samba_2eacme_5fsmbd_5f1"
 @{APP_PKGNAME_DBUS}="samba_2eacme"
-@{APP_PKGNAME}="samba.acme"
+@{APP_PKGNAME}="samba"
 @{APP_VERSION}="1"
 @{INSTALL_DIR}="{/snap}"`
 
@@ -348,7 +352,7 @@ func (s *backendSuite) installSnap(c *C, developerMode bool, snapYaml string) *s
 	// this won't come from snap.yaml
 	snapInfo.Developer = "acme"
 	s.addPlugsSlots(c, snapInfo)
-	err = s.backend.Configure(snapInfo, developerMode, s.repo)
+	err = s.backend.Setup(snapInfo, developerMode, s.repo)
 	c.Assert(err, IsNil)
 	return snapInfo
 }
@@ -362,14 +366,14 @@ func (s *backendSuite) updateSnap(c *C, oldSnapInfo *snap.Info, developerMode bo
 	c.Assert(newSnapInfo.Name(), Equals, oldSnapInfo.Name())
 	s.removePlugsSlots(c, oldSnapInfo)
 	s.addPlugsSlots(c, newSnapInfo)
-	err = s.backend.Configure(newSnapInfo, developerMode, s.repo)
+	err = s.backend.Setup(newSnapInfo, developerMode, s.repo)
 	c.Assert(err, IsNil)
 	return newSnapInfo
 }
 
 // removeSnap "removes" an "installed" snap.
 func (s *backendSuite) removeSnap(c *C, snapInfo *snap.Info) {
-	err := s.backend.Deconfigure(snapInfo)
+	err := s.backend.Remove(snapInfo.Name())
 	c.Assert(err, IsNil)
 	s.removePlugsSlots(c, snapInfo)
 }

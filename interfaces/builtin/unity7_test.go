@@ -37,7 +37,7 @@ var _ = Suite(&Unity7InterfaceSuite{
 	iface: builtin.NewUnity7Interface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "ubuntu-core"},
+			Snap:      &snap.Info{SuggestedName: "ubuntu-core", Type: snap.TypeOS},
 			Name:      "unity7",
 			Interface: "unity7",
 		},
@@ -125,4 +125,8 @@ func (s *Unity7InterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, "foo")
 	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
 	c.Assert(snippet, IsNil)
+}
+
+func (s *Unity7InterfaceSuite) TestAutoConnect(c *C) {
+	c.Check(s.iface.AutoConnect(), Equals, false)
 }

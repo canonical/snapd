@@ -63,7 +63,7 @@ func (s *backendSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 }
 
-// Tests for Configure() and Deconfigure()
+// Tests for Setup() and Remove()
 const sambaYamlV1 = `
 name: samba
 version: 1
@@ -92,6 +92,10 @@ apps:
 slots:
     iface:
 `
+
+func (s *backendSuite) TestName(c *C) {
+	c.Check(s.backend.Name(), Equals, "seccomp")
+}
 
 func (s *backendSuite) TestInstallingSnapWritesProfiles(c *C) {
 	developerMode := false
@@ -141,7 +145,7 @@ func (s *backendSuite) TestRealDefaultTemplateIsNormallyUsed(c *C) {
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(sambaYamlV1))
 	c.Assert(err, IsNil)
 	// NOTE: we don't call seccomp.MockTemplate()
-	err = s.backend.Configure(snapInfo, false, s.repo)
+	err = s.backend.Setup(snapInfo, false, s.repo)
 	c.Assert(err, IsNil)
 	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
 	data, err := ioutil.ReadFile(profile)
@@ -206,7 +210,7 @@ func (s *backendSuite) installSnap(c *C, developerMode bool, snapYaml string) *s
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
 	s.addPlugsSlots(c, snapInfo)
-	err = s.backend.Configure(snapInfo, developerMode, s.repo)
+	err = s.backend.Setup(snapInfo, developerMode, s.repo)
 	c.Assert(err, IsNil)
 	return snapInfo
 }
@@ -218,14 +222,14 @@ func (s *backendSuite) updateSnap(c *C, oldSnapInfo *snap.Info, developerMode bo
 	c.Assert(newSnapInfo.Name(), Equals, oldSnapInfo.Name())
 	s.removePlugsSlots(c, oldSnapInfo)
 	s.addPlugsSlots(c, newSnapInfo)
-	err = s.backend.Configure(newSnapInfo, developerMode, s.repo)
+	err = s.backend.Setup(newSnapInfo, developerMode, s.repo)
 	c.Assert(err, IsNil)
 	return newSnapInfo
 }
 
 // removeSnap "removes" an "installed" snap.
 func (s *backendSuite) removeSnap(c *C, snapInfo *snap.Info) {
-	err := s.backend.Deconfigure(snapInfo)
+	err := s.backend.Remove(snapInfo.Name())
 	c.Assert(err, IsNil)
 	s.removePlugsSlots(c, snapInfo)
 }

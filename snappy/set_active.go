@@ -37,6 +37,7 @@ func SetActive(fullName string, active bool, meter progress.Meter) error {
 		return ErrPackageNotFound
 	}
 
+	// XXX: why do we do this?
 	sort.Sort(sort.Reverse(BySnapVersion(snaps)))
 
 	snap := snaps[0]

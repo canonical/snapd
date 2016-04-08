@@ -38,10 +38,10 @@ var backend managerBackend = &defaultBackend{}
 func Install(s *state.State, snap, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
 	// download
 	var download *state.Task
-	ss := snapSetup{
-		Name:       snap,
-		Channel:    channel,
-		SetupFlags: int(flags),
+	ss := SnapSetup{
+		Name:    snap,
+		Channel: channel,
+		Flags:   int(flags),
 	}
 	if !osutil.FileExists(snap) {
 		name, developer := snappy.SplitDeveloper(snap)
@@ -81,10 +81,10 @@ func Install(s *state.State, snap, channel string, flags snappy.InstallFlags) (*
 // Note that the state must be locked by the caller.
 func Update(s *state.State, snap, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
 	t := s.NewTask("update-snap", fmt.Sprintf(i18n.G("Updating %q"), snap))
-	t.Set("snap-setup", snapSetup{
-		Name:       snap,
-		Channel:    channel,
-		SetupFlags: int(flags),
+	t.Set("snap-setup", SnapSetup{
+		Name:    snap,
+		Channel: channel,
+		Flags:   int(flags),
 	})
 
 	return state.NewTaskSet(t), nil
@@ -106,22 +106,29 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 	// not active
 	name, version := parseSnapSpec(snapSpec)
 	name, developer := snappy.SplitDeveloper(name)
+	revision := 0
 	if version == "" {
 		info := backend.ActiveSnap(name)
 		if info == nil {
 			return nil, fmt.Errorf("cannot find active snap for %q", name)
 		}
-		version = info.Version
+		revision = info.Revision
+	} else {
+		info := backend.SnapByNameAndVersion(name, version)
+		if info == nil {
+			return nil, fmt.Errorf("cannot find snap for %q and version %q", name, version)
+		}
+		revision = info.Revision
 	}
 
-	ss := snapSetup{
-		Name:       name,
-		Developer:  developer,
-		Version:    version,
-		SetupFlags: int(flags),
+	ss := SnapSetup{
+		Name:      name,
+		Developer: developer,
+		Revision:  revision,
+		Flags:     int(flags),
 	}
 	// check if this is something that can be removed
-	if err := backend.CanRemove(ss.BaseDir()); err != nil {
+	if err := backend.CanRemove(ss.MountDir()); err != nil {
 		return nil, err
 	}
 
@@ -130,15 +137,15 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 	unlink.Set("snap-setup", ss)
 
 	removeSecurity := s.NewTask("remove-snap-security", fmt.Sprintf(i18n.G("Removing security profile for %q"), snapSpec))
-	removeSecurity.Set("snap-setup", ss)
 	removeSecurity.WaitFor(unlink)
+	removeSecurity.Set("snap-setup-task", unlink.ID())
 
 	removeFiles := s.NewTask("remove-snap-files", fmt.Sprintf(i18n.G("Removing files for %q"), snapSpec))
-	removeFiles.Set("snap-setup", ss)
+	removeFiles.Set("snap-setup-task", unlink.ID())
 	removeFiles.WaitFor(removeSecurity)
 
 	removeData := s.NewTask("remove-snap-data", fmt.Sprintf(i18n.G("Removing data for %q"), snapSpec))
-	removeData.Set("snap-setup", ss)
+	removeData.Set("snap-setup-task", unlink.ID())
 	removeData.WaitFor(removeFiles)
 
 	return state.NewTaskSet(unlink, removeSecurity, removeFiles, removeData), nil
@@ -148,9 +155,9 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 // Note that the state must be locked by the caller.
 func Rollback(s *state.State, snap, ver string) (*state.TaskSet, error) {
 	t := s.NewTask("rollback-snap", fmt.Sprintf(i18n.G("Rolling back %q"), snap))
-	t.Set("snap-setup", snapSetup{
-		Name:    snap,
-		Version: ver,
+	t.Set("snap-setup", SnapSetup{
+		Name:            snap,
+		RollbackVersion: ver,
 	})
 
 	return state.NewTaskSet(t), nil
@@ -161,7 +168,7 @@ func Rollback(s *state.State, snap, ver string) (*state.TaskSet, error) {
 func Activate(s *state.State, snap string) (*state.TaskSet, error) {
 	msg := fmt.Sprintf(i18n.G("Set active %q"), snap)
 	t := s.NewTask("activate-snap", msg)
-	t.Set("snap-setup", snapSetup{
+	t.Set("snap-setup", SnapSetup{
 		Name: snap,
 	})
 
@@ -173,7 +180,7 @@ func Activate(s *state.State, snap string) (*state.TaskSet, error) {
 func Deactivate(s *state.State, snap string) (*state.TaskSet, error) {
 	msg := fmt.Sprintf(i18n.G("Set inactive %q"), snap)
 	t := s.NewTask("deactivate-snap", msg)
-	t.Set("snap-setup", snapSetup{
+	t.Set("snap-setup", SnapSetup{
 		Name: snap,
 	})
 
