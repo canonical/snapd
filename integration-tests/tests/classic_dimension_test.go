@@ -57,7 +57,7 @@ func (s *classicDimensionSuite) TestClassicShell(c *check.C) {
 	s.enableClassic(c)
 	defer s.destroyClassic(c)
 
-	enteringOutput := cli.ExecCommand(c, "snappy", "shell", "classic")
+	enteringOutput := cli.ExecCommand(c, "snap", "shell", "classic")
 	expectedEnteringOutput := "Entering classic dimension\n" +
 		"\n" +
 		"\n" +
