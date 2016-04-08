@@ -136,7 +136,7 @@ func (s *authTestSuite) TestRequestPackageAccessMacaroon(c *C) {
 		io.WriteString(w, mockStoreReturnMacaroon)
 	}))
 	defer mockServer.Close()
-	myappsPackageAccessAPI = mockServer.URL + "/acl/package_access/"
+	MyAppsPackageAccessAPI = mockServer.URL + "/acl/package_access/"
 
 	macaroon, err := RequestPackageAccessMacaroon()
 	c.Assert(err, IsNil)
@@ -148,7 +148,7 @@ func (s *authTestSuite) TestRequestPackageAccessMacaroonMissingData(c *C) {
 		io.WriteString(w, mockStoreReturnNoMacaroon)
 	}))
 	defer mockServer.Close()
-	myappsPackageAccessAPI = mockServer.URL + "/acl/package_access/"
+	MyAppsPackageAccessAPI = mockServer.URL + "/acl/package_access/"
 
 	macaroon, err := RequestPackageAccessMacaroon()
 	c.Assert(err, ErrorMatches, "cannot get package access macaroon from store: empty macaroon returned")
@@ -160,7 +160,7 @@ func (s *authTestSuite) TestRequestPackageAccessMacaroonError(c *C) {
 		w.WriteHeader(500)
 	}))
 	defer mockServer.Close()
-	myappsPackageAccessAPI = mockServer.URL + "/acl/package_access/"
+	MyAppsPackageAccessAPI = mockServer.URL + "/acl/package_access/"
 
 	macaroon, err := RequestPackageAccessMacaroon()
 	c.Assert(err, ErrorMatches, "cannot get package access macaroon from store: store server returned status 500")
@@ -172,7 +172,7 @@ func (s *authTestSuite) TestDischargeAuthCaveat(c *C) {
 		io.WriteString(w, mockStoreReturnDischarge)
 	}))
 	defer mockServer.Close()
-	ubuntuoneDischargeAPI = mockServer.URL + "/tokens/discharge"
+	UbuntuoneDischargeAPI = mockServer.URL + "/tokens/discharge"
 
 	discharge, err := DischargeAuthCaveat("guy@example.com", "passwd", "root-macaroon", "")
 	c.Assert(err, IsNil)
@@ -185,7 +185,7 @@ func (s *authTestSuite) TestDischargeAuthCaveatNeeds2fa(c *C) {
 		io.WriteString(w, mockStoreNeeds2fa)
 	}))
 	defer mockServer.Close()
-	ubuntuoneDischargeAPI = mockServer.URL + "/tokens/discharge"
+	UbuntuoneDischargeAPI = mockServer.URL + "/tokens/discharge"
 
 	discharge, err := DischargeAuthCaveat("foo@example.com", "passwd", "root-macaroon", "")
 	c.Assert(err, Equals, ErrAuthenticationNeeds2fa)
@@ -198,7 +198,7 @@ func (s *authTestSuite) TestDischargeAuthCaveatInvalidLogin(c *C) {
 		io.WriteString(w, mockStoreInvalidLogin)
 	}))
 	defer mockServer.Close()
-	ubuntuoneDischargeAPI = mockServer.URL + "/tokens/discharge"
+	UbuntuoneDischargeAPI = mockServer.URL + "/tokens/discharge"
 
 	discharge, err := DischargeAuthCaveat("foo@example.com", "passwd", "root-macaroon", "")
 	c.Assert(err, ErrorMatches, "cannot get discharge macaroon from store: Provided email/password is not correct.")
@@ -210,7 +210,7 @@ func (s *authTestSuite) TestDischargeAuthCaveatMissingData(c *C) {
 		io.WriteString(w, mockStoreReturnNoMacaroon)
 	}))
 	defer mockServer.Close()
-	ubuntuoneDischargeAPI = mockServer.URL + "/tokens/discharge"
+	UbuntuoneDischargeAPI = mockServer.URL + "/tokens/discharge"
 
 	discharge, err := DischargeAuthCaveat("foo@example.com", "passwd", "root-macaroon", "")
 	c.Assert(err, ErrorMatches, "cannot get discharge macaroon from store: empty macaroon returned")
@@ -222,7 +222,7 @@ func (s *authTestSuite) TestDischargeAuthCaveatError(c *C) {
 		w.WriteHeader(500)
 	}))
 	defer mockServer.Close()
-	ubuntuoneDischargeAPI = mockServer.URL + "/tokens/discharge"
+	UbuntuoneDischargeAPI = mockServer.URL + "/tokens/discharge"
 
 	discharge, err := DischargeAuthCaveat("foo@example.com", "passwd", "root-macaroon", "")
 	c.Assert(err, ErrorMatches, "cannot get discharge macaroon from store: server returned status 500")
