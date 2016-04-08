@@ -58,8 +58,8 @@ var (
 	// AppArmor cache dir
 	aaCacheDir = "/var/cache/apparmor"
 
-	errInvalidAppID       = errors.New("invalid APP_ID")
-	errPolicyGen          = errors.New("errors found when generating policy")
+	errInvalidAppID = errors.New("invalid APP_ID")
+	errPolicyGen    = errors.New("errors found when generating policy")
 
 	// snappyConfig is the default securityDefinition for a snappy
 	// config fragment

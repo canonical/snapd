@@ -357,8 +357,8 @@ func resultHasType(r map[string]interface{}, allowedTypes []string) bool {
 }
 
 type appDesc struct {
-	Op     string                       `json:"op"`
-	Spec   *snappy.AppYaml              `json:"spec"`
+	Op   string          `json:"op"`
+	Spec *snappy.AppYaml `json:"spec"`
 }
 
 type configurator interface {

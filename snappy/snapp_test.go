@@ -177,7 +177,7 @@ func (s *SnapTestSuite) TestLocalSnapRepositorySimple(c *C) {
 }
 
 const (
-	funkyAppName      = "8nzc1x4iim2xj1g2ul64"
+	funkyAppName = "8nzc1x4iim2xj1g2ul64"
 )
 
 /* acquired via:

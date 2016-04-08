@@ -33,9 +33,9 @@ import (
 )
 
 type SecurityTestSuite struct {
-	tempDir               string
-	buildDir              string
-	m                     *snapYaml
+	tempDir  string
+	buildDir string
+	m        *snapYaml
 
 	loadAppArmorPolicyCalled bool
 }
