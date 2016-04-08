@@ -1,4 +1,4 @@
-snapd (1.8+20160315ubuntu1) xenial; urgency=medium
+snapd (1.9) xenial; urgency=medium
 
   * rename source and binary package to "snapd"
 
