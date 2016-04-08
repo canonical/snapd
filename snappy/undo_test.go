@@ -124,7 +124,7 @@ version: 1.0`, 11)
 	c.Assert(err, IsNil)
 	makeSnapActive(v1)
 	// add some data
-	datadir := filepath.Join(dirs.SnapDataDir, "hello/1.0")
+	datadir := filepath.Join(dirs.SnapDataDir, "hello/11")
 	subdir := filepath.Join(datadir, "random-subdir")
 	err = os.MkdirAll(subdir, 0755)
 	c.Assert(err, IsNil)
@@ -143,7 +143,7 @@ version: 2.0`, 12)
 	// copy data
 	err = CopyData(sn.Info(), 0, &s.meter)
 	c.Assert(err, IsNil)
-	v2data := filepath.Join(dirs.SnapDataDir, "hello/2.0")
+	v2data := filepath.Join(dirs.SnapDataDir, "hello/12")
 	l, _ := filepath.Glob(filepath.Join(v2data, "*"))
 	c.Assert(l, HasLen, 1)
 
@@ -263,7 +263,7 @@ version: 2.0
 	currentDataSymlink := filepath.Join(filepath.Dir(v2DataDir), "current")
 	currentDataDir, err := filepath.EvalSymlinks(currentDataSymlink)
 	c.Assert(err, IsNil)
-	c.Assert(currentDataDir, Matches, `.*/2.0`)
+	c.Assert(currentDataDir, Matches, `.*/22`)
 
 	// undo sets the symlink back
 	err = UndoUpdateCurrentSymlink(v1, v2, &s.meter)
@@ -273,6 +273,6 @@ version: 2.0
 
 	currentDataDir, err = filepath.EvalSymlinks(currentDataSymlink)
 	c.Assert(err, IsNil)
-	c.Assert(currentDataDir, Matches, `.*/1.0`)
+	c.Assert(currentDataDir, Matches, `.*/11`)
 
 }
