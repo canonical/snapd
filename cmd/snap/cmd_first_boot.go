@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2014-2015 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,14 +17,34 @@
  *
  */
 
-package snapstate
+package main
 
-type ManagerBackend managerBackend
+import (
+	"fmt"
 
-func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
-	s.backend = b
+	"github.com/jessevdk/go-flags"
+
+	"github.com/ubuntu-core/snappy/i18n"
+	"github.com/ubuntu-core/snappy/snappy"
+)
+
+type cmdInternalFirstBoot struct{}
+
+func init() {
+	cmd := addCommand("firstboot",
+		"internal",
+		"internal", func() flags.Commander {
+			return &cmdInternalFirstBoot{}
+		})
+	cmd.hidden = true
 }
 
-func SetSnapstateBackend(b ManagerBackend) {
-	backend = b
+func (x *cmdInternalFirstBoot) Execute(args []string) error {
+	err := snappy.FirstBoot()
+	if err == snappy.ErrNotFirstBoot {
+		fmt.Println(i18n.G("First boot has already run"))
+		return nil
+	}
+
+	return err
 }
