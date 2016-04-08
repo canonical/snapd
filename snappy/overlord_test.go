@@ -78,7 +78,7 @@ func (s *SnapTestSuite) TestLocalSnapInstall(c *C) string {
 	return snapPath
 }
 
-func (s *SnapTestSuite) TestLocalSnapInstallWithBlessedMetadata(c *C) string {
+func (s *SnapTestSuite) TestLocalSnapInstallWithBlessedMetadata(c *C) {
 	snapPath := makeTestSnapPackage(c, "")
 
 	si := &snap.SideInfo{
@@ -99,8 +99,23 @@ func (s *SnapTestSuite) TestLocalSnapInstallWithBlessedMetadata(c *C) string {
 
 	snapDataEntries := listDir(c, filepath.Join(dirs.SnapDataDir, fooComposedName))
 	c.Check(snapDataEntries, DeepEquals, []string{"1.0", "current"})
+}
 
-	return snapPath
+func (s *SnapTestSuite) TestLocalSnapInstallWithBlessedMetadataOverridingName(c *C) {
+	snapPath := makeTestSnapPackage(c, "")
+
+	si := &snap.SideInfo{
+		OfficialName: "bar",
+		Revision:     55,
+	}
+
+	snap, err := (&Overlord{}).InstallWithSideMetadata(snapPath, si, 0, nil)
+	c.Assert(err, IsNil)
+	c.Check(snap.Name(), Equals, "bar")
+	c.Check(snap.Revision, Equals, 55)
+
+	baseDir := filepath.Join(dirs.SnapSnapsDir, "bar", "55")
+	c.Assert(osutil.FileExists(baseDir), Equals, true)
 }
 
 // if the snap asks for accepting a license, and an agreer isn't provided,
