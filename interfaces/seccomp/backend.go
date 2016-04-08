@@ -52,30 +52,31 @@ type Backend struct{}
 // This method should be called after changing plug, slots, connections between
 // them or application present in the snap.
 func (b *Backend) Setup(snapInfo *snap.Info, developerMode bool, repo *interfaces.Repository) error {
+	snapName := snapInfo.Name()
 	// Get the snippets that apply to this snap
 	snippets, err := repo.SecuritySnippetsForSnap(snapInfo.Name(), interfaces.SecuritySecComp)
 	if err != nil {
-		return fmt.Errorf("cannot obtain security snippets for snap %q: %s", snapInfo.Name(), err)
+		return fmt.Errorf("cannot obtain security snippets for snap %q: %s", snapName, err)
 	}
 	// Get the files that this snap should have
 	content, err := b.combineSnippets(snapInfo, developerMode, snippets)
 	if err != nil {
-		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapInfo.Name(), err)
+		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapName, err)
 	}
-	glob := interfaces.SecurityTagGlob(snapInfo)
+	glob := interfaces.SecurityTagGlob(snapName)
 	_, _, err = osutil.EnsureDirState(dirs.SnapSeccompDir, glob, content)
 	if err != nil {
-		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapInfo.Name(), err)
+		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, err)
 	}
 	return nil
 }
 
 // Remove removes seccomp profiles of a given snap.
-func (b *Backend) Remove(snapInfo *snap.Info) error {
-	glob := interfaces.SecurityTagGlob(snapInfo)
+func (b *Backend) Remove(snapName string) error {
+	glob := interfaces.SecurityTagGlob(snapName)
 	_, _, err := osutil.EnsureDirState(dirs.SnapSeccompDir, glob, nil)
 	if err != nil {
-		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapInfo.Name(), err)
+		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, err)
 	}
 	return nil
 }

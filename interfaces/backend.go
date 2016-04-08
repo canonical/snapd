@@ -37,5 +37,5 @@ type SecurityBackend interface {
 	// Remove removes and unloads security artefacts of a given snap.
 	//
 	// This method should be called during the process of removing a snap.
-	Remove(snapInfo *snap.Info) error
+	Remove(snapName string) error
 }
