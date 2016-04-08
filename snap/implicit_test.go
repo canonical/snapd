@@ -17,14 +17,24 @@
  *
  */
 
-package snapstate
+package snap_test
 
-type ManagerBackend managerBackend
+import (
+	"github.com/ubuntu-core/snappy/snap"
 
-func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
-	s.backend = b
-}
+	. "gopkg.in/check.v1"
+)
 
-func SetSnapstateBackend(b ManagerBackend) {
-	backend = b
+type SpecialSuite struct{}
+
+var _ = Suite(&SpecialSuite{})
+
+func (s *InfoSnapYamlTestSuite) TestAddImplicitSlots(c *C) {
+	osYaml := []byte("name: ubuntu-core\ntype: os\n")
+	info, err := snap.InfoFromSnapYaml(osYaml)
+	c.Assert(err, IsNil)
+	snap.AddImplicitSlots(info)
+	c.Assert(info.Slots["network"].Interface, Equals, "network")
+	c.Assert(info.Slots["network"].Snap, Equals, info)
+	c.Assert(info.Slots, HasLen, 15)
 }
