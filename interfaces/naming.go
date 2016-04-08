@@ -21,17 +21,7 @@ package interfaces
 
 import (
 	"fmt"
-
-	"github.com/ubuntu-core/snappy/snap"
 )
-
-// SecurityTag returns application-specific security tag.
-//
-// Security tags are used by various security subsystems as "profile names" and
-// sometimes also as a part of the file name.
-func SecurityTag(appInfo *snap.AppInfo) string {
-	return fmt.Sprintf("snap.%s.%s", appInfo.Snap.Name(), appInfo.Name)
-}
 
 // SecurityTagGlob returns a pattern that matches all security tags belonging to
 // the same snap as the given app.

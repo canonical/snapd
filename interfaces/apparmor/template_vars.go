@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/interfaces/dbus"
 	"github.com/ubuntu-core/snappy/snap"
 )
@@ -74,7 +73,7 @@ func legacyVariables(appInfo *snap.AppInfo) []byte {
 func modernVariables(appInfo *snap.AppInfo) []byte {
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, "@{APP_NAME}=\"%s\"\n", appInfo.Name)
-	fmt.Fprintf(&buf, "@{APP_SECURITY_TAG}=\"%s\"\n", interfaces.SecurityTag(appInfo))
+	fmt.Fprintf(&buf, "@{APP_SECURITY_TAG}=\"%s\"\n", appInfo.SecurityTag())
 	fmt.Fprintf(&buf, "@{SNAP_NAME}=\"%s\"\n", appInfo.Snap.Name())
 	fmt.Fprintf(&buf, "@{INSTALL_DIR}=\"{/snaps,/gadget}\"")
 	return buf.Bytes()
