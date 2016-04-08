@@ -40,36 +40,42 @@ import (
 // Backend is responsible for maintaining DBus policy files.
 type Backend struct{}
 
-// Configure creates dbus configuration files specific to a given snap.
+// Name returns the name of the backend.
+func (b *Backend) Name() string {
+	return "dbus"
+}
+
+// Setup creates dbus configuration files specific to a given snap.
 //
 // DBus has no concept of a complain mode so developerMode is not supported
-func (b *Backend) Configure(snapInfo *snap.Info, developerMode bool, repo *interfaces.Repository) error {
+func (b *Backend) Setup(snapInfo *snap.Info, developerMode bool, repo *interfaces.Repository) error {
+	snapName := snapInfo.Name()
 	// Get the snippets that apply to this snap
 	snippets, err := repo.SecuritySnippetsForSnap(snapInfo.Name(), interfaces.SecurityDBus)
 	if err != nil {
-		return fmt.Errorf("cannot obtain DBus security snippets for snap %q: %s", snapInfo.Name(), err)
+		return fmt.Errorf("cannot obtain DBus security snippets for snap %q: %s", snapName, err)
 	}
 	// Get the files that this snap should have
 	content, err := b.combineSnippets(snapInfo, snippets)
 	if err != nil {
-		return fmt.Errorf("cannot obtain expected DBus configuration files for snap %q: %s", snapInfo.Name(), err)
+		return fmt.Errorf("cannot obtain expected DBus configuration files for snap %q: %s", snapName, err)
 	}
-	glob := fmt.Sprintf("%s.conf", interfaces.SecurityTagGlob(snapInfo))
+	glob := fmt.Sprintf("%s.conf", interfaces.SecurityTagGlob(snapName))
 	_, _, err = osutil.EnsureDirState(dirs.SnapBusPolicyDir, glob, content)
 	if err != nil {
-		return fmt.Errorf("cannot synchronize DBus configuration files for snap %q: %s", snapInfo.Name(), err)
+		return fmt.Errorf("cannot synchronize DBus configuration files for snap %q: %s", snapName, err)
 	}
 	return nil
 }
 
-// Deconfigure removes security artefacts of a given snap.
+// Remove removes dbus configuration files of a given snap.
 //
 // This method should be called after removing a snap.
-func (b *Backend) Deconfigure(snapInfo *snap.Info) error {
-	glob := fmt.Sprintf("%s.conf", interfaces.SecurityTagGlob(snapInfo))
+func (b *Backend) Remove(snapName string) error {
+	glob := fmt.Sprintf("%s.conf", interfaces.SecurityTagGlob(snapName))
 	_, _, err := osutil.EnsureDirState(dirs.SnapBusPolicyDir, glob, nil)
 	if err != nil {
-		return fmt.Errorf("cannot synchronize DBus configuration files for snap %q: %s", snapInfo.Name(), err)
+		return fmt.Errorf("cannot synchronize DBus configuration files for snap %q: %s", snapName, err)
 	}
 	return nil
 }
@@ -92,7 +98,7 @@ func (b *Backend) combineSnippets(snapInfo *snap.Info, snippets map[string][][]b
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
 		}
-		fname := fmt.Sprintf("%s.conf", interfaces.SecurityTag(appInfo))
+		fname := fmt.Sprintf("%s.conf", appInfo.SecurityTag())
 		content[fname] = &osutil.FileState{Content: buf.Bytes(), Mode: 0644}
 	}
 	return content, nil

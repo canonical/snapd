@@ -36,7 +36,7 @@ type classicDimensionSuite struct {
 }
 
 func (s *classicDimensionSuite) enableClassic(c *check.C) {
-	output := cli.ExecCommand(c, "sudo", "env", "https_proxy="+os.Getenv("https_proxy"), "snappy", "enable-classic")
+	output := cli.ExecCommand(c, "sudo", "env", "https_proxy="+os.Getenv("https_proxy"), "snap", "enable-classic")
 
 	expected := "(?ms)" +
 		".*" +
@@ -46,7 +46,7 @@ func (s *classicDimensionSuite) enableClassic(c *check.C) {
 }
 
 func (s *classicDimensionSuite) destroyClassic(c *check.C) {
-	output := cli.ExecCommand(c, "sudo", "snappy", "destroy-classic")
+	output := cli.ExecCommand(c, "sudo", "snap", "destroy-classic")
 
 	expected := "Classic dimension destroyed on this snappy system.\n"
 	c.Assert(output, check.Equals, expected)
@@ -57,7 +57,7 @@ func (s *classicDimensionSuite) TestClassicShell(c *check.C) {
 	s.enableClassic(c)
 	defer s.destroyClassic(c)
 
-	enteringOutput := cli.ExecCommand(c, "snappy", "shell", "classic")
+	enteringOutput := cli.ExecCommand(c, "snap", "shell", "classic")
 	expectedEnteringOutput := "Entering classic dimension\n" +
 		"\n" +
 		"\n" +
@@ -68,12 +68,12 @@ func (s *classicDimensionSuite) TestClassicShell(c *check.C) {
 }
 
 func (s *classicDimensionSuite) TestDestroyUnexistingClassicMustPrintError(c *check.C) {
-	output, err := cli.ExecCommandErr("sudo", "snappy", "destroy-classic")
+	output, err := cli.ExecCommandErr("sudo", "snap", "destroy-classic")
 
 	c.Check(err, check.NotNil,
 		check.Commentf("Trying to destroy unexisting classic dimension did not exit with an error"))
 	c.Assert(string(output), check.Equals,
-		"Classic dimension is not enabled.\n",
+		"error: Classic dimension is not enabled.\n",
 		check.Commentf("Wrong error message"))
 }
 
@@ -81,7 +81,7 @@ func (s *classicDimensionSuite) TestReEnableClassicMustPrintError(c *check.C) {
 	c.Skip("Skipping until LP: #1563193 is fixed")
 	s.enableClassic(c)
 	defer s.destroyClassic(c)
-	output, err := cli.ExecCommandErr("sudo", "snappy", "enable-classic")
+	output, err := cli.ExecCommandErr("sudo", "snap", "enable-classic")
 
 	c.Check(err, check.NotNil,
 		check.Commentf("Trying to re-enable classic dimension did not exit with an error"))

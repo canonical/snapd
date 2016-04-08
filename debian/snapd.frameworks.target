@@ -3,4 +3,4 @@
 
 [Unit]
 Description=Frameworks ready
-After=ubuntu-snappy.run-hooks.service
+After=snapd.run-hooks.service

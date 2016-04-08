@@ -58,6 +58,11 @@ type Backend struct {
 	legacyTemplate []byte
 }
 
+// Name returns the name of the backend.
+func (b *Backend) Name() string {
+	return "apparmor"
+}
+
 // UseLegacyTemplate switches from default apparmor template to a custom
 // template. This also implies that a fixed set of apparmor variables will be
 // injected into this template. The set is compatible with Ubuntu core 15.04.
@@ -65,29 +70,30 @@ func (b *Backend) UseLegacyTemplate(template []byte) {
 	b.legacyTemplate = template
 }
 
-// Configure creates and loads apparmor security profiles specific to a given
-// snap. The snap can be in developer mode to make security violations
-// non-fatal to the offending application process.
+// Setup creates and loads apparmor profiles specific to a given snap.
+// The snap can be in developer mode to make security violations non-fatal to
+// the offending application process.
 //
 // This method should be called after changing plug, slots, connections between
 // them or application present in the snap.
-func (b *Backend) Configure(snapInfo *snap.Info, developerMode bool, repo *interfaces.Repository) error {
+func (b *Backend) Setup(snapInfo *snap.Info, developerMode bool, repo *interfaces.Repository) error {
+	snapName := snapInfo.Name()
 	// Get the snippets that apply to this snap
-	snippets, err := repo.SecuritySnippetsForSnap(snapInfo.Name(), interfaces.SecurityAppArmor)
+	snippets, err := repo.SecuritySnippetsForSnap(snapName, interfaces.SecurityAppArmor)
 	if err != nil {
-		return fmt.Errorf("cannot obtain security snippets for snap %q: %s", snapInfo.Name(), err)
+		return fmt.Errorf("cannot obtain security snippets for snap %q: %s", snapName, err)
 	}
 	// Get the files that this snap should have
 	content, err := b.combineSnippets(snapInfo, developerMode, snippets)
 	if err != nil {
-		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapInfo.Name(), err)
+		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapName, err)
 	}
-	glob := interfaces.SecurityTagGlob(snapInfo)
+	glob := interfaces.SecurityTagGlob(snapInfo.Name())
 	changed, removed, errEnsure := osutil.EnsureDirState(dirs.SnapAppArmorDir, glob, content)
 	errReload := reloadProfiles(changed)
 	errUnload := unloadProfiles(removed)
 	if errEnsure != nil {
-		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapInfo.Name(), errEnsure)
+		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, errEnsure)
 	}
 	if errReload != nil {
 		return errReload
@@ -95,13 +101,13 @@ func (b *Backend) Configure(snapInfo *snap.Info, developerMode bool, repo *inter
 	return errUnload
 }
 
-// Deconfigure removes security artefacts of a given snap.
-func (b *Backend) Deconfigure(snapInfo *snap.Info) error {
-	glob := interfaces.SecurityTagGlob(snapInfo)
+// Remove removes and unloads apparmor profiles of a given snap.
+func (b *Backend) Remove(snapName string) error {
+	glob := interfaces.SecurityTagGlob(snapName)
 	_, removed, errEnsure := osutil.EnsureDirState(dirs.SnapAppArmorDir, glob, nil)
 	errUnload := unloadProfiles(removed)
 	if errEnsure != nil {
-		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapInfo.Name(), errEnsure)
+		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, errEnsure)
 	}
 	return errUnload
 }
@@ -134,7 +140,7 @@ func (b *Backend) combineSnippets(snapInfo *snap.Info, developerMode bool, snipp
 				// with them and the custom template is not used.
 				return legacyVariables(appInfo)
 			case bytes.Equal(placeholder, placeholderProfileAttach):
-				return []byte(fmt.Sprintf("profile \"%s\"", interfaces.SecurityTag(appInfo)))
+				return []byte(fmt.Sprintf("profile \"%s\"", appInfo.SecurityTag()))
 			case bytes.Equal(placeholder, placeholderSnippets):
 				return bytes.Join(snippets[appInfo.Name], []byte("\n"))
 			}
@@ -143,7 +149,7 @@ func (b *Backend) combineSnippets(snapInfo *snap.Info, developerMode bool, snipp
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
 		}
-		fname := interfaces.SecurityTag(appInfo)
+		fname := appInfo.SecurityTag()
 		content[fname] = &osutil.FileState{
 			Content: policy,
 			Mode:    0644,

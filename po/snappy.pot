@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-04-07 12:23+0200\n"
+        "POT-Creation-Date: 2016-04-08 16:30+0200\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -185,9 +185,6 @@ msgstr  ""
 msgid   "First boot has already run"
 msgstr  ""
 
-msgid   "Force policy generation."
-msgstr  ""
-
 msgid   "Generate the apparmor policy"
 msgstr  ""
 
@@ -351,9 +348,6 @@ msgstr  ""
 msgid   "Rolling back %q"
 msgstr  ""
 
-msgid   "Run snappy console interface"
-msgstr  ""
-
 msgid   "Run snappy shell interface"
 msgstr  ""
 
@@ -408,6 +402,7 @@ msgid   "Snap\tService\tState"
 msgstr  ""
 
 #. TRANSLATORS: please keep each line under 80 characters.
+#. TRANSLATORS: please keep each line under 80 characters.
 #, c-format
 msgid   "Snappy is updating your system in the background. This may take some minutes.\n"
         "Will try again in %d seconds...\n"
@@ -446,12 +441,6 @@ msgstr  ""
 msgid   "The package to rollback "
 msgstr  ""
 
-msgid   "The path to the snap.yaml used to generate the apparmor policy."
-msgstr  ""
-
-msgid   "The type of shell you want"
-msgstr  ""
-
 msgid   "The version to rollback to"
 msgstr  ""
 
@@ -486,9 +475,6 @@ msgstr  ""
 
 #, c-format
 msgid   "Updating %q"
-msgstr  ""
-
-msgid   "Username for the login"
 msgstr  ""
 
 msgid   "\n"

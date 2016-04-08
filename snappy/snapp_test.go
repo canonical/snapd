@@ -104,15 +104,6 @@ func (s *SnapTestSuite) TearDownTest(c *C) {
 	runUdevAdm = runUdevAdmImpl
 }
 
-func (s *SnapTestSuite) makeInstalledMockSnap(yamls ...string) (yamlFile string, err error) {
-	yaml := ""
-	if len(yamls) > 0 {
-		yaml = yamls[0]
-	}
-
-	return makeInstalledMockSnap(yaml)
-}
-
 func makeSnapActive(snapYamlPath string) (err error) {
 	snapdir := filepath.Dir(filepath.Dir(snapYamlPath))
 	parent := filepath.Dir(snapdir)
@@ -127,7 +118,7 @@ func (s *SnapTestSuite) TestLocalSnapInvalidPath(c *C) {
 }
 
 func (s *SnapTestSuite) TestLocalSnapSimple(c *C) {
-	snapYaml, err := s.makeInstalledMockSnap()
+	snapYaml, err := makeInstalledMockSnap("", 15)
 	c.Assert(err, IsNil)
 
 	snap, err := NewInstalledSnap(snapYaml)
@@ -138,23 +129,25 @@ func (s *SnapTestSuite) TestLocalSnapSimple(c *C) {
 	c.Check(snap.IsActive(), Equals, false)
 	c.Check(snap.Info().Summary(), Equals, "hello in summary")
 	c.Check(snap.Info().Description(), Equals, "Hello...")
+	c.Check(snap.Info().Revision, Equals, 15)
 	c.Check(snap.IsInstalled(), Equals, true)
 
 	apps := snap.Apps()
 	c.Assert(apps, HasLen, 2)
 	c.Assert(apps["svc1"].Name, Equals, "svc1")
 
+	mountDir := snap.Info().MountDir()
 	// ensure we get valid Date()
-	st, err := os.Stat(snap.basedir)
+	st, err := os.Stat(mountDir)
 	c.Assert(err, IsNil)
 	c.Assert(snap.Date(), Equals, st.ModTime())
 
-	c.Assert(snap.basedir, Equals, filepath.Join(dirs.SnapSnapsDir, helloSnapComposedName, "1.10"))
+	c.Assert(mountDir, Equals, filepath.Join(dirs.SnapSnapsDir, helloSnapComposedName, "15"))
 	c.Assert(snap.InstalledSize(), Not(Equals), -1)
 }
 
 func (s *SnapTestSuite) TestLocalSnapActive(c *C) {
-	snapYaml, err := s.makeInstalledMockSnap()
+	snapYaml, err := makeInstalledMockSnap("", 11)
 	c.Assert(err, IsNil)
 	makeSnapActive(snapYaml)
 
@@ -172,7 +165,7 @@ func (s *SnapTestSuite) TestLocalSnapRepositoryInvalidIsStillOk(c *C) {
 }
 
 func (s *SnapTestSuite) TestLocalSnapRepositorySimple(c *C) {
-	yamlPath, err := s.makeInstalledMockSnap()
+	yamlPath, err := makeInstalledMockSnap("", 11)
 	c.Assert(err, IsNil)
 	err = makeSnapActive(yamlPath)
 	c.Assert(err, IsNil)
@@ -270,7 +263,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdatesNoSnaps(c *C) {
 }
 
 func (s *SnapTestSuite) TestMakeConfigEnv(c *C) {
-	yamlFile, err := makeInstalledMockSnap("")
+	yamlFile, err := makeInstalledMockSnap("", 11)
 	c.Assert(err, IsNil)
 	snap, err := NewInstalledSnap(yamlFile)
 	c.Assert(err, IsNil)
@@ -309,6 +302,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 
 	r := &snap.Info{}
 	r.OfficialName = "foo"
+	r.Revision = 42
 	r.Developer = "bar"
 	r.EditedDescription = "this is a description"
 	r.Version = "1.0"
@@ -329,10 +323,11 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 1)
 
+	c.Check(installed[0].Info().Revision, Equals, 42)
 	c.Check(installed[0].Developer(), Equals, "bar")
 	c.Check(installed[0].Info().Description(), Equals, "this is a description")
 
-	_, err = os.Stat(filepath.Join(dirs.SnapMetaDir, "foo_1.0.manifest"))
+	_, err = os.Stat(filepath.Join(dirs.SnapMetaDir, "foo_42.manifest"))
 	c.Check(err, IsNil)
 }
 
@@ -422,7 +417,7 @@ apps:
    description: "Service #2"
 `
 
-	yamlFile, err := makeInstalledMockSnap(packageHello)
+	yamlFile, err := makeInstalledMockSnap(packageHello, 11)
 	c.Assert(err, IsNil)
 
 	snap, err := NewInstalledSnap(yamlFile)
@@ -442,14 +437,6 @@ apps:
 
 	c.Assert(apps["svc2"].Name, Equals, "svc2")
 	c.Assert(apps["svc2"].Description, Equals, "Service #2")
-
-	// ensure we get valid Date()
-	st, err := os.Stat(snap.basedir)
-	c.Assert(err, IsNil)
-	c.Assert(snap.Date(), Equals, st.ModTime())
-
-	c.Assert(snap.basedir, Equals, filepath.Join(dirs.SnapSnapsDir, helloSnapComposedName, "1.10"))
-	c.Assert(snap.InstalledSize(), Not(Equals), -1)
 }
 
 func (s *SnapTestSuite) TestSnapYamlMultipleArchitecturesParsing(c *C) {
@@ -534,7 +521,8 @@ gadget:
   store:
     id: my-store
 type: gadget
-`)
+`, 11)
+
 	c.Assert(err, IsNil)
 	makeSnapActive(snapYamlFn)
 
@@ -558,11 +546,12 @@ gadget:
     built-in:
       - hello-snap
 type: gadget
-`)
+`, 11)
+
 	c.Assert(err, IsNil)
 	makeSnapActive(gadgetYaml)
 
-	snapYamlFn, err := makeInstalledMockSnap("")
+	snapYamlFn, err := makeInstalledMockSnap("", 11)
 	c.Assert(err, IsNil)
 	makeSnapActive(snapYamlFn)
 
@@ -751,14 +740,15 @@ gadget:
 `)
 
 func (s *SnapTestSuite) TestParseHardwareYaml(c *C) {
-	m, err := parseSnapYamlData(hardwareYaml, false)
+	info, err := snap.InfoFromSnapYaml(hardwareYaml)
 	c.Assert(err, IsNil)
-	c.Assert(m.Gadget.Hardware.Assign[0].PartID, Equals, "device-hive-iot-hal")
-	c.Assert(m.Gadget.Hardware.Assign[0].Rules[0].Kernel, Equals, "ttyUSB0")
-	c.Assert(m.Gadget.Hardware.Assign[0].Rules[1].Subsystem, Equals, "tty")
-	c.Assert(m.Gadget.Hardware.Assign[0].Rules[1].WithDriver, Equals, "pl2303")
-	c.Assert(m.Gadget.Hardware.Assign[0].Rules[1].WithAttrs[0], Equals, "idVendor=0xf00f00")
-	c.Assert(m.Gadget.Hardware.Assign[0].Rules[1].WithAttrs[1], Equals, "idProduct=0xb00")
+
+	c.Assert(info.Legacy.Gadget.Hardware.Assign[0].PartID, Equals, "device-hive-iot-hal")
+	c.Assert(info.Legacy.Gadget.Hardware.Assign[0].Rules[0].Kernel, Equals, "ttyUSB0")
+	c.Assert(info.Legacy.Gadget.Hardware.Assign[0].Rules[1].Subsystem, Equals, "tty")
+	c.Assert(info.Legacy.Gadget.Hardware.Assign[0].Rules[1].WithDriver, Equals, "pl2303")
+	c.Assert(info.Legacy.Gadget.Hardware.Assign[0].Rules[1].WithAttrs[0], Equals, "idVendor=0xf00f00")
+	c.Assert(info.Legacy.Gadget.Hardware.Assign[0].Rules[1].WithAttrs[1], Equals, "idProduct=0xb00")
 }
 
 var expectedUdevRule = `KERNEL=="ttyUSB0", TAG:="snappy-assign", ENV{SNAPPY_APP}:="device-hive-iot-hal"
@@ -768,33 +758,33 @@ SUBSYSTEM=="tty", SUBSYSTEMS=="usb-serial", DRIVER=="pl2303", ATTRS{idVendor}=="
 `
 
 func (s *SnapTestSuite) TestGenerateHardwareYamlData(c *C) {
-	m, err := parseSnapYamlData(hardwareYaml, false)
+	info, err := snap.InfoFromSnapYaml(hardwareYaml)
 	c.Assert(err, IsNil)
 
-	output, err := m.Gadget.Hardware.Assign[0].generateUdevRuleContent()
+	output, err := generateUdevRuleContent(&info.Legacy.Gadget.Hardware.Assign[0])
 	c.Assert(err, IsNil)
 
 	c.Assert(output, Equals, expectedUdevRule)
 }
 
 func (s *SnapTestSuite) TestWriteHardwareUdevEtc(c *C) {
-	m, err := parseSnapYamlData(hardwareYaml, false)
+	info, err := snap.InfoFromSnapYaml(hardwareYaml)
 	c.Assert(err, IsNil)
 
 	dirs.SnapUdevRulesDir = c.MkDir()
-	writeGadgetHardwareUdevRules(m)
+	writeGadgetHardwareUdevRules(info)
 
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapUdevRulesDir, "80-snappy_gadget-foo_device-hive-iot-hal.rules")), Equals, true)
 }
 
 func (s *SnapTestSuite) TestWriteHardwareUdevCleanup(c *C) {
-	m, err := parseSnapYamlData(hardwareYaml, false)
+	info, err := snap.InfoFromSnapYaml(hardwareYaml)
 	c.Assert(err, IsNil)
 
 	dirs.SnapUdevRulesDir = c.MkDir()
 	udevRulesFile := filepath.Join(dirs.SnapUdevRulesDir, "80-snappy_gadget-foo_device-hive-iot-hal.rules")
 	c.Assert(ioutil.WriteFile(udevRulesFile, nil, 0644), Equals, nil)
-	cleanupGadgetHardwareUdevRules(m)
+	cleanupGadgetHardwareUdevRules(info)
 
 	c.Assert(osutil.FileExists(udevRulesFile), Equals, false)
 }
@@ -837,7 +827,7 @@ func (s *SnapTestSuite) TestParseSnapYamlDataChecksMultiple(c *C) {
 }
 
 func (s *SnapTestSuite) TestChannelFromLocalManifest(c *C) {
-	snapYaml, err := s.makeInstalledMockSnap()
+	snapYaml, err := makeInstalledMockSnap("", 11)
 	c.Assert(err, IsNil)
 
 	snap, err := NewInstalledSnap(snapYaml)
@@ -845,21 +835,22 @@ func (s *SnapTestSuite) TestChannelFromLocalManifest(c *C) {
 }
 
 func (s *SnapTestSuite) TestIcon(c *C) {
-	snapYaml, err := s.makeInstalledMockSnap()
+	snapYaml, err := makeInstalledMockSnap("", 11)
 	snap, err := NewInstalledSnap(snapYaml)
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Join(snap.basedir, "meta", "gui"), 0755)
+	mountDir := snap.Info().MountDir()
+	err = os.MkdirAll(filepath.Join(mountDir, "meta", "gui"), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(snap.basedir, "meta", "gui", "icon.png"), nil, 0644)
+	err = ioutil.WriteFile(filepath.Join(mountDir, "meta", "gui", "icon.png"), nil, 0644)
 	c.Assert(err, IsNil)
 
-	c.Check(snap.Icon(), Matches, filepath.Join(dirs.SnapSnapsDir, snap.Name(), snap.Version(), "meta/gui/icon.png"))
+	c.Check(snap.Icon(), Matches, filepath.Join(mountDir, "meta/gui/icon.png"))
 }
 
 func (s *SnapTestSuite) TestIconEmpty(c *C) {
-	snapYaml, err := s.makeInstalledMockSnap(`name: foo
+	snapYaml, err := makeInstalledMockSnap(`name: foo
 version: 1.0
-`)
+`, 11)
 	snap, err := NewInstalledSnap(snapYaml)
 	c.Assert(err, IsNil)
 	// no icon in the yaml!

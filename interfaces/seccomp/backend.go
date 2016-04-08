@@ -45,37 +45,43 @@ import (
 // Backend is responsible for maintaining seccomp profiles for ubuntu-core-launcher.
 type Backend struct{}
 
-// Configure creates seccomp security profiles specific to a given snap. The
-// snap can be in developer mode to make security violations non-fatal to the
-// offending application process.
+// Name returns the name of the backend.
+func (b *Backend) Name() string {
+	return "seccomp"
+}
+
+// Setup creates seccomp profiles specific to a given snap.
+// The snap can be in developer mode to make security violations non-fatal to
+// the offending application process.
 //
 // This method should be called after changing plug, slots, connections between
 // them or application present in the snap.
-func (b *Backend) Configure(snapInfo *snap.Info, developerMode bool, repo *interfaces.Repository) error {
+func (b *Backend) Setup(snapInfo *snap.Info, developerMode bool, repo *interfaces.Repository) error {
+	snapName := snapInfo.Name()
 	// Get the snippets that apply to this snap
 	snippets, err := repo.SecuritySnippetsForSnap(snapInfo.Name(), interfaces.SecuritySecComp)
 	if err != nil {
-		return fmt.Errorf("cannot obtain security snippets for snap %q: %s", snapInfo.Name(), err)
+		return fmt.Errorf("cannot obtain security snippets for snap %q: %s", snapName, err)
 	}
 	// Get the files that this snap should have
 	content, err := b.combineSnippets(snapInfo, developerMode, snippets)
 	if err != nil {
-		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapInfo.Name(), err)
+		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapName, err)
 	}
-	glob := interfaces.SecurityTagGlob(snapInfo)
+	glob := interfaces.SecurityTagGlob(snapName)
 	_, _, err = osutil.EnsureDirState(dirs.SnapSeccompDir, glob, content)
 	if err != nil {
-		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapInfo.Name(), err)
+		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, err)
 	}
 	return nil
 }
 
-// Deconfigure removes security artefacts of a given snap.
-func (b *Backend) Deconfigure(snapInfo *snap.Info) error {
-	glob := interfaces.SecurityTagGlob(snapInfo)
+// Remove removes seccomp profiles of a given snap.
+func (b *Backend) Remove(snapName string) error {
+	glob := interfaces.SecurityTagGlob(snapName)
 	_, _, err := osutil.EnsureDirState(dirs.SnapSeccompDir, glob, nil)
 	if err != nil {
-		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapInfo.Name(), err)
+		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, err)
 	}
 	return nil
 }

@@ -45,14 +45,14 @@ func (s *SnapTestSuite) TestAddPackageDesktopFiles(c *C) {
 	expectedDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar.desktop")
 	c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, false)
 
-	yamlFile, err := makeInstalledMockSnap(desktopAppYaml)
+	yamlFile, err := makeInstalledMockSnap(desktopAppYaml, 11)
 	c.Assert(err, IsNil)
 
 	snap, err := NewInstalledSnap(yamlFile)
 	c.Assert(err, IsNil)
 
 	// generate .desktop file in the package baseDir
-	baseDir := snap.Info().BaseDir()
+	baseDir := snap.Info().MountDir()
 	err = os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0755)
 	c.Assert(err, IsNil)
 
@@ -80,7 +80,7 @@ func (s *SnapTestSuite) TestRemovePackageDesktopFiles(c *C) {
 }
 
 func (s *SnapTestSuite) TestDesktopFileIsAddedAndRemoved(c *C) {
-	yamlFile, err := makeInstalledMockSnap(string(desktopAppYaml))
+	yamlFile, err := makeInstalledMockSnap(string(desktopAppYaml), 11)
 	c.Assert(err, IsNil)
 	snap, err := NewInstalledSnap(yamlFile)
 	c.Assert(err, IsNil)
@@ -101,7 +101,7 @@ func (s *SnapTestSuite) TestDesktopFileIsAddedAndRemoved(c *C) {
 	c.Assert(string(content), Equals, `
 [Desktop Entry]
 Name=foo
-Icon=/snap/foo/1.0/foo.png`)
+Icon=/snap/foo/11/foo.png`)
 
 	// unlink (deactivate) removes it again
 	err = UnlinkSnap(snap, nil)

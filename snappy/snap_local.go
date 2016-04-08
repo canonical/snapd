@@ -20,9 +20,11 @@
 package snappy
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"gopkg.in/yaml.v2"
@@ -30,6 +32,7 @@ import (
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/legacygadget"
 )
 
 // Snap represents a generic snap type
@@ -41,8 +44,6 @@ type Snap struct {
 
 	hash     string
 	isActive bool
-
-	basedir string
 }
 
 // NewInstalledSnap returns a new Snap from the given yamlPath
@@ -62,19 +63,29 @@ func NewInstalledSnap(yamlPath string) (*Snap, error) {
 
 // newSnapFromYaml returns a new Snap from the given *snapYaml at yamlPath
 func newSnapFromYaml(yamlPath string, m *snapYaml) (*Snap, error) {
+	mountDir := filepath.Dir(filepath.Dir(yamlPath))
+
+	// XXX: hack the name and revision out of the path for now
+	// snapstate primitives shouldn't need this
+	name := filepath.Base(filepath.Dir(mountDir))
+	revnoStr := filepath.Base(mountDir)
+	revno, err := strconv.Atoi(revnoStr)
+	if err != nil {
+		return nil, fmt.Errorf("broken snap directory path: %q", mountDir)
+	}
+
 	s := &Snap{
-		basedir: filepath.Dir(filepath.Dir(yamlPath)),
-		m:       m,
+		m: m,
 	}
 
 	// check if the snap is active
-	allVersionsDir := filepath.Dir(s.basedir)
-	p, err := filepath.EvalSymlinks(filepath.Join(allVersionsDir, "current"))
+	allRevnosDir := filepath.Dir(mountDir)
+	p, err := filepath.EvalSymlinks(filepath.Join(allRevnosDir, "current"))
 	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
 
-	if p == s.basedir {
+	if p == mountDir {
 		s.isActive = true
 	}
 
@@ -100,18 +111,20 @@ func newSnapFromYaml(yamlPath string, m *snapYaml) (*Snap, error) {
 
 	s.info = info
 
-	manifestPath := ManifestPath(info)
-	if osutil.FileExists(manifestPath) {
-		content, err := ioutil.ReadFile(manifestPath)
-		if err != nil {
-			return nil, err
-		}
+	if revno != 0 {
+		mfPath := manifestPath(name, revno)
+		if osutil.FileExists(mfPath) {
+			content, err := ioutil.ReadFile(mfPath)
+			if err != nil {
+				return nil, err
+			}
 
-		var manifest snap.SideInfo
-		if err := yaml.Unmarshal(content, &manifest); err != nil {
-			return nil, &ErrInvalidYaml{File: manifestPath, Err: err, Yaml: content}
+			var manifest snap.SideInfo
+			if err := yaml.Unmarshal(content, &manifest); err != nil {
+				return nil, &ErrInvalidYaml{File: mfPath, Err: err, Yaml: content}
+			}
+			info.SideInfo = manifest
 		}
-		info.SideInfo = manifest
 	}
 
 	if info.Developer == "" {
@@ -121,13 +134,6 @@ func newSnapFromYaml(yamlPath string, m *snapYaml) (*Snap, error) {
 		// default for compat with older installs
 		info.Channel = "stable"
 	}
-
-	// XXX: FIXME: just some tests need this atm
-	// override the package's idea of its version
-	// because that could have been rewritten on sideload
-	// and developer is empty sideloaded ones.
-	m.Version = filepath.Base(s.basedir)
-	info.Version = m.Version
 
 	return s, nil
 }
@@ -171,7 +177,7 @@ func (s *Snap) Channel() string {
 
 // Icon returns the path to the icon
 func (s *Snap) Icon() string {
-	found, _ := filepath.Glob(filepath.Join(s.basedir, "meta", "gui", "icon.*"))
+	found, _ := filepath.Glob(filepath.Join(s.info.MountDir(), "meta", "gui", "icon.*"))
 	if len(found) == 0 {
 		return ""
 	}
@@ -197,7 +203,7 @@ func (s *Snap) InstalledSize() int64 {
 		totalSize += info.Size()
 		return err
 	}
-	filepath.Walk(s.basedir, f)
+	filepath.Walk(s.info.MountDir(), f)
 	return totalSize
 }
 
@@ -213,7 +219,7 @@ func (s *Snap) DownloadSize() int64 {
 
 // Date returns the last update date
 func (s *Snap) Date() time.Time {
-	st, err := os.Stat(s.basedir)
+	st, err := os.Stat(s.info.MountDir())
 	if err != nil {
 		return time.Time{}
 	}
@@ -227,8 +233,8 @@ func (s *Snap) Apps() map[string]*AppYaml {
 }
 
 // GadgetConfig return a list of packages to configure
-func (s *Snap) GadgetConfig() SystemConfig {
-	return s.m.Config
+func (s *Snap) GadgetConfig() legacygadget.SystemConfig {
+	return s.info.Legacy.Config
 }
 
 // Install installs the snap (which does not make sense for an already

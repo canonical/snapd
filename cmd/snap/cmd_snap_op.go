@@ -20,6 +20,7 @@
 package main
 
 import (
+	"strings"
 	"time"
 
 	"github.com/ubuntu-core/snappy/client"
@@ -113,8 +114,15 @@ type cmdInstall struct {
 }
 
 func (x *cmdInstall) Execute([]string) error {
+	var uuid string
+	var err error
+
 	cli := Client()
-	uuid, err := cli.InstallSnap(x.Positional.Snap, x.Channel)
+	if strings.Contains(x.Positional.Snap, "/") {
+		uuid, err = cli.InstallSnapFile(x.Positional.Snap)
+	} else {
+		uuid, err = cli.InstallSnap(x.Positional.Snap, x.Channel)
+	}
 	if err != nil {
 		return err
 	}

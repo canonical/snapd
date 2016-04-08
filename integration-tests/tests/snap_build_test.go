@@ -37,8 +37,6 @@ type snapBuildSuite struct {
 }
 
 func (s *snapBuildSuite) TestBuildBasicSnapOnSnappy(c *check.C) {
-	c.Skip("sideloading snaps via the `snap` command is not supported yet")
-
 	// build basic snap and check output
 	snapPath, err := build.LocalSnap(c, data.BasicSnapName)
 	defer os.Remove(snapPath)
@@ -48,10 +46,9 @@ func (s *snapBuildSuite) TestBuildBasicSnapOnSnappy(c *check.C) {
 	installOutput := installSnap(c, snapPath)
 	defer removeSnap(c, data.BasicSnapName)
 	expected := "(?ms)" +
-		"Installing " + snapPath + "\n" +
-		"Name +Date +Version +Developer \n" +
+		"Name +Date +Version +Developer\n" +
 		".*" +
-		data.BasicSnapName + " +.* +.* +sideload  \n" +
+		data.BasicSnapName + " +.* +.* +sideload\n" +
 		".*"
 
 	c.Check(installOutput, check.Matches, expected)

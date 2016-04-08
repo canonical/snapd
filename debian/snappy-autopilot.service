@@ -4,4 +4,5 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/snappy update --automatic-reboot
+# FIXME: add auto-reboot on devices
+ExecStart=/usr/bin/snap refresh
