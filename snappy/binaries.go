@@ -34,14 +34,6 @@ import (
 	"github.com/ubuntu-core/snappy/snap/snapenv"
 )
 
-// XXX: this needs to change in the new interfaces world!
-// it will need to be a SecurityTag value
-func getSecurityProfileFromApp(app *snap.AppInfo) string {
-	cleanedName := strings.Replace(app.Name, "/", "-", -1)
-
-	return fmt.Sprintf("%s_%s_%s", app.Snap.Name(), cleanedName, app.Snap.Version)
-}
-
 // generate the name
 // TODO: => AppInfo.WrapperPath
 func generateBinaryName(app *snap.AppInfo) string {
@@ -92,7 +84,6 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 	}
 
 	actualBinPath := binPathForBinary(pkgPath, app)
-	aaProfile := getSecurityProfileFromApp(app)
 
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("wrapper").Parse(wrapperTemplate))
@@ -114,10 +105,10 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 		SnapArch:    arch.UbuntuArchitecture(),
 		SnapPath:    pkgPath,
 		Version:     app.Snap.Version,
-		UdevAppName: fmt.Sprintf("%s.%s", app.Snap.Name(), app.Name),
+		UdevAppName: fmt.Sprintf("snap.%s.%s", app.Snap.Name(), app.Name),
 		Home:        "$HOME",
 		Target:      actualBinPath,
-		AaProfile:   aaProfile,
+		AaProfile:   fmt.Sprintf("snap.%s.%s", app.Snap.Name(), app.Name),
 	}
 
 	oldVars := []string{}

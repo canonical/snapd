@@ -216,33 +216,33 @@ var defaultTemplate = []byte(`
   @{PROC}/net/dev r,
 
   # Read-only for the install directory
-  @{INSTALL_DIR}/@{APP_PKGNAME}/                   r,
-  @{INSTALL_DIR}/@{APP_PKGNAME}/@{APP_VERSION}/    r,
-  @{INSTALL_DIR}/@{APP_PKGNAME}/@{APP_VERSION}/**  mrklix,
+  @{INSTALL_DIR}/@{SNAP_NAME}/                   r,
+  @{INSTALL_DIR}/@{SNAP_NAME}/@{SNAP_VERSION}/    r,
+  @{INSTALL_DIR}/@{SNAP_NAME}/@{SNAP_VERSION}/**  mrklix,
 
   # Don't log noisy python denials (see LP: #1496895 for more details)
-  deny @{INSTALL_DIR}/@{APP_PKGNAME}/**/__pycache__/             w,
-  deny @{INSTALL_DIR}/@{APP_PKGNAME}/**/__pycache__/*.pyc.[0-9]* w,
+  deny @{INSTALL_DIR}/@{SNAP_NAME}/**/__pycache__/             w,
+  deny @{INSTALL_DIR}/@{SNAP_NAME}/**/__pycache__/*.pyc.[0-9]* w,
 
   # Read-only home area for other versions
-  owner @{HOME}/apps/@{APP_PKGNAME}/                  r,
-  owner @{HOME}/apps/@{APP_PKGNAME}/**                mrkix,
-  owner @{HOME}/snaps/@{APP_PKGNAME}/                  r,
-  owner @{HOME}/snaps/@{APP_PKGNAME}/**                mrkix,
+  owner @{HOME}/apps/@{SNAP_NAME}/                  r,
+  owner @{HOME}/apps/@{SNAP_NAME}/**                mrkix,
+  owner @{HOME}/snaps/@{SNAP_NAME}/                  r,
+  owner @{HOME}/snaps/@{SNAP_NAME}/**                mrkix,
 
   # Writable home area for this version.
-  owner @{HOME}/apps/@{APP_PKGNAME}/@{APP_VERSION}/** wl,
-  owner @{HOME}/snaps/@{APP_PKGNAME}/@{APP_VERSION}/** wl,
+  owner @{HOME}/apps/@{SNAP_NAME}/@{SNAP_VERSION}/** wl,
+  owner @{HOME}/snaps/@{SNAP_NAME}/@{SNAP_VERSION}/** wl,
 
   # Read-only system area for other versions
-  /var/lib/apps/@{APP_PKGNAME}/   r,
-  /var/lib/apps/@{APP_PKGNAME}/** mrkix,
-  /var/lib/snaps/@{APP_PKGNAME}/   r,
-  /var/lib/snaps/@{APP_PKGNAME}/** mrkix,
+  /var/lib/apps/@{SNAP_NAME}/   r,
+  /var/lib/apps/@{SNAP_NAME}/** mrkix,
+  /var/lib/snaps/@{SNAP_NAME}/   r,
+  /var/lib/snaps/@{SNAP_NAME}/** mrkix,
 
   # Writable system area only for this version
-  /var/lib/apps/@{APP_PKGNAME}/@{APP_VERSION}/** wl,
-  /var/lib/snaps/@{APP_PKGNAME}/@{APP_VERSION}/** wl,
+  /var/lib/apps/@{SNAP_NAME}/@{SNAP_VERSION}/** wl,
+  /var/lib/snaps/@{SNAP_NAME}/@{SNAP_VERSION}/** wl,
 
   # The ubuntu-core-launcher creates an app-specific private restricted /tmp
   # and will fail to launch the app if something goes wrong. As such, we can
@@ -251,17 +251,17 @@ var defaultTemplate = []byte(`
   /tmp/** mrwlkix,
 
   # Also do the same for shm
-  /{dev,run}/shm/snaps/@{APP_PKGNAME}/                  r,
-  /{dev,run}/shm/snaps/@{APP_PKGNAME}/**                rk,
-  /{dev,run}/shm/snaps/@{APP_PKGNAME}/@{APP_VERSION}/   r,
-  /{dev,run}/shm/snaps/@{APP_PKGNAME}/@{APP_VERSION}/** mrwlkix,
+  /{dev,run}/shm/snaps/@{SNAP_NAME}/                  r,
+  /{dev,run}/shm/snaps/@{SNAP_NAME}/**                rk,
+  /{dev,run}/shm/snaps/@{SNAP_NAME}/@{SNAP_VERSION}/   r,
+  /{dev,run}/shm/snaps/@{SNAP_NAME}/@{SNAP_VERSION}/** mrwlkix,
 
   # Allow apps from the same package to communicate with each other via an
   # abstract or anonymous socket
-  unix peer=(label=@{APP_PKGNAME}_*),
+  unix peer=(label=@{SNAP_NAME}_*),
 
   # Allow apps from the same package to signal each other via signals
-  signal peer=@{APP_PKGNAME}_*,
+  signal peer=@{SNAP_NAME}_*,
 
   # for 'udevadm trigger --verbose --dry-run --tag-match=snappy-assign'
   /{,s}bin/udevadm ixr,

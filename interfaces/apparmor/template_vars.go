@@ -45,6 +45,11 @@ import (
 // party snap, not by snappy.
 func legacyVariables(appInfo *snap.AppInfo) []byte {
 	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "@{SNAP_NAME}=\"%s\"\n", appInfo.Snap.Name())
+	fmt.Fprintf(&buf, "@{SNAP_VERSION}=\"%s\"\n", appInfo.Snap.Version)
+	fmt.Fprintf(&buf, "@{APP_NAME}=\"%s\"\n", appInfo.Name)
+	fmt.Fprintf(&buf, "@{APP_SECURITY_TAG}=\"%s\"\n", interfaces.SecurityTag(appInfo))
+	// Real legacy vars
 	fmt.Fprintf(&buf, "@{APP_APPNAME}=\"%s\"\n", appInfo.Name)
 	// TODO: replace with app.SecurityTag()
 	fmt.Fprintf(&buf, "@{APP_ID_DBUS}=\"%s\"\n",
@@ -73,9 +78,10 @@ func legacyVariables(appInfo *snap.AppInfo) []byte {
 // ...have everything work correctly?
 func modernVariables(appInfo *snap.AppInfo) []byte {
 	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "@{SNAP_NAME}=\"%s\"\n", appInfo.Snap.Name())
+	fmt.Fprintf(&buf, "@{SNAP_VERSION}=\"%s\"\n", appInfo.Snap.Version)
 	fmt.Fprintf(&buf, "@{APP_NAME}=\"%s\"\n", appInfo.Name)
 	fmt.Fprintf(&buf, "@{APP_SECURITY_TAG}=\"%s\"\n", interfaces.SecurityTag(appInfo))
-	fmt.Fprintf(&buf, "@{SNAP_NAME}=\"%s\"\n", appInfo.Snap.Name())
 	fmt.Fprintf(&buf, "@{INSTALL_DIR}=\"{/snaps,/gadget}\"")
 	return buf.Bytes()
 }

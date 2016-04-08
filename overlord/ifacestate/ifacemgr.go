@@ -23,13 +23,20 @@ package ifacestate
 
 import (
 	"fmt"
+	"log"
 
 	"gopkg.in/tomb.v2"
 
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/interfaces"
+	"github.com/ubuntu-core/snappy/interfaces/apparmor"
 	"github.com/ubuntu-core/snappy/interfaces/builtin"
+	"github.com/ubuntu-core/snappy/interfaces/dbus"
+	"github.com/ubuntu-core/snappy/interfaces/seccomp"
+	"github.com/ubuntu-core/snappy/interfaces/udev"
+	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
+	"github.com/ubuntu-core/snappy/snap"
 )
 
 // InterfaceManager is responsible for the maintenance of interfaces in
@@ -43,6 +50,7 @@ type InterfaceManager struct {
 
 // Manager returns a new InterfaceManager.
 func Manager(s *state.State) (*InterfaceManager, error) {
+	log.Printf("Initializing interfaces manager\n")
 	repo := interfaces.NewRepository()
 	for _, iface := range builtin.Interfaces() {
 		if err := repo.AddInterface(iface); err != nil {
@@ -55,10 +63,139 @@ func Manager(s *state.State) (*InterfaceManager, error) {
 		runner: runner,
 		repo:   repo,
 	}
+	log.Printf("Interfaces manager ready\n")
 
 	runner.AddHandler("connect", m.doConnect, nil)
 	runner.AddHandler("disconnect", m.doDisconnect, nil)
+	runner.AddHandler("setup-snap-security", m.doSetupSnapSecurity, m.doRemoveSnapSecurity)
+	runner.AddHandler("remove-snap-security", m.doRemoveSnapSecurity, m.doSetupSnapSecurity)
+	log.Printf("Registered task handlers\n")
 	return m, nil
+}
+
+func (m *InterfaceManager) doSetupSnapSecurity(task *state.Task, _ *tomb.Tomb) error {
+	log.Printf("doSetupSnapSecurity: ENTER\n")
+	task.State().Lock()
+	defer task.State().Unlock()
+	log.Printf("doSetupSnapSecurity: lock acquired\n")
+
+	// Get snap.Info from bits handed by the snap manager.
+	ss, err := snapstate.TaskSnapSetup(task)
+	if err != nil {
+		log.Printf("doSetupSnapSecurity: cannot get snap setup: %s\n", err)
+		return err
+	}
+	snapInfo, err := snapstate.SnapInfo(task.State(), ss.Name, ss.Version)
+	if err != nil {
+		log.Printf("doSetupSnapSecurity: cannot get snap info: %s\n", err)
+		return err
+	}
+	snapName := snapInfo.Name()
+	log.Printf("doSetupSnapSecurity: working with snap: %s\n", snapInfo.Name())
+
+	// The snap may have been updated so perform the following operation to
+	// ensure that we are always working on the correct state:
+	//
+	// - disconnect all connections to/from the given snap
+	//   - remembering the snaps that were affected by this operation
+	// - remove the (old) snap from the interfaces repository
+	// - add the (new) snap to the interfaces repository
+	// - restore connections based on what is kept in the state
+	//   - if a connection cannot be restored then remove it from the state
+	// - setup the security of all the affected snaps
+	affectedSnaps, err := m.repo.DisconnectSnap(snapName)
+	if err != nil {
+		log.Printf("doSetupSnapSecurity: cannot disconnect snap: %s\n", err)
+		return err
+	}
+	log.Printf("doSetupSnapSecurity: disconnected connections, affected snaps: %#v\n", affectedSnaps)
+	// XXX: what about snap renames? We should remove the old name (or switch
+	// to IDs in the interfaces repository)
+	if err := m.repo.RemoveSnap(snapName); err != nil {
+		log.Printf("doSetupSnapSecurity: cannot remove snap: %s\n", err)
+		return err
+	}
+	log.Printf("doSetupSnapSecurity: removed old snap from repo\n")
+	if err := m.repo.AddSnap(snapInfo); err != nil {
+		log.Printf("doSetupSnapSecurity: cannot add snap: %s\n", err)
+		return err
+	}
+	log.Printf("doSetupSnapSecurity: added new snap to repo\n")
+	// TODO: re-connect all connection affecting given snap
+	// TODO:  - removing failed connections from the state
+	if len(affectedSnaps) == 0 {
+		affectedSnaps = append(affectedSnaps, snapInfo)
+	}
+	for _, snapInfo := range affectedSnaps {
+		log.Printf("doSetupSnapSecurity: setting up security for snap %s\n", snapInfo.Name())
+		for _, backend := range securityBackendsForSnap(snapInfo) {
+			log.Printf("doSetupSnapSecurity: setting up security for snap %s, backend %s\n", snapInfo.Name(), backend)
+			developerMode := false // TODO: move this to snap.Info
+			if err := backend.Setup(snapInfo, developerMode, m.repo); err != nil {
+				log.Printf("doSetupSnapSecurity: cannot setup security for snap %s, backend %s: %s\n", snapInfo.Name(), backend, err)
+				return state.Retry
+			}
+		}
+	}
+	log.Printf("doSetupSnapSecurity: LEAVE\n")
+	return nil
+}
+
+func (m *InterfaceManager) doRemoveSnapSecurity(task *state.Task, _ *tomb.Tomb) error {
+	log.Printf("doRemoveSnapSecurity: ENTER\n")
+	task.State().Lock()
+	defer task.State().Unlock()
+	log.Printf("doRemoveSnapSecurity: lock acquired\n")
+
+	// Get snap.Info from bits handed by the snap manager.
+	ss, err := snapstate.TaskSnapSetup(task)
+	if err != nil {
+		log.Printf("doRemoveSnapSecurity: cannot get snap setup: %s\n", err)
+		return err
+	}
+	snapInfo, err := snapstate.SnapInfo(task.State(), ss.Name, ss.Version)
+	if err != nil {
+		log.Printf("doSetupSnapSecurity: cannot get snap info: %s\n", err)
+		return err
+	}
+	snapName := snapInfo.Name()
+	log.Printf("doSetupSnapSecurity: working with snap: %s\n", snapInfo.Name())
+
+	affectedSnaps, err := m.repo.DisconnectSnap(snapName)
+	if err != nil {
+		log.Printf("doRemoveSnapSecurity: cannot disconnect snap: %s\n", err)
+		return err
+	}
+	// TODO: remove all connections from the state
+	if err := m.repo.RemoveSnap(snapName); err != nil {
+		log.Printf("doRemoveSnapSecurity: cannot remove snap: %s\n", err)
+		return err
+	}
+	if len(affectedSnaps) == 0 {
+		affectedSnaps = append(affectedSnaps, snapInfo)
+	}
+	for _, snapInfo := range affectedSnaps {
+		log.Printf("doRemoveSnapSecurity: removing security for snap %s\n", snapInfo.Name())
+		for _, backend := range securityBackendsForSnap(snapInfo) {
+			log.Printf("doRemoveSnapSecurity: removing security for snap %s, backend %s\n", snapInfo.Name(), backend)
+			if err := backend.Remove(snapInfo.Name()); err != nil {
+				log.Printf("doRemoveSnapSecurity: cannot remove security for snap %s, backend %s: %s\n", snapInfo.Name(), backend, err)
+				return state.Retry
+			}
+		}
+	}
+	log.Printf("doRemoveSnapSecurity: LEAVE\n")
+	return nil
+}
+
+func securityBackendsForSnap(snapInfo *snap.Info) []interfaces.SecurityBackend {
+	aaBackend := &apparmor.Backend{}
+	// TODO: Implement special provisions for apparmor and old-security when
+	// old-security becomes a real interface. When that happens we nee to call
+	// backend.UseLegacyTemplate() with the alternate template offered by the
+	// old-security interface.
+	return []interfaces.SecurityBackend{
+		aaBackend, &seccomp.Backend{}, &dbus.Backend{}, &udev.Backend{}}
 }
 
 // Connect returns a set of tasks for connecting an interface.
