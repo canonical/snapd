@@ -165,6 +165,14 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryHeaders(c *C) {
 	t.store.configureStoreReq(req, "application/json")
 
 	c.Check(req.Header.Get("Accept"), Equals, "application/json")
+
+	mockStoreToken := StoreToken{TokenName: "meep"}
+	err = WriteStoreToken(mockStoreToken)
+	c.Assert(err, IsNil)
+
+	t.store.configureStoreReq(req, "")
+
+	c.Assert(req.Header.Get("Authorization"), Matches, "OAuth .*")
 }
 
 const (
@@ -258,7 +266,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 		// no store ID by default
 		storeID := r.Header.Get("X-Ubuntu-Store")
 		c.Check(storeID, Equals, "")
-
 		c.Check(r.URL.Path, Equals, fmt.Sprintf("/details/%s.%s/edge", funkyAppName, funkyAppDeveloper))
 		io.WriteString(w, MockDetailsJSON)
 	}))
