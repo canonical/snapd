@@ -1,7 +1,3 @@
-debian/*.service /lib/systemd/system/
-debian/*.socket /lib/systemd/system/
-debian/*.target /lib/systemd/system/
-debian/*.timer /lib/systemd/system/
 /usr/bin/snap
 /usr/bin/snapd usr/lib/snappy/
 data/completion/snappy /usr/share/bash-completion/completions/
