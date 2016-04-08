@@ -335,7 +335,7 @@ func (s *snapmgrTestSuite) TestSnapInfo(c *C) {
 	defer dirs.SetRootDir("")
 
 	// Write a snap.yaml with fake name
-	dname := filepath.Join(dirs.SnapSnapsDir, "name", "version", "meta")
+	dname := filepath.Join(dirs.SnapSnapsDir, "name", "11", "meta")
 	err := os.MkdirAll(dname, 0775)
 	c.Assert(err, IsNil)
 	fname := filepath.Join(dname, "snap.yaml")
@@ -345,7 +345,7 @@ description: |
     Lots of text`), 0644)
 	c.Assert(err, IsNil)
 
-	snapInfo, err := snapstate.SnapInfo(s.state, "name", "version")
+	snapInfo, err := snapstate.SnapInfo(s.state, "name", 11)
 	c.Assert(err, IsNil)
 
 	// Check that the name in the YAML is being ignored.
