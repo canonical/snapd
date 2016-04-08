@@ -280,7 +280,7 @@ const commonPrefix = `
 @{APP_APPNAME}="smbd"
 @{APP_ID_DBUS}="samba_2eacme_5fsmbd_5f1"
 @{APP_PKGNAME_DBUS}="samba_2eacme"
-@{APP_PKGNAME}="samba.acme"
+@{APP_PKGNAME}="samba"
 @{APP_VERSION}="1"
 @{INSTALL_DIR}="{/snaps,/gadget}"`
 
