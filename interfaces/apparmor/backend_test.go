@@ -111,7 +111,7 @@ func (s *backendSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	// Mock the list of profiles in the running kernel
 	s.profilesFilename = filepath.Join(c.MkDir(), "profiles")
-	err = ioutil.WriteFile(s.profilesFilename, nil, 0655)
+	err = ioutil.WriteFile(s.profilesFilename, nil, 0644)
 	c.Assert(err, IsNil)
 	apparmor.MockProfilesPath(&s.BaseTest, s.profilesFilename)
 	// Mock away any real apparmor interaction
@@ -255,7 +255,7 @@ func (s *backendSuite) TestSetupLoadsUnchangedUnloadedProfiles(c *C) {
 		snapInfo := s.installSnap(c, developerMode, sambaYamlV1)
 		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 		// Forget all loaded profiles
-		err := ioutil.WriteFile(s.profilesFilename, nil, 0655)
+		err := ioutil.WriteFile(s.profilesFilename, nil, 0644)
 		c.Assert(err, IsNil)
 		s.parserCmd.ForgetCalls()
 		// Reinstall the snap (nothing has changed on disk!)
