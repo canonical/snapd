@@ -3,4 +3,3 @@
 
 [Unit]
 Description=Frameworks ready
-After=snapd.run-hooks.service
