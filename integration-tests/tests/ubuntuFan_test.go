@@ -174,7 +174,7 @@ func (s *fanTestSuite) removeBridgeFromDockerConf(c *check.C) {
 
 func dockerCfgFile(c *check.C) string {
 	dockerVersion := common.GetCurrentVersion(c, "docker")
-	return fmt.Sprintf("/var/lib/snaps/docker/%s/etc/docker.conf", dockerVersion)
+	return fmt.Sprintf("/var/snap/docker/%s/etc/docker.conf", dockerVersion)
 }
 
 func restartDocker(c *check.C) {
