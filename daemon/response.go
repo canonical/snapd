@@ -99,7 +99,8 @@ func (r *resp) Self(*Command, *http.Request) Response {
 type errorKind string
 
 const (
-	errorKindLicenseRequired = errorKind("license-required")
+	errorKindLicenseRequired   = errorKind("license-required")
+	errorKindTwoFactorRequired = errorKind("two-factor-required")
 )
 
 type errorValue interface{}
