@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-04-08 23:26+0200\n"
+        "POT-Creation-Date: 2016-04-09 09:19+0200\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -183,9 +183,6 @@ msgid   "Finds packages to install"
 msgstr  ""
 
 msgid   "First boot has already run"
-msgstr  ""
-
-msgid   "Generate the apparmor policy"
 msgstr  ""
 
 #. TRANSLATORS: the %s is a pkgname
@@ -626,9 +623,6 @@ msgstr  ""
 #. TRANSLATORS: the %s is a date
 #, c-format
 msgid   "installed: %s\n"
-msgstr  ""
-
-msgid   "must supply path to snap.yaml"
 msgstr  ""
 
 msgid   "no snaps found"
