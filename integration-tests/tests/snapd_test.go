@@ -234,7 +234,7 @@ func makeRequest(options *requestOptions) (body []byte, err error) {
 func determinePayload(payload string) (string, error) {
 	if _, err := os.Stat(payload); err == nil {
 		// payload is a file, in order to make the snap file available to http we need to move it to its $SNAP_DATA path
-		snapAppDataPath := filepath.Join("/var/lib/snaps", strings.Split(httpClientSnap, ".")[0], "current")
+		snapAppDataPath := filepath.Join("/var/lib/snapd", strings.Split(httpClientSnap, ".")[0], "current")
 		if _, err := cli.ExecCommandErr("sudo", "cp", payload, snapAppDataPath); err != nil {
 			return "", err
 		}
