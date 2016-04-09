@@ -473,25 +473,21 @@ func (s *apiSuite) TestLoginUser(c *check.C) {
 
 	rsp = loginUser(snapCmd, req).(*resp)
 
-	expected := map[string]interface{}{
-		"macaroon":   "the-macaroon-serialized-data",
-		"discharges": []string{"the-discharge-macaroon-serialized-data"},
-	}
+	expected := userAuthState{
+		Username:   "username",
+		Macaroon:   "the-macaroon-serialized-data",
+		Discharges: []string{"the-discharge-macaroon-serialized-data"}}
 
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Result, check.DeepEquals, expected)
 
-	var macaroons struct {
-		Macaroon   string   `json:"macaroon"`
-		Discharges []string `json:"discharges"`
-	}
+	var auth authState
 	state := snapCmd.d.overlord.State()
 	state.Lock()
-	state.Get("macaroons", &macaroons)
+	state.Get("auth", &auth)
 	state.Unlock()
-	c.Check(macaroons.Macaroon, check.Equals, expected["macaroon"])
-	c.Check(macaroons.Discharges, check.DeepEquals, expected["discharges"])
+	c.Check(auth, check.DeepEquals, authState{Users: []userAuthState{expected}})
 }
 
 func (s *apiSuite) TestLoginUserBadRequest(c *check.C) {
@@ -523,7 +519,7 @@ func (s *apiSuite) TestLoginUserMyAppsError(c *check.C) {
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, http.StatusInternalServerError)
-	c.Check(rsp.Result.(*errorResult).Message, check.Equals, "couldn't get package access macaroon")
+	c.Check(rsp.Result.(*errorResult).Message, check.Equals, "cannot get package access macaroon")
 }
 
 func (s *apiSuite) TestLoginUserTwoFactorRequiredError(c *check.C) {
@@ -544,7 +540,7 @@ func (s *apiSuite) TestLoginUserTwoFactorRequiredError(c *check.C) {
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, http.StatusUnauthorized)
-	c.Check(rsp.Result.(*errorResult).Message, check.Equals, "TWOFACTOR_REQUIRED")
+	c.Check(rsp.Result.(*errorResult).Kind, check.Equals, errorKindTwoFactorRequired)
 }
 
 func (s *apiSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
@@ -565,7 +561,7 @@ func (s *apiSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, http.StatusUnauthorized)
-	c.Check(rsp.Result.(*errorResult).Message, check.Equals, "couldn't get discharge authorization")
+	c.Check(rsp.Result.(*errorResult).Message, check.Equals, "cannot get discharge authorization")
 }
 
 func (s *apiSuite) TestSnapsInfoOnePerIntegration(c *check.C) {

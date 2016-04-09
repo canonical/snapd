@@ -164,6 +164,16 @@ func sysInfo(c *Command, r *http.Request) Response {
 	return SyncResponse(m)
 }
 
+type authState struct {
+	Users []userAuthState `json:"users"`
+}
+
+type userAuthState struct {
+	Username   string   `json:"username,omitempty"`
+	Macaroon   string   `json:"macaroon,omitempty"`
+	Discharges []string `json:"discharges,omitempty"`
+}
+
 func loginUser(c *Command, r *http.Request) Response {
 	var loginData struct {
 		Username string `json:"username"`
@@ -173,35 +183,38 @@ func loginUser(c *Command, r *http.Request) Response {
 
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&loginData); err != nil {
-		return BadRequest("can't decode login data from request body: %v", err)
+		return BadRequest("cannot decode login data from request body: %v", err)
 	}
 
 	macaroon, err := store.RequestPackageAccessMacaroon()
 	if err != nil {
-		return InternalError("couldn't get package access macaroon")
+		return InternalError("cannot get package access macaroon")
 	}
 
 	discharge, err := store.DischargeAuthCaveat(loginData.Username, loginData.Password, macaroon, loginData.Otp)
 	if err == store.ErrAuthenticationNeeds2fa {
-		return Unauthorized("TWOFACTOR_REQUIRED")
+		twofactorRequiredResponse := &resp{
+			Type: ResponseTypeError,
+			Result: &errorResult{
+				Kind:    errorKindTwoFactorRequired,
+				Message: "two factor authentication required"},
+			Status: http.StatusUnauthorized}
+		return SyncResponse(twofactorRequiredResponse)
 	}
 	if err != nil {
-		return Unauthorized("couldn't get discharge authorization")
+		return Unauthorized("cannot get discharge authorization")
 	}
 
-	discharges := []string{discharge}
-	macaroons := map[string]interface{}{
-		"macaroon":   macaroon,
-		"discharges": discharges,
-	}
+	authenticatedUser := userAuthState{Username: loginData.Username, Macaroon: macaroon, Discharges: []string{discharge}}
+	authStateData := authState{Users: []userAuthState{authenticatedUser}}
 
 	overlord := c.d.overlord
 	state := overlord.State()
 	state.Lock()
-	state.Set("macaroons", macaroons)
+	state.Set("auth", authStateData)
 	state.Unlock()
 
-	return SyncResponse(macaroons)
+	return SyncResponse(authenticatedUser)
 }
 
 type metarepo interface {
