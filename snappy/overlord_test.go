@@ -261,7 +261,7 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 		return nil, nil
 	}
 
-	targetDir := filepath.Join(s.tempdir, "snaps")
+	targetDir := dirs.SnapSnapsDir
 	_, err := (&Overlord{}).Install(makeTestSnapPackage(c, ""), 0, nil)
 	c.Assert(err, IsNil)
 
@@ -291,7 +291,7 @@ type: gadget
 	_, err := (&Overlord{}).Install(snapPath, AllowGadget, nil)
 	c.Assert(err, IsNil)
 
-	contentFile := filepath.Join(s.tempdir, "snaps", "foo", "0", "bin", "foo")
+	contentFile := filepath.Join(dirs.SnapSnapsDir, "foo", "0", "bin", "foo")
 	_, err = os.Stat(contentFile)
 	c.Assert(err, IsNil)
 }
@@ -311,7 +311,7 @@ type: gadget
 	_, err := (&Overlord{}).InstallWithSideInfo(snapPath, foo10, AllowGadget, nil)
 	c.Assert(err, IsNil)
 
-	contentFile := filepath.Join(s.tempdir, "snaps", "foo", "100", "bin", "foo")
+	contentFile := filepath.Join(dirs.SnapSnapsDir, "foo", "100", "bin", "foo")
 	_, err = os.Stat(contentFile)
 	c.Assert(err, IsNil)
 
@@ -389,8 +389,8 @@ func (s *SnapTestSuite) TestClickSetActive(c *C) {
 }
 
 func (s *SnapTestSuite) TestCopyData(c *C) {
-	dirs.SnapDataHomeGlob = filepath.Join(s.tempdir, "home", "*", "snaps")
-	homeDir := filepath.Join(s.tempdir, "home", "user1", "snaps")
+	dirs.SnapDataHomeGlob = filepath.Join(s.tempdir, "home", "*", "snap")
+	homeDir := filepath.Join(s.tempdir, "home", "user1", "snap")
 	appDir := "foo"
 	homeData := filepath.Join(homeDir, appDir, "10")
 	err := os.MkdirAll(homeData, 0755)
@@ -427,7 +427,9 @@ func (s *SnapTestSuite) TestCopyData(c *C) {
 // system data gets copied
 func (s *SnapTestSuite) TestCopyDataNoUserHomes(c *C) {
 	// this home dir path does not exist
-	dirs.SnapDataHomeGlob = filepath.Join(s.tempdir, "no-such-home", "*", "snaps")
+	oldSnapDataHomeGlob := dirs.SnapDataHomeGlob
+	defer func() { dirs.SnapDataHomeGlob = oldSnapDataHomeGlob }()
+	dirs.SnapDataHomeGlob = filepath.Join(s.tempdir, "no-such-home", "*", "snap")
 
 	snapYamlContent := `name: foo
 `
@@ -483,12 +485,17 @@ apps:
    command: bin/hello
    daemon: forking
 `
+	si := &snap.SideInfo{
+		OfficialName: "foo",
+		Revision:     32,
+	}
+
 	snapPath := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
 	// revision will be 0
-	_, err := (&Overlord{}).Install(snapPath, AllowUnauthenticated, nil)
+	_, err := (&Overlord{}).InstallWithSideInfo(snapPath, si, AllowUnauthenticated, nil)
 	c.Assert(err, IsNil)
 
-	servicesFile := filepath.Join(dirs.SnapServicesDir, "foo_service_1.0.service")
+	servicesFile := filepath.Join(dirs.SnapServicesDir, "snap.foo.service.service")
 	c.Assert(osutil.FileExists(servicesFile), Equals, true)
 	st, err := os.Stat(servicesFile)
 	c.Assert(err, IsNil)
@@ -496,7 +503,7 @@ apps:
 	c.Assert(st.Mode().String(), Equals, "-rw-r--r--")
 
 	// and that it gets removed on remove
-	snapDir := filepath.Join(dirs.SnapSnapsDir, "foo", "0")
+	snapDir := filepath.Join(dirs.SnapSnapsDir, "foo", "32")
 	yamlPath := filepath.Join(snapDir, "meta", "snap.yaml")
 	snap, err := NewInstalledSnap(yamlPath)
 	c.Assert(err, IsNil)

@@ -353,9 +353,9 @@ func (sa *securityAppID) appArmorVars() string {
 @{APP_PKGNAME_DBUS}="%s"
 @{APP_PKGNAME}="%s"
 @{APP_VERSION}="%s"
-@{INSTALL_DIR}="{/snaps,/gadget}"
+@{INSTALL_DIR}="/snap"
 # Deprecated:
-@{CLICK_DIR}="{/snaps,/gadget}"`, sa.AppName, dbusPath(sa.AppID), dbusPath(sa.SnapName), sa.SnapName, sa.Version)
+@{CLICK_DIR}="/snap"`, sa.AppName, dbusPath(sa.AppID), dbusPath(sa.SnapName), sa.SnapName, sa.Version)
 	return aavars
 }
 
