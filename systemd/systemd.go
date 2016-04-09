@@ -353,7 +353,7 @@ X-Snappy=yes
 [Service]
 ExecStart=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.FullPathStart}}
 Restart={{.Restart}}
-WorkingDirectory=/var/lib{{.SnapPath}}
+WorkingDirectory=/var{{.SnapPath}}
 Environment="SNAP_APP={{.AppTriple}}" {{.EnvVars}}
 {{if .Stop}}ExecStop=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.FullPathStop}}{{end}}
 {{if .PostStop}}ExecStopPost=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.FullPathPostStop}}{{end}}

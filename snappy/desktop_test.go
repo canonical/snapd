@@ -101,7 +101,7 @@ func (s *SnapTestSuite) TestDesktopFileIsAddedAndRemoved(c *C) {
 	c.Assert(string(content), Equals, `
 [Desktop Entry]
 Name=foo
-Icon=/snaps/foo/11/foo.png`)
+Icon=/snap/foo/11/foo.png`)
 
 	// unlink (deactivate) removes it again
 	err = UnlinkSnap(snap, nil)
@@ -182,7 +182,7 @@ Exec=snap.app %U
 	e := sanitizeDesktopFile(snap, "/my/basedir", desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Entry]
 Name=foo
-Exec=/snaps/bin/snap.app %U`)
+Exec=/snap/bin/snap.app %U`)
 }
 
 // we do not support TryExec (even if its a valid line), this test ensures
@@ -245,7 +245,7 @@ apps:
 
 	newl, err := rewriteExecLine(snap, "Exec=snap.app")
 	c.Assert(err, IsNil)
-	c.Assert(newl, Equals, "Exec=/snaps/bin/snap.app")
+	c.Assert(newl, Equals, "Exec=/snap/bin/snap.app")
 }
 
 func (s *SnapTestSuite) TestDesktopFileSanitizeDesktopActionsOk(c *C) {
