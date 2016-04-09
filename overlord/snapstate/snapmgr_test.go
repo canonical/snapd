@@ -164,7 +164,7 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 		},
 		fakeOp{
 			op:   "link-snap",
-			name: "/snaps/some-snap/11",
+			name: "/snap/some-snap/11",
 		},
 	})
 
@@ -235,7 +235,7 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 		},
 		fakeOp{
 			op:    "copy-data",
-			name:  "/snaps/some-snap/11",
+			name:  "/snap/some-snap/11",
 			flags: int(snappy.DoInstallGC),
 		},
 		fakeOp{
