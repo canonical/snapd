@@ -31,6 +31,7 @@ import (
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snappy"
 )
 
 func TestSnapManager(t *testing.T) { TestingT(t) }
@@ -56,24 +57,20 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	s.fakeBackend = &fakeSnappyBackend{
 		fakeCurrentProgress: 75,
 		fakeTotalProgress:   100,
+
+		activeSnaps: make(map[string]*snap.Info),
 	}
 	s.state = state.New(nil)
 
 	var err error
 	s.snapmgr, err = snapstate.Manager(s.state)
 	c.Assert(err, IsNil)
-
+	s.snapmgr.AddForeignTaskHandlers()
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
 	snapstate.SetSnapstateBackend(s.fakeBackend)
 }
 
-func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	ts, err := snapstate.Install(s.state, "some-snap", "some-channel", 0)
-	c.Assert(err, IsNil)
-
+func verifyInstallUpdateTasks(c *C, ts *state.TaskSet) {
 	i := 0
 	c.Assert(ts.Tasks(), HasLen, 5)
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "download-snap")
@@ -87,7 +84,33 @@ func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "link-snap")
 }
 
+func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ts, err := snapstate.Install(s.state, "some-snap", "some-channel", 0)
+	c.Assert(err, IsNil)
+	verifyInstallUpdateTasks(c, ts)
+}
+
+func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
+	s.fakeBackend.activeSnaps["some-snap"] = &snap.Info{
+		SuggestedName: "some-snap",
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", 0)
+	c.Assert(err, IsNil)
+	verifyInstallUpdateTasks(c, ts)
+}
+
 func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
+	s.fakeBackend.activeSnaps["foo"] = &snap.Info{
+		SuggestedName: "foo",
+	}
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -100,9 +123,9 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "remove-snap-security")
 	i++
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "remove-snap-files")
-	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "remove-snap-data")
+	i++
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "remove-snap-files")
 }
 
 func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
@@ -120,7 +143,6 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 	s.state.Lock()
 
 	// ensure all our tasks ran
-	c.Assert(s.fakeBackend.ops, HasLen, 6)
 	c.Assert(s.fakeBackend.ops, DeepEquals, []fakeOp{
 		fakeOp{
 			op:      "download",
@@ -141,8 +163,80 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 			name: "/snap/some-snap/11",
 		},
 		fakeOp{
-			op:   "setup-snap-security",
-			name: "/snap/some-snap/11",
+			op:   "link-snap",
+			name: "/snaps/some-snap/11",
+		},
+	})
+
+	// check progress
+	task := ts.Tasks()[0]
+	cur, total := task.Progress()
+	c.Assert(cur, Equals, s.fakeBackend.fakeCurrentProgress)
+	c.Assert(total, Equals, s.fakeBackend.fakeTotalProgress)
+
+	// verify snapSetup info
+	var ss snapstate.SnapSetup
+	err = task.Get("snap-setup", &ss)
+	c.Assert(err, IsNil)
+	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
+		Name:      "some-snap",
+		Developer: "mvo",
+		Channel:   "some-channel",
+
+		SideInfo: &snap.SideInfo{
+			OfficialName: "some-snap",
+			Channel:      "some-channel",
+			Revision:     11,
+		},
+		Revision: 11,
+
+		SnapPath: "downloaded-snap-path",
+	})
+}
+
+func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
+	s.fakeBackend.activeSnaps["some-snap"] = &snap.Info{
+		SideInfo: snap.SideInfo{
+			OfficialName: "some-snap",
+			Revision:     7,
+		},
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("install", "install a snap")
+	ts, err := snapstate.Update(s.state, "some-snap.mvo", "some-channel", snappy.DoInstallGC)
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	s.settle()
+	defer s.snapmgr.Stop()
+	s.state.Lock()
+
+	// ensure all our tasks ran
+	c.Assert(s.fakeBackend.ops, DeepEquals, []fakeOp{
+		fakeOp{
+			op:      "download",
+			name:    "some-snap.mvo",
+			channel: "some-channel",
+		},
+		fakeOp{
+			op:    "check-snap",
+			name:  "downloaded-snap-path",
+			flags: int(snappy.DoInstallGC),
+		},
+		fakeOp{
+			op:    "setup-snap",
+			name:  "downloaded-snap-path",
+			flags: int(snappy.DoInstallGC),
+			revno: 11,
+		},
+		fakeOp{
+			op:    "copy-data",
+			name:  "/snaps/some-snap/11",
+			flags: int(snappy.DoInstallGC),
 		},
 		fakeOp{
 			op:   "link-snap",
@@ -160,11 +254,11 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 	var ss snapstate.SnapSetup
 	err = task.Get("snap-setup", &ss)
 	c.Assert(err, IsNil)
-
 	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
 		Name:      "some-snap",
 		Developer: "mvo",
 		Channel:   "some-channel",
+		Flags:     int(snappy.DoInstallGC),
 
 		SideInfo: &snap.SideInfo{
 			OfficialName: "some-snap",
@@ -175,7 +269,7 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 
 		SnapPath: "downloaded-snap-path",
 
-		OldName:     "an-active-snap",
+		OldName:     "some-snap",
 		OldRevision: 7,
 	})
 }
@@ -199,12 +293,20 @@ func (s *snapmgrTestSuite) TestInstallLocalIntegration(c *C) {
 	s.state.Lock()
 
 	// ensure only local install was run, i.e. first action is check-snap
-	c.Assert(s.fakeBackend.ops, HasLen, 5)
+	c.Assert(s.fakeBackend.ops, HasLen, 4)
 	c.Check(s.fakeBackend.ops[0].op, Equals, "check-snap")
 	c.Check(s.fakeBackend.ops[0].name, Matches, `.*/mock.snap`)
 }
 
 func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
+	s.fakeBackend.activeSnaps["some-snap"] = &snap.Info{
+		SideInfo: snap.SideInfo{
+			OfficialName: "some-name",
+			Developer:    "mvo",
+			Revision:     7,
+		},
+	}
+
 	s.state.Lock()
 	defer s.state.Unlock()
 	chg := s.state.NewChange("remove", "remove a snap")
@@ -217,7 +319,7 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 	defer s.snapmgr.Stop()
 	s.state.Lock()
 
-	c.Assert(s.fakeBackend.ops, HasLen, 5)
+	c.Assert(s.fakeBackend.ops, HasLen, 4)
 	c.Assert(s.fakeBackend.ops, DeepEquals, []fakeOp{
 		fakeOp{
 			op:   "can-remove",
@@ -228,17 +330,13 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 			name: "/snap/some-snap/7",
 		},
 		fakeOp{
-			op:   "remove-snap-security",
-			name: "/snap/some-snap/7",
+			op:    "remove-snap-data",
+			name:  "some-snap",
+			revno: 7,
 		},
 		fakeOp{
 			op:   "remove-snap-files",
 			name: "/snap/some-snap/7",
-		},
-		fakeOp{
-			op:    "remove-snap-data",
-			name:  "some-snap",
-			revno: 7,
 		},
 	})
 
@@ -253,24 +351,6 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 		Revision:  7,
 	})
 
-}
-
-func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-	chg := s.state.NewChange("udpate", "update a snap")
-	ts, err := snapstate.Update(s.state, "some-update-snap", "some-channel", 0)
-	c.Assert(err, IsNil)
-	chg.AddAll(ts)
-
-	s.state.Unlock()
-	s.settle()
-	defer s.snapmgr.Stop()
-	s.state.Lock()
-
-	c.Assert(s.fakeBackend.ops[0].op, Equals, "update")
-	c.Assert(s.fakeBackend.ops[0].name, Equals, "some-update-snap")
-	c.Assert(s.fakeBackend.ops[0].channel, Equals, "some-channel")
 }
 
 func (s *snapmgrTestSuite) TestRollbackIntegration(c *C) {
@@ -335,21 +415,25 @@ func (s *snapmgrTestSuite) TestSnapInfo(c *C) {
 	defer dirs.SetRootDir("")
 
 	// Write a snap.yaml with fake name
-	dname := filepath.Join(dirs.SnapSnapsDir, "name", "version", "meta")
+	dname := filepath.Join(dirs.SnapSnapsDir, "name", "11", "meta")
 	err := os.MkdirAll(dname, 0775)
 	c.Assert(err, IsNil)
 	fname := filepath.Join(dname, "snap.yaml")
 	err = ioutil.WriteFile(fname, []byte(`
 name: ignored
+version: 1.2
 description: |
     Lots of text`), 0644)
 	c.Assert(err, IsNil)
 
-	snapInfo, err := snapstate.SnapInfo(s.state, "name", "version")
+	snapInfo, err := snapstate.SnapInfo(s.state, "name", 11)
 	c.Assert(err, IsNil)
 
-	// Check that the name in the YAML is being ignored.
-	c.Check(snapInfo.Name(), Equals, "name")
+	// TODO: This test is not faking the manifest so SideInfo is not present.
+	// The test and the actual implementation need to be improved so that this
+	// is not so hacky and that the manifest can go away.
+	c.Check(snapInfo.Name(), Equals, "ignored")
 	// Check that other values are read from YAML
 	c.Check(snapInfo.Description(), Equals, "Lots of text")
+	c.Check(snapInfo.Version, Equals, "1.2")
 }

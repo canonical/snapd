@@ -38,7 +38,6 @@ import (
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/lockfile"
-	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/overlord"
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
@@ -59,9 +58,6 @@ var api = []*Command{
 	snapsCmd,
 	snapCmd,
 	snapConfigCmd,
-	snapSvcCmd,
-	snapSvcsCmd,
-	snapSvcLogsCmd,
 	operationCmd,
 	interfacesCmd,
 	assertsCmd,
@@ -106,25 +102,6 @@ var (
 		Path: "/v2/snaps/{name}/config",
 		GET:  snapConfig,
 		PUT:  snapConfig,
-	}
-
-	snapSvcsCmd = &Command{
-		Path:   "/v2/snaps/{name}/services",
-		UserOK: true,
-		GET:    snapService,
-		PUT:    snapService,
-	}
-
-	snapSvcCmd = &Command{
-		Path:   "/v2/snaps/{name}/services/{service}",
-		UserOK: true,
-		GET:    snapService,
-		PUT:    snapService,
-	}
-
-	snapSvcLogsCmd = &Command{
-		Path: "/v2/snaps/{name}/services/{service}/logs",
-		GET:  getLogs,
 	}
 
 	operationCmd = &Command{
@@ -379,138 +356,9 @@ func resultHasType(r map[string]interface{}, allowedTypes []string) bool {
 	return false
 }
 
-var findServices = snappy.FindServices
-
 type appDesc struct {
-	Op     string                       `json:"op"`
-	Spec   *snappy.AppYaml              `json:"spec"`
-	Status *snappy.PackageServiceStatus `json:"status"`
-}
-
-func snapService(c *Command, r *http.Request) Response {
-	route := c.d.router.Get(operationCmd.Path)
-	if route == nil {
-		return InternalError("router can't find route for operation")
-	}
-
-	vars := muxVars(r)
-	snapName := vars["name"]
-	appName := vars["service"]
-
-	action := "status"
-
-	if r.Method != "GET" {
-		decoder := json.NewDecoder(r.Body)
-		var cmd map[string]string
-		if err := decoder.Decode(&cmd); err != nil {
-			return BadRequest("can't decode request body into service command: %v", err)
-		}
-
-		action = cmd["action"]
-	}
-
-	var lock lockfile.LockedFile
-	reachedAsync := false
-	switch action {
-	case "status", "start", "stop", "restart", "enable", "disable":
-		var err error
-		lock, err = lockfile.Lock(dirs.SnapLockFile, true)
-
-		if err != nil {
-			return InternalError("unable to acquire lock: %v", err)
-		}
-
-		defer func() {
-			if !reachedAsync {
-				lock.Unlock()
-			}
-		}()
-	default:
-		return BadRequest("unknown action %s", action)
-	}
-
-	installed, err := (&snappy.Overlord{}).Installed()
-	snaps := snappy.FindSnapsByName(snapName, installed)
-	_, snap := bestSnap(snaps)
-	if err != nil || snap == nil || !snap.IsActive() {
-		return NotFound("unable to find snap with name %q", snapName)
-	}
-
-	apps := snap.Apps()
-
-	if len(apps) == 0 {
-		return NotFound("snap %q has no services", snapName)
-	}
-
-	appmap := make(map[string]*appDesc, len(apps))
-	for i := range apps {
-		if apps[i].Daemon == "" {
-			continue
-		}
-		appmap[apps[i].Name] = &appDesc{Spec: apps[i], Op: action}
-	}
-
-	if appName != "" && appmap[appName] == nil {
-		return NotFound("snap %q has no service %q", snapName, appName)
-	}
-
-	actor, err := findServices(snapName, appName, &progress.NullProgress{})
-	if err != nil {
-		return InternalError("no services for %q [%q] found: %v", snapName, appName, err)
-	}
-
-	f := func() interface{} {
-		status, err := actor.ServiceStatus()
-		if err != nil {
-			logger.Noticef("unable to get status for %q [%q]: %v", snapName, appName, err)
-			return err
-		}
-
-		for i := range status {
-			if desc, ok := appmap[status[i].AppName]; ok {
-				desc.Status = status[i]
-			} else {
-				// shouldn't really happen, but can't hurt
-				appmap[status[i].AppName] = &appDesc{Status: status[i]}
-			}
-		}
-
-		if appName == "" {
-			return appmap
-		}
-
-		return appmap[appName]
-	}
-
-	if action == "status" {
-		return SyncResponse(f())
-	}
-
-	reachedAsync = true
-
-	return AsyncResponse(c.d.AddTask(func() interface{} {
-		defer lock.Unlock()
-
-		switch action {
-		case "start":
-			err = actor.Start()
-		case "stop":
-			err = actor.Stop()
-		case "enable":
-			err = actor.Enable()
-		case "disable":
-			err = actor.Disable()
-		case "restart":
-			err = actor.Restart()
-		}
-
-		if err != nil {
-			logger.Noticef("unable to %s %q [%q]: %v\n", action, snapName, appName, err)
-			return err
-		}
-
-		return f()
-	}).Map(route))
+	Op   string          `json:"op"`
+	Spec *snappy.AppYaml `json:"spec"`
 }
 
 type configurator interface {
@@ -926,40 +774,6 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 
 		return name
 	}).Map(route))
-}
-
-func getLogs(c *Command, r *http.Request) Response {
-	vars := muxVars(r)
-	name := vars["name"]
-	appName := vars["service"]
-
-	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
-	if err != nil {
-		return InternalError("unable to acquire lock: %v", err)
-	}
-	defer lock.Unlock()
-
-	actor, err := findServices(name, appName, &progress.NullProgress{})
-	if err != nil {
-		return NotFound("no services found for %q: %v", name, err)
-	}
-
-	rawlogs, err := actor.Logs()
-	if err != nil {
-		return InternalError("unable to get logs for %q: %v", name, err)
-	}
-
-	logs := make([]map[string]interface{}, len(rawlogs))
-
-	for i := range rawlogs {
-		logs[i] = map[string]interface{}{
-			"timestamp": rawlogs[i].Timestamp(),
-			"message":   rawlogs[i].Message(),
-			"raw":       rawlogs[i],
-		}
-	}
-
-	return SyncResponse(logs)
 }
 
 func iconGet(name string) Response {
