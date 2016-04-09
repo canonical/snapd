@@ -21,30 +21,16 @@ package snappy
 
 import (
 	"fmt"
-	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/arch"
-	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/snap"
 )
 
 type binariesTestSuite struct{}
 
 var _ = Suite(&binariesTestSuite{})
-
-func (s *SnapTestSuite) TestGenerateBinaryName(c *C) {
-	info, err := snap.InfoFromSnapYaml([]byte(`name: foo
-apps:
-   foo:
-   bar:
-`))
-	c.Assert(err, IsNil)
-
-	c.Check(generateBinaryName(info.Apps["bar"]), Equals, filepath.Join(dirs.SnapBinariesDir, "foo.bar"))
-	c.Check(generateBinaryName(info.Apps["foo"]), Equals, filepath.Join(dirs.SnapBinariesDir, "foo"))
-}
 
 const expectedWrapper = `#!/bin/sh
 set -e

@@ -354,7 +354,7 @@ X-Snappy=yes
 ExecStart=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.FullPathStart}}
 Restart={{.Restart}}
 WorkingDirectory=/var{{.SnapPath}}
-Environment="SNAP_APP={{.AppTriple}}" {{.EnvVars}}
+Environment={{.EnvVars}}
 {{if .Stop}}ExecStop=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.FullPathStop}}{{end}}
 {{if .PostStop}}ExecStopPost=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.FullPathPostStop}}{{end}}
 {{if .StopTimeout}}TimeoutStopSec={{.StopTimeout.Seconds}}{{end}}
@@ -379,7 +379,6 @@ WantedBy={{.ServiceSystemdTarget}}
 		FullPathStart        string
 		FullPathStop         string
 		FullPathPostStop     string
-		AppTriple            string
 		ServiceSystemdTarget string
 		SnapArch             string
 		Home                 string
@@ -392,7 +391,6 @@ WantedBy={{.ServiceSystemdTarget}}
 		filepath.Join(desc.SnapPath, desc.Start),
 		filepath.Join(desc.SnapPath, desc.Stop),
 		filepath.Join(desc.SnapPath, desc.PostStop),
-		fmt.Sprintf("%s_%s_%s", desc.SnapName, desc.AppName, desc.Version),
 		servicesSystemdTarget,
 		arch.UbuntuArchitecture(),
 		// systemd runs as PID 1 so %h will not work.

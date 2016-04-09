@@ -60,10 +60,10 @@ func (s *Snap) MetaMember(metaMember string) ([]byte, error) {
 }
 
 // Install just copies the blob into place (unless it is used in the tests)
-func (s *Snap) Install(targetPath, instDir string) error {
+func (s *Snap) Install(targetPath, mountDir string) error {
 
 	// ensure mount-point and blob target dir.
-	for _, dir := range []string{instDir, filepath.Dir(targetPath)} {
+	for _, dir := range []string{mountDir, filepath.Dir(targetPath)} {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return err
 		}
@@ -71,7 +71,7 @@ func (s *Snap) Install(targetPath, instDir string) error {
 
 	// FIXME: HHAAAAAAAAAAAAAAAACKKKKKKKKKKKKK for the tests
 	if os.Getenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS") != "" {
-		if err := s.Unpack("*", instDir); err != nil {
+		if err := s.Unpack("*", mountDir); err != nil {
 			return err
 		}
 	}
