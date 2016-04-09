@@ -24,7 +24,6 @@ import (
 
 	"io/ioutil"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"gopkg.in/yaml.v2"
@@ -66,8 +65,6 @@ type plugYaml struct {
 	Interface           string `yaml:"interface"`
 	SecurityDefinitions `yaml:",inline"`
 }
-
-var commasplitter = regexp.MustCompile(`\s*,\s*`).Split
 
 // TODO split into payloads per package type composing the common
 // elements for all snaps.

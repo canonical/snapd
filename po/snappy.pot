@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-04-08 16:30+0200\n"
+        "POT-Creation-Date: 2016-04-08 23:26+0200\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -281,12 +281,6 @@ msgstr  ""
 msgid   "Purge a snap's data from the system"
 msgstr  ""
 
-msgid   "Query and modify snappy services"
-msgstr  ""
-
-msgid   "Query and modify snappy services of locally-installed packages"
-msgstr  ""
-
 msgid   "Reboot if necessary to be on the latest running system."
 msgstr  ""
 
@@ -398,9 +392,6 @@ msgstr  ""
 msgid   "Shows known assertions of the provided type"
 msgstr  ""
 
-msgid   "Snap\tService\tState"
-msgstr  ""
-
 #. TRANSLATORS: please keep each line under 80 characters.
 #. TRANSLATORS: please keep each line under 80 characters.
 #, c-format
@@ -471,10 +462,6 @@ msgid   "Update %q snap from %q channel"
 msgstr  ""
 
 msgid   "Update all installed parts"
-msgstr  ""
-
-#, c-format
-msgid   "Updating %q"
 msgstr  ""
 
 msgid   "\n"
@@ -659,30 +646,6 @@ msgid   "release: %s\n"
 msgstr  ""
 
 msgid   "slot\tplug"
-msgstr  ""
-
-#. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
-#, c-format
-msgid   "unable to disable %s's service %s: %v"
-msgstr  ""
-
-#. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
-#, c-format
-msgid   "unable to enable %s's service %s: %v"
-msgstr  ""
-
-#, c-format
-msgid   "unable to get logs: %v"
-msgstr  ""
-
-#. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
-#, c-format
-msgid   "unable to start %s's service %s: %v"
-msgstr  ""
-
-#. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
-#, c-format
-msgid   "unable to stop %s's service %s: %v"
 msgstr  ""
 
 #, c-format

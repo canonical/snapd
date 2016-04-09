@@ -46,9 +46,24 @@ func NoOp(snapPath string) error {
 	return nil
 }
 
-// CallFakeUpdate calls snappy update after faking a new version available for the specified snap.
+// CallFakeSnapRefresh calls snappy update after faking a new version available for the specified snap.
 // The fake is made copying the currently installed snap.
 // changeFunc can be used to modify the snap before it is built and served.
+func CallFakeSnapRefresh(c *check.C, snap string, changeFunc ChangeFakeUpdateSnap, fakeStore *store.Store) string {
+	c.Log("Preparing fake and calling update.")
+
+	blobDir := fakeStore.SnapsDir()
+	makeFakeUpdateForSnap(c, snap, blobDir, changeFunc)
+
+	// FIMXE: there is no "snap refresh" that updates all snaps
+	cli.ExecCommand(c, "sudo", "TMPDIR=/var/tmp", "snap", "refresh", snap)
+
+	// FIXME: do we want an automatic `snap list` output after
+	//        `snap update` (like in the old snappy world)?
+	return cli.ExecCommand(c, "snap", "list")
+}
+
+// FIXME: remove once "snappy" the command is gone
 func CallFakeUpdate(c *check.C, snap string, changeFunc ChangeFakeUpdateSnap) string {
 	c.Log("Preparing fake and calling update.")
 

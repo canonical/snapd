@@ -52,9 +52,7 @@ func legacyVariables(appInfo *snap.AppInfo) []byte {
 	// XXX: How is this different from APP_ID_DBUS?
 	fmt.Fprintf(&buf, "@{APP_PKGNAME_DBUS}=\"%s\"\n",
 		dbus.SafePath(fmt.Sprintf("%s.%s", appInfo.Snap.Name(), appInfo.Snap.Developer)))
-	// TODO: stop using .Developer, investigate how this is used.
 	fmt.Fprintf(&buf, "@{APP_PKGNAME}=\"%s\"\n", appInfo.Snap.Name())
-	// TODO: switch to .Revision
 	fmt.Fprintf(&buf, "@{APP_VERSION}=\"%d\"\n", appInfo.Snap.Revision)
 	fmt.Fprintf(&buf, "@{INSTALL_DIR}=\"/snap\"")
 	return buf.Bytes()
