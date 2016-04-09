@@ -48,7 +48,7 @@ func (s *SnapTestSuite) TestAddPackageServicesStripsGlobalRootdir(c *C) {
 	err = addPackageServices(snap.Info(), nil)
 	c.Assert(err, IsNil)
 
-	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/systemd/system/hello-snap_svc1_1.10.service"))
+	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service"))
 	c.Assert(err, IsNil)
 
 	baseDirWithoutRootPrefix := "/snap/" + helloSnapComposedName + "/12"
@@ -94,7 +94,7 @@ X-Snappy=yes
 ExecStart=/usr/bin/ubuntu-core-launcher snap.xkcd-webserver.xkcd-webserver snap.xkcd-webserver.xkcd-webserver /snap/xkcd-webserver/0.3.4/bin/foo start
 Restart=on-failure
 WorkingDirectory=/var/snap/xkcd-webserver/0.3.4/
-Environment="SNAP_APP=xkcd-webserver_xkcd-webserver_0.3.4" "SNAP=/snap/xkcd-webserver/0.3.4/" "SNAP_DATA=/var/snap/xkcd-webserver/0.3.4/" "SNAP_NAME=xkcd-webserver" "SNAP_VERSION=0.3.4" "SNAP_ARCH=%[3]s" "SNAP_USER_DATA=/root/snap/xkcd-webserver/0.3.4/" "SNAP_APP_PATH=/snap/xkcd-webserver/0.3.4/" "SNAP_APP_DATA_PATH=/var/snap/xkcd-webserver/0.3.4/" "SNAP_APP_USER_DATA_PATH=/root/snap/xkcd-webserver/0.3.4/"
+Environment="SNAP=/snap/xkcd-webserver/0.3.4/" "SNAP_DATA=/var/snap/xkcd-webserver/0.3.4/" "SNAP_NAME=xkcd-webserver" "SNAP_VERSION=0.3.4" "SNAP_ARCH=%[3]s" "SNAP_USER_DATA=/root/snap/xkcd-webserver/0.3.4/" "SNAP_APP_PATH=/snap/xkcd-webserver/0.3.4/" "SNAP_APP_DATA_PATH=/var/snap/xkcd-webserver/0.3.4/" "SNAP_APP_USER_DATA_PATH=/root/snap/xkcd-webserver/0.3.4/"
 ExecStop=/usr/bin/ubuntu-core-launcher snap.xkcd-webserver.xkcd-webserver snap.xkcd-webserver.xkcd-webserver /snap/xkcd-webserver/0.3.4/bin/foo stop
 ExecStopPost=/usr/bin/ubuntu-core-launcher snap.xkcd-webserver.xkcd-webserver snap.xkcd-webserver.xkcd-webserver /snap/xkcd-webserver/0.3.4/bin/foo post-stop
 TimeoutStopSec=30
@@ -104,7 +104,8 @@ TimeoutStopSec=30
 WantedBy=multi-user.target
 `
 	expectedServiceAppWrapper     = fmt.Sprintf(expectedServiceWrapperFmt, "After=snapd.frameworks.target\nRequires=snapd.frameworks.target", "Type=simple\n", arch.UbuntuArchitecture())
-	expectedSocketUsingWrapper    = fmt.Sprintf(expectedServiceWrapperFmt, "After=snapd.frameworks.target xkcd-webserver_xkcd-webserver_0.3.4.socket\nRequires=snapd.frameworks.target xkcd-webserver_xkcd-webserver_0.3.4.socket", "Type=simple\n", arch.UbuntuArchitecture())
+	expectedServiceFmkWrapper     = fmt.Sprintf(expectedServiceWrapperFmt, "Before=snapd.frameworks.target\nAfter=snapd.frameworks-pre.target\nRequires=snapd.frameworks-pre.target", "Type=dbus\nBusName=foo.bar.baz", arch.UbuntuArchitecture())
+	expectedSocketUsingWrapper    = fmt.Sprintf(expectedServiceWrapperFmt, "After=snapd.frameworks.target snap.xkcd-webserver.xkcd-webserver.socket\nRequires=snapd.frameworks.target snap.xkcd-webserver.xkcd-webserver.socket", "Type=simple\n", arch.UbuntuArchitecture())
 	expectedTypeForkingFmkWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "After=snapd.frameworks.target\nRequires=snapd.frameworks.target", "Type=forking\n", arch.UbuntuArchitecture())
 )
 
@@ -220,8 +221,11 @@ apps:
 func (s *SnapTestSuite) TestSnappyGenerateSnapSocket(c *C) {
 	service := &snap.AppInfo{
 		Snap: &snap.Info{
-			SuggestedName: "xkcd-webserver",
-			Version:       "0.3.4",
+			SideInfo: snap.SideInfo{
+				OfficialName: "xkcd-webserver",
+				Revision:     43,
+			},
+			Version: "0.3.4",
 		},
 		Name:         "xkcd-webserver",
 		Command:      "bin/foo start",
@@ -236,7 +240,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapSocket(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(content, Equals, `[Unit]
 Description= Socket Unit File
-PartOf=xkcd-webserver_xkcd-webserver_0.3.4.service
+PartOf=snap.xkcd-webserver.xkcd-webserver.service
 X-Snappy=yes
 
 [Socket]
@@ -251,8 +255,11 @@ WantedBy=sockets.target
 func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWithSocket(c *C) {
 	service := &snap.AppInfo{
 		Snap: &snap.Info{
-			SuggestedName: "xkcd-webserver",
-			Version:       "0.3.4",
+			SideInfo: snap.SideInfo{
+				OfficialName: "xkcd-webserver",
+				Revision:     44,
+			},
+			Version: "0.3.4",
 		},
 		Name:        "xkcd-webserver",
 		Command:     "bin/foo start",
