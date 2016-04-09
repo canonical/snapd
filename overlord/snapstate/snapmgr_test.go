@@ -160,11 +160,11 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 		},
 		fakeOp{
 			op:   "copy-data",
-			name: "/snaps/some-snap/11",
+			name: "/snap/some-snap/11",
 		},
 		fakeOp{
 			op:   "link-snap",
-			name: "/snaps/some-snap/11",
+			name: "/snap/some-snap/11",
 		},
 	})
 
@@ -235,12 +235,12 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 		},
 		fakeOp{
 			op:    "copy-data",
-			name:  "/snaps/some-snap/11",
+			name:  "/snap/some-snap/11",
 			flags: int(snappy.DoInstallGC),
 		},
 		fakeOp{
 			op:   "link-snap",
-			name: "/snaps/some-snap/11",
+			name: "/snap/some-snap/11",
 		},
 	})
 
@@ -323,11 +323,11 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 	c.Assert(s.fakeBackend.ops, DeepEquals, []fakeOp{
 		fakeOp{
 			op:   "can-remove",
-			name: "/snaps/some-snap/7",
+			name: "/snap/some-snap/7",
 		},
 		fakeOp{
 			op:   "unlink-snap",
-			name: "/snaps/some-snap/7",
+			name: "/snap/some-snap/7",
 		},
 		fakeOp{
 			op:    "remove-snap-data",
@@ -336,7 +336,7 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 		},
 		fakeOp{
 			op:   "remove-snap-files",
-			name: "/snaps/some-snap/7",
+			name: "/snap/some-snap/7",
 		},
 	})
 

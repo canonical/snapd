@@ -50,17 +50,17 @@ const expectedWrapper = `#!/bin/sh
 set -e
 
 # snap info (deprecated)
-export SNAP_APP_PATH="/snaps/pastebinit/1.4.0.0.1/"
-export SNAP_APP_DATA_PATH="/var/lib/snaps/pastebinit/1.4.0.0.1/"
-export SNAP_APP_USER_DATA_PATH="$HOME/snaps/pastebinit/1.4.0.0.1/"
+export SNAP_APP_PATH="/snap/pastebinit/1.4.0.0.1/"
+export SNAP_APP_DATA_PATH="/var/snap/pastebinit/1.4.0.0.1/"
+export SNAP_APP_USER_DATA_PATH="$HOME/snap/pastebinit/1.4.0.0.1/"
 
 # snap info
-export SNAP="/snaps/pastebinit/1.4.0.0.1/"
-export SNAP_DATA="/var/lib/snaps/pastebinit/1.4.0.0.1/"
+export SNAP="/snap/pastebinit/1.4.0.0.1/"
+export SNAP_DATA="/var/snap/pastebinit/1.4.0.0.1/"
 export SNAP_NAME="pastebinit"
 export SNAP_VERSION="1.4.0.0.1"
 export SNAP_ARCH="%[1]s"
-export SNAP_USER_DATA="$HOME/snaps/pastebinit/1.4.0.0.1/"
+export SNAP_USER_DATA="$HOME/snap/pastebinit/1.4.0.0.1/"
 
 if [ ! -d "$SNAP_USER_DATA" ]; then
    mkdir -p "$SNAP_USER_DATA"
@@ -70,11 +70,11 @@ export HOME="$SNAP_USER_DATA"
 # Snap name is: pastebinit
 # App name is: pastebinit
 
-ubuntu-core-launcher snap.pastebinit.pastebinit snap.pastebinit.pastebinit /snaps/pastebinit/1.4.0.0.1/bin/pastebinit "$@"
+ubuntu-core-launcher snap.pastebinit.pastebinit snap.pastebinit.pastebinit /snap/pastebinit/1.4.0.0.1/bin/pastebinit "$@"
 `
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
-	pkgPath := "/snaps/pastebinit/1.4.0.0.1/"
+	pkgPath := "/snap/pastebinit/1.4.0.0.1/"
 	info := &snap.Info{}
 	info.SuggestedName = "pastebinit"
 	info.Version = "1.4.0.0.1"
@@ -92,7 +92,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 }
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperIllegalChars(c *C) {
-	pkgPath := "/snaps/pastebinit/1.4.0.0.1/"
+	pkgPath := "/snap/pastebinit/1.4.0.0.1/"
 	info := &snap.Info{}
 	info.SuggestedName = "pastebinit"
 	info.Version = "1.4.0.0.1"
@@ -107,8 +107,8 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperIllegalChars(c *C) {
 
 func (s *SnapTestSuite) TestSnappyBinPathForBinaryNoExec(c *C) {
 	binary := &snap.AppInfo{Name: "pastebinit", Command: "bin/pastebinit"}
-	pkgPath := "/snaps/pastebinit.mvo/1.0/"
-	c.Assert(binPathForBinary(pkgPath, binary), Equals, "/snaps/pastebinit.mvo/1.0/bin/pastebinit")
+	pkgPath := "/snap/pastebinit.mvo/1.0/"
+	c.Assert(binPathForBinary(pkgPath, binary), Equals, "/snap/pastebinit.mvo/1.0/bin/pastebinit")
 }
 
 func (s *SnapTestSuite) TestSnappyBinPathForBinaryWithExec(c *C) {
@@ -116,6 +116,6 @@ func (s *SnapTestSuite) TestSnappyBinPathForBinaryWithExec(c *C) {
 		Name:    "pastebinit",
 		Command: "bin/random-pastebin",
 	}
-	pkgPath := "/snaps/pastebinit.mvo/1.1/"
-	c.Assert(binPathForBinary(pkgPath, binary), Equals, "/snaps/pastebinit.mvo/1.1/bin/random-pastebin")
+	pkgPath := "/snap/pastebinit.mvo/1.1/"
+	c.Assert(binPathForBinary(pkgPath, binary), Equals, "/snap/pastebinit.mvo/1.1/bin/random-pastebin")
 }

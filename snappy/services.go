@@ -137,7 +137,7 @@ func addPackageServices(s *snap.Info, inter interacter) error {
 		}
 
 		// this will remove the global base dir when generating the
-		// service file, this ensures that /snaps/foo/1.0/bin/start
+		// service file, this ensures that /snap/foo/1.0/bin/start
 		// is in the service file when the SetRoot() option
 		// is used
 		realBaseDir := stripGlobalRootDir(baseDir)
