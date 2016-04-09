@@ -495,7 +495,7 @@ apps:
 	_, err := (&Overlord{}).InstallWithSideInfo(snapPath, si, AllowUnauthenticated, nil)
 	c.Assert(err, IsNil)
 
-	servicesFile := filepath.Join(dirs.SnapServicesDir, "snap_foo_service_32.service")
+	servicesFile := filepath.Join(dirs.SnapServicesDir, "snap.foo.service.service")
 	c.Assert(osutil.FileExists(servicesFile), Equals, true)
 	st, err := os.Stat(servicesFile)
 	c.Assert(err, IsNil)
