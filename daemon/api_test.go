@@ -105,11 +105,6 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 		configs: map[string]string{},
 	}
 	s.daemon = newTestDaemon(c)
-	s.daemon.overlord.Loop()
-}
-
-func (s *apiSuite) TearDownTest(c *check.C) {
-	s.daemon.overlord.Stop()
 }
 
 func (s *apiSuite) mkManifest(c *check.C, pkgType snap.Type) {
@@ -1136,6 +1131,8 @@ func (s *apiSuite) TestInstall(c *check.C) {
 		Action:   "install",
 	}
 
+	s.daemon.overlord.Loop()
+	defer s.daemon.overlord.Stop()
 	err := inst.dispatch()()
 
 	c.Check(calledFlags, check.Equals, snappy.DoInstallGC)
@@ -1153,6 +1150,8 @@ func (s *apiSuite) TestInstallFails(c *check.C) {
 		Action:   "install",
 	}
 
+	s.daemon.overlord.Loop()
+	defer s.daemon.overlord.Stop()
 	err := inst.dispatch()()
 
 	c.Check(err, check.ErrorMatches, `(?sm).*Install task \(fake-install-snap-error errored\)`)
@@ -1174,6 +1173,8 @@ func (s *apiSuite) TestInstallLeaveOld(c *check.C) {
 		LeaveOld: true,
 	}
 
+	s.daemon.overlord.Loop()
+	defer s.daemon.overlord.Stop()
 	err := inst.dispatch()()
 
 	c.Check(calledFlags, check.Equals, snappy.InstallFlags(0))
@@ -1207,6 +1208,8 @@ func (s *apiSuite) TestInstallLicensed(c *check.C) {
 	inst.License = lic
 	inst.License.Agreed = true
 
+	s.daemon.overlord.Loop()
+	defer s.daemon.overlord.Stop()
 	err := inst.dispatch()()
 	c.Check(err, check.IsNil)
 }
