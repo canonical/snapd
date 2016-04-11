@@ -51,6 +51,7 @@ func AddImplicitSlots(snapInfo *Info) {
 	for _, ifaceName := range implicitSlots {
 		if _, ok := snapInfo.Slots[ifaceName]; !ok {
 			snapInfo.Slots[ifaceName] = &SlotInfo{
+				Name:      ifaceName,
 				Snap:      snapInfo,
 				Interface: ifaceName,
 			}
