@@ -62,8 +62,8 @@ type AppYaml struct {
 }
 
 type plugYaml struct {
-	Interface           string `yaml:"interface"`
-	SecurityDefinitions `yaml:",inline"`
+	Interface string `yaml:"interface"`
+	//SecurityDefinitions `yaml:",inline"`
 }
 
 // TODO split into payloads per package type composing the common

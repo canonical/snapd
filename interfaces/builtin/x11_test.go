@@ -128,5 +128,5 @@ func (s *X11InterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 }
 
 func (s *X11InterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, false)
+	c.Check(s.iface.AutoConnect(), Equals, true)
 }

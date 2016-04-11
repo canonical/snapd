@@ -21,6 +21,7 @@ package client_test
 
 import (
 	"fmt"
+	"time"
 
 	"gopkg.in/check.v1"
 
@@ -59,14 +60,15 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 		"result": {
 			"snaps": {
 				"hello-world.canonical": {
+                                        "summary": "salutation snap",
 					"description": "hello-world",
-					"download_size": 22212,
+					"download-size": 22212,
 					"icon": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
-					"installed_size": -1,
+					"installed-size": -1,
 					"name": "hello-world",
 					"developer": "canonical",
 					"resource": "/v2/snaps/hello-world.canonical",
-					"status": "not installed",
+					"status": "available",
 					"type": "app",
 					"version": "1.0.18"
 				}
@@ -77,13 +79,14 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(applications, check.DeepEquals, map[string]*client.Snap{
 		"hello-world.canonical": &client.Snap{
+			Summary:       "salutation snap",
 			Description:   "hello-world",
 			DownloadSize:  22212,
 			Icon:          "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
 			InstalledSize: -1,
 			Name:          "hello-world",
 			Developer:     "canonical",
-			Status:        client.StatusNotInstalled,
+			Status:        client.StatusAvailable,
 			Type:          client.TypeApp,
 			Version:       "1.0.18",
 		},
@@ -122,10 +125,12 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
 		"result": {
+                        "summary": "bla bla",
 			"description": "WebRTC Video chat server for Snappy",
-			"download_size": 6930947,
+			"download-size": 6930947,
 			"icon": "/v2/icons/chatroom.ogra/icon",
-			"installed_size": 18976651,
+			"installed-size": 18976651,
+                        "install-date": "2016-01-02T15:04:05Z",
 			"name": "chatroom",
 			"developer": "ogra",
 			"resource": "/v2/snaps/chatroom.ogra",
@@ -140,10 +145,12 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 	c.Assert(cs.req.URL.Path, check.Equals, fmt.Sprintf("/v2/snaps/%s", pkgName))
 	c.Assert(err, check.IsNil)
 	c.Assert(pkg, check.DeepEquals, &client.Snap{
+		Summary:       "bla bla",
 		Description:   "WebRTC Video chat server for Snappy",
 		DownloadSize:  6930947,
 		Icon:          "/v2/icons/chatroom.ogra/icon",
 		InstalledSize: 18976651,
+		InstallDate:   time.Date(2016, 1, 2, 15, 4, 5, 0, time.UTC),
 		Name:          "chatroom",
 		Developer:     "ogra",
 		Status:        client.StatusActive,

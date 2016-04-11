@@ -52,7 +52,7 @@ returned:
 {
  "result": {},               // Extra resource/action specific data
  "status": "OK",
- "status_code": 200,
+ "status-code": 200,
  "type": "sync"
 }
 ```
@@ -73,10 +73,10 @@ The body is a JSON object with the following structure:
  "result": {
    "resource": "/v2/operations/[uuid]",     // see below
    "status": "running",
-   "created_at": "..."                       // and other operation fields
+   "created-at": "..."                       // and other operation fields
  },
  "status": "Accepted",
- "status_code": 202,
+ "status-code": 202,
  "type": "async"
 }
 ```
@@ -98,8 +98,8 @@ wrong, in those cases, the following return value is used:
    "kind": "store-error",  // one of a list of kinds (TBD), only present iff "value" is present
    "value": {"...": "..."} // kind-specific object, as required
  },
- "status": "Bad Request", // text description of status_code
- "status_code": 400,      // or 401, etc. (same as HTTP code)
+ "status": "Bad Request", // text description of status-code
+ "status-code": 400,      // or 401, etc. (same as HTTP code)
  "type": "error"
 }
 ```
@@ -142,11 +142,28 @@ Reserved for human-readable content describing the service.
 
 ```javascript
 {
- "default_channel": "edge",
+ "default-channel": "edge",
  "flavor": "core",
- "api_compat": "1",           // increased on minor API changes
+ "api-compat": "1",           // increased on minor API changes
  "release": "15.04",
  "store": "store-id"          // only if not default
+}
+```
+
+## `/v2/login`
+### `POST`
+
+* Description: Log user in the store
+* Access: trusted
+* Operation: sync
+* Return: Dict with the authenticated user information.
+
+#### Sample result:
+
+```javascript
+{
+ "macaroon": "serialized-store-macaroon",
+ "discharges": ["discharge-for-macaroon-authentication"]
 }
 ```
 
@@ -168,43 +185,51 @@ Sample result:
 {
  "snaps": {
     "hello-world": {
-      "description": "hello-world",
-      "download_size": 22212,
+      "summary": "Hello world example",
+      "description": "This is a simple hello world example.",
+      "download-size": 22212,
       "icon": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
-      "installed_size": -1,          // always -1 if not installed
+      "installed-size": -1,          // always -1 if neither "active" nor "installed"
       "name": "hello-world",
       "developer": "canonical",
       "resource": "/v2/snaps/hello-world",
-      "status": "not installed",
+      "status": "available",
       "type": "app",
+      "revision" 17,
       "version": "1.0.18",
       "channel": "stable"
     },
     "http": {
-      "description": "HTTPie in a snap\nno description",
-      "download_size": 1578272,
+      "summary": "HTTPie in a snap",
+      "description": "no description",
+      "download-size": 1578272,
       "icon": "/v2/icons/http/icon",
-      "installed_size": 1821897,
+      "installed-size": 1821897,
+      "install-date": "2016-03-10T13:16:52Z",
       "name": "http",
       "developer": "chipaca",
       "resource": "/v2/snaps/http",
       "status": "active",
       "type": "app",
       "version": "3.1",
+      "revision": 1834,
       "channel": "stable"
     },
     "ubuntu-core": {
+      "summary": "The ubuntu-core OS snap",
       "description": "A secure, minimal transactional OS for devices and containers.",
-      "download_size": 19845748,
+      "download-size": 19845748,
       "icon": "",               // core might not have an icon
-      "installed_size": -1,     // core doesn't have installed_size (yet)
+      "installed-size": -1,     // core doesn't have installed-size (yet)
+      "install-date": "2016-03-08T11:29:21Z",
       "name": "ubuntu-core",
       "developer": "canonical",
       "resource": "/v2/snaps/ubuntu-core",
       "status": "active",
       "type": "os",
-      "update_available": "247",
+      "update-available": 247,
       "version": "241",
+      "revision": 99,
       "channel": "stable"
     }
  },
@@ -222,22 +247,24 @@ Sample result:
 
 #### Fields
 * `snaps`
-    * `status`: can be either `not installed`, `installed`, `active` (i.e. is
+    * `status`: can be either `available`, `installed`, `active` (i.e. is
       current).
     * `name`: the snap name.
     * `version`: a string representing the version.
+    * `revision`: a number representing the revision.
     * `icon`: a url to the snap icon, possibly relative to this server.
     * `type`: the type of snap; one of `app`, `framework`, `kernel`,
       `gadget`, or `os`.
     * `description`: snap description
-    * `installed_size`: for installed snaps, how much space the snap
+    * `summary`: one-line summary
+    * `installed-size`: for installed snaps, how much space the snap
       itself (not its data) uses.
-    * `download_size`: for not-installed snaps, how big the download will
+    * `download-size`: for not-installed snaps, how big the download will
       be, formatted as a decimal string.
-    * `rollback_available`: if present and not empty, it means the snap can
-      be rolled back to the version specified as a value to this entry.
-    * `update_available`: if present and not empty, it means the snap can be
-      updated to the version specified as a value to this entry.
+    * `rollback-available`: if present and not empty, it means the snap can
+      be rolled back to the revision specified as a value to this entry.
+    * `update-available`: if present and not empty, it means the snap can be
+      updated to the revision specified as a value to this entry.
     * `channel`: which channel the package is currently tracking.
 * `paging`
     * `count`: the number of snaps on this page
@@ -330,7 +357,7 @@ field      | ignored except in action | description
 -----------|-------------------|------------
 `action`   |                   | Required; a string, one of `install`, `update`, `remove`, `activate`, `deactivate`, or `rollback`.
 `channel`  | `install` `update` | From which channel to pull the new package (and track henceforth). Channels are a means to discern the maturity of a package or the software it contains, although the exact meaning is left to the application developer. One of `edge`, `beta`, `candidate`, and `stable` which is the default.
-`leave_old`| `install` `update` `remove` | A boolean, equivalent to commandline's `--no-gc`. Default is false (do not leave old snaps around).
+`leave-old`| `install` `update` `remove` | A boolean, equivalent to commandline's `--no-gc`. Default is false (do not leave old snaps around).
 `license`  | `install` `update` | A JSON object with `intro`, `license`, and `agreed` fields, the first two of which must match the license (see the section "A note on licenses", below).
 
 #### A note on licenses
@@ -352,157 +379,6 @@ field would be
     "kind": "license-required",
     "message": "License agreement required."
 }
-```
-
-## /v2/snaps/[name]/services
-
-Query an active snap for information about its services, and alter the
-state of those services. Commands under `.../services` will return an error if
-the snap is not active.
-
-### GET
-
-* Description: Services for a snap
-* Access: authenticated
-* Operation: sync
-* Return: service configuration
-
-Returns a JSON object with a result key, its value is a list of JSON objects
-where the snap name is the item key. The value is another JSON object that
-has three keys [`op`, `spec`, `status`], spec and status are JSON objects that
-provide description about the service as well as its systemd unit.
-
-#### Sample result:
-
-```javascript
-{
-  "result": {
-    "xkcd-webserver": {
-      "op": "status",
-      "spec": {
-        "name": "xkcd-webserver",
-        "description": "A fun webserver",
-        "start": "bin/xkcd-webserver",
-        "stop-timeout": "30s",
-        "caps": [
-          "networking",
-          "network-service"
-        ]
-      },
-      "status": {
-        "service_file_name": "xkcd-webserver_xkcd-webserver_0.5.service",
-        "load_state": "loaded",
-        "active_state": "inactive",
-        "sub_state": "dead",
-        "unit_file_state": "enabled",
-        "snap_name": "xkcd-webserver",
-        "service_name": "xkcd-webserver"
-      }
-    }
-  },
-  "status": "OK",
-  "status_code": 200,
-  "type": "sync"
-}
-```
-
-### PUT
-
-* Description: Put all services of a snap into a specific state
-* Access: trusted
-* Operation: async
-
-#### Sample input:
-
-```javascript
-{
-"action": "start|stop|restart|enable|disable"
-}
-```
-
-## /v2/snaps/[name]/services/[name]
-
-### GET
-
-* Description: Service for a snap
-* Access: authenticated
-* Operation: sync
-* Return: service configuration
-
-The result is a JSON object with a `result` key where the value is a JSON object
-that includes a single object from the list of the upper level endpoint
-(`/v2/snaps/[name]/services`).
-
-#### Sample result:
-
-```javascript
-{
-  "result": {
-    "op": "status",
-    "spec": {
-      "name": "xkcd-webserver",
-      "description": "A fun webserver",
-      "start": "bin/xkcd-webserver",
-      "stop-timeout": "30s",
-      "caps": [
-        "networking",
-        "network-service"
-      ]
-    },
-    "status": {
-      "service_file_name": "xkcd-webserver_xkcd-webserver_0.5.service",
-      "load_state": "loaded",
-      "active_state": "inactive",
-      "sub_state": "dead",
-      "unit_file_state": "enabled",
-      "snap_name": "xkcd-webserver",
-      "service_name": "xkcd-webserver"
-    }
-  },
-  "status": "OK",
-  "status_code": 200,
-  "type": "sync"
-}
-```
-
-### PUT
-
-* Description: Put the service into a specific state
-* Access: trusted
-* Operation: async
-
-#### Sample input:
-
-```javascript
-{
-"action": "start|stop|restart|enable|disable"
-}
-```
-
-## /v2/snaps/[name]/services/[name]/logs
-
-### GET
-
-* Description: Logs for the service from a snap
-* Access: trusted
-* Operation: sync
-* Return: service logs
-
-#### Sample result:
-
-```javascript
-[
-   {
-       "timestamp": "1440679470679901",
-       "message": "something happened",
-       "raw": {}
-   },
-   {
-       "timestamp": "1440679470680968",
-       "message": "bla bla",
-       "raw": {}
-    }
-]
 ```
 
 ## /v2/snaps/[name]/config
@@ -557,11 +433,11 @@ Notes: user facing implementations in text form must show this data using yaml.
 
 ```javascript
 {
- "created_at": "1415639996123456",      // Creation timestamp
+ "created-at": "1415639996123456",      // Creation timestamp
  "output": {},
  "resource": "/v2/snaps/camlistore.sergiusens",
  "status": "running",                   // or "succeeded" or "failed"
- "updated_at": "1415639996451214"       // Last update timestamp
+ "updated-at": "1415639996451214"       // Last update timestamp
 }
 ```
 
