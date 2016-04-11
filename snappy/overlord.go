@@ -369,12 +369,7 @@ func ActivateSnap(s *Snap, inter interacter) error {
 		return fmt.Errorf("cannot activate snap while another one is active: %v", currentActiveDir)
 	}
 
-	// generate the security policy from the snap.yaml
-	// Note that this must happen before binaries/services are
-	// generated because serices may get started
-	if err := SetupSnapSecurity(s); err != nil {
-		return err
-	}
+	// security setup was done here!
 
 	if err := GenerateWrappers(s, inter); err != nil {
 		return err
@@ -403,14 +398,13 @@ func UnlinkSnap(s *Snap, inter interacter) error {
 	// remove generated services, binaries, security policy
 	err1 := RemoveGeneratedWrappers(s, inter)
 
-	// remove generated security
-	err2 := RemoveGeneratedSnapSecurity(s)
+	// removing security setup move here!
 
 	// and finally remove current symlink
-	err3 := removeCurrentSymlink(s, inter)
+	err2 := removeCurrentSymlink(s, inter)
 
 	// FIXME: aggregate errors instead
-	return firstErr(err1, err2, err3)
+	return firstErr(err1, err2)
 }
 
 // Install installs the given snap file to the system.
@@ -616,7 +610,7 @@ func RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error {
 		}
 	}
 
-	return RemoveAllHWAccess(s.Name())
+	return nil
 }
 
 // Uninstall removes the given local snap from the system.
