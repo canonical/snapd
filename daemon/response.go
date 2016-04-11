@@ -99,7 +99,8 @@ func (r *resp) Self(*Command, *http.Request) Response {
 type errorKind string
 
 const (
-	errorKindLicenseRequired = errorKind("license-required")
+	errorKindLicenseRequired   = errorKind("license-required")
+	errorKindTwoFactorRequired = errorKind("two-factor-required")
 )
 
 type errorValue interface{}
@@ -228,6 +229,7 @@ type errorResponder func(string, ...interface{}) Response
 
 // standard error responses
 var (
+	Unauthorized   = makeErrorResponder(http.StatusUnauthorized)
 	NotFound       = makeErrorResponder(http.StatusNotFound)
 	BadRequest     = makeErrorResponder(http.StatusBadRequest)
 	BadMethod      = makeErrorResponder(http.StatusMethodNotAllowed)

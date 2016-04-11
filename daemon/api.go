@@ -45,6 +45,7 @@ import (
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
+	"github.com/ubuntu-core/snappy/store"
 )
 
 // increase this every time you make a minor (backwards-compatible)
@@ -54,6 +55,7 @@ const apiCompatLevel = "0"
 var api = []*Command{
 	rootCmd,
 	sysInfoCmd,
+	loginCmd,
 	appIconCmd,
 	snapsCmd,
 	snapCmd,
@@ -76,6 +78,11 @@ var (
 		Path:    "/v2/system-info",
 		GuestOK: true,
 		GET:     sysInfo,
+	}
+
+	loginCmd = &Command{
+		Path: "/v2/login",
+		POST: loginUser,
 	}
 
 	appIconCmd = &Command{
@@ -155,6 +162,75 @@ func sysInfo(c *Command, r *http.Request) Response {
 	}
 
 	return SyncResponse(m)
+}
+
+type authState struct {
+	Users []userAuthState `json:"users"`
+}
+
+type userAuthState struct {
+	Username   string   `json:"username,omitempty"`
+	Macaroon   string   `json:"macaroon,omitempty"`
+	Discharges []string `json:"discharges,omitempty"`
+}
+
+type loginResponseData struct {
+	Macaroon   string   `json:"macaroon,omitempty"`
+	Discharges []string `json:"discharges,omitempty"`
+}
+
+func loginUser(c *Command, r *http.Request) Response {
+	var loginData struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+		Otp      string `json:"otp"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&loginData); err != nil {
+		return BadRequest("cannot decode login data from request body: %v", err)
+	}
+
+	macaroon, err := store.RequestPackageAccessMacaroon()
+	if err != nil {
+		return InternalError("cannot get package access macaroon")
+	}
+
+	discharge, err := store.DischargeAuthCaveat(loginData.Username, loginData.Password, macaroon, loginData.Otp)
+	if err == store.ErrAuthenticationNeeds2fa {
+		twofactorRequiredResponse := &resp{
+			Type: ResponseTypeError,
+			Result: &errorResult{
+				Kind:    errorKindTwoFactorRequired,
+				Message: "two factor authentication required",
+			},
+			Status: http.StatusUnauthorized,
+		}
+		return SyncResponse(twofactorRequiredResponse)
+	}
+	if err != nil {
+		return Unauthorized("cannot get discharge authorization")
+	}
+
+	authenticatedUser := userAuthState{
+		Username:   loginData.Username,
+		Macaroon:   macaroon,
+		Discharges: []string{discharge},
+	}
+	// TODO Handle better the multi-user case.
+	authStateData := authState{Users: []userAuthState{authenticatedUser}}
+
+	overlord := c.d.overlord
+	state := overlord.State()
+	state.Lock()
+	state.Set("auth", authStateData)
+	state.Unlock()
+
+	result := loginResponseData{
+		Macaroon:   macaroon,
+		Discharges: []string{discharge},
+	}
+	return SyncResponse(result)
 }
 
 type metarepo interface {
