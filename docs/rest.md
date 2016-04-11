@@ -185,7 +185,8 @@ Sample result:
 {
  "snaps": {
     "hello-world": {
-      "description": "hello-world",
+      "summary": "Hello world example",
+      "description": "This is a simple hello world example.",
       "download-size": 22212,
       "icon": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
       "installed-size": -1,          // always -1 if neither "active" nor "installed"
@@ -199,7 +200,8 @@ Sample result:
       "channel": "stable"
     },
     "http": {
-      "description": "HTTPie in a snap\nno description",
+      "summary": "HTTPie in a snap",
+      "description": "no description",
       "download-size": 1578272,
       "icon": "/v2/icons/http/icon",
       "installed-size": 1821897,
@@ -213,6 +215,7 @@ Sample result:
       "channel": "stable"
     },
     "ubuntu-core": {
+      "summary": "The ubuntu-core OS snap",
       "description": "A secure, minimal transactional OS for devices and containers.",
       "download-size": 19845748,
       "icon": "",               // core might not have an icon
@@ -251,6 +254,7 @@ Sample result:
     * `type`: the type of snap; one of `app`, `framework`, `kernel`,
       `gadget`, or `os`.
     * `description`: snap description
+    * `summary`: one-line summary
     * `installed-size`: for installed snaps, how much space the snap
       itself (not its data) uses.
     * `download-size`: for not-installed snaps, how big the download will

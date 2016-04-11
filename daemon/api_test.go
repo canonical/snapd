@@ -207,6 +207,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 		Version: "v2",
 		SideInfo: snap.SideInfo{
 			OfficialName:      "foo",
+			EditedSummary:     "summary",
 			EditedDescription: "description",
 			Developer:         "bar",
 			Size:              2,
@@ -238,6 +239,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 			"name":               "foo",
 			"revision":           10,
 			"version":            "v1",
+			"summary":            "summary",
 			"description":        "description",
 			"developer":          "bar",
 			"status":             "active",
