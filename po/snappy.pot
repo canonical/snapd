@@ -206,10 +206,10 @@ msgstr  ""
 msgid   "Name\tDate\tVersion\t"
 msgstr  ""
 
-msgid   "Name\tDate\tVersion\tDeveloper"
+msgid   "Name\tDate\tVersion\tDeveloper\t"
 msgstr  ""
 
-msgid   "Name\tDate\tVersion\tDeveloper\t"
+msgid   "Name\tVersion\tDeveloper"
 msgstr  ""
 
 msgid   "Name\tVersion\tSummary"

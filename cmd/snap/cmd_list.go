@@ -65,11 +65,11 @@ func (cmdList) Execute([]string) error {
 	w := tabwriter.NewWriter(Stdout, 5, 3, 1, ' ', 0)
 	defer w.Flush()
 
-	fmt.Fprintln(w, i18n.G("Name\tDate\tVersion\tDeveloper"))
+	fmt.Fprintln(w, i18n.G("Name\tVersion\tDeveloper"))
 
 	for _, name := range names {
 		snap := snaps[name]
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", snap.Name, snap.InstallDate, snap.Version, snap.Developer)
+		fmt.Fprintf(w, "%s\t%s\t%s\n", snap.Name, snap.Version, snap.Developer)
 	}
 
 	return nil
