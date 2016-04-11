@@ -104,7 +104,11 @@ func (m *InterfaceManager) doSetupSnapSecurity(task *state.Task, _ *tomb.Tomb) e
 		return err
 	}
 	if err := m.repo.AddSnap(snapInfo); err != nil {
-		return err
+		if _, ok := err.(*interfaces.BadInterfacesError); ok {
+			logger.Noticef("%s", err)
+		} else {
+			return err
+		}
 	}
 	// TODO: re-connect all connection affecting given snap
 	// TODO:  - removing failed connections from the state
