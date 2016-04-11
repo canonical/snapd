@@ -33,6 +33,7 @@ var implicitSlots = []string{
 	"system-observe",
 	"timeserver-control",
 	"timezone-control",
+	// TODO Disable these on devices:
 	"unity7",
 	"x11",
 }
