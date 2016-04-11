@@ -20,44 +20,61 @@
 package client
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/ubuntu-core/snappy/osutil"
 )
 
-// AuthenticatedUser holds logged in user details.
+// AuthenticatedUser holds logged in user information.
 type AuthenticatedUser struct {
-	Username   string   `json:"username,omitempty"`
 	Macaroon   string   `json:"macaroon,omitempty"`
 	Discharges []string `json:"discharges,omitempty"`
 }
 
+type loginData struct {
+	Username string `json:"username,omitempty"`
+	Password string `json:"password,omitempty"`
+	Otp      string `json:"otp,omitempty"`
+}
+
 // Login logs user in.
 func (client *Client) Login(username, password, otp string) (*AuthenticatedUser, error) {
-	var user AuthenticatedUser
-	body := strings.NewReader(fmt.Sprintf(`{"username":%q,"password":%q,"otp":%q}`, username, password, otp))
-	err := client.doSync("POST", "/v2/login", nil, body, &user)
-	if err != nil {
+	postData := loginData{
+		Username: username,
+		Password: password,
+		Otp:      otp,
+	}
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(postData); err != nil {
 		return nil, err
 	}
-	if err := writeAuthData(user); err != nil {
-		return nil, fmt.Errorf("cannot store login information: %v", err)
+
+	var user AuthenticatedUser
+	if err := client.doSync("POST", "/v2/login", nil, &body, &user); err != nil {
+		return nil, err
 	}
-	return &user, err
+
+	if err := writeAuthData(user); err != nil {
+		return nil, fmt.Errorf("cannot persist login information: %v", err)
+	}
+	return &user, nil
 }
 
 func storeAuthDataFilename() string {
-	homeDir, _ := osutil.CurrentHomeDir()
+	homeDir, err := osutil.CurrentHomeDir()
+	if err != nil {
+		panic(err)
+	}
 	return filepath.Join(homeDir, ".snap", "auth.json")
 }
 
 func writeAuthData(userData AuthenticatedUser) error {
 	targetFile := storeAuthDataFilename()
-	if err := os.MkdirAll(filepath.Dir(targetFile), 0750); err != nil {
+	if err := os.MkdirAll(filepath.Dir(targetFile), 0700); err != nil {
 		return err
 	}
 	outStr, err := json.Marshal(userData)
