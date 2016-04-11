@@ -34,6 +34,7 @@ type fakeOp struct {
 	channel string
 	flags   int
 	active  bool
+	sinfo   snap.SideInfo
 
 	rollback string
 }
@@ -245,4 +246,15 @@ func (f *fakeSnappyBackend) GarbageCollect(name string, flags int, meter progres
 		flags: flags,
 	})
 	return nil
+}
+
+func (f *fakeSnappyBackend) Candidate(sideInfo *snap.SideInfo) {
+	var sinfo snap.SideInfo
+	if sideInfo != nil {
+		sinfo = *sideInfo
+	}
+	f.ops = append(f.ops, fakeOp{
+		op:    "candidate",
+		sinfo: sinfo,
+	})
 }
