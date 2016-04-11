@@ -362,11 +362,10 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	err = m.backend.LinkSnap(ss.MountDir())
 	if err != nil {
-		// Undo here too in an attempt to keep state sane.
-		m.backend.UndoLinkSnap(ss.OldMountDir(), ss.MountDir())
 		return err
 	}
 
+	// Do at the end so we only preserve the new state if it worked.
 	st.Set("snaps", snaps)
 	return nil
 }
@@ -378,6 +377,9 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
+
+	// No need to undo "snaps" in state here. The only chance of
+	// having the new state there is a working doLinkSnap call.
 
 	return m.backend.UndoLinkSnap(ss.OldMountDir(), ss.MountDir())
 }
