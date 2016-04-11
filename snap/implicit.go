@@ -19,6 +19,7 @@
 
 package snap
 
+// ImplicitSlotNames contains the list of slots implicitly added to the OS snap.
 var ImplicitSlotNames = []string{
 	"firewall-control",
 	"home",
