@@ -150,11 +150,14 @@ func removeSquashfsMount(baseDir string, inter interacter) error {
 	return nil
 }
 
-func UndoSetupSnap(installDir string, meter progress.Meter) {
-	// SetupSnap did it not made far enough
-	if installDir == "" {
-		return
+func UndoSetupSnap(snapFilePath string, sideInfo *snap.SideInfo, flags InstallFlags, meter progress.Meter) {
+	allowUnauth := (flags & AllowUnauthenticated) != 0
+	sf, _, err := openSnapFile(snapFilePath, allowUnauth, sideInfo)
+	if err != nil {
+		logger.Noticef("cannot open snap file %v: %s", snapFilePath, err)
 	}
+	installDir := sf.MountDir()
+	snapPath := sf.MountFile()
 
 	// SetupSnap made it far enough to mount the snap, easy
 	s, err := NewInstalledSnap(filepath.Join(installDir, "meta", "snap.yaml"))
@@ -163,7 +166,6 @@ func UndoSetupSnap(installDir string, meter progress.Meter) {
 			logger.Noticef("cannot remove snap files: %s", err)
 		}
 	}
-	snapPath := s.Info().MountFile()
 
 	// remove install dir and the snap blob itself
 	for _, path := range []string{
@@ -434,7 +436,7 @@ func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideI
 	defer func() {
 		if err != nil {
 			// XXX: needs sideInfo?
-			UndoSetupSnap(instPath, meter)
+			UndoSetupSnap(snapFilePath, sideInfo, flags, meter)
 		}
 	}()
 	if err != nil {

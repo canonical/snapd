@@ -276,7 +276,7 @@ func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	return m.backend.UndoSetupSnap(ss.MountDir())
+	return m.backend.UndoSetupSnap(ss.MountDir(), ss.SideInfo, ss.Flags)
 }
 
 func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {

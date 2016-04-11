@@ -576,6 +576,6 @@ apps:
 		Revision:     55,
 	}
 
-	snap, err := (&Overlord{}).InstallWithSideInfo(snapPath, si, 0, nil)
+	_, err := (&Overlord{}).InstallWithSideInfo(snapPath, si, 0, &MockProgressMeter{})
 	c.Assert(err, NotNil)
 }
