@@ -66,17 +66,17 @@ func (s *undoTestSuite) TestUndoForSetupSnapSimple(c *C) {
 		Revision:     14,
 	}
 
-	instDir, err := SetupSnap(snapPath, &si, 0, &s.meter)
+	minInfo, err := SetupSnap(snapPath, &si, 0, &s.meter)
 	c.Assert(err, IsNil)
-	c.Assert(instDir, Equals, filepath.Join(dirs.SnapSnapsDir, "hello-snap/14"))
+	c.Assert(minInfo.MountDir(), Equals, filepath.Join(dirs.SnapSnapsDir, "hello-snap/14"))
 	l, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
 	c.Assert(l, HasLen, 1)
 
 	// undo undoes the mount unit and the instdir creation
-	UndoSetupSnap(instDir, &s.meter)
+	UndoSetupSnap(minInfo, &s.meter)
 	l, _ = filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
 	c.Assert(l, HasLen, 0)
-	c.Assert(osutil.FileExists(instDir), Equals, false)
+	c.Assert(osutil.FileExists(minInfo.MountDir()), Equals, false)
 }
 
 func (s *undoTestSuite) TestUndoForSetupSnapKernelUboot(c *C) {
