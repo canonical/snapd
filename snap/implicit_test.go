@@ -20,6 +20,7 @@
 package snap_test
 
 import (
+	"github.com/ubuntu-core/snappy/interfaces/builtin"
 	"github.com/ubuntu-core/snappy/snap"
 
 	. "gopkg.in/check.v1"
@@ -38,4 +39,14 @@ func (s *InfoSnapYamlTestSuite) TestAddImplicitSlots(c *C) {
 	c.Assert(info.Slots["network"].Name, Equals, "network")
 	c.Assert(info.Slots["network"].Snap, Equals, info)
 	c.Assert(info.Slots, HasLen, 15)
+}
+
+func (s *InfoSnapYamlTestSuite) TestImplicitSlotsAreRealInterfaces(c *C) {
+	known := make(map[string]bool)
+	for _, iface := range builtin.Interfaces() {
+		known[iface.Name()] = true
+	}
+	for _, ifaceName := range snap.ImplicitSlotNames {
+		c.Check(known[ifaceName], Equals, true)
+	}
 }

@@ -19,7 +19,7 @@
 
 package snap
 
-var implicitSlots = []string{
+var ImplicitSlotNames = []string{
 	"firewall-control",
 	"home",
 	"locale-control",
@@ -48,7 +48,7 @@ func AddImplicitSlots(snapInfo *Info) {
 	if snapInfo.Type != TypeOS {
 		return
 	}
-	for _, ifaceName := range implicitSlots {
+	for _, ifaceName := range ImplicitSlotNames {
 		if _, ok := snapInfo.Slots[ifaceName]; !ok {
 			snapInfo.Slots[ifaceName] = &SlotInfo{
 				Name:      ifaceName,
