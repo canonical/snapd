@@ -227,9 +227,9 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	c.Assert(rsp.Result, check.FitsTypeOf, map[string]interface{}{})
 	m := rsp.Result.(map[string]interface{})
 
-	// installed_size depends on vagaries of the filesystem, just check type
-	c.Check(m["installed_size"], check.FitsTypeOf, int64(0))
-	delete(m, "installed_size")
+	// installed-size depends on vagaries of the filesystem, just check type
+	c.Check(m["installed-size"], check.FitsTypeOf, int64(0))
+	delete(m, "installed-size")
 
 	expected := &resp{
 		Type:   ResponseTypeSync,
@@ -244,10 +244,10 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 			"icon":               "/v2/icons/foo/icon",
 			"type":               string(snap.TypeApp),
 			"vendor":             "",
-			"download_size":      int64(2),
+			"download-size":      int64(2),
 			"resource":           "/v2/snaps/foo",
-			"update_available":   20,
-			"rollback_available": 5,
+			"update-available":   20,
+			"rollback-available": 5,
 			"channel":            "stable",
 		},
 	}
@@ -412,8 +412,8 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	expected := map[string]interface{}{
 		"flavor":          "flavor",
 		"release":         "release",
-		"default_channel": "channel",
-		"api_compat":      apiCompatLevel,
+		"default-channel": "channel",
+		"api-compat":      apiCompatLevel,
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
@@ -435,8 +435,8 @@ func (s *apiSuite) TestSysInfoStore(c *check.C) {
 	expected := map[string]interface{}{
 		"flavor":          "flavor",
 		"release":         "release",
-		"default_channel": "channel",
-		"api_compat":      apiCompatLevel,
+		"default-channel": "channel",
+		"api-compat":      apiCompatLevel,
 		"store":           "some-store",
 	}
 	var rsp resp
@@ -858,9 +858,9 @@ func (s *apiSuite) TestGetOpInfoIntegration(c *check.C) {
 	c.Check(rsp.Result, check.DeepEquals, map[string]interface{}{
 		"resource":   "/v2/operations/" + id,
 		"status":     TaskRunning,
-		"may_cancel": false,
-		"created_at": FormatTime(t.CreatedAt()),
-		"updated_at": FormatTime(t.UpdatedAt()),
+		"may-cancel": false,
+		"created-at": FormatTime(t.CreatedAt()),
+		"updated-at": FormatTime(t.UpdatedAt()),
 		"output":     nil,
 	})
 	tf1 := t.UpdatedAt().UTC().UnixNano()
@@ -875,9 +875,9 @@ func (s *apiSuite) TestGetOpInfoIntegration(c *check.C) {
 	c.Check(rsp.Result, check.DeepEquals, map[string]interface{}{
 		"resource":   "/v2/operations/" + id,
 		"status":     TaskSucceeded,
-		"may_cancel": false,
-		"created_at": FormatTime(t.CreatedAt()),
-		"updated_at": FormatTime(t.UpdatedAt()),
+		"may-cancel": false,
+		"created-at": FormatTime(t.CreatedAt()),
+		"updated-at": FormatTime(t.UpdatedAt()),
 		"output":     "hello",
 	})
 
@@ -1522,7 +1522,7 @@ func (s *apiSuite) TestGetPlugs(c *check.C) {
 			},
 		},
 		"status":      "OK",
-		"status_code": 200.0,
+		"status-code": 200.0,
 		"type":        "sync",
 	})
 }
@@ -1553,7 +1553,7 @@ func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result":      nil,
 		"status":      "OK",
-		"status_code": 200.0,
+		"status-code": 200.0,
 		"type":        "sync",
 	})
 	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
@@ -1589,7 +1589,7 @@ func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 			"message": `cannot connect plug "producer:plug" (interface "interface") to "consumer:slot" (interface "other-interface")`,
 		},
 		"status":      "Bad Request",
-		"status_code": 400.0,
+		"status-code": 400.0,
 		"type":        "error",
 	})
 	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
@@ -1623,7 +1623,7 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 			"message": `cannot connect plug "plug" from snap "producer", no such plug`,
 		},
 		"status":      "Bad Request",
-		"status_code": 400.0,
+		"status-code": 400.0,
 		"type":        "error",
 	})
 	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
@@ -1656,7 +1656,7 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 			"message": `cannot connect plug to slot "slot" from snap "consumer", no such slot`,
 		},
 		"status":      "Bad Request",
-		"status_code": 400.0,
+		"status-code": 400.0,
 		"type":        "error",
 	})
 	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
@@ -1689,7 +1689,7 @@ func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result":      nil,
 		"status":      "OK",
-		"status_code": 200.0,
+		"status-code": 200.0,
 		"type":        "sync",
 	})
 	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
@@ -1723,7 +1723,7 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 			"message": `cannot disconnect plug "plug" from snap "producer", no such plug`,
 		},
 		"status":      "Bad Request",
-		"status_code": 400.0,
+		"status-code": 400.0,
 		"type":        "error",
 	})
 	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
@@ -1756,7 +1756,7 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 			"message": `cannot disconnect plug from slot "slot" from snap "consumer", no such slot`,
 		},
 		"status":      "Bad Request",
-		"status_code": 400.0,
+		"status-code": 400.0,
 		"type":        "error",
 	})
 	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
@@ -1790,7 +1790,7 @@ func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 			"message": `cannot disconnect plug "plug" from snap "producer" from slot "slot" from snap "consumer", it is not connected`,
 		},
 		"status":      "Bad Request",
-		"status_code": 400.0,
+		"status-code": 400.0,
 		"type":        "error",
 	})
 	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
@@ -1814,7 +1814,7 @@ func (s *apiSuite) TestUnsupportedInterfaceRequest(c *check.C) {
 			"message": "cannot decode request body into an interface action: invalid character 'g' looking for beginning of value",
 		},
 		"status":      "Bad Request",
-		"status_code": 400.0,
+		"status-code": 400.0,
 		"type":        "error",
 	})
 }
@@ -1837,7 +1837,7 @@ func (s *apiSuite) TestMissingInterfaceAction(c *check.C) {
 			"message": "interface action not specified",
 		},
 		"status":      "Bad Request",
-		"status_code": 400.0,
+		"status-code": 400.0,
 		"type":        "error",
 	})
 }
@@ -1861,7 +1861,7 @@ func (s *apiSuite) TestUnsupportedInterfaceAction(c *check.C) {
 			"message": "unsupported interface action: \"foo\"",
 		},
 		"status":      "Bad Request",
-		"status_code": 400.0,
+		"status-code": 400.0,
 		"type":        "error",
 	})
 }

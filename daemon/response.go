@@ -54,7 +54,7 @@ type Response interface {
 
 type resp struct {
 	Type   ResponseType `json:"type"`
-	Status int          `json:"status_code"`
+	Status int          `json:"status-code"`
 	Result interface{}  `json:"result"`
 }
 
@@ -62,7 +62,7 @@ func (r *resp) MarshalJSON() ([]byte, error) {
 	return json.Marshal(map[string]interface{}{
 		"type":        r.Type,
 		"status":      http.StatusText(r.Status),
-		"status_code": r.Status,
+		"status-code": r.Status,
 		"result":      &r.Result,
 	})
 }

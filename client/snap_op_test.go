@@ -93,7 +93,7 @@ func (cs *clientSuite) TestClientOpSnapBadType(c *check.C) {
 
 func (cs *clientSuite) TestClientOpSnapNotAccepted(c *check.C) {
 	cs.rsp = `{
-		"status_code": 200,
+		"status-code": 200,
 		"type": "async"
 	}`
 	for _, s := range ops {
@@ -110,7 +110,7 @@ func (cs *clientSuite) TestClientOpSnapNotAccepted(c *check.C) {
 func (cs *clientSuite) TestClientOpSnapInvalidResult(c *check.C) {
 	cs.rsp = `{
 		"result": "not a JSON object",
-		"status_code": 202,
+		"status-code": 202,
 		"type": "async"
 	}`
 	for _, s := range ops {
@@ -127,7 +127,7 @@ func (cs *clientSuite) TestClientOpSnapInvalidResult(c *check.C) {
 func (cs *clientSuite) TestClientOpSnapNoResource(c *check.C) {
 	cs.rsp = `{
 		"result": {},
-		"status_code": 202,
+		"status-code": 202,
 		"type": "async"
 	}`
 	for _, s := range ops {
@@ -146,7 +146,7 @@ func (cs *clientSuite) TestClientOpSnapInvalidResource(c *check.C) {
 		"result": {
 			"resource": "invalid"
 		},
-		"status_code": 202,
+		"status-code": 202,
 		"type": "async"
 	}`
 	for _, s := range ops {
@@ -165,7 +165,7 @@ func (cs *clientSuite) TestClientOpSnap(c *check.C) {
 		"result": {
 			"resource": "/v2/operations/5a70dffa-66b3-3567-d728-55b0da48bdc7"
 		},
-		"status_code": 202,
+		"status-code": 202,
 		"type": "async"
 	}`
 	for _, s := range ops {
@@ -209,7 +209,7 @@ func (cs *clientSuite) TestClientOpSideload(c *check.C) {
 		"result": {
 			"resource": "/v2/operations/5a70dffa-66b3-3567-d728-55b0da48bdc7"
 		},
-		"status_code": 202,
+		"status-code": 202,
 		"type": "async"
 	}`
 	bodyData := []byte("snap-data")
