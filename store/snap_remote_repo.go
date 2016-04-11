@@ -50,7 +50,7 @@ const (
 	UbuntuCoreWireProtocol = "1"
 )
 
-func infoFromRemote(d snapDetails) *snap.Info {
+func infoFromRemote(d snapDetails, purchases purchasesResults, suggestedCurrency string) *snap.Info {
 	info := &snap.Info{}
 	info.Type = d.Type
 	info.Version = d.Version
@@ -65,6 +65,8 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	info.IconURL = d.IconURL
 	info.AnonDownloadURL = d.AnonDownloadURL
 	info.DownloadURL = d.DownloadURL
+	info.Price = getPrice(d.Prices, suggestedCurrency)
+	info.RequiresPurchase = getRequiresPurchase(d.Prices, purchases)
 	return info
 }
 
@@ -74,6 +76,7 @@ type SnapUbuntuStoreConfig struct {
 	DetailsURI    *url.URL
 	BulkURI       *url.URL
 	AssertionsURI *url.URL
+	PurchasesURI  *url.URL
 }
 
 // SnapUbuntuStoreRepository represents the ubuntu snap store
@@ -83,6 +86,7 @@ type SnapUbuntuStoreRepository struct {
 	detailsURI    *url.URL
 	bulkURI       *url.URL
 	assertionsURI *url.URL
+	purchasesURI  *url.URL
 	// reused http client
 	client *http.Client
 }
@@ -105,8 +109,12 @@ func getStructFields(s interface{}) []string {
 	return fields
 }
 
+func useStagingCpi() bool {
+	return os.Getenv("SNAPPY_USE_STAGING_CPI") != ""
+}
+
 func cpiURL() string {
-	if os.Getenv("SNAPPY_USE_STAGING_CPI") != "" {
+	if useStagingCpi() {
 		return "https://search.apps.staging.ubuntu.com/api/v1/"
 	}
 	// FIXME: this will become a store-url assertion
@@ -118,7 +126,7 @@ func cpiURL() string {
 }
 
 func authURL() string {
-	if os.Getenv("SNAPPY_USE_STAGING_CPI") != "" {
+	if useStagingCpi() {
 		return "https://login.staging.ubuntu.com/api/v2"
 	}
 	return "https://login.ubuntu.com/api/v2"
@@ -141,6 +149,13 @@ func myappsURL() string {
 		return "https://myapps.developer.staging.ubuntu.com/api/2.0"
 	}
 	return "https://myapps.developer.ubuntu.com/api/2.0"
+}
+
+func scaURL() string {
+	if useStagingCpi() {
+		return "https://myapps.developer.staging.ubuntu.com/api/2.0/"
+	}
+	return "https://myapps.developer.ubuntu.com/api/2.0/"
 }
 
 var defaultConfig = SnapUbuntuStoreConfig{}
@@ -180,6 +195,15 @@ func init() {
 		panic(err)
 	}
 
+	scaBaseURI, err := url.Parse(scaURL())
+	if err != nil {
+		panic(err)
+	}
+
+	defaultConfig.PurchasesURI, err = scaBaseURI.Parse("click/purchases/")
+	if err != nil {
+		panic(err)
+	}
 }
 
 type searchResults struct {
@@ -187,6 +211,8 @@ type searchResults struct {
 		Packages []snapDetails `json:"clickindex:package"`
 	} `json:"_embedded"`
 }
+
+type purchasesResults []Purchase
 
 // NewUbuntuStoreSnapRepository creates a new SnapUbuntuStoreRepository with the given access configuration and for given the store id.
 func NewUbuntuStoreSnapRepository(cfg *SnapUbuntuStoreConfig, storeID string) *SnapUbuntuStoreRepository {
@@ -200,6 +226,7 @@ func NewUbuntuStoreSnapRepository(cfg *SnapUbuntuStoreConfig, storeID string) *S
 		detailsURI:    cfg.DetailsURI,
 		bulkURI:       cfg.BulkURI,
 		assertionsURI: cfg.AssertionsURI,
+		purchasesURI:  cfg.PurchasesURI,
 		client:        &http.Client{},
 	}
 }
@@ -212,11 +239,14 @@ func setAuthHeader(req *http.Request, token *StoreToken) {
 }
 
 // configureAuthHeader optionally sets the auth header if a token is available.
-func configureAuthHeader(req *http.Request) {
+// returns true if authentication was used
+func configureAuthHeader(req *http.Request) bool {
 	ssoToken, err := ReadStoreToken()
 	if err == nil {
 		setAuthHeader(req, ssoToken)
+		return true
 	}
+	return false
 }
 
 // small helper that sets the correct http headers for the ubuntu store
@@ -236,14 +266,47 @@ func (s *SnapUbuntuStoreRepository) applyUbuntuStoreHeaders(req *http.Request, a
 }
 
 // small helper that sets the correct http headers for a store request including auth
-func (s *SnapUbuntuStoreRepository) configureStoreReq(req *http.Request, accept string) {
-	configureAuthHeader(req)
+// returns true if authentication was used
+func (s *SnapUbuntuStoreRepository) configureStoreReq(req *http.Request, accept string) bool {
+	auth := configureAuthHeader(req)
 	s.applyUbuntuStoreHeaders(req, accept)
+	return auth
+}
+
+func getPrice(prices map[string]float64, currency string) float64 {
+	// If there are no prices, then the snap is free
+	if len(prices) == 0 {
+		return 0
+	}
+
+	// Look up the price by currency code
+	if val, ok := prices[currency]; ok {
+		return val
+	}
+
+	// Price was unavailable
+	return -1
+}
+
+func getRequiresPurchase(prices map[string]float64, purchases purchasesResults) bool {
+	// if the snap is free, then it doesn't need purchasing
+	if len(prices) == 0 {
+		return false
+	}
+
+	for _, purchase := range purchases {
+		// if the purchase is not an in-app purchase
+		if purchase.ItemSKU == "" {
+			return false
+		}
+	}
+
+	// the snap is not free, and we couldn't find a purchase
+	return true
 }
 
 // Snap returns the snap.Info for the store hosted snap with the given name or an error.
 func (s *SnapUbuntuStoreRepository) Snap(name, channel string) (*snap.Info, error) {
-
 	url, err := s.detailsURI.Parse(path.Join(name, channel))
 	if err != nil {
 		return nil, err
@@ -263,6 +326,8 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string) (*snap.Info, erro
 	}
 	defer resp.Body.Close()
 
+	purchasesData, err := s.getPurchases(name)
+
 	// check statusCode
 	switch {
 	case resp.StatusCode == 404:
@@ -278,10 +343,106 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string) (*snap.Info, erro
 		return nil, err
 	}
 
-	return infoFromRemote(detailsData), nil
+	suggestedCurrency := getSuggestedCurrency(&resp.Header)
+
+	return infoFromRemote(detailsData, purchasesData, suggestedCurrency), nil
+}
+
+func getSuggestedCurrency(h *http.Header) string {
+	s := h.Get("X-Suggested-Currency")
+	if s == "" {
+		s = "USD"
+	}
+	return s
 }
 
 // FindSnaps finds  (installable) snaps from the store, matching the
+func (s *SnapUbuntuStoreRepository) getPurchases(name string) (purchasesResults, error) {
+	purchasesURL, err := s.purchasesURI.Parse(name + "/")
+	if err != nil {
+		return nil, err
+	}
+
+	q := purchasesURL.Query()
+	q.Set("include_item_purchases", "true")
+	purchasesURL.RawQuery = q.Encode()
+
+	req, err := http.NewRequest("GET", purchasesURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var purchasesData purchasesResults
+
+	// only try and run the purchases request if we used authentication
+	if s.configureStoreReq(req, "") {
+		resp, err := s.client.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		defer resp.Body.Close()
+
+		switch {
+		case resp.StatusCode == http.StatusNotFound:
+			break
+		case resp.StatusCode == http.StatusUnauthorized:
+			return nil, getUnauthorizedError(resp.Body)
+		case resp.StatusCode != http.StatusOK:
+			return nil, fmt.Errorf("SnapUbuntuStoreRepository: unexpected HTTP status code %d while looking for snap purcahses: %q", resp.StatusCode, name)
+		default:
+			dec := json.NewDecoder(resp.Body)
+			if err := dec.Decode(&purchasesData); err != nil {
+				return nil, err
+			}
+		}
+
+	}
+
+	return purchasesData, nil
+}
+
+func (s *SnapUbuntuStoreRepository) getAllPurchases() (map[string]purchasesResults, error) {
+	req, err := http.NewRequest("GET", s.purchasesURI.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	purchasesByName := make(map[string]purchasesResults)
+
+	// only try and run the purchases request if we used authentication
+	if s.configureStoreReq(req, "") {
+		resp, err := s.client.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		defer resp.Body.Close()
+
+		switch {
+		case resp.StatusCode == http.StatusNotFound:
+			return nil, ErrSnapNotFound
+		case resp.StatusCode == http.StatusUnauthorized:
+			return nil, getUnauthorizedError(resp.Body)
+		case resp.StatusCode != http.StatusOK:
+			return nil, fmt.Errorf("SnapUbuntuStoreRepository: unexpected HTTP status code %d while looking for purchases", resp.StatusCode)
+		}
+
+		dec := json.NewDecoder(resp.Body)
+
+		var purchasesData purchasesResults
+		if err := dec.Decode(&purchasesData); err != nil {
+			return nil, err
+		}
+
+		// Index it all in a multimap
+		for _, purchase := range purchasesData {
+			purchasesByName[purchase.PackageName] = append(purchasesByName[purchase.PackageName], purchase)
+		}
+	}
+
+	return purchasesByName, nil
+}
+
+// FindSnaps finds  (installable) parts from the store, matching the
 // given search term.
 func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string) ([]*snap.Info, error) {
 	if channel == "" {
@@ -311,6 +472,10 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string)
 	}
 	defer resp.Body.Close()
 
+	purchasesByName, err := s.getAllPurchases()
+
+	suggestedCurrency := getSuggestedCurrency(&resp.Header)
+
 	var searchData searchResults
 
 	dec := json.NewDecoder(resp.Body)
@@ -320,7 +485,7 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string)
 
 	snaps := make([]*snap.Info, len(searchData.Payload.Packages))
 	for i, pkg := range searchData.Payload.Packages {
-		snaps[i] = infoFromRemote(pkg)
+		snaps[i] = infoFromRemote(pkg, purchasesByName[pkg.FullName], suggestedCurrency)
 	}
 
 	return snaps, nil
@@ -348,6 +513,10 @@ func (s *SnapUbuntuStoreRepository) Updates(installed []string) (snaps []*snap.I
 	}
 	defer resp.Body.Close()
 
+	purchasesByName, err := s.getAllPurchases()
+
+	suggestedCurrency := getSuggestedCurrency(&resp.Header)
+
 	var updateData []snapDetails
 	dec := json.NewDecoder(resp.Body)
 	if err := dec.Decode(&updateData); err != nil {
@@ -356,7 +525,7 @@ func (s *SnapUbuntuStoreRepository) Updates(installed []string) (snaps []*snap.I
 
 	res := make([]*snap.Info, len(updateData))
 	for i, rsnap := range updateData {
-		res[i] = infoFromRemote(rsnap)
+		res[i] = infoFromRemote(rsnap, purchasesByName[rsnap.FullName], suggestedCurrency)
 	}
 
 	return res, nil
@@ -425,6 +594,94 @@ var download = func(name string, w io.Writer, req *http.Request, pbar progress.M
 	}
 
 	return err
+}
+
+// Buy the specified snap using the default currency and payment method.
+// Returns the state of the purchase: Complete, Cancelled or Pending.
+func (s *SnapUbuntuStoreRepository) Buy(name string, inter progress.Meter) (string, error) {
+	client := &http.Client{}
+
+	// First ask the CPI for the suggested currency
+
+	detailsURL, err := s.detailsURI.Parse(name)
+	if err != nil {
+		return "", err
+	}
+
+	detailsReq, err := http.NewRequest("GET", detailsURL.String(), nil)
+	if err != nil {
+		return "", err
+	}
+
+	// set headers
+	s.applyUbuntuStoreHeaders(detailsReq, "")
+
+	detailsResp, err := client.Do(detailsReq)
+	if err != nil {
+		return "", err
+	}
+	defer detailsResp.Body.Close()
+
+	// we don't care about the JSON, just the header
+
+	suggestedCurrency := getSuggestedCurrency(&detailsResp.Header)
+
+	// Now create the purchase instruction, including the currency
+
+	jsonData, err := json.Marshal(PurchaseInstruction{
+		Name:     name,
+		Currency: suggestedCurrency,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	req, err := http.NewRequest("POST", s.purchasesURI.String(), bytes.NewBuffer(jsonData))
+	if err != nil {
+		return "", err
+	}
+
+	// set headers
+	s.configureStoreReq(req, "")
+
+	// tell the server we're sending JSON
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	// check statusCode
+	switch {
+	case resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated:
+		// user already purchased or purchase successful
+		var purchase Purchase
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&purchase); err != nil {
+			return "", err
+		}
+		return purchase.State, nil
+	case resp.StatusCode == http.StatusUnauthorized:
+		// auth token failure
+		return "", getUnauthorizedError(resp.Body)
+	default:
+		return "", fmt.Errorf("SnapUbuntuStoreRepository: unexpected HTTP status code %d while buying snap %q", resp.StatusCode, name)
+	}
+}
+
+func getUnauthorizedError(body io.ReadCloser) error {
+	// we get a error code, check json details
+	var msg AuthError
+	dec := json.NewDecoder(body)
+	if err := dec.Decode(&msg); err != nil {
+		return err
+	}
+	if msg.Error == "TOKEN_NEEDS_REFRESH" {
+		return ErrTokenNeedsRefresh
+	}
+	return ErrInvalidCredentials
 }
 
 type assertionSvcError struct {

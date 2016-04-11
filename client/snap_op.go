@@ -104,3 +104,12 @@ func (client *Client) DeactivateSnap(name string) (string, error) {
 
 	return client.doAsync("POST", path, nil, body)
 }
+
+// BuySnap purcahses the snap with the given name, returning the UUID
+// of the background operation upon success.
+func (client *Client) BuySnap(name string) (string, error) {
+	path := fmt.Sprintf("/2.0/snaps/%s", name)
+	body := strings.NewReader(`{"action":"buy"}`)
+
+	return client.doAsync("POST", path, nil, body)
+}

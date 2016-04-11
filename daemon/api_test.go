@@ -247,6 +247,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 			"update_available":   "v2",
 			"rollback_available": "v0",
 			"channel":            "stable",
+			"price":              float64(0),
 		},
 	}
 

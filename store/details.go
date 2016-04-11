@@ -38,6 +38,7 @@ type snapDetails struct {
 	IconURL         string             `json:"icon_url"`
 	LastUpdated     string             `json:"last_updated,omitempty"`
 	Name            string             `json:"package_name"`
+	FullName        string             `json:"name"`
 	Prices          map[string]float64 `json:"prices,omitempty"`
 	Publisher       string             `json:"publisher,omitempty"`
 	RatingsAverage  float64            `json:"ratings_average,omitempty"`
@@ -50,4 +51,63 @@ type snapDetails struct {
 	// FIXME: the store should return "developer" to us instead of
 	//        origin
 	Developer string `json:"origin" yaml:"origin"`
+}
+
+/*
+A Purchase encapsulates the purchase data sent to us from the software center agent.
+
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+
+[
+  {
+    "open_id": "https://login.staging.ubuntu.com/+id/open_id",
+    "package_name": "com.ubuntu.developer.dev.appname",
+    "refundable_until": "2015-07-15 18:46:21",
+    "state": "Complete"
+  },
+  {
+    "open_id": "https://login.staging.ubuntu.com/+id/open_id",
+    "package_name": "com.ubuntu.developer.dev.appname",
+    "item_sku": "item-1-sku",
+    "purchase_id": "1",
+    "refundable_until": null,
+    "state": "Complete"
+  },
+  {
+    "open_id": "https://login.staging.ubuntu.com/+id/open_id",
+    "package_name": "com.ubuntu.developer.dev.otherapp",
+    "refundable_until": "2015-07-17 11:33:29",
+    "state": "Complete"
+  }
+]
+*/
+type Purchase struct {
+	OpenID          string `json:"open_id"`
+	PackageName     string `json:"package_name"`
+	RefundableUntil string `json:"refundable_until"`
+	State           string `json:"state"`
+	ItemSKU         string `json:"item_sku,omitempty"`
+	PurchaseID      string `json:"purchase_id,omitempty"`
+}
+
+/*
+PurchaseInstruction encapsulates the data that must be sent in order to make a purchase from the store.
+*/
+type PurchaseInstruction struct {
+	DeviceID  string  `json:"device_id,omitempty"`
+	Name      string  `json:"name"`
+	ItemSKU   string  `json:"item_sku,omitempty"`
+	Amount    float64 `json:"amount,omitempty"`
+	Currency  string  `json:"currency,omitempty"`
+	BackendID string  `json:"backend_id,omitempty"`
+	MethodID  int64   `json:"method_id,omitempty"`
+}
+
+/*
+AuthError contains the reason behind an authentication failure
+*/
+type AuthError struct {
+	Threshold int64  `json:"threshold"`
+	Error     string `json:"error"`
 }

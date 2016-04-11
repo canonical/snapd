@@ -204,8 +204,9 @@ Sample result:
       "installed_size": 1821897,
       "name": "http",
       "developer": "chipaca",
+      "price": 2.99,
       "resource": "/v2/snaps/http",
-      "status": "active",
+      "status": "priced",
       "type": "app",
       "version": "3.1",
       "channel": "stable"
@@ -239,8 +240,8 @@ Sample result:
 
 #### Fields
 * `snaps`
-    * `status`: can be either `not installed`, `installed`, `active` (i.e. is
-      current).
+    * `status`: may transition as `available` => `installed` => `active`. For paid snaps,
+      the initial state is `priced` and once bought it becomes `available`.
     * `name`: the snap name.
     * `version`: a string representing the version.
     * `icon`: a url to the snap icon, possibly relative to this server.
@@ -255,6 +256,7 @@ Sample result:
       be rolled back to the version specified as a value to this entry.
     * `update_available`: if present and not empty, it means the snap can be
       updated to the version specified as a value to this entry.
+    * `price`: 0 means free, >0 implies a cost in the currently selected currency
     * `channel`: which channel the package is currently tracking.
 * `paging`
     * `count`: the number of snaps on this page
@@ -327,8 +329,8 @@ See `sources` for `/v2/snaps`.
 
 ### POST
 
-* Description: Install, update, remove, activate, deactivate, or
-  rollback the snap
+* Description: Install, update, remove, activate, deactivate,
+  rollback or buy the snap
 * Access: trusted
 * Operation: async
 * Return: background operation or standard error
@@ -345,7 +347,7 @@ See `sources` for `/v2/snaps`.
 
 field      | ignored except in action | description
 -----------|-------------------|------------
-`action`   |                   | Required; a string, one of `install`, `update`, `remove`, `activate`, `deactivate`, or `rollback`.
+`action`   |                   | Required; a string, one of `install`, `update`, `remove`, `activate`, `deactivate`, `rollback`, or `buy`.
 `channel`  | `install` `update` | From which channel to pull the new package (and track henceforth). Channels are a means to discern the maturity of a package or the software it contains, although the exact meaning is left to the application developer. One of `edge`, `beta`, `candidate`, and `stable` which is the default.
 `leave_old`| `install` `update` `remove` | A boolean, equivalent to commandline's `--no-gc`. Default is false (do not leave old snaps around).
 `license`  | `install` `update` | A JSON object with `intro`, `license`, and `agreed` fields, the first two of which must match the license (see the section "A note on licenses", below).

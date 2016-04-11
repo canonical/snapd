@@ -52,6 +52,7 @@ var (
 	shortRollbackHelp   = i18n.G("Rollback a snap to its previous known-good version")
 	shortActivateHelp   = i18n.G("Activate a snap that is installed but inactive")
 	shortDeactivateHelp = i18n.G("Deactivate an installed active snap")
+	shortBuyHelp        = i18n.G("Buy a paid snap")
 )
 
 var longInstallHelp = i18n.G(`
@@ -87,6 +88,10 @@ var longDeactivateHelp = i18n.G(`
 The deactivate command deactivates an installed, active snap.
 
 Snaps that are not active don't have their apps available for use.
+`)
+
+var longBuyHelp = i18n.G(`
+The buy command purchases a paid snap.
 `)
 
 type cmdOp struct {
@@ -162,6 +167,7 @@ func init() {
 			{"activate", shortActivateHelp, longActivateHelp, (*client.Client).ActivateSnap},
 			{"deactivate", shortDeactivateHelp, longDeactivateHelp, (*client.Client).DeactivateSnap},
 		*/
+		{"buy", shortBuyHelp, longBuyHelp, (*client.Client).BuySnap},
 	} {
 		op := s.op
 		addCommand(s.name, s.short, s.long, func() flags.Commander { return &cmdOp{op: op} })

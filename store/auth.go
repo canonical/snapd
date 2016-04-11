@@ -164,6 +164,13 @@ func ReadStoreToken() (*StoreToken, error) {
 	return &readStoreToken, nil
 }
 
+// DeleteStoreToken deletes the currently stored store token, i.e. it logs the user out
+func DeleteStoreToken() {
+	targetFile := storeTokenFilename()
+	// We don't care if the remove fails
+	os.Remove(targetFile)
+}
+
 // RequestPackageAccessMacaroon requests a macaroon for accessing package data from the ubuntu store.
 func RequestPackageAccessMacaroon() (string, error) {
 	const errorPrefix = "cannot get package access macaroon from store: "
