@@ -66,7 +66,7 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 					"name": "hello-world",
 					"developer": "canonical",
 					"resource": "/v2/snaps/hello-world.canonical",
-					"status": "not installed",
+					"status": "available",
 					"type": "app",
 					"version": "1.0.18"
 				}
