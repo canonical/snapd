@@ -21,6 +21,7 @@ package client_test
 
 import (
 	"fmt"
+	"time"
 
 	"gopkg.in/check.v1"
 
@@ -129,6 +130,7 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 			"download-size": 6930947,
 			"icon": "/v2/icons/chatroom.ogra/icon",
 			"installed-size": 18976651,
+                        "install-date": "2016-01-02T15:04:05Z",
 			"name": "chatroom",
 			"developer": "ogra",
 			"resource": "/v2/snaps/chatroom.ogra",
@@ -148,6 +150,7 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 		DownloadSize:  6930947,
 		Icon:          "/v2/icons/chatroom.ogra/icon",
 		InstalledSize: 18976651,
+		InstallDate:   time.Date(2016, 1, 2, 15, 4, 5, 0, time.UTC),
 		Name:          "chatroom",
 		Developer:     "ogra",
 		Status:        client.StatusActive,

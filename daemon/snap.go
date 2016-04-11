@@ -140,7 +140,7 @@ func mapSnap(localSnaps []*snappy.Snap, remoteSnap *snap.Info) map[string]interf
 		// *) not the actual right rollback because we aren't
 		// marking things failed etc etc etc)
 		//
-		if len(localSnaps) > 1 {
+		if len(localSnaps) == 2 {
 			rollback = localSnaps[1^idx].Revision()
 		}
 	}
@@ -165,6 +165,8 @@ func mapSnap(localSnaps []*snappy.Snap, remoteSnap *snap.Info) map[string]interf
 		if channel != "" {
 			result["channel"] = channel
 		}
+
+		result["install-date"] = localSnap.Date()
 	}
 
 	if rollback > -1 {

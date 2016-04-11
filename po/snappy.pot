@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-04-11 18:38-0300\n"
+        "POT-Creation-Date: 2016-04-11 18:58-0300\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -206,10 +206,10 @@ msgstr  ""
 msgid   "Name\tDate\tVersion\t"
 msgstr  ""
 
-msgid   "Name\tDate\tVersion\tDeveloper"
+msgid   "Name\tDate\tVersion\tDeveloper\t"
 msgstr  ""
 
-msgid   "Name\tDate\tVersion\tDeveloper\t"
+msgid   "Name\tVersion\tDeveloper"
 msgstr  ""
 
 msgid   "Name\tVersion\tSummary"
