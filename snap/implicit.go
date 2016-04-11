@@ -29,13 +29,13 @@ var implicitSlots = []string{
 	"network-bind",
 	"network-control",
 	"network-observe",
-	"snap-control",
+	"snapd-control",
 	"system-observe",
 	"timeserver-control",
 	"timezone-control",
 	// XXX: those two should perhaps not be added by default
 	"unity7",
-	"x",
+	"x11",
 }
 
 // AddImplicitSlots adds implicitly defined slots to a given snap.
