@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-04-11 22:24+0100\n"
+        "POT-Creation-Date: 2016-04-11 18:58-0300\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -86,7 +86,7 @@ msgid   "Connects a plug to a slot"
 msgstr  ""
 
 #, c-format
-msgid   "Copying snap data for %q"
+msgid   "Copy snap %q data"
 msgstr  ""
 
 msgid   "Creates a snap package and if available, runs the review scripts."
@@ -129,7 +129,7 @@ msgid   "Do not clean up old versions of the package."
 msgstr  ""
 
 #, c-format
-msgid   "Downloading %q"
+msgid   "Download snap %q"
 msgstr  ""
 
 msgid   "Enable classic dimension."
@@ -142,10 +142,6 @@ msgid   "Ensures system is running with latest parts"
 msgstr  ""
 
 msgid   "Entering classic dimension"
-msgstr  ""
-
-#, c-format
-msgid   "Final step for %q"
 msgstr  ""
 
 msgid   "Finds packages to install"
@@ -200,7 +196,11 @@ msgid   "Login successful"
 msgstr  ""
 
 #, c-format
-msgid   "Mounting %q"
+msgid   "Make snap %q available to the system"
+msgstr  ""
+
+#, c-format
+msgid   "Mount snap %q"
 msgstr  ""
 
 msgid   "Name\tDate\tVersion\t"
@@ -221,6 +221,10 @@ msgid   "No snap: '%s' found"
 msgstr  ""
 
 msgid   "Password: "
+msgstr  ""
+
+#, c-format
+msgid   "Prepare snap %q"
 msgstr  ""
 
 msgid   "Provide information about a specific installed package"
@@ -337,7 +341,7 @@ msgid   "Setting %s to version %s\n"
 msgstr  ""
 
 #, c-format
-msgid   "Setting up security profile for %q"
+msgid   "Setup snap %q security profiles"
 msgstr  ""
 
 msgid   "Show available updates (requires network)"
