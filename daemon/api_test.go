@@ -40,7 +40,6 @@ import (
 	"github.com/ubuntu-core/snappy/asserts"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/interfaces"
-	"github.com/ubuntu-core/snappy/overlord"
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/release"
@@ -50,14 +49,13 @@ import (
 )
 
 type apiSuite struct {
-	rsnaps        []*snap.Info
-	err           error
-	vars          map[string]string
-	searchTerm    string
-	channel       string
-	overlord      *fakeOverlord
-	stateOverlord *overlord.Overlord
-	daemon        *Daemon
+	rsnaps     []*snap.Info
+	err        error
+	vars       map[string]string
+	searchTerm string
+	channel    string
+	overlord   *fakeOverlord
+	daemon     *Daemon
 }
 
 var _ = check.Suite(&apiSuite{})
@@ -107,12 +105,11 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 		configs: map[string]string{},
 	}
 	s.daemon = newTestDaemon(c)
-	s.stateOverlord = s.daemon.overlord
-	s.stateOverlord.Loop()
+	s.daemon.overlord.Loop()
 }
 
 func (s *apiSuite) TearDownTest(c *check.C) {
-	s.stateOverlord.Stop()
+	s.daemon.overlord.Stop()
 }
 
 func (s *apiSuite) mkManifest(c *check.C, pkgType snap.Type) {
@@ -1135,7 +1132,7 @@ func (s *apiSuite) TestInstall(c *check.C) {
 	}
 
 	inst := &snapInstruction{
-		overlord: s.stateOverlord,
+		overlord: s.daemon.overlord,
 		Action:   "install",
 	}
 
@@ -1152,7 +1149,7 @@ func (s *apiSuite) TestInstallFails(c *check.C) {
 	}
 
 	inst := &snapInstruction{
-		overlord: s.stateOverlord,
+		overlord: s.daemon.overlord,
 		Action:   "install",
 	}
 
@@ -1172,7 +1169,7 @@ func (s *apiSuite) TestInstallLeaveOld(c *check.C) {
 	}
 
 	inst := &snapInstruction{
-		overlord: s.stateOverlord,
+		overlord: s.daemon.overlord,
 		Action:   "install",
 		LeaveOld: true,
 	}
@@ -1195,7 +1192,7 @@ func (s *apiSuite) TestInstallLicensed(c *check.C) {
 	}
 
 	inst := &snapInstruction{
-		overlord: s.stateOverlord,
+		overlord: s.daemon.overlord,
 		Action:   "install",
 	}
 
