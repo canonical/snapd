@@ -50,14 +50,14 @@ import (
 )
 
 type apiSuite struct {
-	rsnaps     []*snap.Info
-	err        error
-	vars       map[string]string
-	searchTerm string
-	channel    string
-	overlord   *fakeOverlord
-
+	rsnaps        []*snap.Info
+	err           error
+	vars          map[string]string
+	searchTerm    string
+	channel       string
+	overlord      *fakeOverlord
 	stateOverlord *overlord.Overlord
+	daemon        *Daemon
 }
 
 var _ = check.Suite(&apiSuite{})
@@ -110,6 +110,7 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 	c.Assert(err, check.IsNil)
 	s.stateOverlord = o
 	s.stateOverlord.Loop()
+	s.daemon = newTestDaemon(c)
 }
 
 func (s *apiSuite) TearDownTest(c *check.C) {
