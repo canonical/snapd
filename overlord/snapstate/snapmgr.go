@@ -337,11 +337,11 @@ func setSnapState(s *state.State, name string, snapst *snapState) {
 		return
 	}
 	if err != nil {
-		panic("internal error: cannot unmarshal snaps state: "+err.Error()) 
+		panic("internal error: cannot unmarshal snaps state: " + err.Error())
 	}
 	data, err := json.Marshal(snapst)
 	if err != nil {
-		panic("internal error: cannot marshal snap state: "+err.Error())
+		panic("internal error: cannot marshal snap state: " + err.Error())
 	}
 	raw := json.RawMessage(data)
 	snaps[name] = &raw
