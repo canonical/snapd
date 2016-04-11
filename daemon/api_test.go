@@ -2092,3 +2092,112 @@ func (s *apiSuite) TestGetEvents(c *check.C) {
 	ts.Close()
 	c.Assert(d.hub.SubscriberCount(), check.Equals, 1)
 }
+
+func setupChanges(st *state.State) {
+	chg1 := st.NewChange("install", "install...")
+	t1 := st.NewTask("download", "1...")
+	t2 := st.NewTask("activate", "2...")
+	chg1.AddAll(state.NewTaskSet(t1, t2))
+	t1.Logf("l11")
+	t1.Logf("l12")
+	chg2 := st.NewChange("remove", "remove..")
+	t3 := st.NewTask("unlink", "1...")
+	chg2.AddTask(t3)
+	t3.SetStatus(state.ErrorStatus)
+	t3.Errorf("rm failed")
+}
+
+func (s *apiSuite) TestStateChangesDefaultToInProgress(c *check.C) {
+	// Setup
+	d := newTestDaemon(c)
+	st := d.overlord.State()
+	st.Lock()
+	setupChanges(st)
+	st.Unlock()
+
+	// Execute
+	req, err := http.NewRequest("GET", "/v2/changes", nil)
+	c.Assert(err, check.IsNil)
+	rsp := getChanges(stateChangesCmd, req).(*resp)
+
+	// Verify
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	c.Assert(rsp.Result, check.HasLen, 1)
+
+	res, err := rsp.MarshalJSON()
+	c.Assert(err, check.IsNil)
+
+	c.Check(string(res), testutil.Contains, `{"kind":"install","summary":"install...","status":"Do","tasks":[{"kind":"download","summary":"1...","status":"Do","log":["INFO: l11","INFO: l12"]}`)
+}
+
+func (s *apiSuite) TestStateChangesInProgress(c *check.C) {
+	// Setup
+	d := newTestDaemon(c)
+	st := d.overlord.State()
+	st.Lock()
+	setupChanges(st)
+	st.Unlock()
+
+	// Execute
+	req, err := http.NewRequest("GET", "/v2/changes?select=in-progress", nil)
+	c.Assert(err, check.IsNil)
+	rsp := getChanges(stateChangesCmd, req).(*resp)
+
+	// Verify
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	c.Assert(rsp.Result, check.HasLen, 1)
+
+	res, err := rsp.MarshalJSON()
+	c.Assert(err, check.IsNil)
+
+	c.Check(string(res), testutil.Contains, `{"kind":"install","summary":"install...","status":"Do","tasks":[{"kind":"download","summary":"1...","status":"Do","log":["INFO: l11","INFO: l12"]}`)
+}
+
+func (s *apiSuite) TestStateChangesAll(c *check.C) {
+	// Setup
+	d := newTestDaemon(c)
+	st := d.overlord.State()
+	st.Lock()
+	setupChanges(st)
+	st.Unlock()
+
+	// Execute
+	req, err := http.NewRequest("GET", "/v2/changes?select=all", nil)
+	c.Assert(err, check.IsNil)
+	rsp := getChanges(stateChangesCmd, req).(*resp)
+
+	// Verify
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	c.Assert(rsp.Result, check.HasLen, 2)
+
+	res, err := rsp.MarshalJSON()
+	c.Assert(err, check.IsNil)
+
+	c.Check(string(res), testutil.Contains, `{"kind":"install","summary":"install...","status":"Do","tasks":[{"kind":"download","summary":"1...","status":"Do","log":["INFO: l11","INFO: l12"]}`)
+	c.Check(string(res), testutil.Contains, `{"kind":"remove","summary":"remove..","status":"Error","tasks":[{"kind":"unlink","summary":"1...","status":"Error","log":["ERROR: rm failed"]}]}`)
+}
+
+func (s *apiSuite) TestStateChangesReady(c *check.C) {
+	// Setup
+	d := newTestDaemon(c)
+	st := d.overlord.State()
+	st.Lock()
+	setupChanges(st)
+	st.Unlock()
+
+	// Execute
+	req, err := http.NewRequest("GET", "/v2/changes?select=ready", nil)
+	c.Assert(err, check.IsNil)
+	rsp := getChanges(stateChangesCmd, req).(*resp)
+
+	// Verify
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	c.Assert(rsp.Result, check.HasLen, 1)
+
+	res, err := rsp.MarshalJSON()
+	c.Assert(err, check.IsNil)
+
+	c.Check(string(res), testutil.Contains, `{"kind":"remove","summary":"remove..","status":"Error","tasks":[{"kind":"unlink","summary":"1...","status":"Error","log":["ERROR: rm failed"]}]}`)
+}

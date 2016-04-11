@@ -66,6 +66,7 @@ var api = []*Command{
 	assertsCmd,
 	assertsFindManyCmd,
 	eventsCmd,
+	stateChangesCmd,
 }
 
 var (
@@ -141,6 +142,12 @@ var (
 	eventsCmd = &Command{
 		Path: "/v2/events",
 		GET:  getEvents,
+	}
+
+	stateChangesCmd = &Command{
+		Path:   "/v2/changes",
+		UserOK: true,
+		GET:    getChanges,
 	}
 )
 
@@ -1005,4 +1012,67 @@ func assertsFindMany(c *Command, r *http.Request) Response {
 
 func getEvents(c *Command, r *http.Request) Response {
 	return EventResponse(c.d.hub)
+}
+
+type changeInfo struct {
+	Kind    string      `json:"kind"`
+	Summary string      `json:"summary"`
+	Status  string      `json:"status"`
+	Tasks   []*taskInfo `json:"tasks,omitempty"`
+}
+
+type taskInfo struct {
+	Kind    string   `json:"kind"`
+	Summary string   `json:"summary"`
+	Status  string   `json:"status"`
+	Log     []string `json:"log,omitempty"`
+}
+
+func getChanges(c *Command, r *http.Request) Response {
+	query := r.URL.Query()
+	qselect := query.Get("select")
+	if qselect == "" {
+		qselect = "in-progress"
+	}
+	var filter func(*state.Change) bool
+	switch qselect {
+	case "all":
+		filter = func(*state.Change) bool { return true }
+	case "in-progress":
+		filter = func(chg *state.Change) bool { return !chg.Status().Ready() }
+	case "ready":
+		filter = func(chg *state.Change) bool { return chg.Status().Ready() }
+	default:
+		return BadRequest("select should be one of: all,in-progress,ready")
+	}
+
+	state := c.d.overlord.State()
+	state.Lock()
+	defer state.Unlock()
+	chgs := state.Changes()
+	chgInfos := make([]*changeInfo, 0, len(chgs))
+	for _, chg := range chgs {
+		if !filter(chg) {
+			continue
+		}
+		chgInfo := &changeInfo{
+			Kind:    chg.Kind(),
+			Summary: chg.Summary(),
+			Status:  chg.Status().String(),
+		}
+		tasks := chg.Tasks()
+		taskInfos := make([]*taskInfo, len(tasks))
+		for j, t := range tasks {
+			taskInfo := &taskInfo{
+				Kind:    t.Kind(),
+				Summary: t.Summary(),
+				Status:  t.Status().String(),
+				Log:     t.Log(),
+			}
+			taskInfos[j] = taskInfo
+		}
+		chgInfo.Tasks = taskInfos
+		chgInfos = append(chgInfos, chgInfo)
+	}
+	return SyncResponse(chgInfos)
 }
