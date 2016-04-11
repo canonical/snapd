@@ -63,8 +63,6 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	stampFile = filepath.Join(c.MkDir(), "stamp")
 
 	// mock the world!
-	makeMockSecurityEnv(c)
-	runAppArmorParser = mockRunAppArmorParser
 	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
 		return []byte("ActiveState=inactive\n"), nil
 	}
