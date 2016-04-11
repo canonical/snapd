@@ -77,6 +77,8 @@ func (s *updateOSSuite) assertUBootDirContents(c *check.C, snapBootDir string) {
 // modified to fake an update. If there is a version available, the image will
 // be up-to-date after running this test.
 func (s *updateOSSuite) TestUpdateToSameReleaseAndChannel(c *check.C) {
+	c.Skip("port to snapd")
+
 	if common.BeforeReboot() {
 		updateOutput := updates.CallFakeOSUpdate(c)
 		expected := "(?ms)" +

@@ -39,6 +39,8 @@ type infoSuite struct {
 }
 
 func (s *infoSuite) TestInfoMustPrintReleaseAndChannel(c *check.C) {
+	c.Skip("port to snapd")
+
 	// skip test when having a remote testbed (we can't know which the
 	// release and channels are)
 	if common.Cfg.RemoteTestbed {
@@ -57,6 +59,8 @@ func (s *infoSuite) TestInfoMustPrintReleaseAndChannel(c *check.C) {
 }
 
 func (s *infoSuite) TestInfoMustPrintInstalledApps(c *check.C) {
+	c.Skip("port to snapd")
+
 	snapPath, err := build.LocalSnap(c, data.BasicSnapName)
 	defer os.Remove(snapPath)
 	c.Assert(err, check.IsNil, check.Commentf("Error building local snap: %s", err))

@@ -47,6 +47,8 @@ type hwAssignSuite struct {
 }
 
 func (s *hwAssignSuite) SetUpTest(c *check.C) {
+	c.Skip("port to snapd")
+
 	s.SnappySuite.SetUpTest(c)
 	var err error
 	s.snapPath, err = build.LocalSnap(c, snapName)
