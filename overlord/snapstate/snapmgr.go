@@ -69,16 +69,20 @@ type snapState struct {
 	DevMode  bool             `json:"dev-mode,omitempty"`
 }
 
-// XXX: best this should helper from snap
-func (ss *SnapSetup) MountDir() string {
-	return filepath.Join(dirs.SnapSnapsDir, ss.Name, strconv.Itoa(ss.Revision))
+func (ss *SnapSetup) placeInfo() snap.PlaceInfo {
+	return snap.MinimalPlaceInfo(ss.Name, ss.Revision)
 }
 
+func (ss *SnapSetup) MountDir() string {
+	return ss.placeInfo().MountDir()
+}
+
+// XXX: should not be needed actually
 func (ss *SnapSetup) OldMountDir() string {
 	if ss.OldName == "" {
 		return ""
 	}
-	return filepath.Join(dirs.SnapSnapsDir, ss.OldName, strconv.Itoa(ss.OldRevision))
+	return snap.MinimalPlaceInfo(ss.OldName, ss.OldRevision).MountDir()
 }
 
 // Manager returns a new snap manager.
@@ -187,7 +191,7 @@ func (m *SnapManager) doRemoveSnapFiles(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	pb := &TaskProgressAdapter{task: t}
-	return m.backend.RemoveSnapFiles(ss.MountDir(), pb)
+	return m.backend.RemoveSnapFiles(ss.placeInfo(), pb)
 }
 
 func (m *SnapManager) doRemoveSnapData(t *state.Task, _ *tomb.Tomb) error {
@@ -286,7 +290,7 @@ func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	return m.backend.UndoSetupSnap(ss.MountDir())
+	return m.backend.UndoSetupSnap(ss.placeInfo())
 }
 
 func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
