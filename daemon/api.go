@@ -681,12 +681,6 @@ func postSnap(c *Command, r *http.Request) Response {
 
 const maxReadBuflen = 1024 * 1024
 
-func checkSnapImpl(filename string, flags snappy.InstallFlags) error {
-	return snappy.CheckSnap(filename, flags, &progress.NullProgress{})
-}
-
-var checkSnap = checkSnapImpl
-
 func sideloadSnap(c *Command, r *http.Request) Response {
 	route := c.d.router.Get(operationCmd.Path)
 	if route == nil {
@@ -748,6 +742,12 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 	}
 
 	return AsyncResponse(c.d.AddTask(func() interface{} {
+		lock, err := lockfile.Lock(dirs.SnapLockFile, true)
+		if err != nil {
+			return err
+		}
+		defer lock.Unlock()
+
 		var flags snappy.InstallFlags
 		if unsignedOk {
 			flags |= snappy.AllowUnauthenticated
