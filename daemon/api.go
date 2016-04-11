@@ -748,31 +748,28 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 	}
 
 	return AsyncResponse(c.d.AddTask(func() interface{} {
-		defer os.Remove(tmpf.Name())
-
 		var flags snappy.InstallFlags
 		if unsignedOk {
 			flags |= snappy.AllowUnauthenticated
 		}
 
-		err := checkSnap(tmpf.Name(), flags)
+		snap := tmpf.Name()
+		defer os.Remove(snap)
+
+		state := c.d.overlord.State()
+		state.Lock()
+		msg := fmt.Sprintf(i18n.G("Install local %q snap"), snap)
+		chg := state.NewChange("install-snap", msg)
+		ts, err := snapstateInstall(state, snap, "", flags)
+		if err == nil {
+			chg.AddAll(ts)
+		}
+		state.Unlock()
 		if err != nil {
 			return err
 		}
-
-		lock, err := lockfile.Lock(dirs.SnapLockFile, true)
-		if err != nil {
-			return err
-		}
-		defer lock.Unlock()
-
-		overlord := &snappy.Overlord{}
-		name, err := overlord.Install(tmpf.Name(), flags, &progress.NullProgress{})
-		if err != nil {
-			return err
-		}
-
-		return name
+		state.EnsureBefore(0)
+		return waitChange(chg)
 	}).Map(route))
 }
 
