@@ -150,6 +150,24 @@ Reserved for human-readable content describing the service.
 }
 ```
 
+## `/v2/login`
+### `POST`
+
+* Description: Log user in the store
+* Access: trusted
+* Operation: sync
+* Return: Dict with the authenticated user information.
+
+#### Sample result:
+
+```javascript
+{
+ "username": "username",
+ "macaroon": "serialized-store-macaroon",
+ "discharges": ["discharge-for-macaroon-authentication"]
+}
+```
+
 ## /v2/snaps
 ### GET
 
