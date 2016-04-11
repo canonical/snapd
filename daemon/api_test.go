@@ -192,8 +192,6 @@ gadget: {store: {id: %q}}
 }
 
 func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
-	newTestDaemon(c)
-
 	s.vars = map[string]string{"name": "foo"}
 
 	// the store tells us about v2
@@ -275,7 +273,7 @@ func (s *apiSuite) TestSnapInfoIgnoresRemoteErrors(c *check.C) {
 func (s *apiSuite) TestSnapInfoWeirdRoute(c *check.C) {
 	// can't really happen
 
-	d := newTestDaemon(c)
+	d := s.daemon
 
 	// use the wrong command to force the issue
 	wrongCmd := &Command{Path: "/{what}", d: d}
@@ -291,7 +289,7 @@ func (s *apiSuite) TestSnapInfoWeirdRoute(c *check.C) {
 func (s *apiSuite) TestSnapInfoBadRoute(c *check.C) {
 	// can't really happen, v2
 
-	d := newTestDaemon(c)
+	d := s.daemon
 
 	// get the route and break it
 	route := d.router.Get(snapCmd.Path)
@@ -664,7 +662,7 @@ func (s *apiSuite) TestDeleteOpNotFound(c *check.C) {
 }
 
 func (s *apiSuite) TestDeleteOpStillRunning(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.daemon
 
 	d.tasks["42"] = &Task{}
 	s.vars = map[string]string{"uuid": "42"}
@@ -674,7 +672,7 @@ func (s *apiSuite) TestDeleteOpStillRunning(c *check.C) {
 }
 
 func (s *apiSuite) TestDeleteOp(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.daemon
 
 	task := &Task{}
 	d.tasks["42"] = task
@@ -686,7 +684,7 @@ func (s *apiSuite) TestDeleteOp(c *check.C) {
 }
 
 func (s *apiSuite) TestGetOpInfoIntegration(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.daemon
 
 	s.vars = map[string]string{"uuid": "42"}
 	rsp := getOpInfo(operationCmd, nil).Self(nil, nil).(*resp)
@@ -771,7 +769,7 @@ func (s *apiSuite) TestPostSnapBadAction(c *check.C) {
 }
 
 func (s *apiSuite) TestPostSnap(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.daemon
 
 	s.vars = map[string]string{"uuid": "42"}
 	c.Check(getOpInfo(operationCmd, nil).Self(nil, nil).(*resp).Status, check.Equals, http.StatusNotFound)
@@ -1219,7 +1217,7 @@ func (s *apiSuite) TestInstallLicensed(c *check.C) {
 }
 
 func (s *apiSuite) TestInstallLicensedIntegration(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.daemon
 
 	snapstateInstall = func(s *state.State, name, channel string, flags snappy.InstallFlags) (state.TaskSet, error) {
 		if meter.Agreed("hi", "yak yak") {
@@ -1318,7 +1316,7 @@ func makeConnectedSlot() *interfaces.Slot {
 }
 
 func (s *apiSuite) TestGetPlugs(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.daemon
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddPlug(makePlug("interface"))
 	d.interfaces.AddSlot(makeSlot("interface"))
@@ -1369,7 +1367,7 @@ func (s *apiSuite) TestGetPlugs(c *check.C) {
 // Test for POST /v2/interfaces
 
 func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.daemon
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddPlug(makePlug("interface"))
 	d.interfaces.AddSlot(makeSlot("interface"))
@@ -1402,7 +1400,7 @@ func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 }
 
 func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.daemon
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "other-interface"})
 	d.interfaces.AddPlug(makePlug("interface"))
@@ -1438,7 +1436,7 @@ func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 }
 
 func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.daemon
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddSlot(makeSlot("interface"))
 	action := &interfaceAction{
@@ -1471,7 +1469,7 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 }
 
 func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.daemon
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddPlug(makePlug("interface"))
 	action := &interfaceAction{
@@ -1504,7 +1502,7 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 }
 
 func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.daemon
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddPlug(makePlug("interface"))
 	d.interfaces.AddSlot(makeSlot("interface"))
@@ -1538,7 +1536,7 @@ func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.daemon
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddSlot(makeSlot("interface"))
 	action := &interfaceAction{
@@ -1571,7 +1569,7 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.daemon
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddPlug(makePlug("interface"))
 	action := &interfaceAction{
@@ -1604,7 +1602,7 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.daemon
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddPlug(makePlug("interface"))
 	d.interfaces.AddSlot(makeSlot("interface"))
@@ -1682,7 +1680,6 @@ func (s *apiSuite) TestMissingInterfaceAction(c *check.C) {
 }
 
 func (s *apiSuite) TestUnsupportedInterfaceAction(c *check.C) {
-	newTestDaemon(c)
 	action := &interfaceAction{Action: "foo"}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -1774,7 +1771,6 @@ func (s *apiSuite) TestAssertOK(c *check.C) {
 
 func (s *apiSuite) TestAssertInvalid(c *check.C) {
 	// Setup
-	newTestDaemon(c)
 	buf := bytes.NewBufferString("blargh")
 	req, err := http.NewRequest("POST", "/v2/assertions", buf)
 	c.Assert(err, check.IsNil)
@@ -1789,7 +1785,6 @@ func (s *apiSuite) TestAssertInvalid(c *check.C) {
 
 func (s *apiSuite) TestAssertError(c *check.C) {
 	// Setup
-	newTestDaemon(c)
 	buf := bytes.NewBufferString(testAccKey)
 	req, err := http.NewRequest("POST", "/v2/assertions", buf)
 	c.Assert(err, check.IsNil)
@@ -1889,8 +1884,6 @@ func (s *apiSuite) TestAssertsFindManyNoResults(c *check.C) {
 }
 
 func (s *apiSuite) TestAssertsInvalidType(c *check.C) {
-	// Setup
-	newTestDaemon(c)
 	// Execute
 	req, err := http.NewRequest("POST", "/v2/assertions/foo", nil)
 	c.Assert(err, check.IsNil)
@@ -1903,7 +1896,7 @@ func (s *apiSuite) TestAssertsInvalidType(c *check.C) {
 }
 
 func (s *apiSuite) TestGetEvents(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.daemon
 	eventsCmd.d = d
 	c.Assert(d.hub.SubscriberCount(), check.Equals, 0)
 
