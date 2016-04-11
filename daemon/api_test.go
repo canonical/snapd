@@ -473,21 +473,25 @@ func (s *apiSuite) TestLoginUser(c *check.C) {
 
 	rsp = loginUser(snapCmd, req).(*resp)
 
-	expected := userAuthState{
-		Username:   "username",
+	expected := loginResponseData{
 		Macaroon:   "the-macaroon-serialized-data",
-		Discharges: []string{"the-discharge-macaroon-serialized-data"}}
-
+		Discharges: []string{"the-discharge-macaroon-serialized-data"},
+	}
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Result, check.DeepEquals, expected)
 
 	var auth authState
+	expectedState := userAuthState{
+		Username:   "username",
+		Macaroon:   "the-macaroon-serialized-data",
+		Discharges: []string{"the-discharge-macaroon-serialized-data"},
+	}
 	state := snapCmd.d.overlord.State()
 	state.Lock()
 	state.Get("auth", &auth)
 	state.Unlock()
-	c.Check(auth, check.DeepEquals, authState{Users: []userAuthState{expected}})
+	c.Check(auth, check.DeepEquals, authState{Users: []userAuthState{expectedState}})
 }
 
 func (s *apiSuite) TestLoginUserBadRequest(c *check.C) {
