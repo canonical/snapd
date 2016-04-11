@@ -55,7 +55,7 @@ type apiSuite struct {
 	searchTerm string
 	channel    string
 	overlord   *fakeOverlord
-	daemon     *Daemon
+	d          *Daemon
 }
 
 var _ = check.Suite(&apiSuite{})
@@ -104,7 +104,22 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 	s.overlord = &fakeOverlord{
 		configs: map[string]string{},
 	}
-	s.daemon = newTestDaemon(c)
+	s.d = nil
+}
+
+func (s *apiSuite) TearDownTest(c *check.C) {
+	s.d = nil
+}
+
+func (s *apiSuite) daemon(c *check.C) *Daemon {
+	if s.d != nil {
+		panic("called daemon() twice")
+	}
+	d, err := New()
+	c.Assert(err, check.IsNil)
+	d.addRoutes()
+	s.d = d
+	return d
 }
 
 func (s *apiSuite) mkManifest(c *check.C, pkgType snap.Type) {
@@ -182,6 +197,7 @@ gadget: {store: {id: %q}}
 }
 
 func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
+	s.daemon(c)
 	s.vars = map[string]string{"name": "foo"}
 
 	// the store tells us about v2
@@ -263,7 +279,7 @@ func (s *apiSuite) TestSnapInfoIgnoresRemoteErrors(c *check.C) {
 func (s *apiSuite) TestSnapInfoWeirdRoute(c *check.C) {
 	// can't really happen
 
-	d := s.daemon
+	d := s.daemon(c)
 
 	// use the wrong command to force the issue
 	wrongCmd := &Command{Path: "/{what}", d: d}
@@ -279,7 +295,7 @@ func (s *apiSuite) TestSnapInfoWeirdRoute(c *check.C) {
 func (s *apiSuite) TestSnapInfoBadRoute(c *check.C) {
 	// can't really happen, v2
 
-	d := s.daemon
+	d := s.daemon(c)
 
 	// get the route and break it
 	route := d.router.Get(snapCmd.Path)
@@ -652,7 +668,7 @@ func (s *apiSuite) TestDeleteOpNotFound(c *check.C) {
 }
 
 func (s *apiSuite) TestDeleteOpStillRunning(c *check.C) {
-	d := s.daemon
+	d := s.daemon(c)
 
 	d.tasks["42"] = &Task{}
 	s.vars = map[string]string{"uuid": "42"}
@@ -662,7 +678,7 @@ func (s *apiSuite) TestDeleteOpStillRunning(c *check.C) {
 }
 
 func (s *apiSuite) TestDeleteOp(c *check.C) {
-	d := s.daemon
+	d := s.daemon(c)
 
 	task := &Task{}
 	d.tasks["42"] = task
@@ -674,7 +690,7 @@ func (s *apiSuite) TestDeleteOp(c *check.C) {
 }
 
 func (s *apiSuite) TestGetOpInfoIntegration(c *check.C) {
-	d := s.daemon
+	d := s.daemon(c)
 
 	s.vars = map[string]string{"uuid": "42"}
 	rsp := getOpInfo(operationCmd, nil).Self(nil, nil).(*resp)
@@ -759,7 +775,7 @@ func (s *apiSuite) TestPostSnapBadAction(c *check.C) {
 }
 
 func (s *apiSuite) TestPostSnap(c *check.C) {
-	d := s.daemon
+	d := s.daemon(c)
 
 	s.vars = map[string]string{"uuid": "42"}
 	c.Check(getOpInfo(operationCmd, nil).Self(nil, nil).(*resp).Status, check.Equals, http.StatusNotFound)
@@ -1126,13 +1142,14 @@ func (s *apiSuite) TestInstall(c *check.C) {
 		return state.NewTaskSet(t), nil
 	}
 
+	d := s.daemon(c)
 	inst := &snapInstruction{
-		overlord: s.daemon.overlord,
+		overlord: d.overlord,
 		Action:   "install",
 	}
 
-	s.daemon.overlord.Loop()
-	defer s.daemon.overlord.Stop()
+	d.overlord.Loop()
+	defer d.overlord.Stop()
 	err := inst.dispatch()()
 
 	c.Check(calledFlags, check.Equals, snappy.DoInstallGC)
@@ -1145,13 +1162,14 @@ func (s *apiSuite) TestInstallFails(c *check.C) {
 		return state.NewTaskSet(t), nil
 	}
 
+	d := s.daemon(c)
 	inst := &snapInstruction{
-		overlord: s.daemon.overlord,
+		overlord: d.overlord,
 		Action:   "install",
 	}
 
-	s.daemon.overlord.Loop()
-	defer s.daemon.overlord.Stop()
+	d.overlord.Loop()
+	defer d.overlord.Stop()
 	err := inst.dispatch()()
 
 	c.Check(err, check.ErrorMatches, `(?sm).*Install task \(fake-install-snap-error errored\)`)
@@ -1167,14 +1185,15 @@ func (s *apiSuite) TestInstallLeaveOld(c *check.C) {
 		return state.NewTaskSet(t), nil
 	}
 
+	d := s.daemon(c)
 	inst := &snapInstruction{
-		overlord: s.daemon.overlord,
+		overlord: d.overlord,
 		Action:   "install",
 		LeaveOld: true,
 	}
 
-	s.daemon.overlord.Loop()
-	defer s.daemon.overlord.Stop()
+	d.overlord.Loop()
+	defer d.overlord.Stop()
 	err := inst.dispatch()()
 
 	c.Check(calledFlags, check.Equals, snappy.InstallFlags(0))
@@ -1192,12 +1211,16 @@ func (s *apiSuite) TestInstallLicensed(c *check.C) {
 		return nil, snappy.ErrLicenseNotAccepted
 	}
 
+	d := s.daemon(c)
 	inst := &snapInstruction{
-		overlord: s.daemon.overlord,
+		overlord: d.overlord,
 		Action:   "install",
 	}
 
+	d.overlord.Loop()
+	defer d.overlord.Stop()
 	lic, ok := inst.dispatch()().(*licenseData)
+
 	c.Assert(ok, check.Equals, true)
 	c.Check(lic, check.ErrorMatches, "license agreement required")
 	c.Check(lic.Intro, check.Equals, "hi")
@@ -1208,14 +1231,12 @@ func (s *apiSuite) TestInstallLicensed(c *check.C) {
 	inst.License = lic
 	inst.License.Agreed = true
 
-	s.daemon.overlord.Loop()
-	defer s.daemon.overlord.Stop()
 	err := inst.dispatch()()
 	c.Check(err, check.IsNil)
 }
 
 func (s *apiSuite) TestInstallLicensedIntegration(c *check.C) {
-	d := s.daemon
+	d := s.daemon(c)
 
 	snapstateInstall = func(s *state.State, name, channel string, flags snappy.InstallFlags) (state.TaskSet, error) {
 		if meter.Agreed("hi", "yak yak") {
@@ -1314,7 +1335,7 @@ func makeConnectedSlot() *interfaces.Slot {
 }
 
 func (s *apiSuite) TestGetPlugs(c *check.C) {
-	d := s.daemon
+	d := s.daemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddPlug(makePlug("interface"))
 	d.interfaces.AddSlot(makeSlot("interface"))
@@ -1365,7 +1386,7 @@ func (s *apiSuite) TestGetPlugs(c *check.C) {
 // Test for POST /v2/interfaces
 
 func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
-	d := s.daemon
+	d := s.daemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddPlug(makePlug("interface"))
 	d.interfaces.AddSlot(makeSlot("interface"))
@@ -1398,7 +1419,7 @@ func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 }
 
 func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
-	d := s.daemon
+	d := s.daemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "other-interface"})
 	d.interfaces.AddPlug(makePlug("interface"))
@@ -1434,7 +1455,7 @@ func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 }
 
 func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
-	d := s.daemon
+	d := s.daemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddSlot(makeSlot("interface"))
 	action := &interfaceAction{
@@ -1467,7 +1488,7 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 }
 
 func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
-	d := s.daemon
+	d := s.daemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddPlug(makePlug("interface"))
 	action := &interfaceAction{
@@ -1500,7 +1521,7 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 }
 
 func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
-	d := s.daemon
+	d := s.daemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddPlug(makePlug("interface"))
 	d.interfaces.AddSlot(makeSlot("interface"))
@@ -1534,7 +1555,7 @@ func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
-	d := s.daemon
+	d := s.daemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddSlot(makeSlot("interface"))
 	action := &interfaceAction{
@@ -1567,7 +1588,7 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
-	d := s.daemon
+	d := s.daemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddPlug(makePlug("interface"))
 	action := &interfaceAction{
@@ -1600,7 +1621,7 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
-	d := s.daemon
+	d := s.daemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddPlug(makePlug("interface"))
 	d.interfaces.AddSlot(makeSlot("interface"))
@@ -1678,6 +1699,7 @@ func (s *apiSuite) TestMissingInterfaceAction(c *check.C) {
 }
 
 func (s *apiSuite) TestUnsupportedInterfaceAction(c *check.C) {
+	s.daemon(c)
 	action := &interfaceAction{Action: "foo"}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -1750,8 +1772,7 @@ func (s *apiSuite) TestAssertOK(c *check.C) {
 	os.MkdirAll(filepath.Dir(dirs.SnapTrustedAccountKey), 0755)
 	err := ioutil.WriteFile(dirs.SnapTrustedAccountKey, []byte(testTrustedKey), 0640)
 	c.Assert(err, check.IsNil)
-	// FIXME: this should be s.daemon but cannot due to initialization above
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	buf := bytes.NewBufferString(testAccKey)
 	// Execute
 	req, err := http.NewRequest("POST", "/v2/assertions", buf)
@@ -1783,6 +1804,7 @@ func (s *apiSuite) TestAssertInvalid(c *check.C) {
 }
 
 func (s *apiSuite) TestAssertError(c *check.C) {
+	s.daemon(c)
 	// Setup
 	buf := bytes.NewBufferString(testAccKey)
 	req, err := http.NewRequest("POST", "/v2/assertions", buf)
@@ -1800,8 +1822,7 @@ func (s *apiSuite) TestAssertsFindManyAll(c *check.C) {
 	os.MkdirAll(filepath.Dir(dirs.SnapTrustedAccountKey), 0755)
 	err := ioutil.WriteFile(dirs.SnapTrustedAccountKey, []byte(testTrustedKey), 0640)
 	c.Assert(err, check.IsNil)
-	// FIXME: this should be s.daemon but cannot due to initialization above
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	a, err := asserts.Decode([]byte(testAccKey))
 	c.Assert(err, check.IsNil)
 	err = d.overlord.AssertManager().DB().Add(a)
@@ -1836,8 +1857,7 @@ func (s *apiSuite) TestAssertsFindManyFilter(c *check.C) {
 	os.MkdirAll(filepath.Dir(dirs.SnapTrustedAccountKey), 0755)
 	err := ioutil.WriteFile(dirs.SnapTrustedAccountKey, []byte(testTrustedKey), 0640)
 	c.Assert(err, check.IsNil)
-	// FIXME: this should be s.daemon but cannot due to initialization above
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	a, err := asserts.Decode([]byte(testAccKey))
 	c.Assert(err, check.IsNil)
 	err = d.overlord.AssertManager().DB().Add(a)
@@ -1865,8 +1885,7 @@ func (s *apiSuite) TestAssertsFindManyNoResults(c *check.C) {
 	os.MkdirAll(filepath.Dir(dirs.SnapTrustedAccountKey), 0755)
 	err := ioutil.WriteFile(dirs.SnapTrustedAccountKey, []byte(testTrustedKey), 0640)
 	c.Assert(err, check.IsNil)
-	// FIXME: this should be s.daemon but cannot due to initialization above
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	a, err := asserts.Decode([]byte(testAccKey))
 	c.Assert(err, check.IsNil)
 	err = d.overlord.AssertManager().DB().Add(a)
@@ -1898,7 +1917,7 @@ func (s *apiSuite) TestAssertsInvalidType(c *check.C) {
 }
 
 func (s *apiSuite) TestGetEvents(c *check.C) {
-	d := s.daemon
+	d := s.daemon(c)
 	eventsCmd.d = d
 	c.Assert(d.hub.SubscriberCount(), check.Equals, 0)
 
