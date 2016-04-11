@@ -19,4 +19,4 @@
 
 package snap
 
-var ImplicitSlotNames = implicitSlotNames
+var ImplicitSlots = implicitSlots
