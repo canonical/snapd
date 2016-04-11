@@ -33,6 +33,7 @@ import (
 	"github.com/ubuntu-core/snappy/interfaces/dbus"
 	"github.com/ubuntu-core/snappy/interfaces/seccomp"
 	"github.com/ubuntu-core/snappy/interfaces/udev"
+	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snap"
@@ -104,7 +105,11 @@ func (m *InterfaceManager) doSetupSnapSecurity(task *state.Task, _ *tomb.Tomb) e
 		return err
 	}
 	if err := m.repo.AddSnap(snapInfo); err != nil {
-		return err
+		if _, ok := err.(*interfaces.BadInterfacesError); ok {
+			logger.Noticef("%s", err)
+		} else {
+			return err
+		}
 	}
 	// TODO: re-connect all connection affecting given snap
 	// TODO:  - removing failed connections from the state
