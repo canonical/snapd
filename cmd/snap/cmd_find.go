@@ -85,6 +85,7 @@ func (x *cmdFind) Execute([]string) error {
 		if snap.Price > 0 {
 			price = fmt.Sprintf("%v", snap.Price)
 		} else {
+			// TRANSLATORS: free as in monetary price, not as in freedom
 			price = i18n.G("free")
 		}
 		fmt.Fprintf(w, "%s\t%s\t%v\t%s\n", name, snap.Version, price, snap.Summary)
