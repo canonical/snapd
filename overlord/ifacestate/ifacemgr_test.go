@@ -51,6 +51,7 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 
 func (s *interfaceManagerSuite) TearDownTest(c *C) {
 	s.mgr.Stop()
+	dirs.SetRootDir("")
 }
 
 func (s *interfaceManagerSuite) TestSmoke(c *C) {
