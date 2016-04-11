@@ -27,48 +27,58 @@ import (
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/overlord/state"
+	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
 )
 
 // allow exchange in the tests
 var backend managerBackend = &defaultBackend{}
 
-func doInstall(s *state.State, snap, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
+func doInstall(s *state.State, snapName, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
 	// download
 	var download *state.Task
 	ss := SnapSetup{
-		Name:    snap,
 		Channel: channel,
 		Flags:   int(flags),
 	}
-	if !osutil.FileExists(snap) {
-		name, developer := snappy.SplitDeveloper(snap)
+	if !osutil.FileExists(snapName) {
+		name, developer := snappy.SplitDeveloper(snapName)
 		ss.Name = name
 		ss.Developer = developer
-		download = s.NewTask("download-snap", fmt.Sprintf(i18n.G("Downloading %q"), snap))
+		download = s.NewTask("download-snap", fmt.Sprintf(i18n.G("Downloading %q"), snapName))
 	} else {
 		download = s.NewTask("nop", "")
-		ss.SnapPath = snap
+		// add essential data from the local snap
+		snapf, err := snap.Open(snapName)
+		if err != nil {
+			return nil, err
+		}
+		info, err := snapf.Info()
+		if err != nil {
+			return nil, err
+		}
+		ss.Name = info.Name()
+		ss.SnapPath = snapName
 	}
 	download.Set("snap-setup", ss)
 
 	// mount
-	mount := s.NewTask("mount-snap", fmt.Sprintf(i18n.G("Mounting %q"), snap))
+	mount := s.NewTask("mount-snap", fmt.Sprintf(i18n.G("Mounting %q"), snapName))
 	mount.Set("snap-setup-task", download.ID())
 	mount.WaitFor(download)
 
 	// copy-data (needs to stop services)
-	copyData := s.NewTask("copy-snap-data", fmt.Sprintf(i18n.G("Copying snap data for %q"), snap))
+	copyData := s.NewTask("copy-snap-data", fmt.Sprintf(i18n.G("Copying snap data for %q"), snapName))
 	copyData.Set("snap-setup-task", download.ID())
 	copyData.WaitFor(mount)
 
 	// security
-	setupSecurity := s.NewTask("setup-snap-security", fmt.Sprintf(i18n.G("Setting up security profile for %q"), snap))
+	setupSecurity := s.NewTask("setup-snap-security", fmt.Sprintf(i18n.G("Setting up security profile for %q"), snapName))
 	setupSecurity.Set("snap-setup-task", download.ID())
 	setupSecurity.WaitFor(copyData)
 
 	// finalize (wrappers+current symlink)
-	linkSnap := s.NewTask("link-snap", fmt.Sprintf(i18n.G("Final step for %q"), snap))
+	linkSnap := s.NewTask("link-snap", fmt.Sprintf(i18n.G("Final step for %q"), snapName))
 	linkSnap.Set("snap-setup-task", download.ID())
 	linkSnap.WaitFor(setupSecurity)
 
