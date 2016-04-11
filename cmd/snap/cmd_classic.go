@@ -22,7 +22,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/jessevdk/go-flags"
+	//"github.com/jessevdk/go-flags"
 
 	"github.com/ubuntu-core/snappy/classic"
 	"github.com/ubuntu-core/snappy/i18n"
