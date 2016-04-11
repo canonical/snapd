@@ -912,6 +912,8 @@ func (s *apiSuite) TestSnapGetConfigNoConfig(c *check.C) {
 	c.Check(rsp.Status, check.Equals, http.StatusInternalServerError)
 }
 
+//FIXME: renenable config for GA
+/*
 func (s *apiSuite) TestSnapPutConfig(c *check.C) {
 	newConfigStr := "some other config"
 	req, err := http.NewRequest("PUT", "/v2/snaps/foo/config", bytes.NewBufferString(newConfigStr))
@@ -933,6 +935,7 @@ func (s *apiSuite) TestSnapPutConfig(c *check.C) {
 		Result: newConfigStr,
 	})
 }
+*/
 
 func (s *apiSuite) TestSnapPutConfigMissing(c *check.C) {
 	s.vars = map[string]string{"name": "foo"}

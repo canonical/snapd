@@ -57,7 +57,8 @@ var api = []*Command{
 	appIconCmd,
 	snapsCmd,
 	snapCmd,
-	snapConfigCmd,
+	//FIXME: renenable config for GA
+	//snapConfigCmd,
 	operationCmd,
 	interfacesCmd,
 	assertsCmd,
@@ -97,13 +98,14 @@ var (
 		GET:    getSnapInfo,
 		POST:   postSnap,
 	}
-
-	snapConfigCmd = &Command{
-		Path: "/v2/snaps/{name}/config",
-		GET:  snapConfig,
-		PUT:  snapConfig,
-	}
-
+	//FIXME: renenable config for GA
+	/*
+		snapConfigCmd = &Command{
+			Path: "/v2/snaps/{name}/config",
+			GET:  snapConfig,
+			PUT:  snapConfig,
+		}
+	*/
 	operationCmd = &Command{
 		Path:   "/v2/operations/{uuid}",
 		GET:    getOpInfo,
