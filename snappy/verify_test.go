@@ -75,12 +75,6 @@ func (s *SnapTestSuite) TestBinariesWhitelistIllegal(c *C) {
 	c.Assert(verifyAppYaml(&AppYaml{Command: "x\n"}), NotNil)
 }
 
-func (s *SnapTestSuite) TestWrongType(c *C) {
-	c.Check(verifyPlugYaml(&plugYaml{
-		Interface: "some-interface",
-	}), ErrorMatches, ".*can not use interface.* only `old-security` supported")
-}
-
 func (s *SnapTestSuite) TestUsesWhitelistIllegal(c *C) {
 	c.Check(verifyPlugYaml(&plugYaml{
 		Interface: "old-security",
