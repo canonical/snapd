@@ -381,45 +381,6 @@ field would be
 }
 ```
 
-## /v2/snaps/[name]/config
-
-Query an active snap for information about its configuration, and alter
-that configuration. Will return an error if the snap is not active.
-
-### GET
-
-* Description: Configuration for a snap
-* Access: trusted
-* Operation: sync
-* Return: snap configuration
-
-#### Sample result:
-
-```javascript
-"config:\n  ubuntu-core:\n    autopilot: false\n    timezone: Europe/Berlin\n    hostname: localhost.localdomain\n"
-```
-
-Notes: user facing implementations in text form must show this data using yaml.
-
-### PUT
-
-* Description: Set configuration for a snap
-* Access: trusted
-* Operation: sync
-* Return: snap configuration
-
-#### Sample input:
-
-```javascript
-        config:\n  ubuntu-core:\n    autopilot: true\n
-```
-
-#### Sample result:
-
-```javascript
-"config:\n  ubuntu-core:\n    autopilot: true\n    timezone: Europe/Berlin\n    hostname: localhost.localdomain\n"
-```
-
 ## /v2/operations/[uuid]
 
 ### GET
