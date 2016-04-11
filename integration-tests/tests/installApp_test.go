@@ -65,6 +65,8 @@ func (s *installAppSuite) TestCallSuccessfulBinaryFromInstalledSnap(c *check.C) 
 }
 
 func (s *installAppSuite) TestCallFailBinaryFromInstalledSnap(c *check.C) {
+	c.Skip("port to snapd")
+
 	snapPath, err := build.LocalSnap(c, data.BasicBinariesSnapName)
 	defer os.Remove(snapPath)
 	c.Assert(err, check.IsNil, check.Commentf("Error building local snap: %s", err))
