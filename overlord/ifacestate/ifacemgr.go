@@ -80,11 +80,13 @@ func (m *InterfaceManager) addSnaps() error {
 	}
 	for _, snapInfo := range snaps {
 		snap.AddImplicitSlots(snapInfo)
-		if err := m.repo.AddSnap(snapInfo); err != nil {
-			// NOTE: This error is non-fatal. Snaps can have interfaces that
-			// are invalid or not supported and we simply leave those affected
-			// interfaces out.
-			logger.Noticef("%s", err)
+		err := m.repo.AddSnap(snapInfo)
+		if err != nil {
+			if _, ok := err.(*interfaces.BadInterfacesError); ok {
+				logger.Noticef("%s", err)
+				continue
+			}
+			return err
 		}
 	}
 	return nil
