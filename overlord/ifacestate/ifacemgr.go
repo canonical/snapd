@@ -84,7 +84,7 @@ func (m *InterfaceManager) addSnaps() error {
 			// NOTE: This error is non-fatal. Snaps can have interfaces that
 			// are invalid or not supported and we simply leave those affected
 			// interfaces out.
-			logger.Noticef("%s\n", err)
+			logger.Noticef("%s", err)
 		}
 	}
 	return nil
