@@ -33,7 +33,6 @@ var ImplicitSlotNames = []string{
 	"system-observe",
 	"timeserver-control",
 	"timezone-control",
-	// XXX: those two should perhaps not be added by default
 	"unity7",
 	"x11",
 }
