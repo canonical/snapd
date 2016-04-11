@@ -19,4 +19,4 @@
 
 package snap
 
-var ImplicitSlots = implicitSlots
+var ImplicitSlotsForTests = implicitSlots
