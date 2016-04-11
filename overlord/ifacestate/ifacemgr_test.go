@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/overlord/ifacestate"
 	"github.com/ubuntu-core/snappy/overlord/state"
@@ -40,6 +41,7 @@ type interfaceManagerSuite struct {
 var _ = Suite(&interfaceManagerSuite{})
 
 func (s *interfaceManagerSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
 	state := state.New(nil)
 	mgr, err := ifacestate.Manager(state)
 	c.Assert(err, IsNil)
@@ -49,6 +51,7 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 
 func (s *interfaceManagerSuite) TearDownTest(c *C) {
 	s.mgr.Stop()
+	dirs.SetRootDir("")
 }
 
 func (s *interfaceManagerSuite) TestSmoke(c *C) {
