@@ -54,7 +54,7 @@ type Response interface {
 
 type resp struct {
 	Type   ResponseType `json:"type"`
-	Status int          `json:"status_code"`
+	Status int          `json:"status-code"`
 	Result interface{}  `json:"result"`
 }
 
@@ -62,7 +62,7 @@ func (r *resp) MarshalJSON() ([]byte, error) {
 	return json.Marshal(map[string]interface{}{
 		"type":        r.Type,
 		"status":      http.StatusText(r.Status),
-		"status_code": r.Status,
+		"status-code": r.Status,
 		"result":      &r.Result,
 	})
 }
@@ -99,7 +99,8 @@ func (r *resp) Self(*Command, *http.Request) Response {
 type errorKind string
 
 const (
-	errorKindLicenseRequired = errorKind("license-required")
+	errorKindLicenseRequired   = errorKind("license-required")
+	errorKindTwoFactorRequired = errorKind("two-factor-required")
 )
 
 type errorValue interface{}
@@ -228,6 +229,7 @@ type errorResponder func(string, ...interface{}) Response
 
 // standard error responses
 var (
+	Unauthorized   = makeErrorResponder(http.StatusUnauthorized)
 	NotFound       = makeErrorResponder(http.StatusNotFound)
 	BadRequest     = makeErrorResponder(http.StatusBadRequest)
 	BadMethod      = makeErrorResponder(http.StatusMethodNotAllowed)

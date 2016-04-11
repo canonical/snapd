@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-04-11 16:42+0200\n"
+        "POT-Creation-Date: 2016-04-12 00:16+0200\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -15,31 +15,6 @@ msgstr  "Project-Id-Version: snappy\n"
         "MIME-Version: 1.0\n"
         "Content-Type: text/plain; charset=CHARSET\n"
         "Content-Transfer-Encoding: 8bit\n"
-
-#. TRANSLATORS: the %s is a pkgname, the second a comma separated list of paths
-#, c-format
-msgid   "%s: %s\n"
-msgstr  ""
-
-#. TRANSLATORS: the first %s is a pkgname, the second %s is a path
-#, c-format
-msgid   "'%s' is no longer allowed to access '%s'\n"
-msgstr  ""
-
-#. TRANSLATORS: the first %s is a pkgname, the second %s is a path
-#, c-format
-msgid   "'%s' is now allowed to access '%s'\n"
-msgstr  ""
-
-#. TRANSLATORS: the first %s is a pkgname, the second %s is a path
-#, c-format
-msgid   "'%s' previously allowed access to '%s'. Skipping\n"
-msgstr  ""
-
-#. TRANSLATORS: the %s is a pkgname
-#, c-format
-msgid   "'%s:' is not allowed to access additional hardware\n"
-msgstr  ""
 
 msgid   "(deprecated) please use \"list\""
 msgstr  ""
@@ -80,12 +55,6 @@ msgid   "Another snappy is running, will try again in %d seconds...\n"
         "Press ctrl-c to cancel.\n"
 msgstr  ""
 
-msgid   "Assign a hardware device to a package"
-msgstr  ""
-
-msgid   "Assign hardware to a specific installed package"
-msgstr  ""
-
 msgid   "Builds a snap package"
 msgstr  ""
 
@@ -117,7 +86,7 @@ msgid   "Connects a plug to a slot"
 msgstr  ""
 
 #, c-format
-msgid   "Copying snap data for %q"
+msgid   "Copy snap %q data"
 msgstr  ""
 
 msgid   "Creates a snap package and if available, runs the review scripts."
@@ -154,17 +123,13 @@ msgid   "Do not clean up old versions of the package."
 msgstr  ""
 
 #, c-format
-msgid   "Downloading %q"
+msgid   "Download snap %q"
 msgstr  ""
 
 msgid   "Ensures system is running with latest parts"
 msgstr  ""
 
 msgid   "Entering classic dimension"
-msgstr  ""
-
-#, c-format
-msgid   "Final step for %q"
 msgstr  ""
 
 msgid   "Finds packages to install"
@@ -206,12 +171,6 @@ msgstr  ""
 msgid   "List active components installed on a snappy system"
 msgstr  ""
 
-msgid   "List assigned hardware device for a package"
-msgstr  ""
-
-msgid   "List assigned hardware for a specific installed package"
-msgstr  ""
-
 msgid   "List installed snaps"
 msgstr  ""
 
@@ -225,16 +184,20 @@ msgid   "Login successful"
 msgstr  ""
 
 #, c-format
-msgid   "Mounting %q"
+msgid   "Make snap %q available to the system"
+msgstr  ""
+
+#, c-format
+msgid   "Mount snap %q"
 msgstr  ""
 
 msgid   "Name\tDate\tVersion\t"
 msgstr  ""
 
-msgid   "Name\tDate\tVersion\tDeveloper"
+msgid   "Name\tDate\tVersion\tDeveloper\t"
 msgstr  ""
 
-msgid   "Name\tDate\tVersion\tDeveloper\t"
+msgid   "Name\tVersion\tDeveloper"
 msgstr  ""
 
 msgid   "Name\tVersion\tSummary"
@@ -246,6 +209,10 @@ msgid   "No snap: '%s' found"
 msgstr  ""
 
 msgid   "Password: "
+msgstr  ""
+
+#, c-format
+msgid   "Prepare snap %q"
 msgstr  ""
 
 msgid   "Provide information about a specific installed package"
@@ -291,9 +258,6 @@ msgid   "Remove a snap from the system"
 msgstr  ""
 
 msgid   "Remove a snapp part"
-msgstr  ""
-
-msgid   "Remove hardware from a specific installed package"
 msgstr  ""
 
 #. TRANSLATORS: the %s is a pkgname
@@ -362,7 +326,7 @@ msgid   "Setting %s to version %s\n"
 msgstr  ""
 
 #, c-format
-msgid   "Setting up security profile for %q"
+msgid   "Setup snap %q security profiles"
 msgstr  ""
 
 msgid   "Show available updates (requires network)"
@@ -408,31 +372,16 @@ msgstr  ""
 msgid   "The configuration for the given install"
 msgstr  ""
 
-msgid   "The hardware device path (e.g. /dev/ttyUSB0)"
-msgstr  ""
-
 msgid   "The package to rollback "
 msgstr  ""
 
 msgid   "The version to rollback to"
 msgstr  ""
 
-msgid   "This command adds access to a specific hardware device (e.g. /dev/ttyUSB0) for an installed package."
-msgstr  ""
-
 msgid   "This command is no longer available, please use the \"list\" command"
 msgstr  ""
 
-msgid   "This command list what hardware an installed package can access"
-msgstr  ""
-
 msgid   "This command logs the given username into the store"
-msgstr  ""
-
-msgid   "This command removes access of a specific hardware device (e.g. /dev/ttyUSB0) for an installed package."
-msgstr  ""
-
-msgid   "Unassign a hardware device to a package"
 msgstr  ""
 
 #, c-format

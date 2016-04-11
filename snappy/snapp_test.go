@@ -87,17 +87,12 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	aaExec = filepath.Join(s.tempdir, "aa-exec")
 	err := ioutil.WriteFile(aaExec, []byte(mockAaExecScript), 0755)
 	c.Assert(err, IsNil)
-
-	runAppArmorParser = mockRunAppArmorParser
-
-	makeMockSecurityEnv(c)
 }
 
 func (s *SnapTestSuite) TearDownTest(c *C) {
 	// ensure all functions are back to their original state
 	storeConfig = nil
 	policy.SecBase = s.secbase
-	regenerateAppArmorRules = regenerateAppArmorRulesImpl
 	ActiveSnapIterByType = activeSnapIterByTypeImpl
 	stripGlobalRootDir = stripGlobalRootDirImpl
 	runUdevAdm = runUdevAdmImpl
@@ -589,96 +584,6 @@ plugs:
      apparmor: meta/testme-policy.profile
 
 `)
-
-func (s *SnapTestSuite) TestSnapYamlSecurityBinaryParsing(c *C) {
-	m, err := parseSnapYamlData(securityBinarySnapYaml, false)
-	c.Assert(err, IsNil)
-
-	c.Assert(m.Apps["testme"].Name, Equals, "testme")
-	c.Assert(m.Apps["testme"].Command, Equals, "bin/testme")
-	c.Assert(m.Plugs["testme"].SecurityCaps, HasLen, 1)
-	c.Assert(m.Plugs["testme"].SecurityCaps[0], Equals, "foo_group")
-	c.Assert(m.Plugs["testme"].SecurityTemplate, Equals, "foo_template")
-
-	c.Assert(m.Apps["testme-override"].Name, Equals, "testme-override")
-	c.Assert(m.Apps["testme-override"].Command, Equals, "bin/testme-override")
-	c.Assert(m.Plugs["testme-override"].SecurityCaps, HasLen, 0)
-	c.Assert(m.Plugs["testme-override"].SecurityOverride.ReadPaths[0], Equals, "/foo")
-	c.Assert(m.Plugs["testme-override"].SecurityOverride.Syscalls[0], Equals, "bar")
-
-	c.Assert(m.Apps["testme-policy"].Name, Equals, "testme-policy")
-	c.Assert(m.Apps["testme-policy"].Command, Equals, "bin/testme-policy")
-	c.Assert(m.Plugs["testme-policy"].SecurityCaps, HasLen, 0)
-	c.Assert(m.Plugs["testme-policy"].SecurityPolicy.AppArmor, Equals, "meta/testme-policy.profile")
-}
-
-var securityServiceSnapYaml = []byte(`name: test-snap
-version: 1.2.8
-apps:
- testme-service:
-   command: bin/testme-service.start
-   daemon: forking
-   stop-command: bin/testme-service.stop
-   description: "testme service"
-   plugs: [testme-service]
-
-plugs:
- testme-service:
-   interface: old-security
-   caps:
-     - "network-client"
-     - "foo_group"
-   security-template: "foo_template"
-`)
-
-func (s *SnapTestSuite) TestSnapYamlSecurityServiceParsing(c *C) {
-	m, err := parseSnapYamlData(securityServiceSnapYaml, false)
-	c.Assert(err, IsNil)
-
-	c.Assert(m.Apps["testme-service"].Name, Equals, "testme-service")
-	c.Assert(m.Apps["testme-service"].Command, Equals, "bin/testme-service.start")
-	c.Assert(m.Apps["testme-service"].Stop, Equals, "bin/testme-service.stop")
-	c.Assert(m.Plugs["testme-service"].SecurityCaps, HasLen, 2)
-	c.Assert(m.Plugs["testme-service"].SecurityCaps[0], Equals, "network-client")
-	c.Assert(m.Plugs["testme-service"].SecurityCaps[1], Equals, "foo_group")
-	c.Assert(m.Plugs["testme-service"].SecurityTemplate, Equals, "foo_template")
-}
-
-func (s *SnapTestSuite) TestNeedsAppArmorUpdateSecurityPolicy(c *C) {
-	// if a security policy is defined, never flag for update
-	sd := &SecurityDefinitions{SecurityPolicy: &SecurityPolicyDefinition{}}
-	c.Check(sd.NeedsAppArmorUpdate(nil, nil), Equals, false)
-}
-
-func (s *SnapTestSuite) TestNeedsAppArmorUpdateSecurityOverride(c *C) {
-	// if a security override is defined, always flag for update
-	sd := &SecurityDefinitions{SecurityOverride: &SecurityOverrideDefinition{}}
-	c.Check(sd.NeedsAppArmorUpdate(nil, nil), Equals, true)
-}
-
-func (s *SnapTestSuite) TestNeedsAppArmorUpdateTemplatePresent(c *C) {
-	// if the template is in the map, it needs updating
-	sd := &SecurityDefinitions{SecurityTemplate: "foo_bar"}
-	c.Check(sd.NeedsAppArmorUpdate(nil, map[string]bool{"foo_bar": true}), Equals, true)
-}
-
-func (s *SnapTestSuite) TestNeedsAppArmorUpdateTemplateAbsent(c *C) {
-	// if the template is not in the map, it does not
-	sd := &SecurityDefinitions{SecurityTemplate: "foo_bar"}
-	c.Check(sd.NeedsAppArmorUpdate(nil, nil), Equals, false)
-}
-
-func (s *SnapTestSuite) TestNeedsAppArmorUpdatePolicyPresent(c *C) {
-	// if the cap is in the map, it needs updating
-	sd := &SecurityDefinitions{SecurityCaps: []string{"foo_bar"}}
-	c.Check(sd.NeedsAppArmorUpdate(map[string]bool{"foo_bar": true}, nil), Equals, true)
-}
-
-func (s *SnapTestSuite) TestNeedsAppArmorUpdatePolicyAbsent(c *C) {
-	// if the cap is not in the map, it does not
-	sd := &SecurityDefinitions{SecurityCaps: []string{"foo_quux"}}
-	c.Check(sd.NeedsAppArmorUpdate(map[string]bool{"foo_bar": true}, nil), Equals, false)
-}
 
 func (s *SnapTestSuite) TestDetectIllegalYamlBinaries(c *C) {
 	_, err := parseSnapYamlData([]byte(`name: foo
