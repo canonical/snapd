@@ -50,10 +50,10 @@ type SnapFilter struct {
 
 // Statuses and types a snap may have.
 const (
-	StatusNotInstalled = "available"
-	StatusInstalled    = "installed"
-	StatusActive       = "active"
-	StatusRemoved      = "removed"
+	StatusAvailable = "available"
+	StatusInstalled = "installed"
+	StatusActive    = "active"
+	StatusRemoved   = "removed"
 
 	TypeApp       = "app"
 	TypeFramework = "framework"

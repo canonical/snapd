@@ -83,7 +83,7 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 			InstalledSize: -1,
 			Name:          "hello-world",
 			Developer:     "canonical",
-			Status:        client.StatusNotInstalled,
+			Status:        client.StatusAvailable,
 			Type:          client.TypeApp,
 			Version:       "1.0.18",
 		},
