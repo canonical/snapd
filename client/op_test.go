@@ -28,9 +28,9 @@ func (cs *clientSuite) TestClientOpRunning(c *check.C) {
 "type": "sync", "result": {
   "resource": "/v2/operations/foo",
   "status":   "running",
-  "created_at": "2010-01-01T01:01:01.010101Z",
-  "updated_at": "2016-01-01T01:01:01.010101Z",
-  "may_cancel": false,
+  "created-at": "2010-01-01T01:01:01.010101Z",
+  "updated-at": "2016-01-01T01:01:01.010101Z",
+  "may-cancel": false,
   "output": {}
 }}`
 	op, err := cs.cli.Operation("foo")
@@ -44,9 +44,9 @@ func (cs *clientSuite) TestClientOpFailed(c *check.C) {
 "type": "sync", "result": {
   "resource": "/v2/operations/foo",
   "status":   "failed",
-  "created_at": "2010-01-01T01:01:01.010101Z",
-  "updated_at": "2016-01-01T01:01:01.010101Z",
-  "may_cancel": false,
+  "created-at": "2010-01-01T01:01:01.010101Z",
+  "updated-at": "2016-01-01T01:01:01.010101Z",
+  "may-cancel": false,
   "output": {"message": "something broke"}
 }}`
 	op, err := cs.cli.Operation("foo")
@@ -60,9 +60,9 @@ func (cs *clientSuite) TestClientOpFailedFailure(c *check.C) {
 "type": "sync", "result": {
   "resource": "/v2/operations/foo",
   "status":   "failed",
-  "created_at": "2010-01-01T01:01:01.010101Z",
-  "updated_at": "2016-01-01T01:01:01.010101Z",
-  "may_cancel": false,
+  "created-at": "2010-01-01T01:01:01.010101Z",
+  "updated-at": "2016-01-01T01:01:01.010101Z",
+  "may-cancel": false,
   "output": false
 }}`
 	op, err := cs.cli.Operation("foo")
@@ -76,9 +76,9 @@ func (cs *clientSuite) TestClientOpSucceeded(c *check.C) {
 "type": "sync", "result": {
   "resource": "/v2/operations/foo",
   "status":   "succeeded",
-  "created_at": "2010-01-01T01:01:01.010101Z",
-  "updated_at": "2016-01-01T01:01:01.010101Z",
-  "may_cancel": false,
+  "created-at": "2010-01-01T01:01:01.010101Z",
+  "updated-at": "2016-01-01T01:01:01.010101Z",
+  "may-cancel": false,
   "output": {}
 }}`
 	op, err := cs.cli.Operation("foo")
