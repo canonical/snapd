@@ -36,8 +36,11 @@ func (cs *clientSuite) TestClientLogin(c *check.C) {
                       "macaroon": "the-root-macaroon",
                       "discharges": ["discharge-macaroon"]}}`
 
+	home := os.Getenv("HOME")
 	tmpdir := c.MkDir()
 	os.Setenv("HOME", tmpdir)
+	defer os.Setenv("HOME", home)
+
 	user, err := cs.cli.Login("username", "pass", "")
 
 	c.Check(err, check.IsNil)
@@ -60,8 +63,10 @@ func (cs *clientSuite) TestClientLoginError(c *check.C) {
 		"type": "error"
 	}`
 
+	home := os.Getenv("HOME")
 	tmpdir := c.MkDir()
 	os.Setenv("HOME", tmpdir)
+	defer os.Setenv("HOME", home)
 	user, err := cs.cli.Login("username", "pass", "")
 
 	c.Check(user, check.IsNil)
