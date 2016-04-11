@@ -40,6 +40,8 @@ type snapRefreshAppSuite struct {
 }
 
 func (s *snapRefreshAppSuite) TestAppUpdate(c *check.C) {
+	c.Skip("port to snapd")
+
 	snap := "hello-world.canonical"
 	storeSnap := fmt.Sprintf("%s", snap)
 
