@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-04-09 09:25+0200\n"
+        "POT-Creation-Date: 2016-04-11 16:55+0200\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -207,6 +207,10 @@ msgstr  ""
 msgid   "Install a snap to the system"
 msgstr  ""
 
+#, c-format
+msgid   "Install local %q snap"
+msgstr  ""
+
 msgid   "Install snaps even if the signature can not be verified."
 msgstr  ""
 
@@ -399,9 +403,6 @@ msgstr  ""
 
 #. TRANSLATORS: please keep this under 80 characters if possible
 msgid   "Snappy needs to reboot to finish an update. Defer with 'sudo shutdown -c'."
-msgstr  ""
-
-msgid   "Specify an alternate output directory for the resulting package"
 msgstr  ""
 
 msgid   "The Package to install (name or path)"
