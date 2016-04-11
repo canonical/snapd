@@ -244,3 +244,15 @@ func (m *InterfaceManager) Stop() {
 	m.runner.Stop()
 
 }
+
+// Repository returns the interface repository used internally by the manager.
+//
+// This method has two use-cases:
+// - it is needed for setting up state in daemon tests
+// - it is needed to return the set of known interfaces in the daemon api
+//
+// In the second case it is only informational and repository has internal
+// locks to ensure consistency.
+func (m *InterfaceManager) Repository() *interfaces.Repository {
+	return m.repo
+}
