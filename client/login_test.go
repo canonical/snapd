@@ -42,7 +42,6 @@ func (cs *clientSuite) TestClientLogin(c *check.C) {
 
 	c.Check(err, check.IsNil)
 	c.Check(user, check.DeepEquals, &client.AuthenticatedUser{
-		Username:   "the-user-name",
 		Macaroon:   "the-root-macaroon",
 		Discharges: []string{"discharge-macaroon"}})
 
@@ -50,7 +49,7 @@ func (cs *clientSuite) TestClientLogin(c *check.C) {
 	c.Check(osutil.FileExists(outFile), check.Equals, true)
 	content, err := ioutil.ReadFile(outFile)
 	c.Check(err, check.IsNil)
-	c.Check(string(content), check.Equals, `{"username":"the-user-name","macaroon":"the-root-macaroon","discharges":["discharge-macaroon"]}`)
+	c.Check(string(content), check.Equals, `{"macaroon":"the-root-macaroon","discharges":["discharge-macaroon"]}`)
 }
 
 func (cs *clientSuite) TestClientLoginError(c *check.C) {
