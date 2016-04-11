@@ -106,6 +106,20 @@ func (m *InterfaceManager) doSetupSnapSecurity(task *state.Task, _ *tomb.Tomb) e
 	if err := m.repo.AddSnap(snapInfo); err != nil {
 		return err
 	}
+
+	// XXX: quick hack, auto-connect everything
+	for _, plug := range m.repo.Plugs(snapName) {
+		candidates := m.repo.AutoConnectCandidates(snapName, plug.Name)
+		if len(candidates) != 1 {
+			continue
+		}
+		slot := candidates[0]
+		if err := m.repo.Connect(snapName, plug.Name, slot.Snap.Name(), slot.Name); err != nil {
+			task.Logf("cannot auto connect %s.%s to %s.%s: %s",
+				snapName, plug.Name, slot.Snap.Name(), slot.Name, err)
+		}
+	}
+
 	// TODO: re-connect all connection affecting given snap
 	// TODO:  - removing failed connections from the state
 	if len(affectedSnaps) == 0 {
