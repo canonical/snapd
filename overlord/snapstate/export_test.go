@@ -25,6 +25,8 @@ import (
 	"github.com/ubuntu-core/snappy/overlord/state"
 )
 
+type SnapStateForTests snapState
+
 type ManagerBackend managerBackend
 
 func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {

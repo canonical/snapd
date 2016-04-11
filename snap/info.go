@@ -32,8 +32,8 @@ import (
 // SideInfo holds snap metadata that is not included in snap.yaml or for which the store is the canonical source.
 // It can be marshalled both as JSON and YAML.
 type SideInfo struct {
-	OfficialName string `yaml:"name,omitempty" json:"name,omitempty"`
 	// XXX likely we want also snap-id
+	OfficialName      string `yaml:"name,omitempty" json:"name,omitempty"`
 	Revision          int    `yaml:"revision" json:"revision"`
 	Channel           string `yaml:"channel,omitempty" json:"channel,omitempty"`
 	Developer         string `yaml:"developer,omitempty" json:"developer,omitempty"`
