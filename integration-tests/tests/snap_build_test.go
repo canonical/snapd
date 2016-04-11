@@ -2,7 +2,7 @@
 // +build !excludeintegration
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015, 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,56 +21,37 @@
 package tests
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/build"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/data"
 
 	"gopkg.in/check.v1"
 )
 
-var _ = check.Suite(&infoSuite{})
+var _ = check.Suite(&snapBuildSuite{})
 
-type infoSuite struct {
+type snapBuildSuite struct {
 	common.SnappySuite
 }
 
-func (s *infoSuite) TestInfoMustPrintReleaseAndChannel(c *check.C) {
+func (s *snapBuildSuite) TestBuildBasicSnapOnSnappy(c *check.C) {
 	c.Skip("port to snapd")
 
-	// skip test when having a remote testbed (we can't know which the
-	// release and channels are)
-	if common.Cfg.RemoteTestbed {
-		c.Skip(fmt.Sprintf(
-			"Skipping %s while testing in remote testbed",
-			c.TestName()))
-	}
-
-	infoOutput := cli.ExecCommand(c, "snappy", "info")
-
-	expected := "(?ms)" +
-		fmt.Sprintf("^release: .*core/%s.*\n", common.Cfg.Release) +
-		".*"
-
-	c.Assert(infoOutput, check.Matches, expected)
-}
-
-func (s *infoSuite) TestInfoMustPrintInstalledApps(c *check.C) {
-	c.Skip("port to snapd")
-
+	// build basic snap and check output
 	snapPath, err := build.LocalSnap(c, data.BasicSnapName)
 	defer os.Remove(snapPath)
 	c.Assert(err, check.IsNil, check.Commentf("Error building local snap: %s", err))
-	common.InstallSnap(c, snapPath)
-	defer common.RemoveSnap(c, data.BasicSnapName)
 
-	infoOutput := cli.ExecCommand(c, "snappy", "info")
-
+	// install built snap and check output
+	installOutput := installSnap(c, snapPath)
+	defer removeSnap(c, data.BasicSnapName)
 	expected := "(?ms)" +
+		"Name +Date +Version +Developer\n" +
 		".*" +
-		"^apps: .*" + data.BasicSnapName + "\\.sideload.*\n"
-	c.Assert(infoOutput, check.Matches, expected)
+		data.BasicSnapName + " +.* +.* +sideload\n" +
+		".*"
+
+	c.Check(installOutput, check.Matches, expected)
 }

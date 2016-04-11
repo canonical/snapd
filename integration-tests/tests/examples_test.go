@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"net/http"
 	"os"
 	"os/exec"
 	"regexp"
@@ -34,92 +33,9 @@ import (
 	"github.com/kr/pty"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/wait"
 
 	"gopkg.in/check.v1"
 )
-
-var _ = check.Suite(&helloWorldExampleSuite{})
-
-type helloWorldExampleSuite struct {
-	common.SnappySuite
-}
-
-func (s *helloWorldExampleSuite) TestCallHelloWorldBinary(c *check.C) {
-	common.InstallSnap(c, "hello-world/edge")
-	s.AddCleanup(func() {
-		common.RemoveSnap(c, "hello-world")
-	})
-
-	echoOutput := cli.ExecCommand(c, "hello-world.echo")
-
-	c.Assert(echoOutput, check.Equals, "Hello World!\n",
-		check.Commentf("Wrong output from hello-world binary"))
-}
-
-func (s *helloWorldExampleSuite) TestCallHelloWorldEvilMustPrintPermissionDeniedError(c *check.C) {
-	common.InstallSnap(c, "hello-world/edge")
-	s.AddCleanup(func() {
-		common.RemoveSnap(c, "hello-world")
-	})
-
-	echoOutput, err := cli.ExecCommandErr("hello-world.evil")
-	c.Assert(err, check.NotNil, check.Commentf("hello-world.evil did not fail"))
-
-	expected := "" +
-		"Hello Evil World!\n" +
-		"This example demonstrates the app confinement\n" +
-		"You should see a permission denied error next\n" +
-		"/snap/hello-world/.*/bin/evil: \\d+: " +
-		"/snap/hello-world/.*/bin/evil: " +
-		"cannot create /var/tmp/myevil.txt: Permission denied\n"
-
-	c.Assert(string(echoOutput), check.Matches, expected)
-}
-
-var _ = check.Suite(&pythonWebserverExampleSuite{})
-
-type pythonWebserverExampleSuite struct {
-	common.SnappySuite
-}
-
-func (s *pythonWebserverExampleSuite) TestNetworkingServiceMustBeStarted(c *check.C) {
-	baseAppName := "xkcd-webserver"
-	appName := baseAppName + ".canonical"
-	common.InstallSnap(c, appName+"/edge")
-	defer common.RemoveSnap(c, appName)
-
-	err := wait.ForServerOnPort(c, "tcp", 80)
-	c.Assert(err, check.IsNil, check.Commentf("Error waiting for server: %s", err))
-
-	resp, err := http.Get("http://localhost")
-	c.Assert(err, check.IsNil, check.Commentf("Error getting the http resource: %s", err))
-	c.Check(resp.Status, check.Equals, "200 OK", check.Commentf("Wrong reply status"))
-	c.Assert(resp.Proto, check.Equals, "HTTP/1.0", check.Commentf("Wrong reply protocol"))
-}
-
-var _ = check.Suite(&goWebserverExampleSuite{})
-
-type goWebserverExampleSuite struct {
-	common.SnappySuite
-}
-
-func (s *goWebserverExampleSuite) TestGetRootPathMustPrintMessage(c *check.C) {
-	appName := "go-example-webserver"
-	common.InstallSnap(c, appName+"/edge")
-	defer common.RemoveSnap(c, appName)
-
-	err := wait.ForServerOnPort(c, "tcp6", 8081)
-	c.Assert(err, check.IsNil, check.Commentf("Error waiting for server: %s", err))
-
-	resp, err := http.Get("http://localhost:8081/")
-	defer resp.Body.Close()
-	c.Assert(err, check.IsNil, check.Commentf("Error getting the http resource: %s", err))
-	c.Check(resp.Status, check.Equals, "200 OK", check.Commentf("Wrong reply status"))
-	body, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, check.IsNil, check.Commentf("Error reading the reply body: %s", err))
-	c.Assert(string(body), check.Equals, "Hello World\n", check.Commentf("Wrong reply body"))
-}
 
 var _ = check.Suite(&configExampleSuite{})
 
@@ -137,6 +53,8 @@ var configTests = []struct {
 }
 
 func (s *configExampleSuite) TestPrintMessageFromConfig(c *check.C) {
+	c.Skip("port to snapd")
+
 	for _, t := range configTests {
 		common.InstallSnap(c, t.snap+t.developer+"/edge")
 		defer common.RemoveSnap(c, t.snap)
@@ -166,6 +84,8 @@ type licensedExampleSuite struct {
 }
 
 func (s *licensedExampleSuite) TestAcceptLicenseMustInstallSnap(c *check.C) {
+	c.Skip("port to snapd")
+
 	cmds := []string{"sudo", "snappy", "install", "licensed.canonical/edge"}
 	cmdsCover, err := cli.AddOptionsToCommand(cmds)
 	c.Assert(err, check.IsNil, check.Commentf("Error adding coverage options, %q", err))
@@ -186,6 +106,8 @@ func (s *licensedExampleSuite) TestAcceptLicenseMustInstallSnap(c *check.C) {
 }
 
 func (s *licensedExampleSuite) TestDeclineLicenseMustNotInstallSnap(c *check.C) {
+	c.Skip("port to snapd")
+
 	cmds := []string{"sudo", "snappy", "install", "licensed.canonical/edge"}
 	cmdsCover, err := cli.AddOptionsToCommand(cmds)
 	c.Assert(err, check.IsNil, check.Commentf("Error adding coverage options, %q", err))
