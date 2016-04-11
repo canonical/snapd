@@ -41,6 +41,7 @@ type SnapManager struct {
 	runner *state.TaskRunner
 }
 
+// SnapSetup holds the necessary snap details to perform most snap manager tasks.
 type SnapSetup struct {
 	Name      string `json:"name"`
 	Developer string `json:"developer"`
@@ -58,6 +59,14 @@ type SnapSetup struct {
 	Flags int `json:"flags,omitempty"`
 
 	SnapPath string `json:"snap-path"`
+}
+
+// snapState holds the state for a snap installed in the system.
+type snapState struct {
+	Sequence []*snap.SideInfo `json:"sequence"` // Last is current
+	Active   bool             `json:"active,omitempty"`
+	Channel  string           `json:"channel,omitempty"`
+	DevMode  bool             `json:"dev-mode,omitempty"`
 }
 
 // XXX: best this should helper from snap
@@ -140,6 +149,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 	ss.SideInfo = &storeInfo.SideInfo
 	ss.Revision = storeInfo.Revision
 
+	// TODO Drop this. We have the active snap in state now.
 	// find current active and store in case we need to undo
 	if info := m.backend.ActiveSnap(ss.Name); info != nil {
 		ss.OldName = info.Name()
@@ -322,14 +332,43 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
-	t.State().Lock()
+
+	st := t.State()
+
+	// Hold the lock for the full duration of the task here so
+	// nobody observes a world where the state engine and
+	// the file system are reporting different things.
+	st.Lock()
+	defer st.Unlock()
+
 	ss, err := TaskSnapSetup(t)
-	t.State().Unlock()
 	if err != nil {
 		return err
 	}
 
-	return m.backend.LinkSnap(ss.MountDir())
+	var snaps map[string]snapState
+	err = t.Get("snaps", &snaps)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+
+	if snaps == nil {
+		snaps = make(map[string]snapState)
+	}
+	snapst := snaps[ss.Name]
+	snapst.Sequence = append(snapst.Sequence, ss.SideInfo)
+	snapst.Active = true
+	snaps[ss.Name] = snapst
+
+	err = m.backend.LinkSnap(ss.MountDir())
+	if err != nil {
+		// Undo here too in an attempt to keep state sane.
+		m.backend.UndoLinkSnap(ss.OldMountDir(), ss.MountDir())
+		return err
+	}
+
+	st.Set("snaps", snaps)
+	return nil
 }
 
 func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
