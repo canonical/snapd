@@ -188,11 +188,11 @@ Sample result:
       "description": "hello-world",
       "download-size": 22212,
       "icon": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
-      "installed-size": -1,          // always -1 if not installed
+      "installed-size": -1,          // always -1 if neither "active" nor "installed"
       "name": "hello-world",
       "developer": "canonical",
       "resource": "/v2/snaps/hello-world",
-      "status": "not installed",
+      "status": "available",
       "type": "app",
       "revision" 17,
       "version": "1.0.18",
@@ -242,7 +242,7 @@ Sample result:
 
 #### Fields
 * `snaps`
-    * `status`: can be either `not installed`, `installed`, `active` (i.e. is
+    * `status`: can be either `available`, `installed`, `active` (i.e. is
       current).
     * `name`: the snap name.
     * `version`: a string representing the version.

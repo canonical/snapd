@@ -66,7 +66,7 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 					"name": "hello-world",
 					"developer": "canonical",
 					"resource": "/v2/snaps/hello-world.canonical",
-					"status": "not installed",
+					"status": "available",
 					"type": "app",
 					"version": "1.0.18"
 				}
@@ -83,7 +83,7 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 			InstalledSize: -1,
 			Name:          "hello-world",
 			Developer:     "canonical",
-			Status:        client.StatusNotInstalled,
+			Status:        client.StatusAvailable,
 			Type:          client.TypeApp,
 			Version:       "1.0.18",
 		},
