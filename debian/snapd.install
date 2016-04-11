@@ -1,0 +1,21 @@
+/usr/bin/snap
+/usr/bin/snapd usr/lib/snappy/
+data/completion/snappy /usr/share/bash-completion/completions/
+# i18n stuff
+../../share /usr
+# etc/profile.d contains the PATH extension for snap packages
+etc/profile.d
+# etc/X11/Xsession.d will add to XDG_DATA_DIRS so that we have .desktop support
+etc/X11
+
+# systemd stuff
+
+# auto-update
+debian/*.timer /lib/systemd/system/
+debian/snappy-autopilot.service /lib/systemd/system/
+# snapd
+debian/*.socket /lib/systemd/system/
+debian/snapd.service /lib/systemd/system/
+# targets
+debian/*.target /lib/systemd/system/
+

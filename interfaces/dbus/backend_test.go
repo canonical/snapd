@@ -60,7 +60,7 @@ func (s *backendSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 }
 
-// Tests for Configure() and Deconfigure()
+// Tests for Setup() and Remove()
 const sambaYamlV1 = `
 name: samba
 version: 1
@@ -89,6 +89,10 @@ apps:
 slots:
     iface:
 `
+
+func (s *backendSuite) TestName(c *C) {
+	c.Check(s.backend.Name(), Equals, "dbus")
+}
 
 func (s *backendSuite) TestInstallingSnapWritesConfigFiles(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
@@ -215,7 +219,7 @@ func (s *backendSuite) installSnap(c *C, developerMode bool, snapYaml string) *s
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
 	s.addPlugsSlots(c, snapInfo)
-	err = s.backend.Configure(snapInfo, developerMode, s.repo)
+	err = s.backend.Setup(snapInfo, developerMode, s.repo)
 	c.Assert(err, IsNil)
 	return snapInfo
 }
@@ -224,17 +228,17 @@ func (s *backendSuite) installSnap(c *C, developerMode bool, snapYaml string) *s
 func (s *backendSuite) updateSnap(c *C, oldSnapInfo *snap.Info, developerMode bool, snapYaml string) *snap.Info {
 	newSnapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
-	c.Assert(newSnapInfo.Name, Equals, oldSnapInfo.Name)
+	c.Assert(newSnapInfo.Name(), Equals, oldSnapInfo.Name())
 	s.removePlugsSlots(c, oldSnapInfo)
 	s.addPlugsSlots(c, newSnapInfo)
-	err = s.backend.Configure(newSnapInfo, developerMode, s.repo)
+	err = s.backend.Setup(newSnapInfo, developerMode, s.repo)
 	c.Assert(err, IsNil)
 	return newSnapInfo
 }
 
 // removeSnap "removes" an "installed" snap.
 func (s *backendSuite) removeSnap(c *C, snapInfo *snap.Info) {
-	err := s.backend.Deconfigure(snapInfo)
+	err := s.backend.Remove(snapInfo.Name())
 	c.Assert(err, IsNil)
 	s.removePlugsSlots(c, snapInfo)
 }
@@ -253,12 +257,12 @@ func (s *backendSuite) addPlugsSlots(c *C, snapInfo *snap.Info) {
 }
 
 func (s *backendSuite) removePlugsSlots(c *C, snapInfo *snap.Info) {
-	for _, plug := range s.repo.Plugs(snapInfo.Name) {
-		err := s.repo.RemovePlug(plug.Snap.Name, plug.Name)
+	for _, plug := range s.repo.Plugs(snapInfo.Name()) {
+		err := s.repo.RemovePlug(plug.Snap.Name(), plug.Name)
 		c.Assert(err, IsNil)
 	}
-	for _, slot := range s.repo.Slots(snapInfo.Name) {
-		err := s.repo.RemoveSlot(slot.Snap.Name, slot.Name)
+	for _, slot := range s.repo.Slots(snapInfo.Name()) {
+		err := s.repo.RemoveSlot(slot.Snap.Name(), slot.Name)
 		c.Assert(err, IsNil)
 	}
 }

@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -136,19 +135,6 @@ func debArchitecture(m *snapYaml) string {
 	default:
 		return "multi"
 	}
-}
-
-// the du(1) command, useful to override for testing
-var duCmd = "du"
-
-func dirSize(buildDir string) (string, error) {
-	cmd := exec.Command(duCmd, "-s", "--apparent-size", buildDir)
-	output, err := cmd.Output()
-	if err != nil {
-		return "", err
-	}
-
-	return strings.Fields(string(output))[0], nil
 }
 
 func copyToBuildDir(sourceDir, buildDir string) error {

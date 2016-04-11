@@ -40,16 +40,13 @@ import (
 	"github.com/ubuntu-core/snappy/asserts"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/interfaces"
-	"github.com/ubuntu-core/snappy/overlord"
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
-	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
-	"github.com/ubuntu-core/snappy/systemd"
+	"github.com/ubuntu-core/snappy/store"
 	"github.com/ubuntu-core/snappy/testutil"
-	"github.com/ubuntu-core/snappy/timeout"
 )
 
 type apiSuite struct {
@@ -59,8 +56,7 @@ type apiSuite struct {
 	searchTerm string
 	channel    string
 	overlord   *fakeOverlord
-
-	stateOverlord *overlord.Overlord
+	d          *Daemon
 }
 
 var _ = check.Suite(&apiSuite{})
@@ -109,35 +105,53 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 	s.overlord = &fakeOverlord{
 		configs: map[string]string{},
 	}
-	o, err := overlord.New()
-	c.Assert(err, check.IsNil)
-	s.stateOverlord = o
-	s.stateOverlord.Loop()
+	s.d = nil
 }
 
 func (s *apiSuite) TearDownTest(c *check.C) {
-	findServices = snappy.FindServices
-	s.stateOverlord.Stop()
+	s.d = nil
+}
+
+func (s *apiSuite) daemon(c *check.C) *Daemon {
+	if s.d != nil {
+		panic("called daemon() twice")
+	}
+	d, err := New()
+	c.Assert(err, check.IsNil)
+	d.addRoutes()
+	s.d = d
+	return d
 }
 
 func (s *apiSuite) mkManifest(c *check.C, pkgType snap.Type) {
 	// creating the part to get its manifest path is cheating, a little
-	info := &snap.Info{
-		Name:        "foo",
-		Developer:   "bar",
-		Revision:    999999999999,
-		Version:     "1",
-		Type:        pkgType,
-		Description: " bla bla bla",
+	sideInfo := snap.SideInfo{
+		OfficialName:      "foo",
+		Developer:         "bar",
+		Revision:          2147483647,
+		EditedDescription: " bla bla bla",
 	}
 
-	c.Assert(snappy.SaveManifest(info), check.IsNil)
+	c.Assert(snappy.SaveManifest(&snap.Info{
+		Type:     pkgType,
+		Version:  "1",
+		SideInfo: sideInfo,
+	}), check.IsNil)
 }
 
-func (s *apiSuite) mkInstalled(c *check.C, name, developer, version string, active bool, extraYaml string) {
-	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapDataDir, name, version), 0755), check.IsNil)
+func (s *apiSuite) mkInstalled(c *check.C, name, developer, version string, revno int, active bool, extraYaml string) *snap.Info {
+	skelInfo := &snap.Info{
+		SideInfo: snap.SideInfo{
+			OfficialName: name,
+			Developer:    developer,
+			Revision:     revno,
+		},
+		Version: version,
+	}
 
-	metadir := filepath.Join(dirs.SnapSnapsDir, name, version, "meta")
+	c.Assert(os.MkdirAll(skelInfo.DataDir(), 0755), check.IsNil)
+
+	metadir := filepath.Join(skelInfo.MountDir(), "meta")
 	c.Assert(os.MkdirAll(metadir, 0755), check.IsNil)
 
 	guidir := filepath.Join(metadir, "gui")
@@ -153,19 +167,19 @@ version: %s
 	c.Check(ioutil.WriteFile(yamlPath, []byte(content), 0644), check.IsNil)
 	c.Check(ioutil.WriteFile(filepath.Join(metadir, "hashes.yaml"), []byte(nil), 0644), check.IsNil)
 
+	err := snappy.SaveManifest(skelInfo)
+	c.Assert(err, check.IsNil)
+
 	// indirect through NewInstalledSnap to load extraYaml
 	localSnap, err := snappy.NewInstalledSnap(yamlPath)
 	c.Assert(err, check.IsNil)
-	info := localSnap.Info()
-
-	// fill in developer
-	info.Developer = developer
-	err = snappy.SaveManifest(info)
-	c.Assert(err, check.IsNil)
 
 	if active {
-		c.Assert(os.Symlink(version, filepath.Join(dirs.SnapSnapsDir, name, "current")), check.IsNil)
+		err := snappy.UpdateCurrentSymlink(localSnap, nil)
+		c.Assert(err, check.IsNil)
 	}
+
+	return localSnap.Info()
 }
 
 func (s *apiSuite) mkGadget(c *check.C, store string) {
@@ -184,25 +198,28 @@ gadget: {store: {id: %q}}
 }
 
 func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
-	newTestDaemon(c)
-
+	s.daemon(c)
 	s.vars = map[string]string{"name": "foo"}
 
 	// the store tells us about v2
 	s.rsnaps = []*snap.Info{{
-		Name:        "foo",
-		Type:        snap.TypeApp,
-		Version:     "v2",
-		Description: "description",
-		Developer:   "bar",
-		Size:        2,
-		IconURL:     "meta/gui/icon.svg",
+		Type:    snap.TypeApp,
+		Version: "v2",
+		SideInfo: snap.SideInfo{
+			OfficialName:      "foo",
+			EditedSummary:     "summary",
+			EditedDescription: "description",
+			Developer:         "bar",
+			Size:              2,
+			IconURL:           "meta/gui/icon.svg",
+			Revision:          20,
+		},
 	}}
 
-	// we have v0 installed
-	s.mkInstalled(c, "foo", "bar", "v0", false, "")
-	// and v1 is current
-	s.mkInstalled(c, "foo", "bar", "v1", true, "")
+	// we have v0 [r5] installed
+	s.mkInstalled(c, "foo", "bar", "v0", 5, false, "")
+	// and v1 [r10] is current
+	s.mkInstalled(c, "foo", "bar", "v1", 10, true, "")
 
 	rsp, ok := getSnapInfo(snapCmd, nil).(*resp)
 	c.Assert(ok, check.Equals, true)
@@ -211,26 +228,28 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	c.Assert(rsp.Result, check.FitsTypeOf, map[string]interface{}{})
 	m := rsp.Result.(map[string]interface{})
 
-	// installed_size depends on vagaries of the filesystem, just check type
-	c.Check(m["installed_size"], check.FitsTypeOf, int64(0))
-	delete(m, "installed_size")
+	// installed-size depends on vagaries of the filesystem, just check type
+	c.Check(m["installed-size"], check.FitsTypeOf, int64(0))
+	delete(m, "installed-size")
 
 	expected := &resp{
 		Type:   ResponseTypeSync,
 		Status: http.StatusOK,
 		Result: map[string]interface{}{
 			"name":               "foo",
+			"revision":           10,
 			"version":            "v1",
+			"summary":            "summary",
 			"description":        "description",
 			"developer":          "bar",
 			"status":             "active",
 			"icon":               "/v2/icons/foo/icon",
 			"type":               string(snap.TypeApp),
 			"vendor":             "",
-			"download_size":      int64(2),
+			"download-size":      int64(2),
 			"resource":           "/v2/snaps/foo",
-			"update_available":   "v2",
-			"rollback_available": "v0",
+			"update-available":   20,
+			"rollback-available": 5,
 			"channel":            "stable",
 		},
 	}
@@ -265,13 +284,15 @@ func (s *apiSuite) TestSnapInfoIgnoresRemoteErrors(c *check.C) {
 func (s *apiSuite) TestSnapInfoWeirdRoute(c *check.C) {
 	// can't really happen
 
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 
 	// use the wrong command to force the issue
 	wrongCmd := &Command{Path: "/{what}", d: d}
 	s.vars = map[string]string{"name": "foo"}
 	s.rsnaps = []*snap.Info{{
-		Name: "foo",
+		SideInfo: snap.SideInfo{
+			OfficialName: "foo",
+		},
 	}}
 	c.Check(getSnapInfo(wrongCmd, nil).Self(nil, nil).(*resp).Status, check.Equals, http.StatusInternalServerError)
 }
@@ -279,7 +300,7 @@ func (s *apiSuite) TestSnapInfoWeirdRoute(c *check.C) {
 func (s *apiSuite) TestSnapInfoBadRoute(c *check.C) {
 	// can't really happen, v2
 
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 
 	// get the route and break it
 	route := d.router.Get(snapCmd.Path)
@@ -287,7 +308,9 @@ func (s *apiSuite) TestSnapInfoBadRoute(c *check.C) {
 
 	s.vars = map[string]string{"name": "foo"}
 	s.rsnaps = []*snap.Info{{
-		Name: "foo",
+		SideInfo: snap.SideInfo{
+			OfficialName: "foo",
+		},
 	}}
 
 	rsp := getSnapInfo(snapCmd, nil).Self(nil, nil).(*resp)
@@ -329,11 +352,10 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 	exceptions := []string{ // keep sorted, for scanning ease
 		"apiCompatLevel",
 		"api",
-		"findServices",
 		"maxReadBuflen",
 		"muxVars",
 		"newRemoteRepo",
-		"newSnap",
+		"checkSnap",
 		"pkgActionDispatch",
 		// snapInstruction vars:
 		"snapstateInstall",
@@ -392,8 +414,8 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	expected := map[string]interface{}{
 		"flavor":          "flavor",
 		"release":         "release",
-		"default_channel": "channel",
-		"api_compat":      apiCompatLevel,
+		"default-channel": "channel",
+		"api-compat":      apiCompatLevel,
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
@@ -415,8 +437,8 @@ func (s *apiSuite) TestSysInfoStore(c *check.C) {
 	expected := map[string]interface{}{
 		"flavor":          "flavor",
 		"release":         "release",
-		"default_channel": "channel",
-		"api_compat":      apiCompatLevel,
+		"default-channel": "channel",
+		"api-compat":      apiCompatLevel,
 		"store":           "some-store",
 	}
 	var rsp resp
@@ -426,14 +448,155 @@ func (s *apiSuite) TestSysInfoStore(c *check.C) {
 	c.Check(rsp.Result, check.DeepEquals, expected)
 }
 
+func (s *apiSuite) makeMyAppsServer(statusCode int, data string) *httptest.Server {
+	mockMyAppsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(statusCode)
+		io.WriteString(w, data)
+	}))
+	store.MyAppsPackageAccessAPI = mockMyAppsServer.URL + "/acl/package_access/"
+	return mockMyAppsServer
+}
+
+func (s *apiSuite) makeSSOServer(statusCode int, data string) *httptest.Server {
+	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(statusCode)
+		io.WriteString(w, data)
+	}))
+	store.UbuntuoneDischargeAPI = mockSSOServer.URL + "/tokens/discharge"
+	return mockSSOServer
+}
+
+func (s *apiSuite) TestLoginUser(c *check.C) {
+	macaroon := `{"macaroon": "the-macaroon-serialized-data"}`
+	mockMyAppsServer := s.makeMyAppsServer(200, macaroon)
+	defer mockMyAppsServer.Close()
+
+	discharge := `{"discharge_macaroon": "the-discharge-macaroon-serialized-data"}`
+	mockSSOServer := s.makeSSOServer(200, discharge)
+	defer mockSSOServer.Close()
+
+	rsp := getOpInfo(operationCmd, nil).Self(nil, nil).(*resp)
+	buf := bytes.NewBufferString(`{"username": "username", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp = loginUser(snapCmd, req).(*resp)
+
+	expected := loginResponseData{
+		Macaroon:   "the-macaroon-serialized-data",
+		Discharges: []string{"the-discharge-macaroon-serialized-data"},
+	}
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+
+	var auth authState
+	expectedState := userAuthState{
+		Username:   "username",
+		Macaroon:   "the-macaroon-serialized-data",
+		Discharges: []string{"the-discharge-macaroon-serialized-data"},
+	}
+	state := snapCmd.d.overlord.State()
+	state.Lock()
+	state.Get("auth", &auth)
+	state.Unlock()
+	c.Check(auth, check.DeepEquals, authState{Users: []userAuthState{expectedState}})
+}
+
+func (s *apiSuite) TestLoginUserBadRequest(c *check.C) {
+	rsp := getOpInfo(operationCmd, nil).Self(nil, nil).(*resp)
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, http.StatusNotFound)
+
+	buf := bytes.NewBufferString(`hello`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp = loginUser(snapCmd, req).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
+	c.Check(rsp.Result, check.NotNil)
+}
+
+func (s *apiSuite) TestLoginUserMyAppsError(c *check.C) {
+	mockMyAppsServer := s.makeMyAppsServer(200, "{}")
+	defer mockMyAppsServer.Close()
+
+	rsp := getOpInfo(operationCmd, nil).Self(nil, nil).(*resp)
+	buf := bytes.NewBufferString(`{"username": "username", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp = loginUser(snapCmd, req).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, http.StatusInternalServerError)
+	c.Check(rsp.Result.(*errorResult).Message, check.Equals, "cannot get package access macaroon")
+}
+
+func (s *apiSuite) TestLoginUserTwoFactorRequiredError(c *check.C) {
+	macaroon := `{"macaroon": "the-macaroon-serialized-data"}`
+	mockMyAppsServer := s.makeMyAppsServer(200, macaroon)
+	defer mockMyAppsServer.Close()
+
+	discharge := `{"code": "TWOFACTOR_REQUIRED"}`
+	mockSSOServer := s.makeSSOServer(401, discharge)
+	defer mockSSOServer.Close()
+
+	rsp := getOpInfo(operationCmd, nil).Self(nil, nil).(*resp)
+	buf := bytes.NewBufferString(`{"username": "username", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp = loginUser(snapCmd, req).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, http.StatusUnauthorized)
+	c.Check(rsp.Result.(*errorResult).Kind, check.Equals, errorKindTwoFactorRequired)
+}
+
+func (s *apiSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
+	macaroon := `{"macaroon": "the-macaroon-serialized-data"}`
+	mockMyAppsServer := s.makeMyAppsServer(200, macaroon)
+	defer mockMyAppsServer.Close()
+
+	discharge := `{"code": "INVALID_CREDENTIALS"}`
+	mockSSOServer := s.makeSSOServer(401, discharge)
+	defer mockSSOServer.Close()
+
+	rsp := getOpInfo(operationCmd, nil).Self(nil, nil).(*resp)
+	buf := bytes.NewBufferString(`{"username": "username", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp = loginUser(snapCmd, req).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, http.StatusUnauthorized)
+	c.Check(rsp.Result.(*errorResult).Message, check.Equals, "cannot get discharge authorization")
+}
+
 func (s *apiSuite) TestSnapsInfoOnePerIntegration(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/snaps", nil)
 	c.Assert(err, check.IsNil)
 
-	ddirs := [][3]string{{"foo", "bar", "v1"}, {"bar", "baz", "v2"}, {"baz", "qux", "v3"}, {"qux", "mip", "v4"}}
+	type tmpSt struct {
+		name string
+		dev  string
+		ver  string
+		rev  int
+	}
+
+	ddirs := []tmpSt{
+		{"foo", "bar", "v1", 5},
+		{"bar", "baz", "v2", 10},
+		{"baz", "qux", "v3", 15},
+		{"qux", "mip", "v4", 20},
+	}
 
 	for _, d := range ddirs {
-		s.mkInstalled(c, d[0], d[1], d[2], false, "")
+		s.mkInstalled(c, d.name, d.dev, d.ver, d.rev, false, "")
 	}
 
 	rsp, ok := getSnapsInfo(snapsCmd, req).(*resp)
@@ -453,22 +616,24 @@ func (s *apiSuite) TestSnapsInfoOnePerIntegration(c *check.C) {
 	c.Check(snaps, check.NotNil)
 	c.Check(snaps, check.HasLen, len(ddirs))
 
-	for i := range ddirs {
-		name, developer, version := ddirs[i][0], ddirs[i][1], ddirs[i][2]
-		got := snaps[name]
-		c.Assert(got, check.NotNil, check.Commentf(name))
-		c.Check(got["name"], check.Equals, name)
-		c.Check(got["version"], check.Equals, version)
-		c.Check(got["developer"], check.Equals, developer)
+	for _, s := range ddirs {
+		got := snaps[s.name]
+		c.Assert(got, check.NotNil, check.Commentf(s.name))
+		c.Check(got["name"], check.Equals, s.name)
+		c.Check(got["version"], check.Equals, s.ver)
+		c.Check(got["revision"], check.Equals, s.rev)
+		c.Check(got["developer"], check.Equals, s.dev)
 	}
 }
 
 func (s *apiSuite) TestSnapsInfoOnlyLocal(c *check.C) {
 	s.rsnaps = []*snap.Info{{
-		Name:      "store",
-		Developer: "foo",
+		SideInfo: snap.SideInfo{
+			OfficialName: "store",
+			Developer:    "foo",
+		},
 	}}
-	s.mkInstalled(c, "local", "foo", "v1", true, "")
+	s.mkInstalled(c, "local", "foo", "v1", 10, true, "")
 
 	req, err := http.NewRequest("GET", "/v2/snaps?sources=local", nil)
 	c.Assert(err, check.IsNil)
@@ -485,10 +650,12 @@ func (s *apiSuite) TestSnapsInfoOnlyLocal(c *check.C) {
 
 func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
 	s.rsnaps = []*snap.Info{{
-		Name:      "store",
-		Developer: "foo",
+		SideInfo: snap.SideInfo{
+			OfficialName: "store",
+			Developer:    "foo",
+		},
 	}}
-	s.mkInstalled(c, "local", "foo", "v1", true, "")
+	s.mkInstalled(c, "local", "foo", "v1", 10, true, "")
 
 	req, err := http.NewRequest("GET", "/v2/snaps?sources=store", nil)
 	c.Assert(err, check.IsNil)
@@ -505,10 +672,12 @@ func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
 
 func (s *apiSuite) TestSnapsInfoLocalAndStore(c *check.C) {
 	s.rsnaps = []*snap.Info{{
-		Name:      "remote",
-		Developer: "foo",
+		SideInfo: snap.SideInfo{
+			OfficialName: "remote",
+			Developer:    "foo",
+		},
 	}}
-	s.mkInstalled(c, "local", "foo", "v1", true, "")
+	s.mkInstalled(c, "local", "foo", "v1", 10, true, "")
 
 	req, err := http.NewRequest("GET", "/v2/snaps?sources=local,store", nil)
 	c.Assert(err, check.IsNil)
@@ -524,10 +693,12 @@ func (s *apiSuite) TestSnapsInfoLocalAndStore(c *check.C) {
 
 func (s *apiSuite) TestSnapsInfoDefaultSources(c *check.C) {
 	s.rsnaps = []*snap.Info{{
-		Name:      "remote",
-		Developer: "foo",
+		SideInfo: snap.SideInfo{
+			OfficialName: "remote",
+			Developer:    "foo",
+		},
 	}}
-	s.mkInstalled(c, "local", "foo", "v1", true, "")
+	s.mkInstalled(c, "local", "foo", "v1", 10, true, "")
 
 	req, err := http.NewRequest("GET", "/v2/snaps", nil)
 	c.Assert(err, check.IsNil)
@@ -540,10 +711,12 @@ func (s *apiSuite) TestSnapsInfoDefaultSources(c *check.C) {
 
 func (s *apiSuite) TestSnapsInfoUnknownSource(c *check.C) {
 	s.rsnaps = []*snap.Info{{
-		Name:      "remote",
-		Developer: "foo",
+		SideInfo: snap.SideInfo{
+			OfficialName: "remote",
+			Developer:    "foo",
+		},
 	}}
-	s.mkInstalled(c, "local", "foo", "v1", true, "")
+	s.mkInstalled(c, "local", "foo", "v1", 10, true, "")
 
 	req, err := http.NewRequest("GET", "/v2/snaps?sources=unknown", nil)
 	c.Assert(err, check.IsNil)
@@ -559,8 +732,8 @@ func (s *apiSuite) TestSnapsInfoUnknownSource(c *check.C) {
 
 func (s *apiSuite) TestSnapsInfoFilterLocal(c *check.C) {
 	s.rsnaps = nil
-	s.mkInstalled(c, "foo", "foo", "v1", true, "")
-	s.mkInstalled(c, "bar", "bar", "v1", true, "")
+	s.mkInstalled(c, "foo", "foo", "v1", 10, true, "")
+	s.mkInstalled(c, "bar", "bar", "v1", 10, true, "")
 
 	req, err := http.NewRequest("GET", "/v2/snaps?q=foo", nil)
 	c.Assert(err, check.IsNil)
@@ -590,8 +763,8 @@ func (s *apiSuite) TestSnapsInfoFilterRemote(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapsInfoAppsOnly(c *check.C) {
-	s.mkInstalled(c, "app", "foo", "v1", true, "type: app")
-	s.mkInstalled(c, "framework", "foo", "v1", true, "type: framework")
+	s.mkInstalled(c, "app", "foo", "v1", 10, true, "type: app")
+	s.mkInstalled(c, "framework", "foo", "v1", 10, true, "type: framework")
 
 	req, err := http.NewRequest("GET", "/v2/snaps?types=app", nil)
 	c.Assert(err, check.IsNil)
@@ -605,8 +778,8 @@ func (s *apiSuite) TestSnapsInfoAppsOnly(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapsInfoFrameworksOnly(c *check.C) {
-	s.mkInstalled(c, "app", "foo", "v1", true, "type: app")
-	s.mkInstalled(c, "framework", "foo", "v1", true, "type: framework")
+	s.mkInstalled(c, "app", "foo", "v1", 10, true, "type: app")
+	s.mkInstalled(c, "framework", "foo", "v1", 10, true, "type: framework")
 
 	req, err := http.NewRequest("GET", "/v2/snaps?types=framework", nil)
 	c.Assert(err, check.IsNil)
@@ -620,8 +793,8 @@ func (s *apiSuite) TestSnapsInfoFrameworksOnly(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapsInfoAppsAndFrameworks(c *check.C) {
-	s.mkInstalled(c, "app", "foo", "v1", true, "type: app")
-	s.mkInstalled(c, "framework", "foo", "v1", true, "type: framework")
+	s.mkInstalled(c, "app", "foo", "v1", 10, true, "type: app")
+	s.mkInstalled(c, "framework", "foo", "v1", 10, true, "type: framework")
 
 	req, err := http.NewRequest("GET", "/v2/snaps?types=app,framework", nil)
 	c.Assert(err, check.IsNil)
@@ -641,7 +814,7 @@ func (s *apiSuite) TestDeleteOpNotFound(c *check.C) {
 }
 
 func (s *apiSuite) TestDeleteOpStillRunning(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 
 	d.tasks["42"] = &Task{}
 	s.vars = map[string]string{"uuid": "42"}
@@ -651,7 +824,7 @@ func (s *apiSuite) TestDeleteOpStillRunning(c *check.C) {
 }
 
 func (s *apiSuite) TestDeleteOp(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 
 	task := &Task{}
 	d.tasks["42"] = task
@@ -663,7 +836,7 @@ func (s *apiSuite) TestDeleteOp(c *check.C) {
 }
 
 func (s *apiSuite) TestGetOpInfoIntegration(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 
 	s.vars = map[string]string{"uuid": "42"}
 	rsp := getOpInfo(operationCmd, nil).Self(nil, nil).(*resp)
@@ -687,9 +860,9 @@ func (s *apiSuite) TestGetOpInfoIntegration(c *check.C) {
 	c.Check(rsp.Result, check.DeepEquals, map[string]interface{}{
 		"resource":   "/v2/operations/" + id,
 		"status":     TaskRunning,
-		"may_cancel": false,
-		"created_at": FormatTime(t.CreatedAt()),
-		"updated_at": FormatTime(t.UpdatedAt()),
+		"may-cancel": false,
+		"created-at": FormatTime(t.CreatedAt()),
+		"updated-at": FormatTime(t.UpdatedAt()),
 		"output":     nil,
 	})
 	tf1 := t.UpdatedAt().UTC().UnixNano()
@@ -704,9 +877,9 @@ func (s *apiSuite) TestGetOpInfoIntegration(c *check.C) {
 	c.Check(rsp.Result, check.DeepEquals, map[string]interface{}{
 		"resource":   "/v2/operations/" + id,
 		"status":     TaskSucceeded,
-		"may_cancel": false,
-		"created_at": FormatTime(t.CreatedAt()),
-		"updated_at": FormatTime(t.UpdatedAt()),
+		"may-cancel": false,
+		"created-at": FormatTime(t.CreatedAt()),
+		"updated-at": FormatTime(t.UpdatedAt()),
 		"output":     "hello",
 	})
 
@@ -748,7 +921,7 @@ func (s *apiSuite) TestPostSnapBadAction(c *check.C) {
 }
 
 func (s *apiSuite) TestPostSnap(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 
 	s.vars = map[string]string{"uuid": "42"}
 	c.Check(getOpInfo(operationCmd, nil).Self(nil, nil).(*resp).Status, check.Equals, http.StatusNotFound)
@@ -840,7 +1013,7 @@ func (s *apiSuite) TestSnapGetConfig(c *check.C) {
 	configStr := "some: config"
 	s.overlord.configs["foo"] = configStr
 	s.vars = map[string]string{"name": "foo"}
-	s.mkInstalled(c, "foo", "bar", "v1", true, "")
+	s.mkInstalled(c, "foo", "bar", "v1", 10, true, "")
 
 	rsp := snapConfig(snapsCmd, req).(*resp)
 
@@ -865,7 +1038,7 @@ func (s *apiSuite) TestSnapGetConfigMissing(c *check.C) {
 func (s *apiSuite) TestSnapGetConfigInactive(c *check.C) {
 	s.vars = map[string]string{"name": "foo"}
 
-	s.mkInstalled(c, "foo", "bar", "v1", false, "")
+	s.mkInstalled(c, "foo", "bar", "v1", 10, false, "")
 
 	req, err := http.NewRequest("GET", "/v2/snaps/foo/config", bytes.NewBuffer(nil))
 	c.Assert(err, check.IsNil)
@@ -881,7 +1054,7 @@ func (s *apiSuite) TestSnapGetConfigNoConfig(c *check.C) {
 		return s.overlord
 	}
 
-	s.mkInstalled(c, "foo", "bar", "v1", true, "")
+	s.mkInstalled(c, "foo", "bar", "v1", 10, true, "")
 	req, err := http.NewRequest("GET", "/v2/snaps/foo/config", bytes.NewBuffer(nil))
 	c.Assert(err, check.IsNil)
 
@@ -901,7 +1074,7 @@ func (s *apiSuite) TestSnapPutConfig(c *check.C) {
 	}
 
 	s.vars = map[string]string{"name": "foo"}
-	s.mkInstalled(c, "foo", "bar", "v1", true, "")
+	s.mkInstalled(c, "foo", "bar", "v1", 10, true, "")
 
 	rsp := snapConfig(snapConfigCmd, req).Self(nil, nil).(*resp)
 
@@ -926,7 +1099,7 @@ func (s *apiSuite) TestSnapPutConfigMissing(c *check.C) {
 func (s *apiSuite) TestSnapPutConfigInactive(c *check.C) {
 	s.vars = map[string]string{"name": "foo"}
 
-	s.mkInstalled(c, "foo", "bar", "v1", false, "")
+	s.mkInstalled(c, "foo", "bar", "v1", 10, false, "")
 
 	req, err := http.NewRequest("PUT", "/v2/snaps/foo/config", bytes.NewBuffer(nil))
 	c.Assert(err, check.IsNil)
@@ -939,7 +1112,7 @@ func (s *apiSuite) TestSnapPutConfigInactive(c *check.C) {
 func (s *apiSuite) TestSnapPutConfigNoConfig(c *check.C) {
 	s.vars = map[string]string{"name": "foo"}
 
-	s.mkInstalled(c, "foo", "bar", "v1", true, "")
+	s.mkInstalled(c, "foo", "bar", "v1", 10, true, "")
 
 	req, err := http.NewRequest("PUT", "/v2/snaps/foo/config", bytes.NewBuffer(nil))
 	c.Assert(err, check.IsNil)
@@ -947,54 +1120,6 @@ func (s *apiSuite) TestSnapPutConfigNoConfig(c *check.C) {
 	rsp := snapConfig(snapsCmd, req).Self(nil, nil).(*resp)
 
 	c.Check(rsp.Status, check.Equals, http.StatusInternalServerError)
-}
-
-func (s *apiSuite) TestSnapServiceGet(c *check.C) {
-	findServices = func(string, string, progress.Meter) (snappy.ServiceActor, error) {
-		return &tSA{ssout: []*snappy.PackageServiceStatus{{AppName: "svc"}}}, nil
-	}
-
-	req, err := http.NewRequest("GET", "/v2/snaps/foo/services", nil)
-	c.Assert(err, check.IsNil)
-
-	s.mkInstalled(c, "foo", "bar", "v1", true, `apps:
- svc:
-  daemon: forking
-`)
-	s.vars = map[string]string{"name": "foo"} // NB: no service specified
-
-	rsp := snapService(snapSvcsCmd, req).(*resp)
-	c.Assert(rsp, check.NotNil)
-	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Check(rsp.Status, check.Equals, http.StatusOK)
-
-	m := rsp.Result.(map[string]*appDesc)
-	c.Assert(m["svc"], check.FitsTypeOf, new(appDesc))
-	c.Check(m["svc"].Op, check.Equals, "status")
-	c.Check(m["svc"].Spec, check.DeepEquals, &snappy.AppYaml{Name: "svc", Daemon: "forking", StopTimeout: timeout.DefaultTimeout})
-	c.Check(m["svc"].Status, check.DeepEquals, &snappy.PackageServiceStatus{AppName: "svc"})
-}
-
-func (s *apiSuite) TestSnapServicePut(c *check.C) {
-	findServices = func(string, string, progress.Meter) (snappy.ServiceActor, error) {
-		return &tSA{ssout: []*snappy.PackageServiceStatus{{AppName: "svc"}}}, nil
-	}
-
-	buf := bytes.NewBufferString(`{"action": "stop"}`)
-	req, err := http.NewRequest("PUT", "/v2/snaps/foo/services", buf)
-	c.Assert(err, check.IsNil)
-
-	s.mkInstalled(c, "foo", "bar", "v1", true, `apps:
- svc:
-  command: svc
-  daemon: forking
-`)
-	s.vars = map[string]string{"name": "foo"} // NB: no service specified
-
-	rsp := snapService(snapSvcsCmd, req).(*resp)
-	c.Assert(rsp, check.NotNil)
-	c.Check(rsp.Type, check.Equals, ResponseTypeAsync)
-	c.Check(rsp.Status, check.Equals, http.StatusAccepted)
 }
 
 func (s *apiSuite) TestSideloadSnap(c *check.C) {
@@ -1018,9 +1143,13 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, unsignedExpected bo
 	c.Check(err, check.IsNil)
 
 	// setup done
+	var expectedFlags snappy.InstallFlags
+	if unsignedExpected {
+		expectedFlags |= snappy.AllowUnauthenticated
+	}
 
-	newSnap = func(fn string, unauthOk bool) (*snappy.SnapFile, error) {
-		c.Check(unauthOk, check.Equals, unsignedExpected)
+	checkSnap = func(fn string, flags snappy.InstallFlags) error {
+		c.Check(flags, check.Equals, expectedFlags)
 
 		bs, err := ioutil.ReadFile(fn)
 		c.Check(err, check.IsNil)
@@ -1028,9 +1157,9 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, unsignedExpected bo
 
 		ch <- struct{}{}
 
-		return &snappy.SnapFile{}, nil
+		return nil
 	}
-	defer func() { newSnap = newSnapImpl }()
+	defer func() { checkSnap = checkSnapImpl }()
 
 	req, err := http.NewRequest("POST", "/v2/snaps", tmpfile)
 	c.Assert(err, check.IsNil)
@@ -1044,33 +1173,12 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, unsignedExpected bo
 	<-ch
 }
 
-func (s *apiSuite) TestServiceLogs(c *check.C) {
-	log := systemd.Log{
-		"__REALTIME_TIMESTAMP": "42",
-		"MESSAGE":              "hi",
-	}
-
-	findServices = func(string, string, progress.Meter) (snappy.ServiceActor, error) {
-		return &tSA{lgout: []systemd.Log{log}}, nil
-	}
-
-	req, err := http.NewRequest("GET", "/v2/snaps/foo/services/baz/logs", nil)
-	c.Assert(err, check.IsNil)
-
-	rsp := getLogs(snapSvcLogsCmd, req).(*resp)
-	c.Assert(rsp, check.DeepEquals, &resp{
-		Type:   ResponseTypeSync,
-		Status: http.StatusOK,
-		Result: []map[string]interface{}{{"message": "hi", "timestamp": "1970-01-01T00:00:00.000042Z", "raw": log}},
-	})
-}
-
 func (s *apiSuite) TestAppIconGet(c *check.C) {
 	// have an active foo in the system
-	s.mkInstalled(c, "foo", "bar", "v1", true, "")
+	info := s.mkInstalled(c, "foo", "bar", "v1", 10, true, "")
 
 	// have an icon for it in the package itself
-	iconfile := filepath.Join(dirs.SnapSnapsDir, "foo", "v1", "meta", "gui", "icon.ick")
+	iconfile := filepath.Join(info.MountDir(), "meta", "gui", "icon.ick")
 	c.Assert(os.MkdirAll(filepath.Dir(iconfile), 0755), check.IsNil)
 	c.Check(ioutil.WriteFile(iconfile, []byte("ick"), 0644), check.IsNil)
 
@@ -1087,11 +1195,10 @@ func (s *apiSuite) TestAppIconGet(c *check.C) {
 
 func (s *apiSuite) TestAppIconGetInactive(c *check.C) {
 	// have an *in*active foo in the system
-	s.mkInstalled(c, "foo", "bar", "v1", false, "")
+	info := s.mkInstalled(c, "foo", "bar", "v1", 10, false, "")
 
 	// have an icon for it in the package itself
-
-	iconfile := filepath.Join(dirs.SnapSnapsDir, "foo", "v1", "meta", "gui", "icon.ick")
+	iconfile := filepath.Join(info.MountDir(), "meta", "gui", "icon.ick")
 	c.Assert(os.MkdirAll(filepath.Dir(iconfile), 0755), check.IsNil)
 	c.Check(ioutil.WriteFile(iconfile, []byte("ick"), 0644), check.IsNil)
 
@@ -1108,10 +1215,10 @@ func (s *apiSuite) TestAppIconGetInactive(c *check.C) {
 
 func (s *apiSuite) TestAppIconGetNoIcon(c *check.C) {
 	// have an *in*active foo in the system
-	s.mkInstalled(c, "foo", "bar", "v1", true, "")
+	info := s.mkInstalled(c, "foo", "bar", "v1", 10, true, "")
 
 	// NO ICON!
-	err := os.RemoveAll(filepath.Join(dirs.SnapSnapsDir, "foo", "v1", "meta", "gui", "icon.svg"))
+	err := os.RemoveAll(filepath.Join(info.MountDir(), "meta", "gui", "icon.svg"))
 	c.Assert(err, check.IsNil)
 
 	s.vars = map[string]string{"name": "foo"}
@@ -1181,11 +1288,14 @@ func (s *apiSuite) TestInstall(c *check.C) {
 		return state.NewTaskSet(t), nil
 	}
 
+	d := s.daemon(c)
 	inst := &snapInstruction{
-		overlord: s.stateOverlord,
+		overlord: d.overlord,
 		Action:   "install",
 	}
 
+	d.overlord.Loop()
+	defer d.overlord.Stop()
 	err := inst.dispatch()()
 
 	c.Check(calledFlags, check.Equals, snappy.DoInstallGC)
@@ -1198,11 +1308,14 @@ func (s *apiSuite) TestInstallFails(c *check.C) {
 		return state.NewTaskSet(t), nil
 	}
 
+	d := s.daemon(c)
 	inst := &snapInstruction{
-		overlord: s.stateOverlord,
+		overlord: d.overlord,
 		Action:   "install",
 	}
 
+	d.overlord.Loop()
+	defer d.overlord.Stop()
 	err := inst.dispatch()()
 
 	c.Check(err, check.ErrorMatches, `(?sm).*Install task \(fake-install-snap-error errored\)`)
@@ -1218,12 +1331,15 @@ func (s *apiSuite) TestInstallLeaveOld(c *check.C) {
 		return state.NewTaskSet(t), nil
 	}
 
+	d := s.daemon(c)
 	inst := &snapInstruction{
-		overlord: s.stateOverlord,
+		overlord: d.overlord,
 		Action:   "install",
 		LeaveOld: true,
 	}
 
+	d.overlord.Loop()
+	defer d.overlord.Stop()
 	err := inst.dispatch()()
 
 	c.Check(calledFlags, check.Equals, snappy.InstallFlags(0))
@@ -1241,12 +1357,16 @@ func (s *apiSuite) TestInstallLicensed(c *check.C) {
 		return nil, snappy.ErrLicenseNotAccepted
 	}
 
+	d := s.daemon(c)
 	inst := &snapInstruction{
-		overlord: s.stateOverlord,
+		overlord: d.overlord,
 		Action:   "install",
 	}
 
+	d.overlord.Loop()
+	defer d.overlord.Stop()
 	lic, ok := inst.dispatch()().(*licenseData)
+
 	c.Assert(ok, check.Equals, true)
 	c.Check(lic, check.ErrorMatches, "license agreement required")
 	c.Check(lic.Intro, check.Equals, "hi")
@@ -1262,7 +1382,7 @@ func (s *apiSuite) TestInstallLicensed(c *check.C) {
 }
 
 func (s *apiSuite) TestInstallLicensedIntegration(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 
 	snapstateInstall = func(s *state.State, name, channel string, flags snappy.InstallFlags) (state.TaskSet, error) {
 		if meter.Agreed("hi", "yak yak") {
@@ -1306,7 +1426,7 @@ func (s *apiSuite) TestInstallLicensedIntegration(c *check.C) {
 
 func makePlug(ifaceName string) *interfaces.Plug {
 	snapInfo := &snap.Info{
-		Name: "producer",
+		SuggestedName: "producer",
 	}
 	plugInfo := &snap.PlugInfo{
 		Snap:      snapInfo,
@@ -1334,7 +1454,7 @@ func makeConnectedPlug() *interfaces.Plug {
 
 func makeSlot(ifaceName string) *interfaces.Slot {
 	snapInfo := &snap.Info{
-		Name: "consumer",
+		SuggestedName: "consumer",
 	}
 	slotInfo := &snap.SlotInfo{
 		Snap:      snapInfo,
@@ -1361,7 +1481,7 @@ func makeConnectedSlot() *interfaces.Slot {
 }
 
 func (s *apiSuite) TestGetPlugs(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddPlug(makePlug("interface"))
 	d.interfaces.AddSlot(makeSlot("interface"))
@@ -1404,7 +1524,7 @@ func (s *apiSuite) TestGetPlugs(c *check.C) {
 			},
 		},
 		"status":      "OK",
-		"status_code": 200.0,
+		"status-code": 200.0,
 		"type":        "sync",
 	})
 }
@@ -1412,7 +1532,7 @@ func (s *apiSuite) TestGetPlugs(c *check.C) {
 // Test for POST /v2/interfaces
 
 func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddPlug(makePlug("interface"))
 	d.interfaces.AddSlot(makeSlot("interface"))
@@ -1435,7 +1555,7 @@ func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result":      nil,
 		"status":      "OK",
-		"status_code": 200.0,
+		"status-code": 200.0,
 		"type":        "sync",
 	})
 	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
@@ -1445,7 +1565,7 @@ func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 }
 
 func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "other-interface"})
 	d.interfaces.AddPlug(makePlug("interface"))
@@ -1471,7 +1591,7 @@ func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 			"message": `cannot connect plug "producer:plug" (interface "interface") to "consumer:slot" (interface "other-interface")`,
 		},
 		"status":      "Bad Request",
-		"status_code": 400.0,
+		"status-code": 400.0,
 		"type":        "error",
 	})
 	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
@@ -1481,7 +1601,7 @@ func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 }
 
 func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddSlot(makeSlot("interface"))
 	action := &interfaceAction{
@@ -1505,7 +1625,7 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 			"message": `cannot connect plug "plug" from snap "producer", no such plug`,
 		},
 		"status":      "Bad Request",
-		"status_code": 400.0,
+		"status-code": 400.0,
 		"type":        "error",
 	})
 	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
@@ -1514,7 +1634,7 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 }
 
 func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddPlug(makePlug("interface"))
 	action := &interfaceAction{
@@ -1538,7 +1658,7 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 			"message": `cannot connect plug to slot "slot" from snap "consumer", no such slot`,
 		},
 		"status":      "Bad Request",
-		"status_code": 400.0,
+		"status-code": 400.0,
 		"type":        "error",
 	})
 	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
@@ -1547,7 +1667,7 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 }
 
 func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddPlug(makePlug("interface"))
 	d.interfaces.AddSlot(makeSlot("interface"))
@@ -1571,7 +1691,7 @@ func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result":      nil,
 		"status":      "OK",
-		"status_code": 200.0,
+		"status-code": 200.0,
 		"type":        "sync",
 	})
 	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
@@ -1581,7 +1701,7 @@ func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddSlot(makeSlot("interface"))
 	action := &interfaceAction{
@@ -1605,7 +1725,7 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 			"message": `cannot disconnect plug "plug" from snap "producer", no such plug`,
 		},
 		"status":      "Bad Request",
-		"status_code": 400.0,
+		"status-code": 400.0,
 		"type":        "error",
 	})
 	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
@@ -1614,7 +1734,7 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddPlug(makePlug("interface"))
 	action := &interfaceAction{
@@ -1638,7 +1758,7 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 			"message": `cannot disconnect plug from slot "slot" from snap "consumer", no such slot`,
 		},
 		"status":      "Bad Request",
-		"status_code": 400.0,
+		"status-code": 400.0,
 		"type":        "error",
 	})
 	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
@@ -1647,7 +1767,7 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
 	d.interfaces.AddPlug(makePlug("interface"))
 	d.interfaces.AddSlot(makeSlot("interface"))
@@ -1672,7 +1792,7 @@ func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 			"message": `cannot disconnect plug "plug" from snap "producer" from slot "slot" from snap "consumer", it is not connected`,
 		},
 		"status":      "Bad Request",
-		"status_code": 400.0,
+		"status-code": 400.0,
 		"type":        "error",
 	})
 	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
@@ -1696,7 +1816,7 @@ func (s *apiSuite) TestUnsupportedInterfaceRequest(c *check.C) {
 			"message": "cannot decode request body into an interface action: invalid character 'g' looking for beginning of value",
 		},
 		"status":      "Bad Request",
-		"status_code": 400.0,
+		"status-code": 400.0,
 		"type":        "error",
 	})
 }
@@ -1719,13 +1839,13 @@ func (s *apiSuite) TestMissingInterfaceAction(c *check.C) {
 			"message": "interface action not specified",
 		},
 		"status":      "Bad Request",
-		"status_code": 400.0,
+		"status-code": 400.0,
 		"type":        "error",
 	})
 }
 
 func (s *apiSuite) TestUnsupportedInterfaceAction(c *check.C) {
-	newTestDaemon(c)
+	s.daemon(c)
 	action := &interfaceAction{Action: "foo"}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -1743,7 +1863,7 @@ func (s *apiSuite) TestUnsupportedInterfaceAction(c *check.C) {
 			"message": "unsupported interface action: \"foo\"",
 		},
 		"status":      "Bad Request",
-		"status_code": 400.0,
+		"status-code": 400.0,
 		"type":        "error",
 	})
 }
@@ -1798,7 +1918,7 @@ func (s *apiSuite) TestAssertOK(c *check.C) {
 	os.MkdirAll(filepath.Dir(dirs.SnapTrustedAccountKey), 0755)
 	err := ioutil.WriteFile(dirs.SnapTrustedAccountKey, []byte(testTrustedKey), 0640)
 	c.Assert(err, check.IsNil)
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	buf := bytes.NewBufferString(testAccKey)
 	// Execute
 	req, err := http.NewRequest("POST", "/v2/assertions", buf)
@@ -1817,7 +1937,6 @@ func (s *apiSuite) TestAssertOK(c *check.C) {
 
 func (s *apiSuite) TestAssertInvalid(c *check.C) {
 	// Setup
-	newTestDaemon(c)
 	buf := bytes.NewBufferString("blargh")
 	req, err := http.NewRequest("POST", "/v2/assertions", buf)
 	c.Assert(err, check.IsNil)
@@ -1831,8 +1950,8 @@ func (s *apiSuite) TestAssertInvalid(c *check.C) {
 }
 
 func (s *apiSuite) TestAssertError(c *check.C) {
+	s.daemon(c)
 	// Setup
-	newTestDaemon(c)
 	buf := bytes.NewBufferString(testAccKey)
 	req, err := http.NewRequest("POST", "/v2/assertions", buf)
 	c.Assert(err, check.IsNil)
@@ -1849,7 +1968,7 @@ func (s *apiSuite) TestAssertsFindManyAll(c *check.C) {
 	os.MkdirAll(filepath.Dir(dirs.SnapTrustedAccountKey), 0755)
 	err := ioutil.WriteFile(dirs.SnapTrustedAccountKey, []byte(testTrustedKey), 0640)
 	c.Assert(err, check.IsNil)
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	a, err := asserts.Decode([]byte(testAccKey))
 	c.Assert(err, check.IsNil)
 	err = d.overlord.AssertManager().DB().Add(a)
@@ -1884,7 +2003,7 @@ func (s *apiSuite) TestAssertsFindManyFilter(c *check.C) {
 	os.MkdirAll(filepath.Dir(dirs.SnapTrustedAccountKey), 0755)
 	err := ioutil.WriteFile(dirs.SnapTrustedAccountKey, []byte(testTrustedKey), 0640)
 	c.Assert(err, check.IsNil)
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	a, err := asserts.Decode([]byte(testAccKey))
 	c.Assert(err, check.IsNil)
 	err = d.overlord.AssertManager().DB().Add(a)
@@ -1912,7 +2031,7 @@ func (s *apiSuite) TestAssertsFindManyNoResults(c *check.C) {
 	os.MkdirAll(filepath.Dir(dirs.SnapTrustedAccountKey), 0755)
 	err := ioutil.WriteFile(dirs.SnapTrustedAccountKey, []byte(testTrustedKey), 0640)
 	c.Assert(err, check.IsNil)
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	a, err := asserts.Decode([]byte(testAccKey))
 	c.Assert(err, check.IsNil)
 	err = d.overlord.AssertManager().DB().Add(a)
@@ -1932,8 +2051,6 @@ func (s *apiSuite) TestAssertsFindManyNoResults(c *check.C) {
 }
 
 func (s *apiSuite) TestAssertsInvalidType(c *check.C) {
-	// Setup
-	newTestDaemon(c)
 	// Execute
 	req, err := http.NewRequest("POST", "/v2/assertions/foo", nil)
 	c.Assert(err, check.IsNil)
@@ -1946,7 +2063,7 @@ func (s *apiSuite) TestAssertsInvalidType(c *check.C) {
 }
 
 func (s *apiSuite) TestGetEvents(c *check.C) {
-	d := newTestDaemon(c)
+	d := s.daemon(c)
 	eventsCmd.d = d
 	c.Assert(d.hub.SubscriberCount(), check.Equals, 0)
 

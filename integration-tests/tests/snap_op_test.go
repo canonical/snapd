@@ -21,8 +21,8 @@
 package tests
 
 import (
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
+	"github.com/ubuntu-core/snappy/testutil"
 
 	"gopkg.in/check.v1"
 )
@@ -33,18 +33,23 @@ type snapOpSuite struct {
 	common.SnappySuite
 }
 
-func (s *snapOpSuite) TestSnapInstallWorks(c *check.C) {
-	installOutput := cli.ExecCommand(c, "sudo", "snap", "install", "hello-world.canonical")
-	c.Assert(installOutput, check.Matches, `\n`)
-	s.AddCleanup(func() {
-		common.RemoveSnap(c, "hello-world")
-	})
-
-	listOutput := cli.ExecCommand(c, "snappy", "list")
+func (s *snapOpSuite) testInstallRemove(c *check.C, snapName, displayName, displayDeveloper string) {
+	installOutput := installSnap(c, snapName)
 	expected := "(?ms)" +
-		"Name +Date +Version +Developer +\n" +
+		"Name +Date +Version +Developer\n" +
 		".*" +
-		"^hello-world .*\n" +
+		displayName + " +.* +.* +" + displayDeveloper + "\n" +
 		".*"
-	c.Assert(listOutput, check.Matches, expected)
+	c.Assert(installOutput, check.Matches, expected)
+
+	removeOutput := removeSnap(c, snapName)
+	c.Assert(removeOutput, check.Not(testutil.Contains), snapName)
+}
+
+func (s *snapOpSuite) TestInstallRemoveAliasWorks(c *check.C) {
+	s.testInstallRemove(c, "hello-world", "hello-world", "canonical")
+}
+
+func (s *snapOpSuite) TestInstallRemoveFullNameWorks(c *check.C) {
+	s.testInstallRemove(c, "hello-world.canonical", "hello-world", "canonical")
 }

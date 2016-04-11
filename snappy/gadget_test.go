@@ -30,6 +30,8 @@ import (
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/osutil"
+	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/legacygadget"
 )
 
 type GadgetSuite struct {
@@ -38,12 +40,17 @@ type GadgetSuite struct {
 var _ = Suite(&GadgetSuite{})
 
 func (s *GadgetSuite) SetUpTest(c *C) {
-	getGadget = func() (*snapYaml, error) {
-		return &snapYaml{
-			Gadget: Gadget{
-				Software: Software{[]string{"makeuppackage", "anotherpackage"}},
-				Store:    Store{"ninjablocks"},
+	getGadget = func() (*snap.Info, error) {
+		legacy := &snap.LegacyYaml{
+			Gadget: legacygadget.Gadget{
+				Software: legacygadget.Software{
+					BuiltIn: []string{"makeuppackage", "anotherpackage"}},
+				Store: legacygadget.Store{
+					ID: "ninjablocks"},
 			},
+		}
+		return &snap.Info{
+			Legacy: legacy,
 		}, nil
 	}
 }
@@ -63,10 +70,10 @@ func (s *GadgetSuite) TestStoreID(c *C) {
 }
 
 func (s *GadgetSuite) TestWriteApparmorAdditionalFile(c *C) {
-	m, err := parseSnapYamlData(hardwareYaml, false)
+	info, err := snap.InfoFromSnapYaml(hardwareYaml)
 	c.Assert(err, IsNil)
 
-	err = writeApparmorAdditionalFile(m)
+	err = writeApparmorAdditionalFile(info)
 	c.Assert(err, IsNil)
 
 	content, err := ioutil.ReadFile(filepath.Join(dirs.SnapAppArmorDir, "device-hive-iot-hal.json.additional"))
@@ -75,16 +82,16 @@ func (s *GadgetSuite) TestWriteApparmorAdditionalFile(c *C) {
 }
 
 func (s *GadgetSuite) TestCleanupGadgetHardwareRules(c *C) {
-	m, err := parseSnapYamlData(hardwareYaml, false)
+	info, err := snap.InfoFromSnapYaml(hardwareYaml)
 	c.Assert(err, IsNil)
 
-	err = writeApparmorAdditionalFile(m)
+	err = writeApparmorAdditionalFile(info)
 	c.Assert(err, IsNil)
 
 	additionalFile := filepath.Join(dirs.SnapAppArmorDir, "device-hive-iot-hal.json.additional")
 	c.Assert(osutil.FileExists(additionalFile), Equals, true)
 
-	err = cleanupGadgetHardwareUdevRules(m)
+	err = cleanupGadgetHardwareUdevRules(info)
 	c.Assert(err, IsNil)
 	c.Assert(osutil.FileExists(additionalFile), Equals, false)
 }

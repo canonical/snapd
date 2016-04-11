@@ -67,13 +67,17 @@ func bestSnap(snaps []*snappy.Snap) (idx int, snap *snappy.Snap) {
 //
 // Also may panic if the remoteSnap is nil and Best() is nil.
 func mapSnap(localSnaps []*snappy.Snap, remoteSnap *snap.Info) map[string]interface{} {
-	var version, update, rollback, icon, name, developer, _type, description string
+	var version, icon, name, developer, _type, description, summary string
+	var revision int
+
+	rollback := -1
+	update := -1
 
 	if len(localSnaps) == 0 && remoteSnap == nil {
 		panic("no localSnaps & remoteSnap is nil -- how did i even get here")
 	}
 
-	status := "not installed"
+	status := "available"
 	installedSize := int64(-1)
 	downloadSize := int64(-1)
 
@@ -94,17 +98,20 @@ func mapSnap(localSnaps []*snappy.Snap, remoteSnap *snap.Info) map[string]interf
 		name = localSnap.Name()
 		developer = localSnap.Developer()
 		version = localSnap.Version()
+		revision = localSnap.Revision()
 		_type = string(localSnap.Type())
 
 		icon = localSnap.Icon()
-		description = localSnap.Info().Description
+		summary = localSnap.Info().Summary()
+		description = localSnap.Info().Description()
 		installedSize = localSnap.InstalledSize()
 
 		downloadSize = localSnap.DownloadSize()
 	} else {
-		name = remoteSnap.Name
+		name = remoteSnap.Name()
 		developer = remoteSnap.Developer
 		version = remoteSnap.Version
+		revision = remoteSnap.Revision
 		_type = string(remoteSnap.Type)
 	}
 
@@ -113,20 +120,18 @@ func mapSnap(localSnaps []*snappy.Snap, remoteSnap *snap.Info) map[string]interf
 			icon = remoteSnap.IconURL
 		}
 		if description == "" {
-			description = remoteSnap.Description
+			description = remoteSnap.Description()
+		}
+		if summary == "" {
+			summary = remoteSnap.Summary()
 		}
 
 		downloadSize = remoteSnap.Size
 	}
 
 	if localSnap != nil && localSnap.IsActive() {
-		// XXX: this should use revision actually!!!
-		if remoteSnap != nil && version != remoteSnap.Version {
-			// XXX: this does not handle the case where the
-			// one in the store is not the greatest version
-			// (e.g.: store has 1.1, locally available 1.1,
-			// 1.2, active 1.2)
-			update = remoteSnap.Version
+		if remoteSnap != nil && revision != remoteSnap.Revision {
+			update = remoteSnap.Revision
 		}
 
 		// WARNING this'll only get the right* rollback if
@@ -136,7 +141,7 @@ func mapSnap(localSnaps []*snappy.Snap, remoteSnap *snap.Info) map[string]interf
 		// marking things failed etc etc etc)
 		//
 		if len(localSnaps) > 1 {
-			rollback = localSnaps[1^idx].Version()
+			rollback = localSnaps[1^idx].Revision()
 		}
 	}
 
@@ -147,10 +152,12 @@ func mapSnap(localSnaps []*snappy.Snap, remoteSnap *snap.Info) map[string]interf
 		"status":         status,
 		"type":           _type,
 		"vendor":         "",
+		"revision":       revision,
 		"version":        version,
 		"description":    description,
-		"installed_size": installedSize,
-		"download_size":  downloadSize,
+		"summary":        summary,
+		"installed-size": installedSize,
+		"download-size":  downloadSize,
 	}
 
 	if localSnap != nil {
@@ -160,12 +167,12 @@ func mapSnap(localSnaps []*snappy.Snap, remoteSnap *snap.Info) map[string]interf
 		}
 	}
 
-	if rollback != "" {
-		result["rollback_available"] = rollback
+	if rollback > -1 {
+		result["rollback-available"] = rollback
 	}
 
-	if update != "" {
-		result["update_available"] = update
+	if update > -1 {
+		result["update-available"] = update
 	}
 
 	return result

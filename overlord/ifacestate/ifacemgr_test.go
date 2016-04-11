@@ -100,13 +100,13 @@ func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
 	c.Check(repo.Interfaces(), DeepEquals, &interfaces.Interfaces{
 		Slots: []*interfaces.Slot{{
 			SlotInfo: &snap.SlotInfo{
-				Snap: &snap.Info{Name: "producer"}, Name: "slot", Interface: "test",
+				Snap: &snap.Info{SuggestedName: "producer"}, Name: "slot", Interface: "test",
 			},
 			Connections: []interfaces.PlugRef{{Snap: "consumer", Name: "plug"}},
 		}},
 		Plugs: []*interfaces.Plug{{
 			PlugInfo: &snap.PlugInfo{
-				Snap: &snap.Info{Name: "consumer"}, Name: "plug", Interface: "test",
+				Snap: &snap.Info{SuggestedName: "consumer"}, Name: "plug", Interface: "test",
 			},
 			Connections: []interfaces.SlotRef{{Snap: "producer", Name: "slot"}},
 		}},
@@ -159,9 +159,9 @@ func (s *interfaceManagerSuite) TestEnsureProcessesDisconnectTask(c *C) {
 	c.Check(repo.Interfaces(), DeepEquals, &interfaces.Interfaces{
 		// NOTE: the connection is gone now.
 		Slots: []*interfaces.Slot{{SlotInfo: &snap.SlotInfo{
-			Snap: &snap.Info{Name: "producer"}, Name: "slot", Interface: "test"}}},
+			Snap: &snap.Info{SuggestedName: "producer"}, Name: "slot", Interface: "test"}}},
 		Plugs: []*interfaces.Plug{{PlugInfo: &snap.PlugInfo{
-			Snap: &snap.Info{Name: "consumer"}, Name: "plug", Interface: "test"}}},
+			Snap: &snap.Info{SuggestedName: "consumer"}, Name: "plug", Interface: "test"}}},
 	})
 }
 
@@ -170,9 +170,9 @@ func (s *interfaceManagerSuite) addPlugSlotAndInterface(c *C) {
 	err := repo.AddInterface(&interfaces.TestInterface{InterfaceName: "test"})
 	c.Assert(err, IsNil)
 	err = repo.AddSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap: &snap.Info{Name: "producer"}, Name: "slot", Interface: "test"}})
+		Snap: &snap.Info{SuggestedName: "producer"}, Name: "slot", Interface: "test"}})
 	c.Assert(err, IsNil)
 	err = repo.AddPlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{
-		Snap: &snap.Info{Name: "consumer"}, Name: "plug", Interface: "test"}})
+		Snap: &snap.Info{SuggestedName: "consumer"}, Name: "plug", Interface: "test"}})
 	c.Assert(err, IsNil)
 }

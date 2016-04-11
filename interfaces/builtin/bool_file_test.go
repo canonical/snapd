@@ -287,3 +287,7 @@ func (s *BoolFileInterfaceSuite) TestPermanentSlotSnippetUnusedSecuritySystems(c
 		c.Assert(snippet, IsNil)
 	}
 }
+
+func (s *BoolFileInterfaceSuite) TestAutoConnect(c *C) {
+	c.Check(s.iface.AutoConnect(), Equals, false)
+}

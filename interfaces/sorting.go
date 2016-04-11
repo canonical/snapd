@@ -46,8 +46,8 @@ type byPlugSnapAndName []*Plug
 func (c byPlugSnapAndName) Len() int      { return len(c) }
 func (c byPlugSnapAndName) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
 func (c byPlugSnapAndName) Less(i, j int) bool {
-	if c[i].Snap.Name != c[j].Snap.Name {
-		return c[i].Snap.Name < c[j].Snap.Name
+	if c[i].Snap.Name() != c[j].Snap.Name() {
+		return c[i].Snap.Name() < c[j].Snap.Name()
 	}
 	return c[i].Name < c[j].Name
 }
@@ -57,8 +57,8 @@ type bySlotSnapAndName []*Slot
 func (c bySlotSnapAndName) Len() int      { return len(c) }
 func (c bySlotSnapAndName) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
 func (c bySlotSnapAndName) Less(i, j int) bool {
-	if c[i].Snap.Name != c[j].Snap.Name {
-		return c[i].Snap.Name < c[j].Snap.Name
+	if c[i].Snap.Name() != c[j].Snap.Name() {
+		return c[i].Snap.Name() < c[j].Snap.Name()
 	}
 	return c[i].Name < c[j].Name
 }

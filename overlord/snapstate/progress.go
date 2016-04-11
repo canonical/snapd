@@ -61,6 +61,8 @@ func (t *TaskProgressAdapter) Write(p []byte) (n int, err error) {
 
 // Notify notifies
 func (t *TaskProgressAdapter) Notify(msg string) {
+	t.task.State().Lock()
+	defer t.task.State().Unlock()
 	t.task.Logf(msg)
 }
 

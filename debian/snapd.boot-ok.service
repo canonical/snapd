@@ -1,0 +1,10 @@
+[Unit]
+Description=Notify bootloader that boot was successful
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/snap booted
+
+[Install]
+WantedBy=multi-user.target

@@ -162,3 +162,11 @@ func (iface *BoolFileInterface) isGPIO(slot *interfaces.Slot) bool {
 	}
 	panic("slot is not sanitized")
 }
+
+// AutoConnect returns true if plugs and slots should be implicitly
+// auto-connected when an unambiguous connection candidate is available.
+//
+// This interface does not auto-connect.
+func (iface *BoolFileInterface) AutoConnect() bool {
+	return false
+}

@@ -24,18 +24,26 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v2"
+
+	"github.com/ubuntu-core/snappy/systemd"
+	"github.com/ubuntu-core/snappy/timeout"
 )
 
 type snapYaml struct {
-	Name        string                 `yaml:"name"`
-	Version     string                 `yaml:"version"`
-	Type        Type                   `yaml:"type"`
-	Description string                 `yaml:"description"`
-	Summary     string                 `yaml:"summary"`
-	Plugs       map[string]interface{} `yaml:"plugs,omitempty"`
-	Slots       map[string]interface{} `yaml:"slots,omitempty"`
-	Apps        map[string]appYaml     `yaml:"apps,omitempty"`
-	// TODO: missing fields still
+	Name             string                 `yaml:"name"`
+	Version          string                 `yaml:"version"`
+	Type             Type                   `yaml:"type"`
+	Architectures    []string               `yaml:"architectures,omitempty"`
+	Description      string                 `yaml:"description"`
+	Summary          string                 `yaml:"summary"`
+	LicenseAgreement string                 `yaml:"license-agreement,omitempty"`
+	LicenseVersion   string                 `yaml:"license-version,omitempty"`
+	Plugs            map[string]interface{} `yaml:"plugs,omitempty"`
+	Slots            map[string]interface{} `yaml:"slots,omitempty"`
+	Apps             map[string]appYaml     `yaml:"apps,omitempty"`
+
+	// legacy fields collected
+	Legacy LegacyYaml `yaml:",inline"`
 }
 
 type plugYaml struct {
@@ -53,9 +61,23 @@ type slotYaml struct {
 }
 
 type appYaml struct {
-	Command   string   `yaml:"command"`
-	SlotNames []string `yaml:"slots,omitempty"`
-	PlugNames []string `yaml:"plugs,omitempty"`
+	Command string `yaml:"command"`
+
+	Daemon string `yaml:"daemon"`
+
+	Stop        string          `yaml:"stop-command,omitempty"`
+	PostStop    string          `yaml:"post-stop-command,omitempty"`
+	StopTimeout timeout.Timeout `yaml:"stop-timeout,omitempty"`
+
+	RestartCond systemd.RestartCondition `yaml:"restart-condition,omitempty"`
+	SlotNames   []string                 `yaml:"slots,omitempty"`
+	PlugNames   []string                 `yaml:"plugs,omitempty"`
+
+	BusName string `yaml:"bus-name,omitempty"`
+
+	Socket       bool   `yaml:"socket,omitempty"`
+	ListenStream string `yaml:"listen-stream,omitempty"`
+	SocketMode   string `yaml:"socket-mode,omitempty"`
 }
 
 // InfoFromSnapYaml creates a new info based on the given snap.yaml data
@@ -65,16 +87,31 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	if err != nil {
 		return nil, fmt.Errorf("info failed to parse: %s", err)
 	}
+	// Defaults
+	architectures := []string{"all"}
+	if len(y.Architectures) != 0 {
+		architectures = y.Architectures
+	}
+	typ := TypeApp
+	if y.Type != "" {
+		typ = y.Type
+	}
 	// Construct snap skeleton, without apps, plugs and slots
 	snap := &Info{
-		Name:        y.Name,
-		Version:     y.Version,
-		Type:        y.Type,
-		Description: y.Description,
-		Summary:     y.Summary,
-		Apps:        make(map[string]*AppInfo),
-		Plugs:       make(map[string]*PlugInfo),
-		Slots:       make(map[string]*SlotInfo),
+		SuggestedName:       y.Name,
+		Version:             y.Version,
+		Type:                typ,
+		Architectures:       architectures,
+		OriginalDescription: y.Description,
+		OriginalSummary:     y.Summary,
+		LicenseAgreement:    y.LicenseAgreement,
+		LicenseVersion:      y.LicenseVersion,
+		Apps:                make(map[string]*AppInfo),
+		Plugs:               make(map[string]*PlugInfo),
+		Slots:               make(map[string]*SlotInfo),
+
+		// just expose the parsed legacy yaml bits
+		Legacy: &y.Legacy,
 	}
 	// Collect top-level definitions of plugs
 	for name, data := range y.Plugs {
@@ -113,9 +150,18 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	for appName, yApp := range y.Apps {
 		// Collect all apps
 		app := &AppInfo{
-			Snap:    snap,
-			Name:    appName,
-			Command: yApp.Command,
+			Snap:         snap,
+			Name:         appName,
+			Command:      yApp.Command,
+			Daemon:       yApp.Daemon,
+			StopTimeout:  yApp.StopTimeout,
+			Stop:         yApp.Stop,
+			PostStop:     yApp.PostStop,
+			RestartCond:  yApp.RestartCond,
+			Socket:       yApp.Socket,
+			SocketMode:   yApp.SocketMode,
+			ListenStream: yApp.ListenStream,
+			BusName:      yApp.BusName,
 		}
 		if len(y.Plugs) > 0 || len(yApp.PlugNames) > 0 {
 			app.Plugs = make(map[string]*PlugInfo)

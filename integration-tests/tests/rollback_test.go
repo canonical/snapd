@@ -38,6 +38,8 @@ type rollbackSuite struct {
 }
 
 func (s *rollbackSuite) TestRollbackMustRebootToOtherVersion(c *check.C) {
+	c.Skip("port to snapd")
+
 	if common.BeforeReboot() {
 		// here we upgrade
 		updates.CallFakeOSUpdate(c)
