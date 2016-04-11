@@ -106,11 +106,9 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 	s.overlord = &fakeOverlord{
 		configs: map[string]string{},
 	}
-	o, err := overlord.New()
-	c.Assert(err, check.IsNil)
-	s.stateOverlord = o
-	s.stateOverlord.Loop()
 	s.daemon = newTestDaemon(c)
+	s.stateOverlord = s.daemon.overlord
+	s.stateOverlord.Loop()
 }
 
 func (s *apiSuite) TearDownTest(c *check.C) {
