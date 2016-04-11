@@ -174,7 +174,7 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 	c.Assert(cur, Equals, s.fakeBackend.fakeCurrentProgress)
 	c.Assert(total, Equals, s.fakeBackend.fakeTotalProgress)
 
-	// verify snapSetup info
+	// verify snap-setup in the task state
 	var ss snapstate.SnapSetup
 	err = task.Get("snap-setup", &ss)
 	c.Assert(err, IsNil)
@@ -192,6 +192,15 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 
 		SnapPath: "downloaded-snap-path",
 	})
+
+	// verify snaps in the system state
+	var snaps map[string]*snapstate.SnapStateForTests
+	err = s.state.Get("snaps", &snaps)
+	c.Assert(err, IsNil)
+
+	snapst := snaps["some-snap"]
+	c.Assert(snapst.Sequence[0], DeepEquals, ss.SideInfo)
+	c.Assert(snapst.Active, Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {

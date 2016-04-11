@@ -142,14 +142,6 @@ func (f *fakeSnappyBackend) CopySnapData(instSnapPath string, flags int) error {
 	return nil
 }
 
-func (f *fakeSnappyBackend) SetupSnapSecurity(instSnapPath string) error {
-	f.ops = append(f.ops, fakeOp{
-		op:   "setup-snap-security",
-		name: instSnapPath,
-	})
-	return nil
-}
-
 func (f *fakeSnappyBackend) LinkSnap(instSnapPath string) error {
 	f.ops = append(f.ops, fakeOp{
 		op:   "link-snap",
@@ -158,10 +150,10 @@ func (f *fakeSnappyBackend) LinkSnap(instSnapPath string) error {
 	return nil
 }
 
-func (f *fakeSnappyBackend) UndoSetupSnap(snapFilePath string) error {
+func (f *fakeSnappyBackend) UndoSetupSnap(s snap.PlaceInfo) error {
 	f.ops = append(f.ops, fakeOp{
 		op:   "undo-setup-snap",
-		name: snapFilePath,
+		name: s.MountDir(),
 	})
 	return nil
 }
@@ -213,18 +205,10 @@ func (f *fakeSnappyBackend) UnlinkSnap(instSnapPath string, meter progress.Meter
 	return nil
 }
 
-func (f *fakeSnappyBackend) RemoveSnapSecurity(instSnapPath string) error {
-	f.ops = append(f.ops, fakeOp{
-		op:   "remove-snap-security",
-		name: instSnapPath,
-	})
-	return nil
-}
-
-func (f *fakeSnappyBackend) RemoveSnapFiles(instSnapPath string, meter progress.Meter) error {
+func (f *fakeSnappyBackend) RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error {
 	f.ops = append(f.ops, fakeOp{
 		op:   "remove-snap-files",
-		name: instSnapPath,
+		name: s.MountDir(),
 	})
 	return nil
 }

@@ -76,7 +76,7 @@ func (cs *clientSuite) TestClientAssertsJSONError(c *C) {
 	cs.header = http.Header{}
 	cs.header.Add("Content-type", "application/json")
 	cs.rsp = `{
-		"status_code": 400,
+		"status-code": 400,
 		"type": "error",
 		"result": {
 			"message": "invalid"
