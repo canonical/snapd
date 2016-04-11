@@ -151,8 +151,8 @@ func mapSnap(localSnaps []*snappy.Snap, remoteSnap *snap.Info) map[string]interf
 		"revision":       revision,
 		"version":        version,
 		"description":    description,
-		"installed_size": installedSize,
-		"download_size":  downloadSize,
+		"installed-size": installedSize,
+		"download-size":  downloadSize,
 	}
 
 	if localSnap != nil {
@@ -163,11 +163,11 @@ func mapSnap(localSnaps []*snappy.Snap, remoteSnap *snap.Info) map[string]interf
 	}
 
 	if rollback > -1 {
-		result["rollback_available"] = rollback
+		result["rollback-available"] = rollback
 	}
 
 	if update > -1 {
-		result["update_available"] = update
+		result["update-available"] = update
 	}
 
 	return result

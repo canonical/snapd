@@ -31,9 +31,9 @@ type Snap struct {
 	// XXX: actually add summary to the REST api when the store provides it
 	Summary       string `json:"summary"`
 	Description   string `json:"description"`
-	DownloadSize  int64  `json:"download_size"`
+	DownloadSize  int64  `json:"download-size"`
 	Icon          string `json:"icon"`
-	InstalledSize int64  `json:"installed_size"`
+	InstalledSize int64  `json:"installed-size"`
 	Name          string `json:"name"`
 	Developer     string `json:"developer"`
 	Status        string `json:"status"`

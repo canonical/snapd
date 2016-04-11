@@ -63,7 +63,7 @@ type response struct {
 	Result     interface{}
 	Status     string
 	Type       string
-	StatusCode int `json:"status_code"`
+	StatusCode int `json:"status-code"`
 }
 
 type asyncResponse struct {
@@ -72,12 +72,12 @@ type asyncResponse struct {
 }
 
 type asyncResult struct {
-	CreatedAt string `json:"created_at"`
-	MayCancel bool   `json:"may_cancel"`
+	CreatedAt string `json:"created-at"`
+	MayCancel bool   `json:"may-cancel"`
 	Output    string
 	Resource  string
 	Status    string
-	UpdatedAt string `json:"updated_at"`
+	UpdatedAt string `json:"updated-at"`
 }
 
 // type for describing interactions with the api
@@ -198,7 +198,7 @@ func do404(c *check.C, resource string) {
 		resource+path,
 		"GET",
 		apiInteraction{
-			responsePattern: `{"result":{"message":".*"},"status":"Not Found","status_code":404,"type":"error"}`})
+			responsePattern: `{"result":{"message":".*"},"status":"Not Found","status-code":404,"type":"error"}`})
 }
 
 func doMethodNotAllowed(c *check.C, resource, verb string) {
@@ -206,7 +206,7 @@ func doMethodNotAllowed(c *check.C, resource, verb string) {
 		resource,
 		verb,
 		apiInteraction{
-			responsePattern: `{"result":{"message":"method \S+ not allowed"},"status":"Method Not Allowed","status_code":405,"type":"error"}`})
+			responsePattern: `{"result":{"message":"method \S+ not allowed"},"status":"Method Not Allowed","status-code":405,"type":"error"}`})
 }
 
 // makeRequest makes a request to the API according to the provided options.

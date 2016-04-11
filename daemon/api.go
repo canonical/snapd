@@ -153,8 +153,8 @@ func sysInfo(c *Command, r *http.Request) Response {
 	m := map[string]string{
 		"flavor":          rel.Flavor,
 		"release":         rel.Series,
-		"default_channel": rel.Channel,
-		"api_compat":      apiCompatLevel,
+		"default-channel": rel.Channel,
+		"api-compat":      apiCompatLevel,
 	}
 
 	if store := snappy.StoreID(); store != "" {
@@ -529,7 +529,7 @@ type snapInstruction struct {
 	progress.NullProgress
 	Action   string       `json:"action"`
 	Channel  string       `json:"channel"`
-	LeaveOld bool         `json:"leave_old"`
+	LeaveOld bool         `json:"leave-old"`
 	License  *licenseData `json:"license"`
 	pkg      string
 
