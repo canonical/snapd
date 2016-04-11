@@ -24,8 +24,9 @@ import (
 	"os"
 	"os/exec"
 
+	"github.com/jessevdk/go-flags"
+
 	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/snappy"
 )
 
@@ -39,16 +40,13 @@ type cmdBuild struct {
 var longBuildHelp = i18n.G("Creates a snap package and if available, runs the review scripts.")
 
 func init() {
-	cmd, err := parser.AddCommand("build",
+	cmd := addCommand("build",
 		i18n.G("Builds a snap package"),
 		longBuildHelp,
-		&cmdBuild{})
-	if err != nil {
-		logger.Panicf("Unable to build: %v", err)
-	}
-
-	cmd.Aliases = append(cmd.Aliases, "bu")
-	addOptionDescription(cmd, "output", i18n.G("Specify an alternate output directory for the resulting package"))
+		func() flags.Commander {
+			return &cmdBuild{}
+		})
+	cmd.hidden = true
 }
 
 func (x *cmdBuild) Execute(args []string) (err error) {
