@@ -1,4 +1,4 @@
-ubuntu-core-launcher (1.0.23) UNRELEASED; urgency=medium
+ubuntu-core-launcher (1.0.23) xenial; urgency=medium
 
   [ Jamie Strandboge ]
   * update README for devpts
@@ -12,7 +12,7 @@ ubuntu-core-launcher (1.0.23) UNRELEASED; urgency=medium
   * update paths /snaps -> /snap
   * update seccomp dir to /var/lib/snapd/seccomp/profiles/
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Sat, 09 Apr 2016 23:38:38 +0200
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 12 Apr 2016 01:10:11 +0200
 
 ubuntu-core-launcher (1.0.22) xenial; urgency=medium
 
