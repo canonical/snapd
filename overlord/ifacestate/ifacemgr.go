@@ -23,7 +23,6 @@ package ifacestate
 
 import (
 	"fmt"
-	"log"
 
 	"gopkg.in/tomb.v2"
 
@@ -34,6 +33,7 @@ import (
 	"github.com/ubuntu-core/snappy/interfaces/dbus"
 	"github.com/ubuntu-core/snappy/interfaces/seccomp"
 	"github.com/ubuntu-core/snappy/interfaces/udev"
+	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snap"
@@ -84,7 +84,7 @@ func (m *InterfaceManager) addSnaps() error {
 			// NOTE: This error is non-fatal. Snaps can have interfaces that
 			// are invalid or not supported and we simply leave those affected
 			// interfaces out.
-			log.Printf("%s\n", err)
+			logger.Noticef("%s\n", err)
 		}
 	}
 	return nil
