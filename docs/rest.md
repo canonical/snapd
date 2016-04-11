@@ -194,6 +194,7 @@ Sample result:
       "resource": "/v2/snaps/hello-world",
       "status": "not installed",
       "type": "app",
+      "revision" 17,
       "version": "1.0.18",
       "channel": "stable"
     },
@@ -208,6 +209,7 @@ Sample result:
       "status": "active",
       "type": "app",
       "version": "3.1",
+      "revision": 1834,
       "channel": "stable"
     },
     "ubuntu-core": {
@@ -220,8 +222,9 @@ Sample result:
       "resource": "/v2/snaps/ubuntu-core",
       "status": "active",
       "type": "os",
-      "update_available": "247",
+      "update_available": 247,
       "version": "241",
+      "revision": 99,
       "channel": "stable"
     }
  },
@@ -243,6 +246,7 @@ Sample result:
       current).
     * `name`: the snap name.
     * `version`: a string representing the version.
+    * `revision`: a number representing the revision.
     * `icon`: a url to the snap icon, possibly relative to this server.
     * `type`: the type of snap; one of `app`, `framework`, `kernel`,
       `gadget`, or `os`.
@@ -252,9 +256,9 @@ Sample result:
     * `download_size`: for not-installed snaps, how big the download will
       be, formatted as a decimal string.
     * `rollback_available`: if present and not empty, it means the snap can
-      be rolled back to the version specified as a value to this entry.
+      be rolled back to the revision specified as a value to this entry.
     * `update_available`: if present and not empty, it means the snap can be
-      updated to the version specified as a value to this entry.
+      updated to the revision specified as a value to this entry.
     * `channel`: which channel the package is currently tracking.
 * `paging`
     * `count`: the number of snaps on this page
