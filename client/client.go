@@ -172,7 +172,7 @@ func (client *Client) doAsync(method, path string, query url.Values, body io.Rea
 type response struct {
 	Result     json.RawMessage `json:"result"`
 	Status     string          `json:"status"`
-	StatusCode int             `json:"status_code"`
+	StatusCode int             `json:"status-code"`
 	Type       string          `json:"type"`
 }
 
@@ -190,8 +190,8 @@ func (e *errorResult) Error() string {
 type SysInfo struct {
 	Flavor           string `json:"flavor"`
 	Release          string `json:"release"`
-	DefaultChannel   string `json:"default_channel"`
-	APICompatibility string `json:"api_compat"`
+	DefaultChannel   string `json:"default-channel"`
+	APICompatibility string `json:"api-compat"`
 	Store            string `json:"store,omitempty"`
 }
 
