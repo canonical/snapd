@@ -131,7 +131,7 @@ Package names will now mean a specific piece of software. We will have to make
 sure developers are aware on upload that if an existing piece of software 
 exists with that name, they are declaring themselves as an alternative to it
 There are long-term consequences for picking a package name. If you choose 
-“unity” as your package name, meaning the GUI, but down the line “unity” 
+"unity" as your package name, meaning the GUI, but down the line "unity"
 becomes the gaming engine, you will need to be pushed out to a different name.
 
 ## Open questions
