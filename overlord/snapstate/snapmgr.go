@@ -436,10 +436,12 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// No need to undo "snaps" in state here. The only chance of
 	// having the new state there is a working doLinkSnap call.
-
-	latest := snapst.Sequence[len(snapst.Sequence)-1]
 	newDir := ss.MountDir()
-	oldDir := snap.MinimalPlaceInfo(ss.Name, latest.Revision).MountDir()
+	oldDir := ""
+	if len(snapst.Sequence) > 0 {
+		latest := snapst.Sequence[len(snapst.Sequence)-1]
+		oldDir = snap.MinimalPlaceInfo(ss.Name, latest.Revision).MountDir()
+	}
 	return m.backend.UndoLinkSnap(oldDir, newDir)
 }
 
