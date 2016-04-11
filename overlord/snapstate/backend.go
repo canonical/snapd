@@ -40,7 +40,7 @@ type managerBackend interface {
 	LinkSnap(instSnapPath string) error
 	GarbageCollect(snap string, flags int, meter progress.Meter) error
 	// the undoers for install
-	UndoSetupSnap(snapFilePath string) error
+	UndoSetupSnap(snapFilePath string, si *snap.SideInfo, flags int) error
 	UndoCopySnapData(instSnapPath string, flags int) error
 	UndoLinkSnap(oldInstSnapPath, instSnapPath string) error
 
@@ -155,9 +155,9 @@ func (s *defaultBackend) LinkSnap(snapInstPath string) error {
 	return snappy.UpdateCurrentSymlink(sn, meter)
 }
 
-func (s *defaultBackend) UndoSetupSnap(snapFilePath string) error {
+func (s *defaultBackend) UndoSetupSnap(snapFilePath string, si *snap.SideInfo, flags int) error {
 	meter := &progress.NullProgress{}
-	snappy.UndoSetupSnap(snapFilePath, meter)
+	snappy.UndoSetupSnap(snapFilePath, si, snappy.InstallFlags(flags), meter)
 	return nil
 }
 

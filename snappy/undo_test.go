@@ -73,7 +73,7 @@ func (s *undoTestSuite) TestUndoForSetupSnapSimple(c *C) {
 	c.Assert(l, HasLen, 1)
 
 	// undo undoes the mount unit and the instdir creation
-	UndoSetupSnap(instDir, &s.meter)
+	UndoSetupSnap(snapPath, &si, 0, &s.meter)
 	l, _ = filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
 	c.Assert(l, HasLen, 0)
 	c.Assert(osutil.FileExists(instDir), Equals, false)
@@ -106,13 +106,13 @@ firmware: lib/firmware
 		Revision:     140,
 	}
 
-	instDir, err := SetupSnap(snapPath, &si, 0, &s.meter)
+	_, err := SetupSnap(snapPath, &si, 0, &s.meter)
 	c.Assert(err, IsNil)
 	l, _ := filepath.Glob(filepath.Join(bootloader.Dir(), "*"))
 	c.Assert(l, HasLen, 1)
 
 	// undo deletes the kernel assets again
-	UndoSetupSnap(instDir, &s.meter)
+	UndoSetupSnap(snapPath, &si, 0, &s.meter)
 	l, _ = filepath.Glob(filepath.Join(bootloader.Dir(), "*"))
 	c.Assert(l, HasLen, 0)
 }

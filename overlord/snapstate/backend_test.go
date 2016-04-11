@@ -158,7 +158,7 @@ func (f *fakeSnappyBackend) LinkSnap(instSnapPath string) error {
 	return nil
 }
 
-func (f *fakeSnappyBackend) UndoSetupSnap(snapFilePath string) error {
+func (f *fakeSnappyBackend) UndoSetupSnap(snapFilePath string, si *snap.SideInfo, flags int) error {
 	f.ops = append(f.ops, fakeOp{
 		op:   "undo-setup-snap",
 		name: snapFilePath,
