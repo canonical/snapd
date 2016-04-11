@@ -205,12 +205,13 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 			Developer:         "bar",
 			Size:              2,
 			IconURL:           "meta/gui/icon.svg",
+			Revision:          20,
 		},
 	}}
 
-	// we have v0 installed
+	// we have v0 [r5] installed
 	s.mkInstalled(c, "foo", "bar", "v0", 5, false, "")
-	// and v1 is current
+	// and v1 [r10] is current
 	s.mkInstalled(c, "foo", "bar", "v1", 10, true, "")
 
 	rsp, ok := getSnapInfo(snapCmd, nil).(*resp)
@@ -229,6 +230,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 		Status: http.StatusOK,
 		Result: map[string]interface{}{
 			"name":               "foo",
+			"revision":           10,
 			"version":            "v1",
 			"description":        "description",
 			"developer":          "bar",
@@ -238,8 +240,8 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 			"vendor":             "",
 			"download_size":      int64(2),
 			"resource":           "/v2/snaps/foo",
-			"update_available":   "v2",
-			"rollback_available": "v0",
+			"update_available":   20,
+			"rollback_available": 5,
 			"channel":            "stable",
 		},
 	}
@@ -442,10 +444,22 @@ func (s *apiSuite) TestSnapsInfoOnePerIntegration(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/snaps", nil)
 	c.Assert(err, check.IsNil)
 
-	ddirs := [][3]string{{"foo", "bar", "v1"}, {"bar", "baz", "v2"}, {"baz", "qux", "v3"}, {"qux", "mip", "v4"}}
+	type tmpSt struct {
+		name string
+		dev  string
+		ver  string
+		rev  int
+	}
+
+	ddirs := []tmpSt{
+		{"foo", "bar", "v1", 5},
+		{"bar", "baz", "v2", 10},
+		{"baz", "qux", "v3", 15},
+		{"qux", "mip", "v4", 20},
+	}
 
 	for _, d := range ddirs {
-		s.mkInstalled(c, d[0], d[1], d[2], 1, false, "")
+		s.mkInstalled(c, d.name, d.dev, d.ver, d.rev, false, "")
 	}
 
 	rsp, ok := getSnapsInfo(snapsCmd, req).(*resp)
@@ -465,13 +479,13 @@ func (s *apiSuite) TestSnapsInfoOnePerIntegration(c *check.C) {
 	c.Check(snaps, check.NotNil)
 	c.Check(snaps, check.HasLen, len(ddirs))
 
-	for i := range ddirs {
-		name, developer, version := ddirs[i][0], ddirs[i][1], ddirs[i][2]
-		got := snaps[name]
-		c.Assert(got, check.NotNil, check.Commentf(name))
-		c.Check(got["name"], check.Equals, name)
-		c.Check(got["version"], check.Equals, version)
-		c.Check(got["developer"], check.Equals, developer)
+	for _, s := range ddirs {
+		got := snaps[s.name]
+		c.Assert(got, check.NotNil, check.Commentf(s.name))
+		c.Check(got["name"], check.Equals, s.name)
+		c.Check(got["version"], check.Equals, s.ver)
+		c.Check(got["revision"], check.Equals, s.rev)
+		c.Check(got["developer"], check.Equals, s.dev)
 	}
 }
 
