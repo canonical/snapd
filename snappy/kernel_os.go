@@ -44,11 +44,7 @@ var findBootloader = partition.FindBootloader
 
 // removeKernelAssets removes the unpacked kernel/initrd for the given
 // kernel snap
-func removeKernelAssets(s *snap.Info, inter interacter) error {
-	if s.Type != snap.TypeKernel {
-		return fmt.Errorf("can not remove kernel assets from snap type %q", s.Type)
-	}
-
+func removeKernelAssets(s snap.PlaceInfo, inter interacter) error {
 	bootloader, err := findBootloader()
 	if err != nil {
 		return fmt.Errorf("no not remove kernel assets: %s", err)

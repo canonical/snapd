@@ -61,7 +61,7 @@ func (x *cmdShell) Execute(args []string) error {
 	if shellType == "classic" {
 		if !classic.Enabled() {
 			return fmt.Errorf(i18n.G(`Classic dimension disabled on this system.
-Use "sudo snappy enable-classic" to enable it.`))
+Use "sudo snap enable-classic" to enable it.`))
 		}
 
 		// we need to re-exec if we do not run as root
