@@ -409,13 +409,18 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapNoUnpacksKernelForGrub(c *C) {
 }
 
 func (s *SquashfsTestSuite) TestInstallFailUnmountsSnap(c *C) {
-	c.Skip("no easy path to this kind of failure now!")
+	c.Skip("no easy path to this kind of late verification failure now!")
 	snapPkg := makeTestSnapPackage(c, `name: hello
 version: 1.10
 apps:
  some-binary:
   command: some-binary
+  plugs: [some-binary]
 
+plugs:
+ some-binary:
+  interface: old-security
+  security-template: not-there
 `)
 	// install but our missing security-template will break the install
 	// revision will be 0
