@@ -17,6 +17,14 @@
  *
  */
 
+// FIXME: We don't want `snap build` - however we use it currently
+//        in the integration tests on a snap image. we can not install
+//        snapcraft onto the snappy base image. So we will need to
+//        get a minimal `snapcraft snap` package that does not pull
+//        in the gazillion of snapcraft dependencies. Until this pkg
+//        is available and on the image we need the tiny support for
+//        `snap build` so that we have working integration tests.
+
 package main
 
 import (
