@@ -39,6 +39,8 @@ type listSuite struct {
 var verRegexp = `(\d{2}\.\d{2}.*|\w{12})`
 
 func (s *listSuite) TestListMustPrintCoreVersion(c *check.C) {
+	c.Skip("port to snapd")
+
 	listOutput := cli.ExecCommand(c, "snappy", "list")
 
 	expected := "(?ms)" +
@@ -50,6 +52,8 @@ func (s *listSuite) TestListMustPrintCoreVersion(c *check.C) {
 }
 
 func (s *listSuite) TestListMustPrintAppVersion(c *check.C) {
+	c.Skip("port to snapd")
+
 	common.InstallSnap(c, "hello-world/edge")
 	s.AddCleanup(func() {
 		common.RemoveSnap(c, "hello-world")
