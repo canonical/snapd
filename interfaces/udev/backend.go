@@ -27,6 +27,7 @@ package udev
 import (
 	"bytes"
 	"fmt"
+	"os"
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/interfaces"
@@ -59,7 +60,11 @@ func (b *Backend) Setup(snapInfo *snap.Info, developerMode bool, repo *interface
 		return fmt.Errorf("cannot obtain expected udev rules for snap %q: %s", snapName, err)
 	}
 	glob := fmt.Sprintf("70-%s.rules", interfaces.SecurityTagGlob(snapName))
-	return ensureDirState(dirs.SnapUdevRulesDir, glob, content, snapName)
+	dir := dirs.SnapUdevRulesDir
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("cannot create directory for udev rules %q: %s", dir, err)
+	}
+	return ensureDirState(dir, glob, content, snapName)
 }
 
 // Remove removes udev rules specific to a given snap.

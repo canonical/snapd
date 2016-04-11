@@ -35,6 +35,7 @@ package seccomp
 import (
 	"bytes"
 	"fmt"
+	"os"
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/interfaces"
@@ -69,7 +70,11 @@ func (b *Backend) Setup(snapInfo *snap.Info, developerMode bool, repo *interface
 		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapName, err)
 	}
 	glob := interfaces.SecurityTagGlob(snapName)
-	_, _, err = osutil.EnsureDirState(dirs.SnapSeccompDir, glob, content)
+	dir := dirs.SnapSeccompDir
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("cannot create directory for seccomp profiles %q: %s", dir, err)
+	}
+	_, _, err = osutil.EnsureDirState(dir, glob, content)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, err)
 	}

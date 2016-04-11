@@ -20,8 +20,11 @@
 package snap_test
 
 import (
+	"path/filepath"
+
 	. "gopkg.in/check.v1"
 
+	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/snap"
 )
 
@@ -49,7 +52,19 @@ func (s *infoSuite) TestSideInfoOverrides(c *C) {
 	c.Check(info.Revision, Equals, 1)
 }
 
-func (s *infoSuite) TestSecurityTag(c *C) {
+func (s *infoSuite) TestAppInfoSecurityTag(c *C) {
 	appInfo := &snap.AppInfo{Snap: &snap.Info{SuggestedName: "http"}, Name: "GET"}
 	c.Check(appInfo.SecurityTag(), Equals, "snap.http.GET")
+}
+
+func (s *infoSuite) TestAppInfoWraperPath(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`name: foo
+apps:
+   foo:
+   bar:
+`))
+	c.Assert(err, IsNil)
+
+	c.Check(info.Apps["bar"].WrapperPath(), Equals, filepath.Join(dirs.SnapBinariesDir, "foo.bar"))
+	c.Check(info.Apps["foo"].WrapperPath(), Equals, filepath.Join(dirs.SnapBinariesDir, "foo"))
 }

@@ -65,7 +65,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	var err error
 	s.snapmgr, err = snapstate.Manager(s.state)
 	c.Assert(err, IsNil)
-
+	s.snapmgr.AddForeignTaskHandlers()
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
 	snapstate.SetSnapstateBackend(s.fakeBackend)
 }
@@ -123,9 +123,9 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "remove-snap-security")
 	i++
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "remove-snap-files")
-	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "remove-snap-data")
+	i++
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "remove-snap-files")
 }
 
 func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
@@ -160,15 +160,11 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 		},
 		fakeOp{
 			op:   "copy-data",
-			name: "/snaps/some-snap/11",
-		},
-		fakeOp{
-			op:   "setup-snap-security",
-			name: "/snaps/some-snap/11",
+			name: "/snap/some-snap/11",
 		},
 		fakeOp{
 			op:   "link-snap",
-			name: "/snaps/some-snap/11",
+			name: "/snap/some-snap/11",
 		},
 	})
 
@@ -239,16 +235,12 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 		},
 		fakeOp{
 			op:    "copy-data",
-			name:  "/snaps/some-snap/11",
+			name:  "/snap/some-snap/11",
 			flags: int(snappy.DoInstallGC),
 		},
 		fakeOp{
-			op:   "setup-snap-security",
-			name: "/snaps/some-snap/11",
-		},
-		fakeOp{
 			op:   "link-snap",
-			name: "/snaps/some-snap/11",
+			name: "/snap/some-snap/11",
 		},
 	})
 
@@ -301,7 +293,7 @@ func (s *snapmgrTestSuite) TestInstallLocalIntegration(c *C) {
 	s.state.Lock()
 
 	// ensure only local install was run, i.e. first action is check-snap
-	c.Assert(s.fakeBackend.ops, HasLen, 5)
+	c.Assert(s.fakeBackend.ops, HasLen, 4)
 	c.Check(s.fakeBackend.ops[0].op, Equals, "check-snap")
 	c.Check(s.fakeBackend.ops[0].name, Matches, `.*/mock.snap`)
 }
@@ -327,28 +319,24 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 	defer s.snapmgr.Stop()
 	s.state.Lock()
 
-	c.Assert(s.fakeBackend.ops, HasLen, 5)
+	c.Assert(s.fakeBackend.ops, HasLen, 4)
 	c.Assert(s.fakeBackend.ops, DeepEquals, []fakeOp{
 		fakeOp{
 			op:   "can-remove",
-			name: "/snaps/some-snap/7",
+			name: "/snap/some-snap/7",
 		},
 		fakeOp{
 			op:   "unlink-snap",
-			name: "/snaps/some-snap/7",
-		},
-		fakeOp{
-			op:   "remove-snap-security",
-			name: "/snaps/some-snap/7",
-		},
-		fakeOp{
-			op:   "remove-snap-files",
-			name: "/snaps/some-snap/7",
+			name: "/snap/some-snap/7",
 		},
 		fakeOp{
 			op:    "remove-snap-data",
 			name:  "some-snap",
 			revno: 7,
+		},
+		fakeOp{
+			op:   "remove-snap-files",
+			name: "/snap/some-snap/7",
 		},
 	})
 
@@ -433,6 +421,7 @@ func (s *snapmgrTestSuite) TestSnapInfo(c *C) {
 	fname := filepath.Join(dname, "snap.yaml")
 	err = ioutil.WriteFile(fname, []byte(`
 name: ignored
+version: 1.2
 description: |
     Lots of text`), 0644)
 	c.Assert(err, IsNil)
@@ -440,8 +429,11 @@ description: |
 	snapInfo, err := snapstate.SnapInfo(s.state, "name", 11)
 	c.Assert(err, IsNil)
 
-	// Check that the name in the YAML is being ignored.
-	c.Check(snapInfo.Name(), Equals, "name")
+	// TODO: This test is not faking the manifest so SideInfo is not present.
+	// The test and the actual implementation need to be improved so that this
+	// is not so hacky and that the manifest can go away.
+	c.Check(snapInfo.Name(), Equals, "ignored")
 	// Check that other values are read from YAML
 	c.Check(snapInfo.Description(), Equals, "Lots of text")
+	c.Check(snapInfo.Version, Equals, "1.2")
 }

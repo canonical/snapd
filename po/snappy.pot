@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-04-08 21:25+0200\n"
+        "POT-Creation-Date: 2016-04-09 09:25+0200\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -185,9 +185,6 @@ msgstr  ""
 msgid   "First boot has already run"
 msgstr  ""
 
-msgid   "Generate the apparmor policy"
-msgstr  ""
-
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid   "Generated '%s' snap\n"
@@ -279,12 +276,6 @@ msgid   "Provides more detailed information"
 msgstr  ""
 
 msgid   "Purge a snap's data from the system"
-msgstr  ""
-
-msgid   "Query and modify snappy services"
-msgstr  ""
-
-msgid   "Query and modify snappy services of locally-installed packages"
 msgstr  ""
 
 msgid   "Reboot if necessary to be on the latest running system."
@@ -396,9 +387,6 @@ msgid   "Show channel information and expand all fields"
 msgstr  ""
 
 msgid   "Shows known assertions of the provided type"
-msgstr  ""
-
-msgid   "Snap\tService\tState"
 msgstr  ""
 
 #. TRANSLATORS: please keep each line under 80 characters.
@@ -637,9 +625,6 @@ msgstr  ""
 msgid   "installed: %s\n"
 msgstr  ""
 
-msgid   "must supply path to snap.yaml"
-msgstr  ""
-
 msgid   "no snaps found"
 msgstr  ""
 
@@ -655,30 +640,6 @@ msgid   "release: %s\n"
 msgstr  ""
 
 msgid   "slot\tplug"
-msgstr  ""
-
-#. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
-#, c-format
-msgid   "unable to disable %s's service %s: %v"
-msgstr  ""
-
-#. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
-#, c-format
-msgid   "unable to enable %s's service %s: %v"
-msgstr  ""
-
-#, c-format
-msgid   "unable to get logs: %v"
-msgstr  ""
-
-#. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
-#, c-format
-msgid   "unable to start %s's service %s: %v"
-msgstr  ""
-
-#. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
-#, c-format
-msgid   "unable to stop %s's service %s: %v"
 msgstr  ""
 
 #, c-format

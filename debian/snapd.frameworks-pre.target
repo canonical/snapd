@@ -4,5 +4,4 @@
 Description=Ready for frameworks
 After=snapd.firstboot.service
 After=cloud-init.service
-After=snapd.run-hooks.service
 
