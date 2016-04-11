@@ -37,6 +37,8 @@ type snapBuildSuite struct {
 }
 
 func (s *snapBuildSuite) TestBuildBasicSnapOnSnappy(c *check.C) {
+	c.Skip("port to snapd")
+
 	// build basic snap and check output
 	snapPath, err := build.LocalSnap(c, data.BasicSnapName)
 	defer os.Remove(snapPath)
