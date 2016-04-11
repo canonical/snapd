@@ -28,6 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snap"
@@ -274,14 +275,28 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 	})
 }
 
+func makeTestSnap(c *C, snapYamlContent string) (snapFilePath string) {
+	tmpdir := c.MkDir()
+	os.MkdirAll(filepath.Join(tmpdir, "meta"), 0755)
+	snapYamlFn := filepath.Join(tmpdir, "meta", "snap.yaml")
+	ioutil.WriteFile(snapYamlFn, []byte(snapYamlContent), 0644)
+	err := osutil.ChDir(tmpdir, func() error {
+		var err error
+		snapFilePath, err = snappy.BuildSquashfsSnap(tmpdir, "")
+		c.Assert(err, IsNil)
+		return err
+	})
+	c.Assert(err, IsNil)
+	return filepath.Join(tmpdir, snapFilePath)
+
+}
+
 func (s *snapmgrTestSuite) TestInstallLocalIntegration(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	mockSnap := filepath.Join(c.MkDir(), "mock.snap")
-	err := ioutil.WriteFile(mockSnap, nil, 0644)
-	c.Assert(err, IsNil)
-
+	mockSnap := makeTestSnap(c, `name: mock
+version: 1.0`)
 	chg := s.state.NewChange("install", "install a local snap")
 	ts, err := snapstate.Install(s.state, mockSnap, "", 0)
 	c.Assert(err, IsNil)
@@ -295,7 +310,7 @@ func (s *snapmgrTestSuite) TestInstallLocalIntegration(c *C) {
 	// ensure only local install was run, i.e. first action is check-snap
 	c.Assert(s.fakeBackend.ops, HasLen, 4)
 	c.Check(s.fakeBackend.ops[0].op, Equals, "check-snap")
-	c.Check(s.fakeBackend.ops[0].name, Matches, `.*/mock.snap`)
+	c.Check(s.fakeBackend.ops[0].name, Matches, `.*/mock_1.0_all.snap`)
 }
 
 func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
