@@ -278,11 +278,11 @@ func (s *systemd) Status(serviceName string) (string, error) {
 
 // A ServiceStatus holds structured service status information.
 type ServiceStatus struct {
-	ServiceFileName string `json:"service_file_name"`
-	LoadState       string `json:"load_state"`
-	ActiveState     string `json:"active_state"`
-	SubState        string `json:"sub_state"`
-	UnitFileState   string `json:"unit_file_state"`
+	ServiceFileName string `json:"service-file-name"`
+	LoadState       string `json:"load-state"`
+	ActiveState     string `json:"active-state"`
+	SubState        string `json:"sub-state"`
+	UnitFileState   string `json:"unit-file-state"`
 }
 
 func (s *systemd) ServiceStatus(serviceName string) (*ServiceStatus, error) {

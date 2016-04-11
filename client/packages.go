@@ -28,12 +28,11 @@ import (
 
 // Snap holds the data for a snap as obtained from snapd.
 type Snap struct {
-	// XXX: actually add summary to the REST api when the store provides it
 	Summary       string `json:"summary"`
 	Description   string `json:"description"`
-	DownloadSize  int64  `json:"download_size"`
+	DownloadSize  int64  `json:"download-size"`
 	Icon          string `json:"icon"`
-	InstalledSize int64  `json:"installed_size"`
+	InstalledSize int64  `json:"installed-size"`
 	Name          string `json:"name"`
 	Developer     string `json:"developer"`
 	Status        string `json:"status"`
@@ -50,10 +49,10 @@ type SnapFilter struct {
 
 // Statuses and types a snap may have.
 const (
-	StatusNotInstalled = "not installed"
-	StatusInstalled    = "installed"
-	StatusActive       = "active"
-	StatusRemoved      = "removed"
+	StatusAvailable = "available"
+	StatusInstalled = "installed"
+	StatusActive    = "active"
+	StatusRemoved   = "removed"
 
 	TypeApp       = "app"
 	TypeFramework = "framework"
