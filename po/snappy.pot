@@ -93,7 +93,7 @@ msgid   "Classic dimension destroyed on this snappy system."
 msgstr  ""
 
 msgid   "Classic dimension disabled on this system.\n"
-        "Use \"sudo snappy enable-classic\" to enable it."
+        "Use \"sudo snap enable-classic\" to enable it."
 msgstr  ""
 
 msgid   "Classic dimension enabled on this snappy system.\n"
