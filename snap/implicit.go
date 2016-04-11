@@ -19,8 +19,7 @@
 
 package snap
 
-// ImplicitSlotNames contains the list of slots implicitly added to the OS snap.
-var ImplicitSlotNames = []string{
+var implicitSlotNames = []string{
 	"firewall-control",
 	"home",
 	"locale-control",
@@ -48,7 +47,7 @@ func AddImplicitSlots(snapInfo *Info) {
 	if snapInfo.Type != TypeOS {
 		return
 	}
-	for _, ifaceName := range ImplicitSlotNames {
+	for _, ifaceName := range implicitSlotNames {
 		if _, ok := snapInfo.Slots[ifaceName]; !ok {
 			snapInfo.Slots[ifaceName] = &SlotInfo{
 				Name:      ifaceName,
