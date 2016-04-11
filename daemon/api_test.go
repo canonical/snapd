@@ -345,7 +345,6 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"maxReadBuflen",
 		"muxVars",
 		"newRemoteRepo",
-		"checkSnap",
 		"pkgActionDispatch",
 		// snapInstruction vars:
 		"snapstateInstall",
@@ -983,7 +982,10 @@ func (s *apiSuite) TestSideloadSnap(c *check.C) {
 }
 
 func (s *apiSuite) sideloadCheck(c *check.C, content string, unsignedExpected bool, head map[string]string) {
-	ch := make(chan struct{})
+	d := newTestDaemon(c)
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
 	tmpfile, err := ioutil.TempFile("", "test-")
 	c.Assert(err, check.IsNil)
 	_, err = tmpfile.WriteString(content)
@@ -997,18 +999,16 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, unsignedExpected bo
 		expectedFlags |= snappy.AllowUnauthenticated
 	}
 
-	checkSnap = func(fn string, flags snappy.InstallFlags) error {
+	snapstateInstall = func(s *state.State, name, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
 		c.Check(flags, check.Equals, expectedFlags)
 
-		bs, err := ioutil.ReadFile(fn)
+		bs, err := ioutil.ReadFile(name)
 		c.Check(err, check.IsNil)
 		c.Check(string(bs), check.Equals, "xyzzy")
 
-		ch <- struct{}{}
-
-		return nil
+		t := s.NewTask("fake-install-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
 	}
-	defer func() { checkSnap = checkSnapImpl }()
 
 	req, err := http.NewRequest("POST", "/v2/snaps", tmpfile)
 	c.Assert(err, check.IsNil)
@@ -1018,8 +1018,6 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, unsignedExpected bo
 
 	rsp := sideloadSnap(snapsCmd, req).(*resp)
 	c.Check(rsp.Type, check.Equals, ResponseTypeAsync)
-
-	<-ch
 }
 
 func (s *apiSuite) TestAppIconGet(c *check.C) {
