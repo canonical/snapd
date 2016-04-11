@@ -36,6 +36,8 @@ type cmdShell struct {
 	} `positional-args:"yes"`
 }
 
+// FIXME: reenable for GA
+/*
 func init() {
 	addCommand("shell",
 		i18n.G("Run snappy shell interface"),
@@ -44,6 +46,7 @@ func init() {
 			return &cmdShell{}
 		})
 }
+*/
 
 // reexec will rexec itself with sudo
 func reexecWithSudo() error {

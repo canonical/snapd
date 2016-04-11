@@ -34,6 +34,8 @@ import (
 type cmdEnableClassic struct{}
 type cmdDestroyClassic struct{}
 
+// FIXME: reenable for GA
+/*
 func init() {
 	addCommand("enable-classic",
 		i18n.G("Enable classic dimension."),
@@ -49,6 +51,7 @@ func init() {
 			return &cmdDestroyClassic{}
 		})
 }
+*/
 
 func (x *cmdEnableClassic) Execute(args []string) (err error) {
 	return withMutexAndRetry(x.doEnable)
