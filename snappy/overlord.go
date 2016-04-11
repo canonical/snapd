@@ -163,7 +163,6 @@ func UndoSetupSnap(installDir string, meter progress.Meter) {
 			logger.Noticef("cannot remove snap files: %s", err)
 		}
 	}
-
 	snapPath := s.Info().MountFile()
 
 	// remove install dir and the snap blob itself
