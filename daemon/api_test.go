@@ -1752,6 +1752,7 @@ func (s *apiSuite) TestAssertOK(c *check.C) {
 	os.MkdirAll(filepath.Dir(dirs.SnapTrustedAccountKey), 0755)
 	err := ioutil.WriteFile(dirs.SnapTrustedAccountKey, []byte(testTrustedKey), 0640)
 	c.Assert(err, check.IsNil)
+	// FIXME: this should be s.daemon but cannot due to initialization above
 	d := newTestDaemon(c)
 	buf := bytes.NewBufferString(testAccKey)
 	// Execute
@@ -1801,6 +1802,7 @@ func (s *apiSuite) TestAssertsFindManyAll(c *check.C) {
 	os.MkdirAll(filepath.Dir(dirs.SnapTrustedAccountKey), 0755)
 	err := ioutil.WriteFile(dirs.SnapTrustedAccountKey, []byte(testTrustedKey), 0640)
 	c.Assert(err, check.IsNil)
+	// FIXME: this should be s.daemon but cannot due to initialization above
 	d := newTestDaemon(c)
 	a, err := asserts.Decode([]byte(testAccKey))
 	c.Assert(err, check.IsNil)
@@ -1836,6 +1838,7 @@ func (s *apiSuite) TestAssertsFindManyFilter(c *check.C) {
 	os.MkdirAll(filepath.Dir(dirs.SnapTrustedAccountKey), 0755)
 	err := ioutil.WriteFile(dirs.SnapTrustedAccountKey, []byte(testTrustedKey), 0640)
 	c.Assert(err, check.IsNil)
+	// FIXME: this should be s.daemon but cannot due to initialization above
 	d := newTestDaemon(c)
 	a, err := asserts.Decode([]byte(testAccKey))
 	c.Assert(err, check.IsNil)
@@ -1864,6 +1867,7 @@ func (s *apiSuite) TestAssertsFindManyNoResults(c *check.C) {
 	os.MkdirAll(filepath.Dir(dirs.SnapTrustedAccountKey), 0755)
 	err := ioutil.WriteFile(dirs.SnapTrustedAccountKey, []byte(testTrustedKey), 0640)
 	c.Assert(err, check.IsNil)
+	// FIXME: this should be s.daemon but cannot due to initialization above
 	d := newTestDaemon(c)
 	a, err := asserts.Decode([]byte(testAccKey))
 	c.Assert(err, check.IsNil)
