@@ -698,7 +698,7 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 	contentType := r.Header.Get("Content-Type")
 
 	if strings.HasPrefix(contentType, "multipart/") {
-		// spec says POSTs to sideload snaps should be “a multipart file upload”
+		// spec says POSTs to sideload snaps should be "a multipart file upload"
 
 		_, params, err := mime.ParseMediaType(contentType)
 		if err != nil {
