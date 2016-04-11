@@ -51,21 +51,21 @@ const (
 )
 
 func infoFromRemote(d snapDetails) *snap.Info {
-	return &snap.Info{
-		Name:            d.Name,
-		Revision:        d.Revision,
-		Type:            d.Type,
-		Version:         d.Version,
-		Summary:         "",            // XXX: should be summary when the store provides it
-		Description:     d.Description, // XXX not quite right but ok for now
-		Developer:       d.Developer,
-		Channel:         d.Channel,
-		Sha512:          d.DownloadSha512,
-		Size:            d.DownloadSize,
-		AnonDownloadURL: d.AnonDownloadURL,
-		DownloadURL:     d.DownloadURL,
-		IconURL:         d.IconURL,
-	}
+	info := &snap.Info{}
+	info.Type = d.Type
+	info.Version = d.Version
+	info.OfficialName = d.Name
+	info.Revision = d.Revision
+	info.EditedSummary = d.Summary
+	info.EditedDescription = d.Description
+	info.Developer = d.Developer
+	info.Channel = d.Channel
+	info.Sha512 = d.DownloadSha512
+	info.Size = d.DownloadSize
+	info.IconURL = d.IconURL
+	info.AnonDownloadURL = d.AnonDownloadURL
+	info.DownloadURL = d.DownloadURL
+	return info
 }
 
 // SnapUbuntuStoreConfig represents the configuration to access the snap store
@@ -134,6 +134,13 @@ func assertsURL() string {
 	}
 
 	return "https://assertions.ubuntu.com/v1/"
+}
+
+func myappsURL() string {
+	if os.Getenv("SNAPPY_USE_STAGING_MYAPPS") != "" {
+		return "https://myapps.developer.staging.ubuntu.com/api/2.0"
+	}
+	return "https://myapps.developer.ubuntu.com/api/2.0"
 }
 
 var defaultConfig = SnapUbuntuStoreConfig{}
@@ -207,7 +214,7 @@ func setAuthHeader(req *http.Request, token *StoreToken) {
 // configureAuthHeader optionally sets the auth header if a token is available.
 func configureAuthHeader(req *http.Request) {
 	ssoToken, err := ReadStoreToken()
-	if err != nil {
+	if err == nil {
 		setAuthHeader(req, ssoToken)
 	}
 }
@@ -359,7 +366,7 @@ func (s *SnapUbuntuStoreRepository) Updates(installed []string) (snaps []*snap.I
 // The file is saved in temporary storage, and should be removed
 // after use to prevent the disk from running out of space.
 func (s *SnapUbuntuStoreRepository) Download(remoteSnap *snap.Info, pbar progress.Meter) (path string, err error) {
-	w, err := ioutil.TempFile("", remoteSnap.Name)
+	w, err := ioutil.TempFile("", remoteSnap.Name())
 	if err != nil {
 		return "", err
 	}
@@ -387,7 +394,7 @@ func (s *SnapUbuntuStoreRepository) Download(remoteSnap *snap.Info, pbar progres
 	setAuthHeader(req, ssoToken)
 	s.applyUbuntuStoreHeaders(req, "")
 
-	if err := download(remoteSnap.Name, w, req, pbar); err != nil {
+	if err := download(remoteSnap.Name(), w, req, pbar); err != nil {
 		return "", err
 	}
 

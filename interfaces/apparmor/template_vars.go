@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/interfaces/dbus"
 	"github.com/ubuntu-core/snappy/snap"
 )
@@ -48,16 +47,14 @@ func legacyVariables(appInfo *snap.AppInfo) []byte {
 	fmt.Fprintf(&buf, "@{APP_APPNAME}=\"%s\"\n", appInfo.Name)
 	// TODO: replace with app.SecurityTag()
 	fmt.Fprintf(&buf, "@{APP_ID_DBUS}=\"%s\"\n",
-		dbus.SafePath(fmt.Sprintf("%s.%s_%s_%s",
-			appInfo.Snap.Name, appInfo.Snap.Developer, appInfo.Name, appInfo.Snap.Version)))
+		dbus.SafePath(fmt.Sprintf("%s.%s_%s_%d",
+			appInfo.Snap.Name(), appInfo.Snap.Developer, appInfo.Name, appInfo.Snap.Revision)))
 	// XXX: How is this different from APP_ID_DBUS?
 	fmt.Fprintf(&buf, "@{APP_PKGNAME_DBUS}=\"%s\"\n",
-		dbus.SafePath(fmt.Sprintf("%s.%s", appInfo.Snap.Name, appInfo.Snap.Developer)))
-	// TODO: stop using .Developer, investigate how this is used.
-	fmt.Fprintf(&buf, "@{APP_PKGNAME}=\"%s.%s\"\n", appInfo.Snap.Name, appInfo.Snap.Developer)
-	// TODO: switch to .Revision
-	fmt.Fprintf(&buf, "@{APP_VERSION}=\"%s\"\n", appInfo.Snap.Version)
-	fmt.Fprintf(&buf, "@{INSTALL_DIR}=\"{/snaps,/gadget}\"")
+		dbus.SafePath(fmt.Sprintf("%s.%s", appInfo.Snap.Name(), appInfo.Snap.Developer)))
+	fmt.Fprintf(&buf, "@{APP_PKGNAME}=\"%s\"\n", appInfo.Snap.Name())
+	fmt.Fprintf(&buf, "@{APP_VERSION}=\"%d\"\n", appInfo.Snap.Revision)
+	fmt.Fprintf(&buf, "@{INSTALL_DIR}=\"/snap\"")
 	return buf.Bytes()
 }
 
@@ -74,8 +71,8 @@ func legacyVariables(appInfo *snap.AppInfo) []byte {
 func modernVariables(appInfo *snap.AppInfo) []byte {
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, "@{APP_NAME}=\"%s\"\n", appInfo.Name)
-	fmt.Fprintf(&buf, "@{APP_SECURITY_TAG}=\"%s\"\n", interfaces.SecurityTag(appInfo))
-	fmt.Fprintf(&buf, "@{SNAP_NAME}=\"%s\"\n", appInfo.Snap.Name)
-	fmt.Fprintf(&buf, "@{INSTALL_DIR}=\"{/snaps,/gadget}\"")
+	fmt.Fprintf(&buf, "@{APP_SECURITY_TAG}=\"%s\"\n", appInfo.SecurityTag())
+	fmt.Fprintf(&buf, "@{SNAP_NAME}=\"%s\"\n", appInfo.Snap.Name())
+	fmt.Fprintf(&buf, "@{INSTALL_DIR}=\"/snap\"")
 	return buf.Bytes()
 }

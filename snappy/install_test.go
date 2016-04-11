@@ -35,17 +35,9 @@ import (
 	"github.com/ubuntu-core/snappy/progress"
 )
 
-func makeCloudInitMetaData(c *C, content string) string {
-	w, err := ioutil.TempFile("", "meta-data")
-	c.Assert(err, IsNil)
-	w.Write([]byte(content))
-	w.Sync()
-	return w.Name()
-}
-
 func (s *SnapTestSuite) TestInstallInstall(c *C) {
-	snapFile := makeTestSnapPackage(c, "")
-	name, err := Install(snapFile, "channel", AllowUnauthenticated|DoInstallGC, &progress.NullProgress{})
+	snapPath := makeTestSnapPackage(c, "")
+	name, err := Install(snapPath, "channel", AllowUnauthenticated|DoInstallGC, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
@@ -59,8 +51,8 @@ func (s *SnapTestSuite) TestInstallInstall(c *C) {
 }
 
 func (s *SnapTestSuite) TestInstallNoHook(c *C) {
-	snapFile := makeTestSnapPackage(c, "")
-	name, err := Install(snapFile, "", AllowUnauthenticated|DoInstallGC|InhibitHooks, &progress.NullProgress{})
+	snapPath := makeTestSnapPackage(c, "")
+	name, err := Install(snapPath, "", AllowUnauthenticated|DoInstallGC|InhibitHooks, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
@@ -74,33 +66,34 @@ func (s *SnapTestSuite) TestInstallNoHook(c *C) {
 }
 
 func (s *SnapTestSuite) TestInstallInstallLicense(c *C) {
-	snapFile := makeTestSnapPackage(c, `
+	snapPath := makeTestSnapPackage(c, `
 name: foo
 version: 1.0
 vendor: Foo Bar <foo@example.com>
 license-agreement: explicit
 `)
 	ag := &MockProgressMeter{y: true}
-	name, err := Install(snapFile, "", AllowUnauthenticated|DoInstallGC, ag)
+	name, err := Install(snapPath, "", AllowUnauthenticated|DoInstallGC, ag)
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 	c.Check(ag.license, Equals, "WTFPL")
 }
 
 func (s *SnapTestSuite) TestInstallInstallLicenseNo(c *C) {
-	snapFile := makeTestSnapPackage(c, `
+	snapPath := makeTestSnapPackage(c, `
 name: foo
 version: 1.0
 vendor: Foo Bar <foo@example.com>
 license-agreement: explicit
 `)
 	ag := &MockProgressMeter{y: false}
-	_, err := Install(snapFile, "", AllowUnauthenticated|DoInstallGC, ag)
+	_, err := Install(snapPath, "", AllowUnauthenticated|DoInstallGC, ag)
 	c.Assert(IsLicenseNotAccepted(err), Equals, true)
 	c.Check(ag.license, Equals, "WTFPL")
 }
 
 func (s *SnapTestSuite) installThree(c *C, flags InstallFlags) {
+	c.Skip("can't really install 3 separate snap version just through the old snappy.Install interface, they all get revision 0!")
 	dirs.SnapDataHomeGlob = filepath.Join(s.tempdir, "home", "*", "snaps")
 	homeDir := filepath.Join(s.tempdir, "home", "user1", "snaps")
 	homeData := filepath.Join(homeDir, "foo", "1.0")
@@ -109,16 +102,16 @@ func (s *SnapTestSuite) installThree(c *C, flags InstallFlags) {
 
 	snapYamlContent := `name: foo
 `
-	snapFile := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
-	_, err = Install(snapFile, "", flags, &progress.NullProgress{})
+	snapPath := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
+	_, err = Install(snapPath, "", flags, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 
-	snapFile = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
-	_, err = Install(snapFile, "", flags, &progress.NullProgress{})
+	snapPath = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
+	_, err = Install(snapPath, "", flags, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 
-	snapFile = makeTestSnapPackage(c, snapYamlContent+"version: 3.0")
-	_, err = Install(snapFile, "", flags, &progress.NullProgress{})
+	snapPath = makeTestSnapPackage(c, snapYamlContent+"version: 3.0")
+	_, err = Install(snapPath, "", flags, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 }
 
@@ -195,7 +188,7 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 
 func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 	// install one:
-	yamlFile, err := makeInstalledMockSnap(s.tempdir, "")
+	yamlFile, err := makeInstalledMockSnap("", 11)
 	c.Assert(err, IsNil)
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 
@@ -233,7 +226,7 @@ func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 }
 
 func (s *SnapTestSuite) TestUpdate(c *C) {
-	yamlPath, err := s.makeInstalledMockSnap("name: foo\nversion: 1")
+	yamlPath, err := makeInstalledMockSnap("name: foo\nversion: 1", 25)
 	c.Assert(err, IsNil)
 	makeSnapActive(yamlPath)
 	installed, err := (&Overlord{}).Installed()
@@ -255,7 +248,7 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 			io.WriteString(w, `{
 "package_name": "foo",
 "version": "2",
-"revision": 1,
+"revision": 27,
 "developer": "`+testDeveloper+`",
 "anon_download_url": "`+dlURL+`",
 "icon_url": "`+iconURL+`"

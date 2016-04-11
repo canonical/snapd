@@ -24,13 +24,13 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/osutil"
+	"github.com/ubuntu-core/snappy/snap"
 )
 
-// removeSnapData removes the data for the given version of the given snap
-func removeSnapData(fullName, version string) error {
-	dirs, err := snapDataDirs(fullName, version)
+// RemoveSnapData removes the data for the given version of the given snap
+func RemoveSnapData(snap *snap.Info) error {
+	dirs, err := snapDataDirs(snap)
 	if err != nil {
 		return err
 	}
@@ -46,30 +46,30 @@ func removeSnapData(fullName, version string) error {
 }
 
 // snapDataDirs returns the list of data directories for the given snap version
-func snapDataDirs(fullName, version string) ([]string, error) {
+func snapDataDirs(snap *snap.Info) ([]string, error) {
 	// collect the directories, homes first
-	found, err := filepath.Glob(filepath.Join(dirs.SnapDataHomeGlob, fullName, version))
+	found, err := filepath.Glob(snap.DataHomeDir())
 	if err != nil {
 		return nil, err
 	}
 	// then system data
-	systemPath := filepath.Join(dirs.SnapDataDir, fullName, version)
-	found = append(found, systemPath)
+	found = append(found, snap.DataDir())
 
 	return found, nil
 }
 
-// Copy all data for "fullName" from "oldVersion" to "newVersion"
+// Copy all data for oldSnap to newSnap
 // (but never overwrite)
-func copySnapData(fullName, oldVersion, newVersion string) (err error) {
-	oldDataDirs, err := snapDataDirs(fullName, oldVersion)
+func copySnapData(oldSnap, newSnap *snap.Info) (err error) {
+	oldDataDirs, err := snapDataDirs(oldSnap)
 	if err != nil {
 		return err
 	}
 
+	newSuffix := filepath.Base(newSnap.DataDir())
 	for _, oldDir := range oldDataDirs {
-		// replace the trailing "../$old-ver" with the "../$new-ver"
-		newDir := filepath.Join(filepath.Dir(oldDir), newVersion)
+		// replace the trailing "../$old-suffix" with the "../$new-suffix"
+		newDir := filepath.Join(filepath.Dir(oldDir), newSuffix)
 		if err := copySnapDataDirectory(oldDir, newDir); err != nil {
 			return err
 		}

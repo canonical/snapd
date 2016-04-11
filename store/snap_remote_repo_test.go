@@ -69,11 +69,11 @@ func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
 		return nil
 	}
 
-	snap := &snap.Info{
-		Name:            "foo",
-		AnonDownloadURL: "anon-url",
-		DownloadURL:     "AUTH-URL",
-	}
+	snap := &snap.Info{}
+	snap.OfficialName = "foo"
+	snap.AnonDownloadURL = "anon-url"
+	snap.DownloadURL = "AUTH-URL"
+
 	path, err := t.store.Download(snap, nil)
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
@@ -97,11 +97,11 @@ func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
 		return nil
 	}
 
-	snap := &snap.Info{
-		Name:            "foo",
-		AnonDownloadURL: "anon-url",
-		DownloadURL:     "AUTH-URL",
-	}
+	snap := &snap.Info{}
+	snap.OfficialName = "foo"
+	snap.AnonDownloadURL = "anon-url"
+	snap.DownloadURL = "AUTH-URL"
+
 	path, err := t.store.Download(snap, nil)
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
@@ -118,11 +118,10 @@ func (t *remoteRepoTestSuite) TestDownloadFails(c *C) {
 		return fmt.Errorf("uh, it failed")
 	}
 
-	snap := &snap.Info{
-		Name:            "foo",
-		AnonDownloadURL: "anon-url",
-		DownloadURL:     "AUTH-URL",
-	}
+	snap := &snap.Info{}
+	snap.OfficialName = "foo"
+	snap.AnonDownloadURL = "anon-url"
+	snap.DownloadURL = "AUTH-URL"
 	// simulate a failed download
 	path, err := t.store.Download(snap, nil)
 	c.Assert(err, ErrorMatches, "uh, it failed")
@@ -141,11 +140,11 @@ func (t *remoteRepoTestSuite) TestDownloadSyncFails(c *C) {
 		return nil
 	}
 
-	snap := &snap.Info{
-		Name:            "foo",
-		AnonDownloadURL: "anon-url",
-		DownloadURL:     "AUTH-URL",
-	}
+	snap := &snap.Info{}
+	snap.OfficialName = "foo"
+	snap.AnonDownloadURL = "anon-url"
+	snap.DownloadURL = "AUTH-URL"
+
 	// simulate a failed sync
 	path, err := t.store.Download(snap, nil)
 	c.Assert(err, ErrorMatches, "fsync:.*")
@@ -166,6 +165,15 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryHeaders(c *C) {
 	t.store.configureStoreReq(req, "application/json")
 
 	c.Check(req.Header.Get("Accept"), Equals, "application/json")
+	c.Assert(req.Header.Get("Authorization"), Equals, "")
+
+	mockStoreToken := StoreToken{TokenName: "meep"}
+	err = WriteStoreToken(mockStoreToken)
+	c.Assert(err, IsNil)
+
+	t.store.configureStoreReq(req, "")
+
+	c.Assert(req.Header.Get("Authorization"), Matches, "OAuth .*")
 }
 
 const (
@@ -209,6 +217,7 @@ const MockDetailsJSON = `{
     "department": [
         "food-drink"
     ],
+    "summary": "hello world example",
     "description": "Returns for store credit only.\nThis is a simple hello world example.",
     "developer_name": "John Lenton",
     "download_sha512": "5364253e4a988f4f5c04380086d542f410455b97d48cc6c69ca2a5877d8aef2a6b2b2f83ec4f688cae61ebc8a6bf2cdbd4dbd8f743f0522fc76540429b79df42",
@@ -278,12 +287,14 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	// the actual test
 	result, err := repo.Snap(funkyAppName+"."+funkyAppDeveloper, "edge")
 	c.Assert(err, IsNil)
-	c.Check(result.Name, Equals, funkyAppName)
+	c.Check(result.Name(), Equals, funkyAppName)
 	c.Check(result.Developer, Equals, funkyAppDeveloper)
 	c.Check(result.Version, Equals, "42")
 	c.Check(result.Sha512, Equals, "5364253e4a988f4f5c04380086d542f410455b97d48cc6c69ca2a5877d8aef2a6b2b2f83ec4f688cae61ebc8a6bf2cdbd4dbd8f743f0522fc76540429b79df42")
 	c.Check(result.Size, Equals, int64(65375))
 	c.Check(result.Channel, Equals, "edge")
+	c.Check(result.Description(), Equals, "Returns for store credit only.\nThis is a simple hello world example.")
+	c.Check(result.Summary(), Equals, "hello world example")
 }
 
 const MockNoDetailsJSON = `{"errors": ["No such package"], "result": "error"}`
@@ -387,7 +398,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFind(c *C) {
 	snaps, err := repo.FindSnaps("foo", "")
 	c.Assert(err, IsNil)
 	c.Assert(snaps, HasLen, 1)
-	c.Check(snaps[0].Name, Equals, funkyAppName)
+	c.Check(snaps[0].Name(), Equals, funkyAppName)
 }
 
 /* acquired via:
@@ -435,7 +446,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 	results, err := repo.Updates([]string{funkyAppName})
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].Name, Equals, funkyAppName)
+	c.Assert(results[0].Name(), Equals, funkyAppName)
 	c.Assert(results[0].Revision, Equals, 3)
 	c.Assert(results[0].Version, Equals, "42")
 }
@@ -477,6 +488,17 @@ func (t *remoteRepoTestSuite) TestAssertsURLDependsOnEnviron(c *C) {
 	c.Assert(os.Setenv("SNAPPY_USE_STAGING_SAS", "1"), IsNil)
 	defer os.Setenv("SNAPPY_USE_STAGING_SAS", "")
 	after := assertsURL()
+
+	c.Check(before, Not(Equals), after)
+}
+
+func (t *remoteRepoTestSuite) TestMyAppsURLDependsOnEnviron(c *C) {
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_MYAPPS", ""), IsNil)
+	before := myappsURL()
+
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_MYAPPS", "1"), IsNil)
+	defer os.Setenv("SNAPPY_USE_STAGING_MYAPPS", "")
+	after := myappsURL()
 
 	c.Check(before, Not(Equals), after)
 }

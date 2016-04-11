@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 )
 
 // FileState describes the expected content and meta data of a single file.
@@ -51,10 +52,16 @@ var errSameState = fmt.Errorf("file state has not changed")
 // the directory.  Map keys must be file names relative to the directory.
 // Sub-directories in the name are not allowed.
 //
-// The function stops at the first encountered error but reports all of the
-// changes performed so far. Information about the performed changes is
-// returned to the caller for any extra processing that might be required (e.g.
-// to run some helper program).
+// If writing any of the files fails, EnsureDirState switches to erase mode
+// where *all* of the files managed by the glob pattern are removed (including
+// those that may have been already written). The return value is an empty list
+// of changed files, the real list of removed files and the first error.
+//
+// If an error happens while removing files then such a file is not removed but
+// the removal continues until the set of managed files matching the glob is
+// exhausted.
+//
+// In all cases, the function returns the first error it has encountered.
 func EnsureDirState(dir, glob string, content map[string]*FileState) (changed, removed []string, err error) {
 	if _, err := filepath.Match(glob, "foo"); err != nil {
 		panic(fmt.Sprintf("EnsureDirState got invalid pattern %q: %s", glob, err))
@@ -67,6 +74,8 @@ func EnsureDirState(dir, glob string, content map[string]*FileState) (changed, r
 			panic(fmt.Sprintf("EnsureDirState got filename %q which doesn't match the glob pattern %q", baseName, glob))
 		}
 	}
+	// Change phase (create/change files described by content)
+	var firstErr error
 	for baseName, fileState := range content {
 		filePath := filepath.Join(dir, baseName)
 		err := writeFile(filePath, fileState)
@@ -74,13 +83,22 @@ func EnsureDirState(dir, glob string, content map[string]*FileState) (changed, r
 			continue
 		}
 		if err != nil {
-			return changed, removed, err
+			// On write failure, switch to erase mode. Desired content is set
+			// to nothing (no content) changed files are forgotten and the
+			// writing loop stops. The subsequent erase loop will remove all
+			// the managed content.
+			firstErr = err
+			content = nil
+			changed = nil
+			break
 		}
 		changed = append(changed, baseName)
 	}
+	// Delete phase (remove files matching the glob that are not in content)
 	matches, err := filepath.Glob(filepath.Join(dir, glob))
 	if err != nil {
-		return changed, removed, err
+		sort.Strings(changed)
+		return changed, nil, err
 	}
 	for _, filePath := range matches {
 		baseName := filepath.Base(filePath)
@@ -89,11 +107,16 @@ func EnsureDirState(dir, glob string, content map[string]*FileState) (changed, r
 		}
 		err := os.Remove(filePath)
 		if err != nil {
-			return changed, removed, err
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
 		}
 		removed = append(removed, baseName)
 	}
-	return changed, removed, nil
+	sort.Strings(changed)
+	sort.Strings(removed)
+	return changed, removed, firstErr
 }
 
 func writeFile(filePath string, fileState *FileState) error {

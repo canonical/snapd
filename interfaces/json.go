@@ -41,7 +41,7 @@ func (plug *Plug) MarshalJSON() ([]byte, error) {
 		names = append(names, name)
 	}
 	return json.Marshal(&plugJSON{
-		Snap:        plug.Snap.Name,
+		Snap:        plug.Snap.Name(),
 		Name:        plug.Name,
 		Interface:   plug.Interface,
 		Attrs:       plug.Attrs,
@@ -69,7 +69,7 @@ func (slot *Slot) MarshalJSON() ([]byte, error) {
 		names = append(names, name)
 	}
 	return json.Marshal(&slotJSON{
-		Snap:        slot.Snap.Name,
+		Snap:        slot.Snap.Name(),
 		Name:        slot.Name,
 		Interface:   slot.Interface,
 		Attrs:       slot.Attrs,

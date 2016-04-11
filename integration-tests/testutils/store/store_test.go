@@ -101,14 +101,23 @@ func (s *storeTestSuite) TestSearchEndpoint(c *C) {
 }
 
 func (s *storeTestSuite) TestDetailsEndpoint(c *C) {
-	resp, err := s.StoreGet("/package/")
+	s.makeTestSnap(c, "name: foo\nversion: 1")
+	resp, err := s.StoreGet("/package/foo.canonical")
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 
-	c.Assert(resp.StatusCode, Equals, 501)
+	c.Assert(resp.StatusCode, Equals, 200)
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
-	c.Assert(string(body), Equals, "details not implemented yet")
+	c.Assert(string(body), Equals, fmt.Sprintf(`{
+    "name": "foo.canonical",
+    "package_name": "foo",
+    "origin": "canonical",
+    "anon_download_url": "%s/download/foo_1_all.snap",
+    "download_url": "%s/download/foo_1_all.snap",
+    "version": "1",
+    "revision": 424242
+}`, s.store.URL(), s.store.URL()))
 }
 
 func (s *storeTestSuite) TestBulkEndpoint(c *C) {

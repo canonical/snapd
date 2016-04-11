@@ -156,7 +156,7 @@ type: gadget`
 
 	info, err := snapF.Info()
 	c.Assert(err, IsNil)
-	c.Assert(info.Name, Equals, "foo")
+	c.Assert(info.Name(), Equals, "foo")
 	c.Assert(info.Version, Equals, "1.0")
 	c.Assert(info.Type, Equals, snap.TypeGadget)
 }

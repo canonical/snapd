@@ -1,0 +1,16 @@
+[Unit]
+Description=Run snappy firstboot setup
+After=local-fs.target
+Before=network-pre.target
+DefaultDependencies=false
+# NOTE: this is hardcoded in `snappy firstboot`; keep in sync
+ConditionPathExists=!/var/lib/snappy/firstboot/stamp
+
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/snap firstboot
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

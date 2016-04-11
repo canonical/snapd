@@ -1,0 +1,6 @@
+snap
+var/lib/snapd/apparmor/additional
+var/lib/snapd/snaps
+usr/lib/snappy
+usr/lib/snapd
+var/snap

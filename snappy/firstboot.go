@@ -88,7 +88,7 @@ func gadgetConfig() error {
 	}
 
 	pb := progress.MakeProgressBar()
-	for _, pkgName := range gadget.Gadget.Software.BuiltIn {
+	for _, pkgName := range gadget.Legacy.Gadget.Software.BuiltIn {
 		snap, ok := snapMap[pkgName]
 		if !ok {
 			return errNoSnapToActivate
@@ -98,7 +98,7 @@ func gadgetConfig() error {
 		}
 	}
 
-	for pkgName, conf := range gadget.Config {
+	for pkgName, conf := range gadget.Legacy.Config {
 		snap, ok := snapMap[pkgName]
 		if !ok {
 			// We want to error early as this is a disparity and gadget snap
@@ -167,7 +167,7 @@ func FirstBoot() error {
 }
 
 // NOTE: if you change stampFile, update the condition in
-// ubuntu-snappy.firstboot.service to match
+// snapd.firstboot.service to match
 var stampFile = "/var/lib/snappy/firstboot/stamp"
 
 func stampFirstBoot() error {
@@ -189,7 +189,7 @@ var ifup = "/sbin/ifup"
 
 func enableFirstEther() error {
 	gadget, _ := getGadget()
-	if gadget != nil && gadget.Gadget.SkipIfupProvisioning {
+	if gadget != nil && gadget.Legacy.Gadget.SkipIfupProvisioning {
 		return nil
 	}
 

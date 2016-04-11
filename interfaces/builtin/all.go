@@ -35,12 +35,12 @@ var allInterfaces = []interfaces.Interface{
 	NewNetworkBindInterface(),
 	NewNetworkControlInterface(),
 	NewNetworkObserveInterface(),
-	NewSnapControlInterface(),
+	NewSnapdControlInterface(),
 	NewSystemObserveInterface(),
 	NewTimeserverControlInterface(),
 	NewTimezoneControlInterface(),
 	NewUnity7Interface(),
-	NewXInterface(),
+	NewX11Interface(),
 }
 
 // Interfaces returns all of the built-in interfaces.
