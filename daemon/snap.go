@@ -67,7 +67,7 @@ func bestSnap(snaps []*snappy.Snap) (idx int, snap *snappy.Snap) {
 //
 // Also may panic if the remoteSnap is nil and Best() is nil.
 func mapSnap(localSnaps []*snappy.Snap, remoteSnap *snap.Info) map[string]interface{} {
-	var version, icon, name, developer, _type, description string
+	var version, icon, name, developer, _type, description, summary string
 	var revision int
 
 	rollback := -1
@@ -102,6 +102,7 @@ func mapSnap(localSnaps []*snappy.Snap, remoteSnap *snap.Info) map[string]interf
 		_type = string(localSnap.Type())
 
 		icon = localSnap.Icon()
+		summary = localSnap.Info().Summary()
 		description = localSnap.Info().Description()
 		installedSize = localSnap.InstalledSize()
 
@@ -120,6 +121,9 @@ func mapSnap(localSnaps []*snappy.Snap, remoteSnap *snap.Info) map[string]interf
 		}
 		if description == "" {
 			description = remoteSnap.Description()
+		}
+		if summary == "" {
+			summary = remoteSnap.Summary()
 		}
 
 		downloadSize = remoteSnap.Size
@@ -151,6 +155,7 @@ func mapSnap(localSnaps []*snappy.Snap, remoteSnap *snap.Info) map[string]interf
 		"revision":       revision,
 		"version":        version,
 		"description":    description,
+		"summary":        summary,
 		"installed-size": installedSize,
 		"download-size":  downloadSize,
 	}
