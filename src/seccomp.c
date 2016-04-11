@@ -33,7 +33,7 @@
 
 #define SC_MAX_LINE_LENGTH	82	// 80 + '\n' + '\0'
 
-char *filter_profile_dir = "/var/lib/snappy/seccomp/profiles/";
+char *filter_profile_dir = "/var/lib/snapd/seccomp/profiles/";
 
 struct preprocess {
 	bool unrestricted;

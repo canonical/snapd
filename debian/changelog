@@ -1,5 +1,6 @@
 ubuntu-core-launcher (1.0.23) UNRELEASED; urgency=medium
 
+  [ Jamie Strandboge ]
   * update README for devpts
   * add README.syscalls
   * src/seccomp.c: various cleanups from security team audit (also add
@@ -7,7 +8,11 @@ ubuntu-core-launcher (1.0.23) UNRELEASED; urgency=medium
   * don't support obsoleted SNAP_APP_TMPDIR and SNAP_APP_USER_DATA_PATH
   * preprocess the seccomp file for '@' directives
 
- -- Jamie Strandboge <jamie@ubuntu.com>  Tue, 29 Mar 2016 16:07:13 -0500
+  [ Michael Vogt ]
+  * update paths /snaps -> /snap
+  * update seccomp dir to /var/lib/snapd/seccomp/profiles/
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Sat, 09 Apr 2016 23:38:38 +0200
 
 ubuntu-core-launcher (1.0.22) xenial; urgency=medium
 
