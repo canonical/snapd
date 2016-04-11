@@ -28,7 +28,6 @@ import (
 
 // Snap holds the data for a snap as obtained from snapd.
 type Snap struct {
-	// XXX: actually add summary to the REST api when the store provides it
 	Summary       string `json:"summary"`
 	Description   string `json:"description"`
 	DownloadSize  int64  `json:"download-size"`
