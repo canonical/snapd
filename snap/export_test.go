@@ -1,8 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build !excludeintegration
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -18,25 +17,6 @@
  *
  */
 
-package tests
+package snap
 
-import "gopkg.in/check.v1"
-
-var _ = check.Suite(&snapd20TestSuite{})
-
-type snapd20TestSuite struct {
-	snapdTestSuite
-}
-
-func (s *snapd20TestSuite) TestResource(c *check.C) {
-	exerciseAPI(c, s)
-}
-
-func (s *snapd20TestSuite) resource() string {
-	return baseURL + "/v2/system-info"
-}
-
-func (s *snapd20TestSuite) getInteractions() apiInteractions {
-	return []apiInteraction{{
-		responsePattern: `(?U){"result":{"api-compat":"\d+","default-channel":".*","flavor":".*","release":".*"},"status":"OK","status-code":200,"type":"sync"}`}}
-}
+var ImplicitSlotsForTests = implicitSlots

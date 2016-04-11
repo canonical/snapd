@@ -54,38 +54,8 @@ func (s *SnapTestSuite) TestBinariesWhitelistSimple(c *C) {
 	c.Assert(verifyAppYaml(&AppYaml{Command: "foo"}), IsNil)
 }
 
-func (s *SnapTestSuite) TestUsesWhitelistSimple(c *C) {
-	c.Check(verifyPlugYaml(&plugYaml{
-		Interface: "old-security",
-		SecurityDefinitions: SecurityDefinitions{
-			SecurityTemplate: "foo"},
-	}), IsNil)
-	c.Check(verifyPlugYaml(&plugYaml{
-		Interface: "old-security",
-		SecurityDefinitions: SecurityDefinitions{
-			SecurityPolicy: &SecurityPolicyDefinition{
-				AppArmor: "foo"},
-		},
-	}), IsNil)
-}
-
 func (s *SnapTestSuite) TestBinariesWhitelistIllegal(c *C) {
 	c.Assert(verifyAppYaml(&AppYaml{Name: "test!me"}), NotNil)
 	c.Assert(verifyAppYaml(&AppYaml{Name: "x\n"}), NotNil)
 	c.Assert(verifyAppYaml(&AppYaml{Command: "x\n"}), NotNil)
-}
-
-func (s *SnapTestSuite) TestUsesWhitelistIllegal(c *C) {
-	c.Check(verifyPlugYaml(&plugYaml{
-		Interface: "old-security",
-		SecurityDefinitions: SecurityDefinitions{
-			SecurityTemplate: "x\n"},
-	}), ErrorMatches, ".*contains illegal.*")
-	c.Check(verifyPlugYaml(&plugYaml{
-		Interface: "old-security",
-		SecurityDefinitions: SecurityDefinitions{
-			SecurityPolicy: &SecurityPolicyDefinition{
-				AppArmor: "x\n"},
-		},
-	}), ErrorMatches, ".*contains illegal.*")
 }
