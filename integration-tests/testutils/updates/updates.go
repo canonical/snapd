@@ -30,6 +30,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/partition"
@@ -115,12 +116,12 @@ func copySnap(c *check.C, snap, targetDir string) {
 	// check for sideloaded snaps
 	// XXX: simplify this down to consider only the name (and not origin)
 	// in the directory once everything is moved to that
-	baseDir := filepath.Join("/snaps", snap)
+	baseDir := filepath.Join(dirs.SnapSnapsDir, snap)
 	if _, err := os.Stat(baseDir); os.IsNotExist(err) {
 		snapName := strings.Split(snap, ".")[0]
-		baseDir = filepath.Join("/snaps", snapName)
+		baseDir = filepath.Join(dirs.SnapSnapsDir, snapName)
 		if _, err := os.Stat(baseDir); os.IsNotExist(err) {
-			baseDir = filepath.Join("/snaps", snapName+".sideload")
+			baseDir = filepath.Join(dirs.SnapSnapsDir, snapName+".sideload")
 			_, err = os.Stat(baseDir)
 			c.Assert(err, check.IsNil,
 				check.Commentf("%s not found from it's original source not sideloaded", snap))

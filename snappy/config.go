@@ -61,6 +61,7 @@ func snapConfig(snapDir string, rawConfig []byte) (newConfig []byte, err error) 
 		return nil, ErrPackageNotFound
 	}
 
+	// XXX: new security will not make this anymore!!
 	appArmorProfile := fmt.Sprintf("%s_%s_%s", snap.Name(), "snappy-config", snap.Version())
 
 	return runConfigScript(configScript, appArmorProfile, rawConfig, makeSnapHookEnv(snap))

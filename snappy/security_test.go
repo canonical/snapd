@@ -33,11 +33,9 @@ import (
 )
 
 type SecurityTestSuite struct {
-	tempDir               string
-	buildDir              string
-	m                     *snapYaml
-	scFilterGenCall       []string
-	scFilterGenCallReturn []byte
+	tempDir  string
+	buildDir string
+	m        *snapYaml
 
 	loadAppArmorPolicyCalled bool
 }
@@ -126,7 +124,7 @@ func (a *SecurityTestSuite) TestSnappyGetSecurityProfile(c *C) {
 		Version: "1.0",
 	}
 	b := AppYaml{Name: "bin/app"}
-	ap := getSecurityProfile(&m, b.Name, "/snaps/foo/1.0/")
+	ap := getSecurityProfile(&m, b.Name, "/snap/foo/1.0/")
 	c.Check(ap, Equals, "foo_bin-app_1.0")
 }
 
@@ -203,9 +201,9 @@ func (a *SecurityTestSuite) TestSecurityGetAppArmorVars(c *C) {
 @{APP_PKGNAME_DBUS}="pkgname"
 @{APP_PKGNAME}="pkgname"
 @{APP_VERSION}="1.0"
-@{INSTALL_DIR}="{/snaps,/gadget}"
+@{INSTALL_DIR}="/snap"
 # Deprecated:
-@{CLICK_DIR}="{/snaps,/gadget}"`)
+@{CLICK_DIR}="/snap"`)
 }
 
 func (a *SecurityTestSuite) TestSecurityGenAppArmorPathRuleSimple(c *C) {
@@ -291,9 +289,9 @@ var expectedGeneratedAaProfile = `
 @{APP_PKGNAME_DBUS}="foo"
 @{APP_PKGNAME}="foo"
 @{APP_VERSION}="1.0"
-@{INSTALL_DIR}="{/snaps,/gadget}"
+@{INSTALL_DIR}="/snap"
 # Deprecated:
-@{CLICK_DIR}="{/snaps,/gadget}"
+@{CLICK_DIR}="/snap"
 
 # v2 compatible wildly permissive profile
 profile "" (attach_disconnected) {
@@ -421,9 +419,9 @@ var expectedAaCustomPolicy = `
 @{APP_PKGNAME_DBUS}="foo"
 @{APP_PKGNAME}="foo"
 @{APP_VERSION}="1.0"
-@{INSTALL_DIR}="{/snaps,/gadget}"
+@{INSTALL_DIR}="/snap"
 # Deprecated:
-@{CLICK_DIR}="{/snaps,/gadget}"
+@{CLICK_DIR}="/snap"
 
 # v2 compatible wildly permissive profile
 profile "foo_bar_1.0" (attach_disconnected) {
@@ -552,7 +550,7 @@ sc-network-client
 	}
 
 	// generate the apparmor profile
-	err := sd.generatePolicyForServiceBinary(m, "binary", "/snaps/app/1.0")
+	err := sd.generatePolicyForServiceBinary(m, "binary", "/snap/app/1.0")
 	c.Assert(err, IsNil)
 
 	// ensure the apparmor policy got loaded

@@ -21,7 +21,6 @@ package snappy
 
 import (
 	"bytes"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,27 +32,6 @@ import (
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/snapenv"
 )
-
-// XXX: this needs to change in the new interfaces world!
-// it will need to be a SecurityTag value
-func getSecurityProfileFromApp(app *snap.AppInfo) string {
-	cleanedName := strings.Replace(app.Name, "/", "-", -1)
-
-	return fmt.Sprintf("%s_%s_%s", app.Snap.Name(), cleanedName, app.Snap.Version)
-}
-
-// generate the name
-// TODO: => AppInfo.WrapperPath
-func generateBinaryName(app *snap.AppInfo) string {
-	var binName string
-	if app.Name == app.Snap.Name() {
-		binName = filepath.Base(app.Name)
-	} else {
-		binName = fmt.Sprintf("%s.%s", app.Snap.Name(), filepath.Base(app.Name))
-	}
-
-	return filepath.Join(dirs.SnapBinariesDir, binName)
-}
 
 // TODO: => AppInfo.CommandLine
 func binPathForBinary(pkgPath string, app *snap.AppInfo) string {
@@ -153,7 +131,7 @@ func addPackageBinaries(s *snap.Info) error {
 		}
 
 		// this will remove the global base dir when generating the
-		// service file, this ensures that /snaps/foo/1.0/bin/start
+		// service file, this ensures that /snap/foo/1.0/bin/start
 		// is in the service file when the SetRoot() option
 		// is used
 		realBaseDir := stripGlobalRootDir(baseDir)
@@ -162,7 +140,7 @@ func addPackageBinaries(s *snap.Info) error {
 			return err
 		}
 
-		if err := osutil.AtomicWriteFile(generateBinaryName(app), []byte(content), 0755, 0); err != nil {
+		if err := osutil.AtomicWriteFile(app.WrapperPath(), []byte(content), 0755, 0); err != nil {
 			return err
 		}
 	}
@@ -172,7 +150,7 @@ func addPackageBinaries(s *snap.Info) error {
 
 func removePackageBinaries(s *snap.Info) error {
 	for _, app := range s.Apps {
-		os.Remove(generateBinaryName(app))
+		os.Remove(app.WrapperPath())
 	}
 
 	return nil

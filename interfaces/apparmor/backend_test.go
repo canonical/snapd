@@ -278,7 +278,7 @@ const commonPrefix = `
 @{APP_PKGNAME_DBUS}="samba_2eacme"
 @{APP_PKGNAME}="samba"
 @{APP_VERSION}="1"
-@{INSTALL_DIR}="{/snaps,/gadget}"`
+@{INSTALL_DIR}="/snap"`
 
 var combineSnippetsScenarios = []combineSnippetsScenario{{
 	content: commonPrefix + `
@@ -344,7 +344,8 @@ func (s *backendSuite) installSnap(c *C, developerMode bool, snapYaml string, re
 	snapInfo.Revision = revision
 	// this won't come from snap.yaml
 	snapInfo.Developer = "acme"
-	s.addPlugsSlots(c, snapInfo)
+	err = s.repo.AddSnap(snapInfo)
+	c.Assert(err, IsNil)
 	err = s.backend.Setup(snapInfo, developerMode, s.repo)
 	c.Assert(err, IsNil)
 	return snapInfo
@@ -358,8 +359,10 @@ func (s *backendSuite) updateSnap(c *C, oldSnapInfo *snap.Info, developerMode bo
 	// this won't come from snap.yaml
 	newSnapInfo.Developer = "acme"
 	c.Assert(newSnapInfo.Name(), Equals, oldSnapInfo.Name())
-	s.removePlugsSlots(c, oldSnapInfo)
-	s.addPlugsSlots(c, newSnapInfo)
+	err = s.repo.RemoveSnap(oldSnapInfo.Name())
+	c.Assert(err, IsNil)
+	err = s.repo.AddSnap(newSnapInfo)
+	c.Assert(err, IsNil)
 	err = s.backend.Setup(newSnapInfo, developerMode, s.repo)
 	c.Assert(err, IsNil)
 	return newSnapInfo
@@ -369,29 +372,6 @@ func (s *backendSuite) updateSnap(c *C, oldSnapInfo *snap.Info, developerMode bo
 func (s *backendSuite) removeSnap(c *C, snapInfo *snap.Info) {
 	err := s.backend.Remove(snapInfo.Name())
 	c.Assert(err, IsNil)
-	s.removePlugsSlots(c, snapInfo)
-}
-
-func (s *backendSuite) addPlugsSlots(c *C, snapInfo *snap.Info) {
-	for _, plugInfo := range snapInfo.Plugs {
-		plug := &interfaces.Plug{PlugInfo: plugInfo}
-		err := s.repo.AddPlug(plug)
-		c.Assert(err, IsNil)
-	}
-	for _, slotInfo := range snapInfo.Slots {
-		slot := &interfaces.Slot{SlotInfo: slotInfo}
-		err := s.repo.AddSlot(slot)
-		c.Assert(err, IsNil)
-	}
-}
-
-func (s *backendSuite) removePlugsSlots(c *C, snapInfo *snap.Info) {
-	for _, plug := range s.repo.Plugs(snapInfo.Name()) {
-		err := s.repo.RemovePlug(plug.Snap.Name(), plug.Name)
-		c.Assert(err, IsNil)
-	}
-	for _, slot := range s.repo.Slots(snapInfo.Name()) {
-		err := s.repo.RemoveSlot(slot.Snap.Name(), slot.Name)
-		c.Assert(err, IsNil)
-	}
+	err = s.repo.RemoveSnap(snapInfo.Name())
+	c.Assert(err, IsNil)
 }
