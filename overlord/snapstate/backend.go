@@ -58,9 +58,14 @@ type managerBackend interface {
 	// info
 	ActiveSnap(name string) *snap.Info
 	SnapByNameAndVersion(name, version string) *snap.Info
+
+	// testing helpers
+	Candidate(sideInfo *snap.SideInfo)
 }
 
 type defaultBackend struct{}
+
+func (b *defaultBackend) Candidate(*snap.SideInfo) {}
 
 func (b *defaultBackend) ActiveSnap(name string) *snap.Info {
 	if snap := snappy.ActiveSnapByName(name); snap != nil {

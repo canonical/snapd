@@ -163,6 +163,14 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 			name: "/snap/some-snap/11",
 		},
 		fakeOp{
+			op: "candidate",
+			sinfo: snap.SideInfo{
+				OfficialName: "some-snap",
+				Channel:      "some-channel",
+				Revision:     11,
+			},
+		},
+		fakeOp{
 			op:   "link-snap",
 			name: "/snap/some-snap/11",
 		},
@@ -180,17 +188,10 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
 		Name:      "some-snap",
+		Revision:  11,
 		Developer: "mvo",
 		Channel:   "some-channel",
-
-		SideInfo: &snap.SideInfo{
-			OfficialName: "some-snap",
-			Channel:      "some-channel",
-			Revision:     11,
-		},
-		Revision: 11,
-
-		SnapPath: "downloaded-snap-path",
+		SnapPath:  "downloaded-snap-path",
 	})
 
 	// verify snaps in the system state
@@ -199,8 +200,13 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 	c.Assert(err, IsNil)
 
 	snapst := snaps["some-snap"]
-	c.Assert(snapst.Sequence[0], DeepEquals, ss.SideInfo)
 	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Candidate, IsNil)
+	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
+		OfficialName: "some-snap",
+		Channel:      "some-channel",
+		Revision:     11,
+	})
 }
 
 func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
@@ -248,6 +254,14 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 			flags: int(snappy.DoInstallGC),
 		},
 		fakeOp{
+			op: "candidate",
+			sinfo: snap.SideInfo{
+				OfficialName: "some-snap",
+				Channel:      "some-channel",
+				Revision:     11,
+			},
+		},
+		fakeOp{
 			op:   "link-snap",
 			name: "/snap/some-snap/11",
 		},
@@ -269,17 +283,9 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 		Channel:   "some-channel",
 		Flags:     int(snappy.DoInstallGC),
 
-		SideInfo: &snap.SideInfo{
-			OfficialName: "some-snap",
-			Channel:      "some-channel",
-			Revision:     11,
-		},
 		Revision: 11,
 
 		SnapPath: "downloaded-snap-path",
-
-		OldName:     "some-snap",
-		OldRevision: 7,
 	})
 }
 
@@ -302,9 +308,12 @@ func (s *snapmgrTestSuite) TestInstallLocalIntegration(c *C) {
 	s.state.Lock()
 
 	// ensure only local install was run, i.e. first action is check-snap
-	c.Assert(s.fakeBackend.ops, HasLen, 4)
+	c.Assert(s.fakeBackend.ops, HasLen, 5)
 	c.Check(s.fakeBackend.ops[0].op, Equals, "check-snap")
 	c.Check(s.fakeBackend.ops[0].name, Matches, `.*/mock.snap`)
+
+	c.Check(s.fakeBackend.ops[3].op, Equals, "candidate")
+	c.Check(s.fakeBackend.ops[3].sinfo, DeepEquals, snap.SideInfo{})
 }
 
 func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
