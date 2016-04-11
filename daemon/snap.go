@@ -77,7 +77,7 @@ func mapSnap(localSnaps []*snappy.Snap, remoteSnap *snap.Info) map[string]interf
 		panic("no localSnaps & remoteSnap is nil -- how did i even get here")
 	}
 
-	status := "not installed"
+	status := "available"
 	installedSize := int64(-1)
 	downloadSize := int64(-1)
 
