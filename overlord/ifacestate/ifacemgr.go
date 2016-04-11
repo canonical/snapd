@@ -37,6 +37,7 @@ import (
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snappy"
 )
 
 // InterfaceManager is responsible for the maintenance of interfaces in
@@ -62,12 +63,40 @@ func Manager(s *state.State) (*InterfaceManager, error) {
 		runner: runner,
 		repo:   repo,
 	}
-
+	if err := m.addSnaps(); err != nil {
+		return nil, err
+	}
 	runner.AddHandler("connect", m.doConnect, nil)
 	runner.AddHandler("disconnect", m.doDisconnect, nil)
 	runner.AddHandler("setup-snap-security", m.doSetupSnapSecurity, m.doRemoveSnapSecurity)
 	runner.AddHandler("remove-snap-security", m.doRemoveSnapSecurity, m.doSetupSnapSecurity)
 	return m, nil
+}
+
+func (m *InterfaceManager) addSnaps() error {
+	snaps, err := xxxHackyInstalledSnaps()
+	if err != nil {
+		return err
+	}
+	for _, snapInfo := range snaps {
+		snap.AddImplicitSlots(snapInfo)
+		if err := m.repo.AddSnap(snapInfo); err != nil {
+			logger.Noticef("%s", err)
+		}
+	}
+	return nil
+}
+
+func xxxHackyInstalledSnaps() ([]*snap.Info, error) {
+	installed, err := (&snappy.Overlord{}).Installed()
+	if err != nil {
+		return nil, err
+	}
+	snaps := make([]*snap.Info, len(installed))
+	for i, legacySnap := range installed {
+		snaps[i] = legacySnap.Info()
+	}
+	return snaps, nil
 }
 
 func (m *InterfaceManager) doSetupSnapSecurity(task *state.Task, _ *tomb.Tomb) error {
