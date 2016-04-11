@@ -132,7 +132,6 @@ func (b *defaultBackend) CopySnapData(snapInstPath string, flags int) error {
 	return snappy.CopyData(sn.Info(), snappy.InstallFlags(flags), meter)
 }
 
-
 func (b *defaultBackend) LinkSnap(snapInstPath string) error {
 	sn, err := snappy.NewInstalledSnap(filepath.Join(snapInstPath, "meta", "snap.yaml"))
 	if err != nil {
