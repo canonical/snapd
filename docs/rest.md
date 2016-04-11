@@ -162,7 +162,6 @@ Reserved for human-readable content describing the service.
 
 ```javascript
 {
- "username": "username",
  "macaroon": "serialized-store-macaroon",
  "discharges": ["discharge-for-macaroon-authentication"]
 }

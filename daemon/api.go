@@ -174,6 +174,11 @@ type userAuthState struct {
 	Discharges []string `json:"discharges,omitempty"`
 }
 
+type loginResponseData struct {
+	Macaroon   string   `json:"macaroon,omitempty"`
+	Discharges []string `json:"discharges,omitempty"`
+}
+
 func loginUser(c *Command, r *http.Request) Response {
 	var loginData struct {
 		Username string `json:"username"`
@@ -197,15 +202,22 @@ func loginUser(c *Command, r *http.Request) Response {
 			Type: ResponseTypeError,
 			Result: &errorResult{
 				Kind:    errorKindTwoFactorRequired,
-				Message: "two factor authentication required"},
-			Status: http.StatusUnauthorized}
+				Message: "two factor authentication required",
+			},
+			Status: http.StatusUnauthorized,
+		}
 		return SyncResponse(twofactorRequiredResponse)
 	}
 	if err != nil {
 		return Unauthorized("cannot get discharge authorization")
 	}
 
-	authenticatedUser := userAuthState{Username: loginData.Username, Macaroon: macaroon, Discharges: []string{discharge}}
+	authenticatedUser := userAuthState{
+		Username:   loginData.Username,
+		Macaroon:   macaroon,
+		Discharges: []string{discharge},
+	}
+	// TODO Handle better the multi-user case.
 	authStateData := authState{Users: []userAuthState{authenticatedUser}}
 
 	overlord := c.d.overlord
@@ -214,7 +226,11 @@ func loginUser(c *Command, r *http.Request) Response {
 	state.Set("auth", authStateData)
 	state.Unlock()
 
-	return SyncResponse(authenticatedUser)
+	result := loginResponseData{
+		Macaroon:   macaroon,
+		Discharges: []string{discharge},
+	}
+	return SyncResponse(result)
 }
 
 type metarepo interface {
