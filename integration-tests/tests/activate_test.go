@@ -48,6 +48,8 @@ type activateSuite struct {
 }
 
 func (s *activateSuite) SetUpTest(c *check.C) {
+	c.Skip("FIXME: port to snap")
+
 	s.SnappySuite.SetUpTest(c)
 	if common.Release(c) == "15.04" {
 		c.Skip("activate CLI command not available on 15.04, reenable the test when present")
