@@ -68,6 +68,8 @@ type Info struct {
 
 	AnonDownloadURL string
 	DownloadURL     string
+	Price           float64
+	RequiresPurchase bool
 }
 
 // Name returns the blessed name for the snap.
