@@ -80,13 +80,8 @@ func (m *InterfaceManager) addSnaps() error {
 	}
 	for _, snapInfo := range snaps {
 		snap.AddImplicitSlots(snapInfo)
-		err := m.repo.AddSnap(snapInfo)
-		if err != nil {
-			if _, ok := err.(*interfaces.BadInterfacesError); ok {
-				logger.Noticef("%s", err)
-				continue
-			}
-			return err
+		if err := m.repo.AddSnap(snapInfo); err != nil {
+			logger.Noticef("%s", err)
 		}
 	}
 	return nil
