@@ -134,10 +134,16 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, si *snap.SideInfo, fl
 	return nil
 }
 
-func (f *fakeSnappyBackend) CopySnapData(instSnapPath string, flags int) error {
+func (f *fakeSnappyBackend) RetrieveInfo(name string, si *snap.SideInfo) (*snap.Info, error) {
+	// naive emulation for now, always works
+	return &snap.Info{SideInfo: *si}, nil
+}
+
+func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, flags int) error {
 	f.ops = append(f.ops, fakeOp{
-		op:    "copy-data",
-		name:  instSnapPath,
+		op:   "copy-data",
+		name: newInfo.MountDir(),
+		// XXX: capture oldInfo
 		flags: flags,
 	})
 	return nil

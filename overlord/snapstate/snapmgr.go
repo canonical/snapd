@@ -367,13 +367,37 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 
 func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	t.State().Lock()
-	ss, err := TaskSnapSetup(t)
+	ss, snapst, err := snapSetupAndState(t)
 	t.State().Unlock()
 	if err != nil {
 		return err
 	}
 
-	return m.backend.CopySnapData(ss.MountDir(), ss.Flags)
+	// XXX: more effiecient way, we know we want candidate
+	t.State().Lock()
+	newInfo, err := Info(t.State(), ss.Name, ss.Revision)
+	t.State().Unlock()
+	if err != nil {
+		fmt.Println("DESPAIR 1", err)
+		return err
+	}
+
+	var oldInfo *snap.Info
+	if len(snapst.Sequence) > 0 {
+		latest := snapst.Sequence[len(snapst.Sequence)-1]
+		// XXX: more effiecient way, we have the sideinfo
+		var err error
+		t.State().Unlock()
+		oldInfo, err = Info(t.State(), ss.Name, latest.Revision)
+		t.State().Unlock()
+		if err != nil {
+			fmt.Println("DESPAIR 2", err)
+			return err
+		}
+
+	}
+
+	return m.backend.CopySnapData(newInfo, oldInfo, ss.Flags)
 }
 
 func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {

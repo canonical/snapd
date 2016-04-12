@@ -42,6 +42,8 @@ type snapmgrTestSuite struct {
 	snapmgr *snapstate.SnapManager
 
 	fakeBackend *fakeSnappyBackend
+
+	reset func()
 }
 
 func (s *snapmgrTestSuite) settle() {
@@ -67,8 +69,16 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	s.snapmgr, err = snapstate.Manager(s.state)
 	c.Assert(err, IsNil)
 	s.snapmgr.AddForeignTaskHandlers()
+
+	// XXX: have just one, reset!
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
 	snapstate.SetSnapstateBackend(s.fakeBackend)
+
+	s.reset = snapstate.ChangeRetrieveInfo(s.fakeBackend.RetrieveInfo)
+}
+
+func (s *snapmgrTestSuite) TearDownTest(c *C) {
+	s.reset()
 }
 
 func verifyInstallUpdateTasks(c *C, ts *state.TaskSet) {
@@ -451,9 +461,14 @@ func (s *snapmgrTestSuite) TestSetInactive(c *C) {
 	c.Assert(s.fakeBackend.ops[0].active, Equals, false)
 }
 
-func (s *snapmgrTestSuite) TestInfo(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
+type snapmgrQuerySuite struct{}
+
+var _ = Suite(&snapmgrQuerySuite{})
+
+func (s *snapmgrQuerySuite) TestInfo(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
 
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("")
@@ -470,14 +485,14 @@ description: |
     Lots of text`), 0644)
 	c.Assert(err, IsNil)
 
-	snapstate.Set(s.state, "name1", &snapstate.SnapState{
+	snapstate.Set(st, "name1", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
 			{OfficialName: "name1", Revision: 11, EditedSummary: "s11"},
 			{OfficialName: "name1", Revision: 12, EditedSummary: "s12"},
 		},
 	})
 
-	info, err := snapstate.Info(s.state, "name1", 11)
+	info, err := snapstate.Info(st, "name1", 11)
 	c.Assert(err, IsNil)
 
 	c.Check(info.Name(), Equals, "name1")

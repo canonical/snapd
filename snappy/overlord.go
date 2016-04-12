@@ -193,44 +193,26 @@ func currentSnap(newSnap *snap.Info) *Snap {
 	return currentSnap
 }
 
-func CopyData(newSnap *snap.Info, flags InstallFlags, meter progress.Meter) error {
+func CopyData(newSnap, oldSnap *snap.Info, flags InstallFlags, meter progress.Meter) error {
 	dataDir := newSnap.DataDir()
 
-	// deal with the data:
-	//
-	// if there was a previous version, stop it
-	// from being active so that it stops running and can no longer be
-	// started then copy the data
-	//
+	// deal with the old data or
 	// otherwise just create a empty data dir
-	oldSnap := currentSnap(newSnap)
+
 	if oldSnap == nil {
 		return os.MkdirAll(dataDir, 0755)
 	}
 
-	// we need to stop any services and make the commands unavailable
-	// so that the data can be safely copied
-	if err := UnlinkSnap(oldSnap, meter); err != nil {
-		return err
-	}
-
-	return copySnapData(oldSnap.Info(), newSnap)
+	return copySnapData(oldSnap, newSnap)
 }
 
 func UndoCopyData(newInfo *snap.Info, flags InstallFlags, meter progress.Meter) {
 	// XXX we were copying data, assume InhibitHooks was false
 
-	oldSnap := currentSnap(newInfo)
-	if oldSnap != nil {
-		// reactivate the previously inactivated snap
-		if err := ActivateSnap(oldSnap, meter); err != nil {
-			logger.Noticef("Setting old version back to active failed: %v", err)
-		}
-	}
-
 	if err := RemoveSnapData(newInfo); err != nil {
 		logger.Noticef("When cleaning up data for %s %s: %v", newInfo.Name(), newInfo.Version, err)
 	}
+
 }
 
 func GenerateWrappers(s *Snap, inter interacter) error {
@@ -378,6 +360,9 @@ func ActivateSnap(s *Snap, inter interacter) error {
 	return UpdateCurrentSymlink(s, inter)
 }
 
+// actually less prechecks
+var LinkSnap = ActivateSnap
+
 // UnlinkSnap deactivates the given active snap.
 func UnlinkSnap(s *Snap, inter interacter) error {
 	info := s.Info()
@@ -444,8 +429,29 @@ func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideI
 	// we need this for later
 	oldSnap := currentSnap(newInfo)
 
+	var oldInfo *snap.Info
+
+	if oldSnap != nil {
+		// we need to stop any services and make the commands unavailable
+		// so that copying data and later activating the new revision
+		// can work
+		err = UnlinkSnap(oldSnap, meter)
+		defer func() {
+			if err != nil {
+				if err := LinkSnap(oldSnap, meter); err != nil {
+					logger.Noticef("When linking old revision: %v", newInfo.Name(), err)
+				}
+			}
+		}()
+		if err != nil {
+			return nil, err
+		}
+
+		oldInfo = oldSnap.Info()
+	}
+
 	// deal with the data
-	err = CopyData(newInfo, flags, meter)
+	err = CopyData(newInfo, oldInfo, flags, meter)
 	defer func() {
 		if err != nil {
 			UndoCopyData(newInfo, flags, meter)
@@ -470,11 +476,11 @@ func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideI
 		return nil, err
 	}
 
-	err = ActivateSnap(newSnap, meter)
+	err = LinkSnap(newSnap, meter)
 	defer func() {
-		if err != nil && oldSnap != nil {
-			if err := ActivateSnap(oldSnap, meter); err != nil {
-				logger.Noticef("When setting old %s version back to active: %v", newSnap.Name(), err)
+		if err != nil {
+			if err := UnlinkSnap(newSnap, meter); err != nil {
+				logger.Noticef("When unlinking failed new snap revision: %v", newSnap.Name(), err)
 			}
 		}
 	}()

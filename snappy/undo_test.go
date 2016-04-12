@@ -137,11 +137,14 @@ version: 2.0`, 12)
 
 	c.Assert(err, IsNil)
 
+	sn1, err := NewInstalledSnap(v1)
+	c.Assert(err, IsNil)
+
 	sn, err := NewInstalledSnap(v2)
 	c.Assert(err, IsNil)
 
 	// copy data
-	err = CopyData(sn.Info(), 0, &s.meter)
+	err = CopyData(sn.Info(), sn1.Info(), 0, &s.meter)
 	c.Assert(err, IsNil)
 	v2data := filepath.Join(dirs.SnapDataDir, "hello/12")
 	l, _ := filepath.Glob(filepath.Join(v2data, "*"))

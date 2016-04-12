@@ -35,7 +35,7 @@ type managerBackend interface {
 	Download(name, channel string, meter progress.Meter) (*snap.Info, string, error)
 	CheckSnap(snapFilePath string, flags int) error
 	SetupSnap(snapFilePath string, si *snap.SideInfo, flags int) error
-	CopySnapData(instSnapPath string, flags int) error
+	CopySnapData(newSnap, oldSnap *snap.Info, flags int) error
 	LinkSnap(instSnapPath string) error
 	GarbageCollect(snap string, flags int, meter progress.Meter) error
 	// the undoers for install
@@ -128,13 +128,9 @@ func (b *defaultBackend) SetupSnap(snapFilePath string, sideInfo *snap.SideInfo,
 	return err
 }
 
-func (b *defaultBackend) CopySnapData(snapInstPath string, flags int) error {
-	sn, err := snappy.NewInstalledSnap(filepath.Join(snapInstPath, "meta", "snap.yaml"))
-	if err != nil {
-		return err
-	}
+func (b *defaultBackend) CopySnapData(newInfo, oldInfo *snap.Info, flags int) error {
 	meter := &progress.NullProgress{}
-	return snappy.CopyData(sn.Info(), snappy.InstallFlags(flags), meter)
+	return snappy.CopyData(newInfo, oldInfo, snappy.InstallFlags(flags), meter)
 }
 
 func (b *defaultBackend) LinkSnap(snapInstPath string) error {
