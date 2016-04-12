@@ -33,6 +33,7 @@ import (
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/testutil"
 )
 
 func TestInterfaceManager(t *testing.T) { TestingT(t) }
@@ -188,6 +189,9 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirty(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("")
 
+	parserCmd := testutil.MockCommand(c, "apparmor_parser", "")
+	defer parserCmd.Restore()
+
 	osSnap := &snap.Info{
 		Type:          snap.TypeOS,
 		SuggestedName: "ubuntu-core",
@@ -234,4 +238,11 @@ plugs:
 
 	c.Check(task.Status(), Equals, state.DoneStatus)
 	c.Check(change.Status(), Equals, state.DoneStatus)
+
+	var conns map[string]ifacestate.ConnState
+	err = task.State().Get("connections", &conns)
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, map[string]ifacestate.ConnState{
+		"snap:network ubuntu-core:network": {Interface: "network", Auto: true},
+	})
 }
