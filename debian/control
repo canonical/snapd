@@ -43,7 +43,7 @@ Description: snappy development go packages.
 Package: snapd
 Architecture: any
 Depends: ${misc:Depends}, ${shlibs:Depends}, adduser, lsb-release,
- squashfs-tools, ubuntu-core-launcher (>= 1.0.19),
+ squashfs-tools, ubuntu-core-launcher (>= 1.0.23),
  ubuntu-core-security-seccomp, ubuntu-core-security-apparmor,
  ubuntu-core-security-utils,
 Replaces: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9)

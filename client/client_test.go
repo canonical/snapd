@@ -119,8 +119,8 @@ func (cs *clientSuite) TestClientSysInfo(c *check.C) {
 	cs.rsp = `{"type": "sync", "result":
                      {"flavor": "f",
                       "release": "r",
-                      "default_channel": "dc",
-                      "api_compat": "42",
+                      "default-channel": "dc",
+                      "api-compat": "42",
                       "store": "store"}}`
 	sysInfo, err := cs.cli.SysInfo()
 	c.Check(err, check.IsNil)
@@ -170,7 +170,7 @@ func (cs *clientSuite) TestClientReportsOpErrorStr(c *check.C) {
 	cs.rsp = `{
 		"result": {},
 		"status": "Bad Request",
-		"status_code": 400,
+		"status-code": 400,
 		"type": "error"
 	}`
 	_, err := cs.cli.SysInfo()
@@ -208,7 +208,7 @@ func (cs *clientSuite) TestParseError(c *check.C) {
 		Status: "400 Bad Request",
 		Header: h,
 		Body: ioutil.NopCloser(strings.NewReader(`{
-			"status_code": 400,
+			"status-code": 400,
 			"type": "error",
 			"result": {
 				"message": "invalid"
