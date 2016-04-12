@@ -116,6 +116,11 @@ func (ts *taskSuite) TestProgressAndSetProgress(c *C) {
 	c.Check(cur, Equals, 0)
 	c.Check(tot, Equals, 1)
 	c.Check(jsonStr(t), Not(testutil.Contains), "progress")
+
+	t.SetProgress(42, 42)
+	cur, tot = t.Progress()
+	c.Check(cur, Equals, 42)
+	c.Check(tot, Equals, 42)
 }
 
 func (ts *taskSuite) TestProgressDefaults(c *C) {
@@ -244,6 +249,7 @@ func (cs *taskSuite) TestMethodEntrance(c *C) {
 		func() { t1.Logf("") },
 		func() { t1.Errorf("") },
 		func() { t1.UnmarshalJSON(nil) },
+		func() { t1.SetProgress(1, 1) },
 	}
 
 	reads := []func(){
@@ -254,6 +260,8 @@ func (cs *taskSuite) TestMethodEntrance(c *C) {
 		func() { t1.Progress() },
 		func() { t1.Log() },
 		func() { t1.MarshalJSON() },
+		func() { t1.Progress() },
+		func() { t1.SetProgress(0, 1) },
 	}
 
 	for i, f := range reads {

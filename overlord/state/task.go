@@ -172,7 +172,12 @@ func (t *Task) Progress() (cur, total int) {
 
 // SetProgress sets the task progress to cur out of total steps.
 func (t *Task) SetProgress(cur, total int) {
-	t.state.writing()
+	// Only mark state for checkpointing if progress is final.
+	if total > 0 && cur == total {
+		t.state.writing()
+	} else {
+		t.state.reading()
+	}
 	if total <= 0 || cur > total {
 		// Doing math wrong is easy. Be conservative.
 		t.progress = nil
