@@ -203,7 +203,7 @@ func (s *interfaceManagerSuite) addOS(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *interfaceManagerSuite) addSnap(c *C, yamlText string) {
+func (s *interfaceManagerSuite) addSnap(c *C, yamlText string) *snap.Info {
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(yamlText))
 	c.Assert(err, IsNil)
 	dname := filepath.Join(dirs.SnapSnapsDir, snapInfo.Name(),
@@ -213,6 +213,20 @@ func (s *interfaceManagerSuite) addSnap(c *C, yamlText string) {
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(fname, []byte(yamlText), 0644)
 	c.Assert(err, IsNil)
+	return snapInfo
+}
+
+func (s *interfaceManagerSuite) addSetupSnapSecurityChange(c *C, snapName string) *state.Change {
+	s.state.Lock()
+	task := s.state.NewTask("setup-snap-security", "")
+	ss := snapstate.SnapSetup{Name: "snap"}
+	task.Set("snap-setup-task", task.ID())
+	task.Set("snap-setup", ss)
+	taskset := state.NewTaskSet(task)
+	change := s.state.NewChange("test", "")
+	change.AddAll(taskset)
+	s.state.Unlock()
+	return change
 }
 
 var sampleSnapYaml = `
@@ -228,17 +242,8 @@ plugs:
 
 func (s *interfaceManagerSuite) TestDoSetupSnapSecuirty(c *C) {
 	s.addOS(c)
-	s.addSnap(c, sampleSnapYaml)
-
-	s.state.Lock()
-	task := s.state.NewTask("setup-snap-security", "")
-	ss := snapstate.SnapSetup{Name: "snap"}
-	task.Set("snap-setup-task", task.ID())
-	task.Set("snap-setup", ss)
-	taskset := state.NewTaskSet(task)
-	change := s.state.NewChange("test", "")
-	change.AddAll(taskset)
-	s.state.Unlock()
+	snapInfo := s.addSnap(c, sampleSnapYaml)
+	change := s.addSetupSnapSecurityChange(c, snapInfo.Name())
 
 	s.mgr.Ensure()
 	s.mgr.Wait()
@@ -247,11 +252,9 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirty(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	c.Check(task.Status(), Equals, state.DoneStatus)
 	c.Check(change.Status(), Equals, state.DoneStatus)
-
 	var conns map[string]interface{}
-	err := task.State().Get("conns", &conns)
+	err := s.state.Get("conns", &conns)
 	c.Assert(err, IsNil)
 	c.Check(conns, DeepEquals, map[string]interface{}{
 		"snap:network ubuntu-core:network": map[string]interface{}{
