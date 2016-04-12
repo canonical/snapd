@@ -217,6 +217,14 @@ plugs:
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
+
+	snapstate.SetSnapState(s.state, "ubuntu-core", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{{Revision: 0}},
+	})
+	snapstate.SetSnapState(s.state, "snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{{Revision: 0}},
+	})
+
 	task := s.state.NewTask("setup-snap-security", "")
 	ss := snapstate.SnapSetup{Name: "snap"}
 	task.Set("snap-setup-task", task.ID())
