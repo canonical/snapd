@@ -31,8 +31,6 @@ import (
 	"github.com/gorilla/mux"
 	"gopkg.in/tomb.v2"
 
-	"github.com/ubuntu-core/snappy/interfaces"
-	"github.com/ubuntu-core/snappy/interfaces/builtin"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/notifications"
 	"github.com/ubuntu-core/snappy/overlord"
@@ -47,7 +45,6 @@ type Daemon struct {
 	tomb         tomb.Tomb
 	router       *mux.Router
 	hub          *notifications.Hub
-	interfaces   *interfaces.Repository
 	// enableInternalInterfaceActions controls if adding and removing slots and plugs is allowed.
 	enableInternalInterfaceActions bool
 }
@@ -258,17 +255,10 @@ func New() (*Daemon, error) {
 	if err != nil {
 		return nil, err
 	}
-	interfacesRepo := interfaces.NewRepository()
-	for _, iface := range builtin.Interfaces() {
-		if err := interfacesRepo.AddInterface(iface); err != nil {
-			return nil, err
-		}
-	}
 	return &Daemon{
-		overlord:   ovld,
-		tasks:      make(map[string]*Task),
-		hub:        notifications.NewHub(),
-		interfaces: interfacesRepo,
+		overlord: ovld,
+		tasks:    make(map[string]*Task),
+		hub:      notifications.NewHub(),
 		// TODO: Decide when this should be disabled by default.
 		enableInternalInterfaceActions: true,
 	}, nil
