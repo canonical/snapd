@@ -36,9 +36,9 @@ type snapOpSuite struct {
 func (s *snapOpSuite) testInstallRemove(c *check.C, snapName, displayName, displayDeveloper string) {
 	installOutput := installSnap(c, snapName)
 	expected := "(?ms)" +
-		"Name +Date +Version +Developer\n" +
+		"Name +Version +Developer\n" +
 		".*" +
-		displayName + " +.* +.* +" + displayDeveloper + "\n" +
+		displayName + " +.* +" + displayDeveloper + "\n" +
 		".*"
 	c.Assert(installOutput, check.Matches, expected)
 

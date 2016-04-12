@@ -39,7 +39,7 @@ var (
 )
 
 func buildSnap(c *check.C, snapPath string) string {
-	return cliExecCommand(c, "snappy", "build", snapPath, "-o", snapPath)
+	return cliExecCommand(c, "snap", "build", snapPath, "-o", snapPath)
 }
 
 // LocalSnap issues the command to build a snap and returns the path of the generated file
