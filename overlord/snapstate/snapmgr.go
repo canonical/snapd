@@ -21,7 +21,6 @@
 package snapstate
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"gopkg.in/tomb.v2"
@@ -143,7 +142,7 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	t.Set("snap-setup", ss)
 	snapst.Candidate = &snap.SideInfo{}
-	SetSnapState(st, ss.Name, snapst)
+	Set(st, ss.Name, snapst)
 	st.Unlock()
 	return nil
 }
@@ -158,7 +157,7 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	snapst.Candidate = nil
-	SetSnapState(st, ss.Name, snapst)
+	Set(st, ss.Name, snapst)
 	return nil
 }
 
@@ -188,7 +187,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	t.Set("snap-setup", ss)
 	snapst.Candidate = &storeInfo.SideInfo
-	SetSnapState(st, ss.Name, snapst)
+	Set(st, ss.Name, snapst)
 	st.Unlock()
 
 	return nil
@@ -320,47 +319,11 @@ func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
 		return nil, nil, err
 	}
 	var snapst SnapState
-	err = GetSnapState(t.State(), ss.Name, &snapst)
+	err = Get(t.State(), ss.Name, &snapst)
 	if err != nil && err != state.ErrNoState {
 		return nil, nil, err
 	}
 	return ss, &snapst, nil
-}
-
-func GetSnapState(s *state.State, name string, snapst *SnapState) error {
-	var snaps map[string]*json.RawMessage
-	err := s.Get("snaps", &snaps)
-	if err != nil {
-		return err
-	}
-	raw, ok := snaps[name]
-	if !ok {
-		return state.ErrNoState
-	}
-	err = json.Unmarshal([]byte(*raw), &snapst)
-	if err != nil {
-		return fmt.Errorf("cannot unmarshal snap state: %v", err)
-	}
-	return nil
-}
-
-func SetSnapState(s *state.State, name string, snapst *SnapState) {
-	var snaps map[string]*json.RawMessage
-	err := s.Get("snaps", &snaps)
-	if err == state.ErrNoState {
-		s.Set("snaps", map[string]*SnapState{name: snapst})
-		return
-	}
-	if err != nil {
-		panic("internal error: cannot unmarshal snaps state: " + err.Error())
-	}
-	data, err := json.Marshal(snapst)
-	if err != nil {
-		panic("internal error: cannot marshal snap state: " + err.Error())
-	}
-	raw := json.RawMessage(data)
-	snaps[name] = &raw
-	s.Set("snaps", snaps)
 }
 
 func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -437,7 +400,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// Do at the end so we only preserve the new state if it worked.
-	SetSnapState(st, ss.Name, snapst)
+	Set(st, ss.Name, snapst)
 	return nil
 }
 
