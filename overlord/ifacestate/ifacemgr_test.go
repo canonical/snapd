@@ -186,9 +186,6 @@ func (s *interfaceManagerSuite) addPlugSlotAndInterface(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestDoSetupSnapSecuirty(c *C) {
-	dirs.SetRootDir(c.MkDir())
-	defer dirs.SetRootDir("")
-
 	parserCmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer parserCmd.Restore()
 
