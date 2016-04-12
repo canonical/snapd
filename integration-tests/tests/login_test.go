@@ -68,7 +68,7 @@ func (s *loginSuite) TestInvalidCredentialsError(c *check.C) {
 	err := s.writeCredentials(invalidLoginName)
 	c.Assert(err, check.IsNil, check.Commentf("error writting credentials"))
 
-	expectedMsg := "invalid credentials"
+	expectedMsg := "Provided email/password is not correct"
 	err = wait.ForFunction(c, expectedMsg, func() (string, error) { return s.stdout.String(), err })
 	c.Assert(err, check.IsNil, check.Commentf("didn't get expected invalid credentials error"))
 
@@ -83,7 +83,7 @@ func (s *loginSuite) TestFakeServerIsDetected(c *check.C) {
 	err := s.writeCredentials(validLoginName)
 	c.Assert(err, check.IsNil, check.Commentf("error writting credentials"))
 
-	expectedMsg := fmt.Sprintf("Post https://%s/api/v2/tokens/oauth: x509: certificate is valid for example.com, not %s", loginHost, loginHost)
+	expectedMsg := fmt.Sprintf("Post https://%s/api/v2/tokens/discharge: x509: certificate is valid for example.com, not %s", loginHost, loginHost)
 	err = wait.ForFunction(c, expectedMsg, func() (string, error) { return s.stdout.String(), err })
 	c.Assert(err, check.IsNil, check.Commentf("didn't get expected fake server error"))
 }
