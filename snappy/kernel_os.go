@@ -122,8 +122,8 @@ func extractKernelAssets(s *snap.Info, snapf snap.File, flags InstallFlags, inte
 
 // setNextBoot will schedule the given os or kernel snap to be used in
 // the next boot
-func setNextBoot(s *Snap) error {
-	if s.m.Type != snap.TypeOS && s.m.Type != snap.TypeKernel {
+func setNextBoot(s *snap.Info) error {
+	if s.Type != snap.TypeOS && s.Type != snap.TypeKernel {
 		return nil
 	}
 
@@ -133,13 +133,13 @@ func setNextBoot(s *Snap) error {
 	}
 
 	var bootvar string
-	switch s.m.Type {
+	switch s.Type {
 	case snap.TypeOS:
 		bootvar = "snappy_os"
 	case snap.TypeKernel:
 		bootvar = "snappy_kernel"
 	}
-	blobName := filepath.Base(s.Info().MountFile())
+	blobName := filepath.Base(s.MountFile())
 	if err := bootloader.SetBootVar(bootvar, blobName); err != nil {
 		return err
 	}

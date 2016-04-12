@@ -221,15 +221,21 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
+	si := snap.SideInfo{
+		OfficialName: "some-snap",
+		Revision:     7,
+	}
 	s.fakeBackend.activeSnaps["some-snap"] = &snap.Info{
-		SideInfo: snap.SideInfo{
-			OfficialName: "some-snap",
-			Revision:     7,
-		},
+		SideInfo: si,
 	}
 
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+	})
 
 	chg := s.state.NewChange("install", "install a snap")
 	ts, err := snapstate.Update(s.state, "some-snap.mvo", "some-channel", snappy.DoInstallGC)
@@ -241,8 +247,7 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 	defer s.snapmgr.Stop()
 	s.state.Lock()
 
-	// ensure all our tasks ran
-	c.Assert(s.fakeBackend.ops, DeepEquals, []fakeOp{
+	expected := []fakeOp{
 		fakeOp{
 			op:      "download",
 			name:    "some-snap.mvo",
@@ -258,6 +263,10 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 			name:  "downloaded-snap-path",
 			flags: int(snappy.DoInstallGC),
 			revno: 11,
+		},
+		fakeOp{
+			op:   "unlink-snap",
+			name: "/snap/some-snap/7",
 		},
 		fakeOp{
 			op:    "copy-data",
@@ -276,7 +285,14 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 			op:   "link-snap",
 			name: "/snap/some-snap/11",
 		},
-	})
+	}
+
+	for i, exp := range expected {
+		c.Check(s.fakeBackend.ops[i], DeepEquals, exp)
+	}
+
+	// ensure all our tasks ran
+	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
 	// check progress
 	task := ts.Tasks()[0]
@@ -353,16 +369,23 @@ version: 1.0`)
 }
 
 func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
+	si := snap.SideInfo{
+		OfficialName: "some-snap",
+		Developer:    "mvo",
+		Revision:     7,
+	}
 	s.fakeBackend.activeSnaps["some-snap"] = &snap.Info{
-		SideInfo: snap.SideInfo{
-			OfficialName: "some-name",
-			Developer:    "mvo",
-			Revision:     7,
-		},
+		SideInfo: si,
 	}
 
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+	})
+
 	chg := s.state.NewChange("remove", "remove a snap")
 	ts, err := snapstate.Remove(s.state, "some-snap.mvo", 0)
 	c.Assert(err, IsNil)
@@ -374,7 +397,7 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 	s.state.Lock()
 
 	c.Assert(s.fakeBackend.ops, HasLen, 4)
-	c.Assert(s.fakeBackend.ops, DeepEquals, []fakeOp{
+	expected := []fakeOp{
 		fakeOp{
 			op:   "can-remove",
 			name: "/snap/some-snap/7",
@@ -392,7 +415,8 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 			op:   "remove-snap-files",
 			name: "/snap/some-snap/7",
 		},
-	})
+	}
+	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
 	// verify snapSetup info
 	task := ts.Tasks()[0]

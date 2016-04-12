@@ -88,6 +88,7 @@ func Manager(s *state.State) (*SnapManager, error) {
 	runner.AddHandler("prepare-snap", m.doPrepareSnap, m.undoPrepareSnap)
 	runner.AddHandler("download-snap", m.doDownloadSnap, m.undoPrepareSnap)
 	runner.AddHandler("mount-snap", m.doMountSnap, m.undoMountSnap)
+	runner.AddHandler("unlink-current-snap", m.doUnlinkCurrentSnap, m.undoUnlinkCurrentSnap)
 	runner.AddHandler("copy-snap-data", m.doCopySnapData, m.undoCopySnapData)
 	runner.AddHandler("link-snap", m.doLinkSnap, m.undoLinkSnap)
 	// FIXME: port to native tasks and rename
@@ -203,8 +204,15 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	t.State().Lock()
+	info, err := Info(t.State(), ss.Name, ss.Revision)
+	t.State().Unlock()
+	if err != nil {
+		return err
+	}
+
 	pb := &TaskProgressAdapter{task: t}
-	return m.backend.UnlinkSnap(ss.MountDir(), pb)
+	return m.backend.UnlinkSnap(info, pb)
 }
 
 func (m *SnapManager) doRemoveSnapFiles(t *state.Task, _ *tomb.Tomb) error {
@@ -354,6 +362,61 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	return m.backend.SetupSnap(ss.SnapPath, snapst.Candidate, ss.Flags)
 }
 
+func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
+	t.State().Lock()
+	ss, snapst, err := snapSetupAndState(t)
+	t.State().Unlock()
+	if err != nil {
+		return err
+	}
+
+	var oldInfo *snap.Info
+	if len(snapst.Sequence) > 0 {
+		latest := snapst.Sequence[len(snapst.Sequence)-1]
+		// XXX: more effiecient way, we have the sideinfo
+		var err error
+		t.State().Lock()
+		oldInfo, err = Info(t.State(), ss.Name, latest.Revision)
+		t.State().Unlock()
+		if err != nil {
+			return err
+		}
+
+	} else {
+		return nil
+	}
+
+	return m.backend.LinkSnap(oldInfo)
+}
+
+func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
+	t.State().Lock()
+	ss, snapst, err := snapSetupAndState(t)
+	t.State().Unlock()
+	if err != nil {
+		return err
+	}
+
+	var oldInfo *snap.Info
+	if len(snapst.Sequence) > 0 {
+		latest := snapst.Sequence[len(snapst.Sequence)-1]
+		// XXX: more effiecient way, we have the sideinfo
+		var err error
+		t.State().Lock()
+		oldInfo, err = Info(t.State(), ss.Name, latest.Revision)
+		t.State().Unlock()
+		if err != nil {
+			return err
+		}
+
+	} else {
+		return nil
+	}
+
+	pb := &TaskProgressAdapter{task: t}
+	return m.backend.UnlinkSnap(oldInfo, pb)
+}
+
 func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	t.State().Lock()
 	ss, err := TaskSnapSetup(t)
@@ -378,7 +441,6 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	newInfo, err := Info(t.State(), ss.Name, ss.Revision)
 	t.State().Unlock()
 	if err != nil {
-		fmt.Println("DESPAIR 1", err)
 		return err
 	}
 
@@ -387,11 +449,10 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		latest := snapst.Sequence[len(snapst.Sequence)-1]
 		// XXX: more effiecient way, we have the sideinfo
 		var err error
-		t.State().Unlock()
+		t.State().Lock()
 		oldInfo, err = Info(t.State(), ss.Name, latest.Revision)
 		t.State().Unlock()
 		if err != nil {
-			fmt.Println("DESPAIR 2", err)
 			return err
 		}
 
@@ -413,12 +474,20 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
+
+	cand := snapst.Candidate
+
 	m.backend.Candidate(snapst.Candidate)
 	snapst.Sequence = append(snapst.Sequence, snapst.Candidate)
 	snapst.Candidate = nil
 	snapst.Active = true
 
-	err = m.backend.LinkSnap(ss.MountDir())
+	newInfo, err := retrieveInfo(ss.Name, cand)
+	if err != nil {
+		return err
+	}
+
+	err = m.backend.LinkSnap(newInfo)
 	if err != nil {
 		return err
 	}
@@ -438,13 +507,16 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// No need to undo "snaps" in state here. The only chance of
 	// having the new state there is a working doLinkSnap call.
-	newDir := ss.MountDir()
-	oldDir := ""
-	if len(snapst.Sequence) > 0 {
-		latest := snapst.Sequence[len(snapst.Sequence)-1]
-		oldDir = snap.MountDir(ss.Name, latest.Revision)
+
+	// relinking of the old snap is done in the undo of unlink-current-snap
+
+	newInfo, err := retrieveInfo(ss.Name, snapst.Candidate)
+	if err != nil {
+		return err
 	}
-	return m.backend.UndoLinkSnap(oldDir, newDir)
+
+	pb := &TaskProgressAdapter{task: t}
+	return m.backend.UnlinkSnap(newInfo, pb)
 }
 
 func (m *SnapManager) doGarbageCollect(t *state.Task, _ *tomb.Tomb) error {

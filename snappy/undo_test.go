@@ -172,7 +172,7 @@ apps:
 	sn, err := NewInstalledSnap(yaml)
 	c.Assert(err, IsNil)
 
-	err = GenerateWrappers(sn, &s.meter)
+	err = GenerateWrappers(sn.Info(), &s.meter)
 	c.Assert(err, IsNil)
 
 	l, err := filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
@@ -183,7 +183,7 @@ apps:
 	c.Assert(l, HasLen, 1)
 
 	// undo via remove
-	err = RemoveGeneratedWrappers(sn, &s.meter)
+	err = RemoveGeneratedWrappers(sn.Info(), &s.meter)
 	l, err = filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
 	c.Assert(err, IsNil)
 	c.Assert(l, HasLen, 0)
@@ -211,7 +211,7 @@ version: 2.0
 	v2, err := NewInstalledSnap(v2yaml)
 	c.Assert(err, IsNil)
 
-	err = UpdateCurrentSymlink(v2, &s.meter)
+	err = UpdateCurrentSymlink(v2.Info(), &s.meter)
 	c.Assert(err, IsNil)
 
 	v1MountDir := v1.Info().MountDir()
@@ -227,8 +227,8 @@ version: 2.0
 	c.Assert(err, IsNil)
 	c.Assert(currentDataDir, Matches, `.*/22`)
 
-	// undo sets the symlink back
-	err = UndoUpdateCurrentSymlink(v1, v2, &s.meter)
+	// undo is just update again
+	err = UpdateCurrentSymlink(v1.Info(), &s.meter)
 	currentActiveDir, err = filepath.EvalSymlinks(currentActiveSymlink)
 	c.Assert(err, IsNil)
 	c.Assert(currentActiveDir, Equals, v1MountDir)

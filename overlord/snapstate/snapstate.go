@@ -61,10 +61,15 @@ func doInstall(s *state.State, snapName, channel string, flags snappy.InstallFla
 	mount.Set("snap-setup-task", prepare.ID())
 	mount.WaitFor(prepare)
 
-	// copy-data (needs to stop services)
+	// unlink-current-snap (will stop services for copy-data)
+	unlink := s.NewTask("unlink-current-snap", fmt.Sprintf(i18n.G("Unlink current revision for %q"), snapName))
+	unlink.Set("snap-setup-task", prepare.ID())
+	unlink.WaitFor(mount)
+
+	// copy-data (needs stopped services by unlink)
 	copyData := s.NewTask("copy-snap-data", fmt.Sprintf(i18n.G("Copy snap %q data"), snapName))
 	copyData.Set("snap-setup-task", prepare.ID())
-	copyData.WaitFor(mount)
+	copyData.WaitFor(unlink)
 
 	// security
 	setupSecurity := s.NewTask("setup-snap-security", fmt.Sprintf(i18n.G("Setup snap %q security profiles"), snapName))
