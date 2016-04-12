@@ -38,7 +38,7 @@ type Connection struct {
 
 // String returns the text representation of a connection.
 func (conn Connection) String() string {
-	return fmt.Sprintf("%s.%s;%s.%s", conn.Plug.Snap, conn.Plug.Name,
+	return fmt.Sprintf("%s:%s %s:%s", conn.Plug.Snap, conn.Plug.Name,
 		conn.Slot.Snap, conn.Slot.Name)
 }
 
@@ -64,12 +64,12 @@ func (conn *Connection) UnmarshalJSON(data []byte) error {
 // UnmarshalText unmarshals connection from text.
 func (conn *Connection) UnmarshalText(data []byte) error {
 	s := string(data)
-	parts := strings.SplitN(s, ";", 2)
+	parts := strings.SplitN(s, " ", 2)
 	if len(parts) != 2 {
 		return fmt.Errorf("malformed connection: %q", s)
 	}
-	plugParts := strings.SplitN(parts[0], ".", 2)
-	slotParts := strings.SplitN(parts[1], ".", 2)
+	plugParts := strings.SplitN(parts[0], ":", 2)
+	slotParts := strings.SplitN(parts[1], ":", 2)
 	if len(plugParts) != 2 || len(slotParts) != 2 {
 		return fmt.Errorf("malformed connection: %q", s)
 	}

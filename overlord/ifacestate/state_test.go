@@ -51,17 +51,17 @@ var sampleConn = ifacestate.Connection{
 var sampleConns = ifacestate.Connections{sampleConn: {Auto: true}}
 
 func (s *stateSuite) TestConnectionString(c *C) {
-	c.Check(sampleConn.String(), Equals, "consumer.plug;producer.slot")
+	c.Check(sampleConn.String(), Equals, "consumer:plug producer:slot")
 }
 
 func (s *stateSuite) TestConnectionMarshalJSON(c *C) {
 	data, err := json.Marshal(sampleConn)
 	c.Assert(err, IsNil)
-	c.Check(string(data), Equals, `"consumer.plug;producer.slot"`)
+	c.Check(string(data), Equals, `"consumer:plug producer:slot"`)
 }
 
 func (s *stateSuite) TestConnectionUnmarshalJSON(c *C) {
-	data := []byte(`"consumer.plug;producer.slot"`)
+	data := []byte(`"consumer:plug producer:slot"`)
 	var conn ifacestate.Connection
 	err := json.Unmarshal(data, &conn)
 	c.Assert(err, IsNil)
@@ -71,11 +71,11 @@ func (s *stateSuite) TestConnectionUnmarshalJSON(c *C) {
 func (s *stateSuite) TestConnectionsMarshalJSON(c *C) {
 	data, err := json.Marshal(sampleConns)
 	c.Assert(err, IsNil)
-	c.Check(string(data), Equals, `{"consumer.plug;producer.slot":{"auto":true}}`)
+	c.Check(string(data), Equals, `{"consumer:plug producer:slot":{"auto":true}}`)
 }
 
 func (s *stateSuite) TestConnectionsUnmarshalJSON(c *C) {
-	data := []byte(`{"consumer.plug;producer.slot":{"auto":true}}`)
+	data := []byte(`{"consumer:plug producer:slot":{"auto":true}}`)
 	var conns ifacestate.Connections
 	err := json.Unmarshal(data, &conns)
 	c.Assert(err, IsNil)

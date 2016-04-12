@@ -214,10 +214,12 @@ func getVersionFile() string {
 
 // InstallSnap executes the required command to install the specified snap
 func InstallSnap(c *check.C, packageName string) string {
-	return cli.ExecCommand(c, "sudo", "snap", "install", packageName)
+	cli.ExecCommand(c, "sudo", "snap", "install", packageName)
+	return cli.ExecCommand(c, "snap", "list")
 }
 
 // RemoveSnap executes the required command to remove the specified snap
 func RemoveSnap(c *check.C, packageName string) string {
-	return cli.ExecCommand(c, "sudo", "snap", "remove", packageName)
+	cli.ExecCommand(c, "sudo", "snap", "remove", packageName)
+	return cli.ExecCommand(c, "snap", "list")
 }

@@ -66,17 +66,17 @@ func (s *undoTestSuite) TestUndoForSetupSnapSimple(c *C) {
 		Revision:     14,
 	}
 
-	instDir, err := SetupSnap(snapPath, &si, 0, &s.meter)
+	minInfo, err := SetupSnap(snapPath, &si, 0, &s.meter)
 	c.Assert(err, IsNil)
-	c.Assert(instDir, Equals, filepath.Join(dirs.SnapSnapsDir, "hello-snap/14"))
+	c.Assert(minInfo.MountDir(), Equals, filepath.Join(dirs.SnapSnapsDir, "hello-snap/14"))
 	l, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
 	c.Assert(l, HasLen, 1)
 
 	// undo undoes the mount unit and the instdir creation
-	UndoSetupSnap(instDir, &s.meter)
+	UndoSetupSnap(minInfo, &s.meter)
 	l, _ = filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
 	c.Assert(l, HasLen, 0)
-	c.Assert(osutil.FileExists(instDir), Equals, false)
+	c.Assert(osutil.FileExists(minInfo.MountDir()), Equals, false)
 }
 
 func (s *undoTestSuite) TestUndoForSetupSnapKernelUboot(c *C) {
@@ -152,49 +152,8 @@ version: 2.0`, 12)
 	c.Assert(l, HasLen, 0)
 
 }
-func (s *undoTestSuite) TestUndoForSecurityPolicy(c *C) {
-	makeMockSecurityEnv(c)
-	runAppArmorParser = mockRunAppArmorParser
-
-	yaml, err := makeInstalledMockSnap(`name: hello
-version: 1.0
-apps:
- binary:
-   plugs: [binary]
-plugs:
- binary:
-  interface: old-security
-  caps: []
-`, 11)
-
-	c.Assert(err, IsNil)
-	// remove the mocks created by makeInstalledMockSnap
-	os.RemoveAll(dirs.SnapAppArmorDir)
-	os.RemoveAll(dirs.SnapSeccompDir)
-
-	sn, err := NewInstalledSnap(yaml)
-	c.Assert(err, IsNil)
-
-	err = SetupSnapSecurity(sn)
-	c.Assert(err, IsNil)
-	l, _ := filepath.Glob(filepath.Join(dirs.SnapAppArmorDir, "*"))
-	c.Assert(l, HasLen, 1)
-	l, _ = filepath.Glob(filepath.Join(dirs.SnapSeccompDir, "*"))
-	c.Assert(l, HasLen, 1)
-
-	// the undo of GeneratedSecurityProfile is
-	// RemoveGenerateSecurityProfile
-	RemoveGeneratedSnapSecurity(sn)
-	l, _ = filepath.Glob(filepath.Join(dirs.SnapAppArmorDir, "*"))
-	c.Assert(l, HasLen, 0)
-	l, _ = filepath.Glob(filepath.Join(dirs.SnapSeccompDir, "*"))
-	c.Assert(l, HasLen, 0)
-}
 
 func (s *undoTestSuite) TestUndoForGenerateWrappers(c *C) {
-	makeMockSecurityEnv(c)
-	runAppArmorParser = mockRunAppArmorParser
-
 	yaml, err := makeInstalledMockSnap(`name: hello
 version: 1.0
 apps:

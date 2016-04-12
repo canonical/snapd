@@ -45,6 +45,7 @@ import (
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
+	"github.com/ubuntu-core/snappy/store"
 )
 
 // increase this every time you make a minor (backwards-compatible)
@@ -54,15 +55,18 @@ const apiCompatLevel = "0"
 var api = []*Command{
 	rootCmd,
 	sysInfoCmd,
+	loginCmd,
 	appIconCmd,
 	snapsCmd,
 	snapCmd,
-	snapConfigCmd,
+	//FIXME: renenable config for GA
+	//snapConfigCmd,
 	operationCmd,
 	interfacesCmd,
 	assertsCmd,
 	assertsFindManyCmd,
 	eventsCmd,
+	stateChangesCmd,
 }
 
 var (
@@ -76,6 +80,11 @@ var (
 		Path:    "/v2/system-info",
 		GuestOK: true,
 		GET:     sysInfo,
+	}
+
+	loginCmd = &Command{
+		Path: "/v2/login",
+		POST: loginUser,
 	}
 
 	appIconCmd = &Command{
@@ -97,13 +106,14 @@ var (
 		GET:    getSnapInfo,
 		POST:   postSnap,
 	}
-
-	snapConfigCmd = &Command{
-		Path: "/v2/snaps/{name}/config",
-		GET:  snapConfig,
-		PUT:  snapConfig,
-	}
-
+	//FIXME: renenable config for GA
+	/*
+		snapConfigCmd = &Command{
+			Path: "/v2/snaps/{name}/config",
+			GET:  snapConfig,
+			PUT:  snapConfig,
+		}
+	*/
 	operationCmd = &Command{
 		Path:   "/v2/operations/{uuid}",
 		GET:    getOpInfo,
@@ -133,6 +143,12 @@ var (
 		Path: "/v2/events",
 		GET:  getEvents,
 	}
+
+	stateChangesCmd = &Command{
+		Path:   "/v2/changes",
+		UserOK: true,
+		GET:    getChanges,
+	}
 )
 
 func sysInfo(c *Command, r *http.Request) Response {
@@ -146,8 +162,8 @@ func sysInfo(c *Command, r *http.Request) Response {
 	m := map[string]string{
 		"flavor":          rel.Flavor,
 		"release":         rel.Series,
-		"default_channel": rel.Channel,
-		"api_compat":      apiCompatLevel,
+		"default-channel": rel.Channel,
+		"api-compat":      apiCompatLevel,
 	}
 
 	if store := snappy.StoreID(); store != "" {
@@ -155,6 +171,75 @@ func sysInfo(c *Command, r *http.Request) Response {
 	}
 
 	return SyncResponse(m)
+}
+
+type authState struct {
+	Users []userAuthState `json:"users"`
+}
+
+type userAuthState struct {
+	Username   string   `json:"username,omitempty"`
+	Macaroon   string   `json:"macaroon,omitempty"`
+	Discharges []string `json:"discharges,omitempty"`
+}
+
+type loginResponseData struct {
+	Macaroon   string   `json:"macaroon,omitempty"`
+	Discharges []string `json:"discharges,omitempty"`
+}
+
+func loginUser(c *Command, r *http.Request) Response {
+	var loginData struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+		Otp      string `json:"otp"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&loginData); err != nil {
+		return BadRequest("cannot decode login data from request body: %v", err)
+	}
+
+	macaroon, err := store.RequestPackageAccessMacaroon()
+	if err != nil {
+		return InternalError("cannot get package access macaroon")
+	}
+
+	discharge, err := store.DischargeAuthCaveat(loginData.Username, loginData.Password, macaroon, loginData.Otp)
+	if err == store.ErrAuthenticationNeeds2fa {
+		twofactorRequiredResponse := &resp{
+			Type: ResponseTypeError,
+			Result: &errorResult{
+				Kind:    errorKindTwoFactorRequired,
+				Message: "two factor authentication required",
+			},
+			Status: http.StatusUnauthorized,
+		}
+		return SyncResponse(twofactorRequiredResponse)
+	}
+	if err != nil {
+		return Unauthorized("cannot get discharge authorization")
+	}
+
+	authenticatedUser := userAuthState{
+		Username:   loginData.Username,
+		Macaroon:   macaroon,
+		Discharges: []string{discharge},
+	}
+	// TODO Handle better the multi-user case.
+	authStateData := authState{Users: []userAuthState{authenticatedUser}}
+
+	overlord := c.d.overlord
+	state := overlord.State()
+	state.Lock()
+	state.Set("auth", authStateData)
+	state.Unlock()
+
+	result := loginResponseData{
+		Macaroon:   macaroon,
+		Discharges: []string{discharge},
+	}
+	return SyncResponse(result)
 }
 
 type metarepo interface {
@@ -453,7 +538,7 @@ type snapInstruction struct {
 	progress.NullProgress
 	Action   string       `json:"action"`
 	Channel  string       `json:"channel"`
-	LeaveOld bool         `json:"leave_old"`
+	LeaveOld bool         `json:"leave-old"`
 	License  *licenseData `json:"license"`
 	pkg      string
 
@@ -681,12 +766,6 @@ func postSnap(c *Command, r *http.Request) Response {
 
 const maxReadBuflen = 1024 * 1024
 
-func checkSnapImpl(filename string, flags snappy.InstallFlags) error {
-	return snappy.CheckSnap(filename, flags, &progress.NullProgress{})
-}
-
-var checkSnap = checkSnapImpl
-
 func sideloadSnap(c *Command, r *http.Request) Response {
 	route := c.d.router.Get(operationCmd.Path)
 	if route == nil {
@@ -748,31 +827,34 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 	}
 
 	return AsyncResponse(c.d.AddTask(func() interface{} {
-		defer os.Remove(tmpf.Name())
-
-		var flags snappy.InstallFlags
-		if unsignedOk {
-			flags |= snappy.AllowUnauthenticated
-		}
-
-		err := checkSnap(tmpf.Name(), flags)
-		if err != nil {
-			return err
-		}
-
 		lock, err := lockfile.Lock(dirs.SnapLockFile, true)
 		if err != nil {
 			return err
 		}
 		defer lock.Unlock()
 
-		overlord := &snappy.Overlord{}
-		name, err := overlord.Install(tmpf.Name(), flags, &progress.NullProgress{})
+		var flags snappy.InstallFlags
+		if unsignedOk {
+			flags |= snappy.AllowUnauthenticated
+		}
+
+		snap := tmpf.Name()
+		defer os.Remove(snap)
+
+		state := c.d.overlord.State()
+		state.Lock()
+		msg := fmt.Sprintf(i18n.G("Install local %q snap"), snap)
+		chg := state.NewChange("install-snap", msg)
+		ts, err := snapstateInstall(state, snap, "", flags)
+		if err == nil {
+			chg.AddAll(ts)
+		}
+		state.Unlock()
 		if err != nil {
 			return err
 		}
-
-		return name
+		state.EnsureBefore(0)
+		return waitChange(chg)
 	}).Map(route))
 }
 
@@ -927,4 +1009,69 @@ func assertsFindMany(c *Command, r *http.Request) Response {
 
 func getEvents(c *Command, r *http.Request) Response {
 	return EventResponse(c.d.hub)
+}
+
+type changeInfo struct {
+	ID      string      `json:"id"`
+	Kind    string      `json:"kind"`
+	Summary string      `json:"summary"`
+	Status  string      `json:"status"`
+	Tasks   []*taskInfo `json:"tasks,omitempty"`
+}
+
+type taskInfo struct {
+	Kind    string   `json:"kind"`
+	Summary string   `json:"summary"`
+	Status  string   `json:"status"`
+	Log     []string `json:"log,omitempty"`
+}
+
+func getChanges(c *Command, r *http.Request) Response {
+	query := r.URL.Query()
+	qselect := query.Get("select")
+	if qselect == "" {
+		qselect = "in-progress"
+	}
+	var filter func(*state.Change) bool
+	switch qselect {
+	case "all":
+		filter = func(*state.Change) bool { return true }
+	case "in-progress":
+		filter = func(chg *state.Change) bool { return !chg.Status().Ready() }
+	case "ready":
+		filter = func(chg *state.Change) bool { return chg.Status().Ready() }
+	default:
+		return BadRequest("select should be one of: all,in-progress,ready")
+	}
+
+	state := c.d.overlord.State()
+	state.Lock()
+	defer state.Unlock()
+	chgs := state.Changes()
+	chgInfos := make([]*changeInfo, 0, len(chgs))
+	for _, chg := range chgs {
+		if !filter(chg) {
+			continue
+		}
+		chgInfo := &changeInfo{
+			ID:      chg.ID(),
+			Kind:    chg.Kind(),
+			Summary: chg.Summary(),
+			Status:  chg.Status().String(),
+		}
+		tasks := chg.Tasks()
+		taskInfos := make([]*taskInfo, len(tasks))
+		for j, t := range tasks {
+			taskInfo := &taskInfo{
+				Kind:    t.Kind(),
+				Summary: t.Summary(),
+				Status:  t.Status().String(),
+				Log:     t.Log(),
+			}
+			taskInfos[j] = taskInfo
+		}
+		chgInfo.Tasks = taskInfos
+		chgInfos = append(chgInfos, chgInfo)
+	}
+	return SyncResponse(chgInfos)
 }
