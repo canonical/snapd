@@ -451,7 +451,7 @@ func (s *snapmgrTestSuite) TestSetInactive(c *C) {
 	c.Assert(s.fakeBackend.ops[0].active, Equals, false)
 }
 
-func (s *snapmgrTestSuite) TestSnap(c *C) {
+func (s *snapmgrTestSuite) TestInfo(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -477,7 +477,7 @@ description: |
 		},
 	})
 
-	info, err := snapstate.Snap(s.state, "name1", 11)
+	info, err := snapstate.Info(s.state, "name1", 11)
 	c.Assert(err, IsNil)
 
 	c.Check(info.Name(), Equals, "name1")
