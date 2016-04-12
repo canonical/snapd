@@ -118,7 +118,7 @@ func (x *cmdInstall) Execute([]string) error {
 	var err error
 
 	cli := Client()
-	name := c.Positional.Snap
+	name := x.Positional.Snap
 	if strings.Contains(name, "/") || strings.HasSuffix(name, ".snap") || strings.Contains(name, ".snap.") {
 		uuid, err = cli.InstallSnapFile(name)
 	} else {
