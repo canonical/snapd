@@ -686,3 +686,27 @@ func (r *Repository) DisconnectSnap(snapName string) ([]*snap.Info, error) {
 	}
 	return result, nil
 }
+
+// AutoConnectCandidates finds and returns viable auto-connection candidates
+// for a given plug.
+func (r *Repository) AutoConnectCandidates(plugSnapName, plugName string) []*Slot {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	plug := r.plugs[plugSnapName][plugName]
+	if plug == nil {
+		return nil
+	}
+	if r.ifaces[plug.Interface].AutoConnect() == false {
+		return nil
+	}
+	var candidates []*Slot
+	for _, slotsForSnap := range r.slots {
+		for _, slot := range slotsForSnap {
+			if slot.Snap.Type == snap.TypeOS && slot.Interface == plug.Interface {
+				candidates = append(candidates, slot)
+			}
+		}
+	}
+	return candidates
+}

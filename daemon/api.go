@@ -59,12 +59,14 @@ var api = []*Command{
 	appIconCmd,
 	snapsCmd,
 	snapCmd,
-	snapConfigCmd,
+	//FIXME: renenable config for GA
+	//snapConfigCmd,
 	operationCmd,
 	interfacesCmd,
 	assertsCmd,
 	assertsFindManyCmd,
 	eventsCmd,
+	stateChangesCmd,
 }
 
 var (
@@ -104,13 +106,14 @@ var (
 		GET:    getSnapInfo,
 		POST:   postSnap,
 	}
-
-	snapConfigCmd = &Command{
-		Path: "/v2/snaps/{name}/config",
-		GET:  snapConfig,
-		PUT:  snapConfig,
-	}
-
+	//FIXME: renenable config for GA
+	/*
+		snapConfigCmd = &Command{
+			Path: "/v2/snaps/{name}/config",
+			GET:  snapConfig,
+			PUT:  snapConfig,
+		}
+	*/
 	operationCmd = &Command{
 		Path:   "/v2/operations/{uuid}",
 		GET:    getOpInfo,
@@ -139,6 +142,12 @@ var (
 	eventsCmd = &Command{
 		Path: "/v2/events",
 		GET:  getEvents,
+	}
+
+	stateChangesCmd = &Command{
+		Path:   "/v2/changes",
+		UserOK: true,
+		GET:    getChanges,
 	}
 )
 
@@ -757,12 +766,6 @@ func postSnap(c *Command, r *http.Request) Response {
 
 const maxReadBuflen = 1024 * 1024
 
-func checkSnapImpl(filename string, flags snappy.InstallFlags) error {
-	return snappy.CheckSnap(filename, flags, &progress.NullProgress{})
-}
-
-var checkSnap = checkSnapImpl
-
 func sideloadSnap(c *Command, r *http.Request) Response {
 	route := c.d.router.Get(operationCmd.Path)
 	if route == nil {
@@ -824,31 +827,34 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 	}
 
 	return AsyncResponse(c.d.AddTask(func() interface{} {
-		defer os.Remove(tmpf.Name())
-
-		var flags snappy.InstallFlags
-		if unsignedOk {
-			flags |= snappy.AllowUnauthenticated
-		}
-
-		err := checkSnap(tmpf.Name(), flags)
-		if err != nil {
-			return err
-		}
-
 		lock, err := lockfile.Lock(dirs.SnapLockFile, true)
 		if err != nil {
 			return err
 		}
 		defer lock.Unlock()
 
-		overlord := &snappy.Overlord{}
-		name, err := overlord.Install(tmpf.Name(), flags, &progress.NullProgress{})
+		var flags snappy.InstallFlags
+		if unsignedOk {
+			flags |= snappy.AllowUnauthenticated
+		}
+
+		snap := tmpf.Name()
+		defer os.Remove(snap)
+
+		state := c.d.overlord.State()
+		state.Lock()
+		msg := fmt.Sprintf(i18n.G("Install local %q snap"), snap)
+		chg := state.NewChange("install-snap", msg)
+		ts, err := snapstateInstall(state, snap, "", flags)
+		if err == nil {
+			chg.AddAll(ts)
+		}
+		state.Unlock()
 		if err != nil {
 			return err
 		}
-
-		return name
+		state.EnsureBefore(0)
+		return waitChange(chg)
 	}).Map(route))
 }
 
@@ -1003,4 +1009,67 @@ func assertsFindMany(c *Command, r *http.Request) Response {
 
 func getEvents(c *Command, r *http.Request) Response {
 	return EventResponse(c.d.hub)
+}
+
+type changeInfo struct {
+	Kind    string      `json:"kind"`
+	Summary string      `json:"summary"`
+	Status  string      `json:"status"`
+	Tasks   []*taskInfo `json:"tasks,omitempty"`
+}
+
+type taskInfo struct {
+	Kind    string   `json:"kind"`
+	Summary string   `json:"summary"`
+	Status  string   `json:"status"`
+	Log     []string `json:"log,omitempty"`
+}
+
+func getChanges(c *Command, r *http.Request) Response {
+	query := r.URL.Query()
+	qselect := query.Get("select")
+	if qselect == "" {
+		qselect = "in-progress"
+	}
+	var filter func(*state.Change) bool
+	switch qselect {
+	case "all":
+		filter = func(*state.Change) bool { return true }
+	case "in-progress":
+		filter = func(chg *state.Change) bool { return !chg.Status().Ready() }
+	case "ready":
+		filter = func(chg *state.Change) bool { return chg.Status().Ready() }
+	default:
+		return BadRequest("select should be one of: all,in-progress,ready")
+	}
+
+	state := c.d.overlord.State()
+	state.Lock()
+	defer state.Unlock()
+	chgs := state.Changes()
+	chgInfos := make([]*changeInfo, 0, len(chgs))
+	for _, chg := range chgs {
+		if !filter(chg) {
+			continue
+		}
+		chgInfo := &changeInfo{
+			Kind:    chg.Kind(),
+			Summary: chg.Summary(),
+			Status:  chg.Status().String(),
+		}
+		tasks := chg.Tasks()
+		taskInfos := make([]*taskInfo, len(tasks))
+		for j, t := range tasks {
+			taskInfo := &taskInfo{
+				Kind:    t.Kind(),
+				Summary: t.Summary(),
+				Status:  t.Status().String(),
+				Log:     t.Log(),
+			}
+			taskInfos[j] = taskInfo
+		}
+		chgInfo.Tasks = taskInfos
+		chgInfos = append(chgInfos, chgInfo)
+	}
+	return SyncResponse(chgInfos)
 }

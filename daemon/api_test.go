@@ -231,6 +231,9 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	// installed-size depends on vagaries of the filesystem, just check type
 	c.Check(m["installed-size"], check.FitsTypeOf, int64(0))
 	delete(m, "installed-size")
+	// ditto install-date
+	c.Check(m["install-date"], check.FitsTypeOf, time.Time{})
+	delete(m, "install-date")
 
 	expected := &resp{
 		Type:   ResponseTypeSync,
@@ -355,7 +358,6 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"maxReadBuflen",
 		"muxVars",
 		"newRemoteRepo",
-		"checkSnap",
 		"pkgActionDispatch",
 		// snapInstruction vars:
 		"snapstateInstall",
@@ -1063,6 +1065,8 @@ func (s *apiSuite) TestSnapGetConfigNoConfig(c *check.C) {
 	c.Check(rsp.Status, check.Equals, http.StatusInternalServerError)
 }
 
+//FIXME: renenable config for GA
+/*
 func (s *apiSuite) TestSnapPutConfig(c *check.C) {
 	newConfigStr := "some other config"
 	req, err := http.NewRequest("PUT", "/v2/snaps/foo/config", bytes.NewBufferString(newConfigStr))
@@ -1084,6 +1088,7 @@ func (s *apiSuite) TestSnapPutConfig(c *check.C) {
 		Result: newConfigStr,
 	})
 }
+*/
 
 func (s *apiSuite) TestSnapPutConfigMissing(c *check.C) {
 	s.vars = map[string]string{"name": "foo"}
@@ -1134,7 +1139,10 @@ func (s *apiSuite) TestSideloadSnap(c *check.C) {
 }
 
 func (s *apiSuite) sideloadCheck(c *check.C, content string, unsignedExpected bool, head map[string]string) {
-	ch := make(chan struct{})
+	d := newTestDaemon(c)
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
 	tmpfile, err := ioutil.TempFile("", "test-")
 	c.Assert(err, check.IsNil)
 	_, err = tmpfile.WriteString(content)
@@ -1148,18 +1156,16 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, unsignedExpected bo
 		expectedFlags |= snappy.AllowUnauthenticated
 	}
 
-	checkSnap = func(fn string, flags snappy.InstallFlags) error {
+	snapstateInstall = func(s *state.State, name, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
 		c.Check(flags, check.Equals, expectedFlags)
 
-		bs, err := ioutil.ReadFile(fn)
+		bs, err := ioutil.ReadFile(name)
 		c.Check(err, check.IsNil)
 		c.Check(string(bs), check.Equals, "xyzzy")
 
-		ch <- struct{}{}
-
-		return nil
+		t := s.NewTask("fake-install-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
 	}
-	defer func() { checkSnap = checkSnapImpl }()
 
 	req, err := http.NewRequest("POST", "/v2/snaps", tmpfile)
 	c.Assert(err, check.IsNil)
@@ -1169,8 +1175,6 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, unsignedExpected bo
 
 	rsp := sideloadSnap(snapsCmd, req).(*resp)
 	c.Check(rsp.Type, check.Equals, ResponseTypeAsync)
-
-	<-ch
 }
 
 func (s *apiSuite) TestAppIconGet(c *check.C) {
@@ -2085,4 +2089,113 @@ func (s *apiSuite) TestGetEvents(c *check.C) {
 	// server first to prevent problems with sequence ordering
 	ts.Close()
 	c.Assert(d.hub.SubscriberCount(), check.Equals, 1)
+}
+
+func setupChanges(st *state.State) {
+	chg1 := st.NewChange("install", "install...")
+	t1 := st.NewTask("download", "1...")
+	t2 := st.NewTask("activate", "2...")
+	chg1.AddAll(state.NewTaskSet(t1, t2))
+	t1.Logf("l11")
+	t1.Logf("l12")
+	chg2 := st.NewChange("remove", "remove..")
+	t3 := st.NewTask("unlink", "1...")
+	chg2.AddTask(t3)
+	t3.SetStatus(state.ErrorStatus)
+	t3.Errorf("rm failed")
+}
+
+func (s *apiSuite) TestStateChangesDefaultToInProgress(c *check.C) {
+	// Setup
+	d := newTestDaemon(c)
+	st := d.overlord.State()
+	st.Lock()
+	setupChanges(st)
+	st.Unlock()
+
+	// Execute
+	req, err := http.NewRequest("GET", "/v2/changes", nil)
+	c.Assert(err, check.IsNil)
+	rsp := getChanges(stateChangesCmd, req).(*resp)
+
+	// Verify
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	c.Assert(rsp.Result, check.HasLen, 1)
+
+	res, err := rsp.MarshalJSON()
+	c.Assert(err, check.IsNil)
+
+	c.Check(string(res), testutil.Contains, `{"kind":"install","summary":"install...","status":"Do","tasks":[{"kind":"download","summary":"1...","status":"Do","log":["INFO: l11","INFO: l12"]}`)
+}
+
+func (s *apiSuite) TestStateChangesInProgress(c *check.C) {
+	// Setup
+	d := newTestDaemon(c)
+	st := d.overlord.State()
+	st.Lock()
+	setupChanges(st)
+	st.Unlock()
+
+	// Execute
+	req, err := http.NewRequest("GET", "/v2/changes?select=in-progress", nil)
+	c.Assert(err, check.IsNil)
+	rsp := getChanges(stateChangesCmd, req).(*resp)
+
+	// Verify
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	c.Assert(rsp.Result, check.HasLen, 1)
+
+	res, err := rsp.MarshalJSON()
+	c.Assert(err, check.IsNil)
+
+	c.Check(string(res), testutil.Contains, `{"kind":"install","summary":"install...","status":"Do","tasks":[{"kind":"download","summary":"1...","status":"Do","log":["INFO: l11","INFO: l12"]}`)
+}
+
+func (s *apiSuite) TestStateChangesAll(c *check.C) {
+	// Setup
+	d := newTestDaemon(c)
+	st := d.overlord.State()
+	st.Lock()
+	setupChanges(st)
+	st.Unlock()
+
+	// Execute
+	req, err := http.NewRequest("GET", "/v2/changes?select=all", nil)
+	c.Assert(err, check.IsNil)
+	rsp := getChanges(stateChangesCmd, req).(*resp)
+
+	// Verify
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	c.Assert(rsp.Result, check.HasLen, 2)
+
+	res, err := rsp.MarshalJSON()
+	c.Assert(err, check.IsNil)
+
+	c.Check(string(res), testutil.Contains, `{"kind":"install","summary":"install...","status":"Do","tasks":[{"kind":"download","summary":"1...","status":"Do","log":["INFO: l11","INFO: l12"]}`)
+	c.Check(string(res), testutil.Contains, `{"kind":"remove","summary":"remove..","status":"Error","tasks":[{"kind":"unlink","summary":"1...","status":"Error","log":["ERROR: rm failed"]}]}`)
+}
+
+func (s *apiSuite) TestStateChangesReady(c *check.C) {
+	// Setup
+	d := newTestDaemon(c)
+	st := d.overlord.State()
+	st.Lock()
+	setupChanges(st)
+	st.Unlock()
+
+	// Execute
+	req, err := http.NewRequest("GET", "/v2/changes?select=ready", nil)
+	c.Assert(err, check.IsNil)
+	rsp := getChanges(stateChangesCmd, req).(*resp)
+
+	// Verify
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	c.Assert(rsp.Result, check.HasLen, 1)
+
+	res, err := rsp.MarshalJSON()
+	c.Assert(err, check.IsNil)
+
+	c.Check(string(res), testutil.Contains, `{"kind":"remove","summary":"remove..","status":"Error","tasks":[{"kind":"unlink","summary":"1...","status":"Error","log":["ERROR: rm failed"]}]}`)
 }

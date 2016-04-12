@@ -36,7 +36,6 @@ type managerBackend interface {
 	CheckSnap(snapFilePath string, flags int) error
 	SetupSnap(snapFilePath string, si *snap.SideInfo, flags int) error
 	CopySnapData(instSnapPath string, flags int) error
-	SetupSnapSecurity(instSnapPath string) error
 	LinkSnap(instSnapPath string) error
 	GarbageCollect(snap string, flags int, meter progress.Meter) error
 	// the undoers for install
@@ -47,7 +46,6 @@ type managerBackend interface {
 	// remove releated
 	CanRemove(instSnapPath string) error
 	UnlinkSnap(instSnapPath string, meter progress.Meter) error
-	RemoveSnapSecurity(instSnapPath string) error
 	RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error
 	RemoveSnapData(name string, revision int) error
 
@@ -60,9 +58,14 @@ type managerBackend interface {
 	// info
 	ActiveSnap(name string) *snap.Info
 	SnapByNameAndVersion(name, version string) *snap.Info
+
+	// testing helpers
+	Candidate(sideInfo *snap.SideInfo)
 }
 
 type defaultBackend struct{}
+
+func (b *defaultBackend) Candidate(*snap.SideInfo) {}
 
 func (b *defaultBackend) ActiveSnap(name string) *snap.Info {
 	if snap := snappy.ActiveSnapByName(name); snap != nil {
@@ -132,14 +135,6 @@ func (b *defaultBackend) CopySnapData(snapInstPath string, flags int) error {
 	}
 	meter := &progress.NullProgress{}
 	return snappy.CopyData(sn.Info(), snappy.InstallFlags(flags), meter)
-}
-
-func (b *defaultBackend) SetupSnapSecurity(snapInstPath string) error {
-	sn, err := snappy.NewInstalledSnap(filepath.Join(snapInstPath, "meta", "snap.yaml"))
-	if err != nil {
-		return err
-	}
-	return snappy.SetupSnapSecurity(sn)
 }
 
 func (b *defaultBackend) LinkSnap(snapInstPath string) error {
@@ -212,17 +207,10 @@ func (b *defaultBackend) UnlinkSnap(instSnapPath string, meter progress.Meter) e
 	return snappy.UnlinkSnap(sn, meter)
 }
 
-func (b *defaultBackend) RemoveSnapSecurity(instSnapPath string) error {
-	sn, err := snappy.NewInstalledSnap(filepath.Join(instSnapPath, "meta", "snap.yaml"))
-	if err != nil {
-		return err
-	}
-	return snappy.RemoveGeneratedSnapSecurity(sn)
-}
-
 func (b *defaultBackend) RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error {
 	return snappy.RemoveSnapFiles(s, meter)
 }
+
 func (b *defaultBackend) RemoveSnapData(name string, revision int) error {
 	// XXX: hack for now
 	sn, err := snappy.NewInstalledSnap(filepath.Join(dirs.SnapSnapsDir, name, strconv.Itoa(revision), "meta", "snap.yaml"))

@@ -44,3 +44,7 @@ func (m *SnapManager) AddForeignTaskHandlers() {
 	m.runner.AddHandler("setup-snap-security", fakeHandler, fakeHandler)
 	m.runner.AddHandler("remove-snap-security", fakeHandler, fakeHandler)
 }
+
+func SetSnapState(st *state.State, name string, ss *SnapStateForTests) {
+	setSnapState(st, name, (*snapState)(ss))
+}
