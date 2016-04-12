@@ -59,7 +59,7 @@ func requestLoginWith2faRetry(username, password string) error {
 	_, err := cli.Login(username, password, "")
 
 	// check if we need 2fa
-	if e := err.(*client.Error); e != nil && e.Kind == store.TwoFactorRequiredError {
+	if e := err.(*client.Error); e != nil && e.Kind == store.TwoFactorErrKind {
 		fmt.Print(i18n.G("Two-factor code: "))
 		reader := bufio.NewReader(os.Stdin)
 		// the browser shows it as well (and Sergio wants to see it ;)

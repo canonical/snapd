@@ -101,7 +101,7 @@ type errorKind string
 
 const (
 	errorKindLicenseRequired   = errorKind("license-required")
-	errorKindTwoFactorRequired = errorKind(store.TwoFactorRequiredError)
+	errorKindTwoFactorRequired = errorKind(store.TwoFactorErrKind)
 )
 
 type errorValue interface{}
