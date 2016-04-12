@@ -470,7 +470,7 @@ description: |
     Lots of text`), 0644)
 	c.Assert(err, IsNil)
 
-	snapstate.SetSnapState(s.state, "name1", &snapstate.SnapState{
+	snapstate.Set(s.state, "name1", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
 			{OfficialName: "name1", Revision: 11, EditedSummary: "s11"},
 			{OfficialName: "name1", Revision: 12, EditedSummary: "s12"},
