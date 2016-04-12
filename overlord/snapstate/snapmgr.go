@@ -151,15 +151,14 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
+	defer st.Unlock()
+
 	ss, snapst, err := snapSetupAndState(t)
-	st.Unlock()
 	if err != nil {
 		return err
 	}
 	snapst.Candidate = nil
-	st.Lock()
 	SetSnapState(st, ss.Name, snapst)
-	st.Unlock()
 	return nil
 }
 
