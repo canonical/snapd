@@ -96,7 +96,7 @@ with trusted apps.
 
 Usage: reserved
 
-### snap-control
+### snapd-control
 
 Can manage snaps via snapd.
 
