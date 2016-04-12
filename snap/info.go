@@ -57,7 +57,6 @@ func MountDir(name string, revision int) string {
 	return filepath.Join(dirs.SnapSnapsDir, name, strconv.Itoa(revision))
 }
 
-
 // SideInfo holds snap metadata that is not included in snap.yaml or for which the store is the canonical source.
 // It can be marshalled both as JSON and YAML.
 type SideInfo struct {
