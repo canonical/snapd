@@ -869,7 +869,7 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 		if len(a.Plugs) == 0 || len(a.Slots) == 0 {
 			return BadRequest("at least one plug and slot is required")
 		}
-		summary := fmt.Sprintf("Connect %s.%s to %s.%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		summary := fmt.Sprintf("Connect %s:%s to %s:%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 		state.Lock()
 		change := state.NewChange("connect-snap", summary)
 		taskset, err := ifacestate.Connect(
@@ -893,7 +893,7 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 		if len(a.Plugs) == 0 || len(a.Slots) == 0 {
 			return BadRequest("at least one plug and slot is required")
 		}
-		summary := fmt.Sprintf("Disconnect %s.%s from %s.%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		summary := fmt.Sprintf("Disconnect %s:%s from %s:%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 		state.Lock()
 		change := state.NewChange("disconnect-snap", summary)
 		taskset, err := ifacestate.Disconnect(state,
