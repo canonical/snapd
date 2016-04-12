@@ -21,6 +21,7 @@
 package snapstate
 
 import (
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strconv"
@@ -41,35 +42,36 @@ type SnapManager struct {
 	runner *state.TaskRunner
 }
 
+// SnapSetup holds the necessary snap details to perform most snap manager tasks.
 type SnapSetup struct {
 	Name      string `json:"name"`
-	Developer string `json:"developer"`
-	Revision  int    `json:"revision"`
-	Channel   string `json:"channel"`
-
-	SideInfo *snap.SideInfo `json:"side-info"`
-
-	OldName     string `json:"old-name"`
-	OldRevision int    `json:"old-version"`
+	Developer string `json:"developer,omitempty"`
+	Revision  int    `json:"revision,omitempty"`
+	Channel   string `json:"channel,omitempty"`
 
 	// XXX: should be switched to use Revision instead
-	RollbackVersion string `json:"rollback-version"`
+	RollbackVersion string `json:"rollback-version,omitempty"`
 
 	Flags int `json:"flags,omitempty"`
 
-	SnapPath string `json:"snap-path"`
+	SnapPath string `json:"snap-path,omitempty"`
 }
 
-// XXX: best this should helper from snap
+// snapState holds the state for a snap installed in the system.
+type snapState struct {
+	Sequence  []*snap.SideInfo `json:"sequence"` // Last is current
+	Candidate *snap.SideInfo   `josn:"candidate,omitempty"`
+	Active    bool             `json:"active,omitempty"`
+	Channel   string           `json:"channel,omitempty"`
+	DevMode   bool             `json:"dev-mode,omitempty"`
+}
+
+func (ss *SnapSetup) placeInfo() snap.PlaceInfo {
+	return snap.MinimalPlaceInfo(ss.Name, ss.Revision)
+}
+
 func (ss *SnapSetup) MountDir() string {
-	return filepath.Join(dirs.SnapSnapsDir, ss.Name, strconv.Itoa(ss.Revision))
-}
-
-func (ss *SnapSetup) OldMountDir() string {
-	if ss.OldName == "" {
-		return ""
-	}
-	return filepath.Join(dirs.SnapSnapsDir, ss.OldName, strconv.Itoa(ss.OldRevision))
+	return ss.placeInfo().MountDir()
 }
 
 // Manager returns a new snap manager.
@@ -88,7 +90,8 @@ func Manager(s *state.State) (*SnapManager, error) {
 	}, nil)
 
 	// install/update releated
-	runner.AddHandler("download-snap", m.doDownloadSnap, nil)
+	runner.AddHandler("prepare-snap", m.doPrepareSnap, m.undoPrepareSnap)
+	runner.AddHandler("download-snap", m.doDownloadSnap, m.undoPrepareSnap)
 	runner.AddHandler("mount-snap", m.doMountSnap, m.undoMountSnap)
 	runner.AddHandler("copy-snap-data", m.doCopySnapData, m.undoCopySnapData)
 	runner.AddHandler("link-snap", m.doLinkSnap, m.undoLinkSnap)
@@ -116,12 +119,39 @@ func Manager(s *state.State) (*SnapManager, error) {
 	return m, nil
 }
 
-func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
-	var ss SnapSetup
+func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	ss, snapst, err := snapSetupAndState(t)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+	st.Lock()
+	snapst.Candidate = &snap.SideInfo{}
+	setSnapState(st, ss.Name, snapst)
+	st.Unlock()
+	return nil
+}
 
-	t.State().Lock()
-	err := t.Get("snap-setup", &ss)
-	t.State().Unlock()
+func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	ss, snapst, err := snapSetupAndState(t)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+	snapst.Candidate = nil
+	setSnapState(st, ss.Name, snapst)
+	return nil
+}
+
+func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	ss, snapst, err := snapSetupAndState(t)
+	st.Unlock()
 	if err != nil {
 		return err
 	}
@@ -137,19 +167,14 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	ss.SnapPath = downloadedSnapFile
-	ss.SideInfo = &storeInfo.SideInfo
 	ss.Revision = storeInfo.Revision
 
-	// find current active and store in case we need to undo
-	if info := m.backend.ActiveSnap(ss.Name); info != nil {
-		ss.OldName = info.Name()
-		ss.OldRevision = info.Revision
-	}
-
-	// update snap-setup for the following tasks
-	t.State().Lock()
+	// update the snap setup and state for the follow up tasks
+	st.Lock()
 	t.Set("snap-setup", ss)
-	t.State().Unlock()
+	snapst.Candidate = &storeInfo.SideInfo
+	setSnapState(st, ss.Name, snapst)
+	st.Unlock()
 
 	return nil
 }
@@ -177,7 +202,7 @@ func (m *SnapManager) doRemoveSnapFiles(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	pb := &TaskProgressAdapter{task: t}
-	return m.backend.RemoveSnapFiles(ss.MountDir(), pb)
+	return m.backend.RemoveSnapFiles(ss.placeInfo(), pb)
 }
 
 func (m *SnapManager) doRemoveSnapData(t *state.Task, _ *tomb.Tomb) error {
@@ -253,19 +278,74 @@ func (m *SnapManager) Stop() {
 func TaskSnapSetup(t *state.Task) (*SnapSetup, error) {
 	var ss SnapSetup
 
-	st := t.State()
+	err := t.Get("snap-setup", &ss)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	if err == nil {
+		return &ss, nil
+	}
 
 	var id string
-	err := t.Get("snap-setup-task", &id)
+	err = t.Get("snap-setup-task", &id)
 	if err != nil {
 		return nil, err
 	}
 
-	ts := st.Task(id)
+	ts := t.State().Task(id)
 	if err := ts.Get("snap-setup", &ss); err != nil {
 		return nil, err
 	}
 	return &ss, nil
+}
+
+func snapSetupAndState(t *state.Task) (*SnapSetup, *snapState, error) {
+	ss, err := TaskSnapSetup(t)
+	if err != nil {
+		return nil, nil, err
+	}
+	var snapst snapState
+	err = getSnapState(t.State(), ss.Name, &snapst)
+	if err != nil && err != state.ErrNoState {
+		return nil, nil, err
+	}
+	return ss, &snapst, nil
+}
+
+func getSnapState(s *state.State, name string, snapst *snapState) error {
+	var snaps map[string]*json.RawMessage
+	err := s.Get("snaps", &snaps)
+	if err != nil {
+		return err
+	}
+	raw, ok := snaps[name]
+	if !ok {
+		return state.ErrNoState
+	}
+	err = json.Unmarshal([]byte(*raw), &snapst)
+	if err != nil {
+		return fmt.Errorf("cannot unmarshal snap state: %v", err)
+	}
+	return nil
+}
+
+func setSnapState(s *state.State, name string, snapst *snapState) {
+	var snaps map[string]*json.RawMessage
+	err := s.Get("snaps", &snaps)
+	if err == state.ErrNoState {
+		s.Set("snaps", map[string]*snapState{name: snapst})
+		return
+	}
+	if err != nil {
+		panic("internal error: cannot unmarshal snaps state: " + err.Error())
+	}
+	data, err := json.Marshal(snapst)
+	if err != nil {
+		panic("internal error: cannot marshal snap state: " + err.Error())
+	}
+	raw := json.RawMessage(data)
+	snaps[name] = &raw
+	s.Set("snaps", snaps)
 }
 
 func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -276,12 +356,12 @@ func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	return m.backend.UndoSetupSnap(ss.MountDir())
+	return m.backend.UndoSetupSnap(ss.placeInfo())
 }
 
 func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.State().Lock()
-	ss, err := TaskSnapSetup(t)
+	ss, snapst, err := snapSetupAndState(t)
 	t.State().Unlock()
 	if err != nil {
 		return err
@@ -291,12 +371,9 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	sideInfo := ss.SideInfo
-	if sideInfo == nil && ss.Revision != 0 {
-		sideInfo = &snap.SideInfo{Revision: ss.Revision}
-	}
-
-	return m.backend.SetupSnap(ss.SnapPath, sideInfo, ss.Flags)
+	// TODO Use ss.Revision to obtain the right info to mount
+	//      instead of assuming the candidate is the right one.
+	return m.backend.SetupSnap(ss.SnapPath, snapst.Candidate, ss.Flags)
 }
 
 func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
@@ -322,25 +399,50 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
-	t.State().Lock()
-	ss, err := TaskSnapSetup(t)
-	t.State().Unlock()
+	st := t.State()
+
+	// Hold the lock for the full duration of the task here so
+	// nobody observes a world where the state engine and
+	// the file system are reporting different things.
+	st.Lock()
+	defer st.Unlock()
+
+	ss, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	m.backend.Candidate(snapst.Candidate)
+	snapst.Sequence = append(snapst.Sequence, snapst.Candidate)
+	snapst.Candidate = nil
+	snapst.Active = true
+
+	err = m.backend.LinkSnap(ss.MountDir())
 	if err != nil {
 		return err
 	}
 
-	return m.backend.LinkSnap(ss.MountDir())
+	// Do at the end so we only preserve the new state if it worked.
+	setSnapState(st, ss.Name, snapst)
+	return nil
 }
 
 func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.State().Lock()
-	ss, err := TaskSnapSetup(t)
+	ss, snapst, err := snapSetupAndState(t)
 	t.State().Unlock()
 	if err != nil {
 		return err
 	}
 
-	return m.backend.UndoLinkSnap(ss.OldMountDir(), ss.MountDir())
+	// No need to undo "snaps" in state here. The only chance of
+	// having the new state there is a working doLinkSnap call.
+	newDir := ss.MountDir()
+	oldDir := ""
+	if len(snapst.Sequence) > 0 {
+		latest := snapst.Sequence[len(snapst.Sequence)-1]
+		oldDir = snap.MinimalPlaceInfo(ss.Name, latest.Revision).MountDir()
+	}
+	return m.backend.UndoLinkSnap(oldDir, newDir)
 }
 
 func (m *SnapManager) doGarbageCollect(t *state.Task, _ *tomb.Tomb) error {

@@ -21,6 +21,7 @@ package snappy
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -61,52 +62,52 @@ func CheckSnap(snapFilePath string, flags InstallFlags, meter progress.Meter) er
 
 // SetupSnap does prepare and mount the snap for further processing
 // It returns the installed path and an error
-func SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, flags InstallFlags, meter progress.Meter) (string, error) {
+func SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, flags InstallFlags, meter progress.Meter) (snap.PlaceInfo, error) {
 	inhibitHooks := (flags & InhibitHooks) != 0
 	allowUnauth := (flags & AllowUnauthenticated) != 0
 
 	s, snapf, err := openSnapFile(snapFilePath, allowUnauth, sideInfo)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	instdir := s.MountDir()
 
 	// the "gadget" snaps are special
 	if s.Type == snap.TypeGadget {
 		if err := installGadgetHardwareUdevRules(s); err != nil {
-			return "", err
+			return s, err
 		}
 	}
 
 	if err := os.MkdirAll(instdir, 0755); err != nil {
 		logger.Noticef("Can not create %q: %v", instdir, err)
-		return instdir, err
+		return s, err
 	}
 
 	// XXX: do this here as long as we are manifest based
 	if s.Revision != 0 { // not sideloaded
 		if err := SaveManifest(s); err != nil {
-			return instdir, err
+			return s, err
 		}
 	}
 
 	if err := snapf.Install(s.MountFile(), instdir); err != nil {
-		return instdir, err
+		return s, err
 	}
 
 	// generate the mount unit for the squashfs
 	if err := addSquashfsMount(s, inhibitHooks, meter); err != nil {
-		return instdir, err
+		return s, err
 	}
 
 	// FIXME: special handling is bad 'mkay
 	if s.Type == snap.TypeKernel {
 		if err := extractKernelAssets(s, snapf, flags, meter); err != nil {
-			return instdir, fmt.Errorf("failed to install kernel %s", err)
+			return s, fmt.Errorf("failed to install kernel %s", err)
 		}
 	}
 
-	return instdir, err
+	return s, err
 }
 
 func addSquashfsMount(s *snap.Info, inhibitHooks bool, inter interacter) error {
@@ -150,29 +151,26 @@ func removeSquashfsMount(baseDir string, inter interacter) error {
 	return nil
 }
 
-func UndoSetupSnap(installDir string, meter progress.Meter) {
+func UndoSetupSnap(s snap.PlaceInfo, meter progress.Meter) {
 	// SetupSnap did it not made far enough
-	if installDir == "" {
+	if !osutil.FileExists(s.MountDir()) {
 		return
 	}
 
-	// SetupSnap made it far enough to mount the snap, easy
-	s, err := NewInstalledSnap(filepath.Join(installDir, "meta", "snap.yaml"))
-	if err == nil {
-		if err := RemoveSnapFiles(s, meter); err != nil {
-			logger.Noticef("cannot remove snap files: %s", err)
-		}
+	if err := RemoveSnapFiles(s, meter); err != nil {
+		logger.Noticef("cannot remove snap files: %s", err)
 	}
 
-	snapPath := s.Info().MountFile()
+	mountDir := s.MountDir()
+	snapPath := s.MountFile()
 
 	// remove install dir and the snap blob itself
 	for _, path := range []string{
-		installDir,
+		mountDir,
 		snapPath,
 	} {
 		if err := os.RemoveAll(path); err != nil {
-			logger.Noticef("cannot remove snap package at %v: %s", installDir, err)
+			logger.Noticef("cannot remove snap package at %v: %s", mountDir, err)
 		}
 	}
 
@@ -371,12 +369,7 @@ func ActivateSnap(s *Snap, inter interacter) error {
 		return fmt.Errorf("cannot activate snap while another one is active: %v", currentActiveDir)
 	}
 
-	// generate the security policy from the snap.yaml
-	// Note that this must happen before binaries/services are
-	// generated because serices may get started
-	if err := SetupSnapSecurity(s); err != nil {
-		return err
-	}
+	// security setup was done here!
 
 	if err := GenerateWrappers(s, inter); err != nil {
 		return err
@@ -405,14 +398,13 @@ func UnlinkSnap(s *Snap, inter interacter) error {
 	// remove generated services, binaries, security policy
 	err1 := RemoveGeneratedWrappers(s, inter)
 
-	// remove generated security
-	err2 := RemoveGeneratedSnapSecurity(s)
+	// removing security setup move here!
 
 	// and finally remove current symlink
-	err3 := removeCurrentSymlink(s, inter)
+	err2 := removeCurrentSymlink(s, inter)
 
 	// FIXME: aggregate errors instead
-	return firstErr(err1, err2, err3)
+	return firstErr(err1, err2)
 }
 
 // Install installs the given snap file to the system.
@@ -431,11 +423,12 @@ func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideI
 		return nil, err
 	}
 
-	instPath, err := SetupSnap(snapFilePath, sideInfo, flags, meter)
+	minInfo, err := SetupSnap(snapFilePath, sideInfo, flags, meter)
 	defer func() {
 		if err != nil {
-			// XXX: needs sideInfo?
-			UndoSetupSnap(instPath, meter)
+			if minInfo != nil {
+				UndoSetupSnap(minInfo, meter)
+			}
 		}
 	}()
 	if err != nil {
@@ -472,7 +465,7 @@ func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideI
 	// if get this far we know the snap is actually mounted.
 	// XXX: use infos further but anyway this is going away mostly
 	// once we simplify u-d-f
-	newSnap, err := NewInstalledSnap(filepath.Join(instPath, "meta", "snap.yaml"))
+	newSnap, err := NewInstalledSnap(filepath.Join(newInfo.MountDir(), "meta", "snap.yaml"))
 	if err != nil {
 		return nil, err
 	}
@@ -579,21 +572,31 @@ func CanRemove(s *Snap) bool {
 }
 
 // RemoveSnapFiles removes the snap files from the disk
-func RemoveSnapFiles(s *Snap, meter progress.Meter) error {
-	info := s.Info()
-	basedir := info.MountDir()
-	snapPath := info.MountFile()
+func RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error {
+	mountDir := s.MountDir()
+
+	// XXX: nicer way to do this
+	typ := snap.TypeApp
+	content, err := ioutil.ReadFile(filepath.Join(mountDir, "meta", "/snap.yaml"))
+	if err == nil {
+		info, err := snap.InfoFromSnapYaml(content)
+		if err == nil {
+			typ = info.Type
+		}
+	}
+
+	snapPath := s.MountFile()
 	// this also ensures that the mount unit stops
-	if err := removeSquashfsMount(basedir, meter); err != nil {
+	if err := removeSquashfsMount(mountDir, meter); err != nil {
 		return err
 	}
 
-	if err := os.RemoveAll(basedir); err != nil {
+	if err := os.RemoveAll(mountDir); err != nil {
 		return err
 	}
 
 	// best effort(?)
-	os.Remove(filepath.Dir(basedir))
+	os.Remove(filepath.Dir(mountDir))
 
 	// remove the snap
 	if err := os.RemoveAll(snapPath); err != nil {
@@ -601,13 +604,13 @@ func RemoveSnapFiles(s *Snap, meter progress.Meter) error {
 	}
 
 	// remove the kernel assets (if any)
-	if s.m.Type == snap.TypeKernel {
-		if err := removeKernelAssets(info, meter); err != nil {
+	if typ == snap.TypeKernel {
+		if err := removeKernelAssets(s, meter); err != nil {
 			logger.Noticef("removing kernel assets failed with %s", err)
 		}
 	}
 
-	return RemoveAllHWAccess(s.Name())
+	return nil
 }
 
 // Uninstall removes the given local snap from the system.
@@ -622,7 +625,7 @@ func (o *Overlord) Uninstall(s *Snap, meter progress.Meter) error {
 		return err
 	}
 
-	if err := RemoveSnapFiles(s, meter); err != nil {
+	if err := RemoveSnapFiles(s.Info(), meter); err != nil {
 		return err
 	}
 
