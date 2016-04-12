@@ -53,8 +53,8 @@ type SnapSetup struct {
 	SnapPath string `json:"snap-path,omitempty"`
 }
 
-// snapState holds the state for a snap installed in the system.
-type snapState struct {
+// SnapState holds the state for a snap installed in the system.
+type SnapState struct {
 	Sequence  []*snap.SideInfo `json:"sequence"` // Last is current
 	Candidate *snap.SideInfo   `josn:"candidate,omitempty"`
 	Active    bool             `json:"active,omitempty"`
@@ -313,12 +313,12 @@ func TaskSnapSetup(t *state.Task) (*SnapSetup, error) {
 	return &ss, nil
 }
 
-func snapSetupAndState(t *state.Task) (*SnapSetup, *snapState, error) {
+func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
 	ss, err := TaskSnapSetup(t)
 	if err != nil {
 		return nil, nil, err
 	}
-	var snapst snapState
+	var snapst SnapState
 	err = getSnapState(t.State(), ss.Name, &snapst)
 	if err != nil && err != state.ErrNoState {
 		return nil, nil, err
@@ -326,7 +326,7 @@ func snapSetupAndState(t *state.Task) (*SnapSetup, *snapState, error) {
 	return ss, &snapst, nil
 }
 
-func getSnapState(s *state.State, name string, snapst *snapState) error {
+func getSnapState(s *state.State, name string, snapst *SnapState) error {
 	var snaps map[string]*json.RawMessage
 	err := s.Get("snaps", &snaps)
 	if err != nil {
@@ -343,11 +343,11 @@ func getSnapState(s *state.State, name string, snapst *snapState) error {
 	return nil
 }
 
-func setSnapState(s *state.State, name string, snapst *snapState) {
+func setSnapState(s *state.State, name string, snapst *SnapState) {
 	var snaps map[string]*json.RawMessage
 	err := s.Get("snaps", &snaps)
 	if err == state.ErrNoState {
-		s.Set("snaps", map[string]*snapState{name: snapst})
+		s.Set("snaps", map[string]*SnapState{name: snapst})
 		return
 	}
 	if err != nil {
