@@ -69,6 +69,11 @@ func Manager(s *state.State) (*InterfaceManager, error) {
 	return m, nil
 }
 
+type ConnState struct {
+	Auto      bool   `json:"auto,omitempty"`
+	Interface string `json: "interface,omitempty"`
+}
+
 func (m *InterfaceManager) doSetupSnapSecurity(task *state.Task, _ *tomb.Tomb) error {
 	task.State().Lock()
 	defer task.State().Unlock()
@@ -106,20 +111,9 @@ func (m *InterfaceManager) doSetupSnapSecurity(task *state.Task, _ *tomb.Tomb) e
 	if err := m.repo.AddSnap(snapInfo); err != nil {
 		return err
 	}
-
-	// XXX: quick hack, auto-connect everything
-	for _, plug := range m.repo.Plugs(snapName) {
-		candidates := m.repo.AutoConnectCandidates(snapName, plug.Name)
-		if len(candidates) != 1 {
-			continue
-		}
-		slot := candidates[0]
-		if err := m.repo.Connect(snapName, plug.Name, slot.Snap.Name(), slot.Name); err != nil {
-			task.Logf("cannot auto connect %s.%s to %s.%s: %s",
-				snapName, plug.Name, slot.Snap.Name(), slot.Name, err)
-		}
+	if err := m.autoConnect(task, snapName); err != nil {
+		return err
 	}
-
 	// TODO: re-connect all connection affecting given snap
 	// TODO:  - removing failed connections from the state
 	if len(affectedSnaps) == 0 {
@@ -133,6 +127,32 @@ func (m *InterfaceManager) doSetupSnapSecurity(task *state.Task, _ *tomb.Tomb) e
 			}
 		}
 	}
+	return nil
+}
+
+func (m *InterfaceManager) autoConnect(task *state.Task, snapName string) error {
+	var conns map[string]ConnState
+	if err := task.State().Get("connections", &conns); err != state.ErrNoState {
+		return err
+	}
+	if conns == nil {
+		conns = make(map[string]ConnState)
+	}
+	// XXX: quick hack, auto-connect everything
+	for _, plug := range m.repo.Plugs(snapName) {
+		candidates := m.repo.AutoConnectCandidates(snapName, plug.Name)
+		if len(candidates) != 1 {
+			continue
+		}
+		slot := candidates[0]
+		if err := m.repo.Connect(snapName, plug.Name, slot.Snap.Name(), slot.Name); err != nil {
+			task.Logf("cannot auto connect %s:%s to %s:%s: %s",
+				snapName, plug.Name, slot.Snap.Name(), slot.Name, err)
+		}
+		key := fmt.Sprintf("%s:%s %s:%s", snapName, plug.Name, slot.Snap.Name(), slot.Name)
+		conns[key] = ConnState{Interface: plug.Interface, Auto: true}
+	}
+	task.State().Set("connections", conns)
 	return nil
 }
 
