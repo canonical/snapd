@@ -27,7 +27,7 @@ Build-Depends: bash-completion,
                python3,
                python3-markdown,
                squashfs-tools
-Standards-Version: 3.9.6
+Standards-Version: 3.9.7
 Homepage: https://github.com/ubuntu-core/snappy
 Vcs-Browser: https://github.com/ubuntu-core/snappy
 Vcs-Git: https://github.com/ubuntu-core/snappy.git
@@ -55,7 +55,7 @@ Description: Tool to interact with Ubuntu Core Snappy.
 
 Package: ubuntu-core-snapd-units
 Architecture: any
-Depends: snapd
+Depends: snapd, ${misc:Depends}
 Replaces: ubuntu-snappy (<< 1.9)
 Breaks: ubuntu-snappy (<< 1.9)
 Conflicts: snap (<< 2013-11-29-1ubuntu1)
@@ -63,6 +63,8 @@ Built-Using: ${misc:Built-Using}
 Description: Scripts for snapd that should only run on ubuntu core systems.
  This package contains systemd services that need to run on ubuntu core
  systems.
+ .
+ This package should not be installed on a Desktop system.
 
 Package: ubuntu-snappy
 Architecture: all

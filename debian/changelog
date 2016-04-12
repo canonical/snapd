@@ -1,3 +1,14 @@
+snapd (1.9.1) UNRELEASED; urgency=medium
+
+  [ Daniel Holbach ]
+  * Add warning about installing ubuntu-core-snapd-units on Desktop systems.
+  * Add ${misc:Depends} to ubuntu-core-snapd-units.
+
+  [ Michael Vogt ]
+  *
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 12 Apr 2016 13:23:31 +0200
+
 snapd (1.9) xenial; urgency=medium
 
   * rename source and binary package to "snapd"
