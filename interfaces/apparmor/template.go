@@ -232,11 +232,11 @@ var defaultTemplate = []byte(`
   owner @{HOME}/snap/@{APP_PKGNAME}/@{APP_VERSION}/** wl,
 
   # Read-only system area for other versions
-  /var/lib/snap/@{APP_PKGNAME}/   r,
-  /var/lib/snap/@{APP_PKGNAME}/** mrkix,
+  /var/snap/@{APP_PKGNAME}/   r,
+  /var/snap/@{APP_PKGNAME}/** mrkix,
 
   # Writable system area only for this version
-  /var/lib/snap/@{APP_PKGNAME}/@{APP_VERSION}/** wl,
+  /var/snap/@{APP_PKGNAME}/@{APP_VERSION}/** wl,
 
   # The ubuntu-core-launcher creates an app-specific private restricted /tmp
   # and will fail to launch the app if something goes wrong. As such, we can
