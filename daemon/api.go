@@ -39,6 +39,7 @@ import (
 	"github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/lockfile"
 	"github.com/ubuntu-core/snappy/overlord"
+	"github.com/ubuntu-core/snappy/overlord/ifacestate"
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/progress"
@@ -890,7 +891,8 @@ func appIconGet(c *Command, r *http.Request) Response {
 
 // getInterfaces returns all plugs and slots.
 func getInterfaces(c *Command, r *http.Request) Response {
-	return SyncResponse(c.d.interfaces.Interfaces())
+	repo := c.d.overlord.InterfaceManager().Repository()
+	return SyncResponse(repo.Interfaces())
 }
 
 // plugJSON aids in marshaling Plug into JSON.
@@ -941,12 +943,30 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 	if len(a.Plugs) > 1 || len(a.Slots) > 1 {
 		return NotImplemented("many-to-many operations are not implemented")
 	}
+
+	state := c.d.overlord.State()
+
 	switch a.Action {
 	case "connect":
 		if len(a.Plugs) == 0 || len(a.Slots) == 0 {
 			return BadRequest("at least one plug and slot is required")
 		}
-		err := c.d.interfaces.Connect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		summary := fmt.Sprintf("Connect %s:%s to %s:%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		state.Lock()
+		change := state.NewChange("connect-snap", summary)
+		taskset, err := ifacestate.Connect(
+			state, a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		if err == nil {
+			change.AddAll(taskset)
+		}
+		state.Unlock()
+		if err != nil {
+			return BadRequest("%v", err)
+		}
+
+		state.EnsureBefore(0)
+		err = waitChange(change)
+
 		if err != nil {
 			return BadRequest("%v", err)
 		}
@@ -955,7 +975,22 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 		if len(a.Plugs) == 0 || len(a.Slots) == 0 {
 			return BadRequest("at least one plug and slot is required")
 		}
-		err := c.d.interfaces.Disconnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		summary := fmt.Sprintf("Disconnect %s:%s from %s:%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		state.Lock()
+		change := state.NewChange("disconnect-snap", summary)
+		taskset, err := ifacestate.Disconnect(state,
+			a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		if err == nil {
+			change.AddAll(taskset)
+		}
+		state.Unlock()
+		if err != nil {
+			return BadRequest("%v", err)
+		}
+
+		state.EnsureBefore(0)
+		err = waitChange(change)
+
 		if err != nil {
 			return BadRequest("%v", err)
 		}
