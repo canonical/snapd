@@ -239,10 +239,13 @@ plugs:
 	c.Check(task.Status(), Equals, state.DoneStatus)
 	c.Check(change.Status(), Equals, state.DoneStatus)
 
-	var conns map[string]ifacestate.ConnState
-	err = task.State().Get("connections", &conns)
+	var conns map[string]interface{}
+	err = task.State().Get("conns", &conns)
 	c.Assert(err, IsNil)
-	c.Check(conns, DeepEquals, map[string]ifacestate.ConnState{
-		"snap:network ubuntu-core:network": {Interface: "network", Auto: true},
+	c.Check(conns, DeepEquals, map[string]interface{}{
+		"snap:network ubuntu-core:network": map[string]interface{}{
+			"interface": "network",
+			"auto":      true,
+		},
 	})
 }
