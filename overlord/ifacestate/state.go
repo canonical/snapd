@@ -91,7 +91,7 @@ type Connections map[Connection]ConnState
 
 // Load loads connections from a given state.
 func (conns *Connections) Load(s *state.State) error {
-	if err := s.Get("conns", conns); err != state.ErrNoState {
+	if err := s.Get("conns", conns); err != nil && err != state.ErrNoState {
 		return err
 	}
 	return nil
