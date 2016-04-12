@@ -25,6 +25,11 @@ import (
 	"net/url"
 )
 
+const (
+	// TwoFactorRequiredError is the error code to be returned if 2FA is needed
+	TwoFactorRequiredError = "two-factor-required"
+)
+
 var (
 	// ErrSnapNotFound is returned when a snap can not be found
 	ErrSnapNotFound = errors.New("snap not found")
