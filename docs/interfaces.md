@@ -34,7 +34,7 @@ apps interfering with one another.
 
 Usage: reserved
 
-### x
+### x11
 
 Can access the X server. Restricted because X does not prevent eavesdropping or
 apps interfering with one another.
