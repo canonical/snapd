@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -191,7 +192,7 @@ func (s *interfaceManagerSuite) addPlugSlotAndInterface(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *interfaceManagerSuite) TestDoSetupSnapSecuirty(c *C) {
+func (s *interfaceManagerSuite) addOS(c *C) {
 	osSnap := &snap.Info{
 		Type:          snap.TypeOS,
 		SuggestedName: "ubuntu-core",
@@ -200,11 +201,21 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirty(c *C) {
 	snap.AddImplicitSlots(osSnap)
 	err := s.mgr.Repository().AddSnap(osSnap)
 	c.Assert(err, IsNil)
+}
 
-	dname := filepath.Join(dirs.SnapSnapsDir, "snap", "0", "meta")
+func (s *interfaceManagerSuite) addSnap(c *C, yamlText string) {
+	snapInfo, err := snap.InfoFromSnapYaml([]byte(yamlText))
+	c.Assert(err, IsNil)
+	dname := filepath.Join(dirs.SnapSnapsDir, snapInfo.Name(),
+		strconv.Itoa(snapInfo.Revision), "meta")
 	fname := filepath.Join(dname, "snap.yaml")
+	err = os.MkdirAll(dname, 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(fname, []byte(yamlText), 0644)
+	c.Assert(err, IsNil)
+}
 
-	data := []byte(`
+var sampleSnapYaml = `
 name: snap
 version: 1
 apps:
@@ -213,11 +224,11 @@ apps:
 plugs:
  network:
   interface: network
-`)
-	err = os.MkdirAll(dname, 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(fname, data, 0644)
-	c.Assert(err, IsNil)
+`
+
+func (s *interfaceManagerSuite) TestDoSetupSnapSecuirty(c *C) {
+	s.addOS(c)
+	s.addSnap(c, sampleSnapYaml)
 
 	s.state.Lock()
 	task := s.state.NewTask("setup-snap-security", "")
@@ -240,7 +251,7 @@ plugs:
 	c.Check(change.Status(), Equals, state.DoneStatus)
 
 	var conns map[string]interface{}
-	err = task.State().Get("conns", &conns)
+	err := task.State().Get("conns", &conns)
 	c.Assert(err, IsNil)
 	c.Check(conns, DeepEquals, map[string]interface{}{
 		"snap:network ubuntu-core:network": map[string]interface{}{
