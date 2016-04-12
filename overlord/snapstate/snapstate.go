@@ -81,7 +81,7 @@ func doInstall(s *state.State, snapName, channel string, flags snappy.InstallFla
 	linkSnap.Set("snap-setup-task", prepare.ID())
 	linkSnap.WaitFor(setupSecurity)
 
-	return state.NewTaskSet(prepare, mount, copyData, setupSecurity, linkSnap), nil
+	return state.NewTaskSet(prepare, mount, unlink, copyData, setupSecurity, linkSnap), nil
 }
 
 // Install returns a set of tasks for installing snap.
@@ -165,6 +165,8 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 	removeFiles := s.NewTask("remove-snap-files", fmt.Sprintf(i18n.G("Removing files for %q"), snapSpec))
 	removeFiles.Set("snap-setup-task", unlink.ID())
 	removeFiles.WaitFor(removeData)
+
+	// XXX: need a task to forget the snap
 
 	return state.NewTaskSet(unlink, removeSecurity, removeData, removeFiles), nil
 }
