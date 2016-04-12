@@ -44,8 +44,6 @@ Package: snapd
 Architecture: any
 Depends: ${misc:Depends}, ${shlibs:Depends}, adduser, lsb-release,
  squashfs-tools, ubuntu-core-launcher (>= 1.0.23),
- ubuntu-core-security-seccomp, ubuntu-core-security-apparmor,
- ubuntu-core-security-utils,
 Replaces: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9)
 Breaks: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9)
 Conflicts: snappy, snap (<< 2013-11-29-1ubuntu1)
