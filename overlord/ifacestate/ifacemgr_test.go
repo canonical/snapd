@@ -20,12 +20,17 @@
 package ifacestate_test
 
 import (
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/overlord/ifacestate"
+	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snap"
 )
@@ -175,4 +180,56 @@ func (s *interfaceManagerSuite) addPlugSlotAndInterface(c *C) {
 	err = repo.AddPlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{
 		Snap: &snap.Info{SuggestedName: "consumer"}, Name: "plug", Interface: "test"}})
 	c.Assert(err, IsNil)
+}
+
+func (s *interfaceManagerSuite) TestDoSetupSnapSecuirty(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	osSnap := &snap.Info{
+		Type:          snap.TypeOS,
+		SuggestedName: "ubuntu-core",
+		Slots:         make(map[string]*snap.SlotInfo),
+	}
+	snap.AddImplicitSlots(osSnap)
+	err := s.mgr.Repository().AddSnap(osSnap)
+	c.Assert(err, IsNil)
+
+	dname := filepath.Join(dirs.SnapSnapsDir, "snap", "0", "meta")
+	fname := filepath.Join(dname, "snap.yaml")
+
+	data := []byte(`
+name: snap
+version: 1
+apps:
+ app:
+   command: foo
+plugs:
+ network:
+  interface: network
+`)
+	err = os.MkdirAll(dname, 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(fname, data, 0644)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	task := s.state.NewTask("setup-snap-security", "")
+	ss := snapstate.SnapSetup{Name: "snap"}
+	task.Set("snap-setup-task", task.ID())
+	task.Set("snap-setup", ss)
+	taskset := state.NewTaskSet(task)
+	change := s.state.NewChange("test", "")
+	change.AddAll(taskset)
+	s.state.Unlock()
+
+	s.mgr.Ensure()
+	s.mgr.Wait()
+	s.mgr.Stop()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(task.Status(), Equals, state.DoneStatus)
+	c.Check(change.Status(), Equals, state.DoneStatus)
 }
