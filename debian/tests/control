@@ -1,6 +1,5 @@
 Tests: integrationtests
 Restrictions: allow-stderr, isolation-container, rw-build-tree
-Depends: ubuntu-snappy-cli,
-         @builddeps@,
+Depends: @builddeps@,
          bzr,
          golang-golang-x-net-dev
