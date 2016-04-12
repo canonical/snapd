@@ -32,9 +32,8 @@ var (
 	// ErrAssertionNotFound is returned when an assertion can not be found
 	ErrAssertionNotFound = errors.New("assertion not found")
 
-	// ErrAuthenticationNeeds2fa is returned if the authentication
-	// needs 2factor
-	ErrAuthenticationNeeds2fa = errors.New("authentication needs second factor")
+	// ErrAuthenticationNeeds2fa is returned if the authentication needs 2factor
+	ErrAuthenticationNeeds2fa = errors.New("two factor authentication required")
 
 	// ErrInvalidCredentials is returned on login error
 	ErrInvalidCredentials = errors.New("invalid credentials")

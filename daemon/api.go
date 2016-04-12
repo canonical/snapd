@@ -211,7 +211,7 @@ func loginUser(c *Command, r *http.Request) Response {
 			Type: ResponseTypeError,
 			Result: &errorResult{
 				Kind:    errorKindTwoFactorRequired,
-				Message: "two factor authentication required",
+				Message: store.ErrAuthenticationNeeds2fa.Error(),
 			},
 			Status: http.StatusUnauthorized,
 		}
