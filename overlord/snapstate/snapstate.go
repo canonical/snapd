@@ -248,6 +248,7 @@ func Info(s *state.State, name string, revision int) (*snap.Info, error) {
 	return nil, fmt.Errorf("cannot find snap %q at revision %d", name, revision)
 }
 
+// Get retrieves the SnapState of the given snap.
 func Get(s *state.State, name string, snapst *SnapState) error {
 	var snaps map[string]*json.RawMessage
 	err := s.Get("snaps", &snaps)
@@ -265,6 +266,7 @@ func Get(s *state.State, name string, snapst *SnapState) error {
 	return nil
 }
 
+// Set sets the SnapState of the given snap, overwriting any earlier state.
 func Set(s *state.State, name string, snapst *SnapState) {
 	var snaps map[string]*json.RawMessage
 	err := s.Get("snaps", &snaps)
