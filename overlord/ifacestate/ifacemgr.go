@@ -161,12 +161,12 @@ func (m *InterfaceManager) doSetupSnapSecurity(task *state.Task, _ *tomb.Tomb) e
 
 type ConnState struct {
 	Auto      bool   `json:"auto,omitempty"`
-	Interface string `json: "interface,omitempty"`
+	Interface string `json:"interface,omitempty"`
 }
 
 func (m *InterfaceManager) autoConnect(task *state.Task, snapName string) error {
 	var conns map[string]ConnState
-	if err := task.State().Get("connections", &conns); err != state.ErrNoState {
+	if err := task.State().Get("conns", &conns); err != state.ErrNoState {
 		return err
 	}
 	if conns == nil {
@@ -186,7 +186,7 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string) error 
 		key := fmt.Sprintf("%s:%s %s:%s", snapName, plug.Name, slot.Snap.Name(), slot.Name)
 		conns[key] = ConnState{Interface: plug.Interface, Auto: true}
 	}
-	task.State().Set("connections", conns)
+	task.State().Set("conns", conns)
 	return nil
 }
 
