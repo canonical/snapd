@@ -25,8 +25,6 @@ import (
 	"github.com/ubuntu-core/snappy/overlord/state"
 )
 
-type SnapStateForTests snapState
-
 type ManagerBackend managerBackend
 
 func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
@@ -43,8 +41,4 @@ func (m *SnapManager) AddForeignTaskHandlers() {
 	fakeHandler := func(task *state.Task, _ *tomb.Tomb) error { return nil }
 	m.runner.AddHandler("setup-snap-security", fakeHandler, fakeHandler)
 	m.runner.AddHandler("remove-snap-security", fakeHandler, fakeHandler)
-}
-
-func SetSnapState(st *state.State, name string, ss *SnapStateForTests) {
-	setSnapState(st, name, (*snapState)(ss))
 }
