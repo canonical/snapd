@@ -258,8 +258,41 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirty(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(conns, DeepEquals, map[string]interface{}{
 		"snap:network ubuntu-core:network": map[string]interface{}{
-			"interface": "network",
-			"auto":      true,
+			"interface": "network", "auto": true,
+		},
+	})
+}
+
+func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyKeepsExistingConnectionState(c *C) {
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"other-snap:network ubuntu-core:network": map[string]interface{}{
+			"interface": "network", "auto": true,
+		},
+	})
+	s.state.Unlock()
+
+	s.addOS(c)
+	snapInfo := s.addSnap(c, sampleSnapYaml)
+	change := s.addSetupSnapSecurityChange(c, snapInfo.Name())
+
+	s.mgr.Ensure()
+	s.mgr.Wait()
+	s.mgr.Stop()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(change.Status(), Equals, state.DoneStatus)
+	var conns map[string]interface{}
+	err := s.state.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, map[string]interface{}{
+		"other-snap:network ubuntu-core:network": map[string]interface{}{
+			"interface": "network", "auto": true,
+		},
+		"snap:network ubuntu-core:network": map[string]interface{}{
+			"interface": "network", "auto": true,
 		},
 	})
 }
