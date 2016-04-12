@@ -19,12 +19,14 @@ network connect their plugs there.
 Can access the network as a client.
 
 Usage: common
+Auto-Connect: yes
 
 ### network-bind
 
 Can access the network as a server.
 
 Usage: common
+Auto-Connect: yes
 
 ### unity7
 
@@ -33,6 +35,7 @@ various DBus services and this environment does not prevent eavesdropping or
 apps interfering with one another.
 
 Usage: reserved
+Auto-Connect: yes
 
 ### x11
 
@@ -40,6 +43,7 @@ Can access the X server. Restricted because X does not prevent eavesdropping or
 apps interfering with one another.
 
 Usage: reserved
+Auto-Connect: yes
 
 ### home
 
