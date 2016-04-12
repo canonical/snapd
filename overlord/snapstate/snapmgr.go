@@ -53,8 +53,8 @@ type SnapSetup struct {
 	SnapPath string `json:"snap-path,omitempty"`
 }
 
-// snapState holds the state for a snap installed in the system.
-type snapState struct {
+// SnapState holds the state for a snap installed in the system.
+type SnapState struct {
 	Sequence  []*snap.SideInfo `json:"sequence"` // Last is current
 	Candidate *snap.SideInfo   `josn:"candidate,omitempty"`
 	Active    bool             `json:"active,omitempty"`
@@ -143,7 +143,7 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	t.Set("snap-setup", ss)
 	snapst.Candidate = &snap.SideInfo{}
-	setSnapState(st, ss.Name, snapst)
+	SetSnapState(st, ss.Name, snapst)
 	st.Unlock()
 	return nil
 }
@@ -157,7 +157,7 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	snapst.Candidate = nil
-	setSnapState(st, ss.Name, snapst)
+	SetSnapState(st, ss.Name, snapst)
 	return nil
 }
 
@@ -187,7 +187,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	t.Set("snap-setup", ss)
 	snapst.Candidate = &storeInfo.SideInfo
-	setSnapState(st, ss.Name, snapst)
+	SetSnapState(st, ss.Name, snapst)
 	st.Unlock()
 
 	return nil
@@ -313,20 +313,20 @@ func TaskSnapSetup(t *state.Task) (*SnapSetup, error) {
 	return &ss, nil
 }
 
-func snapSetupAndState(t *state.Task) (*SnapSetup, *snapState, error) {
+func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
 	ss, err := TaskSnapSetup(t)
 	if err != nil {
 		return nil, nil, err
 	}
-	var snapst snapState
-	err = getSnapState(t.State(), ss.Name, &snapst)
+	var snapst SnapState
+	err = GetSnapState(t.State(), ss.Name, &snapst)
 	if err != nil && err != state.ErrNoState {
 		return nil, nil, err
 	}
 	return ss, &snapst, nil
 }
 
-func getSnapState(s *state.State, name string, snapst *snapState) error {
+func GetSnapState(s *state.State, name string, snapst *SnapState) error {
 	var snaps map[string]*json.RawMessage
 	err := s.Get("snaps", &snaps)
 	if err != nil {
@@ -343,11 +343,11 @@ func getSnapState(s *state.State, name string, snapst *snapState) error {
 	return nil
 }
 
-func setSnapState(s *state.State, name string, snapst *snapState) {
+func SetSnapState(s *state.State, name string, snapst *SnapState) {
 	var snaps map[string]*json.RawMessage
 	err := s.Get("snaps", &snaps)
 	if err == state.ErrNoState {
-		s.Set("snaps", map[string]*snapState{name: snapst})
+		s.Set("snaps", map[string]*SnapState{name: snapst})
 		return
 	}
 	if err != nil {
@@ -436,7 +436,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// Do at the end so we only preserve the new state if it worked.
-	setSnapState(st, ss.Name, snapst)
+	SetSnapState(st, ss.Name, snapst)
 	return nil
 }
 
