@@ -218,10 +218,10 @@ plugs:
 
 	s.state.Lock()
 
-	snapstate.SetSnapState(s.state, "ubuntu-core", &snapstate.SnapState{
+	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{{Revision: 0}},
 	})
-	snapstate.SetSnapState(s.state, "snap", &snapstate.SnapState{
+	snapstate.Set(s.state, "snap", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{{Revision: 0}},
 	})
 
