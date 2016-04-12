@@ -26,8 +26,8 @@ import (
 )
 
 const (
-	// TwoFactorRequiredError is the error code to be returned if 2FA is needed
-	TwoFactorRequiredError = "two-factor-required"
+	// TwoFactorErrKind is the error kind to be returned if 2FA is needed
+	TwoFactorErrKind = "two-factor-required"
 )
 
 var (
