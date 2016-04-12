@@ -72,6 +72,18 @@ type SideInfo struct {
 	IconURL           string `yaml:"icon-url,omitempty" json:"icon-url,omitempty"`
 }
 
+// SnapResult contains a Snap and the suggested currency to interpret its prices with.
+type SnapResult struct {
+	Snap              *Info
+	SuggestedCurrency string
+}
+
+// SnapResult contains a collection of Snaps and the suggested currency to interpret their prices with.
+type FindSnapsResult struct {
+	Snaps             []*Info
+	SuggestedCurrency string
+}
+
 // Info provides information about snaps.
 type Info struct {
 	SuggestedName string
@@ -96,7 +108,7 @@ type Info struct {
 
 	AnonDownloadURL string
 	DownloadURL     string
-	Price           float64
+	Prices          map[string]float64
 }
 
 // Name returns the blessed name for the snap.

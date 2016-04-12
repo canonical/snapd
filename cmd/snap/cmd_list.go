@@ -45,10 +45,12 @@ func (cmdList) Execute([]string) error {
 	filter := client.SnapFilter{
 		Sources: []string{"local"},
 	}
-	snaps, err := cli.FilterSnaps(filter)
+	res, err := cli.FilterSnaps(filter)
 	if err != nil {
 		return err
 	}
+
+	snaps := res.Snaps
 
 	if len(snaps) == 0 {
 		return fmt.Errorf(i18n.G("no snaps found"))

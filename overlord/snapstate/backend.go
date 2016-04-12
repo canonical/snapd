@@ -104,17 +104,17 @@ func (b *defaultBackend) Activate(name string, active bool, meter progress.Meter
 
 func (b *defaultBackend) Download(name, channel string, meter progress.Meter) (*snap.Info, string, error) {
 	mStore := snappy.NewConfiguredUbuntuStoreSnapRepository()
-	snap, err := mStore.Snap(name, channel)
+	res, err := mStore.Snap(name, channel)
 	if err != nil {
 		return nil, "", err
 	}
 
-	downloadedSnapFile, err := mStore.Download(snap, meter)
+	downloadedSnapFile, err := mStore.Download(res.Snap, meter)
 	if err != nil {
 		return nil, "", err
 	}
 
-	return snap, downloadedSnapFile, nil
+	return res.Snap, downloadedSnapFile, nil
 }
 
 func (b *defaultBackend) CheckSnap(snapFilePath string, flags int) error {

@@ -47,16 +47,34 @@ func init() {
 	})
 }
 
+func getPrice(prices map[string]float64, currency string) string {
+	// If there are no prices, then the snap is free
+	if len(prices) == 0 {
+		// TRANSLATORS: free as in monetary price, not as in freedom
+		return i18n.G("free")
+	}
+
+	// Look up the price by currency code
+	if val, ok := prices[currency]; ok {
+		return fmt.Sprintf("%v", val)
+	}
+
+	// Price was unavailable
+	return i18n.G("price unavailable")
+}
+
 func (x *cmdFind) Execute([]string) error {
 	cli := Client()
 	filter := client.SnapFilter{
 		Query:   x.Positional.Query,
 		Sources: []string{"store"},
 	}
-	snaps, err := cli.FilterSnaps(filter)
+	res, err := cli.FilterSnaps(filter)
 	if err != nil {
 		return err
 	}
+
+	snaps := res.Snaps
 
 	if len(snaps) == 0 {
 		if filter.Query == "" {
@@ -81,14 +99,7 @@ func (x *cmdFind) Execute([]string) error {
 
 	for _, name := range names {
 		snap := snaps[name]
-		var price string
-		if snap.Price > 0 {
-			price = fmt.Sprintf("%v", snap.Price)
-		} else {
-			// TRANSLATORS: free as in monetary price, not as in freedom
-			price = i18n.G("free")
-		}
-		fmt.Fprintf(w, "%s\t%s\t%v\t%s\n", name, snap.Version, price, snap.Summary)
+		fmt.Fprintf(w, "%s\t%s\t%v\t%s\n", name, snap.Version, getPrice(snap.Prices, res.SuggestedCurrency), snap.Summary)
 	}
 
 	return nil

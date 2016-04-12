@@ -20,7 +20,6 @@
 package client
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/url"
 	"strings"
@@ -29,18 +28,27 @@ import (
 
 // Snap holds the data for a snap as obtained from snapd.
 type Snap struct {
-	Summary       string    `json:"summary"`
-	Description   string    `json:"description"`
-	DownloadSize  int64     `json:"download-size"`
-	Icon          string    `json:"icon"`
-	InstalledSize int64     `json:"installed-size"`
-	InstallDate   time.Time `json:"install-date"`
-	Name          string    `json:"name"`
-	Developer     string    `json:"developer"`
-	Status        string    `json:"status"`
-	Type          string    `json:"type"`
-	Version       string    `json:"version"`
-	Price         float64   `json:"price"`
+	Summary       string             `json:"summary"`
+	Description   string             `json:"description"`
+	DownloadSize  int64              `json:"download-size"`
+	Icon          string             `json:"icon"`
+	InstalledSize int64              `json:"installed-size"`
+	InstallDate   time.Time          `json:"install-date"`
+	Name          string             `json:"name"`
+	Developer     string             `json:"developer"`
+	Status        string             `json:"status"`
+	Type          string             `json:"type"`
+	Version       string             `json:"version"`
+	Prices        map[string]float64 `json:"prices"`
+
+	// FIXME: Ideally this should be in a higher-level result object as with the Find query
+	SuggestedCurrency string `json:"suggested-currency,omitempty"`
+}
+
+// FindResult holds the data for a Find query provided from the REST api
+type FindResult struct {
+	Snaps             map[string]*Snap `json:"snaps"`
+	SuggestedCurrency string           `json:"suggested-currency,omitempty"`
 }
 
 // SnapFilter is used to filter snaps by source, name and/or type
@@ -66,13 +74,13 @@ const (
 
 // Snaps returns the list of all snaps installed on the system and
 // available for install from the store for this system.
-func (client *Client) Snaps() (map[string]*Snap, error) {
+func (client *Client) Snaps() (*FindResult, error) {
 	return client.snapsFromPath("/v2/snaps", nil)
 }
 
 // FilterSnaps returns a list of snaps per Snaps() but filtered by source, name
 // and/or type
-func (client *Client) FilterSnaps(filter SnapFilter) (map[string]*Snap, error) {
+func (client *Client) FilterSnaps(filter SnapFilter) (*FindResult, error) {
 	q := url.Values{}
 
 	if filter.Query != "" {
@@ -90,25 +98,21 @@ func (client *Client) FilterSnaps(filter SnapFilter) (map[string]*Snap, error) {
 	return client.snapsFromPath("/v2/snaps", q)
 }
 
-func (client *Client) snapsFromPath(path string, query url.Values) (map[string]*Snap, error) {
+func (client *Client) snapsFromPath(path string, query url.Values) (*FindResult, error) {
 	const errPrefix = "cannot list snaps"
 
-	var result map[string]json.RawMessage
+	var result FindResult
+
+	//	var result map[string]json.RawMessage
 	if err := client.doSync("GET", path, query, nil, &result); err != nil {
 		return nil, fmt.Errorf("%s: %s", errPrefix, err)
 	}
 
-	snapsJSON := result["snaps"]
-	if snapsJSON == nil {
+	if len(result.Snaps) == 0 {
 		return nil, fmt.Errorf("%s: response has no snaps", errPrefix)
 	}
 
-	var snaps map[string]*Snap
-	if err := json.Unmarshal(snapsJSON, &snaps); err != nil {
-		return nil, fmt.Errorf("%s: failed to unmarshal snaps: %v", errPrefix, err)
-	}
-
-	return snaps, nil
+	return &result, nil
 }
 
 // Snap returns the most recently published revision of the snap with the

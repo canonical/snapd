@@ -291,15 +291,16 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	// the actual test
 	result, err := repo.Snap(funkyAppName+"."+funkyAppDeveloper, "edge")
 	c.Assert(err, IsNil)
-	c.Check(result.Name(), Equals, funkyAppName)
-	c.Check(result.Developer, Equals, funkyAppDeveloper)
-	c.Check(result.Version, Equals, "42")
-	c.Check(result.Sha512, Equals, "5364253e4a988f4f5c04380086d542f410455b97d48cc6c69ca2a5877d8aef2a6b2b2f83ec4f688cae61ebc8a6bf2cdbd4dbd8f743f0522fc76540429b79df42")
-	c.Check(result.Size, Equals, int64(65375))
-	c.Check(result.Channel, Equals, "edge")
-	c.Check(result.Description(), Equals, "Returns for store credit only.\nThis is a simple hello world example.")
-	c.Check(result.Summary(), Equals, "hello world example")
-	c.Check(result.Price, Equals, float64(1.23))
+	snap := result.Snap
+	c.Check(snap.Name(), Equals, funkyAppName)
+	c.Check(snap.Developer, Equals, funkyAppDeveloper)
+	c.Check(snap.Version, Equals, "42")
+	c.Check(snap.Sha512, Equals, "5364253e4a988f4f5c04380086d542f410455b97d48cc6c69ca2a5877d8aef2a6b2b2f83ec4f688cae61ebc8a6bf2cdbd4dbd8f743f0522fc76540429b79df42")
+	c.Check(snap.Size, Equals, int64(65375))
+	c.Check(snap.Channel, Equals, "edge")
+	c.Check(snap.Description(), Equals, "Returns for store credit only.\nThis is a simple hello world example.")
+	c.Check(snap.Summary(), Equals, "hello world example")
+	c.Check(snap.Prices[result.SuggestedCurrency], Equals, 1.23)
 }
 
 const MockNoDetailsJSON = `{"errors": ["No such package"], "result": "error"}`
@@ -400,8 +401,9 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFind(c *C) {
 	repo := NewUbuntuStoreSnapRepository(&cfg, "")
 	c.Assert(repo, NotNil)
 
-	snaps, err := repo.FindSnaps("foo", "")
+	result, err := repo.FindSnaps("foo", "")
 	c.Assert(err, IsNil)
+	snaps := result.Snaps
 	c.Assert(snaps, HasLen, 1)
 	c.Check(snaps[0].Name(), Equals, funkyAppName)
 }
@@ -450,10 +452,11 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 
 	results, err := repo.Updates([]string{funkyAppName})
 	c.Assert(err, IsNil)
-	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].Name(), Equals, funkyAppName)
-	c.Assert(results[0].Revision, Equals, 3)
-	c.Assert(results[0].Version, Equals, "42")
+	snaps := results.Snaps
+	c.Assert(snaps, HasLen, 1)
+	c.Assert(snaps[0].Name(), Equals, funkyAppName)
+	c.Assert(snaps[0].Revision, Equals, 3)
+	c.Assert(snaps[0].Version, Equals, "42")
 }
 
 func (t *remoteRepoTestSuite) TestStructFieldsSurvivesNoTag(c *C) {

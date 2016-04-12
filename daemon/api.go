@@ -243,8 +243,8 @@ func loginUser(c *Command, r *http.Request) Response {
 }
 
 type metarepo interface {
-	Snap(string, string) (*snap.Info, error)
-	FindSnaps(string, string) ([]*snap.Info, error)
+	Snap(string, string) (*snap.SnapResult, error)
+	FindSnaps(string, string) (*snap.FindSnapsResult, error)
 }
 
 var newRemoteRepo = func() metarepo {
@@ -286,7 +286,11 @@ func getSnapInfo(c *Command, r *http.Request) Response {
 		return InternalError("route can't build URL for snap %s: %v", name, err)
 	}
 
-	result := webify(mapSnap(localSnaps, remoteSnap), url.String())
+	result := webify(mapSnap(localSnaps, remoteSnap.Snap), url.String())
+
+	if remoteSnap != nil && remoteSnap.SuggestedCurrency != "" {
+		result["suggested-currency"] = remoteSnap.SuggestedCurrency
+	}
 
 	return SyncResponse(result)
 }
@@ -359,6 +363,8 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		localSnapsMap, _ = allSnaps()
 	}
 
+	var suggestedCurrency string
+
 	if includeStore {
 		remoteSnapMap = make(map[string]*snap.Info)
 
@@ -369,10 +375,11 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		//   * If there are results at all (perhaps local), include a
 		//     warning in the response
 		found, _ := newRemoteRepo().FindSnaps(searchTerm, "")
+		suggestedCurrency = found.SuggestedCurrency
 
 		sources = append(sources, "store")
 
-		for _, snap := range found {
+		for _, snap := range found.Snaps {
 			remoteSnapMap[snap.Name()] = snap
 		}
 	}
@@ -421,7 +428,7 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		}
 	}
 
-	return SyncResponse(map[string]interface{}{
+	responseContents := map[string]interface{}{
 		"snaps":   results,
 		"sources": sources,
 		"paging": map[string]interface{}{
@@ -429,7 +436,13 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 			"page":  1,
 			"count": len(results),
 		},
-	})
+	}
+
+	if suggestedCurrency != "" {
+		responseContents["suggested-currency"] = suggestedCurrency
+	}
+
+	return SyncResponse(responseContents)
 }
 
 func resultHasType(r map[string]interface{}, allowedTypes []string) bool {

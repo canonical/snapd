@@ -51,7 +51,7 @@ func (cs *clientSuite) TestClientSnapsInvalidSnapsJSON(c *check.C) {
 		}
 	}`
 	_, err := cs.cli.Snaps()
-	c.Check(err, check.ErrorMatches, `.*failed to unmarshal snaps.*`)
+	c.Check(err, check.ErrorMatches, `.*unmarshal.*`)
 }
 
 func (cs *clientSuite) TestClientSnaps(c *check.C) {
@@ -77,7 +77,7 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 	}`
 	applications, err := cs.cli.Snaps()
 	c.Check(err, check.IsNil)
-	c.Check(applications, check.DeepEquals, map[string]*client.Snap{
+	c.Check(applications.Snaps, check.DeepEquals, map[string]*client.Snap{
 		"hello-world.canonical": &client.Snap{
 			Summary:       "salutation snap",
 			Description:   "hello-world",
