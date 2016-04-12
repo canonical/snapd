@@ -67,7 +67,7 @@ func (ss *SnapSetup) placeInfo() snap.PlaceInfo {
 }
 
 func (ss *SnapSetup) MountDir() string {
-	return ss.placeInfo().MountDir()
+	return snap.MountDir(ss.Name, ss.Revision)
 }
 
 // Manager returns a new snap manager.
@@ -454,7 +454,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	oldDir := ""
 	if len(snapst.Sequence) > 0 {
 		latest := snapst.Sequence[len(snapst.Sequence)-1]
-		oldDir = snap.MinimalPlaceInfo(ss.Name, latest.Revision).MountDir()
+		oldDir = snap.MountDir(ss.Name, latest.Revision)
 	}
 	return m.backend.UndoLinkSnap(oldDir, newDir)
 }

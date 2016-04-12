@@ -203,7 +203,7 @@ func Deactivate(s *state.State, snap string) (*state.TaskSet, error) {
 
 func retrieveInfo(name string, si *snap.SideInfo) (*snap.Info, error) {
 	// XXX: move some of this in snap as helper?
-	snapYamlFn := filepath.Join(snap.MinimalPlaceInfo(name, si.Revision).MountDir(), "meta", "snap.yaml")
+	snapYamlFn := filepath.Join(snap.MountDir(name, si.Revision), "meta", "snap.yaml")
 	meta, err := ioutil.ReadFile(snapYamlFn)
 	if os.IsNotExist(err) {
 		return nil, fmt.Errorf("cannot find mounted snap %q at revision %d", name, si.Revision)
@@ -222,9 +222,9 @@ func retrieveInfo(name string, si *snap.SideInfo) (*snap.Info, error) {
 	return info, nil
 }
 
-// Snap returns the information about the snap with given name and revision.
+// Info returns the information about the snap with given name and revision.
 // Works also for a mounted candidate snap in the process of being installed.
-func Snap(s *state.State, name string, revision int) (*snap.Info, error) {
+func Info(s *state.State, name string, revision int) (*snap.Info, error) {
 	var snapst snapState
 	err := getSnapState(s, name, &snapst)
 	if err == state.ErrNoState {
