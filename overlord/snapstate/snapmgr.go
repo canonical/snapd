@@ -127,7 +127,20 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
+
+	// get the name from the snap
+	snapf, err := snap.Open(ss.SnapPath)
+	if err != nil {
+		return err
+	}
+	info, err := snapf.Info()
+	if err != nil {
+		return err
+	}
+	ss.Name = info.Name()
+
 	st.Lock()
+	t.Set("snap-setup", ss)
 	snapst.Candidate = &snap.SideInfo{}
 	setSnapState(st, ss.Name, snapst)
 	st.Unlock()

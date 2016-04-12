@@ -27,7 +27,6 @@ import (
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/overlord/state"
-	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
 )
 
@@ -44,18 +43,6 @@ func doInstall(s *state.State, snapName, channel string, flags snappy.InstallFla
 	if osutil.FileExists(snapName) {
 		ss.SnapPath = snapName
 		prepare = s.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q"), snapName))
-		// add essential data from the local snap
-		snapf, err := snap.Open(snapName)
-		if err != nil {
-			return nil, err
-		}
-		info, err := snapf.Info()
-		if err != nil {
-			return nil, err
-		}
-		ss.Name = info.Name()
-		ss.SnapPath = snapName
-
 	} else {
 		name, developer := snappy.SplitDeveloper(snapName)
 		ss.Name = name
