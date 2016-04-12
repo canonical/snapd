@@ -196,7 +196,7 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 	})
 
 	// verify snaps in the system state
-	var snaps map[string]*snapstate.SnapStateForTests
+	var snaps map[string]*snapstate.SnapState
 	err = s.state.Get("snaps", &snaps)
 	c.Assert(err, IsNil)
 
@@ -470,7 +470,7 @@ description: |
     Lots of text`), 0644)
 	c.Assert(err, IsNil)
 
-	snapstate.SetSnapState(s.state, "name1", &snapstate.SnapStateForTests{
+	snapstate.SetSnapState(s.state, "name1", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
 			{OfficialName: "name1", Revision: 11, EditedSummary: "s11"},
 			{OfficialName: "name1", Revision: 12, EditedSummary: "s12"},

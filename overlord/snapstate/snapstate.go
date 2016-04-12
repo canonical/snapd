@@ -225,8 +225,8 @@ func retrieveInfo(name string, si *snap.SideInfo) (*snap.Info, error) {
 // Info returns the information about the snap with given name and revision.
 // Works also for a mounted candidate snap in the process of being installed.
 func Info(s *state.State, name string, revision int) (*snap.Info, error) {
-	var snapst snapState
-	err := getSnapState(s, name, &snapst)
+	var snapst SnapState
+	err := GetSnapState(s, name, &snapst)
 	if err == state.ErrNoState {
 		return nil, fmt.Errorf("cannot find snap %q", name)
 	}

@@ -3,5 +3,6 @@ Restrictions: allow-stderr, isolation-container, rw-build-tree
 Depends: snapd,
          @builddeps@,
          bzr,
+         git,
          ca-certificates,
          golang-golang-x-net-dev
