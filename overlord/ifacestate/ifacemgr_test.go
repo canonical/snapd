@@ -39,8 +39,9 @@ import (
 func TestInterfaceManager(t *testing.T) { TestingT(t) }
 
 type interfaceManagerSuite struct {
-	state *state.State
-	mgr   *ifacestate.InterfaceManager
+	state     *state.State
+	mgr       *ifacestate.InterfaceManager
+	parserCmd *testutil.MockCmd
 }
 
 var _ = Suite(&interfaceManagerSuite{})
@@ -52,11 +53,13 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.state = state
 	s.mgr = mgr
+	s.parserCmd = testutil.MockCommand(c, "apparmor_parser", "")
 }
 
 func (s *interfaceManagerSuite) TearDownTest(c *C) {
 	s.mgr.Stop()
 	dirs.SetRootDir("")
+	s.parserCmd.Restore()
 }
 
 func (s *interfaceManagerSuite) TestSmoke(c *C) {
@@ -186,9 +189,6 @@ func (s *interfaceManagerSuite) addPlugSlotAndInterface(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestDoSetupSnapSecuirty(c *C) {
-	parserCmd := testutil.MockCommand(c, "apparmor_parser", "")
-	defer parserCmd.Restore()
-
 	osSnap := &snap.Info{
 		Type:          snap.TypeOS,
 		SuggestedName: "ubuntu-core",
