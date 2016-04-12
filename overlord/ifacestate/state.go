@@ -91,7 +91,7 @@ type Connections map[Connection]ConnState
 
 // Load loads connections from a given state.
 func (conns *Connections) Load(s *state.State) error {
-	if err := s.Get("connections", conns); err != state.ErrNoState {
+	if err := s.Get("conns", conns); err != state.ErrNoState {
 		return err
 	}
 	return nil
@@ -99,7 +99,7 @@ func (conns *Connections) Load(s *state.State) error {
 
 // Store stores connections in a given state.
 func (conns *Connections) Store(s *state.State) {
-	s.Set("connections", conns)
+	s.Set("conns", conns)
 }
 
 // MarshalJSON marshals connections to JSON.
