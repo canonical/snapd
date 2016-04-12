@@ -166,7 +166,8 @@ type connState struct {
 
 func (m *InterfaceManager) autoConnect(task *state.Task, snapName string) error {
 	var conns map[string]connState
-	if err := task.State().Get("conns", &conns); err != state.ErrNoState {
+	err := task.State().Get("conns", &conns)
+	if err != nil && err != state.ErrNoState {
 		return err
 	}
 	if conns == nil {
