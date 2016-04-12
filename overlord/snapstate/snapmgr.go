@@ -23,15 +23,11 @@ package snapstate
 import (
 	"encoding/json"
 	"fmt"
-	"path/filepath"
-	"strconv"
 
 	"gopkg.in/tomb.v2"
 
-	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snappy"
 )
 
 // SnapManager is responsible for the installation and removal of snaps.
@@ -71,7 +67,7 @@ func (ss *SnapSetup) placeInfo() snap.PlaceInfo {
 }
 
 func (ss *SnapSetup) MountDir() string {
-	return ss.placeInfo().MountDir()
+	return snap.MountDir(ss.Name, ss.Revision)
 }
 
 // Manager returns a new snap manager.
@@ -458,7 +454,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	oldDir := ""
 	if len(snapst.Sequence) > 0 {
 		latest := snapst.Sequence[len(snapst.Sequence)-1]
-		oldDir = snap.MinimalPlaceInfo(ss.Name, latest.Revision).MountDir()
+		oldDir = snap.MountDir(ss.Name, latest.Revision)
 	}
 	return m.backend.UndoLinkSnap(oldDir, newDir)
 }
@@ -473,19 +469,4 @@ func (m *SnapManager) doGarbageCollect(t *state.Task, _ *tomb.Tomb) error {
 
 	pb := &TaskProgressAdapter{task: t}
 	return m.backend.GarbageCollect(ss.Name, ss.Flags, pb)
-}
-
-// SnapInfo returns the snap.Info for a snap in the system.
-//
-// Today this function is looking at data directly from the mounted snap, but soon it will
-// be changed so it looks first at the state for the snap details (Revision, Developer, etc),
-// and then complements it with information from the snap itself.
-func SnapInfo(state *state.State, name string, revision int) (*snap.Info, error) {
-	fname := filepath.Join(dirs.SnapSnapsDir, name, strconv.Itoa(revision), "meta", "snap.yaml")
-	// XXX: This hacky and should not be needed.
-	sn, err := snappy.NewInstalledSnap(fname)
-	if err != nil {
-		return nil, err
-	}
-	return sn.Info(), nil
 }

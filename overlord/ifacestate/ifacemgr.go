@@ -108,7 +108,7 @@ func (m *InterfaceManager) doSetupSnapSecurity(task *state.Task, _ *tomb.Tomb) e
 	if err != nil {
 		return err
 	}
-	snapInfo, err := snapstate.SnapInfo(task.State(), ss.Name, ss.Revision)
+	snapInfo, err := snapstate.Info(task.State(), ss.Name, ss.Revision)
 	if err != nil {
 		return err
 	}
@@ -200,7 +200,7 @@ func (m *InterfaceManager) doRemoveSnapSecurity(task *state.Task, _ *tomb.Tomb) 
 	if err != nil {
 		return err
 	}
-	snapInfo, err := snapstate.SnapInfo(task.State(), ss.Name, ss.Revision)
+	snapInfo, err := snapstate.Info(task.State(), ss.Name, ss.Revision)
 	if err != nil {
 		return err
 	}
