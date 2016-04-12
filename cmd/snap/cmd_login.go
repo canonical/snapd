@@ -27,6 +27,7 @@ import (
 	"github.com/jessevdk/go-flags"
 	"golang.org/x/crypto/ssh/terminal"
 
+	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/store"
 )
@@ -58,8 +59,8 @@ func requestLoginWith2faRetry(username, password string) error {
 	_, err := cli.Login(username, password, "")
 
 	// check if we need 2fa
-	if err != nil && err.Error() == store.ErrAuthenticationNeeds2fa.Error() {
-		fmt.Print(i18n.G("2fa code: "))
+	if e := err.(*client.Error); e != nil && e.Kind == store.TwoFactorRequiredError {
+		fmt.Print(i18n.G("Two-factor code: "))
 		reader := bufio.NewReader(os.Stdin)
 		// the browser shows it as well (and Sergio wants to see it ;)
 		otp, _, err := reader.ReadLine()
