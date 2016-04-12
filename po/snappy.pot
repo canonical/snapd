@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-04-12 10:31+0200\n"
+        "POT-Creation-Date: 2016-04-12 21:29+0200\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -383,6 +383,10 @@ msgid   "This command is no longer available, please use the \"list\" command"
 msgstr  ""
 
 msgid   "This command logs the given username into the store"
+msgstr  ""
+
+#, c-format
+msgid   "Unlink current revision for %q"
 msgstr  ""
 
 #, c-format
