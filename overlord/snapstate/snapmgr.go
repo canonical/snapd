@@ -157,7 +157,9 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	snapst.Candidate = nil
+	st.Lock()
 	setSnapState(st, ss.Name, snapst)
+	st.Unlock()
 	return nil
 }
 
