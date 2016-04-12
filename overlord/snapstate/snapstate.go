@@ -22,11 +22,15 @@ package snapstate
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/overlord/state"
+	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
 )
 
@@ -194,4 +198,52 @@ func Deactivate(s *state.State, snap string) (*state.TaskSet, error) {
 	})
 
 	return state.NewTaskSet(t), nil
+}
+
+// Retrieval functions
+
+func retrieveInfo(name string, si *snap.SideInfo) (*snap.Info, error) {
+	// XXX: move some of this in snap as helper?
+	snapYamlFn := filepath.Join(snap.MinimalPlaceInfo(name, si.Revision).MountDir(), "meta", "snap.yaml")
+	meta, err := ioutil.ReadFile(snapYamlFn)
+	if os.IsNotExist(err) {
+		return nil, fmt.Errorf("cannot find mounted snap %q at revision %d", name, si.Revision)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	info, err := snap.InfoFromSnapYaml(meta)
+	if err != nil {
+		return nil, err
+	}
+
+	info.SideInfo = *si
+
+	return info, nil
+}
+
+// Snap returns the information about the snap with given name and revision.
+// Works also for a mounted candidate snap in the process of being installed.
+func Snap(s *state.State, name string, revision int) (*snap.Info, error) {
+	var snapst snapState
+	err := getSnapState(s, name, &snapst)
+	if err == state.ErrNoState {
+		return nil, fmt.Errorf("cannot find snap %q", name)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	for i := len(snapst.Sequence) - 1; i >= 0; i-- {
+		if si := snapst.Sequence[i]; si.Revision == revision {
+			return retrieveInfo(name, si)
+		}
+	}
+
+	if snapst.Candidate != nil && snapst.Candidate.Revision == revision {
+		return retrieveInfo(name, snapst.Candidate)
+	}
+
+	return nil, fmt.Errorf("cannot find snap %q at revision %d", name, revision)
 }

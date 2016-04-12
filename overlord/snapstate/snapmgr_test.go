@@ -425,7 +425,7 @@ func (s *snapmgrTestSuite) TestSetInactive(c *C) {
 	c.Assert(s.fakeBackend.ops[0].active, Equals, false)
 }
 
-func (s *snapmgrTestSuite) TestSnapInfo(c *C) {
+func (s *snapmgrTestSuite) TestSnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -433,25 +433,30 @@ func (s *snapmgrTestSuite) TestSnapInfo(c *C) {
 	defer dirs.SetRootDir("")
 
 	// Write a snap.yaml with fake name
-	dname := filepath.Join(dirs.SnapSnapsDir, "name", "11", "meta")
+	dname := filepath.Join(dirs.SnapSnapsDir, "name1", "11", "meta")
 	err := os.MkdirAll(dname, 0775)
 	c.Assert(err, IsNil)
 	fname := filepath.Join(dname, "snap.yaml")
 	err = ioutil.WriteFile(fname, []byte(`
-name: ignored
+name: name0
 version: 1.2
 description: |
     Lots of text`), 0644)
 	c.Assert(err, IsNil)
 
-	snapInfo, err := snapstate.SnapInfo(s.state, "name", 11)
+	snapstate.SetSnapState(s.state, "name1", &snapstate.SnapStateForTests{
+		Sequence: []*snap.SideInfo{
+			{OfficialName: "name1", Revision: 11, EditedSummary: "s11"},
+			{OfficialName: "name1", Revision: 12, EditedSummary: "s12"},
+		},
+	})
+
+	info, err := snapstate.Snap(s.state, "name1", 11)
 	c.Assert(err, IsNil)
 
-	// TODO: This test is not faking the manifest so SideInfo is not present.
-	// The test and the actual implementation need to be improved so that this
-	// is not so hacky and that the manifest can go away.
-	c.Check(snapInfo.Name(), Equals, "ignored")
-	// Check that other values are read from YAML
-	c.Check(snapInfo.Description(), Equals, "Lots of text")
-	c.Check(snapInfo.Version, Equals, "1.2")
+	c.Check(info.Name(), Equals, "name1")
+	c.Check(info.Revision, Equals, 11)
+	c.Check(info.Summary(), Equals, "s11")
+	c.Check(info.Version, Equals, "1.2")
+	c.Check(info.Description(), Equals, "Lots of text")
 }
