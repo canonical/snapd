@@ -329,6 +329,17 @@ version: 1.0`)
 
 	c.Check(s.fakeBackend.ops[3].op, Equals, "candidate")
 	c.Check(s.fakeBackend.ops[3].sinfo, DeepEquals, snap.SideInfo{})
+
+	// verify snapSetup info
+	var ss snapstate.SnapSetup
+	task := ts.Tasks()[0]
+	err = task.Get("snap-setup", &ss)
+	c.Assert(err, IsNil)
+	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
+		Name:     "mock",
+		Revision: 0,
+		SnapPath: mockSnap,
+	})
 }
 
 func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
