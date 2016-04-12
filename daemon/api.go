@@ -202,7 +202,7 @@ func loginUser(c *Command, r *http.Request) Response {
 
 	macaroon, err := store.RequestPackageAccessMacaroon()
 	if err != nil {
-		return InternalError(fmt.Sprintf("%v", err))
+		return InternalError(err.Error())
 	}
 
 	discharge, err := store.DischargeAuthCaveat(loginData.Username, loginData.Password, macaroon, loginData.Otp)
@@ -218,7 +218,7 @@ func loginUser(c *Command, r *http.Request) Response {
 		return SyncResponse(twofactorRequiredResponse)
 	}
 	if err != nil {
-		return Unauthorized(fmt.Sprintf("%v", err))
+		return Unauthorized(err.Error())
 	}
 
 	authenticatedUser := userAuthState{
