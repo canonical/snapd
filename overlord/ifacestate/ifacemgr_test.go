@@ -39,9 +39,10 @@ import (
 func TestInterfaceManager(t *testing.T) { TestingT(t) }
 
 type interfaceManagerSuite struct {
-	state     *state.State
-	mgr       *ifacestate.InterfaceManager
-	parserCmd *testutil.MockCmd
+	state      *state.State
+	mgr        *ifacestate.InterfaceManager
+	parserCmd  *testutil.MockCmd
+	udevadmCmd *testutil.MockCmd
 }
 
 var _ = Suite(&interfaceManagerSuite{})
@@ -54,12 +55,14 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	s.state = state
 	s.mgr = mgr
 	s.parserCmd = testutil.MockCommand(c, "apparmor_parser", "")
+	s.udevadmCmd = testutil.MockCommand(c, "udevadm", "")
 }
 
 func (s *interfaceManagerSuite) TearDownTest(c *C) {
 	s.mgr.Stop()
 	dirs.SetRootDir("")
 	s.parserCmd.Restore()
+	s.udevadmCmd.Restore()
 }
 
 func (s *interfaceManagerSuite) TestSmoke(c *C) {
