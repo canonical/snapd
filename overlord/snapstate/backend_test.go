@@ -34,6 +34,7 @@ type fakeOp struct {
 	channel string
 	flags   int
 	active  bool
+	sinfo   snap.SideInfo
 
 	rollback string
 }
@@ -142,14 +143,6 @@ func (f *fakeSnappyBackend) CopySnapData(instSnapPath string, flags int) error {
 	return nil
 }
 
-func (f *fakeSnappyBackend) SetupSnapSecurity(instSnapPath string) error {
-	f.ops = append(f.ops, fakeOp{
-		op:   "setup-snap-security",
-		name: instSnapPath,
-	})
-	return nil
-}
-
 func (f *fakeSnappyBackend) LinkSnap(instSnapPath string) error {
 	f.ops = append(f.ops, fakeOp{
 		op:   "link-snap",
@@ -213,14 +206,6 @@ func (f *fakeSnappyBackend) UnlinkSnap(instSnapPath string, meter progress.Meter
 	return nil
 }
 
-func (f *fakeSnappyBackend) RemoveSnapSecurity(instSnapPath string) error {
-	f.ops = append(f.ops, fakeOp{
-		op:   "remove-snap-security",
-		name: instSnapPath,
-	})
-	return nil
-}
-
 func (f *fakeSnappyBackend) RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error {
 	f.ops = append(f.ops, fakeOp{
 		op:   "remove-snap-files",
@@ -245,4 +230,15 @@ func (f *fakeSnappyBackend) GarbageCollect(name string, flags int, meter progres
 		flags: flags,
 	})
 	return nil
+}
+
+func (f *fakeSnappyBackend) Candidate(sideInfo *snap.SideInfo) {
+	var sinfo snap.SideInfo
+	if sideInfo != nil {
+		sinfo = *sideInfo
+	}
+	f.ops = append(f.ops, fakeOp{
+		op:    "candidate",
+		sinfo: sinfo,
+	})
 }

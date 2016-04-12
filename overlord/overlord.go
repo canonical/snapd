@@ -168,7 +168,7 @@ func (o *Overlord) Stop() error {
 // Settle runs first a state engine Ensure and then wait for activities to settle.
 // That's done by waiting for all managers activities to settle while
 // making sure no immediate further Ensure is scheduled. Chiefly for tests.
-// Cannot be used in conjuction with Loop.
+// Cannot be used in conjunction with Loop.
 func (o *Overlord) Settle() error {
 	func() {
 		o.ensureLock.Lock()

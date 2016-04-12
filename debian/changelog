@@ -1,8 +1,24 @@
+snapd (1.9.1) xenial; urgency=medium
+
+  * Add warning about installing ubuntu-core-snapd-units on Desktop systems.
+  * Add ${misc:Depends} to ubuntu-core-snapd-units.
+  * interfaces,overlord: add support for auto-connecting plugs on
+    install
+  * fix sideloading snaps and (re)add tests for this
+  * add `ca-certificates` to the test-dependencies to fix autopkgtest
+    failure on armhf
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 12 Apr 2016 14:39:57 +0200
+
 snapd (1.9) xenial; urgency=medium
 
   * rename source and binary package to "snapd"
+  * update directory layout to final 16.04 layout
+  * use `snap` command instead of the previous `snappy`
+  * use `interface` based security
+  * use new state engine for install/update/remove
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 11 Mar 2016 16:54:51 +0100
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 12 Apr 2016 01:05:09 +0200
 
 ubuntu-snappy (1.7.3+20160310ubuntu1) xenial; urgency=medium
 
