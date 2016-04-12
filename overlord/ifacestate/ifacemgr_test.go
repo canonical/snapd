@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -39,8 +40,10 @@ import (
 func TestInterfaceManager(t *testing.T) { TestingT(t) }
 
 type interfaceManagerSuite struct {
-	state *state.State
-	mgr   *ifacestate.InterfaceManager
+	state      *state.State
+	mgr        *ifacestate.InterfaceManager
+	parserCmd  *testutil.MockCmd
+	udevadmCmd *testutil.MockCmd
 }
 
 var _ = Suite(&interfaceManagerSuite{})
@@ -52,11 +55,15 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.state = state
 	s.mgr = mgr
+	s.parserCmd = testutil.MockCommand(c, "apparmor_parser", "")
+	s.udevadmCmd = testutil.MockCommand(c, "udevadm", "")
 }
 
 func (s *interfaceManagerSuite) TearDownTest(c *C) {
 	s.mgr.Stop()
 	dirs.SetRootDir("")
+	s.parserCmd.Restore()
+	s.udevadmCmd.Restore()
 }
 
 func (s *interfaceManagerSuite) TestSmoke(c *C) {
@@ -185,10 +192,7 @@ func (s *interfaceManagerSuite) addPlugSlotAndInterface(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *interfaceManagerSuite) TestDoSetupSnapSecuirty(c *C) {
-	parserCmd := testutil.MockCommand(c, "apparmor_parser", "")
-	defer parserCmd.Restore()
-
+func (s *interfaceManagerSuite) addOS(c *C) {
 	osSnap := &snap.Info{
 		Type:          snap.TypeOS,
 		SuggestedName: "ubuntu-core",
@@ -197,25 +201,22 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirty(c *C) {
 	snap.AddImplicitSlots(osSnap)
 	err := s.mgr.Repository().AddSnap(osSnap)
 	c.Assert(err, IsNil)
+}
 
-	dname := filepath.Join(dirs.SnapSnapsDir, "snap", "0", "meta")
+func (s *interfaceManagerSuite) addSnap(c *C, yamlText string) *snap.Info {
+	snapInfo, err := snap.InfoFromSnapYaml([]byte(yamlText))
+	c.Assert(err, IsNil)
+	dname := filepath.Join(dirs.SnapSnapsDir, snapInfo.Name(),
+		strconv.Itoa(snapInfo.Revision), "meta")
 	fname := filepath.Join(dname, "snap.yaml")
-
-	data := []byte(`
-name: snap
-version: 1
-apps:
- app:
-   command: foo
-plugs:
- network:
-  interface: network
-`)
 	err = os.MkdirAll(dname, 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(fname, data, 0644)
+	err = ioutil.WriteFile(fname, []byte(yamlText), 0644)
 	c.Assert(err, IsNil)
+	return snapInfo
+}
 
+func (s *interfaceManagerSuite) addSetupSnapSecurityChange(c *C, snapName string) *state.Change {
 	s.state.Lock()
 
 	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
@@ -233,6 +234,24 @@ plugs:
 	change := s.state.NewChange("test", "")
 	change.AddAll(taskset)
 	s.state.Unlock()
+	return change
+}
+
+var sampleSnapYaml = `
+name: snap
+version: 1
+apps:
+ app:
+   command: foo
+plugs:
+ network:
+  interface: network
+`
+
+func (s *interfaceManagerSuite) TestDoSetupSnapSecuirty(c *C) {
+	s.addOS(c)
+	snapInfo := s.addSnap(c, sampleSnapYaml)
+	change := s.addSetupSnapSecurityChange(c, snapInfo.Name())
 
 	s.mgr.Ensure()
 	s.mgr.Wait()
@@ -241,16 +260,47 @@ plugs:
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	c.Check(task.Status(), Equals, state.DoneStatus)
 	c.Check(change.Status(), Equals, state.DoneStatus)
-
 	var conns map[string]interface{}
-	err = task.State().Get("conns", &conns)
+	err := s.state.Get("conns", &conns)
 	c.Assert(err, IsNil)
 	c.Check(conns, DeepEquals, map[string]interface{}{
 		"snap:network ubuntu-core:network": map[string]interface{}{
-			"interface": "network",
-			"auto":      true,
+			"interface": "network", "auto": true,
+		},
+	})
+}
+
+func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyKeepsExistingConnectionState(c *C) {
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"other-snap:network ubuntu-core:network": map[string]interface{}{
+			"interface": "network", "auto": true,
+		},
+	})
+	s.state.Unlock()
+
+	s.addOS(c)
+	snapInfo := s.addSnap(c, sampleSnapYaml)
+	change := s.addSetupSnapSecurityChange(c, snapInfo.Name())
+
+	s.mgr.Ensure()
+	s.mgr.Wait()
+	s.mgr.Stop()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(change.Status(), Equals, state.DoneStatus)
+	var conns map[string]interface{}
+	err := s.state.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, map[string]interface{}{
+		"other-snap:network ubuntu-core:network": map[string]interface{}{
+			"interface": "network", "auto": true,
+		},
+		"snap:network ubuntu-core:network": map[string]interface{}{
+			"interface": "network", "auto": true,
 		},
 	})
 }
