@@ -21,6 +21,7 @@
 package snapstate
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -245,4 +246,40 @@ func Info(s *state.State, name string, revision int) (*snap.Info, error) {
 	}
 
 	return nil, fmt.Errorf("cannot find snap %q at revision %d", name, revision)
+}
+
+func Get(s *state.State, name string, snapst *SnapState) error {
+	var snaps map[string]*json.RawMessage
+	err := s.Get("snaps", &snaps)
+	if err != nil {
+		return err
+	}
+	raw, ok := snaps[name]
+	if !ok {
+		return state.ErrNoState
+	}
+	err = json.Unmarshal([]byte(*raw), &snapst)
+	if err != nil {
+		return fmt.Errorf("cannot unmarshal snap state: %v", err)
+	}
+	return nil
+}
+
+func Set(s *state.State, name string, snapst *SnapState) {
+	var snaps map[string]*json.RawMessage
+	err := s.Get("snaps", &snaps)
+	if err == state.ErrNoState {
+		s.Set("snaps", map[string]*SnapState{name: snapst})
+		return
+	}
+	if err != nil {
+		panic("internal error: cannot unmarshal snaps state: " + err.Error())
+	}
+	data, err := json.Marshal(snapst)
+	if err != nil {
+		panic("internal error: cannot marshal snap state: " + err.Error())
+	}
+	raw := json.RawMessage(data)
+	snaps[name] = &raw
+	s.Set("snaps", snaps)
 }
