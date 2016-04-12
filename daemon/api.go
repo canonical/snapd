@@ -1012,6 +1012,7 @@ func getEvents(c *Command, r *http.Request) Response {
 }
 
 type changeInfo struct {
+	ID      string      `json:"id"`
 	Kind    string      `json:"kind"`
 	Summary string      `json:"summary"`
 	Status  string      `json:"status"`
@@ -1053,6 +1054,7 @@ func getChanges(c *Command, r *http.Request) Response {
 			continue
 		}
 		chgInfo := &changeInfo{
+			ID:      chg.ID(),
 			Kind:    chg.Kind(),
 			Summary: chg.Summary(),
 			Status:  chg.Status().String(),
