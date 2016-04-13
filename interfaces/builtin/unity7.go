@@ -131,6 +131,7 @@ getpeername
 recvfrom
 recvmsg
 shutdown
+getsockopt
 
 # dbus
 connect
