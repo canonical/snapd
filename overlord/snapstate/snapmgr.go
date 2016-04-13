@@ -205,21 +205,22 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
-	t.State().Lock()
+	// invoked only if snap has a current active revision
+
+	st := t.State()
+
+	// Hold the lock for the full duration of the task here so
+	// nobody observes a world where the state engine and
+	// the file system are reporting different things.
+	st.Lock()
+	defer st.Unlock()
+
 	ss, snapst, err := snapSetupAndState(t)
-	t.State().Unlock()
 	if err != nil {
 		return err
 	}
 
-	// XXX: do it only if ss.Revision is active
-	if !snapst.Active {
-		return nil
-	}
-
-	t.State().Lock()
 	info, err := Info(t.State(), ss.Name, ss.Revision)
-	t.State().Unlock()
 	if err != nil {
 		return err
 	}
@@ -232,9 +233,7 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// mark as inactive
 	snapst.Active = false
-	t.State().Lock()
-	Set(t.State(), ss.Name, snapst)
-	t.State().Unlock()
+	Set(st, ss.Name, snapst)
 	return nil
 }
 
@@ -262,9 +261,11 @@ func (m *SnapManager) doRemoveSnapData(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) doForgetSnap(t *state.Task, _ *tomb.Tomb) error {
-	t.State().Lock()
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
 	ss, snapst, err := snapSetupAndState(t)
-	t.State().Unlock()
 	if err != nil {
 		return err
 	}
@@ -283,9 +284,7 @@ func (m *SnapManager) doForgetSnap(t *state.Task, _ *tomb.Tomb) error {
 		snapst.Sequence = newSeq
 	}
 
-	t.State().Lock()
-	Set(t.State(), ss.Name, snapst)
-	t.State().Unlock()
+	Set(st, ss.Name, snapst)
 	return nil
 }
 
@@ -414,48 +413,66 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
-	t.State().Lock()
+	st := t.State()
+
+	// Hold the lock for the full duration of the task here so
+	// nobody observes a world where the state engine and
+	// the file system are reporting different things.
+	st.Lock()
+	defer st.Unlock()
+
 	ss, snapst, err := snapSetupAndState(t)
-	t.State().Unlock()
 	if err != nil {
 		return err
 	}
 
-	cur := snapst.Current()
-	if cur == nil {
-		return nil
-	}
-
-	oldInfo, err := retrieveInfo(ss.Name, cur)
+	oldInfo, err := retrieveInfo(ss.Name, snapst.Current())
 	if err != nil {
 		return err
 	}
 
-	// XXX: set active again if it was active in the first place
-	return m.backend.LinkSnap(oldInfo)
+	snapst.Active = true
+	err = m.backend.LinkSnap(oldInfo)
+	if err != nil {
+		return err
+	}
+
+	// mark as active again
+	Set(st, ss.Name, snapst)
+	return nil
+
 }
 
 func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
-	t.State().Lock()
+	st := t.State()
+
+	// Hold the lock for the full duration of the task here so
+	// nobody observes a world where the state engine and
+	// the file system are reporting different things.
+	st.Lock()
+	defer st.Unlock()
+
 	ss, snapst, err := snapSetupAndState(t)
-	t.State().Unlock()
 	if err != nil {
 		return err
 	}
 
-	cur := snapst.Current()
-	if cur == nil || !snapst.Active {
-		return nil
-	}
-
-	oldInfo, err := retrieveInfo(ss.Name, cur)
+	oldInfo, err := retrieveInfo(ss.Name, snapst.Current())
 	if err != nil {
 		return err
 	}
 
-	// XXX: unset active but how can we know whether it was active in undo?
+	snapst.Active = false
+
 	pb := &TaskProgressAdapter{task: t}
-	return m.backend.UnlinkSnap(oldInfo, pb)
+	err = m.backend.UnlinkSnap(oldInfo, pb)
+	if err != nil {
+		return err
+	}
+
+	// mark as inactive
+	Set(st, ss.Name, snapst)
+	return nil
 }
 
 func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
@@ -532,9 +549,15 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
-	t.State().Lock()
+	st := t.State()
+
+	// Hold the lock for the full duration of the task here so
+	// nobody observes a world where the state engine and
+	// the file system are reporting different things.
+	st.Lock()
+	defer st.Unlock()
+
 	ss, snapst, err := snapSetupAndState(t)
-	t.State().Unlock()
 	if err != nil {
 		return err
 	}
@@ -549,9 +572,17 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// XXX: unset active
+	snapst.Active = false
+
 	pb := &TaskProgressAdapter{task: t}
-	return m.backend.UnlinkSnap(newInfo, pb)
+	err = m.backend.UnlinkSnap(newInfo, pb)
+	if err != nil {
+		return err
+	}
+
+	// mark as inactive
+	Set(st, ss.Name, snapst)
+	return nil
 }
 
 func (m *SnapManager) doGarbageCollect(t *state.Task, _ *tomb.Tomb) error {

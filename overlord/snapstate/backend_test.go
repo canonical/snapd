@@ -20,6 +20,7 @@
 package snapstate_test
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/ubuntu-core/snappy/progress"
@@ -44,6 +45,8 @@ type fakeSnappyBackend struct {
 
 	fakeCurrentProgress int
 	fakeTotalProgress   int
+
+	linkSnapFailTrigger string
 }
 
 func (f *fakeSnappyBackend) InstallLocal(path string, flags int, p progress.Meter) error {
@@ -148,6 +151,14 @@ func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, flags int)
 }
 
 func (f *fakeSnappyBackend) LinkSnap(info *snap.Info) error {
+	if info.MountDir() == f.linkSnapFailTrigger {
+		f.ops = append(f.ops, fakeOp{
+			op:   "link-snap.failed",
+			name: info.MountDir(),
+		})
+		return errors.New("fail")
+	}
+
 	f.ops = append(f.ops, fakeOp{
 		op:   "link-snap",
 		name: info.MountDir(),
