@@ -163,13 +163,13 @@ func (cs *clientSuite) TestClientOpSnapInvalidResource(c *check.C) {
 func (cs *clientSuite) TestClientOpSnap(c *check.C) {
 	cs.rsp = `{
 		"result": {
-			"resource": "/v2/operations/5a70dffa-66b3-3567-d728-55b0da48bdc7"
+			"resource": "/v2/changes/d728"
 		},
 		"status-code": 202,
 		"type": "async"
 	}`
 	for _, s := range ops {
-		uuid, err := s.op(cs.cli, pkgName)
+		id, err := s.op(cs.cli, pkgName)
 		c.Assert(err, check.IsNil)
 
 		body, err := ioutil.ReadAll(cs.req.Body)
@@ -182,11 +182,11 @@ func (cs *clientSuite) TestClientOpSnap(c *check.C) {
 
 		c.Check(cs.req.Method, check.Equals, "POST", check.Commentf(s.action))
 		c.Check(cs.req.URL.Path, check.Equals, fmt.Sprintf("/v2/snaps/%s", pkgName), check.Commentf(s.action))
-		c.Check(uuid, check.Equals, "5a70dffa-66b3-3567-d728-55b0da48bdc7", check.Commentf(s.action))
+		c.Check(id, check.Equals, "d728", check.Commentf(s.action))
 	}
 
 	for _, s := range chanops {
-		uuid, err := s.op(cs.cli, pkgName, chanName)
+		id, err := s.op(cs.cli, pkgName, chanName)
 		c.Assert(err, check.IsNil)
 
 		body, err := ioutil.ReadAll(cs.req.Body)
@@ -200,14 +200,14 @@ func (cs *clientSuite) TestClientOpSnap(c *check.C) {
 
 		c.Check(cs.req.Method, check.Equals, "POST", check.Commentf(s.action))
 		c.Check(cs.req.URL.Path, check.Equals, fmt.Sprintf("/v2/snaps/%s", pkgName), check.Commentf(s.action))
-		c.Check(uuid, check.Equals, "5a70dffa-66b3-3567-d728-55b0da48bdc7", check.Commentf(s.action))
+		c.Check(id, check.Equals, "d728", check.Commentf(s.action))
 	}
 }
 
 func (cs *clientSuite) TestClientOpSideload(c *check.C) {
 	cs.rsp = `{
 		"result": {
-			"resource": "/v2/operations/5a70dffa-66b3-3567-d728-55b0da48bdc7"
+			"resource": "/v2/changes/66b3"
 		},
 		"status-code": 202,
 		"type": "async"
@@ -218,7 +218,7 @@ func (cs *clientSuite) TestClientOpSideload(c *check.C) {
 	err := ioutil.WriteFile(snap, bodyData, 0644)
 	c.Assert(err, check.IsNil)
 
-	uuid, err := (*client.Client).InstallSnapFile(cs.cli, snap)
+	id, err := (*client.Client).InstallSnapFile(cs.cli, snap)
 	c.Assert(err, check.IsNil)
 
 	body, err := ioutil.ReadAll(cs.req.Body)
@@ -227,5 +227,5 @@ func (cs *clientSuite) TestClientOpSideload(c *check.C) {
 
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, fmt.Sprintf("/v2/snaps"))
-	c.Check(uuid, check.Equals, "5a70dffa-66b3-3567-d728-55b0da48bdc7")
+	c.Check(id, check.Equals, "66b3")
 }

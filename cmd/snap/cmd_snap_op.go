@@ -20,6 +20,7 @@
 package main
 
 import (
+	"errors"
 	"strings"
 	"time"
 
@@ -29,15 +30,19 @@ import (
 	"github.com/jessevdk/go-flags"
 )
 
-func wait(client *client.Client, uuid string) error {
+func wait(client *client.Client, id string) error {
 	for {
-		op, err := client.Operation(uuid)
+		chg, err := client.Change(id)
 		if err != nil {
 			return err
 		}
 
-		if !op.Running() {
-			return op.Err()
+		// XXX move this to a method of client.Change
+		switch chg.Status {
+		case "Done":
+			return nil
+		case "Error", "Undone", "Hold":
+			return errors.New("something broke")
 		}
 
 		time.Sleep(100 * time.Millisecond)
