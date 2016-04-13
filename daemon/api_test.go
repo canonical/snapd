@@ -534,7 +534,7 @@ func (s *apiSuite) TestLoginUserMyAppsError(c *check.C) {
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, http.StatusInternalServerError)
-	c.Check(rsp.Result.(*errorResult).Message, check.Equals, "cannot get package access macaroon")
+	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "cannot get package access macaroon")
 }
 
 func (s *apiSuite) TestLoginUserTwoFactorRequiredError(c *check.C) {
@@ -576,7 +576,7 @@ func (s *apiSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, http.StatusUnauthorized)
-	c.Check(rsp.Result.(*errorResult).Message, check.Equals, "cannot get discharge authorization")
+	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "cannot get discharge macaroon")
 }
 
 func (s *apiSuite) TestSnapsInfoOnePerIntegration(c *check.C) {
