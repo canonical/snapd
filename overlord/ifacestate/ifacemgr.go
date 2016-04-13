@@ -277,13 +277,12 @@ func getPlugAndSlotRefs(task *state.Task) (*interfaces.PlugRef, *interfaces.Slot
 	return &plugRef, &slotRef, nil
 }
 
-func getConns(task *state.Task) (map[string]connState, error) {
+func getConns(st *state.State) (map[string]connState, error) {
 	// Get information about connections from the state
 	var conns map[string]connState
-	err := task.State().Get("conns", &conns)
+	err := st.Get("conns", &conns)
 	if err != nil && err != state.ErrNoState {
-		task.Errorf("cannot obtain data about existing connections, %s", err)
-		return nil, err
+		return nil, fmt.Errorf("cannot obtain data about existing connections, %s", err)
 	}
 	if conns == nil {
 		conns = make(map[string]connState)
@@ -291,8 +290,8 @@ func getConns(task *state.Task) (map[string]connState, error) {
 	return conns, nil
 }
 
-func setConns(task *state.Task, conns map[string]connState) {
-	task.State().Set("conns", conns)
+func setConns(st *state.State, conns map[string]connState) {
+	st.Set("conns", conns)
 }
 
 func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
@@ -304,7 +303,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	conns, err := getConns(task)
+	conns, err := getConns(task.State())
 	if err != nil {
 		return err
 	}
@@ -316,7 +315,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	plug := m.repo.Plug(plugRef.Snap, plugRef.Name)
 	connID := fmt.Sprintf("%s:%s %s:%s", plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
 	conns[connID] = connState{Interface: plug.Interface, Auto: false}
-	setConns(task, conns)
+	setConns(task.State(), conns)
 	return nil
 }
 
@@ -329,7 +328,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	conns, err := getConns(task)
+	conns, err := getConns(task.State())
 	if err != nil {
 		return err
 	}
@@ -340,7 +339,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 
 	connID := fmt.Sprintf("%s:%s %s:%s", plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
 	delete(conns, connID)
-	setConns(task, conns)
+	setConns(task.State(), conns)
 	return nil
 }
 
