@@ -172,6 +172,9 @@ var defaultTemplate = []byte(`
   # this is an information leak
   deny /{,var/}run/utmp r,
 
+  # specific gl libs
+  /var/lib/snapd/gl/** rm,
+
   # java
   @{PROC}/@{pid}/ r,
   @{PROC}/@{pid}/fd/ r,
