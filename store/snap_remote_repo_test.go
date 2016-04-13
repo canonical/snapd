@@ -596,8 +596,8 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositorySuggestedCurrency(c *C) {
 	repo := NewUbuntuStoreSnapRepository(&cfg, "")
 	c.Assert(repo, NotNil)
 
-	// the store doesn't know the currency until after the first search
-	c.Check(repo.SuggestedCurrency(), Equals, "")
+	// the store doesn't know the currency until after the first search, so fall back to dollars
+	c.Check(repo.SuggestedCurrency(), Equals, "USD")
 
 	// we should soon have a suggested currency
 	result, err := repo.Snap(funkyAppName+"."+funkyAppDeveloper, "edge")
@@ -605,11 +605,11 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositorySuggestedCurrency(c *C) {
 	c.Assert(result, NotNil)
 	c.Check(repo.SuggestedCurrency(), Equals, "GBP")
 
-	suggestedCurrency = ""
+	suggestedCurrency = "EUR"
 
-	// checking the fallback to USD
+	// checking the currency updates
 	result, err = repo.Snap(funkyAppName+"."+funkyAppDeveloper, "edge")
 	c.Assert(err, IsNil)
 	c.Assert(result, NotNil)
-	c.Check(repo.SuggestedCurrency(), Equals, "USD")
+	c.Check(repo.SuggestedCurrency(), Equals, "EUR")
 }

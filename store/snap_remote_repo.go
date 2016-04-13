@@ -246,17 +246,13 @@ func (s *SnapUbuntuStoreRepository) configureStoreReq(req *http.Request, accept 
 }
 
 // read all the available metadata from the store response and cache
-func (s *SnapUbuntuStoreRepository) readStoreResponse(resp *http.Response) {
+func (s *SnapUbuntuStoreRepository) checkStoreResponse(resp *http.Response) {
 	suggestedCurrency := resp.Header.Get("X-Suggested-Currency")
-	if suggestedCurrency == "" {
-		suggestedCurrency = "USD"
-	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.suggestedCurrency != suggestedCurrency {
+	if suggestedCurrency != "" {
+		s.mu.Lock()
 		s.suggestedCurrency = suggestedCurrency
+		s.mu.Unlock()
 	}
 }
 
@@ -297,7 +293,7 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string) (*snap.Info, erro
 		return nil, err
 	}
 
-	s.readStoreResponse(resp)
+	s.checkStoreResponse(resp)
 
 	return infoFromRemote(detailsData), nil
 }
@@ -344,7 +340,7 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string)
 		snaps[i] = infoFromRemote(pkg)
 	}
 
-	s.readStoreResponse(resp)
+	s.checkStoreResponse(resp)
 
 	return snaps, nil
 }
@@ -382,7 +378,7 @@ func (s *SnapUbuntuStoreRepository) Updates(installed []string) (snaps []*snap.I
 		res[i] = infoFromRemote(rsnap)
 	}
 
-	s.readStoreResponse(resp)
+	s.checkStoreResponse(resp)
 
 	return res, nil
 }
@@ -505,5 +501,8 @@ func (s *SnapUbuntuStoreRepository) SuggestedCurrency() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.suggestedCurrency == "" {
+		return "USD"
+	}
 	return s.suggestedCurrency
 }
