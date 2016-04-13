@@ -342,8 +342,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	connID := fmt.Sprintf("%s:%s %s:%s", plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
-	delete(conns, connID)
+	delete(conns, connID(plugRef, slotRef))
 	setConns(st, conns)
 	return nil
 }
