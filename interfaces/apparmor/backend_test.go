@@ -259,8 +259,7 @@ func (s *backendSuite) TestCustomTemplateUsedOnRequest(c *C) {
 	c.Assert(string(data), testutil.Contains, "FOO")
 	// Custom profile can rely on legacy variables
 	for _, legacyVarName := range []string{
-		"APP_APPNAME", "APP_ID_DBUS", "APP_PKGNAME_DBUS",
-		"APP_PKGNAME", "APP_VERSION", "INSTALL_DIR",
+		"APP_APPNAME", "APP_PKGNAME", "APP_VERSION", "INSTALL_DIR",
 	} {
 		c.Assert(string(data), testutil.Contains, fmt.Sprintf("@{%s}=", legacyVarName))
 	}
@@ -274,8 +273,6 @@ type combineSnippetsScenario struct {
 
 const commonPrefix = `
 @{APP_APPNAME}="smbd"
-@{APP_ID_DBUS}="samba_2eacme_5fsmbd_5f1"
-@{APP_PKGNAME_DBUS}="samba_2eacme"
 @{APP_PKGNAME}="samba"
 @{APP_VERSION}="1"
 @{INSTALL_DIR}="/snap"`
