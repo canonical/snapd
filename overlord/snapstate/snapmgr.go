@@ -564,21 +564,14 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// relinking of the old snap is done in the undo of unlink-current-snap
 
-	n := len(snapst.Sequence)
-	cand := snapst.Sequence[n-1]
+	snapst.Candidate = snapst.Sequence[len(snapst.Sequence)-1]
+	snapst.Sequence = snapst.Sequence[:len(snapst.Sequence)-1]
+	snapst.Active = false
 
-	newInfo, err := retrieveInfo(ss.Name, cand)
+	newInfo, err := retrieveInfo(ss.Name, snapst.Candidate)
 	if err != nil {
 		return err
 	}
-
-	snapst.Candidate = cand
-	if n == 1 {
-		snapst.Sequence = nil
-	} else {
-		snapst.Sequence = snapst.Sequence[:n-1]
-	}
-	snapst.Active = false
 
 	pb := &TaskProgressAdapter{task: t}
 	err = m.backend.UnlinkSnap(newInfo, pb)
