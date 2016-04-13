@@ -1324,9 +1324,10 @@ func (s *apiSuite) TestInstallMissingUbuntuCore(c *check.C) {
 		return state.ErrNoState
 	}
 	snapstateInstall = func(s *state.State, name, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
-		t := s.NewTask("fake-install-snap", name)
-		installQueue = append(installQueue, t)
-		return state.NewTaskSet(t), nil
+		t1 := s.NewTask("fake-install-snap", name)
+		t2 := s.NewTask("fake-install-snap", "second task is just here so that we can check that the wait is correctly added to all tasks")
+		installQueue = append(installQueue, t1, t2)
+		return state.NewTaskSet(t1, t2), nil
 	}
 
 	d := s.daemon(c)
@@ -1343,11 +1344,15 @@ func (s *apiSuite) TestInstallMissingUbuntuCore(c *check.C) {
 
 	d.overlord.State().Lock()
 	defer d.overlord.State().Unlock()
-	c.Check(installQueue, check.HasLen, 2)
+	c.Check(installQueue, check.HasLen, 4)
+	// the two "some-snap" install tasks
 	c.Check(installQueue[0].Summary(), check.Equals, "some-snap")
 	c.Check(installQueue[0].WaitTasks(), check.Not(check.HasLen), 0)
-	c.Check(installQueue[1].Summary(), check.Equals, "ubuntu-core")
-	c.Check(installQueue[1].WaitTasks(), check.HasLen, 0)
+	c.Check(installQueue[1].WaitTasks(), check.Not(check.HasLen), 0)
+	// the two "ubuntu-core" install tasks
+	c.Check(installQueue[2].Summary(), check.Equals, "ubuntu-core")
+	c.Check(installQueue[2].WaitTasks(), check.HasLen, 0)
+	c.Check(installQueue[3].WaitTasks(), check.HasLen, 0)
 }
 
 func (s *apiSuite) TestInstallFails(c *check.C) {
