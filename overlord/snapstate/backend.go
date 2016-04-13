@@ -49,7 +49,6 @@ type managerBackend interface {
 	RemoveSnapData(name string, revision int) error
 
 	// TODO: need to be split into fine grained tasks
-	Update(name, channel string, flags int, meter progress.Meter) error
 	Activate(name string, active bool, meter progress.Meter) error
 	// XXX: this one needs to be revno based as well
 	Rollback(name, ver string, meter progress.Meter) (string, error)
@@ -77,12 +76,6 @@ func (b *defaultBackend) SnapByNameAndVersion(name, version string) *snap.Info {
 	}
 	// XXX: could be many now, pick one for now
 	return found[0].Info()
-}
-
-func (b *defaultBackend) Update(name, channel string, flags int, meter progress.Meter) error {
-	// FIXME: support "channel" in snappy.Update()
-	_, err := snappy.Update(name, snappy.InstallFlags(flags), meter)
-	return err
 }
 
 func (b *defaultBackend) Rollback(name, ver string, meter progress.Meter) (string, error) {
