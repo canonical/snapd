@@ -164,6 +164,10 @@ type connState struct {
 	Interface string `json:"interface,omitempty"`
 }
 
+func connID(plug *interfaces.PlugRef, slot *interfaces.SlotRef) string {
+	return fmt.Sprintf("%s:%s %s:%s", plug.Snap, plug.Name, slot.Snap, slot.Name)
+}
+
 func (m *InterfaceManager) autoConnect(task *state.Task, snapName string) error {
 	var conns map[string]connState
 	err := task.State().Get("conns", &conns)
@@ -277,26 +281,72 @@ func getPlugAndSlotRefs(task *state.Task) (*interfaces.PlugRef, *interfaces.Slot
 	return &plugRef, &slotRef, nil
 }
 
+func getConns(st *state.State) (map[string]connState, error) {
+	// Get information about connections from the state
+	var conns map[string]connState
+	err := st.Get("conns", &conns)
+	if err != nil && err != state.ErrNoState {
+		return nil, fmt.Errorf("cannot obtain data about existing connections: %s", err)
+	}
+	if conns == nil {
+		conns = make(map[string]connState)
+	}
+	return conns, nil
+}
+
+func setConns(st *state.State, conns map[string]connState) {
+	st.Set("conns", conns)
+}
+
 func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
-	task.State().Lock()
-	defer task.State().Unlock()
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
 
 	plugRef, slotRef, err := getPlugAndSlotRefs(task)
 	if err != nil {
 		return err
 	}
-	return m.repo.Connect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
+
+	conns, err := getConns(st)
+	if err != nil {
+		return err
+	}
+
+	err = m.repo.Connect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
+	if err != nil {
+		return err
+	}
+
+	plug := m.repo.Plug(plugRef.Snap, plugRef.Name)
+	conns[connID(plugRef, slotRef)] = connState{Interface: plug.Interface}
+	setConns(st, conns)
+	return nil
 }
 
 func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
-	task.State().Lock()
-	defer task.State().Unlock()
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
 
 	plugRef, slotRef, err := getPlugAndSlotRefs(task)
 	if err != nil {
 		return err
 	}
-	return m.repo.Disconnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
+
+	conns, err := getConns(st)
+	if err != nil {
+		return err
+	}
+
+	err = m.repo.Disconnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
+	if err != nil {
+		return err
+	}
+
+	delete(conns, connID(plugRef, slotRef))
+	setConns(st, conns)
+	return nil
 }
 
 // Ensure implements StateManager.Ensure.
