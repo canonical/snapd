@@ -69,11 +69,6 @@ func Manager(s *state.State, extra []interfaces.Interface) (*InterfaceManager, e
 		runner: runner,
 		repo:   repo,
 	}
-	s.Lock()
-	defer s.Unlock()
-	if err := m.addSnaps(); err != nil {
-		return nil, err
-	}
 	if err := m.initialize(); err != nil {
 		return nil, err
 	}
@@ -85,6 +80,12 @@ func Manager(s *state.State, extra []interfaces.Interface) (*InterfaceManager, e
 }
 
 func (m *InterfaceManager) initialize() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if err := m.addSnaps(); err != nil {
+		return err
+	}
 	return nil
 }
 
