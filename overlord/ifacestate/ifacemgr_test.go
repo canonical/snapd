@@ -335,7 +335,6 @@ func (s *interfaceManagerSuite) TestConnectTracksConnectionsInState(c *C) {
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
-	// Run the setup-snap-security task
 	s.state.Lock()
 	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
