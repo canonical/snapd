@@ -502,7 +502,9 @@ func (ss *stateSuite) TestMethodEntrance(c *C) {
 		func() { st.Cached("foo") },
 		func() { st.Cache("foo", 1) },
 		func() { st.Changes() },
+		func() { st.Change("foo") },
 		func() { st.Tasks() },
+		func() { st.Task("foo") },
 		func() { st.MarshalJSON() },
 	}
 
