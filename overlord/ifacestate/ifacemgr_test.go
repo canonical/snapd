@@ -41,6 +41,7 @@ func TestInterfaceManager(t *testing.T) { TestingT(t) }
 type interfaceManagerSuite struct {
 	state           *state.State
 	privateMgr      *ifacestate.InterfaceManager
+	extraIfaces     []interfaces.Interface
 	restoreBackends func()
 }
 
@@ -51,6 +52,7 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	state := state.New(nil)
 	s.state = state
 	s.privateMgr = nil
+	s.extraIfaces = nil
 	s.restoreBackends = ifacestate.MockSecurityBackendsForSnap(
 		func(snapInfo *snap.Info) []interfaces.SecurityBackend { return nil },
 	)
@@ -66,7 +68,7 @@ func (s *interfaceManagerSuite) TearDownTest(c *C) {
 
 func (s *interfaceManagerSuite) manager(c *C) *ifacestate.InterfaceManager {
 	if s.privateMgr == nil {
-		mgr, err := ifacestate.Manager(s.state)
+		mgr, err := ifacestate.Manager(s.state, s.extraIfaces)
 		c.Assert(err, IsNil)
 		s.privateMgr = mgr
 	}
@@ -186,9 +188,13 @@ func (s *interfaceManagerSuite) TestEnsureProcessesDisconnectTask(c *C) {
 }
 
 func (s *interfaceManagerSuite) addPlugSlotAndInterface(c *C) {
-	ifacestate.InjectExtraInterfaces(&interfaces.TestInterface{InterfaceName: "test"})
+	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
+}
+
+func (s *interfaceManagerSuite) mockIface(c *C, iface interfaces.Interface) {
+	s.extraIfaces = append(s.extraIfaces, iface)
 }
 
 func (s *interfaceManagerSuite) mockSnap(c *C, yamlText string) *snap.Info {
@@ -330,7 +336,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyKeepsExistingConnectionSt
 }
 
 func (s *interfaceManagerSuite) TestConnectTracksConnectionsInState(c *C) {
-	ifacestate.InjectExtraInterfaces(&interfaces.TestInterface{InterfaceName: "test"})
+	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
@@ -362,7 +368,7 @@ func (s *interfaceManagerSuite) TestConnectTracksConnectionsInState(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestDisconnectTracksConnectionsInState(c *C) {
-	ifacestate.InjectExtraInterfaces(&interfaces.TestInterface{InterfaceName: "test"})
+	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
