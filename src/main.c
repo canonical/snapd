@@ -331,7 +331,7 @@ void setup_snappy_os_mounts()
 	// but if we do we need to ensure that data like /etc/{hostname,hosts,
 	// passwd,groups} is in sync between the two systems (probably via
 	// selected bind mounts of those files).
-	const char *mounts[] = { "/bin", "/sbin", "/lib", "/lib64" };
+	const char *mounts[] = { "/bin", "/sbin", "/lib", "/lib64", "/usr" };
 	for (int i = 0; i < sizeof(mounts) / sizeof(char *); i++) {
 		// we mount the OS snap /bin over the real /bin in this NS
 		const char *dst = mounts[i];
