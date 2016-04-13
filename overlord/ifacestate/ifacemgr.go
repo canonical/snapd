@@ -86,6 +86,9 @@ func (m *InterfaceManager) initialize() error {
 	if err := m.addSnaps(); err != nil {
 		return err
 	}
+	if err := m.reloadConnections(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -98,6 +101,24 @@ func (m *InterfaceManager) addSnaps() error {
 		snap.AddImplicitSlots(snapInfo)
 		if err := m.repo.AddSnap(snapInfo); err != nil {
 			logger.Noticef("%s", err)
+		}
+	}
+	return nil
+}
+
+func (m *InterfaceManager) reloadConnections() error {
+	conns, err := getConns(m.state)
+	if err != nil {
+		return err
+	}
+	for id := range conns {
+		plugRef, slotRef, err := parseConnID(id)
+		if err != nil {
+			return err
+		}
+		err = m.repo.Connect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
+		if err != nil {
+			return err
 		}
 	}
 	return nil
