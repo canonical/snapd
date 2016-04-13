@@ -578,25 +578,30 @@ func waitChange(chg *state.Change) error {
 	return chg.Err()
 }
 
-func ensureUbuntuCore(st *state.State, chg *state.Change, other *state.TaskSet) error {
+func ensureUbuntuCore(chg *state.Change) error {
 	var ss snapstate.SnapState
 
 	ubuntuCore := "ubuntu-core"
-	err := snapstateGet(st, ubuntuCore, &ss)
+	err := snapstateGet(chg.State(), ubuntuCore, &ss)
 	if err != state.ErrNoState {
 		return err
 	}
+	return installSnap(chg, ubuntuCore, "stable", 0)
+}
 
-	ts, err := snapstateInstall(st, ubuntuCore, "stable", 0)
+func installSnap(chg *state.Change, name, channel string, flags snappy.InstallFlags) error {
+	st := chg.State()
+	ts, err := snapstateInstall(st, name, channel, flags)
 	if err != nil {
 		return err
 	}
+
+	// ensure that each of our task runs after the existing tasks
+	for _, t := range ts.Tasks() {
+		t.WaitAll(state.NewTaskSet(chg.Tasks()...))
+	}
 	chg.AddAll(ts)
 
-	// ensure we run first
-	for _, t := range ts.Tasks() {
-		other.WaitFor(t)
-	}
 	return nil
 }
 
@@ -605,25 +610,23 @@ func (inst *snapInstruction) install() interface{} {
 	if inst.LeaveOld {
 		flags = 0
 	}
-	st := inst.overlord.State()
-	st.Lock()
-
 	msg := fmt.Sprintf(i18n.G("Install %q snap"), inst.pkg)
 	if inst.Channel != "stable" {
 		msg = fmt.Sprintf(i18n.G("Install %q snap from %q channel"), inst.pkg, inst.Channel)
 	}
+
+	st := inst.overlord.State()
+	st.Lock()
 	chg := st.NewChange("install-snap", msg)
-	ts, err := snapstateInstall(st, inst.pkg, inst.Channel, flags)
+	err := ensureUbuntuCore(chg)
 	if err == nil {
-		if err := ensureUbuntuCore(st, chg, ts); err != nil {
-			return err
-		}
-		chg.AddAll(ts)
+		err = installSnap(chg, inst.pkg, inst.Channel, flags)
 	}
 	st.Unlock()
 	if err != nil {
 		return err
 	}
+
 	st.EnsureBefore(0)
 	err = waitChange(chg)
 	return err
