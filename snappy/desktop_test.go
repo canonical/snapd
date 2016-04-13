@@ -45,7 +45,7 @@ func (s *SnapTestSuite) TestAddPackageDesktopFiles(c *C) {
 	expectedDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar.desktop")
 	c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, false)
 
-	yamlFile, err := makeInstalledMockSnap(desktopAppYaml)
+	yamlFile, err := makeInstalledMockSnap(desktopAppYaml, 11)
 	c.Assert(err, IsNil)
 
 	snap, err := NewInstalledSnap(yamlFile)
@@ -80,7 +80,7 @@ func (s *SnapTestSuite) TestRemovePackageDesktopFiles(c *C) {
 }
 
 func (s *SnapTestSuite) TestDesktopFileIsAddedAndRemoved(c *C) {
-	yamlFile, err := makeInstalledMockSnap(string(desktopAppYaml))
+	yamlFile, err := makeInstalledMockSnap(string(desktopAppYaml), 11)
 	c.Assert(err, IsNil)
 	snap, err := NewInstalledSnap(yamlFile)
 	c.Assert(err, IsNil)
@@ -101,7 +101,7 @@ func (s *SnapTestSuite) TestDesktopFileIsAddedAndRemoved(c *C) {
 	c.Assert(string(content), Equals, `
 [Desktop Entry]
 Name=foo
-Icon=/snaps/foo/1.0/foo.png`)
+Icon=/snap/foo/11/foo.png`)
 
 	// unlink (deactivate) removes it again
 	err = UnlinkSnap(snap, nil)
@@ -182,7 +182,7 @@ Exec=snap.app %U
 	e := sanitizeDesktopFile(snap, "/my/basedir", desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Entry]
 Name=foo
-Exec=/snaps/bin/snap.app %U`)
+Exec=/snap/bin/snap.app %U`)
 }
 
 // we do not support TryExec (even if its a valid line), this test ensures
@@ -245,7 +245,7 @@ apps:
 
 	newl, err := rewriteExecLine(snap, "Exec=snap.app")
 	c.Assert(err, IsNil)
-	c.Assert(newl, Equals, "Exec=/snaps/bin/snap.app")
+	c.Assert(newl, Equals, "Exec=/snap/bin/snap.app")
 }
 
 func (s *SnapTestSuite) TestDesktopFileSanitizeDesktopActionsOk(c *C) {

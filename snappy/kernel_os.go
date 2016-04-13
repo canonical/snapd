@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/ubuntu-core/snappy/logger"
@@ -43,11 +44,7 @@ var findBootloader = partition.FindBootloader
 
 // removeKernelAssets removes the unpacked kernel/initrd for the given
 // kernel snap
-func removeKernelAssets(s *snap.Info, inter interacter) error {
-	if s.Type != snap.TypeKernel {
-		return fmt.Errorf("can not remove kernel assets from snap type %q", s.Type)
-	}
-
+func removeKernelAssets(s snap.PlaceInfo, inter interacter) error {
 	bootloader, err := findBootloader()
 	if err != nil {
 		return fmt.Errorf("no not remove kernel assets: %s", err)
@@ -192,10 +189,14 @@ func kernelOrOsRebootRequired(s *Snap) bool {
 	return false
 }
 
-func nameAndVersionFromSnap(snap string) (string, string) {
+func nameAndRevnoFromSnap(snap string) (string, int) {
 	name := strings.Split(snap, "_")[0]
-	ver := strings.Split(snap, "_")[1]
-	return name, strings.Split(ver, ".snap")[0]
+	revnoNSuffix := strings.Split(snap, "_")[1]
+	revno, err := strconv.Atoi(strings.Split(revnoNSuffix, ".snap")[0])
+	if err != nil {
+		return "", -1
+	}
+	return name, revno
 }
 
 // SyncBoot synchronizes the active kernel and OS snap versions with
@@ -221,10 +222,10 @@ func SyncBoot() error {
 
 	overlord := &Overlord{}
 	for _, snap := range []string{kernelSnap, osSnap} {
-		name, ver := nameAndVersionFromSnap(snap)
-		found := FindSnapsByNameAndVersion(name, ver, installed)
+		name, revno := nameAndRevnoFromSnap(snap)
+		found := FindSnapsByNameAndRevision(name, revno, installed)
 		if len(found) != 1 {
-			return fmt.Errorf("can not SyncBoot, expected 1 snap for %s %s found %d", name, ver, len(found))
+			return fmt.Errorf("can not SyncBoot, expected 1 snap %q (revno=%d) found %d", snap, revno, len(found))
 		}
 		if err := overlord.SetActive(found[0], true, nil); err != nil {
 			return fmt.Errorf("can not SyncBoot, failed to make %s active: %s", found[0].Name(), err)

@@ -15,52 +15,44 @@ RELEASE = $(shell lsb_release -c -s)
 override_dh_systemd_enable:
 	# enable boot-ok
 	dh_systemd_enable \
-		-pubuntu-snappy \
-		ubuntu-snappy.boot-ok.service
-	# enable the security policy generation
-	dh_systemd_enable \
-		-pubuntu-snappy \
-		ubuntu-snappy.run-hooks.service
+		-pubuntu-core-snapd-units \
+		snapd.boot-ok.service
 	# enable the first boot service
 	dh_systemd_enable \
-		-pubuntu-snappy \
-		ubuntu-snappy.firstboot.service
-# we want the autopilot timer enabled by default
+		-pubuntu-core-snapd-units \
+		snapd.firstboot.service
+	# we want the autopilot timer enabled by default
 	dh_systemd_enable \
-		-pubuntu-snappy \
+		-psnapd \
 		snappy-autopilot.timer
 	# but the autopilot service disabled
 	dh_systemd_enable \
 		--no-enable \
-		-pubuntu-snappy \
+		-psnapd \
 		snappy-autopilot.service
 	# enable snapd
 	dh_systemd_enable \
-		-pubuntu-snappy \
-		ubuntu-snappy.snapd.socket
+		-psnapd \
+		snapd.socket
 
 override_dh_systemd_start:
 	# start boot-ok
 	dh_systemd_start \
-		-pubuntu-snappy \
-		ubuntu-snappy.boot-ok.service
-# start run-hooks
+		-pubuntu-core-snapd-units \
+		snapd.boot-ok.service
+	# we want to start the autopilot timer
 	dh_systemd_start \
-		-pubuntu-snappy \
-		ubuntu-snappy.run-hooks.service
-# we want to start the autopilot timer
-	dh_systemd_start \
-		-pubuntu-snappy \
+		-psnapd \
 		snappy-autopilot.timer
 	# but not start the service
 	dh_systemd_start \
 		--no-start \
-		-pubuntu-snappy \
+		-psnapd \
 		snappy-autopilot.service
 	# start snapd
 	dh_systemd_start \
-		-pubuntu-snappy \
-		ubuntu-snappy.snapd.socket
+		-psnapd \
+		snapd.socket
 
 # we need the builddir; is there a simpler way to get it?
 BUILDDIR:=${CURDIR}/obj-$(shell dpkg-architecture -qDEB_TARGET_GNU_TYPE)
@@ -74,21 +66,20 @@ override_dh_auto_build:
 		GOPATH=${BUILDDIR} go generate ./i18n;\
 	fi;
 
-override_dh_auto_install: snappy.8 snap.8
+override_dh_auto_install: snap.8
 	dh_auto_install -O--buildsystem=golang
 	# we do not need this in the package, its just needed during build
 	rm -rf ${CURDIR}/debian/tmp/usr/bin/xgettext-go
 	# Making the packages private
-	rm -rf ${CURDIR}/debian/ubuntu-snappy/usr/share/gocode
+	rm -rf ${CURDIR}/debian/snapd/usr/share/gocode
 	# toolbelt is not shippable
 	rm -f ${CURDIR}/debian/tmp/usr/bin/toolbelt
-
-snappy.8:
-	${BUILDDIR}/bin/snappy man > $@
+	# we do not like /usr/bin/snappy anymore
+	rm -f ${CURDIR}/debian/tmp/usr/bin/snappy
 
 snap.8:
 	${BUILDDIR}/bin/snap man > $@
 
 override_dh_auto_clean:
 	dh_auto_clean -O--buildsystem=golang
-	rm -vf snappy.8 snap.8
+	rm -vf snap.8

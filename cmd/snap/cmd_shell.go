@@ -24,27 +24,29 @@ import (
 	"os"
 	"syscall"
 
+	//"github.com/jessevdk/go-flags"
+
 	"github.com/ubuntu-core/snappy/classic"
 	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/logger"
 )
 
 type cmdShell struct {
 	Positional struct {
-		ShellType string `positional-arg-name:"shell-type"`
+		ShellType string `positional-arg-name:"shell-type" description:"The type of shell you want"`
 	} `positional-args:"yes"`
 }
 
+// FIXME: reenable for GA
+/*
 func init() {
-	arg, err := parser.AddCommand("shell",
+	addCommand("shell",
 		i18n.G("Run snappy shell interface"),
 		i18n.G("Run snappy shell interface"),
-		&cmdShell{})
-	if err != nil {
-		logger.Panicf("Unable to add shell command: %q", err)
-	}
-	addOptionDescription(arg, "shell-type", i18n.G("The type of shell you want"))
+		func() flags.Commander {
+			return &cmdShell{}
+		})
 }
+*/
 
 // reexec will rexec itself with sudo
 func reexecWithSudo() error {
@@ -62,7 +64,7 @@ func (x *cmdShell) Execute(args []string) error {
 	if shellType == "classic" {
 		if !classic.Enabled() {
 			return fmt.Errorf(i18n.G(`Classic dimension disabled on this system.
-Use "sudo snappy enable-classic" to enable it.`))
+Use "sudo snap enable-classic" to enable it.`))
 		}
 
 		// we need to re-exec if we do not run as root

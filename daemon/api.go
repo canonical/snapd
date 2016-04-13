@@ -38,14 +38,15 @@ import (
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/lockfile"
-	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/overlord"
+	"github.com/ubuntu-core/snappy/overlord/ifacestate"
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
+	"github.com/ubuntu-core/snappy/store"
 )
 
 // increase this every time you make a minor (backwards-compatible)
@@ -55,18 +56,18 @@ const apiCompatLevel = "0"
 var api = []*Command{
 	rootCmd,
 	sysInfoCmd,
+	loginCmd,
 	appIconCmd,
 	snapsCmd,
 	snapCmd,
-	snapConfigCmd,
-	snapSvcCmd,
-	snapSvcsCmd,
-	snapSvcLogsCmd,
+	//FIXME: renenable config for GA
+	//snapConfigCmd,
 	operationCmd,
 	interfacesCmd,
 	assertsCmd,
 	assertsFindManyCmd,
 	eventsCmd,
+	stateChangesCmd,
 }
 
 var (
@@ -80,6 +81,11 @@ var (
 		Path:    "/v2/system-info",
 		GuestOK: true,
 		GET:     sysInfo,
+	}
+
+	loginCmd = &Command{
+		Path: "/v2/login",
+		POST: loginUser,
 	}
 
 	appIconCmd = &Command{
@@ -101,32 +107,14 @@ var (
 		GET:    getSnapInfo,
 		POST:   postSnap,
 	}
-
-	snapConfigCmd = &Command{
-		Path: "/v2/snaps/{name}/config",
-		GET:  snapConfig,
-		PUT:  snapConfig,
-	}
-
-	snapSvcsCmd = &Command{
-		Path:   "/v2/snaps/{name}/services",
-		UserOK: true,
-		GET:    snapService,
-		PUT:    snapService,
-	}
-
-	snapSvcCmd = &Command{
-		Path:   "/v2/snaps/{name}/services/{service}",
-		UserOK: true,
-		GET:    snapService,
-		PUT:    snapService,
-	}
-
-	snapSvcLogsCmd = &Command{
-		Path: "/v2/snaps/{name}/services/{service}/logs",
-		GET:  getLogs,
-	}
-
+	//FIXME: renenable config for GA
+	/*
+		snapConfigCmd = &Command{
+			Path: "/v2/snaps/{name}/config",
+			GET:  snapConfig,
+			PUT:  snapConfig,
+		}
+	*/
 	operationCmd = &Command{
 		Path:   "/v2/operations/{uuid}",
 		GET:    getOpInfo,
@@ -156,6 +144,12 @@ var (
 		Path: "/v2/events",
 		GET:  getEvents,
 	}
+
+	stateChangesCmd = &Command{
+		Path:   "/v2/changes",
+		UserOK: true,
+		GET:    getChanges,
+	}
 )
 
 func sysInfo(c *Command, r *http.Request) Response {
@@ -169,8 +163,8 @@ func sysInfo(c *Command, r *http.Request) Response {
 	m := map[string]string{
 		"flavor":          rel.Flavor,
 		"release":         rel.Series,
-		"default_channel": rel.Channel,
-		"api_compat":      apiCompatLevel,
+		"default-channel": rel.Channel,
+		"api-compat":      apiCompatLevel,
 	}
 
 	if store := snappy.StoreID(); store != "" {
@@ -178,6 +172,75 @@ func sysInfo(c *Command, r *http.Request) Response {
 	}
 
 	return SyncResponse(m)
+}
+
+type authState struct {
+	Users []userAuthState `json:"users"`
+}
+
+type userAuthState struct {
+	Username   string   `json:"username,omitempty"`
+	Macaroon   string   `json:"macaroon,omitempty"`
+	Discharges []string `json:"discharges,omitempty"`
+}
+
+type loginResponseData struct {
+	Macaroon   string   `json:"macaroon,omitempty"`
+	Discharges []string `json:"discharges,omitempty"`
+}
+
+func loginUser(c *Command, r *http.Request) Response {
+	var loginData struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+		Otp      string `json:"otp"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&loginData); err != nil {
+		return BadRequest("cannot decode login data from request body: %v", err)
+	}
+
+	macaroon, err := store.RequestPackageAccessMacaroon()
+	if err != nil {
+		return InternalError("cannot get package access macaroon")
+	}
+
+	discharge, err := store.DischargeAuthCaveat(loginData.Username, loginData.Password, macaroon, loginData.Otp)
+	if err == store.ErrAuthenticationNeeds2fa {
+		twofactorRequiredResponse := &resp{
+			Type: ResponseTypeError,
+			Result: &errorResult{
+				Kind:    errorKindTwoFactorRequired,
+				Message: "two factor authentication required",
+			},
+			Status: http.StatusUnauthorized,
+		}
+		return SyncResponse(twofactorRequiredResponse)
+	}
+	if err != nil {
+		return Unauthorized("cannot get discharge authorization")
+	}
+
+	authenticatedUser := userAuthState{
+		Username:   loginData.Username,
+		Macaroon:   macaroon,
+		Discharges: []string{discharge},
+	}
+	// TODO Handle better the multi-user case.
+	authStateData := authState{Users: []userAuthState{authenticatedUser}}
+
+	overlord := c.d.overlord
+	state := overlord.State()
+	state.Lock()
+	state.Set("auth", authStateData)
+	state.Unlock()
+
+	result := loginResponseData{
+		Macaroon:   macaroon,
+		Discharges: []string{discharge},
+	}
+	return SyncResponse(result)
 }
 
 type metarepo interface {
@@ -379,138 +442,9 @@ func resultHasType(r map[string]interface{}, allowedTypes []string) bool {
 	return false
 }
 
-var findServices = snappy.FindServices
-
 type appDesc struct {
-	Op     string                       `json:"op"`
-	Spec   *snappy.AppYaml              `json:"spec"`
-	Status *snappy.PackageServiceStatus `json:"status"`
-}
-
-func snapService(c *Command, r *http.Request) Response {
-	route := c.d.router.Get(operationCmd.Path)
-	if route == nil {
-		return InternalError("router can't find route for operation")
-	}
-
-	vars := muxVars(r)
-	snapName := vars["name"]
-	appName := vars["service"]
-
-	action := "status"
-
-	if r.Method != "GET" {
-		decoder := json.NewDecoder(r.Body)
-		var cmd map[string]string
-		if err := decoder.Decode(&cmd); err != nil {
-			return BadRequest("can't decode request body into service command: %v", err)
-		}
-
-		action = cmd["action"]
-	}
-
-	var lock lockfile.LockedFile
-	reachedAsync := false
-	switch action {
-	case "status", "start", "stop", "restart", "enable", "disable":
-		var err error
-		lock, err = lockfile.Lock(dirs.SnapLockFile, true)
-
-		if err != nil {
-			return InternalError("unable to acquire lock: %v", err)
-		}
-
-		defer func() {
-			if !reachedAsync {
-				lock.Unlock()
-			}
-		}()
-	default:
-		return BadRequest("unknown action %s", action)
-	}
-
-	installed, err := (&snappy.Overlord{}).Installed()
-	snaps := snappy.FindSnapsByName(snapName, installed)
-	_, snap := bestSnap(snaps)
-	if err != nil || snap == nil || !snap.IsActive() {
-		return NotFound("unable to find snap with name %q", snapName)
-	}
-
-	apps := snap.Apps()
-
-	if len(apps) == 0 {
-		return NotFound("snap %q has no services", snapName)
-	}
-
-	appmap := make(map[string]*appDesc, len(apps))
-	for i := range apps {
-		if apps[i].Daemon == "" {
-			continue
-		}
-		appmap[apps[i].Name] = &appDesc{Spec: apps[i], Op: action}
-	}
-
-	if appName != "" && appmap[appName] == nil {
-		return NotFound("snap %q has no service %q", snapName, appName)
-	}
-
-	actor, err := findServices(snapName, appName, &progress.NullProgress{})
-	if err != nil {
-		return InternalError("no services for %q [%q] found: %v", snapName, appName, err)
-	}
-
-	f := func() interface{} {
-		status, err := actor.ServiceStatus()
-		if err != nil {
-			logger.Noticef("unable to get status for %q [%q]: %v", snapName, appName, err)
-			return err
-		}
-
-		for i := range status {
-			if desc, ok := appmap[status[i].AppName]; ok {
-				desc.Status = status[i]
-			} else {
-				// shouldn't really happen, but can't hurt
-				appmap[status[i].AppName] = &appDesc{Status: status[i]}
-			}
-		}
-
-		if appName == "" {
-			return appmap
-		}
-
-		return appmap[appName]
-	}
-
-	if action == "status" {
-		return SyncResponse(f())
-	}
-
-	reachedAsync = true
-
-	return AsyncResponse(c.d.AddTask(func() interface{} {
-		defer lock.Unlock()
-
-		switch action {
-		case "start":
-			err = actor.Start()
-		case "stop":
-			err = actor.Stop()
-		case "enable":
-			err = actor.Enable()
-		case "disable":
-			err = actor.Disable()
-		case "restart":
-			err = actor.Restart()
-		}
-
-		if err != nil {
-			logger.Noticef("unable to %s %q [%q]: %v\n", action, snapName, appName, err)
-			return err
-		}
-
-		return f()
-	}).Map(route))
+	Op   string          `json:"op"`
+	Spec *snappy.AppYaml `json:"spec"`
 }
 
 type configurator interface {
@@ -605,7 +539,7 @@ type snapInstruction struct {
 	progress.NullProgress
 	Action   string       `json:"action"`
 	Channel  string       `json:"channel"`
-	LeaveOld bool         `json:"leave_old"`
+	LeaveOld bool         `json:"leave-old"`
 	License  *licenseData `json:"license"`
 	pkg      string
 
@@ -833,12 +767,6 @@ func postSnap(c *Command, r *http.Request) Response {
 
 const maxReadBuflen = 1024 * 1024
 
-func checkSnapImpl(filename string, flags snappy.InstallFlags) error {
-	return snappy.CheckSnap(filename, flags, &progress.NullProgress{})
-}
-
-var checkSnap = checkSnapImpl
-
 func sideloadSnap(c *Command, r *http.Request) Response {
 	route := c.d.router.Get(operationCmd.Path)
 	if route == nil {
@@ -900,66 +828,35 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 	}
 
 	return AsyncResponse(c.d.AddTask(func() interface{} {
-		defer os.Remove(tmpf.Name())
-
-		var flags snappy.InstallFlags
-		if unsignedOk {
-			flags |= snappy.AllowUnauthenticated
-		}
-
-		err := checkSnap(tmpf.Name(), flags)
-		if err != nil {
-			return err
-		}
-
 		lock, err := lockfile.Lock(dirs.SnapLockFile, true)
 		if err != nil {
 			return err
 		}
 		defer lock.Unlock()
 
-		overlord := &snappy.Overlord{}
-		name, err := overlord.Install(tmpf.Name(), flags, &progress.NullProgress{})
+		var flags snappy.InstallFlags
+		if unsignedOk {
+			flags |= snappy.AllowUnauthenticated
+		}
+
+		snap := tmpf.Name()
+		defer os.Remove(snap)
+
+		state := c.d.overlord.State()
+		state.Lock()
+		msg := fmt.Sprintf(i18n.G("Install local %q snap"), snap)
+		chg := state.NewChange("install-snap", msg)
+		ts, err := snapstateInstall(state, snap, "", flags)
+		if err == nil {
+			chg.AddAll(ts)
+		}
+		state.Unlock()
 		if err != nil {
 			return err
 		}
-
-		return name
+		state.EnsureBefore(0)
+		return waitChange(chg)
 	}).Map(route))
-}
-
-func getLogs(c *Command, r *http.Request) Response {
-	vars := muxVars(r)
-	name := vars["name"]
-	appName := vars["service"]
-
-	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
-	if err != nil {
-		return InternalError("unable to acquire lock: %v", err)
-	}
-	defer lock.Unlock()
-
-	actor, err := findServices(name, appName, &progress.NullProgress{})
-	if err != nil {
-		return NotFound("no services found for %q: %v", name, err)
-	}
-
-	rawlogs, err := actor.Logs()
-	if err != nil {
-		return InternalError("unable to get logs for %q: %v", name, err)
-	}
-
-	logs := make([]map[string]interface{}, len(rawlogs))
-
-	for i := range rawlogs {
-		logs[i] = map[string]interface{}{
-			"timestamp": rawlogs[i].Timestamp(),
-			"message":   rawlogs[i].Message(),
-			"raw":       rawlogs[i],
-		}
-	}
-
-	return SyncResponse(logs)
 }
 
 func iconGet(name string) Response {
@@ -994,7 +891,8 @@ func appIconGet(c *Command, r *http.Request) Response {
 
 // getInterfaces returns all plugs and slots.
 func getInterfaces(c *Command, r *http.Request) Response {
-	return SyncResponse(c.d.interfaces.Interfaces())
+	repo := c.d.overlord.InterfaceManager().Repository()
+	return SyncResponse(repo.Interfaces())
 }
 
 // plugJSON aids in marshaling Plug into JSON.
@@ -1045,12 +943,30 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 	if len(a.Plugs) > 1 || len(a.Slots) > 1 {
 		return NotImplemented("many-to-many operations are not implemented")
 	}
+
+	state := c.d.overlord.State()
+
 	switch a.Action {
 	case "connect":
 		if len(a.Plugs) == 0 || len(a.Slots) == 0 {
 			return BadRequest("at least one plug and slot is required")
 		}
-		err := c.d.interfaces.Connect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		summary := fmt.Sprintf("Connect %s:%s to %s:%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		state.Lock()
+		change := state.NewChange("connect-snap", summary)
+		taskset, err := ifacestate.Connect(
+			state, a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		if err == nil {
+			change.AddAll(taskset)
+		}
+		state.Unlock()
+		if err != nil {
+			return BadRequest("%v", err)
+		}
+
+		state.EnsureBefore(0)
+		err = waitChange(change)
+
 		if err != nil {
 			return BadRequest("%v", err)
 		}
@@ -1059,7 +975,22 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 		if len(a.Plugs) == 0 || len(a.Slots) == 0 {
 			return BadRequest("at least one plug and slot is required")
 		}
-		err := c.d.interfaces.Disconnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		summary := fmt.Sprintf("Disconnect %s:%s from %s:%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		state.Lock()
+		change := state.NewChange("disconnect-snap", summary)
+		taskset, err := ifacestate.Disconnect(state,
+			a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		if err == nil {
+			change.AddAll(taskset)
+		}
+		state.Unlock()
+		if err != nil {
+			return BadRequest("%v", err)
+		}
+
+		state.EnsureBefore(0)
+		err = waitChange(change)
+
 		if err != nil {
 			return BadRequest("%v", err)
 		}
@@ -1113,4 +1044,69 @@ func assertsFindMany(c *Command, r *http.Request) Response {
 
 func getEvents(c *Command, r *http.Request) Response {
 	return EventResponse(c.d.hub)
+}
+
+type changeInfo struct {
+	ID      string      `json:"id"`
+	Kind    string      `json:"kind"`
+	Summary string      `json:"summary"`
+	Status  string      `json:"status"`
+	Tasks   []*taskInfo `json:"tasks,omitempty"`
+}
+
+type taskInfo struct {
+	Kind    string   `json:"kind"`
+	Summary string   `json:"summary"`
+	Status  string   `json:"status"`
+	Log     []string `json:"log,omitempty"`
+}
+
+func getChanges(c *Command, r *http.Request) Response {
+	query := r.URL.Query()
+	qselect := query.Get("select")
+	if qselect == "" {
+		qselect = "in-progress"
+	}
+	var filter func(*state.Change) bool
+	switch qselect {
+	case "all":
+		filter = func(*state.Change) bool { return true }
+	case "in-progress":
+		filter = func(chg *state.Change) bool { return !chg.Status().Ready() }
+	case "ready":
+		filter = func(chg *state.Change) bool { return chg.Status().Ready() }
+	default:
+		return BadRequest("select should be one of: all,in-progress,ready")
+	}
+
+	state := c.d.overlord.State()
+	state.Lock()
+	defer state.Unlock()
+	chgs := state.Changes()
+	chgInfos := make([]*changeInfo, 0, len(chgs))
+	for _, chg := range chgs {
+		if !filter(chg) {
+			continue
+		}
+		chgInfo := &changeInfo{
+			ID:      chg.ID(),
+			Kind:    chg.Kind(),
+			Summary: chg.Summary(),
+			Status:  chg.Status().String(),
+		}
+		tasks := chg.Tasks()
+		taskInfos := make([]*taskInfo, len(tasks))
+		for j, t := range tasks {
+			taskInfo := &taskInfo{
+				Kind:    t.Kind(),
+				Summary: t.Summary(),
+				Status:  t.Status().String(),
+				Log:     t.Log(),
+			}
+			taskInfos[j] = taskInfo
+		}
+		chgInfo.Tasks = taskInfos
+		chgInfos = append(chgInfos, chgInfo)
+	}
+	return SyncResponse(chgInfos)
 }

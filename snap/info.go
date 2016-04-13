@@ -22,17 +22,46 @@ package snap
 import (
 	"fmt"
 	"path/filepath"
+	"strconv"
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/systemd"
 	"github.com/ubuntu-core/snappy/timeout"
 )
 
+// PlaceInfo offers all the information about where a snap and its data are located and exposed in the filesystem.
+type PlaceInfo interface {
+	// Name returns the name of the snap.
+	Name() string
+
+	// MountDir returns the base directory of the snap.
+	MountDir() string
+
+	// MountFile returns the path where the snap file that is mounted is installed.
+	MountFile() string
+
+	// DataDir returns the data directory of the snap.
+	DataDir() string
+
+	// DataHomeDir returns the per user data directory of the snap.
+	DataHomeDir() string
+}
+
+// MinimalPlaceInfo returns a PlaceInfo with just the location information for a snap of the given name and revision.
+func MinimalPlaceInfo(name string, revision int) PlaceInfo {
+	return &Info{SideInfo: SideInfo{OfficialName: name, Revision: revision}}
+}
+
+// MountDir returns the base directory where it gets mounted of the snap with the given name and revision.
+func MountDir(name string, revision int) string {
+	return filepath.Join(dirs.SnapSnapsDir, name, strconv.Itoa(revision))
+}
+
 // SideInfo holds snap metadata that is not included in snap.yaml or for which the store is the canonical source.
 // It can be marshalled both as JSON and YAML.
 type SideInfo struct {
-	OfficialName string `yaml:"name,omitempty" json:"name,omitempty"`
 	// XXX likely we want also snap-id
+	OfficialName      string `yaml:"name,omitempty" json:"name,omitempty"`
 	Revision          int    `yaml:"revision" json:"revision"`
 	Channel           string `yaml:"channel,omitempty" json:"channel,omitempty"`
 	Developer         string `yaml:"developer,omitempty" json:"developer,omitempty"`
@@ -93,15 +122,32 @@ func (s *Info) Description() string {
 	return s.OriginalDescription
 }
 
+func (s *Info) strRevno() string {
+	return strconv.Itoa(s.Revision)
+}
+
 // MountDir returns the base directory of the snap where it gets mounted.
 func (s *Info) MountDir() string {
-	return filepath.Join(dirs.SnapSnapsDir, s.Name(), s.Version)
+	return MountDir(s.Name(), s.Revision)
 }
 
 // MountFile returns the path where the snap file that is mounted is installed.
 func (s *Info) MountFile() string {
-	return filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", s.Name(), s.Version))
+	return filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%d.snap", s.Name(), s.Revision))
 }
+
+// DataDir returns the data directory of the snap.
+func (s *Info) DataDir() string {
+	return filepath.Join(dirs.SnapDataDir, s.Name(), s.strRevno())
+}
+
+// DataHomeDir returns the per user data directory of the snap.
+func (s *Info) DataHomeDir() string {
+	return filepath.Join(dirs.SnapDataHomeGlob, s.Name(), s.strRevno())
+}
+
+// sanity check that Info is a PlacInfo
+var _ PlaceInfo = (*Info)(nil)
 
 // PlugInfo provides information about a plug.
 type PlugInfo struct {
@@ -149,4 +195,34 @@ type AppInfo struct {
 
 	Plugs map[string]*PlugInfo
 	Slots map[string]*SlotInfo
+}
+
+// SecurityTag returns application-specific security tag.
+//
+// Security tags are used by various security subsystems as "profile names" and
+// sometimes also as a part of the file name.
+func (app *AppInfo) SecurityTag() string {
+	return fmt.Sprintf("snap.%s.%s", app.Snap.Name(), app.Name)
+}
+
+// WrapperPath returns the path to wrapper invoking the app binary.
+func (app *AppInfo) WrapperPath() string {
+	var binName string
+	if app.Name == app.Snap.Name() {
+		binName = filepath.Base(app.Name)
+	} else {
+		binName = fmt.Sprintf("%s.%s", app.Snap.Name(), filepath.Base(app.Name))
+	}
+
+	return filepath.Join(dirs.SnapBinariesDir, binName)
+}
+
+// ServiceFile returns the systemd service file path for the daemon app.
+func (app *AppInfo) ServiceFile() string {
+	return filepath.Join(dirs.SnapServicesDir, app.SecurityTag()+".service")
+}
+
+// ServiceSocketFile returns the systemd socket file path for the daemon app.
+func (app *AppInfo) ServiceSocketFile() string {
+	return filepath.Join(dirs.SnapServicesDir, app.SecurityTag()+".socket")
 }

@@ -27,6 +27,7 @@ package udev
 import (
 	"bytes"
 	"fmt"
+	"os"
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/interfaces"
@@ -36,6 +37,11 @@ import (
 
 // Backend is responsible for maintaining udev rules.
 type Backend struct{}
+
+// Name returns the name of the backend.
+func (b *Backend) Name() string {
+	return "udev"
+}
 
 // Setup creates udev rules specific to a given snap.
 // If any of the rules are changed or removed then udev database is reloaded.
@@ -54,7 +60,11 @@ func (b *Backend) Setup(snapInfo *snap.Info, developerMode bool, repo *interface
 		return fmt.Errorf("cannot obtain expected udev rules for snap %q: %s", snapName, err)
 	}
 	glob := fmt.Sprintf("70-%s.rules", interfaces.SecurityTagGlob(snapName))
-	return ensureDirState(dirs.SnapUdevRulesDir, glob, content, snapName)
+	dir := dirs.SnapUdevRulesDir
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("cannot create directory for udev rules %q: %s", dir, err)
+	}
+	return ensureDirState(dir, glob, content, snapName)
 }
 
 // Remove removes udev rules specific to a given snap.
@@ -98,7 +108,7 @@ func (b *Backend) combineSnippets(snapInfo *snap.Info, snippets map[string][][]b
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
 		}
-		fname := fmt.Sprintf("70-%s.rules", interfaces.SecurityTag(appInfo))
+		fname := fmt.Sprintf("70-%s.rules", appInfo.SecurityTag())
 		content[fname] = &osutil.FileState{Content: buf.Bytes(), Mode: 0644}
 	}
 	return content, nil

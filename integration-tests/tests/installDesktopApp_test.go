@@ -42,6 +42,8 @@ type installDesktopAppSuite struct {
 }
 
 func (s *installDesktopAppSuite) TestInstallsDesktopFile(c *check.C) {
+	c.Skip("port to snapd")
+
 	snapPath, err := build.LocalSnap(c, data.BasicDesktopSnapName)
 	defer os.Remove(snapPath)
 	c.Assert(err, check.IsNil, check.Commentf("Error building local snap: %s", err))
@@ -53,6 +55,6 @@ func (s *installDesktopAppSuite) TestInstallsDesktopFile(c *check.C) {
 	c.Assert(string(content), testutil.Contains, `[Desktop Entry]
 Name=Echo
 Comment=It echos stuff
-Exec=/snaps/bin/basic-desktop.echo
+Exec=/snap/bin/basic-desktop.echo
 `)
 }

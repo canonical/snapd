@@ -51,7 +51,6 @@ type FirstBootTestSuite struct {
 	e            error
 	snapMap      map[string]*Snap
 	snapMapErr   error
-	verifyCmd    string
 	fakeOverlord *fakeOverlord
 }
 
@@ -64,8 +63,6 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	stampFile = filepath.Join(c.MkDir(), "stamp")
 
 	// mock the world!
-	makeMockSecurityEnv(c)
-	runAppArmorParser = mockRunAppArmorParser
 	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
 		return []byte("ActiveState=inactive\n"), nil
 	}
@@ -149,7 +146,7 @@ func (s *FirstBootTestSuite) TestFirstBootConfigure(c *C) {
 }
 
 func (s *FirstBootTestSuite) TestSoftwareActivate(c *C) {
-	yamlPath, err := makeInstalledMockSnap("")
+	yamlPath, err := makeInstalledMockSnap("", 11)
 	c.Assert(err, IsNil)
 
 	snp, err := NewInstalledSnap(yamlPath)
@@ -249,7 +246,7 @@ type: kernel
 `
 
 func (s *FirstBootTestSuite) ensureSystemSnapIsEnabledOnFirstBoot(c *C, yaml string, expectActivated bool) {
-	_, err := makeInstalledMockSnap(yaml)
+	_, err := makeInstalledMockSnap(yaml, 11)
 	c.Assert(err, IsNil)
 
 	all, err := (&Overlord{}).Installed()

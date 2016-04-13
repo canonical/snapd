@@ -106,9 +106,9 @@ func (t *Task) Map(route *mux.Route) map[string]interface{} {
 	return map[string]interface{}{
 		"resource":   t.Location(route),
 		"status":     t.State(),
-		"created_at": FormatTime(t.CreatedAt()),
-		"updated_at": FormatTime(t.UpdatedAt()),
-		"may_cancel": false,
+		"created-at": FormatTime(t.CreatedAt()),
+		"updated-at": FormatTime(t.UpdatedAt()),
+		"may-cancel": false,
 		"output":     t.Output(),
 	}
 }

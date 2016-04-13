@@ -35,6 +35,7 @@ package seccomp
 import (
 	"bytes"
 	"fmt"
+	"os"
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/interfaces"
@@ -44,6 +45,11 @@ import (
 
 // Backend is responsible for maintaining seccomp profiles for ubuntu-core-launcher.
 type Backend struct{}
+
+// Name returns the name of the backend.
+func (b *Backend) Name() string {
+	return "seccomp"
+}
 
 // Setup creates seccomp profiles specific to a given snap.
 // The snap can be in developer mode to make security violations non-fatal to
@@ -64,7 +70,11 @@ func (b *Backend) Setup(snapInfo *snap.Info, developerMode bool, repo *interface
 		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapName, err)
 	}
 	glob := interfaces.SecurityTagGlob(snapName)
-	_, _, err = osutil.EnsureDirState(dirs.SnapSeccompDir, glob, content)
+	dir := dirs.SnapSeccompDir
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("cannot create directory for seccomp profiles %q: %s", dir, err)
+	}
+	_, _, err = osutil.EnsureDirState(dir, glob, content)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, err)
 	}
@@ -98,7 +108,7 @@ func (b *Backend) combineSnippets(snapInfo *snap.Info, developerMode bool, snipp
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
 		}
-		fname := interfaces.SecurityTag(appInfo)
+		fname := appInfo.SecurityTag()
 		content[fname] = &osutil.FileState{
 			Content: buf.Bytes(),
 			Mode:    0644,

@@ -17,12 +17,6 @@
  *
  */
 
-package ifacestate
+package snap
 
-import (
-	"github.com/ubuntu-core/snappy/interfaces"
-)
-
-func (m *InterfaceManager) Repository() *interfaces.Repository {
-	return m.repo
-}
+var ImplicitSlotsForTests = implicitSlots

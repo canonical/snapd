@@ -21,7 +21,6 @@
 package tests
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/build"
@@ -46,10 +45,9 @@ func (s *installAppSuite) TestInstallAppMustPrintPackageInformation(c *check.C) 
 	defer common.RemoveSnap(c, data.BasicSnapName)
 
 	expected := "(?ms)" +
-		fmt.Sprintf("Installing %s\n", snapPath) +
-		"Name +Date +Version +Developer \n" +
+		"Name +Version +Developer\n" +
 		".*" +
-		"^basic +.* +.* +sideload *\n" +
+		"^basic +.* +sideload *\n" +
 		".*"
 
 	c.Assert(installOutput, check.Matches, expected)
@@ -67,6 +65,8 @@ func (s *installAppSuite) TestCallSuccessfulBinaryFromInstalledSnap(c *check.C) 
 }
 
 func (s *installAppSuite) TestCallFailBinaryFromInstalledSnap(c *check.C) {
+	c.Skip("port to snapd")
+
 	snapPath, err := build.LocalSnap(c, data.BasicBinariesSnapName)
 	defer os.Remove(snapPath)
 	c.Assert(err, check.IsNil, check.Commentf("Error building local snap: %s", err))
@@ -78,20 +78,22 @@ func (s *installAppSuite) TestCallFailBinaryFromInstalledSnap(c *check.C) {
 }
 
 func (s *installAppSuite) TestInstallUnexistingAppMustPrintError(c *check.C) {
-	output, err := cli.ExecCommandErr("sudo", "snappy", "install", "unexisting.canonical")
+	output, err := cli.ExecCommandErr("sudo", "snap", "install", "unexisting.canonical")
 
 	c.Check(err, check.NotNil,
 		check.Commentf("Trying to install an unexisting snap did not exit with an error"))
 	c.Assert(string(output), check.Equals,
-		"Installing unexisting.canonical\n"+
-			"unexisting.canonical failed to install: snap not found\n",
+		"error: cannot perform the following tasks:\n"+
+			"- Download snap \"unexisting.canonical\" (snap not found)\n",
 		check.Commentf("Wrong error message"))
 }
 
 func (s *installAppSuite) TestInstallFromStoreMetadata(c *check.C) {
-	common.InstallSnap(c, "hello-world/edge")
+	c.Skip("FIXME: enable when we have snap info")
+
+	common.InstallSnap(c, "hello-world")
 	defer common.RemoveSnap(c, "hello-world")
 
-	output := cli.ExecCommand(c, "snappy", "info", "hello-world")
+	output := cli.ExecCommand(c, "snap", "info", "hello-world")
 	c.Check(string(output), check.Matches, "(?ms)^channel: edge")
 }

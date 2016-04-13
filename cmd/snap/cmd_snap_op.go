@@ -118,10 +118,11 @@ func (x *cmdInstall) Execute([]string) error {
 	var err error
 
 	cli := Client()
-	if strings.Contains(x.Positional.Snap, "/") {
-		uuid, err = cli.InstallSnapFile(x.Positional.Snap)
+	name := x.Positional.Snap
+	if strings.Contains(name, "/") || strings.HasSuffix(name, ".snap") || strings.Contains(name, ".snap.") {
+		uuid, err = cli.InstallSnapFile(name)
 	} else {
-		uuid, err = cli.InstallSnap(x.Positional.Snap, x.Channel)
+		uuid, err = cli.InstallSnap(name, x.Channel)
 	}
 	if err != nil {
 		return err
@@ -156,9 +157,12 @@ func init() {
 	}{
 		{"remove", shortRemoveHelp, longRemoveHelp, (*client.Client).RemoveSnap},
 		{"purge", shortPurgeHelp, longPurgeHelp, (*client.Client).PurgeSnap},
-		{"rollback", shortRollbackHelp, longRollbackHelp, (*client.Client).RollbackSnap},
-		{"activate", shortActivateHelp, longActivateHelp, (*client.Client).ActivateSnap},
-		{"deactivate", shortDeactivateHelp, longDeactivateHelp, (*client.Client).DeactivateSnap},
+		// FIXME: re-enable once the state engine is ready
+		/*
+			{"rollback", shortRollbackHelp, longRollbackHelp, (*client.Client).RollbackSnap},
+			{"activate", shortActivateHelp, longActivateHelp, (*client.Client).ActivateSnap},
+			{"deactivate", shortDeactivateHelp, longDeactivateHelp, (*client.Client).DeactivateSnap},
+		*/
 	} {
 		op := s.op
 		addCommand(s.name, s.short, s.long, func() flags.Commander { return &cmdOp{op: op} })

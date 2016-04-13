@@ -37,7 +37,7 @@ var _ = Suite(&X11InterfaceSuite{
 	iface: builtin.NewX11Interface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "ubuntu-core"},
+			Snap:      &snap.Info{SuggestedName: "ubuntu-core", Type: snap.TypeOS},
 			Name:      "x11",
 			Interface: "x11",
 		},
@@ -128,5 +128,5 @@ func (s *X11InterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 }
 
 func (s *X11InterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, false)
+	c.Check(s.iface.AutoConnect(), Equals, true)
 }

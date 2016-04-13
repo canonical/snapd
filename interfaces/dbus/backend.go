@@ -30,6 +30,7 @@ package dbus
 import (
 	"bytes"
 	"fmt"
+	"os"
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/interfaces"
@@ -39,6 +40,11 @@ import (
 
 // Backend is responsible for maintaining DBus policy files.
 type Backend struct{}
+
+// Name returns the name of the backend.
+func (b *Backend) Name() string {
+	return "dbus"
+}
 
 // Setup creates dbus configuration files specific to a given snap.
 //
@@ -56,7 +62,11 @@ func (b *Backend) Setup(snapInfo *snap.Info, developerMode bool, repo *interface
 		return fmt.Errorf("cannot obtain expected DBus configuration files for snap %q: %s", snapName, err)
 	}
 	glob := fmt.Sprintf("%s.conf", interfaces.SecurityTagGlob(snapName))
-	_, _, err = osutil.EnsureDirState(dirs.SnapBusPolicyDir, glob, content)
+	dir := dirs.SnapBusPolicyDir
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("cannot create directory for DBus configuration files %q: %s", dir, err)
+	}
+	_, _, err = osutil.EnsureDirState(dir, glob, content)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize DBus configuration files for snap %q: %s", snapName, err)
 	}
@@ -93,7 +103,7 @@ func (b *Backend) combineSnippets(snapInfo *snap.Info, snippets map[string][][]b
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
 		}
-		fname := fmt.Sprintf("%s.conf", interfaces.SecurityTag(appInfo))
+		fname := fmt.Sprintf("%s.conf", appInfo.SecurityTag())
 		content[fname] = &osutil.FileState{Content: buf.Bytes(), Mode: 0644}
 	}
 	return content, nil

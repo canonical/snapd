@@ -20,6 +20,8 @@
 package snapstate_test
 
 import (
+	"strings"
+
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 )
@@ -28,10 +30,13 @@ type fakeOp struct {
 	op string
 
 	name    string
-	version string
+	revno   int
 	channel string
 	flags   int
 	active  bool
+	sinfo   snap.SideInfo
+
+	rollback string
 }
 
 type fakeSnappyBackend struct {
@@ -39,6 +44,8 @@ type fakeSnappyBackend struct {
 
 	fakeCurrentProgress int
 	fakeTotalProgress   int
+
+	activeSnaps map[string]*snap.Info
 }
 
 func (f *fakeSnappyBackend) InstallLocal(path string, flags int, p progress.Meter) error {
@@ -49,7 +56,7 @@ func (f *fakeSnappyBackend) InstallLocal(path string, flags int, p progress.Mete
 	return nil
 }
 
-func (f *fakeSnappyBackend) Download(name, channel string, p progress.Meter) (string, string, error) {
+func (f *fakeSnappyBackend) Download(name, channel string, p progress.Meter) (*snap.Info, string, error) {
 	f.ops = append(f.ops, fakeOp{
 		op:      "download",
 		name:    name,
@@ -57,7 +64,17 @@ func (f *fakeSnappyBackend) Download(name, channel string, p progress.Meter) (st
 	})
 	p.SetTotal(float64(f.fakeTotalProgress))
 	p.Set(float64(f.fakeCurrentProgress))
-	return "downloaded-snap-path", "1.0", nil
+
+	info := &snap.Info{
+		SideInfo: snap.SideInfo{
+			OfficialName: strings.Split(name, ".")[0],
+			Channel:      channel,
+			Revision:     11,
+		},
+		Version: name,
+	}
+
+	return info, "downloaded-snap-path", nil
 }
 
 func (f *fakeSnappyBackend) Update(name, channel string, flags int, p progress.Meter) error {
@@ -76,12 +93,11 @@ func (f *fakeSnappyBackend) Remove(name string, flags int, p progress.Meter) err
 	})
 	return nil
 }
-
 func (f *fakeSnappyBackend) Rollback(name, ver string, p progress.Meter) (string, error) {
 	f.ops = append(f.ops, fakeOp{
-		op:      "rollback",
-		name:    name,
-		version: ver,
+		op:       "rollback",
+		name:     name,
+		rollback: ver,
 	})
 	return "", nil
 }
@@ -97,32 +113,32 @@ func (f *fakeSnappyBackend) Activate(name string, active bool, p progress.Meter)
 
 func (f *fakeSnappyBackend) CheckSnap(snapFilePath string, flags int) error {
 	f.ops = append(f.ops, fakeOp{
-		op:   "check-snap",
-		name: snapFilePath,
+		op:    "check-snap",
+		name:  snapFilePath,
+		flags: flags,
 	})
 	return nil
 }
 
-func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, flags int) error {
+func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, si *snap.SideInfo, flags int) error {
+	revno := 0
+	if si != nil {
+		revno = si.Revision
+	}
 	f.ops = append(f.ops, fakeOp{
-		op:   "setup-snap",
-		name: snapFilePath,
+		op:    "setup-snap",
+		name:  snapFilePath,
+		flags: flags,
+		revno: revno,
 	})
 	return nil
 }
 
 func (f *fakeSnappyBackend) CopySnapData(instSnapPath string, flags int) error {
 	f.ops = append(f.ops, fakeOp{
-		op:   "copy-data",
-		name: instSnapPath,
-	})
-	return nil
-}
-
-func (f *fakeSnappyBackend) SetupSnapSecurity(instSnapPath string) error {
-	f.ops = append(f.ops, fakeOp{
-		op:   "setup-snap-security",
-		name: instSnapPath,
+		op:    "copy-data",
+		name:  instSnapPath,
+		flags: flags,
 	})
 	return nil
 }
@@ -135,10 +151,10 @@ func (f *fakeSnappyBackend) LinkSnap(instSnapPath string) error {
 	return nil
 }
 
-func (f *fakeSnappyBackend) UndoSetupSnap(snapFilePath string) error {
+func (f *fakeSnappyBackend) UndoSetupSnap(s snap.PlaceInfo) error {
 	f.ops = append(f.ops, fakeOp{
 		op:   "undo-setup-snap",
-		name: snapFilePath,
+		name: s.MountDir(),
 	})
 	return nil
 }
@@ -160,9 +176,17 @@ func (f *fakeSnappyBackend) UndoLinkSnap(oldInstSnapPath, instSnapPath string) e
 }
 
 func (f *fakeSnappyBackend) ActiveSnap(name string) *snap.Info {
+	return f.activeSnaps[name]
+}
+
+func (f *fakeSnappyBackend) SnapByNameAndVersion(name, version string) *snap.Info {
 	return &snap.Info{
-		SuggestedName: "an-active-snap",
-		Version:       "1.64872",
+		SideInfo: snap.SideInfo{
+			OfficialName: name,
+			Revision:     9,
+		},
+		SuggestedName: name,
+		Version:       version,
 	}
 }
 
@@ -182,27 +206,39 @@ func (f *fakeSnappyBackend) UnlinkSnap(instSnapPath string, meter progress.Meter
 	return nil
 }
 
-func (f *fakeSnappyBackend) RemoveSnapSecurity(instSnapPath string) error {
-	f.ops = append(f.ops, fakeOp{
-		op:   "remove-snap-security",
-		name: instSnapPath,
-	})
-	return nil
-}
-
-func (f *fakeSnappyBackend) RemoveSnapFiles(instSnapPath string, meter progress.Meter) error {
+func (f *fakeSnappyBackend) RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error {
 	f.ops = append(f.ops, fakeOp{
 		op:   "remove-snap-files",
-		name: instSnapPath,
+		name: s.MountDir(),
 	})
 	return nil
 }
 
-func (f *fakeSnappyBackend) RemoveSnapData(name, version string) error {
+func (f *fakeSnappyBackend) RemoveSnapData(name string, revno int) error {
 	f.ops = append(f.ops, fakeOp{
-		op:      "remove-snap-data",
-		name:    name,
-		version: version,
+		op:    "remove-snap-data",
+		name:  name,
+		revno: revno,
 	})
 	return nil
+}
+
+func (f *fakeSnappyBackend) GarbageCollect(name string, flags int, meter progress.Meter) error {
+	f.ops = append(f.ops, fakeOp{
+		op:    "garbage-collect",
+		name:  name,
+		flags: flags,
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) Candidate(sideInfo *snap.SideInfo) {
+	var sinfo snap.SideInfo
+	if sideInfo != nil {
+		sinfo = *sideInfo
+	}
+	f.ops = append(f.ops, fakeOp{
+		op:    "candidate",
+		sinfo: sinfo,
+	})
 }

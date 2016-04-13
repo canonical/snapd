@@ -39,7 +39,7 @@ type snapHelloWorldExampleSuite struct {
 }
 
 func installSnap(c *check.C, packageName string) string {
-	cli.ExecCommand(c, "sudo", "snap", "install", packageName)
+	cli.ExecCommand(c, "sudo", "snap", "install", "--channel", "edge", packageName)
 	// FIXME: should `snap install` shold show a list afterards?
 	//        like `snappy install`?
 	return cli.ExecCommand(c, "snap", "list")
@@ -77,8 +77,8 @@ func (s *snapHelloWorldExampleSuite) TestCallHelloWorldEvilMustPrintPermissionDe
 		"Hello Evil World!\n" +
 		"This example demonstrates the app confinement\n" +
 		"You should see a permission denied error next\n" +
-		"/snaps/hello-world/.*/bin/evil: \\d+: " +
-		"/snaps/hello-world/.*/bin/evil: " +
+		"/snap/hello-world/.*/bin/evil: \\d+: " +
+		"/snap/hello-world/.*/bin/evil: " +
 		"cannot create /var/tmp/myevil.txt: Permission denied\n"
 
 	c.Assert(string(echoOutput), check.Matches, expected)
@@ -91,6 +91,8 @@ type snapPythonWebserverExampleSuite struct {
 }
 
 func (s *snapPythonWebserverExampleSuite) TestNetworkingServiceMustBeStarted(c *check.C) {
+	c.Skip("FIXME: re-enable when new-security supports auto-connect")
+
 	baseAppName := "xkcd-webserver"
 	appName := baseAppName + ".canonical"
 	installSnap(c, appName)
@@ -112,6 +114,8 @@ type snapGoWebserverExampleSuite struct {
 }
 
 func (s *snapGoWebserverExampleSuite) TestGetRootPathMustPrintMessage(c *check.C) {
+	c.Skip("FIXME: re-enable when new-security supports auto-connect")
+
 	appName := "go-example-webserver"
 	output := installSnap(c, appName)
 	defer removeSnap(c, appName)

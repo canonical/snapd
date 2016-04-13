@@ -22,28 +22,51 @@ package tests
 
 import (
 	"fmt"
+	"io/ioutil"
 
 	"gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/config"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/store"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/updates"
 )
 
-var _ = check.Suite(&updateAppSuite{})
+var _ = check.Suite(&snapRefreshAppSuite{})
 
-type updateAppSuite struct {
+type snapRefreshAppSuite struct {
 	common.SnappySuite
 }
 
-func (s *updateAppSuite) TestAppUpdate(c *check.C) {
+func (s *snapRefreshAppSuite) TestAppUpdate(c *check.C) {
+	c.Skip("port to snapd")
+
 	snap := "hello-world.canonical"
-	storeSnap := fmt.Sprintf("%s/edge", snap)
+	storeSnap := fmt.Sprintf("%s", snap)
 
 	// install edge version from the store (which is squshfs)
-	cli.ExecCommand(c, "sudo", "snappy", "install", storeSnap)
-	defer cli.ExecCommand(c, "sudo", "snappy", "remove", snap)
+	cli.ExecCommand(c, "sudo", "snap", "install", storeSnap)
+	defer cli.ExecCommand(c, "sudo", "snap", "remove", snap)
 
-	output := updates.CallFakeUpdate(c, snap, updates.NoOp)
+	// make a fakestore and make it available to snapd
+
+	// use /var/tmp is not a tempfs for space reasons
+	blobDir, err := ioutil.TempDir("/var/tmp", "snap-fake-store-blobs-")
+	c.Assert(err, check.IsNil)
+	defer cli.ExecCommand(c, "sudo", "rm", "-rf", blobDir)
+
+	fakeStore := store.NewStore(blobDir)
+	err = fakeStore.Start()
+	c.Assert(err, check.IsNil)
+	defer fakeStore.Stop()
+
+	env := fmt.Sprintf(`SNAPPY_FORCE_CPI_URL=%s`, fakeStore.URL())
+	cfg, _ := config.ReadConfig(config.DefaultFileName)
+	tearDownSnapd(cfg.FromBranch)
+	setUpSnapd(c, cfg.FromBranch, env)
+
+	// run the fake update
+	output := updates.CallFakeSnapRefresh(c, snap, updates.NoOp, fakeStore)
 	c.Assert(output, check.Matches, "(?ms).*^hello-world.*fake1.*")
 }

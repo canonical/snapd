@@ -40,6 +40,7 @@ package apparmor
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
 
@@ -56,6 +57,11 @@ type Backend struct {
 	//
 	// If non-empty then it overrides the built-in template.
 	legacyTemplate []byte
+}
+
+// Name returns the name of the backend.
+func (b *Backend) Name() string {
+	return "apparmor"
 }
 
 // UseLegacyTemplate switches from default apparmor template to a custom
@@ -84,7 +90,11 @@ func (b *Backend) Setup(snapInfo *snap.Info, developerMode bool, repo *interface
 		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapName, err)
 	}
 	glob := interfaces.SecurityTagGlob(snapInfo.Name())
-	changed, removed, errEnsure := osutil.EnsureDirState(dirs.SnapAppArmorDir, glob, content)
+	dir := dirs.SnapAppArmorDir
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("cannot create directory for apparmor profiles %q: %s", dir, err)
+	}
+	changed, removed, errEnsure := osutil.EnsureDirState(dir, glob, content)
 	errReload := reloadProfiles(changed)
 	errUnload := unloadProfiles(removed)
 	if errEnsure != nil {
@@ -154,7 +164,7 @@ func (b *Backend) combineSnippets(snapInfo *snap.Info, developerMode bool, snipp
 				// with them and the custom template is not used.
 				return legacyVariables(appInfo)
 			case bytes.Equal(placeholder, placeholderProfileAttach):
-				return []byte(fmt.Sprintf("profile \"%s\"", interfaces.SecurityTag(appInfo)))
+				return []byte(fmt.Sprintf("profile \"%s\"", appInfo.SecurityTag()))
 			case bytes.Equal(placeholder, placeholderSnippets):
 				return bytes.Join(snippets[appInfo.Name], []byte("\n"))
 			}
@@ -163,7 +173,7 @@ func (b *Backend) combineSnippets(snapInfo *snap.Info, developerMode bool, snipp
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
 		}
-		fname := interfaces.SecurityTag(appInfo)
+		fname := appInfo.SecurityTag()
 		content[fname] = &osutil.FileState{
 			Content: policy,
 			Mode:    0644,
