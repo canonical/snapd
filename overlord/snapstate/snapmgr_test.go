@@ -677,24 +677,6 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 	c.Assert(snapst.Candidate, IsNil)
 }
 
-func (s *snapmgrTestSuite) TestRollbackIntegration(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-	chg := s.state.NewChange("rollback", "rollback a snap")
-	ts, err := snapstate.Rollback(s.state, "some-snap-to-rollback", "1.0")
-	c.Assert(err, IsNil)
-	chg.AddAll(ts)
-
-	s.state.Unlock()
-	defer s.snapmgr.Stop()
-	s.settle()
-	s.state.Lock()
-
-	c.Assert(s.fakeBackend.ops[0].op, Equals, "rollback")
-	c.Assert(s.fakeBackend.ops[0].name, Equals, "some-snap-to-rollback")
-	c.Assert(s.fakeBackend.ops[0].rollback, Equals, "1.0")
-}
-
 func (s *snapmgrTestSuite) TestActivate(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

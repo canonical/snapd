@@ -78,15 +78,6 @@ func (f *fakeSnappyBackend) Download(name, channel string, p progress.Meter) (*s
 	return info, "downloaded-snap-path", nil
 }
 
-func (f *fakeSnappyBackend) Rollback(name, ver string, p progress.Meter) (string, error) {
-	f.ops = append(f.ops, fakeOp{
-		op:       "rollback",
-		name:     name,
-		rollback: ver,
-	})
-	return "", nil
-}
-
 func (f *fakeSnappyBackend) Activate(name string, active bool, p progress.Meter) error {
 	f.ops = append(f.ops, fakeOp{
 		op:     "activate",

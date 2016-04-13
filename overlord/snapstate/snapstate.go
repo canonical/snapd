@@ -233,13 +233,7 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 // Rollback returns a set of tasks for rolling back a snap.
 // Note that the state must be locked by the caller.
 func Rollback(s *state.State, snap, ver string) (*state.TaskSet, error) {
-	t := s.NewTask("rollback-snap", fmt.Sprintf(i18n.G("Rolling back %q"), snap))
-	t.Set("snap-setup", SnapSetup{
-		Name:            snap,
-		RollbackVersion: ver,
-	})
-
-	return state.NewTaskSet(t), nil
+	return nil, fmt.Errorf("rollback not implemented")
 }
 
 // Activate returns a set of tasks for activating a snap.
