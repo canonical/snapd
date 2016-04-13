@@ -29,8 +29,6 @@ import (
 )
 
 func (s *failoverSuite) TestRCLocalCrash(c *check.C) {
-	c.Skip("port to snapd")
-
 	breakSnap := func(snapPath string) error {
 		targetFile := filepath.Join(snapPath, "etc", "rc.local")
 		cli.ExecCommand(c, "sudo", "chmod", "a+xw", targetFile)
