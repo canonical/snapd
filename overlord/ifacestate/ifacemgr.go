@@ -282,7 +282,7 @@ func getConns(st *state.State) (map[string]connState, error) {
 	var conns map[string]connState
 	err := st.Get("conns", &conns)
 	if err != nil && err != state.ErrNoState {
-		return nil, fmt.Errorf("cannot obtain data about existing connections, %s", err)
+		return nil, fmt.Errorf("cannot obtain data about existing connections: %s", err)
 	}
 	if conns == nil {
 		conns = make(map[string]connState)
