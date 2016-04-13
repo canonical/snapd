@@ -318,7 +318,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 
 	plug := m.repo.Plug(plugRef.Snap, plugRef.Name)
-	conns[connID(plugRef, slotRef)] = connState{Interface: plug.Interface, Auto: false}
+	conns[connID(plugRef, slotRef)] = connState{Interface: plug.Interface}
 	setConns(st, conns)
 	return nil
 }
