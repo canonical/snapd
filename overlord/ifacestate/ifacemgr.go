@@ -80,8 +80,6 @@ func Manager(s *state.State, extra []interfaces.Interface) (*InterfaceManager, e
 	return m, nil
 }
 
-var injectExtraInterfaces func(m *InterfaceManager) error
-
 func (m *InterfaceManager) addSnaps() error {
 	snaps, err := snapstate.ActiveInfos(m.state)
 	if err != nil {
