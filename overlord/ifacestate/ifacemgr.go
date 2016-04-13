@@ -328,7 +328,20 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	return m.repo.Disconnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
+
+	conns, err := getConns(task)
+	if err != nil {
+		return err
+	}
+
+	if err := m.repo.Disconnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name); err != nil {
+		return err
+	}
+
+	connID := fmt.Sprintf("%s:%s %s:%s", plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
+	delete(conns, connID)
+	setConns(task, conns)
+	return nil
 }
 
 // Ensure implements StateManager.Ensure.
