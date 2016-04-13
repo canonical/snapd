@@ -286,8 +286,8 @@ func Set(s *state.State, name string, snapst *SnapState) {
 	s.Set("snaps", snaps)
 }
 
-// All returns information about all active snaps.
-func All(s *state.State) ([]*snap.Info, error) {
+// ActiveInfos returns information about all active snaps.
+func ActiveInfos(s *state.State) ([]*snap.Info, error) {
 	var stateMap map[string]*SnapState
 	var infos []*snap.Info
 	if err := s.Get("snaps", &stateMap); err != nil && err != state.ErrNoState {

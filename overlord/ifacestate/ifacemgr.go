@@ -75,7 +75,7 @@ func Manager(s *state.State) (*InterfaceManager, error) {
 }
 
 func (m *InterfaceManager) addSnaps() error {
-	snaps, err := snapstate.All(m.state)
+	snaps, err := snapstate.ActiveInfos(m.state)
 	if err != nil {
 		return err
 	}
