@@ -73,7 +73,7 @@ var (
 	rootCmd = &Command{
 		Path:    "/",
 		GuestOK: true,
-		GET:     SyncResponse([]string{"TBD"}).Self,
+		GET:     SyncResponse([]string{"TBD"}, nil).Self,
 	}
 
 	sysInfoCmd = &Command{
@@ -170,7 +170,7 @@ func sysInfo(c *Command, r *http.Request) Response {
 		m["store"] = store
 	}
 
-	return SyncResponse(m)
+	return SyncResponse(m, nil)
 }
 
 type authState struct {
@@ -215,7 +215,7 @@ func loginUser(c *Command, r *http.Request) Response {
 			},
 			Status: http.StatusUnauthorized,
 		}
-		return SyncResponse(twofactorRequiredResponse)
+		return SyncResponse(twofactorRequiredResponse, nil)
 	}
 	if err != nil {
 		return Unauthorized("cannot get discharge authorization")
@@ -239,7 +239,7 @@ func loginUser(c *Command, r *http.Request) Response {
 		Macaroon:   macaroon,
 		Discharges: []string{discharge},
 	}
-	return SyncResponse(result)
+	return SyncResponse(result, nil)
 }
 
 type metarepo interface {
@@ -288,7 +288,7 @@ func getSnapInfo(c *Command, r *http.Request) Response {
 
 	result := webify(mapSnap(localSnaps, remoteSnap), url.String())
 
-	return SyncResponse(result)
+	return SyncResponse(result, nil)
 }
 
 func webify(result map[string]interface{}, resource string) map[string]interface{} {
@@ -429,7 +429,7 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 			"page":  1,
 			"count": len(results),
 		},
-	})
+	}, nil)
 }
 
 func resultHasType(r map[string]interface{}, allowedTypes []string) bool {
@@ -486,7 +486,7 @@ func snapConfig(c *Command, r *http.Request) Response {
 		return InternalError("unable to retrieve config for %s: %v", snapName, err)
 	}
 
-	return SyncResponse(string(config))
+	return SyncResponse(string(config), nil)
 }
 
 func getOpInfo(c *Command, r *http.Request) Response {
@@ -501,7 +501,7 @@ func getOpInfo(c *Command, r *http.Request) Response {
 		return NotFound("unable to find task with id %q", id)
 	}
 
-	return SyncResponse(task.Map(route))
+	return SyncResponse(task.Map(route), nil)
 }
 
 func deleteOp(c *Command, r *http.Request) Response {
@@ -510,7 +510,7 @@ func deleteOp(c *Command, r *http.Request) Response {
 
 	switch err {
 	case nil:
-		return SyncResponse("done")
+		return SyncResponse("done", nil)
 	case errTaskNotFound:
 		return NotFound("unable to find task %q", id)
 	case errTaskStillRunning:
@@ -761,7 +761,7 @@ func postSnap(c *Command, r *http.Request) Response {
 		}
 		defer lock.Unlock()
 		return f()
-	}).Map(route))
+	}).Map(route), nil)
 }
 
 const maxReadBuflen = 1024 * 1024
@@ -855,7 +855,7 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 		}
 		state.EnsureBefore(0)
 		return waitChange(chg)
-	}).Map(route))
+	}).Map(route), nil)
 }
 
 func iconGet(name string) Response {
@@ -890,7 +890,7 @@ func appIconGet(c *Command, r *http.Request) Response {
 
 // getInterfaces returns all plugs and slots.
 func getInterfaces(c *Command, r *http.Request) Response {
-	return SyncResponse(c.d.interfaces.Interfaces())
+	return SyncResponse(c.d.interfaces.Interfaces(), nil)
 }
 
 // plugJSON aids in marshaling Plug into JSON.
@@ -950,7 +950,7 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 		if err != nil {
 			return BadRequest("%v", err)
 		}
-		return SyncResponse(nil)
+		return SyncResponse(nil, nil)
 	case "disconnect":
 		if len(a.Plugs) == 0 || len(a.Slots) == 0 {
 			return BadRequest("at least one plug and slot is required")
@@ -959,7 +959,7 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 		if err != nil {
 			return BadRequest("%v", err)
 		}
-		return SyncResponse(nil)
+		return SyncResponse(nil, nil)
 	}
 	return BadRequest("unsupported interface action: %q", a.Action)
 }
@@ -1071,5 +1071,5 @@ func getChanges(c *Command, r *http.Request) Response {
 		chgInfo.Tasks = taskInfos
 		chgInfos = append(chgInfos, chgInfo)
 	}
-	return SyncResponse(chgInfos)
+	return SyncResponse(chgInfos, nil)
 }
