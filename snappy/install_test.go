@@ -151,15 +151,15 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 	var dlURL, iconURL string
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/details/foo/ch":
-			io.WriteString(w, `{
+		case "/search":
+			io.WriteString(w, `{"_embedded": {"clickindex:package": [{
 "package_name": "foo",
 "version": "2",
 "developer": "test",
 "anon_download_url": "`+dlURL+`",
 "download_url": "`+dlURL+`",
 "icon_url": "`+iconURL+`"
-}`)
+}]}}`)
 		case "/dl":
 			snapR.Seek(0, 0)
 			io.Copy(w, snapR)
@@ -175,7 +175,7 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 	dlURL = mockServer.URL + "/dl"
 	iconURL = mockServer.URL + "/icon"
 
-	s.storeCfg.DetailsURI, err = url.Parse(mockServer.URL + "/details/")
+	s.storeCfg.SearchURI, err = url.Parse(mockServer.URL + "/search")
 	c.Assert(err, IsNil)
 
 	name, err := Install("foo", "ch", 0, &progress.NullProgress{})
@@ -203,19 +203,19 @@ func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/details/hello-snap.potato/ch":
-			io.WriteString(w, `{
+		case "/search":
+			io.WriteString(w, `{"_embedded": {"clickindex:package": [{
 "developer": "potato",
 "package_name": "hello-snap",
 "version": "2",
 "anon_download_url": "blah"
-}`)
+}]}}`)
 		default:
 			panic("unexpected url path: " + r.URL.Path)
 		}
 	}))
 
-	s.storeCfg.DetailsURI, err = url.Parse(mockServer.URL + "/details/")
+	s.storeCfg.SearchURI, err = url.Parse(mockServer.URL + "/search")
 	c.Assert(err, IsNil)
 
 	c.Assert(mockServer, NotNil)
@@ -244,15 +244,15 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 	var dlURL, iconURL string
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/details/foo." + testDeveloper:
-			io.WriteString(w, `{
+		case "/search":
+			io.WriteString(w, `{"_embedded": {"clickindex:package": [{
 "package_name": "foo",
 "version": "2",
 "revision": 27,
 "developer": "`+testDeveloper+`",
 "anon_download_url": "`+dlURL+`",
 "icon_url": "`+iconURL+`"
-}`)
+}]}}`)
 		case "/dl":
 			snapR.Seek(0, 0)
 			io.Copy(w, snapR)
@@ -268,7 +268,7 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 	dlURL = mockServer.URL + "/dl"
 	iconURL = mockServer.URL + "/icon"
 
-	s.storeCfg.DetailsURI, err = url.Parse(mockServer.URL + "/details/")
+	s.storeCfg.SearchURI, err = url.Parse(mockServer.URL + "/search")
 	c.Assert(err, IsNil)
 
 	// bulk

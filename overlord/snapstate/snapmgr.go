@@ -180,13 +180,8 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// construct the store name
-	name := ss.Name
-	if ss.Developer != "" {
-		name = fmt.Sprintf("%s.%s", ss.Name, ss.Developer)
-	}
 	pb := &TaskProgressAdapter{task: t}
-	storeInfo, downloadedSnapFile, err := m.backend.Download(name, ss.Channel, pb)
+	storeInfo, downloadedSnapFile, err := m.backend.Download(ss.Name, ss.Channel, pb)
 	if err != nil {
 		return err
 	}
