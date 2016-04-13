@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-04-12 10:31+0200\n"
+        "POT-Creation-Date: 2016-04-12 14:11+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -204,7 +204,7 @@ msgstr  ""
 msgid   "Name\tVersion\tDeveloper"
 msgstr  ""
 
-msgid   "Name\tVersion\tSummary"
+msgid   "Name\tVersion\tPrice\tSummary"
 msgstr  ""
 
 #. TRANSLATORS: the %s is a pkgname
@@ -554,6 +554,10 @@ msgstr  ""
 msgid   "data-size: %s\n"
 msgstr  ""
 
+#. TRANSLATORS: free as in monetary price, not as in freedom
+msgid   "free"
+msgstr  ""
+
 #. TRANSLATORS: the %s is a date
 #. TRANSLATORS: the %s is a date
 #, c-format
@@ -564,6 +568,9 @@ msgid   "no snaps found"
 msgstr  ""
 
 msgid   "package name is required"
+msgstr  ""
+
+msgid   "price unavailable"
 msgstr  ""
 
 msgid   "produces manpage"

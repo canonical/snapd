@@ -123,7 +123,7 @@ func snapUpdates(repo *store.SnapUbuntuStoreRepository) (snaps []*snap.Info, err
 		return nil, err
 	}
 
-	for _, rsnap := range rsnaps {
+	for _, rsnap := range rsnaps.Snaps {
 		current := ActiveSnapByName(rsnap.Name())
 		if current == nil || current.Revision() != rsnap.Revision {
 			snaps = append(snaps, rsnap)
@@ -255,10 +255,12 @@ func doInstall(name, channel string, flags InstallFlags, meter progress.Meter) (
 		return "", err
 	}
 
-	snap, err := mStore.Snap(name, channel)
+	res, err := mStore.Snap(name, channel)
 	if err != nil {
 		return "", err
 	}
+
+	snap := res.Snap
 
 	cur := FindSnapsByNameAndVersion(snap.Name(), snap.Version, installed)
 	if len(cur) != 0 {

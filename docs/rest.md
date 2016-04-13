@@ -208,6 +208,7 @@ Sample result:
       "install-date": "2016-03-10T13:16:52Z",
       "name": "http",
       "developer": "chipaca",
+      "prices": {"GBP": 2.99, "USD": 4.99},
       "resource": "/v2/snaps/http",
       "status": "active",
       "type": "app",
@@ -265,6 +266,8 @@ Sample result:
       be rolled back to the revision specified as a value to this entry.
     * `update-available`: if present and not empty, it means the snap can be
       updated to the revision specified as a value to this entry.
+    * `prices`: JSON object with properties named by ISO 4217 currency code.
+       0 means free, >0 implies a cost.
     * `channel`: which channel the package is currently tracking.
 * `paging`
     * `count`: the number of snaps on this page
@@ -272,6 +275,8 @@ Sample result:
     * `pages`: the (approximate) number of pages
 * `sources`
     a list of the sources that were queried (see the `sources` parameter, below)
+* `suggested-currency`: the suggested currency to use for presentation, 
+   derived by Geo IP lookup.
 
 ### Parameters [fixme: is that the right word for these?]
 

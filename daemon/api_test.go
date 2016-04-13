@@ -61,18 +61,22 @@ type apiSuite struct {
 
 var _ = check.Suite(&apiSuite{})
 
-func (s *apiSuite) Snap(string, string) (*snap.Info, error) {
+func (s *apiSuite) Snap(string, string) (*snap.SnapResult, error) {
 	if len(s.rsnaps) > 0 {
-		return s.rsnaps[0], s.err
+		result := &snap.SnapResult{}
+		result.Snap = s.rsnaps[0]
+		return result, s.err
 	}
 	return nil, s.err
 }
 
-func (s *apiSuite) FindSnaps(searchTerm, channel string) ([]*snap.Info, error) {
+func (s *apiSuite) FindSnaps(searchTerm, channel string) (*snap.FindSnapsResult, error) {
 	s.searchTerm = searchTerm
 	s.channel = channel
+	result := &snap.FindSnapsResult{}
+	result.Snaps = s.rsnaps
 
-	return s.rsnaps, s.err
+	return result, s.err
 }
 
 func (s *apiSuite) muxVars(*http.Request) map[string]string {
@@ -254,6 +258,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 			"update-available":   20,
 			"rollback-available": 5,
 			"channel":            "stable",
+			"prices":             map[string]float64(nil),
 		},
 	}
 

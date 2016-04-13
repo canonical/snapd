@@ -65,6 +65,7 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	info.IconURL = d.IconURL
 	info.AnonDownloadURL = d.AnonDownloadURL
 	info.DownloadURL = d.DownloadURL
+	info.Prices = d.Prices
 	return info
 }
 
@@ -242,8 +243,7 @@ func (s *SnapUbuntuStoreRepository) configureStoreReq(req *http.Request, accept 
 }
 
 // Snap returns the snap.Info for the store hosted snap with the given name or an error.
-func (s *SnapUbuntuStoreRepository) Snap(name, channel string) (*snap.Info, error) {
-
+func (s *SnapUbuntuStoreRepository) Snap(name, channel string) (*snap.SnapResult, error) {
 	url, err := s.detailsURI.Parse(path.Join(name, channel))
 	if err != nil {
 		return nil, err
@@ -278,12 +278,23 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string) (*snap.Info, erro
 		return nil, err
 	}
 
-	return infoFromRemote(detailsData), nil
+	result := &snap.SnapResult{}
+	result.Snap = infoFromRemote(detailsData)
+	result.SuggestedCurrency = getSuggestedCurrency(&resp.Header)
+	return result, nil
+}
+
+func getSuggestedCurrency(h *http.Header) string {
+	s := h.Get("X-Suggested-Currency")
+	if s == "" {
+		s = "USD"
+	}
+	return s
 }
 
 // FindSnaps finds  (installable) snaps from the store, matching the
 // given search term.
-func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string) ([]*snap.Info, error) {
+func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string) (*snap.FindSnapsResult, error) {
 	if channel == "" {
 		channel = release.Get().Channel
 	}
@@ -323,11 +334,14 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string)
 		snaps[i] = infoFromRemote(pkg)
 	}
 
-	return snaps, nil
+	result := &snap.FindSnapsResult{}
+	result.Snaps = snaps
+	result.SuggestedCurrency = getSuggestedCurrency(&resp.Header)
+	return result, nil
 }
 
 // Updates returns the available updates for a list of snap identified by fullname with channel.
-func (s *SnapUbuntuStoreRepository) Updates(installed []string) (snaps []*snap.Info, err error) {
+func (s *SnapUbuntuStoreRepository) Updates(installed []string) (snaps *snap.FindSnapsResult, err error) {
 	jsonData, err := json.Marshal(map[string][]string{"name": installed})
 	if err != nil {
 		return nil, err
@@ -359,7 +373,10 @@ func (s *SnapUbuntuStoreRepository) Updates(installed []string) (snaps []*snap.I
 		res[i] = infoFromRemote(rsnap)
 	}
 
-	return res, nil
+	result := &snap.FindSnapsResult{}
+	result.Snaps = res
+	result.SuggestedCurrency = getSuggestedCurrency(&resp.Header)
+	return result, nil
 }
 
 // Download downloads the given snap and returns its filename.
