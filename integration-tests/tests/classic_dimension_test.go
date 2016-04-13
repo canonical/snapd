@@ -36,6 +36,8 @@ type classicDimensionSuite struct {
 }
 
 func (s *classicDimensionSuite) SetUpTest(c *check.C) {
+	s.SnappySuite.SetUpTest(c)
+
 	c.Skip("FIXME: re-enable once snap classic is back")
 }
 

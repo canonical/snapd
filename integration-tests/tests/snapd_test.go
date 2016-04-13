@@ -46,9 +46,9 @@ type snapdTestSuite struct {
 }
 
 func (s *snapdTestSuite) SetUpTest(c *check.C) {
-	c.Skip("FIXME: we need to update http.chipaca to new-security *and* land  auto-connect support in snapd")
-
 	s.SnappySuite.SetUpTest(c)
+
+	c.Skip("FIXME: we need to update http.chipaca to new-security *and* land  auto-connect support in snapd")
 
 	common.InstallSnap(c, httpClientSnap+"/edge")
 }
