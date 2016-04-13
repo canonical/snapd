@@ -285,3 +285,27 @@ func Set(s *state.State, name string, snapst *SnapState) {
 	snaps[name] = &raw
 	s.Set("snaps", snaps)
 }
+
+// All returns information about all active snaps.
+func All(s *state.State) ([]*snap.Info, error) {
+	var stateMap map[string]*SnapState
+	var infos []*snap.Info
+	if err := s.Get("snaps", &stateMap); err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	for snapName, snapState := range stateMap {
+		if !snapState.Active {
+			continue
+		}
+		if len(snapState.Sequence) == 0 {
+			continue // XXX: is this possible?
+		}
+		sideInfo := snapState.Sequence[len(snapState.Sequence)-1]
+		snapInfo, err := retrieveInfo(snapName, sideInfo)
+		if err != nil {
+			return nil, err
+		}
+		infos = append(infos, snapInfo)
+	}
+	return infos, nil
+}
