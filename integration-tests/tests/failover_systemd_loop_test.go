@@ -77,8 +77,6 @@ func installService(c *check.C, serviceName, serviceCfg, servicesPath string) {
 }
 
 func (s *failoverSuite) TestSystemdDependencyLoop(c *check.C) {
-	c.Skip("port to snapd")
-
 	breakSnap := func(snapPath string) error {
 		servicesPath := filepath.Join(snapPath, "lib", "systemd", "system")
 		installService(c, "deadlock", deadlockService, servicesPath)

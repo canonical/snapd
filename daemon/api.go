@@ -39,6 +39,8 @@ import (
 	"github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/lockfile"
 	"github.com/ubuntu-core/snappy/overlord"
+	"github.com/ubuntu-core/snappy/overlord/auth"
+	"github.com/ubuntu-core/snappy/overlord/ifacestate"
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/progress"
@@ -66,6 +68,7 @@ var api = []*Command{
 	assertsCmd,
 	assertsFindManyCmd,
 	eventsCmd,
+	stateChangeCmd,
 	stateChangesCmd,
 }
 
@@ -144,6 +147,12 @@ var (
 		GET:  getEvents,
 	}
 
+	stateChangeCmd = &Command{
+		Path:   "/v2/changes/{id}",
+		UserOK: true,
+		GET:    getChange,
+	}
+
 	stateChangesCmd = &Command{
 		Path:   "/v2/changes",
 		UserOK: true,
@@ -173,16 +182,6 @@ func sysInfo(c *Command, r *http.Request) Response {
 	return SyncResponse(m, nil)
 }
 
-type authState struct {
-	Users []userAuthState `json:"users"`
-}
-
-type userAuthState struct {
-	Username   string   `json:"username,omitempty"`
-	Macaroon   string   `json:"macaroon,omitempty"`
-	Discharges []string `json:"discharges,omitempty"`
-}
-
 type loginResponseData struct {
 	Macaroon   string   `json:"macaroon,omitempty"`
 	Discharges []string `json:"discharges,omitempty"`
@@ -202,7 +201,7 @@ func loginUser(c *Command, r *http.Request) Response {
 
 	macaroon, err := store.RequestPackageAccessMacaroon()
 	if err != nil {
-		return InternalError("cannot get package access macaroon")
+		return InternalError(err.Error())
 	}
 
 	discharge, err := store.DischargeAuthCaveat(loginData.Username, loginData.Password, macaroon, loginData.Otp)
@@ -211,29 +210,24 @@ func loginUser(c *Command, r *http.Request) Response {
 			Type: ResponseTypeError,
 			Result: &errorResult{
 				Kind:    errorKindTwoFactorRequired,
-				Message: "two factor authentication required",
+				Message: store.ErrAuthenticationNeeds2fa.Error(),
 			},
 			Status: http.StatusUnauthorized,
 		}
 		return SyncResponse(twofactorRequiredResponse, nil)
 	}
 	if err != nil {
-		return Unauthorized("cannot get discharge authorization")
+		return Unauthorized(err.Error())
 	}
-
-	authenticatedUser := userAuthState{
-		Username:   loginData.Username,
-		Macaroon:   macaroon,
-		Discharges: []string{discharge},
-	}
-	// TODO Handle better the multi-user case.
-	authStateData := authState{Users: []userAuthState{authenticatedUser}}
 
 	overlord := c.d.overlord
 	state := overlord.State()
 	state.Lock()
-	state.Set("auth", authStateData)
+	_, err = auth.NewUser(state, loginData.Username, macaroon, []string{discharge})
 	state.Unlock()
+	if err != nil {
+		return InternalError("cannot persist authentication details: %v", err)
+	}
 
 	result := loginResponseData{
 		Macaroon:   macaroon,
@@ -890,7 +884,8 @@ func appIconGet(c *Command, r *http.Request) Response {
 
 // getInterfaces returns all plugs and slots.
 func getInterfaces(c *Command, r *http.Request) Response {
-	return SyncResponse(c.d.interfaces.Interfaces(), nil)
+	repo := c.d.overlord.InterfaceManager().Repository()
+	return SyncResponse(repo.Interfaces())
 }
 
 // plugJSON aids in marshaling Plug into JSON.
@@ -941,12 +936,30 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 	if len(a.Plugs) > 1 || len(a.Slots) > 1 {
 		return NotImplemented("many-to-many operations are not implemented")
 	}
+
+	state := c.d.overlord.State()
+
 	switch a.Action {
 	case "connect":
 		if len(a.Plugs) == 0 || len(a.Slots) == 0 {
 			return BadRequest("at least one plug and slot is required")
 		}
-		err := c.d.interfaces.Connect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		summary := fmt.Sprintf("Connect %s:%s to %s:%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		state.Lock()
+		change := state.NewChange("connect-snap", summary)
+		taskset, err := ifacestate.Connect(
+			state, a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		if err == nil {
+			change.AddAll(taskset)
+		}
+		state.Unlock()
+		if err != nil {
+			return BadRequest("%v", err)
+		}
+
+		state.EnsureBefore(0)
+		err = waitChange(change)
+
 		if err != nil {
 			return BadRequest("%v", err)
 		}
@@ -955,7 +968,22 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 		if len(a.Plugs) == 0 || len(a.Slots) == 0 {
 			return BadRequest("at least one plug and slot is required")
 		}
-		err := c.d.interfaces.Disconnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		summary := fmt.Sprintf("Disconnect %s:%s from %s:%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		state.Lock()
+		change := state.NewChange("disconnect-snap", summary)
+		taskset, err := ifacestate.Disconnect(state,
+			a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		if err == nil {
+			change.AddAll(taskset)
+		}
+		state.Unlock()
+		if err != nil {
+			return BadRequest("%v", err)
+		}
+
+		state.EnsureBefore(0)
+		err = waitChange(change)
+
 		if err != nil {
 			return BadRequest("%v", err)
 		}
@@ -1012,6 +1040,7 @@ func getEvents(c *Command, r *http.Request) Response {
 }
 
 type changeInfo struct {
+	ID      string      `json:"id"`
 	Kind    string      `json:"kind"`
 	Summary string      `json:"summary"`
 	Status  string      `json:"status"`
@@ -1019,10 +1048,49 @@ type changeInfo struct {
 }
 
 type taskInfo struct {
-	Kind    string   `json:"kind"`
-	Summary string   `json:"summary"`
-	Status  string   `json:"status"`
-	Log     []string `json:"log,omitempty"`
+	Kind     string   `json:"kind"`
+	Summary  string   `json:"summary"`
+	Status   string   `json:"status"`
+	Log      []string `json:"log,omitempty"`
+	Progress [2]int   `json:"progress"`
+}
+
+func change2changeInfo(chg *state.Change) *changeInfo {
+	chgInfo := &changeInfo{
+		ID:      chg.ID(),
+		Kind:    chg.Kind(),
+		Summary: chg.Summary(),
+		Status:  chg.Status().String(),
+	}
+	tasks := chg.Tasks()
+	taskInfos := make([]*taskInfo, len(tasks))
+	for j, t := range tasks {
+		cur, tot := t.Progress()
+		taskInfo := &taskInfo{
+			Kind:     t.Kind(),
+			Summary:  t.Summary(),
+			Status:   t.Status().String(),
+			Log:      t.Log(),
+			Progress: [2]int{cur, tot},
+		}
+		taskInfos[j] = taskInfo
+	}
+	chgInfo.Tasks = taskInfos
+
+	return chgInfo
+}
+
+func getChange(c *Command, r *http.Request) Response {
+	chID := muxVars(r)["id"]
+	state := c.d.overlord.State()
+	state.Lock()
+	defer state.Unlock()
+	chg := state.Change(chID)
+	if chg == nil {
+		return NotFound("unable to find change with id %q", chID)
+	}
+
+	return SyncResponse(change2changeInfo(chg))
 }
 
 func getChanges(c *Command, r *http.Request) Response {
@@ -1052,24 +1120,7 @@ func getChanges(c *Command, r *http.Request) Response {
 		if !filter(chg) {
 			continue
 		}
-		chgInfo := &changeInfo{
-			Kind:    chg.Kind(),
-			Summary: chg.Summary(),
-			Status:  chg.Status().String(),
-		}
-		tasks := chg.Tasks()
-		taskInfos := make([]*taskInfo, len(tasks))
-		for j, t := range tasks {
-			taskInfo := &taskInfo{
-				Kind:    t.Kind(),
-				Summary: t.Summary(),
-				Status:  t.Status().String(),
-				Log:     t.Log(),
-			}
-			taskInfos[j] = taskInfo
-		}
-		chgInfo.Tasks = taskInfos
-		chgInfos = append(chgInfos, chgInfo)
+		chgInfos = append(chgInfos, change2changeInfo(chg))
 	}
 	return SyncResponse(chgInfos, nil)
 }

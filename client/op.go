@@ -48,7 +48,7 @@ func (op *operation) Err() error {
 		return nil
 	}
 
-	var res errorResult
+	var res Error
 	if json.Unmarshal(op.Output, &res) != nil {
 		return fmt.Errorf("unexpected error format: %q", op.Output)
 	}

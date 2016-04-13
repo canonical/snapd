@@ -193,57 +193,39 @@ func currentSnap(newSnap *snap.Info) *Snap {
 	return currentSnap
 }
 
-func CopyData(newSnap *snap.Info, flags InstallFlags, meter progress.Meter) error {
+func CopyData(newSnap, oldSnap *snap.Info, flags InstallFlags, meter progress.Meter) error {
 	dataDir := newSnap.DataDir()
 
-	// deal with the data:
-	//
-	// if there was a previous version, stop it
-	// from being active so that it stops running and can no longer be
-	// started then copy the data
-	//
+	// deal with the old data or
 	// otherwise just create a empty data dir
-	oldSnap := currentSnap(newSnap)
+
 	if oldSnap == nil {
 		return os.MkdirAll(dataDir, 0755)
 	}
 
-	// we need to stop any services and make the commands unavailable
-	// so that the data can be safely copied
-	if err := UnlinkSnap(oldSnap, meter); err != nil {
-		return err
-	}
-
-	return copySnapData(oldSnap.Info(), newSnap)
+	return copySnapData(oldSnap, newSnap)
 }
 
 func UndoCopyData(newInfo *snap.Info, flags InstallFlags, meter progress.Meter) {
 	// XXX we were copying data, assume InhibitHooks was false
 
-	oldSnap := currentSnap(newInfo)
-	if oldSnap != nil {
-		// reactivate the previously inactivated snap
-		if err := ActivateSnap(oldSnap, meter); err != nil {
-			logger.Noticef("Setting old version back to active failed: %v", err)
-		}
-	}
-
 	if err := RemoveSnapData(newInfo); err != nil {
 		logger.Noticef("When cleaning up data for %s %s: %v", newInfo.Name(), newInfo.Version, err)
 	}
+
 }
 
-func GenerateWrappers(s *Snap, inter interacter) error {
+func GenerateWrappers(s *snap.Info, inter interacter) error {
 	// add the CLI apps from the snap.yaml
-	if err := addPackageBinaries(s.Info()); err != nil {
+	if err := addPackageBinaries(s); err != nil {
 		return err
 	}
 	// add the daemons from the snap.yaml
-	if err := addPackageServices(s.Info(), inter); err != nil {
+	if err := addPackageServices(s, inter); err != nil {
 		return err
 	}
 	// add the desktop files
-	if err := addPackageDesktopFiles(s.Info()); err != nil {
+	if err := addPackageDesktopFiles(s); err != nil {
 		return err
 	}
 
@@ -252,19 +234,19 @@ func GenerateWrappers(s *Snap, inter interacter) error {
 
 // RemoveGeneratedWrappers removes the generated services, binaries, desktop
 // wrappers
-func RemoveGeneratedWrappers(s *Snap, inter interacter) error {
+func RemoveGeneratedWrappers(s *snap.Info, inter interacter) error {
 
-	err1 := removePackageBinaries(s.Info())
+	err1 := removePackageBinaries(s)
 	if err1 != nil {
 		logger.Noticef("Failed to remove binaries for %q: %v", s.Name(), err1)
 	}
 
-	err2 := removePackageServices(s.Info(), inter)
+	err2 := removePackageServices(s, inter)
 	if err2 != nil {
 		logger.Noticef("Failed to remove services for %q: %v", s.Name(), err2)
 	}
 
-	err3 := removePackageDesktopFiles(s.Info())
+	err3 := removePackageDesktopFiles(s)
 	if err3 != nil {
 		logger.Noticef("Failed to remove desktop files for %q: %v", s.Name(), err3)
 	}
@@ -272,8 +254,8 @@ func RemoveGeneratedWrappers(s *Snap, inter interacter) error {
 	return firstErr(err1, err2, err3)
 }
 
-func UpdateCurrentSymlink(s *Snap, inter interacter) error {
-	info := s.Info()
+// XXX: would really like not to expose this but used in daemon tests atm
+func UpdateCurrentSymlink(info *snap.Info, inter interacter) error {
 	mountDir := info.MountDir()
 
 	currentActiveSymlink := filepath.Join(mountDir, "..", "current")
@@ -299,23 +281,15 @@ func UpdateCurrentSymlink(s *Snap, inter interacter) error {
 
 	// FIXME: create {Os,Kernel}Snap type instead of adding special
 	//        cases here
-	if err := setNextBoot(s); err != nil {
+	if err := setNextBoot(info); err != nil {
 		return err
 	}
 
 	return os.Symlink(filepath.Base(dataDir), currentDataSymlink)
 }
 
-func UndoUpdateCurrentSymlink(oldSnap, newSnap *Snap, inter interacter) error {
-	if err := removeCurrentSymlink(newSnap, inter); err != nil {
-		return err
-	}
-	return UpdateCurrentSymlink(oldSnap, inter)
-}
-
-func removeCurrentSymlink(s *Snap, inter interacter) error {
+func removeCurrentSymlink(info snap.PlaceInfo, inter interacter) error {
 	var err1, err2 error
-	info := s.Info()
 
 	// the snap "current" symlink
 	currentActiveSymlink := filepath.Join(info.MountDir(), "..", "current")
@@ -371,6 +345,10 @@ func ActivateSnap(s *Snap, inter interacter) error {
 
 	// security setup was done here!
 
+	return LinkSnap(s.Info(), inter)
+}
+
+func LinkSnap(s *snap.Info, inter interacter) error {
 	if err := GenerateWrappers(s, inter); err != nil {
 		return err
 	}
@@ -379,8 +357,7 @@ func ActivateSnap(s *Snap, inter interacter) error {
 }
 
 // UnlinkSnap deactivates the given active snap.
-func UnlinkSnap(s *Snap, inter interacter) error {
-	info := s.Info()
+func UnlinkSnap(info *snap.Info, inter interacter) error {
 	mountDir := info.MountDir()
 
 	currentSymlink := filepath.Join(mountDir, "..", "current")
@@ -396,12 +373,12 @@ func UnlinkSnap(s *Snap, inter interacter) error {
 	}
 
 	// remove generated services, binaries, security policy
-	err1 := RemoveGeneratedWrappers(s, inter)
+	err1 := RemoveGeneratedWrappers(info, inter)
 
 	// removing security setup move here!
 
 	// and finally remove current symlink
-	err2 := removeCurrentSymlink(s, inter)
+	err2 := removeCurrentSymlink(info, inter)
 
 	// FIXME: aggregate errors instead
 	return firstErr(err1, err2)
@@ -444,8 +421,29 @@ func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideI
 	// we need this for later
 	oldSnap := currentSnap(newInfo)
 
+	var oldInfo *snap.Info
+
+	if oldSnap != nil {
+		oldInfo = oldSnap.Info()
+
+		// we need to stop any services and make the commands unavailable
+		// so that copying data and later activating the new revision
+		// can work
+		err = UnlinkSnap(oldInfo, meter)
+		defer func() {
+			if err != nil {
+				if err := LinkSnap(oldInfo, meter); err != nil {
+					logger.Noticef("When linking old revision: %v", newInfo.Name(), err)
+				}
+			}
+		}()
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	// deal with the data
-	err = CopyData(newInfo, flags, meter)
+	err = CopyData(newInfo, oldInfo, flags, meter)
 	defer func() {
 		if err != nil {
 			UndoCopyData(newInfo, flags, meter)
@@ -462,19 +460,11 @@ func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideI
 		return newInfo, nil
 	}
 
-	// if get this far we know the snap is actually mounted.
-	// XXX: use infos further but anyway this is going away mostly
-	// once we simplify u-d-f
-	newSnap, err := NewInstalledSnap(filepath.Join(newInfo.MountDir(), "meta", "snap.yaml"))
-	if err != nil {
-		return nil, err
-	}
-
-	err = ActivateSnap(newSnap, meter)
+	err = LinkSnap(newInfo, meter)
 	defer func() {
-		if err != nil && oldSnap != nil {
-			if err := ActivateSnap(oldSnap, meter); err != nil {
-				logger.Noticef("When setting old %s version back to active: %v", newSnap.Name(), err)
+		if err != nil {
+			if err := UnlinkSnap(newInfo, meter); err != nil {
+				logger.Noticef("When unlinking failed new snap revision: %v", newInfo.Name(), err)
 			}
 		}
 	}()
@@ -482,7 +472,7 @@ func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideI
 		return nil, err
 	}
 
-	return newSnap.Info(), nil
+	return newInfo, nil
 }
 
 // CanInstall checks whether the Snap passes a series of tests required for installation
@@ -621,7 +611,7 @@ func (o *Overlord) Uninstall(s *Snap, meter progress.Meter) error {
 		return ErrPackageNotRemovable
 	}
 
-	if err := UnlinkSnap(s, meter); err != nil && err != ErrSnapNotActive {
+	if err := UnlinkSnap(s.Info(), meter); err != nil && err != ErrSnapNotActive {
 		return err
 	}
 
@@ -639,14 +629,14 @@ func (o *Overlord) SetActive(s *Snap, active bool, meter progress.Meter) error {
 	if active {
 		// deactivate current first
 		if current := ActiveSnapByName(s.Name()); current != nil {
-			if err := UnlinkSnap(current, meter); err != nil {
+			if err := UnlinkSnap(current.Info(), meter); err != nil {
 				return err
 			}
 		}
 		return ActivateSnap(s, meter)
 	}
 
-	return UnlinkSnap(s, meter)
+	return UnlinkSnap(s.Info(), meter)
 }
 
 // Configure configures the given snap
