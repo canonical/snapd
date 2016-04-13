@@ -28,3 +28,15 @@ func MockSecurityBackendsForSnap(fn func(snapInfo *snap.Info) []interfaces.Secur
 	securityBackendsForSnap = fn
 	return func() { securityBackendsForSnap = securityBackendsForSnapImpl }
 }
+
+func InjectExtraInterfaces(ifaces ...interfaces.Interface) func() {
+	injectExtraInterfaces = func(m *InterfaceManager) error {
+		for _, iface := range ifaces {
+			if err := m.repo.AddInterface(iface); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	return func() { injectExtraInterfaces = nil }
+}
