@@ -1345,14 +1345,14 @@ func (s *apiSuite) TestInstallMissingUbuntuCore(c *check.C) {
 	d.overlord.State().Lock()
 	defer d.overlord.State().Unlock()
 	c.Check(installQueue, check.HasLen, 4)
-	// the two "some-snap" install tasks
-	c.Check(installQueue[0].Summary(), check.Equals, "some-snap")
-	c.Check(installQueue[0].WaitTasks(), check.Not(check.HasLen), 0)
-	c.Check(installQueue[1].WaitTasks(), check.Not(check.HasLen), 0)
 	// the two "ubuntu-core" install tasks
-	c.Check(installQueue[2].Summary(), check.Equals, "ubuntu-core")
-	c.Check(installQueue[2].WaitTasks(), check.HasLen, 0)
-	c.Check(installQueue[3].WaitTasks(), check.HasLen, 0)
+	c.Check(installQueue[0].Summary(), check.Equals, "ubuntu-core")
+	c.Check(installQueue[0].WaitTasks(), check.HasLen, 0)
+	c.Check(installQueue[1].WaitTasks(), check.HasLen, 0)
+	// the two "some-snap" install tasks
+	c.Check(installQueue[2].Summary(), check.Equals, "some-snap")
+	c.Check(installQueue[2].WaitTasks(), check.HasLen, 2)
+	c.Check(installQueue[3].WaitTasks(), check.HasLen, 2)
 }
 
 func (s *apiSuite) TestInstallFails(c *check.C) {
