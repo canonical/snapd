@@ -20,7 +20,9 @@
 package auth
 
 import (
+	"bytes"
 	"fmt"
+	"net/http"
 
 	"github.com/ubuntu-core/snappy/overlord/state"
 )
@@ -80,4 +82,32 @@ func User(st *state.State, id int) (*UserState, error) {
 		}
 	}
 	return nil, fmt.Errorf("invalid user")
+}
+
+// Authenticator returns MacaroonAuthenticator for current authenticated user represented by UserState
+func (us *UserState) Authenticator() *MacaroonAuthenticator {
+	return newMacaroonAuthenticator(us.Macaroon, us.Discharges)
+}
+
+// MacaroonAuthenticator is a store authenticator based on macaroons
+type MacaroonAuthenticator struct {
+	Macaroon   string
+	Discharges []string
+}
+
+func newMacaroonAuthenticator(macaroon string, discharges []string) *MacaroonAuthenticator {
+	return &MacaroonAuthenticator{
+		Macaroon:   macaroon,
+		Discharges: discharges,
+	}
+}
+
+// Authenticate will add the store expected Authorization header for macaroons
+func (ma *MacaroonAuthenticator) Authenticate(r *http.Request) {
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, `Macaroon root="%s"`, ma.Macaroon)
+	for _, discharge := range ma.Discharges {
+		fmt.Fprintf(&buf, `, discharge="%s"`, discharge)
+	}
+	r.Header.Set("Authorization", buf.String())
 }

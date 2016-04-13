@@ -20,6 +20,7 @@
 package auth_test
 
 import (
+	"net/http"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -126,4 +127,29 @@ func (as *authSuite) TestUser(c *C) {
 	as.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(userFromState, DeepEquals, user)
+}
+
+func (as *authSuite) TestGetAuthenticatorFromUser(c *C) {
+	as.state.Lock()
+	user, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	as.state.Unlock()
+	c.Check(err, IsNil)
+
+	authenticator := user.Authenticator()
+	c.Check(authenticator.Macaroon, Equals, user.Macaroon)
+	c.Check(authenticator.Discharges, DeepEquals, user.Discharges)
+}
+
+func (as *authSuite) TestAuthenticatorSetHeaders(c *C) {
+	as.state.Lock()
+	user, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	as.state.Unlock()
+	c.Check(err, IsNil)
+
+	req, _ := http.NewRequest("GET", "http://example.com", nil)
+	authenticator := user.Authenticator()
+	authenticator.Authenticate(req)
+
+	authorization := req.Header.Get("Authorization")
+	c.Check(authorization, Equals, `Macaroon root="macaroon", discharge="discharge"`)
 }
