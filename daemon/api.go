@@ -39,6 +39,7 @@ import (
 	"github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/lockfile"
 	"github.com/ubuntu-core/snappy/overlord"
+	"github.com/ubuntu-core/snappy/overlord/auth"
 	"github.com/ubuntu-core/snappy/overlord/ifacestate"
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
@@ -181,16 +182,6 @@ func sysInfo(c *Command, r *http.Request) Response {
 	return SyncResponse(m)
 }
 
-type authState struct {
-	Users []userAuthState `json:"users"`
-}
-
-type userAuthState struct {
-	Username   string   `json:"username,omitempty"`
-	Macaroon   string   `json:"macaroon,omitempty"`
-	Discharges []string `json:"discharges,omitempty"`
-}
-
 type loginResponseData struct {
 	Macaroon   string   `json:"macaroon,omitempty"`
 	Discharges []string `json:"discharges,omitempty"`
@@ -229,19 +220,12 @@ func loginUser(c *Command, r *http.Request) Response {
 		return Unauthorized(err.Error())
 	}
 
-	authenticatedUser := userAuthState{
-		Username:   loginData.Username,
-		Macaroon:   macaroon,
-		Discharges: []string{discharge},
-	}
-	// TODO Handle better the multi-user case.
-	authStateData := authState{Users: []userAuthState{authenticatedUser}}
-
 	overlord := c.d.overlord
 	state := overlord.State()
-	state.Lock()
-	state.Set("auth", authStateData)
-	state.Unlock()
+	_, err = auth.NewUser(state, loginData.Username, macaroon, []string{discharge})
+	if err != nil {
+		return InternalError("cannot persist authentication details")
+	}
 
 	result := loginResponseData{
 		Macaroon:   macaroon,
