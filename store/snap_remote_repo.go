@@ -32,6 +32,7 @@ import (
 	"path"
 	"reflect"
 	"strings"
+	"sync"
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/asserts"
@@ -85,6 +86,9 @@ type SnapUbuntuStoreRepository struct {
 	assertionsURI *url.URL
 	// reused http client
 	client *http.Client
+
+	mu                sync.Mutex
+	suggestedCurrency string
 }
 
 func getStructFields(s interface{}) []string {
@@ -241,6 +245,17 @@ func (s *SnapUbuntuStoreRepository) configureStoreReq(req *http.Request, accept 
 	s.applyUbuntuStoreHeaders(req, accept)
 }
 
+// read all the available metadata from the store response and cache
+func (s *SnapUbuntuStoreRepository) checkStoreResponse(resp *http.Response) {
+	suggestedCurrency := resp.Header.Get("X-Suggested-Currency")
+
+	if suggestedCurrency != "" {
+		s.mu.Lock()
+		s.suggestedCurrency = suggestedCurrency
+		s.mu.Unlock()
+	}
+}
+
 // Snap returns the snap.Info for the store hosted snap with the given name or an error.
 func (s *SnapUbuntuStoreRepository) Snap(name, channel string) (*snap.Info, error) {
 
@@ -277,6 +292,8 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string) (*snap.Info, erro
 	if err := dec.Decode(&detailsData); err != nil {
 		return nil, err
 	}
+
+	s.checkStoreResponse(resp)
 
 	return infoFromRemote(detailsData), nil
 }
@@ -323,6 +340,8 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string)
 		snaps[i] = infoFromRemote(pkg)
 	}
 
+	s.checkStoreResponse(resp)
+
 	return snaps, nil
 }
 
@@ -358,6 +377,8 @@ func (s *SnapUbuntuStoreRepository) Updates(installed []string) (snaps []*snap.I
 	for i, rsnap := range updateData {
 		res[i] = infoFromRemote(rsnap)
 	}
+
+	s.checkStoreResponse(resp)
 
 	return res, nil
 }
@@ -473,4 +494,15 @@ func (s *SnapUbuntuStoreRepository) Assertion(assertType *asserts.AssertionType,
 	// and decode assertion
 	dec := asserts.NewDecoder(resp.Body)
 	return dec.Decode()
+}
+
+// SuggestedCurrency retrieves the cached value for the store's suggested currency
+func (s *SnapUbuntuStoreRepository) SuggestedCurrency() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.suggestedCurrency == "" {
+		return "USD"
+	}
+	return s.suggestedCurrency
 }

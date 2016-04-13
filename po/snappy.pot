@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-04-12 10:31+0200\n"
+        "POT-Creation-Date: 2016-04-13 20:17+0200\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,9 +17,6 @@ msgstr  "Project-Id-Version: snappy\n"
         "Content-Transfer-Encoding: 8bit\n"
 
 msgid   "(deprecated) please use \"list\""
-msgstr  ""
-
-msgid   "2fa code: "
 msgstr  ""
 
 msgid   "A concise summary of key attributes of the snappy system, such as the release and channel.\n"
@@ -106,10 +103,6 @@ msgid   "Deactivate an installed active snap"
 msgstr  ""
 
 #, c-format
-msgid   "Deactivating %q"
-msgstr  ""
-
-#, c-format
 msgid   "Disconnect %s:%s from %s:%s"
 msgstr  ""
 
@@ -188,7 +181,15 @@ msgid   "Login successful"
 msgstr  ""
 
 #, c-format
+msgid   "Make current revision for snap %q unavailable"
+msgstr  ""
+
+#, c-format
 msgid   "Make snap %q available to the system"
+msgstr  ""
+
+#, c-format
+msgid   "Make snap %q unavailable to the system"
 msgstr  ""
 
 #, c-format
@@ -264,21 +265,21 @@ msgstr  ""
 msgid   "Remove a snapp part"
 msgstr  ""
 
+#, c-format
+msgid   "Remove data for snap %q"
+msgstr  ""
+
+#, c-format
+msgid   "Remove security profile for snap %q"
+msgstr  ""
+
+#, c-format
+msgid   "Remove snap %q from the system"
+msgstr  ""
+
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid   "Removing %s\n"
-msgstr  ""
-
-#, c-format
-msgid   "Removing data for %q"
-msgstr  ""
-
-#, c-format
-msgid   "Removing files for %q"
-msgstr  ""
-
-#, c-format
-msgid   "Removing security profile for %q"
 msgstr  ""
 
 #, c-format
@@ -383,6 +384,9 @@ msgid   "This command is no longer available, please use the \"list\" command"
 msgstr  ""
 
 msgid   "This command logs the given username into the store"
+msgstr  ""
+
+msgid   "Two-factor code: "
 msgstr  ""
 
 #, c-format

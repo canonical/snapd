@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -33,14 +34,14 @@ import (
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/testutil"
 )
 
 func TestInterfaceManager(t *testing.T) { TestingT(t) }
 
 type interfaceManagerSuite struct {
-	state *state.State
-	mgr   *ifacestate.InterfaceManager
+	state           *state.State
+	mgr             *ifacestate.InterfaceManager
+	restoreBackends func()
 }
 
 var _ = Suite(&interfaceManagerSuite{})
@@ -52,11 +53,15 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.state = state
 	s.mgr = mgr
+	s.restoreBackends = ifacestate.MockSecurityBackendsForSnap(
+		func(snapInfo *snap.Info) []interfaces.SecurityBackend { return nil },
+	)
 }
 
 func (s *interfaceManagerSuite) TearDownTest(c *C) {
 	s.mgr.Stop()
 	dirs.SetRootDir("")
+	s.restoreBackends()
 }
 
 func (s *interfaceManagerSuite) TestSmoke(c *C) {
@@ -185,23 +190,55 @@ func (s *interfaceManagerSuite) addPlugSlotAndInterface(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *interfaceManagerSuite) TestDoSetupSnapSecuirty(c *C) {
-	parserCmd := testutil.MockCommand(c, "apparmor_parser", "")
-	defer parserCmd.Restore()
+func (s *interfaceManagerSuite) mockSnap(c *C, yamlText string) *snap.Info {
+	s.state.Lock()
+	defer s.state.Unlock()
 
-	osSnap := &snap.Info{
-		Type:          snap.TypeOS,
-		SuggestedName: "ubuntu-core",
-		Slots:         make(map[string]*snap.SlotInfo),
-	}
-	snap.AddImplicitSlots(osSnap)
-	err := s.mgr.Repository().AddSnap(osSnap)
+	// Parse the yaml
+	snapInfo, err := snap.InfoFromSnapYaml([]byte(yamlText))
+	c.Assert(err, IsNil)
+	snap.AddImplicitSlots(snapInfo)
+
+	// Create on-disk yaml file (it is read by snapstate)
+	dname := filepath.Join(dirs.SnapSnapsDir, snapInfo.Name(),
+		strconv.Itoa(snapInfo.Revision), "meta")
+	fname := filepath.Join(dname, "snap.yaml")
+	err = os.MkdirAll(dname, 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(fname, []byte(yamlText), 0644)
 	c.Assert(err, IsNil)
 
-	dname := filepath.Join(dirs.SnapSnapsDir, "snap", "0", "meta")
-	fname := filepath.Join(dname, "snap.yaml")
+	// Put a side info into the state
+	snapstate.Set(s.state, snapInfo.Name(), &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{{Revision: snapInfo.Revision}},
+	})
 
-	data := []byte(`
+	// Add it to the repository
+	s.mgr.Repository().AddSnap(snapInfo)
+
+	return snapInfo
+}
+
+func (s *interfaceManagerSuite) addSetupSnapSecurityChange(c *C, snapName string) *state.Change {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	task := s.state.NewTask("setup-snap-security", "")
+	ss := snapstate.SnapSetup{Name: "snap"}
+	task.Set("snap-setup", ss)
+	taskset := state.NewTaskSet(task)
+	change := s.state.NewChange("test", "")
+	change.AddAll(taskset)
+	return change
+}
+
+var osSnapYaml = `
+name: ubuntu-core
+version: 1
+type: os
+`
+
+var sampleSnapYaml = `
 name: snap
 version: 1
 apps:
@@ -210,28 +247,99 @@ apps:
 plugs:
  network:
   interface: network
-`)
-	err = os.MkdirAll(dname, 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(fname, data, 0644)
-	c.Assert(err, IsNil)
+`
+
+var consumerYaml = `
+name: consumer
+version: 1
+plugs:
+ plug:
+  interface: test
+`
+
+var producerYaml = `
+name: producer
+version: 1
+slots:
+ slot:
+  interface: test
+`
+
+func (s *interfaceManagerSuite) TestDoSetupSnapSecuirty(c *C) {
+	s.mockSnap(c, osSnapYaml)
+	snapInfo := s.mockSnap(c, sampleSnapYaml)
+
+	// Run the setup-snap-security task
+	change := s.addSetupSnapSecurityChange(c, snapInfo.Name())
+	s.mgr.Ensure()
+	s.mgr.Wait()
+	s.mgr.Stop()
 
 	s.state.Lock()
+	defer s.state.Unlock()
 
-	snapstate.SetSnapState(s.state, "ubuntu-core", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{{Revision: 0}},
+	c.Check(change.Status(), Equals, state.DoneStatus)
+	var conns map[string]interface{}
+	err := s.state.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	// Auto-connection data was saved into the state
+	c.Check(conns, DeepEquals, map[string]interface{}{
+		"snap:network ubuntu-core:network": map[string]interface{}{
+			"interface": "network", "auto": true,
+		},
 	})
-	snapstate.SetSnapState(s.state, "snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{{Revision: 0}},
-	})
+}
 
-	task := s.state.NewTask("setup-snap-security", "")
-	ss := snapstate.SnapSetup{Name: "snap"}
-	task.Set("snap-setup-task", task.ID())
-	task.Set("snap-setup", ss)
-	taskset := state.NewTaskSet(task)
-	change := s.state.NewChange("test", "")
-	change.AddAll(taskset)
+func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyKeepsExistingConnectionState(c *C) {
+	s.mockSnap(c, osSnapYaml)
+	snapInfo := s.mockSnap(c, sampleSnapYaml)
+
+	// Put information about connections for another snap into the state
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"other-snap:network ubuntu-core:network": map[string]interface{}{
+			"interface": "network",
+		},
+	})
+	s.state.Unlock()
+
+	// Run the setup-snap-security task
+	change := s.addSetupSnapSecurityChange(c, snapInfo.Name())
+	s.mgr.Ensure()
+	s.mgr.Wait()
+	s.mgr.Stop()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(change.Status(), Equals, state.DoneStatus)
+	var conns map[string]interface{}
+	err := s.state.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	// Information from other snaps is not damaged
+	c.Check(conns, DeepEquals, map[string]interface{}{
+		"other-snap:network ubuntu-core:network": map[string]interface{}{
+			"interface": "network",
+		},
+		"snap:network ubuntu-core:network": map[string]interface{}{
+			"interface": "network", "auto": true,
+		},
+	})
+}
+
+func (s *interfaceManagerSuite) TestConnectTracksConnectionsInState(c *C) {
+	repo := s.mgr.Repository()
+	err := repo.AddInterface(&interfaces.TestInterface{InterfaceName: "test"})
+	c.Assert(err, IsNil)
+
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
+	c.Assert(err, IsNil)
+	change := s.state.NewChange("connect", "")
+	change.AddAll(ts)
 	s.state.Unlock()
 
 	s.mgr.Ensure()
@@ -241,16 +349,50 @@ plugs:
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	c.Check(task.Status(), Equals, state.DoneStatus)
 	c.Check(change.Status(), Equals, state.DoneStatus)
-
 	var conns map[string]interface{}
-	err = task.State().Get("conns", &conns)
+	err = s.state.Get("conns", &conns)
 	c.Assert(err, IsNil)
 	c.Check(conns, DeepEquals, map[string]interface{}{
-		"snap:network ubuntu-core:network": map[string]interface{}{
-			"interface": "network",
-			"auto":      true,
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface": "test",
 		},
 	})
+}
+
+func (s *interfaceManagerSuite) TestDisconnectTracksConnectionsInState(c *C) {
+	repo := s.mgr.Repository()
+	err := repo.AddInterface(&interfaces.TestInterface{InterfaceName: "test"})
+	c.Assert(err, IsNil)
+
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
+	})
+	err = s.mgr.Repository().Connect("consumer", "plug", "producer", "slot")
+	c.Assert(err, IsNil)
+	s.state.Unlock()
+
+	s.state.Lock()
+	ts, err := ifacestate.Disconnect(s.state, "consumer", "plug", "producer", "slot")
+	c.Assert(err, IsNil)
+	change := s.state.NewChange("disconnect", "")
+	change.AddAll(ts)
+	s.state.Unlock()
+
+	s.mgr.Ensure()
+	s.mgr.Wait()
+	s.mgr.Stop()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(change.Status(), Equals, state.DoneStatus)
+	var conns map[string]interface{}
+	err = s.state.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, map[string]interface{}{})
 }

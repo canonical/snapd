@@ -37,7 +37,6 @@ import (
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snappy"
 )
 
 // InterfaceManager is responsible for the maintenance of interfaces in
@@ -63,6 +62,8 @@ func Manager(s *state.State) (*InterfaceManager, error) {
 		runner: runner,
 		repo:   repo,
 	}
+	s.Lock()
+	defer s.Unlock()
 	if err := m.addSnaps(); err != nil {
 		return nil, err
 	}
@@ -74,7 +75,7 @@ func Manager(s *state.State) (*InterfaceManager, error) {
 }
 
 func (m *InterfaceManager) addSnaps() error {
-	snaps, err := xxxHackyInstalledSnaps()
+	snaps, err := snapstate.ActiveInfos(m.state)
 	if err != nil {
 		return err
 	}
@@ -85,18 +86,6 @@ func (m *InterfaceManager) addSnaps() error {
 		}
 	}
 	return nil
-}
-
-func xxxHackyInstalledSnaps() ([]*snap.Info, error) {
-	installed, err := (&snappy.Overlord{}).Installed()
-	if err != nil {
-		return nil, err
-	}
-	snaps := make([]*snap.Info, len(installed))
-	for i, legacySnap := range installed {
-		snaps[i] = legacySnap.Info()
-	}
-	return snaps, nil
 }
 
 func (m *InterfaceManager) doSetupSnapSecurity(task *state.Task, _ *tomb.Tomb) error {
@@ -164,6 +153,10 @@ type connState struct {
 	Interface string `json:"interface,omitempty"`
 }
 
+func connID(plug *interfaces.PlugRef, slot *interfaces.SlotRef) string {
+	return fmt.Sprintf("%s:%s %s:%s", plug.Snap, plug.Name, slot.Snap, slot.Name)
+}
+
 func (m *InterfaceManager) autoConnect(task *state.Task, snapName string) error {
 	var conns map[string]connState
 	err := task.State().Get("conns", &conns)
@@ -227,7 +220,7 @@ func (m *InterfaceManager) doRemoveSnapSecurity(task *state.Task, _ *tomb.Tomb) 
 	return nil
 }
 
-func securityBackendsForSnap(snapInfo *snap.Info) []interfaces.SecurityBackend {
+func securityBackendsForSnapImpl(snapInfo *snap.Info) []interfaces.SecurityBackend {
 	aaBackend := &apparmor.Backend{}
 	// TODO: Implement special provisions for apparmor and old-security when
 	// old-security becomes a real interface. When that happens we nee to call
@@ -236,6 +229,8 @@ func securityBackendsForSnap(snapInfo *snap.Info) []interfaces.SecurityBackend {
 	return []interfaces.SecurityBackend{
 		aaBackend, &seccomp.Backend{}, &dbus.Backend{}, &udev.Backend{}}
 }
+
+var securityBackendsForSnap = securityBackendsForSnapImpl
 
 // Connect returns a set of tasks for connecting an interface.
 //
@@ -275,26 +270,72 @@ func getPlugAndSlotRefs(task *state.Task) (*interfaces.PlugRef, *interfaces.Slot
 	return &plugRef, &slotRef, nil
 }
 
+func getConns(st *state.State) (map[string]connState, error) {
+	// Get information about connections from the state
+	var conns map[string]connState
+	err := st.Get("conns", &conns)
+	if err != nil && err != state.ErrNoState {
+		return nil, fmt.Errorf("cannot obtain data about existing connections: %s", err)
+	}
+	if conns == nil {
+		conns = make(map[string]connState)
+	}
+	return conns, nil
+}
+
+func setConns(st *state.State, conns map[string]connState) {
+	st.Set("conns", conns)
+}
+
 func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
-	task.State().Lock()
-	defer task.State().Unlock()
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
 
 	plugRef, slotRef, err := getPlugAndSlotRefs(task)
 	if err != nil {
 		return err
 	}
-	return m.repo.Connect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
+
+	conns, err := getConns(st)
+	if err != nil {
+		return err
+	}
+
+	err = m.repo.Connect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
+	if err != nil {
+		return err
+	}
+
+	plug := m.repo.Plug(plugRef.Snap, plugRef.Name)
+	conns[connID(plugRef, slotRef)] = connState{Interface: plug.Interface}
+	setConns(st, conns)
+	return nil
 }
 
 func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
-	task.State().Lock()
-	defer task.State().Unlock()
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
 
 	plugRef, slotRef, err := getPlugAndSlotRefs(task)
 	if err != nil {
 		return err
 	}
-	return m.repo.Disconnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
+
+	conns, err := getConns(st)
+	if err != nil {
+		return err
+	}
+
+	err = m.repo.Disconnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
+	if err != nil {
+		return err
+	}
+
+	delete(conns, connID(plugRef, slotRef))
+	setConns(st, conns)
+	return nil
 }
 
 // Ensure implements StateManager.Ensure.
@@ -312,4 +353,16 @@ func (m *InterfaceManager) Wait() {
 func (m *InterfaceManager) Stop() {
 	m.runner.Stop()
 
+}
+
+// Repository returns the interface repository used internally by the manager.
+//
+// This method has two use-cases:
+// - it is needed for setting up state in daemon tests
+// - it is needed to return the set of known interfaces in the daemon api
+//
+// In the second case it is only informational and repository has internal
+// locks to ensure consistency.
+func (m *InterfaceManager) Repository() *interfaces.Repository {
+	return m.repo
 }

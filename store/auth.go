@@ -41,6 +41,11 @@ var (
 	UbuntuoneDischargeAPI = ubuntuoneAPIBase + "/tokens/discharge"
 )
 
+// Authenticator interface to set required authorization headers for requests to the store
+type Authenticator interface {
+	Authenticate(r *http.Request)
+}
+
 // StoreToken contains the personal token to access the store
 type StoreToken struct {
 	OpenID      string `json:"openid"`
