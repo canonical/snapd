@@ -39,10 +39,9 @@ type SnapManager struct {
 
 // SnapSetup holds the necessary snap details to perform most snap manager tasks.
 type SnapSetup struct {
-	Name      string `json:"name"`
-	Developer string `json:"developer,omitempty"`
-	Revision  int    `json:"revision,omitempty"`
-	Channel   string `json:"channel,omitempty"`
+	Name     string `json:"name"`
+	Revision int    `json:"revision,omitempty"`
+	Channel  string `json:"channel,omitempty"`
 
 	// XXX: should be switched to use Revision instead
 	RollbackVersion string `json:"rollback-version,omitempty"`
