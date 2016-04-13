@@ -105,8 +105,8 @@ func Manager(s *state.State) (*SnapManager, error) {
 
 	// remove releated
 	runner.AddHandler("unlink-snap", m.doUnlinkSnap, nil)
-	runner.AddHandler("remove-snap-files", m.doRemoveSnapFiles, nil)
-	runner.AddHandler("remove-snap-data", m.doRemoveSnapData, nil)
+	runner.AddHandler("clear-snap", m.doClearSnapData, nil)
+	runner.AddHandler("discard-snap", m.doDiscardSnap, nil)
 	runner.AddHandler("forget-snap", m.doForgetSnap, nil)
 
 	// FIXME: work on those
@@ -237,7 +237,7 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) doRemoveSnapFiles(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.State().Lock()
 	ss, err := TaskSnapSetup(t)
 	t.State().Unlock()
@@ -249,7 +249,7 @@ func (m *SnapManager) doRemoveSnapFiles(t *state.Task, _ *tomb.Tomb) error {
 	return m.backend.RemoveSnapFiles(ss.placeInfo(), pb)
 }
 
-func (m *SnapManager) doRemoveSnapData(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 	t.State().Lock()
 	ss, err := TaskSnapSetup(t)
 	t.State().Unlock()
