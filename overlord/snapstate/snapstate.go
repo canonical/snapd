@@ -29,6 +29,7 @@ import (
 	"strings"
 
 	"github.com/ubuntu-core/snappy/i18n"
+	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snap"
@@ -344,4 +345,26 @@ func Set(s *state.State, name string, snapst *SnapState) {
 	raw := json.RawMessage(data)
 	snaps[name] = &raw
 	s.Set("snaps", snaps)
+}
+
+// ActiveInfos returns information about all active snaps.
+func ActiveInfos(s *state.State) ([]*snap.Info, error) {
+	var stateMap map[string]*SnapState
+	var infos []*snap.Info
+	if err := s.Get("snaps", &stateMap); err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	for snapName, snapState := range stateMap {
+		if !snapState.Active {
+			continue
+		}
+		sideInfo := snapState.Sequence[len(snapState.Sequence)-1]
+		snapInfo, err := retrieveInfo(snapName, sideInfo)
+		if err != nil {
+			logger.Noticef("cannot retrieve info for snap %q: %s", snapName, err)
+			continue
+		}
+		infos = append(infos, snapInfo)
+	}
+	return infos, nil
 }
