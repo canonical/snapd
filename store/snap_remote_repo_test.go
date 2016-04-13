@@ -573,3 +573,43 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNotFound(c *C) {
 	_, err = repo.Assertion(asserts.SnapDeclarationType, "16", "snapidfoo")
 	c.Check(err, Equals, ErrAssertionNotFound)
 }
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositorySuggestedCurrency(c *C) {
+	suggestedCurrency := "GBP"
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Suggested-Currency", suggestedCurrency)
+		w.WriteHeader(http.StatusOK)
+
+		io.WriteString(w, MockDetailsJSON)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var err error
+	detailsURI, err := url.Parse(mockServer.URL + "/details/")
+	c.Assert(err, IsNil)
+	cfg := SnapUbuntuStoreConfig{
+		DetailsURI: detailsURI,
+	}
+	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	c.Assert(repo, NotNil)
+
+	// the store doesn't know the currency until after the first search, so fall back to dollars
+	c.Check(repo.SuggestedCurrency(), Equals, "USD")
+
+	// we should soon have a suggested currency
+	result, err := repo.Snap(funkyAppName+"."+funkyAppDeveloper, "edge")
+	c.Assert(err, IsNil)
+	c.Assert(result, NotNil)
+	c.Check(repo.SuggestedCurrency(), Equals, "GBP")
+
+	suggestedCurrency = "EUR"
+
+	// checking the currency updates
+	result, err = repo.Snap(funkyAppName+"."+funkyAppDeveloper, "edge")
+	c.Assert(err, IsNil)
+	c.Assert(result, NotNil)
+	c.Check(repo.SuggestedCurrency(), Equals, "EUR")
+}
