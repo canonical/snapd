@@ -303,7 +303,21 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	return m.repo.Connect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
+
+	conns, err := getConns(task)
+	if err != nil {
+		return err
+	}
+
+	if err := m.repo.Connect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name); err != nil {
+		return err
+	}
+
+	plug := m.repo.Plug(plugRef.Snap, plugRef.Name)
+	connID := fmt.Sprintf("%s:%s %s:%s", plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
+	conns[connID] = connState{Interface: plug.Interface, Auto: false}
+	setConns(task, conns)
+	return nil
 }
 
 func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
