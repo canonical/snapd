@@ -164,6 +164,10 @@ type connState struct {
 	Interface string `json:"interface,omitempty"`
 }
 
+func connID(plug *interfaces.PlugRef, slot *interfaces.SlotRef) string {
+	return fmt.Sprintf("%s:%s %s:%s", plug.Snap, plug.Name, slot.Snap, slot.Name)
+}
+
 func (m *InterfaceManager) autoConnect(task *state.Task, snapName string) error {
 	var conns map[string]connState
 	err := task.State().Get("conns", &conns)
@@ -314,8 +318,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 
 	plug := m.repo.Plug(plugRef.Snap, plugRef.Name)
-	connID := fmt.Sprintf("%s:%s %s:%s", plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
-	conns[connID] = connState{Interface: plug.Interface, Auto: false}
+	conns[connID(plugRef, slotRef)] = connState{Interface: plug.Interface, Auto: false}
 	setConns(st, conns)
 	return nil
 }
