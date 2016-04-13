@@ -103,7 +103,9 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
-	s.addPlugSlotAndInterface(c)
+	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
 
 	s.state.Lock()
 	change := s.state.NewChange("kind", "summary")
@@ -155,7 +157,9 @@ func (s *interfaceManagerSuite) TestDisconnectTask(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestEnsureProcessesDisconnectTask(c *C) {
-	s.addPlugSlotAndInterface(c)
+	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
 
 	s.state.Lock()
 	change := s.state.NewChange("kind", "summary")
