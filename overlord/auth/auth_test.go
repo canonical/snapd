@@ -42,9 +42,11 @@ func (as *authSuite) SetUpTest(c *C) {
 }
 
 func (as *authSuite) TestNewUser(c *C) {
+	as.state.Lock()
 	user, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	as.state.Unlock()
 
-	expected := &auth.AuthUser{
+	expected := &auth.UserState{
 		ID:         1,
 		Username:   "username",
 		Macaroon:   "macaroon",
@@ -53,19 +55,25 @@ func (as *authSuite) TestNewUser(c *C) {
 	c.Check(err, IsNil)
 	c.Check(user, DeepEquals, expected)
 
+	as.state.Lock()
 	userFromState, err := auth.User(as.state, 1)
+	as.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(userFromState, DeepEquals, expected)
 }
 
-func (as *authSuite) TestNewUserOverridesExistent(c *C) {
-	_, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+func (as *authSuite) TestNewUserAddsToExistent(c *C) {
+	as.state.Lock()
+	firstUser, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	as.state.Unlock()
 	c.Check(err, IsNil)
 
 	// adding a new one
+	as.state.Lock()
 	user, err := auth.NewUser(as.state, "new_username", "new_macaroon", []string{"new_discharge"})
-	expected := &auth.AuthUser{
-		ID:         1,
+	as.state.Unlock()
+	expected := &auth.UserState{
+		ID:         2,
 		Username:   "new_username",
 		Macaroon:   "new_macaroon",
 		Discharges: []string{"new_discharge"},
@@ -73,31 +81,49 @@ func (as *authSuite) TestNewUserOverridesExistent(c *C) {
 	c.Check(err, IsNil)
 	c.Check(user, DeepEquals, expected)
 
-	userFromState, err := auth.User(as.state, 1)
+	as.state.Lock()
+	userFromState, err := auth.User(as.state, 2)
+	as.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(userFromState, DeepEquals, expected)
+
+	// first user is still in the state
+	as.state.Lock()
+	userFromState, err = auth.User(as.state, 1)
+	as.state.Unlock()
+	c.Check(err, IsNil)
+	c.Check(userFromState, DeepEquals, firstUser)
 }
 
 func (as *authSuite) TestUserForNoAuthInState(c *C) {
+	as.state.Lock()
 	userFromState, err := auth.User(as.state, 42)
+	as.state.Unlock()
 	c.Check(err, NotNil)
 	c.Check(userFromState, IsNil)
 }
 
 func (as *authSuite) TestUserForNonExistent(c *C) {
+	as.state.Lock()
 	_, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	as.state.Unlock()
 	c.Check(err, IsNil)
 
+	as.state.Lock()
 	userFromState, err := auth.User(as.state, 42)
 	c.Check(err, ErrorMatches, "invalid user")
 	c.Check(userFromState, IsNil)
 }
 
 func (as *authSuite) TestUser(c *C) {
+	as.state.Lock()
 	user, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	as.state.Unlock()
 	c.Check(err, IsNil)
 
+	as.state.Lock()
 	userFromState, err := auth.User(as.state, 1)
+	as.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(userFromState, DeepEquals, user)
 }
