@@ -63,6 +63,8 @@ func Manager(s *state.State) (*InterfaceManager, error) {
 		runner: runner,
 		repo:   repo,
 	}
+	s.Lock()
+	defer s.Unlock()
 	if err := m.addSnaps(); err != nil {
 		return nil, err
 	}
@@ -74,7 +76,7 @@ func Manager(s *state.State) (*InterfaceManager, error) {
 }
 
 func (m *InterfaceManager) addSnaps() error {
-	snaps, err := xxxHackyInstalledSnaps()
+	snaps, err := snapstate.All(m.state)
 	if err != nil {
 		return err
 	}
