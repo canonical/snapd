@@ -38,7 +38,7 @@ func (s *snapOpSuite) testInstallRemove(c *check.C, snapName, displayName string
 	expected := "(?ms)" +
 		"Name +Version +Developer\n" +
 		".*" +
-		displayName + " +.* +" + displayDeveloper + "\n" +
+		displayName + " +.*\n" +
 		".*"
 	c.Assert(installOutput, check.Matches, expected)
 
