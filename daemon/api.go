@@ -222,9 +222,11 @@ func loginUser(c *Command, r *http.Request) Response {
 
 	overlord := c.d.overlord
 	state := overlord.State()
+	state.Lock()
 	_, err = auth.NewUser(state, loginData.Username, macaroon, []string{discharge})
+	state.Unlock()
 	if err != nil {
-		return InternalError("cannot persist authentication details")
+		return InternalError("cannot persist authentication details: %v", err)
 	}
 
 	result := loginResponseData{
