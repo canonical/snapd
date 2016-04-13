@@ -597,8 +597,9 @@ func installSnap(chg *state.Change, name, channel string, flags snappy.InstallFl
 	}
 
 	// ensure that each of our task runs after the existing tasks
+	chgts := state.NewTaskSet(chg.Tasks()...)
 	for _, t := range ts.Tasks() {
-		t.WaitAll(state.NewTaskSet(chg.Tasks()...))
+		t.WaitAll(chgts)
 	}
 	chg.AddAll(ts)
 
