@@ -85,7 +85,7 @@ func New() (*Overlord, error) {
 	o.assertMgr = assertMgr
 	o.stateEng.AddManager(o.assertMgr)
 
-	ifaceMgr, err := ifacestate.Manager(s)
+	ifaceMgr, err := ifacestate.Manager(s, nil)
 	if err != nil {
 		return nil, err
 	}

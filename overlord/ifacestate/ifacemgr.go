@@ -49,9 +49,15 @@ type InterfaceManager struct {
 }
 
 // Manager returns a new InterfaceManager.
-func Manager(s *state.State) (*InterfaceManager, error) {
+// Extra interfaces can be provided for testing.
+func Manager(s *state.State, extra []interfaces.Interface) (*InterfaceManager, error) {
 	repo := interfaces.NewRepository()
 	for _, iface := range builtin.Interfaces() {
+		if err := repo.AddInterface(iface); err != nil {
+			return nil, err
+		}
+	}
+	for _, iface := range extra {
 		if err := repo.AddInterface(iface); err != nil {
 			return nil, err
 		}
