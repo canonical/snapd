@@ -37,7 +37,6 @@ import (
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/asserts"
 	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/oauth"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snap"
@@ -201,21 +200,6 @@ func NewUbuntuStoreSnapRepository(cfg *SnapUbuntuStoreConfig, storeID string) *S
 	}
 }
 
-// setAuthHeader sets the authorization header.
-func setAuthHeader(req *http.Request, token *StoreToken) {
-	if token != nil {
-		req.Header.Set("Authorization", oauth.MakePlaintextSignature(&token.Token))
-	}
-}
-
-// configureAuthHeader optionally sets the auth header if a token is available.
-func configureAuthHeader(req *http.Request) {
-	ssoToken, err := ReadStoreToken()
-	if err == nil {
-		setAuthHeader(req, ssoToken)
-	}
-}
-
 // small helper that sets the correct http headers for the ubuntu store
 func (s *SnapUbuntuStoreRepository) applyUbuntuStoreHeaders(req *http.Request, accept string) {
 	if accept == "" {
@@ -230,12 +214,6 @@ func (s *SnapUbuntuStoreRepository) applyUbuntuStoreHeaders(req *http.Request, a
 	if s.storeID != "" {
 		req.Header.Set("X-Ubuntu-Store", s.storeID)
 	}
-}
-
-// small helper that sets the correct http headers for a store request including auth
-func (s *SnapUbuntuStoreRepository) configureStoreReq(req *http.Request, accept string) {
-	configureAuthHeader(req)
-	s.applyUbuntuStoreHeaders(req, accept)
 }
 
 // read all the available metadata from the store response and cache
@@ -264,7 +242,7 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string) (*snap.Info, erro
 	}
 
 	// set headers
-	s.configureStoreReq(req, "")
+	s.applyUbuntuStoreHeaders(req, "")
 	req.Header.Set("X-Ubuntu-Device-Channel", channel)
 
 	resp, err := s.client.Do(req)
@@ -323,7 +301,7 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string)
 	}
 
 	// set headers
-	s.configureStoreReq(req, "")
+	s.applyUbuntuStoreHeaders(req, "")
 	req.Header.Set("X-Ubuntu-Device-Channel", channel)
 
 	resp, err := s.client.Do(req)
@@ -363,7 +341,7 @@ func (s *SnapUbuntuStoreRepository) Updates(installed []string) (snaps []*snap.I
 	// set headers
 	// the updates call is a special snowflake right now
 	// (see LP: #1427155)
-	s.configureStoreReq(req, "application/json")
+	s.applyUbuntuStoreHeaders(req, "application/json")
 
 	resp, err := s.client.Do(req)
 	if err != nil {
@@ -405,10 +383,8 @@ func (s *SnapUbuntuStoreRepository) Download(remoteSnap *snap.Info, pbar progres
 		}
 	}()
 
-	ssoToken, _ := ReadStoreToken()
-
 	url := remoteSnap.AnonDownloadURL
-	if url == "" || ssoToken != nil {
+	if url == "" {
 		url = remoteSnap.DownloadURL
 	}
 
@@ -416,7 +392,6 @@ func (s *SnapUbuntuStoreRepository) Download(remoteSnap *snap.Info, pbar progres
 	if err != nil {
 		return "", err
 	}
-	setAuthHeader(req, ssoToken)
 	s.applyUbuntuStoreHeaders(req, "")
 
 	if err := download(remoteSnap.Name(), w, req, pbar); err != nil {
@@ -471,7 +446,6 @@ func (s *SnapUbuntuStoreRepository) Assertion(assertType *asserts.AssertionType,
 		return nil, err
 	}
 
-	configureAuthHeader(req)
 	req.Header.Set("Accept", asserts.MediaType)
 
 	resp, err := s.client.Do(req)
