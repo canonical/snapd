@@ -39,7 +39,7 @@ var execCommand = exec.Command
 // of the command. In case of error, it will fail the test.
 func ExecCommand(c *check.C, cmds ...string) string {
 	output, err := ExecCommandErr(cmds...)
-	c.Assert(err, check.IsNil, check.Commentf("Error: %v", output))
+	c.Assert(err, check.IsNil, check.Commentf("Error for %v: %v", cmds, output))
 	return output
 }
 
