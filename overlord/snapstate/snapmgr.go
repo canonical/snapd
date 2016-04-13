@@ -562,16 +562,22 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// No need to undo "snaps" in state here. The only chance of
-	// having the new state there is a working doLinkSnap call.
-
 	// relinking of the old snap is done in the undo of unlink-current-snap
 
-	newInfo, err := retrieveInfo(ss.Name, snapst.Candidate)
+	n := len(snapst.Sequence)
+	cand := snapst.Sequence[n-1]
+
+	newInfo, err := retrieveInfo(ss.Name, cand)
 	if err != nil {
 		return err
 	}
 
+	snapst.Candidate = cand
+	if n == 1 {
+		snapst.Sequence = nil
+	} else {
+		snapst.Sequence = snapst.Sequence[:n-1]
+	}
 	snapst.Active = false
 
 	pb := &TaskProgressAdapter{task: t}
