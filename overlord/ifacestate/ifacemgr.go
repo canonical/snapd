@@ -37,7 +37,6 @@ import (
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snappy"
 )
 
 // InterfaceManager is responsible for the maintenance of interfaces in
@@ -87,18 +86,6 @@ func (m *InterfaceManager) addSnaps() error {
 		}
 	}
 	return nil
-}
-
-func xxxHackyInstalledSnaps() ([]*snap.Info, error) {
-	installed, err := (&snappy.Overlord{}).Installed()
-	if err != nil {
-		return nil, err
-	}
-	snaps := make([]*snap.Info, len(installed))
-	for i, legacySnap := range installed {
-		snaps[i] = legacySnap.Info()
-	}
-	return snaps, nil
 }
 
 func (m *InterfaceManager) doSetupSnapSecurity(task *state.Task, _ *tomb.Tomb) error {
