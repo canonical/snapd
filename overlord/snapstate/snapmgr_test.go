@@ -60,8 +60,6 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	s.fakeBackend = &fakeSnappyBackend{
 		fakeCurrentProgress: 75,
 		fakeTotalProgress:   100,
-
-		activeSnaps: make(map[string]*snap.Info),
 	}
 	s.state = state.New(nil)
 
@@ -109,12 +107,13 @@ func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
-	s.fakeBackend.activeSnaps["some-snap"] = &snap.Info{
-		SuggestedName: "some-snap",
-	}
-
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{OfficialName: "some-snap", Revision: 11}},
+	})
 
 	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", 0)
 	c.Assert(err, IsNil)
@@ -122,12 +121,13 @@ func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
-	s.fakeBackend.activeSnaps["foo"] = &snap.Info{
-		SuggestedName: "foo",
-	}
-
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{OfficialName: "foo"}},
+	})
 
 	ts, err := snapstate.Remove(s.state, "foo", 0)
 	c.Assert(err, IsNil)
@@ -230,9 +230,6 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 	si := snap.SideInfo{
 		OfficialName: "some-snap",
 		Revision:     7,
-	}
-	s.fakeBackend.activeSnaps["some-snap"] = &snap.Info{
-		SideInfo: si,
 	}
 
 	s.state.Lock()
@@ -411,9 +408,6 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 		OfficialName: "some-snap",
 		Developer:    "mvo",
 		Revision:     7,
-	}
-	s.fakeBackend.activeSnaps["some-snap"] = &snap.Info{
-		SideInfo: si,
 	}
 
 	s.state.Lock()

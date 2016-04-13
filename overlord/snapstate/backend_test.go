@@ -44,8 +44,6 @@ type fakeSnappyBackend struct {
 
 	fakeCurrentProgress int
 	fakeTotalProgress   int
-
-	activeSnaps map[string]*snap.Info
 }
 
 func (f *fakeSnappyBackend) InstallLocal(path string, flags int, p progress.Meter) error {
@@ -171,10 +169,6 @@ func (f *fakeSnappyBackend) UndoCopySnapData(instSnapPath string, flags int) err
 		name: instSnapPath,
 	})
 	return nil
-}
-
-func (f *fakeSnappyBackend) ActiveSnap(name string) *snap.Info {
-	return f.activeSnaps[name]
 }
 
 func (f *fakeSnappyBackend) SnapByNameAndVersion(name, version string) *snap.Info {
