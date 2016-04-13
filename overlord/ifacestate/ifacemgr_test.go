@@ -162,6 +162,12 @@ func (s *interfaceManagerSuite) TestEnsureProcessesDisconnectTask(c *C) {
 	s.mockSnap(c, producerYaml)
 
 	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
+	})
+	s.state.Unlock()
+
+	s.state.Lock()
 	change := s.state.NewChange("kind", "summary")
 	ts, err := ifacestate.Disconnect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
@@ -169,10 +175,6 @@ func (s *interfaceManagerSuite) TestEnsureProcessesDisconnectTask(c *C) {
 	s.state.Unlock()
 
 	mgr := s.manager(c)
-	repo := mgr.Repository()
-	err = repo.Connect("consumer", "plug", "producer", "slot")
-	c.Assert(err, IsNil)
-
 	mgr.Ensure()
 	mgr.Wait()
 
@@ -185,6 +187,7 @@ func (s *interfaceManagerSuite) TestEnsureProcessesDisconnectTask(c *C) {
 	c.Check(change.Status(), Equals, state.DoneStatus)
 
 	// The connection is gone
+	repo := mgr.Repository()
 	plug := repo.Plug("consumer", "plug")
 	slot := repo.Slot("producer", "slot")
 	c.Assert(plug.Connections, HasLen, 0)
