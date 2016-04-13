@@ -175,6 +175,14 @@ var defaultTemplate = []byte(`
   # specific gl libs
   /var/lib/snapd/gl/** rm,
 
+  # nvidia
+  /proc/driver/nvidia/params r,
+  /sys/bus/pci/devices/** r,
+  /dev/nvidiactl rw,
+  /proc/modules r,
+  /dev/nvidia-modeset rw,
+  /dev/nvidia0 rw,
+
   # java
   @{PROC}/@{pid}/ r,
   @{PROC}/@{pid}/fd/ r,
