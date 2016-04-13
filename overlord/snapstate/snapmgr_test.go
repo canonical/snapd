@@ -146,9 +146,11 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "remove-snap-security")
 	i++
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "remove-snap-data")
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "clear-snap")
 	i++
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "remove-snap-files")
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "discard-snap")
+	i++
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "forget-snap")
 }
 
 func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {

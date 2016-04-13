@@ -213,10 +213,10 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 	removeSecurity := s.NewTask("remove-snap-security", fmt.Sprintf(i18n.G("Remove security profile for snap %q"), snapSpec))
 	addNext(removeSecurity)
 
-	removeData := s.NewTask("remove-snap-data", fmt.Sprintf(i18n.G("Remove data for snap %q"), snapSpec))
+	removeData := s.NewTask("clear-snap", fmt.Sprintf(i18n.G("Remove data for snap %q"), snapSpec))
 	addNext(removeData)
 
-	removeFiles := s.NewTask("remove-snap-files", fmt.Sprintf(i18n.G("Remove snap %q from the system"), snapSpec))
+	removeFiles := s.NewTask("discard-snap", fmt.Sprintf(i18n.G("Remove snap %q from the system"), snapSpec))
 	addNext(removeFiles)
 
 	// forget is last
