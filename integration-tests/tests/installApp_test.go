@@ -45,9 +45,9 @@ func (s *installAppSuite) TestInstallAppMustPrintPackageInformation(c *check.C) 
 	defer common.RemoveSnap(c, data.BasicSnapName)
 
 	expected := "(?ms)" +
-		"Name +Date +Version +Developer\n" +
+		"Name +Version +Developer\n" +
 		".*" +
-		"^basic +.* +.* +sideload *\n" +
+		"^basic +.* +sideload *\n" +
 		".*"
 
 	c.Assert(installOutput, check.Matches, expected)
@@ -84,7 +84,7 @@ func (s *installAppSuite) TestInstallUnexistingAppMustPrintError(c *check.C) {
 		check.Commentf("Trying to install an unexisting snap did not exit with an error"))
 	c.Assert(string(output), check.Equals,
 		"error: cannot perform the following tasks:\n"+
-			"- Downloading \"unexisting.canonical\" (snap not found)\n",
+			"- Download snap \"unexisting.canonical\" (snap not found)\n",
 		check.Commentf("Wrong error message"))
 }
 

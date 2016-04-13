@@ -32,11 +32,13 @@ import (
 )
 
 var (
-	myappsAPIBase          = myappsURL()
-	myappsPackageAccessAPI = myappsAPIBase + "/acl/package_access/"
+	myappsAPIBase = myappsURL()
+	// MyAppsPackageAccessAPI points to MyApps endpoint to get a package access macaroon
+	MyAppsPackageAccessAPI = myappsAPIBase + "/acl/package_access/"
 	ubuntuoneAPIBase       = authURL()
 	ubuntuoneOauthAPI      = ubuntuoneAPIBase + "/tokens/oauth"
-	ubuntuoneDischargeAPI  = ubuntuoneAPIBase + "/tokens/discharge"
+	// UbuntuoneDischargeAPI points to SSO endpoint to discharge a macaroon
+	UbuntuoneDischargeAPI = ubuntuoneAPIBase + "/tokens/discharge"
 )
 
 // StoreToken contains the personal token to access the store
@@ -167,7 +169,7 @@ func RequestPackageAccessMacaroon() (string, error) {
 	const errorPrefix = "cannot get package access macaroon from store: "
 
 	emptyJSONData := "{}"
-	req, err := http.NewRequest("POST", myappsPackageAccessAPI, strings.NewReader(emptyJSONData))
+	req, err := http.NewRequest("POST", MyAppsPackageAccessAPI, strings.NewReader(emptyJSONData))
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
@@ -217,7 +219,7 @@ func DischargeAuthCaveat(username, password, macaroon, otp string) (string, erro
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
 
-	req, err := http.NewRequest("POST", ubuntuoneDischargeAPI, strings.NewReader(string(dischargeJSONData)))
+	req, err := http.NewRequest("POST", UbuntuoneDischargeAPI, strings.NewReader(string(dischargeJSONData)))
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
