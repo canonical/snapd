@@ -586,6 +586,14 @@ func ensureUbuntuCore(chg *state.Change) error {
 	if err != state.ErrNoState {
 		return err
 	}
+
+	// FIXME: workaround because we are not fully state based yet
+	installed, err := (&snappy.Overlord{}).Installed()
+	snaps := snappy.FindSnapsByName(ubuntuCore, installed)
+	if len(snaps) > 0 {
+		return nil
+	}
+
 	return installSnap(chg, ubuntuCore, "stable", 0)
 }
 
