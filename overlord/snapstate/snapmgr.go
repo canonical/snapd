@@ -388,7 +388,17 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if err := m.backend.CheckSnap(ss.SnapPath, ss.Flags); err != nil {
+	var curInfo *snap.Info
+	if cur := snapst.Current(); cur != nil {
+		var err error
+		curInfo, err = retrieveInfo(ss.Name, cur)
+		if err != nil {
+			return err
+		}
+
+	}
+
+	if err := m.backend.CheckSnap(ss.SnapPath, curInfo, ss.Flags); err != nil {
 		return err
 	}
 

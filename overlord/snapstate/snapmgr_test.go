@@ -175,6 +175,7 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 		fakeOp{
 			op:   "check-snap",
 			name: "downloaded-snap-path",
+			old:  "<no-current>",
 		},
 		fakeOp{
 			op:    "setup-snap",
@@ -184,6 +185,7 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 		fakeOp{
 			op:   "copy-data",
 			name: "/snap/some-snap/11",
+			old:  "<no-old>",
 		},
 		fakeOp{
 			op: "candidate",
@@ -266,6 +268,7 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 			op:    "check-snap",
 			name:  "downloaded-snap-path",
 			flags: int(snappy.DoInstallGC),
+			old:   "/snap/some-snap/7",
 		},
 		fakeOp{
 			op:    "setup-snap",
@@ -281,6 +284,7 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 			op:    "copy-data",
 			name:  "/snap/some-snap/11",
 			flags: int(snappy.DoInstallGC),
+			old:   "/snap/some-snap/7",
 		},
 		fakeOp{
 			op: "candidate",
@@ -376,6 +380,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoIntegration(c *C) {
 			op:    "check-snap",
 			name:  "downloaded-snap-path",
 			flags: int(snappy.DoInstallGC),
+			old:   "/snap/some-snap/7",
 		},
 		{
 			op:    "setup-snap",
@@ -391,6 +396,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoIntegration(c *C) {
 			op:    "copy-data",
 			name:  "/snap/some-snap/11",
 			flags: int(snappy.DoInstallGC),
+			old:   "/snap/some-snap/7",
 		},
 		{
 			op: "candidate",

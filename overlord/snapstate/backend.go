@@ -28,7 +28,7 @@ import (
 type managerBackend interface {
 	// install releated
 	Download(name, channel string, meter progress.Meter) (*snap.Info, string, error)
-	CheckSnap(snapFilePath string, flags int) error
+	CheckSnap(snapFilePath string, curInfo *snap.Info, flags int) error
 	SetupSnap(snapFilePath string, si *snap.SideInfo, flags int) error
 	CopySnapData(newSnap, oldSnap *snap.Info, flags int) error
 	LinkSnap(info *snap.Info) error
@@ -89,7 +89,7 @@ func (b *defaultBackend) Download(name, channel string, meter progress.Meter) (*
 	return snap, downloadedSnapFile, nil
 }
 
-func (b *defaultBackend) CheckSnap(snapFilePath string, flags int) error {
+func (b *defaultBackend) CheckSnap(snapFilePath string, curInfo *snap.Info, flags int) error {
 	meter := &progress.NullProgress{}
 	return snappy.CheckSnap(snapFilePath, snappy.InstallFlags(flags), meter)
 }

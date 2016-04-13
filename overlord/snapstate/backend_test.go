@@ -37,7 +37,7 @@ type fakeOp struct {
 	active  bool
 	sinfo   snap.SideInfo
 
-	rollback string
+	old string
 }
 
 type fakeSnappyBackend struct {
@@ -87,10 +87,15 @@ func (f *fakeSnappyBackend) Activate(name string, active bool, p progress.Meter)
 	return nil
 }
 
-func (f *fakeSnappyBackend) CheckSnap(snapFilePath string, flags int) error {
+func (f *fakeSnappyBackend) CheckSnap(snapFilePath string, curInfo *snap.Info, flags int) error {
+	cur := "<no-current>"
+	if curInfo != nil {
+		cur = curInfo.MountDir()
+	}
 	f.ops = append(f.ops, fakeOp{
 		op:    "check-snap",
 		name:  snapFilePath,
+		old:   cur,
 		flags: flags,
 	})
 	return nil
@@ -116,11 +121,15 @@ func (f *fakeSnappyBackend) RetrieveInfo(name string, si *snap.SideInfo) (*snap.
 }
 
 func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, flags int) error {
+	old := "<no-old>"
+	if oldInfo != nil {
+		old = oldInfo.MountDir()
+	}
 	f.ops = append(f.ops, fakeOp{
-		op:   "copy-data",
-		name: newInfo.MountDir(),
-		// XXX: capture oldInfo
+		op:    "copy-data",
+		name:  newInfo.MountDir(),
 		flags: flags,
+		old:   old,
 	})
 	return nil
 }
