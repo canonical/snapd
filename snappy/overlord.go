@@ -179,20 +179,6 @@ func UndoSetupSnap(s snap.PlaceInfo, meter progress.Meter) {
 	//        and can only be used during install right now
 }
 
-// XXX: ideally should go from Info to Info, likely we will move to something else anyway
-func currentSnap(newSnap *snap.Info) *Snap {
-	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(newSnap.MountDir(), "..", "current"))
-	if currentActiveDir == "" {
-		return nil
-	}
-
-	currentSnap, err := NewInstalledSnap(filepath.Join(currentActiveDir, "meta", "snap.yaml"))
-	if err != nil {
-		return nil
-	}
-	return currentSnap
-}
-
 func CopyData(newSnap, oldSnap *snap.Info, flags InstallFlags, meter progress.Meter) error {
 	dataDir := newSnap.DataDir()
 
