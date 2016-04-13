@@ -37,6 +37,7 @@ char *filter_profile_dir = "/var/lib/snapd/seccomp/profiles/";
 
 struct preprocess {
 	bool unrestricted;
+	bool complain;
 };
 
 // strip whitespace from the end of the given string (inplace)
@@ -83,6 +84,7 @@ void preprocess_filter(FILE * f, struct preprocess *p)
 	size_t lineno = 0;
 
 	p->unrestricted = false;
+	p->complain = false;
 
 	while (fgets(buf, sizeof(buf), f) != NULL) {
 		lineno++;
@@ -95,6 +97,10 @@ void preprocess_filter(FILE * f, struct preprocess *p)
 		// seccomp sandbox
 		if (strcmp(buf, "@unrestricted") == 0)
 			p->unrestricted = true;
+
+		// check for special "@complain" rule
+		if (strcmp(buf, "@complain") == 0)
+			p->complain = true;
 	}
 
 	if (fseek(f, 0L, SEEK_SET) != 0)
@@ -162,6 +168,11 @@ void seccomp_load_filters(const char *filter_profile)
 	preprocess_filter(f, &pre);
 
 	if (pre.unrestricted)
+		goto out;
+
+	// FIXME: right now complain mode is the equivalent to unrestricted.
+	// We'll want to change this once we seccomp logging is in order.
+	if (pre.complain)
 		goto out;
 
 	char buf[SC_MAX_LINE_LENGTH];
