@@ -234,7 +234,7 @@ Sample result:
     }
  },
  "paging": {
-    "count": 3,
+    "total": 3,
     "page": 0,
     "pages": 1
   },
@@ -267,7 +267,6 @@ Sample result:
       updated to the revision specified as a value to this entry.
     * `channel`: which channel the package is currently tracking.
 * `paging`
-    * `count`: the number of snaps on this page
     * `page`: the page number, starting from `0`
     * `pages`: the (approximate) number of pages
 * `sources`

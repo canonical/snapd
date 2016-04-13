@@ -59,9 +59,10 @@ type resp struct {
 	*Meta
 }
 
-// TODO This is being done in a rush to get the proper representation
-//      we want in the API in time for the release. The right approach
-//      takes a bit more work and unifies these fields inside resp.
+// TODO This is being done in a rush to get the proper external
+//      JSON representation in the API in time for the release.
+//      The right code style takes a bit more work and unifies
+//      these fields inside resp.
 type Meta struct {
 	Sources []string `json:"sources,omitempty"`
 	Paging  *Paging  `json:"paging,omitempty"`
@@ -70,7 +71,6 @@ type Meta struct {
 type Paging struct {
 	Page  int `json:"page"`
 	Pages int `json:"pages"`
-	Count int `json:"count"`
 }
 
 type respJSON struct {

@@ -114,24 +114,24 @@ func (client *Client) do(method, path string, query url.Values, body io.Reader, 
 // doSync performs a request to the given path using the specified HTTP method.
 // It expects a "sync" response from the API and on success decodes the JSON
 // response payload into the given value.
-func (client *Client) doSync(method, path string, query url.Values, body io.Reader, v interface{}) error {
+func (client *Client) doSync(method, path string, query url.Values, body io.Reader, v interface{}) (*ResultInfo, error) {
 	var rsp response
 
 	if err := client.do(method, path, query, body, &rsp); err != nil {
-		return fmt.Errorf("cannot communicate with server: %s", err)
+		return nil, fmt.Errorf("cannot communicate with server: %s", err)
 	}
 	if err := rsp.err(); err != nil {
-		return err
+		return nil, err
 	}
 	if rsp.Type != "sync" {
-		return fmt.Errorf("expected sync response, got %q", rsp.Type)
+		return nil, fmt.Errorf("expected sync response, got %q", rsp.Type)
 	}
 
 	if err := json.Unmarshal(rsp.Result, v); err != nil {
-		return fmt.Errorf("cannot unmarshal: %v", err)
+		return nil, fmt.Errorf("cannot unmarshal: %v", err)
 	}
 
-	return nil
+	return &rsp.ResultInfo, nil
 }
 
 type asyncResult struct {
@@ -174,6 +174,8 @@ type response struct {
 	Status     string          `json:"status"`
 	StatusCode int             `json:"status-code"`
 	Type       string          `json:"type"`
+
+	ResultInfo
 }
 
 // errorResult is the real value of response.Result when an error occurs.
@@ -229,7 +231,7 @@ func parseError(r *http.Response) error {
 func (client *Client) SysInfo() (*SysInfo, error) {
 	var sysInfo SysInfo
 
-	if err := client.doSync("GET", "/v2/system-info", nil, nil, &sysInfo); err != nil {
+	if _, err := client.doSync("GET", "/v2/system-info", nil, nil, &sysInfo); err != nil {
 		return nil, fmt.Errorf("bad sysinfo result: %v", err)
 	}
 

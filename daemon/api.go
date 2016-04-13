@@ -421,15 +421,15 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		}
 	}
 
-	return SyncResponse(map[string]interface{}{
-		"snaps":   results,
-		"sources": sources,
-		"paging": map[string]interface{}{
-			"pages": 1,
-			"page":  1,
-			"count": len(results),
+	meta := &Meta{
+		Sources: sources,
+		Paging: &Paging{
+			Page: 1,
+			Pages: 1,
 		},
-	}, nil)
+
+	}
+	return SyncResponse(results, meta)
 }
 
 func resultHasType(r map[string]interface{}, allowedTypes []string) bool {
