@@ -176,13 +176,13 @@ type response struct {
 	Type       string          `json:"type"`
 }
 
-// errorResult is the real value of response.Result when an error occurs.
-// Note that only the 'message' field is unmarshaled from JSON representation.
-type errorResult struct {
+// Error is the real value of response.Result when an error occurs.
+type Error struct {
+	Kind    string `json:"kind"`
 	Message string `json:"message"`
 }
 
-func (e *errorResult) Error() string {
+func (e *Error) Error() string {
 	return e.Message
 }
 
@@ -199,7 +199,7 @@ func (rsp *response) err() error {
 	if rsp.Type != "error" {
 		return nil
 	}
-	var resultErr errorResult
+	var resultErr Error
 	err := json.Unmarshal(rsp.Result, &resultErr)
 	if err != nil || resultErr.Message == "" {
 		return fmt.Errorf("server error: %q", rsp.Status)

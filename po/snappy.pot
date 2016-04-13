@@ -19,9 +19,6 @@ msgstr  "Project-Id-Version: snappy\n"
 msgid   "(deprecated) please use \"list\""
 msgstr  ""
 
-msgid   "2fa code: "
-msgstr  ""
-
 msgid   "A concise summary of key attributes of the snappy system, such as the release and channel.\n"
         "\n"
         "The verbose output includes the specific version information for the factory image, the running image and the image that will be run on reboot, together with a list of the available channels for this image.\n"
@@ -383,6 +380,9 @@ msgid   "This command is no longer available, please use the \"list\" command"
 msgstr  ""
 
 msgid   "This command logs the given username into the store"
+msgstr  ""
+
+msgid   "Two-factor code: "
 msgstr  ""
 
 #, c-format

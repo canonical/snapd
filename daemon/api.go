@@ -210,7 +210,7 @@ func loginUser(c *Command, r *http.Request) Response {
 
 	macaroon, err := store.RequestPackageAccessMacaroon()
 	if err != nil {
-		return InternalError("cannot get package access macaroon")
+		return InternalError(err.Error())
 	}
 
 	discharge, err := store.DischargeAuthCaveat(loginData.Username, loginData.Password, macaroon, loginData.Otp)
@@ -219,14 +219,14 @@ func loginUser(c *Command, r *http.Request) Response {
 			Type: ResponseTypeError,
 			Result: &errorResult{
 				Kind:    errorKindTwoFactorRequired,
-				Message: "two factor authentication required",
+				Message: store.ErrAuthenticationNeeds2fa.Error(),
 			},
 			Status: http.StatusUnauthorized,
 		}
 		return SyncResponse(twofactorRequiredResponse)
 	}
 	if err != nil {
-		return Unauthorized("cannot get discharge authorization")
+		return Unauthorized(err.Error())
 	}
 
 	authenticatedUser := userAuthState{
