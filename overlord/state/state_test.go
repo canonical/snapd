@@ -275,7 +275,10 @@ func (ss *stateSuite) TestNewChangeAndChanges(c *C) {
 
 	for _, chg := range chgs {
 		c.Check(chg, Equals, expected[chg.ID()])
+		c.Check(st.Change(chg.ID()), Equals, chg)
 	}
+
+	c.Check(st.Change("no-such-id"), IsNil)
 }
 
 func (ss *stateSuite) TestNewChangeAndCheckpoint(c *C) {
@@ -499,7 +502,9 @@ func (ss *stateSuite) TestMethodEntrance(c *C) {
 		func() { st.Cached("foo") },
 		func() { st.Cache("foo", 1) },
 		func() { st.Changes() },
+		func() { st.Change("foo") },
 		func() { st.Tasks() },
+		func() { st.Task("foo") },
 		func() { st.MarshalJSON() },
 	}
 
