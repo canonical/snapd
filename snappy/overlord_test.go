@@ -562,3 +562,21 @@ apps:
 	c.Assert(osutil.FileExists(binaryWrapper), Equals, false)
 	c.Assert(osutil.FileExists(snapDir), Equals, false)
 }
+
+func (s *SnapTestSuite) TestInstallIncorrectSnapYamlErrors(c *C) {
+	c.Skip("no easy path to this kind of late verification failure now!")
+	snapPath := makeTestSnapPackage(c, `name: foo
+version: 1.0
+apps:
+ foo:
+  plugs: [invalid-chars!!]
+`)
+
+	si := &snap.SideInfo{
+		OfficialName: "bar",
+		Revision:     55,
+	}
+
+	_, err := (&Overlord{}).InstallWithSideInfo(snapPath, si, 0, &MockProgressMeter{})
+	c.Assert(err, NotNil)
+}

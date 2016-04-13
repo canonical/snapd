@@ -33,9 +33,11 @@ import (
 	"github.com/ubuntu-core/snappy/interfaces/dbus"
 	"github.com/ubuntu-core/snappy/interfaces/seccomp"
 	"github.com/ubuntu-core/snappy/interfaces/udev"
+	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snappy"
 )
 
 // InterfaceManager is responsible for the maintenance of interfaces in
@@ -61,12 +63,40 @@ func Manager(s *state.State) (*InterfaceManager, error) {
 		runner: runner,
 		repo:   repo,
 	}
-
+	if err := m.addSnaps(); err != nil {
+		return nil, err
+	}
 	runner.AddHandler("connect", m.doConnect, nil)
 	runner.AddHandler("disconnect", m.doDisconnect, nil)
 	runner.AddHandler("setup-snap-security", m.doSetupSnapSecurity, m.doRemoveSnapSecurity)
 	runner.AddHandler("remove-snap-security", m.doRemoveSnapSecurity, m.doSetupSnapSecurity)
 	return m, nil
+}
+
+func (m *InterfaceManager) addSnaps() error {
+	snaps, err := xxxHackyInstalledSnaps()
+	if err != nil {
+		return err
+	}
+	for _, snapInfo := range snaps {
+		snap.AddImplicitSlots(snapInfo)
+		if err := m.repo.AddSnap(snapInfo); err != nil {
+			logger.Noticef("%s", err)
+		}
+	}
+	return nil
+}
+
+func xxxHackyInstalledSnaps() ([]*snap.Info, error) {
+	installed, err := (&snappy.Overlord{}).Installed()
+	if err != nil {
+		return nil, err
+	}
+	snaps := make([]*snap.Info, len(installed))
+	for i, legacySnap := range installed {
+		snaps[i] = legacySnap.Info()
+	}
+	return snaps, nil
 }
 
 func (m *InterfaceManager) doSetupSnapSecurity(task *state.Task, _ *tomb.Tomb) error {
@@ -78,7 +108,7 @@ func (m *InterfaceManager) doSetupSnapSecurity(task *state.Task, _ *tomb.Tomb) e
 	if err != nil {
 		return err
 	}
-	snapInfo, err := snapstate.SnapInfo(task.State(), ss.Name, ss.Revision)
+	snapInfo, err := snapstate.Info(task.State(), ss.Name, ss.Revision)
 	if err != nil {
 		return err
 	}
@@ -104,6 +134,13 @@ func (m *InterfaceManager) doSetupSnapSecurity(task *state.Task, _ *tomb.Tomb) e
 		return err
 	}
 	if err := m.repo.AddSnap(snapInfo); err != nil {
+		if _, ok := err.(*interfaces.BadInterfacesError); ok {
+			logger.Noticef("%s", err)
+		} else {
+			return err
+		}
+	}
+	if err := m.autoConnect(task, snapName); err != nil {
 		return err
 	}
 	// TODO: re-connect all connection affecting given snap
@@ -122,6 +159,38 @@ func (m *InterfaceManager) doSetupSnapSecurity(task *state.Task, _ *tomb.Tomb) e
 	return nil
 }
 
+type connState struct {
+	Auto      bool   `json:"auto,omitempty"`
+	Interface string `json:"interface,omitempty"`
+}
+
+func (m *InterfaceManager) autoConnect(task *state.Task, snapName string) error {
+	var conns map[string]connState
+	err := task.State().Get("conns", &conns)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if conns == nil {
+		conns = make(map[string]connState)
+	}
+	// XXX: quick hack, auto-connect everything
+	for _, plug := range m.repo.Plugs(snapName) {
+		candidates := m.repo.AutoConnectCandidates(snapName, plug.Name)
+		if len(candidates) != 1 {
+			continue
+		}
+		slot := candidates[0]
+		if err := m.repo.Connect(snapName, plug.Name, slot.Snap.Name(), slot.Name); err != nil {
+			task.Logf("cannot auto connect %s:%s to %s:%s: %s",
+				snapName, plug.Name, slot.Snap.Name(), slot.Name, err)
+		}
+		key := fmt.Sprintf("%s:%s %s:%s", snapName, plug.Name, slot.Snap.Name(), slot.Name)
+		conns[key] = connState{Interface: plug.Interface, Auto: true}
+	}
+	task.State().Set("conns", conns)
+	return nil
+}
+
 func (m *InterfaceManager) doRemoveSnapSecurity(task *state.Task, _ *tomb.Tomb) error {
 	task.State().Lock()
 	defer task.State().Unlock()
@@ -131,7 +200,7 @@ func (m *InterfaceManager) doRemoveSnapSecurity(task *state.Task, _ *tomb.Tomb) 
 	if err != nil {
 		return err
 	}
-	snapInfo, err := snapstate.SnapInfo(task.State(), ss.Name, ss.Revision)
+	snapInfo, err := snapstate.Info(task.State(), ss.Name, ss.Revision)
 	if err != nil {
 		return err
 	}
@@ -243,4 +312,16 @@ func (m *InterfaceManager) Wait() {
 func (m *InterfaceManager) Stop() {
 	m.runner.Stop()
 
+}
+
+// Repository returns the interface repository used internally by the manager.
+//
+// This method has two use-cases:
+// - it is needed for setting up state in daemon tests
+// - it is needed to return the set of known interfaces in the daemon api
+//
+// In the second case it is only informational and repository has internal
+// locks to ensure consistency.
+func (m *InterfaceManager) Repository() *interfaces.Repository {
+	return m.repo
 }

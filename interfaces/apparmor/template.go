@@ -225,24 +225,18 @@ var defaultTemplate = []byte(`
   deny @{INSTALL_DIR}/@{APP_PKGNAME}/**/__pycache__/*.pyc.[0-9]* w,
 
   # Read-only home area for other versions
-  owner @{HOME}/apps/@{APP_PKGNAME}/                  r,
-  owner @{HOME}/apps/@{APP_PKGNAME}/**                mrkix,
   owner @{HOME}/snap/@{APP_PKGNAME}/                  r,
   owner @{HOME}/snap/@{APP_PKGNAME}/**                mrkix,
 
   # Writable home area for this version.
-  owner @{HOME}/apps/@{APP_PKGNAME}/@{APP_VERSION}/** wl,
   owner @{HOME}/snap/@{APP_PKGNAME}/@{APP_VERSION}/** wl,
 
   # Read-only system area for other versions
-  /var/lib/apps/@{APP_PKGNAME}/   r,
-  /var/lib/apps/@{APP_PKGNAME}/** mrkix,
-  /var/lib/snap/@{APP_PKGNAME}/   r,
-  /var/lib/snap/@{APP_PKGNAME}/** mrkix,
+  /var/snap/@{APP_PKGNAME}/   r,
+  /var/snap/@{APP_PKGNAME}/** mrkix,
 
   # Writable system area only for this version
-  /var/lib/apps/@{APP_PKGNAME}/@{APP_VERSION}/** wl,
-  /var/lib/snap/@{APP_PKGNAME}/@{APP_VERSION}/** wl,
+  /var/snap/@{APP_PKGNAME}/@{APP_VERSION}/** wl,
 
   # The ubuntu-core-launcher creates an app-specific private restricted /tmp
   # and will fail to launch the app if something goes wrong. As such, we can

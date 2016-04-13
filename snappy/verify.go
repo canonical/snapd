@@ -47,10 +47,6 @@ func verifyPlugYaml(plug *plugYaml) error {
 		return err
 	}
 
-	if plug.Interface != "old-security" {
-		return fmt.Errorf("can not use interface %q, only `old-security` supported", plug.Interface)
-	}
-
 	return nil
 }
 

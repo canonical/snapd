@@ -21,7 +21,11 @@
 package snapstate
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/ubuntu-core/snappy/i18n"
@@ -36,53 +40,43 @@ var backend managerBackend = &defaultBackend{}
 
 func doInstall(s *state.State, snapName, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
 	// download
-	var download *state.Task
+	var prepare *state.Task
 	ss := SnapSetup{
 		Channel: channel,
 		Flags:   int(flags),
 	}
-	if !osutil.FileExists(snapName) {
+	if osutil.FileExists(snapName) {
+		ss.SnapPath = snapName
+		prepare = s.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q"), snapName))
+	} else {
 		name, developer := snappy.SplitDeveloper(snapName)
 		ss.Name = name
 		ss.Developer = developer
-		download = s.NewTask("download-snap", fmt.Sprintf(i18n.G("Downloading %q"), snapName))
-	} else {
-		download = s.NewTask("nop", "")
-		// add essential data from the local snap
-		snapf, err := snap.Open(snapName)
-		if err != nil {
-			return nil, err
-		}
-		info, err := snapf.Info()
-		if err != nil {
-			return nil, err
-		}
-		ss.Name = info.Name()
-		ss.SnapPath = snapName
+		prepare = s.NewTask("download-snap", fmt.Sprintf(i18n.G("Download snap %q"), snapName))
 	}
-	download.Set("snap-setup", ss)
+	prepare.Set("snap-setup", ss)
 
 	// mount
-	mount := s.NewTask("mount-snap", fmt.Sprintf(i18n.G("Mounting %q"), snapName))
-	mount.Set("snap-setup-task", download.ID())
-	mount.WaitFor(download)
+	mount := s.NewTask("mount-snap", fmt.Sprintf(i18n.G("Mount snap %q"), snapName))
+	mount.Set("snap-setup-task", prepare.ID())
+	mount.WaitFor(prepare)
 
 	// copy-data (needs to stop services)
-	copyData := s.NewTask("copy-snap-data", fmt.Sprintf(i18n.G("Copying snap data for %q"), snapName))
-	copyData.Set("snap-setup-task", download.ID())
+	copyData := s.NewTask("copy-snap-data", fmt.Sprintf(i18n.G("Copy snap %q data"), snapName))
+	copyData.Set("snap-setup-task", prepare.ID())
 	copyData.WaitFor(mount)
 
 	// security
-	setupSecurity := s.NewTask("setup-snap-security", fmt.Sprintf(i18n.G("Setting up security profile for %q"), snapName))
-	setupSecurity.Set("snap-setup-task", download.ID())
+	setupSecurity := s.NewTask("setup-snap-security", fmt.Sprintf(i18n.G("Setup snap %q security profiles"), snapName))
+	setupSecurity.Set("snap-setup-task", prepare.ID())
 	setupSecurity.WaitFor(copyData)
 
 	// finalize (wrappers+current symlink)
-	linkSnap := s.NewTask("link-snap", fmt.Sprintf(i18n.G("Final step for %q"), snapName))
-	linkSnap.Set("snap-setup-task", download.ID())
+	linkSnap := s.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q available to the system"), snapName))
+	linkSnap.Set("snap-setup-task", prepare.ID())
 	linkSnap.WaitFor(setupSecurity)
 
-	return state.NewTaskSet(download, mount, copyData, setupSecurity, linkSnap), nil
+	return state.NewTaskSet(prepare, mount, copyData, setupSecurity, linkSnap), nil
 }
 
 // Install returns a set of tasks for installing snap.
@@ -204,4 +198,90 @@ func Deactivate(s *state.State, snap string) (*state.TaskSet, error) {
 	})
 
 	return state.NewTaskSet(t), nil
+}
+
+// Retrieval functions
+
+func retrieveInfo(name string, si *snap.SideInfo) (*snap.Info, error) {
+	// XXX: move some of this in snap as helper?
+	snapYamlFn := filepath.Join(snap.MountDir(name, si.Revision), "meta", "snap.yaml")
+	meta, err := ioutil.ReadFile(snapYamlFn)
+	if os.IsNotExist(err) {
+		return nil, fmt.Errorf("cannot find mounted snap %q at revision %d", name, si.Revision)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	info, err := snap.InfoFromSnapYaml(meta)
+	if err != nil {
+		return nil, err
+	}
+
+	info.SideInfo = *si
+
+	return info, nil
+}
+
+// Info returns the information about the snap with given name and revision.
+// Works also for a mounted candidate snap in the process of being installed.
+func Info(s *state.State, name string, revision int) (*snap.Info, error) {
+	var snapst SnapState
+	err := Get(s, name, &snapst)
+	if err == state.ErrNoState {
+		return nil, fmt.Errorf("cannot find snap %q", name)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	for i := len(snapst.Sequence) - 1; i >= 0; i-- {
+		if si := snapst.Sequence[i]; si.Revision == revision {
+			return retrieveInfo(name, si)
+		}
+	}
+
+	if snapst.Candidate != nil && snapst.Candidate.Revision == revision {
+		return retrieveInfo(name, snapst.Candidate)
+	}
+
+	return nil, fmt.Errorf("cannot find snap %q at revision %d", name, revision)
+}
+
+// Get retrieves the SnapState of the given snap.
+func Get(s *state.State, name string, snapst *SnapState) error {
+	var snaps map[string]*json.RawMessage
+	err := s.Get("snaps", &snaps)
+	if err != nil {
+		return err
+	}
+	raw, ok := snaps[name]
+	if !ok {
+		return state.ErrNoState
+	}
+	err = json.Unmarshal([]byte(*raw), &snapst)
+	if err != nil {
+		return fmt.Errorf("cannot unmarshal snap state: %v", err)
+	}
+	return nil
+}
+
+// Set sets the SnapState of the given snap, overwriting any earlier state.
+func Set(s *state.State, name string, snapst *SnapState) {
+	var snaps map[string]*json.RawMessage
+	err := s.Get("snaps", &snaps)
+	if err == state.ErrNoState {
+		s.Set("snaps", map[string]*SnapState{name: snapst})
+		return
+	}
+	if err != nil {
+		panic("internal error: cannot unmarshal snaps state: " + err.Error())
+	}
+	data, err := json.Marshal(snapst)
+	if err != nil {
+		panic("internal error: cannot marshal snap state: " + err.Error())
+	}
+	raw := json.RawMessage(data)
+	snaps[name] = &raw
+	s.Set("snaps", snaps)
 }

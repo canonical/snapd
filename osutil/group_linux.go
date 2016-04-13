@@ -31,7 +31,6 @@ import "C"
 
 import (
 	"fmt"
-	"syscall"
 	"unsafe"
 )
 
@@ -50,9 +49,8 @@ func getgrnam(name string) (grp Group, err error) {
 	defer C.free(buf)
 
 	// getgrnam_r is harder to use (from cgo), but it is thread safe
-	rv := C.getgrnam_r(nameC, &cgrp, (*C.char)(buf), C.size_t(bufSize), &result)
-	if rv != 0 {
-		return grp, fmt.Errorf("getgrnam_r failed for %s: %s", name, syscall.Errno(rv))
+	if _, err := C.getgrnam_r(nameC, &cgrp, (*C.char)(buf), C.size_t(bufSize), &result); err != nil {
+		return grp, fmt.Errorf("getgrnam_r failed for %q: %v", name, err)
 	}
 	if result == nil {
 		return grp, fmt.Errorf("group %q not found", name)
