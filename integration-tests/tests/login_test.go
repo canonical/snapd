@@ -58,7 +58,7 @@ type loginSuite struct {
 }
 
 func (s *loginSuite) TestEmptyLoginNameError(c *check.C) {
-	output, err := cli.ExecCommandErr("snap", "login")
+	output, err := cli.ExecCommandErr("sudo", "snap", "login")
 
 	c.Assert(err, check.NotNil, check.Commentf("expecting empty login error"))
 	c.Assert(output, check.Equals, "error: the required argument `userid` was not provided\n")
@@ -70,7 +70,7 @@ func (s *loginSuite) TestInvalidCredentialsError(c *check.C) {
 
 	expectedMsg := "Provided email/password is not correct"
 	err = wait.ForFunction(c, expectedMsg, func() (string, error) { return s.stdout.String(), err })
-	c.Assert(err, check.IsNil, check.Commentf("didn't get expected invalid credentials error"))
+	c.Assert(err, check.IsNil, check.Commentf("didn't get expected invalid credentials error: %v", err))
 
 }
 
@@ -85,7 +85,7 @@ func (s *loginSuite) TestFakeServerIsDetected(c *check.C) {
 
 	expectedMsg := fmt.Sprintf("Post https://%s/api/v2/tokens/discharge: x509: certificate is valid for example.com, not %s", loginHost, loginHost)
 	err = wait.ForFunction(c, expectedMsg, func() (string, error) { return s.stdout.String(), err })
-	c.Assert(err, check.IsNil, check.Commentf("didn't get expected fake server error"))
+	c.Assert(err, check.IsNil, check.Commentf("didn't get expected fake server error: %v", err))
 }
 
 func (s *loginSuite) handler(w http.ResponseWriter, r *http.Request) {
@@ -132,7 +132,7 @@ func ipTablesCommand(action, serverAddrPort string) []string {
 }
 
 func (s *loginSuite) writeCredentials(loginName string) error {
-	cmds, _ := cli.AddOptionsToCommand([]string{"snap", "login", loginName})
+	cmds, _ := cli.AddOptionsToCommand([]string{"sudo", "snap", "login", loginName})
 	cmd := exec.Command(cmds[0], cmds[1:]...)
 	f, err := pty.Start(cmd)
 	if err != nil {
