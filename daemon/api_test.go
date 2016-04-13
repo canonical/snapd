@@ -1485,11 +1485,12 @@ func makeConnectedSlot() *interfaces.Slot {
 }
 
 func (s *apiSuite) TestGetPlugs(c *check.C) {
-	d := s.daemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(makePlug("interface"))
-	d.interfaces.AddSlot(makeSlot("interface"))
-	d.interfaces.Connect("producer", "plug", "consumer", "slot")
+	repo := s.daemon(c).overlord.InterfaceManager().Repository()
+	repo.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	repo.AddPlug(makePlug("interface"))
+	repo.AddSlot(makeSlot("interface"))
+	repo.Connect("producer", "plug", "consumer", "slot")
+
 	req, err := http.NewRequest("GET", "/v2/interfaces", nil)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
@@ -1537,9 +1538,14 @@ func (s *apiSuite) TestGetPlugs(c *check.C) {
 
 func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 	d := s.daemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(makePlug("interface"))
-	d.interfaces.AddSlot(makeSlot("interface"))
+	repo := d.overlord.InterfaceManager().Repository()
+	repo.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	repo.AddPlug(makePlug("interface"))
+	repo.AddSlot(makeSlot("interface"))
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
 	action := &interfaceAction{
 		Action: "connect",
 		Plugs:  []plugJSON{{Snap: "producer", Name: "plug"}},
@@ -1562,7 +1568,7 @@ func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 		"status-code": 200.0,
 		"type":        "sync",
 	})
-	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
+	c.Assert(repo.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
 		Plugs: []*interfaces.Plug{makeConnectedPlug()},
 		Slots: []*interfaces.Slot{makeConnectedSlot()},
 	})
@@ -1570,10 +1576,15 @@ func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 
 func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 	d := s.daemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "other-interface"})
-	d.interfaces.AddPlug(makePlug("interface"))
-	d.interfaces.AddSlot(makeSlot("other-interface"))
+	repo := d.overlord.InterfaceManager().Repository()
+	repo.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	repo.AddInterface(&interfaces.TestInterface{InterfaceName: "other-interface"})
+	repo.AddPlug(makePlug("interface"))
+	repo.AddSlot(makeSlot("other-interface"))
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
 	action := &interfaceAction{
 		Action: "connect",
 		Plugs:  []plugJSON{{Snap: "producer", Name: "plug"}},
@@ -1592,13 +1603,14 @@ func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": `cannot connect plug "producer:plug" (interface "interface") to "consumer:slot" (interface "other-interface")`,
+			"message": `cannot perform the following tasks:
+- Connect producer:plug to consumer:slot (cannot connect plug "producer:plug" (interface "interface") to "consumer:slot" (interface "other-interface"))`,
 		},
 		"status":      "Bad Request",
 		"status-code": 400.0,
 		"type":        "error",
 	})
-	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
+	c.Assert(repo.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
 		Plugs: []*interfaces.Plug{makePlug("interface")},
 		Slots: []*interfaces.Slot{makeSlot("other-interface")},
 	})
@@ -1606,8 +1618,13 @@ func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 
 func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 	d := s.daemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddSlot(makeSlot("interface"))
+	repo := d.overlord.InterfaceManager().Repository()
+	repo.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	repo.AddSlot(makeSlot("interface"))
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
 	action := &interfaceAction{
 		Action: "connect",
 		Plugs:  []plugJSON{{Snap: "producer", Name: "plug"}},
@@ -1626,21 +1643,27 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": `cannot connect plug "plug" from snap "producer", no such plug`,
+			"message": `cannot perform the following tasks:
+- Connect producer:plug to consumer:slot (cannot connect plug "plug" from snap "producer", no such plug)`,
 		},
 		"status":      "Bad Request",
 		"status-code": 400.0,
 		"type":        "error",
 	})
-	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
+	c.Assert(repo.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
 		Slots: []*interfaces.Slot{makeSlot("interface")},
 	})
 }
 
 func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 	d := s.daemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(makePlug("interface"))
+	repo := d.overlord.InterfaceManager().Repository()
+	repo.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	repo.AddPlug(makePlug("interface"))
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
 	action := &interfaceAction{
 		Action: "connect",
 		Plugs:  []plugJSON{{Snap: "producer", Name: "plug"}},
@@ -1659,23 +1682,29 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": `cannot connect plug to slot "slot" from snap "consumer", no such slot`,
+			"message": `cannot perform the following tasks:
+- Connect producer:plug to consumer:slot (cannot connect plug to slot "slot" from snap "consumer", no such slot)`,
 		},
 		"status":      "Bad Request",
 		"status-code": 400.0,
 		"type":        "error",
 	})
-	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
+	c.Assert(repo.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
 		Plugs: []*interfaces.Plug{makePlug("interface")},
 	})
 }
 
 func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
 	d := s.daemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(makePlug("interface"))
-	d.interfaces.AddSlot(makeSlot("interface"))
-	d.interfaces.Connect("producer", "plug", "consumer", "slot")
+	repo := d.overlord.InterfaceManager().Repository()
+	repo.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	repo.AddPlug(makePlug("interface"))
+	repo.AddSlot(makeSlot("interface"))
+	repo.Connect("producer", "plug", "consumer", "slot")
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
 	action := &interfaceAction{
 		Action: "disconnect",
 		Plugs:  []plugJSON{{Snap: "producer", Name: "plug"}},
@@ -1698,7 +1727,7 @@ func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
 		"status-code": 200.0,
 		"type":        "sync",
 	})
-	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
+	c.Assert(repo.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
 		Plugs: []*interfaces.Plug{makePlug("interface")},
 		Slots: []*interfaces.Slot{makeSlot("interface")},
 	})
@@ -1706,8 +1735,13 @@ func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 	d := s.daemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddSlot(makeSlot("interface"))
+	repo := d.overlord.InterfaceManager().Repository()
+	repo.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	repo.AddSlot(makeSlot("interface"))
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
 	action := &interfaceAction{
 		Action: "disconnect",
 		Plugs:  []plugJSON{{Snap: "producer", Name: "plug"}},
@@ -1726,21 +1760,27 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": `cannot disconnect plug "plug" from snap "producer", no such plug`,
+			"message": `cannot perform the following tasks:
+- Disconnect producer:plug from consumer:slot (cannot disconnect plug "plug" from snap "producer", no such plug)`,
 		},
 		"status":      "Bad Request",
 		"status-code": 400.0,
 		"type":        "error",
 	})
-	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
+	c.Assert(repo.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
 		Slots: []*interfaces.Slot{makeSlot("interface")},
 	})
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 	d := s.daemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(makePlug("interface"))
+	repo := d.overlord.InterfaceManager().Repository()
+	repo.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	repo.AddPlug(makePlug("interface"))
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
 	action := &interfaceAction{
 		Action: "disconnect",
 		Plugs:  []plugJSON{{Snap: "producer", Name: "plug"}},
@@ -1759,22 +1799,28 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": `cannot disconnect plug from slot "slot" from snap "consumer", no such slot`,
+			"message": `cannot perform the following tasks:
+- Disconnect producer:plug from consumer:slot (cannot disconnect plug from slot "slot" from snap "consumer", no such slot)`,
 		},
 		"status":      "Bad Request",
 		"status-code": 400.0,
 		"type":        "error",
 	})
-	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
+	c.Assert(repo.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
 		Plugs: []*interfaces.Plug{makePlug("interface")},
 	})
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 	d := s.daemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(makePlug("interface"))
-	d.interfaces.AddSlot(makeSlot("interface"))
+	repo := d.overlord.InterfaceManager().Repository()
+	repo.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	repo.AddPlug(makePlug("interface"))
+	repo.AddSlot(makeSlot("interface"))
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
 	action := &interfaceAction{
 		Action: "disconnect",
 		Plugs:  []plugJSON{{Snap: "producer", Name: "plug"}},
@@ -1793,13 +1839,14 @@ func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": `cannot disconnect plug "plug" from snap "producer" from slot "slot" from snap "consumer", it is not connected`,
+			"message": `cannot perform the following tasks:
+- Disconnect producer:plug from consumer:slot (cannot disconnect plug "plug" from snap "producer" from slot "slot" from snap "consumer", it is not connected)`,
 		},
 		"status":      "Bad Request",
 		"status-code": 400.0,
 		"type":        "error",
 	})
-	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
+	c.Assert(repo.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
 		Plugs: []*interfaces.Plug{makePlug("interface")},
 		Slots: []*interfaces.Slot{makeSlot("interface")},
 	})
@@ -2091,7 +2138,7 @@ func (s *apiSuite) TestGetEvents(c *check.C) {
 	c.Assert(d.hub.SubscriberCount(), check.Equals, 1)
 }
 
-func setupChanges(st *state.State) {
+func setupChanges(st *state.State) []string {
 	chg1 := st.NewChange("install", "install...")
 	t1 := st.NewTask("download", "1...")
 	t2 := st.NewTask("activate", "2...")
@@ -2103,6 +2150,8 @@ func setupChanges(st *state.State) {
 	chg2.AddTask(t3)
 	t3.SetStatus(state.ErrorStatus)
 	t3.Errorf("rm failed")
+
+	return []string{chg1.ID(), chg2.ID()}
 }
 
 func (s *apiSuite) TestStateChangesDefaultToInProgress(c *check.C) {
@@ -2126,7 +2175,7 @@ func (s *apiSuite) TestStateChangesDefaultToInProgress(c *check.C) {
 	res, err := rsp.MarshalJSON()
 	c.Assert(err, check.IsNil)
 
-	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"kind":"download","summary":"1...","status":"Do","log":\["INFO: l11","INFO: l12"]}.*`)
+	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"kind":"download","summary":"1...","status":"Do","log":\["INFO: l11","INFO: l12"],"progress":\[0,1]}.*`)
 }
 
 func (s *apiSuite) TestStateChangesInProgress(c *check.C) {
@@ -2150,7 +2199,7 @@ func (s *apiSuite) TestStateChangesInProgress(c *check.C) {
 	res, err := rsp.MarshalJSON()
 	c.Assert(err, check.IsNil)
 
-	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"kind":"download","summary":"1...","status":"Do","log":\["INFO: l11","INFO: l12"]}.*`)
+	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"kind":"download","summary":"1...","status":"Do","log":\["INFO: l11","INFO: l12"],"progress":\[0,1]}.*`)
 }
 
 func (s *apiSuite) TestStateChangesAll(c *check.C) {
@@ -2173,8 +2222,8 @@ func (s *apiSuite) TestStateChangesAll(c *check.C) {
 	res, err := rsp.MarshalJSON()
 	c.Assert(err, check.IsNil)
 
-	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"kind":"download","summary":"1...","status":"Do","log":\["INFO: l11","INFO: l12"]}.*`)
-	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"remove","summary":"remove..","status":"Error","tasks":\[{"kind":"unlink","summary":"1...","status":"Error","log":\["ERROR: rm failed"]}]}.*`)
+	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"kind":"download","summary":"1...","status":"Do","log":\["INFO: l11","INFO: l12"],"progress":\[0,1]}.*`)
+	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"remove","summary":"remove..","status":"Error","tasks":\[{"kind":"unlink","summary":"1...","status":"Error","log":\["ERROR: rm failed"],"progress":\[1,1]}]}.*`)
 }
 
 func (s *apiSuite) TestStateChangesReady(c *check.C) {
@@ -2197,5 +2246,53 @@ func (s *apiSuite) TestStateChangesReady(c *check.C) {
 	res, err := rsp.MarshalJSON()
 	c.Assert(err, check.IsNil)
 
-	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"remove","summary":"remove..","status":"Error","tasks":\[{"kind":"unlink","summary":"1...","status":"Error","log":\["ERROR: rm failed"]}]}.*`)
+	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"remove","summary":"remove..","status":"Error","tasks":\[{"kind":"unlink","summary":"1...","status":"Error","log":\["ERROR: rm failed"],"progress":\[1,1]}]}.*`)
+}
+
+func (s *apiSuite) TestStateChange(c *check.C) {
+	// Setup
+	d := newTestDaemon(c)
+	st := d.overlord.State()
+	st.Lock()
+	ids := setupChanges(st)
+	st.Unlock()
+	s.vars = map[string]string{"id": ids[0]}
+
+	// Execute
+	req, err := http.NewRequest("POST", "/v2/change/"+ids[0], nil)
+	c.Assert(err, check.IsNil)
+	rsp := getChange(stateChangeCmd, req).(*resp)
+	rec := httptest.NewRecorder()
+	rsp.ServeHTTP(rec, req)
+
+	// Verify
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.NotNil)
+
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body["result"], check.DeepEquals, map[string]interface{}{
+		"id":      ids[0],
+		"kind":    "install",
+		"summary": "install...",
+		"status":  "Do",
+		"tasks": []interface{}{
+			map[string]interface{}{
+				"kind":     "download",
+				"summary":  "1...",
+				"status":   "Do",
+				"log":      []interface{}{"INFO: l11", "INFO: l12"},
+				"progress": []interface{}{0., 1.},
+			},
+			map[string]interface{}{
+				"kind":     "activate",
+				"summary":  "2...",
+				"status":   "Do",
+				"progress": []interface{}{0., 1.},
+			},
+		},
+	})
 }
