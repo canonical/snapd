@@ -291,6 +291,10 @@ func getConns(task *state.Task) (map[string]connState, error) {
 	return conns, nil
 }
 
+func setConns(task *state.Task, conns map[string]connState) {
+	task.State().Set("conns", conns)
+}
+
 func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	task.State().Lock()
 	defer task.State().Unlock()
