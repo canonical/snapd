@@ -64,8 +64,6 @@ func (s *failoverSuite) TestZeroSizeKernel(c *check.C) {
 */
 
 func (s *failoverSuite) TestZeroSizeInitrd(c *check.C) {
-	c.Skip("port to snapd")
-
 	breakSnap := func(snapPath string) error {
 		fullPath, error := filepath.EvalSymlinks(filepath.Join(snapPath, "initrd.img"))
 		if error != nil {
@@ -80,8 +78,6 @@ func (s *failoverSuite) TestZeroSizeInitrd(c *check.C) {
 }
 
 func (s *failoverSuite) TestZeroSizeSystemd(c *check.C) {
-	c.Skip("port to snapd")
-
 	breakSnap := func(snapPath string) error {
 		fullPath := filepath.Join(snapPath, "lib", "systemd", "systemd")
 		replaceWithZeroSizeFile(c, fullPath)
