@@ -187,18 +187,18 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 	// trigger remove
 
 	// last task but the one holding snap-setup
-	forget := s.NewTask("forget-snap", fmt.Sprintf(i18n.G("Forgetting removed revision of %q"), snapSpec))
-	forget.Set("snap-setup", ss)
+	discardSnap := s.NewTask("discard-snap", fmt.Sprintf(i18n.G("Remove snap %q from the system"), snapSpec))
+	discardSnap.Set("snap-setup", ss)
 
-	forgetID := forget.ID()
+	discardSnapID := discardSnap.ID()
 	tasks := ([]*state.Task)(nil)
 	var chain *state.Task
 	addNext := func(t *state.Task) {
 		if chain != nil {
 			t.WaitFor(chain)
 		}
-		if t.ID() != forgetID {
-			t.Set("snap-setup-task", forgetID)
+		if t.ID() != discardSnapID {
+			t.Set("snap-setup-task", discardSnapID)
 		}
 		tasks = append(tasks, t)
 		chain = t
@@ -213,14 +213,11 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 	removeSecurity := s.NewTask("remove-snap-security", fmt.Sprintf(i18n.G("Remove security profile for snap %q"), snapSpec))
 	addNext(removeSecurity)
 
-	removeData := s.NewTask("clear-snap", fmt.Sprintf(i18n.G("Remove data for snap %q"), snapSpec))
-	addNext(removeData)
+	clearData := s.NewTask("clear-snap", fmt.Sprintf(i18n.G("Remove data for snap %q"), snapSpec))
+	addNext(clearData)
 
-	removeFiles := s.NewTask("discard-snap", fmt.Sprintf(i18n.G("Remove snap %q from the system"), snapSpec))
-	addNext(removeFiles)
-
-	// forget is last
-	addNext(forget)
+	// discard is last
+	addNext(discardSnap)
 
 	return state.NewTaskSet(tasks...), nil
 }
