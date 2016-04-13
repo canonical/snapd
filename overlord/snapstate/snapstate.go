@@ -29,6 +29,7 @@ import (
 	"strings"
 
 	"github.com/ubuntu-core/snappy/i18n"
+	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snap"
@@ -300,7 +301,8 @@ func ActiveInfos(s *state.State) ([]*snap.Info, error) {
 		sideInfo := snapState.Sequence[len(snapState.Sequence)-1]
 		snapInfo, err := retrieveInfo(snapName, sideInfo)
 		if err != nil {
-			return nil, err
+			logger.Noticef("cannot retrieve info for snap %q: %s", snapName, err)
+			continue
 		}
 		infos = append(infos, snapInfo)
 	}
