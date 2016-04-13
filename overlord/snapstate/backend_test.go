@@ -20,6 +20,7 @@
 package snapstate_test
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/ubuntu-core/snappy/progress"
@@ -45,7 +46,7 @@ type fakeSnappyBackend struct {
 	fakeCurrentProgress int
 	fakeTotalProgress   int
 
-	activeSnaps map[string]*snap.Info
+	linkSnapFailTrigger string
 }
 
 func (f *fakeSnappyBackend) InstallLocal(path string, flags int, p progress.Meter) error {
@@ -134,19 +135,33 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, si *snap.SideInfo, fl
 	return nil
 }
 
-func (f *fakeSnappyBackend) CopySnapData(instSnapPath string, flags int) error {
+func (f *fakeSnappyBackend) RetrieveInfo(name string, si *snap.SideInfo) (*snap.Info, error) {
+	// naive emulation for now, always works
+	return &snap.Info{SideInfo: *si}, nil
+}
+
+func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, flags int) error {
 	f.ops = append(f.ops, fakeOp{
-		op:    "copy-data",
-		name:  instSnapPath,
+		op:   "copy-data",
+		name: newInfo.MountDir(),
+		// XXX: capture oldInfo
 		flags: flags,
 	})
 	return nil
 }
 
-func (f *fakeSnappyBackend) LinkSnap(instSnapPath string) error {
+func (f *fakeSnappyBackend) LinkSnap(info *snap.Info) error {
+	if info.MountDir() == f.linkSnapFailTrigger {
+		f.ops = append(f.ops, fakeOp{
+			op:   "link-snap.failed",
+			name: info.MountDir(),
+		})
+		return errors.New("fail")
+	}
+
 	f.ops = append(f.ops, fakeOp{
 		op:   "link-snap",
-		name: instSnapPath,
+		name: info.MountDir(),
 	})
 	return nil
 }
@@ -165,18 +180,6 @@ func (f *fakeSnappyBackend) UndoCopySnapData(instSnapPath string, flags int) err
 		name: instSnapPath,
 	})
 	return nil
-}
-
-func (f *fakeSnappyBackend) UndoLinkSnap(oldInstSnapPath, instSnapPath string) error {
-	f.ops = append(f.ops, fakeOp{
-		op:   "undo-link-snap",
-		name: instSnapPath,
-	})
-	return nil
-}
-
-func (f *fakeSnappyBackend) ActiveSnap(name string) *snap.Info {
-	return f.activeSnaps[name]
 }
 
 func (f *fakeSnappyBackend) SnapByNameAndVersion(name, version string) *snap.Info {
@@ -198,10 +201,10 @@ func (f *fakeSnappyBackend) CanRemove(instSnapPath string) error {
 	return nil
 }
 
-func (f *fakeSnappyBackend) UnlinkSnap(instSnapPath string, meter progress.Meter) error {
+func (f *fakeSnappyBackend) UnlinkSnap(info *snap.Info, meter progress.Meter) error {
 	f.ops = append(f.ops, fakeOp{
 		op:   "unlink-snap",
-		name: instSnapPath,
+		name: info.MountDir(),
 	})
 	return nil
 }
