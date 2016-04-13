@@ -62,6 +62,11 @@ func Manager(s *state.State) (*InterfaceManager, error) {
 		runner: runner,
 		repo:   repo,
 	}
+	if injectExtraInterfaces != nil {
+		if err := injectExtraInterfaces(m); err != nil {
+			return nil, err
+		}
+	}
 	s.Lock()
 	defer s.Unlock()
 	if err := m.addSnaps(); err != nil {
@@ -73,6 +78,8 @@ func Manager(s *state.State) (*InterfaceManager, error) {
 	runner.AddHandler("remove-snap-security", m.doRemoveSnapSecurity, m.doSetupSnapSecurity)
 	return m, nil
 }
+
+var injectExtraInterfaces func(m *InterfaceManager) error
 
 func (m *InterfaceManager) addSnaps() error {
 	snaps, err := snapstate.ActiveInfos(m.state)
