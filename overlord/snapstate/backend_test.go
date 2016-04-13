@@ -177,12 +177,13 @@ func (f *fakeSnappyBackend) SnapByNameAndVersion(name, version string) *snap.Inf
 	}
 }
 
-func (f *fakeSnappyBackend) CanRemove(instSnapPath string) error {
+func (f *fakeSnappyBackend) CanRemove(info *snap.Info, active bool) bool {
 	f.ops = append(f.ops, fakeOp{
-		op:   "can-remove",
-		name: instSnapPath,
+		op:     "can-remove",
+		name:   info.MountDir(),
+		active: active,
 	})
-	return nil
+	return true
 }
 
 func (f *fakeSnappyBackend) UnlinkSnap(info *snap.Info, meter progress.Meter) error {
