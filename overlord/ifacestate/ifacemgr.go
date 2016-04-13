@@ -295,15 +295,16 @@ func setConns(st *state.State, conns map[string]connState) {
 }
 
 func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
-	task.State().Lock()
-	defer task.State().Unlock()
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
 
 	plugRef, slotRef, err := getPlugAndSlotRefs(task)
 	if err != nil {
 		return err
 	}
 
-	conns, err := getConns(task.State())
+	conns, err := getConns(st)
 	if err != nil {
 		return err
 	}
@@ -315,20 +316,21 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	plug := m.repo.Plug(plugRef.Snap, plugRef.Name)
 	connID := fmt.Sprintf("%s:%s %s:%s", plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
 	conns[connID] = connState{Interface: plug.Interface, Auto: false}
-	setConns(task.State(), conns)
+	setConns(st, conns)
 	return nil
 }
 
 func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
-	task.State().Lock()
-	defer task.State().Unlock()
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
 
 	plugRef, slotRef, err := getPlugAndSlotRefs(task)
 	if err != nil {
 		return err
 	}
 
-	conns, err := getConns(task.State())
+	conns, err := getConns(st)
 	if err != nil {
 		return err
 	}
@@ -339,7 +341,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 
 	connID := fmt.Sprintf("%s:%s %s:%s", plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
 	delete(conns, connID)
-	setConns(task.State(), conns)
+	setConns(st, conns)
 	return nil
 }
 
