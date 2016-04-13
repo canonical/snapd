@@ -103,7 +103,26 @@ func (b *Backend) Setup(snapInfo *snap.Info, developerMode bool, repo *interface
 	if errReload != nil {
 		return errReload
 	}
-	return errUnload
+	if errUnload != nil {
+		return errUnload
+	}
+	// Sanity checking, see if all the profiles are really loaded and load
+	// those profiles that are not. This can happen if the files were on disk
+	// but were not really loaded (e.g. due to an interrupted install).
+	profiles, err := LoadedProfiles()
+	if err != nil {
+		return fmt.Errorf("cannot check loaded apparmor profiles: %s", err)
+	}
+	for _, profileName := range profiles {
+		delete(content, profileName)
+	}
+	for profileName := range content {
+		fname := filepath.Join(dirs.SnapAppArmorDir, profileName)
+		if err := LoadProfile(fname); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Remove removes and unloads apparmor profiles of a given snap.

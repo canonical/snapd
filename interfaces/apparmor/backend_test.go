@@ -35,11 +35,13 @@ import (
 )
 
 type backendSuite struct {
-	backend   *apparmor.Backend
-	repo      *interfaces.Repository
-	iface     *interfaces.TestInterface
-	rootDir   string
-	parserCmd *testutil.MockCmd
+	testutil.BaseTest
+	backend          *apparmor.Backend
+	repo             *interfaces.Repository
+	iface            *interfaces.TestInterface
+	rootDir          string
+	profilesFilename string
+	parserCmd        *testutil.MockCmd
 }
 
 var _ = Suite(&backendSuite{
@@ -48,10 +50,15 @@ var _ = Suite(&backendSuite{
 
 // fakeAppAprmorParser contains shell program that creates fake binary cache entries
 // in accordance with what real apparmor_parser would do.
-const fakeAppArmorParser = `
+//
+// The %s in the template below Sprintf-expanded to the path of the fake
+// /sys/kernel/security/apparmor/profiles file.
+const fakeAppArmorParserTemplate = `
 cache_dir=""
 profile=""
 write=""
+action=""
+profile_list="%s"
 while [ -n "$1" ]; do
 	case "$1" in
 		--cache-loc=*)
@@ -60,8 +67,11 @@ while [ -n "$1" ]; do
 		--write-cache)
 			write=yes
 			;;
-		--replace|--remove)
-			# Ignore
+		--replace)
+			action="replace"
+			;;
+		--remove)
+			action="remove"
 			;;
 		-O)
 			# Ignore, discard argument
@@ -73,12 +83,22 @@ while [ -n "$1" ]; do
 	esac
 	shift
 done
+if [ "$action" = replace ]; then
+	echo "$profile (mode)" >> "$profile_list"
+	sort < "$profile_list" | uniq > "$profile_list.next"
+	mv "$profile_list.next" "$profile_list"
+fi
+if [ "$action" = remove ]; then
+	grep -v "^$profile\$" < "$profile_list" > "$profile_list.next"
+	mv "$profile_list.next" "$profile_list"
+fi
 if [ "$write" = yes ]; then
 	echo fake > "$cache_dir/$profile"
 fi
 `
 
 func (s *backendSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
 	s.backend.UseLegacyTemplate(nil)
 	// Isolate this test to a temporary directory
 	s.rootDir = c.MkDir()
@@ -89,8 +109,14 @@ func (s *backendSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	err = os.MkdirAll(dirs.AppArmorCacheDir, 0700)
 	c.Assert(err, IsNil)
+	// Mock the list of profiles in the running kernel
+	s.profilesFilename = filepath.Join(c.MkDir(), "profiles")
+	err = ioutil.WriteFile(s.profilesFilename, nil, 0644)
+	c.Assert(err, IsNil)
+	apparmor.MockProfilesPath(&s.BaseTest, s.profilesFilename)
 	// Mock away any real apparmor interaction
-	s.parserCmd = testutil.MockCommand(c, "apparmor_parser", fakeAppArmorParser)
+	s.parserCmd = testutil.MockCommand(c, "apparmor_parser",
+		fmt.Sprintf(fakeAppArmorParserTemplate, s.profilesFilename))
 	// Create a fresh repository for each test
 	s.repo = interfaces.NewRepository()
 	s.iface = &interfaces.TestInterface{InterfaceName: "iface"}
@@ -214,6 +240,26 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 		c.Check(os.IsNotExist(err), Equals, true)
 		// apparmor_parser was used to remove the unused profile
 		c.Check(s.parserCmd.Calls(), DeepEquals, []string{"--remove snap.samba.nmbd"})
+		s.removeSnap(c, snapInfo)
+	}
+}
+
+func (s *backendSuite) TestSetupLoadsUnchangedUnloadedProfiles(c *C) {
+	for _, developerMode := range []bool{true, false} {
+		// Setup() loads profiles even if they haven't changed on disk if they are
+		// not loaded into the kernel.
+		snapInfo := s.installSnap(c, developerMode, sambaYaml, 1)
+		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+		// Forget all loaded profiles
+		err := ioutil.WriteFile(s.profilesFilename, nil, 0644)
+		c.Assert(err, IsNil)
+		s.parserCmd.ForgetCalls()
+		// Reinstall the snap (nothing has changed on disk!)
+		snapInfo = s.updateSnap(c, snapInfo, developerMode, sambaYaml, 1)
+		// apparmor_parser was used to load the unloaded profile
+		c.Check(s.parserCmd.Calls(), DeepEquals, []string{
+			fmt.Sprintf("--replace --write-cache -O no-expr-simplify --cache-loc=%s/var/cache/apparmor %s", s.rootDir, profile),
+		})
 		s.removeSnap(c, snapInfo)
 	}
 }
