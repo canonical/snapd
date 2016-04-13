@@ -70,7 +70,7 @@ func doInstall(s *state.State, curActive bool, snapName, channel string, flags s
 
 	if curActive {
 		// unlink-current-snap (will stop services for copy-data)
-		unlink := s.NewTask("unlink-current-snap", fmt.Sprintf(i18n.G("Unlink current revision for %q"), snapName))
+		unlink := s.NewTask("unlink-current-snap", fmt.Sprintf(i18n.G("Make current revision for snap %q unavailable"), snapName))
 		addTask(unlink)
 		unlink.WaitFor(mount)
 		precopy = unlink
@@ -205,18 +205,18 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 	}
 
 	if active {
-		unlink := s.NewTask("unlink-snap", fmt.Sprintf(i18n.G("Deactivating %q"), snapSpec))
+		unlink := s.NewTask("unlink-snap", fmt.Sprintf(i18n.G("Make snap %q unavailable to the system"), snapSpec))
 
 		addNext(unlink)
 	}
 
-	removeSecurity := s.NewTask("remove-snap-security", fmt.Sprintf(i18n.G("Removing security profile for %q"), snapSpec))
+	removeSecurity := s.NewTask("remove-snap-security", fmt.Sprintf(i18n.G("Remove security profile for snap %q"), snapSpec))
 	addNext(removeSecurity)
 
-	removeData := s.NewTask("remove-snap-data", fmt.Sprintf(i18n.G("Removing data for %q"), snapSpec))
+	removeData := s.NewTask("remove-snap-data", fmt.Sprintf(i18n.G("Remove data for snap %q"), snapSpec))
 	addNext(removeData)
 
-	removeFiles := s.NewTask("remove-snap-files", fmt.Sprintf(i18n.G("Removing files for %q"), snapSpec))
+	removeFiles := s.NewTask("remove-snap-files", fmt.Sprintf(i18n.G("Remove snap %q from the system"), snapSpec))
 	addNext(removeFiles)
 
 	// forget is last
