@@ -88,8 +88,12 @@ func doInstall(s *state.State, snapName, channel string, flags snappy.InstallFla
 // Note that the state must be locked by the caller.
 func Install(s *state.State, snap, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
 	name, _ := snappy.SplitDeveloper(snap)
-	info := backend.ActiveSnap(name)
-	if info != nil {
+	var snapst SnapState
+	err := Get(s, name, &snapst)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	if snapst.Current() != nil {
 		return nil, fmt.Errorf("snap %q already installed", snap)
 	}
 
@@ -100,8 +104,12 @@ func Install(s *state.State, snap, channel string, flags snappy.InstallFlags) (*
 // Note that the state must be locked by the caller.
 func Update(s *state.State, snap, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
 	name, _ := snappy.SplitDeveloper(snap)
-	info := backend.ActiveSnap(name)
-	if info == nil {
+	var snapst SnapState
+	err := Get(s, name, &snapst)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	if snapst.Current() == nil {
 		return nil, fmt.Errorf("cannot find snap %q", snap)
 	}
 
@@ -124,14 +132,24 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 	// not active
 	name, version := parseSnapSpec(snapSpec)
 	name, developer := snappy.SplitDeveloper(name)
+
+	var snapst SnapState
+	err := Get(s, name, &snapst)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	if snapst.Current() == nil {
+		return nil, fmt.Errorf("cannot find snap %q", name)
+	}
+
 	revision := 0
 	if version == "" {
-		info := backend.ActiveSnap(name)
-		if info == nil {
+		if !snapst.Active {
 			return nil, fmt.Errorf("cannot find active snap for %q", name)
 		}
-		revision = info.Revision
+		revision = snapst.Current().Revision
 	} else {
+		// XXX: change this to use snapstate stuff
 		info := backend.SnapByNameAndVersion(name, version)
 		if info == nil {
 			return nil, fmt.Errorf("cannot find snap for %q and version %q", name, version)

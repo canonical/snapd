@@ -52,6 +52,14 @@ type SnapSetup struct {
 	SnapPath string `json:"snap-path,omitempty"`
 }
 
+func (ss *SnapSetup) placeInfo() snap.PlaceInfo {
+	return snap.MinimalPlaceInfo(ss.Name, ss.Revision)
+}
+
+func (ss *SnapSetup) MountDir() string {
+	return snap.MountDir(ss.Name, ss.Revision)
+}
+
 // SnapState holds the state for a snap installed in the system.
 type SnapState struct {
 	Sequence  []*snap.SideInfo `json:"sequence"` // Last is current
@@ -61,12 +69,13 @@ type SnapState struct {
 	DevMode   bool             `json:"dev-mode,omitempty"`
 }
 
-func (ss *SnapSetup) placeInfo() snap.PlaceInfo {
-	return snap.MinimalPlaceInfo(ss.Name, ss.Revision)
-}
-
-func (ss *SnapSetup) MountDir() string {
-	return snap.MountDir(ss.Name, ss.Revision)
+// Current returns the side info for the current revision in the snap revision sequence if there is one.
+func (snapst *SnapState) Current() *snap.SideInfo {
+	n := len(snapst.Sequence)
+	if n == 0 {
+		return nil
+	}
+	return snapst.Sequence[n-1]
 }
 
 // Manager returns a new snap manager.
@@ -412,20 +421,14 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	var oldInfo *snap.Info
-	if len(snapst.Sequence) > 0 {
-		latest := snapst.Sequence[len(snapst.Sequence)-1]
-		// XXX: more efficient way, we have the sideinfo
-		var err error
-		t.State().Lock()
-		oldInfo, err = Info(t.State(), ss.Name, latest.Revision)
-		t.State().Unlock()
-		if err != nil {
-			return err
-		}
-
-	} else {
+	cur := snapst.Current()
+	if cur == nil {
 		return nil
+	}
+
+	oldInfo, err := retrieveInfo(ss.Name, cur)
+	if err != nil {
+		return err
 	}
 
 	// XXX: set active again if it was active in the first place
@@ -440,20 +443,14 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	var oldInfo *snap.Info
-	if snapst.Active && len(snapst.Sequence) > 0 {
-		latest := snapst.Sequence[len(snapst.Sequence)-1]
-		// XXX: more efficient way, we have the sideinfo
-		var err error
-		t.State().Lock()
-		oldInfo, err = Info(t.State(), ss.Name, latest.Revision)
-		t.State().Unlock()
-		if err != nil {
-			return err
-		}
-
-	} else {
+	cur := snapst.Current()
+	if cur == nil || !snapst.Active {
 		return nil
+	}
+
+	oldInfo, err := retrieveInfo(ss.Name, cur)
+	if err != nil {
+		return err
 	}
 
 	// XXX: unset active but how can we know whether it was active in undo?
@@ -480,22 +477,15 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// XXX: more efficient way, we know we want candidate
-	t.State().Lock()
-	newInfo, err := Info(t.State(), ss.Name, ss.Revision)
-	t.State().Unlock()
+	newInfo, err := retrieveInfo(ss.Name, snapst.Candidate)
 	if err != nil {
 		return err
 	}
 
 	var oldInfo *snap.Info
-	if len(snapst.Sequence) > 0 {
-		latest := snapst.Sequence[len(snapst.Sequence)-1]
-		// XXX: more efficient way, we have the sideinfo
+	if cur := snapst.Current(); cur != nil {
 		var err error
-		t.State().Lock()
-		oldInfo, err = Info(t.State(), ss.Name, latest.Revision)
-		t.State().Unlock()
+		oldInfo, err = retrieveInfo(ss.Name, cur)
 		if err != nil {
 			return err
 		}

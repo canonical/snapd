@@ -55,7 +55,6 @@ type managerBackend interface {
 	Rollback(name, ver string, meter progress.Meter) (string, error)
 
 	// info
-	ActiveSnap(name string) *snap.Info
 	SnapByNameAndVersion(name, version string) *snap.Info
 
 	// testing helpers
@@ -65,13 +64,6 @@ type managerBackend interface {
 type defaultBackend struct{}
 
 func (b *defaultBackend) Candidate(*snap.SideInfo) {}
-
-func (b *defaultBackend) ActiveSnap(name string) *snap.Info {
-	if snap := snappy.ActiveSnapByName(name); snap != nil {
-		return snap.Info()
-	}
-	return nil
-}
 
 func (b *defaultBackend) SnapByNameAndVersion(name, version string) *snap.Info {
 	// XXX: use snapstate stuff!
