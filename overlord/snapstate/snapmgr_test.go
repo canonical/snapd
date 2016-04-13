@@ -484,6 +484,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoIntegration(c *C) {
 			op:    "check-snap",
 			name:  "downloaded-snap-path",
 			flags: int(snappy.DoInstallGC),
+			old:   "/snap/some-snap/7",
 		},
 		{
 			op:    "setup-snap",
@@ -499,6 +500,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoIntegration(c *C) {
 			op:    "copy-data",
 			name:  "/snap/some-snap/11",
 			flags: int(snappy.DoInstallGC),
+			old:   "/snap/some-snap/7",
 		},
 		{
 			op: "candidate",
