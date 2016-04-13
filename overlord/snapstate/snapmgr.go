@@ -44,9 +44,6 @@ type SnapSetup struct {
 	Revision  int    `json:"revision,omitempty"`
 	Channel   string `json:"channel,omitempty"`
 
-	// XXX: should be switched to use Revision instead
-	RollbackVersion string `json:"rollback-version,omitempty"`
-
 	Flags int `json:"flags,omitempty"`
 
 	SnapPath string `json:"snap-path,omitempty"`
@@ -109,7 +106,6 @@ func Manager(s *state.State) (*SnapManager, error) {
 	runner.AddHandler("discard-snap", m.doDiscardSnap, nil)
 
 	// FIXME: work on those
-	runner.AddHandler("rollback-snap", m.doRollbackSnap, nil)
 	runner.AddHandler("activate-snap", m.doActivateSnap, nil)
 	runner.AddHandler("deactivate-snap", m.doDeactivateSnap, nil)
 
@@ -290,21 +286,6 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	Set(st, ss.Name, snapst)
 	st.Unlock()
 	return nil
-}
-
-func (m *SnapManager) doRollbackSnap(t *state.Task, _ *tomb.Tomb) error {
-	var ss SnapSetup
-
-	t.State().Lock()
-	err := t.Get("snap-setup", &ss)
-	t.State().Unlock()
-	if err != nil {
-		return err
-	}
-
-	pb := &TaskProgressAdapter{task: t}
-	_, err = m.backend.Rollback(ss.Name, ss.RollbackVersion, pb)
-	return err
 }
 
 func (m *SnapManager) doActivateSnap(t *state.Task, _ *tomb.Tomb) error {

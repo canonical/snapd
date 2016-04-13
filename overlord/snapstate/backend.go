@@ -44,8 +44,6 @@ type managerBackend interface {
 
 	// TODO: need to be split into fine grained tasks
 	Activate(name string, active bool, meter progress.Meter) error
-	// XXX: this one needs to be revno based as well
-	Rollback(name, ver string, meter progress.Meter) (string, error)
 
 	// info
 	SnapByNameAndVersion(name, version string) *snap.Info
@@ -70,10 +68,6 @@ func (b *defaultBackend) SnapByNameAndVersion(name, version string) *snap.Info {
 	}
 	// XXX: could be many now, pick one for now
 	return found[0].Info()
-}
-
-func (b *defaultBackend) Rollback(name, ver string, meter progress.Meter) (string, error) {
-	return snappy.Rollback(name, ver, meter)
 }
 
 func (b *defaultBackend) Activate(name string, active bool, meter progress.Meter) error {
