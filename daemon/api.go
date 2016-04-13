@@ -580,12 +580,11 @@ func waitChange(chg *state.Change) error {
 
 func ensureUbuntuCore(st *state.State, chg *state.Change, other *state.TaskSet) error {
 	var ss snapstate.SnapState
-	var lastCoreTask *state.Task
 
 	ubuntuCore := "ubuntu-core"
 	err := snapstateGet(st, ubuntuCore, &ss)
 	if err != state.ErrNoState {
-		return nil
+		return err
 	}
 
 	ts, err := snapstateInstall(st, ubuntuCore, "stable", 0)
@@ -594,9 +593,10 @@ func ensureUbuntuCore(st *state.State, chg *state.Change, other *state.TaskSet) 
 	}
 	chg.AddAll(ts)
 
-	tl := ts.Tasks()
-	lastCoreTask = tl[len(tl)-1]
-	other.WaitFor(lastCoreTask)
+	// ensure we run first
+	for _, t := range ts.Tasks() {
+		other.WaitFor(t)
+	}
 	return nil
 }
 
