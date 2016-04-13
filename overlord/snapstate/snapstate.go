@@ -38,7 +38,7 @@ import (
 // allow exchange in the tests
 var backend managerBackend = &defaultBackend{}
 
-func doInstall(s *state.State, snapName, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
+func doInstall(s *state.State, curActive bool, snapName, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
 	// download
 	var prepare *state.Task
 	ss := SnapSetup{
@@ -56,32 +56,42 @@ func doInstall(s *state.State, snapName, channel string, flags snappy.InstallFla
 	}
 	prepare.Set("snap-setup", ss)
 
+	tasks := []*state.Task{prepare}
+	addTask := func(t *state.Task) {
+		t.Set("snap-setup-task", prepare.ID())
+		tasks = append(tasks, t)
+	}
+
 	// mount
 	mount := s.NewTask("mount-snap", fmt.Sprintf(i18n.G("Mount snap %q"), snapName))
-	mount.Set("snap-setup-task", prepare.ID())
+	addTask(mount)
 	mount.WaitFor(prepare)
+	precopy := mount
 
-	// unlink-current-snap (will stop services for copy-data)
-	unlink := s.NewTask("unlink-current-snap", fmt.Sprintf(i18n.G("Unlink current revision for %q"), snapName))
-	unlink.Set("snap-setup-task", prepare.ID())
-	unlink.WaitFor(mount)
+	if curActive {
+		// unlink-current-snap (will stop services for copy-data)
+		unlink := s.NewTask("unlink-current-snap", fmt.Sprintf(i18n.G("Unlink current revision for %q"), snapName))
+		addTask(unlink)
+		unlink.WaitFor(mount)
+		precopy = unlink
+	}
 
 	// copy-data (needs stopped services by unlink)
 	copyData := s.NewTask("copy-snap-data", fmt.Sprintf(i18n.G("Copy snap %q data"), snapName))
-	copyData.Set("snap-setup-task", prepare.ID())
-	copyData.WaitFor(unlink)
+	addTask(copyData)
+	copyData.WaitFor(precopy)
 
 	// security
 	setupSecurity := s.NewTask("setup-snap-security", fmt.Sprintf(i18n.G("Setup snap %q security profiles"), snapName))
-	setupSecurity.Set("snap-setup-task", prepare.ID())
+	addTask(setupSecurity)
 	setupSecurity.WaitFor(copyData)
 
 	// finalize (wrappers+current symlink)
 	linkSnap := s.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q available to the system"), snapName))
-	linkSnap.Set("snap-setup-task", prepare.ID())
+	addTask(linkSnap)
 	linkSnap.WaitFor(setupSecurity)
 
-	return state.NewTaskSet(prepare, mount, unlink, copyData, setupSecurity, linkSnap), nil
+	return state.NewTaskSet(tasks...), nil
 }
 
 // Install returns a set of tasks for installing snap.
@@ -97,7 +107,7 @@ func Install(s *state.State, snap, channel string, flags snappy.InstallFlags) (*
 		return nil, fmt.Errorf("snap %q already installed", snap)
 	}
 
-	return doInstall(s, snap, channel, flags)
+	return doInstall(s, false, snap, channel, flags)
 }
 
 // Update initiates a change updating a snap.
@@ -113,7 +123,7 @@ func Update(s *state.State, snap, channel string, flags snappy.InstallFlags) (*s
 		return nil, fmt.Errorf("cannot find snap %q", snap)
 	}
 
-	return doInstall(s, snap, channel, flags)
+	return doInstall(s, snapst.Active, snap, channel, flags)
 }
 
 // parseSnapspec parses a string like: name[.developer][=version]
@@ -143,6 +153,7 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 	}
 
 	revision := 0
+	active := false
 	if version == "" {
 		if !snapst.Active {
 			return nil, fmt.Errorf("cannot find active snap for %q", name)
@@ -157,6 +168,11 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 		revision = info.Revision
 	}
 
+	// removing active?
+	if snapst.Active && snapst.Current().Revision == revision {
+		active = true
+	}
+
 	ss := SnapSetup{
 		Name:      name,
 		Developer: developer,
@@ -169,26 +185,44 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 	}
 
 	// trigger remove
-	unlink := s.NewTask("unlink-snap", fmt.Sprintf(i18n.G("Deactivating %q"), snapSpec))
-	unlink.Set("snap-setup", ss)
+
+	// last task but the one holding snap-setup
+	forget := s.NewTask("forget-snap", fmt.Sprintf(i18n.G("Forgetting removed revision of %q"), snapSpec))
+	forget.Set("snap-setup", ss)
+
+	forgetID := forget.ID()
+	tasks := ([]*state.Task)(nil)
+	var chain *state.Task
+	addNext := func(t *state.Task) {
+		if chain != nil {
+			t.WaitFor(chain)
+		}
+		if t.ID() != forgetID {
+			t.Set("snap-setup-task", forgetID)
+		}
+		tasks = append(tasks, t)
+		chain = t
+	}
+
+	if active {
+		unlink := s.NewTask("unlink-snap", fmt.Sprintf(i18n.G("Deactivating %q"), snapSpec))
+
+		addNext(unlink)
+	}
 
 	removeSecurity := s.NewTask("remove-snap-security", fmt.Sprintf(i18n.G("Removing security profile for %q"), snapSpec))
-	removeSecurity.WaitFor(unlink)
-	removeSecurity.Set("snap-setup-task", unlink.ID())
+	addNext(removeSecurity)
 
 	removeData := s.NewTask("remove-snap-data", fmt.Sprintf(i18n.G("Removing data for %q"), snapSpec))
-	removeData.Set("snap-setup-task", unlink.ID())
-	removeData.WaitFor(removeSecurity)
+	addNext(removeData)
 
 	removeFiles := s.NewTask("remove-snap-files", fmt.Sprintf(i18n.G("Removing files for %q"), snapSpec))
-	removeFiles.Set("snap-setup-task", unlink.ID())
-	removeFiles.WaitFor(removeData)
+	addNext(removeFiles)
 
-	forget := s.NewTask("forget-snap", fmt.Sprintf(i18n.G("Forgetting removed revision of %q"), snapSpec))
-	forget.Set("snap-setup-task", unlink.ID())
-	forget.WaitFor(removeFiles)
+	// forget is last
+	addNext(forget)
 
-	return state.NewTaskSet(unlink, removeSecurity, removeData, removeFiles, forget), nil
+	return state.NewTaskSet(tasks...), nil
 }
 
 // Rollback returns a set of tasks for rolling back a snap.
