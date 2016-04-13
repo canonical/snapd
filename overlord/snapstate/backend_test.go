@@ -158,10 +158,10 @@ func (f *fakeSnappyBackend) UndoSetupSnap(s snap.PlaceInfo) error {
 	return nil
 }
 
-func (f *fakeSnappyBackend) UndoCopySnapData(instSnapPath string, flags int) error {
+func (f *fakeSnappyBackend) UndoCopySnapData(newInfo *snap.Info, flags int) error {
 	f.ops = append(f.ops, fakeOp{
 		op:   "undo-copy-snap-data",
-		name: instSnapPath,
+		name: newInfo.MountDir(),
 	})
 	return nil
 }
@@ -202,11 +202,10 @@ func (f *fakeSnappyBackend) RemoveSnapFiles(s snap.PlaceInfo, meter progress.Met
 	return nil
 }
 
-func (f *fakeSnappyBackend) RemoveSnapData(name string, revno int) error {
+func (f *fakeSnappyBackend) RemoveSnapData(info *snap.Info) error {
 	f.ops = append(f.ops, fakeOp{
-		op:    "remove-snap-data",
-		name:  name,
-		revno: revno,
+		op:   "remove-snap-data",
+		name: info.MountDir(),
 	})
 	return nil
 }

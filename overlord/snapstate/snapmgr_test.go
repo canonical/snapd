@@ -645,9 +645,8 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 			name: "/snap/some-snap/7",
 		},
 		fakeOp{
-			op:    "remove-snap-data",
-			name:  "some-snap",
-			revno: 7,
+			op:   "remove-snap-data",
+			name: "/snap/some-snap/7",
 		},
 		fakeOp{
 			op:   "remove-snap-files",
