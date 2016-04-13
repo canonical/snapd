@@ -74,11 +74,18 @@ func Manager(s *state.State, extra []interfaces.Interface) (*InterfaceManager, e
 	if err := m.addSnaps(); err != nil {
 		return nil, err
 	}
+	if err := m.initialize(); err != nil {
+		return nil, err
+	}
 	runner.AddHandler("connect", m.doConnect, nil)
 	runner.AddHandler("disconnect", m.doDisconnect, nil)
 	runner.AddHandler("setup-snap-security", m.doSetupSnapSecurity, m.doRemoveSnapSecurity)
 	runner.AddHandler("remove-snap-security", m.doRemoveSnapSecurity, m.doSetupSnapSecurity)
 	return m, nil
+}
+
+func (m *InterfaceManager) initialize() error {
+	return nil
 }
 
 func (m *InterfaceManager) addSnaps() error {
