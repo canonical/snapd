@@ -176,7 +176,7 @@ version: %s
 	c.Assert(err, check.IsNil)
 
 	if active {
-		err := snappy.UpdateCurrentSymlink(localSnap, nil)
+		err := snappy.UpdateCurrentSymlink(localSnap.Info(), nil)
 		c.Assert(err, check.IsNil)
 	}
 
