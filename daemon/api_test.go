@@ -40,6 +40,7 @@ import (
 	"github.com/ubuntu-core/snappy/asserts"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/interfaces"
+	"github.com/ubuntu-core/snappy/overlord/auth"
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/release"
@@ -492,17 +493,18 @@ func (s *apiSuite) TestLoginUser(c *check.C) {
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Result, check.DeepEquals, expected)
 
-	var auth authState
-	expectedState := userAuthState{
+	expectedUser := auth.UserState{
+		ID:         1,
 		Username:   "username",
 		Macaroon:   "the-macaroon-serialized-data",
 		Discharges: []string{"the-discharge-macaroon-serialized-data"},
 	}
 	state := snapCmd.d.overlord.State()
 	state.Lock()
-	state.Get("auth", &auth)
+	user, err := auth.User(state, 1)
 	state.Unlock()
-	c.Check(auth, check.DeepEquals, authState{Users: []userAuthState{expectedState}})
+	c.Check(err, check.IsNil)
+	c.Check(*user, check.DeepEquals, expectedUser)
 }
 
 func (s *apiSuite) TestLoginUserBadRequest(c *check.C) {
@@ -534,7 +536,7 @@ func (s *apiSuite) TestLoginUserMyAppsError(c *check.C) {
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, http.StatusInternalServerError)
-	c.Check(rsp.Result.(*errorResult).Message, check.Equals, "cannot get package access macaroon")
+	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "cannot get package access macaroon")
 }
 
 func (s *apiSuite) TestLoginUserTwoFactorRequiredError(c *check.C) {
@@ -576,7 +578,7 @@ func (s *apiSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, http.StatusUnauthorized)
-	c.Check(rsp.Result.(*errorResult).Message, check.Equals, "cannot get discharge authorization")
+	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "cannot get discharge macaroon")
 }
 
 func (s *apiSuite) TestSnapsInfoOnePerIntegration(c *check.C) {

@@ -39,6 +39,7 @@ import (
 	"github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/lockfile"
 	"github.com/ubuntu-core/snappy/overlord"
+	"github.com/ubuntu-core/snappy/overlord/auth"
 	"github.com/ubuntu-core/snappy/overlord/ifacestate"
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
@@ -181,16 +182,6 @@ func sysInfo(c *Command, r *http.Request) Response {
 	return SyncResponse(m)
 }
 
-type authState struct {
-	Users []userAuthState `json:"users"`
-}
-
-type userAuthState struct {
-	Username   string   `json:"username,omitempty"`
-	Macaroon   string   `json:"macaroon,omitempty"`
-	Discharges []string `json:"discharges,omitempty"`
-}
-
 type loginResponseData struct {
 	Macaroon   string   `json:"macaroon,omitempty"`
 	Discharges []string `json:"discharges,omitempty"`
@@ -210,7 +201,7 @@ func loginUser(c *Command, r *http.Request) Response {
 
 	macaroon, err := store.RequestPackageAccessMacaroon()
 	if err != nil {
-		return InternalError("cannot get package access macaroon")
+		return InternalError(err.Error())
 	}
 
 	discharge, err := store.DischargeAuthCaveat(loginData.Username, loginData.Password, macaroon, loginData.Otp)
@@ -219,29 +210,24 @@ func loginUser(c *Command, r *http.Request) Response {
 			Type: ResponseTypeError,
 			Result: &errorResult{
 				Kind:    errorKindTwoFactorRequired,
-				Message: "two factor authentication required",
+				Message: store.ErrAuthenticationNeeds2fa.Error(),
 			},
 			Status: http.StatusUnauthorized,
 		}
 		return SyncResponse(twofactorRequiredResponse)
 	}
 	if err != nil {
-		return Unauthorized("cannot get discharge authorization")
+		return Unauthorized(err.Error())
 	}
-
-	authenticatedUser := userAuthState{
-		Username:   loginData.Username,
-		Macaroon:   macaroon,
-		Discharges: []string{discharge},
-	}
-	// TODO Handle better the multi-user case.
-	authStateData := authState{Users: []userAuthState{authenticatedUser}}
 
 	overlord := c.d.overlord
 	state := overlord.State()
 	state.Lock()
-	state.Set("auth", authStateData)
+	_, err = auth.NewUser(state, loginData.Username, macaroon, []string{discharge})
 	state.Unlock()
+	if err != nil {
+		return InternalError("cannot persist authentication details: %v", err)
+	}
 
 	result := loginResponseData{
 		Macaroon:   macaroon,

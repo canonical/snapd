@@ -27,6 +27,7 @@ import (
 	"github.com/jessevdk/go-flags"
 	"golang.org/x/crypto/ssh/terminal"
 
+	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/store"
 )
@@ -52,28 +53,28 @@ func init() {
 		})
 }
 
-func requestStoreTokenWith2faRetry(username, password, tokenName string) (*store.StoreToken, error) {
+func requestLoginWith2faRetry(username, password string) error {
+	cli := Client()
 	// first try without otp
-	token, err := store.RequestStoreToken(username, password, tokenName, "")
+	_, err := cli.Login(username, password, "")
 
 	// check if we need 2fa
-	if err == store.ErrAuthenticationNeeds2fa {
-		fmt.Print(i18n.G("2fa code: "))
+	if e := err.(*client.Error); e != nil && e.Kind == store.TwoFactorErrKind {
+		fmt.Print(i18n.G("Two-factor code: "))
 		reader := bufio.NewReader(os.Stdin)
 		// the browser shows it as well (and Sergio wants to see it ;)
 		otp, _, err := reader.ReadLine()
 		if err != nil {
-			return nil, err
+			return err
 		}
-		return store.RequestStoreToken(username, password, tokenName, string(otp))
+		_, err = cli.Login(username, password, string(otp))
+		return err
 	}
 
-	return token, err
+	return err
 }
 
 func (x *cmdLogin) Execute(args []string) error {
-	const tokenName = "snappy login token"
-
 	username := x.Positional.UserName
 	fmt.Print(i18n.G("Password: "))
 	password, err := terminal.ReadPassword(0)
@@ -82,11 +83,11 @@ func (x *cmdLogin) Execute(args []string) error {
 		return err
 	}
 
-	token, err := requestStoreTokenWith2faRetry(username, string(password), tokenName)
+	err = requestLoginWith2faRetry(username, string(password))
 	if err != nil {
 		return err
 	}
 	fmt.Println(i18n.G("Login successful"))
 
-	return store.WriteStoreToken(*token)
+	return nil
 }
