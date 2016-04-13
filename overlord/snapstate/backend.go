@@ -20,7 +20,6 @@
 package snapstate
 
 import (
-	"fmt"
 	"path/filepath"
 	"strconv"
 
@@ -43,7 +42,7 @@ type managerBackend interface {
 	UndoCopySnapData(instSnapPath string, flags int) error
 
 	// remove releated
-	CanRemove(instSnapPath string) error
+	CanRemove(info *snap.Info, active bool) bool
 	UnlinkSnap(info *snap.Info, meter progress.Meter) error
 	RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error
 	RemoveSnapData(name string, revision int) error
@@ -138,15 +137,8 @@ func (b *defaultBackend) UndoCopySnapData(instSnapPath string, flags int) error 
 	return nil
 }
 
-func (b *defaultBackend) CanRemove(instSnapPath string) error {
-	sn, err := snappy.NewInstalledSnap(filepath.Join(instSnapPath, "meta", "snap.yaml"))
-	if err != nil {
-		return err
-	}
-	if !snappy.CanRemove(sn) {
-		return fmt.Errorf("snap %q is not removable", sn.Name())
-	}
-	return nil
+func (b *defaultBackend) CanRemove(info *snap.Info, active bool) bool {
+	return snappy.CanRemove(info, active)
 }
 
 func (b *defaultBackend) UnlinkSnap(info *snap.Info, meter progress.Meter) error {

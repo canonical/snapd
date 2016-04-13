@@ -542,20 +542,20 @@ func checkLicenseAgreement(s *snap.Info, snapf snap.File, cur *snap.Info, ag agr
 	return nil
 }
 
-func CanRemove(s *Snap) bool {
+func CanRemove(s *snap.Info, active bool) bool {
 	// Gadget snaps should not be removed as they are a key
 	// building block for Gadgets. Prunning non active ones
 	// is acceptible.
-	if s.m.Type == snap.TypeGadget && s.IsActive() {
+	if s.Type == snap.TypeGadget && active {
 		return false
 	}
 
 	// You never want to remove an active kernel or OS
-	if (s.m.Type == snap.TypeKernel || s.m.Type == snap.TypeOS) && s.IsActive() {
+	if (s.Type == snap.TypeKernel || s.Type == snap.TypeOS) && active {
 		return false
 	}
 
-	if IsBuiltInSoftware(s.Name()) && s.IsActive() {
+	if IsBuiltInSoftware(s.Name()) && active {
 		return false
 	}
 	return true
@@ -607,7 +607,7 @@ func RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error {
 //
 // It returns an error on failure
 func (o *Overlord) Uninstall(s *Snap, meter progress.Meter) error {
-	if !CanRemove(s) {
+	if !CanRemove(s.Info(), s.IsActive()) {
 		return ErrPackageNotRemovable
 	}
 

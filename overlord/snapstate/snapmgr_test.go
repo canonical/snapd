@@ -636,8 +636,9 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 	c.Assert(s.fakeBackend.ops, HasLen, 4)
 	expected := []fakeOp{
 		fakeOp{
-			op:   "can-remove",
-			name: "/snap/some-snap/7",
+			op:     "can-remove",
+			name:   "/snap/some-snap/7",
+			active: true,
 		},
 		fakeOp{
 			op:   "unlink-snap",

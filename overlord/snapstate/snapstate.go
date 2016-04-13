@@ -148,7 +148,9 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
-	if snapst.Current() == nil {
+
+	cur := snapst.Current()
+	if cur == nil {
 		return nil, fmt.Errorf("cannot find snap %q", name)
 	}
 
@@ -169,8 +171,13 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 	}
 
 	// removing active?
-	if snapst.Active && snapst.Current().Revision == revision {
+	if snapst.Active && cur.Revision == revision {
 		active = true
+	}
+
+	info, err := Info(s, name, revision)
+	if err != nil {
+		return nil, err
 	}
 
 	ss := SnapSetup{
@@ -179,9 +186,10 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 		Revision:  revision,
 		Flags:     int(flags),
 	}
+
 	// check if this is something that can be removed
-	if err := backend.CanRemove(ss.MountDir()); err != nil {
-		return nil, err
+	if !backend.CanRemove(info, active) {
+		return nil, fmt.Errorf("snap %q is not removable", ss.Name)
 	}
 
 	// trigger remove
