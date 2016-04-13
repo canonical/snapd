@@ -81,12 +81,16 @@ func (s *snapmgrTestSuite) TearDownTest(c *C) {
 	s.reset()
 }
 
-func verifyInstallUpdateTasks(c *C, ts *state.TaskSet) {
+func verifyInstallUpdateTasks(c *C, ts *state.TaskSet, st *state.State) {
 	i := 0
-	c.Assert(ts.Tasks(), HasLen, 5)
+	c.Assert(ts.Tasks(), HasLen, 6)
+	// all tasks are accounted
+	c.Assert(st.Tasks(), HasLen, 6)
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "download-snap")
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "mount-snap")
+	i++
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "unlink-current-snap")
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "copy-snap-data")
 	i++
@@ -101,7 +105,7 @@ func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
 
 	ts, err := snapstate.Install(s.state, "some-snap", "some-channel", 0)
 	c.Assert(err, IsNil)
-	verifyInstallUpdateTasks(c, ts)
+	verifyInstallUpdateTasks(c, ts, s.state)
 }
 
 func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
@@ -114,7 +118,7 @@ func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
 
 	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", 0)
 	c.Assert(err, IsNil)
-	verifyInstallUpdateTasks(c, ts)
+	verifyInstallUpdateTasks(c, ts, s.state)
 }
 
 func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
@@ -129,7 +133,9 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 	c.Assert(err, IsNil)
 
 	i := 0
-	c.Assert(ts.Tasks(), HasLen, 4)
+	c.Assert(ts.Tasks(), HasLen, 5)
+	// all tasks are accounted
+	c.Assert(s.state.Tasks(), HasLen, 5)
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "unlink-snap")
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "remove-snap-security")
@@ -314,6 +320,25 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 
 		SnapPath: "downloaded-snap-path",
 	})
+
+	// verify snaps in the system state
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+
+	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Candidate, IsNil)
+	c.Assert(snapst.Sequence, HasLen, 2)
+	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
+		OfficialName: "some-snap",
+		Channel:      "",
+		Revision:     7,
+	})
+	c.Assert(snapst.Sequence[1], DeepEquals, &snap.SideInfo{
+		OfficialName: "some-snap",
+		Channel:      "some-channel",
+		Revision:     11,
+	})
 }
 
 func makeTestSnap(c *C, snapYamlContent string) (snapFilePath string) {
@@ -366,6 +391,19 @@ version: 1.0`)
 		Revision: 0,
 		SnapPath: mockSnap,
 	})
+
+	// verify snaps in the system state
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "mock", &snapst)
+	c.Assert(err, IsNil)
+
+	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Candidate, IsNil)
+	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
+		OfficialName: "", // XXX: do we want this state of things?
+		Channel:      "",
+		Revision:     0,
+	})
 }
 
 func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
@@ -387,7 +425,7 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 	})
 
 	chg := s.state.NewChange("remove", "remove a snap")
-	ts, err := snapstate.Remove(s.state, "some-snap.mvo", 0)
+	ts, err := snapstate.Remove(s.state, "some-snap", 0)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -425,10 +463,18 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
 		Name:      "some-snap",
-		Developer: "mvo",
+		Developer: "",
 		Revision:  7,
 	})
 
+	// verify snaps in the system state
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+
+	c.Assert(snapst.Sequence, HasLen, 0)
+	c.Assert(snapst.Active, Equals, false)
+	c.Assert(snapst.Candidate, IsNil)
 }
 
 func (s *snapmgrTestSuite) TestRollbackIntegration(c *C) {

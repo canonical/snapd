@@ -166,9 +166,11 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 	removeFiles.Set("snap-setup-task", unlink.ID())
 	removeFiles.WaitFor(removeData)
 
-	// XXX: need a task to forget the snap
+	forget := s.NewTask("forget-snap", fmt.Sprintf(i18n.G("Forgetting removed revision of %q"), snapSpec))
+	forget.Set("snap-setup-task", unlink.ID())
+	forget.WaitFor(removeFiles)
 
-	return state.NewTaskSet(unlink, removeSecurity, removeData, removeFiles), nil
+	return state.NewTaskSet(unlink, removeSecurity, removeData, removeFiles, forget), nil
 }
 
 // Rollback returns a set of tasks for rolling back a snap.
