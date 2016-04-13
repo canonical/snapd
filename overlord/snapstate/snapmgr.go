@@ -107,7 +107,6 @@ func Manager(s *state.State) (*SnapManager, error) {
 	runner.AddHandler("unlink-snap", m.doUnlinkSnap, nil)
 	runner.AddHandler("clear-snap", m.doClearSnapData, nil)
 	runner.AddHandler("discard-snap", m.doDiscardSnap, nil)
-	runner.AddHandler("forget-snap", m.doForgetSnap, nil)
 
 	// FIXME: work on those
 	runner.AddHandler("rollback-snap", m.doRollbackSnap, nil)
@@ -238,38 +237,16 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
-	t.State().Lock()
-	ss, err := TaskSnapSetup(t)
-	t.State().Unlock()
-	if err != nil {
-		return err
-	}
-
-	pb := &TaskProgressAdapter{task: t}
-	return m.backend.RemoveSnapFiles(ss.placeInfo(), pb)
-}
-
-func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
-	t.State().Lock()
-	ss, err := TaskSnapSetup(t)
-	t.State().Unlock()
-	if err != nil {
-		return err
-	}
-
-	return m.backend.RemoveSnapData(ss.Name, ss.Revision)
-}
-
-func (m *SnapManager) doForgetSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
-	st.Lock()
-	defer st.Unlock()
 
+	st.Lock()
 	ss, snapst, err := snapSetupAndState(t)
+	st.Unlock()
 	if err != nil {
 		return err
 	}
 
+	st.Lock()
 	if len(snapst.Sequence) == 1 {
 		snapst.Sequence = nil
 	} else {
@@ -283,9 +260,29 @@ func (m *SnapManager) doForgetSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 		snapst.Sequence = newSeq
 	}
+	st.Unlock()
 
+	pb := &TaskProgressAdapter{task: t}
+	err = m.backend.RemoveSnapFiles(ss.placeInfo(), pb)
+	if err != nil {
+		return err
+	}
+
+	st.Lock()
 	Set(st, ss.Name, snapst)
+	st.Unlock()
 	return nil
+}
+
+func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
+	t.State().Lock()
+	ss, err := TaskSnapSetup(t)
+	t.State().Unlock()
+	if err != nil {
+		return err
+	}
+
+	return m.backend.RemoveSnapData(ss.Name, ss.Revision)
 }
 
 func (m *SnapManager) doRollbackSnap(t *state.Task, _ *tomb.Tomb) error {
