@@ -20,10 +20,6 @@
 package snapstate
 
 import (
-	"path/filepath"
-	"strconv"
-
-	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
@@ -36,16 +32,15 @@ type managerBackend interface {
 	SetupSnap(snapFilePath string, si *snap.SideInfo, flags int) error
 	CopySnapData(newSnap, oldSnap *snap.Info, flags int) error
 	LinkSnap(info *snap.Info) error
-	GarbageCollect(snap string, flags int, meter progress.Meter) error
 	// the undoers for install
 	UndoSetupSnap(s snap.PlaceInfo) error
-	UndoCopySnapData(instSnapPath string, flags int) error
+	UndoCopySnapData(newSnap *snap.Info, flags int) error
 
 	// remove releated
 	CanRemove(info *snap.Info, active bool) bool
 	UnlinkSnap(info *snap.Info, meter progress.Meter) error
 	RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error
-	RemoveSnapData(name string, revision int) error
+	RemoveSnapData(info *snap.Info) error
 
 	// TODO: need to be split into fine grained tasks
 	Activate(name string, active bool, meter progress.Meter) error
@@ -127,13 +122,9 @@ func (b *defaultBackend) UndoSetupSnap(s snap.PlaceInfo) error {
 	return nil
 }
 
-func (b *defaultBackend) UndoCopySnapData(instSnapPath string, flags int) error {
-	sn, err := snappy.NewInstalledSnap(filepath.Join(instSnapPath, "meta", "snap.yaml"))
-	if err != nil {
-		return err
-	}
+func (b *defaultBackend) UndoCopySnapData(newInfo *snap.Info, flags int) error {
 	meter := &progress.NullProgress{}
-	snappy.UndoCopyData(sn.Info(), snappy.InstallFlags(flags), meter)
+	snappy.UndoCopyData(newInfo, snappy.InstallFlags(flags), meter)
 	return nil
 }
 
@@ -149,16 +140,6 @@ func (b *defaultBackend) RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter)
 	return snappy.RemoveSnapFiles(s, meter)
 }
 
-func (b *defaultBackend) RemoveSnapData(name string, revision int) error {
-	// XXX: hack for now
-	sn, err := snappy.NewInstalledSnap(filepath.Join(dirs.SnapSnapsDir, name, strconv.Itoa(revision), "meta", "snap.yaml"))
-	if err != nil {
-		return err
-	}
-
-	return snappy.RemoveSnapData(sn.Info())
-}
-
-func (b *defaultBackend) GarbageCollect(snap string, flags int, meter progress.Meter) error {
-	return snappy.GarbageCollect(snap, snappy.InstallFlags(flags), meter)
+func (b *defaultBackend) RemoveSnapData(info *snap.Info) error {
+	return snappy.RemoveSnapData(info)
 }

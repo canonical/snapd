@@ -236,6 +236,24 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
+	t.State().Lock()
+	ss, err := TaskSnapSetup(t)
+	t.State().Unlock()
+	if err != nil {
+		return err
+	}
+
+	t.State().Lock()
+	info, err := Info(t.State(), ss.Name, ss.Revision)
+	t.State().Unlock()
+	if err != nil {
+		return err
+	}
+
+	return m.backend.RemoveSnapData(info)
+}
+
 func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 
@@ -272,17 +290,6 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	Set(st, ss.Name, snapst)
 	st.Unlock()
 	return nil
-}
-
-func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
-	t.State().Lock()
-	ss, err := TaskSnapSetup(t)
-	t.State().Unlock()
-	if err != nil {
-		return err
-	}
-
-	return m.backend.RemoveSnapData(ss.Name, ss.Revision)
 }
 
 func (m *SnapManager) doRollbackSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -474,13 +481,18 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 
 func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	t.State().Lock()
-	ss, err := TaskSnapSetup(t)
+	ss, snapst, err := snapSetupAndState(t)
 	t.State().Unlock()
 	if err != nil {
 		return err
 	}
 
-	return m.backend.UndoCopySnapData(ss.MountDir(), ss.Flags)
+	newInfo, err := retrieveInfo(ss.Name, snapst.Candidate)
+	if err != nil {
+		return err
+	}
+
+	return m.backend.UndoCopySnapData(newInfo, ss.Flags)
 }
 
 func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
@@ -586,16 +598,4 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	// mark as inactive
 	Set(st, ss.Name, snapst)
 	return nil
-}
-
-func (m *SnapManager) doGarbageCollect(t *state.Task, _ *tomb.Tomb) error {
-	t.State().Lock()
-	ss, err := TaskSnapSetup(t)
-	t.State().Unlock()
-	if err != nil {
-		return err
-	}
-
-	pb := &TaskProgressAdapter{task: t}
-	return m.backend.GarbageCollect(ss.Name, ss.Flags, pb)
 }
