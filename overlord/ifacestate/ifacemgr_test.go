@@ -249,6 +249,22 @@ plugs:
   interface: network
 `
 
+var consumerYaml = `
+name: consumer
+version: 1
+plugs:
+ plug:
+  interface: test
+`
+
+var producerYaml = `
+name: producer
+version: 1
+slots:
+ slot:
+  interface: test
+`
+
 func (s *interfaceManagerSuite) TestDoSetupSnapSecuirty(c *C) {
 	s.mockSnap(c, osSnapYaml)
 	snapInfo := s.mockSnap(c, sampleSnapYaml)
@@ -309,4 +325,74 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyKeepsExistingConnectionSt
 			"interface": "network", "auto": true,
 		},
 	})
+}
+
+func (s *interfaceManagerSuite) TestConnectTracksConnectionsInState(c *C) {
+	repo := s.mgr.Repository()
+	err := repo.AddInterface(&interfaces.TestInterface{InterfaceName: "test"})
+	c.Assert(err, IsNil)
+
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
+	c.Assert(err, IsNil)
+	change := s.state.NewChange("connect", "")
+	change.AddAll(ts)
+	s.state.Unlock()
+
+	s.mgr.Ensure()
+	s.mgr.Wait()
+	s.mgr.Stop()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(change.Status(), Equals, state.DoneStatus)
+	var conns map[string]interface{}
+	err = s.state.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface": "test",
+		},
+	})
+}
+
+func (s *interfaceManagerSuite) TestDisconnectTracksConnectionsInState(c *C) {
+	repo := s.mgr.Repository()
+	err := repo.AddInterface(&interfaces.TestInterface{InterfaceName: "test"})
+	c.Assert(err, IsNil)
+
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
+	})
+	err = s.mgr.Repository().Connect("consumer", "plug", "producer", "slot")
+	c.Assert(err, IsNil)
+	s.state.Unlock()
+
+	s.state.Lock()
+	ts, err := ifacestate.Disconnect(s.state, "consumer", "plug", "producer", "slot")
+	c.Assert(err, IsNil)
+	change := s.state.NewChange("disconnect", "")
+	change.AddAll(ts)
+	s.state.Unlock()
+
+	s.mgr.Ensure()
+	s.mgr.Wait()
+	s.mgr.Stop()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(change.Status(), Equals, state.DoneStatus)
+	var conns map[string]interface{}
+	err = s.state.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, map[string]interface{}{})
 }
