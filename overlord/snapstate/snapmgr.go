@@ -98,6 +98,7 @@ func Manager(s *state.State) (*SnapManager, error) {
 	runner.AddHandler("unlink-snap", m.doUnlinkSnap, nil)
 	runner.AddHandler("remove-snap-files", m.doRemoveSnapFiles, nil)
 	runner.AddHandler("remove-snap-data", m.doRemoveSnapData, nil)
+	runner.AddHandler("forget-snap", m.doForgetSnap, nil)
 
 	// FIXME: work on those
 	runner.AddHandler("rollback-snap", m.doRollbackSnap, nil)
@@ -195,13 +196,16 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
-	var ss SnapSetup
-
 	t.State().Lock()
-	err := t.Get("snap-setup", &ss)
+	ss, snapst, err := snapSetupAndState(t)
 	t.State().Unlock()
 	if err != nil {
 		return err
+	}
+
+	// XXX: do it only if ss.Revision is active
+	if !snapst.Active {
+		return nil
 	}
 
 	t.State().Lock()
@@ -212,7 +216,17 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	pb := &TaskProgressAdapter{task: t}
-	return m.backend.UnlinkSnap(info, pb)
+	err = m.backend.UnlinkSnap(info, pb)
+	if err != nil {
+		return err
+	}
+
+	// mark as inactive
+	snapst.Active = false
+	t.State().Lock()
+	Set(t.State(), ss.Name, snapst)
+	t.State().Unlock()
+	return nil
 }
 
 func (m *SnapManager) doRemoveSnapFiles(t *state.Task, _ *tomb.Tomb) error {
@@ -236,6 +250,34 @@ func (m *SnapManager) doRemoveSnapData(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	return m.backend.RemoveSnapData(ss.Name, ss.Revision)
+}
+
+func (m *SnapManager) doForgetSnap(t *state.Task, _ *tomb.Tomb) error {
+	t.State().Lock()
+	ss, snapst, err := snapSetupAndState(t)
+	t.State().Unlock()
+	if err != nil {
+		return err
+	}
+
+	if len(snapst.Sequence) == 1 {
+		snapst.Sequence = nil
+	} else {
+		newSeq := make([]*snap.SideInfo, 0, len(snapst.Sequence))
+		for _, si := range snapst.Sequence {
+			if si.Revision == ss.Revision {
+				// leave out
+				continue
+			}
+			newSeq = append(newSeq, si)
+		}
+		snapst.Sequence = newSeq
+	}
+
+	t.State().Lock()
+	Set(t.State(), ss.Name, snapst)
+	t.State().Unlock()
+	return nil
 }
 
 func (m *SnapManager) doRollbackSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -373,7 +415,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	var oldInfo *snap.Info
 	if len(snapst.Sequence) > 0 {
 		latest := snapst.Sequence[len(snapst.Sequence)-1]
-		// XXX: more effiecient way, we have the sideinfo
+		// XXX: more efficient way, we have the sideinfo
 		var err error
 		t.State().Lock()
 		oldInfo, err = Info(t.State(), ss.Name, latest.Revision)
@@ -386,6 +428,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}
 
+	// XXX: set active again if it was active in the first place
 	return m.backend.LinkSnap(oldInfo)
 }
 
@@ -398,9 +441,9 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	var oldInfo *snap.Info
-	if len(snapst.Sequence) > 0 {
+	if snapst.Active && len(snapst.Sequence) > 0 {
 		latest := snapst.Sequence[len(snapst.Sequence)-1]
-		// XXX: more effiecient way, we have the sideinfo
+		// XXX: more efficient way, we have the sideinfo
 		var err error
 		t.State().Lock()
 		oldInfo, err = Info(t.State(), ss.Name, latest.Revision)
@@ -413,6 +456,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}
 
+	// XXX: unset active but how can we know whether it was active in undo?
 	pb := &TaskProgressAdapter{task: t}
 	return m.backend.UnlinkSnap(oldInfo, pb)
 }
@@ -436,7 +480,7 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// XXX: more effiecient way, we know we want candidate
+	// XXX: more efficient way, we know we want candidate
 	t.State().Lock()
 	newInfo, err := Info(t.State(), ss.Name, ss.Revision)
 	t.State().Unlock()
@@ -447,7 +491,7 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	var oldInfo *snap.Info
 	if len(snapst.Sequence) > 0 {
 		latest := snapst.Sequence[len(snapst.Sequence)-1]
-		// XXX: more effiecient way, we have the sideinfo
+		// XXX: more efficient way, we have the sideinfo
 		var err error
 		t.State().Lock()
 		oldInfo, err = Info(t.State(), ss.Name, latest.Revision)
@@ -515,6 +559,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	// XXX: unset active
 	pb := &TaskProgressAdapter{task: t}
 	return m.backend.UnlinkSnap(newInfo, pb)
 }
