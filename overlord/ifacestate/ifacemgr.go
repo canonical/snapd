@@ -23,6 +23,7 @@ package ifacestate
 
 import (
 	"fmt"
+	"strings"
 
 	"gopkg.in/tomb.v2"
 
@@ -51,26 +52,13 @@ type InterfaceManager struct {
 // Manager returns a new InterfaceManager.
 // Extra interfaces can be provided for testing.
 func Manager(s *state.State, extra []interfaces.Interface) (*InterfaceManager, error) {
-	repo := interfaces.NewRepository()
-	for _, iface := range builtin.Interfaces() {
-		if err := repo.AddInterface(iface); err != nil {
-			return nil, err
-		}
-	}
-	for _, iface := range extra {
-		if err := repo.AddInterface(iface); err != nil {
-			return nil, err
-		}
-	}
 	runner := state.NewTaskRunner(s)
 	m := &InterfaceManager{
 		state:  s,
 		runner: runner,
-		repo:   repo,
+		repo:   interfaces.NewRepository(),
 	}
-	s.Lock()
-	defer s.Unlock()
-	if err := m.addSnaps(); err != nil {
+	if err := m.initialize(extra); err != nil {
 		return nil, err
 	}
 	runner.AddHandler("connect", m.doConnect, nil)
@@ -78,6 +66,36 @@ func Manager(s *state.State, extra []interfaces.Interface) (*InterfaceManager, e
 	runner.AddHandler("setup-snap-security", m.doSetupSnapSecurity, m.doRemoveSnapSecurity)
 	runner.AddHandler("remove-snap-security", m.doRemoveSnapSecurity, m.doSetupSnapSecurity)
 	return m, nil
+}
+
+func (m *InterfaceManager) initialize(extra []interfaces.Interface) error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if err := m.addInterfaces(extra); err != nil {
+		return err
+	}
+	if err := m.addSnaps(); err != nil {
+		return err
+	}
+	if err := m.reloadConnections(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *InterfaceManager) addInterfaces(extra []interfaces.Interface) error {
+	for _, iface := range builtin.Interfaces() {
+		if err := m.repo.AddInterface(iface); err != nil {
+			return err
+		}
+	}
+	for _, iface := range extra {
+		if err := m.repo.AddInterface(iface); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (m *InterfaceManager) addSnaps() error {
@@ -89,6 +107,24 @@ func (m *InterfaceManager) addSnaps() error {
 		snap.AddImplicitSlots(snapInfo)
 		if err := m.repo.AddSnap(snapInfo); err != nil {
 			logger.Noticef("%s", err)
+		}
+	}
+	return nil
+}
+
+func (m *InterfaceManager) reloadConnections() error {
+	conns, err := getConns(m.state)
+	if err != nil {
+		return err
+	}
+	for id := range conns {
+		plugRef, slotRef, err := parseConnID(id)
+		if err != nil {
+			return err
+		}
+		err = m.repo.Connect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
+		if err != nil {
+			return err
 		}
 	}
 	return nil
@@ -161,6 +197,21 @@ type connState struct {
 
 func connID(plug *interfaces.PlugRef, slot *interfaces.SlotRef) string {
 	return fmt.Sprintf("%s:%s %s:%s", plug.Snap, plug.Name, slot.Snap, slot.Name)
+}
+
+func parseConnID(conn string) (*interfaces.PlugRef, *interfaces.SlotRef, error) {
+	parts := strings.SplitN(conn, " ", 2)
+	if len(parts) != 2 {
+		return nil, nil, fmt.Errorf("malformed connection identifier: %q", conn)
+	}
+	plugParts := strings.SplitN(parts[0], ":", 2)
+	slotParts := strings.SplitN(parts[1], ":", 2)
+	if len(plugParts) != 2 || len(slotParts) != 2 {
+		return nil, nil, fmt.Errorf("malformed connection identifier: %q", conn)
+	}
+	plugRef := &interfaces.PlugRef{Snap: plugParts[0], Name: plugParts[1]}
+	slotRef := &interfaces.SlotRef{Snap: slotParts[0], Name: slotParts[1]}
+	return plugRef, slotRef, nil
 }
 
 func (m *InterfaceManager) autoConnect(task *state.Task, snapName string) error {
