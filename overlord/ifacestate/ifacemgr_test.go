@@ -194,12 +194,6 @@ func (s *interfaceManagerSuite) TestEnsureProcessesDisconnectTask(c *C) {
 	c.Assert(slot.Connections, HasLen, 0)
 }
 
-func (s *interfaceManagerSuite) addPlugSlotAndInterface(c *C) {
-	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
-	s.mockSnap(c, consumerYaml)
-	s.mockSnap(c, producerYaml)
-}
-
 func (s *interfaceManagerSuite) mockIface(c *C, iface interfaces.Interface) {
 	s.extraIfaces = append(s.extraIfaces, iface)
 }
