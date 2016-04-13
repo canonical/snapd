@@ -52,24 +52,13 @@ type InterfaceManager struct {
 // Manager returns a new InterfaceManager.
 // Extra interfaces can be provided for testing.
 func Manager(s *state.State, extra []interfaces.Interface) (*InterfaceManager, error) {
-	repo := interfaces.NewRepository()
-	for _, iface := range builtin.Interfaces() {
-		if err := repo.AddInterface(iface); err != nil {
-			return nil, err
-		}
-	}
-	for _, iface := range extra {
-		if err := repo.AddInterface(iface); err != nil {
-			return nil, err
-		}
-	}
 	runner := state.NewTaskRunner(s)
 	m := &InterfaceManager{
 		state:  s,
 		runner: runner,
-		repo:   repo,
+		repo:   interfaces.NewRepository(),
 	}
-	if err := m.initialize(); err != nil {
+	if err := m.initialize(extra); err != nil {
 		return nil, err
 	}
 	runner.AddHandler("connect", m.doConnect, nil)
@@ -79,15 +68,32 @@ func Manager(s *state.State, extra []interfaces.Interface) (*InterfaceManager, e
 	return m, nil
 }
 
-func (m *InterfaceManager) initialize() error {
+func (m *InterfaceManager) initialize(extra []interfaces.Interface) error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
+	if err := m.addInterfaces(extra); err != nil {
+		return err
+	}
 	if err := m.addSnaps(); err != nil {
 		return err
 	}
 	if err := m.reloadConnections(); err != nil {
 		return err
+	}
+	return nil
+}
+
+func (m *InterfaceManager) addInterfaces(extra []interfaces.Interface) error {
+	for _, iface := range builtin.Interfaces() {
+		if err := m.repo.AddInterface(iface); err != nil {
+			return err
+		}
+	}
+	for _, iface := range extra {
+		if err := m.repo.AddInterface(iface); err != nil {
+			return err
+		}
 	}
 	return nil
 }
