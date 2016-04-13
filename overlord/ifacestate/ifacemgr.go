@@ -23,6 +23,7 @@ package ifacestate
 
 import (
 	"fmt"
+	"strings"
 
 	"gopkg.in/tomb.v2"
 
@@ -161,6 +162,21 @@ type connState struct {
 
 func connID(plug *interfaces.PlugRef, slot *interfaces.SlotRef) string {
 	return fmt.Sprintf("%s:%s %s:%s", plug.Snap, plug.Name, slot.Snap, slot.Name)
+}
+
+func parseConnID(conn string) (*interfaces.PlugRef, *interfaces.SlotRef, error) {
+	parts := strings.SplitN(conn, " ", 2)
+	if len(parts) != 2 {
+		return nil, nil, fmt.Errorf("malformed connection identifier: %q", conn)
+	}
+	plugParts := strings.SplitN(parts[0], ":", 2)
+	slotParts := strings.SplitN(parts[1], ":", 2)
+	if len(plugParts) != 2 || len(slotParts) != 2 {
+		return nil, nil, fmt.Errorf("malformed connection identifier: %q", conn)
+	}
+	plugRef := &interfaces.PlugRef{Snap: plugParts[0], Name: plugParts[1]}
+	slotRef := &interfaces.SlotRef{Snap: slotParts[0], Name: slotParts[1]}
+	return plugRef, slotRef, nil
 }
 
 func (m *InterfaceManager) autoConnect(task *state.Task, snapName string) error {
