@@ -90,6 +90,7 @@ func (s *apiSuite) TearDownSuite(c *check.C) {
 	newRemoteRepo = nil
 	muxVars = nil
 	snapstateInstall = snapstate.Install
+	snapstateGet = snapstate.Get
 }
 
 func (s *apiSuite) SetUpTest(c *check.C) {
@@ -361,6 +362,7 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"pkgActionDispatch",
 		// snapInstruction vars:
 		"snapstateInstall",
+		"snapstateGet",
 		"getConfigurator",
 	}
 	c.Check(found, check.Equals, len(api)+len(exceptions),
@@ -1284,9 +1286,15 @@ func (s *apiSuite) TestPkgInstructionMismatch(c *check.C) {
 
 func (s *apiSuite) TestInstall(c *check.C) {
 	calledFlags := snappy.InstallFlags(42)
+	installQueue := []string{}
 
+	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
+		// we have ubuntu-core
+		return nil
+	}
 	snapstateInstall = func(s *state.State, name, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
 		calledFlags = flags
+		installQueue = append(installQueue, name)
 
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
 		return state.NewTaskSet(t), nil
@@ -1296,6 +1304,7 @@ func (s *apiSuite) TestInstall(c *check.C) {
 	inst := &snapInstruction{
 		overlord: d.overlord,
 		Action:   "install",
+		pkg:      "some-snap",
 	}
 
 	d.overlord.Loop()
@@ -1304,6 +1313,41 @@ func (s *apiSuite) TestInstall(c *check.C) {
 
 	c.Check(calledFlags, check.Equals, snappy.DoInstallGC)
 	c.Check(err, check.IsNil)
+	c.Check(installQueue, check.DeepEquals, []string{"some-snap"})
+}
+
+func (s *apiSuite) TestInstallMissingUbuntuCore(c *check.C) {
+	installQueue := []*state.Task{}
+
+	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
+		// pretend we do not have a state for ubuntu-core
+		return state.ErrNoState
+	}
+	snapstateInstall = func(s *state.State, name, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
+		t := s.NewTask("fake-install-snap", name)
+		installQueue = append(installQueue, t)
+		return state.NewTaskSet(t), nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{
+		overlord: d.overlord,
+		Action:   "install",
+		pkg:      "some-snap",
+	}
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+	err := inst.dispatch()()
+	c.Check(err, check.IsNil)
+
+	d.overlord.State().Lock()
+	defer d.overlord.State().Unlock()
+	c.Check(installQueue, check.HasLen, 2)
+	c.Check(installQueue[0].Summary(), check.Equals, "some-snap")
+	c.Check(installQueue[0].WaitTasks(), check.Not(check.HasLen), 0)
+	c.Check(installQueue[1].Summary(), check.Equals, "ubuntu-core")
+	c.Check(installQueue[1].WaitTasks(), check.HasLen, 0)
 }
 
 func (s *apiSuite) TestInstallFails(c *check.C) {

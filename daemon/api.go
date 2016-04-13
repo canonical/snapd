@@ -565,6 +565,7 @@ func (inst *snapInstruction) Agreed(intro, license string) bool {
 }
 
 var snapstateInstall = snapstate.Install
+var snapstateGet = snapstate.Get
 
 func waitChange(chg *state.Change) error {
 	select {
@@ -577,27 +578,53 @@ func waitChange(chg *state.Change) error {
 	return chg.Err()
 }
 
+func ensureUbuntuCore(st *state.State, chg *state.Change, other *state.TaskSet) error {
+	var ss snapstate.SnapState
+	var lastCoreTask *state.Task
+
+	ubuntuCore := "ubuntu-core"
+	err := snapstateGet(st, ubuntuCore, &ss)
+	if err != state.ErrNoState {
+		return nil
+	}
+
+	ts, err := snapstateInstall(st, ubuntuCore, "stable", 0)
+	if err != nil {
+		return err
+	}
+	chg.AddAll(ts)
+
+	tl := ts.Tasks()
+	lastCoreTask = tl[len(tl)-1]
+	other.WaitFor(lastCoreTask)
+	return nil
+}
+
 func (inst *snapInstruction) install() interface{} {
 	flags := snappy.DoInstallGC
 	if inst.LeaveOld {
 		flags = 0
 	}
-	state := inst.overlord.State()
-	state.Lock()
+	st := inst.overlord.State()
+	st.Lock()
+
 	msg := fmt.Sprintf(i18n.G("Install %q snap"), inst.pkg)
 	if inst.Channel != "stable" {
 		msg = fmt.Sprintf(i18n.G("Install %q snap from %q channel"), inst.pkg, inst.Channel)
 	}
-	chg := state.NewChange("install-snap", msg)
-	ts, err := snapstateInstall(state, inst.pkg, inst.Channel, flags)
+	chg := st.NewChange("install-snap", msg)
+	ts, err := snapstateInstall(st, inst.pkg, inst.Channel, flags)
 	if err == nil {
+		if err := ensureUbuntuCore(st, chg, ts); err != nil {
+			return err
+		}
 		chg.AddAll(ts)
 	}
-	state.Unlock()
+	st.Unlock()
 	if err != nil {
 		return err
 	}
-	state.EnsureBefore(0)
+	st.EnsureBefore(0)
 	err = waitChange(chg)
 	return err
 	// FIXME: handle license agreement need to happen in the above
