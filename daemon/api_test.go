@@ -2091,7 +2091,7 @@ func (s *apiSuite) TestGetEvents(c *check.C) {
 	c.Assert(d.hub.SubscriberCount(), check.Equals, 1)
 }
 
-func setupChanges(st *state.State) {
+func setupChanges(st *state.State) []string {
 	chg1 := st.NewChange("install", "install...")
 	t1 := st.NewTask("download", "1...")
 	t2 := st.NewTask("activate", "2...")
@@ -2103,6 +2103,8 @@ func setupChanges(st *state.State) {
 	chg2.AddTask(t3)
 	t3.SetStatus(state.ErrorStatus)
 	t3.Errorf("rm failed")
+
+	return []string{chg1.ID(), chg2.ID()}
 }
 
 func (s *apiSuite) TestStateChangesDefaultToInProgress(c *check.C) {
@@ -2198,4 +2200,50 @@ func (s *apiSuite) TestStateChangesReady(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"remove","summary":"remove..","status":"Error","tasks":\[{"kind":"unlink","summary":"1...","status":"Error","log":\["ERROR: rm failed"]}]}.*`)
+}
+
+func (s *apiSuite) TestStateChange(c *check.C) {
+	// Setup
+	d := newTestDaemon(c)
+	st := d.overlord.State()
+	st.Lock()
+	ids := setupChanges(st)
+	st.Unlock()
+	s.vars = map[string]string{"id": ids[0]}
+
+	// Execute
+	req, err := http.NewRequest("POST", "/v2/change/"+ids[0], nil)
+	c.Assert(err, check.IsNil)
+	rsp := getChange(stateChangeCmd, req).(*resp)
+	rec := httptest.NewRecorder()
+	rsp.ServeHTTP(rec, req)
+
+	// Verify
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.NotNil)
+
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body["result"], check.DeepEquals, map[string]interface{}{
+		"id":      ids[0],
+		"kind":    "install",
+		"summary": "install...",
+		"status":  "Do",
+		"tasks": []interface{}{
+			map[string]interface{}{
+				"kind":    "download",
+				"summary": "1...",
+				"status":  "Do",
+				"log":     []interface{}{"INFO: l11", "INFO: l12"},
+			},
+			map[string]interface{}{
+				"kind":    "activate",
+				"summary": "2...",
+				"status":  "Do",
+			},
+		},
+	})
 }

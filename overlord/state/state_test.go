@@ -275,7 +275,10 @@ func (ss *stateSuite) TestNewChangeAndChanges(c *C) {
 
 	for _, chg := range chgs {
 		c.Check(chg, Equals, expected[chg.ID()])
+		c.Check(st.Change(chg.ID()), Equals, chg)
 	}
+
+	c.Check(st.Change("no-such-id"), IsNil)
 }
 
 func (ss *stateSuite) TestNewChangeAndCheckpoint(c *C) {

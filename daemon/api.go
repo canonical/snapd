@@ -66,6 +66,7 @@ var api = []*Command{
 	assertsCmd,
 	assertsFindManyCmd,
 	eventsCmd,
+	stateChangeCmd,
 	stateChangesCmd,
 }
 
@@ -142,6 +143,12 @@ var (
 	eventsCmd = &Command{
 		Path: "/v2/events",
 		GET:  getEvents,
+	}
+
+	stateChangeCmd = &Command{
+		Path:   "/v2/changes/{id}",
+		UserOK: true,
+		GET:    getChange,
 	}
 
 	stateChangesCmd = &Command{
@@ -1026,6 +1033,42 @@ type taskInfo struct {
 	Log     []string `json:"log,omitempty"`
 }
 
+func change2changeInfo(chg *state.Change) *changeInfo {
+	chgInfo := &changeInfo{
+		ID:      chg.ID(),
+		Kind:    chg.Kind(),
+		Summary: chg.Summary(),
+		Status:  chg.Status().String(),
+	}
+	tasks := chg.Tasks()
+	taskInfos := make([]*taskInfo, len(tasks))
+	for j, t := range tasks {
+		taskInfo := &taskInfo{
+			Kind:    t.Kind(),
+			Summary: t.Summary(),
+			Status:  t.Status().String(),
+			Log:     t.Log(),
+		}
+		taskInfos[j] = taskInfo
+	}
+	chgInfo.Tasks = taskInfos
+
+	return chgInfo
+}
+
+func getChange(c *Command, r *http.Request) Response {
+	chID := muxVars(r)["id"]
+	state := c.d.overlord.State()
+	state.Lock()
+	defer state.Unlock()
+	chg := state.Change(chID)
+	if chg == nil {
+		return NotFound("unable to find change with id %q", chID)
+	}
+
+	return SyncResponse(change2changeInfo(chg))
+}
+
 func getChanges(c *Command, r *http.Request) Response {
 	query := r.URL.Query()
 	qselect := query.Get("select")
@@ -1053,25 +1096,8 @@ func getChanges(c *Command, r *http.Request) Response {
 		if !filter(chg) {
 			continue
 		}
-		chgInfo := &changeInfo{
-			ID:      chg.ID(),
-			Kind:    chg.Kind(),
-			Summary: chg.Summary(),
-			Status:  chg.Status().String(),
-		}
-		tasks := chg.Tasks()
-		taskInfos := make([]*taskInfo, len(tasks))
-		for j, t := range tasks {
-			taskInfo := &taskInfo{
-				Kind:    t.Kind(),
-				Summary: t.Summary(),
-				Status:  t.Status().String(),
-				Log:     t.Log(),
-			}
-			taskInfos[j] = taskInfo
-		}
-		chgInfo.Tasks = taskInfos
-		chgInfos = append(chgInfos, chgInfo)
+		chgInfos = append(chgInfos, change2changeInfo(chg))
 	}
+
 	return SyncResponse(chgInfos)
 }
