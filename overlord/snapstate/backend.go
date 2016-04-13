@@ -91,7 +91,7 @@ func (b *defaultBackend) Download(name, channel string, meter progress.Meter) (*
 
 func (b *defaultBackend) CheckSnap(snapFilePath string, curInfo *snap.Info, flags int) error {
 	meter := &progress.NullProgress{}
-	return snappy.CheckSnap(snapFilePath, snappy.InstallFlags(flags), meter)
+	return snappy.CheckSnap(snapFilePath, curInfo, snappy.InstallFlags(flags), meter)
 }
 
 func (b *defaultBackend) SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, flags int) error {

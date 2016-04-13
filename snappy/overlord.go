@@ -40,7 +40,7 @@ type Overlord struct {
 }
 
 // CheckSnap ensures that the snap can be installed
-func CheckSnap(snapFilePath string, flags InstallFlags, meter progress.Meter) error {
+func CheckSnap(snapFilePath string, curInfo *snap.Info, flags InstallFlags, meter progress.Meter) error {
 	allowGadget := (flags & AllowGadget) != 0
 	allowUnauth := (flags & AllowUnauthenticated) != 0
 
@@ -57,7 +57,7 @@ func CheckSnap(snapFilePath string, flags InstallFlags, meter progress.Meter) er
 	// This is done earlier in
 	// openSnapFile() to ensure that we do not mount/inspect
 	// potentially dangerous snaps
-	return canInstall(s, snapf, allowGadget, meter)
+	return canInstall(s, snapf, curInfo, allowGadget, meter)
 }
 
 // SetupSnap does prepare and mount the snap for further processing
@@ -396,7 +396,16 @@ func (o *Overlord) Install(snapFilePath string, flags InstallFlags, meter progre
 //
 // It returns the local snap file or an error
 func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideInfo, flags InstallFlags, meter progress.Meter) (sp *snap.Info, err error) {
-	if err := CheckSnap(snapFilePath, flags, meter); err != nil {
+	var oldInfo *snap.Info
+
+	if sideInfo != nil {
+		oldSnap := ActiveSnapByName(sideInfo.OfficialName)
+		if oldSnap != nil {
+			oldInfo = oldSnap.Info()
+		}
+	}
+
+	if err := CheckSnap(snapFilePath, oldInfo, flags, meter); err != nil {
 		return nil, err
 	}
 
@@ -419,13 +428,8 @@ func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideI
 	}
 
 	// we need this for later
-	oldSnap := currentSnap(newInfo)
 
-	var oldInfo *snap.Info
-
-	if oldSnap != nil {
-		oldInfo = oldSnap.Info()
-
+	if oldInfo != nil {
 		// we need to stop any services and make the commands unavailable
 		// so that copying data and later activating the new revision
 		// can work
@@ -476,7 +480,7 @@ func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideI
 }
 
 // CanInstall checks whether the Snap passes a series of tests required for installation
-func canInstall(s *snap.Info, snapf snap.File, allowGadget bool, inter interacter) error {
+func canInstall(s *snap.Info, snapf snap.File, curInfo *snap.Info, allowGadget bool, inter interacter) error {
 	// verify we have a valid architecture
 	if !arch.IsSupportedArchitecture(s.Architectures) {
 		return &ErrArchitectureNotSupported{s.Architectures}
@@ -495,14 +499,7 @@ func canInstall(s *snap.Info, snapf snap.File, allowGadget bool, inter interacte
 		}
 	}
 
-	// XXX: can be cleaner later
-	currSnap := currentSnap(s)
-	var curr *snap.Info
-	if currSnap != nil {
-		curr = currSnap.Info()
-	}
-
-	if err := checkLicenseAgreement(s, snapf, curr, inter); err != nil {
+	if err := checkLicenseAgreement(s, snapf, curInfo, inter); err != nil {
 		return err
 	}
 
