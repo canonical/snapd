@@ -54,7 +54,7 @@ func (client *Client) Login(username, password, otp string) (*AuthenticatedUser,
 	}
 
 	var user AuthenticatedUser
-	if err := client.doSync("POST", "/v2/login", nil, &body, &user); err != nil {
+	if _, err := client.doSync("POST", "/v2/login", nil, &body, &user); err != nil {
 		return nil, err
 	}
 
