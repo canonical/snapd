@@ -227,7 +227,7 @@ func (m *InterfaceManager) doRemoveSnapSecurity(task *state.Task, _ *tomb.Tomb) 
 	return nil
 }
 
-func securityBackendsForSnap(snapInfo *snap.Info) []interfaces.SecurityBackend {
+func securityBackendsForSnapImpl(snapInfo *snap.Info) []interfaces.SecurityBackend {
 	aaBackend := &apparmor.Backend{}
 	// TODO: Implement special provisions for apparmor and old-security when
 	// old-security becomes a real interface. When that happens we nee to call
@@ -236,6 +236,8 @@ func securityBackendsForSnap(snapInfo *snap.Info) []interfaces.SecurityBackend {
 	return []interfaces.SecurityBackend{
 		aaBackend, &seccomp.Backend{}, &dbus.Backend{}, &udev.Backend{}}
 }
+
+var securityBackendsForSnap = securityBackendsForSnapImpl
 
 // Connect returns a set of tasks for connecting an interface.
 //
