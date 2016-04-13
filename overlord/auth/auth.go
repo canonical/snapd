@@ -20,6 +20,7 @@
 package auth
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
 
@@ -103,9 +104,10 @@ func newMacaroonAuthenticator(macaroon string, discharges []string) *MacaroonAut
 
 // Authenticate will add the store expected Authorization header for macaroons
 func (ma *MacaroonAuthenticator) Authenticate(r *http.Request) {
-	value := fmt.Sprintf(`Macaroon root="%s"`, ma.Macaroon)
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, `Macaroon root="%s"`, ma.Macaroon)
 	for _, discharge := range ma.Discharges {
-		value = fmt.Sprintf(`%s, discharge="%s"`, value, discharge)
+		fmt.Fprintf(&buf, `, discharge="%s"`, discharge)
 	}
-	r.Header.Set("Authorization", value)
+	r.Header.Set("Authorization", buf.String())
 }
