@@ -297,9 +297,6 @@ func ActiveInfos(s *state.State) ([]*snap.Info, error) {
 		if !snapState.Active {
 			continue
 		}
-		if len(snapState.Sequence) == 0 {
-			continue // XXX: is this possible?
-		}
 		sideInfo := snapState.Sequence[len(snapState.Sequence)-1]
 		snapInfo, err := retrieveInfo(snapName, sideInfo)
 		if err != nil {
