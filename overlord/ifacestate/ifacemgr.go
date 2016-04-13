@@ -277,6 +277,20 @@ func getPlugAndSlotRefs(task *state.Task) (*interfaces.PlugRef, *interfaces.Slot
 	return &plugRef, &slotRef, nil
 }
 
+func getConns(task *state.Task) (map[string]connState, error) {
+	// Get information about connections from the state
+	var conns map[string]connState
+	err := task.State().Get("conns", &conns)
+	if err != nil && err != state.ErrNoState {
+		task.Errorf("cannot obtain data about existing connections, %s", err)
+		return nil, err
+	}
+	if conns == nil {
+		conns = make(map[string]connState)
+	}
+	return conns, nil
+}
+
 func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	task.State().Lock()
 	defer task.State().Unlock()
