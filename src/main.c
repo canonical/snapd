@@ -76,7 +76,9 @@ void run_snappy_app_dev_add(struct snappy_udev *udev_s, const char *path)
 	if (udev_s->udev == NULL)
 		die("snappy_udev->udev is NULL");
 	if (udev_s->tagname_len == 0
-	    || strlen(udev_s->tagname) != udev_s->tagname_len)
+	    || udev_s->tagname_len >= MAX_BUF
+	    || strnlen(udev_s->tagname, MAX_BUF) != udev_s->tagname_len
+	    || udev_s->tagname[udev_s->tagname_len] != '\0')
 		die("snappy_udev->tagname has invalid length");
 
 	debug("run_snappy_app_dev_add: %s %s", path, udev_s->tagname);
@@ -201,7 +203,9 @@ void setup_devices_cgroup(const char *appname, struct snappy_udev *udev_s)
 	if (udev_s->assigned == NULL)
 		die("snappy_udev->assigned is NULL");
 	if (udev_s->tagname_len == 0
-	    || strlen(udev_s->tagname) != udev_s->tagname_len)
+	    || udev_s->tagname_len >= MAX_BUF
+	    || strnlen(udev_s->tagname, MAX_BUF) != udev_s->tagname_len
+	    || udev_s->tagname[udev_s->tagname_len] != '\0')
 		die("snappy_udev->tagname has invalid length");
 
 	// create devices cgroup controller
