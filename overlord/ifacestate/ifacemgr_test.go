@@ -362,46 +362,6 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyKeepsExistingConnectionSt
 	})
 }
 
-// do-remove-security removes connections from state when called on the plug-side snap
-func (s *interfaceManagerSuite) TestDoRemoveSnapSecurityRemovesConnectionsPlug(c *C) {
-	s.testDoRemoveSnapSecurityRemovesConnections(c, "consumer")
-}
-
-// do-remove-security removes connections from state when called on the slot-side snap
-func (s *interfaceManagerSuite) TestDoRemoveSnapSecurityRemovesConnectionsSlot(c *C) {
-	s.testDoRemoveSnapSecurityRemovesConnections(c, "producer")
-}
-
-func (s *interfaceManagerSuite) testDoRemoveSnapSecurityRemovesConnections(c *C, snapName string) {
-	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
-	s.mockSnap(c, consumerYaml)
-	s.mockSnap(c, producerYaml)
-
-	s.state.Lock()
-	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
-	})
-	s.state.Unlock()
-
-	mgr := s.manager(c)
-
-	// Run the remove-snap-security task
-	change := s.addRemoveSnapSecurityChange(c, snapName)
-	mgr.Ensure()
-	mgr.Wait()
-	mgr.Stop()
-
-	s.state.Lock()
-	defer s.state.Unlock()
-	c.Check(change.Status(), Equals, state.DoneStatus)
-
-	c.Check(change.Status(), Equals, state.DoneStatus)
-	var conns map[string]interface{}
-	err := s.state.Get("conns", &conns)
-	c.Assert(err, IsNil)
-	c.Check(conns, DeepEquals, map[string]interface{}{})
-}
-
 func (s *interfaceManagerSuite) TestDoDiscardConnsPlug(c *C) {
 	s.testDoDicardConns(c, "consumer")
 }

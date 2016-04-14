@@ -276,22 +276,6 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, _ *tomb.Tomb) erro
 	if err != nil {
 		return err
 	}
-
-	conns, err := getConns(task.State())
-	if err != nil {
-		return err
-	}
-	for id := range conns {
-		plugRef, slotRef, err := parseConnID(id)
-		if err != nil {
-			return err
-		}
-		if plugRef.Snap == snapName || slotRef.Snap == snapName {
-			delete(conns, id)
-		}
-	}
-	setConns(task.State(), conns)
-
 	if err := m.repo.RemoveSnap(snapName); err != nil {
 		return err
 	}
