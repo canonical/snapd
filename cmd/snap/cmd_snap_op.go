@@ -39,18 +39,14 @@ func wait(client *client.Client, id string) error {
 		pb.Finished()
 	}()
 
+	var lastID string
 	for {
 		chg, err := client.Change(id)
 		if err != nil {
 			return err
 		}
 
-		var lastID string
 		for _, t := range chg.Tasks {
-			if t.Status == "Doing" {
-				fmt.Println("t", t)
-			}
-
 			switch {
 			case t.Status != "Doing":
 				continue
@@ -60,6 +56,7 @@ func wait(client *client.Client, id string) error {
 				pb.Set(float64(t.Progress.Done))
 			default:
 				pb.Start(t.Summary, float64(t.Progress.Total))
+				lastID = t.ID
 			}
 			break
 		}
