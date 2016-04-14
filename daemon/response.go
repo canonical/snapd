@@ -65,8 +65,9 @@ type resp struct {
 //      The right code style takes a bit more work and unifies
 //      these fields inside resp.
 type Meta struct {
-	Sources []string `json:"sources,omitempty"`
-	Paging  *Paging  `json:"paging,omitempty"`
+	Sources           []string `json:"sources,omitempty"`
+	Paging            *Paging  `json:"paging,omitempty"`
+	SuggestedCurrency string   `json:"suggested-currency,omitempty"`
 }
 
 type Paging struct {

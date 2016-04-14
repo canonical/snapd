@@ -36,3 +36,7 @@ func (client *Client) Do(method, path string, query url.Values, body io.Reader, 
 
 // expose parseError for testing
 var ParseErrorInTest = parseError
+
+// expose read and write auth helpers for testing
+var TestWriteAuth = writeAuthData
+var TestReadAuth = readAuthData
