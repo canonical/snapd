@@ -190,11 +190,12 @@ func (m *InterfaceManager) doSetupSnapSecurity(task *state.Task, _ *tomb.Tomb) e
 			return err
 		}
 	}
+	if err := m.reloadConnections(snapName); err != nil {
+		return err
+	}
 	if err := m.autoConnect(task, snapName); err != nil {
 		return err
 	}
-	// TODO: re-connect all connection affecting given snap
-	// TODO:  - removing failed connections from the state
 	if len(affectedSnaps) == 0 {
 		affectedSnaps = append(affectedSnaps, snapInfo)
 	}
