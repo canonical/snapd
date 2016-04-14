@@ -175,7 +175,7 @@ const (
 )
 
 /* acquired via
-curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: rolling-core" -H "X-Ubuntu-Device-Channel: edge" 'https://search.apps.ubuntu.com/api/v1/search?q=package_name:"hello-world"&fields=publisher,package_name,origin,description,summary,title,icon_url,prices,content,ratings_average,version,anon_download_url,download_url,download_sha512,last_updated,binary_filesize,support_url,revision' | python -m json.tool
+curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: rolling-core" -H "X-Ubuntu-Device-Channel: edge" 'https://search.apps.ubuntu.com/api/v1/search?q=package_name:"hello-world"&fields=publisher,package_name,channel,origin,description,summary,title,icon_url,prices,content,ratings_average,version,anon_download_url,download_url,download_sha512,last_updated,binary_filesize,support_url,revision,snap_id' | python -m json.tool
 */
 const MockDetailsJSON = `{
     "_embedded": {
@@ -201,6 +201,7 @@ const MockDetailsJSON = `{
                 "publisher": "Canonical",
                 "ratings_average": 0.0,
                 "revision": 22,
+                "snap_id": "iZvp6HUG9XOQv4vuRQL9MlEgKBgFwsc6",
                 "summary": "Hello world example",
                 "support_url": "mailto:snappy-devel@lists.ubuntu.com",
                 "title": "hello-world",
@@ -217,13 +218,13 @@ const MockDetailsJSON = `{
             }
         ],
         "first": {
-            "href": "https://search.apps.ubuntu.com/api/v1/search?q=package_name%3A%22hello-world%22&fields=channel%2Cpublisher%2Cpackage_name%2Corigin%2Cdescription%2Csummary%2Ctitle%2Cicon_url%2Cprices%2Ccontent%2Cratings_average%2Cversion%2Canon_download_url%2Cdownload_url%2Cdownload_sha512%2Clast_updated%2Cbinary_filesize%2Csupport_url%2Crevision&page=1"
+            "href": "https://search.apps.ubuntu.com/api/v1/search?q=package_name%3A%22hello-world%22&fields=publisher%2Cpackage_name%2Cchannel%2Corigin%2Cdescription%2Csummary%2Ctitle%2Cicon_url%2Cprices%2Ccontent%2Cratings_average%2Cversion%2Canon_download_url%2Cdownload_url%2Cdownload_sha512%2Clast_updated%2Cbinary_filesize%2Csupport_url%2Crevision%2Csnap_id&page=1"
         },
         "last": {
-            "href": "https://search.apps.ubuntu.com/api/v1/search?q=package_name%3A%22hello-world%22&fields=channel%2Cpublisher%2Cpackage_name%2Corigin%2Cdescription%2Csummary%2Ctitle%2Cicon_url%2Cprices%2Ccontent%2Cratings_average%2Cversion%2Canon_download_url%2Cdownload_url%2Cdownload_sha512%2Clast_updated%2Cbinary_filesize%2Csupport_url%2Crevision&page=1"
+            "href": "https://search.apps.ubuntu.com/api/v1/search?q=package_name%3A%22hello-world%22&fields=publisher%2Cpackage_name%2Cchannel%2Corigin%2Cdescription%2Csummary%2Ctitle%2Cicon_url%2Cprices%2Ccontent%2Cratings_average%2Cversion%2Canon_download_url%2Cdownload_url%2Cdownload_sha512%2Clast_updated%2Cbinary_filesize%2Csupport_url%2Crevision%2Csnap_id&page=1"
         },
         "self": {
-            "href": "https://search.apps.ubuntu.com/api/v1/search?q=package_name%3A%22hello-world%22&fields=channel%2Cpublisher%2Cpackage_name%2Corigin%2Cdescription%2Csummary%2Ctitle%2Cicon_url%2Cprices%2Ccontent%2Cratings_average%2Cversion%2Canon_download_url%2Cdownload_url%2Cdownload_sha512%2Clast_updated%2Cbinary_filesize%2Csupport_url%2Crevision&page=1"
+            "href": "https://search.apps.ubuntu.com/api/v1/search?q=package_name%3A%22hello-world%22&fields=publisher%2Cpackage_name%2Cchannel%2Corigin%2Cdescription%2Csummary%2Ctitle%2Cicon_url%2Cprices%2Ccontent%2Cratings_average%2Cversion%2Canon_download_url%2Cdownload_url%2Cdownload_sha512%2Clast_updated%2Cbinary_filesize%2Csupport_url%2Crevision%2Csnap_id&page=1"
         }
     }
 }
@@ -258,6 +259,8 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	result, err := repo.Snap("hello-world", "edge")
 	c.Assert(err, IsNil)
 	c.Check(result.Name(), Equals, "hello-world")
+	c.Check(result.Revision, Equals, 22)
+	c.Check(result.SnapID, Equals, "iZvp6HUG9XOQv4vuRQL9MlEgKBgFwsc6")
 	c.Check(result.Developer, Equals, "canonical")
 	c.Check(result.Version, Equals, "5.0")
 	c.Check(result.Sha512, Equals, "4faffe7e2fee66dbcd1cff629b4f6fa7e5e8e904b4a49b0a908a0ea5518b025bf01f0e913617f6088b30c6c6151eff0a83e89c6b12aea420c4dd0e402bf10c81")

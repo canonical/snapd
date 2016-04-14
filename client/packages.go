@@ -20,7 +20,6 @@
 package client
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/url"
 	"strings"
@@ -63,15 +62,19 @@ const (
 	TypeOS        = "os"
 )
 
+type ResultInfo struct {
+	Sources []string `json:"sources"`
+}
+
 // Snaps returns the list of all snaps installed on the system and
 // available for install from the store for this system.
-func (client *Client) Snaps() (map[string]*Snap, error) {
+func (client *Client) Snaps() (map[string]*Snap, *ResultInfo, error) {
 	return client.snapsFromPath("/v2/snaps", nil)
 }
 
 // FilterSnaps returns a list of snaps per Snaps() but filtered by source, name
 // and/or type
-func (client *Client) FilterSnaps(filter SnapFilter) (map[string]*Snap, error) {
+func (client *Client) FilterSnaps(filter SnapFilter) (map[string]*Snap, *ResultInfo, error) {
 	q := url.Values{}
 
 	if filter.Query != "" {
@@ -89,36 +92,23 @@ func (client *Client) FilterSnaps(filter SnapFilter) (map[string]*Snap, error) {
 	return client.snapsFromPath("/v2/snaps", q)
 }
 
-func (client *Client) snapsFromPath(path string, query url.Values) (map[string]*Snap, error) {
-	const errPrefix = "cannot list snaps"
-
-	var result map[string]json.RawMessage
-	if err := client.doSync("GET", path, query, nil, &result); err != nil {
-		return nil, fmt.Errorf("%s: %s", errPrefix, err)
-	}
-
-	snapsJSON := result["snaps"]
-	if snapsJSON == nil {
-		return nil, fmt.Errorf("%s: response has no snaps", errPrefix)
-	}
-
+func (client *Client) snapsFromPath(path string, query url.Values) (map[string]*Snap, *ResultInfo, error) {
 	var snaps map[string]*Snap
-	if err := json.Unmarshal(snapsJSON, &snaps); err != nil {
-		return nil, fmt.Errorf("%s: failed to unmarshal snaps: %v", errPrefix, err)
+	ri, err := client.doSync("GET", path, query, nil, &snaps)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot list snaps: %s", err)
 	}
-
-	return snaps, nil
+	return snaps, ri, nil
 }
 
 // Snap returns the most recently published revision of the snap with the
 // provided name.
-func (client *Client) Snap(name string) (*Snap, error) {
-	var pkg *Snap
-
+func (client *Client) Snap(name string) (*Snap, *ResultInfo, error) {
+	var snap *Snap
 	path := fmt.Sprintf("/v2/snaps/%s", name)
-	if err := client.doSync("GET", path, nil, nil, &pkg); err != nil {
-		return nil, fmt.Errorf("cannot retrieve snap %q: %s", name, err)
+	ri, err := client.doSync("GET", path, nil, nil, &snap)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot retrieve snap %q: %s", name, err)
 	}
-
-	return pkg, nil
+	return snap, ri, nil
 }

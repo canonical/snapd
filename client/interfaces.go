@@ -73,7 +73,7 @@ type InterfaceAction struct {
 
 // Interfaces returns all plugs, slots and their connections.
 func (client *Client) Interfaces() (interfaces Interfaces, err error) {
-	err = client.doSync("GET", "/v2/interfaces", nil, nil, &interfaces)
+	_, err = client.doSync("GET", "/v2/interfaces", nil, nil, &interfaces)
 	return
 }
 
@@ -84,7 +84,7 @@ func (client *Client) performInterfaceAction(sa *InterfaceAction) error {
 		return err
 	}
 	var rsp interface{}
-	if err := client.doSync("POST", "/v2/interfaces", nil, bytes.NewReader(b), &rsp); err != nil {
+	if _, err := client.doSync("POST", "/v2/interfaces", nil, bytes.NewReader(b), &rsp); err != nil {
 		return err
 	}
 	return nil

@@ -45,7 +45,7 @@ func (s *classicDimensionSuite) enableClassic(c *check.C) {
 	expected := "(?ms)" +
 		".*" +
 		"Classic dimension enabled on this snappy system.\n" +
-		"Use “snap shell classic” to enter the classic dimension.\n"
+		"Use \"snap shell classic\" to enter the classic dimension.\n"
 	c.Assert(output, check.Matches, expected)
 }
 

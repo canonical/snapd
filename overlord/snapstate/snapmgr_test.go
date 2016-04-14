@@ -192,6 +192,7 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 			sinfo: snap.SideInfo{
 				OfficialName: "some-snap",
 				Channel:      "some-channel",
+				SnapID:       "snapIDsnapidsnapidsnapidsnapidsn",
 				Revision:     11,
 			},
 		},
@@ -229,6 +230,7 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
 		OfficialName: "some-snap",
 		Channel:      "some-channel",
+		SnapID:       "snapIDsnapidsnapidsnapidsnapidsn",
 		Revision:     11,
 	})
 }
@@ -289,6 +291,7 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 			op: "candidate",
 			sinfo: snap.SideInfo{
 				OfficialName: "some-snap",
+				SnapID:       "snapIDsnapidsnapidsnapidsnapidsn",
 				Channel:      "some-channel",
 				Revision:     11,
 			},
@@ -338,6 +341,7 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 	c.Assert(snapst.Sequence[1], DeepEquals, &snap.SideInfo{
 		OfficialName: "some-snap",
 		Channel:      "some-channel",
+		SnapID:       "snapIDsnapidsnapidsnapidsnapidsn",
 		Revision:     11,
 	})
 }
@@ -400,6 +404,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoIntegration(c *C) {
 			op: "candidate",
 			sinfo: snap.SideInfo{
 				OfficialName: "some-snap",
+				SnapID:       "snapIDsnapidsnapidsnapidsnapidsn",
 				Channel:      "some-channel",
 				Revision:     11,
 			},
@@ -504,6 +509,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoIntegration(c *C) {
 			op: "candidate",
 			sinfo: snap.SideInfo{
 				OfficialName: "some-snap",
+				SnapID:       "snapIDsnapidsnapidsnapidsnapidsn",
 				Channel:      "some-channel",
 				Revision:     11,
 			},
