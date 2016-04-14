@@ -1535,7 +1535,7 @@ func makeConnectedSlot() *interfaces.Slot {
 	return slot
 }
 
-func (s *apiSuite) TestGetPlugs(c *check.C) {
+func (s *apiSuite) TestInterfaces(c *check.C) {
 	d := s.daemon(c)
 
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
