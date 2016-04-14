@@ -36,6 +36,7 @@ var implicitSlots = []string{
 	// TODO Disable these on devices:
 	"unity7",
 	"x11",
+	"opengl",
 }
 
 // AddImplicitSlots adds implicitly defined slots to a given snap.
