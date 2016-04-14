@@ -1884,18 +1884,18 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 
 func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 	d := s.daemon(c)
-	repo := d.overlord.InterfaceManager().Repository()
-	repo.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	repo.AddPlug(makePlug("interface"))
-	repo.AddSlot(makeSlot("interface"))
+
+	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
 
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
 	action := &interfaceAction{
 		Action: "disconnect",
-		Plugs:  []plugJSON{{Snap: "producer", Name: "plug"}},
-		Slots:  []slotJSON{{Snap: "consumer", Name: "slot"}},
+		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
+		Slots:  []slotJSON{{Snap: "producer", Name: "slot"}},
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -1911,16 +1911,18 @@ func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
 			"message": `cannot perform the following tasks:
-- Disconnect producer:plug from consumer:slot (cannot disconnect plug "plug" from snap "producer" from slot "slot" from snap "consumer", it is not connected)`,
+- Disconnect consumer:plug from producer:slot (cannot disconnect plug "plug" from snap "consumer" from slot "slot" from snap "producer", it is not connected)`,
 		},
 		"status":      "Bad Request",
 		"status-code": 400.0,
 		"type":        "error",
 	})
-	c.Assert(repo.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
-		Plugs: []*interfaces.Plug{makePlug("interface")},
-		Slots: []*interfaces.Slot{makeSlot("interface")},
-	})
+
+	repo := d.overlord.InterfaceManager().Repository()
+	plug := repo.Plug("consumer", "plug")
+	slot := repo.Slot("producer", "slot")
+	c.Assert(plug.Connections, check.HasLen, 0)
+	c.Assert(slot.Connections, check.HasLen, 0)
 }
 
 func (s *apiSuite) TestUnsupportedInterfaceRequest(c *check.C) {
