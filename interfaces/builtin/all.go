@@ -25,6 +25,7 @@ import (
 
 var allInterfaces = []interfaces.Interface{
 	&BoolFileInterface{},
+	&BluezInterface{},
 	NewFirewallControlInterface(),
 	NewHomeInterface(),
 	NewLocaleControlInterface(),

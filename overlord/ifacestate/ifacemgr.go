@@ -79,7 +79,7 @@ func (m *InterfaceManager) initialize(extra []interfaces.Interface) error {
 	if err := m.addSnaps(); err != nil {
 		return err
 	}
-	if err := m.reloadConnections(); err != nil {
+	if err := m.reloadConnections(""); err != nil {
 		return err
 	}
 	return nil
@@ -113,7 +113,10 @@ func (m *InterfaceManager) addSnaps() error {
 	return nil
 }
 
-func (m *InterfaceManager) reloadConnections() error {
+// reloadConnections reloads connections stored in the state in the repository.
+// Using non-empty snapName the operation can be scoped to connections
+// affecting a given snap.
+func (m *InterfaceManager) reloadConnections(snapName string) error {
 	conns, err := getConns(m.state)
 	if err != nil {
 		return err
@@ -122,6 +125,9 @@ func (m *InterfaceManager) reloadConnections() error {
 		plugRef, slotRef, err := parseConnID(id)
 		if err != nil {
 			return err
+		}
+		if snapName != "" && plugRef.Snap != snapName && slotRef.Snap != snapName {
+			continue
 		}
 		err = m.repo.Connect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
 		if err != nil {
@@ -198,20 +204,18 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error
 			return err
 		}
 	}
+	if err := m.reloadConnections(snapName); err != nil {
+		return err
+	}
 	if err := m.autoConnect(task, snapName); err != nil {
 		return err
 	}
-	// TODO: re-connect all connection affecting given snap
-	// TODO:  - removing failed connections from the state
 	if len(affectedSnaps) == 0 {
 		affectedSnaps = append(affectedSnaps, snapInfo)
 	}
 	for _, snapInfo := range affectedSnaps {
-		for _, backend := range securityBackends {
-			developerMode := false // TODO: move this to snap.Info
-			if err := backend.Setup(snapInfo, developerMode, m.repo); err != nil {
-				return state.Retry
-			}
+		if err := setupSnapSecurity(task, snapInfo, m.repo); err != nil {
+			return state.Retry
 		}
 	}
 	return nil

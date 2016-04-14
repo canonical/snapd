@@ -20,6 +20,8 @@
 package main
 
 import (
+	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -29,15 +31,23 @@ import (
 	"github.com/jessevdk/go-flags"
 )
 
-func wait(client *client.Client, uuid string) error {
+func wait(client *client.Client, id string) error {
 	for {
-		op, err := client.Operation(uuid)
+		chg, err := client.Change(id)
 		if err != nil {
 			return err
 		}
 
-		if !op.Running() {
-			return op.Err()
+		if chg.Ready {
+			if chg.Status == "Done" {
+				return nil
+			}
+
+			if chg.Err != "" {
+				return errors.New(chg.Err)
+			}
+
+			return fmt.Errorf("change finished in status %q with no error message", chg.Status)
 		}
 
 		time.Sleep(100 * time.Millisecond)
@@ -120,7 +130,7 @@ func (x *cmdInstall) Execute([]string) error {
 	cli := Client()
 	name := x.Positional.Snap
 	if strings.Contains(name, "/") || strings.HasSuffix(name, ".snap") || strings.Contains(name, ".snap.") {
-		uuid, err = cli.InstallSnapFile(name)
+		uuid, err = cli.InstallSnapPath(name)
 	} else {
 		uuid, err = cli.InstallSnap(name, x.Channel)
 	}

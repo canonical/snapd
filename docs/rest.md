@@ -236,7 +236,7 @@ Sample result:
 * `version`: a string representing the version.
 * `revision`: a number representing the revision.
 * `icon`: a url to the snap icon, possibly relative to this server.
-* `type`: the type of snap; one of `app`, `framework`, `kernel`,
+* `type`: the type of snap; one of `app`, `core`, `kernel`,
   `gadget`, or `os`.
 * `description`: snap description
 * `summary`: one-line summary
