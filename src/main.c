@@ -336,6 +336,11 @@ void setup_snappy_os_mounts()
 		// we mount the OS snap /bin over the real /bin in this NS
 		const char *dst = mounts[i];
 
+                // some system do not have e.g. /lib64
+                struct stat sbuf;
+                if (stat(dst, &sbuf) != 0 && errno == ENOENT)
+                   continue;
+
 		char buf[512];
 		must_snprintf(buf, sizeof(buf), "%s%s", mountpoint, dst);
 		const char *src = buf;
