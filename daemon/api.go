@@ -1097,8 +1097,8 @@ type taskInfo struct {
 }
 
 type taskInfoProgress struct {
-	Current int `json:"current"`
-	Total   int `json:"total"`
+	Done  int `json:"done"`
+	Total int `json:"total"`
 }
 
 func change2changeInfo(chg *state.Change) *changeInfo {
@@ -1117,15 +1117,15 @@ func change2changeInfo(chg *state.Change) *changeInfo {
 	tasks := chg.Tasks()
 	taskInfos := make([]*taskInfo, len(tasks))
 	for j, t := range tasks {
-		cur, tot := t.Progress()
+		done, total := t.Progress()
 		taskInfo := &taskInfo{
 			Kind:    t.Kind(),
 			Summary: t.Summary(),
 			Status:  t.Status().String(),
 			Log:     t.Log(),
 			Progress: taskInfoProgress{
-				Current: cur,
-				Total:   tot,
+				Done:  done,
+				Total: total,
 			},
 		}
 		taskInfos[j] = taskInfo
