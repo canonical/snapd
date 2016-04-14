@@ -82,10 +82,6 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 		BulkURI:   nowhereURI,
 	}
 	storeConfig = s.storeCfg
-
-	aaExec = filepath.Join(s.tempdir, "aa-exec")
-	err := ioutil.WriteFile(aaExec, []byte(mockAaExecScript), 0755)
-	c.Assert(err, IsNil)
 }
 
 func (s *SnapTestSuite) TearDownTest(c *C) {

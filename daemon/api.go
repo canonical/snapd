@@ -439,49 +439,6 @@ type appDesc struct {
 	Spec *snappy.AppYaml `json:"spec"`
 }
 
-type configurator interface {
-	Configure(*snappy.Snap, []byte) ([]byte, error)
-}
-
-var getConfigurator = func() configurator {
-	return &snappy.Overlord{}
-}
-
-func snapConfig(c *Command, r *http.Request) Response {
-	vars := muxVars(r)
-	snapName := vars["name"]
-
-	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
-	if err != nil {
-		return InternalError("unable to acquire lock: %v", err)
-	}
-	defer lock.Unlock()
-
-	installed, err := (&snappy.Overlord{}).Installed()
-	snaps := snappy.FindSnapsByName(snapName, installed)
-	_, part := bestSnap(snaps)
-	if err != nil || part == nil {
-		return NotFound("no snap found with name %q", snapName)
-	}
-
-	if !part.IsActive() {
-		return BadRequest("unable to configure non-active snap")
-	}
-
-	bs, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		return BadRequest("reading config request body gave %v", err)
-	}
-
-	overlord := getConfigurator()
-	config, err := overlord.Configure(part, bs)
-	if err != nil {
-		return InternalError("unable to retrieve config for %s: %v", snapName, err)
-	}
-
-	return SyncResponse(string(config), nil)
-}
-
 func getOpInfo(c *Command, r *http.Request) Response {
 	route := c.d.router.Get(c.Path)
 	if route == nil {
