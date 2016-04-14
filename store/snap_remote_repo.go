@@ -36,6 +36,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/asserts"
+	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/oauth"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
@@ -72,7 +73,6 @@ func infoFromRemote(d snapDetails) *snap.Info {
 // SnapUbuntuStoreConfig represents the configuration to access the snap store
 type SnapUbuntuStoreConfig struct {
 	SearchURI     *url.URL
-	DetailsURI    *url.URL
 	BulkURI       *url.URL
 	AssertionsURI *url.URL
 }
@@ -81,7 +81,6 @@ type SnapUbuntuStoreConfig struct {
 type SnapUbuntuStoreRepository struct {
 	storeID       string
 	searchURI     *url.URL
-	detailsURI    *url.URL
 	bulkURI       *url.URL
 	assertionsURI *url.URL
 	// reused http client
@@ -163,11 +162,6 @@ func init() {
 	v.Set("fields", strings.Join(getStructFields(snapDetails{}), ","))
 	defaultConfig.SearchURI.RawQuery = v.Encode()
 
-	defaultConfig.DetailsURI, err = storeBaseURI.Parse("package/")
-	if err != nil {
-		panic(err)
-	}
-
 	defaultConfig.BulkURI, err = storeBaseURI.Parse("click-metadata")
 	if err != nil {
 		panic(err)
@@ -201,7 +195,6 @@ func NewUbuntuStoreSnapRepository(cfg *SnapUbuntuStoreConfig, storeID string) *S
 	return &SnapUbuntuStoreRepository{
 		storeID:       storeID,
 		searchURI:     cfg.SearchURI,
-		detailsURI:    cfg.DetailsURI,
 		bulkURI:       cfg.BulkURI,
 		assertionsURI: cfg.AssertionsURI,
 		client:        &http.Client{},
@@ -259,18 +252,20 @@ func (s *SnapUbuntuStoreRepository) checkStoreResponse(resp *http.Response) {
 // Snap returns the snap.Info for the store hosted snap with the given name or an error.
 func (s *SnapUbuntuStoreRepository) Snap(name, channel string) (*snap.Info, error) {
 
-	url, err := s.detailsURI.Parse(path.Join(name, channel))
-	if err != nil {
-		return nil, err
-	}
+	u := *s.searchURI // make a copy, so we can mutate it
 
-	req, err := http.NewRequest("GET", url.String(), nil)
+	q := u.Query()
+	q.Set("q", "package_name:\""+name+"\"")
+	u.RawQuery = q.Encode()
+
+	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
 		return nil, err
 	}
 
 	// set headers
 	s.configureStoreReq(req, "")
+	req.Header.Set("X-Ubuntu-Device-Channel", channel)
 
 	resp, err := s.client.Do(req)
 	if err != nil {
@@ -283,19 +278,28 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string) (*snap.Info, erro
 	case resp.StatusCode == 404:
 		return nil, ErrSnapNotFound
 	case resp.StatusCode != 200:
-		return nil, fmt.Errorf("SnapUbuntuStoreRepository: unexpected HTTP status code %d while looking forsnap %q/%q", resp.StatusCode, name, channel)
+		return nil, fmt.Errorf("SnapUbuntuStoreRepository: unexpected HTTP status code %d while looking for snap %q/%q", resp.StatusCode, name, channel)
 	}
 
 	// and decode json
-	var detailsData snapDetails
+	var searchData searchResults
 	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&detailsData); err != nil {
+	if err := dec.Decode(&searchData); err != nil {
 		return nil, err
+	}
+
+	switch len(searchData.Payload.Packages) {
+	case 0:
+		return nil, ErrSnapNotFound
+	case 1:
+		// whee
+	default:
+		logger.Noticef("expected at most one result from this search, got %d. Using first one.", len(searchData.Payload.Packages))
 	}
 
 	s.checkStoreResponse(resp)
 
-	return infoFromRemote(detailsData), nil
+	return infoFromRemote(searchData.Payload.Packages[0]), nil
 }
 
 // FindSnaps finds  (installable) snaps from the store, matching the
@@ -320,7 +324,7 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string)
 
 	// set headers
 	s.configureStoreReq(req, "")
-	req.Header.Set("X-Ubuntu-Device-Channnel", channel)
+	req.Header.Set("X-Ubuntu-Device-Channel", channel)
 
 	resp, err := s.client.Do(req)
 	if err != nil {

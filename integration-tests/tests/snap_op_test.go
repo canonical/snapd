@@ -33,12 +33,12 @@ type snapOpSuite struct {
 	common.SnappySuite
 }
 
-func (s *snapOpSuite) testInstallRemove(c *check.C, snapName, displayName, displayDeveloper string) {
+func (s *snapOpSuite) testInstallRemove(c *check.C, snapName, displayName string) {
 	installOutput := installSnap(c, snapName)
 	expected := "(?ms)" +
 		"Name +Version +Developer\n" +
 		".*" +
-		displayName + " +.* +" + displayDeveloper + "\n" +
+		displayName + " +.*\n" +
 		".*"
 	c.Assert(installOutput, check.Matches, expected)
 
@@ -47,9 +47,5 @@ func (s *snapOpSuite) testInstallRemove(c *check.C, snapName, displayName, displ
 }
 
 func (s *snapOpSuite) TestInstallRemoveAliasWorks(c *check.C) {
-	s.testInstallRemove(c, "hello-world", "hello-world", "canonical")
-}
-
-func (s *snapOpSuite) TestInstallRemoveFullNameWorks(c *check.C) {
-	s.testInstallRemove(c, "hello-world.canonical", "hello-world", "canonical")
+	s.testInstallRemove(c, "hello-world", "hello-world")
 }
