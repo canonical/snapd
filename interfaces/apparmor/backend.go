@@ -125,9 +125,7 @@ func (b *Backend) combineSnippets(snapInfo *snap.Info, devMode bool, snippets ma
 		policy = templatePattern.ReplaceAllFunc(policy, func(placeholder []byte) []byte {
 			switch {
 			case bytes.Equal(placeholder, placeholderVar):
-				// TODO: use modern variables when default template is compatible
-				// with them and the custom template is not used.
-				return legacyVariables(appInfo)
+				return modernVariables(appInfo)
 			case bytes.Equal(placeholder, placeholderProfileAttach):
 				return []byte(fmt.Sprintf("profile \"%s\"", appInfo.SecurityTag()))
 			case bytes.Equal(placeholder, placeholderSnippets):
