@@ -29,7 +29,6 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/ubuntu-core/snappy/osutil"
-	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 )
 
@@ -162,47 +161,14 @@ func (s *Snap) Developer() string {
 
 }
 
-// Channel returns the channel used
-func (s *Snap) Channel() string {
-	return s.info.Channel
-}
-
 // IsActive returns true if the snap is active
 func (s *Snap) IsActive() bool {
 	return s.isActive
 }
 
-// IsInstalled returns true if the snap is installed
-func (s *Snap) IsInstalled() bool {
-	return true
-}
-
-// InstalledSize returns the size of the installed snap
-func (s *Snap) InstalledSize() int64 {
-	// FIXME: cache this at install time maybe?
-	totalSize := int64(0)
-	f := func(_ string, info os.FileInfo, err error) error {
-		totalSize += info.Size()
-		return err
-	}
-	filepath.Walk(s.info.MountDir(), f)
-	return totalSize
-}
-
 // Info returns the snap.Info data.
 func (s *Snap) Info() *snap.Info {
 	return s.info
-}
-
-// DownloadSize returns the dowload size
-func (s *Snap) DownloadSize() int64 {
-	return s.info.Size
-}
-
-// Install installs the snap (which does not make sense for an already
-// installed snap
-func (s *Snap) Install(inter progress.Meter, flags InstallFlags) (name string, err error) {
-	return "", ErrAlreadyInstalled
 }
 
 // NeedsReboot returns true if the snap becomes active on the next reboot

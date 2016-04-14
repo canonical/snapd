@@ -119,14 +119,12 @@ func (s *SnapTestSuite) TestLocalSnapSimple(c *C) {
 	c.Check(snap.Info().Summary(), Equals, "hello in summary")
 	c.Check(snap.Info().Description(), Equals, "Hello...")
 	c.Check(snap.Info().Revision, Equals, 15)
-	c.Check(snap.IsInstalled(), Equals, true)
 
 	mountDir := snap.Info().MountDir()
 	_, err = os.Stat(mountDir)
 	c.Assert(err, IsNil)
 
 	c.Assert(mountDir, Equals, filepath.Join(dirs.SnapSnapsDir, helloSnapComposedName, "15"))
-	c.Assert(snap.InstalledSize(), Not(Equals), -1)
 }
 
 func (s *SnapTestSuite) TestLocalSnapActive(c *C) {
@@ -708,12 +706,4 @@ func (s *SnapTestSuite) TestParseSnapYamlDataChecksMultiple(c *C) {
 	_, err := parseSnapYamlData([]byte(`
 `), false)
 	c.Assert(err, ErrorMatches, "can not parse snap.yaml: missing required fields 'name, version'.*")
-}
-
-func (s *SnapTestSuite) TestChannelFromLocalManifest(c *C) {
-	snapYaml, err := makeInstalledMockSnap("", 11)
-	c.Assert(err, IsNil)
-
-	snap, err := NewInstalledSnap(snapYaml)
-	c.Assert(snap.Channel(), Equals, "remote-channel")
 }
