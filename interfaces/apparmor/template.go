@@ -252,10 +252,10 @@ var defaultTemplate = []byte(`
 
   # Allow apps from the same package to communicate with each other via an
   # abstract or anonymous socket
-  unix peer=(label=@{SNAP_NAME}_*),
+  unix peer=(label=snap.@{SNAP_NAME}.*),
 
   # Allow apps from the same package to signal each other via signals
-  signal peer=@{SNAP_NAME}_*,
+  signal peer=snap.@{SNAP_NAME}.*,
 
   # for 'udevadm trigger --verbose --dry-run --tag-match=snappy-assign'
   /{,s}bin/udevadm ixr,
