@@ -313,8 +313,6 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 	}
 	defer lock.Unlock()
 
-	// TODO: Marshal incrementally leveraging json.RawMessage.
-	results := make(map[string]map[string]interface{})
 	sources := make([]string, 0, 2)
 	query := r.URL.Query()
 
@@ -339,12 +337,12 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		includeTypes = strings.Split(query["types"][0], ",")
 	}
 
-	var localSnapsMap map[string][]*snappy.Snap
+	var localSnapMap map[string][]*snappy.Snap
 	var remoteSnapMap map[string]*snap.Info
 
 	if includeLocal {
 		sources = append(sources, "local")
-		localSnapsMap, _ = allSnaps()
+		localSnapMap, _ = allSnaps()
 	}
 
 	if includeStore {
@@ -365,48 +363,44 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		}
 	}
 
-	for name, localSnaps := range localSnapsMap {
-		// strings.Contains(fullname, "") is true
-		if !strings.Contains(name, searchTerm) {
-			continue
+	seen := make(map[string]bool)
+	results := make([]*json.RawMessage, 0, len(localSnapMap)+len(remoteSnapMap))
+
+	addResult := func(name string, m map[string]interface{}) {
+		if seen[name] {
+			return
+		}
+		seen[name] = true
+
+		// TODO Search the store for "content" with multiple values. See:
+		//      https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex#Search
+		if len(includeTypes) > 0 && !resultHasType(m, includeTypes) {
+			return
 		}
 
-		m := mapSnap(localSnaps, remoteSnapMap[name])
-		resource := "no resource URL for this resource"
+		resource := ""
 		url, err := route.URL("name", name)
 		if err == nil {
 			resource = url.String()
 		}
 
-		results[name] = webify(m, resource)
+		data, err := json.Marshal(webify(m, resource))
+		if err != nil {
+			return
+		}
+		raw := json.RawMessage(data)
+		results = append(results, &raw)
+	}
+
+	for name, localSnap := range localSnapMap {
+		// strings.Contains(fullname, "") is true
+		if strings.Contains(name, searchTerm) {
+			addResult(name, mapSnap(localSnap, remoteSnapMap[name]))
+		}
 	}
 
 	for name, remoteSnap := range remoteSnapMap {
-		if _, ok := results[name]; ok {
-			// already done
-			continue
-		}
-
-		m := mapSnap(nil, remoteSnap)
-
-		resource := "no resource URL for this resource"
-		url, err := route.URL("name", remoteSnap.Name())
-		if err == nil {
-			resource = url.String()
-		}
-
-		results[name] = webify(m, resource)
-	}
-
-	// TODO: it should be possible to search on the "content" field on the store
-	//       with multiple values, see:
-	//       https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex#Search
-	if len(includeTypes) > 0 {
-		for name, result := range results {
-			if !resultHasType(result, includeTypes) {
-				delete(results, name)
-			}
-		}
+		addResult(name, mapSnap(nil, remoteSnap))
 	}
 
 	meta := &Meta{
@@ -433,47 +427,35 @@ type appDesc struct {
 	Spec *snappy.AppYaml `json:"spec"`
 }
 
-type configurator interface {
-	Configure(*snappy.Snap, []byte) ([]byte, error)
+func getOpInfo(c *Command, r *http.Request) Response {
+	route := c.d.router.Get(c.Path)
+	if route == nil {
+		return InternalError("router can't find route for operation")
+	}
+
+	id := muxVars(r)["uuid"]
+	task := c.d.GetTask(id)
+	if task == nil {
+		return NotFound("unable to find task with id %q", id)
+	}
+
+	return SyncResponse(task.Map(route), nil)
 }
 
-var getConfigurator = func() configurator {
-	return &snappy.Overlord{}
-}
+func deleteOp(c *Command, r *http.Request) Response {
+	id := muxVars(r)["uuid"]
+	err := c.d.DeleteTask(id)
 
-func snapConfig(c *Command, r *http.Request) Response {
-	vars := muxVars(r)
-	snapName := vars["name"]
-
-	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
-	if err != nil {
-		return InternalError("unable to acquire lock: %v", err)
+	switch err {
+	case nil:
+		return SyncResponse("done", nil)
+	case errTaskNotFound:
+		return NotFound("unable to find task %q", id)
+	case errTaskStillRunning:
+		return BadRequest("unable to delete task %q: still running", id)
+	default:
+		return InternalError("unable to delete task %q: %v", id, err)
 	}
-	defer lock.Unlock()
-
-	installed, err := (&snappy.Overlord{}).Installed()
-	snaps := snappy.FindSnapsByName(snapName, installed)
-	_, part := bestSnap(snaps)
-	if err != nil || part == nil {
-		return NotFound("no snap found with name %q", snapName)
-	}
-
-	if !part.IsActive() {
-		return BadRequest("unable to configure non-active snap")
-	}
-
-	bs, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		return BadRequest("reading config request body gave %v", err)
-	}
-
-	overlord := getConfigurator()
-	config, err := overlord.Configure(part, bs)
-	if err != nil {
-		return InternalError("unable to retrieve config for %s: %v", snapName, err)
-	}
-
-	return SyncResponse(string(config), nil)
 }
 
 // licenseData holds details about the snap license, and may be
@@ -1075,8 +1057,8 @@ type taskInfo struct {
 }
 
 type taskInfoProgress struct {
-	Current int `json:"current"`
-	Total   int `json:"total"`
+	Done  int `json:"done"`
+	Total int `json:"total"`
 }
 
 func change2changeInfo(chg *state.Change) *changeInfo {
@@ -1095,7 +1077,7 @@ func change2changeInfo(chg *state.Change) *changeInfo {
 	tasks := chg.Tasks()
 	taskInfos := make([]*taskInfo, len(tasks))
 	for j, t := range tasks {
-		cur, tot := t.Progress()
+		done, total := t.Progress()
 		taskInfo := &taskInfo{
 			ID:      t.ID(),
 			Kind:    t.Kind(),
@@ -1103,8 +1085,8 @@ func change2changeInfo(chg *state.Change) *changeInfo {
 			Status:  t.Status().String(),
 			Log:     t.Log(),
 			Progress: taskInfoProgress{
-				Current: cur,
-				Total:   tot,
+				Done:  done,
+				Total: total,
 			},
 		}
 		taskInfos[j] = taskInfo

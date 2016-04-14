@@ -46,8 +46,8 @@ type Task struct {
 }
 
 type TaskProgress struct {
-	Current int `json:"current"`
-	Total   int `json:"total"`
+	Done  int `json:"done"`
+	Total int `json:"total"`
 }
 
 // Change fetches information about a Change given its ID

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,20 +17,29 @@
  *
  */
 
-package snappy
+package snapstate
 
 import (
-	"github.com/ubuntu-core/snappy/coreconfig"
+	"github.com/ubuntu-core/snappy/overlord/state"
+
+	. "gopkg.in/check.v1"
 )
 
-// for the unit tests
-var coreConfig = coreConfigImpl
+type progressAdapterTestSuite struct{}
 
-// coreConfig configure the OS snap
-func coreConfigImpl(configuration []byte) (newConfig []byte, err error) {
-	if len(configuration) > 0 {
-		return coreconfig.Set(configuration)
+var _ = Suite(&progressAdapterTestSuite{})
+
+func (s *progressAdapterTestSuite) TestProgressAdapterWrite(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	p := TaskProgressAdapter{
+		task: st.NewTask("op", "msg"),
 	}
+	st.Unlock()
 
-	return coreconfig.Get()
+	p.Start("msg", 161803)
+	c.Check(p.total, Equals, float64(161803))
+
+	p.Write([]byte("some-bytes"))
+	c.Check(p.current, Equals, float64(len("some-bytes")))
 }
