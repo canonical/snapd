@@ -492,8 +492,8 @@ Sample result:
 
 * Description: Issue an action to the interface system
 * Access: authenticated
-* Operation: sync
-* Return: nothing
+* Operation: async
+* Return: background operation or standard error
 
 Available actions are:
 
