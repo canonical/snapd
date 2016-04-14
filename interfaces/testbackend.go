@@ -26,7 +26,7 @@ import (
 // TestSecurityBackend is a security backend intended for testing.
 type TestSecurityBackend struct {
 	// SetupCalls stores information about all calls to Setup
-	SetupCalls []SetupCall
+	SetupCalls []TestSetupCall
 	// RemoveCalls stores information about all calls to Remove
 	RemoveCalls []string
 	// SetupCallback is an callback that is optionally called in Setup
@@ -35,8 +35,8 @@ type TestSecurityBackend struct {
 	RemoveCallback func(snapName string) error
 }
 
-// SetupCall stores details about calls to TestSecurityBackend.Setup
-type SetupCall struct {
+// TestSetupCall stores details about calls to TestSecurityBackend.Setup
+type TestSetupCall struct {
 	// SnapInfo is a copy of the snapInfo argument to a particular call to Setup
 	SnapInfo *snap.Info
 	// DeveloperMode is a copy of the developerMode argument to a particular call to Setup
@@ -50,7 +50,7 @@ func (b *TestSecurityBackend) Name() string {
 
 // Setup records information about the call and calls the setup callback if one is defined.
 func (b *TestSecurityBackend) Setup(snapInfo *snap.Info, developerMode bool, repo *Repository) error {
-	b.SetupCalls = append(b.SetupCalls, SetupCall{SnapInfo: snapInfo, DeveloperMode: developerMode})
+	b.SetupCalls = append(b.SetupCalls, TestSetupCall{SnapInfo: snapInfo, DeveloperMode: developerMode})
 	if b.SetupCallback == nil {
 		return nil
 	}
