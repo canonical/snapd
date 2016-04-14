@@ -17,7 +17,7 @@
  *
  */
 
-package osutil
+package progress
 
 /*
 #include <unistd.h>
@@ -26,6 +26,6 @@ import "C"
 
 // isatty is a wrapper around isatty(3).
 // Returns true if the specified fd is associated with a tty.
-func Isatty(fd int) bool {
+func isatty(fd int) bool {
 	return C.isatty(C.int(fd)) == 1
 }

@@ -26,8 +26,6 @@ import (
 	"unicode"
 
 	"github.com/cheggaaa/pb"
-
-	"github.com/ubuntu-core/snappy/osutil"
 )
 
 // Meter is an interface to show progress to the user
@@ -199,5 +197,5 @@ func MakeProgressBar() Meter {
 var attachedToTerminal = func() bool {
 	fd := int(os.Stdin.Fd())
 
-	return osutil.Isatty(fd)
+	return isatty(fd)
 }
