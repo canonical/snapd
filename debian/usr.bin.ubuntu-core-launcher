@@ -26,15 +26,16 @@
     # cgroups
     capability sys_admin,
     capability dac_override,
-    /sys/fs/cgroup/devices/snappy.*/ w,
-    /sys/fs/cgroup/devices/snappy.*/tasks w,
-    /sys/fs/cgroup/devices/snappy.*/devices.{allow,deny} w,
+    /sys/fs/cgroup/devices/snap{,py}.*/ w,
+    /sys/fs/cgroup/devices/snap{,py}.*/tasks w,
+    /sys/fs/cgroup/devices/snap{,py}.*/devices.{allow,deny} w,
 
     # querying udev
     /etc/udev/udev.conf r,
     /sys/devices/**/uevent r,
     /lib/udev/snappy-app-dev ixr, # drop
     /run/udev/** rw,
+    /{,usr/}bin/tr ixr,
 
     # priv dropping
     capability setuid,
@@ -65,9 +66,6 @@
 
     # reading seccomp filters
     /var/lib/snapd/seccomp/profiles/* r,
-
-    # read apparmor to figure out if we need cgroups
-    /var/lib/apparmor/clicks/* r,
 
     # set up snap-specific private /tmp dir
     capability chown,

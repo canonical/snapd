@@ -1,3 +1,24 @@
+ubuntu-core-launcher (1.0.25) UNRELEASED; urgency=medium
+
+  * update cgroup handling for 16.04 (LP: #1564401):
+    - debian/usr.bin.ubuntu-core-launcher:
+      + allow creating cgroups with snap.*
+      + allow ixr of 'tr'
+      + remove access to /var/lib/apparmor/clicks/
+    - update README to more fully explain the cgroups implementation
+    - src/80-snappy-assign.rules: append an app-specific tag instead of
+      adding a generic tag and snap-specific property
+    - src/snappy-app-dev: convert the new tag to the directory name
+    - src/main.c:
+      + refactor and simplify control flow to query udev for device assignment
+        instead of searching apparmor policy for a specific string
+      + adjust udev query for app-specific tag
+      + raise real_uid after fork() before calling /lib/udev/snappy-app-dev
+        so non-root app launches work with the device cgroup
+
+
+ -- Jamie Strandboge <jamie@ubuntu.com>  Thu, 14 Apr 2016 17:18:54 -0500
+
 ubuntu-core-launcher (1.0.24) xenial; urgency=medium
 
   [ Michael Vogt ]

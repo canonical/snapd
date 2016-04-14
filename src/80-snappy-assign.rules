@@ -1,2 +1,2 @@
 # add/remove snap package access to assigned devices
-TAG=="snappy-assign", RUN+="/lib/udev/snappy-app-dev $env{ACTION} $env{SNAPPY_APP} $devpath $major:$minor"
+TAG=="snap_*", RUN+="/lib/udev/snappy-app-dev $env{ACTION} $env{TAG} $devpath $major:$minor"
