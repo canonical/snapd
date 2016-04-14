@@ -46,6 +46,7 @@ export SNAP_DATA="/var/snap/pastebinit/1.4.0.0.1/"
 export SNAP_NAME="pastebinit"
 export SNAP_VERSION="1.4.0.0.1"
 export SNAP_ARCH="%[1]s"
+export SNAP_LIBRARY_PATH="/var/lib/snapd/lib/gl:"
 export SNAP_USER_DATA="$HOME/snap/pastebinit/1.4.0.0.1/"
 
 if [ ! -d "$SNAP_USER_DATA" ]; then
