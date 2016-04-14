@@ -42,12 +42,26 @@ func getPrice(prices map[string]float64, currency string) string {
 	}
 
 	// Look up the price by currency code
-	if val, ok := prices[currency]; ok {
-		return fmt.Sprintf("%.2f", val)
+	val, ok := prices[currency]
+
+	// Fall back to dollars
+	if !ok {
+		currency = "USD"
+		val, ok = prices["USD"]
 	}
 
-	// Price was unavailable
-	return i18n.G("unavailable")
+	// If there aren't even dollars, grab the first currency,
+	// ordered alphabetically by currency code
+	if !ok {
+		currency = "ZZZ"
+		for c, v := range prices {
+			if c < currency {
+				currency, val = c, v
+			}
+		}
+	}
+
+	return fmt.Sprintf("%.2f%s", val, currency)
 }
 
 type cmdFind struct {
