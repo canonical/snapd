@@ -407,6 +407,23 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	plug := m.repo.Plug(plugRef.Snap, plugRef.Name)
+	slot := m.repo.Slot(slotRef.Snap, slotRef.Name)
+
+	for _, snapInfo := range []*snap.Info{plug.Snap, slot.Snap} {
+		var snapState snapstate.SnapState
+		if err := snapstate.Get(st, snapInfo.Name(), &snapState); err != nil {
+			task.Errorf("cannot get state of snap %q: %s", snapInfo.Name(), err)
+			return state.Retry
+		}
+		for _, backend := range securityBackendsForSnap(snapInfo) {
+			if err := backend.Setup(snapInfo, snapState.DevMode, m.repo); err != nil {
+				task.Errorf("cannot setup security of snap %q: %s", snapInfo.Name(), err)
+				return state.Retry
+			}
+		}
+	}
+
 	delete(conns, connID(plugRef, slotRef))
 	setConns(st, conns)
 	return nil
