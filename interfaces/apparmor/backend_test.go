@@ -137,14 +137,16 @@ func (s *backendSuite) TestInstallingSnapWritesAndLoadsProfiles(c *C) {
 	})
 }
 
-func (s *backendSuite) TestSecurityIsStable(c *C) {
+func (s *backendSuite) TestProfilesAreAlwaysLoaded(c *C) {
 	for _, devMode := range []bool{true, false} {
 		snapInfo := s.installSnap(c, devMode, sambaYaml, 1)
 		s.parserCmd.ForgetCalls()
 		err := s.backend.Setup(snapInfo, devMode, s.repo)
 		c.Assert(err, IsNil)
-		// profiles are not re-compiled or re-loaded when nothing changes
-		c.Check(s.parserCmd.Calls(), HasLen, 0)
+		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+		c.Check(s.parserCmd.Calls(), DeepEquals, []string{
+			fmt.Sprintf("--replace --write-cache -O no-expr-simplify --cache-loc=%s/var/cache/apparmor %s", s.rootDir, profile),
+		})
 		s.removeSnap(c, snapInfo)
 	}
 }
@@ -190,13 +192,15 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 		s.parserCmd.ForgetCalls()
 		// NOTE: the revision is kept the same to just test on the new application being added
 		snapInfo = s.updateSnap(c, snapInfo, devMode, sambaYamlWithNmbd, 1)
-		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.nmbd")
+		smbdProfile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+		nmbdProfile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.nmbd")
 		// file called "snap.sambda.nmbd" was created
-		_, err := os.Stat(profile)
+		_, err := os.Stat(nmbdProfile)
 		c.Check(err, IsNil)
-		// apparmor_parser was used to load the new profile
+		// apparmor_parser was used to load the both profiles
 		c.Check(s.parserCmd.Calls(), DeepEquals, []string{
-			fmt.Sprintf("--replace --write-cache -O no-expr-simplify --cache-loc=%s/var/cache/apparmor %s", s.rootDir, profile),
+			fmt.Sprintf("--replace --write-cache -O no-expr-simplify --cache-loc=%s/var/cache/apparmor %s", s.rootDir, nmbdProfile),
+			fmt.Sprintf("--replace --write-cache -O no-expr-simplify --cache-loc=%s/var/cache/apparmor %s", s.rootDir, smbdProfile),
 		})
 		s.removeSnap(c, snapInfo)
 	}
@@ -208,12 +212,16 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 		s.parserCmd.ForgetCalls()
 		// NOTE: the revision is kept the same to just test on the application being removed
 		snapInfo = s.updateSnap(c, snapInfo, devMode, sambaYaml, 1)
-		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.nmbd")
+		smbdProfile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+		nmbdProfile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.nmbd")
 		// file called "snap.sambda.nmbd" was removed
-		_, err := os.Stat(profile)
+		_, err := os.Stat(nmbdProfile)
 		c.Check(os.IsNotExist(err), Equals, true)
 		// apparmor_parser was used to remove the unused profile
-		c.Check(s.parserCmd.Calls(), DeepEquals, []string{"--remove snap.samba.nmbd"})
+		c.Check(s.parserCmd.Calls(), DeepEquals, []string{
+			fmt.Sprintf("--replace --write-cache -O no-expr-simplify --cache-loc=%s/var/cache/apparmor %s", s.rootDir, smbdProfile),
+			"--remove snap.samba.nmbd",
+		})
 		s.removeSnap(c, snapInfo)
 	}
 }
