@@ -147,6 +147,16 @@ func setupSnapSecurity(task *state.Task, snapInfo *snap.Info, repo *interfaces.R
 	return nil
 }
 
+func removeSnapSecurity(task *state.Task, snapName string) error {
+	for _, backend := range securityBackends {
+		if err := backend.Remove(snapName); err != nil {
+			task.Errorf("cannot setup %s for snap %q: %s", backend.Name(), snapName, err)
+			return err
+		}
+	}
+	return nil
+}
+
 func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error {
 	task.State().Lock()
 	defer task.State().Unlock()
@@ -262,31 +272,32 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, _ *tomb.Tomb) erro
 	task.State().Lock()
 	defer task.State().Unlock()
 
-	// Get snap.Info from bits handed by the snap manager.
-	ss, err := snapstate.TaskSnapSetup(task)
+	snapSetup, err := snapstate.TaskSnapSetup(task)
 	if err != nil {
 		return err
 	}
-	snapInfo, err := snapstate.Info(task.State(), ss.Name, ss.Revision)
-	if err != nil {
-		return err
-	}
-	snapName := snapInfo.Name()
+	snapName := snapSetup.Name
+
 	affectedSnaps, err := m.repo.DisconnectSnap(snapName)
 	if err != nil {
 		return err
 	}
-	if err := m.repo.RemoveSnap(snapName); err != nil {
-		return err
-	}
-	if len(affectedSnaps) == 0 {
-		affectedSnaps = append(affectedSnaps, snapInfo)
-	}
 	for _, snapInfo := range affectedSnaps {
+		if snapInfo.Name() == snapName {
+			continue
+		}
 		if err := setupSnapSecurity(task, snapInfo, m.repo); err != nil {
 			return state.Retry
 		}
 	}
+
+	if err := m.repo.RemoveSnap(snapName); err != nil {
+		return err
+	}
+	if err := removeSnapSecurity(task, snapName); err != nil {
+		return state.Retry
+	}
+
 	return nil
 }
 
