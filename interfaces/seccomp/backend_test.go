@@ -98,8 +98,8 @@ func (s *backendSuite) TestName(c *C) {
 }
 
 func (s *backendSuite) TestInstallingSnapWritesProfiles(c *C) {
-	developerMode := false
-	s.installSnap(c, developerMode, sambaYamlV1)
+	devMode := false
+	s.installSnap(c, devMode, sambaYamlV1)
 	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
 	// file called "snap.sambda.smbd" was created
 	_, err := os.Stat(profile)
@@ -107,8 +107,8 @@ func (s *backendSuite) TestInstallingSnapWritesProfiles(c *C) {
 }
 
 func (s *backendSuite) TestRemovingSnapRemovesProfiles(c *C) {
-	for _, developerMode := range []bool{true, false} {
-		snapInfo := s.installSnap(c, developerMode, sambaYamlV1)
+	for _, devMode := range []bool{true, false} {
+		snapInfo := s.installSnap(c, devMode, sambaYamlV1)
 		s.removeSnap(c, snapInfo)
 		profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
 		// file called "snap.sambda.smbd" was removed
@@ -118,9 +118,9 @@ func (s *backendSuite) TestRemovingSnapRemovesProfiles(c *C) {
 }
 
 func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
-	for _, developerMode := range []bool{true, false} {
-		snapInfo := s.installSnap(c, developerMode, sambaYamlV1)
-		snapInfo = s.updateSnap(c, snapInfo, developerMode, sambaYamlV1WithNmbd)
+	for _, devMode := range []bool{true, false} {
+		snapInfo := s.installSnap(c, devMode, sambaYamlV1)
+		snapInfo = s.updateSnap(c, snapInfo, devMode, sambaYamlV1WithNmbd)
 		profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.nmbd")
 		// file called "snap.sambda.nmbd" was created
 		_, err := os.Stat(profile)
@@ -130,9 +130,9 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 }
 
 func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
-	for _, developerMode := range []bool{true, false} {
-		snapInfo := s.installSnap(c, developerMode, sambaYamlV1WithNmbd)
-		snapInfo = s.updateSnap(c, snapInfo, developerMode, sambaYamlV1)
+	for _, devMode := range []bool{true, false} {
+		snapInfo := s.installSnap(c, devMode, sambaYamlV1WithNmbd)
+		snapInfo = s.updateSnap(c, snapInfo, devMode, sambaYamlV1)
 		profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.nmbd")
 		// file called "snap.sambda.nmbd" was removed
 		_, err := os.Stat(profile)
@@ -162,9 +162,9 @@ func (s *backendSuite) TestRealDefaultTemplateIsNormallyUsed(c *C) {
 }
 
 type combineSnippetsScenario struct {
-	developerMode bool
-	snippet       string
-	content       string
+	devMode bool
+	snippet string
+	content string
 }
 
 var combineSnippetsScenarios = []combineSnippetsScenario{{
@@ -173,12 +173,12 @@ var combineSnippetsScenarios = []combineSnippetsScenario{{
 	snippet: "snippet",
 	content: "default\nsnippet\n",
 }, {
-	developerMode: true,
-	content:       "@complain\ndefault\n",
+	devMode: true,
+	content: "@complain\ndefault\n",
 }, {
-	developerMode: true,
-	snippet:       "snippet",
-	content:       "@complain\ndefault\nsnippet\n",
+	devMode: true,
+	snippet: "snippet",
+	content: "@complain\ndefault\nsnippet\n",
 }}
 
 func (s *backendSuite) TestCombineSnippets(c *C) {
@@ -192,7 +192,7 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 			}
 			return []byte(scenario.snippet), nil
 		}
-		snapInfo := s.installSnap(c, scenario.developerMode, sambaYamlV1)
+		snapInfo := s.installSnap(c, scenario.devMode, sambaYamlV1)
 		profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
 		data, err := ioutil.ReadFile(profile)
 		c.Assert(err, IsNil)
@@ -206,23 +206,23 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 // Support code for tests
 
 // installSnap "installs" a snap from YAML.
-func (s *backendSuite) installSnap(c *C, developerMode bool, snapYaml string) *snap.Info {
+func (s *backendSuite) installSnap(c *C, devMode bool, snapYaml string) *snap.Info {
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
 	s.addPlugsSlots(c, snapInfo)
-	err = s.backend.Setup(snapInfo, developerMode, s.repo)
+	err = s.backend.Setup(snapInfo, devMode, s.repo)
 	c.Assert(err, IsNil)
 	return snapInfo
 }
 
 // updateSnap "updates" an existing snap from YAML.
-func (s *backendSuite) updateSnap(c *C, oldSnapInfo *snap.Info, developerMode bool, snapYaml string) *snap.Info {
+func (s *backendSuite) updateSnap(c *C, oldSnapInfo *snap.Info, devMode bool, snapYaml string) *snap.Info {
 	newSnapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
 	c.Assert(newSnapInfo.Name(), Equals, oldSnapInfo.Name())
 	s.removePlugsSlots(c, oldSnapInfo)
 	s.addPlugsSlots(c, newSnapInfo)
-	err = s.backend.Setup(newSnapInfo, developerMode, s.repo)
+	err = s.backend.Setup(newSnapInfo, devMode, s.repo)
 	c.Assert(err, IsNil)
 	return newSnapInfo
 }
