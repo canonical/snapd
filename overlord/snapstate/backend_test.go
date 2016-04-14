@@ -25,6 +25,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/store"
 )
 
 type fakeOp struct {
@@ -57,7 +58,7 @@ func (f *fakeSnappyBackend) InstallLocal(path string, flags int, p progress.Mete
 	return nil
 }
 
-func (f *fakeSnappyBackend) Download(name, channel string, p progress.Meter) (*snap.Info, string, error) {
+func (f *fakeSnappyBackend) Download(name, channel string, p progress.Meter, auther store.Authenticator) (*snap.Info, string, error) {
 	f.ops = append(f.ops, fakeOp{
 		op:      "download",
 		name:    name,
