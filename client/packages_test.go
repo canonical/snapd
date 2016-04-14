@@ -29,36 +29,24 @@ import (
 )
 
 func (cs *clientSuite) TestClientSnapsCallsEndpoint(c *check.C) {
-	_, _ = cs.cli.Snaps()
+	_, _, _ = cs.cli.Snaps()
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/snaps")
-}
-
-func (cs *clientSuite) TestClientSnapsResultJSONHasNoSnaps(c *check.C) {
-	cs.rsp = `{
-		"type": "sync",
-		"result": {}
-	}`
-	_, err := cs.cli.Snaps()
-	c.Check(err, check.ErrorMatches, `.*no snaps`)
 }
 
 func (cs *clientSuite) TestClientSnapsInvalidSnapsJSON(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
-		"result": {
-			"snaps": "not a list of snaps"
-		}
+		"result": "not a list of snaps"
 	}`
-	_, err := cs.cli.Snaps()
-	c.Check(err, check.ErrorMatches, `.*failed to unmarshal snaps.*`)
+	_, _, err := cs.cli.Snaps()
+	c.Check(err, check.ErrorMatches, `.*cannot unmarshal.*`)
 }
 
 func (cs *clientSuite) TestClientSnaps(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
 		"result": {
-			"snaps": {
 				"hello-world.canonical": {
                                         "summary": "salutation snap",
 					"description": "hello-world",
@@ -72,10 +60,9 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 					"type": "app",
 					"version": "1.0.18"
 				}
-			}
 		}
 	}`
-	applications, err := cs.cli.Snaps()
+	applications, _, err := cs.cli.Snaps()
 	c.Check(err, check.IsNil)
 	c.Check(applications, check.DeepEquals, map[string]*client.Snap{
 		"hello-world.canonical": &client.Snap{
@@ -111,7 +98,7 @@ func (cs *clientSuite) TestClientFilterSnaps(c *check.C) {
 	}
 
 	for _, tt := range filterTests {
-		_, _ = cs.cli.FilterSnaps(tt.filter)
+		_, _, _ = cs.cli.FilterSnaps(tt.filter)
 		c.Check(cs.req.URL.Path, check.Equals, tt.path, check.Commentf("%v", tt.filter))
 		c.Check(cs.req.URL.RawQuery, check.Equals, tt.query, check.Commentf("%v", tt.filter))
 	}
@@ -140,7 +127,7 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 			"version": "0.1-8"
 		}
 	}`
-	pkg, err := cs.cli.Snap(pkgName)
+	pkg, _, err := cs.cli.Snap(pkgName)
 	c.Assert(cs.req.Method, check.Equals, "GET")
 	c.Assert(cs.req.URL.Path, check.Equals, fmt.Sprintf("/v2/snaps/%s", pkgName))
 	c.Assert(err, check.IsNil)

@@ -36,7 +36,7 @@ import (
 // and its prerequisite in the database.
 func (client *Client) Ack(b []byte) error {
 	var rsp interface{}
-	if err := client.doSync("POST", "/v2/assertions", nil, bytes.NewReader(b), &rsp); err != nil {
+	if _, err := client.doSync("POST", "/v2/assertions", nil, bytes.NewReader(b), &rsp); err != nil {
 		return fmt.Errorf("cannot assert: %v", err)
 	}
 

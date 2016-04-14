@@ -33,7 +33,7 @@ type Operation interface {
 // Operation fetches information about an operation given its UUID
 func (client *Client) Operation(uuid string) (Operation, error) {
 	var v operation
-	err := client.doSync("GET", "/v2/operations/"+uuid, nil, nil, &v)
+	_, err := client.doSync("GET", "/v2/operations/"+uuid, nil, nil, &v)
 
 	return &v, err
 }
