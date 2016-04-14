@@ -45,6 +45,13 @@ apps interfering with one another.
 Usage: reserved
 Auto-Connect: yes
 
+### opengl
+
+Can access the opengl hardware. 
+
+Usage: reserved
+Auto-Connect: yes
+
 ### home
 
 Can access non-hidden files in user's $HOME. This is restricted
