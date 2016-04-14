@@ -6,6 +6,11 @@ access. It uses apparmor and seccomp to do this.
 Run with:
 $ ubuntu-core-launcher /path/to/rootdir security-profile /path/to/binary additional args
 
+Can run the tests with:
+$ make check
+
+Note: the tests assume that seccomp denials are logged to dmesg. If seccomp is
+killing processing without logging, verify that auditd is not installed.
 
 == Apparmor ==
 

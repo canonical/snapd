@@ -9,7 +9,7 @@ Vcs-Bzr: lp:~snappy-dev/ubuntu-core-launcher/trunk
 Package: ubuntu-core-launcher
 Architecture: any
 Depends: ${misc:Depends}, ${shlibs:Depends}, apparmor
-Breaks: ubuntu-snappy-cli (<< 1.7.2+20160113ubuntu1) 
+Breaks: ubuntu-snappy-cli (<< 1.9), snapd (<< 1.9)
 Description: Launcher for ubuntu-core (snappy) apps
  This package contains the launcher for launching ubuntu-core applications
  on a ubuntu "snappy" system.

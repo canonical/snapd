@@ -1,0 +1,17 @@
+#!/bin/sh
+
+set -e
+
+. $(pwd)/common.sh
+
+cat >$TMP/myprofile <<EOF
+# some comment
+@complain
+EOF
+
+printf "Test that the @complain keyword works"
+if $L appid myprofile /bin/ls / >/dev/null; then
+    PASS
+else
+    FAIL
+fi

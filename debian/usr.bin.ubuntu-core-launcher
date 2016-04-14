@@ -65,7 +65,7 @@
     # change_profile -> **,
 
     # reading seccomp filters
-    /var/lib/snappy/seccomp/profiles/* r,
+    /var/lib/snapd/seccomp/profiles/* r,
 
     # set up snap-specific private /tmp dir
     capability chown,
@@ -79,22 +79,22 @@
 
     # for running snaps on ubuntu
     mount options=(rw rslave) -> /,
-    /snaps/ r,
-    /snaps/** r,
-    mount options=(rw bind) /snaps/ubuntu-core*/*/bin/ -> /bin/,
-    mount options=(rw bind) /snaps/ubuntu-core*/*/sbin/ -> /sbin/,
-    mount options=(rw bind) /snaps/ubuntu-core*/*/lib/ -> /lib/,
-    mount options=(rw bind) /snaps/ubuntu-core*/*/lib64/ -> /lib64/,
-    mount options=(rw bind) /snaps/ubuntu-core*/*/usr/ -> /usr/,
+    /snap/ r,
+    /snap/** r,
+    mount options=(rw bind) /snap/ubuntu-core*/*/bin/ -> /bin/,
+    mount options=(rw bind) /snap/ubuntu-core*/*/sbin/ -> /sbin/,
+    mount options=(rw bind) /snap/ubuntu-core*/*/lib/ -> /lib/,
+    mount options=(rw bind) /snap/ubuntu-core*/*/lib64/ -> /lib64/,
+    mount options=(rw bind) /snap/ubuntu-core*/*/usr/ -> /usr/,
 
-    # for creating the user data directories: ~/snaps, ~/snaps/<name> and
-    # ~/snaps/<name>/<version>
+    # for creating the user data directories: ~/snap, ~/snap/<name> and
+    # ~/snap/<name>/<version>
     / r,
     @{HOMEDIRS}/ r,
     # These should both have 'owner' match but due to LP: #1466234, we can't
     # yet
     @{HOME}/ r,
-    @{HOME}/snaps/{,*/,*/*/} rw,
+    @{HOME}/snap/{,*/,*/*/} rw,
 
     # for creating the user shared memory directories
     /{dev,run}/{,shm/} r,
