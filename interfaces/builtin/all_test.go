@@ -33,6 +33,7 @@ var _ = Suite(&AllSuite{})
 func (s *AllSuite) TestInterfaces(c *C) {
 	all := builtin.Interfaces()
 	c.Check(all, Contains, &builtin.BoolFileInterface{})
+	c.Check(all, Contains, &builtin.BluezInterface{})
 	c.Check(all, DeepContains, builtin.NewFirewallControlInterface())
 	c.Check(all, DeepContains, builtin.NewHomeInterface())
 	c.Check(all, DeepContains, builtin.NewLocaleControlInterface())
