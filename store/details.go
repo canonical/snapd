@@ -42,6 +42,7 @@ type snapDetails struct {
 	Publisher       string             `json:"publisher,omitempty"`
 	RatingsAverage  float64            `json:"ratings_average,omitempty"`
 	Revision        int                `json:"revision"`
+	SnapID          string             `json:"snap_id"`
 	SupportURL      string             `json:"support_url"`
 	Title           string             `json:"title"`
 	Type            snap.Type          `json:"content,omitempty"`
