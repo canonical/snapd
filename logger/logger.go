@@ -106,12 +106,14 @@ type ConsoleLog struct {
 	sys *log.Logger
 }
 
+var osStderr = os.Stderr
+
 // Debug sends the msg to syslog
 func (l *ConsoleLog) Debug(msg string) {
 	s := "DEBUG: " + msg
 	l.sys.Output(3, s)
 	// show debug log when run manually
-	if osutil.Isatty(int(os.Stderr.Fd())) {
+	if osutil.Isatty(int(osStderr.Fd())) {
 		l.log.Output(3, s)
 	}
 }

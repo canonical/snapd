@@ -22,7 +22,9 @@ package logger
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"log"
+	"os"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -74,10 +76,19 @@ func (s *LogSuite) TestNew(c *C) {
 	c.Check(l.log, NotNil)
 }
 
-func (s *LogSuite) TestDebugf(c *C) {
+func (s *LogSuite) TestDebugfForNonTTY(c *C) {
 	var logbuf bytes.Buffer
 	l, err := NewConsoleLog(&logbuf, DefaultFlags)
 	c.Assert(err, IsNil)
+
+	// stderr is not a tty for this test
+	tmpf, err := ioutil.TempFile("", "debugf")
+	c.Assert(err, IsNil)
+	osStderr = tmpf
+	defer func() {
+		os.Remove(tmpf.Name())
+		osStderr = os.Stderr
+	}()
 
 	SetLogger(l)
 
