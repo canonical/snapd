@@ -612,17 +612,19 @@ func (s *apiSuite) TestSnapsInfoOnePerIntegration(c *check.C) {
 
 	c.Check(rsp.Meta.Paging, check.DeepEquals, &Paging{Page: 1, Pages: 1})
 
-	snaps, ok := rsp.Result.(map[string]map[string]interface{})
-	c.Assert(ok, check.Equals, true)
-	c.Check(snaps, check.NotNil)
+	snaps := snapList(rsp.Result)
 	c.Check(snaps, check.HasLen, len(ddirs))
 
 	for _, s := range ddirs {
-		got := snaps[s.name]
-		c.Assert(got, check.NotNil, check.Commentf(s.name))
+		var got map[string]interface{}
+		for _, got = range snaps {
+			if got["name"].(string) == s.name {
+				break
+			}
+		}
 		c.Check(got["name"], check.Equals, s.name)
 		c.Check(got["version"], check.Equals, s.ver)
-		c.Check(got["revision"], check.Equals, s.rev)
+		c.Check(got["revision"], check.Equals, float64(s.rev))
 		c.Check(got["developer"], check.Equals, s.dev)
 	}
 }
@@ -643,9 +645,9 @@ func (s *apiSuite) TestSnapsInfoOnlyLocal(c *check.C) {
 
 	c.Assert(rsp.Sources, check.DeepEquals, []string{"local"})
 
-	snaps := rsp.Result.(map[string]map[string]interface{})
+	snaps := snapList(rsp.Result)
 	c.Assert(snaps, check.HasLen, 1)
-	c.Assert(snaps["local"], check.NotNil)
+	c.Assert(snaps[0]["name"], check.Equals, "local")
 }
 
 func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
@@ -664,9 +666,9 @@ func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
 
 	c.Assert(rsp.Sources, check.DeepEquals, []string{"store"})
 
-	snaps := rsp.Result.(map[string]map[string]interface{})
+	snaps := snapList(rsp.Result)
 	c.Assert(snaps, check.HasLen, 1)
-	c.Assert(snaps["store"], check.NotNil)
+	c.Assert(snaps[0]["name"], check.Equals, "store")
 }
 
 func (s *apiSuite) TestSnapsInfoLocalAndStore(c *check.C) {
@@ -685,7 +687,7 @@ func (s *apiSuite) TestSnapsInfoLocalAndStore(c *check.C) {
 
 	c.Assert(rsp.Sources, check.DeepEquals, []string{"local", "store"})
 
-	snaps := rsp.Result.(map[string]map[string]interface{})
+	snaps := snapList(rsp.Result)
 	c.Assert(snaps, check.HasLen, 2)
 }
 
@@ -722,7 +724,7 @@ func (s *apiSuite) TestSnapsInfoUnknownSource(c *check.C) {
 
 	c.Assert(rsp.Sources, check.HasLen, 0)
 
-	snaps := rsp.Result.(map[string]map[string]interface{})
+	snaps := snapList(rsp.Result)
 	c.Assert(snaps, check.HasLen, 0)
 }
 
@@ -736,9 +738,9 @@ func (s *apiSuite) TestSnapsInfoFilterLocal(c *check.C) {
 
 	rsp := getSnapsInfo(snapsCmd, req).(*resp)
 
-	snaps := rsp.Result.(map[string]map[string]interface{})
+	snaps := snapList(rsp.Result)
 	c.Assert(snaps, check.HasLen, 1)
-	c.Assert(snaps["foo"], check.NotNil)
+	c.Assert(snaps[0]["name"], check.Equals, "foo")
 }
 
 func (s *apiSuite) TestSnapsInfoFilterRemote(c *check.C) {
@@ -763,9 +765,9 @@ func (s *apiSuite) TestSnapsInfoAppsOnly(c *check.C) {
 
 	rsp := getSnapsInfo(snapsCmd, req).(*resp)
 
-	snaps := rsp.Result.(map[string]map[string]interface{})
+	snaps := snapList(rsp.Result)
 	c.Assert(snaps, check.HasLen, 1)
-	c.Assert(snaps["app"], check.NotNil)
+	c.Assert(snaps[0]["name"], check.Equals, "app")
 }
 
 func (s *apiSuite) TestSnapsInfoFrameworksOnly(c *check.C) {
@@ -777,9 +779,9 @@ func (s *apiSuite) TestSnapsInfoFrameworksOnly(c *check.C) {
 
 	rsp := getSnapsInfo(snapsCmd, req).(*resp)
 
-	snaps := rsp.Result.(map[string]map[string]interface{})
+	snaps := snapList(rsp.Result)
 	c.Assert(snaps, check.HasLen, 1)
-	c.Assert(snaps["framework"], check.NotNil)
+	c.Assert(snaps[0]["name"], check.Equals, "framework")
 }
 
 func (s *apiSuite) TestSnapsInfoAppsAndFrameworks(c *check.C) {
@@ -791,7 +793,7 @@ func (s *apiSuite) TestSnapsInfoAppsAndFrameworks(c *check.C) {
 
 	rsp := getSnapsInfo(snapsCmd, req).(*resp)
 
-	snaps := rsp.Result.(map[string]map[string]interface{})
+	snaps := snapList(rsp.Result)
 	c.Assert(snaps, check.HasLen, 2)
 }
 
@@ -1335,6 +1337,17 @@ func (s *apiSuite) TestInstallLeaveOld(c *check.C) {
 
 	c.Check(calledFlags, check.Equals, snappy.InstallFlags(0))
 	c.Check(err, check.IsNil)
+}
+
+func snapList(rawSnaps interface{}) []map[string]interface{} {
+	snaps := make([]map[string]interface{}, len(rawSnaps.([]*json.RawMessage)))
+	for i, raw := range rawSnaps.([]*json.RawMessage) {
+		err := json.Unmarshal([]byte(*raw), &snaps[i])
+		if err != nil {
+			panic(err)
+		}
+	}
+	return snaps
 }
 
 // FIXME: license prompt broken for now
