@@ -37,6 +37,7 @@ type Change struct {
 
 // A Task is an operation done to change the system's state.
 type Task struct {
+	ID       string       `json:"id"`
 	Kind     string       `json:"kind"`
 	Summary  string       `json:"summary"`
 	Status   string       `json:"status"`

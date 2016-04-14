@@ -1066,6 +1066,7 @@ type changeInfo struct {
 }
 
 type taskInfo struct {
+	ID       string           `json:"id"`
 	Kind     string           `json:"kind"`
 	Summary  string           `json:"summary"`
 	Status   string           `json:"status"`
@@ -1096,6 +1097,7 @@ func change2changeInfo(chg *state.Change) *changeInfo {
 	for j, t := range tasks {
 		cur, tot := t.Progress()
 		taskInfo := &taskInfo{
+			ID:      t.ID(),
 			Kind:    t.Kind(),
 			Summary: t.Summary(),
 			Status:  t.Status().String(),
