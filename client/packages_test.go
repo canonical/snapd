@@ -58,9 +58,10 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 			"status": "available",
 			"type": "app",
 			"version": "1.0.18"
-		}]
+		}],
+		"suggested-currency": "GBP"
 	}`
-	applications, _, err := cs.cli.Snaps()
+	applications, resultInfo, err := cs.cli.Snaps()
 	c.Check(err, check.IsNil)
 	c.Check(applications, check.DeepEquals, []*client.Snap{{
 		Summary:       "salutation snap",
@@ -74,6 +75,8 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 		Type:          client.TypeApp,
 		Version:       "1.0.18",
 	}})
+
+	c.Check(resultInfo.SuggestedCurrency, check.Equals, "GBP")
 }
 
 func (cs *clientSuite) TestClientFilterSnaps(c *check.C) {

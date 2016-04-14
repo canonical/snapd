@@ -231,8 +231,9 @@ func loginUser(c *Command, r *http.Request) Response {
 }
 
 type metarepo interface {
-	Snap(string, string) (*snap.Info, error)
-	FindSnaps(string, string) ([]*snap.Info, error)
+	Snap(string, string, store.Authenticator) (*snap.Info, error)
+	FindSnaps(string, string, store.Authenticator) ([]*snap.Info, error)
+	SuggestedCurrency() string
 }
 
 var newRemoteRepo = func() metarepo {
@@ -252,7 +253,9 @@ func getSnapInfo(c *Command, r *http.Request) Response {
 	defer lock.Unlock()
 
 	channel := ""
-	remoteSnap, _ := newRemoteRepo().Snap(name, channel)
+	remoteRepo := newRemoteRepo()
+	remoteSnap, _ := remoteRepo.Snap(name, channel, nil)
+	suggestedCurrency := remoteRepo.SuggestedCurrency()
 
 	installed, err := (&snappy.Overlord{}).Installed()
 	if err != nil {
@@ -276,7 +279,10 @@ func getSnapInfo(c *Command, r *http.Request) Response {
 
 	result := webify(mapSnap(localSnaps, remoteSnap), url.String())
 
-	return SyncResponse(result, nil)
+	meta := &Meta{
+		SuggestedCurrency: suggestedCurrency,
+	}
+	return SyncResponse(result, meta)
 }
 
 func webify(result map[string]interface{}, resource string) map[string]interface{} {
@@ -345,8 +351,12 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		localSnapMap, _ = allSnaps()
 	}
 
+	var suggestedCurrency string
+
 	if includeStore {
 		remoteSnapMap = make(map[string]*snap.Info)
+
+		remoteRepo := newRemoteRepo()
 
 		// repo.Find("") finds all
 		//
@@ -354,7 +364,8 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		//   * if there are no results, return an error response.
 		//   * If there are results at all (perhaps local), include a
 		//     warning in the response
-		found, _ := newRemoteRepo().FindSnaps(searchTerm, "")
+		found, _ := remoteRepo.FindSnaps(searchTerm, "", nil)
+		suggestedCurrency = remoteRepo.SuggestedCurrency()
 
 		sources = append(sources, "store")
 
@@ -409,6 +420,7 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 			Page:  1,
 			Pages: 1,
 		},
+		SuggestedCurrency: suggestedCurrency,
 	}
 	return SyncResponse(results, meta)
 }
