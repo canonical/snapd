@@ -418,10 +418,9 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 	meta := &Meta{
 		Sources: sources,
 		Paging: &Paging{
-			Page: 1,
+			Page:  1,
 			Pages: 1,
 		},
-
 	}
 	return SyncResponse(results, meta)
 }
