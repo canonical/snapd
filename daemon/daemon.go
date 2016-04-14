@@ -20,11 +20,9 @@
 package daemon
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/coreos/go-systemd/activation"
@@ -38,13 +36,11 @@ import (
 
 // A Daemon listens for requests and routes them to the right command
 type Daemon struct {
-	sync.RWMutex // for concurrent access to the tasks map
-	overlord     *overlord.Overlord
-	tasks        map[string]*Task
-	listener     net.Listener
-	tomb         tomb.Tomb
-	router       *mux.Router
-	hub          *notifications.Hub
+	overlord *overlord.Overlord
+	listener net.Listener
+	tomb     tomb.Tomb
+	router   *mux.Router
+	hub      *notifications.Hub
 	// enableInternalInterfaceActions controls if adding and removing slots and plugs is allowed.
 	enableInternalInterfaceActions bool
 }
@@ -211,44 +207,6 @@ func (d *Daemon) Dying() <-chan struct{} {
 	return d.tomb.Dying()
 }
 
-// AddTask runs the given function as a task
-func (d *Daemon) AddTask(f func() interface{}) *Task {
-	t := RunTask(f)
-	d.Lock()
-	defer d.Unlock()
-	d.tasks[t.UUID()] = t
-
-	return t
-}
-
-// GetTask retrieves a task from the tasks map, by uuid.
-func (d *Daemon) GetTask(uuid string) *Task {
-	d.RLock()
-	defer d.RUnlock()
-	return d.tasks[uuid]
-}
-
-var (
-	errTaskNotFound     = errors.New("task not found")
-	errTaskStillRunning = errors.New("task still running")
-)
-
-// DeleteTask removes a task from the tasks map, by uuid.
-func (d *Daemon) DeleteTask(uuid string) error {
-	d.Lock()
-	defer d.Unlock()
-	task, ok := d.tasks[uuid]
-	if !ok || task == nil {
-		return errTaskNotFound
-	}
-	if task.State() != TaskRunning {
-		delete(d.tasks, uuid)
-		return nil
-	}
-
-	return errTaskStillRunning
-}
-
 // New Daemon
 func New() (*Daemon, error) {
 	ovld, err := overlord.New()
@@ -257,7 +215,6 @@ func New() (*Daemon, error) {
 	}
 	return &Daemon{
 		overlord: ovld,
-		tasks:    make(map[string]*Task),
 		hub:      notifications.NewHub(),
 		// TODO: Decide when this should be disabled by default.
 		enableInternalInterfaceActions: true,

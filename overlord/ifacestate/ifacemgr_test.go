@@ -362,6 +362,49 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyKeepsExistingConnectionSt
 	})
 }
 
+func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyReloadsConnectionsWhenInvokedOnPlugSide(c *C) {
+	s.testDoSetupSnapSecuirtyReloadsConnectionsWhenInvokedOn(c, "consumer")
+}
+
+func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyReloadsConnectionsWhenInvokedOnSlotSide(c *C) {
+	s.testDoSetupSnapSecuirtyReloadsConnectionsWhenInvokedOn(c, "producer")
+}
+
+func (s *interfaceManagerSuite) testDoSetupSnapSecuirtyReloadsConnectionsWhenInvokedOn(c *C, snapName string) {
+	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
+	})
+	s.state.Unlock()
+
+	mgr := s.manager(c)
+
+	// Run the setup-profiles task
+	change := s.addSetupSnapSecurityChange(c, snapName)
+	mgr.Ensure()
+	mgr.Wait()
+	mgr.Stop()
+
+	// Change succeeds
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(change.Status(), Equals, state.DoneStatus)
+
+	repo := mgr.Repository()
+
+	// Repository shows the connection
+	plug := repo.Plug("consumer", "plug")
+	slot := repo.Slot("producer", "slot")
+	c.Assert(plug.Connections, HasLen, 1)
+	c.Assert(slot.Connections, HasLen, 1)
+	c.Check(plug.Connections[0], DeepEquals, interfaces.SlotRef{Snap: "producer", Name: "slot"})
+	c.Check(slot.Connections[0], DeepEquals, interfaces.PlugRef{Snap: "consumer", Name: "plug"})
+}
+
 func (s *interfaceManagerSuite) TestDoDiscardConnsPlug(c *C) {
 	s.testDoDicardConns(c, "consumer")
 }
@@ -412,7 +455,7 @@ func (s *interfaceManagerSuite) TestDoRemove(c *C) {
 
 	mgr := s.manager(c)
 
-	// Run the remove-snap-security task
+	// Run the remove-security task
 	change := s.addRemoveSnapSecurityChange(c, "consumer")
 	mgr.Ensure()
 	mgr.Wait()
@@ -424,6 +467,7 @@ func (s *interfaceManagerSuite) TestDoRemove(c *C) {
 	c.Check(change.Status(), Equals, state.DoneStatus)
 
 	repo := mgr.Repository()
+
 	// Snap is removed from repository
 	c.Check(repo.Plug("consumer", "slot"), IsNil)
 
