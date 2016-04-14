@@ -68,6 +68,7 @@ type Meta struct {
 	Sources           []string `json:"sources,omitempty"`
 	Paging            *Paging  `json:"paging,omitempty"`
 	SuggestedCurrency string   `json:"suggested-currency,omitempty"`
+	Change            string   `json:"change,omitempty"`
 }
 
 type Paging struct {

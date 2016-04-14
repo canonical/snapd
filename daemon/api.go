@@ -724,14 +724,7 @@ func postSnap(c *Command, r *http.Request) Response {
 		return InternalError("can't %s %q: %v", inst.Action, inst.pkg, err)
 	}
 
-	url, err := route.URL("id", chg.ID())
-	if err != nil {
-		return InternalError("route can't build URL for change: %v", err)
-	}
-
-	return AsyncResponse(map[string]interface{}{
-		"resource": url.String(),
-	}, nil)
+	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }
 
 const maxReadBuflen = 1024 * 1024
@@ -822,14 +815,7 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 	}
 	state.EnsureBefore(0)
 
-	url, err := route.URL("id", chg.ID())
-	if err != nil {
-		return InternalError("route can't build URL for change: %v", err)
-	}
-
-	return AsyncResponse(map[string]interface{}{
-		"resource": url.String(),
-	}, nil)
+	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }
 
 func iconGet(st *state.State, name string) Response {
