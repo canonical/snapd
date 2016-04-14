@@ -1,11 +1,17 @@
 ubuntu-core-launcher (1.0.24) UNRELEASED; urgency=medium
 
-  * use the /usr from the ubuntu-core snap instead of
-    the host system
+  [ Michael Vogt ]
   * ignore non-existing dirs when doing the overlay mount
   * add /lib32, /libx32 to the overlay mounts
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 14 Apr 2016 10:58:24 +0200
+  [ Jamie Strandboge ]
+  * add back the use of /usr from the ubuntu-core snap instead of the host
+    system (LP: #1570581)
+  * implement @complain as a synonym for @unrestricted since snappy will use
+    @complain to toggle developer mode. This allows snaps to work in developer
+    mode while seccomp logging is being developed (LP: #1570578)
+
+ -- Jamie Strandboge <jamie@ubuntu.com>  Wed, 13 Apr 2016 16:13:20 -0500
 
 ubuntu-core-launcher (1.0.23) xenial; urgency=medium
 
