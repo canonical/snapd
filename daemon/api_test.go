@@ -1479,68 +1479,15 @@ func (s *apiSuite) TestInstallLicensedIntegration(c *check.C) {
 
 // Tests for GET /v2/interfaces
 
-func makePlug(ifaceName string) *interfaces.Plug {
-	snapInfo := &snap.Info{
-		SuggestedName: "producer",
-	}
-	plugInfo := &snap.PlugInfo{
-		Snap:      snapInfo,
-		Name:      "plug",
-		Interface: ifaceName,
-		Attrs:     map[string]interface{}{"key": "value"},
-		Label:     "label",
-	}
-	appInfo := &snap.AppInfo{
-		Snap:  snapInfo,
-		Name:  "app",
-		Plugs: map[string]*snap.PlugInfo{"plug": plugInfo},
-	}
-	snapInfo.Apps = map[string]*snap.AppInfo{"app": appInfo}
-	plugInfo.Apps = snapInfo.Apps
-	snapInfo.Plugs = map[string]*snap.PlugInfo{"plug": plugInfo}
-	return &interfaces.Plug{PlugInfo: plugInfo}
-}
+func (s *apiSuite) TestInterfaces(c *check.C) {
+	d := s.daemon(c)
 
-func makeConnectedPlug() *interfaces.Plug {
-	plug := makePlug("interface")
-	plug.Connections = []interfaces.SlotRef{{Snap: "consumer", Name: "slot"}}
-	return plug
-}
+	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
 
-func makeSlot(ifaceName string) *interfaces.Slot {
-	snapInfo := &snap.Info{
-		SuggestedName: "consumer",
-	}
-	slotInfo := &snap.SlotInfo{
-		Snap:      snapInfo,
-		Name:      "slot",
-		Interface: ifaceName,
-		Attrs:     map[string]interface{}{"key": "value"},
-		Label:     "label",
-	}
-	appInfo := &snap.AppInfo{
-		Snap:  snapInfo,
-		Name:  "app",
-		Slots: map[string]*snap.SlotInfo{"slot": slotInfo},
-	}
-	snapInfo.Apps = map[string]*snap.AppInfo{"app": appInfo}
-	slotInfo.Apps = snapInfo.Apps
-	snapInfo.Slots = map[string]*snap.SlotInfo{"slot": slotInfo}
-	return &interfaces.Slot{SlotInfo: slotInfo}
-}
-
-func makeConnectedSlot() *interfaces.Slot {
-	slot := makeSlot("interface")
-	slot.Connections = []interfaces.PlugRef{{Snap: "producer", Name: "plug"}}
-	return slot
-}
-
-func (s *apiSuite) TestGetPlugs(c *check.C) {
-	repo := s.daemon(c).overlord.InterfaceManager().Repository()
-	repo.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	repo.AddPlug(makePlug("interface"))
-	repo.AddSlot(makeSlot("interface"))
-	repo.Connect("producer", "plug", "consumer", "slot")
+	repo := d.overlord.InterfaceManager().Repository()
+	repo.Connect("consumer", "plug", "producer", "slot")
 
 	req, err := http.NewRequest("GET", "/v2/interfaces", nil)
 	c.Assert(err, check.IsNil)
@@ -1554,27 +1501,27 @@ func (s *apiSuite) TestGetPlugs(c *check.C) {
 		"result": map[string]interface{}{
 			"plugs": []interface{}{
 				map[string]interface{}{
-					"snap":      "producer",
+					"snap":      "consumer",
 					"plug":      "plug",
-					"interface": "interface",
+					"interface": "test",
 					"attrs":     map[string]interface{}{"key": "value"},
 					"apps":      []interface{}{"app"},
 					"label":     "label",
 					"connections": []interface{}{
-						map[string]interface{}{"snap": "consumer", "slot": "slot"},
+						map[string]interface{}{"snap": "producer", "slot": "slot"},
 					},
 				},
 			},
 			"slots": []interface{}{
 				map[string]interface{}{
-					"snap":      "consumer",
+					"snap":      "producer",
 					"slot":      "slot",
-					"interface": "interface",
+					"interface": "test",
 					"attrs":     map[string]interface{}{"key": "value"},
 					"apps":      []interface{}{"app"},
 					"label":     "label",
 					"connections": []interface{}{
-						map[string]interface{}{"snap": "producer", "plug": "plug"},
+						map[string]interface{}{"snap": "consumer", "plug": "plug"},
 					},
 				},
 			},
@@ -1589,18 +1536,18 @@ func (s *apiSuite) TestGetPlugs(c *check.C) {
 
 func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 	d := s.daemon(c)
-	repo := d.overlord.InterfaceManager().Repository()
-	repo.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	repo.AddPlug(makePlug("interface"))
-	repo.AddSlot(makeSlot("interface"))
+
+	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
 
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
 	action := &interfaceAction{
 		Action: "connect",
-		Plugs:  []plugJSON{{Snap: "producer", Name: "plug"}},
-		Slots:  []slotJSON{{Snap: "consumer", Name: "slot"}},
+		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
+		Slots:  []slotJSON{{Snap: "producer", Name: "slot"}},
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -1619,27 +1566,31 @@ func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 		"status-code": 200.0,
 		"type":        "sync",
 	})
-	c.Assert(repo.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
-		Plugs: []*interfaces.Plug{makeConnectedPlug()},
-		Slots: []*interfaces.Slot{makeConnectedSlot()},
-	})
+
+	repo := d.overlord.InterfaceManager().Repository()
+	plug := repo.Plug("consumer", "plug")
+	slot := repo.Slot("producer", "slot")
+	c.Assert(plug.Connections, check.HasLen, 1)
+	c.Assert(slot.Connections, check.HasLen, 1)
+	c.Check(plug.Connections[0], check.DeepEquals, interfaces.SlotRef{Snap: "producer", Name: "slot"})
+	c.Check(slot.Connections[0], check.DeepEquals, interfaces.PlugRef{Snap: "consumer", Name: "plug"})
 }
 
 func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 	d := s.daemon(c)
-	repo := d.overlord.InterfaceManager().Repository()
-	repo.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	repo.AddInterface(&interfaces.TestInterface{InterfaceName: "other-interface"})
-	repo.AddPlug(makePlug("interface"))
-	repo.AddSlot(makeSlot("other-interface"))
+
+	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "different"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, differentProducerYaml)
 
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
 	action := &interfaceAction{
 		Action: "connect",
-		Plugs:  []plugJSON{{Snap: "producer", Name: "plug"}},
-		Slots:  []slotJSON{{Snap: "consumer", Name: "slot"}},
+		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
+		Slots:  []slotJSON{{Snap: "producer", Name: "slot"}},
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -1655,31 +1606,34 @@ func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
 			"message": `cannot perform the following tasks:
-- Connect producer:plug to consumer:slot (cannot connect plug "producer:plug" (interface "interface") to "consumer:slot" (interface "other-interface"))`,
+- Connect consumer:plug to producer:slot (cannot connect plug "consumer:plug" (interface "test") to "producer:slot" (interface "different"))`,
 		},
 		"status":      "Bad Request",
 		"status-code": 400.0,
 		"type":        "error",
 	})
-	c.Assert(repo.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
-		Plugs: []*interfaces.Plug{makePlug("interface")},
-		Slots: []*interfaces.Slot{makeSlot("other-interface")},
-	})
+
+	repo := d.overlord.InterfaceManager().Repository()
+	plug := repo.Plug("consumer", "plug")
+	slot := repo.Slot("producer", "slot")
+	c.Assert(plug.Connections, check.HasLen, 0)
+	c.Assert(slot.Connections, check.HasLen, 0)
 }
 
 func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 	d := s.daemon(c)
-	repo := d.overlord.InterfaceManager().Repository()
-	repo.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	repo.AddSlot(makeSlot("interface"))
+
+	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	// there is no consumer, no plug defined
+	s.mockSnap(c, producerYaml)
 
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
 	action := &interfaceAction{
 		Action: "connect",
-		Plugs:  []plugJSON{{Snap: "producer", Name: "plug"}},
-		Slots:  []slotJSON{{Snap: "consumer", Name: "slot"}},
+		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
+		Slots:  []slotJSON{{Snap: "producer", Name: "slot"}},
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -1695,30 +1649,32 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
 			"message": `cannot perform the following tasks:
-- Connect producer:plug to consumer:slot (cannot connect plug "plug" from snap "producer", no such plug)`,
+- Connect consumer:plug to producer:slot (cannot connect plug "plug" from snap "consumer", no such plug)`,
 		},
 		"status":      "Bad Request",
 		"status-code": 400.0,
 		"type":        "error",
 	})
-	c.Assert(repo.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
-		Slots: []*interfaces.Slot{makeSlot("interface")},
-	})
+
+	repo := d.overlord.InterfaceManager().Repository()
+	slot := repo.Slot("producer", "slot")
+	c.Assert(slot.Connections, check.HasLen, 0)
 }
 
 func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 	d := s.daemon(c)
-	repo := d.overlord.InterfaceManager().Repository()
-	repo.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	repo.AddPlug(makePlug("interface"))
+
+	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	s.mockSnap(c, consumerYaml)
+	// there is no producer, no slot defined
 
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
 	action := &interfaceAction{
 		Action: "connect",
-		Plugs:  []plugJSON{{Snap: "producer", Name: "plug"}},
-		Slots:  []slotJSON{{Snap: "consumer", Name: "slot"}},
+		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
+		Slots:  []slotJSON{{Snap: "producer", Name: "slot"}},
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -1734,32 +1690,35 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
 			"message": `cannot perform the following tasks:
-- Connect producer:plug to consumer:slot (cannot connect plug to slot "slot" from snap "consumer", no such slot)`,
+- Connect consumer:plug to producer:slot (cannot connect plug to slot "slot" from snap "producer", no such slot)`,
 		},
 		"status":      "Bad Request",
 		"status-code": 400.0,
 		"type":        "error",
 	})
-	c.Assert(repo.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
-		Plugs: []*interfaces.Plug{makePlug("interface")},
-	})
+
+	repo := d.overlord.InterfaceManager().Repository()
+	plug := repo.Plug("consumer", "plug")
+	c.Assert(plug.Connections, check.HasLen, 0)
 }
 
 func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
 	d := s.daemon(c)
+
+	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
 	repo := d.overlord.InterfaceManager().Repository()
-	repo.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	repo.AddPlug(makePlug("interface"))
-	repo.AddSlot(makeSlot("interface"))
-	repo.Connect("producer", "plug", "consumer", "slot")
+	repo.Connect("consumer", "plug", "producer", "slot")
 
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
 	action := &interfaceAction{
 		Action: "disconnect",
-		Plugs:  []plugJSON{{Snap: "producer", Name: "plug"}},
-		Slots:  []slotJSON{{Snap: "consumer", Name: "slot"}},
+		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
+		Slots:  []slotJSON{{Snap: "producer", Name: "slot"}},
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -1778,25 +1737,27 @@ func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
 		"status-code": 200.0,
 		"type":        "sync",
 	})
-	c.Assert(repo.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
-		Plugs: []*interfaces.Plug{makePlug("interface")},
-		Slots: []*interfaces.Slot{makeSlot("interface")},
-	})
+
+	plug := repo.Plug("consumer", "plug")
+	slot := repo.Slot("producer", "slot")
+	c.Assert(plug.Connections, check.HasLen, 0)
+	c.Assert(slot.Connections, check.HasLen, 0)
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 	d := s.daemon(c)
-	repo := d.overlord.InterfaceManager().Repository()
-	repo.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	repo.AddSlot(makeSlot("interface"))
+
+	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	// there is no consumer, no plug defined
+	s.mockSnap(c, producerYaml)
 
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
 	action := &interfaceAction{
 		Action: "disconnect",
-		Plugs:  []plugJSON{{Snap: "producer", Name: "plug"}},
-		Slots:  []slotJSON{{Snap: "consumer", Name: "slot"}},
+		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
+		Slots:  []slotJSON{{Snap: "producer", Name: "slot"}},
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -1812,30 +1773,32 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
 			"message": `cannot perform the following tasks:
-- Disconnect producer:plug from consumer:slot (cannot disconnect plug "plug" from snap "producer", no such plug)`,
+- Disconnect consumer:plug from producer:slot (cannot disconnect plug "plug" from snap "consumer", no such plug)`,
 		},
 		"status":      "Bad Request",
 		"status-code": 400.0,
 		"type":        "error",
 	})
-	c.Assert(repo.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
-		Slots: []*interfaces.Slot{makeSlot("interface")},
-	})
+
+	repo := d.overlord.InterfaceManager().Repository()
+	slot := repo.Slot("producer", "slot")
+	c.Assert(slot.Connections, check.HasLen, 0)
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 	d := s.daemon(c)
-	repo := d.overlord.InterfaceManager().Repository()
-	repo.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	repo.AddPlug(makePlug("interface"))
+
+	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	s.mockSnap(c, consumerYaml)
+	// there is no producer, no slot defined
 
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
 	action := &interfaceAction{
 		Action: "disconnect",
-		Plugs:  []plugJSON{{Snap: "producer", Name: "plug"}},
-		Slots:  []slotJSON{{Snap: "consumer", Name: "slot"}},
+		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
+		Slots:  []slotJSON{{Snap: "producer", Name: "slot"}},
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -1851,31 +1814,32 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
 			"message": `cannot perform the following tasks:
-- Disconnect producer:plug from consumer:slot (cannot disconnect plug from slot "slot" from snap "consumer", no such slot)`,
+- Disconnect consumer:plug from producer:slot (cannot disconnect plug from slot "slot" from snap "producer", no such slot)`,
 		},
 		"status":      "Bad Request",
 		"status-code": 400.0,
 		"type":        "error",
 	})
-	c.Assert(repo.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
-		Plugs: []*interfaces.Plug{makePlug("interface")},
-	})
+
+	repo := d.overlord.InterfaceManager().Repository()
+	plug := repo.Plug("consumer", "plug")
+	c.Assert(plug.Connections, check.HasLen, 0)
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 	d := s.daemon(c)
-	repo := d.overlord.InterfaceManager().Repository()
-	repo.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	repo.AddPlug(makePlug("interface"))
-	repo.AddSlot(makeSlot("interface"))
+
+	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
 
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
 	action := &interfaceAction{
 		Action: "disconnect",
-		Plugs:  []plugJSON{{Snap: "producer", Name: "plug"}},
-		Slots:  []slotJSON{{Snap: "consumer", Name: "slot"}},
+		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
+		Slots:  []slotJSON{{Snap: "producer", Name: "slot"}},
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -1891,16 +1855,18 @@ func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
 			"message": `cannot perform the following tasks:
-- Disconnect producer:plug from consumer:slot (cannot disconnect plug "plug" from snap "producer" from slot "slot" from snap "consumer", it is not connected)`,
+- Disconnect consumer:plug from producer:slot (cannot disconnect plug "plug" from snap "consumer" from slot "slot" from snap "producer", it is not connected)`,
 		},
 		"status":      "Bad Request",
 		"status-code": 400.0,
 		"type":        "error",
 	})
-	c.Assert(repo.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
-		Plugs: []*interfaces.Plug{makePlug("interface")},
-		Slots: []*interfaces.Slot{makeSlot("interface")},
-	})
+
+	repo := d.overlord.InterfaceManager().Repository()
+	plug := repo.Plug("consumer", "plug")
+	slot := repo.Slot("producer", "slot")
+	c.Assert(plug.Connections, check.HasLen, 0)
+	c.Assert(slot.Connections, check.HasLen, 0)
 }
 
 func (s *apiSuite) TestUnsupportedInterfaceRequest(c *check.C) {
