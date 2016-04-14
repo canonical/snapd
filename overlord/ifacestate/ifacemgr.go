@@ -125,7 +125,7 @@ func (m *InterfaceManager) reloadConnections() error {
 		}
 		err = m.repo.Connect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
 		if err != nil {
-			return err
+			logger.Noticef("%s", err)
 		}
 	}
 	return nil
