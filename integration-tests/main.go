@@ -40,9 +40,9 @@ const (
 	defaultSSHPort   = 22
 	dataOutputDir    = "integration-tests/data/output/"
 
-	defaultKernel = "canonical-pc-linux.canonical"
-	defaultOS     = "ubuntu-core.canonical"
-	defaultGadget = "canonical-pc.canonical"
+	defaultKernel = "canonical-pc-linux"
+	defaultOS     = "ubuntu-core"
+	defaultGadget = "canonical-pc"
 )
 
 func main() {
