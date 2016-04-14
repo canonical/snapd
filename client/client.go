@@ -185,7 +185,7 @@ func (client *Client) doAsync(method, path string, query url.Values, body io.Rea
 		return "", fmt.Errorf("cannot unmarshal result: %v", err)
 	}
 
-	const opPrefix = "/v2/operations/"
+	const opPrefix = "/v2/changes/"
 	if !strings.HasPrefix(result.Resource, opPrefix) {
 		return "", fmt.Errorf("invalid resource location %q", result.Resource)
 	}
