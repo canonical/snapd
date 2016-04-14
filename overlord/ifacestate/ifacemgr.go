@@ -283,10 +283,8 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, _ *tomb.Tomb) erro
 		affectedSnaps = append(affectedSnaps, snapInfo)
 	}
 	for _, snapInfo := range affectedSnaps {
-		for _, backend := range securityBackends {
-			if err := backend.Remove(snapInfo.Name()); err != nil {
-				return state.Retry
-			}
+		if err := setupSnapSecurity(task, snapInfo, m.repo); err != nil {
+			return state.Retry
 		}
 	}
 	return nil
