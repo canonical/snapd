@@ -578,7 +578,7 @@ func (s *snapmgrTestSuite) TestInstallLocalIntegration(c *C) {
 	mockSnap := makeTestSnap(c, `name: mock
 version: 1.0`)
 	chg := s.state.NewChange("install", "install a local snap")
-	ts, err := snapstate.Install(s.state, mockSnap, "", 0)
+	ts, err := snapstate.InstallPath(s.state, mockSnap, "", 0)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 

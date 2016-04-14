@@ -502,6 +502,7 @@ func (inst *snapInstruction) Agreed(intro, license string) bool {
 }
 
 var snapstateInstall = snapstate.Install
+var snapstateInstallPath = snapstate.InstallPath
 var snapstateGet = snapstate.Get
 
 func waitChange(chg *state.Change) error {
@@ -832,7 +833,7 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 	state.Lock()
 	msg := fmt.Sprintf(i18n.G("Install local %q snap"), snap)
 	chg := state.NewChange("install-snap", msg)
-	ts, err := snapstateInstall(state, snap, "", flags)
+	ts, err := snapstateInstallPath(state, snap, "", flags)
 	if err == nil {
 		chg.AddAll(ts)
 	}

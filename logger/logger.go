@@ -106,7 +106,12 @@ type ConsoleLog struct {
 
 // Debug sends the msg to syslog
 func (l *ConsoleLog) Debug(msg string) {
-	l.sys.Output(3, "DEBUG: "+msg)
+	s := "DEBUG: " + msg
+	l.sys.Output(3, s)
+
+	if os.Getenv("SNAPD_DEBUG") != "" {
+		l.log.Output(3, s)
+	}
 }
 
 // Notice alerts the user about something, as well as putting it syslog
