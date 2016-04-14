@@ -26,29 +26,6 @@ import (
 	"github.com/ubuntu-core/snappy/snap"
 )
 
-// legacyVariablees returns text defining some apparmor variables that work
-// with legacy apparmor templates.
-//
-// The variables are expanded by apparmor parser. They are (currently):
-//  - APP_APPNAME
-//  - APP_PKGNAME
-//  - APP_VERSION
-//  - INSTALL_DIR
-// They can be changed but this has to match changes in template.go.
-//
-// In addition, the set of variables listed here interacts with old-security
-// interface since there the base template is provided by a particular 3rd
-// party snap, not by snappy.
-func legacyVariables(appInfo *snap.AppInfo) []byte {
-	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "@{APP_APPNAME}=\"%s\"\n", appInfo.Name)
-	// TODO: replace with app.SecurityTag()
-	fmt.Fprintf(&buf, "@{APP_PKGNAME}=\"%s\"\n", appInfo.Snap.Name())
-	fmt.Fprintf(&buf, "@{APP_VERSION}=\"%d\"\n", appInfo.Snap.Revision)
-	fmt.Fprintf(&buf, "@{INSTALL_DIR}=\"/snap\"")
-	return buf.Bytes()
-}
-
 // modernVariables returns text defining some apparmor variables that
 // work with non-legacy apparmor templates.
 func modernVariables(appInfo *snap.AppInfo) []byte {
