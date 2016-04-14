@@ -38,9 +38,9 @@ import (
 // ResponseType is the response type
 type ResponseType string
 
-// “there are three standard return types: Standard return value,
-// Background operation, Error”, each returning a JSON object with the
-// following “type” field:
+// "there are three standard return types: Standard return value,
+// Background operation, Error", each returning a JSON object with the
+// following "type" field:
 const (
 	ResponseTypeSync  ResponseType = "sync"
 	ResponseTypeAsync ResponseType = "async"
