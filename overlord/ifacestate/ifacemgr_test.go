@@ -103,7 +103,9 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
-	s.addPlugSlotAndInterface(c)
+	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
 
 	s.state.Lock()
 	change := s.state.NewChange("kind", "summary")
@@ -155,7 +157,15 @@ func (s *interfaceManagerSuite) TestDisconnectTask(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestEnsureProcessesDisconnectTask(c *C) {
-	s.addPlugSlotAndInterface(c)
+	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
+	})
+	s.state.Unlock()
 
 	s.state.Lock()
 	change := s.state.NewChange("kind", "summary")
@@ -165,10 +175,6 @@ func (s *interfaceManagerSuite) TestEnsureProcessesDisconnectTask(c *C) {
 	s.state.Unlock()
 
 	mgr := s.manager(c)
-	repo := mgr.Repository()
-	err = repo.Connect("consumer", "plug", "producer", "slot")
-	c.Assert(err, IsNil)
-
 	mgr.Ensure()
 	mgr.Wait()
 
@@ -181,16 +187,11 @@ func (s *interfaceManagerSuite) TestEnsureProcessesDisconnectTask(c *C) {
 	c.Check(change.Status(), Equals, state.DoneStatus)
 
 	// The connection is gone
+	repo := mgr.Repository()
 	plug := repo.Plug("consumer", "plug")
 	slot := repo.Slot("producer", "slot")
 	c.Assert(plug.Connections, HasLen, 0)
 	c.Assert(slot.Connections, HasLen, 0)
-}
-
-func (s *interfaceManagerSuite) addPlugSlotAndInterface(c *C) {
-	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
-	s.mockSnap(c, consumerYaml)
-	s.mockSnap(c, producerYaml)
 }
 
 func (s *interfaceManagerSuite) mockIface(c *C, iface interfaces.Interface) {
@@ -371,19 +372,13 @@ func (s *interfaceManagerSuite) TestDisconnectTracksConnectionsInState(c *C) {
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
-
-	mgr := s.manager(c)
-	repo := mgr.Repository()
-
-	// TODO: simplify this test after connections are reloaded by setting the state
-	// and letting the manager handle the connection internally.
 	s.state.Lock()
 	s.state.Set("conns", map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
 	})
-	err := repo.Connect("consumer", "plug", "producer", "slot")
-	c.Assert(err, IsNil)
 	s.state.Unlock()
+
+	mgr := s.manager(c)
 
 	s.state.Lock()
 	ts, err := ifacestate.Disconnect(s.state, "consumer", "plug", "producer", "slot")
