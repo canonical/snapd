@@ -250,6 +250,19 @@ func (s *interfaceManagerSuite) addRemoveSnapSecurityChange(c *C, snapName strin
 	return change
 }
 
+func (s *interfaceManagerSuite) addDiscardConnsChange(c *C, snapName string) *state.Change {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	task := s.state.NewTask("discard-conns", "")
+	ss := snapstate.SnapSetup{Name: snapName}
+	task.Set("snap-setup", ss)
+	taskset := state.NewTaskSet(task)
+	change := s.state.NewChange("test", "")
+	change.AddAll(taskset)
+	return change
+}
+
 var osSnapYaml = `
 name: ubuntu-core
 version: 1
@@ -383,6 +396,35 @@ func (s *interfaceManagerSuite) testDoRemoveSnapSecurityRemovesConnections(c *C,
 	c.Check(change.Status(), Equals, state.DoneStatus)
 
 	c.Check(change.Status(), Equals, state.DoneStatus)
+	var conns map[string]interface{}
+	err := s.state.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, map[string]interface{}{})
+}
+
+func (s *interfaceManagerSuite) TestDoDiscardConns(c *C) {
+	s.state.Lock()
+	// Store information about a connection in the state.
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
+	})
+	// Store empty snap state. This snap has an empty sequence now.
+	snapstate.Set(s.state, "consumer", &snapstate.SnapState{})
+	s.state.Unlock()
+
+	mgr := s.manager(c)
+
+	// Run the discard-conns task and let it finish
+	change := s.addDiscardConnsChange(c, "consumer")
+	mgr.Ensure()
+	mgr.Wait()
+	mgr.Stop()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(change.Status(), Equals, state.DoneStatus)
+
+	// Information about the connection was removed
 	var conns map[string]interface{}
 	err := s.state.Get("conns", &conns)
 	c.Assert(err, IsNil)

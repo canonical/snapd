@@ -65,6 +65,7 @@ func Manager(s *state.State, extra []interfaces.Interface) (*InterfaceManager, e
 	runner.AddHandler("disconnect", m.doDisconnect, nil)
 	runner.AddHandler("setup-snap-security", m.doSetupSnapSecurity, m.doRemoveSnapSecurity)
 	runner.AddHandler("remove-snap-security", m.doRemoveSnapSecurity, m.doSetupSnapSecurity)
+	runner.AddHandler("discard-conns", m.doDiscardConns, nil)
 	return m, nil
 }
 
@@ -304,6 +305,44 @@ func (m *InterfaceManager) doRemoveSnapSecurity(task *state.Task, _ *tomb.Tomb) 
 			}
 		}
 	}
+	return nil
+}
+
+func (m *InterfaceManager) doDiscardConns(task *state.Task, _ *tomb.Tomb) error {
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapSetup, err := snapstate.TaskSnapSetup(task)
+	if err != nil {
+		return err
+	}
+
+	snapName := snapSetup.Name
+
+	var snapState snapstate.SnapState
+	err = snapstate.Get(st, snapName, &snapState)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+
+	if err == nil && len(snapState.Sequence) != 0 {
+		return fmt.Errorf("cannot discard connections of a snap %q while it is present", snapName)
+	}
+	conns, err := getConns(st)
+	if err != nil {
+		return err
+	}
+	for id := range conns {
+		plugRef, slotRef, err := parseConnID(id)
+		if err != nil {
+			return err
+		}
+		if plugRef.Snap == snapName || slotRef.Snap == snapName {
+			delete(conns, id)
+		}
+	}
+	setConns(st, conns)
 	return nil
 }
 
