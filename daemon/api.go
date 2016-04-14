@@ -885,7 +885,7 @@ func appIconGet(c *Command, r *http.Request) Response {
 // getInterfaces returns all plugs and slots.
 func getInterfaces(c *Command, r *http.Request) Response {
 	repo := c.d.overlord.InterfaceManager().Repository()
-	return SyncResponse(repo.Interfaces())
+	return SyncResponse(repo.Interfaces(), nil)
 }
 
 // plugJSON aids in marshaling Plug into JSON.
@@ -1090,7 +1090,7 @@ func getChange(c *Command, r *http.Request) Response {
 		return NotFound("unable to find change with id %q", chID)
 	}
 
-	return SyncResponse(change2changeInfo(chg))
+	return SyncResponse(change2changeInfo(chg), nil)
 }
 
 func getChanges(c *Command, r *http.Request) Response {
