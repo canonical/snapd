@@ -873,14 +873,10 @@ func (s *apiSuite) TestPostSnap(c *check.C) {
 	rsp := postSnap(snapCmd, req).(*resp)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeAsync)
-	m := rsp.Result.(map[string]interface{})
-	c.Assert(m["resource"], check.Matches, "/v2/changes/.*")
-
-	id := m["resource"].(string)[len("/v2/changes/"):]
 
 	st := d.overlord.State()
 	st.Lock()
-	chg := st.Change(id)
+	chg := st.Change(rsp.Change)
 	c.Assert(chg, check.NotNil)
 	c.Check(chg.Summary(), check.Equals, "foooo")
 	st.Unlock()
