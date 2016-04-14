@@ -22,6 +22,8 @@ package state
 import (
 	"encoding/json"
 	"fmt"
+
+	"github.com/ubuntu-core/snappy/logger"
 )
 
 type progress struct {
@@ -199,7 +201,10 @@ func (t *Task) addLog(kind, format string, args []interface{}) {
 		copy(t.log, t.log[len(t.log)-9:])
 		t.log = t.log[:9]
 	}
-	t.log = append(t.log, fmt.Sprintf(kind+": "+format, args...))
+
+	msg := fmt.Sprintf(kind+": "+format, args...)
+	t.log = append(t.log, msg)
+	logger.Debugf(msg)
 }
 
 // Log returns the most recent messages logged into the task.
