@@ -133,11 +133,11 @@ func (cs *clientSuite) TestClientSetsAuthorization(c *check.C) {
 	os.Setenv("HOME", tmpdir)
 	defer os.Setenv("HOME", home)
 
-	mockUserData := client.AuthenticatedUser{
+	mockUserData := client.User{
 		Macaroon:   "macaroon",
 		Discharges: []string{"discharge"},
 	}
-	err := client.WriteAuthData(mockUserData)
+	err := client.TestWriteAuth(mockUserData)
 	c.Assert(err, check.IsNil)
 
 	var v string
