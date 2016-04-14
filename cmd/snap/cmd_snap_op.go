@@ -27,15 +27,38 @@ import (
 
 	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
+	"github.com/ubuntu-core/snappy/progress"
 
 	"github.com/jessevdk/go-flags"
 )
 
 func wait(client *client.Client, id string) error {
+	pb := progress.NewTextProgress()
+	defer func() {
+		pb.Finished()
+		fmt.Print("\n")
+	}()
+
+	var lastID string
 	for {
 		chg, err := client.Change(id)
 		if err != nil {
 			return err
+		}
+
+		for _, t := range chg.Tasks {
+			switch {
+			case t.Status != "Doing":
+				continue
+			case t.Progress.Total == 1:
+				pb.Spin(t.Summary)
+			case t.ID == lastID:
+				pb.Set(float64(t.Progress.Done))
+			default:
+				pb.Start(t.Summary, float64(t.Progress.Total))
+				lastID = t.ID
+			}
+			break
 		}
 
 		if chg.Ready {

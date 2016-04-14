@@ -35,6 +35,35 @@ var longFindHelp = i18n.G(`
 The find command queries the store for available packages.
 `)
 
+func getPrice(prices map[string]float64, currency string) string {
+	// If there are no prices, then the snap is free
+	if len(prices) == 0 {
+		return "-"
+	}
+
+	// Look up the price by currency code
+	val, ok := prices[currency]
+
+	// Fall back to dollars
+	if !ok {
+		currency = "USD"
+		val, ok = prices["USD"]
+	}
+
+	// If there aren't even dollars, grab the first currency,
+	// ordered alphabetically by currency code
+	if !ok {
+		currency = "ZZZ"
+		for c, v := range prices {
+			if c < currency {
+				currency, val = c, v
+			}
+		}
+	}
+
+	return fmt.Sprintf("%.2f%s", val, currency)
+}
+
 type cmdFind struct {
 	Positional struct {
 		Query string `positional-arg-name:"<query>"`
@@ -47,13 +76,40 @@ func init() {
 	})
 }
 
+func hasPrices(snaps []*client.Snap) bool {
+	for _, snap := range snaps {
+		if len(snap.Prices) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func printWithPrices(w *tabwriter.Writer, snaps []*client.Snap, suggestedCurrency string) {
+	fmt.Fprintln(w, i18n.G("Name\tVersion\tPrice\tSummary"))
+
+	for _, snap := range snaps {
+		price := getPrice(snap.Prices, suggestedCurrency)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", snap.Name, snap.Version, price, snap.Summary)
+
+	}
+}
+
+func printNoPrices(w *tabwriter.Writer, snaps []*client.Snap) {
+	fmt.Fprintln(w, i18n.G("Name\tVersion\tSummary"))
+
+	for _, snap := range snaps {
+		fmt.Fprintf(w, "%s\t%s\t%s\n", snap.Name, snap.Version, snap.Summary)
+	}
+}
+
 func (x *cmdFind) Execute([]string) error {
 	cli := Client()
 	filter := client.SnapFilter{
 		Query:   x.Positional.Query,
 		Sources: []string{"store"},
 	}
-	snaps, _, err := cli.FilterSnaps(filter)
+	snaps, resInfo, err := cli.FilterSnaps(filter)
 	if err != nil {
 		return err
 	}
@@ -71,10 +127,10 @@ func (x *cmdFind) Execute([]string) error {
 	w := tabwriter.NewWriter(Stdout, 5, 3, 1, ' ', 0)
 	defer w.Flush()
 
-	fmt.Fprintln(w, i18n.G("Name\tVersion\tSummary"))
-
-	for _, snap := range snaps {
-		fmt.Fprintf(w, "%s\t%s\t%s\n", snap.Name, snap.Version, snap.Summary)
+	if hasPrices(snaps) {
+		printWithPrices(w, snaps, resInfo.SuggestedCurrency)
+	} else {
+		printNoPrices(w, snaps)
 	}
 
 	return nil

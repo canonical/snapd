@@ -103,6 +103,11 @@ func mapSnap(localSnap *snap.Info, active bool, remoteSnap *snap.Info) map[strin
 	status := "available"
 	installedSize := int64(-1)
 	downloadSize := int64(-1)
+	var prices map[string]float64
+
+	if remoteSnap != nil {
+		prices = remoteSnap.Prices
+	}
 
 	if localSnap != nil {
 		if active {
@@ -175,6 +180,7 @@ func mapSnap(localSnap *snap.Info, active bool, remoteSnap *snap.Info) map[strin
 		"summary":        summary,
 		"installed-size": installedSize,
 		"download-size":  downloadSize,
+		"prices":         prices,
 	}
 
 	if localSnap != nil {
