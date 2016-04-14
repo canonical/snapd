@@ -1536,11 +1536,14 @@ func makeConnectedSlot() *interfaces.Slot {
 }
 
 func (s *apiSuite) TestGetPlugs(c *check.C) {
-	repo := s.daemon(c).overlord.InterfaceManager().Repository()
-	repo.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	repo.AddPlug(makePlug("interface"))
-	repo.AddSlot(makeSlot("interface"))
-	repo.Connect("producer", "plug", "consumer", "slot")
+	d := s.daemon(c)
+
+	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	repo := d.overlord.InterfaceManager().Repository()
+	repo.Connect("consumer", "plug", "producer", "slot")
 
 	req, err := http.NewRequest("GET", "/v2/interfaces", nil)
 	c.Assert(err, check.IsNil)
@@ -1554,27 +1557,27 @@ func (s *apiSuite) TestGetPlugs(c *check.C) {
 		"result": map[string]interface{}{
 			"plugs": []interface{}{
 				map[string]interface{}{
-					"snap":      "producer",
+					"snap":      "consumer",
 					"plug":      "plug",
-					"interface": "interface",
+					"interface": "test",
 					"attrs":     map[string]interface{}{"key": "value"},
 					"apps":      []interface{}{"app"},
 					"label":     "label",
 					"connections": []interface{}{
-						map[string]interface{}{"snap": "consumer", "slot": "slot"},
+						map[string]interface{}{"snap": "producer", "slot": "slot"},
 					},
 				},
 			},
 			"slots": []interface{}{
 				map[string]interface{}{
-					"snap":      "consumer",
+					"snap":      "producer",
 					"slot":      "slot",
-					"interface": "interface",
+					"interface": "test",
 					"attrs":     map[string]interface{}{"key": "value"},
 					"apps":      []interface{}{"app"},
 					"label":     "label",
 					"connections": []interface{}{
-						map[string]interface{}{"snap": "producer", "plug": "plug"},
+						map[string]interface{}{"snap": "consumer", "plug": "plug"},
 					},
 				},
 			},
