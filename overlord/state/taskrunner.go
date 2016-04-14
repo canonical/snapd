@@ -24,6 +24,8 @@ import (
 	"sync"
 
 	"gopkg.in/tomb.v2"
+
+	"github.com/ubuntu-core/snappy/logger"
 )
 
 // HandlerFunc is the type of function for the handlers
@@ -229,6 +231,7 @@ func (r *TaskRunner) Ensure() {
 			// Dependencies still unhandled.
 			continue
 		}
+		logger.Debugf("Running task %s: %s", t.ID(), t.Summary())
 		r.run(t)
 	}
 }

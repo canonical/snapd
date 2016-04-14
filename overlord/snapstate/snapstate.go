@@ -26,7 +26,6 @@ import (
 
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
@@ -35,18 +34,18 @@ import (
 // allow exchange in the tests
 var backend managerBackend = &defaultBackend{}
 
-func doInstall(s *state.State, curActive bool, snapName, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
+func doInstall(s *state.State, curActive bool, snapName, snapPath, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
 	// download
 	var prepare *state.Task
 	ss := SnapSetup{
 		Channel: channel,
 		Flags:   int(flags),
 	}
-	if osutil.FileExists(snapName) {
-		ss.SnapPath = snapName
-		prepare = s.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q"), snapName))
+	ss.Name = snapName
+	ss.SnapPath = snapPath
+	if snapPath != "" {
+		prepare = s.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q"), snapPath))
 	} else {
-		ss.Name = snapName
 		prepare = s.NewTask("download-snap", fmt.Sprintf(i18n.G("Download snap %q"), snapName))
 	}
 	prepare.Set("snap-setup", ss)
@@ -101,7 +100,13 @@ func Install(s *state.State, name, channel string, flags snappy.InstallFlags) (*
 		return nil, fmt.Errorf("snap %q already installed", name)
 	}
 
-	return doInstall(s, false, name, channel, flags)
+	return doInstall(s, false, name, "", channel, flags)
+}
+
+// InstallPath returns a set of tasks for installing snap from a file path.
+// Note that the state must be locked by the caller.
+func InstallPath(s *state.State, path, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
+	return doInstall(s, false, "", path, channel, flags)
 }
 
 // Update initiates a change updating a snap.
@@ -116,7 +121,7 @@ func Update(s *state.State, name, channel string, flags snappy.InstallFlags) (*s
 		return nil, fmt.Errorf("cannot find snap %q", name)
 	}
 
-	return doInstall(s, snapst.Active, name, channel, flags)
+	return doInstall(s, snapst.Active, name, "", channel, flags)
 }
 
 // Remove returns a set of tasks for removing snap.

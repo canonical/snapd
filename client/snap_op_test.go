@@ -218,7 +218,7 @@ func (cs *clientSuite) TestClientOpSideload(c *check.C) {
 	err := ioutil.WriteFile(snap, bodyData, 0644)
 	c.Assert(err, check.IsNil)
 
-	id, err := (*client.Client).InstallSnapFile(cs.cli, snap)
+	id, err := (*client.Client).InstallSnapPath(cs.cli, snap)
 	c.Assert(err, check.IsNil)
 
 	body, err := ioutil.ReadAll(cs.req.Body)
