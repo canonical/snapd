@@ -47,19 +47,6 @@
 
 #define MAX_BUF 1000
 
-// Devices that must always be present
-const char *static_devices[] = {
-	"/sys/class/mem/null",
-	"/sys/class/mem/full",
-	"/sys/class/mem/zero",
-	"/sys/class/mem/random",
-	"/sys/class/mem/urandom",
-	"/sys/class/tty/tty",
-	"/sys/class/tty/console",
-	"/sys/class/tty/ptmx",
-	NULL,
-};
-
 struct snappy_udev {
 	struct udev *udev;
 	struct udev_enumerate *devices;
@@ -189,6 +176,18 @@ void snappy_udev_cleanup(struct snappy_udev *udev_s)
 void setup_devices_cgroup(const char *appname, struct snappy_udev *udev_s)
 {
 	debug("setup_devices_cgroup");
+	// Devices that must always be present
+	const char *static_devices[] = {
+		"/sys/class/mem/null",
+		"/sys/class/mem/full",
+		"/sys/class/mem/zero",
+		"/sys/class/mem/random",
+		"/sys/class/mem/urandom",
+		"/sys/class/tty/tty",
+		"/sys/class/tty/console",
+		"/sys/class/tty/ptmx",
+		NULL,
+	};
 
 	// extra paranoia
 	if (!verify_appname(appname))
