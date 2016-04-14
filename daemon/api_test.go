@@ -1592,18 +1592,18 @@ func (s *apiSuite) TestInterfaces(c *check.C) {
 
 func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 	d := s.daemon(c)
-	repo := d.overlord.InterfaceManager().Repository()
-	repo.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	repo.AddPlug(makePlug("interface"))
-	repo.AddSlot(makeSlot("interface"))
+
+	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
 
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
 	action := &interfaceAction{
 		Action: "connect",
-		Plugs:  []plugJSON{{Snap: "producer", Name: "plug"}},
-		Slots:  []slotJSON{{Snap: "consumer", Name: "slot"}},
+		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
+		Slots:  []slotJSON{{Snap: "producer", Name: "slot"}},
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -1622,10 +1622,14 @@ func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 		"status-code": 200.0,
 		"type":        "sync",
 	})
-	c.Assert(repo.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
-		Plugs: []*interfaces.Plug{makeConnectedPlug()},
-		Slots: []*interfaces.Slot{makeConnectedSlot()},
-	})
+
+	repo := d.overlord.InterfaceManager().Repository()
+	plug := repo.Plug("consumer", "plug")
+	slot := repo.Slot("producer", "slot")
+	c.Assert(plug.Connections, check.HasLen, 1)
+	c.Assert(slot.Connections, check.HasLen, 1)
+	c.Check(plug.Connections[0], check.DeepEquals, interfaces.SlotRef{Snap: "producer", Name: "slot"})
+	c.Check(slot.Connections[0], check.DeepEquals, interfaces.PlugRef{Snap: "consumer", Name: "plug"})
 }
 
 func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
