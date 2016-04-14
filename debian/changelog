@@ -1,4 +1,4 @@
-ubuntu-core-launcher (1.0.24) UNRELEASED; urgency=medium
+ubuntu-core-launcher (1.0.24) xenial; urgency=medium
 
   [ Michael Vogt ]
   * ignore non-existing dirs when doing the overlay mount
@@ -11,7 +11,7 @@ ubuntu-core-launcher (1.0.24) UNRELEASED; urgency=medium
     @complain to toggle developer mode. This allows snaps to work in developer
     mode while seccomp logging is being developed (LP: #1570578)
 
- -- Jamie Strandboge <jamie@ubuntu.com>  Wed, 13 Apr 2016 16:13:20 -0500
+ -- Jamie Strandboge <jamie@ubuntu.com>  Thu, 14 Apr 2016 15:51:20 -0500
 
 ubuntu-core-launcher (1.0.23) xenial; urgency=medium
 
