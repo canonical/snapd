@@ -616,6 +616,93 @@ func (s *apiSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
 	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "cannot get discharge macaroon")
 }
 
+func (s *apiSuite) TestUserFromRequestNoHeader(c *check.C) {
+	req, _ := http.NewRequest("GET", "http://example.com", nil)
+
+	state := snapCmd.d.overlord.State()
+	state.Lock()
+	user, err := UserFromRequest(state, req)
+	state.Unlock()
+
+	c.Check(err, check.IsNil)
+	c.Check(user, check.IsNil)
+}
+
+func (s *apiSuite) TestUserFromRequestHeaderNoMacaroons(c *check.C) {
+	req, _ := http.NewRequest("GET", "http://example.com", nil)
+	req.Header.Set("Authorization", "Invalid")
+
+	state := snapCmd.d.overlord.State()
+	state.Lock()
+	user, err := UserFromRequest(state, req)
+	state.Unlock()
+
+	c.Check(err, check.ErrorMatches, "authorization header misses Macaroon prefix")
+	c.Check(user, check.IsNil)
+}
+
+func (s *apiSuite) TestUserFromRequestHeaderIncomplete(c *check.C) {
+	req, _ := http.NewRequest("GET", "http://example.com", nil)
+	req.Header.Set("Authorization", `Macaroon root="macaroon"`)
+
+	state := snapCmd.d.overlord.State()
+	state.Lock()
+	user, err := UserFromRequest(state, req)
+	state.Unlock()
+
+	c.Check(err, check.ErrorMatches, "invalid authorization header")
+	c.Check(user, check.IsNil)
+}
+
+func (s *apiSuite) TestUserFromRequestHeaderCorrectMissingUser(c *check.C) {
+	req, _ := http.NewRequest("GET", "http://example.com", nil)
+	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
+
+	state := snapCmd.d.overlord.State()
+	state.Lock()
+	user, err := UserFromRequest(state, req)
+	state.Unlock()
+
+	c.Check(err, check.IsNil)
+	c.Check(user, check.IsNil)
+}
+
+func (s *apiSuite) TestUserFromRequestHeaderValidUser(c *check.C) {
+	state := snapCmd.d.overlord.State()
+	state.Lock()
+	expectedUser, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	state.Unlock()
+	c.Check(err, check.IsNil)
+
+	req, _ := http.NewRequest("GET", "http://example.com", nil)
+	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
+
+	state.Lock()
+	user, err := UserFromRequest(state, req)
+	state.Unlock()
+
+	c.Check(err, check.IsNil)
+	c.Check(user, check.DeepEquals, expectedUser)
+}
+
+func (s *apiSuite) TestUserFromRequestHeaderValidUserMultipleDischarges(c *check.C) {
+	state := snapCmd.d.overlord.State()
+	state.Lock()
+	expectedUser, err := auth.NewUser(state, "username", "macaroon", []string{"discharge2", "discharge1"})
+	state.Unlock()
+	c.Check(err, check.IsNil)
+
+	req, _ := http.NewRequest("GET", "http://example.com", nil)
+	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge1", discharge="discharge2"`)
+
+	state.Lock()
+	user, err := UserFromRequest(state, req)
+	state.Unlock()
+
+	c.Check(err, check.IsNil)
+	c.Check(user, check.DeepEquals, expectedUser)
+}
+
 func (s *apiSuite) TestSnapsInfoOnePerIntegration(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/snaps", nil)
 	c.Assert(err, check.IsNil)
