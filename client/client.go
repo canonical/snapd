@@ -27,6 +27,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"strings"
 
@@ -78,16 +79,22 @@ func New(config *Config) *Client {
 	}
 }
 
-func (client *Client) setAuthorization(req *http.Request) {
-	user, _ := ReadAuthData()
-	if user != nil {
-		var buf bytes.Buffer
-		fmt.Fprintf(&buf, `Macaroon root="%s"`, user.Macaroon)
-		for _, discharge := range user.Discharges {
-			fmt.Fprintf(&buf, `, discharge="%s"`, discharge)
-		}
-		req.Header.Set("Authorization", buf.String())
+func (client *Client) setAuthorization(req *http.Request) error {
+	user, err := readAuthData()
+	if os.IsNotExist(err) {
+		return nil
 	}
+	if err != nil {
+		return err
+	}
+
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, `Macaroon root="%s"`, user.Macaroon)
+	for _, discharge := range user.Discharges {
+		fmt.Fprintf(&buf, `, discharge="%s"`, discharge)
+	}
+	req.Header.Set("Authorization", buf.String())
+	return nil
 }
 
 // raw performs a request and returns the resulting http.Response and
@@ -104,7 +111,10 @@ func (client *Client) raw(method, urlpath string, query url.Values, body io.Read
 	}
 
 	// set Authorization header if there are user's credentials
-	client.setAuthorization(req)
+	err = client.setAuthorization(req)
+	if err != nil {
+		return nil, err
+	}
 
 	return client.doer.Do(req)
 }

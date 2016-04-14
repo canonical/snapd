@@ -44,7 +44,7 @@ func (cs *clientSuite) TestClientLogin(c *check.C) {
 	user, err := cs.cli.Login("username", "pass", "")
 
 	c.Check(err, check.IsNil)
-	c.Check(user, check.DeepEquals, &client.AuthenticatedUser{
+	c.Check(user, check.DeepEquals, &client.User{
 		Macaroon:   "the-root-macaroon",
 		Discharges: []string{"discharge-macaroon"}})
 
@@ -82,11 +82,11 @@ func (cs *clientSuite) TestWriteAuthData(c *check.C) {
 	os.Setenv("HOME", tmpdir)
 	defer os.Setenv("HOME", home)
 
-	authData := client.AuthenticatedUser{
+	authData := client.User{
 		Macaroon:   "macaroon",
 		Discharges: []string{"discharge"},
 	}
-	err := client.WriteAuthData(authData)
+	err := client.TestWriteAuth(authData)
 	c.Assert(err, check.IsNil)
 
 	outFile := filepath.Join(tmpdir, ".snap", "auth.json")
@@ -102,14 +102,14 @@ func (cs *clientSuite) TestReadAuthData(c *check.C) {
 	os.Setenv("HOME", tmpdir)
 	defer os.Setenv("HOME", home)
 
-	authData := client.AuthenticatedUser{
+	authData := client.User{
 		Macaroon:   "macaroon",
 		Discharges: []string{"discharge"},
 	}
-	err := client.WriteAuthData(authData)
+	err := client.TestWriteAuth(authData)
 	c.Assert(err, check.IsNil)
 
-	readUser, err := client.ReadAuthData()
+	readUser, err := client.TestReadAuth()
 	c.Assert(err, check.IsNil)
 	c.Check(readUser, check.DeepEquals, &authData)
 }
