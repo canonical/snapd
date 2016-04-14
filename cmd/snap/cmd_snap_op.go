@@ -35,7 +35,7 @@ import (
 func wait(client *client.Client, id string) error {
 	pb := progress.NewTextProgress()
 	defer func() {
-		println("\n")
+		fmt.Print("\n")
 		pb.Finished()
 	}()
 
