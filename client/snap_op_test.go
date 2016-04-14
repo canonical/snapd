@@ -32,6 +32,7 @@ import (
 )
 
 var chanName = "achan"
+var devModeValue = false
 
 var ops = []struct {
 	op     func(*client.Client, string) (string, error)
@@ -45,7 +46,7 @@ var ops = []struct {
 }
 
 var chanops = []struct {
-	op     func(*client.Client, string, string) (string, error)
+	op     func(*client.Client, string, string, bool) (string, error)
 	action string
 }{
 	{(*client.Client).InstallSnap, "install"},
@@ -60,7 +61,7 @@ func (cs *clientSuite) TestClientOpSnapServerError(c *check.C) {
 	}
 
 	for _, s := range chanops {
-		_, err := s.op(cs.cli, pkgName, chanName)
+		_, err := s.op(cs.cli, pkgName, chanName, devModeValue)
 		c.Check(err, check.ErrorMatches, `.*fail`, check.Commentf(s.action))
 	}
 }
@@ -73,7 +74,7 @@ func (cs *clientSuite) TestClientOpSnapResponseError(c *check.C) {
 	}
 
 	for _, s := range chanops {
-		_, err := s.op(cs.cli, pkgName, chanName)
+		_, err := s.op(cs.cli, pkgName, chanName, devModeValue)
 		c.Check(err, check.ErrorMatches, `.*server error: "potatoes"`, check.Commentf(s.action))
 	}
 }
@@ -86,7 +87,7 @@ func (cs *clientSuite) TestClientOpSnapBadType(c *check.C) {
 	}
 
 	for _, s := range chanops {
-		_, err := s.op(cs.cli, pkgName, chanName)
+		_, err := s.op(cs.cli, pkgName, chanName, devModeValue)
 		c.Check(err, check.ErrorMatches, `.*expected async response for "POST" on "/v2/snaps/`+pkgName+`", got "what"`, check.Commentf(s.action))
 	}
 }
@@ -102,7 +103,7 @@ func (cs *clientSuite) TestClientOpSnapNotAccepted(c *check.C) {
 	}
 
 	for _, s := range chanops {
-		_, err := s.op(cs.cli, pkgName, chanName)
+		_, err := s.op(cs.cli, pkgName, chanName, devModeValue)
 		c.Check(err, check.ErrorMatches, `.*operation not accepted`, check.Commentf(s.action))
 	}
 }
@@ -118,7 +119,7 @@ func (cs *clientSuite) TestClientOpSnapNoChange(c *check.C) {
 	}
 
 	for _, s := range chanops {
-		_, err := s.op(cs.cli, pkgName, chanName)
+		_, err := s.op(cs.cli, pkgName, chanName, devModeValue)
 		c.Assert(err, check.ErrorMatches, `.*response without change reference.*`, check.Commentf(s.action))
 	}
 }
@@ -147,17 +148,19 @@ func (cs *clientSuite) TestClientOpSnap(c *check.C) {
 	}
 
 	for _, s := range chanops {
-		id, err := s.op(cs.cli, pkgName, chanName)
+		id, err := s.op(cs.cli, pkgName, chanName, devModeValue)
 		c.Assert(err, check.IsNil)
 
 		body, err := ioutil.ReadAll(cs.req.Body)
 		c.Assert(err, check.IsNil, check.Commentf(s.action))
-		jsonBody := make(map[string]string)
+		jsonBody := make(map[string]interface{})
 		err = json.Unmarshal(body, &jsonBody)
+		c.Logf("the body is %s", body)
 		c.Assert(err, check.IsNil, check.Commentf(s.action))
-		c.Check(jsonBody["action"], check.Equals, s.action, check.Commentf(s.action))
-		c.Check(jsonBody["channel"], check.Equals, chanName, check.Commentf(s.action))
-		c.Check(jsonBody, check.HasLen, 2, check.Commentf(s.action))
+		c.Check(jsonBody["action"].(string), check.Equals, s.action, check.Commentf(s.action))
+		c.Check(jsonBody["channel"].(string), check.Equals, chanName, check.Commentf(s.action))
+		c.Check(jsonBody["devmode"].(bool), check.Equals, devModeValue, check.Commentf(s.action))
+		c.Check(jsonBody, check.HasLen, 3, check.Commentf(s.action))
 
 		c.Check(cs.req.Method, check.Equals, "POST", check.Commentf(s.action))
 		c.Check(cs.req.URL.Path, check.Equals, fmt.Sprintf("/v2/snaps/%s", pkgName), check.Commentf(s.action))
@@ -177,7 +180,7 @@ func (cs *clientSuite) TestClientOpSideload(c *check.C) {
 	err := ioutil.WriteFile(snap, bodyData, 0644)
 	c.Assert(err, check.IsNil)
 
-	id, err := (*client.Client).InstallSnapPath(cs.cli, snap)
+	id, err := (*client.Client).InstallSnapPath(cs.cli, snap, devModeValue)
 	c.Assert(err, check.IsNil)
 
 	body, err := ioutil.ReadAll(cs.req.Body)
