@@ -36,5 +36,5 @@ func (s *failoverSuite) TestRCLocalCrash(c *check.C) {
 			"sudo", "echo", "#!bin/sh\nprintf c > /proc/sysrq-trigger")
 		return nil
 	}
-	s.testUpdateToBrokenVersion(c, "ubuntu-core.canonical", breakSnap)
+	s.testUpdateToBrokenVersion(c, "ubuntu-core", breakSnap)
 }
