@@ -244,9 +244,9 @@ type combineSnippetsScenario struct {
 }
 
 const commonPrefix = `
-@{APP_APPNAME}="smbd"
-@{APP_PKGNAME}="samba"
-@{APP_VERSION}="1"
+@{APP_NAME}="smbd"
+@{SNAP_NAME}="samba"
+@{SNAP_REVISION}="1"
 @{INSTALL_DIR}="/snap"`
 
 var combineSnippetsScenarios = []combineSnippetsScenario{{
