@@ -222,7 +222,7 @@ func (s *BuildTestSuite) TestExcludeDynamicWorksIfSnapignore(c *C) {
 func (s *BuildTestSuite) TestExcludeDynamicWeirdRegexps(c *C) {
 	basedir := c.MkDir()
 	c.Assert(ioutil.WriteFile(filepath.Join(basedir, ".snapignore"), []byte("*hello\n"), 0644), IsNil)
-	// note “*hello” is not a valid regexp, so will be taken literally (not globbed!)
+	// note "*hello" is not a valid regexp, so will be taken literally (not globbed!)
 	c.Check(shouldExcludeDynamic(basedir, "ahello"), Equals, false)
 	c.Check(shouldExcludeDynamic(basedir, "*hello"), Equals, true)
 }
