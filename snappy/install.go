@@ -49,7 +49,7 @@ const (
 )
 
 func installRemote(mStore *store.SnapUbuntuStoreRepository, remoteSnap *snap.Info, flags InstallFlags, meter progress.Meter) (string, error) {
-	downloadedSnap, err := mStore.Download(remoteSnap, meter)
+	downloadedSnap, err := mStore.Download(remoteSnap, meter, nil)
 	if err != nil {
 		return "", fmt.Errorf("cannot download %s: %s", remoteSnap.Name(), err)
 	}
@@ -118,7 +118,7 @@ func snapUpdates(repo *store.SnapUbuntuStoreRepository) (snaps []*snap.Info, err
 		return nil, err
 	}
 
-	rsnaps, err := repo.Updates(installed)
+	rsnaps, err := repo.Updates(installed, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -255,7 +255,7 @@ func doInstall(name, channel string, flags InstallFlags, meter progress.Meter) (
 		return "", err
 	}
 
-	snap, err := mStore.Snap(name, channel)
+	snap, err := mStore.Snap(name, channel, nil)
 	if err != nil {
 		return "", err
 	}
