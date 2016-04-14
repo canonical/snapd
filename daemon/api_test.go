@@ -612,12 +612,9 @@ func (s *apiSuite) TestSnapsInfoOnePerIntegration(c *check.C) {
 	c.Check(rsp.Status, check.Equals, http.StatusOK)
 	c.Check(rsp.Result, check.NotNil)
 
-	meta, ok := rsp.Result.(map[string]interface{})
-	c.Assert(ok, check.Equals, true)
-	c.Assert(meta, check.NotNil)
-	c.Check(meta["paging"], check.DeepEquals, map[string]interface{}{"pages": 1, "page": 1, "count": len(ddirs)})
+	c.Check(rsp.Meta.Paging, check.DeepEquals, &Paging{Page: 1, Pages: 1})
 
-	snaps, ok := meta["snaps"].(map[string]map[string]interface{})
+	snaps, ok := rsp.Result.(map[string]map[string]interface{})
 	c.Assert(ok, check.Equals, true)
 	c.Check(snaps, check.NotNil)
 	c.Check(snaps, check.HasLen, len(ddirs))
@@ -646,10 +643,9 @@ func (s *apiSuite) TestSnapsInfoOnlyLocal(c *check.C) {
 
 	rsp := getSnapsInfo(snapsCmd, req).(*resp)
 
-	result := rsp.Result.(map[string]interface{})
-	c.Assert(result["sources"], check.DeepEquals, []string{"local"})
+	c.Assert(rsp.Sources, check.DeepEquals, []string{"local"})
 
-	snaps := result["snaps"].(map[string]map[string]interface{})
+	snaps := rsp.Result.(map[string]map[string]interface{})
 	c.Assert(snaps, check.HasLen, 1)
 	c.Assert(snaps["local"], check.NotNil)
 }
@@ -668,10 +664,9 @@ func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
 
 	rsp := getSnapsInfo(snapsCmd, req).(*resp)
 
-	result := rsp.Result.(map[string]interface{})
-	c.Assert(result["sources"], check.DeepEquals, []string{"store"})
+	c.Assert(rsp.Sources, check.DeepEquals, []string{"store"})
 
-	snaps := result["snaps"].(map[string]map[string]interface{})
+	snaps := rsp.Result.(map[string]map[string]interface{})
 	c.Assert(snaps, check.HasLen, 1)
 	c.Assert(snaps["store"], check.NotNil)
 }
@@ -690,10 +685,9 @@ func (s *apiSuite) TestSnapsInfoLocalAndStore(c *check.C) {
 
 	rsp := getSnapsInfo(snapsCmd, req).(*resp)
 
-	result := rsp.Result.(map[string]interface{})
-	c.Assert(result["sources"], check.DeepEquals, []string{"local", "store"})
+	c.Assert(rsp.Sources, check.DeepEquals, []string{"local", "store"})
 
-	snaps := result["snaps"].(map[string]map[string]interface{})
+	snaps := rsp.Result.(map[string]map[string]interface{})
 	c.Assert(snaps, check.HasLen, 2)
 }
 
@@ -711,8 +705,7 @@ func (s *apiSuite) TestSnapsInfoDefaultSources(c *check.C) {
 
 	rsp := getSnapsInfo(snapsCmd, req).(*resp)
 
-	result := rsp.Result.(map[string]interface{})
-	c.Assert(result["sources"], check.DeepEquals, []string{"local", "store"})
+	c.Assert(rsp.Sources, check.DeepEquals, []string{"local", "store"})
 }
 
 func (s *apiSuite) TestSnapsInfoUnknownSource(c *check.C) {
@@ -729,10 +722,9 @@ func (s *apiSuite) TestSnapsInfoUnknownSource(c *check.C) {
 
 	rsp := getSnapsInfo(snapsCmd, req).(*resp)
 
-	result := rsp.Result.(map[string]interface{})
-	c.Assert(result["sources"], check.HasLen, 0)
+	c.Assert(rsp.Sources, check.HasLen, 0)
 
-	snaps := result["snaps"].(map[string]map[string]interface{})
+	snaps := rsp.Result.(map[string]map[string]interface{})
 	c.Assert(snaps, check.HasLen, 0)
 }
 
@@ -746,10 +738,7 @@ func (s *apiSuite) TestSnapsInfoFilterLocal(c *check.C) {
 
 	rsp := getSnapsInfo(snapsCmd, req).(*resp)
 
-	result := rsp.Result.(map[string]interface{})
-	c.Assert(result["snaps"], check.NotNil)
-
-	snaps := result["snaps"].(map[string]map[string]interface{})
+	snaps := rsp.Result.(map[string]map[string]interface{})
 	c.Assert(snaps, check.HasLen, 1)
 	c.Assert(snaps["foo"], check.NotNil)
 }
@@ -764,8 +753,7 @@ func (s *apiSuite) TestSnapsInfoFilterRemote(c *check.C) {
 
 	c.Check(s.searchTerm, check.Equals, "foo")
 
-	result := rsp.Result.(map[string]interface{})
-	c.Assert(result["snaps"], check.NotNil)
+	c.Assert(rsp.Result, check.NotNil)
 }
 
 func (s *apiSuite) TestSnapsInfoAppsOnly(c *check.C) {
@@ -777,8 +765,7 @@ func (s *apiSuite) TestSnapsInfoAppsOnly(c *check.C) {
 
 	rsp := getSnapsInfo(snapsCmd, req).(*resp)
 
-	result := rsp.Result.(map[string]interface{})
-	snaps := result["snaps"].(map[string]map[string]interface{})
+	snaps := rsp.Result.(map[string]map[string]interface{})
 	c.Assert(snaps, check.HasLen, 1)
 	c.Assert(snaps["app"], check.NotNil)
 }
@@ -792,8 +779,7 @@ func (s *apiSuite) TestSnapsInfoFrameworksOnly(c *check.C) {
 
 	rsp := getSnapsInfo(snapsCmd, req).(*resp)
 
-	result := rsp.Result.(map[string]interface{})
-	snaps := result["snaps"].(map[string]map[string]interface{})
+	snaps := rsp.Result.(map[string]map[string]interface{})
 	c.Assert(snaps, check.HasLen, 1)
 	c.Assert(snaps["framework"], check.NotNil)
 }
@@ -807,8 +793,7 @@ func (s *apiSuite) TestSnapsInfoAppsAndFrameworks(c *check.C) {
 
 	rsp := getSnapsInfo(snapsCmd, req).(*resp)
 
-	result := rsp.Result.(map[string]interface{})
-	snaps := result["snaps"].(map[string]map[string]interface{})
+	snaps := rsp.Result.(map[string]map[string]interface{})
 	c.Assert(snaps, check.HasLen, 2)
 }
 

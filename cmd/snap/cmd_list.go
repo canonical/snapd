@@ -45,7 +45,7 @@ func (cmdList) Execute([]string) error {
 	filter := client.SnapFilter{
 		Sources: []string{"local"},
 	}
-	snaps, err := cli.FilterSnaps(filter)
+	snaps, _, err := cli.FilterSnaps(filter)
 	if err != nil {
 		return err
 	}
