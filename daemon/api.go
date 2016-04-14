@@ -63,7 +63,6 @@ var api = []*Command{
 	snapCmd,
 	//FIXME: renenable config for GA
 	//snapConfigCmd,
-	operationCmd,
 	interfacesCmd,
 	assertsCmd,
 	assertsFindManyCmd,
@@ -117,11 +116,6 @@ var (
 			PUT:  snapConfig,
 		}
 	*/
-	operationCmd = &Command{
-		Path:   "/v2/operations/{uuid}",
-		GET:    getOpInfo,
-		DELETE: deleteOp,
-	}
 
 	interfacesCmd = &Command{
 		Path:   "/v2/interfaces",
@@ -483,37 +477,6 @@ func snapConfig(c *Command, r *http.Request) Response {
 	return SyncResponse(string(config))
 }
 
-func getOpInfo(c *Command, r *http.Request) Response {
-	route := c.d.router.Get(c.Path)
-	if route == nil {
-		return InternalError("router can't find route for operation")
-	}
-
-	id := muxVars(r)["uuid"]
-	task := c.d.GetTask(id)
-	if task == nil {
-		return NotFound("unable to find task with id %q", id)
-	}
-
-	return SyncResponse(task.Map(route))
-}
-
-func deleteOp(c *Command, r *http.Request) Response {
-	id := muxVars(r)["uuid"]
-	err := c.d.DeleteTask(id)
-
-	switch err {
-	case nil:
-		return SyncResponse("done")
-	case errTaskNotFound:
-		return NotFound("unable to find task %q", id)
-	case errTaskStillRunning:
-		return BadRequest("unable to delete task %q: still running", id)
-	default:
-		return InternalError("unable to delete task %q: %v", id, err)
-	}
-}
-
 // licenseData holds details about the snap license, and may be
 // marshaled back as an error when the license agreement is pending,
 // and is expected as input to accept (or not) that license
@@ -600,7 +563,7 @@ func installSnap(chg *state.Change, name, channel string, flags snappy.InstallFl
 	return nil
 }
 
-func (inst *snapInstruction) install() interface{} {
+func (inst *snapInstruction) install() (*state.Change, error) {
 	flags := snappy.DoInstallGC
 	if inst.LeaveOld {
 		flags = 0
@@ -619,12 +582,13 @@ func (inst *snapInstruction) install() interface{} {
 	}
 	st.Unlock()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	st.EnsureBefore(0)
-	err = waitChange(chg)
-	return err
+
+	return chg, nil
+
 	// FIXME: handle license agreement need to happen in the above
 	//        code
 	/*
@@ -638,7 +602,7 @@ func (inst *snapInstruction) install() interface{} {
 	*/
 }
 
-func (inst *snapInstruction) update() interface{} {
+func (inst *snapInstruction) update() (*state.Change, error) {
 	flags := snappy.DoInstallGC
 	if inst.LeaveOld {
 		flags = 0
@@ -656,14 +620,15 @@ func (inst *snapInstruction) update() interface{} {
 	}
 	state.Unlock()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	state.EnsureBefore(0)
-	return waitChange(chg)
+
+	return chg, nil
 }
 
-func (inst *snapInstruction) remove() interface{} {
+func (inst *snapInstruction) remove() (*state.Change, error) {
 	flags := snappy.DoRemoveGC
 	if inst.LeaveOld {
 		flags = 0
@@ -678,14 +643,15 @@ func (inst *snapInstruction) remove() interface{} {
 	}
 	state.Unlock()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	state.EnsureBefore(0)
-	return waitChange(chg)
+
+	return chg, nil
 }
 
-func (inst *snapInstruction) rollback() interface{} {
+func (inst *snapInstruction) rollback() (*state.Change, error) {
 	state := inst.overlord.State()
 	state.Lock()
 	msg := fmt.Sprintf(i18n.G("Rollback %q snap"), inst.pkg)
@@ -698,14 +664,15 @@ func (inst *snapInstruction) rollback() interface{} {
 	}
 	state.Unlock()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	state.EnsureBefore(0)
-	return waitChange(chg)
+
+	return chg, nil
 }
 
-func (inst *snapInstruction) activate() interface{} {
+func (inst *snapInstruction) activate() (*state.Change, error) {
 	state := inst.overlord.State()
 	state.Lock()
 	msg := fmt.Sprintf(i18n.G("Activate %q snap"), inst.pkg)
@@ -716,14 +683,15 @@ func (inst *snapInstruction) activate() interface{} {
 	}
 	state.Unlock()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	state.EnsureBefore(0)
-	return waitChange(chg)
+
+	return chg, nil
 }
 
-func (inst *snapInstruction) deactivate() interface{} {
+func (inst *snapInstruction) deactivate() (*state.Change, error) {
 	state := inst.overlord.State()
 	state.Lock()
 	msg := fmt.Sprintf(i18n.G("Deactivate %q snap"), inst.pkg)
@@ -734,14 +702,15 @@ func (inst *snapInstruction) deactivate() interface{} {
 	}
 	state.Unlock()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	state.EnsureBefore(0)
-	return waitChange(chg)
+
+	return chg, nil
 }
 
-func (inst *snapInstruction) dispatch() func() interface{} {
+func (inst *snapInstruction) dispatch() func() (*state.Change, error) {
 	switch inst.Action {
 	case "install":
 		return inst.install
@@ -760,16 +729,16 @@ func (inst *snapInstruction) dispatch() func() interface{} {
 	}
 }
 
-func pkgActionDispatchImpl(inst *snapInstruction) func() interface{} {
+func pkgActionDispatchImpl(inst *snapInstruction) func() (*state.Change, error) {
 	return inst.dispatch()
 }
 
 var pkgActionDispatch = pkgActionDispatchImpl
 
 func postSnap(c *Command, r *http.Request) Response {
-	route := c.d.router.Get(operationCmd.Path)
+	route := c.d.router.Get(stateChangeCmd.Path)
 	if route == nil {
-		return InternalError("router can't find route for operation")
+		return InternalError("router can't find route for change")
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -787,22 +756,27 @@ func postSnap(c *Command, r *http.Request) Response {
 		return BadRequest("unknown action %s", inst.Action)
 	}
 
-	return AsyncResponse(c.d.AddTask(func() interface{} {
-		lock, err := lockfile.Lock(dirs.SnapLockFile, true)
-		if err != nil {
-			return err
-		}
-		defer lock.Unlock()
-		return f()
-	}).Map(route))
+	chg, err := f()
+	if err != nil {
+		return InternalError("can't %s %q: %v", inst.Action, inst.pkg, err)
+	}
+
+	url, err := route.URL("id", chg.ID())
+	if err != nil {
+		return InternalError("route can't build URL for change: %v", err)
+	}
+
+	return AsyncResponse(map[string]interface{}{
+		"resource": url.String(),
+	})
 }
 
 const maxReadBuflen = 1024 * 1024
 
 func sideloadSnap(c *Command, r *http.Request) Response {
-	route := c.d.router.Get(operationCmd.Path)
+	route := c.d.router.Get(stateChangeCmd.Path)
 	if route == nil {
-		return InternalError("router can't find route for operation")
+		return InternalError("router can't find route for change")
 	}
 
 	body := r.Body
@@ -859,36 +833,36 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 		return InternalError("can't copy request into tempfile: %v", err)
 	}
 
-	return AsyncResponse(c.d.AddTask(func() interface{} {
-		lock, err := lockfile.Lock(dirs.SnapLockFile, true)
-		if err != nil {
-			return err
-		}
-		defer lock.Unlock()
+	var flags snappy.InstallFlags
+	if unsignedOk {
+		flags |= snappy.AllowUnauthenticated
+	}
 
-		var flags snappy.InstallFlags
-		if unsignedOk {
-			flags |= snappy.AllowUnauthenticated
-		}
+	snap := tmpf.Name()
+	defer os.Remove(snap)
 
-		snap := tmpf.Name()
-		defer os.Remove(snap)
+	state := c.d.overlord.State()
+	state.Lock()
+	msg := fmt.Sprintf(i18n.G("Install local %q snap"), snap)
+	chg := state.NewChange("install-snap", msg)
+	ts, err := snapstateInstall(state, snap, "", flags)
+	if err == nil {
+		chg.AddAll(ts)
+	}
+	state.Unlock()
+	if err != nil {
+		return InternalError("can't request sideload: %v", err)
+	}
+	state.EnsureBefore(0)
 
-		state := c.d.overlord.State()
-		state.Lock()
-		msg := fmt.Sprintf(i18n.G("Install local %q snap"), snap)
-		chg := state.NewChange("install-snap", msg)
-		ts, err := snapstateInstall(state, snap, "", flags)
-		if err == nil {
-			chg.AddAll(ts)
-		}
-		state.Unlock()
-		if err != nil {
-			return err
-		}
-		state.EnsureBefore(0)
-		return waitChange(chg)
-	}).Map(route))
+	url, err := route.URL("id", chg.ID())
+	if err != nil {
+		return InternalError("route can't build URL for change: %v", err)
+	}
+
+	return AsyncResponse(map[string]interface{}{
+		"resource": url.String(),
+	})
 }
 
 func iconGet(name string) Response {

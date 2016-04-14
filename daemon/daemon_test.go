@@ -44,7 +44,7 @@ func newTestDaemon(c *check.C) *Daemon {
 	return d
 }
 
-// aResponse suitable for testing
+// a Response suitable for testing
 type mockHandler struct {
 	cmd        *Command
 	lastMethod string
