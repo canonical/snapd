@@ -136,13 +136,16 @@ func (m *InterfaceManager) reloadConnections(snapName string) error {
 	return nil
 }
 
-func (m *InterfaceManager) setupSecurity(snapInfo *snap.Info) error {
+func setupSnapSecurity(task *state.Task, snapInfo *snap.Info, repo *interfaces.Repository) error {
 	var snapState snapstate.SnapState
-	if err := snapstate.Get(m.state, snapInfo.Name(), &snapState); err != nil {
+	snapName := snapInfo.Name()
+	if err := snapstate.Get(task.State(), snapName, &snapState); err != nil {
+		task.Errorf("cannot get state of snap %q: %s", snapName, err)
 		return err
 	}
-	for _, backend := range securityBackends(snapInfo) {
-		if err := backend.Setup(snapInfo, snapState.DevMode, m.repo); err != nil {
+	for _, backend := range securityBackends {
+		if err := backend.Setup(snapInfo, snapState.DevMode, repo); err != nil {
+			task.Errorf("cannot setup security of snap %q (backend %s): %s", snapName, backend.Name(), err)
 			return err
 		}
 	}
@@ -200,8 +203,7 @@ func (m *InterfaceManager) doSetupSnapSecurity(task *state.Task, _ *tomb.Tomb) e
 		affectedSnaps = append(affectedSnaps, snapInfo)
 	}
 	for _, snapInfo := range affectedSnaps {
-		if err := m.setupSecurity(snapInfo); err != nil {
-			task.Errorf("cannot setup security of snap %q: %s", snapInfo.Name(), err)
+		if err := setupSnapSecurity(task, snapInfo, m.repo); err != nil {
 			return state.Retry
 		}
 	}
@@ -286,7 +288,7 @@ func (m *InterfaceManager) doRemoveSnapSecurity(task *state.Task, _ *tomb.Tomb) 
 		affectedSnaps = append(affectedSnaps, snapInfo)
 	}
 	for _, snapInfo := range affectedSnaps {
-		for _, backend := range securityBackends(snapInfo) {
+		for _, backend := range securityBackends {
 			if err := backend.Remove(snapInfo.Name()); err != nil {
 				return state.Retry
 			}
@@ -294,18 +296,6 @@ func (m *InterfaceManager) doRemoveSnapSecurity(task *state.Task, _ *tomb.Tomb) 
 	}
 	return nil
 }
-
-func securityBackendsImpl(snapInfo *snap.Info) []interfaces.SecurityBackend {
-	aaBackend := &apparmor.Backend{}
-	// TODO: Implement special provisions for apparmor and old-security when
-	// old-security becomes a real interface. When that happens we nee to call
-	// backend.UseLegacyTemplate() with the alternate template offered by the
-	// old-security interface.
-	return []interfaces.SecurityBackend{
-		aaBackend, &seccomp.Backend{}, &dbus.Backend{}, &udev.Backend{}}
-}
-
-var securityBackends = securityBackendsImpl
 
 // Connect returns a set of tasks for connecting an interface.
 //
@@ -384,12 +374,11 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 
 	plug := m.repo.Plug(plugRef.Snap, plugRef.Name)
 	slot := m.repo.Slot(slotRef.Snap, slotRef.Name)
-
-	for _, snapInfo := range []*snap.Info{plug.Snap, slot.Snap} {
-		if err := m.setupSecurity(snapInfo); err != nil {
-			task.Errorf("cannot setup security of snap %q: %s", snapInfo.Name(), err)
-			return state.Retry
-		}
+	if err := setupSnapSecurity(task, plug.Snap, m.repo); err != nil {
+		return state.Retry
+	}
+	if err := setupSnapSecurity(task, slot.Snap, m.repo); err != nil {
+		return state.Retry
 	}
 
 	conns[connID(plugRef, slotRef)] = connState{Interface: plug.Interface}
@@ -420,12 +409,11 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 
 	plug := m.repo.Plug(plugRef.Snap, plugRef.Name)
 	slot := m.repo.Slot(slotRef.Snap, slotRef.Name)
-
-	for _, snapInfo := range []*snap.Info{plug.Snap, slot.Snap} {
-		if err := m.setupSecurity(snapInfo); err != nil {
-			task.Errorf("cannot setup security of snap %q: %s", snapInfo.Name(), err)
-			return state.Retry
-		}
+	if err := setupSnapSecurity(task, plug.Snap, m.repo); err != nil {
+		return state.Retry
+	}
+	if err := setupSnapSecurity(task, slot.Snap, m.repo); err != nil {
+		return state.Retry
 	}
 
 	delete(conns, connID(plugRef, slotRef))
@@ -466,8 +454,11 @@ func (m *InterfaceManager) Repository() *interfaces.Repository {
 //
 // This function is public because it is referenced in the daemon
 func MockSecurityBackends(backends []interfaces.SecurityBackend) func() {
-	securityBackends = func(snapInfo *snap.Info) []interfaces.SecurityBackend {
-		return backends
-	}
-	return func() { securityBackends = securityBackendsImpl }
+	old := securityBackends
+	securityBackends = backends
+	return func() { securityBackends = old }
+}
+
+var securityBackends = []interfaces.SecurityBackend{
+	&apparmor.Backend{}, &seccomp.Backend{}, &dbus.Backend{}, &udev.Backend{},
 }
