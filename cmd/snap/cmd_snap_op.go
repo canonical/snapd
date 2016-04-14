@@ -130,7 +130,7 @@ func (x *cmdInstall) Execute([]string) error {
 	cli := Client()
 	name := x.Positional.Snap
 	if strings.Contains(name, "/") || strings.HasSuffix(name, ".snap") || strings.Contains(name, ".snap.") {
-		uuid, err = cli.InstallSnapFile(name)
+		uuid, err = cli.InstallSnapPath(name)
 	} else {
 		uuid, err = cli.InstallSnap(name, x.Channel)
 	}

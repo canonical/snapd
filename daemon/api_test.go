@@ -379,6 +379,7 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"pkgActionDispatch",
 		// snapInstruction vars:
 		"snapstateInstall",
+		"snapstateInstallPath",
 		"snapstateGet",
 	}
 	c.Check(found, check.Equals, len(api)+len(exceptions),
@@ -938,7 +939,7 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, unsignedExpected bo
 		expectedFlags |= snappy.AllowUnauthenticated
 	}
 
-	snapstateInstall = func(s *state.State, name, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
+	snapstateInstallPath = func(s *state.State, name, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
 		c.Check(flags, check.Equals, expectedFlags)
 
 		bs, err := ioutil.ReadFile(name)
