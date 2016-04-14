@@ -41,6 +41,7 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/overlord/auth"
+	"github.com/ubuntu-core/snappy/overlord/ifacestate"
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/release"
@@ -51,29 +52,35 @@ import (
 )
 
 type apiSuite struct {
-	rsnaps     []*snap.Info
-	err        error
-	vars       map[string]string
-	searchTerm string
-	channel    string
-	overlord   *fakeOverlord
-	d          *Daemon
+	rsnaps            []*snap.Info
+	err               error
+	vars              map[string]string
+	searchTerm        string
+	channel           string
+	suggestedCurrency string
+	overlord          *fakeOverlord
+	d                 *Daemon
+	restoreBackends   func()
 }
 
 var _ = check.Suite(&apiSuite{})
 
-func (s *apiSuite) Snap(string, string) (*snap.Info, error) {
+func (s *apiSuite) Snap(string, string, store.Authenticator) (*snap.Info, error) {
 	if len(s.rsnaps) > 0 {
 		return s.rsnaps[0], s.err
 	}
 	return nil, s.err
 }
 
-func (s *apiSuite) FindSnaps(searchTerm, channel string) ([]*snap.Info, error) {
+func (s *apiSuite) FindSnaps(searchTerm, channel string, auther store.Authenticator) ([]*snap.Info, error) {
 	s.searchTerm = searchTerm
 	s.channel = channel
 
 	return s.rsnaps, s.err
+}
+
+func (s *apiSuite) SuggestedCurrency() string {
+	return s.suggestedCurrency
 }
 
 func (s *apiSuite) muxVars(*http.Request) map[string]string {
@@ -102,16 +109,20 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 	c.Assert(os.MkdirAll(dirs.SnapSnapsDir, 0755), check.IsNil)
 
 	s.rsnaps = nil
+	s.suggestedCurrency = ""
 	s.err = nil
 	s.vars = nil
 	s.overlord = &fakeOverlord{
 		configs: map[string]string{},
 	}
 	s.d = nil
+	// Disable real security backends for all API tests
+	s.restoreBackends = ifacestate.MockSecurityBackends(nil)
 }
 
 func (s *apiSuite) TearDownTest(c *check.C) {
 	s.d = nil
+	s.restoreBackends()
 }
 
 func (s *apiSuite) daemon(c *check.C) *Daemon {
@@ -217,6 +228,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 			Revision:          20,
 		},
 	}}
+	s.suggestedCurrency = "GBP"
 
 	// we have v0 [r5] installed
 	s.mkInstalled(c, "foo", "bar", "v0", 5, false, "")
@@ -237,6 +249,9 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	c.Check(m["install-date"], check.FitsTypeOf, time.Time{})
 	delete(m, "install-date")
 
+	meta := &Meta{
+		SuggestedCurrency: "GBP",
+	}
 	expected := &resp{
 		Type:   ResponseTypeSync,
 		Status: http.StatusOK,
@@ -257,6 +272,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 			"rollback-available": 5,
 			"channel":            "stable",
 		},
+		Meta: meta,
 	}
 
 	c.Check(rsp, check.DeepEquals, expected)
@@ -644,6 +660,8 @@ func (s *apiSuite) TestSnapsInfoOnlyLocal(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
+	s.suggestedCurrency = "EUR"
+
 	s.rsnaps = []*snap.Info{{
 		SideInfo: snap.SideInfo{
 			OfficialName: "store",
@@ -662,6 +680,8 @@ func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
 	snaps := snapList(rsp.Result)
 	c.Assert(snaps, check.HasLen, 1)
 	c.Assert(snaps[0]["name"], check.Equals, "store")
+
+	c.Check(rsp.SuggestedCurrency, check.Equals, "EUR")
 }
 
 func (s *apiSuite) TestSnapsInfoLocalAndStore(c *check.C) {
