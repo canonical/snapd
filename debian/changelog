@@ -1,3 +1,69 @@
+snapd (1.9.3) xenial; urgency=medium
+
+  * New upstream release:
+    - many: prepare for opengl support on classic
+    - interfaces/apparmor: load all apparmor profiles on snap setup
+    - daemon,client: move async resource to change in meta
+    - debian: disable autopilot
+    - snap: add basic progress reporting
+    - client,cmd,daemon,snap,store: show the price of snaps in the cli
+    - state: add minimal taskrunner logging
+    - daemon,snap,overlord/snapstate: in the API get the snap icon using
+      state
+    - client,daemon,overlord: don't guess snap file vs. name
+    - overlord/ifacestate: reload snap connections when setting up
+      security for a given snap
+    - snappy: remove cmd/snappy (superseded in favour of cmd/snap)
+    - interfaecs/apparmor: remove all traces of old-security from
+      apparmor backend
+    - interfaces/builtin: add bluez interface
+    - overlord/ifacestate: don't crash if connection cannot be reloaded
+    - debian: add searchSuite to autopkgtest
+    - client, daemon, cmd/snap: no more tasks; everything is changes
+    - client: send authorization header in client requests
+    - client, daemon: marshal suggested currency over REST
+    - docs, snap: enumerate snap types correctly in docs and comments
+    - many: add store authenticator parameter
+    - overlord/ifacestate,daemon: setup security on conect and
+      disconnect
+    - interfaces/apparmor: remove unused apparmor variables
+    - snapstate: add missing "TaskProgressAdapter.Write()" for working
+      progress reporting
+    - many: clean out snap config related code not for OS
+    - daemon,client,cmd: return snap list from /v2/snaps
+    - docs: update `/v2/snaps` endpoint documentation
+    - interfaces: rename developerMode to devMode
+    - daemon,client,overlord: progress current => done
+    - daemon,client,cmd/snap: move query metadata to top-level doc
+    - interfaces: add TestSecurityBackend
+    - many: replace typographic quotes with ASCII
+    - client, daemon: rework rest changes to export "ready" and "err"
+    - overlord/snapstate,snap,store: track snap-id in side-info and
+      therefore in state
+    - daemon: improve mocking  of interfaces API tests
+    - integration-tests: remove origins in default snap names for udf
+      call
+    - integration-test: use "snap list" in GetCurrentVersion
+    - many: almost no more NewInstalledSnap reading manifest from
+      snapstate and backend
+    - daemon: auto install ubuntu-core if missing
+    - oauth,store: remove OAuth authentication logic
+    - overlord/ifacestate: simplify some tests with implicit manager
+      initalization
+    - store, snappy: move away from hitting details directly
+    - overlord/ifacestate: reload connections when restarting the
+      manager
+    - overlord/ifacestate: increase flexibility of unit tests
+    - overlord: use state to discover all installed snaps
+    - overlord/ifacestate: track connections in the state
+    - many: separate copy-data from unlinking of current snap
+    - overlord/auth,store/auth: add macaroon authenticator to UserState
+    - client: support for /v2/changes and /v2/changes/{id}
+    - daemon/api,overlord/auth: rework authenticated users information
+      in state
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 14 Apr 2016 23:29:43 +0200
+
 snapd (1.9.2) xenial; urgency=medium
 
   * New upstream release:
