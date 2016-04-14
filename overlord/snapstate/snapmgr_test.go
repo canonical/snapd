@@ -156,7 +156,7 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 	defer s.state.Unlock()
 
 	chg := s.state.NewChange("install", "install a snap")
-	ts, err := snapstate.Install(s.state, "some-snap.mvo", "some-channel", 0)
+	ts, err := snapstate.Install(s.state, "some-snap", "some-channel", 0)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -169,7 +169,7 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 	c.Assert(s.fakeBackend.ops, DeepEquals, []fakeOp{
 		fakeOp{
 			op:      "download",
-			name:    "some-snap.mvo",
+			name:    "some-snap",
 			channel: "some-channel",
 		},
 		fakeOp{
@@ -210,11 +210,10 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 	err = task.Get("snap-setup", &ss)
 	c.Assert(err, IsNil)
 	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
-		Name:      "some-snap",
-		Revision:  11,
-		Developer: "mvo",
-		Channel:   "some-channel",
-		SnapPath:  "downloaded-snap-path",
+		Name:     "some-snap",
+		Revision: 11,
+		Channel:  "some-channel",
+		SnapPath: "downloaded-snap-path",
 	})
 
 	// verify snaps in the system state
@@ -247,7 +246,7 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 	})
 
 	chg := s.state.NewChange("install", "install a snap")
-	ts, err := snapstate.Update(s.state, "some-snap.mvo", "some-channel", snappy.DoInstallGC)
+	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", snappy.DoInstallGC)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -259,7 +258,7 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 	expected := []fakeOp{
 		fakeOp{
 			op:      "download",
-			name:    "some-snap.mvo",
+			name:    "some-snap",
 			channel: "some-channel",
 		},
 		fakeOp{
@@ -310,10 +309,9 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 	err = task.Get("snap-setup", &ss)
 	c.Assert(err, IsNil)
 	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
-		Name:      "some-snap",
-		Developer: "mvo",
-		Channel:   "some-channel",
-		Flags:     int(snappy.DoInstallGC),
+		Name:    "some-snap",
+		Channel: "some-channel",
+		Flags:   int(snappy.DoInstallGC),
 
 		Revision: 11,
 
@@ -355,7 +353,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoIntegration(c *C) {
 	})
 
 	chg := s.state.NewChange("install", "install a snap")
-	ts, err := snapstate.Update(s.state, "some-snap.mvo", "some-channel", snappy.DoInstallGC)
+	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", snappy.DoInstallGC)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -369,7 +367,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoIntegration(c *C) {
 	expected := []fakeOp{
 		{
 			op:      "download",
-			name:    "some-snap.mvo",
+			name:    "some-snap",
 			channel: "some-channel",
 		},
 		{
@@ -452,7 +450,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoIntegration(c *C) {
 	})
 
 	chg := s.state.NewChange("install", "install a snap")
-	ts, err := snapstate.Update(s.state, "some-snap.mvo", "some-channel", snappy.DoInstallGC)
+	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", snappy.DoInstallGC)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -471,7 +469,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoIntegration(c *C) {
 	expected := []fakeOp{
 		{
 			op:      "download",
-			name:    "some-snap.mvo",
+			name:    "some-snap",
 			channel: "some-channel",
 		},
 		{
@@ -611,7 +609,6 @@ version: 1.0`)
 func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 	si := snap.SideInfo{
 		OfficialName: "some-snap",
-		Developer:    "mvo",
 		Revision:     7,
 	}
 
@@ -662,9 +659,8 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 	err = task.Get("snap-setup", &ss)
 	c.Assert(err, IsNil)
 	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
-		Name:      "some-snap",
-		Developer: "",
-		Revision:  7,
+		Name:     "some-snap",
+		Revision: 7,
 	})
 
 	// verify snaps in the system state
