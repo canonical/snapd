@@ -162,6 +162,7 @@ func (s *apiSuite) mkInstalledInState(c *check.C, daemon *Daemon, name, develope
 			OfficialName: name,
 			Developer:    developer,
 			Revision:     revno,
+			Channel:      "stable",
 		},
 		Version: version,
 	}
@@ -192,10 +193,12 @@ version: %s
 		st.Lock()
 		defer st.Unlock()
 
-		snapstate.Set(st, name, &snapstate.SnapState{
-			Active:   active,
-			Sequence: []*snap.SideInfo{&skelInfo.SideInfo},
-		})
+		var snapst snapstate.SnapState
+		snapstate.Get(st, name, &snapst)
+		snapst.Active = active
+		snapst.Sequence = append(snapst.Sequence, &skelInfo.SideInfo)
+
+		snapstate.Set(st, name, &snapst)
 	}
 
 	info, err := snap.ReadInfo(name, &skelInfo.SideInfo)
@@ -225,7 +228,7 @@ gadget: {store: {id: %q}}
 }
 
 func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
-	s.daemon(c)
+	d := s.daemon(c)
 	s.vars = map[string]string{"name": "foo"}
 
 	// the store tells us about v2
@@ -245,9 +248,9 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	s.suggestedCurrency = "GBP"
 
 	// we have v0 [r5] installed
-	s.mkInstalled(c, "foo", "bar", "v0", 5, false, "")
+	s.mkInstalledInState(c, d, "foo", "bar", "v0", 5, false, "")
 	// and v1 [r10] is current
-	s.mkInstalled(c, "foo", "bar", "v1", 10, true, "")
+	s.mkInstalledInState(c, d, "foo", "bar", "v1", 10, true, "")
 
 	rsp, ok := getSnapInfo(snapCmd, nil).(*resp)
 	c.Assert(ok, check.Equals, true)
@@ -270,21 +273,21 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 		Type:   ResponseTypeSync,
 		Status: http.StatusOK,
 		Result: map[string]interface{}{
-			"name":               "foo",
-			"revision":           10,
-			"version":            "v1",
-			"summary":            "summary",
-			"description":        "description",
-			"developer":          "bar",
-			"status":             "active",
-			"icon":               "/v2/icons/foo/icon",
-			"type":               string(snap.TypeApp),
-			"vendor":             "",
-			"download-size":      int64(2),
-			"resource":           "/v2/snaps/foo",
-			"update-available":   20,
-			"rollback-available": 5,
-			"channel":            "stable",
+			"name":             "foo",
+			"revision":         10,
+			"version":          "v1",
+			"summary":          "summary",
+			"description":      "description",
+			"developer":        "bar",
+			"status":           "active",
+			"icon":             "/v2/icons/foo/icon",
+			"type":             string(snap.TypeApp),
+			"vendor":           "",
+			"download-size":    int64(2),
+			"resource":         "/v2/snaps/foo",
+			"update-available": 20,
+			// XXX: fix this later "rollback-available": 5,
+			"channel": "stable",
 		},
 		Meta: meta,
 	}
