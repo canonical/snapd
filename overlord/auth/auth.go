@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
+	"sort"
 
 	"github.com/ubuntu-core/snappy/overlord/state"
 )
@@ -52,6 +53,7 @@ func NewUser(st *state.State, username, macaroon string, discharges []string) (*
 		return nil, err
 	}
 
+	sort.Strings(discharges)
 	authStateData.LastID++
 	authenticatedUser := UserState{
 		ID:         authStateData.LastID,
@@ -82,6 +84,34 @@ func User(st *state.State, id int) (*UserState, error) {
 		}
 	}
 	return nil, fmt.Errorf("invalid user")
+}
+
+// CheckMacaroon returns the UserState for the given macaroon/discharges credentials
+func CheckMacaroon(st *state.State, macaroon string, discharges []string) (*UserState, error) {
+	var authStateData AuthState
+	err := st.Get("auth", &authStateData)
+	if err != nil {
+		return nil, nil
+	}
+
+NextUser:
+	for _, user := range authStateData.Users {
+		if user.Macaroon != macaroon {
+			continue
+		}
+		if len(user.Discharges) != len(discharges) {
+			continue
+		}
+		// sort discharges (stored users' discharges are already sorted)
+		sort.Strings(discharges)
+		for i, d := range user.Discharges {
+			if d != discharges[i] {
+				continue NextUser
+			}
+		}
+		return &user, nil
+	}
+	return nil, fmt.Errorf("invalid authentication")
 }
 
 // Authenticator returns MacaroonAuthenticator for current authenticated user represented by UserState

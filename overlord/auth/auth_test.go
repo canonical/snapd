@@ -63,6 +63,27 @@ func (as *authSuite) TestNewUser(c *C) {
 	c.Check(userFromState, DeepEquals, expected)
 }
 
+func (as *authSuite) TestNewUserSortsDischarges(c *C) {
+	as.state.Lock()
+	user, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge2", "discharge1"})
+	as.state.Unlock()
+
+	expected := &auth.UserState{
+		ID:         1,
+		Username:   "username",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge1", "discharge2"},
+	}
+	c.Check(err, IsNil)
+	c.Check(user, DeepEquals, expected)
+
+	as.state.Lock()
+	userFromState, err := auth.User(as.state, 1)
+	as.state.Unlock()
+	c.Check(err, IsNil)
+	c.Check(userFromState, DeepEquals, expected)
+}
+
 func (as *authSuite) TestNewUserAddsToExistent(c *C) {
 	as.state.Lock()
 	firstUser, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
@@ -94,6 +115,43 @@ func (as *authSuite) TestNewUserAddsToExistent(c *C) {
 	as.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(userFromState, DeepEquals, firstUser)
+}
+
+func (as *authSuite) TestCheckMacaroonNoAuthData(c *C) {
+	as.state.Lock()
+	user, err := auth.CheckMacaroon(as.state, "macaroon", []string{"discharge"})
+	as.state.Unlock()
+
+	c.Check(err, IsNil)
+	c.Check(user, IsNil)
+}
+
+func (as *authSuite) TestCheckMacaroonNoValidUser(c *C) {
+	as.state.Lock()
+	_, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	as.state.Unlock()
+	c.Check(err, IsNil)
+
+	as.state.Lock()
+	user, err := auth.CheckMacaroon(as.state, "other-macaroon", []string{"discharge"})
+	as.state.Unlock()
+
+	c.Check(err, ErrorMatches, "invalid authentication")
+	c.Check(user, IsNil)
+}
+
+func (as *authSuite) TestCheckMacaroonValidUser(c *C) {
+	as.state.Lock()
+	expectedUser, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	as.state.Unlock()
+	c.Check(err, IsNil)
+
+	as.state.Lock()
+	user, err := auth.CheckMacaroon(as.state, "macaroon", []string{"discharge"})
+	as.state.Unlock()
+
+	c.Check(err, IsNil)
+	c.Check(user, DeepEquals, expectedUser)
 }
 
 func (as *authSuite) TestUserForNoAuthInState(c *C) {

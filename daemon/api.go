@@ -230,6 +230,40 @@ func loginUser(c *Command, r *http.Request) Response {
 	return SyncResponse(result, nil)
 }
 
+// UserFromRequest extracts user information from request and return the respective user in state, if valid
+// It requires the state to be locked
+func UserFromRequest(st *state.State, req *http.Request) (*auth.UserState, error) {
+	// extract macaroons data from request
+	header := req.Header.Get("Authorization")
+	if header == "" {
+		return nil, nil
+	}
+
+	authorizationData := strings.SplitN(header, " ", 2)
+	if len(authorizationData) != 2 || authorizationData[0] != "Macaroon" {
+		return nil, fmt.Errorf("authorization header misses Macaroon prefix")
+	}
+
+	var macaroon string
+	var discharges []string
+	for _, field := range strings.Split(authorizationData[1], ",") {
+		field := strings.TrimSpace(field)
+		if strings.HasPrefix(field, `root="`) {
+			macaroon = strings.TrimSuffix(field[6:], `"`)
+		}
+		if strings.HasPrefix(field, `discharge="`) {
+			discharges = append(discharges, strings.TrimSuffix(field[11:], `"`))
+		}
+	}
+
+	if macaroon == "" || len(discharges) == 0 {
+		return nil, fmt.Errorf("invalid authorization header")
+	}
+
+	user, err := auth.CheckMacaroon(st, macaroon, discharges)
+	return user, err
+}
+
 type metarepo interface {
 	Snap(string, string, store.Authenticator) (*snap.Info, error)
 	FindSnaps(string, string, store.Authenticator) ([]*snap.Info, error)
