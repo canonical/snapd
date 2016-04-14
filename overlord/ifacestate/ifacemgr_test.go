@@ -229,7 +229,7 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChange(c *C, snapName string
 	defer s.state.Unlock()
 
 	task := s.state.NewTask("setup-snap-security", "")
-	ss := snapstate.SnapSetup{Name: "snap"}
+	ss := snapstate.SnapSetup{Name: snapName}
 	task.Set("snap-setup", ss)
 	taskset := state.NewTaskSet(task)
 	change := s.state.NewChange("test", "")
