@@ -23,7 +23,10 @@ import (
 	"bytes"
 	"fmt"
 	"log"
+	"os"
 	"testing"
+
+	"github.com/ubuntu-core/snappy/testutil"
 
 	. "gopkg.in/check.v1"
 )
@@ -84,6 +87,21 @@ func (s *LogSuite) TestDebugf(c *C) {
 	Debugf("xyzzy")
 	c.Check(s.sysbuf.String(), Matches, `(?m).*logger_test\.go:\d+: DEBUG: xyzzy`)
 	c.Check(logbuf.String(), Equals, "")
+}
+
+func (s *LogSuite) TestDebugfEnv(c *C) {
+	var logbuf bytes.Buffer
+	l, err := NewConsoleLog(&logbuf, DefaultFlags)
+	c.Assert(err, IsNil)
+
+	SetLogger(l)
+
+	os.Setenv("SNAPD_DEBUG", "1")
+	defer os.Unsetenv("SNAPD_DEBUG")
+
+	Debugf("xyzzy")
+	c.Check(s.sysbuf.String(), Matches, `(?m).*logger_test\.go:\d+: DEBUG: xyzzy`)
+	c.Check(logbuf.String(), testutil.Contains, `DEBUG: xyzzy`)
 }
 
 func (s *LogSuite) TestNoticef(c *C) {
