@@ -143,8 +143,7 @@ func logit(handler http.Handler) http.Handler {
 		handler.ServeHTTP(ww, r)
 		t := time.Now().Sub(t0)
 		url := r.URL.String()
-		// FIXME: /operations/ can go once we switches to changes only
-		if !strings.Contains(url, "/operations/") && !strings.Contains(url, "/changes/") {
+		if !strings.Contains(url, "/changes/") {
 			logger.Debugf("%s %s %s %s %d", r.RemoteAddr, r.Method, r.URL, t, ww.s)
 		}
 	})
