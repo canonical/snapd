@@ -26,9 +26,9 @@ import (
 	"github.com/ubuntu-core/snappy/snap"
 )
 
-// modernVariables returns text defining some apparmor variables that
-// work with non-legacy apparmor templates.
-func modernVariables(appInfo *snap.AppInfo) []byte {
+// templateVariables returns text defining apparmor variables that can be used in the
+// apparmor template and by apparmor snippets.
+func templateVariables(appInfo *snap.AppInfo) []byte {
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, "@{APP_NAME}=\"%s\"\n", appInfo.Name)
 	fmt.Fprintf(&buf, "@{SNAP_NAME}=\"%s\"\n", appInfo.Snap.Name())
