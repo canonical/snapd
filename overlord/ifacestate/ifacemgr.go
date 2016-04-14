@@ -371,10 +371,10 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	plug := m.repo.Plug(plugRef.Snap, plugRef.Name)
 	slot := m.repo.Slot(slotRef.Snap, slotRef.Name)
 	if err := setupSnapSecurity(task, plug.Snap, m.repo); err != nil {
-		return err
+		return state.Retry
 	}
 	if err := setupSnapSecurity(task, slot.Snap, m.repo); err != nil {
-		return err
+		return state.Retry
 	}
 
 	conns[connID(plugRef, slotRef)] = connState{Interface: plug.Interface}
@@ -406,10 +406,10 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	plug := m.repo.Plug(plugRef.Snap, plugRef.Name)
 	slot := m.repo.Slot(slotRef.Snap, slotRef.Name)
 	if err := setupSnapSecurity(task, plug.Snap, m.repo); err != nil {
-		return err
+		return state.Retry
 	}
 	if err := setupSnapSecurity(task, slot.Snap, m.repo); err != nil {
-		return err
+		return state.Retry
 	}
 
 	delete(conns, connID(plugRef, slotRef))
