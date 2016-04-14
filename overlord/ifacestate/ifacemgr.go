@@ -63,8 +63,8 @@ func Manager(s *state.State, extra []interfaces.Interface) (*InterfaceManager, e
 	}
 	runner.AddHandler("connect", m.doConnect, nil)
 	runner.AddHandler("disconnect", m.doDisconnect, nil)
-	runner.AddHandler("setup-snap-security", m.doSetupSnapSecurity, m.doRemoveSnapSecurity)
-	runner.AddHandler("remove-snap-security", m.doRemoveSnapSecurity, m.doSetupSnapSecurity)
+	runner.AddHandler("setup-profiles", m.doSetupProfiles, m.doRemoveProfiles)
+	runner.AddHandler("remove-profiles", m.doRemoveProfiles, m.doSetupProfiles)
 	runner.AddHandler("discard-conns", m.doDiscardConns, nil)
 	return m, nil
 }
@@ -147,7 +147,7 @@ func setupSnapSecurity(task *state.Task, snapInfo *snap.Info, repo *interfaces.R
 	return nil
 }
 
-func (m *InterfaceManager) doSetupSnapSecurity(task *state.Task, _ *tomb.Tomb) error {
+func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error {
 	task.State().Lock()
 	defer task.State().Unlock()
 
@@ -258,7 +258,7 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string) error 
 	return nil
 }
 
-func (m *InterfaceManager) doRemoveSnapSecurity(task *state.Task, _ *tomb.Tomb) error {
+func (m *InterfaceManager) doRemoveProfiles(task *state.Task, _ *tomb.Tomb) error {
 	task.State().Lock()
 	defer task.State().Unlock()
 
