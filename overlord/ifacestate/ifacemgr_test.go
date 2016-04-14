@@ -402,20 +402,28 @@ func (s *interfaceManagerSuite) testDoRemoveSnapSecurityRemovesConnections(c *C,
 	c.Check(conns, DeepEquals, map[string]interface{}{})
 }
 
-func (s *interfaceManagerSuite) TestDoDiscardConns(c *C) {
+func (s *interfaceManagerSuite) TestDoDiscardConnsPlug(c *C) {
+	s.testDoDicardConns(c, "consumer")
+}
+
+func (s *interfaceManagerSuite) TestDoDiscardConnsSlot(c *C) {
+	s.testDoDicardConns(c, "producer")
+}
+
+func (s *interfaceManagerSuite) testDoDicardConns(c *C, snapName string) {
 	s.state.Lock()
 	// Store information about a connection in the state.
 	s.state.Set("conns", map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
 	})
 	// Store empty snap state. This snap has an empty sequence now.
-	snapstate.Set(s.state, "consumer", &snapstate.SnapState{})
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{})
 	s.state.Unlock()
 
 	mgr := s.manager(c)
 
 	// Run the discard-conns task and let it finish
-	change := s.addDiscardConnsChange(c, "consumer")
+	change := s.addDiscardConnsChange(c, snapName)
 	mgr.Ensure()
 	mgr.Wait()
 	mgr.Stop()
