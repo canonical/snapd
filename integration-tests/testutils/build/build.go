@@ -79,18 +79,10 @@ func Assets(cfg *Config) {
 		coverpkg := getCoverPkg()
 		// FIXME We need to build an image that has the snappy from the branch
 		// installed. --elopio - 2015-06-25.
-		buildSnappyCLI(cfg.Arch, coverpkg)
 		buildSnapd(cfg.Arch, coverpkg)
 		buildSnapCLI(cfg.Arch, coverpkg)
 	}
 	buildTests(cfg.Arch, cfg.TestBuildTags)
-}
-
-func buildSnappyCLI(arch, coverpkg string) {
-	fmt.Println("Building snappy CLI...")
-	buildSnappyCliCmd := getBinaryBuildCmd("snappy", coverpkg)
-
-	goCall(arch, buildSnappyCliCmd)
 }
 
 func buildSnapd(arch, coverpkg string) {

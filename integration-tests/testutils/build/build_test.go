@@ -234,28 +234,6 @@ func (s *BuildSuite) TestAssetsDoesNotSetEnvironmentForNonArm(c *check.C) {
 			"GOARM "+os.Getenv("GOARCH"), setenvGOARMFinalCall))
 }
 
-func (s *BuildSuite) TestAssetsBuildsSnappyCliFromBranch(c *check.C) {
-	Assets(&Config{UseSnappyFromBranch: true})
-
-	buildSnappyCliCmd := getBinaryBuildCmd("snappy", "-coverpkg")
-	buildCall := s.execCalls[buildSnappyCliCmd]
-
-	c.Assert(buildCall, check.Equals, 1,
-		check.Commentf("Expected 1 call to execCommand with %s, got %d",
-			buildSnappyCliCmd, buildCall))
-}
-
-func (s *BuildSuite) TestAssetsDoesNotBuildSnappyCliFromBranchIfNotInstructedTo(c *check.C) {
-	Assets(nil)
-
-	buildSnappyCliCmd := getBinaryBuildCmd("snappy", "coverpkg")
-	buildCall := s.execCalls[buildSnappyCliCmd]
-
-	c.Assert(buildCall, check.Equals, 0,
-		check.Commentf("Expected 0 call to execCommand with %s, got %d",
-			buildSnappyCliCmd, buildCall))
-}
-
 func (s *BuildSuite) TestAssetsBuildsSnapdFromBranch(c *check.C) {
 	Assets(&Config{UseSnappyFromBranch: true})
 
@@ -374,7 +352,7 @@ func (s *BuildSuite) TestBuildCmdDoesNotIncludeFilteredPkgs(c *check.C) {
 func (s *BuildSuite) TestBuildCmdExecutesBuildCommandsFromGOPATH(c *check.C) {
 	Assets(&Config{UseSnappyFromBranch: true})
 
-	for _, bin := range []string{"snappy", "snapd", "snap"} {
+	for _, bin := range []string{"snapd", "snap"} {
 		cmd := getBinaryBuildCmd(bin, "-coverpkg")
 
 		c.Check(s.execCalls[cmd], check.Equals, 1)
