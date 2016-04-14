@@ -32,7 +32,7 @@ func (cs *clientSuite) TestClientChange(c *check.C) {
   "summary": "...",
   "status": "Do",
   "ready": false,
-  "tasks": [{"kind": "bar", "summary": "...", "status": "Do", "progress": {"current": 0, "total": 1}}]
+  "tasks": [{"kind": "bar", "summary": "...", "status": "Do", "progress": {"done": 0, "total": 1}}]
 }}`
 
 	chg, err := cs.cli.Change("uno")
@@ -42,7 +42,7 @@ func (cs *clientSuite) TestClientChange(c *check.C) {
 		Kind:    "foo",
 		Summary: "...",
 		Status:  "Do",
-		Tasks:   []*client.Task{{Kind: "bar", Summary: "...", Status: "Do", Progress: client.TaskProgress{Current: 0, Total: 1}}},
+		Tasks:   []*client.Task{{Kind: "bar", Summary: "...", Status: "Do", Progress: client.TaskProgress{Done: 0, Total: 1}}},
 	})
 }
 
@@ -53,7 +53,7 @@ func (cs *clientSuite) TestClientChangeError(c *check.C) {
   "summary": "...",
   "status": "Error",
   "ready": true,
-  "tasks": [{"kind": "bar", "summary": "...", "status": "Error", "progress": {"current": 1, "total": 1}, "log": ["ERROR: something broke"]}],
+  "tasks": [{"kind": "bar", "summary": "...", "status": "Error", "progress": {"done": 1, "total": 1}, "log": ["ERROR: something broke"]}],
   "err": "error message"
 }}`
 
@@ -68,7 +68,7 @@ func (cs *clientSuite) TestClientChangeError(c *check.C) {
 			Kind:     "bar",
 			Summary:  "...",
 			Status:   "Error",
-			Progress: client.TaskProgress{Current: 1, Total: 1},
+			Progress: client.TaskProgress{Done: 1, Total: 1},
 			Log:      []string{"ERROR: something broke"},
 		}},
 		Err:   "error message",
@@ -93,7 +93,7 @@ func (cs *clientSuite) TestClientChanges(c *check.C) {
   "summary": "...",
   "status": "Do",
   "ready": false,
-  "tasks": [{"kind": "bar", "summary": "...", "status": "Do", "progress": {"current": 0, "total": 1}}]
+  "tasks": [{"kind": "bar", "summary": "...", "status": "Do", "progress": {"done": 0, "total": 1}}]
 }]}`
 
 	for _, i := range []client.ChangeSelector{client.ChangesAll, client.ChangesReady, client.ChangesInProgress} {
@@ -104,7 +104,7 @@ func (cs *clientSuite) TestClientChanges(c *check.C) {
 			Kind:    "foo",
 			Summary: "...",
 			Status:  "Do",
-			Tasks:   []*client.Task{{Kind: "bar", Summary: "...", Status: "Do", Progress: client.TaskProgress{Current: 0, Total: 1}}},
+			Tasks:   []*client.Task{{Kind: "bar", Summary: "...", Status: "Do", Progress: client.TaskProgress{Done: 0, Total: 1}}},
 		}})
 		c.Check(cs.req.URL.RawQuery, check.Equals, "select="+i.String())
 	}

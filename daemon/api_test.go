@@ -2192,7 +2192,7 @@ func (s *apiSuite) TestStateChangesDefaultToInProgress(c *check.C) {
 	res, err := rsp.MarshalJSON()
 	c.Assert(err, check.IsNil)
 
-	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"kind":"download","summary":"1...","status":"Do","log":\["INFO: l11","INFO: l12"],"progress":{"current":0,"total":1}}.*`)
+	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"kind":"download","summary":"1...","status":"Do","log":\["INFO: l11","INFO: l12"],"progress":{"done":0,"total":1}}.*`)
 }
 
 func (s *apiSuite) TestStateChangesInProgress(c *check.C) {
@@ -2216,7 +2216,7 @@ func (s *apiSuite) TestStateChangesInProgress(c *check.C) {
 	res, err := rsp.MarshalJSON()
 	c.Assert(err, check.IsNil)
 
-	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"kind":"download","summary":"1...","status":"Do","log":\["INFO: l11","INFO: l12"],"progress":{"current":0,"total":1}}.*],"ready":false}.*`)
+	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"kind":"download","summary":"1...","status":"Do","log":\["INFO: l11","INFO: l12"],"progress":{"done":0,"total":1}}.*],"ready":false}.*`)
 }
 
 func (s *apiSuite) TestStateChangesAll(c *check.C) {
@@ -2239,8 +2239,8 @@ func (s *apiSuite) TestStateChangesAll(c *check.C) {
 	res, err := rsp.MarshalJSON()
 	c.Assert(err, check.IsNil)
 
-	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"kind":"download","summary":"1...","status":"Do","log":\["INFO: l11","INFO: l12"],"progress":{"current":0,"total":1}}.*],"ready":false}.*`)
-	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"remove","summary":"remove..","status":"Error","tasks":\[{"kind":"unlink","summary":"1...","status":"Error","log":\["ERROR: rm failed"],"progress":{"current":1,"total":1}}.*],"ready":true,"err":"[^"]+".*`)
+	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"kind":"download","summary":"1...","status":"Do","log":\["INFO: l11","INFO: l12"],"progress":{"done":0,"total":1}}.*],"ready":false}.*`)
+	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"remove","summary":"remove..","status":"Error","tasks":\[{"kind":"unlink","summary":"1...","status":"Error","log":\["ERROR: rm failed"],"progress":{"done":1,"total":1}}.*],"ready":true,"err":"[^"]+".*`)
 }
 
 func (s *apiSuite) TestStateChangesReady(c *check.C) {
@@ -2263,7 +2263,7 @@ func (s *apiSuite) TestStateChangesReady(c *check.C) {
 	res, err := rsp.MarshalJSON()
 	c.Assert(err, check.IsNil)
 
-	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"remove","summary":"remove..","status":"Error","tasks":\[{"kind":"unlink","summary":"1...","status":"Error","log":\["ERROR: rm failed"],"progress":{"current":1,"total":1}}.*],"ready":true,"err":"[^"]+".*`)
+	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"remove","summary":"remove..","status":"Error","tasks":\[{"kind":"unlink","summary":"1...","status":"Error","log":\["ERROR: rm failed"],"progress":{"done":1,"total":1}}.*],"ready":true,"err":"[^"]+".*`)
 }
 
 func (s *apiSuite) TestStateChange(c *check.C) {
@@ -2303,13 +2303,13 @@ func (s *apiSuite) TestStateChange(c *check.C) {
 				"summary":  "1...",
 				"status":   "Do",
 				"log":      []interface{}{"INFO: l11", "INFO: l12"},
-				"progress": map[string]interface{}{"current": 0., "total": 1.},
+				"progress": map[string]interface{}{"done": 0., "total": 1.},
 			},
 			map[string]interface{}{
 				"kind":     "activate",
 				"summary":  "2...",
 				"status":   "Do",
-				"progress": map[string]interface{}{"current": 0., "total": 1.},
+				"progress": map[string]interface{}{"done": 0., "total": 1.},
 			},
 		},
 	})
