@@ -123,7 +123,7 @@ func (s *SnappySuite) SetUpTest(c *check.C) {
 
 // GetCurrentVersion returns the version of the installed and active package.
 func GetCurrentVersion(c *check.C, packageName string) string {
-	output := cli.ExecCommand(c, "snappy", "list")
+	output := cli.ExecCommand(c, "snap", "list")
 	pattern := "(?mU)^" + packageName + " +(.*)$"
 	re := regexp.MustCompile(pattern)
 	match := re.FindStringSubmatch(string(output))
