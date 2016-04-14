@@ -20,9 +20,22 @@
 package daemon
 
 import (
+	"path/filepath"
+
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
 )
+
+// snapIcon tries to find the icon inside the snap
+func snapIcon(info *snap.Info) string {
+	// XXX: copy of snap.Snap.Icon which will go away
+	found, _ := filepath.Glob(filepath.Join(info.MountDir(), "meta", "gui", "icon.*"))
+	if len(found) == 0 {
+		return ""
+	}
+
+	return found[0]
+}
 
 // allSnaps returns all installed snaps, grouped by name
 func allSnaps() (map[string][]*snappy.Snap, error) {

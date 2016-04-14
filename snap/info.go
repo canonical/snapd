@@ -21,6 +21,8 @@ package snap
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strconv"
 
@@ -225,4 +227,27 @@ func (app *AppInfo) ServiceFile() string {
 // ServiceSocketFile returns the systemd socket file path for the daemon app.
 func (app *AppInfo) ServiceSocketFile() string {
 	return filepath.Join(dirs.SnapServicesDir, app.SecurityTag()+".socket")
+}
+
+// ReadInfo reads the snap information for the installed snap with the given name and given side-info.
+func ReadInfo(name string, si *SideInfo) (*Info, error) {
+	// XXX: test directly when we don't have to invent the nth way
+	// to mock installed snaps!
+	snapYamlFn := filepath.Join(MountDir(name, si.Revision), "meta", "snap.yaml")
+	meta, err := ioutil.ReadFile(snapYamlFn)
+	if os.IsNotExist(err) {
+		return nil, fmt.Errorf("cannot find mounted snap %q at revision %d", name, si.Revision)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	info, err := InfoFromSnapYaml(meta)
+	if err != nil {
+		return nil, err
+	}
+
+	info.SideInfo = *si
+
+	return info, nil
 }
