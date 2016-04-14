@@ -462,6 +462,10 @@ func (m *InterfaceManager) Repository() *interfaces.Repository {
 //
 // This function is public because it is referenced in the daemon
 func MockSecurityBackendsForSnap(fn func(snapInfo *snap.Info) []interfaces.SecurityBackend) func() {
-	securityBackendsForSnap = fn
+	if fn != nil {
+		securityBackendsForSnap = fn
+	} else {
+		securityBackendsForSnap = func(snapInfo *snap.Info) []interfaces.SecurityBackend { return nil }
+	}
 	return func() { securityBackendsForSnap = securityBackendsForSnapImpl }
 }
