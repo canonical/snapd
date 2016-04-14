@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -145,7 +146,9 @@ func logit(handler http.Handler) http.Handler {
 		t0 := time.Now()
 		handler.ServeHTTP(ww, r)
 		t := time.Now().Sub(t0)
-		logger.Debugf("%s %s %s %s %d", r.RemoteAddr, r.Method, r.URL, t, ww.s)
+		if !strings.Contains(r.URL.String(), "/operations") {
+			logger.Debugf("%s %s %s %s %d", r.RemoteAddr, r.Method, r.URL, t, ww.s)
+		}
 	})
 }
 
