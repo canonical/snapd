@@ -231,7 +231,7 @@ func (r *TaskRunner) Ensure() {
 			// Dependencies still unhandled.
 			continue
 		}
-		logger.Debugf("running task id %q: %q", t.ID(), t.Summary())
+		logger.Debugf("Running task %s: %s", t.ID(), t.Summary())
 		r.run(t)
 	}
 }
