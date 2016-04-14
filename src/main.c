@@ -81,7 +81,7 @@ void run_snappy_app_dev_add(struct snappy_udev *udev_s, const char *path)
 	    || udev_s->tagname[udev_s->tagname_len] != '\0')
 		die("snappy_udev->tagname has invalid length");
 
-	debug("run_snappy_app_dev_add: %s %s", path, udev_s->tagname);
+	debug("%s: %s %s", __func__, path, udev_s->tagname);
 
 	struct udev_device *d =
 	    udev_device_new_from_syspath(udev_s->udev, path);
@@ -127,7 +127,7 @@ void run_snappy_app_dev_add(struct snappy_udev *udev_s, const char *path)
  */
 int snappy_udev_init(const char *appname, struct snappy_udev *udev_s)
 {
-	debug("snappy_udev_init");
+	debug("%s", __func__);
 	int rc = 0;
 
 	// extra paranoia
@@ -176,7 +176,7 @@ void snappy_udev_cleanup(struct snappy_udev *udev_s)
 
 void setup_devices_cgroup(const char *appname, struct snappy_udev *udev_s)
 {
-	debug("setup_devices_cgroup");
+	debug("%s", __func__);
 	// Devices that must always be present
 	const char *static_devices[] = {
 		"/sys/class/mem/null",
@@ -341,7 +341,7 @@ void setup_private_pts()
 
 void setup_snappy_os_mounts()
 {
-	debug("setup_snappy_os_mounts()\n");
+	debug("%s", __func__);
 
 	// FIXME: hardcoded "ubuntu-core.*"
 	glob_t glob_res;
