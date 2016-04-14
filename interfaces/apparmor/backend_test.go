@@ -79,7 +79,6 @@ fi
 `
 
 func (s *backendSuite) SetUpTest(c *C) {
-	s.backend.UseLegacyTemplate(nil)
 	// Isolate this test to a temporary directory
 	s.rootDir = c.MkDir()
 	dirs.SetRootDir(s.rootDir)
@@ -235,33 +234,6 @@ func (s *backendSuite) TestRealDefaultTemplateIsNormallyUsed(c *C) {
 		"/sys/class/ r,\n",
 	} {
 		c.Assert(string(data), testutil.Contains, line)
-	}
-}
-
-func (s *backendSuite) TestCustomTemplateUsedOnRequest(c *C) {
-	s.backend.UseLegacyTemplate([]byte(`
-# Description: Custom template for testing
-###VAR###
-
-###PROFILEATTACH### (attach_disconnected) {
-	###SNIPPETS###
-	FOO
-}
-`))
-	snapInfo, err := snap.InfoFromSnapYaml([]byte(sambaYaml))
-	c.Assert(err, IsNil)
-	err = s.backend.Setup(snapInfo, false, s.repo)
-	c.Assert(err, IsNil)
-	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
-	data, err := ioutil.ReadFile(profile)
-	c.Assert(err, IsNil)
-	// Our custom template was used
-	c.Assert(string(data), testutil.Contains, "FOO")
-	// Custom profile can rely on legacy variables
-	for _, legacyVarName := range []string{
-		"APP_APPNAME", "APP_PKGNAME", "APP_VERSION", "INSTALL_DIR",
-	} {
-		c.Assert(string(data), testutil.Contains, fmt.Sprintf("@{%s}=", legacyVarName))
 	}
 }
 
