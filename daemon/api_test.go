@@ -1479,62 +1479,6 @@ func (s *apiSuite) TestInstallLicensedIntegration(c *check.C) {
 
 // Tests for GET /v2/interfaces
 
-func makePlug(ifaceName string) *interfaces.Plug {
-	snapInfo := &snap.Info{
-		SuggestedName: "producer",
-	}
-	plugInfo := &snap.PlugInfo{
-		Snap:      snapInfo,
-		Name:      "plug",
-		Interface: ifaceName,
-		Attrs:     map[string]interface{}{"key": "value"},
-		Label:     "label",
-	}
-	appInfo := &snap.AppInfo{
-		Snap:  snapInfo,
-		Name:  "app",
-		Plugs: map[string]*snap.PlugInfo{"plug": plugInfo},
-	}
-	snapInfo.Apps = map[string]*snap.AppInfo{"app": appInfo}
-	plugInfo.Apps = snapInfo.Apps
-	snapInfo.Plugs = map[string]*snap.PlugInfo{"plug": plugInfo}
-	return &interfaces.Plug{PlugInfo: plugInfo}
-}
-
-func makeConnectedPlug() *interfaces.Plug {
-	plug := makePlug("interface")
-	plug.Connections = []interfaces.SlotRef{{Snap: "consumer", Name: "slot"}}
-	return plug
-}
-
-func makeSlot(ifaceName string) *interfaces.Slot {
-	snapInfo := &snap.Info{
-		SuggestedName: "consumer",
-	}
-	slotInfo := &snap.SlotInfo{
-		Snap:      snapInfo,
-		Name:      "slot",
-		Interface: ifaceName,
-		Attrs:     map[string]interface{}{"key": "value"},
-		Label:     "label",
-	}
-	appInfo := &snap.AppInfo{
-		Snap:  snapInfo,
-		Name:  "app",
-		Slots: map[string]*snap.SlotInfo{"slot": slotInfo},
-	}
-	snapInfo.Apps = map[string]*snap.AppInfo{"app": appInfo}
-	slotInfo.Apps = snapInfo.Apps
-	snapInfo.Slots = map[string]*snap.SlotInfo{"slot": slotInfo}
-	return &interfaces.Slot{SlotInfo: slotInfo}
-}
-
-func makeConnectedSlot() *interfaces.Slot {
-	slot := makeSlot("interface")
-	slot.Connections = []interfaces.PlugRef{{Snap: "producer", Name: "plug"}}
-	return slot
-}
-
 func (s *apiSuite) TestInterfaces(c *check.C) {
 	d := s.daemon(c)
 
