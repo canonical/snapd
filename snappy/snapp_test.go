@@ -78,9 +78,8 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	// do not attempt to hit the real store servers in the tests
 	nowhereURI, _ := url.Parse("")
 	s.storeCfg = &store.SnapUbuntuStoreConfig{
-		SearchURI:  nowhereURI,
-		DetailsURI: nowhereURI,
-		BulkURI:    nowhereURI,
+		SearchURI: nowhereURI,
+		BulkURI:   nowhereURI,
 	}
 	storeConfig = s.storeCfg
 
@@ -236,7 +235,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdatesNoSnaps(c *C) {
 
 	var err error
-	s.storeCfg.DetailsURI, err = url.Parse("https://some-uri")
+	s.storeCfg.SearchURI, err = url.Parse("https://some-uri")
 	c.Assert(err, IsNil)
 	repo := store.NewUbuntuStoreSnapRepository(s.storeCfg, "")
 	c.Assert(repo, NotNil)
@@ -513,7 +512,7 @@ type: gadget
 	c.Assert(err, IsNil)
 	makeSnapActive(snapYamlFn)
 
-	s.storeCfg.DetailsURI, err = url.Parse(mockServer.URL)
+	s.storeCfg.SearchURI, err = url.Parse(mockServer.URL)
 	c.Assert(err, IsNil)
 	repo := NewConfiguredUbuntuStoreSnapRepository()
 	c.Assert(repo, NotNil)
