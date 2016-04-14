@@ -130,13 +130,13 @@ func (m *InterfaceManager) reloadConnections() error {
 	return nil
 }
 
-func (m *InterfaceManager) setupSnapSecurity(snapInfo *snap.Info) error {
+func setupSnapSecurity(task *state.Task, snapInfo *snap.Info, repo *interfaces.Repository) error {
 	var snapState snapstate.SnapState
-	if err := snapstate.Get(m.state, snapInfo.Name(), &snapState); err != nil {
+	if err := snapstate.Get(task.State(), snapInfo.Name(), &snapState); err != nil {
 		return err
 	}
 	for _, backend := range securityBackends {
-		if err := backend.Setup(snapInfo, snapState.DevMode, m.repo); err != nil {
+		if err := backend.Setup(snapInfo, snapState.DevMode, repo); err != nil {
 			return err
 		}
 	}
@@ -367,10 +367,10 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 
 	plug := m.repo.Plug(plugRef.Snap, plugRef.Name)
 	slot := m.repo.Slot(slotRef.Snap, slotRef.Name)
-	if err := m.setupSnapSecurity(plug.Snap); err != nil {
+	if err := setupSnapSecurity(task, plug.Snap, m.repo); err != nil {
 		return err
 	}
-	if err := m.setupSnapSecurity(slot.Snap); err != nil {
+	if err := setupSnapSecurity(task, slot.Snap, m.repo); err != nil {
 		return err
 	}
 
@@ -402,10 +402,10 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 
 	plug := m.repo.Plug(plugRef.Snap, plugRef.Name)
 	slot := m.repo.Slot(slotRef.Snap, slotRef.Name)
-	if err := m.setupSnapSecurity(plug.Snap); err != nil {
+	if err := setupSnapSecurity(task, plug.Snap, m.repo); err != nil {
 		return err
 	}
-	if err := m.setupSnapSecurity(slot.Snap); err != nil {
+	if err := setupSnapSecurity(task, slot.Snap, m.repo); err != nil {
 		return err
 	}
 
