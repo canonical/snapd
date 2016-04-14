@@ -175,6 +175,7 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 		fakeOp{
 			op:   "check-snap",
 			name: "downloaded-snap-path",
+			old:  "<no-current>",
 		},
 		fakeOp{
 			op:    "setup-snap",
@@ -184,6 +185,7 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 		fakeOp{
 			op:   "copy-data",
 			name: "/snap/some-snap/11",
+			old:  "<no-old>",
 		},
 		fakeOp{
 			op: "candidate",
@@ -265,6 +267,7 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 			op:    "check-snap",
 			name:  "downloaded-snap-path",
 			flags: int(snappy.DoInstallGC),
+			old:   "/snap/some-snap/7",
 		},
 		fakeOp{
 			op:    "setup-snap",
@@ -280,6 +283,7 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 			op:    "copy-data",
 			name:  "/snap/some-snap/11",
 			flags: int(snappy.DoInstallGC),
+			old:   "/snap/some-snap/7",
 		},
 		fakeOp{
 			op: "candidate",
@@ -374,6 +378,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoIntegration(c *C) {
 			op:    "check-snap",
 			name:  "downloaded-snap-path",
 			flags: int(snappy.DoInstallGC),
+			old:   "/snap/some-snap/7",
 		},
 		{
 			op:    "setup-snap",
@@ -389,6 +394,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoIntegration(c *C) {
 			op:    "copy-data",
 			name:  "/snap/some-snap/11",
 			flags: int(snappy.DoInstallGC),
+			old:   "/snap/some-snap/7",
 		},
 		{
 			op: "candidate",
@@ -476,6 +482,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoIntegration(c *C) {
 			op:    "check-snap",
 			name:  "downloaded-snap-path",
 			flags: int(snappy.DoInstallGC),
+			old:   "/snap/some-snap/7",
 		},
 		{
 			op:    "setup-snap",
@@ -491,6 +498,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoIntegration(c *C) {
 			op:    "copy-data",
 			name:  "/snap/some-snap/11",
 			flags: int(snappy.DoInstallGC),
+			old:   "/snap/some-snap/7",
 		},
 		{
 			op: "candidate",
@@ -633,17 +641,17 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 	c.Assert(s.fakeBackend.ops, HasLen, 4)
 	expected := []fakeOp{
 		fakeOp{
-			op:   "can-remove",
-			name: "/snap/some-snap/7",
+			op:     "can-remove",
+			name:   "/snap/some-snap/7",
+			active: true,
 		},
 		fakeOp{
 			op:   "unlink-snap",
 			name: "/snap/some-snap/7",
 		},
 		fakeOp{
-			op:    "remove-snap-data",
-			name:  "some-snap",
-			revno: 7,
+			op:   "remove-snap-data",
+			name: "/snap/some-snap/7",
 		},
 		fakeOp{
 			op:   "remove-snap-files",
@@ -671,24 +679,6 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 	c.Assert(snapst.Sequence, HasLen, 0)
 	c.Assert(snapst.Active, Equals, false)
 	c.Assert(snapst.Candidate, IsNil)
-}
-
-func (s *snapmgrTestSuite) TestRollbackIntegration(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-	chg := s.state.NewChange("rollback", "rollback a snap")
-	ts, err := snapstate.Rollback(s.state, "some-snap-to-rollback", "1.0")
-	c.Assert(err, IsNil)
-	chg.AddAll(ts)
-
-	s.state.Unlock()
-	defer s.snapmgr.Stop()
-	s.settle()
-	s.state.Lock()
-
-	c.Assert(s.fakeBackend.ops[0].op, Equals, "rollback")
-	c.Assert(s.fakeBackend.ops[0].name, Equals, "some-snap-to-rollback")
-	c.Assert(s.fakeBackend.ops[0].rollback, Equals, "1.0")
 }
 
 func (s *snapmgrTestSuite) TestActivate(c *C) {

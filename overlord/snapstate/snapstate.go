@@ -144,7 +144,9 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
-	if snapst.Current() == nil {
+
+	cur := snapst.Current()
+	if cur == nil {
 		return nil, fmt.Errorf("cannot find snap %q", name)
 	}
 
@@ -165,8 +167,13 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 	}
 
 	// removing active?
-	if snapst.Active && snapst.Current().Revision == revision {
+	if snapst.Active && cur.Revision == revision {
 		active = true
+	}
+
+	info, err := Info(s, name, revision)
+	if err != nil {
+		return nil, err
 	}
 
 	ss := SnapSetup{
@@ -174,9 +181,10 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 		Revision: revision,
 		Flags:    int(flags),
 	}
+
 	// check if this is something that can be removed
-	if err := backend.CanRemove(ss.MountDir()); err != nil {
-		return nil, err
+	if !backend.CanRemove(info, active) {
+		return nil, fmt.Errorf("snap %q is not removable", ss.Name)
 	}
 
 	// trigger remove
@@ -220,13 +228,7 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 // Rollback returns a set of tasks for rolling back a snap.
 // Note that the state must be locked by the caller.
 func Rollback(s *state.State, snap, ver string) (*state.TaskSet, error) {
-	t := s.NewTask("rollback-snap", fmt.Sprintf(i18n.G("Rolling back %q"), snap))
-	t.Set("snap-setup", SnapSetup{
-		Name:            snap,
-		RollbackVersion: ver,
-	})
-
-	return state.NewTaskSet(t), nil
+	return nil, fmt.Errorf("rollback not implemented")
 }
 
 // Activate returns a set of tasks for activating a snap.
