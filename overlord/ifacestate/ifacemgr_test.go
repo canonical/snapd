@@ -349,15 +349,17 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyKeepsExistingConnectionSt
 	})
 }
 
-func (s *interfaceManagerSuite) TestDoRemoveSnapSecurityRemovesConnectionsFromStateWhenInvokedOnPlugSide(c *C) {
-	s.testDoRemoveSnapSecurityRemovesConnectionsFromStateWhenInvokedOn(c, "consumer")
+// do-remove-security removes connections from state when called on the plug-side snap
+func (s *interfaceManagerSuite) TestDoRemoveSnapSecurityRemovesConnectionsPlug(c *C) {
+	s.testDoRemoveSnapSecurityRemovesConnections(c, "consumer")
 }
 
-func (s *interfaceManagerSuite) TestDoRemoveSnapSecurityRemovesConnectionsFromStateWhenInvokedOnSlotSide(c *C) {
-	s.testDoRemoveSnapSecurityRemovesConnectionsFromStateWhenInvokedOn(c, "producer")
+// do-remove-security removes connections from state when called on the slot-side snap
+func (s *interfaceManagerSuite) TestDoRemoveSnapSecurityRemovesConnectionsSlot(c *C) {
+	s.testDoRemoveSnapSecurityRemovesConnections(c, "producer")
 }
 
-func (s *interfaceManagerSuite) testDoRemoveSnapSecurityRemovesConnectionsFromStateWhenInvokedOn(c *C, snapName string) {
+func (s *interfaceManagerSuite) testDoRemoveSnapSecurityRemovesConnections(c *C, snapName string) {
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
