@@ -23,7 +23,6 @@ package snapstate
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/logger"
@@ -125,22 +124,9 @@ func Update(s *state.State, name, channel string, flags snappy.InstallFlags) (*s
 	return doInstall(s, snapst.Active, name, "", channel, flags)
 }
 
-// parseSnapspec parses a string like: name[.developer][=version]
-func parseSnapSpec(snapSpec string) (string, string) {
-	l := strings.Split(snapSpec, "=")
-	if len(l) == 2 {
-		return l[0], l[1]
-	}
-	return snapSpec, ""
-}
-
 // Remove returns a set of tasks for removing snap.
 // Note that the state must be locked by the caller.
-func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.TaskSet, error) {
-	// allow remove by version so that we can remove snaps that are
-	// not active
-	name, version := parseSnapSpec(snapSpec)
-
+func Remove(s *state.State, name string, flags snappy.RemoveFlags) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
@@ -152,26 +138,8 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 		return nil, fmt.Errorf("cannot find snap %q", name)
 	}
 
-	revision := 0
-	active := false
-	if version == "" {
-		if !snapst.Active {
-			return nil, fmt.Errorf("cannot find active snap for %q", name)
-		}
-		revision = snapst.Current().Revision
-	} else {
-		// XXX: change this to use snapstate stuff
-		info := backend.SnapByNameAndVersion(name, version)
-		if info == nil {
-			return nil, fmt.Errorf("cannot find snap for %q and version %q", name, version)
-		}
-		revision = info.Revision
-	}
-
-	// removing active?
-	if snapst.Active && cur.Revision == revision {
-		active = true
-	}
+	revision := snapst.Current().Revision
+	active := snapst.Active
 
 	info, err := Info(s, name, revision)
 	if err != nil {
@@ -192,7 +160,7 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 	// trigger remove
 
 	// last task but the one holding snap-setup
-	discardSnap := s.NewTask("discard-snap", fmt.Sprintf(i18n.G("Remove snap %q from the system"), snapSpec))
+	discardSnap := s.NewTask("discard-snap", fmt.Sprintf(i18n.G("Remove snap %q from the system"), name))
 	discardSnap.Set("snap-setup", ss)
 
 	discardSnapID := discardSnap.ID()
@@ -210,15 +178,15 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 	}
 
 	if active {
-		unlink := s.NewTask("unlink-snap", fmt.Sprintf(i18n.G("Make snap %q unavailable to the system"), snapSpec))
+		unlink := s.NewTask("unlink-snap", fmt.Sprintf(i18n.G("Make snap %q unavailable to the system"), name))
 
 		addNext(unlink)
 	}
 
-	removeSecurity := s.NewTask("remove-snap-security", fmt.Sprintf(i18n.G("Remove security profile for snap %q"), snapSpec))
+	removeSecurity := s.NewTask("remove-snap-security", fmt.Sprintf(i18n.G("Remove security profile for snap %q"), name))
 	addNext(removeSecurity)
 
-	clearData := s.NewTask("clear-snap", fmt.Sprintf(i18n.G("Remove data for snap %q"), snapSpec))
+	clearData := s.NewTask("clear-snap", fmt.Sprintf(i18n.G("Remove data for snap %q"), name))
 	addNext(clearData)
 
 	// discard is last

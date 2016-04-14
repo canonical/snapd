@@ -240,31 +240,52 @@ var newRemoteRepo = func() metarepo {
 	return snappy.NewConfiguredUbuntuStoreSnapRepository()
 }
 
+func localSnapInfo(st *state.State, name string) (info *snap.Info, active bool, err error) {
+	st.Lock()
+	defer st.Unlock()
+
+	var snapst snapstate.SnapState
+	err = snapstate.Get(st, name, &snapst)
+	if err != nil && err != state.ErrNoState {
+		return nil, false, fmt.Errorf("cannot consult state: %v", err)
+	}
+
+	cur := snapst.Current()
+	if cur == nil {
+		return nil, false, nil
+	}
+
+	info, err = snap.ReadInfo(name, cur)
+	if err != nil {
+		return nil, false, fmt.Errorf("cannot read snap details: %v", err)
+	}
+
+	return info, snapst.Active, nil
+}
+
 var muxVars = mux.Vars
 
 func getSnapInfo(c *Command, r *http.Request) Response {
 	vars := muxVars(r)
 	name := vars["name"]
 
-	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
-	if err != nil {
-		return InternalError("unable to acquire lock: %v", err)
-	}
-	defer lock.Unlock()
-
 	channel := ""
 	remoteRepo := newRemoteRepo()
-	remoteSnap, _ := remoteRepo.Snap(name, channel, nil)
 	suggestedCurrency := remoteRepo.SuggestedCurrency()
 
-	installed, err := (&snappy.Overlord{}).Installed()
+	localSnap, active, err := localSnapInfo(c.d.overlord.State(), name)
 	if err != nil {
-		return InternalError("cannot load snaps: %v", err)
+		return InternalError("%v", err)
 	}
-	localSnaps := snappy.FindSnapsByName(name, installed)
 
-	if len(localSnaps) == 0 && remoteSnap == nil {
-		return NotFound("unable to find snap with name %q", name)
+	if localSnap != nil {
+		channel = localSnap.Channel
+	}
+
+	remoteSnap, _ := remoteRepo.Snap(name, channel, nil)
+
+	if localSnap == nil && remoteSnap == nil {
+		return NotFound("cannot find snap %q", name)
 	}
 
 	route := c.d.router.Get(c.Path)
@@ -277,7 +298,7 @@ func getSnapInfo(c *Command, r *http.Request) Response {
 		return InternalError("route can't build URL for snap %s: %v", name, err)
 	}
 
-	result := webify(mapSnap(localSnaps, remoteSnap), url.String())
+	result := webify(mapSnap(localSnap, active, remoteSnap), url.String())
 
 	meta := &Meta{
 		SuggestedCurrency: suggestedCurrency,
@@ -403,15 +424,20 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		results = append(results, &raw)
 	}
 
-	for name, localSnap := range localSnapMap {
+	for name, localSnaps := range localSnapMap {
 		// strings.Contains(fullname, "") is true
 		if strings.Contains(name, searchTerm) {
-			addResult(name, mapSnap(localSnap, remoteSnapMap[name]))
+			// XXX: will be cleaned up soon when allSnaps equivalent is state based
+			_, best := bestSnap(localSnaps)
+			if best == nil {
+				continue
+			}
+			addResult(name, mapSnap(best.Info(), best.IsActive(), remoteSnapMap[name]))
 		}
 	}
 
 	for name, remoteSnap := range remoteSnapMap {
-		addResult(name, mapSnap(nil, remoteSnap))
+		addResult(name, mapSnap(nil, false, remoteSnap))
 	}
 
 	meta := &Meta{
@@ -819,23 +845,12 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 }
 
 func iconGet(st *state.State, name string) Response {
-	st.Lock()
-	defer st.Unlock()
-
-	var snapst snapstate.SnapState
-	err := snapstate.Get(st, name, &snapst)
-	if err != nil && err != state.ErrNoState {
-		return InternalError("cannot consult state: %v", err)
-	}
-
-	cur := snapst.Current()
-	if cur == nil {
-		return NotFound("cannot find snap %q", name)
-	}
-
-	info, err := snap.ReadInfo(name, cur)
+	info, _, err := localSnapInfo(st, name)
 	if err != nil {
-		return InternalError("cannot read snap details: %v", err)
+		return InternalError("%v", err)
+	}
+	if info == nil {
+		return NotFound("cannot find snap %q", name)
 	}
 
 	path := filepath.Clean(snapIcon(info))

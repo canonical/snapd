@@ -46,9 +46,6 @@ type managerBackend interface {
 	// TODO: need to be split into fine grained tasks
 	Activate(name string, active bool, meter progress.Meter) error
 
-	// info
-	SnapByNameAndVersion(name, version string) *snap.Info
-
 	// testing helpers
 	Candidate(sideInfo *snap.SideInfo)
 }
@@ -56,20 +53,6 @@ type managerBackend interface {
 type defaultBackend struct{}
 
 func (b *defaultBackend) Candidate(*snap.SideInfo) {}
-
-func (b *defaultBackend) SnapByNameAndVersion(name, version string) *snap.Info {
-	// XXX: use snapstate stuff!
-	installed, err := (&snappy.Overlord{}).Installed()
-	if err != nil {
-		return nil
-	}
-	found := snappy.FindSnapsByNameAndVersion(name, version, installed)
-	if len(found) == 0 {
-		return nil
-	}
-	// XXX: could be many now, pick one for now
-	return found[0].Info()
-}
 
 func (b *defaultBackend) Activate(name string, active bool, meter progress.Meter) error {
 	return snappy.SetActive(name, active, meter)
