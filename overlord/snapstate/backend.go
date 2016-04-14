@@ -23,11 +23,12 @@ import (
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
+	"github.com/ubuntu-core/snappy/store"
 )
 
 type managerBackend interface {
 	// install releated
-	Download(name, channel string, meter progress.Meter) (*snap.Info, string, error)
+	Download(name, channel string, meter progress.Meter, auther store.Authenticator) (*snap.Info, string, error)
 	CheckSnap(snapFilePath string, curInfo *snap.Info, flags int) error
 	SetupSnap(snapFilePath string, si *snap.SideInfo, flags int) error
 	CopySnapData(newSnap, oldSnap *snap.Info, flags int) error
@@ -74,14 +75,14 @@ func (b *defaultBackend) Activate(name string, active bool, meter progress.Meter
 	return snappy.SetActive(name, active, meter)
 }
 
-func (b *defaultBackend) Download(name, channel string, meter progress.Meter) (*snap.Info, string, error) {
+func (b *defaultBackend) Download(name, channel string, meter progress.Meter, auther store.Authenticator) (*snap.Info, string, error) {
 	mStore := snappy.NewConfiguredUbuntuStoreSnapRepository()
-	snap, err := mStore.Snap(name, channel)
+	snap, err := mStore.Snap(name, channel, auther)
 	if err != nil {
 		return nil, "", err
 	}
 
-	downloadedSnapFile, err := mStore.Download(snap, meter)
+	downloadedSnapFile, err := mStore.Download(snap, meter, auther)
 	if err != nil {
 		return nil, "", err
 	}

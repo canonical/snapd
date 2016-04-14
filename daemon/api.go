@@ -237,8 +237,9 @@ func loginUser(c *Command, r *http.Request) Response {
 }
 
 type metarepo interface {
-	Snap(string, string) (*snap.Info, error)
-	FindSnaps(string, string) ([]*snap.Info, error)
+	Snap(string, string, store.Authenticator) (*snap.Info, error)
+	FindSnaps(string, string, store.Authenticator) ([]*snap.Info, error)
+	SuggestedCurrency() string
 }
 
 var newRemoteRepo = func() metarepo {
@@ -258,7 +259,9 @@ func getSnapInfo(c *Command, r *http.Request) Response {
 	defer lock.Unlock()
 
 	channel := ""
-	remoteSnap, _ := newRemoteRepo().Snap(name, channel)
+	remoteRepo := newRemoteRepo()
+	remoteSnap, _ := remoteRepo.Snap(name, channel, nil)
+	suggestedCurrency := remoteRepo.SuggestedCurrency()
 
 	installed, err := (&snappy.Overlord{}).Installed()
 	if err != nil {
@@ -282,7 +285,10 @@ func getSnapInfo(c *Command, r *http.Request) Response {
 
 	result := webify(mapSnap(localSnaps, remoteSnap), url.String())
 
-	return SyncResponse(result, nil)
+	meta := &Meta{
+		SuggestedCurrency: suggestedCurrency,
+	}
+	return SyncResponse(result, meta)
 }
 
 func webify(result map[string]interface{}, resource string) map[string]interface{} {
@@ -319,8 +325,6 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 	}
 	defer lock.Unlock()
 
-	// TODO: Marshal incrementally leveraging json.RawMessage.
-	results := make(map[string]map[string]interface{})
 	sources := make([]string, 0, 2)
 	query := r.URL.Query()
 
@@ -345,16 +349,20 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		includeTypes = strings.Split(query["types"][0], ",")
 	}
 
-	var localSnapsMap map[string][]*snappy.Snap
+	var localSnapMap map[string][]*snappy.Snap
 	var remoteSnapMap map[string]*snap.Info
 
 	if includeLocal {
 		sources = append(sources, "local")
-		localSnapsMap, _ = allSnaps()
+		localSnapMap, _ = allSnaps()
 	}
+
+	var suggestedCurrency string
 
 	if includeStore {
 		remoteSnapMap = make(map[string]*snap.Info)
+
+		remoteRepo := newRemoteRepo()
 
 		// repo.Find("") finds all
 		//
@@ -362,7 +370,8 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		//   * if there are no results, return an error response.
 		//   * If there are results at all (perhaps local), include a
 		//     warning in the response
-		found, _ := newRemoteRepo().FindSnaps(searchTerm, "")
+		found, _ := remoteRepo.FindSnaps(searchTerm, "", nil)
+		suggestedCurrency = remoteRepo.SuggestedCurrency()
 
 		sources = append(sources, "store")
 
@@ -371,48 +380,44 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		}
 	}
 
-	for name, localSnaps := range localSnapsMap {
-		// strings.Contains(fullname, "") is true
-		if !strings.Contains(name, searchTerm) {
-			continue
+	seen := make(map[string]bool)
+	results := make([]*json.RawMessage, 0, len(localSnapMap)+len(remoteSnapMap))
+
+	addResult := func(name string, m map[string]interface{}) {
+		if seen[name] {
+			return
+		}
+		seen[name] = true
+
+		// TODO Search the store for "content" with multiple values. See:
+		//      https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex#Search
+		if len(includeTypes) > 0 && !resultHasType(m, includeTypes) {
+			return
 		}
 
-		m := mapSnap(localSnaps, remoteSnapMap[name])
-		resource := "no resource URL for this resource"
+		resource := ""
 		url, err := route.URL("name", name)
 		if err == nil {
 			resource = url.String()
 		}
 
-		results[name] = webify(m, resource)
+		data, err := json.Marshal(webify(m, resource))
+		if err != nil {
+			return
+		}
+		raw := json.RawMessage(data)
+		results = append(results, &raw)
+	}
+
+	for name, localSnap := range localSnapMap {
+		// strings.Contains(fullname, "") is true
+		if strings.Contains(name, searchTerm) {
+			addResult(name, mapSnap(localSnap, remoteSnapMap[name]))
+		}
 	}
 
 	for name, remoteSnap := range remoteSnapMap {
-		if _, ok := results[name]; ok {
-			// already done
-			continue
-		}
-
-		m := mapSnap(nil, remoteSnap)
-
-		resource := "no resource URL for this resource"
-		url, err := route.URL("name", remoteSnap.Name())
-		if err == nil {
-			resource = url.String()
-		}
-
-		results[name] = webify(m, resource)
-	}
-
-	// TODO: it should be possible to search on the "content" field on the store
-	//       with multiple values, see:
-	//       https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex#Search
-	if len(includeTypes) > 0 {
-		for name, result := range results {
-			if !resultHasType(result, includeTypes) {
-				delete(results, name)
-			}
-		}
+		addResult(name, mapSnap(nil, remoteSnap))
 	}
 
 	meta := &Meta{
@@ -421,6 +426,7 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 			Page:  1,
 			Pages: 1,
 		},
+		SuggestedCurrency: suggestedCurrency,
 	}
 	return SyncResponse(results, meta)
 }
@@ -437,49 +443,6 @@ func resultHasType(r map[string]interface{}, allowedTypes []string) bool {
 type appDesc struct {
 	Op   string          `json:"op"`
 	Spec *snappy.AppYaml `json:"spec"`
-}
-
-type configurator interface {
-	Configure(*snappy.Snap, []byte) ([]byte, error)
-}
-
-var getConfigurator = func() configurator {
-	return &snappy.Overlord{}
-}
-
-func snapConfig(c *Command, r *http.Request) Response {
-	vars := muxVars(r)
-	snapName := vars["name"]
-
-	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
-	if err != nil {
-		return InternalError("unable to acquire lock: %v", err)
-	}
-	defer lock.Unlock()
-
-	installed, err := (&snappy.Overlord{}).Installed()
-	snaps := snappy.FindSnapsByName(snapName, installed)
-	_, part := bestSnap(snaps)
-	if err != nil || part == nil {
-		return NotFound("no snap found with name %q", snapName)
-	}
-
-	if !part.IsActive() {
-		return BadRequest("unable to configure non-active snap")
-	}
-
-	bs, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		return BadRequest("reading config request body gave %v", err)
-	}
-
-	overlord := getConfigurator()
-	config, err := overlord.Configure(part, bs)
-	if err != nil {
-		return InternalError("unable to retrieve config for %s: %v", snapName, err)
-	}
-
-	return SyncResponse(string(config), nil)
 }
 
 func getOpInfo(c *Command, r *http.Request) Response {
