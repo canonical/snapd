@@ -1634,19 +1634,19 @@ func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 
 func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 	d := s.daemon(c)
-	repo := d.overlord.InterfaceManager().Repository()
-	repo.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	repo.AddInterface(&interfaces.TestInterface{InterfaceName: "other-interface"})
-	repo.AddPlug(makePlug("interface"))
-	repo.AddSlot(makeSlot("other-interface"))
+
+	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "different"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, differentProducerYaml)
 
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
 	action := &interfaceAction{
 		Action: "connect",
-		Plugs:  []plugJSON{{Snap: "producer", Name: "plug"}},
-		Slots:  []slotJSON{{Snap: "consumer", Name: "slot"}},
+		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
+		Slots:  []slotJSON{{Snap: "producer", Name: "slot"}},
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -1662,16 +1662,18 @@ func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
 			"message": `cannot perform the following tasks:
-- Connect producer:plug to consumer:slot (cannot connect plug "producer:plug" (interface "interface") to "consumer:slot" (interface "other-interface"))`,
+- Connect consumer:plug to producer:slot (cannot connect plug "consumer:plug" (interface "test") to "producer:slot" (interface "different"))`,
 		},
 		"status":      "Bad Request",
 		"status-code": 400.0,
 		"type":        "error",
 	})
-	c.Assert(repo.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
-		Plugs: []*interfaces.Plug{makePlug("interface")},
-		Slots: []*interfaces.Slot{makeSlot("other-interface")},
-	})
+
+	repo := d.overlord.InterfaceManager().Repository()
+	plug := repo.Plug("consumer", "plug")
+	slot := repo.Slot("producer", "slot")
+	c.Assert(plug.Connections, check.HasLen, 0)
+	c.Assert(slot.Connections, check.HasLen, 0)
 }
 
 func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
