@@ -100,3 +100,15 @@ slots:
   key: value
   label: label
 `
+
+var differentProducerYaml = `
+name: producer
+version: 1
+apps:
+ app:
+slots:
+ slot:
+  interface: different
+  key: value
+  label: label
+`
