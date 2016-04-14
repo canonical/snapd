@@ -199,11 +199,9 @@ func (m *InterfaceManager) doSetupSnapSecurity(task *state.Task, _ *tomb.Tomb) e
 		affectedSnaps = append(affectedSnaps, snapInfo)
 	}
 	for _, snapInfo := range affectedSnaps {
-		for _, backend := range securityBackendsForSnap(snapInfo) {
-			developerMode := false // TODO: move this to snap.Info
-			if err := backend.Setup(snapInfo, developerMode, m.repo); err != nil {
-				return state.Retry
-			}
+		if err := m.setupSecurity(snapInfo); err != nil {
+			task.Errorf("cannot setup security of snap %q: %s", snapInfo.Name(), err)
+			return state.Retry
 		}
 	}
 	return nil
