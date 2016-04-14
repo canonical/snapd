@@ -41,6 +41,7 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/overlord/auth"
+	"github.com/ubuntu-core/snappy/overlord/ifacestate"
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/release"
@@ -51,13 +52,14 @@ import (
 )
 
 type apiSuite struct {
-	rsnaps     []*snap.Info
-	err        error
-	vars       map[string]string
-	searchTerm string
-	channel    string
-	overlord   *fakeOverlord
-	d          *Daemon
+	rsnaps          []*snap.Info
+	err             error
+	vars            map[string]string
+	searchTerm      string
+	channel         string
+	overlord        *fakeOverlord
+	d               *Daemon
+	restoreBackends func()
 }
 
 var _ = check.Suite(&apiSuite{})
@@ -108,10 +110,13 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 		configs: map[string]string{},
 	}
 	s.d = nil
+	// Disable real security backends for all API tests
+	s.restoreBackends = ifacestate.MockSecurityBackends(nil)
 }
 
 func (s *apiSuite) TearDownTest(c *check.C) {
 	s.d = nil
+	s.restoreBackends()
 }
 
 func (s *apiSuite) daemon(c *check.C) *Daemon {
