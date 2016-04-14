@@ -458,14 +458,12 @@ func (m *InterfaceManager) Repository() *interfaces.Repository {
 	return m.repo
 }
 
-// MockSecurityBackendsForSnap mocks the list of security backends that are used for setting up security.
+// MockSecurityBackends mocks the list of security backends that are used for setting up security.
 //
 // This function is public because it is referenced in the daemon
-func MockSecurityBackendsForSnap(fn func(snapInfo *snap.Info) []interfaces.SecurityBackend) func() {
-	if fn != nil {
-		securityBackendsForSnap = fn
-	} else {
-		securityBackendsForSnap = func(snapInfo *snap.Info) []interfaces.SecurityBackend { return nil }
+func MockSecurityBackends(backends []interfaces.SecurityBackend) func() {
+	securityBackendsForSnap = func(snapInfo *snap.Info) []interfaces.SecurityBackend {
+		return backends
 	}
 	return func() { securityBackendsForSnap = securityBackendsForSnapImpl }
 }

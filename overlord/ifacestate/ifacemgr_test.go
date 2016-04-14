@@ -55,11 +55,7 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	s.privateMgr = nil
 	s.extraIfaces = nil
 	s.secBackend = &interfaces.TestSecurityBackend{}
-	s.restoreBackends = ifacestate.MockSecurityBackendsForSnap(
-		func(snapInfo *snap.Info) []interfaces.SecurityBackend {
-			return []interfaces.SecurityBackend{s.secBackend}
-		},
-	)
+	s.restoreBackends = ifacestate.MockSecurityBackends([]interfaces.SecurityBackend{s.secBackend})
 }
 
 func (s *interfaceManagerSuite) TearDownTest(c *C) {
