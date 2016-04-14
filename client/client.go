@@ -20,12 +20,14 @@
 package client
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"strings"
 
@@ -77,6 +79,24 @@ func New(config *Config) *Client {
 	}
 }
 
+func (client *Client) setAuthorization(req *http.Request) error {
+	user, err := readAuthData()
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, `Macaroon root="%s"`, user.Macaroon)
+	for _, discharge := range user.Discharges {
+		fmt.Fprintf(&buf, `, discharge="%s"`, discharge)
+	}
+	req.Header.Set("Authorization", buf.String())
+	return nil
+}
+
 // raw performs a request and returns the resulting http.Response and
 // error you usually only need to call this directly if you expect the
 // response to not be JSON, otherwise you'd call Do(...) instead.
@@ -86,6 +106,12 @@ func (client *Client) raw(method, urlpath string, query url.Values, body io.Read
 	u.Path = path.Join(client.baseURL.Path, urlpath)
 	u.RawQuery = query.Encode()
 	req, err := http.NewRequest(method, u.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	// set Authorization header if there are user's credentials
+	err = client.setAuthorization(req)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +185,7 @@ func (client *Client) doAsync(method, path string, query url.Values, body io.Rea
 		return "", fmt.Errorf("cannot unmarshal result: %v", err)
 	}
 
-	const opPrefix = "/v2/operations/"
+	const opPrefix = "/v2/changes/"
 	if !strings.HasPrefix(result.Resource, opPrefix) {
 		return "", fmt.Errorf("invalid resource location %q", result.Resource)
 	}

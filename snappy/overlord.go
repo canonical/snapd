@@ -630,7 +630,7 @@ func (o *Overlord) Configure(s *Snap, configuration []byte) ([]byte, error) {
 		return coreConfig(configuration)
 	}
 
-	return snapConfig(s.Info().MountDir(), configuration)
+	return nil, fmt.Errorf("configuring any snap but the OS is unsupported")
 }
 
 // Installed returns the installed snaps from this repository

@@ -41,7 +41,9 @@ three standard return types:
 * Background operation
 * Error
 
-Status codes follow that of HTTP.
+Status codes follow that of HTTP. Standard and background operation responses
+are capable of returning additional meta data key/values as part of the returned
+JSON object.
 
 ### Standard return value
 
@@ -175,16 +177,10 @@ Reserved for human-readable content describing the service.
 * Operation: sync
 * Return: list of snaps this Ubuntu Core system can handle.
 
-The result is a JSON object with a `snaps` key; its value is itself a
-JSON object whose keys are snap names (e.g., `hello-world`), and whose
-values describe that snap.
-
 Sample result:
 
 ```javascript
-{
- "snaps": {
-    "hello-world": {
+[{
       "summary": "Hello world example",
       "description": "This is a simple hello world example.",
       "download-size": 22212,
@@ -195,11 +191,10 @@ Sample result:
       "resource": "/v2/snaps/hello-world",
       "status": "available",
       "type": "app",
-      "revision" 17,
+      "revision": 17,
       "version": "1.0.18",
       "channel": "stable"
-    },
-    "http": {
+    }, {
       "summary": "HTTPie in a snap",
       "description": "no description",
       "download-size": 1578272,
@@ -214,8 +209,7 @@ Sample result:
       "version": "3.1",
       "revision": 1834,
       "channel": "stable"
-    },
-    "ubuntu-core": {
+    }, {
       "summary": "The ubuntu-core OS snap",
       "description": "A secure, minimal transactional OS for devices and containers.",
       "download-size": 19845748,
@@ -231,8 +225,35 @@ Sample result:
       "version": "241",
       "revision": 99,
       "channel": "stable"
-    }
- },
+}]
+```
+
+#### Fields
+
+* `status`: can be either `available`, `installed`, `active` (i.e. is
+  current).
+* `name`: the snap name.
+* `version`: a string representing the version.
+* `revision`: a number representing the revision.
+* `icon`: a url to the snap icon, possibly relative to this server.
+* `type`: the type of snap; one of `app`, `core`, `kernel`,
+  `gadget`, or `os`.
+* `description`: snap description
+* `summary`: one-line summary
+* `installed-size`: for installed snaps, how much space the snap
+  itself (not its data) uses.
+* `download-size`: for not-installed snaps, how big the download will
+  be, formatted as a decimal string.
+* `rollback-available`: if present and not empty, it means the snap can
+  be rolled back to the revision specified as a value to this entry.
+* `update-available`: if present and not empty, it means the snap can be
+  updated to the revision specified as a value to this entry.
+* `channel`: which channel the package is currently tracking.
+
+Sample additional meta data:
+
+```javascript
+{
  "paging": {
     "total": 3,
     "page": 0,
@@ -246,27 +267,9 @@ Sample result:
 ```
 
 #### Fields
-* `snaps`
-    * `status`: can be either `available`, `installed`, `active` (i.e. is
-      current).
-    * `name`: the snap name.
-    * `version`: a string representing the version.
-    * `revision`: a number representing the revision.
-    * `icon`: a url to the snap icon, possibly relative to this server.
-    * `type`: the type of snap; one of `app`, `framework`, `kernel`,
-      `gadget`, or `os`.
-    * `description`: snap description
-    * `summary`: one-line summary
-    * `installed-size`: for installed snaps, how much space the snap
-      itself (not its data) uses.
-    * `download-size`: for not-installed snaps, how big the download will
-      be, formatted as a decimal string.
-    * `rollback-available`: if present and not empty, it means the snap can
-      be rolled back to the revision specified as a value to this entry.
-    * `update-available`: if present and not empty, it means the snap can be
-      updated to the revision specified as a value to this entry.
-    * `channel`: which channel the package is currently tracking.
+
 * `paging`
+    * `total`: the total number of snaps
     * `page`: the page number, starting from `0`
     * `pages`: the (approximate) number of pages
 * `sources`
