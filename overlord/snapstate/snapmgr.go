@@ -385,7 +385,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	var curInfo *snap.Info
 	if cur := snapst.Current(); cur != nil {
 		var err error
-		curInfo, err = retrieveInfo(ss.Name, cur)
+		curInfo, err = readInfo(ss.Name, cur)
 		if err != nil {
 			return err
 		}
@@ -415,7 +415,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	oldInfo, err := retrieveInfo(ss.Name, snapst.Current())
+	oldInfo, err := readInfo(ss.Name, snapst.Current())
 	if err != nil {
 		return err
 	}
@@ -446,7 +446,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	oldInfo, err := retrieveInfo(ss.Name, snapst.Current())
+	oldInfo, err := readInfo(ss.Name, snapst.Current())
 	if err != nil {
 		return err
 	}
@@ -472,7 +472,7 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	newInfo, err := retrieveInfo(ss.Name, snapst.Candidate)
+	newInfo, err := readInfo(ss.Name, snapst.Candidate)
 	if err != nil {
 		return err
 	}
@@ -488,7 +488,7 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	newInfo, err := retrieveInfo(ss.Name, snapst.Candidate)
+	newInfo, err := readInfo(ss.Name, snapst.Candidate)
 	if err != nil {
 		return err
 	}
@@ -496,7 +496,7 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	var oldInfo *snap.Info
 	if cur := snapst.Current(); cur != nil {
 		var err error
-		oldInfo, err = retrieveInfo(ss.Name, cur)
+		oldInfo, err = readInfo(ss.Name, cur)
 		if err != nil {
 			return err
 		}
@@ -527,7 +527,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Candidate = nil
 	snapst.Active = true
 
-	newInfo, err := retrieveInfo(ss.Name, cand)
+	newInfo, err := readInfo(ss.Name, cand)
 	if err != nil {
 		return err
 	}
@@ -562,7 +562,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Sequence = snapst.Sequence[:len(snapst.Sequence)-1]
 	snapst.Active = false
 
-	newInfo, err := retrieveInfo(ss.Name, snapst.Candidate)
+	newInfo, err := readInfo(ss.Name, snapst.Candidate)
 	if err != nil {
 		return err
 	}

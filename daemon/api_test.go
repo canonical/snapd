@@ -198,7 +198,7 @@ version: %s
 		})
 	}
 
-	info, err := snap.InfoWithSide(name, &skelInfo.SideInfo)
+	info, err := snap.ReadInfo(name, &skelInfo.SideInfo)
 	c.Assert(err, check.IsNil)
 
 	if active {

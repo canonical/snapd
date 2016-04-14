@@ -843,12 +843,12 @@ func iconGet(st *state.State, name string) Response {
 
 	cur := snapst.Current()
 	if cur == nil {
-		return NotFound("unable to find snap with name %q", name)
+		return NotFound("cannot find snap %q", name)
 	}
 
-	info, err := snap.InfoWithSide(name, cur)
-	if err != nil && err != state.ErrNoState {
-		return InternalError("cannot read metadata: %v", err)
+	info, err := snap.ReadInfo(name, cur)
+	if err != nil {
+		return InternalError("cannot read snap details: %v", err)
 	}
 
 	path := filepath.Clean(snapIcon(info))
