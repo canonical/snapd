@@ -72,6 +72,8 @@ type SideInfo struct {
 	Size              int64  `yaml:"size,omitempty" json:"size,omitempty"`
 	Sha512            string `yaml:"sha512,omitempty" json:"sha512,omitempty"`
 	IconURL           string `yaml:"icon-url,omitempty" json:"icon-url,omitempty"`
+
+	Prices map[string]float64 `yaml:"prices,omitempty" json:"prices,omitempty"`
 }
 
 // Info provides information about snaps.
