@@ -44,12 +44,14 @@ func (s *infoSuite) TestSideInfoOverrides(c *C) {
 		EditedSummary:     "fixed summary",
 		EditedDescription: "fixed desc",
 		Revision:          1,
+		SnapID:            "snapidsnapidsnapidsnapidsnapidsn",
 	}
 
 	c.Check(info.Name(), Equals, "newname")
 	c.Check(info.Summary(), Equals, "fixed summary")
 	c.Check(info.Description(), Equals, "fixed desc")
 	c.Check(info.Revision, Equals, 1)
+	c.Check(info.SnapID, Equals, "snapidsnapidsnapidsnapidsnapidsn")
 }
 
 func (s *infoSuite) TestAppInfoSecurityTag(c *C) {

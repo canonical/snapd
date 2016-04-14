@@ -70,6 +70,7 @@ func (f *fakeSnappyBackend) Download(name, channel string, p progress.Meter) (*s
 		SideInfo: snap.SideInfo{
 			OfficialName: strings.Split(name, ".")[0],
 			Channel:      channel,
+			SnapID:       "snapIDsnapidsnapidsnapidsnapidsn",
 			Revision:     11,
 		},
 		Version: name,
