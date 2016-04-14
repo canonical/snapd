@@ -83,33 +83,34 @@ func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
 	c.Assert(string(content), Equals, "I was downloaded")
 }
 
-func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
-	home := os.Getenv("HOME")
-	os.Setenv("HOME", c.MkDir())
-	defer os.Setenv("HOME", home)
-	mockStoreToken := StoreToken{TokenName: "meep"}
-	err := WriteStoreToken(mockStoreToken)
-	c.Assert(err, IsNil)
-
-	download = func(name string, w io.Writer, req *http.Request, pbar progress.Meter) error {
-		c.Check(req.URL.String(), Equals, "AUTH-URL")
-		w.Write([]byte("I was downloaded"))
-		return nil
-	}
-
-	snap := &snap.Info{}
-	snap.OfficialName = "foo"
-	snap.AnonDownloadURL = "anon-url"
-	snap.DownloadURL = "AUTH-URL"
-
-	path, err := t.store.Download(snap, nil)
-	c.Assert(err, IsNil)
-	defer os.Remove(path)
-
-	content, err := ioutil.ReadFile(path)
-	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, "I was downloaded")
-}
+// TODO: re-enable this test once authenticator support is in place
+// func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
+// 	home := os.Getenv("HOME")
+// 	os.Setenv("HOME", c.MkDir())
+// 	defer os.Setenv("HOME", home)
+// 	mockStoreToken := StoreToken{TokenName: "meep"}
+// 	err := WriteStoreToken(mockStoreToken)
+// 	c.Assert(err, IsNil)
+//
+// 	download = func(name string, w io.Writer, req *http.Request, pbar progress.Meter) error {
+// 		c.Check(req.URL.String(), Equals, "AUTH-URL")
+// 		w.Write([]byte("I was downloaded"))
+// 		return nil
+// 	}
+//
+// 	snap := &snap.Info{}
+// 	snap.OfficialName = "foo"
+// 	snap.AnonDownloadURL = "anon-url"
+// 	snap.DownloadURL = "AUTH-URL"
+//
+// 	path, err := t.store.Download(snap, nil)
+// 	c.Assert(err, IsNil)
+// 	defer os.Remove(path)
+//
+// 	content, err := ioutil.ReadFile(path)
+// 	c.Assert(err, IsNil)
+// 	c.Assert(string(content), Equals, "I was downloaded")
+// }
 
 func (t *remoteRepoTestSuite) TestDownloadFails(c *C) {
 	var tmpfile *os.File
@@ -157,23 +158,15 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryHeaders(c *C) {
 	req, err := http.NewRequest("GET", "http://example.com", nil)
 	c.Assert(err, IsNil)
 
-	t.store.configureStoreReq(req, "")
+	t.store.applyUbuntuStoreHeaders(req, "")
 
 	c.Assert(req.Header.Get("X-Ubuntu-Release"), Equals, release.String())
 	c.Check(req.Header.Get("Accept"), Equals, "application/hal+json")
 
-	t.store.configureStoreReq(req, "application/json")
+	t.store.applyUbuntuStoreHeaders(req, "application/json")
 
 	c.Check(req.Header.Get("Accept"), Equals, "application/json")
 	c.Assert(req.Header.Get("Authorization"), Equals, "")
-
-	mockStoreToken := StoreToken{TokenName: "meep"}
-	err = WriteStoreToken(mockStoreToken)
-	c.Assert(err, IsNil)
-
-	t.store.configureStoreReq(req, "")
-
-	c.Assert(req.Header.Get("Authorization"), Matches, "OAuth .*")
 }
 
 const (
@@ -182,9 +175,39 @@ const (
 )
 
 /* acquired via
-   curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: 15.04-core" https://search.apps.ubuntu.com/api/v1/package/8nzc1x4iim2xj1g2ul64.chipaca | python -m json.tool
+curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: rolling-core" -H "X-Ubuntu-Device-Channel: edge" 'https://search.apps.ubuntu.com/api/v1/search?q=package_name:"hello-world"&fields=publisher,package_name,origin,description,summary,title,icon_url,prices,content,ratings_average,version,anon_download_url,download_url,download_sha512,last_updated,binary_filesize,support_url,revision' | python -m json.tool
 */
 const MockDetailsJSON = `{
+    "_embedded": {
+        "clickindex:package": [
+            {
+                "_links": {
+                    "self": {
+                        "href": "https://search.apps.ubuntu.com/api/v1/package/iZvp6HUG9XOQv4vuRQL9MlEgKBgFwsc6"
+                    }
+                },
+                "anon_download_url": "https://public.apps.ubuntu.com/anon/download/canonical/hello-world.canonical/hello-world.canonical_5.0_all.snap",
+                "binary_filesize": 20480,
+                "channel": "edge",
+                "content": "application",
+                "description": "This is a simple hello world example.",
+                "download_sha512": "4faffe7e2fee66dbcd1cff629b4f6fa7e5e8e904b4a49b0a908a0ea5518b025bf01f0e913617f6088b30c6c6151eff0a83e89c6b12aea420c4dd0e402bf10c81",
+                "download_url": "https://public.apps.ubuntu.com/download-snap/canonical/hello-world.canonical/hello-world.canonical_5.0_all.snap",
+                "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
+                "last_updated": "2016-03-03T19:52:01.075726Z",
+                "origin": "canonical",
+                "package_name": "hello-world",
+                "prices": {},
+                "publisher": "Canonical",
+                "ratings_average": 0.0,
+                "revision": 22,
+                "summary": "Hello world example",
+                "support_url": "mailto:snappy-devel@lists.ubuntu.com",
+                "title": "hello-world",
+                "version": "5.0"
+            }
+        ]
+    },
     "_links": {
         "curies": [
             {
@@ -193,72 +216,16 @@ const MockDetailsJSON = `{
                 "templated": true
             }
         ],
+        "first": {
+            "href": "https://search.apps.ubuntu.com/api/v1/search?q=package_name%3A%22hello-world%22&fields=channel%2Cpublisher%2Cpackage_name%2Corigin%2Cdescription%2Csummary%2Ctitle%2Cicon_url%2Cprices%2Ccontent%2Cratings_average%2Cversion%2Canon_download_url%2Cdownload_url%2Cdownload_sha512%2Clast_updated%2Cbinary_filesize%2Csupport_url%2Crevision&page=1"
+        },
+        "last": {
+            "href": "https://search.apps.ubuntu.com/api/v1/search?q=package_name%3A%22hello-world%22&fields=channel%2Cpublisher%2Cpackage_name%2Corigin%2Cdescription%2Csummary%2Ctitle%2Cicon_url%2Cprices%2Ccontent%2Cratings_average%2Cversion%2Canon_download_url%2Cdownload_url%2Cdownload_sha512%2Clast_updated%2Cbinary_filesize%2Csupport_url%2Crevision&page=1"
+        },
         "self": {
-            "href": "https://search.apps.ubuntu.com/api/v1/package/8nzc1x4iim2xj1g2ul64.chipaca"
+            "href": "https://search.apps.ubuntu.com/api/v1/search?q=package_name%3A%22hello-world%22&fields=channel%2Cpublisher%2Cpackage_name%2Corigin%2Cdescription%2Csummary%2Ctitle%2Cicon_url%2Cprices%2Ccontent%2Cratings_average%2Cversion%2Canon_download_url%2Cdownload_url%2Cdownload_sha512%2Clast_updated%2Cbinary_filesize%2Csupport_url%2Crevision&page=1"
         }
-    },
-    "alias": null,
-    "allow_unauthenticated": true,
-    "anon_download_url": "https://public.apps.ubuntu.com/anon/download/chipaca/8nzc1x4iim2xj1g2ul64.chipaca/8nzc1x4iim2xj1g2ul64.chipaca_42_all.snap",
-    "architecture": [
-        "all"
-    ],
-    "binary_filesize": 65375,
-    "blacklist_country_codes": [
-        "AX"
-    ],
-    "channel": "edge",
-    "changelog": "",
-    "click_framework": [],
-    "click_version": "0.1",
-    "company_name": "",
-    "content": "application",
-    "date_published": "2015-04-15T18:34:40.060874Z",
-    "department": [
-        "food-drink"
-    ],
-    "summary": "hello world example",
-    "description": "Returns for store credit only.\nThis is a simple hello world example.",
-    "developer_name": "John Lenton",
-    "download_sha512": "5364253e4a988f4f5c04380086d542f410455b97d48cc6c69ca2a5877d8aef2a6b2b2f83ec4f688cae61ebc8a6bf2cdbd4dbd8f743f0522fc76540429b79df42",
-    "download_url": "https://public.apps.ubuntu.com/download/chipaca/8nzc1x4iim2xj1g2ul64.chipaca/8nzc1x4iim2xj1g2ul64.chipaca_42_all.snap",
-    "framework": [],
-    "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/04/hello.svg_Dlrd3L4.png",
-    "icon_urls": {
-        "256": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/04/hello.svg_Dlrd3L4.png"
-    },
-    "id": 2333,
-    "keywords": [],
-    "last_updated": "2015-04-15T18:30:16Z",
-    "license": "Proprietary",
-    "name": "8nzc1x4iim2xj1g2ul64.chipaca",
-    "origin": "chipaca",
-    "package_name": "8nzc1x4iim2xj1g2ul64",
-    "price": 0.0,
-    "prices": {},
-    "publisher": "John Lenton",
-    "ratings_average": 0.0,
-    "release": [
-        "15.04-core"
-    ],
-    "revision": 15,
-    "screenshot_url": null,
-    "screenshot_urls": [],
-    "status": "Published",
-    "stores": {
-        "ubuntu": {
-            "status": "Published"
-        }
-    },
-    "support_url": "http://lmgtfy.com",
-    "terms_of_service": "",
-    "title": "Returns for store credit only.",
-    "translations": {},
-    "version": "42",
-    "video_embedded_html_urls": [],
-    "video_urls": [],
-    "website": "",
-    "whitelist_country_codes": []
+    }
 }
 `
 
@@ -268,40 +235,71 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 		storeID := r.Header.Get("X-Ubuntu-Store")
 		c.Check(storeID, Equals, "")
 
-		c.Check(r.URL.Path, Equals, fmt.Sprintf("/details/%s.%s/edge", funkyAppName, funkyAppDeveloper))
+		c.Check(r.URL.Path, Equals, "/search")
+
+		q := r.URL.Query()
+		c.Check(q.Get("q"), Equals, "package_name:\"hello-world\"")
+		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
 		io.WriteString(w, MockDetailsJSON)
 	}))
 
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	var err error
-	detailsURI, err := url.Parse(mockServer.URL + "/details/")
+	searchURI, err := url.Parse(mockServer.URL + "/search")
 	c.Assert(err, IsNil)
 	cfg := SnapUbuntuStoreConfig{
-		DetailsURI: detailsURI,
+		SearchURI: searchURI,
 	}
 	repo := NewUbuntuStoreSnapRepository(&cfg, "")
 	c.Assert(repo, NotNil)
 
 	// the actual test
-	result, err := repo.Snap(funkyAppName+"."+funkyAppDeveloper, "edge")
+	result, err := repo.Snap("hello-world", "edge")
 	c.Assert(err, IsNil)
-	c.Check(result.Name(), Equals, funkyAppName)
-	c.Check(result.Developer, Equals, funkyAppDeveloper)
-	c.Check(result.Version, Equals, "42")
-	c.Check(result.Sha512, Equals, "5364253e4a988f4f5c04380086d542f410455b97d48cc6c69ca2a5877d8aef2a6b2b2f83ec4f688cae61ebc8a6bf2cdbd4dbd8f743f0522fc76540429b79df42")
-	c.Check(result.Size, Equals, int64(65375))
+	c.Check(result.Name(), Equals, "hello-world")
+	c.Check(result.Developer, Equals, "canonical")
+	c.Check(result.Version, Equals, "5.0")
+	c.Check(result.Sha512, Equals, "4faffe7e2fee66dbcd1cff629b4f6fa7e5e8e904b4a49b0a908a0ea5518b025bf01f0e913617f6088b30c6c6151eff0a83e89c6b12aea420c4dd0e402bf10c81")
+	c.Check(result.Size, Equals, int64(20480))
 	c.Check(result.Channel, Equals, "edge")
-	c.Check(result.Description(), Equals, "Returns for store credit only.\nThis is a simple hello world example.")
-	c.Check(result.Summary(), Equals, "hello world example")
+	c.Check(result.Description(), Equals, "This is a simple hello world example.")
+	c.Check(result.Summary(), Equals, "Hello world example")
 }
 
-const MockNoDetailsJSON = `{"errors": ["No such package"], "result": "error"}`
+/*
+acquired via
+curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: rolling-core" -H "X-Ubuntu-Device-Channel: edge" 'https://search.apps.ubuntu.com/api/v1/search?q=package_name:""&fields=channel,publisher,package_name,origin,description,summary,title,icon_url,prices,content,ratings_average,version,anon_download_url,download_url,download_sha512,last_updated,binary_filesize,support_url,revision' | python -m json.tool
+*/
+const MockNoDetailsJSON = `{
+    "_links": {
+        "curies": [
+            {
+                "href": "https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex#reltype_{rel}",
+                "name": "clickindex",
+                "templated": true
+            }
+        ],
+        "first": {
+            "href": "https://search.apps.ubuntu.com/api/v1/search?q=package_name%3A%22%22&fields=publisher%2Cpackage_name%2Corigin%2Cdescription%2Csummary%2Ctitle%2Cicon_url%2Cprices%2Ccontent%2Cratings_average%2Cversion%2Canon_download_url%2Cdownload_url%2Cdownload_sha512%2Clast_updated%2Cbinary_filesize%2Csupport_url%2Crevision&page=1"
+        },
+        "last": {
+            "href": "https://search.apps.ubuntu.com/api/v1/search?q=package_name%3A%22%22&fields=publisher%2Cpackage_name%2Corigin%2Cdescription%2Csummary%2Ctitle%2Cicon_url%2Cprices%2Ccontent%2Cratings_average%2Cversion%2Canon_download_url%2Cdownload_url%2Cdownload_sha512%2Clast_updated%2Cbinary_filesize%2Csupport_url%2Crevision&page=1"
+        },
+        "self": {
+            "href": "https://search.apps.ubuntu.com/api/v1/search?q=package_name%3A%22%22&fields=publisher%2Cpackage_name%2Corigin%2Cdescription%2Csummary%2Ctitle%2Cicon_url%2Cprices%2Ccontent%2Cratings_average%2Cversion%2Canon_download_url%2Cdownload_url%2Cdownload_sha512%2Clast_updated%2Cbinary_filesize%2Csupport_url%2Crevision&page=1"
+        }
+    }
+}
+`
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Assert(r.URL.Path, Equals, "/details/no-such-pkg/edge")
+		c.Check(r.URL.Path, Equals, "/search")
+
+		q := r.URL.Query()
+		c.Check(q.Get("q"), Equals, "package_name:\"no-such-pkg\"")
+		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
 		w.WriteHeader(404)
 		io.WriteString(w, MockNoDetailsJSON)
 	}))
@@ -309,11 +307,10 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	var err error
-	detailsURI, err := url.Parse(mockServer.URL + "/details/")
+	searchURI, err := url.Parse(mockServer.URL + "/search")
 	c.Assert(err, IsNil)
 	cfg := SnapUbuntuStoreConfig{
-		DetailsURI: detailsURI,
+		SearchURI: searchURI,
 	}
 	repo := NewUbuntuStoreSnapRepository(&cfg, "")
 	c.Assert(repo, NotNil)
@@ -505,7 +502,6 @@ func (t *remoteRepoTestSuite) TestMyAppsURLDependsOnEnviron(c *C) {
 
 func (t *remoteRepoTestSuite) TestDefaultConfig(c *C) {
 	c.Check(strings.HasPrefix(defaultConfig.SearchURI.String(), "https://search.apps.ubuntu.com/api/v1/search?"), Equals, true)
-	c.Check(defaultConfig.DetailsURI.String(), Equals, "https://search.apps.ubuntu.com/api/v1/package/")
 	c.Check(strings.HasPrefix(defaultConfig.BulkURI.String(), "https://search.apps.ubuntu.com/api/v1/click-metadata?"), Equals, true)
 	c.Check(defaultConfig.AssertionsURI.String(), Equals, "https://assertions.ubuntu.com/v1/assertions/")
 }
@@ -587,11 +583,10 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositorySuggestedCurrency(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	var err error
-	detailsURI, err := url.Parse(mockServer.URL + "/details/")
+	searchURI, err := url.Parse(mockServer.URL + "/search")
 	c.Assert(err, IsNil)
 	cfg := SnapUbuntuStoreConfig{
-		DetailsURI: detailsURI,
+		SearchURI: searchURI,
 	}
 	repo := NewUbuntuStoreSnapRepository(&cfg, "")
 	c.Assert(repo, NotNil)
@@ -600,7 +595,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositorySuggestedCurrency(c *C) {
 	c.Check(repo.SuggestedCurrency(), Equals, "USD")
 
 	// we should soon have a suggested currency
-	result, err := repo.Snap(funkyAppName+"."+funkyAppDeveloper, "edge")
+	result, err := repo.Snap(funkyAppName, "edge")
 	c.Assert(err, IsNil)
 	c.Assert(result, NotNil)
 	c.Check(repo.SuggestedCurrency(), Equals, "GBP")
@@ -608,7 +603,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositorySuggestedCurrency(c *C) {
 	suggestedCurrency = "EUR"
 
 	// checking the currency updates
-	result, err = repo.Snap(funkyAppName+"."+funkyAppDeveloper, "edge")
+	result, err = repo.Snap(funkyAppName, "edge")
 	c.Assert(err, IsNil)
 	c.Assert(result, NotNil)
 	c.Check(repo.SuggestedCurrency(), Equals, "EUR")

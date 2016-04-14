@@ -20,9 +20,12 @@
 package snapstate
 
 import (
+	"errors"
+
 	"gopkg.in/tomb.v2"
 
 	"github.com/ubuntu-core/snappy/overlord/state"
+	"github.com/ubuntu-core/snappy/snap"
 )
 
 type ManagerBackend managerBackend
@@ -41,4 +44,15 @@ func (m *SnapManager) AddForeignTaskHandlers() {
 	fakeHandler := func(task *state.Task, _ *tomb.Tomb) error { return nil }
 	m.runner.AddHandler("setup-snap-security", fakeHandler, fakeHandler)
 	m.runner.AddHandler("remove-snap-security", fakeHandler, fakeHandler)
+
+	// Add handler to test full aborting of changes
+	erroringHandler := func(task *state.Task, _ *tomb.Tomb) error {
+		return errors.New("error out")
+	}
+	m.runner.AddHandler("error-trigger", erroringHandler, nil)
+}
+
+func ChangeRetrieveInfo(retrieve func(name string, si *snap.SideInfo) (*snap.Info, error)) func() {
+	retrieveInfo = retrieve
+	return func() { retrieveInfo = retrieveInfoImpl }
 }

@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-04-12 10:31+0200\n"
+        "POT-Creation-Date: 2016-04-13 21:37+0200\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -103,10 +103,6 @@ msgid   "Deactivate an installed active snap"
 msgstr  ""
 
 #, c-format
-msgid   "Deactivating %q"
-msgstr  ""
-
-#, c-format
 msgid   "Disconnect %s:%s from %s:%s"
 msgstr  ""
 
@@ -185,7 +181,15 @@ msgid   "Login successful"
 msgstr  ""
 
 #, c-format
+msgid   "Make current revision for snap %q unavailable"
+msgstr  ""
+
+#, c-format
 msgid   "Make snap %q available to the system"
+msgstr  ""
+
+#, c-format
+msgid   "Make snap %q unavailable to the system"
 msgstr  ""
 
 #, c-format
@@ -261,21 +265,21 @@ msgstr  ""
 msgid   "Remove a snapp part"
 msgstr  ""
 
+#, c-format
+msgid   "Remove data for snap %q"
+msgstr  ""
+
+#, c-format
+msgid   "Remove security profile for snap %q"
+msgstr  ""
+
+#, c-format
+msgid   "Remove snap %q from the system"
+msgstr  ""
+
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid   "Removing %s\n"
-msgstr  ""
-
-#, c-format
-msgid   "Removing data for %q"
-msgstr  ""
-
-#, c-format
-msgid   "Removing files for %q"
-msgstr  ""
-
-#, c-format
-msgid   "Removing security profile for %q"
 msgstr  ""
 
 #, c-format
@@ -286,10 +290,6 @@ msgid   "Rollback a snap to its previous known-good version"
 msgstr  ""
 
 msgid   "Rollback to a previous version of a package"
-msgstr  ""
-
-#, c-format
-msgid   "Rolling back %q"
 msgstr  ""
 
 msgid   "Runs unsupported experimental commands"
