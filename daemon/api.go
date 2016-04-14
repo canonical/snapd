@@ -427,37 +427,6 @@ type appDesc struct {
 	Spec *snappy.AppYaml `json:"spec"`
 }
 
-func getOpInfo(c *Command, r *http.Request) Response {
-	route := c.d.router.Get(c.Path)
-	if route == nil {
-		return InternalError("router can't find route for operation")
-	}
-
-	id := muxVars(r)["uuid"]
-	task := c.d.GetTask(id)
-	if task == nil {
-		return NotFound("unable to find task with id %q", id)
-	}
-
-	return SyncResponse(task.Map(route), nil)
-}
-
-func deleteOp(c *Command, r *http.Request) Response {
-	id := muxVars(r)["uuid"]
-	err := c.d.DeleteTask(id)
-
-	switch err {
-	case nil:
-		return SyncResponse("done", nil)
-	case errTaskNotFound:
-		return NotFound("unable to find task %q", id)
-	case errTaskStillRunning:
-		return BadRequest("unable to delete task %q: still running", id)
-	default:
-		return InternalError("unable to delete task %q: %v", id, err)
-	}
-}
-
 // licenseData holds details about the snap license, and may be
 // marshaled back as an error when the license agreement is pending,
 // and is expected as input to accept (or not) that license
