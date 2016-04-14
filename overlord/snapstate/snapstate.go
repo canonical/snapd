@@ -254,7 +254,7 @@ func Deactivate(s *state.State, snap string) (*state.TaskSet, error) {
 
 // Retrieval functions
 
-var retrieveInfo = snap.InfoWithSide
+var readInfo = snap.ReadInfo
 
 // Info returns the information about the snap with given name and revision.
 // Works also for a mounted candidate snap in the process of being installed.
@@ -270,12 +270,12 @@ func Info(s *state.State, name string, revision int) (*snap.Info, error) {
 
 	for i := len(snapst.Sequence) - 1; i >= 0; i-- {
 		if si := snapst.Sequence[i]; si.Revision == revision {
-			return retrieveInfo(name, si)
+			return readInfo(name, si)
 		}
 	}
 
 	if snapst.Candidate != nil && snapst.Candidate.Revision == revision {
-		return retrieveInfo(name, snapst.Candidate)
+		return readInfo(name, snapst.Candidate)
 	}
 
 	return nil, fmt.Errorf("cannot find snap %q at revision %d", name, revision)
@@ -331,7 +331,7 @@ func ActiveInfos(s *state.State) ([]*snap.Info, error) {
 			continue
 		}
 		sideInfo := snapState.Sequence[len(snapState.Sequence)-1]
-		snapInfo, err := retrieveInfo(snapName, sideInfo)
+		snapInfo, err := readInfo(snapName, sideInfo)
 		if err != nil {
 			logger.Noticef("cannot retrieve info for snap %q: %s", snapName, err)
 			continue
