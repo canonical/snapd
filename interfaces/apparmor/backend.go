@@ -43,6 +43,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/interfaces"
@@ -81,8 +82,16 @@ func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repo
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for apparmor profiles %q: %s", dir, err)
 	}
-	changed, removed, errEnsure := osutil.EnsureDirState(dir, glob, content)
-	errReload := reloadProfiles(changed)
+	_, removed, errEnsure := osutil.EnsureDirState(dir, glob, content)
+	// NOTE: load all profiles instead of just the changed profiles.  We're
+	// relying on apparmor cache to make this efficient. This gives us
+	// certainty that each call to Setup ends up with working profiles.
+	all := make([]string, 0, len(content))
+	for name := range content {
+		all = append(all, name)
+	}
+	sort.Strings(all)
+	errReload := reloadProfiles(all)
 	errUnload := unloadProfiles(removed)
 	if errEnsure != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, errEnsure)
