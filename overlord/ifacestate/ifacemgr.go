@@ -78,7 +78,7 @@ func (m *InterfaceManager) initialize(extra []interfaces.Interface) error {
 	if err := m.addSnaps(); err != nil {
 		return err
 	}
-	if err := m.reloadConnections(); err != nil {
+	if err := m.reloadConnections(""); err != nil {
 		return err
 	}
 	return nil
@@ -112,7 +112,10 @@ func (m *InterfaceManager) addSnaps() error {
 	return nil
 }
 
-func (m *InterfaceManager) reloadConnections() error {
+// reloadConnections reloads connections stored in the state in the repository.
+// Using non-empty snapName the operation can be scoped to connections
+// affecting a given snap.
+func (m *InterfaceManager) reloadConnections(snapName string) error {
 	conns, err := getConns(m.state)
 	if err != nil {
 		return err
@@ -121,6 +124,9 @@ func (m *InterfaceManager) reloadConnections() error {
 		plugRef, slotRef, err := parseConnID(id)
 		if err != nil {
 			return err
+		}
+		if snapName != "" && plugRef.Snap != snapName && slotRef.Snap != snapName {
+			continue
 		}
 		err = m.repo.Connect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
 		if err != nil {
