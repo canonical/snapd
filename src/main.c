@@ -108,10 +108,9 @@ void run_snappy_app_dev_add(struct snappy_udev *udev_s, const char *path)
 		unsigned major = MAJOR(devnum);
 		unsigned minor = MINOR(devnum);
 		must_snprintf(buf, sizeof(buf), "%u:%u", major, minor);
-		if (execl
-		    ("/lib/udev/snappy-app-dev", "/lib/udev/snappy-app-dev",
-		     "add", udev_s->tagname, path, buf, NULL) != 0)
-			die("execlp failed");
+		execl("/lib/udev/snappy-app-dev", "/lib/udev/snappy-app-dev",
+		      "add", udev_s->tagname, path, buf, NULL);
+		die("execl failed");
 	}
 	if (waitpid(pid, &status, 0) < 0)
 		die("waitpid failed");
