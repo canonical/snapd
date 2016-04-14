@@ -56,6 +56,7 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	info.Type = d.Type
 	info.Version = d.Version
 	info.OfficialName = d.Name
+	info.SnapID = d.SnapID
 	info.Revision = d.Revision
 	info.EditedSummary = d.Summary
 	info.EditedDescription = d.Description
@@ -233,6 +234,7 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string) (*snap.Info, erro
 	u := *s.searchURI // make a copy, so we can mutate it
 
 	q := u.Query()
+	// exact match search
 	q.Set("q", "package_name:\""+name+"\"")
 	u.RawQuery = q.Encode()
 
@@ -329,6 +331,8 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string)
 
 // Updates returns the available updates for a list of snap identified by fullname with channel.
 func (s *SnapUbuntuStoreRepository) Updates(installed []string) (snaps []*snap.Info, err error) {
+	// XXX: uses obsolete end point!
+
 	jsonData, err := json.Marshal(map[string][]string{"name": installed})
 	if err != nil {
 		return nil, err
