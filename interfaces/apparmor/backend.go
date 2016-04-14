@@ -125,7 +125,7 @@ func (b *Backend) combineSnippets(snapInfo *snap.Info, devMode bool, snippets ma
 		policy = templatePattern.ReplaceAllFunc(policy, func(placeholder []byte) []byte {
 			switch {
 			case bytes.Equal(placeholder, placeholderVar):
-				return modernVariables(appInfo)
+				return templateVariables(appInfo)
 			case bytes.Equal(placeholder, placeholderProfileAttach):
 				return []byte(fmt.Sprintf("profile \"%s\"", appInfo.SecurityTag()))
 			case bytes.Equal(placeholder, placeholderSnippets):
