@@ -57,7 +57,7 @@ func wait(client *client.Client, id string) error {
 			case t.Progress.Total == 1:
 				pb.Spin(t.Summary)
 			case t.ID == lastID:
-				pb.Set(float64(t.Progress.Current))
+				pb.Set(float64(t.Progress.Done))
 			default:
 				pb.Start(t.Summary, float64(t.Progress.Total))
 			}
