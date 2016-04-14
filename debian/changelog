@@ -1,3 +1,11 @@
+ubuntu-core-launcher (1.0.23.1) UNRELEASED; urgency=medium
+
+  * use the /usr from the ubuntu-core snap instead of
+    the host system
+  * ignore non-existing dirs when doing the overlay mount
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 14 Apr 2016 10:58:24 +0200
+
 ubuntu-core-launcher (1.0.23) xenial; urgency=medium
 
   [ Jamie Strandboge ]
