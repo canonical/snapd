@@ -853,21 +853,27 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 	}).Map(route), nil)
 }
 
-func iconGet(name string) Response {
-	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
-	if err != nil {
-		return InternalError("unable to acquire lock: %v", err)
-	}
-	defer lock.Unlock()
+func iconGet(st *state.State, name string) Response {
+	st.Lock()
+	defer st.Unlock()
 
-	installed, err := (&snappy.Overlord{}).Installed()
-	snaps := snappy.FindSnapsByName(name, installed)
-	_, snap := bestSnap(snaps)
-	if err != nil || snap == nil {
+	var snapst snapstate.SnapState
+	err := snapstate.Get(st, name, &snapst)
+	if err != nil && err != state.ErrNoState {
+		return InternalError("cannot consult state: %v", err)
+	}
+
+	cur := snapst.Current()
+	if cur == nil {
 		return NotFound("unable to find snap with name %q", name)
 	}
 
-	path := filepath.Clean(snap.Icon())
+	info, err := snap.InfoWithSide(name, cur)
+	if err != nil && err != state.ErrNoState {
+		return InternalError("cannot read metadata: %v", err)
+	}
+
+	path := filepath.Clean(snapIcon(info))
 	if !strings.HasPrefix(path, dirs.SnapSnapsDir) {
 		// XXX: how could this happen?
 		return BadRequest("requested icon is not in snap path")
@@ -880,7 +886,7 @@ func appIconGet(c *Command, r *http.Request) Response {
 	vars := muxVars(r)
 	name := vars["name"]
 
-	return iconGet(name)
+	return iconGet(c.d.overlord.State(), name)
 }
 
 // getInterfaces returns all plugs and slots.

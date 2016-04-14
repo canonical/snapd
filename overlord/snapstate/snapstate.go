@@ -23,9 +23,6 @@ package snapstate
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/ubuntu-core/snappy/i18n"
@@ -257,28 +254,7 @@ func Deactivate(s *state.State, snap string) (*state.TaskSet, error) {
 
 // Retrieval functions
 
-func retrieveInfoImpl(name string, si *snap.SideInfo) (*snap.Info, error) {
-	// XXX: move some of this in snap as helper?
-	snapYamlFn := filepath.Join(snap.MountDir(name, si.Revision), "meta", "snap.yaml")
-	meta, err := ioutil.ReadFile(snapYamlFn)
-	if os.IsNotExist(err) {
-		return nil, fmt.Errorf("cannot find mounted snap %q at revision %d", name, si.Revision)
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	info, err := snap.InfoFromSnapYaml(meta)
-	if err != nil {
-		return nil, err
-	}
-
-	info.SideInfo = *si
-
-	return info, nil
-}
-
-var retrieveInfo = retrieveInfoImpl
+var retrieveInfo = snap.InfoWithSide
 
 // Info returns the information about the snap with given name and revision.
 // Works also for a mounted candidate snap in the process of being installed.

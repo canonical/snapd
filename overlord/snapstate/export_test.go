@@ -54,5 +54,5 @@ func (m *SnapManager) AddForeignTaskHandlers() {
 
 func ChangeRetrieveInfo(retrieve func(name string, si *snap.SideInfo) (*snap.Info, error)) func() {
 	retrieveInfo = retrieve
-	return func() { retrieveInfo = retrieveInfoImpl }
+	return func() { retrieveInfo = snap.InfoWithSide }
 }
