@@ -93,6 +93,11 @@ func mapSnap(localSnaps []*snappy.Snap, remoteSnap *snap.Info) map[string]interf
 	status := "available"
 	installedSize := int64(-1)
 	downloadSize := int64(-1)
+	var prices map[string]float64
+
+	if remoteSnap != nil {
+		prices = remoteSnap.Prices
+	}
 
 	idx, localSnap := bestSnap(localSnaps)
 	if localSnap != nil {
@@ -171,6 +176,7 @@ func mapSnap(localSnaps []*snappy.Snap, remoteSnap *snap.Info) map[string]interf
 		"summary":        summary,
 		"installed-size": installedSize,
 		"download-size":  downloadSize,
+		"prices":         prices,
 	}
 
 	if localSnap != nil {

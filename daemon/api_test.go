@@ -240,6 +240,10 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 			Size:              2,
 			IconURL:           "meta/gui/icon.svg",
 			Revision:          20,
+			Prices: map[string]float64{
+				"GBP": 1.23,
+				"EUR": 2.34,
+			},
 		},
 	}}
 	s.suggestedCurrency = "GBP"
@@ -285,6 +289,10 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 			"update-available":   20,
 			"rollback-available": 5,
 			"channel":            "stable",
+			"prices": map[string]float64{
+				"GBP": 1.23,
+				"EUR": 2.34,
+			},
 		},
 		Meta: meta,
 	}
