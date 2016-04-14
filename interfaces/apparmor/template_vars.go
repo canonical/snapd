@@ -49,21 +49,14 @@ func legacyVariables(appInfo *snap.AppInfo) []byte {
 	return buf.Bytes()
 }
 
-// modenVariables returns text defining some apparmor variables that
+// modernVariables returns text defining some apparmor variables that
 // work with non-legacy apparmor templates.
-//
-// XXX: Straw-man: can we just expose the following apparmor variables...
-//
-// @{APP_NAME}=app.Name
-// @{APP_SECURITY_TAG}=app.SecurityTag()
-// @{SNAP_NAME}=app.SnapName
-//
-// ...have everything work correctly?
 func modernVariables(appInfo *snap.AppInfo) []byte {
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, "@{APP_NAME}=\"%s\"\n", appInfo.Name)
 	fmt.Fprintf(&buf, "@{APP_SECURITY_TAG}=\"%s\"\n", appInfo.SecurityTag())
 	fmt.Fprintf(&buf, "@{SNAP_NAME}=\"%s\"\n", appInfo.Snap.Name())
+	fmt.Fprintf(&buf, "@{SNAP_REVISION}=\"%d\"\n", appInfo.Snap.Revision)
 	fmt.Fprintf(&buf, "@{INSTALL_DIR}=\"/snap\"")
 	return buf.Bytes()
 }
