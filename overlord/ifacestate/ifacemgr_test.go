@@ -42,6 +42,7 @@ type interfaceManagerSuite struct {
 	state           *state.State
 	privateMgr      *ifacestate.InterfaceManager
 	extraIfaces     []interfaces.Interface
+	secBackend      *interfaces.TestSecurityBackend
 	restoreBackends func()
 }
 
@@ -53,9 +54,8 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	s.state = state
 	s.privateMgr = nil
 	s.extraIfaces = nil
-	s.restoreBackends = ifacestate.MockSecurityBackendsForSnap(
-		func(snapInfo *snap.Info) []interfaces.SecurityBackend { return nil },
-	)
+	s.secBackend = &interfaces.TestSecurityBackend{}
+	s.restoreBackends = ifacestate.MockSecurityBackends([]interfaces.SecurityBackend{s.secBackend})
 }
 
 func (s *interfaceManagerSuite) TearDownTest(c *C) {
@@ -366,6 +366,76 @@ func (s *interfaceManagerSuite) TestConnectTracksConnectionsInState(c *C) {
 			"interface": "test",
 		},
 	})
+}
+
+func (s *interfaceManagerSuite) TestConnectSetsUpSecurity(c *C) {
+	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	mgr := s.manager(c)
+
+	s.state.Lock()
+	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
+	c.Assert(err, IsNil)
+	change := s.state.NewChange("connect", "")
+	change.AddAll(ts)
+	s.state.Unlock()
+
+	mgr.Ensure()
+	mgr.Wait()
+	mgr.Stop()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(change.Status(), Equals, state.DoneStatus)
+
+	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
+	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
+	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, "consumer")
+	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Name(), Equals, "producer")
+
+	c.Check(s.secBackend.SetupCalls[0].DevMode, Equals, false)
+	c.Check(s.secBackend.SetupCalls[1].DevMode, Equals, false)
+}
+
+func (s *interfaceManagerSuite) TestDisconnectSetsUpSecurity(c *C) {
+	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
+	})
+	s.state.Unlock()
+
+	mgr := s.manager(c)
+
+	s.state.Lock()
+	ts, err := ifacestate.Disconnect(s.state, "consumer", "plug", "producer", "slot")
+	c.Assert(err, IsNil)
+	change := s.state.NewChange("disconnect", "")
+	change.AddAll(ts)
+	s.state.Unlock()
+
+	mgr.Ensure()
+	mgr.Wait()
+	mgr.Stop()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(change.Status(), Equals, state.DoneStatus)
+
+	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
+	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
+	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, "consumer")
+	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Name(), Equals, "producer")
+
+	c.Check(s.secBackend.SetupCalls[0].DevMode, Equals, false)
+	c.Check(s.secBackend.SetupCalls[1].DevMode, Equals, false)
 }
 
 func (s *interfaceManagerSuite) TestDisconnectTracksConnectionsInState(c *C) {

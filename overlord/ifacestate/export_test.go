@@ -18,13 +18,3 @@
  */
 
 package ifacestate
-
-import (
-	"github.com/ubuntu-core/snappy/interfaces"
-	"github.com/ubuntu-core/snappy/snap"
-)
-
-func MockSecurityBackendsForSnap(fn func(snapInfo *snap.Info) []interfaces.SecurityBackend) func() {
-	securityBackendsForSnap = fn
-	return func() { securityBackendsForSnap = securityBackendsForSnapImpl }
-}
