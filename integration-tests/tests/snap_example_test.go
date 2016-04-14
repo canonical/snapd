@@ -58,8 +58,10 @@ func (s *snapHelloWorldExampleSuite) TestCallHelloWorldBinary(c *check.C) {
 		removeSnap(c, "hello-world")
 	})
 
+	// note that this also checks that we have a working ubuntu-core
+	// snap installed, without the ubuntu-core snap the launcher will
+	// not work and no "Hello World!\n" output
 	echoOutput := cli.ExecCommand(c, "hello-world.echo")
-
 	c.Assert(echoOutput, check.Equals, "Hello World!\n",
 		check.Commentf("Wrong output from hello-world binary"))
 }

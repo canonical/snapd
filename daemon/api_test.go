@@ -40,6 +40,7 @@ import (
 	"github.com/ubuntu-core/snappy/asserts"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/interfaces"
+	"github.com/ubuntu-core/snappy/overlord/auth"
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/release"
@@ -90,6 +91,7 @@ func (s *apiSuite) TearDownSuite(c *check.C) {
 	newRemoteRepo = nil
 	muxVars = nil
 	snapstateInstall = snapstate.Install
+	snapstateGet = snapstate.Get
 }
 
 func (s *apiSuite) SetUpTest(c *check.C) {
@@ -175,7 +177,7 @@ version: %s
 	c.Assert(err, check.IsNil)
 
 	if active {
-		err := snappy.UpdateCurrentSymlink(localSnap, nil)
+		err := snappy.UpdateCurrentSymlink(localSnap.Info(), nil)
 		c.Assert(err, check.IsNil)
 	}
 
@@ -231,6 +233,9 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	// installed-size depends on vagaries of the filesystem, just check type
 	c.Check(m["installed-size"], check.FitsTypeOf, int64(0))
 	delete(m, "installed-size")
+	// ditto install-date
+	c.Check(m["install-date"], check.FitsTypeOf, time.Time{})
+	delete(m, "install-date")
 
 	expected := &resp{
 		Type:   ResponseTypeSync,
@@ -355,10 +360,10 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"maxReadBuflen",
 		"muxVars",
 		"newRemoteRepo",
-		"checkSnap",
 		"pkgActionDispatch",
 		// snapInstruction vars:
 		"snapstateInstall",
+		"snapstateGet",
 		"getConfigurator",
 	}
 	c.Check(found, check.Equals, len(api)+len(exceptions),
@@ -490,17 +495,18 @@ func (s *apiSuite) TestLoginUser(c *check.C) {
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Result, check.DeepEquals, expected)
 
-	var auth authState
-	expectedState := userAuthState{
+	expectedUser := auth.UserState{
+		ID:         1,
 		Username:   "username",
 		Macaroon:   "the-macaroon-serialized-data",
 		Discharges: []string{"the-discharge-macaroon-serialized-data"},
 	}
 	state := snapCmd.d.overlord.State()
 	state.Lock()
-	state.Get("auth", &auth)
+	user, err := auth.User(state, 1)
 	state.Unlock()
-	c.Check(auth, check.DeepEquals, authState{Users: []userAuthState{expectedState}})
+	c.Check(err, check.IsNil)
+	c.Check(*user, check.DeepEquals, expectedUser)
 }
 
 func (s *apiSuite) TestLoginUserBadRequest(c *check.C) {
@@ -532,7 +538,7 @@ func (s *apiSuite) TestLoginUserMyAppsError(c *check.C) {
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, http.StatusInternalServerError)
-	c.Check(rsp.Result.(*errorResult).Message, check.Equals, "cannot get package access macaroon")
+	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "cannot get package access macaroon")
 }
 
 func (s *apiSuite) TestLoginUserTwoFactorRequiredError(c *check.C) {
@@ -574,7 +580,7 @@ func (s *apiSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, http.StatusUnauthorized)
-	c.Check(rsp.Result.(*errorResult).Message, check.Equals, "cannot get discharge authorization")
+	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "cannot get discharge macaroon")
 }
 
 func (s *apiSuite) TestSnapsInfoOnePerIntegration(c *check.C) {
@@ -1063,6 +1069,8 @@ func (s *apiSuite) TestSnapGetConfigNoConfig(c *check.C) {
 	c.Check(rsp.Status, check.Equals, http.StatusInternalServerError)
 }
 
+//FIXME: renenable config for GA
+/*
 func (s *apiSuite) TestSnapPutConfig(c *check.C) {
 	newConfigStr := "some other config"
 	req, err := http.NewRequest("PUT", "/v2/snaps/foo/config", bytes.NewBufferString(newConfigStr))
@@ -1084,6 +1092,7 @@ func (s *apiSuite) TestSnapPutConfig(c *check.C) {
 		Result: newConfigStr,
 	})
 }
+*/
 
 func (s *apiSuite) TestSnapPutConfigMissing(c *check.C) {
 	s.vars = map[string]string{"name": "foo"}
@@ -1134,7 +1143,10 @@ func (s *apiSuite) TestSideloadSnap(c *check.C) {
 }
 
 func (s *apiSuite) sideloadCheck(c *check.C, content string, unsignedExpected bool, head map[string]string) {
-	ch := make(chan struct{})
+	d := newTestDaemon(c)
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
 	tmpfile, err := ioutil.TempFile("", "test-")
 	c.Assert(err, check.IsNil)
 	_, err = tmpfile.WriteString(content)
@@ -1148,18 +1160,16 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, unsignedExpected bo
 		expectedFlags |= snappy.AllowUnauthenticated
 	}
 
-	checkSnap = func(fn string, flags snappy.InstallFlags) error {
+	snapstateInstall = func(s *state.State, name, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
 		c.Check(flags, check.Equals, expectedFlags)
 
-		bs, err := ioutil.ReadFile(fn)
+		bs, err := ioutil.ReadFile(name)
 		c.Check(err, check.IsNil)
 		c.Check(string(bs), check.Equals, "xyzzy")
 
-		ch <- struct{}{}
-
-		return nil
+		t := s.NewTask("fake-install-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
 	}
-	defer func() { checkSnap = checkSnapImpl }()
 
 	req, err := http.NewRequest("POST", "/v2/snaps", tmpfile)
 	c.Assert(err, check.IsNil)
@@ -1169,8 +1179,6 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, unsignedExpected bo
 
 	rsp := sideloadSnap(snapsCmd, req).(*resp)
 	c.Check(rsp.Type, check.Equals, ResponseTypeAsync)
-
-	<-ch
 }
 
 func (s *apiSuite) TestAppIconGet(c *check.C) {
@@ -1280,9 +1288,15 @@ func (s *apiSuite) TestPkgInstructionMismatch(c *check.C) {
 
 func (s *apiSuite) TestInstall(c *check.C) {
 	calledFlags := snappy.InstallFlags(42)
+	installQueue := []string{}
 
+	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
+		// we have ubuntu-core
+		return nil
+	}
 	snapstateInstall = func(s *state.State, name, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
 		calledFlags = flags
+		installQueue = append(installQueue, name)
 
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
 		return state.NewTaskSet(t), nil
@@ -1292,6 +1306,7 @@ func (s *apiSuite) TestInstall(c *check.C) {
 	inst := &snapInstruction{
 		overlord: d.overlord,
 		Action:   "install",
+		pkg:      "some-snap",
 	}
 
 	d.overlord.Loop()
@@ -1300,6 +1315,46 @@ func (s *apiSuite) TestInstall(c *check.C) {
 
 	c.Check(calledFlags, check.Equals, snappy.DoInstallGC)
 	c.Check(err, check.IsNil)
+	c.Check(installQueue, check.DeepEquals, []string{"some-snap"})
+}
+
+func (s *apiSuite) TestInstallMissingUbuntuCore(c *check.C) {
+	installQueue := []*state.Task{}
+
+	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
+		// pretend we do not have a state for ubuntu-core
+		return state.ErrNoState
+	}
+	snapstateInstall = func(s *state.State, name, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
+		t1 := s.NewTask("fake-install-snap", name)
+		t2 := s.NewTask("fake-install-snap", "second task is just here so that we can check that the wait is correctly added to all tasks")
+		installQueue = append(installQueue, t1, t2)
+		return state.NewTaskSet(t1, t2), nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{
+		overlord: d.overlord,
+		Action:   "install",
+		pkg:      "some-snap",
+	}
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+	err := inst.dispatch()()
+	c.Check(err, check.IsNil)
+
+	d.overlord.State().Lock()
+	defer d.overlord.State().Unlock()
+	c.Check(installQueue, check.HasLen, 4)
+	// the two "ubuntu-core" install tasks
+	c.Check(installQueue[0].Summary(), check.Equals, "ubuntu-core")
+	c.Check(installQueue[0].WaitTasks(), check.HasLen, 0)
+	c.Check(installQueue[1].WaitTasks(), check.HasLen, 0)
+	// the two "some-snap" install tasks
+	c.Check(installQueue[2].Summary(), check.Equals, "some-snap")
+	c.Check(installQueue[2].WaitTasks(), check.HasLen, 2)
+	c.Check(installQueue[3].WaitTasks(), check.HasLen, 2)
 }
 
 func (s *apiSuite) TestInstallFails(c *check.C) {
@@ -1481,11 +1536,12 @@ func makeConnectedSlot() *interfaces.Slot {
 }
 
 func (s *apiSuite) TestGetPlugs(c *check.C) {
-	d := s.daemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(makePlug("interface"))
-	d.interfaces.AddSlot(makeSlot("interface"))
-	d.interfaces.Connect("producer", "plug", "consumer", "slot")
+	repo := s.daemon(c).overlord.InterfaceManager().Repository()
+	repo.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	repo.AddPlug(makePlug("interface"))
+	repo.AddSlot(makeSlot("interface"))
+	repo.Connect("producer", "plug", "consumer", "slot")
+
 	req, err := http.NewRequest("GET", "/v2/interfaces", nil)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
@@ -1533,9 +1589,14 @@ func (s *apiSuite) TestGetPlugs(c *check.C) {
 
 func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 	d := s.daemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(makePlug("interface"))
-	d.interfaces.AddSlot(makeSlot("interface"))
+	repo := d.overlord.InterfaceManager().Repository()
+	repo.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	repo.AddPlug(makePlug("interface"))
+	repo.AddSlot(makeSlot("interface"))
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
 	action := &interfaceAction{
 		Action: "connect",
 		Plugs:  []plugJSON{{Snap: "producer", Name: "plug"}},
@@ -1558,7 +1619,7 @@ func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 		"status-code": 200.0,
 		"type":        "sync",
 	})
-	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
+	c.Assert(repo.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
 		Plugs: []*interfaces.Plug{makeConnectedPlug()},
 		Slots: []*interfaces.Slot{makeConnectedSlot()},
 	})
@@ -1566,10 +1627,15 @@ func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 
 func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 	d := s.daemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "other-interface"})
-	d.interfaces.AddPlug(makePlug("interface"))
-	d.interfaces.AddSlot(makeSlot("other-interface"))
+	repo := d.overlord.InterfaceManager().Repository()
+	repo.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	repo.AddInterface(&interfaces.TestInterface{InterfaceName: "other-interface"})
+	repo.AddPlug(makePlug("interface"))
+	repo.AddSlot(makeSlot("other-interface"))
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
 	action := &interfaceAction{
 		Action: "connect",
 		Plugs:  []plugJSON{{Snap: "producer", Name: "plug"}},
@@ -1588,13 +1654,14 @@ func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": `cannot connect plug "producer:plug" (interface "interface") to "consumer:slot" (interface "other-interface")`,
+			"message": `cannot perform the following tasks:
+- Connect producer:plug to consumer:slot (cannot connect plug "producer:plug" (interface "interface") to "consumer:slot" (interface "other-interface"))`,
 		},
 		"status":      "Bad Request",
 		"status-code": 400.0,
 		"type":        "error",
 	})
-	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
+	c.Assert(repo.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
 		Plugs: []*interfaces.Plug{makePlug("interface")},
 		Slots: []*interfaces.Slot{makeSlot("other-interface")},
 	})
@@ -1602,8 +1669,13 @@ func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 
 func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 	d := s.daemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddSlot(makeSlot("interface"))
+	repo := d.overlord.InterfaceManager().Repository()
+	repo.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	repo.AddSlot(makeSlot("interface"))
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
 	action := &interfaceAction{
 		Action: "connect",
 		Plugs:  []plugJSON{{Snap: "producer", Name: "plug"}},
@@ -1622,21 +1694,27 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": `cannot connect plug "plug" from snap "producer", no such plug`,
+			"message": `cannot perform the following tasks:
+- Connect producer:plug to consumer:slot (cannot connect plug "plug" from snap "producer", no such plug)`,
 		},
 		"status":      "Bad Request",
 		"status-code": 400.0,
 		"type":        "error",
 	})
-	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
+	c.Assert(repo.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
 		Slots: []*interfaces.Slot{makeSlot("interface")},
 	})
 }
 
 func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 	d := s.daemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(makePlug("interface"))
+	repo := d.overlord.InterfaceManager().Repository()
+	repo.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	repo.AddPlug(makePlug("interface"))
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
 	action := &interfaceAction{
 		Action: "connect",
 		Plugs:  []plugJSON{{Snap: "producer", Name: "plug"}},
@@ -1655,23 +1733,29 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": `cannot connect plug to slot "slot" from snap "consumer", no such slot`,
+			"message": `cannot perform the following tasks:
+- Connect producer:plug to consumer:slot (cannot connect plug to slot "slot" from snap "consumer", no such slot)`,
 		},
 		"status":      "Bad Request",
 		"status-code": 400.0,
 		"type":        "error",
 	})
-	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
+	c.Assert(repo.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
 		Plugs: []*interfaces.Plug{makePlug("interface")},
 	})
 }
 
 func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
 	d := s.daemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(makePlug("interface"))
-	d.interfaces.AddSlot(makeSlot("interface"))
-	d.interfaces.Connect("producer", "plug", "consumer", "slot")
+	repo := d.overlord.InterfaceManager().Repository()
+	repo.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	repo.AddPlug(makePlug("interface"))
+	repo.AddSlot(makeSlot("interface"))
+	repo.Connect("producer", "plug", "consumer", "slot")
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
 	action := &interfaceAction{
 		Action: "disconnect",
 		Plugs:  []plugJSON{{Snap: "producer", Name: "plug"}},
@@ -1694,7 +1778,7 @@ func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
 		"status-code": 200.0,
 		"type":        "sync",
 	})
-	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
+	c.Assert(repo.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
 		Plugs: []*interfaces.Plug{makePlug("interface")},
 		Slots: []*interfaces.Slot{makeSlot("interface")},
 	})
@@ -1702,8 +1786,13 @@ func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 	d := s.daemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddSlot(makeSlot("interface"))
+	repo := d.overlord.InterfaceManager().Repository()
+	repo.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	repo.AddSlot(makeSlot("interface"))
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
 	action := &interfaceAction{
 		Action: "disconnect",
 		Plugs:  []plugJSON{{Snap: "producer", Name: "plug"}},
@@ -1722,21 +1811,27 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": `cannot disconnect plug "plug" from snap "producer", no such plug`,
+			"message": `cannot perform the following tasks:
+- Disconnect producer:plug from consumer:slot (cannot disconnect plug "plug" from snap "producer", no such plug)`,
 		},
 		"status":      "Bad Request",
 		"status-code": 400.0,
 		"type":        "error",
 	})
-	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
+	c.Assert(repo.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
 		Slots: []*interfaces.Slot{makeSlot("interface")},
 	})
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 	d := s.daemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(makePlug("interface"))
+	repo := d.overlord.InterfaceManager().Repository()
+	repo.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	repo.AddPlug(makePlug("interface"))
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
 	action := &interfaceAction{
 		Action: "disconnect",
 		Plugs:  []plugJSON{{Snap: "producer", Name: "plug"}},
@@ -1755,22 +1850,28 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": `cannot disconnect plug from slot "slot" from snap "consumer", no such slot`,
+			"message": `cannot perform the following tasks:
+- Disconnect producer:plug from consumer:slot (cannot disconnect plug from slot "slot" from snap "consumer", no such slot)`,
 		},
 		"status":      "Bad Request",
 		"status-code": 400.0,
 		"type":        "error",
 	})
-	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
+	c.Assert(repo.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
 		Plugs: []*interfaces.Plug{makePlug("interface")},
 	})
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 	d := s.daemon(c)
-	d.interfaces.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
-	d.interfaces.AddPlug(makePlug("interface"))
-	d.interfaces.AddSlot(makeSlot("interface"))
+	repo := d.overlord.InterfaceManager().Repository()
+	repo.AddInterface(&interfaces.TestInterface{InterfaceName: "interface"})
+	repo.AddPlug(makePlug("interface"))
+	repo.AddSlot(makeSlot("interface"))
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
 	action := &interfaceAction{
 		Action: "disconnect",
 		Plugs:  []plugJSON{{Snap: "producer", Name: "plug"}},
@@ -1789,13 +1890,14 @@ func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": `cannot disconnect plug "plug" from snap "producer" from slot "slot" from snap "consumer", it is not connected`,
+			"message": `cannot perform the following tasks:
+- Disconnect producer:plug from consumer:slot (cannot disconnect plug "plug" from snap "producer" from slot "slot" from snap "consumer", it is not connected)`,
 		},
 		"status":      "Bad Request",
 		"status-code": 400.0,
 		"type":        "error",
 	})
-	c.Assert(d.interfaces.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
+	c.Assert(repo.Interfaces(), check.DeepEquals, &interfaces.Interfaces{
 		Plugs: []*interfaces.Plug{makePlug("interface")},
 		Slots: []*interfaces.Slot{makeSlot("interface")},
 	})
@@ -2085,4 +2187,163 @@ func (s *apiSuite) TestGetEvents(c *check.C) {
 	// server first to prevent problems with sequence ordering
 	ts.Close()
 	c.Assert(d.hub.SubscriberCount(), check.Equals, 1)
+}
+
+func setupChanges(st *state.State) []string {
+	chg1 := st.NewChange("install", "install...")
+	t1 := st.NewTask("download", "1...")
+	t2 := st.NewTask("activate", "2...")
+	chg1.AddAll(state.NewTaskSet(t1, t2))
+	t1.Logf("l11")
+	t1.Logf("l12")
+	chg2 := st.NewChange("remove", "remove..")
+	t3 := st.NewTask("unlink", "1...")
+	chg2.AddTask(t3)
+	t3.SetStatus(state.ErrorStatus)
+	t3.Errorf("rm failed")
+
+	return []string{chg1.ID(), chg2.ID()}
+}
+
+func (s *apiSuite) TestStateChangesDefaultToInProgress(c *check.C) {
+	// Setup
+	d := newTestDaemon(c)
+	st := d.overlord.State()
+	st.Lock()
+	setupChanges(st)
+	st.Unlock()
+
+	// Execute
+	req, err := http.NewRequest("GET", "/v2/changes", nil)
+	c.Assert(err, check.IsNil)
+	rsp := getChanges(stateChangesCmd, req).(*resp)
+
+	// Verify
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	c.Assert(rsp.Result, check.HasLen, 1)
+
+	res, err := rsp.MarshalJSON()
+	c.Assert(err, check.IsNil)
+
+	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"kind":"download","summary":"1...","status":"Do","log":\["INFO: l11","INFO: l12"],"progress":\[0,1]}.*`)
+}
+
+func (s *apiSuite) TestStateChangesInProgress(c *check.C) {
+	// Setup
+	d := newTestDaemon(c)
+	st := d.overlord.State()
+	st.Lock()
+	setupChanges(st)
+	st.Unlock()
+
+	// Execute
+	req, err := http.NewRequest("GET", "/v2/changes?select=in-progress", nil)
+	c.Assert(err, check.IsNil)
+	rsp := getChanges(stateChangesCmd, req).(*resp)
+
+	// Verify
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	c.Assert(rsp.Result, check.HasLen, 1)
+
+	res, err := rsp.MarshalJSON()
+	c.Assert(err, check.IsNil)
+
+	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"kind":"download","summary":"1...","status":"Do","log":\["INFO: l11","INFO: l12"],"progress":\[0,1]}.*`)
+}
+
+func (s *apiSuite) TestStateChangesAll(c *check.C) {
+	// Setup
+	d := newTestDaemon(c)
+	st := d.overlord.State()
+	st.Lock()
+	setupChanges(st)
+	st.Unlock()
+
+	// Execute
+	req, err := http.NewRequest("GET", "/v2/changes?select=all", nil)
+	c.Assert(err, check.IsNil)
+	rsp := getChanges(stateChangesCmd, req).(*resp)
+
+	// Verify
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	c.Assert(rsp.Result, check.HasLen, 2)
+
+	res, err := rsp.MarshalJSON()
+	c.Assert(err, check.IsNil)
+
+	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"kind":"download","summary":"1...","status":"Do","log":\["INFO: l11","INFO: l12"],"progress":\[0,1]}.*`)
+	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"remove","summary":"remove..","status":"Error","tasks":\[{"kind":"unlink","summary":"1...","status":"Error","log":\["ERROR: rm failed"],"progress":\[1,1]}]}.*`)
+}
+
+func (s *apiSuite) TestStateChangesReady(c *check.C) {
+	// Setup
+	d := newTestDaemon(c)
+	st := d.overlord.State()
+	st.Lock()
+	setupChanges(st)
+	st.Unlock()
+
+	// Execute
+	req, err := http.NewRequest("GET", "/v2/changes?select=ready", nil)
+	c.Assert(err, check.IsNil)
+	rsp := getChanges(stateChangesCmd, req).(*resp)
+
+	// Verify
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	c.Assert(rsp.Result, check.HasLen, 1)
+
+	res, err := rsp.MarshalJSON()
+	c.Assert(err, check.IsNil)
+
+	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"remove","summary":"remove..","status":"Error","tasks":\[{"kind":"unlink","summary":"1...","status":"Error","log":\["ERROR: rm failed"],"progress":\[1,1]}]}.*`)
+}
+
+func (s *apiSuite) TestStateChange(c *check.C) {
+	// Setup
+	d := newTestDaemon(c)
+	st := d.overlord.State()
+	st.Lock()
+	ids := setupChanges(st)
+	st.Unlock()
+	s.vars = map[string]string{"id": ids[0]}
+
+	// Execute
+	req, err := http.NewRequest("POST", "/v2/change/"+ids[0], nil)
+	c.Assert(err, check.IsNil)
+	rsp := getChange(stateChangeCmd, req).(*resp)
+	rec := httptest.NewRecorder()
+	rsp.ServeHTTP(rec, req)
+
+	// Verify
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.NotNil)
+
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body["result"], check.DeepEquals, map[string]interface{}{
+		"id":      ids[0],
+		"kind":    "install",
+		"summary": "install...",
+		"status":  "Do",
+		"tasks": []interface{}{
+			map[string]interface{}{
+				"kind":     "download",
+				"summary":  "1...",
+				"status":   "Do",
+				"log":      []interface{}{"INFO: l11", "INFO: l12"},
+				"progress": []interface{}{0., 1.},
+			},
+			map[string]interface{}{
+				"kind":     "activate",
+				"summary":  "2...",
+				"status":   "Do",
+				"progress": []interface{}{0., 1.},
+			},
+		},
+	})
 }

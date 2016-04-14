@@ -104,7 +104,7 @@ Name=foo
 Icon=/snap/foo/11/foo.png`)
 
 	// unlink (deactivate) removes it again
-	err = UnlinkSnap(snap, nil)
+	err = UnlinkSnap(snap.Info(), nil)
 	c.Assert(err, IsNil)
 	c.Assert(osutil.FileExists(mockDesktopFilePath), Equals, false)
 }

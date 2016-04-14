@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-04-11 23:24+0200\n"
+        "POT-Creation-Date: 2016-04-14 11:59+0200\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,9 +17,6 @@ msgstr  "Project-Id-Version: snappy\n"
         "Content-Transfer-Encoding: 8bit\n"
 
 msgid   "(deprecated) please use \"list\""
-msgstr  ""
-
-msgid   "2fa code: "
 msgstr  ""
 
 msgid   "A concise summary of key attributes of the snappy system, such as the release and channel.\n"
@@ -86,7 +83,7 @@ msgid   "Connects a plug to a slot"
 msgstr  ""
 
 #, c-format
-msgid   "Copying snap data for %q"
+msgid   "Copy snap %q data"
 msgstr  ""
 
 msgid   "Creates a snap package and if available, runs the review scripts."
@@ -106,16 +103,6 @@ msgid   "Deactivate an installed active snap"
 msgstr  ""
 
 #, c-format
-msgid   "Deactivating %q"
-msgstr  ""
-
-msgid   "Destroy the classic dimension."
-msgstr  ""
-
-msgid   "Destroy the ubuntu classic dimension."
-msgstr  ""
-
-#, c-format
 msgid   "Disconnect %s:%s from %s:%s"
 msgstr  ""
 
@@ -129,23 +116,13 @@ msgid   "Do not clean up old versions of the package."
 msgstr  ""
 
 #, c-format
-msgid   "Downloading %q"
-msgstr  ""
-
-msgid   "Enable classic dimension."
-msgstr  ""
-
-msgid   "Enable the ubuntu classic dimension."
+msgid   "Download snap %q"
 msgstr  ""
 
 msgid   "Ensures system is running with latest parts"
 msgstr  ""
 
 msgid   "Entering classic dimension"
-msgstr  ""
-
-#, c-format
-msgid   "Final step for %q"
 msgstr  ""
 
 msgid   "Finds packages to install"
@@ -176,6 +153,10 @@ msgstr  ""
 msgid   "Install a snap to the system"
 msgstr  ""
 
+#, c-format
+msgid   "Install local %q snap"
+msgstr  ""
+
 msgid   "Install snaps even if the signature can not be verified."
 msgstr  ""
 
@@ -200,16 +181,28 @@ msgid   "Login successful"
 msgstr  ""
 
 #, c-format
-msgid   "Mounting %q"
+msgid   "Make current revision for snap %q unavailable"
+msgstr  ""
+
+#, c-format
+msgid   "Make snap %q available to the system"
+msgstr  ""
+
+#, c-format
+msgid   "Make snap %q unavailable to the system"
+msgstr  ""
+
+#, c-format
+msgid   "Mount snap %q"
 msgstr  ""
 
 msgid   "Name\tDate\tVersion\t"
 msgstr  ""
 
-msgid   "Name\tDate\tVersion\tDeveloper"
+msgid   "Name\tDate\tVersion\tDeveloper\t"
 msgstr  ""
 
-msgid   "Name\tDate\tVersion\tDeveloper\t"
+msgid   "Name\tVersion\tDeveloper"
 msgstr  ""
 
 msgid   "Name\tVersion\tSummary"
@@ -221,6 +214,10 @@ msgid   "No snap: '%s' found"
 msgstr  ""
 
 msgid   "Password: "
+msgstr  ""
+
+#, c-format
+msgid   "Prepare snap %q"
 msgstr  ""
 
 msgid   "Provide information about a specific installed package"
@@ -268,21 +265,21 @@ msgstr  ""
 msgid   "Remove a snapp part"
 msgstr  ""
 
+#, c-format
+msgid   "Remove data for snap %q"
+msgstr  ""
+
+#, c-format
+msgid   "Remove security profile for snap %q"
+msgstr  ""
+
+#, c-format
+msgid   "Remove snap %q from the system"
+msgstr  ""
+
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid   "Removing %s\n"
-msgstr  ""
-
-#, c-format
-msgid   "Removing data for %q"
-msgstr  ""
-
-#, c-format
-msgid   "Removing files for %q"
-msgstr  ""
-
-#, c-format
-msgid   "Removing security profile for %q"
 msgstr  ""
 
 #, c-format
@@ -293,13 +290,6 @@ msgid   "Rollback a snap to its previous known-good version"
 msgstr  ""
 
 msgid   "Rollback to a previous version of a package"
-msgstr  ""
-
-#, c-format
-msgid   "Rolling back %q"
-msgstr  ""
-
-msgid   "Run snappy shell interface"
 msgstr  ""
 
 msgid   "Runs unsupported experimental commands"
@@ -337,7 +327,7 @@ msgid   "Setting %s to version %s\n"
 msgstr  ""
 
 #, c-format
-msgid   "Setting up security profile for %q"
+msgid   "Setup snap %q security profiles"
 msgstr  ""
 
 msgid   "Show available updates (requires network)"
@@ -359,9 +349,6 @@ msgstr  ""
 
 #. TRANSLATORS: please keep this under 80 characters if possible
 msgid   "Snappy needs to reboot to finish an update. Defer with 'sudo shutdown -c'."
-msgstr  ""
-
-msgid   "Specify an alternate output directory for the resulting package"
 msgstr  ""
 
 msgid   "The Package to install (name or path)"
@@ -393,6 +380,9 @@ msgid   "This command is no longer available, please use the \"list\" command"
 msgstr  ""
 
 msgid   "This command logs the given username into the store"
+msgstr  ""
+
+msgid   "Two-factor code: "
 msgstr  ""
 
 #, c-format

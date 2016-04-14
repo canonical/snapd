@@ -82,3 +82,15 @@ func (s *groupTestSuite) TestGetgrnamEmptyGroup(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(groups, DeepEquals, expected)
 }
+
+func (s *groupTestSuite) TestIsUIDInAnyEmpty(c *C) {
+	c.Check(IsUIDInAny(0), Equals, false)
+}
+
+func (s *groupTestSuite) TestIsUIDInAnyBad(c *C) {
+	c.Check(IsUIDInAny(0, "no-such-group-really-no-no"), Equals, false)
+}
+
+func (s *groupTestSuite) TestIsUIDInAnySelf(c *C) {
+	c.Check(IsUIDInAny(0, "root"), Equals, true)
+}

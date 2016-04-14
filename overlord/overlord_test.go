@@ -221,9 +221,6 @@ func (ovs *overlordSuite) TestCheckpoint(c *C) {
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
 
-	_, err = os.Stat(dirs.SnapStateFile)
-	c.Check(os.IsNotExist(err), Equals, true)
-
 	s := o.State()
 	s.Lock()
 	s.Set("mark", 1)

@@ -1,8 +1,60 @@
+snapd (1.9.2) xenial; urgency=medium
+
+  * New upstream release:
+    - cmd/snap,daemon,store: rework login command to use daemon login
+      API
+    - store: cache suggested currency from the store
+    - overlord/ifacestate: modularize and extend tests
+    - integration-tests: reenable failure tests
+    - daemon: include progress in rest changes
+    - daemon, overlord/state: expose individual changes
+    - overlord/ifacestate: drop duplicate package comment
+    - overlord/ifacestate: allow tests to override security backends
+    - cmd/snap: install *.snap and *.snap.* as files too
+    - interfaces/apparmor: replace /var/lib/snap with /var/snap
+    - daemon,overlord/ifacestate: connect REST API to interfaces in the
+      overlord
+    - debian: remove unneeded dependencies from snapd
+    - overlord/state: checkpoint on final progress only
+    - osutil: introduce IsUIDInAny
+    - overlord/snapstate: rename GetSnapState to Get, SetSnapState to
+      Set
+    - daemon: add id to changes json
+    - overlord/snapstate: SetSnapState() needs locks
+    - overlord: fix broken tests
+    - overlord/snapstate,overlord/ifacestate: reimplement SnapInfo (as
+      Info) actually using the state
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 13 Apr 2016 17:27:00 +0200
+
+snapd (1.9.1.1) xenial; urgency=medium
+
+  * debian/tests/control:
+    - add git to make autopkgtest work
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 12 Apr 2016 17:19:19 +0200
+
+snapd (1.9.1) xenial; urgency=medium
+
+  * Add warning about installing ubuntu-core-snapd-units on Desktop systems.
+  * Add ${misc:Depends} to ubuntu-core-snapd-units.
+  * interfaces,overlord: add support for auto-connecting plugs on
+    install
+  * fix sideloading snaps and (re)add tests for this
+  * add `ca-certificates` to the test-dependencies to fix autopkgtest
+    failure on armhf
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 12 Apr 2016 14:39:57 +0200
+
 snapd (1.9) xenial; urgency=medium
 
   * rename source and binary package to "snapd"
+  * update directory layout to final 16.04 layout
+  * use `snap` command instead of the previous `snappy`
+  * use `interface` based security
+  * use new state engine for install/update/remove
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 11 Mar 2016 16:54:51 +0100
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 12 Apr 2016 01:05:09 +0200
 
 ubuntu-snappy (1.7.3+20160310ubuntu1) xenial; urgency=medium
 

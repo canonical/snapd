@@ -35,12 +35,12 @@ func init() {
 		"internal",
 		"internal",
 		func() flags.Commander {
-			return &cmdFind{}
+			return &cmdBooted{}
 		})
 	cmd.hidden = true
 }
 
-func (x *cmdBooted) doBooted() error {
+func (x *cmdBooted) Execute(args []string) error {
 	bootloader, err := partition.FindBootloader()
 	if err != nil {
 		return fmt.Errorf("can not mark boot successful: %s", err)
