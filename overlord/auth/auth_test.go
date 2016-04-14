@@ -63,6 +63,27 @@ func (as *authSuite) TestNewUser(c *C) {
 	c.Check(userFromState, DeepEquals, expected)
 }
 
+func (as *authSuite) TestNewUserSortsDischarges(c *C) {
+	as.state.Lock()
+	user, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge2", "discharge1"})
+	as.state.Unlock()
+
+	expected := &auth.UserState{
+		ID:         1,
+		Username:   "username",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge1", "discharge2"},
+	}
+	c.Check(err, IsNil)
+	c.Check(user, DeepEquals, expected)
+
+	as.state.Lock()
+	userFromState, err := auth.User(as.state, 1)
+	as.state.Unlock()
+	c.Check(err, IsNil)
+	c.Check(userFromState, DeepEquals, expected)
+}
+
 func (as *authSuite) TestNewUserAddsToExistent(c *C) {
 	as.state.Lock()
 	firstUser, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
@@ -96,6 +117,43 @@ func (as *authSuite) TestNewUserAddsToExistent(c *C) {
 	c.Check(userFromState, DeepEquals, firstUser)
 }
 
+func (as *authSuite) TestCheckMacaroonNoAuthData(c *C) {
+	as.state.Lock()
+	user, err := auth.CheckMacaroon(as.state, "macaroon", []string{"discharge"})
+	as.state.Unlock()
+
+	c.Check(err, IsNil)
+	c.Check(user, IsNil)
+}
+
+func (as *authSuite) TestCheckMacaroonNoValidUser(c *C) {
+	as.state.Lock()
+	_, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	as.state.Unlock()
+	c.Check(err, IsNil)
+
+	as.state.Lock()
+	user, err := auth.CheckMacaroon(as.state, "other-macaroon", []string{"discharge"})
+	as.state.Unlock()
+
+	c.Check(err, ErrorMatches, "invalid authentication")
+	c.Check(user, IsNil)
+}
+
+func (as *authSuite) TestCheckMacaroonValidUser(c *C) {
+	as.state.Lock()
+	expectedUser, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	as.state.Unlock()
+	c.Check(err, IsNil)
+
+	as.state.Lock()
+	user, err := auth.CheckMacaroon(as.state, "macaroon", []string{"discharge"})
+	as.state.Unlock()
+
+	c.Check(err, IsNil)
+	c.Check(user, DeepEquals, expectedUser)
+}
+
 func (as *authSuite) TestUserForNoAuthInState(c *C) {
 	as.state.Lock()
 	userFromState, err := auth.User(as.state, 42)
@@ -127,87 +185,6 @@ func (as *authSuite) TestUser(c *C) {
 	as.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(userFromState, DeepEquals, user)
-}
-
-func (as *authSuite) TestGetUserFromRequestNoHeader(c *C) {
-	req, _ := http.NewRequest("GET", "http://example.com", nil)
-
-	as.state.Lock()
-	user, err := auth.GetUserFromRequest(as.state, req)
-	as.state.Unlock()
-
-	c.Check(err, IsNil)
-	c.Check(user, IsNil)
-}
-
-func (as *authSuite) TestGetUserFromRequestHeaderNoMacaroons(c *C) {
-	req, _ := http.NewRequest("GET", "http://example.com", nil)
-	req.Header.Set("Authorization", "Invalid")
-
-	as.state.Lock()
-	user, err := auth.GetUserFromRequest(as.state, req)
-	as.state.Unlock()
-
-	c.Check(err, ErrorMatches, "unauthorized")
-	c.Check(user, IsNil)
-}
-
-func (as *authSuite) TestGetUserFromRequestHeaderIncomplete(c *C) {
-	req, _ := http.NewRequest("GET", "http://example.com", nil)
-	req.Header.Set("Authorization", `Macaroon root="macaroon"`)
-
-	as.state.Lock()
-	user, err := auth.GetUserFromRequest(as.state, req)
-	as.state.Unlock()
-
-	c.Check(err, ErrorMatches, "unauthorized")
-	c.Check(user, IsNil)
-}
-
-func (as *authSuite) TestGetUserFromRequestHeaderCorrectMissingUser(c *C) {
-	req, _ := http.NewRequest("GET", "http://example.com", nil)
-	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
-
-	as.state.Lock()
-	user, err := auth.GetUserFromRequest(as.state, req)
-	as.state.Unlock()
-
-	c.Check(err, ErrorMatches, "unauthorized")
-	c.Check(user, IsNil)
-}
-
-func (as *authSuite) TestGetUserFromRequestHeaderValidUser(c *C) {
-	as.state.Lock()
-	expectedUser, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
-	as.state.Unlock()
-	c.Check(err, IsNil)
-
-	req, _ := http.NewRequest("GET", "http://example.com", nil)
-	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
-
-	as.state.Lock()
-	user, err := auth.GetUserFromRequest(as.state, req)
-	as.state.Unlock()
-
-	c.Check(err, IsNil)
-	c.Check(user, DeepEquals, expectedUser)
-}
-
-func (as *authSuite) TestGetUserFromRequestHeaderValidUserMultipleDischarges(c *C) {
-	as.state.Lock()
-	expectedUser, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge1", "discharge2"})
-	as.state.Unlock()
-	c.Check(err, IsNil)
-
-	req, _ := http.NewRequest("GET", "http://example.com", nil)
-	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge1", discharge="discharge2"`)
-
-	as.state.Lock()
-	user, err := auth.GetUserFromRequest(as.state, req)
-	as.state.Unlock()
-
-	c.Check(err, IsNil)
-	c.Check(user, DeepEquals, expectedUser)
 }
 
 func (as *authSuite) TestGetAuthenticatorFromUser(c *C) {

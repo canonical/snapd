@@ -23,8 +23,7 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
-	"reflect"
-	"strings"
+	"sort"
 
 	"github.com/ubuntu-core/snappy/overlord/state"
 )
@@ -54,6 +53,7 @@ func NewUser(st *state.State, username, macaroon string, discharges []string) (*
 		return nil, err
 	}
 
+	sort.Strings(discharges)
 	authStateData.LastID++
 	authenticatedUser := UserState{
 		ID:         authStateData.LastID,
@@ -86,49 +86,32 @@ func User(st *state.State, id int) (*UserState, error) {
 	return nil, fmt.Errorf("invalid user")
 }
 
-// GetUserFromRequest extracts user information from request and return the respective user in state, if valid
-func GetUserFromRequest(st *state.State, req *http.Request) (*UserState, error) {
-	// extract macaroons data from request
-	header := req.Header.Get("Authorization")
-	if header == "" {
+// CheckMacaroon returns the UserState for the given macaroon/discharges credentials
+func CheckMacaroon(st *state.State, macaroon string, discharges []string) (*UserState, error) {
+	var authStateData AuthState
+	err := st.Get("auth", &authStateData)
+	if err != nil {
 		return nil, nil
 	}
 
-	const errorMsg = "unauthorized"
-	auth := strings.SplitN(header, " ", 2)
-	if len(auth) != 2 || auth[0] != "Macaroon" {
-		return nil, fmt.Errorf(errorMsg)
-	}
-
-	var macaroon string
-	var discharges []string
-	for _, field := range strings.Split(auth[1], ",") {
-		field := strings.TrimSpace(field)
-		if strings.HasPrefix(field, `root="`) {
-			macaroon = field[6 : len(field)-1]
-		}
-		if strings.HasPrefix(field, `discharge="`) {
-			discharges = append(discharges, field[11:len(field)-1])
-		}
-	}
-
-	if macaroon == "" || len(discharges) == 0 {
-		return nil, fmt.Errorf(errorMsg)
-	}
-
-	var authStateData AuthState
-	err := st.Get("auth", &authStateData)
-
-	if err != nil {
-		return nil, fmt.Errorf(errorMsg)
-	}
-
+NextUser:
 	for _, user := range authStateData.Users {
-		if user.Macaroon == macaroon && reflect.DeepEqual(discharges, user.Discharges) {
-			return &user, nil
+		if user.Macaroon != macaroon {
+			continue
 		}
+		if len(user.Discharges) != len(discharges) {
+			continue
+		}
+		// sort discharges (stored users' discharges are already sorted)
+		sort.Strings(discharges)
+		for i, d := range user.Discharges {
+			if d != discharges[i] {
+				continue NextUser
+			}
+		}
+		return &user, nil
 	}
-	return nil, fmt.Errorf(errorMsg)
+	return nil, fmt.Errorf("invalid authentication")
 }
 
 // Authenticator returns MacaroonAuthenticator for current authenticated user represented by UserState
