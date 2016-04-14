@@ -20,7 +20,6 @@
 package client
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/url"
 )
@@ -32,6 +31,8 @@ type Change struct {
 	Summary string  `json:"summary"`
 	Status  string  `json:"status"`
 	Tasks   []*Task `json:"tasks,omitempty"`
+	Ready   bool    `json:"ready"`
+	Err     string  `json:"err,omitempty"`
 }
 
 // A Task is an operation done to change the system's state.
@@ -44,20 +45,8 @@ type Task struct {
 }
 
 type TaskProgress struct {
-	Done  int
-	Total int
-}
-
-func (tp *TaskProgress) UnmarshalJSON(buf []byte) error {
-	var ar [2]int
-	if err := json.Unmarshal(buf, &ar); err != nil {
-		return err
-	}
-
-	tp.Done = ar[0]
-	tp.Total = ar[1]
-
-	return nil
+	Current int `json:"current"`
+	Total   int `json:"total"`
 }
 
 // Change fetches information about a Change given its ID

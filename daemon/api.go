@@ -1084,33 +1084,49 @@ type changeInfo struct {
 	Summary string      `json:"summary"`
 	Status  string      `json:"status"`
 	Tasks   []*taskInfo `json:"tasks,omitempty"`
+	Ready   bool        `json:"ready"`
+	Err     string      `json:"err,omitempty"`
 }
 
 type taskInfo struct {
-	Kind     string   `json:"kind"`
-	Summary  string   `json:"summary"`
-	Status   string   `json:"status"`
-	Log      []string `json:"log,omitempty"`
-	Progress [2]int   `json:"progress"`
+	Kind     string           `json:"kind"`
+	Summary  string           `json:"summary"`
+	Status   string           `json:"status"`
+	Log      []string         `json:"log,omitempty"`
+	Progress taskInfoProgress `json:"progress"`
+}
+
+type taskInfoProgress struct {
+	Current int `json:"current"`
+	Total   int `json:"total"`
 }
 
 func change2changeInfo(chg *state.Change) *changeInfo {
+	status := chg.Status()
 	chgInfo := &changeInfo{
 		ID:      chg.ID(),
 		Kind:    chg.Kind(),
 		Summary: chg.Summary(),
-		Status:  chg.Status().String(),
+		Status:  status.String(),
+		Ready:   status.Ready(),
 	}
+	if err := chg.Err(); err != nil {
+		chgInfo.Err = err.Error()
+	}
+
 	tasks := chg.Tasks()
 	taskInfos := make([]*taskInfo, len(tasks))
 	for j, t := range tasks {
 		cur, tot := t.Progress()
 		taskInfo := &taskInfo{
-			Kind:     t.Kind(),
-			Summary:  t.Summary(),
-			Status:   t.Status().String(),
-			Log:      t.Log(),
-			Progress: [2]int{cur, tot},
+			Kind:    t.Kind(),
+			Summary: t.Summary(),
+			Status:  t.Status().String(),
+			Log:     t.Log(),
+			Progress: taskInfoProgress{
+				Current: cur,
+				Total:   tot,
+			},
 		}
 		taskInfos[j] = taskInfo
 	}
