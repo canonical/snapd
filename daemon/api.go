@@ -551,6 +551,7 @@ func (inst *snapInstruction) Agreed(intro, license string) bool {
 }
 
 var snapstateInstall = snapstate.Install
+var snapstateGet = snapstate.Get
 
 func waitChange(chg *state.Change) error {
 	select {
@@ -563,27 +564,65 @@ func waitChange(chg *state.Change) error {
 	return chg.Err()
 }
 
+func ensureUbuntuCore(chg *state.Change) error {
+	var ss snapstate.SnapState
+
+	ubuntuCore := "ubuntu-core"
+	err := snapstateGet(chg.State(), ubuntuCore, &ss)
+	if err != state.ErrNoState {
+		return err
+	}
+
+	// FIXME: workaround because we are not fully state based yet
+	installed, err := (&snappy.Overlord{}).Installed()
+	snaps := snappy.FindSnapsByName(ubuntuCore, installed)
+	if len(snaps) > 0 {
+		return nil
+	}
+
+	return installSnap(chg, ubuntuCore, "stable", 0)
+}
+
+func installSnap(chg *state.Change, name, channel string, flags snappy.InstallFlags) error {
+	st := chg.State()
+	ts, err := snapstateInstall(st, name, channel, flags)
+	if err != nil {
+		return err
+	}
+
+	// ensure that each of our task runs after the existing tasks
+	chgts := state.NewTaskSet(chg.Tasks()...)
+	for _, t := range ts.Tasks() {
+		t.WaitAll(chgts)
+	}
+	chg.AddAll(ts)
+
+	return nil
+}
+
 func (inst *snapInstruction) install() interface{} {
 	flags := snappy.DoInstallGC
 	if inst.LeaveOld {
 		flags = 0
 	}
-	state := inst.overlord.State()
-	state.Lock()
 	msg := fmt.Sprintf(i18n.G("Install %q snap"), inst.pkg)
 	if inst.Channel != "stable" {
 		msg = fmt.Sprintf(i18n.G("Install %q snap from %q channel"), inst.pkg, inst.Channel)
 	}
-	chg := state.NewChange("install-snap", msg)
-	ts, err := snapstateInstall(state, inst.pkg, inst.Channel, flags)
+
+	st := inst.overlord.State()
+	st.Lock()
+	chg := st.NewChange("install-snap", msg)
+	err := ensureUbuntuCore(chg)
 	if err == nil {
-		chg.AddAll(ts)
+		err = installSnap(chg, inst.pkg, inst.Channel, flags)
 	}
-	state.Unlock()
+	st.Unlock()
 	if err != nil {
 		return err
 	}
-	state.EnsureBefore(0)
+
+	st.EnsureBefore(0)
 	err = waitChange(chg)
 	return err
 	// FIXME: handle license agreement need to happen in the above
