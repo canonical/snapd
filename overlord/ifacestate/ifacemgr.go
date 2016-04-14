@@ -367,12 +367,11 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 
 	plug := m.repo.Plug(plugRef.Snap, plugRef.Name)
 	slot := m.repo.Slot(slotRef.Snap, slotRef.Name)
-
-	for _, snapInfo := range []*snap.Info{plug.Snap, slot.Snap} {
-		if err := m.setupSecurity(snapInfo); err != nil {
-			task.Errorf("cannot setup security of snap %q: %s", snapInfo.Name(), err)
-			return state.Retry
-		}
+	if err := m.setupSecurity(plug.Snap); err != nil {
+		return err
+	}
+	if err := m.setupSecurity(slot.Snap); err != nil {
+		return err
 	}
 
 	conns[connID(plugRef, slotRef)] = connState{Interface: plug.Interface}
@@ -403,12 +402,11 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 
 	plug := m.repo.Plug(plugRef.Snap, plugRef.Name)
 	slot := m.repo.Slot(slotRef.Snap, slotRef.Name)
-
-	for _, snapInfo := range []*snap.Info{plug.Snap, slot.Snap} {
-		if err := m.setupSecurity(snapInfo); err != nil {
-			task.Errorf("cannot setup security of snap %q: %s", snapInfo.Name(), err)
-			return state.Retry
-		}
+	if err := m.setupSecurity(plug.Snap); err != nil {
+		return err
+	}
+	if err := m.setupSecurity(slot.Snap); err != nil {
+		return err
 	}
 
 	delete(conns, connID(plugRef, slotRef))
