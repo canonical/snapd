@@ -20,21 +20,59 @@
 package main
 
 import (
-	"errors"
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
+	"github.com/ubuntu-core/snappy/progress"
 
 	"github.com/jessevdk/go-flags"
 )
 
 func wait(client *client.Client, id string) error {
+	// FIXME: progress is all a bit simplistic, however its ok
+	//        for now because the only meaningful progress
+	//        we have is the download progress
+
+	// we may have multiple downloads in a single change
+	lastTotal := 0
+	pb := progress.NewTextProgress()
+	defer func() {
+		if lastTotal > 0 {
+			pb.Set(float64(lastTotal))
+		}
+		pb.Finished()
+	}()
+
 	for {
 		chg, err := client.Change(id)
 		if err != nil {
 			return err
+		}
+		total := 1
+		msg := ""
+		for _, t := range chg.Tasks {
+			if t.Status == "Doing" {
+				msg := t.Summary
+				// this will break once we have multiple
+				// downloads in parallel in a single change
+				if t.Progress.Total > 1 {
+					cur := t.Progress.Done
+					total = t.Progress.Total
+					if t.Progress.Total != lastTotal {
+						pb.Start(msg, float64(total))
+						lastTotal = total
+					}
+					pb.Set(float64(cur))
+				}
+			}
+		}
+		// we have no meaningful progress, just show spinner for
+		// last doing task
+		if total == 1 {
+			pb.Spin(msg)
 		}
 
 		// XXX move this to a method of client.Change
@@ -42,10 +80,10 @@ func wait(client *client.Client, id string) error {
 		case "Done":
 			return nil
 		case "Error", "Undone", "Hold":
-			return errors.New("something broke")
+			return fmt.Errorf("something broke: %q", chg.Summary)
 		}
 
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond)
 	}
 }
 
