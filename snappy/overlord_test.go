@@ -195,12 +195,12 @@ license-version: 2
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testDeveloper+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
-	snap, err := NewInstalledSnap(yamlFile)
+	installedSnap, err := NewInstalledSnap(yamlFile)
 	c.Assert(err, IsNil)
-	c.Assert(ActivateSnap(snap, ag), IsNil)
+	c.Assert(ActivateSnap(installedSnap, ag), IsNil)
 
 	pkg := makeTestSnapPackage(c, yaml+"version: 2")
-	_, err = (&Overlord{}).Install(pkg, 0, ag)
+	_, err = (&Overlord{}).InstallWithSideInfo(pkg, &snap.SideInfo{OfficialName: "foox"}, 0, ag)
 	c.Assert(err, Equals, nil)
 	c.Check(IsLicenseNotAccepted(err), Equals, false)
 	c.Check(ag.intro, Equals, "")
@@ -376,7 +376,7 @@ func (s *SnapTestSuite) TestClickSetActive(c *C) {
 	c.Assert(snaps[1].IsActive(), Equals, true)
 
 	// deactivate v2
-	err = UnlinkSnap(snaps[1], nil)
+	err = UnlinkSnap(snaps[1].Info(), nil)
 	// set v1 active
 	err = ActivateSnap(snaps[0], nil)
 	snaps, err = (&Overlord{}).Installed()

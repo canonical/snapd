@@ -277,6 +277,12 @@ func (s *State) Changes() []*Change {
 	return res
 }
 
+// Change returns the change for the given ID.
+func (s *State) Change(id string) *Change {
+	s.reading()
+	return s.changes[id]
+}
+
 // NewTask creates a new task.
 // It usually will be registered with a Change using AddTask or
 // through a TaskSet.

@@ -71,7 +71,7 @@ func (s *snapBuildTestSuite) TestLocalSnapCallsExecCommand(c *check.C) {
 
 	c.Assert(err, check.IsNil)
 	path := buildPath(s.defaultSnapName)
-	c.Assert(s.execCalls["snappy build "+path+" -o "+path], check.Equals, 1)
+	c.Assert(s.execCalls["snap build "+path+" -o "+path], check.Equals, 1)
 }
 
 func (s *snapBuildTestSuite) TestLocalSnapReturnsSnapPath(c *check.C) {

@@ -32,6 +32,7 @@ import (
 	"github.com/ubuntu-core/snappy/asserts"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/notifications"
+	"github.com/ubuntu-core/snappy/store"
 )
 
 // ResponseType is the response type
@@ -100,7 +101,7 @@ type errorKind string
 
 const (
 	errorKindLicenseRequired   = errorKind("license-required")
-	errorKindTwoFactorRequired = errorKind("two-factor-required")
+	errorKindTwoFactorRequired = errorKind(store.TwoFactorErrKind)
 )
 
 type errorValue interface{}

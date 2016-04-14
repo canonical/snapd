@@ -35,6 +35,10 @@ type classicDimensionSuite struct {
 	common.SnappySuite
 }
 
+func (s *classicDimensionSuite) SetUpTest(c *check.C) {
+	c.Skip("FIXME: re-enable once snap classic is back")
+}
+
 func (s *classicDimensionSuite) enableClassic(c *check.C) {
 	output := cli.ExecCommand(c, "sudo", "env", "https_proxy="+os.Getenv("https_proxy"), "snap", "enable-classic")
 

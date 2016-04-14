@@ -34,7 +34,7 @@ type PlaceInfo interface {
 	// Name returns the name of the snap.
 	Name() string
 
-	//MountDir returns the base directory of the snap.
+	// MountDir returns the base directory of the snap.
 	MountDir() string
 
 	// MountFile returns the path where the snap file that is mounted is installed.
@@ -50,6 +50,11 @@ type PlaceInfo interface {
 // MinimalPlaceInfo returns a PlaceInfo with just the location information for a snap of the given name and revision.
 func MinimalPlaceInfo(name string, revision int) PlaceInfo {
 	return &Info{SideInfo: SideInfo{OfficialName: name, Revision: revision}}
+}
+
+// MountDir returns the base directory where it gets mounted of the snap with the given name and revision.
+func MountDir(name string, revision int) string {
+	return filepath.Join(dirs.SnapSnapsDir, name, strconv.Itoa(revision))
 }
 
 // SideInfo holds snap metadata that is not included in snap.yaml or for which the store is the canonical source.
@@ -123,7 +128,7 @@ func (s *Info) strRevno() string {
 
 // MountDir returns the base directory of the snap where it gets mounted.
 func (s *Info) MountDir() string {
-	return filepath.Join(dirs.SnapSnapsDir, s.Name(), s.strRevno())
+	return MountDir(s.Name(), s.Revision)
 }
 
 // MountFile returns the path where the snap file that is mounted is installed.
