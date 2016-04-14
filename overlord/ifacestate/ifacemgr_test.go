@@ -399,6 +399,50 @@ func (s *interfaceManagerSuite) testDoDicardConns(c *C, snapName string) {
 	c.Check(conns, DeepEquals, map[string]interface{}{})
 }
 
+func (s *interfaceManagerSuite) TestDoRemove(c *C) {
+	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
+	})
+	s.state.Unlock()
+
+	mgr := s.manager(c)
+
+	// Run the remove-snap-security task
+	change := s.addRemoveSnapSecurityChange(c, "consumer")
+	mgr.Ensure()
+	mgr.Wait()
+	mgr.Stop()
+
+	// Change succeeds
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(change.Status(), Equals, state.DoneStatus)
+
+	repo := mgr.Repository()
+	// Snap is removed from repository
+	c.Check(repo.Plug("consumer", "slot"), IsNil)
+
+	// Security of the snap was removed
+	c.Check(s.secBackend.RemoveCalls, DeepEquals, []string{"consumer"})
+
+	// Security of the related snap was configured
+	c.Check(s.secBackend.SetupCalls, HasLen, 1)
+	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, "producer")
+
+	// Connection state was left intact
+	var conns map[string]interface{}
+	err := s.state.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
+	})
+}
+
 func (s *interfaceManagerSuite) TestConnectTracksConnectionsInState(c *C) {
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
