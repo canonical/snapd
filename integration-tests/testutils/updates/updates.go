@@ -79,7 +79,7 @@ func CallFakeUpdate(c *check.C, snap string, changeFunc ChangeFakeUpdateSnap) st
 
 	makeFakeUpdateForSnap(c, snap, blobDir, changeFunc)
 
-	return cli.ExecCommand(c, "sudo", "TMPDIR=/var/tmp", fmt.Sprintf("SNAPPY_FORCE_CPI_URL=%s", fakeStore.URL()), "snappy", "update")
+	return cli.ExecCommand(c, "sudo", "TMPDIR=/var/tmp", fmt.Sprintf("SNAPPY_FORCE_CPI_URL=%s", fakeStore.URL()), "snap", "refresh", snap)
 }
 
 // CallFakeOSUpdate calls snappy update after faking a new version available for the OS snap.
