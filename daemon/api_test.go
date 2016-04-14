@@ -64,14 +64,14 @@ type apiSuite struct {
 
 var _ = check.Suite(&apiSuite{})
 
-func (s *apiSuite) Snap(string, string) (*snap.Info, error) {
+func (s *apiSuite) Snap(string, string, store.Authenticator) (*snap.Info, error) {
 	if len(s.rsnaps) > 0 {
 		return s.rsnaps[0], s.err
 	}
 	return nil, s.err
 }
 
-func (s *apiSuite) FindSnaps(searchTerm, channel string) ([]*snap.Info, error) {
+func (s *apiSuite) FindSnaps(searchTerm, channel string, auther store.Authenticator) ([]*snap.Info, error) {
 	s.searchTerm = searchTerm
 	s.channel = channel
 
