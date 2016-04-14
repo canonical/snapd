@@ -130,6 +130,19 @@ func (m *InterfaceManager) reloadConnections() error {
 	return nil
 }
 
+func (m *InterfaceManager) setupSecurity(snapInfo *snap.Info) error {
+	var snapState snapstate.SnapState
+	if err := snapstate.Get(m.state, snapInfo.Name(), &snapState); err != nil {
+		return err
+	}
+	for _, backend := range securityBackends {
+		if err := backend.Setup(snapInfo, snapState.DevMode, m.repo); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (m *InterfaceManager) doSetupSnapSecurity(task *state.Task, _ *tomb.Tomb) error {
 	task.State().Lock()
 	defer task.State().Unlock()
@@ -356,16 +369,9 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	slot := m.repo.Slot(slotRef.Snap, slotRef.Name)
 
 	for _, snapInfo := range []*snap.Info{plug.Snap, slot.Snap} {
-		var snapState snapstate.SnapState
-		if err := snapstate.Get(st, snapInfo.Name(), &snapState); err != nil {
-			task.Errorf("cannot get state of snap %q: %s", snapInfo.Name(), err)
+		if err := m.setupSecurity(snapInfo); err != nil {
+			task.Errorf("cannot setup security of snap %q: %s", snapInfo.Name(), err)
 			return state.Retry
-		}
-		for _, backend := range securityBackends {
-			if err := backend.Setup(snapInfo, snapState.DevMode, m.repo); err != nil {
-				task.Errorf("cannot setup security of snap %q: %s", snapInfo.Name(), err)
-				return state.Retry
-			}
 		}
 	}
 
@@ -399,16 +405,9 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	slot := m.repo.Slot(slotRef.Snap, slotRef.Name)
 
 	for _, snapInfo := range []*snap.Info{plug.Snap, slot.Snap} {
-		var snapState snapstate.SnapState
-		if err := snapstate.Get(st, snapInfo.Name(), &snapState); err != nil {
-			task.Errorf("cannot get state of snap %q: %s", snapInfo.Name(), err)
+		if err := m.setupSecurity(snapInfo); err != nil {
+			task.Errorf("cannot setup security of snap %q: %s", snapInfo.Name(), err)
 			return state.Retry
-		}
-		for _, backend := range securityBackends {
-			if err := backend.Setup(snapInfo, snapState.DevMode, m.repo); err != nil {
-				task.Errorf("cannot setup security of snap %q: %s", snapInfo.Name(), err)
-				return state.Retry
-			}
 		}
 	}
 
