@@ -83,33 +83,34 @@ func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
 	c.Assert(string(content), Equals, "I was downloaded")
 }
 
-func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
-	home := os.Getenv("HOME")
-	os.Setenv("HOME", c.MkDir())
-	defer os.Setenv("HOME", home)
-	mockStoreToken := StoreToken{TokenName: "meep"}
-	err := WriteStoreToken(mockStoreToken)
-	c.Assert(err, IsNil)
-
-	download = func(name string, w io.Writer, req *http.Request, pbar progress.Meter) error {
-		c.Check(req.URL.String(), Equals, "AUTH-URL")
-		w.Write([]byte("I was downloaded"))
-		return nil
-	}
-
-	snap := &snap.Info{}
-	snap.OfficialName = "foo"
-	snap.AnonDownloadURL = "anon-url"
-	snap.DownloadURL = "AUTH-URL"
-
-	path, err := t.store.Download(snap, nil)
-	c.Assert(err, IsNil)
-	defer os.Remove(path)
-
-	content, err := ioutil.ReadFile(path)
-	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, "I was downloaded")
-}
+// TODO: re-enable this test once authenticator support is in place
+// func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
+// 	home := os.Getenv("HOME")
+// 	os.Setenv("HOME", c.MkDir())
+// 	defer os.Setenv("HOME", home)
+// 	mockStoreToken := StoreToken{TokenName: "meep"}
+// 	err := WriteStoreToken(mockStoreToken)
+// 	c.Assert(err, IsNil)
+//
+// 	download = func(name string, w io.Writer, req *http.Request, pbar progress.Meter) error {
+// 		c.Check(req.URL.String(), Equals, "AUTH-URL")
+// 		w.Write([]byte("I was downloaded"))
+// 		return nil
+// 	}
+//
+// 	snap := &snap.Info{}
+// 	snap.OfficialName = "foo"
+// 	snap.AnonDownloadURL = "anon-url"
+// 	snap.DownloadURL = "AUTH-URL"
+//
+// 	path, err := t.store.Download(snap, nil)
+// 	c.Assert(err, IsNil)
+// 	defer os.Remove(path)
+//
+// 	content, err := ioutil.ReadFile(path)
+// 	c.Assert(err, IsNil)
+// 	c.Assert(string(content), Equals, "I was downloaded")
+// }
 
 func (t *remoteRepoTestSuite) TestDownloadFails(c *C) {
 	var tmpfile *os.File
@@ -157,23 +158,15 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryHeaders(c *C) {
 	req, err := http.NewRequest("GET", "http://example.com", nil)
 	c.Assert(err, IsNil)
 
-	t.store.configureStoreReq(req, "")
+	t.store.applyUbuntuStoreHeaders(req, "")
 
 	c.Assert(req.Header.Get("X-Ubuntu-Release"), Equals, release.String())
 	c.Check(req.Header.Get("Accept"), Equals, "application/hal+json")
 
-	t.store.configureStoreReq(req, "application/json")
+	t.store.applyUbuntuStoreHeaders(req, "application/json")
 
 	c.Check(req.Header.Get("Accept"), Equals, "application/json")
 	c.Assert(req.Header.Get("Authorization"), Equals, "")
-
-	mockStoreToken := StoreToken{TokenName: "meep"}
-	err = WriteStoreToken(mockStoreToken)
-	c.Assert(err, IsNil)
-
-	t.store.configureStoreReq(req, "")
-
-	c.Assert(req.Header.Get("Authorization"), Matches, "OAuth .*")
 }
 
 const (
