@@ -39,8 +39,8 @@ type TestSecurityBackend struct {
 type TestSetupCall struct {
 	// SnapInfo is a copy of the snapInfo argument to a particular call to Setup
 	SnapInfo *snap.Info
-	// DeveloperMode is a copy of the developerMode argument to a particular call to Setup
-	DeveloperMode bool
+	// DevMode is a copy of the developerMode argument to a particular call to Setup
+	DevMode bool
 }
 
 // Name returns the name of the security backend.
@@ -49,12 +49,12 @@ func (b *TestSecurityBackend) Name() string {
 }
 
 // Setup records information about the call and calls the setup callback if one is defined.
-func (b *TestSecurityBackend) Setup(snapInfo *snap.Info, developerMode bool, repo *Repository) error {
-	b.SetupCalls = append(b.SetupCalls, TestSetupCall{SnapInfo: snapInfo, DeveloperMode: developerMode})
+func (b *TestSecurityBackend) Setup(snapInfo *snap.Info, devMode bool, repo *Repository) error {
+	b.SetupCalls = append(b.SetupCalls, TestSetupCall{SnapInfo: snapInfo, DevMode: devMode})
 	if b.SetupCallback == nil {
 		return nil
 	}
-	return b.SetupCallback(snapInfo, developerMode, repo)
+	return b.SetupCallback(snapInfo, devMode, repo)
 }
 
 // Remove records information about the call and calls the remove callback if one is defined
