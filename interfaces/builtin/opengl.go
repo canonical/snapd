@@ -23,27 +23,36 @@ import (
 	"github.com/ubuntu-core/snappy/interfaces"
 )
 
-var allInterfaces = []interfaces.Interface{
-	&BoolFileInterface{},
-	NewFirewallControlInterface(),
-	NewHomeInterface(),
-	NewLocaleControlInterface(),
-	NewLogObserveInterface(),
-	NewMountObserveInterface(),
-	NewNetworkInterface(),
-	NewNetworkBindInterface(),
-	NewNetworkControlInterface(),
-	NewNetworkObserveInterface(),
-	NewSnapdControlInterface(),
-	NewSystemObserveInterface(),
-	NewTimeserverControlInterface(),
-	NewTimezoneControlInterface(),
-	NewUnity7Interface(),
-	NewX11Interface(),
-	NewOpenglInterface(),
-}
+const openglConnectedPlugAppArmor = `
+# Description: Can access opengl. 
+# Usage: reserved
 
-// Interfaces returns all of the built-in interfaces.
-func Interfaces() []interfaces.Interface {
-	return allInterfaces
+  # specific gl libs
+  /var/lib/snapd/lib/gl/** rm,
+
+  # nvidia
+  /proc/driver/nvidia/params r,
+  /sys/bus/pci/devices/** r,
+  /dev/nvidiactl rw,
+  /proc/modules r,
+  /dev/nvidia-modeset rw,
+  /dev/nvidia* rw,
+`
+
+const openglConnectedPlugSecComp = `
+# Description: Can access opengl. 
+# Usage: reserved
+
+getsockopt
+`
+
+// NewOpenglInterface returns a new "opengl" interface.
+func NewOpenglInterface() interfaces.Interface {
+	return &commonInterface{
+		name: "opengl",
+		connectedPlugAppArmor: openglConnectedPlugAppArmor,
+		connectedPlugSecComp:  openglConnectedPlugSecComp,
+		reservedForOS:         true,
+		autoConnect:           true,
+	}
 }
