@@ -25,14 +25,12 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"time"
 
 	"gopkg.in/yaml.v2"
 
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/legacygadget"
 )
 
 // Snap represents a generic snap type
@@ -42,7 +40,6 @@ type Snap struct {
 	// XXX: this should go away, and actually snappy.Snap itself
 	m *snapYaml
 
-	hash     string
 	isActive bool
 }
 
@@ -165,24 +162,9 @@ func (s *Snap) Developer() string {
 
 }
 
-// Hash returns the hash
-func (s *Snap) Hash() string {
-	return s.hash
-}
-
 // Channel returns the channel used
 func (s *Snap) Channel() string {
 	return s.info.Channel
-}
-
-// Icon returns the path to the icon
-func (s *Snap) Icon() string {
-	found, _ := filepath.Glob(filepath.Join(s.info.MountDir(), "meta", "gui", "icon.*"))
-	if len(found) == 0 {
-		return ""
-	}
-
-	return found[0]
 }
 
 // IsActive returns true if the snap is active
@@ -215,26 +197,6 @@ func (s *Snap) Info() *snap.Info {
 // DownloadSize returns the dowload size
 func (s *Snap) DownloadSize() int64 {
 	return s.info.Size
-}
-
-// Date returns the last update date
-func (s *Snap) Date() time.Time {
-	st, err := os.Stat(s.info.MountDir())
-	if err != nil {
-		return time.Time{}
-	}
-
-	return st.ModTime()
-}
-
-// Apps return a list of AppsYamls the package declares
-func (s *Snap) Apps() map[string]*AppYaml {
-	return s.m.Apps
-}
-
-// GadgetConfig return a list of packages to configure
-func (s *Snap) GadgetConfig() legacygadget.SystemConfig {
-	return s.info.Legacy.Config
 }
 
 // Install installs the snap (which does not make sense for an already
