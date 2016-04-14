@@ -63,7 +63,8 @@ const (
 )
 
 type ResultInfo struct {
-	Sources []string `json:"sources"`
+	Sources           []string `json:"sources"`
+	SuggestedCurrency string   `json:"suggested-currency"`
 }
 
 // Snaps returns the list of all snaps installed on the system and
