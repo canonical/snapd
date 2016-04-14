@@ -76,7 +76,7 @@ var (
 	rootCmd = &Command{
 		Path:    "/",
 		GuestOK: true,
-		GET:     SyncResponse([]string{"TBD"}).Self,
+		GET:     SyncResponse([]string{"TBD"}, nil).Self,
 	}
 
 	sysInfoCmd = &Command{
@@ -179,7 +179,7 @@ func sysInfo(c *Command, r *http.Request) Response {
 		m["store"] = store
 	}
 
-	return SyncResponse(m)
+	return SyncResponse(m, nil)
 }
 
 type loginResponseData struct {
@@ -214,7 +214,7 @@ func loginUser(c *Command, r *http.Request) Response {
 			},
 			Status: http.StatusUnauthorized,
 		}
-		return SyncResponse(twofactorRequiredResponse)
+		return SyncResponse(twofactorRequiredResponse, nil)
 	}
 	if err != nil {
 		return Unauthorized(err.Error())
@@ -233,7 +233,7 @@ func loginUser(c *Command, r *http.Request) Response {
 		Macaroon:   macaroon,
 		Discharges: []string{discharge},
 	}
-	return SyncResponse(result)
+	return SyncResponse(result, nil)
 }
 
 type metarepo interface {
@@ -282,7 +282,7 @@ func getSnapInfo(c *Command, r *http.Request) Response {
 
 	result := webify(mapSnap(localSnaps, remoteSnap), url.String())
 
-	return SyncResponse(result)
+	return SyncResponse(result, nil)
 }
 
 func webify(result map[string]interface{}, resource string) map[string]interface{} {
@@ -415,15 +415,14 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		}
 	}
 
-	return SyncResponse(map[string]interface{}{
-		"snaps":   results,
-		"sources": sources,
-		"paging": map[string]interface{}{
-			"pages": 1,
-			"page":  1,
-			"count": len(results),
+	meta := &Meta{
+		Sources: sources,
+		Paging: &Paging{
+			Page:  1,
+			Pages: 1,
 		},
-	})
+	}
+	return SyncResponse(results, meta)
 }
 
 func resultHasType(r map[string]interface{}, allowedTypes []string) bool {
@@ -480,7 +479,7 @@ func snapConfig(c *Command, r *http.Request) Response {
 		return InternalError("unable to retrieve config for %s: %v", snapName, err)
 	}
 
-	return SyncResponse(string(config))
+	return SyncResponse(string(config), nil)
 }
 
 func getOpInfo(c *Command, r *http.Request) Response {
@@ -495,7 +494,7 @@ func getOpInfo(c *Command, r *http.Request) Response {
 		return NotFound("unable to find task with id %q", id)
 	}
 
-	return SyncResponse(task.Map(route))
+	return SyncResponse(task.Map(route), nil)
 }
 
 func deleteOp(c *Command, r *http.Request) Response {
@@ -504,7 +503,7 @@ func deleteOp(c *Command, r *http.Request) Response {
 
 	switch err {
 	case nil:
-		return SyncResponse("done")
+		return SyncResponse("done", nil)
 	case errTaskNotFound:
 		return NotFound("unable to find task %q", id)
 	case errTaskStillRunning:
@@ -794,7 +793,7 @@ func postSnap(c *Command, r *http.Request) Response {
 		}
 		defer lock.Unlock()
 		return f()
-	}).Map(route))
+	}).Map(route), nil)
 }
 
 const maxReadBuflen = 1024 * 1024
@@ -810,7 +809,7 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 	contentType := r.Header.Get("Content-Type")
 
 	if strings.HasPrefix(contentType, "multipart/") {
-		// spec says POSTs to sideload snaps should be “a multipart file upload”
+		// spec says POSTs to sideload snaps should be "a multipart file upload"
 
 		_, params, err := mime.ParseMediaType(contentType)
 		if err != nil {
@@ -888,7 +887,7 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 		}
 		state.EnsureBefore(0)
 		return waitChange(chg)
-	}).Map(route))
+	}).Map(route), nil)
 }
 
 func iconGet(name string) Response {
@@ -924,7 +923,7 @@ func appIconGet(c *Command, r *http.Request) Response {
 // getInterfaces returns all plugs and slots.
 func getInterfaces(c *Command, r *http.Request) Response {
 	repo := c.d.overlord.InterfaceManager().Repository()
-	return SyncResponse(repo.Interfaces())
+	return SyncResponse(repo.Interfaces(), nil)
 }
 
 // plugJSON aids in marshaling Plug into JSON.
@@ -1002,7 +1001,7 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 		if err != nil {
 			return BadRequest("%v", err)
 		}
-		return SyncResponse(nil)
+		return SyncResponse(nil, nil)
 	case "disconnect":
 		if len(a.Plugs) == 0 || len(a.Slots) == 0 {
 			return BadRequest("at least one plug and slot is required")
@@ -1026,7 +1025,7 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 		if err != nil {
 			return BadRequest("%v", err)
 		}
-		return SyncResponse(nil)
+		return SyncResponse(nil, nil)
 	}
 	return BadRequest("unsupported interface action: %q", a.Action)
 }
@@ -1084,33 +1083,49 @@ type changeInfo struct {
 	Summary string      `json:"summary"`
 	Status  string      `json:"status"`
 	Tasks   []*taskInfo `json:"tasks,omitempty"`
+	Ready   bool        `json:"ready"`
+	Err     string      `json:"err,omitempty"`
 }
 
 type taskInfo struct {
-	Kind     string   `json:"kind"`
-	Summary  string   `json:"summary"`
-	Status   string   `json:"status"`
-	Log      []string `json:"log,omitempty"`
-	Progress [2]int   `json:"progress"`
+	Kind     string           `json:"kind"`
+	Summary  string           `json:"summary"`
+	Status   string           `json:"status"`
+	Log      []string         `json:"log,omitempty"`
+	Progress taskInfoProgress `json:"progress"`
+}
+
+type taskInfoProgress struct {
+	Done  int `json:"done"`
+	Total int `json:"total"`
 }
 
 func change2changeInfo(chg *state.Change) *changeInfo {
+	status := chg.Status()
 	chgInfo := &changeInfo{
 		ID:      chg.ID(),
 		Kind:    chg.Kind(),
 		Summary: chg.Summary(),
-		Status:  chg.Status().String(),
+		Status:  status.String(),
+		Ready:   status.Ready(),
 	}
+	if err := chg.Err(); err != nil {
+		chgInfo.Err = err.Error()
+	}
+
 	tasks := chg.Tasks()
 	taskInfos := make([]*taskInfo, len(tasks))
 	for j, t := range tasks {
-		cur, tot := t.Progress()
+		done, total := t.Progress()
 		taskInfo := &taskInfo{
-			Kind:     t.Kind(),
-			Summary:  t.Summary(),
-			Status:   t.Status().String(),
-			Log:      t.Log(),
-			Progress: [2]int{cur, tot},
+			Kind:    t.Kind(),
+			Summary: t.Summary(),
+			Status:  t.Status().String(),
+			Log:     t.Log(),
+			Progress: taskInfoProgress{
+				Done:  done,
+				Total: total,
+			},
 		}
 		taskInfos[j] = taskInfo
 	}
@@ -1129,7 +1144,7 @@ func getChange(c *Command, r *http.Request) Response {
 		return NotFound("unable to find change with id %q", chID)
 	}
 
-	return SyncResponse(change2changeInfo(chg))
+	return SyncResponse(change2changeInfo(chg), nil)
 }
 
 func getChanges(c *Command, r *http.Request) Response {
@@ -1161,6 +1176,5 @@ func getChanges(c *Command, r *http.Request) Response {
 		}
 		chgInfos = append(chgInfos, change2changeInfo(chg))
 	}
-
-	return SyncResponse(chgInfos)
+	return SyncResponse(chgInfos, nil)
 }

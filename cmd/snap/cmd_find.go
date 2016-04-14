@@ -53,7 +53,7 @@ func (x *cmdFind) Execute([]string) error {
 		Query:   x.Positional.Query,
 		Sources: []string{"store"},
 	}
-	snaps, err := cli.FilterSnaps(filter)
+	snaps, _, err := cli.FilterSnaps(filter)
 	if err != nil {
 		return err
 	}
