@@ -176,7 +176,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	pb := &TaskProgressAdapter{task: t}
-	storeInfo, downloadedSnapFile, err := m.backend.Download(ss.Name, ss.Channel, pb)
+	storeInfo, downloadedSnapFile, err := m.backend.Download(ss.Name, ss.Channel, pb, nil)
 	if err != nil {
 		return err
 	}

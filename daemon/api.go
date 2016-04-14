@@ -237,8 +237,8 @@ func loginUser(c *Command, r *http.Request) Response {
 }
 
 type metarepo interface {
-	Snap(string, string) (*snap.Info, error)
-	FindSnaps(string, string) ([]*snap.Info, error)
+	Snap(string, string, store.Authenticator) (*snap.Info, error)
+	FindSnaps(string, string, store.Authenticator) ([]*snap.Info, error)
 }
 
 var newRemoteRepo = func() metarepo {
@@ -258,7 +258,7 @@ func getSnapInfo(c *Command, r *http.Request) Response {
 	defer lock.Unlock()
 
 	channel := ""
-	remoteSnap, _ := newRemoteRepo().Snap(name, channel)
+	remoteSnap, _ := newRemoteRepo().Snap(name, channel, nil)
 
 	installed, err := (&snappy.Overlord{}).Installed()
 	if err != nil {
@@ -362,7 +362,7 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		//   * if there are no results, return an error response.
 		//   * If there are results at all (perhaps local), include a
 		//     warning in the response
-		found, _ := newRemoteRepo().FindSnaps(searchTerm, "")
+		found, _ := newRemoteRepo().FindSnaps(searchTerm, "", nil)
 
 		sources = append(sources, "store")
 

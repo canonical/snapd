@@ -518,7 +518,7 @@ type: gadget
 	c.Assert(repo, NotNil)
 
 	// we just ensure that the right header is set
-	repo.Snap("xkcd", "edge")
+	repo.Snap("xkcd", "edge", nil)
 }
 
 func (s *SnapTestSuite) TestUninstallBuiltIn(c *C) {
