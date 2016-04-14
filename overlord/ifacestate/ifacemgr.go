@@ -141,7 +141,7 @@ func (m *InterfaceManager) setupSecurity(snapInfo *snap.Info) error {
 	if err := snapstate.Get(m.state, snapInfo.Name(), &snapState); err != nil {
 		return err
 	}
-	for _, backend := range securityBackendsForSnap(snapInfo) {
+	for _, backend := range securityBackends(snapInfo) {
 		if err := backend.Setup(snapInfo, snapState.DevMode, m.repo); err != nil {
 			return err
 		}
@@ -286,7 +286,7 @@ func (m *InterfaceManager) doRemoveSnapSecurity(task *state.Task, _ *tomb.Tomb) 
 		affectedSnaps = append(affectedSnaps, snapInfo)
 	}
 	for _, snapInfo := range affectedSnaps {
-		for _, backend := range securityBackendsForSnap(snapInfo) {
+		for _, backend := range securityBackends(snapInfo) {
 			if err := backend.Remove(snapInfo.Name()); err != nil {
 				return state.Retry
 			}
@@ -295,7 +295,7 @@ func (m *InterfaceManager) doRemoveSnapSecurity(task *state.Task, _ *tomb.Tomb) 
 	return nil
 }
 
-func securityBackendsForSnapImpl(snapInfo *snap.Info) []interfaces.SecurityBackend {
+func securityBackendsImpl(snapInfo *snap.Info) []interfaces.SecurityBackend {
 	aaBackend := &apparmor.Backend{}
 	// TODO: Implement special provisions for apparmor and old-security when
 	// old-security becomes a real interface. When that happens we nee to call
@@ -305,7 +305,7 @@ func securityBackendsForSnapImpl(snapInfo *snap.Info) []interfaces.SecurityBacke
 		aaBackend, &seccomp.Backend{}, &dbus.Backend{}, &udev.Backend{}}
 }
 
-var securityBackendsForSnap = securityBackendsForSnapImpl
+var securityBackends = securityBackendsImpl
 
 // Connect returns a set of tasks for connecting an interface.
 //
@@ -462,10 +462,12 @@ func (m *InterfaceManager) Repository() *interfaces.Repository {
 	return m.repo
 }
 
-// MockSecurityBackendsForSnap mocks the list of security backends that are used for setting up security.
+// MockSecurityBackends mocks the list of security backends that are used for setting up security.
 //
 // This function is public because it is referenced in the daemon
-func MockSecurityBackendsForSnap(fn func(snapInfo *snap.Info) []interfaces.SecurityBackend) func() {
-	securityBackendsForSnap = fn
-	return func() { securityBackendsForSnap = securityBackendsForSnapImpl }
+func MockSecurityBackends(backends []interfaces.SecurityBackend) func() {
+	securityBackends = func(snapInfo *snap.Info) []interfaces.SecurityBackend {
+		return backends
+	}
+	return func() { securityBackends = securityBackendsImpl }
 }

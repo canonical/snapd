@@ -111,9 +111,7 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 	}
 	s.d = nil
 	// Disable real security backends for all API tests
-	s.restoreBackends = ifacestate.MockSecurityBackendsForSnap(
-		func(snapInfo *snap.Info) []interfaces.SecurityBackend { return nil },
-	)
+	s.restoreBackends = ifacestate.MockSecurityBackends(nil)
 }
 
 func (s *apiSuite) TearDownTest(c *check.C) {
