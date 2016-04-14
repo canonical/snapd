@@ -39,10 +39,9 @@ type SnapManager struct {
 
 // SnapSetup holds the necessary snap details to perform most snap manager tasks.
 type SnapSetup struct {
-	Name      string `json:"name"`
-	Developer string `json:"developer,omitempty"`
-	Revision  int    `json:"revision,omitempty"`
-	Channel   string `json:"channel,omitempty"`
+	Name     string `json:"name"`
+	Revision int    `json:"revision,omitempty"`
+	Channel  string `json:"channel,omitempty"`
 
 	Flags int `json:"flags,omitempty"`
 
@@ -176,13 +175,8 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// construct the store name
-	name := ss.Name
-	if ss.Developer != "" {
-		name = fmt.Sprintf("%s.%s", ss.Name, ss.Developer)
-	}
 	pb := &TaskProgressAdapter{task: t}
-	storeInfo, downloadedSnapFile, err := m.backend.Download(name, ss.Channel, pb)
+	storeInfo, downloadedSnapFile, err := m.backend.Download(ss.Name, ss.Channel, pb)
 	if err != nil {
 		return err
 	}

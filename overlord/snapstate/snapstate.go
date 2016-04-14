@@ -29,6 +29,7 @@ import (
 	"strings"
 
 	"github.com/ubuntu-core/snappy/i18n"
+	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snap"
@@ -49,9 +50,7 @@ func doInstall(s *state.State, curActive bool, snapName, channel string, flags s
 		ss.SnapPath = snapName
 		prepare = s.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q"), snapName))
 	} else {
-		name, developer := snappy.SplitDeveloper(snapName)
-		ss.Name = name
-		ss.Developer = developer
+		ss.Name = snapName
 		prepare = s.NewTask("download-snap", fmt.Sprintf(i18n.G("Download snap %q"), snapName))
 	}
 	prepare.Set("snap-setup", ss)
@@ -96,34 +95,32 @@ func doInstall(s *state.State, curActive bool, snapName, channel string, flags s
 
 // Install returns a set of tasks for installing snap.
 // Note that the state must be locked by the caller.
-func Install(s *state.State, snap, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
-	name, _ := snappy.SplitDeveloper(snap)
+func Install(s *state.State, name, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
 	if snapst.Current() != nil {
-		return nil, fmt.Errorf("snap %q already installed", snap)
+		return nil, fmt.Errorf("snap %q already installed", name)
 	}
 
-	return doInstall(s, false, snap, channel, flags)
+	return doInstall(s, false, name, channel, flags)
 }
 
 // Update initiates a change updating a snap.
 // Note that the state must be locked by the caller.
-func Update(s *state.State, snap, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
-	name, _ := snappy.SplitDeveloper(snap)
+func Update(s *state.State, name, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
 	if snapst.Current() == nil {
-		return nil, fmt.Errorf("cannot find snap %q", snap)
+		return nil, fmt.Errorf("cannot find snap %q", name)
 	}
 
-	return doInstall(s, snapst.Active, snap, channel, flags)
+	return doInstall(s, snapst.Active, name, channel, flags)
 }
 
 // parseSnapspec parses a string like: name[.developer][=version]
@@ -141,7 +138,6 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 	// allow remove by version so that we can remove snaps that are
 	// not active
 	name, version := parseSnapSpec(snapSpec)
-	name, developer := snappy.SplitDeveloper(name)
 
 	var snapst SnapState
 	err := Get(s, name, &snapst)
@@ -181,10 +177,9 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 	}
 
 	ss := SnapSetup{
-		Name:      name,
-		Developer: developer,
-		Revision:  revision,
-		Flags:     int(flags),
+		Name:     name,
+		Revision: revision,
+		Flags:    int(flags),
 	}
 
 	// check if this is something that can be removed
@@ -346,4 +341,26 @@ func Set(s *state.State, name string, snapst *SnapState) {
 	raw := json.RawMessage(data)
 	snaps[name] = &raw
 	s.Set("snaps", snaps)
+}
+
+// ActiveInfos returns information about all active snaps.
+func ActiveInfos(s *state.State) ([]*snap.Info, error) {
+	var stateMap map[string]*SnapState
+	var infos []*snap.Info
+	if err := s.Get("snaps", &stateMap); err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	for snapName, snapState := range stateMap {
+		if !snapState.Active {
+			continue
+		}
+		sideInfo := snapState.Sequence[len(snapState.Sequence)-1]
+		snapInfo, err := retrieveInfo(snapName, sideInfo)
+		if err != nil {
+			logger.Noticef("cannot retrieve info for snap %q: %s", snapName, err)
+			continue
+		}
+		infos = append(infos, snapInfo)
+	}
+	return infos, nil
 }
