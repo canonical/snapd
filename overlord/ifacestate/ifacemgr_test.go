@@ -228,7 +228,7 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChange(c *C, snapName string
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	task := s.state.NewTask("setup-snap-security", "")
+	task := s.state.NewTask("setup-profiles", "")
 	ss := snapstate.SnapSetup{Name: snapName}
 	task.Set("snap-setup", ss)
 	taskset := state.NewTaskSet(task)
@@ -241,7 +241,7 @@ func (s *interfaceManagerSuite) addRemoveSnapSecurityChange(c *C, snapName strin
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	task := s.state.NewTask("remove-snap-security", "")
+	task := s.state.NewTask("remove-profiles", "")
 	ss := snapstate.SnapSetup{Name: snapName}
 	task.Set("snap-setup", ss)
 	taskset := state.NewTaskSet(task)
