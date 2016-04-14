@@ -27,8 +27,6 @@ import (
 	"log/syslog"
 	"os"
 	"sync"
-
-	"github.com/ubuntu-core/snappy/osutil"
 )
 
 // A Logger is a fairly minimal logging tool.
@@ -106,14 +104,12 @@ type ConsoleLog struct {
 	sys *log.Logger
 }
 
-var osStderr = os.Stderr
-
 // Debug sends the msg to syslog
 func (l *ConsoleLog) Debug(msg string) {
 	s := "DEBUG: " + msg
 	l.sys.Output(3, s)
-	// show debug log when run manually
-	if osutil.Isatty(int(osStderr.Fd())) {
+
+	if os.Getenv("SNAPD_DEBUG") != "" {
 		l.log.Output(3, s)
 	}
 }
