@@ -73,20 +73,17 @@ The body is a JSON object with the following structure:
 ```javascript
 {
  "result": {
-   "resource": "/v2/operations/[uuid]",     // see below
-   "status": "running",
-   "created-at": "..."                       // and other operation fields
+     ...
  },
  "status": "Accepted",
  "status-code": 202,
  "type": "async"
+ "change": "adWf",
 }
 ```
 
-The response body is mostly provided as a user friendly way of seeing
-what's going on without having to pull the target operation; all
-information in the body can also be retrieved from the background
-operation URL.
+Information about the background operation progress can be retrieved
+from the referenced change.
 
 ### Error
 

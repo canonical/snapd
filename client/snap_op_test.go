@@ -107,64 +107,25 @@ func (cs *clientSuite) TestClientOpSnapNotAccepted(c *check.C) {
 	}
 }
 
-func (cs *clientSuite) TestClientOpSnapInvalidResult(c *check.C) {
+func (cs *clientSuite) TestClientOpSnapNoChange(c *check.C) {
 	cs.rsp = `{
-		"result": "not a JSON object",
 		"status-code": 202,
 		"type": "async"
 	}`
 	for _, s := range ops {
 		_, err := s.op(cs.cli, pkgName)
-		c.Assert(err, check.ErrorMatches, `.*cannot unmarshal result.*`, check.Commentf(s.action))
+		c.Assert(err, check.ErrorMatches, `.*response without change reference.*`, check.Commentf(s.action))
 	}
 
 	for _, s := range chanops {
 		_, err := s.op(cs.cli, pkgName, chanName)
-		c.Assert(err, check.ErrorMatches, `.*cannot unmarshal result.*`, check.Commentf(s.action))
-	}
-}
-
-func (cs *clientSuite) TestClientOpSnapNoResource(c *check.C) {
-	cs.rsp = `{
-		"result": {},
-		"status-code": 202,
-		"type": "async"
-	}`
-	for _, s := range ops {
-		_, err := s.op(cs.cli, pkgName)
-		c.Assert(err, check.ErrorMatches, `.*invalid resource location.*`, check.Commentf(s.action))
-	}
-
-	for _, s := range chanops {
-		_, err := s.op(cs.cli, pkgName, chanName)
-		c.Assert(err, check.ErrorMatches, `.*invalid resource location.*`, check.Commentf(s.action))
-	}
-}
-
-func (cs *clientSuite) TestClientOpSnapInvalidResource(c *check.C) {
-	cs.rsp = `{
-		"result": {
-			"resource": "invalid"
-		},
-		"status-code": 202,
-		"type": "async"
-	}`
-	for _, s := range ops {
-		_, err := s.op(cs.cli, pkgName)
-		c.Assert(err, check.ErrorMatches, `.*invalid resource location.*`, check.Commentf(s.action))
-	}
-
-	for _, s := range chanops {
-		_, err := s.op(cs.cli, pkgName, chanName)
-		c.Assert(err, check.ErrorMatches, `.*invalid resource location.*`, check.Commentf(s.action))
+		c.Assert(err, check.ErrorMatches, `.*response without change reference.*`, check.Commentf(s.action))
 	}
 }
 
 func (cs *clientSuite) TestClientOpSnap(c *check.C) {
 	cs.rsp = `{
-		"result": {
-			"resource": "/v2/changes/d728"
-		},
+		"change": "d728",
 		"status-code": 202,
 		"type": "async"
 	}`
@@ -206,9 +167,7 @@ func (cs *clientSuite) TestClientOpSnap(c *check.C) {
 
 func (cs *clientSuite) TestClientOpSideload(c *check.C) {
 	cs.rsp = `{
-		"result": {
-			"resource": "/v2/changes/66b3"
-		},
+		"change": "66b3",
 		"status-code": 202,
 		"type": "async"
 	}`
