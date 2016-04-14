@@ -241,7 +241,7 @@ func UserFromRequest(st *state.State, req *http.Request) (*auth.UserState, error
 
 	authorizationData := strings.SplitN(header, " ", 2)
 	if len(authorizationData) != 2 || authorizationData[0] != "Macaroon" {
-		return nil, fmt.Errorf("invalid authorization header")
+		return nil, fmt.Errorf("authorization header misses Macaroon prefix")
 	}
 
 	var macaroon string
@@ -257,7 +257,7 @@ func UserFromRequest(st *state.State, req *http.Request) (*auth.UserState, error
 	}
 
 	if macaroon == "" || len(discharges) == 0 {
-		return nil, fmt.Errorf("authorization header misses Macaroon prefix")
+		return nil, fmt.Errorf("invalid authorization header")
 	}
 
 	user, err := auth.CheckMacaroon(st, macaroon, discharges)

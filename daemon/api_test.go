@@ -612,7 +612,7 @@ func (s *apiSuite) TestUserFromRequestHeaderNoMacaroons(c *check.C) {
 	user, err := UserFromRequest(state, req)
 	state.Unlock()
 
-	c.Check(err, check.ErrorMatches, "invalid authorization header")
+	c.Check(err, check.ErrorMatches, "authorization header misses Macaroon prefix")
 	c.Check(user, check.IsNil)
 }
 
@@ -625,7 +625,7 @@ func (s *apiSuite) TestUserFromRequestHeaderIncomplete(c *check.C) {
 	user, err := UserFromRequest(state, req)
 	state.Unlock()
 
-	c.Check(err, check.ErrorMatches, "authorization header misses Macaroon prefix")
+	c.Check(err, check.ErrorMatches, "invalid authorization header")
 	c.Check(user, check.IsNil)
 }
 
