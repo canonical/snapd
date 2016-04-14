@@ -198,16 +198,15 @@ version: %s
 		})
 	}
 
-	// indirect through NewInstalledSnap to load extraYaml
-	localSnap, err := snappy.NewInstalledSnap(yamlPath)
+	info, err := snap.InfoWithSide(name, &skelInfo.SideInfo)
 	c.Assert(err, check.IsNil)
 
 	if active {
-		err := snappy.UpdateCurrentSymlink(localSnap.Info(), nil)
+		err := snappy.UpdateCurrentSymlink(info, nil)
 		c.Assert(err, check.IsNil)
 	}
 
-	return localSnap.Info()
+	return info
 }
 
 func (s *apiSuite) mkGadget(c *check.C, store string) {
