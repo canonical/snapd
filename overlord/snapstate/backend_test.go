@@ -168,17 +168,6 @@ func (f *fakeSnappyBackend) UndoCopySnapData(newInfo *snap.Info, flags int) erro
 	return nil
 }
 
-func (f *fakeSnappyBackend) SnapByNameAndVersion(name, version string) *snap.Info {
-	return &snap.Info{
-		SideInfo: snap.SideInfo{
-			OfficialName: name,
-			Revision:     9,
-		},
-		SuggestedName: name,
-		Version:       version,
-	}
-}
-
 func (f *fakeSnappyBackend) CanRemove(info *snap.Info, active bool) bool {
 	f.ops = append(f.ops, fakeOp{
 		op:     "can-remove",
