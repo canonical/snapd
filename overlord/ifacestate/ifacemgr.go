@@ -275,9 +275,23 @@ func (m *InterfaceManager) doRemoveSnapSecurity(task *state.Task, _ *tomb.Tomb) 
 	if err != nil {
 		return err
 	}
-	// TODO: remove all connections from the state
-	if err := m.repo.RemoveSnap(snapName); err != nil {
 
+	conns, err := getConns(task.State())
+	if err != nil {
+		return err
+	}
+	for id := range conns {
+		plugRef, slotRef, err := parseConnID(id)
+		if err != nil {
+			return err
+		}
+		if plugRef.Snap == snapName || slotRef.Snap == snapName {
+			delete(conns, id)
+		}
+	}
+	setConns(task.State(), conns)
+
+	if err := m.repo.RemoveSnap(snapName); err != nil {
 		return err
 	}
 	if len(affectedSnaps) == 0 {

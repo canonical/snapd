@@ -237,6 +237,19 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChange(c *C, snapName string
 	return change
 }
 
+func (s *interfaceManagerSuite) addRemoveSnapSecurityChange(c *C, snapName string) *state.Change {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	task := s.state.NewTask("remove-snap-security", "")
+	ss := snapstate.SnapSetup{Name: snapName}
+	task.Set("snap-setup", ss)
+	taskset := state.NewTaskSet(task)
+	change := s.state.NewChange("test", "")
+	change.AddAll(taskset)
+	return change
+}
+
 var osSnapYaml = `
 name: ubuntu-core
 version: 1
@@ -334,6 +347,44 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyKeepsExistingConnectionSt
 			"interface": "network", "auto": true,
 		},
 	})
+}
+
+func (s *interfaceManagerSuite) TestDoRemoveSnapSecurityRemovesConnectionsFromStateWhenInvokedOnPlugSide(c *C) {
+	s.testDoRemoveSnapSecurityRemovesConnectionsFromStateWhenInvokedOn(c, "consumer")
+}
+
+func (s *interfaceManagerSuite) TestDoRemoveSnapSecurityRemovesConnectionsFromStateWhenInvokedOnSlotSide(c *C) {
+	s.testDoRemoveSnapSecurityRemovesConnectionsFromStateWhenInvokedOn(c, "producer")
+}
+
+func (s *interfaceManagerSuite) testDoRemoveSnapSecurityRemovesConnectionsFromStateWhenInvokedOn(c *C, snapName string) {
+	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
+	})
+	s.state.Unlock()
+
+	mgr := s.manager(c)
+
+	// Run the remove-snap-security task
+	change := s.addRemoveSnapSecurityChange(c, snapName)
+	mgr.Ensure()
+	mgr.Wait()
+	mgr.Stop()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(change.Status(), Equals, state.DoneStatus)
+
+	c.Check(change.Status(), Equals, state.DoneStatus)
+	var conns map[string]interface{}
+	err := s.state.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, map[string]interface{}{})
 }
 
 func (s *interfaceManagerSuite) TestConnectTracksConnectionsInState(c *C) {
