@@ -43,9 +43,6 @@ type SnapSetup struct {
 	Revision int    `json:"revision,omitempty"`
 	Channel  string `json:"channel,omitempty"`
 
-	// XXX: should be switched to use Revision instead
-	RollbackVersion string `json:"rollback-version,omitempty"`
-
 	Flags int `json:"flags,omitempty"`
 
 	SnapPath string `json:"snap-path,omitempty"`
@@ -108,7 +105,6 @@ func Manager(s *state.State) (*SnapManager, error) {
 	runner.AddHandler("discard-snap", m.doDiscardSnap, nil)
 
 	// FIXME: work on those
-	runner.AddHandler("rollback-snap", m.doRollbackSnap, nil)
 	runner.AddHandler("activate-snap", m.doActivateSnap, nil)
 	runner.AddHandler("deactivate-snap", m.doDeactivateSnap, nil)
 
@@ -230,6 +226,24 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
+	t.State().Lock()
+	ss, err := TaskSnapSetup(t)
+	t.State().Unlock()
+	if err != nil {
+		return err
+	}
+
+	t.State().Lock()
+	info, err := Info(t.State(), ss.Name, ss.Revision)
+	t.State().Unlock()
+	if err != nil {
+		return err
+	}
+
+	return m.backend.RemoveSnapData(info)
+}
+
 func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 
@@ -266,32 +280,6 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	Set(st, ss.Name, snapst)
 	st.Unlock()
 	return nil
-}
-
-func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
-	t.State().Lock()
-	ss, err := TaskSnapSetup(t)
-	t.State().Unlock()
-	if err != nil {
-		return err
-	}
-
-	return m.backend.RemoveSnapData(ss.Name, ss.Revision)
-}
-
-func (m *SnapManager) doRollbackSnap(t *state.Task, _ *tomb.Tomb) error {
-	var ss SnapSetup
-
-	t.State().Lock()
-	err := t.Get("snap-setup", &ss)
-	t.State().Unlock()
-	if err != nil {
-		return err
-	}
-
-	pb := &TaskProgressAdapter{task: t}
-	_, err = m.backend.Rollback(ss.Name, ss.RollbackVersion, pb)
-	return err
 }
 
 func (m *SnapManager) doActivateSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -394,7 +382,17 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if err := m.backend.CheckSnap(ss.SnapPath, ss.Flags); err != nil {
+	var curInfo *snap.Info
+	if cur := snapst.Current(); cur != nil {
+		var err error
+		curInfo, err = retrieveInfo(ss.Name, cur)
+		if err != nil {
+			return err
+		}
+
+	}
+
+	if err := m.backend.CheckSnap(ss.SnapPath, curInfo, ss.Flags); err != nil {
 		return err
 	}
 
@@ -468,13 +466,18 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 
 func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	t.State().Lock()
-	ss, err := TaskSnapSetup(t)
+	ss, snapst, err := snapSetupAndState(t)
 	t.State().Unlock()
 	if err != nil {
 		return err
 	}
 
-	return m.backend.UndoCopySnapData(ss.MountDir(), ss.Flags)
+	newInfo, err := retrieveInfo(ss.Name, snapst.Candidate)
+	if err != nil {
+		return err
+	}
+
+	return m.backend.UndoCopySnapData(newInfo, ss.Flags)
 }
 
 func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
@@ -555,21 +558,14 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// relinking of the old snap is done in the undo of unlink-current-snap
 
-	n := len(snapst.Sequence)
-	cand := snapst.Sequence[n-1]
+	snapst.Candidate = snapst.Sequence[len(snapst.Sequence)-1]
+	snapst.Sequence = snapst.Sequence[:len(snapst.Sequence)-1]
+	snapst.Active = false
 
-	newInfo, err := retrieveInfo(ss.Name, cand)
+	newInfo, err := retrieveInfo(ss.Name, snapst.Candidate)
 	if err != nil {
 		return err
 	}
-
-	snapst.Candidate = cand
-	if n == 1 {
-		snapst.Sequence = nil
-	} else {
-		snapst.Sequence = snapst.Sequence[:n-1]
-	}
-	snapst.Active = false
 
 	pb := &TaskProgressAdapter{task: t}
 	err = m.backend.UnlinkSnap(newInfo, pb)
@@ -580,16 +576,4 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	// mark as inactive
 	Set(st, ss.Name, snapst)
 	return nil
-}
-
-func (m *SnapManager) doGarbageCollect(t *state.Task, _ *tomb.Tomb) error {
-	t.State().Lock()
-	ss, err := TaskSnapSetup(t)
-	t.State().Unlock()
-	if err != nil {
-		return err
-	}
-
-	pb := &TaskProgressAdapter{task: t}
-	return m.backend.GarbageCollect(ss.Name, ss.Flags, pb)
 }

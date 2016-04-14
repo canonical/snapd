@@ -20,11 +20,6 @@
 package snapstate
 
 import (
-	"fmt"
-	"path/filepath"
-	"strconv"
-
-	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
@@ -33,26 +28,22 @@ import (
 type managerBackend interface {
 	// install releated
 	Download(name, channel string, meter progress.Meter) (*snap.Info, string, error)
-	CheckSnap(snapFilePath string, flags int) error
+	CheckSnap(snapFilePath string, curInfo *snap.Info, flags int) error
 	SetupSnap(snapFilePath string, si *snap.SideInfo, flags int) error
 	CopySnapData(newSnap, oldSnap *snap.Info, flags int) error
 	LinkSnap(info *snap.Info) error
-	GarbageCollect(snap string, flags int, meter progress.Meter) error
 	// the undoers for install
 	UndoSetupSnap(s snap.PlaceInfo) error
-	UndoCopySnapData(instSnapPath string, flags int) error
+	UndoCopySnapData(newSnap *snap.Info, flags int) error
 
 	// remove releated
-	CanRemove(instSnapPath string) error
+	CanRemove(info *snap.Info, active bool) bool
 	UnlinkSnap(info *snap.Info, meter progress.Meter) error
 	RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error
-	RemoveSnapData(name string, revision int) error
+	RemoveSnapData(info *snap.Info) error
 
 	// TODO: need to be split into fine grained tasks
-	Update(name, channel string, flags int, meter progress.Meter) error
 	Activate(name string, active bool, meter progress.Meter) error
-	// XXX: this one needs to be revno based as well
-	Rollback(name, ver string, meter progress.Meter) (string, error)
 
 	// info
 	SnapByNameAndVersion(name, version string) *snap.Info
@@ -79,16 +70,6 @@ func (b *defaultBackend) SnapByNameAndVersion(name, version string) *snap.Info {
 	return found[0].Info()
 }
 
-func (b *defaultBackend) Update(name, channel string, flags int, meter progress.Meter) error {
-	// FIXME: support "channel" in snappy.Update()
-	_, err := snappy.Update(name, snappy.InstallFlags(flags), meter)
-	return err
-}
-
-func (b *defaultBackend) Rollback(name, ver string, meter progress.Meter) (string, error) {
-	return snappy.Rollback(name, ver, meter)
-}
-
 func (b *defaultBackend) Activate(name string, active bool, meter progress.Meter) error {
 	return snappy.SetActive(name, active, meter)
 }
@@ -108,9 +89,9 @@ func (b *defaultBackend) Download(name, channel string, meter progress.Meter) (*
 	return snap, downloadedSnapFile, nil
 }
 
-func (b *defaultBackend) CheckSnap(snapFilePath string, flags int) error {
+func (b *defaultBackend) CheckSnap(snapFilePath string, curInfo *snap.Info, flags int) error {
 	meter := &progress.NullProgress{}
-	return snappy.CheckSnap(snapFilePath, snappy.InstallFlags(flags), meter)
+	return snappy.CheckSnap(snapFilePath, curInfo, snappy.InstallFlags(flags), meter)
 }
 
 func (b *defaultBackend) SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, flags int) error {
@@ -135,25 +116,14 @@ func (b *defaultBackend) UndoSetupSnap(s snap.PlaceInfo) error {
 	return nil
 }
 
-func (b *defaultBackend) UndoCopySnapData(instSnapPath string, flags int) error {
-	sn, err := snappy.NewInstalledSnap(filepath.Join(instSnapPath, "meta", "snap.yaml"))
-	if err != nil {
-		return err
-	}
+func (b *defaultBackend) UndoCopySnapData(newInfo *snap.Info, flags int) error {
 	meter := &progress.NullProgress{}
-	snappy.UndoCopyData(sn.Info(), snappy.InstallFlags(flags), meter)
+	snappy.UndoCopyData(newInfo, snappy.InstallFlags(flags), meter)
 	return nil
 }
 
-func (b *defaultBackend) CanRemove(instSnapPath string) error {
-	sn, err := snappy.NewInstalledSnap(filepath.Join(instSnapPath, "meta", "snap.yaml"))
-	if err != nil {
-		return err
-	}
-	if !snappy.CanRemove(sn) {
-		return fmt.Errorf("snap %q is not removable", sn.Name())
-	}
-	return nil
+func (b *defaultBackend) CanRemove(info *snap.Info, active bool) bool {
+	return snappy.CanRemove(info, active)
 }
 
 func (b *defaultBackend) UnlinkSnap(info *snap.Info, meter progress.Meter) error {
@@ -164,16 +134,6 @@ func (b *defaultBackend) RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter)
 	return snappy.RemoveSnapFiles(s, meter)
 }
 
-func (b *defaultBackend) RemoveSnapData(name string, revision int) error {
-	// XXX: hack for now
-	sn, err := snappy.NewInstalledSnap(filepath.Join(dirs.SnapSnapsDir, name, strconv.Itoa(revision), "meta", "snap.yaml"))
-	if err != nil {
-		return err
-	}
-
-	return snappy.RemoveSnapData(sn.Info())
-}
-
-func (b *defaultBackend) GarbageCollect(snap string, flags int, meter progress.Meter) error {
-	return snappy.GarbageCollect(snap, snappy.InstallFlags(flags), meter)
+func (b *defaultBackend) RemoveSnapData(info *snap.Info) error {
+	return snappy.RemoveSnapData(info)
 }

@@ -40,7 +40,7 @@ type Overlord struct {
 }
 
 // CheckSnap ensures that the snap can be installed
-func CheckSnap(snapFilePath string, flags InstallFlags, meter progress.Meter) error {
+func CheckSnap(snapFilePath string, curInfo *snap.Info, flags InstallFlags, meter progress.Meter) error {
 	allowGadget := (flags & AllowGadget) != 0
 	allowUnauth := (flags & AllowUnauthenticated) != 0
 
@@ -57,7 +57,7 @@ func CheckSnap(snapFilePath string, flags InstallFlags, meter progress.Meter) er
 	// This is done earlier in
 	// openSnapFile() to ensure that we do not mount/inspect
 	// potentially dangerous snaps
-	return canInstall(s, snapf, allowGadget, meter)
+	return canInstall(s, snapf, curInfo, allowGadget, meter)
 }
 
 // SetupSnap does prepare and mount the snap for further processing
@@ -177,20 +177,6 @@ func UndoSetupSnap(s snap.PlaceInfo, meter progress.Meter) {
 	// FIXME: do we need to undo installGadgetHardwareUdevRules via
 	//        cleanupGadgetHardwareUdevRules ? it will go away
 	//        and can only be used during install right now
-}
-
-// XXX: ideally should go from Info to Info, likely we will move to something else anyway
-func currentSnap(newSnap *snap.Info) *Snap {
-	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(newSnap.MountDir(), "..", "current"))
-	if currentActiveDir == "" {
-		return nil
-	}
-
-	currentSnap, err := NewInstalledSnap(filepath.Join(currentActiveDir, "meta", "snap.yaml"))
-	if err != nil {
-		return nil
-	}
-	return currentSnap
 }
 
 func CopyData(newSnap, oldSnap *snap.Info, flags InstallFlags, meter progress.Meter) error {
@@ -396,7 +382,16 @@ func (o *Overlord) Install(snapFilePath string, flags InstallFlags, meter progre
 //
 // It returns the local snap file or an error
 func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideInfo, flags InstallFlags, meter progress.Meter) (sp *snap.Info, err error) {
-	if err := CheckSnap(snapFilePath, flags, meter); err != nil {
+	var oldInfo *snap.Info
+
+	if sideInfo != nil {
+		oldSnap := ActiveSnapByName(sideInfo.OfficialName)
+		if oldSnap != nil {
+			oldInfo = oldSnap.Info()
+		}
+	}
+
+	if err := CheckSnap(snapFilePath, oldInfo, flags, meter); err != nil {
 		return nil, err
 	}
 
@@ -419,13 +414,8 @@ func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideI
 	}
 
 	// we need this for later
-	oldSnap := currentSnap(newInfo)
 
-	var oldInfo *snap.Info
-
-	if oldSnap != nil {
-		oldInfo = oldSnap.Info()
-
+	if oldInfo != nil {
 		// we need to stop any services and make the commands unavailable
 		// so that copying data and later activating the new revision
 		// can work
@@ -476,7 +466,7 @@ func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideI
 }
 
 // CanInstall checks whether the Snap passes a series of tests required for installation
-func canInstall(s *snap.Info, snapf snap.File, allowGadget bool, inter interacter) error {
+func canInstall(s *snap.Info, snapf snap.File, curInfo *snap.Info, allowGadget bool, inter interacter) error {
 	// verify we have a valid architecture
 	if !arch.IsSupportedArchitecture(s.Architectures) {
 		return &ErrArchitectureNotSupported{s.Architectures}
@@ -495,14 +485,7 @@ func canInstall(s *snap.Info, snapf snap.File, allowGadget bool, inter interacte
 		}
 	}
 
-	// XXX: can be cleaner later
-	currSnap := currentSnap(s)
-	var curr *snap.Info
-	if currSnap != nil {
-		curr = currSnap.Info()
-	}
-
-	if err := checkLicenseAgreement(s, snapf, curr, inter); err != nil {
+	if err := checkLicenseAgreement(s, snapf, curInfo, inter); err != nil {
 		return err
 	}
 
@@ -542,20 +525,20 @@ func checkLicenseAgreement(s *snap.Info, snapf snap.File, cur *snap.Info, ag agr
 	return nil
 }
 
-func CanRemove(s *Snap) bool {
+func CanRemove(s *snap.Info, active bool) bool {
 	// Gadget snaps should not be removed as they are a key
 	// building block for Gadgets. Prunning non active ones
 	// is acceptible.
-	if s.m.Type == snap.TypeGadget && s.IsActive() {
+	if s.Type == snap.TypeGadget && active {
 		return false
 	}
 
 	// You never want to remove an active kernel or OS
-	if (s.m.Type == snap.TypeKernel || s.m.Type == snap.TypeOS) && s.IsActive() {
+	if (s.Type == snap.TypeKernel || s.Type == snap.TypeOS) && active {
 		return false
 	}
 
-	if IsBuiltInSoftware(s.Name()) && s.IsActive() {
+	if IsBuiltInSoftware(s.Name()) && active {
 		return false
 	}
 	return true
@@ -607,7 +590,7 @@ func RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error {
 //
 // It returns an error on failure
 func (o *Overlord) Uninstall(s *Snap, meter progress.Meter) error {
-	if !CanRemove(s) {
+	if !CanRemove(s.Info(), s.IsActive()) {
 		return ErrPackageNotRemovable
 	}
 
