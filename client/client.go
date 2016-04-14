@@ -20,6 +20,7 @@
 package client
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -77,6 +78,18 @@ func New(config *Config) *Client {
 	}
 }
 
+func (client *Client) setAuthorization(req *http.Request) {
+	user, _ := ReadAuthData()
+	if user != nil {
+		var buf bytes.Buffer
+		fmt.Fprintf(&buf, `Macaroon root="%s"`, user.Macaroon)
+		for _, discharge := range user.Discharges {
+			fmt.Fprintf(&buf, `, discharge="%s"`, discharge)
+		}
+		req.Header.Set("Authorization", buf.String())
+	}
+}
+
 // raw performs a request and returns the resulting http.Response and
 // error you usually only need to call this directly if you expect the
 // response to not be JSON, otherwise you'd call Do(...) instead.
@@ -89,6 +102,9 @@ func (client *Client) raw(method, urlpath string, query url.Values, body io.Read
 	if err != nil {
 		return nil, err
 	}
+
+	// set Authorization header if there are user's credentials
+	client.setAuthorization(req)
 
 	return client.doer.Do(req)
 }

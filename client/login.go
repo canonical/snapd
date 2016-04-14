@@ -58,7 +58,7 @@ func (client *Client) Login(username, password, otp string) (*AuthenticatedUser,
 		return nil, err
 	}
 
-	if err := writeAuthData(user); err != nil {
+	if err := WriteAuthData(user); err != nil {
 		return nil, fmt.Errorf("cannot persist login information: %v", err)
 	}
 	return &user, nil
@@ -72,7 +72,8 @@ func storeAuthDataFilename() string {
 	return filepath.Join(homeDir, ".snap", "auth.json")
 }
 
-func writeAuthData(userData AuthenticatedUser) error {
+// WriteAuthData saves authentication details for later reuse through ReadAuthData
+func WriteAuthData(userData AuthenticatedUser) error {
 	targetFile := storeAuthDataFilename()
 	if err := os.MkdirAll(filepath.Dir(targetFile), 0700); err != nil {
 		return err
@@ -83,4 +84,21 @@ func writeAuthData(userData AuthenticatedUser) error {
 	}
 
 	return osutil.AtomicWriteFile(targetFile, []byte(outStr), 0600, 0)
+}
+
+// ReadAuthData reads previously written authentication details
+func ReadAuthData() (*AuthenticatedUser, error) {
+	sourceFile := storeAuthDataFilename()
+	f, err := os.Open(sourceFile)
+	if err != nil {
+		return nil, err
+	}
+
+	var userData AuthenticatedUser
+	dec := json.NewDecoder(f)
+	if err := dec.Decode(&userData); err != nil {
+		return nil, err
+	}
+
+	return &userData, nil
 }
