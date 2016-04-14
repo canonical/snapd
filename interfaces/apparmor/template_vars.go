@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/ubuntu-core/snappy/interfaces/dbus"
 	"github.com/ubuntu-core/snappy/snap"
 )
 
@@ -32,8 +31,6 @@ import (
 //
 // The variables are expanded by apparmor parser. They are (currently):
 //  - APP_APPNAME
-//  - APP_ID_DBUS
-//  - APP_PKGNAME_DBUS
 //  - APP_PKGNAME
 //  - APP_VERSION
 //  - INSTALL_DIR
@@ -46,12 +43,6 @@ func legacyVariables(appInfo *snap.AppInfo) []byte {
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, "@{APP_APPNAME}=\"%s\"\n", appInfo.Name)
 	// TODO: replace with app.SecurityTag()
-	fmt.Fprintf(&buf, "@{APP_ID_DBUS}=\"%s\"\n",
-		dbus.SafePath(fmt.Sprintf("%s.%s_%s_%d",
-			appInfo.Snap.Name(), appInfo.Snap.Developer, appInfo.Name, appInfo.Snap.Revision)))
-	// XXX: How is this different from APP_ID_DBUS?
-	fmt.Fprintf(&buf, "@{APP_PKGNAME_DBUS}=\"%s\"\n",
-		dbus.SafePath(fmt.Sprintf("%s.%s", appInfo.Snap.Name(), appInfo.Snap.Developer)))
 	fmt.Fprintf(&buf, "@{APP_PKGNAME}=\"%s\"\n", appInfo.Snap.Name())
 	fmt.Fprintf(&buf, "@{APP_VERSION}=\"%d\"\n", appInfo.Snap.Revision)
 	fmt.Fprintf(&buf, "@{INSTALL_DIR}=\"/snap\"")

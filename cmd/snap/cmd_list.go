@@ -40,12 +40,18 @@ func init() {
 	addCommand("list", shortListHelp, longListHelp, func() flags.Commander { return &cmdList{} })
 }
 
+type snapsByName []*client.Snap
+
+func (s snapsByName) Len() int           { return len(s) }
+func (s snapsByName) Less(i, j int) bool { return s[i].Name < s[j].Name }
+func (s snapsByName) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+
 func (cmdList) Execute([]string) error {
 	cli := Client()
 	filter := client.SnapFilter{
 		Sources: []string{"local"},
 	}
-	snaps, err := cli.FilterSnaps(filter)
+	snaps, _, err := cli.FilterSnaps(filter)
 	if err != nil {
 		return err
 	}
@@ -54,21 +60,14 @@ func (cmdList) Execute([]string) error {
 		return fmt.Errorf(i18n.G("no snaps found"))
 	}
 
-	names := make([]string, len(snaps))
-	i := 0
-	for k := range snaps {
-		names[i] = k
-		i++
-	}
-	sort.Strings(names)
+	sort.Sort(snapsByName(snaps))
 
 	w := tabwriter.NewWriter(Stdout, 5, 3, 1, ' ', 0)
 	defer w.Flush()
 
 	fmt.Fprintln(w, i18n.G("Name\tVersion\tDeveloper"))
 
-	for _, name := range names {
-		snap := snaps[name]
+	for _, snap := range snaps {
 		fmt.Fprintf(w, "%s\t%s\t%s\n", snap.Name, snap.Version, snap.Developer)
 	}
 
