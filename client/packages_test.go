@@ -46,38 +46,34 @@ func (cs *clientSuite) TestClientSnapsInvalidSnapsJSON(c *check.C) {
 func (cs *clientSuite) TestClientSnaps(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
-		"result": {
-				"hello-world.canonical": {
-                                        "summary": "salutation snap",
-					"description": "hello-world",
-					"download-size": 22212,
-					"icon": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
-					"installed-size": -1,
-					"name": "hello-world",
-					"developer": "canonical",
-					"resource": "/v2/snaps/hello-world.canonical",
-					"status": "available",
-					"type": "app",
-					"version": "1.0.18"
-				}
-		}
+		"result": [{
+			"summary": "salutation snap",
+			"description": "hello-world",
+			"download-size": 22212,
+			"icon": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
+			"installed-size": -1,
+			"name": "hello-world",
+			"developer": "canonical",
+			"resource": "/v2/snaps/hello-world.canonical",
+			"status": "available",
+			"type": "app",
+			"version": "1.0.18"
+		}]
 	}`
 	applications, _, err := cs.cli.Snaps()
 	c.Check(err, check.IsNil)
-	c.Check(applications, check.DeepEquals, map[string]*client.Snap{
-		"hello-world.canonical": &client.Snap{
-			Summary:       "salutation snap",
-			Description:   "hello-world",
-			DownloadSize:  22212,
-			Icon:          "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
-			InstalledSize: -1,
-			Name:          "hello-world",
-			Developer:     "canonical",
-			Status:        client.StatusAvailable,
-			Type:          client.TypeApp,
-			Version:       "1.0.18",
-		},
-	})
+	c.Check(applications, check.DeepEquals, []*client.Snap{{
+		Summary:       "salutation snap",
+		Description:   "hello-world",
+		DownloadSize:  22212,
+		Icon:          "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
+		InstalledSize: -1,
+		Name:          "hello-world",
+		Developer:     "canonical",
+		Status:        client.StatusAvailable,
+		Type:          client.TypeApp,
+		Version:       "1.0.18",
+	}})
 }
 
 func (cs *clientSuite) TestClientFilterSnaps(c *check.C) {

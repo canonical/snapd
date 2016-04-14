@@ -66,22 +66,15 @@ func (x *cmdFind) Execute([]string) error {
 		return fmt.Errorf("no snaps found for %q", filter.Query)
 	}
 
-	names := make([]string, len(snaps))
-	i := 0
-	for k := range snaps {
-		names[i] = k
-		i++
-	}
-	sort.Strings(names)
+	sort.Sort(snapsByName(snaps))
 
 	w := tabwriter.NewWriter(Stdout, 5, 3, 1, ' ', 0)
 	defer w.Flush()
 
 	fmt.Fprintln(w, i18n.G("Name\tVersion\tSummary"))
 
-	for _, name := range names {
-		snap := snaps[name]
-		fmt.Fprintf(w, "%s\t%s\t%s\n", name, snap.Version, snap.Summary)
+	for _, snap := range snaps {
+		fmt.Fprintf(w, "%s\t%s\t%s\n", snap.Name, snap.Version, snap.Summary)
 	}
 
 	return nil

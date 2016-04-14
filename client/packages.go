@@ -68,13 +68,13 @@ type ResultInfo struct {
 
 // Snaps returns the list of all snaps installed on the system and
 // available for install from the store for this system.
-func (client *Client) Snaps() (map[string]*Snap, *ResultInfo, error) {
+func (client *Client) Snaps() ([]*Snap, *ResultInfo, error) {
 	return client.snapsFromPath("/v2/snaps", nil)
 }
 
 // FilterSnaps returns a list of snaps per Snaps() but filtered by source, name
 // and/or type
-func (client *Client) FilterSnaps(filter SnapFilter) (map[string]*Snap, *ResultInfo, error) {
+func (client *Client) FilterSnaps(filter SnapFilter) ([]*Snap, *ResultInfo, error) {
 	q := url.Values{}
 
 	if filter.Query != "" {
@@ -92,8 +92,8 @@ func (client *Client) FilterSnaps(filter SnapFilter) (map[string]*Snap, *ResultI
 	return client.snapsFromPath("/v2/snaps", q)
 }
 
-func (client *Client) snapsFromPath(path string, query url.Values) (map[string]*Snap, *ResultInfo, error) {
-	var snaps map[string]*Snap
+func (client *Client) snapsFromPath(path string, query url.Values) ([]*Snap, *ResultInfo, error) {
+	var snaps []*Snap
 	ri, err := client.doSync("GET", path, query, nil, &snaps)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot list snaps: %s", err)
