@@ -236,7 +236,7 @@ func UserFromRequest(st *state.State, req *http.Request) (*auth.UserState, error
 	// extract macaroons data from request
 	header := req.Header.Get("Authorization")
 	if header == "" {
-		return nil, nil
+		return nil, errNoAuth
 	}
 
 	authorizationData := strings.SplitN(header, " ", 2)
@@ -293,7 +293,12 @@ func getSnapInfo(c *Command, r *http.Request) Response {
 		channel = localSnap.Channel
 	}
 
-	remoteSnap, _ := remoteRepo.Snap(name, channel, nil)
+	auther, err := c.d.auther(r)
+	if err != nil && err != errNoAuth {
+		return InternalError("%v", err)
+	}
+
+	remoteSnap, _ := remoteRepo.Snap(name, channel, auther)
 
 	if localSnap == nil && remoteSnap == nil {
 		return NotFound("cannot find snap %q", name)
@@ -384,13 +389,18 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 
 		remoteRepo := newRemoteRepo()
 
+		auther, err := c.d.auther(r)
+		if err != nil && err != errNoAuth {
+			return InternalError("%v", err)
+		}
+
 		// repo.Find("") finds all
 		//
 		// TODO: Instead of ignoring the error from Find:
 		//   * if there are no results, return an error response.
 		//   * If there are results at all (perhaps local), include a
 		//     warning in the response
-		found, _ := remoteRepo.FindSnaps(searchTerm, "", nil)
+		found, _ := remoteRepo.FindSnaps(searchTerm, "", auther)
 		suggestedCurrency = remoteRepo.SuggestedCurrency()
 
 		sources = append(sources, "store")
@@ -809,9 +819,13 @@ out:
 	state.Lock()
 	msg := fmt.Sprintf(i18n.G("Install local %q snap"), snap)
 	chg := state.NewChange("install-snap", msg)
-	ts, err := snapstateInstallPath(state, snap, "", 0)
+
+	err = ensureUbuntuCore(chg)
 	if err == nil {
-		chg.AddAll(ts)
+		ts, err := snapstateInstallPath(state, snap, "", 0)
+		if err == nil {
+			chg.AddAll(ts)
+		}
 	}
 	state.Unlock()
 	go func() {

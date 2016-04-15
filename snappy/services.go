@@ -75,6 +75,7 @@ func generateSnapServicesFile(app *snap.AppInfo, baseDir string) (string, error)
 			SnapName:       app.Snap.Name(),
 			AppName:        app.Name,
 			Version:        app.Snap.Version,
+			Revision:       app.Snap.Revision,
 			Description:    desc,
 			SnapPath:       baseDir,
 			Start:          app.Command,

@@ -120,7 +120,17 @@ func (s *Snap) Info() (*snap.Info, error) {
 		return nil, fmt.Errorf("info failed for %s: %s", s.path, err)
 	}
 
-	return snap.InfoFromSnapYaml(snapYaml)
+	info, err := snap.InfoFromSnapYaml(snapYaml)
+	if err != nil {
+		return nil, err
+	}
+
+	err = snap.Validate(info)
+	if err != nil {
+		return nil, err
+	}
+
+	return info, nil
 }
 
 // HashDigest computes a hash digest of the snap file using the given hash.

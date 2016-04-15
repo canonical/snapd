@@ -60,12 +60,14 @@ type apiSuite struct {
 	suggestedCurrency string
 	overlord          *fakeOverlord
 	d                 *Daemon
+	auther            store.Authenticator
 	restoreBackends   func()
 }
 
 var _ = check.Suite(&apiSuite{})
 
-func (s *apiSuite) Snap(string, string, store.Authenticator) (*snap.Info, error) {
+func (s *apiSuite) Snap(name, channel string, auther store.Authenticator) (*snap.Info, error) {
+	s.auther = auther
 	if len(s.rsnaps) > 0 {
 		return s.rsnaps[0], s.err
 	}
@@ -75,6 +77,7 @@ func (s *apiSuite) Snap(string, string, store.Authenticator) (*snap.Info, error)
 func (s *apiSuite) FindSnaps(searchTerm, channel string, auther store.Authenticator) ([]*snap.Info, error) {
 	s.searchTerm = searchTerm
 	s.channel = channel
+	s.auther = auther
 
 	return s.rsnaps, s.err
 }
@@ -115,6 +118,7 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 	s.overlord = &fakeOverlord{
 		configs: map[string]string{},
 	}
+	s.auther = nil
 	s.d = nil
 	// Disable real security backends for all API tests
 	s.restoreBackends = ifacestate.MockSecurityBackends(nil)
@@ -256,7 +260,9 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	// and v1 [r10] is current
 	s.mkInstalledInState(c, d, "foo", "bar", "v1", 10, true, "")
 
-	rsp, ok := getSnapInfo(snapCmd, nil).(*resp)
+	req, err := http.NewRequest("GET", "/v2/snap/foo", nil)
+	c.Assert(err, check.IsNil)
+	rsp, ok := getSnapInfo(snapCmd, req).(*resp)
 	c.Assert(ok, check.Equals, true)
 
 	c.Assert(rsp, check.NotNil)
@@ -303,24 +309,49 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	c.Check(rsp, check.DeepEquals, expected)
 }
 
+func (s *apiSuite) TestSnapInfoWithAuth(c *check.C) {
+	state := snapCmd.d.overlord.State()
+	state.Lock()
+	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	state.Unlock()
+	c.Check(err, check.IsNil)
+
+	req, err := http.NewRequest("GET", "/v2/snap/foo", nil)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
+
+	c.Assert(s.auther, check.IsNil)
+
+	_, ok := getSnapInfo(snapCmd, req).(*resp)
+	c.Assert(ok, check.Equals, true)
+	// ensure authenticator was set
+	c.Assert(s.auther, check.DeepEquals, user.Authenticator())
+}
+
 func (s *apiSuite) TestSnapInfoNotFound(c *check.C) {
 	s.vars = map[string]string{"name": "foo"}
 	s.err = snappy.ErrPackageNotFound
 
-	c.Check(getSnapInfo(snapCmd, nil).Self(nil, nil).(*resp).Status, check.Equals, http.StatusNotFound)
+	req, err := http.NewRequest("GET", "/v2/snap/foo", nil)
+	c.Assert(err, check.IsNil)
+	c.Check(getSnapInfo(snapCmd, req).Self(nil, nil).(*resp).Status, check.Equals, http.StatusNotFound)
 }
 
 func (s *apiSuite) TestSnapInfoNoneFound(c *check.C) {
 	s.vars = map[string]string{"name": "foo"}
 
-	c.Check(getSnapInfo(snapCmd, nil).Self(nil, nil).(*resp).Status, check.Equals, http.StatusNotFound)
+	req, err := http.NewRequest("GET", "/v2/snap/foo", nil)
+	c.Assert(err, check.IsNil)
+	c.Check(getSnapInfo(snapCmd, req).Self(nil, nil).(*resp).Status, check.Equals, http.StatusNotFound)
 }
 
 func (s *apiSuite) TestSnapInfoIgnoresRemoteErrors(c *check.C) {
 	s.vars = map[string]string{"name": "foo"}
 	s.err = errors.New("weird")
 
-	rsp := getSnapInfo(snapCmd, nil).Self(nil, nil).(*resp)
+	req, err := http.NewRequest("GET", "/v2/snap/foo", nil)
+	c.Assert(err, check.IsNil)
+	rsp := getSnapInfo(snapCmd, req).Self(nil, nil).(*resp)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, http.StatusNotFound)
@@ -340,7 +371,9 @@ func (s *apiSuite) TestSnapInfoWeirdRoute(c *check.C) {
 			OfficialName: "foo",
 		},
 	}}
-	c.Check(getSnapInfo(wrongCmd, nil).Self(nil, nil).(*resp).Status, check.Equals, http.StatusInternalServerError)
+	req, err := http.NewRequest("GET", "/v2/snap/foo", nil)
+	c.Assert(err, check.IsNil)
+	c.Check(getSnapInfo(wrongCmd, req).Self(nil, nil).(*resp).Status, check.Equals, http.StatusInternalServerError)
 }
 
 func (s *apiSuite) TestSnapInfoBadRoute(c *check.C) {
@@ -359,7 +392,9 @@ func (s *apiSuite) TestSnapInfoBadRoute(c *check.C) {
 		},
 	}}
 
-	rsp := getSnapInfo(snapCmd, nil).Self(nil, nil).(*resp)
+	req, err := http.NewRequest("GET", "/v2/snap/foo", nil)
+	c.Assert(err, check.IsNil)
+	rsp := getSnapInfo(snapCmd, req).Self(nil, nil).(*resp)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, http.StatusInternalServerError)
@@ -627,7 +662,7 @@ func (s *apiSuite) TestUserFromRequestNoHeader(c *check.C) {
 	user, err := UserFromRequest(state, req)
 	state.Unlock()
 
-	c.Check(err, check.IsNil)
+	c.Check(err, check.Equals, errNoAuth)
 	c.Check(user, check.IsNil)
 }
 
@@ -805,6 +840,25 @@ func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
 	c.Check(snaps[0]["prices"], check.IsNil)
 
 	c.Check(rsp.SuggestedCurrency, check.Equals, "EUR")
+}
+
+func (s *apiSuite) TestSnapsInfoStoreWithAuth(c *check.C) {
+	state := snapCmd.d.overlord.State()
+	state.Lock()
+	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	state.Unlock()
+	c.Check(err, check.IsNil)
+
+	req, err := http.NewRequest("GET", "/v2/snaps?sources=store", nil)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
+
+	c.Assert(s.auther, check.IsNil)
+
+	_ = getSnapsInfo(snapsCmd, req).(*resp)
+
+	// ensure authenticator was set
+	c.Assert(s.auther, check.DeepEquals, user.Authenticator())
 }
 
 func (s *apiSuite) TestSnapsInfoLocalAndStore(c *check.C) {
@@ -1057,6 +1111,19 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 
 	// setup done
 	var expectedFlags snappy.InstallFlags
+
+	installQueue := []string{}
+	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
+		// pretend we do not have a state for ubuntu-core
+		return state.ErrNoState
+	}
+	snapstateInstall = func(s *state.State, name, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
+		installQueue = append(installQueue, name)
+
+		t := s.NewTask("fake-install-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	}
+
 	snapstateInstallPath = func(s *state.State, name, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
 		c.Check(flags, check.Equals, expectedFlags)
 
@@ -1064,6 +1131,7 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 		c.Check(err, check.IsNil)
 		c.Check(string(bs), check.Equals, "xyzzy")
 
+		installQueue = append(installQueue, name)
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
 		return state.NewTaskSet(t), nil
 	}
@@ -1076,6 +1144,9 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 
 	rsp := sideloadSnap(snapsCmd, req).(*resp)
 	c.Check(rsp.Type, check.Equals, ResponseTypeAsync)
+	c.Check(installQueue, check.HasLen, 2)
+	c.Assert(installQueue[0], check.Equals, "ubuntu-core")
+	c.Assert(installQueue[1], check.Matches, ".*/snapd-sideload-pkg-.*")
 }
 
 func (s *apiSuite) TestAppIconGet(c *check.C) {

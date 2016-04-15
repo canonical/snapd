@@ -91,3 +91,52 @@ func (s *ValidateSuite) TestAppWhitelistError(c *C) {
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, `app description field 'name' contains illegal "x\n" (legal: '^[A-Za-z0-9/. _#:-]*$')`)
 }
+
+// Validate
+
+func (s *ValidateSuite) TestDetectIllegalYamlBinaries(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+apps:
+ tes!me:
+   command: someething
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, NotNil)
+}
+
+func (s *ValidateSuite) TestDetectIllegalYamlService(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+apps:
+ tes!me:
+   command: something
+   daemon: forking
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, NotNil)
+}
+
+func (s *ValidateSuite) TestIllegalSnapName(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo.something
+version: 1.0
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, ErrorMatches, `invalid snap name: "foo.something"`)
+}
+
+func (s *ValidateSuite) TestValidateChecksName(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`
+version: 1.0
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, ErrorMatches, `snap name cannot be empty`)
+}
