@@ -221,6 +221,11 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 	removeSecurity := s.NewTask("remove-profiles", fmt.Sprintf(i18n.G("Remove security profile for snap %q"), snapSpec))
 	addNext(removeSecurity)
 
+	if len(snapst.Sequence) == 1 {
+		discardConns := s.NewTask("discard-conns", fmt.Sprintf(i18n.G("Discard interface connections for snap %q"), snapSpec))
+		addNext(discardConns)
+	}
+
 	clearData := s.NewTask("clear-snap", fmt.Sprintf(i18n.G("Remove data for snap %q"), snapSpec))
 	addNext(clearData)
 

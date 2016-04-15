@@ -131,8 +131,11 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{{OfficialName: "foo"}},
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{OfficialName: "foo"},
+			{OfficialName: "foo"},
+		},
 	})
 
 	ts, err := snapstate.Remove(s.state, "foo", 0)
@@ -145,6 +148,33 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "unlink-snap")
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "remove-profiles")
+	i++
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "clear-snap")
+	i++
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "discard-snap")
+}
+
+func (s *snapmgrTestSuite) TestRemoveLast(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{OfficialName: "foo"}},
+	})
+
+	ts, err := snapstate.Remove(s.state, "foo", 0)
+	c.Assert(err, IsNil)
+
+	i := 0
+	c.Assert(ts.Tasks(), HasLen, 5)
+	// all tasks are accounted
+	c.Assert(s.state.Tasks(), HasLen, 5)
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "unlink-snap")
+	i++
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "remove-profiles")
+	i++
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "discard-conns")
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "clear-snap")
 	i++
