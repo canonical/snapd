@@ -1048,6 +1048,18 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, unsignedExpected bo
 		expectedFlags |= snappy.AllowUnauthenticated
 	}
 
+	installQueue := []string{}
+	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
+		// pretend we do not have a state for ubuntu-core
+		return state.ErrNoState
+	}
+	snapstateInstall = func(s *state.State, name, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
+		installQueue = append(installQueue, name)
+
+		t := s.NewTask("fake-install-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	}
+
 	snapstateInstallPath = func(s *state.State, name, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
 		c.Check(flags, check.Equals, expectedFlags)
 
@@ -1055,6 +1067,7 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, unsignedExpected bo
 		c.Check(err, check.IsNil)
 		c.Check(string(bs), check.Equals, "xyzzy")
 
+		installQueue = append(installQueue, name)
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
 		return state.NewTaskSet(t), nil
 	}
@@ -1067,6 +1080,9 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, unsignedExpected bo
 
 	rsp := sideloadSnap(snapsCmd, req).(*resp)
 	c.Check(rsp.Type, check.Equals, ResponseTypeAsync)
+	c.Check(installQueue, check.HasLen, 2)
+	c.Assert(installQueue[0], check.Equals, "ubuntu-core")
+	c.Assert(installQueue[1], check.Matches, ".*/snapd-sideload-pkg-.*")
 }
 
 func (s *apiSuite) TestAppIconGet(c *check.C) {
