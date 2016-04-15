@@ -190,8 +190,7 @@ Sample result:
       "type": "app",
       "revision": 17,
       "version": "1.0.18",
-      "channel": "stable",
-      "prices": {}
+      "channel": "stable"
     }, {
       "summary": "HTTPie in a snap",
       "description": "no description",
@@ -206,8 +205,7 @@ Sample result:
       "type": "app",
       "version": "3.1",
       "revision": 1834,
-      "channel": "stable",
-      "prices": {}
+      "channel": "stable"
     }, {
       "summary": "The ubuntu-core OS snap",
       "description": "A secure, minimal transactional OS for devices and containers.",
@@ -225,6 +223,7 @@ Sample result:
       "revision": 99,
       "channel": "stable",
       "prices": {"EUR": 1.99, "USD": 2.49}
+}]
 ```
 
 #### Fields
@@ -249,8 +248,9 @@ Sample result:
   updated to the revision specified as a value to this entry.
 * `channel`: which channel the package is currently tracking.
 * `prices`: JSON object with properties named by ISO 4217 currency code.
-  An object with no properties means the snap is free. The values of the
-  properties are numerics representing the cost in each currency.
+  The values of the properties are numerics representing the cost in each
+  currency. For free snaps, the "prices" property is omitted.
+
 
 Sample additional meta data:
 
