@@ -1,5 +1,5 @@
 Tests: integrationtests
-Restrictions: allow-stderr, isolation-container, rw-build-tree
+Restrictions: needs-root, allow-stderr, isolation-container, rw-build-tree
 Depends: snapd,
          @builddeps@,
          bzr,
