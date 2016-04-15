@@ -533,13 +533,10 @@ func (s *apiSuite) TestLoginUser(c *check.C) {
 	}
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Assert(rsp.Result, check.FitsTypeOf, expected)
-	userID := rsp.Result.(loginResponseData).UserID
-	expected.UserID = userID
 	c.Check(rsp.Result, check.DeepEquals, expected)
 
 	expectedUser := auth.UserState{
-		ID:         userID,
+		ID:         1,
 		Username:   "username",
 		Macaroon:   "the-macaroon-serialized-data",
 		Discharges: []string{"the-discharge-macaroon-serialized-data"},
@@ -549,7 +546,7 @@ func (s *apiSuite) TestLoginUser(c *check.C) {
 
 	state := snapCmd.d.overlord.State()
 	state.Lock()
-	user, err := auth.User(state, userID)
+	user, err := auth.User(state, 1)
 	state.Unlock()
 	c.Check(err, check.IsNil)
 	c.Check(*user, check.DeepEquals, expectedUser)
