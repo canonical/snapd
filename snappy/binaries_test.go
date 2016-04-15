@@ -45,6 +45,7 @@ export SNAP="/snap/pastebinit/1.4.0.0.1/"
 export SNAP_DATA="/var/snap/pastebinit/1.4.0.0.1/"
 export SNAP_NAME="pastebinit"
 export SNAP_VERSION="1.4.0.0.1"
+export SNAP_REVISION="44"
 export SNAP_ARCH="%[1]s"
 export SNAP_LIBRARY_PATH="/var/lib/snapd/lib/gl:"
 export SNAP_USER_DATA="$HOME/snap/pastebinit/1.4.0.0.1/"
@@ -65,6 +66,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 	info := &snap.Info{}
 	info.SuggestedName = "pastebinit"
 	info.Version = "1.4.0.0.1"
+	info.Revision = 44
 	binary := &snap.AppInfo{
 		Snap:    info,
 		Name:    "pastebinit",
