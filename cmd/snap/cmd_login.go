@@ -57,9 +57,12 @@ func requestLoginWith2faRetry(username, password string) error {
 	cli := Client()
 	// first try without otp
 	_, err := cli.Login(username, password, "")
+	if err != nil {
+		// check if we need 2fa
+		if err, ok := err.(*client.Error); !ok || err.Kind != store.TwoFactorErrKind {
+			return err
+		}
 
-	// check if we need 2fa
-	if e := err.(*client.Error); e != nil && e.Kind == store.TwoFactorErrKind {
 		fmt.Print(i18n.G("Two-factor code: "))
 		reader := bufio.NewReader(os.Stdin)
 		// the browser shows it as well (and Sergio wants to see it ;)
@@ -68,10 +71,11 @@ func requestLoginWith2faRetry(username, password string) error {
 			return err
 		}
 		_, err = cli.Login(username, password, string(otp))
+
 		return err
 	}
 
-	return err
+	return nil
 }
 
 func (x *cmdLogin) Execute(args []string) error {
