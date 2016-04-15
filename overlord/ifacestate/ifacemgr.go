@@ -188,6 +188,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error
 	// - restore connections based on what is kept in the state
 	//   - if a connection cannot be restored then remove it from the state
 	// - setup the security of all the affected snaps
+	blacklist := m.repo.AutoConnectBlacklist(snapName)
 	affectedSnaps, err := m.repo.DisconnectSnap(snapName)
 	if err != nil {
 		return err
@@ -207,7 +208,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error
 	if err := m.reloadConnections(snapName); err != nil {
 		return err
 	}
-	if err := m.autoConnect(task, snapName); err != nil {
+	if err := m.autoConnect(task, snapName, blacklist); err != nil {
 		return err
 	}
 	if len(affectedSnaps) == 0 {
@@ -245,7 +246,7 @@ func parseConnID(conn string) (*interfaces.PlugRef, *interfaces.SlotRef, error) 
 	return plugRef, slotRef, nil
 }
 
-func (m *InterfaceManager) autoConnect(task *state.Task, snapName string) error {
+func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blacklist map[string]bool) error {
 	var conns map[string]connState
 	err := task.State().Get("conns", &conns)
 	if err != nil && err != state.ErrNoState {
@@ -256,6 +257,9 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string) error 
 	}
 	// XXX: quick hack, auto-connect everything
 	for _, plug := range m.repo.Plugs(snapName) {
+		if blacklist[plug.Name] {
+			continue
+		}
 		candidates := m.repo.AutoConnectCandidates(snapName, plug.Name)
 		if len(candidates) != 1 {
 			continue
