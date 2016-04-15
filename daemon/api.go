@@ -21,6 +21,7 @@ package daemon
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -230,13 +231,17 @@ func loginUser(c *Command, r *http.Request) Response {
 	return SyncResponse(result, nil)
 }
 
+var (
+	errNoAuth = errors.New("no authorization data provided")
+)
+
 // UserFromRequest extracts user information from request and return the respective user in state, if valid
 // It requires the state to be locked
 func UserFromRequest(st *state.State, req *http.Request) (*auth.UserState, error) {
 	// extract macaroons data from request
 	header := req.Header.Get("Authorization")
 	if header == "" {
-		return nil, nil
+		return nil, errNoAuth
 	}
 
 	authorizationData := strings.SplitN(header, " ", 2)
@@ -299,11 +304,11 @@ func getSnapInfo(c *Command, r *http.Request) Response {
 	state.Lock()
 	user, err := UserFromRequest(state, r)
 	state.Unlock()
-	if err != nil {
-		return InternalError("%v", err)
-	}
-	if user != nil {
+	if err == nil {
 		auther = user.Authenticator()
+	}
+	if err != nil && err != errNoAuth {
+		return InternalError("%v", err)
 	}
 
 	remoteSnap, _ := remoteRepo.Snap(name, channel, auther)
@@ -403,11 +408,11 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		state.Lock()
 		user, err := UserFromRequest(state, r)
 		state.Unlock()
-		if err != nil {
-			return InternalError("%v", err)
-		}
-		if user != nil {
+		if err == nil {
 			auther = user.Authenticator()
+		}
+		if err != nil && err != errNoAuth {
+			return InternalError("%v", err)
 		}
 
 		// repo.Find("") finds all

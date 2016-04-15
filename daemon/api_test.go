@@ -662,7 +662,7 @@ func (s *apiSuite) TestUserFromRequestNoHeader(c *check.C) {
 	user, err := UserFromRequest(state, req)
 	state.Unlock()
 
-	c.Check(err, check.IsNil)
+	c.Check(err, check.Equals, errNoAuth)
 	c.Check(user, check.IsNil)
 }
 
