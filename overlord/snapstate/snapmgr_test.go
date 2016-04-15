@@ -653,7 +653,7 @@ func makeTestSnap(c *C, snapYamlContent string) (snapFilePath string) {
 
 }
 
-func (s *snapmgrTestSuite) TestInstallLocalIntegration(c *C) {
+func (s *snapmgrTestSuite) TestInstallFirstLocalIntegration(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -675,7 +675,9 @@ version: 1.0`)
 	c.Check(s.fakeBackend.ops[0].name, Matches, `.*/mock_1.0_all.snap`)
 
 	c.Check(s.fakeBackend.ops[3].op, Equals, "candidate")
-	c.Check(s.fakeBackend.ops[3].sinfo, DeepEquals, snap.SideInfo{})
+	c.Check(s.fakeBackend.ops[3].sinfo, DeepEquals, snap.SideInfo{Revision: 100000})
+	c.Check(s.fakeBackend.ops[4].op, Equals, "link-snap")
+	c.Check(s.fakeBackend.ops[4].name, Equals, "/snap/mock/100000")
 
 	// verify snapSetup info
 	var ss snapstate.SnapSetup
@@ -684,7 +686,7 @@ version: 1.0`)
 	c.Assert(err, IsNil)
 	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
 		Name:     "mock",
-		Revision: 0,
+		Revision: 100000,
 		SnapPath: mockSnap,
 	})
 
@@ -696,9 +698,75 @@ version: 1.0`)
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
-		OfficialName: "", // XXX: do we want this state of things?
+		OfficialName: "",
 		Channel:      "",
-		Revision:     0,
+		Revision:     100000,
+	})
+	c.Assert(snapst.LastSideloadRevision, Equals, 100000)
+}
+
+func (s *snapmgrTestSuite) TestInstallSubequentLocalIntegration(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "mock", &snapstate.SnapState{
+		Active:               true,
+		Sequence:             []*snap.SideInfo{{Revision: 100002}},
+		LastSideloadRevision: 100002,
+	})
+
+	mockSnap := makeTestSnap(c, `name: mock
+version: 1.0`)
+	chg := s.state.NewChange("install", "install a local snap")
+	ts, err := snapstate.InstallPath(s.state, mockSnap, "", 0)
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	// ensure only local install was run, i.e. first action is check-snap
+	c.Assert(s.fakeBackend.ops, HasLen, 6)
+	c.Check(s.fakeBackend.ops[0].op, Equals, "check-snap")
+	c.Check(s.fakeBackend.ops[0].name, Matches, `.*/mock_1.0_all.snap`)
+
+	c.Check(s.fakeBackend.ops[2].op, Equals, "unlink-snap")
+	c.Check(s.fakeBackend.ops[2].name, Equals, "/snap/mock/100002")
+
+	c.Check(s.fakeBackend.ops[3].op, Equals, "copy-data")
+	c.Check(s.fakeBackend.ops[3].name, Equals, "/snap/mock/100003")
+	c.Check(s.fakeBackend.ops[3].old, Equals, "/snap/mock/100002")
+
+	c.Check(s.fakeBackend.ops[4].op, Equals, "candidate")
+	c.Check(s.fakeBackend.ops[4].sinfo, DeepEquals, snap.SideInfo{Revision: 100003})
+	c.Check(s.fakeBackend.ops[5].op, Equals, "link-snap")
+	c.Check(s.fakeBackend.ops[5].name, Equals, "/snap/mock/100003")
+
+	// verify snapSetup info
+	var ss snapstate.SnapSetup
+	task := ts.Tasks()[0]
+	err = task.Get("snap-setup", &ss)
+	c.Assert(err, IsNil)
+	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
+		Name:     "mock",
+		Revision: 100003,
+		SnapPath: mockSnap,
+	})
+
+	// verify snaps in the system state
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "mock", &snapst)
+	c.Assert(err, IsNil)
+
+	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Candidate, IsNil)
+	c.Assert(snapst.Sequence, HasLen, 2)
+	c.Assert(snapst.Current(), DeepEquals, &snap.SideInfo{
+		OfficialName: "",
+		Channel:      "",
+		Revision:     100003,
 	})
 }
 
