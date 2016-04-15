@@ -28,7 +28,7 @@ import (
 
 type managerBackend interface {
 	// install releated
-	Download(name, channel string, meter progress.Meter, auther store.Authenticator) (*snap.Info, string, error)
+	Download(name, channel string, checker func(*snap.Info) error, meter progress.Meter, auther store.Authenticator) (*snap.Info, string, error)
 	CheckSnap(snapFilePath string, curInfo *snap.Info, flags int) error
 	SetupSnap(snapFilePath string, si *snap.SideInfo, flags int) error
 	CopySnapData(newSnap, oldSnap *snap.Info, flags int) error
@@ -51,9 +51,14 @@ type defaultBackend struct{}
 
 func (b *defaultBackend) Candidate(*snap.SideInfo) {}
 
-func (b *defaultBackend) Download(name, channel string, meter progress.Meter, auther store.Authenticator) (*snap.Info, string, error) {
+func (b *defaultBackend) Download(name, channel string, checker func(*snap.Info) error, meter progress.Meter, auther store.Authenticator) (*snap.Info, string, error) {
 	mStore := snappy.NewConfiguredUbuntuStoreSnapRepository()
 	snap, err := mStore.Snap(name, channel, auther)
+	if err != nil {
+		return nil, "", err
+	}
+
+	err = checker(snap)
 	if err != nil {
 		return nil, "", err
 	}
