@@ -119,20 +119,12 @@ func (s *SnapTestSuite) TestLocalSnapSimple(c *C) {
 	c.Check(snap.Info().Summary(), Equals, "hello in summary")
 	c.Check(snap.Info().Description(), Equals, "Hello...")
 	c.Check(snap.Info().Revision, Equals, 15)
-	c.Check(snap.IsInstalled(), Equals, true)
-
-	apps := snap.Apps()
-	c.Assert(apps, HasLen, 2)
-	c.Assert(apps["svc1"].Name, Equals, "svc1")
 
 	mountDir := snap.Info().MountDir()
-	// ensure we get valid Date()
-	st, err := os.Stat(mountDir)
+	_, err = os.Stat(mountDir)
 	c.Assert(err, IsNil)
-	c.Assert(snap.Date(), Equals, st.ModTime())
 
 	c.Assert(mountDir, Equals, filepath.Join(dirs.SnapSnapsDir, helloSnapComposedName, "15"))
-	c.Assert(snap.InstalledSize(), Not(Equals), -1)
 }
 
 func (s *SnapTestSuite) TestLocalSnapActive(c *C) {
@@ -301,7 +293,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(p.written, Equals, int(st.Size()))
 
-	installed, err := ListInstalled()
+	installed, err := (&Overlord{}).Installed()
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 1)
 
@@ -411,14 +403,12 @@ apps:
 	c.Assert(snap.Version(), Equals, "1.10")
 	c.Assert(snap.IsActive(), Equals, false)
 
-	apps := snap.Apps()
+	apps := snap.Info().Apps
 	c.Assert(apps, HasLen, 3)
 
 	c.Assert(apps["svc1"].Name, Equals, "svc1")
-	c.Assert(apps["svc1"].Description, Equals, "Service #1")
 
 	c.Assert(apps["svc2"].Name, Equals, "svc2")
-	c.Assert(apps["svc2"].Description, Equals, "Service #2")
 }
 
 func (s *SnapTestSuite) TestSnapYamlMultipleArchitecturesParsing(c *C) {
@@ -716,35 +706,4 @@ func (s *SnapTestSuite) TestParseSnapYamlDataChecksMultiple(c *C) {
 	_, err := parseSnapYamlData([]byte(`
 `), false)
 	c.Assert(err, ErrorMatches, "can not parse snap.yaml: missing required fields 'name, version'.*")
-}
-
-func (s *SnapTestSuite) TestChannelFromLocalManifest(c *C) {
-	snapYaml, err := makeInstalledMockSnap("", 11)
-	c.Assert(err, IsNil)
-
-	snap, err := NewInstalledSnap(snapYaml)
-	c.Assert(snap.Channel(), Equals, "remote-channel")
-}
-
-func (s *SnapTestSuite) TestIcon(c *C) {
-	snapYaml, err := makeInstalledMockSnap("", 11)
-	snap, err := NewInstalledSnap(snapYaml)
-	c.Assert(err, IsNil)
-	mountDir := snap.Info().MountDir()
-	err = os.MkdirAll(filepath.Join(mountDir, "meta", "gui"), 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(mountDir, "meta", "gui", "icon.png"), nil, 0644)
-	c.Assert(err, IsNil)
-
-	c.Check(snap.Icon(), Matches, filepath.Join(mountDir, "meta/gui/icon.png"))
-}
-
-func (s *SnapTestSuite) TestIconEmpty(c *C) {
-	snapYaml, err := makeInstalledMockSnap(`name: foo
-version: 1.0
-`, 11)
-	snap, err := NewInstalledSnap(snapYaml)
-	c.Assert(err, IsNil)
-	// no icon in the yaml!
-	c.Check(snap.Icon(), Equals, "")
 }

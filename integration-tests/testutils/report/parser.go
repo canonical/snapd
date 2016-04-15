@@ -2,7 +2,7 @@
 // +build !excludeintegration
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"strings"
 
 	"github.com/testing-cabal/subunit-go"
 
@@ -107,16 +108,15 @@ func (fr *SubunitV2ParserReporter) Write(data []byte) (int, error) {
 		err = fr.statuser.Status(subunit.Event{TestID: matches[1], Status: "fail"})
 	} else if matches := skipRegexp.FindStringSubmatch(sdata); len(matches) == 3 {
 		reason := matches[2]
-		// Do not report anything about the set ups skipped because of another test's reboot.
-		duringReboot := matchString(
-			fmt.Sprintf(regexp.QuoteMeta(common.FormatSkipDuringReboot), ".*", ".*"),
-			reason)
-		afterReboot := matchString(
-			fmt.Sprintf(regexp.QuoteMeta(common.FormatSkipAfterReboot), ".*", ".*"),
-			reason)
-		if duringReboot || afterReboot {
+		// Do not take into account skipped SetUpTest
+		if strings.HasSuffix(matches[1], "SetUpTest") {
 			return 0, nil
 		}
+		// Do not report anything about the set ups skipped because of another test's reboot.
+		if checkReboot(reason) {
+			return 0, nil
+		}
+
 		err = fr.statuser.Status(subunit.Event{
 			TestID:    matches[1],
 			Status:    "skip",
@@ -125,7 +125,6 @@ func (fr *SubunitV2ParserReporter) Write(data []byte) (int, error) {
 			MIME:      "text/plain;charset=utf8",
 		})
 	}
-
 	if wr, ok := fr.Next.(*writerRecorder); ok {
 		return wr.nbytes, err
 	}
@@ -144,4 +143,14 @@ func matchString(pattern string, s string) bool {
 		panic(err)
 	}
 	return matched
+}
+
+func checkReboot(reason string) bool {
+	duringReboot := matchString(
+		fmt.Sprintf(regexp.QuoteMeta(common.FormatSkipDuringReboot), ".*", ".*"),
+		reason)
+	afterReboot := matchString(
+		fmt.Sprintf(regexp.QuoteMeta(common.FormatSkipAfterReboot), ".*", ".*"),
+		reason)
+	return duringReboot || afterReboot
 }

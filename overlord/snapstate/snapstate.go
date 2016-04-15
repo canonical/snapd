@@ -23,10 +23,6 @@ package snapstate
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/logger"
@@ -128,22 +124,9 @@ func Update(s *state.State, name, channel string, flags snappy.InstallFlags) (*s
 	return doInstall(s, snapst.Active, name, "", channel, flags)
 }
 
-// parseSnapspec parses a string like: name[.developer][=version]
-func parseSnapSpec(snapSpec string) (string, string) {
-	l := strings.Split(snapSpec, "=")
-	if len(l) == 2 {
-		return l[0], l[1]
-	}
-	return snapSpec, ""
-}
-
 // Remove returns a set of tasks for removing snap.
 // Note that the state must be locked by the caller.
-func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.TaskSet, error) {
-	// allow remove by version so that we can remove snaps that are
-	// not active
-	name, version := parseSnapSpec(snapSpec)
-
+func Remove(s *state.State, name string, flags snappy.RemoveFlags) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
@@ -155,26 +138,8 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 		return nil, fmt.Errorf("cannot find snap %q", name)
 	}
 
-	revision := 0
-	active := false
-	if version == "" {
-		if !snapst.Active {
-			return nil, fmt.Errorf("cannot find active snap for %q", name)
-		}
-		revision = snapst.Current().Revision
-	} else {
-		// XXX: change this to use snapstate stuff
-		info := backend.SnapByNameAndVersion(name, version)
-		if info == nil {
-			return nil, fmt.Errorf("cannot find snap for %q and version %q", name, version)
-		}
-		revision = info.Revision
-	}
-
-	// removing active?
-	if snapst.Active && cur.Revision == revision {
-		active = true
-	}
+	revision := snapst.Current().Revision
+	active := snapst.Active
 
 	info, err := Info(s, name, revision)
 	if err != nil {
@@ -195,7 +160,7 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 	// trigger remove
 
 	// last task but the one holding snap-setup
-	discardSnap := s.NewTask("discard-snap", fmt.Sprintf(i18n.G("Remove snap %q from the system"), snapSpec))
+	discardSnap := s.NewTask("discard-snap", fmt.Sprintf(i18n.G("Remove snap %q from the system"), name))
 	discardSnap.Set("snap-setup", ss)
 
 	discardSnapID := discardSnap.ID()
@@ -213,20 +178,20 @@ func Remove(s *state.State, snapSpec string, flags snappy.RemoveFlags) (*state.T
 	}
 
 	if active {
-		unlink := s.NewTask("unlink-snap", fmt.Sprintf(i18n.G("Make snap %q unavailable to the system"), snapSpec))
+		unlink := s.NewTask("unlink-snap", fmt.Sprintf(i18n.G("Make snap %q unavailable to the system"), name))
 
 		addNext(unlink)
 	}
 
-	removeSecurity := s.NewTask("remove-profiles", fmt.Sprintf(i18n.G("Remove security profile for snap %q"), snapSpec))
+	removeSecurity := s.NewTask("remove-profiles", fmt.Sprintf(i18n.G("Remove security profile for snap %q"), name))
 	addNext(removeSecurity)
 
 	if len(snapst.Sequence) == 1 {
-		discardConns := s.NewTask("discard-conns", fmt.Sprintf(i18n.G("Discard interface connections for snap %q"), snapSpec))
+		discardConns := s.NewTask("discard-conns", fmt.Sprintf(i18n.G("Discard interface connections for snap %q"), name))
 		addNext(discardConns)
 	}
 
-	clearData := s.NewTask("clear-snap", fmt.Sprintf(i18n.G("Remove data for snap %q"), snapSpec))
+	clearData := s.NewTask("clear-snap", fmt.Sprintf(i18n.G("Remove data for snap %q"), name))
 	addNext(clearData)
 
 	// discard is last
@@ -267,28 +232,7 @@ func Deactivate(s *state.State, snap string) (*state.TaskSet, error) {
 
 // Retrieval functions
 
-func retrieveInfoImpl(name string, si *snap.SideInfo) (*snap.Info, error) {
-	// XXX: move some of this in snap as helper?
-	snapYamlFn := filepath.Join(snap.MountDir(name, si.Revision), "meta", "snap.yaml")
-	meta, err := ioutil.ReadFile(snapYamlFn)
-	if os.IsNotExist(err) {
-		return nil, fmt.Errorf("cannot find mounted snap %q at revision %d", name, si.Revision)
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	info, err := snap.InfoFromSnapYaml(meta)
-	if err != nil {
-		return nil, err
-	}
-
-	info.SideInfo = *si
-
-	return info, nil
-}
-
-var retrieveInfo = retrieveInfoImpl
+var readInfo = snap.ReadInfo
 
 // Info returns the information about the snap with given name and revision.
 // Works also for a mounted candidate snap in the process of being installed.
@@ -304,12 +248,12 @@ func Info(s *state.State, name string, revision int) (*snap.Info, error) {
 
 	for i := len(snapst.Sequence) - 1; i >= 0; i-- {
 		if si := snapst.Sequence[i]; si.Revision == revision {
-			return retrieveInfo(name, si)
+			return readInfo(name, si)
 		}
 	}
 
 	if snapst.Candidate != nil && snapst.Candidate.Revision == revision {
-		return retrieveInfo(name, snapst.Candidate)
+		return readInfo(name, snapst.Candidate)
 	}
 
 	return nil, fmt.Errorf("cannot find snap %q at revision %d", name, revision)
@@ -365,7 +309,7 @@ func ActiveInfos(s *state.State) ([]*snap.Info, error) {
 			continue
 		}
 		sideInfo := snapState.Sequence[len(snapState.Sequence)-1]
-		snapInfo, err := retrieveInfo(snapName, sideInfo)
+		snapInfo, err := readInfo(snapName, sideInfo)
 		if err != nil {
 			logger.Noticef("cannot retrieve info for snap %q: %s", snapName, err)
 			continue

@@ -153,11 +153,16 @@ func (s *apiSuite) mkManifest(c *check.C, pkgType snap.Type) {
 }
 
 func (s *apiSuite) mkInstalled(c *check.C, name, developer, version string, revno int, active bool, extraYaml string) *snap.Info {
+	return s.mkInstalledInState(c, nil, name, developer, version, revno, active, extraYaml)
+}
+
+func (s *apiSuite) mkInstalledInState(c *check.C, daemon *Daemon, name, developer, version string, revno int, active bool, extraYaml string) *snap.Info {
 	skelInfo := &snap.Info{
 		SideInfo: snap.SideInfo{
 			OfficialName: name,
 			Developer:    developer,
 			Revision:     revno,
+			Channel:      "stable",
 		},
 		Version: version,
 	}
@@ -183,16 +188,28 @@ version: %s
 	err := snappy.SaveManifest(skelInfo)
 	c.Assert(err, check.IsNil)
 
-	// indirect through NewInstalledSnap to load extraYaml
-	localSnap, err := snappy.NewInstalledSnap(yamlPath)
+	if daemon != nil {
+		st := daemon.overlord.State()
+		st.Lock()
+		defer st.Unlock()
+
+		var snapst snapstate.SnapState
+		snapstate.Get(st, name, &snapst)
+		snapst.Active = active
+		snapst.Sequence = append(snapst.Sequence, &skelInfo.SideInfo)
+
+		snapstate.Set(st, name, &snapst)
+	}
+
+	info, err := snap.ReadInfo(name, &skelInfo.SideInfo)
 	c.Assert(err, check.IsNil)
 
 	if active {
-		err := snappy.UpdateCurrentSymlink(localSnap.Info(), nil)
+		err := snappy.UpdateCurrentSymlink(info, nil)
 		c.Assert(err, check.IsNil)
 	}
 
-	return localSnap.Info()
+	return info
 }
 
 func (s *apiSuite) mkGadget(c *check.C, store string) {
@@ -211,7 +228,7 @@ gadget: {store: {id: %q}}
 }
 
 func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
-	s.daemon(c)
+	d := s.daemon(c)
 	s.vars = map[string]string{"name": "foo"}
 
 	// the store tells us about v2
@@ -226,14 +243,18 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 			Size:              2,
 			IconURL:           "meta/gui/icon.svg",
 			Revision:          20,
+			Prices: map[string]float64{
+				"GBP": 1.23,
+				"EUR": 2.34,
+			},
 		},
 	}}
 	s.suggestedCurrency = "GBP"
 
 	// we have v0 [r5] installed
-	s.mkInstalled(c, "foo", "bar", "v0", 5, false, "")
+	s.mkInstalledInState(c, d, "foo", "bar", "v0", 5, false, "")
 	// and v1 [r10] is current
-	s.mkInstalled(c, "foo", "bar", "v1", 10, true, "")
+	s.mkInstalledInState(c, d, "foo", "bar", "v1", 10, true, "")
 
 	rsp, ok := getSnapInfo(snapCmd, nil).(*resp)
 	c.Assert(ok, check.Equals, true)
@@ -256,21 +277,25 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 		Type:   ResponseTypeSync,
 		Status: http.StatusOK,
 		Result: map[string]interface{}{
-			"name":               "foo",
-			"revision":           10,
-			"version":            "v1",
-			"summary":            "summary",
-			"description":        "description",
-			"developer":          "bar",
-			"status":             "active",
-			"icon":               "/v2/icons/foo/icon",
-			"type":               string(snap.TypeApp),
-			"vendor":             "",
-			"download-size":      int64(2),
-			"resource":           "/v2/snaps/foo",
-			"update-available":   20,
-			"rollback-available": 5,
-			"channel":            "stable",
+			"name":             "foo",
+			"revision":         10,
+			"version":          "v1",
+			"summary":          "summary",
+			"description":      "description",
+			"developer":        "bar",
+			"status":           "active",
+			"icon":             "/v2/icons/foo/icon",
+			"type":             string(snap.TypeApp),
+			"vendor":           "",
+			"download-size":    int64(2),
+			"resource":         "/v2/snaps/foo",
+			"update-available": 20,
+			// XXX: fix this later "rollback-available": 5,
+			"channel": "stable",
+			"prices": map[string]float64{
+				"GBP": 1.23,
+				"EUR": 2.34,
+			},
 		},
 		Meta: meta,
 	}
@@ -591,6 +616,93 @@ func (s *apiSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
 	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "cannot get discharge macaroon")
 }
 
+func (s *apiSuite) TestUserFromRequestNoHeader(c *check.C) {
+	req, _ := http.NewRequest("GET", "http://example.com", nil)
+
+	state := snapCmd.d.overlord.State()
+	state.Lock()
+	user, err := UserFromRequest(state, req)
+	state.Unlock()
+
+	c.Check(err, check.IsNil)
+	c.Check(user, check.IsNil)
+}
+
+func (s *apiSuite) TestUserFromRequestHeaderNoMacaroons(c *check.C) {
+	req, _ := http.NewRequest("GET", "http://example.com", nil)
+	req.Header.Set("Authorization", "Invalid")
+
+	state := snapCmd.d.overlord.State()
+	state.Lock()
+	user, err := UserFromRequest(state, req)
+	state.Unlock()
+
+	c.Check(err, check.ErrorMatches, "authorization header misses Macaroon prefix")
+	c.Check(user, check.IsNil)
+}
+
+func (s *apiSuite) TestUserFromRequestHeaderIncomplete(c *check.C) {
+	req, _ := http.NewRequest("GET", "http://example.com", nil)
+	req.Header.Set("Authorization", `Macaroon root="macaroon"`)
+
+	state := snapCmd.d.overlord.State()
+	state.Lock()
+	user, err := UserFromRequest(state, req)
+	state.Unlock()
+
+	c.Check(err, check.ErrorMatches, "invalid authorization header")
+	c.Check(user, check.IsNil)
+}
+
+func (s *apiSuite) TestUserFromRequestHeaderCorrectMissingUser(c *check.C) {
+	req, _ := http.NewRequest("GET", "http://example.com", nil)
+	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
+
+	state := snapCmd.d.overlord.State()
+	state.Lock()
+	user, err := UserFromRequest(state, req)
+	state.Unlock()
+
+	c.Check(err, check.IsNil)
+	c.Check(user, check.IsNil)
+}
+
+func (s *apiSuite) TestUserFromRequestHeaderValidUser(c *check.C) {
+	state := snapCmd.d.overlord.State()
+	state.Lock()
+	expectedUser, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	state.Unlock()
+	c.Check(err, check.IsNil)
+
+	req, _ := http.NewRequest("GET", "http://example.com", nil)
+	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
+
+	state.Lock()
+	user, err := UserFromRequest(state, req)
+	state.Unlock()
+
+	c.Check(err, check.IsNil)
+	c.Check(user, check.DeepEquals, expectedUser)
+}
+
+func (s *apiSuite) TestUserFromRequestHeaderValidUserMultipleDischarges(c *check.C) {
+	state := snapCmd.d.overlord.State()
+	state.Lock()
+	expectedUser, err := auth.NewUser(state, "username", "macaroon", []string{"discharge2", "discharge1"})
+	state.Unlock()
+	c.Check(err, check.IsNil)
+
+	req, _ := http.NewRequest("GET", "http://example.com", nil)
+	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge1", discharge="discharge2"`)
+
+	state.Lock()
+	user, err := UserFromRequest(state, req)
+	state.Unlock()
+
+	c.Check(err, check.IsNil)
+	c.Check(user, check.DeepEquals, expectedUser)
+}
+
 func (s *apiSuite) TestSnapsInfoOnePerIntegration(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/snaps", nil)
 	c.Assert(err, check.IsNil)
@@ -681,6 +793,7 @@ func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
 	snaps := snapList(rsp.Result)
 	c.Assert(snaps, check.HasLen, 1)
 	c.Assert(snaps[0]["name"], check.Equals, "store")
+	c.Check(snaps[0]["prices"], check.IsNil)
 
 	c.Check(rsp.SuggestedCurrency, check.Equals, "EUR")
 }
@@ -859,14 +972,10 @@ func (s *apiSuite) TestPostSnap(c *check.C) {
 	rsp := postSnap(snapCmd, req).(*resp)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeAsync)
-	m := rsp.Result.(map[string]interface{})
-	c.Assert(m["resource"], check.Matches, "/v2/changes/.*")
-
-	id := m["resource"].(string)[len("/v2/changes/"):]
 
 	st := d.overlord.State()
 	st.Lock()
-	chg := st.Change(id)
+	chg := st.Change(rsp.Change)
 	c.Assert(chg, check.NotNil)
 	c.Check(chg.Summary(), check.Equals, "foooo")
 	st.Unlock()
@@ -961,8 +1070,10 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, unsignedExpected bo
 }
 
 func (s *apiSuite) TestAppIconGet(c *check.C) {
+	d := s.daemon(c)
+
 	// have an active foo in the system
-	info := s.mkInstalled(c, "foo", "bar", "v1", 10, true, "")
+	info := s.mkInstalledInState(c, d, "foo", "bar", "v1", 10, true, "")
 
 	// have an icon for it in the package itself
 	iconfile := filepath.Join(info.MountDir(), "meta", "gui", "icon.ick")
@@ -981,8 +1092,10 @@ func (s *apiSuite) TestAppIconGet(c *check.C) {
 }
 
 func (s *apiSuite) TestAppIconGetInactive(c *check.C) {
+	d := s.daemon(c)
+
 	// have an *in*active foo in the system
-	info := s.mkInstalled(c, "foo", "bar", "v1", 10, false, "")
+	info := s.mkInstalledInState(c, d, "foo", "bar", "v1", 10, false, "")
 
 	// have an icon for it in the package itself
 	iconfile := filepath.Join(info.MountDir(), "meta", "gui", "icon.ick")
@@ -1001,8 +1114,10 @@ func (s *apiSuite) TestAppIconGetInactive(c *check.C) {
 }
 
 func (s *apiSuite) TestAppIconGetNoIcon(c *check.C) {
+	d := s.daemon(c)
+
 	// have an *in*active foo in the system
-	info := s.mkInstalled(c, "foo", "bar", "v1", 10, true, "")
+	info := s.mkInstalledInState(c, d, "foo", "bar", "v1", 10, true, "")
 
 	// NO ICON!
 	err := os.RemoveAll(filepath.Join(info.MountDir(), "meta", "gui", "icon.svg"))
@@ -1019,6 +1134,8 @@ func (s *apiSuite) TestAppIconGetNoIcon(c *check.C) {
 }
 
 func (s *apiSuite) TestAppIconGetNoApp(c *check.C) {
+	s.daemon(c)
+
 	s.vars = map[string]string{"name": "foo"}
 	req, err := http.NewRequest("GET", "/v2/icons/foo/icon", nil)
 	c.Assert(err, check.IsNil)
@@ -1352,16 +1469,24 @@ func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 200)
+	c.Check(rec.Code, check.Equals, 202)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"result":      nil,
-		"status":      "OK",
-		"status-code": 200.0,
-		"type":        "sync",
-	})
+	id := body["change"].(string)
+
+	st := d.overlord.State()
+	st.Lock()
+	chg := st.Change(id)
+	st.Unlock()
+	c.Assert(chg, check.NotNil)
+
+	<-chg.Ready()
+
+	st.Lock()
+	err = chg.Err()
+	st.Unlock()
+	c.Assert(err, check.IsNil)
 
 	repo := d.overlord.InterfaceManager().Repository()
 	plug := repo.Plug("consumer", "plug")
@@ -1395,19 +1520,26 @@ func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 400)
+	c.Check(rec.Code, check.Equals, 202)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"result": map[string]interface{}{
-			"message": `cannot perform the following tasks:
-- Connect consumer:plug to producer:slot (cannot connect plug "consumer:plug" (interface "test") to "producer:slot" (interface "different"))`,
-		},
-		"status":      "Bad Request",
-		"status-code": 400.0,
-		"type":        "error",
-	})
+	id := body["change"].(string)
+
+	st := d.overlord.State()
+	st.Lock()
+	chg := st.Change(id)
+	st.Unlock()
+	c.Assert(chg, check.NotNil)
+
+	<-chg.Ready()
+
+	st.Lock()
+	err = chg.Err()
+	st.Unlock()
+	c.Assert(err, check.NotNil)
+	c.Check(err.Error(), check.Equals, `cannot perform the following tasks:
+- Connect consumer:plug to producer:slot (cannot connect plug "consumer:plug" (interface "test") to "producer:slot" (interface "different"))`)
 
 	repo := d.overlord.InterfaceManager().Repository()
 	plug := repo.Plug("consumer", "plug")
@@ -1438,19 +1570,26 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 400)
+	c.Check(rec.Code, check.Equals, 202)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"result": map[string]interface{}{
-			"message": `cannot perform the following tasks:
-- Connect consumer:plug to producer:slot (cannot connect plug "plug" from snap "consumer", no such plug)`,
-		},
-		"status":      "Bad Request",
-		"status-code": 400.0,
-		"type":        "error",
-	})
+	id := body["change"].(string)
+
+	st := d.overlord.State()
+	st.Lock()
+	chg := st.Change(id)
+	st.Unlock()
+	c.Assert(chg, check.NotNil)
+
+	<-chg.Ready()
+
+	st.Lock()
+	err = chg.Err()
+	st.Unlock()
+	c.Assert(err, check.NotNil)
+	c.Check(err.Error(), check.Equals, `cannot perform the following tasks:
+- Connect consumer:plug to producer:slot (cannot connect plug "plug" from snap "consumer", no such plug)`)
 
 	repo := d.overlord.InterfaceManager().Repository()
 	slot := repo.Slot("producer", "slot")
@@ -1479,19 +1618,26 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 400)
+	c.Check(rec.Code, check.Equals, 202)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"result": map[string]interface{}{
-			"message": `cannot perform the following tasks:
-- Connect consumer:plug to producer:slot (cannot connect plug to slot "slot" from snap "producer", no such slot)`,
-		},
-		"status":      "Bad Request",
-		"status-code": 400.0,
-		"type":        "error",
-	})
+	id := body["change"].(string)
+
+	st := d.overlord.State()
+	st.Lock()
+	chg := st.Change(id)
+	st.Unlock()
+	c.Assert(chg, check.NotNil)
+
+	<-chg.Ready()
+
+	st.Lock()
+	err = chg.Err()
+	st.Unlock()
+	c.Assert(err, check.NotNil)
+	c.Check(err.Error(), check.Equals, `cannot perform the following tasks:
+- Connect consumer:plug to producer:slot (cannot connect plug to slot "slot" from snap "producer", no such slot)`)
 
 	repo := d.overlord.InterfaceManager().Repository()
 	plug := repo.Plug("consumer", "plug")
@@ -1523,16 +1669,24 @@ func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 200)
+	c.Check(rec.Code, check.Equals, 202)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"result":      nil,
-		"status":      "OK",
-		"status-code": 200.0,
-		"type":        "sync",
-	})
+	id := body["change"].(string)
+
+	st := d.overlord.State()
+	st.Lock()
+	chg := st.Change(id)
+	st.Unlock()
+	c.Assert(chg, check.NotNil)
+
+	<-chg.Ready()
+
+	st.Lock()
+	err = chg.Err()
+	st.Unlock()
+	c.Assert(err, check.IsNil)
 
 	plug := repo.Plug("consumer", "plug")
 	slot := repo.Slot("producer", "slot")
@@ -1562,19 +1716,26 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 400)
+	c.Check(rec.Code, check.Equals, 202)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"result": map[string]interface{}{
-			"message": `cannot perform the following tasks:
-- Disconnect consumer:plug from producer:slot (cannot disconnect plug "plug" from snap "consumer", no such plug)`,
-		},
-		"status":      "Bad Request",
-		"status-code": 400.0,
-		"type":        "error",
-	})
+	id := body["change"].(string)
+
+	st := d.overlord.State()
+	st.Lock()
+	chg := st.Change(id)
+	st.Unlock()
+	c.Assert(chg, check.NotNil)
+
+	<-chg.Ready()
+
+	st.Lock()
+	err = chg.Err()
+	st.Unlock()
+	c.Assert(err, check.NotNil)
+	c.Check(err.Error(), check.Equals, `cannot perform the following tasks:
+- Disconnect consumer:plug from producer:slot (cannot disconnect plug "plug" from snap "consumer", no such plug)`)
 
 	repo := d.overlord.InterfaceManager().Repository()
 	slot := repo.Slot("producer", "slot")
@@ -1603,19 +1764,26 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 400)
+	c.Check(rec.Code, check.Equals, 202)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"result": map[string]interface{}{
-			"message": `cannot perform the following tasks:
-- Disconnect consumer:plug from producer:slot (cannot disconnect plug from slot "slot" from snap "producer", no such slot)`,
-		},
-		"status":      "Bad Request",
-		"status-code": 400.0,
-		"type":        "error",
-	})
+	id := body["change"].(string)
+
+	st := d.overlord.State()
+	st.Lock()
+	chg := st.Change(id)
+	st.Unlock()
+	c.Assert(chg, check.NotNil)
+
+	<-chg.Ready()
+
+	st.Lock()
+	err = chg.Err()
+	st.Unlock()
+	c.Assert(err, check.NotNil)
+	c.Check(err.Error(), check.Equals, `cannot perform the following tasks:
+- Disconnect consumer:plug from producer:slot (cannot disconnect plug from slot "slot" from snap "producer", no such slot)`)
 
 	repo := d.overlord.InterfaceManager().Repository()
 	plug := repo.Plug("consumer", "plug")
@@ -1644,19 +1812,26 @@ func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	interfacesCmd.POST(interfacesCmd, req).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 400)
+	c.Check(rec.Code, check.Equals, 202)
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"result": map[string]interface{}{
-			"message": `cannot perform the following tasks:
-- Disconnect consumer:plug from producer:slot (cannot disconnect plug "plug" from snap "consumer" from slot "slot" from snap "producer", it is not connected)`,
-		},
-		"status":      "Bad Request",
-		"status-code": 400.0,
-		"type":        "error",
-	})
+	id := body["change"].(string)
+
+	st := d.overlord.State()
+	st.Lock()
+	chg := st.Change(id)
+	st.Unlock()
+	c.Assert(chg, check.NotNil)
+
+	<-chg.Ready()
+
+	st.Lock()
+	err = chg.Err()
+	st.Unlock()
+	c.Assert(err, check.NotNil)
+	c.Check(err.Error(), check.Equals, `cannot perform the following tasks:
+- Disconnect consumer:plug from producer:slot (cannot disconnect plug "plug" from snap "consumer" from slot "slot" from snap "producer", it is not connected)`)
 
 	repo := d.overlord.InterfaceManager().Repository()
 	plug := repo.Plug("consumer", "plug")
@@ -1964,7 +2139,7 @@ func setupChanges(st *state.State) []string {
 	t3.SetStatus(state.ErrorStatus)
 	t3.Errorf("rm failed")
 
-	return []string{chg1.ID(), chg2.ID()}
+	return []string{chg1.ID(), chg2.ID(), t1.ID(), t2.ID(), t3.ID()}
 }
 
 func (s *apiSuite) TestStateChangesDefaultToInProgress(c *check.C) {
@@ -1988,7 +2163,7 @@ func (s *apiSuite) TestStateChangesDefaultToInProgress(c *check.C) {
 	res, err := rsp.MarshalJSON()
 	c.Assert(err, check.IsNil)
 
-	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"kind":"download","summary":"1...","status":"Do","log":\["INFO: l11","INFO: l12"],"progress":{"done":0,"total":1}}.*`)
+	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"id":"\w+","kind":"download","summary":"1...","status":"Do","log":\["INFO: l11","INFO: l12"],"progress":{"done":0,"total":1}}.*`)
 }
 
 func (s *apiSuite) TestStateChangesInProgress(c *check.C) {
@@ -2012,7 +2187,7 @@ func (s *apiSuite) TestStateChangesInProgress(c *check.C) {
 	res, err := rsp.MarshalJSON()
 	c.Assert(err, check.IsNil)
 
-	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"kind":"download","summary":"1...","status":"Do","log":\["INFO: l11","INFO: l12"],"progress":{"done":0,"total":1}}.*],"ready":false}.*`)
+	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"id":"\w+","kind":"download","summary":"1...","status":"Do","log":\["INFO: l11","INFO: l12"],"progress":{"done":0,"total":1}}.*],"ready":false}.*`)
 }
 
 func (s *apiSuite) TestStateChangesAll(c *check.C) {
@@ -2035,8 +2210,8 @@ func (s *apiSuite) TestStateChangesAll(c *check.C) {
 	res, err := rsp.MarshalJSON()
 	c.Assert(err, check.IsNil)
 
-	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"kind":"download","summary":"1...","status":"Do","log":\["INFO: l11","INFO: l12"],"progress":{"done":0,"total":1}}.*],"ready":false}.*`)
-	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"remove","summary":"remove..","status":"Error","tasks":\[{"kind":"unlink","summary":"1...","status":"Error","log":\["ERROR: rm failed"],"progress":{"done":1,"total":1}}.*],"ready":true,"err":"[^"]+".*`)
+	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"id":"\w+","kind":"download","summary":"1...","status":"Do","log":\["INFO: l11","INFO: l12"],"progress":{"done":0,"total":1}}.*],"ready":false}.*`)
+	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"remove","summary":"remove..","status":"Error","tasks":\[{"id":"\w+","kind":"unlink","summary":"1...","status":"Error","log":\["ERROR: rm failed"],"progress":{"done":1,"total":1}}.*],"ready":true,"err":"[^"]+".*`)
 }
 
 func (s *apiSuite) TestStateChangesReady(c *check.C) {
@@ -2059,7 +2234,7 @@ func (s *apiSuite) TestStateChangesReady(c *check.C) {
 	res, err := rsp.MarshalJSON()
 	c.Assert(err, check.IsNil)
 
-	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"remove","summary":"remove..","status":"Error","tasks":\[{"kind":"unlink","summary":"1...","status":"Error","log":\["ERROR: rm failed"],"progress":{"done":1,"total":1}}.*],"ready":true,"err":"[^"]+".*`)
+	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"remove","summary":"remove..","status":"Error","tasks":\[{"id":"\w+","kind":"unlink","summary":"1...","status":"Error","log":\["ERROR: rm failed"],"progress":{"done":1,"total":1}}.*],"ready":true,"err":"[^"]+".*`)
 }
 
 func (s *apiSuite) TestStateChange(c *check.C) {
@@ -2095,6 +2270,7 @@ func (s *apiSuite) TestStateChange(c *check.C) {
 		"ready":   false,
 		"tasks": []interface{}{
 			map[string]interface{}{
+				"id":       ids[2],
 				"kind":     "download",
 				"summary":  "1...",
 				"status":   "Do",
@@ -2102,6 +2278,7 @@ func (s *apiSuite) TestStateChange(c *check.C) {
 				"progress": map[string]interface{}{"done": 0., "total": 1.},
 			},
 			map[string]interface{}{
+				"id":       ids[3],
 				"kind":     "activate",
 				"summary":  "2...",
 				"status":   "Do",

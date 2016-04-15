@@ -67,6 +67,7 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	info.IconURL = d.IconURL
 	info.AnonDownloadURL = d.AnonDownloadURL
 	info.DownloadURL = d.DownloadURL
+	info.Prices = d.Prices
 	return info
 }
 

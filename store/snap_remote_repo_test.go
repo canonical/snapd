@@ -196,7 +196,7 @@ const MockDetailsJSON = `{
                 "last_updated": "2016-03-03T19:52:01.075726Z",
                 "origin": "canonical",
                 "package_name": "hello-world",
-                "prices": {},
+                "prices": {"GBP": 1.23, "USD": 4.56},
                 "publisher": "Canonical",
                 "ratings_average": 0.0,
                 "revision": 22,
@@ -240,6 +240,10 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 		q := r.URL.Query()
 		c.Check(q.Get("q"), Equals, "package_name:\"hello-world\"")
 		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
+
+		w.Header().Set("X-Suggested-Currency", "GBP")
+		w.WriteHeader(http.StatusOK)
+
 		io.WriteString(w, MockDetailsJSON)
 	}))
 
@@ -267,6 +271,9 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Check(result.Channel, Equals, "edge")
 	c.Check(result.Description(), Equals, "This is a simple hello world example.")
 	c.Check(result.Summary(), Equals, "Hello world example")
+	c.Assert(result.Prices, DeepEquals, map[string]float64{"GBP": 1.23, "USD": 4.56})
+
+	c.Check(repo.SuggestedCurrency(), Equals, "GBP")
 }
 
 /*

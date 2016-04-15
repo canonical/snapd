@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/coreos/go-systemd/activation"
@@ -141,7 +142,10 @@ func logit(handler http.Handler) http.Handler {
 		t0 := time.Now()
 		handler.ServeHTTP(ww, r)
 		t := time.Now().Sub(t0)
-		logger.Debugf("%s %s %s %s %d", r.RemoteAddr, r.Method, r.URL, t, ww.s)
+		url := r.URL.String()
+		if !strings.Contains(url, "/changes/") {
+			logger.Debugf("%s %s %s %s %d", r.RemoteAddr, r.Method, r.URL, t, ww.s)
+		}
 	})
 }
 

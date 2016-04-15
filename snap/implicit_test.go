@@ -38,7 +38,7 @@ func (s *InfoSnapYamlTestSuite) TestAddImplicitSlots(c *C) {
 	c.Assert(info.Slots["network"].Interface, Equals, "network")
 	c.Assert(info.Slots["network"].Name, Equals, "network")
 	c.Assert(info.Slots["network"].Snap, Equals, info)
-	c.Assert(info.Slots, HasLen, 15)
+	c.Assert(info.Slots, HasLen, 16)
 }
 
 func (s *InfoSnapYamlTestSuite) TestImplicitSlotsAreRealInterfaces(c *C) {

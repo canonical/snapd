@@ -42,7 +42,7 @@ func (s *SnapSuite) TestInstall(c *check.C) {
 				"channel": "chan",
 			})
 			w.WriteHeader(http.StatusAccepted)
-			fmt.Fprintln(w, `{"type":"async", "result":{"resource": "/v2/changes/42"}, "status-code": 202}`)
+			fmt.Fprintln(w, `{"type":"async", "change": "42", "status-code": 202}`)
 		case 1:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
@@ -79,7 +79,7 @@ func (s *SnapSuite) TestSideload(c *check.C) {
 			c.Assert(err, check.IsNil)
 			c.Check(postData, check.DeepEquals, snapBody)
 			w.WriteHeader(http.StatusAccepted)
-			fmt.Fprintln(w, `{"type":"async", "result":{"resource": "/v2/changes/42"}, "status-code": 202}`)
+			fmt.Fprintln(w, `{"type":"async", "change": "42", "status-code": 202}`)
 		case 1:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
