@@ -90,7 +90,7 @@ func doInstall(s *state.State, curActive bool, snapName, snapPath, channel strin
 	copyData.WaitFor(precopy)
 
 	// security
-	setupSecurity := s.NewTask("setup-snap-security", fmt.Sprintf(i18n.G("Setup snap %q security profiles"), snapName))
+	setupSecurity := s.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q security profiles"), snapName))
 	addTask(setupSecurity)
 	setupSecurity.WaitFor(copyData)
 
@@ -203,7 +203,6 @@ func Remove(s *state.State, name string, flags snappy.RemoveFlags) (*state.TaskS
 
 	// trigger remove
 
-	// last task but the one holding snap-setup
 	discardSnap := s.NewTask("discard-snap", fmt.Sprintf(i18n.G("Remove snap %q from the system"), name))
 	discardSnap.Set("snap-setup", ss)
 
@@ -227,14 +226,18 @@ func Remove(s *state.State, name string, flags snappy.RemoveFlags) (*state.TaskS
 		addNext(unlink)
 	}
 
-	removeSecurity := s.NewTask("remove-snap-security", fmt.Sprintf(i18n.G("Remove security profile for snap %q"), name))
+	removeSecurity := s.NewTask("remove-profiles", fmt.Sprintf(i18n.G("Remove security profile for snap %q"), name))
 	addNext(removeSecurity)
 
 	clearData := s.NewTask("clear-snap", fmt.Sprintf(i18n.G("Remove data for snap %q"), name))
 	addNext(clearData)
 
-	// discard is last
 	addNext(discardSnap)
+
+	if len(snapst.Sequence) == 1 {
+		discardConns := s.NewTask("discard-conns", fmt.Sprintf(i18n.G("Discard interface connections for snap %q"), name))
+		addNext(discardConns)
+	}
 
 	return state.NewTaskSet(tasks...), nil
 }
