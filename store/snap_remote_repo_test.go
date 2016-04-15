@@ -238,7 +238,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 		c.Check(r.URL.Path, Equals, "/search")
 
 		q := r.URL.Query()
-		c.Check(q.Get("q"), Equals, "package_name:\"hello-world\"")
+		c.Check(q.Get("q"), Equals, "package_name:hello-world")
 		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
 
 		w.Header().Set("X-Suggested-Currency", "GBP")
@@ -307,7 +307,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
 		c.Check(r.URL.Path, Equals, "/search")
 
 		q := r.URL.Query()
-		c.Check(q.Get("q"), Equals, "package_name:\"no-such-pkg\"")
+		c.Check(q.Get("q"), Equals, "package_name:no-such-pkg")
 		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
 		w.WriteHeader(404)
 		io.WriteString(w, MockNoDetailsJSON)
@@ -604,7 +604,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositorySuggestedCurrency(c *C) {
 	c.Check(repo.SuggestedCurrency(), Equals, "USD")
 
 	// we should soon have a suggested currency
-	result, err := repo.Snap(funkyAppName, "edge", nil)
+	result, err := repo.Snap("hello-world", "edge", nil)
 	c.Assert(err, IsNil)
 	c.Assert(result, NotNil)
 	c.Check(repo.SuggestedCurrency(), Equals, "GBP")
@@ -612,7 +612,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositorySuggestedCurrency(c *C) {
 	suggestedCurrency = "EUR"
 
 	// checking the currency updates
-	result, err = repo.Snap(funkyAppName, "edge", nil)
+	result, err = repo.Snap("hello-world", "edge", nil)
 	c.Assert(err, IsNil)
 	c.Assert(result, NotNil)
 	c.Check(repo.SuggestedCurrency(), Equals, "EUR")
