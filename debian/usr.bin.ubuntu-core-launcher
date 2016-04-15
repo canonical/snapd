@@ -36,6 +36,9 @@
     /lib/udev/snappy-app-dev ixr, # drop
     /run/udev/** rw,
     /{,usr/}bin/tr ixr,
+    /usr/lib/locale/** r,
+    /usr/lib/@{multiarch}/gconv/gconv-modules r,
+    /usr/lib/@{multiarch}/gconv/gconv-modules.cache r,
 
     # priv dropping
     capability setuid,
