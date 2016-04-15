@@ -824,9 +824,13 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 	state.Lock()
 	msg := fmt.Sprintf(i18n.G("Install local %q snap"), snap)
 	chg := state.NewChange("install-snap", msg)
-	ts, err := snapstateInstallPath(state, snap, "", flags)
+
+	err = ensureUbuntuCore(chg)
 	if err == nil {
-		chg.AddAll(ts)
+		ts, err := snapstateInstallPath(state, snap, "", flags)
+		if err == nil {
+			chg.AddAll(ts)
+		}
 	}
 	state.Unlock()
 	go func() {
