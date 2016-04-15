@@ -50,8 +50,9 @@ type Config struct {
 
 // A Client knows how to talk to the snappy daemon.
 type Client struct {
-	baseURL url.URL
-	doer    doer
+	baseURL        url.URL
+	doer           doer
+	xxxHackDevMode bool
 }
 
 // New returns a new instance of Client
@@ -107,6 +108,9 @@ func (client *Client) raw(method, urlpath string, query url.Values, body io.Read
 	req, err := http.NewRequest(method, u.String(), body)
 	if err != nil {
 		return nil, err
+	}
+	if client.xxxHackDevMode {
+		req.Header.Add("X-Developer-Mode", "yes")
 	}
 
 	// set Authorization header if there are user's credentials

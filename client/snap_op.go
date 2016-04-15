@@ -55,6 +55,8 @@ func (client *Client) InstallSnapPath(path string, devMode bool) (changeID strin
 		return "", fmt.Errorf("cannot open: %q", path)
 	}
 
+	client.xxxHackDevMode = devMode
+	defer func() { client.xxxHackDevMode = false }()
 	return client.doAsync("POST", "/v2/snaps", nil, f)
 }
 
