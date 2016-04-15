@@ -567,6 +567,7 @@ func (s *apiSuite) TestLoginUser(c *check.C) {
 	}
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Assert(rsp.Result, check.FitsTypeOf, expected)
 	c.Check(rsp.Result, check.DeepEquals, expected)
 
 	expectedUser := auth.UserState{
@@ -1053,6 +1054,47 @@ func (s *apiSuite) TestPostSnap(c *check.C) {
 	st.Unlock()
 }
 
+func (s *apiSuite) TestPostSnapSetsUser(c *check.C) {
+	d := s.daemon(c)
+
+	pkgActionDispatch = func(inst *snapInstruction) func() (*state.Change, error) {
+		return func() (*state.Change, error) {
+			state := d.overlord.State()
+			state.Lock()
+			// check UserID was set in the snapInstruction
+			chg := state.NewChange("foo", string(inst.UserID))
+			state.Unlock()
+
+			return chg, nil
+		}
+	}
+	defer func() {
+		pkgActionDispatch = pkgActionDispatchImpl
+	}()
+
+	state := snapCmd.d.overlord.State()
+	state.Lock()
+	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	state.Unlock()
+	c.Check(err, check.IsNil)
+
+	buf := bytes.NewBufferString(`{"action": "install"}`)
+	req, err := http.NewRequest("POST", "/v2/snaps/hello-world", buf)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
+
+	rsp := postSnap(snapCmd, req).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeAsync)
+
+	st := d.overlord.State()
+	st.Lock()
+	chg := st.Change(rsp.Change)
+	c.Assert(chg, check.NotNil)
+	c.Check(chg.Summary(), check.Equals, string(user.ID))
+	st.Unlock()
+}
+
 func (s *apiSuite) TestPostSnapDispatch(c *check.C) {
 	inst := &snapInstruction{}
 
@@ -1116,7 +1158,7 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 		// pretend we do not have a state for ubuntu-core
 		return state.ErrNoState
 	}
-	snapstateInstall = func(s *state.State, name, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
+	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snappy.InstallFlags) (*state.TaskSet, error) {
 		installQueue = append(installQueue, name)
 
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
@@ -1269,7 +1311,7 @@ func (s *apiSuite) TestInstall(c *check.C) {
 		// we have ubuntu-core
 		return nil
 	}
-	snapstateInstall = func(s *state.State, name, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
+	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snappy.InstallFlags) (*state.TaskSet, error) {
 		calledFlags = flags
 		installQueue = append(installQueue, name)
 
@@ -1300,7 +1342,7 @@ func (s *apiSuite) TestInstallMissingUbuntuCore(c *check.C) {
 		// pretend we do not have a state for ubuntu-core
 		return state.ErrNoState
 	}
-	snapstateInstall = func(s *state.State, name, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
+	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snappy.InstallFlags) (*state.TaskSet, error) {
 		t1 := s.NewTask("fake-install-snap", name)
 		t2 := s.NewTask("fake-install-snap", "second task is just here so that we can check that the wait is correctly added to all tasks")
 		installQueue = append(installQueue, t1, t2)
@@ -1333,7 +1375,7 @@ func (s *apiSuite) TestInstallMissingUbuntuCore(c *check.C) {
 }
 
 func (s *apiSuite) TestInstallFails(c *check.C) {
-	snapstateInstall = func(s *state.State, name, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
+	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snappy.InstallFlags) (*state.TaskSet, error) {
 		t := s.NewTask("fake-install-snap-error", "Install task")
 		return state.NewTaskSet(t), nil
 	}
@@ -1360,7 +1402,7 @@ func (s *apiSuite) TestInstallFails(c *check.C) {
 func (s *apiSuite) TestInstallLeaveOld(c *check.C) {
 	calledFlags := snappy.InstallFlags(42)
 
-	snapstateInstall = func(s *state.State, name, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
+	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snappy.InstallFlags) (*state.TaskSet, error) {
 		calledFlags = flags
 
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
