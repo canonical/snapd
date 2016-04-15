@@ -219,7 +219,7 @@ func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	_, err = Install("hello-snap.potato", "ch", 0, ag)
+	_, err = Install("hello-snap", "ch", 0, ag)
 	c.Assert(err, ErrorMatches, ".*"+ErrPackageNameAlreadyInstalled.Error())
 }
 
