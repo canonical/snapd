@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-04-14 21:31+0100\n"
+        "POT-Creation-Date: 2016-04-15 08:48-0300\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -21,6 +21,10 @@ msgid   "Activate %q snap"
 msgstr  ""
 
 msgid   "Activate a snap that is installed but inactive"
+msgstr  ""
+
+#, c-format
+msgid   "Activate snap %q"
 msgstr  ""
 
 msgid   "Adds an assertion to the system"
@@ -70,6 +74,10 @@ msgid   "Deactivate %q snap"
 msgstr  ""
 
 msgid   "Deactivate an installed active snap"
+msgstr  ""
+
+#, c-format
+msgid   "Deactivate snap %q"
 msgstr  ""
 
 #, c-format
@@ -189,14 +197,6 @@ msgid   "Rollback a snap to its previous known-good version"
 msgstr  ""
 
 msgid   "Runs unsupported experimental commands"
-msgstr  ""
-
-#, c-format
-msgid   "Set active %q"
-msgstr  ""
-
-#, c-format
-msgid   "Set inactive %q"
 msgstr  ""
 
 #, c-format
