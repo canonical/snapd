@@ -38,6 +38,22 @@ func ValidateName(name string) error {
 
 // Validate verifies the content in the info.
 func Validate(info *Info) error {
+	name := info.Name()
+	if name == "" {
+		return fmt.Errorf("snap name cannot be empty")
+	}
+	err := ValidateName(name)
+	if err != nil {
+		return err
+	}
+
+	// validate app entries
+	for _, app := range info.Apps {
+		err := ValidateApp(app)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
