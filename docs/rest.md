@@ -191,7 +191,7 @@ Sample result:
       "revision": 17,
       "version": "1.0.18",
       "channel": "stable",
-      "prices": {"GBP": 2.99, "USD": 4.99}
+      "prices": {}
     }, {
       "summary": "HTTPie in a snap",
       "description": "no description",
@@ -207,7 +207,7 @@ Sample result:
       "version": "3.1",
       "revision": 1834,
       "channel": "stable",
-      "prices": {"EUR": 1.99, "USD": 2.49}
+      "prices": {}
     }, {
       "summary": "The ubuntu-core OS snap",
       "description": "A secure, minimal transactional OS for devices and containers.",
@@ -224,7 +224,7 @@ Sample result:
       "version": "241",
       "revision": 99,
       "channel": "stable",
-      "prices": {}
+      "prices": {"EUR": 1.99, "USD": 2.49}
 ```
 
 #### Fields
