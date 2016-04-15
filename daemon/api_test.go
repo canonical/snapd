@@ -433,7 +433,6 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 	exceptions := []string{ // keep sorted, for scanning ease
 		"apiCompatLevel",
 		"api",
-		"errNoAuth",
 		"maxReadBuflen",
 		"muxVars",
 		"newRemoteRepo",
