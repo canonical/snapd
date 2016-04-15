@@ -73,6 +73,9 @@ func wait(client *client.Client, id string) error {
 			return fmt.Errorf("change finished in status %q with no error message", chg.Status)
 		}
 
+		// note this very purposely is not a ticker; we want
+		// to sleep 100ms between calls, not call once every
+		// 100ms.
 		time.Sleep(100 * time.Millisecond)
 	}
 }
