@@ -698,8 +698,7 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 
 	// verify snapSetup info
 	tasks := ts.Tasks()
-	// XXX -2 because the last task is discard-conns and snap-setup is in the
-	// discard-snap, just before discard-conns.
+	// snap-setup is in discard-snap above discard-conns.
 	task := tasks[len(tasks)-2]
 	var ss snapstate.SnapSetup
 	err = task.Get("snap-setup", &ss)

@@ -159,7 +159,6 @@ func Remove(s *state.State, name string, flags snappy.RemoveFlags) (*state.TaskS
 
 	// trigger remove
 
-	// last task but the one holding snap-setup
 	discardSnap := s.NewTask("discard-snap", fmt.Sprintf(i18n.G("Remove snap %q from the system"), name))
 	discardSnap.Set("snap-setup", ss)
 
