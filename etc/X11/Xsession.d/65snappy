@@ -1,7 +1,7 @@
 # This file is sourced by Xsession(5), not executed.
 # Add additionnal the additonal snappy desktop path
 
-XDG_DATA_DIRS=$XDG_DATA_DIRS:/var/lib/snappy/desktop
+XDG_DATA_DIRS=$XDG_DATA_DIRS:/var/lib/snapd/desktop
 export XDG_DATA_DIRS
 
 
