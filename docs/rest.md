@@ -190,7 +190,8 @@ Sample result:
       "type": "app",
       "revision": 17,
       "version": "1.0.18",
-      "channel": "stable"
+      "channel": "stable",
+      "prices": {"GBP": 2.99, "USD": 4.99}
     }, {
       "summary": "HTTPie in a snap",
       "description": "no description",
@@ -205,7 +206,8 @@ Sample result:
       "type": "app",
       "version": "3.1",
       "revision": 1834,
-      "channel": "stable"
+      "channel": "stable",
+      "prices": {"EUR": 1.99, "USD": 2.49}
     }, {
       "summary": "The ubuntu-core OS snap",
       "description": "A secure, minimal transactional OS for devices and containers.",
@@ -221,8 +223,8 @@ Sample result:
       "update-available": 247,
       "version": "241",
       "revision": 99,
-      "channel": "stable"
-}]
+      "channel": "stable",
+      "prices": {}
 ```
 
 #### Fields
@@ -246,6 +248,9 @@ Sample result:
 * `update-available`: if present and not empty, it means the snap can be
   updated to the revision specified as a value to this entry.
 * `channel`: which channel the package is currently tracking.
+* `prices`: JSON object with properties named by ISO 4217 currency code.
+  An object with no properties means the snap is free. The values of the
+  properties are numerics representing the cost in each currency.
 
 Sample additional meta data:
 
@@ -271,6 +276,8 @@ Sample additional meta data:
     * `pages`: the (approximate) number of pages
 * `sources`
     a list of the sources that were queried (see the `sources` parameter, below)
+* `suggested-currency`: the suggested currency to use for presentation, 
+   derived by Geo IP lookup.
 
 ### Parameters [fixme: is that the right word for these?]
 
