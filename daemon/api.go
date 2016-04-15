@@ -517,6 +517,7 @@ type snapInstruction struct {
 	progress.NullProgress
 	Action   string       `json:"action"`
 	Channel  string       `json:"channel"`
+	DevMode  bool         `json:"devmode"`
 	LeaveOld bool         `json:"leave-old"`
 	License  *licenseData `json:"license"`
 	pkg      string
@@ -595,7 +596,9 @@ func (inst *snapInstruction) install() (*state.Change, error) {
 	if inst.Channel != "stable" {
 		msg = fmt.Sprintf(i18n.G("Install %q snap from %q channel"), inst.pkg, inst.Channel)
 	}
-
+	if inst.DevMode {
+		flags |= snappy.DeveloperMode
+	}
 	st := inst.overlord.State()
 	st.Lock()
 	chg := st.NewChange("install-snap", msg)
