@@ -156,6 +156,7 @@ type ServiceDescription struct {
 	SnapName        string
 	AppName         string
 	Version         string
+	Revision        int
 	Description     string
 	SnapPath        string
 	Start           string
