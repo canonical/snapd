@@ -58,13 +58,13 @@ func (ss *SnapSetup) MountDir() string {
 
 // SnapState holds the state for a snap installed in the system.
 type SnapState struct {
-	Sequence      []*snap.SideInfo `json:"sequence"` // Last is current
-	Candidate     *snap.SideInfo   `josn:"candidate,omitempty"`
-	Active        bool             `json:"active,omitempty"`
-	Channel       string           `json:"channel,omitempty"`
-	DevMode       bool             `json:"dev-mode,omitempty"`
+	Sequence  []*snap.SideInfo `json:"sequence"` // Last is current
+	Candidate *snap.SideInfo   `josn:"candidate,omitempty"`
+	Active    bool             `json:"active,omitempty"`
+	Channel   string           `json:"channel,omitempty"`
+	DevMode   bool             `json:"dev-mode,omitempty"`
 	// incremented revision used for local installs
-	LocalRevision int              `json:"local-revision,omitempty"`
+	LocalRevision int `json:"local-revision,omitempty"`
 }
 
 // Current returns the side info for the current revision in the snap revision sequence if there is one.
