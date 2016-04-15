@@ -26,59 +26,20 @@ import (
 	"github.com/ubuntu-core/snappy/snap"
 )
 
-func (s *SnapTestSuite) TestRemoveNonExistingRaisesError(c *C) {
-	pkgName := "some-random-non-existing-stuff"
-	err := Remove(pkgName, 0, &progress.NullProgress{})
-	c.Assert(err, NotNil)
-	c.Assert(err, Equals, ErrPackageNotFound)
+func (s *SnapTestSuite) TestUnlinkSnapActiveVsNotActive(c *C) {
+	foo1, foo2 := makeTwoTestSnaps(c, snap.TypeApp)
+
+	err := UnlinkSnap(foo2, &progress.NullProgress{})
+	c.Assert(err, IsNil)
+
+	err = UnlinkSnap(foo1, &progress.NullProgress{})
+	c.Assert(err, Equals, ErrSnapNotActive)
 }
 
-func (s *SnapTestSuite) TestSnapRemoveByVersion(c *C) {
-	makeTwoTestSnaps(c, snap.TypeApp)
+func (s *SnapTestSuite) TestCanRemoveGadget(c *C) {
+	foo1, foo2 := makeTwoTestSnaps(c, snap.TypeGadget)
 
-	err := Remove("foo=1.0", 0, &progress.NullProgress{})
+	c.Check(CanRemove(foo2, true), Equals, false)
 
-	installed, err := (&Overlord{}).Installed()
-	c.Assert(err, IsNil)
-	c.Assert(installed[0].Version(), Equals, "2.0")
-}
-
-func (s *SnapTestSuite) TestSnapRemoveActive(c *C) {
-	makeTwoTestSnaps(c, snap.TypeApp)
-
-	err := Remove("foo", 0, &progress.NullProgress{})
-
-	installed, err := (&Overlord{}).Installed()
-	c.Assert(err, IsNil)
-	c.Assert(installed[0].Version(), Equals, "1.0")
-}
-
-func (s *SnapTestSuite) TestSnapRemoveActiveGadgetFails(c *C) {
-	makeTwoTestSnaps(c, snap.TypeGadget)
-
-	err := Remove("foo", 0, &progress.NullProgress{})
-	c.Assert(err, DeepEquals, ErrPackageNotRemovable)
-
-	err = Remove("foo=1.0", 0, &progress.NullProgress{})
-	c.Assert(err, IsNil)
-
-	err = Remove("foo", 0, &progress.NullProgress{})
-	c.Assert(err, DeepEquals, ErrPackageNotRemovable)
-
-	installed, err := (&Overlord{}).Installed()
-	c.Assert(err, IsNil)
-	c.Assert(installed[0].Name(), Equals, "foo")
-	c.Assert(installed[0].Type(), Equals, snap.TypeGadget)
-	c.Assert(installed[0].Version(), Equals, "2.0")
-	c.Assert(installed, HasLen, 1)
-}
-
-func (s *SnapTestSuite) TestSnapRemoveGC(c *C) {
-	makeTwoTestSnaps(c, snap.TypeApp)
-	err := Remove("foo", DoRemoveGC, &progress.NullProgress{})
-	c.Assert(err, IsNil)
-
-	installed, err := (&Overlord{}).Installed()
-	c.Assert(err, IsNil)
-	c.Check(installed, HasLen, 0)
+	c.Check(CanRemove(foo1, false), Equals, true)
 }

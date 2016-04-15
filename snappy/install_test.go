@@ -46,7 +46,6 @@ func (s *SnapTestSuite) TestInstallInstall(c *C) {
 	c.Assert(all, HasLen, 1)
 	snap := all[0]
 	c.Check(snap.Name(), Equals, name)
-	c.Check(snap.IsInstalled(), Equals, true)
 	c.Check(snap.IsActive(), Equals, true)
 }
 
@@ -61,7 +60,6 @@ func (s *SnapTestSuite) TestInstallNoHook(c *C) {
 	c.Assert(all, HasLen, 1)
 	snap := all[0]
 	c.Check(snap.Name(), Equals, name)
-	c.Check(snap.IsInstalled(), Equals, true)
 	c.Check(snap.IsActive(), Equals, false) // c.f. TestInstallInstall
 }
 
