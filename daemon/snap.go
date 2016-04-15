@@ -93,9 +93,8 @@ func allLocalSnapInfos(st *state.State) ([]aboutSnap, error) {
 	about := make([]aboutSnap, 0, len(snapStates))
 
 	var firstErr error
-	for _, snapState := range snapStates {
-		cur := snapState.Current()
-		info, err := snap.ReadInfo(cur.OfficialName, cur)
+	for name, snapState := range snapStates {
+		info, err := snap.ReadInfo(name, snapState.Current())
 		if err != nil {
 			// XXX: aggregate instead?
 			if firstErr == nil {

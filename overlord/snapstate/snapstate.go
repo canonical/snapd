@@ -316,19 +316,21 @@ func Get(s *state.State, name string, snapst *SnapState) error {
 	return nil
 }
 
-// All retrieves the SnapStates for all current snaps in the system state.
-func All(s *state.State) ([]*SnapState, error) {
+// All retrieves return a map from name to SnapState for all current snaps in the system state.
+func All(s *state.State) (map[string]*SnapState, error) {
+	// XXX: result is a map because sideloaded snaps carry no name
+	// atm in their sideinfos
 	var stateMap map[string]*SnapState
 	if err := s.Get("snaps", &stateMap); err != nil && err != state.ErrNoState {
 		return nil, err
 	}
-	states := make([]*SnapState, 0, len(stateMap))
-	for _, snapState := range stateMap {
+	curStates := make(map[string]*SnapState, len(stateMap))
+	for snapName, snapState := range stateMap {
 		if snapState.Current() != nil {
-			states = append(states, snapState)
+			curStates[snapName] = snapState
 		}
 	}
-	return states, nil
+	return curStates, nil
 }
 
 // Set sets the SnapState of the given snap, overwriting any earlier state.
