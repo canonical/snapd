@@ -272,23 +272,41 @@ func Get(s *state.State, name string, snapst *SnapState) error {
 	return nil
 }
 
+// All retrieves the SnapStates for all current snaps in the system state.
+func All(s *state.State) ([]*SnapState, error) {
+	var stateMap map[string]*SnapState
+	if err := s.Get("snaps", &stateMap); err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	states := make([]*SnapState, 0, len(stateMap))
+	for _, snapState := range stateMap {
+		if snapState.Current() != nil {
+			states = append(states, snapState)
+		}
+	}
+	return states, nil
+}
+
 // Set sets the SnapState of the given snap, overwriting any earlier state.
 func Set(s *state.State, name string, snapst *SnapState) {
 	var snaps map[string]*json.RawMessage
 	err := s.Get("snaps", &snaps)
-	if err == state.ErrNoState {
-		s.Set("snaps", map[string]*SnapState{name: snapst})
-		return
-	}
-	if err != nil {
+	if err != nil && err != state.ErrNoState {
 		panic("internal error: cannot unmarshal snaps state: " + err.Error())
 	}
-	data, err := json.Marshal(snapst)
-	if err != nil {
-		panic("internal error: cannot marshal snap state: " + err.Error())
+	if snaps == nil {
+		snaps = make(map[string]*json.RawMessage)
 	}
-	raw := json.RawMessage(data)
-	snaps[name] = &raw
+	if snapst == nil || (len(snapst.Sequence) == 0 && snapst.Candidate == nil) {
+		delete(snaps, name)
+	} else {
+		data, err := json.Marshal(snapst)
+		if err != nil {
+			panic("internal error: cannot marshal snap state: " + err.Error())
+		}
+		raw := json.RawMessage(data)
+		snaps[name] = &raw
+	}
 	s.Set("snaps", snaps)
 }
 
@@ -303,8 +321,7 @@ func ActiveInfos(s *state.State) ([]*snap.Info, error) {
 		if !snapState.Active {
 			continue
 		}
-		sideInfo := snapState.Sequence[len(snapState.Sequence)-1]
-		snapInfo, err := readInfo(snapName, sideInfo)
+		snapInfo, err := readInfo(snapName, snapState.Current())
 		if err != nil {
 			logger.Noticef("cannot retrieve info for snap %q: %s", snapName, err)
 			continue

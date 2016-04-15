@@ -28,7 +28,6 @@ import (
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snappy"
 )
 
 // snapIcon tries to find the icon inside the snap
@@ -86,64 +85,28 @@ func allLocalSnapInfos(st *state.State) ([]aboutSnap, error) {
 	st.Lock()
 	defer st.Unlock()
 
-	// XXX: make this snapstate.All
-	var stateMap map[string]*snapstate.SnapState
-	if err := st.Get("snaps", &stateMap); err != nil && err != state.ErrNoState {
-		return nil, err
-	}
-
-	about := make([]aboutSnap, 0, len(stateMap))
-
-	var firstErr error
-	for name, snapState := range stateMap {
-		if cur := snapState.Current(); cur != nil {
-			info, err := snap.ReadInfo(name, cur)
-			if err != nil {
-				// XXX: aggregate instead?
-				if firstErr == nil {
-					firstErr = err
-				}
-				continue
-			}
-			about = append(about, aboutSnap{info, snapState})
-		}
-	}
-
-	return about, firstErr
-}
-
-// allSnaps returns all installed snaps, grouped by name
-func allSnaps() (map[string][]*snappy.Snap, error) {
-	all, err := (&snappy.Overlord{}).Installed()
+	snapStates, err := snapstate.All(st)
 	if err != nil {
 		return nil, err
 	}
 
-	m := make(map[string][]*snappy.Snap)
+	about := make([]aboutSnap, 0, len(snapStates))
 
-	for _, snap := range all {
-		name := snap.Name()
-		m[name] = append(m[name], snap)
-	}
-
-	return m, nil
-}
-
-// Best Snap in the slice (and its index therein).
-//
-// If there is an active part, that. Otherwise, the last part in the slice.
-//
-// (-1, nil) if slice is nil or empty.
-func bestSnap(snaps []*snappy.Snap) (idx int, snap *snappy.Snap) {
-	idx = -1
-
-	for idx, snap = range snaps {
-		if snap.IsActive() {
-			break
+	var firstErr error
+	for _, snapState := range snapStates {
+		cur := snapState.Current()
+		info, err := snap.ReadInfo(cur.OfficialName, cur)
+		if err != nil {
+			// XXX: aggregate instead?
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
 		}
+		about = append(about, aboutSnap{info, snapState})
 	}
 
-	return idx, snap
+	return about, firstErr
 }
 
 // Map a localSnap information plus the given active flag to a
