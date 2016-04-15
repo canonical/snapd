@@ -27,7 +27,6 @@ import (
 
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snappy"
 )
 
 // SnapManager is responsible for the installation and removal of snaps.
@@ -57,13 +56,21 @@ func (ss *SnapSetup) MountDir() string {
 	return snap.MountDir(ss.Name, ss.Revision)
 }
 
+// SnapStateFlags are flags stored in SnapState.
+type SnapStateFlags int
+
+const (
+	// DevMode switches confinement to non-enforcing mode.
+	DevMode = 1 << iota
+)
+
 // SnapState holds the state for a snap installed in the system.
 type SnapState struct {
 	Sequence  []*snap.SideInfo `json:"sequence"` // Last is current
 	Candidate *snap.SideInfo   `json:"candidate,omitempty"`
 	Active    bool             `json:"active,omitempty"`
 	Channel   string           `json:"channel,omitempty"`
-	Flags     int              `json:"flags,omitempty"`
+	Flags     SnapStateFlags   `json:"flags,omitempty"`
 	// incremented revision used for local installs
 	LocalRevision int `json:"local-revision,omitempty"`
 }
@@ -79,7 +86,7 @@ func (snapst *SnapState) Current() *snap.SideInfo {
 
 // DevMode returns true if the snap is installed in developer mode.
 func (snapst *SnapState) DevMode() bool {
-	return snapst.Flags&int(snappy.DeveloperMode) != 0
+	return snapst.Flags&DevMode != 0
 }
 
 // Manager returns a new snap manager.

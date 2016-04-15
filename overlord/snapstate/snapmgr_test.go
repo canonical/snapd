@@ -984,6 +984,6 @@ var _ = Suite(&snapStateSuite{})
 func (s *snapStateSuite) TestSnapStateDevMode(c *C) {
 	snapst := &snapstate.SnapState{}
 	c.Check(snapst.DevMode(), Equals, false)
-	snapst.Flags = int(snappy.DeveloperMode)
+	snapst.Flags = snapstate.DevMode
 	c.Check(snapst.DevMode(), Equals, true)
 }
