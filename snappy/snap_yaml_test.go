@@ -39,3 +39,14 @@ plugs:
 	c.Assert(err, IsNil)
 	sy.Plugs["old-security"].Interface = "old-security"
 }
+
+func (s *snapYamlTestSuite) TestParseEmptyPlugDef(c *C) {
+	snapYaml := []byte(`name: foo
+version: 1.0
+plugs:
+ unity7:
+`)
+	sy, err := parseSnapYamlData(snapYaml, false)
+	c.Assert(err, IsNil)
+	sy.Plugs["unity7"].Interface = "unity7"
+}
