@@ -864,7 +864,12 @@ func (s *snapmgrQuerySuite) TestAll(c *C) {
 
 	c.Check(snapStates, HasLen, 1)
 
-	snapst := snapStates[0]
+	var snapst *snapstate.SnapState
+
+	for name, sst := range snapStates {
+		c.Assert(name, Equals, "name1")
+		snapst = sst
+	}
 
 	c.Check(snapst.Active, Equals, true)
 	c.Check(snapst.Current(), NotNil)
