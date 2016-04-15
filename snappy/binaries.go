@@ -79,6 +79,7 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 		SnapArch    string
 		SnapPath    string
 		Version     string
+		Revision    int
 		UdevAppName string
 		Home        string
 		Target      string
@@ -91,6 +92,7 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 		SnapArch:    arch.UbuntuArchitecture(),
 		SnapPath:    pkgPath,
 		Version:     app.Snap.Version,
+		Revision:    app.Snap.Revision,
 		UdevAppName: app.SecurityTag(),
 		Home:        "$HOME",
 		Target:      actualBinPath,

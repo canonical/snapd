@@ -94,7 +94,7 @@ X-Snappy=yes
 ExecStart=/usr/bin/ubuntu-core-launcher snap.xkcd-webserver.xkcd-webserver snap.xkcd-webserver.xkcd-webserver /snap/xkcd-webserver/0.3.4/bin/foo start
 Restart=on-failure
 WorkingDirectory=/var/snap/xkcd-webserver/0.3.4/
-Environment="SNAP=/snap/xkcd-webserver/0.3.4/" "SNAP_DATA=/var/snap/xkcd-webserver/0.3.4/" "SNAP_NAME=xkcd-webserver" "SNAP_VERSION=0.3.4" "SNAP_ARCH=%[3]s" "SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:" "SNAP_USER_DATA=/root/snap/xkcd-webserver/0.3.4/" "SNAP_APP_PATH=/snap/xkcd-webserver/0.3.4/" "SNAP_APP_DATA_PATH=/var/snap/xkcd-webserver/0.3.4/" "SNAP_APP_USER_DATA_PATH=/root/snap/xkcd-webserver/0.3.4/"
+Environment="SNAP=/snap/xkcd-webserver/0.3.4/" "SNAP_DATA=/var/snap/xkcd-webserver/0.3.4/" "SNAP_NAME=xkcd-webserver" "SNAP_VERSION=0.3.4" "SNAP_REVISION=44" "SNAP_ARCH=%[3]s" "SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:" "SNAP_USER_DATA=/root/snap/xkcd-webserver/0.3.4/" "SNAP_APP_PATH=/snap/xkcd-webserver/0.3.4/" "SNAP_APP_DATA_PATH=/var/snap/xkcd-webserver/0.3.4/" "SNAP_APP_USER_DATA_PATH=/root/snap/xkcd-webserver/0.3.4/"
 ExecStop=/usr/bin/ubuntu-core-launcher snap.xkcd-webserver.xkcd-webserver snap.xkcd-webserver.xkcd-webserver /snap/xkcd-webserver/0.3.4/bin/foo stop
 ExecStopPost=/usr/bin/ubuntu-core-launcher snap.xkcd-webserver.xkcd-webserver snap.xkcd-webserver.xkcd-webserver /snap/xkcd-webserver/0.3.4/bin/foo post-stop
 TimeoutStopSec=30
@@ -114,6 +114,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceTypeForking(c *C) {
 		Snap: &snap.Info{
 			SuggestedName: "xkcd-webserver",
 			Version:       "0.3.4",
+			SideInfo:      snap.SideInfo{Revision: 44},
 		},
 		Name:        "xkcd-webserver",
 		Command:     "bin/foo start",
@@ -134,6 +135,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceAppWrapper(c *C) {
 		Snap: &snap.Info{
 			SuggestedName: "xkcd-webserver",
 			Version:       "0.3.4",
+			SideInfo:      snap.SideInfo{Revision: 44},
 		},
 		Name:        "xkcd-webserver",
 		Command:     "bin/foo start",
@@ -154,6 +156,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceRestart(c *C) {
 		Snap: &snap.Info{
 			SuggestedName: "xkcd-webserver",
 			Version:       "0.3.4",
+			SideInfo:      snap.SideInfo{Revision: 44},
 		},
 		Name:        "xkcd-webserver",
 		RestartCond: systemd.RestartOnAbort,
@@ -171,6 +174,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWrapperWhitelist(c *C) {
 		Snap: &snap.Info{
 			SuggestedName: "xkcd-webserver",
 			Version:       "0.3.4",
+			SideInfo:      snap.SideInfo{Revision: 44},
 		},
 		Name:        "xkcd-webserver",
 		Command:     "bin/foo start\n",
