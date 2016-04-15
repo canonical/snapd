@@ -413,6 +413,14 @@ func (s *interfaceManagerSuite) TestDoDiscardConnsSlot(c *C) {
 	s.testDoDicardConns(c, "producer")
 }
 
+func (s *interfaceManagerSuite) TestUndoDiscardConnsPlug(c *C) {
+	s.testUndoDicardConns(c, "consumer")
+}
+
+func (s *interfaceManagerSuite) TestUndoDiscardConnsSlot(c *C) {
+	s.testUndoDicardConns(c, "producer")
+}
+
 func (s *interfaceManagerSuite) testDoDicardConns(c *C, snapName string) {
 	s.state.Lock()
 	// Store information about a connection in the state.
@@ -448,6 +456,51 @@ func (s *interfaceManagerSuite) testDoDicardConns(c *C, snapName string) {
 	c.Check(removed, DeepEquals, map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
 	})
+}
+
+func (s *interfaceManagerSuite) testUndoDicardConns(c *C, snapName string) {
+	s.state.Lock()
+	// Store information about a connection in the state.
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
+	})
+	// Store empty snap state. This snap has an empty sequence now.
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{})
+	s.state.Unlock()
+
+	mgr := s.manager(c)
+
+	// Run the discard-conns task and let it finish
+	change := s.addDiscardConnsChange(c, snapName)
+
+	mgr.Ensure()
+	mgr.Wait()
+
+	s.state.Lock()
+	c.Check(change.Status(), Equals, state.DoneStatus)
+	change.Abort()
+	s.state.Unlock()
+
+	mgr.Ensure()
+	mgr.Wait()
+	mgr.Stop()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(change.Status(), Equals, state.UndoneStatus)
+
+	// Information about the connection is intact
+	var conns map[string]interface{}
+	err := s.state.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
+	})
+
+	var removed map[string]interface{}
+	err = change.Tasks()[0].Get("removed", &removed)
+	c.Assert(err, IsNil)
+	c.Check(removed, HasLen, 0)
 }
 
 func (s *interfaceManagerSuite) TestDoRemove(c *C) {

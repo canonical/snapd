@@ -65,7 +65,7 @@ func Manager(s *state.State, extra []interfaces.Interface) (*InterfaceManager, e
 	runner.AddHandler("disconnect", m.doDisconnect, nil)
 	runner.AddHandler("setup-profiles", m.doSetupProfiles, m.doRemoveProfiles)
 	runner.AddHandler("remove-profiles", m.doRemoveProfiles, m.doSetupProfiles)
-	runner.AddHandler("discard-conns", m.doDiscardConns, nil)
+	runner.AddHandler("discard-conns", m.doDiscardConns, m.undoDiscardConns)
 	return m, nil
 }
 
@@ -343,6 +343,30 @@ func (m *InterfaceManager) doDiscardConns(task *state.Task, _ *tomb.Tomb) error 
 	}
 	task.Set("removed", removed)
 	setConns(st, conns)
+	return nil
+}
+
+func (m *InterfaceManager) undoDiscardConns(task *state.Task, _ *tomb.Tomb) error {
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var removed map[string]connState
+	err := task.Get("removed", &removed)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+
+	conns, err := getConns(st)
+	if err != nil {
+		return err
+	}
+
+	for id, connState := range removed {
+		conns[id] = connState
+	}
+	setConns(st, conns)
+	task.Set("removed", nil)
 	return nil
 }
 
