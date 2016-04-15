@@ -42,14 +42,20 @@ func installSnap(c *check.C, packageName string) string {
 	cli.ExecCommand(c, "sudo", "snap", "install", "--channel", "edge", packageName)
 	// FIXME: should `snap install` shold show a list afterards?
 	//        like `snappy install`?
-	return cli.ExecCommand(c, "snap", "list")
+	// right now "snap list" on freshly booted is empty
+	// because u-d-f installed aren't in state
+	out, _ := cli.ExecCommandErr("snap", "list")
+	return out
 }
 
 func removeSnap(c *check.C, packageName string) string {
 	cli.ExecCommand(c, "sudo", "snap", "remove", packageName)
 	// FIXME: should `snap remove` shold show a list afterards?
 	//        like `snappy install`?
-	return cli.ExecCommand(c, "snap", "list")
+	// right now "snap list" on freshly booted is empty
+	// because u-d-f installed aren't in state
+	out, _ := cli.ExecCommandErr("snap", "list")
+	return out
 }
 
 func (s *snapHelloWorldExampleSuite) TestCallHelloWorldBinary(c *check.C) {
