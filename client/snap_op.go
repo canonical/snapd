@@ -70,7 +70,7 @@ func (client *Client) doSnapAction(actionName string, snapName string, options *
 		return "", fmt.Errorf("cannot marshal snap options: %s", err)
 	}
 	path := fmt.Sprintf("/v2/snaps/%s", snapName)
-	return client.doAsync("POST", path, nil, bytes.NewBuffer(data))
+	return client.doAsync("POST", path, nil, nil, bytes.NewBuffer(data))
 }
 
 // InstallPath sideloads the snap with the given path, returning the UUID
@@ -88,15 +88,18 @@ func (client *Client) InstallPath(path string, options *SnapOptions) (changeID s
 	}
 
 	pr, pw := io.Pipe()
-	go sendSnapFile(path, f, pw, &action)
+	mw := multipart.NewWriter(pw)
+	go sendSnapFile(path, f, pw, mw, &action)
 
-	return client.doAsync("POST", "/v2/snaps", nil, pr)
+	headers := map[string]string{
+		"Content-Type": mw.FormDataContentType(),
+	}
+
+	return client.doAsync("POST", "/v2/snaps", nil, headers, pr)
 }
 
-func sendSnapFile(snapPath string, snapFile *os.File, pw *io.PipeWriter, action *actionData) {
+func sendSnapFile(snapPath string, snapFile *os.File, pw *io.PipeWriter, mw *multipart.Writer, action *actionData) {
 	defer snapFile.Close()
-
-	mw := multipart.NewWriter(pw)
 
 	if action.SnapOptions == nil {
 		action.SnapOptions = &SnapOptions{}
