@@ -80,7 +80,7 @@ func doInstall(s *state.State, curActive bool, snapName, snapPath, channel strin
 	copyData.WaitFor(precopy)
 
 	// security
-	setupSecurity := s.NewTask("setup-snap-security", fmt.Sprintf(i18n.G("Setup snap %q security profiles"), snapName))
+	setupSecurity := s.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q security profiles"), snapName))
 	addTask(setupSecurity)
 	setupSecurity.WaitFor(copyData)
 
