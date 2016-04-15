@@ -279,7 +279,7 @@ func (c *Change) Ready() <-chan struct{} {
 }
 
 // taskStatusChanged is called by tasks when their status is changed,
-// to give the oportunity for the change to close its ready channel.
+// to give the opportunity for the change to close its ready channel.
 func (c *Change) taskStatusChanged(t *Task, old, new Status) {
 	if old.Ready() == new.Ready() {
 		return

@@ -1007,7 +1007,7 @@ func (s *apiSuite) TestPostSnapDispatch(c *check.C) {
 
 	actions := []T{
 		{"install", inst.install},
-		{"update", inst.update},
+		{"refresh", inst.update},
 		{"remove", inst.remove},
 		{"rollback", inst.rollback},
 		{"xyzzy", nil},

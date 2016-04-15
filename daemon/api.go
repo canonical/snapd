@@ -701,7 +701,7 @@ func (inst *snapInstruction) dispatch() func() (*state.Change, error) {
 	switch inst.Action {
 	case "install":
 		return inst.install
-	case "update":
+	case "refresh":
 		return inst.update
 	case "remove":
 		return inst.remove
