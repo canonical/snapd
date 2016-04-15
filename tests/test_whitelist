@@ -15,6 +15,7 @@ EOF
 $L appname myprofile /bin/true
 $L pkg.binary myprofile /bin/true
 $L pkg-foo.0binary-bar+baz myprofile /bin/true
+$L network-manager.NetworkManager myprofile /bin/true
 
 # and now the bad ones
 if $L appname/.. myprofile /bin/true 2>/dev/null; then

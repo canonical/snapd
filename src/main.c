@@ -58,7 +58,7 @@ struct snappy_udev {
 bool verify_appname(const char *appname)
 {
 	// these chars are allowed in a appname
-	const char *whitelist_re = "^[a-z0-9][a-z0-9+._-]+$";
+	const char *whitelist_re = "^[a-z0-9][a-zA-Z0-9+._-]+$";
 	regex_t re;
 	if (regcomp(&re, whitelist_re, REG_EXTENDED | REG_NOSUB) != 0)
 		die("can not compile regex %s", whitelist_re);

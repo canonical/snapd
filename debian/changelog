@@ -1,3 +1,9 @@
+ubuntu-core-launcher (1.0.26) UNRELEASED; urgency=medium
+
+  * src/main.c: allow caps in appname (LP: #1570914)
+
+ -- Jamie Strandboge <jamie@ubuntu.com>  Fri, 15 Apr 2016 10:31:15 -0500
+
 ubuntu-core-launcher (1.0.25.1) xenial; urgency=medium
 
   * check for both src and dst mount points when doing the
