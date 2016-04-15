@@ -800,6 +800,7 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 
 	body := r.Body
 	unsignedOk := false
+	devMode := false
 	contentType := r.Header.Get("Content-Type")
 
 	if strings.HasPrefix(contentType, "multipart/") {
@@ -840,6 +841,7 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 
 		// If x-allow-unsigned is present, unsigned is OK
 		_, unsignedOk = r.Header["X-Allow-Unsigned"]
+		_, devMode = r.Header["X-Developer-Mode"]
 	}
 
 	tmpf, err := ioutil.TempFile("", "snapd-sideload-pkg-")
@@ -855,6 +857,9 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 	var flags snappy.InstallFlags
 	if unsignedOk {
 		flags |= snappy.AllowUnauthenticated
+	}
+	if devMode {
+		flags |= snappy.DeveloperMode
 	}
 
 	snap := tmpf.Name()
