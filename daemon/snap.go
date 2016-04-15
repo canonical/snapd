@@ -20,12 +20,14 @@
 package daemon
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/ubuntu-core/snappy/overlord/snapstate"
+	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snappy"
 )
 
 // snapIcon tries to find the icon inside the snap
@@ -49,38 +51,61 @@ func snapDate(info *snap.Info) time.Time {
 	return st.ModTime()
 }
 
-// allSnaps returns all installed snaps, grouped by name
-func allSnaps() (map[string][]*snappy.Snap, error) {
-	all, err := (&snappy.Overlord{}).Installed()
+// localSnapInfo returns the information about the current snap for the given name plus the SnapState with the active flag and other snap revisions.
+func localSnapInfo(st *state.State, name string) (info *snap.Info, active bool, err error) {
+	st.Lock()
+	defer st.Unlock()
+
+	var snapst snapstate.SnapState
+	err = snapstate.Get(st, name, &snapst)
+	if err != nil && err != state.ErrNoState {
+		return nil, false, fmt.Errorf("cannot consult state: %v", err)
+	}
+
+	cur := snapst.Current()
+	if cur == nil {
+		return nil, false, nil
+	}
+
+	info, err = snap.ReadInfo(name, cur)
+	if err != nil {
+		return nil, false, fmt.Errorf("cannot read snap details: %v", err)
+	}
+
+	return info, snapst.Active, nil
+}
+
+type aboutSnap struct {
+	info   *snap.Info
+	snapst *snapstate.SnapState
+}
+
+// allLocalSnapInfos returns the information about the all current snaps and their SnapStates.
+func allLocalSnapInfos(st *state.State) ([]aboutSnap, error) {
+	st.Lock()
+	defer st.Unlock()
+
+	snapStates, err := snapstate.All(st)
 	if err != nil {
 		return nil, err
 	}
 
-	m := make(map[string][]*snappy.Snap)
+	about := make([]aboutSnap, 0, len(snapStates))
 
-	for _, snap := range all {
-		name := snap.Name()
-		m[name] = append(m[name], snap)
-	}
-
-	return m, nil
-}
-
-// Best Snap in the slice (and its index therein).
-//
-// If there is an active part, that. Otherwise, the last part in the slice.
-//
-// (-1, nil) if slice is nil or empty.
-func bestSnap(snaps []*snappy.Snap) (idx int, snap *snappy.Snap) {
-	idx = -1
-
-	for idx, snap = range snaps {
-		if snap.IsActive() {
-			break
+	var firstErr error
+	for name, snapState := range snapStates {
+		info, err := snap.ReadInfo(name, snapState.Current())
+		if err != nil {
+			// XXX: aggregate instead?
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
 		}
+		about = append(about, aboutSnap{info, snapState})
 	}
 
-	return idx, snap
+	return about, firstErr
 }
 
 // Map a localSnap information plus the given active flag to a

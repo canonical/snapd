@@ -48,7 +48,7 @@ func (s *installAppSuite) TestInstallAppMustPrintPackageInformation(c *check.C) 
 	expected := "(?ms)" +
 		"Name +Version +Developer\n" +
 		".*" +
-		"^basic +.* +sideload *\n" +
+		"^basic +.* *\n" +
 		".*"
 
 	c.Assert(installOutput, check.Matches, expected)

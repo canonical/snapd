@@ -20,6 +20,7 @@
 package daemon
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -33,6 +34,7 @@ import (
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/notifications"
 	"github.com/ubuntu-core/snappy/overlord"
+	"github.com/ubuntu-core/snappy/store"
 )
 
 // A Daemon listens for requests and routes them to the right command
@@ -209,6 +211,23 @@ func (d *Daemon) Stop() error {
 // Dying is a tomb-ish thing
 func (d *Daemon) Dying() <-chan struct{} {
 	return d.tomb.Dying()
+}
+
+var errNoAuth = errors.New("no authorization data provided")
+
+func (d *Daemon) auther(r *http.Request) (store.Authenticator, error) {
+	overlord := d.overlord
+	state := overlord.State()
+	state.Lock()
+	user, err := UserFromRequest(state, r)
+	state.Unlock()
+
+	if err == nil {
+		return user.Authenticator(), nil
+	} else if err != errNoAuth {
+		return nil, err
+	}
+	return nil, errNoAuth
 }
 
 // New Daemon

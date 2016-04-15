@@ -653,7 +653,7 @@ func makeTestSnap(c *C, snapYamlContent string) (snapFilePath string) {
 
 }
 
-func (s *snapmgrTestSuite) TestInstallLocalIntegration(c *C) {
+func (s *snapmgrTestSuite) TestInstallFirstLocalIntegration(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -675,7 +675,9 @@ version: 1.0`)
 	c.Check(s.fakeBackend.ops[0].name, Matches, `.*/mock_1.0_all.snap`)
 
 	c.Check(s.fakeBackend.ops[3].op, Equals, "candidate")
-	c.Check(s.fakeBackend.ops[3].sinfo, DeepEquals, snap.SideInfo{})
+	c.Check(s.fakeBackend.ops[3].sinfo, DeepEquals, snap.SideInfo{Revision: 100001})
+	c.Check(s.fakeBackend.ops[4].op, Equals, "link-snap")
+	c.Check(s.fakeBackend.ops[4].name, Equals, "/snap/mock/100001")
 
 	// verify snapSetup info
 	var ss snapstate.SnapSetup
@@ -684,7 +686,7 @@ version: 1.0`)
 	c.Assert(err, IsNil)
 	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
 		Name:     "mock",
-		Revision: 0,
+		Revision: 100001,
 		SnapPath: mockSnap,
 	})
 
@@ -696,10 +698,77 @@ version: 1.0`)
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
-		OfficialName: "", // XXX: do we want this state of things?
+		OfficialName: "",
 		Channel:      "",
-		Revision:     0,
+		Revision:     100001,
 	})
+	c.Assert(snapst.LocalRevision, Equals, 100001)
+}
+
+func (s *snapmgrTestSuite) TestInstallSubequentLocalIntegration(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "mock", &snapstate.SnapState{
+		Active:        true,
+		Sequence:      []*snap.SideInfo{{Revision: 100002}},
+		LocalRevision: 100002,
+	})
+
+	mockSnap := makeTestSnap(c, `name: mock
+version: 1.0`)
+	chg := s.state.NewChange("install", "install a local snap")
+	ts, err := snapstate.InstallPath(s.state, mockSnap, "", 0)
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	// ensure only local install was run, i.e. first action is check-snap
+	c.Assert(s.fakeBackend.ops, HasLen, 6)
+	c.Check(s.fakeBackend.ops[0].op, Equals, "check-snap")
+	c.Check(s.fakeBackend.ops[0].name, Matches, `.*/mock_1.0_all.snap`)
+
+	c.Check(s.fakeBackend.ops[2].op, Equals, "unlink-snap")
+	c.Check(s.fakeBackend.ops[2].name, Equals, "/snap/mock/100002")
+
+	c.Check(s.fakeBackend.ops[3].op, Equals, "copy-data")
+	c.Check(s.fakeBackend.ops[3].name, Equals, "/snap/mock/100003")
+	c.Check(s.fakeBackend.ops[3].old, Equals, "/snap/mock/100002")
+
+	c.Check(s.fakeBackend.ops[4].op, Equals, "candidate")
+	c.Check(s.fakeBackend.ops[4].sinfo, DeepEquals, snap.SideInfo{Revision: 100003})
+	c.Check(s.fakeBackend.ops[5].op, Equals, "link-snap")
+	c.Check(s.fakeBackend.ops[5].name, Equals, "/snap/mock/100003")
+
+	// verify snapSetup info
+	var ss snapstate.SnapSetup
+	task := ts.Tasks()[0]
+	err = task.Get("snap-setup", &ss)
+	c.Assert(err, IsNil)
+	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
+		Name:     "mock",
+		Revision: 100003,
+		SnapPath: mockSnap,
+	})
+
+	// verify snaps in the system state
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "mock", &snapst)
+	c.Assert(err, IsNil)
+
+	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Candidate, IsNil)
+	c.Assert(snapst.Sequence, HasLen, 2)
+	c.Assert(snapst.Current(), DeepEquals, &snap.SideInfo{
+		OfficialName: "",
+		Channel:      "",
+		Revision:     100003,
+	})
+	c.Assert(snapst.LocalRevision, Equals, 100003)
 }
 
 func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
@@ -763,30 +832,40 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 	// verify snaps in the system state
 	var snapst snapstate.SnapState
 	err = snapstate.Get(s.state, "some-snap", &snapst)
-	c.Assert(err, IsNil)
-
-	c.Assert(snapst.Sequence, HasLen, 0)
-	c.Assert(snapst.Active, Equals, false)
-	c.Assert(snapst.Candidate, IsNil)
+	c.Assert(err, Equals, state.ErrNoState)
 }
 
-type snapmgrQuerySuite struct{}
+type snapmgrQuerySuite struct {
+	st *state.State
+}
 
 var _ = Suite(&snapmgrQuerySuite{})
 
-func (s *snapmgrQuerySuite) TestInfo(c *C) {
+func (s *snapmgrQuerySuite) SetUpTest(c *C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
 
+	s.st = st
+
 	dirs.SetRootDir(c.MkDir())
-	defer dirs.SetRootDir("")
 
 	// Write a snap.yaml with fake name
-	dname := filepath.Join(dirs.SnapSnapsDir, "name1", "11", "meta")
+	dname := filepath.Join(snap.MountDir("name1", 11), "meta")
 	err := os.MkdirAll(dname, 0775)
 	c.Assert(err, IsNil)
 	fname := filepath.Join(dname, "snap.yaml")
+	err = ioutil.WriteFile(fname, []byte(`
+name: name0
+version: 1.1
+description: |
+    Lots of text`), 0644)
+	c.Assert(err, IsNil)
+
+	dname = filepath.Join(snap.MountDir("name1", 12), "meta")
+	err = os.MkdirAll(dname, 0775)
+	c.Assert(err, IsNil)
+	fname = filepath.Join(dname, "snap.yaml")
 	err = ioutil.WriteFile(fname, []byte(`
 name: name0
 version: 1.2
@@ -795,11 +874,22 @@ description: |
 	c.Assert(err, IsNil)
 
 	snapstate.Set(st, "name1", &snapstate.SnapState{
+		Active: true,
 		Sequence: []*snap.SideInfo{
 			{OfficialName: "name1", Revision: 11, EditedSummary: "s11"},
 			{OfficialName: "name1", Revision: 12, EditedSummary: "s12"},
 		},
 	})
+}
+
+func (s *snapmgrQuerySuite) TearDownTest(c *C) {
+	dirs.SetRootDir("")
+}
+
+func (s *snapmgrQuerySuite) TestInfo(c *C) {
+	st := s.st
+	st.Lock()
+	defer st.Unlock()
 
 	info, err := snapstate.Info(st, "name1", 11)
 	c.Assert(err, IsNil)
@@ -807,6 +897,82 @@ description: |
 	c.Check(info.Name(), Equals, "name1")
 	c.Check(info.Revision, Equals, 11)
 	c.Check(info.Summary(), Equals, "s11")
-	c.Check(info.Version, Equals, "1.2")
+	c.Check(info.Version, Equals, "1.1")
 	c.Check(info.Description(), Equals, "Lots of text")
+}
+
+func (s *snapmgrQuerySuite) TestActiveInfos(c *C) {
+	st := s.st
+	st.Lock()
+	defer st.Unlock()
+
+	infos, err := snapstate.ActiveInfos(st)
+	c.Assert(err, IsNil)
+
+	c.Check(infos, HasLen, 1)
+
+	c.Check(infos[0].Name(), Equals, "name1")
+	c.Check(infos[0].Revision, Equals, 12)
+	c.Check(infos[0].Summary(), Equals, "s12")
+	c.Check(infos[0].Version, Equals, "1.2")
+	c.Check(infos[0].Description(), Equals, "Lots of text")
+}
+
+func (s *snapmgrQuerySuite) TestAll(c *C) {
+	st := s.st
+	st.Lock()
+	defer st.Unlock()
+
+	snapStates, err := snapstate.All(st)
+	c.Assert(err, IsNil)
+
+	c.Check(snapStates, HasLen, 1)
+
+	var snapst *snapstate.SnapState
+
+	for name, sst := range snapStates {
+		c.Assert(name, Equals, "name1")
+		snapst = sst
+	}
+
+	c.Check(snapst.Active, Equals, true)
+	c.Check(snapst.Current(), NotNil)
+
+	info12, err := snap.ReadInfo("name1", snapst.Current())
+	c.Assert(err, IsNil)
+
+	c.Check(info12.Name(), Equals, "name1")
+	c.Check(info12.Revision, Equals, 12)
+	c.Check(info12.Summary(), Equals, "s12")
+	c.Check(info12.Version, Equals, "1.2")
+	c.Check(info12.Description(), Equals, "Lots of text")
+
+	info11, err := snap.ReadInfo("name1", snapst.Sequence[0])
+	c.Assert(err, IsNil)
+
+	c.Check(info11.Name(), Equals, "name1")
+	c.Check(info11.Revision, Equals, 11)
+	c.Check(info11.Version, Equals, "1.1")
+}
+
+func (s *snapmgrQuerySuite) TestAllEmptyAndEmptyNormalisation(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	snapStates, err := snapstate.All(st)
+	c.Assert(err, IsNil)
+	c.Check(snapStates, HasLen, 0)
+
+	snapstate.Set(st, "foo", nil)
+
+	snapStates, err = snapstate.All(st)
+	c.Assert(err, IsNil)
+	c.Check(snapStates, HasLen, 0)
+
+	snapstate.Set(st, "foo", &snapstate.SnapState{})
+
+	snapStates, err = snapstate.All(st)
+	c.Assert(err, IsNil)
+	c.Check(snapStates, HasLen, 0)
 }
