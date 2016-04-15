@@ -110,7 +110,7 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, si *snap.SideInfo, fl
 
 func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info, error) {
 	// naive emulation for now, always works
-	return &snap.Info{SideInfo: *si}, nil
+	return &snap.Info{SuggestedName: name, SideInfo: *si}, nil
 }
 
 func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, flags int) error {
