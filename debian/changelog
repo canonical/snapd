@@ -1,3 +1,52 @@
+snapd (1.9.4) xenial; urgency=medium
+
+  * New upstream release:
+    - etc: fix desktop file location
+    - overlord/snapstate: stop an update once download sees the revision
+      is already installed
+    - overlord: make SnapState.DevMode a method, store flags
+    - snappy: no more snapYaml in snappy.Snap
+    - daemon,cmd,dirs,lockfile: drop all lockfiles
+    - debian: use sudo in setup of the proxy environment
+    - snap/snapenv,snappy,systemd: expose SNAP_REVISION to app
+      environment
+    - snap: validate similarly to what we did with old snapYaml info
+      from squashfs snaps
+    - daemon,store: plug in authentication for store search/details
+    - overlord/snapstate: fix JSON name of SnapState.Candidate
+    - overlord/snapstate: start using revisions higher than 100000 for
+      local installs (sideloads)
+    - interfaces,overlorf/ifacestate: honor user choice and don't auto-
+      connect disconnected plugs
+    - overlord/auth,daemon,client: hide user ids again
+    - daemon,overlord/snapstate: back /snaps (and so snap list) using
+      state
+    - daemon,client,overlord/auth: rework state auth data
+    - overlord/snapstate: disable Activate and Deactivate
+    - debian: fix silly typo in autopkgtest setup
+    - overlord/ifacestate: remove connection state with discard-conns
+      task, on the removal of last snap
+    - daemon,client: rename API update action to refresh
+    - cmd/snap: rework login to be more resilient
+    - overlord/snapstate: deny two changes on one snap
+    - snappy: fix crash on certain snap.yaml
+    - systemd: use native systemctl enable instead of our own
+      implementation
+    - store: add workaround for misbehaving store
+    - debian: make autopkgtest use the right env vars
+    - state: log do/undo status too when a task is run
+    - docs: update rest.md with price information
+    - daemon: only include price property if the snap is non-free
+    - daemon, client, cmd/snap: connect/disconnect now async
+    - snap,snappy: allow snaps to require system features
+    - integration-tests: fix report of skips in SetUpTest method
+    - snappy: clean out major bits (still using Installed) now
+      unreferenced as cmd/snappy is gone
+    - daemon/api,overlord/auth: add helper to get UserState from a
+      client request
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 15 Apr 2016 23:30:00 +0200
+
 snapd (1.9.3) xenial; urgency=medium
 
   * New upstream release:
