@@ -31,7 +31,6 @@ import (
 
 // User holds logged in user information.
 type User struct {
-	UserID     string   `json:"user-id,omitempty"`
 	Macaroon   string   `json:"macaroon,omitempty"`
 	Discharges []string `json:"discharges,omitempty"`
 }
