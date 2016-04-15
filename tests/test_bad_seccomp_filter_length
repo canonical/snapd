@@ -11,7 +11,7 @@ cat >$TMP/myprofile <<EOF
 baddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
 EOF
 
-if $L appname myprofile /bin/true 2>/dev/null; then
+if $L snap.name.app myprofile /bin/true 2>/dev/null; then
     # true returned successfully, length test failed
     FAIL
 fi

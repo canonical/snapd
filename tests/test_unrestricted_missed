@@ -17,7 +17,7 @@ EOF
 # filtering
 
 printf "Test that near misses of unrestricted fail"
-if $L appid myprofile /bin/true 2>/dev/null; then
+if $L snap.name.app myprofile /bin/true 2>/dev/null; then
     # true returned successfully, our filtering is broken!
     FAIL
 else

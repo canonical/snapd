@@ -8,7 +8,7 @@ printf "Test seccomp filter (bad - no trailing newline)"
 
 echo -n "missingnewline" > $TMP/myprofile
 
-if $L appname myprofile /bin/true 2>/dev/null; then
+if $L snap.name.app myprofile /bin/true 2>/dev/null; then
     # true returned successfully, length test failed
     FAIL
 fi

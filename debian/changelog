@@ -1,7 +1,10 @@
 ubuntu-core-launcher (1.0.27) UNRELEASED; urgency=medium
 
-  * src/main.c: don't prepend snap. or snap_ since snapd is doing that for us
-    now (LP: #1571048)
+  * src/main.c:
+    - don't prepend snap. or snap_ since snapd is doing that for us now
+      (LP: #1571048)
+    - make whitelist_re strictly follow the 16.04 specification and adjust
+      testsuite accordingly
 
  -- Jamie Strandboge <jamie@ubuntu.com>  Fri, 15 Apr 2016 14:24:45 -0500
 

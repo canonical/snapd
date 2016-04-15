@@ -41,7 +41,7 @@ EOF
 # $3: True if success is expected, false otherwise
 run_launcher() {
    pass=false
-   if $L appid $2 /bin/true 2>/dev/null; then
+   if $L snap.name.app $2 /bin/true 2>/dev/null; then
       if $3; then
          if [ ! -d "$1" ]; then
             pass=false

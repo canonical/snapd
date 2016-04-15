@@ -12,21 +12,28 @@ cat >$TMP/myprofile <<EOF
 EOF
 
 # good
-$L appname myprofile /bin/true
-$L pkg.binary myprofile /bin/true
-$L pkg-foo.0binary-bar+baz myprofile /bin/true
-$L network-manager.NetworkManager myprofile /bin/true
+for name in snap.name.app snap.network-manager.NetworkManager snap.f00.bar-baz1 ; do
+    echo -n "Test good appname whitelist - '$name'"
+    if $L snap.name.app myprofile /bin/true ; then
+        PASS
+    else
+        FAIL
+    fi
+done
 
-# and now the bad ones
-if $L appname/.. myprofile /bin/true 2>/dev/null; then
-    # true returned successfully, our appname whitelist is broken!
-   FAIL
-fi
+for name in pkg-foo.bar.0binary-bar+baz pkg-foo_bar_1.1 appname/.. snap snap. snap.name. snap.name.app. snap!name.app snap.name!app sna.pname.app snap.n@me.app SNAP.name.app snap.Name.app snap.0name.app snap.-name.app snap.name.@app .name.app snap..name.app snap.name..app snap.name.app.. ; do
+    echo -n "Test bad appname whitelist - '$name'"
+    if $L $name myprofile /bin/true 2>/dev/null; then
+        FAIL
+    else
+        PASS
+    fi
+done
 
+echo -n "Test bad appname whitelist - 'appname space'"
 if $L 'appname space' myprofile /bin/true 2>/dev/null; then
     # true returned successfully, our appname whitelist is broken!
-   FAIL
+    FAIL
+else
+    PASS
 fi
-
-# all good
-PASS

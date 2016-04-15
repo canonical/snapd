@@ -57,8 +57,12 @@ struct snappy_udev {
 
 bool verify_appname(const char *appname)
 {
-	// these chars are allowed in a appname
-	const char *whitelist_re = "^[a-z0-9][a-zA-Z0-9+._-]+$";
+	// snappy appname is of form:
+	// snap.<name>.<app>
+	// - <name> must start with lowercase letter, then may contain
+	//   lowercase alphanumerics and '-'
+	// - <app> may contain alphanumerics and '-'
+	const char *whitelist_re = "^snap\\.[a-z][a-z0-9-]*\\.[a-zA-Z0-9-]+$";
 	regex_t re;
 	if (regcomp(&re, whitelist_re, REG_EXTENDED | REG_NOSUB) != 0)
 		die("can not compile regex %s", whitelist_re);
