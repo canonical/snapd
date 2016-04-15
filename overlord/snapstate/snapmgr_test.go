@@ -29,6 +29,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/osutil"
+	"github.com/ubuntu-core/snappy/overlord/auth"
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snap"
@@ -42,6 +43,8 @@ type snapmgrTestSuite struct {
 	snapmgr *snapstate.SnapManager
 
 	fakeBackend *fakeSnappyBackend
+
+	user *auth.UserState
 
 	reset func()
 }
@@ -73,6 +76,11 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	snapstate.SetSnapstateBackend(s.fakeBackend)
 
 	s.reset = snapstate.MockReadInfo(s.fakeBackend.ReadInfo)
+
+	s.state.Lock()
+	s.user, err = auth.NewUser(s.state, "username", "macaroon", []string{"discharge"})
+	c.Assert(err, IsNil)
+	s.state.Unlock()
 }
 
 func (s *snapmgrTestSuite) TearDownTest(c *C) {
@@ -107,7 +115,7 @@ func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	ts, err := snapstate.Install(s.state, "some-snap", "some-channel", 0)
+	ts, err := snapstate.Install(s.state, "some-snap", "some-channel", 0, 0)
 	c.Assert(err, IsNil)
 	verifyInstallUpdateTasks(c, false, ts, s.state)
 }
@@ -116,9 +124,9 @@ func (s *snapmgrTestSuite) TestInstallConflict(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	_, err := snapstate.Install(s.state, "some-snap", "some-channel", 0)
+	_, err := snapstate.Install(s.state, "some-snap", "some-channel", 0, 0)
 	c.Assert(err, IsNil)
-	_, err = snapstate.Install(s.state, "some-snap", "some-channel", 0)
+	_, err = snapstate.Install(s.state, "some-snap", "some-channel", 0, 0)
 	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
 }
 
@@ -126,7 +134,7 @@ func (s *snapmgrTestSuite) TestInstallPathConflict(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	_, err := snapstate.Install(s.state, "some-snap", "some-channel", 0)
+	_, err := snapstate.Install(s.state, "some-snap", "some-channel", 0, 0)
 	c.Assert(err, IsNil)
 
 	mockSnap := makeTestSnap(c, "name: some-snap\nversion: 1.0")
@@ -238,7 +246,7 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 	defer s.state.Unlock()
 
 	chg := s.state.NewChange("install", "install a snap")
-	ts, err := snapstate.Install(s.state, "some-snap", "some-channel", 0)
+	ts, err := snapstate.Install(s.state, "some-snap", "some-channel", s.user.ID, 0)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -298,6 +306,7 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 		Name:     "some-snap",
 		Revision: 11,
 		Channel:  "some-channel",
+		UserID:   s.user.ID,
 		SnapPath: "downloaded-snap-path",
 	})
 

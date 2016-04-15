@@ -487,6 +487,7 @@ type snapInstruction struct {
 	Channel  string       `json:"channel"`
 	LeaveOld bool         `json:"leave-old"`
 	License  *licenseData `json:"license"`
+	UserID   int          `json:"user-id"`
 	pkg      string
 
 	overlord *overlord.Overlord
@@ -534,12 +535,12 @@ func ensureUbuntuCore(chg *state.Change) error {
 		return nil
 	}
 
-	return installSnap(chg, ubuntuCore, "stable", 0)
+	return installSnap(chg, ubuntuCore, "stable", 0, 0)
 }
 
-func installSnap(chg *state.Change, name, channel string, flags snappy.InstallFlags) error {
+func installSnap(chg *state.Change, name, channel string, userID int, flags snappy.InstallFlags) error {
 	st := chg.State()
-	ts, err := snapstateInstall(st, name, channel, flags)
+	ts, err := snapstateInstall(st, name, channel, userID, flags)
 	if err != nil {
 		return err
 	}
@@ -569,7 +570,7 @@ func (inst *snapInstruction) install() (*state.Change, error) {
 	chg := st.NewChange("install-snap", msg)
 	err := ensureUbuntuCore(chg)
 	if err == nil {
-		err = installSnap(chg, inst.pkg, inst.Channel, flags)
+		err = installSnap(chg, inst.pkg, inst.Channel, inst.UserID, flags)
 	}
 	st.Unlock()
 	if err != nil {
@@ -738,9 +739,22 @@ func postSnap(c *Command, r *http.Request) Response {
 		return BadRequest("can't decode request body into snap instruction: %v", err)
 	}
 
+	var userID int
+	state := c.d.overlord.State()
+	state.Lock()
+	user, err := UserFromRequest(state, r)
+	state.Unlock()
+
+	if err == nil {
+		userID = user.ID
+	} else if err != errNoAuth {
+		return InternalError("%v", err)
+	}
+
 	vars := muxVars(r)
 	inst.pkg = vars["name"]
 	inst.overlord = c.d.overlord
+	inst.UserID = userID
 
 	f := pkgActionDispatch(&inst)
 	if f == nil {
