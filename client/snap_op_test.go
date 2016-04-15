@@ -37,9 +37,9 @@ var ops = []struct {
 	op     func(*client.Client, string, *client.SnapOptions) (string, error)
 	action string
 }{
-	{(*client.Client).InstallSnap, "install"},
-	{(*client.Client).RefreshSnap, "refresh"},
-	{(*client.Client).RemoveSnap, "remove"},
+	{(*client.Client).Install, "install"},
+	{(*client.Client).Refresh, "refresh"},
+	{(*client.Client).Remove, "remove"},
 }
 
 func (cs *clientSuite) TestClientOpSnapServerError(c *check.C) {
@@ -126,7 +126,7 @@ func (cs *clientSuite) TestClientOpInstallPath(c *check.C) {
 	err := ioutil.WriteFile(snap, bodyData, 0644)
 	c.Assert(err, check.IsNil)
 
-	id, err := cs.cli.InstallSnapPath(snap, nil)
+	id, err := cs.cli.InstallPath(snap, nil)
 	c.Assert(err, check.IsNil)
 
 	body, err := ioutil.ReadAll(cs.req.Body)
