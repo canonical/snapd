@@ -850,6 +850,53 @@ func (s *RepositorySuite) TestSecuritySnippetsForSnapFailureWithPermanentSnippet
 	c.Check(snippets, IsNil)
 }
 
+func (s *RepositorySuite) TestAutoConnectBlacklist(c *C) {
+	// Add two interfaces, one with automatic connections, one with manual
+	repo := s.emptyRepo
+	err := repo.AddInterface(&TestInterface{InterfaceName: "auto", AutoConnectFlag: true})
+	c.Assert(err, IsNil)
+	err = repo.AddInterface(&TestInterface{InterfaceName: "manual"})
+	c.Assert(err, IsNil)
+
+	// Add a pair of snaps with plugs/slots using those two interfaces
+	consumer, err := snap.InfoFromSnapYaml([]byte(`
+name: consumer
+plugs:
+    auto:
+    manual:
+`))
+	c.Assert(err, IsNil)
+	producer, err := snap.InfoFromSnapYaml([]byte(`
+name: producer
+type: os
+slots:
+    auto:
+    manual:
+`))
+	c.Assert(err, IsNil)
+	err = repo.AddSnap(producer)
+	c.Assert(err, IsNil)
+	err = repo.AddSnap(consumer)
+	c.Assert(err, IsNil)
+
+	// Sanity check, our test is valid because plug "auto" is a candidate
+	// for auto-connection
+	c.Assert(repo.AutoConnectCandidates("consumer", "auto"), HasLen, 1)
+
+	// Without any connections in place, the plug "auto" is blacklisted
+	// because in normal circumstances it would be auto-connected.
+	blacklist := repo.AutoConnectBlacklist("consumer")
+	c.Check(blacklist, DeepEquals, map[string]bool{"auto": true})
+
+	// Connect the "auto" plug and slots together
+	err = repo.Connect("consumer", "auto", "producer", "auto")
+	c.Assert(err, IsNil)
+
+	// With the connection in place the "auto" plug is not blacklisted.
+	blacklist = repo.AutoConnectBlacklist("consumer")
+	c.Check(blacklist, IsNil)
+}
+
 // Tests for AddSnap and RemoveSnap
 
 type AddRemoveSuite struct {
