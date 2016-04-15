@@ -91,6 +91,10 @@ func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
 
 func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
 	download = func(name string, w io.Writer, req *http.Request, pbar progress.Meter) error {
+		// check authorization is set
+		authorization := req.Header.Get("Authorization")
+		c.Check(authorization, Equals, "Authorization-details")
+
 		c.Check(req.URL.String(), Equals, "AUTH-URL")
 		w.Write([]byte("I was downloaded"))
 		return nil
@@ -157,12 +161,12 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryHeaders(c *C) {
 	req, err := http.NewRequest("GET", "http://example.com", nil)
 	c.Assert(err, IsNil)
 
-	t.store.applyUbuntuStoreHeaders(req, "")
+	t.store.applyUbuntuStoreHeaders(req, "", nil)
 
 	c.Assert(req.Header.Get("X-Ubuntu-Release"), Equals, release.String())
 	c.Check(req.Header.Get("Accept"), Equals, "application/hal+json")
 
-	t.store.applyUbuntuStoreHeaders(req, "application/json")
+	t.store.applyUbuntuStoreHeaders(req, "application/json", nil)
 
 	c.Check(req.Header.Get("Accept"), Equals, "application/json")
 	c.Assert(req.Header.Get("Authorization"), Equals, "")
@@ -274,6 +278,31 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Assert(result.Prices, DeepEquals, map[string]float64{"GBP": 1.23, "USD": 4.56})
 
 	c.Check(repo.SuggestedCurrency(), Equals, "GBP")
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsSetsAuth(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// check authorization is set
+		authorization := r.Header.Get("Authorization")
+		c.Check(authorization, Equals, "Authorization-details")
+
+		io.WriteString(w, MockDetailsJSON)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	searchURI, err := url.Parse(mockServer.URL + "/search")
+	c.Assert(err, IsNil)
+	cfg := SnapUbuntuStoreConfig{
+		SearchURI: searchURI,
+	}
+	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	c.Assert(repo, NotNil)
+
+	authenticator := &fakeAuthenticator{}
+	_, err = repo.Snap("hello-world", "edge", authenticator)
+	c.Assert(err, IsNil)
 }
 
 /*
@@ -407,6 +436,32 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFind(c *C) {
 	c.Check(snaps[0].Name(), Equals, funkyAppName)
 }
 
+func (t *remoteRepoTestSuite) TestUbuntuStoreFindSetsAuth(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// check authorization is set
+		authorization := r.Header.Get("Authorization")
+		c.Check(authorization, Equals, "Authorization-details")
+
+		c.Check(r.URL.RawQuery, Equals, "q=name%3Afoo")
+		io.WriteString(w, MockSearchJSON)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var err error
+	searchURI, err := url.Parse(mockServer.URL)
+	c.Assert(err, IsNil)
+	cfg := SnapUbuntuStoreConfig{
+		SearchURI: searchURI,
+	}
+	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	c.Assert(repo, NotNil)
+
+	authenticator := &fakeAuthenticator{}
+	_, err = repo.FindSnaps("foo", "", authenticator)
+	c.Assert(err, IsNil)
+}
+
 /* acquired via:
 curl -s --data-binary '{"name":["8nzc1x4iim2xj1g2ul64.chipaca"]}'  -H 'content-type: application/json' https://search.apps.ubuntu.com/api/v1/click-metadata
 */
@@ -455,6 +510,35 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 	c.Assert(results[0].Name(), Equals, funkyAppName)
 	c.Assert(results[0].Revision, Equals, 3)
 	c.Assert(results[0].Version, Equals, "42")
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdatesSetsAuth(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// check authorization is set
+		authorization := r.Header.Get("Authorization")
+		c.Check(authorization, Equals, "Authorization-details")
+
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		c.Assert(string(jsonReq), Equals, `{"name":["`+funkyAppName+`"]}`)
+		io.WriteString(w, MockUpdatesJSON)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var err error
+	bulkURI, err := url.Parse(mockServer.URL + "/updates/")
+	c.Assert(err, IsNil)
+	cfg := SnapUbuntuStoreConfig{
+		BulkURI: bulkURI,
+	}
+	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	c.Assert(repo, NotNil)
+
+	authenticator := &fakeAuthenticator{}
+	_, err = repo.Updates([]string{funkyAppName}, authenticator)
+	c.Assert(err, IsNil)
 }
 
 func (t *remoteRepoTestSuite) TestStructFieldsSurvivesNoTag(c *C) {
@@ -553,6 +637,33 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertion(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(a, NotNil)
 	c.Check(a.Type(), Equals, asserts.SnapDeclarationType)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertionSetsAuth(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// check authorization is set
+		authorization := r.Header.Get("Authorization")
+		c.Check(authorization, Equals, "Authorization-details")
+
+		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
+		c.Check(r.URL.Path, Equals, "/assertions/snap-declaration/16/snapidfoo")
+		io.WriteString(w, testAssertion)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var err error
+	assertionsURI, err := url.Parse(mockServer.URL + "/assertions/")
+	c.Assert(err, IsNil)
+	cfg := SnapUbuntuStoreConfig{
+		AssertionsURI: assertionsURI,
+	}
+	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+
+	authenticator := &fakeAuthenticator{}
+	_, err = repo.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, authenticator)
+	c.Assert(err, IsNil)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNotFound(c *C) {
