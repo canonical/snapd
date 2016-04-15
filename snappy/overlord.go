@@ -84,13 +84,6 @@ func SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, flags InstallFlags,
 		return s, err
 	}
 
-	// XXX: do this here as long as we are manifest based
-	if s.Revision != 0 { // not sideloaded
-		if err := SaveManifest(s); err != nil {
-			return s, err
-		}
-	}
-
 	if err := snapf.Install(s.MountFile(), instdir); err != nil {
 		return s, err
 	}
@@ -413,7 +406,12 @@ func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideI
 		return nil, err
 	}
 
-	// we need this for later
+	// XXX: do this here as long as we are somewhat manifest based
+	if newInfo.Revision != 0 { // not sideloaded
+		if err := SaveManifest(newInfo); err != nil {
+			return nil, err
+		}
+	}
 
 	if oldInfo != nil {
 		// we need to stop any services and make the commands unavailable
