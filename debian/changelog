@@ -1,8 +1,8 @@
-ubuntu-core-launcher (1.0.26) UNRELEASED; urgency=medium
+ubuntu-core-launcher (1.0.26) xenial; urgency=medium
 
   * src/main.c: allow caps in appname (LP: #1570914)
 
- -- Jamie Strandboge <jamie@ubuntu.com>  Fri, 15 Apr 2016 10:31:15 -0500
+ -- Jamie Strandboge <jamie@ubuntu.com>  Fri, 15 Apr 2016 10:37:18 -0500
 
 ubuntu-core-launcher (1.0.25.1) xenial; urgency=medium
 
