@@ -440,6 +440,14 @@ func (s *interfaceManagerSuite) testDoDicardConns(c *C, snapName string) {
 	err := s.state.Get("conns", &conns)
 	c.Assert(err, IsNil)
 	c.Check(conns, DeepEquals, map[string]interface{}{})
+
+	// But removed connections are preserved in the task for undo.
+	var removed map[string]interface{}
+	err = change.Tasks()[0].Get("removed", &removed)
+	c.Assert(err, IsNil)
+	c.Check(removed, DeepEquals, map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
+	})
 }
 
 func (s *interfaceManagerSuite) TestDoRemove(c *C) {
