@@ -276,29 +276,6 @@ var newRemoteRepo = func() metarepo {
 	return snappy.NewConfiguredUbuntuStoreSnapRepository()
 }
 
-func localSnapInfo(st *state.State, name string) (info *snap.Info, active bool, err error) {
-	st.Lock()
-	defer st.Unlock()
-
-	var snapst snapstate.SnapState
-	err = snapstate.Get(st, name, &snapst)
-	if err != nil && err != state.ErrNoState {
-		return nil, false, fmt.Errorf("cannot consult state: %v", err)
-	}
-
-	cur := snapst.Current()
-	if cur == nil {
-		return nil, false, nil
-	}
-
-	info, err = snap.ReadInfo(name, cur)
-	if err != nil {
-		return nil, false, fmt.Errorf("cannot read snap details: %v", err)
-	}
-
-	return info, snapst.Active, nil
-}
-
 var muxVars = mux.Vars
 
 func getSnapInfo(c *Command, r *http.Request) Response {
@@ -370,12 +347,6 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		return InternalError("router can't find route for snaps")
 	}
 
-	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
-	if err != nil {
-		return InternalError("unable to acquire lock: %v", err)
-	}
-	defer lock.Unlock()
-
 	sources := make([]string, 0, 2)
 	query := r.URL.Query()
 
@@ -400,12 +371,12 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		includeTypes = strings.Split(query["types"][0], ",")
 	}
 
-	var localSnapMap map[string][]*snappy.Snap
+	var aboutSnaps []aboutSnap
 	var remoteSnapMap map[string]*snap.Info
 
 	if includeLocal {
 		sources = append(sources, "local")
-		localSnapMap, _ = allSnaps()
+		aboutSnaps, _ = allLocalSnapInfos(c.d.overlord.State())
 	}
 
 	var suggestedCurrency string
@@ -432,7 +403,7 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 	}
 
 	seen := make(map[string]bool)
-	results := make([]*json.RawMessage, 0, len(localSnapMap)+len(remoteSnapMap))
+	results := make([]*json.RawMessage, 0, len(aboutSnaps)+len(remoteSnapMap))
 
 	addResult := func(name string, m map[string]interface{}) {
 		if seen[name] {
@@ -460,15 +431,13 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		results = append(results, &raw)
 	}
 
-	for name, localSnaps := range localSnapMap {
-		// strings.Contains(fullname, "") is true
+	for _, about := range aboutSnaps {
+		info := about.info
+		name := info.Name()
+		// strings.Contains(name, "") is true
 		if strings.Contains(name, searchTerm) {
-			// XXX: will be cleaned up soon when allSnaps equivalent is state based
-			_, best := bestSnap(localSnaps)
-			if best == nil {
-				continue
-			}
-			addResult(name, mapSnap(best.Info(), best.IsActive(), remoteSnapMap[name]))
+			active := about.snapst.Active
+			addResult(name, mapSnap(info, active, remoteSnapMap[name]))
 		}
 	}
 
@@ -494,11 +463,6 @@ func resultHasType(r map[string]interface{}, allowedTypes []string) bool {
 		}
 	}
 	return false
-}
-
-type appDesc struct {
-	Op   string          `json:"op"`
-	Spec *snappy.AppYaml `json:"spec"`
 }
 
 // licenseData holds details about the snap license, and may be
