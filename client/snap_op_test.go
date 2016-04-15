@@ -49,7 +49,7 @@ var chanops = []struct {
 	action string
 }{
 	{(*client.Client).InstallSnap, "install"},
-	{(*client.Client).RefreshSnap, "update"},
+	{(*client.Client).RefreshSnap, "refresh"},
 }
 
 func (cs *clientSuite) TestClientOpSnapServerError(c *check.C) {
