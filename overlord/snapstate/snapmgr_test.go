@@ -174,11 +174,11 @@ func (s *snapmgrTestSuite) TestRemoveLast(c *C) {
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "remove-profiles")
 	i++
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "discard-conns")
-	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "clear-snap")
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "discard-snap")
+	i++
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "discard-conns")
 }
 
 func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
@@ -698,7 +698,9 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 
 	// verify snapSetup info
 	tasks := ts.Tasks()
-	task := tasks[len(tasks)-1]
+	// XXX -2 because the last task is discard-conns and snap-setup is in the
+	// discard-snap, just before discard-conns.
+	task := tasks[len(tasks)-2]
 	var ss snapstate.SnapSetup
 	err = task.Get("snap-setup", &ss)
 	c.Assert(err, IsNil)
