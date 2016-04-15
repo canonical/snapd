@@ -47,6 +47,7 @@ type actionData struct {
 func (client *Client) InstallSnap(name string, options *SnapOptions) (changeID string, err error) {
 	return client.doSnapAction("install", name, options)
 }
+
 // RemoveSnap removes the snap with the given name.
 func (client *Client) RemoveSnap(name string, options *SnapOptions) (changeID string, err error) {
 	return client.doSnapAction("remove", name, options)
