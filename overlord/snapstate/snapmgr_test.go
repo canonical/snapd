@@ -98,7 +98,7 @@ func verifyInstallUpdateTasks(c *C, curActive bool, ts *state.TaskSet, st *state
 	}
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "copy-snap-data")
 	i++
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "setup-snap-security")
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "setup-profiles")
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "link-snap")
 }
