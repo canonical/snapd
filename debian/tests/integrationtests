@@ -1,6 +1,6 @@
 #!/bin/sh
 
-set -x
+set -ex
 
 # required for the debian adt host
 if [ "$http_proxy" != "" ]; then
