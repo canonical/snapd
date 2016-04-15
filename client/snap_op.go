@@ -20,87 +20,112 @@
 package client
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
+	"mime/multipart"
 	"os"
-	"strings"
+	"path/filepath"
+	"strconv"
 )
 
-// InstallSnap adds the snap with the given name from the given channel (or
-// the system default channel if not), returning the UUID of the background
-// operation upon success.
-func (client *Client) InstallSnap(name, channel string) (changeID string, err error) {
-	path := fmt.Sprintf("/v2/snaps/%s", name)
-	body := strings.NewReader(fmt.Sprintf(`{"action":"install","channel":%q}`, channel))
+type SnapOptions struct {
+	Channel string `json:"channel,omitempty"`
+	DevMode bool   `json:"devmode,omitempty"`
+}
 
-	return client.doAsync("POST", path, nil, body)
+type actionData struct {
+	Action   string `json:"action"`
+	Name     string `json:"name,omitempty"`
+	SnapPath string `json:"snap-path,omitempty"`
+	*SnapOptions
+}
+
+// InstallSnap adds the snap with the given name from the given channel (or
+// the system default channel if not).
+func (client *Client) InstallSnap(name string, options *SnapOptions) (changeID string, err error) {
+	return client.doSnapAction("install", name, options)
+}
+// RemoveSnap removes the snap with the given name.
+func (client *Client) RemoveSnap(name string, options *SnapOptions) (changeID string, err error) {
+	return client.doSnapAction("remove", name, options)
+}
+
+// RefreshSnap refreshes the snap with the given name (switching it to track
+// the given channel if given).
+func (client *Client) RefreshSnap(name string, options *SnapOptions) (changeID string, err error) {
+	return client.doSnapAction("refresh", name, options)
+}
+
+func (client *Client) doSnapAction(actionName string, snapName string, options *SnapOptions) (changeID string, err error) {
+	action := actionData{
+		Action:      actionName,
+		Name:        snapName,
+		SnapOptions: options,
+	}
+	data, err := json.Marshal(&action)
+	if err != nil {
+		return "", fmt.Errorf("cannot marshal snap options: %s", err)
+	}
+	path := fmt.Sprintf("/v2/snaps/%s", snapName)
+	return client.doAsync("POST", path, nil, bytes.NewBuffer(data))
 }
 
 // InstallSnapPath sideloads the snap with the given path, returning the UUID
 // of the background operation upon success.
-//
-// XXX: add support for "X-Allow-Unsigned"
-func (client *Client) InstallSnapPath(path string) (changeID string, err error) {
+func (client *Client) InstallSnapPath(path string, options *SnapOptions) (changeID string, err error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return "", fmt.Errorf("cannot open: %q", path)
 	}
 
-	return client.doAsync("POST", "/v2/snaps", nil, f)
+	action := actionData{
+		Action:      "install",
+		SnapPath:    path,
+		SnapOptions: options,
+	}
+
+	pr, pw := io.Pipe()
+	go sendSnapFile(path, f, pw, &action)
+
+	return client.doAsync("POST", "/v2/snaps", nil, pr)
 }
 
-// RemoveSnap removes the snap with the given name, returning the UUID of the
-// background operation upon success.
-func (client *Client) RemoveSnap(name string) (changeID string, err error) {
-	path := fmt.Sprintf("/v2/snaps/%s", name)
-	body := strings.NewReader(`{"action":"remove"}`)
+func sendSnapFile(snapPath string, snapFile *os.File, pw *io.PipeWriter, action *actionData) {
+	defer snapFile.Close()
 
-	return client.doAsync("POST", path, nil, body)
-}
+	mw := multipart.NewWriter(pw)
 
-// RefreshSnap refreshes the snap with the given name (switching it to track
-// the given channel if given), returning the UUID of the background operation
-// upon success.
-func (client *Client) RefreshSnap(name, channel string) (changeID string, err error) {
-	path := fmt.Sprintf("/v2/snaps/%s", name)
-	body := strings.NewReader(fmt.Sprintf(`{"action":"refresh","channel":%q}`, channel))
+	if action.SnapOptions == nil {
+		action.SnapOptions = &SnapOptions{}
+	}
+	errs := []error{
+		mw.WriteField("action", action.Action),
+		mw.WriteField("name", action.Name),
+		mw.WriteField("snap-path", action.SnapPath),
+		mw.WriteField("channel", action.Channel),
+		mw.WriteField("devmode", strconv.FormatBool(action.DevMode)),
+	}
+	for _, err := range errs {
+		if err != nil {
+			pw.CloseWithError(err)
+			return
+		}
+	}
 
-	return client.doAsync("POST", path, nil, body)
-}
+	fw, err := mw.CreateFormFile("snap", filepath.Base(snapPath))
+	if err != nil {
+		pw.CloseWithError(err)
+		return
+	}
 
-// PurgeSnap purges the snap with the given name, returning the UUID of the
-// background operation upon success.
-//
-// TODO: nuke purge, when we have snapshots/backups done
-func (client *Client) PurgeSnap(name string) (changeID string, err error) {
-	path := fmt.Sprintf("/v2/snaps/%s", name)
-	body := strings.NewReader(`{"action":"purge"}`)
+	_, err = io.Copy(fw, snapFile)
+	if err != nil {
+		pw.CloseWithError(err)
+		return
+	}
 
-	return client.doAsync("POST", path, nil, body)
-}
-
-// RollbackSnap rolls back the snap with the given name, returning the UUID of
-// the background operation upon success.
-func (client *Client) RollbackSnap(name string) (changeID string, err error) {
-	path := fmt.Sprintf("/v2/snaps/%s", name)
-	body := strings.NewReader(`{"action":"rollback"}`)
-
-	return client.doAsync("POST", path, nil, body)
-}
-
-// ActivateSnap activates the snap with the given name, returning the UUID of
-// the background operation upon success.
-func (client *Client) ActivateSnap(name string) (changeID string, err error) {
-	path := fmt.Sprintf("/v2/snaps/%s", name)
-	body := strings.NewReader(`{"action":"activate"}`)
-
-	return client.doAsync("POST", path, nil, body)
-}
-
-// DeactivateSnap deactivates the snap with the given name, returning the UUID
-// of the background operation upon success.
-func (client *Client) DeactivateSnap(name string) (changeID string, err error) {
-	path := fmt.Sprintf("/v2/snaps/%s", name)
-	body := strings.NewReader(`{"action":"deactivate"}`)
-
-	return client.doAsync("POST", path, nil, body)
+	mw.Close()
+	pw.Close()
 }

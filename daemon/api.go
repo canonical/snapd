@@ -756,66 +756,51 @@ const maxReadBuflen = 1024 * 1024
 func sideloadSnap(c *Command, r *http.Request) Response {
 	route := c.d.router.Get(stateChangeCmd.Path)
 	if route == nil {
-		return InternalError("router can't find route for change")
+		return InternalError("cannot find route for change")
 	}
 
 	body := r.Body
-	unsignedOk := false
 	contentType := r.Header.Get("Content-Type")
 
-	if strings.HasPrefix(contentType, "multipart/") {
-		// spec says POSTs to sideload snaps should be "a multipart file upload"
-
-		_, params, err := mime.ParseMediaType(contentType)
-		if err != nil {
-			return BadRequest("unable to parse POST body: %v", err)
-		}
-
-		form, err := multipart.NewReader(r.Body, params["boundary"]).ReadForm(maxReadBuflen)
-		if err != nil {
-			return BadRequest("unable to read POST form: %v", err)
-		}
-
-		// if allow-unsigned is present in the form, unsigned is OK
-		_, unsignedOk = form.Value["allow-unsigned"]
-
-		// form.File is a map of arrays of *FileHeader things
-		// we just allow one (for now at least)
-	out:
-		for _, v := range form.File {
-			for i := range v {
-				body, err = v[i].Open()
-				if err != nil {
-					return BadRequest("unable to open POST form file: %v", err)
-				}
-				defer body.Close()
-
-				break out
-			}
-		}
-		defer form.RemoveAll()
-	} else {
-		// Looks like user didn't understand that multipart thing.
-		// Maybe they just POSTed the snap at us (quite handy to do with e.g. curl).
-		// So we try that.
-
-		// If x-allow-unsigned is present, unsigned is OK
-		_, unsignedOk = r.Header["X-Allow-Unsigned"]
+	if !strings.HasPrefix(contentType, "multipart/") {
+		return BadRequest("unknown content type: %s", contentType)
 	}
+
+	// POSTs to sideload snaps must be a multipart/form-data file upload.
+	_, params, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return BadRequest("cannot parse POST body: %v", err)
+	}
+
+	form, err := multipart.NewReader(r.Body, params["boundary"]).ReadForm(maxReadBuflen)
+	if err != nil {
+		return BadRequest("cannot read POST form: %v", err)
+	}
+
+	// form.File is a map of arrays of *FileHeader things
+	// we just allow one (for now at least)
+out:
+	for _, v := range form.File {
+		for i := range v {
+			body, err = v[i].Open()
+			if err != nil {
+				return BadRequest("cannot open POST form file: %v", err)
+			}
+			defer body.Close()
+
+			break out
+		}
+	}
+	defer form.RemoveAll()
 
 	tmpf, err := ioutil.TempFile("", "snapd-sideload-pkg-")
 	if err != nil {
-		return InternalError("can't create tempfile: %v", err)
+		return InternalError("cannot create temporary file: %v", err)
 	}
 
 	if _, err := io.Copy(tmpf, body); err != nil {
 		os.Remove(tmpf.Name())
-		return InternalError("can't copy request into tempfile: %v", err)
-	}
-
-	var flags snappy.InstallFlags
-	if unsignedOk {
-		flags |= snappy.AllowUnauthenticated
+		return InternalError("cannot copy request into temporary file: %v", err)
 	}
 
 	snap := tmpf.Name()
@@ -824,7 +809,7 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 	state.Lock()
 	msg := fmt.Sprintf(i18n.G("Install local %q snap"), snap)
 	chg := state.NewChange("install-snap", msg)
-	ts, err := snapstateInstallPath(state, snap, "", flags)
+	ts, err := snapstateInstallPath(state, snap, "", 0)
 	if err == nil {
 		chg.AddAll(ts)
 	}
@@ -835,7 +820,7 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 		os.Remove(snap)
 	}()
 	if err != nil {
-		return InternalError("can't request sideload: %v", err)
+		return InternalError("cannot install snap file: %v", err)
 	}
 	state.EnsureBefore(0)
 
