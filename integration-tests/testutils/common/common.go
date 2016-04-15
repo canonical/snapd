@@ -123,7 +123,12 @@ func (s *SnappySuite) SetUpTest(c *check.C) {
 
 // GetCurrentVersion returns the version of the installed and active package.
 func GetCurrentVersion(c *check.C, packageName string) string {
-	output := cli.ExecCommand(c, "snap", "list")
+	output, err := cli.ExecCommandErr("snap", "list")
+	if err != nil {
+		// XXX: right now "snap list" on freshly booted is empty
+		// because u-d-f installed aren't in state
+		return "verUnknown"
+	}
 	pattern := "(?mU)^" + packageName + " +(.*)$"
 	re := regexp.MustCompile(pattern)
 	match := re.FindStringSubmatch(string(output))
@@ -215,11 +220,17 @@ func getVersionFile() string {
 // InstallSnap executes the required command to install the specified snap
 func InstallSnap(c *check.C, packageName string) string {
 	cli.ExecCommand(c, "sudo", "snap", "install", packageName)
-	return cli.ExecCommand(c, "snap", "list")
+	// XXX: right now "snap list" on freshly booted is empty
+	// because u-d-f installed aren't in state
+	out, _ := cli.ExecCommandErr("snap", "list")
+	return out
 }
 
 // RemoveSnap executes the required command to remove the specified snap
 func RemoveSnap(c *check.C, packageName string) string {
 	cli.ExecCommand(c, "sudo", "snap", "remove", packageName)
-	return cli.ExecCommand(c, "snap", "list")
+	// XXX: right now "snap list" on freshly booted is empty
+	// because u-d-f installed aren't in state
+	out, _ := cli.ExecCommandErr("snap", "list")
+	return out
 }
