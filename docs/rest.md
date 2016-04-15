@@ -380,35 +380,6 @@ field would be
 }
 ```
 
-## /v2/operations/[uuid]
-
-### GET
-
-* Description: background operation
-* Access: trusted
-* Operation: sync
-* Return: dict representing a background operation
-
-#### Sample result:
-
-```javascript
-{
- "created-at": "1415639996123456",      // Creation timestamp
- "output": {},
- "resource": "/v2/snaps/camlistore.sergiusens",
- "status": "running",                   // or "succeeded" or "failed"
- "updated-at": "1415639996451214"       // Last update timestamp
-}
-```
-
-### DELETE
-
-* Description: If the operation has completed, `DELETE` will remove the
-  entry. Otherwise it is an error.
-* Access: trusted
-* Operation: sync
-* Return: standard return value or standard error
-
 ## /v2/icons/[name]/icon
 
 ### GET

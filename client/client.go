@@ -159,7 +159,7 @@ func (client *Client) doSync(method, path string, query url.Values, body io.Read
 	return &rsp.ResultInfo, nil
 }
 
-func (client *Client) doAsync(method, path string, query url.Values, body io.Reader) (string, error) {
+func (client *Client) doAsync(method, path string, query url.Values, body io.Reader) (changeID string, err error) {
 	var rsp response
 
 	if err := client.do(method, path, query, body, &rsp); err != nil {
