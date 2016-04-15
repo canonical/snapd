@@ -117,6 +117,15 @@ func Manager(s *state.State) (*SnapManager, error) {
 	return m, nil
 }
 
+func checkRevisionIsNew(name string, snapst *SnapState, revision int) error {
+	for _, si := range snapst.Sequence {
+		if si.Revision == revision {
+			return fmt.Errorf("revision %d of snap %q already installed", revision, name)
+		}
+	}
+	return nil
+}
+
 const firstLocalRevision = 100001
 
 func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -141,6 +150,10 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 		snapst.LocalRevision = revision
 		ss.Revision = revision
+	} else {
+		if err := checkRevisionIsNew(ss.Name, snapst, ss.Revision); err != nil {
+			return err
+		}
 	}
 
 	st.Lock()
@@ -174,8 +187,12 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	checker := func(info *snap.Info) error {
+		return checkRevisionIsNew(ss.Name, snapst, info.Revision)
+	}
+
 	pb := &TaskProgressAdapter{task: t}
-	storeInfo, downloadedSnapFile, err := m.backend.Download(ss.Name, ss.Channel, pb, nil)
+	storeInfo, downloadedSnapFile, err := m.backend.Download(ss.Name, ss.Channel, checker, pb, nil)
 	if err != nil {
 		return err
 	}

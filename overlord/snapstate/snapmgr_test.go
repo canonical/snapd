@@ -637,6 +637,59 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoIntegration(c *C) {
 	})
 }
 
+func (s *snapmgrTestSuite) TestUpdateSameRevisionIntegration(c *C) {
+	si := snap.SideInfo{
+		OfficialName: "some-snap",
+		Revision:     7,
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+	})
+
+	chg := s.state.NewChange("install", "install a snap")
+	ts, err := snapstate.Update(s.state, "some-snap", "channel-for-7", snappy.DoInstallGC)
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	expected := []fakeOp{
+		{
+			op:      "download",
+			name:    "some-snap",
+			channel: "channel-for-7",
+		},
+	}
+
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.Err(), ErrorMatches, `(?s).*revision 7 of snap "some-snap" already installed.*`)
+
+	// ensure all our tasks ran
+	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
+
+	// verify snaps in the system state
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+
+	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Candidate, IsNil)
+	c.Assert(snapst.Sequence, HasLen, 1)
+	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
+		OfficialName: "some-snap",
+		Channel:      "",
+		Revision:     7,
+	})
+}
+
 func makeTestSnap(c *C, snapYamlContent string) (snapFilePath string) {
 	tmpdir := c.MkDir()
 	os.MkdirAll(filepath.Join(tmpdir, "meta"), 0755)
