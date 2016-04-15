@@ -82,6 +82,7 @@ type Info struct {
 	Version       string
 	Type          Type
 	Architectures []string
+	Assumes       []string
 
 	OriginalSummary     string
 	OriginalDescription string
