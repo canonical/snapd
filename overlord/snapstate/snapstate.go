@@ -35,17 +35,6 @@ import (
 var backend managerBackend = &defaultBackend{}
 
 func doInstall(s *state.State, curActive bool, snapName, snapPath, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
-	if snapName == "" {
-		if snapPath == "" {
-			panic("cannot install snap with name and path both empty")
-		}
-		info, err := readSnapInfo(snapPath)
-		if err != nil {
-			return nil, err
-		}
-		snapName = info.Name()
-	}
-
 	if err := checkChangeConflict(s, snapName); err != nil {
 		return nil, err
 	}
@@ -146,7 +135,19 @@ func Install(s *state.State, name, channel string, flags snappy.InstallFlags) (*
 // InstallPath returns a set of tasks for installing snap from a file path.
 // Note that the state must be locked by the caller.
 func InstallPath(s *state.State, path, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
-	return doInstall(s, false, "", path, channel, flags)
+	info, err := readSnapInfo(path)
+	if err != nil {
+		return nil, err
+	}
+	snapName := info.Name()
+
+	var snapst SnapState
+	err = Get(s, snapName, &snapst)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+
+	return doInstall(s, snapst.Active, snapName, path, channel, flags)
 }
 
 // Update initiates a change updating a snap.

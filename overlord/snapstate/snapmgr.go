@@ -63,6 +63,8 @@ type SnapState struct {
 	Active    bool             `json:"active,omitempty"`
 	Channel   string           `json:"channel,omitempty"`
 	DevMode   bool             `json:"dev-mode,omitempty"`
+	// incremented revision used for local installs
+	LocalRevision int `json:"local-revision,omitempty"`
 }
 
 // Current returns the side info for the current revision in the snap revision sequence if there is one.
@@ -115,6 +117,8 @@ func Manager(s *state.State) (*SnapManager, error) {
 	return m, nil
 }
 
+const firstLocalRevision = 100001
+
 func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -124,8 +128,24 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	if ss.Revision == 0 { // sideloading
+		// to not clash with not sideload installs
+		// and to not have clashes between them
+		// use incremental revisions starting at 100001
+		// for sideloads
+		revision := snapst.LocalRevision
+		if revision == 0 {
+			revision = firstLocalRevision
+		} else {
+			revision++
+		}
+		snapst.LocalRevision = revision
+		ss.Revision = revision
+	}
+
 	st.Lock()
-	snapst.Candidate = &snap.SideInfo{}
+	t.Set("snap-setup", ss)
+	snapst.Candidate = &snap.SideInfo{Revision: ss.Revision}
 	Set(st, ss.Name, snapst)
 	st.Unlock()
 	return nil
