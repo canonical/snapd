@@ -22,4 +22,4 @@ mkdir $GOPATH/src/github.com/ubuntu-core/snappy/integration-tests/data/output
 cp debian/tests/testconfig.json $GOPATH/src/github.com/ubuntu-core/snappy/integration-tests/data/output/
 cd $GOPATH/src/github.com/ubuntu-core/snappy
 go test -c ./integration-tests/tests
-./tests.test  -check.vv -check.f 'snapHelloWorldExampleSuite|searchSuite'
+./tests.test  -check.vv -check.f 'snapHelloWorldExampleSuite|searchSuite|installAppSuite'
