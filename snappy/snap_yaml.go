@@ -157,6 +157,10 @@ func parseSnapYamlData(yamlData []byte, hasConfig bool) (*snapYaml, error) {
 	}
 
 	for name, plug := range m.Plugs {
+		if plug == nil {
+			plug = &plugYaml{}
+			m.Plugs[name] = plug
+		}
 		if plug.Interface == "" {
 			plug.Interface = name
 		}

@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -208,17 +207,8 @@ func (*systemd) DaemonReload() error {
 
 // Enable the given service
 func (s *systemd) Enable(serviceName string) error {
-	enableSymlink := filepath.Join(s.rootDir, snapServicesDir, servicesSystemdTarget+".wants", serviceName)
-
-	// already enabled
-	if _, err := os.Lstat(enableSymlink); err == nil {
-		return nil
-	}
-
-	// Do not use s.rootDir here. The link must point to the
-	// real (internal) path.
-	serviceFilename := filepath.Join(snapServicesDir, serviceName)
-	return os.Symlink(serviceFilename, enableSymlink)
+	_, err := SystemctlCmd("--root", s.rootDir, "enable", serviceName)
+	return err
 }
 
 // Disable the given service

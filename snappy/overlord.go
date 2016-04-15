@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/ubuntu-core/snappy/arch"
@@ -51,6 +52,10 @@ func CheckSnap(snapFilePath string, curInfo *snap.Info, flags InstallFlags, mete
 	s, snapf, err := openSnapFile(snapFilePath, allowUnauth, nil)
 	if err != nil {
 		return err
+	}
+
+	if len(s.Assumes) > 0 {
+		return fmt.Errorf("snap %q assumes unsupported features: %s (try new ubuntu-core)", s.Name(), strings.Join(s.Assumes, ", "))
 	}
 
 	// we do not security Verify() (check hashes) the package here.

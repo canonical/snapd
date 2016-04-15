@@ -35,7 +35,21 @@ import (
 var backend managerBackend = &defaultBackend{}
 
 func doInstall(s *state.State, curActive bool, snapName, snapPath, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
-	// download
+	if snapName == "" {
+		if snapPath == "" {
+			panic("cannot install snap with name and path both empty")
+		}
+		info, err := readSnapInfo(snapPath)
+		if err != nil {
+			return nil, err
+		}
+		snapName = info.Name()
+	}
+
+	if err := checkChangeConflict(s, snapName); err != nil {
+		return nil, err
+	}
+
 	var prepare *state.Task
 	ss := SnapSetup{
 		Channel: channel,
@@ -88,6 +102,32 @@ func doInstall(s *state.State, curActive bool, snapName, snapPath, channel strin
 	return state.NewTaskSet(tasks...), nil
 }
 
+func readSnapInfo(snapPath string) (*snap.Info, error) {
+	// TODO Only open if in devmode or we have the assertion proving content right.
+	snapf, err := snap.Open(snapPath)
+	if err != nil {
+		return nil, err
+	}
+	return snapf.Info()
+}
+
+func checkChangeConflict(s *state.State, snapName string) error {
+	for _, task := range s.Tasks() {
+		k := task.Kind()
+		chg := task.Change()
+		if (k == "link-snap" || k == "unlink-snap") && (chg == nil || !chg.Status().Ready()) {
+			ss, err := TaskSnapSetup(task)
+			if err != nil {
+				return fmt.Errorf("internal error: cannot obtain snap setup from task: %s", task.Summary())
+			}
+			if ss.Name == snapName {
+				return fmt.Errorf("snap %q has changes in progress", snapName)
+			}
+		}
+	}
+	return nil
+}
+
 // Install returns a set of tasks for installing snap.
 // Note that the state must be locked by the caller.
 func Install(s *state.State, name, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
@@ -127,6 +167,10 @@ func Update(s *state.State, name, channel string, flags snappy.InstallFlags) (*s
 // Remove returns a set of tasks for removing snap.
 // Note that the state must be locked by the caller.
 func Remove(s *state.State, name string, flags snappy.RemoveFlags) (*state.TaskSet, error) {
+	if err := checkChangeConflict(s, name); err != nil {
+		return nil, err
+	}
+
 	var snapst SnapState
 	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
@@ -203,11 +247,11 @@ func Rollback(s *state.State, snap, ver string) (*state.TaskSet, error) {
 
 // Activate returns a set of tasks for activating a snap.
 // Note that the state must be locked by the caller.
-func Activate(s *state.State, snap string) (*state.TaskSet, error) {
-	msg := fmt.Sprintf(i18n.G("Set active %q"), snap)
+func Activate(s *state.State, name string) (*state.TaskSet, error) {
+	msg := fmt.Sprintf(i18n.G("Activate snap %q"), name)
 	t := s.NewTask("activate-snap", msg)
 	t.Set("snap-setup", SnapSetup{
-		Name: snap,
+		Name: name,
 	})
 
 	return state.NewTaskSet(t), nil
@@ -215,11 +259,11 @@ func Activate(s *state.State, snap string) (*state.TaskSet, error) {
 
 // Activate returns a set of tasks for activating a snap.
 // Note that the state must be locked by the caller.
-func Deactivate(s *state.State, snap string) (*state.TaskSet, error) {
-	msg := fmt.Sprintf(i18n.G("Set inactive %q"), snap)
+func Deactivate(s *state.State, name string) (*state.TaskSet, error) {
+	msg := fmt.Sprintf(i18n.G("Deactivate snap %q"), name)
 	t := s.NewTask("deactivate-snap", msg)
 	t.Set("snap-setup", SnapSetup{
-		Name: snap,
+		Name: name,
 	})
 
 	return state.NewTaskSet(t), nil

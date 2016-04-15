@@ -206,7 +206,10 @@ func mapSnap(localSnap *snap.Info, active bool, remoteSnap *snap.Info) map[strin
 		"summary":        summary,
 		"installed-size": installedSize,
 		"download-size":  downloadSize,
-		"prices":         prices,
+	}
+
+	if len(prices) > 0 {
+		result["prices"] = prices
 	}
 
 	if localSnap != nil {
