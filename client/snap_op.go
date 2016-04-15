@@ -42,20 +42,20 @@ type actionData struct {
 	*SnapOptions
 }
 
-// InstallSnap adds the snap with the given name from the given channel (or
+// Install adds the snap with the given name from the given channel (or
 // the system default channel if not).
-func (client *Client) InstallSnap(name string, options *SnapOptions) (changeID string, err error) {
+func (client *Client) Install(name string, options *SnapOptions) (changeID string, err error) {
 	return client.doSnapAction("install", name, options)
 }
 
-// RemoveSnap removes the snap with the given name.
-func (client *Client) RemoveSnap(name string, options *SnapOptions) (changeID string, err error) {
+// Remove removes the snap with the given name.
+func (client *Client) Remove(name string, options *SnapOptions) (changeID string, err error) {
 	return client.doSnapAction("remove", name, options)
 }
 
-// RefreshSnap refreshes the snap with the given name (switching it to track
+// Refresh refreshes the snap with the given name (switching it to track
 // the given channel if given).
-func (client *Client) RefreshSnap(name string, options *SnapOptions) (changeID string, err error) {
+func (client *Client) Refresh(name string, options *SnapOptions) (changeID string, err error) {
 	return client.doSnapAction("refresh", name, options)
 }
 
@@ -73,9 +73,9 @@ func (client *Client) doSnapAction(actionName string, snapName string, options *
 	return client.doAsync("POST", path, nil, bytes.NewBuffer(data))
 }
 
-// InstallSnapPath sideloads the snap with the given path, returning the UUID
+// InstallPath sideloads the snap with the given path, returning the UUID
 // of the background operation upon success.
-func (client *Client) InstallSnapPath(path string, options *SnapOptions) (changeID string, err error) {
+func (client *Client) InstallPath(path string, options *SnapOptions) (changeID string, err error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return "", fmt.Errorf("cannot open: %q", path)
