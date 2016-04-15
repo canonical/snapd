@@ -62,7 +62,7 @@ func (client *Client) RemoveSnap(name string) (changeID string, err error) {
 // upon success.
 func (client *Client) RefreshSnap(name, channel string) (changeID string, err error) {
 	path := fmt.Sprintf("/v2/snaps/%s", name)
-	body := strings.NewReader(fmt.Sprintf(`{"action":"update","channel":%q}`, channel))
+	body := strings.NewReader(fmt.Sprintf(`{"action":"refresh","channel":%q}`, channel))
 
 	return client.doAsync("POST", path, nil, body)
 }
