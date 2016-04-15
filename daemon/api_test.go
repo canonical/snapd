@@ -704,25 +704,27 @@ func (s *apiSuite) TestUserFromRequestHeaderValidUserMultipleDischarges(c *check
 }
 
 func (s *apiSuite) TestSnapsInfoOnePerIntegration(c *check.C) {
+	d := s.daemon(c)
+
 	req, err := http.NewRequest("GET", "/v2/snaps", nil)
 	c.Assert(err, check.IsNil)
 
-	type tmpSt struct {
+	type tsnap struct {
 		name string
 		dev  string
 		ver  string
 		rev  int
 	}
 
-	ddirs := []tmpSt{
+	tsnaps := []tsnap{
 		{"foo", "bar", "v1", 5},
 		{"bar", "baz", "v2", 10},
 		{"baz", "qux", "v3", 15},
 		{"qux", "mip", "v4", 20},
 	}
 
-	for _, d := range ddirs {
-		s.mkInstalled(c, d.name, d.dev, d.ver, d.rev, false, "")
+	for _, snp := range tsnaps {
+		s.mkInstalledInState(c, d, snp.name, snp.dev, snp.ver, snp.rev, false, "")
 	}
 
 	rsp, ok := getSnapsInfo(snapsCmd, req).(*resp)
@@ -735,9 +737,9 @@ func (s *apiSuite) TestSnapsInfoOnePerIntegration(c *check.C) {
 	c.Check(rsp.Meta.Paging, check.DeepEquals, &Paging{Page: 1, Pages: 1})
 
 	snaps := snapList(rsp.Result)
-	c.Check(snaps, check.HasLen, len(ddirs))
+	c.Check(snaps, check.HasLen, len(tsnaps))
 
-	for _, s := range ddirs {
+	for _, s := range tsnaps {
 		var got map[string]interface{}
 		for _, got = range snaps {
 			if got["name"].(string) == s.name {
@@ -752,13 +754,15 @@ func (s *apiSuite) TestSnapsInfoOnePerIntegration(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapsInfoOnlyLocal(c *check.C) {
+	d := s.daemon(c)
+
 	s.rsnaps = []*snap.Info{{
 		SideInfo: snap.SideInfo{
 			OfficialName: "store",
 			Developer:    "foo",
 		},
 	}}
-	s.mkInstalled(c, "local", "foo", "v1", 10, true, "")
+	s.mkInstalledInState(c, d, "local", "foo", "v1", 10, true, "")
 
 	req, err := http.NewRequest("GET", "/v2/snaps?sources=local", nil)
 	c.Assert(err, check.IsNil)
@@ -773,6 +777,8 @@ func (s *apiSuite) TestSnapsInfoOnlyLocal(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
+	d := s.daemon(c)
+
 	s.suggestedCurrency = "EUR"
 
 	s.rsnaps = []*snap.Info{{
@@ -781,7 +787,7 @@ func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
 			Developer:    "foo",
 		},
 	}}
-	s.mkInstalled(c, "local", "foo", "v1", 10, true, "")
+	s.mkInstalledInState(c, d, "local", "foo", "v1", 10, true, "")
 
 	req, err := http.NewRequest("GET", "/v2/snaps?sources=store", nil)
 	c.Assert(err, check.IsNil)
@@ -798,13 +804,15 @@ func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapsInfoLocalAndStore(c *check.C) {
+	d := s.daemon(c)
+
 	s.rsnaps = []*snap.Info{{
 		SideInfo: snap.SideInfo{
 			OfficialName: "remote",
 			Developer:    "foo",
 		},
 	}}
-	s.mkInstalled(c, "local", "foo", "v1", 10, true, "")
+	s.mkInstalledInState(c, d, "local", "foo", "v1", 10, true, "")
 
 	req, err := http.NewRequest("GET", "/v2/snaps?sources=local,store", nil)
 	c.Assert(err, check.IsNil)
@@ -818,13 +826,15 @@ func (s *apiSuite) TestSnapsInfoLocalAndStore(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapsInfoDefaultSources(c *check.C) {
+	d := s.daemon(c)
+
 	s.rsnaps = []*snap.Info{{
 		SideInfo: snap.SideInfo{
 			OfficialName: "remote",
 			Developer:    "foo",
 		},
 	}}
-	s.mkInstalled(c, "local", "foo", "v1", 10, true, "")
+	s.mkInstalledInState(c, d, "local", "foo", "v1", 10, true, "")
 
 	req, err := http.NewRequest("GET", "/v2/snaps", nil)
 	c.Assert(err, check.IsNil)
@@ -855,9 +865,11 @@ func (s *apiSuite) TestSnapsInfoUnknownSource(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapsInfoFilterLocal(c *check.C) {
+	d := s.daemon(c)
+
 	s.rsnaps = nil
-	s.mkInstalled(c, "foo", "foo", "v1", 10, true, "")
-	s.mkInstalled(c, "bar", "bar", "v1", 10, true, "")
+	s.mkInstalledInState(c, d, "foo", "foo", "v1", 10, true, "")
+	s.mkInstalledInState(c, d, "bar", "bar", "v1", 10, true, "")
 
 	req, err := http.NewRequest("GET", "/v2/snaps?q=foo", nil)
 	c.Assert(err, check.IsNil)
@@ -897,8 +909,10 @@ func (s *apiSuite) TestSnapsInfoAppsOnly(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapsInfoFrameworksOnly(c *check.C) {
-	s.mkInstalled(c, "app", "foo", "v1", 10, true, "type: app")
-	s.mkInstalled(c, "framework", "foo", "v1", 10, true, "type: framework")
+	d := s.daemon(c)
+
+	s.mkInstalledInState(c, d, "app", "foo", "v1", 10, true, "type: app")
+	s.mkInstalledInState(c, d, "framework", "foo", "v1", 10, true, "type: framework")
 
 	req, err := http.NewRequest("GET", "/v2/snaps?types=framework", nil)
 	c.Assert(err, check.IsNil)
@@ -911,8 +925,10 @@ func (s *apiSuite) TestSnapsInfoFrameworksOnly(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapsInfoAppsAndFrameworks(c *check.C) {
-	s.mkInstalled(c, "app", "foo", "v1", 10, true, "type: app")
-	s.mkInstalled(c, "framework", "foo", "v1", 10, true, "type: framework")
+	d := s.daemon(c)
+
+	s.mkInstalledInState(c, d, "app", "foo", "v1", 10, true, "type: app")
+	s.mkInstalledInState(c, d, "framework", "foo", "v1", 10, true, "type: framework")
 
 	req, err := http.NewRequest("GET", "/v2/snaps?types=app,framework", nil)
 	c.Assert(err, check.IsNil)

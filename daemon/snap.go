@@ -20,10 +20,13 @@
 package daemon
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/ubuntu-core/snappy/overlord/snapstate"
+	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
 )
@@ -47,6 +50,66 @@ func snapDate(info *snap.Info) time.Time {
 	}
 
 	return st.ModTime()
+}
+
+// localSnapInfo returns the information about the current snap for the given name plus the SnapState with the active flag and other snap revisions.
+func localSnapInfo(st *state.State, name string) (info *snap.Info, active bool, err error) {
+	st.Lock()
+	defer st.Unlock()
+
+	var snapst snapstate.SnapState
+	err = snapstate.Get(st, name, &snapst)
+	if err != nil && err != state.ErrNoState {
+		return nil, false, fmt.Errorf("cannot consult state: %v", err)
+	}
+
+	cur := snapst.Current()
+	if cur == nil {
+		return nil, false, nil
+	}
+
+	info, err = snap.ReadInfo(name, cur)
+	if err != nil {
+		return nil, false, fmt.Errorf("cannot read snap details: %v", err)
+	}
+
+	return info, snapst.Active, nil
+}
+
+type aboutSnap struct {
+	info   *snap.Info
+	snapst *snapstate.SnapState
+}
+
+// allLocalSnapInfos returns the information about the all current snaps and their SnapStates.
+func allLocalSnapInfos(st *state.State) ([]aboutSnap, error) {
+	st.Lock()
+	defer st.Unlock()
+
+	// XXX: make this snapstate.All
+	var stateMap map[string]*snapstate.SnapState
+	if err := st.Get("snaps", &stateMap); err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+
+	about := make([]aboutSnap, 0, len(stateMap))
+
+	var firstErr error
+	for name, snapState := range stateMap {
+		if cur := snapState.Current(); cur != nil {
+			info, err := snap.ReadInfo(name, cur)
+			if err != nil {
+				// XXX: aggregate instead?
+				if firstErr == nil {
+					firstErr = err
+				}
+				continue
+			}
+			about = append(about, aboutSnap{info, snapState})
+		}
+	}
+
+	return about, firstErr
 }
 
 // allSnaps returns all installed snaps, grouped by name
