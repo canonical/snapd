@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-04-14 21:31+0100\n"
+        "POT-Creation-Date: 2016-04-15 13:19+0200\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -70,6 +70,10 @@ msgid   "Deactivate %q snap"
 msgstr  ""
 
 msgid   "Deactivate an installed active snap"
+msgstr  ""
+
+#, c-format
+msgid   "Discard interface connections for snap %q"
 msgstr  ""
 
 #, c-format
