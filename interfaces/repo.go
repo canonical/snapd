@@ -655,10 +655,10 @@ func (r *Repository) RemoveSnap(snapName string) error {
 	return nil
 }
 
-// AutoConnectBlacklist returns plugs that should not be auto-connected.
+// AutoConnectBlacklist returns plug names that should not be auto-connected.
 //
 // Plug is blacklisted if it has no connections despite using an auto-connected
-// interface. That implies it was manually disconnected after installation.
+// interface. That implies it was manually disconnected.
 func (r *Repository) AutoConnectBlacklist(snapName string) map[string]bool {
 	r.m.Lock()
 	defer r.m.Unlock()
