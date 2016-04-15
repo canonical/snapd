@@ -296,13 +296,18 @@ slots:
   interface: test
 `
 
-func (s *interfaceManagerSuite) TestDoSetupSnapSecuirty(c *C) {
+// The setup-profiles task will not auto-connect an plug that was previously
+// explicitly disconnected by the user.
+func (s *interfaceManagerSuite) TestDoSetupSnapSecurityHonorsDisconnect(c *C) {
+	// Add an OS snap as well as a sample snap with a "network" plug.
+	// The plug is normally auto-connected.
 	s.mockSnap(c, osSnapYaml)
 	snapInfo := s.mockSnap(c, sampleSnapYaml)
 
+	// Initialize the manager. This registers the two snaps.
 	mgr := s.manager(c)
 
-	// Run the setup-snap-security task
+	// Run the setup-snap-security task and let it finish.
 	change := s.addSetupSnapSecurityChange(c, snapInfo.Name())
 	mgr.Ensure()
 	mgr.Wait()
@@ -311,25 +316,75 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirty(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	c.Check(change.Status(), Equals, state.DoneStatus)
+	// Ensure that the task succeeded
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+
+	// Ensure that "network" is not saved in the state as auto-connected.
 	var conns map[string]interface{}
 	err := s.state.Get("conns", &conns)
 	c.Assert(err, IsNil)
-	// Auto-connection data was saved into the state
+	c.Check(conns, HasLen, 0)
+
+	// Ensure that "network" is really disconnected.
+	repo := mgr.Repository()
+	plug := repo.Plug("snap", "network")
+	c.Assert(plug, Not(IsNil))
+	c.Check(plug.Connections, HasLen, 0)
+}
+
+// The setup-profiles task will auto-connect plugs with viable candidates.
+func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyAutoConnects(c *C) {
+	// Add an OS snap.
+	s.mockSnap(c, osSnapYaml)
+
+	// Initialize the manager. This registers the OS snap.
+	mgr := s.manager(c)
+
+	// Add a sample snap with a "network" plug which should be auto-connected.
+	snapInfo := s.mockSnap(c, sampleSnapYaml)
+
+	// Run the setup-snap-security task and let it finish.
+	change := s.addSetupSnapSecurityChange(c, snapInfo.Name())
+	mgr.Ensure()
+	mgr.Wait()
+	mgr.Stop()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the task succeeded.
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+
+	// Ensure that "network" is now saved in the state as auto-connected.
+	var conns map[string]interface{}
+	err := s.state.Get("conns", &conns)
+	c.Assert(err, IsNil)
 	c.Check(conns, DeepEquals, map[string]interface{}{
 		"snap:network ubuntu-core:network": map[string]interface{}{
 			"interface": "network", "auto": true,
 		},
 	})
+
+	// Ensure that "network" is really connected.
+	repo := mgr.Repository()
+	plug := repo.Plug("snap", "network")
+	c.Assert(plug, Not(IsNil))
+	c.Check(plug.Connections, HasLen, 1)
 }
 
+// The setup-profiles task will only touch connection state for the task it
+// operates on or auto-connects to and will leave other state intact.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyKeepsExistingConnectionState(c *C) {
+	// Add an OS snap in place.
 	s.mockSnap(c, osSnapYaml)
-	snapInfo := s.mockSnap(c, sampleSnapYaml)
 
+	// Initialize the manager. This registers the two snaps.
 	mgr := s.manager(c)
 
-	// Put information about connections for another snap into the state
+	// Add a sample snap with a "network" plug which should be auto-connected.
+	snapInfo := s.mockSnap(c, sampleSnapYaml)
+
+	// Put fake information about connections for another snap into the state.
 	s.state.Lock()
 	s.state.Set("conns", map[string]interface{}{
 		"other-snap:network ubuntu-core:network": map[string]interface{}{
@@ -338,7 +393,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyKeepsExistingConnectionSt
 	})
 	s.state.Unlock()
 
-	// Run the setup-snap-security task
+	// Run the setup-snap-security task and let it finish.
 	change := s.addSetupSnapSecurityChange(c, snapInfo.Name())
 	mgr.Ensure()
 	mgr.Wait()
@@ -347,17 +402,21 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyKeepsExistingConnectionSt
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	c.Check(change.Status(), Equals, state.DoneStatus)
+	// Ensure that the task succeeded.
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+
 	var conns map[string]interface{}
 	err := s.state.Get("conns", &conns)
 	c.Assert(err, IsNil)
-	// Information from other snaps is not damaged
 	c.Check(conns, DeepEquals, map[string]interface{}{
-		"other-snap:network ubuntu-core:network": map[string]interface{}{
-			"interface": "network",
-		},
+		// The sample snap was auto-connected, as expected.
 		"snap:network ubuntu-core:network": map[string]interface{}{
 			"interface": "network", "auto": true,
+		},
+		// Connection state for the fake snap is preserved.
+		// The task didn't alter state of other snaps.
+		"other-snap:network ubuntu-core:network": map[string]interface{}{
+			"interface": "network",
 		},
 	})
 }
