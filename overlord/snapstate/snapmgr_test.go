@@ -112,6 +112,28 @@ func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
 	verifyInstallUpdateTasks(c, false, ts, s.state)
 }
 
+func (s *snapmgrTestSuite) TestInstallConflict(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_, err := snapstate.Install(s.state, "some-snap", "some-channel", 0)
+	c.Assert(err, IsNil)
+	_, err = snapstate.Install(s.state, "some-snap", "some-channel", 0)
+	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+}
+
+func (s *snapmgrTestSuite) TestInstallPathConflict(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_, err := snapstate.Install(s.state, "some-snap", "some-channel", 0)
+	c.Assert(err, IsNil)
+
+	mockSnap := makeTestSnap(c, "name: some-snap\nversion: 1.0")
+	_, err = snapstate.InstallPath(s.state, mockSnap, "", 0)
+	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+}
+
 func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -124,6 +146,21 @@ func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
 	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", 0)
 	c.Assert(err, IsNil)
 	verifyInstallUpdateTasks(c, true, ts, s.state)
+}
+
+func (s *snapmgrTestSuite) TestUpdateConflict(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{OfficialName: "some-snap"}},
+	})
+
+	_, err := snapstate.Update(s.state, "some-snap", "some-channel", 0)
+	c.Assert(err, IsNil)
+	_, err = snapstate.Update(s.state, "some-snap", "some-channel", 0)
+	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
 }
 
 func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
@@ -179,6 +216,21 @@ func (s *snapmgrTestSuite) TestRemoveLast(c *C) {
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "discard-snap")
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "discard-conns")
+}
+
+func (s *snapmgrTestSuite) TestRemoveConflict(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{OfficialName: "some-snap"}},
+	})
+
+	_, err := snapstate.Remove(s.state, "some-snap", 0)
+	c.Assert(err, IsNil)
+	_, err = snapstate.Remove(s.state, "some-snap", 0)
+	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
 }
 
 func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
@@ -736,7 +788,7 @@ func (s *snapmgrTestSuite) TestActivate(c *C) {
 	c.Assert(s.fakeBackend.ops[0].active, Equals, true)
 }
 
-func (s *snapmgrTestSuite) TestSetInactive(c *C) {
+func (s *snapmgrTestSuite) TestDeactivate(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	chg := s.state.NewChange("set-inactive", "make snap inactive")

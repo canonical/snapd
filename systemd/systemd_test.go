@@ -197,19 +197,10 @@ func (s *SystemdTestSuite) TestDisable(c *C) {
 }
 
 func (s *SystemdTestSuite) TestEnable(c *C) {
-	sysd := New("xyzzy", s.rep)
-	sysd.(*systemd).rootDir = c.MkDir()
-	err := os.MkdirAll(filepath.Join(sysd.(*systemd).rootDir, "/etc/systemd/system/multi-user.target.wants"), 0755)
+	err := New("xyzzy", s.rep).Enable("foo")
 	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "enable", "foo"}})
 
-	err = sysd.Enable("foo")
-	c.Assert(err, IsNil)
-
-	// check symlink
-	enableLink := filepath.Join(sysd.(*systemd).rootDir, "/etc/systemd/system/multi-user.target.wants/foo")
-	target, err := os.Readlink(enableLink)
-	c.Assert(err, IsNil)
-	c.Assert(target, Equals, "/etc/systemd/system/foo")
 }
 
 const expectedServiceFmt = `[Unit]
