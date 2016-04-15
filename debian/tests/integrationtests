@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -e
+
 # make debian autopkgtest host happy
 mkdir -p /etc/systemd/system/snapd.service.d/
 cat <<EOF >/etc/systemd/system/snapd.service.d/proxy.conf
