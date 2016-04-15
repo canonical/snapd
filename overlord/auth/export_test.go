@@ -19,10 +19,11 @@
 
 package auth
 
-func SetCreateIDFunc(f func() string) {
+func MockCreateIDFunc(f func() string) (restore func()) {
 	createID = f
+	return resetCreateID
 }
 
-func ResetCreateID() {
+func resetCreateID() {
 	createID = createIDImpl
 }

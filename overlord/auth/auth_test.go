@@ -34,7 +34,8 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 type authSuite struct {
-	state *state.State
+	state         *state.State
+	resetCreateID func()
 }
 
 var _ = Suite(&authSuite{})
@@ -47,13 +48,13 @@ func boringID() string {
 }
 
 func (as *authSuite) SetUpTest(c *C) {
-	auth.SetCreateIDFunc(boringID)
+	as.resetCreateID = auth.MockCreateIDFunc(boringID)
 	lastID = 0
 	as.state = state.New(nil)
 }
 
 func (as *authSuite) TearDownTest(c *C) {
-	auth.ResetCreateID()
+	as.resetCreateID()
 }
 
 func (as *authSuite) TestNewUser(c *C) {
