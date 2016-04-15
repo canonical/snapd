@@ -68,5 +68,12 @@ func (x *cmdConnect) Execute(args []string) error {
 		x.Positionals.Offer.Name = x.Positionals.Offer.Snap
 		x.Positionals.Offer.Snap = ""
 	}
-	return Client().Connect(x.Positionals.Offer.Snap, x.Positionals.Offer.Name, x.Positionals.Use.Snap, x.Positionals.Use.Name)
+
+	cli := Client()
+	id, err := cli.Connect(x.Positionals.Offer.Snap, x.Positionals.Offer.Name, x.Positionals.Use.Snap, x.Positionals.Use.Name)
+	if err != nil {
+		return err
+	}
+
+	return wait(cli, id)
 }

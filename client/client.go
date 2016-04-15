@@ -29,7 +29,6 @@ import (
 	"net/url"
 	"os"
 	"path"
-	"strings"
 
 	"github.com/ubuntu-core/snappy/dirs"
 )
@@ -160,11 +159,7 @@ func (client *Client) doSync(method, path string, query url.Values, body io.Read
 	return &rsp.ResultInfo, nil
 }
 
-type asyncResult struct {
-	Resource string `json:"resource"`
-}
-
-func (client *Client) doAsync(method, path string, query url.Values, body io.Reader) (string, error) {
+func (client *Client) doAsync(method, path string, query url.Values, body io.Reader) (changeID string, err error) {
 	var rsp response
 
 	if err := client.do(method, path, query, body, &rsp); err != nil {
@@ -179,18 +174,11 @@ func (client *Client) doAsync(method, path string, query url.Values, body io.Rea
 	if rsp.StatusCode != http.StatusAccepted {
 		return "", fmt.Errorf("operation not accepted")
 	}
-
-	var result asyncResult
-	if err := json.Unmarshal(rsp.Result, &result); err != nil {
-		return "", fmt.Errorf("cannot unmarshal result: %v", err)
+	if rsp.Change == "" {
+		return "", fmt.Errorf("async response without change reference")
 	}
 
-	const opPrefix = "/v2/changes/"
-	if !strings.HasPrefix(result.Resource, opPrefix) {
-		return "", fmt.Errorf("invalid resource location %q", result.Resource)
-	}
-
-	return result.Resource[len(opPrefix):], nil
+	return rsp.Change, nil
 }
 
 // A response produced by the REST API will usually fit in this
@@ -200,6 +188,7 @@ type response struct {
 	Status     string          `json:"status"`
 	StatusCode int             `json:"status-code"`
 	Type       string          `json:"type"`
+	Change     string          `json:"change"`
 
 	ResultInfo
 }

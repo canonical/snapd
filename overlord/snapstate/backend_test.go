@@ -117,7 +117,7 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, si *snap.SideInfo, fl
 	return nil
 }
 
-func (f *fakeSnappyBackend) RetrieveInfo(name string, si *snap.SideInfo) (*snap.Info, error) {
+func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info, error) {
 	// naive emulation for now, always works
 	return &snap.Info{SideInfo: *si}, nil
 }
@@ -166,17 +166,6 @@ func (f *fakeSnappyBackend) UndoCopySnapData(newInfo *snap.Info, flags int) erro
 		name: newInfo.MountDir(),
 	})
 	return nil
-}
-
-func (f *fakeSnappyBackend) SnapByNameAndVersion(name, version string) *snap.Info {
-	return &snap.Info{
-		SideInfo: snap.SideInfo{
-			OfficialName: name,
-			Revision:     9,
-		},
-		SuggestedName: name,
-		Version:       version,
-	}
 }
 
 func (f *fakeSnappyBackend) CanRemove(info *snap.Info, active bool) bool {

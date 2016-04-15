@@ -39,6 +39,8 @@ type Snap struct {
 	Status        string    `json:"status"`
 	Type          string    `json:"type"`
 	Version       string    `json:"version"`
+
+	Prices map[string]float64 `json:"prices"`
 }
 
 // SnapFilter is used to filter snaps by source, name and/or type

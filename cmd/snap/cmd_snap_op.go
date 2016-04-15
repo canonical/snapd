@@ -27,15 +27,38 @@ import (
 
 	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
+	"github.com/ubuntu-core/snappy/progress"
 
 	"github.com/jessevdk/go-flags"
 )
 
 func wait(client *client.Client, id string) error {
+	pb := progress.NewTextProgress()
+	defer func() {
+		pb.Finished()
+		fmt.Print("\n")
+	}()
+
+	var lastID string
 	for {
 		chg, err := client.Change(id)
 		if err != nil {
 			return err
+		}
+
+		for _, t := range chg.Tasks {
+			switch {
+			case t.Status != "Doing":
+				continue
+			case t.Progress.Total == 1:
+				pb.Spin(t.Summary)
+			case t.ID == lastID:
+				pb.Set(float64(t.Progress.Done))
+			default:
+				pb.Start(t.Summary, float64(t.Progress.Total))
+				lastID = t.ID
+			}
+			break
 		}
 
 		if chg.Ready {
@@ -50,6 +73,9 @@ func wait(client *client.Client, id string) error {
 			return fmt.Errorf("change finished in status %q with no error message", chg.Status)
 		}
 
+		// note this very purposely is not a ticker; we want
+		// to sleep 100ms between calls, not call once every
+		// 100ms.
 		time.Sleep(100 * time.Millisecond)
 	}
 }
@@ -108,12 +134,12 @@ type cmdOp struct {
 
 func (x *cmdOp) Execute([]string) error {
 	cli := Client()
-	uuid, err := x.op(cli, x.Positional.Snap)
+	changeID, err := x.op(cli, x.Positional.Snap)
 	if err != nil {
 		return err
 	}
 
-	return wait(cli, uuid)
+	return wait(cli, changeID)
 }
 
 type cmdInstall struct {
@@ -124,21 +150,21 @@ type cmdInstall struct {
 }
 
 func (x *cmdInstall) Execute([]string) error {
-	var uuid string
+	var changeID string
 	var err error
 
 	cli := Client()
 	name := x.Positional.Snap
 	if strings.Contains(name, "/") || strings.HasSuffix(name, ".snap") || strings.Contains(name, ".snap.") {
-		uuid, err = cli.InstallSnapPath(name)
+		changeID, err = cli.InstallSnapPath(name)
 	} else {
-		uuid, err = cli.InstallSnap(name, x.Channel)
+		changeID, err = cli.InstallSnap(name, x.Channel)
 	}
 	if err != nil {
 		return err
 	}
 
-	return wait(cli, uuid)
+	return wait(cli, changeID)
 }
 
 type cmdRefresh struct {
@@ -150,12 +176,12 @@ type cmdRefresh struct {
 
 func (x *cmdRefresh) Execute([]string) error {
 	cli := Client()
-	uuid, err := cli.RefreshSnap(x.Positional.Snap, x.Channel)
+	changeID, err := cli.RefreshSnap(x.Positional.Snap, x.Channel)
 	if err != nil {
 		return err
 	}
 
-	return wait(cli, uuid)
+	return wait(cli, changeID)
 }
 
 func init() {

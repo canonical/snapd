@@ -142,6 +142,15 @@ license-agreement: explicit`)
 	c.Check(IsLicenseNotAccepted(err), Equals, true)
 }
 
+func (s *SnapTestSuite) TestLocalSnapInstallMissingAssumes(c *C) {
+	pkg := makeTestSnapPackage(c, `
+name: foo
+version: 1.0
+assumes: [f1, f2]`)
+	_, err := (&Overlord{}).Install(pkg, 0, &MockProgressMeter{y: false})
+	c.Check(err, ErrorMatches, `snap "foo" assumes unsupported features: f1, f2.*`)
+}
+
 // if the snap asks for accepting a license, and an agreer is provided, but
 // the click has no license, install fails
 func (s *SnapTestSuite) TestLocalSnapInstallNoLicenseFails(c *C) {

@@ -822,6 +822,16 @@ architectures: [i386]
 	c.Assert(info.Architectures, DeepEquals, []string{"i386"})
 }
 
+func (s *YamlSuite) TestSnapYamlAssumesParsing(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+assumes: [feature2, feature1]
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+	c.Assert(info.Assumes, DeepEquals, []string{"feature1", "feature2"})
+}
+
 func (s *YamlSuite) TestSnapYamlNoArchitecturesParsing(c *C) {
 	y := []byte(`name: binary
 version: 1.0

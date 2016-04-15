@@ -28,7 +28,7 @@ import (
 // InstallSnap adds the snap with the given name from the given channel (or
 // the system default channel if not), returning the UUID of the background
 // operation upon success.
-func (client *Client) InstallSnap(name, channel string) (string, error) {
+func (client *Client) InstallSnap(name, channel string) (changeID string, err error) {
 	path := fmt.Sprintf("/v2/snaps/%s", name)
 	body := strings.NewReader(fmt.Sprintf(`{"action":"install","channel":%q}`, channel))
 
@@ -39,7 +39,7 @@ func (client *Client) InstallSnap(name, channel string) (string, error) {
 // of the background operation upon success.
 //
 // XXX: add support for "X-Allow-Unsigned"
-func (client *Client) InstallSnapPath(path string) (string, error) {
+func (client *Client) InstallSnapPath(path string) (changeID string, err error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return "", fmt.Errorf("cannot open: %q", path)
@@ -50,7 +50,7 @@ func (client *Client) InstallSnapPath(path string) (string, error) {
 
 // RemoveSnap removes the snap with the given name, returning the UUID of the
 // background operation upon success.
-func (client *Client) RemoveSnap(name string) (string, error) {
+func (client *Client) RemoveSnap(name string) (changeID string, err error) {
 	path := fmt.Sprintf("/v2/snaps/%s", name)
 	body := strings.NewReader(`{"action":"remove"}`)
 
@@ -60,7 +60,7 @@ func (client *Client) RemoveSnap(name string) (string, error) {
 // RefreshSnap refreshes the snap with the given name (switching it to track
 // the given channel if given), returning the UUID of the background operation
 // upon success.
-func (client *Client) RefreshSnap(name, channel string) (string, error) {
+func (client *Client) RefreshSnap(name, channel string) (changeID string, err error) {
 	path := fmt.Sprintf("/v2/snaps/%s", name)
 	body := strings.NewReader(fmt.Sprintf(`{"action":"update","channel":%q}`, channel))
 
@@ -71,7 +71,7 @@ func (client *Client) RefreshSnap(name, channel string) (string, error) {
 // background operation upon success.
 //
 // TODO: nuke purge, when we have snapshots/backups done
-func (client *Client) PurgeSnap(name string) (string, error) {
+func (client *Client) PurgeSnap(name string) (changeID string, err error) {
 	path := fmt.Sprintf("/v2/snaps/%s", name)
 	body := strings.NewReader(`{"action":"purge"}`)
 
@@ -80,7 +80,7 @@ func (client *Client) PurgeSnap(name string) (string, error) {
 
 // RollbackSnap rolls back the snap with the given name, returning the UUID of
 // the background operation upon success.
-func (client *Client) RollbackSnap(name string) (string, error) {
+func (client *Client) RollbackSnap(name string) (changeID string, err error) {
 	path := fmt.Sprintf("/v2/snaps/%s", name)
 	body := strings.NewReader(`{"action":"rollback"}`)
 
@@ -89,7 +89,7 @@ func (client *Client) RollbackSnap(name string) (string, error) {
 
 // ActivateSnap activates the snap with the given name, returning the UUID of
 // the background operation upon success.
-func (client *Client) ActivateSnap(name string) (string, error) {
+func (client *Client) ActivateSnap(name string) (changeID string, err error) {
 	path := fmt.Sprintf("/v2/snaps/%s", name)
 	body := strings.NewReader(`{"action":"activate"}`)
 
@@ -98,7 +98,7 @@ func (client *Client) ActivateSnap(name string) (string, error) {
 
 // DeactivateSnap deactivates the snap with the given name, returning the UUID
 // of the background operation upon success.
-func (client *Client) DeactivateSnap(name string) (string, error) {
+func (client *Client) DeactivateSnap(name string) (changeID string, err error) {
 	path := fmt.Sprintf("/v2/snaps/%s", name)
 	body := strings.NewReader(`{"action":"deactivate"}`)
 

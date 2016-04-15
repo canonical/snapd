@@ -53,7 +53,7 @@ func (m *SnapManager) AddForeignTaskHandlers() {
 	m.runner.AddHandler("error-trigger", erroringHandler, nil)
 }
 
-func ChangeRetrieveInfo(retrieve func(name string, si *snap.SideInfo) (*snap.Info, error)) func() {
-	retrieveInfo = retrieve
-	return func() { retrieveInfo = retrieveInfoImpl }
+func MockReadInfo(mock func(name string, si *snap.SideInfo) (*snap.Info, error)) func() {
+	readInfo = mock
+	return func() { readInfo = snap.ReadInfo }
 }
