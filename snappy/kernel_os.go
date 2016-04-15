@@ -151,8 +151,8 @@ func setNextBoot(s *snap.Info) error {
 	return nil
 }
 
-func kernelOrOsRebootRequired(s *Snap) bool {
-	if s.m.Type != snap.TypeKernel && s.m.Type != snap.TypeOS {
+func kernelOrOsRebootRequired(s *snap.Info) bool {
+	if s.Type != snap.TypeKernel && s.Type != snap.TypeOS {
 		return false
 	}
 
@@ -163,7 +163,7 @@ func kernelOrOsRebootRequired(s *Snap) bool {
 	}
 
 	var nextBoot, goodBoot string
-	switch s.m.Type {
+	switch s.Type {
 	case snap.TypeKernel:
 		nextBoot = "snappy_kernel"
 		goodBoot = "snappy_good_kernel"
@@ -181,7 +181,7 @@ func kernelOrOsRebootRequired(s *Snap) bool {
 		return false
 	}
 
-	squashfsName := filepath.Base(s.Info().MountFile())
+	squashfsName := filepath.Base(s.MountFile())
 	if nextBootVer == squashfsName && goodBootVer != nextBootVer {
 		return true
 	}
