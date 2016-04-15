@@ -248,25 +248,13 @@ func Rollback(s *state.State, snap, ver string) (*state.TaskSet, error) {
 // Activate returns a set of tasks for activating a snap.
 // Note that the state must be locked by the caller.
 func Activate(s *state.State, name string) (*state.TaskSet, error) {
-	msg := fmt.Sprintf(i18n.G("Activate snap %q"), name)
-	t := s.NewTask("activate-snap", msg)
-	t.Set("snap-setup", SnapSetup{
-		Name: name,
-	})
-
-	return state.NewTaskSet(t), nil
+	return nil, fmt.Errorf("activate not implemented")
 }
 
 // Activate returns a set of tasks for activating a snap.
 // Note that the state must be locked by the caller.
 func Deactivate(s *state.State, name string) (*state.TaskSet, error) {
-	msg := fmt.Sprintf(i18n.G("Deactivate snap %q"), name)
-	t := s.NewTask("deactivate-snap", msg)
-	t.Set("snap-setup", SnapSetup{
-		Name: name,
-	})
-
-	return state.NewTaskSet(t), nil
+	return nil, fmt.Errorf("deactivate not implemented")
 }
 
 // Retrieval functions

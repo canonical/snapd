@@ -104,10 +104,6 @@ func Manager(s *state.State) (*SnapManager, error) {
 	runner.AddHandler("clear-snap", m.doClearSnapData, nil)
 	runner.AddHandler("discard-snap", m.doDiscardSnap, nil)
 
-	// FIXME: work on those
-	runner.AddHandler("activate-snap", m.doActivateSnap, nil)
-	runner.AddHandler("deactivate-snap", m.doDeactivateSnap, nil)
-
 	// test handlers
 	runner.AddHandler("fake-install-snap", func(t *state.Task, _ *tomb.Tomb) error {
 		return nil
@@ -263,34 +259,6 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	Set(st, ss.Name, snapst)
 	st.Unlock()
 	return nil
-}
-
-func (m *SnapManager) doActivateSnap(t *state.Task, _ *tomb.Tomb) error {
-	var ss SnapSetup
-
-	t.State().Lock()
-	err := t.Get("snap-setup", &ss)
-	t.State().Unlock()
-	if err != nil {
-		return err
-	}
-
-	pb := &TaskProgressAdapter{task: t}
-	return m.backend.Activate(ss.Name, true, pb)
-}
-
-func (m *SnapManager) doDeactivateSnap(t *state.Task, _ *tomb.Tomb) error {
-	var ss SnapSetup
-
-	t.State().Lock()
-	err := t.Get("snap-setup", &ss)
-	t.State().Unlock()
-	if err != nil {
-		return err
-	}
-
-	pb := &TaskProgressAdapter{task: t}
-	return m.backend.Activate(ss.Name, false, pb)
 }
 
 // Ensure implements StateManager.Ensure.
