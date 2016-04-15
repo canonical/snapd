@@ -234,9 +234,6 @@ func loginUser(c *Command, r *http.Request) Response {
 // It requires the state to be locked
 func UserFromRequest(st *state.State, req *http.Request) (*auth.UserState, error) {
 	// extract macaroons data from request
-	if req == nil {
-		return nil, nil
-	}
 	header := req.Header.Get("Authorization")
 	if header == "" {
 		return nil, nil
@@ -296,7 +293,7 @@ func getSnapInfo(c *Command, r *http.Request) Response {
 		channel = localSnap.Channel
 	}
 
-	var authenticator store.Authenticator
+	var auther store.Authenticator
 	overlord := c.d.overlord
 	state := overlord.State()
 	state.Lock()
@@ -306,10 +303,10 @@ func getSnapInfo(c *Command, r *http.Request) Response {
 		return InternalError("%v", err)
 	}
 	if user != nil {
-		authenticator = user.Authenticator()
+		auther = user.Authenticator()
 	}
 
-	remoteSnap, _ := remoteRepo.Snap(name, channel, authenticator)
+	remoteSnap, _ := remoteRepo.Snap(name, channel, auther)
 
 	if localSnap == nil && remoteSnap == nil {
 		return NotFound("cannot find snap %q", name)
@@ -400,7 +397,7 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 
 		remoteRepo := newRemoteRepo()
 
-		var authenticator store.Authenticator
+		var auther store.Authenticator
 		overlord := c.d.overlord
 		state := overlord.State()
 		state.Lock()
@@ -410,7 +407,7 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 			return InternalError("%v", err)
 		}
 		if user != nil {
-			authenticator = user.Authenticator()
+			auther = user.Authenticator()
 		}
 
 		// repo.Find("") finds all
@@ -419,7 +416,7 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		//   * if there are no results, return an error response.
 		//   * If there are results at all (perhaps local), include a
 		//     warning in the response
-		found, _ := remoteRepo.FindSnaps(searchTerm, "", authenticator)
+		found, _ := remoteRepo.FindSnaps(searchTerm, "", auther)
 		suggestedCurrency = remoteRepo.SuggestedCurrency()
 
 		sources = append(sources, "store")

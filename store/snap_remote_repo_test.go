@@ -161,12 +161,12 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryHeaders(c *C) {
 	req, err := http.NewRequest("GET", "http://example.com", nil)
 	c.Assert(err, IsNil)
 
-	t.store.applyUbuntuStoreHeaders(req, "")
+	t.store.applyUbuntuStoreHeaders(req, "", nil)
 
 	c.Assert(req.Header.Get("X-Ubuntu-Release"), Equals, release.String())
 	c.Check(req.Header.Get("Accept"), Equals, "application/hal+json")
 
-	t.store.applyUbuntuStoreHeaders(req, "application/json")
+	t.store.applyUbuntuStoreHeaders(req, "application/json", nil)
 
 	c.Check(req.Header.Get("Accept"), Equals, "application/json")
 	c.Assert(req.Header.Get("Authorization"), Equals, "")
