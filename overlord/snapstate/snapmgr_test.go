@@ -98,7 +98,7 @@ func verifyInstallUpdateTasks(c *C, curActive bool, ts *state.TaskSet, st *state
 	}
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "copy-snap-data")
 	i++
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "setup-snap-security")
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "setup-profiles")
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "link-snap")
 }
@@ -168,8 +168,11 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{{OfficialName: "foo"}},
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{OfficialName: "foo"},
+			{OfficialName: "foo"},
+		},
 	})
 
 	ts, err := snapstate.Remove(s.state, "foo", 0)
@@ -181,11 +184,38 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 	c.Assert(s.state.Tasks(), HasLen, 4)
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "unlink-snap")
 	i++
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "remove-snap-security")
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "remove-profiles")
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "clear-snap")
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "discard-snap")
+}
+
+func (s *snapmgrTestSuite) TestRemoveLast(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{OfficialName: "foo"}},
+	})
+
+	ts, err := snapstate.Remove(s.state, "foo", 0)
+	c.Assert(err, IsNil)
+
+	i := 0
+	c.Assert(ts.Tasks(), HasLen, 5)
+	// all tasks are accounted
+	c.Assert(s.state.Tasks(), HasLen, 5)
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "unlink-snap")
+	i++
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "remove-profiles")
+	i++
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "clear-snap")
+	i++
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "discard-snap")
+	i++
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "discard-conns")
 }
 
 func (s *snapmgrTestSuite) TestRemoveConflict(c *C) {
@@ -720,7 +750,8 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 
 	// verify snapSetup info
 	tasks := ts.Tasks()
-	task := tasks[len(tasks)-1]
+	// snap-setup is in discard-snap above discard-conns.
+	task := tasks[len(tasks)-2]
 	var ss snapstate.SnapSetup
 	err = task.Get("snap-setup", &ss)
 	c.Assert(err, IsNil)
@@ -733,42 +764,6 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 	var snapst snapstate.SnapState
 	err = snapstate.Get(s.state, "some-snap", &snapst)
 	c.Assert(err, Equals, state.ErrNoState)
-}
-
-func (s *snapmgrTestSuite) TestActivate(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-	chg := s.state.NewChange("setActive", "make snap active")
-	ts, err := snapstate.Activate(s.state, "some-snap-to-activate")
-	c.Assert(err, IsNil)
-	chg.AddAll(ts)
-
-	s.state.Unlock()
-	defer s.snapmgr.Stop()
-	s.settle()
-	s.state.Lock()
-
-	c.Assert(s.fakeBackend.ops[0].op, Equals, "activate")
-	c.Assert(s.fakeBackend.ops[0].name, Equals, "some-snap-to-activate")
-	c.Assert(s.fakeBackend.ops[0].active, Equals, true)
-}
-
-func (s *snapmgrTestSuite) TestDeactivate(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-	chg := s.state.NewChange("set-inactive", "make snap inactive")
-	ts, err := snapstate.Deactivate(s.state, "some-snap-to-inactivate")
-	c.Assert(err, IsNil)
-	chg.AddAll(ts)
-
-	s.state.Unlock()
-	defer s.snapmgr.Stop()
-	s.settle()
-	s.state.Lock()
-
-	c.Assert(s.fakeBackend.ops[0].op, Equals, "activate")
-	c.Assert(s.fakeBackend.ops[0].name, Equals, "some-snap-to-inactivate")
-	c.Assert(s.fakeBackend.ops[0].active, Equals, false)
 }
 
 type snapmgrQuerySuite struct {

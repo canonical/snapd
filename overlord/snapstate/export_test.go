@@ -42,8 +42,9 @@ func SetSnapstateBackend(b ManagerBackend) {
 func (m *SnapManager) AddForeignTaskHandlers() {
 	// Add fake handlers for tasks handled by interfaces manager
 	fakeHandler := func(task *state.Task, _ *tomb.Tomb) error { return nil }
-	m.runner.AddHandler("setup-snap-security", fakeHandler, fakeHandler)
-	m.runner.AddHandler("remove-snap-security", fakeHandler, fakeHandler)
+	m.runner.AddHandler("setup-profiles", fakeHandler, fakeHandler)
+	m.runner.AddHandler("remove-profiles", fakeHandler, fakeHandler)
+	m.runner.AddHandler("discard-conns", fakeHandler, fakeHandler)
 
 	// Add handler to test full aborting of changes
 	erroringHandler := func(task *state.Task, _ *tomb.Tomb) error {

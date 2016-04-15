@@ -80,15 +80,6 @@ func (f *fakeSnappyBackend) Download(name, channel string, p progress.Meter, aut
 	return info, "downloaded-snap-path", nil
 }
 
-func (f *fakeSnappyBackend) Activate(name string, active bool, p progress.Meter) error {
-	f.ops = append(f.ops, fakeOp{
-		op:     "activate",
-		name:   name,
-		active: active,
-	})
-	return nil
-}
-
 func (f *fakeSnappyBackend) CheckSnap(snapFilePath string, curInfo *snap.Info, flags int) error {
 	cur := "<no-current>"
 	if curInfo != nil {
