@@ -27,6 +27,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snappy"
 )
 
 // SnapManager is responsible for the installation and removal of snaps.
@@ -130,6 +131,9 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	st.Lock()
 	snapst.Candidate = &snap.SideInfo{}
+	if ss.Flags&int(snappy.DeveloperMode) != 0 {
+		snapst.DevMode = true
+	}
 	Set(st, ss.Name, snapst)
 	st.Unlock()
 	return nil
@@ -170,6 +174,9 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	t.Set("snap-setup", ss)
 	snapst.Candidate = &storeInfo.SideInfo
+	if ss.Flags&int(snappy.DeveloperMode) != 0 {
+		snapst.DevMode = true
+	}
 	Set(st, ss.Name, snapst)
 	st.Unlock()
 
