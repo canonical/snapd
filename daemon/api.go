@@ -921,60 +921,43 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 	if len(a.Plugs) > 1 || len(a.Slots) > 1 {
 		return NotImplemented("many-to-many operations are not implemented")
 	}
+	if a.Action != "connect" && a.Action != "disconnect" {
+		return BadRequest("unsupported interface action: %q", a.Action)
+	}
+	if len(a.Plugs) == 0 || len(a.Slots) == 0 {
+		return BadRequest("at least one plug and slot is required")
+	}
+
+	var change *state.Change
+	var taskset *state.TaskSet
+	var err error
 
 	state := c.d.overlord.State()
+	state.Lock()
+	defer state.Unlock()
 
 	switch a.Action {
 	case "connect":
-		if len(a.Plugs) == 0 || len(a.Slots) == 0 {
-			return BadRequest("at least one plug and slot is required")
-		}
 		summary := fmt.Sprintf("Connect %s:%s to %s:%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
-		state.Lock()
-		change := state.NewChange("connect-snap", summary)
-		taskset, err := ifacestate.Connect(
-			state, a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
-		if err == nil {
-			change.AddAll(taskset)
-		}
-		state.Unlock()
-		if err != nil {
-			return BadRequest("%v", err)
-		}
-
-		state.EnsureBefore(0)
-		err = waitChange(change)
-
-		if err != nil {
-			return BadRequest("%v", err)
-		}
-		return SyncResponse(nil, nil)
+		change = state.NewChange("connect-snap", summary)
+		taskset, err = ifacestate.Connect(state, a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 	case "disconnect":
-		if len(a.Plugs) == 0 || len(a.Slots) == 0 {
-			return BadRequest("at least one plug and slot is required")
-		}
 		summary := fmt.Sprintf("Disconnect %s:%s from %s:%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
-		state.Lock()
-		change := state.NewChange("disconnect-snap", summary)
-		taskset, err := ifacestate.Disconnect(state,
-			a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
-		if err == nil {
-			change.AddAll(taskset)
-		}
-		state.Unlock()
-		if err != nil {
-			return BadRequest("%v", err)
-		}
-
-		state.EnsureBefore(0)
-		err = waitChange(change)
-
-		if err != nil {
-			return BadRequest("%v", err)
-		}
-		return SyncResponse(nil, nil)
+		change = state.NewChange("disconnect-snap", summary)
+		taskset, err = ifacestate.Disconnect(state, a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 	}
-	return BadRequest("unsupported interface action: %q", a.Action)
+
+	if err == nil {
+		change.AddAll(taskset)
+	}
+
+	if err != nil {
+		return BadRequest("%v", err)
+	}
+
+	state.EnsureBefore(0)
+
+	return AsyncResponse(nil, &Meta{Change: change.ID()})
 }
 
 func doAssert(c *Command, r *http.Request) Response {

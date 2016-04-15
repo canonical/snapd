@@ -57,24 +57,31 @@ Help Options:
 
 func (s *SnapSuite) TestDisconnectExplicitEverything(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.Method, Equals, "POST")
-		c.Check(r.URL.Path, Equals, "/v2/interfaces")
-		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
-			"action": "disconnect",
-			"plugs": []interface{}{
-				map[string]interface{}{
-					"snap": "producer",
-					"plug": "plug",
+		switch r.URL.Path {
+		case "/v2/interfaces":
+			c.Check(r.Method, Equals, "POST")
+			c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
+				"action": "disconnect",
+				"plugs": []interface{}{
+					map[string]interface{}{
+						"snap": "producer",
+						"plug": "plug",
+					},
 				},
-			},
-			"slots": []interface{}{
-				map[string]interface{}{
-					"snap": "consumer",
-					"slot": "slot",
+				"slots": []interface{}{
+					map[string]interface{}{
+						"snap": "consumer",
+						"slot": "slot",
+					},
 				},
-			},
-		})
-		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
+			})
+			fmt.Fprintln(w, `{"type":"async", "status-code": 202, "change": "zzz"}`)
+		case "/v2/changes/zzz":
+			c.Check(r.Method, Equals, "GET")
+			fmt.Fprintln(w, `{"type":"sync", "result":{"ready": true, "status": "Done"}}`)
+		default:
+			c.Fatalf("unexpected path %q", r.URL.Path)
+		}
 	})
 	rest, err := Parser().ParseArgs([]string{"disconnect", "producer:plug", "consumer:slot"})
 	c.Assert(err, IsNil)
@@ -85,24 +92,31 @@ func (s *SnapSuite) TestDisconnectExplicitEverything(c *C) {
 
 func (s *SnapSuite) TestDisconnectEverythingFromSpecificSlot(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.Method, Equals, "POST")
-		c.Check(r.URL.Path, Equals, "/v2/interfaces")
-		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
-			"action": "disconnect",
-			"plugs": []interface{}{
-				map[string]interface{}{
-					"snap": "",
-					"plug": "",
+		switch r.URL.Path {
+		case "/v2/interfaces":
+			c.Check(r.Method, Equals, "POST")
+			c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
+				"action": "disconnect",
+				"plugs": []interface{}{
+					map[string]interface{}{
+						"snap": "",
+						"plug": "",
+					},
 				},
-			},
-			"slots": []interface{}{
-				map[string]interface{}{
-					"snap": "consumer",
-					"slot": "slot",
+				"slots": []interface{}{
+					map[string]interface{}{
+						"snap": "consumer",
+						"slot": "slot",
+					},
 				},
-			},
-		})
-		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
+			})
+			fmt.Fprintln(w, `{"type":"async", "status-code": 202, "change": "zzz"}`)
+		case "/v2/changes/zzz":
+			c.Check(r.Method, Equals, "GET")
+			fmt.Fprintln(w, `{"type":"sync", "result":{"ready": true, "status": "Done"}}`)
+		default:
+			c.Fatalf("unexpected path %q", r.URL.Path)
+		}
 	})
 	rest, err := Parser().ParseArgs([]string{"disconnect", "consumer:slot"})
 	c.Assert(err, IsNil)
@@ -113,24 +127,31 @@ func (s *SnapSuite) TestDisconnectEverythingFromSpecificSlot(c *C) {
 
 func (s *SnapSuite) TestDisconnectEverythingFromSpecificSnap(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.Method, Equals, "POST")
-		c.Check(r.URL.Path, Equals, "/v2/interfaces")
-		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
-			"action": "disconnect",
-			"plugs": []interface{}{
-				map[string]interface{}{
-					"snap": "",
-					"plug": "",
+		switch r.URL.Path {
+		case "/v2/interfaces":
+			c.Check(r.Method, Equals, "POST")
+			c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
+				"action": "disconnect",
+				"plugs": []interface{}{
+					map[string]interface{}{
+						"snap": "",
+						"plug": "",
+					},
 				},
-			},
-			"slots": []interface{}{
-				map[string]interface{}{
-					"snap": "consumer",
-					"slot": "",
+				"slots": []interface{}{
+					map[string]interface{}{
+						"snap": "consumer",
+						"slot": "",
+					},
 				},
-			},
-		})
-		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
+			})
+			fmt.Fprintln(w, `{"type":"async", "status-code": 202, "change": "zzz"}`)
+		case "/v2/changes/zzz":
+			c.Check(r.Method, Equals, "GET")
+			fmt.Fprintln(w, `{"type":"sync", "result":{"ready": true, "status": "Done"}}`)
+		default:
+			c.Fatalf("unexpected path %q", r.URL.Path)
+		}
 	})
 	rest, err := Parser().ParseArgs([]string{"disconnect", "consumer"})
 	c.Assert(err, IsNil)
