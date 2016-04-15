@@ -481,6 +481,7 @@ type snapInstruction struct {
 	progress.NullProgress
 	Action   string       `json:"action"`
 	Channel  string       `json:"channel"`
+	DevMode  bool         `json:"devmode"`
 	LeaveOld bool         `json:"leave-old"`
 	License  *licenseData `json:"license"`
 	pkg      string
@@ -559,7 +560,9 @@ func (inst *snapInstruction) install() (*state.Change, error) {
 	if inst.Channel != "stable" {
 		msg = fmt.Sprintf(i18n.G("Install %q snap from %q channel"), inst.pkg, inst.Channel)
 	}
-
+	if inst.DevMode {
+		flags |= snappy.DeveloperMode
+	}
 	st := inst.overlord.State()
 	st.Lock()
 	chg := st.NewChange("install-snap", msg)
@@ -761,6 +764,7 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 
 	body := r.Body
 	unsignedOk := false
+	devMode := false
 	contentType := r.Header.Get("Content-Type")
 
 	if strings.HasPrefix(contentType, "multipart/") {
@@ -801,6 +805,7 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 
 		// If x-allow-unsigned is present, unsigned is OK
 		_, unsignedOk = r.Header["X-Allow-Unsigned"]
+		_, devMode = r.Header["X-Developer-Mode"]
 	}
 
 	tmpf, err := ioutil.TempFile("", "snapd-sideload-pkg-")
@@ -816,6 +821,9 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 	var flags snappy.InstallFlags
 	if unsignedOk {
 		flags |= snappy.AllowUnauthenticated
+	}
+	if devMode {
+		flags |= snappy.DeveloperMode
 	}
 
 	snap := tmpf.Name()

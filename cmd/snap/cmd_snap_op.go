@@ -144,6 +144,7 @@ func (x *cmdOp) Execute([]string) error {
 
 type cmdInstall struct {
 	Channel    string `long:"channel" description:"Install from this channel instead of the device's default"`
+	DevMode    bool   `long:"devmode" description:"Install the snap with non-enforcing security"`
 	Positional struct {
 		Snap string `positional-arg-name:"<snap>"`
 	} `positional-args:"yes" required:"yes"`
@@ -156,9 +157,9 @@ func (x *cmdInstall) Execute([]string) error {
 	cli := Client()
 	name := x.Positional.Snap
 	if strings.Contains(name, "/") || strings.HasSuffix(name, ".snap") || strings.Contains(name, ".snap.") {
-		changeID, err = cli.InstallSnapPath(name)
+		changeID, err = cli.InstallSnapPath(name, x.DevMode)
 	} else {
-		changeID, err = cli.InstallSnap(name, x.Channel)
+		changeID, err = cli.InstallSnap(name, x.Channel, x.DevMode)
 	}
 	if err != nil {
 		return err
@@ -169,6 +170,7 @@ func (x *cmdInstall) Execute([]string) error {
 
 type cmdRefresh struct {
 	Channel    string `long:"channel" description:"Refresh to the latest on this channel, and track this channel henceforth"`
+	DevMode    bool   `long:"devmode" description:"Refresh the snap with non-enforcing security"`
 	Positional struct {
 		Snap string `positional-arg-name:"<snap>"`
 	} `positional-args:"yes" required:"yes"`
@@ -176,7 +178,7 @@ type cmdRefresh struct {
 
 func (x *cmdRefresh) Execute([]string) error {
 	cli := Client()
-	changeID, err := cli.RefreshSnap(x.Positional.Snap, x.Channel)
+	changeID, err := cli.RefreshSnap(x.Positional.Snap, x.Channel, x.DevMode)
 	if err != nil {
 		return err
 	}
