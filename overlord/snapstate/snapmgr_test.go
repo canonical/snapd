@@ -675,9 +675,9 @@ version: 1.0`)
 	c.Check(s.fakeBackend.ops[0].name, Matches, `.*/mock_1.0_all.snap`)
 
 	c.Check(s.fakeBackend.ops[3].op, Equals, "candidate")
-	c.Check(s.fakeBackend.ops[3].sinfo, DeepEquals, snap.SideInfo{Revision: 100000})
+	c.Check(s.fakeBackend.ops[3].sinfo, DeepEquals, snap.SideInfo{Revision: 100001})
 	c.Check(s.fakeBackend.ops[4].op, Equals, "link-snap")
-	c.Check(s.fakeBackend.ops[4].name, Equals, "/snap/mock/100000")
+	c.Check(s.fakeBackend.ops[4].name, Equals, "/snap/mock/100001")
 
 	// verify snapSetup info
 	var ss snapstate.SnapSetup
@@ -686,7 +686,7 @@ version: 1.0`)
 	c.Assert(err, IsNil)
 	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
 		Name:     "mock",
-		Revision: 100000,
+		Revision: 100001,
 		SnapPath: mockSnap,
 	})
 
@@ -700,9 +700,9 @@ version: 1.0`)
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
 		OfficialName: "",
 		Channel:      "",
-		Revision:     100000,
+		Revision:     100001,
 	})
-	c.Assert(snapst.LastSideloadRevision, Equals, 100000)
+	c.Assert(snapst.LocalRevision, Equals, 100001)
 }
 
 func (s *snapmgrTestSuite) TestInstallSubequentLocalIntegration(c *C) {
@@ -710,9 +710,9 @@ func (s *snapmgrTestSuite) TestInstallSubequentLocalIntegration(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "mock", &snapstate.SnapState{
-		Active:               true,
-		Sequence:             []*snap.SideInfo{{Revision: 100002}},
-		LastSideloadRevision: 100002,
+		Active:        true,
+		Sequence:      []*snap.SideInfo{{Revision: 100002}},
+		LocalRevision: 100002,
 	})
 
 	mockSnap := makeTestSnap(c, `name: mock
@@ -768,6 +768,7 @@ version: 1.0`)
 		Channel:      "",
 		Revision:     100003,
 	})
+	c.Assert(snapst.LocalRevision, Equals, 100003)
 }
 
 func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {

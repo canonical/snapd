@@ -58,12 +58,13 @@ func (ss *SnapSetup) MountDir() string {
 
 // SnapState holds the state for a snap installed in the system.
 type SnapState struct {
-	Sequence             []*snap.SideInfo `json:"sequence"` // Last is current
-	Candidate            *snap.SideInfo   `josn:"candidate,omitempty"`
-	Active               bool             `json:"active,omitempty"`
-	Channel              string           `json:"channel,omitempty"`
-	DevMode              bool             `json:"dev-mode,omitempty"`
-	LastSideloadRevision int              `json:"last-sideload-revision,omitempty"`
+	Sequence      []*snap.SideInfo `json:"sequence"` // Last is current
+	Candidate     *snap.SideInfo   `josn:"candidate,omitempty"`
+	Active        bool             `json:"active,omitempty"`
+	Channel       string           `json:"channel,omitempty"`
+	DevMode       bool             `json:"dev-mode,omitempty"`
+	// incremented revision used for local installs
+	LocalRevision int              `json:"local-revision,omitempty"`
 }
 
 // Current returns the side info for the current revision in the snap revision sequence if there is one.
@@ -116,7 +117,7 @@ func Manager(s *state.State) (*SnapManager, error) {
 	return m, nil
 }
 
-const firstSideloadRevision = 100000
+const firstLocalRevision = 100001
 
 func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
@@ -130,15 +131,15 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	if ss.Revision == 0 { // sideloading
 		// to not clash with not sideload installs
 		// and to not have clashes between them
-		// use incremental revisions starting at 100000
+		// use incremental revisions starting at 100001
 		// for sideloads
-		revision := snapst.LastSideloadRevision
+		revision := snapst.LocalRevision
 		if revision == 0 {
-			revision = firstSideloadRevision
+			revision = firstLocalRevision
 		} else {
 			revision++
 		}
-		snapst.LastSideloadRevision = revision
+		snapst.LocalRevision = revision
 		ss.Revision = revision
 	}
 
