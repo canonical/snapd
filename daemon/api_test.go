@@ -118,6 +118,7 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 	s.overlord = &fakeOverlord{
 		configs: map[string]string{},
 	}
+	s.auther = nil
 	s.d = nil
 	// Disable real security backends for all API tests
 	s.restoreBackends = ifacestate.MockSecurityBackends(nil)
@@ -259,7 +260,9 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	// and v1 [r10] is current
 	s.mkInstalledInState(c, d, "foo", "bar", "v1", 10, true, "")
 
-	rsp, ok := getSnapInfo(snapCmd, nil).(*resp)
+	req, err := http.NewRequest("GET", "/v2/snap/foo", nil)
+	c.Assert(err, check.IsNil)
+	rsp, ok := getSnapInfo(snapCmd, req).(*resp)
 	c.Assert(ok, check.Equals, true)
 
 	c.Assert(rsp, check.NotNil)
@@ -309,7 +312,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 func (s *apiSuite) TestSnapInfoWithAuth(c *check.C) {
 	state := snapCmd.d.overlord.State()
 	state.Lock()
-	_, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -322,27 +325,33 @@ func (s *apiSuite) TestSnapInfoWithAuth(c *check.C) {
 	_, ok := getSnapInfo(snapCmd, req).(*resp)
 	c.Assert(ok, check.Equals, true)
 	// ensure authenticator was set
-	c.Assert(s.auther, check.NotNil)
+	c.Assert(s.auther, check.DeepEquals, user.Authenticator())
 }
 
 func (s *apiSuite) TestSnapInfoNotFound(c *check.C) {
 	s.vars = map[string]string{"name": "foo"}
 	s.err = snappy.ErrPackageNotFound
 
-	c.Check(getSnapInfo(snapCmd, nil).Self(nil, nil).(*resp).Status, check.Equals, http.StatusNotFound)
+	req, err := http.NewRequest("GET", "/v2/snap/foo", nil)
+	c.Assert(err, check.IsNil)
+	c.Check(getSnapInfo(snapCmd, req).Self(nil, nil).(*resp).Status, check.Equals, http.StatusNotFound)
 }
 
 func (s *apiSuite) TestSnapInfoNoneFound(c *check.C) {
 	s.vars = map[string]string{"name": "foo"}
 
-	c.Check(getSnapInfo(snapCmd, nil).Self(nil, nil).(*resp).Status, check.Equals, http.StatusNotFound)
+	req, err := http.NewRequest("GET", "/v2/snap/foo", nil)
+	c.Assert(err, check.IsNil)
+	c.Check(getSnapInfo(snapCmd, req).Self(nil, nil).(*resp).Status, check.Equals, http.StatusNotFound)
 }
 
 func (s *apiSuite) TestSnapInfoIgnoresRemoteErrors(c *check.C) {
 	s.vars = map[string]string{"name": "foo"}
 	s.err = errors.New("weird")
 
-	rsp := getSnapInfo(snapCmd, nil).Self(nil, nil).(*resp)
+	req, err := http.NewRequest("GET", "/v2/snap/foo", nil)
+	c.Assert(err, check.IsNil)
+	rsp := getSnapInfo(snapCmd, req).Self(nil, nil).(*resp)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, http.StatusNotFound)
@@ -362,7 +371,9 @@ func (s *apiSuite) TestSnapInfoWeirdRoute(c *check.C) {
 			OfficialName: "foo",
 		},
 	}}
-	c.Check(getSnapInfo(wrongCmd, nil).Self(nil, nil).(*resp).Status, check.Equals, http.StatusInternalServerError)
+	req, err := http.NewRequest("GET", "/v2/snap/foo", nil)
+	c.Assert(err, check.IsNil)
+	c.Check(getSnapInfo(wrongCmd, req).Self(nil, nil).(*resp).Status, check.Equals, http.StatusInternalServerError)
 }
 
 func (s *apiSuite) TestSnapInfoBadRoute(c *check.C) {
@@ -381,7 +392,9 @@ func (s *apiSuite) TestSnapInfoBadRoute(c *check.C) {
 		},
 	}}
 
-	rsp := getSnapInfo(snapCmd, nil).Self(nil, nil).(*resp)
+	req, err := http.NewRequest("GET", "/v2/snap/foo", nil)
+	c.Assert(err, check.IsNil)
+	rsp := getSnapInfo(snapCmd, req).Self(nil, nil).(*resp)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, http.StatusInternalServerError)
@@ -641,16 +654,6 @@ func (s *apiSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
 	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "cannot get discharge macaroon")
 }
 
-func (s *apiSuite) TestUserFromRequestNil(c *check.C) {
-	state := snapCmd.d.overlord.State()
-	state.Lock()
-	user, err := UserFromRequest(state, nil)
-	state.Unlock()
-
-	c.Check(err, check.IsNil)
-	c.Check(user, check.IsNil)
-}
-
 func (s *apiSuite) TestUserFromRequestNoHeader(c *check.C) {
 	req, _ := http.NewRequest("GET", "http://example.com", nil)
 
@@ -842,7 +845,7 @@ func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
 func (s *apiSuite) TestSnapsInfoStoreWithAuth(c *check.C) {
 	state := snapCmd.d.overlord.State()
 	state.Lock()
-	_, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -855,7 +858,7 @@ func (s *apiSuite) TestSnapsInfoStoreWithAuth(c *check.C) {
 	_ = getSnapsInfo(snapsCmd, req).(*resp)
 
 	// ensure authenticator was set
-	c.Assert(s.auther, check.NotNil)
+	c.Assert(s.auther, check.DeepEquals, user.Authenticator())
 }
 
 func (s *apiSuite) TestSnapsInfoLocalAndStore(c *check.C) {
