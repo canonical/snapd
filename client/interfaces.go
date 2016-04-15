@@ -78,21 +78,17 @@ func (client *Client) Interfaces() (interfaces Interfaces, err error) {
 }
 
 // performInterfaceAction performs a single action on the interface system.
-func (client *Client) performInterfaceAction(sa *InterfaceAction) error {
+func (client *Client) performInterfaceAction(sa *InterfaceAction) (changeID string, err error) {
 	b, err := json.Marshal(sa)
 	if err != nil {
-		return err
+		return "", err
 	}
-	var rsp interface{}
-	if _, err := client.doSync("POST", "/v2/interfaces", nil, bytes.NewReader(b), &rsp); err != nil {
-		return err
-	}
-	return nil
+	return client.doAsync("POST", "/v2/interfaces", nil, bytes.NewReader(b))
 }
 
 // Connect establishes a connection between a plug and a slot.
 // The plug and the slot must have the same interface.
-func (client *Client) Connect(plugSnapName, plugName, slotSnapName, slotName string) error {
+func (client *Client) Connect(plugSnapName, plugName, slotSnapName, slotName string) (changeID string, err error) {
 	return client.performInterfaceAction(&InterfaceAction{
 		Action: "connect",
 		Plugs:  []Plug{{Snap: plugSnapName, Name: plugName}},
@@ -101,7 +97,7 @@ func (client *Client) Connect(plugSnapName, plugName, slotSnapName, slotName str
 }
 
 // Disconnect breaks the connection between a plug and a slot.
-func (client *Client) Disconnect(plugSnapName, plugName, slotSnapName, slotName string) error {
+func (client *Client) Disconnect(plugSnapName, plugName, slotSnapName, slotName string) (changeID string, err error) {
 	return client.performInterfaceAction(&InterfaceAction{
 		Action: "disconnect",
 		Plugs:  []Plug{{Snap: plugSnapName, Name: plugName}},
