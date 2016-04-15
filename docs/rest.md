@@ -257,21 +257,16 @@ Sample additional meta data:
 ```javascript
 {
  "paging": {
-    "total": 3,
     "page": 0,
     "pages": 1
   },
-  "sources": [
-    "local",
-    "store"
-  ]
+  "sources": ["local", "store"]
 }
 ```
 
 #### Fields
 
 * `paging`
-    * `total`: the total number of snaps
     * `page`: the page number, starting from `0`
     * `pages`: the (approximate) number of pages
 * `sources`
@@ -310,22 +305,16 @@ If present, only list snaps that match the query.
 
 ### POST
 
-* Description: Sideload a snap to the system.
+* Description: Install an uploaded snap to the system.
 * Access: trusted
 * Operation: async
 * Return: background operation or standard error
 
 #### Input
 
-The snap to sideload should be provided as part of the body of a
-`mutlipart/form-data` request. The form should have only one file. If it also
-has an `allow-unsigned` field (with any value), the snap may be unsigned;
-otherwise attempting to sideload an unsigned snap will result in a failed
-background operation.
-
-It's also possible to provide the snap as the entire body of a `POST` (not a
-multipart request). In this case the header `X-Allow-Unsigned` may be used to
-allow sideloading unsigned snaps.
+The snap to install must be provided as part of the body of a
+`mutlipart/form-data` request. The form should have one file
+named "snap".
 
 ## /v2/snaps/[name]
 ### GET
@@ -343,8 +332,7 @@ See `sources` for `/v2/snaps`.
 
 ### POST
 
-* Description: Install, update, remove, activate, deactivate, or
-  rollback the snap
+* Description: Install, refresh, or remove
 * Access: trusted
 * Operation: async
 * Return: background operation or standard error
@@ -361,10 +349,8 @@ See `sources` for `/v2/snaps`.
 
 field      | ignored except in action | description
 -----------|-------------------|------------
-`action`   |                   | Required; a string, one of `install`, `update`, `remove`, `activate`, `deactivate`, or `rollback`.
+`action`   |                   | Required; a string, one of `install`, `refresh`, or `remove`
 `channel`  | `install` `update` | From which channel to pull the new package (and track henceforth). Channels are a means to discern the maturity of a package or the software it contains, although the exact meaning is left to the application developer. One of `edge`, `beta`, `candidate`, and `stable` which is the default.
-`leave-old`| `install` `update` `remove` | A boolean, equivalent to commandline's `--no-gc`. Default is false (do not leave old snaps around).
-`license`  | `install` `update` | A JSON object with `intro`, `license`, and `agreed` fields, the first two of which must match the license (see the section "A note on licenses", below).
 
 #### A note on licenses
 

@@ -53,7 +53,7 @@ type TaskProgress struct {
 // Change fetches information about a Change given its ID
 func (client *Client) Change(id string) (*Change, error) {
 	var chg Change
-	_, err := client.doSync("GET", "/v2/changes/"+id, nil, nil, &chg)
+	_, err := client.doSync("GET", "/v2/changes/"+id, nil, nil, nil, &chg)
 
 	return &chg, err
 }
@@ -84,7 +84,7 @@ func (client *Client) Changes(which ChangeSelector) ([]*Change, error) {
 	query.Set("select", which.String())
 
 	var chgs []*Change
-	_, err := client.doSync("GET", "/v2/changes", query, nil, &chgs)
+	_, err := client.doSync("GET", "/v2/changes", query, nil, nil, &chgs)
 
 	return chgs, err
 }

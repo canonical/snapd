@@ -99,7 +99,7 @@ func (client *Client) setAuthorization(req *http.Request) error {
 // raw performs a request and returns the resulting http.Response and
 // error you usually only need to call this directly if you expect the
 // response to not be JSON, otherwise you'd call Do(...) instead.
-func (client *Client) raw(method, urlpath string, query url.Values, body io.Reader) (*http.Response, error) {
+func (client *Client) raw(method, urlpath string, query url.Values, headers map[string]string, body io.Reader) (*http.Response, error) {
 	// fake a url to keep http.Client happy
 	u := client.baseURL
 	u.Path = path.Join(client.baseURL.Path, urlpath)
@@ -107,6 +107,10 @@ func (client *Client) raw(method, urlpath string, query url.Values, body io.Read
 	req, err := http.NewRequest(method, u.String(), body)
 	if err != nil {
 		return nil, err
+	}
+
+	for key, value := range headers {
+		req.Header.Set(key, value)
 	}
 
 	// set Authorization header if there are user's credentials
@@ -121,8 +125,8 @@ func (client *Client) raw(method, urlpath string, query url.Values, body io.Read
 // do performs a request and decodes the resulting json into the given
 // value. It's low-level, for testing/experimenting only; you should
 // usually use a higher level interface that builds on this.
-func (client *Client) do(method, path string, query url.Values, body io.Reader, v interface{}) error {
-	rsp, err := client.raw(method, path, query, body)
+func (client *Client) do(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}) error {
+	rsp, err := client.raw(method, path, query, headers, body)
 	if err != nil {
 		return err
 	}
@@ -139,10 +143,10 @@ func (client *Client) do(method, path string, query url.Values, body io.Reader, 
 // doSync performs a request to the given path using the specified HTTP method.
 // It expects a "sync" response from the API and on success decodes the JSON
 // response payload into the given value.
-func (client *Client) doSync(method, path string, query url.Values, body io.Reader, v interface{}) (*ResultInfo, error) {
+func (client *Client) doSync(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}) (*ResultInfo, error) {
 	var rsp response
 
-	if err := client.do(method, path, query, body, &rsp); err != nil {
+	if err := client.do(method, path, query, headers, body, &rsp); err != nil {
 		return nil, fmt.Errorf("cannot communicate with server: %s", err)
 	}
 	if err := rsp.err(); err != nil {
@@ -159,10 +163,10 @@ func (client *Client) doSync(method, path string, query url.Values, body io.Read
 	return &rsp.ResultInfo, nil
 }
 
-func (client *Client) doAsync(method, path string, query url.Values, body io.Reader) (changeID string, err error) {
+func (client *Client) doAsync(method, path string, query url.Values, headers map[string]string, body io.Reader) (changeID string, err error) {
 	var rsp response
 
-	if err := client.do(method, path, query, body, &rsp); err != nil {
+	if err := client.do(method, path, query, headers, body, &rsp); err != nil {
 		return "", fmt.Errorf("cannot communicate with server: %v", err)
 	}
 	if err := rsp.err(); err != nil {
@@ -246,7 +250,7 @@ func parseError(r *http.Response) error {
 func (client *Client) SysInfo() (*SysInfo, error) {
 	var sysInfo SysInfo
 
-	if _, err := client.doSync("GET", "/v2/system-info", nil, nil, &sysInfo); err != nil {
+	if _, err := client.doSync("GET", "/v2/system-info", nil, nil, nil, &sysInfo); err != nil {
 		return nil, fmt.Errorf("bad sysinfo result: %v", err)
 	}
 

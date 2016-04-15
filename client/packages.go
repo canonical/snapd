@@ -97,7 +97,7 @@ func (client *Client) FilterSnaps(filter SnapFilter) ([]*Snap, *ResultInfo, erro
 
 func (client *Client) snapsFromPath(path string, query url.Values) ([]*Snap, *ResultInfo, error) {
 	var snaps []*Snap
-	ri, err := client.doSync("GET", path, query, nil, &snaps)
+	ri, err := client.doSync("GET", path, query, nil, nil, &snaps)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot list snaps: %s", err)
 	}
@@ -109,7 +109,7 @@ func (client *Client) snapsFromPath(path string, query url.Values) ([]*Snap, *Re
 func (client *Client) Snap(name string) (*Snap, *ResultInfo, error) {
 	var snap *Snap
 	path := fmt.Sprintf("/v2/snaps/%s", name)
-	ri, err := client.doSync("GET", path, nil, nil, &snap)
+	ri, err := client.doSync("GET", path, nil, nil, nil, &snap)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot retrieve snap %q: %s", name, err)
 	}

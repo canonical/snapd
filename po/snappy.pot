@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-04-15 17:19-0300\n"
+        "POT-Creation-Date: 2016-04-15 18:01-0300\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,9 +18,6 @@ msgstr  "Project-Id-Version: snappy\n"
 
 #, c-format
 msgid   "Activate %q snap"
-msgstr  ""
-
-msgid   "Activate a snap that is installed but inactive"
 msgstr  ""
 
 msgid   "Adds an assertion to the system"
@@ -62,9 +59,6 @@ msgstr  ""
 
 #, c-format
 msgid   "Deactivate %q snap"
-msgstr  ""
-
-msgid   "Deactivate an installed active snap"
 msgstr  ""
 
 #, c-format
@@ -155,9 +149,6 @@ msgstr  ""
 msgid   "Prepare snap %q"
 msgstr  ""
 
-msgid   "Purge a snap's data from the system"
-msgstr  ""
-
 msgid   "Refresh a snap in the system"
 msgstr  ""
 
@@ -182,9 +173,6 @@ msgstr  ""
 
 #, c-format
 msgid   "Rollback %q snap"
-msgstr  ""
-
-msgid   "Rollback a snap to its previous known-good version"
 msgstr  ""
 
 msgid   "Runs unsupported experimental commands"
@@ -223,12 +211,6 @@ msgid   "\n"
 msgstr  ""
 
 msgid   "\n"
-        "The activate command activates an installed but inactive snap.\n"
-        "\n"
-        "Snaps that are not active don't have their apps available for use.\n"
-msgstr  ""
-
-msgid   "\n"
         "The connect command connects a plug to a slot.\n"
         "It may be called in the following ways:\n"
         "\n"
@@ -248,12 +230,6 @@ msgid   "\n"
         "the gadget snap, the kernel snap, and then the os snap, in that order. The\n"
         "first of these snaps that has a matching plug name is used and the command\n"
         "proceeds as above.\n"
-msgstr  ""
-
-msgid   "\n"
-        "The deactivate command deactivates an installed, active snap.\n"
-        "\n"
-        "Snaps that are not active don't have their apps available for use.\n"
 msgstr  ""
 
 msgid   "\n"
@@ -317,10 +293,6 @@ msgid   "\n"
 msgstr  ""
 
 msgid   "\n"
-        "The purge command removes the data of the named snap from the system.\n"
-msgstr  ""
-
-msgid   "\n"
         "The refresh command refreshes (updates) the named snap.\n"
 msgstr  ""
 
@@ -329,10 +301,6 @@ msgid   "\n"
         "\n"
         "The snap's data is currently not removed; use purge for that. This behaviour\n"
         "will change before 16.04 is final.\n"
-msgstr  ""
-
-msgid   "\n"
-        "The rollback command reverts an installed snap to its previous revision.\n"
 msgstr  ""
 
 msgid   "\n"
