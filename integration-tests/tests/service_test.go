@@ -43,6 +43,8 @@ type serviceSuite struct {
 }
 
 func (s *serviceSuite) SetUpTest(c *check.C) {
+	s.SnappySuite.SetUpTest(c)
+
 	c.Skip("FIXME: we have no snap build nor snapcraft build yet")
 }
 
