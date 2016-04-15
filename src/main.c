@@ -365,18 +365,18 @@ void setup_snappy_os_mounts()
 		// we mount the OS snap /bin over the real /bin in this NS
 		const char *dst = mounts[i];
 
+		char buf[512];
+		must_snprintf(buf, sizeof(buf), "%s%s", mountpoint, dst);
+		const char *src = buf;
+
 		// some system do not have e.g. /lib64
 		struct stat sbuf;
-		if (stat(dst, &sbuf) != 0) {
+		if (stat(dst, &sbuf) != 0 || stat(src, &sbuf) != 0) {
 			if (errno == ENOENT)
 				continue;
 			else
 				die("could not stat mount point");
 		}
-
-		char buf[512];
-		must_snprintf(buf, sizeof(buf), "%s%s", mountpoint, dst);
-		const char *src = buf;
 
 		debug("mounting %s -> %s\n", src, dst);
 		if (mount(src, dst, NULL, MS_BIND, NULL) != 0) {

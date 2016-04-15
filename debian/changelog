@@ -1,3 +1,10 @@
+ubuntu-core-launcher (1.0.25.1) UNRELEASED; urgency=medium
+
+  * check for both src and dst mount points when doing the
+    ubuntu-core overlay mounts (LP: #1570712)
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 15 Apr 2016 08:43:03 +0200
+
 ubuntu-core-launcher (1.0.25) xenial; urgency=medium
 
   * update cgroup handling for 16.04 (LP: #1564401):
