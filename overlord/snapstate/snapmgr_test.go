@@ -770,42 +770,6 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 	c.Assert(snapst.Candidate, IsNil)
 }
 
-func (s *snapmgrTestSuite) TestActivate(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-	chg := s.state.NewChange("setActive", "make snap active")
-	ts, err := snapstate.Activate(s.state, "some-snap-to-activate")
-	c.Assert(err, IsNil)
-	chg.AddAll(ts)
-
-	s.state.Unlock()
-	defer s.snapmgr.Stop()
-	s.settle()
-	s.state.Lock()
-
-	c.Assert(s.fakeBackend.ops[0].op, Equals, "activate")
-	c.Assert(s.fakeBackend.ops[0].name, Equals, "some-snap-to-activate")
-	c.Assert(s.fakeBackend.ops[0].active, Equals, true)
-}
-
-func (s *snapmgrTestSuite) TestDeactivate(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-	chg := s.state.NewChange("set-inactive", "make snap inactive")
-	ts, err := snapstate.Deactivate(s.state, "some-snap-to-inactivate")
-	c.Assert(err, IsNil)
-	chg.AddAll(ts)
-
-	s.state.Unlock()
-	defer s.snapmgr.Stop()
-	s.settle()
-	s.state.Lock()
-
-	c.Assert(s.fakeBackend.ops[0].op, Equals, "activate")
-	c.Assert(s.fakeBackend.ops[0].name, Equals, "some-snap-to-inactivate")
-	c.Assert(s.fakeBackend.ops[0].active, Equals, false)
-}
-
 type snapmgrQuerySuite struct{}
 
 var _ = Suite(&snapmgrQuerySuite{})
