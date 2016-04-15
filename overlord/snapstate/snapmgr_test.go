@@ -144,7 +144,7 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 	c.Assert(s.state.Tasks(), HasLen, 4)
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "unlink-snap")
 	i++
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "remove-snap-security")
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "remove-profiles")
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "clear-snap")
 	i++
