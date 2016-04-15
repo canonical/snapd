@@ -1,4 +1,4 @@
-ubuntu-core-launcher (1.0.25.1) UNRELEASED; urgency=medium
+ubuntu-core-launcher (1.0.25.1) xenial; urgency=medium
 
   * check for both src and dst mount points when doing the
     ubuntu-core overlay mounts (LP: #1570712)
