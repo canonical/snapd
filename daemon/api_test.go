@@ -1092,17 +1092,11 @@ func (o *fakeOverlord) Configure(s *snappy.Snap, c []byte) ([]byte, error) {
 }
 
 func (s *apiSuite) TestSideloadSnap(c *check.C) {
-	// try a direct upload, with no x-allow-unsigned header
-	s.sideloadCheck(c, "xyzzy", false, nil)
-	// try a direct upload *with* an x-allow-unsigned header
-	s.sideloadCheck(c, "xyzzy", true, map[string]string{"X-Allow-Unsigned": "Very Yes"})
-	// try a multipart/form-data upload without allow-unsigned
-	s.sideloadCheck(c, "----hello--\r\nContent-Disposition: form-data; name=\"x\"; filename=\"x\"\r\n\r\nxyzzy\r\n----hello----\r\n", false, map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"})
-	// and one *with* allow-unsigned
-	s.sideloadCheck(c, "----hello--\r\nContent-Disposition: form-data; name=\"unsigned-ok\"\r\n\r\n----hello--\r\nContent-Disposition: form-data; name=\"x\"; filename=\"x\"\r\n\r\nxyzzy\r\n----hello----\r\n", false, map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"})
+	// try a multipart/form-data upload
+	s.sideloadCheck(c, "----hello--\r\nContent-Disposition: form-data; name=\"x\"; filename=\"x\"\r\n\r\nxyzzy\r\n----hello----\r\n", map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"})
 }
 
-func (s *apiSuite) sideloadCheck(c *check.C, content string, unsignedExpected bool, head map[string]string) {
+func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]string) {
 	d := newTestDaemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
@@ -1116,9 +1110,6 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, unsignedExpected bo
 
 	// setup done
 	var expectedFlags snappy.InstallFlags
-	if unsignedExpected {
-		expectedFlags |= snappy.AllowUnauthenticated
-	}
 
 	installQueue := []string{}
 	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
