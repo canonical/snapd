@@ -221,7 +221,8 @@ Sample result:
       "update-available": 247,
       "version": "241",
       "revision": 99,
-      "channel": "stable"
+      "channel": "stable",
+      "prices": {"EUR": 1.99, "USD": 2.49}
 }]
 ```
 
@@ -246,6 +247,10 @@ Sample result:
 * `update-available`: if present and not empty, it means the snap can be
   updated to the revision specified as a value to this entry.
 * `channel`: which channel the package is currently tracking.
+* `prices`: JSON object with properties named by ISO 4217 currency code.
+  The values of the properties are numerics representing the cost in each
+  currency. For free snaps, the "prices" property is omitted.
+
 
 Sample additional meta data:
 
@@ -271,6 +276,8 @@ Sample additional meta data:
     * `pages`: the (approximate) number of pages
 * `sources`
     a list of the sources that were queried (see the `sources` parameter, below)
+* `suggested-currency`: the suggested currency to use for presentation, 
+   derived by Geo IP lookup.
 
 ### Parameters [fixme: is that the right word for these?]
 
