@@ -60,12 +60,14 @@ type apiSuite struct {
 	suggestedCurrency string
 	overlord          *fakeOverlord
 	d                 *Daemon
+	auther            store.Authenticator
 	restoreBackends   func()
 }
 
 var _ = check.Suite(&apiSuite{})
 
-func (s *apiSuite) Snap(string, string, store.Authenticator) (*snap.Info, error) {
+func (s *apiSuite) Snap(name, channel string, auther store.Authenticator) (*snap.Info, error) {
+	s.auther = auther
 	if len(s.rsnaps) > 0 {
 		return s.rsnaps[0], s.err
 	}
@@ -75,6 +77,7 @@ func (s *apiSuite) Snap(string, string, store.Authenticator) (*snap.Info, error)
 func (s *apiSuite) FindSnaps(searchTerm, channel string, auther store.Authenticator) ([]*snap.Info, error) {
 	s.searchTerm = searchTerm
 	s.channel = channel
+	s.auther = auther
 
 	return s.rsnaps, s.err
 }
@@ -301,6 +304,25 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	}
 
 	c.Check(rsp, check.DeepEquals, expected)
+}
+
+func (s *apiSuite) TestSnapInfoWithAuth(c *check.C) {
+	state := snapCmd.d.overlord.State()
+	state.Lock()
+	_, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	state.Unlock()
+	c.Check(err, check.IsNil)
+
+	req, err := http.NewRequest("GET", "/v2/snap/foo", nil)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
+
+	c.Assert(s.auther, check.IsNil)
+
+	_, ok := getSnapInfo(snapCmd, req).(*resp)
+	c.Assert(ok, check.Equals, true)
+	// ensure authenticator was set
+	c.Assert(s.auther, check.NotNil)
 }
 
 func (s *apiSuite) TestSnapInfoNotFound(c *check.C) {
@@ -619,6 +641,16 @@ func (s *apiSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
 	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "cannot get discharge macaroon")
 }
 
+func (s *apiSuite) TestUserFromRequestNil(c *check.C) {
+	state := snapCmd.d.overlord.State()
+	state.Lock()
+	user, err := UserFromRequest(state, nil)
+	state.Unlock()
+
+	c.Check(err, check.IsNil)
+	c.Check(user, check.IsNil)
+}
+
 func (s *apiSuite) TestUserFromRequestNoHeader(c *check.C) {
 	req, _ := http.NewRequest("GET", "http://example.com", nil)
 
@@ -805,6 +837,25 @@ func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
 	c.Check(snaps[0]["prices"], check.IsNil)
 
 	c.Check(rsp.SuggestedCurrency, check.Equals, "EUR")
+}
+
+func (s *apiSuite) TestSnapsInfoStoreWithAuth(c *check.C) {
+	state := snapCmd.d.overlord.State()
+	state.Lock()
+	_, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	state.Unlock()
+	c.Check(err, check.IsNil)
+
+	req, err := http.NewRequest("GET", "/v2/snaps?sources=store", nil)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
+
+	c.Assert(s.auther, check.IsNil)
+
+	_ = getSnapsInfo(snapsCmd, req).(*resp)
+
+	// ensure authenticator was set
+	c.Assert(s.auther, check.NotNil)
 }
 
 func (s *apiSuite) TestSnapsInfoLocalAndStore(c *check.C) {
