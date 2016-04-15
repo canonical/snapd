@@ -43,9 +43,6 @@ type managerBackend interface {
 	RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error
 	RemoveSnapData(info *snap.Info) error
 
-	// TODO: need to be split into fine grained tasks
-	Activate(name string, active bool, meter progress.Meter) error
-
 	// testing helpers
 	Candidate(sideInfo *snap.SideInfo)
 }
@@ -53,10 +50,6 @@ type managerBackend interface {
 type defaultBackend struct{}
 
 func (b *defaultBackend) Candidate(*snap.SideInfo) {}
-
-func (b *defaultBackend) Activate(name string, active bool, meter progress.Meter) error {
-	return snappy.SetActive(name, active, meter)
-}
 
 func (b *defaultBackend) Download(name, channel string, meter progress.Meter, auther store.Authenticator) (*snap.Info, string, error) {
 	mStore := snappy.NewConfiguredUbuntuStoreSnapRepository()
