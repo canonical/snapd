@@ -55,12 +55,14 @@ func makeSnapHookEnv(snap *Snap) (env []string) {
 		SnapArch    string
 		SnapPath    string
 		Version     string
+		Revision    int
 		UdevAppName string
 	}{
 		snap.Name(),
 		arch.UbuntuArchitecture(),
 		snap.Info().MountDir(),
 		snap.Version(),
+		snap.Revision(),
 		snap.Name(),
 	}
 
