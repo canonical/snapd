@@ -21,7 +21,6 @@ package daemon
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -231,10 +230,6 @@ func loginUser(c *Command, r *http.Request) Response {
 	return SyncResponse(result, nil)
 }
 
-var (
-	errNoAuth = errors.New("no authorization data provided")
-)
-
 // UserFromRequest extracts user information from request and return the respective user in state, if valid
 // It requires the state to be locked
 func UserFromRequest(st *state.State, req *http.Request) (*auth.UserState, error) {
@@ -298,15 +293,7 @@ func getSnapInfo(c *Command, r *http.Request) Response {
 		channel = localSnap.Channel
 	}
 
-	var auther store.Authenticator
-	overlord := c.d.overlord
-	state := overlord.State()
-	state.Lock()
-	user, err := UserFromRequest(state, r)
-	state.Unlock()
-	if err == nil {
-		auther = user.Authenticator()
-	}
+	auther, err := c.d.auther(r)
 	if err != nil && err != errNoAuth {
 		return InternalError("%v", err)
 	}
@@ -402,15 +389,7 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 
 		remoteRepo := newRemoteRepo()
 
-		var auther store.Authenticator
-		overlord := c.d.overlord
-		state := overlord.State()
-		state.Lock()
-		user, err := UserFromRequest(state, r)
-		state.Unlock()
-		if err == nil {
-			auther = user.Authenticator()
-		}
+		auther, err := c.d.auther(r)
 		if err != nil && err != errNoAuth {
 			return InternalError("%v", err)
 		}
