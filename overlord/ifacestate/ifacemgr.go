@@ -330,15 +330,18 @@ func (m *InterfaceManager) doDiscardConns(task *state.Task, _ *tomb.Tomb) error 
 	if err != nil {
 		return err
 	}
+	removed := make(map[string]connState)
 	for id := range conns {
 		plugRef, slotRef, err := parseConnID(id)
 		if err != nil {
 			return err
 		}
 		if plugRef.Snap == snapName || slotRef.Snap == snapName {
+			removed[id] = conns[id]
 			delete(conns, id)
 		}
 	}
+	task.Set("removed", removed)
 	setConns(st, conns)
 	return nil
 }
