@@ -62,24 +62,31 @@ Help Options:
 
 func (s *SnapSuite) TestConnectExplicitEverything(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.Method, Equals, "POST")
-		c.Check(r.URL.Path, Equals, "/v2/interfaces")
-		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
-			"action": "connect",
-			"plugs": []interface{}{
-				map[string]interface{}{
-					"snap": "producer",
-					"plug": "plug",
+		switch r.URL.Path {
+		case "/v2/interfaces":
+			c.Check(r.Method, Equals, "POST")
+			c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
+				"action": "connect",
+				"plugs": []interface{}{
+					map[string]interface{}{
+						"snap": "producer",
+						"plug": "plug",
+					},
 				},
-			},
-			"slots": []interface{}{
-				map[string]interface{}{
-					"snap": "consumer",
-					"slot": "slot",
+				"slots": []interface{}{
+					map[string]interface{}{
+						"snap": "consumer",
+						"slot": "slot",
+					},
 				},
-			},
-		})
-		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
+			})
+			fmt.Fprintln(w, `{"type":"async", "status-code": 202, "change": "zzz"}`)
+		case "/v2/changes/zzz":
+			c.Check(r.Method, Equals, "GET")
+			fmt.Fprintln(w, `{"type":"sync", "result":{"ready": true, "status": "Done"}}`)
+		default:
+			c.Fatalf("unexpected path %q", r.URL.Path)
+		}
 	})
 	rest, err := Parser().ParseArgs([]string{"connect", "producer:plug", "consumer:slot"})
 	c.Assert(err, IsNil)
@@ -88,24 +95,31 @@ func (s *SnapSuite) TestConnectExplicitEverything(c *C) {
 
 func (s *SnapSuite) TestConnectExplicitPlugImplicitSlot(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.Method, Equals, "POST")
-		c.Check(r.URL.Path, Equals, "/v2/interfaces")
-		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
-			"action": "connect",
-			"plugs": []interface{}{
-				map[string]interface{}{
-					"snap": "producer",
-					"plug": "plug",
+		switch r.URL.Path {
+		case "/v2/interfaces":
+			c.Check(r.Method, Equals, "POST")
+			c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
+				"action": "connect",
+				"plugs": []interface{}{
+					map[string]interface{}{
+						"snap": "producer",
+						"plug": "plug",
+					},
 				},
-			},
-			"slots": []interface{}{
-				map[string]interface{}{
-					"snap": "consumer",
-					"slot": "",
+				"slots": []interface{}{
+					map[string]interface{}{
+						"snap": "consumer",
+						"slot": "",
+					},
 				},
-			},
-		})
-		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
+			})
+			fmt.Fprintln(w, `{"type":"async", "status-code": 202, "change": "zzz"}`)
+		case "/v2/changes/zzz":
+			c.Check(r.Method, Equals, "GET")
+			fmt.Fprintln(w, `{"type":"sync", "result":{"ready": true, "status": "Done"}}`)
+		default:
+			c.Fatalf("unexpected path %q", r.URL.Path)
+		}
 	})
 	rest, err := Parser().ParseArgs([]string{"connect", "producer:plug", "consumer"})
 	c.Assert(err, IsNil)
@@ -114,24 +128,31 @@ func (s *SnapSuite) TestConnectExplicitPlugImplicitSlot(c *C) {
 
 func (s *SnapSuite) TestConnectImplicitPlugExplicitSlot(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.Method, Equals, "POST")
-		c.Check(r.URL.Path, Equals, "/v2/interfaces")
-		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
-			"action": "connect",
-			"plugs": []interface{}{
-				map[string]interface{}{
-					"snap": "",
-					"plug": "plug",
+		switch r.URL.Path {
+		case "/v2/interfaces":
+			c.Check(r.Method, Equals, "POST")
+			c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
+				"action": "connect",
+				"plugs": []interface{}{
+					map[string]interface{}{
+						"snap": "",
+						"plug": "plug",
+					},
 				},
-			},
-			"slots": []interface{}{
-				map[string]interface{}{
-					"snap": "consumer",
-					"slot": "slot",
+				"slots": []interface{}{
+					map[string]interface{}{
+						"snap": "consumer",
+						"slot": "slot",
+					},
 				},
-			},
-		})
-		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
+			})
+			fmt.Fprintln(w, `{"type":"async", "status-code": 202, "change": "zzz"}`)
+		case "/v2/changes/zzz":
+			c.Check(r.Method, Equals, "GET")
+			fmt.Fprintln(w, `{"type":"sync", "result":{"ready": true, "status": "Done"}}`)
+		default:
+			c.Fatalf("unexpected path %q", r.URL.Path)
+		}
 	})
 	rest, err := Parser().ParseArgs([]string{"connect", "plug", "consumer:slot"})
 	c.Assert(err, IsNil)
@@ -140,24 +161,31 @@ func (s *SnapSuite) TestConnectImplicitPlugExplicitSlot(c *C) {
 
 func (s *SnapSuite) TestConnectImplicitPlugImplicitSlot(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.Method, Equals, "POST")
-		c.Check(r.URL.Path, Equals, "/v2/interfaces")
-		c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
-			"action": "connect",
-			"plugs": []interface{}{
-				map[string]interface{}{
-					"snap": "",
-					"plug": "plug",
+		switch r.URL.Path {
+		case "/v2/interfaces":
+			c.Check(r.Method, Equals, "POST")
+			c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
+				"action": "connect",
+				"plugs": []interface{}{
+					map[string]interface{}{
+						"snap": "",
+						"plug": "plug",
+					},
 				},
-			},
-			"slots": []interface{}{
-				map[string]interface{}{
-					"snap": "consumer",
-					"slot": "",
+				"slots": []interface{}{
+					map[string]interface{}{
+						"snap": "consumer",
+						"slot": "",
+					},
 				},
-			},
-		})
-		fmt.Fprintln(w, `{"type":"sync", "result":{}}`)
+			})
+			fmt.Fprintln(w, `{"type":"async", "status-code": 202, "change": "zzz"}`)
+		case "/v2/changes/zzz":
+			c.Check(r.Method, Equals, "GET")
+			fmt.Fprintln(w, `{"type":"sync", "result":{"ready": true, "status": "Done"}}`)
+		default:
+			c.Fatalf("unexpected path %q", r.URL.Path)
+		}
 	})
 	rest, err := Parser().ParseArgs([]string{"connect", "plug", "consumer"})
 	c.Assert(err, IsNil)

@@ -96,18 +96,21 @@ func (cs *clientSuite) TestClientInterfaces(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientConnectCallsEndpoint(c *check.C) {
-	_ = cs.cli.Connect("producer", "plug", "consumer", "slot")
+	cs.cli.Connect("producer", "plug", "consumer", "slot")
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/interfaces")
 }
 
 func (cs *clientSuite) TestClientConnect(c *check.C) {
 	cs.rsp = `{
-		"type": "sync",
-		"result": { }
+		"type": "async",
+                "status-code": 202,
+		"result": { },
+                "change": "foo"
 	}`
-	err := cs.cli.Connect("producer", "plug", "consumer", "slot")
-	c.Check(err, check.IsNil)
+	id, err := cs.cli.Connect("producer", "plug", "consumer", "slot")
+	c.Assert(err, check.IsNil)
+	c.Check(id, check.Equals, "foo")
 	var body map[string]interface{}
 	decoder := json.NewDecoder(cs.req.Body)
 	err = decoder.Decode(&body)
@@ -130,18 +133,21 @@ func (cs *clientSuite) TestClientConnect(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientDisconnectCallsEndpoint(c *check.C) {
-	_ = cs.cli.Disconnect("producer", "plug", "consumer", "slot")
+	cs.cli.Disconnect("producer", "plug", "consumer", "slot")
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/interfaces")
 }
 
 func (cs *clientSuite) TestClientDisconnect(c *check.C) {
 	cs.rsp = `{
-		"type": "sync",
-		"result": { }
+		"type": "async",
+                "status-code": 202,
+		"result": { },
+                "change": "42"
 	}`
-	err := cs.cli.Disconnect("producer", "plug", "consumer", "slot")
-	c.Check(err, check.IsNil)
+	id, err := cs.cli.Disconnect("producer", "plug", "consumer", "slot")
+	c.Assert(err, check.IsNil)
+	c.Check(id, check.Equals, "42")
 	var body map[string]interface{}
 	decoder := json.NewDecoder(cs.req.Body)
 	err = decoder.Decode(&body)

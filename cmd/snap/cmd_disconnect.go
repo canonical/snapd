@@ -63,5 +63,12 @@ func (x *cmdDisconnect) Execute(args []string) error {
 		// Swap Offer and Use around
 		x.Positionals.Offer, x.Positionals.Use = x.Positionals.Use, x.Positionals.Offer
 	}
-	return Client().Disconnect(x.Positionals.Offer.Snap, x.Positionals.Offer.Name, x.Positionals.Use.Snap, x.Positionals.Use.Name)
+
+	cli := Client()
+	id, err := cli.Disconnect(x.Positionals.Offer.Snap, x.Positionals.Offer.Name, x.Positionals.Use.Snap, x.Positionals.Use.Name)
+	if err != nil {
+		return err
+	}
+
+	return wait(cli, id)
 }
