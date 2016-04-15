@@ -67,7 +67,7 @@ func mkRF(c *check.C, cmd *Command, mck *mockHandler) ResponseFunc {
 }
 
 func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
-	cmd := &Command{}
+	cmd := &Command{d: newTestDaemon(c)}
 	mck := &mockHandler{cmd: cmd}
 	rf := mkRF(c, cmd, mck)
 	cmd.GET = rf
@@ -106,19 +106,19 @@ func (s *daemonSuite) TestGuestAccess(c *check.C) {
 	pst := &http.Request{Method: "POST"}
 	del := &http.Request{Method: "DELETE"}
 
-	cmd := &Command{}
+	cmd := &Command{d: newTestDaemon(c)}
 	c.Check(cmd.canAccess(get), check.Equals, false)
 	c.Check(cmd.canAccess(put), check.Equals, false)
 	c.Check(cmd.canAccess(pst), check.Equals, false)
 	c.Check(cmd.canAccess(del), check.Equals, false)
 
-	cmd = &Command{UserOK: true}
+	cmd = &Command{d: newTestDaemon(c), UserOK: true}
 	c.Check(cmd.canAccess(get), check.Equals, false)
 	c.Check(cmd.canAccess(put), check.Equals, false)
 	c.Check(cmd.canAccess(pst), check.Equals, false)
 	c.Check(cmd.canAccess(del), check.Equals, false)
 
-	cmd = &Command{GuestOK: true}
+	cmd = &Command{d: newTestDaemon(c), GuestOK: true}
 	c.Check(cmd.canAccess(get), check.Equals, true)
 	c.Check(cmd.canAccess(put), check.Equals, false)
 	c.Check(cmd.canAccess(pst), check.Equals, false)
@@ -129,32 +129,60 @@ func (s *daemonSuite) TestUserAccess(c *check.C) {
 	get := &http.Request{Method: "GET", RemoteAddr: "uid=42;"}
 	put := &http.Request{Method: "PUT", RemoteAddr: "uid=42;"}
 
-	cmd := &Command{}
+	cmd := &Command{d: newTestDaemon(c)}
 	c.Check(cmd.canAccess(get), check.Equals, false)
 	c.Check(cmd.canAccess(put), check.Equals, false)
 
-	cmd = &Command{UserOK: true}
+	cmd = &Command{d: newTestDaemon(c), UserOK: true}
 	c.Check(cmd.canAccess(get), check.Equals, true)
 	c.Check(cmd.canAccess(put), check.Equals, false)
 
-	cmd = &Command{GuestOK: true}
+	cmd = &Command{d: newTestDaemon(c), GuestOK: true}
 	c.Check(cmd.canAccess(get), check.Equals, true)
 	c.Check(cmd.canAccess(put), check.Equals, false)
+}
+
+func (s *daemonSuite) TestGroupAccess(c *check.C) {
+	oldf := isUIDInAny
+	isSudo := false
+	isUIDInAny = func(uint32, ...string) bool {
+		return isSudo
+	}
+	defer func() {
+		isUIDInAny = oldf
+	}()
+
+	get := &http.Request{Method: "GET", RemoteAddr: "uid=42;"}
+	put := &http.Request{Method: "PUT", RemoteAddr: "uid=42;"}
+
+	cmd := &Command{d: newTestDaemon(c)}
+	c.Check(cmd.canAccess(get), check.Equals, false)
+	c.Check(cmd.canAccess(put), check.Equals, false)
+
+	isSudo = false
+	cmd = &Command{d: newTestDaemon(c), SudoerOK: true}
+	c.Check(cmd.canAccess(get), check.Equals, false)
+	c.Check(cmd.canAccess(put), check.Equals, false)
+
+	isSudo = true
+	cmd = &Command{d: newTestDaemon(c), SudoerOK: true}
+	c.Check(cmd.canAccess(get), check.Equals, true)
+	c.Check(cmd.canAccess(put), check.Equals, true)
 }
 
 func (s *daemonSuite) TestSuperAccess(c *check.C) {
 	get := &http.Request{Method: "GET", RemoteAddr: "uid=0;"}
 	put := &http.Request{Method: "PUT", RemoteAddr: "uid=0;"}
 
-	cmd := &Command{}
+	cmd := &Command{d: newTestDaemon(c)}
 	c.Check(cmd.canAccess(get), check.Equals, true)
 	c.Check(cmd.canAccess(put), check.Equals, true)
 
-	cmd = &Command{UserOK: true}
+	cmd = &Command{d: newTestDaemon(c), UserOK: true}
 	c.Check(cmd.canAccess(get), check.Equals, true)
 	c.Check(cmd.canAccess(put), check.Equals, true)
 
-	cmd = &Command{GuestOK: true}
+	cmd = &Command{d: newTestDaemon(c), GuestOK: true}
 	c.Check(cmd.canAccess(get), check.Equals, true)
 	c.Check(cmd.canAccess(put), check.Equals, true)
 }
