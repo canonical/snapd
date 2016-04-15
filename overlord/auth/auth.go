@@ -21,26 +21,37 @@ package auth
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
 
 	"github.com/ubuntu-core/snappy/overlord/state"
+	"github.com/ubuntu-core/snappy/strutil"
 )
 
 // AuthState represents current authenticated users as tracked in state
 type AuthState struct {
-	LastID int         `json:"last-id"`
-	Users  []UserState `json:"users"`
+	Users map[string]*UserState `json:"users"`
 }
 
 // UserState represents an authenticated user
 type UserState struct {
-	ID         int      `json:"id"`
-	Username   string   `json:"username,omitempty"`
-	Macaroon   string   `json:"macaroon,omitempty"`
-	Discharges []string `json:"discharges,omitempty"`
+	ID              string   `json:"id"`
+	Username        string   `json:"username,omitempty"`
+	Macaroon        string   `json:"macaroon,omitempty"`
+	Discharges      []string `json:"discharges,omitempty"`
+	StoreMacaroon   string   `json:"store-macaroon,omitempty"`
+	StoreDischarges []string `json:"store-discharges,omitempty"`
 }
+
+var errCannotCreateID = errors.New("cannot create new user id")
+
+func createIDImpl() string {
+	return strutil.MakeRandomString(10)
+}
+
+var createID = createIDImpl
 
 // NewUser tracks a new authenticated user and saves its details in the state
 func NewUser(st *state.State, username, macaroon string, discharges []string) (*UserState, error) {
@@ -48,20 +59,34 @@ func NewUser(st *state.State, username, macaroon string, discharges []string) (*
 
 	err := st.Get("auth", &authStateData)
 	if err == state.ErrNoState {
-		authStateData = AuthState{}
+		authStateData = AuthState{Users: make(map[string]*UserState)}
 	} else if err != nil {
 		return nil, err
 	}
 
-	sort.Strings(discharges)
-	authStateData.LastID++
-	authenticatedUser := UserState{
-		ID:         authStateData.LastID,
-		Username:   username,
-		Macaroon:   macaroon,
-		Discharges: discharges,
+	var userID string
+
+	for i := 0; i < 1000; i++ {
+		userID = createID()
+		if authStateData.Users[userID] == nil {
+			break
+		}
 	}
-	authStateData.Users = append(authStateData.Users, authenticatedUser)
+
+	if authStateData.Users[userID] != nil {
+		return nil, errCannotCreateID
+	}
+
+	sort.Strings(discharges)
+	authenticatedUser := UserState{
+		ID:              userID,
+		Username:        username,
+		Macaroon:        macaroon,
+		Discharges:      discharges,
+		StoreMacaroon:   macaroon,
+		StoreDischarges: discharges,
+	}
+	authStateData.Users[userID] = &authenticatedUser
 
 	st.Set("auth", authStateData)
 
@@ -69,21 +94,20 @@ func NewUser(st *state.State, username, macaroon string, discharges []string) (*
 }
 
 // User returns a user from the state given its ID
-func User(st *state.State, id int) (*UserState, error) {
+func User(st *state.State, id string) (*UserState, error) {
 	var authStateData AuthState
 
 	err := st.Get("auth", &authStateData)
-
 	if err != nil {
 		return nil, err
 	}
 
-	for _, user := range authStateData.Users {
-		if user.ID == id {
-			return &user, nil
-		}
+	user := authStateData.Users[id]
+	if user == nil {
+		return nil, fmt.Errorf("invalid user")
 	}
-	return nil, fmt.Errorf("invalid user")
+
+	return user, nil
 }
 
 // CheckMacaroon returns the UserState for the given macaroon/discharges credentials
@@ -109,14 +133,14 @@ NextUser:
 				continue NextUser
 			}
 		}
-		return &user, nil
+		return user, nil
 	}
 	return nil, fmt.Errorf("invalid authentication")
 }
 
 // Authenticator returns MacaroonAuthenticator for current authenticated user represented by UserState
 func (us *UserState) Authenticator() *MacaroonAuthenticator {
-	return newMacaroonAuthenticator(us.Macaroon, us.Discharges)
+	return newMacaroonAuthenticator(us.StoreMacaroon, us.StoreDischarges)
 }
 
 // MacaroonAuthenticator is a store authenticator based on macaroons
