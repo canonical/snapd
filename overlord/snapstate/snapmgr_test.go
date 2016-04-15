@@ -976,3 +976,14 @@ func (s *snapmgrQuerySuite) TestAllEmptyAndEmptyNormalisation(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(snapStates, HasLen, 0)
 }
+
+type snapStateSuite struct{}
+
+var _ = Suite(&snapStateSuite{})
+
+func (s *snapStateSuite) TestSnapStateDevMode(c *C) {
+	snapst := &snapstate.SnapState{}
+	c.Check(snapst.DevMode(), Equals, false)
+	snapst.Flags = snapstate.DevMode
+	c.Check(snapst.DevMode(), Equals, true)
+}

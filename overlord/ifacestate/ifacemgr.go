@@ -145,7 +145,7 @@ func setupSnapSecurity(task *state.Task, snapInfo *snap.Info, repo *interfaces.R
 		return err
 	}
 	for _, backend := range securityBackends {
-		if err := backend.Setup(snapInfo, snapState.DevMode, repo); err != nil {
+		if err := backend.Setup(snapInfo, snapState.DevMode(), repo); err != nil {
 			task.Errorf("cannot setup %s for snap %q: %s", backend.Name(), snapName, err)
 			return err
 		}
