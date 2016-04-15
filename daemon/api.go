@@ -463,11 +463,6 @@ func resultHasType(r map[string]interface{}, allowedTypes []string) bool {
 	return false
 }
 
-type appDesc struct {
-	Op   string          `json:"op"`
-	Spec *snappy.AppYaml `json:"spec"`
-}
-
 // licenseData holds details about the snap license, and may be
 // marshaled back as an error when the license agreement is pending,
 // and is expected as input to accept (or not) that license
