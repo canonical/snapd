@@ -177,6 +177,7 @@ func sysInfo(c *Command, r *http.Request) Response {
 }
 
 type loginResponseData struct {
+	UserID     string   `json:"user-id,omitempty"`
 	Macaroon   string   `json:"macaroon,omitempty"`
 	Discharges []string `json:"discharges,omitempty"`
 }
@@ -217,13 +218,14 @@ func loginUser(c *Command, r *http.Request) Response {
 	overlord := c.d.overlord
 	state := overlord.State()
 	state.Lock()
-	_, err = auth.NewUser(state, loginData.Username, macaroon, []string{discharge})
+	user, err := auth.NewUser(state, loginData.Username, macaroon, []string{discharge})
 	state.Unlock()
 	if err != nil {
 		return InternalError("cannot persist authentication details: %v", err)
 	}
 
 	result := loginResponseData{
+		UserID:     user.ID,
 		Macaroon:   macaroon,
 		Discharges: []string{discharge},
 	}

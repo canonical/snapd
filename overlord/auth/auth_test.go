@@ -20,6 +20,7 @@
 package auth_test
 
 import (
+	"fmt"
 	"net/http"
 	"testing"
 
@@ -38,8 +39,21 @@ type authSuite struct {
 
 var _ = Suite(&authSuite{})
 
+var lastID int
+
+func boringID() string {
+	lastID++
+	return fmt.Sprintf("%d", lastID)
+}
+
 func (as *authSuite) SetUpTest(c *C) {
+	auth.SetCreateIDFunc(boringID)
+	lastID = 0
 	as.state = state.New(nil)
+}
+
+func (as *authSuite) TearDownTest(c *C) {
+	auth.ResetCreateID()
 }
 
 func (as *authSuite) TestNewUser(c *C) {
@@ -48,16 +62,18 @@ func (as *authSuite) TestNewUser(c *C) {
 	as.state.Unlock()
 
 	expected := &auth.UserState{
-		ID:         1,
-		Username:   "username",
-		Macaroon:   "macaroon",
-		Discharges: []string{"discharge"},
+		ID:              "1",
+		Username:        "username",
+		Macaroon:        "macaroon",
+		Discharges:      []string{"discharge"},
+		StoreMacaroon:   "macaroon",
+		StoreDischarges: []string{"discharge"},
 	}
 	c.Check(err, IsNil)
 	c.Check(user, DeepEquals, expected)
 
 	as.state.Lock()
-	userFromState, err := auth.User(as.state, 1)
+	userFromState, err := auth.User(as.state, "1")
 	as.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(userFromState, DeepEquals, expected)
@@ -69,16 +85,18 @@ func (as *authSuite) TestNewUserSortsDischarges(c *C) {
 	as.state.Unlock()
 
 	expected := &auth.UserState{
-		ID:         1,
-		Username:   "username",
-		Macaroon:   "macaroon",
-		Discharges: []string{"discharge1", "discharge2"},
+		ID:              "1",
+		Username:        "username",
+		Macaroon:        "macaroon",
+		Discharges:      []string{"discharge1", "discharge2"},
+		StoreMacaroon:   "macaroon",
+		StoreDischarges: []string{"discharge1", "discharge2"},
 	}
 	c.Check(err, IsNil)
 	c.Check(user, DeepEquals, expected)
 
 	as.state.Lock()
-	userFromState, err := auth.User(as.state, 1)
+	userFromState, err := auth.User(as.state, "1")
 	as.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(userFromState, DeepEquals, expected)
@@ -95,23 +113,25 @@ func (as *authSuite) TestNewUserAddsToExistent(c *C) {
 	user, err := auth.NewUser(as.state, "new_username", "new_macaroon", []string{"new_discharge"})
 	as.state.Unlock()
 	expected := &auth.UserState{
-		ID:         2,
-		Username:   "new_username",
-		Macaroon:   "new_macaroon",
-		Discharges: []string{"new_discharge"},
+		ID:              "2",
+		Username:        "new_username",
+		Macaroon:        "new_macaroon",
+		Discharges:      []string{"new_discharge"},
+		StoreMacaroon:   "new_macaroon",
+		StoreDischarges: []string{"new_discharge"},
 	}
 	c.Check(err, IsNil)
 	c.Check(user, DeepEquals, expected)
 
 	as.state.Lock()
-	userFromState, err := auth.User(as.state, 2)
+	userFromState, err := auth.User(as.state, "2")
 	as.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(userFromState, DeepEquals, expected)
 
 	// first user is still in the state
 	as.state.Lock()
-	userFromState, err = auth.User(as.state, 1)
+	userFromState, err = auth.User(as.state, "1")
 	as.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(userFromState, DeepEquals, firstUser)
@@ -156,7 +176,7 @@ func (as *authSuite) TestCheckMacaroonValidUser(c *C) {
 
 func (as *authSuite) TestUserForNoAuthInState(c *C) {
 	as.state.Lock()
-	userFromState, err := auth.User(as.state, 42)
+	userFromState, err := auth.User(as.state, "42")
 	as.state.Unlock()
 	c.Check(err, NotNil)
 	c.Check(userFromState, IsNil)
@@ -169,7 +189,7 @@ func (as *authSuite) TestUserForNonExistent(c *C) {
 	c.Check(err, IsNil)
 
 	as.state.Lock()
-	userFromState, err := auth.User(as.state, 42)
+	userFromState, err := auth.User(as.state, "42")
 	c.Check(err, ErrorMatches, "invalid user")
 	c.Check(userFromState, IsNil)
 }
@@ -181,7 +201,7 @@ func (as *authSuite) TestUser(c *C) {
 	c.Check(err, IsNil)
 
 	as.state.Lock()
-	userFromState, err := auth.User(as.state, 1)
+	userFromState, err := auth.User(as.state, "1")
 	as.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(userFromState, DeepEquals, user)
