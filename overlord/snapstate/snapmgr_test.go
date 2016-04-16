@@ -1094,3 +1094,14 @@ func (s *snapStateSuite) TestSnapStateDevMode(c *C) {
 	snapst.Flags = snapstate.DevMode
 	c.Check(snapst.DevMode(), Equals, true)
 }
+
+type snapSetupSuite struct{}
+
+var _ = Suite(&snapSetupSuite{})
+
+func (s *snapSetupSuite) TestDevMode(c *C) {
+	ss := &snapstate.SnapSetup{}
+	c.Check(ss.DevMode(), Equals, false)
+	ss.Flags = int(snappy.DeveloperMode)
+	c.Check(ss.DevMode(), Equals, true)
+}

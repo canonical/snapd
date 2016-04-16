@@ -34,6 +34,7 @@ import (
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snappy"
 )
 
 func TestInterfaceManager(t *testing.T) { TestingT(t) }
@@ -224,12 +225,12 @@ func (s *interfaceManagerSuite) mockSnap(c *C, yamlText string) *snap.Info {
 	return snapInfo
 }
 
-func (s *interfaceManagerSuite) addSetupSnapSecurityChange(c *C, snapName string) *state.Change {
+func (s *interfaceManagerSuite) addSetupSnapSecurityChange(c *C, snapName string, flags snappy.InstallFlags) *state.Change {
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	task := s.state.NewTask("setup-profiles", "")
-	ss := snapstate.SnapSetup{Name: snapName}
+	ss := snapstate.SnapSetup{Name: snapName, Flags: int(flags)}
 	task.Set("snap-setup", ss)
 	taskset := state.NewTaskSet(task)
 	change := s.state.NewChange("test", "")
@@ -308,7 +309,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityHonorsDisconnect(c *C) {
 	mgr := s.manager(c)
 
 	// Run the setup-snap-security task and let it finish.
-	change := s.addSetupSnapSecurityChange(c, snapInfo.Name())
+	change := s.addSetupSnapSecurityChange(c, snapInfo.Name(), snappy.InstallFlags(0))
 	mgr.Ensure()
 	mgr.Wait()
 	mgr.Stop()
@@ -344,7 +345,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyAutoConnects(c *C) {
 	snapInfo := s.mockSnap(c, sampleSnapYaml)
 
 	// Run the setup-snap-security task and let it finish.
-	change := s.addSetupSnapSecurityChange(c, snapInfo.Name())
+	change := s.addSetupSnapSecurityChange(c, snapInfo.Name(), snappy.InstallFlags(0))
 	mgr.Ensure()
 	mgr.Wait()
 	mgr.Stop()
@@ -394,7 +395,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyKeepsExistingConnectionSt
 	s.state.Unlock()
 
 	// Run the setup-snap-security task and let it finish.
-	change := s.addSetupSnapSecurityChange(c, snapInfo.Name())
+	change := s.addSetupSnapSecurityChange(c, snapInfo.Name(), snappy.InstallFlags(0))
 	mgr.Ensure()
 	mgr.Wait()
 	mgr.Stop()
@@ -430,7 +431,7 @@ func (s *interfaceManagerSuite) TestDoSetupProfilesAddsImplicitSlots(c *C) {
 	snapInfo := s.mockSnap(c, osSnapYaml)
 
 	// Run the setup-profiles task and let it finish.
-	change := s.addSetupSnapSecurityChange(c, snapInfo.Name())
+	change := s.addSetupSnapSecurityChange(c, snapInfo.Name(), snappy.InstallFlags(0))
 	mgr.Ensure()
 	mgr.Wait()
 	mgr.Stop()
@@ -469,7 +470,7 @@ func (s *interfaceManagerSuite) testDoSetupSnapSecuirtyReloadsConnectionsWhenInv
 	mgr := s.manager(c)
 
 	// Run the setup-profiles task
-	change := s.addSetupSnapSecurityChange(c, snapName)
+	change := s.addSetupSnapSecurityChange(c, snapName, snappy.InstallFlags(0))
 	mgr.Ensure()
 	mgr.Wait()
 	mgr.Stop()
@@ -488,6 +489,100 @@ func (s *interfaceManagerSuite) testDoSetupSnapSecuirtyReloadsConnectionsWhenInv
 	c.Assert(slot.Connections, HasLen, 1)
 	c.Check(plug.Connections[0], DeepEquals, interfaces.SlotRef{Snap: "producer", Name: "slot"})
 	c.Check(slot.Connections[0], DeepEquals, interfaces.PlugRef{Snap: "consumer", Name: "plug"})
+}
+
+// The setup-profiles task will honor snappy.DeveloperMode flag by storing it
+// in the SnapState.Flags (as DevMode) and by actually setting up security
+// using that flag. Old copy of SnapState.Flag's DevMode is saved for the undo
+// handler under `old-devmode`.
+func (s *interfaceManagerSuite) TestSetupProfilesHonorsDevMode(c *C) {
+	// Put the OS snap in place.
+	mgr := s.manager(c)
+
+	// Initialize the manager. This registers the OS snap.
+	snapInfo := s.mockSnap(c, sampleSnapYaml)
+
+	// Run the setup-profiles task and let it finish.
+	// Note that the task will see SnapSetup.Flags equal to DeveloperMode.
+	change := s.addSetupSnapSecurityChange(c, snapInfo.Name(), snappy.DeveloperMode)
+	mgr.Ensure()
+	mgr.Wait()
+	mgr.Stop()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the task succeeded.
+	c.Check(change.Status(), Equals, state.DoneStatus)
+
+	// The snap was setup with DevMode equal to true.
+	c.Assert(s.secBackend.SetupCalls, HasLen, 1)
+	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
+	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, "snap")
+	c.Check(s.secBackend.SetupCalls[0].DevMode, Equals, true)
+
+	// SnapState stored the value of DevMode
+	var snapState snapstate.SnapState
+	err := snapstate.Get(s.state, snapInfo.Name(), &snapState)
+	c.Assert(err, IsNil)
+	c.Check(snapState.DevMode(), Equals, true)
+
+	// The old value of DevMode was saved in the task in case undo is needed.
+	task := change.Tasks()[0]
+	var oldDevMode bool
+	err = task.Get("old-devmode", &oldDevMode)
+	c.Assert(err, IsNil)
+	c.Check(oldDevMode, Equals, false)
+}
+
+// The undo handler of the setup-profiles task will honor `old-devmode` that
+// is optionally stored in the task state and use it to set the DevMode flag in
+// the SnapState.
+//
+// This variant checks restoring DevMode to true
+func (s *interfaceManagerSuite) TestSetupProfilesUndoDevModeTrue(c *C) {
+	s.undoDevModeCheck(c, snappy.InstallFlags(0), true)
+}
+
+// The undo handler of the setup-profiles task will honor `old-devmode` that
+// is optionally stored in the task state and use it to set the DevMode flag in
+// the SnapState.
+//
+// This variant checks restoring DevMode to false
+func (s *interfaceManagerSuite) TestSetupProfilesUndoDevModeFalse(c *C) {
+	s.undoDevModeCheck(c, snappy.InstallFlags(0), false)
+}
+
+func (s *interfaceManagerSuite) undoDevModeCheck(c *C, flags snappy.InstallFlags, devMode bool) {
+	// Put the OS and sample snaps in place.
+	s.mockSnap(c, osSnapYaml)
+	snapInfo := s.mockSnap(c, sampleSnapYaml)
+
+	// Initialize the manager. This registers both snaps.
+	mgr := s.manager(c)
+
+	// Run the setup-profiles task in UndoMode and let it finish.
+	change := s.addSetupSnapSecurityChange(c, snapInfo.Name(), flags)
+	s.state.Lock()
+	task := change.Tasks()[0]
+	// Inject the old value of DevMode flag for the task handler to restore
+	task.Set("old-devmode", devMode)
+	task.SetStatus(state.UndoStatus)
+	s.state.Unlock()
+	mgr.Ensure()
+	mgr.Wait()
+	mgr.Stop()
+
+	// Change succeeds
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(change.Status(), Equals, state.UndoneStatus)
+
+	// SnapState.Flags now holds the original value of DevMode
+	var snapState snapstate.SnapState
+	err := snapstate.Get(s.state, snapInfo.Name(), &snapState)
+	c.Assert(err, IsNil)
+	c.Check(snapState.DevMode(), Equals, devMode)
 }
 
 func (s *interfaceManagerSuite) TestDoDiscardConnsPlug(c *C) {
