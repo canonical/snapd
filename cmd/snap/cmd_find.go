@@ -124,7 +124,7 @@ func (x *cmdFind) Execute([]string) error {
 
 	sort.Sort(snapsByName(snaps))
 
-	w := tabwriter.NewWriter(Stdout, 5, 3, 1, ' ', 0)
+	w := tabWriter()
 	defer w.Flush()
 
 	if hasPrices(snaps) {
