@@ -63,6 +63,9 @@ func init() {
 func (x *cmdInterfaces) Execute(args []string) error {
 	ifaces, err := Client().Interfaces()
 	if err == nil {
+		if len(ifaces.Plugs) == 0 && len(ifaces.Slots) == 0 {
+			return fmt.Errorf(i18n.G("no interfaces found"))
+		}
 		w := tabwriter.NewWriter(Stdout, 0, 4, 1, ' ', 0)
 		fmt.Fprintln(w, i18n.G("slot\tplug"))
 		defer w.Flush()
