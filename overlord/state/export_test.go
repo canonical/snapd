@@ -34,3 +34,8 @@ func MockCheckpointRetryDelay(retryInterval, retryMaxTime time.Duration) (restor
 		unlockCheckpointRetryMaxTime = oldMaxTime
 	}
 }
+
+func MockChangeTimes(chg *Change, spawnTime, readyTime time.Time) {
+	chg.spawnTime = spawnTime
+	chg.readyTime = readyTime
+}

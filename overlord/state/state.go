@@ -318,6 +318,31 @@ func (s *State) tasksIn(tids []string) []*Task {
 	return res
 }
 
+// Prune removes changes that became ready for more than pruneWait
+// and aborts tasks spawned for more than abortWait.
+func (s *State) Prune(pruneWait, abortWait time.Duration) {
+	now := time.Now()
+	pruneLimit := now.Add(-pruneWait)
+	abortLimit := now.Add(-abortWait)
+	for _, chg := range s.Changes() {
+		spawnTime := chg.SpawnTime()
+		readyTime := chg.ReadyTime()
+		if readyTime.IsZero() {
+			if spawnTime.Before(abortLimit) {
+				chg.Abort()
+			}
+			continue
+		}
+		if readyTime.Before(pruneLimit) {
+			s.writing()
+			for _, t := range chg.Tasks() {
+				delete(s.tasks, t.ID())
+			}
+			delete(s.changes, chg.ID())
+		}
+	}
+}
+
 // ReadState returns the state deserialized from r.
 func ReadState(backend Backend, r io.Reader) (*State, error) {
 	s := new(State)
