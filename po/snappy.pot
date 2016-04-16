@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-04-16 15:48-0300\n"
+        "POT-Creation-Date: 2016-04-16 16:01-0300\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -16,7 +16,7 @@ msgstr  "Project-Id-Version: snappy\n"
         "Content-Type: text/plain; charset=CHARSET\n"
         "Content-Transfer-Encoding: 8bit\n"
 
-msgid   "Abort a change that is not ready"
+msgid   "Abort a pending change"
 msgstr  ""
 
 #, c-format
@@ -101,14 +101,14 @@ msgid   "Install %q snap"
 msgstr  ""
 
 #, c-format
+msgid   "Install %q snap file"
+msgstr  ""
+
+#, c-format
 msgid   "Install %q snap from %q channel"
 msgstr  ""
 
 msgid   "Install a snap to the system"
-msgstr  ""
-
-#, c-format
-msgid   "Install local %q snap"
 msgstr  ""
 
 msgid   "List installed snaps"
@@ -218,7 +218,7 @@ msgid   "Two-factor code: "
 msgstr  ""
 
 msgid   "\n"
-        "The abort command attempts to abort a change that is not yet ready.\n"
+        "The abort command attempts to abort a change that still has pending tasks.\n"
 msgstr  ""
 
 msgid   "\n"
