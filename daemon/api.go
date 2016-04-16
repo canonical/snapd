@@ -563,7 +563,7 @@ func (inst *snapInstruction) install() (*state.Change, error) {
 		flags = 0
 	}
 	msg := fmt.Sprintf(i18n.G("Install %q snap"), inst.pkg)
-	if inst.Channel != "stable" {
+	if inst.Channel != "stable" && inst.Channel != "" {
 		msg = fmt.Sprintf(i18n.G("Install %q snap from %q channel"), inst.pkg, inst.Channel)
 	}
 
@@ -604,7 +604,7 @@ func (inst *snapInstruction) update() (*state.Change, error) {
 	state := inst.overlord.State()
 	state.Lock()
 	msg := fmt.Sprintf(i18n.G("Update %q snap"), inst.pkg)
-	if inst.Channel != "stable" {
+	if inst.Channel != "stable" && inst.Channel != "" {
 		msg = fmt.Sprintf(i18n.G("Update %q snap from %q channel"), inst.pkg, inst.Channel)
 	}
 	chg := state.NewChange("update-snap", msg)
