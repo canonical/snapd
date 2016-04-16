@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/ubuntu-core/snappy/logger"
+	"time"
 )
 
 type progress struct {
@@ -189,12 +190,19 @@ func (t *Task) SetProgress(done, total int) {
 }
 
 const (
-	// Messages logged in tasks are guaranteed to use the following strings
-	// plus ": " as a prefix, so these may be handled programatically and
-	// stripped for presentation.
+	// Messages logged in tasks are guaranteed to use the time formatted
+	// per RFC3339 plus the following strings as a prefix, so these may
+	// be handled programatically and parsed or stripped for presentation.
 	LogInfo  = "INFO"
 	LogError = "ERROR"
 )
+
+var timeNow = time.Now
+
+func MockTime(now time.Time) (restore func()) {
+	timeNow = func() time.Time { return now }
+	return func() { timeNow = time.Now }
+}
 
 func (t *Task) addLog(kind, format string, args []interface{}) {
 	if len(t.log) > 9 {
@@ -202,7 +210,8 @@ func (t *Task) addLog(kind, format string, args []interface{}) {
 		t.log = t.log[:9]
 	}
 
-	msg := fmt.Sprintf(kind+": "+format, args...)
+	tstr := timeNow().Format(time.RFC3339)
+	msg := fmt.Sprintf(tstr+" "+kind+" "+format, args...)
 	t.log = append(t.log, msg)
 	logger.Debugf(msg)
 }
