@@ -48,6 +48,9 @@ type Task struct {
 	haltTasks []string
 	log       []string
 	change    string
+
+	spawnTime time.Time
+	readyTime time.Time
 }
 
 func newTask(state *State, id, kind, summary string) *Task {
@@ -57,6 +60,8 @@ func newTask(state *State, id, kind, summary string) *Task {
 		kind:    kind,
 		summary: summary,
 		data:    make(customData),
+
+		spawnTime: timeNow(),
 	}
 }
 
@@ -71,11 +76,18 @@ type marshalledTask struct {
 	HaltTasks []string                    `json:"halt-tasks,omitempty"`
 	Log       []string                    `json:"log,omitempty"`
 	Change    string                      `json:"change"`
+
+	SpawnTime time.Time  `json:"spawn-time"`
+	ReadyTime *time.Time `json:"ready-time,omitempty"`
 }
 
 // MarshalJSON makes Task a json.Marshaller
 func (t *Task) MarshalJSON() ([]byte, error) {
 	t.state.reading()
+	var readyTime *time.Time
+	if !t.readyTime.IsZero() {
+		readyTime = &t.readyTime
+	}
 	return json.Marshal(marshalledTask{
 		ID:        t.id,
 		Kind:      t.kind,
@@ -87,6 +99,9 @@ func (t *Task) MarshalJSON() ([]byte, error) {
 		HaltTasks: t.haltTasks,
 		Log:       t.log,
 		Change:    t.change,
+
+		SpawnTime: t.spawnTime,
+		ReadyTime: readyTime,
 	})
 }
 
@@ -110,6 +125,10 @@ func (t *Task) UnmarshalJSON(data []byte) error {
 	t.haltTasks = unmarshalled.HaltTasks
 	t.log = unmarshalled.Log
 	t.change = unmarshalled.Change
+	t.spawnTime = unmarshalled.SpawnTime
+	if unmarshalled.ReadyTime != nil {
+		t.readyTime = *unmarshalled.ReadyTime
+	}
 	return nil
 }
 
@@ -142,6 +161,9 @@ func (t *Task) SetStatus(new Status) {
 	t.state.writing()
 	old := t.status
 	t.status = new
+	if !old.Ready() && new.Ready() {
+		t.readyTime = timeNow()
+	}
 	chg := t.Change()
 	if chg != nil {
 		chg.taskStatusChanged(t, old, new)
@@ -187,6 +209,18 @@ func (t *Task) SetProgress(done, total int) {
 	} else {
 		t.progress = &progress{Done: done, Total: total}
 	}
+}
+
+// SpawnTime returns the time when the change was created.
+func (t *Task) SpawnTime() time.Time {
+	t.state.reading()
+	return t.spawnTime
+}
+
+// ReadyTime returns the time when the change became ready.
+func (t *Task) ReadyTime() time.Time {
+	t.state.reading()
+	return t.readyTime
 }
 
 const (
