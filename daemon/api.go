@@ -705,6 +705,9 @@ func (inst *snapInstruction) deactivate() (*state.Change, error) {
 }
 
 func (inst *snapInstruction) dispatch() func() (*state.Change, error) {
+	if inst.Channel == "" {
+		inst.Channel = "stable"
+	}
 	switch inst.Action {
 	case "install":
 		return inst.install
