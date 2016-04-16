@@ -259,7 +259,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	// and v1 [r10] is current
 	s.mkInstalledInState(c, d, "foo", "bar", "v1", 10, true, "")
 
-	req, err := http.NewRequest("GET", "/v2/snap/foo", nil)
+	req, err := http.NewRequest("GET", "/v2/snaps/gfoo", nil)
 	c.Assert(err, check.IsNil)
 	rsp, ok := getSnapInfo(snapCmd, req).(*resp)
 	c.Assert(ok, check.Equals, true)
@@ -315,7 +315,7 @@ func (s *apiSuite) TestSnapInfoWithAuth(c *check.C) {
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
-	req, err := http.NewRequest("GET", "/v2/snap/foo", nil)
+	req, err := http.NewRequest("GET", "/v2/snaps/gfoo", nil)
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
 
@@ -331,7 +331,7 @@ func (s *apiSuite) TestSnapInfoNotFound(c *check.C) {
 	s.vars = map[string]string{"name": "foo"}
 	s.err = snappy.ErrPackageNotFound
 
-	req, err := http.NewRequest("GET", "/v2/snap/foo", nil)
+	req, err := http.NewRequest("GET", "/v2/snaps/gfoo", nil)
 	c.Assert(err, check.IsNil)
 	c.Check(getSnapInfo(snapCmd, req).Self(nil, nil).(*resp).Status, check.Equals, http.StatusNotFound)
 }
@@ -339,7 +339,7 @@ func (s *apiSuite) TestSnapInfoNotFound(c *check.C) {
 func (s *apiSuite) TestSnapInfoNoneFound(c *check.C) {
 	s.vars = map[string]string{"name": "foo"}
 
-	req, err := http.NewRequest("GET", "/v2/snap/foo", nil)
+	req, err := http.NewRequest("GET", "/v2/snaps/gfoo", nil)
 	c.Assert(err, check.IsNil)
 	c.Check(getSnapInfo(snapCmd, req).Self(nil, nil).(*resp).Status, check.Equals, http.StatusNotFound)
 }
@@ -348,7 +348,7 @@ func (s *apiSuite) TestSnapInfoIgnoresRemoteErrors(c *check.C) {
 	s.vars = map[string]string{"name": "foo"}
 	s.err = errors.New("weird")
 
-	req, err := http.NewRequest("GET", "/v2/snap/foo", nil)
+	req, err := http.NewRequest("GET", "/v2/snaps/gfoo", nil)
 	c.Assert(err, check.IsNil)
 	rsp := getSnapInfo(snapCmd, req).Self(nil, nil).(*resp)
 
@@ -370,7 +370,7 @@ func (s *apiSuite) TestSnapInfoWeirdRoute(c *check.C) {
 			OfficialName: "foo",
 		},
 	}}
-	req, err := http.NewRequest("GET", "/v2/snap/foo", nil)
+	req, err := http.NewRequest("GET", "/v2/snaps/gfoo", nil)
 	c.Assert(err, check.IsNil)
 	c.Check(getSnapInfo(wrongCmd, req).Self(nil, nil).(*resp).Status, check.Equals, http.StatusInternalServerError)
 }
@@ -391,7 +391,7 @@ func (s *apiSuite) TestSnapInfoBadRoute(c *check.C) {
 		},
 	}}
 
-	req, err := http.NewRequest("GET", "/v2/snap/foo", nil)
+	req, err := http.NewRequest("GET", "/v2/snaps/gfoo", nil)
 	c.Assert(err, check.IsNil)
 	rsp := getSnapInfo(snapCmd, req).Self(nil, nil).(*resp)
 
@@ -430,7 +430,6 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 	})
 
 	exceptions := []string{ // keep sorted, for scanning ease
-		"apiCompatLevel",
 		"api",
 		"maxReadBuflen",
 		"muxVars",
@@ -470,9 +469,8 @@ func (s *apiSuite) TestRootCmd(c *check.C) {
 func (s *apiSuite) mkrelease() {
 	// set up release
 	release.Override(release.Release{
-		Flavor:  "flavor",
-		Series:  "release",
-		Channel: "channel",
+		Flavor: "flavor",
+		Series: "series",
 	})
 }
 
@@ -493,10 +491,8 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
 
 	expected := map[string]interface{}{
-		"flavor":          "flavor",
-		"release":         "release",
-		"default-channel": "channel",
-		"api-compat":      apiCompatLevel,
+		"flavor": "flavor",
+		"series": "series",
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
@@ -516,11 +512,9 @@ func (s *apiSuite) TestSysInfoStore(c *check.C) {
 	c.Check(rec.Code, check.Equals, 200)
 
 	expected := map[string]interface{}{
-		"flavor":          "flavor",
-		"release":         "release",
-		"default-channel": "channel",
-		"api-compat":      apiCompatLevel,
-		"store":           "some-store",
+		"flavor": "flavor",
+		"series": "series",
+		"store":  "some-store",
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
@@ -2437,7 +2431,7 @@ func (s *apiSuite) TestStateChangesDefaultToInProgress(c *check.C) {
 	res, err := rsp.MarshalJSON()
 	c.Assert(err, check.IsNil)
 
-	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"id":"\w+","kind":"download","summary":"1...","status":"Do","log":\["2016-04-21T01:02:03Z INFO l11","2016-04-21T01:02:03Z INFO l12"],"progress":{"done":0,"total":1}}.*`)
+	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"id":"\w+","kind":"download","summary":"1...","status":"Do","log":\["2016-04-21T01:02:03Z INFO l11","2016-04-21T01:02:03Z INFO l12"],"progress":{"done":0,"total":1},"spawn-time":"2016-04-21T01:02:03Z"}.*`)
 }
 
 func (s *apiSuite) TestStateChangesInProgress(c *check.C) {
@@ -2464,7 +2458,7 @@ func (s *apiSuite) TestStateChangesInProgress(c *check.C) {
 	res, err := rsp.MarshalJSON()
 	c.Assert(err, check.IsNil)
 
-	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"id":"\w+","kind":"download","summary":"1...","status":"Do","log":\["2016-04-21T01:02:03Z INFO l11","2016-04-21T01:02:03Z INFO l12"],"progress":{"done":0,"total":1}}.*],"ready":false,"spawn-time":"2016-04-21T01:02:03Z"}.*`)
+	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"id":"\w+","kind":"download","summary":"1...","status":"Do","log":\["2016-04-21T01:02:03Z INFO l11","2016-04-21T01:02:03Z INFO l12"],"progress":{"done":0,"total":1},"spawn-time":"2016-04-21T01:02:03Z"}.*],"ready":false,"spawn-time":"2016-04-21T01:02:03Z"}.*`)
 }
 
 func (s *apiSuite) TestStateChangesAll(c *check.C) {
@@ -2490,8 +2484,8 @@ func (s *apiSuite) TestStateChangesAll(c *check.C) {
 	res, err := rsp.MarshalJSON()
 	c.Assert(err, check.IsNil)
 
-	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"id":"\w+","kind":"download","summary":"1...","status":"Do","log":\["2016-04-21T01:02:03Z INFO l11","2016-04-21T01:02:03Z INFO l12"],"progress":{"done":0,"total":1}}.*],"ready":false,"spawn-time":"2016-04-21T01:02:03Z"}.*`)
-	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"remove","summary":"remove..","status":"Error","tasks":\[{"id":"\w+","kind":"unlink","summary":"1...","status":"Error","log":\["2016-04-21T01:02:03Z ERROR rm failed"],"progress":{"done":1,"total":1}}.*],"ready":true,"err":"[^"]+".*`)
+	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"id":"\w+","kind":"download","summary":"1...","status":"Do","log":\["2016-04-21T01:02:03Z INFO l11","2016-04-21T01:02:03Z INFO l12"],"progress":{"done":0,"total":1},"spawn-time":"2016-04-21T01:02:03Z"}.*],"ready":false,"spawn-time":"2016-04-21T01:02:03Z"}.*`)
+	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"remove","summary":"remove..","status":"Error","tasks":\[{"id":"\w+","kind":"unlink","summary":"1...","status":"Error","log":\["2016-04-21T01:02:03Z ERROR rm failed"],"progress":{"done":1,"total":1},"spawn-time":"2016-04-21T01:02:03Z","ready-time":"2016-04-21T01:02:03Z"}.*],"ready":true,"err":"[^"]+".*`)
 }
 
 func (s *apiSuite) TestStateChangesReady(c *check.C) {
@@ -2517,7 +2511,7 @@ func (s *apiSuite) TestStateChangesReady(c *check.C) {
 	res, err := rsp.MarshalJSON()
 	c.Assert(err, check.IsNil)
 
-	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"remove","summary":"remove..","status":"Error","tasks":\[{"id":"\w+","kind":"unlink","summary":"1...","status":"Error","log":\["2016-04-21T01:02:03Z ERROR rm failed"],"progress":{"done":1,"total":1}}.*],"ready":true,"err":"[^"]+".*`)
+	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"remove","summary":"remove..","status":"Error","tasks":\[{"id":"\w+","kind":"unlink","summary":"1...","status":"Error","log":\["2016-04-21T01:02:03Z ERROR rm failed"],"progress":{"done":1,"total":1},"spawn-time":"2016-04-21T01:02:03Z","ready-time":"2016-04-21T01:02:03Z"}.*],"ready":true,"err":"[^"]+".*`)
 }
 
 func (s *apiSuite) TestStateChange(c *check.C) {
@@ -2557,20 +2551,120 @@ func (s *apiSuite) TestStateChange(c *check.C) {
 		"spawn-time": "2016-04-21T01:02:03Z",
 		"tasks": []interface{}{
 			map[string]interface{}{
-				"id":       ids[2],
-				"kind":     "download",
-				"summary":  "1...",
-				"status":   "Do",
-				"log":      []interface{}{"2016-04-21T01:02:03Z INFO l11", "2016-04-21T01:02:03Z INFO l12"},
-				"progress": map[string]interface{}{"done": 0., "total": 1.},
+				"id":         ids[2],
+				"kind":       "download",
+				"summary":    "1...",
+				"status":     "Do",
+				"log":        []interface{}{"2016-04-21T01:02:03Z INFO l11", "2016-04-21T01:02:03Z INFO l12"},
+				"progress":   map[string]interface{}{"done": 0., "total": 1.},
+				"spawn-time": "2016-04-21T01:02:03Z",
 			},
 			map[string]interface{}{
-				"id":       ids[3],
-				"kind":     "activate",
-				"summary":  "2...",
-				"status":   "Do",
-				"progress": map[string]interface{}{"done": 0., "total": 1.},
+				"id":         ids[3],
+				"kind":       "activate",
+				"summary":    "2...",
+				"status":     "Do",
+				"progress":   map[string]interface{}{"done": 0., "total": 1.},
+				"spawn-time": "2016-04-21T01:02:03Z",
 			},
 		},
+	})
+}
+
+func (s *apiSuite) TestStateChangeAbort(c *check.C) {
+	restore := state.MockTime(time.Date(2016, 04, 21, 1, 2, 3, 0, time.UTC))
+	defer restore()
+
+	// Setup
+	d := newTestDaemon(c)
+	st := d.overlord.State()
+	st.Lock()
+	ids := setupChanges(st)
+	st.Unlock()
+	s.vars = map[string]string{"id": ids[0]}
+
+	buf := bytes.NewBufferString(`{"action": "abort"}`)
+
+	// Execute
+	req, err := http.NewRequest("POST", "/v2/changes/"+ids[0], buf)
+	c.Assert(err, check.IsNil)
+	rsp := abortChange(stateChangeCmd, req).(*resp)
+	rec := httptest.NewRecorder()
+	rsp.ServeHTTP(rec, req)
+
+	// Verify
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.NotNil)
+
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body["result"], check.DeepEquals, map[string]interface{}{
+		"id":         ids[0],
+		"kind":       "install",
+		"summary":    "install...",
+		"status":     "Hold",
+		"ready":      true,
+		"spawn-time": "2016-04-21T01:02:03Z",
+		"ready-time": "2016-04-21T01:02:03Z",
+		"tasks": []interface{}{
+			map[string]interface{}{
+				"id":         ids[2],
+				"kind":       "download",
+				"summary":    "1...",
+				"status":     "Hold",
+				"log":        []interface{}{"2016-04-21T01:02:03Z INFO l11", "2016-04-21T01:02:03Z INFO l12"},
+				"progress":   map[string]interface{}{"done": 1., "total": 1.},
+				"spawn-time": "2016-04-21T01:02:03Z",
+				"ready-time": "2016-04-21T01:02:03Z",
+			},
+			map[string]interface{}{
+				"id":         ids[3],
+				"kind":       "activate",
+				"summary":    "2...",
+				"status":     "Hold",
+				"progress":   map[string]interface{}{"done": 1., "total": 1.},
+				"spawn-time": "2016-04-21T01:02:03Z",
+				"ready-time": "2016-04-21T01:02:03Z",
+			},
+		},
+	})
+}
+
+func (s *apiSuite) TestStateChangeAbortIsReady(c *check.C) {
+	restore := state.MockTime(time.Date(2016, 04, 21, 1, 2, 3, 0, time.UTC))
+	defer restore()
+
+	// Setup
+	d := newTestDaemon(c)
+	st := d.overlord.State()
+	st.Lock()
+	ids := setupChanges(st)
+	st.Change(ids[0]).SetStatus(state.DoneStatus)
+	st.Unlock()
+	s.vars = map[string]string{"id": ids[0]}
+
+	buf := bytes.NewBufferString(`{"action": "abort"}`)
+
+	// Execute
+	req, err := http.NewRequest("POST", "/v2/changes/"+ids[0], buf)
+	c.Assert(err, check.IsNil)
+	rsp := abortChange(stateChangeCmd, req).(*resp)
+	rec := httptest.NewRecorder()
+	rsp.ServeHTTP(rec, req)
+
+	// Verify
+	c.Check(rec.Code, check.Equals, 400)
+	c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Result, check.NotNil)
+
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body["result"], check.DeepEquals, map[string]interface{}{
+		"message": fmt.Sprintf("cannot abort change %s with nothing pending", ids[0]),
 	})
 }

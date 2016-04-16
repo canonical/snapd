@@ -303,7 +303,7 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string, auther Authentica
 // given search term.
 func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string, auther Authenticator) ([]*snap.Info, error) {
 	if channel == "" {
-		channel = release.Get().Channel
+		channel = "stable"
 	}
 
 	u := *s.searchURI // make a copy, so we can mutate it

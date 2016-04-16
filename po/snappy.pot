@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-04-16 17:09+0100\n"
+        "POT-Creation-Date: 2016-04-16 16:39-0300\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -15,6 +15,9 @@ msgstr  "Project-Id-Version: snappy\n"
         "MIME-Version: 1.0\n"
         "Content-Type: text/plain; charset=CHARSET\n"
         "Content-Transfer-Encoding: 8bit\n"
+
+msgid   "Abort a pending change"
+msgstr  ""
 
 #, c-format
 msgid   "Activate %q snap"
@@ -90,7 +93,7 @@ msgstr  ""
 msgid   "Generated '%s' snap\n"
 msgstr  ""
 
-msgid   "ID\tStatus\tSpawn Time\tReady Time\tSummary\n"
+msgid   "ID\tStatus\tSpawn\tReady\tSummary\n"
 msgstr  ""
 
 #, c-format
@@ -98,14 +101,14 @@ msgid   "Install %q snap"
 msgstr  ""
 
 #, c-format
+msgid   "Install %q snap file"
+msgstr  ""
+
+#, c-format
 msgid   "Install %q snap from %q channel"
 msgstr  ""
 
 msgid   "Install a snap to the system"
-msgstr  ""
-
-#, c-format
-msgid   "Install local %q snap"
 msgstr  ""
 
 msgid   "List installed snaps"
@@ -202,6 +205,12 @@ msgstr  ""
 msgid   "Shows known assertions of the provided type"
 msgstr  ""
 
+msgid   "Slot\tPlug"
+msgstr  ""
+
+msgid   "Status\tSpawn\tReady\tSummary\n"
+msgstr  ""
+
 msgid   "This command logs the current user out of the store"
 msgstr  ""
 
@@ -209,6 +218,10 @@ msgid   "This command logs the given username into the store"
 msgstr  ""
 
 msgid   "Two-factor code: "
+msgstr  ""
+
+msgid   "\n"
+        "The abort command attempts to abort a change that still has pending tasks.\n"
 msgstr  ""
 
 msgid   "\n"
@@ -293,7 +306,7 @@ msgid   "\n"
         "\n"
         "Lists the slots offered and plugs used by the specified snap.\n"
         "\n"
-        "$ snap interfaces --i=<interface> [<snap>]\n"
+        "$ snap interfaces -i=<interface> [<snap>]\n"
         "\n"
         "Filters the complete output so only plugs and/or slots matching the provided details are listed.\n"
 msgstr  ""
@@ -335,9 +348,6 @@ msgid   "no snaps found"
 msgstr  ""
 
 msgid   "produces manpage"
-msgstr  ""
-
-msgid   "slot\tplug"
 msgstr  ""
 
 #, c-format
