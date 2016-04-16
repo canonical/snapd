@@ -48,9 +48,6 @@ func generateSnapBinaryWrapper(app *snap.AppInfo, pkgPath string) (string, error
 	wrapperTemplate := `#!/bin/sh
 set -e
 
-# snap info (deprecated)
-{{.OldAppVars}}
-
 # snap info
 {{.NewAppVars}}
 
@@ -98,14 +95,6 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 		Target:      actualBinPath,
 		AaProfile:   app.SecurityTag(),
 	}
-
-	oldVars := []string{}
-	for _, envVar := range append(
-		snapenv.GetDeprecatedBasicSnapEnvVars(wrapperData),
-		snapenv.GetDeprecatedUserSnapEnvVars(wrapperData)...) {
-		oldVars = append(oldVars, quoteEnvVar(envVar))
-	}
-	wrapperData.OldAppVars = strings.Join(oldVars, "\n")
 
 	newVars := []string{}
 	for _, envVar := range append(
