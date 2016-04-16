@@ -491,6 +491,100 @@ func (s *interfaceManagerSuite) testDoSetupSnapSecuirtyReloadsConnectionsWhenInv
 	c.Check(slot.Connections[0], DeepEquals, interfaces.PlugRef{Snap: "consumer", Name: "plug"})
 }
 
+// The setup-profiles task will honor snappy.DeveloperMode flag by storing it
+// in the SnapState.Flags (as DevMode) and by actually setting up security
+// using that flag. Old copy of SnapState.Flag's DevMode is saved for the undo
+// handler under `old-dev-mode`.
+func (s *interfaceManagerSuite) TestSetupProfilesHonorsDevMode(c *C) {
+	// Put the OS snap in place.
+	mgr := s.manager(c)
+
+	// Initialize the manager. This registers the OS snap.
+	snapInfo := s.mockSnap(c, sampleSnapYaml)
+
+	// Run the setup-profiles task and let it finish.
+	// Note that the task will see SnapSetup.Flags equal to DeveloperMode.
+	change := s.addSetupSnapSecurityChange(c, snapInfo.Name(), snappy.DeveloperMode)
+	mgr.Ensure()
+	mgr.Wait()
+	mgr.Stop()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the task succeeded.
+	c.Check(change.Status(), Equals, state.DoneStatus)
+
+	// The snap was setup with DevMode equal to true.
+	c.Assert(s.secBackend.SetupCalls, HasLen, 1)
+	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
+	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, "snap")
+	c.Check(s.secBackend.SetupCalls[0].DevMode, Equals, true)
+
+	// SnapState stored the value of DevMode
+	var snapState snapstate.SnapState
+	err := snapstate.Get(s.state, snapInfo.Name(), &snapState)
+	c.Assert(err, IsNil)
+	c.Check(snapState.DevMode(), Equals, true)
+
+	// The old value of DevMode was saved in the task in case undo is needed.
+	task := change.Tasks()[0]
+	var oldDevMode bool
+	err = task.Get("old-dev-mode", &oldDevMode)
+	c.Assert(err, IsNil)
+	c.Check(oldDevMode, Equals, false)
+}
+
+// The undo handler of the setup-profiles task will honor `old-dev-mode` that
+// is optionally stored in the task state and use it to set the DevMode flag in
+// the SnapState.
+//
+// This variant checks restoring DevMode to true
+func (s *interfaceManagerSuite) TestSetupProfilesUndoDevModeTrue(c *C) {
+	s.undoDevModeCheck(c, snappy.InstallFlags(0), true)
+}
+
+// The undo handler of the setup-profiles task will honor `old-dev-mode` that
+// is optionally stored in the task state and use it to set the DevMode flag in
+// the SnapState.
+//
+// This variant checks restoring DevMode to false
+func (s *interfaceManagerSuite) TestSetupProfilesUndoDevModeFalse(c *C) {
+	s.undoDevModeCheck(c, snappy.InstallFlags(0), false)
+}
+
+func (s *interfaceManagerSuite) undoDevModeCheck(c *C, flags snappy.InstallFlags, devMode bool) {
+	// Put the OS and sample snaps in place.
+	s.mockSnap(c, osSnapYaml)
+	snapInfo := s.mockSnap(c, sampleSnapYaml)
+
+	// Initialize the manager. This registers both snaps.
+	mgr := s.manager(c)
+
+	// Run the setup-profiles task in UndoMode and let it finish.
+	change := s.addSetupSnapSecurityChange(c, snapInfo.Name(), flags)
+	s.state.Lock()
+	task := change.Tasks()[0]
+	// Inject the old value of DevMode flag for the task handler to restore
+	task.Set("old-dev-mode", devMode)
+	task.SetStatus(state.UndoStatus)
+	s.state.Unlock()
+	mgr.Ensure()
+	mgr.Wait()
+	mgr.Stop()
+
+	// Change succeeds
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(change.Status(), Equals, state.UndoneStatus)
+
+	// SnapState.Flags now holds the original value of DevMode
+	var snapState snapstate.SnapState
+	err := snapstate.Get(s.state, snapInfo.Name(), &snapState)
+	c.Assert(err, IsNil)
+	c.Check(snapState.DevMode(), Equals, devMode)
+}
+
 func (s *interfaceManagerSuite) TestDoDiscardConnsPlug(c *C) {
 	s.testDoDicardConns(c, "consumer")
 }
