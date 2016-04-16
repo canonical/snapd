@@ -438,6 +438,7 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"pkgActionDispatch",
 		// snapInstruction vars:
 		"snapstateInstall",
+		"snapstateUpdate",
 		"snapstateInstallPath",
 		"snapstateGet",
 	}
@@ -1333,7 +1334,42 @@ func (s *apiSuite) TestInstall(c *check.C) {
 	c.Check(calledFlags, check.Equals, snappy.DoInstallGC)
 	c.Check(err, check.IsNil)
 	c.Check(installQueue, check.DeepEquals, []string{"some-snap"})
+	c.Check(chg.Kind(), check.Equals, "install-snap")
 	c.Check(chg.Summary(), check.Equals, `Install "some-snap" snap`)
+}
+
+func (s *apiSuite) TestRefresh(c *check.C) {
+	calledFlags := snappy.InstallFlags(42)
+	installQueue := []string{}
+
+	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
+		// we have ubuntu-core
+		return nil
+	}
+	snapstateUpdate = func(s *state.State, name, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
+		calledFlags = flags
+		installQueue = append(installQueue, name)
+
+		t := s.NewTask("fake-refresh-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{
+		overlord: d.overlord,
+		Action:   "refresh",
+		pkg:      "some-snap",
+	}
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+	chg, err := inst.dispatch()()
+
+	c.Check(calledFlags, check.Equals, snappy.DoInstallGC)
+	c.Check(err, check.IsNil)
+	c.Check(installQueue, check.DeepEquals, []string{"some-snap"})
+	c.Check(chg.Kind(), check.Equals, "refresh-snap")
+	c.Check(chg.Summary(), check.Equals, `Refresh "some-snap" snap`)
 }
 
 func (s *apiSuite) TestInstallMissingUbuntuCore(c *check.C) {
