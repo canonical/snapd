@@ -50,10 +50,6 @@ import (
 	"time"
 )
 
-// increase this every time you make a minor (backwards-compatible)
-// change to the API.
-const apiCompatLevel = "0"
-
 var api = []*Command{
 	rootCmd,
 	sysInfoCmd,
@@ -165,10 +161,8 @@ var (
 func sysInfo(c *Command, r *http.Request) Response {
 	rel := release.Get()
 	m := map[string]string{
-		"flavor":          rel.Flavor,
-		"release":         rel.Series,
-		"default-channel": rel.Channel,
-		"api-compat":      apiCompatLevel,
+		"flavor": rel.Flavor,
+		"series": rel.Series,
 	}
 
 	if store := snappy.StoreID(); store != "" {

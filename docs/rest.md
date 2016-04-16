@@ -141,10 +141,8 @@ Reserved for human-readable content describing the service.
 
 ```javascript
 {
- "default-channel": "edge",
  "flavor": "core",
- "api-compat": "1",           // increased on minor API changes
- "release": "15.04",
+ "series": "16",
  "store": "store-id"          // only if not default
 }
 ```
