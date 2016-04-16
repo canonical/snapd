@@ -25,12 +25,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/strutil"
 )
 
 // A Backend is used by State to checkpoint on every unlock operation
@@ -74,6 +74,9 @@ func (data customData) set(key string, value interface{}) {
 type State struct {
 	mu  sync.Mutex
 	muC int32
+
+	lastTaskId   int
+	lastChangeId int
 
 	backend Backend
 	data    customData
@@ -130,6 +133,9 @@ type marshalledState struct {
 	Data    map[string]*json.RawMessage `json:"data"`
 	Changes map[string]*Change          `json:"changes"`
 	Tasks   map[string]*Task            `json:"tasks"`
+
+	LastChangeId int `json:"last-change-id"`
+	LastTaskId   int `json:"last-task-id"`
 }
 
 // MarshalJSON makes State a json.Marshaller
@@ -139,6 +145,9 @@ func (s *State) MarshalJSON() ([]byte, error) {
 		Data:    s.data,
 		Changes: s.changes,
 		Tasks:   s.tasks,
+
+		LastTaskId:   s.lastTaskId,
+		LastChangeId: s.lastChangeId,
 	})
 }
 
@@ -153,6 +162,8 @@ func (s *State) UnmarshalJSON(data []byte) error {
 	s.data = unmarshalled.Data
 	s.changes = unmarshalled.Changes
 	s.tasks = unmarshalled.Tasks
+	s.lastChangeId = unmarshalled.LastChangeId
+	s.lastTaskId = unmarshalled.LastTaskId
 	// backlink state again
 	for _, t := range s.tasks {
 		t.state = s
@@ -245,23 +256,11 @@ func (s *State) Cache(key, value interface{}) {
 	}
 }
 
-func (s *State) genID() string {
-	for {
-		id := strutil.MakeRandomString(6)
-		if _, ok := s.changes[id]; ok {
-			continue
-		}
-		if _, ok := s.tasks[id]; ok {
-			continue
-		}
-		return id
-	}
-}
-
 // NewChange adds a new change to the state.
 func (s *State) NewChange(kind, summary string) *Change {
 	s.writing()
-	id := s.genID()
+	s.lastChangeId++
+	id := strconv.Itoa(s.lastChangeId)
 	chg := newChange(s, id, kind, summary)
 	s.changes[id] = chg
 	return chg
@@ -288,7 +287,8 @@ func (s *State) Change(id string) *Change {
 // through a TaskSet.
 func (s *State) NewTask(kind, summary string) *Task {
 	s.writing()
-	id := s.genID()
+	s.lastTaskId++
+	id := strconv.Itoa(s.lastTaskId)
 	t := newTask(s, id, kind, summary)
 	s.tasks[id] = t
 	return t
