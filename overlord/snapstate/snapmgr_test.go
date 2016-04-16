@@ -162,7 +162,8 @@ func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{OfficialName: "some-snap", Revision: 11, Channel: "edge"}},
+		Channel:  "edge",
+		Sequence: []*snap.SideInfo{{OfficialName: "some-snap", Revision: 11}},
 	})
 
 	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", 0)
@@ -182,7 +183,8 @@ func (s *snapmgrTestSuite) TestUpdateChannelFallback(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{OfficialName: "some-snap", Revision: 11, Channel: "edge"}},
+		Channel:  "edge",
+		Sequence: []*snap.SideInfo{{OfficialName: "some-snap", Revision: 11}},
 	})
 
 	ts, err := snapstate.Update(s.state, "some-snap", "", 0)
@@ -357,6 +359,7 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 
 	snapst := snaps["some-snap"]
 	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Channel, Equals, "some-channel")
 	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
 		OfficialName: "some-snap",
@@ -589,6 +592,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoIntegration(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{&si},
+		Channel:  "stable",
 	})
 
 	chg := s.state.NewChange("install", "install a snap")
@@ -677,6 +681,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoIntegration(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Channel, Equals, "stable")
 	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence, HasLen, 1)
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
