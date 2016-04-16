@@ -47,6 +47,9 @@ type Task struct {
 	Status   string       `json:"status"`
 	Log      []string     `json:"log,omitempty"`
 	Progress TaskProgress `json:"progress"`
+
+	SpawnTime time.Time `json:"spawn-time,omitempty"`
+	ReadyTime time.Time `json:"ready-time,omitempty"`
 }
 
 type TaskProgress struct {
