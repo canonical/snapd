@@ -570,10 +570,13 @@ func (inst *snapInstruction) install() (*state.Change, error) {
 	st := inst.overlord.State()
 	st.Lock()
 	chg := st.NewChange("install-snap", msg)
-	err := ensureUbuntuCore(chg, inst.userID)
-	if err == nil {
-		err = installSnap(chg, inst.pkg, inst.Channel, inst.userID, flags)
+	if inst.pkg != "ubuntu-core" {
+		if err := ensureUbuntuCore(chg, inst.userID); err != nil {
+			st.Unlock()
+			return nil, err
+		}
 	}
+	err := installSnap(chg, inst.pkg, inst.Channel, inst.userID, flags)
 	st.Unlock()
 	if err != nil {
 		return nil, err
