@@ -45,7 +45,7 @@ $ snap interfaces <snap>
 
 Lists the slots offered and plugs used by the specified snap.
 
-$ snap interfaces --i=<interface> [<snap>]
+$ snap interfaces -i=<interface> [<snap>]
 
 Filters the complete output so only plugs and/or slots matching the provided
 details are listed.
@@ -87,8 +87,8 @@ func (s *SnapSuite) TestInterfacesZeroSlotsOnePlug(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
-		"slot plug\n" +
-		"--   keyboard-lights:capslock-led\n"
+		"Slot  Plug\n" +
+		"-     keyboard-lights:capslock-led\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
@@ -118,8 +118,8 @@ func (s *SnapSuite) TestInterfacesZeroPlugsOneSlot(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
-		"slot                 plug\n" +
-		"canonical-pi2:pin-13 --\n"
+		"Slot                  Plug\n" +
+		"canonical-pi2:pin-13  -\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
@@ -169,8 +169,8 @@ func (s *SnapSuite) TestInterfacesOneSlotOnePlug(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
-		"slot                 plug\n" +
-		"canonical-pi2:pin-13 keyboard-lights:capslock-led\n"
+		"Slot                  Plug\n" +
+		"canonical-pi2:pin-13  keyboard-lights:capslock-led\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
@@ -210,8 +210,8 @@ func (s *SnapSuite) TestInterfacesTwoPlugs(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
-		"slot                 plug\n" +
-		"canonical-pi2:pin-13 keyboard-lights:capslock-led,keyboard-lights:scrollock-led\n"
+		"Slot                  Plug\n" +
+		"canonical-pi2:pin-13  keyboard-lights:capslock-led,keyboard-lights:scrollock-led\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
@@ -277,8 +277,8 @@ func (s *SnapSuite) TestInterfacesPlugsWithCommonName(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
-		"slot                            plug\n" +
-		"canonical-pi2:network-listening paste-daemon,time-daemon\n"
+		"Slot                             Plug\n" +
+		"canonical-pi2:network-listening  paste-daemon,time-daemon\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
@@ -344,8 +344,8 @@ func (s *SnapSuite) TestInterfacesOsSnapSlots(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
-		"slot               plug\n" +
-		":network-listening paste-daemon,time-daemon\n"
+		"Slot                Plug\n" +
+		":network-listening  paste-daemon,time-daemon\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
@@ -393,8 +393,8 @@ func (s *SnapSuite) TestInterfacesTwoSlotsAndFiltering(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
-		"slot                        plug\n" +
-		"canonical-pi2:debug-console ubuntu-core\n"
+		"Slot                         Plug\n" +
+		"canonical-pi2:debug-console  ubuntu-core\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
@@ -436,9 +436,9 @@ func (s *SnapSuite) TestInterfacesOfSpecificSnap(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
-		"slot                 plug\n" +
-		"wake-up-alarm:toggle --\n" +
-		"wake-up-alarm:snooze --\n"
+		"Slot                  Plug\n" +
+		"wake-up-alarm:toggle  -\n" +
+		"wake-up-alarm:snooze  -\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
@@ -480,8 +480,8 @@ func (s *SnapSuite) TestInterfacesOfSpecificSnapAndSlot(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
-		"slot                 plug\n" +
-		"wake-up-alarm:snooze --\n"
+		"Slot                  Plug\n" +
+		"wake-up-alarm:snooze  -\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
