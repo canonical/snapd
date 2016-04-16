@@ -34,6 +34,7 @@ import (
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snappy"
 )
 
 func TestInterfaceManager(t *testing.T) { TestingT(t) }
@@ -224,12 +225,12 @@ func (s *interfaceManagerSuite) mockSnap(c *C, yamlText string) *snap.Info {
 	return snapInfo
 }
 
-func (s *interfaceManagerSuite) addSetupSnapSecurityChange(c *C, snapName string) *state.Change {
+func (s *interfaceManagerSuite) addSetupSnapSecurityChange(c *C, snapName string, flags snappy.InstallFlags) *state.Change {
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	task := s.state.NewTask("setup-profiles", "")
-	ss := snapstate.SnapSetup{Name: snapName}
+	ss := snapstate.SnapSetup{Name: snapName, Flags: int(flags)}
 	task.Set("snap-setup", ss)
 	taskset := state.NewTaskSet(task)
 	change := s.state.NewChange("test", "")
@@ -308,7 +309,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityHonorsDisconnect(c *C) {
 	mgr := s.manager(c)
 
 	// Run the setup-snap-security task and let it finish.
-	change := s.addSetupSnapSecurityChange(c, snapInfo.Name())
+	change := s.addSetupSnapSecurityChange(c, snapInfo.Name(), snappy.InstallFlags(0))
 	mgr.Ensure()
 	mgr.Wait()
 	mgr.Stop()
@@ -344,7 +345,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyAutoConnects(c *C) {
 	snapInfo := s.mockSnap(c, sampleSnapYaml)
 
 	// Run the setup-snap-security task and let it finish.
-	change := s.addSetupSnapSecurityChange(c, snapInfo.Name())
+	change := s.addSetupSnapSecurityChange(c, snapInfo.Name(), snappy.InstallFlags(0))
 	mgr.Ensure()
 	mgr.Wait()
 	mgr.Stop()
@@ -394,7 +395,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyKeepsExistingConnectionSt
 	s.state.Unlock()
 
 	// Run the setup-snap-security task and let it finish.
-	change := s.addSetupSnapSecurityChange(c, snapInfo.Name())
+	change := s.addSetupSnapSecurityChange(c, snapInfo.Name(), snappy.InstallFlags(0))
 	mgr.Ensure()
 	mgr.Wait()
 	mgr.Stop()
@@ -430,7 +431,7 @@ func (s *interfaceManagerSuite) TestDoSetupProfilesAddsImplicitSlots(c *C) {
 	snapInfo := s.mockSnap(c, osSnapYaml)
 
 	// Run the setup-profiles task and let it finish.
-	change := s.addSetupSnapSecurityChange(c, snapInfo.Name())
+	change := s.addSetupSnapSecurityChange(c, snapInfo.Name(), snappy.InstallFlags(0))
 	mgr.Ensure()
 	mgr.Wait()
 	mgr.Stop()
@@ -469,7 +470,7 @@ func (s *interfaceManagerSuite) testDoSetupSnapSecuirtyReloadsConnectionsWhenInv
 	mgr := s.manager(c)
 
 	// Run the setup-profiles task
-	change := s.addSetupSnapSecurityChange(c, snapName)
+	change := s.addSetupSnapSecurityChange(c, snapName, snappy.InstallFlags(0))
 	mgr.Ensure()
 	mgr.Wait()
 	mgr.Stop()
