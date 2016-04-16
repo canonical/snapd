@@ -319,6 +319,14 @@ func (e *changeError) Error() string {
 	return strings.TrimSuffix(buf.String(), "\n")
 }
 
+func stripErrorMsg(msg string) (string, bool) {
+	i := strings.Index(msg, " ")
+	if i >= 0 && strings.HasPrefix(msg[i:], " ERROR ") {
+		return msg[i+len(" ERROR "):], true
+	}
+	return "", false
+}
+
 // Err returns an error value based on errors that were logged for tasks registered
 // in this change, or nil if the change is not in ErrorStatus.
 func (c *Change) Err() error {
@@ -333,9 +341,8 @@ func (c *Change) Err() error {
 			continue
 		}
 		for _, msg := range task.Log() {
-			if strings.HasPrefix(msg, LogError+": ") {
-				msg = strings.TrimPrefix(msg, LogError+": ")
-				errors = append(errors, taskError{task.Summary(), msg})
+			if s, ok := stripErrorMsg(msg); ok {
+				errors = append(errors, taskError{task.Summary(), s})
 			}
 		}
 	}
