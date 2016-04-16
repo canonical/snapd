@@ -39,6 +39,7 @@ type Snap struct {
 	Status        string    `json:"status"`
 	Type          string    `json:"type"`
 	Version       string    `json:"version"`
+	DevMode       bool      `json:"dev-mode"`
 
 	Prices map[string]float64 `json:"prices"`
 }

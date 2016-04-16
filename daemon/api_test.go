@@ -301,6 +301,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 				"GBP": 1.23,
 				"EUR": 2.34,
 			},
+			"dev-mode": false,
 		},
 		Meta: meta,
 	}

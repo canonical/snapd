@@ -278,7 +278,7 @@ func getSnapInfo(c *Command, r *http.Request) Response {
 	remoteRepo := newRemoteRepo()
 	suggestedCurrency := remoteRepo.SuggestedCurrency()
 
-	localSnap, active, err := localSnapInfo(c.d.overlord.State(), name)
+	localSnap, active, devMode, err := localSnapInfo(c.d.overlord.State(), name)
 	if err != nil {
 		return InternalError("%v", err)
 	}
@@ -308,7 +308,7 @@ func getSnapInfo(c *Command, r *http.Request) Response {
 		return InternalError("route can't build URL for snap %s: %v", name, err)
 	}
 
-	result := webify(mapSnap(localSnap, active, remoteSnap), url.String())
+	result := webify(mapSnap(localSnap, active, devMode, remoteSnap), url.String())
 
 	meta := &Meta{
 		SuggestedCurrency: suggestedCurrency,
@@ -439,12 +439,13 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		// strings.Contains(name, "") is true
 		if strings.Contains(name, searchTerm) {
 			active := about.snapst.Active
-			addResult(name, mapSnap(info, active, remoteSnapMap[name]))
+			devMode := about.snapst.DevMode()
+			addResult(name, mapSnap(info, active, devMode, remoteSnapMap[name]))
 		}
 	}
 
 	for name, remoteSnap := range remoteSnapMap {
-		addResult(name, mapSnap(nil, false, remoteSnap))
+		addResult(name, mapSnap(nil, false, false, remoteSnap))
 	}
 
 	meta := &Meta{
@@ -858,7 +859,7 @@ out:
 }
 
 func iconGet(st *state.State, name string) Response {
-	info, _, err := localSnapInfo(st, name)
+	info, _, _, err := localSnapInfo(st, name)
 	if err != nil {
 		return InternalError("%v", err)
 	}
