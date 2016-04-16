@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 )
 
 // Status is used for status values for changes and tasks.
@@ -122,6 +123,9 @@ type Change struct {
 	data    customData
 	taskIDs []string
 	ready   chan struct{}
+
+	spawnTime time.Time
+	readyTime time.Time
 }
 
 func newChange(state *State, id, kind, summary string) *Change {
@@ -132,6 +136,8 @@ func newChange(state *State, id, kind, summary string) *Change {
 		summary: summary,
 		data:    make(customData),
 		ready:   make(chan struct{}),
+
+		spawnTime: time.Now(),
 	}
 }
 
@@ -142,6 +148,9 @@ type marshalledChange struct {
 	Status  Status                      `json:"status"`
 	Data    map[string]*json.RawMessage `json:"data,omitempty"`
 	TaskIDs []string                    `json:"task-ids,omitempty"`
+
+	SpawnTime time.Time `json:"spawn-time,omitempty"`
+	ReadyTime time.Time `json:"ready-time,omitempty"`
 }
 
 // MarshalJSON makes Change a json.Marshaller
@@ -154,6 +163,9 @@ func (c *Change) MarshalJSON() ([]byte, error) {
 		Status:  c.status,
 		Data:    c.data,
 		TaskIDs: c.taskIDs,
+
+		SpawnTime: c.spawnTime,
+		ReadyTime: c.readyTime,
 	})
 }
 
@@ -174,6 +186,8 @@ func (c *Change) UnmarshalJSON(data []byte) error {
 	c.data = unmarshalled.Data
 	c.taskIDs = unmarshalled.TaskIDs
 	c.ready = make(chan struct{})
+	c.spawnTime = unmarshalled.SpawnTime
+	c.readyTime = unmarshalled.ReadyTime
 	return nil
 }
 
@@ -265,11 +279,18 @@ func (c *Change) SetStatus(s Status) {
 	c.state.writing()
 	c.status = s
 	if s.Ready() {
-		select {
-		case <-c.ready:
-		default:
-			close(c.ready)
-		}
+		c.markReady()
+	}
+}
+
+func (c *Change) markReady() {
+	select {
+	case <-c.ready:
+	default:
+		close(c.ready)
+	}
+	if c.readyTime.IsZero() {
+		c.readyTime = time.Now()
 	}
 }
 
@@ -293,11 +314,19 @@ func (c *Change) taskStatusChanged(t *Task, old, new Status) {
 	// Here is the exact moment when a change goes from unready to ready,
 	// and from ready to unready. For now handle only the first of those.
 	// For the latter the channel might be replaced in the future.
-	select {
-	case <-c.ready:
-	default:
-		close(c.ready)
-	}
+	c.markReady()
+}
+
+// SpawnTime returns the time when the change was created.
+func (c *Change) SpawnTime() time.Time {
+	c.state.reading()
+	return c.spawnTime
+}
+
+// ReadyTime returns the time when the change became ready.
+func (c *Change) ReadyTime() time.Time {
+	c.state.reading()
+	return c.readyTime
 }
 
 // changeError holds a set of task errors.
