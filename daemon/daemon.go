@@ -33,6 +33,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/notifications"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/overlord"
 	"github.com/ubuntu-core/snappy/store"
 )
@@ -59,6 +60,8 @@ type Command struct {
 	PUT    ResponseFunc
 	POST   ResponseFunc
 	DELETE ResponseFunc
+	// can sudoer do stuff?
+	SudoerOK bool
 	// can guest GET?
 	GuestOK bool
 	// can non-admin GET?
@@ -67,13 +70,32 @@ type Command struct {
 	d *Daemon
 }
 
+var isUIDInAny = osutil.IsUIDInAny
+
 func (c *Command) canAccess(r *http.Request) bool {
+	state := c.d.overlord.State()
+	state.Lock()
+	_, err := UserFromRequest(state, r)
+	state.Unlock()
+	if err == nil {
+		// authenticated user does anything
+		return true
+	}
+
 	isUser := false
 	if uid, err := ucrednetGetUID(r.RemoteAddr); err == nil {
 		if uid == 0 {
 			// superuser does anything
 			return true
 		}
+
+		if c.SudoerOK && isUIDInAny(uid, "sudo", "admin") {
+			// if user is in a group that grants sudo in
+			// the default install, and the command says
+			// that's ok, then it's ok
+			return true
+		}
+
 		isUser = true
 	}
 
