@@ -247,9 +247,6 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	st := t.State()
 
-	// Hold the lock for the full duration of the task here so
-	// nobody observes a world where the state engine and
-	// the file system are reporting different things.
 	st.Lock()
 	defer st.Unlock()
 
@@ -264,7 +261,9 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	pb := &TaskProgressAdapter{task: t}
+	st.Unlock() // pb itself will ask for locking
 	err = m.backend.UnlinkSnap(info, pb)
+	st.Lock()
 	if err != nil {
 		return err
 	}
@@ -303,7 +302,6 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	st.Lock()
 	if len(snapst.Sequence) == 1 {
 		snapst.Sequence = nil
 	} else {
@@ -317,7 +315,6 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 		snapst.Sequence = newSeq
 	}
-	st.Unlock()
 
 	pb := &TaskProgressAdapter{task: t}
 	err = m.backend.RemoveSnapFiles(ss.placeInfo(), pb)
@@ -425,9 +422,6 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 
-	// Hold the lock for the full duration of the task here so
-	// nobody observes a world where the state engine and
-	// the file system are reporting different things.
 	st.Lock()
 	defer st.Unlock()
 
@@ -442,7 +436,9 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	snapst.Active = true
+	st.Unlock()
 	err = m.backend.LinkSnap(oldInfo)
+	st.Lock()
 	if err != nil {
 		return err
 	}
@@ -456,9 +452,6 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 
-	// Hold the lock for the full duration of the task here so
-	// nobody observes a world where the state engine and
-	// the file system are reporting different things.
 	st.Lock()
 	defer st.Unlock()
 
@@ -475,7 +468,9 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Active = false
 
 	pb := &TaskProgressAdapter{task: t}
+	st.Unlock() // pb itself will ask for locking
 	err = m.backend.UnlinkSnap(oldInfo, pb)
+	st.Lock()
 	if err != nil {
 		return err
 	}
@@ -530,9 +525,6 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 
-	// Hold the lock for the full duration of the task here so
-	// nobody observes a world where the state engine and
-	// the file system are reporting different things.
 	st.Lock()
 	defer st.Unlock()
 
@@ -557,7 +549,9 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	st.Unlock()
 	err = m.backend.LinkSnap(newInfo)
+	st.Lock()
 	if err != nil {
 		return err
 	}
@@ -571,9 +565,6 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 
-	// Hold the lock for the full duration of the task here so
-	// nobody observes a world where the state engine and
-	// the file system are reporting different things.
 	st.Lock()
 	defer st.Unlock()
 
@@ -601,7 +592,9 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	pb := &TaskProgressAdapter{task: t}
+	st.Unlock() // pb itself will ask for locking
 	err = m.backend.UnlinkSnap(newInfo, pb)
+	st.Lock()
 	if err != nil {
 		return err
 	}
