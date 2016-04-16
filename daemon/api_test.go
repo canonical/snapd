@@ -1328,11 +1328,12 @@ func (s *apiSuite) TestInstall(c *check.C) {
 
 	d.overlord.Loop()
 	defer d.overlord.Stop()
-	_, err := inst.dispatch()()
+	chg, err := inst.dispatch()()
 
 	c.Check(calledFlags, check.Equals, snappy.DoInstallGC)
 	c.Check(err, check.IsNil)
 	c.Check(installQueue, check.DeepEquals, []string{"some-snap"})
+	c.Check(chg.Summary(), check.Equals, `Install "some-snap" snap`)
 }
 
 func (s *apiSuite) TestInstallMissingUbuntuCore(c *check.C) {
