@@ -52,15 +52,8 @@ type fakeSnappyBackend struct {
 	linkSnapFailTrigger string
 }
 
-func (f *fakeSnappyBackend) InstallLocal(path string, flags int, p progress.Meter) error {
-	f.ops = append(f.ops, fakeOp{
-		op:   "install-local",
-		name: path,
-	})
-	return nil
-}
-
 func (f *fakeSnappyBackend) Download(name, channel string, checker func(*snap.Info) error, p progress.Meter, auther store.Authenticator) (*snap.Info, string, error) {
+	p.Notify("download")
 	var macaroon string
 	if auther != nil {
 		macaroon = auther.(*auth.MacaroonAuthenticator).Macaroon
@@ -186,6 +179,7 @@ func (f *fakeSnappyBackend) CanRemove(info *snap.Info, active bool) bool {
 }
 
 func (f *fakeSnappyBackend) UnlinkSnap(info *snap.Info, meter progress.Meter) error {
+	meter.Notify("unlink")
 	f.ops = append(f.ops, fakeOp{
 		op:   "unlink-snap",
 		name: info.MountDir(),
@@ -194,6 +188,7 @@ func (f *fakeSnappyBackend) UnlinkSnap(info *snap.Info, meter progress.Meter) er
 }
 
 func (f *fakeSnappyBackend) RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error {
+	meter.Notify("remove-snap-files")
 	f.ops = append(f.ops, fakeOp{
 		op:   "remove-snap-files",
 		name: s.MountDir(),
@@ -205,15 +200,6 @@ func (f *fakeSnappyBackend) RemoveSnapData(info *snap.Info) error {
 	f.ops = append(f.ops, fakeOp{
 		op:   "remove-snap-data",
 		name: info.MountDir(),
-	})
-	return nil
-}
-
-func (f *fakeSnappyBackend) GarbageCollect(name string, flags int, meter progress.Meter) error {
-	f.ops = append(f.ops, fakeOp{
-		op:    "garbage-collect",
-		name:  name,
-		flags: flags,
 	})
 	return nil
 }
