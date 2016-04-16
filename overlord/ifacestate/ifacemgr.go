@@ -38,7 +38,6 @@ import (
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snappy"
 )
 
 // InterfaceManager is responsible for the maintenance of interfaces in
@@ -188,7 +187,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error
 	// Set DevMode flag if SnapSetup.Flags indicates it should be done
 	// but remember the old value in the task in case we undo.
 	task.Set("old-devmode", snapState.DevMode())
-	if ss.Flags&int(snappy.DeveloperMode) != 0 {
+	if ss.DevMode() {
 		snapState.Flags |= snapstate.DevMode
 	} else {
 		snapState.Flags &= ^snapstate.DevMode
