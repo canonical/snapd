@@ -35,7 +35,11 @@ var shortChangesHelp = i18n.G("List system changes")
 var longChangesHelp = i18n.G(`
 The changes command displays a summary of the recent system changes performed.`)
 
-type cmdChanges struct{}
+type cmdChanges struct {
+	Positional struct {
+		Id string `positional-arg-name:"<id>"`
+	} `positional-args:"yes"`
+}
 
 func init() {
 	addCommand("changes", shortChangesHelp, longChangesHelp, func() flags.Commander { return &cmdChanges{} })
@@ -47,7 +51,12 @@ func (s changesByTime) Len() int           { return len(s) }
 func (s changesByTime) Less(i, j int) bool { return s[i].SpawnTime.Before(s[j].SpawnTime) }
 func (s changesByTime) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
-func (cmdChanges) Execute([]string) error {
+func (c *cmdChanges) Execute([]string) error {
+
+	if c.Positional.Id != "" {
+		return c.showChange(c.Positional.Id)
+	}
+
 	cli := Client()
 	changes, err := cli.Changes(client.ChangesAll)
 	if err != nil {
@@ -71,6 +80,24 @@ func (cmdChanges) Execute([]string) error {
 			readyTime = "-"
 		}
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", chg.ID, chg.Status, spawnTime, readyTime, chg.Summary)
+	}
+
+	return nil
+}
+
+func (c *cmdChanges) showChange(id string) error {
+	cli := Client()
+	chg, err := cli.Change(id)
+	if err != nil {
+		return err
+	}
+
+	w := tabwriter.NewWriter(Stdout, 5, 3, 2, ' ', 0)
+	defer w.Flush()
+
+	fmt.Fprintf(w, i18n.G("ID\tStatus\tSpawn Time\tReady Time\tSummary\n"))
+	for _, t := range chg.Tasks {
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", t.ID, t.Status, t.Summary)
 	}
 
 	return nil
