@@ -864,7 +864,9 @@ out:
 
 	state := c.d.overlord.State()
 	state.Lock()
-	msg := fmt.Sprintf(i18n.G("Install local %q snap"), snap)
+	defer state.Unlock()
+
+	msg := fmt.Sprintf(i18n.G("Install %q snap file"), snap)
 	chg := state.NewChange("install-snap", msg)
 
 	var userID int
@@ -882,7 +884,7 @@ out:
 			chg.AddAll(ts)
 		}
 	}
-	state.Unlock()
+
 	go func() {
 		// XXX this needs to be a task in the manager; this is a hack to keep this branch smaller
 		<-chg.Ready()
