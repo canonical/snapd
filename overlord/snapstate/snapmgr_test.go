@@ -166,7 +166,7 @@ func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
 		Sequence: []*snap.SideInfo{{OfficialName: "some-snap", Revision: 11}},
 	})
 
-	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", 0)
+	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", s.user.ID, 0)
 	c.Assert(err, IsNil)
 	verifyInstallUpdateTasks(c, true, ts, s.state)
 
@@ -187,7 +187,7 @@ func (s *snapmgrTestSuite) TestUpdateChannelFallback(c *C) {
 		Sequence: []*snap.SideInfo{{OfficialName: "some-snap", Revision: 11}},
 	})
 
-	ts, err := snapstate.Update(s.state, "some-snap", "", 0)
+	ts, err := snapstate.Update(s.state, "some-snap", "", s.user.ID, 0)
 	c.Assert(err, IsNil)
 
 	var ss snapstate.SnapSetup
@@ -206,9 +206,9 @@ func (s *snapmgrTestSuite) TestUpdateConflict(c *C) {
 		Sequence: []*snap.SideInfo{{OfficialName: "some-snap"}},
 	})
 
-	_, err := snapstate.Update(s.state, "some-snap", "some-channel", 0)
+	_, err := snapstate.Update(s.state, "some-snap", "some-channel", s.user.ID, 0)
 	c.Assert(err, IsNil)
-	_, err = snapstate.Update(s.state, "some-snap", "some-channel", 0)
+	_, err = snapstate.Update(s.state, "some-snap", "some-channel", s.user.ID, 0)
 	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
 }
 
@@ -384,7 +384,7 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 	})
 
 	chg := s.state.NewChange("install", "install a snap")
-	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", snappy.DoInstallGC)
+	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", s.user.ID, snappy.DoInstallGC)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -395,9 +395,10 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 
 	expected := []fakeOp{
 		fakeOp{
-			op:      "download",
-			name:    "some-snap",
-			channel: "some-channel",
+			op:       "download",
+			macaroon: s.user.Macaroon,
+			name:     "some-snap",
+			channel:  "some-channel",
 		},
 		fakeOp{
 			op:    "check-snap",
@@ -453,6 +454,7 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 		Name:    "some-snap",
 		Channel: "some-channel",
 		Flags:   int(snappy.DoInstallGC),
+		UserID:  s.user.ID,
 
 		Revision: 11,
 
@@ -495,7 +497,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoIntegration(c *C) {
 	})
 
 	chg := s.state.NewChange("install", "install a snap")
-	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", snappy.DoInstallGC)
+	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", s.user.ID, snappy.DoInstallGC)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -508,9 +510,10 @@ func (s *snapmgrTestSuite) TestUpdateUndoIntegration(c *C) {
 
 	expected := []fakeOp{
 		{
-			op:      "download",
-			name:    "some-snap",
-			channel: "some-channel",
+			op:       "download",
+			macaroon: s.user.Macaroon,
+			name:     "some-snap",
+			channel:  "some-channel",
 		},
 		{
 			op:    "check-snap",
@@ -596,7 +599,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoIntegration(c *C) {
 	})
 
 	chg := s.state.NewChange("install", "install a snap")
-	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", snappy.DoInstallGC)
+	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", s.user.ID, snappy.DoInstallGC)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -614,9 +617,10 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoIntegration(c *C) {
 
 	expected := []fakeOp{
 		{
-			op:      "download",
-			name:    "some-snap",
-			channel: "some-channel",
+			op:       "download",
+			macaroon: s.user.Macaroon,
+			name:     "some-snap",
+			channel:  "some-channel",
 		},
 		{
 			op:    "check-snap",
@@ -706,7 +710,7 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionIntegration(c *C) {
 	})
 
 	chg := s.state.NewChange("install", "install a snap")
-	ts, err := snapstate.Update(s.state, "some-snap", "channel-for-7", snappy.DoInstallGC)
+	ts, err := snapstate.Update(s.state, "some-snap", "channel-for-7", s.user.ID, snappy.DoInstallGC)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -717,9 +721,10 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionIntegration(c *C) {
 
 	expected := []fakeOp{
 		{
-			op:      "download",
-			name:    "some-snap",
-			channel: "channel-for-7",
+			op:       "download",
+			macaroon: s.user.Macaroon,
+			name:     "some-snap",
+			channel:  "channel-for-7",
 		},
 	}
 

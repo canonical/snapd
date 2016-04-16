@@ -612,7 +612,7 @@ func (inst *snapInstruction) update() (*state.Change, error) {
 		msg = fmt.Sprintf(i18n.G("Refresh %q snap from %q channel"), inst.pkg, inst.Channel)
 	}
 	chg := state.NewChange("refresh-snap", msg)
-	ts, err := snapstateUpdate(state, inst.pkg, inst.Channel, flags)
+	ts, err := snapstateUpdate(state, inst.pkg, inst.Channel, inst.userID, flags)
 	if err == nil {
 		chg.AddAll(ts)
 	}
