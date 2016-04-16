@@ -38,6 +38,7 @@ import (
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snappy"
 )
 
 // InterfaceManager is responsible for the maintenance of interfaces in
@@ -178,6 +179,21 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error
 	}
 	snap.AddImplicitSlots(snapInfo)
 	snapName := snapInfo.Name()
+	var snapState snapstate.SnapState
+	if err := snapstate.Get(task.State(), snapName, &snapState); err != nil {
+		task.Errorf("cannot get state of snap %q: %s", snapName, err)
+		return err
+	}
+
+	// Set DevMode flag if SnapSetup.Flags indicates it should be done
+	// but remember the old value in the task in case we undo.
+	task.Set("old-dev-mode", snapState.DevMode())
+	if ss.Flags&int(snappy.DeveloperMode) != 0 {
+		snapState.Flags |= snapstate.DevMode
+	} else {
+		snapState.Flags &= ^snapstate.DevMode
+	}
+	snapstate.Set(task.State(), snapName, &snapState)
 
 	// The snap may have been updated so perform the following operation to
 	// ensure that we are always working on the correct state:
@@ -278,21 +294,54 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 }
 
 func (m *InterfaceManager) doRemoveProfiles(task *state.Task, _ *tomb.Tomb) error {
-	task.State().Lock()
-	defer task.State().Unlock()
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
 
+	// Get SnapSetup for this snap. This is gives us the name of the snap.
 	snapSetup, err := snapstate.TaskSnapSetup(task)
 	if err != nil {
 		return err
 	}
 	snapName := snapSetup.Name
 
+	// Get SnapState for this snap
+	var snapState snapstate.SnapState
+	err = snapstate.Get(st, snapName, &snapState)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+
+	// Get the old-dev-mode flag from the task.
+	// This flag is set by setup-profiles in case we have to undo.
+	var oldDevMode bool
+	err = task.Get("old-dev-mode", &oldDevMode)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	// Restore the state of DevMode flag if old-dev-mode was saved in the task.
+	if err == nil {
+		if oldDevMode {
+			snapState.Flags |= snapstate.DevMode
+		} else {
+			snapState.Flags &= ^snapstate.DevMode
+		}
+		snapstate.Set(st, snapName, &snapState)
+	}
+
+	// Disconnect the snap entirely.
+	// This is required to remove the snap from the interface repository.
+	// The returned list of affected snaps will need to have its security setup
+	// to reflect the change.
 	affectedSnaps, err := m.repo.DisconnectSnap(snapName)
 	if err != nil {
 		return err
 	}
+
+	// Setup security of the affected snaps.
 	for _, snapInfo := range affectedSnaps {
 		if snapInfo.Name() == snapName {
+			// Skip setup for the snap being removed as this is handled below.
 			continue
 		}
 		if err := setupSnapSecurity(task, snapInfo, m.repo); err != nil {
@@ -300,9 +349,13 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, _ *tomb.Tomb) erro
 		}
 	}
 
+	// Remove the snap from the interface repository.
+	// This discards all the plugs and slots belonging to that snap.
 	if err := m.repo.RemoveSnap(snapName); err != nil {
 		return err
 	}
+
+	// Remove security artefacts of the snap.
 	if err := removeSnapSecurity(task, snapName); err != nil {
 		return state.Retry
 	}
