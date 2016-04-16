@@ -799,13 +799,9 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 	}
 
 	var flags snappy.InstallFlags
-	for _, value := range form.Value["devmode"] {
-		switch value {
-		case "true":
-			flags = snappy.DeveloperMode
-		case "false":
-			flags = 0
-		}
+
+	if len(form.Value["devmode"]) > 0 && form.Value["devmode"][0] == "true" {
+		flags |= snappy.DeveloperMode
 	}
 
 	// form.File is a map of arrays of *FileHeader things
