@@ -542,6 +542,10 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Sequence = append(snapst.Sequence, snapst.Candidate)
 	snapst.Candidate = nil
 	snapst.Active = true
+	oldChannel := snapst.Channel
+	if ss.Channel != "" {
+		snapst.Channel = ss.Channel
+	}
 
 	newInfo, err := readInfo(ss.Name, cand)
 	if err != nil {
@@ -553,6 +557,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	t.Set("old-channel", oldChannel)
 	// Do at the end so we only preserve the new state if it worked.
 	Set(st, ss.Name, snapst)
 	return nil
@@ -572,11 +577,18 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	var oldChannel string
+	err = t.Get("old-channel", &oldChannel)
+	if err != nil {
+		return err
+	}
+
 	// relinking of the old snap is done in the undo of unlink-current-snap
 
 	snapst.Candidate = snapst.Sequence[len(snapst.Sequence)-1]
 	snapst.Sequence = snapst.Sequence[:len(snapst.Sequence)-1]
 	snapst.Active = false
+	snapst.Channel = oldChannel
 
 	newInfo, err := readInfo(ss.Name, snapst.Candidate)
 	if err != nil {

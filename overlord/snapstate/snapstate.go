@@ -167,14 +167,8 @@ func Update(s *state.State, name, channel string, flags snappy.InstallFlags) (*s
 		return nil, fmt.Errorf("cannot find snap %q", name)
 	}
 
-	if channel == "" { // find a recent channel, usually from current
-		for i := len(snapst.Sequence) - 1; i >= 0; i-- {
-			chCand := snapst.Sequence[i].Channel
-			if chCand != "" {
-				channel = chCand
-				break
-			}
-		}
+	if channel == "" {
+		channel = snapst.Channel
 	}
 
 	// TODO: pass the right UserID
