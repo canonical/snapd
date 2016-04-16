@@ -487,8 +487,10 @@ type snapInstruction struct {
 	Channel  string       `json:"channel"`
 	LeaveOld bool         `json:"leave-old"`
 	License  *licenseData `json:"license"`
-	UserID   int          `json:"user-id"`
-	pkg      string
+
+	// The field below should not be unmarshalled into. Do not export them.
+	pkg    string
+	userID int
 
 	overlord *overlord.Overlord
 }
@@ -519,7 +521,7 @@ func waitChange(chg *state.Change) error {
 	return chg.Err()
 }
 
-func ensureUbuntuCore(chg *state.Change) error {
+func ensureUbuntuCore(chg *state.Change, userID int) error {
 	var ss snapstate.SnapState
 
 	ubuntuCore := "ubuntu-core"
@@ -535,7 +537,7 @@ func ensureUbuntuCore(chg *state.Change) error {
 		return nil
 	}
 
-	return installSnap(chg, ubuntuCore, "stable", 0, 0)
+	return installSnap(chg, ubuntuCore, "stable", userID, 0)
 }
 
 func installSnap(chg *state.Change, name, channel string, userID int, flags snappy.InstallFlags) error {
@@ -568,9 +570,9 @@ func (inst *snapInstruction) install() (*state.Change, error) {
 	st := inst.overlord.State()
 	st.Lock()
 	chg := st.NewChange("install-snap", msg)
-	err := ensureUbuntuCore(chg)
+	err := ensureUbuntuCore(chg, inst.userID)
 	if err == nil {
-		err = installSnap(chg, inst.pkg, inst.Channel, inst.UserID, flags)
+		err = installSnap(chg, inst.pkg, inst.Channel, inst.userID, flags)
 	}
 	st.Unlock()
 	if err != nil {
@@ -739,14 +741,13 @@ func postSnap(c *Command, r *http.Request) Response {
 		return BadRequest("can't decode request body into snap instruction: %v", err)
 	}
 
-	var userID int
 	state := c.d.overlord.State()
 	state.Lock()
 	user, err := UserFromRequest(state, r)
 	state.Unlock()
 
 	if err == nil {
-		userID = user.ID
+		inst.userID = user.ID
 	} else if err != errNoAuth {
 		return InternalError("%v", err)
 	}
@@ -754,7 +755,6 @@ func postSnap(c *Command, r *http.Request) Response {
 	vars := muxVars(r)
 	inst.pkg = vars["name"]
 	inst.overlord = c.d.overlord
-	inst.UserID = userID
 
 	f := pkgActionDispatch(&inst)
 	if f == nil {
@@ -828,7 +828,15 @@ out:
 	msg := fmt.Sprintf(i18n.G("Install local %q snap"), snap)
 	chg := state.NewChange("install-snap", msg)
 
-	err = ensureUbuntuCore(chg)
+	var userID int
+	user, err := UserFromRequest(state, r)
+	if err == nil {
+		userID = user.ID
+	} else if err != errNoAuth {
+		return InternalError("%v", err)
+	}
+
+	err = ensureUbuntuCore(chg, userID)
 	if err == nil {
 		ts, err := snapstateInstallPath(state, snap, "", 0)
 		if err == nil {
