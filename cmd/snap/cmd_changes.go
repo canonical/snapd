@@ -34,7 +34,11 @@ var shortChangesHelp = i18n.G("List system changes")
 var longChangesHelp = i18n.G(`
 The changes command displays a summary of the recent system changes performed.`)
 
-type cmdChanges struct{}
+type cmdChanges struct {
+	Positional struct {
+		Id string `positional-arg-name:"<id>"`
+	} `positional-args:"yes"`
+}
 
 func init() {
 	addCommand("changes", shortChangesHelp, longChangesHelp, func() flags.Commander { return &cmdChanges{} })
@@ -46,7 +50,12 @@ func (s changesByTime) Len() int           { return len(s) }
 func (s changesByTime) Less(i, j int) bool { return s[i].SpawnTime.Before(s[j].SpawnTime) }
 func (s changesByTime) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
-func (cmdChanges) Execute([]string) error {
+func (c *cmdChanges) Execute([]string) error {
+
+	if c.Positional.Id != "" {
+		return c.showChange(c.Positional.Id)
+	}
+
 	cli := Client()
 	changes, err := cli.Changes(client.ChangesAll)
 	if err != nil {
@@ -60,9 +69,8 @@ func (cmdChanges) Execute([]string) error {
 	sort.Sort(changesByTime(changes))
 
 	w := tabWriter()
-	defer w.Flush()
 
-	fmt.Fprintf(w, i18n.G("ID\tStatus\tSpawn Time\tReady Time\tSummary\n"))
+	fmt.Fprintf(w, i18n.G("ID\tStatus\tSpawn\tReady\tSummary\n"))
 	for _, chg := range changes {
 		spawnTime := chg.SpawnTime.UTC().Format(time.RFC3339)
 		readyTime := chg.ReadyTime.UTC().Format(time.RFC3339)
@@ -72,5 +80,49 @@ func (cmdChanges) Execute([]string) error {
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", chg.ID, chg.Status, spawnTime, readyTime, chg.Summary)
 	}
 
+	w.Flush()
+	fmt.Fprintln(Stdout)
+
 	return nil
 }
+
+func (c *cmdChanges) showChange(id string) error {
+	cli := Client()
+	chg, err := cli.Change(id)
+	if err != nil {
+		return err
+	}
+
+	w := tabwriter.NewWriter(Stdout, 5, 3, 2, ' ', 0)
+
+	fmt.Fprintf(w, i18n.G("Status\tSpawn\tReady\tSummary\n"))
+	for _, t := range chg.Tasks {
+		spawnTime := t.SpawnTime.UTC().Format(time.RFC3339)
+		readyTime := t.ReadyTime.UTC().Format(time.RFC3339)
+		if t.ReadyTime.IsZero() {
+			readyTime = "-"
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", t.Status, spawnTime, readyTime, t.Summary)
+	}
+
+	w.Flush()
+
+	for _, t := range chg.Tasks {
+		if len(t.Log) == 0 {
+			continue
+		}
+		fmt.Fprintln(Stdout)
+		fmt.Fprintln(Stdout, line)
+		fmt.Fprintln(Stdout, t.Summary)
+		fmt.Fprintln(Stdout)
+		for _, line := range t.Log {
+			fmt.Println(line)
+		}
+	}
+
+	fmt.Fprintln(Stdout)
+
+	return nil
+}
+
+const line = "......................................................................"

@@ -27,6 +27,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/testutil"
+	"time"
 )
 
 type taskSuite struct{}
@@ -42,6 +43,28 @@ func (ts *taskSuite) TestNewTask(c *C) {
 
 	c.Check(t.Kind(), Equals, "download")
 	c.Check(t.Summary(), Equals, "1...")
+}
+
+func (cs *taskSuite) TestReadyTime(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.NewTask("download", "summary...")
+
+	now := time.Now()
+
+	t := task.SpawnTime()
+	c.Check(t.After(now.Add(-5*time.Second)), Equals, true)
+	c.Check(t.Before(now.Add(5*time.Second)), Equals, true)
+
+	c.Check(task.ReadyTime().IsZero(), Equals, true)
+
+	task.SetStatus(state.DoneStatus)
+
+	t = task.ReadyTime()
+	c.Check(t.After(now.Add(-5*time.Second)), Equals, true)
+	c.Check(t.Before(now.Add(5*time.Second)), Equals, true)
 }
 
 func (ts *taskSuite) TestGetSet(c *C) {

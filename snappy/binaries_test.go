@@ -35,11 +35,6 @@ var _ = Suite(&binariesTestSuite{})
 const expectedWrapper = `#!/bin/sh
 set -e
 
-# snap info (deprecated)
-export SNAP_APP_PATH="/snap/pastebinit/1.4.0.0.1/"
-export SNAP_APP_DATA_PATH="/var/snap/pastebinit/1.4.0.0.1/"
-export SNAP_APP_USER_DATA_PATH="$HOME/snap/pastebinit/1.4.0.0.1/"
-
 # snap info
 export SNAP="/snap/pastebinit/1.4.0.0.1/"
 export SNAP_DATA="/var/snap/pastebinit/1.4.0.0.1/"

@@ -20,6 +20,8 @@
 package client
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"time"
@@ -47,6 +49,9 @@ type Task struct {
 	Status   string       `json:"status"`
 	Log      []string     `json:"log,omitempty"`
 	Progress TaskProgress `json:"progress"`
+
+	SpawnTime time.Time `json:"spawn-time,omitempty"`
+	ReadyTime time.Time `json:"ready-time,omitempty"`
 }
 
 type TaskProgress struct {
@@ -60,6 +65,26 @@ func (client *Client) Change(id string) (*Change, error) {
 	_, err := client.doSync("GET", "/v2/changes/"+id, nil, nil, nil, &chg)
 
 	return &chg, err
+}
+
+// Abort attempts to abort a change that is in not yet ready.
+func (client *Client) Abort(id string) (*Change, error) {
+	var postData struct {
+		Action string `json:"action"`
+	}
+	postData.Action = "abort"
+
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(postData); err != nil {
+		return nil, err
+	}
+
+	var chg Change
+	if _, err := client.doSync("POST", "/v2/changes/"+id, nil, nil, &body, &chg); err != nil {
+		return nil, err
+	}
+
+	return &chg, nil
 }
 
 type ChangeSelector uint8

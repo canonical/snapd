@@ -393,8 +393,6 @@ WantedBy={{.ServiceSystemdTarget}}
 	}
 	allVars := snapenv.GetBasicSnapEnvVars(wrapperData)
 	allVars = append(allVars, snapenv.GetUserSnapEnvVars(wrapperData)...)
-	allVars = append(allVars, snapenv.GetDeprecatedBasicSnapEnvVars(wrapperData)...)
-	allVars = append(allVars, snapenv.GetDeprecatedUserSnapEnvVars(wrapperData)...)
 	wrapperData.EnvVars = "\"" + strings.Join(allVars, "\" \"") + "\"" // allVars won't be empty
 
 	if err := t.Execute(&templateOut, wrapperData); err != nil {
