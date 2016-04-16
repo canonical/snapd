@@ -610,9 +610,6 @@ func (inst *snapInstruction) update() (*state.Change, error) {
 	if inst.Channel != "stable" {
 		msg = fmt.Sprintf(i18n.G("Update %q snap from %q channel"), inst.pkg, inst.Channel)
 	}
-	if inst.DevMode {
-		flags |= snappy.DeveloperMode
-	}
 	chg := state.NewChange("update-snap", msg)
 	ts, err := snapstate.Update(state, inst.pkg, inst.Channel, flags)
 	if err == nil {
