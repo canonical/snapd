@@ -421,6 +421,32 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyKeepsExistingConnectionSt
 	})
 }
 
+// The setup-profiles task will add implicit slots necessary for the OS snap.
+func (s *interfaceManagerSuite) TestDoSetupProfilesAddsImplicitSlots(c *C) {
+	// Initialize the manager.
+	mgr := s.manager(c)
+
+	// Add an OS snap.
+	snapInfo := s.mockSnap(c, osSnapYaml)
+
+	// Run the setup-profiles task and let it finish.
+	change := s.addSetupSnapSecurityChange(c, snapInfo.Name())
+	mgr.Ensure()
+	mgr.Wait()
+	mgr.Stop()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the task succeeded.
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+
+	// Ensure that we have slots on the OS snap.
+	repo := mgr.Repository()
+	slots := repo.Slots(snapInfo.Name())
+	c.Assert(slots, HasLen, 16)
+}
+
 func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyReloadsConnectionsWhenInvokedOnPlugSide(c *C) {
 	s.testDoSetupSnapSecuirtyReloadsConnectionsWhenInvokedOn(c, "consumer")
 }
