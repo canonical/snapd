@@ -37,6 +37,7 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/interfaces"
+	"github.com/ubuntu-core/snappy/lockfile"
 	"github.com/ubuntu-core/snappy/overlord"
 	"github.com/ubuntu-core/snappy/overlord/auth"
 	"github.com/ubuntu-core/snappy/overlord/ifacestate"
@@ -84,9 +85,8 @@ var (
 	}
 
 	loginCmd = &Command{
-		Path:     "/v2/login",
-		POST:     loginUser,
-		SudoerOK: true,
+		Path: "/v2/login",
+		POST: loginUser,
 	}
 
 	appIconCmd = &Command{
@@ -155,6 +155,12 @@ var (
 )
 
 func sysInfo(c *Command, r *http.Request) Response {
+	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
+	if err != nil {
+		return InternalError("unable to acquire lock: %v", err)
+	}
+	defer lock.Unlock()
+
 	rel := release.Get()
 	m := map[string]string{
 		"flavor":          rel.Flavor,
@@ -487,10 +493,7 @@ type snapInstruction struct {
 	Channel  string       `json:"channel"`
 	LeaveOld bool         `json:"leave-old"`
 	License  *licenseData `json:"license"`
-
-	// The field below should not be unmarshalled into. Do not export them.
-	pkg    string
-	userID int
+	pkg      string
 
 	overlord *overlord.Overlord
 }
@@ -521,7 +524,7 @@ func waitChange(chg *state.Change) error {
 	return chg.Err()
 }
 
-func ensureUbuntuCore(chg *state.Change, userID int) error {
+func ensureUbuntuCore(chg *state.Change) error {
 	var ss snapstate.SnapState
 
 	ubuntuCore := "ubuntu-core"
@@ -537,12 +540,12 @@ func ensureUbuntuCore(chg *state.Change, userID int) error {
 		return nil
 	}
 
-	return installSnap(chg, ubuntuCore, "stable", userID, 0)
+	return installSnap(chg, ubuntuCore, "stable", 0)
 }
 
-func installSnap(chg *state.Change, name, channel string, userID int, flags snappy.InstallFlags) error {
+func installSnap(chg *state.Change, name, channel string, flags snappy.InstallFlags) error {
 	st := chg.State()
-	ts, err := snapstateInstall(st, name, channel, userID, flags)
+	ts, err := snapstateInstall(st, name, channel, flags)
 	if err != nil {
 		return err
 	}
@@ -570,9 +573,9 @@ func (inst *snapInstruction) install() (*state.Change, error) {
 	st := inst.overlord.State()
 	st.Lock()
 	chg := st.NewChange("install-snap", msg)
-	err := ensureUbuntuCore(chg, inst.userID)
+	err := ensureUbuntuCore(chg)
 	if err == nil {
-		err = installSnap(chg, inst.pkg, inst.Channel, inst.userID, flags)
+		err = installSnap(chg, inst.pkg, inst.Channel, flags)
 	}
 	st.Unlock()
 	if err != nil {
@@ -741,17 +744,6 @@ func postSnap(c *Command, r *http.Request) Response {
 		return BadRequest("can't decode request body into snap instruction: %v", err)
 	}
 
-	state := c.d.overlord.State()
-	state.Lock()
-	user, err := UserFromRequest(state, r)
-	state.Unlock()
-
-	if err == nil {
-		inst.userID = user.ID
-	} else if err != errNoAuth {
-		return InternalError("%v", err)
-	}
-
 	vars := muxVars(r)
 	inst.pkg = vars["name"]
 	inst.overlord = c.d.overlord
@@ -774,51 +766,66 @@ const maxReadBuflen = 1024 * 1024
 func sideloadSnap(c *Command, r *http.Request) Response {
 	route := c.d.router.Get(stateChangeCmd.Path)
 	if route == nil {
-		return InternalError("cannot find route for change")
+		return InternalError("router can't find route for change")
 	}
 
 	body := r.Body
+	unsignedOk := false
 	contentType := r.Header.Get("Content-Type")
 
-	if !strings.HasPrefix(contentType, "multipart/") {
-		return BadRequest("unknown content type: %s", contentType)
-	}
+	if strings.HasPrefix(contentType, "multipart/") {
+		// spec says POSTs to sideload snaps should be "a multipart file upload"
 
-	// POSTs to sideload snaps must be a multipart/form-data file upload.
-	_, params, err := mime.ParseMediaType(contentType)
-	if err != nil {
-		return BadRequest("cannot parse POST body: %v", err)
-	}
-
-	form, err := multipart.NewReader(r.Body, params["boundary"]).ReadForm(maxReadBuflen)
-	if err != nil {
-		return BadRequest("cannot read POST form: %v", err)
-	}
-
-	// form.File is a map of arrays of *FileHeader things
-	// we just allow one (for now at least)
-out:
-	for _, v := range form.File {
-		for i := range v {
-			body, err = v[i].Open()
-			if err != nil {
-				return BadRequest("cannot open POST form file: %v", err)
-			}
-			defer body.Close()
-
-			break out
+		_, params, err := mime.ParseMediaType(contentType)
+		if err != nil {
+			return BadRequest("unable to parse POST body: %v", err)
 		}
+
+		form, err := multipart.NewReader(r.Body, params["boundary"]).ReadForm(maxReadBuflen)
+		if err != nil {
+			return BadRequest("unable to read POST form: %v", err)
+		}
+
+		// if allow-unsigned is present in the form, unsigned is OK
+		_, unsignedOk = form.Value["allow-unsigned"]
+
+		// form.File is a map of arrays of *FileHeader things
+		// we just allow one (for now at least)
+	out:
+		for _, v := range form.File {
+			for i := range v {
+				body, err = v[i].Open()
+				if err != nil {
+					return BadRequest("unable to open POST form file: %v", err)
+				}
+				defer body.Close()
+
+				break out
+			}
+		}
+		defer form.RemoveAll()
+	} else {
+		// Looks like user didn't understand that multipart thing.
+		// Maybe they just POSTed the snap at us (quite handy to do with e.g. curl).
+		// So we try that.
+
+		// If x-allow-unsigned is present, unsigned is OK
+		_, unsignedOk = r.Header["X-Allow-Unsigned"]
 	}
-	defer form.RemoveAll()
 
 	tmpf, err := ioutil.TempFile("", "snapd-sideload-pkg-")
 	if err != nil {
-		return InternalError("cannot create temporary file: %v", err)
+		return InternalError("can't create tempfile: %v", err)
 	}
 
 	if _, err := io.Copy(tmpf, body); err != nil {
 		os.Remove(tmpf.Name())
-		return InternalError("cannot copy request into temporary file: %v", err)
+		return InternalError("can't copy request into tempfile: %v", err)
+	}
+
+	var flags snappy.InstallFlags
+	if unsignedOk {
+		flags |= snappy.AllowUnauthenticated
 	}
 
 	snap := tmpf.Name()
@@ -828,17 +835,9 @@ out:
 	msg := fmt.Sprintf(i18n.G("Install local %q snap"), snap)
 	chg := state.NewChange("install-snap", msg)
 
-	var userID int
-	user, err := UserFromRequest(state, r)
+	err = ensureUbuntuCore(chg)
 	if err == nil {
-		userID = user.ID
-	} else if err != errNoAuth {
-		return InternalError("%v", err)
-	}
-
-	err = ensureUbuntuCore(chg, userID)
-	if err == nil {
-		ts, err := snapstateInstallPath(state, snap, "", 0)
+		ts, err := snapstateInstallPath(state, snap, "", flags)
 		if err == nil {
 			chg.AddAll(ts)
 		}
@@ -850,7 +849,7 @@ out:
 		os.Remove(snap)
 	}()
 	if err != nil {
-		return InternalError("cannot install snap file: %v", err)
+		return InternalError("can't request sideload: %v", err)
 	}
 	state.EnsureBefore(0)
 

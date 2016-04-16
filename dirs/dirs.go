@@ -39,6 +39,7 @@ var (
 	SnapUdevRulesDir          string
 	LocaleDir                 string
 	SnapMetaDir               string
+	SnapLockFile              string
 	SnapdSocket               string
 
 	SnapAssertsDBDir      string
@@ -84,6 +85,7 @@ func SetRootDir(rootdir string) {
 	SnapAppArmorAdditionalDir = filepath.Join(rootdir, snappyDir, "apparmor", "additional")
 	SnapSeccompDir = filepath.Join(rootdir, snappyDir, "seccomp", "profiles")
 	SnapMetaDir = filepath.Join(rootdir, snappyDir, "meta")
+	SnapLockFile = filepath.Join(rootdir, "/run/snapd-legacy.lock")
 	SnapBlobDir = filepath.Join(rootdir, snappyDir, "snaps")
 	SnapDesktopFilesDir = filepath.Join(rootdir, snappyDir, "desktop", "applications")
 	// keep in sync with the debian/ubuntu-snappy.snapd.socket file:

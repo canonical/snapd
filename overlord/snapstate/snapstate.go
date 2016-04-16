@@ -34,7 +34,7 @@ import (
 // allow exchange in the tests
 var backend managerBackend = &defaultBackend{}
 
-func doInstall(s *state.State, curActive bool, snapName, snapPath, channel string, userID int, flags snappy.InstallFlags) (*state.TaskSet, error) {
+func doInstall(s *state.State, curActive bool, snapName, snapPath, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
 	if err := checkChangeConflict(s, snapName); err != nil {
 		return nil, err
 	}
@@ -42,7 +42,6 @@ func doInstall(s *state.State, curActive bool, snapName, snapPath, channel strin
 	var prepare *state.Task
 	ss := SnapSetup{
 		Channel: channel,
-		UserID:  userID,
 		Flags:   int(flags),
 	}
 	ss.Name = snapName
@@ -120,7 +119,7 @@ func checkChangeConflict(s *state.State, snapName string) error {
 
 // Install returns a set of tasks for installing snap.
 // Note that the state must be locked by the caller.
-func Install(s *state.State, name, channel string, userID int, flags snappy.InstallFlags) (*state.TaskSet, error) {
+func Install(s *state.State, name, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
@@ -130,7 +129,7 @@ func Install(s *state.State, name, channel string, userID int, flags snappy.Inst
 		return nil, fmt.Errorf("snap %q already installed", name)
 	}
 
-	return doInstall(s, false, name, "", channel, userID, flags)
+	return doInstall(s, false, name, "", channel, flags)
 }
 
 // InstallPath returns a set of tasks for installing snap from a file path.
@@ -148,7 +147,7 @@ func InstallPath(s *state.State, path, channel string, flags snappy.InstallFlags
 		return nil, err
 	}
 
-	return doInstall(s, snapst.Active, snapName, path, channel, 0, flags)
+	return doInstall(s, snapst.Active, snapName, path, channel, flags)
 }
 
 // Update initiates a change updating a snap.
@@ -163,8 +162,7 @@ func Update(s *state.State, name, channel string, flags snappy.InstallFlags) (*s
 		return nil, fmt.Errorf("cannot find snap %q", name)
 	}
 
-	// TODO: pass the right UserID
-	return doInstall(s, snapst.Active, name, "", channel, 0, flags)
+	return doInstall(s, snapst.Active, name, "", channel, flags)
 }
 
 // Remove returns a set of tasks for removing snap.

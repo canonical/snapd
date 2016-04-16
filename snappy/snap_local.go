@@ -36,11 +36,29 @@ import (
 type Snap struct {
 	info *snap.Info
 
+	// XXX: this should go away, and actually snappy.Snap itself
+	m *snapYaml
+
 	isActive bool
 }
 
 // NewInstalledSnap returns a new Snap from the given yamlPath
 func NewInstalledSnap(yamlPath string) (*Snap, error) {
+	m, err := parseSnapYamlFile(yamlPath)
+	if err != nil {
+		return nil, err
+	}
+
+	snap, err := newSnapFromYaml(yamlPath, m)
+	if err != nil {
+		return nil, err
+	}
+
+	return snap, nil
+}
+
+// newSnapFromYaml returns a new Snap from the given *snapYaml at yamlPath
+func newSnapFromYaml(yamlPath string, m *snapYaml) (*Snap, error) {
 	mountDir := filepath.Dir(filepath.Dir(yamlPath))
 
 	// XXX: hack the name and revision out of the path for now
@@ -52,7 +70,9 @@ func NewInstalledSnap(yamlPath string) (*Snap, error) {
 		return nil, fmt.Errorf("broken snap directory path: %q", mountDir)
 	}
 
-	s := &Snap{}
+	s := &Snap{
+		m: m,
+	}
 
 	// check if the snap is active
 	allRevnosDir := filepath.Dir(mountDir)
@@ -65,9 +85,19 @@ func NewInstalledSnap(yamlPath string) (*Snap, error) {
 		s.isActive = true
 	}
 
-	yamlBits, err := ioutil.ReadFile(yamlPath)
-	if err != nil {
-		return nil, err
+	// XXX: temp ugly hack for now
+	var yamlBits []byte
+	if osutil.FileExists(yamlPath) {
+		yamlBits, err = ioutil.ReadFile(yamlPath)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		// XXX: ugly serialize and reparse
+		yamlBits, err = yaml.Marshal(m)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	info, err := snap.InfoFromSnapYaml(yamlBits)
@@ -143,5 +173,5 @@ func (s *Snap) Info() *snap.Info {
 
 // NeedsReboot returns true if the snap becomes active on the next reboot
 func (s *Snap) NeedsReboot() bool {
-	return kernelOrOsRebootRequired(s.info)
+	return kernelOrOsRebootRequired(s)
 }

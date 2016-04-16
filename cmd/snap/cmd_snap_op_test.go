@@ -39,7 +39,6 @@ func (s *SnapSuite) TestInstall(c *check.C) {
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo.bar")
 			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
 				"action":  "install",
-				"name":    "foo.bar",
 				"channel": "chan",
 			})
 			w.WriteHeader(http.StatusAccepted)
@@ -67,7 +66,7 @@ func (s *SnapSuite) TestInstall(c *check.C) {
 	c.Check(n, check.Equals, 3)
 }
 
-func (s *SnapSuite) TestInstallPath(c *check.C) {
+func (s *SnapSuite) TestSideload(c *check.C) {
 	n := 0
 	snapBody := []byte("snap-data")
 
@@ -78,8 +77,7 @@ func (s *SnapSuite) TestInstallPath(c *check.C) {
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
 			postData, err := ioutil.ReadAll(r.Body)
 			c.Assert(err, check.IsNil)
-			c.Assert(string(postData), check.Matches, "(?s).*\r\nsnap-data\r\n.*")
-			c.Assert(string(postData), check.Matches, "(?s).*Content-Disposition: form-data; name=\"action\"\r\n\r\ninstall\r\n.*")
+			c.Check(postData, check.DeepEquals, snapBody)
 			w.WriteHeader(http.StatusAccepted)
 			fmt.Fprintln(w, `{"type":"async", "change": "42", "status-code": 202}`)
 		case 1:

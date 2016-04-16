@@ -1,17 +1,14 @@
 #!/bin/sh
 
-set -ex
-
-# required for the debian adt host
-if [ "$http_proxy" != "" ]; then
-    sudo mkdir -p /etc/systemd/system/snapd.service.d/
-    sudo cat <<EOF | sudo tee -a /etc/systemd/system/snapd.service.d/proxy.conf
+# make debian autopkgtest host happy
+mkdir -p /etc/systemd/system/snapd.service.d/
+cat <<EOF >/etc/systemd/system/snapd.service.d/proxy.conf
 [Service]
 Environment=http_proxy=$http_proxy
 Environment=https_proxy=$http_proxy
 EOF
-    sudo systemctl daemon-reload
-fi
+
+systemctl daemon-reload
 
 # ensure our PATH is right
 . /etc/profile.d/apps-bin-path.sh
@@ -25,5 +22,4 @@ mkdir $GOPATH/src/github.com/ubuntu-core/snappy/integration-tests/data/output
 cp debian/tests/testconfig.json $GOPATH/src/github.com/ubuntu-core/snappy/integration-tests/data/output/
 cd $GOPATH/src/github.com/ubuntu-core/snappy
 go test -c ./integration-tests/tests
-
 ./tests.test  -check.vv -check.f 'snapHelloWorldExampleSuite|searchSuite|installAppSuite'

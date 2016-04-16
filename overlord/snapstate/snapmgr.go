@@ -25,10 +25,8 @@ import (
 
 	"gopkg.in/tomb.v2"
 
-	"github.com/ubuntu-core/snappy/overlord/auth"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/store"
 )
 
 // SnapManager is responsible for the installation and removal of snaps.
@@ -44,7 +42,6 @@ type SnapSetup struct {
 	Name     string `json:"name"`
 	Revision int    `json:"revision,omitempty"`
 	Channel  string `json:"channel,omitempty"`
-	UserID   int    `json:"user-id,omitempty"`
 
 	Flags int `json:"flags,omitempty"`
 
@@ -59,21 +56,13 @@ func (ss *SnapSetup) MountDir() string {
 	return snap.MountDir(ss.Name, ss.Revision)
 }
 
-// SnapStateFlags are flags stored in SnapState.
-type SnapStateFlags int
-
-const (
-	// DevMode switches confinement to non-enforcing mode.
-	DevMode = 1 << iota
-)
-
 // SnapState holds the state for a snap installed in the system.
 type SnapState struct {
 	Sequence  []*snap.SideInfo `json:"sequence"` // Last is current
 	Candidate *snap.SideInfo   `json:"candidate,omitempty"`
 	Active    bool             `json:"active,omitempty"`
 	Channel   string           `json:"channel,omitempty"`
-	Flags     SnapStateFlags   `json:"flags,omitempty"`
+	DevMode   bool             `json:"dev-mode,omitempty"`
 	// incremented revision used for local installs
 	LocalRevision int `json:"local-revision,omitempty"`
 }
@@ -85,11 +74,6 @@ func (snapst *SnapState) Current() *snap.SideInfo {
 		return nil
 	}
 	return snapst.Sequence[n-1]
-}
-
-// DevMode returns true if the snap is installed in developer mode.
-func (snapst *SnapState) DevMode() bool {
-	return snapst.Flags&DevMode != 0
 }
 
 // Manager returns a new snap manager.
@@ -133,15 +117,6 @@ func Manager(s *state.State) (*SnapManager, error) {
 	return m, nil
 }
 
-func checkRevisionIsNew(name string, snapst *SnapState, revision int) error {
-	for _, si := range snapst.Sequence {
-		if si.Revision == revision {
-			return fmt.Errorf("revision %d of snap %q already installed", revision, name)
-		}
-	}
-	return nil
-}
-
 const firstLocalRevision = 100001
 
 func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -166,10 +141,6 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 		snapst.LocalRevision = revision
 		ss.Revision = revision
-	} else {
-		if err := checkRevisionIsNew(ss.Name, snapst, ss.Revision); err != nil {
-			return err
-		}
 	}
 
 	st.Lock()
@@ -203,24 +174,8 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	checker := func(info *snap.Info) error {
-		return checkRevisionIsNew(ss.Name, snapst, info.Revision)
-	}
-
 	pb := &TaskProgressAdapter{task: t}
-
-	var auther store.Authenticator
-	if ss.UserID > 0 {
-		st.Lock()
-		user, err := auth.User(st, ss.UserID)
-		st.Unlock()
-		if err != nil {
-			return err
-		}
-		auther = user.Authenticator()
-	}
-
-	storeInfo, downloadedSnapFile, err := m.backend.Download(ss.Name, ss.Channel, checker, pb, auther)
+	storeInfo, downloadedSnapFile, err := m.backend.Download(ss.Name, ss.Channel, pb, nil)
 	if err != nil {
 		return err
 	}

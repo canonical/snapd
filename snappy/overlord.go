@@ -631,7 +631,7 @@ func (o *Overlord) SetActive(s *Snap, active bool, meter progress.Meter) error {
 //
 // It returns an error on failure
 func (o *Overlord) Configure(s *Snap, configuration []byte) ([]byte, error) {
-	if s.Type() == snap.TypeOS {
+	if s.m.Type == snap.TypeOS {
 		return coreConfig(configuration)
 	}
 
