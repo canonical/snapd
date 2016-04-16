@@ -93,7 +93,7 @@ func (c *cmdChanges) showChange(id string) error {
 		return err
 	}
 
-	w := tabwriter.NewWriter(Stdout, 5, 3, 2, ' ', 0)
+	w := tabWriter()
 
 	fmt.Fprintf(w, i18n.G("Status\tSpawn\tReady\tSummary\n"))
 	for _, t := range chg.Tasks {
