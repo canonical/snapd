@@ -72,6 +72,30 @@ func NewUser(st *state.State, username, macaroon string, discharges []string) (*
 	return &authenticatedUser, nil
 }
 
+// RemoveUser removes a user from the state given its ID
+func RemoveUser(st *state.State, userID int) error {
+	var authStateData AuthState
+
+	err := st.Get("auth", &authStateData)
+	if err != nil {
+		return err
+	}
+
+	for i := range authStateData.Users {
+		if authStateData.Users[i].ID == userID {
+			// delete without preserving order
+			n := len(authStateData.Users) - 1
+			authStateData.Users[i] = authStateData.Users[n]
+			authStateData.Users[n] = UserState{}
+			authStateData.Users = authStateData.Users[:n]
+			st.Set("auth", authStateData)
+			return nil
+		}
+	}
+
+	return fmt.Errorf("invalid user")
+}
+
 // User returns a user from the state given its ID
 func User(st *state.State, id int) (*UserState, error) {
 	var authStateData AuthState

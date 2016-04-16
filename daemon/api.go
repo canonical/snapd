@@ -58,6 +58,7 @@ var api = []*Command{
 	rootCmd,
 	sysInfoCmd,
 	loginCmd,
+	logoutCmd,
 	appIconCmd,
 	snapsCmd,
 	snapCmd,
@@ -87,6 +88,12 @@ var (
 	loginCmd = &Command{
 		Path:     "/v2/login",
 		POST:     loginUser,
+		SudoerOK: true,
+	}
+
+	logoutCmd = &Command{
+		Path:     "/v2/logout",
+		POST:     logoutUser,
 		SudoerOK: true,
 	}
 
@@ -223,6 +230,23 @@ func loginUser(c *Command, r *http.Request) Response {
 		Discharges: []string{discharge},
 	}
 	return SyncResponse(result, nil)
+}
+
+func logoutUser(c *Command, r *http.Request) Response {
+	state := c.d.overlord.State()
+	state.Lock()
+	defer state.Unlock()
+
+	user, err := UserFromRequest(state, r)
+	if err != nil {
+		return BadRequest("not logged in")
+	}
+	err = auth.RemoveUser(state, user.ID)
+	if err != nil {
+		return InternalError(err.Error())
+	}
+
+	return SyncResponse(nil, nil)
 }
 
 // UserFromRequest extracts user information from request and return the respective user in state, if valid
