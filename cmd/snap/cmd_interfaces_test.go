@@ -485,3 +485,24 @@ func (s *SnapSuite) TestInterfacesOfSpecificSnapAndSlot(c *C) {
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
+
+func (s *SnapSuite) TestInterfacesNothingAtAll(c *C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, Equals, "GET")
+		c.Check(r.URL.Path, Equals, "/v2/interfaces")
+		body, err := ioutil.ReadAll(r.Body)
+		c.Check(err, IsNil)
+		c.Check(body, DeepEquals, []byte{})
+		EncodeResponseBody(c, w, map[string]interface{}{
+			"type":   "sync",
+			"result": client.Interfaces{},
+		})
+	})
+	rest, err := Parser().ParseArgs([]string{"interfaces"})
+	c.Assert(err, ErrorMatches, "no interfaces found")
+	// XXX: not sure why this is returned, I guess that's what happens when a
+	// command Execute returns an error.
+	c.Assert(rest, DeepEquals, []string{"interfaces"})
+	c.Assert(s.Stdout(), Equals, "")
+	c.Assert(s.Stderr(), Equals, "")
+}
