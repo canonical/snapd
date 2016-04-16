@@ -203,7 +203,7 @@ func (cs *taskSuite) TestLogf(c *C) {
 	log := t.Log()
 	c.Assert(log, HasLen, 10)
 	for i := 0; i < 10; i++ {
-		c.Assert(log[i], Equals, fmt.Sprintf("INFO: Message #%d", i+10))
+		c.Assert(log[i], Matches, fmt.Sprintf("....-..-..T.* INFO Message #%d", i+10))
 	}
 }
 
@@ -215,7 +215,7 @@ func (cs *taskSuite) TestErrorf(c *C) {
 	t := st.NewTask("download", "1...")
 
 	t.Errorf("Some %s", "error")
-	c.Assert(t.Log(), DeepEquals, []string{"ERROR: Some error"})
+	c.Assert(t.Log()[0], Matches, "....-..-..T.* ERROR Some error")
 }
 
 func (ts *taskSuite) TestTaskMarshalsLog(c *C) {
@@ -229,7 +229,7 @@ func (ts *taskSuite) TestTaskMarshalsLog(c *C) {
 	d, err := t.MarshalJSON()
 	c.Assert(err, IsNil)
 
-	c.Assert(string(d), testutil.Contains, `"log":["INFO: foo"]`)
+	c.Assert(string(d), Matches, `.*"log":\["....-..-..T.* INFO foo"\].*`)
 }
 
 // TODO: Better testing of full task roundtripping via JSON.
