@@ -147,7 +147,6 @@ func (x *cmdInstall) Execute([]string) error {
 
 type cmdRefresh struct {
 	Channel    string `long:"channel" description:"Refresh to the latest on this channel, and track this channel henceforth"`
-	DevMode    bool   `long:"devmode" description:"Refresh the snap with non-enforcing security"`
 	Positional struct {
 		Snap string `positional-arg-name:"<snap>"`
 	} `positional-args:"yes" required:"yes"`
@@ -156,7 +155,7 @@ type cmdRefresh struct {
 func (x *cmdRefresh) Execute([]string) error {
 	cli := Client()
 	name := x.Positional.Snap
-	opts := &client.SnapOptions{Channel: x.Channel, DevMode: x.DevMode}
+	opts := &client.SnapOptions{Channel: x.Channel}
 	changeID, err := cli.Refresh(name, opts)
 	if err != nil {
 		return err
