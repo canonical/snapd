@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-04-16 13:38-0300\n"
+        "POT-Creation-Date: 2016-04-16 13:53-0300\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -120,6 +120,9 @@ msgstr  ""
 msgid   "Log into the store"
 msgstr  ""
 
+msgid   "Log out of the store"
+msgstr  ""
+
 msgid   "Login successful"
 msgstr  ""
 
@@ -200,6 +203,9 @@ msgid   "Shows known assertions of the provided type"
 msgstr  ""
 
 msgid   "Status\tSpawn\tReady\tSummary\n"
+msgstr  ""
+
+msgid   "This command logs the current user out of the store"
 msgstr  ""
 
 msgid   "This command logs the given username into the store"

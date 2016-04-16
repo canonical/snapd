@@ -588,6 +588,28 @@ func (s *apiSuite) TestLoginUser(c *check.C) {
 	c.Check(*user, check.DeepEquals, expectedUser)
 }
 
+func (s *apiSuite) TestLogoutUser(c *check.C) {
+	d := s.daemon(c)
+	state := d.overlord.State()
+	state.Lock()
+	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	state.Unlock()
+	c.Assert(err, check.IsNil)
+
+	req, err := http.NewRequest("POST", "/v2/logout", nil)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
+
+	rsp := logoutUser(logoutCmd, req).(*resp)
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+
+	state.Lock()
+	_, err = auth.User(state, user.ID)
+	state.Unlock()
+	c.Check(err, check.ErrorMatches, "invalid user")
+}
+
 func (s *apiSuite) TestLoginUserBadRequest(c *check.C) {
 	buf := bytes.NewBufferString(`hello`)
 	req, err := http.NewRequest("POST", "/v2/login", buf)
@@ -1436,6 +1458,43 @@ func (s *apiSuite) TestInstallMissingUbuntuCore(c *check.C) {
 	c.Check(installQueue[2].Summary(), check.Equals, "some-snap")
 	c.Check(installQueue[2].WaitTasks(), check.HasLen, 2)
 	c.Check(installQueue[3].WaitTasks(), check.HasLen, 2)
+}
+
+// Installing ubuntu-core when not having ubuntu-core doesn't misbehave and try
+// to install ubuntu-core twice.
+func (s *apiSuite) TestInstallUbuntuCoreWhenMissing(c *check.C) {
+	installQueue := []*state.Task{}
+
+	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
+		// pretend we do not have a state for ubuntu-core
+		return state.ErrNoState
+	}
+	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snappy.InstallFlags) (*state.TaskSet, error) {
+		t1 := s.NewTask("fake-install-snap", name)
+		t2 := s.NewTask("fake-install-snap", "second task is just here so that we can check that the wait is correctly added to all tasks")
+		installQueue = append(installQueue, t1, t2)
+		return state.NewTaskSet(t1, t2), nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{
+		overlord: d.overlord,
+		Action:   "install",
+		pkg:      "ubuntu-core",
+	}
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+	_, err := inst.dispatch()()
+	c.Check(err, check.IsNil)
+
+	d.overlord.State().Lock()
+	defer d.overlord.State().Unlock()
+	c.Check(installQueue, check.HasLen, 2)
+	// the only "ubuntu-core" install tasks
+	c.Check(installQueue[0].Summary(), check.Equals, "ubuntu-core")
+	c.Check(installQueue[0].WaitTasks(), check.HasLen, 0)
+	c.Check(installQueue[1].WaitTasks(), check.HasLen, 0)
 }
 
 func (s *apiSuite) TestInstallFails(c *check.C) {

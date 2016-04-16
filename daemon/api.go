@@ -58,6 +58,7 @@ var api = []*Command{
 	rootCmd,
 	sysInfoCmd,
 	loginCmd,
+	logoutCmd,
 	appIconCmd,
 	snapsCmd,
 	snapCmd,
@@ -87,6 +88,12 @@ var (
 	loginCmd = &Command{
 		Path:     "/v2/login",
 		POST:     loginUser,
+		SudoerOK: true,
+	}
+
+	logoutCmd = &Command{
+		Path:     "/v2/logout",
+		POST:     logoutUser,
 		SudoerOK: true,
 	}
 
@@ -223,6 +230,23 @@ func loginUser(c *Command, r *http.Request) Response {
 		Discharges: []string{discharge},
 	}
 	return SyncResponse(result, nil)
+}
+
+func logoutUser(c *Command, r *http.Request) Response {
+	state := c.d.overlord.State()
+	state.Lock()
+	defer state.Unlock()
+
+	user, err := UserFromRequest(state, r)
+	if err != nil {
+		return BadRequest("not logged in")
+	}
+	err = auth.RemoveUser(state, user.ID)
+	if err != nil {
+		return InternalError(err.Error())
+	}
+
+	return SyncResponse(nil, nil)
 }
 
 // UserFromRequest extracts user information from request and return the respective user in state, if valid
@@ -575,10 +599,13 @@ func (inst *snapInstruction) install() (*state.Change, error) {
 	st := inst.overlord.State()
 	st.Lock()
 	chg := st.NewChange("install-snap", msg)
-	err := ensureUbuntuCore(chg, inst.userID)
-	if err == nil {
-		err = installSnap(chg, inst.pkg, inst.Channel, inst.userID, flags)
+	if inst.pkg != "ubuntu-core" {
+		if err := ensureUbuntuCore(chg, inst.userID); err != nil {
+			st.Unlock()
+			return nil, err
+		}
 	}
+	err := installSnap(chg, inst.pkg, inst.Channel, inst.userID, flags)
 	st.Unlock()
 	if err != nil {
 		return nil, err
