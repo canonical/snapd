@@ -85,7 +85,7 @@ func (s *installAppSuite) TestInstallUnexistingAppMustPrintError(c *check.C) {
 		check.Commentf("Trying to install an unexisting snap did not exit with an error"))
 	c.Assert(string(output), testutil.Contains,
 		"error: cannot perform the following tasks:\n"+
-			"- Download snap \"unexisting.canonical\" (snap not found)\n",
+			"- Download snap \"unexisting.canonical\" from channel \"stable\" (snap not found)\n",
 		check.Commentf("Wrong error message"))
 }
 
