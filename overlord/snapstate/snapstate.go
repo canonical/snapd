@@ -39,6 +39,10 @@ func doInstall(s *state.State, curActive bool, snapName, snapPath, channel strin
 		return nil, err
 	}
 
+	if snapPath == "" && channel == "" {
+		channel = "stable"
+	}
+
 	var prepare *state.Task
 	ss := SnapSetup{
 		Channel: channel,
@@ -50,7 +54,7 @@ func doInstall(s *state.State, curActive bool, snapName, snapPath, channel strin
 	if snapPath != "" {
 		prepare = s.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q"), snapPath))
 	} else {
-		prepare = s.NewTask("download-snap", fmt.Sprintf(i18n.G("Download snap %q"), snapName))
+		prepare = s.NewTask("download-snap", fmt.Sprintf(i18n.G("Download snap %q from channel %q"), snapName, channel))
 	}
 	prepare.Set("snap-setup", ss)
 
@@ -161,6 +165,16 @@ func Update(s *state.State, name, channel string, flags snappy.InstallFlags) (*s
 	}
 	if snapst.Current() == nil {
 		return nil, fmt.Errorf("cannot find snap %q", name)
+	}
+
+	if channel == "" { // find a recent channel, usually from current
+		for i := len(snapst.Sequence) - 1; i >= 0; i-- {
+			chCand := snapst.Sequence[i].Channel
+			if chCand != "" {
+				channel = chCand
+				break
+			}
+		}
 	}
 
 	// TODO: pass the right UserID
