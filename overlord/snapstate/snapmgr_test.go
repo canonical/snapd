@@ -704,9 +704,12 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionIntegration(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	untouched := &snap.SideInfo{EditedSummary: "untouched"}
+
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{&si},
+		Active:    true,
+		Candidate: untouched,
+		Sequence:  []*snap.SideInfo{&si},
 	})
 
 	chg := s.state.NewChange("install", "install a snap")
@@ -728,11 +731,15 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionIntegration(c *C) {
 		},
 	}
 
-	c.Assert(chg.Status(), Equals, state.ErrorStatus)
-	c.Check(chg.Err(), ErrorMatches, `(?s).*revision 7 of snap "some-snap" already installed.*`)
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
 
 	// ensure all our tasks ran
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
+
+	download := ts.Tasks()[0]
+	c.Check(download.Status(), Equals, state.HoldStatus)
+	c.Check(download.Log(), HasLen, 1)
+	c.Check(download.Log()[0], Matches, `.*INFO revision 7 of snap "some-snap" already installed`)
 
 	// verify snaps in the system state
 	var snapst snapstate.SnapState
@@ -740,7 +747,7 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionIntegration(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(snapst.Active, Equals, true)
-	c.Assert(snapst.Candidate, IsNil)
+	c.Assert(snapst.Candidate, DeepEquals, untouched)
 	c.Assert(snapst.Sequence, HasLen, 1)
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
 		OfficialName: "some-snap",
