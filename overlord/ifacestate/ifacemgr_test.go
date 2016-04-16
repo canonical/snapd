@@ -494,7 +494,7 @@ func (s *interfaceManagerSuite) testDoSetupSnapSecuirtyReloadsConnectionsWhenInv
 // The setup-profiles task will honor snappy.DeveloperMode flag by storing it
 // in the SnapState.Flags (as DevMode) and by actually setting up security
 // using that flag. Old copy of SnapState.Flag's DevMode is saved for the undo
-// handler under `old-dev-mode`.
+// handler under `old-devmode`.
 func (s *interfaceManagerSuite) TestSetupProfilesHonorsDevMode(c *C) {
 	// Put the OS snap in place.
 	mgr := s.manager(c)
@@ -530,12 +530,12 @@ func (s *interfaceManagerSuite) TestSetupProfilesHonorsDevMode(c *C) {
 	// The old value of DevMode was saved in the task in case undo is needed.
 	task := change.Tasks()[0]
 	var oldDevMode bool
-	err = task.Get("old-dev-mode", &oldDevMode)
+	err = task.Get("old-devmode", &oldDevMode)
 	c.Assert(err, IsNil)
 	c.Check(oldDevMode, Equals, false)
 }
 
-// The undo handler of the setup-profiles task will honor `old-dev-mode` that
+// The undo handler of the setup-profiles task will honor `old-devmode` that
 // is optionally stored in the task state and use it to set the DevMode flag in
 // the SnapState.
 //
@@ -544,7 +544,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesUndoDevModeTrue(c *C) {
 	s.undoDevModeCheck(c, snappy.InstallFlags(0), true)
 }
 
-// The undo handler of the setup-profiles task will honor `old-dev-mode` that
+// The undo handler of the setup-profiles task will honor `old-devmode` that
 // is optionally stored in the task state and use it to set the DevMode flag in
 // the SnapState.
 //
@@ -566,7 +566,7 @@ func (s *interfaceManagerSuite) undoDevModeCheck(c *C, flags snappy.InstallFlags
 	s.state.Lock()
 	task := change.Tasks()[0]
 	// Inject the old value of DevMode flag for the task handler to restore
-	task.Set("old-dev-mode", devMode)
+	task.Set("old-devmode", devMode)
 	task.SetStatus(state.UndoStatus)
 	s.state.Unlock()
 	mgr.Ensure()
