@@ -486,6 +486,7 @@ type snapInstruction struct {
 	progress.NullProgress
 	Action   string       `json:"action"`
 	Channel  string       `json:"channel"`
+	DevMode  bool         `json:"devmode"`
 	LeaveOld bool         `json:"leave-old"`
 	License  *licenseData `json:"license"`
 
@@ -508,6 +509,7 @@ func (inst *snapInstruction) Agreed(intro, license string) bool {
 }
 
 var snapstateInstall = snapstate.Install
+var snapstateUpdate = snapstate.Update
 var snapstateInstallPath = snapstate.InstallPath
 var snapstateGet = snapstate.Get
 
@@ -564,10 +566,12 @@ func (inst *snapInstruction) install() (*state.Change, error) {
 		flags = 0
 	}
 	msg := fmt.Sprintf(i18n.G("Install %q snap"), inst.pkg)
-	if inst.Channel != "stable" {
+	if inst.Channel != "stable" && inst.Channel != "" {
 		msg = fmt.Sprintf(i18n.G("Install %q snap from %q channel"), inst.pkg, inst.Channel)
 	}
-
+	if inst.DevMode {
+		flags |= snappy.DeveloperMode
+	}
 	st := inst.overlord.State()
 	st.Lock()
 	chg := st.NewChange("install-snap", msg)
@@ -604,12 +608,12 @@ func (inst *snapInstruction) update() (*state.Change, error) {
 	}
 	state := inst.overlord.State()
 	state.Lock()
-	msg := fmt.Sprintf(i18n.G("Update %q snap"), inst.pkg)
-	if inst.Channel != "stable" {
-		msg = fmt.Sprintf(i18n.G("Update %q snap from %q channel"), inst.pkg, inst.Channel)
+	msg := fmt.Sprintf(i18n.G("Refresh %q snap"), inst.pkg)
+	if inst.Channel != "stable" && inst.Channel != "" {
+		msg = fmt.Sprintf(i18n.G("Refresh %q snap from %q channel"), inst.pkg, inst.Channel)
 	}
-	chg := state.NewChange("update-snap", msg)
-	ts, err := snapstate.Update(state, inst.pkg, inst.Channel, flags)
+	chg := state.NewChange("refresh-snap", msg)
+	ts, err := snapstateUpdate(state, inst.pkg, inst.Channel, inst.userID, flags)
 	if err == nil {
 		chg.AddAll(ts)
 	}
@@ -796,6 +800,12 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 		return BadRequest("cannot read POST form: %v", err)
 	}
 
+	var flags snappy.InstallFlags
+
+	if len(form.Value["devmode"]) > 0 && form.Value["devmode"][0] == "true" {
+		flags |= snappy.DeveloperMode
+	}
+
 	// form.File is a map of arrays of *FileHeader things
 	// we just allow one (for now at least)
 out:
@@ -839,7 +849,7 @@ out:
 
 	err = ensureUbuntuCore(chg, userID)
 	if err == nil {
-		ts, err := snapstateInstallPath(state, snap, "", 0)
+		ts, err := snapstateInstallPath(state, snap, "", flags)
 		if err == nil {
 			chg.AddAll(ts)
 		}
