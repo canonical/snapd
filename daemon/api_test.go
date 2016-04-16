@@ -1363,14 +1363,16 @@ func (s *apiSuite) TestInstall(c *check.C) {
 
 func (s *apiSuite) TestRefresh(c *check.C) {
 	calledFlags := snappy.InstallFlags(42)
+	calledUserID := 0
 	installQueue := []string{}
 
 	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
 		// we have ubuntu-core
 		return nil
 	}
-	snapstateUpdate = func(s *state.State, name, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
+	snapstateUpdate = func(s *state.State, name, channel string, userID int, flags snappy.InstallFlags) (*state.TaskSet, error) {
 		calledFlags = flags
+		calledUserID = userID
 		installQueue = append(installQueue, name)
 
 		t := s.NewTask("fake-refresh-snap", "Doing a fake install")
@@ -1382,6 +1384,7 @@ func (s *apiSuite) TestRefresh(c *check.C) {
 		overlord: d.overlord,
 		Action:   "refresh",
 		pkg:      "some-snap",
+		userID:   17,
 	}
 
 	d.overlord.Loop()
@@ -1389,6 +1392,7 @@ func (s *apiSuite) TestRefresh(c *check.C) {
 	chg, err := inst.dispatch()()
 
 	c.Check(calledFlags, check.Equals, snappy.DoInstallGC)
+	c.Check(calledUserID, check.Equals, 17)
 	c.Check(err, check.IsNil)
 	c.Check(installQueue, check.DeepEquals, []string{"some-snap"})
 	c.Check(chg.Kind(), check.Equals, "refresh-snap")

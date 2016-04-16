@@ -157,7 +157,7 @@ func InstallPath(s *state.State, path, channel string, flags snappy.InstallFlags
 
 // Update initiates a change updating a snap.
 // Note that the state must be locked by the caller.
-func Update(s *state.State, name, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
+func Update(s *state.State, name, channel string, userID int, flags snappy.InstallFlags) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
@@ -172,7 +172,7 @@ func Update(s *state.State, name, channel string, flags snappy.InstallFlags) (*s
 	}
 
 	// TODO: pass the right UserID
-	return doInstall(s, snapst.Active, name, "", channel, 0, flags)
+	return doInstall(s, snapst.Active, name, "", channel, userID, flags)
 }
 
 // Remove returns a set of tasks for removing snap.
