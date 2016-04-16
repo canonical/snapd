@@ -1,3 +1,34 @@
+snapd (2.0) xenial; urgency=medium
+
+  * New upstream release:
+    - debian: put snapd in /usr/lib/snapd/
+    - cmd/snap: minor polishing
+    - cmd,client,daemon: add snap abort command
+    - overlord: don't hold locks when callling backends
+    - release,store,daemon: no more default-channel, release=>series
+    - many: drop support for deprecated environment variables
+      (SNAP_APP_*)
+    - many: support individual ids in changes cmd
+    - overlord/state: use numeric change and task ids
+    - overlord/auth,daemon,client,cmd/snap: logout
+    - daemon: don't install ubuntu-core twice
+    - daemon,client,overlord/state,cmd: add changes command
+    - interfaces/dbus: drop superfluous backslash from template
+    - daemon, overlord/snapstate: updates are users too!
+    - cmd/snap,daemon,overlord/ifacestate: add support for developer
+      mode
+    - daemon,overlord/snapstate: on refresh use the remembered channel,
+      default to stable channel otherwise
+    - cmd/snap: improve UX of snap interfaces when there are no results
+    - overlord/state: include time in task log messages
+    - overlord: prune and abort old changes and tasks
+    - overlord/ifacestate: add implicit slots in setup-profiles
+    - daemon,overlord: setup authentication for store downloads
+    - daemon: macaroon-authed users are like root, and sudoers can login
+    - daemon,client,docs: send install options to daemon
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Sat, 16 Apr 2016 22:15:40 +0200
+
 snapd (1.9.4) xenial; urgency=medium
 
   * New upstream release:
