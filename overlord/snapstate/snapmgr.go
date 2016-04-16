@@ -21,6 +21,7 @@
 package snapstate
 
 import (
+	"errors"
 	"fmt"
 
 	"gopkg.in/tomb.v2"
@@ -138,10 +139,30 @@ func Manager(s *state.State) (*SnapManager, error) {
 	return m, nil
 }
 
-func checkRevisionIsNew(name string, snapst *SnapState, revision int) error {
+// benignAbort aborts a pointless change from an early task that won't need undoing
+func benignAbort(t *state.Task) error {
+	t.SetStatus(state.HoldStatus) // avoid a pointless undo
+	chg := t.Change()
+	chg.Abort()                     // set all the other tasks to hold usually
+	chg.SetStatus(state.DoneStatus) // mark the change as done, this is a benign termination
+	return nil
+}
+
+var errAlreadyInstalled = errors.New("revision already installed")
+
+// checkRevisionIsNew checks if revision is not already installed
+// otherwise aborts t benignly and returns errAlreadyInstalled;
+// it expects the state lock not to be held!
+func checkRevisionIsNew(t *state.Task, name string, snapst *SnapState, revision int) error {
 	for _, si := range snapst.Sequence {
 		if si.Revision == revision {
-			return fmt.Errorf("revision %d of snap %q already installed", revision, name)
+			// report and abort benigly the running task
+			st := t.State()
+			st.Lock()
+			defer st.Unlock()
+			t.Logf("revision %d of snap %q already installed", revision, name)
+			benignAbort(t)
+			return errAlreadyInstalled
 		}
 	}
 	return nil
@@ -172,8 +193,9 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		snapst.LocalRevision = revision
 		ss.Revision = revision
 	} else {
-		if err := checkRevisionIsNew(ss.Name, snapst, ss.Revision); err != nil {
-			return err
+		if checkRevisionIsNew(t, ss.Name, snapst, ss.Revision) == errAlreadyInstalled {
+			// this is a nop and already aborted
+			return nil
 		}
 	}
 
@@ -209,7 +231,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	checker := func(info *snap.Info) error {
-		return checkRevisionIsNew(ss.Name, snapst, info.Revision)
+		return checkRevisionIsNew(t, ss.Name, snapst, info.Revision)
 	}
 
 	pb := &TaskProgressAdapter{task: t}
@@ -226,6 +248,10 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	storeInfo, downloadedSnapFile, err := m.backend.Download(ss.Name, ss.Channel, checker, pb, auther)
+	if err == errAlreadyInstalled {
+		// this is a nop and already aborted
+		return nil
+	}
 	if err != nil {
 		return err
 	}
