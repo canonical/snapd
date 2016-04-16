@@ -22,7 +22,6 @@ package main
 import (
 	"fmt"
 	"sort"
-	"text/tabwriter"
 
 	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
@@ -60,7 +59,7 @@ func (cmdChanges) Execute([]string) error {
 
 	sort.Sort(changesByTime(changes))
 
-	w := tabwriter.NewWriter(Stdout, 5, 3, 2, ' ', 0)
+	w := tabWriter()
 	defer w.Flush()
 
 	fmt.Fprintf(w, i18n.G("ID\tStatus\tSpawn Time\tReady Time\tSummary\n"))
