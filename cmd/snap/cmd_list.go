@@ -62,7 +62,7 @@ func (cmdList) Execute([]string) error {
 
 	sort.Sort(snapsByName(snaps))
 
-	w := tabwriter.NewWriter(Stdout, 5, 3, 1, ' ', 0)
+	w := tabwriter.NewWriter(Stdout, 5, 3, 2, ' ', 0)
 	defer w.Flush()
 
 	fmt.Fprintln(w, i18n.G("Name\tVersion\tDeveloper"))

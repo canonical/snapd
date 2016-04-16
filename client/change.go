@@ -22,6 +22,7 @@ package client
 import (
 	"fmt"
 	"net/url"
+	"time"
 )
 
 // A Change is a modification to the system state.
@@ -33,6 +34,9 @@ type Change struct {
 	Tasks   []*Task `json:"tasks,omitempty"`
 	Ready   bool    `json:"ready"`
 	Err     string  `json:"err,omitempty"`
+
+	SpawnTime time.Time `json:"spawn-time,omitempty"`
+	ReadyTime time.Time `json:"ready-time,omitempty"`
 }
 
 // A Task is an operation done to change the system's state.
