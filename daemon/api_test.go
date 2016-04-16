@@ -471,8 +471,7 @@ func (s *apiSuite) mkrelease() {
 	// set up release
 	release.Override(release.Release{
 		Flavor:  "flavor",
-		Series:  "release",
-		Channel: "channel",
+		Series:  "series",
 	})
 }
 
@@ -494,8 +493,7 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 
 	expected := map[string]interface{}{
 		"flavor":          "flavor",
-		"release":         "release",
-		"default-channel": "channel",
+		"series":          "series",
 		"api-compat":      apiCompatLevel,
 	}
 	var rsp resp
@@ -517,8 +515,7 @@ func (s *apiSuite) TestSysInfoStore(c *check.C) {
 
 	expected := map[string]interface{}{
 		"flavor":          "flavor",
-		"release":         "release",
-		"default-channel": "channel",
+		"series":          "series",
 		"api-compat":      apiCompatLevel,
 		"store":           "some-store",
 	}

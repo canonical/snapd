@@ -166,8 +166,7 @@ func sysInfo(c *Command, r *http.Request) Response {
 	rel := release.Get()
 	m := map[string]string{
 		"flavor":          rel.Flavor,
-		"release":         rel.Series,
-		"default-channel": rel.Channel,
+		"series":          rel.Series,
 		"api-compat":      apiCompatLevel,
 	}
 
