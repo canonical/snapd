@@ -176,6 +176,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error
 	if err != nil {
 		return err
 	}
+	snap.AddImplicitSlots(snapInfo)
 	snapName := snapInfo.Name()
 
 	// The snap may have been updated so perform the following operation to
