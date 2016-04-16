@@ -47,6 +47,7 @@ import (
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
 	"github.com/ubuntu-core/snappy/store"
+	"time"
 )
 
 // increase this every time you make a minor (backwards-compatible)
@@ -1040,6 +1041,9 @@ type changeInfo struct {
 	Tasks   []*taskInfo `json:"tasks,omitempty"`
 	Ready   bool        `json:"ready"`
 	Err     string      `json:"err,omitempty"`
+
+	SpawnTime time.Time  `json:"spawn-time,omitempty"`
+	ReadyTime *time.Time `json:"ready-time,omitempty"`
 }
 
 type taskInfo struct {
@@ -1064,6 +1068,12 @@ func change2changeInfo(chg *state.Change) *changeInfo {
 		Summary: chg.Summary(),
 		Status:  status.String(),
 		Ready:   status.Ready(),
+
+		SpawnTime: chg.SpawnTime(),
+	}
+	readyTime := chg.ReadyTime()
+	if !readyTime.IsZero() {
+		chgInfo.ReadyTime = &readyTime
 	}
 	if err := chg.Err(); err != nil {
 		chgInfo.Err = err.Error()

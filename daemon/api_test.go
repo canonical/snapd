@@ -2355,7 +2355,7 @@ func setupChanges(st *state.State) []string {
 }
 
 func (s *apiSuite) TestStateChangesDefaultToInProgress(c *check.C) {
-	restore := state.MockTime(time.Date(2016, 04, 21, 1, 2, 3, 4, time.UTC))
+	restore := state.MockTime(time.Date(2016, 04, 21, 1, 2, 3, 0, time.UTC))
 	defer restore()
 
 	// Setup
@@ -2382,7 +2382,7 @@ func (s *apiSuite) TestStateChangesDefaultToInProgress(c *check.C) {
 }
 
 func (s *apiSuite) TestStateChangesInProgress(c *check.C) {
-	restore := state.MockTime(time.Date(2016, 04, 21, 1, 2, 3, 4, time.UTC))
+	restore := state.MockTime(time.Date(2016, 04, 21, 1, 2, 3, 0, time.UTC))
 	defer restore()
 
 	// Setup
@@ -2405,11 +2405,11 @@ func (s *apiSuite) TestStateChangesInProgress(c *check.C) {
 	res, err := rsp.MarshalJSON()
 	c.Assert(err, check.IsNil)
 
-	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"id":"\w+","kind":"download","summary":"1...","status":"Do","log":\["2016-04-21T01:02:03Z INFO l11","2016-04-21T01:02:03Z INFO l12"],"progress":{"done":0,"total":1}}.*],"ready":false}.*`)
+	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"id":"\w+","kind":"download","summary":"1...","status":"Do","log":\["2016-04-21T01:02:03Z INFO l11","2016-04-21T01:02:03Z INFO l12"],"progress":{"done":0,"total":1}}.*],"ready":false,"spawn-time":"2016-04-21T01:02:03Z"}.*`)
 }
 
 func (s *apiSuite) TestStateChangesAll(c *check.C) {
-	restore := state.MockTime(time.Date(2016, 04, 21, 1, 2, 3, 4, time.UTC))
+	restore := state.MockTime(time.Date(2016, 04, 21, 1, 2, 3, 0, time.UTC))
 	defer restore()
 
 	// Setup
@@ -2431,12 +2431,12 @@ func (s *apiSuite) TestStateChangesAll(c *check.C) {
 	res, err := rsp.MarshalJSON()
 	c.Assert(err, check.IsNil)
 
-	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"id":"\w+","kind":"download","summary":"1...","status":"Do","log":\["2016-04-21T01:02:03Z INFO l11","2016-04-21T01:02:03Z INFO l12"],"progress":{"done":0,"total":1}}.*],"ready":false}.*`)
+	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"id":"\w+","kind":"download","summary":"1...","status":"Do","log":\["2016-04-21T01:02:03Z INFO l11","2016-04-21T01:02:03Z INFO l12"],"progress":{"done":0,"total":1}}.*],"ready":false,"spawn-time":"2016-04-21T01:02:03Z"}.*`)
 	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"remove","summary":"remove..","status":"Error","tasks":\[{"id":"\w+","kind":"unlink","summary":"1...","status":"Error","log":\["2016-04-21T01:02:03Z ERROR rm failed"],"progress":{"done":1,"total":1}}.*],"ready":true,"err":"[^"]+".*`)
 }
 
 func (s *apiSuite) TestStateChangesReady(c *check.C) {
-	restore := state.MockTime(time.Date(2016, 04, 21, 1, 2, 3, 4, time.UTC))
+	restore := state.MockTime(time.Date(2016, 04, 21, 1, 2, 3, 0, time.UTC))
 	defer restore()
 
 	// Setup
@@ -2462,7 +2462,7 @@ func (s *apiSuite) TestStateChangesReady(c *check.C) {
 }
 
 func (s *apiSuite) TestStateChange(c *check.C) {
-	restore := state.MockTime(time.Date(2016, 04, 21, 1, 2, 3, 4, time.UTC))
+	restore := state.MockTime(time.Date(2016, 04, 21, 1, 2, 3, 0, time.UTC))
 	defer restore()
 
 	// Setup
@@ -2490,11 +2490,12 @@ func (s *apiSuite) TestStateChange(c *check.C) {
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
 	c.Check(body["result"], check.DeepEquals, map[string]interface{}{
-		"id":      ids[0],
-		"kind":    "install",
-		"summary": "install...",
-		"status":  "Do",
-		"ready":   false,
+		"id":         ids[0],
+		"kind":       "install",
+		"summary":    "install...",
+		"status":     "Do",
+		"ready":      false,
+		"spawn-time": "2016-04-21T01:02:03Z",
 		"tasks": []interface{}{
 			map[string]interface{}{
 				"id":       ids[2],
