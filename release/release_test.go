@@ -43,11 +43,10 @@ func (s *ReleaseTestSuite) TestSetup(c *C) {
 	rel := release.Get()
 	c.Check(rel.Flavor, Equals, "core")
 	c.Check(rel.Series, Equals, "rolling")
-	c.Check(rel.Channel, Equals, "edge")
 }
 
 func (s *ReleaseTestSuite) TestOverride(c *C) {
-	rel := release.Release{Flavor: "personal", Series: "10.06", Channel: "beta"}
+	rel := release.Release{Flavor: "personal", Series: "10.06"}
 	release.Override(rel)
 	c.Check(release.String(), Equals, "10.06-personal")
 	c.Check(release.Get(), DeepEquals, rel)
