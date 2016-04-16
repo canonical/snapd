@@ -1062,7 +1062,7 @@ func (s *apiSuite) TestPostSnapSetsUser(c *check.C) {
 			state := d.overlord.State()
 			state.Lock()
 			// check UserID was set in the snapInstruction
-			chg := state.NewChange("foo", string(inst.UserID))
+			chg := state.NewChange("foo", string(inst.userID))
 			state.Unlock()
 
 			return chg, nil

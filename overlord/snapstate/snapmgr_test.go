@@ -258,9 +258,10 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 	// ensure all our tasks ran
 	c.Assert(s.fakeBackend.ops, DeepEquals, []fakeOp{
 		fakeOp{
-			op:      "download",
-			name:    "some-snap",
-			channel: "some-channel",
+			op:       "download",
+			macaroon: s.user.Macaroon,
+			name:     "some-snap",
+			channel:  "some-channel",
 		},
 		fakeOp{
 			op:   "check-snap",
