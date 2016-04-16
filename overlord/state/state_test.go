@@ -458,6 +458,32 @@ func (ss *stateSuite) TestEnsureBefore(c *C) {
 	c.Check(b.ensureBefore, Equals, 10*time.Second)
 }
 
+func (ss *stateSuite) TestCheckpointPreserveLastIds(c *C) {
+	b := new(fakeStateBackend)
+	st := state.New(b)
+	st.Lock()
+
+	st.NewChange("install", "...")
+	st.NewTask("download", "...")
+	st.NewTask("download", "...")
+
+	// implicit checkpoint
+	st.Unlock()
+
+	c.Assert(b.checkpoints, HasLen, 1)
+
+	buf := bytes.NewBuffer(b.checkpoints[0])
+
+	st2, err := state.ReadState(nil, buf)
+	c.Assert(err, IsNil)
+
+	st2.Lock()
+	defer st2.Unlock()
+
+	c.Assert(st2.NewTask("download", "...").ID(), Equals, "3")
+	c.Assert(st2.NewChange("install", "...").ID(), Equals, "2")
+}
+
 func (ss *stateSuite) TestNewTaskAndTasks(c *C) {
 	st := state.New(nil)
 	st.Lock()
