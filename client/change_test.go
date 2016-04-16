@@ -23,6 +23,7 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/client"
+	"io/ioutil"
 	"time"
 )
 
@@ -121,4 +122,35 @@ func (cs *clientSuite) TestClientChanges(c *check.C) {
 		}})
 		c.Check(cs.req.URL.RawQuery, check.Equals, "select="+i.String())
 	}
+}
+
+func (cs *clientSuite) TestClientAbort(c *check.C) {
+	cs.rsp = `{"type": "sync", "result": {
+  "id":   "uno",
+  "kind": "foo",
+  "summary": "...",
+  "status": "Hold",
+  "ready": true,
+  "spawn-time": "2016-04-21T01:02:03Z",
+  "ready-time": "2016-04-21T01:02:04Z"
+}}`
+
+	chg, err := cs.cli.Abort("uno")
+	c.Assert(err, check.IsNil)
+	c.Check(cs.req.Method, check.Equals, "POST")
+	c.Check(chg, check.DeepEquals, &client.Change{
+		ID:      "uno",
+		Kind:    "foo",
+		Summary: "...",
+		Status:  "Hold",
+		Ready:   true,
+
+		SpawnTime: time.Date(2016, 04, 21, 1, 2, 3, 0, time.UTC),
+		ReadyTime: time.Date(2016, 04, 21, 1, 2, 4, 0, time.UTC),
+	})
+
+	body, err := ioutil.ReadAll(cs.req.Body)
+	c.Assert(err, check.IsNil)
+
+	c.Assert(string(body), check.Equals, "{\"action\":\"abort\"}\n")
 }

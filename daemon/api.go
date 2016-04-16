@@ -153,6 +153,7 @@ var (
 		Path:   "/v2/changes/{id}",
 		UserOK: true,
 		GET:    getChange,
+		POST:   abortChange,
 	}
 
 	stateChangesCmd = &Command{
@@ -1143,7 +1144,7 @@ func getChange(c *Command, r *http.Request) Response {
 	defer state.Unlock()
 	chg := state.Change(chID)
 	if chg == nil {
-		return NotFound("unable to find change with id %q", chID)
+		return NotFound("cannot find change with id %q", chID)
 	}
 
 	return SyncResponse(change2changeInfo(chg), nil)
@@ -1179,4 +1180,36 @@ func getChanges(c *Command, r *http.Request) Response {
 		chgInfos = append(chgInfos, change2changeInfo(chg))
 	}
 	return SyncResponse(chgInfos, nil)
+}
+
+func abortChange(c *Command, r *http.Request) Response {
+	chID := muxVars(r)["id"]
+	state := c.d.overlord.State()
+	state.Lock()
+	defer state.Unlock()
+	chg := state.Change(chID)
+	if chg == nil {
+		return NotFound("cannot find change with id %q", chID)
+	}
+
+	var reqData struct {
+		Action string `json:"action"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&reqData); err != nil {
+		return BadRequest("cannot decode data from request body: %v", err)
+	}
+
+	if reqData.Action != "abort" {
+		return BadRequest("change action %q is unsupported", reqData.Action)
+	}
+
+	if chg.Status().Ready() {
+		return BadRequest("cannot abort change %s with nothing pending", chID)
+	}
+
+	chg.Abort()
+
+	return SyncResponse(change2changeInfo(chg), nil)
 }
