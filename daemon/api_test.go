@@ -1136,10 +1136,33 @@ func (o *fakeOverlord) Configure(s *snappy.Snap, c []byte) ([]byte, error) {
 
 func (s *apiSuite) TestSideloadSnap(c *check.C) {
 	// try a multipart/form-data upload
-	s.sideloadCheck(c, "----hello--\r\nContent-Disposition: form-data; name=\"x\"; filename=\"x\"\r\n\r\nxyzzy\r\n----hello----\r\n", map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"})
+	body := "" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"x\"; filename=\"x\"\r\n" +
+		"\r\n" +
+		"xyzzy\r\n" +
+		"----hello--\r\n"
+	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
+	s.sideloadCheck(c, body, head, 0)
 }
 
-func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]string) {
+func (s *apiSuite) TestSideloadSnapDevMode(c *check.C) {
+	body := "" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"x\"; filename=\"x\"\r\n" +
+		"\r\n" +
+		"xyzzy\r\n" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"devmode\"\r\n" +
+		"\r\n" +
+		"true\r\n" +
+		"----hello--\r\n"
+	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
+	// try a multipart/form-data upload
+	s.sideloadCheck(c, body, head, snappy.DeveloperMode)
+}
+
+func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]string, expectedFlags snappy.InstallFlags) {
 	d := newTestDaemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
@@ -1152,14 +1175,14 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 	c.Check(err, check.IsNil)
 
 	// setup done
-	var expectedFlags snappy.InstallFlags
-
 	installQueue := []string{}
 	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
 		// pretend we do not have a state for ubuntu-core
 		return state.ErrNoState
 	}
 	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snappy.InstallFlags) (*state.TaskSet, error) {
+		// NOTE: ubuntu-core is not installed in developer mode
+		c.Check(flags, check.Equals, snappy.InstallFlags(0))
 		installQueue = append(installQueue, name)
 
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
@@ -1186,9 +1209,9 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 
 	rsp := sideloadSnap(snapsCmd, req).(*resp)
 	c.Check(rsp.Type, check.Equals, ResponseTypeAsync)
-	c.Check(installQueue, check.HasLen, 2)
-	c.Assert(installQueue[0], check.Equals, "ubuntu-core")
-	c.Assert(installQueue[1], check.Matches, ".*/snapd-sideload-pkg-.*")
+	c.Assert(installQueue, check.HasLen, 2)
+	c.Check(installQueue[0], check.Equals, "ubuntu-core")
+	c.Check(installQueue[1], check.Matches, ".*/snapd-sideload-pkg-.*")
 }
 
 func (s *apiSuite) TestAppIconGet(c *check.C) {
@@ -1459,6 +1482,33 @@ func (s *apiSuite) TestInstallLeaveOld(c *check.C) {
 
 	c.Check(calledFlags, check.Equals, snappy.InstallFlags(0))
 	c.Check(err, check.IsNil)
+}
+
+func (s *apiSuite) TestInstallDevMode(c *check.C) {
+	var calledFlags snappy.InstallFlags
+
+	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snappy.InstallFlags) (*state.TaskSet, error) {
+		calledFlags = flags
+
+		t := s.NewTask("fake-install-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{
+		overlord: d.overlord,
+		Action:   "install",
+		// Install the snap in developer mode
+		DevMode: true,
+	}
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+	_, err := inst.dispatch()()
+	c.Check(err, check.IsNil)
+
+	// DevMode was converted to the snappy.DeveloperMode flag
+	c.Check(calledFlags&snappy.DeveloperMode, check.Equals, snappy.DeveloperMode)
 }
 
 func snapList(rawSnaps interface{}) []map[string]interface{} {
