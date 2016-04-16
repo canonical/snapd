@@ -137,7 +137,7 @@ func newChange(state *State, id, kind, summary string) *Change {
 		data:    make(customData),
 		ready:   make(chan struct{}),
 
-		spawnTime: time.Now(),
+		spawnTime: timeNow(),
 	}
 }
 
@@ -149,13 +149,17 @@ type marshalledChange struct {
 	Data    map[string]*json.RawMessage `json:"data,omitempty"`
 	TaskIDs []string                    `json:"task-ids,omitempty"`
 
-	SpawnTime time.Time `json:"spawn-time,omitempty"`
-	ReadyTime time.Time `json:"ready-time,omitempty"`
+	SpawnTime time.Time  `json:"spawn-time"`
+	ReadyTime *time.Time `json:"ready-time,omitempty"`
 }
 
 // MarshalJSON makes Change a json.Marshaller
 func (c *Change) MarshalJSON() ([]byte, error) {
 	c.state.reading()
+	var readyTime *time.Time
+	if !c.readyTime.IsZero() {
+		readyTime = &c.readyTime
+	}
 	return json.Marshal(marshalledChange{
 		ID:      c.id,
 		Kind:    c.kind,
@@ -165,7 +169,7 @@ func (c *Change) MarshalJSON() ([]byte, error) {
 		TaskIDs: c.taskIDs,
 
 		SpawnTime: c.spawnTime,
-		ReadyTime: c.readyTime,
+		ReadyTime: readyTime,
 	})
 }
 
@@ -187,7 +191,9 @@ func (c *Change) UnmarshalJSON(data []byte) error {
 	c.taskIDs = unmarshalled.TaskIDs
 	c.ready = make(chan struct{})
 	c.spawnTime = unmarshalled.SpawnTime
-	c.readyTime = unmarshalled.ReadyTime
+	if unmarshalled.ReadyTime != nil {
+		c.readyTime = *unmarshalled.ReadyTime
+	}
 	return nil
 }
 
@@ -290,7 +296,7 @@ func (c *Change) markReady() {
 		close(c.ready)
 	}
 	if c.readyTime.IsZero() {
-		c.readyTime = time.Now()
+		c.readyTime = timeNow()
 	}
 }
 

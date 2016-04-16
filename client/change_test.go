@@ -23,6 +23,7 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/client"
+	"time"
 )
 
 func (cs *clientSuite) TestClientChange(c *check.C) {
@@ -32,6 +33,8 @@ func (cs *clientSuite) TestClientChange(c *check.C) {
   "summary": "...",
   "status": "Do",
   "ready": false,
+  "spawn-time": "2016-04-21T01:02:03Z",
+  "ready-time": "2016-04-21T01:02:04Z",
   "tasks": [{"kind": "bar", "summary": "...", "status": "Do", "progress": {"done": 0, "total": 1}}]
 }}`
 
@@ -43,6 +46,9 @@ func (cs *clientSuite) TestClientChange(c *check.C) {
 		Summary: "...",
 		Status:  "Do",
 		Tasks:   []*client.Task{{Kind: "bar", Summary: "...", Status: "Do", Progress: client.TaskProgress{Done: 0, Total: 1}}},
+
+		SpawnTime: time.Date(2016, 04, 21, 1, 2, 3, 0, time.UTC),
+		ReadyTime: time.Date(2016, 04, 21, 1, 2, 4, 0, time.UTC),
 	})
 }
 
