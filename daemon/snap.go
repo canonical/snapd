@@ -131,6 +131,9 @@ func mapSnap(localSnap *snap.Info, active bool, remoteSnap *snap.Info) map[strin
 	var prices map[string]float64
 
 	if remoteSnap != nil {
+		if remoteSnap.RequiresPurchase {
+			status = "priced"
+		}
 		prices = remoteSnap.Prices
 	}
 

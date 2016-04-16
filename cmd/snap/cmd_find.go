@@ -86,20 +86,20 @@ func hasPrices(snaps []*client.Snap) bool {
 }
 
 func printWithPrices(w *tabwriter.Writer, snaps []*client.Snap, suggestedCurrency string) {
-	fmt.Fprintln(w, i18n.G("Name\tVersion\tPrice\tSummary"))
+	fmt.Fprintln(w, i18n.G("Name\tVersion\tStatus\tPrice\tSummary"))
 
 	for _, snap := range snaps {
 		price := getPrice(snap.Prices, suggestedCurrency)
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", snap.Name, snap.Version, price, snap.Summary)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Status, price, snap.Summary)
 
 	}
 }
 
 func printNoPrices(w *tabwriter.Writer, snaps []*client.Snap) {
-	fmt.Fprintln(w, i18n.G("Name\tVersion\tSummary"))
+	fmt.Fprintln(w, i18n.G("Name\tVersion\tStatus\tSummary"))
 
 	for _, snap := range snaps {
-		fmt.Fprintf(w, "%s\t%s\t%s\n", snap.Name, snap.Version, snap.Summary)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Status, snap.Summary)
 	}
 }
 

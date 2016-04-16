@@ -50,7 +50,7 @@ const (
 	UbuntuCoreWireProtocol = "1"
 )
 
-func infoFromRemote(d snapDetails) *snap.Info {
+func infoFromRemote(d snapDetails, purchases purchaseList) *snap.Info {
 	info := &snap.Info{}
 	info.Type = d.Type
 	info.Version = d.Version
@@ -67,6 +67,7 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	info.AnonDownloadURL = d.AnonDownloadURL
 	info.DownloadURL = d.DownloadURL
 	info.Prices = d.Prices
+	info.RequiresPurchase = getRequiresPurchase(d.Prices, purchases)
 	return info
 }
 
@@ -75,6 +76,7 @@ type SnapUbuntuStoreConfig struct {
 	SearchURI     *url.URL
 	BulkURI       *url.URL
 	AssertionsURI *url.URL
+	PurchasesURI  *url.URL
 }
 
 // SnapUbuntuStoreRepository represents the ubuntu snap store
@@ -83,6 +85,7 @@ type SnapUbuntuStoreRepository struct {
 	searchURI     *url.URL
 	bulkURI       *url.URL
 	assertionsURI *url.URL
+	purchasesURI  *url.URL
 	// reused http client
 	client *http.Client
 
@@ -108,8 +111,12 @@ func getStructFields(s interface{}) []string {
 	return fields
 }
 
+func useStagingCpi() bool {
+	return os.Getenv("SNAPPY_USE_STAGING_CPI") != ""
+}
+
 func cpiURL() string {
-	if os.Getenv("SNAPPY_USE_STAGING_CPI") != "" {
+	if useStagingCpi() {
 		return "https://search.apps.staging.ubuntu.com/api/v1/"
 	}
 	// FIXME: this will become a store-url assertion
@@ -121,7 +128,7 @@ func cpiURL() string {
 }
 
 func authURL() string {
-	if os.Getenv("SNAPPY_USE_STAGING_CPI") != "" {
+	if useStagingCpi() {
 		return "https://login.staging.ubuntu.com/api/v2"
 	}
 	return "https://login.ubuntu.com/api/v2"
@@ -144,6 +151,13 @@ func myappsURL() string {
 		return "https://myapps.developer.staging.ubuntu.com/api/2.0"
 	}
 	return "https://myapps.developer.ubuntu.com/api/2.0"
+}
+
+func scaURL() string {
+	if useStagingCpi() {
+		return "https://myapps.developer.staging.ubuntu.com/api/2.0/"
+	}
+	return "https://myapps.developer.ubuntu.com/api/2.0/"
 }
 
 var defaultConfig = SnapUbuntuStoreConfig{}
@@ -178,6 +192,16 @@ func init() {
 		panic(err)
 	}
 
+	scaBaseURI, err := url.Parse(scaURL())
+	if err != nil {
+		panic(err)
+	}
+
+	defaultConfig.PurchasesURI, err = scaBaseURI.Parse("click/purchases/")
+	if err != nil {
+		panic(err)
+	}
+
 }
 
 type searchResults struct {
@@ -197,6 +221,7 @@ func NewUbuntuStoreSnapRepository(cfg *SnapUbuntuStoreConfig, storeID string) *S
 		searchURI:     cfg.SearchURI,
 		bulkURI:       cfg.BulkURI,
 		assertionsURI: cfg.AssertionsURI,
+		purchasesURI:  cfg.PurchasesURI,
 		client:        &http.Client{},
 	}
 }
@@ -230,6 +255,111 @@ func (s *SnapUbuntuStoreRepository) checkStoreResponse(resp *http.Response) {
 		s.suggestedCurrency = suggestedCurrency
 		s.mu.Unlock()
 	}
+}
+
+func getRequiresPurchase(prices map[string]float64, purchases purchaseList) bool {
+	// if the snap is free, then it doesn't need purchasing
+	if len(prices) == 0 {
+		return false
+	}
+
+	for _, purchase := range purchases {
+		// if the purchase is not an in-app purchase
+		if purchase.ItemSKU == "" {
+			return false
+		}
+	}
+
+	// the snap is not free, and we couldn't find a purchase
+	return true
+}
+
+func (s *SnapUbuntuStoreRepository) getPurchases(name string, auther Authenticator) (purchaseList, error) {
+	var purchases purchaseList
+
+	// only build the request if we have an Authenticator
+	if auther != nil {
+		purchasesURL, err := s.purchasesURI.Parse(name + "/")
+		if err != nil {
+			return nil, err
+		}
+
+		q := purchasesURL.Query()
+		q.Set("include_item_purchases", "true")
+		purchasesURL.RawQuery = q.Encode()
+
+		req, err := http.NewRequest("GET", purchasesURL.String(), nil)
+		if err != nil {
+			return nil, err
+		}
+
+		s.applyUbuntuStoreHeaders(req, "application/json", auther)
+
+		resp, err := s.client.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		defer resp.Body.Close()
+
+		switch {
+		case resp.StatusCode == http.StatusNotFound:
+			break
+		case resp.StatusCode == http.StatusUnauthorized:
+			return nil, decodeUnauthorizedError(resp.Body)
+		case resp.StatusCode != http.StatusOK:
+			return nil, fmt.Errorf("SnapUbuntuStoreRepository: unexpected HTTP status code %d while looking for snap purcahses: %q", resp.StatusCode, name)
+		default:
+			dec := json.NewDecoder(resp.Body)
+			if err := dec.Decode(&purchases); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return purchases, nil
+}
+
+func (s *SnapUbuntuStoreRepository) getAllPurchases(auther Authenticator) (map[string]purchaseList, error) {
+	purchasesByName := make(map[string]purchaseList)
+
+	// only build the request if we have an Authenticator
+	if auther != nil {
+		req, err := http.NewRequest("GET", s.purchasesURI.String(), nil)
+		if err != nil {
+			return nil, err
+		}
+
+		s.applyUbuntuStoreHeaders(req, "application/json", auther)
+
+		resp, err := s.client.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		defer resp.Body.Close()
+
+		switch {
+		case resp.StatusCode == http.StatusNotFound:
+			return nil, ErrSnapNotFound
+		case resp.StatusCode == http.StatusUnauthorized:
+			return nil, decodeUnauthorizedError(resp.Body)
+		case resp.StatusCode != http.StatusOK:
+			return nil, fmt.Errorf("SnapUbuntuStoreRepository: unexpected HTTP status code %d while looking for purchases", resp.StatusCode)
+		}
+
+		dec := json.NewDecoder(resp.Body)
+
+		var purchases purchaseList
+		if err := dec.Decode(&purchases); err != nil {
+			return nil, err
+		}
+
+		// Index it all in a multimap
+		for _, purchase := range purchases {
+			purchasesByName[purchase.PackageName] = append(purchasesByName[purchase.PackageName], purchase)
+		}
+	}
+
+	return purchasesByName, nil
 }
 
 // Snap returns the snap.Info for the store hosted snap with the given name or an error.
@@ -292,7 +422,8 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string, auther Authentica
 	// store this is not a concern right now.
 	for _, pkg := range searchData.Payload.Packages {
 		if pkg.Name == name {
-			return infoFromRemote(pkg), nil
+			purchases, _ := s.getPurchases(pkg.Name+"."+pkg.Developer, auther)
+			return infoFromRemote(pkg, purchases), nil
 		}
 	}
 
@@ -336,9 +467,11 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string,
 		return nil, err
 	}
 
+	purchases, err := s.getAllPurchases(auther)
+
 	snaps := make([]*snap.Info, len(searchData.Payload.Packages))
 	for i, pkg := range searchData.Payload.Packages {
-		snaps[i] = infoFromRemote(pkg)
+		snaps[i] = infoFromRemote(pkg, purchases[pkg.Name+"."+pkg.Developer])
 	}
 
 	s.checkStoreResponse(resp)
@@ -376,9 +509,11 @@ func (s *SnapUbuntuStoreRepository) Updates(installed []string, auther Authentic
 		return nil, err
 	}
 
+	purchases, err := s.getAllPurchases(auther)
+
 	res := make([]*snap.Info, len(updateData))
 	for i, rsnap := range updateData {
-		res[i] = infoFromRemote(rsnap)
+		res[i] = infoFromRemote(rsnap, purchases[rsnap.Name+"."+rsnap.Developer])
 	}
 
 	s.checkStoreResponse(resp)

@@ -40,8 +40,14 @@ var (
 	// ErrAuthenticationNeeds2fa is returned if the authentication needs 2factor
 	ErrAuthenticationNeeds2fa = errors.New("two factor authentication required")
 
+	// ErrNeedsAuthorization is returned if the store rejects our authorization attempt
+	ErrNeedsAuthorization = errors.New("store rejected authorization attempt")
+
 	// ErrInvalidCredentials is returned on login error
 	ErrInvalidCredentials = errors.New("invalid credentials")
+
+	// ErrTokenNeedsRefresh is returned when the store token has expired, and needs refreshing
+	ErrTokenNeedsRefresh = errors.New("store token needs refresh")
 )
 
 // ErrDownload represents a download error

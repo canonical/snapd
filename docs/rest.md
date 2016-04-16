@@ -214,7 +214,7 @@ Sample result:
       "name": "ubuntu-core",
       "developer": "canonical",
       "resource": "/v2/snaps/ubuntu-core",
-      "status": "active",
+      "status": "priced",
       "type": "os",
       "update-available": 247,
       "version": "241",
@@ -226,8 +226,8 @@ Sample result:
 
 #### Fields
 
-* `status`: can be either `available`, `installed`, `active` (i.e. is
-  current).
+* `status`: may transition as `available` => `installed` => `active`. For paid snaps,
+  the initial state is `priced` and once bought it becomes `available`.
 * `name`: the snap name.
 * `version`: a string representing the version.
 * `revision`: a number representing the revision.
