@@ -23,6 +23,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/overlord/state"
+	"time"
 )
 
 type changeSuite struct{}
@@ -37,6 +38,28 @@ func (cs *changeSuite) TestNewChange(c *C) {
 	chg := st.NewChange("install", "summary...")
 	c.Check(chg.Kind(), Equals, "install")
 	c.Check(chg.Summary(), Equals, "summary...")
+}
+
+func (cs *changeSuite) TestReadyTime(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("install", "summary...")
+
+	now := time.Now()
+
+	t := chg.SpawnTime()
+	c.Check(t.After(now.Add(-5*time.Second)), Equals, true)
+	c.Check(t.Before(now.Add(5*time.Second)), Equals, true)
+
+	c.Check(chg.ReadyTime().IsZero(), Equals, true)
+
+	chg.SetStatus(state.DoneStatus)
+
+	t = chg.ReadyTime()
+	c.Check(t.After(now.Add(-5*time.Second)), Equals, true)
+	c.Check(t.Before(now.Add(5*time.Second)), Equals, true)
 }
 
 func (cs *changeSuite) TestStatusString(c *C) {
@@ -279,6 +302,8 @@ func (cs *changeSuite) TestMethodEntrance(c *C) {
 		func() { chg.Tasks() },
 		func() { chg.Err() },
 		func() { chg.MarshalJSON() },
+		func() { chg.SpawnTime() },
+		func() { chg.ReadyTime() },
 	}
 
 	for i, f := range reads {
