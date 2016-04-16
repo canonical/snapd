@@ -37,7 +37,12 @@ import (
 	"github.com/ubuntu-core/snappy/overlord/state"
 )
 
-var ensureInterval = 5 * time.Minute
+var (
+	ensureInterval = 5 * time.Minute
+	pruneInterval  = 10 * time.Minute
+	pruneWait      = 24 * time.Hour * 1
+	abortWait      = 24 * time.Hour * 7
+)
 
 // Overlord is the central manager of a snappy system, keeping
 // track of all available state managers and related helpers.
@@ -48,6 +53,7 @@ type Overlord struct {
 	ensureLock  sync.Mutex
 	ensureTimer *time.Timer
 	ensureNext  time.Time
+	pruneTimer  *time.Timer
 	// managers
 	snapMgr   *snapstate.SnapManager
 	assertMgr *assertstate.AssertManager
@@ -114,6 +120,7 @@ func (o *Overlord) ensureTimerSetup() {
 	defer o.ensureLock.Unlock()
 	o.ensureTimer = time.NewTimer(ensureInterval)
 	o.ensureNext = time.Now().Add(ensureInterval)
+	o.pruneTimer = time.NewTimer(pruneInterval)
 }
 
 func (o *Overlord) ensureTimerReset() time.Time {
@@ -148,6 +155,11 @@ func (o *Overlord) Loop() {
 			case <-o.loopTomb.Dying():
 				return nil
 			case <-o.ensureTimer.C:
+			case <-o.pruneTimer.C:
+				st := o.State()
+				st.Lock()
+				st.Prune(pruneWait, abortWait)
+				st.Unlock()
 			}
 			o.ensureTimerReset()
 			// in case of errors engine logs them,

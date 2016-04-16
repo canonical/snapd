@@ -292,6 +292,9 @@ func (ss *stateSuite) TestNewChangeAndCheckpoint(c *C) {
 	chg.Set("a", 1)
 	chg.SetStatus(state.ErrorStatus)
 
+	spawnTime := chg.SpawnTime()
+	readyTime := chg.ReadyTime()
+
 	// implicit checkpoint
 	st.Unlock()
 
@@ -314,6 +317,8 @@ func (ss *stateSuite) TestNewChangeAndCheckpoint(c *C) {
 	c.Check(chg0.ID(), Equals, chgID)
 	c.Check(chg0.Kind(), Equals, "install")
 	c.Check(chg0.Summary(), Equals, "summary")
+	c.Check(chg0.SpawnTime().Equal(spawnTime), Equals, true)
+	c.Check(chg0.ReadyTime().Equal(readyTime), Equals, true)
 
 	var v int
 	err = chg0.Get("a", &v)
@@ -486,6 +491,7 @@ func (ss *stateSuite) TestNewTaskAndTasks(c *C) {
 
 func (ss *stateSuite) TestMethodEntrance(c *C) {
 	st := state.New(&fakeStateBackend{})
+
 	// Reset modified flag.
 	st.Lock()
 	st.Unlock()
@@ -506,6 +512,7 @@ func (ss *stateSuite) TestMethodEntrance(c *C) {
 		func() { st.Tasks() },
 		func() { st.Task("foo") },
 		func() { st.MarshalJSON() },
+		func() { st.Prune(time.Hour, time.Hour) },
 	}
 
 	for i, f := range reads {
@@ -523,4 +530,58 @@ func (ss *stateSuite) TestMethodEntrance(c *C) {
 		c.Assert(f, PanicMatches, "internal error: accessing state without lock")
 		c.Assert(st.Modified(), Equals, true)
 	}
+}
+
+func (ss *stateSuite) TestPrune(c *C) {
+	st := state.New(&fakeStateBackend{})
+	st.Lock()
+	defer st.Unlock()
+
+	now := time.Now()
+	pruneWait := 1 * time.Hour
+	abortWait := 3 * time.Hour
+
+	unset := time.Time{}
+
+	t1 := st.NewTask("foo", "...")
+	t2 := st.NewTask("foo", "...")
+	t3 := st.NewTask("foo", "...")
+	t4 := st.NewTask("foo", "...")
+
+	chg1 := st.NewChange("abort", "...")
+	chg1.AddTask(t1)
+	state.MockChangeTimes(chg1, now.Add(-abortWait), unset)
+
+	chg2 := st.NewChange("prune", "...")
+	chg2.AddTask(t2)
+	c.Assert(chg2.Status(), Equals, state.DoStatus)
+	state.MockChangeTimes(chg2, now.Add(-pruneWait), now.Add(-pruneWait))
+
+	chg3 := st.NewChange("ready-but-recent", "...")
+	chg3.AddTask(t3)
+	state.MockChangeTimes(chg3, now.Add(-pruneWait), now.Add(-pruneWait/2))
+
+	chg4 := st.NewChange("old-but-not-ready", "...")
+	chg4.AddTask(t4)
+	state.MockChangeTimes(chg4, now.Add(-pruneWait/2), unset)
+
+	st.Prune(pruneWait, abortWait)
+
+	c.Assert(st.Change(chg1.ID()), Equals, chg1)
+	c.Assert(st.Change(chg2.ID()), IsNil)
+	c.Assert(st.Change(chg3.ID()), Equals, chg3)
+	c.Assert(st.Change(chg4.ID()), Equals, chg4)
+
+	c.Assert(st.Task(t1.ID()), Equals, t1)
+	c.Assert(st.Task(t2.ID()), IsNil)
+	c.Assert(st.Task(t3.ID()), Equals, t3)
+	c.Assert(st.Task(t4.ID()), Equals, t4)
+
+	c.Assert(chg1.Status(), Equals, state.HoldStatus)
+	c.Assert(chg3.Status(), Equals, state.DoStatus)
+	c.Assert(chg4.Status(), Equals, state.DoStatus)
+
+	c.Assert(t1.Status(), Equals, state.HoldStatus)
+	c.Assert(t3.Status(), Equals, state.DoStatus)
+	c.Assert(t4.Status(), Equals, state.DoStatus)
 }
