@@ -142,7 +142,6 @@ Reserved for human-readable content describing the service.
 ```javascript
 {
  "flavor": "core",
- "api-compat": "1",           // increased on minor API changes
  "series": "16",
  "store": "store-id"          // only if not default
 }
