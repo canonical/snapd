@@ -193,6 +193,33 @@ func (as *authSuite) TestUser(c *C) {
 	c.Check(userFromState, DeepEquals, user)
 }
 
+func (as *authSuite) TestRemove(c *C) {
+	as.state.Lock()
+	user, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	as.state.Unlock()
+	c.Check(err, IsNil)
+
+	as.state.Lock()
+	_, err = auth.User(as.state, user.ID)
+	as.state.Unlock()
+	c.Check(err, IsNil)
+
+	as.state.Lock()
+	err = auth.RemoveUser(as.state, user.ID)
+	as.state.Unlock()
+	c.Assert(err, IsNil)
+
+	as.state.Lock()
+	_, err = auth.User(as.state, user.ID)
+	as.state.Unlock()
+	c.Check(err, ErrorMatches, "invalid user")
+
+	as.state.Lock()
+	err = auth.RemoveUser(as.state, user.ID)
+	as.state.Unlock()
+	c.Assert(err, ErrorMatches, "invalid user")
+}
+
 func (as *authSuite) TestGetAuthenticatorFromUser(c *C) {
 	as.state.Lock()
 	user, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})

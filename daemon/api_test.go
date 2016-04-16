@@ -588,6 +588,28 @@ func (s *apiSuite) TestLoginUser(c *check.C) {
 	c.Check(*user, check.DeepEquals, expectedUser)
 }
 
+func (s *apiSuite) TestLogoutUser(c *check.C) {
+	d := s.daemon(c)
+	state := d.overlord.State()
+	state.Lock()
+	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	state.Unlock()
+	c.Assert(err, check.IsNil)
+
+	req, err := http.NewRequest("POST", "/v2/logout", nil)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
+
+	rsp := logoutUser(logoutCmd, req).(*resp)
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+
+	state.Lock()
+	_, err = auth.User(state, user.ID)
+	state.Unlock()
+	c.Check(err, check.ErrorMatches, "invalid user")
+}
+
 func (s *apiSuite) TestLoginUserBadRequest(c *check.C) {
 	buf := bytes.NewBufferString(`hello`)
 	req, err := http.NewRequest("POST", "/v2/login", buf)

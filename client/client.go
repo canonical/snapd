@@ -132,9 +132,11 @@ func (client *Client) do(method, path string, query url.Values, headers map[stri
 	}
 	defer rsp.Body.Close()
 
-	dec := json.NewDecoder(rsp.Body)
-	if err := dec.Decode(v); err != nil {
-		return err
+	if v != nil {
+		dec := json.NewDecoder(rsp.Body)
+		if err := dec.Decode(v); err != nil {
+			return err
+		}
 	}
 
 	return nil
