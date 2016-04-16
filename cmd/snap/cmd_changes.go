@@ -70,9 +70,8 @@ func (c *cmdChanges) Execute([]string) error {
 	sort.Sort(changesByTime(changes))
 
 	w := tabwriter.NewWriter(Stdout, 5, 3, 2, ' ', 0)
-	defer w.Flush()
 
-	fmt.Fprintf(w, i18n.G("ID\tStatus\tSpawn Time\tReady Time\tSummary\n"))
+	fmt.Fprintf(w, i18n.G("ID\tStatus\tSpawn\tReady\tSummary\n"))
 	for _, chg := range changes {
 		spawnTime := chg.SpawnTime.UTC().Format(time.RFC3339)
 		readyTime := chg.ReadyTime.UTC().Format(time.RFC3339)
@@ -81,6 +80,9 @@ func (c *cmdChanges) Execute([]string) error {
 		}
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", chg.ID, chg.Status, spawnTime, readyTime, chg.Summary)
 	}
+
+	w.Flush()
+	fmt.Fprintln(Stdout)
 
 	return nil
 }
@@ -93,12 +95,35 @@ func (c *cmdChanges) showChange(id string) error {
 	}
 
 	w := tabwriter.NewWriter(Stdout, 5, 3, 2, ' ', 0)
-	defer w.Flush()
 
-	fmt.Fprintf(w, i18n.G("ID\tStatus\tSpawn Time\tReady Time\tSummary\n"))
+	fmt.Fprintf(w, i18n.G("Status\tSpawn\tReady\tSummary\n"))
 	for _, t := range chg.Tasks {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", t.ID, t.Status, t.Summary)
+		spawnTime := t.SpawnTime.UTC().Format(time.RFC3339)
+		readyTime := t.ReadyTime.UTC().Format(time.RFC3339)
+		if t.ReadyTime.IsZero() {
+			readyTime = "-"
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", t.Status, spawnTime, readyTime, t.Summary)
 	}
+
+	w.Flush()
+
+	for _, t := range chg.Tasks {
+		if len(t.Log) == 0 {
+			continue
+		}
+		fmt.Fprintln(Stdout)
+		fmt.Fprintln(Stdout, line)
+		fmt.Fprintln(Stdout, t.Summary)
+		fmt.Fprintln(Stdout, )
+		for _, line := range t.Log {
+			fmt.Println(line)
+		}
+	}
+
+	fmt.Fprintln(Stdout)
 
 	return nil
 }
+
+const line = "......................................................................"
