@@ -423,13 +423,13 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyKeepsExistingConnectionSt
 
 // The setup-profiles task will add implicit slots necessary for the OS snap.
 func (s *interfaceManagerSuite) TestDoSetupProfilesAddsImplicitSlots(c *C) {
-	// Initialize the manager. This registers the two snaps.
+	// Initialize the manager.
 	mgr := s.manager(c)
 
 	// Add an OS snap.
 	snapInfo := s.mockSnap(c, osSnapYaml)
 
-	// Run the setup-snap-security task and let it finish.
+	// Run the setup-profiles task and let it finish.
 	change := s.addSetupSnapSecurityChange(c, snapInfo.Name())
 	mgr.Ensure()
 	mgr.Wait()
