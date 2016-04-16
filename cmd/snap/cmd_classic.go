@@ -54,7 +54,7 @@ func init() {
 */
 
 func (x *cmdEnableClassic) Execute(args []string) (err error) {
-	return x.doEnable()
+	return withMutexAndRetry(x.doEnable)
 }
 
 func (x *cmdEnableClassic) doEnable() (err error) {
@@ -73,7 +73,7 @@ Use "snap shell classic" to enter the classic dimension.`))
 }
 
 func (x *cmdDestroyClassic) Execute(args []string) (err error) {
-	return x.doDisable()
+	return withMutexAndRetry(x.doDisable)
 }
 
 func (x *cmdDestroyClassic) doDisable() (err error) {
