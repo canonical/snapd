@@ -187,7 +187,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error
 
 	// Set DevMode flag if SnapSetup.Flags indicates it should be done
 	// but remember the old value in the task in case we undo.
-	task.Set("old-dev-mode", snapState.DevMode())
+	task.Set("old-devmode", snapState.DevMode())
 	if ss.Flags&int(snappy.DeveloperMode) != 0 {
 		snapState.Flags |= snapstate.DevMode
 	} else {
@@ -312,14 +312,14 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, _ *tomb.Tomb) erro
 		return err
 	}
 
-	// Get the old-dev-mode flag from the task.
+	// Get the old-devmode flag from the task.
 	// This flag is set by setup-profiles in case we have to undo.
 	var oldDevMode bool
-	err = task.Get("old-dev-mode", &oldDevMode)
+	err = task.Get("old-devmode", &oldDevMode)
 	if err != nil && err != state.ErrNoState {
 		return err
 	}
-	// Restore the state of DevMode flag if old-dev-mode was saved in the task.
+	// Restore the state of DevMode flag if old-devmode was saved in the task.
 	if err == nil {
 		if oldDevMode {
 			snapState.Flags |= snapstate.DevMode
