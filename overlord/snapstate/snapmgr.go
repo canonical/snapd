@@ -28,6 +28,7 @@ import (
 	"github.com/ubuntu-core/snappy/overlord/auth"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snappy"
 	"github.com/ubuntu-core/snappy/store"
 )
 
@@ -57,6 +58,10 @@ func (ss *SnapSetup) placeInfo() snap.PlaceInfo {
 
 func (ss *SnapSetup) MountDir() string {
 	return snap.MountDir(ss.Name, ss.Revision)
+}
+
+func (ss *SnapSetup) DevMode() bool {
+	return ss.Flags&int(snappy.DeveloperMode) != 0
 }
 
 // SnapStateFlags are flags stored in SnapState.
