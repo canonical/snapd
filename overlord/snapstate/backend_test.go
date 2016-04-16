@@ -23,6 +23,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/ubuntu-core/snappy/overlord/auth"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/store"
@@ -31,12 +32,13 @@ import (
 type fakeOp struct {
 	op string
 
-	name    string
-	revno   int
-	channel string
-	flags   int
-	active  bool
-	sinfo   snap.SideInfo
+	macaroon string
+	name     string
+	revno    int
+	channel  string
+	flags    int
+	active   bool
+	sinfo    snap.SideInfo
 
 	old string
 }
@@ -59,10 +61,15 @@ func (f *fakeSnappyBackend) InstallLocal(path string, flags int, p progress.Mete
 }
 
 func (f *fakeSnappyBackend) Download(name, channel string, checker func(*snap.Info) error, p progress.Meter, auther store.Authenticator) (*snap.Info, string, error) {
+	var macaroon string
+	if auther != nil {
+		macaroon = auther.(*auth.MacaroonAuthenticator).Macaroon
+	}
 	f.ops = append(f.ops, fakeOp{
-		op:      "download",
-		name:    name,
-		channel: channel,
+		op:       "download",
+		macaroon: macaroon,
+		name:     name,
+		channel:  channel,
 	})
 	p.SetTotal(float64(f.fakeTotalProgress))
 	p.Set(float64(f.fakeCurrentProgress))
