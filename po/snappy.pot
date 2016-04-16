@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-04-16 13:58+0200\n"
+        "POT-Creation-Date: 2016-04-16 11:14-0300\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -90,6 +90,9 @@ msgstr  ""
 msgid   "Generated '%s' snap\n"
 msgstr  ""
 
+msgid   "ID\tStatus\tSpawn Time\tReady Time\tSummary\n"
+msgstr  ""
+
 #, c-format
 msgid   "Install %q snap"
 msgstr  ""
@@ -106,6 +109,9 @@ msgid   "Install local %q snap"
 msgstr  ""
 
 msgid   "List installed snaps"
+msgstr  ""
+
+msgid   "List system changes"
 msgstr  ""
 
 msgid   "Lists interfaces in the system"
@@ -211,6 +217,10 @@ msgid   "\n"
 msgstr  ""
 
 msgid   "\n"
+        "The changes command displays a summary of the recent system changes performed."
+msgstr  ""
+
+msgid   "\n"
         "The connect command connects a plug to a slot.\n"
         "It may be called in the following ways:\n"
         "\n"
@@ -307,6 +317,9 @@ msgid   "\n"
         "\n"
         "The home directory is shared between snappy and the classic dimension.\n"
         "Run \"exit\" to leave the classic shell.\n"
+msgstr  ""
+
+msgid   "no changes found"
 msgstr  ""
 
 msgid   "no interfaces found"
