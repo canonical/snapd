@@ -2490,11 +2490,11 @@ func (s *apiSuite) TestStateChange(c *check.C) {
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
 	c.Check(body["result"], check.DeepEquals, map[string]interface{}{
-		"id":      ids[0],
-		"kind":    "install",
-		"summary": "install...",
-		"status":  "Do",
-		"ready":   false,
+		"id":         ids[0],
+		"kind":       "install",
+		"summary":    "install...",
+		"status":     "Do",
+		"ready":      false,
 		"spawn-time": "2016-04-21T01:02:03Z",
 		"tasks": []interface{}{
 			map[string]interface{}{

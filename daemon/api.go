@@ -1042,7 +1042,7 @@ type changeInfo struct {
 	Ready   bool        `json:"ready"`
 	Err     string      `json:"err,omitempty"`
 
-	SpawnTime time.Time `json:"spawn-time,omitempty"`
+	SpawnTime time.Time  `json:"spawn-time,omitempty"`
 	ReadyTime *time.Time `json:"ready-time,omitempty"`
 }
 
