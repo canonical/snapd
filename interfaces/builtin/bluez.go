@@ -157,7 +157,7 @@ sendmsg
 socket
 `)
 
-var bluezConnectedPlugDBus = []byte(`
+var bluezPermantedSlotDBus = []byte(`
 <policy user="root">
     <allow own="org.bluez"/>
     <allow own="org.bluez.obex"/>
@@ -196,13 +196,11 @@ func (iface *BluezInterface) PermanentPlugSnippet(plug *interfaces.Plug, securit
 
 func (iface *BluezInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityDBus:
-		return bluezConnectedPlugDBus, nil
 	case interfaces.SecurityAppArmor:
 		return bluezConnectedPlugAppArmor, nil
 	case interfaces.SecuritySecComp:
 		return bluezConnectedPlugSecComp, nil
-	case interfaces.SecurityUDev:
+	case interfaces.SecurityUDev, interfaces.SecurityDBus:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -215,7 +213,9 @@ func (iface *BluezInterface) PermanentSlotSnippet(slot *interfaces.Slot, securit
 		return bluezPermanentSlotAppArmor, nil
 	case interfaces.SecuritySecComp:
 		return bluezPermanentSlotSecComp, nil
-	case interfaces.SecurityUDev, interfaces.SecurityDBus:
+	case interfaces.SecurityDBus:
+		return bluezPermantedSlotDBus, nil
+	case interfaces.SecurityUDev:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
