@@ -43,7 +43,7 @@ func (s *authSuite) SetUpTests(c *check.C) {
 	}
 }
 
-func (s *authSuite) TestRegressionAuthBypass(c *check.C) {
+func (s *authSuite) TestRegressionAuthCrash(c *check.C) {
 	// FIXME: port to http.chipaca once that is back in action
 	cmd := []string{"curl",
 		"-m", "5", // allow max 5 sec
@@ -54,6 +54,21 @@ func (s *authSuite) TestRegressionAuthBypass(c *check.C) {
 		"--silent",
 		"--unix-socket", "/run/snapd.socket",
 		"POST /v2/snaps/hello-world",
+	}
+	output := cli.ExecCommand(c, cmd...)
+	c.Assert(output, testutil.Contains, `"status-code":403`)
+}
+
+func (s *authSuite) TestRegressionAuthBypass(c *check.C) {
+	// FIXME: port to http.chipaca once that is back in action
+	cmd := []string{"curl",
+		"--header",
+		`Authorization: Macaroon root="made-up", discharge="data"`,
+		"--header", "Content-Type:application/json",
+		"--data", `{"action":"connect"}`,
+		"--silent",
+		"--unix-socket", "/run/snapd.socket",
+		"POST /v2/interfaces",
 	}
 	output := cli.ExecCommand(c, cmd...)
 	c.Assert(output, testutil.Contains, `"status-code":403`)
