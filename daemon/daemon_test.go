@@ -214,7 +214,7 @@ func (s *daemonSuite) TestAutherNoAuth(c *check.C) {
 	d := newTestDaemon(c)
 	user, err := d.auther(req)
 
-	c.Check(err, check.ErrorMatches, errNoAuth.Error())
+	c.Check(err, check.Equals, auth.ErrInvalidAuth)
 	c.Check(user, check.IsNil)
 }
 

@@ -158,8 +158,10 @@ func (client *Client) doSync(method, path string, query url.Values, headers map[
 		return nil, fmt.Errorf("expected sync response, got %q", rsp.Type)
 	}
 
-	if err := json.Unmarshal(rsp.Result, v); err != nil {
-		return nil, fmt.Errorf("cannot unmarshal: %v", err)
+	if v != nil {
+		if err := json.Unmarshal(rsp.Result, v); err != nil {
+			return nil, fmt.Errorf("cannot unmarshal: %v", err)
+		}
 	}
 
 	return &rsp.ResultInfo, nil
