@@ -679,7 +679,7 @@ func (s *apiSuite) TestUserFromRequestNoHeader(c *check.C) {
 	user, err := UserFromRequest(state, req)
 	state.Unlock()
 
-	c.Check(err, check.Equals, errNoAuth)
+	c.Check(err, check.Equals, auth.ErrInvalidAuth)
 	c.Check(user, check.IsNil)
 }
 
@@ -718,7 +718,7 @@ func (s *apiSuite) TestUserFromRequestHeaderCorrectMissingUser(c *check.C) {
 	user, err := UserFromRequest(state, req)
 	state.Unlock()
 
-	c.Check(err, check.IsNil)
+	c.Check(err, check.Equals, auth.ErrInvalidAuth)
 	c.Check(user, check.IsNil)
 }
 

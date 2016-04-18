@@ -101,7 +101,6 @@ func User(st *state.State, id int) (*UserState, error) {
 	var authStateData AuthState
 
 	err := st.Get("auth", &authStateData)
-
 	if err != nil {
 		return nil, err
 	}
@@ -114,12 +113,14 @@ func User(st *state.State, id int) (*UserState, error) {
 	return nil, fmt.Errorf("invalid user")
 }
 
+var ErrInvalidAuth = fmt.Errorf("invalid authentication")
+
 // CheckMacaroon returns the UserState for the given macaroon/discharges credentials
 func CheckMacaroon(st *state.State, macaroon string, discharges []string) (*UserState, error) {
 	var authStateData AuthState
 	err := st.Get("auth", &authStateData)
 	if err != nil {
-		return nil, nil
+		return nil, ErrInvalidAuth
 	}
 
 NextUser:
@@ -139,7 +140,7 @@ NextUser:
 		}
 		return &user, nil
 	}
-	return nil, fmt.Errorf("invalid authentication")
+	return nil, ErrInvalidAuth
 }
 
 // Authenticator returns MacaroonAuthenticator for current authenticated user represented by UserState

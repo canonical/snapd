@@ -20,7 +20,6 @@
 package daemon
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -235,21 +234,16 @@ func (d *Daemon) Dying() <-chan struct{} {
 	return d.tomb.Dying()
 }
 
-var errNoAuth = errors.New("no authorization data provided")
-
 func (d *Daemon) auther(r *http.Request) (store.Authenticator, error) {
 	overlord := d.overlord
 	state := overlord.State()
 	state.Lock()
 	user, err := UserFromRequest(state, r)
 	state.Unlock()
-
-	if err == nil {
-		return user.Authenticator(), nil
-	} else if err != errNoAuth {
+	if err != nil {
 		return nil, err
 	}
-	return nil, errNoAuth
+	return user.Authenticator(), nil
 }
 
 // New Daemon
