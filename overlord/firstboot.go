@@ -45,6 +45,7 @@ func populateStateFromInstalled() error {
 		var snapst snapstate.SnapState
 		snapst.Sequence = append(snapst.Sequence, &info.SideInfo)
 		snapst.Channel = info.Channel
+		snapst.Active = sn.IsActive()
 		snapstate.Set(st, sn.Name(), &snapst)
 	}
 
