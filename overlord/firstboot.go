@@ -20,7 +20,10 @@
 package overlord
 
 import (
+	"fmt"
+
 	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snappy"
@@ -30,6 +33,10 @@ func populateStateFromInstalled() error {
 	all, err := (&snappy.Overlord{}).Installed()
 	if err != nil {
 		return err
+	}
+
+	if osutil.FileExists(dirs.SnapStateFile) {
+		return fmt.Errorf("cannot create state: state %q already exists", dirs.SnapStateFile)
 	}
 
 	st := state.New(&overlordStateBackend{
