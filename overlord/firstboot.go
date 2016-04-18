@@ -59,6 +59,10 @@ func populateStateFromInstalled() error {
 	return nil
 }
 
+// FIXME:
+// This is not the final way we will do the state sync. This is just
+// an intermediate step to have working images again. We need to
+// figure out how we want first-boot to look like.
 func FirstBoot() error {
 	if err := snappy.FirstBoot(); err != nil {
 		return err
