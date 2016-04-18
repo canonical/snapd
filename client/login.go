@@ -103,3 +103,9 @@ func readAuthData() (*User, error) {
 
 	return &user, nil
 }
+
+// removeAuthData removes any previously written authentication details.
+func removeAuthData() error {
+	filename := storeAuthDataFilename()
+	return os.Remove(filename)
+}
