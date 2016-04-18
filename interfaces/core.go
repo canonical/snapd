@@ -67,6 +67,17 @@ type Interfaces struct {
 	Slots []*Slot `json:"slots"`
 }
 
+// ConnRef holds information about plug and slot reference that form a particular connection.
+type ConnRef struct {
+	PlugRef PlugRef
+	SlotRef SlotRef
+}
+
+// ID returns a string identifying a given connection.
+func (conn *ConnRef) ID() string {
+	return fmt.Sprintf("%s:%s %s:%s", conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name)
+}
+
 // Interface describes a group of interchangeable capabilities with common features.
 // Interfaces act as a contract between system builders, application developers
 // and end users.
