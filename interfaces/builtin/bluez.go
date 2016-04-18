@@ -91,7 +91,7 @@ var bluezConnectedPlugAppArmor = []byte(`
 # Allow all access to bluez service
 dbus (receive, send)
     bus=system
-    peer=(label=bluez5_bluez_*),
+    peer=(label=snap.bluez.*),
 
 dbus (send)
     bus=system
