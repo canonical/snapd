@@ -162,7 +162,7 @@ sendmsg
 socket
 `)
 
-var bluezPermantedSlotDBus = []byte(`
+var bluezPermanentSlotDBus = []byte(`
 <policy user="root">
     <allow own="org.bluez"/>
     <allow own="org.bluez.obex"/>
@@ -219,7 +219,7 @@ func (iface *BluezInterface) PermanentSlotSnippet(slot *interfaces.Slot, securit
 	case interfaces.SecuritySecComp:
 		return bluezPermanentSlotSecComp, nil
 	case interfaces.SecurityDBus:
-		return bluezPermantedSlotDBus, nil
+		return bluezPermanentSlotDBus, nil
 	case interfaces.SecurityUDev:
 		return nil, nil
 	default:
