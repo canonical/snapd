@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-04-16 16:39-0300\n"
+        "POT-Creation-Date: 2016-04-18 17:13+0200\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -83,9 +83,6 @@ msgid   "Entering classic dimension"
 msgstr  ""
 
 msgid   "Finds packages to install"
-msgstr  ""
-
-msgid   "First boot has already run"
 msgstr  ""
 
 #. TRANSLATORS: the %s is a pkgname
