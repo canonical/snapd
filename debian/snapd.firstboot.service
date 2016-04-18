@@ -1,10 +1,10 @@
 [Unit]
 Description=Run snappy firstboot setup
 After=local-fs.target
-Before=network-pre.target
+Before=network-pre.target snapd.service
 DefaultDependencies=false
 # NOTE: this is hardcoded in `snappy firstboot`; keep in sync
-ConditionPathExists=!/var/lib/snappy/firstboot/stamp
+ConditionPathExists=!/var/lib/snapd/firstboot/stamp
 
 
 [Service]
