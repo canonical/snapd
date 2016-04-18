@@ -64,6 +64,11 @@ var bluezPermanentSlotAppArmor = []byte(`
       bus=system
       name="org.bluez",
 
+  # Allow binding the service to the requested connection name
+  dbus (bind)
+      bus=system
+      name="org.bluez.obex",
+
   # Allow traffic to/from our path and interface with any method
   dbus (receive, send)
       bus=system
