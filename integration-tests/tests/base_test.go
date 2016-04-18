@@ -87,7 +87,7 @@ func setUpSnapd(c *check.C, fromBranch bool, extraEnv string) {
 		c.Assert(err, check.IsNil)
 
 		_, err = cli.ExecCommandErr("sudo", "mount", "-o", "bind",
-			binPath, "/usr/lib/snappy/snapd")
+			binPath, "/usr/lib/snapd/snapd")
 		c.Assert(err, check.IsNil)
 	}
 
@@ -112,7 +112,7 @@ func tearDownSnapd(fromBranch bool) error {
 	}
 
 	if fromBranch {
-		if _, err := cli.ExecCommandErr("sudo", "umount", "/usr/lib/snappy/snapd"); err != nil {
+		if _, err := cli.ExecCommandErr("sudo", "umount", "/usr/lib/snapd/snapd"); err != nil {
 			return err
 		}
 	}

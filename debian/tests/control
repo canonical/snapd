@@ -5,4 +5,5 @@ Depends: snapd,
          bzr,
          git,
          ca-certificates,
+         curl,
          golang-golang-x-net-dev
