@@ -33,6 +33,11 @@ type Plug struct {
 	Connections []SlotRef `json:"connections,omitempty"`
 }
 
+// Ref returns reference to a plug
+func (plug *Plug) Ref() PlugRef {
+	return PlugRef{Snap: plug.Snap.Name(), Name: plug.Name}
+}
+
 // PlugRef is a reference to a plug.
 type PlugRef struct {
 	Snap string `json:"snap"`
@@ -43,6 +48,11 @@ type PlugRef struct {
 type Slot struct {
 	*snap.SlotInfo
 	Connections []PlugRef `json:"connections,omitempty"`
+}
+
+// Ref returns reference to a slot
+func (slot *Slot) Ref() SlotRef {
+	return SlotRef{Snap: slot.Snap.Name(), Name: slot.Name}
 }
 
 // SlotRef is a reference to a slot.
