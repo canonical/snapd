@@ -19,8 +19,11 @@
 
 package client
 
-// Logout logs the user out
+// Logout logs the user out.
 func (client *Client) Logout() error {
 	_, err := client.doSync("POST", "/v2/logout", nil, nil, nil, nil)
-	return err
+	if err != nil {
+		return err
+	}
+	return removeAuthData()
 }

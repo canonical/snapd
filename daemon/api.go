@@ -250,7 +250,7 @@ func UserFromRequest(st *state.State, req *http.Request) (*auth.UserState, error
 	// extract macaroons data from request
 	header := req.Header.Get("Authorization")
 	if header == "" {
-		return nil, errNoAuth
+		return nil, auth.ErrInvalidAuth
 	}
 
 	authorizationData := strings.SplitN(header, " ", 2)
@@ -308,7 +308,7 @@ func getSnapInfo(c *Command, r *http.Request) Response {
 	}
 
 	auther, err := c.d.auther(r)
-	if err != nil && err != errNoAuth {
+	if err != nil && err != auth.ErrInvalidAuth {
 		return InternalError("%v", err)
 	}
 
@@ -404,7 +404,7 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 		remoteRepo := newRemoteRepo()
 
 		auther, err := c.d.auther(r)
-		if err != nil && err != errNoAuth {
+		if err != nil && err != auth.ErrInvalidAuth {
 			return InternalError("%v", err)
 		}
 
@@ -775,7 +775,7 @@ func postSnap(c *Command, r *http.Request) Response {
 
 	if err == nil {
 		inst.userID = user.ID
-	} else if err != errNoAuth {
+	} else if err != auth.ErrInvalidAuth {
 		return InternalError("%v", err)
 	}
 
@@ -867,7 +867,7 @@ out:
 	user, err := UserFromRequest(state, r)
 	if err == nil {
 		userID = user.ID
-	} else if err != errNoAuth {
+	} else if err != auth.ErrInvalidAuth {
 		return InternalError("%v", err)
 	}
 

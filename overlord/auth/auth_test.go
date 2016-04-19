@@ -128,21 +128,28 @@ func (as *authSuite) TestCheckMacaroonNoAuthData(c *C) {
 	user, err := auth.CheckMacaroon(as.state, "macaroon", []string{"discharge"})
 	as.state.Unlock()
 
-	c.Check(err, IsNil)
+	c.Check(err, Equals, auth.ErrInvalidAuth)
 	c.Check(user, IsNil)
 }
 
-func (as *authSuite) TestCheckMacaroonNoValidUser(c *C) {
-	as.state.Lock()
-	_, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
-	as.state.Unlock()
-	c.Check(err, IsNil)
-
+func (as *authSuite) TestCheckMacaroonInvalidAuth(c *C) {
 	as.state.Lock()
 	user, err := auth.CheckMacaroon(as.state, "other-macaroon", []string{"discharge"})
 	as.state.Unlock()
 
-	c.Check(err, ErrorMatches, "invalid authentication")
+	c.Check(err, Equals, auth.ErrInvalidAuth)
+	c.Check(user, IsNil)
+
+	as.state.Lock()
+	_, err = auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	as.state.Unlock()
+	c.Check(err, IsNil)
+
+	as.state.Lock()
+	user, err = auth.CheckMacaroon(as.state, "other-macaroon", []string{"discharge"})
+	as.state.Unlock()
+
+	c.Check(err, Equals, auth.ErrInvalidAuth)
 	c.Check(user, IsNil)
 }
 
