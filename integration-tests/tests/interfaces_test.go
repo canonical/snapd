@@ -34,13 +34,13 @@ import (
 var _ = check.Suite(&networkInterfaceSuite{})
 
 const (
-	connectedPattern = "(?msi)" +
-		"slot +plug\n" +
+	connectedPattern = "(?ms)" +
+		"Slot +Plug\n" +
 		".*" +
 		"^:network +network-consumer\n" +
 		".*"
-	disconnectedPattern = "(?msi)" +
-		"slot +plug\n" +
+	disconnectedPattern = "(?ms)" +
+		"Slot +Plug\n" +
 		".*" +
 		"^:network +-\n" +
 		".*" +
