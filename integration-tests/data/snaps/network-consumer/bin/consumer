@@ -1,0 +1,12 @@
+#! /usr/bin/env python3
+
+import urllib.request
+
+try:
+  # ip of system-image.ubuntu.com, which is allowed in the cloud instances'
+  # firewall.
+  response = urllib.request.urlopen('http://91.189.88.142')
+  if '<html>' in response.read().decode('utf-8'):
+    print('ok')
+except urllib.error.URLError as e:
+  print(e.reason)
