@@ -33,6 +33,11 @@ type Plug struct {
 	Connections []SlotRef `json:"connections,omitempty"`
 }
 
+// Ref returns reference to a plug
+func (plug *Plug) Ref() PlugRef {
+	return PlugRef{Snap: plug.Snap.Name(), Name: plug.Name}
+}
+
 // PlugRef is a reference to a plug.
 type PlugRef struct {
 	Snap string `json:"snap"`
@@ -45,6 +50,11 @@ type Slot struct {
 	Connections []PlugRef `json:"connections,omitempty"`
 }
 
+// Ref returns reference to a slot
+func (slot *Slot) Ref() SlotRef {
+	return SlotRef{Snap: slot.Snap.Name(), Name: slot.Name}
+}
+
 // SlotRef is a reference to a slot.
 type SlotRef struct {
 	Snap string `json:"snap"`
@@ -55,6 +65,17 @@ type SlotRef struct {
 type Interfaces struct {
 	Plugs []*Plug `json:"plugs"`
 	Slots []*Slot `json:"slots"`
+}
+
+// ConnRef holds information about plug and slot reference that form a particular connection.
+type ConnRef struct {
+	PlugRef PlugRef
+	SlotRef SlotRef
+}
+
+// ID returns a string identifying a given connection.
+func (conn *ConnRef) ID() string {
+	return fmt.Sprintf("%s:%s %s:%s", conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name)
 }
 
 // Interface describes a group of interchangeable capabilities with common features.

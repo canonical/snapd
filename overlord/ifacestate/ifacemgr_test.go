@@ -157,42 +157,76 @@ func (s *interfaceManagerSuite) TestDisconnectTask(c *C) {
 	c.Assert(slot.Name, Equals, "slot")
 }
 
-func (s *interfaceManagerSuite) TestEnsureProcessesDisconnectTask(c *C) {
+// Disconnect works when used with the fully-spelled-out form.
+func (s *interfaceManagerSuite) TestDisconnectFull(c *C) {
+	s.testDisconnect(c, "consumer", "plug", "producer", "slot")
+}
+
+// Disconnect works when only the slot is fully specified.
+func (s *interfaceManagerSuite) TestDisconnectSlot(c *C) {
+	s.testDisconnect(c, "", "", "producer", "slot")
+}
+
+// Disconnect works when only the snap from the slot is specified.
+func (s *interfaceManagerSuite) TestDisconnectSlotSnap(c *C) {
+	s.testDisconnect(c, "", "", "producer", "")
+}
+
+func (s *interfaceManagerSuite) testDisconnect(c *C, plugSnap, plugName, slotSnap, slotName string) {
+	// Put two snaps in place They consumer has an plug that can be connected
+	// to slot on the producer.
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
+	// Put a connection in the state so that it automatically gets set up when
+	// we create the manager.
 	s.state.Lock()
 	s.state.Set("conns", map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
 	})
 	s.state.Unlock()
 
+	// Initialize the manager. This registers both snaps and reloads the connection.
+	mgr := s.manager(c)
+
+	// Run the disconnect task and let it finish.
 	s.state.Lock()
-	change := s.state.NewChange("kind", "summary")
-	ts, err := ifacestate.Disconnect(s.state, "consumer", "plug", "producer", "slot")
+	change := s.state.NewChange("disconnect", "...")
+	ts, err := ifacestate.Disconnect(s.state, plugSnap, plugName, slotSnap, slotName)
 	c.Assert(err, IsNil)
 	change.AddAll(ts)
 	s.state.Unlock()
-
-	mgr := s.manager(c)
 	mgr.Ensure()
 	mgr.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	task := change.Tasks()[0]
-	c.Check(task.Kind(), Equals, "disconnect")
-	c.Check(task.Status(), Equals, state.DoneStatus)
+	// Ensure that the task succeeded.
 	c.Check(change.Status(), Equals, state.DoneStatus)
 
-	// The connection is gone
+	// Ensure that the connection has been removed from the state
+	var conns map[string]interface{}
+	err = s.state.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	c.Check(conns, HasLen, 0)
+
+	// Ensure that the connection has been removed from the repository
 	repo := mgr.Repository()
 	plug := repo.Plug("consumer", "plug")
 	slot := repo.Slot("producer", "slot")
 	c.Assert(plug.Connections, HasLen, 0)
 	c.Assert(slot.Connections, HasLen, 0)
+
+	// Ensure that the backend was used to setup security of both snaps
+	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
+	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
+	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, "consumer")
+	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Name(), Equals, "producer")
+
+	c.Check(s.secBackend.SetupCalls[0].DevMode, Equals, false)
+	c.Check(s.secBackend.SetupCalls[1].DevMode, Equals, false)
 }
 
 func (s *interfaceManagerSuite) mockIface(c *C, iface interfaces.Interface) {

@@ -540,21 +540,20 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	err = m.repo.Disconnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
+	affectedConns, affectedSnaps, err := m.repo.Disconnect(
+		plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
 	if err != nil {
 		return err
 	}
 
-	plug := m.repo.Plug(plugRef.Snap, plugRef.Name)
-	slot := m.repo.Slot(slotRef.Snap, slotRef.Name)
-	if err := setupSnapSecurity(task, plug.Snap, m.repo); err != nil {
-		return state.Retry
+	for _, snapInfo := range affectedSnaps {
+		if err := setupSnapSecurity(task, snapInfo, m.repo); err != nil {
+			return state.Retry
+		}
 	}
-	if err := setupSnapSecurity(task, slot.Snap, m.repo); err != nil {
-		return state.Retry
+	for _, connRef := range affectedConns {
+		delete(conns, connRef.ID())
 	}
-
-	delete(conns, connID(plugRef, slotRef))
 	setConns(st, conns)
 	return nil
 }
