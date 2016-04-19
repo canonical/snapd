@@ -38,7 +38,10 @@ import (
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/wait"
 )
 
-const cfgDir = "/etc/systemd/system/snapd.service.d"
+const (
+	cfgDir           = "/etc/systemd/system/snapd.service.d"
+	daemonBinaryPath = "/usr/lib/snapd/snapd"
+)
 
 func init() {
 	c := &check.C{}
@@ -87,7 +90,7 @@ func setUpSnapd(c *check.C, fromBranch bool, extraEnv string) {
 		c.Assert(err, check.IsNil)
 
 		_, err = cli.ExecCommandErr("sudo", "mount", "-o", "bind",
-			binPath, "/usr/lib/snappy/snapd")
+			binPath, daemonBinaryPath)
 		c.Assert(err, check.IsNil)
 	}
 
@@ -112,7 +115,7 @@ func tearDownSnapd(fromBranch bool) error {
 	}
 
 	if fromBranch {
-		if _, err := cli.ExecCommandErr("sudo", "umount", "/usr/lib/snappy/snapd"); err != nil {
+		if _, err := cli.ExecCommandErr("sudo", "umount", daemonBinaryPath); err != nil {
 			return err
 		}
 	}
