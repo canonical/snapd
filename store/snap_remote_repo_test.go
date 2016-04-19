@@ -36,7 +36,6 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/progress"
-	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snap"
 )
 
@@ -163,7 +162,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryHeaders(c *C) {
 
 	t.store.applyUbuntuStoreHeaders(req, "", nil)
 
-	c.Assert(req.Header.Get("X-Ubuntu-Release"), Equals, release.Get().Series)
+	c.Assert(req.Header.Get("X-Ubuntu-Release"), Equals, "16")
 	c.Check(req.Header.Get("Accept"), Equals, "application/hal+json")
 
 	t.store.applyUbuntuStoreHeaders(req, "application/json", nil)
