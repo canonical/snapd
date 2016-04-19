@@ -64,7 +64,7 @@ func Override(r Release) {
 
 // Setup is used to initialiaze the release information for the system
 func Setup(rootDir string) error {
-	rel = Release{Flavor: "core", Series: "rolling"}
+	rel = Release{Flavor: "core", Series: "16"}
 
 	return nil
 }

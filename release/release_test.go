@@ -39,10 +39,10 @@ var _ = Suite(&ReleaseTestSuite{})
 
 func (s *ReleaseTestSuite) TestSetup(c *C) {
 	c.Assert(release.Setup(c.MkDir()), IsNil)
-	c.Check(release.String(), Equals, "rolling-core")
+	c.Check(release.String(), Equals, "16-core")
 	rel := release.Get()
 	c.Check(rel.Flavor, Equals, "core")
-	c.Check(rel.Series, Equals, "rolling")
+	c.Check(rel.Series, Equals, "16")
 }
 
 func (s *ReleaseTestSuite) TestOverride(c *C) {
