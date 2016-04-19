@@ -1,3 +1,14 @@
+snapd (2.0.2) xenial; urgency=medium
+
+  * New upstream release:
+    - systemd: add multi-user.target (LP: #1572125)
+    - release: our series is 16
+    - integration-tests: fix snapd binary path for mounting the daemon
+      built from branch
+    - overlord,snap: add firstboot state sync
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 19 Apr 2016 16:02:44 +0200
+
 snapd (2.0.1) xenial; urgency=medium
 
   * client,daemon,overlord: fix authentication:
