@@ -376,6 +376,9 @@ Description=Squashfs mount unit for foo
 [Mount]
 What=/var/lib/snappy/snaps/foo_1.0.snap
 Where=/apps/foo/1.0
+
+[Install]
+WantedBy=multi-user.target
 `)
 }
 

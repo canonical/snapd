@@ -546,6 +546,9 @@ Description=Squashfs mount unit for %s
 [Mount]
 What=%s
 Where=%s
+
+[Install]
+WantedBy=multi-user.target
 `, name, what, where)
 
 	mu := MountUnitPath(where, "mount")
