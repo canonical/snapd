@@ -97,11 +97,7 @@ func (s *networkInterfaceSuite) TestPlugCanBeReconnected(c *check.C) {
 }
 
 func (s *networkInterfaceSuite) TestPlugDisconnectionDisablesFunctionality(c *check.C) {
-	output, err := cli.ExecCommandErr("snap", "interfaces")
-	c.Assert(err, check.IsNil)
-	c.Assert(output, check.Matches, connectedPattern)
-
-	output, err = cli.ExecCommandErr("network-consumer")
+	output, err := cli.ExecCommandErr("network-consumer")
 	c.Assert(err, check.IsNil)
 	c.Assert(output, check.Equals, networkAccessibleOutput)
 
