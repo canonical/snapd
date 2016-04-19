@@ -20,12 +20,9 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/jessevdk/go-flags"
 
-	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/snappy"
+	"github.com/ubuntu-core/snappy/overlord"
 )
 
 type cmdInternalFirstBoot struct{}
@@ -40,11 +37,5 @@ func init() {
 }
 
 func (x *cmdInternalFirstBoot) Execute(args []string) error {
-	err := snappy.FirstBoot()
-	if err == snappy.ErrNotFirstBoot {
-		fmt.Println(i18n.G("First boot has already run"))
-		return nil
-	}
-
-	return err
+	return overlord.FirstBoot()
 }
