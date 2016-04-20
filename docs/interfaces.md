@@ -54,8 +54,9 @@ Auto-Connect: yes
 
 ### home
 
-Can access non-hidden files in user's $HOME. This is restricted
-because it gives file access to all of the user's $HOME.
+Can access non-hidden files in user's $HOME to read/write/lock.
+This is restricted because it gives file access to all of the user's
+$HOME.
 
 Usage: reserved
 
