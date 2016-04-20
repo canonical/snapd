@@ -50,7 +50,7 @@ func removeSnap(c *check.C, packageName string) string {
 	cli.ExecCommand(c, "sudo", "snap", "remove", packageName)
 	// FIXME: should `snap remove` shold show a list afterards?
 	//        like `snappy install`?
-	out_ := cli.ExecCommand(c, "snap", "list")
+	out := cli.ExecCommand(c, "snap", "list")
 	return out
 }
 
