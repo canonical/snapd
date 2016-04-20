@@ -214,7 +214,7 @@ Sample result:
       "name": "ubuntu-core",
       "developer": "canonical",
       "resource": "/v2/snaps/ubuntu-core",
-      "status": "active",
+      "status": "priced",
       "type": "os",
       "update-available": 247,
       "version": "241",
@@ -226,8 +226,8 @@ Sample result:
 
 #### Fields
 
-* `status`: can be either `available`, `installed`, `active` (i.e. is
-  current).
+* `status`: may transition as `available` => `installed` => `active`. For paid snaps,
+  the initial state is `priced` and once bought it becomes `available`.
 * `name`: the snap name.
 * `version`: a string representing the version.
 * `revision`: a number representing the revision.
@@ -330,7 +330,7 @@ See `sources` for `/v2/snaps`.
 
 ### POST
 
-* Description: Install, refresh, or remove
+* Description: Install, refresh, remove or buy
 * Access: trusted
 * Operation: async
 * Return: background operation or standard error
@@ -347,7 +347,7 @@ See `sources` for `/v2/snaps`.
 
 field      | ignored except in action | description
 -----------|-------------------|------------
-`action`   |                   | Required; a string, one of `install`, `refresh`, or `remove`
+`action`   |                   | Required; a string, one of `install`, `refresh`, `remove`, or `buy`
 `channel`  | `install` `update` | From which channel to pull the new package (and track henceforth). Channels are a means to discern the maturity of a package or the software it contains, although the exact meaning is left to the application developer. One of `edge`, `beta`, `candidate`, and `stable` which is the default.
 
 #### A note on licenses

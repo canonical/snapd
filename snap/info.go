@@ -98,9 +98,10 @@ type Info struct {
 	SideInfo
 
 	// The information in these fields is ephemeral, available only from the store.
-	AnonDownloadURL string
-	DownloadURL     string
-	Prices          map[string]float64 `yaml:"prices,omitempty" json:"prices,omitempty"`
+	AnonDownloadURL  string
+	DownloadURL      string
+	Prices           map[string]float64 `yaml:"prices,omitempty" json:"prices,omitempty"`
+	RequiresPurchase bool               `yaml:"requires-purchase,omitempty" json:"requires-purchase,omitempty"`
 }
 
 // Name returns the blessed name for the snap.

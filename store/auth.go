@@ -22,6 +22,8 @@ package store
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"net/http"
 	"strings"
 )
@@ -158,4 +160,25 @@ func DischargeAuthCaveat(username, password, macaroon, otp string) (string, erro
 		return "", fmt.Errorf(errorPrefix + "empty macaroon returned")
 	}
 	return responseData.Macaroon, nil
+}
+
+func decodeUnauthorizedError(body io.ReadCloser) error {
+	// first check if the server even thinks we tried to authenticate
+	b, _ := ioutil.ReadAll(body)
+	if string(b) == "Authorization Required" {
+		return ErrNeedsAuthorization
+	}
+
+	// check json details
+	var msg authError
+	dec := json.NewDecoder(body)
+	if err := dec.Decode(&msg); err != nil {
+		return err
+	}
+
+	if msg.Error == "TOKEN_NEEDS_REFRESH" {
+		return ErrTokenNeedsRefresh
+	}
+
+	return ErrInvalidCredentials
 }
