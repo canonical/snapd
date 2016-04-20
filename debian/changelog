@@ -1,3 +1,10 @@
+snapd (2.0.1) xenial; urgency=medium
+
+  * client,daemon,overlord: fix authentication:
+    - fix incorrect authenication check (LP: #1571491)
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 18 Apr 2016 07:24:33 +0200
+
 snapd (2.0) xenial; urgency=medium
 
   * New upstream release:
