@@ -1,5 +1,4 @@
 snap
-var/lib/snapd/apparmor/additional
 var/lib/snapd/snaps
 var/lib/snapd/lib/gl
 usr/lib/snapd
