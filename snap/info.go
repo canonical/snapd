@@ -59,14 +59,18 @@ func MountDir(name string, revision int) string {
 	return filepath.Join(dirs.SnapSnapsDir, name, strconv.Itoa(revision))
 }
 
-// SideInfo holds snap metadata that is crucial for the tracking of snaps and for the working of the system offline and which is not included in snap.yaml or for which the store is the canonical source overriding snap.yaml content.
+// SideInfo holds snap metadata that is crucial for the tracking of
+// snaps and for the working of the system offline and which is not
+// included in snap.yaml or for which the store is the canonical
+// source overriding snap.yaml content.
 //
 // It can be marshalled and will be stored in the system state for
-// each currently installed snap revision so it needs to be evolved carefully.
+// each currently installed snap revision so it needs to be evolved
+// carefully.
 //
 // Information that can be taken directly from snap.yaml or that comes
-// from the store but is not required for working offline should not end up
-// in SideInfo.
+// from the store but is not required for working offline should not
+// end up in SideInfo.
 type SideInfo struct {
 	OfficialName      string `yaml:"name,omitempty" json:"name,omitempty"`
 	SnapID            string `yaml:"snap-id" json:"snap-id"`
