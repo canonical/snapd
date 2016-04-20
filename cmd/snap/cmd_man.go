@@ -41,6 +41,11 @@ func init() {
 
 func (*cmdMan) Execute([]string) error {
 	parser := Parser()
+	parser.ShortDescription = "Tool to interact with snaps"
+	parser.LongDescription = `
+Snap is a tool that allows installing/removing/upgrading software in the
+snap package format.
+`
 	parser.WriteManPage(os.Stdout)
 
 	return nil
