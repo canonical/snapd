@@ -225,12 +225,12 @@ func (s *interfaceManagerSuite) mockSnap(c *C, yamlText string) *snap.Info {
 	return snapInfo
 }
 
-func (s *interfaceManagerSuite) addSetupSnapSecurityChange(c *C, snapName string, flags snappy.InstallFlags) *state.Change {
+func (s *interfaceManagerSuite) addSetupSnapSecurityChange(c *C, snapName string, flags snappy.InstallFlags, revision int) *state.Change {
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	task := s.state.NewTask("setup-profiles", "")
-	ss := snapstate.SnapSetup{Name: snapName, Flags: int(flags)}
+	ss := snapstate.SnapSetup{Name: snapName, Flags: int(flags), Revision: revision}
 	task.Set("snap-setup", ss)
 	taskset := state.NewTaskSet(task)
 	change := s.state.NewChange("test", "")
@@ -309,7 +309,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityHonorsDisconnect(c *C) {
 	mgr := s.manager(c)
 
 	// Run the setup-snap-security task and let it finish.
-	change := s.addSetupSnapSecurityChange(c, snapInfo.Name(), snappy.InstallFlags(0))
+	change := s.addSetupSnapSecurityChange(c, snapInfo.Name(), snappy.InstallFlags(0), snapInfo.Revision)
 	mgr.Ensure()
 	mgr.Wait()
 	mgr.Stop()
@@ -345,7 +345,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyAutoConnects(c *C) {
 	snapInfo := s.mockSnap(c, sampleSnapYaml)
 
 	// Run the setup-snap-security task and let it finish.
-	change := s.addSetupSnapSecurityChange(c, snapInfo.Name(), snappy.InstallFlags(0))
+	change := s.addSetupSnapSecurityChange(c, snapInfo.Name(), snappy.InstallFlags(0), snapInfo.Revision)
 	mgr.Ensure()
 	mgr.Wait()
 	mgr.Stop()
@@ -395,7 +395,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyKeepsExistingConnectionSt
 	s.state.Unlock()
 
 	// Run the setup-snap-security task and let it finish.
-	change := s.addSetupSnapSecurityChange(c, snapInfo.Name(), snappy.InstallFlags(0))
+	change := s.addSetupSnapSecurityChange(c, snapInfo.Name(), snappy.InstallFlags(0), snapInfo.Revision)
 	mgr.Ensure()
 	mgr.Wait()
 	mgr.Stop()
@@ -431,7 +431,7 @@ func (s *interfaceManagerSuite) TestDoSetupProfilesAddsImplicitSlots(c *C) {
 	snapInfo := s.mockSnap(c, osSnapYaml)
 
 	// Run the setup-profiles task and let it finish.
-	change := s.addSetupSnapSecurityChange(c, snapInfo.Name(), snappy.InstallFlags(0))
+	change := s.addSetupSnapSecurityChange(c, snapInfo.Name(), snappy.InstallFlags(0), snapInfo.Revision)
 	mgr.Ensure()
 	mgr.Wait()
 	mgr.Stop()
@@ -470,7 +470,7 @@ func (s *interfaceManagerSuite) testDoSetupSnapSecuirtyReloadsConnectionsWhenInv
 	mgr := s.manager(c)
 
 	// Run the setup-profiles task
-	change := s.addSetupSnapSecurityChange(c, snapName, snappy.InstallFlags(0))
+	change := s.addSetupSnapSecurityChange(c, snapName, snappy.InstallFlags(0), 0)
 	mgr.Ensure()
 	mgr.Wait()
 	mgr.Stop()
@@ -504,7 +504,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesHonorsDevMode(c *C) {
 
 	// Run the setup-profiles task and let it finish.
 	// Note that the task will see SnapSetup.Flags equal to DeveloperMode.
-	change := s.addSetupSnapSecurityChange(c, snapInfo.Name(), snappy.DeveloperMode)
+	change := s.addSetupSnapSecurityChange(c, snapInfo.Name(), snappy.DeveloperMode, snapInfo.Revision)
 	mgr.Ensure()
 	mgr.Wait()
 	mgr.Stop()
@@ -562,7 +562,7 @@ func (s *interfaceManagerSuite) undoDevModeCheck(c *C, flags snappy.InstallFlags
 	mgr := s.manager(c)
 
 	// Run the setup-profiles task in UndoMode and let it finish.
-	change := s.addSetupSnapSecurityChange(c, snapInfo.Name(), flags)
+	change := s.addSetupSnapSecurityChange(c, snapInfo.Name(), flags, snapInfo.Revision)
 	s.state.Lock()
 	task := change.Tasks()[0]
 	// Inject the old value of DevMode flag for the task handler to restore
