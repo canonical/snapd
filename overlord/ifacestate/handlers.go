@@ -95,13 +95,19 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error
 	if err := m.autoConnect(task, snapName, blacklist); err != nil {
 		return err
 	}
-	if len(affectedSnaps) == 0 {
-		affectedSnaps = append(affectedSnaps, snapInfo)
-	}
 	for _, snapInfo := range affectedSnaps {
+		if snapInfo.Name() == snapName {
+			// Skip setting up security for the principal snap. This is done
+			// below to ensure we use the more recent revision.
+			// https://bugs.launchpad.net/snappy/+bug/1572463
+			continue
+		}
 		if err := setupSnapSecurity(task, snapInfo, m.repo); err != nil {
 			return state.Retry
 		}
+	}
+	if err := setupSnapSecurity(task, snapInfo, m.repo); err != nil {
+		return state.Retry
 	}
 	return nil
 }
