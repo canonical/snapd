@@ -246,10 +246,10 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 			Size:              2,
 			IconURL:           "meta/gui/icon.svg",
 			Revision:          20,
-			Prices: map[string]float64{
-				"GBP": 1.23,
-				"EUR": 2.34,
-			},
+		},
+		Prices: map[string]float64{
+			"GBP": 1.23,
+			"EUR": 2.34,
 		},
 	}}
 	s.suggestedCurrency = "GBP"
