@@ -165,6 +165,9 @@ Description=Squashfs mount unit for foo
 [Mount]
 What=/var/lib/snapd/snaps/foo_13.snap
 Where=/snap/foo/13
+
+[Install]
+WantedBy=multi-user.target
 `)
 
 }
