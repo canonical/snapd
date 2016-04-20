@@ -36,7 +36,7 @@ import (
 
 const (
 	baseURL        = "snapd://"
-	httpClientSnap = "http.chipaca"
+	httpClientSnap = "http"
 )
 
 var _ = check.Suite(&snapdTestSuite{})
@@ -47,10 +47,7 @@ type snapdTestSuite struct {
 
 func (s *snapdTestSuite) SetUpTest(c *check.C) {
 	s.SnappySuite.SetUpTest(c)
-
-	c.Skip("FIXME: we need to update http.chipaca to new-security *and* land  auto-connect support in snapd")
-
-	common.InstallSnap(c, httpClientSnap+"/edge")
+	common.InstallSnap(c, httpClientSnap)
 }
 
 func (s *snapdTestSuite) TearDownTest(c *check.C) {
@@ -211,7 +208,7 @@ func doMethodNotAllowed(c *check.C, resource, verb string) {
 
 // makeRequest makes a request to the API according to the provided options.
 func makeRequest(options *requestOptions) (body []byte, err error) {
-	cmd := []string{"sudo", "http.do",
+	cmd := []string{"sudo", "http",
 		"--pretty", "none",
 		"--body",
 		"--ignore-stdin",
