@@ -59,8 +59,18 @@ func MountDir(name string, revision int) string {
 	return filepath.Join(dirs.SnapSnapsDir, name, strconv.Itoa(revision))
 }
 
-// SideInfo holds snap metadata that is not included in snap.yaml or for which the store is the canonical source.
-// It can be marshalled both as JSON and YAML.
+// SideInfo holds snap metadata that is crucial for the tracking of
+// snaps and for the working of the system offline and which is not
+// included in snap.yaml or for which the store is the canonical
+// source overriding snap.yaml content.
+//
+// It can be marshalled and will be stored in the system state for
+// each currently installed snap revision so it needs to be evolved
+// carefully.
+//
+// Information that can be taken directly from snap.yaml or that comes
+// from the store but is not required for working offline should not
+// end up in SideInfo.
 type SideInfo struct {
 	OfficialName      string `yaml:"name,omitempty" json:"name,omitempty"`
 	SnapID            string `yaml:"snap-id" json:"snap-id"`
@@ -71,7 +81,6 @@ type SideInfo struct {
 	EditedDescription string `yaml:"description,omitempty" json:"description,omitempty"`
 	Size              int64  `yaml:"size,omitempty" json:"size,omitempty"`
 	Sha512            string `yaml:"sha512,omitempty" json:"sha512,omitempty"`
-	IconURL           string `yaml:"icon-url,omitempty" json:"icon-url,omitempty"`
 }
 
 // Info provides information about snaps.
@@ -94,13 +103,15 @@ type Info struct {
 	// legacy fields collected
 	Legacy *LegacyYaml
 
-	// The information in these fields is not present inside the snap blob itself.
+	// The information in all the remaining fields is not sourced from the snap blob itself.
 	SideInfo
 
 	// The information in these fields is ephemeral, available only from the store.
 	AnonDownloadURL string
 	DownloadURL     string
-	Prices          map[string]float64 `yaml:"prices,omitempty" json:"prices,omitempty"`
+
+	IconURL string
+	Prices  map[string]float64 `yaml:"prices,omitempty" json:"prices,omitempty"`
 }
 
 // Name returns the blessed name for the snap.
