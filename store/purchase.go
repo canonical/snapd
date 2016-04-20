@@ -22,6 +22,14 @@ package store
 /*
 purchase encapsulates the purchase data sent to us from the software center agent.
 
+This object type can be received in response to requests about the user's current
+purchases, and also when making purchase requests.
+
+When making a purchase request, the State "InProgress", together with a RedirectTo
+URL may be received. In-this case, the user must be directed to that webpage.
+Additionally, Partner ID may be recieved as an extended header "X-Partner-Id",
+this should be included in the follow-on requests to the redirect URL.
+
 HTTP/1.1 200 OK
 Content-Type: application/json; charset=utf-8
 
@@ -55,6 +63,7 @@ type purchase struct {
 	State           string `json:"state"`
 	ItemSKU         string `json:"item_sku,omitempty"`
 	PurchaseID      string `json:"purchase_id,omitempty"`
+	RedirectTo      string `json:"redirect_to,omitempty"`
 }
 
 type purchaseList []purchase

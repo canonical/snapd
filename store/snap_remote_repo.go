@@ -583,6 +583,86 @@ var download = func(name string, w io.Writer, req *http.Request, pbar progress.M
 	return err
 }
 
+// Optionally specify parameters to the store purchase.
+// Currency: ISO 4217 code as string
+// BackendID: The payment backend to use, e.g. "credit_card", "paypal".
+// MethodID: The unique identifier for the payment method, retrieved from the pay server.
+type BuyOptions struct {
+	Currency  string
+	BackendID string
+	MethodID  int64
+}
+
+// When the purchase state is "InProgress" (i.e. requires user interaction to complete)
+// this struct contains the information required to complete the purchase.
+type BuyRedirect struct {
+	RedirectTo string
+	PartnerID  string
+}
+
+// Buy the specified snap using the default currency and payment method.
+// Returns the state of the purchase: Complete, Cancelled, InProgress or Pending.
+func (s *SnapUbuntuStoreRepository) Buy(name string, options BuyOptions, pbar progress.Meter, auther Authenticator) (string, *BuyRedirect, error) {
+	if options.Currency == "" {
+		options.Currency = s.SuggestedCurrency()
+	}
+
+	// Create the purchase instruction
+	instruction := PurchaseInstruction{
+		Name:      name,
+		Currency:  options.Currency,
+		BackendID: options.BackendID,
+		MethodID:  options.MethodID,
+	}
+
+	jsonData, err := json.Marshal(instruction)
+	if err != nil {
+		return "", nil, err
+	}
+
+	req, err := http.NewRequest("POST", s.purchasesURI.String(), bytes.NewBuffer(jsonData))
+	if err != nil {
+		return "", nil, err
+	}
+
+	// set headers
+	s.applyUbuntuStoreHeaders(req, "", auther)
+
+	// tell the server we're sending JSON
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return "", nil, err
+	}
+	defer resp.Body.Close()
+
+	// check statusCode
+	switch {
+	case resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated:
+		// user already purchased or purchase successful
+		var purchaseDetails purchase
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&purchaseDetails); err != nil {
+			return "", nil, err
+		}
+
+		var redirect *BuyRedirect
+		if purchaseDetails.State == "InProgress" {
+			redirect = &BuyRedirect{
+				RedirectTo: purchaseDetails.RedirectTo,
+				PartnerID:  resp.Header.Get("X-Partner-Id"),
+			}
+		}
+		return purchaseDetails.State, redirect, nil
+	case resp.StatusCode == http.StatusUnauthorized:
+		// auth token failure
+		return "", nil, decodeUnauthorizedError(resp.Body)
+	default:
+		return "", nil, fmt.Errorf("SnapUbuntuStoreRepository: unexpected HTTP status code %d while buying snap %q", resp.StatusCode, name)
+	}
+}
+
 type assertionSvcError struct {
 	Status int    `json:"status"`
 	Type   string `json:"type"`
