@@ -97,6 +97,7 @@ var bluezConnectedPlugAppArmor = []byte(`
 dbus (receive, send)
     bus=system
     peer=(label=snap.bluez.*),
+# FIXME: adjust to use 'snap.<name>.<app>' from the connecting slot
 
 dbus (send)
     bus=system
