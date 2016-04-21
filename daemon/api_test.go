@@ -100,8 +100,6 @@ func (s *apiSuite) SetUpSuite(c *check.C) {
 func (s *apiSuite) TearDownSuite(c *check.C) {
 	newRemoteRepo = nil
 	muxVars = nil
-	snapstateInstall = snapstate.Install
-	snapstateGet = snapstate.Get
 }
 
 func (s *apiSuite) SetUpTest(c *check.C) {
@@ -126,6 +124,10 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 func (s *apiSuite) TearDownTest(c *check.C) {
 	s.d = nil
 	s.restoreBackends()
+	snapstateInstall = snapstate.Install
+	snapstateGet = snapstate.Get
+	snapstateInstallPath = snapstate.InstallPath
+	readSnapInfo = readSnapInfoImpl
 }
 
 func (s *apiSuite) daemon(c *check.C) *Daemon {
@@ -440,6 +442,7 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"snapstateUpdate",
 		"snapstateInstallPath",
 		"snapstateGet",
+		"readSnapInfo",
 	}
 	c.Check(found, check.Equals, len(api)+len(exceptions),
 		check.Commentf(`At a glance it looks like you've not added all the Commands defined in api to the api list. If that is not the case, please add the exception to the "exceptions" list in this test.`))
@@ -1157,9 +1160,14 @@ func (s *apiSuite) TestSideloadSnap(c *check.C) {
 		"Content-Disposition: form-data; name=\"x\"; filename=\"x\"\r\n" +
 		"\r\n" +
 		"xyzzy\r\n" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"snap-path\"\r\n" +
+		"\r\n" +
+		"a/b/local.snap\r\n" +
 		"----hello--\r\n"
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
-	s.sideloadCheck(c, body, head, 0)
+	chgSummary := s.sideloadCheck(c, body, head, 0)
+	c.Check(chgSummary, check.Equals, `Install "local" snap from snap file "a/b/local.snap"`)
 }
 
 func (s *apiSuite) TestSideloadSnapDevMode(c *check.C) {
@@ -1175,10 +1183,11 @@ func (s *apiSuite) TestSideloadSnapDevMode(c *check.C) {
 		"----hello--\r\n"
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 	// try a multipart/form-data upload
-	s.sideloadCheck(c, body, head, snappy.DeveloperMode)
+	chgSummary := s.sideloadCheck(c, body, head, snappy.DeveloperMode)
+	c.Check(chgSummary, check.Equals, `Install "local" snap from snap file`)
 }
 
-func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]string, expectedFlags snappy.InstallFlags) {
+func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]string, expectedFlags snappy.InstallFlags) string {
 	d := newTestDaemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
@@ -1192,6 +1201,10 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 
 	// setup done
 	installQueue := []string{}
+	readSnapInfo = func(path string) (*snap.Info, error) {
+		return &snap.Info{SuggestedName: "local"}, nil
+	}
+
 	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
 		// pretend we do not have a state for ubuntu-core
 		return state.ErrNoState
@@ -1205,14 +1218,14 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 		return state.NewTaskSet(t), nil
 	}
 
-	snapstateInstallPath = func(s *state.State, name, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
+	snapstateInstallPath = func(s *state.State, name, path, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
 		c.Check(flags, check.Equals, expectedFlags)
 
-		bs, err := ioutil.ReadFile(name)
+		bs, err := ioutil.ReadFile(path)
 		c.Check(err, check.IsNil)
 		c.Check(string(bs), check.Equals, "xyzzy")
 
-		installQueue = append(installQueue, name)
+		installQueue = append(installQueue, name+"::"+path)
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
 		return state.NewTaskSet(t), nil
 	}
@@ -1224,10 +1237,18 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 	}
 
 	rsp := sideloadSnap(snapsCmd, req).(*resp)
-	c.Check(rsp.Type, check.Equals, ResponseTypeAsync)
+	c.Assert(rsp.Type, check.Equals, ResponseTypeAsync)
 	c.Assert(installQueue, check.HasLen, 2)
 	c.Check(installQueue[0], check.Equals, "ubuntu-core")
-	c.Check(installQueue[1], check.Matches, ".*/snapd-sideload-pkg-.*")
+	c.Check(installQueue[1], check.Matches, "local::.*/snapd-sideload-pkg-.*")
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	chgs := st.Changes()
+	c.Check(chgs, check.HasLen, 1)
+	c.Check(chgs[0].Kind(), check.Equals, "install-snap")
+	return chgs[0].Summary()
 }
 
 func (s *apiSuite) TestAppIconGet(c *check.C) {

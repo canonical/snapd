@@ -856,11 +856,25 @@ out:
 
 	snap := tmpf.Name()
 
+	origPath := ""
+	if len(form.Value["snap-path"]) > 0 {
+		origPath = form.Value["snap-path"][0]
+	}
+
+	info, err := readSnapInfo(snap)
+	if err != nil {
+		return InternalError("cannot read snap file: %v", err)
+	}
+	snapName := info.Name()
+
 	state := c.d.overlord.State()
 	state.Lock()
 	defer state.Unlock()
 
-	msg := fmt.Sprintf(i18n.G("Install %q snap file"), snap)
+	msg := fmt.Sprintf(i18n.G("Install %q snap from snap file"), snapName)
+	if origPath != "" {
+		msg = fmt.Sprintf(i18n.G("Install %q snap from snap file %q"), snapName, origPath)
+	}
 	chg := state.NewChange("install-snap", msg)
 
 	var userID int
@@ -873,7 +887,7 @@ out:
 
 	err = ensureUbuntuCore(chg, userID)
 	if err == nil {
-		ts, err := snapstateInstallPath(state, snap, "", flags)
+		ts, err := snapstateInstallPath(state, snapName, snap, "", flags)
 		if err == nil {
 			chg.AddAll(ts)
 		}
@@ -891,6 +905,17 @@ out:
 
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }
+
+func readSnapInfoImpl(snapPath string) (*snap.Info, error) {
+	// TODO Only open if in devmode or we have the assertion proving content right.
+	snapf, err := snap.Open(snapPath)
+	if err != nil {
+		return nil, err
+	}
+	return snapf.Info()
+}
+
+var readSnapInfo = readSnapInfoImpl
 
 func iconGet(st *state.State, name string) Response {
 	info, _, err := localSnapInfo(st, name)
