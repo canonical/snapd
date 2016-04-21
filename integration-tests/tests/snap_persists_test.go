@@ -52,7 +52,7 @@ func (s *snapPersistsSuite) TestSnapPersistAfterReboot(c *check.C) {
 		output, err := cli.ExecCommandErr("snap", "list")
 		c.Assert(err, check.IsNil)
 
-		expected := "(?ms)Name +Version +Developer\n" +
+		expected := "(?ms)Name .*\n" +
 			".*" +
 			"^basic +.* *\n" +
 			".*"
