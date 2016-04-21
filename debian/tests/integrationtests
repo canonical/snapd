@@ -24,6 +24,6 @@ cp -R . $GOPATH/src/github.com/ubuntu-core/snappy/
 mkdir $GOPATH/src/github.com/ubuntu-core/snappy/integration-tests/data/output
 cp debian/tests/testconfig.json $GOPATH/src/github.com/ubuntu-core/snappy/integration-tests/data/output/
 cd $GOPATH/src/github.com/ubuntu-core/snappy
-go test -c ./integration-tests/tests
+go test -tags classiconly -c ./integration-tests/tests
 
-./tests.test  -check.vv -check.f 'snapHelloWorldExampleSuite|snapOpSuite|searchSuite|installAppSuite|authSuite|networkInterfaceSuite'
+./tests.test  -check.vv -check.f 'snapHelloWorldExampleSuite|snapOpSuite|searchSuite|installAppSuite|authSuite|networkInterfaceSuite|unitySuite'
