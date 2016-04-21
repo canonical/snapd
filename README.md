@@ -108,7 +108,7 @@ You can run individual test with:
 
 If a test hangs, you can enable verbose mode:
 
-   go test -v -check.vv
+    go test -v -check.vv
 
 (or -check.v for less verbose output).
 
