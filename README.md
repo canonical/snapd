@@ -69,9 +69,9 @@ If the dependencies need updating
 
 To build, once the sources are available and `GOPATH` is set, you can just run
 
-    go build -o /tmp/snappy github.com/ubuntu-core/snappy/cmd/snappy
+    go build -o /tmp/snap github.com/ubuntu-core/snappy/cmd/snap
 
-to get the `snappy` binary in /tmp (or without -o to get it in the current
+to get the `snap` binary in /tmp (or without -o to get it in the current
 working directory). Alternatively:
 
     go install github.com/ubuntu-core/snappy/...
