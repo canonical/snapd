@@ -46,7 +46,7 @@ the `-d` flag. More details on the `go get` flags are available using
     go help get
 
 At this point you will have the git local repository of the `snappy` source at
-`$GOPATH/github.com/ubuntu-core/snappy/snappy`. The source for any
+`$GOPATH/github.com/ubuntu-core/snappy`. The source for any
 dependent packages will also be available inside `$GOPATH`.
 
 ### Dependencies handling
