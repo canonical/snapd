@@ -579,7 +579,7 @@ func installSnap(chg *state.Change, name, channel string, userID int, flags snap
 	return nil
 }
 
-func (inst *snapInstruction) install() (*state.Change, error) {
+func snapInstall(inst *snapInstruction) (*state.Change, error) {
 	flags := snappy.DoInstallGC
 	if inst.LeaveOld {
 		flags = 0
@@ -623,7 +623,7 @@ func (inst *snapInstruction) install() (*state.Change, error) {
 	*/
 }
 
-func (inst *snapInstruction) update() (*state.Change, error) {
+func snapUpdate(inst *snapInstruction) (*state.Change, error) {
 	flags := snappy.DoInstallGC
 	if inst.LeaveOld {
 		flags = 0
@@ -649,7 +649,7 @@ func (inst *snapInstruction) update() (*state.Change, error) {
 	return chg, nil
 }
 
-func (inst *snapInstruction) remove() (*state.Change, error) {
+func snapRemove(inst *snapInstruction) (*state.Change, error) {
 	flags := snappy.DoRemoveGC
 	if inst.LeaveOld {
 		flags = 0
@@ -672,7 +672,7 @@ func (inst *snapInstruction) remove() (*state.Change, error) {
 	return chg, nil
 }
 
-func (inst *snapInstruction) rollback() (*state.Change, error) {
+func snapRollback(inst *snapInstruction) (*state.Change, error) {
 	state := inst.overlord.State()
 	state.Lock()
 	msg := fmt.Sprintf(i18n.G("Rollback %q snap"), inst.pkg)
@@ -693,7 +693,7 @@ func (inst *snapInstruction) rollback() (*state.Change, error) {
 	return chg, nil
 }
 
-func (inst *snapInstruction) activate() (*state.Change, error) {
+func snapActivate(inst *snapInstruction) (*state.Change, error) {
 	state := inst.overlord.State()
 	state.Lock()
 	msg := fmt.Sprintf(i18n.G("Activate %q snap"), inst.pkg)
@@ -712,7 +712,7 @@ func (inst *snapInstruction) activate() (*state.Change, error) {
 	return chg, nil
 }
 
-func (inst *snapInstruction) deactivate() (*state.Change, error) {
+func snapDeactivate(inst *snapInstruction) (*state.Change, error) {
 	state := inst.overlord.State()
 	state.Lock()
 	msg := fmt.Sprintf(i18n.G("Deactivate %q snap"), inst.pkg)
@@ -731,30 +731,18 @@ func (inst *snapInstruction) deactivate() (*state.Change, error) {
 	return chg, nil
 }
 
-func (inst *snapInstruction) dispatch() func() (*state.Change, error) {
-	switch inst.Action {
-	case "install":
-		return inst.install
-	case "refresh":
-		return inst.update
-	case "remove":
-		return inst.remove
-	case "rollback":
-		return inst.rollback
-	case "activate":
-		return inst.activate
-	case "deactivate":
-		return inst.deactivate
-	default:
-		return nil
-	}
+var snapInstructionDispTable = map[string]func(*snapInstruction) (*state.Change, error){
+	"install":    snapInstall,
+	"refresh":    snapUpdate,
+	"remove":     snapRemove,
+	"rollback":   snapRollback,
+	"activate":   snapActivate,
+	"deactivate": snapDeactivate,
 }
 
-func pkgActionDispatchImpl(inst *snapInstruction) func() (*state.Change, error) {
-	return inst.dispatch()
+func (inst *snapInstruction) dispatch() func(*snapInstruction) (*state.Change, error) {
+	return snapInstructionDispTable[inst.Action]
 }
-
-var pkgActionDispatch = pkgActionDispatchImpl
 
 func postSnap(c *Command, r *http.Request) Response {
 	route := c.d.router.Get(stateChangeCmd.Path)
@@ -783,14 +771,14 @@ func postSnap(c *Command, r *http.Request) Response {
 	inst.pkg = vars["name"]
 	inst.overlord = c.d.overlord
 
-	f := pkgActionDispatch(&inst)
-	if f == nil {
+	impl := inst.dispatch()
+	if impl == nil {
 		return BadRequest("unknown action %s", inst.Action)
 	}
 
-	chg, err := f()
+	chg, err := impl(&inst)
 	if err != nil {
-		return InternalError("can't %s %q: %v", inst.Action, inst.pkg, err)
+		return InternalError("cannot %s %q: %v", inst.Action, inst.pkg, err)
 	}
 
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})

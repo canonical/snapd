@@ -436,7 +436,7 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"maxReadBuflen",
 		"muxVars",
 		"newRemoteRepo",
-		"pkgActionDispatch",
+		"snapInstructionDispTable",
 		// snapInstruction vars:
 		"snapstateInstall",
 		"snapstateUpdate",
@@ -1044,18 +1044,16 @@ func (s *apiSuite) TestPostSnapBadAction(c *check.C) {
 func (s *apiSuite) TestPostSnap(c *check.C) {
 	d := s.daemon(c)
 
-	pkgActionDispatch = func(*snapInstruction) func() (*state.Change, error) {
-		return func() (*state.Change, error) {
-			state := d.overlord.State()
-			state.Lock()
-			chg := state.NewChange("foo", "foooo")
-			state.Unlock()
+	snapInstructionDispTable["install"] = func(*snapInstruction) (*state.Change, error) {
+		state := d.overlord.State()
+		state.Lock()
+		chg := state.NewChange("foo", "foooo")
+		state.Unlock()
 
-			return chg, nil
-		}
+		return chg, nil
 	}
 	defer func() {
-		pkgActionDispatch = pkgActionDispatchImpl
+		snapInstructionDispTable["install"] = snapInstall
 	}()
 
 	buf := bytes.NewBufferString(`{"action": "install"}`)
@@ -1077,19 +1075,17 @@ func (s *apiSuite) TestPostSnap(c *check.C) {
 func (s *apiSuite) TestPostSnapSetsUser(c *check.C) {
 	d := s.daemon(c)
 
-	pkgActionDispatch = func(inst *snapInstruction) func() (*state.Change, error) {
-		return func() (*state.Change, error) {
-			state := d.overlord.State()
-			state.Lock()
-			// check UserID was set in the snapInstruction
-			chg := state.NewChange("foo", string(inst.userID))
-			state.Unlock()
+	snapInstructionDispTable["install"] = func(inst *snapInstruction) (*state.Change, error) {
+		state := d.overlord.State()
+		state.Lock()
+		// check UserID was set in the snapInstruction
+		chg := state.NewChange("foo", string(inst.userID))
+		state.Unlock()
 
-			return chg, nil
-		}
+		return chg, nil
 	}
 	defer func() {
-		pkgActionDispatch = pkgActionDispatchImpl
+		snapInstructionDispTable["install"] = snapInstall
 	}()
 
 	state := snapCmd.d.overlord.State()
@@ -1119,22 +1115,24 @@ func (s *apiSuite) TestPostSnapDispatch(c *check.C) {
 	inst := &snapInstruction{}
 
 	type T struct {
-		s string
-		m func() (*state.Change, error)
+		s    string
+		impl func(*snapInstruction) (*state.Change, error)
 	}
 
 	actions := []T{
-		{"install", inst.install},
-		{"refresh", inst.update},
-		{"remove", inst.remove},
-		{"rollback", inst.rollback},
+		{"install", snapInstall},
+		{"refresh", snapUpdate},
+		{"remove", snapRemove},
+		{"rollback", snapRollback},
+		{"activate", snapActivate},
+		{"deactivate", snapDeactivate},
 		{"xyzzy", nil},
 	}
 
 	for _, action := range actions {
 		inst.Action = action.s
 		// do you feel dirty yet?
-		c.Check(fmt.Sprintf("%p", action.m), check.Equals, fmt.Sprintf("%p", inst.dispatch()))
+		c.Check(fmt.Sprintf("%p", action.impl), check.Equals, fmt.Sprintf("%p", inst.dispatch()))
 	}
 }
 
@@ -1389,7 +1387,7 @@ func (s *apiSuite) TestInstall(c *check.C) {
 
 	d.overlord.Loop()
 	defer d.overlord.Stop()
-	chg, err := inst.dispatch()()
+	chg, err := inst.dispatch()(inst)
 
 	c.Check(calledFlags, check.Equals, snappy.DoInstallGC)
 	c.Check(err, check.IsNil)
@@ -1426,7 +1424,7 @@ func (s *apiSuite) TestRefresh(c *check.C) {
 
 	d.overlord.Loop()
 	defer d.overlord.Stop()
-	chg, err := inst.dispatch()()
+	chg, err := inst.dispatch()(inst)
 
 	c.Check(calledFlags, check.Equals, snappy.DoInstallGC)
 	c.Check(calledUserID, check.Equals, 17)
@@ -1459,7 +1457,7 @@ func (s *apiSuite) TestInstallMissingUbuntuCore(c *check.C) {
 
 	d.overlord.Loop()
 	defer d.overlord.Stop()
-	_, err := inst.dispatch()()
+	_, err := inst.dispatch()(inst)
 	c.Check(err, check.IsNil)
 
 	d.overlord.State().Lock()
@@ -1500,7 +1498,7 @@ func (s *apiSuite) TestInstallUbuntuCoreWhenMissing(c *check.C) {
 
 	d.overlord.Loop()
 	defer d.overlord.Stop()
-	_, err := inst.dispatch()()
+	_, err := inst.dispatch()(inst)
 	c.Check(err, check.IsNil)
 
 	d.overlord.State().Lock()
@@ -1526,7 +1524,7 @@ func (s *apiSuite) TestInstallFails(c *check.C) {
 
 	d.overlord.Loop()
 	defer d.overlord.Stop()
-	chg, err := inst.dispatch()()
+	chg, err := inst.dispatch()(inst)
 	c.Assert(err, check.IsNil)
 
 	<-chg.Ready()
@@ -1556,7 +1554,7 @@ func (s *apiSuite) TestInstallLeaveOld(c *check.C) {
 
 	d.overlord.Loop()
 	defer d.overlord.Stop()
-	_, err := inst.dispatch()()
+	_, err := inst.dispatch()(inst)
 
 	c.Check(calledFlags, check.Equals, snappy.InstallFlags(0))
 	c.Check(err, check.IsNil)
@@ -1582,7 +1580,7 @@ func (s *apiSuite) TestInstallDevMode(c *check.C) {
 
 	d.overlord.Loop()
 	defer d.overlord.Stop()
-	_, err := inst.dispatch()()
+	_, err := inst.dispatch()(inst)
 	c.Check(err, check.IsNil)
 
 	// DevMode was converted to the snappy.DeveloperMode flag
