@@ -46,7 +46,7 @@ the `-d` flag. More details on the `go get` flags are available using
     go help get
 
 At this point you will have the git local repository of the `snappy` source at
-`$GOPATH/github.com/ubuntu-core/snappy/snappy`. The source for any
+`$GOPATH/github.com/ubuntu-core/snappy`. The source for any
 dependent packages will also be available inside `$GOPATH`.
 
 ### Dependencies handling
@@ -69,9 +69,9 @@ If the dependencies need updating
 
 To build, once the sources are available and `GOPATH` is set, you can just run
 
-    go build -o /tmp/snappy github.com/ubuntu-core/snappy/cmd/snappy
+    go build -o /tmp/snap github.com/ubuntu-core/snappy/cmd/snap
 
-to get the `snappy` binary in /tmp (or without -o to get it in the current
+to get the `snap` binary in /tmp (or without -o to get it in the current
 working directory). Alternatively:
 
     go install github.com/ubuntu-core/snappy/...
@@ -108,7 +108,7 @@ You can run individual test with:
 
 If a test hangs, you can enable verbose mode:
 
-   go test -v -check.vv
+    go test -v -check.vv
 
 (or -check.v for less verbose output).
 
