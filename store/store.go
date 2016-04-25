@@ -402,7 +402,12 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string, auther Authentica
 	case resp.StatusCode == 404:
 		return nil, ErrSnapNotFound
 	case resp.StatusCode != 200:
-		return nil, fmt.Errorf("SnapUbuntuStoreRepository: unexpected HTTP status code %d while looking for snap %q/%q", resp.StatusCode, name, channel)
+		tpl := "Ubuntu CPI service returned unexpected HTTP status code %d while looking for snap %q in channel %q"
+		if oops := resp.Header.Get("X-Oops-Id"); oops != "" {
+			tpl += " [%s]"
+			return nil, fmt.Errorf(tpl, resp.StatusCode, name, channel, oops)
+		}
+		return nil, fmt.Errorf(tpl, resp.StatusCode, name, channel)
 	}
 
 	// and decode json
