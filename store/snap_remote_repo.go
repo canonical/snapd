@@ -75,6 +75,7 @@ type SnapUbuntuStoreConfig struct {
 	SearchURI     *url.URL
 	BulkURI       *url.URL
 	AssertionsURI *url.URL
+	PurchasesURI  *url.URL
 }
 
 // SnapUbuntuStoreRepository represents the ubuntu snap store
@@ -83,6 +84,7 @@ type SnapUbuntuStoreRepository struct {
 	searchURI     *url.URL
 	bulkURI       *url.URL
 	assertionsURI *url.URL
+	purchasesURI  *url.URL
 	// reused http client
 	client *http.Client
 
@@ -108,8 +110,12 @@ func getStructFields(s interface{}) []string {
 	return fields
 }
 
+func useStagingCpi() bool {
+	return os.Getenv("SNAPPY_USE_STAGING_CPI") != ""
+}
+
 func cpiURL() string {
-	if os.Getenv("SNAPPY_USE_STAGING_CPI") != "" {
+	if useStagingCpi() {
 		return "https://search.apps.staging.ubuntu.com/api/v1/"
 	}
 	// FIXME: this will become a store-url assertion
@@ -121,7 +127,7 @@ func cpiURL() string {
 }
 
 func authURL() string {
-	if os.Getenv("SNAPPY_USE_STAGING_CPI") != "" {
+	if useStagingCpi() {
 		return "https://login.staging.ubuntu.com/api/v2"
 	}
 	return "https://login.ubuntu.com/api/v2"
@@ -144,6 +150,13 @@ func myappsURL() string {
 		return "https://myapps.developer.staging.ubuntu.com/api/2.0"
 	}
 	return "https://myapps.developer.ubuntu.com/api/2.0"
+}
+
+func scaURL() string {
+	if useStagingCpi() {
+		return "https://myapps.developer.staging.ubuntu.com/api/2.0/"
+	}
+	return "https://myapps.developer.ubuntu.com/api/2.0/"
 }
 
 var defaultConfig = SnapUbuntuStoreConfig{}
@@ -178,6 +191,15 @@ func init() {
 		panic(err)
 	}
 
+	scaBaseURI, err := url.Parse(scaURL())
+	if err != nil {
+		panic(err)
+	}
+
+	defaultConfig.PurchasesURI, err = scaBaseURI.Parse("click/purchases/")
+	if err != nil {
+		panic(err)
+	}
 }
 
 type searchResults struct {
@@ -197,6 +219,7 @@ func NewUbuntuStoreSnapRepository(cfg *SnapUbuntuStoreConfig, storeID string) *S
 		searchURI:     cfg.SearchURI,
 		bulkURI:       cfg.BulkURI,
 		assertionsURI: cfg.AssertionsURI,
+		purchasesURI:  cfg.PurchasesURI,
 		client:        &http.Client{},
 	}
 }
@@ -230,6 +253,123 @@ func (s *SnapUbuntuStoreRepository) checkStoreResponse(resp *http.Response) {
 		s.suggestedCurrency = suggestedCurrency
 		s.mu.Unlock()
 	}
+}
+
+/*
+purchase encapsulates the purchase data sent to us from the software center agent.
+
+This object type can be received in response to requests about the user's current
+purchases, and also when making purchase requests.
+
+When making a purchase request, the State "InProgress", together with a RedirectTo
+URL may be received. In-this case, the user must be directed to that webpage.
+Additionally, Partner ID may be recieved as an extended header "X-Partner-Id",
+this should be included in the follow-on requests to the redirect URL.
+
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+
+[
+  {
+    "open_id": "https://login.staging.ubuntu.com/+id/open_id",
+    "package_name": "com.ubuntu.developer.dev.appname",
+    "refundable_until": "2015-07-15 18:46:21",
+    "state": "Complete"
+  },
+  {
+    "open_id": "https://login.staging.ubuntu.com/+id/open_id",
+    "package_name": "com.ubuntu.developer.dev.appname",
+    "item_sku": "item-1-sku",
+    "purchase_id": "1",
+    "refundable_until": null,
+    "state": "Complete"
+  },
+  {
+    "open_id": "https://login.staging.ubuntu.com/+id/open_id",
+    "package_name": "com.ubuntu.developer.dev.otherapp",
+    "refundable_until": "2015-07-17 11:33:29",
+    "state": "Complete"
+  }
+]
+*/
+type purchase struct {
+	OpenID          string `json:"open_id"`
+	PackageName     string `json:"package_name"`
+	RefundableUntil string `json:"refundable_until"`
+	State           string `json:"state"`
+	ItemSKU         string `json:"item_sku,omitempty"`
+	PurchaseID      string `json:"purchase_id,omitempty"`
+	RedirectTo      string `json:"redirect_to,omitempty"`
+}
+
+type purchaseList []purchase
+
+func (s *SnapUbuntuStoreRepository) getPurchasesFromURL(url *url.URL, auther Authenticator) (purchaseList, error) {
+	if auther == nil {
+		return nil, fmt.Errorf("cannot obtain known purchases from store: no authentication credentials provided")
+	}
+
+	req, err := http.NewRequest("GET", url.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	s.applyUbuntuStoreHeaders(req, "application/json", auther)
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var purchases purchaseList
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&purchases); err != nil {
+			return nil, fmt.Errorf("cannot decode known purchases from store: %v", err)
+		}
+	case http.StatusNotFound:
+		// the store returns 404 for snaps that have no purchases, so just return an empty list
+		break
+	case http.StatusUnauthorized:
+		return nil, decodeUnauthorizedError(resp.Body)
+	default:
+		return nil, fmt.Errorf("cannot obtain known purchases from store: server returned %v code", resp.StatusCode)
+	}
+
+	return purchases, nil
+}
+
+// getPurchases retreives the user's purchases for a specific package, including in-app purchases, as a list
+func (s *SnapUbuntuStoreRepository) getPurchases(name string, auther Authenticator) (purchaseList, error) {
+	purchasesURL, err := s.purchasesURI.Parse(name + "/")
+	if err != nil {
+		return nil, err
+	}
+
+	q := purchasesURL.Query()
+	q.Set("include_item_purchases", "true")
+	purchasesURL.RawQuery = q.Encode()
+
+	return s.getPurchasesFromURL(purchasesURL, auther)
+}
+
+// getAllPurchases retreives all the user's purchases, including in-app purchases, as a map indexed by package name
+func (s *SnapUbuntuStoreRepository) getAllPurchases(auther Authenticator) (map[string]purchaseList, error) {
+	purchases, err := s.getPurchasesFromURL(s.purchasesURI, auther)
+	if err != nil {
+		return nil, err
+	}
+
+	// Index it all in a multimap
+	purchasesByName := make(map[string]purchaseList)
+	for _, purchase := range purchases {
+		purchasesByName[purchase.PackageName] = append(purchasesByName[purchase.PackageName], purchase)
+	}
+
+	return purchasesByName, nil
 }
 
 // Snap returns the snap.Info for the store hosted snap with the given name or an error.

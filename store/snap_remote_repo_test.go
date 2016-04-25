@@ -231,6 +231,53 @@ const MockDetailsJSON = `{
     }
 }
 `
+const mockPurchasesJSON = `[
+  {
+    "open_id": "https://login.staging.ubuntu.com/+id/open_id",
+    "package_name": "hello-world.canonical",
+    "refundable_until": "2015-07-15 18:46:21",
+    "state": "Complete"
+  },
+  {
+    "open_id": "https://login.staging.ubuntu.com/+id/open_id",
+    "package_name": "hello-world.canonical",
+    "item_sku": "item-1-sku",
+    "purchase_id": "1",
+    "refundable_until": null,
+    "state": "Complete"
+  },
+  {
+    "open_id": "https://login.staging.ubuntu.com/+id/open_id",
+    "package_name": "8nzc1x4iim2xj1g2ul64.chipaca",
+    "refundable_until": "2015-07-17 11:33:29",
+    "state": "Complete"
+  }
+]
+`
+
+const mockPurchaseJSON = `[
+  {
+    "open_id": "https://login.staging.ubuntu.com/+id/open_id",
+    "package_name": "hello-world.canonical",
+    "refundable_until": "2015-07-15 18:46:21",
+    "state": "Complete"
+  },
+  {
+    "open_id": "https://login.staging.ubuntu.com/+id/open_id",
+    "package_name": "hello-world.canonical",
+    "item_sku": "item-1-sku",
+    "purchase_id": "1",
+    "refundable_until": null,
+    "state": "Complete"
+  }
+]
+`
+
+const mockTokenNeedsRefreshJSON = `{
+  "threshold": 999,
+  "error": "TOKEN_NEEDS_REFRESH"
+}
+`
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -726,4 +773,156 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositorySuggestedCurrency(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(result, NotNil)
 	c.Check(repo.SuggestedCurrency(), Equals, "EUR")
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreGetAllPurchases(c *C) {
+	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authorization := r.Header.Get("Authorization")
+		c.Check(authorization, Equals, "Authorization-details")
+		c.Check(r.URL.Path, Equals, "/click/purchases/")
+		io.WriteString(w, mockPurchasesJSON)
+	}))
+
+	c.Assert(mockPurchasesServer, NotNil)
+	defer mockPurchasesServer.Close()
+
+	var err error
+	purchasesURI, err := url.Parse(mockPurchasesServer.URL + "/click/purchases/")
+	c.Assert(err, IsNil)
+	cfg := SnapUbuntuStoreConfig{
+		PurchasesURI: purchasesURI,
+	}
+	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	c.Assert(repo, NotNil)
+
+	authenticator := &fakeAuthenticator{}
+	purchases, err := repo.getAllPurchases(authenticator)
+	c.Assert(err, IsNil)
+
+	helloWorldPurchases := purchases["hello-world.canonical"]
+	c.Assert(len(helloWorldPurchases), Equals, 2)
+
+	c.Check(helloWorldPurchases[0], Equals, purchase{OpenID: "https://login.staging.ubuntu.com/+id/open_id",
+		PackageName:     "hello-world.canonical",
+		RefundableUntil: "2015-07-15 18:46:21",
+		State:           "Complete",
+	},
+	)
+	c.Check(helloWorldPurchases[1], Equals, purchase{OpenID: "https://login.staging.ubuntu.com/+id/open_id",
+		PackageName:     "hello-world.canonical",
+		RefundableUntil: "",
+		State:           "Complete",
+		ItemSKU:         "item-1-sku",
+		PurchaseID:      "1",
+	},
+	)
+
+	chipacaPurchases := purchases[funkyAppName+"."+funkyAppDeveloper]
+	c.Assert(len(chipacaPurchases), Equals, 1)
+
+	c.Check(chipacaPurchases[0], Equals, purchase{OpenID: "https://login.staging.ubuntu.com/+id/open_id",
+		PackageName:     funkyAppName + "." + funkyAppDeveloper,
+		RefundableUntil: "2015-07-17 11:33:29",
+		State:           "Complete",
+	},
+	)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchases(c *C) {
+	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authorization := r.Header.Get("Authorization")
+		c.Check(authorization, Equals, "Authorization-details")
+		c.Check(r.URL.Path, Equals, "/click/purchases/hello-world.canonical/")
+		c.Check(r.URL.Query().Get("include_item_purchases"), Equals, "true")
+		io.WriteString(w, mockPurchaseJSON)
+	}))
+
+	c.Assert(mockPurchasesServer, NotNil)
+	defer mockPurchasesServer.Close()
+
+	var err error
+	purchasesURI, err := url.Parse(mockPurchasesServer.URL + "/click/purchases/")
+	c.Assert(err, IsNil)
+	cfg := SnapUbuntuStoreConfig{
+		PurchasesURI: purchasesURI,
+	}
+	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	c.Assert(repo, NotNil)
+
+	authenticator := &fakeAuthenticator{}
+	helloWorldPurchases, err := repo.getPurchases("hello-world.canonical", authenticator)
+	c.Assert(err, IsNil)
+
+	c.Assert(len(helloWorldPurchases), Equals, 2)
+
+	c.Check(helloWorldPurchases[0], Equals, purchase{OpenID: "https://login.staging.ubuntu.com/+id/open_id",
+		PackageName:     "hello-world.canonical",
+		RefundableUntil: "2015-07-15 18:46:21",
+		State:           "Complete",
+	},
+	)
+	c.Check(helloWorldPurchases[1], Equals, purchase{OpenID: "https://login.staging.ubuntu.com/+id/open_id",
+		PackageName:     "hello-world.canonical",
+		RefundableUntil: "",
+		State:           "Complete",
+		ItemSKU:         "item-1-sku",
+		PurchaseID:      "1",
+	},
+	)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesNotFound(c *C) {
+	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authorization := r.Header.Get("Authorization")
+		c.Check(authorization, Equals, "Authorization-details")
+		c.Check(r.URL.Path, Equals, "/click/purchases/hello-world.canonical/")
+		c.Check(r.URL.Query().Get("include_item_purchases"), Equals, "true")
+		w.WriteHeader(http.StatusNotFound)
+		io.WriteString(w, "")
+	}))
+
+	c.Assert(mockPurchasesServer, NotNil)
+	defer mockPurchasesServer.Close()
+
+	var err error
+	purchasesURI, err := url.Parse(mockPurchasesServer.URL + "/click/purchases/")
+	c.Assert(err, IsNil)
+	cfg := SnapUbuntuStoreConfig{
+		PurchasesURI: purchasesURI,
+	}
+	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	c.Assert(repo, NotNil)
+
+	authenticator := &fakeAuthenticator{}
+	helloWorldPurchases, err := repo.getPurchases("hello-world.canonical", authenticator)
+	c.Assert(err, IsNil)
+	c.Assert(len(helloWorldPurchases), Equals, 0)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesTokenExpired(c *C) {
+	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authorization := r.Header.Get("Authorization")
+		c.Check(authorization, Equals, "Authorization-details")
+		c.Check(r.URL.Path, Equals, "/click/purchases/hello-world.canonical/")
+		c.Check(r.URL.Query().Get("include_item_purchases"), Equals, "true")
+		w.WriteHeader(http.StatusUnauthorized)
+		io.WriteString(w, mockTokenNeedsRefreshJSON)
+	}))
+
+	c.Assert(mockPurchasesServer, NotNil)
+	defer mockPurchasesServer.Close()
+
+	var err error
+	purchasesURI, err := url.Parse(mockPurchasesServer.URL + "/click/purchases/")
+	c.Assert(err, IsNil)
+	cfg := SnapUbuntuStoreConfig{
+		PurchasesURI: purchasesURI,
+	}
+	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	c.Assert(repo, NotNil)
+
+	authenticator := &fakeAuthenticator{}
+	helloWorldPurchases, err := repo.getPurchases("hello-world.canonical", authenticator)
+	c.Assert(helloWorldPurchases, IsNil)
+	c.Assert(err, NotNil)
 }

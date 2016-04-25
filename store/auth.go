@@ -22,6 +22,7 @@ package store
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 )
@@ -158,4 +159,26 @@ func DischargeAuthCaveat(username, password, macaroon, otp string) (string, erro
 		return "", fmt.Errorf(errorPrefix + "empty macaroon returned")
 	}
 	return responseData.Macaroon, nil
+}
+
+// authError contains the reason behind an authentication failure
+type authError struct {
+	Threshold int64  `json:"threshold"`
+	Error     string `json:"error"`
+}
+
+// decodeUnauthorizedError attempts to determine the cause of an authentication failure
+// against the purchasing server.
+func decodeUnauthorizedError(body io.ReadCloser) error {
+	var msg authError
+	dec := json.NewDecoder(body)
+	if err := dec.Decode(&msg); err != nil {
+		return fmt.Errorf("store authorization failed with unknown error: %v", err)
+	}
+
+	if msg.Error == "TOKEN_NEEDS_REFRESH" {
+		return ErrTokenNeedsRefresh
+	}
+
+	return ErrInvalidCredentials
 }
