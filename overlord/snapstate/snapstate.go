@@ -300,6 +300,23 @@ func Info(s *state.State, name string, revision int) (*snap.Info, error) {
 	return nil, fmt.Errorf("cannot find snap %q at revision %d", name, revision)
 }
 
+// Current returns the information about the current revision of a snap with the given name.
+func Current(s *state.State, name string) (*snap.Info, error) {
+	var snapst SnapState
+	err := Get(s, name, &snapst)
+	if err == state.ErrNoState {
+		return nil, fmt.Errorf("cannot find snap %q", name)
+	}
+	if err != nil {
+		return nil, err
+	}
+	sideInfo := snapst.Current()
+	if sideInfo != nil {
+		return readInfo(name, sideInfo)
+	}
+	return nil, fmt.Errorf("cannot find snap %q", name)
+}
+
 // Get retrieves the SnapState of the given snap.
 func Get(s *state.State, name string, snapst *SnapState) error {
 	var snaps map[string]*json.RawMessage
