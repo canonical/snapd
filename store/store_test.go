@@ -273,12 +273,6 @@ const mockPurchaseJSON = `[
 ]
 `
 
-const mockTokenNeedsRefreshJSON = `{
-  "threshold": 999,
-  "error": "TOKEN_NEEDS_REFRESH"
-}
-`
-
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// no store ID by default
@@ -936,7 +930,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesTokenExpired(c *C) {
 		c.Check(r.URL.Path, Equals, "/click/purchases/hello-world.canonical/")
 		c.Check(r.URL.Query().Get("include_item_purchases"), Equals, "true")
 		w.WriteHeader(http.StatusUnauthorized)
-		io.WriteString(w, mockTokenNeedsRefreshJSON)
+		io.WriteString(w, "")
 	}))
 
 	c.Assert(mockPurchasesServer, NotNil)

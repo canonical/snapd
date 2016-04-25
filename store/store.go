@@ -334,7 +334,8 @@ func (s *SnapUbuntuStoreRepository) getPurchasesFromURL(url *url.URL, auther Aut
 		// the store returns 404 for snaps that have no purchases, so just return an empty list
 		break
 	case http.StatusUnauthorized:
-		return nil, decodeUnauthorizedError(resp.Body)
+		// TODO handle token expiry and refresh
+		return nil, ErrInvalidCredentials
 	default:
 		return nil, fmt.Errorf("cannot obtain known purchases from store: server returned %v code", resp.StatusCode)
 	}
