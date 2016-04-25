@@ -23,8 +23,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"strings"
+
+	"github.com/ubuntu-core/snappy/logger"
 )
 
 var (
@@ -173,7 +176,9 @@ func decodeUnauthorizedError(body io.ReadCloser) error {
 	var msg authError
 	dec := json.NewDecoder(body)
 	if err := dec.Decode(&msg); err != nil {
-		return fmt.Errorf("store authorization failed with unknown error: %v", err)
+		b, err := ioutil.ReadAll(body)
+		logger.Noticef("Failed to decode store authorization failure message: %v, %q", err, string(b))
+		return fmt.Errorf("failed to decode store authorization failure message: %v", err)
 	}
 
 	if msg.Error == "TOKEN_NEEDS_REFRESH" {
