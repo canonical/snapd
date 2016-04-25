@@ -35,7 +35,7 @@ import (
 
 const (
 	defaultOutputDir = "/tmp/snappy-test"
-	defaultRelease   = "rolling"
+	defaultRelease   = "16"
 	defaultChannel   = "edge"
 	defaultSSHPort   = 22
 	dataOutputDir    = "integration-tests/data/output/"
