@@ -24,6 +24,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/interfaces/builtin"
+	"github.com/ubuntu-core/snappy/snap"
 )
 
 type BluezInterfaceSuite struct {
@@ -34,6 +35,20 @@ type BluezInterfaceSuite struct {
 
 var _ = Suite(&BluezInterfaceSuite{
 	iface: &builtin.BluezInterface{},
+	slot: &interfaces.Slot{
+		SlotInfo: &snap.SlotInfo{
+			Snap:      &snap.Info{SuggestedName: "bluez"},
+			Name:      "bluez",
+			Interface: "bluez",
+		},
+	},
+	plug: &interfaces.Plug{
+		PlugInfo: &snap.PlugInfo{
+			Snap:      &snap.Info{SuggestedName: "bluez"},
+			Name:      "bluezctl",
+			Interface: "bluez",
+		},
+	},
 })
 
 func (s *BluezInterfaceSuite) TestName(c *C) {
