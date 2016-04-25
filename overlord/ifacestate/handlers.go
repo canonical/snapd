@@ -95,11 +95,14 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error
 	if err := m.autoConnect(task, snapName, blacklist); err != nil {
 		return err
 	}
-	if len(affectedSnaps) == 0 {
-		affectedSnaps = append(affectedSnaps, snapName)
+	if err := setupSnapSecurity(task, snapInfo, m.repo); err != nil {
+		return state.Retry
 	}
 	for _, snapName := range affectedSnaps {
-
+		// The affected snap is setup explicitly so skip it here.
+		if snapName == snapInfo.Name() {
+			continue
+		}
 		snapInfo, err := snapstate.Current(task.State(), snapName)
 		if err != nil {
 			return err
