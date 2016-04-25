@@ -616,12 +616,12 @@ func (s *interfaceManagerSuite) TestSetupProfilesUsesFreshSnapInfo(c *C) {
 	// Ensure that both snaps were setup correctly.
 	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
-	// The OS snap was setup (because it was affected).
-	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, coreSnapInfo.Name())
-	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Revision, Equals, coreSnapInfo.Revision)
 	// The sample snap was setup, with the correct new revision.
-	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Name(), Equals, newSnapInfo.Name())
-	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Revision, Equals, newSnapInfo.Revision)
+	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, newSnapInfo.Name())
+	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Revision, Equals, newSnapInfo.Revision)
+	// The OS snap was setup (because it was affected).
+	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Name(), Equals, coreSnapInfo.Name())
+	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Revision, Equals, coreSnapInfo.Revision)
 }
 
 // The undo handler of the setup-profiles task will honor `old-devmode` that
