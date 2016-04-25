@@ -20,6 +20,8 @@
 package builtin
 
 import (
+	"bytes"
+
 	"github.com/ubuntu-core/snappy/interfaces"
 )
 
@@ -96,8 +98,7 @@ var bluezConnectedPlugAppArmor = []byte(`
 # Allow all access to bluez service
 dbus (receive, send)
     bus=system
-    peer=(label=snap.bluez.*),
-# FIXME: adjust to use 'snap.<name>.<app>' from the connecting slot
+    peer=(label=@SLOT_SECURITY_TAG_GLOB@),
 
 dbus (send)
     bus=system
@@ -203,7 +204,10 @@ func (iface *BluezInterface) PermanentPlugSnippet(plug *interfaces.Plug, securit
 func (iface *BluezInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		return bluezConnectedPlugAppArmor, nil
+		old := []byte("@SLOT_SECURITY_TAG_GLOB@")
+		new := []byte(interfaces.SecurityTagGlob(slot.Snap.Name()))
+		snippet := bytes.Replace(bluezConnectedPlugAppArmor, old, new, -1)
+		return snippet, nil
 	case interfaces.SecuritySecComp:
 		return bluezConnectedPlugSecComp, nil
 	case interfaces.SecurityUDev, interfaces.SecurityDBus:
