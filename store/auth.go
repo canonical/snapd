@@ -22,12 +22,8 @@ package store
 import (
 	"encoding/json"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"net/http"
 	"strings"
-
-	"github.com/ubuntu-core/snappy/logger"
 )
 
 var (
@@ -162,28 +158,4 @@ func DischargeAuthCaveat(username, password, macaroon, otp string) (string, erro
 		return "", fmt.Errorf(errorPrefix + "empty macaroon returned")
 	}
 	return responseData.Macaroon, nil
-}
-
-// authError contains the reason behind an authentication failure
-type authError struct {
-	Threshold int64  `json:"threshold"`
-	Error     string `json:"error"`
-}
-
-// decodeUnauthorizedError attempts to determine the cause of an authentication failure
-// against the purchasing server.
-func decodeUnauthorizedError(body io.ReadCloser) error {
-	var msg authError
-	dec := json.NewDecoder(body)
-	if err := dec.Decode(&msg); err != nil {
-		b, _ := ioutil.ReadAll(body)
-		logger.Noticef("Failed to decode store authorization failure message: %v, %q", err, string(b))
-		return fmt.Errorf("failed to decode store authorization failure message: %v", err)
-	}
-
-	if msg.Error == "TOKEN_NEEDS_REFRESH" {
-		return ErrTokenNeedsRefresh
-	}
-
-	return ErrInvalidCredentials
 }
