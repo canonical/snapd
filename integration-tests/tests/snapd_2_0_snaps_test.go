@@ -33,16 +33,14 @@ import (
 var _ = check.Suite(&snapd20SnapsTestSuite{})
 
 type pkgsResponse struct {
-	Result pkgContainer
+	Result pkgItems
 	response
+	Paging            map[string]interface{}
+	Sources           interface{}
+	SuggestedCurrency string `json:"suggested-currency"`
 }
 
-type pkgContainer struct {
-	Snaps  pkgItems
-	Paging map[string]interface{}
-}
-
-type pkgItems map[string]pkgItem
+type pkgItems []pkgItem
 
 type pkgItem struct {
 	Description   string
