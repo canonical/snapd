@@ -110,12 +110,12 @@ func getStructFields(s interface{}) []string {
 	return fields
 }
 
-func useStagingCpi() bool {
+func useStagingStore() bool {
 	return os.Getenv("SNAPPY_USE_STAGING_CPI") != ""
 }
 
 func cpiURL() string {
-	if useStagingCpi() {
+	if useStagingStore() {
 		return "https://search.apps.staging.ubuntu.com/api/v1/"
 	}
 	// FIXME: this will become a store-url assertion
@@ -127,7 +127,7 @@ func cpiURL() string {
 }
 
 func authURL() string {
-	if useStagingCpi() {
+	if useStagingStore() {
 		return "https://login.staging.ubuntu.com/api/v2"
 	}
 	return "https://login.ubuntu.com/api/v2"
@@ -153,7 +153,7 @@ func myappsURL() string {
 }
 
 func scaURL() string {
-	if useStagingCpi() {
+	if useStagingStore() {
 		return "https://myapps.developer.staging.ubuntu.com/api/2.0/"
 	}
 	return "https://myapps.developer.ubuntu.com/api/2.0/"
@@ -302,7 +302,7 @@ type purchase struct {
 	RedirectTo      string `json:"redirect_to,omitempty"`
 }
 
-type purchaseList []purchase
+type purchaseList []*purchase
 
 func (s *SnapUbuntuStoreRepository) getPurchasesFromURL(url *url.URL, auther Authenticator) (purchaseList, error) {
 	if auther == nil {

@@ -802,13 +802,13 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetAllPurchases(c *C) {
 	helloWorldPurchases := purchases["hello-world.canonical"]
 	c.Assert(len(helloWorldPurchases), Equals, 2)
 
-	c.Check(helloWorldPurchases[0], Equals, purchase{OpenID: "https://login.staging.ubuntu.com/+id/open_id",
+	c.Check(helloWorldPurchases[0], DeepEquals, &purchase{OpenID: "https://login.staging.ubuntu.com/+id/open_id",
 		PackageName:     "hello-world.canonical",
 		RefundableUntil: "2015-07-15 18:46:21",
 		State:           "Complete",
 	},
 	)
-	c.Check(helloWorldPurchases[1], Equals, purchase{OpenID: "https://login.staging.ubuntu.com/+id/open_id",
+	c.Check(helloWorldPurchases[1], DeepEquals, &purchase{OpenID: "https://login.staging.ubuntu.com/+id/open_id",
 		PackageName:     "hello-world.canonical",
 		RefundableUntil: "",
 		State:           "Complete",
@@ -820,7 +820,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetAllPurchases(c *C) {
 	chipacaPurchases := purchases[funkyAppName+"."+funkyAppDeveloper]
 	c.Assert(len(chipacaPurchases), Equals, 1)
 
-	c.Check(chipacaPurchases[0], Equals, purchase{OpenID: "https://login.staging.ubuntu.com/+id/open_id",
+	c.Check(chipacaPurchases[0], DeepEquals, &purchase{OpenID: "https://login.staging.ubuntu.com/+id/open_id",
 		PackageName:     funkyAppName + "." + funkyAppDeveloper,
 		RefundableUntil: "2015-07-17 11:33:29",
 		State:           "Complete",
@@ -855,13 +855,13 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchases(c *C) {
 
 	c.Assert(len(helloWorldPurchases), Equals, 2)
 
-	c.Check(helloWorldPurchases[0], Equals, purchase{OpenID: "https://login.staging.ubuntu.com/+id/open_id",
+	c.Check(helloWorldPurchases[0], DeepEquals, &purchase{OpenID: "https://login.staging.ubuntu.com/+id/open_id",
 		PackageName:     "hello-world.canonical",
 		RefundableUntil: "2015-07-15 18:46:21",
 		State:           "Complete",
 	},
 	)
-	c.Check(helloWorldPurchases[1], Equals, purchase{OpenID: "https://login.staging.ubuntu.com/+id/open_id",
+	c.Check(helloWorldPurchases[1], DeepEquals, &purchase{OpenID: "https://login.staging.ubuntu.com/+id/open_id",
 		PackageName:     "hello-world.canonical",
 		RefundableUntil: "",
 		State:           "Complete",
