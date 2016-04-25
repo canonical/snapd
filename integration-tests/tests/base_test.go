@@ -143,10 +143,17 @@ func writeEnvConfig(extraEnv string) error {
 	if err != nil {
 		return err
 	}
+	httpProxy := os.Getenv("http_proxy")
+	httpsProxy := os.Getenv("https_proxy")
+	noProxy := os.Getenv("no_proxy")
 
 	cfgContent := []byte(fmt.Sprintf(`[Service]
 Environment="SNAPPY_TRUSTED_ACCOUNT_KEY=%s" "%s"
-`, trustedKey, extraEnv))
+Environment="http_proxy=%s"
+Environment="https_proxy=%s"
+Environment="no_proxy=%s"
+`, trustedKey, extraEnv, httpProxy, httpsProxy, noProxy))
+
 	if err = ioutil.WriteFile("/tmp/snapd.env.conf", cfgContent, os.ModeExclusive); err != nil {
 		return err
 	}
