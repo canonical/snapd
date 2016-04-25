@@ -25,6 +25,7 @@ import (
 	"github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/interfaces/builtin"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/testutil"
 )
 
 type BluezInterfaceSuite struct {
@@ -53,6 +54,12 @@ var _ = Suite(&BluezInterfaceSuite{
 
 func (s *BluezInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "bluez")
+}
+
+func (s *BluezInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabel(c *C) {
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(string(snippet), testutil.Contains, "peer=(label=snap.bluez.*),")
 }
 
 func (s *BluezInterfaceSuite) TestUnusedSecuritySystems(c *C) {
