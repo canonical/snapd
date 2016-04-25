@@ -304,14 +304,10 @@ func Info(s *state.State, name string, revision int) (*snap.Info, error) {
 func Current(s *state.State, name string) (*snap.Info, error) {
 	var snapst SnapState
 	err := Get(s, name, &snapst)
-	if err == state.ErrNoState {
-		return nil, fmt.Errorf("cannot find snap %q", name)
-	}
-	if err != nil {
+	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
-	sideInfo := snapst.Current()
-	if sideInfo != nil {
+	if sideInfo := snapst.Current(); sideInfo != nil {
 		return readInfo(name, sideInfo)
 	}
 	return nil, fmt.Errorf("cannot find snap %q", name)
