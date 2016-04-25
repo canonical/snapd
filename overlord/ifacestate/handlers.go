@@ -95,19 +95,19 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error
 	if err := m.autoConnect(task, snapName, blacklist); err != nil {
 		return err
 	}
-	for _, snapInfo := range affectedSnaps {
-		if snapInfo.Name() == snapName {
-			// Skip setting up security for the principal snap. This is done
-			// below to ensure we use the more recent revision.
-			// https://bugs.launchpad.net/snappy/+bug/1572463
-			continue
+	if len(affectedSnaps) == 0 {
+		affectedSnaps = append(affectedSnaps, snapName)
+	}
+	for _, snapName := range affectedSnaps {
+
+		snapInfo, err := snapstate.Current(task.State(), snapName)
+		if err != nil {
+			return err
 		}
+		snap.AddImplicitSlots(snapInfo)
 		if err := setupSnapSecurity(task, snapInfo, m.repo); err != nil {
 			return state.Retry
 		}
-	}
-	if err := setupSnapSecurity(task, snapInfo, m.repo); err != nil {
-		return state.Retry
 	}
 	return nil
 }
@@ -158,12 +158,16 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, _ *tomb.Tomb) erro
 	}
 
 	// Setup security of the affected snaps.
-	for _, snapInfo := range affectedSnaps {
-		if snapInfo.Name() == snapName {
+	for _, affectedSnapName := range affectedSnaps {
+		if affectedSnapName == snapName {
 			// Skip setup for the snap being removed as this is handled below.
 			continue
 		}
-		if err := setupSnapSecurity(task, snapInfo, m.repo); err != nil {
+		affectedSnapInfo, err := snapstate.Current(task.State(), affectedSnapName)
+		if err != nil {
+			return err
+		}
+		if err := setupSnapSecurity(task, affectedSnapInfo, m.repo); err != nil {
 			return state.Retry
 		}
 	}
