@@ -176,7 +176,7 @@ func decodeUnauthorizedError(body io.ReadCloser) error {
 	var msg authError
 	dec := json.NewDecoder(body)
 	if err := dec.Decode(&msg); err != nil {
-		b, err := ioutil.ReadAll(body)
+		b, _ := ioutil.ReadAll(body)
 		logger.Noticef("Failed to decode store authorization failure message: %v, %q", err, string(b))
 		return fmt.Errorf("failed to decode store authorization failure message: %v", err)
 	}
