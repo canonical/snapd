@@ -346,6 +346,31 @@ func (ts TaskSet) WaitFor(another *Task) {
 	}
 }
 
+// WaitAll registers all the tasks in the argument set as requirements for ts
+// the target set to make progress.
+func (ts *TaskSet) WaitAll(anotherTs *TaskSet) {
+	for _, req := range anotherTs.tasks {
+		ts.WaitFor(req)
+	}
+}
+
+// AddTask adds the the task to the task set.
+func (ts *TaskSet) AddTask(task *Task) {
+	for _, t := range ts.tasks {
+		if t == task {
+			return
+		}
+	}
+	ts.tasks = append(ts.tasks, task)
+}
+
+// AddAll adds all the tasks in the argument set to the target set ts.
+func (ts *TaskSet) AddAll(anotherTs *TaskSet) {
+	for _, t := range anotherTs.tasks {
+		ts.AddTask(t)
+	}
+}
+
 // Tasks returns the tasks in the task set.
 func (ts TaskSet) Tasks() []*Task {
 	// Return something mutable, just like every other Tasks method.
