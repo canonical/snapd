@@ -683,8 +683,8 @@ func (r *Repository) AutoConnectBlacklist(snapName string) map[string]bool {
 
 // DisconnectSnap disconnects all the connections to and from a given snap.
 //
-// The return value is a list of snap.Info's that were affected.
-func (r *Repository) DisconnectSnap(snapName string) ([]*snap.Info, error) {
+// The return value is a list of names that were affected.
+func (r *Repository) DisconnectSnap(snapName string) ([]string, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -706,10 +706,11 @@ func (r *Repository) DisconnectSnap(snapName string) ([]*snap.Info, error) {
 		}
 	}
 
-	result := make([]*snap.Info, 0, len(seen))
+	result := make([]string, 0, len(seen))
 	for info := range seen {
-		result = append(result, info)
+		result = append(result, info.Name())
 	}
+	sort.Strings(result)
 	return result, nil
 }
 
