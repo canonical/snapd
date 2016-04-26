@@ -23,8 +23,6 @@ package tests
 import (
 	"os"
 
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/build"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/data"
 
 	"gopkg.in/check.v1"
@@ -64,14 +62,16 @@ type snapd20SnapsTestSuite struct {
 func (s *snapd20SnapsTestSuite) SetUpTest(c *check.C) {
 	s.snapdTestSuite.SetUpTest(c)
 	var err error
-	s.snapPath, err = build.LocalSnap(c, data.BasicConfigSnapName)
+	// FIXME: no config in snapd 2.0 yet
+	//s.snapPath, err = build.LocalSnap(c, data.BasicConfigSnapName)
 	c.Assert(err, check.IsNil)
 }
 
 func (s *snapd20SnapsTestSuite) TearDownTest(c *check.C) {
 	s.snapdTestSuite.TearDownTest(c)
 	os.Remove(s.snapPath)
-	common.RemoveSnap(c, data.BasicConfigSnapName)
+	// FIXME: no config in snapd 2.0 yet
+	//common.RemoveSnap(c, data.BasicConfigSnapName)
 }
 
 func (s *snapd20SnapsTestSuite) resource() string {
@@ -88,6 +88,8 @@ func (s *snapd20SnapsTestSuite) getInteractions() apiInteractions {
 }
 
 func (s *snapd20SnapsTestSuite) postInteractions() apiInteractions {
+	c.Skip("FIXME: no config in snapd 2.0 yet")
+
 	return []apiInteraction{{
 		payload:     s.snapPath,
 		waitPattern: `(?U){.*,"status":"active".*"status":"OK","status-code":200,"type":"sync"}`,
