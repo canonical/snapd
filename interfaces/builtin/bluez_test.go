@@ -41,10 +41,6 @@ var _ = Suite(&BluezInterfaceSuite{
 			Snap:      &snap.Info{SuggestedName: "bluez"},
 			Name:      "bluez",
 			Interface: "bluez",
-			Apps: map[string]*snap.AppInfo{
-				"app1": &snap.AppInfo{Name: "app1"},
-				"app2": &snap.AppInfo{Name: "app2"},
-			},
 		},
 	},
 	plug: &interfaces.Plug{
@@ -60,10 +56,64 @@ func (s *BluezInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "bluez")
 }
 
-func (s *BluezInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabel(c *C) {
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+// The label glob when all apps are bound to the bluez slot
+func (s *BluezInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) {
+	app1 := &snap.AppInfo{Name: "app1"}
+	app2 := &snap.AppInfo{Name: "app2"}
+	slot := &interfaces.Slot{
+		SlotInfo: &snap.SlotInfo{
+			Snap: &snap.Info{
+				SuggestedName: "bluez",
+				Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2},
+			},
+			Name:      "bluez",
+			Interface: "bluez",
+			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
+		},
+	}
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(string(snippet), testutil.Contains, "peer=(label=snap.bluez.*),")
+}
+
+// The label uses alternation when some, but not all, apps is bound to the bluez slot
+func (s *BluezInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C) {
+	app1 := &snap.AppInfo{Name: "app1"}
+	app2 := &snap.AppInfo{Name: "app2"}
+	app3 := &snap.AppInfo{Name: "app3"}
+	slot := &interfaces.Slot{
+		SlotInfo: &snap.SlotInfo{
+			Snap: &snap.Info{
+				SuggestedName: "bluez",
+				Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2, "app3": app3},
+			},
+			Name:      "bluez",
+			Interface: "bluez",
+			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
+		},
+	}
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(string(snippet), testutil.Contains, "peer=(label=snap.bluez.{app1,app2}),")
+}
+
+// The label uses short form when exactly one app is bound to the bluez slot
+func (s *BluezInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) {
+	app := &snap.AppInfo{Name: "app"}
+	slot := &interfaces.Slot{
+		SlotInfo: &snap.SlotInfo{
+			Snap: &snap.Info{
+				SuggestedName: "bluez",
+				Apps:          map[string]*snap.AppInfo{"app": app},
+			},
+			Name:      "bluez",
+			Interface: "bluez",
+			Apps:      map[string]*snap.AppInfo{"app": app},
+		},
+	}
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(string(snippet), testutil.Contains, "peer=(label=snap.bluez.app),")
 }
 
 func (s *BluezInterfaceSuite) TestUnusedSecuritySystems(c *C) {
