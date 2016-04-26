@@ -24,11 +24,9 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strconv"
 
 	"gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/snap"
 )
 
@@ -43,9 +41,11 @@ func MockSnap(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(yamlText))
 	c.Assert(err, check.IsNil)
 
+	// Set SideInfo so that we can use MountDir below
+	snapInfo.SideInfo = *sideInfo
+
 	// Put the YAML on disk, in the right spot.
-	dname := filepath.Join(dirs.SnapSnapsDir, snapInfo.Name(),
-		strconv.Itoa(sideInfo.Revision), "meta")
+	dname := filepath.Join(snapInfo.MountDir(), "meta")
 	err = os.MkdirAll(dname, 0755)
 	c.Assert(err, check.IsNil)
 	err = ioutil.WriteFile(filepath.Join(dname, "snap.yaml"), []byte(yamlText), 0644)
