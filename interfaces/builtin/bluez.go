@@ -99,6 +99,8 @@ var bluezConnectedPlugAppArmor = []byte(`
 dbus (receive, send)
     bus=system
     peer=(label=@SLOT_SECURITY_TAG_GLOB@),
+# FIXME: this glob turns into snap.bluez.* where it *SHOULD* be
+# snap.<name>.<app>
 
 dbus (send)
     bus=system
