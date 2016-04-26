@@ -347,7 +347,7 @@ func (s *SnapUbuntuStoreRepository) getPurchases(snapID, channel string, auther 
 	return s.getPurchasesFromURL(purchasesURL, channel, auther)
 }
 
-// getAllPurchases retreives all the user's purchases, including in-app purchases, as a map indexed by package name
+// getAllPurchases retreives all the user's purchases, including in-app purchases, as a map indexed by Snap ID
 func (s *SnapUbuntuStoreRepository) getAllPurchases(channel string, auther Authenticator) (map[string]purchaseList, error) {
 	purchases, err := s.getPurchasesFromURL(s.purchasesURI, channel, auther)
 	if err != nil {
