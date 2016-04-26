@@ -90,7 +90,7 @@ func (s *snapd20SnapsTestSuite) getInteractions() apiInteractions {
 func (s *snapd20SnapsTestSuite) postInteractions() apiInteractions {
 	return []apiInteraction{{
 		payload:     s.snapPath,
-		waitPattern: `(?U){.*,"status":"active".*"status":"OK","status-code":200,"type":"sync"}`,
+		waitPattern: `(?U){"type":"sync","status-code":200,"status":"OK","result":{.*,"status":"active",.*}`,
 		waitFunction: func() (string, error) {
 			output, err := makeRequest(&requestOptions{
 				resource: s.resource() + "/" + data.BasicConfigSnapName,
