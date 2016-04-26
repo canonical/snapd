@@ -39,6 +39,7 @@ const x11ConnectedPlugSecComp = `
 # Usage: reserved
 
 getpeername
+getsockname
 recvfrom
 recvmsg
 shutdown
