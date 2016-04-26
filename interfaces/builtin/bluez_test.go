@@ -24,6 +24,8 @@ import (
 
 	"github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/interfaces/builtin"
+	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/testutil"
 )
 
 type BluezInterfaceSuite struct {
@@ -34,10 +36,30 @@ type BluezInterfaceSuite struct {
 
 var _ = Suite(&BluezInterfaceSuite{
 	iface: &builtin.BluezInterface{},
+	slot: &interfaces.Slot{
+		SlotInfo: &snap.SlotInfo{
+			Snap:      &snap.Info{SuggestedName: "bluez"},
+			Name:      "bluez",
+			Interface: "bluez",
+		},
+	},
+	plug: &interfaces.Plug{
+		PlugInfo: &snap.PlugInfo{
+			Snap:      &snap.Info{SuggestedName: "bluez"},
+			Name:      "bluezctl",
+			Interface: "bluez",
+		},
+	},
 })
 
 func (s *BluezInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "bluez")
+}
+
+func (s *BluezInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabel(c *C) {
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(string(snippet), testutil.Contains, "peer=(label=snap.bluez.*),")
 }
 
 func (s *BluezInterfaceSuite) TestUnusedSecuritySystems(c *C) {
@@ -58,7 +80,7 @@ func (s *BluezInterfaceSuite) TestUnusedSecuritySystems(c *C) {
 	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityUDev)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityDBus)
+	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityDBus)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 }
@@ -75,6 +97,9 @@ func (s *BluezInterfaceSuite) TestUsedSecuritySystems(c *C) {
 		c.Assert(snippet, Not(IsNil))
 	}
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityDBus)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, IsNil)
+	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityDBus)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 }
