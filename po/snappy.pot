@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-04-18 17:13+0200\n"
+        "POT-Creation-Date: 2016-04-21 17:53+0200\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -98,11 +98,15 @@ msgid   "Install %q snap"
 msgstr  ""
 
 #, c-format
-msgid   "Install %q snap file"
+msgid   "Install %q snap from %q channel"
 msgstr  ""
 
 #, c-format
-msgid   "Install %q snap from %q channel"
+msgid   "Install %q snap from snap file"
+msgstr  ""
+
+#, c-format
+msgid   "Install %q snap from snap file %q"
 msgstr  ""
 
 msgid   "Install a snap to the system"
