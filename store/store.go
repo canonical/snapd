@@ -293,7 +293,7 @@ type purchase struct {
 
 type purchaseList []*purchase
 
-func (s *SnapUbuntuStoreRepository) getPurchasesFromURL(url *url.URL, auther Authenticator) (purchaseList, error) {
+func (s *SnapUbuntuStoreRepository) getPurchasesFromURL(url *url.URL, channel string, auther Authenticator) (purchaseList, error) {
 	if auther == nil {
 		return nil, fmt.Errorf("cannot obtain known purchases from store: no authentication credentials provided")
 	}
@@ -304,6 +304,7 @@ func (s *SnapUbuntuStoreRepository) getPurchasesFromURL(url *url.URL, auther Aut
 	}
 
 	s.applyUbuntuStoreHeaders(req, "", auther)
+	req.Header.Set("X-Ubuntu-Device-Channel", channel)
 
 	resp, err := s.client.Do(req)
 	if err != nil {
@@ -333,7 +334,7 @@ func (s *SnapUbuntuStoreRepository) getPurchasesFromURL(url *url.URL, auther Aut
 }
 
 // getPurchases retreives the user's purchases for a specific package, including in-app purchases, as a list
-func (s *SnapUbuntuStoreRepository) getPurchases(snapID string, auther Authenticator) (purchaseList, error) {
+func (s *SnapUbuntuStoreRepository) getPurchases(snapID, channel string, auther Authenticator) (purchaseList, error) {
 	purchasesURL, err := s.purchasesURI.Parse(snapID + "/")
 	if err != nil {
 		return nil, err
@@ -343,12 +344,12 @@ func (s *SnapUbuntuStoreRepository) getPurchases(snapID string, auther Authentic
 	q.Set("include_item_purchases", "true")
 	purchasesURL.RawQuery = q.Encode()
 
-	return s.getPurchasesFromURL(purchasesURL, auther)
+	return s.getPurchasesFromURL(purchasesURL, channel, auther)
 }
 
 // getAllPurchases retreives all the user's purchases, including in-app purchases, as a map indexed by package name
-func (s *SnapUbuntuStoreRepository) getAllPurchases(auther Authenticator) (map[string]purchaseList, error) {
-	purchases, err := s.getPurchasesFromURL(s.purchasesURI, auther)
+func (s *SnapUbuntuStoreRepository) getAllPurchases(channel string, auther Authenticator) (map[string]purchaseList, error) {
+	purchases, err := s.getPurchasesFromURL(s.purchasesURI, channel, auther)
 	if err != nil {
 		return nil, err
 	}
