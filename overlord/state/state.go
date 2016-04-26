@@ -294,20 +294,33 @@ func (s *State) NewTask(kind, summary string) *Task {
 	return t
 }
 
-// Tasks returns all tasks currently known to the state.
+// Tasks returns all tasks currently known to the state and linked to changes.
 func (s *State) Tasks() []*Task {
 	s.reading()
 	res := make([]*Task, 0, len(s.tasks))
 	for _, t := range s.tasks {
+		if t.Change() == nil { // skip unlinked tasks
+			continue
+		}
 		res = append(res, t)
 	}
 	return res
 }
 
-// Task returns the task for the given ID.
+// Task returns the task for the given ID if the task has been linked to a change.
 func (s *State) Task(id string) *Task {
 	s.reading()
-	return s.tasks[id]
+	t := s.tasks[id]
+	if t == nil || t.Change() == nil {
+		return nil
+	}
+	return t
+}
+
+// NumTask returns the number of tasks that currently exist in the state (both linked or not yet linked to changes), useful for sanity checking.
+func (s *State) NumTask() int {
+	s.reading()
+	return len(s.tasks)
 }
 
 func (s *State) tasksIn(tids []string) []*Task {
@@ -320,6 +333,7 @@ func (s *State) tasksIn(tids []string) []*Task {
 
 // Prune removes changes that became ready for more than pruneWait
 // and aborts tasks spawned for more than abortWait.
+// It also removes tasks unlinked to changes after pruneWait.
 func (s *State) Prune(pruneWait, abortWait time.Duration) {
 	now := time.Now()
 	pruneLimit := now.Add(-pruneWait)
@@ -339,6 +353,13 @@ func (s *State) Prune(pruneWait, abortWait time.Duration) {
 				delete(s.tasks, t.ID())
 			}
 			delete(s.changes, chg.ID())
+		}
+	}
+	for tid, t := range s.tasks {
+		// TODO: this could be done more aggressively
+		if t.Change() == nil && t.SpawnTime().Before(pruneLimit) {
+			s.writing()
+			delete(s.tasks, tid)
 		}
 	}
 }

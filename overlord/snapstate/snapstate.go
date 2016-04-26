@@ -96,15 +96,6 @@ func doInstall(s *state.State, curActive bool, snapName, snapPath, channel strin
 	return state.NewTaskSet(tasks...), nil
 }
 
-func readSnapInfo(snapPath string) (*snap.Info, error) {
-	// TODO Only open if in devmode or we have the assertion proving content right.
-	snapf, err := snap.Open(snapPath)
-	if err != nil {
-		return nil, err
-	}
-	return snapf.Info()
-}
-
 func checkChangeConflict(s *state.State, snapName string) error {
 	for _, task := range s.Tasks() {
 		k := task.Kind()
@@ -139,20 +130,14 @@ func Install(s *state.State, name, channel string, userID int, flags snappy.Inst
 
 // InstallPath returns a set of tasks for installing snap from a file path.
 // Note that the state must be locked by the caller.
-func InstallPath(s *state.State, path, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
-	info, err := readSnapInfo(path)
-	if err != nil {
-		return nil, err
-	}
-	snapName := info.Name()
-
+func InstallPath(s *state.State, name, path, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
 	var snapst SnapState
-	err = Get(s, snapName, &snapst)
+	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
 
-	return doInstall(s, snapst.Active, snapName, path, channel, 0, flags)
+	return doInstall(s, snapst.Active, name, path, channel, 0, flags)
 }
 
 // Update initiates a change updating a snap.
