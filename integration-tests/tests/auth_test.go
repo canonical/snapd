@@ -21,9 +21,13 @@
 package tests
 
 import (
+	"io/ioutil"
+	"os"
+	"os/user"
+	"path/filepath"
+
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
-	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/testutil"
 
 	"gopkg.in/check.v1"
@@ -35,41 +39,29 @@ type authSuite struct {
 	common.SnappySuite
 }
 
-func (s *authSuite) SetUpTests(c *check.C) {
+func (s *authSuite) SetUpTest(c *check.C) {
 	s.SnappySuite.SetUpTest(c)
 
-	if !osutil.FileExists("/usr/bin/curl") {
-		c.Skip("this test needs curl to work")
-	}
+	user, err := user.Current()
+	c.Assert(err, check.IsNil)
+
+	content := []byte(`{"macaroon":"yummy","discharges":["some"]}`)
+
+	authTokenPath := filepath.Join(user.HomeDir, ".snap", "auth.json")
+	err = os.MkdirAll(filepath.Dir(authTokenPath), 0700)
+	c.Assert(err, check.IsNil)
+	err = ioutil.WriteFile(authTokenPath, content, 0600)
+	c.Assert(err, check.IsNil)
 }
 
 func (s *authSuite) TestRegressionAuthCrash(c *check.C) {
-	// FIXME: port to http.chipaca once that is back in action
-	cmd := []string{"curl",
-		"-m", "5", // allow max 5 sec
-		"--header",
-		`Authorization: Macaroon root="made-up", discharge="data"`,
-		"--header", "Content-Type:application/json",
-		"--data", `{"action":"install"}`,
-		"--silent",
-		"--unix-socket", "/run/snapd.socket",
-		"POST /v2/snaps/hello-world",
-	}
-	output := cli.ExecCommand(c, cmd...)
-	c.Assert(output, testutil.Contains, `"status-code":403`)
+	cmd := []string{"snap", "install", "hello-world"}
+	output, _ := cli.ExecCommandErr(cmd...)
+	c.Assert(output, testutil.Contains, `error: access denied`)
 }
 
 func (s *authSuite) TestRegressionAuthBypass(c *check.C) {
-	// FIXME: port to http.chipaca once that is back in action
-	cmd := []string{"curl",
-		"--header",
-		`Authorization: Macaroon root="made-up", discharge="data"`,
-		"--header", "Content-Type:application/json",
-		"--data", `{"action":"connect"}`,
-		"--silent",
-		"--unix-socket", "/run/snapd.socket",
-		"POST /v2/interfaces",
-	}
-	output := cli.ExecCommand(c, cmd...)
-	c.Assert(output, testutil.Contains, `"status-code":403`)
+	cmd := []string{"snap", "connect", "foo:bar", "baz:fromp"}
+	output, _ := cli.ExecCommandErr(cmd...)
+	c.Assert(output, testutil.Contains, `error: access denied`)
 }
