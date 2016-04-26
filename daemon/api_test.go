@@ -211,17 +211,13 @@ version: %s
 }
 
 func (s *apiSuite) mkGadget(c *check.C, store string) {
-	content := []byte(fmt.Sprintf(`name: test
+	yamlText := fmt.Sprintf(`name: test
 version: 1
 type: gadget
 gadget: {store: {id: %q}}
-`, store))
-
-	d := filepath.Join(dirs.SnapSnapsDir, "test")
-	m := filepath.Join(d, "1", "meta")
-	c.Assert(os.MkdirAll(m, 0755), check.IsNil)
-	c.Assert(os.Symlink("1", filepath.Join(d, "current")), check.IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(m, "snap.yaml"), content, 0644), check.IsNil)
+`, store)
+	snaptest.MockSnap(c, yamlText, &snap.SideInfo{Revision: 1})
+	c.Assert(os.Symlink("1", filepath.Join(dirs.SnapSnapsDir, "test", "current")), check.IsNil)
 }
 
 func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
