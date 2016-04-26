@@ -174,6 +174,9 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryHeaders(c *C) {
 const (
 	funkyAppName      = "8nzc1x4iim2xj1g2ul64"
 	funkyAppDeveloper = "chipaca"
+	funkyAppSnapID    = "1e21e12ex4iim2xj1g2ul6f12f1"
+
+	helloWorldSnapID = "iZvp6HUG9XOQv4vuRQL9MlEgKBgFwsc6"
 )
 
 /* acquired via
@@ -235,12 +238,14 @@ const mockPurchasesJSON = `[
   {
     "open_id": "https://login.staging.ubuntu.com/+id/open_id",
     "package_name": "hello-world.canonical",
+    "snap_id": "iZvp6HUG9XOQv4vuRQL9MlEgKBgFwsc6",
     "refundable_until": "2015-07-15 18:46:21",
     "state": "Complete"
   },
   {
     "open_id": "https://login.staging.ubuntu.com/+id/open_id",
     "package_name": "hello-world.canonical",
+    "snap_id": "iZvp6HUG9XOQv4vuRQL9MlEgKBgFwsc6",
     "item_sku": "item-1-sku",
     "purchase_id": "1",
     "refundable_until": null,
@@ -249,6 +254,7 @@ const mockPurchasesJSON = `[
   {
     "open_id": "https://login.staging.ubuntu.com/+id/open_id",
     "package_name": "8nzc1x4iim2xj1g2ul64.chipaca",
+    "snap_id": "1e21e12ex4iim2xj1g2ul6f12f1",
     "refundable_until": "2015-07-17 11:33:29",
     "state": "Complete"
   }
@@ -259,12 +265,14 @@ const mockPurchaseJSON = `[
   {
     "open_id": "https://login.staging.ubuntu.com/+id/open_id",
     "package_name": "hello-world.canonical",
+    "snap_id": "iZvp6HUG9XOQv4vuRQL9MlEgKBgFwsc6",
     "refundable_until": "2015-07-15 18:46:21",
     "state": "Complete"
   },
   {
     "open_id": "https://login.staging.ubuntu.com/+id/open_id",
     "package_name": "hello-world.canonical",
+    "snap_id": "iZvp6HUG9XOQv4vuRQL9MlEgKBgFwsc6",
     "item_sku": "item-1-sku",
     "purchase_id": "1",
     "refundable_until": null,
@@ -307,7 +315,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(result.Name(), Equals, "hello-world")
 	c.Check(result.Revision, Equals, 22)
-	c.Check(result.SnapID, Equals, "iZvp6HUG9XOQv4vuRQL9MlEgKBgFwsc6")
+	c.Check(result.SnapID, Equals, helloWorldSnapID)
 	c.Check(result.Developer, Equals, "canonical")
 	c.Check(result.Version, Equals, "5.0")
 	c.Check(result.Sha512, Equals, "4faffe7e2fee66dbcd1cff629b4f6fa7e5e8e904b4a49b0a908a0ea5518b025bf01f0e913617f6088b30c6c6151eff0a83e89c6b12aea420c4dd0e402bf10c81")
@@ -462,6 +470,7 @@ const MockSearchJSON = `{
                 "publisher": "John Lenton",
                 "ratings_average": 0.0,
                 "revision": 7,
+                "snap_id": "1e21e12ex4iim2xj1g2ul6f12f1",
                 "support_url": "http://lmgtfy.com",
                 "title": "Returns for store credit only.",
                 "version": "42"
@@ -540,6 +549,7 @@ const MockUpdatesJSON = `[
         "status": "Published",
         "name": "8nzc1x4iim2xj1g2ul64.chipaca",
         "package_name": "8nzc1x4iim2xj1g2ul64",
+        "snap_id": "1e21e12ex4iim2xj1g2ul6f12f1",
         "origin": "chipaca",
         "changelog": "",
         "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/04/hello.svg_Dlrd3L4.png",
@@ -823,17 +833,17 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetAllPurchases(c *C) {
 	purchases, err := repo.getAllPurchases(authenticator)
 	c.Assert(err, IsNil)
 
-	helloWorldPurchases := purchases["hello-world.canonical"]
+	helloWorldPurchases := purchases[helloWorldSnapID]
 	c.Assert(len(helloWorldPurchases), Equals, 2)
 
 	c.Check(helloWorldPurchases[0], DeepEquals, &purchase{OpenID: "https://login.staging.ubuntu.com/+id/open_id",
-		PackageName:     "hello-world.canonical",
+		SnapID:          helloWorldSnapID,
 		RefundableUntil: "2015-07-15 18:46:21",
 		State:           "Complete",
 	},
 	)
 	c.Check(helloWorldPurchases[1], DeepEquals, &purchase{OpenID: "https://login.staging.ubuntu.com/+id/open_id",
-		PackageName:     "hello-world.canonical",
+		SnapID:          helloWorldSnapID,
 		RefundableUntil: "",
 		State:           "Complete",
 		ItemSKU:         "item-1-sku",
@@ -841,11 +851,11 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetAllPurchases(c *C) {
 	},
 	)
 
-	chipacaPurchases := purchases[funkyAppName+"."+funkyAppDeveloper]
+	chipacaPurchases := purchases[funkyAppSnapID]
 	c.Assert(len(chipacaPurchases), Equals, 1)
 
 	c.Check(chipacaPurchases[0], DeepEquals, &purchase{OpenID: "https://login.staging.ubuntu.com/+id/open_id",
-		PackageName:     funkyAppName + "." + funkyAppDeveloper,
+		SnapID:          funkyAppSnapID,
 		RefundableUntil: "2015-07-17 11:33:29",
 		State:           "Complete",
 	},
@@ -856,7 +866,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchases(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authorization := r.Header.Get("Authorization")
 		c.Check(authorization, Equals, "Authorization-details")
-		c.Check(r.URL.Path, Equals, "/click/purchases/hello-world.canonical/")
+		c.Check(r.URL.Path, Equals, "/click/purchases/"+helloWorldSnapID+"/")
 		c.Check(r.URL.Query().Get("include_item_purchases"), Equals, "true")
 		io.WriteString(w, mockPurchaseJSON)
 	}))
@@ -874,19 +884,19 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchases(c *C) {
 	c.Assert(repo, NotNil)
 
 	authenticator := &fakeAuthenticator{}
-	helloWorldPurchases, err := repo.getPurchases("hello-world.canonical", authenticator)
+	helloWorldPurchases, err := repo.getPurchases(helloWorldSnapID, authenticator)
 	c.Assert(err, IsNil)
 
 	c.Assert(len(helloWorldPurchases), Equals, 2)
 
 	c.Check(helloWorldPurchases[0], DeepEquals, &purchase{OpenID: "https://login.staging.ubuntu.com/+id/open_id",
-		PackageName:     "hello-world.canonical",
+		SnapID:          helloWorldSnapID,
 		RefundableUntil: "2015-07-15 18:46:21",
 		State:           "Complete",
 	},
 	)
 	c.Check(helloWorldPurchases[1], DeepEquals, &purchase{OpenID: "https://login.staging.ubuntu.com/+id/open_id",
-		PackageName:     "hello-world.canonical",
+		SnapID:          helloWorldSnapID,
 		RefundableUntil: "",
 		State:           "Complete",
 		ItemSKU:         "item-1-sku",
@@ -899,7 +909,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesNotFound(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authorization := r.Header.Get("Authorization")
 		c.Check(authorization, Equals, "Authorization-details")
-		c.Check(r.URL.Path, Equals, "/click/purchases/hello-world.canonical/")
+		c.Check(r.URL.Path, Equals, "/click/purchases/"+helloWorldSnapID+"/")
 		c.Check(r.URL.Query().Get("include_item_purchases"), Equals, "true")
 		w.WriteHeader(http.StatusNotFound)
 		io.WriteString(w, "")
@@ -918,7 +928,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesNotFound(c *C) {
 	c.Assert(repo, NotNil)
 
 	authenticator := &fakeAuthenticator{}
-	helloWorldPurchases, err := repo.getPurchases("hello-world.canonical", authenticator)
+	helloWorldPurchases, err := repo.getPurchases(helloWorldSnapID, authenticator)
 	c.Assert(err, IsNil)
 	c.Assert(len(helloWorldPurchases), Equals, 0)
 }
@@ -927,7 +937,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesTokenExpired(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authorization := r.Header.Get("Authorization")
 		c.Check(authorization, Equals, "Authorization-details")
-		c.Check(r.URL.Path, Equals, "/click/purchases/hello-world.canonical/")
+		c.Check(r.URL.Path, Equals, "/click/purchases/"+helloWorldSnapID+"/")
 		c.Check(r.URL.Query().Get("include_item_purchases"), Equals, "true")
 		w.WriteHeader(http.StatusUnauthorized)
 		io.WriteString(w, "")
@@ -946,7 +956,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesTokenExpired(c *C) {
 	c.Assert(repo, NotNil)
 
 	authenticator := &fakeAuthenticator{}
-	helloWorldPurchases, err := repo.getPurchases("hello-world.canonical", authenticator)
+	helloWorldPurchases, err := repo.getPurchases(helloWorldSnapID, authenticator)
 	c.Assert(helloWorldPurchases, IsNil)
 	c.Assert(err, NotNil)
 }

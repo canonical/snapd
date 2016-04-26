@@ -294,7 +294,7 @@ Content-Type: application/json; charset=utf-8
 */
 type purchase struct {
 	OpenID          string `json:"open_id"`
-	PackageName     string `json:"package_name"`
+	SnapID          string `json:"snap_id"`
 	RefundableUntil string `json:"refundable_until"`
 	State           string `json:"state"`
 	ItemSKU         string `json:"item_sku,omitempty"`
@@ -314,7 +314,7 @@ func (s *SnapUbuntuStoreRepository) getPurchasesFromURL(url *url.URL, auther Aut
 		return nil, err
 	}
 
-	s.applyUbuntuStoreHeaders(req, "application/json", auther)
+	s.applyUbuntuStoreHeaders(req, "", auther)
 
 	resp, err := s.client.Do(req)
 	if err != nil {
@@ -344,8 +344,8 @@ func (s *SnapUbuntuStoreRepository) getPurchasesFromURL(url *url.URL, auther Aut
 }
 
 // getPurchases retreives the user's purchases for a specific package, including in-app purchases, as a list
-func (s *SnapUbuntuStoreRepository) getPurchases(name string, auther Authenticator) (purchaseList, error) {
-	purchasesURL, err := s.purchasesURI.Parse(name + "/")
+func (s *SnapUbuntuStoreRepository) getPurchases(snapID string, auther Authenticator) (purchaseList, error) {
+	purchasesURL, err := s.purchasesURI.Parse(snapID + "/")
 	if err != nil {
 		return nil, err
 	}
@@ -367,7 +367,7 @@ func (s *SnapUbuntuStoreRepository) getAllPurchases(auther Authenticator) (map[s
 	// Index it all in a multimap
 	purchasesByName := make(map[string]purchaseList)
 	for _, purchase := range purchases {
-		purchasesByName[purchase.PackageName] = append(purchasesByName[purchase.PackageName], purchase)
+		purchasesByName[purchase.SnapID] = append(purchasesByName[purchase.SnapID], purchase)
 	}
 
 	return purchasesByName, nil
