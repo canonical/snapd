@@ -34,8 +34,6 @@ type searchSuite struct {
 }
 
 func (s *searchSuite) TestSearchMustPrintMatch(c *check.C) {
-	searchOutput := cli.ExecCommand(c, "snap", "find", "hello-world")
-
 	// XXX: Summary is empty atm, waiting for store support
 	expected := "(?ms)" +
 		"Name +Version +Summary *\n" +
@@ -43,5 +41,9 @@ func (s *searchSuite) TestSearchMustPrintMatch(c *check.C) {
 		"^hello-world +.* *\n" +
 		".*"
 
-	c.Assert(searchOutput, check.Matches, expected)
+	for _, searchTerm := range []string{"hello-", "hello-world"} {
+		searchOutput := cli.ExecCommand(c, "snap", "find", searchTerm)
+
+		c.Check(searchOutput, check.Matches, expected)
+	}
 }
