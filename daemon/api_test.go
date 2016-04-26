@@ -46,6 +46,7 @@ import (
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/snaptest"
 	"github.com/ubuntu-core/snappy/snappy"
 	"github.com/ubuntu-core/snappy/store"
 	"github.com/ubuntu-core/snappy/testutil"
@@ -160,35 +161,32 @@ func (s *apiSuite) mkInstalled(c *check.C, name, developer, version string, revn
 }
 
 func (s *apiSuite) mkInstalledInState(c *check.C, daemon *Daemon, name, developer, version string, revno int, active bool, extraYaml string) *snap.Info {
-	skelInfo := &snap.Info{
-		SideInfo: snap.SideInfo{
-			OfficialName: name,
-			Developer:    developer,
-			Revision:     revno,
-			Channel:      "stable",
-		},
-		Version: version,
+	// Collect arguments into a snap.SideInfo structure
+	sideInfo := &snap.SideInfo{
+		OfficialName: name,
+		Developer:    developer,
+		Revision:     revno,
+		Channel:      "stable",
 	}
 
-	c.Assert(os.MkdirAll(skelInfo.DataDir(), 0755), check.IsNil)
-
-	metadir := filepath.Join(skelInfo.MountDir(), "meta")
-	c.Assert(os.MkdirAll(metadir, 0755), check.IsNil)
-
-	guidir := filepath.Join(metadir, "gui")
-	c.Assert(os.MkdirAll(guidir, 0755), check.IsNil)
-
-	c.Check(ioutil.WriteFile(filepath.Join(guidir, "icon.svg"), []byte("yadda icon"), 0644), check.IsNil)
-
-	yamlPath := filepath.Join(metadir, "snap.yaml")
-	content := fmt.Sprintf(`
+	// Collect other arguments into a yaml string
+	yamlText := fmt.Sprintf(`
 name: %s
 version: %s
 %s`, name, version, extraYaml)
-	c.Check(ioutil.WriteFile(yamlPath, []byte(content), 0644), check.IsNil)
+
+	// Mock the snap on disk
+	snapInfo := snaptest.MockSnap(c, yamlText, sideInfo)
+
+	c.Assert(os.MkdirAll(snapInfo.DataDir(), 0755), check.IsNil)
+	metadir := filepath.Join(snapInfo.MountDir(), "meta")
+	guidir := filepath.Join(metadir, "gui")
+	c.Assert(os.MkdirAll(guidir, 0755), check.IsNil)
+	c.Check(ioutil.WriteFile(filepath.Join(guidir, "icon.svg"), []byte("yadda icon"), 0644), check.IsNil)
+
 	c.Check(ioutil.WriteFile(filepath.Join(metadir, "hashes.yaml"), []byte(nil), 0644), check.IsNil)
 
-	err := snappy.SaveManifest(skelInfo)
+	err := snappy.SaveManifest(snapInfo)
 	c.Assert(err, check.IsNil)
 
 	if daemon != nil {
@@ -199,20 +197,17 @@ version: %s
 		var snapst snapstate.SnapState
 		snapstate.Get(st, name, &snapst)
 		snapst.Active = active
-		snapst.Sequence = append(snapst.Sequence, &skelInfo.SideInfo)
+		snapst.Sequence = append(snapst.Sequence, &snapInfo.SideInfo)
 
 		snapstate.Set(st, name, &snapst)
 	}
 
-	info, err := snap.ReadInfo(name, &skelInfo.SideInfo)
-	c.Assert(err, check.IsNil)
-
 	if active {
-		err := snappy.UpdateCurrentSymlink(info, nil)
+		err := snappy.UpdateCurrentSymlink(snapInfo, nil)
 		c.Assert(err, check.IsNil)
 	}
 
-	return info
+	return snapInfo
 }
 
 func (s *apiSuite) mkGadget(c *check.C, store string) {
