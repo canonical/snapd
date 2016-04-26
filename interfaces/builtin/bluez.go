@@ -21,6 +21,8 @@ package builtin
 
 import (
 	"bytes"
+	"fmt"
+	"sort"
 
 	"github.com/ubuntu-core/snappy/interfaces"
 )
@@ -98,7 +100,7 @@ var bluezConnectedPlugAppArmor = []byte(`
 # Allow all access to bluez service
 dbus (receive, send)
     bus=system
-    peer=(label=@SLOT_SECURITY_TAG_GLOB@),
+    peer=(label=@SLOT_SECURITY_TAGS@),
 
 dbus (send)
     bus=system
@@ -204,8 +206,22 @@ func (iface *BluezInterface) PermanentPlugSnippet(plug *interfaces.Plug, securit
 func (iface *BluezInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		old := []byte("@SLOT_SECURITY_TAG_GLOB@")
-		new := []byte(interfaces.SecurityTagGlob(slot.Snap.Name()))
+		old := []byte("@SLOT_SECURITY_TAGS@")
+		buf := bytes.NewBuffer(nil)
+		fmt.Fprintf(buf, "snap.%s.{", slot.Snap.Name())
+		appNames := make([]string, 0, len(slot.Apps))
+		for appName := range slot.Apps {
+			appNames = append(appNames, appName)
+		}
+		sort.Strings(appNames)
+		for i, appName := range appNames {
+			if i > 0 {
+				fmt.Fprintf(buf, ",")
+			}
+			fmt.Fprintf(buf, appName)
+		}
+		fmt.Fprintf(buf, "}")
+		new := buf.Bytes()
 		snippet := bytes.Replace(bluezConnectedPlugAppArmor, old, new, -1)
 		return snippet, nil
 	case interfaces.SecuritySecComp:
