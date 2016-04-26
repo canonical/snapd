@@ -1024,6 +1024,18 @@ func (s *snapmgrQuerySuite) TestInfo(c *C) {
 	c.Check(info.Description(), Equals, "Lots of text")
 }
 
+func (s *snapmgrQuerySuite) TestCurrent(c *C) {
+	st := s.st
+	st.Lock()
+	defer st.Unlock()
+
+	info, err := snapstate.Current(st, "name1")
+	c.Assert(err, IsNil)
+
+	c.Check(info.Name(), Equals, "name1")
+	c.Check(info.Revision, Equals, 12)
+}
+
 func (s *snapmgrQuerySuite) TestActiveInfos(c *C) {
 	st := s.st
 	st.Lock()
