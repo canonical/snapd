@@ -46,6 +46,8 @@ plugs:
 
 type snapTestSuite struct{}
 
+var _ = Suite(&snapTestSuite{})
+
 func (s *snapTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 }
@@ -61,6 +63,7 @@ func (s *snapTestSuite) TestMockSnap(c *C) {
 	// Data from SideInfo is used
 	c.Check(snapInfo.Revision, Equals, 42)
 	// The YAML is placed on disk
-	_, err := os.Stat(filepath.Join(dirs.SnapSnapsDir, "sample", "43", "meta", "snap.yaml"))
-	c.Check(err, IsNil)
+	stat, err := os.Stat(filepath.Join(dirs.SnapSnapsDir, "sample", "42", "meta", "snap.yaml"))
+	c.Assert(err, IsNil)
+	c.Check(stat.Size(), Equals, int64(len(sampleYaml)))
 }
