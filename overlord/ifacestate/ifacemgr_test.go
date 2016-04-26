@@ -20,10 +20,6 @@
 package ifacestate_test
 
 import (
-	"io/ioutil"
-	"os"
-	"path/filepath"
-	"strconv"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -34,6 +30,7 @@ import (
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/snaptest"
 	"github.com/ubuntu-core/snappy/snappy"
 )
 
@@ -200,27 +197,16 @@ func (s *interfaceManagerSuite) mockIface(c *C, iface interfaces.Interface) {
 }
 
 func (s *interfaceManagerSuite) mockSnap(c *C, yamlText string) *snap.Info {
+	sideInfo := &snap.SideInfo{}
+	snapInfo := snaptest.MockSnap(c, yamlText, sideInfo)
+
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	// Parse the yaml
-	snapInfo, err := snap.InfoFromSnapYaml([]byte(yamlText))
-	c.Assert(err, IsNil)
-	snap.AddImplicitSlots(snapInfo)
-
-	// Create on-disk yaml file (it is read by snapstate)
-	dname := filepath.Join(dirs.SnapSnapsDir, snapInfo.Name(),
-		strconv.Itoa(snapInfo.Revision), "meta")
-	fname := filepath.Join(dname, "snap.yaml")
-	err = os.MkdirAll(dname, 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(fname, []byte(yamlText), 0644)
-	c.Assert(err, IsNil)
 
 	// Put a side info into the state
 	snapstate.Set(s.state, snapInfo.Name(), &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{Revision: snapInfo.Revision}},
+		Sequence: []*snap.SideInfo{sideInfo},
 	})
 	return snapInfo
 }
