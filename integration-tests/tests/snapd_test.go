@@ -22,6 +22,7 @@ package tests
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -240,7 +241,7 @@ func determinePayload(payload string) (string, error) {
 		if _, err := cli.ExecCommandErr("sudo", "cp", payload, snapAppDataPath); err != nil {
 			return "", err
 		}
-		return "@" + filepath.Join(snapAppDataPath, filepath.Base(payload)), nil
+		return fmt.Sprintf("%s@%s", filepath.Base(payload), filepath.Join(snapAppDataPath, filepath.Base(payload))), nil
 	}
 	// payload is a string
 	return payload, nil
