@@ -42,9 +42,7 @@ func installSnap(c *check.C, packageName string) string {
 	cli.ExecCommand(c, "sudo", "snap", "install", packageName)
 	// FIXME: should `snap install` shold show a list afterards?
 	//        like `snappy install`?
-	// right now "snap list" on freshly booted is empty
-	// because u-d-f installed aren't in state
-	out, _ := cli.ExecCommandErr("snap", "list")
+	out := cli.ExecCommand(c, "snap", "list")
 	return out
 }
 
@@ -52,9 +50,7 @@ func removeSnap(c *check.C, packageName string) string {
 	cli.ExecCommand(c, "sudo", "snap", "remove", packageName)
 	// FIXME: should `snap remove` shold show a list afterards?
 	//        like `snappy install`?
-	// right now "snap list" on freshly booted is empty
-	// because u-d-f installed aren't in state
-	out, _ := cli.ExecCommandErr("snap", "list")
+	out := cli.ExecCommand(c, "snap", "list")
 	return out
 }
 
