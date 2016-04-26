@@ -1193,14 +1193,8 @@ func (s *apiSuite) TestSideloadSnapNotValidFormFile(c *check.C) {
 		"----hello--\r\n"
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 
-	tmpfile, err := ioutil.TempFile("", "test-")
-	c.Assert(err, check.IsNil)
-	_, err = tmpfile.WriteString(content)
-	c.Check(err, check.IsNil)
-	_, err = tmpfile.Seek(0, 0)
-	c.Check(err, check.IsNil)
-
-	req, err := http.NewRequest("POST", "/v2/snaps", tmpfile)
+	buf := bytes.NewBufferString(content)
+	req, err := http.NewRequest("POST", "/v2/snaps", buf)
 	c.Assert(err, check.IsNil)
 	for k, v := range head {
 		req.Header.Set(k, v)
@@ -1215,13 +1209,6 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 	d := newTestDaemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
-
-	tmpfile, err := ioutil.TempFile("", "test-")
-	c.Assert(err, check.IsNil)
-	_, err = tmpfile.WriteString(content)
-	c.Check(err, check.IsNil)
-	_, err = tmpfile.Seek(0, 0)
-	c.Check(err, check.IsNil)
 
 	// setup done
 	installQueue := []string{}
@@ -1257,7 +1244,8 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 		return state.NewTaskSet(t), nil
 	}
 
-	req, err := http.NewRequest("POST", "/v2/snaps", tmpfile)
+	buf := bytes.NewBufferString(content)
+	req, err := http.NewRequest("POST", "/v2/snaps", buf)
 	c.Assert(err, check.IsNil)
 	for k, v := range head {
 		req.Header.Set(k, v)
