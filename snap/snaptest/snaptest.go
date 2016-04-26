@@ -46,10 +46,9 @@ func MockSnap(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 	// Put the YAML on disk, in the right spot.
 	dname := filepath.Join(dirs.SnapSnapsDir, snapInfo.Name(),
 		strconv.Itoa(sideInfo.Revision), "meta")
-	fname := filepath.Join(dname, "snap.yaml")
 	err = os.MkdirAll(dname, 0755)
 	c.Assert(err, check.IsNil)
-	err = ioutil.WriteFile(fname, []byte(yamlText), 0644)
+	err = ioutil.WriteFile(filepath.Join(dname, "snap.yaml"), []byte(yamlText), 0644)
 	c.Assert(err, check.IsNil)
 
 	// Triple-check that it really works by reading it back.
