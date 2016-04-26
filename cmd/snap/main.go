@@ -145,10 +145,10 @@ func run() error {
 	parser := Parser()
 	_, err := parser.Parse()
 	if err != nil {
+		if _, ok := err.(*flags.Error); !ok {
+			logger.Debugf("cannot parse arguments: %v: %v", os.Args, err)
+		}
 		return err
-	}
-	if _, ok := err.(*flags.Error); !ok {
-		logger.Debugf("cannot parse arguments: %v: %v", os.Args, err)
 	}
 	return nil
 }
