@@ -793,6 +793,7 @@ out:
 		os.Remove(tmpf.Name())
 		return InternalError("cannot copy request into temporary file: %v", err)
 	}
+	tmpf.Sync()
 
 	tempPath := tmpf.Name()
 
