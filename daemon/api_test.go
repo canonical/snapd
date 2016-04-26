@@ -434,8 +434,9 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"maxReadBuflen",
 		"muxVars",
 		"newRemoteRepo",
-		"pkgActionDispatch",
+		"errNothingToInstall",
 		// snapInstruction vars:
+		"snapInstructionDispTable",
 		"snapstateInstall",
 		"snapstateUpdate",
 		"snapstateInstallPath",
@@ -1041,19 +1042,14 @@ func (s *apiSuite) TestPostSnapBadAction(c *check.C) {
 
 func (s *apiSuite) TestPostSnap(c *check.C) {
 	d := s.daemon(c)
+	d.overlord.Loop()
+	defer d.overlord.Stop()
 
-	pkgActionDispatch = func(*snapInstruction) func() (*state.Change, error) {
-		return func() (*state.Change, error) {
-			state := d.overlord.State()
-			state.Lock()
-			chg := state.NewChange("foo", "foooo")
-			state.Unlock()
-
-			return chg, nil
-		}
+	snapInstructionDispTable["install"] = func(*snapInstruction, *state.State) (string, []*state.TaskSet, error) {
+		return "foooo", nil, nil
 	}
 	defer func() {
-		pkgActionDispatch = pkgActionDispatchImpl
+		snapInstructionDispTable["install"] = snapInstall
 	}()
 
 	buf := bytes.NewBufferString(`{"action": "install"}`)
@@ -1074,20 +1070,14 @@ func (s *apiSuite) TestPostSnap(c *check.C) {
 
 func (s *apiSuite) TestPostSnapSetsUser(c *check.C) {
 	d := s.daemon(c)
+	d.overlord.Loop()
+	defer d.overlord.Stop()
 
-	pkgActionDispatch = func(inst *snapInstruction) func() (*state.Change, error) {
-		return func() (*state.Change, error) {
-			state := d.overlord.State()
-			state.Lock()
-			// check UserID was set in the snapInstruction
-			chg := state.NewChange("foo", string(inst.userID))
-			state.Unlock()
-
-			return chg, nil
-		}
+	snapInstructionDispTable["install"] = func(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+		return string(inst.userID), nil, nil
 	}
 	defer func() {
-		pkgActionDispatch = pkgActionDispatchImpl
+		snapInstructionDispTable["install"] = snapInstall
 	}()
 
 	state := snapCmd.d.overlord.State()
@@ -1117,22 +1107,24 @@ func (s *apiSuite) TestPostSnapDispatch(c *check.C) {
 	inst := &snapInstruction{}
 
 	type T struct {
-		s string
-		m func() (*state.Change, error)
+		s    string
+		impl snapActionFunc
 	}
 
 	actions := []T{
-		{"install", inst.install},
-		{"refresh", inst.update},
-		{"remove", inst.remove},
-		{"rollback", inst.rollback},
+		{"install", snapInstall},
+		{"refresh", snapUpdate},
+		{"remove", snapRemove},
+		{"rollback", snapRollback},
+		{"activate", snapActivate},
+		{"deactivate", snapDeactivate},
 		{"xyzzy", nil},
 	}
 
 	for _, action := range actions {
 		inst.Action = action.s
 		// do you feel dirty yet?
-		c.Check(fmt.Sprintf("%p", action.m), check.Equals, fmt.Sprintf("%p", inst.dispatch()))
+		c.Check(fmt.Sprintf("%p", action.impl), check.Equals, fmt.Sprintf("%p", inst.dispatch()))
 	}
 }
 
@@ -1164,7 +1156,7 @@ func (s *apiSuite) TestSideloadSnap(c *check.C) {
 		"a/b/local.snap\r\n" +
 		"----hello--\r\n"
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
-	chgSummary := s.sideloadCheck(c, body, head, 0)
+	chgSummary := s.sideloadCheck(c, body, head, 0, false)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from snap file "a/b/local.snap"`)
 }
 
@@ -1181,11 +1173,11 @@ func (s *apiSuite) TestSideloadSnapDevMode(c *check.C) {
 		"----hello--\r\n"
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 	// try a multipart/form-data upload
-	chgSummary := s.sideloadCheck(c, body, head, snappy.DeveloperMode)
+	chgSummary := s.sideloadCheck(c, body, head, snappy.DeveloperMode, true)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from snap file`)
 }
 
-func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]string, expectedFlags snappy.InstallFlags) string {
+func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]string, expectedFlags snappy.InstallFlags, hasUbuntuCore bool) string {
 	d := newTestDaemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
@@ -1204,6 +1196,9 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 	}
 
 	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
+		if hasUbuntuCore {
+			return nil
+		}
 		// pretend we do not have a state for ubuntu-core
 		return state.ErrNoState
 	}
@@ -1236,17 +1231,30 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 
 	rsp := sideloadSnap(snapsCmd, req).(*resp)
 	c.Assert(rsp.Type, check.Equals, ResponseTypeAsync)
-	c.Assert(installQueue, check.HasLen, 2)
-	c.Check(installQueue[0], check.Equals, "ubuntu-core")
-	c.Check(installQueue[1], check.Matches, "local::.*/snapd-sideload-pkg-.*")
+	n := 1
+	if !hasUbuntuCore {
+		n++
+	}
+	c.Assert(installQueue, check.HasLen, n)
+	if !hasUbuntuCore {
+		c.Check(installQueue[0], check.Equals, "ubuntu-core")
+	}
+	c.Check(installQueue[n-1], check.Matches, "local::.*/snapd-sideload-pkg-.*")
 
 	st := d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	chgs := st.Changes()
-	c.Check(chgs, check.HasLen, 1)
-	c.Check(chgs[0].Kind(), check.Equals, "install-snap")
-	return chgs[0].Summary()
+	chg := st.Change(rsp.Change)
+	c.Assert(chg, check.NotNil)
+
+	c.Assert(chg.Tasks(), check.HasLen, n)
+
+	st.Unlock()
+	<-chg.Ready()
+	st.Lock()
+
+	c.Check(chg.Kind(), check.Equals, "install-snap")
+	return chg.Summary()
 }
 
 func (s *apiSuite) TestAppIconGet(c *check.C) {
@@ -1379,16 +1387,32 @@ func (s *apiSuite) TestInstall(c *check.C) {
 	}
 
 	d := s.daemon(c)
-	inst := &snapInstruction{
-		overlord: d.overlord,
-		Action:   "install",
-		pkg:      "some-snap",
-	}
 
 	d.overlord.Loop()
 	defer d.overlord.Stop()
-	chg, err := inst.dispatch()()
 
+	buf := bytes.NewBufferString(`{"action": "install"}`)
+	req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
+	c.Assert(err, check.IsNil)
+
+	s.vars = map[string]string{"name": "some-snap"}
+	rsp := postSnap(snapCmd, req).(*resp)
+
+	c.Assert(rsp.Type, check.Equals, ResponseTypeAsync)
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	chg := st.Change(rsp.Change)
+	c.Assert(chg, check.NotNil)
+
+	c.Check(chg.Tasks(), check.HasLen, 1)
+
+	st.Unlock()
+	<-chg.Ready()
+	st.Lock()
+
+	c.Check(chg.Status(), check.Equals, state.DoneStatus)
 	c.Check(calledFlags, check.Equals, snappy.DoInstallGC)
 	c.Check(err, check.IsNil)
 	c.Check(installQueue, check.DeepEquals, []string{"some-snap"})
@@ -1416,22 +1440,22 @@ func (s *apiSuite) TestRefresh(c *check.C) {
 
 	d := s.daemon(c)
 	inst := &snapInstruction{
-		overlord: d.overlord,
-		Action:   "refresh",
-		pkg:      "some-snap",
-		userID:   17,
+		Action: "refresh",
+		snap:   "some-snap",
+		userID: 17,
 	}
 
-	d.overlord.Loop()
-	defer d.overlord.Stop()
-	chg, err := inst.dispatch()()
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	summary, _, err := inst.dispatch()(inst, st)
+	c.Check(err, check.IsNil)
 
 	c.Check(calledFlags, check.Equals, snappy.DoInstallGC)
 	c.Check(calledUserID, check.Equals, 17)
 	c.Check(err, check.IsNil)
 	c.Check(installQueue, check.DeepEquals, []string{"some-snap"})
-	c.Check(chg.Kind(), check.Equals, "refresh-snap")
-	c.Check(chg.Summary(), check.Equals, `Refresh "some-snap" snap`)
+	c.Check(summary, check.Equals, `Refresh "some-snap" snap`)
 }
 
 func (s *apiSuite) TestInstallMissingUbuntuCore(c *check.C) {
@@ -1449,19 +1473,27 @@ func (s *apiSuite) TestInstallMissingUbuntuCore(c *check.C) {
 	}
 
 	d := s.daemon(c)
-	inst := &snapInstruction{
-		overlord: d.overlord,
-		Action:   "install",
-		pkg:      "some-snap",
-	}
 
 	d.overlord.Loop()
 	defer d.overlord.Stop()
-	_, err := inst.dispatch()()
-	c.Check(err, check.IsNil)
 
-	d.overlord.State().Lock()
-	defer d.overlord.State().Unlock()
+	buf := bytes.NewBufferString(`{"action": "install"}`)
+	req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
+	c.Assert(err, check.IsNil)
+
+	s.vars = map[string]string{"name": "some-snap"}
+	rsp := postSnap(snapCmd, req).(*resp)
+
+	c.Assert(rsp.Type, check.Equals, ResponseTypeAsync)
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	chg := st.Change(rsp.Change)
+	c.Assert(chg, check.NotNil)
+
+	c.Check(chg.Tasks(), check.HasLen, 4)
+
 	c.Check(installQueue, check.HasLen, 4)
 	// the two "ubuntu-core" install tasks
 	c.Check(installQueue[0].Summary(), check.Equals, "ubuntu-core")
@@ -1491,18 +1523,16 @@ func (s *apiSuite) TestInstallUbuntuCoreWhenMissing(c *check.C) {
 
 	d := s.daemon(c)
 	inst := &snapInstruction{
-		overlord: d.overlord,
-		Action:   "install",
-		pkg:      "ubuntu-core",
+		Action: "install",
+		snap:   "ubuntu-core",
 	}
 
-	d.overlord.Loop()
-	defer d.overlord.Stop()
-	_, err := inst.dispatch()()
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	_, _, err := inst.dispatch()(inst, st)
 	c.Check(err, check.IsNil)
 
-	d.overlord.State().Lock()
-	defer d.overlord.State().Unlock()
 	c.Check(installQueue, check.HasLen, 2)
 	// the only "ubuntu-core" install tasks
 	c.Check(installQueue[0].Summary(), check.Equals, "ubuntu-core")
@@ -1511,28 +1541,42 @@ func (s *apiSuite) TestInstallUbuntuCoreWhenMissing(c *check.C) {
 }
 
 func (s *apiSuite) TestInstallFails(c *check.C) {
+	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
+		// we have ubuntu-core
+		return nil
+	}
+
 	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snappy.InstallFlags) (*state.TaskSet, error) {
 		t := s.NewTask("fake-install-snap-error", "Install task")
 		return state.NewTaskSet(t), nil
 	}
 
 	d := s.daemon(c)
-	inst := &snapInstruction{
-		overlord: d.overlord,
-		Action:   "install",
-	}
 
 	d.overlord.Loop()
 	defer d.overlord.Stop()
-	chg, err := inst.dispatch()()
+
+	buf := bytes.NewBufferString(`{"action": "install"}`)
+	req, err := http.NewRequest("POST", "/v2/snaps/hello-world", buf)
 	c.Assert(err, check.IsNil)
 
-	<-chg.Ready()
+	rsp := postSnap(snapCmd, req).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeAsync)
 
 	st := d.overlord.State()
 	st.Lock()
-	c.Check(chg.Err(), check.ErrorMatches, `(?sm).*Install task \(fake-install-snap-error errored\)`)
+	defer st.Unlock()
+	chg := st.Change(rsp.Change)
+	c.Assert(chg, check.NotNil)
+
+	c.Check(chg.Tasks(), check.HasLen, 1)
+
 	st.Unlock()
+	<-chg.Ready()
+	st.Lock()
+
+	c.Check(chg.Err(), check.ErrorMatches, `(?sm).*Install task \(fake-install-snap-error errored\)`)
 }
 
 func (s *apiSuite) TestInstallLeaveOld(c *check.C) {
@@ -1547,14 +1591,15 @@ func (s *apiSuite) TestInstallLeaveOld(c *check.C) {
 
 	d := s.daemon(c)
 	inst := &snapInstruction{
-		overlord: d.overlord,
 		Action:   "install",
 		LeaveOld: true,
 	}
 
-	d.overlord.Loop()
-	defer d.overlord.Stop()
-	_, err := inst.dispatch()()
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	_, _, err := inst.dispatch()(inst, st)
+	c.Assert(err, check.IsNil)
 
 	c.Check(calledFlags, check.Equals, snappy.InstallFlags(0))
 	c.Check(err, check.IsNil)
@@ -1572,15 +1617,15 @@ func (s *apiSuite) TestInstallDevMode(c *check.C) {
 
 	d := s.daemon(c)
 	inst := &snapInstruction{
-		overlord: d.overlord,
-		Action:   "install",
+		Action: "install",
 		// Install the snap in developer mode
 		DevMode: true,
 	}
 
-	d.overlord.Loop()
-	defer d.overlord.Stop()
-	_, err := inst.dispatch()()
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	_, _, err := inst.dispatch()(inst, st)
 	c.Check(err, check.IsNil)
 
 	// DevMode was converted to the snappy.DeveloperMode flag
@@ -1611,7 +1656,6 @@ func (s *apiSuite) TestInstallLicensed(c *check.C) {
 
 	d := s.daemon(c)
 	inst := &snapInstruction{
-		overlord: d.overlord,
 		Action:   "install",
 	}
 
