@@ -744,7 +744,6 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 		return InternalError("cannot find route for change")
 	}
 
-	body := r.Body
 	contentType := r.Header.Get("Content-Type")
 
 	if !strings.HasPrefix(contentType, "multipart/") {
@@ -770,26 +769,31 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 
 	// form.File is a map of arrays of *FileHeader things
 	// we just allow one (for now at least)
+	var snapBody multipart.File
 out:
 	for _, v := range form.File {
 		for i := range v {
-			body, err = v[i].Open()
+			snapBody, err = v[i].Open()
 			if err != nil {
 				return BadRequest("cannot open POST form file: %v", err)
 			}
-			defer body.Close()
+			defer snapBody.Close()
 
 			break out
 		}
 	}
 	defer form.RemoveAll()
 
+	if snapBody == nil {
+		return BadRequest("no POST form file: %v", form)
+	}
+
 	tmpf, err := ioutil.TempFile("", "snapd-sideload-pkg-")
 	if err != nil {
 		return InternalError("cannot create temporary file: %v", err)
 	}
 
-	if _, err := io.Copy(tmpf, body); err != nil {
+	if _, err := io.Copy(tmpf, snapBody); err != nil {
 		os.Remove(tmpf.Name())
 		return InternalError("cannot copy request into temporary file: %v", err)
 	}
