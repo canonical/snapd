@@ -41,6 +41,10 @@ var _ = Suite(&BluezInterfaceSuite{
 			Snap:      &snap.Info{SuggestedName: "bluez"},
 			Name:      "bluez",
 			Interface: "bluez",
+			Apps: map[string]*snap.AppInfo{
+				"app1": &snap.AppInfo{Name: "app1"},
+				"app2": &snap.AppInfo{Name: "app2"},
+			},
 		},
 	},
 	plug: &interfaces.Plug{
@@ -59,7 +63,7 @@ func (s *BluezInterfaceSuite) TestName(c *C) {
 func (s *BluezInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabel(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, "peer=(label=snap.bluez.*),")
+	c.Assert(string(snippet), testutil.Contains, "peer=(label=snap.bluez.{app1,app2}),")
 }
 
 func (s *BluezInterfaceSuite) TestUnusedSecuritySystems(c *C) {
