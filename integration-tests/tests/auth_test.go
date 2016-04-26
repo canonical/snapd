@@ -35,6 +35,8 @@ import (
 
 var _ = check.Suite(&authSuite{})
 
+// regression test for auth bypass bug:
+// https://bugs.launchpad.net/ubuntu/+source/snapd/+bug/1571491
 type authSuite struct {
 	common.SnappySuite
 }
