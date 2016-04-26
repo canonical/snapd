@@ -58,7 +58,6 @@ const (
 	StatusRemoved   = "removed"
 
 	TypeApp    = "app"
-	TypeCore   = "core"
 	TypeKernel = "kernel"
 	TypeGadget = "gadget"
 	TypeOS     = "os"
