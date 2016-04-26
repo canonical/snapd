@@ -69,7 +69,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	var err error
 	s.snapmgr, err = snapstate.Manager(s.state)
 	c.Assert(err, IsNil)
-	s.snapmgr.AddForeignTaskHandlers()
+	s.snapmgr.AddForeignTaskHandlers(s.fakeBackend)
 
 	// XXX: have just one, reset!
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
@@ -331,6 +331,11 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 			old:  "<no-old>",
 		},
 		fakeOp{
+			op:    "setup-profiles:Doing",
+			name:  "some-snap",
+			revno: 11,
+		},
+		fakeOp{
 			op: "candidate",
 			sinfo: snap.SideInfo{
 				OfficialName: "some-snap",
@@ -432,6 +437,11 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 			name:  "/snap/some-snap/11",
 			flags: int(snappy.DoInstallGC),
 			old:   "/snap/some-snap/7",
+		},
+		fakeOp{
+			op:    "setup-profiles:Doing",
+			name:  "some-snap",
+			revno: 11,
 		},
 		fakeOp{
 			op: "candidate",
@@ -549,6 +559,11 @@ func (s *snapmgrTestSuite) TestUpdateUndoIntegration(c *C) {
 			old:   "/snap/some-snap/7",
 		},
 		{
+			op:    "setup-profiles:Doing",
+			name:  "some-snap",
+			revno: 11,
+		},
+		{
 			op: "candidate",
 			sinfo: snap.SideInfo{
 				OfficialName: "some-snap",
@@ -562,6 +577,11 @@ func (s *snapmgrTestSuite) TestUpdateUndoIntegration(c *C) {
 			name: "/snap/some-snap/11",
 		},
 		// no unlink-snap here is expected!
+		{
+			op:    "setup-profiles:Undoing",
+			name:  "some-snap",
+			revno: 11,
+		},
 		{
 			op:   "undo-copy-snap-data",
 			name: "/snap/some-snap/11",
@@ -656,6 +676,11 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoIntegration(c *C) {
 			old:   "/snap/some-snap/7",
 		},
 		{
+			op:    "setup-profiles:Doing",
+			name:  "some-snap",
+			revno: 11,
+		},
+		{
 			op: "candidate",
 			sinfo: snap.SideInfo{
 				OfficialName: "some-snap",
@@ -672,6 +697,11 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoIntegration(c *C) {
 		{
 			op:   "unlink-snap",
 			name: "/snap/some-snap/11",
+		},
+		{
+			op:    "setup-profiles:Undoing",
+			name:  "some-snap",
+			revno: 11,
 		},
 		{
 			op:   "undo-copy-snap-data",
@@ -793,14 +823,14 @@ version: 1.0`)
 	s.state.Lock()
 
 	// ensure only local install was run, i.e. first action is check-snap
-	c.Assert(s.fakeBackend.ops, HasLen, 5)
+	c.Assert(s.fakeBackend.ops, HasLen, 6)
 	c.Check(s.fakeBackend.ops[0].op, Equals, "check-snap")
 	c.Check(s.fakeBackend.ops[0].name, Matches, `.*/mock_1.0_all.snap`)
 
-	c.Check(s.fakeBackend.ops[3].op, Equals, "candidate")
-	c.Check(s.fakeBackend.ops[3].sinfo, DeepEquals, snap.SideInfo{Revision: 100001})
-	c.Check(s.fakeBackend.ops[4].op, Equals, "link-snap")
-	c.Check(s.fakeBackend.ops[4].name, Equals, "/snap/mock/100001")
+	c.Check(s.fakeBackend.ops[4].op, Equals, "candidate")
+	c.Check(s.fakeBackend.ops[4].sinfo, DeepEquals, snap.SideInfo{Revision: 100001})
+	c.Check(s.fakeBackend.ops[5].op, Equals, "link-snap")
+	c.Check(s.fakeBackend.ops[5].name, Equals, "/snap/mock/100001")
 
 	// verify snapSetup info
 	var ss snapstate.SnapSetup
@@ -851,7 +881,7 @@ version: 1.0`)
 	s.state.Lock()
 
 	// ensure only local install was run, i.e. first action is check-snap
-	c.Assert(s.fakeBackend.ops, HasLen, 6)
+	c.Assert(s.fakeBackend.ops, HasLen, 7)
 	c.Check(s.fakeBackend.ops[0].op, Equals, "check-snap")
 	c.Check(s.fakeBackend.ops[0].name, Matches, `.*/mock_1.0_all.snap`)
 
@@ -862,10 +892,14 @@ version: 1.0`)
 	c.Check(s.fakeBackend.ops[3].name, Equals, "/snap/mock/100003")
 	c.Check(s.fakeBackend.ops[3].old, Equals, "/snap/mock/100002")
 
-	c.Check(s.fakeBackend.ops[4].op, Equals, "candidate")
-	c.Check(s.fakeBackend.ops[4].sinfo, DeepEquals, snap.SideInfo{Revision: 100003})
-	c.Check(s.fakeBackend.ops[5].op, Equals, "link-snap")
-	c.Check(s.fakeBackend.ops[5].name, Equals, "/snap/mock/100003")
+	c.Check(s.fakeBackend.ops[4].op, Equals, "setup-profiles:Doing")
+	c.Check(s.fakeBackend.ops[4].name, Equals, "mock")
+	c.Check(s.fakeBackend.ops[4].revno, Equals, 100003)
+
+	c.Check(s.fakeBackend.ops[5].op, Equals, "candidate")
+	c.Check(s.fakeBackend.ops[5].sinfo, DeepEquals, snap.SideInfo{Revision: 100003})
+	c.Check(s.fakeBackend.ops[6].op, Equals, "link-snap")
+	c.Check(s.fakeBackend.ops[6].name, Equals, "/snap/mock/100003")
 
 	// verify snapSetup info
 	var ss snapstate.SnapSetup
@@ -918,7 +952,7 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	c.Assert(s.fakeBackend.ops, HasLen, 4)
+	c.Assert(s.fakeBackend.ops, HasLen, 6)
 	expected := []fakeOp{
 		fakeOp{
 			op:     "can-remove",
@@ -930,12 +964,22 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 			name: "/snap/some-snap/7",
 		},
 		fakeOp{
+			op:    "remove-profiles:Doing",
+			name:  "some-snap",
+			revno: 7,
+		},
+		fakeOp{
 			op:   "remove-snap-data",
 			name: "/snap/some-snap/7",
 		},
 		fakeOp{
 			op:   "remove-snap-files",
 			name: "/snap/some-snap/7",
+		},
+		fakeOp{
+			op:    "discard-conns:Doing",
+			name:  "some-snap",
+			revno: 7,
 		},
 	}
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
