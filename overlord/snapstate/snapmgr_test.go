@@ -95,7 +95,7 @@ func verifyInstallUpdateTasks(c *C, curActive bool, ts *state.TaskSet, st *state
 	}
 	c.Assert(ts.Tasks(), HasLen, n)
 	// all tasks are accounted
-	c.Assert(st.Tasks(), HasLen, n)
+	c.Assert(st.NumTask(), Equals, n)
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "download-snap")
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "mount-snap")
@@ -138,8 +138,11 @@ func (s *snapmgrTestSuite) TestInstallConflict(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	_, err := snapstate.Install(s.state, "some-snap", "some-channel", 0, 0)
+	ts, err := snapstate.Install(s.state, "some-snap", "some-channel", 0, 0)
 	c.Assert(err, IsNil)
+	// need a change to make the tasks visible
+	s.state.NewChange("install", "...").AddAll(ts)
+
 	_, err = snapstate.Install(s.state, "some-snap", "some-channel", 0, 0)
 	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
 }
@@ -148,8 +151,10 @@ func (s *snapmgrTestSuite) TestInstallPathConflict(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	_, err := snapstate.Install(s.state, "some-snap", "some-channel", 0, 0)
+	ts, err := snapstate.Install(s.state, "some-snap", "some-channel", 0, 0)
 	c.Assert(err, IsNil)
+	// need a change to make the tasks visible
+	s.state.NewChange("install", "...").AddAll(ts)
 
 	mockSnap := makeTestSnap(c, "name: some-snap\nversion: 1.0")
 	_, err = snapstate.InstallPath(s.state, mockSnap, "", 0)
@@ -206,8 +211,11 @@ func (s *snapmgrTestSuite) TestUpdateConflict(c *C) {
 		Sequence: []*snap.SideInfo{{OfficialName: "some-snap"}},
 	})
 
-	_, err := snapstate.Update(s.state, "some-snap", "some-channel", s.user.ID, 0)
+	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", s.user.ID, 0)
 	c.Assert(err, IsNil)
+	// need a change to make the tasks visible
+	s.state.NewChange("refresh", "...").AddAll(ts)
+
 	_, err = snapstate.Update(s.state, "some-snap", "some-channel", s.user.ID, 0)
 	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
 }
@@ -230,7 +238,7 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 	i := 0
 	c.Assert(ts.Tasks(), HasLen, 4)
 	// all tasks are accounted
-	c.Assert(s.state.Tasks(), HasLen, 4)
+	c.Assert(s.state.NumTask(), Equals, 4)
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "unlink-snap")
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "remove-profiles")
@@ -255,7 +263,7 @@ func (s *snapmgrTestSuite) TestRemoveLast(c *C) {
 	i := 0
 	c.Assert(ts.Tasks(), HasLen, 5)
 	// all tasks are accounted
-	c.Assert(s.state.Tasks(), HasLen, 5)
+	c.Assert(s.state.NumTask(), Equals, 5)
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "unlink-snap")
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "remove-profiles")
@@ -276,8 +284,11 @@ func (s *snapmgrTestSuite) TestRemoveConflict(c *C) {
 		Sequence: []*snap.SideInfo{{OfficialName: "some-snap"}},
 	})
 
-	_, err := snapstate.Remove(s.state, "some-snap", 0)
+	ts, err := snapstate.Remove(s.state, "some-snap", 0)
 	c.Assert(err, IsNil)
+	// need a change to make the tasks visible
+	s.state.NewChange("remove", "...").AddAll(ts)
+
 	_, err = snapstate.Remove(s.state, "some-snap", 0)
 	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
 }
