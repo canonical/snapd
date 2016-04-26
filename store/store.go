@@ -110,12 +110,8 @@ func getStructFields(s interface{}) []string {
 	return fields
 }
 
-func useStagingStore() bool {
-	return os.Getenv("SNAPPY_USE_STAGING_CPI") != ""
-}
-
 func cpiURL() string {
-	if useStagingStore() {
+	if os.Getenv("SNAPPY_USE_STAGING_CPI") != "" {
 		return "https://search.apps.staging.ubuntu.com/api/v1/"
 	}
 	// FIXME: this will become a store-url assertion
@@ -127,7 +123,7 @@ func cpiURL() string {
 }
 
 func authURL() string {
-	if useStagingStore() {
+	if os.Getenv("SNAPPY_USE_STAGING_CPI") != "" {
 		return "https://login.staging.ubuntu.com/api/v2"
 	}
 	return "https://login.ubuntu.com/api/v2"
@@ -150,13 +146,6 @@ func myappsURL() string {
 		return "https://myapps.developer.staging.ubuntu.com/api/2.0"
 	}
 	return "https://myapps.developer.ubuntu.com/api/2.0"
-}
-
-func scaURL() string {
-	if useStagingStore() {
-		return "https://myapps.developer.staging.ubuntu.com/api/2.0/"
-	}
-	return "https://myapps.developer.ubuntu.com/api/2.0/"
 }
 
 var defaultConfig = SnapUbuntuStoreConfig{}
@@ -191,12 +180,12 @@ func init() {
 		panic(err)
 	}
 
-	scaBaseURI, err := url.Parse(scaURL())
+	myappsBaseURI, err := url.Parse(myappsURL())
 	if err != nil {
 		panic(err)
 	}
 
-	defaultConfig.PurchasesURI, err = scaBaseURI.Parse("click/purchases/")
+	defaultConfig.PurchasesURI, err = myappsBaseURI.Parse("click/purchases/")
 	if err != nil {
 		panic(err)
 	}
