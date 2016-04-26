@@ -811,8 +811,8 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositorySuggestedCurrency(c *C) {
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreGetAllPurchases(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		authorization := r.Header.Get("Authorization")
-		c.Check(authorization, Equals, "Authorization-details")
+		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
+		c.Check(r.Header.Get("Authorization"), Equals, "Authorization-details")
 		c.Check(r.URL.Path, Equals, "/click/purchases/")
 		io.WriteString(w, mockPurchasesJSON)
 	}))
@@ -830,7 +830,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetAllPurchases(c *C) {
 	c.Assert(repo, NotNil)
 
 	authenticator := &fakeAuthenticator{}
-	purchases, err := repo.getAllPurchases(authenticator)
+	purchases, err := repo.getAllPurchases("edge", authenticator)
 	c.Assert(err, IsNil)
 
 	helloWorldPurchases := purchases[helloWorldSnapID]
@@ -864,8 +864,8 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetAllPurchases(c *C) {
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchases(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		authorization := r.Header.Get("Authorization")
-		c.Check(authorization, Equals, "Authorization-details")
+		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
+		c.Check(r.Header.Get("Authorization"), Equals, "Authorization-details")
 		c.Check(r.URL.Path, Equals, "/click/purchases/"+helloWorldSnapID+"/")
 		c.Check(r.URL.Query().Get("include_item_purchases"), Equals, "true")
 		io.WriteString(w, mockPurchaseJSON)
@@ -884,7 +884,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchases(c *C) {
 	c.Assert(repo, NotNil)
 
 	authenticator := &fakeAuthenticator{}
-	helloWorldPurchases, err := repo.getPurchases(helloWorldSnapID, authenticator)
+	helloWorldPurchases, err := repo.getPurchases(helloWorldSnapID, "edge", authenticator)
 	c.Assert(err, IsNil)
 
 	c.Assert(len(helloWorldPurchases), Equals, 2)
@@ -907,8 +907,8 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchases(c *C) {
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesNotFound(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		authorization := r.Header.Get("Authorization")
-		c.Check(authorization, Equals, "Authorization-details")
+		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
+		c.Check(r.Header.Get("Authorization"), Equals, "Authorization-details")
 		c.Check(r.URL.Path, Equals, "/click/purchases/"+helloWorldSnapID+"/")
 		c.Check(r.URL.Query().Get("include_item_purchases"), Equals, "true")
 		w.WriteHeader(http.StatusNotFound)
@@ -928,15 +928,15 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesNotFound(c *C) {
 	c.Assert(repo, NotNil)
 
 	authenticator := &fakeAuthenticator{}
-	helloWorldPurchases, err := repo.getPurchases(helloWorldSnapID, authenticator)
+	helloWorldPurchases, err := repo.getPurchases(helloWorldSnapID, "edge", authenticator)
 	c.Assert(err, IsNil)
 	c.Assert(len(helloWorldPurchases), Equals, 0)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesTokenExpired(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		authorization := r.Header.Get("Authorization")
-		c.Check(authorization, Equals, "Authorization-details")
+		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
+		c.Check(r.Header.Get("Authorization"), Equals, "Authorization-details")
 		c.Check(r.URL.Path, Equals, "/click/purchases/"+helloWorldSnapID+"/")
 		c.Check(r.URL.Query().Get("include_item_purchases"), Equals, "true")
 		w.WriteHeader(http.StatusUnauthorized)
@@ -956,7 +956,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesTokenExpired(c *C) {
 	c.Assert(repo, NotNil)
 
 	authenticator := &fakeAuthenticator{}
-	helloWorldPurchases, err := repo.getPurchases(helloWorldSnapID, authenticator)
+	helloWorldPurchases, err := repo.getPurchases(helloWorldSnapID, "edge", authenticator)
 	c.Assert(helloWorldPurchases, IsNil)
 	c.Assert(err, NotNil)
 }
