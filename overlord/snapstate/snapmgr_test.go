@@ -157,7 +157,7 @@ func (s *snapmgrTestSuite) TestInstallPathConflict(c *C) {
 	s.state.NewChange("install", "...").AddAll(ts)
 
 	mockSnap := makeTestSnap(c, "name: some-snap\nversion: 1.0")
-	_, err = snapstate.InstallPath(s.state, mockSnap, "", 0)
+	_, err = snapstate.InstallPath(s.state, "some-snap", mockSnap, "", 0)
 	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
 }
 
@@ -783,7 +783,7 @@ func (s *snapmgrTestSuite) TestInstallFirstLocalIntegration(c *C) {
 	mockSnap := makeTestSnap(c, `name: mock
 version: 1.0`)
 	chg := s.state.NewChange("install", "install a local snap")
-	ts, err := snapstate.InstallPath(s.state, mockSnap, "", 0)
+	ts, err := snapstate.InstallPath(s.state, "mock", mockSnap, "", 0)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -841,7 +841,7 @@ func (s *snapmgrTestSuite) TestInstallSubequentLocalIntegration(c *C) {
 	mockSnap := makeTestSnap(c, `name: mock
 version: 1.0`)
 	chg := s.state.NewChange("install", "install a local snap")
-	ts, err := snapstate.InstallPath(s.state, mockSnap, "", 0)
+	ts, err := snapstate.InstallPath(s.state, "mock", mockSnap, "", 0)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
