@@ -201,6 +201,7 @@ var defaultTemplate = []byte(`
   @{PROC}/@{pid}/status r,
   @{PROC}/sys/kernel/hostname r,
   @{PROC}/sys/kernel/osrelease r,
+  @{PROC}/sys/kernel/yama/ptrace_scope r,
   @{PROC}/sys/kernel/shmmax r,
   @{PROC}/sys/fs/file-max r,
   @{PROC}/sys/kernel/pid_max r,
