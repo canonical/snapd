@@ -320,7 +320,7 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	err = m.backend.RemoveSnapFiles(ss.placeInfo(), pb)
 	if err != nil {
 		st.Lock()
-		t.Errorf("cannot remove snap file: %s, retrying", err)
+		t.Errorf("cannot remove snap file %q, will retry: %s", ss.Name, err)
 		st.Unlock()
 		return state.Retry
 	}
