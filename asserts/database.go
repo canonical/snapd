@@ -90,10 +90,14 @@ var (
 )
 
 // InvalidRevisionError describes an error related to the revision of an assertion.
-type InvalidRevisionError string
+type InvalidRevisionError struct {
+	Current, Revision int
+}
 
 func (err InvalidRevisionError) Error() string {
-	return string(err)
+	return fmt.Sprintf(
+		"assertion added must have more recent revision than current one (adding %d, currently %d)",
+		err.Revision, err.Current)
 }
 
 // A RODatabase exposes read-only access to an assertion database.

@@ -96,9 +96,7 @@ func (fsbs *filesystemBackstore) Put(assertType *AssertionType, assert Assertion
 		curRev := curAssert.Revision()
 		rev := assert.Revision()
 		if curRev >= rev {
-			return InvalidRevisionError(
-				fmt.Sprintf("assertion added must have more recent revision than current one (adding %d, currently %d)", rev, curRev),
-			)
+			return &InvalidRevisionError{Current: curRev, Revision: rev}
 		}
 	} else if err != ErrNotFound {
 		return err
