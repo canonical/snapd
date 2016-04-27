@@ -21,10 +21,16 @@
 package tests
 
 import (
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
-	"github.com/ubuntu-core/snappy/testutil"
+	"os"
+	"path/filepath"
 
 	"gopkg.in/check.v1"
+
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/build"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/data"
+	"github.com/ubuntu-core/snappy/testutil"
 )
 
 var _ = check.Suite(&snapOpSuite{})
@@ -48,4 +54,21 @@ func (s *snapOpSuite) testInstallRemove(c *check.C, snapName, displayName string
 
 func (s *snapOpSuite) TestInstallRemoveAliasWorks(c *check.C) {
 	s.testInstallRemove(c, "hello-world", "hello-world")
+}
+
+func (s *snapOpSuite) TestRemoveRemovesAllRevisions(c *check.C) {
+	snapPath, err := build.LocalSnap(c, data.BasicSnapName)
+	defer os.Remove(snapPath)
+	c.Assert(err, check.IsNil, check.Commentf("Error building local snap: %s", err))
+
+	// install two revisions
+	installSnap(c, snapPath)
+	installOutput := installSnap(c, snapPath)
+	c.Assert(installOutput, testutil.Contains, data.BasicSnapName)
+	// double check
+	revnos, _ := filepath.Glob(filepath.Join(dirs.SnapSnapsDir, data.BasicSnapName, "1*"))
+	c.Check(len(revnos) >= 2, check.Equals, true)
+
+	removeOutput := removeSnap(c, data.BasicSnapName)
+	c.Assert(removeOutput, check.Not(testutil.Contains), data.BasicSnapName)
 }
