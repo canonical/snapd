@@ -227,7 +227,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapSocket(c *C) {
 		Snap: &snap.Info{
 			SideInfo: snap.SideInfo{
 				OfficialName: "xkcd-webserver",
-				Revision:     43,
+				Revision:     44,
 			},
 			Version: "0.3.4",
 		},
@@ -238,7 +238,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapSocket(c *C) {
 		SocketMode:   "0660",
 		Daemon:       "simple",
 	}
-	pkgPath := "/snap/xkcd-webserver/43/"
+	pkgPath := "/snap/xkcd-webserver/44/"
 
 	content, err := generateSnapSocketFile(service, pkgPath)
 	c.Assert(err, IsNil)
