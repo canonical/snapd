@@ -23,8 +23,8 @@ package tests
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"time"
 
 	"gopkg.in/check.v1"
 
@@ -33,6 +33,7 @@ import (
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/data"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/wait"
 	"github.com/ubuntu-core/snappy/testutil"
 )
 
@@ -80,29 +81,38 @@ func (s *snapOpSuite) TestRemoveRemovesAllRevisions(c *check.C) {
 	c.Check(revnos, check.HasLen, 0)
 }
 
-// TestRemoveBusyFailsGracefully is a regression test for LP:#1571721
-func (s *snapOpSuite) TestRemoveBusyFailsGracefully(c *check.C) {
+// TestRemoveBusyRetries is a regression test for LP:#1571721
+func (s *snapOpSuite) TestRemoveBusyRetries(c *check.C) {
 	snapPath, err := build.LocalSnap(c, data.BasicBinariesSnapName)
 	defer os.Remove(snapPath)
 	c.Assert(err, check.IsNil, check.Commentf("Error building local snap: %s", err))
 
 	installOutput := installSnap(c, snapPath)
-	defer removeSnap(c, data.BasicBinariesSnapName)
 	c.Assert(installOutput, testutil.Contains, data.BasicBinariesSnapName)
 
 	// run a snap that keeps the mount point busy in the background
-	blocker := fmt.Sprintf("%s.block", data.BasicBinariesSnapName)
-	cmd := exec.Command(blocker)
-	err = cmd.Start()
-	c.Assert(err, check.IsNil, check.Commentf("cannot start %q:%s", blocker, err))
-	defer cmd.Process.Kill()
+	blockerBin := fmt.Sprintf("/snap/bin/%s.block", data.BasicBinariesSnapName)
+	blockerSrv := "umount-blocker"
+	cli.ExecCommand(c, "sudo", "systemd-run", "--unit", blockerSrv, blockerBin)
+	c.Assert(err, check.IsNil, check.Commentf("cannot start %q:%s", blockerBin, err))
+	wait.ForActiveService(c, blockerSrv)
 
-	// try to remove and ensure we have a proper error
-	output, err := cli.ExecCommandErr("sudo", "snap", "remove", data.BasicBinariesSnapName)
-	c.Check(output, testutil.Contains, "busy")
-	c.Check(err, check.Not(check.IsNil))
+	// stop the blocking binary again after some milliseconds
+	ch := make(chan int)
+	go func() {
+		// wait a wee bit so that unmount fails
+		time.Sleep(500 * time.Millisecond)
 
-	// ensure we can still run the binaries from the snap we failed
-	// to remove (i.e. no half broken state)
-	cli.ExecCommand(c, fmt.Sprintf("%s.success", data.BasicBinariesSnapName))
+		// and stop the service that blocks again
+		cli.ExecCommand(c, "sudo", "systemctl", "stop", blockerSrv)
+		wait.ForInactiveService(c, blockerSrv)
+		// this triggers an Ensure in the overlord
+		cli.ExecCommandErr("sudo", "snap", "refresh", "ubuntu-core")
+		ch <- 1
+	}()
+
+	// try to remove, this will eventually succeed
+	_, err = cli.ExecCommandErr("sudo", "snap", "remove", data.BasicBinariesSnapName)
+	c.Check(err, check.IsNil)
+	<-ch
 }
