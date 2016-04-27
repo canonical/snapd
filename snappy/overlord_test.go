@@ -73,7 +73,7 @@ func (s *SnapTestSuite) TestLocalSnapInstall(c *C) string {
 	c.Check(snapEntries, DeepEquals, []string{"0", "current"})
 
 	snapDataEntries := listDir(c, filepath.Join(dirs.SnapDataDir, fooComposedName))
-	c.Check(snapDataEntries, DeepEquals, []string{"0", "current"})
+	c.Check(snapDataEntries, DeepEquals, []string{"0", "current", "shared"})
 
 	return snapPath
 }
@@ -98,7 +98,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallWithBlessedMetadata(c *C) {
 	c.Check(snapEntries, DeepEquals, []string{"40", "current"})
 
 	snapDataEntries := listDir(c, filepath.Join(dirs.SnapDataDir, fooComposedName))
-	c.Check(snapDataEntries, DeepEquals, []string{"40", "current"})
+	c.Check(snapDataEntries, DeepEquals, []string{"40", "current", "shared"})
 }
 
 func (s *SnapTestSuite) TestLocalSnapInstallWithBlessedMetadataOverridingName(c *C) {
@@ -404,6 +404,9 @@ func (s *SnapTestSuite) TestCopyData(c *C) {
 	homeData := filepath.Join(homeDir, appDir, "10")
 	err := os.MkdirAll(homeData, 0755)
 	c.Assert(err, IsNil)
+	homeSharedData := filepath.Join(homeDir, appDir, "shared")
+	err = os.MkdirAll(homeSharedData, 0755)
+	c.Assert(err, IsNil)
 
 	snapYamlContent := `name: foo
 `
@@ -415,7 +418,12 @@ func (s *SnapTestSuite) TestCopyData(c *C) {
 	canaryDataFile := filepath.Join(dirs.SnapDataDir, appDir, "10", "canary.txt")
 	err = ioutil.WriteFile(canaryDataFile, canaryData, 0644)
 	c.Assert(err, IsNil)
+	canaryDataFile = filepath.Join(dirs.SnapDataDir, appDir, "shared", "canary.shared")
+	err = ioutil.WriteFile(canaryDataFile, canaryData, 0644)
+	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(homeData, "canary.home"), canaryData, 0644)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(homeSharedData, "canary.shared_home"), canaryData, 0644)
 	c.Assert(err, IsNil)
 
 	snapPath = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
@@ -426,8 +434,20 @@ func (s *SnapTestSuite) TestCopyData(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(content, DeepEquals, canaryData)
 
-	newHomeDataCanaryFile := filepath.Join(homeDir, appDir, "20", "canary.home")
-	content, err = ioutil.ReadFile(newHomeDataCanaryFile)
+	// ensure shared data file is still there (even though it didn't get copied)
+	newCanaryDataFile = filepath.Join(dirs.SnapDataDir, appDir, "shared", "canary.shared")
+	content, err = ioutil.ReadFile(newCanaryDataFile)
+	c.Assert(err, IsNil)
+	c.Assert(content, DeepEquals, canaryData)
+
+	newCanaryDataFile = filepath.Join(homeDir, appDir, "20", "canary.home")
+	content, err = ioutil.ReadFile(newCanaryDataFile)
+	c.Assert(err, IsNil)
+	c.Assert(content, DeepEquals, canaryData)
+
+	// ensure home shared data file is still there (even though it didn't get copied)
+	newCanaryDataFile = filepath.Join(homeDir, appDir, "shared", "canary.shared_home")
+	content, err = ioutil.ReadFile(newCanaryDataFile)
 	c.Assert(err, IsNil)
 	c.Assert(content, DeepEquals, canaryData)
 }
@@ -448,15 +468,21 @@ func (s *SnapTestSuite) TestCopyDataNoUserHomes(c *C) {
 	canaryDataFile := filepath.Join(snap.DataDir(), "canary.txt")
 	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
 	c.Assert(err, IsNil)
+	canaryDataFile = filepath.Join(snap.SharedDataDir(), "canary.shared")
+	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
+	c.Assert(err, IsNil)
 
 	snapPath = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
 	snap2, err := (&Overlord{}).InstallWithSideInfo(snapPath, fooSI20, AllowUnauthenticated, nil)
 	c.Assert(err, IsNil)
 	_, err = os.Stat(filepath.Join(snap2.DataDir(), "canary.txt"))
 	c.Assert(err, IsNil)
+	_, err = os.Stat(filepath.Join(snap2.SharedDataDir(), "canary.shared"))
+	c.Assert(err, IsNil)
 
 	// sanity atm
 	c.Check(snap.DataDir(), Not(Equals), snap2.DataDir())
+	c.Check(snap.SharedDataDir(), Equals, snap2.SharedDataDir())
 }
 
 func (s *SnapTestSuite) TestSnappyHandleBinariesOnUpgrade(c *C) {
@@ -469,7 +495,7 @@ apps:
 	_, err := (&Overlord{}).InstallWithSideInfo(snapPath, fooSI10, AllowUnauthenticated, nil)
 	c.Assert(err, IsNil)
 
-	// ensure that the binary wrapper file go generated with the right
+	// ensure that the binary wrapper file got generated with the right
 	// path
 	oldSnapBin := filepath.Join(dirs.SnapSnapsDir[len(dirs.GlobalRootDir):], "foo", "10", "bin", "bar")
 	binaryWrapper := filepath.Join(dirs.SnapBinariesDir, "foo.bar")

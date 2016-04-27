@@ -45,6 +45,23 @@ func RemoveSnapData(snap *snap.Info) error {
 	return nil
 }
 
+// RemoveSnapSharedData removes the data shared between versions of the given snap
+func RemoveSnapSharedData(snap *snap.Info) error {
+	dirs, err := snapSharedDataDirs(snap)
+	if err != nil {
+		return err
+	}
+
+	for _, dir := range dirs {
+		if err := os.RemoveAll(dir); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		os.Remove(filepath.Dir(dir))
+	}
+
+	return nil
+}
+
 // snapDataDirs returns the list of data directories for the given snap version
 func snapDataDirs(snap *snap.Info) ([]string, error) {
 	// collect the directories, homes first
@@ -54,6 +71,19 @@ func snapDataDirs(snap *snap.Info) ([]string, error) {
 	}
 	// then system data
 	found = append(found, snap.DataDir())
+
+	return found, nil
+}
+
+// snapSharedDataDirs returns the list of data directories shared between versions of the given snap
+func snapSharedDataDirs(snap *snap.Info) ([]string, error) {
+	// collect the directories, homes first
+	found, err := filepath.Glob(snap.SharedDataHomeDir())
+	if err != nil {
+		return nil, err
+	}
+	// then system data
+	found = append(found, snap.SharedDataDir())
 
 	return found, nil
 }

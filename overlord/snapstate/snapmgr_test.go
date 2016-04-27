@@ -927,7 +927,7 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	c.Assert(s.fakeBackend.ops, HasLen, 6)
+	c.Assert(s.fakeBackend.ops, HasLen, 7)
 	expected := []fakeOp{
 		fakeOp{
 			op:     "can-remove",
@@ -945,6 +945,10 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 		},
 		fakeOp{
 			op:   "remove-snap-data",
+			name: "/snap/some-snap/7",
+		},
+		fakeOp{
+			op:   "remove-snap-shared-data",
 			name: "/snap/some-snap/7",
 		},
 		fakeOp{
@@ -1018,7 +1022,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsIntegration(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	c.Assert(s.fakeBackend.ops, HasLen, 10)
+	c.Assert(s.fakeBackend.ops, HasLen, 11)
 	expected := []fakeOp{
 		{
 			op:     "can-remove",
@@ -1052,6 +1056,10 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsIntegration(c *C) {
 		},
 		{
 			op:   "remove-snap-data",
+			name: "/snap/some-snap/5",
+		},
+		{
+			op:   "remove-snap-shared-data",
 			name: "/snap/some-snap/5",
 		},
 		{

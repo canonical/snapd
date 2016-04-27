@@ -36,14 +36,16 @@ const expectedWrapper = `#!/bin/sh
 set -e
 
 # snap info
-export SNAP="/snap/pastebinit/44/"
-export SNAP_DATA="/var/snap/pastebinit/44/"
+export SNAP="/snap/pastebinit/44"
+export SNAP_DATA="/var/snap/pastebinit/44"
+export SNAP_SHARED_DATA="/var/snap/pastebinit/shared"
 export SNAP_NAME="pastebinit"
 export SNAP_VERSION="1.4.0.0.1"
 export SNAP_REVISION="44"
 export SNAP_ARCH="%[1]s"
 export SNAP_LIBRARY_PATH="/var/lib/snapd/lib/gl:"
-export SNAP_USER_DATA="$HOME/snap/pastebinit/44/"
+export SNAP_USER_DATA="$HOME/snap/pastebinit/44"
+export SNAP_USER_SHARED_DATA="$HOME/snap/pastebinit/shared"
 
 if [ ! -d "$SNAP_USER_DATA" ]; then
    mkdir -p "$SNAP_USER_DATA"
@@ -57,7 +59,7 @@ ubuntu-core-launcher snap.pastebinit.pastebinit snap.pastebinit.pastebinit /snap
 `
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
-	pkgPath := "/snap/pastebinit/44/"
+	pkgPath := "/snap/pastebinit/44"
 	info := &snap.Info{}
 	info.SuggestedName = "pastebinit"
 	info.Version = "1.4.0.0.1"
@@ -76,7 +78,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 }
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperIllegalChars(c *C) {
-	pkgPath := "/snap/pastebinit/44/"
+	pkgPath := "/snap/pastebinit/44"
 	info := &snap.Info{}
 	info.SuggestedName = "pastebinit"
 	info.Version = "1.4.0.0.1"
@@ -91,12 +93,12 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperIllegalChars(c *C) {
 
 func (s *SnapTestSuite) TestSnappyBinPathForBinaryNoExec(c *C) {
 	binary := &snap.AppInfo{Name: "pastebinit", Command: "bin/pastebinit"}
-	pkgPath := "/snap/pastebinit/44/"
+	pkgPath := "/snap/pastebinit/44"
 	c.Assert(binPathForBinary(pkgPath, binary), Equals, "/snap/pastebinit/44/bin/pastebinit")
 }
 
 func (s *SnapTestSuite) TestSnappyBinPathForBinaryWithExec(c *C) {
 	binary := &snap.AppInfo{Name: "pastebinit", Command: "bin/random-pastebin"}
-	pkgPath := "/snap/pastebinit/44/"
+	pkgPath := "/snap/pastebinit/44"
 	c.Assert(binPathForBinary(pkgPath, binary), Equals, "/snap/pastebinit/44/bin/random-pastebin")
 }

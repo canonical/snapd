@@ -178,13 +178,17 @@ func UndoSetupSnap(s snap.PlaceInfo, meter progress.Meter) {
 }
 
 func CopyData(newSnap, oldSnap *snap.Info, flags InstallFlags, meter progress.Meter) error {
-	dataDir := newSnap.DataDir()
-
 	// deal with the old data or
 	// otherwise just create a empty data dir
 
+	// Make sure the shared data directory exists, even if this isn't a new
+	// install.
+	if err := os.MkdirAll(newSnap.SharedDataDir(), 0755); err != nil {
+		return err
+	}
+
 	if oldSnap == nil {
-		return os.MkdirAll(dataDir, 0755)
+		return os.MkdirAll(newSnap.DataDir(), 0755)
 	}
 
 	return copySnapData(oldSnap, newSnap)

@@ -206,6 +206,14 @@ func (f *fakeSnappyBackend) RemoveSnapData(info *snap.Info) error {
 	return nil
 }
 
+func (f *fakeSnappyBackend) RemoveSnapSharedData(info *snap.Info) error {
+	f.ops = append(f.ops, fakeOp{
+		op:   "remove-snap-shared-data",
+		name: info.MountDir(),
+	})
+	return nil
+}
+
 func (f *fakeSnappyBackend) Candidate(sideInfo *snap.SideInfo) {
 	var sinfo snap.SideInfo
 	if sideInfo != nil {
