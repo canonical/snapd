@@ -176,7 +176,7 @@ func (t *TextProgress) Agreed(intro, license string) bool {
 
 // Notify the user of miscelaneous events
 func (*TextProgress) Notify(msg string) {
-	fmt.Println(msg)
+	fmt.Println("\r" + msg)
 }
 
 // MakeProgressBar creates an appropriate progress (which may be a
