@@ -68,7 +68,7 @@ func (s *unitySuite) TestUnitySnapCanBeStarted(c *check.C) {
 			// find the given pattern and below the output of the command is printed
 			outputByte, _ := probeCmd.CombinedOutput()
 			output := string(outputByte)
-			fmt.Println(output)
+			fmt.Println("xwininfo: ", output)
 
 			return output, nil
 		})

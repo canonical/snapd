@@ -7,4 +7,5 @@ Depends: @builddeps@,
          golang-golang-x-net-dev,
          snapd,
          unity,
+         x11-utils,
          xvfb
