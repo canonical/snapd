@@ -21,13 +21,16 @@
 package tests
 
 import (
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/build"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/data"
 	"github.com/ubuntu-core/snappy/testutil"
@@ -75,4 +78,31 @@ func (s *snapOpSuite) TestRemoveRemovesAllRevisions(c *check.C) {
 	revnos, err = filepath.Glob(filepath.Join(dirs.SnapSnapsDir, data.BasicSnapName, "1*"))
 	c.Assert(err, check.IsNil)
 	c.Check(revnos, check.HasLen, 0)
+}
+
+// TestRemoveBusyFailsGracefully is a regression test for LP:#1571721
+func (s *snapOpSuite) TestRemoveBusyFailsGracefully(c *check.C) {
+	snapPath, err := build.LocalSnap(c, data.BasicBinariesSnapName)
+	defer os.Remove(snapPath)
+	c.Assert(err, check.IsNil, check.Commentf("Error building local snap: %s", err))
+
+	installOutput := installSnap(c, snapPath)
+	defer removeSnap(c, data.BasicBinariesSnapName)
+	c.Assert(installOutput, testutil.Contains, data.BasicBinariesSnapName)
+
+	// run a snap that keeps the mount point busy in the background
+	blocker := fmt.Sprintf("%s.block", data.BasicBinariesSnapName)
+	cmd := exec.Command(blocker)
+	err = cmd.Start()
+	c.Assert(err, check.IsNil, check.Commentf("cannot start %q:%s", blocker, err))
+	defer cmd.Process.Kill()
+
+	// try to remove and ensure we have a proper error
+	output, err := cli.ExecCommandErr("sudo", "snap", "remove", data.BasicBinariesSnapName)
+	c.Check(output, testutil.Contains, "busy")
+	c.Check(err, check.Not(check.IsNil))
+
+	// ensure we can still run the binaries from the snap we failed
+	// to remove (i.e. no half broken state)
+	cli.ExecCommand(c, fmt.Sprintf("%s.success", data.BasicBinariesSnapName))
 }
