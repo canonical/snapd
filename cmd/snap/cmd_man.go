@@ -41,6 +41,10 @@ func init() {
 
 func (*cmdMan) Execute([]string) error {
 	parser := Parser()
+	parser.ShortDescription = "Tool to interact with snaps"
+	parser.LongDescription = `
+The snap tool interacts with the snapd daemon to control the snappy software platform.
+`
 	parser.WriteManPage(os.Stdout)
 
 	return nil
