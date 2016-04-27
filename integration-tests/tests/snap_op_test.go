@@ -65,10 +65,14 @@ func (s *snapOpSuite) TestRemoveRemovesAllRevisions(c *check.C) {
 	installSnap(c, snapPath)
 	installOutput := installSnap(c, snapPath)
 	c.Assert(installOutput, testutil.Contains, data.BasicSnapName)
-	// double check
+	// double check, sideloaded snaps have revnos like 1000xx
 	revnos, _ := filepath.Glob(filepath.Join(dirs.SnapSnapsDir, data.BasicSnapName, "1*"))
 	c.Check(len(revnos) >= 2, check.Equals, true)
 
 	removeOutput := removeSnap(c, data.BasicSnapName)
 	c.Assert(removeOutput, check.Not(testutil.Contains), data.BasicSnapName)
+	// gone from disk
+	revnos, err = filepath.Glob(filepath.Join(dirs.SnapSnapsDir, data.BasicSnapName, "1*"))
+	c.Assert(err, check.IsNil)
+	c.Check(revnos, check.HasLen, 0)
 }
