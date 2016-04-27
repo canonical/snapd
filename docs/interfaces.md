@@ -30,26 +30,28 @@ Auto-Connect: yes
 
 ### unity7
 
-Can access Unity7. Restricted because Unity 7 runs on X and requires access to
-various DBus services and this environment does not prevent eavesdropping or
-apps interfering with one another.
+Description: Can access Unity7. Note, Unity 7 runs on X and requires access to
+various DBus services and this enviroment does not prevent eavesdropping or
+apps interfering with one another. This is 'common' as a transition step
+towards Mir and Unity 8.
 
-Usage: reserved
+Usage: common
 Auto-Connect: yes
 
 ### x11
 
-Can access the X server. Restricted because X does not prevent eavesdropping or
-apps interfering with one another.
+Description: Can access the X server. Note, X does not prevent eavesdropping
+or apps interfering with one another. This is 'common' as a transition step
+towards Mir and Unity 8.
 
-Usage: reserved
+Usage: common
 Auto-Connect: yes
 
 ### opengl
 
 Can access the opengl hardware. 
 
-Usage: reserved
+Usage: common
 Auto-Connect: yes
 
 ### home

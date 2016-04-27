@@ -24,8 +24,8 @@ import (
 )
 
 const openglConnectedPlugAppArmor = `
-# Description: Can access opengl. 
-# Usage: reserved
+# Description: Can access opengl.
+# Usage: common
 
   # specific gl libs
   /var/lib/snapd/lib/gl/** rm,
@@ -40,8 +40,8 @@ const openglConnectedPlugAppArmor = `
 `
 
 const openglConnectedPlugSecComp = `
-# Description: Can access opengl. 
-# Usage: reserved
+# Description: Can access opengl.
+# Usage: common
 
 getsockopt
 `
