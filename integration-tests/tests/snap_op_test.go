@@ -121,11 +121,12 @@ func (s *snapOpSuite) TestRemoveBusyRetries(c *check.C) {
 	}()
 
 	// try to remove, this will block and eventually succeed
-	_, err = cli.ExecCommandErr("sudo", "snap", "remove", data.BasicBinariesSnapName)
+	output, err := cli.ExecCommandErr("sudo", "snap", "remove", data.BasicBinariesSnapName)
 	c.Check(err, check.IsNil)
+	c.Check(output, testutil.Contains, `will retry: `)
 	<-ch
 
 	// ensure no changes are left in Doing state
-	output := cli.ExecCommand(c, "snap", "changes")
+	output = cli.ExecCommand(c, "snap", "changes")
 	c.Check(output, check.Not(testutil.Contains), "Doing")
 }
