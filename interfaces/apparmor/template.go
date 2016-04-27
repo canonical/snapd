@@ -275,6 +275,10 @@ var defaultTemplate = []byte(`
   /dev/ r,
   /dev/**/ r,
 
+  # Allow setting up pseudoterminal via /dev/pts system. This is safe because
+  # the launcher uses a per-app devpts newinstance.
+  /dev/ptmx rw,
+
   # Do the same with /sys/devices and /sys/class to help people using hw-assign
   /sys/devices/ r,
   /sys/devices/**/ r,
