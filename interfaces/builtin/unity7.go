@@ -117,6 +117,10 @@ dbus (receive, send)
     member={Get,PropertiesChanged}
     peer=(label=unconfined),
 
+# Lttng tracing is very noisy and should not be allowed by confined apps. Can
+# safely deny. LP: #1260491
+deny /{,var/}run/shm/lttng-ust-* r,
+
 # TODO: pull in modern items from ubuntu-unity7-base abstraction, eg, HUD,
 # AppMenu, gmenu, and freedesktop notifications
 `
