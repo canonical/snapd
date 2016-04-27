@@ -31,6 +31,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 
@@ -47,7 +48,6 @@ import (
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
 	"github.com/ubuntu-core/snappy/store"
-	"time"
 )
 
 var api = []*Command{
@@ -196,19 +196,30 @@ func loginUser(c *Command, r *http.Request) Response {
 	}
 
 	discharge, err := store.DischargeAuthCaveat(loginData.Username, loginData.Password, macaroon, loginData.Otp)
-	if err == store.ErrAuthenticationNeeds2fa {
+	switch err {
+	case store.ErrAuthenticationNeeds2fa:
 		twofactorRequiredResponse := &resp{
 			Type: ResponseTypeError,
 			Result: &errorResult{
 				Kind:    errorKindTwoFactorRequired,
-				Message: store.ErrAuthenticationNeeds2fa.Error(),
+				Message: err.Error(),
 			},
 			Status: http.StatusUnauthorized,
 		}
 		return SyncResponse(twofactorRequiredResponse, nil)
-	}
-	if err != nil {
+	case store.Err2faFailed:
+		return SyncResponse(&resp{
+			Type: ResponseTypeError,
+			Result: &errorResult{
+				Kind:    errorKindTwoFactorFailed,
+				Message: err.Error(),
+			},
+			Status: http.StatusForbidden,
+		}, nil)
+	default:
 		return Unauthorized(err.Error())
+	case nil:
+		// continue
 	}
 
 	overlord := c.d.overlord

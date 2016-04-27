@@ -211,6 +211,21 @@ func (e *Error) Error() string {
 	return e.Message
 }
 
+// these should be self-explanatory; otherwise, let us know!
+const (
+	ErrorKindTwoFactorRequired = "two-factor-required"
+	ErrorKindTwoFactorFailed   = "two-factor-failed"
+)
+
+func IsTwoFactorError(err error) bool {
+	e, ok := err.(*Error)
+	if !ok {
+		return false
+	}
+
+	return e.Kind == ErrorKindTwoFactorFailed || e.Kind == ErrorKindTwoFactorRequired
+}
+
 // SysInfo holds system information
 type SysInfo struct {
 	Flavor           string `json:"flavor"`
