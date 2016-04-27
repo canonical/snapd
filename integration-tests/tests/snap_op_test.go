@@ -107,8 +107,8 @@ func (s *snapOpSuite) TestRemoveBusyRetries(c *check.C) {
 
 		// find change id of the remove
 		output := cli.ExecCommand(c, "snap", "changes")
-		id := regexp.MustCompile(`(?m)([0-9])+.*Doing.*Remove.*"`).FindStringSubmatch(output)[1]
-		needle = `retrying`
+		id := regexp.MustCompile(`(?m)([0-9]+).*Doing.*Remove.*"`).FindStringSubmatch(output)[1]
+		needle = `will retry: `
 		wait.ForCommand(c, needle, "snap", "changes", id)
 
 		// now stop the service that blocks the umount
