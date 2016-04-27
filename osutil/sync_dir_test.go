@@ -190,3 +190,25 @@ func (s *EnsureDirStateSuite) TestReportsAbnormalPatterns(c *C) {
 	c.Assert(func() { osutil.EnsureDirState(s.dir, "[", nil) },
 		PanicMatches, `EnsureDirState got invalid pattern "\[": syntax error in pattern`)
 }
+
+func (s *EnsureDirStateSuite) TestRemovesAllManagedFilesOnError(c *C) {
+	// Create a "prior.snap" file
+	prior := filepath.Join(s.dir, "prior.snap")
+	err := ioutil.WriteFile(prior, []byte("data"), 0600)
+	c.Assert(err, IsNil)
+	// Create a "clash.snap" directory to simulate failure
+	clash := filepath.Join(s.dir, "clash.snap")
+	err = os.Mkdir(clash, 0000)
+	c.Assert(err, IsNil)
+	// Try to ensure directory state
+	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{
+		"prior.snap": {Content: []byte("data"), Mode: 0600},
+		"clash.snap": {Content: []byte("data"), Mode: 0600},
+	})
+	c.Assert(changed, HasLen, 0)
+	c.Assert(removed, DeepEquals, []string{"clash.snap", "prior.snap"})
+	c.Assert(err, ErrorMatches, "rename .* .*/clash.snap: is a directory")
+	// The clashing file is removed
+	_, err = os.Stat(clash)
+	c.Assert(os.IsNotExist(err), Equals, true)
+}

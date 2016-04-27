@@ -41,6 +41,12 @@ type failoverSuite struct {
 func (s *failoverSuite) testUpdateToBrokenVersion(c *check.C, snap string, changeFunc updates.ChangeFakeUpdateSnap) {
 	snapName := strings.Split(snap, ".")[0]
 
+	c.Skip("FIXME: `snap refresh` is not compatible with the fake test store")
+
+	// FIXME: remove once the OS snap is fixed and has a working
+	//        "snap booted" again
+	cli.ExecCommand(c, "sudo", "snap", "booted")
+
 	if common.BeforeReboot() {
 		currentVersion := common.GetCurrentVersion(c, snapName)
 
@@ -48,9 +54,6 @@ func (s *failoverSuite) testUpdateToBrokenVersion(c *check.C, snap string, chang
 		updates.CallFakeUpdate(c, snap, changeFunc)
 		common.Reboot(c)
 	} else if common.AfterReboot(c) {
-		// XXX fixup hack until we have a new base os snap
-		cli.ExecCommand(c, "sudo", "snappy", "booted")
-
 		currentVersion := common.GetCurrentVersion(c, snapName)
 
 		common.RemoveRebootMark(c)

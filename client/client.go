@@ -20,14 +20,15 @@
 package client
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
-	"strings"
 
 	"github.com/ubuntu-core/snappy/dirs"
 )
@@ -77,15 +78,43 @@ func New(config *Config) *Client {
 	}
 }
 
+func (client *Client) setAuthorization(req *http.Request) error {
+	user, err := readAuthData()
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, `Macaroon root="%s"`, user.Macaroon)
+	for _, discharge := range user.Discharges {
+		fmt.Fprintf(&buf, `, discharge="%s"`, discharge)
+	}
+	req.Header.Set("Authorization", buf.String())
+	return nil
+}
+
 // raw performs a request and returns the resulting http.Response and
 // error you usually only need to call this directly if you expect the
 // response to not be JSON, otherwise you'd call Do(...) instead.
-func (client *Client) raw(method, urlpath string, query url.Values, body io.Reader) (*http.Response, error) {
+func (client *Client) raw(method, urlpath string, query url.Values, headers map[string]string, body io.Reader) (*http.Response, error) {
 	// fake a url to keep http.Client happy
 	u := client.baseURL
 	u.Path = path.Join(client.baseURL.Path, urlpath)
 	u.RawQuery = query.Encode()
 	req, err := http.NewRequest(method, u.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
+
+	// set Authorization header if there are user's credentials
+	err = client.setAuthorization(req)
 	if err != nil {
 		return nil, err
 	}
@@ -96,16 +125,18 @@ func (client *Client) raw(method, urlpath string, query url.Values, body io.Read
 // do performs a request and decodes the resulting json into the given
 // value. It's low-level, for testing/experimenting only; you should
 // usually use a higher level interface that builds on this.
-func (client *Client) do(method, path string, query url.Values, body io.Reader, v interface{}) error {
-	rsp, err := client.raw(method, path, query, body)
+func (client *Client) do(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}) error {
+	rsp, err := client.raw(method, path, query, headers, body)
 	if err != nil {
 		return err
 	}
 	defer rsp.Body.Close()
 
-	dec := json.NewDecoder(rsp.Body)
-	if err := dec.Decode(v); err != nil {
-		return err
+	if v != nil {
+		dec := json.NewDecoder(rsp.Body)
+		if err := dec.Decode(v); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -114,34 +145,32 @@ func (client *Client) do(method, path string, query url.Values, body io.Reader, 
 // doSync performs a request to the given path using the specified HTTP method.
 // It expects a "sync" response from the API and on success decodes the JSON
 // response payload into the given value.
-func (client *Client) doSync(method, path string, query url.Values, body io.Reader, v interface{}) error {
+func (client *Client) doSync(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}) (*ResultInfo, error) {
 	var rsp response
 
-	if err := client.do(method, path, query, body, &rsp); err != nil {
-		return fmt.Errorf("cannot communicate with server: %s", err)
+	if err := client.do(method, path, query, headers, body, &rsp); err != nil {
+		return nil, fmt.Errorf("cannot communicate with server: %s", err)
 	}
 	if err := rsp.err(); err != nil {
-		return err
+		return nil, err
 	}
 	if rsp.Type != "sync" {
-		return fmt.Errorf("expected sync response, got %q", rsp.Type)
+		return nil, fmt.Errorf("expected sync response, got %q", rsp.Type)
 	}
 
-	if err := json.Unmarshal(rsp.Result, v); err != nil {
-		return fmt.Errorf("cannot unmarshal: %v", err)
+	if v != nil {
+		if err := json.Unmarshal(rsp.Result, v); err != nil {
+			return nil, fmt.Errorf("cannot unmarshal: %v", err)
+		}
 	}
 
-	return nil
+	return &rsp.ResultInfo, nil
 }
 
-type asyncResult struct {
-	Resource string `json:"resource"`
-}
-
-func (client *Client) doAsync(method, path string, query url.Values, body io.Reader) (string, error) {
+func (client *Client) doAsync(method, path string, query url.Values, headers map[string]string, body io.Reader) (changeID string, err error) {
 	var rsp response
 
-	if err := client.do(method, path, query, body, &rsp); err != nil {
+	if err := client.do(method, path, query, headers, body, &rsp); err != nil {
 		return "", fmt.Errorf("cannot communicate with server: %v", err)
 	}
 	if err := rsp.err(); err != nil {
@@ -153,18 +182,11 @@ func (client *Client) doAsync(method, path string, query url.Values, body io.Rea
 	if rsp.StatusCode != http.StatusAccepted {
 		return "", fmt.Errorf("operation not accepted")
 	}
-
-	var result asyncResult
-	if err := json.Unmarshal(rsp.Result, &result); err != nil {
-		return "", fmt.Errorf("cannot unmarshal result: %v", err)
+	if rsp.Change == "" {
+		return "", fmt.Errorf("async response without change reference")
 	}
 
-	const opPrefix = "/v2/operations/"
-	if !strings.HasPrefix(result.Resource, opPrefix) {
-		return "", fmt.Errorf("invalid resource location %q", result.Resource)
-	}
-
-	return result.Resource[len(opPrefix):], nil
+	return rsp.Change, nil
 }
 
 // A response produced by the REST API will usually fit in this
@@ -172,17 +194,20 @@ func (client *Client) doAsync(method, path string, query url.Values, body io.Rea
 type response struct {
 	Result     json.RawMessage `json:"result"`
 	Status     string          `json:"status"`
-	StatusCode int             `json:"status_code"`
+	StatusCode int             `json:"status-code"`
 	Type       string          `json:"type"`
+	Change     string          `json:"change"`
+
+	ResultInfo
 }
 
-// errorResult is the real value of response.Result when an error occurs.
-// Note that only the 'message' field is unmarshaled from JSON representation.
-type errorResult struct {
+// Error is the real value of response.Result when an error occurs.
+type Error struct {
+	Kind    string `json:"kind"`
 	Message string `json:"message"`
 }
 
-func (e *errorResult) Error() string {
+func (e *Error) Error() string {
 	return e.Message
 }
 
@@ -190,8 +215,8 @@ func (e *errorResult) Error() string {
 type SysInfo struct {
 	Flavor           string `json:"flavor"`
 	Release          string `json:"release"`
-	DefaultChannel   string `json:"default_channel"`
-	APICompatibility string `json:"api_compat"`
+	DefaultChannel   string `json:"default-channel"`
+	APICompatibility string `json:"api-compat"`
 	Store            string `json:"store,omitempty"`
 }
 
@@ -199,7 +224,7 @@ func (rsp *response) err() error {
 	if rsp.Type != "error" {
 		return nil
 	}
-	var resultErr errorResult
+	var resultErr Error
 	err := json.Unmarshal(rsp.Result, &resultErr)
 	if err != nil || resultErr.Message == "" {
 		return fmt.Errorf("server error: %q", rsp.Status)
@@ -229,7 +254,7 @@ func parseError(r *http.Response) error {
 func (client *Client) SysInfo() (*SysInfo, error) {
 	var sysInfo SysInfo
 
-	if err := client.doSync("GET", "/v2/system-info", nil, nil, &sysInfo); err != nil {
+	if _, err := client.doSync("GET", "/v2/system-info", nil, nil, nil, &sysInfo); err != nil {
 		return nil, fmt.Errorf("bad sysinfo result: %v", err)
 	}
 

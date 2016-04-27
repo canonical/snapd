@@ -42,6 +42,7 @@ type configSuite struct {
 
 func (s *configSuite) SetUpTest(c *check.C) {
 	s.SnappySuite.SetUpTest(c)
+	c.Skip("FIXME: port to snap")
 	s.osSnap = partition.OSSnapName(c)
 	s.backConfig = currentConfig(c, s.osSnap)
 }

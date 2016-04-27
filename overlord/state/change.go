@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 )
 
 // Status is used for status values for changes and tasks.
@@ -122,6 +123,9 @@ type Change struct {
 	data    customData
 	taskIDs []string
 	ready   chan struct{}
+
+	spawnTime time.Time
+	readyTime time.Time
 }
 
 func newChange(state *State, id, kind, summary string) *Change {
@@ -132,6 +136,8 @@ func newChange(state *State, id, kind, summary string) *Change {
 		summary: summary,
 		data:    make(customData),
 		ready:   make(chan struct{}),
+
+		spawnTime: timeNow(),
 	}
 }
 
@@ -142,11 +148,18 @@ type marshalledChange struct {
 	Status  Status                      `json:"status"`
 	Data    map[string]*json.RawMessage `json:"data,omitempty"`
 	TaskIDs []string                    `json:"task-ids,omitempty"`
+
+	SpawnTime time.Time  `json:"spawn-time"`
+	ReadyTime *time.Time `json:"ready-time,omitempty"`
 }
 
 // MarshalJSON makes Change a json.Marshaller
 func (c *Change) MarshalJSON() ([]byte, error) {
 	c.state.reading()
+	var readyTime *time.Time
+	if !c.readyTime.IsZero() {
+		readyTime = &c.readyTime
+	}
 	return json.Marshal(marshalledChange{
 		ID:      c.id,
 		Kind:    c.kind,
@@ -154,6 +167,9 @@ func (c *Change) MarshalJSON() ([]byte, error) {
 		Status:  c.status,
 		Data:    c.data,
 		TaskIDs: c.taskIDs,
+
+		SpawnTime: c.spawnTime,
+		ReadyTime: readyTime,
 	})
 }
 
@@ -174,6 +190,10 @@ func (c *Change) UnmarshalJSON(data []byte) error {
 	c.data = unmarshalled.Data
 	c.taskIDs = unmarshalled.TaskIDs
 	c.ready = make(chan struct{})
+	c.spawnTime = unmarshalled.SpawnTime
+	if unmarshalled.ReadyTime != nil {
+		c.readyTime = *unmarshalled.ReadyTime
+	}
 	return nil
 }
 
@@ -265,11 +285,18 @@ func (c *Change) SetStatus(s Status) {
 	c.state.writing()
 	c.status = s
 	if s.Ready() {
-		select {
-		case <-c.ready:
-		default:
-			close(c.ready)
-		}
+		c.markReady()
+	}
+}
+
+func (c *Change) markReady() {
+	select {
+	case <-c.ready:
+	default:
+		close(c.ready)
+	}
+	if c.readyTime.IsZero() {
+		c.readyTime = timeNow()
 	}
 }
 
@@ -279,7 +306,7 @@ func (c *Change) Ready() <-chan struct{} {
 }
 
 // taskStatusChanged is called by tasks when their status is changed,
-// to give the oportunity for the change to close its ready channel.
+// to give the opportunity for the change to close its ready channel.
 func (c *Change) taskStatusChanged(t *Task, old, new Status) {
 	if old.Ready() == new.Ready() {
 		return
@@ -293,11 +320,19 @@ func (c *Change) taskStatusChanged(t *Task, old, new Status) {
 	// Here is the exact moment when a change goes from unready to ready,
 	// and from ready to unready. For now handle only the first of those.
 	// For the latter the channel might be replaced in the future.
-	select {
-	case <-c.ready:
-	default:
-		close(c.ready)
-	}
+	c.markReady()
+}
+
+// SpawnTime returns the time when the change was created.
+func (c *Change) SpawnTime() time.Time {
+	c.state.reading()
+	return c.spawnTime
+}
+
+// ReadyTime returns the time when the change became ready.
+func (c *Change) ReadyTime() time.Time {
+	c.state.reading()
+	return c.readyTime
 }
 
 // changeError holds a set of task errors.
@@ -319,6 +354,14 @@ func (e *changeError) Error() string {
 	return strings.TrimSuffix(buf.String(), "\n")
 }
 
+func stripErrorMsg(msg string) (string, bool) {
+	i := strings.Index(msg, " ")
+	if i >= 0 && strings.HasPrefix(msg[i:], " ERROR ") {
+		return msg[i+len(" ERROR "):], true
+	}
+	return "", false
+}
+
 // Err returns an error value based on errors that were logged for tasks registered
 // in this change, or nil if the change is not in ErrorStatus.
 func (c *Change) Err() error {
@@ -333,9 +376,8 @@ func (c *Change) Err() error {
 			continue
 		}
 		for _, msg := range task.Log() {
-			if strings.HasPrefix(msg, LogError+": ") {
-				msg = strings.TrimPrefix(msg, LogError+": ")
-				errors = append(errors, taskError{task.Summary(), msg})
+			if s, ok := stripErrorMsg(msg); ok {
+				errors = append(errors, taskError{task.Summary(), s})
 			}
 		}
 	}

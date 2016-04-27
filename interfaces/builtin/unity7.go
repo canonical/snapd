@@ -131,6 +131,7 @@ getpeername
 recvfrom
 recvmsg
 shutdown
+getsockopt
 
 # dbus
 connect
@@ -149,5 +150,6 @@ func NewUnity7Interface() interfaces.Interface {
 		connectedPlugAppArmor: unity7ConnectedPlugAppArmor,
 		connectedPlugSecComp:  unity7ConnectedPlugSecComp,
 		reservedForOS:         true,
+		autoConnect:           true,
 	}
 }

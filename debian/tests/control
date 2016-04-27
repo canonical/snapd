@@ -1,6 +1,8 @@
 Tests: integrationtests
 Restrictions: allow-stderr, isolation-container, rw-build-tree
-Depends: @,
+Depends: snapd,
          @builddeps@,
          bzr,
+         git,
+         ca-certificates,
          golang-golang-x-net-dev

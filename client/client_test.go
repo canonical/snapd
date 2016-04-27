@@ -115,12 +115,43 @@ func (cs *clientSuite) TestClientWorks(c *check.C) {
 	c.Check(cs.req.URL.Path, check.Equals, "/this")
 }
 
+func (cs *clientSuite) TestClientDefaultsToNoAuthorization(c *check.C) {
+	home := os.Getenv("HOME")
+	tmpdir := c.MkDir()
+	os.Setenv("HOME", tmpdir)
+	defer os.Setenv("HOME", home)
+
+	var v string
+	_ = cs.cli.Do("GET", "/this", nil, nil, &v)
+	authorization := cs.req.Header.Get("Authorization")
+	c.Check(authorization, check.Equals, "")
+}
+
+func (cs *clientSuite) TestClientSetsAuthorization(c *check.C) {
+	home := os.Getenv("HOME")
+	tmpdir := c.MkDir()
+	os.Setenv("HOME", tmpdir)
+	defer os.Setenv("HOME", home)
+
+	mockUserData := client.User{
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	}
+	err := client.TestWriteAuth(mockUserData)
+	c.Assert(err, check.IsNil)
+
+	var v string
+	_ = cs.cli.Do("GET", "/this", nil, nil, &v)
+	authorization := cs.req.Header.Get("Authorization")
+	c.Check(authorization, check.Equals, `Macaroon root="macaroon", discharge="discharge"`)
+}
+
 func (cs *clientSuite) TestClientSysInfo(c *check.C) {
 	cs.rsp = `{"type": "sync", "result":
                      {"flavor": "f",
                       "release": "r",
-                      "default_channel": "dc",
-                      "api_compat": "42",
+                      "default-channel": "dc",
+                      "api-compat": "42",
                       "store": "store"}}`
 	sysInfo, err := cs.cli.SysInfo()
 	c.Check(err, check.IsNil)
@@ -170,7 +201,7 @@ func (cs *clientSuite) TestClientReportsOpErrorStr(c *check.C) {
 	cs.rsp = `{
 		"result": {},
 		"status": "Bad Request",
-		"status_code": 400,
+		"status-code": 400,
 		"type": "error"
 	}`
 	_, err := cs.cli.SysInfo()
@@ -208,7 +239,7 @@ func (cs *clientSuite) TestParseError(c *check.C) {
 		Status: "400 Bad Request",
 		Header: h,
 		Body: ioutil.NopCloser(strings.NewReader(`{
-			"status_code": 400,
+			"status-code": 400,
 			"type": "error",
 			"result": {
 				"message": "invalid"

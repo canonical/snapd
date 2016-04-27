@@ -29,6 +29,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/legacygadget"
 	"github.com/ubuntu-core/snappy/systemd"
 )
 
@@ -46,11 +47,10 @@ type FirstBootTestSuite struct {
 	globs        []string
 	ethdir       string
 	ifup         string
-	m            *snapYaml
+	m            *snap.LegacyYaml
 	e            error
 	snapMap      map[string]*Snap
 	snapMapErr   error
-	verifyCmd    string
 	fakeOverlord *fakeOverlord
 }
 
@@ -63,8 +63,6 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	stampFile = filepath.Join(c.MkDir(), "stamp")
 
 	// mock the world!
-	makeMockSecurityEnv(c)
-	runAppArmorParser = mockRunAppArmorParser
 	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
 		return []byte("ActiveState=inactive\n"), nil
 	}
@@ -72,10 +70,10 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	err := os.MkdirAll(filepath.Join(tempdir, "etc", "systemd", "system", "multi-user.target.wants"), 0755)
 	c.Assert(err, IsNil)
 
-	configMyApp := make(SystemConfig)
+	configMyApp := make(legacygadget.SystemConfig)
 	configMyApp["hostname"] = "myhostname"
 
-	s.gadgetConfig = make(SystemConfig)
+	s.gadgetConfig = make(legacygadget.SystemConfig)
 	s.gadgetConfig["myapp"] = configMyApp
 
 	s.globs = globs
@@ -105,8 +103,14 @@ func (s *FirstBootTestSuite) TearDownTest(c *C) {
 	newSnapMap = newSnapMapImpl
 }
 
-func (s *FirstBootTestSuite) getGadget() (*snapYaml, error) {
-	return s.m, s.e
+func (s *FirstBootTestSuite) getGadget() (*snap.Info, error) {
+	if s.m != nil {
+		info := &snap.Info{
+			Legacy: s.m,
+		}
+		return info, nil
+	}
+	return nil, s.e
 }
 
 func (s *FirstBootTestSuite) newSnapMap() (map[string]*Snap, error) {
@@ -119,9 +123,9 @@ func (s *FirstBootTestSuite) newOverlord() configurator {
 
 func (s *FirstBootTestSuite) newFakeApp() *Snap {
 	fakeMyApp := Snap{
-		m: &snapYaml{
-			Name: "myapp",
-			Type: snap.TypeApp,
+		info: &snap.Info{
+			SuggestedName: "myapp",
+			Type:          snap.TypeApp,
 		},
 	}
 	s.snapMap = make(map[string]*Snap)
@@ -131,7 +135,7 @@ func (s *FirstBootTestSuite) newFakeApp() *Snap {
 }
 
 func (s *FirstBootTestSuite) TestFirstBootConfigure(c *C) {
-	s.m = &snapYaml{Config: s.gadgetConfig}
+	s.m = &snap.LegacyYaml{Config: s.gadgetConfig}
 	s.newFakeApp()
 	c.Assert(FirstBoot(), IsNil)
 	myAppConfig := fmt.Sprintf("config:\n  myapp:\n    hostname: myhostname\n")
@@ -142,21 +146,20 @@ func (s *FirstBootTestSuite) TestFirstBootConfigure(c *C) {
 }
 
 func (s *FirstBootTestSuite) TestSoftwareActivate(c *C) {
-	yamlPath, err := makeInstalledMockSnap(dirs.GlobalRootDir, "")
+	yamlPath, err := makeInstalledMockSnap("", 11)
 	c.Assert(err, IsNil)
 
-	snap, err := NewInstalledSnap(yamlPath)
+	snp, err := NewInstalledSnap(yamlPath)
 	c.Assert(err, IsNil)
-	c.Assert(snap.IsActive(), Equals, false)
-	name := snap.Name()
+	c.Assert(snp.IsActive(), Equals, false)
+	name := snp.Name()
 
-	s.m = &snapYaml{Gadget: Gadget{Software: Software{BuiltIn: []string{name}}}}
+	s.m = &snap.LegacyYaml{Gadget: legacygadget.Gadget{Software: legacygadget.Software{BuiltIn: []string{name}}}}
 
 	all, err := (&Overlord{}).Installed()
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	c.Check(all[0].Name(), Equals, name)
-	c.Check(all[0].IsInstalled(), Equals, true)
 	c.Check(all[0].IsActive(), Equals, false)
 
 	s.snapMap = map[string]*Snap{name: all[0]}
@@ -166,7 +169,6 @@ func (s *FirstBootTestSuite) TestSoftwareActivate(c *C) {
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	c.Check(all[0].Name(), Equals, name)
-	c.Check(all[0].IsInstalled(), Equals, true)
 	c.Check(all[0].IsActive(), Equals, true)
 }
 
@@ -206,7 +208,7 @@ func (s *FirstBootTestSuite) TestEnableFirstEtherSomeEth(c *C) {
 }
 
 func (s *FirstBootTestSuite) TestEnableFirstEtherGadgetNoIfup(c *C) {
-	s.m = &snapYaml{Gadget: Gadget{SkipIfupProvisioning: true}}
+	s.m = &snap.LegacyYaml{Gadget: legacygadget.Gadget{SkipIfupProvisioning: true}}
 	dir := c.MkDir()
 	_, err := os.Create(filepath.Join(dir, "eth42"))
 	c.Assert(err, IsNil)
@@ -242,13 +244,12 @@ type: kernel
 `
 
 func (s *FirstBootTestSuite) ensureSystemSnapIsEnabledOnFirstBoot(c *C, yaml string, expectActivated bool) {
-	_, err := makeInstalledMockSnap(dirs.GlobalRootDir, yaml)
+	_, err := makeInstalledMockSnap(yaml, 11)
 	c.Assert(err, IsNil)
 
 	all, err := (&Overlord{}).Installed()
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
-	c.Check(all[0].IsInstalled(), Equals, true)
 	c.Check(all[0].IsActive(), Equals, false)
 
 	c.Assert(FirstBoot(), IsNil)
@@ -256,7 +257,6 @@ func (s *FirstBootTestSuite) ensureSystemSnapIsEnabledOnFirstBoot(c *C, yaml str
 	all, err = (&Overlord{}).Installed()
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
-	c.Check(all[0].IsInstalled(), Equals, true)
 	c.Check(all[0].IsActive(), Equals, expectActivated)
 }
 
@@ -265,7 +265,7 @@ func (s *FirstBootTestSuite) TestSystemSnapsEnablesOS(c *C) {
 }
 
 func (s *FirstBootTestSuite) TestSystemSnapsEnablesKernel(c *C) {
-	s.m = &snapYaml{Gadget: Gadget{Hardware: Hardware{Bootloader: "grub"}}}
+	s.m = &snap.LegacyYaml{Gadget: legacygadget.Gadget{Hardware: legacygadget.Hardware{Bootloader: "grub"}}}
 
 	s.ensureSystemSnapIsEnabledOnFirstBoot(c, mockKernelYaml, true)
 }

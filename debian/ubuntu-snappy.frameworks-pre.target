@@ -1,8 +1,0 @@
-# all snappy framework services start after this
-
-[Unit]
-Description=Ready for frameworks
-After=ubuntu-snappy.firstboot.service
-After=cloud-init.service
-After=ubuntu-snappy.run-hooks.service
-

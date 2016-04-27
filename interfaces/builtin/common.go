@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 
 	"github.com/ubuntu-core/snappy/interfaces"
+	"github.com/ubuntu-core/snappy/snap"
 )
 
 type evalSymlinksFn func(string) (string, error)
@@ -37,6 +38,7 @@ type commonInterface struct {
 	connectedPlugAppArmor string
 	connectedPlugSecComp  string
 	reservedForOS         bool
+	autoConnect           bool
 }
 
 // Name returns the interface name.
@@ -52,8 +54,7 @@ func (iface *commonInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
 	}
-	// TODO: use slot.Snap.Type here (and snap.TypeOS)
-	if iface.reservedForOS && slot.Snap.Name != "ubuntu-core" {
+	if iface.reservedForOS && slot.Snap.Type != snap.TypeOS {
 		return fmt.Errorf("%s slots are reserved for the operating system snap", iface.name)
 	}
 	return nil
@@ -127,4 +128,10 @@ func (iface *commonInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *
 	default:
 		return nil, interfaces.ErrUnknownSecurity
 	}
+}
+
+// AutoConnect returns true if plugs and slots should be implicitly
+// auto-connected when an unambiguous connection candidate is available.
+func (iface *commonInterface) AutoConnect() bool {
+	return iface.autoConnect
 }

@@ -31,6 +31,7 @@ import (
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/data"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/updates"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/wait"
+	"github.com/ubuntu-core/snappy/testutil"
 
 	"gopkg.in/check.v1"
 )
@@ -39,6 +40,12 @@ var _ = check.Suite(&serviceSuite{})
 
 type serviceSuite struct {
 	common.SnappySuite
+}
+
+func (s *serviceSuite) SetUpTest(c *check.C) {
+	s.SnappySuite.SetUpTest(c)
+
+	c.Skip("FIXME: we have no snap build nor snapcraft build yet")
 }
 
 func (s *serviceSuite) TearDownTest(c *check.C) {
@@ -73,7 +80,9 @@ func installSnapWithService(c *check.C) {
 	snapPath, err := build.LocalSnap(c, data.BasicServiceSnapName)
 	defer os.Remove(snapPath)
 	c.Assert(err, check.IsNil, check.Commentf("Error building local snap: %s", err))
-	common.InstallSnap(c, snapPath)
+
+	output := installSnap(c, snapPath)
+	c.Assert(output, testutil.Contains, data.BasicServiceSnapName)
 }
 
 func (s *serviceSuite) TestInstalledServiceMustBeStarted(c *check.C) {

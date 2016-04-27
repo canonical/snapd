@@ -23,19 +23,13 @@ import (
 	"fmt"
 
 	"io/ioutil"
-	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
-	"time"
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/squashfs"
 	"github.com/ubuntu-core/snappy/systemd"
 	"github.com/ubuntu-core/snappy/timeout"
 )
@@ -68,11 +62,9 @@ type AppYaml struct {
 }
 
 type plugYaml struct {
-	Interface           string `yaml:"interface"`
-	SecurityDefinitions `yaml:",inline"`
+	Interface string `yaml:"interface"`
+	//SecurityDefinitions `yaml:",inline"`
 }
-
-var commasplitter = regexp.MustCompile(`\s*,\s*`).Split
 
 // TODO split into payloads per package type composing the common
 // elements for all snaps.
@@ -91,17 +83,6 @@ type snapYaml struct {
 
 	// Plugs maps the used "interfaces" to the apps
 	Plugs map[string]*plugYaml `yaml:"plugs,omitempty"`
-
-	// FIXME: clarify those
-
-	// gadget snap only
-	Gadget Gadget       `yaml:"gadget,omitempty"`
-	Config SystemConfig `yaml:"config,omitempty"`
-
-	// FIXME: move into a special kernel struct
-	Kernel string `yaml:"kernel,omitempty"`
-	Initrd string `yaml:"initrd,omitempty"`
-	Dtbs   string `yaml:"dtbs,omitempty"`
 }
 
 func parseSnapYamlFile(yamlPath string) (*snapYaml, error) {
@@ -176,6 +157,10 @@ func parseSnapYamlData(yamlData []byte, hasConfig bool) (*snapYaml, error) {
 	}
 
 	for name, plug := range m.Plugs {
+		if plug == nil {
+			plug = &plugYaml{}
+			m.Plugs[name] = plug
+		}
 		if plug.Interface == "" {
 			plug.Interface = name
 		}
@@ -186,83 +171,4 @@ func parseSnapYamlData(yamlData []byte, hasConfig bool) (*snapYaml, error) {
 	}
 
 	return &m, nil
-}
-
-// checkLicenseAgreement returns nil if it's ok to proceed with installing the
-// package, as deduced from the license agreement (which might involve asking
-// the user), or an error that explains the reason why installation should not
-// proceed.
-func checkLicenseAgreement(m *snapYaml, ag agreer, d snap.File, currentActiveDir string) error {
-	if m.LicenseAgreement != "explicit" {
-		return nil
-	}
-
-	if ag == nil {
-		return ErrLicenseNotAccepted
-	}
-
-	license, err := d.MetaMember("license.txt")
-	if err != nil || len(license) == 0 {
-		return ErrLicenseNotProvided
-	}
-
-	oldM, err := parseSnapYamlFile(filepath.Join(currentActiveDir, "meta", "snap.yaml"))
-	if err != nil && !os.IsNotExist(err) {
-		return err
-	}
-
-	// don't ask for the license if
-	// * the previous version also asked for license confirmation, and
-	// * the license version is the same
-	if err == nil && (oldM.LicenseAgreement == "explicit") && oldM.LicenseVersion == m.LicenseVersion {
-		return nil
-	}
-
-	msg := fmt.Sprintf("%s requires that you accept the following license before continuing", m.Name)
-	if !ag.Agreed(msg, string(license)) {
-		return ErrLicenseNotAccepted
-	}
-
-	return nil
-}
-
-func addSquashfsMount(m *snapYaml, baseDir string, inhibitHooks bool, inter interacter) error {
-	squashfsPath := stripGlobalRootDir(squashfs.BlobPath(baseDir))
-	whereDir := stripGlobalRootDir(baseDir)
-
-	sysd := systemd.New(dirs.GlobalRootDir, inter)
-	mountUnitName, err := sysd.WriteMountUnitFile(m.Name, squashfsPath, whereDir)
-	if err != nil {
-		return err
-	}
-
-	// we always enable the mount unit even in inhibit hooks
-	if err := sysd.Enable(mountUnitName); err != nil {
-		return err
-	}
-
-	if !inhibitHooks {
-		return sysd.Start(mountUnitName)
-	}
-
-	return nil
-}
-
-func removeSquashfsMount(m *snapYaml, baseDir string, inter interacter) error {
-	sysd := systemd.New(dirs.GlobalRootDir, inter)
-	unit := systemd.MountUnitPath(stripGlobalRootDir(baseDir), "mount")
-	if osutil.FileExists(unit) {
-		// we ignore errors, nothing should stop removals
-		if err := sysd.Disable(filepath.Base(unit)); err != nil {
-			logger.Noticef("Failed to disable %q: %s, but continuing anyway.", unit, err)
-		}
-		if err := sysd.Stop(filepath.Base(unit), time.Duration(1*time.Second)); err != nil {
-			logger.Noticef("Failed to stop %q: %s, but continuing anyway.", unit, err)
-		}
-		if err := os.Remove(unit); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }

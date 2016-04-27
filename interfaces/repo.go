@@ -20,8 +20,10 @@
 package interfaces
 
 import (
+	"bytes"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/ubuntu-core/snappy/snap"
@@ -121,7 +123,7 @@ func (r *Repository) AddPlug(plug *Plug) error {
 	defer r.m.Unlock()
 
 	// Reject snaps with invalid names
-	if err := snap.ValidateName(plug.Snap.Name); err != nil {
+	if err := snap.ValidateName(plug.Snap.Name()); err != nil {
 		return err
 	}
 	// Reject plug with invalid names
@@ -136,13 +138,13 @@ func (r *Repository) AddPlug(plug *Plug) error {
 	if err := i.SanitizePlug(plug); err != nil {
 		return fmt.Errorf("cannot add plug: %v", err)
 	}
-	if _, ok := r.plugs[plug.Snap.Name][plug.Name]; ok {
-		return fmt.Errorf("cannot add plug, snap %q already has plug %q", plug.Snap.Name, plug.Name)
+	if _, ok := r.plugs[plug.Snap.Name()][plug.Name]; ok {
+		return fmt.Errorf("cannot add plug, snap %q already has plug %q", plug.Snap.Name(), plug.Name)
 	}
-	if r.plugs[plug.Snap.Name] == nil {
-		r.plugs[plug.Snap.Name] = make(map[string]*Plug)
+	if r.plugs[plug.Snap.Name()] == nil {
+		r.plugs[plug.Snap.Name()] = make(map[string]*Plug)
 	}
-	r.plugs[plug.Snap.Name][plug.Name] = plug
+	r.plugs[plug.Snap.Name()][plug.Name] = plug
 	return nil
 }
 
@@ -215,7 +217,7 @@ func (r *Repository) AddSlot(slot *Slot) error {
 	defer r.m.Unlock()
 
 	// Reject snaps with invalid names
-	if err := snap.ValidateName(slot.Snap.Name); err != nil {
+	if err := snap.ValidateName(slot.Snap.Name()); err != nil {
 		return err
 	}
 	// Reject plug with invalid names
@@ -230,13 +232,13 @@ func (r *Repository) AddSlot(slot *Slot) error {
 	if err := i.SanitizeSlot(slot); err != nil {
 		return fmt.Errorf("cannot add slot: %v", err)
 	}
-	if _, ok := r.slots[slot.Snap.Name][slot.Name]; ok {
-		return fmt.Errorf("cannot add slot, snap %q already has slot %q", slot.Snap.Name, slot.Name)
+	if _, ok := r.slots[slot.Snap.Name()][slot.Name]; ok {
+		return fmt.Errorf("cannot add slot, snap %q already has slot %q", slot.Snap.Name(), slot.Name)
 	}
-	if r.slots[slot.Snap.Name] == nil {
-		r.slots[slot.Snap.Name] = make(map[string]*Slot)
+	if r.slots[slot.Snap.Name()] == nil {
+		r.slots[slot.Snap.Name()] = make(map[string]*Slot)
 	}
-	r.slots[slot.Snap.Name][slot.Name] = slot
+	r.slots[slot.Snap.Name()][slot.Name] = slot
 	return nil
 }
 
@@ -298,8 +300,8 @@ func (r *Repository) Connect(plugSnapName, plugName, slotSnapName, slotName stri
 	}
 	r.slotPlugs[slot][plug] = true
 	r.plugSlots[plug][slot] = true
-	slot.Connections = append(slot.Connections, PlugRef{plug.Snap.Name, plug.Name})
-	plug.Connections = append(plug.Connections, SlotRef{slot.Snap.Name, slot.Name})
+	slot.Connections = append(slot.Connections, PlugRef{plug.Snap.Name(), plug.Name})
+	plug.Connections = append(plug.Connections, SlotRef{slot.Snap.Name(), slot.Name})
 	return nil
 }
 
@@ -395,7 +397,7 @@ func (r *Repository) disconnect(plug *Plug, slot *Slot) {
 		delete(r.plugSlots, plug)
 	}
 	for i, plugRef := range slot.Connections {
-		if plugRef.Snap == plug.Snap.Name && plugRef.Name == plug.Name {
+		if plugRef.Snap == plug.Snap.Name() && plugRef.Name == plug.Name {
 			slot.Connections[i] = slot.Connections[len(slot.Connections)-1]
 			slot.Connections = slot.Connections[:len(slot.Connections)-1]
 			if len(slot.Connections) == 0 {
@@ -405,7 +407,7 @@ func (r *Repository) disconnect(plug *Plug, slot *Slot) {
 		}
 	}
 	for i, slotRef := range plug.Connections {
-		if slotRef.Snap == slot.Snap.Name && slotRef.Name == slot.Name {
+		if slotRef.Snap == slot.Snap.Name() && slotRef.Name == slot.Name {
 			plug.Connections[i] = plug.Connections[len(plug.Connections)-1]
 			plug.Connections = plug.Connections[:len(plug.Connections)-1]
 			if len(plug.Connections) == 0 {
@@ -515,4 +517,223 @@ func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem Sec
 		}
 	}
 	return snippets, nil
+}
+
+// BadInterfacesError is returned when some snap interfaces could not be registered.
+// Those interfaces not mentioned in the error were successfully registered.
+type BadInterfacesError struct {
+	snap   string
+	issues map[string]string // slot or plug name => message
+}
+
+func (e *BadInterfacesError) Error() string {
+	inverted := make(map[string][]string)
+	for name, reason := range e.issues {
+		inverted[reason] = append(inverted[reason], name)
+	}
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "snap %q has bad plugs or slots: ", e.snap)
+	reasons := make([]string, 0, len(inverted))
+	for reason := range inverted {
+		reasons = append(reasons, reason)
+	}
+	sort.Strings(reasons)
+	for _, reason := range reasons {
+		names := inverted[reason]
+		sort.Strings(names)
+		for i, name := range names {
+			if i > 0 {
+				buf.WriteString(", ")
+			}
+			buf.WriteString(name)
+		}
+		fmt.Fprintf(&buf, " (%s); ", reason)
+	}
+	return strings.TrimSuffix(buf.String(), "; ")
+}
+
+// AddSnap adds plugs and slots declared by the given snap to the repository.
+//
+// This function can be used to implement snap install or, when used along with
+// RemoveSnap, snap upgrade.
+//
+// AddSnap doesn't change existing plugs/slots. The caller is responsible for
+// ensuring that the snap is not present in the repository in any way prior to
+// calling this function. If this constraint is violated then no changes are
+// made and an error is returned.
+//
+// Each added plug/slot is validated according to the corresponding interface.
+// Unknown interfaces and plugs/slots that don't validate are not added.
+// Information about those failures are returned to the caller.
+func (r *Repository) AddSnap(snapInfo *snap.Info) error {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	snapName := snapInfo.Name()
+
+	if r.plugs[snapName] != nil || r.slots[snapName] != nil {
+		return fmt.Errorf("cannot register interfaces for snap %q more than once", snapName)
+	}
+
+	bad := BadInterfacesError{
+		snap:   snapName,
+		issues: make(map[string]string),
+	}
+
+	for plugName, plugInfo := range snapInfo.Plugs {
+		iface, ok := r.ifaces[plugInfo.Interface]
+		if !ok {
+			bad.issues[plugName] = "unknown interface"
+			continue
+		}
+		plug := &Plug{PlugInfo: plugInfo}
+		if err := iface.SanitizePlug(plug); err != nil {
+			bad.issues[plugName] = err.Error()
+			continue
+		}
+		if r.plugs[snapName] == nil {
+			r.plugs[snapName] = make(map[string]*Plug)
+		}
+		r.plugs[snapName][plugName] = plug
+	}
+
+	for slotName, slotInfo := range snapInfo.Slots {
+		iface, ok := r.ifaces[slotInfo.Interface]
+		if !ok {
+			bad.issues[slotName] = "unknown interface"
+			continue
+		}
+		slot := &Slot{SlotInfo: slotInfo}
+		if err := iface.SanitizeSlot(slot); err != nil {
+			bad.issues[slotName] = err.Error()
+			continue
+		}
+		if r.slots[snapName] == nil {
+			r.slots[snapName] = make(map[string]*Slot)
+		}
+		r.slots[snapName][slotName] = slot
+	}
+
+	if len(bad.issues) > 0 {
+		return &bad
+	}
+	return nil
+}
+
+// RemoveSnap removes all the plugs and slots associated with a given snap.
+//
+// This function can be used to implement snap removal or, when used along with
+// AddSnap, snap upgrade.
+//
+// RemoveSnap does not remove connections. The caller is responsible for
+// ensuring that connections are broken before calling this method. If this
+// constraint is violated then no changes are made and an error is returned.
+func (r *Repository) RemoveSnap(snapName string) error {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	for plugName, plug := range r.plugs[snapName] {
+		if len(plug.Connections) > 0 {
+			return fmt.Errorf("cannot remove connected plug %s.%s", snapName, plugName)
+		}
+	}
+	for slotName, slot := range r.slots[snapName] {
+		if len(slot.Connections) > 0 {
+			return fmt.Errorf("cannot remove connected slot %s.%s", snapName, slotName)
+		}
+	}
+
+	for _, plug := range r.plugs[snapName] {
+		delete(r.plugSlots, plug)
+	}
+	delete(r.plugs, snapName)
+	for _, slot := range r.slots[snapName] {
+		delete(r.slotPlugs, slot)
+	}
+	delete(r.slots, snapName)
+
+	return nil
+}
+
+// AutoConnectBlacklist returns plug names that should not be auto-connected.
+//
+// Plug is blacklisted if it has no connections despite using an auto-connected
+// interface. That implies it was manually disconnected.
+func (r *Repository) AutoConnectBlacklist(snapName string) map[string]bool {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	var blacklist map[string]bool
+
+	for plugName, plug := range r.plugs[snapName] {
+		iface := r.ifaces[plug.Interface]
+		if !iface.AutoConnect() {
+			continue
+		}
+		if len(r.plugSlots[plug]) != 0 {
+			continue
+		}
+		if blacklist == nil {
+			blacklist = make(map[string]bool)
+		}
+		blacklist[plugName] = true
+	}
+	return blacklist
+}
+
+// DisconnectSnap disconnects all the connections to and from a given snap.
+//
+// The return value is a list of names that were affected.
+func (r *Repository) DisconnectSnap(snapName string) ([]string, error) {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	seen := make(map[*snap.Info]bool)
+
+	for _, plug := range r.plugs[snapName] {
+		for slot := range r.plugSlots[plug] {
+			r.disconnect(plug, slot)
+			seen[plug.Snap] = true
+			seen[slot.Snap] = true
+		}
+	}
+
+	for _, slot := range r.slots[snapName] {
+		for plug := range r.slotPlugs[slot] {
+			r.disconnect(plug, slot)
+			seen[plug.Snap] = true
+			seen[slot.Snap] = true
+		}
+	}
+
+	result := make([]string, 0, len(seen))
+	for info := range seen {
+		result = append(result, info.Name())
+	}
+	sort.Strings(result)
+	return result, nil
+}
+
+// AutoConnectCandidates finds and returns viable auto-connection candidates
+// for a given plug.
+func (r *Repository) AutoConnectCandidates(plugSnapName, plugName string) []*Slot {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	plug := r.plugs[plugSnapName][plugName]
+	if plug == nil {
+		return nil
+	}
+	if r.ifaces[plug.Interface].AutoConnect() == false {
+		return nil
+	}
+	var candidates []*Slot
+	for _, slotsForSnap := range r.slots {
+		for _, slot := range slotsForSnap {
+			if slot.Snap.Type == snap.TypeOS && slot.Interface == plug.Interface {
+				candidates = append(candidates, slot)
+			}
+		}
+	}
+	return candidates
 }

@@ -33,22 +33,20 @@ import (
 var _ = check.Suite(&snapd20SnapsTestSuite{})
 
 type pkgsResponse struct {
-	Result pkgContainer
+	Result pkgItems
 	response
+	Paging            map[string]interface{}
+	Sources           interface{}
+	SuggestedCurrency string `json:"suggested-currency"`
 }
 
-type pkgContainer struct {
-	Snaps  pkgItems
-	Paging map[string]interface{}
-}
-
-type pkgItems map[string]pkgItem
+type pkgItems []pkgItem
 
 type pkgItem struct {
 	Description   string
-	DownloadSize  int64 `json:"download_size"`
+	DownloadSize  int64 `json:"download-size"`
 	Icon          string
-	InstalledSize int64 `json:"installed_size"`
+	InstalledSize int64 `json:"installed-size"`
 	Name          string
 	Developer     string
 	Resource      string
@@ -92,7 +90,7 @@ func (s *snapd20SnapsTestSuite) getInteractions() apiInteractions {
 func (s *snapd20SnapsTestSuite) postInteractions() apiInteractions {
 	return []apiInteraction{{
 		payload:     s.snapPath,
-		waitPattern: `(?U){.*,"status":"active".*"status":"OK","status_code":200,"type":"sync"}`,
+		waitPattern: `(?U){"type":"sync","status-code":200,"status":"OK","result":{.*,"status":"active",.*}`,
 		waitFunction: func() (string, error) {
 			output, err := makeRequest(&requestOptions{
 				resource: s.resource() + "/" + data.BasicConfigSnapName,

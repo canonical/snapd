@@ -21,6 +21,7 @@
 package tests
 
 import (
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -37,7 +38,10 @@ import (
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/wait"
 )
 
-const cfgDir = "/etc/systemd/system/ubuntu-snappy.snapd.service.d"
+const (
+	cfgDir           = "/etc/systemd/system/snapd.service.d"
+	daemonBinaryPath = "/usr/lib/snapd/snapd"
+)
 
 func init() {
 	c := &check.C{}
@@ -54,7 +58,7 @@ func init() {
 		cfg, err := config.ReadConfig(config.DefaultFileName)
 		c.Assert(err, check.IsNil, check.Commentf("Error reading config: %v", err))
 
-		setUpSnapd(c, cfg.FromBranch)
+		setUpSnapd(c, cfg.FromBranch, "")
 	}
 }
 
@@ -77,32 +81,32 @@ func Test(t *testing.T) {
 	}
 }
 
-func setUpSnapd(c *check.C, fromBranch bool) {
+func setUpSnapd(c *check.C, fromBranch bool, extraEnv string) {
 	cli.ExecCommand(c, "sudo", "systemctl", "stop",
-		"ubuntu-snappy.snapd.service", "ubuntu-snappy.snapd.socket")
+		"snapd.service", "snapd.socket")
 
 	if fromBranch {
 		binPath, err := filepath.Abs("integration-tests/bin/snapd")
 		c.Assert(err, check.IsNil)
 
 		_, err = cli.ExecCommandErr("sudo", "mount", "-o", "bind",
-			binPath, "/usr/lib/snappy/snapd")
+			binPath, daemonBinaryPath)
 		c.Assert(err, check.IsNil)
 	}
 
-	err := writeEnvConfig()
+	err := writeEnvConfig(extraEnv)
 	c.Assert(err, check.IsNil)
 
 	_, err = cli.ExecCommandErr("sudo", "systemctl", "daemon-reload")
 	c.Assert(err, check.IsNil)
 
-	_, err = cli.ExecCommandErr("sudo", "systemctl", "start", "ubuntu-snappy.snapd.service")
+	_, err = cli.ExecCommandErr("sudo", "systemctl", "start", "snapd.service")
 	c.Assert(err, check.IsNil)
 }
 
 func tearDownSnapd(fromBranch bool) error {
 	if _, err := cli.ExecCommandErr("sudo", "systemctl", "stop",
-		"ubuntu-snappy.snapd.service"); err != nil {
+		"snapd.service"); err != nil {
 		return err
 	}
 
@@ -111,7 +115,7 @@ func tearDownSnapd(fromBranch bool) error {
 	}
 
 	if fromBranch {
-		if _, err := cli.ExecCommandErr("sudo", "umount", "/usr/lib/snappy/snapd"); err != nil {
+		if _, err := cli.ExecCommandErr("sudo", "umount", daemonBinaryPath); err != nil {
 			return err
 		}
 	}
@@ -121,14 +125,14 @@ func tearDownSnapd(fromBranch bool) error {
 	}
 
 	if _, err := cli.ExecCommandErr("sudo", "systemctl", "start",
-		"ubuntu-snappy.snapd.service"); err != nil {
+		"snapd.service"); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func writeEnvConfig() error {
+func writeEnvConfig(extraEnv string) error {
 	if _, err := cli.ExecCommandErr("sudo", "mkdir", "-p", cfgDir); err != nil {
 		return err
 	}
@@ -139,10 +143,17 @@ func writeEnvConfig() error {
 	if err != nil {
 		return err
 	}
+	httpProxy := os.Getenv("http_proxy")
+	httpsProxy := os.Getenv("https_proxy")
+	noProxy := os.Getenv("no_proxy")
 
-	cfgContent := []byte(`[Service]
-Environment="SNAPPY_TRUSTED_ACCOUNT_KEY=` + trustedKey + `"
-`)
+	cfgContent := []byte(fmt.Sprintf(`[Service]
+Environment="SNAPPY_TRUSTED_ACCOUNT_KEY=%s" "%s"
+Environment="http_proxy=%s"
+Environment="https_proxy=%s"
+Environment="no_proxy=%s"
+`, trustedKey, extraEnv, httpProxy, httpsProxy, noProxy))
+
 	if err = ioutil.WriteFile("/tmp/snapd.env.conf", cfgContent, os.ModeExclusive); err != nil {
 		return err
 	}

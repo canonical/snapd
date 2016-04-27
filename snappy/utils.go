@@ -55,17 +55,18 @@ func makeSnapHookEnv(snap *Snap) (env []string) {
 		SnapArch    string
 		SnapPath    string
 		Version     string
+		Revision    int
 		UdevAppName string
 	}{
 		snap.Name(),
 		arch.UbuntuArchitecture(),
-		snap.basedir,
+		snap.Info().MountDir(),
 		snap.Version(),
+		snap.Revision(),
 		snap.Name(),
 	}
 
 	vars := snapenv.GetBasicSnapEnvVars(desc)
-	vars = append(vars, snapenv.GetDeprecatedBasicSnapEnvVars(desc)...)
 	snapEnv := snapenv.MakeMapFromEnvList(vars)
 
 	// merge regular env and new snapEnv
@@ -107,4 +108,14 @@ func getattr(i interface{}, name string) interface{} {
 		v = v.Elem()
 	}
 	return v.FieldByName(name).Interface()
+}
+
+// firstErr returns the first error of the given error list
+func firstErr(err ...error) error {
+	for _, e := range err {
+		if e != nil {
+			return e
+		}
+	}
+	return nil
 }
