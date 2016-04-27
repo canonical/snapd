@@ -214,6 +214,7 @@ var defaultTemplate = []byte(`
   # this leaks interface names and stats, but not in a way that is traceable
   # to the user/device
   @{PROC}/net/dev r,
+  @{PROC}/@{pid}/net/dev r,
 
   # Read-only for the install directory
   @{INSTALL_DIR}/@{SNAP_NAME}/                   r,
