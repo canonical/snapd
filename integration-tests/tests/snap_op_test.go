@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
+	"regexp"
 
 	"gopkg.in/check.v1"
 
@@ -83,36 +83,49 @@ func (s *snapOpSuite) TestRemoveRemovesAllRevisions(c *check.C) {
 
 // TestRemoveBusyRetries is a regression test for LP:#1571721
 func (s *snapOpSuite) TestRemoveBusyRetries(c *check.C) {
+	// install the binaries snap
 	snapPath, err := build.LocalSnap(c, data.BasicBinariesSnapName)
 	defer os.Remove(snapPath)
 	c.Assert(err, check.IsNil, check.Commentf("Error building local snap: %s", err))
-
 	installOutput := installSnap(c, snapPath)
 	c.Assert(installOutput, testutil.Contains, data.BasicBinariesSnapName)
 
-	// run a snap that keeps the mount point busy in the background
+	// run a command that keeps the mount point busy in the background
 	blockerBin := fmt.Sprintf("/snap/bin/%s.block", data.BasicBinariesSnapName)
 	blockerSrv := "umount-blocker"
 	cli.ExecCommand(c, "sudo", "systemd-run", "--unit", blockerSrv, blockerBin)
 	c.Assert(err, check.IsNil, check.Commentf("cannot start %q:%s", blockerBin, err))
 	wait.ForActiveService(c, blockerSrv)
 
-	// stop the blocking binary again after some milliseconds
+	// snap remove will block (and try to retry) while the umount-block
+	// service is running. so we need to do stuff in a go-routine
 	ch := make(chan int)
 	go func() {
-		// wait a wee bit so that unmount fails
-		time.Sleep(500 * time.Millisecond)
+		// wait until snappy to show that it is retrying
+		needle := `Doing.*Remove`
+		wait.ForCommand(c, needle, "snap", "changes")
 
-		// and stop the service that blocks again
+		// find change id of the remove
+		output := cli.ExecCommand(c, "snap", "changes")
+		id := regexp.MustCompile(`(?m)([0-9])+.*Doing.*Remove.*"`).FindStringSubmatch(output)[1]
+		needle = `retrying`
+		wait.ForCommand(c, needle, "snap", "changes", id)
+
+		// now stop the service that blocks the umount
 		cli.ExecCommand(c, "sudo", "systemctl", "stop", blockerSrv)
 		wait.ForInactiveService(c, blockerSrv)
+
 		// this triggers an Ensure in the overlord
 		cli.ExecCommandErr("sudo", "snap", "refresh", "ubuntu-core")
 		ch <- 1
 	}()
 
-	// try to remove, this will eventually succeed
+	// try to remove, this will block and eventually succeed
 	_, err = cli.ExecCommandErr("sudo", "snap", "remove", data.BasicBinariesSnapName)
 	c.Check(err, check.IsNil)
 	<-ch
+
+	// ensure no changes are left in Doing state
+	output := cli.ExecCommand(c, "snap", "changes")
+	c.Check(output, check.Not(testutil.Contains), "Doing")
 }
