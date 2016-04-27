@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -53,7 +54,7 @@ func init() {
 
 // makeInstalledMockSnap creates a installed mock snap without any
 // content other than the meta data
-func makeInstalledMockSnap(tempdir, snapYamlContent string) (yamlFile string, err error) {
+func makeInstalledMockSnap(snapYamlContent string, revno int) (yamlFile string, err error) {
 	const packageHello = `name: hello-snap
 version: 1.10
 summary: hello
@@ -76,7 +77,7 @@ apps:
 		return "", err
 	}
 
-	metaDir := filepath.Join(tempdir, "snaps", m.Name, m.Version, "meta")
+	metaDir := filepath.Join(dirs.SnapSnapsDir, m.Name, strconv.Itoa(revno), "meta")
 	if err := os.MkdirAll(metaDir, 0775); err != nil {
 		return "", err
 	}
@@ -101,30 +102,20 @@ apps:
 		return "", err
 	}
 
-	hashFile := filepath.Join(metaDir, "hashes.yaml")
-	if err := ioutil.WriteFile(hashFile, []byte("{}"), 0644); err != nil {
-		return "", err
+	si := snap.SideInfo{
+		OfficialName:      m.Name,
+		Revision:          revno,
+		Developer:         testDeveloper,
+		Channel:           "remote-channel",
+		EditedSummary:     "hello in summary",
+		EditedDescription: "Hello...",
 	}
-
-	if err := storeMinimalRemoteManifest(m.Name, testDeveloper, m.Version, "Hello...", "remote-channel"); err != nil {
+	err = SaveManifest(&snap.Info{SideInfo: si, Version: m.Version})
+	if err != nil {
 		return "", err
 	}
 
 	return yamlFile, nil
-}
-
-func storeMinimalRemoteManifest(name, developer, version, desc, channel string) error {
-	if developer == SideloadedDeveloper {
-		panic("store remote manifest for sideloaded package")
-	}
-	info := &snap.Info{
-		Name:        name,
-		Version:     version,
-		Developer:   developer,
-		Description: desc,
-		Channel:     channel,
-	}
-	return SaveManifest(info)
 }
 
 func addMockDefaultApparmorProfile(appid string) error {
@@ -163,19 +154,19 @@ connect
 
 // makeTestSnapPackage creates a real snap package that can be installed on
 // disk using snapYamlContent as its meta/snap.yaml
-func makeTestSnapPackage(c *C, snapYamlContent string) (snapFile string) {
+func makeTestSnapPackage(c *C, snapYamlContent string) (snapPath string) {
 	return makeTestSnapPackageFull(c, snapYamlContent, true)
 }
 
-func makeTestSnapPackageWithFiles(c *C, snapYamlContent string, files [][]string) (snapFile string) {
+func makeTestSnapPackageWithFiles(c *C, snapYamlContent string, files [][]string) (snapPath string) {
 	return makeTestSnapPackageFullWithFiles(c, snapYamlContent, true, files)
 }
 
-func makeTestSnapPackageFull(c *C, snapYamlContent string, makeLicense bool) (snapFile string) {
+func makeTestSnapPackageFull(c *C, snapYamlContent string, makeLicense bool) (snapPath string) {
 	return makeTestSnapPackageFullWithFiles(c, snapYamlContent, makeLicense, [][]string{})
 }
 
-func makeTestSnapPackageFullWithFiles(c *C, snapYamlContent string, makeLicense bool, files [][]string) (snapFile string) {
+func makeTestSnapPackageFullWithFiles(c *C, snapYamlContent string, makeLicense bool, files [][]string) (snapPath string) {
 	tmpdir := c.MkDir()
 	// content
 	os.MkdirAll(filepath.Join(tmpdir, "bin"), 0755)
@@ -212,18 +203,18 @@ version: 1.0
 	// build it
 	err := osutil.ChDir(tmpdir, func() error {
 		var err error
-		snapFile, err = snapBuilderFunc(tmpdir, "")
+		snapPath, err = snapBuilderFunc(tmpdir, "")
 		c.Assert(err, IsNil)
 		return err
 	})
 	c.Assert(err, IsNil)
-	return filepath.Join(tmpdir, snapFile)
+	return filepath.Join(tmpdir, snapPath)
 }
 
 // makeTwoTestSnaps creates two real snaps of snap.Type of name
 // "foo", with version "1.0" and "2.0", "2.0" being marked as the
 // active snap.
-func makeTwoTestSnaps(c *C, snapType snap.Type, extra ...string) {
+func makeTwoTestSnaps(c *C, snapType snap.Type, extra ...string) (*snap.Info, *snap.Info) {
 	inter := &MockProgressMeter{}
 
 	snapYamlContent := `name: foo
@@ -236,19 +227,31 @@ func makeTwoTestSnaps(c *C, snapType snap.Type, extra ...string) {
 		snapYamlContent += fmt.Sprintf("type: %s\n", snapType)
 	}
 
-	snapFile := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
-	_, err := (&Overlord{}).Install(snapFile, AllowUnauthenticated|AllowGadget, inter)
+	snapPath := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
+	foo10 := &snap.SideInfo{
+		OfficialName: "foo",
+		Developer:    testDeveloper,
+		Revision:     100,
+		Channel:      "remote-channel",
+	}
+	info1, err := (&Overlord{}).InstallWithSideInfo(snapPath, foo10, AllowUnauthenticated|AllowGadget, inter)
 	c.Assert(err, IsNil)
-	c.Assert(storeMinimalRemoteManifest("foo", testDeveloper, "1.0", "", "remote-channel"), IsNil)
 
-	snapFile = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
-	_, err = (&Overlord{}).Install(snapFile, AllowUnauthenticated|AllowGadget, inter)
+	snapPath = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
+	foo20 := &snap.SideInfo{
+		OfficialName: "foo",
+		Developer:    testDeveloper,
+		Revision:     200,
+		Channel:      "remote-channel",
+	}
+	info2, err := (&Overlord{}).InstallWithSideInfo(snapPath, foo20, AllowUnauthenticated|AllowGadget, inter)
 	c.Assert(err, IsNil)
-	c.Assert(storeMinimalRemoteManifest("foo", testDeveloper, "2.0", "", "remote-channel"), IsNil)
 
 	installed, err := (&Overlord{}).Installed()
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 2)
+
+	return info1, info2
 }
 
 type MockProgressMeter struct {

@@ -1,0 +1,5 @@
+# all snappy framework services start before this; all snappy apps
+# services start after it.
+
+[Unit]
+Description=Frameworks ready

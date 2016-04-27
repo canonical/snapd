@@ -38,14 +38,14 @@ var _ = Suite(&TestInterfaceSuite{
 	iface: &TestInterface{InterfaceName: "test"},
 	plug: &Plug{
 		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{Name: "snap"},
+			Snap:      &snap.Info{SuggestedName: "snap"},
 			Name:      "name",
 			Interface: "test",
 		},
 	},
 	slot: &Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{Name: "snap"},
+			Snap:      &snap.Info{SuggestedName: "snap"},
 			Name:      "name",
 			Interface: "test",
 		},
@@ -79,7 +79,7 @@ func (s *TestInterfaceSuite) TestSanitizePlugError(c *C) {
 func (s *TestInterfaceSuite) TestSanitizePlugWrongInterface(c *C) {
 	plug := &Plug{
 		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{Name: "snap"},
+			Snap:      &snap.Info{SuggestedName: "snap"},
 			Name:      "name",
 			Interface: "other-interface",
 		},
@@ -109,7 +109,7 @@ func (s *TestInterfaceSuite) TestSanitizeSlotError(c *C) {
 func (s *TestInterfaceSuite) TestSanitizeSlotWrongInterface(c *C) {
 	slot := &Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{Name: "snap"},
+			Snap:      &snap.Info{SuggestedName: "snap"},
 			Name:      "name",
 			Interface: "interface",
 		},
@@ -147,4 +147,10 @@ func (s *TestInterfaceSuite) TestSlotSnippet(c *C) {
 	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, "foo")
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
+}
+
+func (s *TestInterfaceSuite) TestAutoConnect(c *C) {
+	c.Assert(s.iface.AutoConnect(), Equals, false)
+	iface := &TestInterface{AutoConnectFlag: true}
+	c.Assert(iface.AutoConnect(), Equals, true)
 }

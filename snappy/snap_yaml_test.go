@@ -21,6 +21,8 @@ package snappy
 
 import (
 	. "gopkg.in/check.v1"
+
+	"github.com/ubuntu-core/snappy/snap"
 )
 
 type snapYamlTestSuite struct {
@@ -38,4 +40,22 @@ plugs:
 	sy, err := parseSnapYamlData(snapYaml, false)
 	c.Assert(err, IsNil)
 	sy.Plugs["old-security"].Interface = "old-security"
+
+	_, err = snap.InfoFromSnapYaml(snapYaml)
+	c.Assert(err, IsNil)
+}
+
+func (s *snapYamlTestSuite) TestParseEmptyPlugDef(c *C) {
+	snapYaml := []byte(`name: foo
+version: 1.0
+plugs:
+ unity7:
+`)
+	sy, err := parseSnapYamlData(snapYaml, false)
+	c.Assert(err, IsNil)
+	sy.Plugs["unity7"].Interface = "unity7"
+
+	info, err := snap.InfoFromSnapYaml(snapYaml)
+	c.Assert(err, IsNil)
+	c.Check(info.Plugs["unity7"].Interface, Equals, "unity7")
 }

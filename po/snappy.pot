@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-04-05 09:43+0200\n"
+        "POT-Creation-Date: 2016-04-21 17:53+0200\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -16,74 +16,14 @@ msgstr  "Project-Id-Version: snappy\n"
         "Content-Type: text/plain; charset=CHARSET\n"
         "Content-Transfer-Encoding: 8bit\n"
 
-#. TRANSLATORS: the %s is a pkgname, the second a comma separated list of paths
-#, c-format
-msgid   "%s: %s\n"
-msgstr  ""
-
-#. TRANSLATORS: the first %s is a pkgname, the second %s is a path
-#, c-format
-msgid   "'%s' is no longer allowed to access '%s'\n"
-msgstr  ""
-
-#. TRANSLATORS: the first %s is a pkgname, the second %s is a path
-#, c-format
-msgid   "'%s' is now allowed to access '%s'\n"
-msgstr  ""
-
-#. TRANSLATORS: the first %s is a pkgname, the second %s is a path
-#, c-format
-msgid   "'%s' previously allowed access to '%s'. Skipping\n"
-msgstr  ""
-
-#. TRANSLATORS: the %s is a pkgname
-#, c-format
-msgid   "'%s:' is not allowed to access additional hardware\n"
-msgstr  ""
-
-msgid   "(deprecated) please use \"list\""
-msgstr  ""
-
-msgid   "2fa code: "
-msgstr  ""
-
-msgid   "A concise summary of key attributes of the snappy system, such as the release and channel.\n"
-        "\n"
-        "The verbose output includes the specific version information for the factory image, the running image and the image that will be run on reboot, together with a list of the available channels for this image.\n"
-        "\n"
-        "Providing a package name will display information about a specific installed package.\n"
-        "\n"
-        "The verbose version of the info command for a package will also tell you the available channels for that package, when it was installed for the first time, disk space utilization, and in the case of frameworks, which apps are able to use the framework."
+msgid   "Abort a pending change"
 msgstr  ""
 
 #, c-format
 msgid   "Activate %q snap"
 msgstr  ""
 
-msgid   "Activate a package"
-msgstr  ""
-
-msgid   "Activate a package that has previously been deactivated. If the package is already activated, do nothing."
-msgstr  ""
-
-msgid   "Activate a snap that is installed but inactive"
-msgstr  ""
-
 msgid   "Adds an assertion to the system"
-msgstr  ""
-
-msgid   "Allows rollback of a snap to a previous installed version. Without any arguments, the previous installed version is selected. It is also possible to specify the version to rollback to as a additional argument.\n"
-msgstr  ""
-
-#, c-format
-msgid   "Another snappy is running, will try again in %d seconds...\n"
-        "Press ctrl-c to cancel.\n"
-msgstr  ""
-
-msgid   "Assign a hardware device to a package"
-msgstr  ""
-
-msgid   "Assign hardware to a specific installed package"
 msgstr  ""
 
 msgid   "Builds a snap package"
@@ -93,20 +33,17 @@ msgid   "Classic dimension destroyed on this snappy system."
 msgstr  ""
 
 msgid   "Classic dimension disabled on this system.\n"
-        "Use \"sudo snappy enable-classic\" to enable it."
+        "Use \"sudo snap enable-classic\" to enable it."
 msgstr  ""
 
 msgid   "Classic dimension enabled on this snappy system.\n"
-        "Use “snappy shell classic” to enter the classic dimension."
+        "Use \"snap shell classic\" to enter the classic dimension."
 msgstr  ""
 
 msgid   "Classic dimension is already enabled."
 msgstr  ""
 
 msgid   "Classic dimension is not enabled."
-msgstr  ""
-
-msgid   "Configures a package. The configuration is a YAML file, provided in the specified file which can be \"-\" for stdin. Output of the command is the current configuration, so running this command with no input file provides a snapshot of the app's current config."
 msgstr  ""
 
 #, c-format
@@ -116,6 +53,10 @@ msgstr  ""
 msgid   "Connects a plug to a slot"
 msgstr  ""
 
+#, c-format
+msgid   "Copy snap %q data"
+msgstr  ""
+
 msgid   "Creates a snap package and if available, runs the review scripts."
 msgstr  ""
 
@@ -123,19 +64,8 @@ msgstr  ""
 msgid   "Deactivate %q snap"
 msgstr  ""
 
-msgid   "Deactivate a package"
-msgstr  ""
-
-msgid   "Deactivate a package. If the package is already deactivated, do nothing."
-msgstr  ""
-
-msgid   "Deactivate an installed active snap"
-msgstr  ""
-
-msgid   "Destroy the classic dimension."
-msgstr  ""
-
-msgid   "Destroy the ubuntu classic dimension."
+#, c-format
+msgid   "Discard interface connections for snap %q"
 msgstr  ""
 
 #, c-format
@@ -145,23 +75,8 @@ msgstr  ""
 msgid   "Disconnects a plug from a slot"
 msgstr  ""
 
-msgid   "Display a summary of key attributes of the snappy system."
-msgstr  ""
-
-msgid   "Do not clean up old versions of the package."
-msgstr  ""
-
 #, c-format
-msgid   "Downloading %q"
-msgstr  ""
-
-msgid   "Enable classic dimension."
-msgstr  ""
-
-msgid   "Enable the ubuntu classic dimension."
-msgstr  ""
-
-msgid   "Ensures system is running with latest parts"
+msgid   "Download snap %q from channel %q"
 msgstr  ""
 
 msgid   "Entering classic dimension"
@@ -170,21 +85,12 @@ msgstr  ""
 msgid   "Finds packages to install"
 msgstr  ""
 
-msgid   "First boot has already run"
-msgstr  ""
-
-msgid   "Force policy generation."
-msgstr  ""
-
-msgid   "Generate the apparmor policy"
-msgstr  ""
-
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid   "Generated '%s' snap\n"
 msgstr  ""
 
-msgid   "Include information about packages from the snappy store"
+msgid   "ID\tStatus\tSpawn\tReady\tSummary\n"
 msgstr  ""
 
 #, c-format
@@ -195,34 +101,21 @@ msgstr  ""
 msgid   "Install %q snap from %q channel"
 msgstr  ""
 
-msgid   "Install a snap package"
+#, c-format
+msgid   "Install %q snap from snap file"
+msgstr  ""
+
+#, c-format
+msgid   "Install %q snap from snap file %q"
 msgstr  ""
 
 msgid   "Install a snap to the system"
 msgstr  ""
 
-msgid   "Install snaps even if the signature can not be verified."
-msgstr  ""
-
-#, c-format
-msgid   "Installing %q"
-msgstr  ""
-
-#. TRANSLATORS: the %s is a pkgname
-#, c-format
-msgid   "Installing %s\n"
-msgstr  ""
-
-msgid   "List active components installed on a snappy system"
-msgstr  ""
-
-msgid   "List assigned hardware device for a package"
-msgstr  ""
-
-msgid   "List assigned hardware for a specific installed package"
-msgstr  ""
-
 msgid   "List installed snaps"
+msgstr  ""
+
+msgid   "List system changes"
 msgstr  ""
 
 msgid   "Lists interfaces in the system"
@@ -231,65 +124,50 @@ msgstr  ""
 msgid   "Log into the store"
 msgstr  ""
 
+msgid   "Log out of the store"
+msgstr  ""
+
 msgid   "Login successful"
 msgstr  ""
 
-msgid   "Name\tDate\tVersion\t"
+#, c-format
+msgid   "Make current revision for snap %q unavailable"
 msgstr  ""
 
-msgid   "Name\tDate\tVersion\tDeveloper"
+#, c-format
+msgid   "Make snap %q available to the system"
 msgstr  ""
 
-msgid   "Name\tDate\tVersion\tDeveloper\t"
+#, c-format
+msgid   "Make snap %q unavailable to the system"
+msgstr  ""
+
+#, c-format
+msgid   "Mount snap %q"
+msgstr  ""
+
+msgid   "Name\tVersion\tDeveloper"
+msgstr  ""
+
+msgid   "Name\tVersion\tPrice\tSummary"
 msgstr  ""
 
 msgid   "Name\tVersion\tSummary"
 msgstr  ""
 
-#. TRANSLATORS: the %s is a pkgname
-#, c-format
-msgid   "No snap: '%s' found"
-msgstr  ""
-
 msgid   "Password: "
 msgstr  ""
 
-msgid   "Provide information about a specific installed package"
-msgstr  ""
-
-msgid   "Provides a list of all active components installed on a snappy system.\n"
-        "\n"
-        "If requested, the command will find out if there are updates for any of the components and indicate that by appending a * to the date. This will be slower as it requires a round trip to the app store on the network.\n"
-        "\n"
-        "The developer information refers to non-mainline versions of a package (much like PPAs in deb-based Ubuntu). If the package is the primary version of that package in Ubuntu then the developer info is not shown. This allows one to identify packages which have custom, non-standard versions installed. As a special case, the “sideload” developer refers to packages installed manually on the system.\n"
-        "\n"
-        "When a verbose listing is requested, information about the channel used is displayed; which is one of alpha, beta, rc or stable, and all fields are fully expanded too. In some cases, older (inactive) versions of snappy packages will be installed, these will be shown in the verbose output and the active version indicated with a * appended to the name of the component."
-msgstr  ""
-
-msgid   "Provides more detailed information"
-msgstr  ""
-
-msgid   "Purge a snap's data from the system"
-msgstr  ""
-
-msgid   "Query and modify snappy services"
-msgstr  ""
-
-msgid   "Query and modify snappy services of locally-installed packages"
-msgstr  ""
-
-msgid   "Reboot if necessary to be on the latest running system."
-msgstr  ""
-
-#. TRANSLATORS: the first %s is a pkgname the second a version
 #, c-format
-msgid   "Reboot to use %s version %s."
+msgid   "Prepare snap %q"
 msgstr  ""
 
-#. TRANSLATORS: the %s shows a comma separated list
-#. of package names
 #, c-format
-msgid   "Rebooting to satisfy updates for %s\n"
+msgid   "Refresh %q snap"
+msgstr  ""
+
+#, c-format
+msgid   "Refresh %q snap from %q channel"
 msgstr  ""
 
 msgid   "Refresh a snap in the system"
@@ -302,169 +180,49 @@ msgstr  ""
 msgid   "Remove a snap from the system"
 msgstr  ""
 
-msgid   "Remove a snapp part"
-msgstr  ""
-
-msgid   "Remove hardware from a specific installed package"
+#, c-format
+msgid   "Remove data for snap %q"
 msgstr  ""
 
 #, c-format
-msgid   "Removing %q"
+msgid   "Remove security profile for snap %q"
 msgstr  ""
 
-#. TRANSLATORS: the %s is a pkgname
 #, c-format
-msgid   "Removing %s\n"
+msgid   "Remove snap %q from the system"
 msgstr  ""
 
 #, c-format
 msgid   "Rollback %q snap"
 msgstr  ""
 
-msgid   "Rollback a snap to its previous known-good version"
-msgstr  ""
-
-msgid   "Rollback to a previous version of a package"
-msgstr  ""
-
-#, c-format
-msgid   "Rolling back %q"
-msgstr  ""
-
-msgid   "Run snappy console interface"
-msgstr  ""
-
-msgid   "Run snappy shell interface"
-msgstr  ""
-
 msgid   "Runs unsupported experimental commands"
 msgstr  ""
 
 #, c-format
-msgid   "Set active %q"
-msgstr  ""
-
-msgid   "Set configuration for a specific installed package"
-msgstr  ""
-
-msgid   "Set configuration for an installed package."
-msgstr  ""
-
-#, c-format
-msgid   "Set inactive %q"
-msgstr  ""
-
-msgid   "Set properties of system or package"
-msgstr  ""
-
-msgid   "Set properties of system or package\n"
-        "\n"
-        "Supported properties are:\n"
-        "  active=VERSION\n"
-        "\n"
-        "Example:\n"
-        "  set hello-world active=1.0\n"
-msgstr  ""
-
-#. TRANSLATORS: the first %s is a pkgname, the second %s is the new version
-#, c-format
-msgid   "Setting %s to version %s\n"
-msgstr  ""
-
-msgid   "Show available updates (requires network)"
-msgstr  ""
-
-msgid   "Show channel information and expand all fields"
+msgid   "Setup snap %q security profiles"
 msgstr  ""
 
 msgid   "Shows known assertions of the provided type"
 msgstr  ""
 
-msgid   "Snap\tService\tState"
+msgid   "Slot\tPlug"
 msgstr  ""
 
-#. TRANSLATORS: please keep each line under 80 characters.
-#, c-format
-msgid   "Snappy is updating your system in the background. This may take some minutes.\n"
-        "Will try again in %d seconds...\n"
-        "Press ctrl-c to cancel.\n"
+msgid   "Status\tSpawn\tReady\tSummary\n"
 msgstr  ""
 
-#. TRANSLATORS: please keep this under 80 characters if possible
-msgid   "Snappy needs to reboot to finish an update. Defer with 'sudo shutdown -c'."
-msgstr  ""
-
-msgid   "Specify an alternate output directory for the resulting package"
-msgstr  ""
-
-msgid   "The Package to install (name or path)"
-msgstr  ""
-
-msgid   "The Package to update"
-msgstr  ""
-
-msgid   "The \"versions\" command is no longer available.\n"
-        "\n"
-        "Please use the \"list\" command instead to see what is installed.\n"
-        "The \"list -u\" (or \"list --updates\") will show you the available updates\n"
-        "and \"list -v\" (or \"list --verbose\") will show all installed versions.\n"
-msgstr  ""
-
-msgid   "The configuration for the given file"
-msgstr  ""
-
-msgid   "The configuration for the given install"
-msgstr  ""
-
-msgid   "The hardware device path (e.g. /dev/ttyUSB0)"
-msgstr  ""
-
-msgid   "The package to rollback "
-msgstr  ""
-
-msgid   "The path to the snap.yaml used to generate the apparmor policy."
-msgstr  ""
-
-msgid   "The type of shell you want"
-msgstr  ""
-
-msgid   "The version to rollback to"
-msgstr  ""
-
-msgid   "This command adds access to a specific hardware device (e.g. /dev/ttyUSB0) for an installed package."
-msgstr  ""
-
-msgid   "This command is no longer available, please use the \"list\" command"
-msgstr  ""
-
-msgid   "This command list what hardware an installed package can access"
+msgid   "This command logs the current user out of the store"
 msgstr  ""
 
 msgid   "This command logs the given username into the store"
 msgstr  ""
 
-msgid   "This command removes access of a specific hardware device (e.g. /dev/ttyUSB0) for an installed package."
+msgid   "Two-factor code: "
 msgstr  ""
 
-msgid   "Unassign a hardware device to a package"
-msgstr  ""
-
-#, c-format
-msgid   "Update %q snap"
-msgstr  ""
-
-#, c-format
-msgid   "Update %q snap from %q channel"
-msgstr  ""
-
-msgid   "Update all installed parts"
-msgstr  ""
-
-#, c-format
-msgid   "Updating %q"
-msgstr  ""
-
-msgid   "Username for the login"
+msgid   "\n"
+        "The abort command attempts to abort a change that still has pending tasks.\n"
 msgstr  ""
 
 msgid   "\n"
@@ -479,9 +237,7 @@ msgid   "\n"
 msgstr  ""
 
 msgid   "\n"
-        "The activate command activates an installed but inactive snap.\n"
-        "\n"
-        "Snaps that are not active don't have their apps available for use.\n"
+        "The changes command displays a summary of the recent system changes performed."
 msgstr  ""
 
 msgid   "\n"
@@ -504,12 +260,6 @@ msgid   "\n"
         "the gadget snap, the kernel snap, and then the os snap, in that order. The\n"
         "first of these snaps that has a matching plug name is used and the command\n"
         "proceeds as above.\n"
-msgstr  ""
-
-msgid   "\n"
-        "The deactivate command deactivates an installed, active snap.\n"
-        "\n"
-        "Snaps that are not active don't have their apps available for use.\n"
 msgstr  ""
 
 msgid   "\n"
@@ -557,7 +307,7 @@ msgid   "\n"
         "\n"
         "Lists the slots offered and plugs used by the specified snap.\n"
         "\n"
-        "$ snap interfaces --i=<interface> [<snap>]\n"
+        "$ snap interfaces -i=<interface> [<snap>]\n"
         "\n"
         "Filters the complete output so only plugs and/or slots matching the provided details are listed.\n"
 msgstr  ""
@@ -573,10 +323,6 @@ msgid   "\n"
 msgstr  ""
 
 msgid   "\n"
-        "The purge command removes the data of the named snap from the system.\n"
-msgstr  ""
-
-msgid   "\n"
         "The refresh command refreshes (updates) the named snap.\n"
 msgstr  ""
 
@@ -588,105 +334,24 @@ msgid   "\n"
 msgstr  ""
 
 msgid   "\n"
-        "The rollback command reverts an installed snap to its previous revision.\n"
-msgstr  ""
-
-msgid   "\n"
         "\n"
         "The home directory is shared between snappy and the classic dimension.\n"
         "Run \"exit\" to leave the classic shell.\n"
 msgstr  ""
 
-#. TRANSLATORS: the %s represents a list of installed appnames
-#. (e.g. "apps: foo, bar, baz")
-#, c-format
-msgid   "apps: %s\n"
+msgid   "no changes found"
 msgstr  ""
 
-#. TRANSLATORS: the %s an architecture string
-#, c-format
-msgid   "architecture: %s\n"
-msgstr  ""
-
-#. TRANSLATORS: the %s is a size
-#, c-format
-msgid   "binary-size: %v\n"
-msgstr  ""
-
-#. TRANSLATORS: the %s is a channel name
-#. TRANSLATORS: the %s is a channel name
-#, c-format
-msgid   "channel: %s\n"
-msgstr  ""
-
-#. TRANSLATORS: the %s is a size
-#. TRANSLATORS: the %s is a size
-#, c-format
-msgid   "data-size: %s\n"
-msgstr  ""
-
-#. TRANSLATORS: the %s is a date
-#. TRANSLATORS: the %s is a date
-#, c-format
-msgid   "installed: %s\n"
-msgstr  ""
-
-msgid   "must supply path to snap.yaml"
+msgid   "no interfaces found"
 msgstr  ""
 
 msgid   "no snaps found"
 msgstr  ""
 
-msgid   "package name is required"
-msgstr  ""
-
 msgid   "produces manpage"
-msgstr  ""
-
-#. TRANSLATORS: the %s release string
-#, c-format
-msgid   "release: %s\n"
-msgstr  ""
-
-msgid   "slot\tplug"
-msgstr  ""
-
-#. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
-#, c-format
-msgid   "unable to disable %s's service %s: %v"
-msgstr  ""
-
-#. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
-#, c-format
-msgid   "unable to enable %s's service %s: %v"
-msgstr  ""
-
-#, c-format
-msgid   "unable to get logs: %v"
-msgstr  ""
-
-#. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
-#, c-format
-msgid   "unable to start %s's service %s: %v"
-msgstr  ""
-
-#. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
-#, c-format
-msgid   "unable to stop %s's service %s: %v"
 msgstr  ""
 
 #, c-format
 msgid   "unsupported shell %v"
-msgstr  ""
-
-#. TRANSLATORS: the %s is a date
-#, c-format
-msgid   "updated: %s\n"
-msgstr  ""
-
-#. TRANSLATORS: the %s is a version string
-#. TRANSLATORS: the %s is a version string
-#, c-format
-msgid   "version: %s\n"
 msgstr  ""
 

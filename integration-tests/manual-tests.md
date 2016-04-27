@@ -33,7 +33,7 @@
 5. Boot the image
 6. Run:
 
-        sudo journalctl -u ubuntu-snappy.firstboot.service
+        sudo journalctl -u snapd.firstboot.service
 
     * Check that it shows no errors.
 
@@ -69,7 +69,7 @@
 5. Boot the image.
 6. Run:
 
-        sudo journalctl -u ubuntu-snappy.firstboot.service
+        sudo journalctl -u snapd.firstboot.service
 
     * Check that it shows no errors.
 

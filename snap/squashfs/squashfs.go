@@ -29,7 +29,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap"
 )
@@ -38,17 +37,6 @@ func init() {
 	snap.RegisterFormat([]byte{'h', 's', 'q', 's'}, func(path string) (snap.File, error) {
 		return New(path), nil
 	})
-}
-
-// BlobPath is a helper that calculates the blob path from the baseDir.
-// FIXME: feels wrong (both location and approach). need something better.
-func BlobPath(instDir string) string {
-	l := strings.Split(filepath.Clean(instDir), string(filepath.Separator))
-	if len(l) < 2 {
-		panic(fmt.Sprintf("invalid path for BlobPath: %q", instDir))
-	}
-
-	return filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", l[len(l)-2], l[len(l)-1]))
 }
 
 // Snap is the squashfs based snap.
@@ -72,10 +60,10 @@ func (s *Snap) MetaMember(metaMember string) ([]byte, error) {
 }
 
 // Install just copies the blob into place (unless it is used in the tests)
-func (s *Snap) Install(instDir string) error {
+func (s *Snap) Install(targetPath, mountDir string) error {
 
-	// ensure mount-point and blob dir.
-	for _, dir := range []string{instDir, dirs.SnapBlobDir} {
+	// ensure mount-point and blob target dir.
+	for _, dir := range []string{mountDir, filepath.Dir(targetPath)} {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return err
 		}
@@ -83,13 +71,13 @@ func (s *Snap) Install(instDir string) error {
 
 	// FIXME: HHAAAAAAAAAAAAAAAACKKKKKKKKKKKKK for the tests
 	if os.Getenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS") != "" {
-		if err := s.Unpack("*", instDir); err != nil {
+		if err := s.Unpack("*", mountDir); err != nil {
 			return err
 		}
 	}
 
 	// FIXME: cp.CopyFile() has no preserve attribute flag yet
-	return runCommand("cp", "-a", s.path, BlobPath(instDir))
+	return runCommand("cp", "-a", s.path, targetPath)
 }
 
 var runCommand = func(args ...string) error {
@@ -132,7 +120,17 @@ func (s *Snap) Info() (*snap.Info, error) {
 		return nil, fmt.Errorf("info failed for %s: %s", s.path, err)
 	}
 
-	return snap.InfoFromSnapYaml(snapYaml)
+	info, err := snap.InfoFromSnapYaml(snapYaml)
+	if err != nil {
+		return nil, err
+	}
+
+	err = snap.Validate(info)
+	if err != nil {
+		return nil, err
+	}
+
+	return info, nil
 }
 
 // HashDigest computes a hash digest of the snap file using the given hash.

@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -157,6 +156,7 @@ type ServiceDescription struct {
 	SnapName        string
 	AppName         string
 	Version         string
+	Revision        int
 	Description     string
 	SnapPath        string
 	Start           string
@@ -208,17 +208,8 @@ func (*systemd) DaemonReload() error {
 
 // Enable the given service
 func (s *systemd) Enable(serviceName string) error {
-	enableSymlink := filepath.Join(s.rootDir, snapServicesDir, servicesSystemdTarget+".wants", serviceName)
-
-	// already enabled
-	if _, err := os.Lstat(enableSymlink); err == nil {
-		return nil
-	}
-
-	// Do not use s.rootDir here. The link must point to the
-	// real (internal) path.
-	serviceFilename := filepath.Join(snapServicesDir, serviceName)
-	return os.Symlink(serviceFilename, enableSymlink)
+	_, err := SystemctlCmd("--root", s.rootDir, "enable", serviceName)
+	return err
 }
 
 // Disable the given service
@@ -278,11 +269,11 @@ func (s *systemd) Status(serviceName string) (string, error) {
 
 // A ServiceStatus holds structured service status information.
 type ServiceStatus struct {
-	ServiceFileName string `json:"service_file_name"`
-	LoadState       string `json:"load_state"`
-	ActiveState     string `json:"active_state"`
-	SubState        string `json:"sub_state"`
-	UnitFileState   string `json:"unit_file_state"`
+	ServiceFileName string `json:"service-file-name"`
+	LoadState       string `json:"load-state"`
+	ActiveState     string `json:"active-state"`
+	SubState        string `json:"sub-state"`
+	UnitFileState   string `json:"unit-file-state"`
 }
 
 func (s *systemd) ServiceStatus(serviceName string) (*ServiceStatus, error) {
@@ -346,15 +337,15 @@ func (s *systemd) Stop(serviceName string, timeout time.Duration) error {
 func (s *systemd) GenServiceFile(desc *ServiceDescription) string {
 	serviceTemplate := `[Unit]
 Description={{.Description}}
-After=ubuntu-snappy.frameworks.target{{ if .Socket }} {{.SocketFileName}}{{end}}
-Requires=ubuntu-snappy.frameworks.target{{ if .Socket }} {{.SocketFileName}}{{end}}
+After=snapd.frameworks.target{{ if .Socket }} {{.SocketFileName}}{{end}}
+Requires=snapd.frameworks.target{{ if .Socket }} {{.SocketFileName}}{{end}}
 X-Snappy=yes
 
 [Service]
 ExecStart=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.FullPathStart}}
 Restart={{.Restart}}
-WorkingDirectory=/var/lib{{.SnapPath}}
-Environment="SNAP_APP={{.AppTriple}}" {{.EnvVars}}
+WorkingDirectory=/var{{.SnapPath}}
+Environment={{.EnvVars}}
 {{if .Stop}}ExecStop=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.FullPathStop}}{{end}}
 {{if .PostStop}}ExecStopPost=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.FullPathPostStop}}{{end}}
 {{if .StopTimeout}}TimeoutStopSec={{.StopTimeout.Seconds}}{{end}}
@@ -379,7 +370,6 @@ WantedBy={{.ServiceSystemdTarget}}
 		FullPathStart        string
 		FullPathStop         string
 		FullPathPostStop     string
-		AppTriple            string
 		ServiceSystemdTarget string
 		SnapArch             string
 		Home                 string
@@ -392,7 +382,6 @@ WantedBy={{.ServiceSystemdTarget}}
 		filepath.Join(desc.SnapPath, desc.Start),
 		filepath.Join(desc.SnapPath, desc.Stop),
 		filepath.Join(desc.SnapPath, desc.PostStop),
-		fmt.Sprintf("%s_%s_%s", desc.SnapName, desc.AppName, desc.Version),
 		servicesSystemdTarget,
 		arch.UbuntuArchitecture(),
 		// systemd runs as PID 1 so %h will not work.
@@ -404,8 +393,6 @@ WantedBy={{.ServiceSystemdTarget}}
 	}
 	allVars := snapenv.GetBasicSnapEnvVars(wrapperData)
 	allVars = append(allVars, snapenv.GetUserSnapEnvVars(wrapperData)...)
-	allVars = append(allVars, snapenv.GetDeprecatedBasicSnapEnvVars(wrapperData)...)
-	allVars = append(allVars, snapenv.GetDeprecatedUserSnapEnvVars(wrapperData)...)
 	wrapperData.EnvVars = "\"" + strings.Join(allVars, "\" \"") + "\"" // allVars won't be empty
 
 	if err := t.Execute(&templateOut, wrapperData); err != nil {
@@ -559,6 +546,9 @@ Description=Squashfs mount unit for %s
 [Mount]
 What=%s
 Where=%s
+
+[Install]
+WantedBy=multi-user.target
 `, name, what, where)
 
 	mu := MountUnitPath(where, "mount")

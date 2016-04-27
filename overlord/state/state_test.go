@@ -275,7 +275,10 @@ func (ss *stateSuite) TestNewChangeAndChanges(c *C) {
 
 	for _, chg := range chgs {
 		c.Check(chg, Equals, expected[chg.ID()])
+		c.Check(st.Change(chg.ID()), Equals, chg)
 	}
+
+	c.Check(st.Change("no-such-id"), IsNil)
 }
 
 func (ss *stateSuite) TestNewChangeAndCheckpoint(c *C) {
@@ -288,6 +291,9 @@ func (ss *stateSuite) TestNewChangeAndCheckpoint(c *C) {
 	chgID := chg.ID()
 	chg.Set("a", 1)
 	chg.SetStatus(state.ErrorStatus)
+
+	spawnTime := chg.SpawnTime()
+	readyTime := chg.ReadyTime()
 
 	// implicit checkpoint
 	st.Unlock()
@@ -311,6 +317,8 @@ func (ss *stateSuite) TestNewChangeAndCheckpoint(c *C) {
 	c.Check(chg0.ID(), Equals, chgID)
 	c.Check(chg0.Kind(), Equals, "install")
 	c.Check(chg0.Summary(), Equals, "summary")
+	c.Check(chg0.SpawnTime().Equal(spawnTime), Equals, true)
+	c.Check(chg0.ReadyTime().Equal(readyTime), Equals, true)
 
 	var v int
 	err = chg0.Get("a", &v)
@@ -385,9 +393,6 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 	t2ID := t2.ID()
 	t2.WaitFor(t1)
 
-	t3 := st.NewTask("three", "3...")
-	t3ID := t3.ID()
-
 	// implicit checkpoint
 	st.Unlock()
 
@@ -437,8 +442,7 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 	for _, t := range st2.Tasks() {
 		tasks2[t.ID()] = t
 	}
-	c.Assert(tasks2, HasLen, 3)
-	c.Check(tasks2[t3ID].Kind(), Equals, "three")
+	c.Assert(tasks2, HasLen, 2)
 }
 
 func (ss *stateSuite) TestEnsureBefore(c *C) {
@@ -448,6 +452,32 @@ func (ss *stateSuite) TestEnsureBefore(c *C) {
 	st.EnsureBefore(10 * time.Second)
 
 	c.Check(b.ensureBefore, Equals, 10*time.Second)
+}
+
+func (ss *stateSuite) TestCheckpointPreserveLastIds(c *C) {
+	b := new(fakeStateBackend)
+	st := state.New(b)
+	st.Lock()
+
+	st.NewChange("install", "...")
+	st.NewTask("download", "...")
+	st.NewTask("download", "...")
+
+	// implicit checkpoint
+	st.Unlock()
+
+	c.Assert(b.checkpoints, HasLen, 1)
+
+	buf := bytes.NewBuffer(b.checkpoints[0])
+
+	st2, err := state.ReadState(nil, buf)
+	c.Assert(err, IsNil)
+
+	st2.Lock()
+	defer st2.Unlock()
+
+	c.Assert(st2.NewTask("download", "...").ID(), Equals, "3")
+	c.Assert(st2.NewChange("install", "...").ID(), Equals, "2")
 }
 
 func (ss *stateSuite) TestNewTaskAndTasks(c *C) {
@@ -464,6 +494,7 @@ func (ss *stateSuite) TestNewTaskAndTasks(c *C) {
 	chg2 := st.NewChange("remove", "...")
 	t21 := st.NewTask("check", "...")
 	t22 := st.NewTask("rm", "...")
+	chg2.AddTask(t21)
 	chg2.AddTask(t22)
 
 	tasks := st.Tasks()
@@ -481,8 +512,30 @@ func (ss *stateSuite) TestNewTaskAndTasks(c *C) {
 	}
 }
 
+func (ss *stateSuite) TestTaskNoTask(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	c.Check(st.Task("1"), IsNil)
+}
+
+func (ss *stateSuite) TestNewTaskHiddenUntilLinked(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	t1 := st.NewTask("check", "...")
+
+	tasks := st.Tasks()
+	c.Check(tasks, HasLen, 0)
+
+	c.Check(st.Task(t1.ID()), IsNil)
+}
+
 func (ss *stateSuite) TestMethodEntrance(c *C) {
 	st := state.New(&fakeStateBackend{})
+
 	// Reset modified flag.
 	st.Lock()
 	st.Unlock()
@@ -499,8 +552,12 @@ func (ss *stateSuite) TestMethodEntrance(c *C) {
 		func() { st.Cached("foo") },
 		func() { st.Cache("foo", 1) },
 		func() { st.Changes() },
+		func() { st.Change("foo") },
 		func() { st.Tasks() },
+		func() { st.Task("foo") },
 		func() { st.MarshalJSON() },
+		func() { st.Prune(time.Hour, time.Hour) },
+		func() { st.NumTask() },
 	}
 
 	for i, f := range reads {
@@ -518,4 +575,65 @@ func (ss *stateSuite) TestMethodEntrance(c *C) {
 		c.Assert(f, PanicMatches, "internal error: accessing state without lock")
 		c.Assert(st.Modified(), Equals, true)
 	}
+}
+
+func (ss *stateSuite) TestPrune(c *C) {
+	st := state.New(&fakeStateBackend{})
+	st.Lock()
+	defer st.Unlock()
+
+	now := time.Now()
+	pruneWait := 1 * time.Hour
+	abortWait := 3 * time.Hour
+
+	unset := time.Time{}
+
+	t1 := st.NewTask("foo", "...")
+	t2 := st.NewTask("foo", "...")
+	t3 := st.NewTask("foo", "...")
+	t4 := st.NewTask("foo", "...")
+
+	chg1 := st.NewChange("abort", "...")
+	chg1.AddTask(t1)
+	state.MockChangeTimes(chg1, now.Add(-abortWait), unset)
+
+	chg2 := st.NewChange("prune", "...")
+	chg2.AddTask(t2)
+	c.Assert(chg2.Status(), Equals, state.DoStatus)
+	state.MockChangeTimes(chg2, now.Add(-pruneWait), now.Add(-pruneWait))
+
+	chg3 := st.NewChange("ready-but-recent", "...")
+	chg3.AddTask(t3)
+	state.MockChangeTimes(chg3, now.Add(-pruneWait), now.Add(-pruneWait/2))
+
+	chg4 := st.NewChange("old-but-not-ready", "...")
+	chg4.AddTask(t4)
+	state.MockChangeTimes(chg4, now.Add(-pruneWait/2), unset)
+
+	// unlinked task
+	t5 := st.NewTask("unliked", "...")
+	c.Check(st.Task(t5.ID()), IsNil)
+	state.MockTaskTimes(t5, now.Add(-pruneWait), now.Add(-pruneWait))
+
+	st.Prune(pruneWait, abortWait)
+
+	c.Assert(st.Change(chg1.ID()), Equals, chg1)
+	c.Assert(st.Change(chg2.ID()), IsNil)
+	c.Assert(st.Change(chg3.ID()), Equals, chg3)
+	c.Assert(st.Change(chg4.ID()), Equals, chg4)
+
+	c.Assert(st.Task(t1.ID()), Equals, t1)
+	c.Assert(st.Task(t2.ID()), IsNil)
+	c.Assert(st.Task(t3.ID()), Equals, t3)
+	c.Assert(st.Task(t4.ID()), Equals, t4)
+
+	c.Assert(chg1.Status(), Equals, state.HoldStatus)
+	c.Assert(chg3.Status(), Equals, state.DoStatus)
+	c.Assert(chg4.Status(), Equals, state.DoStatus)
+
+	c.Assert(t1.Status(), Equals, state.HoldStatus)
+	c.Assert(t3.Status(), Equals, state.DoStatus)
+	c.Assert(t4.Status(), Equals, state.DoStatus)
+
+	c.Check(st.NumTask(), Equals, 3)
 }

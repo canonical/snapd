@@ -39,7 +39,6 @@ var (
 	SnapUdevRulesDir          string
 	LocaleDir                 string
 	SnapMetaDir               string
-	SnapLockFile              string
 	SnapdSocket               string
 
 	SnapAssertsDBDir      string
@@ -59,7 +58,7 @@ var (
 
 var (
 	// not exported because it does not honor the global rootdir
-	snappyDir = filepath.Join("var", "lib", "snappy")
+	snappyDir = filepath.Join("var", "lib", "snapd")
 )
 
 func init() {
@@ -77,22 +76,21 @@ func init() {
 func SetRootDir(rootdir string) {
 	GlobalRootDir = rootdir
 
-	SnapSnapsDir = filepath.Join(rootdir, "/snaps")
-	SnapDataDir = filepath.Join(rootdir, "/var/lib/snaps")
-	SnapDataHomeGlob = filepath.Join(rootdir, "/home/*/snaps/")
+	SnapSnapsDir = filepath.Join(rootdir, "/snap")
+	SnapDataDir = filepath.Join(rootdir, "/var/snap")
+	SnapDataHomeGlob = filepath.Join(rootdir, "/home/*/snap/")
 	SnapAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "profiles")
 	AppArmorCacheDir = filepath.Join(rootdir, "/var/cache/apparmor")
 	SnapAppArmorAdditionalDir = filepath.Join(rootdir, snappyDir, "apparmor", "additional")
 	SnapSeccompDir = filepath.Join(rootdir, snappyDir, "seccomp", "profiles")
 	SnapMetaDir = filepath.Join(rootdir, snappyDir, "meta")
-	SnapLockFile = filepath.Join(rootdir, "/run/snappy.lock")
 	SnapBlobDir = filepath.Join(rootdir, snappyDir, "snaps")
 	SnapDesktopFilesDir = filepath.Join(rootdir, snappyDir, "desktop", "applications")
 	// keep in sync with the debian/ubuntu-snappy.snapd.socket file:
 	SnapdSocket = filepath.Join(rootdir, "/run/snapd.socket")
 
 	SnapAssertsDBDir = filepath.Join(rootdir, snappyDir, "assertions")
-	SnapTrustedAccountKey = filepath.Join(rootdir, "/usr/share/snappy/trusted.acckey")
+	SnapTrustedAccountKey = filepath.Join(rootdir, "/usr/share/snapd/trusted.acckey")
 
 	SnapStateFile = filepath.Join(rootdir, snappyDir, "state.json")
 

@@ -31,16 +31,18 @@ import (
 )
 
 func (s *SnapTestSuite) TestActiveSnapByType(c *C) {
-	yamlPath, err := makeInstalledMockSnap(s.tempdir, `name: app1
+	yamlPath, err := makeInstalledMockSnap(`name: app1
 version: 1.10
-`)
+`, 11)
+
 	c.Assert(err, IsNil)
 	makeSnapActive(yamlPath)
 
-	yamlPath, err = makeInstalledMockSnap(s.tempdir, `name: os2
+	yamlPath, err = makeInstalledMockSnap(`name: os2
 version: 1.0
 type: os
-`)
+`, 11)
+
 	c.Assert(err, IsNil)
 	makeSnapActive(yamlPath)
 
@@ -51,14 +53,16 @@ type: os
 }
 
 func (s *SnapTestSuite) TestActiveSnapIterByType(c *C) {
-	yamlPath, err := makeInstalledMockSnap(s.tempdir, `name: app
-version: 1.10`)
+	yamlPath, err := makeInstalledMockSnap(`name: app
+version: 1.10`, 11)
+
 	c.Assert(err, IsNil)
 	makeSnapActive(yamlPath)
 
-	yamlPath, err = makeInstalledMockSnap(s.tempdir, `name: os2
+	yamlPath, err = makeInstalledMockSnap(`name: os2
 version: 1.0
-type: os`)
+type: os`, 11)
+
 	c.Assert(err, IsNil)
 	makeSnapActive(yamlPath)
 
@@ -79,9 +83,19 @@ type: os`)
 	}
 
 	// now remove the channel
-	storeMinimalRemoteManifest("app", testDeveloper, "1.10", "Hello.", "")
+	si := snap.SideInfo{
+		OfficialName:      "app",
+		Revision:          11,
+		Developer:         testDeveloper,
+		Channel:           "",
+		EditedSummary:     "hello",
+		EditedDescription: "Hello.",
+	}
+	err = SaveManifest(&snap.Info{SideInfo: si, Version: "1.10"})
+	c.Assert(err, IsNil)
+
 	for _, t := range []T{
-		{fullNameWithChannel, snap.TypeApp, "app." + testDeveloper},
+		{fullNameWithChannel, snap.TypeApp, "app." + testDeveloper + "/stable"},
 	} {
 		names, err := ActiveSnapIterByType(t.f, t.t)
 		c.Check(err, IsNil)
@@ -90,7 +104,7 @@ type: os`)
 }
 
 func (s *SnapTestSuite) TestFindSnapsByNameNotAvailable(c *C) {
-	_, err := makeInstalledMockSnap(s.tempdir, "")
+	_, err := makeInstalledMockSnap("", 11)
 	repo := &Overlord{}
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
@@ -100,7 +114,7 @@ func (s *SnapTestSuite) TestFindSnapsByNameNotAvailable(c *C) {
 }
 
 func (s *SnapTestSuite) TestFindSnapsByNameFound(c *C) {
-	_, err := makeInstalledMockSnap(s.tempdir, "")
+	_, err := makeInstalledMockSnap("", 11)
 	repo := &Overlord{}
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
@@ -112,7 +126,7 @@ func (s *SnapTestSuite) TestFindSnapsByNameFound(c *C) {
 }
 
 func (s *SnapTestSuite) TestFindSnapsByNameWithDeveloper(c *C) {
-	_, err := makeInstalledMockSnap(s.tempdir, "")
+	_, err := makeInstalledMockSnap("", 11)
 	repo := &Overlord{}
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
@@ -124,7 +138,7 @@ func (s *SnapTestSuite) TestFindSnapsByNameWithDeveloper(c *C) {
 }
 
 func (s *SnapTestSuite) TestFindSnapsByNameWithDeveloperNotThere(c *C) {
-	_, err := makeInstalledMockSnap(s.tempdir, "")
+	_, err := makeInstalledMockSnap("", 11)
 	repo := &Overlord{}
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
@@ -137,7 +151,7 @@ func (s *SnapTestSuite) TestFindSnapsByNameWithDeveloperNotThere(c *C) {
 func (s *SnapTestSuite) TestPackageNameInstalled(c *C) {
 	c.Check(PackageNameActive("hello-snap"), Equals, false)
 
-	yamlFile, err := makeInstalledMockSnap(s.tempdir, "")
+	yamlFile, err := makeInstalledMockSnap("", 11)
 	c.Assert(err, IsNil)
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 
@@ -151,12 +165,12 @@ func (s *SnapTestSuite) TestPackageNameInstalled(c *C) {
 	c.Assert(ActivateSnap(snap, ag), IsNil)
 
 	c.Check(PackageNameActive("hello-snap"), Equals, true)
-	c.Assert(DeactivateSnap(snap, ag), IsNil)
+	c.Assert(UnlinkSnap(snap.Info(), ag), IsNil)
 	c.Check(PackageNameActive("hello-snap"), Equals, false)
 }
 
 func (s *SnapTestSuite) TestFindSnapsByNameAndVersion(c *C) {
-	_, err := makeInstalledMockSnap(s.tempdir, "")
+	_, err := makeInstalledMockSnap("", 11)
 	repo := &Overlord{}
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
@@ -179,7 +193,7 @@ func (s *SnapTestSuite) TestFindSnapsByNameAndVersion(c *C) {
 }
 
 func (s *SnapTestSuite) TestFindSnapsByNameAndVersionFmk(c *C) {
-	_, err := makeInstalledMockSnap(s.tempdir, "name: os2\ntype: os\nversion: 1")
+	_, err := makeInstalledMockSnap("name: os2\ntype: os\nversion: 1", 11)
 	repo := &Overlord{}
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
@@ -194,5 +208,28 @@ func (s *SnapTestSuite) TestFindSnapsByNameAndVersionFmk(c *C) {
 	snaps = FindSnapsByNameAndVersion("not-os2", "1", installed)
 	c.Check(snaps, HasLen, 0)
 	snaps = FindSnapsByNameAndVersion("os2", "2", installed)
+	c.Check(snaps, HasLen, 0)
+}
+
+func (s *SnapTestSuite) TestFindSnapsByNameAndRevision(c *C) {
+	_, err := makeInstalledMockSnap("", 11)
+	repo := &Overlord{}
+	installed, err := repo.Installed()
+	c.Assert(err, IsNil)
+
+	snaps := FindSnapsByNameAndRevision("hello-snap."+testDeveloper, 11, installed)
+	c.Check(snaps, HasLen, 1)
+	snaps = FindSnapsByNameAndRevision("bad-app."+testDeveloper, 11, installed)
+	c.Check(snaps, HasLen, 0)
+	snaps = FindSnapsByNameAndRevision("hello-snap.badDeveloper", 11, installed)
+	c.Check(snaps, HasLen, 0)
+	snaps = FindSnapsByNameAndRevision("hello-snap."+testDeveloper, 22, installed)
+	c.Check(snaps, HasLen, 0)
+
+	snaps = FindSnapsByNameAndRevision("hello-snap", 11, installed)
+	c.Check(snaps, HasLen, 1)
+	snaps = FindSnapsByNameAndRevision("bad-app", 11, installed)
+	c.Check(snaps, HasLen, 0)
+	snaps = FindSnapsByNameAndRevision("hello-snap", 22, installed)
 	c.Check(snaps, HasLen, 0)
 }

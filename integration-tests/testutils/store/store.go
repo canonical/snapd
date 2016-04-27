@@ -52,11 +52,6 @@ func searchEndpoint(w http.ResponseWriter, req *http.Request) {
 	fmt.Fprintf(w, "search not implemented yet")
 }
 
-func detailsEndpoint(w http.ResponseWriter, req *http.Request) {
-	w.WriteHeader(501)
-	fmt.Fprintf(w, "details not implemented yet")
-}
-
 // Store is our snappy software store implementation
 type Store struct {
 	url              string
@@ -89,7 +84,7 @@ func NewStore(blobDir string) *Store {
 
 	mux.HandleFunc("/", rootEndpoint)
 	mux.HandleFunc("/search", searchEndpoint)
-	mux.HandleFunc("/package/", detailsEndpoint)
+	mux.HandleFunc("/package/", store.detailsEndpoint)
 	mux.HandleFunc("/click-metadata", store.bulkEndpoint)
 	mux.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(blobDir))))
 
@@ -99,6 +94,10 @@ func NewStore(blobDir string) *Store {
 // URL returns the base-url that the store is listening on
 func (s *Store) URL() string {
 	return s.url
+}
+
+func (s *Store) SnapsDir() string {
+	return s.blobDir
 }
 
 // Start listening
@@ -126,6 +125,74 @@ func (s *Store) Stop() error {
 	return nil
 }
 
+func makeRevision(info *snap.Info) int {
+	// TODO: This is a hack to ensure we have higher
+	//       revisions here than locally. The fake
+	//       snaps get versions like
+	//          "1.0+fake1+fake1+fake1"
+	//       so we can use this for now to generate
+	//       fake revisions. However in the longer
+	//       term we should read the real revision
+	//       of the snap, increment and add a ".aux"
+	//       file to the download directory of the
+	//       store that contains the revision and the
+	//       developer. The fake-store can then read
+	//       that file when sending the reply.
+	n := strings.Count(info.Version, "+fake") + 1
+	return n * defaultRevision
+}
+
+type detailsReplyJSON struct {
+	Name            string `json:"name"`
+	PackageName     string `json:"package_name"`
+	Developer       string `json:"origin"`
+	AnonDownloadURL string `json:"anon_download_url"`
+	DownloadURL     string `json:"download_url"`
+	Version         string `json:"version"`
+	Revision        int    `json:"revision"`
+}
+
+func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
+	s.refreshSnaps()
+
+	pkg := req.URL.Path[len("/package/"):]
+	fn, ok := s.snaps[pkg]
+	if !ok {
+		http.NotFound(w, req)
+		return
+	}
+
+	snapFile, err := snap.Open(fn)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("can not read: %v: %v", fn, err), http.StatusBadRequest)
+		return
+	}
+	info, err := snapFile.Info()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("can get info for: %v: %v", fn, err), http.StatusBadRequest)
+		return
+	}
+
+	replyData := detailsReplyJSON{
+		Name:            fmt.Sprintf("%s.%s", info.Name(), s.defaultDeveloper),
+		PackageName:     info.Name(),
+		Developer:       defaultDeveloper,
+		AnonDownloadURL: fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn)),
+		DownloadURL:     fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn)),
+		Version:         info.Version,
+		Revision:        makeRevision(info),
+	}
+
+	// use indent because this is a development tool, output
+	// should look nice
+	out, err := json.MarshalIndent(replyData, "", "    ")
+	if err != nil {
+		http.Error(w, fmt.Sprintf("can marshal: %v: %v", replyData, err), http.StatusBadRequest)
+		return
+	}
+	w.Write(out)
+}
+
 func (s *Store) refreshSnaps() error {
 	s.snaps = map[string]string{}
 
@@ -143,7 +210,7 @@ func (s *Store) refreshSnaps() error {
 		if err != nil {
 			return err
 		}
-		s.snaps[fmt.Sprintf("%s.%s", info.Name, s.defaultDeveloper)] = fn
+		s.snaps[fmt.Sprintf("%s.%s", info.Name(), s.defaultDeveloper)] = fn
 	}
 
 	return nil
@@ -191,28 +258,15 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 				http.Error(w, fmt.Sprintf("can get info for: %v: %v", fn, err), http.StatusBadRequest)
 				return
 			}
-			// TODO: This is a hack to ensure we have higher
-			//       revisions here than locally. The fake
-			//       snaps get versions like
-			//          "1.0+fake1+fake1+fake1"
-			//       so we can use this for now to generate
-			//       fake revisions. However in the longer
-			//       term we should read the real revision
-			//       of the snap, increment and add a ".aux"
-			//       file to the download directory of the
-			//       store that contains the revision and the
-			//       developer. The fake-store can then read
-			//       that file when sending the reply.
-			n := strings.Count(info.Version, "+fake") + 1
 
 			replyData = append(replyData, bulkReplyJSON{
 				Status:          "Published",
-				Name:            fmt.Sprintf("%s.%s", info.Name, s.defaultDeveloper),
-				PackageName:     info.Name,
+				Name:            fmt.Sprintf("%s.%s", info.Name(), s.defaultDeveloper),
+				PackageName:     info.Name(),
 				Developer:       defaultDeveloper,
 				AnonDownloadURL: fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn)),
 				Version:         info.Version,
-				Revision:        n * defaultRevision,
+				Revision:        makeRevision(info),
 			})
 		}
 	}

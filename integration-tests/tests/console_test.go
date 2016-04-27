@@ -49,6 +49,8 @@ type consoleMsg struct {
 func (s *consoleSuite) SetUpTest(c *check.C) {
 	s.SnappySuite.SetUpTest(c)
 
+	c.Skip("FIXME: port to snap")
+
 	var err error
 
 	cmdsIn := []string{"snappy", "console"}

@@ -18,11 +18,3 @@
  */
 
 package ifacestate
-
-import (
-	"github.com/ubuntu-core/snappy/interfaces"
-)
-
-func (m *InterfaceManager) Repository() *interfaces.Repository {
-	return m.repo
-}

@@ -144,7 +144,7 @@ func (t *TextProgress) Spin(msg string) {
 
 	// clear until end of line
 	clearUntilEOL := "\033[K"
-	fmt.Printf("\r%s[%c]%s", msg, states[t.spinStep], clearUntilEOL)
+	fmt.Printf("\r[%c] %s%s", states[t.spinStep], msg, clearUntilEOL)
 	t.spinStep++
 	if t.spinStep >= len(states) {
 		t.spinStep = 0

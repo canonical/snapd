@@ -30,6 +30,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/partition"
@@ -45,9 +46,24 @@ func NoOp(snapPath string) error {
 	return nil
 }
 
-// CallFakeUpdate calls snappy update after faking a new version available for the specified snap.
+// CallFakeSnapRefresh calls snappy update after faking a new version available for the specified snap.
 // The fake is made copying the currently installed snap.
 // changeFunc can be used to modify the snap before it is built and served.
+func CallFakeSnapRefresh(c *check.C, snap string, changeFunc ChangeFakeUpdateSnap, fakeStore *store.Store) string {
+	c.Log("Preparing fake and calling update.")
+
+	blobDir := fakeStore.SnapsDir()
+	makeFakeUpdateForSnap(c, snap, blobDir, changeFunc)
+
+	// FIMXE: there is no "snap refresh" that updates all snaps
+	cli.ExecCommand(c, "sudo", "TMPDIR=/var/tmp", "snap", "refresh", snap)
+
+	// FIXME: do we want an automatic `snap list` output after
+	//        `snap update` (like in the old snappy world)?
+	return cli.ExecCommand(c, "snap", "list")
+}
+
+// FIXME: remove once "snappy" the command is gone
 func CallFakeUpdate(c *check.C, snap string, changeFunc ChangeFakeUpdateSnap) string {
 	c.Log("Preparing fake and calling update.")
 
@@ -63,7 +79,7 @@ func CallFakeUpdate(c *check.C, snap string, changeFunc ChangeFakeUpdateSnap) st
 
 	makeFakeUpdateForSnap(c, snap, blobDir, changeFunc)
 
-	return cli.ExecCommand(c, "sudo", "TMPDIR=/var/tmp", fmt.Sprintf("SNAPPY_FORCE_CPI_URL=%s", fakeStore.URL()), "snappy", "update")
+	return cli.ExecCommand(c, "sudo", "TMPDIR=/var/tmp", fmt.Sprintf("SNAPPY_FORCE_CPI_URL=%s", fakeStore.URL()), "snap", "refresh", snap)
 }
 
 // CallFakeOSUpdate calls snappy update after faking a new version available for the OS snap.
@@ -100,12 +116,12 @@ func copySnap(c *check.C, snap, targetDir string) {
 	// check for sideloaded snaps
 	// XXX: simplify this down to consider only the name (and not origin)
 	// in the directory once everything is moved to that
-	baseDir := filepath.Join("/snaps", snap)
+	baseDir := filepath.Join(dirs.SnapSnapsDir, snap)
 	if _, err := os.Stat(baseDir); os.IsNotExist(err) {
 		snapName := strings.Split(snap, ".")[0]
-		baseDir = filepath.Join("/snaps", snapName)
+		baseDir = filepath.Join(dirs.SnapSnapsDir, snapName)
 		if _, err := os.Stat(baseDir); os.IsNotExist(err) {
-			baseDir = filepath.Join("/snaps", snapName+".sideload")
+			baseDir = filepath.Join(dirs.SnapSnapsDir, snapName+".sideload")
 			_, err = os.Stat(baseDir)
 			c.Assert(err, check.IsNil,
 				check.Commentf("%s not found from it's original source not sideloaded", snap))

@@ -51,26 +51,8 @@ func (s *BuildTestSuite) SetUpTest(c *C) {
 	err = os.Chdir(c.MkDir())
 	c.Assert(err, IsNil)
 
-	// fake "du"
-	s.makeFakeDuCommand(c)
-
 	// use fake root
 	dirs.SetRootDir(c.MkDir())
-}
-
-func (s *BuildTestSuite) makeFakeDuCommand(c *C) {
-	tempdir := c.MkDir()
-	duCmdPath := filepath.Join(tempdir, "du")
-	fakeDuContent := `#!/bin/sh
-echo 17 some-dir`
-	err := ioutil.WriteFile(duCmdPath, []byte(fakeDuContent), 0755)
-	c.Assert(err, IsNil)
-
-	// cleanup later
-	origDuCmd := duCmd
-	s.AddCleanup(func() { duCmd = origDuCmd })
-	// replace real du with our mock
-	duCmd = duCmdPath
 }
 
 func makeExampleSnapSourceDir(c *C, snapYamlContent string) string {
@@ -240,7 +222,7 @@ func (s *BuildTestSuite) TestExcludeDynamicWorksIfSnapignore(c *C) {
 func (s *BuildTestSuite) TestExcludeDynamicWeirdRegexps(c *C) {
 	basedir := c.MkDir()
 	c.Assert(ioutil.WriteFile(filepath.Join(basedir, ".snapignore"), []byte("*hello\n"), 0644), IsNil)
-	// note “*hello” is not a valid regexp, so will be taken literally (not globbed!)
+	// note "*hello" is not a valid regexp, so will be taken literally (not globbed!)
 	c.Check(shouldExcludeDynamic(basedir, "ahello"), Equals, false)
 	c.Check(shouldExcludeDynamic(basedir, "*hello"), Equals, true)
 }

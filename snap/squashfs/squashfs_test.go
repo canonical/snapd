@@ -156,7 +156,17 @@ type: gadget`
 
 	info, err := snapF.Info()
 	c.Assert(err, IsNil)
-	c.Assert(info.Name, Equals, "foo")
+	c.Assert(info.Name(), Equals, "foo")
 	c.Assert(info.Version, Equals, "1.0")
 	c.Assert(info.Type, Equals, snap.TypeGadget)
+}
+
+func (s *SquashfsTestSuite) TestInfoValidates(c *C) {
+	manifest := `name: foo.bar
+version: 1.0
+type: gadget`
+	snapF := makeSnap(c, manifest, "")
+
+	_, err := snapF.Info()
+	c.Assert(err, ErrorMatches, "invalid snap name.*")
 }

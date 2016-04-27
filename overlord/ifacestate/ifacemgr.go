@@ -24,11 +24,8 @@ package ifacestate
 import (
 	"fmt"
 
-	"gopkg.in/tomb.v2"
-
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/interfaces"
-	"github.com/ubuntu-core/snappy/interfaces/builtin"
 	"github.com/ubuntu-core/snappy/overlord/state"
 )
 
@@ -42,22 +39,22 @@ type InterfaceManager struct {
 }
 
 // Manager returns a new InterfaceManager.
-func Manager(s *state.State) (*InterfaceManager, error) {
-	repo := interfaces.NewRepository()
-	for _, iface := range builtin.Interfaces() {
-		if err := repo.AddInterface(iface); err != nil {
-			return nil, err
-		}
-	}
+// Extra interfaces can be provided for testing.
+func Manager(s *state.State, extra []interfaces.Interface) (*InterfaceManager, error) {
 	runner := state.NewTaskRunner(s)
 	m := &InterfaceManager{
 		state:  s,
 		runner: runner,
-		repo:   repo,
+		repo:   interfaces.NewRepository(),
 	}
-
+	if err := m.initialize(extra); err != nil {
+		return nil, err
+	}
 	runner.AddHandler("connect", m.doConnect, nil)
 	runner.AddHandler("disconnect", m.doDisconnect, nil)
+	runner.AddHandler("setup-profiles", m.doSetupProfiles, m.doRemoveProfiles)
+	runner.AddHandler("remove-profiles", m.doRemoveProfiles, m.doSetupProfiles)
+	runner.AddHandler("discard-conns", m.doDiscardConns, m.undoDiscardConns)
 	return m, nil
 }
 
@@ -87,40 +84,6 @@ func Disconnect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (
 	return state.NewTaskSet(task), nil
 }
 
-func getPlugAndSlotRefs(task *state.Task) (*interfaces.PlugRef, *interfaces.SlotRef, error) {
-	var plugRef interfaces.PlugRef
-	var slotRef interfaces.SlotRef
-	if err := task.Get("plug", &plugRef); err != nil {
-		return nil, nil, err
-	}
-	if err := task.Get("slot", &slotRef); err != nil {
-		return nil, nil, err
-	}
-	return &plugRef, &slotRef, nil
-}
-
-func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
-	task.State().Lock()
-	defer task.State().Unlock()
-
-	plugRef, slotRef, err := getPlugAndSlotRefs(task)
-	if err != nil {
-		return err
-	}
-	return m.repo.Connect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
-}
-
-func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
-	task.State().Lock()
-	defer task.State().Unlock()
-
-	plugRef, slotRef, err := getPlugAndSlotRefs(task)
-	if err != nil {
-		return err
-	}
-	return m.repo.Disconnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
-}
-
 // Ensure implements StateManager.Ensure.
 func (m *InterfaceManager) Ensure() error {
 	m.runner.Ensure()
@@ -136,4 +99,25 @@ func (m *InterfaceManager) Wait() {
 func (m *InterfaceManager) Stop() {
 	m.runner.Stop()
 
+}
+
+// Repository returns the interface repository used internally by the manager.
+//
+// This method has two use-cases:
+// - it is needed for setting up state in daemon tests
+// - it is needed to return the set of known interfaces in the daemon api
+//
+// In the second case it is only informational and repository has internal
+// locks to ensure consistency.
+func (m *InterfaceManager) Repository() *interfaces.Repository {
+	return m.repo
+}
+
+// MockSecurityBackends mocks the list of security backends that are used for setting up security.
+//
+// This function is public because it is referenced in the daemon
+func MockSecurityBackends(backends []interfaces.SecurityBackend) func() {
+	old := securityBackends
+	securityBackends = backends
+	return func() { securityBackends = old }
 }

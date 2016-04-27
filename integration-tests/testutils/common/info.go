@@ -21,33 +21,20 @@
 package common
 
 import (
-	"bufio"
-	"strings"
-
 	"gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
+	"github.com/ubuntu-core/snappy/osutil"
 )
 
 // dependency aliasing
-var execCommand = cli.ExecCommand
+var snappyCmd = "/usr/bin/snappy"
 
 // Release returns the release of the current snappy image
 func Release(c *check.C) string {
-	info := execCommand(c, "snappy", "info")
-	reader := strings.NewReader(info)
-	scanner := bufio.NewScanner(reader)
-	for scanner.Scan() {
-		if strings.HasPrefix(scanner.Text(), "release: ") {
-			releaseInfo := strings.TrimPrefix(scanner.Text(), "release: ")
-			if !strings.Contains(releaseInfo, "/") {
-				return releaseInfo
-			}
-
-			return strings.Split(releaseInfo, "/")[1]
-		}
+	// FIXME: use `snap info` once it is available again
+	if osutil.FileExists(snappyCmd) {
+		return "15.04"
 	}
-	c.Error("Release information not found")
-	c.FailNow()
-	return ""
+
+	return "rolling"
 }

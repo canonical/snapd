@@ -21,6 +21,7 @@ package client_test
 
 import (
 	"fmt"
+	"time"
 
 	"gopkg.in/check.v1"
 
@@ -28,66 +29,54 @@ import (
 )
 
 func (cs *clientSuite) TestClientSnapsCallsEndpoint(c *check.C) {
-	_, _ = cs.cli.Snaps()
+	_, _, _ = cs.cli.Snaps()
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/snaps")
-}
-
-func (cs *clientSuite) TestClientSnapsResultJSONHasNoSnaps(c *check.C) {
-	cs.rsp = `{
-		"type": "sync",
-		"result": {}
-	}`
-	_, err := cs.cli.Snaps()
-	c.Check(err, check.ErrorMatches, `.*no snaps`)
 }
 
 func (cs *clientSuite) TestClientSnapsInvalidSnapsJSON(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
-		"result": {
-			"snaps": "not a list of snaps"
-		}
+		"result": "not a list of snaps"
 	}`
-	_, err := cs.cli.Snaps()
-	c.Check(err, check.ErrorMatches, `.*failed to unmarshal snaps.*`)
+	_, _, err := cs.cli.Snaps()
+	c.Check(err, check.ErrorMatches, `.*cannot unmarshal.*`)
 }
 
 func (cs *clientSuite) TestClientSnaps(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
-		"result": {
-			"snaps": {
-				"hello-world.canonical": {
-					"description": "hello-world",
-					"download_size": 22212,
-					"icon": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
-					"installed_size": -1,
-					"name": "hello-world",
-					"developer": "canonical",
-					"resource": "/v2/snaps/hello-world.canonical",
-					"status": "not installed",
-					"type": "app",
-					"version": "1.0.18"
-				}
-			}
-		}
+		"result": [{
+			"summary": "salutation snap",
+			"description": "hello-world",
+			"download-size": 22212,
+			"icon": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
+			"installed-size": -1,
+			"name": "hello-world",
+			"developer": "canonical",
+			"resource": "/v2/snaps/hello-world.canonical",
+			"status": "available",
+			"type": "app",
+			"version": "1.0.18"
+		}],
+		"suggested-currency": "GBP"
 	}`
-	applications, err := cs.cli.Snaps()
+	applications, resultInfo, err := cs.cli.Snaps()
 	c.Check(err, check.IsNil)
-	c.Check(applications, check.DeepEquals, map[string]*client.Snap{
-		"hello-world.canonical": &client.Snap{
-			Description:   "hello-world",
-			DownloadSize:  22212,
-			Icon:          "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
-			InstalledSize: -1,
-			Name:          "hello-world",
-			Developer:     "canonical",
-			Status:        client.StatusNotInstalled,
-			Type:          client.TypeApp,
-			Version:       "1.0.18",
-		},
-	})
+	c.Check(applications, check.DeepEquals, []*client.Snap{{
+		Summary:       "salutation snap",
+		Description:   "hello-world",
+		DownloadSize:  22212,
+		Icon:          "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
+		InstalledSize: -1,
+		Name:          "hello-world",
+		Developer:     "canonical",
+		Status:        client.StatusAvailable,
+		Type:          client.TypeApp,
+		Version:       "1.0.18",
+	}})
+
+	c.Check(resultInfo.SuggestedCurrency, check.Equals, "GBP")
 }
 
 func (cs *clientSuite) TestClientFilterSnaps(c *check.C) {
@@ -101,14 +90,14 @@ func (cs *clientSuite) TestClientFilterSnaps(c *check.C) {
 		{client.SnapFilter{Sources: []string{"store"}}, "/v2/snaps", "sources=store"},
 		{client.SnapFilter{Sources: []string{"local", "store"}}, "/v2/snaps", "sources=local%2Cstore"},
 		{client.SnapFilter{Types: []string{"app"}}, "/v2/snaps", "types=app"},
-		{client.SnapFilter{Types: []string{"app", "framework"}}, "/v2/snaps", "types=app%2Cframework"},
+		{client.SnapFilter{Types: []string{"app", "kernel"}}, "/v2/snaps", "types=app%2Ckernel"},
 		{client.SnapFilter{Sources: []string{"local"}, Types: []string{"app"}}, "/v2/snaps", "sources=local&types=app"},
 		{client.SnapFilter{Query: "foo"}, "/v2/snaps", "q=foo"},
 		{client.SnapFilter{Query: "foo", Sources: []string{"local"}, Types: []string{"app"}}, "/v2/snaps", "q=foo&sources=local&types=app"},
 	}
 
 	for _, tt := range filterTests {
-		_, _ = cs.cli.FilterSnaps(tt.filter)
+		_, _, _ = cs.cli.FilterSnaps(tt.filter)
 		c.Check(cs.req.URL.Path, check.Equals, tt.path, check.Commentf("%v", tt.filter))
 		c.Check(cs.req.URL.RawQuery, check.Equals, tt.query, check.Commentf("%v", tt.filter))
 	}
@@ -122,10 +111,12 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
 		"result": {
+                        "summary": "bla bla",
 			"description": "WebRTC Video chat server for Snappy",
-			"download_size": 6930947,
+			"download-size": 6930947,
 			"icon": "/v2/icons/chatroom.ogra/icon",
-			"installed_size": 18976651,
+			"installed-size": 18976651,
+                        "install-date": "2016-01-02T15:04:05Z",
 			"name": "chatroom",
 			"developer": "ogra",
 			"resource": "/v2/snaps/chatroom.ogra",
@@ -135,15 +126,17 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 			"version": "0.1-8"
 		}
 	}`
-	pkg, err := cs.cli.Snap(pkgName)
+	pkg, _, err := cs.cli.Snap(pkgName)
 	c.Assert(cs.req.Method, check.Equals, "GET")
 	c.Assert(cs.req.URL.Path, check.Equals, fmt.Sprintf("/v2/snaps/%s", pkgName))
 	c.Assert(err, check.IsNil)
 	c.Assert(pkg, check.DeepEquals, &client.Snap{
+		Summary:       "bla bla",
 		Description:   "WebRTC Video chat server for Snappy",
 		DownloadSize:  6930947,
 		Icon:          "/v2/icons/chatroom.ogra/icon",
 		InstalledSize: 18976651,
+		InstallDate:   time.Date(2016, 1, 2, 15, 4, 5, 0, time.UTC),
 		Name:          "chatroom",
 		Developer:     "ogra",
 		Status:        client.StatusActive,

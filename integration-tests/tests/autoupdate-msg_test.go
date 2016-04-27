@@ -39,6 +39,8 @@ type autoupdateMsgSuite struct {
 // Test that there is a proper message if autoupdate runs in the
 // background
 func (s *autoupdateMsgSuite) TestAutoUpdateMessageIsPrinted(c *check.C) {
+	c.Skip("FIXME: port to snap")
+
 	cli.ExecCommand(c, "sudo", "systemctl", "start", "snappy-autopilot")
 
 	s.AddCleanup(func() {

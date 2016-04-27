@@ -21,63 +21,101 @@ package snapstate
 
 import (
 	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
+	"github.com/ubuntu-core/snappy/store"
 )
 
 type managerBackend interface {
-	InstallLocal(snap string, flags snappy.InstallFlags, meter progress.Meter) error
-	Download(name, channel string, meter progress.Meter) (string, string, error)
-	Update(name, channel string, flags snappy.InstallFlags, meter progress.Meter) error
-	Remove(name string, flags snappy.RemoveFlags, meter progress.Meter) error
-	Rollback(name, ver string, meter progress.Meter) (string, error)
-	Activate(name string, active bool, meter progress.Meter) error
+	// install releated
+	Download(name, channel string, checker func(*snap.Info) error, meter progress.Meter, auther store.Authenticator) (*snap.Info, string, error)
+	CheckSnap(snapFilePath string, curInfo *snap.Info, flags int) error
+	SetupSnap(snapFilePath string, si *snap.SideInfo, flags int) error
+	CopySnapData(newSnap, oldSnap *snap.Info, flags int) error
+	LinkSnap(info *snap.Info) error
+	// the undoers for install
+	UndoSetupSnap(s snap.PlaceInfo) error
+	UndoCopySnapData(newSnap *snap.Info, flags int) error
+
+	// remove releated
+	CanRemove(info *snap.Info, active bool) bool
+	UnlinkSnap(info *snap.Info, meter progress.Meter) error
+	RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error
+	RemoveSnapData(info *snap.Info) error
+
+	// testing helpers
+	Candidate(sideInfo *snap.SideInfo)
 }
 
 type defaultBackend struct{}
 
-func (s *defaultBackend) InstallLocal(snap string, flags snappy.InstallFlags, meter progress.Meter) error {
-	// FIXME: the name `snappy.Overlord` is confusing :/
-	_, err := (&snappy.Overlord{}).Install(snap, flags, meter)
-	return err
-}
+func (b *defaultBackend) Candidate(*snap.SideInfo) {}
 
-func (s *defaultBackend) Update(name, channel string, flags snappy.InstallFlags, meter progress.Meter) error {
-	// FIXME: support "channel" in snappy.Update()
-	_, err := snappy.Update(name, flags, meter)
-	return err
-}
-
-func (s *defaultBackend) Remove(name string, flags snappy.RemoveFlags, meter progress.Meter) error {
-	return snappy.Remove(name, flags, meter)
-}
-
-func (s *defaultBackend) Rollback(name, ver string, meter progress.Meter) (string, error) {
-	return snappy.Rollback(name, ver, meter)
-}
-
-func (s *defaultBackend) Activate(name string, active bool, meter progress.Meter) error {
-	return snappy.SetActive(name, active, meter)
-}
-
-func (s *defaultBackend) Download(name, channel string, meter progress.Meter) (string, string, error) {
+func (b *defaultBackend) Download(name, channel string, checker func(*snap.Info) error, meter progress.Meter, auther store.Authenticator) (*snap.Info, string, error) {
 	mStore := snappy.NewConfiguredUbuntuStoreSnapRepository()
-	snap, err := mStore.Snap(name, channel)
+	snap, err := mStore.Snap(name, channel, auther)
 	if err != nil {
-		return "", "", err
+		return nil, "", err
 	}
 
-	downloadedSnapFile, err := mStore.Download(snap, meter)
+	err = checker(snap)
 	if err != nil {
-		return "", "", err
+		return nil, "", err
 	}
 
-	// FIXME: add undo task so that we delete the store manifest
-	//        again if we can not install the snap
-	// XXX: do this a bit later?
-	// XXX: pass in also info from the parsed yaml from the file?
-	if err := snappy.SaveManifest(snap); err != nil {
-		return "", "", err
+	downloadedSnapFile, err := mStore.Download(snap, meter, auther)
+	if err != nil {
+		return nil, "", err
 	}
 
-	return downloadedSnapFile, snap.Developer, nil
+	return snap, downloadedSnapFile, nil
+}
+
+func (b *defaultBackend) CheckSnap(snapFilePath string, curInfo *snap.Info, flags int) error {
+	meter := &progress.NullProgress{}
+	return snappy.CheckSnap(snapFilePath, curInfo, snappy.InstallFlags(flags), meter)
+}
+
+func (b *defaultBackend) SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, flags int) error {
+	meter := &progress.NullProgress{}
+	_, err := snappy.SetupSnap(snapFilePath, sideInfo, snappy.InstallFlags(flags), meter)
+	return err
+}
+
+func (b *defaultBackend) CopySnapData(newInfo, oldInfo *snap.Info, flags int) error {
+	meter := &progress.NullProgress{}
+	return snappy.CopyData(newInfo, oldInfo, snappy.InstallFlags(flags), meter)
+}
+
+func (b *defaultBackend) LinkSnap(info *snap.Info) error {
+	meter := &progress.NullProgress{}
+	return snappy.LinkSnap(info, meter)
+}
+
+func (b *defaultBackend) UndoSetupSnap(s snap.PlaceInfo) error {
+	meter := &progress.NullProgress{}
+	snappy.UndoSetupSnap(s, meter)
+	return nil
+}
+
+func (b *defaultBackend) UndoCopySnapData(newInfo *snap.Info, flags int) error {
+	meter := &progress.NullProgress{}
+	snappy.UndoCopyData(newInfo, snappy.InstallFlags(flags), meter)
+	return nil
+}
+
+func (b *defaultBackend) CanRemove(info *snap.Info, active bool) bool {
+	return snappy.CanRemove(info, active)
+}
+
+func (b *defaultBackend) UnlinkSnap(info *snap.Info, meter progress.Meter) error {
+	return snappy.UnlinkSnap(info, meter)
+}
+
+func (b *defaultBackend) RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error {
+	return snappy.RemoveSnapFiles(s, meter)
+}
+
+func (b *defaultBackend) RemoveSnapData(info *snap.Info) error {
+	return snappy.RemoveSnapData(info)
 }

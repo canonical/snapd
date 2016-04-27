@@ -31,6 +31,7 @@ type snapDetails struct {
 	AnonDownloadURL string             `json:"anon_download_url,omitempty"`
 	Channel         string             `json:"channel,omitempty"`
 	DownloadSha512  string             `json:"download_sha512,omitempty"`
+	Summary         string             `json:"summary,omitempty"`
 	Description     string             `json:"description,omitempty"`
 	DownloadSize    int64              `json:"binary_filesize,omitempty"`
 	DownloadURL     string             `json:"download_url,omitempty"`
@@ -41,6 +42,7 @@ type snapDetails struct {
 	Publisher       string             `json:"publisher,omitempty"`
 	RatingsAverage  float64            `json:"ratings_average,omitempty"`
 	Revision        int                `json:"revision"`
+	SnapID          string             `json:"snap_id"`
 	SupportURL      string             `json:"support_url"`
 	Title           string             `json:"title"`
 	Type            snap.Type          `json:"content,omitempty"`

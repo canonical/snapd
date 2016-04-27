@@ -31,7 +31,7 @@ import (
 	"github.com/ubuntu-core/snappy/store"
 )
 
-// InstallFlags can be used to pass additional flags to the install of a
+// SetupFlags can be used to pass additional flags to the install of a
 // snap
 type InstallFlags uint
 
@@ -49,17 +49,13 @@ const (
 )
 
 func installRemote(mStore *store.SnapUbuntuStoreRepository, remoteSnap *snap.Info, flags InstallFlags, meter progress.Meter) (string, error) {
-	downloadedSnap, err := mStore.Download(remoteSnap, meter)
+	downloadedSnap, err := mStore.Download(remoteSnap, meter, nil)
 	if err != nil {
-		return "", fmt.Errorf("cannot download %s: %s", remoteSnap.Name, err)
+		return "", fmt.Errorf("cannot download %s: %s", remoteSnap.Name(), err)
 	}
 	defer os.Remove(downloadedSnap)
 
-	if err := SaveManifest(remoteSnap); err != nil {
-		return "", err
-	}
-
-	localSnap, err := (&Overlord{}).Install(downloadedSnap, flags, meter)
+	localSnap, err := (&Overlord{}).InstallWithSideInfo(downloadedSnap, &remoteSnap.SideInfo, flags, meter)
 	if err != nil {
 		return "", err
 	}
@@ -70,13 +66,13 @@ func installRemote(mStore *store.SnapUbuntuStoreRepository, remoteSnap *snap.Inf
 func doUpdate(mStore *store.SnapUbuntuStoreRepository, rsnap *snap.Info, flags InstallFlags, meter progress.Meter) error {
 	_, err := installRemote(mStore, rsnap, flags, meter)
 	if err == ErrSideLoaded {
-		logger.Noticef("Skipping sideloaded package: %s", rsnap.Name)
+		logger.Noticef("Skipping sideloaded package: %s", rsnap.Name())
 		return nil
 	} else if err != nil {
 		return err
 	}
 
-	if err := GarbageCollect(rsnap.Name, flags, meter); err != nil {
+	if err := GarbageCollect(rsnap.Name(), flags, meter); err != nil {
 		return err
 	}
 
@@ -104,7 +100,7 @@ func convertToInstalledSnaps(remoteUpdates []*snap.Info) ([]*Snap, error) {
 	installedUpdates := make([]*Snap, 0, len(remoteUpdates))
 	for _, snap := range remoteUpdates {
 		for _, installed := range installed {
-			if snap.Name == installed.Name() && snap.Version == installed.Version() {
+			if snap.Name() == installed.Name() && snap.Version == installed.Version() {
 				installedUpdates = append(installedUpdates, installed)
 			}
 		}
@@ -122,13 +118,13 @@ func snapUpdates(repo *store.SnapUbuntuStoreRepository) (snaps []*snap.Info, err
 		return nil, err
 	}
 
-	rsnaps, err := repo.Updates(installed)
+	rsnaps, err := repo.Updates(installed, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, rsnap := range rsnaps {
-		current := ActiveSnapByName(rsnap.Name)
+		current := ActiveSnapByName(rsnap.Name())
 		if current == nil || current.Revision() != rsnap.Revision {
 			snaps = append(snaps, rsnap)
 		}
@@ -172,7 +168,7 @@ func Update(name string, flags InstallFlags, meter progress.Meter) ([]*Snap, err
 	}
 	var update *snap.Info
 	for _, upd := range updates {
-		if cur[0].Name() == upd.Name {
+		if cur[0].Name() == upd.Name() {
 			update = upd
 			break
 		}
@@ -204,7 +200,7 @@ func UpdateAll(flags InstallFlags, meter progress.Meter) ([]*Snap, error) {
 	}
 
 	for _, snap := range updates {
-		meter.Notify(fmt.Sprintf("Updating %s (%s)", snap.Name, snap.Version))
+		meter.Notify(fmt.Sprintf("Updating %s (%s)", snap.Name(), snap.Version))
 		if err := doUpdate(mStore, snap, flags, meter); err != nil {
 			return nil, err
 		}
@@ -259,16 +255,16 @@ func doInstall(name, channel string, flags InstallFlags, meter progress.Meter) (
 		return "", err
 	}
 
-	snap, err := mStore.Snap(name, channel)
+	snap, err := mStore.Snap(name, channel, nil)
 	if err != nil {
 		return "", err
 	}
 
-	cur := FindSnapsByNameAndVersion(snap.Name, snap.Version, installed)
+	cur := FindSnapsByNameAndVersion(snap.Name(), snap.Version, installed)
 	if len(cur) != 0 {
 		return "", ErrAlreadyInstalled
 	}
-	if PackageNameActive(snap.Name) {
+	if PackageNameActive(snap.Name()) {
 		return "", ErrPackageNameAlreadyInstalled
 	}
 
@@ -296,6 +292,7 @@ func GarbageCollect(name string, flags InstallFlags, pb progress.Meter) error {
 		return nil
 	}
 
+	// FIXME: sort by revision sequence
 	sort.Sort(snaps)
 	active := -1 // active is the index of the active snap in snaps (-1 if no active snap)
 

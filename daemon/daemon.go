@@ -20,34 +20,30 @@
 package daemon
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"net/http"
-	"sync"
+	"strings"
 	"time"
 
 	"github.com/coreos/go-systemd/activation"
 	"github.com/gorilla/mux"
 	"gopkg.in/tomb.v2"
 
-	"github.com/ubuntu-core/snappy/interfaces"
-	"github.com/ubuntu-core/snappy/interfaces/builtin"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/notifications"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/overlord"
+	"github.com/ubuntu-core/snappy/store"
 )
 
 // A Daemon listens for requests and routes them to the right command
 type Daemon struct {
-	sync.RWMutex // for concurrent access to the tasks map
-	overlord     *overlord.Overlord
-	tasks        map[string]*Task
-	listener     net.Listener
-	tomb         tomb.Tomb
-	router       *mux.Router
-	hub          *notifications.Hub
-	interfaces   *interfaces.Repository
+	overlord *overlord.Overlord
+	listener net.Listener
+	tomb     tomb.Tomb
+	router   *mux.Router
+	hub      *notifications.Hub
 	// enableInternalInterfaceActions controls if adding and removing slots and plugs is allowed.
 	enableInternalInterfaceActions bool
 }
@@ -63,6 +59,8 @@ type Command struct {
 	PUT    ResponseFunc
 	POST   ResponseFunc
 	DELETE ResponseFunc
+	// can sudoer do stuff?
+	SudoerOK bool
 	// can guest GET?
 	GuestOK bool
 	// can non-admin GET?
@@ -71,13 +69,32 @@ type Command struct {
 	d *Daemon
 }
 
+var isUIDInAny = osutil.IsUIDInAny
+
 func (c *Command) canAccess(r *http.Request) bool {
+	state := c.d.overlord.State()
+	state.Lock()
+	_, err := UserFromRequest(state, r)
+	state.Unlock()
+	if err == nil {
+		// authenticated user does anything
+		return true
+	}
+
 	isUser := false
 	if uid, err := ucrednetGetUID(r.RemoteAddr); err == nil {
 		if uid == 0 {
 			// superuser does anything
 			return true
 		}
+
+		if c.SudoerOK && isUIDInAny(uid, "sudo", "admin") {
+			// if user is in a group that grants sudo in
+			// the default install, and the command says
+			// that's ok, then it's ok
+			return true
+		}
+
 		isUser = true
 	}
 
@@ -148,7 +165,10 @@ func logit(handler http.Handler) http.Handler {
 		t0 := time.Now()
 		handler.ServeHTTP(ww, r)
 		t := time.Now().Sub(t0)
-		logger.Debugf("%s %s %s %s %d", r.RemoteAddr, r.Method, r.URL, t, ww.s)
+		url := r.URL.String()
+		if !strings.Contains(url, "/changes/") {
+			logger.Debugf("%s %s %s %s %d", r.RemoteAddr, r.Method, r.URL, t, ww.s)
+		}
 	})
 }
 
@@ -214,42 +234,16 @@ func (d *Daemon) Dying() <-chan struct{} {
 	return d.tomb.Dying()
 }
 
-// AddTask runs the given function as a task
-func (d *Daemon) AddTask(f func() interface{}) *Task {
-	t := RunTask(f)
-	d.Lock()
-	defer d.Unlock()
-	d.tasks[t.UUID()] = t
-
-	return t
-}
-
-// GetTask retrieves a task from the tasks map, by uuid.
-func (d *Daemon) GetTask(uuid string) *Task {
-	d.RLock()
-	defer d.RUnlock()
-	return d.tasks[uuid]
-}
-
-var (
-	errTaskNotFound     = errors.New("task not found")
-	errTaskStillRunning = errors.New("task still running")
-)
-
-// DeleteTask removes a task from the tasks map, by uuid.
-func (d *Daemon) DeleteTask(uuid string) error {
-	d.Lock()
-	defer d.Unlock()
-	task, ok := d.tasks[uuid]
-	if !ok || task == nil {
-		return errTaskNotFound
+func (d *Daemon) auther(r *http.Request) (store.Authenticator, error) {
+	overlord := d.overlord
+	state := overlord.State()
+	state.Lock()
+	user, err := UserFromRequest(state, r)
+	state.Unlock()
+	if err != nil {
+		return nil, err
 	}
-	if task.State() != TaskRunning {
-		delete(d.tasks, uuid)
-		return nil
-	}
-
-	return errTaskStillRunning
+	return user.Authenticator(), nil
 }
 
 // New Daemon
@@ -258,17 +252,9 @@ func New() (*Daemon, error) {
 	if err != nil {
 		return nil, err
 	}
-	interfacesRepo := interfaces.NewRepository()
-	for _, iface := range builtin.Interfaces() {
-		if err := interfacesRepo.AddInterface(iface); err != nil {
-			return nil, err
-		}
-	}
 	return &Daemon{
-		overlord:   ovld,
-		tasks:      make(map[string]*Task),
-		hub:        notifications.NewHub(),
-		interfaces: interfacesRepo,
+		overlord: ovld,
+		hub:      notifications.NewHub(),
 		// TODO: Decide when this should be disabled by default.
 		enableInternalInterfaceActions: true,
 	}, nil

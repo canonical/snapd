@@ -26,6 +26,8 @@ import (
 
 	"github.com/gorilla/mux"
 	"gopkg.in/check.v1"
+
+	"github.com/ubuntu-core/snappy/overlord/auth"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -44,7 +46,7 @@ func newTestDaemon(c *check.C) *Daemon {
 	return d
 }
 
-// aResponse suitable for testing
+// a Response suitable for testing
 type mockHandler struct {
 	cmd        *Command
 	lastMethod string
@@ -65,7 +67,7 @@ func mkRF(c *check.C, cmd *Command, mck *mockHandler) ResponseFunc {
 }
 
 func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
-	cmd := &Command{}
+	cmd := &Command{d: newTestDaemon(c)}
 	mck := &mockHandler{cmd: cmd}
 	rf := mkRF(c, cmd, mck)
 	cmd.GET = rf
@@ -104,19 +106,19 @@ func (s *daemonSuite) TestGuestAccess(c *check.C) {
 	pst := &http.Request{Method: "POST"}
 	del := &http.Request{Method: "DELETE"}
 
-	cmd := &Command{}
+	cmd := &Command{d: newTestDaemon(c)}
 	c.Check(cmd.canAccess(get), check.Equals, false)
 	c.Check(cmd.canAccess(put), check.Equals, false)
 	c.Check(cmd.canAccess(pst), check.Equals, false)
 	c.Check(cmd.canAccess(del), check.Equals, false)
 
-	cmd = &Command{UserOK: true}
+	cmd = &Command{d: newTestDaemon(c), UserOK: true}
 	c.Check(cmd.canAccess(get), check.Equals, false)
 	c.Check(cmd.canAccess(put), check.Equals, false)
 	c.Check(cmd.canAccess(pst), check.Equals, false)
 	c.Check(cmd.canAccess(del), check.Equals, false)
 
-	cmd = &Command{GuestOK: true}
+	cmd = &Command{d: newTestDaemon(c), GuestOK: true}
 	c.Check(cmd.canAccess(get), check.Equals, true)
 	c.Check(cmd.canAccess(put), check.Equals, false)
 	c.Check(cmd.canAccess(pst), check.Equals, false)
@@ -127,32 +129,60 @@ func (s *daemonSuite) TestUserAccess(c *check.C) {
 	get := &http.Request{Method: "GET", RemoteAddr: "uid=42;"}
 	put := &http.Request{Method: "PUT", RemoteAddr: "uid=42;"}
 
-	cmd := &Command{}
+	cmd := &Command{d: newTestDaemon(c)}
 	c.Check(cmd.canAccess(get), check.Equals, false)
 	c.Check(cmd.canAccess(put), check.Equals, false)
 
-	cmd = &Command{UserOK: true}
+	cmd = &Command{d: newTestDaemon(c), UserOK: true}
 	c.Check(cmd.canAccess(get), check.Equals, true)
 	c.Check(cmd.canAccess(put), check.Equals, false)
 
-	cmd = &Command{GuestOK: true}
+	cmd = &Command{d: newTestDaemon(c), GuestOK: true}
 	c.Check(cmd.canAccess(get), check.Equals, true)
 	c.Check(cmd.canAccess(put), check.Equals, false)
+}
+
+func (s *daemonSuite) TestGroupAccess(c *check.C) {
+	oldf := isUIDInAny
+	isSudo := false
+	isUIDInAny = func(uint32, ...string) bool {
+		return isSudo
+	}
+	defer func() {
+		isUIDInAny = oldf
+	}()
+
+	get := &http.Request{Method: "GET", RemoteAddr: "uid=42;"}
+	put := &http.Request{Method: "PUT", RemoteAddr: "uid=42;"}
+
+	cmd := &Command{d: newTestDaemon(c)}
+	c.Check(cmd.canAccess(get), check.Equals, false)
+	c.Check(cmd.canAccess(put), check.Equals, false)
+
+	isSudo = false
+	cmd = &Command{d: newTestDaemon(c), SudoerOK: true}
+	c.Check(cmd.canAccess(get), check.Equals, false)
+	c.Check(cmd.canAccess(put), check.Equals, false)
+
+	isSudo = true
+	cmd = &Command{d: newTestDaemon(c), SudoerOK: true}
+	c.Check(cmd.canAccess(get), check.Equals, true)
+	c.Check(cmd.canAccess(put), check.Equals, true)
 }
 
 func (s *daemonSuite) TestSuperAccess(c *check.C) {
 	get := &http.Request{Method: "GET", RemoteAddr: "uid=0;"}
 	put := &http.Request{Method: "PUT", RemoteAddr: "uid=0;"}
 
-	cmd := &Command{}
+	cmd := &Command{d: newTestDaemon(c)}
 	c.Check(cmd.canAccess(get), check.Equals, true)
 	c.Check(cmd.canAccess(put), check.Equals, true)
 
-	cmd = &Command{UserOK: true}
+	cmd = &Command{d: newTestDaemon(c), UserOK: true}
 	c.Check(cmd.canAccess(get), check.Equals, true)
 	c.Check(cmd.canAccess(put), check.Equals, true)
 
-	cmd = &Command{GuestOK: true}
+	cmd = &Command{d: newTestDaemon(c), GuestOK: true}
 	c.Check(cmd.canAccess(get), check.Equals, true)
 	c.Check(cmd.canAccess(put), check.Equals, true)
 }
@@ -176,4 +206,43 @@ func (s *daemonSuite) TestAddRoutes(c *check.C) {
 	// XXX: still waiting to know how to check d.router.NotFoundHandler has been set to NotFound
 	//      the old test relied on undefined behaviour:
 	//      c.Check(fmt.Sprintf("%p", d.router.NotFoundHandler), check.Equals, fmt.Sprintf("%p", NotFound))
+}
+
+func (s *daemonSuite) TestAutherNoAuth(c *check.C) {
+	req, _ := http.NewRequest("GET", "http://example.com", nil)
+
+	d := newTestDaemon(c)
+	user, err := d.auther(req)
+
+	c.Check(err, check.Equals, auth.ErrInvalidAuth)
+	c.Check(user, check.IsNil)
+}
+
+func (s *daemonSuite) TestAutherInvalidAuth(c *check.C) {
+	req, _ := http.NewRequest("GET", "http://example.com", nil)
+	req.Header.Set("Authorization", `Macaroon root="macaroon"`)
+
+	d := newTestDaemon(c)
+	user, err := d.auther(req)
+
+	c.Check(err, check.ErrorMatches, "invalid authorization header")
+	c.Check(user, check.IsNil)
+}
+
+func (s *daemonSuite) TestAutherValidUser(c *check.C) {
+	d := newTestDaemon(c)
+
+	state := d.overlord.State()
+	state.Lock()
+	expectedUser, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	state.Unlock()
+	c.Check(err, check.IsNil)
+
+	req, _ := http.NewRequest("GET", "http://example.com", nil)
+	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
+
+	user, err := d.auther(req)
+
+	c.Check(err, check.IsNil)
+	c.Check(user, check.DeepEquals, expectedUser.Authenticator())
 }

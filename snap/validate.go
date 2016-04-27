@@ -35,3 +35,63 @@ func ValidateName(name string) error {
 	}
 	return nil
 }
+
+// Validate verifies the content in the info.
+func Validate(info *Info) error {
+	name := info.Name()
+	if name == "" {
+		return fmt.Errorf("snap name cannot be empty")
+	}
+	err := ValidateName(name)
+	if err != nil {
+		return err
+	}
+
+	// validate app entries
+	for _, app := range info.Apps {
+		err := ValidateApp(app)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateField(name, cont string, whitelist *regexp.Regexp) error {
+	if !whitelist.MatchString(cont) {
+		return fmt.Errorf("app description field '%s' contains illegal %q (legal: '%s')", name, cont, whitelist)
+
+	}
+	return nil
+}
+
+// appContentWhitelist is the whitelist of legal chars in the "apps"
+// section of snap.yaml
+var appContentWhitelist = regexp.MustCompile(`^[A-Za-z0-9/. _#:-]*$`)
+
+// ValidateApp verifies the content in the app info.
+func ValidateApp(app *AppInfo) error {
+	switch app.Daemon {
+	case "", "simple", "forking", "oneshot", "dbus":
+		// valid
+	default:
+		return fmt.Errorf(`"daemon" field contains invalid value %q`, app.Daemon)
+	}
+
+	checks := map[string]string{
+		"name":              app.Name,
+		"command":           app.Command,
+		"stop-command":      app.Stop,
+		"post-stop-command": app.PostStop,
+		"socket-mode":       app.SocketMode,
+		"listen-stream":     app.ListenStream,
+		"bus-name":          app.BusName,
+	}
+
+	for name, value := range checks {
+		if err := validateField(name, value, appContentWhitelist); err != nil {
+			return err
+		}
+	}
+	return nil
+}

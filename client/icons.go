@@ -36,7 +36,7 @@ type Icon struct {
 func (c *Client) Icon(pkgID string) (*Icon, error) {
 	const errPrefix = "cannot retrieve icon"
 
-	response, err := c.raw("GET", fmt.Sprintf("/v2/icons/%s/icon", pkgID), nil, nil)
+	response, err := c.raw("GET", fmt.Sprintf("/v2/icons/%s/icon", pkgID), nil, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("%s: failed to communicate with server: %s", errPrefix, err)
 	}
