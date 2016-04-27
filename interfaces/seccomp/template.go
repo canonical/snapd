@@ -224,6 +224,7 @@ mincore
 mkdir
 mkdirat
 mlock
+mlock2
 mlockall
 mmap
 mmap2
