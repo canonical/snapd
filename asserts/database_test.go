@@ -397,7 +397,7 @@ func (safs *signAddFindSuite) TestAddSuperseding(c *C) {
 
 	err = safs.db.Add(a1)
 	c.Check(err, ErrorMatches, "assertion added must have more recent revision than current one.*")
-	_, ok := err.(*asserts.InvalidRevisionError)
+	_, ok := err.(*asserts.SupersededRevisionError)
 	c.Check(ok, Equals, true)
 }
 

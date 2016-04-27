@@ -89,12 +89,13 @@ var (
 	ErrNotFound = errors.New("assertion not found")
 )
 
-// InvalidRevisionError describes an error related to the revision of an assertion.
-type InvalidRevisionError struct {
+// SupersededRevisionError is the error returned when an assertion is added
+// with a revision that is not greater than the revision currently stored.
+type SupersededRevisionError struct {
 	Current, Revision int
 }
 
-func (err InvalidRevisionError) Error() string {
+func (err SupersededRevisionError) Error() string {
 	return fmt.Sprintf(
 		"assertion added must have more recent revision than current one (adding %d, currently %d)",
 		err.Revision, err.Current)

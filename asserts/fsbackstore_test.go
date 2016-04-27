@@ -101,5 +101,5 @@ func (fsbss *fsBackstoreSuite) TestPutOldRevision(c *C) {
 
 	c.Check(err, ErrorMatches,
 		`assertion added must have more recent revision than current one \(adding 0, currently 1\)`)
-	c.Check(err, DeepEquals, &asserts.InvalidRevisionError{Current: 1, Revision: 0})
+	c.Check(err, DeepEquals, &asserts.SupersededRevisionError{Current: 1, Revision: 0})
 }

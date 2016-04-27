@@ -59,7 +59,7 @@ func (leaf memBSLeaf) put(key []string, assert Assertion) error {
 		rev := assert.Revision()
 		curRev := cur.Revision()
 		if curRev >= rev {
-			return &InvalidRevisionError{Current: curRev, Revision: rev}
+			return &SupersededRevisionError{Current: curRev, Revision: rev}
 		}
 	}
 	leaf[key0] = assert
