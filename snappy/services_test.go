@@ -93,8 +93,8 @@ X-Snappy=yes
 [Service]
 ExecStart=/usr/bin/ubuntu-core-launcher snap.xkcd-webserver.xkcd-webserver snap.xkcd-webserver.xkcd-webserver /snap/xkcd-webserver/44/bin/foo start
 Restart=on-failure
-WorkingDirectory=/var/snap/xkcd-webserver/44/
-Environment="SNAP=/snap/xkcd-webserver/44/" "SNAP_DATA=/var/snap/xkcd-webserver/44/" "SNAP_NAME=xkcd-webserver" "SNAP_VERSION=0.3.4" "SNAP_REVISION=44" "SNAP_ARCH=%[3]s" "SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:" "SNAP_USER_DATA=/root/snap/xkcd-webserver/44/"
+WorkingDirectory=/var/snap/xkcd-webserver/44
+Environment="SNAP=/snap/xkcd-webserver/44" "SNAP_DATA=/var/snap/xkcd-webserver/44" "SNAP_SHARED_DATA=/var/snap/xkcd-webserver/shared" "SNAP_NAME=xkcd-webserver" "SNAP_VERSION=0.3.4" "SNAP_REVISION=44" "SNAP_ARCH=%[3]s" "SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:" "SNAP_USER_DATA=/root/snap/xkcd-webserver/44" "SNAP_USER_SHARED_DATA=/root/snap/xkcd-webserver/shared"
 ExecStop=/usr/bin/ubuntu-core-launcher snap.xkcd-webserver.xkcd-webserver snap.xkcd-webserver.xkcd-webserver /snap/xkcd-webserver/44/bin/foo stop
 ExecStopPost=/usr/bin/ubuntu-core-launcher snap.xkcd-webserver.xkcd-webserver snap.xkcd-webserver.xkcd-webserver /snap/xkcd-webserver/44/bin/foo post-stop
 TimeoutStopSec=30
@@ -123,7 +123,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceTypeForking(c *C) {
 		StopTimeout: timeout.DefaultTimeout,
 		Daemon:      "forking",
 	}
-	pkgPath := "/snap/xkcd-webserver/44/"
+	pkgPath := "/snap/xkcd-webserver/44"
 
 	generatedWrapper, err := generateSnapServicesFile(service, pkgPath)
 	c.Assert(err, IsNil)
@@ -144,7 +144,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceAppWrapper(c *C) {
 		StopTimeout: timeout.DefaultTimeout,
 		Daemon:      "simple",
 	}
-	pkgPath := "/snap/xkcd-webserver/44/"
+	pkgPath := "/snap/xkcd-webserver/44"
 
 	generatedWrapper, err := generateSnapServicesFile(service, pkgPath)
 	c.Assert(err, IsNil)
@@ -162,7 +162,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceRestart(c *C) {
 		RestartCond: systemd.RestartOnAbort,
 		Daemon:      "simple",
 	}
-	pkgPath := "/snap/xkcd-webserver/44/"
+	pkgPath := "/snap/xkcd-webserver/44"
 
 	generatedWrapper, err := generateSnapServicesFile(service, pkgPath)
 	c.Assert(err, IsNil)
@@ -183,7 +183,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWrapperWhitelist(c *C) {
 		StopTimeout: timeout.DefaultTimeout,
 		Daemon:      "simple",
 	}
-	pkgPath := "/snap/xkcd-webserver/44/"
+	pkgPath := "/snap/xkcd-webserver/44"
 
 	_, err := generateSnapServicesFile(service, pkgPath)
 	c.Assert(err, NotNil)
@@ -238,7 +238,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapSocket(c *C) {
 		SocketMode:   "0660",
 		Daemon:       "simple",
 	}
-	pkgPath := "/snap/xkcd-webserver/44/"
+	pkgPath := "/snap/xkcd-webserver/44"
 
 	content, err := generateSnapSocketFile(service, pkgPath)
 	c.Assert(err, IsNil)
@@ -273,7 +273,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWithSocket(c *C) {
 		Socket:      true,
 		Daemon:      "simple",
 	}
-	pkgPath := "/snap/xkcd-webserver/44/"
+	pkgPath := "/snap/xkcd-webserver/44"
 
 	generatedWrapper, err := generateSnapServicesFile(service, pkgPath)
 	c.Assert(err, IsNil)

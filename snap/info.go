@@ -45,8 +45,14 @@ type PlaceInfo interface {
 	// DataDir returns the data directory of the snap.
 	DataDir() string
 
+	// SharedDataDir returns the data directory shared between versions of the snap.
+	SharedDataDir() string
+
 	// DataHomeDir returns the per user data directory of the snap.
 	DataHomeDir() string
+
+	// SharedDataHomeDir returns the per user data directory shared between versions of the snap.
+	SharedDataHomeDir() string
 }
 
 // MinimalPlaceInfo returns a PlaceInfo with just the location information for a snap of the given name and revision.
@@ -157,9 +163,19 @@ func (s *Info) DataDir() string {
 	return filepath.Join(dirs.SnapDataDir, s.Name(), s.strRevno())
 }
 
+// SharedDataDir returns the data directory shared between versions of the snap.
+func (s *Info) SharedDataDir() string {
+	return filepath.Join(dirs.SnapDataDir, s.Name(), "shared")
+}
+
 // DataHomeDir returns the per user data directory of the snap.
 func (s *Info) DataHomeDir() string {
 	return filepath.Join(dirs.SnapDataHomeGlob, s.Name(), s.strRevno())
+}
+
+// SharedDataHomeDir returns the per user data directory shared between versions of the snap.
+func (s *Info) SharedDataHomeDir() string {
+	return filepath.Join(dirs.SnapDataHomeGlob, s.Name(), "shared")
 }
 
 // sanity check that Info is a PlacInfo

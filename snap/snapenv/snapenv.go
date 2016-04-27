@@ -21,6 +21,7 @@ package snapenv
 
 import (
 	"bytes"
+	"path/filepath"
 	"strings"
 	"text/template"
 
@@ -43,9 +44,12 @@ func MakeMapFromEnvList(env []string) map[string]string {
 }
 
 func fillSnapEnvVars(desc interface{}, vars []string) []string {
+	funcMap := template.FuncMap{
+		"CleanPath": filepath.Clean,
+	}
 	for i, v := range vars {
 		var templateOut bytes.Buffer
-		t := template.Must(template.New("wrapper").Parse(v))
+		t := template.Must(template.New("wrapper").Funcs(funcMap).Parse(v))
 		if err := t.Execute(&templateOut, desc); err != nil {
 			// this can never happen, except we forget a variable
 			logger.Panicf("Unable to execute template: %v", err)
@@ -63,6 +67,7 @@ func GetBasicSnapEnvVars(desc interface{}) []string {
 	return fillSnapEnvVars(desc, []string{
 		"SNAP={{.SnapPath}}",
 		"SNAP_DATA=/var{{.SnapPath}}",
+		"SNAP_SHARED_DATA={{CleanPath (printf \"/var%s/../shared\" .SnapPath)}}",
 		"SNAP_NAME={{.SnapName}}",
 		"SNAP_VERSION={{.Version}}",
 		"SNAP_REVISION={{.Revision}}",
@@ -78,5 +83,6 @@ func GetBasicSnapEnvVars(desc interface{}) []string {
 func GetUserSnapEnvVars(desc interface{}) []string {
 	return fillSnapEnvVars(desc, []string{
 		"SNAP_USER_DATA={{.Home}}{{.SnapPath}}",
+		"SNAP_USER_SHARED_DATA={{CleanPath (printf \"%s%s/../shared\" .Home .SnapPath)}}",
 	})
 }
