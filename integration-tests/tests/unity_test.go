@@ -56,32 +56,29 @@ func (s *unitySuite) TestUnitySnapCanBeStarted(c *check.C) {
 	err = mainCmd.Start()
 	c.Assert(err, check.IsNil, check.Commentf("error starting %s, %v", appName, err))
 
-	if mainCmd.Process != nil {
-		expected := `(?ms).*"qmlscene: clockMainView": \("qmlscene" "com\.ubuntu\.clock"\).*`
-		err = wait.ForFunction(c, expected, func() (string, error) {
-			probeCmd := exec.Command("xwininfo", "-tree", "-root")
-			probeCmd.Env = append(os.Environ(), "DISPLAY="+display)
+	c.Assert(mainCmd.Progress, check.Not(check.IsNil))
 
-			// the following error is ignored because of the failure of the first wininfo calls,
-			// "xwininfo: error: unable to open display" before xvfb has created the xserver.
-			// We won't loose the real error conditions, if there's a problem wait.ForFunction won't
-			// find the given pattern and below the output of the command is printed
-			outputByte, _ := probeCmd.CombinedOutput()
-			output := string(outputByte)
-			fmt.Println("xwininfo: ", output)
+	expected := `(?ms).*"qmlscene: clockMainView": \("qmlscene" "com\.ubuntu\.clock"\).*`
+	err = wait.ForFunction(c, expected, func() (string, error) {
+		probeCmd := exec.Command("xwininfo", "-tree", "-root")
+		probeCmd.Env = append(os.Environ(), "DISPLAY="+display)
 
-			return output, nil
-		})
-		c.Assert(err, check.IsNil, check.Commentf("error getting window info: %v", err))
+		// the following error is ignored because of the failure of the first wininfo calls,
+		// "xwininfo: error: unable to open display" before xvfb has created the xserver.
+		// We won't loose the real error conditions, if there's a problem wait.ForFunction won't
+		// find the given pattern and below the output of the command is printed
+		outputByte, _ := probeCmd.CombinedOutput()
+		output := string(outputByte)
+		fmt.Println(output)
 
-		err = mainCmd.Process.Kill()
-		c.Assert(err, check.IsNil, check.Commentf("error interrupting %s, %v", appName, err))
+		return output, nil
+	})
+	c.Assert(err, check.IsNil, check.Commentf("error getting window info: %v", err))
 
-		// at this point the Xvfb, ubuntu-clock-app.clock and qmlscene processes are still alive
-		//and the snap can't be removed
-		cli.ExecCommand(c, "sudo", "killall", "-9", appBinaryName, "Xvfb", "qmlscene")
-		c.Assert(err, check.IsNil, check.Commentf("error killing remaining processes: %v", err))
-	} else {
-		c.Fatalf("%s process is nil", appName)
-	}
+	err = mainCmd.Process.Kill()
+	c.Assert(err, check.IsNil, check.Commentf("error interrupting %s, %v", appName, err))
+
+	// at this point the Xvfb, ubuntu-clock-app.clock and qmlscene processes are still alive
+	//and the snap can't be removed
+	cli.ExecCommand(c, "sudo", "killall", "-9", appBinaryName, "Xvfb", "qmlscene")
 }
