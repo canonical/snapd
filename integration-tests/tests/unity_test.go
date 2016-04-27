@@ -56,7 +56,7 @@ func (s *unitySuite) TestUnitySnapCanBeStarted(c *check.C) {
 	err = mainCmd.Start()
 	c.Assert(err, check.IsNil, check.Commentf("error starting %s, %v", appName, err))
 
-	c.Assert(mainCmd.Progress, check.Not(check.IsNil))
+	c.Assert(mainCmd.Process, check.Not(check.IsNil))
 
 	expected := `(?ms).*"qmlscene: clockMainView": \("qmlscene" "com\.ubuntu\.clock"\).*`
 	err = wait.ForFunction(c, expected, func() (string, error) {
