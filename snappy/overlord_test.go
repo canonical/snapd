@@ -589,3 +589,29 @@ apps:
 	_, err := (&Overlord{}).InstallWithSideInfo(snapPath, si, 0, &MockProgressMeter{})
 	c.Assert(err, NotNil)
 }
+
+// Test that openSnapFile has correct snap.SideInfo and snap.Info in leaf objects
+// like apps, plugs and slots.
+func (s *SnapTestSuite) TestOpenSnapFile(c *C) {
+	snapYamlContent := `name: foo
+apps:
+ bar:
+  command: bin/bar
+plugs:
+  plug:
+slots:
+ slot:
+`
+	snapPath := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
+	// Use InstallWithSideInfo, this is just a cheap way to call openSnapFile
+	snapInfo, err := (&Overlord{}).InstallWithSideInfo(snapPath, fooSI10, AllowUnauthenticated, nil)
+	c.Assert(err, IsNil)
+
+	// Ensure that side info is correctly stored
+	c.Check(snapInfo.SideInfo, DeepEquals, *fooSI10)
+	// Ensure that all leaf objects link back to the same snapInfo with
+	// sideInfo and not to some copy.
+	c.Check(snapInfo.Apps["bar"].Snap, Equals, snapInfo)
+	c.Check(snapInfo.Plugs["plug"].Snap, Equals, snapInfo)
+	c.Check(snapInfo.Slots["slot"].Snap, Equals, snapInfo)
+}

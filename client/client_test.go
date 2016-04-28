@@ -257,3 +257,12 @@ func (cs *clientSuite) TestParseError(c *check.C) {
 	err = client.ParseErrorInTest(resp)
 	c.Check(err, check.ErrorMatches, `server error: "400 Bad Request"`)
 }
+
+func (cs *clientSuite) TestIsTwoFactor(c *check.C) {
+	c.Check(client.IsTwoFactorError(&client.Error{Kind: client.ErrorKindTwoFactorRequired}), check.Equals, true)
+	c.Check(client.IsTwoFactorError(&client.Error{Kind: client.ErrorKindTwoFactorFailed}), check.Equals, true)
+	c.Check(client.IsTwoFactorError(&client.Error{Kind: "some other kind"}), check.Equals, false)
+	c.Check(client.IsTwoFactorError(errors.New("test")), check.Equals, false)
+	c.Check(client.IsTwoFactorError(nil), check.Equals, false)
+	c.Check(client.IsTwoFactorError((*client.Error)(nil)), check.Equals, false)
+}

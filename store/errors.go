@@ -25,11 +25,6 @@ import (
 	"net/url"
 )
 
-const (
-	// TwoFactorErrKind is the error kind to be returned if 2FA is needed
-	TwoFactorErrKind = "two-factor-required"
-)
-
 var (
 	// ErrSnapNotFound is returned when a snap can not be found
 	ErrSnapNotFound = errors.New("snap not found")
@@ -39,6 +34,9 @@ var (
 
 	// ErrAuthenticationNeeds2fa is returned if the authentication needs 2factor
 	ErrAuthenticationNeeds2fa = errors.New("two factor authentication required")
+
+	// Err2faFailed is returned when 2fa failed (e.g., a bad token was given)
+	Err2faFailed = errors.New("two factor authentication failed")
 
 	// ErrInvalidCredentials is returned on login error
 	ErrInvalidCredentials = errors.New("invalid credentials")
