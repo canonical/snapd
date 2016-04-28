@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/ubuntu-core/snappy/client"
@@ -46,10 +47,11 @@ func (s snapsByName) Len() int           { return len(s) }
 func (s snapsByName) Less(i, j int) bool { return s[i].Name < s[j].Name }
 func (s snapsByName) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
-func (cmdList) Execute([]string) error {
+func (cmdList) Execute(args []string) error {
 	cli := Client()
 	filter := client.SnapFilter{
 		Sources: []string{"local"},
+		Query:   strings.Join(args, ","),
 	}
 	snaps, _, err := cli.FilterSnaps(filter)
 	if err != nil {
