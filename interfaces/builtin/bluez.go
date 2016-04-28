@@ -21,8 +21,6 @@ package builtin
 
 import (
 	"bytes"
-	"fmt"
-	"sort"
 
 	"github.com/ubuntu-core/snappy/interfaces"
 )
@@ -207,31 +205,7 @@ func (iface *BluezInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *i
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		old := []byte("@SLOT_SECURITY_TAGS@")
-		var new []byte
-		switch {
-		case len(slot.Apps) == 1:
-			for appName := range slot.Apps {
-				new = []byte(fmt.Sprintf("snap.%s.%s", slot.Snap.Name(), appName))
-			}
-		case len(slot.Apps) == len(slot.Snap.Apps):
-			new = []byte(fmt.Sprintf("snap.%s.*", slot.Snap.Name()))
-		case len(slot.Apps) != len(slot.Snap.Apps):
-			buf := bytes.NewBuffer(nil)
-			fmt.Fprintf(buf, "snap.%s.{", slot.Snap.Name())
-			appNames := make([]string, 0, len(slot.Apps))
-			for appName := range slot.Apps {
-				appNames = append(appNames, appName)
-			}
-			sort.Strings(appNames)
-			for i, appName := range appNames {
-				if i > 0 {
-					fmt.Fprintf(buf, ",")
-				}
-				fmt.Fprintf(buf, appName)
-			}
-			fmt.Fprintf(buf, "}")
-			new = buf.Bytes()
-		}
+		new := slotAppLabelExpr(slot)
 		snippet := bytes.Replace(bluezConnectedPlugAppArmor, old, new, -1)
 		return snippet, nil
 	case interfaces.SecuritySecComp:
