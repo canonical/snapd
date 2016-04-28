@@ -73,7 +73,7 @@ func (mbss *memBackstoreSuite) TestPutNotNewer(c *C) {
 	c.Assert(err, IsNil)
 
 	err = mbss.bs.Put(asserts.TestOnlyType, mbss.a)
-	c.Check(err, ErrorMatches, "assertion added must have more recent revision than current one.*")
+	c.Check(err, ErrorMatches, "revision 0 is already the current revision")
 }
 
 func (mbss *memBackstoreSuite) TestSearch(c *C) {
@@ -168,4 +168,31 @@ func (mbss *memBackstoreSuite) TestSearch2Levels(c *C) {
 	}, cb)
 	c.Assert(err, IsNil)
 	c.Check(found, HasLen, 2)
+}
+
+func (mbss *memBackstoreSuite) TestPutOldRevision(c *C) {
+	bs := asserts.NewMemoryBackstore()
+
+	// Create two revisions of assertion.
+	a0, err := asserts.Decode([]byte("type: test-only\n" +
+		"authority-id: auth-id1\n" +
+		"primary-key: foo\n" +
+		"\n" +
+		"openpgp c2ln"))
+	c.Assert(err, IsNil)
+	a1, err := asserts.Decode([]byte("type: test-only\n" +
+		"authority-id: auth-id1\n" +
+		"primary-key: foo\n" +
+		"revision: 1\n" +
+		"\n" +
+		"openpgp c2ln"))
+	c.Assert(err, IsNil)
+
+	// Put newer revision, follwed by old revision.
+	err = bs.Put(asserts.TestOnlyType, a1)
+	c.Assert(err, IsNil)
+	err = bs.Put(asserts.TestOnlyType, a0)
+
+	c.Check(err, ErrorMatches, `revision 0 is older than current revision 1`)
+	c.Check(err, DeepEquals, &asserts.RevisionError{Current: 1, Used: 0})
 }
