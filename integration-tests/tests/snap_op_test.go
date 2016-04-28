@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"time"
 
 	"gopkg.in/check.v1"
 
@@ -124,7 +125,14 @@ func (s *snapOpSuite) TestRemoveBusyRetries(c *check.C) {
 	output, err := cli.ExecCommandErr("sudo", "snap", "remove", data.BasicBinariesSnapName)
 	c.Check(err, check.IsNil)
 	c.Check(output, testutil.Contains, `will retry: `)
-	<-ch
+
+	// wait for the goroutine to finish so that we can do the final
+	// check that we have no pending changes
+	select {
+	case <-ch:
+	case <-time.After(5 * time.Minute):
+		c.Errorf("busy retry test timed out after 5 minutes")
+	}
 
 	// ensure no changes are left in Doing state
 	output = cli.ExecCommand(c, "snap", "changes")
