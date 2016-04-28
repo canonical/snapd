@@ -1147,7 +1147,7 @@ func (s *apiSuite) TestSideloadSnap(c *check.C) {
 	// try a multipart/form-data upload
 	body := "" +
 		"----hello--\r\n" +
-		"Content-Disposition: form-data; name=\"x\"; filename=\"x\"\r\n" +
+		"Content-Disposition: form-data; name=\"snap\"; filename=\"x\"\r\n" +
 		"\r\n" +
 		"xyzzy\r\n" +
 		"----hello--\r\n" +
@@ -1157,13 +1157,13 @@ func (s *apiSuite) TestSideloadSnap(c *check.C) {
 		"----hello--\r\n"
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 	chgSummary := s.sideloadCheck(c, body, head, 0, false)
-	c.Check(chgSummary, check.Equals, `Install "local" snap from snap file "a/b/local.snap"`)
+	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
 }
 
 func (s *apiSuite) TestSideloadSnapDevMode(c *check.C) {
 	body := "" +
 		"----hello--\r\n" +
-		"Content-Disposition: form-data; name=\"x\"; filename=\"x\"\r\n" +
+		"Content-Disposition: form-data; name=\"snap\"; filename=\"x\"\r\n" +
 		"\r\n" +
 		"xyzzy\r\n" +
 		"----hello--\r\n" +
@@ -1174,20 +1174,39 @@ func (s *apiSuite) TestSideloadSnapDevMode(c *check.C) {
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 	// try a multipart/form-data upload
 	chgSummary := s.sideloadCheck(c, body, head, snappy.DeveloperMode, true)
-	c.Check(chgSummary, check.Equals, `Install "local" snap from snap file`)
+	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
+}
+
+func (s *apiSuite) TestSideloadSnapNotValidFormFile(c *check.C) {
+	d := newTestDaemon(c)
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
+	// try a multipart/form-data upload with missing "name"
+	content := "" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; filename=\"x\"\r\n" +
+		"\r\n" +
+		"xyzzy\r\n" +
+		"----hello--\r\n"
+	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
+
+	buf := bytes.NewBufferString(content)
+	req, err := http.NewRequest("POST", "/v2/snaps", buf)
+	c.Assert(err, check.IsNil)
+	for k, v := range head {
+		req.Header.Set(k, v)
+	}
+
+	rsp := sideloadSnap(snapsCmd, req).(*resp)
+	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
+	c.Assert(rsp.Result.(*errorResult).Message, check.Matches, `cannot find "snap" file field in provided multipart/form-data payload`)
 }
 
 func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]string, expectedFlags snappy.InstallFlags, hasUbuntuCore bool) string {
 	d := newTestDaemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
-
-	tmpfile, err := ioutil.TempFile("", "test-")
-	c.Assert(err, check.IsNil)
-	_, err = tmpfile.WriteString(content)
-	c.Check(err, check.IsNil)
-	_, err = tmpfile.Seek(0, 0)
-	c.Check(err, check.IsNil)
 
 	// setup done
 	installQueue := []string{}
@@ -1223,7 +1242,8 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 		return state.NewTaskSet(t), nil
 	}
 
-	req, err := http.NewRequest("POST", "/v2/snaps", tmpfile)
+	buf := bytes.NewBufferString(content)
+	req, err := http.NewRequest("POST", "/v2/snaps", buf)
 	c.Assert(err, check.IsNil)
 	for k, v := range head {
 		req.Header.Set(k, v)
