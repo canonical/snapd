@@ -2616,6 +2616,8 @@ func (s *apiSuite) TestStateChange(c *check.C) {
 	st := d.overlord.State()
 	st.Lock()
 	ids := setupChanges(st)
+	chg := st.Change(ids[0])
+	chg.Set("api-data", map[string]int{"n": 42})
 	st.Unlock()
 	s.vars = map[string]string{"id": ids[0]}
 
@@ -2660,6 +2662,9 @@ func (s *apiSuite) TestStateChange(c *check.C) {
 				"progress":   map[string]interface{}{"done": 0., "total": 1.},
 				"spawn-time": "2016-04-21T01:02:03Z",
 			},
+		},
+		"data": map[string]interface{}{
+			"n": float64(42),
 		},
 	})
 }
