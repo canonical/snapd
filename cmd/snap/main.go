@@ -129,11 +129,19 @@ func init() {
 	}
 }
 
+var accessDeniedHelp = `Access denied.
+
+Please use "sudo" or the "snap login <userid>" command
+`
+
 func main() {
 	if err := run(); err != nil {
 		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
 			fmt.Fprintf(Stdout, "%v\n", err)
 			os.Exit(0)
+		} else if e, ok := err.(*client.Error); ok && e.Message == "access denied" {
+			fmt.Fprintf(Stderr, accessDeniedHelp)
+			os.Exit(1)
 		} else {
 			fmt.Fprintf(Stderr, "error: %v\n", err)
 			os.Exit(1)
