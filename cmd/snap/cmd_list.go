@@ -53,10 +53,14 @@ func (s snapsByName) Less(i, j int) bool { return s[i].Name < s[j].Name }
 func (s snapsByName) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 func (x *cmdList) Execute([]string) error {
+	return listSnaps(x.Positional.Snaps)
+}
+
+func listSnaps(args []string) error {
 	cli := Client()
 	filter := client.SnapFilter{
 		Sources: []string{"local"},
-		Query:   strings.Join(x.Positional.Snaps, ","),
+		Query:   strings.Join(args, ","),
 	}
 	snaps, _, err := cli.FilterSnaps(filter)
 	if err != nil {

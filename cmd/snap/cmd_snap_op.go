@@ -149,7 +149,7 @@ func (x *cmdInstall) Execute([]string) error {
 	if err := wait(cli, changeID); err != nil {
 		return err
 	}
-	return (&cmdList{}).Execute([]string{name})
+	return listSnaps([]string{name})
 }
 
 type cmdRefresh struct {
@@ -171,7 +171,7 @@ func (x *cmdRefresh) Execute([]string) error {
 	if err := wait(cli, changeID); err != nil {
 		return err
 	}
-	return (&cmdList{}).Execute([]string{name})
+	return listSnaps([]string{name})
 }
 
 func init() {
