@@ -55,7 +55,7 @@ func (s *SnapSuite) TestInstall(c *check.C) {
 		case 3:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
-			fmt.Fprintln(w, `{"type": "sync", "result": [{"name": "foo", "status": "active", "version": "42", "developer": "bar"}]}`)
+			fmt.Fprintln(w, `{"type": "sync", "result": [{"name": "foo", "status": "active", "version": "1.0", "developer": "bar", "revision":42}]}`)
 		default:
 			c.Fatalf("expected to get 4 requests, now on %d", n+1)
 		}
@@ -65,7 +65,7 @@ func (s *SnapSuite) TestInstall(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"install", "--channel", "chan", "foo.bar"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	//c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo\s+1.0\s+42\s+bar.*`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(n, check.Equals, 4)
@@ -97,7 +97,7 @@ func (s *SnapSuite) TestInstallDevMode(c *check.C) {
 		case 3:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
-			fmt.Fprintln(w, `{"type": "sync", "result": [{"name": "foo", "status": "active", "version": "42", "developer": "bar"}]}`)
+			fmt.Fprintln(w, `{"type": "sync", "result": [{"name": "foo", "status": "active", "version": "1.0", "developer": "bar", "revision":42}]}`)
 		default:
 			c.Fatalf("expected to get 4 requests, now on %d", n+1)
 		}
@@ -107,7 +107,7 @@ func (s *SnapSuite) TestInstallDevMode(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"install", "--channel", "chan", "--devmode", "foo.bar"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	//c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo\s+1.0\s+42\s+bar.*`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(n, check.Equals, 4)
@@ -140,7 +140,7 @@ func (s *SnapSuite) TestInstallPath(c *check.C) {
 		case 3:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
-			fmt.Fprintln(w, `{"type": "sync", "result": [{"name": "foo", "status": "active", "version": "42", "developer": "bar"}]}`)
+			fmt.Fprintln(w, `{"type": "sync", "result": [{"name": "foo", "status": "active", "version": "1.0", "developer": "bar", "revision":42}]}`)
 		default:
 			c.Fatalf("expected to get 4 requests, now on %d", n+1)
 		}
@@ -154,7 +154,7 @@ func (s *SnapSuite) TestInstallPath(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"install", snapPath})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	//c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo\s+1.0\s+42\s+bar.*`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(n, check.Equals, 4)
@@ -187,7 +187,7 @@ func (s *SnapSuite) TestInstallPathDevMode(c *check.C) {
 		case 3:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
-			fmt.Fprintln(w, `{"type": "sync", "result": [{"name": "foo", "status": "active", "version": "42", "developer": "bar"}]}`)
+			fmt.Fprintln(w, `{"type": "sync", "result": [{"name": "foo", "status": "active", "version": "1.0", "developer": "bar", "revision":42}]}`)
 		default:
 			c.Fatalf("expected to get 4 requests, now on %d", n)
 		}
@@ -201,7 +201,7 @@ func (s *SnapSuite) TestInstallPathDevMode(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"install", "--devmode", snapPath})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	//c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo\s+1.0\s+42\s+bar.*`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(n, check.Equals, 4)
