@@ -21,7 +21,6 @@ package builtin
 
 import (
 	"github.com/ubuntu-core/snappy/interfaces"
-	"regexp"
 )
 
 var bluezPermanentSlotAppArmor = []byte(`
@@ -82,8 +81,6 @@ var bluezPermanentSlotAppArmor = []byte(`
       interface=org.freedesktop.DBus.**,
 `)
 
-var repre = regexp.MustCompile("###[A-Z]+###")
-
 var bluezConnectedPlugAppArmor = []byte(`
 # Description: Allow using bluez service. Reserved because this gives
 #  privileged access to the bluez service.
@@ -94,7 +91,7 @@ var bluezConnectedPlugAppArmor = []byte(`
 # Allow all access to bluez service
 dbus (receive, send)
     bus=system
-    peer=(label=snap.###SLOTLABEL###.*),
+    peer=(label=bluez5_bluez_*),
 
 dbus (send)
     bus=system
@@ -202,15 +199,7 @@ func (iface *BluezInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *i
 	case interfaces.SecurityDBus:
 		return bluezConnectedPlugDBus, nil
 	case interfaces.SecurityAppArmor:
-		policy := repre.ReplaceAllFunc(bluezConnectedPlugAppArmor, func(v []byte) []byte {
-			switch string(v) {
-			case "###SLOTNAME###":
-				// FIXME: this needs to be <snapname>.<app>
-				return []byte(slot.Snap.Name())
-			}
-			return v
-		})
-		return policy, nil
+		return bluezConnectedPlugAppArmor, nil
 	case interfaces.SecuritySecComp:
 		return bluezConnectedPlugSecComp, nil
 	case interfaces.SecurityUDev:
