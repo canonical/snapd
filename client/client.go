@@ -218,7 +218,7 @@ const (
 
 func IsTwoFactorError(err error) bool {
 	e, ok := err.(*Error)
-	if !ok {
+	if !ok || e == nil {
 		return false
 	}
 
