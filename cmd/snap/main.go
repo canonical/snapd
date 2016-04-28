@@ -129,10 +129,7 @@ func init() {
 	}
 }
 
-var accessDeniedHelp = `Access denied.
-
-Please use "sudo" or the "snap login <userid>" command
-`
+var accessDeniedHelp = "Access denied (snap login --help).\n"
 
 func main() {
 	if err := run(); err != nil {
