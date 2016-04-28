@@ -241,7 +241,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 		c.Check(r.URL.Path, Equals, "/search")
 
 		q := r.URL.Query()
-		c.Check(q.Get("q"), Equals, "package_name:hello-world")
+		c.Check(q.Get("q"), Equals, "package_name:\"hello-world\"")
 		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
 
 		w.Header().Set("X-Suggested-Currency", "GBP")
@@ -309,7 +309,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsOopses(c *C) {
 		c.Check(r.URL.Path, Equals, "/search")
 
 		q := r.URL.Query()
-		c.Check(q.Get("q"), Equals, "package_name:hello-world")
+		c.Check(q.Get("q"), Equals, `package_name:"hello-world"`)
 		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
 
 		w.Header().Set("X-Oops-Id", "OOPS-d4f46f75a5bcc10edcacc87e1fc0119f")
@@ -365,7 +365,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
 		c.Check(r.URL.Path, Equals, "/search")
 
 		q := r.URL.Query()
-		c.Check(q.Get("q"), Equals, "package_name:no-such-pkg")
+		c.Check(q.Get("q"), Equals, "package_name:\"no-such-pkg\"")
 		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
 		w.WriteHeader(404)
 		io.WriteString(w, MockNoDetailsJSON)
