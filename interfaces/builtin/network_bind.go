@@ -90,7 +90,10 @@ socket
 # have the socketcall() API on 4.2 and earlier kernels so we must allow it on
 # these systems. Allow only in network-bind since socketcall() allows bind(),
 # etc.
-# TODO: make this conditional based on kernel <4.3 and architecture=x86-32.
+# TODO: adjust to use SYS_BIND, etc with seccomp arg filtering and make this
+# conditional based on kernel <4.3 and architecture=x86-32. Long term we may
+# want to consider requiring 9dea5dc921b5f4045a18c63eb92e84dc274d17eb (which
+# adds the direct socket calls) and updating glibc to use them on i386.
 socketcall
 `
 
