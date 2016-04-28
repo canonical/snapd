@@ -89,16 +89,25 @@ var (
 	ErrNotFound = errors.New("assertion not found")
 )
 
-// SupersededRevisionError is the error returned when an assertion is added
-// with a revision that is not greater than the revision currently stored.
-type SupersededRevisionError struct {
-	Current, Revision int
+// RevisionError indicates a revision improperly used for an operation.
+type RevisionError struct {
+	Used, Current int
 }
 
-func (err SupersededRevisionError) Error() string {
-	return fmt.Sprintf(
-		"assertion added must have more recent revision than current one (adding %d, currently %d)",
-		err.Revision, err.Current)
+func (e *RevisionError) Error() string {
+	if e.Used < 0 {
+		return fmt.Sprintf("used assertion revision %d is unknown", e.Used)
+	}
+	if e.Current < 0 {
+		return fmt.Sprintf("current assertion revision %d is unknown", e.Current)
+	}
+	if e.Used == e.Current {
+		return fmt.Sprintf("revision %d is already the current revision", e.Used)
+	}
+	if e.Used < e.Current {
+		return fmt.Sprintf("revision %d is older than current revision %d", e.Used, e.Current)
+	}
+	return fmt.Sprintf("revision %d is more recent than current revision %d", e.Used, e.Current)
 }
 
 // A RODatabase exposes read-only access to an assertion database.

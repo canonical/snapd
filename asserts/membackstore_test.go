@@ -73,7 +73,7 @@ func (mbss *memBackstoreSuite) TestPutNotNewer(c *C) {
 	c.Assert(err, IsNil)
 
 	err = mbss.bs.Put(asserts.TestOnlyType, mbss.a)
-	c.Check(err, ErrorMatches, "assertion added must have more recent revision than current one.*")
+	c.Check(err, ErrorMatches, "revision 0 is already the current revision")
 }
 
 func (mbss *memBackstoreSuite) TestSearch(c *C) {
@@ -193,7 +193,6 @@ func (mbss *memBackstoreSuite) TestPutOldRevision(c *C) {
 	c.Assert(err, IsNil)
 	err = bs.Put(asserts.TestOnlyType, a0)
 
-	c.Check(err, ErrorMatches,
-		`assertion added must have more recent revision than current one \(adding 0, currently 1\)`)
-	c.Check(err, DeepEquals, &asserts.SupersededRevisionError{Current: 1, Revision: 0})
+	c.Check(err, ErrorMatches, `revision 0 is older than current revision 1`)
+	c.Check(err, DeepEquals, &asserts.RevisionError{Current: 1, Used: 0})
 }
