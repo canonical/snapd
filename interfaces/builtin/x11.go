@@ -25,10 +25,9 @@ import (
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/x
 const x11ConnectedPlugAppArmor = `
-# Description: Can access the X server. Note, X does not prevent eavesdropping
-# or apps interfering with one another. This is 'common' as a transition step
-# towards Mir and Unity 8.
-# Usage: common
+# Description: Can access the X server. Restricted because X does not prevent
+# eavesdropping or apps interfering with one another.
+# Usage: reserved
 
 #include <abstractions/X>
 #include <abstractions/fonts>
@@ -39,10 +38,9 @@ const x11ConnectedPlugAppArmor = `
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/x
 const x11ConnectedPlugSecComp = `
-# Description: Can access the X server. Note, X does not prevent eavesdropping
-# or apps interfering with one another. This is 'common' as a transition step
-# towards Mir and Unity 8.
-# Usage: common
+# Description: Can access the X server. Restricted because X does not prevent
+# eavesdropping or apps interfering with one another.
+# Usage: reserved
 
 getpeername
 getsockname
