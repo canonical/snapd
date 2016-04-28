@@ -29,7 +29,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 
 	"github.com/jessevdk/go-flags"
@@ -69,16 +68,17 @@ func (x *cmdBuild) Execute(args []string) (err error) {
 
 	_, err = exec.LookPath(clickReview)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: could not review package (%s not available)\n", clickReview)
+		fmt.Fprintf(Stderr, "Warning: could not review package (%s not available)\n", clickReview)
 	} else {
 		cmd := exec.Command(clickReview, snapPackage)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
+		cmd.Stdin = Stdin
+		cmd.Stdout = Stdout
+		cmd.Stderr = Stderr
 		// we ignore the error for now
 		_ = cmd.Run()
 	}
 
 	// TRANSLATORS: the %s is a pkgname
-	fmt.Printf(i18n.G("Generated '%s' snap\n"), snapPackage)
+	fmt.Fprintf(Stdout, i18n.G("Generated '%s' snap\n"), snapPackage)
 	return nil
 }
