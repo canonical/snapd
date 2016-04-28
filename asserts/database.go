@@ -95,11 +95,8 @@ type RevisionError struct {
 }
 
 func (e *RevisionError) Error() string {
-	if e.Used < 0 {
-		return fmt.Sprintf("used assertion revision %d is unknown", e.Used)
-	}
-	if e.Current < 0 {
-		return fmt.Sprintf("current assertion revision %d is unknown", e.Current)
+	if e.Used < 0 || e.Current < 0 {
+		return fmt.Sprintf("assertion revision is unknown")
 	}
 	if e.Used == e.Current {
 		return fmt.Sprintf("revision %d is already the current revision", e.Used)
