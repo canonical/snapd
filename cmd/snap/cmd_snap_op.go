@@ -149,6 +149,15 @@ func (x *cmdInstall) Execute([]string) error {
 	if err := wait(cli, changeID); err != nil {
 		return err
 	}
+
+	// extract the snapName from the change, important for sideloaded
+	if chg, err := cli.Change(changeID); err == nil {
+		var snapName string
+		if err := chg.Get("snap-name", &snapName); err == nil {
+			name = snapName
+		}
+	}
+
 	return listSnaps([]string{name})
 }
 
