@@ -25,6 +25,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/arch"
+	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/snap"
 )
 
@@ -32,6 +33,8 @@ type binariesTestSuite struct{}
 
 var _ = Suite(&binariesTestSuite{})
 
+// %[1]s: architecture name
+// %[2]s: dirs.GlobalRootDir
 const expectedWrapper = `#!/bin/sh
 set -e
 
@@ -53,7 +56,7 @@ export HOME="$SNAP_USER_DATA"
 # Snap name is: pastebinit
 # App name is: pastebinit
 
-ubuntu-core-launcher snap.pastebinit.pastebinit snap.pastebinit.pastebinit /snap/pastebinit/44/bin/pastebinit "$@"
+ubuntu-core-launcher snap.pastebinit.pastebinit snap.pastebinit.pastebinit %[2]s/snap/pastebinit/44/bin/pastebinit "$@"
 `
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
@@ -68,7 +71,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 		Command: "bin/pastebinit",
 	}
 
-	expected := fmt.Sprintf(expectedWrapper, arch.UbuntuArchitecture())
+	expected := fmt.Sprintf(expectedWrapper, arch.UbuntuArchitecture(), dirs.GlobalRootDir)
 
 	generatedWrapper, err := generateSnapBinaryWrapper(binary, pkgPath)
 	c.Assert(err, IsNil)

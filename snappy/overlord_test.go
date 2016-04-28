@@ -471,7 +471,7 @@ apps:
 
 	// ensure that the binary wrapper file go generated with the right
 	// path
-	oldSnapBin := filepath.Join(dirs.SnapSnapsDir[len(dirs.GlobalRootDir):], "foo", "10", "bin", "bar")
+	oldSnapBin := filepath.Join(dirs.SnapSnapsDir, "foo", "10", "bin", "bar")
 	binaryWrapper := filepath.Join(dirs.SnapBinariesDir, "foo.bar")
 	content, err := ioutil.ReadFile(binaryWrapper)
 	c.Assert(err, IsNil)
