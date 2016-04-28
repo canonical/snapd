@@ -39,7 +39,7 @@ type snapHelloWorldExampleSuite struct {
 }
 
 func installSnap(c *check.C, packageName string) string {
-	cli.ExecCommand(c, "sudo", "snap", "install", "--channel", "edge", packageName)
+	cli.ExecCommand(c, "sudo", "snap", "install", packageName)
 	// FIXME: should `snap install` shold show a list afterards?
 	//        like `snappy install`?
 	out := cli.ExecCommand(c, "snap", "list")
@@ -95,10 +95,7 @@ type snapPythonWebserverExampleSuite struct {
 }
 
 func (s *snapPythonWebserverExampleSuite) TestNetworkingServiceMustBeStarted(c *check.C) {
-	c.Skip("FIXME: re-enable when new-security supports auto-connect")
-
-	baseAppName := "xkcd-webserver"
-	appName := baseAppName + ".canonical"
+	appName := "xkcd-webserver"
 	installSnap(c, appName)
 	defer removeSnap(c, appName)
 
@@ -118,8 +115,6 @@ type snapGoWebserverExampleSuite struct {
 }
 
 func (s *snapGoWebserverExampleSuite) TestGetRootPathMustPrintMessage(c *check.C) {
-	c.Skip("FIXME: re-enable when new-security supports auto-connect")
-
 	appName := "go-example-webserver"
 	output := installSnap(c, appName)
 	defer removeSnap(c, appName)
