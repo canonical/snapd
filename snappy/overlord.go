@@ -134,10 +134,10 @@ func removeSquashfsMount(baseDir string, inter interacter) error {
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
 	unit := systemd.MountUnitPath(stripGlobalRootDir(baseDir), "mount")
 	if osutil.FileExists(unit) {
-		if err := sysd.Disable(filepath.Base(unit)); err != nil {
+		if err := sysd.Stop(filepath.Base(unit), time.Duration(1*time.Second)); err != nil {
 			return err
 		}
-		if err := sysd.Stop(filepath.Base(unit), time.Duration(1*time.Second)); err != nil {
+		if err := sysd.Disable(filepath.Base(unit)); err != nil {
 			return err
 		}
 		if err := os.Remove(unit); err != nil {
