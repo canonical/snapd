@@ -180,12 +180,7 @@ func init() {
 		panic(err)
 	}
 
-	myappsBaseURI, err := url.Parse(myappsURL())
-	if err != nil {
-		panic(err)
-	}
-
-	defaultConfig.PurchasesURI, err = myappsBaseURI.Parse("click/purchases/")
+	defaultConfig.PurchasesURI, err = url.Parse(myappsURL() + "/click/purchases/")
 	if err != nil {
 		panic(err)
 	}
