@@ -1157,7 +1157,7 @@ func (s *apiSuite) TestSideloadSnap(c *check.C) {
 		"----hello--\r\n"
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 	chgSummary := s.sideloadCheck(c, body, head, 0, false)
-	c.Check(chgSummary, check.Equals, `Install "local" snap from snap file "a/b/local.snap"`)
+	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
 }
 
 func (s *apiSuite) TestSideloadSnapDevMode(c *check.C) {
@@ -1174,7 +1174,7 @@ func (s *apiSuite) TestSideloadSnapDevMode(c *check.C) {
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 	// try a multipart/form-data upload
 	chgSummary := s.sideloadCheck(c, body, head, snappy.DeveloperMode, true)
-	c.Check(chgSummary, check.Equals, `Install "local" snap from snap file "x"`)
+	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
 }
 
 func (s *apiSuite) TestSideloadSnapNotValidFormFile(c *check.C) {
