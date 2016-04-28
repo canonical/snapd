@@ -102,11 +102,6 @@ apps:
 		return "", err
 	}
 
-	hashFile := filepath.Join(metaDir, "hashes.yaml")
-	if err := ioutil.WriteFile(hashFile, []byte("{}"), 0644); err != nil {
-		return "", err
-	}
-
 	si := snap.SideInfo{
 		OfficialName:      m.Name,
 		Revision:          revno,

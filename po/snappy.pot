@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-04-18 17:13+0200\n"
+        "POT-Creation-Date: 2016-04-28 11:32+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -24,6 +24,9 @@ msgid   "Activate %q snap"
 msgstr  ""
 
 msgid   "Adds an assertion to the system"
+msgstr  ""
+
+msgid   "Bad code. Try again: "
 msgstr  ""
 
 msgid   "Builds a snap package"
@@ -98,11 +101,15 @@ msgid   "Install %q snap"
 msgstr  ""
 
 #, c-format
-msgid   "Install %q snap file"
+msgid   "Install %q snap from %q channel"
 msgstr  ""
 
 #, c-format
-msgid   "Install %q snap from %q channel"
+msgid   "Install %q snap from file"
+msgstr  ""
+
+#, c-format
+msgid   "Install %q snap from file %q"
 msgstr  ""
 
 msgid   "Install a snap to the system"
@@ -215,6 +222,9 @@ msgid   "This command logs the given username into the store"
 msgstr  ""
 
 msgid   "Two-factor code: "
+msgstr  ""
+
+msgid   "Wrong again. Once more: "
 msgstr  ""
 
 msgid   "\n"
