@@ -53,6 +53,7 @@ const (
 
 func infoFromRemote(d snapDetails) *snap.Info {
 	info := &snap.Info{}
+	info.Architectures = d.Architectures
 	info.Type = d.Type
 	info.Version = d.Version
 	info.OfficialName = d.Name
@@ -301,12 +302,9 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string,
 	}
 
 	u := *s.searchURI // make a copy, so we can mutate it
-
-	if searchTerm != "" {
-		q := u.Query()
-		q.Set("q", "name:"+searchTerm)
-		u.RawQuery = q.Encode()
-	}
+	q := u.Query()
+	q.Set("q", searchTerm)
+	u.RawQuery = q.Encode()
 
 	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
@@ -322,6 +320,13 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string,
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return nil, &HTTPError{
+			Status:     resp.Status,
+			StatusCode: resp.StatusCode,
+		}
+	}
 
 	var searchData searchResults
 
