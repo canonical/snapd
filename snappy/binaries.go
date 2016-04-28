@@ -22,7 +22,6 @@ package snappy
 import (
 	"bytes"
 	"os"
-	"path/filepath"
 	"strings"
 	"text/template"
 
@@ -32,11 +31,6 @@ import (
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/snapenv"
 )
-
-// TODO: => AppInfo.CommandLine
-func binPathForBinary(pkgPath string, app *snap.AppInfo) string {
-	return filepath.Join(pkgPath, app.Command)
-}
 
 // Doesn't need to handle complications like internal quotes, just needs to
 // wrap right side of an env variable declaration with quotes for the shell.
@@ -66,8 +60,6 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 		return "", err
 	}
 
-	actualBinPath := binPathForBinary(pkgPath, app)
-
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("wrapper").Parse(wrapperTemplate))
 	wrapperData := struct {
@@ -92,7 +84,7 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 		Revision:    app.Snap.Revision,
 		UdevAppName: app.SecurityTag(),
 		Home:        "$HOME",
-		Target:      actualBinPath,
+		Target:      app.CommandLine(),
 		AaProfile:   app.SecurityTag(),
 	}
 
