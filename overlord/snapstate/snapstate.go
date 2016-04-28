@@ -160,6 +160,23 @@ func Update(s *state.State, name, channel string, userID int, flags snappy.Insta
 	return doInstall(s, snapst.Active, name, "", channel, userID, flags)
 }
 
+func removeInactiveRevision(s *state.State, name string, revision int, flags snappy.RemoveFlags) *state.TaskSet {
+	ss := SnapSetup{
+		Name:     name,
+		Revision: revision,
+		Flags:    int(flags),
+	}
+
+	clearData := s.NewTask("clear-snap", fmt.Sprintf(i18n.G("Remove data for snap %q"), name))
+	clearData.Set("snap-setup", ss)
+
+	discardSnap := s.NewTask("discard-snap", fmt.Sprintf(i18n.G("Remove snap %q from the system"), name))
+	discardSnap.WaitFor(clearData)
+	discardSnap.Set("snap-setup-task", clearData.ID())
+
+	return state.NewTaskSet(clearData, discardSnap)
+}
+
 // Remove returns a set of tasks for removing snap.
 // Note that the state must be locked by the caller.
 func Remove(s *state.State, name string, flags snappy.RemoveFlags) (*state.TaskSet, error) {
@@ -186,56 +203,54 @@ func Remove(s *state.State, name string, flags snappy.RemoveFlags) (*state.TaskS
 		return nil, err
 	}
 
+	// check if this is something that can be removed
+	if !backend.CanRemove(info, active) {
+		return nil, fmt.Errorf("snap %q is not removable", name)
+	}
+
+	// main/current SnapSetup
 	ss := SnapSetup{
 		Name:     name,
 		Revision: revision,
 		Flags:    int(flags),
 	}
 
-	// check if this is something that can be removed
-	if !backend.CanRemove(info, active) {
-		return nil, fmt.Errorf("snap %q is not removable", ss.Name)
-	}
-
 	// trigger remove
 
-	discardSnap := s.NewTask("discard-snap", fmt.Sprintf(i18n.G("Remove snap %q from the system"), name))
-	discardSnap.Set("snap-setup", ss)
+	full := state.NewTaskSet()
+	var chain *state.TaskSet
 
-	discardSnapID := discardSnap.ID()
-	tasks := ([]*state.Task)(nil)
-	var chain *state.Task
-	addNext := func(t *state.Task) {
+	addNext := func(ts *state.TaskSet) {
 		if chain != nil {
-			t.WaitFor(chain)
+			ts.WaitAll(chain)
 		}
-		if t.ID() != discardSnapID {
-			t.Set("snap-setup-task", discardSnapID)
-		}
-		tasks = append(tasks, t)
-		chain = t
+		full.AddAll(ts)
+		chain = ts
 	}
 
-	if active {
+	if active { // unlink
 		unlink := s.NewTask("unlink-snap", fmt.Sprintf(i18n.G("Make snap %q unavailable to the system"), name))
+		unlink.Set("snap-setup", ss)
 
-		addNext(unlink)
+		removeSecurity := s.NewTask("remove-profiles", fmt.Sprintf(i18n.G("Remove security profile for snap %q"), name))
+		removeSecurity.WaitFor(unlink)
+
+		removeSecurity.Set("snap-setup-task", unlink.ID())
+
+		addNext(state.NewTaskSet(unlink, removeSecurity))
 	}
 
-	removeSecurity := s.NewTask("remove-profiles", fmt.Sprintf(i18n.G("Remove security profile for snap %q"), name))
-	addNext(removeSecurity)
-
-	clearData := s.NewTask("clear-snap", fmt.Sprintf(i18n.G("Remove data for snap %q"), name))
-	addNext(clearData)
-
-	addNext(discardSnap)
-
-	if len(snapst.Sequence) == 1 {
-		discardConns := s.NewTask("discard-conns", fmt.Sprintf(i18n.G("Discard interface connections for snap %q"), name))
-		addNext(discardConns)
+	seq := snapst.Sequence
+	for i := len(seq) - 1; i >= 0; i-- {
+		si := seq[i]
+		addNext(removeInactiveRevision(s, name, si.Revision, flags))
 	}
 
-	return state.NewTaskSet(tasks...), nil
+	discardConns := s.NewTask("discard-conns", fmt.Sprintf(i18n.G("Discard interface connections for snap %q"), name))
+	discardConns.Set("snap-setup", &SnapSetup{Name: name})
+	addNext(state.NewTaskSet(discardConns))
+
+	return full, nil
 }
 
 // Rollback returns a set of tasks for rolling back a snap.
@@ -283,6 +298,19 @@ func Info(s *state.State, name string, revision int) (*snap.Info, error) {
 	}
 
 	return nil, fmt.Errorf("cannot find snap %q at revision %d", name, revision)
+}
+
+// Current returns the information about the current revision of a snap with the given name.
+func Current(s *state.State, name string) (*snap.Info, error) {
+	var snapst SnapState
+	err := Get(s, name, &snapst)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	if sideInfo := snapst.Current(); sideInfo != nil {
+		return readInfo(name, sideInfo)
+	}
+	return nil, fmt.Errorf("cannot find snap %q", name)
 }
 
 // Get retrieves the SnapState of the given snap.
