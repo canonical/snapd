@@ -96,7 +96,7 @@ func (fsbs *filesystemBackstore) Put(assertType *AssertionType, assert Assertion
 		curRev := curAssert.Revision()
 		rev := assert.Revision()
 		if curRev >= rev {
-			return &SupersededRevisionError{Current: curRev, Revision: rev}
+			return &RevisionError{Current: curRev, Used: rev}
 		}
 	} else if err != ErrNotFound {
 		return err
