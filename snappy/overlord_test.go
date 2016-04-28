@@ -24,7 +24,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -32,6 +31,7 @@ import (
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/systemd"
+	"github.com/ubuntu-core/snappy/testutil"
 )
 
 var helloAppYaml = `name: hello-snap
@@ -475,7 +475,7 @@ apps:
 	binaryWrapper := filepath.Join(dirs.SnapBinariesDir, "foo.bar")
 	content, err := ioutil.ReadFile(binaryWrapper)
 	c.Assert(err, IsNil)
-	c.Assert(strings.Contains(string(content), oldSnapBin), Equals, true)
+	c.Assert(string(content), testutil.Contains, oldSnapBin)
 
 	// and that it gets updated on upgrade
 	snapPath = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
@@ -484,7 +484,7 @@ apps:
 	newSnapBin := filepath.Join(dirs.SnapSnapsDir[len(dirs.GlobalRootDir):], "foo", "20", "bin", "bar")
 	content, err = ioutil.ReadFile(binaryWrapper)
 	c.Assert(err, IsNil)
-	c.Assert(strings.Contains(string(content), newSnapBin), Equals, true)
+	c.Assert(string(content), testutil.Contains, newSnapBin)
 }
 
 func (s *SnapTestSuite) TestSnappyHandleServicesOnInstall(c *C) {
