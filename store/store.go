@@ -240,43 +240,39 @@ func (s *SnapUbuntuStoreRepository) checkStoreResponse(resp *http.Response) {
 	}
 }
 
-/*
-purchase encapsulates the purchase data sent to us from the software center agent.
-
-This object type can be received in response to requests about the user's current
-purchases, and also when making purchase requests.
-
-When making a purchase request, the State "InProgress", together with a RedirectTo
-URL may be received. In-this case, the user must be directed to that webpage.
-Additionally, Partner ID may be recieved as an extended header "X-Partner-Id",
-this should be included in the follow-on requests to the redirect URL.
-
-HTTP/1.1 200 OK
-Content-Type: application/json; charset=utf-8
-
-[
-  {
-    "open_id": "https://login.staging.ubuntu.com/+id/open_id",
-    "package_name": "com.ubuntu.developer.dev.appname",
-    "refundable_until": "2015-07-15 18:46:21",
-    "state": "Complete"
-  },
-  {
-    "open_id": "https://login.staging.ubuntu.com/+id/open_id",
-    "package_name": "com.ubuntu.developer.dev.appname",
-    "item_sku": "item-1-sku",
-    "purchase_id": "1",
-    "refundable_until": null,
-    "state": "Complete"
-  },
-  {
-    "open_id": "https://login.staging.ubuntu.com/+id/open_id",
-    "package_name": "com.ubuntu.developer.dev.otherapp",
-    "refundable_until": "2015-07-17 11:33:29",
-    "state": "Complete"
-  }
-]
-*/
+// purchase encapsulates the purchase data sent to us from the software center agent.
+//
+// When making a purchase request, the State "InProgress", together with a RedirectTo
+// URL may be received. In-this case, the user must be directed to that webpage in
+// order to complete the purchase (e.g. to enter 3D-secure credentials).
+// Additionally, Partner ID may be recieved as an extended header "X-Partner-Id",
+// this should be included in the follow-on requests to the redirect URL.
+//
+// HTTP/1.1 200 OK
+// Content-Type: application/json; charset=utf-8
+//
+// [
+//   {
+//     "open_id": "https://login.staging.ubuntu.com/+id/open_id",
+//     "package_name": "com.ubuntu.developer.dev.appname",
+//     "refundable_until": "2015-07-15 18:46:21",
+//     "state": "Complete"
+//   },
+//   {
+//     "open_id": "https://login.staging.ubuntu.com/+id/open_id",
+//     "package_name": "com.ubuntu.developer.dev.appname",
+//     "item_sku": "item-1-sku",
+//     "purchase_id": "1",
+//     "refundable_until": null,
+//     "state": "Complete"
+//   },
+//   {
+//     "open_id": "https://login.staging.ubuntu.com/+id/open_id",
+//     "package_name": "com.ubuntu.developer.dev.otherapp",
+//     "refundable_until": "2015-07-17 11:33:29",
+//     "state": "Complete"
+//   }
+// ]
 type purchase struct {
 	OpenID          string `json:"open_id"`
 	SnapID          string `json:"snap_id"`
@@ -287,9 +283,7 @@ type purchase struct {
 	RedirectTo      string `json:"redirect_to,omitempty"`
 }
 
-type purchaseList []*purchase
-
-func (s *SnapUbuntuStoreRepository) getPurchasesFromURL(url *url.URL, channel string, auther Authenticator) (purchaseList, error) {
+func (s *SnapUbuntuStoreRepository) getPurchasesFromURL(url *url.URL, channel string, auther Authenticator) ([]*purchase, error) {
 	if auther == nil {
 		return nil, fmt.Errorf("cannot obtain known purchases from store: no authentication credentials provided")
 	}
@@ -308,7 +302,7 @@ func (s *SnapUbuntuStoreRepository) getPurchasesFromURL(url *url.URL, channel st
 	}
 	defer resp.Body.Close()
 
-	var purchases purchaseList
+	var purchases []*purchase
 
 	switch resp.StatusCode {
 	case http.StatusOK:
@@ -329,8 +323,8 @@ func (s *SnapUbuntuStoreRepository) getPurchasesFromURL(url *url.URL, channel st
 	return purchases, nil
 }
 
-// getPurchases retreives the user's purchases for a specific package, including in-app purchases, as a list
-func (s *SnapUbuntuStoreRepository) getPurchases(snapID, channel string, auther Authenticator) (purchaseList, error) {
+// getPurchases returns user purchases for a specific snap, including in-app.
+func (s *SnapUbuntuStoreRepository) getPurchases(snapID, channel string, auther Authenticator) ([]*purchase, error) {
 	purchasesURL, err := s.purchasesURI.Parse(snapID + "/")
 	if err != nil {
 		return nil, err
@@ -343,20 +337,20 @@ func (s *SnapUbuntuStoreRepository) getPurchases(snapID, channel string, auther 
 	return s.getPurchasesFromURL(purchasesURL, channel, auther)
 }
 
-// getAllPurchases retreives all the user's purchases, including in-app purchases, as a map indexed by Snap ID
-func (s *SnapUbuntuStoreRepository) getAllPurchases(channel string, auther Authenticator) (map[string]purchaseList, error) {
+// getAllPurchases returns all user purchases as a map indexed by snap id.
+func (s *SnapUbuntuStoreRepository) getAllPurchases(channel string, auther Authenticator) (map[string][]*purchase, error) {
 	purchases, err := s.getPurchasesFromURL(s.purchasesURI, channel, auther)
 	if err != nil {
 		return nil, err
 	}
 
 	// Index it all in a multimap
-	purchasesByName := make(map[string]purchaseList)
+	purchasesByID := make(map[string][]*purchase)
 	for _, purchase := range purchases {
-		purchasesByName[purchase.SnapID] = append(purchasesByName[purchase.SnapID], purchase)
+		purchasesByID[purchase.SnapID] = append(purchasesByID[purchase.SnapID], purchase)
 	}
 
-	return purchasesByName, nil
+	return purchasesByID, nil
 }
 
 // Snap returns the snap.Info for the store hosted snap with the given name or an error.

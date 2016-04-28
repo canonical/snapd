@@ -40,9 +40,6 @@ var (
 
 	// ErrInvalidCredentials is returned on login error
 	ErrInvalidCredentials = errors.New("invalid credentials")
-
-	// ErrTokenNeedsRefresh is returned when the store token has expired, and needs refreshing
-	ErrTokenNeedsRefresh = errors.New("store token needs refresh")
 )
 
 // ErrDownload represents a download error
