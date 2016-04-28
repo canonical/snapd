@@ -284,7 +284,8 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string, auther Authentica
 	case 1:
 		// whee
 	default:
-		logger.Noticef("expected at most one result from this search, got %d. Using first one.", len(searchData.Payload.Packages))
+		logger.Noticef("expected at most one exact match search result for %q in %q channel, got %d.", name, channel, len(searchData.Payload.Packages))
+		return nil, fmt.Errorf("unexpected multiple store results for an exact match search for %q in %q channel", name, channel)
 	}
 
 	s.checkStoreResponse(resp)
