@@ -25,11 +25,10 @@ import (
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/unity7
 const unity7ConnectedPlugAppArmor = `
-# Description: Can access Unity7. Note, Unity 7 runs on X and requires access
-# to various DBus services and this enviroment does not prevent eavesdropping
-# or apps interfering with one another. This is 'common' as a transition step
-# towards Mir and Unity 8.
-# Usage: common
+# Description: Can access Unity7. Restricted because Unity 7 runs on X and
+# requires access to various DBus services and this enviroment does not prevent
+# eavesdropping or apps interfering with one another.
+# Usage: reserved
 
 #include <abstractions/dbus-strict>
 #include <abstractions/dbus-session-strict>
@@ -127,11 +126,9 @@ deny /{,var/}run/shm/lttng-ust-* r,
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/unity7
 const unity7ConnectedPlugSecComp = `
-# Description: Can access Unity7. Note, because Unity 7 runs on X and requires
-# access to various DBus services and this enviroment does not prevent
-# eavesdropping or apps interfering with one another. This is 'common' as a
-# transition step towards Mir and Unity 8.
-# Usage: common
+# Description: Can access Unity7. Restricted because Unity 7 runs on X and
+# requires access to various DBus services and this enviroment does not prevent
+# eavesdropping or apps interfering with one another.
 
 # X
 getpeername
