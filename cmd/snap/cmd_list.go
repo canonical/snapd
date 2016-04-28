@@ -36,7 +36,11 @@ var shortListHelp = i18n.G("List installed snaps")
 var longListHelp = i18n.G(`
 The list command displays a summary of snaps installed in the current system.`)
 
-type cmdList struct{}
+type cmdList struct {
+	Positional struct {
+		Snaps []string `positional-arg-name:"<snap>"`
+	} `positional-args:"yes"`
+}
 
 func init() {
 	addCommand("list", shortListHelp, longListHelp, func() flags.Commander { return &cmdList{} })
@@ -48,11 +52,11 @@ func (s snapsByName) Len() int           { return len(s) }
 func (s snapsByName) Less(i, j int) bool { return s[i].Name < s[j].Name }
 func (s snapsByName) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
-func (cmdList) Execute(args []string) error {
+func (x *cmdList) Execute([]string) error {
 	cli := Client()
 	filter := client.SnapFilter{
 		Sources: []string{"local"},
-		Query:   strings.Join(args, ","),
+		Query:   strings.Join(x.Positional.Snaps, ","),
 	}
 	snaps, _, err := cli.FilterSnaps(filter)
 	if err != nil {
