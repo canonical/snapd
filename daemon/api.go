@@ -852,6 +852,7 @@ out:
 	}
 
 	chg := newChange(st, "install-snap", msg, tsets)
+	chg.Set("api-data", map[string]string{"snap-name": snapName})
 
 	go func() {
 		// XXX this needs to be a task in the manager; this is a hack to keep this branch smaller
