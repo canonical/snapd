@@ -70,3 +70,14 @@ apps:
 	c.Check(info.Apps["bar"].WrapperPath(), Equals, filepath.Join(dirs.SnapBinariesDir, "foo.bar"))
 	c.Check(info.Apps["foo"].WrapperPath(), Equals, filepath.Join(dirs.SnapBinariesDir, "foo"))
 }
+
+func (s *infoSuite) TestAppInfoCommandLine(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`name: foo
+apps:
+   foo:
+       command: foo.bin --really
+`))
+	c.Assert(err, IsNil)
+
+	c.Check(info.Apps["foo"].CommandLine(), Equals, filepath.Join(info.MountDir(), "foo.bin --really"))
+}

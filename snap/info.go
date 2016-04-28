@@ -243,6 +243,11 @@ func (app *AppInfo) ServiceSocketFile() string {
 	return filepath.Join(dirs.SnapServicesDir, app.SecurityTag()+".socket")
 }
 
+// CommandLine returns the absolute path to the executable and arguments of the app.
+func (app *AppInfo) CommandLine() string {
+	return filepath.Join(app.Snap.MountDir(), app.Command)
+}
+
 // ReadInfo reads the snap information for the installed snap with the given name and given side-info.
 func ReadInfo(name string, si *SideInfo) (*Info, error) {
 	// XXX: test directly when we don't have to invent the nth way
