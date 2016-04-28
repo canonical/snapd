@@ -128,7 +128,7 @@ dbus (receive)
     bus=session
     interface=org.gtk.Actions
     path={/org/gtk/Application/anonymous{,/**},/com/canonical/unity/gtk/window/[0-9]*}
-    member={Activate,DescribeAll}
+    member={Activate,DescribeAll,SetState}
     peer=(label=unconfined),
 
 dbus (receive)
