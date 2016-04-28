@@ -88,15 +88,3 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperIllegalChars(c *C) {
 	_, err := generateSnapBinaryWrapper(binary, pkgPath)
 	c.Assert(err, NotNil)
 }
-
-func (s *SnapTestSuite) TestSnappyBinPathForBinaryNoExec(c *C) {
-	binary := &snap.AppInfo{Name: "pastebinit", Command: "bin/pastebinit"}
-	pkgPath := "/snap/pastebinit/44/"
-	c.Assert(binPathForBinary(pkgPath, binary), Equals, "/snap/pastebinit/44/bin/pastebinit")
-}
-
-func (s *SnapTestSuite) TestSnappyBinPathForBinaryWithExec(c *C) {
-	binary := &snap.AppInfo{Name: "pastebinit", Command: "bin/random-pastebin"}
-	pkgPath := "/snap/pastebinit/44/"
-	c.Assert(binPathForBinary(pkgPath, binary), Equals, "/snap/pastebinit/44/bin/random-pastebin")
-}
