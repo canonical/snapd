@@ -115,7 +115,11 @@ func (x *cmdRemove) Execute([]string) error {
 		return err
 	}
 
-	return wait(cli, changeID)
+	if err := wait(cli, changeID); err != nil {
+		return err
+	}
+	fmt.Println("Done")
+	return nil
 }
 
 type cmdInstall struct {
@@ -142,7 +146,10 @@ func (x *cmdInstall) Execute([]string) error {
 		return err
 	}
 
-	return wait(cli, changeID)
+	if err := wait(cli, changeID); err != nil {
+		return err
+	}
+	return (&cmdList{}).Execute([]string{name})
 }
 
 type cmdRefresh struct {
@@ -161,7 +168,10 @@ func (x *cmdRefresh) Execute([]string) error {
 		return err
 	}
 
-	return wait(cli, changeID)
+	if err := wait(cli, changeID); err != nil {
+		return err
+	}
+	return (&cmdList{}).Execute([]string{name})
 }
 
 func init() {
