@@ -20,8 +20,6 @@
 package main
 
 import (
-	"os"
-
 	"github.com/ubuntu-core/snappy/i18n"
 
 	"github.com/jessevdk/go-flags"
@@ -45,7 +43,7 @@ func (*cmdMan) Execute([]string) error {
 	parser.LongDescription = `
 The snap tool interacts with the snapd daemon to control the snappy software platform.
 `
-	parser.WriteManPage(os.Stdout)
+	parser.WriteManPage(Stdout)
 
 	return nil
 }
