@@ -767,8 +767,7 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 		flags |= snappy.DeveloperMode
 	}
 
-	// form.File is a map of arrays of *FileHeader things
-	// we just allow one (for now at least)
+	// find the file for the "snap" form field
 	var snapBody multipart.File
 	var origPath string
 out:
@@ -780,7 +779,7 @@ out:
 			snapBody, err = fheader.Open()
 			origPath = fheader.Filename
 			if err != nil {
-				return BadRequest("cannot open POST form file: %v", err)
+				return BadRequest(`cannot open uploaded "snap" file: %v`, err)
 			}
 			defer snapBody.Close()
 
@@ -820,9 +819,9 @@ out:
 	st.Lock()
 	defer st.Unlock()
 
-	msg := fmt.Sprintf(i18n.G("Install %q snap from snap file"), snapName)
+	msg := fmt.Sprintf(i18n.G("Install %q snap from file"), snapName)
 	if origPath != "" {
-		msg = fmt.Sprintf(i18n.G("Install %q snap from snap file %q"), snapName, origPath)
+		msg = fmt.Sprintf(i18n.G("Install %q snap from file %q"), snapName, origPath)
 	}
 
 	var userID int
