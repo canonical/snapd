@@ -198,15 +198,14 @@ func loginUser(c *Command, r *http.Request) Response {
 	discharge, err := store.DischargeAuthCaveat(loginData.Username, loginData.Password, macaroon, loginData.Otp)
 	switch err {
 	case store.ErrAuthenticationNeeds2fa:
-		twofactorRequiredResponse := &resp{
+		return SyncResponse(&resp{
 			Type: ResponseTypeError,
 			Result: &errorResult{
 				Kind:    errorKindTwoFactorRequired,
 				Message: err.Error(),
 			},
 			Status: http.StatusUnauthorized,
-		}
-		return SyncResponse(twofactorRequiredResponse, nil)
+		}, nil)
 	case store.Err2faFailed:
 		return SyncResponse(&resp{
 			Type: ResponseTypeError,
@@ -214,7 +213,7 @@ func loginUser(c *Command, r *http.Request) Response {
 				Kind:    errorKindTwoFactorFailed,
 				Message: err.Error(),
 			},
-			Status: http.StatusForbidden,
+			Status: http.StatusUnauthorized,
 		}, nil)
 	default:
 		return Unauthorized(err.Error())

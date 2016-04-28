@@ -669,7 +669,7 @@ func (s *apiSuite) TestLoginUserTwoFactorFailedError(c *check.C) {
 	rsp := loginUser(snapCmd, req).(*resp)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Status, check.Equals, http.StatusForbidden)
+	c.Check(rsp.Status, check.Equals, http.StatusUnauthorized)
 	c.Check(rsp.Result.(*errorResult).Kind, check.Equals, errorKindTwoFactorFailed)
 }
 

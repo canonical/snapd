@@ -65,9 +65,9 @@ func requestLoginWith2faRetry(username, password string) error {
 	reader := bufio.NewReader(nil)
 
 	for i := 0; ; i++ {
-		// first try without otp
+		// first try is without otp
 		_, err = cli.Login(username, password, string(otp))
-		if i > 2 || !client.IsTwoFactorError(err) {
+		if i >= len(msgs) || !client.IsTwoFactorError(err) {
 			return err
 		}
 
