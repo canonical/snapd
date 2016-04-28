@@ -348,3 +348,44 @@ func (ts *taskSuite) TestTaskSetWaitFor(c *C) {
 	c.Assert(t3.WaitTasks(), DeepEquals, []*state.Task{t1})
 	c.Assert(t1.HaltTasks(), HasLen, 2)
 }
+
+func (ts *taskSuite) TestTaskSetWaitAll(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	t1 := st.NewTask("download", "1...")
+	t2 := st.NewTask("check", "2...")
+	t3 := st.NewTask("setup", "3...")
+	t4 := st.NewTask("link", "4...")
+	ts12 := state.NewTaskSet(t1, t2)
+	ts34 := state.NewTaskSet(t3, t4)
+	ts34.WaitAll(ts12)
+
+	c.Assert(t3.WaitTasks(), DeepEquals, []*state.Task{t1, t2})
+	c.Assert(t4.WaitTasks(), DeepEquals, []*state.Task{t1, t2})
+	c.Assert(t1.HaltTasks(), HasLen, 2)
+	c.Assert(t2.HaltTasks(), HasLen, 2)
+}
+
+func (ts *taskSuite) TestTaskSetAddTaskAndAddAll(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	t1 := st.NewTask("download", "1...")
+	t2 := st.NewTask("check", "2...")
+	t3 := st.NewTask("setup", "3...")
+	t4 := st.NewTask("link", "4...")
+
+	ts0 := state.NewTaskSet(t1)
+
+	ts0.AddTask(t2)
+	ts0.AddAll(state.NewTaskSet(t3, t4))
+
+	// these do nothing
+	ts0.AddTask(t2)
+	ts0.AddAll(state.NewTaskSet(t3, t4))
+
+	c.Check(ts0.Tasks(), DeepEquals, []*state.Task{t1, t2, t3, t4})
+}

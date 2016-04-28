@@ -241,7 +241,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 		c.Check(r.URL.Path, Equals, "/search")
 
 		q := r.URL.Query()
-		c.Check(q.Get("q"), Equals, "package_name:hello-world")
+		c.Check(q.Get("q"), Equals, "package_name:\"hello-world\"")
 		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
 
 		w.Header().Set("X-Suggested-Currency", "GBP")
@@ -304,6 +304,36 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsSetsAuth(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsOopses(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.URL.Path, Equals, "/search")
+
+		q := r.URL.Query()
+		c.Check(q.Get("q"), Equals, `package_name:"hello-world"`)
+		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
+
+		w.Header().Set("X-Oops-Id", "OOPS-d4f46f75a5bcc10edcacc87e1fc0119f")
+		w.WriteHeader(http.StatusInternalServerError)
+
+		io.WriteString(w, `{"oops": "OOPS-d4f46f75a5bcc10edcacc87e1fc0119f"}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	searchURI, err := url.Parse(mockServer.URL + "/search")
+	c.Assert(err, IsNil)
+	cfg := SnapUbuntuStoreConfig{
+		SearchURI: searchURI,
+	}
+	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	c.Assert(repo, NotNil)
+
+	// the actual test
+	_, err = repo.Snap("hello-world", "edge", nil)
+	c.Assert(err, ErrorMatches, `Ubuntu CPI service returned unexpected HTTP status code 5.. while looking for snap "hello-world" in channel "edge" \[OOPS-[a-f0-9A-F]*\]`)
+}
+
 /*
 acquired via
 curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: rolling-core" -H "X-Ubuntu-Device-Channel: edge" 'https://search.apps.ubuntu.com/api/v1/search?q=package_name:""&fields=channel,publisher,package_name,origin,description,summary,title,icon_url,prices,content,ratings_average,version,anon_download_url,download_url,download_sha512,last_updated,binary_filesize,support_url,revision' | python -m json.tool
@@ -335,7 +365,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
 		c.Check(r.URL.Path, Equals, "/search")
 
 		q := r.URL.Query()
-		c.Check(q.Get("q"), Equals, "package_name:no-such-pkg")
+		c.Check(q.Get("q"), Equals, "package_name:\"no-such-pkg\"")
 		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
 		w.WriteHeader(404)
 		io.WriteString(w, MockNoDetailsJSON)
