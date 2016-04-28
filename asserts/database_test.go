@@ -564,11 +564,11 @@ func (res *revisionErrorSuite) TestErrorText(c *C) {
 		expected string
 	}{
 		// Invalid revisions.
-		{&asserts.RevisionError{Used: -1}, "used assertion revision -1 is unknown"},
-		{&asserts.RevisionError{Used: -100}, "used assertion revision -100 is unknown"},
-		{&asserts.RevisionError{Current: -1}, "current assertion revision -1 is unknown"},
-		{&asserts.RevisionError{Current: -100}, "current assertion revision -100 is unknown"},
-		{&asserts.RevisionError{Used: -1, Current: -1}, "used assertion revision -1 is unknown"},
+		{&asserts.RevisionError{Used: -1}, "assertion revision is unknown"},
+		{&asserts.RevisionError{Used: -100}, "assertion revision is unknown"},
+		{&asserts.RevisionError{Current: -1}, "assertion revision is unknown"},
+		{&asserts.RevisionError{Current: -100}, "assertion revision is unknown"},
+		{&asserts.RevisionError{Used: -1, Current: -1}, "assertion revision is unknown"},
 		// Used == Current.
 		{&asserts.RevisionError{}, "revision 0 is already the current revision"},
 		{&asserts.RevisionError{Used: 100, Current: 100}, "revision 100 is already the current revision"},
