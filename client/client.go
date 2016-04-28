@@ -211,7 +211,6 @@ func (e *Error) Error() string {
 	return e.Message
 }
 
-// these should be self-explanatory; otherwise, let us know!
 const (
 	ErrorKindTwoFactorRequired = "two-factor-required"
 	ErrorKindTwoFactorFailed   = "two-factor-failed"

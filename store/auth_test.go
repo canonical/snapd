@@ -52,7 +52,7 @@ const mockStoreNeeds2fa = `
 const mockStore2faFailedHTTPCode = 403
 const mockStore2faFailedResponse = `
 {
-    "meessage": "The provided 2-factor key is not recognised.", 
+    "message": "The provided 2-factor key is not recognised.", 
     "code": "TWOFACTOR_FAILURE", 
     "extra": {}
 }

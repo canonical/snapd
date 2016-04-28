@@ -22,7 +22,6 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"os"
 
 	"github.com/jessevdk/go-flags"
 	"golang.org/x/crypto/ssh/terminal"
@@ -59,7 +58,7 @@ func requestLoginWith2faRetry(username, password string) error {
 	var msgs = [3]string{
 		i18n.G("Two-factor code: "),
 		i18n.G("Bad code. Try again: "),
-		i18n.G("Wrong again. Last chance: "),
+		i18n.G("Wrong again. Once more: "),
 	}
 
 	cli := Client()
@@ -72,8 +71,8 @@ func requestLoginWith2faRetry(username, password string) error {
 			return err
 		}
 
-		reader.Reset(os.Stdin)
-		fmt.Print(msgs[i])
+		reader.Reset(Stdin)
+		fmt.Fprint(Stdout, msgs[i])
 		// the browser shows it as well (and Sergio wants to see it ;)
 		otp, _, err = reader.ReadLine()
 		if err != nil {
@@ -84,9 +83,9 @@ func requestLoginWith2faRetry(username, password string) error {
 
 func (x *cmdLogin) Execute(args []string) error {
 	username := x.Positional.UserName
-	fmt.Print(i18n.G("Password: "))
+	fmt.Fprint(Stdout, i18n.G("Password: "))
 	password, err := terminal.ReadPassword(0)
-	fmt.Print("\n")
+	fmt.Fprint(Stdout, "\n")
 	if err != nil {
 		return err
 	}
@@ -95,7 +94,7 @@ func (x *cmdLogin) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println(i18n.G("Login successful"))
+	fmt.Fprintln(Stdout, i18n.G("Login successful"))
 
 	return nil
 }
