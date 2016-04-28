@@ -149,4 +149,3 @@ func (client *Client) Changes(which ChangeSelector) ([]*Change, error) {
 
 	return chgs, err
 }
-
