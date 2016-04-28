@@ -216,6 +216,8 @@ const (
 	ErrorKindTwoFactorFailed   = "two-factor-failed"
 )
 
+// IsTwoFactorError returns whether the given error is due to problems
+// in two-factor authentication.
 func IsTwoFactorError(err error) bool {
 	e, ok := err.(*Error)
 	if !ok || e == nil {
