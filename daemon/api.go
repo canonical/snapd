@@ -770,10 +770,15 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 	// form.File is a map of arrays of *FileHeader things
 	// we just allow one (for now at least)
 	var snapBody multipart.File
+	var origPath string
 out:
-	for _, v := range form.File {
-		for i := range v {
-			snapBody, err = v[i].Open()
+	for name, fheaders := range form.File {
+		if name != "snap" {
+			continue
+		}
+		for _, fheader := range fheaders {
+			snapBody, err = fheader.Open()
+			origPath = fheader.Filename
 			if err != nil {
 				return BadRequest("cannot open POST form file: %v", err)
 			}
@@ -785,7 +790,7 @@ out:
 	defer form.RemoveAll()
 
 	if snapBody == nil {
-		return BadRequest("no POST form file: %v", form)
+		return BadRequest(`cannot find "snap" file field in provided multipart/form-data payload`)
 	}
 
 	tmpf, err := ioutil.TempFile("", "snapd-sideload-pkg-")
@@ -801,7 +806,6 @@ out:
 
 	tempPath := tmpf.Name()
 
-	origPath := ""
 	if len(form.Value["snap-path"]) > 0 {
 		origPath = form.Value["snap-path"][0]
 	}

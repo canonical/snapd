@@ -1147,7 +1147,7 @@ func (s *apiSuite) TestSideloadSnap(c *check.C) {
 	// try a multipart/form-data upload
 	body := "" +
 		"----hello--\r\n" +
-		"Content-Disposition: form-data; name=\"x\"; filename=\"x\"\r\n" +
+		"Content-Disposition: form-data; name=\"snap\"; filename=\"x\"\r\n" +
 		"\r\n" +
 		"xyzzy\r\n" +
 		"----hello--\r\n" +
@@ -1163,7 +1163,7 @@ func (s *apiSuite) TestSideloadSnap(c *check.C) {
 func (s *apiSuite) TestSideloadSnapDevMode(c *check.C) {
 	body := "" +
 		"----hello--\r\n" +
-		"Content-Disposition: form-data; name=\"x\"; filename=\"x\"\r\n" +
+		"Content-Disposition: form-data; name=\"snap\"; filename=\"x\"\r\n" +
 		"\r\n" +
 		"xyzzy\r\n" +
 		"----hello--\r\n" +
@@ -1174,7 +1174,7 @@ func (s *apiSuite) TestSideloadSnapDevMode(c *check.C) {
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 	// try a multipart/form-data upload
 	chgSummary := s.sideloadCheck(c, body, head, snappy.DeveloperMode, true)
-	c.Check(chgSummary, check.Equals, `Install "local" snap from snap file`)
+	c.Check(chgSummary, check.Equals, `Install "local" snap from snap file "x"`)
 }
 
 func (s *apiSuite) TestSideloadSnapNotValidFormFile(c *check.C) {
@@ -1200,7 +1200,7 @@ func (s *apiSuite) TestSideloadSnapNotValidFormFile(c *check.C) {
 
 	rsp := sideloadSnap(snapsCmd, req).(*resp)
 	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
-	c.Assert(rsp.Result.(*errorResult).Message, check.Matches, "no POST form file.*")
+	c.Assert(rsp.Result.(*errorResult).Message, check.Matches, `cannot find "snap" file field in provided multipart/form-data payload`)
 }
 
 func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]string, expectedFlags snappy.InstallFlags, hasUbuntuCore bool) string {
