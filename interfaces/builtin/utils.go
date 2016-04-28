@@ -20,9 +20,9 @@
 package builtin
 
 import (
-	"bytes"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/ubuntu-core/snappy/interfaces"
 )
@@ -44,21 +44,13 @@ func slotAppLabelExpr(slot *interfaces.Slot) []byte {
 	case len(slot.Apps) == len(slot.Snap.Apps):
 		new = []byte(fmt.Sprintf("snap.%s.*", slot.Snap.Name()))
 	case len(slot.Apps) != len(slot.Snap.Apps):
-		buf := bytes.NewBuffer(nil)
-		fmt.Fprintf(buf, "snap.%s.{", slot.Snap.Name())
 		appNames := make([]string, 0, len(slot.Apps))
 		for appName := range slot.Apps {
 			appNames = append(appNames, appName)
 		}
 		sort.Strings(appNames)
-		for i, appName := range appNames {
-			if i > 0 {
-				fmt.Fprintf(buf, ",")
-			}
-			fmt.Fprintf(buf, appName)
-		}
-		fmt.Fprintf(buf, "}")
-		new = buf.Bytes()
+		return []byte(fmt.Sprintf("snap.%s.{%s}", slot.Snap.Name(),
+			strings.Join(appNames, ",")))
 	}
 	return new
 }
