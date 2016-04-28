@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 
@@ -67,10 +68,10 @@ func (cmdList) Execute(args []string) error {
 	w := tabWriter()
 	defer w.Flush()
 
-	fmt.Fprintln(w, i18n.G("Name\tVersion\tDeveloper"))
+	fmt.Fprintln(w, i18n.G("Name\tVersion\tRev\tDeveloper"))
 
 	for _, snap := range snaps {
-		fmt.Fprintf(w, "%s\t%s\t%s\n", snap.Name, snap.Version, snap.Developer)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", snap.Name, snap.Version, strconv.Itoa(snap.Revision), snap.Developer)
 	}
 
 	return nil
