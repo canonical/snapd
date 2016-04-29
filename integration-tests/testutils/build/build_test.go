@@ -146,6 +146,17 @@ func (s *BuildSuite) TestAssetsBuildsTests(c *check.C) {
 			cmd, buildCall))
 }
 
+func (s *BuildSuite) TestAssetsBuildsSnapbuild(c *check.C) {
+	Assets(nil)
+
+	cmd := "go build -o integration-tests/bin/snapbuild " + snapbuildPkg
+	buildCall := s.execCalls[cmd]
+
+	c.Assert(buildCall, check.Equals, 1,
+		check.Commentf("Expected 1 call to execCommand with %s, got %d",
+			"?", buildCall))
+}
+
 func (s *BuildSuite) TestAssetsRenamesBuiltBinary(c *check.C) {
 	Assets(nil)
 
@@ -166,10 +177,10 @@ func (s *BuildSuite) TestAssetsSetsEnvironmentForGenericArch(c *check.C) {
 	setenvGOARCHFirstCall := s.osSetenvCalls["GOARCH "+arch]
 	setenvGOARCHFinalCall := s.osSetenvCalls["GOARCH "+originalArch]
 
-	c.Assert(setenvGOARCHFirstCall, check.Equals, 1,
+	c.Assert(setenvGOARCHFirstCall, check.Equals, 2,
 		check.Commentf("Expected 1 call to os.Setenv with %s, got %d",
 			"GOARCH "+arch, setenvGOARCHFirstCall))
-	c.Assert(setenvGOARCHFinalCall, check.Equals, 1,
+	c.Assert(setenvGOARCHFinalCall, check.Equals, 2,
 		check.Commentf("Expected 1 call to os.Setenv with %s, got %d",
 			"GOARCH "+originalArch, setenvGOARCHFinalCall))
 }
@@ -196,10 +207,10 @@ func (s *BuildSuite) TestAssetsSetsEnvironmentForArm(c *check.C) {
 		finalCall := fmt.Sprintf("%s %s", t.envVar, "original"+t.envVar)
 		setenvFinalCall := s.osSetenvCalls[finalCall]
 
-		c.Assert(setenvFirstCall, check.Equals, 1,
+		c.Assert(setenvFirstCall, check.Equals, 2,
 			check.Commentf("Expected 1 call to os.Setenv with %s, got %d",
 				firstCall, setenvFirstCall))
-		c.Assert(setenvFinalCall, check.Equals, 1,
+		c.Assert(setenvFinalCall, check.Equals, 2,
 			check.Commentf("Expected 1 call to os.Setenv with %s, got %d",
 				finalCall, setenvFinalCall))
 	}
@@ -366,7 +377,7 @@ func (s *BuildSuite) checkBuildCmd(pattern string) bool {
 	buildTestCmd := fmt.Sprintf(buildTestCmdFmt, "")
 	cmdsFound := true
 	for cmd := range s.execCalls {
-		if cmd != buildTestCmd && cmd != listCmd {
+		if cmd != buildTestCmd && cmd != listCmd && !strings.HasSuffix(cmd, snapbuildPkg) {
 			cmdsFound = cmdsFound && (re.FindStringIndex(cmd) != nil)
 		}
 	}
