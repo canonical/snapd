@@ -218,12 +218,13 @@ fadvise64
 fadvise64_64
 arm_fadvise64_64
 
-mbarrier
 mbind
+membarrier
 mincore
 mkdir
 mkdirat
 mlock
+mlock2
 mlockall
 mmap
 mmap2
