@@ -29,6 +29,9 @@ import (
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
+
+	// load squashfs support
+	_ "github.com/ubuntu-core/snappy/snap/squashfs"
 )
 
 // allow exchange in the tests
