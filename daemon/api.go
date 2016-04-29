@@ -390,18 +390,7 @@ func searchStore(c *Command, r *http.Request) Response {
 	remoteRepo := newRemoteRepo()
 	found, err := remoteRepo.FindSnaps(query.Get("q"), query.Get("channel"), auther)
 	if err != nil {
-		status := http.StatusInternalServerError
-		if e, ok := err.(*store.HTTPError); ok && e != nil {
-			status = e.StatusCode
-		}
-
-		return &resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Message: err.Error(),
-			},
-			Status: status,
-		}
+		return InternalError("%v", err)
 	}
 
 	meta := &Meta{

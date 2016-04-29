@@ -322,17 +322,18 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string,
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return nil, &HTTPError{
-			Status:     resp.Status,
-			StatusCode: resp.StatusCode,
-		}
+		return nil, fmt.Errorf("received an unexpected http response code (%v) when trying to search via %q", resp.Status, req.URL)
+	}
+
+	if ct := resp.Header.Get("Content-Type"); ct != "application/hal+json" {
+		return nil, fmt.Errorf("received an unexpected content type (%q) when trying to search via %q", ct, req.URL)
 	}
 
 	var searchData searchResults
 
 	dec := json.NewDecoder(resp.Body)
 	if err := dec.Decode(&searchData); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot decode reply (got %v) when trying to search via %q", err, req.URL)
 	}
 
 	snaps := make([]*snap.Info, len(searchData.Payload.Packages))

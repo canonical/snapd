@@ -462,6 +462,7 @@ const MockSearchJSON = `{
 func (t *remoteRepoTestSuite) TestUbuntuStoreFind(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.URL.RawQuery, Equals, "q=hello")
+		w.Header().Set("Content-Type", "application/hal+json")
 		io.WriteString(w, MockSearchJSON)
 	}))
 	c.Assert(mockServer, NotNil)
@@ -500,10 +501,52 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindFails(c *C) {
 	c.Assert(repo, NotNil)
 
 	snaps, err := repo.FindSnaps("hello", "", nil)
-	c.Check(err, DeepEquals, &HTTPError{
-		Status:     "418 I'm a teapot",
-		StatusCode: 418,
-	})
+	c.Check(err, ErrorMatches, `received an unexpected http response code \(418 I'm a teapot\) when trying to search via "http://[^?]+\?q=hello"`)
+	c.Check(snaps, HasLen, 0)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadContentType(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.URL.RawQuery, Equals, "q=hello")
+		io.WriteString(w, MockSearchJSON)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var err error
+	searchURI, err := url.Parse(mockServer.URL)
+	c.Assert(err, IsNil)
+	cfg := SnapUbuntuStoreConfig{
+		SearchURI: searchURI,
+	}
+	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	c.Assert(repo, NotNil)
+
+	snaps, err := repo.FindSnaps("hello", "", nil)
+	c.Check(err, ErrorMatches, `received an unexpected content type \("text/plain[^"]+"\) when trying to search via "http://[^?]+\?q=hello"`)
+	c.Check(snaps, HasLen, 0)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadBoody(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.URL.RawQuery, Equals, "q=hello")
+		w.Header().Set("Content-Type", "application/hal+json")
+		io.WriteString(w, "<hello>")
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var err error
+	searchURI, err := url.Parse(mockServer.URL)
+	c.Assert(err, IsNil)
+	cfg := SnapUbuntuStoreConfig{
+		SearchURI: searchURI,
+	}
+	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	c.Assert(repo, NotNil)
+
+	snaps, err := repo.FindSnaps("hello", "", nil)
+	c.Check(err, ErrorMatches, `cannot decode reply \(got invalid character.*\) when trying to search via "http://[^?]+\?q=hello"`)
 	c.Check(snaps, HasLen, 0)
 }
 
@@ -514,6 +557,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindSetsAuth(c *C) {
 		c.Check(authorization, Equals, "Authorization-details")
 
 		c.Check(r.URL.RawQuery, Equals, "q=foo")
+		w.Header().Set("Content-Type", "application/hal+json")
 		io.WriteString(w, MockSearchJSON)
 	}))
 	c.Assert(mockServer, NotNil)
