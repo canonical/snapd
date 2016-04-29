@@ -21,95 +21,92 @@
 package tests
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/build"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/data"
 
 	"gopkg.in/check.v1"
 )
 
-var _ = check.Suite(&networkInterfaceSuite{})
-
 const (
-	connectedPattern = "(?ms)" +
+	connectedPatternFmt = "(?ms)" +
 		"Slot +Plug\n" +
 		".*" +
-		"^:network +network-consumer\n" +
+		"^:%s +%s\n" +
 		".*"
-	disconnectedPattern = "(?ms)" +
+	disconnectedPatternFmt = "(?ms)" +
 		"Slot +Plug\n" +
 		".*" +
-		"^:network +-\n" +
+		"^:%s +-\n" +
 		".*" +
-		"^- +network-consumer:network\n" +
+		"^- +%s:%s\n" +
 		".*"
-	networkAccessibleOutput = "ok\n"
+	okOutput = "ok\n"
 )
 
-type networkInterfaceSuite struct {
+type interfaceSuite struct {
 	common.SnappySuite
-	snapPath string
+	snapPath, sampleSnap string
+	slot, plug           string
+	autoconnect          bool
 }
 
-func (s *networkInterfaceSuite) SetUpTest(c *check.C) {
+func (s *interfaceSuite) SetUpTest(c *check.C) {
 	s.SnappySuite.SetUpTest(c)
 
 	var err error
-	s.snapPath, err = build.LocalSnap(c, data.NetworkConsumerSnapName)
+	s.snapPath, err = build.LocalSnap(c, s.sampleSnap)
 	c.Assert(err, check.IsNil)
 
 	common.InstallSnap(c, s.snapPath)
 }
 
-func (s *networkInterfaceSuite) TearDownTest(c *check.C) {
+func (s *interfaceSuite) TearDownTest(c *check.C) {
 	s.SnappySuite.TearDownTest(c)
 
 	os.Remove(s.snapPath)
-	common.RemoveSnap(c, data.NetworkConsumerSnapName)
+	common.RemoveSnap(c, s.sampleSnap)
 }
 
-func (s *networkInterfaceSuite) TestPlugIsAutoconnected(c *check.C) {
+func (s *interfaceSuite) TestPlugAutoconnect(c *check.C) {
 	output, err := cli.ExecCommandErr("snap", "interfaces")
 	c.Assert(err, check.IsNil)
 
-	c.Assert(output, check.Matches, connectedPattern)
+	var pattern string
+	if s.autoconnect {
+		pattern = connectedPattern(s.slot, s.plug)
+	} else {
+		pattern = disconnectedPattern(s.slot, s.plug)
+	}
+	c.Assert(output, check.Matches, pattern)
 }
 
-func (s *networkInterfaceSuite) TestPlugCanBeReconnected(c *check.C) {
-	_, err := cli.ExecCommandErr("sudo", "snap", "disconnect",
-		"network-consumer:network", "ubuntu-core:network")
-	c.Assert(err, check.IsNil)
+func (s *interfaceSuite) TestPlugCanBeReconnected(c *check.C) {
+	if !s.autoconnect {
+		cli.ExecCommand(c, "sudo", "snap", "connect",
+			s.plug+":"+s.slot, "ubuntu-core:"+s.slot)
+	}
 
-	output, err := cli.ExecCommandErr("snap", "interfaces")
-	c.Assert(err, check.IsNil)
-	c.Assert(output, check.Matches, disconnectedPattern)
+	cli.ExecCommand(c, "sudo", "snap", "disconnect",
+		s.plug+":"+s.slot, "ubuntu-core:"+s.slot)
 
-	output, err = cli.ExecCommandErr("sudo", "snap", "connect",
-		"network-consumer:network", "ubuntu-core:network")
-	c.Assert(err, check.IsNil)
+	output := cli.ExecCommand(c, "snap", "interfaces")
+	c.Assert(output, check.Matches, disconnectedPattern(s.slot, s.plug))
 
-	output, err = cli.ExecCommandErr("snap", "interfaces")
-	c.Assert(err, check.IsNil)
-	c.Assert(output, check.Matches, connectedPattern)
+	cli.ExecCommand(c, "sudo", "snap", "connect",
+		s.plug+":"+s.slot, "ubuntu-core:"+s.slot)
+
+	output = cli.ExecCommand(c, "snap", "interfaces")
+	c.Assert(output, check.Matches, connectedPattern(s.slot, s.plug))
 }
 
-func (s *networkInterfaceSuite) TestPlugDisconnectionDisablesFunctionality(c *check.C) {
-	output, err := cli.ExecCommandErr("network-consumer")
-	c.Assert(err, check.IsNil)
-	c.Assert(output, check.Equals, networkAccessibleOutput)
+func connectedPattern(slot, plug string) string {
+	return fmt.Sprintf(connectedPatternFmt, slot, plug)
+}
 
-	_, err = cli.ExecCommandErr("sudo", "snap", "disconnect",
-		"network-consumer:network", "ubuntu-core:network")
-	c.Assert(err, check.IsNil)
-
-	output, err = cli.ExecCommandErr("snap", "interfaces")
-	c.Assert(err, check.IsNil)
-	c.Assert(output, check.Matches, disconnectedPattern)
-
-	output, err = cli.ExecCommandErr("network-consumer")
-	c.Assert(err, check.IsNil)
-	c.Assert(output == networkAccessibleOutput, check.Equals, false)
+func disconnectedPattern(slot, plug string) string {
+	return fmt.Sprintf(disconnectedPatternFmt, slot, plug, slot)
 }
