@@ -130,15 +130,15 @@ func init() {
 	}
 }
 
-var accessDeniedHelp = "Access denied (snap login --help).\n"
+var missingLoginHelp = "Access denied (snap login --help).\n"
 
 func main() {
 	if err := run(); err != nil {
 		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
 			fmt.Fprintf(Stdout, "%v\n", err)
 			os.Exit(0)
-		} else if e, ok := err.(*client.Error); ok && e.StatusCode == 401 {
-			fmt.Fprintf(Stderr, accessDeniedHelp)
+		} else if e, ok := err.(*client.Error); ok && e.StatusCode == 401 && e.Message == "Unauthorized" {
+			fmt.Fprintf(Stderr, missingLoginHelp)
 			os.Exit(1)
 		} else {
 			fmt.Fprintf(Stderr, "error: %v\n", err)
