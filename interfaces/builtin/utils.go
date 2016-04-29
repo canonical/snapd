@@ -20,6 +20,7 @@
 package builtin
 
 import (
+	"bytes"
 	"fmt"
 	"sort"
 	"strings"
@@ -36,17 +37,20 @@ import (
 // - "snap.$snap.*" if all apps are bound to the slot
 func slotAppLabelExpr(slot *interfaces.Slot) []byte {
 	snapName := slot.Snap.Name()
+	var buf bytes.Buffer
 	if len(slot.Apps) == 1 {
 		for appName := range slot.Apps {
-			return []byte(fmt.Sprintf("snap.%s.%s", snapName, appName))
+			fmt.Fprintf(&buf, "snap.%s.%s", snapName, appName)
 		}
 	} else if len(slot.Apps) == len(slot.Snap.Apps) {
-		return []byte(fmt.Sprintf("snap.%s.*", snapName))
+		fmt.Fprintf(&buf, "snap.%s.*", snapName)
+	} else {
+		appNames := make([]string, 0, len(slot.Apps))
+		for appName := range slot.Apps {
+			appNames = append(appNames, appName)
+		}
+		sort.Strings(appNames)
+		fmt.Fprintf(&buf, "snap.%s.{%s}", snapName, strings.Join(appNames, ","))
 	}
-	appNames := make([]string, 0, len(slot.Apps))
-	for appName := range slot.Apps {
-		appNames = append(appNames, appName)
-	}
-	sort.Strings(appNames)
-	return []byte(fmt.Sprintf("snap.%s.{%s}", snapName, strings.Join(appNames, ",")))
+	return buf.Bytes()
 }
