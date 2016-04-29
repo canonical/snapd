@@ -45,13 +45,13 @@ type PlaceInfo interface {
 	// DataDir returns the data directory of the snap.
 	DataDir() string
 
-	// CommonDataDir returns the data directory common between versions of the snap.
+	// CommonDataDir returns the data directory common across revisions of the snap.
 	CommonDataDir() string
 
 	// DataHomeDir returns the per user data directory of the snap.
 	DataHomeDir() string
 
-	// CommonDataHomeDir returns the per user data directory common between versions of the snap.
+	// CommonDataHomeDir returns the per user data directory common across revisions of the snap.
 	CommonDataHomeDir() string
 }
 
@@ -163,7 +163,7 @@ func (s *Info) DataDir() string {
 	return filepath.Join(dirs.SnapDataDir, s.Name(), s.strRevno())
 }
 
-// CommonDataDir returns the data directory common between versions of the snap.
+// CommonDataDir returns the data directory common across revisions of the snap.
 func (s *Info) CommonDataDir() string {
 	return filepath.Join(dirs.SnapDataDir, s.Name(), "common")
 }
@@ -173,7 +173,7 @@ func (s *Info) DataHomeDir() string {
 	return filepath.Join(dirs.SnapDataHomeGlob, s.Name(), s.strRevno())
 }
 
-// CommonDataHomeDir returns the per user data directory common between versions of the snap.
+// CommonDataHomeDir returns the per user data directory common across revisions of the snap.
 func (s *Info) CommonDataHomeDir() string {
 	return filepath.Join(dirs.SnapDataHomeGlob, s.Name(), "common")
 }
