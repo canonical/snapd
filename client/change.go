@@ -39,6 +39,19 @@ type Change struct {
 
 	SpawnTime time.Time `json:"spawn-time,omitempty"`
 	ReadyTime time.Time `json:"ready-time,omitempty"`
+
+	data map[string]*json.RawMessage
+}
+
+var ErrNoData = fmt.Errorf("data entry not found")
+
+// Get unmarshals into value the kind-specific data with the provided key.
+func (c *Change) Get(key string, value interface{}) error {
+	raw := c.data[key]
+	if raw == nil {
+		return ErrNoData
+	}
+	return json.Unmarshal([]byte(*raw), value)
 }
 
 // A Task is an operation done to change the system's state.
@@ -59,12 +72,21 @@ type TaskProgress struct {
 	Total int `json:"total"`
 }
 
+type changeAndData struct {
+	Change
+	Data map[string]*json.RawMessage `json:"data"`
+}
+
 // Change fetches information about a Change given its ID
 func (client *Client) Change(id string) (*Change, error) {
-	var chg Change
-	_, err := client.doSync("GET", "/v2/changes/"+id, nil, nil, nil, &chg)
+	var chgd changeAndData
+	_, err := client.doSync("GET", "/v2/changes/"+id, nil, nil, nil, &chgd)
+	if err != nil {
+		return nil, err
+	}
 
-	return &chg, err
+	chgd.Change.data = chgd.Data
+	return &chgd.Change, nil
 }
 
 // Abort attempts to abort a change that is in not yet ready.
@@ -112,8 +134,18 @@ func (client *Client) Changes(which ChangeSelector) ([]*Change, error) {
 	query := url.Values{}
 	query.Set("select", which.String())
 
+	var chgds []changeAndData
+	_, err := client.doSync("GET", "/v2/changes", query, nil, nil, &chgds)
+	if err != nil {
+		return nil, err
+	}
+
 	var chgs []*Change
-	_, err := client.doSync("GET", "/v2/changes", query, nil, nil, &chgs)
+	for i := range chgds {
+		chgd := &chgds[i]
+		chgd.Change.data = chgd.Data
+		chgs = append(chgs, &chgd.Change)
+	}
 
 	return chgs, err
 }
