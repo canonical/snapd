@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"fmt"
 	"sort"
-	"strings"
 
 	"github.com/ubuntu-core/snappy/interfaces"
 )
@@ -50,7 +49,13 @@ func slotAppLabelExpr(slot *interfaces.Slot) []byte {
 			appNames = append(appNames, appName)
 		}
 		sort.Strings(appNames)
-		fmt.Fprintf(&buf, "{%s}", strings.Join(appNames, ","))
+		buf.WriteByte('{')
+		for _, appName := range appNames {
+			buf.WriteString(appName)
+			buf.WriteByte(',')
+		}
+		buf.Truncate(buf.Len() - 1)
+		buf.WriteByte('}')
 	}
 	return buf.Bytes()
 }
