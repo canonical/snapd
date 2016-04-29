@@ -61,7 +61,7 @@ func (s *SnapSuite) TestInstall(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"install", "--channel", "chan", "foo.bar"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stdout(), check.Equals, "\n")
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(n, check.Equals, 3)
@@ -99,7 +99,7 @@ func (s *SnapSuite) TestInstallDevMode(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"install", "--channel", "chan", "--devmode", "foo.bar"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stdout(), check.Equals, "\n")
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(n, check.Equals, 3)
@@ -142,7 +142,7 @@ func (s *SnapSuite) TestInstallPath(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"install", snapPath})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stdout(), check.Equals, "\n")
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(n, check.Equals, 3)
@@ -185,7 +185,7 @@ func (s *SnapSuite) TestInstallPathDevMode(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"install", "--devmode", snapPath})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stdout(), check.Equals, "\n")
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(n, check.Equals, 3)

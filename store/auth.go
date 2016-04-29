@@ -136,6 +136,9 @@ func DischargeAuthCaveat(username, password, macaroon, otp string) (string, erro
 		if msg.Code == "TWOFACTOR_REQUIRED" {
 			return "", ErrAuthenticationNeeds2fa
 		}
+		if msg.Code == "TWOFACTOR_FAILURE" {
+			return "", Err2faFailed
+		}
 
 		if msg.Message != "" {
 			return "", fmt.Errorf(errorPrefix+"%v", msg.Message)

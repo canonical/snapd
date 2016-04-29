@@ -22,6 +22,7 @@ package tests
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -36,7 +37,7 @@ import (
 
 const (
 	baseURL        = "snapd://"
-	httpClientSnap = "http.chipaca"
+	httpClientSnap = "http"
 )
 
 var _ = check.Suite(&snapdTestSuite{})
@@ -47,10 +48,7 @@ type snapdTestSuite struct {
 
 func (s *snapdTestSuite) SetUpTest(c *check.C) {
 	s.SnappySuite.SetUpTest(c)
-
-	c.Skip("FIXME: we need to update http.chipaca to new-security *and* land  auto-connect support in snapd")
-
-	common.InstallSnap(c, httpClientSnap+"/edge")
+	common.InstallSnap(c, httpClientSnap)
 }
 
 func (s *snapdTestSuite) TearDownTest(c *check.C) {
@@ -198,7 +196,7 @@ func do404(c *check.C, resource string) {
 		resource+path,
 		"GET",
 		apiInteraction{
-			responsePattern: `{"result":{"message":".*"},"status":"Not Found","status-code":404,"type":"error"}`})
+			responsePattern: `{"type":"error","status-code":404,"status":"Not Found","result":{"message":".*"}}`})
 }
 
 func doMethodNotAllowed(c *check.C, resource, verb string) {
@@ -206,16 +204,15 @@ func doMethodNotAllowed(c *check.C, resource, verb string) {
 		resource,
 		verb,
 		apiInteraction{
-			responsePattern: `{"result":{"message":"method \S+ not allowed"},"status":"Method Not Allowed","status-code":405,"type":"error"}`})
+			responsePattern: `{"type":"error","status-code":405,"status":"Method Not Allowed","result":{"message":"method \\\"` + verb + `\\\" not allowed"}}`})
 }
 
 // makeRequest makes a request to the API according to the provided options.
 func makeRequest(options *requestOptions) (body []byte, err error) {
-	cmd := []string{"sudo", "http.do",
+	cmd := []string{"sudo", "http",
 		"--pretty", "none",
 		"--body",
-		"--ignore-stdin",
-		options.verb, options.resource}
+		"--ignore-stdin"}
 
 	if options.payload != "" {
 		payload, err := determinePayload(options.payload)
@@ -225,7 +222,11 @@ func makeRequest(options *requestOptions) (body []byte, err error) {
 		if strings.HasPrefix(payload, "@") {
 			defer os.Remove(payload[1:])
 		}
-		cmd = append(cmd, payload)
+		cmd = append(cmd, "--form",
+			options.verb, options.resource, payload)
+	} else {
+		cmd = append(cmd,
+			options.verb, options.resource)
 	}
 
 	bodyString, err := cli.ExecCommandErr(append(cmd, "X-Allow-Unsigned:1")...)
@@ -236,11 +237,11 @@ func makeRequest(options *requestOptions) (body []byte, err error) {
 func determinePayload(payload string) (string, error) {
 	if _, err := os.Stat(payload); err == nil {
 		// payload is a file, in order to make the snap file available to http we need to move it to its $SNAP_DATA path
-		snapAppDataPath := filepath.Join("/var/lib/snapd", strings.Split(httpClientSnap, ".")[0], "current")
+		snapAppDataPath := filepath.Join("/var/snap", strings.Split(httpClientSnap, ".")[0], "current")
 		if _, err := cli.ExecCommandErr("sudo", "cp", payload, snapAppDataPath); err != nil {
 			return "", err
 		}
-		return "@" + filepath.Join(snapAppDataPath, filepath.Base(payload)), nil
+		return fmt.Sprintf("snap@%s", filepath.Join(snapAppDataPath, filepath.Base(payload))), nil
 	}
 	// payload is a string
 	return payload, nil
