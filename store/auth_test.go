@@ -49,6 +49,15 @@ const mockStoreNeeds2fa = `
 }
 `
 
+const mockStore2faFailedHTTPCode = 403
+const mockStore2faFailedResponse = `
+{
+    "message": "The provided 2-factor key is not recognised.", 
+    "code": "TWOFACTOR_FAILURE", 
+    "extra": {}
+}
+`
+
 const mockStoreReturnMacaroon = `
 {
     "macaroon": "the-root-macaroon-serialized-data"
@@ -121,6 +130,19 @@ func (s *authTestSuite) TestDischargeAuthCaveatNeeds2fa(c *C) {
 
 	discharge, err := DischargeAuthCaveat("foo@example.com", "passwd", "root-macaroon", "")
 	c.Assert(err, Equals, ErrAuthenticationNeeds2fa)
+	c.Assert(discharge, Equals, "")
+}
+
+func (s *authTestSuite) TestDischargeAuthCaveatFails2fa(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(mockStore2faFailedHTTPCode)
+		io.WriteString(w, mockStore2faFailedResponse)
+	}))
+	defer mockServer.Close()
+	UbuntuoneDischargeAPI = mockServer.URL + "/tokens/discharge"
+
+	discharge, err := DischargeAuthCaveat("foo@example.com", "passwd", "root-macaroon", "")
+	c.Assert(err, Equals, Err2faFailed)
 	c.Assert(discharge, Equals, "")
 }
 

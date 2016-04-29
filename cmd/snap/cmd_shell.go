@@ -74,8 +74,8 @@ Use "sudo snap enable-classic" to enable it.`))
 			}
 		}
 
-		fmt.Println(i18n.G(`Entering classic dimension`))
-		fmt.Println(i18n.G(`
+		fmt.Fprintln(Stdout, i18n.G(`Entering classic dimension`))
+		fmt.Fprintln(Stdout, i18n.G(`
 
 The home directory is shared between snappy and the classic dimension.
 Run "exit" to leave the classic shell.

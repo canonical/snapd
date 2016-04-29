@@ -393,9 +393,6 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 	t2ID := t2.ID()
 	t2.WaitFor(t1)
 
-	t3 := st.NewTask("three", "3...")
-	t3ID := t3.ID()
-
 	// implicit checkpoint
 	st.Unlock()
 
@@ -445,8 +442,7 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 	for _, t := range st2.Tasks() {
 		tasks2[t.ID()] = t
 	}
-	c.Assert(tasks2, HasLen, 3)
-	c.Check(tasks2[t3ID].Kind(), Equals, "three")
+	c.Assert(tasks2, HasLen, 2)
 }
 
 func (ss *stateSuite) TestEnsureBefore(c *C) {
@@ -498,6 +494,7 @@ func (ss *stateSuite) TestNewTaskAndTasks(c *C) {
 	chg2 := st.NewChange("remove", "...")
 	t21 := st.NewTask("check", "...")
 	t22 := st.NewTask("rm", "...")
+	chg2.AddTask(t21)
 	chg2.AddTask(t22)
 
 	tasks := st.Tasks()
@@ -513,6 +510,27 @@ func (ss *stateSuite) TestNewTaskAndTasks(c *C) {
 	for _, t := range tasks {
 		c.Check(t, Equals, expected[t.ID()])
 	}
+}
+
+func (ss *stateSuite) TestTaskNoTask(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	c.Check(st.Task("1"), IsNil)
+}
+
+func (ss *stateSuite) TestNewTaskHiddenUntilLinked(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	t1 := st.NewTask("check", "...")
+
+	tasks := st.Tasks()
+	c.Check(tasks, HasLen, 0)
+
+	c.Check(st.Task(t1.ID()), IsNil)
 }
 
 func (ss *stateSuite) TestMethodEntrance(c *C) {
@@ -539,6 +557,7 @@ func (ss *stateSuite) TestMethodEntrance(c *C) {
 		func() { st.Task("foo") },
 		func() { st.MarshalJSON() },
 		func() { st.Prune(time.Hour, time.Hour) },
+		func() { st.NumTask() },
 	}
 
 	for i, f := range reads {
@@ -591,6 +610,11 @@ func (ss *stateSuite) TestPrune(c *C) {
 	chg4.AddTask(t4)
 	state.MockChangeTimes(chg4, now.Add(-pruneWait/2), unset)
 
+	// unlinked task
+	t5 := st.NewTask("unliked", "...")
+	c.Check(st.Task(t5.ID()), IsNil)
+	state.MockTaskTimes(t5, now.Add(-pruneWait), now.Add(-pruneWait))
+
 	st.Prune(pruneWait, abortWait)
 
 	c.Assert(st.Change(chg1.ID()), Equals, chg1)
@@ -610,4 +634,6 @@ func (ss *stateSuite) TestPrune(c *C) {
 	c.Assert(t1.Status(), Equals, state.HoldStatus)
 	c.Assert(t3.Status(), Equals, state.DoStatus)
 	c.Assert(t4.Status(), Equals, state.DoStatus)
+
+	c.Check(st.NumTask(), Equals, 3)
 }

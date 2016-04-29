@@ -38,6 +38,7 @@ func Test(t *testing.T) { TestingT(t) }
 
 type SnapSuite struct {
 	testutil.BaseTest
+	stdin  *bytes.Buffer
 	stdout *bytes.Buffer
 	stderr *bytes.Buffer
 }
@@ -46,13 +47,16 @@ var _ = Suite(&SnapSuite{})
 
 func (s *SnapSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+	s.stdin = bytes.NewBuffer(nil)
 	s.stdout = bytes.NewBuffer(nil)
 	s.stderr = bytes.NewBuffer(nil)
+	Stdin = s.stdin
 	Stdout = s.stdout
 	Stderr = s.stderr
 }
 
 func (s *SnapSuite) TearDownTest(c *C) {
+	Stdin = os.Stdin
 	Stdout = os.Stdout
 	Stderr = os.Stderr
 	s.BaseTest.TearDownTest(c)
