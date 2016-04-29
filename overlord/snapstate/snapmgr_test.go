@@ -772,7 +772,7 @@ func makeTestSnap(c *C, snapYamlContent string) (snapFilePath string) {
 	ioutil.WriteFile(snapYamlFn, []byte(snapYamlContent), 0644)
 	err := osutil.ChDir(tmpdir, func() error {
 		var err error
-		snapFilePath, err = snappy.BuildSquashfsSnap(tmpdir, "")
+		snapFilePath, err = snaptest.BuildSquashfsSnap(tmpdir, "")
 		c.Assert(err, IsNil)
 		return err
 	})

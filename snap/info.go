@@ -261,8 +261,6 @@ func (app *AppInfo) ServiceSocketFile() string {
 
 // ReadInfo reads the snap information for the installed snap with the given name and given side-info.
 func ReadInfo(name string, si *SideInfo) (*Info, error) {
-	// XXX: test directly when we don't have to invent the nth way
-	// to mock installed snaps!
 	snapYamlFn := filepath.Join(MountDir(name, si.Revision), "meta", "snap.yaml")
 	meta, err := ioutil.ReadFile(snapYamlFn)
 	if os.IsNotExist(err) {
