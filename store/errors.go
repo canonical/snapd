@@ -51,12 +51,3 @@ type ErrDownload struct {
 func (e *ErrDownload) Error() string {
 	return fmt.Sprintf("received an unexpected http response code (%v) when trying to download %s", e.Code, e.URL)
 }
-
-type HTTPError struct {
-	Status     string
-	StatusCode int
-}
-
-func (e *HTTPError) Error() string {
-	return e.Status
-}
