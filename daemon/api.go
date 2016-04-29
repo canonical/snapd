@@ -870,7 +870,7 @@ func readSnapInfoImpl(snapPath string) (*snap.Info, error) {
 	if err != nil {
 		return nil, err
 	}
-	return snapf.Info()
+	return snap.ReadInfoFromSnapFile(snapf, nil)
 }
 
 var readSnapInfo = readSnapInfoImpl
