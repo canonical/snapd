@@ -30,7 +30,7 @@ import (
 	"github.com/ubuntu-core/snappy/snap"
 )
 
-// MockSnap puts a snap.yaml file on disk, based on the provided arguments.
+// MockSnap puts a snap.yaml file on disk so to mock an installed snap, based on the provided arguments.
 //
 // The caller is responsible for mocking root directory with dirs.SetRootDir()
 // and for altering the overlord state if required.
@@ -51,8 +51,5 @@ func MockSnap(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 	err = ioutil.WriteFile(filepath.Join(metaDir, "snap.yaml"), []byte(yamlText), 0644)
 	c.Assert(err, check.IsNil)
 
-	// Triple-check that it really works by reading it back.
-	snapInfo, err = snap.ReadInfo(snapInfo.Name(), sideInfo)
-	c.Assert(err, check.IsNil)
 	return snapInfo
 }

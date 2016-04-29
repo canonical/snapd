@@ -91,10 +91,6 @@ var (
 	// ErrLicenseNotAccepted is returned when the user does not accept the
 	// license
 	ErrLicenseNotAccepted = errors.New("license not accepted")
-	// ErrLicenseBlank is returned when the package specifies that
-	// accepting license is required, but the license file was empty or
-	// blank
-	ErrLicenseBlank = errors.New("snap.yaml requires accepting a license, but license file was blank")
 	// ErrLicenseNotProvided is returned when the package specifies that
 	// accepting a license is required, but no license file is provided
 	ErrLicenseNotProvided = errors.New("snap.yaml requires license, but no license was provided")
