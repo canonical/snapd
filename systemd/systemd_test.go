@@ -230,19 +230,20 @@ var (
 func (s *SystemdTestSuite) TestGenAppServiceFile(c *C) {
 
 	desc := &ServiceDescription{
-		SnapName:    "app",
-		AppName:     "service",
-		Version:     "1.0",
-		Revision:    44,
-		Description: "descr",
-		SnapPath:    "/apps/app/1.0",
-		Start:       "bin/start",
-		Stop:        "bin/stop",
-		PostStop:    "bin/stop --post",
-		StopTimeout: time.Duration(10 * time.Second),
-		AaProfile:   "aa-profile",
-		UdevAppName: "app",
-		Type:        "simple",
+		SnapName:     "app",
+		AppName:      "service",
+		Version:      "1.0",
+		Revision:     44,
+		Description:  "descr",
+		SnapBasePath: "/apps/app",
+		SnapPath:     "/apps/app/1.0",
+		Start:        "bin/start",
+		Stop:         "bin/stop",
+		PostStop:     "bin/stop --post",
+		StopTimeout:  time.Duration(10 * time.Second),
+		AaProfile:    "aa-profile",
+		UdevAppName:  "app",
+		Type:         "simple",
 	}
 
 	c.Check(New("", nil).GenServiceFile(desc), Equals, expectedAppService)
@@ -262,20 +263,21 @@ func (s *SystemdTestSuite) TestGenAppServiceFileRestart(c *C) {
 func (s *SystemdTestSuite) TestGenServiceFileWithBusName(c *C) {
 
 	desc := &ServiceDescription{
-		SnapName:    "app",
-		AppName:     "service",
-		Version:     "1.0",
-		Revision:    44,
-		Description: "descr",
-		SnapPath:    "/apps/app/1.0",
-		Start:       "bin/start",
-		Stop:        "bin/stop",
-		PostStop:    "bin/stop --post",
-		StopTimeout: time.Duration(10 * time.Second),
-		AaProfile:   "aa-profile",
-		BusName:     "foo.bar.baz",
-		UdevAppName: "app",
-		Type:        "dbus",
+		SnapName:     "app",
+		AppName:      "service",
+		Version:      "1.0",
+		Revision:     44,
+		Description:  "descr",
+		SnapBasePath: "/apps/app",
+		SnapPath:     "/apps/app/1.0",
+		Start:        "bin/start",
+		Stop:         "bin/stop",
+		PostStop:     "bin/stop --post",
+		StopTimeout:  time.Duration(10 * time.Second),
+		AaProfile:    "aa-profile",
+		BusName:      "foo.bar.baz",
+		UdevAppName:  "app",
+		Type:         "dbus",
 	}
 
 	generated := New("", nil).GenServiceFile(desc)

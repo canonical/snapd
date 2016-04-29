@@ -71,29 +71,31 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("wrapper").Parse(wrapperTemplate))
 	wrapperData := struct {
-		SnapName    string
-		AppName     string
-		SnapArch    string
-		SnapPath    string
-		Version     string
-		Revision    int
-		UdevAppName string
-		Home        string
-		Target      string
-		AaProfile   string
-		OldAppVars  string
-		NewAppVars  string
+		SnapName     string
+		AppName      string
+		SnapArch     string
+		SnapBasePath string
+		SnapPath     string
+		Version      string
+		Revision     int
+		UdevAppName  string
+		Home         string
+		Target       string
+		AaProfile    string
+		OldAppVars   string
+		NewAppVars   string
 	}{
-		SnapName:    app.Snap.Name(),
-		AppName:     app.Name,
-		SnapArch:    arch.UbuntuArchitecture(),
-		SnapPath:    pkgPath,
-		Version:     app.Snap.Version,
-		Revision:    app.Snap.Revision,
-		UdevAppName: app.SecurityTag(),
-		Home:        "$HOME",
-		Target:      actualBinPath,
-		AaProfile:   app.SecurityTag(),
+		SnapName:     app.Snap.Name(),
+		AppName:      app.Name,
+		SnapArch:     arch.UbuntuArchitecture(),
+		SnapBasePath: stripGlobalRootDir(app.Snap.BaseDir()),
+		SnapPath:     pkgPath,
+		Version:      app.Snap.Version,
+		Revision:     app.Snap.Revision,
+		UdevAppName:  app.SecurityTag(),
+		Home:         "$HOME",
+		Target:       actualBinPath,
+		AaProfile:    app.SecurityTag(),
 	}
 
 	newVars := []string{}

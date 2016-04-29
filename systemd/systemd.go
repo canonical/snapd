@@ -158,6 +158,7 @@ type ServiceDescription struct {
 	Version         string
 	Revision        int
 	Description     string
+	SnapBasePath    string
 	SnapPath        string
 	Start           string
 	Stop            string
