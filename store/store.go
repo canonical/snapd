@@ -144,9 +144,9 @@ func assertsURL() string {
 
 func myappsURL() string {
 	if os.Getenv("SNAPPY_USE_STAGING_MYAPPS") != "" {
-		return "https://myapps.developer.staging.ubuntu.com/api/2.0"
+		return "https://myapps.developer.staging.ubuntu.com/"
 	}
-	return "https://myapps.developer.ubuntu.com/api/2.0"
+	return "https://myapps.developer.ubuntu.com/"
 }
 
 var defaultConfig = SnapUbuntuStoreConfig{}
@@ -181,7 +181,7 @@ func init() {
 		panic(err)
 	}
 
-	defaultConfig.PurchasesURI, err = url.Parse(myappsURL() + "/click/purchases/")
+	defaultConfig.PurchasesURI, err = url.Parse(myappsURL() + "dev/api/snap-purchases/")
 	if err != nil {
 		panic(err)
 	}
