@@ -36,21 +36,21 @@ import (
 // - "snap.$snap.{$app1,...$appN}" if there are some, but not all, apps bound
 // - "snap.$snap.*" if all apps are bound to the slot
 func slotAppLabelExpr(slot *interfaces.Slot) []byte {
-	snapName := slot.Snap.Name()
 	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "snap.%s.", slot.Snap.Name())
 	if len(slot.Apps) == 1 {
 		for appName := range slot.Apps {
-			fmt.Fprintf(&buf, "snap.%s.%s", snapName, appName)
+			fmt.Fprintf(&buf, "%s", appName)
 		}
 	} else if len(slot.Apps) == len(slot.Snap.Apps) {
-		fmt.Fprintf(&buf, "snap.%s.*", snapName)
+		fmt.Fprintf(&buf, "*")
 	} else {
 		appNames := make([]string, 0, len(slot.Apps))
 		for appName := range slot.Apps {
 			appNames = append(appNames, appName)
 		}
 		sort.Strings(appNames)
-		fmt.Fprintf(&buf, "snap.%s.{%s}", snapName, strings.Join(appNames, ","))
+		fmt.Fprintf(&buf, "{%s}", strings.Join(appNames, ","))
 	}
 	return buf.Bytes()
 }
