@@ -1,3 +1,21 @@
+ubuntu-core-launcher (1.0.28) yakkety; urgency=medium
+
+  * SECURITY UPDATE: delayed attack snap data theft and privilege escalation
+    when using Snappy on traditional Ubuntu (classic) systems (LP: #1576699)
+    - src/main.c: remove glob code and hardcode /snap/ubuntu-core/current
+      instead. The glob code both used an improper glob and performed an
+      incorrect check due to a typo which allowed a snap named ubuntu-core-...
+      to be bind mounted into application runtimes instead of the ubuntu-core
+      OS snap. Ubuntu Core removed .<origin> and .sideload from the SNAP path
+      so the glob can simply be dropped.
+    - CVE-2016-1580
+  * debian/usr.bin.ubuntu-core-launcher:
+    - only allow mounting /snap/ubuntu-core/*/... to safeguard against this in
+      the future
+    - add lib32 and libx32 to match setup_snappy_os_mounts()
+
+ -- Jamie Strandboge <jamie@ubuntu.com>  Fri, 29 Apr 2016 11:17:42 -0500
+
 ubuntu-core-launcher (1.0.27) xenial; urgency=medium
 
   * src/main.c:

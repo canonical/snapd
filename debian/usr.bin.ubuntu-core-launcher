@@ -84,11 +84,13 @@
     mount options=(rw rslave) -> /,
     /snap/ r,
     /snap/** r,
-    mount options=(rw bind) /snap/ubuntu-core*/*/bin/ -> /bin/,
-    mount options=(rw bind) /snap/ubuntu-core*/*/sbin/ -> /sbin/,
-    mount options=(rw bind) /snap/ubuntu-core*/*/lib/ -> /lib/,
-    mount options=(rw bind) /snap/ubuntu-core*/*/lib64/ -> /lib64/,
-    mount options=(rw bind) /snap/ubuntu-core*/*/usr/ -> /usr/,
+    mount options=(rw bind) /snap/ubuntu-core/*/bin/ -> /bin/,
+    mount options=(rw bind) /snap/ubuntu-core/*/sbin/ -> /sbin/,
+    mount options=(rw bind) /snap/ubuntu-core/*/lib/ -> /lib/,
+    mount options=(rw bind) /snap/ubuntu-core/*/lib32/ -> /lib32/,
+    mount options=(rw bind) /snap/ubuntu-core/*/libx32/ -> /libx32/,
+    mount options=(rw bind) /snap/ubuntu-core/*/lib64/ -> /lib64/,
+    mount options=(rw bind) /snap/ubuntu-core/*/usr/ -> /usr/,
 
     # for creating the user data directories: ~/snap, ~/snap/<name> and
     # ~/snap/<name>/<version>

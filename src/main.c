@@ -36,7 +36,6 @@
 #include <regex.h>
 #include <grp.h>
 #include <fcntl.h>
-#include <glob.h>
 
 #include <ctype.h>
 
@@ -347,16 +346,6 @@ void setup_snappy_os_mounts()
 {
 	debug("%s", __func__);
 
-	// FIXME: hardcoded "ubuntu-core.*"
-	glob_t glob_res;
-	if (glob("/snap/ubuntu-core*/current/", 0, NULL, &glob_res) != 0) {
-		die("can not find a snappy os");
-	}
-	if ((glob_res.gl_pathc = !1)) {
-		die("expected 1 os snap, found %i", (int)glob_res.gl_pathc);
-	}
-	char *mountpoint = glob_res.gl_pathv[0];
-
 	// we mount some whitelisted directories
 	//
 	// Note that we do not mount "/etc/" from snappy. We could do that,
@@ -370,7 +359,8 @@ void setup_snappy_os_mounts()
 		const char *dst = mounts[i];
 
 		char buf[512];
-		must_snprintf(buf, sizeof(buf), "%s%s", mountpoint, dst);
+		must_snprintf(buf, sizeof(buf), "/snap/ubuntu-core/current/%s",
+			      dst);
 		const char *src = buf;
 
 		// some system do not have e.g. /lib64
@@ -387,8 +377,6 @@ void setup_snappy_os_mounts()
 			die("unable to bind %s to %s", src, dst);
 		}
 	}
-
-	globfree(&glob_res);
 }
 
 void setup_slave_mount_namespace()
