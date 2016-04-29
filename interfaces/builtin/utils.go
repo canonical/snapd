@@ -39,10 +39,10 @@ func slotAppLabelExpr(slot *interfaces.Slot) []byte {
 	fmt.Fprintf(&buf, "snap.%s.", slot.Snap.Name())
 	if len(slot.Apps) == 1 {
 		for appName := range slot.Apps {
-			fmt.Fprintf(&buf, "%s", appName)
+			buf.WriteString(appName)
 		}
 	} else if len(slot.Apps) == len(slot.Snap.Apps) {
-		fmt.Fprintf(&buf, "*")
+		buf.WriteByte('*')
 	} else {
 		appNames := make([]string, 0, len(slot.Apps))
 		for appName := range slot.Apps {
