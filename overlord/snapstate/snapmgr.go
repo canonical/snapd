@@ -293,9 +293,9 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// Only remove data shared between versions if this is the last version
+	// Only remove data common between versions if this is the last version
 	if len(snapst.Sequence) == 1 {
-		if err = m.backend.RemoveSnapSharedData(info); err != nil {
+		if err = m.backend.RemoveSnapCommonData(info); err != nil {
 			return err
 		}
 	}

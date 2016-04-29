@@ -73,7 +73,7 @@ func (s *SnapTestSuite) TestLocalSnapInstall(c *C) string {
 	c.Check(snapEntries, DeepEquals, []string{"0", "current"})
 
 	snapDataEntries := listDir(c, filepath.Join(dirs.SnapDataDir, fooComposedName))
-	c.Check(snapDataEntries, DeepEquals, []string{"0", "current", "shared"})
+	c.Check(snapDataEntries, DeepEquals, []string{"0", "common", "current"})
 
 	return snapPath
 }
@@ -98,7 +98,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallWithBlessedMetadata(c *C) {
 	c.Check(snapEntries, DeepEquals, []string{"40", "current"})
 
 	snapDataEntries := listDir(c, filepath.Join(dirs.SnapDataDir, fooComposedName))
-	c.Check(snapDataEntries, DeepEquals, []string{"40", "current", "shared"})
+	c.Check(snapDataEntries, DeepEquals, []string{"40", "common", "current"})
 }
 
 func (s *SnapTestSuite) TestLocalSnapInstallWithBlessedMetadataOverridingName(c *C) {
@@ -404,8 +404,8 @@ func (s *SnapTestSuite) TestCopyData(c *C) {
 	homeData := filepath.Join(homeDir, appDir, "10")
 	err := os.MkdirAll(homeData, 0755)
 	c.Assert(err, IsNil)
-	homeSharedData := filepath.Join(homeDir, appDir, "shared")
-	err = os.MkdirAll(homeSharedData, 0755)
+	homeCommonData := filepath.Join(homeDir, appDir, "common")
+	err = os.MkdirAll(homeCommonData, 0755)
 	c.Assert(err, IsNil)
 
 	snapYamlContent := `name: foo
@@ -418,12 +418,12 @@ func (s *SnapTestSuite) TestCopyData(c *C) {
 	canaryDataFile := filepath.Join(dirs.SnapDataDir, appDir, "10", "canary.txt")
 	err = ioutil.WriteFile(canaryDataFile, canaryData, 0644)
 	c.Assert(err, IsNil)
-	canaryDataFile = filepath.Join(dirs.SnapDataDir, appDir, "shared", "canary.shared")
+	canaryDataFile = filepath.Join(dirs.SnapDataDir, appDir, "common", "canary.common")
 	err = ioutil.WriteFile(canaryDataFile, canaryData, 0644)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(homeData, "canary.home"), canaryData, 0644)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(homeSharedData, "canary.shared_home"), canaryData, 0644)
+	err = ioutil.WriteFile(filepath.Join(homeCommonData, "canary.common_home"), canaryData, 0644)
 	c.Assert(err, IsNil)
 
 	snapPath = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
@@ -434,8 +434,8 @@ func (s *SnapTestSuite) TestCopyData(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(content, DeepEquals, canaryData)
 
-	// ensure shared data file is still there (even though it didn't get copied)
-	newCanaryDataFile = filepath.Join(dirs.SnapDataDir, appDir, "shared", "canary.shared")
+	// ensure common data file is still there (even though it didn't get copied)
+	newCanaryDataFile = filepath.Join(dirs.SnapDataDir, appDir, "common", "canary.common")
 	content, err = ioutil.ReadFile(newCanaryDataFile)
 	c.Assert(err, IsNil)
 	c.Assert(content, DeepEquals, canaryData)
@@ -445,8 +445,8 @@ func (s *SnapTestSuite) TestCopyData(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(content, DeepEquals, canaryData)
 
-	// ensure home shared data file is still there (even though it didn't get copied)
-	newCanaryDataFile = filepath.Join(homeDir, appDir, "shared", "canary.shared_home")
+	// ensure home common data file is still there (even though it didn't get copied)
+	newCanaryDataFile = filepath.Join(homeDir, appDir, "common", "canary.common_home")
 	content, err = ioutil.ReadFile(newCanaryDataFile)
 	c.Assert(err, IsNil)
 	c.Assert(content, DeepEquals, canaryData)
@@ -468,7 +468,7 @@ func (s *SnapTestSuite) TestCopyDataNoUserHomes(c *C) {
 	canaryDataFile := filepath.Join(snap.DataDir(), "canary.txt")
 	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
 	c.Assert(err, IsNil)
-	canaryDataFile = filepath.Join(snap.SharedDataDir(), "canary.shared")
+	canaryDataFile = filepath.Join(snap.CommonDataDir(), "canary.common")
 	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
 	c.Assert(err, IsNil)
 
@@ -477,12 +477,12 @@ func (s *SnapTestSuite) TestCopyDataNoUserHomes(c *C) {
 	c.Assert(err, IsNil)
 	_, err = os.Stat(filepath.Join(snap2.DataDir(), "canary.txt"))
 	c.Assert(err, IsNil)
-	_, err = os.Stat(filepath.Join(snap2.SharedDataDir(), "canary.shared"))
+	_, err = os.Stat(filepath.Join(snap2.CommonDataDir(), "canary.common"))
 	c.Assert(err, IsNil)
 
 	// sanity atm
 	c.Check(snap.DataDir(), Not(Equals), snap2.DataDir())
-	c.Check(snap.SharedDataDir(), Equals, snap2.SharedDataDir())
+	c.Check(snap.CommonDataDir(), Equals, snap2.CommonDataDir())
 }
 
 func (s *SnapTestSuite) TestSnappyHandleBinariesOnUpgrade(c *C) {

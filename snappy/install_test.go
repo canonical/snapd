@@ -124,16 +124,16 @@ func (s *SnapTestSuite) TestClickInstallGCSimple(c *C) {
 	// gc should no longer leave one more data than app
 	globs, err = filepath.Glob(filepath.Join(dirs.SnapDataDir, "foo", "*"))
 	c.Check(err, IsNil)
-	c.Check(globs, HasLen, 2+1+1) // +1 for "current", +1 for shared
+	c.Check(globs, HasLen, 2+1+1) // +1 for "current", +1 for common
 
-	// ensure shared data is actually present, and it isn't the old version
-	sharedFound := false
+	// ensure common data is actually present, and it isn't the old version
+	commonFound := false
 	for _, glob := range globs {
-		if filepath.Base(glob) == "shared" {
-			sharedFound = true
+		if filepath.Base(glob) == "common" {
+			commonFound = true
 		}
 	}
-	c.Check(sharedFound, Equals, true)
+	c.Check(commonFound, Equals, true)
 }
 
 // check that if flags does not include DoInstallGC, no gc is done
@@ -146,16 +146,16 @@ func (s *SnapTestSuite) TestClickInstallGCSuppressed(c *C) {
 
 	globs, err = filepath.Glob(filepath.Join(dirs.SnapDataDir, "foo", "*"))
 	c.Check(err, IsNil)
-	c.Check(globs, HasLen, 3+1+1) // +1 for "current", +1 for shared
+	c.Check(globs, HasLen, 3+1+1) // +1 for "current", +1 for common
 
-	// ensure shared data is actually present
-	sharedFound := false
+	// ensure common data is actually present
+	commonFound := false
 	for _, glob := range globs {
-		if filepath.Base(glob) == "shared" {
-			sharedFound = true
+		if filepath.Base(glob) == "common" {
+			commonFound = true
 		}
 	}
-	c.Check(sharedFound, Equals, true)
+	c.Check(commonFound, Equals, true)
 }
 
 func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {

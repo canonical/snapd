@@ -948,7 +948,7 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 			name: "/snap/some-snap/7",
 		},
 		fakeOp{
-			op:   "remove-snap-shared-data",
+			op:   "remove-snap-common-data",
 			name: "/snap/some-snap/7",
 		},
 		fakeOp{
@@ -1059,7 +1059,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsIntegration(c *C) {
 			name: "/snap/some-snap/5",
 		},
 		{
-			op:   "remove-snap-shared-data",
+			op:   "remove-snap-common-data",
 			name: "/snap/some-snap/5",
 		},
 		{

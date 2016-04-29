@@ -181,9 +181,9 @@ func CopyData(newSnap, oldSnap *snap.Info, flags InstallFlags, meter progress.Me
 	// deal with the old data or
 	// otherwise just create a empty data dir
 
-	// Make sure the shared data directory exists, even if this isn't a new
+	// Make sure the common data directory exists, even if this isn't a new
 	// install.
-	if err := os.MkdirAll(newSnap.SharedDataDir(), 0755); err != nil {
+	if err := os.MkdirAll(newSnap.CommonDataDir(), 0755); err != nil {
 		return err
 	}
 
