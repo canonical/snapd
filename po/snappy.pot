@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-04-18 17:13+0200\n"
+        "POT-Creation-Date: 2016-04-29 09:26+0200\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -24,6 +24,9 @@ msgid   "Activate %q snap"
 msgstr  ""
 
 msgid   "Adds an assertion to the system"
+msgstr  ""
+
+msgid   "Authenticates on snapd and the store"
 msgstr  ""
 
 msgid   "Builds a snap package"
@@ -117,9 +120,6 @@ msgstr  ""
 msgid   "Lists interfaces in the system"
 msgstr  ""
 
-msgid   "Log into the store"
-msgstr  ""
-
 msgid   "Log out of the store"
 msgstr  ""
 
@@ -209,9 +209,6 @@ msgid   "Status\tSpawn\tReady\tSummary\n"
 msgstr  ""
 
 msgid   "This command logs the current user out of the store"
-msgstr  ""
-
-msgid   "This command logs the given username into the store"
 msgstr  ""
 
 msgid   "Two-factor code: "
@@ -316,6 +313,16 @@ msgstr  ""
 
 msgid   "\n"
         "The list command displays a summary of snaps installed in the current system."
+msgstr  ""
+
+msgid   "\n"
+        "The login command authenticates on snapd and the snap store and saves credentials\n"
+        "into the ~/.snap/auth.json file. Further communication with snapd will then be made\n"
+        "using those credentials.\n"
+        "\n"
+        "Login only works for local users in the sudo or admin groups.\n"
+        "\n"
+        "Credentials may be obtained at https://login.ubuntu.com\n"
 msgstr  ""
 
 msgid   "\n"
