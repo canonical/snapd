@@ -30,7 +30,7 @@ import (
 	"testing"
 
 	"github.com/ubuntu-core/snappy/osutil"
-	"github.com/ubuntu-core/snappy/snappy"
+	"github.com/ubuntu-core/snappy/snap/snaptest"
 
 	. "gopkg.in/check.v1"
 )
@@ -155,7 +155,7 @@ func (s *storeTestSuite) makeTestSnap(c *C, snapYamlContent string) string {
 	c.Assert(err, IsNil)
 
 	targetDir := s.store.blobDir
-	snapFn, err := snappy.BuildSquashfsSnap(tmpdir, targetDir)
+	snapFn, err := snaptest.BuildSquashfsSnap(tmpdir, targetDir)
 	c.Assert(err, IsNil)
 	return snapFn
 }

@@ -20,7 +20,7 @@
 package snaptest_test
 
 import (
-	"os"
+	"io/ioutil"
 	"path/filepath"
 	"testing"
 
@@ -63,7 +63,12 @@ func (s *snapTestSuite) TestMockSnap(c *C) {
 	// Data from SideInfo is used
 	c.Check(snapInfo.Revision, Equals, 42)
 	// The YAML is placed on disk
-	stat, err := os.Stat(filepath.Join(dirs.SnapSnapsDir, "sample", "42", "meta", "snap.yaml"))
+	cont, err := ioutil.ReadFile(filepath.Join(dirs.SnapSnapsDir, "sample", "42", "meta", "snap.yaml"))
 	c.Assert(err, IsNil)
-	c.Check(stat.Size(), Equals, int64(len(sampleYaml)))
+
+	c.Check(string(cont), Equals, sampleYaml)
+
+	// More
+	c.Check(snapInfo.Apps["app"].Command, Equals, "foo")
+	c.Check(snapInfo.Plugs["network"].Interface, Equals, "network")
 }
