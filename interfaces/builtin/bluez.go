@@ -98,7 +98,7 @@ var bluezConnectedPlugAppArmor = []byte(`
 # Allow all access to bluez service
 dbus (receive, send)
     bus=system
-    peer=(label=@SLOT_SECURITY_TAGS@),
+    peer=(label=###SLOT_SECURITY_TAGS###),
 
 dbus (send)
     bus=system
@@ -204,7 +204,7 @@ func (iface *BluezInterface) PermanentPlugSnippet(plug *interfaces.Plug, securit
 func (iface *BluezInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		old := []byte("@SLOT_SECURITY_TAGS@")
+		old := []byte("###SLOT_SECURITY_TAGS###")
 		new := slotAppLabelExpr(slot)
 		snippet := bytes.Replace(bluezConnectedPlugAppArmor, old, new, -1)
 		return snippet, nil
