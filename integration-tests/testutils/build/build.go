@@ -39,6 +39,8 @@ const (
 	listCmd         = "go list ./..."
 	buildTestCmdFmt = "go test%s -c ./integration-tests/tests"
 
+	snapbuildPkg = "./integration-tests/testutils/build/snapbuild"
+
 	// IntegrationTestName is the name of the test binary.
 	IntegrationTestName = "integration.test"
 	defaultGoArm        = "7"
@@ -81,8 +83,8 @@ func Assets(cfg *Config) {
 		// installed. --elopio - 2015-06-25.
 		buildSnapd(cfg.Arch, coverpkg)
 		buildSnapCLI(cfg.Arch, coverpkg)
-		buildSnapbuild(cfg.Arch)
 	}
+	buildSnapbuild(cfg.Arch)
 	buildTests(cfg.Arch, cfg.TestBuildTags)
 }
 
@@ -104,8 +106,7 @@ func buildSnapbuild(arch string) {
 	fmt.Println("Building snapbuild...")
 
 	buildSnapbuildCmd := "go build" +
-		" -o " + filepath.Join(testsBinDir, "snapbuild") +
-		" ./" + filepath.Join("integration-tests", "testutils", "build", "snapbuild")
+		" -o " + filepath.Join(testsBinDir, filepath.Base(snapbuildPkg)) + " " + snapbuildPkg
 	goCall(arch, buildSnapbuildCmd)
 }
 
