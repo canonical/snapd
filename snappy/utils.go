@@ -51,17 +51,15 @@ func stripGlobalRootDirImpl(dir string) string {
 // any already existing SNAP_* variables in os.Environment()
 func makeSnapHookEnv(snap *Snap) (env []string) {
 	desc := struct {
-		SnapName     string
-		SnapArch     string
-		SnapBasePath string
-		SnapPath     string
-		Version      string
-		Revision     int
-		UdevAppName  string
+		SnapName    string
+		SnapArch    string
+		SnapPath    string
+		Version     string
+		Revision    int
+		UdevAppName string
 	}{
 		snap.Name(),
 		arch.UbuntuArchitecture(),
-		snap.Info().BaseDir(),
 		snap.Info().MountDir(),
 		snap.Version(),
 		snap.Revision(),
