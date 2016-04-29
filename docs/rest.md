@@ -167,7 +167,7 @@ Reserved for human-readable content describing the service.
 ## /v2/find
 ### GET
 
-* Description: find snaps in the store
+* Description: Find snaps in the store
 * Access: authenticated
 * Operation: sync
 * Return: list of snaps in the store that match the search term and
@@ -199,7 +199,6 @@ Which channel to search in.
       "status": "available",
       "summary": "Hello world example",
       "type": "app",
-      "vendor": "",
       "version": "6.0",
       "prices": {"EUR": 1.99, "USD": 2.49}
     }, {
@@ -213,7 +212,6 @@ Which channel to search in.
       "status": "available",
       "summary": "HTTPie in a snap",
       "type": "app",
-      "vendor": "",
       "version": "4.6692016"
 }]
 ```
