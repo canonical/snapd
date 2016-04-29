@@ -205,6 +205,8 @@ type response struct {
 type Error struct {
 	Kind    string `json:"kind"`
 	Message string `json:"message"`
+
+	StatusCode int
 }
 
 func (e *Error) Error() string {
@@ -229,6 +231,8 @@ func (rsp *response) err() error {
 	if err != nil || resultErr.Message == "" {
 		return fmt.Errorf("server error: %q", rsp.Status)
 	}
+	resultErr.StatusCode = rsp.StatusCode
+
 	return &resultErr
 }
 
