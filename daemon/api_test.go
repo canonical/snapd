@@ -843,6 +843,32 @@ func (s *apiSuite) TestSnapsInfoOnlyLocal(c *check.C) {
 	c.Assert(snaps[0]["name"], check.Equals, "local")
 }
 
+func (s *apiSuite) TestFind(c *check.C) {
+	s.suggestedCurrency = "EUR"
+
+	s.rsnaps = []*snap.Info{{
+		SideInfo: snap.SideInfo{
+			OfficialName: "store",
+			Developer:    "foo",
+		},
+	}}
+
+	req, err := http.NewRequest("GET", "/v2/find?q=hi&channel=potato", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := searchStore(findCmd, req).(*resp)
+
+	snaps := snapList(rsp.Result)
+	c.Assert(snaps, check.HasLen, 1)
+	c.Assert(snaps[0]["name"], check.Equals, "store")
+	c.Check(snaps[0]["prices"], check.IsNil)
+
+	c.Check(rsp.SuggestedCurrency, check.Equals, "EUR")
+
+	c.Check(s.searchTerm, check.Equals, "hi")
+	c.Check(s.channel, check.Equals, "potato")
+}
+
 func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
 	d := s.daemon(c)
 
