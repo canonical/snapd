@@ -34,6 +34,7 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/snaptest"
 )
 
 const (
@@ -44,9 +45,6 @@ const (
 
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
-
-// here to make it easy to switch in tests to "BuildSquashfsSnap"
-var snapBuilderFunc = BuildSquashfsSnap
 
 func init() {
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
@@ -203,7 +201,7 @@ version: 1.0
 	// build it
 	err := osutil.ChDir(tmpdir, func() error {
 		var err error
-		snapPath, err = snapBuilderFunc(tmpdir, "")
+		snapPath, err = snaptest.BuildSquashfsSnap(tmpdir, "")
 		c.Assert(err, IsNil)
 		return err
 	})

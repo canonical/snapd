@@ -116,7 +116,7 @@ func (c *cmdChanges) showChange(id string) error {
 		fmt.Fprintln(Stdout, t.Summary)
 		fmt.Fprintln(Stdout)
 		for _, line := range t.Log {
-			fmt.Println(line)
+			fmt.Fprintln(Stdout, line)
 		}
 	}
 

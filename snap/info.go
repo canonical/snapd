@@ -45,8 +45,14 @@ type PlaceInfo interface {
 	// DataDir returns the data directory of the snap.
 	DataDir() string
 
+	// CommonDataDir returns the data directory common across revisions of the snap.
+	CommonDataDir() string
+
 	// DataHomeDir returns the per user data directory of the snap.
 	DataHomeDir() string
+
+	// CommonDataHomeDir returns the per user data directory common across revisions of the snap.
+	CommonDataHomeDir() string
 }
 
 // MinimalPlaceInfo returns a PlaceInfo with just the location information for a snap of the given name and revision.
@@ -157,9 +163,19 @@ func (s *Info) DataDir() string {
 	return filepath.Join(dirs.SnapDataDir, s.Name(), s.strRevno())
 }
 
+// CommonDataDir returns the data directory common across revisions of the snap.
+func (s *Info) CommonDataDir() string {
+	return filepath.Join(dirs.SnapDataDir, s.Name(), "common")
+}
+
 // DataHomeDir returns the per user data directory of the snap.
 func (s *Info) DataHomeDir() string {
 	return filepath.Join(dirs.SnapDataHomeGlob, s.Name(), s.strRevno())
+}
+
+// CommonDataHomeDir returns the per user data directory common across revisions of the snap.
+func (s *Info) CommonDataHomeDir() string {
+	return filepath.Join(dirs.SnapDataHomeGlob, s.Name(), "common")
 }
 
 // sanity check that Info is a PlacInfo
@@ -245,8 +261,6 @@ func (app *AppInfo) ServiceSocketFile() string {
 
 // ReadInfo reads the snap information for the installed snap with the given name and given side-info.
 func ReadInfo(name string, si *SideInfo) (*Info, error) {
-	// XXX: test directly when we don't have to invent the nth way
-	// to mock installed snaps!
 	snapYamlFn := filepath.Join(MountDir(name, si.Revision), "meta", "snap.yaml")
 	meta, err := ioutil.ReadFile(snapYamlFn)
 	if os.IsNotExist(err) {

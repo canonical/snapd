@@ -77,7 +77,7 @@ Usage: reserved
 
 ### log-observe
 
-Can read system logs.
+Can read system logs and set kernel log rate-limiting.
 
 Usage: reserved
 
