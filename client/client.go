@@ -211,6 +211,22 @@ func (e *Error) Error() string {
 	return e.Message
 }
 
+const (
+	ErrorKindTwoFactorRequired = "two-factor-required"
+	ErrorKindTwoFactorFailed   = "two-factor-failed"
+)
+
+// IsTwoFactorError returns whether the given error is due to problems
+// in two-factor authentication.
+func IsTwoFactorError(err error) bool {
+	e, ok := err.(*Error)
+	if !ok || e == nil {
+		return false
+	}
+
+	return e.Kind == ErrorKindTwoFactorFailed || e.Kind == ErrorKindTwoFactorRequired
+}
+
 // SysInfo holds system information
 type SysInfo struct {
 	Flavor           string `json:"flavor"`

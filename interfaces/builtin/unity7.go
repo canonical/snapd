@@ -116,8 +116,42 @@ dbus (receive, send)
     member={Get,PropertiesChanged}
     peer=(label=unconfined),
 
+# gmenu
+dbus (send)
+    bus=session
+    interface=org.gtk.Actions
+    path={/org/gtk/Application/anonymous{,/**},/com/canonical/unity/gtk/window/[0-9]*}
+    member=Changed
+    peer=(label=unconfined),
+
+dbus (receive)
+    bus=session
+    interface=org.gtk.Actions
+    path={/org/gtk/Application/anonymous{,/**},/com/canonical/unity/gtk/window/[0-9]*}
+    member={Activate,DescribeAll,SetState}
+    peer=(label=unconfined),
+
+dbus (receive)
+    bus=session
+    interface=org.gtk.Menus
+    path={/org/gtk/Application/anonymous{,/**},/com/canonical/unity/gtk/window/[0-9]*}
+    member={Start,End}
+    peer=(label=unconfined),
+
+dbus (receive,send)
+    bus=session
+    interface=org.gtk.Menus
+    path={/org/gtk/Application/anonymous{,/**},/com/canonical/unity/gtk/window/[0-9]*}
+    member=Changed
+    peer=(label=unconfined),
+
+# Lttng tracing is very noisy and should not be allowed by confined apps. Can
+# safely deny. LP: #1260491
+deny /{,var/}run/shm/lttng-ust-* r,
+
+
 # TODO: pull in modern items from ubuntu-unity7-base abstraction, eg, HUD,
-# AppMenu, gmenu, and freedesktop notifications
+# freedesktop notifications, etc
 `
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/unity7

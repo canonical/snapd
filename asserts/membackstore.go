@@ -20,7 +20,6 @@
 package asserts
 
 import (
-	"fmt"
 	"sync"
 )
 
@@ -60,7 +59,7 @@ func (leaf memBSLeaf) put(key []string, assert Assertion) error {
 		rev := assert.Revision()
 		curRev := cur.Revision()
 		if curRev >= rev {
-			return fmt.Errorf("assertion added must have more recent revision than current one (adding %d, currently %d)", rev, curRev)
+			return &RevisionError{Current: curRev, Used: rev}
 		}
 	}
 	leaf[key0] = assert

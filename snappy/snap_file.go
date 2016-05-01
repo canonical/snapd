@@ -37,12 +37,9 @@ func openSnapFile(snapPath string, unsignedOk bool, sideInfo *snap.SideInfo) (*s
 	if err != nil {
 		return nil, nil, err
 	}
-
-	var snapInfo snap.Info
-	snapInfo = *info
 	if sideInfo != nil {
-		snapInfo.SideInfo = *sideInfo
+		info.SideInfo = *sideInfo
 	}
 
-	return &snapInfo, snapf, nil
+	return info, snapf, nil
 }

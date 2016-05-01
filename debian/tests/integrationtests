@@ -33,7 +33,7 @@ if [ -z "$ADT_REBOOT_MARK" ]; then
     go test -c ./integration-tests/tests
 fi
 
-./tests.test  -check.vv -check.f 'snapHelloWorldExampleSuite|snapOpSuite|searchSuite|installAppSuite|authSuite|networkInterfaceSuite|snapPersistsSuite'
+./tests.test  -check.vv -check.f 'snapHelloWorldExampleSuite|snapOpSuite|searchSuite|installAppSuite|authSuite|networkInterfaceSuite|homeInterfaceSuite|snapPersistsSuite'
 
 if [ -e ${NEEDS_REBOOT} ]; then
     mark=`cat ${NEEDS_REBOOT}`

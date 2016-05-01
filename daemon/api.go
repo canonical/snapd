@@ -31,6 +31,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 
@@ -47,7 +48,6 @@ import (
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
 	"github.com/ubuntu-core/snappy/store"
-	"time"
 )
 
 var api = []*Command{
@@ -56,6 +56,7 @@ var api = []*Command{
 	loginCmd,
 	logoutCmd,
 	appIconCmd,
+	findCmd,
 	snapsCmd,
 	snapCmd,
 	//FIXME: renenable config for GA
@@ -97,6 +98,12 @@ var (
 		Path:   "/v2/icons/{name}/icon",
 		UserOK: true,
 		GET:    appIconGet,
+	}
+
+	findCmd = &Command{
+		Path:   "/v2/find",
+		UserOK: true,
+		GET:    searchStore,
 	}
 
 	snapsCmd = &Command{
@@ -196,19 +203,29 @@ func loginUser(c *Command, r *http.Request) Response {
 	}
 
 	discharge, err := store.DischargeAuthCaveat(loginData.Username, loginData.Password, macaroon, loginData.Otp)
-	if err == store.ErrAuthenticationNeeds2fa {
-		twofactorRequiredResponse := &resp{
+	switch err {
+	case store.ErrAuthenticationNeeds2fa:
+		return SyncResponse(&resp{
 			Type: ResponseTypeError,
 			Result: &errorResult{
 				Kind:    errorKindTwoFactorRequired,
-				Message: store.ErrAuthenticationNeeds2fa.Error(),
+				Message: err.Error(),
 			},
 			Status: http.StatusUnauthorized,
-		}
-		return SyncResponse(twofactorRequiredResponse, nil)
-	}
-	if err != nil {
+		}, nil)
+	case store.Err2faFailed:
+		return SyncResponse(&resp{
+			Type: ResponseTypeError,
+			Result: &errorResult{
+				Kind:    errorKindTwoFactorFailed,
+				Message: err.Error(),
+			},
+			Status: http.StatusUnauthorized,
+		}, nil)
+	default:
 		return Unauthorized(err.Error())
+	case nil:
+		// continue
 	}
 
 	overlord := c.d.overlord
@@ -357,6 +374,48 @@ func webify(result map[string]interface{}, resource string) map[string]interface
 	return result
 }
 
+func searchStore(c *Command, r *http.Request) Response {
+	route := c.d.router.Get(snapCmd.Path)
+	if route == nil {
+		return InternalError("router can't find route for snaps")
+	}
+
+	query := r.URL.Query()
+
+	auther, err := c.d.auther(r)
+	if err != nil && err != auth.ErrInvalidAuth {
+		return InternalError("%v", err)
+	}
+
+	remoteRepo := newRemoteRepo()
+	found, err := remoteRepo.FindSnaps(query.Get("q"), query.Get("channel"), auther)
+	if err != nil {
+		return InternalError("%v", err)
+	}
+
+	meta := &Meta{
+		SuggestedCurrency: remoteRepo.SuggestedCurrency(),
+	}
+
+	results := make([]*json.RawMessage, len(found))
+	for i, x := range found {
+		resource := ""
+		url, err := route.URL("name", x.Name())
+		if err == nil {
+			resource = url.String()
+		}
+
+		data, err := json.Marshal(webify(mapSnap(nil, false, x), resource))
+		if err != nil {
+			return InternalError("%v", err)
+		}
+		raw := json.RawMessage(data)
+		results[i] = &raw
+	}
+
+	return SyncResponse(results, meta)
+}
+
 // plural!
 func getSnapsInfo(c *Command, r *http.Request) Response {
 	route := c.d.router.Get(snapCmd.Path)
@@ -369,6 +428,7 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 
 	var includeStore, includeLocal bool
 	if len(query["sources"]) > 0 {
+		// XXX use query.Get to make this easier to follow
 		for _, v := range strings.Split(query["sources"][0], ",") {
 			if v == "store" {
 				includeStore = true
@@ -744,7 +804,6 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 		return InternalError("cannot find route for change")
 	}
 
-	body := r.Body
 	contentType := r.Header.Get("Content-Type")
 
 	if !strings.HasPrefix(contentType, "multipart/") {
@@ -768,35 +827,44 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 		flags |= snappy.DeveloperMode
 	}
 
-	// form.File is a map of arrays of *FileHeader things
-	// we just allow one (for now at least)
+	// find the file for the "snap" form field
+	var snapBody multipart.File
+	var origPath string
 out:
-	for _, v := range form.File {
-		for i := range v {
-			body, err = v[i].Open()
+	for name, fheaders := range form.File {
+		if name != "snap" {
+			continue
+		}
+		for _, fheader := range fheaders {
+			snapBody, err = fheader.Open()
+			origPath = fheader.Filename
 			if err != nil {
-				return BadRequest("cannot open POST form file: %v", err)
+				return BadRequest(`cannot open uploaded "snap" file: %v`, err)
 			}
-			defer body.Close()
+			defer snapBody.Close()
 
 			break out
 		}
 	}
 	defer form.RemoveAll()
 
+	if snapBody == nil {
+		return BadRequest(`cannot find "snap" file field in provided multipart/form-data payload`)
+	}
+
 	tmpf, err := ioutil.TempFile("", "snapd-sideload-pkg-")
 	if err != nil {
 		return InternalError("cannot create temporary file: %v", err)
 	}
 
-	if _, err := io.Copy(tmpf, body); err != nil {
+	if _, err := io.Copy(tmpf, snapBody); err != nil {
 		os.Remove(tmpf.Name())
 		return InternalError("cannot copy request into temporary file: %v", err)
 	}
+	tmpf.Sync()
 
 	tempPath := tmpf.Name()
 
-	origPath := ""
 	if len(form.Value["snap-path"]) > 0 {
 		origPath = form.Value["snap-path"][0]
 	}
@@ -811,9 +879,9 @@ out:
 	st.Lock()
 	defer st.Unlock()
 
-	msg := fmt.Sprintf(i18n.G("Install %q snap from snap file"), snapName)
+	msg := fmt.Sprintf(i18n.G("Install %q snap from file"), snapName)
 	if origPath != "" {
-		msg = fmt.Sprintf(i18n.G("Install %q snap from snap file %q"), snapName, origPath)
+		msg = fmt.Sprintf(i18n.G("Install %q snap from file %q"), snapName, origPath)
 	}
 
 	var userID int
@@ -1029,6 +1097,8 @@ type changeInfo struct {
 
 	SpawnTime time.Time  `json:"spawn-time,omitempty"`
 	ReadyTime *time.Time `json:"ready-time,omitempty"`
+
+	Data map[string]*json.RawMessage `json:"data,omitempty"`
 }
 
 type taskInfo struct {
@@ -1090,6 +1160,11 @@ func change2changeInfo(chg *state.Change) *changeInfo {
 		taskInfos[j] = taskInfo
 	}
 	chgInfo.Tasks = taskInfos
+
+	var data map[string]*json.RawMessage
+	if chg.Get("api-data", &data) == nil {
+		chgInfo.Data = data
+	}
 
 	return chgInfo
 }
