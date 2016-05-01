@@ -164,32 +164,102 @@ Reserved for human-readable content describing the service.
 }
 ```
 
+## /v2/find
+### GET
+
+* Description: Find snaps in the store
+* Access: authenticated
+* Operation: sync
+* Return: list of snaps in the store that match the search term and
+  that this system can handle.
+
+### Parameters:
+
+#### `q`
+
+Query.
+
+#### `channel`
+
+Which channel to search in.
+
+#### Sample result:
+
+[//]: # keep the fields sorted, both in the sample and its description below. Makes scanning easier
+
+```javascript
+[{
+      "description": "This is a simple hello world example.",
+      "developer": "canonical",
+      "download-size": 20480,
+      "icon": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
+      "name": "hello-world",
+      "resource": "/v2/snaps/hello-world",
+      "revision": 25,
+      "status": "available",
+      "summary": "Hello world example",
+      "type": "app",
+      "version": "6.0",
+      "prices": {"EUR": 1.99, "USD": 2.49}
+    }, {
+      "description": "no description",
+      "developer": "chipaca",
+      "download-size": 1110016,
+      "icon": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/10/http.png",
+      "name": "http",
+      "resource": "/v2/snaps/http",
+      "revision": 14,
+      "status": "available",
+      "summary": "HTTPie in a snap",
+      "type": "app",
+      "version": "4.6692016"
+}]
+```
+
+##### Fields
+
+[//]: # keep the fields sorted, both in the description and the sample above. Makes scanning easier
+
+* `description`: snap description
+* `download-size`: how big the download will be.
+* `icon`: a url to the snap icon, possibly relative to this server.
+* `name`: the snap name.
+* `prices`: JSON object with properties named by ISO 4217 currency code. The values of the properties are numerics representing the cost in each currency. For free snaps, the "prices" property is omitted.
+* `revision`: a number representing the revision.
+* `status`: can be either `available`, or `priced` (i.e. needs to be bought to become available)
+* `summary`: one-line summary
+* `type`: the type of snap; one of `app`, `kernel`, `gadget`, or `os`.
+* `version`: a string representing the version.
+
+[//]: # seriously, keep the fields sorted!
+
+#### Result meta data:
+
+```javascript
+{
+ "suggested-currency": "GBP"
+}
+```
+
+##### Fields
+
+* `suggested-currency`: the suggested currency to use for presentation, 
+   derived by Geo IP lookup.
+
 ## /v2/snaps
 ### GET
 
 * Description: List of snaps
 * Access: authenticated
 * Operation: sync
-* Return: list of snaps this Ubuntu Core system can handle.
+* Return: list of snaps installed in this Ubuntu Core system, as for `/v2/find`
 
 Sample result:
 
+[//]: # keep the fields sorted, both in the description and the sample above. Makes scanning easier
+
 ```javascript
 [{
-      "summary": "Hello world example",
-      "description": "This is a simple hello world example.",
-      "download-size": 22212,
-      "icon": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
-      "installed-size": -1,          // always -1 if neither "active" nor "installed"
-      "name": "hello-world",
-      "developer": "canonical",
-      "resource": "/v2/snaps/hello-world",
-      "status": "available",
-      "type": "app",
-      "revision": 17,
-      "version": "1.0.18",
-      "channel": "stable"
-    }, {
       "summary": "HTTPie in a snap",
       "description": "no description",
       "download-size": 1578272,
@@ -208,8 +278,8 @@ Sample result:
       "summary": "The ubuntu-core OS snap",
       "description": "A secure, minimal transactional OS for devices and containers.",
       "download-size": 19845748,
-      "icon": "",               // core might not have an icon
-      "installed-size": -1,     // core doesn't have installed-size (yet)
+      "icon": "",                  // core might not have an icon
+      "installed-size": 67784704,
       "install-date": "2016-03-08T11:29:21Z",
       "name": "ubuntu-core",
       "developer": "canonical",
@@ -220,86 +290,21 @@ Sample result:
       "version": "241",
       "revision": 99,
       "channel": "stable",
-      "prices": {"EUR": 1.99, "USD": 2.49}
 }]
 ```
 
 #### Fields
 
-* `status`: can be either `available`, `installed`, `active` (i.e. is
-  current).
-* `name`: the snap name.
-* `version`: a string representing the version.
-* `revision`: a number representing the revision.
-* `icon`: a url to the snap icon, possibly relative to this server.
-* `type`: the type of snap; one of `app`, `core`, `kernel`,
-  `gadget`, or `os`.
-* `description`: snap description
-* `summary`: one-line summary
-* `installed-size`: for installed snaps, how much space the snap
-  itself (not its data) uses.
-* `download-size`: for not-installed snaps, how big the download will
-  be, formatted as a decimal string.
-* `rollback-available`: if present and not empty, it means the snap can
-  be rolled back to the revision specified as a value to this entry.
-* `update-available`: if present and not empty, it means the snap can be
-  updated to the revision specified as a value to this entry.
+In addition to the fields described in `/v2/fiend`:
+
+[//]: # keep the fields sorted!
+
 * `channel`: which channel the package is currently tracking.
-* `prices`: JSON object with properties named by ISO 4217 currency code.
-  The values of the properties are numerics representing the cost in each
-  currency. For free snaps, the "prices" property is omitted.
+* `installed-size`: how much space the snap itself (not its data) uses.
+* `install-date`: the date and time when the snap was installed.
+* `status`: can be either `installed` or `active` (i.e. is current).
 
-
-Sample additional meta data:
-
-```javascript
-{
- "paging": {
-    "page": 0,
-    "pages": 1
-  },
-  "sources": ["local", "store"]
-}
-```
-
-#### Fields
-
-* `paging`
-    * `page`: the page number, starting from `0`
-    * `pages`: the (approximate) number of pages
-* `sources`
-    a list of the sources that were queried (see the `sources` parameter, below)
-* `suggested-currency`: the suggested currency to use for presentation, 
-   derived by Geo IP lookup.
-
-### Parameters [fixme: is that the right word for these?]
-
-#### `sources`
-
-Can be set to either `local` (to only list local snaps) or `store` (to
-only list snaps from the store), or a comma-separated
-combination. Defaults to `local,store`.
-
-Note that excluding sources will result in incomplete (and in some
-cases incorrect) information about installed packages: information
-about updates will be absent if `store` is not included, whereas if
-`local` is not included information about rollbacks will be missing,
-and the package state for installed packages will be incorrect.
-
-#### `types`
-
-Restricts returned snaps to those with types included in the specified
-comma-separated list. See the description of the `type` field of `snaps` in the
-above section for possible values.
-
-#### `page`
-
-Request the given page when the server is paginating the
-result. Defaults to `0`.
-
-#### `q`
-
-If present, only list snaps that match the query.
+furthermore, `price` cannot occur in the output of `/v2/snaps`.
 
 ### POST
 

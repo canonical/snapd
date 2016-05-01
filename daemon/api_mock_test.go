@@ -20,41 +20,26 @@
 package daemon
 
 import (
-	"io/ioutil"
-	"os"
-	"path/filepath"
-	"strconv"
-
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/snaptest"
 )
 
 func (s *apiSuite) mockSnap(c *C, yamlText string) *snap.Info {
 	if s.d == nil {
 		panic("call s.daemon(c) in your test first")
 	}
+
+	snapInfo := snaptest.MockSnap(c, yamlText, &snap.SideInfo{Revision: 1})
+	snap.AddImplicitSlots(snapInfo)
+
 	st := s.d.overlord.State()
 
 	st.Lock()
 	defer st.Unlock()
-
-	// Parse the yaml
-	snapInfo, err := snap.InfoFromSnapYaml([]byte(yamlText))
-	c.Assert(err, IsNil)
-	snap.AddImplicitSlots(snapInfo)
-
-	// Create on-disk yaml file (it is read by snapstate)
-	dname := filepath.Join(dirs.SnapSnapsDir, snapInfo.Name(),
-		strconv.Itoa(snapInfo.Revision), "meta")
-	fname := filepath.Join(dname, "snap.yaml")
-	err = os.MkdirAll(dname, 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(fname, []byte(yamlText), 0644)
-	c.Assert(err, IsNil)
 
 	// Put a side info into the state
 	snapstate.Set(st, snapInfo.Name(), &snapstate.SnapState{
@@ -64,7 +49,7 @@ func (s *apiSuite) mockSnap(c *C, yamlText string) *snap.Info {
 
 	// Put the snap into the interface repository
 	repo := s.d.overlord.InterfaceManager().Repository()
-	err = repo.AddSnap(snapInfo)
+	err := repo.AddSnap(snapInfo)
 	c.Assert(err, IsNil)
 	return snapInfo
 }

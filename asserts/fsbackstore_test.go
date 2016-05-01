@@ -73,3 +73,32 @@ func (fsbss *fsBackstoreSuite) TestOpenWorldWritableFail(c *C) {
 	c.Assert(err, ErrorMatches, "assert storage root unexpectedly world-writable: .*")
 	c.Check(bs, IsNil)
 }
+
+func (fsbss *fsBackstoreSuite) TestPutOldRevision(c *C) {
+	topDir := filepath.Join(c.MkDir(), "asserts-db")
+	bs, err := asserts.OpenFSBackstore(topDir)
+	c.Assert(err, IsNil)
+
+	// Create two revisions of assertion.
+	a0, err := asserts.Decode([]byte("type: test-only\n" +
+		"authority-id: auth-id1\n" +
+		"primary-key: foo\n" +
+		"\n" +
+		"openpgp c2ln"))
+	c.Assert(err, IsNil)
+	a1, err := asserts.Decode([]byte("type: test-only\n" +
+		"authority-id: auth-id1\n" +
+		"primary-key: foo\n" +
+		"revision: 1\n" +
+		"\n" +
+		"openpgp c2ln"))
+	c.Assert(err, IsNil)
+
+	// Put newer revision, follwed by old revision.
+	err = bs.Put(asserts.TestOnlyType, a1)
+	c.Assert(err, IsNil)
+	err = bs.Put(asserts.TestOnlyType, a0)
+
+	c.Check(err, ErrorMatches, `revision 0 is older than current revision 1`)
+	c.Check(err, DeepEquals, &asserts.RevisionError{Current: 1, Used: 0})
+}

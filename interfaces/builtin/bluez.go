@@ -20,6 +20,8 @@
 package builtin
 
 import (
+	"bytes"
+
 	"github.com/ubuntu-core/snappy/interfaces"
 )
 
@@ -64,6 +66,11 @@ var bluezPermanentSlotAppArmor = []byte(`
       bus=system
       name="org.bluez",
 
+  # Allow binding the service to the requested connection name
+  dbus (bind)
+      bus=system
+      name="org.bluez.obex",
+
   # Allow traffic to/from our path and interface with any method
   dbus (receive, send)
       bus=system
@@ -91,7 +98,7 @@ var bluezConnectedPlugAppArmor = []byte(`
 # Allow all access to bluez service
 dbus (receive, send)
     bus=system
-    peer=(label=bluez5_bluez_*),
+    peer=(label=###SLOT_SECURITY_TAGS###),
 
 dbus (send)
     bus=system
@@ -157,7 +164,7 @@ sendmsg
 socket
 `)
 
-var bluezConnectedPlugDBus = []byte(`
+var bluezPermanentSlotDBus = []byte(`
 <policy user="root">
     <allow own="org.bluez"/>
     <allow own="org.bluez.obex"/>
@@ -196,13 +203,14 @@ func (iface *BluezInterface) PermanentPlugSnippet(plug *interfaces.Plug, securit
 
 func (iface *BluezInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityDBus:
-		return bluezConnectedPlugDBus, nil
 	case interfaces.SecurityAppArmor:
-		return bluezConnectedPlugAppArmor, nil
+		old := []byte("###SLOT_SECURITY_TAGS###")
+		new := slotAppLabelExpr(slot)
+		snippet := bytes.Replace(bluezConnectedPlugAppArmor, old, new, -1)
+		return snippet, nil
 	case interfaces.SecuritySecComp:
 		return bluezConnectedPlugSecComp, nil
-	case interfaces.SecurityUDev:
+	case interfaces.SecurityUDev, interfaces.SecurityDBus:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -215,7 +223,9 @@ func (iface *BluezInterface) PermanentSlotSnippet(slot *interfaces.Slot, securit
 		return bluezPermanentSlotAppArmor, nil
 	case interfaces.SecuritySecComp:
 		return bluezPermanentSlotSecComp, nil
-	case interfaces.SecurityUDev, interfaces.SecurityDBus:
+	case interfaces.SecurityDBus:
+		return bluezPermanentSlotDBus, nil
+	case interfaces.SecurityUDev:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity

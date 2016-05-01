@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,7 +17,9 @@
  *
  */
 
-package snappy
+package snaptest
+
+// TODO: replace this using some subset from snapcraft or simplify further!
 
 import (
 	"bufio"
@@ -30,6 +32,7 @@ import (
 	"syscall"
 
 	"github.com/ubuntu-core/snappy/osutil"
+	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/squashfs"
 )
 
@@ -126,12 +129,12 @@ func shouldExclude(basedir string, file string) bool {
 }
 
 // small helper that return the architecture or "multi" if its multiple arches
-func debArchitecture(m *snapYaml) string {
-	switch len(m.Architectures) {
+func debArchitecture(info *snap.Info) string {
+	switch len(info.Architectures) {
 	case 0:
 		return "unknown"
 	case 1:
-		return m.Architectures[0]
+		return info.Architectures[0]
 	default:
 		return "multi"
 	}
@@ -207,36 +210,21 @@ func copyToBuildDir(sourceDir, buildDir string) error {
 	})
 }
 
-var nonEmptyLicense = regexp.MustCompile(`(?s)\S+`).Match
-
-func checkLicenseExists(sourceDir string) error {
-	lic := filepath.Join(sourceDir, "meta", "license.txt")
-	if _, err := os.Stat(lic); err != nil {
-		return err
-	}
-	buf, err := ioutil.ReadFile(lic)
-	if err != nil {
-		return err
-	}
-	if !nonEmptyLicense(buf) {
-		return ErrLicenseBlank
-	}
-	return nil
-}
-
-var licenseChecker = checkLicenseExists
-
 func prepare(sourceDir, targetDir, buildDir string) (snapName string, err error) {
 	// ensure we have valid content
-	m, err := parseSnapYamlFile(filepath.Join(sourceDir, "meta", "snap.yaml"))
+	yaml, err := ioutil.ReadFile(filepath.Join(sourceDir, "meta", "snap.yaml"))
 	if err != nil {
 		return "", err
 	}
 
-	if m.LicenseAgreement == "explicit" {
-		if err := licenseChecker(sourceDir); err != nil {
-			return "", err
-		}
+	info, err := snap.InfoFromSnapYaml(yaml)
+	if err != nil {
+		return "", err
+	}
+
+	err = snap.Validate(info)
+	if err != nil {
+		return "", err
 	}
 
 	if err := copyToBuildDir(sourceDir, buildDir); err != nil {
@@ -244,7 +232,7 @@ func prepare(sourceDir, targetDir, buildDir string) (snapName string, err error)
 	}
 
 	// build the package
-	snapName = fmt.Sprintf("%s_%s_%v.snap", m.Name, m.Version, debArchitecture(m))
+	snapName = fmt.Sprintf("%s_%s_%v.snap", info.Name(), info.Version, debArchitecture(info))
 
 	if targetDir != "" {
 		snapName = filepath.Join(targetDir, snapName)

@@ -36,6 +36,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/asserts"
+	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snap"
@@ -52,6 +53,7 @@ const (
 
 func infoFromRemote(d snapDetails) *snap.Info {
 	info := &snap.Info{}
+	info.Architectures = d.Architectures
 	info.Type = d.Type
 	info.Version = d.Version
 	info.OfficialName = d.Name
@@ -239,7 +241,7 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string, auther Authentica
 
 	q := u.Query()
 	// exact match search
-	q.Set("q", "package_name:"+name)
+	q.Set("q", "package_name:\""+name+"\"")
 	u.RawQuery = q.Encode()
 
 	req, err := http.NewRequest("GET", u.String(), nil)
@@ -277,31 +279,19 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string, auther Authentica
 		return nil, err
 	}
 
-	if len(searchData.Payload.Packages) == 0 {
+	switch len(searchData.Payload.Packages) {
+	case 0:
 		return nil, ErrSnapNotFound
+	case 1:
+		// whee
+	default:
+		logger.Noticef("expected at most one exact match search result for %q in %q channel, got %d.", name, channel, len(searchData.Payload.Packages))
+		return nil, fmt.Errorf("unexpected multiple store results for an exact match search for %q in %q channel", name, channel)
 	}
 
 	s.checkStoreResponse(resp)
 
-	// SHORT LIVED OMG HACK TO WORKAROUND SERVER BREAKAGE
-	//
-	// We should get only a single result when using a search with
-	// a quoted package name. We get totally incorrect results from
-	// the store if we do that. As a workaround we do a search on
-	// the package_name without quotes. This will mean 'http' will
-	// return http,http-server,http-client etc. So we need to manually
-	// filter for exact matches.
-	//
-	// Note that this will break once the results are bigger than
-	// the servers page size. Because we have not many snaps in the
-	// store this is not a concern right now.
-	for _, pkg := range searchData.Payload.Packages {
-		if pkg.Name == name {
-			return infoFromRemote(pkg), nil
-		}
-	}
-
-	return nil, ErrSnapNotFound
+	return infoFromRemote(searchData.Payload.Packages[0]), nil
 }
 
 // FindSnaps finds  (installable) snaps from the store, matching the
@@ -312,12 +302,9 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string,
 	}
 
 	u := *s.searchURI // make a copy, so we can mutate it
-
-	if searchTerm != "" {
-		q := u.Query()
-		q.Set("q", "name:"+searchTerm)
-		u.RawQuery = q.Encode()
-	}
+	q := u.Query()
+	q.Set("q", searchTerm)
+	u.RawQuery = q.Encode()
 
 	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
@@ -334,11 +321,19 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string,
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("received an unexpected http response code (%v) when trying to search via %q", resp.Status, req.URL)
+	}
+
+	if ct := resp.Header.Get("Content-Type"); ct != "application/hal+json" {
+		return nil, fmt.Errorf("received an unexpected content type (%q) when trying to search via %q", ct, req.URL)
+	}
+
 	var searchData searchResults
 
 	dec := json.NewDecoder(resp.Body)
 	if err := dec.Decode(&searchData); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot decode reply (got %v) when trying to search via %q", err, req.URL)
 	}
 
 	snaps := make([]*snap.Info, len(searchData.Payload.Packages))
