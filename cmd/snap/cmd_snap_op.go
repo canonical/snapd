@@ -36,7 +36,7 @@ func wait(client *client.Client, id string) error {
 	pb := progress.NewTextProgress()
 	defer func() {
 		pb.Finished()
-		fmt.Print("\n")
+		fmt.Fprint(Stdout, "\n")
 	}()
 
 	var lastID string

@@ -40,9 +40,10 @@ import (
 
 func Test(t *testing.T) { TestingT(t) }
 
-type openSuite struct{}
-
 var _ = Suite(&openSuite{})
+var _ = Suite(&revisionErrorSuite{})
+
+type openSuite struct{}
 
 func (opens *openSuite) TestOpenDatabaseOK(c *C) {
 	cfg := &asserts.DatabaseConfig{
@@ -396,7 +397,7 @@ func (safs *signAddFindSuite) TestAddSuperseding(c *C) {
 	c.Check(retrieved2.Revision(), Equals, 1)
 
 	err = safs.db.Add(a1)
-	c.Check(err, ErrorMatches, "assertion added must have more recent revision than current one.*")
+	c.Check(err, ErrorMatches, "revision 0 is older than current revision 1")
 }
 
 func (safs *signAddFindSuite) TestFindNotFound(c *C) {
@@ -553,4 +554,33 @@ func (safs *signAddFindSuite) TestDontLetAddConfusinglyAssertionClashingWithTrus
 
 	err = safs.db.Add(tKey)
 	c.Check(err, ErrorMatches, `cannot add "account-key" assertion with primary key clashing with a trusted assertion: .*`)
+}
+
+type revisionErrorSuite struct{}
+
+func (res *revisionErrorSuite) TestErrorText(c *C) {
+	tests := []struct {
+		err      error
+		expected string
+	}{
+		// Invalid revisions.
+		{&asserts.RevisionError{Used: -1}, "assertion revision is unknown"},
+		{&asserts.RevisionError{Used: -100}, "assertion revision is unknown"},
+		{&asserts.RevisionError{Current: -1}, "assertion revision is unknown"},
+		{&asserts.RevisionError{Current: -100}, "assertion revision is unknown"},
+		{&asserts.RevisionError{Used: -1, Current: -1}, "assertion revision is unknown"},
+		// Used == Current.
+		{&asserts.RevisionError{}, "revision 0 is already the current revision"},
+		{&asserts.RevisionError{Used: 100, Current: 100}, "revision 100 is already the current revision"},
+		// Used < Current.
+		{&asserts.RevisionError{Used: 1, Current: 2}, "revision 1 is older than current revision 2"},
+		{&asserts.RevisionError{Used: 2, Current: 100}, "revision 2 is older than current revision 100"},
+		// Used > Current.
+		{&asserts.RevisionError{Current: 1, Used: 2}, "revision 2 is more recent than current revision 1"},
+		{&asserts.RevisionError{Current: 2, Used: 100}, "revision 100 is more recent than current revision 2"},
+	}
+
+	for _, test := range tests {
+		c.Check(test.err, ErrorMatches, test.expected)
+	}
 }
