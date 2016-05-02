@@ -38,26 +38,10 @@ type snapHelloWorldExampleSuite struct {
 	common.SnappySuite
 }
 
-func installSnap(c *check.C, packageName string) string {
-	cli.ExecCommand(c, "sudo", "snap", "install", packageName)
-	// FIXME: should `snap install` shold show a list afterards?
-	//        like `snappy install`?
-	out := cli.ExecCommand(c, "snap", "list")
-	return out
-}
-
-func removeSnap(c *check.C, packageName string) string {
-	cli.ExecCommand(c, "sudo", "snap", "remove", packageName)
-	// FIXME: should `snap remove` shold show a list afterards?
-	//        like `snappy install`?
-	out := cli.ExecCommand(c, "snap", "list")
-	return out
-}
-
 func (s *snapHelloWorldExampleSuite) TestCallHelloWorldBinary(c *check.C) {
-	installSnap(c, "hello-world")
+	common.InstallSnap(c, "hello-world")
 	s.AddCleanup(func() {
-		removeSnap(c, "hello-world")
+		common.RemoveSnap(c, "hello-world")
 	})
 
 	// note that this also checks that we have a working ubuntu-core
@@ -69,9 +53,9 @@ func (s *snapHelloWorldExampleSuite) TestCallHelloWorldBinary(c *check.C) {
 }
 
 func (s *snapHelloWorldExampleSuite) TestCallHelloWorldEvilMustPrintPermissionDeniedError(c *check.C) {
-	installSnap(c, "hello-world")
+	common.InstallSnap(c, "hello-world")
 	s.AddCleanup(func() {
-		removeSnap(c, "hello-world")
+		common.RemoveSnap(c, "hello-world")
 	})
 
 	echoOutput, err := cli.ExecCommandErr("hello-world.evil")
@@ -96,8 +80,8 @@ type snapPythonWebserverExampleSuite struct {
 
 func (s *snapPythonWebserverExampleSuite) TestNetworkingServiceMustBeStarted(c *check.C) {
 	appName := "xkcd-webserver"
-	installSnap(c, appName)
-	defer removeSnap(c, appName)
+	common.InstallSnap(c, appName)
+	defer common.RemoveSnap(c, appName)
 
 	err := wait.ForServerOnPort(c, "tcp", 80)
 	c.Assert(err, check.IsNil, check.Commentf("Error waiting for server: %s", err))
@@ -116,8 +100,8 @@ type snapGoWebserverExampleSuite struct {
 
 func (s *snapGoWebserverExampleSuite) TestGetRootPathMustPrintMessage(c *check.C) {
 	appName := "go-example-webserver"
-	output := installSnap(c, appName)
-	defer removeSnap(c, appName)
+	output := common.InstallSnap(c, appName)
+	defer common.RemoveSnap(c, appName)
 	c.Assert(output, testutil.Contains, "go-example-webserver")
 
 	err := wait.ForServerOnPort(c, "tcp6", 8081)

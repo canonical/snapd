@@ -201,7 +201,7 @@ func (r *Repository) Slots(snapName string) []*Slot {
 	return result
 }
 
-// Slot returns the specified plug slot from the named snap.
+// Slot returns the specified slot from the named snap.
 func (r *Repository) Slot(snapName, slotName string) *Slot {
 	r.m.Lock()
 	defer r.m.Unlock()
@@ -252,7 +252,7 @@ func (r *Repository) RemoveSlot(snapName, slotName string) error {
 	// Ensure that such slot exists
 	slot := r.slots[snapName][slotName]
 	if slot == nil {
-		return fmt.Errorf("cannot remove plug slot %q from snap %q, no such slot", slotName, snapName)
+		return fmt.Errorf("cannot remove slot %q from snap %q, no such slot", slotName, snapName)
 	}
 	// Ensure that the slot is not using any plugs
 	if len(r.slotPlugs[slot]) > 0 {
@@ -310,12 +310,12 @@ func (r *Repository) Connect(plugSnapName, plugName, slotSnapName, slotName stri
 // Disconnect has three modes of operation that depend on the passed arguments:
 //
 // - If all the arguments are specified then Disconnect() finds a specific slot
-//   and a specific plug and disconnects that plug from that plug slot. It is
-//   an error if plug or plug slot cannot be found or if the connect does not
+//   and a specific plug and disconnects that plug from that slot. It is
+//   an error if plug or slot cannot be found or if the connect does not
 //   exist.
 // - If plugSnapName and plugName are empty then Disconnect() finds the specified
 //   slot and disconnects all the plugs connected there. It is not an error if
-//   there are no such plugs but it is still an error if the plug slot does
+//   there are no such plugs but it is still an error if the slot does
 //   not exist.
 // - If plugSnapName, plugName and slotName are all empty then Disconnect finds
 //   the specified snap (designated by slotSnapName) and disconnects all the plugs
@@ -352,7 +352,7 @@ func (r *Repository) disconnectEverythingFromSnap(slotSnapName string) error {
 	return nil
 }
 
-// disconnectEverythingFromSlot finds a specific plug slot and disconnects all the plugs connected there.
+// disconnectEverythingFromSlot finds a specific slot and disconnects all the plugs connected there.
 func (r *Repository) disconnectEverythingFromSlot(slotSnapName, slotName string) error {
 	// Ensure that such slot exists
 	slot := r.slots[slotSnapName][slotName]
@@ -365,7 +365,7 @@ func (r *Repository) disconnectEverythingFromSlot(slotSnapName, slotName string)
 	return nil
 }
 
-// disconnectPlugFromSlot finds a specific plug slot and plug and disconnects it.
+// disconnectPlugFromSlot finds a specific slot and plug and disconnects it.
 func (r *Repository) disconnectPlugFromSlot(plugSnapName, plugName, slotSnapName, slotName string) error {
 	// Ensure that such plug exists
 	plug := r.plugs[plugSnapName][plugName]
