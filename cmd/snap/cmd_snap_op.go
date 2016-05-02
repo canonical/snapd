@@ -118,7 +118,7 @@ func (x *cmdRemove) Execute([]string) error {
 	if err := wait(cli, changeID); err != nil {
 		return err
 	}
-	fmt.Println("Done")
+	fmt.Fprintln(Stdout, "Done")
 	return nil
 }
 
