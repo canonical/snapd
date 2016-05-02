@@ -126,7 +126,6 @@ func mapSnap(localSnap *snap.Info, active bool, remoteSnap *snap.Info) map[strin
 	}
 
 	status := "available"
-	installedSize := int64(-1)
 	downloadSize := int64(-1)
 	var prices map[string]float64
 
@@ -159,7 +158,6 @@ func mapSnap(localSnap *snap.Info, active bool, remoteSnap *snap.Info) map[strin
 		icon = snapIcon(localSnap)
 		summary = localSnap.Summary()
 		description = localSnap.Description()
-		installedSize = localSnap.Size
 	}
 
 	if remoteSnap != nil {
@@ -193,18 +191,17 @@ func mapSnap(localSnap *snap.Info, active bool, remoteSnap *snap.Info) map[strin
 	}
 
 	result := map[string]interface{}{
-		"icon":           icon,
-		"name":           name,
-		"developer":      developer,
-		"status":         status,
-		"type":           _type,
-		"vendor":         "",
-		"revision":       revision,
-		"version":        version,
-		"description":    description,
-		"summary":        summary,
-		"installed-size": installedSize,
-		"download-size":  downloadSize,
+		"icon":          icon,
+		"name":          name,
+		"developer":     developer,
+		"status":        status,
+		"type":          _type,
+		"vendor":        "",
+		"revision":      revision,
+		"version":       version,
+		"description":   description,
+		"summary":       summary,
+		"download-size": downloadSize,
 	}
 
 	if len(prices) > 0 {
@@ -217,6 +214,7 @@ func mapSnap(localSnap *snap.Info, active bool, remoteSnap *snap.Info) map[strin
 			result["channel"] = channel
 		}
 
+		result["installed-size"] = localSnap.Size
 		result["install-date"] = snapDate(localSnap)
 	}
 

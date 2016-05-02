@@ -40,15 +40,15 @@ type snapOpSuite struct {
 }
 
 func (s *snapOpSuite) testInstallRemove(c *check.C, snapName, displayName string) {
-	installOutput := installSnap(c, snapName)
+	installOutput := common.InstallSnap(c, snapName)
 	expected := "(?ms)" +
-		"Name +Version +Developer\n" +
+		"Name +Version +Rev +Developer\n" +
 		".*" +
 		displayName + " +.*\n" +
 		".*"
 	c.Assert(installOutput, check.Matches, expected)
 
-	removeOutput := removeSnap(c, snapName)
+	removeOutput := common.RemoveSnap(c, snapName)
 	c.Assert(removeOutput, check.Not(testutil.Contains), snapName)
 }
 
@@ -62,14 +62,14 @@ func (s *snapOpSuite) TestRemoveRemovesAllRevisions(c *check.C) {
 	c.Assert(err, check.IsNil, check.Commentf("Error building local snap: %s", err))
 
 	// install two revisions
-	installSnap(c, snapPath)
-	installOutput := installSnap(c, snapPath)
+	common.InstallSnap(c, snapPath)
+	installOutput := common.InstallSnap(c, snapPath)
 	c.Assert(installOutput, testutil.Contains, data.BasicSnapName)
 	// double check, sideloaded snaps have revnos like 1000xx
 	revnos, _ := filepath.Glob(filepath.Join(dirs.SnapSnapsDir, data.BasicSnapName, "1*"))
 	c.Check(len(revnos) >= 2, check.Equals, true)
 
-	removeOutput := removeSnap(c, data.BasicSnapName)
+	removeOutput := common.RemoveSnap(c, data.BasicSnapName)
 	c.Assert(removeOutput, check.Not(testutil.Contains), data.BasicSnapName)
 	// gone from disk
 	revnos, err = filepath.Glob(filepath.Join(dirs.SnapSnapsDir, data.BasicSnapName, "1*"))

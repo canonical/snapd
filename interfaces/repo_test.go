@@ -495,7 +495,7 @@ func (s *RepositorySuite) TestRemoveSlotFailsWhenSlotDoesntExist(c *C) {
 	// Removing a slot that doesn't exist returns an appropriate error
 	err := s.testRepo.RemoveSlot(s.slot.Snap.Name(), s.slot.Name)
 	c.Assert(err, Not(IsNil))
-	c.Assert(err, ErrorMatches, `cannot remove plug slot "slot" from snap "producer", no such slot`)
+	c.Assert(err, ErrorMatches, `cannot remove slot "slot" from snap "producer", no such slot`)
 }
 
 func (s *RepositorySuite) TestRemoveSlotFailsWhenSlotIsConnected(c *C) {
@@ -687,7 +687,7 @@ func (s *RepositorySuite) TestDisconnectFromSlot(c *C) {
 	c.Assert(err, IsNil)
 	err = s.testRepo.Connect(s.plug.Snap.Name(), s.plug.Name, s.slot.Snap.Name(), s.slot.Name)
 	c.Assert(err, IsNil)
-	// Disconnecting everything from a plug slot works OK
+	// Disconnecting everything from a slot works OK
 	err = s.testRepo.Disconnect("", "", s.slot.Snap.Name(), s.slot.Name)
 	c.Assert(err, IsNil)
 	c.Assert(s.testRepo.Interfaces(), DeepEquals, &Interfaces{
