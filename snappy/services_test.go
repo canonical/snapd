@@ -117,12 +117,12 @@ Description=descr
 X-Snappy=yes
 
 [Service]
-ExecStart=/usr/bin/ubuntu-core-launcher app snap.snap.app /apps/app/1.0/bin/start
+ExecStart=/usr/bin/ubuntu-core-launcher snap.snap.app snap.snap.app /apps/app/1.0/bin/start
 Restart=on-failure
 WorkingDirectory=/var/apps/app/1.0
 Environment="SNAP=/apps/app/1.0" "SNAP_DATA=/var/apps/app/1.0" "SNAP_NAME=app" "SNAP_VERSION=1.0" "SNAP_REVISION=44" "SNAP_ARCH=%[3]s" "SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:" "SNAP_USER_DATA=/root/apps/app/1.0"
-ExecStop=/usr/bin/ubuntu-core-launcher app snap.snap.app /apps/app/1.0/bin/stop
-ExecStopPost=/usr/bin/ubuntu-core-launcher app snap.snap.app /apps/app/1.0/bin/stop --post
+ExecStop=/usr/bin/ubuntu-core-launcher snap.snap.app snap.snap.app /apps/app/1.0/bin/stop
+ExecStopPost=/usr/bin/ubuntu-core-launcher snap.snap.app snap.snap.app /apps/app/1.0/bin/stop --post
 TimeoutStopSec=10
 %[2]s
 
@@ -351,7 +351,6 @@ apps:
 		Stop:        "bin/stop",
 		PostStop:    "bin/stop --post",
 		StopTimeout: time.Duration(10 * time.Second),
-		UdevAppName: "app",
 	}
 
 	c.Check(GenServiceFile(desc), Equals, expectedAppService)
@@ -406,7 +405,6 @@ apps:
 		Stop:        "bin/stop",
 		PostStop:    "bin/stop --post",
 		StopTimeout: time.Duration(10 * time.Second),
-		UdevAppName: "app",
 	}
 
 	c.Assert(GenServiceFile(desc), Equals, expectedDbusService)
