@@ -79,7 +79,6 @@ func generateSnapServicesFile(app *snap.AppInfo, baseDir string) (string, error)
 		App:            app,
 		SnapName:       app.Snap.Name(),
 		AppName:        app.Name,
-		Version:        app.Snap.Version,
 		Revision:       app.Snap.Revision,
 		Description:    desc,
 		SnapPath:       baseDir,
@@ -225,7 +224,6 @@ type ServiceDescription struct {
 	App             *snap.AppInfo
 	SnapName        string
 	AppName         string
-	Version         string
 	Revision        int
 	Description     string
 	SnapPath        string
@@ -283,6 +281,8 @@ WantedBy={{.ServiceSystemdTarget}}
 		EnvVars              string
 		SocketFileName       string
 		Restart              string
+		// For snapenv.GetBasicSnapEnvVars
+		Version string
 	}{
 		*desc,
 		filepath.Join(desc.SnapPath, desc.Start),
@@ -295,6 +295,7 @@ WantedBy={{.ServiceSystemdTarget}}
 		"",
 		desc.SocketFileName,
 		restartCond,
+		desc.App.Snap.Version,
 	}
 	allVars := snapenv.GetBasicSnapEnvVars(wrapperData)
 	allVars = append(allVars, snapenv.GetUserSnapEnvVars(wrapperData)...)
