@@ -1,8 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build !excludeintegration
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -18,30 +17,26 @@
  *
  */
 
-package build
+// snapbuild is a minimal executable wrapper around snap building to use for integration tests that need to build snaps under sudo.
+package main
 
 import (
-	"path/filepath"
-
-	"gopkg.in/check.v1"
+	"fmt"
+	"os"
 
 	"github.com/ubuntu-core/snappy/snap/snaptest"
-
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/data"
 )
 
-const snapFilenameSufix = "_1.0_all.snap"
+func main() {
+	if len(os.Args) != 3 {
+		fmt.Fprintf(os.Stderr, "snapbuild: expected sourceDir and targetDir\n")
+		os.Exit(1)
+	}
 
-// LocalSnap builds a snap and returns the path of the generated file
-func LocalSnap(c *check.C, snapName string) (snapPath string, err error) {
-	// build basic snap and check output
-	buildPath := buildPath(snapName)
-
-	return snaptest.BuildSquashfsSnap(buildPath, buildPath)
-}
-
-var baseSnapPath = data.BaseSnapPath
-
-func buildPath(snap string) string {
-	return filepath.Join(baseSnapPath, snap)
+	snapPath, err := snaptest.BuildSquashfsSnap(os.Args[1], os.Args[2])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "snapbuild: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Fprintf(os.Stdout, "built: %s\n", snapPath)
 }
