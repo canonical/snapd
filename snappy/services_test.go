@@ -341,7 +341,6 @@ apps:
 	app := snapInfo.Apps["app"]
 	desc := &ServiceDescription{
 		App:         app,
-		Revision:    44,
 		Description: "descr",
 		SnapPath:    "/apps/app/1.0",
 		Start:       "bin/start",
@@ -391,7 +390,6 @@ apps:
 	app := snapInfo.Apps["app"]
 	desc := &ServiceDescription{
 		App:         app,
-		Revision:    44,
 		Description: "descr",
 		SnapPath:    "/apps/app/1.0",
 		Start:       "bin/start",

@@ -77,7 +77,6 @@ func generateSnapServicesFile(app *snap.AppInfo, baseDir string) (string, error)
 
 	return GenServiceFile(&ServiceDescription{
 		App:            app,
-		Revision:       app.Snap.Revision,
 		Description:    desc,
 		SnapPath:       baseDir,
 		Start:          app.Command,
@@ -220,7 +219,6 @@ func removePackageServices(s *snap.Info, inter interacter) error {
 // ServiceDescription describes a snappy systemd service
 type ServiceDescription struct {
 	App             *snap.AppInfo
-	Revision        int
 	Description     string
 	SnapPath        string
 	Start           string
@@ -280,6 +278,7 @@ WantedBy={{.ServiceSystemdTarget}}
 		// For snapenv.GetBasicSnapEnvVars
 		Version  string
 		SnapName string
+		Revision int
 	}{
 		*desc,
 		filepath.Join(desc.SnapPath, desc.Start),
@@ -294,6 +293,7 @@ WantedBy={{.ServiceSystemdTarget}}
 		restartCond,
 		desc.App.Snap.Version,
 		desc.App.Snap.Name(),
+		desc.App.Snap.Revision,
 	}
 	allVars := snapenv.GetBasicSnapEnvVars(wrapperData)
 	allVars = append(allVars, snapenv.GetUserSnapEnvVars(wrapperData)...)
