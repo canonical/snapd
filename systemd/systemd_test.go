@@ -20,7 +20,6 @@
 package systemd_test
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -30,7 +29,6 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
 
-	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
 	. "github.com/ubuntu-core/snappy/systemd"
 )
@@ -191,85 +189,6 @@ func (s *SystemdTestSuite) TestEnable(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "enable", "foo"}})
 
-}
-
-const expectedServiceFmt = `[Unit]
-Description=descr
-%s
-X-Snappy=yes
-
-[Service]
-ExecStart=/usr/bin/ubuntu-core-launcher app aa-profile /apps/app/1.0/bin/start
-Restart=on-failure
-WorkingDirectory=/var/apps/app/1.0
-Environment="SNAP=/apps/app/1.0" "SNAP_DATA=/var/apps/app/1.0" "SNAP_NAME=app" "SNAP_VERSION=1.0" "SNAP_REVISION=44" "SNAP_ARCH=%[3]s" "SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:" "SNAP_USER_DATA=/root/apps/app/1.0"
-ExecStop=/usr/bin/ubuntu-core-launcher app aa-profile /apps/app/1.0/bin/stop
-ExecStopPost=/usr/bin/ubuntu-core-launcher app aa-profile /apps/app/1.0/bin/stop --post
-TimeoutStopSec=10
-%[2]s
-
-[Install]
-WantedBy=multi-user.target
-`
-
-var (
-	expectedAppService  = fmt.Sprintf(expectedServiceFmt, "After=snapd.frameworks.target\nRequires=snapd.frameworks.target", "Type=simple\n", arch.UbuntuArchitecture())
-	expectedDbusService = fmt.Sprintf(expectedServiceFmt, "After=snapd.frameworks.target\nRequires=snapd.frameworks.target", "Type=dbus\nBusName=foo.bar.baz", arch.UbuntuArchitecture())
-)
-
-func (s *SystemdTestSuite) TestGenAppServiceFile(c *C) {
-
-	desc := &ServiceDescription{
-		SnapName:    "app",
-		AppName:     "service",
-		Version:     "1.0",
-		Revision:    44,
-		Description: "descr",
-		SnapPath:    "/apps/app/1.0",
-		Start:       "bin/start",
-		Stop:        "bin/stop",
-		PostStop:    "bin/stop --post",
-		StopTimeout: time.Duration(10 * time.Second),
-		AaProfile:   "aa-profile",
-		UdevAppName: "app",
-		Type:        "simple",
-	}
-
-	c.Check(New("", nil).GenServiceFile(desc), Equals, expectedAppService)
-}
-
-func (s *SystemdTestSuite) TestGenAppServiceFileRestart(c *C) {
-	for name, cond := range RestartMap {
-		desc := &ServiceDescription{
-			SnapName: "app",
-			Restart:  cond,
-		}
-
-		c.Check(New("", nil).GenServiceFile(desc), Matches, `(?ms).*^Restart=`+name+`$.*`, Commentf(name))
-	}
-}
-
-func (s *SystemdTestSuite) TestGenServiceFileWithBusName(c *C) {
-
-	desc := &ServiceDescription{
-		SnapName:    "app",
-		AppName:     "service",
-		Version:     "1.0",
-		Revision:    44,
-		Description: "descr",
-		SnapPath:    "/apps/app/1.0",
-		Start:       "bin/start",
-		Stop:        "bin/stop",
-		PostStop:    "bin/stop --post",
-		StopTimeout: time.Duration(10 * time.Second),
-		AaProfile:   "aa-profile",
-		BusName:     "foo.bar.baz",
-		UdevAppName: "app",
-		Type:        "dbus",
-	}
-
-	generated := New("", nil).GenServiceFile(desc)
-	c.Assert(generated, Equals, expectedDbusService)
 }
 
 func (s *SystemdTestSuite) TestRestart(c *C) {

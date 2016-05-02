@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"path/filepath"
 	"regexp"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -107,6 +108,30 @@ WantedBy=multi-user.target
 	expectedServiceFmkWrapper     = fmt.Sprintf(expectedServiceWrapperFmt, "Before=snapd.frameworks.target\nAfter=snapd.frameworks-pre.target\nRequires=snapd.frameworks-pre.target", "Type=dbus\nBusName=foo.bar.baz", arch.UbuntuArchitecture())
 	expectedSocketUsingWrapper    = fmt.Sprintf(expectedServiceWrapperFmt, "After=snapd.frameworks.target snap.xkcd-webserver.xkcd-webserver.socket\nRequires=snapd.frameworks.target snap.xkcd-webserver.xkcd-webserver.socket", "Type=simple\n", arch.UbuntuArchitecture())
 	expectedTypeForkingFmkWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "After=snapd.frameworks.target\nRequires=snapd.frameworks.target", "Type=forking\n", arch.UbuntuArchitecture())
+)
+
+const expectedServiceFmt = `[Unit]
+Description=descr
+%s
+X-Snappy=yes
+
+[Service]
+ExecStart=/usr/bin/ubuntu-core-launcher app aa-profile /apps/app/1.0/bin/start
+Restart=on-failure
+WorkingDirectory=/var/apps/app/1.0
+Environment="SNAP=/apps/app/1.0" "SNAP_DATA=/var/apps/app/1.0" "SNAP_NAME=app" "SNAP_VERSION=1.0" "SNAP_REVISION=44" "SNAP_ARCH=%[3]s" "SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:" "SNAP_USER_DATA=/root/apps/app/1.0"
+ExecStop=/usr/bin/ubuntu-core-launcher app aa-profile /apps/app/1.0/bin/stop
+ExecStopPost=/usr/bin/ubuntu-core-launcher app aa-profile /apps/app/1.0/bin/stop --post
+TimeoutStopSec=10
+%[2]s
+
+[Install]
+WantedBy=multi-user.target
+`
+
+var (
+	expectedAppService  = fmt.Sprintf(expectedServiceFmt, "After=snapd.frameworks.target\nRequires=snapd.frameworks.target", "Type=simple\n", arch.UbuntuArchitecture())
+	expectedDbusService = fmt.Sprintf(expectedServiceFmt, "After=snapd.frameworks.target\nRequires=snapd.frameworks.target", "Type=dbus\nBusName=foo.bar.baz", arch.UbuntuArchitecture())
 )
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapServiceTypeForking(c *C) {
@@ -297,4 +322,57 @@ func (s *SnapTestSuite) TestGenerateSnapSocketFile(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(content, Matches, "(?ms).*SocketMode=0600")
 
+}
+
+func (s *SnapTestSuite) TestGenAppServiceFile(c *C) {
+	desc := &ServiceDescription{
+		SnapName:    "app",
+		AppName:     "service",
+		Version:     "1.0",
+		Revision:    44,
+		Description: "descr",
+		SnapPath:    "/apps/app/1.0",
+		Start:       "bin/start",
+		Stop:        "bin/stop",
+		PostStop:    "bin/stop --post",
+		StopTimeout: time.Duration(10 * time.Second),
+		AaProfile:   "aa-profile",
+		UdevAppName: "app",
+		Type:        "simple",
+	}
+
+	c.Check(GenServiceFile(desc), Equals, expectedAppService)
+}
+
+func (s *SnapTestSuite) TestGenAppServiceFileRestart(c *C) {
+	for name, cond := range systemd.RestartMap {
+		desc := &ServiceDescription{
+			SnapName: "app",
+			Restart:  cond,
+		}
+
+		c.Check(GenServiceFile(desc), Matches,
+			`(?ms).*^Restart=`+name+`$.*`, Commentf(name))
+	}
+}
+
+func (s *SnapTestSuite) TestGenServiceFileWithBusName(c *C) {
+	desc := &ServiceDescription{
+		SnapName:    "app",
+		AppName:     "service",
+		Version:     "1.0",
+		Revision:    44,
+		Description: "descr",
+		SnapPath:    "/apps/app/1.0",
+		Start:       "bin/start",
+		Stop:        "bin/stop",
+		PostStop:    "bin/stop --post",
+		StopTimeout: time.Duration(10 * time.Second),
+		AaProfile:   "aa-profile",
+		BusName:     "foo.bar.baz",
+		UdevAppName: "app",
+		Type:        "dbus",
+	}
+
+	c.Assert(GenServiceFile(desc), Equals, expectedDbusService)
 }
