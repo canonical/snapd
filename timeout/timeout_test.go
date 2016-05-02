@@ -25,6 +25,7 @@ import (
 	"time"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/yaml.v2"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -42,7 +43,7 @@ func (s *TimeoutTestSuite) TestTimeoutMarshal(c *C) {
 }
 
 type testT struct {
-	T Timeout
+	T Timeout `yaml:"T"`
 }
 
 func (s *TimeoutTestSuite) TestTimeoutMarshalIndirect(c *C) {
@@ -51,8 +52,14 @@ func (s *TimeoutTestSuite) TestTimeoutMarshalIndirect(c *C) {
 	c.Check(string(bs), Equals, `{"T":"30s"}`)
 }
 
-func (s *TimeoutTestSuite) TestTimeoutUnmarshal(c *C) {
+func (s *TimeoutTestSuite) TestTimeoutUnmarshalJSON(c *C) {
 	var t testT
 	c.Assert(json.Unmarshal([]byte(`{"T": "17ms"}`), &t), IsNil)
+	c.Check(t, DeepEquals, testT{T: Timeout(17 * time.Millisecond)})
+}
+
+func (s *TimeoutTestSuite) TestTimeoutUnmarshalYAML(c *C) {
+	var t testT
+	c.Assert(yaml.Unmarshal([]byte(`T: 17ms`), &t), IsNil)
 	c.Check(t, DeepEquals, testT{T: Timeout(17 * time.Millisecond)})
 }
