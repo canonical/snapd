@@ -60,6 +60,27 @@ func (cs *clientSuite) TestClientChange(c *check.C) {
 	})
 }
 
+func (cs *clientSuite) TestClientChangeData(c *check.C) {
+	cs.rsp = `{"type": "sync", "result": {
+  "id":   "uno",
+  "kind": "foo",
+  "summary": "...",
+  "status": "Do",
+  "ready": false,
+  "data": {"n": 42}
+}}`
+
+	chg, err := cs.cli.Change("uno")
+	c.Assert(err, check.IsNil)
+	var n int
+	err = chg.Get("n", &n)
+	c.Assert(err, check.IsNil)
+	c.Assert(n, check.Equals, 42)
+
+	err = chg.Get("missing", &n)
+	c.Assert(err, check.Equals, client.ErrNoData)
+}
+
 func (cs *clientSuite) TestClientChangeError(c *check.C) {
 	cs.rsp = `{"type": "sync", "result": {
   "id":   "uno",
@@ -122,6 +143,29 @@ func (cs *clientSuite) TestClientChanges(c *check.C) {
 		}})
 		c.Check(cs.req.URL.RawQuery, check.Equals, "select="+i.String())
 	}
+}
+
+func (cs *clientSuite) TestClientChangesData(c *check.C) {
+	cs.rsp = `{"type": "sync", "result": [{
+  "id":   "uno",
+  "kind": "foo",
+  "summary": "...",
+  "status": "Do",
+  "ready": false,
+  "data": {"n": 42}
+}]}`
+
+	chgs, err := cs.cli.Changes(client.ChangesAll)
+	c.Assert(err, check.IsNil)
+
+	chg := chgs[0]
+	var n int
+	err = chg.Get("n", &n)
+	c.Assert(err, check.IsNil)
+	c.Assert(n, check.Equals, 42)
+
+	err = chg.Get("missing", &n)
+	c.Assert(err, check.Equals, client.ErrNoData)
 }
 
 func (cs *clientSuite) TestClientAbort(c *check.C) {

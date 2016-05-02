@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -56,7 +55,7 @@ func CallFakeSnapRefresh(c *check.C, snap string, changeFunc ChangeFakeUpdateSna
 	makeFakeUpdateForSnap(c, snap, blobDir, changeFunc)
 
 	// FIMXE: there is no "snap refresh" that updates all snaps
-	cli.ExecCommand(c, "sudo", "TMPDIR=/var/tmp", "snap", "refresh", snap)
+	cli.ExecCommand(c, "sudo", "snap", "refresh", snap)
 
 	// FIXME: do we want an automatic `snap list` output after
 	//        `snap update` (like in the old snappy world)?
@@ -137,10 +136,5 @@ func copySnap(c *check.C, snap, targetDir string) {
 
 func buildSnap(c *check.C, snapDir, targetDir string) {
 	// build in /var/tmp (which is not a tempfs)
-	cmds, _ := cli.AddOptionsToCommand([]string{
-		"sudo", "TMPDIR=/var/tmp", "snappy", "build", "--squashfs", snapDir,
-	})
-	cmd := exec.Command(cmds[0], cmds[1:]...)
-	cmd.Dir = targetDir
-	cli.ExecCommandWrapper(cmd)
+	cli.ExecCommand(c, "sudo", "TMPDIR=/var/tmp", "snapbuild", snapDir, targetDir)
 }

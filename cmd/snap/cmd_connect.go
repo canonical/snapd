@@ -75,5 +75,6 @@ func (x *cmdConnect) Execute(args []string) error {
 		return err
 	}
 
-	return wait(cli, id)
+	_, err = wait(cli, id)
+	return err
 }
