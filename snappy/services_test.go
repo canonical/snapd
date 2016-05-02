@@ -120,7 +120,7 @@ X-Snappy=yes
 ExecStart=/usr/bin/ubuntu-core-launcher snap.snap.app snap.snap.app /apps/app/1.0/bin/start
 Restart=on-failure
 WorkingDirectory=/var/apps/app/1.0
-Environment="SNAP=/apps/app/1.0" "SNAP_DATA=/var/apps/app/1.0" "SNAP_NAME=app" "SNAP_VERSION=1.0" "SNAP_REVISION=44" "SNAP_ARCH=%[3]s" "SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:" "SNAP_USER_DATA=/root/apps/app/1.0"
+Environment="SNAP=/apps/app/1.0" "SNAP_DATA=/var/apps/app/1.0" "SNAP_NAME=snap" "SNAP_VERSION=1.0" "SNAP_REVISION=44" "SNAP_ARCH=%[3]s" "SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:" "SNAP_USER_DATA=/root/apps/app/1.0"
 ExecStop=/usr/bin/ubuntu-core-launcher snap.snap.app snap.snap.app /apps/app/1.0/bin/stop
 ExecStopPost=/usr/bin/ubuntu-core-launcher snap.snap.app snap.snap.app /apps/app/1.0/bin/stop --post
 TimeoutStopSec=10
@@ -341,7 +341,6 @@ apps:
 	app := snapInfo.Apps["app"]
 	desc := &ServiceDescription{
 		App:         app,
-		SnapName:    "app",
 		Revision:    44,
 		Description: "descr",
 		SnapPath:    "/apps/app/1.0",
@@ -366,9 +365,8 @@ apps:
 		snapInfo := snaptest.MockSnap(c, yamlText, &snap.SideInfo{Revision: 44})
 		app := snapInfo.Apps["app"]
 		desc := &ServiceDescription{
-			App:      app,
-			SnapName: "app",
-			Restart:  cond,
+			App:     app,
+			Restart: cond,
 		}
 
 		c.Check(GenServiceFile(desc), Matches,
@@ -393,7 +391,6 @@ apps:
 	app := snapInfo.Apps["app"]
 	desc := &ServiceDescription{
 		App:         app,
-		SnapName:    "app",
 		Revision:    44,
 		Description: "descr",
 		SnapPath:    "/apps/app/1.0",
