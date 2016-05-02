@@ -201,7 +201,7 @@ X-Snappy=yes
 [Service]
 ExecStart=/usr/bin/ubuntu-core-launcher {{.App.SecurityTag}} {{.App.SecurityTag}} {{.FullPathStart}}
 Restart={{.Restart}}
-WorkingDirectory=/var{{.SnapPath}}
+WorkingDirectory={{.DataDir}}
 Environment={{.EnvVars}}
 {{if .App.Stop}}ExecStop=/usr/bin/ubuntu-core-launcher {{.App.SecurityTag}} {{.App.SecurityTag}} {{.FullPathStop}}{{end}}
 {{if .App.PostStop}}ExecStopPost=/usr/bin/ubuntu-core-launcher {{.App.SecurityTag}} {{.App.SecurityTag}} {{.FullPathPostStop}}{{end}}
@@ -236,6 +236,7 @@ WantedBy={{.ServiceSystemdTarget}}
 		FullPathStart        string
 		FullPathStop         string
 		FullPathPostStop     string
+		DataDir              string
 		ServiceSystemdTarget string
 		SnapArch             string
 		Home                 string
@@ -253,6 +254,7 @@ WantedBy={{.ServiceSystemdTarget}}
 		filepath.Join(realBaseDir, appInfo.Command),
 		filepath.Join(realBaseDir, appInfo.Stop),
 		filepath.Join(realBaseDir, appInfo.PostStop),
+		stripGlobalRootDir(appInfo.Snap.DataDir()),
 		systemd.ServicesTarget,
 		arch.UbuntuArchitecture(),
 		// systemd runs as PID 1 so %h will not work.
