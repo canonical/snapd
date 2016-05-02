@@ -39,7 +39,7 @@ func (s *SnapSuite) TestList(c *check.C) {
 			c.Check(r.URL.Query(), check.DeepEquals, url.Values{
 				"sources": []string{"local"},
 			})
-			fmt.Fprintln(w, `{"type": "sync", "result": [{"name": "foo", "status": "active", "version": "42", "developer": "bar"}]}`)
+			fmt.Fprintln(w, `{"type": "sync", "result": [{"name": "foo", "status": "active", "version": "4.2", "developer": "bar", "revision":17}]}`)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
 		}
@@ -49,10 +49,10 @@ func (s *SnapSuite) TestList(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"list"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	//c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stdout(), check.Matches, `Name +Version +Rev +Developer
+foo +4.2 +17 +bar
+`)
 	c.Check(s.Stderr(), check.Equals, "")
-	// ensure that the fake server api was actually hit
-	c.Check(n, check.Equals, 1)
 }
 
 func (s *SnapSuite) TestListWithQuery(c *check.C) {
@@ -66,7 +66,7 @@ func (s *SnapSuite) TestListWithQuery(c *check.C) {
 				"sources": []string{"local"},
 				"q":       []string{"foo"},
 			})
-			fmt.Fprintln(w, `{"type": "sync", "result": [{"name": "foo", "status": "active", "version": "42", "developer": "bar"}]}`)
+			fmt.Fprintln(w, `{"type": "sync", "result": [{"name": "foo", "status": "active", "version": "4.2", "developer": "bar", "revision":17}]}`)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
 		}
@@ -76,7 +76,9 @@ func (s *SnapSuite) TestListWithQuery(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"list", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	//c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stdout(), check.Matches, `Name +Version +Rev +Developer
+foo +4.2 +17 +bar
+`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(n, check.Equals, 1)
