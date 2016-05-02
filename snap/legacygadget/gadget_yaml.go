@@ -31,9 +31,8 @@ type Gadget struct {
 
 // Hardware describes the hardware provided by the gadget snap
 type Hardware struct {
-	Assign     []HardwareAssign `yaml:"assign,omitempty"`
-	BootAssets *BootAssets      `yaml:"boot-assets,omitempty"`
-	Bootloader string           `yaml:"bootloader,omitempty"`
+	BootAssets *BootAssets `yaml:"boot-assets,omitempty"`
+	Bootloader string      `yaml:"bootloader,omitempty"`
 }
 
 // Store holds information relevant to the store provided by a Gadget snap
@@ -66,19 +65,6 @@ type BootAssetRawFiles struct {
 type BootAssetFiles struct {
 	Path   string `yaml:"path"`
 	Target string `yaml:"target,omitempty"`
-}
-
-// HardwareAssign describes the hardware a app can use
-type HardwareAssign struct {
-	PartID string `yaml:"part-id,omitempty"`
-	Rules  []struct {
-		Kernel         string   `yaml:"kernel,omitempty"`
-		Subsystem      string   `yaml:"subsystem,omitempty"`
-		WithSubsystems string   `yaml:"with-subsystems,omitempty"`
-		WithDriver     string   `yaml:"with-driver,omitempty"`
-		WithAttrs      []string `yaml:"with-attrs,omitempty"`
-		WithProps      []string `yaml:"with-props,omitempty"`
-	} `yaml:"rules,omitempty"`
 }
 
 // SystemConfig is a config map holding configs for multiple packages

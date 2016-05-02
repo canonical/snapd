@@ -23,13 +23,8 @@
 package snappy
 
 import (
-	"io/ioutil"
-	"path/filepath"
-
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/legacygadget"
 )
@@ -59,31 +54,4 @@ func (s *GadgetSuite) TearDownTest(c *C) {
 
 func (s *GadgetSuite) TestStoreID(c *C) {
 	c.Assert(StoreID(), Equals, "ninjablocks")
-}
-
-func (s *GadgetSuite) TestWriteApparmorAdditionalFile(c *C) {
-	info, err := snap.InfoFromSnapYaml(hardwareYaml)
-	c.Assert(err, IsNil)
-
-	err = writeApparmorAdditionalFile(info)
-	c.Assert(err, IsNil)
-
-	content, err := ioutil.ReadFile(filepath.Join(dirs.SnapAppArmorDir, "device-hive-iot-hal.json.additional"))
-	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, apparmorAdditionalContent)
-}
-
-func (s *GadgetSuite) TestCleanupGadgetHardwareRules(c *C) {
-	info, err := snap.InfoFromSnapYaml(hardwareYaml)
-	c.Assert(err, IsNil)
-
-	err = writeApparmorAdditionalFile(info)
-	c.Assert(err, IsNil)
-
-	additionalFile := filepath.Join(dirs.SnapAppArmorDir, "device-hive-iot-hal.json.additional")
-	c.Assert(osutil.FileExists(additionalFile), Equals, true)
-
-	err = cleanupGadgetHardwareUdevRules(info)
-	c.Assert(err, IsNil)
-	c.Assert(osutil.FileExists(additionalFile), Equals, false)
 }
