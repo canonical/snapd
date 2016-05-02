@@ -78,7 +78,6 @@ func generateSnapServicesFile(app *snap.AppInfo, baseDir string) (string, error)
 	return GenServiceFile(&ServiceDescription{
 		App:            app,
 		SnapName:       app.Snap.Name(),
-		AppName:        app.Name,
 		Revision:       app.Snap.Revision,
 		Description:    desc,
 		SnapPath:       baseDir,
@@ -223,7 +222,6 @@ func removePackageServices(s *snap.Info, inter interacter) error {
 type ServiceDescription struct {
 	App             *snap.AppInfo
 	SnapName        string
-	AppName         string
 	Revision        int
 	Description     string
 	SnapPath        string
