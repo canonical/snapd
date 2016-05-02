@@ -28,8 +28,8 @@ import (
 	"github.com/ubuntu-core/snappy/snap"
 )
 
-// getGadget is a convenience function to not go into the details for the business
-// logic for a gadget package in every other function
+// getGadget is a convenience function to not go into the details for
+// the business logic for a gadget package in every other function
 var getGadget = getGadgetImpl
 
 func getGadgetImpl() (*snap.Info, error) {
@@ -39,14 +39,4 @@ func getGadgetImpl() (*snap.Info, error) {
 	}
 
 	return nil, errors.New("no gadget snap")
-}
-
-// StoreID returns the store id setup by the gadget package or an empty string
-func StoreID() string {
-	gadget, err := getGadget()
-	if err != nil {
-		return ""
-	}
-
-	return gadget.Legacy.Gadget.Store.ID
 }

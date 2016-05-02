@@ -142,9 +142,8 @@ func NewConfiguredUbuntuStoreSnapRepository() *store.SnapUbuntuStoreRepository {
 	storeID := ""
 	if cand := os.Getenv("UBUNTU_STORE_ID"); cand != "" {
 		storeID = cand
-	} else if cand := StoreID(); cand != "" {
-		storeID = cand
 	}
+
 	return store.NewUbuntuStoreSnapRepository(storeConfig, storeID)
 }
 

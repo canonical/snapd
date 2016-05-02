@@ -173,10 +173,6 @@ func sysInfo(c *Command, r *http.Request) Response {
 		"series": rel.Series,
 	}
 
-	if store := snappy.StoreID(); store != "" {
-		m["store"] = store
-	}
-
 	return SyncResponse(m, nil)
 }
 
