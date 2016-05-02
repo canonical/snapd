@@ -259,6 +259,19 @@ func (app *AppInfo) ServiceSocketFile() string {
 	return filepath.Join(dirs.SnapServicesDir, app.SecurityTag()+".socket")
 }
 
+func infoFromSnapYamlWithSideInfo(meta []byte, si *SideInfo) (*Info, error) {
+	info, err := InfoFromSnapYaml(meta)
+	if err != nil {
+		return nil, err
+	}
+
+	if si != nil {
+		info.SideInfo = *si
+	}
+
+	return info, nil
+}
+
 // ReadInfo reads the snap information for the installed snap with the given name and given side-info.
 func ReadInfo(name string, si *SideInfo) (*Info, error) {
 	snapYamlFn := filepath.Join(MountDir(name, si.Revision), "meta", "snap.yaml")
@@ -270,12 +283,26 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 		return nil, err
 	}
 
-	info, err := InfoFromSnapYaml(meta)
+	return infoFromSnapYamlWithSideInfo(meta, si)
+}
+
+// ReadInfoFromSnapFile reads the snap information from the given File
+// and completes it with the given side-info if this is not nil.
+func ReadInfoFromSnapFile(snapf File, si *SideInfo) (*Info, error) {
+	meta, err := snapf.MetaMember("snap.yaml")
 	if err != nil {
 		return nil, err
 	}
 
-	info.SideInfo = *si
+	info, err := infoFromSnapYamlWithSideInfo(meta, si)
+	if err != nil {
+		return nil, err
+	}
+
+	err = Validate(info)
+	if err != nil {
+		return nil, err
+	}
 
 	return info, nil
 }
