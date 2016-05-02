@@ -29,8 +29,8 @@ import (
 	"github.com/ubuntu-core/snappy/osutil"
 )
 
-// AuthenticatedUser holds logged in user information.
-type AuthenticatedUser struct {
+// User holds logged in user information.
+type User struct {
 	Macaroon   string   `json:"macaroon,omitempty"`
 	Discharges []string `json:"discharges,omitempty"`
 }
@@ -42,7 +42,7 @@ type loginData struct {
 }
 
 // Login logs user in.
-func (client *Client) Login(username, password, otp string) (*AuthenticatedUser, error) {
+func (client *Client) Login(username, password, otp string) (*User, error) {
 	postData := loginData{
 		Username: username,
 		Password: password,
@@ -53,8 +53,8 @@ func (client *Client) Login(username, password, otp string) (*AuthenticatedUser,
 		return nil, err
 	}
 
-	var user AuthenticatedUser
-	if err := client.doSync("POST", "/v2/login", nil, &body, &user); err != nil {
+	var user User
+	if _, err := client.doSync("POST", "/v2/login", nil, nil, &body, &user); err != nil {
 		return nil, err
 	}
 
@@ -72,15 +72,40 @@ func storeAuthDataFilename() string {
 	return filepath.Join(homeDir, ".snap", "auth.json")
 }
 
-func writeAuthData(userData AuthenticatedUser) error {
+// writeAuthData saves authentication details for later reuse through ReadAuthData
+func writeAuthData(user User) error {
 	targetFile := storeAuthDataFilename()
 	if err := os.MkdirAll(filepath.Dir(targetFile), 0700); err != nil {
 		return err
 	}
-	outStr, err := json.Marshal(userData)
+	outStr, err := json.Marshal(user)
 	if err != nil {
 		return nil
 	}
 
 	return osutil.AtomicWriteFile(targetFile, []byte(outStr), 0600, 0)
+}
+
+// readAuthData reads previously written authentication details
+func readAuthData() (*User, error) {
+	sourceFile := storeAuthDataFilename()
+	f, err := os.Open(sourceFile)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	var user User
+	dec := json.NewDecoder(f)
+	if err := dec.Decode(&user); err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}
+
+// removeAuthData removes any previously written authentication details.
+func removeAuthData() error {
+	filename := storeAuthDataFilename()
+	return os.Remove(filename)
 }

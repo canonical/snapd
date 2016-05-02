@@ -39,15 +39,14 @@ var _ = Suite(&ReleaseTestSuite{})
 
 func (s *ReleaseTestSuite) TestSetup(c *C) {
 	c.Assert(release.Setup(c.MkDir()), IsNil)
-	c.Check(release.String(), Equals, "rolling-core")
+	c.Check(release.String(), Equals, "16-core")
 	rel := release.Get()
 	c.Check(rel.Flavor, Equals, "core")
-	c.Check(rel.Series, Equals, "rolling")
-	c.Check(rel.Channel, Equals, "edge")
+	c.Check(rel.Series, Equals, "16")
 }
 
 func (s *ReleaseTestSuite) TestOverride(c *C) {
-	rel := release.Release{Flavor: "personal", Series: "10.06", Channel: "beta"}
+	rel := release.Release{Flavor: "personal", Series: "10.06"}
 	release.Override(rel)
 	c.Check(release.String(), Equals, "10.06-personal")
 	c.Check(release.Get(), DeepEquals, rel)

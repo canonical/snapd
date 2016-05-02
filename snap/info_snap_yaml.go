@@ -21,6 +21,7 @@ package snap
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v2"
@@ -34,6 +35,7 @@ type snapYaml struct {
 	Version          string                 `yaml:"version"`
 	Type             Type                   `yaml:"type"`
 	Architectures    []string               `yaml:"architectures,omitempty"`
+	Assumes          []string               `yaml:"assumes"`
 	Description      string                 `yaml:"description"`
 	Summary          string                 `yaml:"summary"`
 	LicenseAgreement string                 `yaml:"license-agreement,omitempty"`
@@ -102,6 +104,7 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 		Version:             y.Version,
 		Type:                typ,
 		Architectures:       architectures,
+		Assumes:             y.Assumes,
 		OriginalDescription: y.Description,
 		OriginalSummary:     y.Summary,
 		LicenseAgreement:    y.LicenseAgreement,
@@ -113,6 +116,7 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 		// just expose the parsed legacy yaml bits
 		Legacy: &y.Legacy,
 	}
+	sort.Strings(snap.Assumes)
 	// Collect top-level definitions of plugs
 	for name, data := range y.Plugs {
 		iface, label, attrs, err := convertToSlotOrPlugData("plug", name, data)

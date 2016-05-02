@@ -48,10 +48,35 @@ func (as *authSuite) TestNewUser(c *C) {
 	as.state.Unlock()
 
 	expected := &auth.UserState{
-		ID:         1,
-		Username:   "username",
-		Macaroon:   "macaroon",
-		Discharges: []string{"discharge"},
+		ID:              1,
+		Username:        "username",
+		Macaroon:        "macaroon",
+		Discharges:      []string{"discharge"},
+		StoreMacaroon:   "macaroon",
+		StoreDischarges: []string{"discharge"},
+	}
+	c.Check(err, IsNil)
+	c.Check(user, DeepEquals, expected)
+
+	as.state.Lock()
+	userFromState, err := auth.User(as.state, 1)
+	as.state.Unlock()
+	c.Check(err, IsNil)
+	c.Check(userFromState, DeepEquals, expected)
+}
+
+func (as *authSuite) TestNewUserSortsDischarges(c *C) {
+	as.state.Lock()
+	user, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge2", "discharge1"})
+	as.state.Unlock()
+
+	expected := &auth.UserState{
+		ID:              1,
+		Username:        "username",
+		Macaroon:        "macaroon",
+		Discharges:      []string{"discharge1", "discharge2"},
+		StoreMacaroon:   "macaroon",
+		StoreDischarges: []string{"discharge1", "discharge2"},
 	}
 	c.Check(err, IsNil)
 	c.Check(user, DeepEquals, expected)
@@ -74,10 +99,12 @@ func (as *authSuite) TestNewUserAddsToExistent(c *C) {
 	user, err := auth.NewUser(as.state, "new_username", "new_macaroon", []string{"new_discharge"})
 	as.state.Unlock()
 	expected := &auth.UserState{
-		ID:         2,
-		Username:   "new_username",
-		Macaroon:   "new_macaroon",
-		Discharges: []string{"new_discharge"},
+		ID:              2,
+		Username:        "new_username",
+		Macaroon:        "new_macaroon",
+		Discharges:      []string{"new_discharge"},
+		StoreMacaroon:   "new_macaroon",
+		StoreDischarges: []string{"new_discharge"},
 	}
 	c.Check(err, IsNil)
 	c.Check(user, DeepEquals, expected)
@@ -94,6 +121,50 @@ func (as *authSuite) TestNewUserAddsToExistent(c *C) {
 	as.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(userFromState, DeepEquals, firstUser)
+}
+
+func (as *authSuite) TestCheckMacaroonNoAuthData(c *C) {
+	as.state.Lock()
+	user, err := auth.CheckMacaroon(as.state, "macaroon", []string{"discharge"})
+	as.state.Unlock()
+
+	c.Check(err, Equals, auth.ErrInvalidAuth)
+	c.Check(user, IsNil)
+}
+
+func (as *authSuite) TestCheckMacaroonInvalidAuth(c *C) {
+	as.state.Lock()
+	user, err := auth.CheckMacaroon(as.state, "other-macaroon", []string{"discharge"})
+	as.state.Unlock()
+
+	c.Check(err, Equals, auth.ErrInvalidAuth)
+	c.Check(user, IsNil)
+
+	as.state.Lock()
+	_, err = auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	as.state.Unlock()
+	c.Check(err, IsNil)
+
+	as.state.Lock()
+	user, err = auth.CheckMacaroon(as.state, "other-macaroon", []string{"discharge"})
+	as.state.Unlock()
+
+	c.Check(err, Equals, auth.ErrInvalidAuth)
+	c.Check(user, IsNil)
+}
+
+func (as *authSuite) TestCheckMacaroonValidUser(c *C) {
+	as.state.Lock()
+	expectedUser, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	as.state.Unlock()
+	c.Check(err, IsNil)
+
+	as.state.Lock()
+	user, err := auth.CheckMacaroon(as.state, "macaroon", []string{"discharge"})
+	as.state.Unlock()
+
+	c.Check(err, IsNil)
+	c.Check(user, DeepEquals, expectedUser)
 }
 
 func (as *authSuite) TestUserForNoAuthInState(c *C) {
@@ -127,6 +198,33 @@ func (as *authSuite) TestUser(c *C) {
 	as.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(userFromState, DeepEquals, user)
+}
+
+func (as *authSuite) TestRemove(c *C) {
+	as.state.Lock()
+	user, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	as.state.Unlock()
+	c.Check(err, IsNil)
+
+	as.state.Lock()
+	_, err = auth.User(as.state, user.ID)
+	as.state.Unlock()
+	c.Check(err, IsNil)
+
+	as.state.Lock()
+	err = auth.RemoveUser(as.state, user.ID)
+	as.state.Unlock()
+	c.Assert(err, IsNil)
+
+	as.state.Lock()
+	_, err = auth.User(as.state, user.ID)
+	as.state.Unlock()
+	c.Check(err, ErrorMatches, "invalid user")
+
+	as.state.Lock()
+	err = auth.RemoveUser(as.state, user.ID)
+	as.state.Unlock()
+	c.Assert(err, ErrorMatches, "invalid user")
 }
 
 func (as *authSuite) TestGetAuthenticatorFromUser(c *C) {

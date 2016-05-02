@@ -36,6 +36,8 @@ type classicDimensionSuite struct {
 }
 
 func (s *classicDimensionSuite) SetUpTest(c *check.C) {
+	s.SnappySuite.SetUpTest(c)
+
 	c.Skip("FIXME: re-enable once snap classic is back")
 }
 
@@ -45,7 +47,7 @@ func (s *classicDimensionSuite) enableClassic(c *check.C) {
 	expected := "(?ms)" +
 		".*" +
 		"Classic dimension enabled on this snappy system.\n" +
-		"Use “snap shell classic” to enter the classic dimension.\n"
+		"Use \"snap shell classic\" to enter the classic dimension.\n"
 	c.Assert(output, check.Matches, expected)
 }
 

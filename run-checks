@@ -105,6 +105,22 @@ if [ ! -z "$STATIC" ]; then
         # don't exit 1
     fi
 
+    # cmd/* test sources are tagged so they are not included in
+    # special integration test builds
+    echo Checking 'cmd/*/*_test.go' build tagging
+    bad=""
+    for cmd in cmd/* ; do
+        nottagged=$(ls ${cmd}/*_test.go|grep -v integration_coverage_test|grep -v -F "$(grep -l '!integrationcoverage' ${cmd}/*_test.go)" || true)
+
+        if [ -n "${nottagged}" ] ; then
+            echo these ${cmd} test files miss the '!integrationcoverage' tag: ${nottagged}
+            bad=1
+        fi
+    done
+    if [ -n "${bad}" ] ; then
+        exit 1
+    fi
+
     # pot file
     echo Checking translations
     TMPF="$(mktemp)"

@@ -41,7 +41,9 @@ three standard return types:
 * Background operation
 * Error
 
-Status codes follow that of HTTP.
+Status codes follow that of HTTP. Standard and background operation responses
+are capable of returning additional meta data key/values as part of the returned
+JSON object.
 
 ### Standard return value
 
@@ -71,20 +73,17 @@ The body is a JSON object with the following structure:
 ```javascript
 {
  "result": {
-   "resource": "/v2/operations/[uuid]",     // see below
-   "status": "running",
-   "created-at": "..."                       // and other operation fields
+     ...
  },
  "status": "Accepted",
  "status-code": 202,
  "type": "async"
+ "change": "adWf",
 }
 ```
 
-The response body is mostly provided as a user friendly way of seeing
-what's going on without having to pull the target operation; all
-information in the body can also be retrieved from the background
-operation URL.
+Information about the background operation progress can be retrieved
+from the referenced change.
 
 ### Error
 
@@ -142,10 +141,8 @@ Reserved for human-readable content describing the service.
 
 ```javascript
 {
- "default-channel": "edge",
  "flavor": "core",
- "api-compat": "1",           // increased on minor API changes
- "release": "15.04",
+ "series": "16",
  "store": "store-id"          // only if not default
 }
 ```
@@ -167,39 +164,102 @@ Reserved for human-readable content describing the service.
 }
 ```
 
+## /v2/find
+### GET
+
+* Description: Find snaps in the store
+* Access: authenticated
+* Operation: sync
+* Return: list of snaps in the store that match the search term and
+  that this system can handle.
+
+### Parameters:
+
+#### `q`
+
+Query.
+
+#### `channel`
+
+Which channel to search in.
+
+#### Sample result:
+
+[//]: # keep the fields sorted, both in the sample and its description below. Makes scanning easier
+
+```javascript
+[{
+      "description": "This is a simple hello world example.",
+      "developer": "canonical",
+      "download-size": 20480,
+      "icon": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
+      "name": "hello-world",
+      "resource": "/v2/snaps/hello-world",
+      "revision": 25,
+      "status": "available",
+      "summary": "Hello world example",
+      "type": "app",
+      "version": "6.0",
+      "prices": {"EUR": 1.99, "USD": 2.49}
+    }, {
+      "description": "no description",
+      "developer": "chipaca",
+      "download-size": 1110016,
+      "icon": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/10/http.png",
+      "name": "http",
+      "resource": "/v2/snaps/http",
+      "revision": 14,
+      "status": "available",
+      "summary": "HTTPie in a snap",
+      "type": "app",
+      "version": "4.6692016"
+}]
+```
+
+##### Fields
+
+[//]: # keep the fields sorted, both in the description and the sample above. Makes scanning easier
+
+* `description`: snap description
+* `download-size`: how big the download will be.
+* `icon`: a url to the snap icon, possibly relative to this server.
+* `name`: the snap name.
+* `prices`: JSON object with properties named by ISO 4217 currency code. The values of the properties are numerics representing the cost in each currency. For free snaps, the "prices" property is omitted.
+* `revision`: a number representing the revision.
+* `status`: can be either `available`, or `priced` (i.e. needs to be bought to become available)
+* `summary`: one-line summary
+* `type`: the type of snap; one of `app`, `kernel`, `gadget`, or `os`.
+* `version`: a string representing the version.
+
+[//]: # seriously, keep the fields sorted!
+
+#### Result meta data:
+
+```javascript
+{
+ "suggested-currency": "GBP"
+}
+```
+
+##### Fields
+
+* `suggested-currency`: the suggested currency to use for presentation, 
+   derived by Geo IP lookup.
+
 ## /v2/snaps
 ### GET
 
 * Description: List of snaps
 * Access: authenticated
 * Operation: sync
-* Return: list of snaps this Ubuntu Core system can handle.
-
-The result is a JSON object with a `snaps` key; its value is itself a
-JSON object whose keys are snap names (e.g., `hello-world`), and whose
-values describe that snap.
+* Return: list of snaps installed in this Ubuntu Core system, as for `/v2/find`
 
 Sample result:
 
+[//]: # keep the fields sorted, both in the description and the sample above. Makes scanning easier
+
 ```javascript
-{
- "snaps": {
-    "hello-world": {
-      "summary": "Hello world example",
-      "description": "This is a simple hello world example.",
-      "download-size": 22212,
-      "icon": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
-      "installed-size": -1,          // always -1 if neither "active" nor "installed"
-      "name": "hello-world",
-      "developer": "canonical",
-      "resource": "/v2/snaps/hello-world",
-      "status": "available",
-      "type": "app",
-      "revision" 17,
-      "version": "1.0.18",
-      "channel": "stable"
-    },
-    "http": {
+[{
       "summary": "HTTPie in a snap",
       "description": "no description",
       "download-size": 1578272,
@@ -214,13 +274,12 @@ Sample result:
       "version": "3.1",
       "revision": 1834,
       "channel": "stable"
-    },
-    "ubuntu-core": {
+    }, {
       "summary": "The ubuntu-core OS snap",
       "description": "A secure, minimal transactional OS for devices and containers.",
       "download-size": 19845748,
-      "icon": "",               // core might not have an icon
-      "installed-size": -1,     // core doesn't have installed-size (yet)
+      "icon": "",                  // core might not have an icon
+      "installed-size": 67784704,
       "install-date": "2016-03-08T11:29:21Z",
       "name": "ubuntu-core",
       "developer": "canonical",
@@ -230,96 +289,35 @@ Sample result:
       "update-available": 247,
       "version": "241",
       "revision": 99,
-      "channel": "stable"
-    }
- },
- "paging": {
-    "count": 3,
-    "page": 0,
-    "pages": 1
-  },
-  "sources": [
-    "local",
-    "store"
-  ]
-}
+      "channel": "stable",
+}]
 ```
 
 #### Fields
-* `snaps`
-    * `status`: can be either `available`, `installed`, `active` (i.e. is
-      current).
-    * `name`: the snap name.
-    * `version`: a string representing the version.
-    * `revision`: a number representing the revision.
-    * `icon`: a url to the snap icon, possibly relative to this server.
-    * `type`: the type of snap; one of `app`, `framework`, `kernel`,
-      `gadget`, or `os`.
-    * `description`: snap description
-    * `summary`: one-line summary
-    * `installed-size`: for installed snaps, how much space the snap
-      itself (not its data) uses.
-    * `download-size`: for not-installed snaps, how big the download will
-      be, formatted as a decimal string.
-    * `rollback-available`: if present and not empty, it means the snap can
-      be rolled back to the revision specified as a value to this entry.
-    * `update-available`: if present and not empty, it means the snap can be
-      updated to the revision specified as a value to this entry.
-    * `channel`: which channel the package is currently tracking.
-* `paging`
-    * `count`: the number of snaps on this page
-    * `page`: the page number, starting from `0`
-    * `pages`: the (approximate) number of pages
-* `sources`
-    a list of the sources that were queried (see the `sources` parameter, below)
 
-### Parameters [fixme: is that the right word for these?]
+In addition to the fields described in `/v2/fiend`:
 
-#### `sources`
+[//]: # keep the fields sorted!
 
-Can be set to either `local` (to only list local snaps) or `store` (to
-only list snaps from the store), or a comma-separated
-combination. Defaults to `local,store`.
+* `channel`: which channel the package is currently tracking.
+* `installed-size`: how much space the snap itself (not its data) uses.
+* `install-date`: the date and time when the snap was installed.
+* `status`: can be either `installed` or `active` (i.e. is current).
 
-Note that excluding sources will result in incomplete (and in some
-cases incorrect) information about installed packages: information
-about updates will be absent if `store` is not included, whereas if
-`local` is not included information about rollbacks will be missing,
-and the package state for installed packages will be incorrect.
-
-#### `types`
-
-Restricts returned snaps to those with types included in the specified
-comma-separated list. See the description of the `type` field of `snaps` in the
-above section for possible values.
-
-#### `page`
-
-Request the given page when the server is paginating the
-result. Defaults to `0`.
-
-#### `q`
-
-If present, only list snaps that match the query.
+furthermore, `price` cannot occur in the output of `/v2/snaps`.
 
 ### POST
 
-* Description: Sideload a snap to the system.
+* Description: Install an uploaded snap to the system.
 * Access: trusted
 * Operation: async
 * Return: background operation or standard error
 
 #### Input
 
-The snap to sideload should be provided as part of the body of a
-`mutlipart/form-data` request. The form should have only one file. If it also
-has an `allow-unsigned` field (with any value), the snap may be unsigned;
-otherwise attempting to sideload an unsigned snap will result in a failed
-background operation.
-
-It's also possible to provide the snap as the entire body of a `POST` (not a
-multipart request). In this case the header `X-Allow-Unsigned` may be used to
-allow sideloading unsigned snaps.
+The snap to install must be provided as part of the body of a
+`mutlipart/form-data` request. The form should have one file
+named "snap".
 
 ## /v2/snaps/[name]
 ### GET
@@ -337,8 +335,7 @@ See `sources` for `/v2/snaps`.
 
 ### POST
 
-* Description: Install, update, remove, activate, deactivate, or
-  rollback the snap
+* Description: Install, refresh, or remove
 * Access: trusted
 * Operation: async
 * Return: background operation or standard error
@@ -355,10 +352,8 @@ See `sources` for `/v2/snaps`.
 
 field      | ignored except in action | description
 -----------|-------------------|------------
-`action`   |                   | Required; a string, one of `install`, `update`, `remove`, `activate`, `deactivate`, or `rollback`.
+`action`   |                   | Required; a string, one of `install`, `refresh`, or `remove`
 `channel`  | `install` `update` | From which channel to pull the new package (and track henceforth). Channels are a means to discern the maturity of a package or the software it contains, although the exact meaning is left to the application developer. One of `edge`, `beta`, `candidate`, and `stable` which is the default.
-`leave-old`| `install` `update` `remove` | A boolean, equivalent to commandline's `--no-gc`. Default is false (do not leave old snaps around).
-`license`  | `install` `update` | A JSON object with `intro`, `license`, and `agreed` fields, the first two of which must match the license (see the section "A note on licenses", below).
 
 #### A note on licenses
 
@@ -380,35 +375,6 @@ field would be
     "message": "License agreement required."
 }
 ```
-
-## /v2/operations/[uuid]
-
-### GET
-
-* Description: background operation
-* Access: trusted
-* Operation: sync
-* Return: dict representing a background operation
-
-#### Sample result:
-
-```javascript
-{
- "created-at": "1415639996123456",      // Creation timestamp
- "output": {},
- "resource": "/v2/snaps/camlistore.sergiusens",
- "status": "running",                   // or "succeeded" or "failed"
- "updated-at": "1415639996451214"       // Last update timestamp
-}
-```
-
-### DELETE
-
-* Description: If the operation has completed, `DELETE` will remove the
-  entry. Otherwise it is an error.
-* Access: trusted
-* Operation: sync
-* Return: standard return value or standard error
 
 ## /v2/icons/[name]/icon
 
@@ -493,8 +459,8 @@ Sample result:
 
 * Description: Issue an action to the interface system
 * Access: authenticated
-* Operation: sync
-* Return: nothing
+* Operation: async
+* Return: background operation or standard error
 
 Available actions are:
 

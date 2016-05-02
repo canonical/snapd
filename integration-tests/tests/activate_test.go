@@ -2,7 +2,7 @@
 // +build !excludeintegration
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -48,9 +48,9 @@ type activateSuite struct {
 }
 
 func (s *activateSuite) SetUpTest(c *check.C) {
-	c.Skip("FIXME: port to snap")
-
 	s.SnappySuite.SetUpTest(c)
+
+	c.Skip("FIXME: port to snap")
 	if common.Release(c) == "15.04" {
 		c.Skip("activate CLI command not available on 15.04, reenable the test when present")
 	}

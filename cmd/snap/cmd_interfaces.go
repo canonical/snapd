@@ -21,7 +21,6 @@ package main
 
 import (
 	"fmt"
-	"text/tabwriter"
 
 	"github.com/ubuntu-core/snappy/i18n"
 
@@ -49,7 +48,7 @@ $ snap interfaces <snap>
 
 Lists the slots offered and plugs used by the specified snap.
 
-$ snap interfaces --i=<interface> [<snap>]
+$ snap interfaces -i=<interface> [<snap>]
 
 Filters the complete output so only plugs and/or slots matching the provided details are listed.
 `)
@@ -63,8 +62,11 @@ func init() {
 func (x *cmdInterfaces) Execute(args []string) error {
 	ifaces, err := Client().Interfaces()
 	if err == nil {
-		w := tabwriter.NewWriter(Stdout, 0, 4, 1, ' ', 0)
-		fmt.Fprintln(w, i18n.G("slot\tplug"))
+		if len(ifaces.Plugs) == 0 && len(ifaces.Slots) == 0 {
+			return fmt.Errorf(i18n.G("no interfaces found"))
+		}
+		w := tabWriter()
+		fmt.Fprintln(w, i18n.G("Slot\tPlug"))
 		defer w.Flush()
 		for _, slot := range ifaces.Slots {
 			if x.Positionals.Query.Snap != "" && x.Positionals.Query.Snap != slot.Snap {
@@ -95,7 +97,7 @@ func (x *cmdInterfaces) Execute(args []string) error {
 			}
 			// Display visual indicator for disconnected slots
 			if len(slot.Connections) == 0 {
-				fmt.Fprint(w, "--")
+				fmt.Fprint(w, "-")
 			}
 			fmt.Fprintf(w, "\n")
 		}
@@ -113,7 +115,7 @@ func (x *cmdInterfaces) Execute(args []string) error {
 			}
 			// Display visual indicator for disconnected plugs.
 			if len(plug.Connections) == 0 {
-				fmt.Fprintf(w, "--\t%s:%s\n", plug.Snap, plug.Name)
+				fmt.Fprintf(w, "-\t%s:%s\n", plug.Snap, plug.Name)
 			}
 		}
 	}

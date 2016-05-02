@@ -46,7 +46,6 @@ func (s *SnapTestSuite) TestInstallInstall(c *C) {
 	c.Assert(all, HasLen, 1)
 	snap := all[0]
 	c.Check(snap.Name(), Equals, name)
-	c.Check(snap.IsInstalled(), Equals, true)
 	c.Check(snap.IsActive(), Equals, true)
 }
 
@@ -61,7 +60,6 @@ func (s *SnapTestSuite) TestInstallNoHook(c *C) {
 	c.Assert(all, HasLen, 1)
 	snap := all[0]
 	c.Check(snap.Name(), Equals, name)
-	c.Check(snap.IsInstalled(), Equals, true)
 	c.Check(snap.IsActive(), Equals, false) // c.f. TestInstallInstall
 }
 
@@ -126,7 +124,16 @@ func (s *SnapTestSuite) TestClickInstallGCSimple(c *C) {
 	// gc should no longer leave one more data than app
 	globs, err = filepath.Glob(filepath.Join(dirs.SnapDataDir, "foo", "*"))
 	c.Check(err, IsNil)
-	c.Check(globs, HasLen, 2+1) // +1 for "current"
+	c.Check(globs, HasLen, 2+1+1) // +1 for "current", +1 for common
+
+	// ensure common data is actually present, and it isn't the old version
+	commonFound := false
+	for _, glob := range globs {
+		if filepath.Base(glob) == "common" {
+			commonFound = true
+		}
+	}
+	c.Check(commonFound, Equals, true)
 }
 
 // check that if flags does not include DoInstallGC, no gc is done
@@ -139,7 +146,16 @@ func (s *SnapTestSuite) TestClickInstallGCSuppressed(c *C) {
 
 	globs, err = filepath.Glob(filepath.Join(dirs.SnapDataDir, "foo", "*"))
 	c.Check(err, IsNil)
-	c.Check(globs, HasLen, 3+1) // +1 for "current"
+	c.Check(globs, HasLen, 3+1+1) // +1 for "current", +1 for common
+
+	// ensure common data is actually present
+	commonFound := false
+	for _, glob := range globs {
+		if filepath.Base(glob) == "common" {
+			commonFound = true
+		}
+	}
+	c.Check(commonFound, Equals, true)
 }
 
 func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
@@ -221,7 +237,7 @@ func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	_, err = Install("hello-snap.potato", "ch", 0, ag)
+	_, err = Install("hello-snap", "ch", 0, ag)
 	c.Assert(err, ErrorMatches, ".*"+ErrPackageNameAlreadyInstalled.Error())
 }
 

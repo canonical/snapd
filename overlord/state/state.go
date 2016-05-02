@@ -25,12 +25,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/strutil"
 )
 
 // A Backend is used by State to checkpoint on every unlock operation
@@ -74,6 +74,9 @@ func (data customData) set(key string, value interface{}) {
 type State struct {
 	mu  sync.Mutex
 	muC int32
+
+	lastTaskId   int
+	lastChangeId int
 
 	backend Backend
 	data    customData
@@ -130,6 +133,9 @@ type marshalledState struct {
 	Data    map[string]*json.RawMessage `json:"data"`
 	Changes map[string]*Change          `json:"changes"`
 	Tasks   map[string]*Task            `json:"tasks"`
+
+	LastChangeId int `json:"last-change-id"`
+	LastTaskId   int `json:"last-task-id"`
 }
 
 // MarshalJSON makes State a json.Marshaller
@@ -139,6 +145,9 @@ func (s *State) MarshalJSON() ([]byte, error) {
 		Data:    s.data,
 		Changes: s.changes,
 		Tasks:   s.tasks,
+
+		LastTaskId:   s.lastTaskId,
+		LastChangeId: s.lastChangeId,
 	})
 }
 
@@ -153,6 +162,8 @@ func (s *State) UnmarshalJSON(data []byte) error {
 	s.data = unmarshalled.Data
 	s.changes = unmarshalled.Changes
 	s.tasks = unmarshalled.Tasks
+	s.lastChangeId = unmarshalled.LastChangeId
+	s.lastTaskId = unmarshalled.LastTaskId
 	// backlink state again
 	for _, t := range s.tasks {
 		t.state = s
@@ -245,23 +256,11 @@ func (s *State) Cache(key, value interface{}) {
 	}
 }
 
-func (s *State) genID() string {
-	for {
-		id := strutil.MakeRandomString(6)
-		if _, ok := s.changes[id]; ok {
-			continue
-		}
-		if _, ok := s.tasks[id]; ok {
-			continue
-		}
-		return id
-	}
-}
-
 // NewChange adds a new change to the state.
 func (s *State) NewChange(kind, summary string) *Change {
 	s.writing()
-	id := s.genID()
+	s.lastChangeId++
+	id := strconv.Itoa(s.lastChangeId)
 	chg := newChange(s, id, kind, summary)
 	s.changes[id] = chg
 	return chg
@@ -288,26 +287,40 @@ func (s *State) Change(id string) *Change {
 // through a TaskSet.
 func (s *State) NewTask(kind, summary string) *Task {
 	s.writing()
-	id := s.genID()
+	s.lastTaskId++
+	id := strconv.Itoa(s.lastTaskId)
 	t := newTask(s, id, kind, summary)
 	s.tasks[id] = t
 	return t
 }
 
-// Tasks returns all tasks currently known to the state.
+// Tasks returns all tasks currently known to the state and linked to changes.
 func (s *State) Tasks() []*Task {
 	s.reading()
 	res := make([]*Task, 0, len(s.tasks))
 	for _, t := range s.tasks {
+		if t.Change() == nil { // skip unlinked tasks
+			continue
+		}
 		res = append(res, t)
 	}
 	return res
 }
 
-// Task returns the task for the given ID.
+// Task returns the task for the given ID if the task has been linked to a change.
 func (s *State) Task(id string) *Task {
 	s.reading()
-	return s.tasks[id]
+	t := s.tasks[id]
+	if t == nil || t.Change() == nil {
+		return nil
+	}
+	return t
+}
+
+// NumTask returns the number of tasks that currently exist in the state (both linked or not yet linked to changes), useful for sanity checking.
+func (s *State) NumTask() int {
+	s.reading()
+	return len(s.tasks)
 }
 
 func (s *State) tasksIn(tids []string) []*Task {
@@ -316,6 +329,39 @@ func (s *State) tasksIn(tids []string) []*Task {
 		res[i] = s.tasks[tid]
 	}
 	return res
+}
+
+// Prune removes changes that became ready for more than pruneWait
+// and aborts tasks spawned for more than abortWait.
+// It also removes tasks unlinked to changes after pruneWait.
+func (s *State) Prune(pruneWait, abortWait time.Duration) {
+	now := time.Now()
+	pruneLimit := now.Add(-pruneWait)
+	abortLimit := now.Add(-abortWait)
+	for _, chg := range s.Changes() {
+		spawnTime := chg.SpawnTime()
+		readyTime := chg.ReadyTime()
+		if readyTime.IsZero() {
+			if spawnTime.Before(abortLimit) {
+				chg.Abort()
+			}
+			continue
+		}
+		if readyTime.Before(pruneLimit) {
+			s.writing()
+			for _, t := range chg.Tasks() {
+				delete(s.tasks, t.ID())
+			}
+			delete(s.changes, chg.ID())
+		}
+	}
+	for tid, t := range s.tasks {
+		// TODO: this could be done more aggressively
+		if t.Change() == nil && t.SpawnTime().Before(pruneLimit) {
+			s.writing()
+			delete(s.tasks, tid)
+		}
+	}
 }
 
 // ReadState returns the state deserialized from r.

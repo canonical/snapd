@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
+	"sort"
 
 	"github.com/ubuntu-core/snappy/overlord/state"
 )
@@ -35,10 +36,12 @@ type AuthState struct {
 
 // UserState represents an authenticated user
 type UserState struct {
-	ID         int      `json:"id"`
-	Username   string   `json:"username,omitempty"`
-	Macaroon   string   `json:"macaroon,omitempty"`
-	Discharges []string `json:"discharges,omitempty"`
+	ID              int      `json:"id"`
+	Username        string   `json:"username,omitempty"`
+	Macaroon        string   `json:"macaroon,omitempty"`
+	Discharges      []string `json:"discharges,omitempty"`
+	StoreMacaroon   string   `json:"store-macaroon,omitempty"`
+	StoreDischarges []string `json:"store-discharges,omitempty"`
 }
 
 // NewUser tracks a new authenticated user and saves its details in the state
@@ -52,12 +55,15 @@ func NewUser(st *state.State, username, macaroon string, discharges []string) (*
 		return nil, err
 	}
 
+	sort.Strings(discharges)
 	authStateData.LastID++
 	authenticatedUser := UserState{
-		ID:         authStateData.LastID,
-		Username:   username,
-		Macaroon:   macaroon,
-		Discharges: discharges,
+		ID:              authStateData.LastID,
+		Username:        username,
+		Macaroon:        macaroon,
+		Discharges:      discharges,
+		StoreMacaroon:   macaroon,
+		StoreDischarges: discharges,
 	}
 	authStateData.Users = append(authStateData.Users, authenticatedUser)
 
@@ -66,12 +72,35 @@ func NewUser(st *state.State, username, macaroon string, discharges []string) (*
 	return &authenticatedUser, nil
 }
 
+// RemoveUser removes a user from the state given its ID
+func RemoveUser(st *state.State, userID int) error {
+	var authStateData AuthState
+
+	err := st.Get("auth", &authStateData)
+	if err != nil {
+		return err
+	}
+
+	for i := range authStateData.Users {
+		if authStateData.Users[i].ID == userID {
+			// delete without preserving order
+			n := len(authStateData.Users) - 1
+			authStateData.Users[i] = authStateData.Users[n]
+			authStateData.Users[n] = UserState{}
+			authStateData.Users = authStateData.Users[:n]
+			st.Set("auth", authStateData)
+			return nil
+		}
+	}
+
+	return fmt.Errorf("invalid user")
+}
+
 // User returns a user from the state given its ID
 func User(st *state.State, id int) (*UserState, error) {
 	var authStateData AuthState
 
 	err := st.Get("auth", &authStateData)
-
 	if err != nil {
 		return nil, err
 	}
@@ -84,9 +113,39 @@ func User(st *state.State, id int) (*UserState, error) {
 	return nil, fmt.Errorf("invalid user")
 }
 
+var ErrInvalidAuth = fmt.Errorf("invalid authentication")
+
+// CheckMacaroon returns the UserState for the given macaroon/discharges credentials
+func CheckMacaroon(st *state.State, macaroon string, discharges []string) (*UserState, error) {
+	var authStateData AuthState
+	err := st.Get("auth", &authStateData)
+	if err != nil {
+		return nil, ErrInvalidAuth
+	}
+
+NextUser:
+	for _, user := range authStateData.Users {
+		if user.Macaroon != macaroon {
+			continue
+		}
+		if len(user.Discharges) != len(discharges) {
+			continue
+		}
+		// sort discharges (stored users' discharges are already sorted)
+		sort.Strings(discharges)
+		for i, d := range user.Discharges {
+			if d != discharges[i] {
+				continue NextUser
+			}
+		}
+		return &user, nil
+	}
+	return nil, ErrInvalidAuth
+}
+
 // Authenticator returns MacaroonAuthenticator for current authenticated user represented by UserState
 func (us *UserState) Authenticator() *MacaroonAuthenticator {
-	return newMacaroonAuthenticator(us.Macaroon, us.Discharges)
+	return newMacaroonAuthenticator(us.StoreMacaroon, us.StoreDischarges)
 }
 
 // MacaroonAuthenticator is a store authenticator based on macaroons

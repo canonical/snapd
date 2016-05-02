@@ -23,12 +23,25 @@ import (
 	"time"
 )
 
-// SetEnsureIntervalForTest let's change overlord ensure interval for tests.
-func SetEnsureIntervalForTest(d time.Duration) (restore func()) {
-	prev := ensureInterval
+// MockEnsureInterval sets the overlord ensure interval for tests.
+func MockEnsureInterval(d time.Duration) (restore func()) {
+	old := ensureInterval
 	ensureInterval = d
+	return func() { ensureInterval = old }
+}
+
+// MockPruneInterval sets the overlord prune interval for tests.
+func MockPruneInterval(prunei, prunew, abortw time.Duration) (restore func()) {
+	oldPruneInterval := pruneInterval
+	oldPruneWait := pruneWait
+	oldAbortWait := abortWait
+	pruneInterval = prunei
+	pruneWait = prunew
+	abortWait = abortw
 	return func() {
-		ensureInterval = prev
+		pruneInterval = oldPruneInterval
+		pruneWait = oldPruneWait
+		abortWait = oldAbortWait
 	}
 }
 

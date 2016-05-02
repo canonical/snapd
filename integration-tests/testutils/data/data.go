@@ -2,7 +2,7 @@
 // +build !excludeintegration
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -35,6 +35,10 @@ const (
 	BasicServiceSnapName = "basic-service"
 	// BasicDesktopSnapName is the name of the snap with a desktop file
 	BasicDesktopSnapName = "basic-desktop"
+	// NetworkConsumerSnapName is the name of the snap with network plug
+	NetworkConsumerSnapName = "network-consumer"
+	// HomeConsumerSnapName is the name of the snap with home plug
+	HomeConsumerSnapName = "home-consumer"
 	// WrongYamlSnapName is the name of a snap with an invalid meta yaml
 	WrongYamlSnapName = "wrong-yaml"
 )

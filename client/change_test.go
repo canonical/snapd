@@ -23,6 +23,8 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/client"
+	"io/ioutil"
+	"time"
 )
 
 func (cs *clientSuite) TestClientChange(c *check.C) {
@@ -31,7 +33,10 @@ func (cs *clientSuite) TestClientChange(c *check.C) {
   "kind": "foo",
   "summary": "...",
   "status": "Do",
-  "tasks": [{"kind": "bar", "summary": "...", "status": "Do", "progress": [0,1]}]
+  "ready": false,
+  "spawn-time": "2016-04-21T01:02:03Z",
+  "ready-time": "2016-04-21T01:02:04Z",
+  "tasks": [{"kind": "bar", "summary": "...", "status": "Do", "progress": {"done": 0, "total": 1}, "spawn-time": "2016-04-21T01:02:03Z", "ready-time": "2016-04-21T01:02:04Z"}]
 }}`
 
 	chg, err := cs.cli.Change("uno")
@@ -41,7 +46,68 @@ func (cs *clientSuite) TestClientChange(c *check.C) {
 		Kind:    "foo",
 		Summary: "...",
 		Status:  "Do",
-		Tasks:   []*client.Task{{Kind: "bar", Summary: "...", Status: "Do", Progress: client.TaskProgress{Done: 0, Total: 1}}},
+		Tasks: []*client.Task{{
+			Kind:      "bar",
+			Summary:   "...",
+			Status:    "Do",
+			Progress:  client.TaskProgress{Done: 0, Total: 1},
+			SpawnTime: time.Date(2016, 04, 21, 1, 2, 3, 0, time.UTC),
+			ReadyTime: time.Date(2016, 04, 21, 1, 2, 4, 0, time.UTC),
+		}},
+
+		SpawnTime: time.Date(2016, 04, 21, 1, 2, 3, 0, time.UTC),
+		ReadyTime: time.Date(2016, 04, 21, 1, 2, 4, 0, time.UTC),
+	})
+}
+
+func (cs *clientSuite) TestClientChangeData(c *check.C) {
+	cs.rsp = `{"type": "sync", "result": {
+  "id":   "uno",
+  "kind": "foo",
+  "summary": "...",
+  "status": "Do",
+  "ready": false,
+  "data": {"n": 42}
+}}`
+
+	chg, err := cs.cli.Change("uno")
+	c.Assert(err, check.IsNil)
+	var n int
+	err = chg.Get("n", &n)
+	c.Assert(err, check.IsNil)
+	c.Assert(n, check.Equals, 42)
+
+	err = chg.Get("missing", &n)
+	c.Assert(err, check.Equals, client.ErrNoData)
+}
+
+func (cs *clientSuite) TestClientChangeError(c *check.C) {
+	cs.rsp = `{"type": "sync", "result": {
+  "id":   "uno",
+  "kind": "foo",
+  "summary": "...",
+  "status": "Error",
+  "ready": true,
+  "tasks": [{"kind": "bar", "summary": "...", "status": "Error", "progress": {"done": 1, "total": 1}, "log": ["ERROR: something broke"]}],
+  "err": "error message"
+}}`
+
+	chg, err := cs.cli.Change("uno")
+	c.Assert(err, check.IsNil)
+	c.Check(chg, check.DeepEquals, &client.Change{
+		ID:      "uno",
+		Kind:    "foo",
+		Summary: "...",
+		Status:  "Error",
+		Tasks: []*client.Task{{
+			Kind:     "bar",
+			Summary:  "...",
+			Status:   "Error",
+			Progress: client.TaskProgress{Done: 1, Total: 1},
+			Log:      []string{"ERROR: something broke"},
+		}},
+		Err:   "error message",
+		Ready: true,
 	})
 }
 
@@ -61,7 +127,8 @@ func (cs *clientSuite) TestClientChanges(c *check.C) {
   "kind": "foo",
   "summary": "...",
   "status": "Do",
-  "tasks": [{"kind": "bar", "summary": "...", "status": "Do", "progress": [0,1]}]
+  "ready": false,
+  "tasks": [{"kind": "bar", "summary": "...", "status": "Do", "progress": {"done": 0, "total": 1}}]
 }]}`
 
 	for _, i := range []client.ChangeSelector{client.ChangesAll, client.ChangesReady, client.ChangesInProgress} {
@@ -76,4 +143,58 @@ func (cs *clientSuite) TestClientChanges(c *check.C) {
 		}})
 		c.Check(cs.req.URL.RawQuery, check.Equals, "select="+i.String())
 	}
+}
+
+func (cs *clientSuite) TestClientChangesData(c *check.C) {
+	cs.rsp = `{"type": "sync", "result": [{
+  "id":   "uno",
+  "kind": "foo",
+  "summary": "...",
+  "status": "Do",
+  "ready": false,
+  "data": {"n": 42}
+}]}`
+
+	chgs, err := cs.cli.Changes(client.ChangesAll)
+	c.Assert(err, check.IsNil)
+
+	chg := chgs[0]
+	var n int
+	err = chg.Get("n", &n)
+	c.Assert(err, check.IsNil)
+	c.Assert(n, check.Equals, 42)
+
+	err = chg.Get("missing", &n)
+	c.Assert(err, check.Equals, client.ErrNoData)
+}
+
+func (cs *clientSuite) TestClientAbort(c *check.C) {
+	cs.rsp = `{"type": "sync", "result": {
+  "id":   "uno",
+  "kind": "foo",
+  "summary": "...",
+  "status": "Hold",
+  "ready": true,
+  "spawn-time": "2016-04-21T01:02:03Z",
+  "ready-time": "2016-04-21T01:02:04Z"
+}}`
+
+	chg, err := cs.cli.Abort("uno")
+	c.Assert(err, check.IsNil)
+	c.Check(cs.req.Method, check.Equals, "POST")
+	c.Check(chg, check.DeepEquals, &client.Change{
+		ID:      "uno",
+		Kind:    "foo",
+		Summary: "...",
+		Status:  "Hold",
+		Ready:   true,
+
+		SpawnTime: time.Date(2016, 04, 21, 1, 2, 3, 0, time.UTC),
+		ReadyTime: time.Date(2016, 04, 21, 1, 2, 4, 0, time.UTC),
+	})
+
+	body, err := ioutil.ReadAll(cs.req.Body)
+	c.Assert(err, check.IsNil)
+
+	c.Assert(string(body), check.Equals, "{\"action\":\"abort\"}\n")
 }

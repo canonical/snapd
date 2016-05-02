@@ -68,7 +68,7 @@ func (ovs *overlordSuite) TestNew(c *C) {
 }
 
 func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
-	fakeState := []byte(`{"data":{"some":"data"},"changes":null,"tasks":null}`)
+	fakeState := []byte(`{"data":{"some":"data"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0}`)
 	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, IsNil)
 
@@ -129,7 +129,7 @@ func (ovs *overlordSuite) TestTrivialRunAndStop(c *C) {
 }
 
 func (ovs *overlordSuite) TestEnsureLoopRunAndStop(c *C) {
-	restoreIntv := overlord.SetEnsureIntervalForTest(10 * time.Millisecond)
+	restoreIntv := overlord.MockEnsureInterval(10 * time.Millisecond)
 	defer restoreIntv()
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
@@ -157,7 +157,7 @@ func (ovs *overlordSuite) TestEnsureLoopRunAndStop(c *C) {
 }
 
 func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBefore(c *C) {
-	restoreIntv := overlord.SetEnsureIntervalForTest(10 * time.Minute)
+	restoreIntv := overlord.MockEnsureInterval(10 * time.Minute)
 	defer restoreIntv()
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
@@ -183,7 +183,7 @@ func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBefore(c *C) {
 }
 
 func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBeforeInEnsure(c *C) {
-	restoreIntv := overlord.SetEnsureIntervalForTest(10 * time.Minute)
+	restoreIntv := overlord.MockEnsureInterval(10 * time.Minute)
 	defer restoreIntv()
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
@@ -212,6 +212,35 @@ func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBeforeInEnsure(c *C) {
 	case <-time.After(2 * time.Second):
 		c.Fatal("Ensure calls not happening")
 	}
+}
+
+func (ovs *overlordSuite) TestEnsureLoopPrune(c *C) {
+	restoreIntv := overlord.MockPruneInterval(10*time.Millisecond, 5*time.Millisecond, 5*time.Millisecond)
+	defer restoreIntv()
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	st := o.State()
+	st.Lock()
+	t1 := st.NewTask("foo", "...")
+	chg1 := st.NewChange("abort", "...")
+	chg1.AddTask(t1)
+	chg2 := st.NewChange("prune", "...")
+	chg2.SetStatus(state.DoneStatus)
+	st.Unlock()
+
+	o.Loop()
+	time.Sleep(50 * time.Millisecond)
+	err = o.Stop()
+	c.Assert(err, IsNil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	c.Assert(st.Change(chg1.ID()), Equals, chg1)
+	c.Assert(st.Change(chg2.ID()), IsNil)
+
+	c.Assert(t1.Status(), Equals, state.HoldStatus)
 }
 
 func (ovs *overlordSuite) TestCheckpoint(c *C) {
@@ -287,7 +316,7 @@ func (rm *runnerManager) Wait() {
 }
 
 func (ovs *overlordSuite) TestTrivialSettle(c *C) {
-	restoreIntv := overlord.SetEnsureIntervalForTest(1 * time.Minute)
+	restoreIntv := overlord.MockEnsureInterval(1 * time.Minute)
 	defer restoreIntv()
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
@@ -319,7 +348,7 @@ func (ovs *overlordSuite) TestTrivialSettle(c *C) {
 }
 
 func (ovs *overlordSuite) TestSettleChain(c *C) {
-	restoreIntv := overlord.SetEnsureIntervalForTest(1 * time.Minute)
+	restoreIntv := overlord.MockEnsureInterval(1 * time.Minute)
 	defer restoreIntv()
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
@@ -356,7 +385,7 @@ func (ovs *overlordSuite) TestSettleChain(c *C) {
 }
 
 func (ovs *overlordSuite) TestSettleExplicitEnsureBefore(c *C) {
-	restoreIntv := overlord.SetEnsureIntervalForTest(1 * time.Minute)
+	restoreIntv := overlord.MockEnsureInterval(1 * time.Minute)
 	defer restoreIntv()
 	o, err := overlord.New()
 	c.Assert(err, IsNil)

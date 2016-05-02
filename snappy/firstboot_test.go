@@ -132,7 +132,6 @@ func (s *FirstBootTestSuite) TestSoftwareActivate(c *C) {
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	c.Check(all[0].Name(), Equals, name)
-	c.Check(all[0].IsInstalled(), Equals, true)
 	c.Check(all[0].IsActive(), Equals, false)
 
 	s.snapMap = map[string]*Snap{name: all[0]}
@@ -142,7 +141,6 @@ func (s *FirstBootTestSuite) TestSoftwareActivate(c *C) {
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	c.Check(all[0].Name(), Equals, name)
-	c.Check(all[0].IsInstalled(), Equals, true)
 	c.Check(all[0].IsActive(), Equals, true)
 }
 
@@ -212,7 +210,6 @@ func (s *FirstBootTestSuite) ensureSystemSnapIsEnabledOnFirstBoot(c *C, yaml str
 	all, err := (&Overlord{}).Installed()
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
-	c.Check(all[0].IsInstalled(), Equals, true)
 	c.Check(all[0].IsActive(), Equals, false)
 
 	c.Assert(FirstBoot(), IsNil)
@@ -220,7 +217,6 @@ func (s *FirstBootTestSuite) ensureSystemSnapIsEnabledOnFirstBoot(c *C, yaml str
 	all, err = (&Overlord{}).Installed()
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
-	c.Check(all[0].IsInstalled(), Equals, true)
 	c.Check(all[0].IsActive(), Equals, expectActivated)
 }
 

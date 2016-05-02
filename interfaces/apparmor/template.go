@@ -201,6 +201,8 @@ var defaultTemplate = []byte(`
   @{PROC}/@{pid}/status r,
   @{PROC}/sys/kernel/hostname r,
   @{PROC}/sys/kernel/osrelease r,
+  @{PROC}/sys/kernel/yama/ptrace_scope r,
+  @{PROC}/sys/kernel/shmmax r,
   @{PROC}/sys/fs/file-max r,
   @{PROC}/sys/kernel/pid_max r,
   @{PROC}/sys/kernel/random/uuid r,
@@ -214,29 +216,32 @@ var defaultTemplate = []byte(`
   # this leaks interface names and stats, but not in a way that is traceable
   # to the user/device
   @{PROC}/net/dev r,
+  @{PROC}/@{pid}/net/dev r,
 
   # Read-only for the install directory
-  @{INSTALL_DIR}/@{APP_PKGNAME}/                   r,
-  @{INSTALL_DIR}/@{APP_PKGNAME}/@{APP_VERSION}/    r,
-  @{INSTALL_DIR}/@{APP_PKGNAME}/@{APP_VERSION}/**  mrklix,
+  @{INSTALL_DIR}/@{SNAP_NAME}/                   r,
+  @{INSTALL_DIR}/@{SNAP_NAME}/@{SNAP_REVISION}/    r,
+  @{INSTALL_DIR}/@{SNAP_NAME}/@{SNAP_REVISION}/**  mrklix,
 
   # Don't log noisy python denials (see LP: #1496895 for more details)
-  deny @{INSTALL_DIR}/@{APP_PKGNAME}/**/__pycache__/             w,
-  deny @{INSTALL_DIR}/@{APP_PKGNAME}/**/__pycache__/*.pyc.[0-9]* w,
+  deny @{INSTALL_DIR}/@{SNAP_NAME}/**/__pycache__/             w,
+  deny @{INSTALL_DIR}/@{SNAP_NAME}/**/__pycache__/*.pyc.[0-9]* w,
 
   # Read-only home area for other versions
-  owner @{HOME}/snap/@{APP_PKGNAME}/                  r,
-  owner @{HOME}/snap/@{APP_PKGNAME}/**                mrkix,
+  owner @{HOME}/snap/@{SNAP_NAME}/                  r,
+  owner @{HOME}/snap/@{SNAP_NAME}/**                mrkix,
 
   # Writable home area for this version.
-  owner @{HOME}/snap/@{APP_PKGNAME}/@{APP_VERSION}/** wl,
+  owner @{HOME}/snap/@{SNAP_NAME}/@{SNAP_REVISION}/** wl,
+  owner @{HOME}/snap/@{SNAP_NAME}/common/** wl,
 
   # Read-only system area for other versions
-  /var/snap/@{APP_PKGNAME}/   r,
-  /var/snap/@{APP_PKGNAME}/** mrkix,
+  /var/snap/@{SNAP_NAME}/   r,
+  /var/snap/@{SNAP_NAME}/** mrkix,
 
   # Writable system area only for this version
-  /var/snap/@{APP_PKGNAME}/@{APP_VERSION}/** wl,
+  /var/snap/@{SNAP_NAME}/@{SNAP_REVISION}/** wl,
+  /var/snap/@{SNAP_NAME}/common/** wl,
 
   # The ubuntu-core-launcher creates an app-specific private restricted /tmp
   # and will fail to launch the app if something goes wrong. As such, we can
@@ -245,17 +250,17 @@ var defaultTemplate = []byte(`
   /tmp/** mrwlkix,
 
   # Also do the same for shm
-  /{dev,run}/shm/snap/@{APP_PKGNAME}/                  r,
-  /{dev,run}/shm/snap/@{APP_PKGNAME}/**                rk,
-  /{dev,run}/shm/snap/@{APP_PKGNAME}/@{APP_VERSION}/   r,
-  /{dev,run}/shm/snap/@{APP_PKGNAME}/@{APP_VERSION}/** mrwlkix,
+  /{dev,run}/shm/snap/@{SNAP_NAME}/                  r,
+  /{dev,run}/shm/snap/@{SNAP_NAME}/**                rk,
+  /{dev,run}/shm/snap/@{SNAP_NAME}/@{SNAP_REVISION}/   r,
+  /{dev,run}/shm/snap/@{SNAP_NAME}/@{SNAP_REVISION}/** mrwlkix,
 
   # Allow apps from the same package to communicate with each other via an
   # abstract or anonymous socket
-  unix peer=(label=@{APP_PKGNAME}_*),
+  unix peer=(label=snap.@{SNAP_NAME}.*),
 
   # Allow apps from the same package to signal each other via signals
-  signal peer=@{APP_PKGNAME}_*,
+  signal peer=snap.@{SNAP_NAME}.*,
 
   # for 'udevadm trigger --verbose --dry-run --tag-match=snappy-assign'
   /{,s}bin/udevadm ixr,
@@ -274,6 +279,10 @@ var defaultTemplate = []byte(`
   # will block most access
   /dev/ r,
   /dev/**/ r,
+
+  # Allow setting up pseudoterminal via /dev/pts system. This is safe because
+  # the launcher uses a per-app devpts newinstance.
+  /dev/ptmx rw,
 
   # Do the same with /sys/devices and /sys/class to help people using hw-assign
   /sys/devices/ r,

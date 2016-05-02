@@ -29,6 +29,7 @@ import (
 // curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: rolling-core" https://search.apps.ubuntu.com/api/v1/package/ubuntu-core.canonical | python -m json.tool
 type snapDetails struct {
 	AnonDownloadURL string             `json:"anon_download_url,omitempty"`
+	Architectures   []string           `json:"architecture"`
 	Channel         string             `json:"channel,omitempty"`
 	DownloadSha512  string             `json:"download_sha512,omitempty"`
 	Summary         string             `json:"summary,omitempty"`
@@ -42,6 +43,7 @@ type snapDetails struct {
 	Publisher       string             `json:"publisher,omitempty"`
 	RatingsAverage  float64            `json:"ratings_average,omitempty"`
 	Revision        int                `json:"revision"`
+	SnapID          string             `json:"snap_id"`
 	SupportURL      string             `json:"support_url"`
 	Title           string             `json:"title"`
 	Type            snap.Type          `json:"content,omitempty"`

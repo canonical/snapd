@@ -197,19 +197,10 @@ func (s *SystemdTestSuite) TestDisable(c *C) {
 }
 
 func (s *SystemdTestSuite) TestEnable(c *C) {
-	sysd := New("xyzzy", s.rep)
-	sysd.(*systemd).rootDir = c.MkDir()
-	err := os.MkdirAll(filepath.Join(sysd.(*systemd).rootDir, "/etc/systemd/system/multi-user.target.wants"), 0755)
+	err := New("xyzzy", s.rep).Enable("foo")
 	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "enable", "foo"}})
 
-	err = sysd.Enable("foo")
-	c.Assert(err, IsNil)
-
-	// check symlink
-	enableLink := filepath.Join(sysd.(*systemd).rootDir, "/etc/systemd/system/multi-user.target.wants/foo")
-	target, err := os.Readlink(enableLink)
-	c.Assert(err, IsNil)
-	c.Assert(target, Equals, "/etc/systemd/system/foo")
 }
 
 const expectedServiceFmt = `[Unit]
@@ -220,8 +211,8 @@ X-Snappy=yes
 [Service]
 ExecStart=/usr/bin/ubuntu-core-launcher app aa-profile /apps/app/1.0/bin/start
 Restart=on-failure
-WorkingDirectory=/var/apps/app/1.0/
-Environment="SNAP=/apps/app/1.0/" "SNAP_DATA=/var/apps/app/1.0/" "SNAP_NAME=app" "SNAP_VERSION=1.0" "SNAP_ARCH=%[3]s" "SNAP_USER_DATA=/root/apps/app/1.0/" "SNAP_APP_PATH=/apps/app/1.0/" "SNAP_APP_DATA_PATH=/var/apps/app/1.0/" "SNAP_APP_USER_DATA_PATH=/root/apps/app/1.0/"
+WorkingDirectory=/var/apps/app/1.0
+Environment="SNAP=/apps/app/1.0" "SNAP_DATA=/var/apps/app/1.0" "SNAP_NAME=app" "SNAP_VERSION=1.0" "SNAP_REVISION=44" "SNAP_ARCH=%[3]s" "SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:" "SNAP_USER_DATA=/root/apps/app/1.0"
 ExecStop=/usr/bin/ubuntu-core-launcher app aa-profile /apps/app/1.0/bin/stop
 ExecStopPost=/usr/bin/ubuntu-core-launcher app aa-profile /apps/app/1.0/bin/stop --post
 TimeoutStopSec=10
@@ -242,8 +233,9 @@ func (s *SystemdTestSuite) TestGenAppServiceFile(c *C) {
 		SnapName:    "app",
 		AppName:     "service",
 		Version:     "1.0",
+		Revision:    44,
 		Description: "descr",
-		SnapPath:    "/apps/app/1.0/",
+		SnapPath:    "/apps/app/1.0",
 		Start:       "bin/start",
 		Stop:        "bin/stop",
 		PostStop:    "bin/stop --post",
@@ -273,8 +265,9 @@ func (s *SystemdTestSuite) TestGenServiceFileWithBusName(c *C) {
 		SnapName:    "app",
 		AppName:     "service",
 		Version:     "1.0",
+		Revision:    44,
 		Description: "descr",
-		SnapPath:    "/apps/app/1.0/",
+		SnapPath:    "/apps/app/1.0",
 		Start:       "bin/start",
 		Stop:        "bin/stop",
 		PostStop:    "bin/stop --post",
@@ -383,6 +376,9 @@ Description=Squashfs mount unit for foo
 [Mount]
 What=/var/lib/snappy/snaps/foo_1.0.snap
 Where=/apps/foo/1.0
+
+[Install]
+WantedBy=multi-user.target
 `)
 }
 

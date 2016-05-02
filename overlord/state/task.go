@@ -22,11 +22,14 @@ package state
 import (
 	"encoding/json"
 	"fmt"
+
+	"github.com/ubuntu-core/snappy/logger"
+	"time"
 )
 
 type progress struct {
-	Current int `json:"current"`
-	Total   int `json:"total"`
+	Done  int `json:"done"`
+	Total int `json:"total"`
 }
 
 // Task represents an individual operation to be performed
@@ -45,6 +48,9 @@ type Task struct {
 	haltTasks []string
 	log       []string
 	change    string
+
+	spawnTime time.Time
+	readyTime time.Time
 }
 
 func newTask(state *State, id, kind, summary string) *Task {
@@ -54,6 +60,8 @@ func newTask(state *State, id, kind, summary string) *Task {
 		kind:    kind,
 		summary: summary,
 		data:    make(customData),
+
+		spawnTime: timeNow(),
 	}
 }
 
@@ -68,11 +76,18 @@ type marshalledTask struct {
 	HaltTasks []string                    `json:"halt-tasks,omitempty"`
 	Log       []string                    `json:"log,omitempty"`
 	Change    string                      `json:"change"`
+
+	SpawnTime time.Time  `json:"spawn-time"`
+	ReadyTime *time.Time `json:"ready-time,omitempty"`
 }
 
 // MarshalJSON makes Task a json.Marshaller
 func (t *Task) MarshalJSON() ([]byte, error) {
 	t.state.reading()
+	var readyTime *time.Time
+	if !t.readyTime.IsZero() {
+		readyTime = &t.readyTime
+	}
 	return json.Marshal(marshalledTask{
 		ID:        t.id,
 		Kind:      t.kind,
@@ -84,6 +99,9 @@ func (t *Task) MarshalJSON() ([]byte, error) {
 		HaltTasks: t.haltTasks,
 		Log:       t.log,
 		Change:    t.change,
+
+		SpawnTime: t.spawnTime,
+		ReadyTime: readyTime,
 	})
 }
 
@@ -107,6 +125,10 @@ func (t *Task) UnmarshalJSON(data []byte) error {
 	t.haltTasks = unmarshalled.HaltTasks
 	t.log = unmarshalled.Log
 	t.change = unmarshalled.Change
+	t.spawnTime = unmarshalled.SpawnTime
+	if unmarshalled.ReadyTime != nil {
+		t.readyTime = *unmarshalled.ReadyTime
+	}
 	return nil
 }
 
@@ -139,6 +161,9 @@ func (t *Task) SetStatus(new Status) {
 	t.state.writing()
 	old := t.status
 	t.status = new
+	if !old.Ready() && new.Ready() {
+		t.readyTime = timeNow()
+	}
 	chg := t.Change()
 	if chg != nil {
 		chg.taskStatusChanged(t, old, new)
@@ -159,7 +184,7 @@ func (t *Task) Change() *Change {
 // Progress returns the current progress for the task.
 // If progress is not explicitly set, it returns
 // (0, 1) if the status is DoStatus and (1, 1) otherwise.
-func (t *Task) Progress() (cur, total int) {
+func (t *Task) Progress() (done, total int) {
 	t.state.reading()
 	if t.progress == nil {
 		if t.Status() == DoStatus {
@@ -167,39 +192,62 @@ func (t *Task) Progress() (cur, total int) {
 		}
 		return 1, 1
 	}
-	return t.progress.Current, t.progress.Total
+	return t.progress.Done, t.progress.Total
 }
 
 // SetProgress sets the task progress to cur out of total steps.
-func (t *Task) SetProgress(cur, total int) {
+func (t *Task) SetProgress(done, total int) {
 	// Only mark state for checkpointing if progress is final.
-	if total > 0 && cur == total {
+	if total > 0 && done == total {
 		t.state.writing()
 	} else {
 		t.state.reading()
 	}
-	if total <= 0 || cur > total {
+	if total <= 0 || done > total {
 		// Doing math wrong is easy. Be conservative.
 		t.progress = nil
 	} else {
-		t.progress = &progress{Current: cur, Total: total}
+		t.progress = &progress{Done: done, Total: total}
 	}
 }
 
+// SpawnTime returns the time when the change was created.
+func (t *Task) SpawnTime() time.Time {
+	t.state.reading()
+	return t.spawnTime
+}
+
+// ReadyTime returns the time when the change became ready.
+func (t *Task) ReadyTime() time.Time {
+	t.state.reading()
+	return t.readyTime
+}
+
 const (
-	// Messages logged in tasks are guaranteed to use the following strings
-	// plus ": " as a prefix, so these may be handled programatically and
-	// stripped for presentation.
+	// Messages logged in tasks are guaranteed to use the time formatted
+	// per RFC3339 plus the following strings as a prefix, so these may
+	// be handled programatically and parsed or stripped for presentation.
 	LogInfo  = "INFO"
 	LogError = "ERROR"
 )
+
+var timeNow = time.Now
+
+func MockTime(now time.Time) (restore func()) {
+	timeNow = func() time.Time { return now }
+	return func() { timeNow = time.Now }
+}
 
 func (t *Task) addLog(kind, format string, args []interface{}) {
 	if len(t.log) > 9 {
 		copy(t.log, t.log[len(t.log)-9:])
 		t.log = t.log[:9]
 	}
-	t.log = append(t.log, fmt.Sprintf(kind+": "+format, args...))
+
+	tstr := timeNow().Format(time.RFC3339)
+	msg := fmt.Sprintf(tstr+" "+kind+" "+format, args...)
+	t.log = append(t.log, msg)
+	logger.Debugf(msg)
 }
 
 // Log returns the most recent messages logged into the task.
@@ -295,6 +343,31 @@ func NewTaskSet(tasks ...*Task) *TaskSet {
 func (ts TaskSet) WaitFor(another *Task) {
 	for _, t := range ts.tasks {
 		t.WaitFor(another)
+	}
+}
+
+// WaitAll registers all the tasks in the argument set as requirements for ts
+// the target set to make progress.
+func (ts *TaskSet) WaitAll(anotherTs *TaskSet) {
+	for _, req := range anotherTs.tasks {
+		ts.WaitFor(req)
+	}
+}
+
+// AddTask adds the the task to the task set.
+func (ts *TaskSet) AddTask(task *Task) {
+	for _, t := range ts.tasks {
+		if t == task {
+			return
+		}
+	}
+	ts.tasks = append(ts.tasks, task)
+}
+
+// AddAll adds all the tasks in the argument set to the target set ts.
+func (ts *TaskSet) AddAll(anotherTs *TaskSet) {
+	for _, t := range anotherTs.tasks {
+		ts.AddTask(t)
 	}
 }
 

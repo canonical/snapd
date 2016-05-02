@@ -38,12 +38,30 @@ func SetSnapstateBackend(b ManagerBackend) {
 	backend = b
 }
 
+type ForeignTaskTracker interface {
+	ForeignTask(kind string, status state.Status, ss *SnapSetup)
+}
+
 // AddForeignTaskHandlers registers handlers for tasks handled outside of the snap manager.
-func (m *SnapManager) AddForeignTaskHandlers() {
+func (m *SnapManager) AddForeignTaskHandlers(tracker ForeignTaskTracker) {
 	// Add fake handlers for tasks handled by interfaces manager
-	fakeHandler := func(task *state.Task, _ *tomb.Tomb) error { return nil }
-	m.runner.AddHandler("setup-snap-security", fakeHandler, fakeHandler)
-	m.runner.AddHandler("remove-snap-security", fakeHandler, fakeHandler)
+	fakeHandler := func(task *state.Task, _ *tomb.Tomb) error {
+		task.State().Lock()
+		kind := task.Kind()
+		status := task.Status()
+		ss, err := TaskSnapSetup(task)
+		task.State().Unlock()
+		if err != nil {
+			return err
+		}
+
+		tracker.ForeignTask(kind, status, ss)
+
+		return nil
+	}
+	m.runner.AddHandler("setup-profiles", fakeHandler, fakeHandler)
+	m.runner.AddHandler("remove-profiles", fakeHandler, fakeHandler)
+	m.runner.AddHandler("discard-conns", fakeHandler, fakeHandler)
 
 	// Add handler to test full aborting of changes
 	erroringHandler := func(task *state.Task, _ *tomb.Tomb) error {
@@ -52,7 +70,7 @@ func (m *SnapManager) AddForeignTaskHandlers() {
 	m.runner.AddHandler("error-trigger", erroringHandler, nil)
 }
 
-func ChangeRetrieveInfo(retrieve func(name string, si *snap.SideInfo) (*snap.Info, error)) func() {
-	retrieveInfo = retrieve
-	return func() { retrieveInfo = retrieveInfoImpl }
+func MockReadInfo(mock func(name string, si *snap.SideInfo) (*snap.Info, error)) func() {
+	readInfo = mock
+	return func() { readInfo = snap.ReadInfo }
 }

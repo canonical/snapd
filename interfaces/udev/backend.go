@@ -46,10 +46,10 @@ func (b *Backend) Name() string {
 // Setup creates udev rules specific to a given snap.
 // If any of the rules are changed or removed then udev database is reloaded.
 //
-// Since udev has no concept of a complain mode, developerMode is ignored.
+// Since udev has no concept of a complain mode, devMode is ignored.
 //
 // If the method fails it should be re-tried (with a sensible strategy) by the caller.
-func (b *Backend) Setup(snapInfo *snap.Info, developerMode bool, repo *interfaces.Repository) error {
+func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repository) error {
 	snapName := snapInfo.Name()
 	snippets, err := repo.SecuritySnippetsForSnap(snapInfo.Name(), interfaces.SecurityUDev)
 	if err != nil {

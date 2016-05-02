@@ -55,17 +55,18 @@ func makeSnapHookEnv(snap *Snap) (env []string) {
 		SnapArch    string
 		SnapPath    string
 		Version     string
+		Revision    int
 		UdevAppName string
 	}{
 		snap.Name(),
 		arch.UbuntuArchitecture(),
 		snap.Info().MountDir(),
 		snap.Version(),
+		snap.Revision(),
 		snap.Name(),
 	}
 
 	vars := snapenv.GetBasicSnapEnvVars(desc)
-	vars = append(vars, snapenv.GetDeprecatedBasicSnapEnvVars(desc)...)
 	snapEnv := snapenv.MakeMapFromEnvList(vars)
 
 	// merge regular env and new snapEnv
