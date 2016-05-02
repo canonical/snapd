@@ -108,12 +108,7 @@ func generateSnapSocketFile(app *snap.AppInfo, baseDir string) (string, error) {
 		app.SocketMode = "0660"
 	}
 
-	serviceFileName := filepath.Base(app.ServiceFile())
-
-	return GenSocketFile(&ServiceDescription{
-		App:             app,
-		ServiceFileName: serviceFileName,
-	}), nil
+	return GenSocketFile(app), nil
 }
 
 func addPackageServices(s *snap.Info, inter interacter) error {
@@ -323,7 +318,7 @@ WantedBy={{.ServiceSystemdTarget}}
 	return templateOut.String()
 }
 
-func GenSocketFile(desc *ServiceDescription) string {
+func GenSocketFile(appInfo *snap.AppInfo) string {
 	serviceTemplate := `[Unit]
 Description={{.Description}} Socket Unit File
 PartOf={{.ServiceFileName}}
@@ -340,14 +335,14 @@ WantedBy={{.SocketSystemdTarget}}
 	t := template.Must(template.New("wrapper").Parse(serviceTemplate))
 
 	wrapperData := struct {
-		// the service description
-		ServiceDescription
-		// and some composed values
-		ServiceFileName,
+		App                 *snap.AppInfo
+		Description         string
+		ServiceFileName     string
 		SocketSystemdTarget string
 	}{
-		*desc,
-		desc.ServiceFileName,
+		appInfo,
+		"",
+		filepath.Base(appInfo.ServiceFile()),
 		systemd.SocketsTarget,
 	}
 
