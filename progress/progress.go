@@ -92,6 +92,8 @@ func (t *NullProgress) Agreed(intro, license string) bool {
 	return false
 }
 
+const clearUntilEOL = "\033[K"
+
 // TextProgress show progress on the terminal
 type TextProgress struct {
 	Meter
@@ -144,7 +146,6 @@ func (t *TextProgress) Spin(msg string) {
 	states := `|/-\`
 
 	// clear until end of line
-	clearUntilEOL := "\033[K"
 	fmt.Printf("\r[%c] %s%s", states[t.spinStep], msg, clearUntilEOL)
 	t.spinStep++
 	if t.spinStep >= len(states) {
@@ -177,7 +178,7 @@ func (t *TextProgress) Agreed(intro, license string) bool {
 
 // Notify the user of miscelaneous events
 func (*TextProgress) Notify(msg string) {
-	fmt.Println(msg)
+	fmt.Printf("\r%s%s\n", msg, clearUntilEOL)
 }
 
 // MakeProgressBar creates an appropriate progress (which may be a
