@@ -79,7 +79,6 @@ func generateSnapServicesFile(app *snap.AppInfo, baseDir string) (string, error)
 		App:            app,
 		Description:    desc,
 		SnapPath:       baseDir,
-		PostStop:       app.PostStop,
 		StopTimeout:    serviceStopTimeout(app),
 		Socket:         app.Socket,
 		SocketFileName: socketFileName,
@@ -219,7 +218,6 @@ type ServiceDescription struct {
 	App             *snap.AppInfo
 	Description     string
 	SnapPath        string
-	PostStop        string
 	StopTimeout     time.Duration
 	Restart         systemd.RestartCondition
 	Socket          bool
@@ -242,7 +240,7 @@ Restart={{.Restart}}
 WorkingDirectory=/var{{.SnapPath}}
 Environment={{.EnvVars}}
 {{if .App.Stop}}ExecStop=/usr/bin/ubuntu-core-launcher {{.App.SecurityTag}} {{.App.SecurityTag}} {{.FullPathStop}}{{end}}
-{{if .PostStop}}ExecStopPost=/usr/bin/ubuntu-core-launcher {{.App.SecurityTag}} {{.App.SecurityTag}} {{.FullPathPostStop}}{{end}}
+{{if .App.PostStop}}ExecStopPost=/usr/bin/ubuntu-core-launcher {{.App.SecurityTag}} {{.App.SecurityTag}} {{.FullPathPostStop}}{{end}}
 {{if .StopTimeout}}TimeoutStopSec={{.StopTimeout.Seconds}}{{end}}
 Type={{.App.Daemon}}
 {{if .App.BusName}}BusName={{.App.BusName}}{{end}}
@@ -279,7 +277,7 @@ WantedBy={{.ServiceSystemdTarget}}
 		*desc,
 		filepath.Join(desc.SnapPath, desc.App.Command),
 		filepath.Join(desc.SnapPath, desc.App.Stop),
-		filepath.Join(desc.SnapPath, desc.PostStop),
+		filepath.Join(desc.SnapPath, desc.App.PostStop),
 		systemd.ServicesTarget,
 		arch.UbuntuArchitecture(),
 		// systemd runs as PID 1 so %h will not work.

@@ -343,7 +343,6 @@ apps:
 		App:         app,
 		Description: "descr",
 		SnapPath:    "/apps/app/1.0",
-		PostStop:    "bin/stop --post",
 		StopTimeout: time.Duration(10 * time.Second),
 	}
 
@@ -390,7 +389,6 @@ apps:
 		App:         app,
 		Description: "descr",
 		SnapPath:    "/apps/app/1.0",
-		PostStop:    "bin/stop --post",
 		StopTimeout: time.Duration(10 * time.Second),
 	}
 
