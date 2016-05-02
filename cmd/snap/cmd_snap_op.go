@@ -133,11 +133,13 @@ type cmdInstall struct {
 func (x *cmdInstall) Execute([]string) error {
 	var changeID string
 	var err error
+	var installFromFile bool
 
 	cli := Client()
 	name := x.Positional.Snap
 	opts := &client.SnapOptions{Channel: x.Channel, DevMode: x.DevMode}
 	if strings.Contains(name, "/") || strings.HasSuffix(name, ".snap") || strings.Contains(name, ".snap.") {
+		installFromFile = true
 		changeID, err = cli.InstallPath(name, opts)
 	} else {
 		changeID, err = cli.Install(name, opts)
@@ -153,7 +155,11 @@ func (x *cmdInstall) Execute([]string) error {
 
 	// extract the snapName from the change, important for sideloaded
 	var snapName string
-	if err := chg.Get("snap-name", &snapName); err == nil {
+
+	if installFromFile {
+		if err := chg.Get("snap-name", &snapName); err != nil {
+			return fmt.Errorf("cannot extract the snap-name from local file %q: %s", name, err)
+		}
 		name = snapName
 	}
 
