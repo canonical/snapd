@@ -276,7 +276,7 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 	t.State().Lock()
-	ss, err := TaskSnapSetup(t)
+	ss, snapst, err := snapSetupAndState(t)
 	t.State().Unlock()
 	if err != nil {
 		return err
@@ -289,7 +289,18 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	return m.backend.RemoveSnapData(info)
+	if err = m.backend.RemoveSnapData(info); err != nil {
+		return err
+	}
+
+	// Only remove data common between versions if this is the last version
+	if len(snapst.Sequence) == 1 {
+		if err = m.backend.RemoveSnapCommonData(info); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {

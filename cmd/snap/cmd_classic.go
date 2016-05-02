@@ -67,7 +67,7 @@ func (x *cmdEnableClassic) doEnable() (err error) {
 		return err
 	}
 
-	fmt.Println(i18n.G(`Classic dimension enabled on this snappy system.
+	fmt.Fprintln(Stdout, i18n.G(`Classic dimension enabled on this snappy system.
 Use "snap shell classic" to enter the classic dimension.`))
 	return nil
 }
@@ -85,6 +85,6 @@ func (x *cmdDestroyClassic) doDisable() (err error) {
 		return err
 	}
 
-	fmt.Println(i18n.G(`Classic dimension destroyed on this snappy system.`))
+	fmt.Fprintln(Stdout, i18n.G(`Classic dimension destroyed on this snappy system.`))
 	return nil
 }

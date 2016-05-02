@@ -46,6 +46,7 @@ import (
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/snaptest"
 	"github.com/ubuntu-core/snappy/snappy"
 	"github.com/ubuntu-core/snappy/store"
 	"github.com/ubuntu-core/snappy/testutil"
@@ -162,34 +163,30 @@ func (s *apiSuite) mkInstalled(c *check.C, name, developer, version string, revn
 }
 
 func (s *apiSuite) mkInstalledInState(c *check.C, daemon *Daemon, name, developer, version string, revno int, active bool, extraYaml string) *snap.Info {
-	skelInfo := &snap.Info{
-		SideInfo: snap.SideInfo{
-			OfficialName: name,
-			Developer:    developer,
-			Revision:     revno,
-			Channel:      "stable",
-		},
-		Version: version,
+	// Collect arguments into a snap.SideInfo structure
+	sideInfo := &snap.SideInfo{
+		OfficialName: name,
+		Developer:    developer,
+		Revision:     revno,
+		Channel:      "stable",
 	}
 
-	c.Assert(os.MkdirAll(skelInfo.DataDir(), 0755), check.IsNil)
-
-	metadir := filepath.Join(skelInfo.MountDir(), "meta")
-	c.Assert(os.MkdirAll(metadir, 0755), check.IsNil)
-
-	guidir := filepath.Join(metadir, "gui")
-	c.Assert(os.MkdirAll(guidir, 0755), check.IsNil)
-
-	c.Check(ioutil.WriteFile(filepath.Join(guidir, "icon.svg"), []byte("yadda icon"), 0644), check.IsNil)
-
-	yamlPath := filepath.Join(metadir, "snap.yaml")
-	content := fmt.Sprintf(`
+	// Collect other arguments into a yaml string
+	yamlText := fmt.Sprintf(`
 name: %s
 version: %s
 %s`, name, version, extraYaml)
-	c.Check(ioutil.WriteFile(yamlPath, []byte(content), 0644), check.IsNil)
 
-	err := snappy.SaveManifest(skelInfo)
+	// Mock the snap on disk
+	snapInfo := snaptest.MockSnap(c, yamlText, sideInfo)
+
+	c.Assert(os.MkdirAll(snapInfo.DataDir(), 0755), check.IsNil)
+	metadir := filepath.Join(snapInfo.MountDir(), "meta")
+	guidir := filepath.Join(metadir, "gui")
+	c.Assert(os.MkdirAll(guidir, 0755), check.IsNil)
+	c.Check(ioutil.WriteFile(filepath.Join(guidir, "icon.svg"), []byte("yadda icon"), 0644), check.IsNil)
+
+	err := snappy.SaveManifest(snapInfo)
 	c.Assert(err, check.IsNil)
 
 	if daemon != nil {
@@ -200,34 +197,27 @@ version: %s
 		var snapst snapstate.SnapState
 		snapstate.Get(st, name, &snapst)
 		snapst.Active = active
-		snapst.Sequence = append(snapst.Sequence, &skelInfo.SideInfo)
+		snapst.Sequence = append(snapst.Sequence, &snapInfo.SideInfo)
 
 		snapstate.Set(st, name, &snapst)
 	}
 
-	info, err := snap.ReadInfo(name, &skelInfo.SideInfo)
-	c.Assert(err, check.IsNil)
-
 	if active {
-		err := snappy.UpdateCurrentSymlink(info, nil)
+		err := snappy.UpdateCurrentSymlink(snapInfo, nil)
 		c.Assert(err, check.IsNil)
 	}
 
-	return info
+	return snapInfo
 }
 
 func (s *apiSuite) mkGadget(c *check.C, store string) {
-	content := []byte(fmt.Sprintf(`name: test
+	yamlText := fmt.Sprintf(`name: test
 version: 1
 type: gadget
 gadget: {store: {id: %q}}
-`, store))
-
-	d := filepath.Join(dirs.SnapSnapsDir, "test")
-	m := filepath.Join(d, "1", "meta")
-	c.Assert(os.MkdirAll(m, 0755), check.IsNil)
-	c.Assert(os.Symlink("1", filepath.Join(d, "current")), check.IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(m, "snap.yaml"), content, 0644), check.IsNil)
+`, store)
+	snaptest.MockSnap(c, yamlText, &snap.SideInfo{Revision: 1})
+	c.Assert(os.Symlink("1", filepath.Join(dirs.SnapSnapsDir, "test", "current")), check.IsNil)
 }
 
 func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
@@ -653,6 +643,26 @@ func (s *apiSuite) TestLoginUserTwoFactorRequiredError(c *check.C) {
 	c.Check(rsp.Result.(*errorResult).Kind, check.Equals, errorKindTwoFactorRequired)
 }
 
+func (s *apiSuite) TestLoginUserTwoFactorFailedError(c *check.C) {
+	macaroon := `{"macaroon": "the-macaroon-serialized-data"}`
+	mockMyAppsServer := s.makeMyAppsServer(200, macaroon)
+	defer mockMyAppsServer.Close()
+
+	discharge := `{"code": "TWOFACTOR_FAILURE"}`
+	mockSSOServer := s.makeSSOServer(403, discharge)
+	defer mockSSOServer.Close()
+
+	buf := bytes.NewBufferString(`{"username": "username", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := loginUser(snapCmd, req).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, http.StatusUnauthorized)
+	c.Check(rsp.Result.(*errorResult).Kind, check.Equals, errorKindTwoFactorFailed)
+}
+
 func (s *apiSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
 	macaroon := `{"macaroon": "the-macaroon-serialized-data"}`
 	mockMyAppsServer := s.makeMyAppsServer(200, macaroon)
@@ -831,6 +841,32 @@ func (s *apiSuite) TestSnapsInfoOnlyLocal(c *check.C) {
 	snaps := snapList(rsp.Result)
 	c.Assert(snaps, check.HasLen, 1)
 	c.Assert(snaps[0]["name"], check.Equals, "local")
+}
+
+func (s *apiSuite) TestFind(c *check.C) {
+	s.suggestedCurrency = "EUR"
+
+	s.rsnaps = []*snap.Info{{
+		SideInfo: snap.SideInfo{
+			OfficialName: "store",
+			Developer:    "foo",
+		},
+	}}
+
+	req, err := http.NewRequest("GET", "/v2/find?q=hi&channel=potato", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := searchStore(findCmd, req).(*resp)
+
+	snaps := snapList(rsp.Result)
+	c.Assert(snaps, check.HasLen, 1)
+	c.Assert(snaps[0]["name"], check.Equals, "store")
+	c.Check(snaps[0]["prices"], check.IsNil)
+
+	c.Check(rsp.SuggestedCurrency, check.Equals, "EUR")
+
+	c.Check(s.searchTerm, check.Equals, "hi")
+	c.Check(s.channel, check.Equals, "potato")
 }
 
 func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
@@ -1147,7 +1183,7 @@ func (s *apiSuite) TestSideloadSnap(c *check.C) {
 	// try a multipart/form-data upload
 	body := "" +
 		"----hello--\r\n" +
-		"Content-Disposition: form-data; name=\"x\"; filename=\"x\"\r\n" +
+		"Content-Disposition: form-data; name=\"snap\"; filename=\"x\"\r\n" +
 		"\r\n" +
 		"xyzzy\r\n" +
 		"----hello--\r\n" +
@@ -1157,13 +1193,13 @@ func (s *apiSuite) TestSideloadSnap(c *check.C) {
 		"----hello--\r\n"
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 	chgSummary := s.sideloadCheck(c, body, head, 0, false)
-	c.Check(chgSummary, check.Equals, `Install "local" snap from snap file "a/b/local.snap"`)
+	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
 }
 
 func (s *apiSuite) TestSideloadSnapDevMode(c *check.C) {
 	body := "" +
 		"----hello--\r\n" +
-		"Content-Disposition: form-data; name=\"x\"; filename=\"x\"\r\n" +
+		"Content-Disposition: form-data; name=\"snap\"; filename=\"x\"\r\n" +
 		"\r\n" +
 		"xyzzy\r\n" +
 		"----hello--\r\n" +
@@ -1174,20 +1210,39 @@ func (s *apiSuite) TestSideloadSnapDevMode(c *check.C) {
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 	// try a multipart/form-data upload
 	chgSummary := s.sideloadCheck(c, body, head, snappy.DeveloperMode, true)
-	c.Check(chgSummary, check.Equals, `Install "local" snap from snap file`)
+	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
+}
+
+func (s *apiSuite) TestSideloadSnapNotValidFormFile(c *check.C) {
+	d := newTestDaemon(c)
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
+	// try a multipart/form-data upload with missing "name"
+	content := "" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; filename=\"x\"\r\n" +
+		"\r\n" +
+		"xyzzy\r\n" +
+		"----hello--\r\n"
+	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
+
+	buf := bytes.NewBufferString(content)
+	req, err := http.NewRequest("POST", "/v2/snaps", buf)
+	c.Assert(err, check.IsNil)
+	for k, v := range head {
+		req.Header.Set(k, v)
+	}
+
+	rsp := sideloadSnap(snapsCmd, req).(*resp)
+	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
+	c.Assert(rsp.Result.(*errorResult).Message, check.Matches, `cannot find "snap" file field in provided multipart/form-data payload`)
 }
 
 func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]string, expectedFlags snappy.InstallFlags, hasUbuntuCore bool) string {
 	d := newTestDaemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
-
-	tmpfile, err := ioutil.TempFile("", "test-")
-	c.Assert(err, check.IsNil)
-	_, err = tmpfile.WriteString(content)
-	c.Check(err, check.IsNil)
-	_, err = tmpfile.Seek(0, 0)
-	c.Check(err, check.IsNil)
 
 	// setup done
 	installQueue := []string{}
@@ -1223,7 +1278,8 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 		return state.NewTaskSet(t), nil
 	}
 
-	req, err := http.NewRequest("POST", "/v2/snaps", tmpfile)
+	buf := bytes.NewBufferString(content)
+	req, err := http.NewRequest("POST", "/v2/snaps", buf)
 	c.Assert(err, check.IsNil)
 	for k, v := range head {
 		req.Header.Set(k, v)
@@ -2586,6 +2642,8 @@ func (s *apiSuite) TestStateChange(c *check.C) {
 	st := d.overlord.State()
 	st.Lock()
 	ids := setupChanges(st)
+	chg := st.Change(ids[0])
+	chg.Set("api-data", map[string]int{"n": 42})
 	st.Unlock()
 	s.vars = map[string]string{"id": ids[0]}
 
@@ -2630,6 +2688,9 @@ func (s *apiSuite) TestStateChange(c *check.C) {
 				"progress":   map[string]interface{}{"done": 0., "total": 1.},
 				"spawn-time": "2016-04-21T01:02:03Z",
 			},
+		},
+		"data": map[string]interface{}{
+			"n": float64(42),
 		},
 	})
 }

@@ -25,11 +25,14 @@ import (
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/log-observe
 const logObserveConnectedPlugAppArmor = `
-# Description: Can read system logs.
+# Description: Can read system logs and set kernel log rate-limiting
 # Usage: reserved
 
 /var/log/ r,
 /var/log/** r,
+
+# Allow sysctl -w kernel.printk_ratelimit=#
+@{PROC}/sys/kernel/printk_ratelimit rw,
 
 # Needed since we are root and the owner/group doesn't match :\
 # So long as we have this, the cap must be reserved.
