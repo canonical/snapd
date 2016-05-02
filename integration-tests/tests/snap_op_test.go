@@ -88,7 +88,7 @@ func (s *snapOpSuite) TestRemoveBusyRetries(c *check.C) {
 	snapPath, err := build.LocalSnap(c, data.BasicBinariesSnapName)
 	defer os.Remove(snapPath)
 	c.Assert(err, check.IsNil, check.Commentf("Error building local snap: %s", err))
-	installOutput := installSnap(c, snapPath)
+	installOutput := common.InstallSnap(c, snapPath)
 	c.Assert(installOutput, testutil.Contains, data.BasicBinariesSnapName)
 
 	// run a command that keeps the mount point busy in the background
