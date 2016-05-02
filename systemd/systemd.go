@@ -145,6 +145,12 @@ func (rc *RestartCondition) UnmarshalYAML(unmarshal func(interface{}) error) err
 }
 
 const (
+	// the default target for systemd units that we generate
+	ServicesSystemdTarget = "multi-user.target"
+
+	// the default target for systemd units that we generate
+	SocketsSystemdTarget = "sockets.target"
+
 	// the location to put system services
 	snapServicesDir = "/etc/systemd/system"
 )

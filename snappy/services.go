@@ -51,14 +51,6 @@ type interacter interface {
 // wait this time between TERM and KILL
 var killWait = 5 * time.Second
 
-const (
-	// the default target for systemd units that we generate
-	servicesSystemdTarget = "multi-user.target"
-
-	// the default target for systemd units that we generate
-	socketsSystemdTarget = "sockets.target"
-)
-
 // servicesBinariesStringsWhitelist is the whitelist of legal chars
 // in the "binaries" and "services" section of the snap.yaml
 var servicesBinariesStringsWhitelist = regexp.MustCompile(`^[A-Za-z0-9/. _#:-]*$`)
@@ -309,7 +301,7 @@ WantedBy={{.ServiceSystemdTarget}}
 		filepath.Join(desc.SnapPath, desc.Start),
 		filepath.Join(desc.SnapPath, desc.Stop),
 		filepath.Join(desc.SnapPath, desc.PostStop),
-		servicesSystemdTarget,
+		systemd.ServicesSystemdTarget,
 		arch.UbuntuArchitecture(),
 		// systemd runs as PID 1 so %h will not work.
 		"/root",
@@ -359,7 +351,7 @@ WantedBy={{.SocketSystemdTarget}}
 		desc.ServiceFileName,
 		desc.ListenStream,
 		desc.SocketMode,
-		socketsSystemdTarget,
+		systemd.SocketsSystemdTarget,
 	}
 
 	if err := t.Execute(&templateOut, wrapperData); err != nil {
