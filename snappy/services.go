@@ -220,8 +220,6 @@ type ServiceDescription struct {
 	Restart         systemd.RestartCondition
 	Socket          bool
 	SocketFileName  string
-	ListenStream    string
-	SocketMode      string
 	ServiceFileName string
 }
 
