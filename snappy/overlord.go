@@ -538,9 +538,6 @@ func CanRemove(s *snap.Info, active bool) bool {
 		return false
 	}
 
-	if IsBuiltInSoftware(s.Name()) && active {
-		return false
-	}
 	return true
 }
 
