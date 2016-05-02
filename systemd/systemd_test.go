@@ -173,15 +173,8 @@ func (s *SystemdTestSuite) TestStatusObj(c *C) {
 }
 
 func (s *SystemdTestSuite) TestStopTimeout(c *C) {
-	oldSteps := StopSteps
-	oldDelay := StopDelay
-	StopSteps = 2
-	StopDelay = time.Millisecond
-	defer func() {
-		StopSteps = oldSteps
-		StopDelay = oldDelay
-	}()
-
+	restore := MockStopStepsStopDelay()
+	defer restore()
 	err := New("", s.rep).Stop("foo", 10*time.Millisecond)
 	c.Assert(err, FitsTypeOf, &Timeout{})
 	c.Check(s.rep.msgs[0], Equals, "Waiting for foo to stop.")
