@@ -213,12 +213,11 @@ func removePackageServices(s *snap.Info, inter interacter) error {
 
 // ServiceDescription describes a snappy systemd service
 type ServiceDescription struct {
-	App             *snap.AppInfo
-	Description     string
-	SnapPath        string
-	Restart         systemd.RestartCondition
-	SocketFileName  string
-	ServiceFileName string
+	App            *snap.AppInfo
+	Description    string
+	SnapPath       string
+	Restart        systemd.RestartCondition
+	SocketFileName string
 }
 
 func GenServiceFile(desc *ServiceDescription) string {
