@@ -79,7 +79,6 @@ func generateSnapServicesFile(app *snap.AppInfo, baseDir string) (string, error)
 		App:            app,
 		Description:    desc,
 		SnapPath:       baseDir,
-		Socket:         app.Socket,
 		SocketFileName: socketFileName,
 		Restart:        app.RestartCond,
 	}), nil
@@ -218,7 +217,6 @@ type ServiceDescription struct {
 	Description     string
 	SnapPath        string
 	Restart         systemd.RestartCondition
-	Socket          bool
 	SocketFileName  string
 	ServiceFileName string
 }
@@ -226,8 +224,8 @@ type ServiceDescription struct {
 func GenServiceFile(desc *ServiceDescription) string {
 	serviceTemplate := `[Unit]
 Description={{.Description}}
-After=snapd.frameworks.target{{ if .Socket }} {{.SocketFileName}}{{end}}
-Requires=snapd.frameworks.target{{ if .Socket }} {{.SocketFileName}}{{end}}
+After=snapd.frameworks.target{{ if .App.Socket }} {{.SocketFileName}}{{end}}
+Requires=snapd.frameworks.target{{ if .App.Socket }} {{.SocketFileName}}{{end}}
 X-Snappy=yes
 
 [Service]
