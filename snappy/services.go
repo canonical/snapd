@@ -113,8 +113,6 @@ func generateSnapSocketFile(app *snap.AppInfo, baseDir string) (string, error) {
 	return GenSocketFile(&ServiceDescription{
 		App:             app,
 		ServiceFileName: serviceFileName,
-		ListenStream:    app.ListenStream,
-		SocketMode:      app.SocketMode,
 	}), nil
 }
 
@@ -332,8 +330,8 @@ PartOf={{.ServiceFileName}}
 X-Snappy=yes
 
 [Socket]
-ListenStream={{.ListenStream}}
-{{if .SocketMode}}SocketMode={{.SocketMode}}{{end}}
+ListenStream={{.App.ListenStream}}
+{{if .App.SocketMode}}SocketMode={{.App.SocketMode}}{{end}}
 
 [Install]
 WantedBy={{.SocketSystemdTarget}}
@@ -346,14 +344,10 @@ WantedBy={{.SocketSystemdTarget}}
 		ServiceDescription
 		// and some composed values
 		ServiceFileName,
-		ListenStream string
-		SocketMode          string
 		SocketSystemdTarget string
 	}{
 		*desc,
 		desc.ServiceFileName,
-		desc.ListenStream,
-		desc.SocketMode,
 		systemd.SocketsTarget,
 	}
 
