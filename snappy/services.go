@@ -87,7 +87,6 @@ func generateSnapServicesFile(app *snap.AppInfo, baseDir string) (string, error)
 		Stop:           app.Stop,
 		PostStop:       app.PostStop,
 		StopTimeout:    serviceStopTimeout(app),
-		AaProfile:      app.SecurityTag(),
 		UdevAppName:    app.SecurityTag(),
 		Socket:         app.Socket,
 		SocketFileName: socketFileName,
@@ -236,7 +235,6 @@ type ServiceDescription struct {
 	PostStop        string
 	StopTimeout     time.Duration
 	Restart         systemd.RestartCondition
-	AaProfile       string
 	UdevAppName     string
 	Socket          bool
 	SocketFileName  string
@@ -253,12 +251,12 @@ Requires=snapd.frameworks.target{{ if .Socket }} {{.SocketFileName}}{{end}}
 X-Snappy=yes
 
 [Service]
-ExecStart=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.FullPathStart}}
+ExecStart=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.App.SecurityTag}} {{.FullPathStart}}
 Restart={{.Restart}}
 WorkingDirectory=/var{{.SnapPath}}
 Environment={{.EnvVars}}
-{{if .Stop}}ExecStop=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.FullPathStop}}{{end}}
-{{if .PostStop}}ExecStopPost=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.FullPathPostStop}}{{end}}
+{{if .Stop}}ExecStop=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.App.SecurityTag}} {{.FullPathStop}}{{end}}
+{{if .PostStop}}ExecStopPost=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.App.SecurityTag}} {{.FullPathPostStop}}{{end}}
 {{if .StopTimeout}}TimeoutStopSec={{.StopTimeout.Seconds}}{{end}}
 Type={{.App.Daemon}}
 {{if .App.BusName}}BusName={{.App.BusName}}{{end}}
