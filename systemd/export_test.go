@@ -19,10 +19,23 @@
 
 package systemd
 
+import (
+	"time"
+)
+
 var (
 	SystemdRun = run // NOTE: plain Run clashes with check.v1
 	Jctl       = jctl
-	StopSteps  = stopSteps
-	StopDelay  = stopDelay
 	RestartMap = restartMap
 )
+
+func MockStopStepsStopDelay() func() {
+	oldSteps := stopSteps
+	oldDelay := stopDelay
+	stopSteps = 2
+	stopDelay = time.Millisecond
+	return func() {
+		stopSteps = oldSteps
+		stopDelay = oldDelay
+	}
+}
