@@ -137,7 +137,7 @@ func main() {
 		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
 			fmt.Fprintf(Stdout, "%v\n", err)
 			os.Exit(0)
-		} else if e, ok := err.(*client.Error); ok && e.StatusCode == 401 && e.Message == "access denied" {
+		} else if e, ok := err.(*client.Error); ok && e.StatusCode == 401 && e.Kind == client.ErrorKindLoginRequired {
 			fmt.Fprintf(Stderr, missingLoginHelp)
 			os.Exit(1)
 		} else {
