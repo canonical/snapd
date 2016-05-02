@@ -79,7 +79,6 @@ func generateSnapServicesFile(app *snap.AppInfo, baseDir string) (string, error)
 		App:            app,
 		Description:    desc,
 		SnapPath:       baseDir,
-		Start:          app.Command,
 		Stop:           app.Stop,
 		PostStop:       app.PostStop,
 		StopTimeout:    serviceStopTimeout(app),
@@ -221,7 +220,6 @@ type ServiceDescription struct {
 	App             *snap.AppInfo
 	Description     string
 	SnapPath        string
-	Start           string
 	Stop            string
 	PostStop        string
 	StopTimeout     time.Duration
@@ -281,7 +279,7 @@ WantedBy={{.ServiceSystemdTarget}}
 		Revision int
 	}{
 		*desc,
-		filepath.Join(desc.SnapPath, desc.Start),
+		filepath.Join(desc.SnapPath, desc.App.Command),
 		filepath.Join(desc.SnapPath, desc.Stop),
 		filepath.Join(desc.SnapPath, desc.PostStop),
 		systemd.ServicesTarget,
