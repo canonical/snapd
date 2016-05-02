@@ -30,33 +30,24 @@ import (
 	"strings"
 
 	"github.com/ubuntu-core/snappy/osutil"
-	"github.com/ubuntu-core/snappy/snap"
 )
 
-func init() {
-	snap.RegisterFormat([]byte{'h', 's', 'q', 's'}, func(path string) (snap.File, error) {
-		return New(path), nil
-	})
-}
+// Magic is the magic prefix of squashfs snap files.
+var Magic = []byte{'h', 's', 'q', 's'}
 
 // Snap is the squashfs based snap.
 type Snap struct {
 	path string
 }
 
-// Name returns the Name of the backing file.
-func (s *Snap) Name() string {
-	return filepath.Base(s.path)
+// Path returns the path of the backing file.
+func (s *Snap) Path() string {
+	return s.path
 }
 
 // New returns a new Squashfs snap.
 func New(path string) *Snap {
 	return &Snap{path: path}
-}
-
-// MetaMember extracts from meta/. - COMPAT
-func (s *Snap) MetaMember(metaMember string) ([]byte, error) {
-	return s.ReadFile(filepath.Join("meta", metaMember))
 }
 
 // Install just copies the blob into place (unless it is used in the tests)
@@ -112,26 +103,6 @@ func (s *Snap) ReadFile(path string) (content []byte, err error) {
 const (
 	hashDigestBufSize = 2 * 1024 * 1024
 )
-
-// Info returns information like name, type etc about the package
-func (s *Snap) Info() (*snap.Info, error) {
-	snapYaml, err := s.ReadFile("meta/snap.yaml")
-	if err != nil {
-		return nil, fmt.Errorf("info failed for %s: %s", s.path, err)
-	}
-
-	info, err := snap.InfoFromSnapYaml(snapYaml)
-	if err != nil {
-		return nil, err
-	}
-
-	err = snap.Validate(info)
-	if err != nil {
-		return nil, err
-	}
-
-	return info, nil
-}
 
 // HashDigest computes a hash digest of the snap file using the given hash.
 // It also returns its size.
