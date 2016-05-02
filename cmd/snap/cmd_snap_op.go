@@ -32,7 +32,7 @@ import (
 	"github.com/jessevdk/go-flags"
 )
 
-func wait(client *client.Client, id string) error {
+func wait(client *client.Client, id string) (*client.Change, error) {
 	pb := progress.NewTextProgress()
 	defer func() {
 		pb.Finished()
@@ -43,7 +43,7 @@ func wait(client *client.Client, id string) error {
 	for {
 		chg, err := client.Change(id)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		for _, t := range chg.Tasks {
@@ -63,14 +63,14 @@ func wait(client *client.Client, id string) error {
 
 		if chg.Ready {
 			if chg.Status == "Done" {
-				return nil
+				return chg, nil
 			}
 
 			if chg.Err != "" {
-				return errors.New(chg.Err)
+				return chg, errors.New(chg.Err)
 			}
 
-			return fmt.Errorf("change finished in status %q with no error message", chg.Status)
+			return nil, fmt.Errorf("change finished in status %q with no error message", chg.Status)
 		}
 
 		// note this very purposely is not a ticker; we want
@@ -115,7 +115,7 @@ func (x *cmdRemove) Execute([]string) error {
 		return err
 	}
 
-	if err := wait(cli, changeID); err != nil {
+	if _, err := wait(cli, changeID); err != nil {
 		return err
 	}
 	fmt.Fprintln(Stdout, "Done")
@@ -146,16 +146,15 @@ func (x *cmdInstall) Execute([]string) error {
 		return err
 	}
 
-	if err := wait(cli, changeID); err != nil {
+	chg, err := wait(cli, changeID)
+	if err != nil {
 		return err
 	}
 
 	// extract the snapName from the change, important for sideloaded
-	if chg, err := cli.Change(changeID); err == nil {
-		var snapName string
-		if err := chg.Get("snap-name", &snapName); err == nil {
-			name = snapName
-		}
+	var snapName string
+	if err := chg.Get("snap-name", &snapName); err == nil {
+		name = snapName
 	}
 
 	return listSnaps([]string{name})
@@ -177,7 +176,7 @@ func (x *cmdRefresh) Execute([]string) error {
 		return err
 	}
 
-	if err := wait(cli, changeID); err != nil {
+	if _, err := wait(cli, changeID); err != nil {
 		return err
 	}
 	return listSnaps([]string{name})
