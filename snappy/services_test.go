@@ -408,7 +408,6 @@ apps:
 		PostStop:    "bin/stop --post",
 		StopTimeout: time.Duration(10 * time.Second),
 		AaProfile:   "aa-profile",
-		BusName:     "foo.bar.baz",
 		UdevAppName: "app",
 	}
 
