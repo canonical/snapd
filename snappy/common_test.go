@@ -34,6 +34,7 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/snaptest"
 )
 
 const (
@@ -44,9 +45,6 @@ const (
 
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
-
-// here to make it easy to switch in tests to "BuildSquashfsSnap"
-var snapBuilderFunc = BuildSquashfsSnap
 
 func init() {
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
@@ -99,11 +97,6 @@ apps:
 	}
 
 	if err := addMockDefaultSeccompProfile("hello-snap_svc1_1.10"); err != nil {
-		return "", err
-	}
-
-	hashFile := filepath.Join(metaDir, "hashes.yaml")
-	if err := ioutil.WriteFile(hashFile, []byte("{}"), 0644); err != nil {
 		return "", err
 	}
 
@@ -208,7 +201,7 @@ version: 1.0
 	// build it
 	err := osutil.ChDir(tmpdir, func() error {
 		var err error
-		snapPath, err = snapBuilderFunc(tmpdir, "")
+		snapPath, err = snaptest.BuildSquashfsSnap(tmpdir, "")
 		c.Assert(err, IsNil)
 		return err
 	})
@@ -219,7 +212,7 @@ version: 1.0
 // makeTwoTestSnaps creates two real snaps of snap.Type of name
 // "foo", with version "1.0" and "2.0", "2.0" being marked as the
 // active snap.
-func makeTwoTestSnaps(c *C, snapType snap.Type, extra ...string) {
+func makeTwoTestSnaps(c *C, snapType snap.Type, extra ...string) (*snap.Info, *snap.Info) {
 	inter := &MockProgressMeter{}
 
 	snapYamlContent := `name: foo
@@ -239,7 +232,7 @@ func makeTwoTestSnaps(c *C, snapType snap.Type, extra ...string) {
 		Revision:     100,
 		Channel:      "remote-channel",
 	}
-	_, err := (&Overlord{}).InstallWithSideInfo(snapPath, foo10, AllowUnauthenticated|AllowGadget, inter)
+	info1, err := (&Overlord{}).InstallWithSideInfo(snapPath, foo10, AllowUnauthenticated|AllowGadget, inter)
 	c.Assert(err, IsNil)
 
 	snapPath = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
@@ -249,12 +242,14 @@ func makeTwoTestSnaps(c *C, snapType snap.Type, extra ...string) {
 		Revision:     200,
 		Channel:      "remote-channel",
 	}
-	_, err = (&Overlord{}).InstallWithSideInfo(snapPath, foo20, AllowUnauthenticated|AllowGadget, inter)
+	info2, err := (&Overlord{}).InstallWithSideInfo(snapPath, foo20, AllowUnauthenticated|AllowGadget, inter)
 	c.Assert(err, IsNil)
 
 	installed, err := (&Overlord{}).Installed()
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 2)
+
+	return info1, info2
 }
 
 type MockProgressMeter struct {

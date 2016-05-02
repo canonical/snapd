@@ -39,17 +39,19 @@ type snapHelloWorldExampleSuite struct {
 }
 
 func installSnap(c *check.C, packageName string) string {
-	cli.ExecCommand(c, "sudo", "snap", "install", "--channel", "edge", packageName)
+	cli.ExecCommand(c, "sudo", "snap", "install", packageName)
 	// FIXME: should `snap install` shold show a list afterards?
 	//        like `snappy install`?
-	return cli.ExecCommand(c, "snap", "list")
+	out := cli.ExecCommand(c, "snap", "list")
+	return out
 }
 
 func removeSnap(c *check.C, packageName string) string {
 	cli.ExecCommand(c, "sudo", "snap", "remove", packageName)
 	// FIXME: should `snap remove` shold show a list afterards?
 	//        like `snappy install`?
-	return cli.ExecCommand(c, "snap", "list")
+	out := cli.ExecCommand(c, "snap", "list")
+	return out
 }
 
 func (s *snapHelloWorldExampleSuite) TestCallHelloWorldBinary(c *check.C) {
@@ -93,10 +95,7 @@ type snapPythonWebserverExampleSuite struct {
 }
 
 func (s *snapPythonWebserverExampleSuite) TestNetworkingServiceMustBeStarted(c *check.C) {
-	c.Skip("FIXME: re-enable when new-security supports auto-connect")
-
-	baseAppName := "xkcd-webserver"
-	appName := baseAppName + ".canonical"
+	appName := "xkcd-webserver"
 	installSnap(c, appName)
 	defer removeSnap(c, appName)
 
@@ -116,8 +115,6 @@ type snapGoWebserverExampleSuite struct {
 }
 
 func (s *snapGoWebserverExampleSuite) TestGetRootPathMustPrintMessage(c *check.C) {
-	c.Skip("FIXME: re-enable when new-security supports auto-connect")
-
 	appName := "go-example-webserver"
 	output := installSnap(c, appName)
 	defer removeSnap(c, appName)

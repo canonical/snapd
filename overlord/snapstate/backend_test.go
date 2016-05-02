@@ -23,19 +23,24 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/ubuntu-core/snappy/overlord/auth"
+	"github.com/ubuntu-core/snappy/overlord/snapstate"
+	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/store"
 )
 
 type fakeOp struct {
 	op string
 
-	name    string
-	revno   int
-	channel string
-	flags   int
-	active  bool
-	sinfo   snap.SideInfo
+	macaroon string
+	name     string
+	revno    int
+	channel  string
+	flags    int
+	active   bool
+	sinfo    snap.SideInfo
 
 	old string
 }
@@ -49,42 +54,42 @@ type fakeSnappyBackend struct {
 	linkSnapFailTrigger string
 }
 
-func (f *fakeSnappyBackend) InstallLocal(path string, flags int, p progress.Meter) error {
+func (f *fakeSnappyBackend) Download(name, channel string, checker func(*snap.Info) error, p progress.Meter, auther store.Authenticator) (*snap.Info, string, error) {
+	p.Notify("download")
+	var macaroon string
+	if auther != nil {
+		macaroon = auther.(*auth.MacaroonAuthenticator).Macaroon
+	}
 	f.ops = append(f.ops, fakeOp{
-		op:   "install-local",
-		name: path,
-	})
-	return nil
-}
-
-func (f *fakeSnappyBackend) Download(name, channel string, p progress.Meter) (*snap.Info, string, error) {
-	f.ops = append(f.ops, fakeOp{
-		op:      "download",
-		name:    name,
-		channel: channel,
+		op:       "download",
+		macaroon: macaroon,
+		name:     name,
+		channel:  channel,
 	})
 	p.SetTotal(float64(f.fakeTotalProgress))
 	p.Set(float64(f.fakeCurrentProgress))
+
+	revno := 11
+	if channel == "channel-for-7" {
+		revno = 7
+	}
 
 	info := &snap.Info{
 		SideInfo: snap.SideInfo{
 			OfficialName: strings.Split(name, ".")[0],
 			Channel:      channel,
-			Revision:     11,
+			SnapID:       "snapIDsnapidsnapidsnapidsnapidsn",
+			Revision:     revno,
 		},
 		Version: name,
 	}
 
-	return info, "downloaded-snap-path", nil
-}
+	err := checker(info)
+	if err != nil {
+		return nil, "", err
+	}
 
-func (f *fakeSnappyBackend) Activate(name string, active bool, p progress.Meter) error {
-	f.ops = append(f.ops, fakeOp{
-		op:     "activate",
-		name:   name,
-		active: active,
-	})
-	return nil
+	return info, "downloaded-snap-path", nil
 }
 
 func (f *fakeSnappyBackend) CheckSnap(snapFilePath string, curInfo *snap.Info, flags int) error {
@@ -115,9 +120,9 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, si *snap.SideInfo, fl
 	return nil
 }
 
-func (f *fakeSnappyBackend) RetrieveInfo(name string, si *snap.SideInfo) (*snap.Info, error) {
+func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info, error) {
 	// naive emulation for now, always works
-	return &snap.Info{SideInfo: *si}, nil
+	return &snap.Info{SuggestedName: name, SideInfo: *si}, nil
 }
 
 func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, flags int) error {
@@ -166,17 +171,6 @@ func (f *fakeSnappyBackend) UndoCopySnapData(newInfo *snap.Info, flags int) erro
 	return nil
 }
 
-func (f *fakeSnappyBackend) SnapByNameAndVersion(name, version string) *snap.Info {
-	return &snap.Info{
-		SideInfo: snap.SideInfo{
-			OfficialName: name,
-			Revision:     9,
-		},
-		SuggestedName: name,
-		Version:       version,
-	}
-}
-
 func (f *fakeSnappyBackend) CanRemove(info *snap.Info, active bool) bool {
 	f.ops = append(f.ops, fakeOp{
 		op:     "can-remove",
@@ -187,6 +181,7 @@ func (f *fakeSnappyBackend) CanRemove(info *snap.Info, active bool) bool {
 }
 
 func (f *fakeSnappyBackend) UnlinkSnap(info *snap.Info, meter progress.Meter) error {
+	meter.Notify("unlink")
 	f.ops = append(f.ops, fakeOp{
 		op:   "unlink-snap",
 		name: info.MountDir(),
@@ -195,6 +190,7 @@ func (f *fakeSnappyBackend) UnlinkSnap(info *snap.Info, meter progress.Meter) er
 }
 
 func (f *fakeSnappyBackend) RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error {
+	meter.Notify("remove-snap-files")
 	f.ops = append(f.ops, fakeOp{
 		op:   "remove-snap-files",
 		name: s.MountDir(),
@@ -210,11 +206,10 @@ func (f *fakeSnappyBackend) RemoveSnapData(info *snap.Info) error {
 	return nil
 }
 
-func (f *fakeSnappyBackend) GarbageCollect(name string, flags int, meter progress.Meter) error {
+func (f *fakeSnappyBackend) RemoveSnapCommonData(info *snap.Info) error {
 	f.ops = append(f.ops, fakeOp{
-		op:    "garbage-collect",
-		name:  name,
-		flags: flags,
+		op:   "remove-snap-common-data",
+		name: info.MountDir(),
 	})
 	return nil
 }
@@ -227,5 +222,13 @@ func (f *fakeSnappyBackend) Candidate(sideInfo *snap.SideInfo) {
 	f.ops = append(f.ops, fakeOp{
 		op:    "candidate",
 		sinfo: sinfo,
+	})
+}
+
+func (f *fakeSnappyBackend) ForeignTask(kind string, status state.Status, ss *snapstate.SnapSetup) {
+	f.ops = append(f.ops, fakeOp{
+		op:    kind + ":" + status.String(),
+		name:  ss.Name,
+		revno: ss.Revision,
 	})
 }

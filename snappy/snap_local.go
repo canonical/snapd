@@ -25,44 +25,22 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"time"
 
 	"gopkg.in/yaml.v2"
 
 	"github.com/ubuntu-core/snappy/osutil"
-	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/legacygadget"
 )
 
 // Snap represents a generic snap type
 type Snap struct {
 	info *snap.Info
 
-	// XXX: this should go away, and actually snappy.Snap itself
-	m *snapYaml
-
-	hash     string
 	isActive bool
 }
 
 // NewInstalledSnap returns a new Snap from the given yamlPath
 func NewInstalledSnap(yamlPath string) (*Snap, error) {
-	m, err := parseSnapYamlFile(yamlPath)
-	if err != nil {
-		return nil, err
-	}
-
-	snap, err := newSnapFromYaml(yamlPath, m)
-	if err != nil {
-		return nil, err
-	}
-
-	return snap, nil
-}
-
-// newSnapFromYaml returns a new Snap from the given *snapYaml at yamlPath
-func newSnapFromYaml(yamlPath string, m *snapYaml) (*Snap, error) {
 	mountDir := filepath.Dir(filepath.Dir(yamlPath))
 
 	// XXX: hack the name and revision out of the path for now
@@ -74,9 +52,7 @@ func newSnapFromYaml(yamlPath string, m *snapYaml) (*Snap, error) {
 		return nil, fmt.Errorf("broken snap directory path: %q", mountDir)
 	}
 
-	s := &Snap{
-		m: m,
-	}
+	s := &Snap{}
 
 	// check if the snap is active
 	allRevnosDir := filepath.Dir(mountDir)
@@ -89,19 +65,9 @@ func newSnapFromYaml(yamlPath string, m *snapYaml) (*Snap, error) {
 		s.isActive = true
 	}
 
-	// XXX: temp ugly hack for now
-	var yamlBits []byte
-	if osutil.FileExists(yamlPath) {
-		yamlBits, err = ioutil.ReadFile(yamlPath)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		// XXX: ugly serialize and reparse
-		yamlBits, err = yaml.Marshal(m)
-		if err != nil {
-			return nil, err
-		}
+	yamlBits, err := ioutil.ReadFile(yamlPath)
+	if err != nil {
+		return nil, err
 	}
 
 	info, err := snap.InfoFromSnapYaml(yamlBits)
@@ -165,46 +131,9 @@ func (s *Snap) Developer() string {
 
 }
 
-// Hash returns the hash
-func (s *Snap) Hash() string {
-	return s.hash
-}
-
-// Channel returns the channel used
-func (s *Snap) Channel() string {
-	return s.info.Channel
-}
-
-// Icon returns the path to the icon
-func (s *Snap) Icon() string {
-	found, _ := filepath.Glob(filepath.Join(s.info.MountDir(), "meta", "gui", "icon.*"))
-	if len(found) == 0 {
-		return ""
-	}
-
-	return found[0]
-}
-
 // IsActive returns true if the snap is active
 func (s *Snap) IsActive() bool {
 	return s.isActive
-}
-
-// IsInstalled returns true if the snap is installed
-func (s *Snap) IsInstalled() bool {
-	return true
-}
-
-// InstalledSize returns the size of the installed snap
-func (s *Snap) InstalledSize() int64 {
-	// FIXME: cache this at install time maybe?
-	totalSize := int64(0)
-	f := func(_ string, info os.FileInfo, err error) error {
-		totalSize += info.Size()
-		return err
-	}
-	filepath.Walk(s.info.MountDir(), f)
-	return totalSize
 }
 
 // Info returns the snap.Info data.
@@ -212,38 +141,7 @@ func (s *Snap) Info() *snap.Info {
 	return s.info
 }
 
-// DownloadSize returns the dowload size
-func (s *Snap) DownloadSize() int64 {
-	return s.info.Size
-}
-
-// Date returns the last update date
-func (s *Snap) Date() time.Time {
-	st, err := os.Stat(s.info.MountDir())
-	if err != nil {
-		return time.Time{}
-	}
-
-	return st.ModTime()
-}
-
-// Apps return a list of AppsYamls the package declares
-func (s *Snap) Apps() map[string]*AppYaml {
-	return s.m.Apps
-}
-
-// GadgetConfig return a list of packages to configure
-func (s *Snap) GadgetConfig() legacygadget.SystemConfig {
-	return s.info.Legacy.Config
-}
-
-// Install installs the snap (which does not make sense for an already
-// installed snap
-func (s *Snap) Install(inter progress.Meter, flags InstallFlags) (name string, err error) {
-	return "", ErrAlreadyInstalled
-}
-
 // NeedsReboot returns true if the snap becomes active on the next reboot
 func (s *Snap) NeedsReboot() bool {
-	return kernelOrOsRebootRequired(s)
+	return kernelOrOsRebootRequired(s.info)
 }

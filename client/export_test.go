@@ -31,8 +31,12 @@ func (client *Client) SetDoer(d doer) {
 
 // Do does do.
 func (client *Client) Do(method, path string, query url.Values, body io.Reader, v interface{}) error {
-	return client.do(method, path, query, body, v)
+	return client.do(method, path, query, nil, body, v)
 }
 
 // expose parseError for testing
 var ParseErrorInTest = parseError
+
+// expose read and write auth helpers for testing
+var TestWriteAuth = writeAuthData
+var TestReadAuth = readAuthData

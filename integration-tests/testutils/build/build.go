@@ -39,6 +39,8 @@ const (
 	listCmd         = "go list ./..."
 	buildTestCmdFmt = "go test%s -c ./integration-tests/tests"
 
+	snapbuildPkg = "./integration-tests/testutils/build/snapbuild"
+
 	// IntegrationTestName is the name of the test binary.
 	IntegrationTestName = "integration.test"
 	defaultGoArm        = "7"
@@ -79,18 +81,11 @@ func Assets(cfg *Config) {
 		coverpkg := getCoverPkg()
 		// FIXME We need to build an image that has the snappy from the branch
 		// installed. --elopio - 2015-06-25.
-		buildSnappyCLI(cfg.Arch, coverpkg)
 		buildSnapd(cfg.Arch, coverpkg)
 		buildSnapCLI(cfg.Arch, coverpkg)
 	}
+	buildSnapbuild(cfg.Arch)
 	buildTests(cfg.Arch, cfg.TestBuildTags)
-}
-
-func buildSnappyCLI(arch, coverpkg string) {
-	fmt.Println("Building snappy CLI...")
-	buildSnappyCliCmd := getBinaryBuildCmd("snappy", coverpkg)
-
-	goCall(arch, buildSnappyCliCmd)
 }
 
 func buildSnapd(arch, coverpkg string) {
@@ -105,6 +100,14 @@ func buildSnapCLI(arch, coverpkg string) {
 
 	buildSnapCliCmd := getBinaryBuildCmd("snap", coverpkg)
 	goCall(arch, buildSnapCliCmd)
+}
+
+func buildSnapbuild(arch string) {
+	fmt.Println("Building snapbuild...")
+
+	buildSnapbuildCmd := "go build" +
+		" -o " + filepath.Join(testsBinDir, filepath.Base(snapbuildPkg)) + " " + snapbuildPkg
+	goCall(arch, buildSnapbuildCmd)
 }
 
 func buildTests(arch, testBuildTags string) {

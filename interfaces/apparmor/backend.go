@@ -43,6 +43,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/interfaces"
@@ -51,24 +52,11 @@ import (
 )
 
 // Backend is responsible for maintaining apparmor profiles for ubuntu-core-launcher.
-type Backend struct {
-	// legacyTemplate exists to support old-security which goes
-	// beyond what is possible with pure security snippets.
-	//
-	// If non-empty then it overrides the built-in template.
-	legacyTemplate []byte
-}
+type Backend struct{}
 
 // Name returns the name of the backend.
 func (b *Backend) Name() string {
 	return "apparmor"
-}
-
-// UseLegacyTemplate switches from default apparmor template to a custom
-// template. This also implies that a fixed set of apparmor variables will be
-// injected into this template. The set is compatible with Ubuntu core 15.04.
-func (b *Backend) UseLegacyTemplate(template []byte) {
-	b.legacyTemplate = template
 }
 
 // Setup creates and loads apparmor profiles specific to a given snap.
@@ -77,7 +65,7 @@ func (b *Backend) UseLegacyTemplate(template []byte) {
 //
 // This method should be called after changing plug, slots, connections between
 // them or application present in the snap.
-func (b *Backend) Setup(snapInfo *snap.Info, developerMode bool, repo *interfaces.Repository) error {
+func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repository) error {
 	snapName := snapInfo.Name()
 	// Get the snippets that apply to this snap
 	snippets, err := repo.SecuritySnippetsForSnap(snapName, interfaces.SecurityAppArmor)
@@ -85,7 +73,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, developerMode bool, repo *interface
 		return fmt.Errorf("cannot obtain security snippets for snap %q: %s", snapName, err)
 	}
 	// Get the files that this snap should have
-	content, err := b.combineSnippets(snapInfo, developerMode, snippets)
+	content, err := b.combineSnippets(snapInfo, devMode, snippets)
 	if err != nil {
 		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapName, err)
 	}
@@ -94,8 +82,16 @@ func (b *Backend) Setup(snapInfo *snap.Info, developerMode bool, repo *interface
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for apparmor profiles %q: %s", dir, err)
 	}
-	changed, removed, errEnsure := osutil.EnsureDirState(dir, glob, content)
-	errReload := reloadProfiles(changed)
+	_, removed, errEnsure := osutil.EnsureDirState(dir, glob, content)
+	// NOTE: load all profiles instead of just the changed profiles.  We're
+	// relying on apparmor cache to make this efficient. This gives us
+	// certainty that each call to Setup ends up with working profiles.
+	all := make([]string, 0, len(content))
+	for name := range content {
+		all = append(all, name)
+	}
+	sort.Strings(all)
+	errReload := reloadProfiles(all)
 	errUnload := unloadProfiles(removed)
 	if errEnsure != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, errEnsure)
@@ -129,21 +125,16 @@ var (
 // combineSnippets combines security snippets collected from all the interfaces
 // affecting a given snap into a content map applicable to EnsureDirState. The
 // backend delegates writing those files to higher layers.
-func (b *Backend) combineSnippets(snapInfo *snap.Info, developerMode bool, snippets map[string][][]byte) (content map[string]*osutil.FileState, err error) {
+func (b *Backend) combineSnippets(snapInfo *snap.Info, devMode bool, snippets map[string][][]byte) (content map[string]*osutil.FileState, err error) {
 	for _, appInfo := range snapInfo.Apps {
-		policy := b.legacyTemplate
-		if policy == nil {
-			policy = defaultTemplate
-		}
-		if developerMode {
+		policy := defaultTemplate
+		if devMode {
 			policy = attachPattern.ReplaceAll(policy, attachComplain)
 		}
 		policy = templatePattern.ReplaceAllFunc(policy, func(placeholder []byte) []byte {
 			switch {
 			case bytes.Equal(placeholder, placeholderVar):
-				// TODO: use modern variables when default template is compatible
-				// with them and the custom template is not used.
-				return legacyVariables(appInfo)
+				return templateVariables(appInfo)
 			case bytes.Equal(placeholder, placeholderProfileAttach):
 				return []byte(fmt.Sprintf("profile \"%s\"", appInfo.SecurityTag()))
 			case bytes.Equal(placeholder, placeholderSnippets):

@@ -146,6 +146,17 @@ func (s *BuildSuite) TestAssetsBuildsTests(c *check.C) {
 			cmd, buildCall))
 }
 
+func (s *BuildSuite) TestAssetsBuildsSnapbuild(c *check.C) {
+	Assets(nil)
+
+	cmd := "go build -o integration-tests/bin/snapbuild " + snapbuildPkg
+	buildCall := s.execCalls[cmd]
+
+	c.Assert(buildCall, check.Equals, 1,
+		check.Commentf("Expected 1 call to execCommand with %s, got %d",
+			"?", buildCall))
+}
+
 func (s *BuildSuite) TestAssetsRenamesBuiltBinary(c *check.C) {
 	Assets(nil)
 
@@ -166,10 +177,10 @@ func (s *BuildSuite) TestAssetsSetsEnvironmentForGenericArch(c *check.C) {
 	setenvGOARCHFirstCall := s.osSetenvCalls["GOARCH "+arch]
 	setenvGOARCHFinalCall := s.osSetenvCalls["GOARCH "+originalArch]
 
-	c.Assert(setenvGOARCHFirstCall, check.Equals, 1,
+	c.Assert(setenvGOARCHFirstCall, check.Equals, 2,
 		check.Commentf("Expected 1 call to os.Setenv with %s, got %d",
 			"GOARCH "+arch, setenvGOARCHFirstCall))
-	c.Assert(setenvGOARCHFinalCall, check.Equals, 1,
+	c.Assert(setenvGOARCHFinalCall, check.Equals, 2,
 		check.Commentf("Expected 1 call to os.Setenv with %s, got %d",
 			"GOARCH "+originalArch, setenvGOARCHFinalCall))
 }
@@ -196,10 +207,10 @@ func (s *BuildSuite) TestAssetsSetsEnvironmentForArm(c *check.C) {
 		finalCall := fmt.Sprintf("%s %s", t.envVar, "original"+t.envVar)
 		setenvFinalCall := s.osSetenvCalls[finalCall]
 
-		c.Assert(setenvFirstCall, check.Equals, 1,
+		c.Assert(setenvFirstCall, check.Equals, 2,
 			check.Commentf("Expected 1 call to os.Setenv with %s, got %d",
 				firstCall, setenvFirstCall))
-		c.Assert(setenvFinalCall, check.Equals, 1,
+		c.Assert(setenvFinalCall, check.Equals, 2,
 			check.Commentf("Expected 1 call to os.Setenv with %s, got %d",
 				finalCall, setenvFinalCall))
 	}
@@ -232,28 +243,6 @@ func (s *BuildSuite) TestAssetsDoesNotSetEnvironmentForNonArm(c *check.C) {
 	c.Assert(setenvGOARMFinalCall, check.Equals, 0,
 		check.Commentf("Expected 0 calls to os.Setenv with %s, got %d",
 			"GOARM "+os.Getenv("GOARCH"), setenvGOARMFinalCall))
-}
-
-func (s *BuildSuite) TestAssetsBuildsSnappyCliFromBranch(c *check.C) {
-	Assets(&Config{UseSnappyFromBranch: true})
-
-	buildSnappyCliCmd := getBinaryBuildCmd("snappy", "-coverpkg")
-	buildCall := s.execCalls[buildSnappyCliCmd]
-
-	c.Assert(buildCall, check.Equals, 1,
-		check.Commentf("Expected 1 call to execCommand with %s, got %d",
-			buildSnappyCliCmd, buildCall))
-}
-
-func (s *BuildSuite) TestAssetsDoesNotBuildSnappyCliFromBranchIfNotInstructedTo(c *check.C) {
-	Assets(nil)
-
-	buildSnappyCliCmd := getBinaryBuildCmd("snappy", "coverpkg")
-	buildCall := s.execCalls[buildSnappyCliCmd]
-
-	c.Assert(buildCall, check.Equals, 0,
-		check.Commentf("Expected 0 call to execCommand with %s, got %d",
-			buildSnappyCliCmd, buildCall))
 }
 
 func (s *BuildSuite) TestAssetsBuildsSnapdFromBranch(c *check.C) {
@@ -374,7 +363,7 @@ func (s *BuildSuite) TestBuildCmdDoesNotIncludeFilteredPkgs(c *check.C) {
 func (s *BuildSuite) TestBuildCmdExecutesBuildCommandsFromGOPATH(c *check.C) {
 	Assets(&Config{UseSnappyFromBranch: true})
 
-	for _, bin := range []string{"snappy", "snapd", "snap"} {
+	for _, bin := range []string{"snapd", "snap"} {
 		cmd := getBinaryBuildCmd(bin, "-coverpkg")
 
 		c.Check(s.execCalls[cmd], check.Equals, 1)
@@ -388,7 +377,7 @@ func (s *BuildSuite) checkBuildCmd(pattern string) bool {
 	buildTestCmd := fmt.Sprintf(buildTestCmdFmt, "")
 	cmdsFound := true
 	for cmd := range s.execCalls {
-		if cmd != buildTestCmd && cmd != listCmd {
+		if cmd != buildTestCmd && cmd != listCmd && !strings.HasSuffix(cmd, snapbuildPkg) {
 			cmdsFound = cmdsFound && (re.FindStringIndex(cmd) != nil)
 		}
 	}

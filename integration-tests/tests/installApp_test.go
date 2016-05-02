@@ -27,6 +27,7 @@ import (
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/data"
+	"github.com/ubuntu-core/snappy/testutil"
 
 	"gopkg.in/check.v1"
 )
@@ -47,7 +48,7 @@ func (s *installAppSuite) TestInstallAppMustPrintPackageInformation(c *check.C) 
 	expected := "(?ms)" +
 		"Name +Version +Developer\n" +
 		".*" +
-		"^basic +.* +sideload *\n" +
+		"^basic +.* *\n" +
 		".*"
 
 	c.Assert(installOutput, check.Matches, expected)
@@ -82,9 +83,9 @@ func (s *installAppSuite) TestInstallUnexistingAppMustPrintError(c *check.C) {
 
 	c.Check(err, check.NotNil,
 		check.Commentf("Trying to install an unexisting snap did not exit with an error"))
-	c.Assert(string(output), check.Equals,
+	c.Assert(string(output), testutil.Contains,
 		"error: cannot perform the following tasks:\n"+
-			"- Download snap \"unexisting.canonical\" (snap not found)\n",
+			"- Download snap \"unexisting.canonical\" from channel \"stable\" (snap not found)\n",
 		check.Commentf("Wrong error message"))
 }
 

@@ -22,14 +22,12 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"os"
 
 	"github.com/jessevdk/go-flags"
 	"golang.org/x/crypto/ssh/terminal"
 
 	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/store"
 )
 
 type cmdLogin struct {
@@ -54,31 +52,40 @@ func init() {
 }
 
 func requestLoginWith2faRetry(username, password string) error {
-	cli := Client()
-	// first try without otp
-	_, err := cli.Login(username, password, "")
+	var otp []byte
+	var err error
 
-	// check if we need 2fa
-	if e := err.(*client.Error); e != nil && e.Kind == store.TwoFactorErrKind {
-		fmt.Print(i18n.G("Two-factor code: "))
-		reader := bufio.NewReader(os.Stdin)
+	var msgs = [3]string{
+		i18n.G("Two-factor code: "),
+		i18n.G("Bad code. Try again: "),
+		i18n.G("Wrong again. Once more: "),
+	}
+
+	cli := Client()
+	reader := bufio.NewReader(nil)
+
+	for i := 0; ; i++ {
+		// first try is without otp
+		_, err = cli.Login(username, password, string(otp))
+		if i >= len(msgs) || !client.IsTwoFactorError(err) {
+			return err
+		}
+
+		reader.Reset(Stdin)
+		fmt.Fprint(Stdout, msgs[i])
 		// the browser shows it as well (and Sergio wants to see it ;)
-		otp, _, err := reader.ReadLine()
+		otp, _, err = reader.ReadLine()
 		if err != nil {
 			return err
 		}
-		_, err = cli.Login(username, password, string(otp))
-		return err
 	}
-
-	return err
 }
 
 func (x *cmdLogin) Execute(args []string) error {
 	username := x.Positional.UserName
-	fmt.Print(i18n.G("Password: "))
+	fmt.Fprint(Stdout, i18n.G("Password: "))
 	password, err := terminal.ReadPassword(0)
-	fmt.Print("\n")
+	fmt.Fprint(Stdout, "\n")
 	if err != nil {
 		return err
 	}
@@ -87,7 +94,7 @@ func (x *cmdLogin) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println(i18n.G("Login successful"))
+	fmt.Fprintln(Stdout, i18n.G("Login successful"))
 
 	return nil
 }

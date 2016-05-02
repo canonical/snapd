@@ -20,9 +20,11 @@
 package client
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"time"
 )
 
 // A Change is a modification to the system state.
@@ -32,40 +34,79 @@ type Change struct {
 	Summary string  `json:"summary"`
 	Status  string  `json:"status"`
 	Tasks   []*Task `json:"tasks,omitempty"`
+	Ready   bool    `json:"ready"`
+	Err     string  `json:"err,omitempty"`
+
+	SpawnTime time.Time `json:"spawn-time,omitempty"`
+	ReadyTime time.Time `json:"ready-time,omitempty"`
+
+	data map[string]*json.RawMessage
+}
+
+var ErrNoData = fmt.Errorf("data entry not found")
+
+// Get unmarshals into value the kind-specific data with the provided key.
+func (c *Change) Get(key string, value interface{}) error {
+	raw := c.data[key]
+	if raw == nil {
+		return ErrNoData
+	}
+	return json.Unmarshal([]byte(*raw), value)
 }
 
 // A Task is an operation done to change the system's state.
 type Task struct {
+	ID       string       `json:"id"`
 	Kind     string       `json:"kind"`
 	Summary  string       `json:"summary"`
 	Status   string       `json:"status"`
 	Log      []string     `json:"log,omitempty"`
 	Progress TaskProgress `json:"progress"`
+
+	SpawnTime time.Time `json:"spawn-time,omitempty"`
+	ReadyTime time.Time `json:"ready-time,omitempty"`
 }
 
 type TaskProgress struct {
-	Done  int
-	Total int
+	Done  int `json:"done"`
+	Total int `json:"total"`
 }
 
-func (tp *TaskProgress) UnmarshalJSON(buf []byte) error {
-	var ar [2]int
-	if err := json.Unmarshal(buf, &ar); err != nil {
-		return err
-	}
-
-	tp.Done = ar[0]
-	tp.Total = ar[1]
-
-	return nil
+type changeAndData struct {
+	Change
+	Data map[string]*json.RawMessage `json:"data"`
 }
 
 // Change fetches information about a Change given its ID
 func (client *Client) Change(id string) (*Change, error) {
-	var chg Change
-	err := client.doSync("GET", "/v2/changes/"+id, nil, nil, &chg)
+	var chgd changeAndData
+	_, err := client.doSync("GET", "/v2/changes/"+id, nil, nil, nil, &chgd)
+	if err != nil {
+		return nil, err
+	}
 
-	return &chg, err
+	chgd.Change.data = chgd.Data
+	return &chgd.Change, nil
+}
+
+// Abort attempts to abort a change that is in not yet ready.
+func (client *Client) Abort(id string) (*Change, error) {
+	var postData struct {
+		Action string `json:"action"`
+	}
+	postData.Action = "abort"
+
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(postData); err != nil {
+		return nil, err
+	}
+
+	var chg Change
+	if _, err := client.doSync("POST", "/v2/changes/"+id, nil, nil, &body, &chg); err != nil {
+		return nil, err
+	}
+
+	return &chg, nil
 }
 
 type ChangeSelector uint8
@@ -93,8 +134,18 @@ func (client *Client) Changes(which ChangeSelector) ([]*Change, error) {
 	query := url.Values{}
 	query.Set("select", which.String())
 
+	var chgds []changeAndData
+	_, err := client.doSync("GET", "/v2/changes", query, nil, nil, &chgds)
+	if err != nil {
+		return nil, err
+	}
+
 	var chgs []*Change
-	err := client.doSync("GET", "/v2/changes", query, nil, &chgs)
+	for i := range chgds {
+		chgd := &chgds[i]
+		chgd.Change.data = chgd.Data
+		chgs = append(chgs, &chgd.Change)
+	}
 
 	return chgs, err
 }

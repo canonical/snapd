@@ -32,15 +32,14 @@ import (
 	"github.com/ubuntu-core/snappy/asserts"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/notifications"
-	"github.com/ubuntu-core/snappy/store"
 )
 
 // ResponseType is the response type
 type ResponseType string
 
-// “there are three standard return types: Standard return value,
-// Background operation, Error”, each returning a JSON object with the
-// following “type” field:
+// "there are three standard return types: Standard return value,
+// Background operation, Error", each returning a JSON object with the
+// following "type" field:
 const (
 	ResponseTypeSync  ResponseType = "sync"
 	ResponseTypeAsync ResponseType = "async"
@@ -54,17 +53,43 @@ type Response interface {
 }
 
 type resp struct {
-	Type   ResponseType `json:"type"`
 	Status int          `json:"status-code"`
+	Type   ResponseType `json:"type"`
 	Result interface{}  `json:"result"`
+	*Meta
+}
+
+// TODO This is being done in a rush to get the proper external
+//      JSON representation in the API in time for the release.
+//      The right code style takes a bit more work and unifies
+//      these fields inside resp.
+type Meta struct {
+	Sources           []string `json:"sources,omitempty"`
+	Paging            *Paging  `json:"paging,omitempty"`
+	SuggestedCurrency string   `json:"suggested-currency,omitempty"`
+	Change            string   `json:"change,omitempty"`
+}
+
+type Paging struct {
+	Page  int `json:"page"`
+	Pages int `json:"pages"`
+}
+
+type respJSON struct {
+	Type       ResponseType `json:"type"`
+	Status     int          `json:"status-code"`
+	StatusText string       `json:"status"`
+	Result     interface{}  `json:"result"`
+	*Meta
 }
 
 func (r *resp) MarshalJSON() ([]byte, error) {
-	return json.Marshal(map[string]interface{}{
-		"type":        r.Type,
-		"status":      http.StatusText(r.Status),
-		"status-code": r.Status,
-		"result":      &r.Result,
+	return json.Marshal(respJSON{
+		Type:       r.Type,
+		Status:     r.Status,
+		StatusText: http.StatusText(r.Status),
+		Result:     r.Result,
+		Meta:       r.Meta,
 	})
 }
 
@@ -101,7 +126,8 @@ type errorKind string
 
 const (
 	errorKindLicenseRequired   = errorKind("license-required")
-	errorKindTwoFactorRequired = errorKind(store.TwoFactorErrKind)
+	errorKindTwoFactorRequired = errorKind("two-factor-required")
+	errorKindTwoFactorFailed   = errorKind("two-factor-failed")
 )
 
 type errorValue interface{}
@@ -113,7 +139,7 @@ type errorResult struct {
 }
 
 // SyncResponse builds a "sync" response from the given result.
-func SyncResponse(result interface{}) Response {
+func SyncResponse(result interface{}, meta *Meta) Response {
 	if err, ok := result.(error); ok {
 		return InternalError("internal error: %v", err)
 	}
@@ -126,15 +152,17 @@ func SyncResponse(result interface{}) Response {
 		Type:   ResponseTypeSync,
 		Status: http.StatusOK,
 		Result: result,
+		Meta:   meta,
 	}
 }
 
 // AsyncResponse builds an "async" response from the given *Task
-func AsyncResponse(result map[string]interface{}) Response {
+func AsyncResponse(result map[string]interface{}, meta *Meta) Response {
 	return &resp{
 		Type:   ResponseTypeAsync,
 		Status: http.StatusAccepted,
 		Result: result,
+		Meta:   meta,
 	}
 }
 

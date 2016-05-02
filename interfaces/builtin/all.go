@@ -25,6 +25,7 @@ import (
 
 var allInterfaces = []interfaces.Interface{
 	&BoolFileInterface{},
+	&BluezInterface{},
 	NewFirewallControlInterface(),
 	NewHomeInterface(),
 	NewLocaleControlInterface(),
@@ -40,6 +41,7 @@ var allInterfaces = []interfaces.Interface{
 	NewTimezoneControlInterface(),
 	NewUnity7Interface(),
 	NewX11Interface(),
+	NewOpenglInterface(),
 }
 
 // Interfaces returns all of the built-in interfaces.

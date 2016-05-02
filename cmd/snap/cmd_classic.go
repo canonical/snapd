@@ -54,7 +54,7 @@ func init() {
 */
 
 func (x *cmdEnableClassic) Execute(args []string) (err error) {
-	return withMutexAndRetry(x.doEnable)
+	return x.doEnable()
 }
 
 func (x *cmdEnableClassic) doEnable() (err error) {
@@ -67,13 +67,13 @@ func (x *cmdEnableClassic) doEnable() (err error) {
 		return err
 	}
 
-	fmt.Println(i18n.G(`Classic dimension enabled on this snappy system.
-Use “snap shell classic” to enter the classic dimension.`))
+	fmt.Fprintln(Stdout, i18n.G(`Classic dimension enabled on this snappy system.
+Use "snap shell classic" to enter the classic dimension.`))
 	return nil
 }
 
 func (x *cmdDestroyClassic) Execute(args []string) (err error) {
-	return withMutexAndRetry(x.doDisable)
+	return x.doDisable()
 }
 
 func (x *cmdDestroyClassic) doDisable() (err error) {
@@ -85,6 +85,6 @@ func (x *cmdDestroyClassic) doDisable() (err error) {
 		return err
 	}
 
-	fmt.Println(i18n.G(`Classic dimension destroyed on this snappy system.`))
+	fmt.Fprintln(Stdout, i18n.G(`Classic dimension destroyed on this snappy system.`))
 	return nil
 }

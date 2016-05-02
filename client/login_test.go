@@ -20,6 +20,7 @@
 package client_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -44,7 +45,7 @@ func (cs *clientSuite) TestClientLogin(c *check.C) {
 	user, err := cs.cli.Login("username", "pass", "")
 
 	c.Check(err, check.IsNil)
-	c.Check(user, check.DeepEquals, &client.AuthenticatedUser{
+	c.Check(user, check.DeepEquals, &client.User{
 		Macaroon:   "the-root-macaroon",
 		Discharges: []string{"discharge-macaroon"}})
 
@@ -59,7 +60,7 @@ func (cs *clientSuite) TestClientLoginError(c *check.C) {
 	cs.rsp = `{
 		"result": {},
 		"status": "Bad Request",
-		"status_code": 400,
+		"status-code": 400,
 		"type": "error"
 	}`
 
@@ -74,4 +75,64 @@ func (cs *clientSuite) TestClientLoginError(c *check.C) {
 
 	outFile := filepath.Join(tmpdir, ".snap", "auth.json")
 	c.Check(osutil.FileExists(outFile), check.Equals, false)
+}
+
+func (cs *clientSuite) TestClientLogout(c *check.C) {
+	cs.rsp = `{"type": "sync", "result": {}}`
+
+	home := os.Getenv("HOME")
+	tmpdir := c.MkDir()
+	os.Setenv("HOME", tmpdir)
+	defer os.Setenv("HOME", home)
+
+	err := os.Mkdir(filepath.Join(tmpdir, ".snap"), 0700)
+	c.Assert(err, check.IsNil)
+	authPath := filepath.Join(tmpdir, ".snap", "auth.json")
+	err = ioutil.WriteFile(authPath, []byte(`{"macaroon":"macaroon","discharges":["discharged"]}`), 0600)
+	c.Assert(err, check.IsNil)
+
+	err = cs.cli.Logout()
+	c.Assert(err, check.IsNil)
+	c.Check(cs.req.Method, check.Equals, "POST")
+	c.Check(cs.req.URL.Path, check.Equals, fmt.Sprintf("/v2/logout"))
+
+	c.Check(osutil.FileExists(authPath), check.Equals, false)
+}
+
+func (cs *clientSuite) TestWriteAuthData(c *check.C) {
+	home := os.Getenv("HOME")
+	tmpdir := c.MkDir()
+	os.Setenv("HOME", tmpdir)
+	defer os.Setenv("HOME", home)
+
+	authData := client.User{
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	}
+	err := client.TestWriteAuth(authData)
+	c.Assert(err, check.IsNil)
+
+	outFile := filepath.Join(tmpdir, ".snap", "auth.json")
+	c.Check(osutil.FileExists(outFile), check.Equals, true)
+	content, err := ioutil.ReadFile(outFile)
+	c.Check(err, check.IsNil)
+	c.Check(string(content), check.Equals, `{"macaroon":"macaroon","discharges":["discharge"]}`)
+}
+
+func (cs *clientSuite) TestReadAuthData(c *check.C) {
+	home := os.Getenv("HOME")
+	tmpdir := c.MkDir()
+	os.Setenv("HOME", tmpdir)
+	defer os.Setenv("HOME", home)
+
+	authData := client.User{
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	}
+	err := client.TestWriteAuth(authData)
+	c.Assert(err, check.IsNil)
+
+	readUser, err := client.TestReadAuth()
+	c.Assert(err, check.IsNil)
+	c.Check(readUser, check.DeepEquals, &authData)
 }

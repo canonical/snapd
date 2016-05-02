@@ -30,6 +30,10 @@ const x11ConnectedPlugAppArmor = `
 # Usage: reserved
 
 #include <abstractions/X>
+#include <abstractions/fonts>
+
+/var/cache/fontconfig/   r,
+/var/cache/fontconfig/** mr,
 `
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/x
@@ -39,6 +43,7 @@ const x11ConnectedPlugSecComp = `
 # Usage: reserved
 
 getpeername
+getsockname
 recvfrom
 recvmsg
 shutdown

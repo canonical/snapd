@@ -23,11 +23,12 @@ import (
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
+	"github.com/ubuntu-core/snappy/store"
 )
 
 type managerBackend interface {
 	// install releated
-	Download(name, channel string, meter progress.Meter) (*snap.Info, string, error)
+	Download(name, channel string, checker func(*snap.Info) error, meter progress.Meter, auther store.Authenticator) (*snap.Info, string, error)
 	CheckSnap(snapFilePath string, curInfo *snap.Info, flags int) error
 	SetupSnap(snapFilePath string, si *snap.SideInfo, flags int) error
 	CopySnapData(newSnap, oldSnap *snap.Info, flags int) error
@@ -41,12 +42,7 @@ type managerBackend interface {
 	UnlinkSnap(info *snap.Info, meter progress.Meter) error
 	RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error
 	RemoveSnapData(info *snap.Info) error
-
-	// TODO: need to be split into fine grained tasks
-	Activate(name string, active bool, meter progress.Meter) error
-
-	// info
-	SnapByNameAndVersion(name, version string) *snap.Info
+	RemoveSnapCommonData(info *snap.Info) error
 
 	// testing helpers
 	Candidate(sideInfo *snap.SideInfo)
@@ -56,32 +52,19 @@ type defaultBackend struct{}
 
 func (b *defaultBackend) Candidate(*snap.SideInfo) {}
 
-func (b *defaultBackend) SnapByNameAndVersion(name, version string) *snap.Info {
-	// XXX: use snapstate stuff!
-	installed, err := (&snappy.Overlord{}).Installed()
-	if err != nil {
-		return nil
-	}
-	found := snappy.FindSnapsByNameAndVersion(name, version, installed)
-	if len(found) == 0 {
-		return nil
-	}
-	// XXX: could be many now, pick one for now
-	return found[0].Info()
-}
-
-func (b *defaultBackend) Activate(name string, active bool, meter progress.Meter) error {
-	return snappy.SetActive(name, active, meter)
-}
-
-func (b *defaultBackend) Download(name, channel string, meter progress.Meter) (*snap.Info, string, error) {
+func (b *defaultBackend) Download(name, channel string, checker func(*snap.Info) error, meter progress.Meter, auther store.Authenticator) (*snap.Info, string, error) {
 	mStore := snappy.NewConfiguredUbuntuStoreSnapRepository()
-	snap, err := mStore.Snap(name, channel)
+	snap, err := mStore.Snap(name, channel, auther)
 	if err != nil {
 		return nil, "", err
 	}
 
-	downloadedSnapFile, err := mStore.Download(snap, meter)
+	err = checker(snap)
+	if err != nil {
+		return nil, "", err
+	}
+
+	downloadedSnapFile, err := mStore.Download(snap, meter, auther)
 	if err != nil {
 		return nil, "", err
 	}
@@ -136,4 +119,8 @@ func (b *defaultBackend) RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter)
 
 func (b *defaultBackend) RemoveSnapData(info *snap.Info) error {
 	return snappy.RemoveSnapData(info)
+}
+
+func (b *defaultBackend) RemoveSnapCommonData(info *snap.Info) error {
+	return snappy.RemoveSnapCommonData(info)
 }

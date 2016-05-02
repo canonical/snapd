@@ -40,13 +40,10 @@ type snapRefreshAppSuite struct {
 }
 
 func (s *snapRefreshAppSuite) TestAppUpdate(c *check.C) {
-	c.Skip("port to snapd")
+	snap := "hello-world"
 
-	snap := "hello-world.canonical"
-	storeSnap := fmt.Sprintf("%s", snap)
-
-	// install edge version from the store (which is squshfs)
-	cli.ExecCommand(c, "sudo", "snap", "install", storeSnap)
+	// install edge version from the store (which is squashfs)
+	cli.ExecCommand(c, "sudo", "snap", "install", snap)
 	defer cli.ExecCommand(c, "sudo", "snap", "remove", snap)
 
 	// make a fakestore and make it available to snapd
@@ -63,8 +60,11 @@ func (s *snapRefreshAppSuite) TestAppUpdate(c *check.C) {
 
 	env := fmt.Sprintf(`SNAPPY_FORCE_CPI_URL=%s`, fakeStore.URL())
 	cfg, _ := config.ReadConfig(config.DefaultFileName)
+
 	tearDownSnapd(cfg.FromBranch)
+	defer setUpSnapd(c, cfg.FromBranch, "")
 	setUpSnapd(c, cfg.FromBranch, env)
+	defer tearDownSnapd(cfg.FromBranch)
 
 	// run the fake update
 	output := updates.CallFakeSnapRefresh(c, snap, updates.NoOp, fakeStore)
