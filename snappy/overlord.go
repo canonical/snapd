@@ -40,6 +40,26 @@ import (
 type Overlord struct {
 }
 
+// featureSet contains the flag values that can be listed in assumes entries
+// that this ubuntu-core actually provides.
+var featureSet = map[string]bool{
+	// Support for commont data directory across revisions of a snap.
+	"common-data-dir": true,
+}
+
+func checkAssumes(s *snap.Info) error {
+	missing := ([]string)(nil)
+	for _, flag := range s.Assumes {
+		if !featureSet[flag] {
+			missing = append(missing, flag)
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("snap %q assumes unsupported features: %s (try new ubuntu-core)", s.Name(), strings.Join(missing, ", "))
+	}
+	return nil
+}
+
 // CheckSnap ensures that the snap can be installed
 func CheckSnap(snapFilePath string, curInfo *snap.Info, flags InstallFlags, meter progress.Meter) error {
 	allowGadget := (flags & AllowGadget) != 0
@@ -54,8 +74,9 @@ func CheckSnap(snapFilePath string, curInfo *snap.Info, flags InstallFlags, mete
 		return err
 	}
 
-	if len(s.Assumes) > 0 {
-		return fmt.Errorf("snap %q assumes unsupported features: %s (try new ubuntu-core)", s.Name(), strings.Join(s.Assumes, ", "))
+	err = checkAssumes(s)
+	if err != nil {
+		return err
 	}
 
 	// we do not security Verify() (check hashes) the package here.
