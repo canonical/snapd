@@ -124,7 +124,7 @@ func (ts *ProgressTestSuite) TestNotify(c *C) {
 	c.Assert(err, IsNil)
 	out, err := ioutil.ReadAll(fout)
 	c.Assert(err, IsNil)
-	c.Check(string(out), Equals, "blah blah\n")
+	c.Check(string(out), Equals, fmt.Sprintf("\rblah blah%s\n", clearUntilEOL))
 }
 
 func (ts *ProgressTestSuite) TestMakeProgressBar(c *C) {
