@@ -191,7 +191,8 @@ func (s *Store) searchEndpoint(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, fmt.Sprintf("can not read: %v: %v", fn, err), http.StatusBadRequest)
 		return
 	}
-	info, err := snapFile.Info()
+	// TODO: get side-info from a aux file
+	info, err := snap.ReadInfoFromSnapFile(snapFile, nil)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("can get info for: %v: %v", fn, err), http.StatusBadRequest)
 		return
@@ -236,7 +237,7 @@ func (s *Store) refreshSnaps() error {
 		if err != nil {
 			return err
 		}
-		info, err := snapFile.Info()
+		info, err := snap.ReadInfoFromSnapFile(snapFile, nil)
 		if err != nil {
 			return err
 		}
@@ -283,7 +284,8 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 				return
 			}
 
-			info, err := snapFile.Info()
+			// TODO: get side-info from a aux file
+			info, err := snap.ReadInfoFromSnapFile(snapFile, nil)
 			if err != nil {
 				http.Error(w, fmt.Sprintf("can get info for: %v: %v", fn, err), http.StatusBadRequest)
 				return
