@@ -129,6 +129,7 @@ func (t *TextProgress) Finished() {
 	if t.pbar != nil {
 		t.pbar.Finish()
 	}
+	fmt.Printf("\r\033[K")
 }
 
 // Write is there so that progress can implment a Writer and can be
