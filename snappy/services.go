@@ -301,7 +301,7 @@ WantedBy={{.ServiceSystemdTarget}}
 		filepath.Join(desc.SnapPath, desc.Start),
 		filepath.Join(desc.SnapPath, desc.Stop),
 		filepath.Join(desc.SnapPath, desc.PostStop),
-		systemd.ServicesSystemdTarget,
+		systemd.ServicesTarget,
 		arch.UbuntuArchitecture(),
 		// systemd runs as PID 1 so %h will not work.
 		"/root",
@@ -351,7 +351,7 @@ WantedBy={{.SocketSystemdTarget}}
 		desc.ServiceFileName,
 		desc.ListenStream,
 		desc.SocketMode,
-		systemd.SocketsSystemdTarget,
+		systemd.SocketsTarget,
 	}
 
 	if err := t.Execute(&templateOut, wrapperData); err != nil {
