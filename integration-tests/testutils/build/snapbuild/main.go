@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,26 +17,26 @@
  *
  */
 
-package snappy
+// snapbuild is a minimal executable wrapper around snap building to use for integration tests that need to build snaps under sudo.
+package main
 
 import (
-	"github.com/ubuntu-core/snappy/snap"
+	"fmt"
+	"os"
+
+	"github.com/ubuntu-core/snappy/snap/snaptest"
 )
 
-// openSnapFile opens a snap blob returning both a snap.Info completed
-// with sideInfo (if not nil) and a corresponding snap.File.
-func openSnapFile(snapPath string, unsignedOk bool, sideInfo *snap.SideInfo) (*snap.Info, snap.File, error) {
-	// TODO: what precautions to take if unsignedOk == false ?
-
-	snapf, err := snap.Open(snapPath)
-	if err != nil {
-		return nil, nil, err
+func main() {
+	if len(os.Args) != 3 {
+		fmt.Fprintf(os.Stderr, "snapbuild: expected sourceDir and targetDir\n")
+		os.Exit(1)
 	}
 
-	info, err := snap.ReadInfoFromSnapFile(snapf, sideInfo)
+	snapPath, err := snaptest.BuildSquashfsSnap(os.Args[1], os.Args[2])
 	if err != nil {
-		return nil, nil, err
+		fmt.Fprintf(os.Stderr, "snapbuild: %v\n", err)
+		os.Exit(1)
 	}
-
-	return info, snapf, nil
+	fmt.Fprintf(os.Stdout, "built: %s\n", snapPath)
 }
