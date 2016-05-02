@@ -331,9 +331,8 @@ apps:
 `
 	snapInfo := snaptest.MockSnap(c, yamlText, &snap.SideInfo{Revision: 44})
 	app := snapInfo.Apps["app"]
-	desc := &ServiceDescription{App: app}
 
-	c.Check(GenServiceFile(desc), Equals, expectedAppService)
+	c.Check(GenServiceFile(app), Equals, expectedAppService)
 }
 
 func (s *SnapTestSuite) TestGenAppServiceFileRestart(c *C) {
@@ -347,9 +346,8 @@ apps:
 		yamlText := fmt.Sprintf(yamlTextTemplate, cond)
 		snapInfo := snaptest.MockSnap(c, yamlText, &snap.SideInfo{Revision: 44})
 		app := snapInfo.Apps["app"]
-		desc := &ServiceDescription{App: app}
 
-		c.Check(GenServiceFile(desc), Matches,
+		c.Check(GenServiceFile(app), Matches,
 			`(?ms).*^Restart=`+name+`$.*`, Commentf(name))
 	}
 }
@@ -369,7 +367,6 @@ apps:
 `
 	snapInfo := snaptest.MockSnap(c, yamlText, &snap.SideInfo{Revision: 44})
 	app := snapInfo.Apps["app"]
-	desc := &ServiceDescription{App: app}
 
-	c.Assert(GenServiceFile(desc), Equals, expectedDbusService)
+	c.Assert(GenServiceFile(app), Equals, expectedDbusService)
 }
