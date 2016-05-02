@@ -216,6 +216,7 @@ func (e *Error) Error() string {
 const (
 	ErrorKindTwoFactorRequired = "two-factor-required"
 	ErrorKindTwoFactorFailed   = "two-factor-failed"
+	ErrorKindLoginRequired     = "login-required"
 )
 
 // IsTwoFactorError returns whether the given error is due to problems
