@@ -28,7 +28,6 @@ import (
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/partition"
 	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/legacygadget"
 	"github.com/ubuntu-core/snappy/snap/squashfs"
 	"github.com/ubuntu-core/snappy/systemd"
 	"github.com/ubuntu-core/snappy/testutil"
@@ -41,12 +40,14 @@ import (
 type mockBootloader struct {
 	bootvars map[string]string
 	bootdir  string
+	name     string
 }
 
 func newMockBootloader(bootdir string) *mockBootloader {
 	return &mockBootloader{
 		bootvars: make(map[string]string),
 		bootdir:  bootdir,
+		name:     "mocky",
 	}
 }
 
@@ -61,6 +62,10 @@ func (b *mockBootloader) GetBootVar(key string) (string, error) {
 
 func (b *mockBootloader) Dir() string {
 	return b.bootdir
+}
+
+func (b *mockBootloader) Name() string {
+	return b.name
 }
 
 type SquashfsTestSuite struct {
@@ -381,23 +386,9 @@ func (s *SquashfsTestSuite) TestInstallKernelRebootRequired(c *C) {
 	c.Assert(snap.NeedsReboot(), Equals, false)
 }
 
-func getFakeGrubGadget() (*snap.Info, error) {
-	return &snap.Info{
-		Legacy: &snap.LegacyYaml{
-			Gadget: legacygadget.Gadget{
-				Hardware: legacygadget.Hardware{
-					Bootloader: "grub",
-				},
-			},
-		},
-	}, nil
-}
-
 func (s *SquashfsTestSuite) TestInstallKernelSnapNoUnpacksKernelForGrub(c *C) {
 	// pretend to be a grub system
-	origGetGadget := getGadget
-	s.AddCleanup(func() { getGadget = origGetGadget })
-	getGadget = getFakeGrubGadget
+	s.bootloader.name = "grub"
 
 	files := [][]string{
 		{"vmlinuz-4.2", "I'm a kernel"},

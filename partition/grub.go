@@ -47,6 +47,10 @@ func newGrub() Bootloader {
 	return g
 }
 
+func (g *grub) Name() string {
+	return "grub"
+}
+
 func (g *grub) Dir() string {
 	return filepath.Join(dirs.GlobalRootDir, "/boot/grub")
 }

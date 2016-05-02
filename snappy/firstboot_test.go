@@ -28,7 +28,6 @@ import (
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/legacygadget"
 	"github.com/ubuntu-core/snappy/systemd"
 )
 
@@ -183,8 +182,6 @@ func (s *FirstBootTestSuite) TestSystemSnapsEnablesOS(c *C) {
 }
 
 func (s *FirstBootTestSuite) TestSystemSnapsEnablesKernel(c *C) {
-	s.m = &snap.LegacyYaml{Gadget: legacygadget.Gadget{Hardware: legacygadget.Hardware{Bootloader: "grub"}}}
-
 	s.ensureSystemSnapIsEnabledOnFirstBoot(c, mockKernelYaml, true)
 }
 

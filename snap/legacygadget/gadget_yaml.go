@@ -30,7 +30,6 @@ type Gadget struct {
 // Hardware describes the hardware provided by the gadget snap
 type Hardware struct {
 	BootAssets *BootAssets `yaml:"boot-assets,omitempty"`
-	Bootloader string      `yaml:"bootloader,omitempty"`
 }
 
 // BootAssets represent all the artifacts required for booting a system
