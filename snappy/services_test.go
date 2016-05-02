@@ -350,10 +350,7 @@ apps:
 		yamlText := fmt.Sprintf(yamlTextTemplate, cond)
 		snapInfo := snaptest.MockSnap(c, yamlText, &snap.SideInfo{Revision: 44})
 		app := snapInfo.Apps["app"]
-		desc := &ServiceDescription{
-			App:     app,
-			Restart: cond,
-		}
+		desc := &ServiceDescription{App: app}
 
 		c.Check(GenServiceFile(desc), Matches,
 			`(?ms).*^Restart=`+name+`$.*`, Commentf(name))

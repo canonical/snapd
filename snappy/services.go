@@ -73,7 +73,6 @@ func generateSnapServicesFile(app *snap.AppInfo) (string, error) {
 	return GenServiceFile(&ServiceDescription{
 		App:         app,
 		Description: desc,
-		Restart:     app.RestartCond,
 	}), nil
 }
 
@@ -200,7 +199,6 @@ func removePackageServices(s *snap.Info, inter interacter) error {
 type ServiceDescription struct {
 	App         *snap.AppInfo
 	Description string
-	Restart     systemd.RestartCondition
 }
 
 func GenServiceFile(desc *ServiceDescription) string {
@@ -227,7 +225,7 @@ WantedBy={{.ServiceSystemdTarget}}
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("wrapper").Parse(serviceTemplate))
 
-	restartCond := desc.Restart.String()
+	restartCond := desc.App.RestartCond.String()
 	if restartCond == "" {
 		restartCond = systemd.RestartOnFailure.String()
 	}
