@@ -20,6 +20,8 @@
 package snap_test
 
 import (
+	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
@@ -27,6 +29,7 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/snaptest"
+	"github.com/ubuntu-core/snappy/snap/squashfs"
 )
 
 type infoSuite struct{}
@@ -88,7 +91,7 @@ apps:
    command: foo
 `
 
-func (s *infoSuite) TestMockSnap(c *C) {
+func (s *infoSuite) TestReadInfo(c *C) {
 	si := &snap.SideInfo{Revision: 42, EditedSummary: "esummary"}
 
 	snapInfo1 := snaptest.MockSnap(c, sampleYaml, si)
@@ -103,4 +106,72 @@ func (s *infoSuite) TestMockSnap(c *C) {
 	c.Check(snapInfo2.Apps["app"].Command, Equals, "foo")
 
 	c.Check(snapInfo2, DeepEquals, snapInfo1)
+}
+
+func makeTestSnap(c *C, yaml string) string {
+	tmp := c.MkDir()
+	snapSource := filepath.Join(tmp, "snapsrc")
+
+	err := os.MkdirAll(filepath.Join(snapSource, "meta"), 0755)
+
+	// our regular snap.yaml
+	err = ioutil.WriteFile(filepath.Join(snapSource, "meta", "snap.yaml"), []byte(yaml), 0644)
+	c.Assert(err, IsNil)
+
+	dest := filepath.Join(tmp, "foo.snap")
+	snap := squashfs.New(dest)
+	err = snap.Build(snapSource)
+	c.Assert(err, IsNil)
+
+	return dest
+}
+
+func (s *infoSuite) TestReadInfoFromSnapFile(c *C) {
+	yaml := `name: foo
+version: 1.0
+type: app`
+	snapPath := makeTestSnap(c, yaml)
+
+	snapf, err := snap.Open(snapPath)
+	c.Assert(err, IsNil)
+
+	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
+	c.Assert(err, IsNil)
+	c.Check(info.Name(), Equals, "foo")
+	c.Check(info.Version, Equals, "1.0")
+	c.Check(info.Type, Equals, snap.TypeApp)
+	c.Check(info.Revision, Equals, 0)
+}
+
+func (s *infoSuite) TestReadInfoFromSnapFileWithSideInfo(c *C) {
+	yaml := `name: foo
+version: 1.0
+type: app`
+	snapPath := makeTestSnap(c, yaml)
+
+	snapf, err := snap.Open(snapPath)
+	c.Assert(err, IsNil)
+
+	info, err := snap.ReadInfoFromSnapFile(snapf, &snap.SideInfo{
+		OfficialName: "baz",
+		Revision:     42,
+	})
+	c.Assert(err, IsNil)
+	c.Check(info.Name(), Equals, "baz")
+	c.Check(info.Version, Equals, "1.0")
+	c.Check(info.Type, Equals, snap.TypeApp)
+	c.Check(info.Revision, Equals, 42)
+}
+
+func (s *infoSuite) TestReadInfoFromSnapFileValidates(c *C) {
+	yaml := `name: foo.bar
+version: 1.0
+type: app`
+	snapPath := makeTestSnap(c, yaml)
+
+	snapf, err := snap.Open(snapPath)
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
+	c.Assert(err, ErrorMatches, "invalid snap name.*")
 }
