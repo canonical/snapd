@@ -43,7 +43,7 @@ type Overlord struct {
 // featureSet contains the flag values that can be listed in assumes entries
 // that this ubuntu-core actually provides.
 var featureSet = map[string]bool{
-	// Support for commont data directory across revisions of a snap.
+	// Support for common data directory across revisions of a snap.
 	"common-data-dir": true,
 }
 
