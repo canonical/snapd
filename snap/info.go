@@ -249,15 +249,15 @@ func infoFromSnapYamlWithSideInfo(meta []byte, si *SideInfo, validate bool) (*In
 		return nil, err
 	}
 
+	if si != nil {
+		info.SideInfo = *si
+	}
+
 	if validate {
 		err := Validate(info)
 		if err != nil {
 			return nil, err
 		}
-	}
-
-	if si != nil {
-		info.SideInfo = *si
 	}
 
 	return info, nil
