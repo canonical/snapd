@@ -63,7 +63,7 @@ func serviceStopTimeout(app *snap.AppInfo) time.Duration {
 	return time.Duration(tout)
 }
 
-func generateSnapServicesFile(app *snap.AppInfo, baseDir string) (string, error) {
+func generateSnapServicesFile(app *snap.AppInfo) (string, error) {
 	if err := snap.ValidateApp(app); err != nil {
 		return "", err
 	}
@@ -73,12 +73,11 @@ func generateSnapServicesFile(app *snap.AppInfo, baseDir string) (string, error)
 	return GenServiceFile(&ServiceDescription{
 		App:         app,
 		Description: desc,
-		SnapPath:    baseDir,
 		Restart:     app.RestartCond,
 	}), nil
 }
 
-func generateSnapSocketFile(app *snap.AppInfo, baseDir string) (string, error) {
+func generateSnapSocketFile(app *snap.AppInfo) (string, error) {
 	if err := snap.ValidateApp(app); err != nil {
 		return "", err
 	}
@@ -93,20 +92,12 @@ func generateSnapSocketFile(app *snap.AppInfo, baseDir string) (string, error) {
 }
 
 func addPackageServices(s *snap.Info, inter interacter) error {
-	baseDir := s.MountDir()
-
 	for _, app := range s.Apps {
 		if app.Daemon == "" {
 			continue
 		}
-
-		// this will remove the global base dir when generating the
-		// service file, this ensures that /snap/foo/1.0/bin/start
-		// is in the service file when the SetRoot() option
-		// is used
-		realBaseDir := stripGlobalRootDir(baseDir)
 		// Generate service file
-		content, err := generateSnapServicesFile(app, realBaseDir)
+		content, err := generateSnapServicesFile(app)
 		if err != nil {
 			return err
 		}
@@ -117,7 +108,7 @@ func addPackageServices(s *snap.Info, inter interacter) error {
 		}
 		// Generate systemd socket file if needed
 		if app.Socket {
-			content, err := generateSnapSocketFile(app, realBaseDir)
+			content, err := generateSnapSocketFile(app)
 			if err != nil {
 				return err
 			}
@@ -209,7 +200,6 @@ func removePackageServices(s *snap.Info, inter interacter) error {
 type ServiceDescription struct {
 	App         *snap.AppInfo
 	Description string
-	SnapPath    string
 	Restart     systemd.RestartCondition
 }
 
@@ -245,6 +235,12 @@ WantedBy={{.ServiceSystemdTarget}}
 	if desc.App.Socket {
 		socketFileName = filepath.Base(desc.App.ServiceSocketFile())
 	}
+	baseDir := desc.App.Snap.MountDir()
+	// this will remove the global base dir when generating the
+	// service file, this ensures that /snap/foo/1.0/bin/start
+	// is in the service file when the SetRoot() option
+	// is used
+	realBaseDir := stripGlobalRootDir(baseDir)
 
 	wrapperData := struct {
 		// the service description
@@ -264,11 +260,12 @@ WantedBy={{.ServiceSystemdTarget}}
 		Version  string
 		SnapName string
 		Revision int
+		SnapPath string
 	}{
 		*desc,
-		filepath.Join(desc.SnapPath, desc.App.Command),
-		filepath.Join(desc.SnapPath, desc.App.Stop),
-		filepath.Join(desc.SnapPath, desc.App.PostStop),
+		filepath.Join(realBaseDir, desc.App.Command),
+		filepath.Join(realBaseDir, desc.App.Stop),
+		filepath.Join(realBaseDir, desc.App.PostStop),
 		systemd.ServicesTarget,
 		arch.UbuntuArchitecture(),
 		// systemd runs as PID 1 so %h will not work.
@@ -280,6 +277,7 @@ WantedBy={{.ServiceSystemdTarget}}
 		desc.App.Snap.Version,
 		desc.App.Snap.Name(),
 		desc.App.Snap.Revision,
+		realBaseDir,
 	}
 	allVars := snapenv.GetBasicSnapEnvVars(wrapperData)
 	allVars = append(allVars, snapenv.GetUserSnapEnvVars(wrapperData)...)

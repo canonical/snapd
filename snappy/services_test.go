@@ -116,12 +116,12 @@ Description=descr
 X-Snappy=yes
 
 [Service]
-ExecStart=/usr/bin/ubuntu-core-launcher snap.snap.app snap.snap.app /apps/app/1.0/bin/start
+ExecStart=/usr/bin/ubuntu-core-launcher snap.snap.app snap.snap.app /snap/snap/44/bin/start
 Restart=on-failure
-WorkingDirectory=/var/apps/app/1.0
-Environment="SNAP=/apps/app/1.0" "SNAP_DATA=/var/apps/app/1.0" "SNAP_NAME=snap" "SNAP_VERSION=1.0" "SNAP_REVISION=44" "SNAP_ARCH=%[3]s" "SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:" "SNAP_USER_DATA=/root/apps/app/1.0"
-ExecStop=/usr/bin/ubuntu-core-launcher snap.snap.app snap.snap.app /apps/app/1.0/bin/stop
-ExecStopPost=/usr/bin/ubuntu-core-launcher snap.snap.app snap.snap.app /apps/app/1.0/bin/stop --post
+WorkingDirectory=/var/snap/snap/44
+Environment="SNAP=/snap/snap/44" "SNAP_DATA=/var/snap/snap/44" "SNAP_NAME=snap" "SNAP_VERSION=1.0" "SNAP_REVISION=44" "SNAP_ARCH=%[3]s" "SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:" "SNAP_USER_DATA=/root/snap/snap/44"
+ExecStop=/usr/bin/ubuntu-core-launcher snap.snap.app snap.snap.app /snap/snap/44/bin/stop
+ExecStopPost=/usr/bin/ubuntu-core-launcher snap.snap.app snap.snap.app /snap/snap/44/bin/stop --post
 TimeoutStopSec=10
 %[2]s
 
@@ -148,9 +148,8 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceTypeForking(c *C) {
 		StopTimeout: timeout.DefaultTimeout,
 		Daemon:      "forking",
 	}
-	pkgPath := "/snap/xkcd-webserver/44"
 
-	generatedWrapper, err := generateSnapServicesFile(service, pkgPath)
+	generatedWrapper, err := generateSnapServicesFile(service)
 	c.Assert(err, IsNil)
 	c.Assert(generatedWrapper, Equals, expectedTypeForkingFmkWrapper)
 }
@@ -169,9 +168,8 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceAppWrapper(c *C) {
 		StopTimeout: timeout.DefaultTimeout,
 		Daemon:      "simple",
 	}
-	pkgPath := "/snap/xkcd-webserver/44"
 
-	generatedWrapper, err := generateSnapServicesFile(service, pkgPath)
+	generatedWrapper, err := generateSnapServicesFile(service)
 	c.Assert(err, IsNil)
 	c.Assert(generatedWrapper, Equals, expectedServiceAppWrapper)
 }
@@ -187,9 +185,8 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceRestart(c *C) {
 		RestartCond: systemd.RestartOnAbort,
 		Daemon:      "simple",
 	}
-	pkgPath := "/snap/xkcd-webserver/44"
 
-	generatedWrapper, err := generateSnapServicesFile(service, pkgPath)
+	generatedWrapper, err := generateSnapServicesFile(service)
 	c.Assert(err, IsNil)
 	c.Assert(generatedWrapper, Matches, `(?ms).*^Restart=on-abort$.*`)
 }
@@ -208,9 +205,8 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWrapperWhitelist(c *C) {
 		StopTimeout: timeout.DefaultTimeout,
 		Daemon:      "simple",
 	}
-	pkgPath := "/snap/xkcd-webserver/44"
 
-	_, err := generateSnapServicesFile(service, pkgPath)
+	_, err := generateSnapServicesFile(service)
 	c.Assert(err, NotNil)
 }
 
@@ -263,9 +259,8 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapSocket(c *C) {
 		SocketMode:   "0660",
 		Daemon:       "simple",
 	}
-	pkgPath := "/snap/xkcd-webserver/44"
 
-	content, err := generateSnapSocketFile(service, pkgPath)
+	content, err := generateSnapSocketFile(service)
 	c.Assert(err, IsNil)
 	c.Assert(content, Equals, `[Unit]
 Description= Socket Unit File
@@ -298,9 +293,8 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWithSocket(c *C) {
 		Socket:      true,
 		Daemon:      "simple",
 	}
-	pkgPath := "/snap/xkcd-webserver/44"
 
-	generatedWrapper, err := generateSnapServicesFile(service, pkgPath)
+	generatedWrapper, err := generateSnapServicesFile(service)
 	c.Assert(err, IsNil)
 	c.Assert(generatedWrapper, Equals, expectedSocketUsingWrapper)
 }
@@ -309,16 +303,15 @@ func (s *SnapTestSuite) TestGenerateSnapSocketFile(c *C) {
 	srv := &snap.AppInfo{
 		Snap: &snap.Info{},
 	}
-	baseDir := "/base/dir"
 
 	// no socket mode means 0660
-	content, err := generateSnapSocketFile(srv, baseDir)
+	content, err := generateSnapSocketFile(srv)
 	c.Assert(err, IsNil)
 	c.Assert(content, Matches, "(?ms).*SocketMode=0660")
 
 	// SocketMode itself is honored
 	srv.SocketMode = "0600"
-	content, err = generateSnapSocketFile(srv, baseDir)
+	content, err = generateSnapSocketFile(srv)
 	c.Assert(err, IsNil)
 	c.Assert(content, Matches, "(?ms).*SocketMode=0600")
 
@@ -341,7 +334,6 @@ apps:
 	desc := &ServiceDescription{
 		App:         app,
 		Description: "descr",
-		SnapPath:    "/apps/app/1.0",
 	}
 
 	c.Check(GenServiceFile(desc), Equals, expectedAppService)
@@ -386,7 +378,6 @@ apps:
 	desc := &ServiceDescription{
 		App:         app,
 		Description: "descr",
-		SnapPath:    "/apps/app/1.0",
 	}
 
 	c.Assert(GenServiceFile(desc), Equals, expectedDbusService)
