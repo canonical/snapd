@@ -24,8 +24,6 @@ package snappy
 
 import (
 	"errors"
-	"os"
-	"os/exec"
 
 	"github.com/ubuntu-core/snappy/snap"
 )
@@ -52,22 +50,3 @@ func StoreID() string {
 
 	return gadget.Legacy.Gadget.Store.ID
 }
-
-// var to make testing easier
-var runUdevAdm = runUdevAdmImpl
-
-func runUdevAdmImpl(args ...string) error {
-	cmd := exec.Command(args[0], args[1:]...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
-}
-
-const apparmorAdditionalContent = `{
- "write_path": [
-   "/dev/**"
- ],
- "read_path": [
-   "/run/udev/data/*"
- ]
-}`

@@ -69,11 +69,6 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 		return []byte("ActiveState=inactive\n"), nil
 	}
 
-	// fake udevadm
-	runUdevAdm = func(args ...string) error {
-		return nil
-	}
-
 	// do not attempt to hit the real store servers in the tests
 	nowhereURI, _ := url.Parse("")
 	s.storeCfg = &store.SnapUbuntuStoreConfig{
@@ -89,7 +84,6 @@ func (s *SnapTestSuite) TearDownTest(c *C) {
 	policy.SecBase = s.secbase
 	ActiveSnapIterByType = activeSnapIterByTypeImpl
 	stripGlobalRootDir = stripGlobalRootDirImpl
-	runUdevAdm = runUdevAdmImpl
 }
 
 func makeSnapActive(snapYamlPath string) (err error) {
