@@ -19,15 +19,8 @@
 
 package snap
 
-import (
-	"github.com/ubuntu-core/snappy/snap/legacygadget"
-)
-
 // LegacyYaml collects the legacy fields in snap.yaml that are up to be reworked.
 type LegacyYaml struct {
-	// gadget snap only
-	Gadget legacygadget.Gadget `yaml:"gadget,omitempty"`
-
 	// legacy kernel snap support
 	Kernel string `yaml:"kernel,omitempty"`
 	Initrd string `yaml:"initrd,omitempty"`
