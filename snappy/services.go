@@ -89,7 +89,6 @@ func generateSnapServicesFile(app *snap.AppInfo, baseDir string) (string, error)
 		StopTimeout:    serviceStopTimeout(app),
 		AaProfile:      app.SecurityTag(),
 		BusName:        app.BusName,
-		Type:           app.Daemon,
 		UdevAppName:    app.SecurityTag(),
 		Socket:         app.Socket,
 		SocketFileName: socketFileName,
@@ -238,7 +237,6 @@ type ServiceDescription struct {
 	PostStop        string
 	StopTimeout     time.Duration
 	Restart         systemd.RestartCondition
-	Type            string
 	AaProfile       string
 	BusName         string
 	UdevAppName     string
@@ -264,7 +262,7 @@ Environment={{.EnvVars}}
 {{if .Stop}}ExecStop=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.FullPathStop}}{{end}}
 {{if .PostStop}}ExecStopPost=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.FullPathPostStop}}{{end}}
 {{if .StopTimeout}}TimeoutStopSec={{.StopTimeout.Seconds}}{{end}}
-Type={{.Type}}
+Type={{.App.Daemon}}
 {{if .BusName}}BusName={{.BusName}}{{end}}
 
 [Install]
@@ -291,7 +289,6 @@ WantedBy={{.ServiceSystemdTarget}}
 		EnvVars              string
 		SocketFileName       string
 		Restart              string
-		Type                 string
 	}{
 		*desc,
 		filepath.Join(desc.SnapPath, desc.Start),
@@ -304,7 +301,6 @@ WantedBy={{.ServiceSystemdTarget}}
 		"",
 		desc.SocketFileName,
 		restartCond,
-		desc.Type,
 	}
 	allVars := snapenv.GetBasicSnapEnvVars(wrapperData)
 	allVars = append(allVars, snapenv.GetUserSnapEnvVars(wrapperData)...)

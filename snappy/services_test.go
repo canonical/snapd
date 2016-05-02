@@ -353,7 +353,6 @@ apps:
 		StopTimeout: time.Duration(10 * time.Second),
 		AaProfile:   "aa-profile",
 		UdevAppName: "app",
-		Type:        "simple",
 	}
 
 	c.Check(GenServiceFile(desc), Equals, expectedAppService)
@@ -411,7 +410,6 @@ apps:
 		AaProfile:   "aa-profile",
 		BusName:     "foo.bar.baz",
 		UdevAppName: "app",
-		Type:        "dbus",
 	}
 
 	c.Assert(GenServiceFile(desc), Equals, expectedDbusService)
