@@ -24,7 +24,6 @@ import (
 	"io/ioutil"
 	"path/filepath"
 	"regexp"
-	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -343,7 +342,6 @@ apps:
 		App:         app,
 		Description: "descr",
 		SnapPath:    "/apps/app/1.0",
-		StopTimeout: time.Duration(10 * time.Second),
 	}
 
 	c.Check(GenServiceFile(desc), Equals, expectedAppService)
@@ -389,7 +387,6 @@ apps:
 		App:         app,
 		Description: "descr",
 		SnapPath:    "/apps/app/1.0",
-		StopTimeout: time.Duration(10 * time.Second),
 	}
 
 	c.Assert(GenServiceFile(desc), Equals, expectedDbusService)

@@ -79,7 +79,6 @@ func generateSnapServicesFile(app *snap.AppInfo, baseDir string) (string, error)
 		App:            app,
 		Description:    desc,
 		SnapPath:       baseDir,
-		StopTimeout:    serviceStopTimeout(app),
 		Socket:         app.Socket,
 		SocketFileName: socketFileName,
 		Restart:        app.RestartCond,
@@ -218,7 +217,6 @@ type ServiceDescription struct {
 	App             *snap.AppInfo
 	Description     string
 	SnapPath        string
-	StopTimeout     time.Duration
 	Restart         systemd.RestartCondition
 	Socket          bool
 	SocketFileName  string
@@ -269,6 +267,7 @@ WantedBy={{.ServiceSystemdTarget}}
 		EnvVars              string
 		SocketFileName       string
 		Restart              string
+		StopTimeout          time.Duration
 		// For snapenv.GetBasicSnapEnvVars
 		Version  string
 		SnapName string
@@ -285,6 +284,7 @@ WantedBy={{.ServiceSystemdTarget}}
 		"",
 		desc.SocketFileName,
 		restartCond,
+		serviceStopTimeout(desc.App),
 		desc.App.Snap.Version,
 		desc.App.Snap.Name(),
 		desc.App.Snap.Revision,
