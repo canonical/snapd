@@ -20,7 +20,6 @@
 package snappy
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -73,9 +72,6 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	configMyApp := make(legacygadget.SystemConfig)
 	configMyApp["hostname"] = "myhostname"
 
-	s.gadgetConfig = make(legacygadget.SystemConfig)
-	s.gadgetConfig["myapp"] = configMyApp
-
 	s.globs = globs
 	globs = nil
 	s.ethdir = ethdir
@@ -119,30 +115,6 @@ func (s *FirstBootTestSuite) newSnapMap() (map[string]*Snap, error) {
 
 func (s *FirstBootTestSuite) newOverlord() configurator {
 	return s.fakeOverlord
-}
-
-func (s *FirstBootTestSuite) newFakeApp() *Snap {
-	fakeMyApp := Snap{
-		info: &snap.Info{
-			SuggestedName: "myapp",
-			Type:          snap.TypeApp,
-		},
-	}
-	s.snapMap = make(map[string]*Snap)
-	s.snapMap["myapp"] = &fakeMyApp
-
-	return &fakeMyApp
-}
-
-func (s *FirstBootTestSuite) TestFirstBootConfigure(c *C) {
-	s.m = &snap.LegacyYaml{Config: s.gadgetConfig}
-	s.newFakeApp()
-	c.Assert(FirstBoot(), IsNil)
-	myAppConfig := fmt.Sprintf("config:\n  myapp:\n    hostname: myhostname\n")
-	c.Assert(s.fakeOverlord.configs["myapp"], Equals, myAppConfig)
-
-	_, err := os.Stat(stampFile)
-	c.Assert(err, IsNil)
 }
 
 func (s *FirstBootTestSuite) TestSoftwareActivate(c *C) {
@@ -207,18 +179,6 @@ func (s *FirstBootTestSuite) TestEnableFirstEtherSomeEth(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(string(bs), Equals, "allow-hotplug eth42\niface eth42 inet dhcp\n")
 
-}
-
-func (s *FirstBootTestSuite) TestEnableFirstEtherGadgetNoIfup(c *C) {
-	s.m = &snap.LegacyYaml{Gadget: legacygadget.Gadget{SkipIfupProvisioning: true}}
-	dir := c.MkDir()
-	_, err := os.Create(filepath.Join(dir, "eth42"))
-	c.Assert(err, IsNil)
-
-	globs = []string{filepath.Join(dir, "eth*")}
-	c.Check(enableFirstEther(), IsNil)
-	fs, _ := filepath.Glob(filepath.Join(ethdir, "*"))
-	c.Assert(fs, HasLen, 0)
 }
 
 func (s *FirstBootTestSuite) TestEnableFirstEtherBadEthDir(c *C) {
