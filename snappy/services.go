@@ -20,16 +20,21 @@
 package snappy
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
+	"text/template"
 	"time"
 
+	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/snapenv"
 	"github.com/ubuntu-core/snappy/systemd"
 	"github.com/ubuntu-core/snappy/timeout"
 )
@@ -70,26 +75,25 @@ func generateSnapServicesFile(app *snap.AppInfo, baseDir string) (string, error)
 		socketFileName = filepath.Base(app.ServiceSocketFile())
 	}
 
-	return systemd.New(dirs.GlobalRootDir, nil).GenServiceFile(
-		&systemd.ServiceDescription{
-			SnapName:       app.Snap.Name(),
-			AppName:        app.Name,
-			Version:        app.Snap.Version,
-			Revision:       app.Snap.Revision,
-			Description:    desc,
-			SnapPath:       baseDir,
-			Start:          app.Command,
-			Stop:           app.Stop,
-			PostStop:       app.PostStop,
-			StopTimeout:    serviceStopTimeout(app),
-			AaProfile:      app.SecurityTag(),
-			BusName:        app.BusName,
-			Type:           app.Daemon,
-			UdevAppName:    app.SecurityTag(),
-			Socket:         app.Socket,
-			SocketFileName: socketFileName,
-			Restart:        app.RestartCond,
-		}), nil
+	return GenServiceFile(&ServiceDescription{
+		SnapName:       app.Snap.Name(),
+		AppName:        app.Name,
+		Version:        app.Snap.Version,
+		Revision:       app.Snap.Revision,
+		Description:    desc,
+		SnapPath:       baseDir,
+		Start:          app.Command,
+		Stop:           app.Stop,
+		PostStop:       app.PostStop,
+		StopTimeout:    serviceStopTimeout(app),
+		AaProfile:      app.SecurityTag(),
+		BusName:        app.BusName,
+		Type:           app.Daemon,
+		UdevAppName:    app.SecurityTag(),
+		Socket:         app.Socket,
+		SocketFileName: socketFileName,
+		Restart:        app.RestartCond,
+	}), nil
 }
 
 func generateSnapSocketFile(app *snap.AppInfo, baseDir string) (string, error) {
@@ -105,12 +109,11 @@ func generateSnapSocketFile(app *snap.AppInfo, baseDir string) (string, error) {
 
 	serviceFileName := filepath.Base(app.ServiceFile())
 
-	return systemd.New(dirs.GlobalRootDir, nil).GenSocketFile(
-		&systemd.ServiceDescription{
-			ServiceFileName: serviceFileName,
-			ListenStream:    app.ListenStream,
-			SocketMode:      app.SocketMode,
-		}), nil
+	return GenSocketFile(&ServiceDescription{
+		ServiceFileName: serviceFileName,
+		ListenStream:    app.ListenStream,
+		SocketMode:      app.SocketMode,
+	}), nil
 }
 
 func addPackageServices(s *snap.Info, inter interacter) error {
@@ -224,4 +227,137 @@ func removePackageServices(s *snap.Info, inter interacter) error {
 	}
 
 	return nil
+}
+
+// ServiceDescription describes a snappy systemd service
+type ServiceDescription struct {
+	SnapName        string
+	AppName         string
+	Version         string
+	Revision        int
+	Description     string
+	SnapPath        string
+	Start           string
+	Stop            string
+	PostStop        string
+	StopTimeout     time.Duration
+	Restart         systemd.RestartCondition
+	Type            string
+	AaProfile       string
+	BusName         string
+	UdevAppName     string
+	Socket          bool
+	SocketFileName  string
+	ListenStream    string
+	SocketMode      string
+	ServiceFileName string
+}
+
+func GenServiceFile(desc *ServiceDescription) string {
+	serviceTemplate := `[Unit]
+Description={{.Description}}
+After=snapd.frameworks.target{{ if .Socket }} {{.SocketFileName}}{{end}}
+Requires=snapd.frameworks.target{{ if .Socket }} {{.SocketFileName}}{{end}}
+X-Snappy=yes
+
+[Service]
+ExecStart=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.FullPathStart}}
+Restart={{.Restart}}
+WorkingDirectory=/var{{.SnapPath}}
+Environment={{.EnvVars}}
+{{if .Stop}}ExecStop=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.FullPathStop}}{{end}}
+{{if .PostStop}}ExecStopPost=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.FullPathPostStop}}{{end}}
+{{if .StopTimeout}}TimeoutStopSec={{.StopTimeout.Seconds}}{{end}}
+Type={{.Type}}
+{{if .BusName}}BusName={{.BusName}}{{end}}
+
+[Install]
+WantedBy={{.ServiceSystemdTarget}}
+`
+	var templateOut bytes.Buffer
+	t := template.Must(template.New("wrapper").Parse(serviceTemplate))
+
+	restartCond := desc.Restart.String()
+	if restartCond == "" {
+		restartCond = systemd.RestartOnFailure.String()
+	}
+
+	wrapperData := struct {
+		// the service description
+		ServiceDescription
+		// and some composed values
+		FullPathStart        string
+		FullPathStop         string
+		FullPathPostStop     string
+		ServiceSystemdTarget string
+		SnapArch             string
+		Home                 string
+		EnvVars              string
+		SocketFileName       string
+		Restart              string
+		Type                 string
+	}{
+		*desc,
+		filepath.Join(desc.SnapPath, desc.Start),
+		filepath.Join(desc.SnapPath, desc.Stop),
+		filepath.Join(desc.SnapPath, desc.PostStop),
+		systemd.ServicesTarget,
+		arch.UbuntuArchitecture(),
+		// systemd runs as PID 1 so %h will not work.
+		"/root",
+		"",
+		desc.SocketFileName,
+		restartCond,
+		desc.Type,
+	}
+	allVars := snapenv.GetBasicSnapEnvVars(wrapperData)
+	allVars = append(allVars, snapenv.GetUserSnapEnvVars(wrapperData)...)
+	wrapperData.EnvVars = "\"" + strings.Join(allVars, "\" \"") + "\"" // allVars won't be empty
+
+	if err := t.Execute(&templateOut, wrapperData); err != nil {
+		// this can never happen, except we forget a variable
+		logger.Panicf("Unable to execute template: %v", err)
+	}
+
+	return templateOut.String()
+}
+
+func GenSocketFile(desc *ServiceDescription) string {
+	serviceTemplate := `[Unit]
+Description={{.Description}} Socket Unit File
+PartOf={{.ServiceFileName}}
+X-Snappy=yes
+
+[Socket]
+ListenStream={{.ListenStream}}
+{{if .SocketMode}}SocketMode={{.SocketMode}}{{end}}
+
+[Install]
+WantedBy={{.SocketSystemdTarget}}
+`
+	var templateOut bytes.Buffer
+	t := template.Must(template.New("wrapper").Parse(serviceTemplate))
+
+	wrapperData := struct {
+		// the service description
+		ServiceDescription
+		// and some composed values
+		ServiceFileName,
+		ListenStream string
+		SocketMode          string
+		SocketSystemdTarget string
+	}{
+		*desc,
+		desc.ServiceFileName,
+		desc.ListenStream,
+		desc.SocketMode,
+		systemd.SocketsTarget,
+	}
+
+	if err := t.Execute(&templateOut, wrapperData); err != nil {
+		// this can never happen, except we forget a variable
+		logger.Panicf("Unable to execute template: %v", err)
+	}
+
+	return templateOut.String()
 }
