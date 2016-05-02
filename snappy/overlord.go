@@ -514,7 +514,7 @@ func checkLicenseAgreement(s *snap.Info, snapf snap.File, cur *snap.Info, ag agr
 		return ErrLicenseNotAccepted
 	}
 
-	license, err := snapf.MetaMember("license.txt")
+	license, err := snapf.ReadFile("meta/license.txt")
 	if err != nil || len(license) == 0 {
 		return ErrLicenseNotProvided
 	}

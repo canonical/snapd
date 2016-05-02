@@ -50,11 +50,6 @@ func New(path string) *Snap {
 	return &Snap{path: path}
 }
 
-// MetaMember extracts from meta/.
-func (s *Snap) MetaMember(metaMember string) ([]byte, error) {
-	return s.ReadFile(filepath.Join("meta", metaMember))
-}
-
 // Install just copies the blob into place (unless it is used in the tests)
 func (s *Snap) Install(targetPath, mountDir string) error {
 
