@@ -23,6 +23,8 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+
+	"github.com/ubuntu-core/snappy/snap/squashfs" // to register it
 )
 
 // File is the interface to interact with the low-level snap files
@@ -35,9 +37,6 @@ type File interface {
 
 	//Unpack unpacks the src parts to the dst directory
 	Unpack(src, dst string) error
-
-	// Info returns information about the given snap file
-	Info() (*Info, error)
 }
 
 // backend implements a specific snap format
@@ -46,11 +45,11 @@ type snapFormat struct {
 	open  func(fn string) (File, error)
 }
 
-var formatHandlers []snapFormat
-
-// RegisterFormat registers a snap file format to the system
-func RegisterFormat(magic []byte, open func(fn string) (File, error)) {
-	formatHandlers = append(formatHandlers, snapFormat{magic, open})
+// formatHandlers is the registry of known formats, squashfs is the only one atm.
+var formatHandlers = []snapFormat{
+	{squashfs.Magic, func(p string) (File, error) {
+		return squashfs.New(p), nil
+	}},
 }
 
 // Open opens a given snap file with the right backend
