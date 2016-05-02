@@ -132,13 +132,8 @@ func init() {
 
 func main() {
 	if err := run(); err != nil {
-		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
-			fmt.Fprintf(Stdout, "%v\n", err)
-			os.Exit(0)
-		} else {
-			fmt.Fprintf(Stderr, "error: %v\n", err)
-			os.Exit(1)
-		}
+		fmt.Fprintf(Stderr, "error: %v\n", err)
+		os.Exit(1)
 	}
 }
 
@@ -146,7 +141,16 @@ func run() error {
 	parser := Parser()
 	_, err := parser.Parse()
 	if err != nil {
-		if _, ok := err.(*flags.Error); !ok {
+		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
+			err = errHelp
+		}
+
+		if err == errHelp {
+			parser.Command.Active = nil
+			parser.WriteHelp(Stdout)
+			return nil
+
+		} else if _, ok := err.(*flags.Error); !ok {
 			logger.Debugf("cannot parse arguments: %v: %v", os.Args, err)
 		}
 		return err
