@@ -211,8 +211,8 @@ X-Snappy=yes
 [Service]
 ExecStart=/usr/bin/ubuntu-core-launcher app aa-profile /apps/app/1.0/bin/start
 Restart=on-failure
-WorkingDirectory=/var/apps/app/1.0/
-Environment="SNAP=/apps/app/1.0/" "SNAP_DATA=/var/apps/app/1.0/" "SNAP_NAME=app" "SNAP_VERSION=1.0" "SNAP_REVISION=44" "SNAP_ARCH=%[3]s" "SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:" "SNAP_USER_DATA=/root/apps/app/1.0/"
+WorkingDirectory=/var/apps/app/1.0
+Environment="SNAP=/apps/app/1.0" "SNAP_DATA=/var/apps/app/1.0" "SNAP_NAME=app" "SNAP_VERSION=1.0" "SNAP_REVISION=44" "SNAP_ARCH=%[3]s" "SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:" "SNAP_USER_DATA=/root/apps/app/1.0"
 ExecStop=/usr/bin/ubuntu-core-launcher app aa-profile /apps/app/1.0/bin/stop
 ExecStopPost=/usr/bin/ubuntu-core-launcher app aa-profile /apps/app/1.0/bin/stop --post
 TimeoutStopSec=10
@@ -235,7 +235,7 @@ func (s *SystemdTestSuite) TestGenAppServiceFile(c *C) {
 		Version:     "1.0",
 		Revision:    44,
 		Description: "descr",
-		SnapPath:    "/apps/app/1.0/",
+		SnapPath:    "/apps/app/1.0",
 		Start:       "bin/start",
 		Stop:        "bin/stop",
 		PostStop:    "bin/stop --post",
@@ -267,7 +267,7 @@ func (s *SystemdTestSuite) TestGenServiceFileWithBusName(c *C) {
 		Version:     "1.0",
 		Revision:    44,
 		Description: "descr",
-		SnapPath:    "/apps/app/1.0/",
+		SnapPath:    "/apps/app/1.0",
 		Start:       "bin/start",
 		Stop:        "bin/stop",
 		PostStop:    "bin/stop --post",

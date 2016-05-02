@@ -96,8 +96,7 @@ func (fsbs *filesystemBackstore) Put(assertType *AssertionType, assert Assertion
 		curRev := curAssert.Revision()
 		rev := assert.Revision()
 		if curRev >= rev {
-			// XXX use structured error and formatting one level up?
-			return fmt.Errorf("assertion added must have more recent revision than current one (adding %d, currently %d)", rev, curRev)
+			return &RevisionError{Current: curRev, Used: rev}
 		}
 	} else if err != ErrNotFound {
 		return err

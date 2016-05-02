@@ -30,7 +30,7 @@ import (
 	"testing"
 
 	"github.com/ubuntu-core/snappy/osutil"
-	"github.com/ubuntu-core/snappy/snappy"
+	"github.com/ubuntu-core/snappy/snap/snaptest"
 
 	. "gopkg.in/check.v1"
 )
@@ -96,13 +96,13 @@ func (s *storeTestSuite) TestSearchEndpoint(c *C) {
 	c.Assert(resp.StatusCode, Equals, 501)
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
-	c.Assert(string(body), Equals, "search not implemented yet")
+	c.Assert(string(body), Equals, "full search not implemented")
 
 }
 
-func (s *storeTestSuite) TestDetailsEndpoint(c *C) {
+func (s *storeTestSuite) TestExactMathEndpoint(c *C) {
 	s.makeTestSnap(c, "name: foo\nversion: 1")
-	resp, err := s.StoreGet("/package/foo.canonical")
+	resp, err := s.StoreGet(`/search?q=package_name:"foo"`)
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 
@@ -110,17 +110,24 @@ func (s *storeTestSuite) TestDetailsEndpoint(c *C) {
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
 	c.Assert(string(body), Equals, fmt.Sprintf(`{
-    "name": "foo.canonical",
-    "package_name": "foo",
-    "origin": "canonical",
-    "anon_download_url": "%s/download/foo_1_all.snap",
-    "download_url": "%s/download/foo_1_all.snap",
-    "version": "1",
-    "revision": 424242
+    "_embedded": {
+        "clickindex:package": [
+            {
+                "name": "foo.canonical",
+                "package_name": "foo",
+                "origin": "canonical",
+                "anon_download_url": "%s/download/foo_1_all.snap",
+                "download_url": "%s/download/foo_1_all.snap",
+                "version": "1",
+                "revision": 424242
+            }
+        ]
+    }
 }`, s.store.URL(), s.store.URL()))
 }
 
 func (s *storeTestSuite) TestBulkEndpoint(c *C) {
+	c.Skip("not relevant atm, will change")
 	s.makeTestSnap(c, "name: foo\nversion: 1")
 
 	resp, err := s.StorePostJSON("/click-metadata", []byte(`{
@@ -155,7 +162,7 @@ func (s *storeTestSuite) makeTestSnap(c *C, snapYamlContent string) string {
 	c.Assert(err, IsNil)
 
 	targetDir := s.store.blobDir
-	snapFn, err := snappy.BuildSquashfsSnap(tmpdir, targetDir)
+	snapFn, err := snaptest.BuildSquashfsSnap(tmpdir, targetDir)
 	c.Assert(err, IsNil)
 	return snapFn
 }
@@ -171,7 +178,7 @@ func (s *storeTestSuite) TestRefreshSnaps(c *C) {
 
 	s.store.refreshSnaps()
 	c.Assert(s.store.snaps, DeepEquals, map[string]string{
-		"foo.canonical": filepath.Join(s.store.blobDir, "foo_1_all.snap"),
+		"foo": filepath.Join(s.store.blobDir, "foo_1_all.snap"),
 	})
 }
 
