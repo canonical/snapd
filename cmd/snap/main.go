@@ -146,7 +146,9 @@ func run() error {
 		}
 
 		if err == errHelp {
-			parser.Command.Active = nil
+			if parser.Command.Active != nil && parser.Command.Active.Name == "help" {
+				parser.Command.Active = nil
+			}
 			parser.WriteHelp(Stdout)
 			return nil
 
