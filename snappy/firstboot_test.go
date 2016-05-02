@@ -78,7 +78,6 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	ethdir = c.MkDir()
 	s.ifup = ifup
 	ifup = "/bin/true"
-	getGadget = s.getGadget
 	newSnapMap = s.newSnapMap
 	newOverlord = s.newOverlord
 	s.fakeOverlord = &fakeOverlord{
@@ -95,18 +94,7 @@ func (s *FirstBootTestSuite) TearDownTest(c *C) {
 	globs = s.globs
 	ethdir = s.ethdir
 	ifup = s.ifup
-	getGadget = getGadgetImpl
 	newSnapMap = newSnapMapImpl
-}
-
-func (s *FirstBootTestSuite) getGadget() (*snap.Info, error) {
-	if s.m != nil {
-		info := &snap.Info{
-			Legacy: s.m,
-		}
-		return info, nil
-	}
-	return nil, s.e
 }
 
 func (s *FirstBootTestSuite) newSnapMap() (map[string]*Snap, error) {

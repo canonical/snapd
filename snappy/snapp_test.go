@@ -469,37 +469,6 @@ license-agreement: explicit`), 0644)
 	c.Assert(m.LicenseAgreement, Equals, "explicit")
 }
 
-func (s *SnapTestSuite) TestUbuntuStoreRepositoryGadgetStoreId(c *C) {
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// ensure we get the right header
-		storeID := r.Header.Get("X-Ubuntu-Store")
-		c.Assert(storeID, Equals, "my-store")
-		w.WriteHeader(404)
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	// install custom gadget snap with store-id
-	snapYamlFn, err := makeInstalledMockSnap(`name: gadget-test
-version: 1.0
-gadget:
-  store:
-    id: my-store
-type: gadget
-`, 11)
-
-	c.Assert(err, IsNil)
-	makeSnapActive(snapYamlFn)
-
-	s.storeCfg.SearchURI, err = url.Parse(mockServer.URL)
-	c.Assert(err, IsNil)
-	repo := NewConfiguredUbuntuStoreSnapRepository()
-	c.Assert(repo, NotNil)
-
-	// we just ensure that the right header is set
-	repo.Snap("xkcd", "edge", nil)
-}
-
 var securityBinarySnapYaml = []byte(`name: test-snap
 version: 1.2.8
 apps:
