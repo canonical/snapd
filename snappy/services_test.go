@@ -342,7 +342,6 @@ apps:
 	desc := &ServiceDescription{
 		App:         app,
 		SnapName:    "app",
-		AppName:     "service",
 		Revision:    44,
 		Description: "descr",
 		SnapPath:    "/apps/app/1.0",
@@ -395,7 +394,6 @@ apps:
 	desc := &ServiceDescription{
 		App:         app,
 		SnapName:    "app",
-		AppName:     "service",
 		Revision:    44,
 		Description: "descr",
 		SnapPath:    "/apps/app/1.0",
