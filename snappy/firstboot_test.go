@@ -69,9 +69,6 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	err := os.MkdirAll(filepath.Join(tempdir, "etc", "systemd", "system", "multi-user.target.wants"), 0755)
 	c.Assert(err, IsNil)
 
-	configMyApp := make(legacygadget.SystemConfig)
-	configMyApp["hostname"] = "myhostname"
-
 	s.globs = globs
 	globs = nil
 	s.ethdir = ethdir
@@ -103,33 +100,6 @@ func (s *FirstBootTestSuite) newSnapMap() (map[string]*Snap, error) {
 
 func (s *FirstBootTestSuite) newOverlord() configurator {
 	return s.fakeOverlord
-}
-
-func (s *FirstBootTestSuite) TestSoftwareActivate(c *C) {
-	yamlPath, err := makeInstalledMockSnap("", 11)
-	c.Assert(err, IsNil)
-
-	snp, err := NewInstalledSnap(yamlPath)
-	c.Assert(err, IsNil)
-	c.Assert(snp.IsActive(), Equals, false)
-	name := snp.Name()
-
-	s.m = &snap.LegacyYaml{Gadget: legacygadget.Gadget{Software: legacygadget.Software{BuiltIn: []string{name}}}}
-
-	all, err := (&Overlord{}).Installed()
-	c.Check(err, IsNil)
-	c.Assert(all, HasLen, 1)
-	c.Check(all[0].Name(), Equals, name)
-	c.Check(all[0].IsActive(), Equals, false)
-
-	s.snapMap = map[string]*Snap{name: all[0]}
-	c.Assert(FirstBoot(), IsNil)
-
-	all, err = (&Overlord{}).Installed()
-	c.Check(err, IsNil)
-	c.Assert(all, HasLen, 1)
-	c.Check(all[0].Name(), Equals, name)
-	c.Check(all[0].IsActive(), Equals, true)
 }
 
 func (s *FirstBootTestSuite) TestTwoRuns(c *C) {

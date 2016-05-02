@@ -26,8 +26,7 @@ import (
 // LegacyYaml collects the legacy fields in snap.yaml that are up to be reworked.
 type LegacyYaml struct {
 	// gadget snap only
-	Gadget legacygadget.Gadget       `yaml:"gadget,omitempty"`
-	Config legacygadget.SystemConfig `yaml:"config,omitempty"`
+	Gadget legacygadget.Gadget `yaml:"gadget,omitempty"`
 
 	// legacy kernel snap support
 	Kernel string `yaml:"kernel,omitempty"`

@@ -23,9 +23,7 @@ package legacygadget
 // Gadget represents the structure inside the snap.yaml for the gadget component
 // of a gadget package type.
 type Gadget struct {
-	Store                Store    `yaml:"store,omitempty"`
 	Hardware             Hardware `yaml:"hardware,omitempty"`
-	Software             Software `yaml:"software,omitempty"`
 	SkipIfupProvisioning bool     `yaml:"skip-ifup-provisioning"`
 }
 
@@ -33,16 +31,6 @@ type Gadget struct {
 type Hardware struct {
 	BootAssets *BootAssets `yaml:"boot-assets,omitempty"`
 	Bootloader string      `yaml:"bootloader,omitempty"`
-}
-
-// Store holds information relevant to the store provided by a Gadget snap
-type Store struct {
-	ID string `yaml:"id,omitempty"`
-}
-
-// Software describes the installed software provided by a Gadget snap
-type Software struct {
-	BuiltIn []string `yaml:"built-in,omitempty"`
 }
 
 // BootAssets represent all the artifacts required for booting a system
@@ -66,6 +54,3 @@ type BootAssetFiles struct {
 	Path   string `yaml:"path"`
 	Target string `yaml:"target,omitempty"`
 }
-
-// SystemConfig is a config map holding configs for multiple packages
-type SystemConfig map[string]interface{}
