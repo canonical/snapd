@@ -76,6 +76,7 @@ func generateSnapServicesFile(app *snap.AppInfo, baseDir string) (string, error)
 	}
 
 	return GenServiceFile(&ServiceDescription{
+		App:            app,
 		SnapName:       app.Snap.Name(),
 		AppName:        app.Name,
 		Version:        app.Snap.Version,
@@ -110,6 +111,7 @@ func generateSnapSocketFile(app *snap.AppInfo, baseDir string) (string, error) {
 	serviceFileName := filepath.Base(app.ServiceFile())
 
 	return GenSocketFile(&ServiceDescription{
+		App:             app,
 		ServiceFileName: serviceFileName,
 		ListenStream:    app.ListenStream,
 		SocketMode:      app.SocketMode,
@@ -231,6 +233,7 @@ func removePackageServices(s *snap.Info, inter interacter) error {
 
 // ServiceDescription describes a snappy systemd service
 type ServiceDescription struct {
+	App             *snap.AppInfo
 	SnapName        string
 	AppName         string
 	Version         string

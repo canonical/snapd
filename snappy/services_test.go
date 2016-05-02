@@ -31,6 +31,7 @@ import (
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/snaptest"
 	"github.com/ubuntu-core/snappy/systemd"
 	"github.com/ubuntu-core/snappy/timeout"
 )
@@ -325,7 +326,21 @@ func (s *SnapTestSuite) TestGenerateSnapSocketFile(c *C) {
 }
 
 func (s *SnapTestSuite) TestGenAppServiceFile(c *C) {
+	yamlText := `
+name: snap
+version: 1.0
+apps:
+    app:
+        command: bin/start
+        stop-command: bin/stop
+        post-stop-command: bin/stop --post
+        stop-timeout: 10s
+        daemon: simple
+`
+	snapInfo := snaptest.MockSnap(c, yamlText, &snap.SideInfo{Revision: 44})
+	app := snapInfo.Apps["app"]
 	desc := &ServiceDescription{
+		App:         app,
 		SnapName:    "app",
 		AppName:     "service",
 		Version:     "1.0",
@@ -345,8 +360,18 @@ func (s *SnapTestSuite) TestGenAppServiceFile(c *C) {
 }
 
 func (s *SnapTestSuite) TestGenAppServiceFileRestart(c *C) {
+	yamlTextTemplate := `
+name: snap
+apps:
+    app:
+        restart-condition: %s
+`
 	for name, cond := range systemd.RestartMap {
+		yamlText := fmt.Sprintf(yamlTextTemplate, cond)
+		snapInfo := snaptest.MockSnap(c, yamlText, &snap.SideInfo{Revision: 44})
+		app := snapInfo.Apps["app"]
 		desc := &ServiceDescription{
+			App:      app,
 			SnapName: "app",
 			Restart:  cond,
 		}
@@ -357,7 +382,22 @@ func (s *SnapTestSuite) TestGenAppServiceFileRestart(c *C) {
 }
 
 func (s *SnapTestSuite) TestGenServiceFileWithBusName(c *C) {
+	yamlText := `
+name: snap
+version: 1.0
+apps:
+    app:
+        command: bin/start
+        stop-command: bin/stop
+        post-stop-command: bin/stop --post
+        stop-timeout: 10s
+        bus-name: foo.bar.baz
+        daemon: dbus
+`
+	snapInfo := snaptest.MockSnap(c, yamlText, &snap.SideInfo{Revision: 44})
+	app := snapInfo.Apps["app"]
 	desc := &ServiceDescription{
+		App:         app,
 		SnapName:    "app",
 		AppName:     "service",
 		Version:     "1.0",
