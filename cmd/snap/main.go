@@ -130,7 +130,7 @@ func init() {
 	}
 }
 
-var missingLoginHelp = "Access denied (snap login --help).\n"
+var missingLoginHelp = "error: access denied (snap login --help).\n"
 
 func main() {
 	if err := run(); err != nil {
