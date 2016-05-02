@@ -521,35 +521,6 @@ type: gadget
 	repo.Snap("xkcd", "edge")
 }
 
-func (s *SnapTestSuite) TestUninstallBuiltIn(c *C) {
-	// install custom gadget snap with store-id
-	gadgetYaml, err := makeInstalledMockSnap(`name: gadget-test
-version: 1.0
-gadget:
-  store:
-    id: my-store
-  software:
-    built-in:
-      - hello-snap
-type: gadget
-`, 11)
-
-	c.Assert(err, IsNil)
-	makeSnapActive(gadgetYaml)
-
-	snapYamlFn, err := makeInstalledMockSnap("", 11)
-	c.Assert(err, IsNil)
-	makeSnapActive(snapYamlFn)
-
-	p := &MockProgressMeter{}
-
-	installed, err := (&Overlord{}).Installed()
-	c.Assert(err, IsNil)
-	snaps := FindSnapsByName("hello-snap", installed)
-	c.Assert(snaps, HasLen, 1)
-	c.Check(s.overlord.Uninstall(snaps[0], p), Equals, ErrPackageNotRemovable)
-}
-
 var securityBinarySnapYaml = []byte(`name: test-snap
 version: 1.2.8
 apps:

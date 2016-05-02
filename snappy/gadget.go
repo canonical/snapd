@@ -90,23 +90,6 @@ func StoreID() string {
 	return gadget.Legacy.Gadget.Store.ID
 }
 
-// IsBuiltInSoftware returns true if the package is part of the built-in software
-// defined by the gadget.
-func IsBuiltInSoftware(name string) bool {
-	gadget, err := getGadget()
-	if err != nil {
-		return false
-	}
-
-	for _, builtin := range gadget.Legacy.Gadget.Software.BuiltIn {
-		if builtin == name {
-			return true
-		}
-	}
-
-	return false
-}
-
 func cleanupGadgetHardwareUdevRules(s *snap.Info) error {
 	oldFiles, err := filepath.Glob(filepath.Join(dirs.SnapUdevRulesDir, fmt.Sprintf("80-snappy_%s_*.rules", s.Name())))
 	if err != nil {

@@ -43,8 +43,6 @@ func (s *GadgetSuite) SetUpTest(c *C) {
 	getGadget = func() (*snap.Info, error) {
 		legacy := &snap.LegacyYaml{
 			Gadget: legacygadget.Gadget{
-				Software: legacygadget.Software{
-					BuiltIn: []string{"makeuppackage", "anotherpackage"}},
 				Store: legacygadget.Store{
 					ID: "ninjablocks"},
 			},
@@ -57,12 +55,6 @@ func (s *GadgetSuite) SetUpTest(c *C) {
 
 func (s *GadgetSuite) TearDownTest(c *C) {
 	getGadget = getGadgetImpl
-}
-
-func (s *GadgetSuite) TestIsBuildIn(c *C) {
-	c.Check(IsBuiltInSoftware("notapackage"), Equals, false)
-	c.Check(IsBuiltInSoftware("makeuppackage"), Equals, true)
-	c.Check(IsBuiltInSoftware("anotherpackage"), Equals, true)
 }
 
 func (s *GadgetSuite) TestStoreID(c *C) {
