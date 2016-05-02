@@ -29,11 +29,11 @@ import (
 
 // File is the interface to interact with the low-level snap files
 type File interface {
+	// ReadFile returns the content of a single file from the snap.
+	ReadFile(relative string) (content []byte, err error)
+
 	// Install copies the snap file to targetPath (and possibly unpacks it to mountDir)
 	Install(targetPath, mountDir string) error
-
-	// MetaMember returns data from a meta/ directory file member
-	MetaMember(name string) ([]byte, error)
 
 	//Unpack unpacks the src parts to the dst directory
 	Unpack(src, dst string) error
