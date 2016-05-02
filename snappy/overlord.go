@@ -72,13 +72,6 @@ func SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, flags InstallFlags,
 	}
 	instdir := s.MountDir()
 
-	// the "gadget" snaps are special
-	if s.Type == snap.TypeGadget {
-		if err := installGadgetHardwareUdevRules(s); err != nil {
-			return s, err
-		}
-	}
-
 	if err := os.MkdirAll(instdir, 0755); err != nil {
 		logger.Noticef("Can not create %q: %v", instdir, err)
 		return s, err
