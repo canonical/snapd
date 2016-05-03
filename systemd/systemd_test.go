@@ -128,6 +128,8 @@ func (s *SystemdTestSuite) TestStart(c *C) {
 }
 
 func (s *SystemdTestSuite) TestStop(c *C) {
+	restore := MockStopStepsStopDelay(3, 10*time.Millisecond)
+	defer restore()
 	s.outs = [][]byte{
 		nil, // for the "stop" itself
 		[]byte("ActiveState=whatever\n"),
@@ -135,7 +137,7 @@ func (s *SystemdTestSuite) TestStop(c *C) {
 		[]byte("ActiveState=inactive\n"),
 	}
 	s.errors = []error{nil, nil, nil, nil, &Timeout{}}
-	err := New("", s.rep).Stop("foo", time.Millisecond)
+	err := New("", s.rep).Stop("foo", 30*time.Millisecond)
 	c.Assert(err, IsNil)
 	c.Assert(s.argses, HasLen, 4)
 	c.Check(s.argses[0], DeepEquals, []string{"stop", "foo"})
@@ -171,7 +173,7 @@ func (s *SystemdTestSuite) TestStatusObj(c *C) {
 }
 
 func (s *SystemdTestSuite) TestStopTimeout(c *C) {
-	restore := MockStopStepsStopDelay()
+	restore := MockStopStepsStopDelay(2, time.Millisecond)
 	defer restore()
 	err := New("", s.rep).Stop("foo", 10*time.Millisecond)
 	c.Assert(err, FitsTypeOf, &Timeout{})
