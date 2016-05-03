@@ -81,7 +81,7 @@ func installSnapWithService(c *check.C) {
 	defer os.Remove(snapPath)
 	c.Assert(err, check.IsNil, check.Commentf("Error building local snap: %s", err))
 
-	output := installSnap(c, snapPath)
+	output := common.InstallSnap(c, snapPath)
 	c.Assert(output, testutil.Contains, data.BasicServiceSnapName)
 }
 

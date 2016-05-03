@@ -404,71 +404,6 @@ apps:
 	c.Assert(apps["svc2"].Name, Equals, "svc2")
 }
 
-func (s *SnapTestSuite) TestSnapYamlMultipleArchitecturesParsing(c *C) {
-	y := filepath.Join(s.tempdir, "snap.yaml")
-	ioutil.WriteFile(y, []byte(`name: fatbinary
-version: 1.0
-architectures: [i386, armhf]
-`), 0644)
-	m, err := parseSnapYamlFile(y)
-	c.Assert(err, IsNil)
-	c.Assert(m.Architectures, DeepEquals, []string{"i386", "armhf"})
-}
-
-func (s *SnapTestSuite) TestSnapYamlSingleArchitecturesParsing(c *C) {
-	y := filepath.Join(s.tempdir, "snap.yaml")
-	ioutil.WriteFile(y, []byte(`name: fatbinary
-version: 1.0
-architectures: [i386]
-`), 0644)
-	m, err := parseSnapYamlFile(y)
-	c.Assert(err, IsNil)
-	c.Assert(m.Architectures, DeepEquals, []string{"i386"})
-}
-
-func (s *SnapTestSuite) TestSnapYamlNoArchitecturesParsing(c *C) {
-	y := filepath.Join(s.tempdir, "snap.yaml")
-	ioutil.WriteFile(y, []byte(`name: fatbinary
-version: 1.0
-`), 0644)
-	m, err := parseSnapYamlFile(y)
-	c.Assert(err, IsNil)
-	c.Assert(m.Architectures, DeepEquals, []string{"all"})
-}
-
-func (s *SnapTestSuite) TestSnapYamlBadArchitectureParsing(c *C) {
-	data := []byte(`name: fatbinary
-version: 1.0
-architectures:
-  armhf:
-    no
-`)
-	_, err := parseSnapYamlData(data, false)
-	c.Assert(err, NotNil)
-}
-
-func (s *SnapTestSuite) TestSnapYamlWorseArchitectureParsing(c *C) {
-	data := []byte(`name: fatbinary
-version: 1.0
-architectures:
-  - armhf:
-      sometimes
-`)
-	_, err := parseSnapYamlData(data, false)
-	c.Assert(err, NotNil)
-}
-
-func (s *SnapTestSuite) TestSnapYamlLicenseParsing(c *C) {
-	y := filepath.Join(s.tempdir, "snap.yaml")
-	ioutil.WriteFile(y, []byte(`
-name: foo
-version: 1.0
-license-agreement: explicit`), 0644)
-	m, err := parseSnapYamlFile(y)
-	c.Assert(err, IsNil)
-	c.Assert(m.LicenseAgreement, Equals, "explicit")
-}
-
 var securityBinarySnapYaml = []byte(`name: test-snap
 version: 1.2.8
 apps:
@@ -503,35 +438,6 @@ plugs:
 
 `)
 
-func (s *SnapTestSuite) TestDetectIllegalYamlBinaries(c *C) {
-	_, err := parseSnapYamlData([]byte(`name: foo
-version: 1.0
-apps:
- tes!me:
-   command: someething
-`), false)
-	c.Assert(err, NotNil)
-}
-
-func (s *SnapTestSuite) TestDetectIllegalYamlService(c *C) {
-	_, err := parseSnapYamlData([]byte(`name: foo
-version: 1.0
-apps:
- tes!me:
-   command: something
-   daemon: forking
-`), false)
-	c.Assert(err, NotNil)
-}
-
-func (s *SnapTestSuite) TestIllegalPackageNameWithDeveloper(c *C) {
-	_, err := parseSnapYamlData([]byte(`name: foo.something
-version: 1.0
-`), false)
-
-	c.Assert(err, Equals, ErrPackageNameNotSupported)
-}
-
 var hardwareYaml = []byte(`name: gadget-foo
 version: 1.0
 gadget:
@@ -553,23 +459,3 @@ gadget:
        - META3=foo[a-z]
        - META4=a|b
 `)
-
-func (s *SnapTestSuite) TestParseSnapYamlDataChecksName(c *C) {
-	_, err := parseSnapYamlData([]byte(`
-version: 1.0
-`), false)
-	c.Assert(err, ErrorMatches, "can not parse snap.yaml: missing required fields 'name'.*")
-}
-
-func (s *SnapTestSuite) TestParseSnapYamlDataChecksVersion(c *C) {
-	_, err := parseSnapYamlData([]byte(`
-name: foo
-`), false)
-	c.Assert(err, ErrorMatches, "can not parse snap.yaml: missing required fields 'version'.*")
-}
-
-func (s *SnapTestSuite) TestParseSnapYamlDataChecksMultiple(c *C) {
-	_, err := parseSnapYamlData([]byte(`
-`), false)
-	c.Assert(err, ErrorMatches, "can not parse snap.yaml: missing required fields 'name, version'.*")
-}
