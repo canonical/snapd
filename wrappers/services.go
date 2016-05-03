@@ -197,18 +197,18 @@ Requires=snapd.frameworks.target{{ if .App.Socket }} {{.SocketFileName}}{{end}}
 X-Snappy=yes
 
 [Service]
-ExecStart=/usr/bin/ubuntu-core-launcher {{.App.SecurityTag}} {{.App.SecurityTag}} {{.FullPathStart}}
+ExecStart={{.App.Invocation}}
 Restart={{.Restart}}
-WorkingDirectory={{.DataDir}}
+WorkingDirectory={{.App.Snap.DataDir}}
 Environment={{.EnvVars}}
-{{if .App.Stop}}ExecStop=/usr/bin/ubuntu-core-launcher {{.App.SecurityTag}} {{.App.SecurityTag}} {{.FullPathStop}}{{end}}
-{{if .App.PostStop}}ExecStopPost=/usr/bin/ubuntu-core-launcher {{.App.SecurityTag}} {{.App.SecurityTag}} {{.FullPathPostStop}}{{end}}
+{{if .App.Stop}}ExecStop={{.App.StopInvocation}}{{end}}
+{{if .App.PostStop}}ExecStopPost={{.App.PostStopInvocation}}{{end}}
 {{if .StopTimeout}}TimeoutStopSec={{.StopTimeout.Seconds}}{{end}}
 Type={{.App.Daemon}}
 {{if .App.BusName}}BusName={{.App.BusName}}{{end}}
 
 [Install]
-WantedBy={{.ServiceSystemdTarget}}
+WantedBy={{.ServiceTargetUnit}}
 `
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("wrapper").Parse(serviceTemplate))
@@ -221,51 +221,39 @@ WantedBy={{.ServiceSystemdTarget}}
 	if appInfo.Socket {
 		socketFileName = filepath.Base(appInfo.ServiceSocketFile())
 	}
-	baseDir := appInfo.Snap.MountDir()
-	// this will remove the global base dir when generating the
-	// service file, this ensures that /snap/foo/1.0/bin/start
-	// is in the service file when the SetRoot() option
-	// is used
-	//realBaseDir := stripGlobalRootDir(baseDir)
-	realBaseDir := baseDir
 
 	wrapperData := struct {
 		App *snap.AppInfo
-		// and some composed values
-		FullPathStart        string
-		FullPathStop         string
-		FullPathPostStop     string
-		DataDir              string
-		ServiceSystemdTarget string
-		SnapArch             string
-		Home                 string
-		EnvVars              string
-		SocketFileName       string
-		Restart              string
-		StopTimeout          time.Duration
+
+		SocketFileName    string
+		Restart           string
+		StopTimeout       time.Duration
+		ServiceTargetUnit string
+
+		EnvVars string
 		// For snapenv.GetBasicSnapEnvVars
-		Version  string
 		SnapName string
-		Revision int
+		SnapArch string
 		SnapPath string
+		Version  string
+		Revision int
+		Home     string
 	}{
-		appInfo,
-		filepath.Join(realBaseDir, appInfo.Command),
-		filepath.Join(realBaseDir, appInfo.Stop),
-		filepath.Join(realBaseDir, appInfo.PostStop),
-		appInfo.Snap.DataDir(),
-		systemd.ServicesTarget,
-		arch.UbuntuArchitecture(),
+		App: appInfo,
+
+		SocketFileName:    socketFileName,
+		Restart:           restartCond,
+		StopTimeout:       serviceStopTimeout(appInfo),
+		ServiceTargetUnit: systemd.ServicesTarget,
+
+		// For snapenv.GetBasicSnapEnvVars
+		SnapName: appInfo.Snap.Name(),
+		SnapArch: arch.UbuntuArchitecture(),
+		SnapPath: appInfo.Snap.MountDir(),
+		Version:  appInfo.Snap.Version,
+		Revision: appInfo.Snap.Revision,
 		// systemd runs as PID 1 so %h will not work.
-		"/root",
-		"",
-		socketFileName,
-		restartCond,
-		serviceStopTimeout(appInfo),
-		appInfo.Snap.Version,
-		appInfo.Snap.Name(),
-		appInfo.Snap.Revision,
-		realBaseDir,
+		Home: "/root",
 	}
 	allVars := snapenv.GetBasicSnapEnvVars(wrapperData)
 	allVars = append(allVars, snapenv.GetUserSnapEnvVars(wrapperData)...)
@@ -291,19 +279,19 @@ ListenStream={{.App.ListenStream}}
 {{if .App.SocketMode}}SocketMode={{.App.SocketMode}}{{end}}
 
 [Install]
-WantedBy={{.SocketSystemdTarget}}
+WantedBy={{.SocketTargetUnit}}
 `
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("wrapper").Parse(serviceTemplate))
 
 	wrapperData := struct {
-		App                 *snap.AppInfo
-		ServiceFileName     string
-		SocketSystemdTarget string
+		App              *snap.AppInfo
+		ServiceFileName  string
+		SocketTargetUnit string
 	}{
-		appInfo,
-		filepath.Base(appInfo.ServiceFile()),
-		systemd.SocketsTarget,
+		App:              appInfo,
+		ServiceFileName:  filepath.Base(appInfo.ServiceFile()),
+		SocketTargetUnit: systemd.SocketsTarget,
 	}
 
 	if err := t.Execute(&templateOut, wrapperData); err != nil {
