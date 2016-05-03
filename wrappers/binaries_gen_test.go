@@ -57,7 +57,6 @@ ubuntu-core-launcher snap.pastebinit.pastebinit snap.pastebinit.pastebinit /snap
 `
 
 func (s *binariesWrapperGenSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
-	pkgPath := "/snap/pastebinit/44"
 	info := &snap.Info{}
 	info.SuggestedName = "pastebinit"
 	info.Version = "1.4.0.0.1"
@@ -70,13 +69,12 @@ func (s *binariesWrapperGenSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 
 	expected := fmt.Sprintf(expectedWrapper, arch.UbuntuArchitecture())
 
-	generatedWrapper, err := generateSnapBinaryWrapper(binary, pkgPath)
+	generatedWrapper, err := generateSnapBinaryWrapper(binary)
 	c.Assert(err, IsNil)
 	c.Assert(generatedWrapper, Equals, expected)
 }
 
 func (s *binariesWrapperGenSuite) TestSnappyGenerateSnapBinaryWrapperIllegalChars(c *C) {
-	pkgPath := "/snap/pastebinit/44"
 	info := &snap.Info{}
 	info.SuggestedName = "pastebinit"
 	info.Version = "1.4.0.0.1"
@@ -85,18 +83,6 @@ func (s *binariesWrapperGenSuite) TestSnappyGenerateSnapBinaryWrapperIllegalChar
 		Name: "bin/pastebinit\nSomething nasty",
 	}
 
-	_, err := generateSnapBinaryWrapper(binary, pkgPath)
+	_, err := generateSnapBinaryWrapper(binary)
 	c.Assert(err, NotNil)
-}
-
-func (s *binariesWrapperGenSuite) TestSnappyBinPathForBinaryNoExec(c *C) {
-	binary := &snap.AppInfo{Name: "pastebinit", Command: "bin/pastebinit"}
-	pkgPath := "/snap/pastebinit/44"
-	c.Assert(binPathForBinary(pkgPath, binary), Equals, "/snap/pastebinit/44/bin/pastebinit")
-}
-
-func (s *binariesWrapperGenSuite) TestSnappyBinPathForBinaryWithExec(c *C) {
-	binary := &snap.AppInfo{Name: "pastebinit", Command: "bin/random-pastebin"}
-	pkgPath := "/snap/pastebinit/44"
-	c.Assert(binPathForBinary(pkgPath, binary), Equals, "/snap/pastebinit/44/bin/random-pastebin")
 }
