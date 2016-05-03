@@ -31,15 +31,6 @@ import (
 	"github.com/ubuntu-core/snappy/systemd"
 )
 
-type fakeOverlord struct {
-	configs map[string]string
-}
-
-func (o *fakeOverlord) Configure(s *Snap, c []byte) ([]byte, error) {
-	o.configs[s.Name()] = string(c)
-	return c, nil
-}
-
 type FirstBootTestSuite struct {
 	gadgetConfig map[string]interface{}
 	globs        []string
@@ -49,7 +40,6 @@ type FirstBootTestSuite struct {
 	e            error
 	snapMap      map[string]*Snap
 	snapMapErr   error
-	fakeOverlord *fakeOverlord
 }
 
 var _ = Suite(&FirstBootTestSuite{})
@@ -75,10 +65,6 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	s.ifup = ifup
 	ifup = "/bin/true"
 	newSnapMap = s.newSnapMap
-	newOverlord = s.newOverlord
-	s.fakeOverlord = &fakeOverlord{
-		configs: map[string]string{},
-	}
 
 	s.m = nil
 	s.e = nil
@@ -95,10 +81,6 @@ func (s *FirstBootTestSuite) TearDownTest(c *C) {
 
 func (s *FirstBootTestSuite) newSnapMap() (map[string]*Snap, error) {
 	return s.snapMap, s.snapMapErr
-}
-
-func (s *FirstBootTestSuite) newOverlord() configurator {
-	return s.fakeOverlord
 }
 
 func (s *FirstBootTestSuite) TestTwoRuns(c *C) {

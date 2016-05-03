@@ -50,14 +50,6 @@ func wrapConfig(pkgName string, conf interface{}) ([]byte, error) {
 
 var newSnapMap = newSnapMapImpl
 
-type configurator interface {
-	Configure(*Snap, []byte) ([]byte, error)
-}
-
-var newOverlord = func() configurator {
-	return (&Overlord{})
-}
-
 func newSnapMapImpl() (map[string]*Snap, error) {
 	all, err := (&Overlord{}).Installed()
 	if err != nil {
