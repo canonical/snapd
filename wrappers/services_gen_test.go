@@ -17,7 +17,7 @@
  *
  */
 
-package wrappers
+package wrappers_test
 
 import (
 	"fmt"
@@ -28,6 +28,7 @@ import (
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/systemd"
 	"github.com/ubuntu-core/snappy/timeout"
+	"github.com/ubuntu-core/snappy/wrappers"
 )
 
 type servicesWrapperGenSuite struct{}
@@ -100,7 +101,7 @@ apps:
 	info.Revision = 44
 	app := info.Apps["app"]
 
-	generatedWrapper, err := generateSnapServiceFile(app)
+	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app)
 	c.Assert(err, IsNil)
 	c.Check(generatedWrapper, Equals, expectedAppService)
 }
@@ -120,7 +121,7 @@ apps:
 		info.Revision = 44
 		app := info.Apps["app"]
 
-		wrapperText, err := generateSnapServiceFile(app)
+		wrapperText, err := wrappers.GenerateSnapServiceFile(app)
 		c.Assert(err, IsNil)
 		c.Check(wrapperText, Matches,
 			`(?ms).*^Restart=`+name+`$.*`, Commentf(name))
@@ -142,7 +143,7 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileTypeForking(c *C) {
 		Daemon:      "forking",
 	}
 
-	generatedWrapper, err := generateSnapServiceFile(service)
+	generatedWrapper, err := wrappers.GenerateSnapServiceFile(service)
 	c.Assert(err, IsNil)
 	c.Assert(generatedWrapper, Equals, expectedTypeForkingWrapper)
 }
@@ -162,7 +163,7 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileIllegalChars(c *C) 
 		Daemon:      "simple",
 	}
 
-	_, err := generateSnapServiceFile(service)
+	_, err := wrappers.GenerateSnapServiceFile(service)
 	c.Assert(err, NotNil)
 }
 
@@ -186,7 +187,7 @@ apps:
 	info.Revision = 44
 	app := info.Apps["app"]
 
-	wrapperText, err := generateSnapServiceFile(app)
+	wrapperText, err := wrappers.GenerateSnapServiceFile(app)
 	c.Assert(err, IsNil)
 
 	c.Assert(wrapperText, Equals, expectedDbusService)
@@ -209,7 +210,7 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapSocketFile(c *C) {
 		Daemon:       "simple",
 	}
 
-	content, err := generateSnapSocketFile(service)
+	content, err := wrappers.GenerateSnapSocketFile(service)
 	c.Assert(err, IsNil)
 	c.Assert(content, Equals, `[Unit]
 # Auto-generated, DO NO EDIT
@@ -243,7 +244,7 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapSocketFileIllegalChars(c *C) {
 		Daemon:       "simple",
 	}
 
-	_, err := generateSnapSocketFile(service)
+	_, err := wrappers.GenerateSnapSocketFile(service)
 	c.Assert(err, NotNil)
 }
 
@@ -265,7 +266,7 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileWithSocket(c *C) {
 		Daemon:      "simple",
 	}
 
-	generatedWrapper, err := generateSnapServiceFile(service)
+	generatedWrapper, err := wrappers.GenerateSnapServiceFile(service)
 	c.Assert(err, IsNil)
 	c.Assert(generatedWrapper, Equals, expectedSocketUsingWrapper)
 }
@@ -276,13 +277,13 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapSocketFileMode(c *C) {
 	}
 
 	// no socket mode means 0660
-	content, err := generateSnapSocketFile(srv)
+	content, err := wrappers.GenerateSnapSocketFile(srv)
 	c.Assert(err, IsNil)
 	c.Assert(content, Matches, "(?ms).*SocketMode=0660")
 
 	// SocketMode itself is honored
 	srv.SocketMode = "0600"
-	content, err = generateSnapSocketFile(srv)
+	content, err = wrappers.GenerateSnapSocketFile(srv)
 	c.Assert(err, IsNil)
 	c.Assert(content, Matches, "(?ms).*SocketMode=0600")
 
