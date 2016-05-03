@@ -40,6 +40,26 @@ import (
 type Overlord struct {
 }
 
+// featureSet contains the flag values that can be listed in assumes entries
+// that this ubuntu-core actually provides.
+var featureSet = map[string]bool{
+	// Support for common data directory across revisions of a snap.
+	"common-data-dir": true,
+}
+
+func checkAssumes(s *snap.Info) error {
+	missing := ([]string)(nil)
+	for _, flag := range s.Assumes {
+		if !featureSet[flag] {
+			missing = append(missing, flag)
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("snap %q assumes unsupported features: %s (try new ubuntu-core)", s.Name(), strings.Join(missing, ", "))
+	}
+	return nil
+}
+
 // CheckSnap ensures that the snap can be installed
 func CheckSnap(snapFilePath string, curInfo *snap.Info, flags InstallFlags, meter progress.Meter) error {
 	allowGadget := (flags & AllowGadget) != 0
@@ -54,8 +74,9 @@ func CheckSnap(snapFilePath string, curInfo *snap.Info, flags InstallFlags, mete
 		return err
 	}
 
-	if len(s.Assumes) > 0 {
-		return fmt.Errorf("snap %q assumes unsupported features: %s (try new ubuntu-core)", s.Name(), strings.Join(s.Assumes, ", "))
+	err = checkAssumes(s)
+	if err != nil {
+		return err
 	}
 
 	// we do not security Verify() (check hashes) the package here.
@@ -134,12 +155,11 @@ func removeSquashfsMount(baseDir string, inter interacter) error {
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
 	unit := systemd.MountUnitPath(stripGlobalRootDir(baseDir), "mount")
 	if osutil.FileExists(unit) {
-		// we ignore errors, nothing should stop removals
-		if err := sysd.Disable(filepath.Base(unit)); err != nil {
-			logger.Noticef("Failed to disable %q: %s, but continuing anyway.", unit, err)
-		}
 		if err := sysd.Stop(filepath.Base(unit), time.Duration(1*time.Second)); err != nil {
-			logger.Noticef("Failed to stop %q: %s, but continuing anyway.", unit, err)
+			return err
+		}
+		if err := sysd.Disable(filepath.Base(unit)); err != nil {
+			return err
 		}
 		if err := os.Remove(unit); err != nil {
 			return err
@@ -178,13 +198,17 @@ func UndoSetupSnap(s snap.PlaceInfo, meter progress.Meter) {
 }
 
 func CopyData(newSnap, oldSnap *snap.Info, flags InstallFlags, meter progress.Meter) error {
-	dataDir := newSnap.DataDir()
-
 	// deal with the old data or
 	// otherwise just create a empty data dir
 
+	// Make sure the common data directory exists, even if this isn't a new
+	// install.
+	if err := os.MkdirAll(newSnap.CommonDataDir(), 0755); err != nil {
+		return err
+	}
+
 	if oldSnap == nil {
-		return os.MkdirAll(dataDir, 0755)
+		return os.MkdirAll(newSnap.DataDir(), 0755)
 	}
 
 	return copySnapData(oldSnap, newSnap)
@@ -510,7 +534,7 @@ func checkLicenseAgreement(s *snap.Info, snapf snap.File, cur *snap.Info, ag agr
 		return ErrLicenseNotAccepted
 	}
 
-	license, err := snapf.MetaMember("license.txt")
+	license, err := snapf.ReadFile("meta/license.txt")
 	if err != nil || len(license) == 0 {
 		return ErrLicenseNotProvided
 	}

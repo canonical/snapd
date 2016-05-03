@@ -33,16 +33,10 @@ func openSnapFile(snapPath string, unsignedOk bool, sideInfo *snap.SideInfo) (*s
 		return nil, nil, err
 	}
 
-	info, err := snapf.Info()
+	info, err := snap.ReadInfoFromSnapFile(snapf, sideInfo)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	var snapInfo snap.Info
-	snapInfo = *info
-	if sideInfo != nil {
-		snapInfo.SideInfo = *sideInfo
-	}
-
-	return &snapInfo, snapf, nil
+	return info, snapf, nil
 }

@@ -21,71 +21,45 @@
 package build
 
 import (
-	"fmt"
+	"io/ioutil"
+	"os"
 	"path/filepath"
-	"strings"
 
 	"gopkg.in/check.v1"
 )
 
-type snapBuildTestSuite struct {
-	execCalls       map[string]int
-	execReturnValue string
-	backExecCommand func(*check.C, ...string) string
-	defaultSnapName string
-}
+type snapBuildTestSuite struct{}
 
 var _ = check.Suite(&snapBuildTestSuite{})
 
-func (s *snapBuildTestSuite) SetUpSuite(c *check.C) {
-	s.backExecCommand = cliExecCommand
-	cliExecCommand = s.fakeExecCommand
-	s.defaultSnapName = "mySnapName"
-}
+const snapYamlContent = `name: basic
+version: 1.0
+summary: Basic snap
+`
 
-func (s *snapBuildTestSuite) TearDownSuite(c *check.C) {
-	cliExecCommand = s.backExecCommand
-}
+func (s *snapBuildTestSuite) TestLocalSnap(c *check.C) {
+	tmpdir := c.MkDir()
 
-func (s *snapBuildTestSuite) SetUpTest(c *check.C) {
-	s.execCalls = make(map[string]int)
-	snapName := s.defaultSnapName + snapFilenameSufix
-	path := filepath.Join(buildPath(s.defaultSnapName), snapName)
-	s.execReturnValue = fmt.Sprintf("Generated '%s' snap\n", path)
-}
+	prev := baseSnapPath
+	baseSnapPath = tmpdir
+	defer func() {
+		baseSnapPath = prev
+	}()
 
-func (s *snapBuildTestSuite) fakeExecCommand(c *check.C, args ...string) (output string) {
-	s.execCalls[strings.Join(args, " ")]++
-	return s.execReturnValue
-}
+	snapdir := filepath.Join(tmpdir, "basic")
 
-func (s *snapBuildTestSuite) TestBuildPath(c *check.C) {
-	path := buildPath(s.defaultSnapName)
+	os.MkdirAll(filepath.Join(snapdir, "meta"), 0755)
 
-	expected := buildPath(s.defaultSnapName)
-	c.Assert(path, check.Equals, expected)
-}
-
-func (s *snapBuildTestSuite) TestLocalSnapCallsExecCommand(c *check.C) {
-	_, err := LocalSnap(c, s.defaultSnapName)
-
+	snapYaml := filepath.Join(snapdir, "meta", "snap.yaml")
+	err := ioutil.WriteFile(snapYaml, []byte(snapYamlContent), 0644)
 	c.Assert(err, check.IsNil)
-	path := buildPath(s.defaultSnapName)
-	c.Assert(s.execCalls["snap build "+path+" -o "+path], check.Equals, 1)
-}
 
-func (s *snapBuildTestSuite) TestLocalSnapReturnsSnapPath(c *check.C) {
-	snapPath, err := LocalSnap(c, s.defaultSnapName)
-
+	outSnap, err := LocalSnap(c, "basic")
 	c.Assert(err, check.IsNil)
-	expected := filepath.Join(buildPath(s.defaultSnapName), s.defaultSnapName+snapFilenameSufix)
-	c.Assert(snapPath, check.Equals, expected)
-}
 
-func (s *snapBuildTestSuite) TestLocalSnapReturnsError(c *check.C) {
-	s.execReturnValue = "Wrong return value"
-	snapPath, err := LocalSnap(c, s.defaultSnapName)
+	c.Check(outSnap, check.Equals, filepath.Join(snapdir, "basic_1.0_all.snap"))
+	stat, err := os.Stat(outSnap)
+	c.Assert(err, check.IsNil)
+	c.Check(stat.Size(), check.Not(check.Equals), 0)
 
-	c.Assert(err, check.NotNil)
-	c.Assert(snapPath, check.Equals, "")
 }

@@ -35,10 +35,26 @@ func RemoveSnapData(snap *snap.Info) error {
 		return err
 	}
 
+	return removeDirs(dirs)
+}
+
+// RemoveSnapCommonData removes the data common between versions of the given snap
+func RemoveSnapCommonData(snap *snap.Info) error {
+	dirs, err := snapCommonDataDirs(snap)
+	if err != nil {
+		return err
+	}
+
+	return removeDirs(dirs)
+}
+
+func removeDirs(dirs []string) error {
 	for _, dir := range dirs {
-		if err := os.RemoveAll(dir); err != nil && !os.IsNotExist(err) {
+		if err := os.RemoveAll(dir); err != nil {
 			return err
 		}
+
+		// Attempt to remove the parent directory as well (ignore any failure)
 		os.Remove(filepath.Dir(dir))
 	}
 
@@ -54,6 +70,19 @@ func snapDataDirs(snap *snap.Info) ([]string, error) {
 	}
 	// then system data
 	found = append(found, snap.DataDir())
+
+	return found, nil
+}
+
+// snapCommonDataDirs returns the list of data directories common between versions of the given snap
+func snapCommonDataDirs(snap *snap.Info) ([]string, error) {
+	// collect the directories, homes first
+	found, err := filepath.Glob(snap.CommonDataHomeDir())
+	if err != nil {
+		return nil, err
+	}
+	// then system data
+	found = append(found, snap.CommonDataDir())
 
 	return found, nil
 }

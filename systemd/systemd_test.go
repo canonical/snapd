@@ -17,10 +17,9 @@
  *
  */
 
-package systemd
+package systemd_test
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -30,8 +29,8 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
 
-	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
+	. "github.com/ubuntu-core/snappy/systemd"
 )
 
 type testreporter struct {
@@ -86,8 +85,8 @@ func (s *SystemdTestSuite) SetUpTest(c *C) {
 }
 
 func (s *SystemdTestSuite) TearDownTest(c *C) {
-	SystemctlCmd = run
-	JournalctlCmd = jctl
+	SystemctlCmd = SystemdRun
+	JournalctlCmd = Jctl
 }
 
 func (s *SystemdTestSuite) myRun(args ...string) (out []byte, err error) {
@@ -114,10 +113,6 @@ func (s *SystemdTestSuite) myJctl(svcs []string) (out []byte, err error) {
 	s.j++
 
 	return out, err
-}
-
-func (s *SystemdTestSuite) errorRun(args ...string) (out []byte, err error) {
-	return nil, &Error{cmd: args, exitCode: 1, msg: []byte("error on error")}
 }
 
 func (s *SystemdTestSuite) TestDaemonReload(c *C) {
@@ -176,15 +171,8 @@ func (s *SystemdTestSuite) TestStatusObj(c *C) {
 }
 
 func (s *SystemdTestSuite) TestStopTimeout(c *C) {
-	oldSteps := stopSteps
-	oldDelay := stopDelay
-	stopSteps = 2
-	stopDelay = time.Millisecond
-	defer func() {
-		stopSteps = oldSteps
-		stopDelay = oldDelay
-	}()
-
+	restore := MockStopStepsStopDelay()
+	defer restore()
 	err := New("", s.rep).Stop("foo", 10*time.Millisecond)
 	c.Assert(err, FitsTypeOf, &Timeout{})
 	c.Check(s.rep.msgs[0], Equals, "Waiting for foo to stop.")
@@ -201,85 +189,6 @@ func (s *SystemdTestSuite) TestEnable(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "enable", "foo"}})
 
-}
-
-const expectedServiceFmt = `[Unit]
-Description=descr
-%s
-X-Snappy=yes
-
-[Service]
-ExecStart=/usr/bin/ubuntu-core-launcher app aa-profile /apps/app/1.0/bin/start
-Restart=on-failure
-WorkingDirectory=/var/apps/app/1.0/
-Environment="SNAP=/apps/app/1.0/" "SNAP_DATA=/var/apps/app/1.0/" "SNAP_NAME=app" "SNAP_VERSION=1.0" "SNAP_REVISION=44" "SNAP_ARCH=%[3]s" "SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:" "SNAP_USER_DATA=/root/apps/app/1.0/"
-ExecStop=/usr/bin/ubuntu-core-launcher app aa-profile /apps/app/1.0/bin/stop
-ExecStopPost=/usr/bin/ubuntu-core-launcher app aa-profile /apps/app/1.0/bin/stop --post
-TimeoutStopSec=10
-%[2]s
-
-[Install]
-WantedBy=multi-user.target
-`
-
-var (
-	expectedAppService  = fmt.Sprintf(expectedServiceFmt, "After=snapd.frameworks.target\nRequires=snapd.frameworks.target", "Type=simple\n", arch.UbuntuArchitecture())
-	expectedDbusService = fmt.Sprintf(expectedServiceFmt, "After=snapd.frameworks.target\nRequires=snapd.frameworks.target", "Type=dbus\nBusName=foo.bar.baz", arch.UbuntuArchitecture())
-)
-
-func (s *SystemdTestSuite) TestGenAppServiceFile(c *C) {
-
-	desc := &ServiceDescription{
-		SnapName:    "app",
-		AppName:     "service",
-		Version:     "1.0",
-		Revision:    44,
-		Description: "descr",
-		SnapPath:    "/apps/app/1.0/",
-		Start:       "bin/start",
-		Stop:        "bin/stop",
-		PostStop:    "bin/stop --post",
-		StopTimeout: time.Duration(10 * time.Second),
-		AaProfile:   "aa-profile",
-		UdevAppName: "app",
-		Type:        "simple",
-	}
-
-	c.Check(New("", nil).GenServiceFile(desc), Equals, expectedAppService)
-}
-
-func (s *SystemdTestSuite) TestGenAppServiceFileRestart(c *C) {
-	for name, cond := range restartMap {
-		desc := &ServiceDescription{
-			SnapName: "app",
-			Restart:  cond,
-		}
-
-		c.Check(New("", nil).GenServiceFile(desc), Matches, `(?ms).*^Restart=`+name+`$.*`, Commentf(name))
-	}
-}
-
-func (s *SystemdTestSuite) TestGenServiceFileWithBusName(c *C) {
-
-	desc := &ServiceDescription{
-		SnapName:    "app",
-		AppName:     "service",
-		Version:     "1.0",
-		Revision:    44,
-		Description: "descr",
-		SnapPath:    "/apps/app/1.0/",
-		Start:       "bin/start",
-		Stop:        "bin/stop",
-		PostStop:    "bin/stop --post",
-		StopTimeout: time.Duration(10 * time.Second),
-		AaProfile:   "aa-profile",
-		BusName:     "foo.bar.baz",
-		UdevAppName: "app",
-		Type:        "dbus",
-	}
-
-	generated := New("", nil).GenServiceFile(desc)
-	c.Assert(generated, Equals, expectedDbusService)
 }
 
 func (s *SystemdTestSuite) TestRestart(c *C) {
@@ -383,17 +292,17 @@ WantedBy=multi-user.target
 }
 
 func (s *SystemdTestSuite) TestRestartCondUnmarshal(c *C) {
-	for cond := range restartMap {
+	for cond := range RestartMap {
 		bs := []byte(cond)
 		var rc RestartCondition
 
 		c.Check(yaml.Unmarshal(bs, &rc), IsNil)
-		c.Check(rc, Equals, restartMap[cond], Commentf(cond))
+		c.Check(rc, Equals, RestartMap[cond], Commentf(cond))
 	}
 }
 
 func (s *SystemdTestSuite) TestRestartCondString(c *C) {
-	for name, cond := range restartMap {
+	for name, cond := range RestartMap {
 		c.Check(cond.String(), Equals, name, Commentf(name))
 	}
 }

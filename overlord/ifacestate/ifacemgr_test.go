@@ -20,10 +20,6 @@
 package ifacestate_test
 
 import (
-	"io/ioutil"
-	"os"
-	"path/filepath"
-	"strconv"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -34,6 +30,7 @@ import (
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/snaptest"
 	"github.com/ubuntu-core/snappy/snappy"
 )
 
@@ -200,28 +197,34 @@ func (s *interfaceManagerSuite) mockIface(c *C, iface interfaces.Interface) {
 }
 
 func (s *interfaceManagerSuite) mockSnap(c *C, yamlText string) *snap.Info {
+	sideInfo := &snap.SideInfo{}
+	snapInfo := snaptest.MockSnap(c, yamlText, sideInfo)
+
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	// Parse the yaml
-	snapInfo, err := snap.InfoFromSnapYaml([]byte(yamlText))
-	c.Assert(err, IsNil)
-	snap.AddImplicitSlots(snapInfo)
-
-	// Create on-disk yaml file (it is read by snapstate)
-	dname := filepath.Join(dirs.SnapSnapsDir, snapInfo.Name(),
-		strconv.Itoa(snapInfo.Revision), "meta")
-	fname := filepath.Join(dname, "snap.yaml")
-	err = os.MkdirAll(dname, 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(fname, []byte(yamlText), 0644)
-	c.Assert(err, IsNil)
 
 	// Put a side info into the state
 	snapstate.Set(s.state, snapInfo.Name(), &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{Revision: snapInfo.Revision}},
+		Sequence: []*snap.SideInfo{sideInfo},
 	})
+	return snapInfo
+}
+
+func (s *interfaceManagerSuite) mockUpdatedSnap(c *C, yamlText string, revision int) *snap.Info {
+	sideInfo := &snap.SideInfo{Revision: revision}
+	snapInfo := snaptest.MockSnap(c, yamlText, sideInfo)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Put the new revision (stored in SideInfo) into the state
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, snapInfo.Name(), &snapst)
+	c.Assert(err, IsNil)
+	snapst.Sequence = append(snapst.Sequence, sideInfo)
+	snapstate.Set(s.state, snapInfo.Name(), &snapst)
+
 	return snapInfo
 }
 
@@ -539,6 +542,58 @@ func (s *interfaceManagerSuite) TestSetupProfilesHonorsDevMode(c *C) {
 	err = task.Get("old-devmode", &oldDevMode)
 	c.Assert(err, IsNil)
 	c.Check(oldDevMode, Equals, false)
+}
+
+// setup-profiles uses the new snap.Info when setting up security for the new
+// snap when it had prior connections and DisconnectSnap() returns it as a part
+// of the affected set.
+func (s *interfaceManagerSuite) TestSetupProfilesUsesFreshSnapInfo(c *C) {
+	// Put the OS and the sample snaps in place.
+	coreSnapInfo := s.mockSnap(c, osSnapYaml)
+	oldSnapInfo := s.mockSnap(c, sampleSnapYaml)
+
+	// Put connection information between the OS snap and the sample snap.
+	// This is done so that DisconnectSnap returns both snaps as "affected"
+	// and so that the previously broken code path is exercised.
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"snap:network ubuntu-core:network": map[string]interface{}{"interface": "network"},
+	})
+	s.state.Unlock()
+
+	// Initialize the manager. This registers both of the snaps and reloads the
+	// connection between them.
+	mgr := s.manager(c)
+
+	// Put a new revision of the sample snap in place.
+	newSnapInfo := s.mockUpdatedSnap(c, sampleSnapYaml, 42)
+
+	// Sanity check, the revisions are different.
+	c.Assert(oldSnapInfo.Revision, Not(Equals), 42)
+	c.Assert(newSnapInfo.Revision, Equals, 42)
+
+	// Run the setup-profiles task for the new revision and let it finish.
+	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
+		Name: newSnapInfo.Name(), Revision: newSnapInfo.Revision})
+	mgr.Ensure()
+	mgr.Wait()
+	mgr.Stop()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the task succeeded.
+	c.Check(change.Status(), Equals, state.DoneStatus)
+
+	// Ensure that both snaps were setup correctly.
+	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
+	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
+	// The sample snap was setup, with the correct new revision.
+	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, newSnapInfo.Name())
+	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Revision, Equals, newSnapInfo.Revision)
+	// The OS snap was setup (because it was affected).
+	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Name(), Equals, coreSnapInfo.Name())
+	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Revision, Equals, coreSnapInfo.Revision)
 }
 
 // The undo handler of the setup-profiles task will honor `old-devmode` that

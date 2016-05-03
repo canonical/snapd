@@ -73,7 +73,7 @@ func (s *SnapTestSuite) TestLocalSnapInstall(c *C) string {
 	c.Check(snapEntries, DeepEquals, []string{"0", "current"})
 
 	snapDataEntries := listDir(c, filepath.Join(dirs.SnapDataDir, fooComposedName))
-	c.Check(snapDataEntries, DeepEquals, []string{"0", "current"})
+	c.Check(snapDataEntries, DeepEquals, []string{"0", "common", "current"})
 
 	return snapPath
 }
@@ -98,7 +98,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallWithBlessedMetadata(c *C) {
 	c.Check(snapEntries, DeepEquals, []string{"40", "current"})
 
 	snapDataEntries := listDir(c, filepath.Join(dirs.SnapDataDir, fooComposedName))
-	c.Check(snapDataEntries, DeepEquals, []string{"40", "current"})
+	c.Check(snapDataEntries, DeepEquals, []string{"40", "common", "current"})
 }
 
 func (s *SnapTestSuite) TestLocalSnapInstallWithBlessedMetadataOverridingName(c *C) {
@@ -151,12 +151,18 @@ assumes: [f1, f2]`)
 	c.Check(err, ErrorMatches, `snap "foo" assumes unsupported features: f1, f2.*`)
 }
 
+func (s *SnapTestSuite) TestLocalSnapInstallProvidedAssumes(c *C) {
+	pkg := makeTestSnapPackage(c, `
+name: foo
+version: 1.0
+assumes: [common-data-dir]`)
+	_, err := (&Overlord{}).Install(pkg, 0, &MockProgressMeter{y: false})
+	c.Check(err, IsNil)
+}
+
 // if the snap asks for accepting a license, and an agreer is provided, but
 // the click has no license, install fails
 func (s *SnapTestSuite) TestLocalSnapInstallNoLicenseFails(c *C) {
-	licenseChecker = func(string) error { return nil }
-	defer func() { licenseChecker = checkLicenseExists }()
-
 	pkg := makeTestSnapPackageFull(c, `
 name: foo
 version: 1.0
@@ -404,6 +410,9 @@ func (s *SnapTestSuite) TestCopyData(c *C) {
 	homeData := filepath.Join(homeDir, appDir, "10")
 	err := os.MkdirAll(homeData, 0755)
 	c.Assert(err, IsNil)
+	homeCommonData := filepath.Join(homeDir, appDir, "common")
+	err = os.MkdirAll(homeCommonData, 0755)
+	c.Assert(err, IsNil)
 
 	snapYamlContent := `name: foo
 `
@@ -415,7 +424,12 @@ func (s *SnapTestSuite) TestCopyData(c *C) {
 	canaryDataFile := filepath.Join(dirs.SnapDataDir, appDir, "10", "canary.txt")
 	err = ioutil.WriteFile(canaryDataFile, canaryData, 0644)
 	c.Assert(err, IsNil)
+	canaryDataFile = filepath.Join(dirs.SnapDataDir, appDir, "common", "canary.common")
+	err = ioutil.WriteFile(canaryDataFile, canaryData, 0644)
+	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(homeData, "canary.home"), canaryData, 0644)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(homeCommonData, "canary.common_home"), canaryData, 0644)
 	c.Assert(err, IsNil)
 
 	snapPath = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
@@ -426,8 +440,20 @@ func (s *SnapTestSuite) TestCopyData(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(content, DeepEquals, canaryData)
 
-	newHomeDataCanaryFile := filepath.Join(homeDir, appDir, "20", "canary.home")
-	content, err = ioutil.ReadFile(newHomeDataCanaryFile)
+	// ensure common data file is still there (even though it didn't get copied)
+	newCanaryDataFile = filepath.Join(dirs.SnapDataDir, appDir, "common", "canary.common")
+	content, err = ioutil.ReadFile(newCanaryDataFile)
+	c.Assert(err, IsNil)
+	c.Assert(content, DeepEquals, canaryData)
+
+	newCanaryDataFile = filepath.Join(homeDir, appDir, "20", "canary.home")
+	content, err = ioutil.ReadFile(newCanaryDataFile)
+	c.Assert(err, IsNil)
+	c.Assert(content, DeepEquals, canaryData)
+
+	// ensure home common data file is still there (even though it didn't get copied)
+	newCanaryDataFile = filepath.Join(homeDir, appDir, "common", "canary.common_home")
+	content, err = ioutil.ReadFile(newCanaryDataFile)
 	c.Assert(err, IsNil)
 	c.Assert(content, DeepEquals, canaryData)
 }
@@ -448,15 +474,21 @@ func (s *SnapTestSuite) TestCopyDataNoUserHomes(c *C) {
 	canaryDataFile := filepath.Join(snap.DataDir(), "canary.txt")
 	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
 	c.Assert(err, IsNil)
+	canaryDataFile = filepath.Join(snap.CommonDataDir(), "canary.common")
+	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
+	c.Assert(err, IsNil)
 
 	snapPath = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
 	snap2, err := (&Overlord{}).InstallWithSideInfo(snapPath, fooSI20, AllowUnauthenticated, nil)
 	c.Assert(err, IsNil)
 	_, err = os.Stat(filepath.Join(snap2.DataDir(), "canary.txt"))
 	c.Assert(err, IsNil)
+	_, err = os.Stat(filepath.Join(snap2.CommonDataDir(), "canary.common"))
+	c.Assert(err, IsNil)
 
 	// sanity atm
 	c.Check(snap.DataDir(), Not(Equals), snap2.DataDir())
+	c.Check(snap.CommonDataDir(), Equals, snap2.CommonDataDir())
 }
 
 func (s *SnapTestSuite) TestSnappyHandleBinariesOnUpgrade(c *C) {
@@ -469,7 +501,7 @@ apps:
 	_, err := (&Overlord{}).InstallWithSideInfo(snapPath, fooSI10, AllowUnauthenticated, nil)
 	c.Assert(err, IsNil)
 
-	// ensure that the binary wrapper file go generated with the right
+	// ensure that the binary wrapper file got generated with the right
 	// path
 	oldSnapBin := filepath.Join(dirs.SnapSnapsDir[len(dirs.GlobalRootDir):], "foo", "10", "bin", "bar")
 	binaryWrapper := filepath.Join(dirs.SnapBinariesDir, "foo.bar")
@@ -588,4 +620,30 @@ apps:
 
 	_, err := (&Overlord{}).InstallWithSideInfo(snapPath, si, 0, &MockProgressMeter{})
 	c.Assert(err, NotNil)
+}
+
+// Test that openSnapFile has correct snap.SideInfo and snap.Info in leaf objects
+// like apps, plugs and slots.
+func (s *SnapTestSuite) TestOpenSnapFile(c *C) {
+	snapYamlContent := `name: foo
+apps:
+ bar:
+  command: bin/bar
+plugs:
+  plug:
+slots:
+ slot:
+`
+	snapPath := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
+	// Use InstallWithSideInfo, this is just a cheap way to call openSnapFile
+	snapInfo, err := (&Overlord{}).InstallWithSideInfo(snapPath, fooSI10, AllowUnauthenticated, nil)
+	c.Assert(err, IsNil)
+
+	// Ensure that side info is correctly stored
+	c.Check(snapInfo.SideInfo, DeepEquals, *fooSI10)
+	// Ensure that all leaf objects link back to the same snapInfo with
+	// sideInfo and not to some copy.
+	c.Check(snapInfo.Apps["bar"].Snap, Equals, snapInfo)
+	c.Check(snapInfo.Plugs["plug"].Snap, Equals, snapInfo)
+	c.Check(snapInfo.Slots["slot"].Snap, Equals, snapInfo)
 }

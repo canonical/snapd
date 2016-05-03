@@ -1,8 +1,11 @@
 Tests: integrationtests
 Restrictions: allow-stderr, isolation-container, rw-build-tree
-Depends: snapd,
-         @builddeps@,
+Depends: @builddeps@,
          bzr,
-         git,
          ca-certificates,
-         golang-golang-x-net-dev
+         git,
+         golang-golang-x-net-dev,
+         snapd,
+         unity,
+         x11-utils,
+         xvfb
