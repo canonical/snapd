@@ -1046,7 +1046,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesTokenExpired(c *C) {
 	c.Assert(err, NotNil)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreGetMustBuy(c *C) {
+func (t *remoteRepoTestSuite) TestUbuntuStoreMustBuy(c *C) {
 	free := map[string]float64{}
 	priced := map[string]float64{"USD": 2.99}
 
@@ -1058,15 +1058,15 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetMustBuy(c *C) {
 	hasInAppPurchase := []*purchase{&inAppPurchase}
 	hasPurchaseAndInAppPurchase := []*purchase{&appPurchase, &inAppPurchase}
 
-	// never need to buy a free snap
-	c.Check(getMustBuy(free, hasNoPurchases), Equals, false)
-	c.Check(getMustBuy(free, hasPurchase), Equals, false)
-	c.Check(getMustBuy(free, hasInAppPurchase), Equals, false)
-	c.Check(getMustBuy(free, hasPurchaseAndInAppPurchase), Equals, false)
+	// Mever need to buy a free snap.
+	c.Check(mustBuy(free, hasNoPurchases), Equals, false)
+	c.Check(mustBuy(free, hasPurchase), Equals, false)
+	c.Check(mustBuy(free, hasInAppPurchase), Equals, false)
+	c.Check(mustBuy(free, hasPurchaseAndInAppPurchase), Equals, false)
 
-	// don't need to buy snaps that have a purchase
-	c.Check(getMustBuy(priced, hasNoPurchases), Equals, true)
-	c.Check(getMustBuy(priced, hasPurchase), Equals, false)
-	c.Check(getMustBuy(priced, hasInAppPurchase), Equals, true)
-	c.Check(getMustBuy(priced, hasPurchaseAndInAppPurchase), Equals, false)
+	// Don't need to buy snaps that have a purchase.
+	c.Check(mustBuy(priced, hasNoPurchases), Equals, true)
+	c.Check(mustBuy(priced, hasPurchase), Equals, false)
+	c.Check(mustBuy(priced, hasInAppPurchase), Equals, true)
+	c.Check(mustBuy(priced, hasPurchaseAndInAppPurchase), Equals, false)
 }
