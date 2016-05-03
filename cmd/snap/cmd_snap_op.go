@@ -32,6 +32,13 @@ import (
 	"github.com/jessevdk/go-flags"
 )
 
+func lastLogStr(logs []string) string {
+	if len(logs) == 0 {
+		return ""
+	}
+	return logs[len(logs)-1]
+}
+
 func wait(client *client.Client, id string) (*client.Change, error) {
 	pb := progress.NewTextProgress()
 	defer func() {
@@ -40,6 +47,7 @@ func wait(client *client.Client, id string) (*client.Change, error) {
 	}()
 
 	var lastID string
+	lastLog := map[string]string{}
 	for {
 		chg, err := client.Change(id)
 		if err != nil {
@@ -52,6 +60,11 @@ func wait(client *client.Client, id string) (*client.Change, error) {
 				continue
 			case t.Progress.Total == 1:
 				pb.Spin(t.Summary)
+				nowLog := lastLogStr(t.Log)
+				if lastLog[t.ID] != nowLog {
+					pb.Notify(nowLog)
+					lastLog[t.ID] = nowLog
+				}
 			case t.ID == lastID:
 				pb.Set(float64(t.Progress.Done))
 			default:

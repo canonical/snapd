@@ -21,6 +21,7 @@ package snap_test
 
 import (
 	"testing"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -891,7 +892,7 @@ apps:
  svc:
    command: svc1
    description: svc one
-   stop-timeout: 25
+   stop-timeout: 25s
    daemon: forking
    stop-command: stop-cmd
    post-stop-command: post-stop-cmd
@@ -905,13 +906,12 @@ apps:
 	c.Assert(err, IsNil)
 	c.Check(info.Apps, DeepEquals, map[string]*snap.AppInfo{
 		"svc": {
-			Snap:        info,
-			Name:        "svc",
-			Command:     "svc1",
-			Daemon:      "forking",
-			RestartCond: systemd.RestartOnAbnormal,
-			// XXX: stop-timeout seems broken in term of parsing
-			StopTimeout:  timeout.Timeout(25),
+			Snap:         info,
+			Name:         "svc",
+			Command:      "svc1",
+			Daemon:       "forking",
+			RestartCond:  systemd.RestartOnAbnormal,
+			StopTimeout:  timeout.Timeout(25 * time.Second),
 			Stop:         "stop-cmd",
 			PostStop:     "post-stop-cmd",
 			Socket:       true,
