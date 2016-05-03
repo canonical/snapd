@@ -255,13 +255,13 @@ func (s *SnapUbuntuStoreRepository) checkStoreResponse(resp *http.Response) {
 // [
 //   {
 //     "open_id": "https://login.staging.ubuntu.com/+id/open_id",
-//     "package_name": "com.ubuntu.developer.dev.appname",
+//     "snap_id": "8nzc1x4iim2xj1g2ul64",
 //     "refundable_until": "2015-07-15 18:46:21",
 //     "state": "Complete"
 //   },
 //   {
 //     "open_id": "https://login.staging.ubuntu.com/+id/open_id",
-//     "package_name": "com.ubuntu.developer.dev.appname",
+//     "snap_id": "8nzc1x4iim2xj1g2ul64",
 //     "item_sku": "item-1-sku",
 //     "purchase_id": "1",
 //     "refundable_until": null,
@@ -269,7 +269,7 @@ func (s *SnapUbuntuStoreRepository) checkStoreResponse(resp *http.Response) {
 //   },
 //   {
 //     "open_id": "https://login.staging.ubuntu.com/+id/open_id",
-//     "package_name": "com.ubuntu.developer.dev.otherapp",
+//     "snap_id": "12jdhg1j2dgj12dgk1jh",
 //     "refundable_until": "2015-07-17 11:33:29",
 //     "state": "Complete"
 //   }
