@@ -1045,3 +1045,28 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesTokenExpired(c *C) {
 	c.Assert(helloWorldPurchases, IsNil)
 	c.Assert(err, NotNil)
 }
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreMustBuy(c *C) {
+	free := map[string]float64{}
+	priced := map[string]float64{"USD": 2.99}
+
+	appPurchase := purchase{}
+	inAppPurchase := purchase{ItemSKU: "1"}
+
+	hasNoPurchases := []*purchase{}
+	hasPurchase := []*purchase{&appPurchase}
+	hasInAppPurchase := []*purchase{&inAppPurchase}
+	hasPurchaseAndInAppPurchase := []*purchase{&appPurchase, &inAppPurchase}
+
+	// Never need to buy a free snap.
+	c.Check(mustBuy(free, hasNoPurchases), Equals, false)
+	c.Check(mustBuy(free, hasPurchase), Equals, false)
+	c.Check(mustBuy(free, hasInAppPurchase), Equals, false)
+	c.Check(mustBuy(free, hasPurchaseAndInAppPurchase), Equals, false)
+
+	// Don't need to buy snaps that have a purchase.
+	c.Check(mustBuy(priced, hasNoPurchases), Equals, true)
+	c.Check(mustBuy(priced, hasPurchase), Equals, false)
+	c.Check(mustBuy(priced, hasInAppPurchase), Equals, true)
+	c.Check(mustBuy(priced, hasPurchaseAndInAppPurchase), Equals, false)
+}
