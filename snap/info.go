@@ -249,6 +249,12 @@ func (app *AppInfo) WrapperPath() string {
 	return filepath.Join(dirs.SnapBinariesDir, binName)
 }
 
+// Invocation returns the launcher command line to use when invoking the app binary.
+func (app *AppInfo) Invocation() string {
+	securityTag := app.SecurityTag()
+	return fmt.Sprintf("ubuntu-core-launcher %s %s %s", securityTag, securityTag, filepath.Join(app.Snap.MountDir(), app.Command))
+}
+
 // ServiceFile returns the systemd service file path for the daemon app.
 func (app *AppInfo) ServiceFile() string {
 	return filepath.Join(dirs.SnapServicesDir, app.SecurityTag()+".service")
