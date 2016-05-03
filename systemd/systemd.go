@@ -39,7 +39,7 @@ var (
 	// the output of "show" must match this for Stop to be done:
 	isStopDone = regexp.MustCompile(`(?m)\AActiveState=(?:failed|inactive)$`).Match
 	// how many times should Stop check show's output between calls to Notify
-	stopSteps = 4 * 30
+	stopSteps = 4 * 10
 	// how much time should Stop wait between calls to show
 	stopDelay = 250 * time.Millisecond
 )
@@ -282,9 +282,21 @@ func (s *systemd) Stop(serviceName string, timeout time.Duration) error {
 	// and now wait for it to actually stop
 	stopped := false
 	max := time.Now().Add(timeout)
+
+	steps := stopSteps
+	toutSteps := int(timeout / stopDelay)
+	if toutSteps < steps {
+		steps = toutSteps
+	}
+	if steps < 1 {
+		steps = 1
+	}
+
 	for time.Now().Before(max) {
 		s.reporter.Notify(fmt.Sprintf("Waiting for %s to stop.", serviceName))
-		for i := 0; i < stopSteps; i++ {
+		for i := 0; i < steps; i++ {
+			time.Sleep(stopDelay)
+
 			bs, err := SystemctlCmd("show", "--property=ActiveState", serviceName)
 			if err != nil {
 				return err
@@ -293,7 +305,6 @@ func (s *systemd) Stop(serviceName string, timeout time.Duration) error {
 				stopped = true
 				break
 			}
-			time.Sleep(stopDelay)
 		}
 		if stopped {
 			return nil
