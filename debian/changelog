@@ -1,3 +1,65 @@
+snapd (2.0.3) xenial; urgency=medium
+
+  * New upstream micro release:
+    - integration-tests, debian/tests: add unity snap autopkg test
+    - snappy: introduce first feature flag for assumes: common-data-dir
+    - timeout,snap: add YAML unmarshal function for timeout.Timeout
+    - many: go into state.Retry state when unmounting a snap fails.
+      (LP: #1571721, #1575399)
+    - daemon,client,cmd/snap: improve output after snap
+      install/refresh/remove (LP: #1574830)
+    - integration-tests, debian/tests: add test for home interface
+    - interfaces,overlord: support unversioned data
+    - interfaces/builtin: improve the bluez interface
+    - cmd: don't include the unit tests when building with go test -c
+      for integration tests
+    - integration-tests: teach some new trick to the fake store,
+      reenable the app refresh test
+    - many: move with some simplifications test snap building to
+      snap/snaptest
+    - asserts: define type for revision related errors
+    - snap/snaptest,daemon,overlord/ifacestate,overlord/snapstate: unify
+      mocking snaps behind MockSnap
+    - snappy: fix openSnapFile's handling of sideInfo
+    - daemon: improve snap sideload form handling
+    - snap: add short and long description to the man-page
+      (LP: #1570280)
+    - snappy: remove unused SetProperty
+    - snappy: use more accurate test data
+    - integration-tests: add a integration test about remove removing
+      all revisions
+    - overlord/snapstate: make "snap remove" remove all revisions of a
+      snap (LP: #1571710)
+    - integration-tests: re-enable a bunch of integration tests
+    - snappy: remove unused dbus code
+    - overlord/ifacestate: fix setup-profiles to use new snap revision
+      for setup (LP: #1572463)
+    - integration-tests: add regression test for auth bug LP:#1571491
+    - client, snap: remove obsolete TypeCore which was used in the old
+      SystemImage days
+    - integration-tests: add apparmor test
+    - cmd: don't perform type assertion when we know error to be nil
+    - client: list correct snap types
+    - intefaces/builtin: allow getsockname on connected x11 plugs
+      (LP: #1574526)
+    - daemon,overlord/snapstate: read name out of sideloaded snap early,
+      improved change summary
+    - overlord: keep tasks unlinked from a change hidden, prune them
+    - integration-tests: snap list on fresh boot is good again
+    - integration-tests: add partial term to the find test
+    - integration-tests: changed default release to 16
+    - integration-tests: add regression test for snaps not present after
+      reboot
+    - integration-tests: network interface
+    - integration-tests: add proxy related environment variables to
+      snapd env file
+    - README.md: snappy => snap
+    - etc: trivial typo fix (LP:#1569892)
+    - debian: remove unneeded /var/lib/snapd/apparmor/additional
+      directory (LP: #1569577)
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 03 May 2016 07:51:57 +0200
+
 snapd (2.0.2) xenial; urgency=medium
 
   * New upstream release:
