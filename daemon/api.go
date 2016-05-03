@@ -434,7 +434,6 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		if err != nil {
 			return InternalError("unable to serialize snap %q (r%d): %v", name, rev, err)
 		}
-
 		raw := json.RawMessage(data)
 		results[i] = &raw
 	}
