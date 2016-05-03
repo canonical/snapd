@@ -28,6 +28,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/snapenv"
@@ -92,7 +93,10 @@ export HOME="$SNAP_USER_DATA"
 	}
 	wrapperData.EnvVars = strings.Join(envVars, "\n")
 
-	t.Execute(&templateOut, wrapperData)
+	if err := t.Execute(&templateOut, wrapperData); err != nil {
+		// this can never happen, except we forget a variable
+		logger.Panicf("Unable to execute template: %v", err)
+	}
 
 	return templateOut.String(), nil
 }
