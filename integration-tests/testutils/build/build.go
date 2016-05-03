@@ -39,6 +39,8 @@ const (
 	listCmd         = "go list ./..."
 	buildTestCmdFmt = "go test%s -c ./integration-tests/tests"
 
+	snapbuildPkg = "./integration-tests/testutils/build/snapbuild"
+
 	// IntegrationTestName is the name of the test binary.
 	IntegrationTestName = "integration.test"
 	defaultGoArm        = "7"
@@ -82,6 +84,7 @@ func Assets(cfg *Config) {
 		buildSnapd(cfg.Arch, coverpkg)
 		buildSnapCLI(cfg.Arch, coverpkg)
 	}
+	buildSnapbuild(cfg.Arch)
 	buildTests(cfg.Arch, cfg.TestBuildTags)
 }
 
@@ -97,6 +100,14 @@ func buildSnapCLI(arch, coverpkg string) {
 
 	buildSnapCliCmd := getBinaryBuildCmd("snap", coverpkg)
 	goCall(arch, buildSnapCliCmd)
+}
+
+func buildSnapbuild(arch string) {
+	fmt.Println("Building snapbuild...")
+
+	buildSnapbuildCmd := "go build" +
+		" -o " + filepath.Join(testsBinDir, filepath.Base(snapbuildPkg)) + " " + snapbuildPkg
+	goCall(arch, buildSnapbuildCmd)
 }
 
 func buildTests(arch, testBuildTags string) {

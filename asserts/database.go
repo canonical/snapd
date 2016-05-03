@@ -89,6 +89,25 @@ var (
 	ErrNotFound = errors.New("assertion not found")
 )
 
+// RevisionError indicates a revision improperly used for an operation.
+type RevisionError struct {
+	Used, Current int
+}
+
+func (e *RevisionError) Error() string {
+	if e.Used < 0 || e.Current < 0 {
+		// TODO: message may need tweaking once there's a use.
+		return fmt.Sprintf("assertion revision is unknown")
+	}
+	if e.Used == e.Current {
+		return fmt.Sprintf("revision %d is already the current revision", e.Used)
+	}
+	if e.Used < e.Current {
+		return fmt.Sprintf("revision %d is older than current revision %d", e.Used, e.Current)
+	}
+	return fmt.Sprintf("revision %d is more recent than current revision %d", e.Used, e.Current)
+}
+
 // A RODatabase exposes read-only access to an assertion database.
 type RODatabase interface {
 	// Find an assertion based on arbitrary headers.

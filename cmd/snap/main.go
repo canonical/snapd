@@ -31,11 +31,12 @@ import (
 	"github.com/jessevdk/go-flags"
 )
 
-// Stdout is the standard output stream, it is redirected for testing.
-var Stdout io.Writer = os.Stdout
-
-// Stderr is the standard error stream, it is redirected for testing.
-var Stderr io.Writer = os.Stderr
+// Standard streams, redirected for testing.
+var (
+	Stdin  io.Reader = os.Stdin
+	Stdout io.Writer = os.Stdout
+	Stderr io.Writer = os.Stderr
+)
 
 type options struct {
 	// No global options yet

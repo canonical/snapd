@@ -21,6 +21,7 @@ package daemon
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -30,6 +31,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 
@@ -37,7 +39,6 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/interfaces"
-	"github.com/ubuntu-core/snappy/overlord"
 	"github.com/ubuntu-core/snappy/overlord/auth"
 	"github.com/ubuntu-core/snappy/overlord/ifacestate"
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
@@ -47,7 +48,6 @@ import (
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
 	"github.com/ubuntu-core/snappy/store"
-	"time"
 )
 
 var api = []*Command{
@@ -56,6 +56,7 @@ var api = []*Command{
 	loginCmd,
 	logoutCmd,
 	appIconCmd,
+	findCmd,
 	snapsCmd,
 	snapCmd,
 	//FIXME: renenable config for GA
@@ -97,6 +98,12 @@ var (
 		Path:   "/v2/icons/{name}/icon",
 		UserOK: true,
 		GET:    appIconGet,
+	}
+
+	findCmd = &Command{
+		Path:   "/v2/find",
+		UserOK: true,
+		GET:    searchStore,
 	}
 
 	snapsCmd = &Command{
@@ -196,19 +203,29 @@ func loginUser(c *Command, r *http.Request) Response {
 	}
 
 	discharge, err := store.DischargeAuthCaveat(loginData.Username, loginData.Password, macaroon, loginData.Otp)
-	if err == store.ErrAuthenticationNeeds2fa {
-		twofactorRequiredResponse := &resp{
+	switch err {
+	case store.ErrAuthenticationNeeds2fa:
+		return SyncResponse(&resp{
 			Type: ResponseTypeError,
 			Result: &errorResult{
 				Kind:    errorKindTwoFactorRequired,
-				Message: store.ErrAuthenticationNeeds2fa.Error(),
+				Message: err.Error(),
 			},
 			Status: http.StatusUnauthorized,
-		}
-		return SyncResponse(twofactorRequiredResponse, nil)
-	}
-	if err != nil {
+		}, nil)
+	case store.Err2faFailed:
+		return SyncResponse(&resp{
+			Type: ResponseTypeError,
+			Result: &errorResult{
+				Kind:    errorKindTwoFactorFailed,
+				Message: err.Error(),
+			},
+			Status: http.StatusUnauthorized,
+		}, nil)
+	default:
 		return Unauthorized(err.Error())
+	case nil:
+		// continue
 	}
 
 	overlord := c.d.overlord
@@ -357,6 +374,48 @@ func webify(result map[string]interface{}, resource string) map[string]interface
 	return result
 }
 
+func searchStore(c *Command, r *http.Request) Response {
+	route := c.d.router.Get(snapCmd.Path)
+	if route == nil {
+		return InternalError("router can't find route for snaps")
+	}
+
+	query := r.URL.Query()
+
+	auther, err := c.d.auther(r)
+	if err != nil && err != auth.ErrInvalidAuth {
+		return InternalError("%v", err)
+	}
+
+	remoteRepo := newRemoteRepo()
+	found, err := remoteRepo.FindSnaps(query.Get("q"), query.Get("channel"), auther)
+	if err != nil {
+		return InternalError("%v", err)
+	}
+
+	meta := &Meta{
+		SuggestedCurrency: remoteRepo.SuggestedCurrency(),
+	}
+
+	results := make([]*json.RawMessage, len(found))
+	for i, x := range found {
+		resource := ""
+		url, err := route.URL("name", x.Name())
+		if err == nil {
+			resource = url.String()
+		}
+
+		data, err := json.Marshal(webify(mapSnap(nil, false, x), resource))
+		if err != nil {
+			return InternalError("%v", err)
+		}
+		raw := json.RawMessage(data)
+		results[i] = &raw
+	}
+
+	return SyncResponse(results, meta)
+}
+
 // plural!
 func getSnapsInfo(c *Command, r *http.Request) Response {
 	route := c.d.router.Get(snapCmd.Path)
@@ -369,6 +428,7 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 
 	var includeStore, includeLocal bool
 	if len(query["sources"]) > 0 {
+		// XXX use query.Get to make this easier to follow
 		for _, v := range strings.Split(query["sources"][0], ",") {
 			if v == "store" {
 				includeStore = true
@@ -509,11 +569,9 @@ type snapInstruction struct {
 	LeaveOld bool         `json:"leave-old"`
 	License  *licenseData `json:"license"`
 
-	// The field below should not be unmarshalled into. Do not export them.
-	pkg    string
+	// The fields below should not be unmarshalled into. Do not export them.
+	snap   string
 	userID int
-
-	overlord *overlord.Overlord
 }
 
 // Agreed is part of the progress.Meter interface (q.v.)
@@ -532,83 +590,68 @@ var snapstateUpdate = snapstate.Update
 var snapstateInstallPath = snapstate.InstallPath
 var snapstateGet = snapstate.Get
 
-func waitChange(chg *state.Change) error {
-	select {
-	case <-chg.Ready():
-	}
-	// TODO case <-daemon.Dying():
-	st := chg.State()
-	st.Lock()
-	defer st.Unlock()
-	return chg.Err()
-}
+var errNothingToInstall = errors.New("nothing to install")
 
-func ensureUbuntuCore(chg *state.Change, userID int) error {
+func ensureUbuntuCore(st *state.State, targetSnap string, userID int) (*state.TaskSet, error) {
+	ubuntuCore := "ubuntu-core"
+
+	if targetSnap == ubuntuCore {
+		return nil, errNothingToInstall
+	}
+
 	var ss snapstate.SnapState
 
-	ubuntuCore := "ubuntu-core"
-	err := snapstateGet(chg.State(), ubuntuCore, &ss)
+	err := snapstateGet(st, ubuntuCore, &ss)
 	if err != state.ErrNoState {
-		return err
+		return nil, err
 	}
 
-	// FIXME: workaround because we are not fully state based yet
-	installed, err := (&snappy.Overlord{}).Installed()
-	snaps := snappy.FindSnapsByName(ubuntuCore, installed)
-	if len(snaps) > 0 {
-		return nil
-	}
-
-	return installSnap(chg, ubuntuCore, "stable", userID, 0)
+	return snapstateInstall(st, ubuntuCore, "stable", userID, 0)
 }
 
-func installSnap(chg *state.Change, name, channel string, userID int, flags snappy.InstallFlags) error {
-	st := chg.State()
-	ts, err := snapstateInstall(st, name, channel, userID, flags)
-	if err != nil {
-		return err
+func withEnsureUbuntuCore(st *state.State, targetSnap string, userID int, install func() (*state.TaskSet, error)) ([]*state.TaskSet, error) {
+	ubuCoreTs, err := ensureUbuntuCore(st, targetSnap, userID)
+	if err != nil && err != errNothingToInstall {
+		return nil, err
 	}
 
-	// ensure that each of our task runs after the existing tasks
-	chgts := state.NewTaskSet(chg.Tasks()...)
-	for _, t := range ts.Tasks() {
-		t.WaitAll(chgts)
-	}
-	chg.AddAll(ts)
-
-	return nil
-}
-
-func (inst *snapInstruction) install() (*state.Change, error) {
-	flags := snappy.DoInstallGC
-	if inst.LeaveOld {
-		flags = 0
-	}
-	msg := fmt.Sprintf(i18n.G("Install %q snap"), inst.pkg)
-	if inst.Channel != "stable" && inst.Channel != "" {
-		msg = fmt.Sprintf(i18n.G("Install %q snap from %q channel"), inst.pkg, inst.Channel)
-	}
-	if inst.DevMode {
-		flags |= snappy.DeveloperMode
-	}
-	st := inst.overlord.State()
-	st.Lock()
-	chg := st.NewChange("install-snap", msg)
-	if inst.pkg != "ubuntu-core" {
-		if err := ensureUbuntuCore(chg, inst.userID); err != nil {
-			st.Unlock()
-			return nil, err
-		}
-	}
-	err := installSnap(chg, inst.pkg, inst.Channel, inst.userID, flags)
-	st.Unlock()
+	ts, err := install()
 	if err != nil {
 		return nil, err
 	}
 
-	st.EnsureBefore(0)
+	// ensure main install waits on ubuntu core install
+	if ubuCoreTs != nil {
+		ts.WaitAll(ubuCoreTs)
+		return []*state.TaskSet{ubuCoreTs, ts}, nil
+	}
 
-	return chg, nil
+	return []*state.TaskSet{ts}, nil
+}
+
+func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+	flags := snappy.DoInstallGC
+	if inst.LeaveOld {
+		flags = 0
+	}
+	if inst.DevMode {
+		flags |= snappy.DeveloperMode
+	}
+
+	tsets, err := withEnsureUbuntuCore(st, inst.snap, inst.userID,
+		func() (*state.TaskSet, error) {
+			return snapstateInstall(st, inst.snap, inst.Channel, inst.userID, flags)
+		},
+	)
+	if err != nil {
+		return "", nil, err
+	}
+
+	msg := fmt.Sprintf(i18n.G("Install %q snap"), inst.snap)
+	if inst.Channel != "stable" && inst.Channel != "" {
+		msg = fmt.Sprintf(i18n.G("Install %q snap from %q channel"), inst.snap, inst.Channel)
+	}
+	return msg, tsets, nil
 
 	// FIXME: handle license agreement need to happen in the above
 	//        code
@@ -623,138 +666,85 @@ func (inst *snapInstruction) install() (*state.Change, error) {
 	*/
 }
 
-func (inst *snapInstruction) update() (*state.Change, error) {
+func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 	flags := snappy.DoInstallGC
 	if inst.LeaveOld {
 		flags = 0
 	}
-	state := inst.overlord.State()
-	state.Lock()
-	msg := fmt.Sprintf(i18n.G("Refresh %q snap"), inst.pkg)
-	if inst.Channel != "stable" && inst.Channel != "" {
-		msg = fmt.Sprintf(i18n.G("Refresh %q snap from %q channel"), inst.pkg, inst.Channel)
-	}
-	chg := state.NewChange("refresh-snap", msg)
-	ts, err := snapstateUpdate(state, inst.pkg, inst.Channel, inst.userID, flags)
-	if err == nil {
-		chg.AddAll(ts)
-	}
-	state.Unlock()
+
+	ts, err := snapstateUpdate(st, inst.snap, inst.Channel, inst.userID, flags)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 
-	state.EnsureBefore(0)
+	msg := fmt.Sprintf(i18n.G("Refresh %q snap"), inst.snap)
+	if inst.Channel != "stable" && inst.Channel != "" {
+		msg = fmt.Sprintf(i18n.G("Refresh %q snap from %q channel"), inst.snap, inst.Channel)
+	}
 
-	return chg, nil
+	return msg, []*state.TaskSet{ts}, nil
 }
 
-func (inst *snapInstruction) remove() (*state.Change, error) {
+func snapRemove(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 	flags := snappy.DoRemoveGC
 	if inst.LeaveOld {
 		flags = 0
 	}
-	state := inst.overlord.State()
-	state.Lock()
-	msg := fmt.Sprintf(i18n.G("Remove %q snap"), inst.pkg)
-	chg := state.NewChange("remove-snap", msg)
-	ts, err := snapstate.Remove(state, inst.pkg, flags)
-	if err == nil {
-		chg.AddAll(ts)
-	}
-	state.Unlock()
+	ts, err := snapstate.Remove(st, inst.snap, flags)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 
-	state.EnsureBefore(0)
-
-	return chg, nil
+	msg := fmt.Sprintf(i18n.G("Remove %q snap"), inst.snap)
+	return msg, []*state.TaskSet{ts}, nil
 }
 
-func (inst *snapInstruction) rollback() (*state.Change, error) {
-	state := inst.overlord.State()
-	state.Lock()
-	msg := fmt.Sprintf(i18n.G("Rollback %q snap"), inst.pkg)
-	chg := state.NewChange("rollback-snap", msg)
+func snapRollback(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 	// use previous version
 	ver := ""
-	ts, err := snapstate.Rollback(state, inst.pkg, ver)
-	if err == nil {
-		chg.AddAll(ts)
-	}
-	state.Unlock()
+	ts, err := snapstate.Rollback(st, inst.snap, ver)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 
-	state.EnsureBefore(0)
-
-	return chg, nil
+	msg := fmt.Sprintf(i18n.G("Rollback %q snap"), inst.snap)
+	return msg, []*state.TaskSet{ts}, nil
 }
 
-func (inst *snapInstruction) activate() (*state.Change, error) {
-	state := inst.overlord.State()
-	state.Lock()
-	msg := fmt.Sprintf(i18n.G("Activate %q snap"), inst.pkg)
-	chg := state.NewChange("activate-snap", msg)
-	ts, err := snapstate.Activate(state, inst.pkg)
-	if err == nil {
-		chg.AddAll(ts)
-	}
-	state.Unlock()
+func snapActivate(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+	ts, err := snapstate.Activate(st, inst.snap)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 
-	state.EnsureBefore(0)
-
-	return chg, nil
+	msg := fmt.Sprintf(i18n.G("Activate %q snap"), inst.snap)
+	return msg, []*state.TaskSet{ts}, nil
 }
 
-func (inst *snapInstruction) deactivate() (*state.Change, error) {
-	state := inst.overlord.State()
-	state.Lock()
-	msg := fmt.Sprintf(i18n.G("Deactivate %q snap"), inst.pkg)
-	chg := state.NewChange("deactivate-snap", msg)
-	ts, err := snapstate.Deactivate(state, inst.pkg)
-	if err == nil {
-		chg.AddAll(ts)
-	}
-	state.Unlock()
+func snapDeactivate(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+	ts, err := snapstate.Deactivate(st, inst.snap)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 
-	state.EnsureBefore(0)
-
-	return chg, nil
+	msg := fmt.Sprintf(i18n.G("Deactivate %q snap"), inst.snap)
+	return msg, []*state.TaskSet{ts}, nil
 }
 
-func (inst *snapInstruction) dispatch() func() (*state.Change, error) {
-	switch inst.Action {
-	case "install":
-		return inst.install
-	case "refresh":
-		return inst.update
-	case "remove":
-		return inst.remove
-	case "rollback":
-		return inst.rollback
-	case "activate":
-		return inst.activate
-	case "deactivate":
-		return inst.deactivate
-	default:
-		return nil
-	}
+type snapActionFunc func(*snapInstruction, *state.State) (string, []*state.TaskSet, error)
+
+var snapInstructionDispTable = map[string]snapActionFunc{
+	"install":    snapInstall,
+	"refresh":    snapUpdate,
+	"remove":     snapRemove,
+	"rollback":   snapRollback,
+	"activate":   snapActivate,
+	"deactivate": snapDeactivate,
 }
 
-func pkgActionDispatchImpl(inst *snapInstruction) func() (*state.Change, error) {
-	return inst.dispatch()
+func (inst *snapInstruction) dispatch() snapActionFunc {
+	return snapInstructionDispTable[inst.Action]
 }
-
-var pkgActionDispatch = pkgActionDispatchImpl
 
 func postSnap(c *Command, r *http.Request) Response {
 	route := c.d.router.Get(stateChangeCmd.Path)
@@ -770,9 +760,9 @@ func postSnap(c *Command, r *http.Request) Response {
 
 	state := c.d.overlord.State()
 	state.Lock()
-	user, err := UserFromRequest(state, r)
-	state.Unlock()
+	defer state.Unlock()
 
+	user, err := UserFromRequest(state, r)
 	if err == nil {
 		inst.userID = user.ID
 	} else if err != auth.ErrInvalidAuth {
@@ -780,20 +770,30 @@ func postSnap(c *Command, r *http.Request) Response {
 	}
 
 	vars := muxVars(r)
-	inst.pkg = vars["name"]
-	inst.overlord = c.d.overlord
+	inst.snap = vars["name"]
 
-	f := pkgActionDispatch(&inst)
-	if f == nil {
+	impl := inst.dispatch()
+	if impl == nil {
 		return BadRequest("unknown action %s", inst.Action)
 	}
 
-	chg, err := f()
+	msg, tsets, err := impl(&inst, state)
 	if err != nil {
-		return InternalError("can't %s %q: %v", inst.Action, inst.pkg, err)
+		return InternalError("cannot %s %q: %v", inst.Action, inst.snap, err)
 	}
 
+	chg := newChange(state, inst.Action+"-snap", msg, tsets)
+	state.EnsureBefore(0)
+
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+}
+
+func newChange(st *state.State, kind, summary string, tsets []*state.TaskSet) *state.Change {
+	chg := st.NewChange(kind, summary)
+	for _, ts := range tsets {
+		chg.AddAll(ts)
+	}
+	return chg
 }
 
 const maxReadBuflen = 1024 * 1024
@@ -804,7 +804,6 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 		return InternalError("cannot find route for change")
 	}
 
-	body := r.Body
 	contentType := r.Header.Get("Content-Type")
 
 	if !strings.HasPrefix(contentType, "multipart/") {
@@ -828,80 +827,90 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 		flags |= snappy.DeveloperMode
 	}
 
-	// form.File is a map of arrays of *FileHeader things
-	// we just allow one (for now at least)
+	// find the file for the "snap" form field
+	var snapBody multipart.File
+	var origPath string
 out:
-	for _, v := range form.File {
-		for i := range v {
-			body, err = v[i].Open()
+	for name, fheaders := range form.File {
+		if name != "snap" {
+			continue
+		}
+		for _, fheader := range fheaders {
+			snapBody, err = fheader.Open()
+			origPath = fheader.Filename
 			if err != nil {
-				return BadRequest("cannot open POST form file: %v", err)
+				return BadRequest(`cannot open uploaded "snap" file: %v`, err)
 			}
-			defer body.Close()
+			defer snapBody.Close()
 
 			break out
 		}
 	}
 	defer form.RemoveAll()
 
+	if snapBody == nil {
+		return BadRequest(`cannot find "snap" file field in provided multipart/form-data payload`)
+	}
+
 	tmpf, err := ioutil.TempFile("", "snapd-sideload-pkg-")
 	if err != nil {
 		return InternalError("cannot create temporary file: %v", err)
 	}
 
-	if _, err := io.Copy(tmpf, body); err != nil {
+	if _, err := io.Copy(tmpf, snapBody); err != nil {
 		os.Remove(tmpf.Name())
 		return InternalError("cannot copy request into temporary file: %v", err)
 	}
+	tmpf.Sync()
 
-	snap := tmpf.Name()
+	tempPath := tmpf.Name()
 
-	origPath := ""
 	if len(form.Value["snap-path"]) > 0 {
 		origPath = form.Value["snap-path"][0]
 	}
 
-	info, err := readSnapInfo(snap)
+	info, err := readSnapInfo(tempPath)
 	if err != nil {
 		return InternalError("cannot read snap file: %v", err)
 	}
 	snapName := info.Name()
 
-	state := c.d.overlord.State()
-	state.Lock()
-	defer state.Unlock()
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
 
-	msg := fmt.Sprintf(i18n.G("Install %q snap from snap file"), snapName)
+	msg := fmt.Sprintf(i18n.G("Install %q snap from file"), snapName)
 	if origPath != "" {
-		msg = fmt.Sprintf(i18n.G("Install %q snap from snap file %q"), snapName, origPath)
+		msg = fmt.Sprintf(i18n.G("Install %q snap from file %q"), snapName, origPath)
 	}
-	chg := state.NewChange("install-snap", msg)
 
 	var userID int
-	user, err := UserFromRequest(state, r)
+	user, err := UserFromRequest(st, r)
 	if err == nil {
 		userID = user.ID
 	} else if err != auth.ErrInvalidAuth {
 		return InternalError("%v", err)
 	}
 
-	err = ensureUbuntuCore(chg, userID)
-	if err == nil {
-		ts, err := snapstateInstallPath(state, snapName, snap, "", flags)
-		if err == nil {
-			chg.AddAll(ts)
-		}
+	tsets, err := withEnsureUbuntuCore(st, snapName, userID,
+		func() (*state.TaskSet, error) {
+			return snapstateInstallPath(st, snapName, tempPath, "", flags)
+		},
+	)
+	if err != nil {
+		return InternalError("cannot install snap file: %v", err)
 	}
+
+	chg := newChange(st, "install-snap", msg, tsets)
+	chg.Set("api-data", map[string]string{"snap-name": snapName})
 
 	go func() {
 		// XXX this needs to be a task in the manager; this is a hack to keep this branch smaller
 		<-chg.Ready()
-		os.Remove(snap)
+		os.Remove(tempPath)
 	}()
-	if err != nil {
-		return InternalError("cannot install snap file: %v", err)
-	}
-	state.EnsureBefore(0)
+
+	st.EnsureBefore(0)
 
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }
@@ -912,7 +921,7 @@ func readSnapInfoImpl(snapPath string) (*snap.Info, error) {
 	if err != nil {
 		return nil, err
 	}
-	return snapf.Info()
+	return snap.ReadInfoFromSnapFile(snapf, nil)
 }
 
 var readSnapInfo = readSnapInfoImpl
@@ -1003,7 +1012,7 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 		return BadRequest("at least one plug and slot is required")
 	}
 
-	var change *state.Change
+	var summary string
 	var taskset *state.TaskSet
 	var err error
 
@@ -1013,22 +1022,18 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 
 	switch a.Action {
 	case "connect":
-		summary := fmt.Sprintf("Connect %s:%s to %s:%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
-		change = state.NewChange("connect-snap", summary)
+		summary = fmt.Sprintf("Connect %s:%s to %s:%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 		taskset, err = ifacestate.Connect(state, a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 	case "disconnect":
-		summary := fmt.Sprintf("Disconnect %s:%s from %s:%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
-		change = state.NewChange("disconnect-snap", summary)
+		summary = fmt.Sprintf("Disconnect %s:%s from %s:%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 		taskset, err = ifacestate.Disconnect(state, a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 	}
-
-	if err == nil {
-		change.AddAll(taskset)
-	}
-
 	if err != nil {
 		return BadRequest("%v", err)
 	}
+
+	change := state.NewChange(a.Action+"-snap", summary)
+	change.AddAll(taskset)
 
 	state.EnsureBefore(0)
 
@@ -1093,6 +1098,8 @@ type changeInfo struct {
 
 	SpawnTime time.Time  `json:"spawn-time,omitempty"`
 	ReadyTime *time.Time `json:"ready-time,omitempty"`
+
+	Data map[string]*json.RawMessage `json:"data,omitempty"`
 }
 
 type taskInfo struct {
@@ -1154,6 +1161,11 @@ func change2changeInfo(chg *state.Change) *changeInfo {
 		taskInfos[j] = taskInfo
 	}
 	chgInfo.Tasks = taskInfos
+
+	var data map[string]*json.RawMessage
+	if chg.Get("api-data", &data) == nil {
+		chgInfo.Data = data
+	}
 
 	return chgInfo
 }

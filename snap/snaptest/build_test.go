@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,7 +17,7 @@
  *
  */
 
-package snappy
+package snaptest_test
 
 import (
 	"fmt"
@@ -30,6 +30,8 @@ import (
 	"syscall"
 
 	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/snaptest"
 	"github.com/ubuntu-core/snappy/testutil"
 
 	. "gopkg.in/check.v1"
@@ -100,43 +102,15 @@ printf "hello world"
 func (s *BuildTestSuite) TestBuildNoManifestFails(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "")
 	c.Assert(os.Remove(filepath.Join(sourceDir, "meta", "snap.yaml")), IsNil)
-	_, err := BuildSquashfsSnap(sourceDir, "")
+	_, err := snaptest.BuildSquashfsSnap(sourceDir, "")
 	c.Assert(err, NotNil) // XXX maybe make the error more explicit
-}
-
-func (s *BuildTestSuite) TestBuildManifestRequiresMissingLicense(c *C) {
-	sourceDir := makeExampleSnapSourceDir(c, `name: hello
-version: 1.0.1
-architectures: ["i386", "amd64"]
-integration:
- app:
-  apparmor-profile: meta/hello.apparmor
-license-agreement: explicit
-`)
-	_, err := BuildSquashfsSnap(sourceDir, "")
-	c.Assert(err, NotNil) // XXX maybe make the error more explicit
-}
-
-func (s *BuildTestSuite) TestBuildManifestRequiresBlankLicense(c *C) {
-	sourceDir := makeExampleSnapSourceDir(c, `name: hello
-version: 1.0.1
-architectures: ["i386", "amd64"]
-integration:
- app:
-  apparmor-profile: meta/hello.apparmor
-license-agreement: explicit
-`)
-	lic := filepath.Join(sourceDir, "meta", "license.txt")
-	ioutil.WriteFile(lic, []byte("\n"), 0755)
-	_, err := BuildSquashfsSnap(sourceDir, "")
-	c.Assert(err, Equals, ErrLicenseBlank)
 }
 
 func (s *BuildTestSuite) TestCopyCopies(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "name: hello")
 	// actually this'll be on /tmp so it'll be a link
 	target := c.MkDir()
-	c.Assert(copyToBuildDir(sourceDir, target), IsNil)
+	c.Assert(snaptest.CopyToBuildDir(sourceDir, target), IsNil)
 	out, err := exec.Command("diff", "-qrN", sourceDir, target).Output()
 	c.Check(err, IsNil)
 	c.Check(out, DeepEquals, []byte{})
@@ -154,7 +128,7 @@ func (s *BuildTestSuite) TestCopyActuallyCopies(c *C) {
 	}
 	c.Assert(err, IsNil)
 
-	c.Assert(copyToBuildDir(sourceDir, target), IsNil)
+	c.Assert(snaptest.CopyToBuildDir(sourceDir, target), IsNil)
 	out, err := exec.Command("diff", "-qrN", sourceDir, target).Output()
 	c.Check(err, IsNil)
 	c.Check(out, DeepEquals, []byte{})
@@ -165,7 +139,7 @@ func (s *BuildTestSuite) TestCopyExcludesBackups(c *C) {
 	target := c.MkDir()
 	// add a backup file
 	c.Assert(ioutil.WriteFile(filepath.Join(sourceDir, "foo~"), []byte("hi"), 0755), IsNil)
-	c.Assert(copyToBuildDir(sourceDir, target), IsNil)
+	c.Assert(snaptest.CopyToBuildDir(sourceDir, target), IsNil)
 	cmd := exec.Command("diff", "-qr", sourceDir, target)
 	cmd.Env = append(cmd.Env, "LANG=C")
 	out, err := cmd.Output()
@@ -180,7 +154,7 @@ func (s *BuildTestSuite) TestCopyExcludesTopLevelDEBIAN(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(sourceDir, "DEBIAN", "foo"), 0755), IsNil)
 	// and a non-toplevel DEBIAN
 	c.Assert(os.MkdirAll(filepath.Join(sourceDir, "bar", "DEBIAN", "baz"), 0755), IsNil)
-	c.Assert(copyToBuildDir(sourceDir, target), IsNil)
+	c.Assert(snaptest.CopyToBuildDir(sourceDir, target), IsNil)
 	cmd := exec.Command("diff", "-qr", sourceDir, target)
 	cmd.Env = append(cmd.Env, "LANG=C")
 	out, err := cmd.Output()
@@ -196,7 +170,7 @@ func (s *BuildTestSuite) TestCopyExcludesWholeDirs(c *C) {
 	// add a file inside a skipped dir
 	c.Assert(os.Mkdir(filepath.Join(sourceDir, ".bzr"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(sourceDir, ".bzr", "foo"), []byte("hi"), 0755), IsNil)
-	c.Assert(copyToBuildDir(sourceDir, target), IsNil)
+	c.Assert(snaptest.CopyToBuildDir(sourceDir, target), IsNil)
 	out, _ := exec.Command("find", sourceDir).Output()
 	cmd := exec.Command("diff", "-qr", sourceDir, target)
 	cmd.Env = append(cmd.Env, "LANG=C")
@@ -207,30 +181,30 @@ func (s *BuildTestSuite) TestCopyExcludesWholeDirs(c *C) {
 
 func (s *BuildTestSuite) TestExcludeDynamicFalseIfNoSnapignore(c *C) {
 	basedir := c.MkDir()
-	c.Check(shouldExcludeDynamic(basedir, "foo"), Equals, false)
+	c.Check(snaptest.ShouldExcludeDynamic(basedir, "foo"), Equals, false)
 }
 
 func (s *BuildTestSuite) TestExcludeDynamicWorksIfSnapignore(c *C) {
 	basedir := c.MkDir()
 	c.Assert(ioutil.WriteFile(filepath.Join(basedir, ".snapignore"), []byte("foo\nb.r\n"), 0644), IsNil)
-	c.Check(shouldExcludeDynamic(basedir, "foo"), Equals, true)
-	c.Check(shouldExcludeDynamic(basedir, "bar"), Equals, true)
-	c.Check(shouldExcludeDynamic(basedir, "bzr"), Equals, true)
-	c.Check(shouldExcludeDynamic(basedir, "baz"), Equals, false)
+	c.Check(snaptest.ShouldExcludeDynamic(basedir, "foo"), Equals, true)
+	c.Check(snaptest.ShouldExcludeDynamic(basedir, "bar"), Equals, true)
+	c.Check(snaptest.ShouldExcludeDynamic(basedir, "bzr"), Equals, true)
+	c.Check(snaptest.ShouldExcludeDynamic(basedir, "baz"), Equals, false)
 }
 
 func (s *BuildTestSuite) TestExcludeDynamicWeirdRegexps(c *C) {
 	basedir := c.MkDir()
 	c.Assert(ioutil.WriteFile(filepath.Join(basedir, ".snapignore"), []byte("*hello\n"), 0644), IsNil)
 	// note "*hello" is not a valid regexp, so will be taken literally (not globbed!)
-	c.Check(shouldExcludeDynamic(basedir, "ahello"), Equals, false)
-	c.Check(shouldExcludeDynamic(basedir, "*hello"), Equals, true)
+	c.Check(snaptest.ShouldExcludeDynamic(basedir, "ahello"), Equals, false)
+	c.Check(snaptest.ShouldExcludeDynamic(basedir, "*hello"), Equals, true)
 }
 
 func (s *BuildTestSuite) TestDebArchitecture(c *C) {
-	c.Check(debArchitecture(&snapYaml{Architectures: []string{"foo"}}), Equals, "foo")
-	c.Check(debArchitecture(&snapYaml{Architectures: []string{"foo", "bar"}}), Equals, "multi")
-	c.Check(debArchitecture(&snapYaml{Architectures: nil}), Equals, "unknown")
+	c.Check(snaptest.DebArchitecture(&snap.Info{Architectures: []string{"foo"}}), Equals, "foo")
+	c.Check(snaptest.DebArchitecture(&snap.Info{Architectures: []string{"foo", "bar"}}), Equals, "multi")
+	c.Check(snaptest.DebArchitecture(&snap.Info{Architectures: nil}), Equals, "unknown")
 }
 
 func (s *BuildTestSuite) TestBuildFailsForUnknownType(c *C) {
@@ -240,7 +214,7 @@ version: 1.0.1
 	err := syscall.Mkfifo(filepath.Join(sourceDir, "fifo"), 0644)
 	c.Assert(err, IsNil)
 
-	_, err = BuildSquashfsSnap(sourceDir, "")
+	_, err = snaptest.BuildSquashfsSnap(sourceDir, "")
 	c.Assert(err, ErrorMatches, "can not handle type of file .*")
 }
 
@@ -253,7 +227,7 @@ integration:
   apparmor-profile: meta/hello.apparmor
 `)
 
-	resultSnap, err := BuildSquashfsSnap(sourceDir, "")
+	resultSnap, err := snaptest.BuildSquashfsSnap(sourceDir, "")
 	c.Assert(err, IsNil)
 
 	// check that there is result
@@ -285,7 +259,7 @@ integration:
 
 	outputDir := filepath.Join(c.MkDir(), "output")
 	snapOutput := filepath.Join(outputDir, "hello_1.0.1_multi.snap")
-	resultSnap, err := BuildSquashfsSnap(sourceDir, outputDir)
+	resultSnap, err := snaptest.BuildSquashfsSnap(sourceDir, outputDir)
 
 	// check that there is result
 	_, err = os.Stat(resultSnap)

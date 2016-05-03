@@ -24,6 +24,8 @@ import (
 	"strings"
 
 	"github.com/ubuntu-core/snappy/overlord/auth"
+	"github.com/ubuntu-core/snappy/overlord/snapstate"
+	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/store"
@@ -204,6 +206,14 @@ func (f *fakeSnappyBackend) RemoveSnapData(info *snap.Info) error {
 	return nil
 }
 
+func (f *fakeSnappyBackend) RemoveSnapCommonData(info *snap.Info) error {
+	f.ops = append(f.ops, fakeOp{
+		op:   "remove-snap-common-data",
+		name: info.MountDir(),
+	})
+	return nil
+}
+
 func (f *fakeSnappyBackend) Candidate(sideInfo *snap.SideInfo) {
 	var sinfo snap.SideInfo
 	if sideInfo != nil {
@@ -212,5 +222,13 @@ func (f *fakeSnappyBackend) Candidate(sideInfo *snap.SideInfo) {
 	f.ops = append(f.ops, fakeOp{
 		op:    "candidate",
 		sinfo: sinfo,
+	})
+}
+
+func (f *fakeSnappyBackend) ForeignTask(kind string, status state.Status, ss *snapstate.SnapSetup) {
+	f.ops = append(f.ops, fakeOp{
+		op:    kind + ":" + status.String(),
+		name:  ss.Name,
+		revno: ss.Revision,
 	})
 }
