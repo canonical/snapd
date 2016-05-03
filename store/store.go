@@ -351,6 +351,26 @@ func (s *SnapUbuntuStoreRepository) getAllPurchases(channel string, auther Authe
 	return purchasesByID, nil
 }
 
+// mustBuy determines if a snap requires a payment, based on if it is non-free and if the user has already bought it
+func mustBuy(prices map[string]float64, purchases []*purchase) bool {
+	if len(prices) == 0 {
+		// If the snap is free, then it doesn't need purchasing
+		return false
+	}
+
+	// Search through all the purchases for a snap to see if there are any
+	// that are for the whole snap, and not an "in-app" purchase.
+	for _, purchase := range purchases {
+		if purchase.ItemSKU == "" {
+			// Purchase is for the whole snap.
+			return false
+		}
+	}
+
+	// The snap is not free, and we couldn't find a purchase for the whole snap.
+	return true
+}
+
 // Snap returns the snap.Info for the store hosted snap with the given name or an error.
 func (s *SnapUbuntuStoreRepository) Snap(name, channel string, auther Authenticator) (*snap.Info, error) {
 
