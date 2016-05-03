@@ -17,7 +17,7 @@
  *
  */
 
-package snappy
+package wrappers
 
 import (
 	"bufio"
@@ -109,6 +109,7 @@ func isValidLocalizedDesktopFilePrefix(line string) bool {
 	return false
 }
 
+// rewriteExecLine rewrites a "Exec=" line to use the wrapper path for snap application.
 func rewriteExecLine(s *snap.Info, line string) (string, error) {
 	cmd := strings.SplitN(line, "=", 2)[1]
 	for _, app := range s.Apps {
@@ -117,8 +118,8 @@ func rewriteExecLine(s *snap.Info, line string) (string, error) {
 		// this is ok because desktop files are not run through sh
 		// so we don't have to worry about the arguments too much
 		if cmd == validCmd || strings.HasPrefix(cmd, validCmd+" ") {
-			binDir := stripGlobalRootDir(dirs.SnapBinariesDir)
-			absoluteCmd := filepath.Join(binDir, cmd)
+			// XXX WrapperPath?
+			absoluteCmd := filepath.Join(dirs.SnapBinariesDir, cmd)
 			return strings.Replace(line, cmd, absoluteCmd, 1), nil
 		}
 	}
@@ -161,7 +162,8 @@ func sanitizeDesktopFile(s *snap.Info, realBaseDir string, rawcontent []byte) []
 	return []byte(strings.Join(newContent, "\n"))
 }
 
-func addPackageDesktopFiles(s *snap.Info) error {
+// AddSnapDesktopFiles puts in place the desktop files for the applications from the snap.
+func AddSnapDesktopFiles(s *snap.Info) error {
 	if err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0755); err != nil {
 		return err
 	}
@@ -179,7 +181,7 @@ func addPackageDesktopFiles(s *snap.Info) error {
 			return err
 		}
 
-		realBaseDir := stripGlobalRootDir(baseDir)
+		realBaseDir := baseDir
 		content = sanitizeDesktopFile(s, realBaseDir, content)
 
 		installedDesktopFileName := filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s", s.Name(), filepath.Base(df)))
@@ -191,7 +193,8 @@ func addPackageDesktopFiles(s *snap.Info) error {
 	return nil
 }
 
-func removePackageDesktopFiles(s *snap.Info) error {
+// RemoveSnapDesktopFiles removes the added desktop files for the applications in the snap.
+func RemoveSnapDesktopFiles(s *snap.Info) error {
 	glob := filepath.Join(dirs.SnapDesktopFilesDir, s.Name()+"_*.desktop")
 	activeDesktopFiles, err := filepath.Glob(glob)
 	if err != nil {

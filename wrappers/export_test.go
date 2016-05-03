@@ -31,6 +31,11 @@ var (
 	// services
 	GenerateSnapServiceFile = generateSnapServiceFile
 	GenerateSnapSocketFile  = generateSnapSocketFile
+
+	// desktop
+	SanitizeDesktopFile = sanitizeDesktopFile
+	RewriteExecLine     = rewriteExecLine
+	TrimLang            = trimLang
 )
 
 func MockKillWait(wait time.Duration) func() {
