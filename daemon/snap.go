@@ -108,127 +108,45 @@ func allLocalSnapInfos(st *state.State) ([]aboutSnap, error) {
 	return about, firstErr
 }
 
-// Map a localSnap information plus the given active flag to a
-// map[string]interface{}, augmenting it with the given (purportedly remote)
-// snap.
-//
-// It is a programming error (->panic) to call mapSnap with both arguments
-// nil.
-func mapSnap(localSnap *snap.Info, active bool, remoteSnap *snap.Info) map[string]interface{} {
-	var snapID, version, icon, name, developer, _type, description, summary string
-	var revision int
-
-	rollback := -1
-	update := -1
-
-	if localSnap == nil && remoteSnap == nil {
-		panic("no localSnaps & remoteSnap is nil -- how did i even get here")
+func mapLocal(localSnap *snap.Info, active bool) map[string]interface{} {
+	status := "installed"
+	if active {
+		status = "active"
 	}
 
-	status := "available"
-	downloadSize := int64(-1)
-	var prices map[string]float64
-
-	if remoteSnap != nil {
-		prices = remoteSnap.Prices
+	return map[string]interface{}{
+		"description":    localSnap.Description(),
+		"developer":      localSnap.Developer,
+		"icon":           snapIcon(localSnap),
+		"id":             localSnap.SnapID,
+		"install-date":   snapDate(localSnap),
+		"installed-size": localSnap.Size,
+		"name":           localSnap.Name(),
+		"revision":       localSnap.Revision,
+		"status":         status,
+		"summary":        localSnap.Summary(),
+		"type":           string(localSnap.Type),
+		"version":        localSnap.Version,
 	}
+}
 
-	if localSnap != nil {
-		if active {
-			status = "active"
-		} else {
-			status = "installed"
-		}
-	}
-
-	var ref *snap.Info
-	if localSnap != nil {
-		ref = localSnap
-	} else {
-		ref = remoteSnap
-	}
-
-	name = ref.Name()
-	developer = ref.Developer
-	version = ref.Version
-	revision = ref.Revision
-	snapID = ref.SnapID
-	_type = string(ref.Type)
-
-	if localSnap != nil {
-		icon = snapIcon(localSnap)
-		summary = localSnap.Summary()
-		description = localSnap.Description()
-	}
-
-	if remoteSnap != nil {
-		if icon == "" {
-			icon = remoteSnap.IconURL
-		}
-		if description == "" {
-			description = remoteSnap.Description()
-		}
-		if summary == "" {
-			summary = remoteSnap.Summary()
-		}
-		if snapID == "" {
-			snapID = remoteSnap.SnapID
-		}
-
-		downloadSize = remoteSnap.Size
-	}
-
-	if localSnap != nil && active {
-		if remoteSnap != nil && revision != remoteSnap.Revision {
-			update = remoteSnap.Revision
-		}
-
-		// WARNING this'll only get the right* rollback if
-		// only two things can be installed
-		//
-		// *) not the actual right rollback because we aren't
-		// marking things failed etc etc etc)
-		//
-		//if len(localSnaps) == 2 {
-		//	rollback = localSnaps[1^idx].Revision()
-		//}
-	}
-
+func mapRemote(remoteSnap *snap.Info) map[string]interface{} {
 	result := map[string]interface{}{
-		"snap-id":       snapID,
-		"icon":          icon,
-		"name":          name,
-		"developer":     developer,
-		"status":        status,
-		"type":          _type,
-		"revision":      revision,
-		"version":       version,
-		"description":   description,
-		"summary":       summary,
-		"download-size": downloadSize,
+		"description":   remoteSnap.Description(),
+		"developer":     remoteSnap.Developer,
+		"download-size": remoteSnap.Size,
+		"icon":          snapIcon(remoteSnap),
+		"id":            remoteSnap.SnapID,
+		"name":          remoteSnap.Name(),
+		"revision":      remoteSnap.Revision,
+		"status":        "available",
+		"summary":       remoteSnap.Summary(),
+		"type":          string(remoteSnap.Type),
+		"version":       remoteSnap.Version,
 	}
 
-	if len(prices) > 0 {
-		result["prices"] = prices
+	if len(remoteSnap.Prices) > 0 {
+		result["prices"] = remoteSnap.Prices
 	}
-
-	if localSnap != nil {
-		channel := localSnap.Channel
-		if channel != "" {
-			result["channel"] = channel
-		}
-
-		result["installed-size"] = localSnap.Size
-		result["install-date"] = snapDate(localSnap)
-	}
-
-	if rollback > -1 {
-		result["rollback-available"] = rollback
-	}
-
-	if update > -1 {
-		result["update-available"] = update
-	}
-
 	return result
 }
