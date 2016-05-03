@@ -99,7 +99,7 @@ type sanitizeDesktopFileSuite struct{}
 var _ = Suite(&sanitizeDesktopFileSuite{})
 
 func (s *sanitizeDesktopFileSuite) TestSanitizeIgnoreNotWhitelisted(c *C) {
-	snap := &snap.Info{}
+	snap := &snap.Info{SideInfo: snap.SideInfo{OfficialName: "foo", Revision: 12}}
 	desktopContent := []byte(`[Desktop Entry]
 Name=foo
 UnknownKey=baz
@@ -108,10 +108,10 @@ Icon=${SNAP}/meep
 
 # the empty line above is fine`)
 
-	e := wrappers.SanitizeDesktopFile(snap, "/my/basedir", desktopContent)
+	e := wrappers.SanitizeDesktopFile(snap, desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Entry]
 Name=foo
-Icon=/my/basedir/meep
+Icon=/snap/foo/12/meep
 
 # the empty line above is fine`)
 }
@@ -130,7 +130,7 @@ Name=foo
 Exec=baz
 `)
 
-	e := wrappers.SanitizeDesktopFile(snap, "/my/basedir", desktopContent)
+	e := wrappers.SanitizeDesktopFile(snap, desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Entry]
 Name=foo`)
 }
@@ -149,7 +149,7 @@ Name=foo
 Exec=snap.app.evil.evil
 `)
 
-	e := wrappers.SanitizeDesktopFile(snap, "/my/basedir", desktopContent)
+	e := wrappers.SanitizeDesktopFile(snap, desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Entry]
 Name=foo`)
 }
@@ -168,7 +168,7 @@ Name=foo
 Exec=snap.app %U
 `)
 
-	e := wrappers.SanitizeDesktopFile(snap, "/my/basedir", desktopContent)
+	e := wrappers.SanitizeDesktopFile(snap, desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Entry]
 Name=foo
 Exec=/snap/bin/snap.app %U`)
@@ -190,7 +190,7 @@ Name=foo
 TryExec=snap.app %U
 `)
 
-	e := wrappers.SanitizeDesktopFile(snap, "/my/basedir", desktopContent)
+	e := wrappers.SanitizeDesktopFile(snap, desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Entry]
 Name=foo`)
 }
@@ -207,7 +207,7 @@ Invalid=key
 Invalid[i18n]=key
 `)
 
-	e := wrappers.SanitizeDesktopFile(snap, "/my/basedir", desktopContent)
+	e := wrappers.SanitizeDesktopFile(snap, desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Entry]
 Name=foo
 GenericName=bar
@@ -220,7 +220,7 @@ func (s *sanitizeDesktopFileSuite) TestSanitizeDesktopActionsOk(c *C) {
 	snap := &snap.Info{}
 	desktopContent := []byte(`[Desktop Action is-ok]`)
 
-	e := wrappers.SanitizeDesktopFile(snap, "/my/basedir", desktopContent)
+	e := wrappers.SanitizeDesktopFile(snap, desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Action is-ok]`)
 }
 
