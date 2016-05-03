@@ -135,12 +135,12 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileTypeForking(c *C) {
 			Version:       "0.3.4",
 			SideInfo:      snap.SideInfo{Revision: 44},
 		},
-		Name:        "xkcd-webserver",
-		Command:     "bin/foo start",
-		Stop:        "bin/foo stop",
-		PostStop:    "bin/foo post-stop",
-		StopTimeout: timeout.DefaultTimeout,
-		Daemon:      "forking",
+		Name:            "xkcd-webserver",
+		Command:         "bin/foo start",
+		StopCommand:     "bin/foo stop",
+		PostStopCommand: "bin/foo post-stop",
+		StopTimeout:     timeout.DefaultTimeout,
+		Daemon:          "forking",
 	}
 
 	generatedWrapper, err := wrappers.GenerateSnapServiceFile(service)
@@ -155,12 +155,12 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileIllegalChars(c *C) 
 			Version:       "0.3.4",
 			SideInfo:      snap.SideInfo{Revision: 44},
 		},
-		Name:        "xkcd-webserver",
-		Command:     "bin/foo start\n",
-		Stop:        "bin/foo stop",
-		PostStop:    "bin/foo post-stop",
-		StopTimeout: timeout.DefaultTimeout,
-		Daemon:      "simple",
+		Name:            "xkcd-webserver",
+		Command:         "bin/foo start\n",
+		StopCommand:     "bin/foo stop",
+		PostStopCommand: "bin/foo post-stop",
+		StopTimeout:     timeout.DefaultTimeout,
+		Daemon:          "simple",
 	}
 
 	_, err := wrappers.GenerateSnapServiceFile(service)
@@ -257,13 +257,13 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileWithSocket(c *C) {
 			},
 			Version: "0.3.4",
 		},
-		Name:        "xkcd-webserver",
-		Command:     "bin/foo start",
-		Stop:        "bin/foo stop",
-		PostStop:    "bin/foo post-stop",
-		StopTimeout: timeout.DefaultTimeout,
-		Socket:      true,
-		Daemon:      "simple",
+		Name:            "xkcd-webserver",
+		Command:         "bin/foo start",
+		StopCommand:     "bin/foo stop",
+		PostStopCommand: "bin/foo post-stop",
+		StopTimeout:     timeout.DefaultTimeout,
+		Socket:          true,
+		Daemon:          "simple",
 	}
 
 	generatedWrapper, err := wrappers.GenerateSnapServiceFile(service)

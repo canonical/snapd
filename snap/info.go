@@ -210,11 +210,11 @@ type AppInfo struct {
 	Name    string
 	Command string
 
-	Daemon      string
-	StopTimeout timeout.Timeout
-	Stop        string
-	PostStop    string
-	RestartCond systemd.RestartCondition
+	Daemon          string
+	StopTimeout     timeout.Timeout
+	StopCommand     string
+	PostStopCommand string
+	RestartCond     systemd.RestartCondition
 
 	Socket       bool
 	SocketMode   string
@@ -262,12 +262,12 @@ func (app *AppInfo) LauncherCommand() string {
 
 // LauncherStopCommand returns the launcher command line to use when invoking the app stop command binary.
 func (app *AppInfo) LauncherStopCommand() string {
-	return app.launcherCommand(app.Stop)
+	return app.launcherCommand(app.StopCommand)
 }
 
 // LauncherPostStopCommand returns the launcher command line to use when invoking the app post-stop command binary.
 func (app *AppInfo) LauncherPostStopCommand() string {
-	return app.launcherCommand(app.PostStop)
+	return app.launcherCommand(app.PostStopCommand)
 }
 
 // ServiceFile returns the systemd service file path for the daemon app.
