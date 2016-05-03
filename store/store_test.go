@@ -929,8 +929,8 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesNotFound(c *C) {
 
 	authenticator := &fakeAuthenticator{}
 	helloWorldPurchases, err := repo.getPurchases(helloWorldSnapID, "edge", authenticator)
-	c.Assert(err, IsNil)
-	c.Assert(len(helloWorldPurchases), Equals, 0)
+	c.Assert(err, NotNil)
+	c.Assert(helloWorldPurchases, IsNil)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesTokenExpired(c *C) {
