@@ -17,7 +17,8 @@
  *
  */
 
-package snappy
+// Package wrappers is used to generate wrappers and service units for snap applications.
+package wrappers
 
 import (
 	"bytes"
@@ -109,7 +110,8 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 	return templateOut.String(), nil
 }
 
-func addPackageBinaries(s *snap.Info) error {
+// AddSnapBinaries writes the wrapper binaries for the applications from the snap which aren't services.
+func AddSnapBinaries(s *snap.Info) error {
 	if err := os.MkdirAll(dirs.SnapBinariesDir, 0755); err != nil {
 		return err
 	}
@@ -125,7 +127,8 @@ func addPackageBinaries(s *snap.Info) error {
 		// service file, this ensures that /snap/foo/1.0/bin/start
 		// is in the service file when the SetRoot() option
 		// is used
-		realBaseDir := stripGlobalRootDir(baseDir)
+		// realBaseDir := stripGlobalRootDir(baseDir)
+		realBaseDir := baseDir
 		content, err := generateSnapBinaryWrapper(app, realBaseDir)
 		if err != nil {
 			return err
@@ -139,7 +142,8 @@ func addPackageBinaries(s *snap.Info) error {
 	return nil
 }
 
-func removePackageBinaries(s *snap.Info) error {
+// RemoveSnapBinaries removes the wrapper binaries for the applications from the snap which aren't services from.
+func RemoveSnapBinaries(s *snap.Info) error {
 	for _, app := range s.Apps {
 		os.Remove(app.WrapperPath())
 	}

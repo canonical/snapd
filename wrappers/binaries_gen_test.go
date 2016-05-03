@@ -17,7 +17,7 @@
  *
  */
 
-package snappy
+package wrappers
 
 import (
 	"fmt"
@@ -28,9 +28,9 @@ import (
 	"github.com/ubuntu-core/snappy/snap"
 )
 
-type binariesTestSuite struct{}
+type binariesWrapperGenSuite struct{}
 
-var _ = Suite(&binariesTestSuite{})
+var _ = Suite(&binariesWrapperGenSuite{})
 
 const expectedWrapper = `#!/bin/sh
 set -e
@@ -56,7 +56,7 @@ export HOME="$SNAP_USER_DATA"
 ubuntu-core-launcher snap.pastebinit.pastebinit snap.pastebinit.pastebinit /snap/pastebinit/44/bin/pastebinit "$@"
 `
 
-func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
+func (s *binariesWrapperGenSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 	pkgPath := "/snap/pastebinit/44"
 	info := &snap.Info{}
 	info.SuggestedName = "pastebinit"
@@ -75,7 +75,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 	c.Assert(generatedWrapper, Equals, expected)
 }
 
-func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperIllegalChars(c *C) {
+func (s *binariesWrapperGenSuite) TestSnappyGenerateSnapBinaryWrapperIllegalChars(c *C) {
 	pkgPath := "/snap/pastebinit/44"
 	info := &snap.Info{}
 	info.SuggestedName = "pastebinit"
@@ -89,13 +89,13 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperIllegalChars(c *C) {
 	c.Assert(err, NotNil)
 }
 
-func (s *SnapTestSuite) TestSnappyBinPathForBinaryNoExec(c *C) {
+func (s *binariesWrapperGenSuite) TestSnappyBinPathForBinaryNoExec(c *C) {
 	binary := &snap.AppInfo{Name: "pastebinit", Command: "bin/pastebinit"}
 	pkgPath := "/snap/pastebinit/44"
 	c.Assert(binPathForBinary(pkgPath, binary), Equals, "/snap/pastebinit/44/bin/pastebinit")
 }
 
-func (s *SnapTestSuite) TestSnappyBinPathForBinaryWithExec(c *C) {
+func (s *binariesWrapperGenSuite) TestSnappyBinPathForBinaryWithExec(c *C) {
 	binary := &snap.AppInfo{Name: "pastebinit", Command: "bin/random-pastebin"}
 	pkgPath := "/snap/pastebinit/44"
 	c.Assert(binPathForBinary(pkgPath, binary), Equals, "/snap/pastebinit/44/bin/random-pastebin")
