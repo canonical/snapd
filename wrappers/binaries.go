@@ -17,7 +17,7 @@
  *
  */
 
-// Package wrappers is used to generate wrappers and service units for snap applications.
+// Package wrappers is used to generate wrappers and service units and also desktop files for snap applications.
 package wrappers
 
 import (
