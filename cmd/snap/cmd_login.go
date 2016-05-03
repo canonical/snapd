@@ -47,7 +47,7 @@ using those credentials.
 
 Login only works for local users in the sudo or admin groups.
 
-Credentials may be obtained at https://login.ubuntu.com
+An account can be setup at https://login.ubuntu.com
 `)
 
 func init() {
