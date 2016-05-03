@@ -30,10 +30,10 @@ cd $GOPATH/src/github.com/ubuntu-core/snappy
 # don't install deps nor compile tests after reboot
 if [ -z "$ADT_REBOOT_MARK" ]; then
     ./get-deps.sh
-    go test -c ./integration-tests/tests
+    go test -tags classiconly -c ./integration-tests/tests
 fi
 
-./tests.test  -check.vv -check.f 'snapHelloWorldExampleSuite|snapOpSuite|searchSuite|installAppSuite|authSuite|networkInterfaceSuite|homeInterfaceSuite|snapPersistsSuite'
+./tests.test  -check.vv -check.f 'snapHelloWorldExampleSuite|snapOpSuite|searchSuite|installAppSuite|authSuite|networkInterfaceSuite|homeInterfaceSuite|unity7|snapPersistsSuite'
 
 if [ -e ${NEEDS_REBOOT} ]; then
     mark=`cat ${NEEDS_REBOOT}`

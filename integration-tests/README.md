@@ -229,3 +229,18 @@ We have found that some tests give random results on low-performance systems. Yo
 exclude these tests by passing `lowperformance` to the `test-build-tags` flag:
 
     go run integration-tests/main.go -test-build-tags=lowperformance
+
+### Classic-only tests
+
+There are certain integration tests which at the moment only work in classic ubuntu systems, for
+instance the unity suite, which checks features that currently are only available in desktop systems.
+
+These tests are guarded by the `classiconly` build tag, the autopkgtest runner is configured to
+include it when building the tests' binary. If you develop a test of this type remember to add it at
+the top of the file:
+
+```
+// -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !excludeintegration,classiconly
+...
+```
