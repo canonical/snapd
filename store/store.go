@@ -310,9 +310,6 @@ func (s *SnapUbuntuStoreRepository) getPurchasesFromURL(url *url.URL, channel st
 		if err := dec.Decode(&purchases); err != nil {
 			return nil, fmt.Errorf("cannot decode known purchases from store: %v", err)
 		}
-	case http.StatusNotFound:
-		// the store returns 404 for snaps that have no purchases, so just return an empty list
-		break
 	case http.StatusUnauthorized:
 		// TODO handle token expiry and refresh
 		return nil, ErrInvalidCredentials
