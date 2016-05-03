@@ -46,6 +46,11 @@ func ForActiveService(c *check.C, serviceName string) (err error) {
 	return ForCommand(c, "ActiveState=active\n", "systemctl", "show", "-p", "ActiveState", serviceName)
 }
 
+// ForInactiveService uses ForCommand to check for an inactive service
+func ForInactiveService(c *check.C, serviceName string) (err error) {
+	return ForCommand(c, "ActiveState=inactive\n", "systemctl", "show", "-p", "ActiveState", serviceName)
+}
+
 // ForServerOnPort uses ForCommand to check for process listening on the given port
 func ForServerOnPort(c *check.C, protocol string, port int) (err error) {
 	return ForCommand(c, fmt.Sprintf(`(?sU)^.*%s .*:%d\s*(0\.0\.0\.0|::):\*\s*LISTEN.*`, protocol, port),

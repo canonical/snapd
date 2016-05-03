@@ -7,3 +7,5 @@ apps:
   command: bin/success
  fail:
   command: bin/fail
+ block:
+  command: bin/block
