@@ -197,12 +197,12 @@ Requires=snapd.frameworks.target{{ if .App.Socket }} {{.SocketFileName}}{{end}}
 X-Snappy=yes
 
 [Service]
-ExecStart={{.App.Invocation}}
+ExecStart={{.App.LauncherCommand}}
 Restart={{.Restart}}
 WorkingDirectory={{.App.Snap.DataDir}}
 Environment={{.EnvVars}}
-{{if .App.Stop}}ExecStop={{.App.StopInvocation}}{{end}}
-{{if .App.PostStop}}ExecStopPost={{.App.PostStopInvocation}}{{end}}
+{{if .App.Stop}}ExecStop={{.App.LauncherStopCommand}}{{end}}
+{{if .App.PostStop}}ExecStopPost={{.App.LauncherPostStopCommand}}{{end}}
 {{if .StopTimeout}}TimeoutStopSec={{.StopTimeout.Seconds}}{{end}}
 Type={{.App.Daemon}}
 {{if .App.BusName}}BusName={{.App.BusName}}{{end}}

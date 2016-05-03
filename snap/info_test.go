@@ -83,7 +83,7 @@ apps:
 	c.Check(info.Apps["foo"].WrapperPath(), Equals, filepath.Join(dirs.SnapBinariesDir, "foo"))
 }
 
-func (s *infoSuite) TestAppInfoInvocation(c *C) {
+func (s *infoSuite) TestAppInfoLauncherCommand(c *C) {
 	dirs.SetRootDir("")
 
 	info, err := snap.InfoFromSnapYaml([]byte(`name: foo
@@ -96,8 +96,8 @@ apps:
 	c.Assert(err, IsNil)
 	info.Revision = 42
 
-	c.Check(info.Apps["bar"].Invocation(), Equals, "/usr/bin/ubuntu-core-launcher snap.foo.bar snap.foo.bar /snap/foo/42/bar-bin -x")
-	c.Check(info.Apps["foo"].Invocation(), Equals, "/usr/bin/ubuntu-core-launcher snap.foo.foo snap.foo.foo /snap/foo/42/foo-bin")
+	c.Check(info.Apps["bar"].LauncherCommand(), Equals, "/usr/bin/ubuntu-core-launcher snap.foo.bar snap.foo.bar /snap/foo/42/bar-bin -x")
+	c.Check(info.Apps["foo"].LauncherCommand(), Equals, "/usr/bin/ubuntu-core-launcher snap.foo.foo snap.foo.foo /snap/foo/42/foo-bin")
 }
 
 const sampleYaml = `
