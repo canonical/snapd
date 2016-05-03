@@ -888,6 +888,7 @@ func (s *apiSuite) TestSnapsInfoUnknownSource(c *check.C) {
 	rsp := getSnapsInfo(snapsCmd, req, nil).(*resp)
 
 	c.Check(rsp.Sources, check.DeepEquals, []string{"local"})
+
 	snaps := snapList(rsp.Result)
 	c.Check(snaps, check.HasLen, 1)
 }
