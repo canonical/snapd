@@ -330,7 +330,10 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	pb := &TaskProgressAdapter{task: t}
 	err = m.backend.RemoveSnapFiles(ss.placeInfo(), pb)
 	if err != nil {
-		return err
+		st.Lock()
+		t.Errorf("cannot remove snap file %q, will retry: %s", ss.Name, err)
+		st.Unlock()
+		return state.Retry
 	}
 
 	st.Lock()

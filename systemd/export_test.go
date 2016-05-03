@@ -26,7 +26,6 @@ import (
 var (
 	SystemdRun = run // NOTE: plain Run clashes with check.v1
 	Jctl       = jctl
-	RestartMap = restartMap
 )
 
 func MockStopStepsStopDelay() func() {
