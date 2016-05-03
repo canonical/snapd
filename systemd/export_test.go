@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,26 +17,24 @@
  *
  */
 
-package snappy
+package systemd
 
 import (
-	"github.com/ubuntu-core/snappy/snap"
+	"time"
 )
 
-// openSnapFile opens a snap blob returning both a snap.Info completed
-// with sideInfo (if not nil) and a corresponding snap.File.
-func openSnapFile(snapPath string, unsignedOk bool, sideInfo *snap.SideInfo) (*snap.Info, snap.File, error) {
-	// TODO: what precautions to take if unsignedOk == false ?
+var (
+	SystemdRun = run // NOTE: plain Run clashes with check.v1
+	Jctl       = jctl
+)
 
-	snapf, err := snap.Open(snapPath)
-	if err != nil {
-		return nil, nil, err
+func MockStopStepsStopDelay() func() {
+	oldSteps := stopSteps
+	oldDelay := stopDelay
+	stopSteps = 2
+	stopDelay = time.Millisecond
+	return func() {
+		stopSteps = oldSteps
+		stopDelay = oldDelay
 	}
-
-	info, err := snap.ReadInfoFromSnapFile(snapf, sideInfo)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return info, snapf, nil
 }

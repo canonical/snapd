@@ -31,7 +31,6 @@ import (
 	"testing"
 
 	"github.com/ubuntu-core/snappy/osutil"
-	"github.com/ubuntu-core/snappy/snap"
 
 	. "gopkg.in/check.v1"
 )
@@ -70,9 +69,10 @@ func (s *SquashfsTestSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *SquashfsTestSuite) TestName(c *C) {
+func (s *SquashfsTestSuite) TestPath(c *C) {
+	p := "/path/to/foo.snap"
 	snap := New("/path/to/foo.snap")
-	c.Assert(snap.Name(), Equals, "foo.snap")
+	c.Assert(snap.Path(), Equals, p)
 }
 
 func (s *SquashfsTestSuite) TestHashFile(c *C) {
@@ -146,27 +146,4 @@ func (s *SquashfsTestSuite) TestRunCommandBad(c *C) {
 func (s *SquashfsTestSuite) TestRunCommandUgly(c *C) {
 	err := runCommand("cat", "/no/such/file")
 	c.Assert(err, ErrorMatches, regexp.QuoteMeta(`cmd: "cat /no/such/file" failed: exit status 1 ("cat: /no/such/file: No such file or directory\n")`))
-}
-
-func (s *SquashfsTestSuite) TestInfo(c *C) {
-	manifest := `name: foo
-version: 1.0
-type: gadget`
-	snapF := makeSnap(c, manifest, "")
-
-	info, err := snapF.Info()
-	c.Assert(err, IsNil)
-	c.Assert(info.Name(), Equals, "foo")
-	c.Assert(info.Version, Equals, "1.0")
-	c.Assert(info.Type, Equals, snap.TypeGadget)
-}
-
-func (s *SquashfsTestSuite) TestInfoValidates(c *C) {
-	manifest := `name: foo.bar
-version: 1.0
-type: gadget`
-	snapF := makeSnap(c, manifest, "")
-
-	_, err := snapF.Info()
-	c.Assert(err, ErrorMatches, "invalid snap name.*")
 }
