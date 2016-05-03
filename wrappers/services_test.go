@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"path/filepath"
 	"regexp"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -101,8 +102,10 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 	c.Check(sysdLog[3], DeepEquals, []string{"daemon-reload"})
 }
 
-
 func (s *servicesTestSuite) TestRemoveSnapPackageFallbackToKill(c *C) {
+	restore := wrappers.MockKillWait(200 * time.Millisecond)
+	defer restore()
+
 	var sysdLog [][]string
 	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
