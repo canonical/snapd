@@ -47,11 +47,6 @@ func rootEndpoint(w http.ResponseWriter, req *http.Request) {
 	fmt.Fprintf(w, "I'm a teapot")
 }
 
-func searchEndpoint(w http.ResponseWriter, req *http.Request) {
-	w.WriteHeader(501)
-	fmt.Fprintf(w, "search not implemented yet")
-}
-
 // Store is our snappy software store implementation
 type Store struct {
 	url              string
@@ -83,7 +78,7 @@ func NewStore(blobDir string) *Store {
 	}
 
 	mux.HandleFunc("/", rootEndpoint)
-	mux.HandleFunc("/search", searchEndpoint)
+	mux.HandleFunc("/search", store.searchEndpoint)
 	mux.HandleFunc("/package/", store.detailsEndpoint)
 	mux.HandleFunc("/click-metadata", store.bulkEndpoint)
 	mux.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(blobDir))))
@@ -142,6 +137,14 @@ func makeRevision(info *snap.Info) int {
 	return n * defaultRevision
 }
 
+type searchPayloadJSON struct {
+	Packages []detailsReplyJSON `json:"clickindex:package"`
+}
+
+type searchReplyJSON struct {
+	Payload searchPayloadJSON `json:"_embedded"`
+}
+
 type detailsReplyJSON struct {
 	Name            string `json:"name"`
 	PackageName     string `json:"package_name"`
@@ -153,9 +156,30 @@ type detailsReplyJSON struct {
 }
 
 func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
+	w.WriteHeader(501)
+	fmt.Fprintf(w, "details not implemented anymore")
+	return
+}
+
+func (s *Store) searchEndpoint(w http.ResponseWriter, req *http.Request) {
+	query := req.URL.Query()
+	q := query.Get("q")
+	if !strings.HasPrefix(q, "package_name:\"") {
+		w.WriteHeader(501)
+		fmt.Fprintf(w, "full search not implemented")
+		return
+
+	}
+	if !strings.HasSuffix(q, "\"") {
+		w.WriteHeader(400)
+		fmt.Fprintf(w, "missing final \"")
+		return
+	}
+
 	s.refreshSnaps()
 
-	pkg := req.URL.Path[len("/package/"):]
+	pkg := q[len("package_name:\"") : len(q)-1]
+
 	fn, ok := s.snaps[pkg]
 	if !ok {
 		http.NotFound(w, req)
@@ -167,13 +191,14 @@ func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, fmt.Sprintf("can not read: %v: %v", fn, err), http.StatusBadRequest)
 		return
 	}
-	info, err := snapFile.Info()
+	// TODO: get side-info from a aux file
+	info, err := snap.ReadInfoFromSnapFile(snapFile, nil)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("can get info for: %v: %v", fn, err), http.StatusBadRequest)
 		return
 	}
 
-	replyData := detailsReplyJSON{
+	details := detailsReplyJSON{
 		Name:            fmt.Sprintf("%s.%s", info.Name(), s.defaultDeveloper),
 		PackageName:     info.Name(),
 		Developer:       defaultDeveloper,
@@ -181,6 +206,12 @@ func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
 		DownloadURL:     fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn)),
 		Version:         info.Version,
 		Revision:        makeRevision(info),
+	}
+
+	replyData := searchReplyJSON{
+		Payload: searchPayloadJSON{
+			Packages: []detailsReplyJSON{details},
+		},
 	}
 
 	// use indent because this is a development tool, output
@@ -206,11 +237,11 @@ func (s *Store) refreshSnaps() error {
 		if err != nil {
 			return err
 		}
-		info, err := snapFile.Info()
+		info, err := snap.ReadInfoFromSnapFile(snapFile, nil)
 		if err != nil {
 			return err
 		}
-		s.snaps[fmt.Sprintf("%s.%s", info.Name(), s.defaultDeveloper)] = fn
+		s.snaps[info.Name()] = fn
 	}
 
 	return nil
@@ -253,7 +284,8 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 				return
 			}
 
-			info, err := snapFile.Info()
+			// TODO: get side-info from a aux file
+			info, err := snap.ReadInfoFromSnapFile(snapFile, nil)
 			if err != nil {
 				http.Error(w, fmt.Sprintf("can get info for: %v: %v", fn, err), http.StatusBadRequest)
 				return

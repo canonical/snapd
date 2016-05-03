@@ -56,6 +56,7 @@ var api = []*Command{
 	loginCmd,
 	logoutCmd,
 	appIconCmd,
+	findCmd,
 	snapsCmd,
 	snapCmd,
 	//FIXME: renenable config for GA
@@ -97,6 +98,12 @@ var (
 		Path:   "/v2/icons/{name}/icon",
 		UserOK: true,
 		GET:    appIconGet,
+	}
+
+	findCmd = &Command{
+		Path:   "/v2/find",
+		UserOK: true,
+		GET:    searchStore,
 	}
 
 	snapsCmd = &Command{
@@ -367,6 +374,48 @@ func webify(result map[string]interface{}, resource string) map[string]interface
 	return result
 }
 
+func searchStore(c *Command, r *http.Request) Response {
+	route := c.d.router.Get(snapCmd.Path)
+	if route == nil {
+		return InternalError("router can't find route for snaps")
+	}
+
+	query := r.URL.Query()
+
+	auther, err := c.d.auther(r)
+	if err != nil && err != auth.ErrInvalidAuth {
+		return InternalError("%v", err)
+	}
+
+	remoteRepo := newRemoteRepo()
+	found, err := remoteRepo.FindSnaps(query.Get("q"), query.Get("channel"), auther)
+	if err != nil {
+		return InternalError("%v", err)
+	}
+
+	meta := &Meta{
+		SuggestedCurrency: remoteRepo.SuggestedCurrency(),
+	}
+
+	results := make([]*json.RawMessage, len(found))
+	for i, x := range found {
+		resource := ""
+		url, err := route.URL("name", x.Name())
+		if err == nil {
+			resource = url.String()
+		}
+
+		data, err := json.Marshal(webify(mapSnap(nil, false, x), resource))
+		if err != nil {
+			return InternalError("%v", err)
+		}
+		raw := json.RawMessage(data)
+		results[i] = &raw
+	}
+
+	return SyncResponse(results, meta)
+}
+
 // plural!
 func getSnapsInfo(c *Command, r *http.Request) Response {
 	route := c.d.router.Get(snapCmd.Path)
@@ -379,6 +428,7 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 
 	var includeStore, includeLocal bool
 	if len(query["sources"]) > 0 {
+		// XXX use query.Get to make this easier to follow
 		for _, v := range strings.Split(query["sources"][0], ",") {
 			if v == "store" {
 				includeStore = true
@@ -852,6 +902,7 @@ out:
 	}
 
 	chg := newChange(st, "install-snap", msg, tsets)
+	chg.Set("api-data", map[string]string{"snap-name": snapName})
 
 	go func() {
 		// XXX this needs to be a task in the manager; this is a hack to keep this branch smaller
@@ -870,7 +921,7 @@ func readSnapInfoImpl(snapPath string) (*snap.Info, error) {
 	if err != nil {
 		return nil, err
 	}
-	return snapf.Info()
+	return snap.ReadInfoFromSnapFile(snapf, nil)
 }
 
 var readSnapInfo = readSnapInfoImpl
@@ -1047,6 +1098,8 @@ type changeInfo struct {
 
 	SpawnTime time.Time  `json:"spawn-time,omitempty"`
 	ReadyTime *time.Time `json:"ready-time,omitempty"`
+
+	Data map[string]*json.RawMessage `json:"data,omitempty"`
 }
 
 type taskInfo struct {
@@ -1108,6 +1161,11 @@ func change2changeInfo(chg *state.Change) *changeInfo {
 		taskInfos[j] = taskInfo
 	}
 	chgInfo.Tasks = taskInfos
+
+	var data map[string]*json.RawMessage
+	if chg.Get("api-data", &data) == nil {
+		chgInfo.Data = data
+	}
 
 	return chgInfo
 }

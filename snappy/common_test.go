@@ -24,16 +24,14 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
-	"gopkg.in/yaml.v2"
 
-	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/snaptest"
 )
 
 const (
@@ -44,9 +42,6 @@ const (
 
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
-
-// here to make it easy to switch in tests to "BuildSquashfsSnap"
-var snapBuilderFunc = BuildSquashfsSnap
 
 func init() {
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
@@ -72,12 +67,13 @@ apps:
 		snapYamlContent = packageHello
 	}
 
-	var m snapYaml
-	if err := yaml.Unmarshal([]byte(snapYamlContent), &m); err != nil {
+	info, err := snap.InfoFromSnapYaml([]byte(snapYamlContent))
+	if err != nil {
 		return "", err
 	}
+	info.SideInfo = snap.SideInfo{Revision: revno}
 
-	metaDir := filepath.Join(dirs.SnapSnapsDir, m.Name, strconv.Itoa(revno), "meta")
+	metaDir := filepath.Join(info.MountDir(), "meta")
 	if err := os.MkdirAll(metaDir, 0775); err != nil {
 		return "", err
 	}
@@ -86,70 +82,20 @@ apps:
 		return "", err
 	}
 
-	if err := addMockDefaultApparmorProfile("hello-snap_hello_1.10"); err != nil {
-		return "", err
-	}
-
-	if err := addMockDefaultApparmorProfile("hello-snap_svc1_1.10"); err != nil {
-		return "", err
-	}
-
-	if err := addMockDefaultSeccompProfile("hello-snap_hello_1.10"); err != nil {
-		return "", err
-	}
-
-	if err := addMockDefaultSeccompProfile("hello-snap_svc1_1.10"); err != nil {
-		return "", err
-	}
-
 	si := snap.SideInfo{
-		OfficialName:      m.Name,
+		OfficialName:      info.Name(),
 		Revision:          revno,
 		Developer:         testDeveloper,
 		Channel:           "remote-channel",
 		EditedSummary:     "hello in summary",
 		EditedDescription: "Hello...",
 	}
-	err = SaveManifest(&snap.Info{SideInfo: si, Version: m.Version})
+	err = SaveManifest(&snap.Info{SideInfo: si, Version: info.Version})
 	if err != nil {
 		return "", err
 	}
 
 	return yamlFile, nil
-}
-
-func addMockDefaultApparmorProfile(appid string) error {
-	appArmorDir := dirs.SnapAppArmorDir
-
-	if err := os.MkdirAll(appArmorDir, 0775); err != nil {
-		return err
-	}
-
-	const securityProfile = `
-#include <tunables/global>
-profile "foo" (attach_disconnected) {
-	#include <abstractions/base>
-}`
-
-	apparmorFile := filepath.Join(appArmorDir, appid)
-	return ioutil.WriteFile(apparmorFile, []byte(securityProfile), 0644)
-}
-
-func addMockDefaultSeccompProfile(appid string) error {
-	seccompDir := dirs.SnapSeccompDir
-
-	if err := os.MkdirAll(seccompDir, 0775); err != nil {
-		return err
-	}
-
-	const securityProfile = `
-open
-write
-connect
-`
-
-	seccompFile := filepath.Join(seccompDir, appid)
-	return ioutil.WriteFile(seccompFile, []byte(securityProfile), 0644)
 }
 
 // makeTestSnapPackage creates a real snap package that can be installed on
@@ -203,7 +149,7 @@ version: 1.0
 	// build it
 	err := osutil.ChDir(tmpdir, func() error {
 		var err error
-		snapPath, err = snapBuilderFunc(tmpdir, "")
+		snapPath, err = snaptest.BuildSquashfsSnap(tmpdir, "")
 		c.Assert(err, IsNil)
 		return err
 	})

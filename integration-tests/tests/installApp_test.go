@@ -46,7 +46,7 @@ func (s *installAppSuite) TestInstallAppMustPrintPackageInformation(c *check.C) 
 	defer common.RemoveSnap(c, data.BasicSnapName)
 
 	expected := "(?ms)" +
-		"Name +Version +Developer\n" +
+		"Name +Version +Rev +Developer\n" +
 		".*" +
 		"^basic +.* *\n" +
 		".*"

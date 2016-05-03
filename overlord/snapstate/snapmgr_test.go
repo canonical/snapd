@@ -33,6 +33,7 @@ import (
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/snaptest"
 	"github.com/ubuntu-core/snappy/snappy"
 )
 
@@ -771,7 +772,7 @@ func makeTestSnap(c *C, snapYamlContent string) (snapFilePath string) {
 	ioutil.WriteFile(snapYamlFn, []byte(snapYamlContent), 0644)
 	err := osutil.ChDir(tmpdir, func() error {
 		var err error
-		snapFilePath, err = snappy.BuildSquashfsSnap(tmpdir, "")
+		snapFilePath, err = snaptest.BuildSquashfsSnap(tmpdir, "")
 		c.Assert(err, IsNil)
 		return err
 	})
@@ -926,7 +927,7 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	c.Assert(s.fakeBackend.ops, HasLen, 6)
+	c.Assert(s.fakeBackend.ops, HasLen, 7)
 	expected := []fakeOp{
 		fakeOp{
 			op:     "can-remove",
@@ -944,6 +945,10 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 		},
 		fakeOp{
 			op:   "remove-snap-data",
+			name: "/snap/some-snap/7",
+		},
+		fakeOp{
+			op:   "remove-snap-common-data",
 			name: "/snap/some-snap/7",
 		},
 		fakeOp{
@@ -1017,7 +1022,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsIntegration(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	c.Assert(s.fakeBackend.ops, HasLen, 10)
+	c.Assert(s.fakeBackend.ops, HasLen, 11)
 	expected := []fakeOp{
 		{
 			op:     "can-remove",
@@ -1051,6 +1056,10 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsIntegration(c *C) {
 		},
 		{
 			op:   "remove-snap-data",
+			name: "/snap/some-snap/5",
+		},
+		{
+			op:   "remove-snap-common-data",
 			name: "/snap/some-snap/5",
 		},
 		{
@@ -1113,34 +1122,21 @@ func (s *snapmgrQuerySuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 
 	// Write a snap.yaml with fake name
-	dname := filepath.Join(snap.MountDir("name1", 11), "meta")
-	err := os.MkdirAll(dname, 0775)
-	c.Assert(err, IsNil)
-	fname := filepath.Join(dname, "snap.yaml")
-	err = ioutil.WriteFile(fname, []byte(`
+	sideInfo11 := &snap.SideInfo{OfficialName: "name1", Revision: 11, EditedSummary: "s11"}
+	sideInfo12 := &snap.SideInfo{OfficialName: "name1", Revision: 12, EditedSummary: "s12"}
+	snaptest.MockSnap(c, `
 name: name0
 version: 1.1
 description: |
-    Lots of text`), 0644)
-	c.Assert(err, IsNil)
-
-	dname = filepath.Join(snap.MountDir("name1", 12), "meta")
-	err = os.MkdirAll(dname, 0775)
-	c.Assert(err, IsNil)
-	fname = filepath.Join(dname, "snap.yaml")
-	err = ioutil.WriteFile(fname, []byte(`
+    Lots of text`, sideInfo11)
+	snaptest.MockSnap(c, `
 name: name0
 version: 1.2
 description: |
-    Lots of text`), 0644)
-	c.Assert(err, IsNil)
-
+    Lots of text`, sideInfo12)
 	snapstate.Set(st, "name1", &snapstate.SnapState{
-		Active: true,
-		Sequence: []*snap.SideInfo{
-			{OfficialName: "name1", Revision: 11, EditedSummary: "s11"},
-			{OfficialName: "name1", Revision: 12, EditedSummary: "s12"},
-		},
+		Active:   true,
+		Sequence: []*snap.SideInfo{sideInfo11, sideInfo12},
 	})
 }
 

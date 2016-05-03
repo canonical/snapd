@@ -42,6 +42,7 @@ type managerBackend interface {
 	UnlinkSnap(info *snap.Info, meter progress.Meter) error
 	RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error
 	RemoveSnapData(info *snap.Info) error
+	RemoveSnapCommonData(info *snap.Info) error
 
 	// testing helpers
 	Candidate(sideInfo *snap.SideInfo)
@@ -118,4 +119,8 @@ func (b *defaultBackend) RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter)
 
 func (b *defaultBackend) RemoveSnapData(info *snap.Info) error {
 	return snappy.RemoveSnapData(info)
+}
+
+func (b *defaultBackend) RemoveSnapCommonData(info *snap.Info) error {
+	return snappy.RemoveSnapCommonData(info)
 }
