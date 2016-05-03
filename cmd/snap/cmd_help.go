@@ -20,8 +20,6 @@
 package main
 
 import (
-	"errors"
-
 	"github.com/ubuntu-core/snappy/i18n"
 
 	"github.com/jessevdk/go-flags"
@@ -37,8 +35,8 @@ func init() {
 	addCommand("help", shortHelpHelp, longHelpHelp, func() flags.Commander { return &cmdHelp{} })
 }
 
-var errHelp = errors.New("need-help")
-
 func (cmdHelp) Execute([]string) error {
-	return errHelp
+	return &flags.Error{
+		Type: flags.ErrHelp,
+	}
 }

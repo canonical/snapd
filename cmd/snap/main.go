@@ -142,10 +142,6 @@ func run() error {
 	_, err := parser.Parse()
 	if err != nil {
 		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
-			err = errHelp
-		}
-
-		if err == errHelp {
 			if parser.Command.Active != nil && parser.Command.Active.Name == "help" {
 				parser.Command.Active = nil
 			}
