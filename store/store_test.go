@@ -1058,7 +1058,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreMustBuy(c *C) {
 	hasInAppPurchase := []*purchase{&inAppPurchase}
 	hasPurchaseAndInAppPurchase := []*purchase{&appPurchase, &inAppPurchase}
 
-	// Mever need to buy a free snap.
+	// Never need to buy a free snap.
 	c.Check(mustBuy(free, hasNoPurchases), Equals, false)
 	c.Check(mustBuy(free, hasPurchase), Equals, false)
 	c.Check(mustBuy(free, hasInAppPurchase), Equals, false)
