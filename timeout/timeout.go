@@ -52,6 +52,19 @@ func (t *Timeout) UnmarshalJSON(buf []byte) error {
 	return nil
 }
 
+func (t *Timeout) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+	dur, err := time.ParseDuration(str)
+	if err != nil {
+		return err
+	}
+	*t = Timeout(dur)
+	return nil
+}
+
 // String returns a string representing the duration
 func (t Timeout) String() string {
 	return time.Duration(t).String()

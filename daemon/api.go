@@ -898,6 +898,7 @@ out:
 	}
 
 	chg := newChange(st, "install-snap", msg, tsets)
+	chg.Set("api-data", map[string]string{"snap-name": snapName})
 
 	go func() {
 		// XXX this needs to be a task in the manager; this is a hack to keep this branch smaller
@@ -916,7 +917,7 @@ func readSnapInfoImpl(snapPath string) (*snap.Info, error) {
 	if err != nil {
 		return nil, err
 	}
-	return snapf.Info()
+	return snap.ReadInfoFromSnapFile(snapf, nil)
 }
 
 var readSnapInfo = readSnapInfoImpl
