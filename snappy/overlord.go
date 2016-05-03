@@ -641,17 +641,6 @@ func (o *Overlord) SetActive(s *Snap, active bool, meter progress.Meter) error {
 	return UnlinkSnap(s.Info(), meter)
 }
 
-// Configure configures the given snap
-//
-// It returns an error on failure
-func (o *Overlord) Configure(s *Snap, configuration []byte) ([]byte, error) {
-	if s.Type() == snap.TypeOS {
-		return coreConfig(configuration)
-	}
-
-	return nil, fmt.Errorf("configuring any snap but the OS is unsupported")
-}
-
 // Installed returns the installed snaps from this repository
 func (o *Overlord) Installed() ([]*Snap, error) {
 	globExpr := filepath.Join(dirs.SnapSnapsDir, "*", "*", "meta", "snap.yaml")
