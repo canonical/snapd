@@ -53,6 +53,7 @@ const (
 
 func infoFromRemote(d snapDetails) *snap.Info {
 	info := &snap.Info{}
+	info.Architectures = d.Architectures
 	info.Type = d.Type
 	info.Version = d.Version
 	info.OfficialName = d.Name
@@ -418,12 +419,9 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string,
 	}
 
 	u := *s.searchURI // make a copy, so we can mutate it
-
-	if searchTerm != "" {
-		q := u.Query()
-		q.Set("q", "name:"+searchTerm)
-		u.RawQuery = q.Encode()
-	}
+	q := u.Query()
+	q.Set("q", searchTerm)
+	u.RawQuery = q.Encode()
 
 	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
@@ -440,11 +438,19 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string,
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("received an unexpected http response code (%v) when trying to search via %q", resp.Status, req.URL)
+	}
+
+	if ct := resp.Header.Get("Content-Type"); ct != "application/hal+json" {
+		return nil, fmt.Errorf("received an unexpected content type (%q) when trying to search via %q", ct, req.URL)
+	}
+
 	var searchData searchResults
 
 	dec := json.NewDecoder(resp.Body)
 	if err := dec.Decode(&searchData); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot decode reply (got %v) when trying to search via %q", err, req.URL)
 	}
 
 	snaps := make([]*snap.Info, len(searchData.Payload.Packages))

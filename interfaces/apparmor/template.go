@@ -201,6 +201,8 @@ var defaultTemplate = []byte(`
   @{PROC}/@{pid}/status r,
   @{PROC}/sys/kernel/hostname r,
   @{PROC}/sys/kernel/osrelease r,
+  @{PROC}/sys/kernel/yama/ptrace_scope r,
+  @{PROC}/sys/kernel/shmmax r,
   @{PROC}/sys/fs/file-max r,
   @{PROC}/sys/kernel/pid_max r,
   @{PROC}/sys/kernel/random/uuid r,
@@ -214,6 +216,7 @@ var defaultTemplate = []byte(`
   # this leaks interface names and stats, but not in a way that is traceable
   # to the user/device
   @{PROC}/net/dev r,
+  @{PROC}/@{pid}/net/dev r,
 
   # Read-only for the install directory
   @{INSTALL_DIR}/@{SNAP_NAME}/                   r,
@@ -230,6 +233,7 @@ var defaultTemplate = []byte(`
 
   # Writable home area for this version.
   owner @{HOME}/snap/@{SNAP_NAME}/@{SNAP_REVISION}/** wl,
+  owner @{HOME}/snap/@{SNAP_NAME}/common/** wl,
 
   # Read-only system area for other versions
   /var/snap/@{SNAP_NAME}/   r,
@@ -237,6 +241,7 @@ var defaultTemplate = []byte(`
 
   # Writable system area only for this version
   /var/snap/@{SNAP_NAME}/@{SNAP_REVISION}/** wl,
+  /var/snap/@{SNAP_NAME}/common/** wl,
 
   # The ubuntu-core-launcher creates an app-specific private restricted /tmp
   # and will fail to launch the app if something goes wrong. As such, we can
@@ -274,6 +279,10 @@ var defaultTemplate = []byte(`
   # will block most access
   /dev/ r,
   /dev/**/ r,
+
+  # Allow setting up pseudoterminal via /dev/pts system. This is safe because
+  # the launcher uses a per-app devpts newinstance.
+  /dev/ptmx rw,
 
   # Do the same with /sys/devices and /sys/class to help people using hw-assign
   /sys/devices/ r,

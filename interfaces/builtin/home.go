@@ -34,14 +34,13 @@ const homeConnectedPlugAppArmor = `
 # Allow read access to toplevel $HOME for the user
 owner @{HOME}/ r,
 
-# Allow read/write access to all non-hidden files that aren't in ~/snaps/
+# Allow read/write access to all non-hidden files that aren't in ~/snap/
 owner @{HOME}/[^s.]**             rwk,
 owner @{HOME}/s[^n]**             rwk,
 owner @{HOME}/sn[^a]**            rwk,
 owner @{HOME}/sna[^p]**           rwk,
-owner @{HOME}/snap[^s]**          rwk,
 # allow creating a few files not caught above
-owner @{HOME}/{s,sn,sna,snap}{,/} rwk,
+owner @{HOME}/{s,sn,sna}{,/} rwk,
 `
 
 // NewHomeInterface returns a new "home" interface.
