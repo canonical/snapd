@@ -17,14 +17,13 @@
  *
  */
 
-package snappy
+package wrappers
 
 import (
 	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"text/template"
 	"time"
@@ -51,10 +50,6 @@ type interacter interface {
 // wait this time between TERM and KILL
 var killWait = 5 * time.Second
 
-// servicesBinariesStringsWhitelist is the whitelist of legal chars
-// in the "binaries" and "services" section of the snap.yaml
-var servicesBinariesStringsWhitelist = regexp.MustCompile(`^[A-Za-z0-9/. _#:-]*$`)
-
 func serviceStopTimeout(app *snap.AppInfo) time.Duration {
 	tout := app.StopTimeout
 	if tout == 0 {
@@ -63,12 +58,12 @@ func serviceStopTimeout(app *snap.AppInfo) time.Duration {
 	return time.Duration(tout)
 }
 
-func generateSnapServicesFile(app *snap.AppInfo) (string, error) {
+func generateSnapServiceFile(app *snap.AppInfo) (string, error) {
 	if err := snap.ValidateApp(app); err != nil {
 		return "", err
 	}
 
-	return GenServiceFile(app), nil
+	return genServiceFile(app), nil
 }
 
 func generateSnapSocketFile(app *snap.AppInfo) (string, error) {
@@ -82,16 +77,17 @@ func generateSnapSocketFile(app *snap.AppInfo) (string, error) {
 		app.SocketMode = "0660"
 	}
 
-	return GenSocketFile(app), nil
+	return genSocketFile(app), nil
 }
 
-func addPackageServices(s *snap.Info, inter interacter) error {
+// AddSnapServices adds and starts service units for the applications from the snap which are services.
+func AddSnapServices(s *snap.Info, inter interacter) error {
 	for _, app := range s.Apps {
 		if app.Daemon == "" {
 			continue
 		}
 		// Generate service file
-		content, err := generateSnapServicesFile(app)
+		content, err := generateSnapServiceFile(app)
 		if err != nil {
 			return err
 		}
@@ -145,7 +141,8 @@ func addPackageServices(s *snap.Info, inter interacter) error {
 	return nil
 }
 
-func removePackageServices(s *snap.Info, inter interacter) error {
+// RemoveSnapServices stops and removes service units for the applications from the snap which are services.
+func RemoveSnapServices(s *snap.Info, inter interacter) error {
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
 
 	nservices := 0
@@ -160,7 +157,8 @@ func removePackageServices(s *snap.Info, inter interacter) error {
 		if err := sysd.Disable(serviceName); err != nil {
 			return err
 		}
-		if err := sysd.Stop(serviceName, serviceStopTimeout(app)); err != nil {
+		tout := serviceStopTimeout(app)
+		if err := sysd.Stop(serviceName, tout); err != nil {
 			if !systemd.IsTimeout(err) {
 				return err
 			}
@@ -190,7 +188,7 @@ func removePackageServices(s *snap.Info, inter interacter) error {
 	return nil
 }
 
-func GenServiceFile(appInfo *snap.AppInfo) string {
+func genServiceFile(appInfo *snap.AppInfo) string {
 	serviceTemplate := `[Unit]
 # Auto-generated, DO NO EDIT
 Description=Service for snap application {{.App.Snap.Name}}.{{.App.Name}}
@@ -228,7 +226,8 @@ WantedBy={{.ServiceSystemdTarget}}
 	// service file, this ensures that /snap/foo/1.0/bin/start
 	// is in the service file when the SetRoot() option
 	// is used
-	realBaseDir := stripGlobalRootDir(baseDir)
+	//realBaseDir := stripGlobalRootDir(baseDir)
+	realBaseDir := baseDir
 
 	wrapperData := struct {
 		App *snap.AppInfo
@@ -254,7 +253,7 @@ WantedBy={{.ServiceSystemdTarget}}
 		filepath.Join(realBaseDir, appInfo.Command),
 		filepath.Join(realBaseDir, appInfo.Stop),
 		filepath.Join(realBaseDir, appInfo.PostStop),
-		stripGlobalRootDir(appInfo.Snap.DataDir()),
+		appInfo.Snap.DataDir(),
 		systemd.ServicesTarget,
 		arch.UbuntuArchitecture(),
 		// systemd runs as PID 1 so %h will not work.
@@ -280,7 +279,7 @@ WantedBy={{.ServiceSystemdTarget}}
 	return templateOut.String()
 }
 
-func GenSocketFile(appInfo *snap.AppInfo) string {
+func genSocketFile(appInfo *snap.AppInfo) string {
 	serviceTemplate := `[Unit]
 # Auto-generated, DO NO EDIT
 Description=Socket for snap application {{.App.Snap.Name}}.{{.App.Name}}
