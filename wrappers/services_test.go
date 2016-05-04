@@ -133,7 +133,7 @@ apps:
 
 	c.Check(sysdLog[1], DeepEquals, []string{"stop", svcFName})
 
-	// kill
+	// check kill invocations
 	c.Check(sysdLog[len(sysdLog)-3], DeepEquals, []string{"kill", svcFName, "-s", "TERM"})
 	c.Check(sysdLog[len(sysdLog)-2], DeepEquals, []string{"kill", svcFName, "-s", "KILL"})
 

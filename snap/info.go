@@ -210,11 +210,11 @@ type AppInfo struct {
 	Name    string
 	Command string
 
-	Daemon      string
-	StopTimeout timeout.Timeout
-	Stop        string
-	PostStop    string
-	RestartCond systemd.RestartCondition
+	Daemon          string
+	StopTimeout     timeout.Timeout
+	StopCommand     string
+	PostStopCommand string
+	RestartCond     systemd.RestartCondition
 
 	Socket       bool
 	SocketMode   string
@@ -249,25 +249,25 @@ func (app *AppInfo) WrapperPath() string {
 	return filepath.Join(dirs.SnapBinariesDir, binName)
 }
 
-func (app *AppInfo) invocation(command string) string {
+func (app *AppInfo) launcherCommand(command string) string {
 	securityTag := app.SecurityTag()
 	return fmt.Sprintf("/usr/bin/ubuntu-core-launcher %s %s %s", securityTag, securityTag, filepath.Join(app.Snap.MountDir(), command))
 
 }
 
-// Invocation returns the launcher command line to use when invoking the app binary.
-func (app *AppInfo) Invocation() string {
-	return app.invocation(app.Command)
+// LauncherCommand returns the launcher command line to use when invoking the app binary.
+func (app *AppInfo) LauncherCommand() string {
+	return app.launcherCommand(app.Command)
 }
 
-// StopInvocation returns the launcher command line to use when invoking the app stop command binary.
-func (app *AppInfo) StopInvocation() string {
-	return app.invocation(app.Stop)
+// LauncherStopCommand returns the launcher command line to use when invoking the app stop command binary.
+func (app *AppInfo) LauncherStopCommand() string {
+	return app.launcherCommand(app.StopCommand)
 }
 
-// PostStopInvocation returns the launcher command line to use when invoking the app post-stop command binary.
-func (app *AppInfo) PostStopInvocation() string {
-	return app.invocation(app.PostStop)
+// LauncherPostStopCommand returns the launcher command line to use when invoking the app post-stop command binary.
+func (app *AppInfo) LauncherPostStopCommand() string {
+	return app.launcherCommand(app.PostStopCommand)
 }
 
 // ServiceFile returns the systemd service file path for the daemon app.
