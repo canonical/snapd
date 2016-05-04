@@ -140,11 +140,11 @@ var storeConfig = (*store.SnapUbuntuStoreConfig)(nil)
 // NewConfiguredUbuntuStoreSnapRepository creates a new fully configured store.SnapUbuntuStoreRepository with the store id selected by the gadget.
 func NewConfiguredUbuntuStoreSnapRepository() *store.SnapUbuntuStoreRepository {
 	storeID := ""
+	// TODO: set the store-id here from the model information
 	if cand := os.Getenv("UBUNTU_STORE_ID"); cand != "" {
 		storeID = cand
-	} else if cand := StoreID(); cand != "" {
-		storeID = cand
 	}
+
 	return store.NewUbuntuStoreSnapRepository(storeConfig, storeID)
 }
 
