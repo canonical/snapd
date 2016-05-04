@@ -99,13 +99,6 @@ func SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, flags InstallFlags,
 	}
 	instdir := s.MountDir()
 
-	// the "gadget" snaps are special
-	if s.Type == snap.TypeGadget {
-		if err := installGadgetHardwareUdevRules(s); err != nil {
-			return s, err
-		}
-	}
-
 	if err := os.MkdirAll(instdir, 0755); err != nil {
 		logger.Noticef("Can not create %q: %v", instdir, err)
 		return s, err
@@ -128,6 +121,15 @@ func SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, flags InstallFlags,
 	}
 
 	return s, err
+}
+
+type agreer interface {
+	Agreed(intro, license string) bool
+}
+
+type interacter interface {
+	agreer
+	Notify(status string)
 }
 
 func addSquashfsMount(s *snap.Info, inhibitHooks bool, inter interacter) error {
@@ -230,7 +232,7 @@ func GenerateWrappers(s *snap.Info, inter interacter) error {
 		return err
 	}
 	// add the daemons from the snap.yaml
-	if err := addPackageServices(s, inter); err != nil {
+	if err := wrappers.AddSnapServices(s, inter); err != nil {
 		return err
 	}
 	// add the desktop files
@@ -250,7 +252,7 @@ func RemoveGeneratedWrappers(s *snap.Info, inter interacter) error {
 		logger.Noticef("Failed to remove binaries for %q: %v", s.Name(), err1)
 	}
 
-	err2 := removePackageServices(s, inter)
+	err2 := wrappers.RemoveSnapServices(s, inter)
 	if err2 != nil {
 		logger.Noticef("Failed to remove services for %q: %v", s.Name(), err2)
 	}
@@ -568,9 +570,6 @@ func CanRemove(s *snap.Info, active bool) bool {
 		return false
 	}
 
-	if IsBuiltInSoftware(s.Name()) && active {
-		return false
-	}
 	return true
 }
 
@@ -650,17 +649,6 @@ func (o *Overlord) SetActive(s *Snap, active bool, meter progress.Meter) error {
 	}
 
 	return UnlinkSnap(s.Info(), meter)
-}
-
-// Configure configures the given snap
-//
-// It returns an error on failure
-func (o *Overlord) Configure(s *Snap, configuration []byte) ([]byte, error) {
-	if s.Type() == snap.TypeOS {
-		return coreConfig(configuration)
-	}
-
-	return nil, fmt.Errorf("configuring any snap but the OS is unsupported")
 }
 
 // Installed returns the installed snaps from this repository
