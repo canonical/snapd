@@ -78,7 +78,10 @@ func (t *CreateTestSuite) SetUpTest(c *C) {
 }
 
 func makeMockLxdIndexSystem() string {
-	lsb, _ := release.ReadLsb()
+	lsb, err := release.ReadLSB()
+	if err != nil {
+		panic(err)
+	}
 	arch := arch.UbuntuArchitecture()
 
 	s := fmt.Sprintf(`
