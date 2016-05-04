@@ -22,22 +22,17 @@ package snappy
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/partition"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 )
-
-// dropVersionSuffix drops the kernel/initrd version suffix,
-// e.g. "vmlinuz-4.1.0" -> "vmlinuz".
-func dropVersionSuffix(name string) string {
-	name = filepath.Base(name)
-	return strings.SplitN(name, "-", 2)[0]
-}
 
 // override in tests
 var findBootloader = partition.FindBootloader
@@ -57,6 +52,13 @@ func removeKernelAssets(s snap.PlaceInfo, inter interacter) error {
 		return err
 	}
 
+	return nil
+}
+
+func copyAll(src, dst string) error {
+	if output, err := exec.Command("cp", "-a", src, dst).CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to copy %q -> %q: %s (%q)", src, dst, err, output)
+	}
 	return nil
 }
 
@@ -96,27 +98,25 @@ func extractKernelAssets(s *snap.Info, snapf snap.File, flags InstallFlags, inte
 	defer dir.Close()
 
 	// TODO: hardcoded names until this is fully speced
-	for _, src := range []string{"vmlinuz", "initrd.img"} {
-		if src == "" {
-			continue
-		}
-		if err := snapf.Unpack(src, dstDir); err != nil {
-			return err
-		}
-		src = filepath.Join(dstDir, src)
-		dst := filepath.Join(dstDir, dropVersionSuffix(src))
-		if err := os.Rename(src, dst); err != nil {
+	for _, src := range []string{
+		filepath.Join(s.MountDir(), "vmlinuz"),
+		filepath.Join(s.MountDir(), "initrd.img"),
+	} {
+		if err := copyAll(src, dstDir); err != nil {
 			return err
 		}
 		if err := dir.Sync(); err != nil {
 			return err
 		}
 	}
-	// we always try to unpack the dtbs dir, unpack will not
-	// error if it is missing
+
 	// TODO: hardcoded names until this is fully speced
-	if err := snapf.Unpack("dtbs/*", dstDir); err != nil {
-		return err
+	dtbsDir := filepath.Join(s.MountDir(), "dtbs")
+	if osutil.IsDirectory(dtbsDir) {
+		src := filepath.Join(dtbsDir, "*")
+		if err := copyAll(src, dstDir); err != nil {
+			return err
+		}
 	}
 
 	return dir.Sync()
