@@ -69,11 +69,8 @@ func extractKernelAssets(s *snap.Info, snapf snap.File, flags InstallFlags, inte
 	}
 
 	// sanity check that we have the new kernel format
-	kmeta, err := snapf.ReadFile("meta/kernel.yaml")
+	_, err := snap.ReadKernelInfo(s)
 	if err != nil {
-		return err
-	}
-	if err := snap.ValidateKernelYaml(kmeta); err != nil {
 		return err
 	}
 

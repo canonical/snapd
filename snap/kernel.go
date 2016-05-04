@@ -21,23 +21,36 @@ package snap
 
 import (
 	"fmt"
+	"io/ioutil"
+	"path/filepath"
 
 	"gopkg.in/yaml.v2"
 )
 
-// KernelYaml contains the kernel.yaml specific data
-type KernelYaml struct {
+type kernelYaml struct {
 	Version string `yaml:"version,omitempty"`
 }
 
-func ValidateKernelYaml(kmeta []byte) error {
-	var ky KernelYaml
-	if err := yaml.Unmarshal(kmeta, &ky); err != nil {
-		return fmt.Errorf("info failed to parse: %s", err)
-	}
-	if ky.Version == "" {
-		return fmt.Errorf("missing kernel version in kernel.yaml")
+type KernelInfo struct {
+	Version string
+}
+
+func ReadKernelInfo(info *Info) (*KernelInfo, error) {
+	kernelYamlFn := filepath.Join(info.MountDir(), "meta", "kernel.yaml")
+	kmeta, err := ioutil.ReadFile(kernelYamlFn)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read %q: %s", kernelYamlFn, err)
 	}
 
-	return nil
+	var ky kernelYaml
+	if err := yaml.Unmarshal(kmeta, &ky); err != nil {
+		return nil, fmt.Errorf("info failed to parse: %s", err)
+	}
+
+	// basic validation
+	if ky.Version == "" {
+		return nil, fmt.Errorf("missing kernel version in kernel.yaml")
+	}
+
+	return &KernelInfo{Version: ky.Version}, nil
 }
