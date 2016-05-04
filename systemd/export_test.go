@@ -28,13 +28,13 @@ var (
 	Jctl       = jctl
 )
 
-func MockStopStepsStopDelay(steps int, delay time.Duration) func() {
-	oldSteps := stopSteps
-	oldDelay := stopDelay
-	stopSteps = steps
-	stopDelay = delay
+func MockStopDelays(checkDelay, notifyDelay time.Duration) func() {
+	oldCheckDelay := stopCheckDelay
+	oldNotifyDelay := stopNotifyDelay
+	stopCheckDelay = checkDelay
+	stopNotifyDelay = notifyDelay
 	return func() {
-		stopSteps = oldSteps
-		stopDelay = oldDelay
+		stopCheckDelay = oldCheckDelay
+		stopNotifyDelay = oldNotifyDelay
 	}
 }
