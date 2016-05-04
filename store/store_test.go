@@ -894,7 +894,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositorySuggestedCurrency(c *C) {
 	c.Check(repo.SuggestedCurrency(), Equals, "EUR")
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateAllPurchases(c *C) {
+func (t *remoteRepoTestSuite) TestUbuntuStoreDecoratePurchases(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
 		c.Check(r.Header.Get("Authorization"), Equals, "Authorization-details")
@@ -932,7 +932,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateAllPurchases(c *C) {
 	snaps := []*snap.Info{helloWorld, funkyApp, otherApp, otherApp2}
 
 	authenticator := &fakeAuthenticator{}
-	err = repo.decorateAllPurchases(snaps, "edge", authenticator)
+	err = repo.decoratePurchases(snaps, "edge", authenticator)
 	c.Assert(err, IsNil)
 
 	c.Check(helloWorld.MustBuy, Equals, false)
@@ -941,7 +941,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateAllPurchases(c *C) {
 	c.Check(otherApp2.MustBuy, Equals, false)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateAllPurchasesFailedAccess(c *C) {
+func (t *remoteRepoTestSuite) TestUbuntuStoreDecoratePurchasesFailedAccess(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
 		c.Check(r.Header.Get("Authorization"), Equals, "Authorization-details")
@@ -980,7 +980,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateAllPurchasesFailedAccess(c 
 	snaps := []*snap.Info{helloWorld, funkyApp, otherApp, otherApp2}
 
 	authenticator := &fakeAuthenticator{}
-	err = repo.decorateAllPurchases(snaps, "edge", authenticator)
+	err = repo.decoratePurchases(snaps, "edge", authenticator)
 	c.Assert(err, NotNil)
 
 	c.Check(helloWorld.MustBuy, Equals, true)
@@ -989,7 +989,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateAllPurchasesFailedAccess(c 
 	c.Check(otherApp2.MustBuy, Equals, false)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateAllPurchasesNoAuth(c *C) {
+func (t *remoteRepoTestSuite) TestUbuntuStoreDecoratePurchasesNoAuth(c *C) {
 	cfg := SnapUbuntuStoreConfig{}
 	repo := NewUbuntuStoreSnapRepository(&cfg, "")
 	c.Assert(repo, NotNil)
@@ -1011,7 +1011,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateAllPurchasesNoAuth(c *C) {
 
 	snaps := []*snap.Info{helloWorld, funkyApp, otherApp, otherApp2}
 
-	err := repo.decorateAllPurchases(snaps, "edge", nil)
+	err := repo.decoratePurchases(snaps, "edge", nil)
 	c.Assert(err, IsNil)
 
 	c.Check(helloWorld.MustBuy, Equals, true)
@@ -1020,7 +1020,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateAllPurchasesNoAuth(c *C) {
 	c.Check(otherApp2.MustBuy, Equals, false)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchases(c *C) {
+func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesSingle(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
 		c.Check(r.Header.Get("Authorization"), Equals, "Authorization-details")
@@ -1045,13 +1045,15 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchases(c *C) {
 	helloWorld.SnapID = helloWorldSnapID
 	helloWorld.Prices = map[string]float64{"USD": 1.23}
 
+	snaps := []*snap.Info{helloWorld}
+
 	authenticator := &fakeAuthenticator{}
-	err = repo.decoratePurchases(helloWorld, "edge", authenticator)
+	err = repo.decoratePurchases(snaps, "edge", authenticator)
 	c.Assert(err, IsNil)
 	c.Check(helloWorld.MustBuy, Equals, false)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesFreeSnap(c *C) {
+func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesSingleFreeSnap(c *C) {
 	cfg := SnapUbuntuStoreConfig{}
 	repo := NewUbuntuStoreSnapRepository(&cfg, "")
 	c.Assert(repo, NotNil)
@@ -1059,27 +1061,15 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesFreeSnap(c *C) {
 	helloWorld := &snap.Info{}
 	helloWorld.SnapID = helloWorldSnapID
 
+	snaps := []*snap.Info{helloWorld}
+
 	authenticator := &fakeAuthenticator{}
-	err := repo.decoratePurchases(helloWorld, "edge", authenticator)
+	err := repo.decoratePurchases(snaps, "edge", authenticator)
 	c.Assert(err, IsNil)
 	c.Check(helloWorld.MustBuy, Equals, false)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesNoAuth(c *C) {
-	cfg := SnapUbuntuStoreConfig{}
-	repo := NewUbuntuStoreSnapRepository(&cfg, "")
-	c.Assert(repo, NotNil)
-
-	helloWorld := &snap.Info{}
-	helloWorld.SnapID = helloWorldSnapID
-	helloWorld.Prices = map[string]float64{"USD": 1.23}
-
-	err := repo.decoratePurchases(helloWorld, "edge", nil)
-	c.Assert(err, IsNil)
-	c.Check(helloWorld.MustBuy, Equals, true)
-}
-
-func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesNotFound(c *C) {
+func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesSingleNotFound(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
 		c.Check(r.Header.Get("Authorization"), Equals, "Authorization-details")
@@ -1105,8 +1095,10 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesNotFound(c *C) {
 	helloWorld.SnapID = helloWorldSnapID
 	helloWorld.Prices = map[string]float64{"USD": 1.23}
 
+	snaps := []*snap.Info{helloWorld}
+
 	authenticator := &fakeAuthenticator{}
-	err = repo.decoratePurchases(helloWorld, "edge", authenticator)
+	err = repo.decoratePurchases(snaps, "edge", authenticator)
 	c.Assert(err, NotNil)
 	c.Check(helloWorld.MustBuy, Equals, true)
 }
@@ -1137,8 +1129,10 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesTokenExpired(c *C) {
 	helloWorld.SnapID = helloWorldSnapID
 	helloWorld.Prices = map[string]float64{"USD": 1.23}
 
+	snaps := []*snap.Info{helloWorld}
+
 	authenticator := &fakeAuthenticator{}
-	err = repo.decoratePurchases(helloWorld, "edge", authenticator)
+	err = repo.decoratePurchases(snaps, "edge", authenticator)
 	c.Assert(err, NotNil)
 	c.Check(helloWorld.MustBuy, Equals, true)
 }
