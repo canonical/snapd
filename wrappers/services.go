@@ -38,12 +38,7 @@ import (
 	"github.com/ubuntu-core/snappy/timeout"
 )
 
-type agreer interface {
-	Agreed(intro, license string) bool
-}
-
 type interacter interface {
-	agreer
 	Notify(status string)
 }
 
@@ -197,12 +192,12 @@ Requires=snapd.frameworks.target{{ if .App.Socket }} {{.SocketFileName}}{{end}}
 X-Snappy=yes
 
 [Service]
-ExecStart={{.App.Invocation}}
+ExecStart={{.App.LauncherCommand}}
 Restart={{.Restart}}
 WorkingDirectory={{.App.Snap.DataDir}}
 Environment={{.EnvVars}}
-{{if .App.Stop}}ExecStop={{.App.StopInvocation}}{{end}}
-{{if .App.PostStop}}ExecStopPost={{.App.PostStopInvocation}}{{end}}
+{{if .App.StopCommand}}ExecStop={{.App.LauncherStopCommand}}{{end}}
+{{if .App.PostStopCommand}}ExecStopPost={{.App.LauncherPostStopCommand}}{{end}}
 {{if .StopTimeout}}TimeoutStopSec={{.StopTimeout.Seconds}}{{end}}
 Type={{.App.Daemon}}
 {{if .App.BusName}}BusName={{.App.BusName}}{{end}}

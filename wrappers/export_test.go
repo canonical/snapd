@@ -33,7 +33,7 @@ var (
 	GenerateSnapSocketFile  = generateSnapSocketFile
 )
 
-func MockKillWait(wait time.Duration) func() {
+func MockKillWait(wait time.Duration) (restore func()) {
 	oldKillWait := killWait
 	killWait = wait
 	return func() {
