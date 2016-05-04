@@ -80,4 +80,4 @@ func MockOnClassic(onClassic bool) (restore func()) {
 	old := OnClassic
 	OnClassic = onClassic
 	return func() { OnClassic = old }
- }
+}
