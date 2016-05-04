@@ -17,26 +17,22 @@
  *
  */
 
-package snappy
+// Package wrappers is used to generate wrappers and service units and also desktop files for snap applications.
+package wrappers
 
 import (
 	"bytes"
 	"os"
-	"path/filepath"
 	"strings"
 	"text/template"
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/snapenv"
 )
-
-// TODO: => AppInfo.CommandLine
-func binPathForBinary(pkgPath string, app *snap.AppInfo) string {
-	return filepath.Join(pkgPath, app.Command)
-}
 
 // Doesn't need to handle complications like internal quotes, just needs to
 // wrap right side of an env variable declaration with quotes for the shell.
@@ -44,89 +40,79 @@ func quoteEnvVar(envVar string) string {
 	return "export " + strings.Replace(envVar, "=", "=\"", 1) + "\""
 }
 
-func generateSnapBinaryWrapper(app *snap.AppInfo, pkgPath string) (string, error) {
+func generateSnapBinaryWrapper(app *snap.AppInfo) (string, error) {
 	wrapperTemplate := `#!/bin/sh
 set -e
 
 # snap info
-{{.NewAppVars}}
+{{.EnvVars}}
 
 if [ ! -d "$SNAP_USER_DATA" ]; then
    mkdir -p "$SNAP_USER_DATA"
 fi
 export HOME="$SNAP_USER_DATA"
 
-# Snap name is: {{.SnapName}}
-# App name is: {{.AppName}}
+# Snap name is: {{.App.Snap.Name}}
+# App name is: {{.App.Name}}
 
-ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
+{{.App.LauncherCommand}} "$@"
 `
 
 	if err := snap.ValidateApp(app); err != nil {
 		return "", err
 	}
 
-	actualBinPath := binPathForBinary(pkgPath, app)
-
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("wrapper").Parse(wrapperTemplate))
 	wrapperData := struct {
-		SnapName    string
-		AppName     string
-		SnapArch    string
-		SnapPath    string
-		Version     string
-		Revision    int
-		UdevAppName string
-		Home        string
-		Target      string
-		AaProfile   string
-		OldAppVars  string
-		NewAppVars  string
+		App     *snap.AppInfo
+		EnvVars string
+		// XXX: needed by snapenv
+		SnapName string
+		SnapArch string
+		SnapPath string
+		Version  string
+		Revision int
+		Home     string
 	}{
-		SnapName:    app.Snap.Name(),
-		AppName:     app.Name,
-		SnapArch:    arch.UbuntuArchitecture(),
-		SnapPath:    pkgPath,
-		Version:     app.Snap.Version,
-		Revision:    app.Snap.Revision,
-		UdevAppName: app.SecurityTag(),
-		Home:        "$HOME",
-		Target:      actualBinPath,
-		AaProfile:   app.SecurityTag(),
+		App: app,
+		// XXX: needed by snapenv
+		SnapName: app.Snap.Name(),
+		SnapArch: arch.UbuntuArchitecture(),
+		SnapPath: app.Snap.MountDir(),
+		Version:  app.Snap.Version,
+		Revision: app.Snap.Revision,
+		Home:     "$HOME",
 	}
 
-	newVars := []string{}
+	envVars := []string{}
 	for _, envVar := range append(
 		snapenv.GetBasicSnapEnvVars(wrapperData),
 		snapenv.GetUserSnapEnvVars(wrapperData)...) {
-		newVars = append(newVars, quoteEnvVar(envVar))
+		envVars = append(envVars, quoteEnvVar(envVar))
 	}
-	wrapperData.NewAppVars = strings.Join(newVars, "\n")
+	wrapperData.EnvVars = strings.Join(envVars, "\n")
 
-	t.Execute(&templateOut, wrapperData)
+	if err := t.Execute(&templateOut, wrapperData); err != nil {
+		// this can never happen, except we forget a variable
+		logger.Panicf("Unable to execute template: %v", err)
+	}
 
 	return templateOut.String(), nil
 }
 
-func addPackageBinaries(s *snap.Info) error {
+// AddSnapBinaries writes the wrapper binaries for the applications from the snap which aren't services.
+func AddSnapBinaries(s *snap.Info) error {
 	if err := os.MkdirAll(dirs.SnapBinariesDir, 0755); err != nil {
 		return err
 	}
-
-	baseDir := s.MountDir()
 
 	for _, app := range s.Apps {
 		if app.Daemon != "" {
 			continue
 		}
 
-		// this will remove the global base dir when generating the
-		// service file, this ensures that /snap/foo/1.0/bin/start
-		// is in the service file when the SetRoot() option
-		// is used
-		realBaseDir := stripGlobalRootDir(baseDir)
-		content, err := generateSnapBinaryWrapper(app, realBaseDir)
+		content, err := generateSnapBinaryWrapper(app)
 		if err != nil {
 			return err
 		}
@@ -139,7 +125,8 @@ func addPackageBinaries(s *snap.Info) error {
 	return nil
 }
 
-func removePackageBinaries(s *snap.Info) error {
+// RemoveSnapBinaries removes the wrapper binaries for the applications from the snap which aren't services from.
+func RemoveSnapBinaries(s *snap.Info) error {
 	for _, app := range s.Apps {
 		os.Remove(app.WrapperPath())
 	}

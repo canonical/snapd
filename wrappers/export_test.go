@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,33 +17,31 @@
  *
  */
 
-package snappy
+package wrappers
 
 import (
-	. "gopkg.in/check.v1"
+	"time"
 )
 
-var mockOsSnap = `
-name: ubuntu-core
-version: 1.0
-type: os
-`
+// some internal helper exposed for testing
+var (
+	// binaries
+	GenerateSnapBinaryWrapper = generateSnapBinaryWrapper
 
-func (s *SnapTestSuite) TestConfigOS(c *C) {
-	snapYaml, err := makeInstalledMockSnap(mockOsSnap, 11)
-	c.Assert(err, IsNil)
-	snap, err := NewInstalledSnap(snapYaml)
-	c.Assert(err, IsNil)
+	// services
+	GenerateSnapServiceFile = generateSnapServiceFile
+	GenerateSnapSocketFile  = generateSnapSocketFile
 
-	var cfg []byte
-	inCfg := []byte(`something`)
-	coreConfig = func(configuration []byte) ([]byte, error) {
-		cfg = configuration
-		return cfg, nil
+	// desktop
+	SanitizeDesktopFile = sanitizeDesktopFile
+	RewriteExecLine     = rewriteExecLine
+	TrimLang            = trimLang
+)
+
+func MockKillWait(wait time.Duration) (restore func()) {
+	oldKillWait := killWait
+	killWait = wait
+	return func() {
+		killWait = oldKillWait
 	}
-	defer func() { coreConfig = coreConfigImpl }()
-
-	_, err = (&Overlord{}).Configure(snap, inCfg)
-	c.Assert(err, IsNil)
-	c.Assert(cfg, DeepEquals, inCfg)
 }

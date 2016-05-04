@@ -906,35 +906,18 @@ apps:
 	c.Assert(err, IsNil)
 	c.Check(info.Apps, DeepEquals, map[string]*snap.AppInfo{
 		"svc": {
-			Snap:         info,
-			Name:         "svc",
-			Command:      "svc1",
-			Daemon:       "forking",
-			RestartCond:  systemd.RestartOnAbnormal,
-			StopTimeout:  timeout.Timeout(25 * time.Second),
-			Stop:         "stop-cmd",
-			PostStop:     "post-stop-cmd",
-			Socket:       true,
-			SocketMode:   "socket_mode",
-			ListenStream: "listen_stream",
-			BusName:      "busName",
+			Snap:            info,
+			Name:            "svc",
+			Command:         "svc1",
+			Daemon:          "forking",
+			RestartCond:     systemd.RestartOnAbnormal,
+			StopTimeout:     timeout.Timeout(25 * time.Second),
+			StopCommand:     "stop-cmd",
+			PostStopCommand: "post-stop-cmd",
+			Socket:          true,
+			SocketMode:      "socket_mode",
+			ListenStream:    "listen_stream",
+			BusName:         "busName",
 		},
 	})
-}
-
-// legacy
-
-func (s *YamlSuite) TestLegacyParsing(c *C) {
-	y := []byte(`name: gadget-test
-version: 1.0
-gadget:
-  store:
-    id: my-store
-type: gadget
-`)
-	info, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, IsNil)
-
-	c.Assert(info.Legacy, NotNil)
-	c.Check(info.Legacy.Gadget.Store.ID, Equals, "my-store")
 }

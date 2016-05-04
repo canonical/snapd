@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !integrationcoverage
 
 /*
  * Copyright (C) 2016 Canonical Ltd
@@ -17,15 +18,6 @@
  *
  */
 
-package snap
+package main
 
-import (
-	"github.com/ubuntu-core/snappy/snap/legacygadget"
-)
-
-// LegacyYaml collects the legacy fields in snap.yaml that are up to be reworked.
-type LegacyYaml struct {
-	// gadget snap only
-	Gadget legacygadget.Gadget       `yaml:"gadget,omitempty"`
-	Config legacygadget.SystemConfig `yaml:"config,omitempty"`
-}
+var RunMain = run

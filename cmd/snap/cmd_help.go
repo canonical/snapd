@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,20 +17,26 @@
  *
  */
 
-package snappy
+package main
 
 import (
-	"github.com/ubuntu-core/snappy/coreconfig"
+	"github.com/ubuntu-core/snappy/i18n"
+
+	"github.com/jessevdk/go-flags"
 )
 
-// for the unit tests
-var coreConfig = coreConfigImpl
+var shortHelpHelp = i18n.G("Help")
+var longHelpHelp = i18n.G(`
+How help for the snap command.`)
 
-// coreConfig configure the OS snap
-func coreConfigImpl(configuration []byte) (newConfig []byte, err error) {
-	if len(configuration) > 0 {
-		return coreconfig.Set(configuration)
+type cmdHelp struct{}
+
+func init() {
+	addCommand("help", shortHelpHelp, longHelpHelp, func() flags.Commander { return &cmdHelp{} })
+}
+
+func (cmdHelp) Execute([]string) error {
+	return &flags.Error{
+		Type: flags.ErrHelp,
 	}
-
-	return coreconfig.Get()
 }
