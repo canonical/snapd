@@ -51,7 +51,7 @@ const (
 	UbuntuCoreWireProtocol = "1"
 )
 
-func infoFromRemote(d snapDetails) *snap.Info {
+func infoFromRemote(d snapDetails, purchases []*purchase) *snap.Info {
 	info := &snap.Info{}
 	info.Architectures = d.Architectures
 	info.Type = d.Type
@@ -69,6 +69,7 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	info.AnonDownloadURL = d.AnonDownloadURL
 	info.DownloadURL = d.DownloadURL
 	info.Prices = d.Prices
+	info.MustBuy = mustBuy(d.Prices, purchases)
 	return info
 }
 
@@ -428,7 +429,17 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string, auther Authentica
 
 	s.checkStoreResponse(resp)
 
-	return infoFromRemote(searchData.Payload.Packages[0]), nil
+	pkg := searchData.Payload.Packages[0]
+
+	var purchases []*purchase
+	if auther != nil {
+		purchases, err = s.getPurchases(pkg.SnapID, channel, auther)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return infoFromRemote(pkg, purchases), nil
+
 }
 
 // FindSnaps finds  (installable) snaps from the store, matching the
@@ -473,9 +484,17 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string,
 		return nil, fmt.Errorf("cannot decode reply (got %v) when trying to search via %q", err, req.URL)
 	}
 
+	var purchases map[string][]*purchase
+	if auther != nil {
+		purchases, err = s.getAllPurchases(channel, auther)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	snaps := make([]*snap.Info, len(searchData.Payload.Packages))
 	for i, pkg := range searchData.Payload.Packages {
-		snaps[i] = infoFromRemote(pkg)
+		snaps[i] = infoFromRemote(pkg, purchases[pkg.SnapID])
 	}
 
 	s.checkStoreResponse(resp)
@@ -515,7 +534,7 @@ func (s *SnapUbuntuStoreRepository) Updates(installed []string, auther Authentic
 
 	res := make([]*snap.Info, len(updateData))
 	for i, rsnap := range updateData {
-		res[i] = infoFromRemote(rsnap)
+		res[i] = infoFromRemote(rsnap, nil)
 	}
 
 	s.checkStoreResponse(resp)
