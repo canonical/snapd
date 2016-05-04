@@ -79,9 +79,9 @@ func (s *ReleaseTestSuite) TestReadLSBNotFound(c *C) {
 func (s *ReleaseTestSuite) TestOnClassic(c *C) {
 	reset := release.MockOnClassic(true)
 	defer reset()
-	c.Assert(release.OnClassic(), Equals, true)
+	c.Assert(release.OnClassic, Equals, true)
 
 	reset = release.MockOnClassic(false)
 	defer reset()
-	c.Assert(release.OnClassic(), Equals, false)
+	c.Assert(release.OnClassic, Equals, false)
 }
