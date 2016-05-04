@@ -38,12 +38,7 @@ import (
 	"github.com/ubuntu-core/snappy/timeout"
 )
 
-type agreer interface {
-	Agreed(intro, license string) bool
-}
-
 type interacter interface {
-	agreer
 	Notify(status string)
 }
 
