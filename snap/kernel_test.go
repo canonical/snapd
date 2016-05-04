@@ -20,9 +20,14 @@
 package snap_test
 
 import (
+	"io/ioutil"
+	"path/filepath"
+
 	. "gopkg.in/check.v1"
 
+	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/snaptest"
 )
 
 type KernelYamlTestSuite struct {
@@ -30,13 +35,29 @@ type KernelYamlTestSuite struct {
 
 var _ = Suite(&KernelYamlTestSuite{})
 
-func (s *KernelYamlTestSuite) TestValidateKernelYaml(c *C) {
-	err := snap.ValidateKernelYaml([]byte(`version: 4.4-18`))
+var mockKernelYaml = `name: canonical-pc-linux
+type: kernel`
+
+func (s *KernelYamlTestSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
+}
+
+func (s *KernelYamlTestSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("/")
+}
+
+func (s *KernelYamlTestSuite) TestReadKernelYamlMissing(c *C) {
+	info := snaptest.MockSnap(c, mockKernelYaml, &snap.SideInfo{Revision: 42})
+	_, err := snap.ReadKernelInfo(info)
+	c.Assert(err, ErrorMatches, ".*meta/kernel.yaml: no such file or directory")
+}
+
+func (s *KernelYamlTestSuite) TestReadKernelYamlValid(c *C) {
+	info := snaptest.MockSnap(c, mockKernelYaml, &snap.SideInfo{Revision: 42})
+	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "kernel.yaml"), []byte(`version: 4.2`), 0644)
 	c.Assert(err, IsNil)
 
-	err = snap.ValidateKernelYaml([]byte(`version: `))
-	c.Assert(err, ErrorMatches, "missing kernel version in kernel.yaml")
-
-	err = snap.ValidateKernelYaml([]byte(``))
-	c.Assert(err, ErrorMatches, "missing kernel version in kernel.yaml")
+	kinfo, err := snap.ReadKernelInfo(info)
+	c.Assert(err, IsNil)
+	c.Assert(kinfo, DeepEquals, &snap.KernelInfo{Version: "4.2"})
 }
