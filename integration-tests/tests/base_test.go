@@ -79,11 +79,10 @@ func setUpSnapd(c *check.C, fromBranch bool, extraEnv string) {
 	cli.ExecCommand(c, "sudo", "systemctl", "stop",
 		"snapd.service", "snapd.socket")
 
-	if fromBranch {
-		binPath, err := filepath.Abs("integration-tests/bin/snapd")
-		c.Assert(err, check.IsNil)
+	cli.ExecCommand(c, "sudo", "mkdir", "-p", cfgDir)
 
-		err = writeCoverageConfig(binPath)
+	if fromBranch {
+		err := writeCoverageConfig()
 		c.Assert(err, check.IsNil)
 	}
 
@@ -108,14 +107,14 @@ func tearDownSnapd(c *check.C) {
 
 // this function writes a config file for snapd.service which clears and overrides the default
 // ExecStart setting adding the required flags for recording coverage info
-func writeCoverageConfig(binPath string) error {
-	if _, err := cli.ExecCommandErr("sudo", "mkdir", "-p", cfgDir); err != nil {
-		return err
-	}
-
+func writeCoverageConfig() error {
 	cfgFileName := "coverage.conf"
 	cfgFile := filepath.Join(cfgDir, cfgFileName)
 
+	binPath, err := filepath.Abs("integration-tests/bin/snapd")
+	if err != nil {
+		return err
+	}
 	cmd, err := cli.AddOptionsToCommand([]string{filepath.Base(binPath)})
 	cmd[0] = binPath
 
@@ -138,10 +137,6 @@ ExecStart=%s
 }
 
 func writeEnvConfig(extraEnv string) error {
-	if _, err := cli.ExecCommandErr("sudo", "mkdir", "-p", cfgDir); err != nil {
-		return err
-	}
-
 	cfgFile := filepath.Join(cfgDir, "env.conf")
 	// FIXME: for now pass a test-only trusted key through an env var
 	trustedKey, err := filepath.Abs("integration-tests/data/trusted.acckey")
