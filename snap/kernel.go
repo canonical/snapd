@@ -35,21 +35,23 @@ type KernelInfo struct {
 	Version string
 }
 
+const errorFormat = "cannot parse kernel snap details: %s"
+
 func ReadKernelInfo(info *Info) (*KernelInfo, error) {
 	kernelYamlFn := filepath.Join(info.MountDir(), "meta", "kernel.yaml")
 	kmeta, err := ioutil.ReadFile(kernelYamlFn)
 	if err != nil {
-		return nil, fmt.Errorf("cannot read %q: %s", kernelYamlFn, err)
+		return nil, fmt.Errorf(errorFormat, err)
 	}
 
 	var ky kernelYaml
 	if err := yaml.Unmarshal(kmeta, &ky); err != nil {
-		return nil, fmt.Errorf("info failed to parse: %s", err)
+		return nil, fmt.Errorf(errorFormat, err)
 	}
 
 	// basic validation
 	if ky.Version == "" {
-		return nil, fmt.Errorf("missing kernel version in kernel.yaml")
+		return nil, fmt.Errorf(errorFormat, err)
 	}
 
 	return &KernelInfo{Version: ky.Version}, nil
