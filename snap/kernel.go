@@ -51,7 +51,7 @@ func ReadKernelInfo(info *Info) (*KernelInfo, error) {
 
 	// basic validation
 	if ky.Version == "" {
-		return nil, fmt.Errorf(errorFormat, err)
+		return nil, fmt.Errorf(errorFormat, "missing version in kernel.yaml")
 	}
 
 	return &KernelInfo{Version: ky.Version}, nil
