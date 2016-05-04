@@ -21,8 +21,8 @@ fi
 tmp="${ADT_ARTIFACTS}/build"
 mkdir -p $tmp
 export GOPATH=$tmp
-mkdir -p $GOPATH/src/github.com/ubuntu-core/
-cp -R . $GOPATH/src/github.com/ubuntu-core/snappy/ && rm -rf $GOPATH/src/github.com/ubuntu-core/snappy/.git
+mkdir -p $GOPATH/src/github.com/ubuntu-core/snappy
+cp -R ./* $GOPATH/src/github.com/ubuntu-core/snappy/
 mkdir -p $GOPATH/src/github.com/ubuntu-core/snappy/integration-tests/data/output
 cp debian/tests/testconfig.json $GOPATH/src/github.com/ubuntu-core/snappy/integration-tests/data/output/
 cd $GOPATH/src/github.com/ubuntu-core/snappy
