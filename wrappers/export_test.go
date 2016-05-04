@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,20 +17,26 @@
  *
  */
 
-package snappy
+package wrappers
 
 import (
-	"github.com/ubuntu-core/snappy/coreconfig"
+	"time"
 )
 
-// for the unit tests
-var coreConfig = coreConfigImpl
+// some internal helper exposed for testing
+var (
+	// binaries
+	GenerateSnapBinaryWrapper = generateSnapBinaryWrapper
 
-// coreConfig configure the OS snap
-func coreConfigImpl(configuration []byte) (newConfig []byte, err error) {
-	if len(configuration) > 0 {
-		return coreconfig.Set(configuration)
+	// services
+	GenerateSnapServiceFile = generateSnapServiceFile
+	GenerateSnapSocketFile  = generateSnapSocketFile
+)
+
+func MockKillWait(wait time.Duration) (restore func()) {
+	oldKillWait := killWait
+	killWait = wait
+	return func() {
+		killWait = oldKillWait
 	}
-
-	return coreconfig.Get()
 }

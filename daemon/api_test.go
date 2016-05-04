@@ -507,7 +507,6 @@ func (s *apiSuite) TestSysInfoStore(c *check.C) {
 	expected := map[string]interface{}{
 		"flavor": "flavor",
 		"series": "series",
-		"store":  "some-store",
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)

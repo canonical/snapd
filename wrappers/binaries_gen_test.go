@@ -17,7 +17,7 @@
  *
  */
 
-package wrappers
+package wrappers_test
 
 import (
 	"fmt"
@@ -26,6 +26,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/wrappers"
 )
 
 type binariesWrapperGenSuite struct{}
@@ -53,7 +54,7 @@ export HOME="$SNAP_USER_DATA"
 # Snap name is: pastebinit
 # App name is: pastebinit
 
-ubuntu-core-launcher snap.pastebinit.pastebinit snap.pastebinit.pastebinit /snap/pastebinit/44/bin/pastebinit "$@"
+/usr/bin/ubuntu-core-launcher snap.pastebinit.pastebinit snap.pastebinit.pastebinit /snap/pastebinit/44/bin/pastebinit "$@"
 `
 
 func (s *binariesWrapperGenSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
@@ -69,7 +70,7 @@ func (s *binariesWrapperGenSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 
 	expected := fmt.Sprintf(expectedWrapper, arch.UbuntuArchitecture())
 
-	generatedWrapper, err := generateSnapBinaryWrapper(binary)
+	generatedWrapper, err := wrappers.GenerateSnapBinaryWrapper(binary)
 	c.Assert(err, IsNil)
 	c.Assert(generatedWrapper, Equals, expected)
 }
@@ -83,6 +84,6 @@ func (s *binariesWrapperGenSuite) TestSnappyGenerateSnapBinaryWrapperIllegalChar
 		Name: "bin/pastebinit\nSomething nasty",
 	}
 
-	_, err := generateSnapBinaryWrapper(binary)
+	_, err := wrappers.GenerateSnapBinaryWrapper(binary)
 	c.Assert(err, NotNil)
 }

@@ -50,14 +50,6 @@ func wrapConfig(pkgName string, conf interface{}) ([]byte, error) {
 
 var newSnapMap = newSnapMapImpl
 
-type configurator interface {
-	Configure(*Snap, []byte) ([]byte, error)
-}
-
-var newOverlord = func() configurator {
-	return (&Overlord{})
-}
-
 func newSnapMapImpl() (map[string]*Snap, error) {
 	all, err := (&Overlord{}).Installed()
 	if err != nil {
@@ -72,52 +64,6 @@ func newSnapMapImpl() (map[string]*Snap, error) {
 	}
 
 	return m, nil
-}
-
-// GadgetConfig checks for a gadget snap and if found applies the configuration
-// set there to the system
-func gadgetConfig() error {
-	gadget, err := getGadget()
-	if err != nil || gadget == nil {
-		return err
-	}
-
-	snapMap, err := newSnapMap()
-	if err != nil {
-		return err
-	}
-
-	pb := progress.MakeProgressBar()
-	for _, pkgName := range gadget.Legacy.Gadget.Software.BuiltIn {
-		snap, ok := snapMap[pkgName]
-		if !ok {
-			return errNoSnapToActivate
-		}
-		if err := ActivateSnap(snap, pb); err != nil {
-			logger.Noticef("failed to activate %s: %s", fmt.Sprintf("%s.%s", snap.Name(), snap.Developer()), err)
-		}
-	}
-
-	for pkgName, conf := range gadget.Legacy.Config {
-		snap, ok := snapMap[pkgName]
-		if !ok {
-			// We want to error early as this is a disparity and gadget snap
-			// packaging error.
-			return errNoSnapToConfig
-		}
-
-		configData, err := wrapConfig(pkgName, conf)
-		if err != nil {
-			return err
-		}
-
-		overlord := newOverlord()
-		if _, err := overlord.Configure(snap, configData); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 type activator interface {
@@ -159,11 +105,7 @@ func FirstBoot() error {
 	defer stampFirstBoot()
 	defer enableFirstEther()
 
-	if err := enableInstalledSnaps(); err != nil {
-		return err
-	}
-
-	return gadgetConfig()
+	return enableInstalledSnaps()
 }
 
 // NOTE: if you change stampFile, update the condition in
@@ -188,11 +130,6 @@ var ethdir = "/etc/network/interfaces.d"
 var ifup = "/sbin/ifup"
 
 func enableFirstEther() error {
-	gadget, _ := getGadget()
-	if gadget != nil && gadget.Legacy.Gadget.SkipIfupProvisioning {
-		return nil
-	}
-
 	var eths []string
 	for _, glob := range globs {
 		eths, _ = filepath.Glob(glob)
