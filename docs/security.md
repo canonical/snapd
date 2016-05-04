@@ -4,8 +4,8 @@ Snap packages run confined under a restrictive security sandbox by default.
 The security policies and store policies work together to allow developers to
 quickly update their applications and to provide safety to end users.
 
-This document describes how to configure the security policies for snap
-packages and builds upon the packaging declaration as defined in `meta.md`.
+This document describes the sandbox and how to configure and work with the security policies for snap
+packages.
 
 # How policy is applied
 Application authors should not have to know about or understand the lowlevel
@@ -33,8 +33,11 @@ and `<app>` is the command name. For example, if this is in `snap.yaml`:
 then the security label for the `bar` command is `snap.foo.bar`. This security
 label is used throughout the system including in the enforcement of security
 policy by the app launcher. All snap commands declared via `apps` in `meta.md`
-are launched by the launcher. The security policy and launcher enforce
-application isolation as per the snappy FHS. Under the hood, the launcher:
+are launched by the launcher and snaps run in the global (ie, default)
+namespace (except where noted otherwise) to facilitate communications and
+sharing between snaps and because this is more familiar for developers and
+administrators. The security policy and launcher enforce application isolation
+as per the snappy FHS. Under the hood, the launcher:
 
 * Sets up various environment variables:
     * `HOME`: set to `SNAP_DATA` for daemons and `SNAP_USER_DATA` for user
@@ -57,7 +60,6 @@ application isolation as per the snappy FHS. Under the hood, the launcher:
 * Sets up the seccomp filter for the command
 * Executes the command under the command-specific AppArmor profile under a
   default nice value
-
 
 This combination of restrictive AppArmor profiles (which mediate file access,
 application execution, Linux capabilities(7), mount, ptrace, IPC, signals,
