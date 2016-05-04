@@ -71,12 +71,7 @@ func Test(t *testing.T) {
 	runner.TestingT(t, output)
 
 	if _, err := os.Stat(config.DefaultFileName); err == nil {
-		cfg, err := config.ReadConfig(config.DefaultFileName)
-		if err != nil {
-			t.Fatalf("Error reading config: %v", err)
-		}
-
-		tearDownSnapd(&check.C{}, cfg.FromBranch)
+		tearDownSnapd(&check.C{})
 	}
 }
 
@@ -88,10 +83,7 @@ func setUpSnapd(c *check.C, fromBranch bool, extraEnv string) {
 		binPath, err := filepath.Abs("integration-tests/bin/snapd")
 		c.Assert(err, check.IsNil)
 
-		cli.ExecCommand(c, "sudo", "mount", "-o", "bind",
-			binPath, daemonBinaryPath)
-
-		err = writeCoverageConfig()
+		err = writeCoverageConfig(binPath)
 		c.Assert(err, check.IsNil)
 	}
 
@@ -103,15 +95,11 @@ func setUpSnapd(c *check.C, fromBranch bool, extraEnv string) {
 	cli.ExecCommand(c, "sudo", "systemctl", "start", "snapd.service")
 }
 
-func tearDownSnapd(c *check.C, fromBranch bool) {
+func tearDownSnapd(c *check.C) {
 	cli.ExecCommand(c, "sudo", "systemctl", "stop",
 		"snapd.service")
 
 	cli.ExecCommand(c, "sudo", "rm", "-rf", cfgDir)
-
-	if fromBranch {
-		cli.ExecCommand(c, "sudo", "umount", daemonBinaryPath)
-	}
 
 	cli.ExecCommand(c, "sudo", "systemctl", "daemon-reload")
 
@@ -120,7 +108,7 @@ func tearDownSnapd(c *check.C, fromBranch bool) {
 
 // this function writes a config file for snapd.service which clears and overrides the default
 // ExecStart setting adding the required flags for recording coverage info
-func writeCoverageConfig() error {
+func writeCoverageConfig(binPath string) error {
 	if _, err := cli.ExecCommandErr("sudo", "mkdir", "-p", cfgDir); err != nil {
 		return err
 	}
@@ -128,8 +116,8 @@ func writeCoverageConfig() error {
 	cfgFileName := "coverage.conf"
 	cfgFile := filepath.Join(cfgDir, cfgFileName)
 
-	cmd, err := cli.AddOptionsToCommand([]string{filepath.Base(daemonBinaryPath)})
-	cmd[0] = daemonBinaryPath
+	cmd, err := cli.AddOptionsToCommand([]string{filepath.Base(binPath)})
+	cmd[0] = binPath
 
 	cfgContent := []byte(fmt.Sprintf(`[Service]
 ExecStart=
