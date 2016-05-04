@@ -34,6 +34,9 @@ type mockBootloader struct {
 	dir string
 }
 
+func (b *mockBootloader) Name() string {
+	return "mocky"
+}
 func (b *mockBootloader) Dir() string {
 	return b.dir
 }
