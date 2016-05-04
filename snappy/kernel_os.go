@@ -68,6 +68,15 @@ func extractKernelAssets(s *snap.Info, snapf snap.File, flags InstallFlags, inte
 		return fmt.Errorf("can not extract kernel assets from snap type %q", s.Type)
 	}
 
+	// sanity check that we have the new kernel format
+	kmeta, err := snapf.ReadFile("meta/kernel.yaml")
+	if err != nil {
+		return err
+	}
+	if err := snap.ValidateKernelYaml(kmeta); err != nil {
+		return err
+	}
+
 	bootloader, err := findBootloader()
 	if err != nil {
 		return fmt.Errorf("can not extract kernel assets: %s", err)
@@ -93,7 +102,8 @@ func extractKernelAssets(s *snap.Info, snapf snap.File, flags InstallFlags, inte
 	}
 	defer dir.Close()
 
-	for _, src := range []string{s.Legacy.Kernel, s.Legacy.Initrd} {
+	// TODO: hardcoded names until this is fully speced
+	for _, src := range []string{"vmlinuz", "initrd.img"} {
 		if src == "" {
 			continue
 		}
@@ -109,12 +119,11 @@ func extractKernelAssets(s *snap.Info, snapf snap.File, flags InstallFlags, inte
 			return err
 		}
 	}
-	if s.Legacy.Dtbs != "" {
-		src := filepath.Join(s.Legacy.Dtbs, "*")
-		dst := dstDir
-		if err := snapf.Unpack(src, dst); err != nil {
-			return err
-		}
+	// we always try to unpack the dtbs dir, unpack will not
+	// error if it is missing
+	// TODO: hardcoded names until this is fully speced
+	if err := snapf.Unpack("dtbs/*", dstDir); err != nil {
+		return err
 	}
 
 	return dir.Sync()

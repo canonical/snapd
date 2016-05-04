@@ -244,15 +244,13 @@ name: ubuntu-kernel
 version: 4.0-1
 type: kernel
 vendor: Someone
-
-kernel: vmlinuz-4.2
-initrd: initrd.img-4.2
 `
 
 func (s *SquashfsTestSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
 	files := [][]string{
-		{"vmlinuz-4.2", "I'm a kernel"},
-		{"initrd.img-4.2", "...and I'm an initrd"},
+		{"vmlinuz", "I'm a kernel"},
+		{"initrd.img", "...and I'm an initrd"},
+		{"meta/kernel.yaml", "version: 4.2"},
 	}
 	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
 	si := &snap.SideInfo{
@@ -270,8 +268,9 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
 
 func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernel(c *C) {
 	files := [][]string{
-		{"vmlinuz-4.2", "I'm a kernel"},
-		{"initrd.img-4.2", "...and I'm an initrd"},
+		{"vmlinuz", "I'm a kernel"},
+		{"initrd.img", "...and I'm an initrd"},
+		{"meta/kernel.yaml", "version: 4.2"},
 	}
 	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
 	si := &snap.SideInfo{
@@ -299,8 +298,9 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernel(c *C) {
 
 func (s *SquashfsTestSuite) TestInstallKernelSnapRemovesKernelAssets(c *C) {
 	files := [][]string{
-		{"vmlinuz-4.2", "I'm a kernel"},
-		{"initrd.img-4.2", "...and I'm an initrd"},
+		{"vmlinuz", "I'm a kernel"},
+		{"initrd.img", "...and I'm an initrd"},
+		{"meta/kernel.yaml", "version: 4.2"},
 	}
 	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
 	si := &snap.SideInfo{
@@ -400,7 +400,8 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapNoUnpacksKernelForGrub(c *C) {
 	getGadget = getFakeGrubGadget
 
 	files := [][]string{
-		{"vmlinuz-4.2", "I'm a kernel"},
+		{"vmlinuz", "I'm a kernel"},
+		{"meta/kernel.yaml", "version: 4.2"},
 	}
 	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
 	_, err := (&Overlord{}).Install(snapPkg, 0, &MockProgressMeter{})

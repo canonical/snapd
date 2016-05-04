@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2014-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,15 +17,26 @@
  *
  */
 
-package snap
+package snap_test
 
 import (
-	"github.com/ubuntu-core/snappy/snap/legacygadget"
+	. "gopkg.in/check.v1"
+
+	"github.com/ubuntu-core/snappy/snap"
 )
 
-// LegacyYaml collects the legacy fields in snap.yaml that are up to be reworked.
-type LegacyYaml struct {
-	// gadget snap only
-	Gadget legacygadget.Gadget       `yaml:"gadget,omitempty"`
-	Config legacygadget.SystemConfig `yaml:"config,omitempty"`
+type KernelYamlTestSuite struct {
+}
+
+var _ = Suite(&KernelYamlTestSuite{})
+
+func (s *KernelYamlTestSuite) TestValidateKernelYaml(c *C) {
+	err := snap.ValidateKernelYaml([]byte(`version: 4.4-18`))
+	c.Assert(err, IsNil)
+
+	err = snap.ValidateKernelYaml([]byte(`version: `))
+	c.Assert(err, ErrorMatches, "missing kernel version in kernel.yaml")
+
+	err = snap.ValidateKernelYaml([]byte(``))
+	c.Assert(err, ErrorMatches, "missing kernel version in kernel.yaml")
 }
