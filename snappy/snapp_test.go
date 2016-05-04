@@ -347,11 +347,9 @@ apps:
 	c.Check(name, Equals, "foo")
 	c.Check(p.notified, HasLen, 0)
 
-	_, err = installRemote(mStore, r, 0, p)
+	name, err = installRemote(mStore, r, 0, p)
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
-	c.Check(p.notified, HasLen, 1)
-	c.Check(p.notified[0], Matches, "Waiting for .* stop.")
 }
 
 func (s *SnapTestSuite) TestErrorOnUnsupportedArchitecture(c *C) {

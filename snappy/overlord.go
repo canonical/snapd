@@ -130,6 +130,15 @@ func SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, flags InstallFlags,
 	return s, err
 }
 
+type agreer interface {
+	Agreed(intro, license string) bool
+}
+
+type interacter interface {
+	agreer
+	Notify(status string)
+}
+
 func addSquashfsMount(s *snap.Info, inhibitHooks bool, inter interacter) error {
 	squashfsPath := stripGlobalRootDir(s.MountFile())
 	whereDir := stripGlobalRootDir(s.MountDir())
@@ -230,7 +239,7 @@ func GenerateWrappers(s *snap.Info, inter interacter) error {
 		return err
 	}
 	// add the daemons from the snap.yaml
-	if err := addPackageServices(s, inter); err != nil {
+	if err := wrappers.AddSnapServices(s, inter); err != nil {
 		return err
 	}
 	// add the desktop files
@@ -250,7 +259,7 @@ func RemoveGeneratedWrappers(s *snap.Info, inter interacter) error {
 		logger.Noticef("Failed to remove binaries for %q: %v", s.Name(), err1)
 	}
 
-	err2 := removePackageServices(s, inter)
+	err2 := wrappers.RemoveSnapServices(s, inter)
 	if err2 != nil {
 		logger.Noticef("Failed to remove services for %q: %v", s.Name(), err2)
 	}
