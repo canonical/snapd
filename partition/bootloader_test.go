@@ -46,6 +46,9 @@ func newMockBootloader() *mockBootloader {
 		bootVars: make(map[string]string),
 	}
 }
+func (b *mockBootloader) Name() string {
+	return "mocky"
+}
 func (b *mockBootloader) Dir() string {
 	return "/foo"
 }

@@ -66,16 +66,16 @@ func (s *ValidateSuite) TestValidateName(c *C) {
 func (s *ValidateSuite) TestAppWhitelistSimple(c *C) {
 	c.Check(ValidateApp(&AppInfo{Name: "foo"}), IsNil)
 	c.Check(ValidateApp(&AppInfo{Command: "foo"}), IsNil)
-	c.Check(ValidateApp(&AppInfo{Stop: "foo"}), IsNil)
-	c.Check(ValidateApp(&AppInfo{PostStop: "foo"}), IsNil)
+	c.Check(ValidateApp(&AppInfo{StopCommand: "foo"}), IsNil)
+	c.Check(ValidateApp(&AppInfo{PostStopCommand: "foo"}), IsNil)
 }
 
 func (s *ValidateSuite) TestAppWhitelistIllegal(c *C) {
 	c.Check(ValidateApp(&AppInfo{Name: "x\n"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "test!me"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Command: "foo\n"}), NotNil)
-	c.Check(ValidateApp(&AppInfo{Stop: "foo\n"}), NotNil)
-	c.Check(ValidateApp(&AppInfo{PostStop: "foo\n"}), NotNil)
+	c.Check(ValidateApp(&AppInfo{StopCommand: "foo\n"}), NotNil)
+	c.Check(ValidateApp(&AppInfo{PostStopCommand: "foo\n"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{SocketMode: "foo\n"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{ListenStream: "foo\n"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{BusName: "foo\n"}), NotNil)

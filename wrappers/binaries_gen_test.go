@@ -17,7 +17,7 @@
  *
  */
 
-package snappy
+package wrappers_test
 
 import (
 	"fmt"
@@ -26,11 +26,12 @@ import (
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/wrappers"
 )
 
-type binariesTestSuite struct{}
+type binariesWrapperGenSuite struct{}
 
-var _ = Suite(&binariesTestSuite{})
+var _ = Suite(&binariesWrapperGenSuite{})
 
 const expectedWrapper = `#!/bin/sh
 set -e
@@ -53,11 +54,10 @@ export HOME="$SNAP_USER_DATA"
 # Snap name is: pastebinit
 # App name is: pastebinit
 
-ubuntu-core-launcher snap.pastebinit.pastebinit snap.pastebinit.pastebinit /snap/pastebinit/44/bin/pastebinit "$@"
+/usr/bin/ubuntu-core-launcher snap.pastebinit.pastebinit snap.pastebinit.pastebinit /snap/pastebinit/44/bin/pastebinit "$@"
 `
 
-func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
-	pkgPath := "/snap/pastebinit/44"
+func (s *binariesWrapperGenSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 	info := &snap.Info{}
 	info.SuggestedName = "pastebinit"
 	info.Version = "1.4.0.0.1"
@@ -70,13 +70,12 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 
 	expected := fmt.Sprintf(expectedWrapper, arch.UbuntuArchitecture())
 
-	generatedWrapper, err := generateSnapBinaryWrapper(binary, pkgPath)
+	generatedWrapper, err := wrappers.GenerateSnapBinaryWrapper(binary)
 	c.Assert(err, IsNil)
 	c.Assert(generatedWrapper, Equals, expected)
 }
 
-func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperIllegalChars(c *C) {
-	pkgPath := "/snap/pastebinit/44"
+func (s *binariesWrapperGenSuite) TestSnappyGenerateSnapBinaryWrapperIllegalChars(c *C) {
 	info := &snap.Info{}
 	info.SuggestedName = "pastebinit"
 	info.Version = "1.4.0.0.1"
@@ -85,18 +84,6 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperIllegalChars(c *C) {
 		Name: "bin/pastebinit\nSomething nasty",
 	}
 
-	_, err := generateSnapBinaryWrapper(binary, pkgPath)
+	_, err := wrappers.GenerateSnapBinaryWrapper(binary)
 	c.Assert(err, NotNil)
-}
-
-func (s *SnapTestSuite) TestSnappyBinPathForBinaryNoExec(c *C) {
-	binary := &snap.AppInfo{Name: "pastebinit", Command: "bin/pastebinit"}
-	pkgPath := "/snap/pastebinit/44"
-	c.Assert(binPathForBinary(pkgPath, binary), Equals, "/snap/pastebinit/44/bin/pastebinit")
-}
-
-func (s *SnapTestSuite) TestSnappyBinPathForBinaryWithExec(c *C) {
-	binary := &snap.AppInfo{Name: "pastebinit", Command: "bin/random-pastebin"}
-	pkgPath := "/snap/pastebinit/44"
-	c.Assert(binPathForBinary(pkgPath, binary), Equals, "/snap/pastebinit/44/bin/random-pastebin")
 }
