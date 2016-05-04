@@ -22,8 +22,9 @@ package release
 import (
 	"fmt"
 	"io/ioutil"
-	"os"
 	"strings"
+
+	"github.com/ubuntu-core/snappy/osutil"
 )
 
 // Series holds the Ubuntu Core series for snapd to use.
@@ -70,10 +71,7 @@ var dpkgStatusPath = "/var/lib/dpkg/status"
 // OnClassic returns whether the process is running inside a
 // classic Ubuntu system or a native Ubuntu Core image.
 func OnClassic() bool {
-	if _, err := os.Stat(dpkgStatusPath); err == nil {
-		return true
-	}
-	return false
+	return osutil.FileExists(dpkgStatusPath)
 }
 
 // MockOnClassic forces the process to appear inside a classic
