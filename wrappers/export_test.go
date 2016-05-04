@@ -17,24 +17,26 @@
  *
  */
 
-package systemd
+package wrappers
 
 import (
 	"time"
 )
 
+// some internal helper exposed for testing
 var (
-	SystemdRun = run // NOTE: plain Run clashes with check.v1
-	Jctl       = jctl
+	// binaries
+	GenerateSnapBinaryWrapper = generateSnapBinaryWrapper
+
+	// services
+	GenerateSnapServiceFile = generateSnapServiceFile
+	GenerateSnapSocketFile  = generateSnapSocketFile
 )
 
-func MockStopDelays(checkDelay, notifyDelay time.Duration) func() {
-	oldCheckDelay := stopCheckDelay
-	oldNotifyDelay := stopNotifyDelay
-	stopCheckDelay = checkDelay
-	stopNotifyDelay = notifyDelay
+func MockKillWait(wait time.Duration) (restore func()) {
+	oldKillWait := killWait
+	killWait = wait
 	return func() {
-		stopCheckDelay = oldCheckDelay
-		stopNotifyDelay = oldNotifyDelay
+		killWait = oldKillWait
 	}
 }
