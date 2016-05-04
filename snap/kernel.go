@@ -35,9 +35,9 @@ type KernelInfo struct {
 	Version string
 }
 
-const errorFormat = "cannot parse kernel snap details: %s"
-
 func ReadKernelInfo(info *Info) (*KernelInfo, error) {
+	const errorFormat = "cannot parse kernel snap details: %s"
+
 	kernelYamlFn := filepath.Join(info.MountDir(), "meta", "kernel.yaml")
 	kmeta, err := ioutil.ReadFile(kernelYamlFn)
 	if err != nil {
