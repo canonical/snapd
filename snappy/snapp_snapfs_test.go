@@ -275,6 +275,9 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernel(c *C) {
 	files := [][]string{
 		{"vmlinuz", "I'm a kernel"},
 		{"initrd.img", "...and I'm an initrd"},
+		{"dtbs/foo.dtb", "g'day, I'm foo.dtb"},
+		{"dtbs/bar.dtb", "hello, I'm bar.dtb"},
+		// must be last
 		{"meta/kernel.yaml", "version: 4.2"},
 	}
 	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
@@ -287,18 +290,16 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernel(c *C) {
 
 	// this is where the kernel/initrd is unpacked
 	bootdir := s.bootloader.Dir()
+	for _, def := range files {
+		if def[0] == "meta/kernel.yaml" {
+			break
+		}
 
-	// kernel is here and normalized
-	vmlinuz := filepath.Join(bootdir, "ubuntu-kernel_42.snap", "vmlinuz")
-	content, err := ioutil.ReadFile(vmlinuz)
-	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, files[0][1])
-
-	// and so is initrd
-	initrd := filepath.Join(bootdir, "ubuntu-kernel_42.snap", "initrd.img")
-	content, err = ioutil.ReadFile(initrd)
-	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, files[1][1])
+		fullFn := filepath.Join(bootdir, "ubuntu-kernel_42.snap", def[0])
+		content, err := ioutil.ReadFile(fullFn)
+		c.Assert(err, IsNil)
+		c.Assert(string(content), Equals, def[1])
+	}
 }
 
 func (s *SquashfsTestSuite) TestInstallKernelSnapRemovesKernelAssets(c *C) {

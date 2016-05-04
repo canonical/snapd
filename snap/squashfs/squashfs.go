@@ -60,7 +60,10 @@ func (s *Snap) Install(targetPath, mountDir string) error {
 		}
 	}
 
-	// FIXME: HHAAAAAAAAAAAAAAAACKKKKKKKKKKKKK for the tests
+	// This is required so that the tests can simulate a mounted
+	// snap when we "install" a squashfs snap in the tests.
+	// We can not mount it for real in the tests, so we just unpack
+	// it to the location which is good enough for the tests.
 	if os.Getenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS") != "" {
 		if err := s.unpack("*", mountDir); err != nil {
 			return err

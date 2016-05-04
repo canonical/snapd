@@ -111,10 +111,9 @@ func extractKernelAssets(s *snap.Info, snapf snap.File, flags InstallFlags, inte
 	}
 
 	// TODO: hardcoded names until this is fully speced
-	dtbsDir := filepath.Join(s.MountDir(), "dtbs")
-	if osutil.IsDirectory(dtbsDir) {
-		src := filepath.Join(dtbsDir, "*")
-		if err := copyAll(src, dstDir); err != nil {
+	srcDir := filepath.Join(s.MountDir(), "dtbs")
+	if osutil.IsDirectory(srcDir) {
+		if err := copyAll(srcDir, dstDir); err != nil {
 			return err
 		}
 	}
