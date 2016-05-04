@@ -64,14 +64,14 @@ type snapd20SnapsTestSuite struct {
 func (s *snapd20SnapsTestSuite) SetUpTest(c *check.C) {
 	s.snapdTestSuite.SetUpTest(c)
 	var err error
-	s.snapPath, err = build.LocalSnap(c, data.BasicConfigSnapName)
+	s.snapPath, err = build.LocalSnap(c, data.BasicBinariesSnapName)
 	c.Assert(err, check.IsNil)
 }
 
 func (s *snapd20SnapsTestSuite) TearDownTest(c *check.C) {
 	s.snapdTestSuite.TearDownTest(c)
 	os.Remove(s.snapPath)
-	common.RemoveSnap(c, data.BasicConfigSnapName)
+	common.RemoveSnap(c, data.BasicBinariesSnapName)
 }
 
 func (s *snapd20SnapsTestSuite) resource() string {
@@ -93,7 +93,7 @@ func (s *snapd20SnapsTestSuite) postInteractions() apiInteractions {
 		waitPattern: `(?U){"type":"sync","status-code":200,"status":"OK","result":{.*,"status":"active",.*}`,
 		waitFunction: func() (string, error) {
 			output, err := makeRequest(&requestOptions{
-				resource: s.resource() + "/" + data.BasicConfigSnapName,
+				resource: s.resource() + "/" + data.BasicBinariesSnapName,
 				verb:     "GET",
 			})
 			return string(output), err

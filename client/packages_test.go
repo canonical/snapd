@@ -47,6 +47,7 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
 		"result": [{
+                        "id": "funky-snap-id",
 			"summary": "salutation snap",
 			"description": "hello-world",
 			"download-size": 22212,
@@ -64,6 +65,7 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 	applications, resultInfo, err := cs.cli.Snaps()
 	c.Check(err, check.IsNil)
 	c.Check(applications, check.DeepEquals, []*client.Snap{{
+		ID:            "funky-snap-id",
 		Summary:       "salutation snap",
 		Description:   "hello-world",
 		DownloadSize:  22212,
@@ -111,6 +113,7 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
 		"result": {
+                        "id": "funky-snap-id",
                         "summary": "bla bla",
 			"description": "WebRTC Video chat server for Snappy",
 			"download-size": 6930947,
@@ -122,7 +125,6 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 			"resource": "/v2/snaps/chatroom.ogra",
 			"status": "active",
 			"type": "app",
-			"vendor": "",
 			"version": "0.1-8"
 		}
 	}`
@@ -131,6 +133,7 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 	c.Assert(cs.req.URL.Path, check.Equals, fmt.Sprintf("/v2/snaps/%s", pkgName))
 	c.Assert(err, check.IsNil)
 	c.Assert(pkg, check.DeepEquals, &client.Snap{
+		ID:            "funky-snap-id",
 		Summary:       "bla bla",
 		Description:   "WebRTC Video chat server for Snappy",
 		DownloadSize:  6930947,

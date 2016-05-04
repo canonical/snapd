@@ -62,29 +62,6 @@ func (s *SnapTestSuite) TestAddPackageServicesStripsGlobalRootdir(c *C) {
 	}
 }
 
-func (s *SnapTestSuite) TestAddPackageBinariesStripsGlobalRootdir(c *C) {
-	// ensure that even with a global rootdir the paths in the generated
-	// .services file are setup correctly (i.e. that the global root
-	// is stripped)
-	c.Assert(dirs.GlobalRootDir, Not(Equals), "/")
-
-	yamlFile, err := makeInstalledMockSnap("", 11)
-	c.Assert(err, IsNil)
-	snap, err := NewInstalledSnap(yamlFile)
-	c.Assert(err, IsNil)
-
-	err = addPackageBinaries(snap.Info())
-	c.Assert(err, IsNil)
-
-	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/snap/bin/hello-snap.hello"))
-	c.Assert(err, IsNil)
-
-	needle := `
-ubuntu-core-launcher snap.hello-snap.hello snap.hello-snap.hello /snap/hello-snap/11/bin/hello "$@"
-`
-	c.Assert(string(content), Matches, "(?ms).*"+regexp.QuoteMeta(needle)+".*")
-}
-
 var (
 	expectedServiceWrapperFmt = `[Unit]
 # Auto-generated, DO NO EDIT
