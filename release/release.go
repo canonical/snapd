@@ -66,22 +66,18 @@ func ReadLSB() (*LSB, error) {
 	return lsb, nil
 }
 
-var dpkgStatusPath = "/var/lib/dpkg/status"
-
-// OnClassic returns whether the process is running inside a
+// OnClassic states whether the process is running inside a
 // classic Ubuntu system or a native Ubuntu Core image.
-func OnClassic() bool {
-	return osutil.FileExists(dpkgStatusPath)
+var OnClassic bool
+
+func init() {
+	OnClassic = osutil.FileExists("/var/lib/dpkg/status")
 }
 
 // MockOnClassic forces the process to appear inside a classic
 // Ubuntu system or a native image for testing purposes.
 func MockOnClassic(onClassic bool) (restore func()) {
-	old := dpkgStatusPath
-	if onClassic {
-		dpkgStatusPath = "/"
-	} else {
-		dpkgStatusPath = "/non-existent"
-	}
-	return func() { dpkgStatusPath = old }
-}
+	old := OnClassic
+	OnClassic = onClassic
+	return func() { OnClassic = old }
+ }
