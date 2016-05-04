@@ -229,6 +229,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 		Type:    snap.TypeApp,
 		Version: "v2",
 		SideInfo: snap.SideInfo{
+			SnapID:            "funky-snap-id",
 			OfficialName:      "foo",
 			EditedSummary:     "summary",
 			EditedDescription: "description",
@@ -272,6 +273,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 		Type:   ResponseTypeSync,
 		Status: http.StatusOK,
 		Result: map[string]interface{}{
+			"snap-id":          "funky-snap-id",
 			"name":             "foo",
 			"revision":         10,
 			"version":          "v1",
@@ -281,7 +283,6 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 			"status":           "active",
 			"icon":             "/v2/icons/foo/icon",
 			"type":             string(snap.TypeApp),
-			"vendor":           "",
 			"download-size":    int64(2),
 			"resource":         "/v2/snaps/foo",
 			"update-available": 20,

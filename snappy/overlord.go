@@ -34,6 +34,7 @@ import (
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/systemd"
+	"github.com/ubuntu-core/snappy/wrappers"
 )
 
 // Overlord is responsible for the overall system state.
@@ -218,7 +219,7 @@ func UndoCopyData(newInfo *snap.Info, flags InstallFlags, meter progress.Meter) 
 
 func GenerateWrappers(s *snap.Info, inter interacter) error {
 	// add the CLI apps from the snap.yaml
-	if err := addPackageBinaries(s); err != nil {
+	if err := wrappers.AddSnapBinaries(s); err != nil {
 		return err
 	}
 	// add the daemons from the snap.yaml
@@ -237,7 +238,7 @@ func GenerateWrappers(s *snap.Info, inter interacter) error {
 // wrappers
 func RemoveGeneratedWrappers(s *snap.Info, inter interacter) error {
 
-	err1 := removePackageBinaries(s)
+	err1 := wrappers.RemoveSnapBinaries(s)
 	if err1 != nil {
 		logger.Noticef("Failed to remove binaries for %q: %v", s.Name(), err1)
 	}

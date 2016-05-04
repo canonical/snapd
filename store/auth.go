@@ -29,7 +29,7 @@ import (
 var (
 	myappsAPIBase = myappsURL()
 	// MyAppsPackageAccessAPI points to MyApps endpoint to get a package access macaroon
-	MyAppsPackageAccessAPI = myappsAPIBase + "/acl/package_access/"
+	MyAppsPackageAccessAPI = myappsAPIBase + "api/2.0/acl/package_access/"
 	ubuntuoneAPIBase       = authURL()
 	// UbuntuoneDischargeAPI points to SSO endpoint to discharge a macaroon
 	UbuntuoneDischargeAPI = ubuntuoneAPIBase + "/tokens/discharge"
