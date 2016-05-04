@@ -20,12 +20,24 @@
 package snap
 
 import (
-	"github.com/ubuntu-core/snappy/snap/legacygadget"
+	"fmt"
+
+	"gopkg.in/yaml.v2"
 )
 
-// LegacyYaml collects the legacy fields in snap.yaml that are up to be reworked.
-type LegacyYaml struct {
-	// gadget snap only
-	Gadget legacygadget.Gadget       `yaml:"gadget,omitempty"`
-	Config legacygadget.SystemConfig `yaml:"config,omitempty"`
+// KernelYaml contains the kernel.yaml specific data
+type KernelYaml struct {
+	Version string `yaml:"version,omitempty"`
+}
+
+func ValidateKernelYaml(kmeta []byte) error {
+	var ky KernelYaml
+	if err := yaml.Unmarshal(kmeta, &ky); err != nil {
+		return fmt.Errorf("info failed to parse: %s", err)
+	}
+	if ky.Version == "" {
+		return fmt.Errorf("missing kernel version in kernel.yaml")
+	}
+
+	return nil
 }
