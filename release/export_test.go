@@ -19,10 +19,8 @@
 
 package release
 
-func HackLsbReleasePath(fn string) (reset func()) {
-	origLsbReleasePath := lsbReleasePath
-	lsbReleasePath = fn
-	return func() {
-		lsbReleasePath = origLsbReleasePath
-	}
+func MockLSBReleasePath(filename string) (restore func()) {
+	old := lsbReleasePath
+	lsbReleasePath = filename
+	return func() { lsbReleasePath = old }
 }
