@@ -82,7 +82,7 @@ the yaml as `plugs` and `slots`.
 # Working with snap security policy
 
 The `snap.yaml` need not specify anything for default confinement and may
-optionally use `plugs` and `slots` to declare additional interfaces to use.
+optionally specify `plugs` and `slots` to declare additional interfaces to use.
 When an interface is connected, the snap's security policy will be updated to
 allow access to use the interface. See `meta.md` and `interface.md` for
 details.
