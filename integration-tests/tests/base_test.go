@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"gopkg.in/check.v1"
@@ -75,9 +76,7 @@ func Test(t *testing.T) {
 			t.Fatalf("Error reading config: %v", err)
 		}
 
-		if err := tearDownSnapd(cfg.FromBranch); err != nil {
-			t.Fatalf("Error stopping daemon: %v", err)
-		}
+		tearDownSnapd(&check.C{}, cfg.FromBranch)
 	}
 }
 
@@ -89,46 +88,64 @@ func setUpSnapd(c *check.C, fromBranch bool, extraEnv string) {
 		binPath, err := filepath.Abs("integration-tests/bin/snapd")
 		c.Assert(err, check.IsNil)
 
-		_, err = cli.ExecCommandErr("sudo", "mount", "-o", "bind",
+		cli.ExecCommand(c, "sudo", "mount", "-o", "bind",
 			binPath, daemonBinaryPath)
+
+		err = writeCoverageConfig()
 		c.Assert(err, check.IsNil)
 	}
 
 	err := writeEnvConfig(extraEnv)
 	c.Assert(err, check.IsNil)
 
-	_, err = cli.ExecCommandErr("sudo", "systemctl", "daemon-reload")
-	c.Assert(err, check.IsNil)
+	cli.ExecCommand(c, "sudo", "systemctl", "daemon-reload")
 
-	_, err = cli.ExecCommandErr("sudo", "systemctl", "start", "snapd.service")
-	c.Assert(err, check.IsNil)
+	cli.ExecCommand(c, "sudo", "systemctl", "start", "snapd.service")
 }
 
-func tearDownSnapd(fromBranch bool) error {
-	if _, err := cli.ExecCommandErr("sudo", "systemctl", "stop",
-		"snapd.service"); err != nil {
-		return err
-	}
+func tearDownSnapd(c *check.C, fromBranch bool) {
+	cli.ExecCommand(c, "sudo", "systemctl", "stop",
+		"snapd.service")
 
-	if _, err := cli.ExecCommandErr("sudo", "rm", "-rf", cfgDir); err != nil {
-		return err
-	}
+	cli.ExecCommand(c, "sudo", "rm", "-rf", cfgDir)
 
 	if fromBranch {
-		if _, err := cli.ExecCommandErr("sudo", "umount", daemonBinaryPath); err != nil {
-			return err
-		}
+		cli.ExecCommand(c, "sudo", "umount", daemonBinaryPath)
 	}
 
-	if _, err := cli.ExecCommandErr("sudo", "systemctl", "daemon-reload"); err != nil {
+	cli.ExecCommand(c, "sudo", "systemctl", "daemon-reload")
+
+	cli.ExecCommand(c, "sudo", "systemctl", "start", "snapd.service")
+}
+
+// this function writes a config file for snapd.service which clears and overrides the default
+// ExecStart setting adding the required flags for recording coverage info
+func writeCoverageConfig() error {
+	if _, err := cli.ExecCommandErr("sudo", "mkdir", "-p", cfgDir); err != nil {
 		return err
 	}
 
-	if _, err := cli.ExecCommandErr("sudo", "systemctl", "start",
-		"snapd.service"); err != nil {
+	cfgFileName := "coverage.conf"
+	cfgFile := filepath.Join(cfgDir, cfgFileName)
+
+	cmd, err := cli.AddOptionsToCommand([]string{filepath.Base(daemonBinaryPath)})
+	cmd[0] = daemonBinaryPath
+
+	cfgContent := []byte(fmt.Sprintf(`[Service]
+ExecStart=
+ExecStart=%s
+`, strings.Join(cmd, " ")))
+
+	fmt.Println(string(cfgContent))
+
+	tmpFile := "/tmp/snapd." + cfgFileName
+	if err = ioutil.WriteFile(tmpFile, cfgContent, os.ModeExclusive); err != nil {
 		return err
 	}
 
+	if _, err = cli.ExecCommandErr("sudo", "mv", tmpFile, cfgFile); err != nil {
+		return err
+	}
 	return nil
 }
 
