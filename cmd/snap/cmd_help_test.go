@@ -21,7 +21,6 @@
 package main_test
 
 import (
-	"bytes"
 	"os"
 
 	"gopkg.in/check.v1"
@@ -38,13 +37,11 @@ func (s *SnapSuite) TestHelpPrintsHelp(c *check.C) {
 		{"snap", "--help"},
 		{"snap", "-h"},
 	} {
-		stdout := bytes.NewBuffer(nil)
-		snap.Stdout = stdout
 		os.Args = cmdLine
 
 		err := snap.RunMain()
 		c.Assert(err, check.IsNil)
-		c.Check(stdout.String(), check.Matches, `(?smU)Usage:
+		c.Check(s.Stdout(), check.Matches, `(?smU)Usage:
  +snap \[OPTIONS\] <command>
 
 Help Options:
@@ -61,13 +58,11 @@ func (s *SnapSuite) TestSubCommandHelpPrintsHelp(c *check.C) {
 	origArgs := os.Args
 	defer func() { os.Args = origArgs }()
 
-	stdout := bytes.NewBuffer(nil)
-	snap.Stdout = stdout
 	os.Args = []string{"snap", "install", "--help"}
 
 	err := snap.RunMain()
 	c.Assert(err, check.IsNil)
-	c.Check(stdout.String(), check.Matches, `(?smU)Usage:
+	c.Check(s.Stdout(), check.Matches, `(?smU)Usage:
  +snap \[OPTIONS\] install \[install-OPTIONS\] <snap>
 .*
 `)
