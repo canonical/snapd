@@ -122,3 +122,86 @@ version: 1.0
 	c.Check(osutil.FileExists(currentDataSymlink), Equals, false)
 
 }
+
+func (s *linkSuite) TestLinkDoIdempotent(c *C) {
+	// make sure that a retry wouldn't stumble on partial work
+
+	const yaml = `name: hello
+version: 1.0
+apps:
+ bin:
+   command: bin
+ svc:
+   command: svc
+   daemon: simple
+`
+
+	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: 11})
+
+	err := s.be.LinkSnap(info)
+	c.Assert(err, IsNil)
+
+	err = s.be.LinkSnap(info)
+	c.Assert(err, IsNil)
+
+	l, err := filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
+	c.Assert(err, IsNil)
+	c.Assert(l, HasLen, 1)
+	l, err = filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.service"))
+	c.Assert(err, IsNil)
+	c.Assert(l, HasLen, 1)
+
+	mountDir := info.MountDir()
+	dataDir := info.DataDir()
+	currentActiveSymlink := filepath.Join(mountDir, "..", "current")
+	currentActiveDir, err := filepath.EvalSymlinks(currentActiveSymlink)
+	c.Assert(err, IsNil)
+	c.Assert(currentActiveDir, Equals, mountDir)
+
+	currentDataSymlink := filepath.Join(filepath.Dir(dataDir), "current")
+	currentDataDir, err := filepath.EvalSymlinks(currentDataSymlink)
+	c.Assert(err, IsNil)
+	c.Assert(currentDataDir, Equals, dataDir)
+}
+
+
+func (s *linkSuite) TestLinkUnoIdempotent(c *C) {
+	// make sure that a retry wouldn't stumble on partial work
+
+	const yaml = `name: hello
+version: 1.0
+apps:
+ bin:
+   command: bin
+ svc:
+   command: svc
+   daemon: simple
+`
+
+	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: 11})
+
+	err := s.be.LinkSnap(info)
+	c.Assert(err, IsNil)
+
+	err = s.be.UnlinkSnap(info, &s.nullProgress)
+	c.Assert(err, IsNil)
+
+	err = s.be.UnlinkSnap(info, &s.nullProgress)
+	c.Assert(err, IsNil)
+
+	// no wrappers
+	l, err := filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
+	c.Assert(err, IsNil)
+	c.Assert(l, HasLen, 0)
+	l, err = filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.service"))
+	c.Assert(err, IsNil)
+	c.Assert(l, HasLen, 0)
+
+	// no symlinks
+	mountDir := info.MountDir()
+	dataDir := info.DataDir()
+	currentActiveSymlink := filepath.Join(mountDir, "..", "current")
+	currentDataSymlink := filepath.Join(filepath.Dir(dataDir), "current")
+	c.Check(osutil.FileExists(currentActiveSymlink), Equals, false)
+	c.Check(osutil.FileExists(currentDataSymlink), Equals, false)
+}
