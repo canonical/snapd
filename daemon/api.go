@@ -73,7 +73,7 @@ var (
 	rootCmd = &Command{
 		Path:    "/",
 		GuestOK: true,
-		GET:     SyncResponse([]string{"TBD"}, nil).Self,
+		GET:     tbd,
 	}
 
 	sysInfoCmd = &Command{
@@ -165,6 +165,10 @@ var (
 		GET:    getChanges,
 	}
 )
+
+func tbd(c *Command, r *http.Request, user *auth.UserState) Response {
+	return SyncResponse([]string{"TBD"}, nil)
+}
 
 func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	m := map[string]string{
