@@ -37,36 +37,34 @@ func updateCurrentSymlinks(info *snap.Info) error {
 
 	currentActiveSymlink := filepath.Join(mountDir, "..", "current")
 	if err := os.Remove(currentActiveSymlink); err != nil && !os.IsNotExist(err) {
-		logger.Noticef("Failed to remove %q: %v", currentActiveSymlink, err)
+		logger.Noticef("Cannot remove %q: %v", currentActiveSymlink, err)
 	}
 
 	dataDir := info.DataDir()
-	dbase := filepath.Dir(dataDir)
-	currentDataSymlink := filepath.Join(dbase, "current")
+	currentDataSymlink := filepath.Join(dataDir, "..", "current")
 	if err := os.Remove(currentDataSymlink); err != nil && !os.IsNotExist(err) {
-		logger.Noticef("Failed to remove %q: %v", currentDataSymlink, err)
-	}
-
-	// symlink is relative to parent dir
-	if err := os.Symlink(filepath.Base(mountDir), currentActiveSymlink); err != nil {
-		return err
+		logger.Noticef("Cannot remove %q: %v", currentDataSymlink, err)
 	}
 
 	if err := os.MkdirAll(info.DataDir(), 0755); err != nil {
 		return err
 	}
 
-	// XXX: should migrate to a different package/form
-	if err := snappy.SetNextBoot(info); err != nil {
+	if err := os.Symlink(filepath.Base(dataDir), currentDataSymlink); err != nil {
 		return err
 	}
 
-	return os.Symlink(filepath.Base(dataDir), currentDataSymlink)
+	return os.Symlink(filepath.Base(mountDir), currentActiveSymlink)
 }
 
 // LinkSnap makes the snap available by generating wrappers and setting the current symlinks
 func (b Backend) LinkSnap(info *snap.Info) error {
 	if err := generateWrappers(info); err != nil {
+		return err
+	}
+
+	// XXX: should migrate to a different package/form
+	if err := snappy.SetNextBoot(info); err != nil {
 		return err
 	}
 
@@ -134,7 +132,7 @@ func removeCurrentSymlinks(info snap.PlaceInfo) error {
 	}
 
 	// the data "current" symlink
-	currentDataSymlink := filepath.Join(filepath.Dir(info.DataDir()), "current")
+	currentDataSymlink := filepath.Join(info.DataDir(), "..", "current")
 	err2 = os.Remove(currentDataSymlink)
 	if err2 != nil && !os.IsNotExist(err2) {
 		logger.Noticef("Failed to remove %q: %v", currentDataSymlink, err2)
