@@ -88,14 +88,13 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) bool {
 		if c.SudoerOK && isUIDInAny(uid, "sudo", "admin") {
 			// If user is in a group that grants sudo in
 			// the default install, and the command says
-			// that's ok, then it's ok
+			// that's ok, then it's ok.
 			return true
 		}
 
 		isUser = true
 	}
 
-	// only superuser can modify
 	if r.Method != "GET" {
 		return false
 	}
