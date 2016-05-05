@@ -91,17 +91,17 @@ func generateWrappers(s *snap.Info) error {
 func removeGeneratedWrappers(s *snap.Info, meter progress.Meter) error {
 	err1 := wrappers.RemoveSnapBinaries(s)
 	if err1 != nil {
-		logger.Noticef("Failed to remove binaries for %q: %v", s.Name(), err1)
+		logger.Noticef("Cannot remove binaries for %q: %v", s.Name(), err1)
 	}
 
 	err2 := wrappers.RemoveSnapServices(s, meter)
 	if err2 != nil {
-		logger.Noticef("Failed to remove services for %q: %v", s.Name(), err2)
+		logger.Noticef("Cannot remove services for %q: %v", s.Name(), err2)
 	}
 
 	err3 := wrappers.RemoveSnapDesktopFiles(s)
 	if err3 != nil {
-		logger.Noticef("Failed to remove desktop files for %q: %v", s.Name(), err3)
+		logger.Noticef("Cannot remove desktop files for %q: %v", s.Name(), err3)
 	}
 
 	return firstErr(err1, err2, err3)
@@ -126,7 +126,7 @@ func removeCurrentSymlinks(info snap.PlaceInfo) error {
 	currentActiveSymlink := filepath.Join(info.MountDir(), "..", "current")
 	err1 = os.Remove(currentActiveSymlink)
 	if err1 != nil && !os.IsNotExist(err1) {
-		logger.Noticef("Failed to remove %q: %v", currentActiveSymlink, err1)
+		logger.Noticef("Cannot remove %q: %v", currentActiveSymlink, err1)
 	} else {
 		err1 = nil
 	}
@@ -135,7 +135,7 @@ func removeCurrentSymlinks(info snap.PlaceInfo) error {
 	currentDataSymlink := filepath.Join(info.DataDir(), "..", "current")
 	err2 = os.Remove(currentDataSymlink)
 	if err2 != nil && !os.IsNotExist(err2) {
-		logger.Noticef("Failed to remove %q: %v", currentDataSymlink, err2)
+		logger.Noticef("Cannot remove %q: %v", currentDataSymlink, err2)
 	} else {
 		err2 = nil
 	}
