@@ -116,7 +116,15 @@ func (c *Command) canAccess(r *http.Request) bool {
 
 func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !c.canAccess(r) {
-		Forbidden("access denied").ServeHTTP(w, r)
+		rsp := &resp{
+			Type: ResponseTypeError,
+			Result: &errorResult{
+				Message: "access denied",
+				Kind:    errorKindLoginRequired,
+			},
+			Status: http.StatusUnauthorized,
+		}
+		rsp.ServeHTTP(w, r)
 		return
 	}
 

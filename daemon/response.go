@@ -128,6 +128,7 @@ const (
 	errorKindLicenseRequired   = errorKind("license-required")
 	errorKindTwoFactorRequired = errorKind("two-factor-required")
 	errorKindTwoFactorFailed   = errorKind("two-factor-failed")
+	errorKindLoginRequired     = errorKind("login-required")
 )
 
 type errorValue interface{}
