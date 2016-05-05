@@ -42,12 +42,15 @@ func (cs *clientSuite) TestClientLogin(c *check.C) {
 	os.Setenv("HOME", tmpdir)
 	defer os.Setenv("HOME", home)
 
-	user, err := cs.cli.Login("username", "pass", "")
+	c.Assert(cs.cli.LoggedIn(), check.Equals, false)
 
+	user, err := cs.cli.Login("username", "pass", "")
 	c.Check(err, check.IsNil)
 	c.Check(user, check.DeepEquals, &client.User{
 		Macaroon:   "the-root-macaroon",
 		Discharges: []string{"discharge-macaroon"}})
+
+	c.Assert(cs.cli.LoggedIn(), check.Equals, true)
 
 	outFile := filepath.Join(tmpdir, ".snap", "auth.json")
 	c.Check(osutil.FileExists(outFile), check.Equals, true)
