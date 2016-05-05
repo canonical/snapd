@@ -32,7 +32,8 @@ import (
 )
 
 // allow exchange in the tests
-var backend managerBackend = &defaultBackend{}
+// XXX once we reimplent CanRemove directly here, this goes away
+var be managerBackend = &defaultBackend{}
 
 func doInstall(s *state.State, curActive bool, snapName, snapPath, channel string, userID int, flags snappy.InstallFlags) (*state.TaskSet, error) {
 	if err := checkChangeConflict(s, snapName); err != nil {
@@ -204,7 +205,8 @@ func Remove(s *state.State, name string, flags snappy.RemoveFlags) (*state.TaskS
 	}
 
 	// check if this is something that can be removed
-	if !backend.CanRemove(info, active) {
+	// XXX: move CanRemove impl directly in snapstate
+	if !be.CanRemove(info, active) {
 		return nil, fmt.Errorf("snap %q is not removable", name)
 	}
 
