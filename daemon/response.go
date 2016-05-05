@@ -204,6 +204,7 @@ func (ar assertResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", t)
 	w.Header().Set("X-Ubuntu-Assertions-Count", strconv.Itoa(len(ar.assertions)))
+	w.WriteHeader(http.StatusOK)
 	enc := asserts.NewEncoder(w)
 	for _, a := range ar.assertions {
 		err := enc.Encode(a)
@@ -213,7 +214,6 @@ func (ar assertResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		}
 	}
-	w.WriteHeader(http.StatusOK)
 }
 
 type eventResponse struct {
