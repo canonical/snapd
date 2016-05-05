@@ -247,11 +247,10 @@ func logoutUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	state.Lock()
 	defer state.Unlock()
 
-	user, err := UserFromRequest(state, r)
-	if err != nil {
+	if user == nil {
 		return BadRequest("not logged in")
 	}
-	err = auth.RemoveUser(state, user.ID)
+	err := auth.RemoveUser(state, user.ID)
 	if err != nil {
 		return InternalError(err.Error())
 	}
@@ -760,11 +759,8 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	state.Lock()
 	defer state.Unlock()
 
-	user, err := UserFromRequest(state, r)
-	if err == nil {
+	if user != nil {
 		inst.userID = user.ID
-	} else if err != auth.ErrInvalidAuth {
-		return InternalError("%v", err)
 	}
 
 	vars := muxVars(r)
@@ -796,7 +792,7 @@ func newChange(st *state.State, kind, summary string, tsets []*state.TaskSet) *s
 
 const maxReadBuflen = 1024 * 1024
 
-func sideloadSnap(c *Command, r *http.Request, _ *auth.UserState) Response {
+func sideloadSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	route := c.d.router.Get(stateChangeCmd.Path)
 	if route == nil {
 		return InternalError("cannot find route for change")
@@ -883,11 +879,8 @@ out:
 	}
 
 	var userID int
-	user, err := UserFromRequest(st, r)
-	if err == nil {
+	if user != nil {
 		userID = user.ID
-	} else if err != auth.ErrInvalidAuth {
-		return InternalError("%v", err)
 	}
 
 	tsets, err := withEnsureUbuntuCore(st, snapName, userID,

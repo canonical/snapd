@@ -572,7 +572,7 @@ func (s *apiSuite) TestLogoutUser(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
 
-	rsp := logoutUser(logoutCmd, req, nil).(*resp)
+	rsp := logoutUser(logoutCmd, req, user).(*resp)
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 
@@ -1096,7 +1096,7 @@ func (s *apiSuite) TestPostSnapSetsUser(c *check.C) {
 	defer d.overlord.Stop()
 
 	snapInstructionDispTable["install"] = func(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-		return string(inst.userID), nil, nil
+		return fmt.Sprintf("<install by user %d>", inst.userID), nil, nil
 	}
 	defer func() {
 		snapInstructionDispTable["install"] = snapInstall
@@ -1113,7 +1113,7 @@ func (s *apiSuite) TestPostSnapSetsUser(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
 
-	rsp := postSnap(snapCmd, req, nil).(*resp)
+	rsp := postSnap(snapCmd, req, user).(*resp)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeAsync)
 
@@ -1121,7 +1121,7 @@ func (s *apiSuite) TestPostSnapSetsUser(c *check.C) {
 	st.Lock()
 	chg := st.Change(rsp.Change)
 	c.Assert(chg, check.NotNil)
-	c.Check(chg.Summary(), check.Equals, string(user.ID))
+	c.Check(chg.Summary(), check.Equals, "<install by user 1>")
 	st.Unlock()
 }
 
