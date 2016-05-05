@@ -84,6 +84,8 @@ apps:
 
 	// undo will remove
 	err = s.be.UnlinkSnap(info, &s.nullProgress)
+	c.Assert(err, IsNil)
+
 	l, err = filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
 	c.Assert(err, IsNil)
 	c.Assert(l, HasLen, 0)
@@ -109,7 +111,7 @@ version: 1.0
 	c.Assert(err, IsNil)
 	c.Assert(currentActiveDir, Equals, mountDir)
 
-	currentDataSymlink := filepath.Join(filepath.Dir(dataDir), "current")
+	currentDataSymlink := filepath.Join(dataDir, "..", "current")
 	currentDataDir, err := filepath.EvalSymlinks(currentDataSymlink)
 	c.Assert(err, IsNil)
 	c.Assert(currentDataDir, Equals, dataDir)
@@ -158,12 +160,11 @@ apps:
 	c.Assert(err, IsNil)
 	c.Assert(currentActiveDir, Equals, mountDir)
 
-	currentDataSymlink := filepath.Join(filepath.Dir(dataDir), "current")
+	currentDataSymlink := filepath.Join(dataDir, "..", "current")
 	currentDataDir, err := filepath.EvalSymlinks(currentDataSymlink)
 	c.Assert(err, IsNil)
 	c.Assert(currentDataDir, Equals, dataDir)
 }
-
 
 func (s *linkSuite) TestLinkUnoIdempotent(c *C) {
 	// make sure that a retry wouldn't stumble on partial work
@@ -198,10 +199,8 @@ apps:
 	c.Assert(l, HasLen, 0)
 
 	// no symlinks
-	mountDir := info.MountDir()
-	dataDir := info.DataDir()
-	currentActiveSymlink := filepath.Join(mountDir, "..", "current")
-	currentDataSymlink := filepath.Join(filepath.Dir(dataDir), "current")
+	currentActiveSymlink := filepath.Join(info.MountDir(), "..", "current")
+	currentDataSymlink := filepath.Join(info.DataDir(), "..", "current")
 	c.Check(osutil.FileExists(currentActiveSymlink), Equals, false)
 	c.Check(osutil.FileExists(currentDataSymlink), Equals, false)
 }
