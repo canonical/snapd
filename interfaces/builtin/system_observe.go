@@ -42,6 +42,9 @@ ptrace (read),
 # distinguish between tracing other processes and other accesses. We deny the
 # trace here to silence the log.
 deny ptrace (trace),
+
+# Other miscellaneous accesses for observing the system
+@{PROC}/vmstat r,
 `
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/system-observe
