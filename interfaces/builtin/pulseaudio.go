@@ -44,5 +44,6 @@ func NewPulseAudioInterface() interfaces.Interface {
 		connectedPlugAppArmor: pulseaudioConnectedPlugAppArmor,
 		connectedPlugSecComp:  pulseaudioConnectedPlugSecComp,
 		reservedForOS:         true,
+		autoConnect:           true,
 	}
 }
