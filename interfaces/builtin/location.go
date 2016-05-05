@@ -30,77 +30,107 @@ var locationPermanentSlotAppArmor = []byte(`
 #  gives privileged access to the system.
 # Usage: reserved
 
-  # DBus accesses
-  #include <abstractions/dbus-strict>
-  dbus (send)
-     bus=system
-     path=/org/freedesktop/DBus
-     interface=org.freedesktop.DBus
-     member={Request,Release}Name
-     peer=(name=org.freedesktop.DBus),
-
-  dbus (receive, send)
-     bus=system
-     path=/org/freedesktop/DBus
-     interface=org.freedesktop.DBus
-     member=GetConnectionUnixProcessID
-     peer=(label=unconfined),
-
-  dbus (receive, send)
-     bus=system
-     path=/org/freedesktop/DBus
-     interface=org.freedesktop.DBus
-     member=GetConnectionUnixUser
-     peer=(label=unconfined),
-
-  dbus (send)
+# DBus accesses
+#include <abstractions/dbus-strict>
+dbus (send)
     bus=system
-    path=/org/freedesktop/*
-    interface=org.freedesktop.DBus.Properties
+    path=/org/freedesktop/DBus
+    interface=org.freedesktop.DBus
+    member={Request,Release}Name
+    peer=(name=org.freedesktop.DBus, label=unconfined),
+
+dbus (send)
+    bus=system
+    path=/org/freedesktop/DBus
+    interface=org.freedesktop.DBus
+    member=GetConnectionUnix{ProcessID,User}
     peer=(label=unconfined),
 
-  # Allow binding the service to the requested connection names
-  dbus (bind)
-      bus=system
-      name="com.ubuntu.location.Service",
+# Allow binding the service to the requested connection names
+dbus (bind)
+    bus=system
+    name="com.ubuntu.location.Service",
 
-  dbus (bind)
-      bus=system
-      name="com.ubuntu.location.Service.Session",
+dbus (bind)
+    bus=system
+    name="com.ubuntu.location.Service.Session",
 
-  # Allow traffic to/from our path and interface with any method
-  dbus (receive, send)
-      bus=system
-      path=/com/ubuntu/location/Service{,/**}
-      interface=com.ubuntu.location.Service*,
+# Allow clients to create a session
+dbus (receive)
+    bus=system
+    path=/com/ubuntu/location/Service
+    interface=com.ubuntu.location.Service
+    member=CreateSessionForCriteria,
 
-  dbus (receive, send)
-      bus=system
-      path=/sessions/*
-      interface=com.ubuntu.location.Service.Session
-      member={Start,Stop}PositionUpdates,
+# Allow clients to query service properties
+dbus (receive)
+    bus=system
+    path=/com/ubuntu/location/Service
+    interface=org.freedesktop.DBus.Properties
+    member=Get,
 
-  dbus (receive, send)
-      bus=system
-      path=/sessions/*
-      interface=com.ubuntu.location.Service.Session
-      member={Start,Stop}HeadingUpdates,
+# Allow clients to set service properties
+dbus (receive)
+    bus=system
+    path=/com/ubuntu/location/Service
+    interface=org.freedesktop.DBus.Properties
+    member=Set,
 
-  dbus (receive, send)
-      bus=system
-      path=/sessions/*
-      interface=com.ubuntu.location.Service.Session
-      member={Start,Stop}VelocityUpdates,
+# Allow clients to request starting/stopping updates
+dbus (receive)
+    bus=system
+    path=/sessions/*
+    interface=com.ubuntu.location.Service.Session
+    member={Start,Stop}PositionUpdates,
 
-  # Allow traffic to/from org.freedesktop.DBus for location service
-  dbus (receive, send)
-      bus=system
-      path=/
-      interface=org.freedesktop.DBus**,
-  dbus (receive, send)
-      bus=system
-      path=/com/ubuntu/location/Service{,/**}
-      interface=org.freedesktop.DBus**,
+dbus (receive)
+    bus=system
+    path=/sessions/*
+    interface=com.ubuntu.location.Service.Session
+    member={Start,Stop}HeadingUpdates,
+
+dbus (receive)
+    bus=system
+    path=/sessions/*
+    interface=com.ubuntu.location.Service.Session
+    member={Start,Stop}VelocityUpdates,
+
+# Allow the service to send updates to clients
+dbus (send)
+    bus=system
+    path=/sessions/*
+    interface=com.ubuntu.location.Service.Session
+    member=UpdatePosition,
+
+dbus (send)
+    bus=system
+    path=/sessions/*
+    interface=com.ubuntu.location.Service.Session
+    member=UpdateHeading,
+
+dbus (send)
+    bus=system
+    path=/sessions/*
+    interface=com.ubuntu.location.Service.Session
+    member=UpdateVelocity,
+
+dbus (send)
+   bus=system
+   path=/com/ubuntu/location/Service
+   interface=org.freedesktop.DBus.Properties
+   member=PropertiesChanged,
+
+# Allow traffic to/from org.freedesktop.DBus for location service
+dbus (receive, send)
+    bus=system
+    path=/
+    interface=org.freedesktop.DBus*,
+
+dbus (receive, send)
+    bus=system
+    path=/com/ubuntu/location/Service{,/**}
+    interface=org.freedesktop.DBus**
+    peer=(label=unconfined),
 `)
 
 var locationConnectedPlugAppArmor = []byte(`
@@ -110,29 +140,85 @@ var locationConnectedPlugAppArmor = []byte(`
 
 #include <abstractions/dbus-strict>
 
-# Allow all access to location service
-dbus (receive, send)
+# Allow clients to query service properties
+dbus (send)
     bus=system
+    path=/com/ubuntu/location/Service
+    interface=org.freedesktop.DBus.Properties
+    member=Get
+    peer=(label=###SLOT_SECURITY_TAGS###),
+
+# Allow clients to set service properties
+dbus (send)
+    bus=system
+    path=/com/ubuntu/location/Service
+    interface=org.freedesktop.DBus.Properties
+    member=Set
+    peer=(label=###SLOT_SECURITY_TAGS###),
+
+# Allow clients to create a session
+dbus (send)
+    bus=system
+    path=/com/ubuntu/location/Service
+    interface=com.ubuntu.location.Service
+    member=CreateSessionForCriteria
+    peer=(label=###SLOT_SECURITY_TAGS###),
+
+# Allow clients to request starting/stopping updates
+dbus (send)
+    bus=system
+    path=/sessions/*
+    interface=com.ubuntu.location.Service.Session
+    member={Start,Stop}PositionUpdates
     peer=(label=###SLOT_SECURITY_TAGS###),
 
 dbus (send)
     bus=system
-    peer=(name=com.ubuntu.location.Service, label=unconfined),
+    path=/sessions/*
+    interface=com.ubuntu.location.Service.Session
+    member={Start,Stop}HeadingUpdates
+    peer=(label=###SLOT_SECURITY_TAGS###),
 
 dbus (send)
     bus=system
-    peer=(name=com.ubuntu.location.Service.Session, label=unconfined),
+    path=/sessions/*
+    interface=com.ubuntu.location.Service.Session
+    member={Start,Stop}VelocityUpdates
+    peer=(label=###SLOT_SECURITY_TAGS###),
+
+# Allow clients to receive updates from the service
+dbus (receive)
+    bus=system
+    path=/sessions/*
+    interface=com.ubuntu.location.Service.Session
+    member=UpdatePosition
+    peer=(label=###SLOT_SECURITY_TAGS###),
+
+dbus (receive)
+    bus=system
+    path=/sessions/*
+    interface=com.ubuntu.location.Service.Session
+    member=UpdateHeading
+    peer=(label=###SLOT_SECURITY_TAGS###),
+
+dbus (receive)
+    bus=system
+    path=/sessions/*
+    interface=com.ubuntu.location.Service.Session
+    member=UpdateVelocity
+    peer=(label=###SLOT_SECURITY_TAGS###),
+
+dbus (receive)
+   bus=system
+   path=/com/ubuntu/location/Service
+   interface=org.freedesktop.DBus.Properties
+   member=PropertiesChanged
+   peer=(label=###SLOT_SECURITY_TAGS###),
 
 dbus (receive)
     bus=system
     path=/
     interface=org.freedesktop.DBus.ObjectManager
-    peer=(label=unconfined),
-
-dbus (receive)
-    bus=system
-    path=/com/ubuntu/location/Service{,/**}
-    interface=org.freedesktop.DBus*
     peer=(label=unconfined),
 `)
 
@@ -152,22 +238,22 @@ sendto
 
 var locationPermanentSlotDBus = []byte(`
 <policy user="root">
-	<allow own="com.ubuntu.location.Service"/>
-	<allow send_destination="com.ubuntu.location.Service"/>
+    <allow own="com.ubuntu.location.Service"/>
+    <allow own="com.ubuntu.location.Service.Session"/>
+    <allow send_destination="com.ubuntu.location.Service"/>
     <allow send_destination="com.ubuntu.location.Service.Session"/>
-	<allow send_interface="com.ubuntu.location.Service"/>
-	<allow send_interface="com.ubuntu.location.Service.Session"/>
+    <allow send_interface="com.ubuntu.location.Service"/>
+    <allow send_interface="com.ubuntu.location.Service.Session"/>
 </policy>
 `)
 
 var locationConnectedPlugDBus = []byte(`
 <policy context="default">
-    <deny own="com.ubuntu.location.Service"/>               
-	<allow own="com.ubuntu.location.Service.Session"/>
+    <deny own="com.ubuntu.location.Service"/>
     <allow send_destination="com.ubuntu.location.Service"/>
     <allow send_destination="com.ubuntu.location.Service.Session"/>
     <allow send_interface="com.ubuntu.location.Service"/>
-	<allow send_interface="com.ubuntu.location.Service.Session"/>
+    <allow send_interface="com.ubuntu.location.Service.Session"/>
 </policy>
 `)
 
