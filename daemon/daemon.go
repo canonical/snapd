@@ -34,6 +34,7 @@ import (
 	"github.com/ubuntu-core/snappy/notifications"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/overlord"
+	"github.com/ubuntu-core/snappy/overlord/auth"
 	"github.com/ubuntu-core/snappy/store"
 )
 
@@ -49,7 +50,7 @@ type Daemon struct {
 }
 
 // A ResponseFunc handles one of the individual verbs for a method
-type ResponseFunc func(*Command, *http.Request) Response
+type ResponseFunc func(*Command, *http.Request, *auth.UserState) Response
 
 // A Command routes a request to an individual per-verb ResponseFUnc
 type Command struct {
@@ -135,7 +136,7 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if rspf != nil {
-		rsp = rspf(c, r)
+		rsp = rspf(c, r, nil)
 	}
 
 	rsp.ServeHTTP(w, r)
