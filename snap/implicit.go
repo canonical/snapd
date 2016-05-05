@@ -37,6 +37,7 @@ var implicitSlots = []string{
 	"unity7",
 	"x11",
 	"opengl",
+	"pulseaudio",
 }
 
 // AddImplicitSlots adds implicitly defined slots to a given snap.
