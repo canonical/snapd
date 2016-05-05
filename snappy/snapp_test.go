@@ -32,7 +32,6 @@ import (
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/policy"
-	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/snapenv"
 	"github.com/ubuntu-core/snappy/store"
@@ -59,8 +58,6 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	os.MkdirAll(dirs.SnapServicesDir, 0755)
 	os.MkdirAll(dirs.SnapSeccompDir, 0755)
 	os.MkdirAll(dirs.SnapSnapsDir, 0755)
-
-	release.Override(release.Release{Flavor: "core", Series: "15.04"})
 
 	// create a fake systemd environment
 	os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants"), 0755)
