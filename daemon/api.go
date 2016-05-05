@@ -167,14 +167,8 @@ var (
 )
 
 func sysInfo(c *Command, r *http.Request) Response {
-	rel := release.Get()
 	m := map[string]string{
-		"flavor": rel.Flavor,
-		"series": rel.Series,
-	}
-
-	if store := snappy.StoreID(); store != "" {
-		m["store"] = store
+		"series": release.Series,
 	}
 
 	return SyncResponse(m, nil)
