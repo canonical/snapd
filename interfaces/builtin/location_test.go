@@ -73,7 +73,7 @@ func (s *LocationInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) 
 	}
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, "peer=(label=snap.location.*),")
+	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.location.*"),`)
 }
 
 // The label uses alternation when some, but not all, apps is bound to the location slot
@@ -94,7 +94,7 @@ func (s *LocationInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C)
 	}
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, "peer=(label=snap.location.{app1,app2}),")
+	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.location.{app1,app2}"),`)
 }
 
 // The label uses short form when exactly one app is bound to the location slot
@@ -113,7 +113,7 @@ func (s *LocationInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) 
 	}
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, "peer=(label=snap.location.app),")
+	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.location.app"),`)
 }
 
 func (s *LocationInterfaceSuite) TestUnusedSecuritySystems(c *C) {
