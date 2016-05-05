@@ -130,6 +130,8 @@ func init() {
 	}
 }
 
+var missingLoginHelp = "access denied (snap login --help)."
+
 func main() {
 	if err := run(); err != nil {
 		fmt.Fprintf(Stderr, "error: %v\n", err)
@@ -148,6 +150,9 @@ func run() error {
 			parser.WriteHelp(Stdout)
 			return nil
 
+		}
+		if e, ok := err.(*client.Error); ok && e.StatusCode == 401 && e.Kind == client.ErrorKindLoginRequired {
+			return fmt.Errorf(missingLoginHelp)
 		}
 	}
 
