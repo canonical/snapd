@@ -72,25 +72,21 @@ type Command struct {
 
 var isUIDInAny = osutil.IsUIDInAny
 
-func (c *Command) canAccess(r *http.Request) bool {
-	state := c.d.overlord.State()
-	state.Lock()
-	_, err := UserFromRequest(state, r)
-	state.Unlock()
-	if err == nil {
-		// authenticated user does anything
+func (c *Command) canAccess(r *http.Request, user *auth.UserState) bool {
+	if user != nil {
+		// Authenticated users do anything for now.
 		return true
 	}
 
 	isUser := false
 	if uid, err := ucrednetGetUID(r.RemoteAddr); err == nil {
 		if uid == 0 {
-			// superuser does anything
+			// Superuser does anything.
 			return true
 		}
 
 		if c.SudoerOK && isUIDInAny(uid, "sudo", "admin") {
-			// if user is in a group that grants sudo in
+			// If user is in a group that grants sudo in
 			// the default install, and the command says
 			// that's ok, then it's ok
 			return true
@@ -116,7 +112,13 @@ func (c *Command) canAccess(r *http.Request) bool {
 }
 
 func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if !c.canAccess(r) {
+	state := c.d.overlord.State()
+	state.Lock()
+	// TODO Look at the error and fail if there's an attempt to authenticate with invalid data.
+	user, _ := UserFromRequest(state, r)
+	state.Unlock()
+
+	if !c.canAccess(r, user) {
 		Forbidden("access denied").ServeHTTP(w, r)
 		return
 	}
@@ -136,7 +138,7 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if rspf != nil {
-		rsp = rspf(c, r, nil)
+		rsp = rspf(c, r, user)
 	}
 
 	rsp.ServeHTTP(w, r)
