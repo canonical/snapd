@@ -63,7 +63,7 @@ func (b Backend) LinkSnap(info *snap.Info) error {
 		return err
 	}
 
-	// XXX: should migrate to a different package/form
+	// XXX/TODO: this needs to be a task with proper undo and tests!
 	if err := snappy.SetNextBoot(info); err != nil {
 		return err
 	}
