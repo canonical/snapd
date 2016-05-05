@@ -73,7 +73,7 @@ var (
 	rootCmd = &Command{
 		Path:    "/",
 		GuestOK: true,
-		GET:     SyncResponse([]string{"TBD"}, nil).Self,
+		GET:     tbd,
 	}
 
 	sysInfoCmd = &Command{
@@ -166,7 +166,11 @@ var (
 	}
 )
 
-func sysInfo(c *Command, r *http.Request) Response {
+func tbd(c *Command, r *http.Request, user *auth.UserState) Response {
+	return SyncResponse([]string{"TBD"}, nil)
+}
+
+func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	m := map[string]string{
 		"series": release.Series,
 	}
@@ -179,7 +183,7 @@ type loginResponseData struct {
 	Discharges []string `json:"discharges,omitempty"`
 }
 
-func loginUser(c *Command, r *http.Request) Response {
+func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	var loginData struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
@@ -238,16 +242,15 @@ func loginUser(c *Command, r *http.Request) Response {
 	return SyncResponse(result, nil)
 }
 
-func logoutUser(c *Command, r *http.Request) Response {
+func logoutUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	state := c.d.overlord.State()
 	state.Lock()
 	defer state.Unlock()
 
-	user, err := UserFromRequest(state, r)
-	if err != nil {
+	if user == nil {
 		return BadRequest("not logged in")
 	}
-	err = auth.RemoveUser(state, user.ID)
+	err := auth.RemoveUser(state, user.ID)
 	if err != nil {
 		return InternalError(err.Error())
 	}
@@ -301,7 +304,7 @@ var newRemoteRepo = func() metarepo {
 
 var muxVars = mux.Vars
 
-func getSnapInfo(c *Command, r *http.Request) Response {
+func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
 	name := vars["name"]
 
@@ -368,7 +371,7 @@ func webify(result map[string]interface{}, resource string) map[string]interface
 	return result
 }
 
-func searchStore(c *Command, r *http.Request) Response {
+func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	route := c.d.router.Get(snapCmd.Path)
 	if route == nil {
 		return InternalError("router can't find route for snaps")
@@ -411,7 +414,7 @@ func searchStore(c *Command, r *http.Request) Response {
 }
 
 // plural!
-func getSnapsInfo(c *Command, r *http.Request) Response {
+func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	route := c.d.router.Get(snapCmd.Path)
 	if route == nil {
 		return InternalError("router can't find route for snaps")
@@ -740,7 +743,7 @@ func (inst *snapInstruction) dispatch() snapActionFunc {
 	return snapInstructionDispTable[inst.Action]
 }
 
-func postSnap(c *Command, r *http.Request) Response {
+func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	route := c.d.router.Get(stateChangeCmd.Path)
 	if route == nil {
 		return InternalError("router can't find route for change")
@@ -756,11 +759,8 @@ func postSnap(c *Command, r *http.Request) Response {
 	state.Lock()
 	defer state.Unlock()
 
-	user, err := UserFromRequest(state, r)
-	if err == nil {
+	if user != nil {
 		inst.userID = user.ID
-	} else if err != auth.ErrInvalidAuth {
-		return InternalError("%v", err)
 	}
 
 	vars := muxVars(r)
@@ -792,7 +792,7 @@ func newChange(st *state.State, kind, summary string, tsets []*state.TaskSet) *s
 
 const maxReadBuflen = 1024 * 1024
 
-func sideloadSnap(c *Command, r *http.Request) Response {
+func sideloadSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	route := c.d.router.Get(stateChangeCmd.Path)
 	if route == nil {
 		return InternalError("cannot find route for change")
@@ -879,11 +879,8 @@ out:
 	}
 
 	var userID int
-	user, err := UserFromRequest(st, r)
-	if err == nil {
+	if user != nil {
 		userID = user.ID
-	} else if err != auth.ErrInvalidAuth {
-		return InternalError("%v", err)
 	}
 
 	tsets, err := withEnsureUbuntuCore(st, snapName, userID,
@@ -938,7 +935,7 @@ func iconGet(st *state.State, name string) Response {
 	return FileResponse(path)
 }
 
-func appIconGet(c *Command, r *http.Request) Response {
+func appIconGet(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
 	name := vars["name"]
 
@@ -946,7 +943,7 @@ func appIconGet(c *Command, r *http.Request) Response {
 }
 
 // getInterfaces returns all plugs and slots.
-func getInterfaces(c *Command, r *http.Request) Response {
+func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 	repo := c.d.overlord.InterfaceManager().Repository()
 	return SyncResponse(repo.Interfaces(), nil)
 }
@@ -984,7 +981,7 @@ type interfaceAction struct {
 // Plugs can be connected to and disconnected from slots.
 // When enableInternalInterfaceActions is true plugs and slots can also be
 // explicitly added and removed.
-func changeInterfaces(c *Command, r *http.Request) Response {
+func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 	var a interfaceAction
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&a); err != nil {
@@ -1034,7 +1031,7 @@ func changeInterfaces(c *Command, r *http.Request) Response {
 	return AsyncResponse(nil, &Meta{Change: change.ID()})
 }
 
-func doAssert(c *Command, r *http.Request) Response {
+func doAssert(c *Command, r *http.Request, user *auth.UserState) Response {
 	b, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		return BadRequest("reading assert request body gave %v", err)
@@ -1056,7 +1053,7 @@ func doAssert(c *Command, r *http.Request) Response {
 	}
 }
 
-func assertsFindMany(c *Command, r *http.Request) Response {
+func assertsFindMany(c *Command, r *http.Request, user *auth.UserState) Response {
 	assertTypeName := muxVars(r)["assertType"]
 	assertType := asserts.Type(assertTypeName)
 	if assertType == nil {
@@ -1077,7 +1074,7 @@ func assertsFindMany(c *Command, r *http.Request) Response {
 	return AssertResponse(assertions, true)
 }
 
-func getEvents(c *Command, r *http.Request) Response {
+func getEvents(c *Command, r *http.Request, user *auth.UserState) Response {
 	return EventResponse(c.d.hub)
 }
 
@@ -1164,7 +1161,7 @@ func change2changeInfo(chg *state.Change) *changeInfo {
 	return chgInfo
 }
 
-func getChange(c *Command, r *http.Request) Response {
+func getChange(c *Command, r *http.Request, user *auth.UserState) Response {
 	chID := muxVars(r)["id"]
 	state := c.d.overlord.State()
 	state.Lock()
@@ -1177,7 +1174,7 @@ func getChange(c *Command, r *http.Request) Response {
 	return SyncResponse(change2changeInfo(chg), nil)
 }
 
-func getChanges(c *Command, r *http.Request) Response {
+func getChanges(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
 	qselect := query.Get("select")
 	if qselect == "" {
@@ -1209,7 +1206,7 @@ func getChanges(c *Command, r *http.Request) Response {
 	return SyncResponse(chgInfos, nil)
 }
 
-func abortChange(c *Command, r *http.Request) Response {
+func abortChange(c *Command, r *http.Request, user *auth.UserState) Response {
 	chID := muxVars(r)["id"]
 	state := c.d.overlord.State()
 	state.Lock()
