@@ -833,6 +833,7 @@ func (s *apiSuite) TestSnapsInfoLocalAndStore(c *check.C) {
 	d := s.daemon(c)
 
 	s.rsnaps = []*snap.Info{{
+		Version: "v42",
 		SideInfo: snap.SideInfo{
 			OfficialName: "remote",
 			Developer:    "foo",
@@ -850,6 +851,23 @@ func (s *apiSuite) TestSnapsInfoLocalAndStore(c *check.C) {
 
 	snaps := snapList(rsp.Result)
 	c.Assert(snaps, check.HasLen, 1)
+	c.Check(snaps[0]["version"], check.Equals, "v42")
+
+	// as does a 'q'
+	req, err = http.NewRequest("GET", "/v2/snaps?q=what", nil)
+	c.Assert(err, check.IsNil)
+	rsp = getSnapsInfo(snapsCmd, req, nil).(*resp)
+	snaps = snapList(rsp.Result)
+	c.Assert(snaps, check.HasLen, 1)
+	c.Check(snaps[0]["version"], check.Equals, "v42")
+
+	// otherwise, local only
+	req, err = http.NewRequest("GET", "/v2/snaps", nil)
+	c.Assert(err, check.IsNil)
+	rsp = getSnapsInfo(snapsCmd, req, nil).(*resp)
+	snaps = snapList(rsp.Result)
+	c.Assert(snaps, check.HasLen, 1)
+	c.Check(snaps[0]["version"], check.Equals, "v1")
 }
 
 func (s *apiSuite) TestSnapsInfoDefaultSources(c *check.C) {

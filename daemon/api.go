@@ -397,13 +397,28 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse(results, meta)
 }
 
+func shouldSearchStore(r *http.Request) bool {
+	// we should jump to the old behaviour iff q is given, or if
+	// sources is given and either empty or contains the word
+	// 'store'.  Otherwise, local results only.
+
+	query := r.URL.Query()
+
+	if _, ok := query["q"]; ok {
+		return true
+	}
+
+	if src, ok := query["sources"]; ok && (len(src) == 0 || strings.Contains(src[0], "store")) {
+		return true
+	}
+
+	return false
+}
+
 // plural!
 func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
-	query := r.URL.Query()
-	if src, ok := query["sources"]; ok && (len(src) == 0 || strings.Contains(src[0], "store")) {
-		// jump to the old behaviour iff sources is present
-		// and either empty or contains the word 'store'.
-		// Otherwise, local results only.
+
+	if shouldSearchStore(r) {
 		return searchStore(c, r, user)
 	}
 
