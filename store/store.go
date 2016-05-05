@@ -222,7 +222,7 @@ func (s *SnapUbuntuStoreRepository) applyUbuntuStoreHeaders(req *http.Request, a
 	req.Header.Set("Accept", accept)
 
 	req.Header.Set("X-Ubuntu-Architecture", string(arch.UbuntuArchitecture()))
-	req.Header.Set("X-Ubuntu-Release", release.Get().Series)
+	req.Header.Set("X-Ubuntu-Release", release.Series)
 	req.Header.Set("X-Ubuntu-Wire-Protocol", UbuntuCoreWireProtocol)
 
 	if s.storeID != "" {

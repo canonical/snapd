@@ -17,7 +17,7 @@
  *
  */
 
-package snappy
+package wrappers
 
 import (
 	"bufio"
@@ -109,24 +109,26 @@ func isValidLocalizedDesktopFilePrefix(line string) bool {
 	return false
 }
 
+// rewriteExecLine rewrites a "Exec=" line to use the wrapper path for snap application.
 func rewriteExecLine(s *snap.Info, line string) (string, error) {
 	cmd := strings.SplitN(line, "=", 2)[1]
 	for _, app := range s.Apps {
-		validCmd := filepath.Base(app.WrapperPath())
+		wrapper := app.WrapperPath()
+		validCmd := filepath.Base(wrapper)
 		// check the prefix to allow %flag style args
 		// this is ok because desktop files are not run through sh
 		// so we don't have to worry about the arguments too much
-		if cmd == validCmd || strings.HasPrefix(cmd, validCmd+" ") {
-			binDir := stripGlobalRootDir(dirs.SnapBinariesDir)
-			absoluteCmd := filepath.Join(binDir, cmd)
-			return strings.Replace(line, cmd, absoluteCmd, 1), nil
+		if cmd == validCmd {
+			return "Exec=" + wrapper, nil
+		} else if strings.HasPrefix(cmd, validCmd+" ") {
+			return fmt.Sprintf("Exec=%s%s", wrapper, line[len("Exec=")+len(validCmd):]), nil
 		}
 	}
 
 	return "", fmt.Errorf("invalid exec command: %q", cmd)
 }
 
-func sanitizeDesktopFile(s *snap.Info, realBaseDir string, rawcontent []byte) []byte {
+func sanitizeDesktopFile(s *snap.Info, rawcontent []byte) []byte {
 	newContent := []string{}
 
 	scanner := bufio.NewScanner(bytes.NewReader(rawcontent))
@@ -154,14 +156,15 @@ func sanitizeDesktopFile(s *snap.Info, realBaseDir string, rawcontent []byte) []
 		}
 
 		// do variable substitution
-		line = strings.Replace(line, "${SNAP}", realBaseDir, -1)
+		line = strings.Replace(line, "${SNAP}", s.MountDir(), -1)
 		newContent = append(newContent, line)
 	}
 
 	return []byte(strings.Join(newContent, "\n"))
 }
 
-func addPackageDesktopFiles(s *snap.Info) error {
+// AddSnapDesktopFiles puts in place the desktop files for the applications from the snap.
+func AddSnapDesktopFiles(s *snap.Info) error {
 	if err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0755); err != nil {
 		return err
 	}
@@ -179,8 +182,7 @@ func addPackageDesktopFiles(s *snap.Info) error {
 			return err
 		}
 
-		realBaseDir := stripGlobalRootDir(baseDir)
-		content = sanitizeDesktopFile(s, realBaseDir, content)
+		content = sanitizeDesktopFile(s, content)
 
 		installedDesktopFileName := filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s", s.Name(), filepath.Base(df)))
 		if err := osutil.AtomicWriteFile(installedDesktopFileName, []byte(content), 0755, 0); err != nil {
@@ -191,7 +193,8 @@ func addPackageDesktopFiles(s *snap.Info) error {
 	return nil
 }
 
-func removePackageDesktopFiles(s *snap.Info) error {
+// RemoveSnapDesktopFiles removes the added desktop files for the applications in the snap.
+func RemoveSnapDesktopFiles(s *snap.Info) error {
 	glob := filepath.Join(dirs.SnapDesktopFilesDir, s.Name()+"_*.desktop")
 	activeDesktopFiles, err := filepath.Glob(glob)
 	if err != nil {
