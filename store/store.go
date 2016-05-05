@@ -339,7 +339,7 @@ func hasPriced(snaps []*snap.Info) bool {
 	return false
 }
 
-// decorateAllPurchases returns all user purchases as a map indexed by snap id.
+// decorateAllPurchases sets the MustBuy property of each snap in the given list according to the user's known purchases.
 func (s *SnapUbuntuStoreRepository) decoratePurchases(snaps []*snap.Info, channel string, auther Authenticator) error {
 	// Mark every non-free snap as must buy until we know better.
 	setMustBuy(snaps)
