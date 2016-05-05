@@ -90,14 +90,3 @@ func (s *SortTestSuite) TestSortSnaps(c *C) {
 	c.Assert(snaps[0].Version(), Equals, "1.0")
 	c.Assert(snaps[1].Version(), Equals, "2.0")
 }
-
-func (s *SortTestSuite) TestSideloadVersion(c *C) {
-	n := 1000
-	vs := make(ByVersion, n)
-
-	for i := 0; i < n; i++ {
-		vs[i] = newSideloadVersion()
-	}
-
-	c.Check(sort.IsSorted(vs), Equals, true)
-}

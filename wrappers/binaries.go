@@ -17,7 +17,7 @@
  *
  */
 
-// Package wrappers is used to generate wrappers and service units for snap applications.
+// Package wrappers is used to generate wrappers and service units and also desktop files for snap applications.
 package wrappers
 
 import (
@@ -28,6 +28,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/snapenv"
@@ -54,7 +55,7 @@ export HOME="$SNAP_USER_DATA"
 # Snap name is: {{.App.Snap.Name}}
 # App name is: {{.App.Name}}
 
-{{.App.Invocation}} "$@"
+{{.App.LauncherCommand}} "$@"
 `
 
 	if err := snap.ValidateApp(app); err != nil {
@@ -92,7 +93,10 @@ export HOME="$SNAP_USER_DATA"
 	}
 	wrapperData.EnvVars = strings.Join(envVars, "\n")
 
-	t.Execute(&templateOut, wrapperData)
+	if err := t.Execute(&templateOut, wrapperData); err != nil {
+		// this can never happen, except we forget a variable
+		logger.Panicf("Unable to execute template: %v", err)
+	}
 
 	return templateOut.String(), nil
 }

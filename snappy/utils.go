@@ -22,8 +22,6 @@ package snappy
 import (
 	"fmt"
 	"os"
-	"reflect"
-	"time"
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
@@ -84,30 +82,6 @@ func makeSnapHookEnv(snap *Snap) (env []string) {
 	}
 
 	return env
-}
-
-// newSideloadVersion returns a version number such that later calls
-// should return versions that compare larger.
-func newSideloadVersion() string {
-	const letters = "BCDFGHJKLMNPQRSTVWXYbcdfghjklmnpqrstvwxy"
-
-	n := time.Now().UTC().UnixNano()
-	bs := make([]byte, 12)
-	for i := 11; i >= 0; i-- {
-		bs[i] = letters[n&31]
-		n = n >> 5
-	}
-
-	return string(bs)
-}
-
-// getattr get the attribute of the given name from an interface
-func getattr(i interface{}, name string) interface{} {
-	v := reflect.ValueOf(i)
-	if v.Kind() == reflect.Ptr {
-		v = v.Elem()
-	}
-	return v.FieldByName(name).Interface()
 }
 
 // firstErr returns the first error of the given error list
