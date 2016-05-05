@@ -341,14 +341,14 @@ func hasPriced(snaps []*snap.Info) bool {
 
 // decorateAllPurchases returns all user purchases as a map indexed by snap id.
 func (s *SnapUbuntuStoreRepository) decoratePurchases(snaps []*snap.Info, channel string, auther Authenticator) error {
+	// Mark every non-free snap as must buy until we know better.
+	setMustBuy(snaps)
+
 	if auther == nil {
-		// If we can't authenticate, then the non-free snaps must be marked as must buy.
-		setMustBuy(snaps)
 		return nil
 	}
 
 	if !hasPriced(snaps) {
-		// Only look up purchases if there are priced snaps.
 		return nil
 	}
 
@@ -365,13 +365,12 @@ func (s *SnapUbuntuStoreRepository) decoratePurchases(snaps []*snap.Info, channe
 		q.Set("include_item_purchases", "true")
 		purchasesURL.RawQuery = q.Encode()
 	} else {
+		// Inconsistently, global search implies include_item_purchases.
 		purchasesURL = s.purchasesURI
 	}
 
 	purchases, err := s.getPurchasesFromURL(purchasesURL, channel, auther)
 	if err != nil {
-		// If we couldn't get purchase information, then the non-free snaps must be set as must buy.
-		setMustBuy(snaps)
 		return err
 	}
 
@@ -381,7 +380,6 @@ func (s *SnapUbuntuStoreRepository) decoratePurchases(snaps []*snap.Info, channe
 		purchasesByID[purchase.SnapID] = append(purchasesByID[purchase.SnapID], purchase)
 	}
 
-	// Decorate the snap.Info MustBuy property
 	for _, info := range snaps {
 		info.MustBuy = mustBuy(info.Prices, purchasesByID[info.SnapID])
 	}
