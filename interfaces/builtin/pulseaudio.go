@@ -27,7 +27,8 @@ const pulseaudioConnectedPlugAppArmor = `
 /etc/pulse/ r,
 /etc/pulse/* r,
 /dev/shm/pulse-shm-* rk,
-owner /run/user/*/pulse/native rw,
+owner /{,var/}run/user/*/pulse/ r,
+owner /{,var/}run/user/*/pulse/native rwk,
 `
 
 const pulseaudioConnectedPlugSecComp = `
