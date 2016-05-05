@@ -38,5 +38,5 @@ func (s *snapd20TestSuite) resource() string {
 
 func (s *snapd20TestSuite) getInteractions() apiInteractions {
 	return []apiInteraction{{
-		responsePattern: `(?U){"type":"sync","status-code":200,"status":"OK","result":{"flavor":"core","series":"\d+"}}`}}
+		responsePattern: `(?U){"type":"sync","status-code":200,"status":"OK","result":{"series":"16"}}`}}
 }
