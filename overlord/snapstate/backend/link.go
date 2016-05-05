@@ -57,7 +57,7 @@ func updateCurrentSymlinks(info *snap.Info) error {
 	return os.Symlink(filepath.Base(mountDir), currentActiveSymlink)
 }
 
-// LinkSnap makes the snap available by generating wrappers and setting the current symlinks
+// LinkSnap makes the snap available by generating wrappers and setting the current symlinks.
 func (b Backend) LinkSnap(info *snap.Info) error {
 	if err := generateWrappers(info); err != nil {
 		return err
