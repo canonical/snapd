@@ -55,12 +55,12 @@ type mockHandler struct {
 func (mck *mockHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	mck.lastMethod = r.Method
 }
-func (mck *mockHandler) Self(*Command, *http.Request) Response {
+func (mck *mockHandler) Self(*Command, *http.Request, *auth.UserState) Response {
 	return mck
 }
 
 func mkRF(c *check.C, cmd *Command, mck *mockHandler) ResponseFunc {
-	return func(innerCmd *Command, req *http.Request) Response {
+	return func(innerCmd *Command, req *http.Request, user *auth.UserState) Response {
 		c.Assert(cmd, check.Equals, innerCmd)
 		return mck
 	}

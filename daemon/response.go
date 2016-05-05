@@ -32,6 +32,7 @@ import (
 	"github.com/ubuntu-core/snappy/asserts"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/notifications"
+	"github.com/ubuntu-core/snappy/overlord/auth"
 )
 
 // ResponseType is the response type
@@ -49,7 +50,11 @@ const (
 // Response knows how to serve itself, and how to find itself
 type Response interface {
 	ServeHTTP(w http.ResponseWriter, r *http.Request)
-	Self(*Command, *http.Request) Response // has the same arity as ResponseFunc for convenience
+	Self(*Command, *http.Request, *auth.UserState) Response // has the same arity as ResponseFunc for convenience
+}
+
+func respondWith(resp Response) ResponseFunc {
+	return func(*Command, *http.Request, *auth.UserState) Response { return resp }
 }
 
 type resp struct {
@@ -118,7 +123,7 @@ func (r *resp) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	w.Write(bs)
 }
 
-func (r *resp) Self(*Command, *http.Request) Response {
+func (r *resp) Self(*Command, *http.Request, *auth.UserState) Response {
 	return r
 }
 
@@ -183,7 +188,7 @@ func makeErrorResponder(status int) errorResponder {
 type FileResponse string
 
 // Self from the Response interface
-func (f FileResponse) Self(*Command, *http.Request) Response { return f }
+func (f FileResponse) Self(*Command, *http.Request, *auth.UserState) Response { return f }
 
 // ServeHTTP from the Response interface
 func (f FileResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -205,7 +210,7 @@ func AssertResponse(asserts []asserts.Assertion, bundle bool) Response {
 	return &assertResponse{assertions: asserts, bundle: bundle}
 }
 
-func (ar assertResponse) Self(*Command, *http.Request) Response { return ar }
+func (ar assertResponse) Self(*Command, *http.Request, *auth.UserState) Response { return ar }
 
 func (ar assertResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	t := asserts.MediaType
@@ -236,7 +241,7 @@ func EventResponse(hub *notifications.Hub) Response {
 	return &eventResponse{h: hub}
 }
 
-func (e eventResponse) Self(*Command, *http.Request) Response {
+func (e eventResponse) Self(*Command, *http.Request, *auth.UserState) Response {
 	return e
 }
 
