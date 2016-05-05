@@ -98,7 +98,7 @@ func forFunction(c *check.C, outputPattern string, inputFunc func() (string, err
 			retries++
 			if retries >= maxWaitRetries {
 				ticker.Stop()
-				return fmt.Errorf("Pattern not found in function output")
+				return fmt.Errorf("Pattern not found in function output, want %q got %q", outputPattern, output)
 			}
 		}
 	}
