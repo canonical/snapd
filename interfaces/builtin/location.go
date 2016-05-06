@@ -36,14 +36,14 @@ dbus (send)
     bus=system
     path=/org/freedesktop/DBus
     interface=org.freedesktop.DBus
-    member={Request,Release}Name
+    member="{Request,Release}Name"
     peer=(name=org.freedesktop.DBus, label=unconfined),
 
 dbus (send)
     bus=system
     path=/org/freedesktop/DBus
     interface=org.freedesktop.DBus
-    member=GetConnectionUnix{ProcessID,User}
+    member="GetConnectionUnix{ProcessID,User}"
     peer=(label=unconfined),
 
 # Allow binding the service to the requested connection name
@@ -73,19 +73,12 @@ dbus (receive)
     interface=com.ubuntu.location.Service
     member=CreateSessionForCriteria,
 
-# Allow clients to query service properties
+# Allow clients to query/update service properties
 dbus (receive)
     bus=system
     path=/com/ubuntu/location/Service
     interface=org.freedesktop.DBus.Properties
-    member=Get,
-
-# Allow clients to set service properties
-dbus (receive)
-    bus=system
-    path=/com/ubuntu/location/Service
-    interface=org.freedesktop.DBus.Properties
-    member=Set,
+    member="{Get,Set}",
 
 # Allow clients to request starting/stopping updates
 dbus (receive)
@@ -111,19 +104,7 @@ dbus (send)
     bus=system
     path=/sessions/*
     interface=com.ubuntu.location.Service.Session
-    member=UpdatePosition,
-
-dbus (send)
-    bus=system
-    path=/sessions/*
-    interface=com.ubuntu.location.Service.Session
-    member=UpdateHeading,
-
-dbus (send)
-    bus=system
-    path=/sessions/*
-    interface=com.ubuntu.location.Service.Session
-    member=UpdateVelocity,
+    member="Update{Position,Heading,Velocity}",
 
 dbus (send)
     bus=system
@@ -139,20 +120,12 @@ var locationConnectedPlugAppArmor = []byte(`
 
 #include <abstractions/dbus-strict>
 
-# Allow clients to query service properties
+# Allow clients to query/update service properties
 dbus (send)
     bus=system
     path=/com/ubuntu/location/Service
     interface=org.freedesktop.DBus.Properties
-    member=Get
-    peer=(label=###SLOT_SECURITY_TAGS###),
-
-# Allow clients to set service properties
-dbus (send)
-    bus=system
-    path=/com/ubuntu/location/Service
-    interface=org.freedesktop.DBus.Properties
-    member=Set
+    member="{Get,Set}"
     peer=(label=###SLOT_SECURITY_TAGS###),
 
 # Allow clients to create a session
@@ -168,21 +141,21 @@ dbus (send)
     bus=system
     path=/sessions/*
     interface=com.ubuntu.location.Service.Session
-    member={Start,Stop}PositionUpdates
+    member="{Start,Stop}PositionUpdates"
     peer=(label=###SLOT_SECURITY_TAGS###),
 
 dbus (send)
     bus=system
     path=/sessions/*
     interface=com.ubuntu.location.Service.Session
-    member={Start,Stop}HeadingUpdates
+    member="{Start,Stop}HeadingUpdates"
     peer=(label=###SLOT_SECURITY_TAGS###),
 
 dbus (send)
     bus=system
     path=/sessions/*
     interface=com.ubuntu.location.Service.Session
-    member={Start,Stop}VelocityUpdates
+    member="{Start,Stop}VelocityUpdates"
     peer=(label=###SLOT_SECURITY_TAGS###),
 
 # Allow clients to receive updates from the service
@@ -190,21 +163,7 @@ dbus (receive)
     bus=system
     path=/sessions/*
     interface=com.ubuntu.location.Service.Session
-    member=UpdatePosition
-    peer=(label=###SLOT_SECURITY_TAGS###),
-
-dbus (receive)
-    bus=system
-    path=/sessions/*
-    interface=com.ubuntu.location.Service.Session
-    member=UpdateHeading
-    peer=(label=###SLOT_SECURITY_TAGS###),
-
-dbus (receive)
-    bus=system
-    path=/sessions/*
-    interface=com.ubuntu.location.Service.Session
-    member=UpdateVelocity
+    member="Update{Position,Heading,Velocity}"
     peer=(label=###SLOT_SECURITY_TAGS###),
 
 dbus (receive)
