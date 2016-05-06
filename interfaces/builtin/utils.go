@@ -60,3 +60,37 @@ func slotAppLabelExpr(slot *interfaces.Slot) []byte {
 	buf.WriteByte('"')
 	return buf.Bytes()
 }
+
+// plugAppLabelExpr returns the specification of the apparmor label describing
+// all the apps bound to a given plug. The result has one of three forms,
+// depending on how apps are bound to the plug:
+//
+// - "snap.$snap.$app" if there is exactly one app bound
+// - "snap.$snap.{$app1,...$appN}" if there are some, but not all, apps bound
+// - "snap.$snap.*" if all apps are bound to the plug
+func plugAppLabelExpr(plug *interfaces.Plug) []byte {
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, `"snap.%s.`, plug.Snap.Name())
+	if len(plug.Apps) == 1 {
+		for appName := range plug.Apps {
+			buf.WriteString(appName)
+		}
+	} else if len(plug.Apps) == len(plug.Snap.Apps) {
+		buf.WriteByte('*')
+	} else {
+		appNames := make([]string, 0, len(plug.Apps))
+		for appName := range plug.Apps {
+			appNames = append(appNames, appName)
+		}
+		sort.Strings(appNames)
+		buf.WriteByte('{')
+		for _, appName := range appNames {
+			buf.WriteString(appName)
+			buf.WriteByte(',')
+		}
+		buf.Truncate(buf.Len() - 1)
+		buf.WriteByte('}')
+	}
+	buf.WriteByte('"')
+	return buf.Bytes()
+}
