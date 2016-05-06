@@ -205,6 +205,8 @@ type response struct {
 type Error struct {
 	Kind    string `json:"kind"`
 	Message string `json:"message"`
+
+	StatusCode int
 }
 
 func (e *Error) Error() string {
@@ -214,6 +216,7 @@ func (e *Error) Error() string {
 const (
 	ErrorKindTwoFactorRequired = "two-factor-required"
 	ErrorKindTwoFactorFailed   = "two-factor-failed"
+	ErrorKindLoginRequired     = "login-required"
 )
 
 // IsTwoFactorError returns whether the given error is due to problems
@@ -245,6 +248,8 @@ func (rsp *response) err() error {
 	if err != nil || resultErr.Message == "" {
 		return fmt.Errorf("server error: %q", rsp.Status)
 	}
+	resultErr.StatusCode = rsp.StatusCode
+
 	return &resultErr
 }
 

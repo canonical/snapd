@@ -59,11 +59,11 @@ func (s *authSuite) SetUpTest(c *check.C) {
 func (s *authSuite) TestRegressionAuthCrash(c *check.C) {
 	cmd := []string{"snap", "install", "hello-world"}
 	output, _ := cli.ExecCommandErr(cmd...)
-	c.Assert(output, testutil.Contains, `error: access denied`)
+	c.Assert(output, testutil.Contains, `error: access denied (snap login --help)`)
 }
 
 func (s *authSuite) TestRegressionAuthBypass(c *check.C) {
 	cmd := []string{"snap", "connect", "foo:bar", "baz:fromp"}
 	output, _ := cli.ExecCommandErr(cmd...)
-	c.Assert(output, testutil.Contains, `error: access denied`)
+	c.Assert(output, testutil.Contains, `error: access denied (snap login --help)`)
 }

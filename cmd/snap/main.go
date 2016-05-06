@@ -149,6 +149,10 @@ func run() error {
 			return nil
 
 		}
+		if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindLoginRequired {
+			return fmt.Errorf("%s (snap login --help)", e.Message)
+
+		}
 	}
 
 	return err

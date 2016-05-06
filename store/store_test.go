@@ -894,7 +894,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositorySuggestedCurrency(c *C) {
 	c.Check(repo.SuggestedCurrency(), Equals, "EUR")
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreGetAllPurchases(c *C) {
+func (t *remoteRepoTestSuite) TestUbuntuStoreDecoratePurchases(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
 		c.Check(r.Header.Get("Authorization"), Equals, "Authorization-details")
@@ -914,40 +914,113 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetAllPurchases(c *C) {
 	repo := NewUbuntuStoreSnapRepository(&cfg, "")
 	c.Assert(repo, NotNil)
 
+	helloWorld := &snap.Info{}
+	helloWorld.SnapID = helloWorldSnapID
+	helloWorld.Prices = map[string]float64{"USD": 1.23}
+
+	funkyApp := &snap.Info{}
+	funkyApp.SnapID = funkyAppSnapID
+	funkyApp.Prices = map[string]float64{"USD": 2.34}
+
+	otherApp := &snap.Info{}
+	otherApp.SnapID = "other"
+	otherApp.Prices = map[string]float64{"USD": 3.45}
+
+	otherApp2 := &snap.Info{}
+	otherApp2.SnapID = "other2"
+
+	snaps := []*snap.Info{helloWorld, funkyApp, otherApp, otherApp2}
+
 	authenticator := &fakeAuthenticator{}
-	purchases, err := repo.getAllPurchases("edge", authenticator)
+	err = repo.decoratePurchases(snaps, "edge", authenticator)
 	c.Assert(err, IsNil)
 
-	helloWorldPurchases := purchases[helloWorldSnapID]
-	c.Assert(len(helloWorldPurchases), Equals, 2)
-
-	c.Check(helloWorldPurchases[0], DeepEquals, &purchase{OpenID: "https://login.staging.ubuntu.com/+id/open_id",
-		SnapID:          helloWorldSnapID,
-		RefundableUntil: "2015-07-15 18:46:21",
-		State:           "Complete",
-	},
-	)
-	c.Check(helloWorldPurchases[1], DeepEquals, &purchase{OpenID: "https://login.staging.ubuntu.com/+id/open_id",
-		SnapID:          helloWorldSnapID,
-		RefundableUntil: "",
-		State:           "Complete",
-		ItemSKU:         "item-1-sku",
-		PurchaseID:      "1",
-	},
-	)
-
-	chipacaPurchases := purchases[funkyAppSnapID]
-	c.Assert(len(chipacaPurchases), Equals, 1)
-
-	c.Check(chipacaPurchases[0], DeepEquals, &purchase{OpenID: "https://login.staging.ubuntu.com/+id/open_id",
-		SnapID:          funkyAppSnapID,
-		RefundableUntil: "2015-07-17 11:33:29",
-		State:           "Complete",
-	},
-	)
+	c.Check(helloWorld.MustBuy, Equals, false)
+	c.Check(funkyApp.MustBuy, Equals, false)
+	c.Check(otherApp.MustBuy, Equals, true)
+	c.Check(otherApp2.MustBuy, Equals, false)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchases(c *C) {
+func (t *remoteRepoTestSuite) TestUbuntuStoreDecoratePurchasesFailedAccess(c *C) {
+	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
+		c.Check(r.Header.Get("Authorization"), Equals, "Authorization-details")
+		c.Check(r.URL.Path, Equals, "/click/purchases/")
+		w.WriteHeader(http.StatusUnauthorized)
+		io.WriteString(w, "{}")
+	}))
+
+	c.Assert(mockPurchasesServer, NotNil)
+	defer mockPurchasesServer.Close()
+
+	var err error
+	purchasesURI, err := url.Parse(mockPurchasesServer.URL + "/click/purchases/")
+	c.Assert(err, IsNil)
+	cfg := SnapUbuntuStoreConfig{
+		PurchasesURI: purchasesURI,
+	}
+	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	c.Assert(repo, NotNil)
+
+	helloWorld := &snap.Info{}
+	helloWorld.SnapID = helloWorldSnapID
+	helloWorld.Prices = map[string]float64{"USD": 1.23}
+
+	funkyApp := &snap.Info{}
+	funkyApp.SnapID = funkyAppSnapID
+	funkyApp.Prices = map[string]float64{"USD": 2.34}
+
+	otherApp := &snap.Info{}
+	otherApp.SnapID = "other"
+	otherApp.Prices = map[string]float64{"USD": 3.45}
+
+	otherApp2 := &snap.Info{}
+	otherApp2.SnapID = "other2"
+
+	snaps := []*snap.Info{helloWorld, funkyApp, otherApp, otherApp2}
+
+	authenticator := &fakeAuthenticator{}
+	err = repo.decoratePurchases(snaps, "edge", authenticator)
+	c.Assert(err, NotNil)
+
+	c.Check(helloWorld.MustBuy, Equals, true)
+	c.Check(funkyApp.MustBuy, Equals, true)
+	c.Check(otherApp.MustBuy, Equals, true)
+	c.Check(otherApp2.MustBuy, Equals, false)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreDecoratePurchasesNoAuth(c *C) {
+	cfg := SnapUbuntuStoreConfig{}
+	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	c.Assert(repo, NotNil)
+
+	helloWorld := &snap.Info{}
+	helloWorld.SnapID = helloWorldSnapID
+	helloWorld.Prices = map[string]float64{"USD": 1.23}
+
+	funkyApp := &snap.Info{}
+	funkyApp.SnapID = funkyAppSnapID
+	funkyApp.Prices = map[string]float64{"USD": 2.34}
+
+	otherApp := &snap.Info{}
+	otherApp.SnapID = "other"
+	otherApp.Prices = map[string]float64{"USD": 3.45}
+
+	otherApp2 := &snap.Info{}
+	otherApp2.SnapID = "other2"
+
+	snaps := []*snap.Info{helloWorld, funkyApp, otherApp, otherApp2}
+
+	err := repo.decoratePurchases(snaps, "edge", nil)
+	c.Assert(err, IsNil)
+
+	c.Check(helloWorld.MustBuy, Equals, true)
+	c.Check(funkyApp.MustBuy, Equals, true)
+	c.Check(otherApp.MustBuy, Equals, true)
+	c.Check(otherApp2.MustBuy, Equals, false)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesSingle(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
 		c.Check(r.Header.Get("Authorization"), Equals, "Authorization-details")
@@ -968,36 +1041,42 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchases(c *C) {
 	repo := NewUbuntuStoreSnapRepository(&cfg, "")
 	c.Assert(repo, NotNil)
 
+	helloWorld := &snap.Info{}
+	helloWorld.SnapID = helloWorldSnapID
+	helloWorld.Prices = map[string]float64{"USD": 1.23}
+
+	snaps := []*snap.Info{helloWorld}
+
 	authenticator := &fakeAuthenticator{}
-	helloWorldPurchases, err := repo.getPurchases(helloWorldSnapID, "edge", authenticator)
+	err = repo.decoratePurchases(snaps, "edge", authenticator)
 	c.Assert(err, IsNil)
-
-	c.Assert(len(helloWorldPurchases), Equals, 2)
-
-	c.Check(helloWorldPurchases[0], DeepEquals, &purchase{OpenID: "https://login.staging.ubuntu.com/+id/open_id",
-		SnapID:          helloWorldSnapID,
-		RefundableUntil: "2015-07-15 18:46:21",
-		State:           "Complete",
-	},
-	)
-	c.Check(helloWorldPurchases[1], DeepEquals, &purchase{OpenID: "https://login.staging.ubuntu.com/+id/open_id",
-		SnapID:          helloWorldSnapID,
-		RefundableUntil: "",
-		State:           "Complete",
-		ItemSKU:         "item-1-sku",
-		PurchaseID:      "1",
-	},
-	)
+	c.Check(helloWorld.MustBuy, Equals, false)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesNotFound(c *C) {
+func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesSingleFreeSnap(c *C) {
+	cfg := SnapUbuntuStoreConfig{}
+	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	c.Assert(repo, NotNil)
+
+	helloWorld := &snap.Info{}
+	helloWorld.SnapID = helloWorldSnapID
+
+	snaps := []*snap.Info{helloWorld}
+
+	authenticator := &fakeAuthenticator{}
+	err := repo.decoratePurchases(snaps, "edge", authenticator)
+	c.Assert(err, IsNil)
+	c.Check(helloWorld.MustBuy, Equals, false)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesSingleNotFound(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
 		c.Check(r.Header.Get("Authorization"), Equals, "Authorization-details")
 		c.Check(r.URL.Path, Equals, "/click/purchases/"+helloWorldSnapID+"/")
 		c.Check(r.URL.Query().Get("include_item_purchases"), Equals, "true")
 		w.WriteHeader(http.StatusNotFound)
-		io.WriteString(w, "")
+		io.WriteString(w, "{}")
 	}))
 
 	c.Assert(mockPurchasesServer, NotNil)
@@ -1012,10 +1091,16 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesNotFound(c *C) {
 	repo := NewUbuntuStoreSnapRepository(&cfg, "")
 	c.Assert(repo, NotNil)
 
+	helloWorld := &snap.Info{}
+	helloWorld.SnapID = helloWorldSnapID
+	helloWorld.Prices = map[string]float64{"USD": 1.23}
+
+	snaps := []*snap.Info{helloWorld}
+
 	authenticator := &fakeAuthenticator{}
-	helloWorldPurchases, err := repo.getPurchases(helloWorldSnapID, "edge", authenticator)
+	err = repo.decoratePurchases(snaps, "edge", authenticator)
 	c.Assert(err, NotNil)
-	c.Assert(helloWorldPurchases, IsNil)
+	c.Check(helloWorld.MustBuy, Equals, true)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesTokenExpired(c *C) {
@@ -1040,10 +1125,16 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesTokenExpired(c *C) {
 	repo := NewUbuntuStoreSnapRepository(&cfg, "")
 	c.Assert(repo, NotNil)
 
+	helloWorld := &snap.Info{}
+	helloWorld.SnapID = helloWorldSnapID
+	helloWorld.Prices = map[string]float64{"USD": 1.23}
+
+	snaps := []*snap.Info{helloWorld}
+
 	authenticator := &fakeAuthenticator{}
-	helloWorldPurchases, err := repo.getPurchases(helloWorldSnapID, "edge", authenticator)
-	c.Assert(helloWorldPurchases, IsNil)
+	err = repo.decoratePurchases(snaps, "edge", authenticator)
 	c.Assert(err, NotNil)
+	c.Check(helloWorld.MustBuy, Equals, true)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreMustBuy(c *C) {
