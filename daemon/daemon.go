@@ -34,6 +34,7 @@ import (
 	"github.com/ubuntu-core/snappy/notifications"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/overlord"
+	"github.com/ubuntu-core/snappy/overlord/auth"
 	"github.com/ubuntu-core/snappy/store"
 )
 
@@ -49,7 +50,7 @@ type Daemon struct {
 }
 
 // A ResponseFunc handles one of the individual verbs for a method
-type ResponseFunc func(*Command, *http.Request) Response
+type ResponseFunc func(*Command, *http.Request, *auth.UserState) Response
 
 // A Command routes a request to an individual per-verb ResponseFUnc
 type Command struct {
@@ -71,34 +72,29 @@ type Command struct {
 
 var isUIDInAny = osutil.IsUIDInAny
 
-func (c *Command) canAccess(r *http.Request) bool {
-	state := c.d.overlord.State()
-	state.Lock()
-	_, err := UserFromRequest(state, r)
-	state.Unlock()
-	if err == nil {
-		// authenticated user does anything
+func (c *Command) canAccess(r *http.Request, user *auth.UserState) bool {
+	if user != nil {
+		// Authenticated users do anything for now.
 		return true
 	}
 
 	isUser := false
 	if uid, err := ucrednetGetUID(r.RemoteAddr); err == nil {
 		if uid == 0 {
-			// superuser does anything
+			// Superuser does anything.
 			return true
 		}
 
 		if c.SudoerOK && isUIDInAny(uid, "sudo", "admin") {
-			// if user is in a group that grants sudo in
+			// If user is in a group that grants sudo in
 			// the default install, and the command says
-			// that's ok, then it's ok
+			// that's ok, then it's ok.
 			return true
 		}
 
 		isUser = true
 	}
 
-	// only superuser can modify
 	if r.Method != "GET" {
 		return false
 	}
@@ -115,8 +111,22 @@ func (c *Command) canAccess(r *http.Request) bool {
 }
 
 func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if !c.canAccess(r) {
-		Forbidden("access denied").ServeHTTP(w, r)
+	state := c.d.overlord.State()
+	state.Lock()
+	// TODO Look at the error and fail if there's an attempt to authenticate with invalid data.
+	user, _ := UserFromRequest(state, r)
+	state.Unlock()
+
+	if !c.canAccess(r, user) {
+		rsp := &resp{
+			Type: ResponseTypeError,
+			Result: &errorResult{
+				Message: "access denied",
+				Kind:    errorKindLoginRequired,
+			},
+			Status: http.StatusUnauthorized,
+		}
+		rsp.ServeHTTP(w, r)
 		return
 	}
 
@@ -135,7 +145,7 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if rspf != nil {
-		rsp = rspf(c, r)
+		rsp = rspf(c, r, user)
 	}
 
 	rsp.ServeHTTP(w, r)
