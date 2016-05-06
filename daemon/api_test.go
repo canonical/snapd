@@ -1376,42 +1376,6 @@ func (s *apiSuite) TestAppIconGetNoApp(c *check.C) {
 	c.Check(rec.Code, check.Equals, 404)
 }
 
-func (s *apiSuite) TestPkgInstructionAgreedOK(c *check.C) {
-	lic := &licenseData{
-		Intro:   "hi",
-		License: "Void where empty",
-		Agreed:  true,
-	}
-
-	inst := &snapInstruction{License: lic}
-
-	c.Check(inst.Agreed(lic.Intro, lic.License), check.Equals, true)
-}
-
-func (s *apiSuite) TestPkgInstructionAgreedNOK(c *check.C) {
-	lic := &licenseData{
-		Intro:   "hi",
-		License: "Void where empty",
-		Agreed:  false,
-	}
-
-	inst := &snapInstruction{License: lic}
-
-	c.Check(inst.Agreed(lic.Intro, lic.License), check.Equals, false)
-}
-
-func (s *apiSuite) TestPkgInstructionMismatch(c *check.C) {
-	lic := &licenseData{
-		Intro:   "hi",
-		License: "Void where empty",
-		Agreed:  true,
-	}
-
-	inst := &snapInstruction{License: lic}
-
-	c.Check(inst.Agreed("blah", "yak yak"), check.Equals, false)
-}
-
 func (s *apiSuite) TestInstall(c *check.C) {
 	calledFlags := snappy.InstallFlags(42)
 	installQueue := []string{}
@@ -1684,81 +1648,6 @@ func snapList(rawSnaps interface{}) []map[string]interface{} {
 	}
 	return snaps
 }
-
-// FIXME: license prompt broken for now
-/*
-func (s *apiSuite) TestInstallLicensed(c *check.C) {
-	snapstateInstall = func(s *state.State, name, channel string, flags snappy.InstallFlags) (state.TaskSet, error) {
-		if meter.Agreed("hi", "yak yak") {
-			return nil, nil
-		}
-
-		return nil, snappy.ErrLicenseNotAccepted
-	}
-
-	d := s.daemon(c)
-	inst := &snapInstruction{
-		Action:   "install",
-	}
-
-	d.overlord.Loop()
-	defer d.overlord.Stop()
-	lic, ok := inst.dispatch()().(*licenseData)
-
-	c.Assert(ok, check.Equals, true)
-	c.Check(lic, check.ErrorMatches, "license agreement required")
-	c.Check(lic.Intro, check.Equals, "hi")
-	c.Check(lic.License, check.Equals, "yak yak")
-	c.Check(lic.Agreed, check.Equals, false)
-
-	// now, pass it in
-	inst.License = lic
-	inst.License.Agreed = true
-
-	err := inst.dispatch()()
-	c.Check(err, check.IsNil)
-}
-
-func (s *apiSuite) TestInstallLicensedIntegration(c *check.C) {
-	d := s.daemon(c)
-
-	snapstateInstall = func(s *state.State, name, channel string, flags snappy.InstallFlags) (state.TaskSet, error) {
-		if meter.Agreed("hi", "yak yak") {
-			return nil, nil
-		}
-
-		return nil, snappy.ErrLicenseNotAccepted
-	}
-
-	req, err := http.NewRequest("POST", "/v2/snaps/foo", strings.NewReader(`{"action": "install"}`))
-	c.Assert(err, check.IsNil)
-	s.vars = map[string]string{"name": "foo"}
-
-	res := postSnap(snapCmd, req, nil).(*resp).Result.(map[string]interface{})
-	task := d.tasks[res["resource"].(string)[16:]]
-	c.Check(task, check.NotNil)
-
-	task.tomb.Wait()
-	c.Check(task.State(), check.Equals, TaskFailed)
-	errRes := task.output.(errorResult)
-	c.Check(errRes.Message, check.Equals, "license agreement required")
-	c.Check(errRes.Kind, check.Equals, errorKindLicenseRequired)
-	c.Check(errRes.Value, check.DeepEquals, &licenseData{
-		Intro:   "hi",
-		License: "yak yak",
-	})
-
-	req, err = http.NewRequest("POST", "/v2/snaps/foo", strings.NewReader(`{"action": "install", "license": {"intro": "hi", "license": "yak yak", "agreed": true}}`))
-	c.Assert(err, check.IsNil)
-
-	res = postSnap(snapCmd, req, nil).(*resp).Result.(map[string]interface{})
-	task = d.tasks[res["resource"].(string)[16:]]
-	c.Check(task, check.NotNil)
-
-	task.tomb.Wait()
-	c.Check(task.State(), check.Equals, TaskSucceeded)
-}
-*/
 
 // Tests for GET /v2/interfaces
 

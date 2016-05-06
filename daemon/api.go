@@ -571,17 +571,6 @@ type snapInstruction struct {
 	userID int
 }
 
-// Agreed is part of the progress.Meter interface (q.v.)
-// ask the user whether they agree to the given license's text
-func (inst *snapInstruction) Agreed(intro, license string) bool {
-	if inst.License == nil || !inst.License.Agreed || inst.License.Intro != intro || inst.License.License != license {
-		inst.License = &licenseData{Intro: intro, License: license, Agreed: false}
-		return false
-	}
-
-	return true
-}
-
 var snapstateInstall = snapstate.Install
 var snapstateUpdate = snapstate.Update
 var snapstateInstallPath = snapstate.InstallPath
@@ -649,18 +638,6 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 		msg = fmt.Sprintf(i18n.G("Install %q snap from %q channel"), inst.snap, inst.Channel)
 	}
 	return msg, tsets, nil
-
-	// FIXME: handle license agreement need to happen in the above
-	//        code
-	/*
-		_, err := snappyInstall(inst.pkg, inst.Channel, flags, inst)
-		if err != nil {
-			if inst.License != nil && snappy.IsLicenseNotAccepted(err) {
-				return inst.License
-			}
-			return err
-		}
-	*/
 }
 
 func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {

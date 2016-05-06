@@ -63,33 +63,6 @@ func (s *SnapTestSuite) TestInstallNoHook(c *C) {
 	c.Check(snap.IsActive(), Equals, false) // c.f. TestInstallInstall
 }
 
-func (s *SnapTestSuite) TestInstallInstallLicense(c *C) {
-	snapPath := makeTestSnapPackage(c, `
-name: foo
-version: 1.0
-vendor: Foo Bar <foo@example.com>
-license-agreement: explicit
-`)
-	ag := &MockProgressMeter{y: true}
-	name, err := Install(snapPath, "", AllowUnauthenticated|DoInstallGC, ag)
-	c.Assert(err, IsNil)
-	c.Check(name, Equals, "foo")
-	c.Check(ag.license, Equals, "WTFPL")
-}
-
-func (s *SnapTestSuite) TestInstallInstallLicenseNo(c *C) {
-	snapPath := makeTestSnapPackage(c, `
-name: foo
-version: 1.0
-vendor: Foo Bar <foo@example.com>
-license-agreement: explicit
-`)
-	ag := &MockProgressMeter{y: false}
-	_, err := Install(snapPath, "", AllowUnauthenticated|DoInstallGC, ag)
-	c.Assert(IsLicenseNotAccepted(err), Equals, true)
-	c.Check(ag.license, Equals, "WTFPL")
-}
-
 func (s *SnapTestSuite) installThree(c *C, flags InstallFlags) {
 	c.Skip("can't really install 3 separate snap version just through the old snappy.Install interface, they all get revision 0!")
 	dirs.SnapDataHomeGlob = filepath.Join(s.tempdir, "home", "*", "snaps")
