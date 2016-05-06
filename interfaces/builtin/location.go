@@ -51,12 +51,6 @@ dbus (bind)
     bus=system
     name="com.ubuntu.location.Service",
 
-# Allow traffic to/from org.freedesktop.DBus for location service
-dbus (receive, send)
-    bus=system
-    path=/
-    interface=org.freedesktop.DBus*,
-
 dbus (receive, send)
     bus=system
     path=/com/ubuntu/location/Service{,/**}
