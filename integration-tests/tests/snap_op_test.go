@@ -138,3 +138,27 @@ func (s *snapOpSuite) TestRemoveBusyRetries(c *check.C) {
 	output = cli.ExecCommand(c, "snap", "changes")
 	c.Check(output, check.Not(testutil.Contains), "Doing")
 }
+
+func (s *snapOpSuite) TestInstallFailedIsUndone(c *check.C) {
+	// make snap uninstallable
+	snapName := "hello-world"
+	subdirPath := filepath.Join("/snap", snapName, "current", "foo")
+	_, err := cli.ExecCommandErr("sudo", "mkdir", "-p", subdirPath)
+	c.Assert(err, check.IsNil)
+	defer os.RemoveAll(filepath.Dir(subdirPath))
+
+	// try to install snap and see it fail
+	_, err = cli.ExecCommandErr("sudo", "snap", "install", snapName)
+	c.Assert(err, check.NotNil)
+
+	// check undone and error in tasks
+	output := cli.ExecCommand(c, "snap", "changes")
+	expected := fmt.Sprintf(`(?ms).*(\d+) +Error.*Install "%s" snap\n$`, snapName)
+	id := regexp.MustCompile(expected).FindStringSubmatch(output)[1]
+
+	output = cli.ExecCommand(c, "snap", "changes", id)
+	expected = "(?ms)Status +Spawn +Ready +Summary\n" +
+		fmt.Sprintf(`.*Undone +.*"%s".*\n`, snapName) +
+		fmt.Sprintf(`Error +.*Make snap "%s" available to the system\n.*$`, snapName)
+	c.Assert(output, check.Matches, expected)
+}
