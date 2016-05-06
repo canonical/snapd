@@ -564,7 +564,17 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	st.Unlock()
+	// XXX: this block is slightly ugly, find a pattern when we have more examples
 	err = m.backend.LinkSnap(newInfo)
+	if err != nil {
+		pb := &TaskProgressAdapter{task: t}
+		err := m.backend.UnlinkSnap(newInfo, pb)
+		if err != nil {
+			st.Lock()
+			t.Errorf("cannot cleanup failed attempt at making snap %q available to the system: %v", ss.Name, err)
+			st.Unlock()
+		}
+	}
 	st.Lock()
 	if err != nil {
 		return err
@@ -573,6 +583,8 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.Set("old-channel", oldChannel)
 	// Do at the end so we only preserve the new state if it worked.
 	Set(st, ss.Name, snapst)
+	// Make sure if state commits and snapst is mutated we won't be rerun
+	t.SetStatus(state.DoneStatus)
 	return nil
 }
 
@@ -615,5 +627,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// mark as inactive
 	Set(st, ss.Name, snapst)
+	// Make sure if state commits and snapst is mutated we won't be rerun
+	t.SetStatus(state.UndoneStatus)
 	return nil
 }
