@@ -123,7 +123,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallMissingAssumes(c *C) {
 name: foo
 version: 1.0
 assumes: [f1, f2]`)
-	_, err := (&Overlord{}).Install(pkg, 0, &MockProgressMeter{y: false})
+	_, err := (&Overlord{}).Install(pkg, 0, &MockProgressMeter{})
 	c.Check(err, ErrorMatches, `snap "foo" assumes unsupported features: f1, f2.*`)
 }
 
@@ -132,7 +132,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallProvidedAssumes(c *C) {
 name: foo
 version: 1.0
 assumes: [common-data-dir]`)
-	_, err := (&Overlord{}).Install(pkg, 0, &MockProgressMeter{y: false})
+	_, err := (&Overlord{}).Install(pkg, 0, &MockProgressMeter{})
 	c.Check(err, IsNil)
 }
 

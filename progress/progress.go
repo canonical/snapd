@@ -48,9 +48,6 @@ type Meter interface {
 	// interface for writer
 	Write(p []byte) (n int, err error)
 
-	// ask the user whether they agree to the given license's text
-	Agreed(intro, license string) bool
-
 	// notify the user of miscelaneous events
 	Notify(string)
 }
@@ -85,11 +82,6 @@ func (t *NullProgress) Notify(string) {}
 
 // Spin does nothing
 func (t *NullProgress) Spin(msg string) {
-}
-
-// Agreed does nothing
-func (t *NullProgress) Agreed(intro, license string) bool {
-	return false
 }
 
 const clearUntilEOL = "\033[K"
