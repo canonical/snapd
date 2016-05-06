@@ -21,6 +21,7 @@ package snapstate
 
 import (
 	"errors"
+	"fmt"
 
 	"gopkg.in/tomb.v2"
 
@@ -80,6 +81,8 @@ func RunDoHandler(mgr *SnapManager, kind string, t *state.Task) error {
 	switch kind {
 	case "link-snap":
 		h = mgr.doLinkSnap
+	default:
+		return fmt.Errorf("cannot run any do handler for task kind %q", kind)
 	}
 	t.State().Lock()
 	t.SetStatus(state.DoingStatus)
@@ -92,6 +95,8 @@ func RunUndoHandler(mgr *SnapManager, kind string, t *state.Task) error {
 	switch kind {
 	case "link-snap":
 		h = mgr.undoLinkSnap
+	default:
+		return fmt.Errorf("cannot run any undo handler for task kind %q", kind)
 	}
 	t.State().Lock()
 	t.SetStatus(state.UndoingStatus)
