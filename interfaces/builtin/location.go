@@ -71,46 +71,53 @@ dbus (receive)
     bus=system
     path=/com/ubuntu/location/Service
     interface=com.ubuntu.location.Service
-    member=CreateSessionForCriteria,
+    member=CreateSessionForCriteria
+    peer=(label=###PLUG_SECURITY_TAGS###),
 
 # Allow clients to query/update service properties
 dbus (receive)
     bus=system
     path=/com/ubuntu/location/Service
     interface=org.freedesktop.DBus.Properties
-    member="{Get,Set}",
+    member="{Get,Set}"
+    peer=(label=###PLUG_SECURITY_TAGS###),
 
 # Allow clients to request starting/stopping updates
 dbus (receive)
     bus=system
     path=/sessions/*
     interface=com.ubuntu.location.Service.Session
-    member={Start,Stop}PositionUpdates,
+    member="{Start,Stop}PositionUpdates"
+    peer=(label=###PLUG_SECURITY_TAGS###),
 
 dbus (receive)
     bus=system
     path=/sessions/*
     interface=com.ubuntu.location.Service.Session
-    member={Start,Stop}HeadingUpdates,
+    member="{Start,Stop}HeadingUpdates"
+    peer=(label=###PLUG_SECURITY_TAGS###),
 
 dbus (receive)
     bus=system
     path=/sessions/*
     interface=com.ubuntu.location.Service.Session
-    member={Start,Stop}VelocityUpdates,
+    member="{Start,Stop}VelocityUpdates"
+    peer=(label=###PLUG_SECURITY_TAGS###),
 
 # Allow the service to send updates to clients
 dbus (send)
     bus=system
     path=/sessions/*
     interface=com.ubuntu.location.Service.Session
-    member="Update{Position,Heading,Velocity}",
+    member="Update{Position,Heading,Velocity}"
+    peer=(label=###PLUG_SECURITY_TAGS###),
 
 dbus (send)
     bus=system
     path=/com/ubuntu/location/Service
     interface=org.freedesktop.DBus.Properties
-    member=PropertiesChanged,
+    member=PropertiesChanged
+    peer=(label=###PLUG_SECURITY_TAGS###),
 `)
 
 var locationConnectedPlugAppArmor = []byte(`
@@ -265,8 +272,12 @@ func (iface *LocationInterface) PermanentSlotSnippet(slot *interfaces.Slot, secu
 
 func (iface *LocationInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
+	// FIXME: This doesn't handle multiple plugs
 	case interfaces.SecurityAppArmor:
-		return locationConnectedSlotAppArmor, nil
+		old := []byte("###PLUG_SECURITY_TAGS###")
+		new := plugAppLabelExpr(plug)
+		snippet := bytes.Replace(locationConnectedSlotAppArmor, old, new, -1)
+		return snippet, nil
 	case interfaces.SecurityDBus, interfaces.SecuritySecComp, interfaces.SecurityUDev:
 		return nil, nil
 	default:
