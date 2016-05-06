@@ -74,3 +74,27 @@ func MockReadInfo(mock func(name string, si *snap.SideInfo) (*snap.Info, error))
 	readInfo = mock
 	return func() { readInfo = snap.ReadInfo }
 }
+
+func RunDoHandler(mgr *SnapManager, kind string, t *state.Task) error {
+	var h func(*state.Task, *tomb.Tomb) error
+	switch kind {
+	case "link-snap":
+		h = mgr.doLinkSnap
+	}
+	t.State().Lock()
+	t.SetStatus(state.DoingStatus)
+	t.State().Unlock()
+	return h(t, nil)
+}
+
+func RunUndoHandler(mgr *SnapManager, kind string, t *state.Task) error {
+	var h func(*state.Task, *tomb.Tomb) error
+	switch kind {
+	case "link-snap":
+		h = mgr.undoLinkSnap
+	}
+	t.State().Lock()
+	t.SetStatus(state.UndoingStatus)
+	t.State().Unlock()
+	return h(t, nil)
+}
