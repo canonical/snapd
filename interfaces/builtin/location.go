@@ -46,11 +46,28 @@ dbus (send)
     member=GetConnectionUnix{ProcessID,User}
     peer=(label=unconfined),
 
-# Allow binding the service to the requested connection names
+# Allow binding the service to the requested connection name
 dbus (bind)
     bus=system
     name="com.ubuntu.location.Service",
 
+# Allow traffic to/from org.freedesktop.DBus for location service
+dbus (receive, send)
+    bus=system
+    path=/
+    interface=org.freedesktop.DBus*,
+
+dbus (receive, send)
+    bus=system
+    path=/com/ubuntu/location/Service{,/**}
+    interface=org.freedesktop.DBus**
+    peer=(label=unconfined),
+`)
+
+var locationConnectedSlotAppArmor = []byte(`
+# Allow connected clients to interact with the service
+
+# Allow the service to host sessions
 dbus (bind)
     bus=system
     name="com.ubuntu.location.Service.Session",
@@ -115,22 +132,10 @@ dbus (send)
     member=UpdateVelocity,
 
 dbus (send)
-   bus=system
-   path=/com/ubuntu/location/Service
-   interface=org.freedesktop.DBus.Properties
-   member=PropertiesChanged,
-
-# Allow traffic to/from org.freedesktop.DBus for location service
-dbus (receive, send)
     bus=system
-    path=/
-    interface=org.freedesktop.DBus*,
-
-dbus (receive, send)
-    bus=system
-    path=/com/ubuntu/location/Service{,/**}
-    interface=org.freedesktop.DBus**
-    peer=(label=unconfined),
+    path=/com/ubuntu/location/Service
+    interface=org.freedesktop.DBus.Properties
+    member=PropertiesChanged,
 `)
 
 var locationConnectedPlugAppArmor = []byte(`
@@ -307,7 +312,9 @@ func (iface *LocationInterface) PermanentSlotSnippet(slot *interfaces.Slot, secu
 
 func (iface *LocationInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev:
+	case interfaces.SecurityAppArmor:
+		return locationConnectedSlotAppArmor, nil
+	case interfaces.SecurityDBus, interfaces.SecuritySecComp, interfaces.SecurityUDev:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
