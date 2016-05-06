@@ -405,11 +405,15 @@ func shouldSearchStore(r *http.Request) bool {
 	query := r.URL.Query()
 
 	if _, ok := query["q"]; ok {
+		logger.Debugf("use of obsolete \"q\" parameter: %q", r.URL)
 		return true
 	}
 
-	if src, ok := query["sources"]; ok && (len(src) == 0 || strings.Contains(src[0], "store")) {
-		return true
+	if src, ok := query["sources"]; ok {
+		logger.Debugf("use of obsolete \"sources\" parameter: %q", r.URL)
+		if len(src) == 0 || strings.Contains(src[0], "store") {
+			return true
+		}
 	}
 
 	return false
@@ -419,6 +423,7 @@ func shouldSearchStore(r *http.Request) bool {
 func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	if shouldSearchStore(r) {
+		logger.Noticef("jumping to \"find\" to better support legacy request %q", r.URL)
 		return searchStore(c, r, user)
 	}
 
