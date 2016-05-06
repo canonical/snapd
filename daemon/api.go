@@ -571,17 +571,6 @@ type snapInstruction struct {
 	userID int
 }
 
-// Agreed is part of the progress.Meter interface (q.v.)
-// ask the user whether they agree to the given license's text
-func (inst *snapInstruction) Agreed(intro, license string) bool {
-	if inst.License == nil || !inst.License.Agreed || inst.License.Intro != intro || inst.License.License != license {
-		inst.License = &licenseData{Intro: intro, License: license, Agreed: false}
-		return false
-	}
-
-	return true
-}
-
 var snapstateInstall = snapstate.Install
 var snapstateUpdate = snapstate.Update
 var snapstateInstallPath = snapstate.InstallPath
