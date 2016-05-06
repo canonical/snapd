@@ -638,18 +638,6 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 		msg = fmt.Sprintf(i18n.G("Install %q snap from %q channel"), inst.snap, inst.Channel)
 	}
 	return msg, tsets, nil
-
-	// FIXME: handle license agreement need to happen in the above
-	//        code
-	/*
-		_, err := snappyInstall(inst.pkg, inst.Channel, flags, inst)
-		if err != nil {
-			if inst.License != nil && snappy.IsLicenseNotAccepted(err) {
-				return inst.License
-			}
-			return err
-		}
-	*/
 }
 
 func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
