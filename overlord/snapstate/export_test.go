@@ -71,7 +71,7 @@ func (m *SnapManager) AddForeignTaskHandlers(tracker ForeignTaskTracker) {
 	m.runner.AddHandler("error-trigger", erroringHandler, nil)
 }
 
-func MockReadInfo(mock func(name string, si *snap.SideInfo) (*snap.Info, error)) func() {
+func MockReadInfo(mock func(name string, si *snap.SideInfo) (*snap.Info, error)) (restore func()) {
 	readInfo = mock
 	return func() { readInfo = snap.ReadInfo }
 }
@@ -103,3 +103,12 @@ func RunUndoHandler(mgr *SnapManager, kind string, t *state.Task) error {
 	t.State().Unlock()
 	return h(t, nil)
 }
+
+var OpenSnapFileImpl = openSnapFileImpl
+
+func MockOpenSnapFile(mock func(path string, si *snap.SideInfo) (*snap.Info, snap.File, error)) (restore func()) {
+	openSnapFile = mock
+	return func() { openSnapFile = openSnapFileImpl }
+}
+
+var CheckSnap = checkSnap
