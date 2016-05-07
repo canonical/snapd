@@ -105,3 +105,39 @@ architectures:
 	errorMsg := fmt.Sprintf(`snap "hello" supported architectures (yadayada, blahblah) are incompatible with this system (%s)`, arch.UbuntuArchitecture())
 	c.Assert(err.Error(), Equals, errorMsg)
 }
+
+func (s *checkSnapSuite) TestLocalSnapInstallMissingAssumes(c *C) {
+	const yaml = `name: foo
+version: 1.0
+assumes: [f1, f2]`
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.File, error) {
+		return info, nil, nil
+	}
+	restore := snapstate.MockOpenSnapFile(openSnapFile)
+	defer restore()
+
+	err = snapstate.CheckSnap("snap-path", nil, 0)
+	c.Check(err, ErrorMatches, `snap "foo" assumes unsupported features: f1, f2.*`)
+}
+
+func (s *checkSnapSuite) TestLocalSnapInstallProvidedAssumes(c *C) {
+	const yaml = `name: foo
+version: 1.0
+assumes: [common-data-dir]`
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.File, error) {
+		return info, nil, nil
+	}
+	restore := snapstate.MockOpenSnapFile(openSnapFile)
+	defer restore()
+
+	err = snapstate.CheckSnap("snap-path", nil, 0)
+	c.Check(err, IsNil)
+}

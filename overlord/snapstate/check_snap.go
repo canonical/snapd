@@ -29,6 +29,26 @@ import (
 	"github.com/ubuntu-core/snappy/snappy"
 )
 
+// featureSet contains the flag values that can be listed in assumes entries
+// that this ubuntu-core actually provides.
+var featureSet = map[string]bool{
+	// Support for common data directory across revisions of a snap.
+	"common-data-dir": true,
+}
+
+func checkAssumes(s *snap.Info) error {
+	missing := ([]string)(nil)
+	for _, flag := range s.Assumes {
+		if !featureSet[flag] {
+			missing = append(missing, flag)
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("snap %q assumes unsupported features: %s (try new ubuntu-core)", s.Name(), strings.Join(missing, ", "))
+	}
+	return nil
+}
+
 // openSnapFile opens a snap blob returning both a snap.Info completed
 // with sideInfo (if not nil) and a corresponding snap.File.
 func openSnapFileImpl(snapPath string, sideInfo *snap.SideInfo) (*snap.Info, snap.File, error) {
@@ -64,26 +84,24 @@ func checkSnap(snapFilePath string, curInfo *snap.Info, flags snappy.InstallFlag
 		return fmt.Errorf("snap %q supported architectures (%s) are incompatible with this system (%s)", s.Name(), strings.Join(s.Architectures, ", "), arch.UbuntuArchitecture())
 	}
 
-	/*
-		err = checkAssumes(s)
-		if err != nil {
-			return err
-		}
-	*/
+	err = checkAssumes(s)
+	if err != nil {
+		return err
+	}
 
-	/*
-		if s.Type == snap.TypeGadget {
-			if !allowGadget {
-				if currentGadget, err := getGadget(); err == nil {
-					if currentGadget.Name() != s.Name() {
-						return ErrGadgetPackageInstall
-					}
-				} else {
-					// there should always be a gadget package now
+	/* XXX: implement gadget install checks
+	if s.Type == snap.TypeGadget {
+		if !allowGadget {
+			if currentGadget, err := getGadget(); err == nil {
+				if currentGadget.Name() != s.Name() {
 					return ErrGadgetPackageInstall
 				}
+			} else {
+				// there should always be a gadget package now
+				return ErrGadgetPackageInstall
 			}
 		}
+	}
 	*/
 
 	return nil
