@@ -86,7 +86,7 @@ func (s *undoTestSuite) TestUndoForSetupSnapKernelUboot(c *C) {
 	}
 
 	testFiles := [][]string{
-		{"vmlinuz", "kernel"},
+		{"kernel.img", "kernel"},
 		{"initrd.img", "initrd"},
 		{"modules/4.4.0-14-generic/foo.ko", "a module"},
 		{"firmware/bar.bin", "some firmware"},
