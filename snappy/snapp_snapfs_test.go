@@ -345,7 +345,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernelErrors(c *C) {
 	c.Assert(err, IsNil)
 
 	err = extractKernelAssets(snap, snapf, 0, nil)
-	c.Assert(err, ErrorMatches, `can not extract kernel assets from snap type "app"`)
+	c.Assert(err, ErrorMatches, `cannot extract kernel assets from snap type "app"`)
 }
 
 func (s *SquashfsTestSuite) TestActiveOSNotRemovable(c *C) {
