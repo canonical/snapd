@@ -31,6 +31,8 @@ import (
 	"testing"
 
 	. "gopkg.in/check.v1"
+
+	"github.com/ubuntu-core/snappy/osutil"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -87,6 +89,24 @@ func (s *SquashfsTestSuite) TestReadFile(c *C) {
 	content, err := snap.ReadFile("meta/snap.yaml")
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, "name: foo")
+}
+
+// TestUnpackGlob tests the internal unpack
+func (s *SquashfsTestSuite) TestUnpackGlob(c *C) {
+	data := "some random data"
+	snap := makeSnap(c, "", data)
+
+	outputDir := c.MkDir()
+	err := snap.unpack("data*", outputDir)
+	c.Assert(err, IsNil)
+
+	// this is the file we expect
+	content, err := ioutil.ReadFile(filepath.Join(outputDir, "data.bin"))
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, data)
+
+	// ensure glob was honored
+	c.Assert(osutil.FileExists(filepath.Join(outputDir, "meta/snap.yaml")), Equals, false)
 }
 
 func (s *SquashfsTestSuite) TestBuild(c *C) {
