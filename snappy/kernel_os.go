@@ -98,7 +98,7 @@ func extractKernelAssets(s *snap.Info, snapf snap.File, flags InstallFlags, inte
 	defer dir.Close()
 
 	for _, src := range []string{
-		filepath.Join(s.MountDir(), "vmlinuz"),
+		filepath.Join(s.MountDir(), "kernel.img"),
 		filepath.Join(s.MountDir(), "initrd.img"),
 	} {
 		if err := copyAll(src, dstDir); err != nil {
