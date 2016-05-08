@@ -253,7 +253,7 @@ vendor: Someone
 
 func (s *SquashfsTestSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
 	files := [][]string{
-		{"vmlinuz", "I'm a kernel"},
+		{"kernel.img", "I'm a kernel"},
 		{"initrd.img", "...and I'm an initrd"},
 		{"meta/kernel.yaml", "version: 4.2"},
 	}
@@ -273,7 +273,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
 
 func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernel(c *C) {
 	files := [][]string{
-		{"vmlinuz", "I'm a kernel"},
+		{"kernel.img", "I'm a kernel"},
 		{"initrd.img", "...and I'm an initrd"},
 		{"meta/kernel.yaml", "version: 4.2"},
 	}
@@ -289,7 +289,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernel(c *C) {
 	bootdir := s.bootloader.Dir()
 
 	// kernel is here and normalized
-	vmlinuz := filepath.Join(bootdir, "ubuntu-kernel_42.snap", "vmlinuz")
+	vmlinuz := filepath.Join(bootdir, "ubuntu-kernel_42.snap", "kernel.img")
 	content, err := ioutil.ReadFile(vmlinuz)
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, files[0][1])
@@ -303,7 +303,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernel(c *C) {
 
 func (s *SquashfsTestSuite) TestInstallKernelSnapRemovesKernelAssets(c *C) {
 	files := [][]string{
-		{"vmlinuz", "I'm a kernel"},
+		{"kernel.img", "I'm a kernel"},
 		{"initrd.img", "...and I'm an initrd"},
 		{"meta/kernel.yaml", "version: 4.2"},
 	}
@@ -391,7 +391,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapNoUnpacksKernelForGrub(c *C) {
 	s.bootloader.name = "grub"
 
 	files := [][]string{
-		{"vmlinuz", "I'm a kernel"},
+		{"kernel.img", "I'm a kernel"},
 		{"meta/kernel.yaml", "version: 4.2"},
 	}
 	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
@@ -399,7 +399,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapNoUnpacksKernelForGrub(c *C) {
 	c.Assert(err, IsNil)
 
 	// kernel is *not* here
-	vmlinuz := filepath.Join(s.bootloader.Dir(), "ubuntu-kernel_4.0-1.snap", "vmlinuz")
+	vmlinuz := filepath.Join(s.bootloader.Dir(), "ubuntu-kernel_4.0-1.snap", "kernel.img")
 	c.Assert(osutil.FileExists(vmlinuz), Equals, false)
 }
 
