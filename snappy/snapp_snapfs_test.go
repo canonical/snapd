@@ -253,7 +253,7 @@ vendor: Someone
 
 func (s *SquashfsTestSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
 	files := [][]string{
-		{"vmlinuz", "I'm a kernel"},
+		{"kernel.img", "I'm a kernel"},
 		{"initrd.img", "...and I'm an initrd"},
 		{"meta/kernel.yaml", "version: 4.2"},
 	}
@@ -273,7 +273,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
 
 func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernel(c *C) {
 	files := [][]string{
-		{"vmlinuz", "I'm a kernel"},
+		{"kernel.img", "I'm a kernel"},
 		{"initrd.img", "...and I'm an initrd"},
 		{"dtbs/foo.dtb", "g'day, I'm foo.dtb"},
 		{"dtbs/bar.dtb", "hello, I'm bar.dtb"},
@@ -304,7 +304,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernel(c *C) {
 
 func (s *SquashfsTestSuite) TestInstallKernelSnapRemovesKernelAssets(c *C) {
 	files := [][]string{
-		{"vmlinuz", "I'm a kernel"},
+		{"kernel.img", "I'm a kernel"},
 		{"initrd.img", "...and I'm an initrd"},
 		{"meta/kernel.yaml", "version: 4.2"},
 	}
@@ -392,7 +392,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapNoUnpacksKernelForGrub(c *C) {
 	s.bootloader.name = "grub"
 
 	files := [][]string{
-		{"vmlinuz", "I'm a kernel"},
+		{"kernel.img", "I'm a kernel"},
 		{"meta/kernel.yaml", "version: 4.2"},
 	}
 	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
@@ -400,7 +400,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapNoUnpacksKernelForGrub(c *C) {
 	c.Assert(err, IsNil)
 
 	// kernel is *not* here
-	vmlinuz := filepath.Join(s.bootloader.Dir(), "ubuntu-kernel_4.0-1.snap", "vmlinuz")
+	vmlinuz := filepath.Join(s.bootloader.Dir(), "ubuntu-kernel_4.0-1.snap", "kernel.img")
 	c.Assert(osutil.FileExists(vmlinuz), Equals, false)
 }
 
