@@ -267,6 +267,7 @@ func UpdateCurrentSymlink(info *snap.Info, inter interacter) error {
 	currentActiveSymlink := filepath.Join(mountDir, "..", "current")
 	if err := os.Remove(currentActiveSymlink); err != nil && !os.IsNotExist(err) {
 		logger.Noticef("Failed to remove %q: %v", currentActiveSymlink, err)
+		return err
 	}
 
 	dataDir := info.DataDir()
@@ -274,6 +275,7 @@ func UpdateCurrentSymlink(info *snap.Info, inter interacter) error {
 	currentDataSymlink := filepath.Join(dbase, "current")
 	if err := os.Remove(currentDataSymlink); err != nil && !os.IsNotExist(err) {
 		logger.Noticef("Failed to remove %q: %v", currentDataSymlink, err)
+		return err
 	}
 
 	// symlink is relative to parent dir
