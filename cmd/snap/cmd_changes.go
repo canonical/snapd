@@ -52,6 +52,11 @@ func (s changesByTime) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 func (c *cmdChanges) Execute([]string) error {
 
+	if c.Positional.Id == "everything" {
+		fmt.Fprintln(Stdout, "Yes, yes it does.")
+		return nil
+	}
+
 	if c.Positional.Id != "" {
 		return c.showChange(c.Positional.Id)
 	}
