@@ -31,6 +31,8 @@ var (
 	// MyAppsPackageAccessAPI points to MyApps endpoint to get a package access macaroon
 	MyAppsPackageAccessAPI = myappsAPIBase + "api/2.0/acl/package_access/"
 	ubuntuoneAPIBase       = authURL()
+	// UbuntuoneLocation is the Ubuntuone location as defined in the store macaroon
+	UbuntuoneLocation = authLocation()
 	// UbuntuoneDischargeAPI points to SSO endpoint to discharge a macaroon
 	UbuntuoneDischargeAPI = ubuntuoneAPIBase + "/tokens/discharge"
 )
