@@ -89,6 +89,11 @@ func addExperimentalCommand(name, shortHelp, longHelp string, builder func() fla
 // from each other.
 func Parser() *flags.Parser {
 	parser := flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash)
+	parser.ShortDescription = "Tool to interact with snaps"
+	parser.LongDescription = `
+The snap tool interacts with the snapd daemon to control the snappy software platform.
+`
+
 	// Add all regular commands
 	for _, c := range commands {
 		cmd, err := parser.AddCommand(c.name, c.shortHelp, strings.TrimSpace(c.longHelp), c.builder())
@@ -139,6 +144,11 @@ func main() {
 
 func run() error {
 	parser := Parser()
+	if os.Getenv("SNAP_DUMP_MANPAGE") != "" {
+		parser.WriteManPage(Stdout)
+		os.Exit(0)
+	}
+
 	_, err := parser.Parse()
 	if err != nil {
 		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
