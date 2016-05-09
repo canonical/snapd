@@ -20,7 +20,6 @@
 package store
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -35,15 +34,13 @@ import (
 
 	"github.com/ubuntu-core/snappy/asserts"
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 )
 
 type remoteRepoTestSuite struct {
-	logbuf *bytes.Buffer
-	store  *SnapUbuntuStoreRepository
+	store *SnapUbuntuStoreRepository
 
 	origDownloadFunc func(string, io.Writer, *http.Request, progress.Meter) error
 }
@@ -63,19 +60,10 @@ func (t *remoteRepoTestSuite) SetUpTest(c *C) {
 	t.origDownloadFunc = download
 	dirs.SetRootDir(c.MkDir())
 	c.Assert(os.MkdirAll(dirs.SnapSnapsDir, 0755), IsNil)
-
-	t.logbuf = bytes.NewBuffer(nil)
-	l, err := logger.NewConsoleLog(t.logbuf, logger.DefaultFlags)
-	c.Assert(err, IsNil)
-	logger.SetLogger(l)
 }
 
 func (t *remoteRepoTestSuite) TearDownTest(c *C) {
 	download = t.origDownloadFunc
-}
-
-func (t *remoteRepoTestSuite) TearDownSuite(c *C) {
-	logger.SimpleSetup()
 }
 
 func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
@@ -992,8 +980,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecoratePurchasesFailedAccess(c *C)
 
 	authenticator := &fakeAuthenticator{}
 	err = repo.decoratePurchases(snaps, "edge", authenticator)
-	c.Assert(err, IsNil)
-	c.Check(t.logbuf.String(), Matches, "(?ms).* cannot get user purchases.*")
+	c.Assert(err, NotNil)
 
 	c.Check(helloWorld.MustBuy, Equals, true)
 	c.Check(funkyApp.MustBuy, Equals, true)
@@ -1110,8 +1097,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesSingleNotFound(c *C) {
 
 	authenticator := &fakeAuthenticator{}
 	err = repo.decoratePurchases(snaps, "edge", authenticator)
-	c.Assert(err, IsNil)
-	c.Check(t.logbuf.String(), Matches, "(?ms).* cannot get user purchases.*")
+	c.Assert(err, NotNil)
 	c.Check(helloWorld.MustBuy, Equals, true)
 }
 
@@ -1144,8 +1130,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesTokenExpired(c *C) {
 
 	authenticator := &fakeAuthenticator{}
 	err = repo.decoratePurchases(snaps, "edge", authenticator)
-	c.Assert(err, IsNil)
-	c.Check(t.logbuf.String(), Matches, "(?ms).* cannot get user purchases.*")
+	c.Assert(err, NotNil)
 	c.Check(helloWorld.MustBuy, Equals, true)
 }
 

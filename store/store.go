@@ -325,12 +325,12 @@ func (s *SnapUbuntuStoreRepository) getPurchasesFromURL(url *url.URL, channel st
 // decorateAllPurchases sets the MustBuy property of each snap in the given list according to the user's known purchases.
 func (s *SnapUbuntuStoreRepository) decoratePurchases(snaps []*snap.Info, channel string, auther Authenticator) error {
 	purchasesByID := make(map[string][]*purchase)
+	var err error
 
 	if auther != nil && s.purchasesURI != nil {
 		var purchasesURL *url.URL
 
 		if len(snaps) == 1 {
-			var err error
 			// If we only have a single snap, we should only find the purchases for that snap
 			purchasesURL, err = s.purchasesURI.Parse(snaps[0].SnapID + "/")
 			if err != nil {
@@ -344,11 +344,8 @@ func (s *SnapUbuntuStoreRepository) decoratePurchases(snaps []*snap.Info, channe
 			purchasesURL = s.purchasesURI
 		}
 
-		purchases, err := s.getPurchasesFromURL(purchasesURL, channel, auther)
-		if err != nil {
-			// XXX note this is expected to be displayed to the user, so the wording is probably off.
-			logger.Noticef("cannot get user purchases: %v", err)
-		}
+		var purchases []*purchase
+		purchases, err = s.getPurchasesFromURL(purchasesURL, channel, auther)
 
 		// Group purchases by snap ID.
 		for _, purchase := range purchases {
@@ -360,7 +357,7 @@ func (s *SnapUbuntuStoreRepository) decoratePurchases(snaps []*snap.Info, channe
 		info.MustBuy = mustBuy(info.Prices, purchasesByID[info.SnapID])
 	}
 
-	return nil
+	return err
 }
 
 // mustBuy determines if a snap requires a payment, based on if it is non-free and if the user has already bought it
