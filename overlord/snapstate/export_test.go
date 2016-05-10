@@ -35,7 +35,7 @@ func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
 }
 
 func SetSnapstateBackend(b ManagerBackend) {
-	backend = b
+	be = b
 }
 
 type ForeignTaskTracker interface {
