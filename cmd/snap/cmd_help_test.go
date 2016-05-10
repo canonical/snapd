@@ -44,6 +44,10 @@ func (s *SnapSuite) TestHelpPrintsHelp(c *check.C) {
 		c.Check(s.Stdout(), check.Matches, `(?smU)Usage:
  +snap \[OPTIONS\] <command>
 
+The snap tool interacts with the snapd daemon to control the snappy software
+platform.
+
+
 Help Options:
  +-h, --help +Show this help message
 

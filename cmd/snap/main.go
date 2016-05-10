@@ -84,6 +84,10 @@ func addExperimentalCommand(name, shortHelp, longHelp string, builder func() fla
 	return info
 }
 
+type parserSetter interface {
+	setParser(*flags.Parser)
+}
+
 // Parser creates and populates a fresh parser.
 // Since commands have local state a fresh parser is required to isolate tests
 // from each other.
@@ -96,7 +100,12 @@ The snap tool interacts with the snapd daemon to control the snappy software pla
 
 	// Add all regular commands
 	for _, c := range commands {
-		cmd, err := parser.AddCommand(c.name, c.shortHelp, strings.TrimSpace(c.longHelp), c.builder())
+		obj := c.builder()
+		if x, ok := obj.(parserSetter); ok {
+			x.setParser(parser)
+		}
+
+		cmd, err := parser.AddCommand(c.name, c.shortHelp, strings.TrimSpace(c.longHelp), obj)
 		if err != nil {
 
 			logger.Panicf("cannot add command %q: %v", c.name, err)
@@ -144,11 +153,6 @@ func main() {
 
 func run() error {
 	parser := Parser()
-	if os.Getenv("SNAP_DUMP_MANPAGE") != "" {
-		parser.WriteManPage(Stdout)
-		os.Exit(0)
-	}
-
 	_, err := parser.Parse()
 	if err != nil {
 		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
