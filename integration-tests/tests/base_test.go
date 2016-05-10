@@ -118,6 +118,8 @@ func writeCoverageConfig() error {
 	cmd, err := cli.AddOptionsToCommand([]string{filepath.Base(binPath)})
 	cmd[0] = binPath
 
+	// the first ExecStart= is needed to reset the setting value according to
+	// https://www.freedesktop.org/software/systemd/man/systemd.service.html
 	cfgContent := []byte(fmt.Sprintf(`[Service]
 ExecStart=
 ExecStart=%s
