@@ -123,7 +123,7 @@ ExecStart=
 ExecStart=%s
 `, strings.Join(cmd, " ")))
 
-	fmt.Println(string(cfgContent))
+	fmt.Println("snapd coverage.conf:\n", string(cfgContent))
 
 	tmpFile := "/tmp/snapd." + cfgFileName
 	if err = ioutil.WriteFile(tmpFile, cfgContent, os.ModeExclusive); err != nil {
