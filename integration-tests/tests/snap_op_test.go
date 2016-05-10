@@ -145,7 +145,7 @@ func (s *snapOpSuite) TestInstallFailedIsUndone(c *check.C) {
 	subdirPath := filepath.Join("/snap", snapName, "current", "foo")
 	_, err := cli.ExecCommandErr("sudo", "mkdir", "-p", subdirPath)
 	c.Assert(err, check.IsNil)
-	defer os.RemoveAll(filepath.Dir(subdirPath))
+	defer cli.ExecCommand(c, "sudo", "rm", "-rf", filepath.Dir(subdirPath))
 
 	// try to install snap and see it fail
 	_, err = cli.ExecCommandErr("sudo", "snap", "install", snapName)
@@ -153,7 +153,7 @@ func (s *snapOpSuite) TestInstallFailedIsUndone(c *check.C) {
 
 	// check undone and error in tasks
 	output := cli.ExecCommand(c, "snap", "changes")
-	expected := fmt.Sprintf(`(?ms).*(\d+) +Error.*Install "%s" snap\n$`, snapName)
+	expected := fmt.Sprintf(`(?ms).*\n(\d+) +Error.*Install "%s" snap\n$`, snapName)
 	id := regexp.MustCompile(expected).FindStringSubmatch(output)[1]
 
 	output = cli.ExecCommand(c, "snap", "changes", id)
