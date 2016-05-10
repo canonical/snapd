@@ -27,7 +27,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"	
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 )
 
 // for cleanup
