@@ -495,7 +495,7 @@ func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideI
 }
 
 // CanInstall checks whether the Snap passes a series of tests required for installation
-func canInstall(s *snap.Info, snapf snap.File, curInfo *snap.Info, allowGadget bool, inter interacter) error {
+func canInstall(s *snap.Info, snapf snap.Container, curInfo *snap.Info, allowGadget bool, inter interacter) error {
 	// verify we have a valid architecture
 	if !arch.IsSupportedArchitecture(s.Architectures) {
 		return &ErrArchitectureNotSupported{s.Architectures}
@@ -525,7 +525,7 @@ func canInstall(s *snap.Info, snapf snap.File, curInfo *snap.Info, allowGadget b
 // package, as deduced from the license agreement (which might involve asking
 // the user), or an error that explains the reason why installation should not
 // proceed.
-func checkLicenseAgreement(s *snap.Info, snapf snap.File, cur *snap.Info, ag agreer) error {
+func checkLicenseAgreement(s *snap.Info, snapf snap.Container, cur *snap.Info, ag agreer) error {
 	if s.LicenseAgreement != "explicit" {
 		return nil
 	}

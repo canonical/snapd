@@ -30,8 +30,8 @@ import (
 	"github.com/ubuntu-core/snappy/snap/squashfs"
 )
 
-// File is the interface to interact with the low-level snap files
-type File interface {
+// Container is the interface to interact with the low-level snap files
+type Container interface {
 	// ReadFile returns the content of a single file from the snap.
 	ReadFile(relative string) (content []byte, err error)
 
@@ -45,18 +45,18 @@ type File interface {
 // backend implements a specific snap format
 type snapFormat struct {
 	magic []byte
-	open  func(fn string) (File, error)
+	open  func(fn string) (Container, error)
 }
 
 // formatHandlers is the registry of known formats, squashfs is the only one atm.
 var formatHandlers = []snapFormat{
-	{squashfs.Magic, func(p string) (File, error) {
+	{squashfs.Magic, func(p string) (Container, error) {
 		return squashfs.New(p), nil
 	}},
 }
 
 // Open opens a given snap file with the right backend
-func Open(path string) (File, error) {
+func Open(path string) (Container, error) {
 
 	// see if its a snapdir first
 	if osutil.FileExists(filepath.Join(path, "meta", "snap.yaml")) {
