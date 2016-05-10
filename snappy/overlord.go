@@ -287,7 +287,7 @@ func UpdateCurrentSymlink(info *snap.Info, inter interacter) error {
 
 	// FIXME: create {Os,Kernel}Snap type instead of adding special
 	//        cases here
-	if err := setNextBoot(info); err != nil {
+	if err := SetNextBoot(info); err != nil {
 		return err
 	}
 
