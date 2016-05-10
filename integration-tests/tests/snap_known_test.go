@@ -28,7 +28,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/asserts"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"	
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 )
 
 var _ = check.Suite(&snapKnownSuite{})
