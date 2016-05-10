@@ -23,7 +23,10 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path/filepath"
 
+	"github.com/ubuntu-core/snappy/osutil"
+	"github.com/ubuntu-core/snappy/snap/snapdir"
 	"github.com/ubuntu-core/snappy/snap/squashfs"
 )
 
@@ -54,6 +57,13 @@ var formatHandlers = []snapFormat{
 
 // Open opens a given snap file with the right backend
 func Open(path string) (File, error) {
+
+	// see if its a snapdir first
+	if osutil.FileExists(filepath.Join(path, "meta", "snap.yaml")) {
+		return snapdir.New(path), nil
+	}
+
+	// open the file and check magic
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open snap: %v", err)
