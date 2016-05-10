@@ -11,13 +11,13 @@ fi
 
 STATIC=""
 UNIT=""
-INTEGRATION=""
+ACCEPTANCE=""
 
 case "${1:-all}" in
     all)
         STATIC="yes"
         UNIT="yes"
-        INTEGRATION="yes"
+        ACCEPTANCE="yes"
         ;;
     --static)
         STATIC="yes"
@@ -25,11 +25,11 @@ case "${1:-all}" in
     --unit)
         UNIT="yes"
         ;;
-    --integration)
-        INTEGRATION="yes"
+    --acceptance)
+        ACCEPTANCE="yes"
         ;;
     *)
-        echo "Wrong flag ${1}. To run a single suite use --static, --unit or --integration."
+        echo "Wrong flag ${1}. To run a single suite use --static, --unit or --acceptance."
         exit 1
 esac
 
@@ -106,14 +106,14 @@ if [ ! -z "$STATIC" ]; then
     fi
 
     # cmd/* test sources are tagged so they are not included in
-    # special integration test builds
+    # special acceptance test builds
     echo Checking 'cmd/*/*_test.go' build tagging
     bad=""
     for cmd in cmd/* ; do
-        nottagged=$(ls ${cmd}/*_test.go|grep -v integration_coverage_test|grep -v -F "$(grep -l '!integrationcoverage' ${cmd}/*_test.go)" || true)
+        nottagged=$(ls ${cmd}/*_test.go|grep -v acceptance_coverage_test|grep -v -F "$(grep -l '!acceptancecoverage' ${cmd}/*_test.go)" || true)
 
         if [ -n "${nottagged}" ] ; then
-            echo these ${cmd} test files miss the '!integrationcoverage' tag: ${nottagged}
+            echo these ${cmd} test files miss the '!acceptancecoverage' tag: ${nottagged}
             bad=1
         fi
     done
@@ -139,34 +139,34 @@ if [ ! -z "$UNIT" ]; then
     echo "mode: set" > .coverage/coverage.out
 
     echo Building
-    go build -tags=excludeintegration -v github.com/ubuntu-core/snappy/...
+    go build -tags=excludeacceptance -v github.com/ubuntu-core/snappy/...
 
     # tests
     echo Running tests from $(pwd)
-    for pkg in $(go list ./... | grep -v integration-tests); do
-        $goctest -tags=excludeintegration -v -coverprofile=.coverage/profile.out $pkg
+    for pkg in $(go list ./... | grep -v acceptance-tests); do
+        $goctest -tags=excludeacceptance -v -coverprofile=.coverage/profile.out $pkg
         append_coverage .coverage/profile.out
     done
 
-    echo Building the integration tests
-    TMP_INTEGRATION="$(mktemp)"
-    addtrap "rm -f \"$TMP_INTEGRATION\""
-    go build -v -o $TMP_INTEGRATION github.com/ubuntu-core/snappy/integration-tests/
+    echo Building the acceptance tests
+    TMP_ACCEPTANCE="$(mktemp)"
+    addtrap "rm -f \"$TMP_ACCEPTANCE\""
+    go build -v -o $TMP_ACCEPTANCE github.com/ubuntu-core/snappy/acceptance-tests/
 
     # the rabbit hole
-    echo Running the tests for the integration testutils
-    for pkg in $(go list ./integration-tests/testutils/...); do
+    echo Running the tests for the acceptance testutils
+    for pkg in $(go list ./acceptance-tests/testutils/...); do
         $goctest -v -coverprofile=.coverage/profile.out $pkg
         append_coverage .coverage/profile.out
     done
 fi
 
-if [ ! -z "$INTEGRATION" ]; then
-    # integration suite in kvm
+if [ ! -z "$ACCEPTANCE" ]; then
+    # acceptance suite in kvm
     if which adt-run >/dev/null 2>&1; then
-        echo "Running integration tests on rolling edge"
+        echo "Running acceptance tests on rolling edge"
         result=0
-        go run integration-tests/main.go --snappy-from-branch || result=$?
+        go run acceptance-tests/main.go --snappy-from-branch || result=$?
         # print the results.
         if which subunit2pyunit >/dev/null 2>&1; then
             subunit2pyunit /tmp/snappy-test/output/artifacts/results.subunit
