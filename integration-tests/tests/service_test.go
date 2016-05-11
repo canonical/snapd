@@ -29,7 +29,6 @@ import (
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/data"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/updates"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/wait"
 	"github.com/ubuntu-core/snappy/testutil"
 
@@ -44,8 +43,6 @@ type serviceSuite struct {
 
 func (s *serviceSuite) SetUpTest(c *check.C) {
 	s.SnappySuite.SetUpTest(c)
-
-	c.Skip("FIXME: we have no snap build nor snapcraft build yet")
 }
 
 func (s *serviceSuite) TearDownTest(c *check.C) {
@@ -57,16 +54,14 @@ func (s *serviceSuite) TearDownTest(c *check.C) {
 }
 
 func isServiceRunning(c *check.C) bool {
-	packageVersion := common.GetCurrentVersion(c, data.BasicServiceSnapName)
-	service := fmt.Sprintf("%s_service_%s.service", data.BasicServiceSnapName, packageVersion)
-
+	service := fmt.Sprintf("snap.%s.service.service", data.BasicServiceSnapName)
 	err := wait.ForActiveService(c, service)
 	c.Assert(err, check.IsNil)
 
 	statusOutput := cli.ExecCommand(c, "systemctl", "status", service)
 
 	expected := "(?ms)" +
-		fmt.Sprintf(".* %s_service_.*\\.service .*\n", data.BasicServiceSnapName) +
+		fmt.Sprintf(".* %s .*\n", service) +
 		".*Loaded: loaded .*\n" +
 		".*Active: active \\(running\\) .*\n" +
 		".*"
@@ -93,17 +88,6 @@ func (s *serviceSuite) TestInstalledServiceMustBeStarted(c *check.C) {
 func (s *serviceSuite) TestServiceMustBeStartedAfterReboot(c *check.C) {
 	if common.BeforeReboot() {
 		installSnapWithService(c)
-		common.Reboot(c)
-	} else if common.AfterReboot(c) {
-		common.RemoveRebootMark(c)
-		c.Assert(isServiceRunning(c), check.Equals, true, check.Commentf("Service is not running"))
-	}
-}
-
-func (s *serviceSuite) TestServiceMustBeStartedAfterUpdate(c *check.C) {
-	if common.BeforeReboot() {
-		installSnapWithService(c)
-		updates.CallFakeOSUpdate(c)
 		common.Reboot(c)
 	} else if common.AfterReboot(c) {
 		common.RemoveRebootMark(c)
