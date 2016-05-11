@@ -311,11 +311,11 @@ func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	localSnap, active, err := localSnapInfo(c.d.overlord.State(), name)
 	if err != nil {
-		return InternalError("%v", err)
-	}
+		if err == state.ErrNoState {
+			return NotFound("cannot find snap %q", name)
+		}
 
-	if localSnap == nil {
-		return NotFound("cannot find snap %q", name)
+		return InternalError("%v", err)
 	}
 
 	route := c.d.router.Get(c.Path)
@@ -801,10 +801,10 @@ var readSnapInfo = readSnapInfoImpl
 func iconGet(st *state.State, name string) Response {
 	info, _, err := localSnapInfo(st, name)
 	if err != nil {
+		if err == state.ErrNoState {
+			return NotFound("cannot find snap %q", name)
+		}
 		return InternalError("%v", err)
-	}
-	if info == nil {
-		return NotFound("cannot find snap %q", name)
 	}
 
 	path := filepath.Clean(snapIcon(info))

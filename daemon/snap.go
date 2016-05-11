@@ -64,7 +64,7 @@ func localSnapInfo(st *state.State, name string) (info *snap.Info, active bool, 
 
 	cur := snapst.Current()
 	if cur == nil {
-		return nil, false, nil
+		return nil, false, state.ErrNoState
 	}
 
 	info, err = snap.ReadInfo(name, cur)
