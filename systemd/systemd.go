@@ -413,7 +413,7 @@ func MountUnitPath(baseDir, ext string) string {
 
 func (s *systemd) WriteMountUnitFile(name, what, where string) (string, error) {
 	c := fmt.Sprintf(`[Unit]
-Description=Squashfs mount unit for %s
+Description=Mount unit for %s
 
 [Mount]
 What=%s

@@ -109,7 +109,7 @@ func SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, flags InstallFlags,
 	}
 
 	// generate the mount unit for the squashfs
-	if err := addSquashfsMount(s, inhibitHooks, meter); err != nil {
+	if err := addMountUnit(s, inhibitHooks, meter); err != nil {
 		return s, err
 	}
 
@@ -127,7 +127,7 @@ type interacter interface {
 	Notify(status string)
 }
 
-func addSquashfsMount(s *snap.Info, inhibitHooks bool, inter interacter) error {
+func addMountUnit(s *snap.Info, inhibitHooks bool, inter interacter) error {
 	squashfsPath := stripGlobalRootDir(s.MountFile())
 	whereDir := stripGlobalRootDir(s.MountDir())
 
