@@ -382,7 +382,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	for i, x := range found {
 		url, err := route.URL("name", x.Name())
 		if err != nil {
-			logger.Noticef("unable to build URL for snap %q (r%d): %v", x.Name(), x.Revision, err)
+			logger.Noticef("cannot build URL for snap %q (r%d): %v", x.Name(), x.Revision, err)
 			continue
 		}
 
@@ -434,7 +434,7 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	found, err := allLocalSnapInfos(c.d.overlord.State())
 	if err != nil {
-		return InternalError("unable to list local snaps! %v", err)
+		return InternalError("cannot list local snaps! %v", err)
 	}
 
 	results := make([]*json.RawMessage, len(found))
@@ -446,13 +446,13 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 
 		url, err := route.URL("name", name)
 		if err != nil {
-			logger.Noticef("unable to build URL for snap %q (r%d): %v", name, rev, err)
+			logger.Noticef("cannot build URL for snap %q (r%d): %v", name, rev, err)
 			continue
 		}
 
 		data, err := json.Marshal(webify(mapLocal(x.info, isActive), url.String()))
 		if err != nil {
-			return InternalError("unable to serialize snap %q (r%d): %v", name, rev, err)
+			return InternalError("cannot serialize snap %q (r%d): %v", name, rev, err)
 		}
 		raw := json.RawMessage(data)
 		results[i] = &raw
