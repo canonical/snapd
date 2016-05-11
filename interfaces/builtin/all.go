@@ -42,6 +42,7 @@ var allInterfaces = []interfaces.Interface{
 	NewUnity7Interface(),
 	NewX11Interface(),
 	NewOpenglInterface(),
+	NewCupsInterface(),
 }
 
 // Interfaces returns all of the built-in interfaces.
