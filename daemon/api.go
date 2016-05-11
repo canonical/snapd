@@ -39,6 +39,7 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/interfaces"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/overlord/auth"
 	"github.com/ubuntu-core/snappy/overlord/ifacestate"
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
@@ -769,6 +770,34 @@ func newChange(st *state.State, kind, summary string, tsets []*state.TaskSet) *s
 
 const maxReadBuflen = 1024 * 1024
 
+func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string) Response {
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	msg := fmt.Sprintf(i18n.G("Try %q snap"), trydir)
+
+	if !osutil.IsDirectory(trydir) {
+		return InternalError("cannot try %q not a directory", trydir)
+	}
+
+	info, err := readSnapInfo(trydir)
+	if err != nil {
+		return BadRequest("cannot read snap info for %s: %s", trydir, err)
+	}
+
+	tsets, err := snapstateInstallPath(st, info.Name(), trydir, "unused-channel", 0)
+	if err != nil {
+		return BadRequest("cannot try %s: %s", trydir, err)
+	}
+	chg := newChange(st, "install-snap", msg, []*state.TaskSet{tsets})
+	chg.Set("api-data", map[string]string{"snap-name": trydir})
+
+	st.EnsureBefore(0)
+
+	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+}
+
 func sideloadSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	route := c.d.router.Get(stateChangeCmd.Path)
 	if route == nil {
@@ -796,6 +825,10 @@ func sideloadSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	if len(form.Value["devmode"]) > 0 && form.Value["devmode"][0] == "true" {
 		flags |= snappy.DeveloperMode
+	}
+
+	if len(form.Value["try"]) > 0 && form.Value["try"][0] != "" {
+		return trySnap(c, r, user, form.Value["try"][0])
 	}
 
 	// find the file for the "snap" form field
