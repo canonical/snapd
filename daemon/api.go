@@ -685,35 +685,13 @@ func snapRollback(inst *snapInstruction, st *state.State) (string, []*state.Task
 	return msg, []*state.TaskSet{ts}, nil
 }
 
-func snapActivate(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	ts, err := snapstate.Activate(st, inst.snap)
-	if err != nil {
-		return "", nil, err
-	}
-
-	msg := fmt.Sprintf(i18n.G("Activate %q snap"), inst.snap)
-	return msg, []*state.TaskSet{ts}, nil
-}
-
-func snapDeactivate(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	ts, err := snapstate.Deactivate(st, inst.snap)
-	if err != nil {
-		return "", nil, err
-	}
-
-	msg := fmt.Sprintf(i18n.G("Deactivate %q snap"), inst.snap)
-	return msg, []*state.TaskSet{ts}, nil
-}
-
 type snapActionFunc func(*snapInstruction, *state.State) (string, []*state.TaskSet, error)
 
 var snapInstructionDispTable = map[string]snapActionFunc{
-	"install":    snapInstall,
-	"refresh":    snapUpdate,
-	"remove":     snapRemove,
-	"rollback":   snapRollback,
-	"activate":   snapActivate,
-	"deactivate": snapDeactivate,
+	"install":  snapInstall,
+	"refresh":  snapUpdate,
+	"remove":   snapRemove,
+	"rollback": snapRollback,
 }
 
 func (inst *snapInstruction) dispatch() snapActionFunc {

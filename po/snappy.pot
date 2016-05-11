@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-05-04 15:32+0200\n"
+        "POT-Creation-Date: 2016-05-10 22:32-0700\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,10 +17,6 @@ msgstr  "Project-Id-Version: snappy\n"
         "Content-Transfer-Encoding: 8bit\n"
 
 msgid   "Abort a pending change"
-msgstr  ""
-
-#, c-format
-msgid   "Activate %q snap"
 msgstr  ""
 
 msgid   "Adds an assertion to the system"
@@ -58,10 +54,6 @@ msgstr  ""
 
 #, c-format
 msgid   "Copy snap %q data"
-msgstr  ""
-
-#, c-format
-msgid   "Deactivate %q snap"
 msgstr  ""
 
 #, c-format
@@ -290,7 +282,7 @@ msgid   "\n"
 msgstr  ""
 
 msgid   "\n"
-        "The install command installs and activates the named snap in the system.\n"
+        "The install command installs the named snap in the system.\n"
 msgstr  ""
 
 msgid   "\n"

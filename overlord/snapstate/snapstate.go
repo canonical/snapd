@@ -261,18 +261,6 @@ func Rollback(s *state.State, snap, ver string) (*state.TaskSet, error) {
 	return nil, fmt.Errorf("rollback not implemented")
 }
 
-// Activate returns a set of tasks for activating a snap.
-// Note that the state must be locked by the caller.
-func Activate(s *state.State, name string) (*state.TaskSet, error) {
-	return nil, fmt.Errorf("activate not implemented")
-}
-
-// Activate returns a set of tasks for activating a snap.
-// Note that the state must be locked by the caller.
-func Deactivate(s *state.State, name string) (*state.TaskSet, error) {
-	return nil, fmt.Errorf("deactivate not implemented")
-}
-
 // Retrieval functions
 
 var readInfo = snap.ReadInfo
