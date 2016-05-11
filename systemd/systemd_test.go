@@ -20,6 +20,7 @@
 package systemd_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -294,6 +295,29 @@ Where=/apps/foo/1.0
 [Install]
 WantedBy=multi-user.target
 `)
+}
+
+func (s *SystemdTestSuite) TestWriteMountUnitForDirs(c *C) {
+	// a directory instead of a file produces a different output
+	snapDir := c.MkDir()
+	mountUnitName, err := New("", nil).WriteMountUnitFile("foodir", snapDir, "/apps/foo/1.0")
+	c.Assert(err, IsNil)
+	defer os.Remove(mountUnitName)
+
+	mount, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, mountUnitName))
+	c.Assert(err, IsNil)
+	c.Assert(string(mount), Equals, fmt.Sprintf(`[Unit]
+Description=Mount unit for foodir
+
+[Mount]
+What=%s
+Where=/apps/foo/1.0
+Options=bind
+Type=none
+
+[Install]
+WantedBy=multi-user.target
+`, snapDir))
 }
 
 func (s *SystemdTestSuite) TestRestartCondUnmarshal(c *C) {
