@@ -95,14 +95,3 @@ func (s *serviceSuite) TestServiceMustBeStartedAfterReboot(c *check.C) {
 		c.Assert(isServiceRunning(c), check.Equals, true, check.Commentf("Service is not running"))
 	}
 }
-
-func (s *serviceSuite) TestServiceMustBeStartedAfterUpdate(c *check.C) {
-	if common.BeforeReboot() {
-		installSnapWithService(c)
-		updates.CallFakeOSUpdate(c)
-		common.Reboot(c)
-	} else if common.AfterReboot(c) {
-		common.RemoveRebootMark(c)
-		c.Assert(isServiceRunning(c), check.Equals, true, check.Commentf("Service is not running"))
-	}
-}
