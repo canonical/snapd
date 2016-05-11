@@ -31,9 +31,9 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/kr/pty"
 	"gopkg.in/check.v1"
 
+	"github.com/kr/pty"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/wait"
@@ -49,23 +49,21 @@ const (
 var _ = check.Suite(&loginSuite{})
 
 type loginSuite struct {
-	common.SnappySuite
+	baseStoreSuite
 
 	server         *httptest.Server
 	serverAddrPort string
-
-	stdout bytes.Buffer
 }
 
-func (s *loginSuite) TestEmptyLoginNameError(c *check.C) {
+func (s *loginSuite) TestStoreEmptyLoginNameError(c *check.C) {
 	output, err := cli.ExecCommandErr("sudo", "snap", "login")
 
 	c.Assert(err, check.NotNil, check.Commentf("expecting empty login error"))
 	c.Assert(output, check.Equals, "error: the required argument `email` was not provided\n")
 }
 
-func (s *loginSuite) TestInvalidLoginError(c *check.C) {
-	err := s.writeCredentials(invalidLoginName)
+func (s *loginSuite) TestStoreInvalidLoginError(c *check.C) {
+	err := s.writeCredentials(invalidLoginName, password)
 	c.Assert(err, check.IsNil, check.Commentf("error writting credentials"))
 
 	expectedMsg := "Invalid request data"
@@ -73,8 +71,8 @@ func (s *loginSuite) TestInvalidLoginError(c *check.C) {
 	c.Assert(err, check.IsNil, check.Commentf("didn't get expected invalid data error: %v", err))
 }
 
-func (s *loginSuite) TestInvalidCredentialsError(c *check.C) {
-	err := s.writeCredentials(validLoginName)
+func (s *loginSuite) TestStoreInvalidCredentialsError(c *check.C) {
+	err := s.writeCredentials(validLoginName, password)
 	c.Assert(err, check.IsNil, check.Commentf("error writting credentials"))
 
 	expectedMsg := "Provided email/password is not correct"
@@ -88,7 +86,7 @@ func (s *loginSuite) TestFakeServerIsDetected(c *check.C) {
 	defer s.tearDownIPTables(c)
 	defer s.tearDownHTTPServer()
 
-	err := s.writeCredentials(validLoginName)
+	err := s.writeCredentials(validLoginName, password)
 	c.Assert(err, check.IsNil, check.Commentf("error writting credentials"))
 
 	expectedMsg := fmt.Sprintf("Post https://%s/api/v2/tokens/discharge: x509: certificate is valid for example.com, not %s", loginHost, loginHost)
@@ -139,15 +137,23 @@ func ipTablesCommand(action, serverAddrPort string) []string {
 		"--to-destination", serverAddrPort}
 }
 
-func (s *loginSuite) writeCredentials(loginName string) error {
-	cmds, _ := cli.AddOptionsToCommand([]string{"sudo", "snap", "login", loginName})
+var _ = check.Suite(&storeSuite{})
+
+type baseStoreSuite struct {
+	common.SnappySuite
+
+	stdout bytes.Buffer
+}
+
+func (s *baseStoreSuite) writeCredentials(loginName, pass string) error {
+	cmds, _ := cli.AddOptionsToCommand([]string{"snap", "login", loginName})
 	cmd := exec.Command(cmds[0], cmds[1:]...)
 	f, err := pty.Start(cmd)
 	if err != nil {
 		return err
 	}
 
-	err = cmdInteract(f, "Password: ", password)
+	err = cmdInteract(f, "Password: ", pass)
 	if err != nil {
 		return err
 	}
@@ -173,4 +179,28 @@ func cmdInteract(f *os.File, prompt, input string) error {
 	}
 
 	return nil
+}
+
+type storeSuite struct {
+	baseStoreSuite
+
+	username, password string
+}
+
+func (s *storeSuite) SetUpTest(c *check.C) {
+	s.baseStoreSuite.SetUpTest(c)
+
+	s.username = os.Getenv("TEST_USER_NAME")
+	s.password = os.Getenv("TEST_USER_PASSWORD")
+	if s.username == "" || s.password == "" {
+		c.Skip("Test user credentials not available in current environment, skipping store tests")
+	}
+}
+
+func (s *storeSuite) TestStoreLoginLogout(c *check.C) {
+	err := s.writeCredentials(s.username, s.password)
+	c.Assert(err, check.IsNil)
+
+	output := cli.ExecCommand(c, "snap", "logout")
+	c.Assert(output, check.Equals, "\n")
 }
