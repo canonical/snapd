@@ -2128,7 +2128,7 @@ func (s *apiSuite) TestAssertInvalid(c *check.C) {
 	// Verify (external)
 	c.Check(rec.Code, check.Equals, 400)
 	c.Check(rec.Body.String(), testutil.Contains,
-		"can't decode request body into an assertion")
+		"cannot decode request body into an assertion")
 }
 
 func (s *apiSuite) TestAssertError(c *check.C) {

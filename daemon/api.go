@@ -320,12 +320,12 @@ func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	route := c.d.router.Get(c.Path)
 	if route == nil {
-		return InternalError("router can't find route for snap %s", name)
+		return InternalError("cannot find route for snap %s", name)
 	}
 
 	url, err := route.URL("name", name)
 	if err != nil {
-		return InternalError("route can't build URL for snap %s: %v", name, err)
+		return InternalError("cannot build URL for snap %s: %v", name, err)
 	}
 
 	result := webify(mapLocal(localSnap, active), url.String())
@@ -357,7 +357,7 @@ func webify(result map[string]interface{}, resource string) map[string]interface
 func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	route := c.d.router.Get(snapCmd.Path)
 	if route == nil {
-		return InternalError("router can't find route for snaps")
+		return InternalError("cannot find route for snaps")
 	}
 
 	query := r.URL.Query()
@@ -429,7 +429,7 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	route := c.d.router.Get(snapCmd.Path)
 	if route == nil {
-		return InternalError("router can't find route for snaps")
+		return InternalError("cannot find route for snaps")
 	}
 
 	found, err := allLocalSnapInfos(c.d.overlord.State())
@@ -627,13 +627,13 @@ func (inst *snapInstruction) dispatch() snapActionFunc {
 func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	route := c.d.router.Get(stateChangeCmd.Path)
 	if route == nil {
-		return InternalError("router can't find route for change")
+		return InternalError("cannot find route for change")
 	}
 
 	decoder := json.NewDecoder(r.Body)
 	var inst snapInstruction
 	if err := decoder.Decode(&inst); err != nil {
-		return BadRequest("can't decode request body into snap instruction: %v", err)
+		return BadRequest("cannot decode request body into snap instruction: %v", err)
 	}
 
 	state := c.d.overlord.State()
@@ -919,7 +919,7 @@ func doAssert(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 	a, err := asserts.Decode(b)
 	if err != nil {
-		return BadRequest("can't decode request body into an assertion: %v", err)
+		return BadRequest("cannot decode request body into an assertion: %v", err)
 	}
 	// TODO/XXX: turn this into a Change/Task combination
 	amgr := c.d.overlord.AssertManager()
