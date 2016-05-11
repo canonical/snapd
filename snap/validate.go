@@ -81,8 +81,8 @@ func ValidateApp(app *AppInfo) error {
 	checks := map[string]string{
 		"name":              app.Name,
 		"command":           app.Command,
-		"stop-command":      app.Stop,
-		"post-stop-command": app.PostStop,
+		"stop-command":      app.StopCommand,
+		"post-stop-command": app.PostStopCommand,
 		"socket-mode":       app.SocketMode,
 		"listen-stream":     app.ListenStream,
 		"bus-name":          app.BusName,

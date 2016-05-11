@@ -38,51 +38,50 @@ type ReleaseTestSuite struct {
 var _ = Suite(&ReleaseTestSuite{})
 
 func (s *ReleaseTestSuite) TestSetup(c *C) {
-	c.Assert(release.Setup(c.MkDir()), IsNil)
-	c.Check(release.String(), Equals, "16-core")
-	rel := release.Get()
-	c.Check(rel.Flavor, Equals, "core")
-	c.Check(rel.Series, Equals, "16")
+	c.Check(release.Series, Equals, "16")
 }
 
-func (s *ReleaseTestSuite) TestOverride(c *C) {
-	rel := release.Release{Flavor: "personal", Series: "10.06"}
-	release.Override(rel)
-	c.Check(release.String(), Equals, "10.06-personal")
-	c.Check(release.Get(), DeepEquals, rel)
-}
-
-func makeMockLsbRelease(c *C) string {
+func makeMockLSBRelease(c *C) string {
 	// FIXME: use AddCleanup here once available so that we
-	//        can do release.SetLsbReleasePath() here directly
-	mockLsbRelease := filepath.Join(c.MkDir(), "mock-lsb-release")
+	//        can do release.SetLSBReleasePath() here directly
+	mockLSBRelease := filepath.Join(c.MkDir(), "mock-lsb-release")
 	s := `
 DISTRIB_ID=Ubuntu
 DISTRIB_RELEASE=18.09
 DISTRIB_CODENAME=awsome
 DISTRIB_DESCRIPTION=I'm not real!
 `
-	err := ioutil.WriteFile(mockLsbRelease, []byte(s), 0644)
+	err := ioutil.WriteFile(mockLSBRelease, []byte(s), 0644)
 	c.Assert(err, IsNil)
 
-	return mockLsbRelease
+	return mockLSBRelease
 }
 
-func (a *ReleaseTestSuite) TestReadLsb(c *C) {
-	reset := release.HackLsbReleasePath(makeMockLsbRelease(c))
+func (s *ReleaseTestSuite) TestReadLSB(c *C) {
+	reset := release.MockLSBReleasePath(makeMockLSBRelease(c))
 	defer reset()
 
-	lsb, err := release.ReadLsb()
+	lsb, err := release.ReadLSB()
 	c.Assert(err, IsNil)
 	c.Assert(lsb.ID, Equals, "Ubuntu")
 	c.Assert(lsb.Release, Equals, "18.09")
 	c.Assert(lsb.Codename, Equals, "awsome")
 }
 
-func (a *ReleaseTestSuite) TestReadLsbNotFound(c *C) {
-	reset := release.HackLsbReleasePath("not-there")
+func (s *ReleaseTestSuite) TestReadLSBNotFound(c *C) {
+	reset := release.MockLSBReleasePath("not-there")
 	defer reset()
 
-	_, err := release.ReadLsb()
+	_, err := release.ReadLSB()
 	c.Assert(err, ErrorMatches, "cannot read lsb-release:.*")
+}
+
+func (s *ReleaseTestSuite) TestOnClassic(c *C) {
+	reset := release.MockOnClassic(true)
+	defer reset()
+	c.Assert(release.OnClassic, Equals, true)
+
+	reset = release.MockOnClassic(false)
+	defer reset()
+	c.Assert(release.OnClassic, Equals, false)
 }

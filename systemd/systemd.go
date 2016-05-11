@@ -38,10 +38,12 @@ import (
 var (
 	// the output of "show" must match this for Stop to be done:
 	isStopDone = regexp.MustCompile(`(?m)\AActiveState=(?:failed|inactive)$`).Match
-	// how many times should Stop check show's output between calls to Notify
-	stopSteps = 4 * 30
+
 	// how much time should Stop wait between calls to show
-	stopDelay = 250 * time.Millisecond
+	stopCheckDelay = 250 * time.Millisecond
+
+	// how much time should Stop wait between notifying the user of the waiting
+	stopNotifyDelay = 20 * time.Second
 )
 
 // run calls systemctl with the given args, returning its standard output (and wrapped error)
@@ -280,24 +282,34 @@ func (s *systemd) Stop(serviceName string, timeout time.Duration) error {
 	}
 
 	// and now wait for it to actually stop
-	stopped := false
-	max := time.Now().Add(timeout)
-	for time.Now().Before(max) {
-		s.reporter.Notify(fmt.Sprintf("Waiting for %s to stop.", serviceName))
-		for i := 0; i < stopSteps; i++ {
+	giveup := time.NewTimer(timeout)
+	notify := time.NewTicker(stopNotifyDelay)
+	defer notify.Stop()
+	check := time.NewTicker(stopCheckDelay)
+	defer check.Stop()
+
+	firstCheck := true
+loop:
+	for {
+		select {
+		case <-giveup.C:
+			break loop
+		case <-check.C:
 			bs, err := SystemctlCmd("show", "--property=ActiveState", serviceName)
 			if err != nil {
 				return err
 			}
 			if isStopDone(bs) {
-				stopped = true
-				break
+				return nil
 			}
-			time.Sleep(stopDelay)
+			if !firstCheck {
+				continue loop
+			}
+			firstCheck = false
+		case <-notify.C:
 		}
-		if stopped {
-			return nil
-		}
+		// after notify delay or after a failed first check
+		s.reporter.Notify(fmt.Sprintf("Waiting for %s to stop.", serviceName))
 	}
 
 	return &Timeout{action: "stop", service: serviceName}

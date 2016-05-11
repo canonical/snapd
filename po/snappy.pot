@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-05-02 07:53+0200\n"
+        "POT-Creation-Date: 2016-05-04 15:32+0200\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -24,6 +24,9 @@ msgid   "Activate %q snap"
 msgstr  ""
 
 msgid   "Adds an assertion to the system"
+msgstr  ""
+
+msgid   "Authenticates on snapd and the store"
 msgstr  ""
 
 msgid   "Bad code. Try again: "
@@ -82,6 +85,9 @@ msgstr  ""
 msgid   "Finds packages to install"
 msgstr  ""
 
+msgid   "Help"
+msgstr  ""
+
 msgid   "ID\tStatus\tSpawn\tReady\tSummary\n"
 msgstr  ""
 
@@ -111,9 +117,6 @@ msgid   "List system changes"
 msgstr  ""
 
 msgid   "Lists interfaces in the system"
-msgstr  ""
-
-msgid   "Log into the store"
 msgstr  ""
 
 msgid   "Log out of the store"
@@ -207,13 +210,14 @@ msgstr  ""
 msgid   "This command logs the current user out of the store"
 msgstr  ""
 
-msgid   "This command logs the given username into the store"
-msgstr  ""
-
 msgid   "Two-factor code: "
 msgstr  ""
 
 msgid   "Wrong again. Once more: "
+msgstr  ""
+
+msgid   "\n"
+        "How help for the snap command."
 msgstr  ""
 
 msgid   "\n"
@@ -315,6 +319,16 @@ msgstr  ""
 
 msgid   "\n"
         "The list command displays a summary of snaps installed in the current system."
+msgstr  ""
+
+msgid   "\n"
+        "The login command authenticates on snapd and the snap store and saves credentials\n"
+        "into the ~/.snap/auth.json file. Further communication with snapd will then be made\n"
+        "using those credentials.\n"
+        "\n"
+        "Login only works for local users in the sudo or admin groups.\n"
+        "\n"
+        "An account can be setup at https://login.ubuntu.com\n"
 msgstr  ""
 
 msgid   "\n"

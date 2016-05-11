@@ -47,7 +47,7 @@ var getgrnam = osutil.Getgrnam
 
 func findDownloadPathFromLxdIndex(r io.Reader) (string, error) {
 	arch := arch.UbuntuArchitecture()
-	lsb, err := release.ReadLsb()
+	lsb, err := release.ReadLSB()
 	if err != nil {
 		return "", err
 	}

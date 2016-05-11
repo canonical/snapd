@@ -184,11 +184,11 @@ var defaultTemplate = []byte(`
   /sys/devices/system/cpu/** r,
   /sys/kernel/mm/transparent_hugepage/enabled r,
   /sys/kernel/mm/transparent_hugepage/defrag r,
-  # NOTE: this leaks running process and java seems to want it, but operates
-  # ok without it. Deny for now to silence the denial but we could allow
-  # owner match until AppArmor kernel var is available to solve this properly.
-  deny @{PROC}/@{pid}/cmdline r,
-  #owner @{PROC}/@{pid}/cmdline r,
+  # NOTE: this leaks running process but java seems to want it (even though it
+  # seems to operate ok without it) and SDL apps crash without it. Allow owner
+  # match until AppArmor kernel var is available to solve this properly (see
+  # LP: #1546825 for details)
+  owner @{PROC}/@{pid}/cmdline r,
 
   # Miscellaneous accesses
   /etc/mime.types r,
