@@ -50,8 +50,16 @@ func (s *SnapdirTestSuite) TestReadFile(c *C) {
 }
 
 func (s *SnapdirTestSuite) TestInstall(c *C) {
-	snap := &snapdir.Snap{}
-	c.Assert(snap.Install("foo", "bar"), ErrorMatches, "cannot install a snapdir snap")
+	tryBaseDir := c.MkDir()
+	snap := snapdir.New(tryBaseDir)
+
+	varLibSnapd := c.MkDir()
+	targetPath := filepath.Join(varLibSnapd, "foo_1.0.snap")
+	err := snap.Install(targetPath, "unused-mount-dir")
+	c.Assert(err, IsNil)
+	symlinkTarget, err := filepath.EvalSymlinks(targetPath)
+	c.Assert(err, IsNil)
+	c.Assert(symlinkTarget, Equals, tryBaseDir)
 }
 
 func (s *SnapdirTestSuite) TestUnpack(c *C) {

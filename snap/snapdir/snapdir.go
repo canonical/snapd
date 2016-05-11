@@ -22,6 +22,7 @@ package snapdir
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 )
 
@@ -41,7 +42,7 @@ func New(path string) *Snap {
 }
 
 func (s *Snap) Install(targetPath, mountDir string) error {
-	return fmt.Errorf("cannot install a snapdir snap")
+	return os.Symlink(s.path, targetPath)
 }
 
 func (s *Snap) Unpack(src, dstDir string) error {
