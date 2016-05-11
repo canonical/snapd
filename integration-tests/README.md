@@ -244,3 +244,14 @@ the top of the file:
 // +build !excludeintegration,classiconly
 ...
 ```
+
+### Store tests
+
+We have marked some of the tests that execise the different endpoints of the store so that they can be
+executed separately, for trying them you should use the `TestStore` filter:
+
+    $ go run ./integration-tests/main.go -filter TestStore
+
+There are tests that needs authentication against the store, for instance those that check the login and
+logout functionalities. For them to work the `TEST_USER_NAME` and `TEST_USER_PASSWORD` environment variables
+must be defined, otherwise they will be skipped.
