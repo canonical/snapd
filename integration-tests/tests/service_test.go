@@ -29,7 +29,6 @@ import (
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/data"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/updates"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/wait"
 	"github.com/ubuntu-core/snappy/testutil"
 
