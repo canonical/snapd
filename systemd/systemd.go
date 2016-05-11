@@ -412,16 +412,21 @@ func MountUnitPath(baseDir, ext string) string {
 }
 
 func (s *systemd) WriteMountUnitFile(name, what, where string) (string, error) {
+	extra := ""
+	if osutil.IsDirectory(what) {
+		extra = "Options=bind\nType=none\n"
+	}
+
 	c := fmt.Sprintf(`[Unit]
 Description=Mount unit for %s
 
 [Mount]
 What=%s
 Where=%s
-
+%s
 [Install]
 WantedBy=multi-user.target
-`, name, what, where)
+`, name, what, where, extra)
 
 	mu := MountUnitPath(where, "mount")
 	return filepath.Base(mu), osutil.AtomicWriteFile(mu, []byte(c), 0644, 0)
