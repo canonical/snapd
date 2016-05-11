@@ -1188,6 +1188,34 @@ func (s *snapmgrQuerySuite) TestActiveInfos(c *C) {
 	c.Check(infos[0].Description(), Equals, "Lots of text")
 }
 
+func (s *snapmgrQuerySuite) TestGadgetInfo(c *C) {
+	st := s.st
+	st.Lock()
+	defer st.Unlock()
+
+	_, err := snapstate.GadgetInfo(st)
+	c.Assert(err, Equals, state.ErrNoState)
+
+	sideInfoGadget := &snap.SideInfo{Revision: 2}
+	snaptest.MockSnap(c, `
+name: gadget
+type: gadget
+version: gadget
+`, sideInfoGadget)
+	snapstate.Set(st, "gadget", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{sideInfoGadget},
+	})
+
+	info, err := snapstate.GadgetInfo(st)
+	c.Assert(err, IsNil)
+
+	c.Check(info.Name(), Equals, "gadget")
+	c.Check(info.Revision, Equals, 2)
+	c.Check(info.Version, Equals, "gadget")
+	c.Check(info.Type, Equals, snap.TypeGadget)
+}
+
 func (s *snapmgrQuerySuite) TestAll(c *C) {
 	st := s.st
 	st.Lock()
