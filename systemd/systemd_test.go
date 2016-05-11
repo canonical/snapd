@@ -285,7 +285,7 @@ func (s *SystemdTestSuite) TestWriteMountUnit(c *C) {
 	mount, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, mountUnitName))
 	c.Assert(err, IsNil)
 	c.Assert(string(mount), Equals, `[Unit]
-Description=Squashfs mount unit for foo
+Description=Mount unit for foo
 
 [Mount]
 What=/var/lib/snappy/snaps/foo_1.0.snap
