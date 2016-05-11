@@ -34,6 +34,7 @@ import (
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/systemd"
+	"github.com/ubuntu-core/snappy/wrappers"
 )
 
 // Overlord is responsible for the overall system state.
@@ -98,13 +99,6 @@ func SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, flags InstallFlags,
 	}
 	instdir := s.MountDir()
 
-	// the "gadget" snaps are special
-	if s.Type == snap.TypeGadget {
-		if err := installGadgetHardwareUdevRules(s); err != nil {
-			return s, err
-		}
-	}
-
 	if err := os.MkdirAll(instdir, 0755); err != nil {
 		logger.Noticef("Can not create %q: %v", instdir, err)
 		return s, err
@@ -127,6 +121,10 @@ func SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, flags InstallFlags,
 	}
 
 	return s, err
+}
+
+type interacter interface {
+	Notify(status string)
 }
 
 func addSquashfsMount(s *snap.Info, inhibitHooks bool, inter interacter) error {
@@ -225,15 +223,15 @@ func UndoCopyData(newInfo *snap.Info, flags InstallFlags, meter progress.Meter) 
 
 func GenerateWrappers(s *snap.Info, inter interacter) error {
 	// add the CLI apps from the snap.yaml
-	if err := addPackageBinaries(s); err != nil {
+	if err := wrappers.AddSnapBinaries(s); err != nil {
 		return err
 	}
 	// add the daemons from the snap.yaml
-	if err := addPackageServices(s, inter); err != nil {
+	if err := wrappers.AddSnapServices(s, inter); err != nil {
 		return err
 	}
 	// add the desktop files
-	if err := addPackageDesktopFiles(s); err != nil {
+	if err := wrappers.AddSnapDesktopFiles(s); err != nil {
 		return err
 	}
 
@@ -244,17 +242,17 @@ func GenerateWrappers(s *snap.Info, inter interacter) error {
 // wrappers
 func RemoveGeneratedWrappers(s *snap.Info, inter interacter) error {
 
-	err1 := removePackageBinaries(s)
+	err1 := wrappers.RemoveSnapBinaries(s)
 	if err1 != nil {
 		logger.Noticef("Failed to remove binaries for %q: %v", s.Name(), err1)
 	}
 
-	err2 := removePackageServices(s, inter)
+	err2 := wrappers.RemoveSnapServices(s, inter)
 	if err2 != nil {
 		logger.Noticef("Failed to remove services for %q: %v", s.Name(), err2)
 	}
 
-	err3 := removePackageDesktopFiles(s)
+	err3 := wrappers.RemoveSnapDesktopFiles(s)
 	if err3 != nil {
 		logger.Noticef("Failed to remove desktop files for %q: %v", s.Name(), err3)
 	}
@@ -514,43 +512,6 @@ func canInstall(s *snap.Info, snapf snap.Container, curInfo *snap.Info, allowGad
 		}
 	}
 
-	if err := checkLicenseAgreement(s, snapf, curInfo, inter); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// checkLicenseAgreement returns nil if it's ok to proceed with installing the
-// package, as deduced from the license agreement (which might involve asking
-// the user), or an error that explains the reason why installation should not
-// proceed.
-func checkLicenseAgreement(s *snap.Info, snapf snap.Container, cur *snap.Info, ag agreer) error {
-	if s.LicenseAgreement != "explicit" {
-		return nil
-	}
-
-	if ag == nil {
-		return ErrLicenseNotAccepted
-	}
-
-	license, err := snapf.ReadFile("meta/license.txt")
-	if err != nil || len(license) == 0 {
-		return ErrLicenseNotProvided
-	}
-
-	// don't ask for the license if
-	// * the previous version also asked for license confirmation, and
-	// * the license version is the same
-	if cur != nil && (cur.LicenseAgreement == "explicit") && cur.LicenseVersion == s.LicenseVersion {
-		return nil
-	}
-
-	msg := fmt.Sprintf("%s requires that you accept the following license before continuing", s.Name())
-	if !ag.Agreed(msg, string(license)) {
-		return ErrLicenseNotAccepted
-	}
-
 	return nil
 }
 
@@ -567,9 +528,6 @@ func CanRemove(s *snap.Info, active bool) bool {
 		return false
 	}
 
-	if IsBuiltInSoftware(s.Name()) && active {
-		return false
-	}
 	return true
 }
 
@@ -649,17 +607,6 @@ func (o *Overlord) SetActive(s *Snap, active bool, meter progress.Meter) error {
 	}
 
 	return UnlinkSnap(s.Info(), meter)
-}
-
-// Configure configures the given snap
-//
-// It returns an error on failure
-func (o *Overlord) Configure(s *Snap, configuration []byte) ([]byte, error) {
-	if s.Type() == snap.TypeOS {
-		return coreConfig(configuration)
-	}
-
-	return nil, fmt.Errorf("configuring any snap but the OS is unsupported")
 }
 
 // Installed returns the installed snaps from this repository

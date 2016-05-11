@@ -115,7 +115,7 @@ func allLocalSnapInfos(st *state.State) ([]aboutSnap, error) {
 // It is a programming error (->panic) to call mapSnap with both arguments
 // nil.
 func mapSnap(localSnap *snap.Info, active bool, remoteSnap *snap.Info) map[string]interface{} {
-	var version, icon, name, developer, _type, description, summary string
+	var snapID, version, icon, name, developer, _type, description, summary string
 	var revision int
 
 	rollback := -1
@@ -152,6 +152,7 @@ func mapSnap(localSnap *snap.Info, active bool, remoteSnap *snap.Info) map[strin
 	developer = ref.Developer
 	version = ref.Version
 	revision = ref.Revision
+	snapID = ref.SnapID
 	_type = string(ref.Type)
 
 	if localSnap != nil {
@@ -169,6 +170,9 @@ func mapSnap(localSnap *snap.Info, active bool, remoteSnap *snap.Info) map[strin
 		}
 		if summary == "" {
 			summary = remoteSnap.Summary()
+		}
+		if snapID == "" {
+			snapID = remoteSnap.SnapID
 		}
 
 		downloadSize = remoteSnap.Size
@@ -191,12 +195,12 @@ func mapSnap(localSnap *snap.Info, active bool, remoteSnap *snap.Info) map[strin
 	}
 
 	result := map[string]interface{}{
+		"snap-id":       snapID,
 		"icon":          icon,
 		"name":          name,
 		"developer":     developer,
 		"status":        status,
 		"type":          _type,
-		"vendor":        "",
 		"revision":      revision,
 		"version":       version,
 		"description":   description,

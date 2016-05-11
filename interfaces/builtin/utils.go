@@ -36,7 +36,7 @@ import (
 // - "snap.$snap.*" if all apps are bound to the slot
 func slotAppLabelExpr(slot *interfaces.Slot) []byte {
 	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "snap.%s.", slot.Snap.Name())
+	fmt.Fprintf(&buf, `"snap.%s.`, slot.Snap.Name())
 	if len(slot.Apps) == 1 {
 		for appName := range slot.Apps {
 			buf.WriteString(appName)
@@ -57,5 +57,6 @@ func slotAppLabelExpr(slot *interfaces.Slot) []byte {
 		buf.Truncate(buf.Len() - 1)
 		buf.WriteByte('}')
 	}
+	buf.WriteByte('"')
 	return buf.Bytes()
 }

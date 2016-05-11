@@ -41,6 +41,10 @@ func newUboot() Bootloader {
 	return u
 }
 
+func (u *uboot) Name() string {
+	return "uboot"
+}
+
 func (u *uboot) Dir() string {
 	return filepath.Join(dirs.GlobalRootDir, "/boot/uboot")
 }

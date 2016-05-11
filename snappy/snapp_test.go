@@ -31,9 +31,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/policy"
-	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/snapenv"
 	"github.com/ubuntu-core/snappy/store"
@@ -61,18 +59,11 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	os.MkdirAll(dirs.SnapSeccompDir, 0755)
 	os.MkdirAll(dirs.SnapSnapsDir, 0755)
 
-	release.Override(release.Release{Flavor: "core", Series: "15.04"})
-
 	// create a fake systemd environment
 	os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants"), 0755)
 
 	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
 		return []byte("ActiveState=inactive\n"), nil
-	}
-
-	// fake udevadm
-	runUdevAdm = func(args ...string) error {
-		return nil
 	}
 
 	// do not attempt to hit the real store servers in the tests
@@ -90,7 +81,6 @@ func (s *SnapTestSuite) TearDownTest(c *C) {
 	policy.SecBase = s.secbase
 	ActiveSnapIterByType = activeSnapIterByTypeImpl
 	stripGlobalRootDir = stripGlobalRootDirImpl
-	runUdevAdm = runUdevAdmImpl
 }
 
 func makeSnapActive(snapYamlPath string) (err error) {
@@ -347,11 +337,9 @@ apps:
 	c.Check(name, Equals, "foo")
 	c.Check(p.notified, HasLen, 0)
 
-	_, err = installRemote(mStore, r, 0, p)
+	name, err = installRemote(mStore, r, 0, p)
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
-	c.Check(p.notified, HasLen, 1)
-	c.Check(p.notified[0], Matches, "Waiting for .* stop.")
 }
 
 func (s *SnapTestSuite) TestErrorOnUnsupportedArchitecture(c *C) {
@@ -411,66 +399,6 @@ apps:
 	c.Assert(apps["svc2"].Name, Equals, "svc2")
 }
 
-func (s *SnapTestSuite) TestUbuntuStoreRepositoryGadgetStoreId(c *C) {
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// ensure we get the right header
-		storeID := r.Header.Get("X-Ubuntu-Store")
-		c.Assert(storeID, Equals, "my-store")
-		w.WriteHeader(404)
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	// install custom gadget snap with store-id
-	snapYamlFn, err := makeInstalledMockSnap(`name: gadget-test
-version: 1.0
-gadget:
-  store:
-    id: my-store
-type: gadget
-`, 11)
-
-	c.Assert(err, IsNil)
-	makeSnapActive(snapYamlFn)
-
-	s.storeCfg.SearchURI, err = url.Parse(mockServer.URL)
-	c.Assert(err, IsNil)
-	repo := NewConfiguredUbuntuStoreSnapRepository()
-	c.Assert(repo, NotNil)
-
-	// we just ensure that the right header is set
-	repo.Snap("xkcd", "edge", nil)
-}
-
-func (s *SnapTestSuite) TestUninstallBuiltIn(c *C) {
-	// install custom gadget snap with store-id
-	gadgetYaml, err := makeInstalledMockSnap(`name: gadget-test
-version: 1.0
-gadget:
-  store:
-    id: my-store
-  software:
-    built-in:
-      - hello-snap
-type: gadget
-`, 11)
-
-	c.Assert(err, IsNil)
-	makeSnapActive(gadgetYaml)
-
-	snapYamlFn, err := makeInstalledMockSnap("", 11)
-	c.Assert(err, IsNil)
-	makeSnapActive(snapYamlFn)
-
-	p := &MockProgressMeter{}
-
-	installed, err := (&Overlord{}).Installed()
-	c.Assert(err, IsNil)
-	snaps := FindSnapsByName("hello-snap", installed)
-	c.Assert(snaps, HasLen, 1)
-	c.Check(s.overlord.Uninstall(snaps[0], p), Equals, ErrPackageNotRemovable)
-}
-
 var securityBinarySnapYaml = []byte(`name: test-snap
 version: 1.2.8
 apps:
@@ -526,70 +454,3 @@ gadget:
        - META3=foo[a-z]
        - META4=a|b
 `)
-
-func (s *SnapTestSuite) TestParseHardwareYaml(c *C) {
-	info, err := snap.InfoFromSnapYaml(hardwareYaml)
-	c.Assert(err, IsNil)
-
-	c.Assert(info.Legacy.Gadget.Hardware.Assign[0].PartID, Equals, "device-hive-iot-hal")
-	c.Assert(info.Legacy.Gadget.Hardware.Assign[0].Rules[0].Kernel, Equals, "ttyUSB0")
-	c.Assert(info.Legacy.Gadget.Hardware.Assign[0].Rules[1].Subsystem, Equals, "tty")
-	c.Assert(info.Legacy.Gadget.Hardware.Assign[0].Rules[1].WithDriver, Equals, "pl2303")
-	c.Assert(info.Legacy.Gadget.Hardware.Assign[0].Rules[1].WithAttrs[0], Equals, "idVendor=0xf00f00")
-	c.Assert(info.Legacy.Gadget.Hardware.Assign[0].Rules[1].WithAttrs[1], Equals, "idProduct=0xb00")
-}
-
-var expectedUdevRule = `KERNEL=="ttyUSB0", TAG:="snappy-assign", ENV{SNAPPY_APP}:="device-hive-iot-hal"
-
-SUBSYSTEM=="tty", SUBSYSTEMS=="usb-serial", DRIVER=="pl2303", ATTRS{idVendor}=="0xf00f00", ATTRS{idProduct}=="0xb00", ENV{BAUD}=="9600", ENV{META1}=="foo*", ENV{META2}=="foo?", ENV{META3}=="foo[a-z]", ENV{META4}=="a|b", TAG:="snappy-assign", ENV{SNAPPY_APP}:="device-hive-iot-hal"
-
-`
-
-func (s *SnapTestSuite) TestGenerateHardwareYamlData(c *C) {
-	info, err := snap.InfoFromSnapYaml(hardwareYaml)
-	c.Assert(err, IsNil)
-
-	output, err := generateUdevRuleContent(&info.Legacy.Gadget.Hardware.Assign[0])
-	c.Assert(err, IsNil)
-
-	c.Assert(output, Equals, expectedUdevRule)
-}
-
-func (s *SnapTestSuite) TestWriteHardwareUdevEtc(c *C) {
-	info, err := snap.InfoFromSnapYaml(hardwareYaml)
-	c.Assert(err, IsNil)
-
-	dirs.SnapUdevRulesDir = c.MkDir()
-	writeGadgetHardwareUdevRules(info)
-
-	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapUdevRulesDir, "80-snappy_gadget-foo_device-hive-iot-hal.rules")), Equals, true)
-}
-
-func (s *SnapTestSuite) TestWriteHardwareUdevCleanup(c *C) {
-	info, err := snap.InfoFromSnapYaml(hardwareYaml)
-	c.Assert(err, IsNil)
-
-	dirs.SnapUdevRulesDir = c.MkDir()
-	udevRulesFile := filepath.Join(dirs.SnapUdevRulesDir, "80-snappy_gadget-foo_device-hive-iot-hal.rules")
-	c.Assert(ioutil.WriteFile(udevRulesFile, nil, 0644), Equals, nil)
-	cleanupGadgetHardwareUdevRules(info)
-
-	c.Assert(osutil.FileExists(udevRulesFile), Equals, false)
-}
-
-func (s *SnapTestSuite) TestWriteHardwareUdevActivate(c *C) {
-	type aCmd []string
-	var cmds = []aCmd{}
-
-	runUdevAdm = func(args ...string) error {
-		cmds = append(cmds, args)
-		return nil
-	}
-	defer func() { runUdevAdm = runUdevAdmImpl }()
-
-	err := activateGadgetHardwareUdevRules()
-	c.Assert(err, IsNil)
-	c.Assert(cmds[0], DeepEquals, aCmd{"udevadm", "control", "--reload-rules"})
-	c.Assert(cmds[1], DeepEquals, aCmd{"udevadm", "trigger"})
-	c.Assert(cmds, HasLen, 2)
-}

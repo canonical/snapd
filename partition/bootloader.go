@@ -53,6 +53,9 @@ type Bootloader interface {
 
 	// Dir returns the bootloader directory
 	Dir() string
+
+	// Name returns the bootloader name
+	Name() string
 }
 
 // FindBootloader returns the bootloader for the given system
