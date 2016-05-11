@@ -55,16 +55,14 @@ func (s *serviceSuite) TearDownTest(c *check.C) {
 }
 
 func isServiceRunning(c *check.C) bool {
-	packageVersion := common.GetCurrentVersion(c, data.BasicServiceSnapName)
-	service := fmt.Sprintf("%s_service_%s.service", data.BasicServiceSnapName, packageVersion)
-
+	service := fmt.Sprintf("snap.%s.service.service", data.BasicServiceSnapName)
 	err := wait.ForActiveService(c, service)
 	c.Assert(err, check.IsNil)
 
 	statusOutput := cli.ExecCommand(c, "systemctl", "status", service)
 
 	expected := "(?ms)" +
-		fmt.Sprintf(".* %s_service_.*\\.service .*\n", data.BasicServiceSnapName) +
+		fmt.Sprintf(".* %s .*\n", service) +
 		".*Loaded: loaded .*\n" +
 		".*Active: active \\(running\\) .*\n" +
 		".*"
