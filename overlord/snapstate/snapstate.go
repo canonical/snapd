@@ -261,18 +261,6 @@ func Rollback(s *state.State, snap, ver string) (*state.TaskSet, error) {
 	return nil, fmt.Errorf("rollback not implemented")
 }
 
-// Activate returns a set of tasks for activating a snap.
-// Note that the state must be locked by the caller.
-func Activate(s *state.State, name string) (*state.TaskSet, error) {
-	return nil, fmt.Errorf("activate not implemented")
-}
-
-// Activate returns a set of tasks for activating a snap.
-// Note that the state must be locked by the caller.
-func Deactivate(s *state.State, name string) (*state.TaskSet, error) {
-	return nil, fmt.Errorf("deactivate not implemented")
-}
-
 // Retrieval functions
 
 var readInfo = snap.ReadInfo
@@ -392,4 +380,25 @@ func ActiveInfos(s *state.State) ([]*snap.Info, error) {
 		infos = append(infos, snapInfo)
 	}
 	return infos, nil
+}
+
+// GadgetInfo finds the current gadget snap's info
+func GadgetInfo(s *state.State) (*snap.Info, error) {
+	// XXX this would be so much prettier if state had the type
+	var stateMap map[string]*SnapState
+	if err := s.Get("snaps", &stateMap); err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	for snapName, snapState := range stateMap {
+		snapInfo, err := readInfo(snapName, snapState.Current())
+		if err != nil {
+			logger.Noticef("cannot retrieve info for snap %q: %s", snapName, err)
+			continue
+		}
+		if snapInfo.Type == snap.TypeGadget {
+			return snapInfo, nil
+		}
+	}
+
+	return nil, state.ErrNoState
 }
