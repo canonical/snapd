@@ -158,10 +158,6 @@ func (s *Info) Description() string {
 	return s.OriginalDescription
 }
 
-func (s *Info) strRevno() string {
-	return s.Revision.String()
-}
-
 // MountDir returns the base directory of the snap where it gets mounted.
 func (s *Info) MountDir() string {
 	return MountDir(s.Name(), s.Revision)
@@ -174,7 +170,7 @@ func (s *Info) MountFile() string {
 
 // DataDir returns the data directory of the snap.
 func (s *Info) DataDir() string {
-	return filepath.Join(dirs.SnapDataDir, s.Name(), s.strRevno())
+	return filepath.Join(dirs.SnapDataDir, s.Name(), s.Revision.String())
 }
 
 // CommonDataDir returns the data directory common across revisions of the snap.
@@ -184,7 +180,7 @@ func (s *Info) CommonDataDir() string {
 
 // DataHomeDir returns the per user data directory of the snap.
 func (s *Info) DataHomeDir() string {
-	return filepath.Join(dirs.SnapDataHomeGlob, s.Name(), s.strRevno())
+	return filepath.Join(dirs.SnapDataHomeGlob, s.Name(), s.Revision.String())
 }
 
 // CommonDataHomeDir returns the per user data directory common across revisions of the snap.
