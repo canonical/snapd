@@ -147,7 +147,7 @@ func checkRevisionIsNew(name string, snapst *SnapState, revision int) error {
 	return nil
 }
 
-const firstLocalRevision = 100001
+const firstLocalRevision = -1
 
 func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
@@ -161,13 +161,13 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	if ss.Revision == 0 { // sideloading
 		// to not clash with not sideload installs
 		// and to not have clashes between them
-		// use incremental revisions starting at 100001
-		// for sideloads
+		// use incremental revisions starting at -1
+		// for sideloads and count down
 		revision := snapst.LocalRevision
 		if revision == 0 {
 			revision = firstLocalRevision
 		} else {
-			revision++
+			revision--
 		}
 		snapst.LocalRevision = revision
 		ss.Revision = revision
