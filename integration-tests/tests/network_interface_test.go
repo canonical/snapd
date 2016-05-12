@@ -42,7 +42,7 @@ func (s *networkInterfaceSuite) TestPlugDisconnectionDisablesFunctionality(c *ch
 	providerURL := "http://127.0.0.1:8081"
 
 	output := cli.ExecCommand(c, "network-consumer", providerURL)
-	c.Assert(output, check.Equals, okOutput)
+	c.Assert(output, check.Equals, "ok\n")
 
 	cli.ExecCommand(c, "sudo", "snap", "disconnect",
 		s.plug+":"+s.slot, "ubuntu-core:"+s.slot)
