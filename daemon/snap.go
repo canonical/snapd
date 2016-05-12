@@ -20,6 +20,7 @@
 package daemon
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -29,6 +30,8 @@ import (
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snap"
 )
+
+var errNoSnap = errors.New("no snap installed")
 
 // snapIcon tries to find the icon inside the snap
 func snapIcon(info *snap.Info) string {
@@ -64,7 +67,7 @@ func localSnapInfo(st *state.State, name string) (info *snap.Info, active bool, 
 
 	cur := snapst.Current()
 	if cur == nil {
-		return nil, false, state.ErrNoState
+		return nil, false, errNoSnap
 	}
 
 	info, err = snap.ReadInfo(name, cur)

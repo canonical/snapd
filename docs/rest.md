@@ -262,7 +262,6 @@ Sample result:
 [{
       "summary": "HTTPie in a snap",
       "description": "no description",
-      "download-size": -1,
       "icon": "/v2/icons/http/icon",
       "installed-size": 1821897,
       "install-date": "2016-03-10T13:16:52Z",
@@ -277,7 +276,6 @@ Sample result:
     }, {
       "summary": "The ubuntu-core OS snap",
       "description": "A secure, minimal transactional OS for devices and containers.",
-      "download-size": -1,
       "icon": "",                  // core might not have an icon
       "installed-size": 67784704,
       "install-date": "2016-03-08T11:29:21Z",
@@ -295,7 +293,7 @@ Sample result:
 
 #### Fields
 
-In addition to the fields described in `/v2/fiend`:
+In addition to the fields described in `/v2/find`:
 
 [//]: # keep the fields sorted!
 
@@ -304,8 +302,7 @@ In addition to the fields described in `/v2/fiend`:
 * `install-date`: the date and time when the snap was installed.
 * `status`: can be either `installed` or `active` (i.e. is current).
 
-furthermore, `price` cannot occur in the output of `/v2/snaps`, and
-`download-size` will always be -1.
+furthermore, `price` cannot occur in the output of `/v2/snaps`.
 
 ### POST
 
