@@ -805,7 +805,7 @@ version: 1.0`)
 	c.Check(s.fakeBackend.ops[4].op, Equals, "candidate")
 	c.Check(s.fakeBackend.ops[4].sinfo, DeepEquals, snap.SideInfo{Revision: -1})
 	c.Check(s.fakeBackend.ops[5].op, Equals, "link-snap")
-	c.Check(s.fakeBackend.ops[5].name, Equals, "/snap/mock/@1")
+	c.Check(s.fakeBackend.ops[5].name, Equals, "/snap/mock/l1")
 
 	// verify snapSetup info
 	var ss snapstate.SnapSetup
@@ -861,11 +861,11 @@ version: 1.0`)
 	c.Check(s.fakeBackend.ops[0].name, Matches, `.*/mock_1.0_all.snap`)
 
 	c.Check(s.fakeBackend.ops[2].op, Equals, "unlink-snap")
-	c.Check(s.fakeBackend.ops[2].name, Equals, "/snap/mock/@2")
+	c.Check(s.fakeBackend.ops[2].name, Equals, "/snap/mock/l2")
 
 	c.Check(s.fakeBackend.ops[3].op, Equals, "copy-data")
-	c.Check(s.fakeBackend.ops[3].name, Equals, "/snap/mock/@3")
-	c.Check(s.fakeBackend.ops[3].old, Equals, "/snap/mock/@2")
+	c.Check(s.fakeBackend.ops[3].name, Equals, "/snap/mock/l3")
+	c.Check(s.fakeBackend.ops[3].old, Equals, "/snap/mock/l2")
 
 	c.Check(s.fakeBackend.ops[4].op, Equals, "setup-profiles:Doing")
 	c.Check(s.fakeBackend.ops[4].name, Equals, "mock")
@@ -874,7 +874,7 @@ version: 1.0`)
 	c.Check(s.fakeBackend.ops[5].op, Equals, "candidate")
 	c.Check(s.fakeBackend.ops[5].sinfo, DeepEquals, snap.SideInfo{Revision: -3})
 	c.Check(s.fakeBackend.ops[6].op, Equals, "link-snap")
-	c.Check(s.fakeBackend.ops[6].name, Equals, "/snap/mock/@3")
+	c.Check(s.fakeBackend.ops[6].name, Equals, "/snap/mock/l3")
 
 	// verify snapSetup info
 	var ss snapstate.SnapSetup
