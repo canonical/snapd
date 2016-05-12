@@ -33,6 +33,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/snap"
 )
 
 func (s *SnapTestSuite) TestInstallInstall(c *C) {
@@ -285,7 +286,7 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 	c.Assert(updates, HasLen, 1)
 	c.Check(updates[0].Name(), Equals, "foo")
 	c.Check(updates[0].Version(), Equals, "2")
-	c.Check(updates[0].Revision(), Equals, 3)
+	c.Check(updates[0].Revision(), Equals, snap.Revision(3))
 	// ensure that we get a "local" snap back - not a remote one
 	c.Check(updates[0], FitsTypeOf, &Snap{})
 }

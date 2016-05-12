@@ -86,10 +86,10 @@ func (s *SnapTestSuite) TestLocalSnapInstallWithBlessedMetadata(c *C) {
 		Revision:     40,
 	}
 
-	snap, err := (&Overlord{}).InstallWithSideInfo(snapPath, si, 0, nil)
+	sn, err := (&Overlord{}).InstallWithSideInfo(snapPath, si, 0, nil)
 	c.Assert(err, IsNil)
-	c.Check(snap.Name(), Equals, "foo")
-	c.Check(snap.Revision, Equals, 40)
+	c.Check(sn.Name(), Equals, "foo")
+	c.Check(sn.Revision, Equals, snap.Revision(40))
 
 	baseDir := filepath.Join(dirs.SnapSnapsDir, fooComposedName, "40")
 	c.Assert(osutil.FileExists(baseDir), Equals, true)
@@ -109,10 +109,10 @@ func (s *SnapTestSuite) TestLocalSnapInstallWithBlessedMetadataOverridingName(c 
 		Revision:     55,
 	}
 
-	snap, err := (&Overlord{}).InstallWithSideInfo(snapPath, si, 0, nil)
+	sn, err := (&Overlord{}).InstallWithSideInfo(snapPath, si, 0, nil)
 	c.Assert(err, IsNil)
-	c.Check(snap.Name(), Equals, "bar")
-	c.Check(snap.Revision, Equals, 55)
+	c.Check(sn.Name(), Equals, "bar")
+	c.Check(sn.Revision, Equals, snap.Revision(55))
 
 	baseDir := filepath.Join(dirs.SnapSnapsDir, "bar", "55")
 	c.Assert(osutil.FileExists(baseDir), Equals, true)

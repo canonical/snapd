@@ -830,7 +830,7 @@ version: 1.0`)
 		Channel:      "",
 		Revision:     -1,
 	})
-	c.Assert(snapst.LocalRevision, Equals, -1)
+	c.Assert(snapst.LocalRevision, Equals, snap.Revision(-1))
 }
 
 func (s *snapmgrTestSuite) TestInstallSubequentLocalIntegration(c *C) {
@@ -869,7 +869,7 @@ version: 1.0`)
 
 	c.Check(s.fakeBackend.ops[4].op, Equals, "setup-profiles:Doing")
 	c.Check(s.fakeBackend.ops[4].name, Equals, "mock")
-	c.Check(s.fakeBackend.ops[4].revno, Equals, -3)
+	c.Check(s.fakeBackend.ops[4].revno, Equals, snap.Revision(-3))
 
 	c.Check(s.fakeBackend.ops[5].op, Equals, "candidate")
 	c.Check(s.fakeBackend.ops[5].sinfo, DeepEquals, snap.SideInfo{Revision: -3})
@@ -900,7 +900,7 @@ version: 1.0`)
 		Channel:      "",
 		Revision:     -3,
 	})
-	c.Assert(snapst.LocalRevision, Equals, -3)
+	c.Assert(snapst.LocalRevision, Equals, snap.Revision(-3))
 }
 
 func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
@@ -1075,7 +1075,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsIntegration(c *C) {
 
 	// verify snapSetup info
 	tasks := ts.Tasks()
-	revnos := []int{7, 3, 5}
+	revnos := []snap.Revision{7, 3, 5}
 	whichRevno := 0
 	for _, t := range tasks {
 		ss, err := snapstate.TaskSnapSetup(t)
@@ -1153,7 +1153,7 @@ func (s *snapmgrQuerySuite) TestInfo(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(info.Name(), Equals, "name1")
-	c.Check(info.Revision, Equals, 11)
+	c.Check(info.Revision, Equals, snap.Revision(11))
 	c.Check(info.Summary(), Equals, "s11")
 	c.Check(info.Version, Equals, "1.1")
 	c.Check(info.Description(), Equals, "Lots of text")
@@ -1168,7 +1168,7 @@ func (s *snapmgrQuerySuite) TestCurrent(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(info.Name(), Equals, "name1")
-	c.Check(info.Revision, Equals, 12)
+	c.Check(info.Revision, Equals, snap.Revision(12))
 }
 
 func (s *snapmgrQuerySuite) TestActiveInfos(c *C) {
@@ -1182,7 +1182,7 @@ func (s *snapmgrQuerySuite) TestActiveInfos(c *C) {
 	c.Check(infos, HasLen, 1)
 
 	c.Check(infos[0].Name(), Equals, "name1")
-	c.Check(infos[0].Revision, Equals, 12)
+	c.Check(infos[0].Revision, Equals, snap.Revision(12))
 	c.Check(infos[0].Summary(), Equals, "s12")
 	c.Check(infos[0].Version, Equals, "1.2")
 	c.Check(infos[0].Description(), Equals, "Lots of text")
@@ -1211,7 +1211,7 @@ version: gadget
 	c.Assert(err, IsNil)
 
 	c.Check(info.Name(), Equals, "gadget")
-	c.Check(info.Revision, Equals, 2)
+	c.Check(info.Revision, Equals, snap.Revision(2))
 	c.Check(info.Version, Equals, "gadget")
 	c.Check(info.Type, Equals, snap.TypeGadget)
 }
@@ -1240,7 +1240,7 @@ func (s *snapmgrQuerySuite) TestAll(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(info12.Name(), Equals, "name1")
-	c.Check(info12.Revision, Equals, 12)
+	c.Check(info12.Revision, Equals, snap.Revision(12))
 	c.Check(info12.Summary(), Equals, "s12")
 	c.Check(info12.Version, Equals, "1.2")
 	c.Check(info12.Description(), Equals, "Lots of text")
@@ -1249,7 +1249,7 @@ func (s *snapmgrQuerySuite) TestAll(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(info11.Name(), Equals, "name1")
-	c.Check(info11.Revision, Equals, 11)
+	c.Check(info11.Revision, Equals, snap.Revision(11))
 	c.Check(info11.Version, Equals, "1.1")
 }
 

@@ -31,6 +31,19 @@ import (
 	"github.com/ubuntu-core/snappy/timeout"
 )
 
+// FIXME: make this a struct and add a special unmarshal that will deal
+//        with both int and string
+type Revision int
+
+func (revno Revision) String() string {
+	if revno < 0 {
+		nrevno := -1 * revno
+		return "@" + strconv.Itoa(int(nrevno))
+	}
+
+	return strconv.Itoa(int(revno))
+}
+
 // PlaceInfo offers all the information about where a snap and its data are located and exposed in the filesystem.
 type PlaceInfo interface {
 	// Name returns the name of the snap.
@@ -56,22 +69,13 @@ type PlaceInfo interface {
 }
 
 // MinimalPlaceInfo returns a PlaceInfo with just the location information for a snap of the given name and revision.
-func MinimalPlaceInfo(name string, revision int) PlaceInfo {
+func MinimalPlaceInfo(name string, revision Revision) PlaceInfo {
 	return &Info{SideInfo: SideInfo{OfficialName: name, Revision: revision}}
 }
 
 // MountDir returns the base directory where it gets mounted of the snap with the given name and revision.
-func MountDir(name string, revision int) string {
-	return filepath.Join(dirs.SnapSnapsDir, name, strRevno(revision))
-}
-
-func strRevno(revno int) string {
-	if revno < 0 {
-		nrevno := -1 * revno
-		return "@" + strconv.Itoa(nrevno)
-	}
-
-	return strconv.Itoa(revno)
+func MountDir(name string, revision Revision) string {
+	return filepath.Join(dirs.SnapSnapsDir, name, revision.String())
 }
 
 // SideInfo holds snap metadata that is crucial for the tracking of
@@ -87,15 +91,15 @@ func strRevno(revno int) string {
 // from the store but is not required for working offline should not
 // end up in SideInfo.
 type SideInfo struct {
-	OfficialName      string `yaml:"name,omitempty" json:"name,omitempty"`
-	SnapID            string `yaml:"snap-id" json:"snap-id"`
-	Revision          int    `yaml:"revision" json:"revision"`
-	Channel           string `yaml:"channel,omitempty" json:"channel,omitempty"`
-	Developer         string `yaml:"developer,omitempty" json:"developer,omitempty"`
-	EditedSummary     string `yaml:"summary,omitempty" json:"summary,omitempty"`
-	EditedDescription string `yaml:"description,omitempty" json:"description,omitempty"`
-	Size              int64  `yaml:"size,omitempty" json:"size,omitempty"`
-	Sha512            string `yaml:"sha512,omitempty" json:"sha512,omitempty"`
+	OfficialName      string   `yaml:"name,omitempty" json:"name,omitempty"`
+	SnapID            string   `yaml:"snap-id" json:"snap-id"`
+	Revision          Revision `yaml:"revision" json:"revision"`
+	Channel           string   `yaml:"channel,omitempty" json:"channel,omitempty"`
+	Developer         string   `yaml:"developer,omitempty" json:"developer,omitempty"`
+	EditedSummary     string   `yaml:"summary,omitempty" json:"summary,omitempty"`
+	EditedDescription string   `yaml:"description,omitempty" json:"description,omitempty"`
+	Size              int64    `yaml:"size,omitempty" json:"size,omitempty"`
+	Sha512            string   `yaml:"sha512,omitempty" json:"sha512,omitempty"`
 }
 
 // Info provides information about snaps.
@@ -155,7 +159,7 @@ func (s *Info) Description() string {
 }
 
 func (s *Info) strRevno() string {
-	return strRevno(s.Revision)
+	return s.Revision.String()
 }
 
 // MountDir returns the base directory of the snap where it gets mounted.

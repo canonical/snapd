@@ -42,7 +42,7 @@ type snapDetails struct {
 	Prices          map[string]float64 `json:"prices,omitempty"`
 	Publisher       string             `json:"publisher,omitempty"`
 	RatingsAverage  float64            `json:"ratings_average,omitempty"`
-	Revision        int                `json:"revision"`
+	Revision        snap.Revision      `json:"revision"`
 	SnapID          string             `json:"snap_id"`
 	SupportURL      string             `json:"support_url"`
 	Title           string             `json:"title"`
