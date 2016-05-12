@@ -125,7 +125,7 @@ func (s *SquashfsTestSuite) TestOpenSnapFilebSideInfo(c *C) {
 
 	// check side info
 	c.Check(info.Name(), Equals, "blessed")
-	c.Check(info.Revision, Equals, 42)
+	c.Check(info.Revision, Equals, snap.Revision(42))
 }
 
 func (s *SquashfsTestSuite) TestInstallViaSquashfsWorks(c *C) {
