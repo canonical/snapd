@@ -186,7 +186,7 @@ func (s *storeSuite) TestStoreLoginLogout(c *check.C) {
 	password := os.Getenv("TEST_USER_PASSWORD")
 
 	if username == "" || password == "" {
-		c.Skip("Test user credentials not available in current environment, skipping store tests")
+		c.Skip("$TEST_USER_NAME or $TEST_USER_PASSWORD not defined")
 	}
 
 	err := authenticate(username, password)
