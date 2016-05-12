@@ -24,6 +24,8 @@ import (
 	"strings"
 
 	"github.com/ubuntu-core/snappy/arch"
+	"github.com/ubuntu-core/snappy/overlord/state"
+	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snap"
 	// XXX: what to do about flags
 	"github.com/ubuntu-core/snappy/snappy"
@@ -68,8 +70,7 @@ func openSnapFileImpl(snapPath string, sideInfo *snap.SideInfo) (*snap.Info, sna
 var openSnapFile = openSnapFileImpl
 
 // checkSnap ensures that the snap can be installed.
-func checkSnap(snapFilePath string, curInfo *snap.Info, flags snappy.InstallFlags) error {
-	//allowGadget := (flags & snappy.AllowGadget) != 0
+func checkSnap(state *state.State, snapFilePath string, curInfo *snap.Info, flags snappy.InstallFlags) error {
 	//allowUnauth := (flags & snappy.AllowUnauthenticated) != 0
 
 	// XXX: actually verify snap before using content from it unless allowUnauth
@@ -84,25 +85,29 @@ func checkSnap(snapFilePath string, curInfo *snap.Info, flags snappy.InstallFlag
 		return fmt.Errorf("snap %q supported architectures (%s) are incompatible with this system (%s)", s.Name(), strings.Join(s.Architectures, ", "), arch.UbuntuArchitecture())
 	}
 
+	// check assumes
 	err = checkAssumes(s)
 	if err != nil {
 		return err
 	}
 
-	/* XXX: implement gadget install checks
 	if s.Type == snap.TypeGadget {
-		if !allowGadget {
-			if currentGadget, err := getGadget(); err == nil {
-				if currentGadget.Name() != s.Name() {
-					return ErrGadgetPackageInstall
-				}
-			} else {
-				// there should always be a gadget package now
-				return ErrGadgetPackageInstall
+		state.Lock()
+		defer state.Unlock()
+		if currentGadget, err := GadgetInfo(state); err == nil {
+			// TODO: actually compare snap ids, from current gadget and candidate
+			if currentGadget.Name() != s.Name() {
+				return fmt.Errorf("cannot replace gadget snap with a different one")
 			}
+		} else {
+			if release.OnClassic {
+				// for the time being
+				return fmt.Errorf("cannot install a gadget snap on classic")
+			}
+			// there should always be a gadget package on devices
+			return fmt.Errorf("cannot find original gadget snap")
 		}
 	}
-	*/
 
 	return nil
 }

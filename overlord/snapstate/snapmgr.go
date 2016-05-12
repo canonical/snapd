@@ -426,7 +426,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	m.backend.Current(curInfo)
 
-	if err := checkSnap(ss.SnapPath, curInfo, snappy.InstallFlags(ss.Flags)); err != nil {
+	if err := checkSnap(t.State(), ss.SnapPath, curInfo, snappy.InstallFlags(ss.Flags)); err != nil {
 		return err
 	}
 
