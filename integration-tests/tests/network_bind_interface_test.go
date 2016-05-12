@@ -42,7 +42,7 @@ type networkBindInterfaceSuite struct {
 
 func (s *networkBindInterfaceSuite) TestPlugDisconnectionDisablesClientConnection(c *check.C) {
 	output := cli.ExecCommand(c, "network-consumer", providerURL)
-	c.Assert(output, check.Equals, okOutput)
+	c.Assert(output, check.Equals, "ok\n")
 
 	cli.ExecCommand(c, "sudo", "snap", "disconnect",
 		s.plug+":"+s.slot, "ubuntu-core:"+s.slot)
@@ -51,5 +51,5 @@ func (s *networkBindInterfaceSuite) TestPlugDisconnectionDisablesClientConnectio
 	c.Assert(output, check.Matches, disconnectedPattern(s.slot, s.plug))
 
 	output = cli.ExecCommand(c, "network-consumer", providerURL)
-	c.Assert(output, check.Not(check.Equals), okOutput)
+	c.Assert(output, check.Equals, "request timeout\n")
 }
