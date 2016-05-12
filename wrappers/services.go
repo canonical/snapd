@@ -252,6 +252,10 @@ WantedBy={{.ServiceTargetUnit}}
 	}
 	allVars := snapenv.GetBasicSnapEnvVars(wrapperData)
 	allVars = append(allVars, snapenv.GetUserSnapEnvVars(wrapperData)...)
+	for k, v := range appInfo.Snap.Environment {
+		allVars = append(allVars, fmt.Sprintf(`%s=%s`, k, v))
+	}
+
 	wrapperData.EnvVars = "\"" + strings.Join(allVars, "\" \"") + "\"" // allVars won't be empty
 
 	if err := t.Execute(&templateOut, wrapperData); err != nil {

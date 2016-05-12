@@ -27,6 +27,7 @@ import (
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/systemd"
+	"github.com/ubuntu-core/snappy/testutil"
 	"github.com/ubuntu-core/snappy/timeout"
 	"github.com/ubuntu-core/snappy/wrappers"
 )
@@ -38,7 +39,7 @@ var _ = Suite(&servicesWrapperGenSuite{})
 const expectedServiceFmt = `[Unit]
 # Auto-generated, DO NO EDIT
 Description=Service for snap application snap.app
-%s
+%[1]s
 X-Snappy=yes
 
 [Service]
@@ -56,8 +57,8 @@ WantedBy=multi-user.target
 `
 
 var (
-	expectedAppService  = fmt.Sprintf(expectedServiceFmt, "After=snapd.frameworks.target\nRequires=snapd.frameworks.target", "Type=simple\n", arch.UbuntuArchitecture())
-	expectedDbusService = fmt.Sprintf(expectedServiceFmt, "After=snapd.frameworks.target\nRequires=snapd.frameworks.target", "Type=dbus\nBusName=foo.bar.baz", arch.UbuntuArchitecture())
+	expectedAppService  = fmt.Sprintf(expectedServiceFmt, "After=snapd.frameworks.target\nRequires=snapd.frameworks.target", "Type=simple\n", arch.UbuntuArchitecture(), "")
+	expectedDbusService = fmt.Sprintf(expectedServiceFmt, "After=snapd.frameworks.target\nRequires=snapd.frameworks.target", "Type=dbus\nBusName=foo.bar.baz", arch.UbuntuArchitecture(), "")
 )
 
 var (
@@ -287,4 +288,25 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapSocketFileMode(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(content, Matches, "(?ms).*SocketMode=0600")
 
+}
+
+func (s *servicesWrapperGenSuite) TestGenerateSnapServiceGlobalEnv(c *C) {
+	service := &snap.AppInfo{
+		Snap: &snap.Info{
+			SideInfo: snap.SideInfo{
+				OfficialName: "xkcd-webserver",
+				Revision:     44,
+			},
+			Version: "0.3.4",
+			Environment: map[string]string{
+				"LD_LIBRARY_PATH": "/some/path",
+			},
+		},
+		Name:    "xkcd-webserver",
+		Command: "bin/foo start",
+	}
+
+	generatedWrapper, err := wrappers.GenerateSnapServiceFile(service)
+	c.Assert(err, IsNil)
+	c.Assert(generatedWrapper, testutil.Contains, `"LD_LIBRARY_PATH=/some/path"`)
 }

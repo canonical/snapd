@@ -45,7 +45,7 @@ export SNAP_REVISION="44"
 export SNAP_ARCH="%[1]s"
 export SNAP_LIBRARY_PATH="/var/lib/snapd/lib/gl:"
 export SNAP_USER_DATA="$HOME/snap/pastebinit/44"
-
+%[2]s
 if [ ! -d "$SNAP_USER_DATA" ]; then
    mkdir -p "$SNAP_USER_DATA"
 fi
@@ -68,7 +68,28 @@ func (s *binariesWrapperGenSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 		Command: "bin/pastebinit",
 	}
 
-	expected := fmt.Sprintf(expectedWrapper, arch.UbuntuArchitecture())
+	expected := fmt.Sprintf(expectedWrapper, arch.UbuntuArchitecture(), "")
+
+	generatedWrapper, err := wrappers.GenerateSnapBinaryWrapper(binary)
+	c.Assert(err, IsNil)
+	c.Assert(generatedWrapper, Equals, expected)
+}
+
+func (s *binariesWrapperGenSuite) TestGenerateSnapBinaryWrapperGlobalEnv(c *C) {
+	info := &snap.Info{}
+	info.SuggestedName = "pastebinit"
+	info.Version = "1.4.0.0.1"
+	info.Revision = 44
+	info.Environment = map[string]string{
+		"LD_LIBRARY_PATH": `"/some/path"`,
+	}
+	binary := &snap.AppInfo{
+		Snap:    info,
+		Name:    "pastebinit",
+		Command: "bin/pastebinit",
+	}
+
+	expected := fmt.Sprintf(expectedWrapper, arch.UbuntuArchitecture(), `export LD_LIBRARY_PATH="/some/path"`+"\n")
 
 	generatedWrapper, err := wrappers.GenerateSnapBinaryWrapper(binary)
 	c.Assert(err, IsNil)

@@ -100,6 +100,8 @@ type Info struct {
 	OriginalSummary     string
 	OriginalDescription string
 
+	Environment map[string]string
+
 	LicenseAgreement string
 	LicenseVersion   string
 	Apps             map[string]*AppInfo
