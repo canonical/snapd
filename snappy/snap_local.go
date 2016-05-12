@@ -47,10 +47,11 @@ func NewInstalledSnap(yamlPath string) (*Snap, error) {
 	// snapstate primitives shouldn't need this
 	name := filepath.Base(filepath.Dir(mountDir))
 	revnoStr := filepath.Base(mountDir)
-	revno, err := strconv.Atoi(revnoStr)
+	revnoInt, err := strconv.Atoi(revnoStr)
 	if err != nil {
 		return nil, fmt.Errorf("broken snap directory path: %q", mountDir)
 	}
+	revno := snap.Revision(revnoInt)
 
 	s := &Snap{}
 
@@ -120,7 +121,7 @@ func (s *Snap) Version() string {
 }
 
 // Revision returns the revision
-func (s *Snap) Revision() int {
+func (s *Snap) Revision() snap.Revision {
 	return s.info.Revision
 
 }

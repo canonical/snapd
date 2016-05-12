@@ -71,7 +71,7 @@ apps:
 	if err != nil {
 		return "", err
 	}
-	info.SideInfo = snap.SideInfo{Revision: revno}
+	info.SideInfo = snap.SideInfo{Revision: snap.Revision(revno)}
 
 	metaDir := filepath.Join(info.MountDir(), "meta")
 	if err := os.MkdirAll(metaDir, 0775); err != nil {
@@ -84,7 +84,7 @@ apps:
 
 	si := snap.SideInfo{
 		OfficialName:      info.Name(),
-		Revision:          revno,
+		Revision:          snap.Revision(revno),
 		Developer:         testDeveloper,
 		Channel:           "remote-channel",
 		EditedSummary:     "hello in summary",

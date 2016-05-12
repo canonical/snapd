@@ -185,14 +185,14 @@ func kernelOrOsRebootRequired(s *snap.Info) bool {
 	return false
 }
 
-func nameAndRevnoFromSnap(snap string) (string, int) {
-	name := strings.Split(snap, "_")[0]
-	revnoNSuffix := strings.Split(snap, "_")[1]
+func nameAndRevnoFromSnap(sn string) (string, snap.Revision) {
+	name := strings.Split(sn, "_")[0]
+	revnoNSuffix := strings.Split(sn, "_")[1]
 	revno, err := strconv.Atoi(strings.Split(revnoNSuffix, ".snap")[0])
 	if err != nil {
 		return "", -1
 	}
-	return name, revno
+	return name, snap.Revision(revno)
 }
 
 // SyncBoot synchronizes the active kernel and OS snap versions with

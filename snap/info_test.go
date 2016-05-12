@@ -62,7 +62,7 @@ func (s *infoSuite) TestSideInfoOverrides(c *C) {
 	c.Check(info.Name(), Equals, "newname")
 	c.Check(info.Summary(), Equals, "fixed summary")
 	c.Check(info.Description(), Equals, "fixed desc")
-	c.Check(info.Revision, Equals, 1)
+	c.Check(info.Revision, Equals, snap.Revision(1))
 	c.Check(info.SnapID, Equals, "snapidsnapidsnapidsnapidsnapidsn")
 }
 
@@ -117,7 +117,7 @@ func (s *infoSuite) TestReadInfo(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(snapInfo2.Name(), Equals, "sample")
-	c.Check(snapInfo2.Revision, Equals, 42)
+	c.Check(snapInfo2.Revision, Equals, snap.Revision(42))
 	c.Check(snapInfo2.Summary(), Equals, "esummary")
 
 	c.Check(snapInfo2.Apps["app"].Command, Equals, "foo")
@@ -157,7 +157,7 @@ type: app`
 	c.Check(info.Name(), Equals, "foo")
 	c.Check(info.Version, Equals, "1.0")
 	c.Check(info.Type, Equals, snap.TypeApp)
-	c.Check(info.Revision, Equals, 0)
+	c.Check(info.Revision, Equals, snap.Revision(0))
 }
 
 func (s *infoSuite) TestReadInfoFromSnapFileWithSideInfo(c *C) {
@@ -177,7 +177,7 @@ type: app`
 	c.Check(info.Name(), Equals, "baz")
 	c.Check(info.Version, Equals, "1.0")
 	c.Check(info.Type, Equals, snap.TypeApp)
-	c.Check(info.Revision, Equals, 42)
+	c.Check(info.Revision, Equals, snap.Revision(42))
 }
 
 func (s *infoSuite) TestReadInfoFromSnapFileValidates(c *C) {
