@@ -38,7 +38,7 @@ type Revision int
 func (revno Revision) String() string {
 	if revno < 0 {
 		nrevno := -1 * revno
-		return "@" + strconv.Itoa(int(nrevno))
+		return "l" + strconv.Itoa(int(nrevno))
 	}
 
 	return strconv.Itoa(int(revno))
