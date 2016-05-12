@@ -3,7 +3,7 @@
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-class testHTTPServer_RequestHandler(BaseHTTPRequestHandler):
+class testRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
 
@@ -16,7 +16,7 @@ class testHTTPServer_RequestHandler(BaseHTTPRequestHandler):
 
 def run():
     server_address = ('localhost', 8081)
-    httpd = HTTPServer(server_address, testHTTPServer_RequestHandler)
+    httpd = HTTPServer(server_address, testRequestHandler)
     httpd.serve_forever()
 
 if __name__ == '__main__':
