@@ -62,7 +62,16 @@ func MinimalPlaceInfo(name string, revision int) PlaceInfo {
 
 // MountDir returns the base directory where it gets mounted of the snap with the given name and revision.
 func MountDir(name string, revision int) string {
-	return filepath.Join(dirs.SnapSnapsDir, name, strconv.Itoa(revision))
+	return filepath.Join(dirs.SnapSnapsDir, name, strRevno(revision))
+}
+
+func strRevno(revno int) string {
+	if revno < 0 {
+		nrevno := -1 * revno
+		return "@" + strconv.Itoa(nrevno)
+	}
+
+	return strconv.Itoa(revno)
 }
 
 // SideInfo holds snap metadata that is crucial for the tracking of
@@ -146,7 +155,7 @@ func (s *Info) Description() string {
 }
 
 func (s *Info) strRevno() string {
-	return strconv.Itoa(s.Revision)
+	return strRevno(s.Revision)
 }
 
 // MountDir returns the base directory of the snap where it gets mounted.
