@@ -145,6 +145,12 @@ dbus (receive,send)
     member=Changed
     peer=(label=unconfined),
 
+dbus (send)
+    bus=session
+    interface=com.canonical.SnappyUrlHelper.XdgOpen
+    peer=(label=unconfined),
+
+
 # Lttng tracing is very noisy and should not be allowed by confined apps. Can
 # safely deny. LP: #1260491
 deny /{,var/}run/shm/lttng-ust-* r,
