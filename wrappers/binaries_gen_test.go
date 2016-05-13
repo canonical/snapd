@@ -81,7 +81,7 @@ func (s *binariesWrapperGenSuite) TestGenerateSnapBinaryWrapperGlobalEnv(c *C) {
 	info.Version = "1.4.0.0.1"
 	info.Revision = 44
 	info.Environment = map[string]string{
-		"LD_LIBRARY_PATH": `"/some/path"`,
+		"LD_LIBRARY_PATH": "$SNAP/some/path",
 	}
 	binary := &snap.AppInfo{
 		Snap:    info,
@@ -89,7 +89,7 @@ func (s *binariesWrapperGenSuite) TestGenerateSnapBinaryWrapperGlobalEnv(c *C) {
 		Command: "bin/pastebinit",
 	}
 
-	expected := fmt.Sprintf(expectedWrapper, arch.UbuntuArchitecture(), `export LD_LIBRARY_PATH="/some/path"`+"\n")
+	expected := fmt.Sprintf(expectedWrapper, arch.UbuntuArchitecture(), `export LD_LIBRARY_PATH="/snap/pastebinit/44/some/path"`+"\n")
 
 	generatedWrapper, err := wrappers.GenerateSnapBinaryWrapper(binary)
 	c.Assert(err, IsNil)

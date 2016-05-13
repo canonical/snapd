@@ -53,6 +53,13 @@ func serviceStopTimeout(app *snap.AppInfo) time.Duration {
 	return time.Duration(tout)
 }
 
+func expandEnvVar(s string, envMap map[string]string) string {
+	for k, v := range envMap {
+		s = strings.Replace(s, fmt.Sprintf("$%s", k), v, -1)
+	}
+	return s
+}
+
 func generateSnapServiceFile(app *snap.AppInfo) (string, error) {
 	if err := snap.ValidateApp(app); err != nil {
 		return "", err
@@ -252,7 +259,12 @@ WantedBy={{.ServiceTargetUnit}}
 	}
 	allVars := snapenv.GetBasicSnapEnvVars(wrapperData)
 	allVars = append(allVars, snapenv.GetUserSnapEnvVars(wrapperData)...)
+
+	vars := snapenv.GetBasicSnapEnvVars(wrapperData)
+	envMap := snapenv.MakeMapFromEnvList(vars)
 	for k, v := range appInfo.Snap.Environment {
+		// we need to expand vars, systemd will not do that
+		v = expandEnvVar(v, envMap)
 		allVars = append(allVars, fmt.Sprintf(`%s=%s`, k, v))
 	}
 
