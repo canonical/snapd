@@ -28,15 +28,14 @@ import (
 
 	"github.com/ubuntu-core/snappy/asserts"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 )
 
 var _ = check.Suite(&snapKnownSuite{})
 
 // Suite for "snap known".
 type snapKnownSuite struct {
-	// FIXME: use snapdTestSuite until all tests are moved to
-	// assume the snapd/snap command pairing
-	snapdTestSuite
+	common.SnappySuite
 }
 
 // Test querying for assertions with "snap" of the given type without filtering which gives all of them.
