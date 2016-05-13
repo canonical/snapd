@@ -62,11 +62,9 @@ func listSnaps(args []string) error {
 		return err
 	}
 
-	if len(snaps) == 0 {
-		return fmt.Errorf(i18n.G("no snaps found"))
+	if len(snaps) > 0 {
+		sort.Sort(snapsByName(snaps))
 	}
-
-	sort.Sort(snapsByName(snaps))
 
 	w := tabWriter()
 	defer w.Flush()
