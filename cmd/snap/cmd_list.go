@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
-	"strings"
 	"text/tabwriter"
 
 	"github.com/ubuntu-core/snappy/client"
@@ -58,11 +57,7 @@ func (x *cmdList) Execute([]string) error {
 
 func listSnaps(args []string) error {
 	cli := Client()
-	filter := client.SnapFilter{
-		Sources: []string{"local"},
-		Query:   strings.Join(args, ","),
-	}
-	snaps, _, err := cli.FilterSnaps(filter)
+	snaps, err := cli.ListSnaps(args)
 	if err != nil {
 		return err
 	}

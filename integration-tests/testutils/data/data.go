@@ -35,6 +35,8 @@ const (
 	BasicDesktopSnapName = "basic-desktop"
 	// NetworkConsumerSnapName is the name of the snap with network plug
 	NetworkConsumerSnapName = "network-consumer"
+	// NetworkBindConsumerSnapName is the name of the snap with network plug
+	NetworkBindConsumerSnapName = "network-bind-consumer"
 	// HomeConsumerSnapName is the name of the snap with home plug
 	HomeConsumerSnapName = "home-consumer"
 	// WrongYamlSnapName is the name of a snap with an invalid meta yaml

@@ -96,7 +96,7 @@ func (r *resp) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	status := r.Status
 	bs, err := r.MarshalJSON()
 	if err != nil {
-		logger.Noticef("unable to marshal %#v to JSON: %v", *r, err)
+		logger.Noticef("cannot marshal %#v to JSON: %v", *r, err)
 		bs = nil
 		status = http.StatusInternalServerError
 	}
@@ -210,7 +210,7 @@ func (ar assertResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	for _, a := range ar.assertions {
 		err := enc.Encode(a)
 		if err != nil {
-			logger.Noticef("unable to write encoded assertion into response: %v", err)
+			logger.Noticef("cannot write encoded assertion into response: %v", err)
 			break
 
 		}
