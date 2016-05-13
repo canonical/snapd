@@ -151,7 +151,7 @@ dbus (send)
     path=/MenuBar
     interface=com.canonical.dbusmenu
     member="{LayoutUpdated,ItemsPropertiesUpdated}"
-    peer=(label=unconfined),
+    peer=(name=org.freedesktop.DBus, label=unconfined),
 
 dbus (receive)
     bus=session
@@ -166,14 +166,14 @@ dbus (send)
     path=/StatusNotifierWatcher
     interface=org.freedesktop.DBus.Introspectable
     member=Introspect
-    peer=(label=unconfined),
+    peer=(name=org.kde.StatusNotifierWatcher, label=unconfined),
 
 dbus (send)
     bus=session
     path=/org/freedesktop/DBus
     interface=org.freedesktop.DBus
     member="{GetConnectionUnixProcessID,RequestName,ReleaseName}"
-    peer=(label=unconfined),
+    peer=(name=org.freedesktop.DBus, label=unconfined),
 
 dbus (bind)
     bus=session
