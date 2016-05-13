@@ -176,8 +176,9 @@ var defaultTemplate = []byte(`
   @{PROC}/uptime r,
   @{PROC}/loadavg r,
 
-  # Note: for now, let this noisy denial through so --devmode isn't broken but
-  # eventually we may conditionally deny this since it is an information leak
+  # Note: for now, don't explicitly deny this noisy denial so --devmode isn't
+  # broken but eventually we may conditionally deny this since it is an
+  # information leak.
   #deny /{,var/}run/utmp r,
 
   # java
