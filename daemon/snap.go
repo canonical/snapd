@@ -125,7 +125,7 @@ func mapLocal(localSnap *snap.Info, active bool) map[string]interface{} {
 		"install-date":   snapDate(localSnap),
 		"installed-size": localSnap.Size,
 		"name":           localSnap.Name(),
-		"revision":       localSnap.Revision,
+		"revision":       localSnap.Revision.String(),
 		"status":         status,
 		"summary":        localSnap.Summary(),
 		"type":           string(localSnap.Type),
