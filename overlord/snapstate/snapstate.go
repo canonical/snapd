@@ -287,7 +287,7 @@ func Info(s *state.State, name string, revision snap.Revision) (*snap.Info, erro
 		return readInfo(name, snapst.Candidate)
 	}
 
-	return nil, fmt.Errorf("cannot find snap %q at revision %d", name, revision)
+	return nil, fmt.Errorf("cannot find snap %q at revision %s", name, revision.String())
 }
 
 // Current returns the information about the current revision of a snap with the given name.

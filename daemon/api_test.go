@@ -254,7 +254,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 		Result: map[string]interface{}{
 			"id":          "funky-snap-id",
 			"name":        "foo",
-			"revision":    snap.Revision(10),
+			"revision":    "10",
 			"version":     "v1",
 			"summary":     "summary",
 			"description": "description",
@@ -728,7 +728,7 @@ func (s *apiSuite) TestSnapsInfoOnePerIntegration(c *check.C) {
 		}
 		c.Check(got["name"], check.Equals, s.name)
 		c.Check(got["version"], check.Equals, s.ver)
-		c.Check(got["revision"], check.Equals, float64(s.rev))
+		c.Check(got["revision"], check.Equals, s.rev.String())
 		c.Check(got["developer"], check.Equals, s.dev)
 	}
 }
