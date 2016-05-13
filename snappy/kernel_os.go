@@ -221,7 +221,7 @@ func SyncBoot() error {
 		name, revno := nameAndRevnoFromSnap(snap)
 		found := FindSnapsByNameAndRevision(name, revno, installed)
 		if len(found) != 1 {
-			return fmt.Errorf("can not SyncBoot, expected 1 snap %q (revno=%d) found %d", snap, revno, len(found))
+			return fmt.Errorf("can not SyncBoot, expected 1 snap %q (revno=%s) found %d", snap, revno, len(found))
 		}
 		if err := overlord.SetActive(found[0], true, nil); err != nil {
 			return fmt.Errorf("can not SyncBoot, failed to make %s active: %s", found[0].Name(), err)

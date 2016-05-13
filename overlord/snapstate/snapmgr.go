@@ -141,7 +141,7 @@ func Manager(s *state.State) (*SnapManager, error) {
 func checkRevisionIsNew(name string, snapst *SnapState, revision snap.Revision) error {
 	for _, si := range snapst.Sequence {
 		if si.Revision == revision {
-			return fmt.Errorf("revision %d of snap %q already installed", revision, name)
+			return fmt.Errorf("revision %s of snap %q already installed", revision, name)
 		}
 	}
 	return nil
