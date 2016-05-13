@@ -117,33 +117,38 @@ dbus (receive, send)
     peer=(label=unconfined),
 
 # gmenu
+# Note: the gmenu DBus api was not designed for application isolation and apps
+# may specify anything as their 'path'. For example, these work in the many
+# cases:
+# - /org/gtk/Application/anonymous{,/**}
+# - /com/canonical/unity/gtk/window/[0-9]*
+# but libreoffice does:
+# - /org/libreoffice{,/**}
+# As such, cannot mediate by DBus path so we'll be as strict as we can in the
+# other mediated parts
 dbus (send)
     bus=session
     interface=org.gtk.Actions
-    path={/org/gtk/Application/anonymous{,/**},/com/canonical/unity/gtk/window/[0-9]*}
     member=Changed
-    peer=(label=unconfined),
+    peer=(name=org.freedesktop.DBus, label=unconfined),
 
 dbus (receive)
     bus=session
     interface=org.gtk.Actions
-    path={/org/gtk/Application/anonymous{,/**},/com/canonical/unity/gtk/window/[0-9]*}
     member={Activate,DescribeAll,SetState}
     peer=(label=unconfined),
 
 dbus (receive)
     bus=session
     interface=org.gtk.Menus
-    path={/org/gtk/Application/anonymous{,/**},/com/canonical/unity/gtk/window/[0-9]*}
     member={Start,End}
     peer=(label=unconfined),
 
-dbus (receive,send)
+dbus (send)
     bus=session
     interface=org.gtk.Menus
-    path={/org/gtk/Application/anonymous{,/**},/com/canonical/unity/gtk/window/[0-9]*}
     member=Changed
-    peer=(label=unconfined),
+    peer=(name=org.freedesktop.DBus, label=unconfined),
 
 # dbusmenu
 dbus (send)
