@@ -41,6 +41,9 @@ ptrace (read),
 # this is due to the kernel overloading trace such that the LSMs are unable to
 # distinguish between tracing other processes and other accesses. We deny the
 # trace here to silence the log.
+# Note: for now, explicitly deny to avoid confusion and accidentally giving
+# away this dangerous access frivolously. We may conditionally deny this in the
+# future.
 deny ptrace (trace),
 
 # Other miscellaneous accesses for observing the system
