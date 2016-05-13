@@ -165,6 +165,13 @@ dbus (receive)
     member=Get*
     peer=(label=unconfined),
 
+dbus (receive)
+    bus=session
+    path=/MenuBar
+    interface=com.canonical.dbusmenu
+    member="{AboutTo*,Event*}"
+    peer=(label=unconfined),
+
 # notifications
 dbus (send)
     bus=session
