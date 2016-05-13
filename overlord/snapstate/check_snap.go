@@ -71,9 +71,7 @@ var openSnapFile = openSnapFileImpl
 
 // checkSnap ensures that the snap can be installed.
 func checkSnap(state *state.State, snapFilePath string, curInfo *snap.Info, flags snappy.InstallFlags) error {
-	//allowUnauth := (flags & snappy.AllowUnauthenticated) != 0
-
-	// XXX: actually verify snap before using content from it unless allowUnauth
+	// XXX: actually verify snap before using content from it unless dev-mode
 
 	s, _, err := openSnapFile(snapFilePath, nil)
 	if err != nil {
