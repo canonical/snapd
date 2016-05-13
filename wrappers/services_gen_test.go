@@ -310,3 +310,24 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapServiceGlobalEnv(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(generatedWrapper, testutil.Contains, `"LD_LIBRARY_PATH=/some/path"`)
 }
+
+func (s *servicesWrapperGenSuite) TestExpandEnv(c *C) {
+	service := &snap.AppInfo{
+		Snap: &snap.Info{
+			SideInfo: snap.SideInfo{
+				OfficialName: "xkcd-webserver",
+				Revision:     44,
+			},
+			Version: "0.3.4",
+			Environment: map[string]string{
+				"LD_LIBRARY_PATH": "$SNAP/some/path",
+			},
+		},
+		Name:    "xkcd-webserver",
+		Command: "bin/foo start",
+	}
+
+	generatedWrapper, err := wrappers.GenerateSnapServiceFile(service)
+	c.Assert(err, IsNil)
+	c.Assert(generatedWrapper, testutil.Contains, `"LD_LIBRARY_PATH=/snap/xkcd-webserver/44/some/path"`)
+}
