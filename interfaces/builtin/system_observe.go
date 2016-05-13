@@ -60,7 +60,9 @@ const systemObserveConnectedPlugSecComp = `
 # ptrace can be used to break out of the seccomp sandbox, but ps requests
 # 'ptrace (trace)' from apparmor. 'ps' does not need the ptrace syscall though,
 # so we deny the ptrace here to make sure we are always safe.
-deny ptrace
+# Note: may uncomment once ubuntu-core-launcher understands @deny rules and
+# if/when we conditionally deny this in the future.
+#@deny ptrace
 `
 
 // NewSystemObserveInterface returns a new "system-observe" interface.
