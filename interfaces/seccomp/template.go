@@ -29,40 +29,42 @@ var defaultTemplate = []byte(`
 # Usage: common
 #
 
-# Dangerous syscalls that we don't ever want to allow
+# Dangerous syscalls that we don't ever want to allow.
+# Note: may uncomment once ubuntu-core-launcher understands @deny rules and
+# if/when we conditionally deny these in the future.
 
 # kexec
-deny kexec_load
+#@deny kexec_load
 
 # kernel modules
-deny create_module
-deny init_module
-deny finit_module
-deny delete_module
+#@deny create_module
+#@deny init_module
+#@deny finit_module
+#@deny delete_module
 
 # these have a history of vulnerabilities, are not widely used, and
 # open_by_handle_at has been used to break out of docker containers by brute
 # forcing the handle value: http://stealth.openwall.net/xSports/shocker.c
-deny name_to_handle_at
-deny open_by_handle_at
+#@deny name_to_handle_at
+#@deny open_by_handle_at
 
 # Explicitly deny ptrace since it can be abused to break out of the seccomp
 # sandbox
-deny ptrace
+#@deny ptrace
 
 # Explicitly deny capability mknod so apps can't create devices
-deny mknod
-deny mknodat
+#@deny mknod
+#@deny mknodat
 
 # Explicitly deny (u)mount so apps can't change mounts in their namespace
-deny mount
-deny umount
-deny umount2
+#@deny mount
+#@deny umount
+#@deny umount2
 
 # Explicitly deny kernel keyring access
-deny add_key
-deny keyctl
-deny request_key
+#@deny add_key
+#@deny keyctl
+#@deny request_key
 
 # end dangerous syscalls
 
