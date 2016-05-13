@@ -141,7 +141,7 @@ func mapRemote(remoteSnap *snap.Info) map[string]interface{} {
 		"icon":          snapIcon(remoteSnap),
 		"id":            remoteSnap.SnapID,
 		"name":          remoteSnap.Name(),
-		"revision":      remoteSnap.Revision,
+		"revision":      remoteSnap.Revision.String(),
 		"status":        "available",
 		"summary":       remoteSnap.Summary(),
 		"type":          string(remoteSnap.Type),
