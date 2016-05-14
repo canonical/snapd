@@ -489,6 +489,7 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	if err != nil {
 		return InternalError("cannot list local snaps! %v", err)
 	}
+
 	results := make([]*json.RawMessage, len(found))
 
 	for i, x := range found {
