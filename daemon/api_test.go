@@ -82,6 +82,10 @@ func (s *apiSuite) FindSnaps(searchTerm, channel string, auther store.Authentica
 	return s.rsnaps, s.err
 }
 
+func (s *apiSuite) Updates(snaps []string, auther store.Authenticator) ([]*snap.Info, error) {
+	return nil, nil
+}
+
 func (s *apiSuite) SuggestedCurrency() string {
 	return s.suggestedCurrency
 }
@@ -256,6 +260,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 			"name":        "foo",
 			"revision":    10,
 			"version":     "v1",
+			"channel":     "stable",
 			"summary":     "summary",
 			"description": "description",
 			"developer":   "bar",
