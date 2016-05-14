@@ -209,55 +209,49 @@ func listUpdates() error {
 	return nil
 }
 
+func refreshAll() error {
+	cli := Client()
+	updates, err := cli.ListUpdates()
+	if err != nil {
+		return fmt.Errorf("cannot list updates: %s", err)
+	}
+
+	for _, update := range updates {
+		changeID, err := cli.Refresh(update.Name, &client.SnapOptions{Channel: update.Channel})
+		if err != nil {
+			return err
+		}
+		if _, err := wait(cli, changeID); err != nil {
+			return err
+		}
+	}
+
+	return listSnaps(nil)
+}
+
+func refreshOne(name, channel string) error {
+	cli := Client()
+	changeID, err := cli.Refresh(name, &client.SnapOptions{Channel: channel})
+	if err != nil {
+		return err
+	}
+
+	if _, err := wait(cli, changeID); err != nil {
+		return err
+	}
+
+	return listSnaps([]string{name})
+}
+
 func (x *cmdRefresh) Execute([]string) error {
 	if x.ListOnly {
 		return listUpdates()
 	}
 
-	cli := Client()
-	name := x.Positional.Snap
-	opts := &client.SnapOptions{Channel: x.Channel}
-	if name == "" {
-		// refresh all
-		updates, err := cli.ListUpdates()
-		if err != nil {
-			return fmt.Errorf("cannot list updates: %s", err)
-		}
-		snaps, err := cli.ListSnaps(nil)
-		if err != nil {
-			return fmt.Errorf("cannot list snaps: %s", err)
-		}
-		for _, update := range updates {
-			needsUpdate := false
-			for _, local := range snaps {
-				if update.Name == local.Name && local.Revision > 0 && update.Revision != local.Revision {
-					needsUpdate = true
-				}
-			}
-			if needsUpdate == false {
-				continue
-			}
-
-			changeID, err := cli.Refresh(update.Name, &client.SnapOptions{Channel: update.Channel})
-			if err != nil {
-				return err
-			}
-			if _, err := wait(cli, changeID); err != nil {
-				return err
-			}
-		}
-		return listSnaps(nil)
+	if x.Positional.Snap == "" {
+		return refreshAll()
 	} else {
-		// refresh a single thing
-		changeID, err := cli.Refresh(name, opts)
-		if err != nil {
-			return err
-		}
-
-		if _, err := wait(cli, changeID); err != nil {
-			return err
-		}
-		return listSnaps([]string{name})
+		return refreshOne(x.Positional.Snap, x.Channel)
 	}
 }
 
