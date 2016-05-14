@@ -116,9 +116,9 @@ func extractKernelAssets(s *snap.Info, snapf snap.Container, flags InstallFlags,
 	return dir.Sync()
 }
 
-// setNextBoot will schedule the given os or kernel snap to be used in
+// SetNextBoot will schedule the given os or kernel snap to be used in
 // the next boot
-func setNextBoot(s *snap.Info) error {
+func SetNextBoot(s *snap.Info) error {
 	if s.Type != snap.TypeOS && s.Type != snap.TypeKernel {
 		return nil
 	}

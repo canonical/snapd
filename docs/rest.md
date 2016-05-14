@@ -262,7 +262,6 @@ Sample result:
 [{
       "summary": "HTTPie in a snap",
       "description": "no description",
-      "download-size": 1578272,
       "icon": "/v2/icons/http/icon",
       "installed-size": 1821897,
       "install-date": "2016-03-10T13:16:52Z",
@@ -277,7 +276,6 @@ Sample result:
     }, {
       "summary": "The ubuntu-core OS snap",
       "description": "A secure, minimal transactional OS for devices and containers.",
-      "download-size": 19845748,
       "icon": "",                  // core might not have an icon
       "installed-size": 67784704,
       "install-date": "2016-03-08T11:29:21Z",
@@ -295,7 +293,7 @@ Sample result:
 
 #### Fields
 
-In addition to the fields described in `/v2/fiend`:
+In addition to the fields described in `/v2/find`:
 
 [//]: # keep the fields sorted!
 
@@ -322,16 +320,10 @@ named "snap".
 ## /v2/snaps/[name]
 ### GET
 
-* Description: Details for a snap
+* Description: Details for an installed snap
 * Access: authenticated
 * Operation: sync
 * Return: snap details (as in `/v2/snaps`)
-
-### Parameters
-
-#### `sources`
-
-See `sources` for `/v2/snaps`.
 
 ### POST
 
