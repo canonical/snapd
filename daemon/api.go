@@ -379,23 +379,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		Sources:           []string{"store"},
 	}
 
-	results := make([]*json.RawMessage, len(found))
-	for i, x := range found {
-		url, err := route.URL("name", x.Name())
-		if err != nil {
-			logger.Noticef("cannot build URL for snap %q (r%d): %v", x.Name(), x.Revision, err)
-			continue
-		}
-
-		data, err := json.Marshal(webify(mapRemote(x), url.String()))
-		if err != nil {
-			return InternalError("%v", err)
-		}
-		raw := json.RawMessage(data)
-		results[i] = &raw
-	}
-
-	return SyncResponse(results, meta)
+	return sendStorePackages(route, meta, found)
 }
 
 func shouldSearchStore(r *http.Request) bool {
@@ -459,9 +443,14 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 	}
 
-	// FIXME: duplication from searchStore
-	results := make([]*json.RawMessage, len(updates))
-	for i, x := range updates {
+	meta := &Meta{Sources: []string{"updates"}}
+
+	return sendStorePackages(route, meta, updates)
+}
+
+func sendStorePackages(route *mux.Route, meta *Meta, found []*snap.Info) Response {
+	results := make([]*json.RawMessage, len(found))
+	for i, x := range found {
 		url, err := route.URL("name", x.Name())
 		if err != nil {
 			logger.Noticef("cannot build URL for snap %q (r%d): %v", x.Name(), x.Revision, err)
@@ -475,7 +464,7 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 		raw := json.RawMessage(data)
 		results[i] = &raw
 	}
-	return SyncResponse(results, &Meta{Sources: []string{"updates"}})
+	return SyncResponse(results, meta)
 }
 
 // plural!
