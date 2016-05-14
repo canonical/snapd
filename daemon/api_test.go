@@ -319,49 +319,6 @@ func (s *apiSuite) TestSnapInfoIgnoresRemoteErrors(c *check.C) {
 	c.Check(rsp.Result, check.NotNil)
 }
 
-func (s *apiSuite) TestSnapInfoWeirdRoute(c *check.C) {
-	// can't really happen
-
-	d := s.daemon(c)
-
-	// use the wrong command to force the issue
-	wrongCmd := &Command{Path: "/{what}", d: d}
-	s.vars = map[string]string{"name": "foo"}
-	s.rsnaps = []*snap.Info{{
-		SideInfo: snap.SideInfo{
-			OfficialName: "foo",
-		},
-	}}
-	req, err := http.NewRequest("GET", "/v2/snaps/gfoo", nil)
-	c.Assert(err, check.IsNil)
-	c.Check(getSnapInfo(wrongCmd, req, nil).(*resp).Status, check.Equals, http.StatusInternalServerError)
-}
-
-func (s *apiSuite) TestSnapInfoBadRoute(c *check.C) {
-	// can't really happen, v2
-
-	d := s.daemon(c)
-
-	// get the route and break it
-	route := d.router.Get(snapCmd.Path)
-	c.Assert(route.Name("foo").GetError(), check.NotNil)
-
-	s.vars = map[string]string{"name": "foo"}
-	s.rsnaps = []*snap.Info{{
-		SideInfo: snap.SideInfo{
-			OfficialName: "foo",
-		},
-	}}
-
-	req, err := http.NewRequest("GET", "/v2/snaps/gfoo", nil)
-	c.Assert(err, check.IsNil)
-	rsp := getSnapInfo(snapCmd, req, nil).(*resp)
-
-	c.Check(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Status, check.Equals, http.StatusInternalServerError)
-	c.Check(rsp.Result.(*errorResult).Message, check.Matches, `route can't build URL .*`)
-}
-
 func (s *apiSuite) TestListIncludesAll(c *check.C) {
 	// Very basic check to help stop us from not adding all the
 	// commands to the command list.
