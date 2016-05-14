@@ -147,7 +147,7 @@ dbus (receive,send)
 
 dbus (send)
     bus=session
-    interface=com.canonical.SnappyUrlHelper.XdgOpen
+    interface=com.canonical.UrlLauncher.XdgOpen
     peer=(label=unconfined),
 
 
