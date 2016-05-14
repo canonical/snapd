@@ -296,6 +296,7 @@ func UserFromRequest(st *state.State, req *http.Request) (*auth.UserState, error
 type metarepo interface {
 	Snap(string, string, store.Authenticator) (*snap.Info, error)
 	FindSnaps(string, string, store.Authenticator) ([]*snap.Info, error)
+	Updates([]string, store.Authenticator) ([]*snap.Info, error)
 	SuggestedCurrency() string
 }
 
@@ -432,9 +433,42 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot find route for snaps")
 	}
 
+	// FIXME: use something most RESTy
 	found, err := allLocalSnapInfos(c.d.overlord.State())
 	if err != nil {
 		return InternalError("cannot list local snaps! %v", err)
+	}
+	if _, ok := r.URL.Query()["updates"]; ok {
+		localSnapsWithChannel := []string{}
+		for _, x := range found {
+			localSnapsWithChannel = append(localSnapsWithChannel, fmt.Sprintf("%s/%s", x.info.Name(), x.info.Channel))
+		}
+		store := newRemoteRepo()
+		auther, err := c.d.auther(r)
+		if err != nil && err != auth.ErrInvalidAuth {
+			return InternalError("%v", err)
+		}
+		updates, err := store.Updates(localSnapsWithChannel, auther)
+		if err != nil {
+			return InternalError("cannot list updates: %v", err)
+		}
+		// FIXME: copied from searchStore
+		results := make([]*json.RawMessage, len(updates))
+		for i, x := range updates {
+			url, err := route.URL("name", x.Name())
+			if err != nil {
+				logger.Noticef("cannot build URL for snap %q (r%d): %v", x.Name(), x.Revision, err)
+				continue
+			}
+
+			data, err := json.Marshal(webify(mapRemote(x), url.String()))
+			if err != nil {
+				return InternalError("%v", err)
+			}
+			raw := json.RawMessage(data)
+			results[i] = &raw
+		}
+		return SyncResponse(results, &Meta{Sources: []string{"updates"}})
 	}
 
 	results := make([]*json.RawMessage, len(found))
