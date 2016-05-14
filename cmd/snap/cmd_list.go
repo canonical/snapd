@@ -36,6 +36,7 @@ var longListHelp = i18n.G(`
 The list command displays a summary of snaps installed in the current system.`)
 
 type cmdList struct {
+	Updates    bool `long:"updates" description:"show updates"`
 	Positional struct {
 		Snaps []string `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
@@ -52,7 +53,36 @@ func (s snapsByName) Less(i, j int) bool { return s[i].Name < s[j].Name }
 func (s snapsByName) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 func (x *cmdList) Execute([]string) error {
-	return listSnaps(x.Positional.Snaps)
+	if x.Updates {
+		return listUpdates(x.Positional.Snaps)
+	} else {
+		return listSnaps(x.Positional.Snaps)
+	}
+}
+
+func listUpdates(args []string) error {
+	cli := Client()
+	snaps, err := cli.ListUpdates(args)
+	if err != nil {
+		return err
+	}
+
+	if len(snaps) == 0 {
+		return fmt.Errorf(i18n.G("no snaps found"))
+	}
+
+	sort.Sort(snapsByName(snaps))
+
+	w := tabWriter()
+	defer w.Flush()
+
+	fmt.Fprintln(w, i18n.G("Name\tVersion\tRev\tDeveloper"))
+
+	for _, snap := range snaps {
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", snap.Name, snap.Version, strconv.Itoa(snap.Revision), snap.Developer)
+	}
+
+	return nil
 }
 
 func listSnaps(args []string) error {

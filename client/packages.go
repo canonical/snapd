@@ -88,6 +88,18 @@ func (client *Client) ListSnaps(names []string) ([]*Snap, error) {
 	return result, nil
 }
 
+func (client *Client) ListUpdates(names []string) ([]*Snap, error) {
+	q := url.Values{}
+	q.Set("updates", "1")
+
+	snaps, _, err := client.snapsFromPath("/v2/snaps", q)
+	if err != nil {
+		return nil, err
+	}
+
+	return snaps, nil
+}
+
 // FindSnaps returns a list of snaps available for install from the
 // store for this system and that match the query
 func (client *Client) FindSnaps(query string) ([]*Snap, *ResultInfo, error) {
