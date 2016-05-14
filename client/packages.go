@@ -89,7 +89,7 @@ func (client *Client) ListSnaps(names []string) ([]*Snap, error) {
 	return result, nil
 }
 
-func (client *Client) ListUpdates(names []string) ([]*Snap, error) {
+func (client *Client) ListUpdates() ([]*Snap, error) {
 	q := url.Values{}
 	q.Set("updates", "1")
 
