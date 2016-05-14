@@ -130,6 +130,7 @@ func mapLocal(localSnap *snap.Info, active bool) map[string]interface{} {
 		"summary":        localSnap.Summary(),
 		"type":           string(localSnap.Type),
 		"version":        localSnap.Version,
+		"channel":        localSnap.Channel,
 	}
 }
 
@@ -146,6 +147,7 @@ func mapRemote(remoteSnap *snap.Info) map[string]interface{} {
 		"summary":       remoteSnap.Summary(),
 		"type":          string(remoteSnap.Type),
 		"version":       remoteSnap.Version,
+		"channel":       remoteSnap.Channel,
 	}
 
 	if len(remoteSnap.Prices) > 0 {
