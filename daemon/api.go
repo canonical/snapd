@@ -420,6 +420,64 @@ func shouldSearchStore(r *http.Request) bool {
 	return false
 }
 
+func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
+	route := c.d.router.Get(snapCmd.Path)
+	if route == nil {
+		return InternalError("cannot find route for snaps")
+	}
+
+	found, err := allLocalSnapInfos(c.d.overlord.State())
+	if err != nil {
+		return InternalError("cannot list local snaps! %v", err)
+	}
+
+	localSnapsWithChannel := []string{}
+	localSnapMap := map[string]*snap.Info{}
+	for _, x := range found {
+		localSnapsWithChannel = append(localSnapsWithChannel, fmt.Sprintf("%s/%s", x.info.Name(), x.info.Channel))
+		localSnapMap[x.info.Name()] = x.info
+	}
+
+	store := newRemoteRepo()
+	auther, err := c.d.auther(r)
+	if err != nil && err != auth.ErrInvalidAuth {
+		return InternalError("%v", err)
+	}
+
+	// the store gives us everything, we need to client side filter
+	// for the updates
+	allUpdates, err := store.Updates(localSnapsWithChannel, auther)
+	if err != nil {
+		return InternalError("cannot list updates: %v", err)
+	}
+
+	updates := []*snap.Info{}
+	for _, update := range allUpdates {
+		local := localSnapMap[update.Name()]
+		if local.Revision > 0 && local.Revision != update.Revision {
+			updates = append(updates, update)
+		}
+	}
+
+	// FIXME: duplication from searchStore
+	results := make([]*json.RawMessage, len(updates))
+	for i, x := range updates {
+		url, err := route.URL("name", x.Name())
+		if err != nil {
+			logger.Noticef("cannot build URL for snap %q (r%d): %v", x.Name(), x.Revision, err)
+			continue
+		}
+
+		data, err := json.Marshal(webify(mapRemote(x), url.String()))
+		if err != nil {
+			return InternalError("%v", err)
+		}
+		raw := json.RawMessage(data)
+		results[i] = &raw
+	}
+	return SyncResponse(results, &Meta{Sources: []string{"updates"}})
+}
+
 // plural!
 func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 
@@ -434,43 +492,14 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	// FIXME: use something most RESTy
+	if _, ok := r.URL.Query()["updates"]; ok {
+		return storeUpdates(c, r, user)
+	}
+
 	found, err := allLocalSnapInfos(c.d.overlord.State())
 	if err != nil {
 		return InternalError("cannot list local snaps! %v", err)
 	}
-	if _, ok := r.URL.Query()["updates"]; ok {
-		localSnapsWithChannel := []string{}
-		for _, x := range found {
-			localSnapsWithChannel = append(localSnapsWithChannel, fmt.Sprintf("%s/%s", x.info.Name(), x.info.Channel))
-		}
-		store := newRemoteRepo()
-		auther, err := c.d.auther(r)
-		if err != nil && err != auth.ErrInvalidAuth {
-			return InternalError("%v", err)
-		}
-		updates, err := store.Updates(localSnapsWithChannel, auther)
-		if err != nil {
-			return InternalError("cannot list updates: %v", err)
-		}
-		// FIXME: copied from searchStore
-		results := make([]*json.RawMessage, len(updates))
-		for i, x := range updates {
-			url, err := route.URL("name", x.Name())
-			if err != nil {
-				logger.Noticef("cannot build URL for snap %q (r%d): %v", x.Name(), x.Revision, err)
-				continue
-			}
-
-			data, err := json.Marshal(webify(mapRemote(x), url.String()))
-			if err != nil {
-				return InternalError("%v", err)
-			}
-			raw := json.RawMessage(data)
-			results[i] = &raw
-		}
-		return SyncResponse(results, &Meta{Sources: []string{"updates"}})
-	}
-
 	results := make([]*json.RawMessage, len(found))
 
 	for i, x := range found {
