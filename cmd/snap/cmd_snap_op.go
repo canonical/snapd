@@ -183,22 +183,55 @@ type cmdRefresh struct {
 	Channel    string `long:"channel" description:"Refresh to the latest on this channel, and track this channel henceforth"`
 	Positional struct {
 		Snap string `positional-arg-name:"<snap>"`
-	} `positional-args:"yes" required:"yes"`
+	} `positional-args:"yes"`
 }
 
 func (x *cmdRefresh) Execute([]string) error {
 	cli := Client()
 	name := x.Positional.Snap
 	opts := &client.SnapOptions{Channel: x.Channel}
-	changeID, err := cli.Refresh(name, opts)
-	if err != nil {
-		return err
-	}
+	if name == "" {
+		// refresh all
+		updates, err := cli.ListUpdates(nil)
+		if err != nil {
+			return fmt.Errorf("cannot list updates: %s", err)
+		}
+		snaps, err := cli.ListSnaps(nil)
+		if err != nil {
+			return fmt.Errorf("cannot list snaps: %s", err)
+		}
+		for _, update := range updates {
+			needsUpdate := false
+			for _, local := range snaps {
+				if update.Name == local.Name && local.Revision > 0 && update.Revision != local.Revision {
+					needsUpdate = true
+				}
+			}
+			if needsUpdate == false {
+				continue
+			}
 
-	if _, err := wait(cli, changeID); err != nil {
-		return err
+			changeID, err := cli.Refresh(update.Name, &client.SnapOptions{Channel: update.Channel})
+			if err != nil {
+				return err
+			}
+			if _, err := wait(cli, changeID); err != nil {
+				return err
+			}
+		}
+		return listSnaps(nil)
+	} else {
+		// refresh a single thing
+		changeID, err := cli.Refresh(name, opts)
+		if err != nil {
+			return err
+		}
+
+		if _, err := wait(cli, changeID); err != nil {
+			return err
+		}
+		return listSnaps([]string{name})
 	}
-	return listSnaps([]string{name})
 }
 
 func init() {
