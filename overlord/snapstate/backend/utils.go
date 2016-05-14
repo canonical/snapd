@@ -17,33 +17,14 @@
  *
  */
 
-package main
+package backend
 
-import (
-	"github.com/ubuntu-core/snappy/i18n"
-
-	"github.com/jessevdk/go-flags"
-)
-
-type cmdMan struct{}
-
-var shortManHelp = i18n.G("produces manpage")
-var longManHelp = i18n.G("produces manpage")
-
-func init() {
-	cmd := addCommand("man", shortManHelp, longManHelp, func() flags.Commander {
-		return &cmdMan{}
-	})
-	cmd.hidden = true
-}
-
-func (*cmdMan) Execute([]string) error {
-	parser := Parser()
-	parser.ShortDescription = "Tool to interact with snaps"
-	parser.LongDescription = `
-The snap tool interacts with the snapd daemon to control the snappy software platform.
-`
-	parser.WriteManPage(Stdout)
-
+// firstErr returns the first error of the given error list
+func firstErr(err ...error) error {
+	for _, e := range err {
+		if e != nil {
+			return e
+		}
+	}
 	return nil
 }
