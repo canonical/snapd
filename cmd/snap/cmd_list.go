@@ -61,7 +61,7 @@ func (x *cmdList) Execute([]string) error {
 
 func listUpdates() error {
 	cli := Client()
-	snaps, err := cli.ListUpdates()
+	snaps, err := cli.List(&client.ListOptions{RefreshOnly: true})
 	if err != nil {
 		return err
 	}
@@ -70,7 +70,7 @@ func listUpdates() error {
 
 func listSnaps(args []string) error {
 	cli := Client()
-	snaps, err := cli.ListSnaps(args)
+	snaps, err := cli.List(&client.ListOptions{Names: args})
 	if err != nil {
 		return err
 	}
