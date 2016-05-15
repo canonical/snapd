@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-05-14 16:33-0700\n"
+        "POT-Creation-Date: 2016-05-15 21:17+0200\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -75,6 +75,9 @@ msgid   "Entering classic dimension"
 msgstr  ""
 
 msgid   "Finds packages to install"
+msgstr  ""
+
+msgid   "Help"
 msgstr  ""
 
 msgid   "ID\tStatus\tSpawn\tReady\tSummary\n"
@@ -210,6 +213,10 @@ msgid   "Two-factor code: "
 msgstr  ""
 
 msgid   "Wrong again. Once more: "
+msgstr  ""
+
+msgid   "\n"
+        "How help for the snap command."
 msgstr  ""
 
 msgid   "\n"
