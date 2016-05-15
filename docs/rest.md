@@ -247,6 +247,14 @@ Which channel to search in.
    derived by Geo IP lookup.
 
 ## /v2/snaps
+
+### Parameters:
+
+#### `select`
+
+Filter from the given selection. Currently only limiting to refreshable
+snaps is supported via the `refresh` key.
+
 ### GET
 
 * Description: List of snaps

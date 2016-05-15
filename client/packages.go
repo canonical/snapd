@@ -72,7 +72,7 @@ type ListOptions struct {
 func (client *Client) List(opts *ListOptions) ([]*Snap, error) {
 	q := url.Values{}
 	if opts.RefreshOnly {
-		q.Set("updates", "1")
+		q.Set("select", "refresh")
 	}
 	names := opts.Names
 
