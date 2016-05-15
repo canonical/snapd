@@ -188,7 +188,7 @@ type cmdRefresh struct {
 
 func refreshAll() error {
 	cli := Client()
-	updates, err := cli.ListUpdates()
+	updates, err := cli.List(&client.ListOptions{RefreshOnly: true})
 	if err != nil {
 		return fmt.Errorf("cannot list updates: %s", err)
 	}

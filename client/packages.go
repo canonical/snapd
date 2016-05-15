@@ -62,10 +62,21 @@ type ResultInfo struct {
 	SuggestedCurrency string `json:"suggested-currency"`
 }
 
+type ListOptions struct {
+	RefreshOnly bool
+	Names       []string
+}
+
 // ListSnaps returns the list of all snaps installed on the system
 // with names in the given list; if the list is empty, all snaps.
-func (client *Client) ListSnaps(names []string) ([]*Snap, error) {
-	snaps, _, err := client.snapsFromPath("/v2/snaps", nil)
+func (client *Client) List(opts *ListOptions) ([]*Snap, error) {
+	q := url.Values{}
+	if opts.RefreshOnly {
+		q.Set("updates", "1")
+	}
+	names := opts.Names
+
+	snaps, _, err := client.snapsFromPath("/v2/snaps", q)
 	if err != nil {
 		return nil, err
 	}
@@ -87,18 +98,6 @@ func (client *Client) ListSnaps(names []string) ([]*Snap, error) {
 	}
 
 	return result, nil
-}
-
-func (client *Client) ListUpdates() ([]*Snap, error) {
-	q := url.Values{}
-	q.Set("updates", "1")
-
-	snaps, _, err := client.snapsFromPath("/v2/snaps", q)
-	if err != nil {
-		return nil, err
-	}
-
-	return snaps, nil
 }
 
 // FindSnaps returns a list of snaps available for install from the
