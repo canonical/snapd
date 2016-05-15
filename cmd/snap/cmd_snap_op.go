@@ -22,8 +22,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -182,31 +180,10 @@ func (x *cmdInstall) Execute([]string) error {
 }
 
 type cmdRefresh struct {
-	ListOnly   bool   `long:"list" description:"Only list what would be updated"`
 	Channel    string `long:"channel" description:"Refresh to the latest on this channel, and track this channel henceforth"`
 	Positional struct {
 		Snap string `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
-}
-
-func listUpdates() error {
-	cli := Client()
-	snaps, err := cli.ListUpdates()
-	if err != nil {
-		return err
-	}
-	sort.Sort(snapsByName(snaps))
-
-	w := tabWriter()
-	defer w.Flush()
-
-	fmt.Fprintln(w, i18n.G("Name\tVersion\tRev\tDeveloper"))
-
-	for _, snap := range snaps {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", snap.Name, snap.Version, strconv.Itoa(snap.Revision), snap.Developer)
-	}
-
-	return nil
 }
 
 func refreshAll() error {
@@ -244,10 +221,6 @@ func refreshOne(name, channel string) error {
 }
 
 func (x *cmdRefresh) Execute([]string) error {
-	if x.ListOnly {
-		return listUpdates()
-	}
-
 	if x.Positional.Snap == "" {
 		return refreshAll()
 	} else {
