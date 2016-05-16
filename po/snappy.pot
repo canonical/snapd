@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-05-18 23:53-0300\n"
+        "POT-Creation-Date: 2016-05-19 09:54+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -100,6 +100,9 @@ msgid   "Install %q snap from file %q"
 msgstr  ""
 
 msgid   "Install a snap to the system"
+msgstr  ""
+
+msgid   "List a change's tasks"
 msgstr  ""
 
 msgid   "List installed snaps"
@@ -225,6 +228,10 @@ msgid   "\n"
         "To succeed the assertion must be valid, its signature verified with a known\n"
         "public key and the assertion consistent with and its prerequisite in the\n"
         "database.\n"
+msgstr  ""
+
+msgid   "\n"
+        "The change command displays a summary of tasks associated to an individual change."
 msgstr  ""
 
 msgid   "\n"
