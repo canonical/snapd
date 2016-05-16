@@ -2307,6 +2307,7 @@ func (s *apiSuite) TestGetEvents(c *check.C) {
 
 func setupChanges(st *state.State) []string {
 	chg1 := st.NewChange("install", "install...")
+	chg1.Set("snap-names", []string{"funky-snap-name"})
 	t1 := st.NewTask("download", "1...")
 	t2 := st.NewTask("activate", "2...")
 	chg1.AddAll(state.NewTaskSet(t1, t2))
@@ -2426,6 +2427,35 @@ func (s *apiSuite) TestStateChangesReady(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"remove","summary":"remove..","status":"Error","tasks":\[{"id":"\w+","kind":"unlink","summary":"1...","status":"Error","log":\["2016-04-21T01:02:03Z ERROR rm failed"],"progress":{"done":1,"total":1},"spawn-time":"2016-04-21T01:02:03Z","ready-time":"2016-04-21T01:02:03Z"}.*],"ready":true,"err":"[^"]+".*`)
+}
+
+func (s *apiSuite) TestStateChangesForSnapName(c *check.C) {
+	restore := state.MockTime(time.Date(2016, 04, 21, 1, 2, 3, 0, time.UTC))
+	defer restore()
+
+	// Setup
+	d := newTestDaemon(c)
+	st := d.overlord.State()
+	st.Lock()
+	setupChanges(st)
+	st.Unlock()
+
+	// Execute
+	req, err := http.NewRequest("GET", "/v2/changes?for=funky-snap-name&select=all", nil)
+	c.Assert(err, check.IsNil)
+	rsp := getChanges(stateChangesCmd, req, nil).(*resp)
+
+	// Verify
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	c.Assert(rsp.Result, check.FitsTypeOf, []*changeInfo(nil))
+
+	res := rsp.Result.([]*changeInfo)
+	c.Assert(res, check.HasLen, 1)
+	c.Check(res[0].Kind, check.Equals, `install`)
+
+	_, err = rsp.MarshalJSON()
+	c.Assert(err, check.IsNil)
 }
 
 func (s *apiSuite) TestStateChange(c *check.C) {
