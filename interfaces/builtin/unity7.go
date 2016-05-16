@@ -233,6 +233,38 @@ dbus (receive)
     member=NotificationClosed
     peer=(label=unconfined),
 
+# unity launcher
+dbus (send)
+    bus=session
+    path=/com/canonical/unity/launcherentry/[0-9]*
+    interface=com.canonical.Unity.LauncherEntry
+    member=Update
+    peer=(name=org.freedesktop.DBus, label=unconfined),
+
+dbus (send)
+    bus=session
+    path=/com/canonical/unity/launcherentry/[0-9]*
+    interface=com.canonical.dbusmenu
+    member="{LayoutUpdated,ItemsPropertiesUpdated}"
+    peer=(name=org.freedesktop.DBus, label=unconfined),
+
+dbus (receive)
+    bus=session
+    path=/com/canonical/unity/launcherentry/[0-9]*
+    interface="{com.canonical.dbusmenu,org.freedesktop.DBus.Properties}"
+    member=Get*
+    peer=(label=unconfined),
+
+# This rule is meant to be covered by abstractions/dbus-session-strict but
+# the unity launcher code has a typo that uses /org/freedesktop/dbus as the
+# path instead of /org/freedesktop/DBus, so we need to all it here.
+dbus (send)
+    bus=session
+    path=/org/freedesktop/dbus
+    interface=org.freedesktop.DBus
+    member=NameHasOwner
+    peer=(name=org.freedesktop.DBus, label=unconfined),
+
 # Lttng tracing is very noisy and should not be allowed by confined apps. Can
 # safely deny. LP: #1260491
 deny /{,var/}run/shm/lttng-ust-* r,
