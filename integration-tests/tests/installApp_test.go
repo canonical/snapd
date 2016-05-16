@@ -88,13 +88,3 @@ func (s *installAppSuite) TestInstallUnexistingAppMustPrintError(c *check.C) {
 			"- Download snap \"unexisting.canonical\" from channel \"stable\" (snap not found)\n",
 		check.Commentf("Wrong error message"))
 }
-
-func (s *installAppSuite) TestInstallFromStoreMetadata(c *check.C) {
-	c.Skip("FIXME: enable when we have snap info")
-
-	common.InstallSnap(c, "hello-world")
-	defer common.RemoveSnap(c, "hello-world")
-
-	output := cli.ExecCommand(c, "snap", "info", "hello-world")
-	c.Check(string(output), check.Matches, "(?ms)^channel: edge")
-}

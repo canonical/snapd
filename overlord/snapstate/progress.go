@@ -75,8 +75,3 @@ func (t *TaskProgressAdapter) Notify(msg string) {
 // Spin does nothing
 func (t *TaskProgressAdapter) Spin(msg string) {
 }
-
-// Agreed does nothing
-func (t *TaskProgressAdapter) Agreed(intro, license string) bool {
-	return false
-}

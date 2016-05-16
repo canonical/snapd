@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"gopkg.in/check.v1"
@@ -70,14 +71,7 @@ func Test(t *testing.T) {
 	runner.TestingT(t, output)
 
 	if _, err := os.Stat(config.DefaultFileName); err == nil {
-		cfg, err := config.ReadConfig(config.DefaultFileName)
-		if err != nil {
-			t.Fatalf("Error reading config: %v", err)
-		}
-
-		if err := tearDownSnapd(cfg.FromBranch); err != nil {
-			t.Fatalf("Error stopping daemon: %v", err)
-		}
+		tearDownSnapd(&check.C{})
 	}
 }
 
@@ -85,58 +79,66 @@ func setUpSnapd(c *check.C, fromBranch bool, extraEnv string) {
 	cli.ExecCommand(c, "sudo", "systemctl", "stop",
 		"snapd.service", "snapd.socket")
 
-	if fromBranch {
-		binPath, err := filepath.Abs("integration-tests/bin/snapd")
-		c.Assert(err, check.IsNil)
+	cli.ExecCommand(c, "sudo", "mkdir", "-p", cfgDir)
 
-		_, err = cli.ExecCommandErr("sudo", "mount", "-o", "bind",
-			binPath, daemonBinaryPath)
+	if fromBranch {
+		err := writeCoverageConfig()
 		c.Assert(err, check.IsNil)
 	}
 
 	err := writeEnvConfig(extraEnv)
 	c.Assert(err, check.IsNil)
 
-	_, err = cli.ExecCommandErr("sudo", "systemctl", "daemon-reload")
-	c.Assert(err, check.IsNil)
+	cli.ExecCommand(c, "sudo", "systemctl", "daemon-reload")
 
-	_, err = cli.ExecCommandErr("sudo", "systemctl", "start", "snapd.service")
-	c.Assert(err, check.IsNil)
+	cli.ExecCommand(c, "sudo", "systemctl", "start", "snapd.service")
 }
 
-func tearDownSnapd(fromBranch bool) error {
-	if _, err := cli.ExecCommandErr("sudo", "systemctl", "stop",
-		"snapd.service"); err != nil {
+func tearDownSnapd(c *check.C) {
+	cli.ExecCommand(c, "sudo", "systemctl", "stop",
+		"snapd.service")
+
+	cli.ExecCommand(c, "sudo", "rm", "-rf", cfgDir)
+
+	cli.ExecCommand(c, "sudo", "systemctl", "daemon-reload")
+
+	cli.ExecCommand(c, "sudo", "systemctl", "start", "snapd.service")
+}
+
+// this function writes a config file for snapd.service which clears and overrides the default
+// ExecStart setting adding the required flags for recording coverage info
+func writeCoverageConfig() error {
+	cfgFileName := "coverage.conf"
+	cfgFile := filepath.Join(cfgDir, cfgFileName)
+
+	binPath, err := filepath.Abs("integration-tests/bin/snapd")
+	if err != nil {
+		return err
+	}
+	cmd, err := cli.AddOptionsToCommand([]string{filepath.Base(binPath)})
+	cmd[0] = binPath
+
+	// the first ExecStart= is needed to reset the setting value according to
+	// https://www.freedesktop.org/software/systemd/man/systemd.service.html
+	cfgContent := []byte(fmt.Sprintf(`[Service]
+ExecStart=
+ExecStart=%s
+`, strings.Join(cmd, " ")))
+
+	fmt.Println("snapd coverage.conf:\n", string(cfgContent))
+
+	tmpFile := "/tmp/snapd." + cfgFileName
+	if err = ioutil.WriteFile(tmpFile, cfgContent, os.ModeExclusive); err != nil {
 		return err
 	}
 
-	if _, err := cli.ExecCommandErr("sudo", "rm", "-rf", cfgDir); err != nil {
+	if _, err = cli.ExecCommandErr("sudo", "mv", tmpFile, cfgFile); err != nil {
 		return err
 	}
-
-	if fromBranch {
-		if _, err := cli.ExecCommandErr("sudo", "umount", daemonBinaryPath); err != nil {
-			return err
-		}
-	}
-
-	if _, err := cli.ExecCommandErr("sudo", "systemctl", "daemon-reload"); err != nil {
-		return err
-	}
-
-	if _, err := cli.ExecCommandErr("sudo", "systemctl", "start",
-		"snapd.service"); err != nil {
-		return err
-	}
-
 	return nil
 }
 
 func writeEnvConfig(extraEnv string) error {
-	if _, err := cli.ExecCommandErr("sudo", "mkdir", "-p", cfgDir); err != nil {
-		return err
-	}
-
 	cfgFile := filepath.Join(cfgDir, "env.conf")
 	// FIXME: for now pass a test-only trusted key through an env var
 	trustedKey, err := filepath.Abs("integration-tests/data/trusted.acckey")

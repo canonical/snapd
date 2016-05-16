@@ -182,6 +182,35 @@ func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBefore(c *C) {
 	}
 }
 
+func (ovs *overlordSuite) TestEnsureBeforeSleepy(c *C) {
+	restoreIntv := overlord.MockEnsureInterval(10 * time.Minute)
+	defer restoreIntv()
+
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	witness := &witnessManager{
+		state:          o.State(),
+		expectedEnsure: 1,
+		ensureCalled:   make(chan struct{}),
+	}
+	se := o.Engine()
+	se.AddManager(witness)
+
+	o.Loop()
+	defer o.Stop()
+
+	overlord.MockEnsureNext(o, time.Now().Add(-10*time.Hour))
+
+	se.State().EnsureBefore(0)
+
+	select {
+	case <-witness.ensureCalled:
+	case <-time.After(2 * time.Second):
+		c.Fatal("Ensure calls not happening")
+	}
+}
+
 func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBeforeInEnsure(c *C) {
 	restoreIntv := overlord.MockEnsureInterval(10 * time.Minute)
 	defer restoreIntv()

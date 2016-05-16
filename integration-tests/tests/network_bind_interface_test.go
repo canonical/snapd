@@ -21,26 +21,26 @@
 package tests
 
 import (
+	"gopkg.in/check.v1"
+
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/data"
-
-	"gopkg.in/check.v1"
 )
 
-var _ = check.Suite(&networkInterfaceSuite{
+const providerURL = "http://127.0.0.1:8081"
+
+var _ = check.Suite(&networkBindInterfaceSuite{
 	interfaceSuite: interfaceSuite{
 		sampleSnaps: []string{data.NetworkBindConsumerSnapName, data.NetworkConsumerSnapName},
-		slot:        "network",
-		plug:        "network-consumer",
+		slot:        "network-bind",
+		plug:        "network-bind-consumer",
 		autoconnect: true}})
 
-type networkInterfaceSuite struct {
+type networkBindInterfaceSuite struct {
 	interfaceSuite
 }
 
-func (s *networkInterfaceSuite) TestPlugDisconnectionDisablesFunctionality(c *check.C) {
-	providerURL := "http://127.0.0.1:8081"
-
+func (s *networkBindInterfaceSuite) TestPlugDisconnectionDisablesClientConnection(c *check.C) {
 	output := cli.ExecCommand(c, "network-consumer", providerURL)
 	c.Assert(output, check.Equals, "ok\n")
 
@@ -51,5 +51,5 @@ func (s *networkInterfaceSuite) TestPlugDisconnectionDisablesFunctionality(c *ch
 	c.Assert(output, check.Matches, disconnectedPattern(s.slot, s.plug))
 
 	output = cli.ExecCommand(c, "network-consumer", providerURL)
-	c.Assert(output, check.Equals, "Error, reason:  [Errno 13] Permission denied\n")
+	c.Assert(output, check.Equals, "request timeout\n")
 }
