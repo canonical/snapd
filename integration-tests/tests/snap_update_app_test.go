@@ -61,10 +61,10 @@ func (s *snapRefreshAppSuite) TestAppUpdate(c *check.C) {
 	env := fmt.Sprintf(`SNAPPY_FORCE_CPI_URL=%s`, fakeStore.URL())
 	cfg, _ := config.ReadConfig(config.DefaultFileName)
 
-	tearDownSnapd(cfg.FromBranch)
+	tearDownSnapd(c)
 	defer setUpSnapd(c, cfg.FromBranch, "")
 	setUpSnapd(c, cfg.FromBranch, env)
-	defer tearDownSnapd(cfg.FromBranch)
+	defer tearDownSnapd(c)
 
 	// run the fake update
 	output := updates.CallFakeSnapRefresh(c, snap, updates.NoOp, fakeStore)

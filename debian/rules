@@ -78,7 +78,7 @@ override_dh_auto_install: snap.8
 	rm -f ${CURDIR}/debian/tmp/usr/bin/snappy
 
 snap.8:
-	${BUILDDIR}/bin/snap man > $@
+	${BUILDDIR}/bin/snap help --man > $@
 
 override_dh_auto_clean:
 	dh_auto_clean -O--buildsystem=golang
