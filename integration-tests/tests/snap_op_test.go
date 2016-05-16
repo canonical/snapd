@@ -111,7 +111,7 @@ func (s *snapOpSuite) TestRemoveBusyRetries(c *check.C) {
 		output := cli.ExecCommand(c, "snap", "changes")
 		id := regexp.MustCompile(`(?m)([0-9]+).*Doing.*Remove.*"`).FindStringSubmatch(output)[1]
 		needle = `will retry: `
-		wait.ForCommand(c, needle, "snap", "changes", id)
+		wait.ForCommand(c, needle, "snap", "change", id)
 
 		// now stop the service that blocks the umount
 		cli.ExecCommand(c, "sudo", "systemctl", "stop", blockerSrv)
@@ -157,7 +157,7 @@ func (s *snapOpSuite) TestInstallFailedIsUndone(c *check.C) {
 	expected := fmt.Sprintf(`(?ms).*\n(\d+) +Error.*Install "%s" snap\n$`, snapName)
 	id := regexp.MustCompile(expected).FindStringSubmatch(output)[1]
 
-	output = cli.ExecCommand(c, "snap", "changes", id)
+	output = cli.ExecCommand(c, "snap", "change", id)
 
 	type undoneCheckerFunc func(*check.C, string, string)
 	for _, fn := range []undoneCheckerFunc{
