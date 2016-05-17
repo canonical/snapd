@@ -134,6 +134,11 @@ func mapLocal(localSnap *snap.Info, active bool) map[string]interface{} {
 }
 
 func mapRemote(remoteSnap *snap.Info) map[string]interface{} {
+	status := "available"
+	if remoteSnap.MustBuy {
+		status = "priced"
+	}
+
 	result := map[string]interface{}{
 		"description":   remoteSnap.Description(),
 		"developer":     remoteSnap.Developer,
@@ -142,7 +147,7 @@ func mapRemote(remoteSnap *snap.Info) map[string]interface{} {
 		"id":            remoteSnap.SnapID,
 		"name":          remoteSnap.Name(),
 		"revision":      remoteSnap.Revision,
-		"status":        "available",
+		"status":        status,
 		"summary":       remoteSnap.Summary(),
 		"type":          string(remoteSnap.Type),
 		"version":       remoteSnap.Version,
