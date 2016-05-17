@@ -20,6 +20,7 @@
 package store
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -34,13 +35,15 @@ import (
 
 	"github.com/ubuntu-core/snappy/asserts"
 	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 )
 
 type remoteRepoTestSuite struct {
-	store *SnapUbuntuStoreRepository
+	store  *SnapUbuntuStoreRepository
+	logbuf *bytes.Buffer
 
 	origDownloadFunc func(string, io.Writer, *http.Request, progress.Meter) error
 }
@@ -60,10 +63,19 @@ func (t *remoteRepoTestSuite) SetUpTest(c *C) {
 	t.origDownloadFunc = download
 	dirs.SetRootDir(c.MkDir())
 	c.Assert(os.MkdirAll(dirs.SnapSnapsDir, 0755), IsNil)
+
+	t.logbuf = bytes.NewBuffer(nil)
+	l, err := logger.NewConsoleLog(t.logbuf, logger.DefaultFlags)
+	c.Assert(err, IsNil)
+	logger.SetLogger(l)
 }
 
 func (t *remoteRepoTestSuite) TearDownTest(c *C) {
 	download = t.origDownloadFunc
+}
+
+func (t *remoteRepoTestSuite) TearDownSuite(c *C) {
+	logger.SimpleSetup()
 }
 
 func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
@@ -661,6 +673,55 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindSetsAuth(c *C) {
 	c.Check(snaps[0].SnapID, Equals, helloWorldSnapID)
 	c.Check(snaps[0].Prices, DeepEquals, map[string]float64{"EUR": 2.99, "USD": 3.49})
 	c.Check(snaps[0].MustBuy, Equals, false)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreFindAuthFailed(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// check authorization is set
+		authorization := r.Header.Get("Authorization")
+		c.Check(authorization, Equals, "Authorization-details")
+
+		c.Check(r.URL.RawQuery, Equals, "q=foo")
+		w.Header().Set("Content-Type", "application/hal+json")
+		io.WriteString(w, MockSearchJSON)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "stable")
+		c.Check(r.Header.Get("Authorization"), Equals, "Authorization-details")
+		c.Check(r.URL.Path, Equals, "/dev/api/snap-purchases/"+helloWorldSnapID+"/")
+		w.WriteHeader(http.StatusUnauthorized)
+		io.WriteString(w, "{}")
+	}))
+	c.Assert(mockPurchasesServer, NotNil)
+	defer mockPurchasesServer.Close()
+
+	var err error
+	searchURI, err := url.Parse(mockServer.URL)
+	c.Assert(err, IsNil)
+	purchasesURI, err := url.Parse(mockPurchasesServer.URL + "/dev/api/snap-purchases/")
+	c.Assert(err, IsNil)
+	cfg := SnapUbuntuStoreConfig{
+		SearchURI:    searchURI,
+		PurchasesURI: purchasesURI,
+	}
+	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	c.Assert(repo, NotNil)
+
+	authenticator := &fakeAuthenticator{}
+	snaps, err := repo.FindSnaps("foo", "", authenticator)
+	c.Assert(err, IsNil)
+
+	// Check that we log an error.
+	c.Check(t.logbuf.String(), Matches, "(?ms).* cannot get user purchases: invalid credentials")
+
+	// But still successfully return snap information.
+	c.Assert(snaps, HasLen, 1)
+	c.Check(snaps[0].SnapID, Equals, helloWorldSnapID)
+	c.Check(snaps[0].Prices, DeepEquals, map[string]float64{"EUR": 2.99, "USD": 3.49})
+	c.Check(snaps[0].MustBuy, Equals, true)
 }
 
 /* acquired via:
