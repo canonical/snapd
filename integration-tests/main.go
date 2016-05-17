@@ -24,7 +24,6 @@ import (
 	"flag"
 	"log"
 	"os"
-	"path/filepath"
 	"strconv"
 
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/autopkgtest"
@@ -36,13 +35,15 @@ import (
 
 const (
 	defaultOutputDir = "/tmp/snappy-test"
-	defaultRelease   = "rolling"
+	defaultRelease   = "16"
 	defaultChannel   = "edge"
 	defaultSSHPort   = 22
 	dataOutputDir    = "integration-tests/data/output/"
-)
 
-var configFileName = filepath.Join(dataOutputDir, "testconfig.json")
+	defaultKernel = "canonical-pc-linux"
+	defaultOS     = "ubuntu-core"
+	defaultGadget = "canonical-pc"
+)
 
 func main() {
 	var (
@@ -62,6 +63,14 @@ func main() {
 			"Channel of the image to be built, defaults to "+defaultChannel)
 		imgRevision = flag.String("revision", "",
 			"Revision of the image to be built (can be relative to the latest available revision in the given release and channel as in -1), defaults to the empty string")
+
+		imgOS = flag.String("os", defaultOS,
+			"OS snap of the image to be built, defaults to "+defaultOS)
+		imgKernel = flag.String("kernel", defaultKernel,
+			"Kernel snap of the image to be built, defaults to "+defaultKernel)
+		imgGadget = flag.String("gadget", defaultGadget,
+			"Gadget snap of the image to be built, defaults to "+defaultGadget)
+
 		update = flag.Bool("update", false,
 			"If this flag is used, the image will be updated before running the tests.")
 		rollback = flag.Bool("rollback", false,
@@ -69,6 +78,7 @@ func main() {
 		outputDir     = flag.String("output-dir", defaultOutputDir, "Directory where test artifacts will be stored.")
 		shellOnFail   = flag.Bool("shell-fail", false, "Run a shell in the testbed if the suite fails.")
 		testBuildTags = flag.String("test-build-tags", "", "Build tags to be passed to the go test command")
+		httpProxy     = flag.String("http-proxy", "", "HTTP proxy to set in the testbed.")
 	)
 
 	flag.Parse()
@@ -86,8 +96,15 @@ func main() {
 
 	// TODO: pass the config as arguments to the test binaries.
 	// --elopio - 2015-07-15
-	cfg := config.NewConfig(
-		configFileName, *imgRelease, *imgChannel, remoteTestbed, *update, *rollback)
+	cfg := &config.Config{
+		FileName:      config.DefaultFileName,
+		Release:       *imgRelease,
+		Channel:       *imgChannel,
+		RemoteTestbed: remoteTestbed,
+		Update:        *update,
+		Rollback:      *rollback,
+		FromBranch:    *useSnappyFromBranch,
+	}
 	cfg.Write()
 
 	rootPath := testutils.RootPath()
@@ -98,20 +115,34 @@ func main() {
 		TestFilter:          *testFilter,
 		IntegrationTestName: build.IntegrationTestName,
 		ShellOnFail:         *shellOnFail,
+		Env: map[string]string{
+			"http_proxy":         *httpProxy,
+			"https_proxy":        *httpProxy,
+			"no_proxy":           "127.0.0.1,127.0.1.1,localhost,login.ubuntu.com",
+			"TEST_USER_NAME":     os.Getenv("TEST_USER_NAME"),
+			"TEST_USER_PASSWORD": os.Getenv("TEST_USER_PASSWORD"),
+		},
 	}
 	if !remoteTestbed {
-		img := image.NewImage(*imgRelease, *imgChannel, *imgRevision, *outputDir)
+		img := &image.Image{
+			Release:  *imgRelease,
+			Channel:  *imgChannel,
+			Revision: *imgRevision,
+			OS:       *imgOS,
+			Kernel:   *imgKernel,
+			Gadget:   *imgGadget,
+			BaseDir:  *outputDir}
 
 		if imagePath, err := img.UdfCreate(); err == nil {
 			if err = test.AdtRunLocal(imagePath); err != nil {
-				log.Panic(err.Error())
+				log.Panicf("%s", err)
 			}
 		} else {
-			log.Panic(err.Error())
+			log.Panicf("%s", err)
 		}
 	} else {
 		if err := test.AdtRunRemote(*testbedIP, *testbedPort); err != nil {
-			log.Panic(err.Error())
+			log.Panicf("%s", err)
 		}
 	}
 }
