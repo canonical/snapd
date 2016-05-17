@@ -31,9 +31,9 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/kr/pty"
 	"gopkg.in/check.v1"
 
+	"github.com/kr/pty"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/wait"
@@ -46,6 +46,44 @@ const (
 	password         = "password"
 )
 
+var stdout bytes.Buffer
+
+func authenticate(loginName, pass string) error {
+	cmds, _ := cli.AddOptionsToCommand([]string{"snap", "login", loginName})
+	cmd := exec.Command(cmds[0], cmds[1:]...)
+	f, err := pty.Start(cmd)
+	if err != nil {
+		return err
+	}
+
+	err = cmdInteract(f, "Password: ", pass)
+	if err != nil {
+		return err
+	}
+	io.Copy(&stdout, f)
+
+	return nil
+}
+
+func cmdInteract(f *os.File, prompt, input string) error {
+	buf := make([]byte, len(prompt))
+
+	_, err := io.ReadFull(f, buf)
+	if err != nil {
+		return err
+	}
+
+	if string(buf) != prompt {
+		return fmt.Errorf("got unexpected prompt: %q, expecting %s", string(buf), prompt)
+	}
+
+	if _, err := f.Write([]byte(input + "\n")); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 var _ = check.Suite(&loginSuite{})
 
 type loginSuite struct {
@@ -53,32 +91,30 @@ type loginSuite struct {
 
 	server         *httptest.Server
 	serverAddrPort string
-
-	stdout bytes.Buffer
 }
 
-func (s *loginSuite) TestEmptyLoginNameError(c *check.C) {
+func (s *loginSuite) TestStoreEmptyLoginNameError(c *check.C) {
 	output, err := cli.ExecCommandErr("sudo", "snap", "login")
 
 	c.Assert(err, check.NotNil, check.Commentf("expecting empty login error"))
-	c.Assert(output, check.Equals, "error: the required argument `userid` was not provided\n")
+	c.Assert(output, check.Equals, "error: the required argument `email` was not provided\n")
 }
 
-func (s *loginSuite) TestInvalidLoginError(c *check.C) {
-	err := s.writeCredentials(invalidLoginName)
+func (s *loginSuite) TestStoreInvalidLoginError(c *check.C) {
+	err := authenticate(invalidLoginName, password)
 	c.Assert(err, check.IsNil, check.Commentf("error writting credentials"))
 
 	expectedMsg := "Invalid request data"
-	err = wait.ForFunction(c, expectedMsg, func() (string, error) { return s.stdout.String(), err })
+	err = wait.ForFunction(c, expectedMsg, func() (string, error) { return stdout.String(), err })
 	c.Assert(err, check.IsNil, check.Commentf("didn't get expected invalid data error: %v", err))
 }
 
-func (s *loginSuite) TestInvalidCredentialsError(c *check.C) {
-	err := s.writeCredentials(validLoginName)
+func (s *loginSuite) TestStoreInvalidCredentialsError(c *check.C) {
+	err := authenticate(validLoginName, password)
 	c.Assert(err, check.IsNil, check.Commentf("error writting credentials"))
 
 	expectedMsg := "Provided email/password is not correct"
-	err = wait.ForFunction(c, expectedMsg, func() (string, error) { return s.stdout.String(), err })
+	err = wait.ForFunction(c, expectedMsg, func() (string, error) { return stdout.String(), err })
 	c.Assert(err, check.IsNil, check.Commentf("didn't get expected invalid credentials error: %v", err))
 }
 
@@ -88,11 +124,11 @@ func (s *loginSuite) TestFakeServerIsDetected(c *check.C) {
 	defer s.tearDownIPTables(c)
 	defer s.tearDownHTTPServer()
 
-	err := s.writeCredentials(validLoginName)
+	err := authenticate(validLoginName, password)
 	c.Assert(err, check.IsNil, check.Commentf("error writting credentials"))
 
 	expectedMsg := fmt.Sprintf("Post https://%s/api/v2/tokens/discharge: x509: certificate is valid for example.com, not %s", loginHost, loginHost)
-	err = wait.ForFunction(c, expectedMsg, func() (string, error) { return s.stdout.String(), err })
+	err = wait.ForFunction(c, expectedMsg, func() (string, error) { return stdout.String(), err })
 	c.Assert(err, check.IsNil, check.Commentf("didn't get expected fake server error: %v", err))
 }
 
@@ -139,38 +175,23 @@ func ipTablesCommand(action, serverAddrPort string) []string {
 		"--to-destination", serverAddrPort}
 }
 
-func (s *loginSuite) writeCredentials(loginName string) error {
-	cmds, _ := cli.AddOptionsToCommand([]string{"sudo", "snap", "login", loginName})
-	cmd := exec.Command(cmds[0], cmds[1:]...)
-	f, err := pty.Start(cmd)
-	if err != nil {
-		return err
-	}
+var _ = check.Suite(&storeSuite{})
 
-	err = cmdInteract(f, "Password: ", password)
-	if err != nil {
-		return err
-	}
-	io.Copy(&s.stdout, f)
-
-	return nil
+type storeSuite struct {
+	common.SnappySuite
 }
 
-func cmdInteract(f *os.File, prompt, input string) error {
-	buf := make([]byte, len(prompt))
+func (s *storeSuite) TestStoreLoginLogout(c *check.C) {
+	username := os.Getenv("TEST_USER_NAME")
+	password := os.Getenv("TEST_USER_PASSWORD")
 
-	_, err := io.ReadFull(f, buf)
-	if err != nil {
-		return err
+	if username == "" || password == "" {
+		c.Skip("$TEST_USER_NAME or $TEST_USER_PASSWORD not defined")
 	}
 
-	if string(buf) != prompt {
-		return fmt.Errorf("got unexpected prompt: %q, expecting %s", string(buf), prompt)
-	}
+	err := authenticate(username, password)
+	c.Assert(err, check.IsNil)
 
-	if _, err := f.Write([]byte(input + "\n")); err != nil {
-		return err
-	}
-
-	return nil
+	output := cli.ExecCommand(c, "snap", "logout")
+	c.Assert(output, check.Equals, "\n")
 }

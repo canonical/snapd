@@ -116,9 +116,11 @@ func main() {
 		IntegrationTestName: build.IntegrationTestName,
 		ShellOnFail:         *shellOnFail,
 		Env: map[string]string{
-			"http_proxy":  *httpProxy,
-			"https_proxy": *httpProxy,
-			"no_proxy":    "127.0.0.1,127.0.1.1,localhost,login.ubuntu.com",
+			"http_proxy":         *httpProxy,
+			"https_proxy":        *httpProxy,
+			"no_proxy":           "127.0.0.1,127.0.1.1,localhost,login.ubuntu.com",
+			"TEST_USER_NAME":     os.Getenv("TEST_USER_NAME"),
+			"TEST_USER_PASSWORD": os.Getenv("TEST_USER_PASSWORD"),
 		},
 	}
 	if !remoteTestbed {

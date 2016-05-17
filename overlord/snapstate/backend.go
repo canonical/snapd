@@ -20,6 +20,7 @@
 package snapstate
 
 import (
+	"github.com/ubuntu-core/snappy/overlord/snapstate/backend"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
@@ -48,7 +49,10 @@ type managerBackend interface {
 	Candidate(sideInfo *snap.SideInfo)
 }
 
-type defaultBackend struct{}
+type defaultBackend struct {
+	// XXX defaultBackend will go away and be replaced by this in the end.
+	backend.Backend
+}
 
 func (b *defaultBackend) Candidate(*snap.SideInfo) {}
 
@@ -88,11 +92,6 @@ func (b *defaultBackend) CopySnapData(newInfo, oldInfo *snap.Info, flags int) er
 	return snappy.CopyData(newInfo, oldInfo, snappy.InstallFlags(flags), meter)
 }
 
-func (b *defaultBackend) LinkSnap(info *snap.Info) error {
-	meter := &progress.NullProgress{}
-	return snappy.LinkSnap(info, meter)
-}
-
 func (b *defaultBackend) UndoSetupSnap(s snap.PlaceInfo) error {
 	meter := &progress.NullProgress{}
 	snappy.UndoSetupSnap(s, meter)
@@ -107,10 +106,6 @@ func (b *defaultBackend) UndoCopySnapData(newInfo *snap.Info, flags int) error {
 
 func (b *defaultBackend) CanRemove(info *snap.Info, active bool) bool {
 	return snappy.CanRemove(info, active)
-}
-
-func (b *defaultBackend) UnlinkSnap(info *snap.Info, meter progress.Meter) error {
-	return snappy.UnlinkSnap(info, meter)
 }
 
 func (b *defaultBackend) RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error {
