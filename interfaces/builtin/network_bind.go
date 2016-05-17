@@ -53,8 +53,10 @@ const networkBindConnectedPlugAppArmor = `
 # this area. The issue is complicated because reservied policy groups like
 # 'network-admin' and 'network-firewall' have legitimate use for this rule,
 # however a network facing server shouldn't typically be running with these
-# policy groups. For now, explicitly deny to silence the denial. LP: #1499897
-deny network netlink dgram,
+# policy groups. LP: #1499897
+# Note: for now, don't explicitly deny this noisy denial so --devmode isn't
+# broken but eventually we may conditionally deny this.
+#deny network netlink dgram,
 `
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/network-bind
