@@ -25,6 +25,7 @@ import (
 	"github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/interfaces/builtin"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/testutil"
 )
 
@@ -71,9 +72,10 @@ func (s *NetworkManagerInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(
 			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
+	release.OnClassic = false
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, "peer=(label=snap.network-manager.*),")
+	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.network-manager.*"),`)
 }
 
 // The label uses alternation when some, but not all, apps is bound to the network-manager slot
@@ -92,9 +94,10 @@ func (s *NetworkManagerInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome
 			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 		},
 	}
+	release.OnClassic = false
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, "peer=(label=snap.network-manager.{app1,app2}),")
+	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.network-manager.{app1,app2}"),`)
 }
 
 // The label uses short form when exactly one app is bound to the network-manager slot
@@ -111,9 +114,18 @@ func (s *NetworkManagerInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(
 			Apps:      map[string]*snap.AppInfo{"app": app},
 		},
 	}
+	release.OnClassic = false
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, "peer=(label=snap.network-manager.app),")
+	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.network-manager.app"),`)
+}
+
+func (s *NetworkManagerInterfaceSuite) TestConnectedPlugSnippedUsesUnconfinedLabelOnClassic(c *C) {
+	slot := &interfaces.Slot{}
+	release.OnClassic = true
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(string(snippet), testutil.Contains, "peer=(label=unconfined),")
 }
 
 func (s *NetworkManagerInterfaceSuite) TestUnusedSecuritySystems(c *C) {
