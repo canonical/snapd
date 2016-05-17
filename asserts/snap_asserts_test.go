@@ -70,6 +70,24 @@ func (sds *snapDeclSuite) TestDecodeOK(c *C) {
 	c.Check(snapDecl.Gates(), DeepEquals, []string{"snap-id-3", "snap-id-4"})
 }
 
+func (sds *snapDeclSuite) TestEmptySnapName(c *C) {
+	encoded := "type: snap-declaration\n" +
+		"authority-id: canonical\n" +
+		"series: 16\n" +
+		"snap-id: snap-id-1\n" +
+		"snap-name: \n" +
+		"publisher-id: dev-id1\n" +
+		"gates: snap-id-3,snap-id-4\n" +
+		sds.tsLine +
+		"body-length: 0" +
+		"\n\n" +
+		"openpgp c2ln"
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	snapDecl := a.(*asserts.SnapDeclaration)
+	c.Check(snapDecl.SnapName(), Equals, "")
+}
+
 const (
 	snapDeclErrPrefix = "assertion snap-declaration: "
 )
@@ -93,7 +111,6 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 		{"snap-id: snap-id-1\n", "", `"snap-id" header is mandatory`},
 		{"snap-id: snap-id-1\n", "snap-id: \n", `"snap-id" header should not be empty`},
 		{"snap-name: first\n", "", `"snap-name" header is mandatory`},
-		{"snap-name: first\n", "snap-name: \n", `"snap-name" header should not be empty`},
 		{"publisher-id: dev-id1\n", "", `"publisher-id" header is mandatory`},
 		{"publisher-id: dev-id1\n", "publisher-id: \n", `"publisher-id" header should not be empty`},
 		{sds.tsLine, "", `"timestamp" header is mandatory`},
