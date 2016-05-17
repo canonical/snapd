@@ -65,7 +65,7 @@ func (snapdcl *SnapDeclaration) Timestamp() time.Time {
 // XXX: consistency check is signed by canonical
 
 func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
-	_, err := checkNotEmpty(assert.headers, "snap-name")
+	_, err := checkMandatory(assert.headers, "snap-name")
 	if err != nil {
 		return nil, err
 	}
