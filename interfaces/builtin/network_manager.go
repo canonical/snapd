@@ -23,6 +23,7 @@ import (
 	"bytes"
 
 	"github.com/ubuntu-core/snappy/interfaces"
+	"github.com/ubuntu-core/snappy/release"
 )
 
 var networkManagerPermanentSlotAppArmor = []byte(`
@@ -377,7 +378,14 @@ func (iface *NetworkManagerInterface) ConnectedPlugSnippet(plug *interfaces.Plug
 		return nil, nil
 	case interfaces.SecurityAppArmor:
 		old := []byte("###SLOT_SECURITY_TAGS###")
-		new := slotAppLabelExpr(slot)
+		new := []byte("")
+		if release.OnClassic {
+			// If we're running on classic NetworkManager will be part
+			// of the OS snap and will run unconfined.
+			new = []byte("unconfined");
+		} else {
+			new = slotAppLabelExpr(slot)
+		}
 		snippet := bytes.Replace(networkManagerConnectedPlugAppArmor, old, new, -1)
 		return snippet, nil
 	case interfaces.SecuritySecComp:
