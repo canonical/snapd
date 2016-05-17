@@ -28,10 +28,18 @@ import (
 
 // common checks used when decoding/assembling assertions
 
-func checkNotEmpty(headers map[string]string, name string) (string, error) {
+func checkMandatory(headers map[string]string, name string) (string, error) {
 	value, ok := headers[name]
 	if !ok {
 		return "", fmt.Errorf("%q header is mandatory", name)
+	}
+	return value, nil
+}
+
+func checkNotEmpty(headers map[string]string, name string) (string, error) {
+	value, err := checkMandatory(headers, name)
+	if err != nil {
+		return "", err
 	}
 	if len(value) == 0 {
 		return "", fmt.Errorf("%q header should not be empty", name)
