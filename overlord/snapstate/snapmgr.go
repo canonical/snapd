@@ -112,7 +112,7 @@ func Manager(s *state.State) (*SnapManager, error) {
 		return nil
 	}, nil)
 
-	// install/update releated
+	// install/update related
 	runner.AddHandler("prepare-snap", m.doPrepareSnap, m.undoPrepareSnap)
 	runner.AddHandler("download-snap", m.doDownloadSnap, m.undoPrepareSnap)
 	runner.AddHandler("mount-snap", m.doMountSnap, m.undoMountSnap)
@@ -122,7 +122,7 @@ func Manager(s *state.State) (*SnapManager, error) {
 	// FIXME: port to native tasks and rename
 	//runner.AddHandler("garbage-collect", m.doGarbageCollect, nil)
 
-	// remove releated
+	// remove related
 	runner.AddHandler("unlink-snap", m.doUnlinkSnap, nil)
 	runner.AddHandler("clear-snap", m.doClearSnapData, nil)
 	runner.AddHandler("discard-snap", m.doDiscardSnap, nil)

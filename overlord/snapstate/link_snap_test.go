@@ -68,15 +68,17 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
 		Name:    "foo",
 		Channel: "beta",
 	})
+	s.state.NewChange("dummy", "...").AddTask(t)
+
 	s.state.Unlock()
 
-	err := snapstate.RunDoHandler(s.snapmgr, "link-snap", t)
-	c.Assert(err, IsNil)
+	s.snapmgr.Ensure()
+	s.snapmgr.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
 	var snapst snapstate.SnapState
-	err = snapstate.Get(s.state, "foo", &snapst)
+	err := snapstate.Get(s.state, "foo", &snapst)
 	c.Assert(err, IsNil)
 	c.Check(snapst.Active, Equals, true)
 	c.Check(snapst.Sequence, HasLen, 1)
@@ -100,30 +102,26 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 		Name:    "foo",
 		Channel: "beta",
 	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(t)
+	chg.AddTask(terr)
 
 	s.state.Unlock()
-	err := snapstate.RunDoHandler(s.snapmgr, "link-snap", t)
-	s.state.Lock()
-	c.Assert(err, IsNil)
 
+	s.snapmgr.Ensure()
+	s.snapmgr.Wait()
+
+	s.state.Lock()
 	var snapst snapstate.SnapState
-	err = snapstate.Get(s.state, "foo", &snapst)
+	err := snapstate.Get(s.state, "foo", &snapst)
 	c.Assert(err, IsNil)
-	c.Check(snapst.Active, Equals, true)
-	c.Check(snapst.Sequence, HasLen, 1)
-
-	s.state.Unlock()
-	err = snapstate.RunUndoHandler(s.snapmgr, "link-snap", t)
-	s.state.Lock()
-	c.Assert(err, IsNil)
-
-	var snapst2 snapstate.SnapState
-	err = snapstate.Get(s.state, "foo", &snapst2)
-	c.Assert(err, IsNil)
-	c.Check(snapst2.Active, Equals, false)
-	c.Check(snapst2.Sequence, HasLen, 0)
-	c.Check(snapst2.Candidate, DeepEquals, si)
-	c.Check(snapst2.Channel, Equals, "")
+	c.Check(snapst.Active, Equals, false)
+	c.Check(snapst.Sequence, HasLen, 0)
+	c.Check(snapst.Candidate, DeepEquals, si)
+	c.Check(snapst.Channel, Equals, "")
 	c.Check(t.Status(), Equals, state.UndoneStatus)
 }
 
@@ -144,21 +142,23 @@ func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 	})
 
 	s.fakeBackend.linkSnapFailTrigger = "/snap/foo/35"
-
+	s.state.NewChange("dummy", "...").AddTask(t)
 	s.state.Unlock()
-	err := snapstate.RunDoHandler(s.snapmgr, "link-snap", t)
+
+	s.snapmgr.Ensure()
+	s.snapmgr.Wait()
+
 	s.state.Lock()
-	c.Assert(err, NotNil)
 
 	// state as expected
 	var snapst snapstate.SnapState
-	err = snapstate.Get(s.state, "foo", &snapst)
+	err := snapstate.Get(s.state, "foo", &snapst)
 	c.Assert(err, IsNil)
 	c.Check(snapst.Active, Equals, false)
 	c.Check(snapst.Sequence, HasLen, 0)
 	c.Check(snapst.Candidate, DeepEquals, si)
 	c.Check(snapst.Channel, Equals, "")
-	c.Check(t.Status(), Equals, state.DoingStatus)
+	c.Check(t.Status(), Equals, state.ErrorStatus)
 
 	// tried to cleanup
 	c.Check(s.fakeBackend.ops, DeepEquals, []fakeOp{
