@@ -25,27 +25,28 @@ import (
 	"sort"
 
 	"github.com/ubuntu-core/snappy/interfaces"
+	"github.com/ubuntu-core/snappy/snap"
 )
 
-// slotAppLabelExpr returns the specification of the apparmor label describing
+// AppLabelExpr returns the specification of the apparmor label describing
 // all the apps bound to a given slot. The result has one of three forms,
 // depending on how apps are bound to the slot:
 //
 // - "snap.$snap.$app" if there is exactly one app bound
 // - "snap.$snap.{$app1,...$appN}" if there are some, but not all, apps bound
 // - "snap.$snap.*" if all apps are bound to the slot
-func slotAppLabelExpr(slot *interfaces.Slot) []byte {
+func appLabelExpr(apps map[string]*snap.AppInfo, snap *snap.Info) []byte {
 	var buf bytes.Buffer
-	fmt.Fprintf(&buf, `"snap.%s.`, slot.Snap.Name())
-	if len(slot.Apps) == 1 {
-		for appName := range slot.Apps {
+	fmt.Fprintf(&buf, `"snap.%s.`, snap.Name())
+	if len(apps) == 1 {
+		for appName := range apps {
 			buf.WriteString(appName)
 		}
-	} else if len(slot.Apps) == len(slot.Snap.Apps) {
+	} else if len(apps) == len(snap.Apps) {
 		buf.WriteByte('*')
 	} else {
-		appNames := make([]string, 0, len(slot.Apps))
-		for appName := range slot.Apps {
+		appNames := make([]string, 0, len(apps))
+		for appName := range apps {
 			appNames = append(appNames, appName)
 		}
 		sort.Strings(appNames)
@@ -61,36 +62,10 @@ func slotAppLabelExpr(slot *interfaces.Slot) []byte {
 	return buf.Bytes()
 }
 
-// plugAppLabelExpr returns the specification of the apparmor label describing
-// all the apps bound to a given plug. The result has one of three forms,
-// depending on how apps are bound to the plug:
-//
-// - "snap.$snap.$app" if there is exactly one app bound
-// - "snap.$snap.{$app1,...$appN}" if there are some, but not all, apps bound
-// - "snap.$snap.*" if all apps are bound to the plug
+func slotAppLabelExpr(slot *interfaces.Slot) []byte {
+	return appLabelExpr(slot.Apps, slot.Snap)
+}
+
 func plugAppLabelExpr(plug *interfaces.Plug) []byte {
-	var buf bytes.Buffer
-	fmt.Fprintf(&buf, `"snap.%s.`, plug.Snap.Name())
-	if len(plug.Apps) == 1 {
-		for appName := range plug.Apps {
-			buf.WriteString(appName)
-		}
-	} else if len(plug.Apps) == len(plug.Snap.Apps) {
-		buf.WriteByte('*')
-	} else {
-		appNames := make([]string, 0, len(plug.Apps))
-		for appName := range plug.Apps {
-			appNames = append(appNames, appName)
-		}
-		sort.Strings(appNames)
-		buf.WriteByte('{')
-		for _, appName := range appNames {
-			buf.WriteString(appName)
-			buf.WriteByte(',')
-		}
-		buf.Truncate(buf.Len() - 1)
-		buf.WriteByte('}')
-	}
-	buf.WriteByte('"')
-	return buf.Bytes()
+	return appLabelExpr(plug.Apps, plug.Snap)
 }
