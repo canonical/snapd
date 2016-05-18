@@ -223,7 +223,7 @@ sendmsg
 socket
 `)
 
-var networkManagerPermantedSlotDBus = []byte(`
+var networkManagerPermanentSlotDBus = []byte(`
 <!-- DBus policy for NetworkManager (upstream version 1.2) -->
 <policy user="root">
     <allow own="org.freedesktop.NetworkManager"/>
@@ -406,7 +406,7 @@ func (iface *NetworkManagerInterface) PermanentSlotSnippet(slot *interfaces.Slot
 	case interfaces.SecurityUDev:
 		return nil, nil
 	case interfaces.SecurityDBus:
-		return networkManagerPermantedSlotDBus, nil
+		return networkManagerPermanentSlotDBus, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
 	}
