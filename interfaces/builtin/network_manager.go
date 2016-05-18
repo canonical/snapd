@@ -114,7 +114,7 @@ dbus (receive, send)
 dbus (receive, send)
     bus=system
     path=/org/freedesktop/NetworkManager{,/**}
-    interface=org.freedesktop.DBus.**,
+    interface=org.freedesktop.DBus.*,
 
 # Allow access to hostname system service
 dbus (send)
@@ -146,7 +146,7 @@ dbus (receive, send)
 dbus (receive, send)
     bus=system
     path=/fi/w1/wpa_supplicant1{,/**}
-    interface=org.freedesktop.DBus.**
+    interface=org.freedesktop.DBus.*
     peer=(label=unconfined),
 `)
 
