@@ -272,7 +272,6 @@ func (iface *LocationInterface) PermanentSlotSnippet(slot *interfaces.Slot, secu
 
 func (iface *LocationInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	// FIXME: This doesn't handle multiple plugs
 	case interfaces.SecurityAppArmor:
 		old := []byte("###PLUG_SECURITY_TAGS###")
 		new := plugAppLabelExpr(plug)
