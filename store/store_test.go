@@ -953,7 +953,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecoratePurchasesFailedAccess(c *C)
 	c.Assert(mockPurchasesServer, NotNil)
 	defer mockPurchasesServer.Close()
 
-	var err error
 	purchasesURI, err := url.Parse(mockPurchasesServer.URL + "/click/purchases/")
 	c.Assert(err, IsNil)
 	cfg := SnapUbuntuStoreConfig{
@@ -1082,7 +1081,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesSingleNotFound(c *C) {
 	c.Assert(mockPurchasesServer, NotNil)
 	defer mockPurchasesServer.Close()
 
-	var err error
 	purchasesURI, err := url.Parse(mockPurchasesServer.URL + "/click/purchases/")
 	c.Assert(err, IsNil)
 	cfg := SnapUbuntuStoreConfig{
@@ -1116,7 +1114,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesTokenExpired(c *C) {
 	c.Assert(mockPurchasesServer, NotNil)
 	defer mockPurchasesServer.Close()
 
-	var err error
 	purchasesURI, err := url.Parse(mockPurchasesServer.URL + "/click/purchases/")
 	c.Assert(err, IsNil)
 	cfg := SnapUbuntuStoreConfig{

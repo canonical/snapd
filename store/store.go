@@ -309,6 +309,7 @@ func (s *SnapUbuntuStoreRepository) getPurchasesFromURL(url *url.URL, channel st
 	case http.StatusOK:
 		dec := json.NewDecoder(resp.Body)
 		if err := dec.Decode(&purchases); err != nil {
+			// XXX why are they "known purchases" and not just purchases? When is a purchase not known?
 			return nil, fmt.Errorf("cannot decode known purchases from store: %v", err)
 		}
 	case http.StatusUnauthorized:
@@ -321,70 +322,42 @@ func (s *SnapUbuntuStoreRepository) getPurchasesFromURL(url *url.URL, channel st
 	return purchases, nil
 }
 
-func setMustBuy(snaps []*snap.Info) {
-	for _, info := range snaps {
-		if len(info.Prices) != 0 {
-			info.MustBuy = true
-		}
-	}
-}
-
-func hasPriced(snaps []*snap.Info) bool {
-	// Search through the list of snaps to see if any are priced
-	for _, info := range snaps {
-		if len(info.Prices) != 0 {
-			return true
-		}
-	}
-	return false
-}
-
 // decorateAllPurchases sets the MustBuy property of each snap in the given list according to the user's known purchases.
 func (s *SnapUbuntuStoreRepository) decoratePurchases(snaps []*snap.Info, channel string, auther Authenticator) error {
-	// Mark every non-free snap as must buy until we know better.
-	setMustBuy(snaps)
-
-	if auther == nil {
-		return nil
-	}
-
-	if !hasPriced(snaps) {
-		return nil
-	}
-
-	var err error
-	var purchasesURL *url.URL
-
-	if len(snaps) == 1 {
-		// If we only have a single snap, we should only find the purchases for that snap
-		purchasesURL, err = s.purchasesURI.Parse(snaps[0].SnapID + "/")
-		if err != nil {
-			return err
-		}
-		q := purchasesURL.Query()
-		q.Set("include_item_purchases", "true")
-		purchasesURL.RawQuery = q.Encode()
-	} else {
-		// Inconsistently, global search implies include_item_purchases.
-		purchasesURL = s.purchasesURI
-	}
-
-	purchases, err := s.getPurchasesFromURL(purchasesURL, channel, auther)
-	if err != nil {
-		return err
-	}
-
-	// Group purchases by snap ID.
 	purchasesByID := make(map[string][]*purchase)
-	for _, purchase := range purchases {
-		purchasesByID[purchase.SnapID] = append(purchasesByID[purchase.SnapID], purchase)
+	var err error
+
+	if auther != nil && s.purchasesURI != nil {
+		var purchasesURL *url.URL
+
+		if len(snaps) == 1 {
+			// If we only have a single snap, we should only find the purchases for that snap
+			purchasesURL, err = s.purchasesURI.Parse(snaps[0].SnapID + "/")
+			if err != nil {
+				return err
+			}
+			q := purchasesURL.Query()
+			q.Set("include_item_purchases", "true")
+			purchasesURL.RawQuery = q.Encode()
+		} else {
+			// Inconsistently, global search implies include_item_purchases.
+			purchasesURL = s.purchasesURI
+		}
+
+		var purchases []*purchase
+		purchases, err = s.getPurchasesFromURL(purchasesURL, channel, auther)
+
+		// Group purchases by snap ID.
+		for _, purchase := range purchases {
+			purchasesByID[purchase.SnapID] = append(purchasesByID[purchase.SnapID], purchase)
+		}
 	}
 
 	for _, info := range snaps {
 		info.MustBuy = mustBuy(info.Prices, purchasesByID[info.SnapID])
 	}
 
-	return nil
+	return err
 }
 
 // mustBuy determines if a snap requires a payment, based on if it is non-free and if the user has already bought it
