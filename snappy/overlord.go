@@ -116,7 +116,7 @@ func SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, flags InstallFlags,
 	// FIXME: special handling is bad 'mkay
 	if s.Type == snap.TypeKernel {
 		if err := extractKernelAssets(s, snapf, flags, meter); err != nil {
-			return s, fmt.Errorf("failed to install kernel %s", err)
+			return s, fmt.Errorf("failed to install kernel: %s", err)
 		}
 	}
 

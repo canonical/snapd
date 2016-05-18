@@ -22,22 +22,17 @@ package snappy
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/partition"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 )
-
-// dropVersionSuffix drops the kernel/initrd version suffix,
-// e.g. "vmlinuz-4.1.0" -> "vmlinuz".
-func dropVersionSuffix(name string) string {
-	name = filepath.Base(name)
-	return strings.SplitN(name, "-", 2)[0]
-}
 
 // override in tests
 var findBootloader = partition.FindBootloader
@@ -60,17 +55,30 @@ func removeKernelAssets(s snap.PlaceInfo, inter interacter) error {
 	return nil
 }
 
+func copyAll(src, dst string) error {
+	if output, err := exec.Command("cp", "-a", src, dst).CombinedOutput(); err != nil {
+		return fmt.Errorf("cannot copy %q -> %q: %s (%s)", src, dst, err, output)
+	}
+	return nil
+}
+
 // extractKernelAssets extracts kernel/initrd/dtb data from the given
 // Snap to a versionized bootloader directory so that the bootloader
 // can use it.
 func extractKernelAssets(s *snap.Info, snapf snap.File, flags InstallFlags, inter progress.Meter) error {
 	if s.Type != snap.TypeKernel {
-		return fmt.Errorf("can not extract kernel assets from snap type %q", s.Type)
+		return fmt.Errorf("cannot extract kernel assets from snap type %q", s.Type)
+	}
+
+	// sanity check that we have the new kernel format
+	_, err := snap.ReadKernelInfo(s)
+	if err != nil {
+		return err
 	}
 
 	bootloader, err := findBootloader()
 	if err != nil {
-		return fmt.Errorf("can not extract kernel assets: %s", err)
+		return fmt.Errorf("cannot extract kernel assets: %s", err)
 	}
 
 	if bootloader.Name() == "grub" {
@@ -89,26 +97,22 @@ func extractKernelAssets(s *snap.Info, snapf snap.File, flags InstallFlags, inte
 	}
 	defer dir.Close()
 
-	for _, src := range []string{s.Legacy.Kernel, s.Legacy.Initrd} {
-		if src == "" {
-			continue
-		}
-		if err := snapf.Unpack(src, dstDir); err != nil {
-			return err
-		}
-		src = filepath.Join(dstDir, src)
-		dst := filepath.Join(dstDir, dropVersionSuffix(src))
-		if err := os.Rename(src, dst); err != nil {
+	for _, src := range []string{
+		filepath.Join(s.MountDir(), "kernel.img"),
+		filepath.Join(s.MountDir(), "initrd.img"),
+	} {
+		if err := copyAll(src, dstDir); err != nil {
 			return err
 		}
 		if err := dir.Sync(); err != nil {
 			return err
 		}
 	}
-	if s.Legacy.Dtbs != "" {
-		src := filepath.Join(s.Legacy.Dtbs, "*")
-		dst := dstDir
-		if err := snapf.Unpack(src, dst); err != nil {
+
+	dtbsDir := filepath.Join(s.MountDir(), "dtbs")
+	if osutil.IsDirectory(dtbsDir) {
+		src := filepath.Join(dtbsDir, "*")
+		if err := copyAll(src, dstDir); err != nil {
 			return err
 		}
 	}
@@ -125,7 +129,7 @@ func SetNextBoot(s *snap.Info) error {
 
 	bootloader, err := findBootloader()
 	if err != nil {
-		return fmt.Errorf("can not set next boot: %s", err)
+		return fmt.Errorf("cannot set next boot: %s", err)
 	}
 
 	var bootvar string
@@ -154,7 +158,7 @@ func kernelOrOsRebootRequired(s *snap.Info) bool {
 
 	bootloader, err := findBootloader()
 	if err != nil {
-		logger.Noticef("can not get boot settings: %s", err)
+		logger.Noticef("cannot get boot settings: %s", err)
 		return false
 	}
 
@@ -205,7 +209,7 @@ func nameAndRevnoFromSnap(snap string) (string, int) {
 func SyncBoot() error {
 	bootloader, err := findBootloader()
 	if err != nil {
-		return fmt.Errorf("can not run SyncBoot: %s", err)
+		return fmt.Errorf("cannot run SyncBoot: %s", err)
 	}
 
 	kernelSnap, _ := bootloader.GetBootVar("snappy_kernel")
@@ -213,7 +217,7 @@ func SyncBoot() error {
 
 	installed, err := (&Overlord{}).Installed()
 	if err != nil {
-		return fmt.Errorf("failed to run SyncBoot: %s", err)
+		return fmt.Errorf("cannot run SyncBoot: %s", err)
 	}
 
 	overlord := &Overlord{}
@@ -221,10 +225,10 @@ func SyncBoot() error {
 		name, revno := nameAndRevnoFromSnap(snap)
 		found := FindSnapsByNameAndRevision(name, revno, installed)
 		if len(found) != 1 {
-			return fmt.Errorf("can not SyncBoot, expected 1 snap %q (revno=%d) found %d", snap, revno, len(found))
+			return fmt.Errorf("cannot SyncBoot, expected 1 snap %q (revno=%d) found %d", snap, revno, len(found))
 		}
 		if err := overlord.SetActive(found[0], true, nil); err != nil {
-			return fmt.Errorf("can not SyncBoot, failed to make %s active: %s", found[0].Name(), err)
+			return fmt.Errorf("cannot SyncBoot, cannot make %s active: %s", found[0].Name(), err)
 		}
 	}
 
