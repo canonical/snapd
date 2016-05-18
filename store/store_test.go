@@ -1020,6 +1020,29 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecoratePurchasesNoAuth(c *C) {
 	c.Check(otherApp2.MustBuy, Equals, false)
 }
 
+func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesAllFree(c *C) {
+	// Intentionally don't set a purchasesURI
+	cfg := SnapUbuntuStoreConfig{}
+	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	c.Assert(repo, NotNil)
+
+	// This snap is free
+	helloWorld := &snap.Info{}
+	helloWorld.SnapID = helloWorldSnapID
+
+	// This snap is also free
+	funkyApp := &snap.Info{}
+	funkyApp.SnapID = funkyAppSnapID
+
+	snaps := []*snap.Info{helloWorld}
+
+	authenticator := &fakeAuthenticator{}
+
+	// There should be no request to the purchases server.
+	err := repo.decoratePurchases(snaps, "edge", authenticator)
+	c.Assert(err, IsNil)
+}
+
 func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesSingle(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
