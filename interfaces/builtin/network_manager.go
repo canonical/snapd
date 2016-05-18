@@ -224,7 +224,7 @@ socket
 `)
 
 var networkManagerPermanentSlotDBus = []byte(`
-<!-- DBus policy for NetworkManager (upstream version 1.2) -->
+<!-- DBus policy for NetworkManager (upstream version 1.2.2) -->
 <policy user="root">
     <allow own="org.freedesktop.NetworkManager"/>
     <allow send_destination="org.freedesktop.NetworkManager"/>
@@ -249,6 +249,13 @@ var networkManagerPermanentSlotDBus = []byte(`
     <allow send_destination="org.freedesktop.NetworkManager.fortisslvpn"/>
     <allow send_destination="org.freedesktop.NetworkManager.strongswan"/>
     <allow send_interface="org.freedesktop.NetworkManager.VPN.Plugin"/>
+
+    <!-- Allow the custom name for the dnsmasq instance spawned by NM
+        from the dns dnsmasq plugin to own it's dbus name, and for
+        messages to be sent to it.
+    -->
+    <allow own="org.freedesktop.NetworkManager.dnsmasq"/>
+    <allow send_destination="org.freedesktop.NetworkManager.dnsmasq"/>
 </policy>
 
 <policy context="default">
@@ -351,6 +358,9 @@ var networkManagerPermanentSlotDBus = []byte(`
     <deny send_destination="org.freedesktop.NetworkManager"
           send_interface="org.freedesktop.NetworkManager.Settings"
           send_member="ReloadConnections"/>
+
+    <deny own="org.freedesktop.NetworkManager.dnsmasq"/>
+    <deny send_destination="org.freedesktop.NetworkManager.dnsmasq"/>
 </policy>
 
 <limit name="max_replies_per_connection">1024</limit>
