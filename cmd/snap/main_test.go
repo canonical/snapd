@@ -23,6 +23,7 @@ package main_test
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -30,8 +31,9 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	. "github.com/ubuntu-core/snappy/cmd/snap"
 	"github.com/ubuntu-core/snappy/testutil"
+
+	snap "github.com/ubuntu-core/snappy/cmd/snap"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -51,15 +53,15 @@ func (s *SnapSuite) SetUpTest(c *C) {
 	s.stdin = bytes.NewBuffer(nil)
 	s.stdout = bytes.NewBuffer(nil)
 	s.stderr = bytes.NewBuffer(nil)
-	Stdin = s.stdin
-	Stdout = s.stdout
-	Stderr = s.stderr
+	snap.Stdin = s.stdin
+	snap.Stdout = s.stdout
+	snap.Stderr = s.stderr
 }
 
 func (s *SnapSuite) TearDownTest(c *C) {
-	Stdin = os.Stdin
-	Stdout = os.Stdout
-	Stderr = os.Stderr
+	snap.Stdin = os.Stdin
+	snap.Stdout = os.Stdout
+	snap.Stderr = os.Stderr
 	s.BaseTest.TearDownTest(c)
 }
 
@@ -74,8 +76,8 @@ func (s *SnapSuite) Stderr() string {
 func (s *SnapSuite) RedirectClientToTestServer(handler func(http.ResponseWriter, *http.Request)) {
 	server := httptest.NewServer(http.HandlerFunc(handler))
 	s.BaseTest.AddCleanup(func() { server.Close() })
-	ClientConfig.BaseURL = server.URL
-	s.BaseTest.AddCleanup(func() { ClientConfig.BaseURL = "" })
+	snap.ClientConfig.BaseURL = server.URL
+	s.BaseTest.AddCleanup(func() { snap.ClientConfig.BaseURL = "" })
 }
 
 // DecodedRequestBody returns the JSON-decoded body of the request.
@@ -92,4 +94,32 @@ func EncodeResponseBody(c *C, w http.ResponseWriter, body interface{}) {
 	encoder := json.NewEncoder(w)
 	err := encoder.Encode(body)
 	c.Assert(err, IsNil)
+}
+
+func (s *SnapSuite) TestErrorResult(c *C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "cannot do something"}}`)
+	})
+
+	origArgs := os.Args
+	defer func() { os.Args = origArgs }()
+
+	os.Args = []string{"snap", "install", "foo"}
+
+	err := snap.RunMain()
+	c.Assert(err, ErrorMatches, `cannot do something`)
+}
+
+func (s *SnapSuite) TestAccessDeniedHint(c *C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "access denied", "kind": "login-required"}, "status-code": 401}`)
+	})
+
+	origArgs := os.Args
+	defer func() { os.Args = origArgs }()
+
+	os.Args = []string{"snap", "install", "foo"}
+
+	err := snap.RunMain()
+	c.Assert(err, ErrorMatches, `access denied \(snap login --help\)`)
 }

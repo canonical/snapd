@@ -123,12 +123,7 @@ func SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, flags InstallFlags,
 	return s, err
 }
 
-type agreer interface {
-	Agreed(intro, license string) bool
-}
-
 type interacter interface {
-	agreer
 	Notify(status string)
 }
 
@@ -272,6 +267,7 @@ func UpdateCurrentSymlink(info *snap.Info, inter interacter) error {
 	currentActiveSymlink := filepath.Join(mountDir, "..", "current")
 	if err := os.Remove(currentActiveSymlink); err != nil && !os.IsNotExist(err) {
 		logger.Noticef("Cannot remove %q: %v", currentActiveSymlink, err)
+		return err
 	}
 
 	dataDir := info.DataDir()
@@ -279,6 +275,7 @@ func UpdateCurrentSymlink(info *snap.Info, inter interacter) error {
 	currentDataSymlink := filepath.Join(dbase, "current")
 	if err := os.Remove(currentDataSymlink); err != nil && !os.IsNotExist(err) {
 		logger.Noticef("Cannot remove %q: %v", currentDataSymlink, err)
+		return err
 	}
 
 	// symlink is relative to parent dir
@@ -292,7 +289,7 @@ func UpdateCurrentSymlink(info *snap.Info, inter interacter) error {
 
 	// FIXME: create {Os,Kernel}Snap type instead of adding special
 	//        cases here
-	if err := setNextBoot(info); err != nil {
+	if err := SetNextBoot(info); err != nil {
 		return err
 	}
 
@@ -515,43 +512,6 @@ func canInstall(s *snap.Info, snapf snap.File, curInfo *snap.Info, allowGadget b
 				return ErrGadgetPackageInstall
 			}
 		}
-	}
-
-	if err := checkLicenseAgreement(s, snapf, curInfo, inter); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// checkLicenseAgreement returns nil if it's ok to proceed with installing the
-// package, as deduced from the license agreement (which might involve asking
-// the user), or an error that explains the reason why installation should not
-// proceed.
-func checkLicenseAgreement(s *snap.Info, snapf snap.File, cur *snap.Info, ag agreer) error {
-	if s.LicenseAgreement != "explicit" {
-		return nil
-	}
-
-	if ag == nil {
-		return ErrLicenseNotAccepted
-	}
-
-	license, err := snapf.ReadFile("meta/license.txt")
-	if err != nil || len(license) == 0 {
-		return ErrLicenseNotProvided
-	}
-
-	// don't ask for the license if
-	// * the previous version also asked for license confirmation, and
-	// * the license version is the same
-	if cur != nil && (cur.LicenseAgreement == "explicit") && cur.LicenseVersion == s.LicenseVersion {
-		return nil
-	}
-
-	msg := fmt.Sprintf("%s requires that you accept the following license before continuing", s.Name())
-	if !ag.Agreed(msg, string(license)) {
-		return ErrLicenseNotAccepted
 	}
 
 	return nil

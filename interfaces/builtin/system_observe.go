@@ -41,7 +41,13 @@ ptrace (read),
 # this is due to the kernel overloading trace such that the LSMs are unable to
 # distinguish between tracing other processes and other accesses. We deny the
 # trace here to silence the log.
+# Note: for now, explicitly deny to avoid confusion and accidentally giving
+# away this dangerous access frivolously. We may conditionally deny this in the
+# future.
 deny ptrace (trace),
+
+# Other miscellaneous accesses for observing the system
+@{PROC}/vmstat r,
 `
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/system-observe
@@ -54,7 +60,9 @@ const systemObserveConnectedPlugSecComp = `
 # ptrace can be used to break out of the seccomp sandbox, but ps requests
 # 'ptrace (trace)' from apparmor. 'ps' does not need the ptrace syscall though,
 # so we deny the ptrace here to make sure we are always safe.
-deny ptrace
+# Note: may uncomment once ubuntu-core-launcher understands @deny rules and
+# if/when we conditionally deny this in the future.
+#@deny ptrace
 `
 
 // NewSystemObserveInterface returns a new "system-observe" interface.

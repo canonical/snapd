@@ -115,6 +115,7 @@ type Info struct {
 
 	IconURL string
 	Prices  map[string]float64 `yaml:"prices,omitempty" json:"prices,omitempty"`
+	MustBuy bool
 }
 
 // Name returns the blessed name for the snap.

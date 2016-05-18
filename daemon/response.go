@@ -49,7 +49,6 @@ const (
 // Response knows how to serve itself, and how to find itself
 type Response interface {
 	ServeHTTP(w http.ResponseWriter, r *http.Request)
-	Self(*Command, *http.Request) Response // has the same arity as ResponseFunc for convenience
 }
 
 type resp struct {
@@ -97,7 +96,7 @@ func (r *resp) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	status := r.Status
 	bs, err := r.MarshalJSON()
 	if err != nil {
-		logger.Noticef("unable to marshal %#v to JSON: %v", *r, err)
+		logger.Noticef("cannot marshal %#v to JSON: %v", *r, err)
 		bs = nil
 		status = http.StatusInternalServerError
 	}
@@ -118,16 +117,13 @@ func (r *resp) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	w.Write(bs)
 }
 
-func (r *resp) Self(*Command, *http.Request) Response {
-	return r
-}
-
 type errorKind string
 
 const (
 	errorKindLicenseRequired   = errorKind("license-required")
 	errorKindTwoFactorRequired = errorKind("two-factor-required")
 	errorKindTwoFactorFailed   = errorKind("two-factor-failed")
+	errorKindLoginRequired     = errorKind("login-required")
 )
 
 type errorValue interface{}
@@ -182,9 +178,6 @@ func makeErrorResponder(status int) errorResponder {
 // A FileResponse 's ServeHTTP method serves the file
 type FileResponse string
 
-// Self from the Response interface
-func (f FileResponse) Self(*Command, *http.Request) Response { return f }
-
 // ServeHTTP from the Response interface
 func (f FileResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	filename := fmt.Sprintf("attachment; filename=%s", filepath.Base(string(f)))
@@ -205,8 +198,6 @@ func AssertResponse(asserts []asserts.Assertion, bundle bool) Response {
 	return &assertResponse{assertions: asserts, bundle: bundle}
 }
 
-func (ar assertResponse) Self(*Command, *http.Request) Response { return ar }
-
 func (ar assertResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	t := asserts.MediaType
 	if ar.bundle {
@@ -214,11 +205,12 @@ func (ar assertResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", t)
 	w.Header().Set("X-Ubuntu-Assertions-Count", strconv.Itoa(len(ar.assertions)))
+	w.WriteHeader(http.StatusOK)
 	enc := asserts.NewEncoder(w)
 	for _, a := range ar.assertions {
 		err := enc.Encode(a)
 		if err != nil {
-			logger.Noticef("unable to write encoded assertion into response: %v", err)
+			logger.Noticef("cannot write encoded assertion into response: %v", err)
 			break
 
 		}
@@ -233,10 +225,6 @@ type eventResponse struct {
 // connection used to communicate operation and logging notifications.
 func EventResponse(hub *notifications.Hub) Response {
 	return &eventResponse{h: hub}
-}
-
-func (e eventResponse) Self(*Command, *http.Request) Response {
-	return e
 }
 
 func (e eventResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {

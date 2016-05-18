@@ -24,67 +24,24 @@ import (
 	"io/ioutil"
 	"strings"
 
-	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/osutil"
 )
 
-var (
-	// used in the unit tests
-	lsbReleasePath = "/etc/lsb-release"
-)
+// Series holds the Ubuntu Core series for snapd to use.
+var Series = "16"
 
-// Release contains a structure with the release information
-type Release struct {
-	Flavor string
-	Series string
-}
-
-// Release is the current release
-var rel Release
-
-func init() {
-	// we don't need to care for the error here to take into account when
-	// initialized on a non snappy system
-	Setup(dirs.GlobalRootDir)
-}
-
-// String returns the release information in a string
-func String() string {
-	return rel.String()
-}
-
-// Get the release
-func Get() Release {
-	return rel
-}
-
-// Override sets up the release using a Release
-func Override(r Release) {
-	rel = r
-}
-
-// Setup is used to initialiaze the release information for the system
-func Setup(rootDir string) error {
-	rel = Release{Flavor: "core", Series: "16"}
-
-	return nil
-}
-
-// String returns the release information in a string which is valid to
-// set for the store http headers.
-func (r Release) String() string {
-	return fmt.Sprintf("%s-%s", r.Series, r.Flavor)
-}
-
-// Lsb contains the /etc/lsb-release information of the system
-type Lsb struct {
+// LSB contains the /etc/lsb-release information of the system.
+type LSB struct {
 	ID       string
 	Release  string
 	Codename string
 }
 
-// ReadLsb returns the lsb-release information of the current system
-func ReadLsb() (*Lsb, error) {
-	lsb := &Lsb{}
+var lsbReleasePath = "/etc/lsb-release"
+
+// ReadLSB returns the lsb-release information of the current system.
+func ReadLSB() (*LSB, error) {
+	lsb := &LSB{}
 
 	content, err := ioutil.ReadFile(lsbReleasePath)
 	if err != nil {
@@ -107,4 +64,20 @@ func ReadLsb() (*Lsb, error) {
 	}
 
 	return lsb, nil
+}
+
+// OnClassic states whether the process is running inside a
+// classic Ubuntu system or a native Ubuntu Core image.
+var OnClassic bool
+
+func init() {
+	OnClassic = osutil.FileExists("/var/lib/dpkg/status")
+}
+
+// MockOnClassic forces the process to appear inside a classic
+// Ubuntu system or a native image for testing purposes.
+func MockOnClassic(onClassic bool) (restore func()) {
+	old := OnClassic
+	OnClassic = onClassic
+	return func() { OnClassic = old }
 }

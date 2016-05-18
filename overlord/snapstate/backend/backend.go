@@ -1,8 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build !excludeintegration
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2014-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -18,25 +17,8 @@
  *
  */
 
-package tests
+// Package backend implements the low-level primitives to manage the snaps and their installation on disk.
+package backend
 
-import "gopkg.in/check.v1"
-
-var _ = check.Suite(&snapd20TestSuite{})
-
-type snapd20TestSuite struct {
-	snapdTestSuite
-}
-
-func (s *snapd20TestSuite) TestResource(c *check.C) {
-	exerciseAPI(c, s)
-}
-
-func (s *snapd20TestSuite) resource() string {
-	return baseURL + "/v2/system-info"
-}
-
-func (s *snapd20TestSuite) getInteractions() apiInteractions {
-	return []apiInteraction{{
-		responsePattern: `(?U){"type":"sync","status-code":200,"status":"OK","result":{"flavor":"core","series":"\d+"}}`}}
-}
+// Backend exposes all the low-level primitives to manage snaps and their installation on disk.
+type Backend struct{}

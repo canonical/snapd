@@ -7,3 +7,6 @@ Requires=snapd.socket
 
 [Service]
 ExecStart=/usr/lib/snapd/snapd
+
+[Install]
+WantedBy=multi-user.target
