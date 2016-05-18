@@ -1048,7 +1048,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesAllFree(c *C) {
 	funkyApp := &snap.Info{}
 	funkyApp.SnapID = funkyAppSnapID
 
-	snaps := []*snap.Info{helloWorld}
+	snaps := []*snap.Info{helloWorld, funkyApp}
 
 	authenticator := &fakeAuthenticator{}
 
