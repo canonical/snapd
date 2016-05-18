@@ -26,12 +26,22 @@ import (
 
 // Regular expression describing correct identifiers.
 var validName = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
+var validEpoch = regexp.MustCompile("^(?:0|(?:[1-9][0-9]*[*]?))$")
 
 // ValidateName checks if a string can be used as a snap name.
 func ValidateName(name string) error {
 	valid := validName.MatchString(name)
 	if !valid {
 		return fmt.Errorf("invalid snap name: %q", name)
+	}
+	return nil
+}
+
+// ValidateEpoch checks if a string can be used as a snap epoch.
+func ValidateEpoch(epoch string) error {
+	valid := validEpoch.MatchString(epoch)
+	if !valid {
+		return fmt.Errorf("invalid snap epoch: %q", epoch)
 	}
 	return nil
 }
@@ -43,6 +53,15 @@ func Validate(info *Info) error {
 		return fmt.Errorf("snap name cannot be empty")
 	}
 	err := ValidateName(name)
+	if err != nil {
+		return err
+	}
+
+	epoch := info.Epoch
+	if epoch == "" {
+		return fmt.Errorf("snap epoch cannot be empty")
+	}
+	err = ValidateEpoch(epoch)
 	if err != nil {
 		return err
 	}
