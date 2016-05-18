@@ -551,7 +551,10 @@ func (s *snapmgrTestSuite) TestUpdateUndoIntegration(c *C) {
 			op:   "link-snap.failed",
 			name: "/snap/some-snap/11",
 		},
-		// no unlink-snap here is expected!
+		{
+			op:   "unlink-snap",
+			name: "/snap/some-snap/11",
+		},
 		{
 			op:    "setup-profiles:Undoing",
 			name:  "some-snap",

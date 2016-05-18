@@ -21,6 +21,7 @@ package snapstate
 
 import (
 	"errors"
+	"fmt"
 
 	"gopkg.in/tomb.v2"
 
@@ -73,4 +74,32 @@ func (m *SnapManager) AddForeignTaskHandlers(tracker ForeignTaskTracker) {
 func MockReadInfo(mock func(name string, si *snap.SideInfo) (*snap.Info, error)) func() {
 	readInfo = mock
 	return func() { readInfo = snap.ReadInfo }
+}
+
+func RunDoHandler(mgr *SnapManager, kind string, t *state.Task) error {
+	var h func(*state.Task, *tomb.Tomb) error
+	switch kind {
+	case "link-snap":
+		h = mgr.doLinkSnap
+	default:
+		return fmt.Errorf("cannot run any do handler for task kind %q", kind)
+	}
+	t.State().Lock()
+	t.SetStatus(state.DoingStatus)
+	t.State().Unlock()
+	return h(t, nil)
+}
+
+func RunUndoHandler(mgr *SnapManager, kind string, t *state.Task) error {
+	var h func(*state.Task, *tomb.Tomb) error
+	switch kind {
+	case "link-snap":
+		h = mgr.undoLinkSnap
+	default:
+		return fmt.Errorf("cannot run any undo handler for task kind %q", kind)
+	}
+	t.State().Lock()
+	t.SetStatus(state.UndoingStatus)
+	t.State().Unlock()
+	return h(t, nil)
 }
