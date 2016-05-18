@@ -392,7 +392,7 @@ func (iface *NetworkManagerInterface) ConnectedPlugSnippet(plug *interfaces.Plug
 		if release.OnClassic {
 			// If we're running on classic NetworkManager will be part
 			// of the OS snap and will run unconfined.
-			new = []byte("unconfined");
+			new = []byte("unconfined")
 		} else {
 			new = slotAppLabelExpr(slot)
 		}

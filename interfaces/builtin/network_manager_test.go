@@ -24,8 +24,8 @@ import (
 
 	"github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/interfaces/builtin"
-	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/release"
+	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/testutil"
 )
 
