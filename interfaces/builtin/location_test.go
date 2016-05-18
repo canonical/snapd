@@ -116,6 +116,66 @@ func (s *LocationInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) 
 	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.location.app"),`)
 }
 
+// The label glob when all apps are bound to the location plug
+func (s *LocationInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelAll(c *C) {
+	app1 := &snap.AppInfo{Name: "app1"}
+	app2 := &snap.AppInfo{Name: "app2"}
+	plug := &interfaces.Plug{
+		PlugInfo: &snap.PlugInfo{
+			Snap: &snap.Info{
+				SuggestedName: "location",
+				Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2},
+			},
+			Name:      "location",
+			Interface: "location",
+			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
+		},
+	}
+	snippet, err := s.iface.ConnectedSlotSnippet(plug, s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.location.*"),`)
+}
+
+// The label uses alternation when some, but not all, apps is bound to the location plug
+func (s *LocationInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelSome(c *C) {
+	app1 := &snap.AppInfo{Name: "app1"}
+	app2 := &snap.AppInfo{Name: "app2"}
+	app3 := &snap.AppInfo{Name: "app3"}
+	plug := &interfaces.Plug{
+		PlugInfo: &snap.PlugInfo{
+			Snap: &snap.Info{
+				SuggestedName: "location",
+				Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2, "app3": app3},
+			},
+			Name:      "location",
+			Interface: "location",
+			Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
+		},
+	}
+	snippet, err := s.iface.ConnectedSlotSnippet(plug, s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.location.{app1,app2}"),`)
+}
+
+// The label uses short form when exactly one app is bound to the location plug
+func (s *LocationInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c *C) {
+	app := &snap.AppInfo{Name: "app"}
+	plug := &interfaces.Plug{
+		PlugInfo: &snap.PlugInfo{
+			Snap: &snap.Info{
+				SuggestedName: "location",
+				Apps:          map[string]*snap.AppInfo{"app": app},
+			},
+			Name:      "location",
+			Interface: "location",
+			Apps:      map[string]*snap.AppInfo{"app": app},
+		},
+	}
+	snippet, err := s.iface.ConnectedSlotSnippet(plug, s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.location.app"),`)
+}
+
 func (s *LocationInterfaceSuite) TestUnusedSecuritySystems(c *C) {
 	systems := [...]interfaces.SecuritySystem{interfaces.SecuritySecComp,
 		interfaces.SecurityDBus, interfaces.SecurityUDev}
