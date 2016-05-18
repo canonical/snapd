@@ -1021,8 +1021,22 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecoratePurchasesNoAuth(c *C) {
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesAllFree(c *C) {
-	// Intentionally don't set a purchasesURI
-	cfg := SnapUbuntuStoreConfig{}
+	requestRecieved := false
+
+	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestRecieved = true
+		io.WriteString(w, "[]")
+	}))
+
+	c.Assert(mockPurchasesServer, NotNil)
+	defer mockPurchasesServer.Close()
+
+	purchasesURI, err := url.Parse(mockPurchasesServer.URL + "/click/purchases/")
+	c.Assert(err, IsNil)
+	cfg := SnapUbuntuStoreConfig{
+		PurchasesURI: purchasesURI,
+	}
+
 	repo := NewUbuntuStoreSnapRepository(&cfg, "")
 	c.Assert(repo, NotNil)
 
@@ -1039,8 +1053,9 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesAllFree(c *C) {
 	authenticator := &fakeAuthenticator{}
 
 	// There should be no request to the purchases server.
-	err := repo.decoratePurchases(snaps, "edge", authenticator)
+	err = repo.decoratePurchases(snaps, "edge", authenticator)
 	c.Assert(err, IsNil)
+	c.Check(requestRecieved, Equals, false)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesSingle(c *C) {
