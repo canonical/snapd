@@ -146,6 +146,25 @@ func makeTestSnap(c *C, yaml string) string {
 func (s *infoSuite) TestReadInfoFromSnapFile(c *C) {
 	yaml := `name: foo
 version: 1.0
+type: app
+epoch: 1*`
+	snapPath := makeTestSnap(c, yaml)
+
+	snapf, err := snap.Open(snapPath)
+	c.Assert(err, IsNil)
+
+	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
+	c.Assert(err, IsNil)
+	c.Check(info.Name(), Equals, "foo")
+	c.Check(info.Version, Equals, "1.0")
+	c.Check(info.Type, Equals, snap.TypeApp)
+	c.Check(info.Revision, Equals, 0)
+	c.Check(info.Epoch, Equals, "1*")
+}
+
+func (s *infoSuite) TestReadInfoFromSnapFileMissingEpoch(c *C) {
+	yaml := `name: foo
+version: 1.0
 type: app`
 	snapPath := makeTestSnap(c, yaml)
 
@@ -158,6 +177,7 @@ type: app`
 	c.Check(info.Version, Equals, "1.0")
 	c.Check(info.Type, Equals, snap.TypeApp)
 	c.Check(info.Revision, Equals, 0)
+	c.Check(info.Epoch, Equals, "0") // Defaults to 0
 }
 
 func (s *infoSuite) TestReadInfoFromSnapFileWithSideInfo(c *C) {

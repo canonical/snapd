@@ -103,6 +103,7 @@ type Info struct {
 
 	LicenseAgreement string
 	LicenseVersion   string
+	Epoch            string
 	Apps             map[string]*AppInfo
 	Plugs            map[string]*PlugInfo
 	Slots            map[string]*SlotInfo
