@@ -52,4 +52,5 @@ type snapDetails struct {
 	// FIXME: the store should return "developer" to us instead of
 	//        origin
 	Developer string `json:"origin" yaml:"origin"`
+	Private   bool   `json:"private" yaml:"private"`
 }
