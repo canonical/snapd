@@ -55,27 +55,27 @@ func snapDate(info *snap.Info) time.Time {
 }
 
 // localSnapInfo returns the information about the current snap for the given name plus the SnapState with the active flag and other snap revisions.
-func localSnapInfo(st *state.State, name string) (info *snap.Info, active bool, err error) {
+func localSnapInfo(st *state.State, name string) (*snap.Info, *snapstate.SnapState, error) {
 	st.Lock()
 	defer st.Unlock()
 
 	var snapst snapstate.SnapState
-	err = snapstate.Get(st, name, &snapst)
+	err := snapstate.Get(st, name, &snapst)
 	if err != nil && err != state.ErrNoState {
-		return nil, false, fmt.Errorf("cannot consult state: %v", err)
+		return nil, nil, fmt.Errorf("cannot consult state: %v", err)
 	}
 
 	cur := snapst.Current()
 	if cur == nil {
-		return nil, false, errNoSnap
+		return nil, nil, errNoSnap
 	}
 
-	info, err = snap.ReadInfo(name, cur)
+	info, err := snap.ReadInfo(name, cur)
 	if err != nil {
-		return nil, false, fmt.Errorf("cannot read snap details: %v", err)
+		return nil, nil, fmt.Errorf("cannot read snap details: %v", err)
 	}
 
-	return info, snapst.Active, nil
+	return info, &snapst, nil
 }
 
 type aboutSnap struct {
@@ -111,9 +111,9 @@ func allLocalSnapInfos(st *state.State) ([]aboutSnap, error) {
 	return about, firstErr
 }
 
-func mapLocal(localSnap *snap.Info, active bool) map[string]interface{} {
+func mapLocal(localSnap *snap.Info, snapst *snapstate.SnapState) map[string]interface{} {
 	status := "installed"
-	if active {
+	if snapst.Active {
 		status = "active"
 	}
 
