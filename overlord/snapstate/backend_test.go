@@ -69,7 +69,7 @@ func (f *fakeSnappyBackend) Download(name, channel string, checker func(*snap.In
 	p.SetTotal(float64(f.fakeTotalProgress))
 	p.Set(float64(f.fakeCurrentProgress))
 
-	revno := snap.Revision{11}
+	revno := snap.R(11)
 	if channel == "channel-for-7" {
 		revno.N = 7
 	}
@@ -107,7 +107,7 @@ func (f *fakeSnappyBackend) CheckSnap(snapFilePath string, curInfo *snap.Info, f
 }
 
 func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, si *snap.SideInfo, flags int) error {
-	revno := snap.Revision{0}
+	revno := snap.R(0)
 	if si != nil {
 		revno = si.Revision
 	}

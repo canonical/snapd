@@ -83,13 +83,13 @@ func (s *SnapTestSuite) TestLocalSnapInstallWithBlessedMetadata(c *C) {
 
 	si := &snap.SideInfo{
 		OfficialName: "foo",
-		Revision:     snap.Revision{40},
+		Revision:     snap.R(40),
 	}
 
 	sn, err := (&Overlord{}).InstallWithSideInfo(snapPath, si, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(sn.Name(), Equals, "foo")
-	c.Check(sn.Revision, Equals, snap.Revision{40})
+	c.Check(sn.Revision, Equals, snap.R(40))
 
 	baseDir := filepath.Join(dirs.SnapSnapsDir, fooComposedName, "40")
 	c.Assert(osutil.FileExists(baseDir), Equals, true)
@@ -106,13 +106,13 @@ func (s *SnapTestSuite) TestLocalSnapInstallWithBlessedMetadataOverridingName(c 
 
 	si := &snap.SideInfo{
 		OfficialName: "bar",
-		Revision:     snap.Revision{55},
+		Revision:     snap.R(55),
 	}
 
 	sn, err := (&Overlord{}).InstallWithSideInfo(snapPath, si, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(sn.Name(), Equals, "bar")
-	c.Check(sn.Revision, Equals, snap.Revision{55})
+	c.Check(sn.Revision, Equals, snap.R(55))
 
 	baseDir := filepath.Join(dirs.SnapSnapsDir, "bar", "55")
 	c.Assert(osutil.FileExists(baseDir), Equals, true)
@@ -189,7 +189,7 @@ type: gadget
 	foo10 := &snap.SideInfo{
 		OfficialName: "foo",
 		Developer:    testDeveloper,
-		Revision:     snap.Revision{100},
+		Revision:     snap.R(100),
 		Channel:      "remote-channel",
 	}
 	_, err := (&Overlord{}).InstallWithSideInfo(snapPath, foo10, AllowGadget, nil)
@@ -207,7 +207,7 @@ type: gadget
 	foo20 := &snap.SideInfo{
 		OfficialName: "foo",
 		Developer:    testDeveloper,
-		Revision:     snap.Revision{200},
+		Revision:     snap.R(200),
 		Channel:      "remote-channel",
 	}
 	_, err = (&Overlord{}).InstallWithSideInfo(snapPath, foo20, 0, nil)
@@ -230,12 +230,12 @@ type: gadget
 var (
 	fooSI10 = &snap.SideInfo{
 		OfficialName: "foo",
-		Revision:     snap.Revision{10},
+		Revision:     snap.R(10),
 	}
 
 	fooSI20 = &snap.SideInfo{
 		OfficialName: "foo",
-		Revision:     snap.Revision{20},
+		Revision:     snap.R(20),
 	}
 )
 
@@ -397,7 +397,7 @@ apps:
 `
 	si := &snap.SideInfo{
 		OfficialName: "foo",
-		Revision:     snap.Revision{32},
+		Revision:     snap.R(32),
 	}
 
 	snapPath := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
@@ -484,7 +484,7 @@ apps:
 
 	si := &snap.SideInfo{
 		OfficialName: "bar",
-		Revision:     snap.Revision{55},
+		Revision:     snap.R(55),
 	}
 
 	_, err := (&Overlord{}).InstallWithSideInfo(snapPath, si, 0, &MockProgressMeter{})

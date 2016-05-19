@@ -24,7 +24,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/ubuntu-core/snappy/logger"
@@ -191,11 +190,11 @@ func kernelOrOsRebootRequired(s *snap.Info) bool {
 func nameAndRevnoFromSnap(sn string) (string, snap.Revision) {
 	name := strings.Split(sn, "_")[0]
 	revnoNSuffix := strings.Split(sn, "_")[1]
-	revno, err := strconv.Atoi(strings.Split(revnoNSuffix, ".snap")[0])
+	rev, err := snap.ParseRevision(strings.Split(revnoNSuffix, ".snap")[0])
 	if err != nil {
 		return "", snap.Revision{}
 	}
-	return name, snap.Revision{revno}
+	return name, rev
 }
 
 // SyncBoot synchronizes the active kernel and OS snap versions with

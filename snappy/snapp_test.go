@@ -108,7 +108,7 @@ func (s *SnapTestSuite) TestLocalSnapSimple(c *C) {
 	c.Check(sn.IsActive(), Equals, false)
 	c.Check(sn.Info().Summary(), Equals, "hello in summary")
 	c.Check(sn.Info().Description(), Equals, "Hello...")
-	c.Check(sn.Info().Revision, Equals, snap.Revision{15})
+	c.Check(sn.Info().Revision, Equals, snap.R(15))
 
 	mountDir := sn.Info().MountDir()
 	_, err = os.Stat(mountDir)
@@ -206,7 +206,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].Name(), Equals, funkyAppName)
-	c.Assert(results[0].Revision, Equals, snap.Revision{3})
+	c.Assert(results[0].Revision, Equals, snap.R(3))
 	c.Assert(results[0].Version, Equals, "42")
 }
 
@@ -266,7 +266,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 
 	r := &snap.Info{}
 	r.OfficialName = "foo"
-	r.Revision = snap.Revision{42}
+	r.Revision = snap.R(42)
 	r.Developer = "bar"
 	r.EditedDescription = "this is a description"
 	r.Version = "1.0"
@@ -287,7 +287,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 1)
 
-	c.Check(installed[0].Info().Revision, Equals, snap.Revision{42})
+	c.Check(installed[0].Info().Revision, Equals, snap.R(42))
 	c.Check(installed[0].Developer(), Equals, "bar")
 	c.Check(installed[0].Info().Description(), Equals, "this is a description")
 
