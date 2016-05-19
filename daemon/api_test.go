@@ -159,11 +159,11 @@ func (s *apiSuite) mkManifest(c *check.C, pkgType snap.Type) {
 	}), check.IsNil)
 }
 
-func (s *apiSuite) mkInstalled(c *check.C, name, developer, version string, revno int, active bool, extraYaml string) *snap.Info {
+func (s *apiSuite) mkInstalled(c *check.C, name, developer, version string, revno snap.Revision, active bool, extraYaml string) *snap.Info {
 	return s.mkInstalledInState(c, nil, name, developer, version, revno, active, extraYaml)
 }
 
-func (s *apiSuite) mkInstalledInState(c *check.C, daemon *Daemon, name, developer, version string, revno int, active bool, extraYaml string) *snap.Info {
+func (s *apiSuite) mkInstalledInState(c *check.C, daemon *Daemon, name, developer, version string, revno snap.Revision, active bool, extraYaml string) *snap.Info {
 	// Collect arguments into a snap.SideInfo structure
 	sideInfo := &snap.SideInfo{
 		SnapID:       "funky-snap-id",
@@ -254,7 +254,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 		Result: map[string]interface{}{
 			"id":          "funky-snap-id",
 			"name":        "foo",
-			"revision":    10,
+			"revision":    "10",
 			"version":     "v1",
 			"summary":     "summary",
 			"description": "description",
@@ -695,7 +695,7 @@ func (s *apiSuite) TestSnapsInfoOnePerIntegration(c *check.C) {
 		name string
 		dev  string
 		ver  string
-		rev  int
+		rev  snap.Revision
 	}
 
 	tsnaps := []tsnap{
@@ -728,7 +728,7 @@ func (s *apiSuite) TestSnapsInfoOnePerIntegration(c *check.C) {
 		}
 		c.Check(got["name"], check.Equals, s.name)
 		c.Check(got["version"], check.Equals, s.ver)
-		c.Check(got["revision"], check.Equals, float64(s.rev))
+		c.Check(got["revision"], check.Equals, s.rev.String())
 		c.Check(got["developer"], check.Equals, s.dev)
 	}
 }
