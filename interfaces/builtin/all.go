@@ -28,6 +28,7 @@ var allInterfaces = []interfaces.Interface{
 	&BluezInterface{},
 	&NetworkManagerInterface{},
 	NewFirewallControlInterface(),
+	NewGsettingsInterface(),
 	NewHomeInterface(),
 	NewLocaleControlInterface(),
 	NewLogObserveInterface(),

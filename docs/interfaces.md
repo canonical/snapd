@@ -60,6 +60,14 @@ This is restricted because it gives file access to the user's
 
 Usage: reserved
 
+### gsettings
+
+Can access global gsettings of the user's session. This is restricted because
+it gives privileged access to sensitive information stored in gsettings and
+allows adjusting settings of other applications.
+
+Usage: reserved
+
 ## Supported Interfaces - Advanced
 
 ### firewall-control

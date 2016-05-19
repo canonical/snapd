@@ -35,6 +35,7 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, Contains, &builtin.BoolFileInterface{})
 	c.Check(all, Contains, &builtin.BluezInterface{})
 	c.Check(all, DeepContains, builtin.NewFirewallControlInterface())
+	c.Check(all, DeepContains, builtin.NewGsettingsInterface())
 	c.Check(all, DeepContains, builtin.NewHomeInterface())
 	c.Check(all, DeepContains, builtin.NewLocaleControlInterface())
 	c.Check(all, DeepContains, builtin.NewLogObserveInterface())
