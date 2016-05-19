@@ -54,12 +54,12 @@ func (s snapsByName) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 func (x *cmdList) Execute([]string) error {
 	if x.Refresh {
-		return listUpdates()
+		return listRefreshes()
 	}
 	return listSnaps(x.Positional.Snaps)
 }
 
-func listUpdates() error {
+func listRefreshes() error {
 	cli := Client()
 	snaps, err := cli.List(&client.ListOptions{RefreshOnly: true})
 	if err != nil {
