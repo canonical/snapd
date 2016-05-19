@@ -27,7 +27,6 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/systemd"
 )
 
@@ -36,7 +35,6 @@ type FirstBootTestSuite struct {
 	globs        []string
 	ethdir       string
 	ifup         string
-	m            *snap.LegacyYaml
 	e            error
 	snapMap      map[string]*Snap
 	snapMapErr   error
@@ -66,7 +64,6 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	ifup = "/bin/true"
 	newSnapMap = s.newSnapMap
 
-	s.m = nil
 	s.e = nil
 	s.snapMap = nil
 	s.snapMapErr = nil
