@@ -205,5 +205,5 @@ confinement: foo`
 	c.Assert(err, IsNil)
 
 	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
-	c.Assert(err, ErrorMatches, ".*Invalid confinement type.*")
+	c.Assert(err, ErrorMatches, ".*invalid confinement type.*")
 }
