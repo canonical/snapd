@@ -74,6 +74,14 @@ dbus (receive)
     member=CreateSessionForCriteria
     peer=(label=###PLUG_SECURITY_TAGS###),
 
+# Allow clients to query/update service properties
+dbus (receive)
+    bus=system
+    path=/com/ubuntu/location/Service
+    interface=org.freedesktop.DBus.Properties
+    member=Get
+    peer=(label=###PLUG_SECURITY_TAGS###),
+
 # Allow clients to request starting/stopping updates
 dbus (receive)
     bus=system
@@ -118,6 +126,14 @@ var locationObserveConnectedPlugAppArmor = []byte(`
 # Usage: reserved
 
 #include <abstractions/dbus-strict>
+
+# Allow clients to query/update service properties
+dbus (send)
+    bus=system
+    path=/com/ubuntu/location/Service
+    interface=org.freedesktop.DBus.Properties
+    member=Get
+    peer=(label=###SLOT_SECURITY_TAGS###),
 
 # Allow clients to create a session
 dbus (send)
