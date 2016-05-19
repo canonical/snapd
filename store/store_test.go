@@ -225,7 +225,8 @@ const MockDetailsJSON = `{
                 "summary": "Hello world example",
                 "support_url": "mailto:snappy-devel@lists.ubuntu.com",
                 "title": "hello-world",
-                "version": "6.0"
+                "version": "6.0",
+                "private": true
             }
         ]
     },
@@ -343,6 +344,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Check(result.MustBuy, Equals, true)
 
 	c.Check(repo.SuggestedCurrency(), Equals, "GBP")
+	c.Check(result.Private, Equals, true)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsSetsAuth(c *C) {
