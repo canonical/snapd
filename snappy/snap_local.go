@@ -47,11 +47,21 @@ func NewInstalledSnap(yamlPath string) (*Snap, error) {
 	// snapstate primitives shouldn't need this
 	name := filepath.Base(filepath.Dir(mountDir))
 	revnoStr := filepath.Base(mountDir)
-	revnoInt, err := strconv.Atoi(revnoStr)
+	var revnoInt int
+	var err error
+	if revnoStr == "unset" {
+		// XXX Should never happen. Tests are broken.
+		revnoInt = 0
+	} else if revnoStr[0] == 'x' {
+		revnoInt, err = strconv.Atoi(revnoStr[1:])
+		revnoInt = -revnoInt
+	} else {
+		revnoInt, err = strconv.Atoi(revnoStr)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("broken snap directory path: %q", mountDir)
 	}
-	revno := snap.Revision(revnoInt)
+	revno := snap.Revision{revnoInt}
 
 	s := &Snap{}
 
@@ -78,7 +88,7 @@ func NewInstalledSnap(yamlPath string) (*Snap, error) {
 
 	s.info = info
 
-	if revno != 0 {
+	if revno.Store() {
 		mfPath := manifestPath(name, revno)
 		if osutil.FileExists(mfPath) {
 			content, err := ioutil.ReadFile(mfPath)

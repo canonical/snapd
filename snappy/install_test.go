@@ -286,7 +286,7 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 	c.Assert(updates, HasLen, 1)
 	c.Check(updates[0].Name(), Equals, "foo")
 	c.Check(updates[0].Version(), Equals, "2")
-	c.Check(updates[0].Revision(), Equals, snap.Revision(3))
+	c.Check(updates[0].Revision(), Equals, snap.Revision{3})
 	// ensure that we get a "local" snap back - not a remote one
 	c.Check(updates[0], FitsTypeOf, &Snap{})
 }

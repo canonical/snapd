@@ -169,7 +169,7 @@ func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
 		Channel:  "edge",
-		Sequence: []*snap.SideInfo{{OfficialName: "some-snap", Revision: 11}},
+		Sequence: []*snap.SideInfo{{OfficialName: "some-snap", Revision: snap.Revision{11}}},
 	})
 
 	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", s.user.ID, 0)
@@ -190,7 +190,7 @@ func (s *snapmgrTestSuite) TestUpdateChannelFallback(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
 		Channel:  "edge",
-		Sequence: []*snap.SideInfo{{OfficialName: "some-snap", Revision: 11}},
+		Sequence: []*snap.SideInfo{{OfficialName: "some-snap", Revision: snap.Revision{11}}},
 	})
 
 	ts, err := snapstate.Update(s.state, "some-snap", "", s.user.ID, 0)
@@ -298,7 +298,7 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 		fakeOp{
 			op:    "setup-snap",
 			name:  "downloaded-snap-path",
-			revno: 11,
+			revno: snap.Revision{11},
 		},
 		fakeOp{
 			op:   "copy-data",
@@ -308,7 +308,7 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 		fakeOp{
 			op:    "setup-profiles:Doing",
 			name:  "some-snap",
-			revno: 11,
+			revno: snap.Revision{11},
 		},
 		fakeOp{
 			op: "candidate",
@@ -316,7 +316,7 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 				OfficialName: "some-snap",
 				Channel:      "some-channel",
 				SnapID:       "snapIDsnapidsnapidsnapidsnapidsn",
-				Revision:     11,
+				Revision:     snap.Revision{11},
 			},
 		},
 		fakeOp{
@@ -337,7 +337,7 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
 		Name:     "some-snap",
-		Revision: 11,
+		Revision: snap.Revision{11},
 		Channel:  "some-channel",
 		UserID:   s.user.ID,
 		SnapPath: "downloaded-snap-path",
@@ -356,14 +356,14 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 		OfficialName: "some-snap",
 		Channel:      "some-channel",
 		SnapID:       "snapIDsnapidsnapidsnapidsnapidsn",
-		Revision:     11,
+		Revision:     snap.Revision{11},
 	})
 }
 
 func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 	si := snap.SideInfo{
 		OfficialName: "some-snap",
-		Revision:     7,
+		Revision:     snap.Revision{7},
 	}
 
 	s.state.Lock()
@@ -401,7 +401,7 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 			op:    "setup-snap",
 			name:  "downloaded-snap-path",
 			flags: int(snappy.DoInstallGC),
-			revno: 11,
+			revno: snap.Revision{11},
 		},
 		fakeOp{
 			op:   "unlink-snap",
@@ -416,7 +416,7 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 		fakeOp{
 			op:    "setup-profiles:Doing",
 			name:  "some-snap",
-			revno: 11,
+			revno: snap.Revision{11},
 		},
 		fakeOp{
 			op: "candidate",
@@ -424,7 +424,7 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 				OfficialName: "some-snap",
 				SnapID:       "snapIDsnapidsnapidsnapidsnapidsn",
 				Channel:      "some-channel",
-				Revision:     11,
+				Revision:     snap.Revision{11},
 			},
 		},
 		fakeOp{
@@ -452,7 +452,7 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 		Flags:   int(snappy.DoInstallGC),
 		UserID:  s.user.ID,
 
-		Revision: 11,
+		Revision: snap.Revision{11},
 
 		SnapPath: "downloaded-snap-path",
 	})
@@ -468,20 +468,20 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
 		OfficialName: "some-snap",
 		Channel:      "",
-		Revision:     7,
+		Revision:     snap.Revision{7},
 	})
 	c.Assert(snapst.Sequence[1], DeepEquals, &snap.SideInfo{
 		OfficialName: "some-snap",
 		Channel:      "some-channel",
 		SnapID:       "snapIDsnapidsnapidsnapidsnapidsn",
-		Revision:     11,
+		Revision:     snap.Revision{11},
 	})
 }
 
 func (s *snapmgrTestSuite) TestUpdateUndoIntegration(c *C) {
 	si := snap.SideInfo{
 		OfficialName: "some-snap",
-		Revision:     7,
+		Revision:     snap.Revision{7},
 	}
 
 	s.state.Lock()
@@ -521,7 +521,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoIntegration(c *C) {
 			op:    "setup-snap",
 			name:  "downloaded-snap-path",
 			flags: int(snappy.DoInstallGC),
-			revno: 11,
+			revno: snap.Revision{11},
 		},
 		{
 			op:   "unlink-snap",
@@ -536,7 +536,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoIntegration(c *C) {
 		{
 			op:    "setup-profiles:Doing",
 			name:  "some-snap",
-			revno: 11,
+			revno: snap.Revision{11},
 		},
 		{
 			op: "candidate",
@@ -544,7 +544,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoIntegration(c *C) {
 				OfficialName: "some-snap",
 				SnapID:       "snapIDsnapidsnapidsnapidsnapidsn",
 				Channel:      "some-channel",
-				Revision:     11,
+				Revision:     snap.Revision{11},
 			},
 		},
 		{
@@ -555,7 +555,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoIntegration(c *C) {
 		{
 			op:    "setup-profiles:Undoing",
 			name:  "some-snap",
-			revno: 11,
+			revno: snap.Revision{11},
 		},
 		{
 			op:   "undo-copy-snap-data",
@@ -585,14 +585,14 @@ func (s *snapmgrTestSuite) TestUpdateUndoIntegration(c *C) {
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
 		OfficialName: "some-snap",
 		Channel:      "",
-		Revision:     7,
+		Revision:     snap.Revision{7},
 	})
 }
 
 func (s *snapmgrTestSuite) TestUpdateTotalUndoIntegration(c *C) {
 	si := snap.SideInfo{
 		OfficialName: "some-snap",
-		Revision:     7,
+		Revision:     snap.Revision{7},
 	}
 
 	s.state.Lock()
@@ -638,7 +638,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoIntegration(c *C) {
 			op:    "setup-snap",
 			name:  "downloaded-snap-path",
 			flags: int(snappy.DoInstallGC),
-			revno: 11,
+			revno: snap.Revision{11},
 		},
 		{
 			op:   "unlink-snap",
@@ -653,7 +653,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoIntegration(c *C) {
 		{
 			op:    "setup-profiles:Doing",
 			name:  "some-snap",
-			revno: 11,
+			revno: snap.Revision{11},
 		},
 		{
 			op: "candidate",
@@ -661,7 +661,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoIntegration(c *C) {
 				OfficialName: "some-snap",
 				SnapID:       "snapIDsnapidsnapidsnapidsnapidsn",
 				Channel:      "some-channel",
-				Revision:     11,
+				Revision:     snap.Revision{11},
 			},
 		},
 		{
@@ -676,7 +676,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoIntegration(c *C) {
 		{
 			op:    "setup-profiles:Undoing",
 			name:  "some-snap",
-			revno: 11,
+			revno: snap.Revision{11},
 		},
 		{
 			op:   "undo-copy-snap-data",
@@ -707,14 +707,14 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoIntegration(c *C) {
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
 		OfficialName: "some-snap",
 		Channel:      "",
-		Revision:     7,
+		Revision:     snap.Revision{7},
 	})
 }
 
 func (s *snapmgrTestSuite) TestUpdateSameRevisionIntegration(c *C) {
 	si := snap.SideInfo{
 		OfficialName: "some-snap",
-		Revision:     7,
+		Revision:     snap.Revision{7},
 	}
 
 	s.state.Lock()
@@ -761,7 +761,7 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionIntegration(c *C) {
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
 		OfficialName: "some-snap",
 		Channel:      "",
-		Revision:     7,
+		Revision:     snap.Revision{7},
 	})
 }
 
@@ -803,9 +803,9 @@ version: 1.0`)
 	c.Check(s.fakeBackend.ops[0].name, Matches, `.*/mock_1.0_all.snap`)
 
 	c.Check(s.fakeBackend.ops[4].op, Equals, "candidate")
-	c.Check(s.fakeBackend.ops[4].sinfo, DeepEquals, snap.SideInfo{Revision: -1})
+	c.Check(s.fakeBackend.ops[4].sinfo, DeepEquals, snap.SideInfo{Revision: snap.Revision{-1}})
 	c.Check(s.fakeBackend.ops[5].op, Equals, "link-snap")
-	c.Check(s.fakeBackend.ops[5].name, Equals, "/snap/mock/l1")
+	c.Check(s.fakeBackend.ops[5].name, Equals, "/snap/mock/x1")
 
 	// verify snapSetup info
 	var ss snapstate.SnapSetup
@@ -814,7 +814,7 @@ version: 1.0`)
 	c.Assert(err, IsNil)
 	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
 		Name:     "mock",
-		Revision: -1,
+		Revision: snap.Revision{-1},
 		SnapPath: mockSnap,
 	})
 
@@ -828,9 +828,9 @@ version: 1.0`)
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
 		OfficialName: "",
 		Channel:      "",
-		Revision:     -1,
+		Revision:     snap.Revision{-1},
 	})
-	c.Assert(snapst.LocalRevision, Equals, snap.Revision(-1))
+	c.Assert(snapst.LocalRevision, Equals, snap.Revision{-1})
 }
 
 func (s *snapmgrTestSuite) TestInstallSubequentLocalIntegration(c *C) {
@@ -839,8 +839,8 @@ func (s *snapmgrTestSuite) TestInstallSubequentLocalIntegration(c *C) {
 
 	snapstate.Set(s.state, "mock", &snapstate.SnapState{
 		Active:        true,
-		Sequence:      []*snap.SideInfo{{Revision: -2}},
-		LocalRevision: -2,
+		Sequence:      []*snap.SideInfo{{Revision: snap.Revision{-2}}},
+		LocalRevision: snap.Revision{-2},
 	})
 
 	mockSnap := makeTestSnap(c, `name: mock
@@ -861,20 +861,20 @@ version: 1.0`)
 	c.Check(s.fakeBackend.ops[0].name, Matches, `.*/mock_1.0_all.snap`)
 
 	c.Check(s.fakeBackend.ops[2].op, Equals, "unlink-snap")
-	c.Check(s.fakeBackend.ops[2].name, Equals, "/snap/mock/l2")
+	c.Check(s.fakeBackend.ops[2].name, Equals, "/snap/mock/x2")
 
 	c.Check(s.fakeBackend.ops[3].op, Equals, "copy-data")
-	c.Check(s.fakeBackend.ops[3].name, Equals, "/snap/mock/l3")
-	c.Check(s.fakeBackend.ops[3].old, Equals, "/snap/mock/l2")
+	c.Check(s.fakeBackend.ops[3].name, Equals, "/snap/mock/x3")
+	c.Check(s.fakeBackend.ops[3].old, Equals, "/snap/mock/x2")
 
 	c.Check(s.fakeBackend.ops[4].op, Equals, "setup-profiles:Doing")
 	c.Check(s.fakeBackend.ops[4].name, Equals, "mock")
-	c.Check(s.fakeBackend.ops[4].revno, Equals, snap.Revision(-3))
+	c.Check(s.fakeBackend.ops[4].revno, Equals, snap.Revision{-3})
 
 	c.Check(s.fakeBackend.ops[5].op, Equals, "candidate")
-	c.Check(s.fakeBackend.ops[5].sinfo, DeepEquals, snap.SideInfo{Revision: -3})
+	c.Check(s.fakeBackend.ops[5].sinfo, DeepEquals, snap.SideInfo{Revision: snap.Revision{-3}})
 	c.Check(s.fakeBackend.ops[6].op, Equals, "link-snap")
-	c.Check(s.fakeBackend.ops[6].name, Equals, "/snap/mock/l3")
+	c.Check(s.fakeBackend.ops[6].name, Equals, "/snap/mock/x3")
 
 	// verify snapSetup info
 	var ss snapstate.SnapSetup
@@ -883,7 +883,7 @@ version: 1.0`)
 	c.Assert(err, IsNil)
 	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
 		Name:     "mock",
-		Revision: -3,
+		Revision: snap.Revision{-3},
 		SnapPath: mockSnap,
 	})
 
@@ -898,15 +898,15 @@ version: 1.0`)
 	c.Assert(snapst.Current(), DeepEquals, &snap.SideInfo{
 		OfficialName: "",
 		Channel:      "",
-		Revision:     -3,
+		Revision:     snap.Revision{-3},
 	})
-	c.Assert(snapst.LocalRevision, Equals, snap.Revision(-3))
+	c.Assert(snapst.LocalRevision, Equals, snap.Revision{-3})
 }
 
 func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 	si := snap.SideInfo{
 		OfficialName: "some-snap",
-		Revision:     7,
+		Revision:     snap.Revision{7},
 	}
 
 	s.state.Lock()
@@ -941,7 +941,7 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 		fakeOp{
 			op:    "remove-profiles:Doing",
 			name:  "some-snap",
-			revno: 7,
+			revno: snap.Revision{7},
 		},
 		fakeOp{
 			op:   "remove-snap-data",
@@ -976,7 +976,7 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 		} else {
 			expSnapSetup = &snapstate.SnapSetup{
 				Name:     "some-snap",
-				Revision: 7,
+				Revision: snap.Revision{7},
 			}
 		}
 		c.Check(ss, DeepEquals, expSnapSetup, Commentf(t.Kind()))
@@ -991,17 +991,17 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsIntegration(c *C) {
 	si3 := snap.SideInfo{
 		OfficialName: "some-snap",
-		Revision:     3,
+		Revision:     snap.Revision{3},
 	}
 
 	si5 := snap.SideInfo{
 		OfficialName: "some-snap",
-		Revision:     5,
+		Revision:     snap.Revision{5},
 	}
 
 	si7 := snap.SideInfo{
 		OfficialName: "some-snap",
-		Revision:     7,
+		Revision:     snap.Revision{7},
 	}
 
 	s.state.Lock()
@@ -1036,7 +1036,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsIntegration(c *C) {
 		{
 			op:    "remove-profiles:Doing",
 			name:  "some-snap",
-			revno: 7,
+			revno: snap.Revision{7},
 		},
 		{
 			op:   "remove-snap-data",
@@ -1075,7 +1075,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsIntegration(c *C) {
 
 	// verify snapSetup info
 	tasks := ts.Tasks()
-	revnos := []snap.Revision{7, 3, 5}
+	revnos := []snap.Revision{{7}, {3}, {5}}
 	whichRevno := 0
 	for _, t := range tasks {
 		ss, err := snapstate.TaskSnapSetup(t)
@@ -1122,8 +1122,8 @@ func (s *snapmgrQuerySuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 
 	// Write a snap.yaml with fake name
-	sideInfo11 := &snap.SideInfo{OfficialName: "name1", Revision: 11, EditedSummary: "s11"}
-	sideInfo12 := &snap.SideInfo{OfficialName: "name1", Revision: 12, EditedSummary: "s12"}
+	sideInfo11 := &snap.SideInfo{OfficialName: "name1", Revision: snap.Revision{11}, EditedSummary: "s11"}
+	sideInfo12 := &snap.SideInfo{OfficialName: "name1", Revision: snap.Revision{12}, EditedSummary: "s12"}
 	snaptest.MockSnap(c, `
 name: name0
 version: 1.1
@@ -1149,11 +1149,11 @@ func (s *snapmgrQuerySuite) TestInfo(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	info, err := snapstate.Info(st, "name1", 11)
+	info, err := snapstate.Info(st, "name1", snap.Revision{11})
 	c.Assert(err, IsNil)
 
 	c.Check(info.Name(), Equals, "name1")
-	c.Check(info.Revision, Equals, snap.Revision(11))
+	c.Check(info.Revision, Equals, snap.Revision{11})
 	c.Check(info.Summary(), Equals, "s11")
 	c.Check(info.Version, Equals, "1.1")
 	c.Check(info.Description(), Equals, "Lots of text")
@@ -1168,7 +1168,7 @@ func (s *snapmgrQuerySuite) TestCurrent(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(info.Name(), Equals, "name1")
-	c.Check(info.Revision, Equals, snap.Revision(12))
+	c.Check(info.Revision, Equals, snap.Revision{12})
 }
 
 func (s *snapmgrQuerySuite) TestActiveInfos(c *C) {
@@ -1182,7 +1182,7 @@ func (s *snapmgrQuerySuite) TestActiveInfos(c *C) {
 	c.Check(infos, HasLen, 1)
 
 	c.Check(infos[0].Name(), Equals, "name1")
-	c.Check(infos[0].Revision, Equals, snap.Revision(12))
+	c.Check(infos[0].Revision, Equals, snap.Revision{12})
 	c.Check(infos[0].Summary(), Equals, "s12")
 	c.Check(infos[0].Version, Equals, "1.2")
 	c.Check(infos[0].Description(), Equals, "Lots of text")
@@ -1196,7 +1196,7 @@ func (s *snapmgrQuerySuite) TestGadgetInfo(c *C) {
 	_, err := snapstate.GadgetInfo(st)
 	c.Assert(err, Equals, state.ErrNoState)
 
-	sideInfoGadget := &snap.SideInfo{Revision: 2}
+	sideInfoGadget := &snap.SideInfo{Revision: snap.Revision{2}}
 	snaptest.MockSnap(c, `
 name: gadget
 type: gadget
@@ -1211,7 +1211,7 @@ version: gadget
 	c.Assert(err, IsNil)
 
 	c.Check(info.Name(), Equals, "gadget")
-	c.Check(info.Revision, Equals, snap.Revision(2))
+	c.Check(info.Revision, Equals, snap.Revision{2})
 	c.Check(info.Version, Equals, "gadget")
 	c.Check(info.Type, Equals, snap.TypeGadget)
 }
@@ -1240,7 +1240,7 @@ func (s *snapmgrQuerySuite) TestAll(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(info12.Name(), Equals, "name1")
-	c.Check(info12.Revision, Equals, snap.Revision(12))
+	c.Check(info12.Revision, Equals, snap.Revision{12})
 	c.Check(info12.Summary(), Equals, "s12")
 	c.Check(info12.Version, Equals, "1.2")
 	c.Check(info12.Description(), Equals, "Lots of text")
@@ -1249,7 +1249,7 @@ func (s *snapmgrQuerySuite) TestAll(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(info11.Name(), Equals, "name1")
-	c.Check(info11.Revision, Equals, snap.Revision(11))
+	c.Check(info11.Revision, Equals, snap.Revision{11})
 	c.Check(info11.Version, Equals, "1.1")
 }
 

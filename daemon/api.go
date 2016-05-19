@@ -382,7 +382,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	for i, x := range found {
 		url, err := route.URL("name", x.Name())
 		if err != nil {
-			logger.Noticef("cannot build URL for snap %q (r%s): %v", x.Name(), x.Revision, err)
+			logger.Noticef("cannot build URL for snap %q revision %s: %v", x.Name(), x.Revision, err)
 			continue
 		}
 
@@ -446,13 +446,13 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 
 		url, err := route.URL("name", name)
 		if err != nil {
-			logger.Noticef("cannot build URL for snap %q (r%s): %v", name, rev, err)
+			logger.Noticef("cannot build URL for snap %q revision %s: %v", name, rev, err)
 			continue
 		}
 
 		data, err := json.Marshal(webify(mapLocal(x.info, isActive), url.String()))
 		if err != nil {
-			return InternalError("cannot serialize snap %q (r%s): %v", name, rev, err)
+			return InternalError("cannot serialize snap %q revision %s: %v", name, rev, err)
 		}
 		raw := json.RawMessage(data)
 		results[i] = &raw

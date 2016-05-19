@@ -148,7 +148,7 @@ func (s *apiSuite) mkManifest(c *check.C, pkgType snap.Type) {
 	sideInfo := snap.SideInfo{
 		OfficialName:      "foo",
 		Developer:         "bar",
-		Revision:          2147483647,
+		Revision:          snap.Revision{2147483647},
 		EditedDescription: " bla bla bla",
 	}
 
@@ -218,7 +218,7 @@ version: 1
 type: gadget
 gadget: {store: {id: %q}}
 `, store)
-	snaptest.MockSnap(c, yamlText, &snap.SideInfo{Revision: 1})
+	snaptest.MockSnap(c, yamlText, &snap.SideInfo{Revision: snap.Revision{1}})
 	c.Assert(os.Symlink("1", filepath.Join(dirs.SnapSnapsDir, "test", "current")), check.IsNil)
 }
 
@@ -254,7 +254,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 		Result: map[string]interface{}{
 			"id":          "funky-snap-id",
 			"name":        "foo",
-			"revision":    "10",
+			"revision":    10,
 			"version":     "v1",
 			"summary":     "summary",
 			"description": "description",
@@ -728,7 +728,7 @@ func (s *apiSuite) TestSnapsInfoOnePerIntegration(c *check.C) {
 		}
 		c.Check(got["name"], check.Equals, s.name)
 		c.Check(got["version"], check.Equals, s.ver)
-		c.Check(got["revision"], check.Equals, s.rev.String())
+		c.Check(got["revision"], check.Equals, s.rev.N)
 		c.Check(got["developer"], check.Equals, s.dev)
 	}
 }
