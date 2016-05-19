@@ -145,13 +145,94 @@ dbus (receive,send)
     member=Changed
     peer=(label=unconfined),
 
+# dbusmenu
+dbus (send)
+    bus=session
+    path=/MenuBar
+    interface=com.canonical.dbusmenu
+    member="{LayoutUpdated,ItemsPropertiesUpdated}"
+    peer=(name=org.freedesktop.DBus, label=unconfined),
+
+dbus (receive)
+    bus=session
+    path=/MenuBar
+    interface="{com.canonical.dbusmenu,org.freedesktop.DBus.Properties}"
+    member=Get*
+    peer=(label=unconfined),
+
+dbus (receive)
+    bus=session
+    path=/MenuBar
+    interface=com.canonical.dbusmenu
+    member="{AboutTo*,Event*}"
+    peer=(label=unconfined),
+
+# notifications
+dbus (send)
+    bus=session
+    path=/StatusNotifierWatcher
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
+    peer=(name=org.kde.StatusNotifierWatcher, label=unconfined),
+
+dbus (send)
+    bus=session
+    path=/org/freedesktop/DBus
+    interface=org.freedesktop.DBus
+    member="{GetConnectionUnixProcessID,RequestName,ReleaseName}"
+    peer=(name=org.freedesktop.DBus, label=unconfined),
+
+dbus (bind)
+    bus=session
+    name=org.kde.StatusNotifierItem-[0-9]*,
+
+dbus (send)
+    bus=session
+    path=/StatusNotifierWatcher
+    interface=org.freedesktop.DBus.Properties
+    member=Get
+    peer=(name=org.kde.StatusNotifierWatcher, label=unconfined),
+
+dbus (send)
+    bus=session
+    path=/StatusNotifierWatcher
+    interface=org.kde.StatusNotifierWatcher
+    member=RegisterStatusNotifierItem
+    peer=(name=org.kde.StatusNotifierWatcher, label=unconfined),
+
+dbus (send)
+    bus=session
+    path=/StatusNotifierItem
+    interface=org.kde.StatusNotifierItem
+    member="New{AttentionIcon,Icon,OverlayIcon,Status,Title,ToolTip}"
+    peer=(name=org.freedesktop.DBus, label=unconfined),
+
+dbus (receive)
+    bus=session
+    path=/StatusNotifierItem
+    interface=org.freedesktop.DBus.Properties
+    member=Get*
+    peer=(label=unconfined),
+
+dbus (send)
+    bus=session
+    path=/org/freedesktop/Notifications
+    interface=org.freedesktop.Notifications
+    member="{GetCapabilities,GetServerInformation,Notify}"
+    peer=(name=org.freedesktop.Notifications, label=unconfined),
+
+dbus (receive)
+    bus=session
+    path=/org/freedesktop/Notifications
+    interface=org.freedesktop.Notifications
+    member=NotificationClosed
+    peer=(label=unconfined),
+
 # Lttng tracing is very noisy and should not be allowed by confined apps. Can
 # safely deny. LP: #1260491
 deny /{,var/}run/shm/lttng-ust-* r,
 
-
-# TODO: pull in modern items from ubuntu-unity7-base abstraction, eg, HUD,
-# freedesktop notifications, etc
+# TODO: pull in modern items from ubuntu-unity7-base abstraction, eg, HUD, etc
 `
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/unity7

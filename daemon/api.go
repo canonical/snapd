@@ -498,7 +498,6 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	for i, x := range found {
 		name := x.info.Name()
 		rev := x.info.Revision
-		isActive := x.snapst.Active
 
 		url, err := route.URL("name", name)
 		if err != nil {
@@ -506,7 +505,7 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 			continue
 		}
 
-		data, err := json.Marshal(webify(mapLocal(x.info, isActive), url.String()))
+		data, err := json.Marshal(webify(mapLocal(x.info, x.snapst), url.String()))
 		if err != nil {
 			return InternalError("cannot serialize snap %q (r%d): %v", name, rev, err)
 		}
