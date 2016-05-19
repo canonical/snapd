@@ -28,7 +28,7 @@ import (
 )
 
 const fullListPattern = "(?ms)" +
-	"Name +Version +Summary *\n" +
+	"Name +Version +Price +Summary *\n" +
 	".*" +
 	"^canonical-pc +.* *\n" +
 	".*" +
@@ -75,7 +75,7 @@ func (s *searchSuite) TestFindMustPrintCompleteList(c *check.C) {
 func (s *searchSuite) TestFindWorksWithDifferentFormats(c *check.C) {
 	for _, snapName := range []string{"http", "ubuntu-clock-app", "go-example-webserver"} {
 		expected := "(?ms)" +
-			"Name +Version +Summary *\n" +
+			"Name +Version +Price +Summary *\n" +
 			".*" +
 			"^" + snapName + " +.* *\n" +
 			".*"
