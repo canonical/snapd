@@ -55,12 +55,12 @@ func snapDate(info *snap.Info) time.Time {
 }
 
 // localSnapInfo returns the information about the current snap for the given name plus the SnapState with the active flag and other snap revisions.
-func localSnapInfo(st *state.State, name string) (info *snap.Info, snapstOut *snapstate.SnapState, err error) {
+func localSnapInfo(st *state.State, name string) (*snap.Info, *snapstate.SnapState, error) {
 	st.Lock()
 	defer st.Unlock()
 
 	var snapst snapstate.SnapState
-	err = snapstate.Get(st, name, &snapst)
+	err := snapstate.Get(st, name, &snapst)
 	if err != nil && err != state.ErrNoState {
 		return nil, nil, fmt.Errorf("cannot consult state: %v", err)
 	}
@@ -70,7 +70,7 @@ func localSnapInfo(st *state.State, name string) (info *snap.Info, snapstOut *sn
 		return nil, nil, errNoSnap
 	}
 
-	info, err = snap.ReadInfo(name, cur)
+	info, err := snap.ReadInfo(name, cur)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot read snap details: %v", err)
 	}
