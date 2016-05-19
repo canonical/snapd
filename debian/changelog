@@ -1,3 +1,23 @@
+snapd (2.0.5) xenial; urgency=medium
+
+  * New upstream release: LP: #1583085
+    - interfaces: add dbusmenu, freedesktop and kde notifications to
+      unity7 (LP: #1573188)
+    - daemon: make localSnapInfo return SnapState
+    - cmd: make snap list with no snaps not special
+    - debian: workaround for XDG_DATA_DIRS issues
+    - cmd,po: fix conflicts, apply review from #1154
+    - snap,store: load and store the private flag sent by the store in
+      SideInfo
+    - interfaces/apparmor/template.go: adjust /dev/shm to be more usable
+    - store: use purchase decorator in Snap and FindSnaps
+    - interfaces: first version of the networkmanager interface
+    - snap, snappy: implement the new (minmimal) kernel spec
+    - cmd/snap, debian: move manpage generation to depend on an environ
+      key; also, fix completion
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 19 May 2016 15:29:16 +0200
+
 snapd (2.0.4) xenial; urgency=medium
 
   * New upstream release:
@@ -38,8 +58,7 @@ snapd (2.0.4) xenial; urgency=medium
     - snap: add `snap help` command
     - integration-tests: remove framework-test data and avoid using
       config-snap for now
-    - builtin/unity7.go: allow using gmenu. Closes: LP:#1576287
-    - add integration test to verify fix for LP:#1571721
+    - add integration test to verify fix for LP: #1571721
 
  -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 13 May 2016 17:19:37 -0700
 
@@ -102,6 +121,7 @@ snapd (2.0.3) xenial; urgency=medium
     - etc: trivial typo fix (LP:#1569892)
     - debian: remove unneeded /var/lib/snapd/apparmor/additional
       directory (LP: #1569577)
+    - builtin/unity7.go: allow using gmenu. LP: #1576287
 
  -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 03 May 2016 07:51:57 +0200
 
