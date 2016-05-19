@@ -21,6 +21,7 @@ package snap
 
 import (
 	"encoding/json"
+	"fmt"
 )
 
 // Type represents the kind of snap (app, core, gadget, os, kernel)
@@ -53,6 +54,40 @@ func (m *Type) UnmarshalJSON(data []byte) error {
 	} else {
 		*m = Type(str)
 	}
+
+	return nil
+}
+
+// ConfinementType represents the kind of confinement supported by the snap
+// (devmode only, or strict confinement)
+type ConfinementType string
+
+// The various confinement types we support
+const (
+	ConfinementTypeDevmode ConfinementType = "devmode"
+	ConfinementTypeStrict  ConfinementType = "strict"
+)
+
+// Map of strings to ConfinementTypes, used for validation and tests
+var ConfinementTypeMap = map[string]ConfinementType{
+	"devmode": ConfinementTypeDevmode,
+	"strict":  ConfinementTypeStrict,
+}
+
+// UnmarshalYAML so ConfinementType implements yaml's Unmarshaler interface
+func (confinementType *ConfinementType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+
+	mappedConfinementType, ok := ConfinementTypeMap[str]
+	if !ok {
+		return fmt.Errorf("invalid confinement type: %q", str)
+	}
+
+	*confinementType = mappedConfinementType
 
 	return nil
 }

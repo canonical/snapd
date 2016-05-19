@@ -21,6 +21,7 @@ package snap
 
 import (
 	"encoding/json"
+	"gopkg.in/yaml.v2"
 
 	. "gopkg.in/check.v1"
 )
@@ -59,4 +60,33 @@ func (s *typeSuite) TestUnmarshalTypes(c *C) {
 	err = json.Unmarshal([]byte("\"gadget\""), &st)
 	c.Assert(err, IsNil)
 	c.Check(st, Equals, TypeGadget)
+}
+
+func (s *typeSuite) TestMarshalConfinementTypes(c *C) {
+	for key, value := range ConfinementTypeMap {
+		out, err := yaml.Marshal(value)
+		c.Assert(err, IsNil)
+		c.Check(string(out), Equals, key+"\n")
+	}
+}
+
+func (s *typeSuite) TestUnmarshalConfinementTypes(c *C) {
+	var confinementType ConfinementType
+
+	for key, value := range ConfinementTypeMap {
+		err := yaml.Unmarshal([]byte(key), &confinementType)
+		c.Assert(err, IsNil)
+		c.Check(confinementType, Equals, value)
+	}
+}
+
+func (s *typeSuite) TestUnmarshalInvalidConfinementTypes(c *C) {
+	var invalidConfinementTypes = []string{
+		"foo", "strict-", "_devmode",
+	}
+	var confinementType ConfinementType
+	for _, thisConfinementType := range invalidConfinementTypes {
+		err := yaml.Unmarshal([]byte(thisConfinementType), &confinementType)
+		c.Assert(err, NotNil, Commentf("Expected '%s' to be an invalid confinement type", thisConfinementType))
+	}
 }
