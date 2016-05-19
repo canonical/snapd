@@ -254,11 +254,9 @@ var defaultTemplate = []byte(`
   /tmp/   r,
   /tmp/** mrwlkix,
 
-  # Also do the same for shm
-  /{dev,run}/shm/snap/@{SNAP_NAME}/                  r,
-  /{dev,run}/shm/snap/@{SNAP_NAME}/**                rk,
-  /{dev,run}/shm/snap/@{SNAP_NAME}/@{SNAP_REVISION}/   r,
-  /{dev,run}/shm/snap/@{SNAP_NAME}/@{SNAP_REVISION}/** mrwlkix,
+  # App-specific access to files and directories in /dev/shm. We allow file
+  # access in /dev/shm for shm_open() and files in subdirectories for open()
+  /{dev,run}/shm/snap.@{SNAP_NAME}.** mrwlkix,
 
   # Allow apps from the same package to communicate with each other via an
   # abstract or anonymous socket
