@@ -1,5 +1,6 @@
 snap
 var/lib/snapd/snaps
 var/lib/snapd/lib/gl
+var/lib/snapd/desktop
 usr/lib/snapd
 var/snap
