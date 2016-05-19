@@ -27,6 +27,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 )
 
 // for cleanup
@@ -35,9 +36,7 @@ var dev1AccKeyFiles = filepath.Join(dirs.SnapAssertsDBDir, "asserts-v0/account-k
 var _ = check.Suite(&snapAckSuite{})
 
 type snapAckSuite struct {
-	// FIXME: use snapdTestSuite until all tests are moved to
-	// assume the snapd/snap command pairing
-	snapdTestSuite
+	common.SnappySuite
 }
 
 func (s *snapAckSuite) TestOK(c *check.C) {
