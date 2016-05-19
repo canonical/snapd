@@ -69,6 +69,7 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	info.AnonDownloadURL = d.AnonDownloadURL
 	info.DownloadURL = d.DownloadURL
 	info.Prices = d.Prices
+	info.Private = d.Private
 	return info
 }
 
@@ -464,7 +465,15 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string, auther Authentica
 
 	s.checkStoreResponse(resp)
 
-	return infoFromRemote(searchData.Payload.Packages[0]), nil
+	info := infoFromRemote(searchData.Payload.Packages[0])
+
+	err = s.decoratePurchases([]*snap.Info{info}, channel, auther)
+	if err != nil {
+		logger.Noticef("cannot get user purchases: %v", err)
+	}
+
+	return info, nil
+
 }
 
 // FindSnaps finds  (installable) snaps from the store, matching the
@@ -512,6 +521,11 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string,
 	snaps := make([]*snap.Info, len(searchData.Payload.Packages))
 	for i, pkg := range searchData.Payload.Packages {
 		snaps[i] = infoFromRemote(pkg)
+	}
+
+	err = s.decoratePurchases(snaps, channel, auther)
+	if err != nil {
+		logger.Noticef("cannot get user purchases: %v", err)
 	}
 
 	s.checkStoreResponse(resp)
