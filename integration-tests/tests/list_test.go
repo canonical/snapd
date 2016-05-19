@@ -22,10 +22,14 @@ package tests
 
 import (
 	"fmt"
+	"io/ioutil"
 
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/config"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/partition"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/store"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/updates"
 
 	"gopkg.in/check.v1"
 )
@@ -60,6 +64,41 @@ func (s *listSuite) TestListMustPrintAppVersion(c *check.C) {
 		"Name +Version +Rev +Developer *\n" +
 		".*" +
 		"^hello-world +(\\d+)(\\.\\d+)* +[0-9]+ +.* *\n" +
+		".*"
+
+	c.Assert(listOutput, check.Matches, expected)
+}
+
+func (s *listSuite) TestListRefreshesMustPrintUpdates(c *check.C) {
+	snap := "hello-world"
+
+	common.InstallSnap(c, snap)
+	s.AddCleanup(func() {
+		common.RemoveSnap(c, snap)
+	})
+
+	// fake updates
+	blobDir, err := ioutil.TempDir("", "snap-fake-store-blobs-")
+	fakeStore := store.NewStore(blobDir)
+	err = fakeStore.Start()
+	c.Assert(err, check.IsNil)
+	defer fakeStore.Stop()
+
+	env := fmt.Sprintf(`SNAPPY_FORCE_CPI_URL=%s`, fakeStore.URL())
+	cfg, _ := config.ReadConfig(config.DefaultFileName)
+
+	tearDownSnapd(c)
+	defer setUpSnapd(c, cfg.FromBranch, "")
+	setUpSnapd(c, cfg.FromBranch, env)
+	defer tearDownSnapd(c)
+
+	updates.MakeFakeUpdateForSnap(c, snap, blobDir, updates.NoOp)
+
+	listOutput := cli.ExecCommand(c, "snap", "list", "--refresh")
+	expected := "(?ms)" +
+		"Name +Version +Rev +Developer *\n" +
+		".*" +
+		"^hello-world +(\\d+)(\\.\\d+)\\+fake1 +[0-9]+ +.* *\n" +
 		".*"
 
 	c.Assert(listOutput, check.Matches, expected)
