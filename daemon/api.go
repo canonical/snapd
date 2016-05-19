@@ -480,12 +480,8 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot find route for snaps")
 	}
 
-	if sel, ok := r.URL.Query()["select"]; ok {
-		for _, elm := range sel {
-			if elm == "refresh" {
-				return storeUpdates(c, r, user)
-			}
-		}
+	if r.URL.Query().Get("select") == "refresh" {
+		return storeUpdates(c, r, user)
 	}
 
 	found, err := allLocalSnapInfos(c.d.overlord.State())
