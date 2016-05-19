@@ -45,6 +45,7 @@ func (s *linkSnapSuite) SetUpTest(c *C) {
 	var err error
 	s.snapmgr, err = snapstate.Manager(s.state)
 	c.Assert(err, IsNil)
+	s.snapmgr.AddForeignTaskHandlers(s.fakeBackend)
 
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
 
@@ -111,8 +112,10 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 
 	s.state.Unlock()
 
-	s.snapmgr.Ensure()
-	s.snapmgr.Wait()
+	for i := 0; i < 3; i++ {
+		s.snapmgr.Ensure()
+		s.snapmgr.Wait()
+	}
 
 	s.state.Lock()
 	var snapst snapstate.SnapState
