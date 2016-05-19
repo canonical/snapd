@@ -53,7 +53,7 @@ func AddSnapEnvironment(s *snap.Info) error {
 
 func RemoveSnapEnvironment(s *snap.Info) error {
 	for _, app := range s.Apps {
-		if err := os.Remove(app.EnvironmentFilePath()); err != nil {
+		if err := os.Remove(app.EnvironmentFilePath()); err != nil && !os.IsNotExist(err) {
 			return err
 		}
 	}
