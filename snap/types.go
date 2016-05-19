@@ -68,26 +68,21 @@ const (
 	StrictConfinement  ConfinementType = "strict"
 )
 
-// Map of strings to ConfinementTypes, used for validation and tests
-var ConfinementTypeMap = map[string]ConfinementType{
-	"devmode": DevmodeConfinement,
-	"strict":  StrictConfinement,
-}
-
 // UnmarshalYAML so ConfinementType implements yaml's Unmarshaler interface
 func (confinementType *ConfinementType) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var str string
+	var s string
 
-	if err := unmarshal(&str); err != nil {
+	if err := unmarshal(&s); err != nil {
 		return err
 	}
 
-	mappedConfinementType, ok := ConfinementTypeMap[str]
-	if !ok {
-		return fmt.Errorf("invalid confinement type: %q", str)
+	c := ConfinementType(s)
+	if c != DevmodeConfinement && c != StrictConfinement {
+
+		return fmt.Errorf("invalid confinement type: %q", s)
 	}
 
-	*confinementType = mappedConfinementType
+	*confinementType = c
 
 	return nil
 }
