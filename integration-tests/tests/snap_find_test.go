@@ -28,7 +28,7 @@ import (
 )
 
 const fullListPattern = "(?ms)" +
-	"Name +Version +Price +Summary *\n" +
+	"Name +Version +(Price +)?Summary *\n" +
 	".*" +
 	"^canonical-pc +.* *\n" +
 	".*" +
@@ -52,7 +52,7 @@ type searchSuite struct {
 func (s *searchSuite) TestSearchMustPrintMatch(c *check.C) {
 	// XXX: Summary is empty atm, waiting for store support
 	expected := "(?ms)" +
-		"Name +Version +Summary *\n" +
+		"Name +Version +(Price +)?Summary *\n" +
 		".*" +
 		"^hello-world +.* *\n" +
 		".*"
@@ -75,7 +75,7 @@ func (s *searchSuite) TestFindMustPrintCompleteList(c *check.C) {
 func (s *searchSuite) TestFindWorksWithDifferentFormats(c *check.C) {
 	for _, snapName := range []string{"http", "ubuntu-clock-app", "go-example-webserver"} {
 		expected := "(?ms)" +
-			"Name +Version +Price +Summary *\n" +
+			"Name +Version +(Price +)?Summary *\n" +
 			".*" +
 			"^" + snapName + " +.* *\n" +
 			".*"
