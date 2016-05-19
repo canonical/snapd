@@ -26,7 +26,7 @@ import (
 var allInterfaces = []interfaces.Interface{
 	&BoolFileInterface{},
 	&BluezInterface{},
-	&LocationInterface{},
+	&LocationObserveInterface{},
 	&NetworkManagerInterface{},
 	NewFirewallControlInterface(),
 	NewHomeInterface(),
