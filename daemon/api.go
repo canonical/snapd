@@ -1076,9 +1076,9 @@ func getChanges(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	if wantedName := query.Get("for"); wantedName != "" {
-		selectFilter := filter
+		outerFilter := filter
 		filter = func(chg *state.Change) bool {
-			if !selectFilter(chg) {
+			if !outerFilter(chg) {
 				return false
 			}
 
