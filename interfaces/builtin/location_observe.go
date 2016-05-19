@@ -25,7 +25,7 @@ import (
 	"github.com/ubuntu-core/snappy/interfaces"
 )
 
-var locationPermanentSlotAppArmor = []byte(`
+var locationObservePermanentSlotAppArmor = []byte(`
 # Description: Allow operating as the location service. Reserved because this
 #  gives privileged access to the system.
 # Usage: reserved
@@ -58,7 +58,7 @@ dbus (receive, send)
     peer=(label=unconfined),
 `)
 
-var locationConnectedSlotAppArmor = []byte(`
+var locationObserveConnectedSlotAppArmor = []byte(`
 # Allow connected clients to interact with the service
 
 # Allow the service to host sessions
@@ -72,14 +72,6 @@ dbus (receive)
     path=/com/ubuntu/location/Service
     interface=com.ubuntu.location.Service
     member=CreateSessionForCriteria
-    peer=(label=###PLUG_SECURITY_TAGS###),
-
-# Allow clients to query/update service properties
-dbus (receive)
-    bus=system
-    path=/com/ubuntu/location/Service
-    interface=org.freedesktop.DBus.Properties
-    member="{Get,Set}"
     peer=(label=###PLUG_SECURITY_TAGS###),
 
 # Allow clients to request starting/stopping updates
@@ -120,20 +112,12 @@ dbus (send)
     peer=(label=###PLUG_SECURITY_TAGS###),
 `)
 
-var locationConnectedPlugAppArmor = []byte(`
+var locationObserveConnectedPlugAppArmor = []byte(`
 # Description: Allow using location service. Reserved because this gives
 #  privileged access to the service.
 # Usage: reserved
 
 #include <abstractions/dbus-strict>
-
-# Allow clients to query/update service properties
-dbus (send)
-    bus=system
-    path=/com/ubuntu/location/Service
-    interface=org.freedesktop.DBus.Properties
-    member="{Get,Set}"
-    peer=(label=###SLOT_SECURITY_TAGS###),
 
 # Allow clients to create a session
 dbus (send)
@@ -187,21 +171,21 @@ dbus (receive)
     peer=(label=unconfined),
 `)
 
-var locationPermanentSlotSecComp = []byte(`
+var locationObservePermanentSlotSecComp = []byte(`
 getsockname
 recvmsg
 sendmsg
 sendto
 `)
 
-var locationConnectedPlugSecComp = []byte(`
+var locationObserveConnectedPlugSecComp = []byte(`
 getsockname
 recvmsg
 sendmsg
 sendto
 `)
 
-var locationPermanentSlotDBus = []byte(`
+var locationObservePermanentSlotDBus = []byte(`
 <policy user="root">
     <allow own="com.ubuntu.location.Service"/>
     <allow own="com.ubuntu.location.Service.Session"/>
@@ -212,7 +196,7 @@ var locationPermanentSlotDBus = []byte(`
 </policy>
 `)
 
-var locationConnectedPlugDBus = []byte(`
+var locationObserveConnectedPlugDBus = []byte(`
 <policy context="default">
     <deny own="com.ubuntu.location.Service"/>
     <allow send_destination="com.ubuntu.location.Service"/>
@@ -222,13 +206,13 @@ var locationConnectedPlugDBus = []byte(`
 </policy>
 `)
 
-type LocationInterface struct{}
+type LocationObserveInterface struct{}
 
-func (iface *LocationInterface) Name() string {
-	return "location"
+func (iface *LocationObserveInterface) Name() string {
+	return "location-observe"
 }
 
-func (iface *LocationInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *LocationObserveInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev:
 		return nil, nil
@@ -237,17 +221,17 @@ func (iface *LocationInterface) PermanentPlugSnippet(plug *interfaces.Plug, secu
 	}
 }
 
-func (iface *LocationInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *LocationObserveInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		old := []byte("###SLOT_SECURITY_TAGS###")
 		new := slotAppLabelExpr(slot)
-		snippet := bytes.Replace(locationConnectedPlugAppArmor, old, new, -1)
+		snippet := bytes.Replace(locationObserveConnectedPlugAppArmor, old, new, -1)
 		return snippet, nil
 	case interfaces.SecurityDBus:
-		return locationConnectedPlugDBus, nil
+		return locationObserveConnectedPlugDBus, nil
 	case interfaces.SecuritySecComp:
-		return locationConnectedPlugSecComp, nil
+		return locationObserveConnectedPlugSecComp, nil
 	case interfaces.SecurityUDev:
 		return nil, nil
 	default:
@@ -255,14 +239,14 @@ func (iface *LocationInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot
 	}
 }
 
-func (iface *LocationInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *LocationObserveInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		return locationPermanentSlotAppArmor, nil
+		return locationObservePermanentSlotAppArmor, nil
 	case interfaces.SecurityDBus:
-		return locationPermanentSlotDBus, nil
+		return locationObservePermanentSlotDBus, nil
 	case interfaces.SecuritySecComp:
-		return locationPermanentSlotSecComp, nil
+		return locationObservePermanentSlotSecComp, nil
 	case interfaces.SecurityUDev:
 		return nil, nil
 	default:
@@ -270,12 +254,12 @@ func (iface *LocationInterface) PermanentSlotSnippet(slot *interfaces.Slot, secu
 	}
 }
 
-func (iface *LocationInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *LocationObserveInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		old := []byte("###PLUG_SECURITY_TAGS###")
 		new := plugAppLabelExpr(plug)
-		snippet := bytes.Replace(locationConnectedSlotAppArmor, old, new, -1)
+		snippet := bytes.Replace(locationObserveConnectedSlotAppArmor, old, new, -1)
 		return snippet, nil
 	case interfaces.SecurityDBus, interfaces.SecuritySecComp, interfaces.SecurityUDev:
 		return nil, nil
@@ -284,14 +268,14 @@ func (iface *LocationInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot
 	}
 }
 
-func (iface *LocationInterface) SanitizePlug(slot *interfaces.Plug) error {
+func (iface *LocationObserveInterface) SanitizePlug(slot *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *LocationInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *LocationObserveInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *LocationInterface) AutoConnect() bool {
+func (iface *LocationObserveInterface) AutoConnect() bool {
 	return false
 }

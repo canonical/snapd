@@ -28,36 +28,36 @@ import (
 	"github.com/ubuntu-core/snappy/testutil"
 )
 
-type LocationInterfaceSuite struct {
+type LocationObserveInterfaceSuite struct {
 	iface interfaces.Interface
 	slot  *interfaces.Slot
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&LocationInterfaceSuite{
-	iface: &builtin.LocationInterface{},
+var _ = Suite(&LocationObserveInterfaceSuite{
+	iface: &builtin.LocationObserveInterface{},
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "location"},
 			Name:      "location",
-			Interface: "location",
+			Interface: "location-observe",
 		},
 	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap:      &snap.Info{SuggestedName: "location"},
 			Name:      "location-client",
-			Interface: "location",
+			Interface: "location-observe",
 		},
 	},
 })
 
-func (s *LocationInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "location")
+func (s *LocationObserveInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "location-observe")
 }
 
 // The label glob when all apps are bound to the location slot
-func (s *LocationInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) {
+func (s *LocationObserveInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) {
 	app1 := &snap.AppInfo{Name: "app1"}
 	app2 := &snap.AppInfo{Name: "app2"}
 	slot := &interfaces.Slot{
@@ -77,7 +77,7 @@ func (s *LocationInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) 
 }
 
 // The label uses alternation when some, but not all, apps is bound to the location slot
-func (s *LocationInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C) {
+func (s *LocationObserveInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C) {
 	app1 := &snap.AppInfo{Name: "app1"}
 	app2 := &snap.AppInfo{Name: "app2"}
 	app3 := &snap.AppInfo{Name: "app3"}
@@ -98,7 +98,7 @@ func (s *LocationInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C)
 }
 
 // The label uses short form when exactly one app is bound to the location slot
-func (s *LocationInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) {
+func (s *LocationObserveInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) {
 	app := &snap.AppInfo{Name: "app"}
 	slot := &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
@@ -117,7 +117,7 @@ func (s *LocationInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) 
 }
 
 // The label glob when all apps are bound to the location plug
-func (s *LocationInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelAll(c *C) {
+func (s *LocationObserveInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelAll(c *C) {
 	app1 := &snap.AppInfo{Name: "app1"}
 	app2 := &snap.AppInfo{Name: "app2"}
 	plug := &interfaces.Plug{
@@ -137,7 +137,7 @@ func (s *LocationInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelAll(c *C) 
 }
 
 // The label uses alternation when some, but not all, apps is bound to the location plug
-func (s *LocationInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelSome(c *C) {
+func (s *LocationObserveInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelSome(c *C) {
 	app1 := &snap.AppInfo{Name: "app1"}
 	app2 := &snap.AppInfo{Name: "app2"}
 	app3 := &snap.AppInfo{Name: "app3"}
@@ -158,7 +158,7 @@ func (s *LocationInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelSome(c *C)
 }
 
 // The label uses short form when exactly one app is bound to the location plug
-func (s *LocationInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c *C) {
+func (s *LocationObserveInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c *C) {
 	app := &snap.AppInfo{Name: "app"}
 	plug := &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
@@ -176,7 +176,7 @@ func (s *LocationInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c *C) 
 	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.location.app"),`)
 }
 
-func (s *LocationInterfaceSuite) TestUnusedSecuritySystems(c *C) {
+func (s *LocationObserveInterfaceSuite) TestUnusedSecuritySystems(c *C) {
 	systems := [...]interfaces.SecuritySystem{interfaces.SecuritySecComp,
 		interfaces.SecurityDBus, interfaces.SecurityUDev}
 	for _, system := range systems {
@@ -198,7 +198,7 @@ func (s *LocationInterfaceSuite) TestUnusedSecuritySystems(c *C) {
 	c.Assert(snippet, IsNil)
 }
 
-func (s *LocationInterfaceSuite) TestUsedSecuritySystems(c *C) {
+func (s *LocationObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	systems := [...]interfaces.SecuritySystem{interfaces.SecurityAppArmor,
 		interfaces.SecuritySecComp, interfaces.SecurityDBus}
 	for _, system := range systems {
@@ -214,7 +214,7 @@ func (s *LocationInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(snippet, Not(IsNil))
 }
 
-func (s *LocationInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
+func (s *LocationObserveInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 	snippet, err := s.iface.PermanentPlugSnippet(s.plug, "foo")
 	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
 	c.Assert(snippet, IsNil)
