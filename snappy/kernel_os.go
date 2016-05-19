@@ -193,9 +193,9 @@ func nameAndRevnoFromSnap(sn string) (string, snap.Revision) {
 	revnoNSuffix := strings.Split(sn, "_")[1]
 	revno, err := strconv.Atoi(strings.Split(revnoNSuffix, ".snap")[0])
 	if err != nil {
-		return "", -1
+		return "", snap.Revision{}
 	}
-	return name, snap.Revision(revno)
+	return name, snap.Revision{revno}
 }
 
 // SyncBoot synchronizes the active kernel and OS snap versions with

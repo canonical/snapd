@@ -24,25 +24,11 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strconv"
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/systemd"
 	"github.com/ubuntu-core/snappy/timeout"
 )
-
-// FIXME: make this a struct and add a special unmarshal that will deal
-//        with both int and string
-type Revision int
-
-func (revno Revision) String() string {
-	if revno < 0 {
-		nrevno := -1 * revno
-		return "l" + strconv.Itoa(int(nrevno))
-	}
-
-	return strconv.Itoa(int(revno))
-}
 
 // PlaceInfo offers all the information about where a snap and its data are located and exposed in the filesystem.
 type PlaceInfo interface {

@@ -205,8 +205,8 @@ func manifestPath(name string, revno snap.Revision) string {
 
 // SaveManifest saves the manifest at the designated location for the snap containing information not in the snap.yaml.
 func SaveManifest(rsnap *snap.Info) error {
-	if rsnap.Revision == 0 {
-		return fmt.Errorf("internal error: should not be storring manifests for sideloaded snaps")
+	if !rsnap.Revision.Store() {
+		return fmt.Errorf("internal error: should not be storing manifests for local snaps")
 	}
 
 	// XXX: we store OfficialName though it may not be the blessed one later

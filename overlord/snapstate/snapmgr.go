@@ -147,8 +147,6 @@ func checkRevisionIsNew(name string, snapst *SnapState, revision snap.Revision) 
 	return nil
 }
 
-const firstLocalRevision = snap.Revision(-1)
-
 func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -158,16 +156,16 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if ss.Revision == snap.Revision(0) { // sideloading
-		// to not clash with not sideload installs
-		// and to not have clashes between them
-		// use incremental revisions starting at -1
-		// for sideloads and count down
+	if ss.Revision.Unset() {
+		// Local revisions start at -1 and go down.
 		revision := snapst.LocalRevision
-		if revision == 0 {
-			revision = firstLocalRevision
+		if revision.Unset() {
+			revision = snap.Revision{-1}
 		} else {
-			revision--
+			revision.N--
+		}
+		if !revision.Local() {
+			panic("internal error: invalid local revision built: " + revision.String())
 		}
 		snapst.LocalRevision = revision
 		ss.Revision = revision
