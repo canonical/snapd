@@ -108,7 +108,7 @@ func (s *snapOpSuite) TestRemoveBusyRetries(c *check.C) {
 		wait.ForCommand(c, needle, "snap", "changes")
 
 		// find change id of the remove
-		output := cli.ExecCommand(c, "snap", "changes")
+		output := cli.ExecCommand(c, "snap", "changes", data.BasicBinariesSnapName)
 		id := regexp.MustCompile(`(?m)([0-9]+).*Doing.*Remove.*"`).FindStringSubmatch(output)[1]
 		needle = `will retry: `
 		wait.ForCommand(c, needle, "snap", "change", id)
@@ -153,7 +153,7 @@ func (s *snapOpSuite) TestInstallFailedIsUndone(c *check.C) {
 	c.Assert(err, check.NotNil)
 
 	// check undone and error in tasks
-	output := cli.ExecCommand(c, "snap", "changes")
+	output := cli.ExecCommand(c, "snap", "changes", snapName)
 	expected := fmt.Sprintf(`(?ms).*\n(\d+) +Error.*Install "%s" snap\n$`, snapName)
 	id := regexp.MustCompile(expected).FindStringSubmatch(output)[1]
 
