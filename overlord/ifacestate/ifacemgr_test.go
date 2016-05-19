@@ -211,8 +211,8 @@ func (s *interfaceManagerSuite) mockSnap(c *C, yamlText string) *snap.Info {
 	return snapInfo
 }
 
-func (s *interfaceManagerSuite) mockUpdatedSnap(c *C, yamlText string, revision snap.Revision) *snap.Info {
-	sideInfo := &snap.SideInfo{Revision: revision}
+func (s *interfaceManagerSuite) mockUpdatedSnap(c *C, yamlText string, revision int) *snap.Info {
+	sideInfo := &snap.SideInfo{Revision: snap.R(revision)}
 	snapInfo := snaptest.MockSnap(c, yamlText, sideInfo)
 
 	s.state.Lock()
@@ -570,7 +570,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesUsesFreshSnapInfo(c *C) {
 
 	// Sanity check, the revisions are different.
 	c.Assert(oldSnapInfo.Revision, Not(Equals), 42)
-	c.Assert(newSnapInfo.Revision, Equals, snap.Revision(42))
+	c.Assert(newSnapInfo.Revision, Equals, snap.R(42))
 
 	// Run the setup-profiles task for the new revision and let it finish.
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{

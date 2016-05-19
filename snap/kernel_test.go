@@ -47,13 +47,13 @@ func (s *KernelYamlTestSuite) TearDownTest(c *C) {
 }
 
 func (s *KernelYamlTestSuite) TestReadKernelYamlMissing(c *C) {
-	info := snaptest.MockSnap(c, mockKernelYaml, &snap.SideInfo{Revision: snap.Revision{42}})
+	info := snaptest.MockSnap(c, mockKernelYaml, &snap.SideInfo{Revision: snap.R(42)})
 	_, err := snap.ReadKernelInfo(info)
 	c.Assert(err, ErrorMatches, ".*meta/kernel.yaml: no such file or directory")
 }
 
 func (s *KernelYamlTestSuite) TestReadKernelYamlValid(c *C) {
-	info := snaptest.MockSnap(c, mockKernelYaml, &snap.SideInfo{Revision: snap.Revision{42}})
+	info := snaptest.MockSnap(c, mockKernelYaml, &snap.SideInfo{Revision: snap.R(42)})
 	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "kernel.yaml"), []byte(`version: 4.2`), 0644)
 	c.Assert(err, IsNil)
 

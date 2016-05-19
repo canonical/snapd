@@ -148,7 +148,7 @@ func (s *apiSuite) mkManifest(c *check.C, pkgType snap.Type) {
 	sideInfo := snap.SideInfo{
 		OfficialName:      "foo",
 		Developer:         "bar",
-		Revision:          snap.Revision{2147483647},
+		Revision:          snap.R(2147483647),
 		EditedDescription: " bla bla bla",
 	}
 
@@ -218,7 +218,7 @@ version: 1
 type: gadget
 gadget: {store: {id: %q}}
 `, store)
-	snaptest.MockSnap(c, yamlText, &snap.SideInfo{Revision: snap.Revision{1}})
+	snaptest.MockSnap(c, yamlText, &snap.SideInfo{Revision: snap.R(1)})
 	c.Assert(os.Symlink("1", filepath.Join(dirs.SnapSnapsDir, "test", "current")), check.IsNil)
 }
 
@@ -227,9 +227,9 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	s.vars = map[string]string{"name": "foo"}
 
 	// we have v0 [r5] installed
-	s.mkInstalledInState(c, d, "foo", "bar", "v0", snap.Revision{5}, false, "")
+	s.mkInstalledInState(c, d, "foo", "bar", "v0", snap.R(5), false, "")
 	// and v1 [r10] is current
-	s.mkInstalledInState(c, d, "foo", "bar", "v1", snap.Revision{10}, true, "description: description\nsummary: summary")
+	s.mkInstalledInState(c, d, "foo", "bar", "v1", snap.R(10), true, "description: description\nsummary: summary")
 
 	req, err := http.NewRequest("GET", "/v2/snaps/foo", nil)
 	c.Assert(err, check.IsNil)
@@ -254,7 +254,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 		Result: map[string]interface{}{
 			"id":          "funky-snap-id",
 			"name":        "foo",
-			"revision":    snap.Revision{10},
+			"revision":    snap.R(10),
 			"version":     "v1",
 			"summary":     "summary",
 			"description": "description",
@@ -706,7 +706,7 @@ func (s *apiSuite) TestSnapsInfoOnePerIntegration(c *check.C) {
 	}
 
 	for _, snp := range tsnaps {
-		s.mkInstalledInState(c, d, snp.name, snp.dev, snp.ver, snap.Revision{snp.rev}, false, "")
+		s.mkInstalledInState(c, d, snp.name, snp.dev, snp.ver, snap.R(snp.rev), false, "")
 	}
 
 	rsp, ok := getSnapsInfo(snapsCmd, req, nil).(*resp)
@@ -742,7 +742,7 @@ func (s *apiSuite) TestSnapsInfoOnlyLocal(c *check.C) {
 			Developer:    "foo",
 		},
 	}}
-	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.Revision{10}, true, "")
+	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(10), true, "")
 
 	req, err := http.NewRequest("GET", "/v2/snaps?sources=local", nil)
 	c.Assert(err, check.IsNil)
@@ -829,7 +829,7 @@ func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
 			Developer:    "foo",
 		},
 	}}
-	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.Revision{10}, true, "")
+	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(10), true, "")
 
 	req, err := http.NewRequest("GET", "/v2/snaps?sources=store", nil)
 	c.Assert(err, check.IsNil)
@@ -875,7 +875,7 @@ func (s *apiSuite) TestSnapsInfoLocalAndStore(c *check.C) {
 			Developer:    "foo",
 		},
 	}}
-	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.Revision{10}, true, "")
+	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(10), true, "")
 
 	req, err := http.NewRequest("GET", "/v2/snaps?sources=local,store", nil)
 	c.Assert(err, check.IsNil)
@@ -915,7 +915,7 @@ func (s *apiSuite) TestSnapsInfoDefaultSources(c *check.C) {
 			Developer:    "foo",
 		},
 	}}
-	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.Revision{10}, true, "")
+	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(10), true, "")
 
 	req, err := http.NewRequest("GET", "/v2/snaps", nil)
 	c.Assert(err, check.IsNil)
@@ -934,7 +934,7 @@ func (s *apiSuite) TestSnapsInfoUnknownSource(c *check.C) {
 			Developer:    "foo",
 		},
 	}}
-	s.mkInstalled(c, "local", "foo", "v1", snap.Revision{10}, true, "")
+	s.mkInstalled(c, "local", "foo", "v1", snap.R(10), true, "")
 
 	req, err := http.NewRequest("GET", "/v2/snaps?sources=unknown", nil)
 	c.Assert(err, check.IsNil)
@@ -1223,7 +1223,7 @@ func (s *apiSuite) TestAppIconGet(c *check.C) {
 	d := s.daemon(c)
 
 	// have an active foo in the system
-	info := s.mkInstalledInState(c, d, "foo", "bar", "v1", snap.Revision{10}, true, "")
+	info := s.mkInstalledInState(c, d, "foo", "bar", "v1", snap.R(10), true, "")
 
 	// have an icon for it in the package itself
 	iconfile := filepath.Join(info.MountDir(), "meta", "gui", "icon.ick")
@@ -1245,7 +1245,7 @@ func (s *apiSuite) TestAppIconGetInactive(c *check.C) {
 	d := s.daemon(c)
 
 	// have an *in*active foo in the system
-	info := s.mkInstalledInState(c, d, "foo", "bar", "v1", snap.Revision{10}, false, "")
+	info := s.mkInstalledInState(c, d, "foo", "bar", "v1", snap.R(10), false, "")
 
 	// have an icon for it in the package itself
 	iconfile := filepath.Join(info.MountDir(), "meta", "gui", "icon.ick")
@@ -1267,7 +1267,7 @@ func (s *apiSuite) TestAppIconGetNoIcon(c *check.C) {
 	d := s.daemon(c)
 
 	// have an *in*active foo in the system
-	info := s.mkInstalledInState(c, d, "foo", "bar", "v1", snap.Revision{10}, true, "")
+	info := s.mkInstalledInState(c, d, "foo", "bar", "v1", snap.R(10), true, "")
 
 	// NO ICON!
 	err := os.RemoveAll(filepath.Join(info.MountDir(), "meta", "gui", "icon.svg"))

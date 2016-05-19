@@ -70,7 +70,7 @@ apps:
    daemon: simple
 `
 
-	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: 11})
+	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
 	err := s.be.LinkSnap(info)
 	c.Assert(err, IsNil)
@@ -99,7 +99,7 @@ func (s *linkSuite) TestLinkDoUndoCurrentSymlink(c *C) {
 version: 1.0
 `
 
-	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: 11})
+	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
 	err := s.be.LinkSnap(info)
 	c.Assert(err, IsNil)
@@ -138,7 +138,7 @@ apps:
    daemon: simple
 `
 
-	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: 11})
+	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
 	err := s.be.LinkSnap(info)
 	c.Assert(err, IsNil)
@@ -179,7 +179,7 @@ apps:
    daemon: simple
 `
 
-	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: 11})
+	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
 	err := s.be.LinkSnap(info)
 	c.Assert(err, IsNil)

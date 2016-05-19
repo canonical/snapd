@@ -315,10 +315,10 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 // Support code for tests
 
 // installSnap "installs" a snap from YAML.
-func (s *backendSuite) installSnap(c *C, devMode bool, snapYaml string, revision snap.Revision) *snap.Info {
+func (s *backendSuite) installSnap(c *C, devMode bool, snapYaml string, revision int) *snap.Info {
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
-	snapInfo.Revision = revision
+	snapInfo.Revision = snap.R(revision)
 	// this won't come from snap.yaml
 	snapInfo.Developer = "acme"
 	err = s.repo.AddSnap(snapInfo)
@@ -329,10 +329,10 @@ func (s *backendSuite) installSnap(c *C, devMode bool, snapYaml string, revision
 }
 
 // updateSnap "updates" an existing snap from YAML.
-func (s *backendSuite) updateSnap(c *C, oldSnapInfo *snap.Info, devMode bool, snapYaml string, revision snap.Revision) *snap.Info {
+func (s *backendSuite) updateSnap(c *C, oldSnapInfo *snap.Info, devMode bool, snapYaml string, revision int) *snap.Info {
 	newSnapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
-	newSnapInfo.Revision = revision
+	newSnapInfo.Revision = snap.R(revision)
 	// this won't come from snap.yaml
 	newSnapInfo.Developer = "acme"
 	c.Assert(newSnapInfo.Name(), Equals, oldSnapInfo.Name())

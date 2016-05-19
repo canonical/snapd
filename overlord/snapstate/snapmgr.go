@@ -160,7 +160,7 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		// Local revisions start at -1 and go down.
 		revision := snapst.LocalRevision
 		if revision.Unset() {
-			revision = snap.Revision{-1}
+			revision = snap.R(-1)
 		} else {
 			revision.N--
 		}

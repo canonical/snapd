@@ -24,7 +24,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strconv"
 
 	"gopkg.in/yaml.v2"
 
@@ -46,22 +45,10 @@ func NewInstalledSnap(yamlPath string) (*Snap, error) {
 	// XXX: hack the name and revision out of the path for now
 	// snapstate primitives shouldn't need this
 	name := filepath.Base(filepath.Dir(mountDir))
-	revnoStr := filepath.Base(mountDir)
-	var revnoInt int
-	var err error
-	if revnoStr == "unset" {
-		// XXX Should never happen. Tests are broken.
-		revnoInt = 0
-	} else if revnoStr[0] == 'x' {
-		revnoInt, err = strconv.Atoi(revnoStr[1:])
-		revnoInt = -revnoInt
-	} else {
-		revnoInt, err = strconv.Atoi(revnoStr)
-	}
+	revno, err := snap.ParseRevision(filepath.Base(mountDir))
 	if err != nil {
-		return nil, fmt.Errorf("broken snap directory path: %q", mountDir)
+		return nil, fmt.Errorf("broken snap directory path, bad revision: %q", mountDir)
 	}
-	revno := snap.Revision{revnoInt}
 
 	s := &Snap{}
 

@@ -70,3 +70,96 @@ func (s revisionSuite) TestJSON(c *C) {
 		c.Assert(got, Equals, r)
 	}
 }
+
+func (s revisionSuite) ParseRevision(c *C) {
+	type testItem struct {
+		s string
+		n int
+		e string
+	}
+
+	var tests = []testItem{{
+		s: "unset",
+		n: 0,
+	}, {
+		s: "x1",
+		n: -1,
+	}, {
+		s: "1",
+		n: 1,
+	}, {
+		s: "x-1",
+		e: `invalid snap revision: "x-1"`,
+	}, {
+		s: "x0",
+		e: `invalid snap revision: "x0"`,
+	}, {
+		s: "-1",
+		e: `invalid snap revision: "-1"`,
+	}, {
+		s: "0",
+		e: `invalid snap revision: "0"`,
+	}}
+
+	for _, test := range tests {
+		r, err := ParseRevision(test.s)
+		if test.e != "" {
+			c.Assert(err.Error(), Equals, test.e)
+			continue
+		}
+		c.Assert(r, Equals, Revision{test.n})
+	}
+}
+
+func (s *revisionSuite) TestR(c *C) {
+	type testItem struct {
+		v interface{}
+		n int
+		e string
+	}
+
+	var tests = []testItem{{
+		v: 0,
+		n: 0,
+	}, {
+		v: -1,
+		n: -1,
+	}, {
+		v: 1,
+		n: 1,
+	}, {
+		v: "unset",
+		n: 0,
+	}, {
+		v: "x1",
+		n: -1,
+	}, {
+		v: "1",
+		n: 1,
+	}, {
+		v: "x-1",
+		e: `invalid snap revision: "x-1"`,
+	}, {
+		v: "x0",
+		e: `invalid snap revision: "x0"`,
+	}, {
+		v: "-1",
+		e: `invalid snap revision: "-1"`,
+	}, {
+		v: "0",
+		e: `invalid snap revision: "0"`,
+	}, {
+		v: int64(1),
+		e: `cannot use 1 \(int64\) as a snap revision`,
+	}}
+
+	for _, test := range tests {
+		if test.e != "" {
+			f := func() { R(test.v) }
+			c.Assert(f, PanicMatches, test.e)
+			continue
+		}
+
+		c.Assert(R(test.v), Equals, Revision{test.n})
+	}
+}

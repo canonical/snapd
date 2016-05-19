@@ -64,3 +64,40 @@ func (r *Revision) UnmarshalJSON(data []byte) error {
 	r.N = int(n)
 	return nil
 }
+
+// ParseRevisions returns the representation in r as a revision.
+// See R for a function more suitable for hardcoded revisions.
+func ParseRevision(s string) (Revision, error) {
+	if s == "unset" {
+		return Revision{}, nil
+	}
+	if s != "" && s[0] == 'x' {
+		i, err := strconv.Atoi(s[1:])
+		if err == nil && i > 0 {
+			return Revision{-i}, nil
+		}
+	}
+	i, err := strconv.Atoi(s)
+	if err == nil && i > 0 {
+		return Revision{i}, nil
+	}
+	return Revision{}, fmt.Errorf("invalid snap revision: %#v", s)
+}
+
+// R returns a Revision given an int or a string.
+// Providing an invalid revision type or value causes a runtime panic.
+// See ParseRevision for a polite function that does not panic.
+func R(r interface{}) Revision {
+	switch r := r.(type) {
+	case string:
+		revision, err := ParseRevision(r)
+		if err != nil {
+			panic(err)
+		}
+		return revision
+	case int:
+		return Revision{r}
+	default:
+		panic(fmt.Errorf("cannot use %v (%T) as a snap revision", r, r))
+	}
+}
