@@ -96,7 +96,7 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	if y.Type != "" {
 		typ = y.Type
 	}
-	confinement := ConfinementTypeStrict
+	confinement := StrictConfinement
 	if y.Confinement != "" {
 		confinement = y.Confinement
 	}

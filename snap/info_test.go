@@ -158,7 +158,7 @@ confinement: devmode`
 	c.Check(info.Name(), Equals, "foo")
 	c.Check(info.Version, Equals, "1.0")
 	c.Check(info.Type, Equals, snap.TypeApp)
-	c.Check(info.Confinement, Equals, snap.ConfinementTypeDevmode)
+	c.Check(info.Confinement, Equals, snap.DevmodeConfinement)
 	c.Check(info.Revision, Equals, 0)
 }
 

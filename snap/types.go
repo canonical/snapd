@@ -64,14 +64,14 @@ type ConfinementType string
 
 // The various confinement types we support
 const (
-	ConfinementTypeDevmode ConfinementType = "devmode"
-	ConfinementTypeStrict  ConfinementType = "strict"
+	DevmodeConfinement ConfinementType = "devmode"
+	StrictConfinement  ConfinementType = "strict"
 )
 
 // Map of strings to ConfinementTypes, used for validation and tests
 var ConfinementTypeMap = map[string]ConfinementType{
-	"devmode": ConfinementTypeDevmode,
-	"strict":  ConfinementTypeStrict,
+	"devmode": DevmodeConfinement,
+	"strict":  StrictConfinement,
 }
 
 // UnmarshalYAML so ConfinementType implements yaml's Unmarshaler interface
