@@ -63,21 +63,24 @@ func (s *typeSuite) TestUnmarshalTypes(c *C) {
 }
 
 func (s *typeSuite) TestMarshalConfinementTypes(c *C) {
-	for key, value := range ConfinementTypeMap {
-		out, err := yaml.Marshal(value)
-		c.Assert(err, IsNil)
-		c.Check(string(out), Equals, key+"\n")
-	}
+	out, err := yaml.Marshal(DevmodeConfinement)
+	c.Assert(err, IsNil)
+	c.Check(string(out), Equals, "devmode\n")
+
+	out, err = yaml.Marshal(StrictConfinement)
+	c.Assert(err, IsNil)
+	c.Check(string(out), Equals, "strict\n")
 }
 
 func (s *typeSuite) TestUnmarshalConfinementTypes(c *C) {
 	var confinementType ConfinementType
+	err := yaml.Unmarshal([]byte("devmode"), &confinementType)
+	c.Assert(err, IsNil)
+	c.Check(confinementType, Equals, DevmodeConfinement)
 
-	for key, value := range ConfinementTypeMap {
-		err := yaml.Unmarshal([]byte(key), &confinementType)
-		c.Assert(err, IsNil)
-		c.Check(confinementType, Equals, value)
-	}
+	err = yaml.Unmarshal([]byte("strict"), &confinementType)
+	c.Assert(err, IsNil)
+	c.Check(confinementType, Equals, StrictConfinement)
 }
 
 func (s *typeSuite) TestUnmarshalInvalidConfinementTypes(c *C) {
