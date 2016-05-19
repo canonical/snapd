@@ -265,11 +265,39 @@ dbus (send)
     member=NameHasOwner
     peer=(name=org.freedesktop.DBus, label=unconfined),
 
+# appmenu
+dbus (send)
+    bus=session
+    path=/org/freedesktop/DBus
+    interface=org.freedesktop.DBus
+    member=ListNames
+    peer=(name=org.freedesktop.DBus, label=unconfined),
+
+dbus (send)
+    bus=session
+    path=/com/canonical/AppMenu/Registrar
+    interface=com.canonical.AppMenu.Registrar
+    member="{RegisterWindow,UnregisterWindow}"
+    peer=(label=unconfined),
+
+dbus (send)
+    bus=session
+    path=/com/canonical/AppMenu/Registrar
+    interface=com.canonical.dbusmenu
+    member=UnregisterWindow
+    peer=(label=unconfined),
+
+dbus (receive)
+    bus=session
+    path=/com/canonical/menu/[0-9]*
+    interface="{org.freedesktop.DBus.Properties,com.canonical.dbusmenu}"
+    member="{GetAll,GetLayout}"
+    peer=(label=unconfined),
+
+
 # Lttng tracing is very noisy and should not be allowed by confined apps. Can
 # safely deny. LP: #1260491
 deny /{,var/}run/shm/lttng-ust-* r,
-
-# TODO: pull in modern items from ubuntu-unity7-base abstraction, eg, HUD, etc
 `
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/unity7
