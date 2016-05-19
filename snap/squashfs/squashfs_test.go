@@ -30,9 +30,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ubuntu-core/snappy/osutil"
-
 	. "gopkg.in/check.v1"
+
+	"github.com/ubuntu-core/snappy/osutil"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -91,12 +91,13 @@ func (s *SquashfsTestSuite) TestReadFile(c *C) {
 	c.Assert(string(content), Equals, "name: foo")
 }
 
+// TestUnpackGlob tests the internal unpack
 func (s *SquashfsTestSuite) TestUnpackGlob(c *C) {
 	data := "some random data"
 	snap := makeSnap(c, "", data)
 
 	outputDir := c.MkDir()
-	err := snap.Unpack("data*", outputDir)
+	err := snap.unpack("data*", outputDir)
 	c.Assert(err, IsNil)
 
 	// this is the file we expect

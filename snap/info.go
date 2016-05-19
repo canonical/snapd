@@ -87,6 +87,7 @@ type SideInfo struct {
 	EditedDescription string `yaml:"description,omitempty" json:"description,omitempty"`
 	Size              int64  `yaml:"size,omitempty" json:"size,omitempty"`
 	Sha512            string `yaml:"sha512,omitempty" json:"sha512,omitempty"`
+	Private           bool   `yaml:"private,omitempty" json:"private,omitempty"`
 }
 
 // Info provides information about snaps.
@@ -105,9 +106,6 @@ type Info struct {
 	Apps             map[string]*AppInfo
 	Plugs            map[string]*PlugInfo
 	Slots            map[string]*SlotInfo
-
-	// legacy fields collected
-	Legacy *LegacyYaml
 
 	// The information in all the remaining fields is not sourced from the snap blob itself.
 	SideInfo
