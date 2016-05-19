@@ -27,6 +27,22 @@ import (
 	"gopkg.in/check.v1"
 )
 
+const fullListPattern = "(?ms)" +
+	"Name +Version +Summary *\n" +
+	".*" +
+	"^canonical-pc +.* *\n" +
+	".*" +
+	"^canonical-pc-linux +.* *\n" +
+	".*" +
+	"^go-example-webserver +.* *\n" +
+	".*" +
+	"^hello-world +.* *\n" +
+	".*" +
+	"^ubuntu-clock-app +.* *\n" +
+	".*" +
+	"^ubuntu-core +.* *\n" +
+	".*"
+
 var _ = check.Suite(&searchSuite{})
 
 type searchSuite struct {
@@ -45,5 +61,52 @@ func (s *searchSuite) TestSearchMustPrintMatch(c *check.C) {
 		searchOutput := cli.ExecCommand(c, "snap", "find", searchTerm)
 
 		c.Check(searchOutput, check.Matches, expected)
+	}
+}
+
+// SNAP_FIND_001: list all packages available on the store
+func (s *searchSuite) TestFindMustPrintCompleteList(c *check.C) {
+	searchOutput := cli.ExecCommand(c, "snap", "find")
+
+	c.Assert(searchOutput, check.Matches, fullListPattern)
+}
+
+// SNAP_FIND_002: find packages on store with different name formats
+func (s *searchSuite) TestFindWorksWithDifferentFormats(c *check.C) {
+	for _, snapName := range []string{"http", "ubuntu-clock-app", "go-example-webserver"} {
+		expected := "(?ms)" +
+			"Name +Version +Summary *\n" +
+			".*" +
+			"^" + snapName + " +.* *\n" +
+			".*"
+		searchOutput := cli.ExecCommand(c, "snap", "find", snapName)
+
+		c.Check(searchOutput, check.Matches, expected)
+	}
+}
+
+// SNAP_FIND_003: --help prints the detailed help test for the command
+func (s *searchSuite) TestFindShowsHelp(c *check.C) {
+	expected := "(?ms)" +
+		"^Usage:\n" +
+		`  snap \[OPTIONS\] find.*\n` +
+		"\n^The find command .*\n" +
+		"^Help Options:\n" +
+		"^  -h, --help +Show this help message\n" +
+		".*"
+
+	actual := cli.ExecCommand(c, "snap", "find", "--help")
+
+	c.Assert(actual, check.Matches, expected)
+}
+
+// SNAP_FIND_007: find packages with search string containing special characters
+func (s *searchSuite) TestFindWithSpecialCharsInSearchString(c *check.C) {
+	specialChars := "!@#$%^&*/=[]+_:;,.?{}"
+
+	for _, char := range specialChars {
+		searchOutput := cli.ExecCommand(c, "snap", "find", string(char))
+
+		c.Check(searchOutput, check.Matches, fullListPattern)
 	}
 }
