@@ -40,6 +40,7 @@ var ops = []struct {
 	{(*client.Client).Install, "install"},
 	{(*client.Client).Refresh, "refresh"},
 	{(*client.Client).Remove, "remove"},
+	{(*client.Client).Rollback, "rollback"},
 }
 
 func (cs *clientSuite) TestClientOpSnapServerError(c *check.C) {

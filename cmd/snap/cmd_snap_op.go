@@ -201,8 +201,35 @@ func (x *cmdRefresh) Execute([]string) error {
 	return listSnaps([]string{name})
 }
 
+type cmdRollback struct {
+	Positional struct {
+		Snap string `positional-arg-name:"<snap>"`
+	} `positional-args:"yes"`
+}
+
+var shortRollbackHelp = i18n.G("Rollback the given snap to the previous version")
+var longRollbackHelp = i18n.G(`
+The rollback command will rollback the given snap to the previous version.
+`)
+
+func (x *cmdRollback) Execute(args []string) error {
+	cli := Client()
+	name := x.Positional.Snap
+	changeID, err := cli.Rollback(name, nil)
+	if err != nil {
+		return err
+	}
+
+	if _, err := wait(cli, changeID); err != nil {
+		return err
+	}
+	return listSnaps([]string{name})
+}
+
 func init() {
 	addCommand("remove", shortRemoveHelp, longRemoveHelp, func() flags.Commander { return &cmdRemove{} })
 	addCommand("install", shortInstallHelp, longInstallHelp, func() flags.Commander { return &cmdInstall{} })
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} })
+	addCommand("rollback", shortRollbackHelp, longRollbackHelp, func() flags.Commander { return &cmdRollback{} })
+
 }
