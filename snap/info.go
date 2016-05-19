@@ -238,6 +238,10 @@ func (app *AppInfo) SecurityTag() string {
 	return fmt.Sprintf("snap.%s.%s", app.Snap.Name(), app.Name)
 }
 
+func (app *AppInfo) EnvironmentFilePath() string {
+	return filepath.Join(dirs.SnapEnvironmentDir, app.SecurityTag())
+}
+
 // WrapperPath returns the path to wrapper invoking the app binary.
 func (app *AppInfo) WrapperPath() string {
 	var binName string
