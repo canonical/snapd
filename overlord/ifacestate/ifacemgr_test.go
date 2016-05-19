@@ -451,7 +451,7 @@ func (s *interfaceManagerSuite) TestDoSetupProfilesAddsImplicitSlots(c *C) {
 	// Ensure that we have slots on the OS snap.
 	repo := mgr.Repository()
 	slots := repo.Slots(snapInfo.Name())
-	c.Assert(slots, HasLen, 16)
+	c.Assert(slots, HasLen, 17)
 }
 
 func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyReloadsConnectionsWhenInvokedOnPlugSide(c *C) {

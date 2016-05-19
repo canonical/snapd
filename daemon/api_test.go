@@ -782,6 +782,42 @@ func (s *apiSuite) TestFind(c *check.C) {
 	c.Check(s.channel, check.Equals, "potato")
 }
 
+func (s *apiSuite) TestFindPriced(c *check.C) {
+	s.suggestedCurrency = "GBP"
+
+	s.rsnaps = []*snap.Info{{
+		Type:    snap.TypeApp,
+		Version: "v2",
+		Prices: map[string]float64{
+			"GBP": 1.23,
+			"EUR": 2.34,
+		},
+		MustBuy: true,
+		SideInfo: snap.SideInfo{
+			OfficialName: "banana",
+			Developer:    "foo",
+		},
+	}}
+
+	req, err := http.NewRequest("GET", "/v2/find?q=banana&channel=stable", nil)
+	c.Assert(err, check.IsNil)
+	rsp, ok := searchStore(findCmd, req, nil).(*resp)
+	c.Assert(ok, check.Equals, true)
+
+	snaps := snapList(rsp.Result)
+	c.Assert(snaps, check.HasLen, 1)
+
+	snap := snaps[0]
+	c.Check(snap["name"], check.Equals, "banana")
+	c.Check(snap["prices"], check.DeepEquals, map[string]interface{}{
+		"EUR": 2.34,
+		"GBP": 1.23,
+	})
+	c.Check(snap["status"], check.Equals, "priced")
+
+	c.Check(rsp.SuggestedCurrency, check.Equals, "GBP")
+}
+
 func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
 	d := s.daemon(c)
 
