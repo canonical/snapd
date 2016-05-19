@@ -74,7 +74,7 @@ dbus (receive)
     member=CreateSessionForCriteria
     peer=(label=###PLUG_SECURITY_TAGS###),
 
-# Allow clients to query/update service properties
+# Allow clients to query service properties
 dbus (receive)
     bus=system
     path=/com/ubuntu/location/Service
@@ -127,7 +127,7 @@ var locationObserveConnectedPlugAppArmor = []byte(`
 
 #include <abstractions/dbus-strict>
 
-# Allow clients to query/update service properties
+# Allow clients to query service properties
 dbus (send)
     bus=system
     path=/com/ubuntu/location/Service
