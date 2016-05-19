@@ -20,6 +20,8 @@
 package main
 
 import (
+	"os"
+
 	"github.com/ubuntu-core/snappy/i18n"
 
 	"github.com/jessevdk/go-flags"
@@ -29,13 +31,25 @@ var shortHelpHelp = i18n.G("Help")
 var longHelpHelp = i18n.G(`
 How help for the snap command.`)
 
-type cmdHelp struct{}
+type cmdHelp struct {
+	Manpage bool `long:"man" description:"Generate the manpage"`
+	parser  *flags.Parser
+}
 
 func init() {
 	addCommand("help", shortHelpHelp, longHelpHelp, func() flags.Commander { return &cmdHelp{} })
 }
 
-func (cmdHelp) Execute([]string) error {
+func (cmd *cmdHelp) setParser(parser *flags.Parser) {
+	cmd.parser = parser
+}
+
+func (cmd cmdHelp) Execute([]string) error {
+	if cmd.Manpage {
+		cmd.parser.WriteManPage(Stdout)
+		os.Exit(0)
+	}
+
 	return &flags.Error{
 		Type: flags.ErrHelp,
 	}

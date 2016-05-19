@@ -31,23 +31,19 @@ import (
 )
 
 type snapYaml struct {
-	Name             string            `yaml:"name"`
-	Version          string            `yaml:"version"`
-	Type             Type              `yaml:"type"`
-	Architectures    []string          `yaml:"architectures,omitempty"`
-	Assumes          []string          `yaml:"assumes"`
-	Description      string            `yaml:"description"`
-	Summary          string            `yaml:"summary"`
-	LicenseAgreement string            `yaml:"license-agreement,omitempty"`
-	LicenseVersion   string            `yaml:"license-version,omitempty"`
-	Environment      map[string]string `yaml:"environment,omitempty"`
-
-	Plugs map[string]interface{} `yaml:"plugs,omitempty"`
-	Slots map[string]interface{} `yaml:"slots,omitempty"`
-	Apps  map[string]appYaml     `yaml:"apps,omitempty"`
-
-	// legacy fields collected
-	Legacy LegacyYaml `yaml:",inline"`
+	Name             string                 `yaml:"name"`
+	Version          string                 `yaml:"version"`
+	Type             Type                   `yaml:"type"`
+	Architectures    []string               `yaml:"architectures,omitempty"`
+	Assumes          []string               `yaml:"assumes"`
+	Description      string                 `yaml:"description"`
+	Summary          string                 `yaml:"summary"`
+	LicenseAgreement string                 `yaml:"license-agreement,omitempty"`
+	LicenseVersion   string                 `yaml:"license-version,omitempty"`
+	Environment      map[string]string      `yaml:"environment,omitempty"`
+	Plugs            map[string]interface{} `yaml:"plugs,omitempty"`
+	Slots            map[string]interface{} `yaml:"slots,omitempty"`
+	Apps             map[string]appYaml     `yaml:"apps,omitempty"`
 }
 
 type plugYaml struct {
@@ -115,9 +111,6 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 		Plugs:               make(map[string]*PlugInfo),
 		Slots:               make(map[string]*SlotInfo),
 		Environment:         make(map[string]string),
-
-		// just expose the parsed legacy yaml bits
-		Legacy: &y.Legacy,
 	}
 	sort.Strings(snap.Assumes)
 	// Environment
