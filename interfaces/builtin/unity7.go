@@ -238,7 +238,6 @@ dbus (receive)
     interface=org.freedesktop.Notifications
     member=NotificationClosed
     peer=(label=unconfined),
->>>>>>> upstream/master
 
 # unity launcher
 dbus (send)
