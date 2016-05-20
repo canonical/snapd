@@ -73,3 +73,44 @@ func (m *Type) fromString(str string) error {
 
 	return nil
 }
+
+// ConfinementType represents the kind of confinement supported by the snap
+// (devmode only, or strict confinement)
+type ConfinementType string
+
+// The various confinement types we support
+const (
+	DevmodeConfinement ConfinementType = "devmode"
+	StrictConfinement  ConfinementType = "strict"
+)
+
+// UnmarshalJSON sets *confinementType to a copy of data, assuming validation passes
+func (confinementType *ConfinementType) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+
+	return confinementType.fromString(s)
+}
+
+// UnmarshalYAML so ConfinementType implements yaml's Unmarshaler interface
+func (confinementType *ConfinementType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var s string
+	if err := unmarshal(&s); err != nil {
+		return err
+	}
+
+	return confinementType.fromString(s)
+}
+
+func (confinementType *ConfinementType) fromString(str string) error {
+	c := ConfinementType(str)
+	if c != DevmodeConfinement && c != StrictConfinement {
+		return fmt.Errorf("invalid confinement type: %q", str)
+	}
+
+	*confinementType = c
+
+	return nil
+}

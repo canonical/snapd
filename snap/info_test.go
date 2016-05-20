@@ -146,7 +146,8 @@ func makeTestSnap(c *C, yaml string) string {
 func (s *infoSuite) TestReadInfoFromSnapFile(c *C) {
 	yaml := `name: foo
 version: 1.0
-type: app`
+type: app
+confinement: devmode`
 	snapPath := makeTestSnap(c, yaml)
 
 	snapf, err := snap.Open(snapPath)
@@ -157,6 +158,7 @@ type: app`
 	c.Check(info.Name(), Equals, "foo")
 	c.Check(info.Version, Equals, "1.0")
 	c.Check(info.Type, Equals, snap.TypeApp)
+	c.Check(info.Confinement, Equals, snap.DevmodeConfinement)
 	c.Check(info.Revision, Equals, snap.R(0))
 }
 
@@ -204,4 +206,17 @@ type: foo`
 
 	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
 	c.Assert(err, ErrorMatches, ".*invalid snap type.*")
+}
+
+func (s *infoSuite) TestReadInfoFromSnapFileCatchesInvalidConfinement(c *C) {
+	yaml := `name: foo
+version: 1.0
+confinement: foo`
+	snapPath := makeTestSnap(c, yaml)
+
+	snapf, err := snap.Open(snapPath)
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
+	c.Assert(err, ErrorMatches, ".*invalid confinement type.*")
 }
