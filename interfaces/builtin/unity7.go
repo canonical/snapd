@@ -150,6 +150,12 @@ dbus (send)
     member=Changed
     peer=(name=org.freedesktop.DBus, label=unconfined),
 
+# url helper
+dbus (send)
+    bus=session
+    interface=com.canonical.SafeLauncher.OpenURL
+    peer=(label=unconfined),
+
 # dbusmenu
 dbus (send)
     bus=session
