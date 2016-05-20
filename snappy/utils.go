@@ -25,6 +25,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/snapenv"
 )
 
@@ -47,21 +48,21 @@ func stripGlobalRootDirImpl(dir string) string {
 // The returned environment contains additional SNAP_* variables that
 // are required when calling a meta/hook/ script and that will override
 // any already existing SNAP_* variables in os.Environment()
-func makeSnapHookEnv(snap *Snap) (env []string) {
+func makeSnapHookEnv(sn *Snap) (env []string) {
 	desc := struct {
 		SnapName    string
 		SnapArch    string
 		SnapPath    string
 		Version     string
-		Revision    int
+		Revision    snap.Revision
 		UdevAppName string
 	}{
-		snap.Name(),
+		sn.Name(),
 		arch.UbuntuArchitecture(),
-		snap.Info().MountDir(),
-		snap.Version(),
-		snap.Revision(),
-		snap.Name(),
+		sn.Info().MountDir(),
+		sn.Version(),
+		sn.Revision(),
+		sn.Name(),
 	}
 
 	vars := snapenv.GetBasicSnapEnvVars(desc)
