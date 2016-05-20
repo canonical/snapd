@@ -6,6 +6,12 @@ export DH_OPTIONS
 export DH_GOPKG := github.com/ubuntu-core/snappy
 #export DEB_BUILD_OPTIONS=nocheck
 export DH_GOLANG_EXCLUDES=integration-tests
+export DH_GOLANG_GO_GENERATE=1
+
+# we need the builddir; is there a simpler way to get it?
+BUILDDIR:=${CURDIR}/obj-$(shell dpkg-architecture -qDEB_TARGET_GNU_TYPE)
+
+export PATH:=${PATH}:${CURDIR}
 
 RELEASE = $(shell lsb_release -c -s)
 
@@ -53,18 +59,6 @@ override_dh_systemd_start:
 	dh_systemd_start \
 		-psnapd \
 		snapd.socket
-
-# we need the builddir; is there a simpler way to get it?
-BUILDDIR:=${CURDIR}/obj-$(shell dpkg-architecture -qDEB_TARGET_GNU_TYPE)
-
-override_dh_auto_build:
-	dh_auto_build
-	# this will update the i18n stuff using our build-in xgettext-go
-	if [ "$(RELEASE)" = "vivid" ]; then\
-		GOPATH=${BUILDDIR} ./update-pot;\
-	else\
-		GOPATH=${BUILDDIR} go generate ./i18n;\
-	fi;
 
 override_dh_auto_install: snap.8
 	dh_auto_install -O--buildsystem=golang
