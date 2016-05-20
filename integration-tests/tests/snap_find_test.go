@@ -21,27 +21,13 @@
 package tests
 
 import (
+	"fmt"
+
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 
 	"gopkg.in/check.v1"
 )
-
-const fullListPattern = "(?ms)" +
-	"Name +Version +(Price +)?Summary *\n" +
-	".*" +
-	"^canonical-pc +.* *\n" +
-	".*" +
-	"^canonical-pc-linux +.* *\n" +
-	".*" +
-	"^go-example-webserver +.* *\n" +
-	".*" +
-	"^hello-world +.* *\n" +
-	".*" +
-	"^ubuntu-clock-app +.* *\n" +
-	".*" +
-	"^ubuntu-core +.* *\n" +
-	".*"
 
 var _ = check.Suite(&searchSuite{})
 
@@ -66,6 +52,22 @@ func (s *searchSuite) TestSearchMustPrintMatch(c *check.C) {
 
 // SNAP_FIND_001: list all packages available on the store
 func (s *searchSuite) TestFindMustPrintCompleteList(c *check.C) {
+	fullListPattern := "(?ms)" +
+		"Name +Version +(Price +)?Summary *\n" +
+		".*" +
+		"^canonical-pc +.* *\n" +
+		".*" +
+		"^canonical-pc-linux +.* *\n" +
+		".*" +
+		"^go-example-webserver +.* *\n" +
+		".*" +
+		"^hello-world +.* *\n" +
+		".*" +
+		"^ubuntu-clock-app +.* *\n" +
+		".*" +
+		"^ubuntu-core +.* *\n" +
+		".*"
+
 	searchOutput := cli.ExecCommand(c, "snap", "find")
 
 	c.Assert(searchOutput, check.Matches, fullListPattern)
@@ -102,11 +104,14 @@ func (s *searchSuite) TestFindShowsHelp(c *check.C) {
 
 // SNAP_FIND_007: find packages with search string containing special characters
 func (s *searchSuite) TestFindWithSpecialCharsInSearchString(c *check.C) {
+	c.Skip("Reenable when LP: 1583952 is fixed")
 	specialChars := "!@#$%^&*/=[]+_:;,.?{}"
 
 	for _, char := range specialChars {
-		searchOutput := cli.ExecCommand(c, "snap", "find", string(char))
+		s := string(char)
+		expected := fmt.Sprintf(`error: no snaps found for "%s"`, s)
+		searchOutput := cli.ExecCommand(c, "snap", "find", s)
 
-		c.Check(searchOutput, check.Matches, fullListPattern)
+		c.Check(searchOutput, check.Matches, expected)
 	}
 }
