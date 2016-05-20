@@ -53,31 +53,19 @@ func (s snapsByName) Less(i, j int) bool { return s[i].Name < s[j].Name }
 func (s snapsByName) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 func (x *cmdList) Execute([]string) error {
-	if x.Refresh {
-		return listRefreshes()
+	opts := &client.ListOptions{
+		SelectRefresh: x.Refresh,
+		Names:         x.Positional.Snaps,
 	}
-	return listSnaps(x.Positional.Snaps)
+	return listSnaps(opts)
 }
 
-func listRefreshes() error {
+func listSnaps(opts *client.ListOptions) error {
 	cli := Client()
-	snaps, err := cli.List(&client.ListOptions{RefreshOnly: true})
+	snaps, err := cli.List(opts)
 	if err != nil {
 		return err
 	}
-	return outputSnaps(snaps)
-}
-
-func listSnaps(args []string) error {
-	cli := Client()
-	snaps, err := cli.List(&client.ListOptions{Names: args})
-	if err != nil {
-		return err
-	}
-	return outputSnaps(snaps)
-}
-
-func outputSnaps(snaps []*client.Snap) error {
 	sort.Sort(snapsByName(snaps))
 
 	w := tabWriter()
