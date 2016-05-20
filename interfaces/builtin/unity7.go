@@ -117,32 +117,43 @@ dbus (receive, send)
     peer=(label=unconfined),
 
 # gmenu
+# Note: the gmenu DBus api was not designed for application isolation and apps
+# may specify anything as their 'path'. For example, these work in the many
+# cases:
+# - /org/gtk/Application/anonymous{,/**}
+# - /com/canonical/unity/gtk/window/[0-9]*
+# but libreoffice does:
+# - /org/libreoffice{,/**}
+# As such, cannot mediate by DBus path so we'll be as strict as we can in the
+# other mediated parts
 dbus (send)
     bus=session
     interface=org.gtk.Actions
-    path={/org/gtk/Application/anonymous{,/**},/com/canonical/unity/gtk/window/[0-9]*}
     member=Changed
-    peer=(label=unconfined),
+    peer=(name=org.freedesktop.DBus, label=unconfined),
 
 dbus (receive)
     bus=session
     interface=org.gtk.Actions
-    path={/org/gtk/Application/anonymous{,/**},/com/canonical/unity/gtk/window/[0-9]*}
     member={Activate,DescribeAll,SetState}
     peer=(label=unconfined),
 
 dbus (receive)
     bus=session
     interface=org.gtk.Menus
-    path={/org/gtk/Application/anonymous{,/**},/com/canonical/unity/gtk/window/[0-9]*}
     member={Start,End}
     peer=(label=unconfined),
 
-dbus (receive,send)
+dbus (send)
     bus=session
     interface=org.gtk.Menus
-    path={/org/gtk/Application/anonymous{,/**},/com/canonical/unity/gtk/window/[0-9]*}
     member=Changed
+    peer=(name=org.freedesktop.DBus, label=unconfined),
+
+# url helper
+dbus (send)
+    bus=session
+    interface=com.canonical.SafeLauncher.OpenURL
     peer=(label=unconfined),
 
 # dbusmenu
@@ -228,11 +239,71 @@ dbus (receive)
     member=NotificationClosed
     peer=(label=unconfined),
 
+# unity launcher
+dbus (send)
+    bus=session
+    path=/com/canonical/unity/launcherentry/[0-9]*
+    interface=com.canonical.Unity.LauncherEntry
+    member=Update
+    peer=(name=org.freedesktop.DBus, label=unconfined),
+
+dbus (send)
+    bus=session
+    path=/com/canonical/unity/launcherentry/[0-9]*
+    interface=com.canonical.dbusmenu
+    member="{LayoutUpdated,ItemsPropertiesUpdated}"
+    peer=(name=org.freedesktop.DBus, label=unconfined),
+
+dbus (receive)
+    bus=session
+    path=/com/canonical/unity/launcherentry/[0-9]*
+    interface="{com.canonical.dbusmenu,org.freedesktop.DBus.Properties}"
+    member=Get*
+    peer=(label=unconfined),
+
+# This rule is meant to be covered by abstractions/dbus-session-strict but
+# the unity launcher code has a typo that uses /org/freedesktop/dbus as the
+# path instead of /org/freedesktop/DBus, so we need to all it here.
+dbus (send)
+    bus=session
+    path=/org/freedesktop/dbus
+    interface=org.freedesktop.DBus
+    member=NameHasOwner
+    peer=(name=org.freedesktop.DBus, label=unconfined),
+
+# appmenu
+dbus (send)
+    bus=session
+    path=/org/freedesktop/DBus
+    interface=org.freedesktop.DBus
+    member=ListNames
+    peer=(name=org.freedesktop.DBus, label=unconfined),
+
+dbus (send)
+    bus=session
+    path=/com/canonical/AppMenu/Registrar
+    interface=com.canonical.AppMenu.Registrar
+    member="{RegisterWindow,UnregisterWindow}"
+    peer=(label=unconfined),
+
+dbus (send)
+    bus=session
+    path=/com/canonical/AppMenu/Registrar
+    interface=com.canonical.dbusmenu
+    member=UnregisterWindow
+    peer=(label=unconfined),
+
+dbus (receive)
+    bus=session
+    path=/com/canonical/menu/[0-9]*
+    interface="{org.freedesktop.DBus.Properties,com.canonical.dbusmenu}"
+    member="{GetAll,GetLayout}"
+    peer=(label=unconfined),
+
+
 # Lttng tracing is very noisy and should not be allowed by confined apps. Can
 # safely deny. LP: #1260491
 deny /{,var/}run/shm/lttng-ust-* r,
-
-# TODO: pull in modern items from ubuntu-unity7-base abstraction, eg, HUD, etc
 `
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/unity7
