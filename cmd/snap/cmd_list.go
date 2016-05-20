@@ -69,7 +69,7 @@ func listSnaps(args []string) error {
 	fmt.Fprintln(w, i18n.G("Name\tVersion\tRev\tDeveloper"))
 
 	for _, snap := range snaps {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Revision, snap.Developer)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Revision.String(), snap.Developer)
 	}
 
 	return nil
