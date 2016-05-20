@@ -382,7 +382,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	for i, x := range found {
 		url, err := route.URL("name", x.Name())
 		if err != nil {
-			logger.Noticef("cannot build URL for snap %q revision %s: %v", x.Name(), x.Revision, err)
+			logger.Noticef("Cannot build URL for snap %q revision %s: %v", x.Name(), x.Revision, err)
 			continue
 		}
 
