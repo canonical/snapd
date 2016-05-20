@@ -212,19 +212,19 @@ func NewUbuntuStoreSnapRepository(cfg *SnapUbuntuStoreConfig, storeID string) *S
 }
 
 // small helper that sets the correct http headers for the ubuntu store
-func (s *SnapUbuntuStoreRepository) applyUbuntuStoreHeaders(req *http.Request, accept string, auther Authenticator) {
+func (s *SnapUbuntuStoreRepository) setUbuntuStoreHeaders(req *http.Request, channel string, auther Authenticator) {
 	if auther != nil {
 		auther.Authenticate(req)
 	}
 
-	if accept == "" {
-		accept = "application/hal+json"
-	}
-	req.Header.Set("Accept", accept)
-
+	req.Header.Set("Accept", "application/hal+json,application/json")
 	req.Header.Set("X-Ubuntu-Architecture", string(arch.UbuntuArchitecture()))
 	req.Header.Set("X-Ubuntu-Release", release.Series)
 	req.Header.Set("X-Ubuntu-Wire-Protocol", UbuntuCoreWireProtocol)
+
+	if channel != "" {
+		req.Header.Set("X-Ubuntu-Device-Channel", channel)
+	}
 
 	if s.storeID != "" {
 		req.Header.Set("X-Ubuntu-Store", s.storeID)
@@ -295,8 +295,7 @@ func (s *SnapUbuntuStoreRepository) getPurchasesFromURL(url *url.URL, channel st
 		return nil, err
 	}
 
-	s.applyUbuntuStoreHeaders(req, "", auther)
-	req.Header.Set("X-Ubuntu-Device-Channel", channel)
+	s.setUbuntuStoreHeaders(req, channel, auther)
 
 	resp, err := s.client.Do(req)
 	if err != nil {
@@ -424,8 +423,7 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string, auther Authentica
 	}
 
 	// set headers
-	s.applyUbuntuStoreHeaders(req, "", auther)
-	req.Header.Set("X-Ubuntu-Device-Channel", channel)
+	s.setUbuntuStoreHeaders(req, channel, auther)
 
 	resp, err := s.client.Do(req)
 	if err != nil {
@@ -494,8 +492,7 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string,
 	}
 
 	// set headers
-	s.applyUbuntuStoreHeaders(req, "", auther)
-	req.Header.Set("X-Ubuntu-Device-Channel", channel)
+	s.setUbuntuStoreHeaders(req, channel, auther)
 
 	resp, err := s.client.Do(req)
 	if err != nil {
@@ -549,7 +546,7 @@ func (s *SnapUbuntuStoreRepository) Updates(installed []string, auther Authentic
 	// set headers
 	// the updates call is a special snowflake right now
 	// (see LP: #1427155)
-	s.applyUbuntuStoreHeaders(req, "application/json", auther)
+	s.setUbuntuStoreHeaders(req, "", auther)
 
 	resp, err := s.client.Do(req)
 	if err != nil {
@@ -600,7 +597,7 @@ func (s *SnapUbuntuStoreRepository) Download(remoteSnap *snap.Info, pbar progres
 	if err != nil {
 		return "", err
 	}
-	s.applyUbuntuStoreHeaders(req, "", auther)
+	s.setUbuntuStoreHeaders(req, "", auther)
 
 	if err := download(remoteSnap.Name(), w, req, pbar); err != nil {
 		return "", err

@@ -55,14 +55,14 @@ func (s *infoSuite) TestSideInfoOverrides(c *C) {
 		OfficialName:      "newname",
 		EditedSummary:     "fixed summary",
 		EditedDescription: "fixed desc",
-		Revision:          1,
+		Revision:          snap.R(1),
 		SnapID:            "snapidsnapidsnapidsnapidsnapidsn",
 	}
 
 	c.Check(info.Name(), Equals, "newname")
 	c.Check(info.Summary(), Equals, "fixed summary")
 	c.Check(info.Description(), Equals, "fixed desc")
-	c.Check(info.Revision, Equals, 1)
+	c.Check(info.Revision, Equals, snap.R(1))
 	c.Check(info.SnapID, Equals, "snapidsnapidsnapidsnapidsnapidsn")
 }
 
@@ -94,7 +94,7 @@ apps:
      command: bar-bin -x
 `))
 	c.Assert(err, IsNil)
-	info.Revision = 42
+	info.Revision = snap.R(42)
 
 	c.Check(info.Apps["bar"].LauncherCommand(), Equals, "/usr/bin/ubuntu-core-launcher snap.foo.bar snap.foo.bar /snap/foo/42/bar-bin -x")
 	c.Check(info.Apps["foo"].LauncherCommand(), Equals, "/usr/bin/ubuntu-core-launcher snap.foo.foo snap.foo.foo /snap/foo/42/foo-bin")
@@ -109,7 +109,7 @@ apps:
 `
 
 func (s *infoSuite) TestReadInfo(c *C) {
-	si := &snap.SideInfo{Revision: 42, EditedSummary: "esummary"}
+	si := &snap.SideInfo{Revision: snap.R(42), EditedSummary: "esummary"}
 
 	snapInfo1 := snaptest.MockSnap(c, sampleYaml, si)
 
@@ -117,7 +117,7 @@ func (s *infoSuite) TestReadInfo(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(snapInfo2.Name(), Equals, "sample")
-	c.Check(snapInfo2.Revision, Equals, 42)
+	c.Check(snapInfo2.Revision, Equals, snap.R(42))
 	c.Check(snapInfo2.Summary(), Equals, "esummary")
 
 	c.Check(snapInfo2.Apps["app"].Command, Equals, "foo")
@@ -146,7 +146,8 @@ func makeTestSnap(c *C, yaml string) string {
 func (s *infoSuite) TestReadInfoFromSnapFile(c *C) {
 	yaml := `name: foo
 version: 1.0
-type: app`
+type: app
+confinement: devmode`
 	snapPath := makeTestSnap(c, yaml)
 
 	snapf, err := snap.Open(snapPath)
@@ -157,7 +158,8 @@ type: app`
 	c.Check(info.Name(), Equals, "foo")
 	c.Check(info.Version, Equals, "1.0")
 	c.Check(info.Type, Equals, snap.TypeApp)
-	c.Check(info.Revision, Equals, 0)
+	c.Check(info.Confinement, Equals, snap.DevmodeConfinement)
+	c.Check(info.Revision, Equals, snap.R(0))
 }
 
 func (s *infoSuite) TestReadInfoFromSnapFileWithSideInfo(c *C) {
@@ -171,13 +173,13 @@ type: app`
 
 	info, err := snap.ReadInfoFromSnapFile(snapf, &snap.SideInfo{
 		OfficialName: "baz",
-		Revision:     42,
+		Revision:     snap.R(42),
 	})
 	c.Assert(err, IsNil)
 	c.Check(info.Name(), Equals, "baz")
 	c.Check(info.Version, Equals, "1.0")
 	c.Check(info.Type, Equals, snap.TypeApp)
-	c.Check(info.Revision, Equals, 42)
+	c.Check(info.Revision, Equals, snap.R(42))
 }
 
 func (s *infoSuite) TestReadInfoFromSnapFileValidates(c *C) {
@@ -191,4 +193,17 @@ type: app`
 
 	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
 	c.Assert(err, ErrorMatches, "invalid snap name.*")
+}
+
+func (s *infoSuite) TestReadInfoFromSnapFileCatchesInvalidConfinement(c *C) {
+	yaml := `name: foo
+version: 1.0
+confinement: foo`
+	snapPath := makeTestSnap(c, yaml)
+
+	snapf, err := snap.Open(snapPath)
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
+	c.Assert(err, ErrorMatches, ".*invalid confinement type.*")
 }

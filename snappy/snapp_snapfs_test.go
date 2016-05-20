@@ -120,20 +120,20 @@ func (s *SquashfsTestSuite) TestOpenSnapFile(c *C) {
 
 func (s *SquashfsTestSuite) TestOpenSnapFilebSideInfo(c *C) {
 	snapPkg := makeTestSnapPackage(c, packageHello)
-	si := snap.SideInfo{OfficialName: "blessed", Revision: 42}
+	si := snap.SideInfo{OfficialName: "blessed", Revision: snap.R(42)}
 	info, _, err := openSnapFile(snapPkg, true, &si)
 	c.Assert(err, IsNil)
 
 	// check side info
 	c.Check(info.Name(), Equals, "blessed")
-	c.Check(info.Revision, Equals, 42)
+	c.Check(info.Revision, Equals, snap.R(42))
 }
 
 func (s *SquashfsTestSuite) TestInstallViaSquashfsWorks(c *C) {
 	snapPkg := makeTestSnapPackage(c, packageHello)
 	si := &snap.SideInfo{
 		OfficialName: "hello-snap",
-		Revision:     16,
+		Revision:     snap.R(16),
 	}
 	_, err := (&Overlord{}).InstallWithSideInfo(snapPkg, si, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
@@ -153,7 +153,7 @@ func (s *SquashfsTestSuite) TestAddSquashfsMount(c *C) {
 	info := &snap.Info{
 		SideInfo: snap.SideInfo{
 			OfficialName: "foo",
-			Revision:     13,
+			Revision:     snap.R(13),
 		},
 		Version:       "1.1",
 		Architectures: []string{"all"},
@@ -182,7 +182,7 @@ func (s *SquashfsTestSuite) TestRemoveSquashfsMountUnit(c *C) {
 	info := &snap.Info{
 		SideInfo: snap.SideInfo{
 			OfficialName: "foo",
-			Revision:     13,
+			Revision:     snap.R(13),
 		},
 		Version:       "1.1",
 		Architectures: []string{"all"},
@@ -206,7 +206,7 @@ func (s *SquashfsTestSuite) TestRemoveViaSquashfsWorks(c *C) {
 	snapPath := makeTestSnapPackage(c, packageHello)
 	si := &snap.SideInfo{
 		OfficialName: "hello-snap",
-		Revision:     16,
+		Revision:     snap.R(16),
 	}
 	snap, err := (&Overlord{}).InstallWithSideInfo(snapPath, si, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
@@ -237,7 +237,7 @@ func (s *SquashfsTestSuite) TestInstallOsSnapUpdatesBootloader(c *C) {
 	snapPkg := makeTestSnapPackage(c, packageOS)
 	si := &snap.SideInfo{
 		OfficialName: "ubuntu-core",
-		Revision:     160,
+		Revision:     snap.R(160),
 	}
 	_, err := (&Overlord{}).InstallWithSideInfo(snapPkg, si, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
@@ -267,7 +267,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
 	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
 	si := &snap.SideInfo{
 		OfficialName: "ubuntu-kernel",
-		Revision:     40,
+		Revision:     snap.R(40),
 	}
 	_, err := (&Overlord{}).InstallWithSideInfo(snapPkg, si, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
@@ -290,7 +290,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernel(c *C) {
 	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
 	si := &snap.SideInfo{
 		OfficialName: "ubuntu-kernel",
-		Revision:     42,
+		Revision:     snap.R(42),
 	}
 	_, err := (&Overlord{}).InstallWithSideInfo(snapPkg, si, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
@@ -318,7 +318,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapRemovesKernelAssets(c *C) {
 	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
 	si := &snap.SideInfo{
 		OfficialName: "ubuntu-kernel",
-		Revision:     42,
+		Revision:     snap.R(42),
 	}
 	snap, err := (&Overlord{}).InstallWithSideInfo(snapPkg, si, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
