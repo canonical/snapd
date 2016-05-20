@@ -210,6 +210,9 @@ func nameAndRevnoFromSnap(snap string) (string, int) {
 // misleading. This code will check what kernel/os booted and set
 // those versions active.
 func SyncBoot() error {
+	if release.OnClassic {
+		return nil
+	}
 	bootloader, err := findBootloader()
 	if err != nil {
 		return fmt.Errorf("cannot run SyncBoot: %s", err)
