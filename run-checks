@@ -121,15 +121,6 @@ if [ ! -z "$STATIC" ]; then
         exit 1
     fi
 
-    # pot file
-    echo Checking translations
-    TMPF="$(mktemp)"
-    addtrap "rm -f \"$TMPF\""
-    ./update-pot "$TMPF"
-    if ! diff -u --ignore-matching-lines=.*POT-Creation-Date.* po/snappy.pot $TMPF; then
-        echo "You need to run ./update-pot"
-        exit 1
-    fi
 fi
 
 if [ ! -z "$UNIT" ]; then

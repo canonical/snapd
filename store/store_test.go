@@ -172,15 +172,15 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryHeaders(c *C) {
 	req, err := http.NewRequest("GET", "http://example.com", nil)
 	c.Assert(err, IsNil)
 
-	t.store.applyUbuntuStoreHeaders(req, "", nil)
+	t.store.setUbuntuStoreHeaders(req, "", nil)
 
-	c.Assert(req.Header.Get("X-Ubuntu-Release"), Equals, "16")
-	c.Check(req.Header.Get("Accept"), Equals, "application/hal+json")
+	c.Check(req.Header.Get("X-Ubuntu-Release"), Equals, "16")
+	c.Check(req.Header.Get("X-Ubuntu-Device-Channel"), Equals, "")
 
-	t.store.applyUbuntuStoreHeaders(req, "application/json", nil)
+	t.store.setUbuntuStoreHeaders(req, "chan", nil)
 
-	c.Check(req.Header.Get("Accept"), Equals, "application/json")
-	c.Assert(req.Header.Get("Authorization"), Equals, "")
+	c.Check(req.Header.Get("Authorization"), Equals, "")
+	c.Check(req.Header.Get("X-Ubuntu-Device-Channel"), Equals, "chan")
 }
 
 const (
@@ -331,7 +331,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(result.Name(), Equals, "hello-world")
 	c.Check(result.Architectures, DeepEquals, []string{"all"})
-	c.Check(result.Revision, Equals, 25)
+	c.Check(result.Revision, Equals, snap.R(25))
 	c.Check(result.SnapID, Equals, helloWorldSnapID)
 	c.Check(result.Developer, Equals, "canonical")
 	c.Check(result.Version, Equals, "6.0")
@@ -773,7 +773,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].Name(), Equals, funkyAppName)
-	c.Assert(results[0].Revision, Equals, 3)
+	c.Assert(results[0].Revision, Equals, snap.R(3))
 	c.Assert(results[0].Version, Equals, "42")
 }
 

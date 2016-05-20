@@ -66,7 +66,7 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 		return []byte("ActiveState=inactive\n"), nil
 	}
 
-	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: 12})
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
 
 	err := wrappers.AddSnapServices(info, nil)
 	c.Assert(err, IsNil)
@@ -119,7 +119,7 @@ apps:
    command: wat
    stop-timeout: 250ms
    daemon: forking
-`, &snap.SideInfo{Revision: 11})
+`, &snap.SideInfo{Revision: snap.R(11)})
 
 	err := wrappers.AddSnapServices(info, nil)
 	c.Assert(err, IsNil)
