@@ -192,3 +192,16 @@ type: app`
 	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
 	c.Assert(err, ErrorMatches, "invalid snap name.*")
 }
+
+func (s *infoSuite) TestReadInfoFromSnapFileCatchesInvalidType(c *C) {
+	yaml := `name: foo
+version: 1.0
+type: foo`
+	snapPath := makeTestSnap(c, yaml)
+
+	snapf, err := snap.Open(snapPath)
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
+	c.Assert(err, ErrorMatches, ".*invalid snap type.*")
+}
