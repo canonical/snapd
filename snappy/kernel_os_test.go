@@ -46,11 +46,11 @@ func (s *kernelTestSuite) SetUpTest(c *C) {
 func (s *kernelTestSuite) TestNameAndRevnoFromSnap(c *C) {
 	name, revno := nameAndRevnoFromSnap("canonical-pc-linux.canonical_101.snap")
 	c.Check(name, Equals, "canonical-pc-linux.canonical")
-	c.Check(revno, Equals, 101)
+	c.Check(revno, Equals, snap.R(101))
 
 	name, revno = nameAndRevnoFromSnap("ubuntu-core.canonical_103.snap")
 	c.Check(name, Equals, "ubuntu-core.canonical")
-	c.Check(revno, Equals, 103)
+	c.Check(revno, Equals, snap.R(103))
 }
 
 var kernelYaml = `name: linux
@@ -83,10 +83,10 @@ func (s *kernelTestSuite) TestSyncBoot(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 3)
 	// ensure that v2 is the active one
-	found := FindSnapsByNameAndRevision("linux", 21, installed)
+	found := FindSnapsByNameAndRevision("linux", snap.R(21), installed)
 	c.Assert(found, HasLen, 1)
 	c.Assert(found[0].Name(), Equals, "linux")
-	c.Assert(found[0].Revision(), Equals, 21)
+	c.Assert(found[0].Revision(), Equals, snap.R(21))
 	c.Assert(found[0].Version(), Equals, "v2")
 	c.Assert(found[0].IsActive(), Equals, true)
 
@@ -108,7 +108,7 @@ func (s *kernelTestSuite) TestSyncBoot(c *C) {
 	found = FindSnapsByNameAndVersion("linux", "v1", installed)
 	c.Assert(found, HasLen, 1)
 	c.Assert(found[0].Name(), Equals, "linux")
-	c.Assert(found[0].Revision(), Equals, 20)
+	c.Assert(found[0].Revision(), Equals, snap.R(20))
 	c.Assert(found[0].Version(), Equals, "v1")
 	c.Assert(found[0].IsActive(), Equals, true)
 }
@@ -119,7 +119,7 @@ func (s *kernelTestSuite) TestSetNextBootOnClassic(c *C) {
 	defer restore()
 
 	// Create a fake OS snap that we try to update
-	snapInfo := snaptest.MockSnap(c, "type: os", &snap.SideInfo{Revision: 42})
+	snapInfo := snaptest.MockSnap(c, "type: os", &snap.SideInfo{Revision: snap.R(42)})
 	err := SetNextBoot(snapInfo)
 	c.Assert(err, IsNil)
 }
