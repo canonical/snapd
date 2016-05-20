@@ -51,6 +51,7 @@ network inet6 raw,
 # snappy needs to have iptable_filter and ip6table_filter loaded,
 # they don't autoload.
 unix (bind) type=stream addr="@xtables",
+/{,var/}run/xtables.lock rwk,
 @{PROC}/sys/kernel/modprobe r,
 
 @{PROC}/@{pid}/net/ r,
