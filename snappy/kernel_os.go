@@ -31,6 +31,7 @@ import (
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/partition"
 	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snap"
 )
 
@@ -122,6 +123,9 @@ func extractKernelAssets(s *snap.Info, snapf snap.File, flags InstallFlags, inte
 // SetNextBoot will schedule the given os or kernel snap to be used in
 // the next boot
 func SetNextBoot(s *snap.Info) error {
+	if release.OnClassic {
+		return nil
+	}
 	if s.Type != snap.TypeOS && s.Type != snap.TypeKernel {
 		return nil
 	}
