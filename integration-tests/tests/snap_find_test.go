@@ -21,8 +21,6 @@
 package tests
 
 import (
-	"fmt"
-
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 
@@ -100,18 +98,4 @@ func (s *searchSuite) TestFindShowsHelp(c *check.C) {
 	actual := cli.ExecCommand(c, "snap", "find", "--help")
 
 	c.Assert(actual, check.Matches, expected)
-}
-
-// SNAP_FIND_007: find packages with search string containing special characters
-func (s *searchSuite) TestFindWithSpecialCharsInSearchString(c *check.C) {
-	c.Skip("Reenable when LP: 1583952 is fixed")
-	specialChars := "!@#$%^&*/=[]+_:;,.?{}"
-
-	for _, char := range specialChars {
-		s := string(char)
-		expected := fmt.Sprintf(`error: no snaps found for "%s"`, s)
-		searchOutput := cli.ExecCommand(c, "snap", "find", s)
-
-		c.Check(searchOutput, check.Matches, expected)
-	}
 }
