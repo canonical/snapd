@@ -187,7 +187,7 @@ type licensedExampleSuite struct {
 }
 
 func (s *licensedExampleSuite) TestAcceptLicenseMustInstallSnap(c *check.C) {
-	cmd := exec.Command("sudo", "snappy", "install", "licensed.canonical")
+	cmd := exec.Command("sudo", "https_proxy="+os.Getenv("https_proxy"), "snappy", "install", "licensed.canonical")
 	f, err := pty.Start(cmd)
 	c.Assert(err, check.IsNil, check.Commentf("Error starting pty: %s", err))
 	defer common.RemoveSnap(c, "licensed.canonical")
@@ -203,7 +203,7 @@ func (s *licensedExampleSuite) TestAcceptLicenseMustInstallSnap(c *check.C) {
 }
 
 func (s *licensedExampleSuite) TestDeclineLicenseMustNotInstallSnap(c *check.C) {
-	cmd := exec.Command("sudo", "snappy", "install", "licensed.canonical")
+	cmd := exec.Command("sudo", "https_proxy="+os.Getenv("https_proxy"), "snappy", "install", "licensed.canonical")
 	f, err := pty.Start(cmd)
 	c.Assert(err, check.IsNil, check.Commentf("Error starting pty: %s", err))
 

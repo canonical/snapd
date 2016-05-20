@@ -2,7 +2,7 @@
 // +build !excludeintegration
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015, 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -54,6 +54,8 @@ type AutoPkgTest struct {
 	IntegrationTestName string
 	// ShellOnFail is used in case of failure to open a shell on the testbed before shutting it down.
 	ShellOnFail bool
+	// Env is a map with the environment variables to set on the test bed and their values.
+	Env map[string]string
 }
 
 // AdtRunLocal starts a kvm running the image passed as argument and runs the
@@ -79,10 +81,14 @@ func (a *AutoPkgTest) adtRun(testbedOptions string) (err error) {
 
 	cmd := []string{
 		"adt-run", "-B",
-		"--setup-commands", "touch /run/autopkgtest_no_reboot.stamp",
 		"--override-control", controlFile,
 		"--built-tree", a.SourceCodePath,
-		"--output-dir", outputDir}
+		"--output-dir", outputDir,
+		"--setup-commands", "touch /run/autopkgtest_no_reboot.stamp"}
+	for envVar, value := range a.Env {
+		cmd = append(cmd, "--env")
+		cmd = append(cmd, fmt.Sprintf("%s=%s", envVar, value))
+	}
 	if a.ShellOnFail {
 		cmd = append(cmd, "--shell-fail")
 	}

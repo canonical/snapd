@@ -22,35 +22,26 @@ package config
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"log"
 )
+
+// DefaultFileName is the path where we write the test config to be available from the testbed
+const DefaultFileName = "integration-tests/data/output/testconfig.json"
 
 // Config contains the values to pass to the test bed from the host.
 type Config struct {
 	FileName      string
 	Release       string
 	Channel       string
-	TargetRelease string
-	TargetChannel string
 	RemoteTestbed bool
 	Update        bool
 	Rollback      bool
-}
-
-// NewConfig is the Config constructor
-func NewConfig(fileName, release, channel string, remoteTestbed, update, rollback bool) *Config {
-	return &Config{
-		FileName: fileName, Release: release, Channel: channel,
-		RemoteTestbed: remoteTestbed, Update: update, Rollback: rollback,
-	}
+	FromBranch    bool
 }
 
 // Write writes the config to a file that will be copied to the test bed.
 func (cfg Config) Write() {
-	fmt.Println("Writing test config...")
-	fmt.Println(cfg)
 	encoded, err := json.Marshal(cfg)
 	if err != nil {
 		log.Panicf("Error encoding the test config: %v", err)
