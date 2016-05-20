@@ -68,18 +68,30 @@ const (
 	StrictConfinement  ConfinementType = "strict"
 )
 
+// UnmarshalJSON sets *confinementType to a copy of data, assuming validation passes
+func (confinementType *ConfinementType) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+
+	return confinementType.fromString(s)
+}
+
 // UnmarshalYAML so ConfinementType implements yaml's Unmarshaler interface
 func (confinementType *ConfinementType) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var s string
-
 	if err := unmarshal(&s); err != nil {
 		return err
 	}
 
-	c := ConfinementType(s)
-	if c != DevmodeConfinement && c != StrictConfinement {
+	return confinementType.fromString(s)
+}
 
-		return fmt.Errorf("invalid confinement type: %q", s)
+func (confinementType *ConfinementType) fromString(str string) error {
+	c := ConfinementType(str)
+	if c != DevmodeConfinement && c != StrictConfinement {
+		return fmt.Errorf("invalid confinement type: %q", str)
 	}
 
 	*confinementType = c

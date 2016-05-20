@@ -21,6 +21,7 @@ package snap
 
 import (
 	"encoding/json"
+	"fmt"
 	"gopkg.in/yaml.v2"
 
 	. "gopkg.in/check.v1"
@@ -62,7 +63,7 @@ func (s *typeSuite) TestUnmarshalTypes(c *C) {
 	c.Check(st, Equals, TypeGadget)
 }
 
-func (s *typeSuite) TestMarshalConfinementTypes(c *C) {
+func (s *typeSuite) TestYamlMarshalConfinementTypes(c *C) {
 	out, err := yaml.Marshal(DevmodeConfinement)
 	c.Assert(err, IsNil)
 	c.Check(string(out), Equals, "devmode\n")
@@ -72,7 +73,7 @@ func (s *typeSuite) TestMarshalConfinementTypes(c *C) {
 	c.Check(string(out), Equals, "strict\n")
 }
 
-func (s *typeSuite) TestUnmarshalConfinementTypes(c *C) {
+func (s *typeSuite) TestYamlUnmarshalConfinementTypes(c *C) {
 	var confinementType ConfinementType
 	err := yaml.Unmarshal([]byte("devmode"), &confinementType)
 	c.Assert(err, IsNil)
@@ -83,13 +84,45 @@ func (s *typeSuite) TestUnmarshalConfinementTypes(c *C) {
 	c.Check(confinementType, Equals, StrictConfinement)
 }
 
-func (s *typeSuite) TestUnmarshalInvalidConfinementTypes(c *C) {
+func (s *typeSuite) TestYamlUnmarshalInvalidConfinementTypes(c *C) {
 	var invalidConfinementTypes = []string{
 		"foo", "strict-", "_devmode",
 	}
 	var confinementType ConfinementType
 	for _, thisConfinementType := range invalidConfinementTypes {
 		err := yaml.Unmarshal([]byte(thisConfinementType), &confinementType)
+		c.Assert(err, NotNil, Commentf("Expected '%s' to be an invalid confinement type", thisConfinementType))
+	}
+}
+
+func (s *typeSuite) TestJsonMarshalConfinementTypes(c *C) {
+	out, err := json.Marshal(DevmodeConfinement)
+	c.Assert(err, IsNil)
+	c.Check(string(out), Equals, "\"devmode\"")
+
+	out, err = json.Marshal(StrictConfinement)
+	c.Assert(err, IsNil)
+	c.Check(string(out), Equals, "\"strict\"")
+}
+
+func (s *typeSuite) TestJsonUnmarshalConfinementTypes(c *C) {
+	var confinementType ConfinementType
+	err := json.Unmarshal([]byte("\"devmode\""), &confinementType)
+	c.Assert(err, IsNil)
+	c.Check(confinementType, Equals, DevmodeConfinement)
+
+	err = json.Unmarshal([]byte("\"strict\""), &confinementType)
+	c.Assert(err, IsNil)
+	c.Check(confinementType, Equals, StrictConfinement)
+}
+
+func (s *typeSuite) TestJsonUnmarshalInvalidConfinementTypes(c *C) {
+	var invalidConfinementTypes = []string{
+		"foo", "strict-", "_devmode",
+	}
+	var confinementType ConfinementType
+	for _, thisConfinementType := range invalidConfinementTypes {
+		err := json.Unmarshal([]byte(fmt.Sprintf("%q", thisConfinementType)), &confinementType)
 		c.Assert(err, NotNil, Commentf("Expected '%s' to be an invalid confinement type", thisConfinementType))
 	}
 }
