@@ -22,6 +22,9 @@ package snappy
 import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/partition"
+	"github.com/ubuntu-core/snappy/release"
+	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/snaptest"
 
 	. "gopkg.in/check.v1"
 )
@@ -59,6 +62,9 @@ type: os
 `
 
 func (s *kernelTestSuite) TestSyncBoot(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	// make an OS
 	_, err := makeInstalledMockSnap(osYaml+"version: v1", 10)
 	c.Assert(err, IsNil)
@@ -105,4 +111,15 @@ func (s *kernelTestSuite) TestSyncBoot(c *C) {
 	c.Assert(found[0].Revision(), Equals, 20)
 	c.Assert(found[0].Version(), Equals, "v1")
 	c.Assert(found[0].IsActive(), Equals, true)
+}
+
+// SetNextBoot should do nothing on classic LP: #1580403
+func (s *kernelTestSuite) TestSetNextBootOnClassic(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	// Create a fake OS snap that we try to update
+	snapInfo := snaptest.MockSnap(c, "type: os", &snap.SideInfo{Revision: 42})
+	err := SetNextBoot(snapInfo)
+	c.Assert(err, IsNil)
 }
