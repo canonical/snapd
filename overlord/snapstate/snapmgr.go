@@ -92,6 +92,14 @@ func (snapst *SnapState) Current() *snap.SideInfo {
 	return snapst.Sequence[n-1]
 }
 
+func (snapst *SnapState) Previous() *snap.SideInfo {
+	n := len(snapst.Sequence)
+	if n < 2 {
+		return nil
+	}
+	return snapst.Sequence[n-2]
+}
+
 // DevMode returns true if the snap is installed in developer mode.
 func (snapst *SnapState) DevMode() bool {
 	return snapst.Flags&DevMode != 0
@@ -126,6 +134,9 @@ func Manager(s *state.State) (*SnapManager, error) {
 	runner.AddHandler("unlink-snap", m.doUnlinkSnap, nil)
 	runner.AddHandler("clear-snap", m.doClearSnapData, nil)
 	runner.AddHandler("discard-snap", m.doDiscardSnap, nil)
+
+	// rollback releated
+	runner.AddHandler("prepare-rollback", m.doPrepareRollback, m.undoPrepareRollback)
 
 	// test handlers
 	runner.AddHandler("fake-install-snap", func(t *state.Task, _ *tomb.Tomb) error {
@@ -614,6 +625,37 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// mark as inactive
+	Set(st, ss.Name, snapst)
+	return nil
+}
+
+func (m *SnapManager) doPrepareRollback(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	ss, snapst, err := snapSetupAndState(t)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
+	st.Lock()
+	snapst.Candidate = snapst.Previous()
+	Set(st, ss.Name, snapst)
+	st.Unlock()
+
+	return nil
+}
+
+func (m *SnapManager) undoPrepareRollback(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	ss, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	snapst.Candidate = nil
 	Set(st, ss.Name, snapst)
 	return nil
 }
