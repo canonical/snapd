@@ -176,7 +176,9 @@ func (x *cmdInstall) Execute([]string) error {
 		name = snapName
 	}
 
-	return listSnaps([]string{name})
+	return listSnaps(&client.ListOptions{
+		Names: []string{name},
+	})
 }
 
 type cmdRefresh struct {
@@ -189,7 +191,7 @@ type cmdRefresh struct {
 func refreshAll() error {
 	// FIXME: move this to snapd instead and have a new refresh-all endpoint
 	cli := Client()
-	updates, err := cli.List(&client.ListOptions{RefreshOnly: true})
+	updates, err := cli.List(&client.ListOptions{SelectRefresh: true})
 	if err != nil {
 		return fmt.Errorf("cannot list updates: %s", err)
 	}
@@ -218,7 +220,9 @@ func refreshOne(name, channel string) error {
 		return err
 	}
 
-	return listSnaps([]string{name})
+	return listSnaps(&client.ListOptions{
+		Names: []string{name},
+	})
 }
 
 func (x *cmdRefresh) Execute([]string) error {
