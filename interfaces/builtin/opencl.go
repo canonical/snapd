@@ -23,31 +23,31 @@ import (
 	"github.com/ubuntu-core/snappy/interfaces"
 )
 
-var allInterfaces = []interfaces.Interface{
-	&BoolFileInterface{},
-	&BluezInterface{},
-	&LocationObserveInterface{},
-	&NetworkManagerInterface{},
-	NewFirewallControlInterface(),
-	NewHomeInterface(),
-	NewLocaleControlInterface(),
-	NewLogObserveInterface(),
-	NewMountObserveInterface(),
-	NewNetworkInterface(),
-	NewNetworkBindInterface(),
-	NewNetworkControlInterface(),
-	NewNetworkObserveInterface(),
-	NewSnapdControlInterface(),
-	NewSystemObserveInterface(),
-	NewTimeserverControlInterface(),
-	NewTimezoneControlInterface(),
-	NewUnity7Interface(),
-	NewX11Interface(),
-	NewOpenglInterface(),
-	NewOpenclInterface(),
-}
+const openclConnectedPlugAppArmor = `
+# Description: Can access opencl. 
+# Usage: reserved
 
-// Interfaces returns all of the built-in interfaces.
-func Interfaces() []interfaces.Interface {
-	return allInterfaces
+  # OpenCL Installable Client Driver (ICD) Loader
+  /etc/OpenCL/vendors/** r,
+
+  # nvidia
+  /dev/nvidia* rw,
+`
+
+const openclConnectedPlugSecComp = `
+# Description: Can access opencl. 
+# Usage: reserved
+
+getsockopt
+`
+
+// NewOpenclInterface returns a new "opencl" interface.
+func NewOpenclInterface() interfaces.Interface {
+	return &commonInterface{
+		name: "opencl",
+		connectedPlugAppArmor: openclConnectedPlugAppArmor,
+		connectedPlugSecComp:  openclConnectedPlugSecComp,
+		reservedForOS:         true,
+		autoConnect:           true,
+	}
 }
