@@ -153,7 +153,7 @@ dbus (send)
 # url helper
 dbus (send)
     bus=session
-    interface=com.canonical.UrlLauncher.XdgOpen
+    interface=com.canonical.SafeLauncher.OpenURL
     peer=(label=unconfined),
 
 # dbusmenu
