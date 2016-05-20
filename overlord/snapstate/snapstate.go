@@ -257,8 +257,62 @@ func Remove(s *state.State, name string, flags snappy.RemoveFlags) (*state.TaskS
 
 // Rollback returns a set of tasks for rolling back a snap.
 // Note that the state must be locked by the caller.
-func Rollback(s *state.State, snap, ver string) (*state.TaskSet, error) {
-	return nil, fmt.Errorf("rollback not implemented")
+func Rollback(s *state.State, name, ver string) (*state.TaskSet, error) {
+	if ver != "" {
+		return nil, fmt.Errorf("rollback to arbitrary versions not implemented")
+	}
+
+	var snapst SnapState
+	err := Get(s, name, &snapst)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+
+	if !snapst.Active {
+		return nil, fmt.Errorf("cannot rollback inactive snaps")
+	}
+	if snapst.Previous() == nil {
+		return nil, fmt.Errorf("no revision to rollback to")
+	}
+
+	ss := SnapSetup{
+		Name:     name,
+		Revision: snapst.Current().Revision,
+	}
+	ssPrev := SnapSetup{
+		Name:     name,
+		Revision: snapst.Previous().Revision,
+	}
+
+	prepare := s.NewTask("prepare-rollback", fmt.Sprintf(i18n.G("Prepare rollback of %q"), name))
+	prepare.Set("snap-setup", ss)
+
+	unlink := s.NewTask("unlink-current-snap", fmt.Sprintf(i18n.G("Make snap %q unavailable to the system"), name))
+	unlink.WaitFor(prepare)
+	unlink.Set("snap-setup-task", prepare.ID())
+
+	removeSecurity := s.NewTask("remove-profiles", fmt.Sprintf(i18n.G("Remove security profile for snap %q"), name))
+	removeSecurity.WaitFor(unlink)
+	removeSecurity.Set("snap-setup-task", prepare.ID())
+
+	// now make the previous version active
+	setupSecurity := s.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q security profiles"), name))
+	setupSecurity.WaitFor(removeSecurity)
+	setupSecurity.Set("snap-setup", ssPrev)
+
+	linkSnap := s.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q available to the system"), name))
+	linkSnap.WaitFor(setupSecurity)
+	linkSnap.Set("snap-setup-task", setupSecurity.ID())
+
+	// and create a taskset
+	ts := state.NewTaskSet(prepare, unlink, removeSecurity, setupSecurity, linkSnap)
+
+	// remove the current ver
+	tsRemovePrev := removeInactiveRevision(s, name, ss.Revision, 0)
+	tsRemovePrev.WaitAll(ts)
+	ts.AddAll(tsRemovePrev)
+
+	return ts, nil
 }
 
 // Retrieval functions
