@@ -1,0 +1,3 @@
+# False positive string match against contents of golang-yaml.v2
+snapd: embedded-library usr/bin/snap: libyaml
+snapd: embedded-library usr/lib/snapd/snapd: libyaml
