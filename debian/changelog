@@ -5,6 +5,7 @@ snapd (2.0.3+1) UNRELEASED; urgency=medium
     be part of base-files on both Ubuntu and Debian, instead of
     /etc/lsb-release which doesn't exist at all on Debian.
   * Add lintian overrides for false-positive detection of embedded libyaml.
+  * Update Vcs-* fields to point at maintainer's branch.
 
  -- Steve Langasek <vorlon@debian.org>  Sun, 22 May 2016 16:44:11 -0700
 

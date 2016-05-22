@@ -29,8 +29,8 @@ Build-Depends: bash-completion,
                squashfs-tools
 Standards-Version: 3.9.7
 Homepage: https://github.com/ubuntu-core/snappy
-Vcs-Browser: https://github.com/ubuntu-core/snappy
-Vcs-Git: https://github.com/ubuntu-core/snappy.git
+Vcs-Browser: https://github.com/vorlonofportland/snappy/tree/debian
+Vcs-Git: https://github.com/vorlonofportland/snappy.git -b debian
 
 Package: golang-github-ubuntu-core-snappy-dev
 Architecture: all
