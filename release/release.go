@@ -51,18 +51,18 @@ func ReadLSB() (*LSB, error) {
 	for _, line := range strings.Split(string(content), "\n") {
 		if strings.HasPrefix(line, "NAME=") {
 			tmp := strings.SplitN(line, "=", 2)
-			lsb.ID = strings.Trim(tmp[1],"\"")
+			lsb.ID = strings.Trim(tmp[1], "\"")
 		}
 		if strings.HasPrefix(line, "VERSION_ID=") {
 			tmp := strings.SplitN(line, "=", 2)
-			lsb.Release = strings.Trim(tmp[1],"\"")
+			lsb.Release = strings.Trim(tmp[1], "\"")
 		}
 		if strings.HasPrefix(line, "UBUNTU_CODENAME=") {
 			tmp := strings.SplitN(line, "=", 2)
-			lsb.Codename = strings.Trim(tmp[1],"\"")
+			lsb.Codename = strings.Trim(tmp[1], "\"")
 		}
 	}
-	if (lsb.Codename == "") {
+	if lsb.Codename == "" {
 		lsb.Codename = "xenial"
 	}
 
