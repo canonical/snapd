@@ -1,4 +1,4 @@
-snapd (2.0.3+1) UNRELEASED; urgency=medium
+snapd (2.0.3+1) unstable; urgency=medium
 
   * Initial Debian upload.  Closes: #824943.
   * release/release{,_test}.go: use /etc/os-release, which is guaranteed to
@@ -8,7 +8,7 @@ snapd (2.0.3+1) UNRELEASED; urgency=medium
   * Add lintian overrides for false-positive detection of embedded libyaml.
   * Update Vcs-* fields to point at maintainer's branch.
 
- -- Steve Langasek <vorlon@debian.org>  Sun, 22 May 2016 16:44:11 -0700
+ -- Steve Langasek <vorlon@debian.org>  Sun, 22 May 2016 23:59:51 +0000
 
 snapd (2.0.3) xenial; urgency=medium
 
