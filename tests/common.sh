@@ -1,6 +1,6 @@
 #!/bin/sh
 
-L=$(pwd)/../src/ubuntu-core-launcher
+L=$(pwd)/../src/snap-run
 
 TMP="$(mktemp -d)"
 trap "rm -rf $TMP" EXIT

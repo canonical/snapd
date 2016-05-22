@@ -1,7 +1,7 @@
 Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 
 Files: *
-Copyright: 2014 Canonical Ltd.
+Copyright: 2014-16 Canonical Ltd.
 License: GPL-3.0
 
 License: GPL-3.0

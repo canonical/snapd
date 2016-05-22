@@ -1,1 +1,1 @@
-debian/usr.bin.ubuntu-core-launcher etc/apparmor.d
+debian/usr.bin.snap-run etc/apparmor.d
