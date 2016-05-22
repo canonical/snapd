@@ -1,3 +1,9 @@
+snapd (2.0.3+1) UNRELEASED; urgency=medium
+
+  * Initial Debian upload.  Closes: #824943.
+
+ -- Steve Langasek <vorlon@debian.org>  Sun, 22 May 2016 16:44:11 -0700
+
 snapd (2.0.3) xenial; urgency=medium
 
   * New upstream micro release:

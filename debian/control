@@ -1,7 +1,7 @@
 Source: snapd
 Section: devel
 Priority: optional
-Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
+Maintainer: Steve Langasek <vorlon@debian.org>
 Build-Depends: bash-completion,
                debhelper (>= 9),
                dh-golang,
