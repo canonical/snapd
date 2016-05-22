@@ -57,10 +57,16 @@ func makeMockLsbRelease(c *C) string {
 	//        can do release.SetLsbReleasePath() here directly
 	mockLsbRelease := filepath.Join(c.MkDir(), "mock-lsb-release")
 	s := `
-DISTRIB_ID=Ubuntu
-DISTRIB_RELEASE=18.09
-DISTRIB_CODENAME=awsome
-DISTRIB_DESCRIPTION=I'm not real!
+NAME="Ubuntu"
+VERSION="18.09 (Awesome Artichoke)"
+ID=ubuntu
+ID_LIKE=debian
+PRETTY_NAME="I'm not real!"
+VERSION_ID="18.09"
+HOME_URL="http://www.ubuntu.com/"
+SUPPORT_URL="http://help.ubuntu.com/"
+BUG_REPORT_URL="http://bugs.launchpad.net/ubuntu/"
+UBUNTU_CODENAME=awesome
 `
 	err := ioutil.WriteFile(mockLsbRelease, []byte(s), 0644)
 	c.Assert(err, IsNil)
@@ -76,7 +82,7 @@ func (a *ReleaseTestSuite) TestReadLsb(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(lsb.ID, Equals, "Ubuntu")
 	c.Assert(lsb.Release, Equals, "18.09")
-	c.Assert(lsb.Codename, Equals, "awsome")
+	c.Assert(lsb.Codename, Equals, "awesome")
 }
 
 func (a *ReleaseTestSuite) TestReadLsbNotFound(c *C) {
@@ -84,5 +90,5 @@ func (a *ReleaseTestSuite) TestReadLsbNotFound(c *C) {
 	defer reset()
 
 	_, err := release.ReadLsb()
-	c.Assert(err, ErrorMatches, "cannot read lsb-release:.*")
+	c.Assert(err, ErrorMatches, "cannot read os-release:.*")
 }

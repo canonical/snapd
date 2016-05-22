@@ -1,6 +1,9 @@
 snapd (2.0.3+1) UNRELEASED; urgency=medium
 
   * Initial Debian upload.  Closes: #824943.
+  * release/release{,_test}.go: use /etc/os-release, which is guaranteed to
+    be part of base-files on both Ubuntu and Debian, instead of
+    /etc/lsb-release which doesn't exist at all on Debian.
 
  -- Steve Langasek <vorlon@debian.org>  Sun, 22 May 2016 16:44:11 -0700
 
