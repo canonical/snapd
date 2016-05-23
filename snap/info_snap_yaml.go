@@ -40,12 +40,12 @@ type snapYaml struct {
 	Summary          string                 `yaml:"summary"`
 	LicenseAgreement string                 `yaml:"license-agreement,omitempty"`
 	LicenseVersion   string                 `yaml:"license-version,omitempty"`
+	Epoch            string                 `yaml:"epoch,omitempty"`
+	Confinement      ConfinementType        `yaml:"confinement,omitempty"`
+	Environment      map[string]string      `yaml:"environment,omitempty"`
 	Plugs            map[string]interface{} `yaml:"plugs,omitempty"`
 	Slots            map[string]interface{} `yaml:"slots,omitempty"`
 	Apps             map[string]appYaml     `yaml:"apps,omitempty"`
-
-	// legacy fields collected
-	Legacy LegacyYaml `yaml:",inline"`
 }
 
 type plugYaml struct {
@@ -98,6 +98,14 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	if y.Type != "" {
 		typ = y.Type
 	}
+	epoch := "0"
+	if y.Epoch != "" {
+		epoch = y.Epoch
+	}
+	confinement := StrictConfinement
+	if y.Confinement != "" {
+		confinement = y.Confinement
+	}
 	// Construct snap skeleton, without apps, plugs and slots
 	snap := &Info{
 		SuggestedName:       y.Name,
@@ -109,14 +117,18 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 		OriginalSummary:     y.Summary,
 		LicenseAgreement:    y.LicenseAgreement,
 		LicenseVersion:      y.LicenseVersion,
+		Epoch:               epoch,
+		Confinement:         confinement,
 		Apps:                make(map[string]*AppInfo),
 		Plugs:               make(map[string]*PlugInfo),
 		Slots:               make(map[string]*SlotInfo),
-
-		// just expose the parsed legacy yaml bits
-		Legacy: &y.Legacy,
+		Environment:         make(map[string]string),
 	}
 	sort.Strings(snap.Assumes)
+	// Environment
+	for k, v := range y.Environment {
+		snap.Environment[k] = v
+	}
 	// Collect top-level definitions of plugs
 	for name, data := range y.Plugs {
 		iface, label, attrs, err := convertToSlotOrPlugData("plug", name, data)

@@ -26,6 +26,8 @@ import (
 var allInterfaces = []interfaces.Interface{
 	&BoolFileInterface{},
 	&BluezInterface{},
+	&LocationObserveInterface{},
+	&NetworkManagerInterface{},
 	NewFirewallControlInterface(),
 	NewHomeInterface(),
 	NewLocaleControlInterface(),
@@ -42,7 +44,8 @@ var allInterfaces = []interfaces.Interface{
 	NewUnity7Interface(),
 	NewX11Interface(),
 	NewOpenglInterface(),
-	NewCupsInterface(),
+	NewPulseAudioInterface(),
+	NewCupsControlInterface(),
 }
 
 // Interfaces returns all of the built-in interfaces.

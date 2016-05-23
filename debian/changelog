@@ -1,3 +1,67 @@
+snapd (2.0.5) xenial; urgency=medium
+
+  * New upstream release: LP: #1583085
+    - interfaces: add dbusmenu, freedesktop and kde notifications to
+      unity7 (LP: #1573188)
+    - daemon: make localSnapInfo return SnapState
+    - cmd: make snap list with no snaps not special
+    - debian: workaround for XDG_DATA_DIRS issues
+    - cmd,po: fix conflicts, apply review from #1154
+    - snap,store: load and store the private flag sent by the store in
+      SideInfo
+    - interfaces/apparmor/template.go: adjust /dev/shm to be more usable
+    - store: use purchase decorator in Snap and FindSnaps
+    - interfaces: first version of the networkmanager interface
+    - snap, snappy: implement the new (minmimal) kernel spec
+    - cmd/snap, debian: move manpage generation to depend on an environ
+      key; also, fix completion
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 19 May 2016 15:29:16 +0200
+
+snapd (2.0.4) xenial; urgency=medium
+
+  * New upstream release:
+    - interfaces: cleanup explicit denies
+    - integration-tests: remove the ancient integration daemon tests
+    - integration-tests: add network-bind interface test
+    - integration-tests: add actual checks for undoing install
+    - integration-tests: add store login test
+    - snap: add certain implicit slots only on classic
+    - integration-tests: add coverage flags to snapd.service ExecStart
+      setting when building from branch
+    - integration-tests: remove the tests for features removed in 16.04.
+    - daemon, overlord/snapstate: "(de)activate" is no longer a thing
+    - docs: update meta.md and security.md for current snappy
+    - debian: always start snapd
+    - integration-tests: add test for undoing failed install
+    - overlord: handle ensureNext being in the past
+    - overlord/snapstate,overlord/snapstate/backend,snappy: start
+      backend porting LinkSnap and UnlinkSnap
+    - debian/tests: add reboot capability to autopkgtest and execute
+      snapPersistsSuite
+    - daemon,snappy,progress: drop license agreement broken logic
+    - daemon,client,cmd/snap: nice access denied message 
+      (LP: #1574829)
+    - daemon: add user parameter to all commands
+    - snap, store: rework purchase methods into decorators
+    - many: simplify release package and add OnClassic
+    - interfaces: miscellaneous policy updates
+    - snappy,wrappers: move desktop files handling to wrappers
+    - snappy: remove some obviously dead code
+    - interfaces/builtin: quote apparmor label
+    - many: remove the gadget yaml support from snappy
+    - snappy,systemd,wrappers: move service units generation to wrappers
+    - store: add method to determine if a snap must be bought
+    - store: add methods to read purchases from the store
+    - wrappers,snappy: move binary wrapper generation to new package
+      wrappers
+    - snap: add `snap help` command
+    - integration-tests: remove framework-test data and avoid using
+      config-snap for now
+    - add integration test to verify fix for LP: #1571721
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 13 May 2016 17:19:37 -0700
+
 snapd (2.0.3) xenial; urgency=medium
 
   * New upstream micro release:
@@ -57,6 +121,7 @@ snapd (2.0.3) xenial; urgency=medium
     - etc: trivial typo fix (LP:#1569892)
     - debian: remove unneeded /var/lib/snapd/apparmor/additional
       directory (LP: #1569577)
+    - builtin/unity7.go: allow using gmenu. LP: #1576287
 
  -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 03 May 2016 07:51:57 +0200
 

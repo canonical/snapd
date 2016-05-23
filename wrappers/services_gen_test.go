@@ -98,7 +98,7 @@ apps:
 `
 	info, err := snap.InfoFromSnapYaml([]byte(yamlText))
 	c.Assert(err, IsNil)
-	info.Revision = 44
+	info.Revision = snap.R(44)
 	app := info.Apps["app"]
 
 	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app)
@@ -118,7 +118,7 @@ apps:
 
 		info, err := snap.InfoFromSnapYaml([]byte(yamlText))
 		c.Assert(err, IsNil)
-		info.Revision = 44
+		info.Revision = snap.R(44)
 		app := info.Apps["app"]
 
 		wrapperText, err := wrappers.GenerateSnapServiceFile(app)
@@ -133,7 +133,7 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileTypeForking(c *C) {
 		Snap: &snap.Info{
 			SuggestedName: "xkcd-webserver",
 			Version:       "0.3.4",
-			SideInfo:      snap.SideInfo{Revision: 44},
+			SideInfo:      snap.SideInfo{Revision: snap.R(44)},
 		},
 		Name:            "xkcd-webserver",
 		Command:         "bin/foo start",
@@ -153,7 +153,7 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileIllegalChars(c *C) 
 		Snap: &snap.Info{
 			SuggestedName: "xkcd-webserver",
 			Version:       "0.3.4",
-			SideInfo:      snap.SideInfo{Revision: 44},
+			SideInfo:      snap.SideInfo{Revision: snap.R(44)},
 		},
 		Name:            "xkcd-webserver",
 		Command:         "bin/foo start\n",
@@ -184,7 +184,7 @@ apps:
 
 	info, err := snap.InfoFromSnapYaml([]byte(yamlText))
 	c.Assert(err, IsNil)
-	info.Revision = 44
+	info.Revision = snap.R(44)
 	app := info.Apps["app"]
 
 	wrapperText, err := wrappers.GenerateSnapServiceFile(app)
@@ -198,7 +198,7 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapSocketFile(c *C) {
 		Snap: &snap.Info{
 			SideInfo: snap.SideInfo{
 				OfficialName: "xkcd-webserver",
-				Revision:     44,
+				Revision:     snap.R(44),
 			},
 			Version: "0.3.4",
 		},
@@ -232,7 +232,7 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapSocketFileIllegalChars(c *C) {
 		Snap: &snap.Info{
 			SideInfo: snap.SideInfo{
 				OfficialName: "xkcd-webserver",
-				Revision:     44,
+				Revision:     snap.R(44),
 			},
 			Version: "0.3.4",
 		},
@@ -253,7 +253,7 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileWithSocket(c *C) {
 		Snap: &snap.Info{
 			SideInfo: snap.SideInfo{
 				OfficialName: "xkcd-webserver",
-				Revision:     44,
+				Revision:     snap.R(44),
 			},
 			Version: "0.3.4",
 		},

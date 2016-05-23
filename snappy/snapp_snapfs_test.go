@@ -27,6 +27,7 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/partition"
+	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/squashfs"
 	"github.com/ubuntu-core/snappy/systemd"
@@ -119,20 +120,20 @@ func (s *SquashfsTestSuite) TestOpenSnapFile(c *C) {
 
 func (s *SquashfsTestSuite) TestOpenSnapFilebSideInfo(c *C) {
 	snapPkg := makeTestSnapPackage(c, packageHello)
-	si := snap.SideInfo{OfficialName: "blessed", Revision: 42}
+	si := snap.SideInfo{OfficialName: "blessed", Revision: snap.R(42)}
 	info, _, err := openSnapFile(snapPkg, true, &si)
 	c.Assert(err, IsNil)
 
 	// check side info
 	c.Check(info.Name(), Equals, "blessed")
-	c.Check(info.Revision, Equals, 42)
+	c.Check(info.Revision, Equals, snap.R(42))
 }
 
 func (s *SquashfsTestSuite) TestInstallViaSquashfsWorks(c *C) {
 	snapPkg := makeTestSnapPackage(c, packageHello)
 	si := &snap.SideInfo{
 		OfficialName: "hello-snap",
-		Revision:     16,
+		Revision:     snap.R(16),
 	}
 	_, err := (&Overlord{}).InstallWithSideInfo(snapPkg, si, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
@@ -152,7 +153,7 @@ func (s *SquashfsTestSuite) TestAddSquashfsMount(c *C) {
 	info := &snap.Info{
 		SideInfo: snap.SideInfo{
 			OfficialName: "foo",
-			Revision:     13,
+			Revision:     snap.R(13),
 		},
 		Version:       "1.1",
 		Architectures: []string{"all"},
@@ -181,7 +182,7 @@ func (s *SquashfsTestSuite) TestRemoveSquashfsMountUnit(c *C) {
 	info := &snap.Info{
 		SideInfo: snap.SideInfo{
 			OfficialName: "foo",
-			Revision:     13,
+			Revision:     snap.R(13),
 		},
 		Version:       "1.1",
 		Architectures: []string{"all"},
@@ -205,7 +206,7 @@ func (s *SquashfsTestSuite) TestRemoveViaSquashfsWorks(c *C) {
 	snapPath := makeTestSnapPackage(c, packageHello)
 	si := &snap.SideInfo{
 		OfficialName: "hello-snap",
-		Revision:     16,
+		Revision:     snap.R(16),
 	}
 	snap, err := (&Overlord{}).InstallWithSideInfo(snapPath, si, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
@@ -230,10 +231,13 @@ vendor: Someone
 `
 
 func (s *SquashfsTestSuite) TestInstallOsSnapUpdatesBootloader(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	snapPkg := makeTestSnapPackage(c, packageOS)
 	si := &snap.SideInfo{
 		OfficialName: "ubuntu-core",
-		Revision:     160,
+		Revision:     snap.R(160),
 	}
 	_, err := (&Overlord{}).InstallWithSideInfo(snapPkg, si, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
@@ -249,20 +253,21 @@ name: ubuntu-kernel
 version: 4.0-1
 type: kernel
 vendor: Someone
-
-kernel: vmlinuz-4.2
-initrd: initrd.img-4.2
 `
 
 func (s *SquashfsTestSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	files := [][]string{
-		{"vmlinuz-4.2", "I'm a kernel"},
-		{"initrd.img-4.2", "...and I'm an initrd"},
+		{"kernel.img", "I'm a kernel"},
+		{"initrd.img", "...and I'm an initrd"},
+		{"meta/kernel.yaml", "version: 4.2"},
 	}
 	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
 	si := &snap.SideInfo{
 		OfficialName: "ubuntu-kernel",
-		Revision:     40,
+		Revision:     snap.R(40),
 	}
 	_, err := (&Overlord{}).InstallWithSideInfo(snapPkg, si, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
@@ -275,42 +280,45 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
 
 func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernel(c *C) {
 	files := [][]string{
-		{"vmlinuz-4.2", "I'm a kernel"},
-		{"initrd.img-4.2", "...and I'm an initrd"},
+		{"kernel.img", "I'm a kernel"},
+		{"initrd.img", "...and I'm an initrd"},
+		{"dtbs/foo.dtb", "g'day, I'm foo.dtb"},
+		{"dtbs/bar.dtb", "hello, I'm bar.dtb"},
+		// must be last
+		{"meta/kernel.yaml", "version: 4.2"},
 	}
 	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
 	si := &snap.SideInfo{
 		OfficialName: "ubuntu-kernel",
-		Revision:     42,
+		Revision:     snap.R(42),
 	}
 	_, err := (&Overlord{}).InstallWithSideInfo(snapPkg, si, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 
 	// this is where the kernel/initrd is unpacked
 	bootdir := s.bootloader.Dir()
+	for _, def := range files {
+		if def[0] == "meta/kernel.yaml" {
+			break
+		}
 
-	// kernel is here and normalized
-	vmlinuz := filepath.Join(bootdir, "ubuntu-kernel_42.snap", "vmlinuz")
-	content, err := ioutil.ReadFile(vmlinuz)
-	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, files[0][1])
-
-	// and so is initrd
-	initrd := filepath.Join(bootdir, "ubuntu-kernel_42.snap", "initrd.img")
-	content, err = ioutil.ReadFile(initrd)
-	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, files[1][1])
+		fullFn := filepath.Join(bootdir, "ubuntu-kernel_42.snap", def[0])
+		content, err := ioutil.ReadFile(fullFn)
+		c.Assert(err, IsNil)
+		c.Assert(string(content), Equals, def[1])
+	}
 }
 
 func (s *SquashfsTestSuite) TestInstallKernelSnapRemovesKernelAssets(c *C) {
 	files := [][]string{
-		{"vmlinuz-4.2", "I'm a kernel"},
-		{"initrd.img-4.2", "...and I'm an initrd"},
+		{"kernel.img", "I'm a kernel"},
+		{"initrd.img", "...and I'm an initrd"},
+		{"meta/kernel.yaml", "version: 4.2"},
 	}
 	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
 	si := &snap.SideInfo{
 		OfficialName: "ubuntu-kernel",
-		Revision:     42,
+		Revision:     snap.R(42),
 	}
 	snap, err := (&Overlord{}).InstallWithSideInfo(snapPkg, si, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
@@ -344,7 +352,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernelErrors(c *C) {
 	c.Assert(err, IsNil)
 
 	err = extractKernelAssets(snap, snapf, 0, nil)
-	c.Assert(err, ErrorMatches, `can not extract kernel assets from snap type "app"`)
+	c.Assert(err, ErrorMatches, `cannot extract kernel assets from snap type "app"`)
 }
 
 func (s *SquashfsTestSuite) TestActiveOSNotRemovable(c *C) {
@@ -391,14 +399,15 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapNoUnpacksKernelForGrub(c *C) {
 	s.bootloader.name = "grub"
 
 	files := [][]string{
-		{"vmlinuz-4.2", "I'm a kernel"},
+		{"kernel.img", "I'm a kernel"},
+		{"meta/kernel.yaml", "version: 4.2"},
 	}
 	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
 	_, err := (&Overlord{}).Install(snapPkg, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 
 	// kernel is *not* here
-	vmlinuz := filepath.Join(s.bootloader.Dir(), "ubuntu-kernel_4.0-1.snap", "vmlinuz")
+	vmlinuz := filepath.Join(s.bootloader.Dir(), "ubuntu-kernel_4.0-1.snap", "kernel.img")
 	c.Assert(osutil.FileExists(vmlinuz), Equals, false)
 }
 

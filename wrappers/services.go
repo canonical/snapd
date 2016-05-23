@@ -231,7 +231,7 @@ WantedBy={{.ServiceTargetUnit}}
 		SnapArch string
 		SnapPath string
 		Version  string
-		Revision int
+		Revision snap.Revision
 		Home     string
 	}{
 		App: appInfo,

@@ -45,6 +45,14 @@ apps interfering with one another.
 Usage: reserved
 Auto-Connect: yes
 
+### pulseaudio
+
+Can access the PulseAudio sound server. Allows for sound playback in games and
+media application. It doesn't allow recording.
+
+Usage: common
+Auto-Connect: yes
+
 ### opengl
 
 Can access the opengl hardware. 

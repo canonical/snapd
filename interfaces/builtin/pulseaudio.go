@@ -17,12 +17,33 @@
  *
  */
 
-package snap
+package builtin
 
-// LegacyYaml collects the legacy fields in snap.yaml that are up to be reworked.
-type LegacyYaml struct {
-	// legacy kernel snap support
-	Kernel string `yaml:"kernel,omitempty"`
-	Initrd string `yaml:"initrd,omitempty"`
-	Dtbs   string `yaml:"dtbs,omitempty"`
+import (
+	"github.com/ubuntu-core/snappy/interfaces"
+)
+
+const pulseaudioConnectedPlugAppArmor = `
+/etc/pulse/ r,
+/etc/pulse/* r,
+/{run,dev}/shm/pulse-shm-* rk,
+owner /{,var/}run/user/*/pulse/ r,
+owner /{,var/}run/user/*/pulse/native rwk,
+`
+
+const pulseaudioConnectedPlugSecComp = `
+setsockopt
+connect
+sendto
+`
+
+// NewPulseAudioInterface returns a new "pulseaudio" interface.
+func NewPulseAudioInterface() interfaces.Interface {
+	return &commonInterface{
+		name: "pulseaudio",
+		connectedPlugAppArmor: pulseaudioConnectedPlugAppArmor,
+		connectedPlugSecComp:  pulseaudioConnectedPlugSecComp,
+		reservedForOS:         true,
+		autoConnect:           true,
+	}
 }

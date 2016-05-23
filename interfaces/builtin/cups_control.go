@@ -1,8 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build !excludeintegration
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -18,25 +17,27 @@
  *
  */
 
-package tests
+package builtin
 
-import "gopkg.in/check.v1"
+import "github.com/ubuntu-core/snappy/interfaces"
 
-var _ = check.Suite(&snapd20TestSuite{})
+const cupsConnectedPlugAppArmor = `
+# Description: Can access cups daemon.
+# Usage: reserved
+#include <abstractions/cups-client>
+`
 
-type snapd20TestSuite struct {
-	snapdTestSuite
-}
+const cupsConnectedPlugSecComp = `
+setsockopt
+`
 
-func (s *snapd20TestSuite) TestResource(c *check.C) {
-	exerciseAPI(c, s)
-}
-
-func (s *snapd20TestSuite) resource() string {
-	return baseURL + "/v2/system-info"
-}
-
-func (s *snapd20TestSuite) getInteractions() apiInteractions {
-	return []apiInteraction{{
-		responsePattern: `(?U){"type":"sync","status-code":200,"status":"OK","result":{"series":"16"}}`}}
+// NewCupsControlInterface returns a new "cups" interface.
+func NewCupsControlInterface() interfaces.Interface {
+	return &commonInterface{
+		name: "cups-control",
+		connectedPlugAppArmor: cupsConnectedPlugAppArmor,
+		connectedPlugSecComp:  cupsConnectedPlugSecComp,
+		reservedForOS:         true,
+		autoConnect:           false,
+	}
 }
