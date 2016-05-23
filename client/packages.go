@@ -63,8 +63,8 @@ type ResultInfo struct {
 }
 
 type ListOptions struct {
-	SelectRefresh bool
-	Names         []string
+	Refresh bool
+	Names   []string
 }
 
 // ListSnaps returns the list of all snaps installed on the system
@@ -75,7 +75,7 @@ func (client *Client) List(opts *ListOptions) ([]*Snap, error) {
 	}
 
 	q := url.Values{}
-	if opts.SelectRefresh {
+	if opts.Refresh {
 		q.Set("select", "refresh")
 	}
 	names := opts.Names
