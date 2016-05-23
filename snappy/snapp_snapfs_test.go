@@ -341,10 +341,10 @@ func (s *SquashfsTestSuite) TestActiveKernelNotRemovable(c *C) {
 
 func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernelErrors(c *C) {
 	snapPkg := makeTestSnapPackage(c, packageHello)
-	snap, snapf, err := openSnapFile(snapPkg, true, nil)
+	snap, _, err := openSnapFile(snapPkg, true, nil)
 	c.Assert(err, IsNil)
 
-	err = extractKernelAssets(snap, snapf, 0, nil)
+	err = extractKernelAssets(snap, 0, nil)
 	c.Assert(err, ErrorMatches, `cannot extract kernel assets from snap type "app"`)
 }
 
