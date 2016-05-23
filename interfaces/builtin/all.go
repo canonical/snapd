@@ -28,6 +28,7 @@ var allInterfaces = []interfaces.Interface{
 	&BluezInterface{},
 	&LocationControlInterface{},
 	&LocationObserveInterface{},
+	&ModemManagerInterface{},
 	&NetworkManagerInterface{},
 	NewFirewallControlInterface(),
 	NewGsettingsInterface(),
