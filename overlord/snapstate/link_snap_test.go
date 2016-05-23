@@ -61,7 +61,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
 		Candidate: &snap.SideInfo{
 			OfficialName: "foo",
-			Revision:     33,
+			Revision:     snap.R(33),
 		},
 	})
 	t := s.state.NewTask("link-snap", "test")
@@ -93,7 +93,7 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 	defer s.state.Unlock()
 	si := &snap.SideInfo{
 		OfficialName: "foo",
-		Revision:     33,
+		Revision:     snap.R(33),
 	}
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
 		Candidate: si,
@@ -133,7 +133,7 @@ func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 	defer s.state.Unlock()
 	si := &snap.SideInfo{
 		OfficialName: "foo",
-		Revision:     35,
+		Revision:     snap.R(35),
 	}
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
 		Candidate: si,
