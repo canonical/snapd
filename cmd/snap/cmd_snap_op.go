@@ -97,7 +97,7 @@ var (
 	shortInstallHelp = i18n.G("Install a snap to the system")
 	shortRemoveHelp  = i18n.G("Remove a snap from the system")
 	shortRefreshHelp = i18n.G("Refresh a snap in the system")
-	shortTryHelp     = i18n.G("Try a snap in the system")
+	shortTryHelp     = i18n.G("Try an unpacked snap in the system")
 )
 
 var longInstallHelp = i18n.G(`
@@ -116,7 +116,10 @@ The refresh command refreshes (updates) the named snap.
 `)
 
 var longTryHelp = i18n.G(`
-The try command tries the named snapdir.
+The try command installs an unpacked snap into the system for testing purposes.
+The unpacked snap content continues to be used even after installation, so
+non-metadata changes there go live instantly. Metadata changes such as those
+performed in snap.yaml will require reinstallation to go live.
 `)
 
 type cmdRemove struct {
@@ -207,7 +210,7 @@ func (x *cmdRefresh) Execute([]string) error {
 }
 
 type cmdTry struct {
-	DevMode    bool `long:"devmode" description:"Install the snap with non-enforcing security"`
+	DevMode    bool `long:"devmode" description:"Install in development mode and disable confinement"`
 	Positional struct {
 		SnapDir string `positional-arg-name:"<snap-dir>"`
 	} `positional-args:"yes" required:"yes"`

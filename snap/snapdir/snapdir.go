@@ -26,29 +26,29 @@ import (
 	"path/filepath"
 )
 
-// Snap is the snapdir based snap.
-type Snap struct {
+// SnapDir is the snapdir based snap.
+type SnapDir struct {
 	path string
 }
 
-// Path returns the path of the backing file.
-func (s *Snap) Path() string {
+// Path returns the path of the backing container.
+func (s *SnapDir) Path() string {
 	return s.path
 }
 
-// New returns a new Squashfs snap.
-func New(path string) *Snap {
-	return &Snap{path: path}
+// New returns a new snap directory container.
+func New(path string) *SnapDir {
+	return &SnapDir{path: path}
 }
 
-func (s *Snap) Install(targetPath, mountDir string) error {
+func (s *SnapDir) Install(targetPath, mountDir string) error {
 	return os.Symlink(s.path, targetPath)
 }
 
-func (s *Snap) Unpack(src, dstDir string) error {
-	return fmt.Errorf("cannot unpack a snapdir snap")
+func (s *SnapDir) Unpack(src, dstDir string) error {
+	return fmt.Errorf("cannot unpack a snap in try mode")
 }
 
-func (s *Snap) ReadFile(file string) (content []byte, err error) {
+func (s *SnapDir) ReadFile(file string) (content []byte, err error) {
 	return ioutil.ReadFile(filepath.Join(s.path, file))
 }

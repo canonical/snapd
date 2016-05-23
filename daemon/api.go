@@ -679,10 +679,8 @@ func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string) R
 	st.Lock()
 	defer st.Unlock()
 
-	msg := fmt.Sprintf(i18n.G("Try %q snap"), trydir)
-
 	if !osutil.IsDirectory(trydir) {
-		return InternalError("cannot try %q not a directory", trydir)
+		return BadRequest("cannot try %q: not a snap directory", trydir)
 	}
 
 	info, err := readSnapInfo(trydir)
@@ -690,12 +688,14 @@ func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string) R
 		return BadRequest("cannot read snap info for %s: %s", trydir, err)
 	}
 
-	tsets, err := snapstateInstallPath(st, info.Name(), trydir, "unused-channel", 0)
+	tsets, err := snapstateInstallPath(st, info.Name(), trydir, "", 0)
 	if err != nil {
 		return BadRequest("cannot try %s: %s", trydir, err)
 	}
+
+	msg := fmt.Sprintf(i18n.G("Try %q snap"), trydir)
 	chg := newChange(st, "install-snap", msg, []*state.TaskSet{tsets})
-	chg.Set("api-data", map[string]string{"snap-name": trydir})
+	chg.Set("api-data", map[string]string{"snap-name": info.Name()})
 
 	st.EnsureBefore(0)
 
