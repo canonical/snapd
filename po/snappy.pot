@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-05-10 22:32-0700\n"
+        "POT-Creation-Date: 2016-05-23 14:43+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -100,6 +100,9 @@ msgid   "Install %q snap from file %q"
 msgstr  ""
 
 msgid   "Install a snap to the system"
+msgstr  ""
+
+msgid   "List a change's tasks"
 msgstr  ""
 
 msgid   "List installed snaps"
@@ -228,6 +231,10 @@ msgid   "\n"
 msgstr  ""
 
 msgid   "\n"
+        "The change command displays a summary of tasks associated to an individual change."
+msgstr  ""
+
+msgid   "\n"
         "The changes command displays a summary of the recent system changes performed."
 msgstr  ""
 
@@ -346,10 +353,7 @@ msgstr  ""
 msgid   "no interfaces found"
 msgstr  ""
 
-msgid   "no snaps found"
-msgstr  ""
-
-msgid   "produces manpage"
+msgid   "unavailable"
 msgstr  ""
 
 #, c-format

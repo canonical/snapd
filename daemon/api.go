@@ -39,6 +39,7 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/interfaces"
+	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/overlord/auth"
 	"github.com/ubuntu-core/snappy/overlord/ifacestate"
 	"github.com/ubuntu-core/snappy/overlord/snapstate"
@@ -172,7 +173,8 @@ func tbd(c *Command, r *http.Request, user *auth.UserState) Response {
 
 func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	m := map[string]string{
-		"series": release.Series,
+		"series":  release.Series,
+		"version": c.d.Version,
 	}
 
 	return SyncResponse(m, nil)
@@ -308,46 +310,28 @@ func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
 	name := vars["name"]
 
-	channel := ""
-	remoteRepo := newRemoteRepo()
-	suggestedCurrency := remoteRepo.SuggestedCurrency()
-
 	localSnap, active, err := localSnapInfo(c.d.overlord.State(), name)
 	if err != nil {
+		if err == errNoSnap {
+			return NotFound("cannot find snap %q", name)
+		}
+
 		return InternalError("%v", err)
-	}
-
-	if localSnap != nil {
-		channel = localSnap.Channel
-	}
-
-	auther, err := c.d.auther(r)
-	if err != nil && err != auth.ErrInvalidAuth {
-		return InternalError("%v", err)
-	}
-
-	remoteSnap, _ := remoteRepo.Snap(name, channel, auther)
-
-	if localSnap == nil && remoteSnap == nil {
-		return NotFound("cannot find snap %q", name)
 	}
 
 	route := c.d.router.Get(c.Path)
 	if route == nil {
-		return InternalError("router can't find route for snap %s", name)
+		return InternalError("cannot find route for snap %s", name)
 	}
 
 	url, err := route.URL("name", name)
 	if err != nil {
-		return InternalError("route can't build URL for snap %s: %v", name, err)
+		return InternalError("cannot build URL for snap %s: %v", name, err)
 	}
 
-	result := webify(mapSnap(localSnap, active, remoteSnap), url.String())
+	result := webify(mapLocal(localSnap, active), url.String())
 
-	meta := &Meta{
-		SuggestedCurrency: suggestedCurrency,
-	}
-	return SyncResponse(result, meta)
+	return SyncResponse(result, nil)
 }
 
 func webify(result map[string]interface{}, resource string) map[string]interface{} {
@@ -374,7 +358,7 @@ func webify(result map[string]interface{}, resource string) map[string]interface
 func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	route := c.d.router.Get(snapCmd.Path)
 	if route == nil {
-		return InternalError("router can't find route for snaps")
+		return InternalError("cannot find route for snaps")
 	}
 
 	query := r.URL.Query()
@@ -392,17 +376,18 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	meta := &Meta{
 		SuggestedCurrency: remoteRepo.SuggestedCurrency(),
+		Sources:           []string{"store"},
 	}
 
 	results := make([]*json.RawMessage, len(found))
 	for i, x := range found {
-		resource := ""
 		url, err := route.URL("name", x.Name())
-		if err == nil {
-			resource = url.String()
+		if err != nil {
+			logger.Noticef("Cannot build URL for snap %q revision %s: %v", x.Name(), x.Revision, err)
+			continue
 		}
 
-		data, err := json.Marshal(webify(mapSnap(nil, false, x), resource))
+		data, err := json.Marshal(webify(mapRemote(x), url.String()))
 		if err != nil {
 			return InternalError("%v", err)
 		}
@@ -413,126 +398,67 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse(results, meta)
 }
 
-// plural!
-func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
-	route := c.d.router.Get(snapCmd.Path)
-	if route == nil {
-		return InternalError("router can't find route for snaps")
-	}
+func shouldSearchStore(r *http.Request) bool {
+	// we should jump to the old behaviour iff q is given, or if
+	// sources is given and either empty or contains the word
+	// 'store'.  Otherwise, local results only.
 
-	sources := make([]string, 0, 2)
 	query := r.URL.Query()
 
-	var includeStore, includeLocal bool
-	if len(query["sources"]) > 0 {
-		// XXX use query.Get to make this easier to follow
-		for _, v := range strings.Split(query["sources"][0], ",") {
-			if v == "store" {
-				includeStore = true
-			} else if v == "local" {
-				includeLocal = true
-			}
-		}
-	} else {
-		includeStore = true
-		includeLocal = true
+	if _, ok := query["q"]; ok {
+		logger.Debugf("use of obsolete \"q\" parameter: %q", r.URL)
+		return true
 	}
 
-	searchTerm := query.Get("q")
-
-	var includeTypes []string
-	if len(query["types"]) > 0 {
-		includeTypes = strings.Split(query["types"][0], ",")
-	}
-
-	var aboutSnaps []aboutSnap
-	var remoteSnapMap map[string]*snap.Info
-
-	if includeLocal {
-		sources = append(sources, "local")
-		aboutSnaps, _ = allLocalSnapInfos(c.d.overlord.State())
-	}
-
-	var suggestedCurrency string
-
-	if includeStore {
-		remoteSnapMap = make(map[string]*snap.Info)
-
-		remoteRepo := newRemoteRepo()
-
-		auther, err := c.d.auther(r)
-		if err != nil && err != auth.ErrInvalidAuth {
-			return InternalError("%v", err)
-		}
-
-		// repo.Find("") finds all
-		//
-		// TODO: Instead of ignoring the error from Find:
-		//   * if there are no results, return an error response.
-		//   * If there are results at all (perhaps local), include a
-		//     warning in the response
-		found, _ := remoteRepo.FindSnaps(searchTerm, "", auther)
-		suggestedCurrency = remoteRepo.SuggestedCurrency()
-
-		sources = append(sources, "store")
-
-		for _, snap := range found {
-			remoteSnapMap[snap.Name()] = snap
+	if src, ok := query["sources"]; ok {
+		logger.Debugf("use of obsolete \"sources\" parameter: %q", r.URL)
+		if len(src) == 0 || strings.Contains(src[0], "store") {
+			return true
 		}
 	}
 
-	seen := make(map[string]bool)
-	results := make([]*json.RawMessage, 0, len(aboutSnaps)+len(remoteSnapMap))
+	return false
+}
 
-	addResult := func(name string, m map[string]interface{}) {
-		if seen[name] {
-			return
-		}
-		seen[name] = true
+// plural!
+func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 
-		// TODO Search the store for "content" with multiple values. See:
-		//      https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex#Search
-		if len(includeTypes) > 0 && !resultHasType(m, includeTypes) {
-			return
-		}
+	if shouldSearchStore(r) {
+		logger.Noticef("jumping to \"find\" to better support legacy request %q", r.URL)
+		return searchStore(c, r, user)
+	}
 
-		resource := ""
+	route := c.d.router.Get(snapCmd.Path)
+	if route == nil {
+		return InternalError("cannot find route for snaps")
+	}
+
+	found, err := allLocalSnapInfos(c.d.overlord.State())
+	if err != nil {
+		return InternalError("cannot list local snaps! %v", err)
+	}
+
+	results := make([]*json.RawMessage, len(found))
+
+	for i, x := range found {
+		name := x.info.Name()
+		rev := x.info.Revision
+
 		url, err := route.URL("name", name)
-		if err == nil {
-			resource = url.String()
+		if err != nil {
+			logger.Noticef("cannot build URL for snap %q revision %s: %v", name, rev, err)
+			continue
 		}
 
-		data, err := json.Marshal(webify(m, resource))
+		data, err := json.Marshal(webify(mapLocal(x.info, x.snapst), url.String()))
 		if err != nil {
-			return
+			return InternalError("cannot serialize snap %q revision %s: %v", name, rev, err)
 		}
 		raw := json.RawMessage(data)
-		results = append(results, &raw)
+		results[i] = &raw
 	}
 
-	for _, about := range aboutSnaps {
-		info := about.info
-		name := info.Name()
-		// strings.Contains(name, "") is true
-		if strings.Contains(name, searchTerm) {
-			active := about.snapst.Active
-			addResult(name, mapSnap(info, active, remoteSnapMap[name]))
-		}
-	}
-
-	for name, remoteSnap := range remoteSnapMap {
-		addResult(name, mapSnap(nil, false, remoteSnap))
-	}
-
-	meta := &Meta{
-		Sources: sources,
-		Paging: &Paging{
-			Page:  1,
-			Pages: 1,
-		},
-		SuggestedCurrency: suggestedCurrency,
-	}
-	return SyncResponse(results, meta)
+	return SyncResponse(results, &Meta{Sources: []string{"local"}})
 }
 
 func resultHasType(r map[string]interface{}, allowedTypes []string) bool {
@@ -701,13 +627,13 @@ func (inst *snapInstruction) dispatch() snapActionFunc {
 func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	route := c.d.router.Get(stateChangeCmd.Path)
 	if route == nil {
-		return InternalError("router can't find route for change")
+		return InternalError("cannot find route for change")
 	}
 
 	decoder := json.NewDecoder(r.Body)
 	var inst snapInstruction
 	if err := decoder.Decode(&inst); err != nil {
-		return BadRequest("can't decode request body into snap instruction: %v", err)
+		return BadRequest("cannot decode request body into snap instruction: %v", err)
 	}
 
 	state := c.d.overlord.State()
@@ -732,6 +658,7 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	chg := newChange(state, inst.Action+"-snap", msg, tsets)
+	chg.Set("snap-names", []string{inst.snap})
 	state.EnsureBefore(0)
 
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
@@ -849,6 +776,7 @@ out:
 
 	chg := newChange(st, "install-snap", msg, tsets)
 	chg.Set("api-data", map[string]string{"snap-name": snapName})
+	chg.Set("snap-names", []string{snapName})
 
 	go func() {
 		// XXX this needs to be a task in the manager; this is a hack to keep this branch smaller
@@ -875,10 +803,10 @@ var readSnapInfo = readSnapInfoImpl
 func iconGet(st *state.State, name string) Response {
 	info, _, err := localSnapInfo(st, name)
 	if err != nil {
+		if err == errNoSnap {
+			return NotFound("cannot find snap %q", name)
+		}
 		return InternalError("%v", err)
-	}
-	if info == nil {
-		return NotFound("cannot find snap %q", name)
 	}
 
 	path := filepath.Clean(snapIcon(info))
@@ -979,6 +907,7 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	}
 
 	change := state.NewChange(a.Action+"-snap", summary)
+	change.Set("snap-names", []string{a.Plugs[0].Snap, a.Slots[0].Snap})
 	change.AddAll(taskset)
 
 	state.EnsureBefore(0)
@@ -993,7 +922,7 @@ func doAssert(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 	a, err := asserts.Decode(b)
 	if err != nil {
-		return BadRequest("can't decode request body into an assertion: %v", err)
+		return BadRequest("cannot decode request body into an assertion: %v", err)
 	}
 	// TODO/XXX: turn this into a Change/Task combination
 	amgr := c.d.overlord.AssertManager()
@@ -1145,6 +1074,29 @@ func getChanges(c *Command, r *http.Request, user *auth.UserState) Response {
 		filter = func(chg *state.Change) bool { return chg.Status().Ready() }
 	default:
 		return BadRequest("select should be one of: all,in-progress,ready")
+	}
+
+	if wantedName := query.Get("for"); wantedName != "" {
+		outerFilter := filter
+		filter = func(chg *state.Change) bool {
+			if !outerFilter(chg) {
+				return false
+			}
+
+			var snapNames []string
+			if err := chg.Get("snap-names", &snapNames); err != nil {
+				logger.Noticef("cannot get snap-name for change %v", chg.ID())
+				return false
+			}
+
+			for _, snapName := range snapNames {
+				if snapName == wantedName {
+					return true
+				}
+			}
+
+			return false
+		}
 	}
 
 	state := c.d.overlord.State()

@@ -17,27 +17,9 @@
  *
  */
 
-package builtin
+package cmd
 
-import "github.com/ubuntu-core/snappy/interfaces"
+//go:generate mkversion.sh
 
-const cupsConnectedPlugAppArmor = `
-# Description: Can access cups daemon.
-# Usage: reserved
-#include <abstractions/cups-client>
-`
-
-const cupsConnectedPlugSecComp = `
-setsockopt
-`
-
-// NewCupsInterface returns a new "cups" interface.
-func NewCupsInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "cups",
-		connectedPlugAppArmor: cupsConnectedPlugAppArmor,
-		connectedPlugSecComp:  cupsConnectedPlugSecComp,
-		reservedForOS:         true,
-		autoConnect:           true,
-	}
-}
+// will be overwritten at build-time via mkversion.sh
+var Version = "unknown"

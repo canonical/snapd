@@ -41,7 +41,9 @@ var implicitClassicSlots = []string{
 	"unity7",
 	"x11",
 	"opengl",
-	"cups",
+	"network-manager",
+	"pulseaudio",
+	"cups-control",
 }
 
 // AddImplicitSlots adds implicitly defined slots to a given snap.
