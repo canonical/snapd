@@ -28,7 +28,7 @@ import (
 
 // common checks used when decoding/assembling assertions
 
-func checkMandatory(headers map[string]string, name string) (string, error) {
+func checkExists(headers map[string]string, name string) (string, error) {
 	value, ok := headers[name]
 	if !ok {
 		return "", fmt.Errorf("%q header is mandatory", name)
@@ -37,7 +37,7 @@ func checkMandatory(headers map[string]string, name string) (string, error) {
 }
 
 func checkNotEmpty(headers map[string]string, name string) (string, error) {
-	value, err := checkMandatory(headers, name)
+	value, err := checkExists(headers, name)
 	if err != nil {
 		return "", err
 	}
