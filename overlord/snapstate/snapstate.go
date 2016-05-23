@@ -141,6 +141,14 @@ func InstallPath(s *state.State, name, path, channel string, flags snappy.Instal
 	return doInstall(s, snapst.Active, name, path, channel, 0, flags)
 }
 
+// TryPath returns a set of tasks for trying a snap from a file path.
+// Note that the state must be locked by the caller.
+func TryPath(s *state.State, name, path string, flags snappy.InstallFlags) (*state.TaskSet, error) {
+	flags |= TryMode
+
+	return InstallPath(s, name, path, "", flags)
+}
+
 // Update initiates a change updating a snap.
 // Note that the state must be locked by the caller.
 func Update(s *state.State, name, channel string, userID int, flags snappy.InstallFlags) (*state.TaskSet, error) {

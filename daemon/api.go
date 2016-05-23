@@ -500,6 +500,7 @@ type snapInstruction struct {
 var snapstateInstall = snapstate.Install
 var snapstateUpdate = snapstate.Update
 var snapstateInstallPath = snapstate.InstallPath
+var snapstateTryPath = snapstate.TryPath
 var snapstateGet = snapstate.Get
 
 var errNothingToInstall = errors.New("nothing to install")
@@ -674,7 +675,7 @@ func newChange(st *state.State, kind, summary string, tsets []*state.TaskSet) *s
 
 const maxReadBuflen = 1024 * 1024
 
-func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string) Response {
+func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, flags snappy.InstallFlags) Response {
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
@@ -688,7 +689,7 @@ func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string) R
 		return BadRequest("cannot read snap info for %s: %s", trydir, err)
 	}
 
-	tsets, err := snapstateInstallPath(st, info.Name(), trydir, "", 0)
+	tsets, err := snapstateTryPath(st, info.Name(), trydir, flags)
 	if err != nil {
 		return BadRequest("cannot try %s: %s", trydir, err)
 	}
@@ -732,7 +733,7 @@ func sideloadSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	if len(form.Value["try"]) > 0 && form.Value["try"][0] != "" {
-		return trySnap(c, r, user, form.Value["try"][0])
+		return trySnap(c, r, user, form.Value["try"][0], flags)
 	}
 
 	// find the file for the "snap" form field
