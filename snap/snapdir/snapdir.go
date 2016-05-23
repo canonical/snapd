@@ -20,7 +20,6 @@
 package snapdir
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -43,10 +42,6 @@ func New(path string) *SnapDir {
 
 func (s *SnapDir) Install(targetPath, mountDir string) error {
 	return os.Symlink(s.path, targetPath)
-}
-
-func (s *SnapDir) Unpack(src, dstDir string) error {
-	return fmt.Errorf("cannot unpack a snap in try mode")
 }
 
 func (s *SnapDir) ReadFile(file string) (content []byte, err error) {

@@ -61,8 +61,3 @@ func (s *SnapdirTestSuite) TestInstall(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(symlinkTarget, Equals, tryBaseDir)
 }
-
-func (s *SnapdirTestSuite) TestUnpack(c *C) {
-	snap := &snapdir.SnapDir{}
-	c.Assert(snap.Unpack("src", "dst"), ErrorMatches, "cannot unpack a snap in try mode")
-}
