@@ -412,7 +412,7 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	found, err := allLocalSnapInfos(c.d.overlord.State())
 	if err != nil {
-		return InternalError("cannot list local snaps! %v", err)
+		return InternalError("cannot list local snaps: %v", err)
 	}
 
 	localSnapsWithChannel := []string{}
@@ -422,15 +422,10 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 		localSnapMap[x.info.Name()] = x.info
 	}
 
-	store := newRemoteRepo()
-	auther, err := c.d.auther(r)
-	if err != nil && err != auth.ErrInvalidAuth {
-		return InternalError("%v", err)
-	}
-
 	// the store gives us everything, we need to client side filter
 	// for the updates
-	allUpdates, err := store.Updates(localSnapsWithChannel, auther)
+	store := newRemoteRepo()
+	allUpdates, err := store.Updates(localSnapsWithChannel, user.Authenticator())
 	if err != nil {
 		return InternalError("cannot list updates: %v", err)
 	}
@@ -438,7 +433,7 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 	updates := []*snap.Info{}
 	for _, update := range allUpdates {
 		local := localSnapMap[update.Name()]
-		if local.Revision > 0 && local.Revision != update.Revision {
+		if !local.Revision.Unset() && local.Revision != update.Revision {
 			updates = append(updates, update)
 		}
 	}
