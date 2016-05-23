@@ -70,6 +70,7 @@ type SnapStateFlags int
 const (
 	// DevMode switches confinement to non-enforcing mode.
 	DevMode = 1 << iota
+	TryMode
 )
 
 // SnapState holds the state for a snap installed in the system.
@@ -95,6 +96,12 @@ func (snapst *SnapState) Current() *snap.SideInfo {
 // DevMode returns true if the snap is installed in developer mode.
 func (snapst *SnapState) DevMode() bool {
 	return snapst.Flags&DevMode != 0
+}
+
+// TryMode returns true if the snap is installed in `try` mode as an
+// unpacked directory.
+func (snapst *SnapState) TryMode() bool {
+	return snapst.Flags&TryMode != 0
 }
 
 // Manager returns a new snap manager.

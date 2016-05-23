@@ -97,6 +97,7 @@ var (
 	shortInstallHelp = i18n.G("Install a snap to the system")
 	shortRemoveHelp  = i18n.G("Remove a snap from the system")
 	shortRefreshHelp = i18n.G("Refresh a snap in the system")
+	shortTryHelp     = i18n.G("Try an unpacked snap in the system")
 )
 
 var longInstallHelp = i18n.G(`
@@ -112,6 +113,13 @@ will change before 16.04 is final.
 
 var longRefreshHelp = i18n.G(`
 The refresh command refreshes (updates) the named snap.
+`)
+
+var longTryHelp = i18n.G(`
+The try command installs an unpacked snap into the system for testing purposes.
+The unpacked snap content continues to be used even after installation, so
+non-metadata changes there go live instantly. Metadata changes such as those
+performed in snap.yaml will require reinstallation to go live.
 `)
 
 type cmdRemove struct {
@@ -201,8 +209,42 @@ func (x *cmdRefresh) Execute([]string) error {
 	return listSnaps([]string{name})
 }
 
+type cmdTry struct {
+	DevMode    bool `long:"devmode" description:"Install in development mode and disable confinement"`
+	Positional struct {
+		SnapDir string `positional-arg-name:"<snap-dir>"`
+	} `positional-args:"yes" required:"yes"`
+}
+
+func (x *cmdTry) Execute([]string) error {
+	cli := Client()
+	name := x.Positional.SnapDir
+	opts := &client.SnapOptions{
+		DevMode: x.DevMode,
+	}
+	changeID, err := cli.Try(name, opts)
+	if err != nil {
+		return err
+	}
+
+	chg, err := wait(cli, changeID)
+	if err != nil {
+		return err
+	}
+
+	// extract the snap name
+	var snapName string
+	if err := chg.Get("snap-name", &snapName); err != nil {
+		return fmt.Errorf("cannot extract the snap-name from local file %q: %s", name, err)
+	}
+	name = snapName
+
+	return listSnaps([]string{name})
+}
+
 func init() {
 	addCommand("remove", shortRemoveHelp, longRemoveHelp, func() flags.Commander { return &cmdRemove{} })
 	addCommand("install", shortInstallHelp, longInstallHelp, func() flags.Commander { return &cmdInstall{} })
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} })
+	addCommand("try", shortTryHelp, longTryHelp, func() flags.Commander { return &cmdTry{} })
 }

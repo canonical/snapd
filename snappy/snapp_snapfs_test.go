@@ -149,7 +149,7 @@ func (s *SquashfsTestSuite) TestInstallViaSquashfsWorks(c *C) {
 	c.Assert(string(content), Matches, "(?ms).*^What=/var/lib/snapd/snaps/hello-snap_16.snap")
 }
 
-func (s *SquashfsTestSuite) TestAddSquashfsMount(c *C) {
+func (s *SquashfsTestSuite) TestAddMountUnit(c *C) {
 	info := &snap.Info{
 		SideInfo: snap.SideInfo{
 			OfficialName: "foo",
@@ -159,14 +159,14 @@ func (s *SquashfsTestSuite) TestAddSquashfsMount(c *C) {
 		Architectures: []string{"all"},
 	}
 	inter := &MockProgressMeter{}
-	err := addSquashfsMount(info, true, inter)
+	err := addMountUnit(info, true, inter)
 	c.Assert(err, IsNil)
 
 	// ensure correct mount unit
 	mount, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, "snap-foo-13.mount"))
 	c.Assert(err, IsNil)
 	c.Assert(string(mount), Equals, `[Unit]
-Description=Squashfs mount unit for foo
+Description=Mount unit for foo
 
 [Mount]
 What=/var/lib/snapd/snaps/foo_13.snap
@@ -178,7 +178,7 @@ WantedBy=multi-user.target
 
 }
 
-func (s *SquashfsTestSuite) TestRemoveSquashfsMountUnit(c *C) {
+func (s *SquashfsTestSuite) TestRemoveMountUnit(c *C) {
 	info := &snap.Info{
 		SideInfo: snap.SideInfo{
 			OfficialName: "foo",
@@ -188,7 +188,7 @@ func (s *SquashfsTestSuite) TestRemoveSquashfsMountUnit(c *C) {
 		Architectures: []string{"all"},
 	}
 	inter := &MockProgressMeter{}
-	err := addSquashfsMount(info, true, inter)
+	err := addMountUnit(info, true, inter)
 	c.Assert(err, IsNil)
 
 	// ensure we have the files
@@ -196,7 +196,7 @@ func (s *SquashfsTestSuite) TestRemoveSquashfsMountUnit(c *C) {
 	c.Assert(osutil.FileExists(p), Equals, true)
 
 	// now call remove and ensure they are gone
-	err = removeSquashfsMount(info.MountDir(), inter)
+	err = removeMountUnit(info.MountDir(), inter)
 	c.Assert(err, IsNil)
 	p = filepath.Join(dirs.SnapServicesDir, "snaps-foo-13.mount")
 	c.Assert(osutil.FileExists(p), Equals, false)
@@ -348,10 +348,10 @@ func (s *SquashfsTestSuite) TestActiveKernelNotRemovable(c *C) {
 
 func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernelErrors(c *C) {
 	snapPkg := makeTestSnapPackage(c, packageHello)
-	snap, snapf, err := openSnapFile(snapPkg, true, nil)
+	snap, _, err := openSnapFile(snapPkg, true, nil)
 	c.Assert(err, IsNil)
 
-	err = extractKernelAssets(snap, snapf, 0, nil)
+	err = extractKernelAssets(snap, 0, nil)
 	c.Assert(err, ErrorMatches, `cannot extract kernel assets from snap type "app"`)
 }
 

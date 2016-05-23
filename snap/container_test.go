@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,26 +17,32 @@
  *
  */
 
-package snappy
+package snap_test
 
 import (
+	"io/ioutil"
+	"os"
+	"path/filepath"
+
+	. "gopkg.in/check.v1"
+
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/snapdir"
 )
 
-// openSnapFile opens a snap blob returning both a snap.Info completed
-// with sideInfo (if not nil) and a corresponding snap.Container.
-func openSnapFile(snapPath string, unsignedOk bool, sideInfo *snap.SideInfo) (*snap.Info, snap.Container, error) {
-	// TODO: what precautions to take if unsignedOk == false ?
+type FileSuite struct{}
 
-	snapf, err := snap.Open(snapPath)
-	if err != nil {
-		return nil, nil, err
-	}
+var _ = Suite(&FileSuite{})
 
-	info, err := snap.ReadInfoFromSnapFile(snapf, sideInfo)
-	if err != nil {
-		return nil, nil, err
-	}
+func (s *FileSuite) TestFileOpenForSnapDir(c *C) {
+	sd := c.MkDir()
+	snapYaml := filepath.Join(sd, "meta", "snap.yaml")
+	err := os.MkdirAll(filepath.Dir(snapYaml), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(snapYaml, []byte(`name: foo`), 0644)
+	c.Assert(err, IsNil)
 
-	return info, snapf, nil
+	f, err := snap.Open(sd)
+	c.Assert(err, IsNil)
+	c.Assert(f, FitsTypeOf, &snapdir.SnapDir{})
 }
