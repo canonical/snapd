@@ -121,7 +121,7 @@ func addCoverageOptions(cmds []string, index int) ([]string, error) {
 
 	head := append(cmds[:index+1],
 		[]string{"-test.run=^TestRunMain$", "-test.coverprofile=" + coverprofile}...)
-	tail := orig[index+1:]
+	tail := filterCmd(orig[index+1:])
 
 	return append(head, tail...), nil
 }
@@ -148,4 +148,16 @@ func getCoverFilename() string {
 
 func getCoveragePath() string {
 	return filepath.Join(os.Getenv("ADT_ARTIFACTS"), "coverage")
+}
+
+func filterCmd(cmd []string) []string {
+	output := cmd[:0]
+
+	for _, item := range cmd {
+		if !strings.HasPrefix(item, "-test.run") &&
+			!strings.HasPrefix(item, "-test.coverprofile") {
+			output = append(output, item)
+		}
+	}
+	return output
 }
