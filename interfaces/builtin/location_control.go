@@ -89,7 +89,7 @@ dbus (send)
     bus=system
     path=/com/ubuntu/location/Service
     interface=org.freedesktop.DBus.Properties
-    member=Get
+    member="{Get,Set}"
     peer=(label=###SLOT_SECURITY_TAGS###),
 
 dbus (receive)
