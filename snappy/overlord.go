@@ -116,7 +116,7 @@ func SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, flags InstallFlags,
 	// FIXME: special handling is bad 'mkay
 	if s.Type == snap.TypeKernel {
 		if err := extractKernelAssets(s, snapf, flags, meter); err != nil {
-			return s, fmt.Errorf("failed to install kernel %s", err)
+			return s, fmt.Errorf("cannot install kernel: %s", err)
 		}
 	}
 
@@ -244,17 +244,17 @@ func RemoveGeneratedWrappers(s *snap.Info, inter interacter) error {
 
 	err1 := wrappers.RemoveSnapBinaries(s)
 	if err1 != nil {
-		logger.Noticef("Failed to remove binaries for %q: %v", s.Name(), err1)
+		logger.Noticef("Cannot remove binaries for %q: %v", s.Name(), err1)
 	}
 
 	err2 := wrappers.RemoveSnapServices(s, inter)
 	if err2 != nil {
-		logger.Noticef("Failed to remove services for %q: %v", s.Name(), err2)
+		logger.Noticef("Cannot remove services for %q: %v", s.Name(), err2)
 	}
 
 	err3 := wrappers.RemoveSnapDesktopFiles(s)
 	if err3 != nil {
-		logger.Noticef("Failed to remove desktop files for %q: %v", s.Name(), err3)
+		logger.Noticef("Cannot remove desktop files for %q: %v", s.Name(), err3)
 	}
 
 	return firstErr(err1, err2, err3)
@@ -266,7 +266,7 @@ func UpdateCurrentSymlink(info *snap.Info, inter interacter) error {
 
 	currentActiveSymlink := filepath.Join(mountDir, "..", "current")
 	if err := os.Remove(currentActiveSymlink); err != nil && !os.IsNotExist(err) {
-		logger.Noticef("Failed to remove %q: %v", currentActiveSymlink, err)
+		logger.Noticef("Cannot remove %q: %v", currentActiveSymlink, err)
 		return err
 	}
 
@@ -274,7 +274,7 @@ func UpdateCurrentSymlink(info *snap.Info, inter interacter) error {
 	dbase := filepath.Dir(dataDir)
 	currentDataSymlink := filepath.Join(dbase, "current")
 	if err := os.Remove(currentDataSymlink); err != nil && !os.IsNotExist(err) {
-		logger.Noticef("Failed to remove %q: %v", currentDataSymlink, err)
+		logger.Noticef("Cannot remove %q: %v", currentDataSymlink, err)
 		return err
 	}
 
@@ -303,7 +303,7 @@ func removeCurrentSymlink(info snap.PlaceInfo, inter interacter) error {
 	currentActiveSymlink := filepath.Join(info.MountDir(), "..", "current")
 	err1 = os.Remove(currentActiveSymlink)
 	if err1 != nil && !os.IsNotExist(err1) {
-		logger.Noticef("Failed to remove %q: %v", currentActiveSymlink, err1)
+		logger.Noticef("Cannot remove %q: %v", currentActiveSymlink, err1)
 	} else {
 		err1 = nil
 	}
@@ -312,7 +312,7 @@ func removeCurrentSymlink(info snap.PlaceInfo, inter interacter) error {
 	currentDataSymlink := filepath.Join(filepath.Dir(info.DataDir()), "current")
 	err2 = os.Remove(currentDataSymlink)
 	if err2 != nil && !os.IsNotExist(err2) {
-		logger.Noticef("Failed to remove %q: %v", currentDataSymlink, err2)
+		logger.Noticef("Cannot remove %q: %v", currentDataSymlink, err2)
 	} else {
 		err2 = nil
 	}
@@ -438,7 +438,7 @@ func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideI
 	// XXX: this is still done for now for this legacy Install to
 	// keep unit tests as they are working and as strawman
 	// behavior for current u-d-f
-	if newInfo.Revision != 0 { // not sideloaded
+	if newInfo.Revision.Store() {
 		if err := SaveManifest(newInfo); err != nil {
 			return nil, err
 		}

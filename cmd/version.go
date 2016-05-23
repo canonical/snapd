@@ -17,12 +17,9 @@
  *
  */
 
-package snap
+package cmd
 
-// LegacyYaml collects the legacy fields in snap.yaml that are up to be reworked.
-type LegacyYaml struct {
-	// legacy kernel snap support
-	Kernel string `yaml:"kernel,omitempty"`
-	Initrd string `yaml:"initrd,omitempty"`
-	Dtbs   string `yaml:"dtbs,omitempty"`
-}
+//go:generate mkversion.sh
+
+// will be overwritten at build-time via mkversion.sh
+var Version = "unknown"
