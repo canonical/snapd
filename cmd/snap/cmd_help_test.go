@@ -48,6 +48,9 @@ The snap tool interacts with the snapd daemon to control the snappy software
 platform.
 
 
+Application Options:
+ +--version +print the version and exit
+
 Help Options:
  +-h, --help +Show this help message
 
