@@ -85,7 +85,7 @@ slots:
 
 	// check side info
 	c.Check(info.Name(), Equals, "blessed")
-	c.Check(info.Revision, Equals, 42)
+	c.Check(info.Revision, Equals, snap.R(42))
 
 	c.Check(info.SideInfo, DeepEquals, si)
 

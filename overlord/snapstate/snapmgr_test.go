@@ -825,7 +825,7 @@ version: 1.0`)
 	// and setup-snap
 	c.Check(s.fakeBackend.ops[1].op, Equals, "setup-snap")
 	c.Check(s.fakeBackend.ops[1].name, Matches, `.*/mock_1.0_all.snap`)
-	c.Check(s.fakeBackend.ops[1].revno, Equals, 100001)
+	c.Check(s.fakeBackend.ops[1].revno, Equals, snap.R("x1"))
 
 	c.Check(s.fakeBackend.ops[4].op, Equals, "candidate")
 	c.Check(s.fakeBackend.ops[4].sinfo, DeepEquals, snap.SideInfo{Revision: snap.R(-1)})
@@ -886,11 +886,11 @@ version: 1.0`)
 	// ensure only local install was run, i.e. first action is pseudo-action current
 	c.Assert(s.fakeBackend.ops, HasLen, 7)
 	c.Check(s.fakeBackend.ops[0].op, Equals, "current")
-	c.Check(s.fakeBackend.ops[0].old, Equals, "/snap/mock/100002")
+	c.Check(s.fakeBackend.ops[0].old, Equals, "/snap/mock/x2")
 	// and setup-snap
 	c.Check(s.fakeBackend.ops[1].op, Equals, "setup-snap")
 	c.Check(s.fakeBackend.ops[1].name, Matches, `.*/mock_1.0_all.snap`)
-	c.Check(s.fakeBackend.ops[1].revno, Equals, 100003)
+	c.Check(s.fakeBackend.ops[1].revno, Equals, snap.R("x3"))
 
 	c.Check(s.fakeBackend.ops[2].op, Equals, "unlink-snap")
 	c.Check(s.fakeBackend.ops[2].name, Equals, "/snap/mock/x2")
