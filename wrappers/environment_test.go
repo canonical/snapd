@@ -61,7 +61,7 @@ apps:
 `
 
 func (s *environmentTestSuite) TestAddSnapEnvironmentAndRemove(c *C) {
-	info := snaptest.MockSnap(c, packageHelloEnv, &snap.SideInfo{Revision: 11})
+	info := snaptest.MockSnap(c, packageHelloEnv, &snap.SideInfo{Revision: snap.R(11)})
 
 	err := wrappers.AddSnapEnvironment(info)
 	c.Assert(err, IsNil)
