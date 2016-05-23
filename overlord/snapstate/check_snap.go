@@ -27,7 +27,6 @@ import (
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snap"
-	// XXX: what to do about flags
 	"github.com/ubuntu-core/snappy/snappy"
 )
 

@@ -79,7 +79,7 @@ slots:
 `
 
 	snapPath := makeTestSnap(c, yaml)
-	si := snap.SideInfo{OfficialName: "blessed", Revision: 42}
+	si := snap.SideInfo{OfficialName: "blessed", Revision: snap.R(42)}
 	info, _, err := snapstate.OpenSnapFileImpl(snapPath, &si)
 	c.Assert(err, IsNil)
 
@@ -163,7 +163,7 @@ func (s *checkSnapSuite) TestCheckSnapGadgetUpdate(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	si := &snap.SideInfo{Revision: 2}
+	si := &snap.SideInfo{Revision: snap.R(2)}
 	snaptest.MockSnap(c, `
 name: gadget
 type: gadget
@@ -199,7 +199,7 @@ func (s *checkSnapSuite) TestCheckSnapGadgetAdditionProhibited(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	si := &snap.SideInfo{Revision: 2}
+	si := &snap.SideInfo{Revision: snap.R(2)}
 	snaptest.MockSnap(c, `
 name: gadget
 type: gadget
