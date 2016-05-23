@@ -943,3 +943,19 @@ apps:
 		},
 	})
 }
+
+func (s *YamlSuite) TestSnapYamlGlobalEnvironment(c *C) {
+	y := []byte(`
+name: foo
+version: 1.0
+environment:
+ foo: bar
+ baz: boom
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+	c.Assert(info.Environment, DeepEquals, map[string]string{
+		"foo": "bar",
+		"baz": "boom",
+	})
+}
