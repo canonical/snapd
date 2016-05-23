@@ -60,10 +60,7 @@ func (s *abortSuite) TestAbortShowHelp(c *check.C) {
 
 // SNAP_ABORT_002: with invalid id
 func (s *abortSuite) TestAbortWithInvalidId(c *check.C) {
-	id := getID(" .*")
-	if id == "" {
-		id = "1"
-	}
+	id := "10000000"
 
 	expected := fmt.Sprintf(`error: cannot find change with id "%s"\n`, id)
 	actual, err := cli.ExecCommandErr("sudo", "snap", "abort", id)
@@ -101,6 +98,17 @@ func (s *abortSuite) TestAbortWithValidIdInDoingStatus(c *check.C) {
 	blockerSrv := "umount-blocker"
 	cli.ExecCommand(c, "sudo", "systemd-run", "--unit", blockerSrv, blockerBin)
 	wait.ForActiveService(c, blockerSrv)
+	defer func() {
+		cli.ExecCommand(c, "sudo", "systemctl", "stop", blockerSrv)
+		wait.ForInactiveService(c, blockerSrv)
+
+		// this triggers an Ensure in the overlord, which makes sure that the aborted task has moved to Undone
+		cli.ExecCommandErr("sudo", "snap", "refresh", "ubuntu-core")
+
+		wait.ForCommand(c, "Undone", "snap", "changes", data.BasicBinariesSnapName)
+		// the remove command will be cancelled, so we need to remove the snap at the end
+		common.RemoveSnap(c, data.BasicBinariesSnapName)
+	}()
 
 	go func() {
 		// try to remove, will block because of blockerSrv and fail after abort
@@ -114,18 +122,6 @@ func (s *abortSuite) TestAbortWithValidIdInDoingStatus(c *check.C) {
 		return doingID, nil
 	})
 	c.Assert(err, check.IsNil)
-
-	defer func() {
-		cli.ExecCommand(c, "sudo", "systemctl", "stop", blockerSrv)
-		wait.ForInactiveService(c, blockerSrv)
-
-		// this triggers an Ensure in the overlord, which makes sure that the aborted task has moved to Undone
-		cli.ExecCommandErr("sudo", "snap", "refresh", "ubuntu-core")
-
-		wait.ForCommand(c, "Undone", "snap", "changes", doingID)
-		// the remove command will be cancelled, so we need to remove the snap at the end
-		common.RemoveSnap(c, data.BasicBinariesSnapName)
-	}()
 
 	cli.ExecCommand(c, "sudo", "snap", "abort", doingID)
 
