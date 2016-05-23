@@ -44,8 +44,6 @@ Package: snapd
 Architecture: any
 Depends: ${misc:Depends}, ${shlibs:Depends}, adduser, lsb-release,
  squashfs-tools, ubuntu-core-launcher (>= 1.0.23),
-Replaces: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9)
-Breaks: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9)
 Conflicts: snappy, snap (<< 2013-11-29-1ubuntu1)
 Built-Using: ${misc:Built-Using}
 Description: Tool to interact with Ubuntu Core Snappy.
@@ -63,17 +61,3 @@ Description: Scripts for snapd that should only run on ubuntu core systems.
  systems.
  .
  This package should not be installed on a Desktop system.
-
-Package: ubuntu-snappy
-Architecture: all
-Depends: snapd, ${misc:Depends}
-Section: oldlibs
-Description: transitional dummy package
- This is a transitional dummy package. It can safely be removed.
-
-Package: ubuntu-snappy-cli
-Architecture: all
-Depends: snapd,  ${misc:Depends}
-Section: oldlibs
-Description: transitional dummy package
- This is a transitional dummy package. It can safely be removed.
