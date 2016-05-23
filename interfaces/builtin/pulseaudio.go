@@ -23,31 +23,27 @@ import (
 	"github.com/ubuntu-core/snappy/interfaces"
 )
 
-var allInterfaces = []interfaces.Interface{
-	&BoolFileInterface{},
-	&BluezInterface{},
-	&LocationObserveInterface{},
-	&NetworkManagerInterface{},
-	NewFirewallControlInterface(),
-	NewHomeInterface(),
-	NewLocaleControlInterface(),
-	NewLogObserveInterface(),
-	NewMountObserveInterface(),
-	NewNetworkInterface(),
-	NewNetworkBindInterface(),
-	NewNetworkControlInterface(),
-	NewNetworkObserveInterface(),
-	NewSnapdControlInterface(),
-	NewSystemObserveInterface(),
-	NewTimeserverControlInterface(),
-	NewTimezoneControlInterface(),
-	NewUnity7Interface(),
-	NewX11Interface(),
-	NewOpenglInterface(),
-	NewPulseAudioInterface(),
-}
+const pulseaudioConnectedPlugAppArmor = `
+/etc/pulse/ r,
+/etc/pulse/* r,
+/{run,dev}/shm/pulse-shm-* rk,
+owner /{,var/}run/user/*/pulse/ r,
+owner /{,var/}run/user/*/pulse/native rwk,
+`
 
-// Interfaces returns all of the built-in interfaces.
-func Interfaces() []interfaces.Interface {
-	return allInterfaces
+const pulseaudioConnectedPlugSecComp = `
+setsockopt
+connect
+sendto
+`
+
+// NewPulseAudioInterface returns a new "pulseaudio" interface.
+func NewPulseAudioInterface() interfaces.Interface {
+	return &commonInterface{
+		name: "pulseaudio",
+		connectedPlugAppArmor: pulseaudioConnectedPlugAppArmor,
+		connectedPlugSecComp:  pulseaudioConnectedPlugSecComp,
+		reservedForOS:         true,
+		autoConnect:           true,
+	}
 }
