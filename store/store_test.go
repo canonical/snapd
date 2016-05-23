@@ -348,6 +348,8 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 
 	c.Check(repo.SuggestedCurrency(), Equals, "GBP")
 	c.Check(result.Private, Equals, true)
+
+	c.Check(snap.Validate(result), IsNil)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsSetsAuth(c *C) {
