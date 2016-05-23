@@ -472,11 +472,11 @@ func Assemble(headers map[string]string, body, content, signature []byte) (Asser
 		return nil, fmt.Errorf("assertion body length and declared body-length don't match: %v != %v", len(body), length)
 	}
 
-	if _, err := checkMandatory(headers, "authority-id"); err != nil {
+	if _, err := checkNotEmpty(headers, "authority-id"); err != nil {
 		return nil, fmt.Errorf("assertion: %v", err)
 	}
 
-	typ, err := checkMandatory(headers, "type")
+	typ, err := checkNotEmpty(headers, "type")
 	if err != nil {
 		return nil, fmt.Errorf("assertion: %v", err)
 	}
@@ -486,7 +486,7 @@ func Assemble(headers map[string]string, body, content, signature []byte) (Asser
 	}
 
 	for _, primKey := range assertType.PrimaryKey {
-		if _, err := checkMandatory(headers, primKey); err != nil {
+		if _, err := checkNotEmpty(headers, primKey); err != nil {
 			return nil, fmt.Errorf("assertion %s: %v", assertType.Name, err)
 		}
 	}
@@ -543,7 +543,7 @@ func assembleAndSign(assertType *AssertionType, headers map[string]string, body 
 	finalHeaders["type"] = assertType.Name
 	finalHeaders["body-length"] = strconv.Itoa(bodyLength)
 
-	if _, err := checkMandatory(finalHeaders, "authority-id"); err != nil {
+	if _, err := checkNotEmpty(finalHeaders, "authority-id"); err != nil {
 		return nil, err
 	}
 
@@ -568,7 +568,7 @@ func assembleAndSign(assertType *AssertionType, headers map[string]string, body 
 		"body-length":  true,
 	}
 	for _, primKey := range assertType.PrimaryKey {
-		if _, err := checkMandatory(finalHeaders, primKey); err != nil {
+		if _, err := checkNotEmpty(finalHeaders, primKey); err != nil {
 			return nil, err
 		}
 		writeHeader(buf, finalHeaders, primKey)
