@@ -88,23 +88,24 @@ func checkSnap(state *state.State, snapFilePath string, curInfo *snap.Info, flag
 		return err
 	}
 
-	if s.Type == snap.TypeGadget {
-		state.Lock()
-		defer state.Unlock()
-		if currentGadget, err := GadgetInfo(state); err == nil {
-			// TODO: actually compare snap ids, from current gadget and candidate
-			if currentGadget.Name() != s.Name() {
-				return fmt.Errorf("cannot replace gadget snap with a different one")
-			}
-		} else {
-			if release.OnClassic {
-				// for the time being
-				return fmt.Errorf("cannot install a gadget snap on classic")
-			}
-			// there should always be a gadget package on devices
-			return fmt.Errorf("cannot find original gadget snap")
+	if s.Type != snap.TypeGadget {
+		return nil
+	}
+	state.Lock()
+	defer state.Unlock()
+
+	if currentGadget, err := GadgetInfo(state); err == nil {
+		// TODO: actually compare snap ids, from current gadget and candidate
+		if currentGadget.Name() == s.Name() {
+			return nil
 		}
+
+		return fmt.Errorf("cannot replace gadget snap with a different one")
+	} else if release.OnClassic {
+		// for the time being
+		return fmt.Errorf("cannot install a gadget snap on classic")
 	}
 
-	return nil
+	// there should always be a gadget package on devices
+	return fmt.Errorf("cannot find original gadget snap")
 }
