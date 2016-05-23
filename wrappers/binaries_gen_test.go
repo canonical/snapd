@@ -61,7 +61,7 @@ func (s *binariesWrapperGenSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 	info := &snap.Info{}
 	info.SuggestedName = "pastebinit"
 	info.Version = "1.4.0.0.1"
-	info.Revision = 44
+	info.Revision = snap.R(44)
 	binary := &snap.AppInfo{
 		Snap:    info,
 		Name:    "pastebinit",

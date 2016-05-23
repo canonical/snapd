@@ -99,8 +99,13 @@ func (ids *identitySuite) TestDecodeInvalid(c *C) {
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"account-id: abc-123\n", "", `"account-id" header is mandatory`},
+		{"account-id: abc-123\n", "account-id: \n", `"account-id" header should not be empty`},
 		{"display-name: Display Name\n", "", `"display-name" header is mandatory`},
+		{"display-name: Display Name\n", "display-name: \n", `"display-name" header should not be empty`},
 		{"validation: certified\n", "", `"validation" header is mandatory`},
+		{"validation: certified\n", "validation: \n", `"validation" header should not be empty`},
+		{ids.tsLine, "", `"timestamp" header is mandatory`},
+		{ids.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
 		{ids.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
 	}
 
