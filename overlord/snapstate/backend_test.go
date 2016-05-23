@@ -92,18 +92,18 @@ func (f *fakeSnappyBackend) Download(name, channel string, checker func(*snap.In
 	return info, "downloaded-snap-path", nil
 }
 
-func (f *fakeSnappyBackend) CheckSnap(snapFilePath string, curInfo *snap.Info, flags int) error {
-	cur := "<no-current>"
-	if curInfo != nil {
-		cur = curInfo.MountDir()
+func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo) (*snap.Info, snap.File, error) {
+	op := fakeOp{
+		op:   "open-snap-file",
+		name: snapFilePath,
 	}
-	f.ops = append(f.ops, fakeOp{
-		op:    "check-snap",
-		name:  snapFilePath,
-		old:   cur,
-		flags: flags,
-	})
-	return nil
+
+	if si != nil {
+		op.sinfo = *si
+	}
+
+	f.ops = append(f.ops, op)
+	return &snap.Info{Architectures: []string{"all"}}, nil, nil
 }
 
 func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, si *snap.SideInfo, flags int) error {
@@ -222,6 +222,17 @@ func (f *fakeSnappyBackend) Candidate(sideInfo *snap.SideInfo) {
 	f.ops = append(f.ops, fakeOp{
 		op:    "candidate",
 		sinfo: sinfo,
+	})
+}
+
+func (f *fakeSnappyBackend) Current(curInfo *snap.Info) {
+	old := "<no-current>"
+	if curInfo != nil {
+		old = curInfo.MountDir()
+	}
+	f.ops = append(f.ops, fakeOp{
+		op:  "current",
+		old: old,
 	})
 }
 
