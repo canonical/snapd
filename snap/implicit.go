@@ -41,6 +41,7 @@ var implicitClassicSlots = []string{
 	"unity7",
 	"x11",
 	"opengl",
+	"opencl",
 	"network-manager",
 }
 
