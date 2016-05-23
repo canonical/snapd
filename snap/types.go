@@ -21,6 +21,7 @@ package snap
 
 import (
 	"encoding/json"
+	"fmt"
 )
 
 // Type represents the kind of snap (app, core, gadget, os, kernel)
@@ -34,11 +35,6 @@ const (
 	TypeKernel Type = "kernel"
 )
 
-// MarshalJSON returns *m as the JSON encoding of m.
-func (m Type) MarshalJSON() ([]byte, error) {
-	return json.Marshal(string(m))
-}
-
 // UnmarshalJSON sets *m to a copy of data.
 func (m *Type) UnmarshalJSON(data []byte) error {
 	var str string
@@ -46,13 +42,75 @@ func (m *Type) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
+	return m.fromString(str)
+}
+
+// UnmarshalYAML so ConfinementType implements yaml's Unmarshaler interface
+func (m *Type) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+
+	return m.fromString(str)
+}
+
+// fromString converts str to Type and sets *m to it if validations pass
+func (m *Type) fromString(str string) error {
+	t := Type(str)
+
 	// this is a workaround as the store sends "application" but snappy uses
 	// "app" for TypeApp
 	if str == "application" {
-		*m = TypeApp
-	} else {
-		*m = Type(str)
+		t = TypeApp
 	}
+
+	if t != TypeApp && t != TypeGadget && t != TypeOS && t != TypeKernel {
+		return fmt.Errorf("invalid snap type: %q", str)
+	}
+
+	*m = t
+
+	return nil
+}
+
+// ConfinementType represents the kind of confinement supported by the snap
+// (devmode only, or strict confinement)
+type ConfinementType string
+
+// The various confinement types we support
+const (
+	DevmodeConfinement ConfinementType = "devmode"
+	StrictConfinement  ConfinementType = "strict"
+)
+
+// UnmarshalJSON sets *confinementType to a copy of data, assuming validation passes
+func (confinementType *ConfinementType) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+
+	return confinementType.fromString(s)
+}
+
+// UnmarshalYAML so ConfinementType implements yaml's Unmarshaler interface
+func (confinementType *ConfinementType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var s string
+	if err := unmarshal(&s); err != nil {
+		return err
+	}
+
+	return confinementType.fromString(s)
+}
+
+func (confinementType *ConfinementType) fromString(str string) error {
+	c := ConfinementType(str)
+	if c != DevmodeConfinement && c != StrictConfinement {
+		return fmt.Errorf("invalid confinement type: %q", str)
+	}
+
+	*confinementType = c
 
 	return nil
 }

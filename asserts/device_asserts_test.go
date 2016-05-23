@@ -20,7 +20,6 @@
 package asserts_test
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -87,25 +86,35 @@ const (
 	modelErrPrefix = "assertion model: "
 )
 
-func (mods *modelSuite) TestDecodeInvalidMandatory(c *C) {
-	encoded := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
-
-	mandatoryHeaders := []string{"series", "brand-id", "model", "os", "architecture", "gadget", "kernel", "store", "allowed-modes", "required-snaps", "class", "timestamp"}
-
-	for _, mandatory := range mandatoryHeaders {
-		invalid := strings.Replace(encoded, mandatory+":", "xyz:", 1)
-		_, err := asserts.Decode([]byte(invalid))
-		c.Check(err, ErrorMatches, fmt.Sprintf("%s%q header is mandatory", modelErrPrefix, mandatory))
-	}
-}
-
 func (mods *modelSuite) TestDecodeInvalid(c *C) {
 	encoded := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
+		{"series: 16\n", "", `"series" header is mandatory`},
+		{"series: 16\n", "series: \n", `"series" header should not be empty`},
+		{"brand-id: brand-id1\n", "", `"brand-id" header is mandatory`},
+		{"brand-id: brand-id1\n", "brand-id: \n", `"brand-id" header should not be empty`},
 		{"brand-id: brand-id1\n", "brand-id: random\n", `authority-id and brand-id must match, model assertions are expected to be signed by the brand: "brand-id1" != "random"`},
-		{"required-snaps: foo, bar\n", "required-snaps: foo,\n", `empty entry in comma separated "required-snaps" header: "foo,"`},
+		{"model: baz-3000\n", "", `"model" header is mandatory`},
+		{"model: baz-3000\n", "model: \n", `"model" header should not be empty`},
+		{"os: core\n", "", `"os" header is mandatory`},
+		{"os: core\n", "os: \n", `"os" header should not be empty`},
+		{"architecture: amd64\n", "", `"architecture" header is mandatory`},
+		{"architecture: amd64\n", "architecture: \n", `"architecture" header should not be empty`},
+		{"gadget: brand-gadget\n", "", `"gadget" header is mandatory`},
+		{"gadget: brand-gadget\n", "gadget: \n", `"gadget" header should not be empty`},
+		{"kernel: baz-linux\n", "", `"kernel" header is mandatory`},
+		{"kernel: baz-linux\n", "kernel: \n", `"kernel" header should not be empty`},
+		{"store: brand-store\n", "", `"store" header is mandatory`},
+		{"store: brand-store\n", "store: \n", `"store" header should not be empty`},
+		{"allowed-modes: \n", "", `"allowed-modes" header is mandatory`},
 		{"allowed-modes: \n", "allowed-modes: ,\n", `empty entry in comma separated "allowed-modes" header: ","`},
+		{"required-snaps: foo, bar\n", "", `"required-snaps" header is mandatory`},
+		{"required-snaps: foo, bar\n", "required-snaps: foo,\n", `empty entry in comma separated "required-snaps" header: "foo,"`},
+		{"class: fixed\n", "", `"class" header is mandatory`},
+		{"class: fixed\n", "class: \n", `"class" header should not be empty`},
+		{mods.tsLine, "", `"timestamp" header is mandatory`},
+		{mods.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
 		{mods.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
 	}
 
@@ -198,10 +207,18 @@ func (dss *deviceSerialSuite) TestDecodeInvalid(c *C) {
 	encoded := strings.Replace(deviceSerialExample, "TSLINE", dss.tsLine, 1)
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
+		{"brand-id: brand-id1\n", "", `"brand-id" header is mandatory`},
+		{"brand-id: brand-id1\n", "brand-id: \n", `"brand-id" header should not be empty`},
+		{"model: baz-3000\n", "", `"model" header is mandatory`},
+		{"model: baz-3000\n", "model: \n", `"model" header should not be empty`},
 		{"serial: 2700\n", "", `"serial" header is mandatory`},
-		{"device-key:\n DEVICEKEY\n", "", `"device-key" header is mandatory`},
-		{"device-key:\n DEVICEKEY\n", "device-key: openpgp ZZZ\n", `public key: could not decode base64 data:.*`},
+		{"serial: 2700\n", "serial: \n", `"serial" header should not be empty`},
+		{dss.tsLine, "", `"timestamp" header is mandatory`},
+		{dss.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
 		{dss.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
+		{"device-key:\n DEVICEKEY\n", "", `"device-key" header is mandatory`},
+		{"device-key:\n DEVICEKEY\n", "device-key: \n", `"device-key" header should not be empty`},
+		{"device-key:\n DEVICEKEY\n", "device-key: openpgp ZZZ\n", `public key: could not decode base64 data:.*`},
 	}
 
 	for _, test := range invalidTests {

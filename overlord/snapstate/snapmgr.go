@@ -42,10 +42,10 @@ type SnapManager struct {
 
 // SnapSetup holds the necessary snap details to perform most snap manager tasks.
 type SnapSetup struct {
-	Name     string `json:"name"`
-	Revision int    `json:"revision,omitempty"`
-	Channel  string `json:"channel,omitempty"`
-	UserID   int    `json:"user-id,omitempty"`
+	Name     string        `json:"name"`
+	Revision snap.Revision `json:"revision,omitempty"`
+	Channel  string        `json:"channel,omitempty"`
+	UserID   int           `json:"user-id,omitempty"`
 
 	Flags int `json:"flags,omitempty"`
 
@@ -80,7 +80,7 @@ type SnapState struct {
 	Channel   string           `json:"channel,omitempty"`
 	Flags     SnapStateFlags   `json:"flags,omitempty"`
 	// incremented revision used for local installs
-	LocalRevision int `json:"local-revision,omitempty"`
+	LocalRevision snap.Revision `json:"local-revision,omitempty"`
 }
 
 // Current returns the side info for the current revision in the snap revision sequence if there is one.
@@ -138,16 +138,14 @@ func Manager(s *state.State) (*SnapManager, error) {
 	return m, nil
 }
 
-func checkRevisionIsNew(name string, snapst *SnapState, revision int) error {
+func checkRevisionIsNew(name string, snapst *SnapState, revision snap.Revision) error {
 	for _, si := range snapst.Sequence {
 		if si.Revision == revision {
-			return fmt.Errorf("revision %d of snap %q already installed", revision, name)
+			return fmt.Errorf("revision %s of snap %q already installed", revision, name)
 		}
 	}
 	return nil
 }
-
-const firstLocalRevision = 100001
 
 func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
@@ -158,16 +156,16 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if ss.Revision == 0 { // sideloading
-		// to not clash with not sideload installs
-		// and to not have clashes between them
-		// use incremental revisions starting at 100001
-		// for sideloads
+	if ss.Revision.Unset() {
+		// Local revisions start at -1 and go down.
 		revision := snapst.LocalRevision
-		if revision == 0 {
-			revision = firstLocalRevision
+		if revision.Unset() {
+			revision = snap.R(-1)
 		} else {
-			revision++
+			revision.N--
+		}
+		if !revision.Local() {
+			panic("internal error: invalid local revision built: " + revision.String())
 		}
 		snapst.LocalRevision = revision
 		ss.Revision = revision
