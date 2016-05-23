@@ -695,7 +695,7 @@ func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, f
 	}
 
 	msg := fmt.Sprintf(i18n.G("Try %q snap"), trydir)
-	chg := newChange(st, "install-snap", msg, []*state.TaskSet{tsets})
+	chg := newChange(st, "try-snap", msg, []*state.TaskSet{tsets})
 	chg.Set("api-data", map[string]string{"snap-name": info.Name()})
 
 	st.EnsureBefore(0)
