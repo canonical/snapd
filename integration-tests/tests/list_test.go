@@ -48,7 +48,7 @@ func (s *listSuite) TestListMustPrintCoreVersion(c *check.C) {
 	expected := "(?ms)" +
 		"Name +Version +Rev +Developer *\n" +
 		".*" +
-		fmt.Sprintf("^%s +.* +%s + [0-9]+ +(canonical|sideload) *\n", partition.OSSnapName(c), verRegexp) +
+		fmt.Sprintf("^%s +.* +%s +[0-9]+ +canonical *\n", partition.OSSnapName(c), verRegexp) +
 		".*"
 	c.Assert(listOutput, check.Matches, expected)
 }
