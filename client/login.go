@@ -64,6 +64,20 @@ func (client *Client) Login(username, password, otp string) (*User, error) {
 	return &user, nil
 }
 
+// Logout logs the user out.
+func (client *Client) Logout() error {
+	_, err := client.doSync("POST", "/v2/logout", nil, nil, nil, nil)
+	if err != nil {
+		return err
+	}
+	return removeAuthData()
+}
+
+// LoggedIn returns whether the client has authentication data available.
+func (client *Client) LoggedIn() bool {
+	return osutil.FileExists(storeAuthDataFilename())
+}
+
 func storeAuthDataFilename() string {
 	homeDir, err := osutil.CurrentHomeDir()
 	if err != nil {

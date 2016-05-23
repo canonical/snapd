@@ -85,7 +85,7 @@ type: os`, 11)
 	// now remove the channel
 	si := snap.SideInfo{
 		OfficialName:      "app",
-		Revision:          11,
+		Revision:          snap.R(11),
 		Developer:         testDeveloper,
 		Channel:           "",
 		EditedSummary:     "hello",
@@ -217,19 +217,19 @@ func (s *SnapTestSuite) TestFindSnapsByNameAndRevision(c *C) {
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
 
-	snaps := FindSnapsByNameAndRevision("hello-snap."+testDeveloper, 11, installed)
+	snaps := FindSnapsByNameAndRevision("hello-snap."+testDeveloper, snap.R(11), installed)
 	c.Check(snaps, HasLen, 1)
-	snaps = FindSnapsByNameAndRevision("bad-app."+testDeveloper, 11, installed)
+	snaps = FindSnapsByNameAndRevision("bad-app."+testDeveloper, snap.R(11), installed)
 	c.Check(snaps, HasLen, 0)
-	snaps = FindSnapsByNameAndRevision("hello-snap.badDeveloper", 11, installed)
+	snaps = FindSnapsByNameAndRevision("hello-snap.badDeveloper", snap.R(11), installed)
 	c.Check(snaps, HasLen, 0)
-	snaps = FindSnapsByNameAndRevision("hello-snap."+testDeveloper, 22, installed)
+	snaps = FindSnapsByNameAndRevision("hello-snap."+testDeveloper, snap.R(22), installed)
 	c.Check(snaps, HasLen, 0)
 
-	snaps = FindSnapsByNameAndRevision("hello-snap", 11, installed)
+	snaps = FindSnapsByNameAndRevision("hello-snap", snap.R(11), installed)
 	c.Check(snaps, HasLen, 1)
-	snaps = FindSnapsByNameAndRevision("bad-app", 11, installed)
+	snaps = FindSnapsByNameAndRevision("bad-app", snap.R(11), installed)
 	c.Check(snaps, HasLen, 0)
-	snaps = FindSnapsByNameAndRevision("hello-snap", 22, installed)
+	snaps = FindSnapsByNameAndRevision("hello-snap", snap.R(22), installed)
 	c.Check(snaps, HasLen, 0)
 }

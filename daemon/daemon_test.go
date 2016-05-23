@@ -55,12 +55,9 @@ type mockHandler struct {
 func (mck *mockHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	mck.lastMethod = r.Method
 }
-func (mck *mockHandler) Self(*Command, *http.Request) Response {
-	return mck
-}
 
 func mkRF(c *check.C, cmd *Command, mck *mockHandler) ResponseFunc {
-	return func(innerCmd *Command, req *http.Request) Response {
+	return func(innerCmd *Command, req *http.Request, user *auth.UserState) Response {
 		c.Assert(cmd, check.Equals, innerCmd)
 		return mck
 	}
@@ -81,7 +78,7 @@ func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
 
 		rec := httptest.NewRecorder()
 		cmd.ServeHTTP(rec, req)
-		c.Check(rec.Code, check.Equals, http.StatusForbidden, check.Commentf(method))
+		c.Check(rec.Code, check.Equals, http.StatusUnauthorized, check.Commentf(method))
 
 		rec = httptest.NewRecorder()
 		req.RemoteAddr = "uid=0;" + req.RemoteAddr
@@ -107,22 +104,22 @@ func (s *daemonSuite) TestGuestAccess(c *check.C) {
 	del := &http.Request{Method: "DELETE"}
 
 	cmd := &Command{d: newTestDaemon(c)}
-	c.Check(cmd.canAccess(get), check.Equals, false)
-	c.Check(cmd.canAccess(put), check.Equals, false)
-	c.Check(cmd.canAccess(pst), check.Equals, false)
-	c.Check(cmd.canAccess(del), check.Equals, false)
+	c.Check(cmd.canAccess(get, nil), check.Equals, false)
+	c.Check(cmd.canAccess(put, nil), check.Equals, false)
+	c.Check(cmd.canAccess(pst, nil), check.Equals, false)
+	c.Check(cmd.canAccess(del, nil), check.Equals, false)
 
 	cmd = &Command{d: newTestDaemon(c), UserOK: true}
-	c.Check(cmd.canAccess(get), check.Equals, false)
-	c.Check(cmd.canAccess(put), check.Equals, false)
-	c.Check(cmd.canAccess(pst), check.Equals, false)
-	c.Check(cmd.canAccess(del), check.Equals, false)
+	c.Check(cmd.canAccess(get, nil), check.Equals, false)
+	c.Check(cmd.canAccess(put, nil), check.Equals, false)
+	c.Check(cmd.canAccess(pst, nil), check.Equals, false)
+	c.Check(cmd.canAccess(del, nil), check.Equals, false)
 
 	cmd = &Command{d: newTestDaemon(c), GuestOK: true}
-	c.Check(cmd.canAccess(get), check.Equals, true)
-	c.Check(cmd.canAccess(put), check.Equals, false)
-	c.Check(cmd.canAccess(pst), check.Equals, false)
-	c.Check(cmd.canAccess(del), check.Equals, false)
+	c.Check(cmd.canAccess(get, nil), check.Equals, true)
+	c.Check(cmd.canAccess(put, nil), check.Equals, false)
+	c.Check(cmd.canAccess(pst, nil), check.Equals, false)
+	c.Check(cmd.canAccess(del, nil), check.Equals, false)
 }
 
 func (s *daemonSuite) TestUserAccess(c *check.C) {
@@ -130,16 +127,16 @@ func (s *daemonSuite) TestUserAccess(c *check.C) {
 	put := &http.Request{Method: "PUT", RemoteAddr: "uid=42;"}
 
 	cmd := &Command{d: newTestDaemon(c)}
-	c.Check(cmd.canAccess(get), check.Equals, false)
-	c.Check(cmd.canAccess(put), check.Equals, false)
+	c.Check(cmd.canAccess(get, nil), check.Equals, false)
+	c.Check(cmd.canAccess(put, nil), check.Equals, false)
 
 	cmd = &Command{d: newTestDaemon(c), UserOK: true}
-	c.Check(cmd.canAccess(get), check.Equals, true)
-	c.Check(cmd.canAccess(put), check.Equals, false)
+	c.Check(cmd.canAccess(get, nil), check.Equals, true)
+	c.Check(cmd.canAccess(put, nil), check.Equals, false)
 
 	cmd = &Command{d: newTestDaemon(c), GuestOK: true}
-	c.Check(cmd.canAccess(get), check.Equals, true)
-	c.Check(cmd.canAccess(put), check.Equals, false)
+	c.Check(cmd.canAccess(get, nil), check.Equals, true)
+	c.Check(cmd.canAccess(put, nil), check.Equals, false)
 }
 
 func (s *daemonSuite) TestGroupAccess(c *check.C) {
@@ -156,18 +153,18 @@ func (s *daemonSuite) TestGroupAccess(c *check.C) {
 	put := &http.Request{Method: "PUT", RemoteAddr: "uid=42;"}
 
 	cmd := &Command{d: newTestDaemon(c)}
-	c.Check(cmd.canAccess(get), check.Equals, false)
-	c.Check(cmd.canAccess(put), check.Equals, false)
+	c.Check(cmd.canAccess(get, nil), check.Equals, false)
+	c.Check(cmd.canAccess(put, nil), check.Equals, false)
 
 	isSudo = false
 	cmd = &Command{d: newTestDaemon(c), SudoerOK: true}
-	c.Check(cmd.canAccess(get), check.Equals, false)
-	c.Check(cmd.canAccess(put), check.Equals, false)
+	c.Check(cmd.canAccess(get, nil), check.Equals, false)
+	c.Check(cmd.canAccess(put, nil), check.Equals, false)
 
 	isSudo = true
 	cmd = &Command{d: newTestDaemon(c), SudoerOK: true}
-	c.Check(cmd.canAccess(get), check.Equals, true)
-	c.Check(cmd.canAccess(put), check.Equals, true)
+	c.Check(cmd.canAccess(get, nil), check.Equals, true)
+	c.Check(cmd.canAccess(put, nil), check.Equals, true)
 }
 
 func (s *daemonSuite) TestSuperAccess(c *check.C) {
@@ -175,16 +172,16 @@ func (s *daemonSuite) TestSuperAccess(c *check.C) {
 	put := &http.Request{Method: "PUT", RemoteAddr: "uid=0;"}
 
 	cmd := &Command{d: newTestDaemon(c)}
-	c.Check(cmd.canAccess(get), check.Equals, true)
-	c.Check(cmd.canAccess(put), check.Equals, true)
+	c.Check(cmd.canAccess(get, nil), check.Equals, true)
+	c.Check(cmd.canAccess(put, nil), check.Equals, true)
 
 	cmd = &Command{d: newTestDaemon(c), UserOK: true}
-	c.Check(cmd.canAccess(get), check.Equals, true)
-	c.Check(cmd.canAccess(put), check.Equals, true)
+	c.Check(cmd.canAccess(get, nil), check.Equals, true)
+	c.Check(cmd.canAccess(put, nil), check.Equals, true)
 
 	cmd = &Command{d: newTestDaemon(c), GuestOK: true}
-	c.Check(cmd.canAccess(get), check.Equals, true)
-	c.Check(cmd.canAccess(put), check.Equals, true)
+	c.Check(cmd.canAccess(get, nil), check.Equals, true)
+	c.Check(cmd.canAccess(put, nil), check.Equals, true)
 }
 
 func (s *daemonSuite) TestAddRoutes(c *check.C) {

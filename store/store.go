@@ -56,6 +56,7 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	info.Architectures = d.Architectures
 	info.Type = d.Type
 	info.Version = d.Version
+	info.Epoch = "0"
 	info.OfficialName = d.Name
 	info.SnapID = d.SnapID
 	info.Revision = d.Revision
@@ -69,6 +70,7 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	info.AnonDownloadURL = d.AnonDownloadURL
 	info.DownloadURL = d.DownloadURL
 	info.Prices = d.Prices
+	info.Private = d.Private
 	return info
 }
 
@@ -211,19 +213,19 @@ func NewUbuntuStoreSnapRepository(cfg *SnapUbuntuStoreConfig, storeID string) *S
 }
 
 // small helper that sets the correct http headers for the ubuntu store
-func (s *SnapUbuntuStoreRepository) applyUbuntuStoreHeaders(req *http.Request, accept string, auther Authenticator) {
+func (s *SnapUbuntuStoreRepository) setUbuntuStoreHeaders(req *http.Request, channel string, auther Authenticator) {
 	if auther != nil {
 		auther.Authenticate(req)
 	}
 
-	if accept == "" {
-		accept = "application/hal+json"
-	}
-	req.Header.Set("Accept", accept)
-
+	req.Header.Set("Accept", "application/hal+json,application/json")
 	req.Header.Set("X-Ubuntu-Architecture", string(arch.UbuntuArchitecture()))
 	req.Header.Set("X-Ubuntu-Release", release.Series)
 	req.Header.Set("X-Ubuntu-Wire-Protocol", UbuntuCoreWireProtocol)
+
+	if channel != "" {
+		req.Header.Set("X-Ubuntu-Device-Channel", channel)
+	}
 
 	if s.storeID != "" {
 		req.Header.Set("X-Ubuntu-Store", s.storeID)
@@ -294,8 +296,7 @@ func (s *SnapUbuntuStoreRepository) getPurchasesFromURL(url *url.URL, channel st
 		return nil, err
 	}
 
-	s.applyUbuntuStoreHeaders(req, "", auther)
-	req.Header.Set("X-Ubuntu-Device-Channel", channel)
+	s.setUbuntuStoreHeaders(req, channel, auther)
 
 	resp, err := s.client.Do(req)
 	if err != nil {
@@ -321,34 +322,70 @@ func (s *SnapUbuntuStoreRepository) getPurchasesFromURL(url *url.URL, channel st
 	return purchases, nil
 }
 
-// getPurchases returns user purchases for a specific snap, including in-app.
-func (s *SnapUbuntuStoreRepository) getPurchases(snapID, channel string, auther Authenticator) ([]*purchase, error) {
-	purchasesURL, err := s.purchasesURI.Parse(snapID + "/")
-	if err != nil {
-		return nil, err
+func setMustBuy(snaps []*snap.Info) {
+	for _, info := range snaps {
+		if len(info.Prices) != 0 {
+			info.MustBuy = true
+		}
 	}
-
-	q := purchasesURL.Query()
-	q.Set("include_item_purchases", "true")
-	purchasesURL.RawQuery = q.Encode()
-
-	return s.getPurchasesFromURL(purchasesURL, channel, auther)
 }
 
-// getAllPurchases returns all user purchases as a map indexed by snap id.
-func (s *SnapUbuntuStoreRepository) getAllPurchases(channel string, auther Authenticator) (map[string][]*purchase, error) {
-	purchases, err := s.getPurchasesFromURL(s.purchasesURI, channel, auther)
-	if err != nil {
-		return nil, err
+func hasPriced(snaps []*snap.Info) bool {
+	// Search through the list of snaps to see if any are priced
+	for _, info := range snaps {
+		if len(info.Prices) != 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// decorateAllPurchases sets the MustBuy property of each snap in the given list according to the user's known purchases.
+func (s *SnapUbuntuStoreRepository) decoratePurchases(snaps []*snap.Info, channel string, auther Authenticator) error {
+	// Mark every non-free snap as must buy until we know better.
+	setMustBuy(snaps)
+
+	if auther == nil {
+		return nil
 	}
 
-	// Index it all in a multimap
+	if !hasPriced(snaps) {
+		return nil
+	}
+
+	var err error
+	var purchasesURL *url.URL
+
+	if len(snaps) == 1 {
+		// If we only have a single snap, we should only find the purchases for that snap
+		purchasesURL, err = s.purchasesURI.Parse(snaps[0].SnapID + "/")
+		if err != nil {
+			return err
+		}
+		q := purchasesURL.Query()
+		q.Set("include_item_purchases", "true")
+		purchasesURL.RawQuery = q.Encode()
+	} else {
+		// Inconsistently, global search implies include_item_purchases.
+		purchasesURL = s.purchasesURI
+	}
+
+	purchases, err := s.getPurchasesFromURL(purchasesURL, channel, auther)
+	if err != nil {
+		return err
+	}
+
+	// Group purchases by snap ID.
 	purchasesByID := make(map[string][]*purchase)
 	for _, purchase := range purchases {
 		purchasesByID[purchase.SnapID] = append(purchasesByID[purchase.SnapID], purchase)
 	}
 
-	return purchasesByID, nil
+	for _, info := range snaps {
+		info.MustBuy = mustBuy(info.Prices, purchasesByID[info.SnapID])
+	}
+
+	return nil
 }
 
 // mustBuy determines if a snap requires a payment, based on if it is non-free and if the user has already bought it
@@ -387,8 +424,7 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string, auther Authentica
 	}
 
 	// set headers
-	s.applyUbuntuStoreHeaders(req, "", auther)
-	req.Header.Set("X-Ubuntu-Device-Channel", channel)
+	s.setUbuntuStoreHeaders(req, channel, auther)
 
 	resp, err := s.client.Do(req)
 	if err != nil {
@@ -428,7 +464,15 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string, auther Authentica
 
 	s.checkStoreResponse(resp)
 
-	return infoFromRemote(searchData.Payload.Packages[0]), nil
+	info := infoFromRemote(searchData.Payload.Packages[0])
+
+	err = s.decoratePurchases([]*snap.Info{info}, channel, auther)
+	if err != nil {
+		logger.Noticef("cannot get user purchases: %v", err)
+	}
+
+	return info, nil
+
 }
 
 // FindSnaps finds  (installable) snaps from the store, matching the
@@ -449,8 +493,7 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string,
 	}
 
 	// set headers
-	s.applyUbuntuStoreHeaders(req, "", auther)
-	req.Header.Set("X-Ubuntu-Device-Channel", channel)
+	s.setUbuntuStoreHeaders(req, channel, auther)
 
 	resp, err := s.client.Do(req)
 	if err != nil {
@@ -478,6 +521,11 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string,
 		snaps[i] = infoFromRemote(pkg)
 	}
 
+	err = s.decoratePurchases(snaps, channel, auther)
+	if err != nil {
+		logger.Noticef("cannot get user purchases: %v", err)
+	}
+
 	s.checkStoreResponse(resp)
 
 	return snaps, nil
@@ -499,7 +547,7 @@ func (s *SnapUbuntuStoreRepository) Updates(installed []string, auther Authentic
 	// set headers
 	// the updates call is a special snowflake right now
 	// (see LP: #1427155)
-	s.applyUbuntuStoreHeaders(req, "application/json", auther)
+	s.setUbuntuStoreHeaders(req, "", auther)
 
 	resp, err := s.client.Do(req)
 	if err != nil {
@@ -550,7 +598,7 @@ func (s *SnapUbuntuStoreRepository) Download(remoteSnap *snap.Info, pbar progres
 	if err != nil {
 		return "", err
 	}
-	s.applyUbuntuStoreHeaders(req, "", auther)
+	s.setUbuntuStoreHeaders(req, "", auther)
 
 	if err := download(remoteSnap.Name(), w, req, pbar); err != nil {
 		return "", err

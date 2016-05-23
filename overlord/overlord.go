@@ -140,7 +140,7 @@ func (o *Overlord) ensureBefore(d time.Duration) {
 	}
 	now := time.Now()
 	next := now.Add(d)
-	if next.Before(o.ensureNext) {
+	if next.Before(o.ensureNext) || o.ensureNext.Before(now) {
 		o.ensureTimer.Reset(d)
 		o.ensureNext = next
 	}

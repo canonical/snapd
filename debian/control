@@ -4,7 +4,7 @@ Priority: optional
 Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
 Build-Depends: bash-completion,
                debhelper (>= 9),
-               dh-golang,
+               dh-golang (>=1.7),
                dh-systemd,
                fakeroot,
                gettext,

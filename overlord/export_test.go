@@ -45,6 +45,10 @@ func MockPruneInterval(prunei, prunew, abortw time.Duration) (restore func()) {
 	}
 }
 
+func MockEnsureNext(o *Overlord, t time.Time) {
+	o.ensureNext = t
+}
+
 // Engine exposes the state engine in an Overlord for tests.
 func (o *Overlord) Engine() *StateEngine {
 	return o.stateEng

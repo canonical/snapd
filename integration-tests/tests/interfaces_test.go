@@ -49,26 +49,32 @@ const (
 
 type interfaceSuite struct {
 	common.SnappySuite
-	snapPath, sampleSnap string
-	slot, plug           string
-	autoconnect          bool
+	snapPaths, sampleSnaps []string
+	slot, plug             string
+	autoconnect            bool
 }
 
 func (s *interfaceSuite) SetUpTest(c *check.C) {
 	s.SnappySuite.SetUpTest(c)
 
 	var err error
-	s.snapPath, err = build.LocalSnap(c, s.sampleSnap)
-	c.Assert(err, check.IsNil)
 
-	common.InstallSnap(c, s.snapPath)
+	s.snapPaths = make([]string, len(s.sampleSnaps))
+	for i := 0; i < len(s.sampleSnaps); i++ {
+		s.snapPaths[i], err = build.LocalSnap(c, s.sampleSnaps[i])
+		c.Assert(err, check.IsNil)
+
+		common.InstallSnap(c, s.snapPaths[i])
+	}
 }
 
 func (s *interfaceSuite) TearDownTest(c *check.C) {
 	s.SnappySuite.TearDownTest(c)
 
-	os.Remove(s.snapPath)
-	common.RemoveSnap(c, s.sampleSnap)
+	for i := 0; i < len(s.snapPaths); i++ {
+		os.Remove(s.snapPaths[i])
+		common.RemoveSnap(c, s.sampleSnaps[i])
+	}
 }
 
 func (s *interfaceSuite) TestPlugAutoconnect(c *check.C) {

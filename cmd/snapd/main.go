@@ -25,6 +25,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/ubuntu-core/snappy/cmd"
 	"github.com/ubuntu-core/snappy/daemon"
 	"github.com/ubuntu-core/snappy/logger"
 )
@@ -48,10 +49,10 @@ func run() error {
 	if err != nil {
 		return err
 	}
-
 	if err := d.Init(); err != nil {
 		return err
 	}
+	d.Version = cmd.Version
 
 	d.Start()
 

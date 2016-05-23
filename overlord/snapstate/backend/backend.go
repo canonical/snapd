@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2014-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,12 +17,8 @@
  *
  */
 
-package snap
+// Package backend implements the low-level primitives to manage the snaps and their installation on disk.
+package backend
 
-// LegacyYaml collects the legacy fields in snap.yaml that are up to be reworked.
-type LegacyYaml struct {
-	// legacy kernel snap support
-	Kernel string `yaml:"kernel,omitempty"`
-	Initrd string `yaml:"initrd,omitempty"`
-	Dtbs   string `yaml:"dtbs,omitempty"`
-}
+// Backend exposes all the low-level primitives to manage snaps and their installation on disk.
+type Backend struct{}

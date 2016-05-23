@@ -48,7 +48,7 @@ Auto-Connect: yes
 ### pulseaudio
 
 Can access the PulseAudio sound server. Allows for sound playback in games and
-media application.
+media application. It doesn't allow recording.
 
 Usage: common
 Auto-Connect: yes
