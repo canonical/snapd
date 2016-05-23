@@ -9,6 +9,7 @@ ubuntu-core-launcher (2.0) UNRELEASED; urgency=medium
     'snap-name $SECURITY_TAG $COMMAND...'. Previously, security tag was
     duplicated. In the future this will change once again, so that security
     tag is derived from an argument containing $SNAP_NAME and $APP_NAME. 
+  * Clean up tests so that shellcheck reports no more errors or warnings
 
  -- Zygmunt Krynicki <zygmunt.krynicki@canonical.com>  Sun, 22 May 2016 16:14:24 +0300
 

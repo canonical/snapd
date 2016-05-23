@@ -2,15 +2,15 @@
 
 set -e
 
-. $(pwd)/common.sh
+. "$(pwd)/common.sh"
 
-cat >$TMP/snap.name.app <<EOF
+cat >"$TMP/snap.name.app" <<EOF
 # some comment
 @complain
 EOF
 
 printf "Test that the @complain keyword works"
-if $L snap.name.app /bin/ls / >/dev/null; then
+if "$L" snap.name.app /bin/ls / >/dev/null; then
     PASS
 else
     FAIL
