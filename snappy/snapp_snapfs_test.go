@@ -177,7 +177,7 @@ WantedBy=multi-user.target
 
 }
 
-func (s *SquashfsTestSuite) TestRemoveSquashfsMountUnit(c *C) {
+func (s *SquashfsTestSuite) TestRemoveMountUnit(c *C) {
 	info := &snap.Info{
 		SideInfo: snap.SideInfo{
 			OfficialName: "foo",
@@ -195,7 +195,7 @@ func (s *SquashfsTestSuite) TestRemoveSquashfsMountUnit(c *C) {
 	c.Assert(osutil.FileExists(p), Equals, true)
 
 	// now call remove and ensure they are gone
-	err = removeSquashfsMount(info.MountDir(), inter)
+	err = removeMountUnit(info.MountDir(), inter)
 	c.Assert(err, IsNil)
 	p = filepath.Join(dirs.SnapServicesDir, "snaps-foo-13.mount")
 	c.Assert(osutil.FileExists(p), Equals, false)
