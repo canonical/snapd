@@ -63,6 +63,6 @@ func (s *SnapdirTestSuite) TestInstall(c *C) {
 }
 
 func (s *SnapdirTestSuite) TestUnpack(c *C) {
-	snap := &snapdir.Snap{}
-	c.Assert(snap.Unpack("src", "dst"), ErrorMatches, "cannot unpack a snapdir snap")
+	snap := &snapdir.SnapDir{}
+	c.Assert(snap.Unpack("src", "dst"), ErrorMatches, "cannot unpack a snap in try mode")
 }

@@ -44,5 +44,5 @@ func (s *FileSuite) TestFileOpenForSnapDir(c *C) {
 
 	f, err := snap.Open(sd)
 	c.Assert(err, IsNil)
-	c.Assert(f, FitsTypeOf, &snapdir.Snap{})
+	c.Assert(f, FitsTypeOf, &snapdir.SnapDir{})
 }
