@@ -95,21 +95,12 @@ func (s *abortSuite) TestAbortWithValidIdInDoingStatus(c *check.C) {
 	defer os.Remove(snapPath)
 	c.Assert(err, check.IsNil, check.Commentf("Error building local snap: %s", err))
 	common.InstallSnap(c, snapPath)
-	// the remove command will be cancelled, so we need to remove the snap at the end
-	defer common.RemoveSnap(c, data.BasicBinariesSnapName)
 
 	// run a command that keeps the mount point busy in the background
 	blockerBin := fmt.Sprintf("/snap/bin/%s.block", data.BasicBinariesSnapName)
 	blockerSrv := "umount-blocker"
 	cli.ExecCommand(c, "sudo", "systemd-run", "--unit", blockerSrv, blockerBin)
 	wait.ForActiveService(c, blockerSrv)
-	defer func() {
-		cli.ExecCommand(c, "sudo", "systemctl", "stop", blockerSrv)
-		wait.ForInactiveService(c, blockerSrv)
-
-		// this triggers an Ensure in the overlord, which makes sure that the aborted task has moved to Undone
-		cli.ExecCommandErr("sudo", "snap", "refresh", "ubuntu-core")
-	}()
 
 	go func() {
 		// try to remove, will block because of blockerSrv and fail after abort
@@ -124,8 +115,19 @@ func (s *abortSuite) TestAbortWithValidIdInDoingStatus(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	output := cli.ExecCommand(c, "sudo", "snap", "abort", doingID)
-	c.Assert(output, check.Equals, "")
+	defer func() {
+		cli.ExecCommand(c, "sudo", "systemctl", "stop", blockerSrv)
+		wait.ForInactiveService(c, blockerSrv)
+
+		// this triggers an Ensure in the overlord, which makes sure that the aborted task has moved to Undone
+		cli.ExecCommandErr("sudo", "snap", "refresh", "ubuntu-core")
+
+		wait.ForCommand(c, "Undone", "snap", "changes", doingID)
+		// the remove command will be cancelled, so we need to remove the snap at the end
+		common.RemoveSnap(c, data.BasicBinariesSnapName)
+	}()
+
+	cli.ExecCommand(c, "sudo", "snap", "abort", doingID)
 
 	abortedID := getAbortedRemoveID(data.BasicBinariesSnapName)
 	c.Assert(doingID, check.Equals, abortedID)
