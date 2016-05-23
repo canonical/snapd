@@ -227,9 +227,18 @@ func (x *cmdTry) Execute([]string) error {
 		return err
 	}
 
-	if _, err := wait(cli, changeID); err != nil {
+	chg, err := wait(cli, changeID)
+	if err != nil {
 		return err
 	}
+
+	// extract the snap name
+	var snapName string
+	if err := chg.Get("snap-name", &snapName); err != nil {
+		return fmt.Errorf("cannot extract the snap-name from local file %q: %s", name, err)
+	}
+	name = snapName
+
 	return listSnaps([]string{name})
 }
 
