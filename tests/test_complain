@@ -4,13 +4,13 @@ set -e
 
 . $(pwd)/common.sh
 
-cat >$TMP/myprofile <<EOF
+cat >$TMP/snap.name.app <<EOF
 # some comment
 @complain
 EOF
 
 printf "Test that the @complain keyword works"
-if $L snap.name.app myprofile /bin/ls / >/dev/null; then
+if $L snap.name.app /bin/ls / >/dev/null; then
     PASS
 else
     FAIL

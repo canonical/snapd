@@ -4,7 +4,7 @@ set -e
 
 . $(pwd)/common.sh
 
-cat >$TMP/myprofile <<EOF
+cat >$TMP/snap.name.app <<EOF
 # filter that works ok for true
 open
 close
@@ -35,7 +35,7 @@ EOF
 # ensure that the command "true" can run with the right filter
 
 printf "Test that good whitelist"
-if $L snap.name.app myprofile /bin/true 2>/dev/null; then
+if $L snap.name.app /bin/true 2>/dev/null; then
    PASS
 else
     dmesg|tail -n1

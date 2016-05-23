@@ -4,12 +4,12 @@ set -e
 
 . $(pwd)/common.sh
 
-cat >$TMP/unrestricted <<EOF
+cat >$TMP/snap.name.app-unrestricted <<EOF
 # some comment
 @unrestricted
 EOF
 
-cat >$TMP/restricted <<EOF
+cat >$TMP/snap.name.app-restricted <<EOF
 # filter that works ok for true
 open
 close
@@ -37,11 +37,11 @@ i-dont-exit
 EOF
 
 # $1: Path to check existence for and potentially remove at the end
-# $2: Profile name
+# $2: either 'restricted' or 'unrestricted'
 # $3: True if success is expected, false otherwise
 run_launcher() {
    pass=false
-   if $L snap.name.app $2 /bin/true 2>/dev/null; then
+   if $L snap.name.app-$2 /bin/true 2>/dev/null; then
       if $3; then
          if [ ! -d "$1" ]; then
             pass=false
@@ -83,27 +83,56 @@ run_current() {
 }
 
 printf "Test that an unrestricted launcher creates user data"
-run_current $TMP/user_data unrestricted true
+if run_current $TMP/user_data unrestricted true; then
+   PASS
+else
+   FAIL
+fi
 
 printf "Test that a restricted launcher creates user data"
-run_current $TMP/user_data restricted true
+if run_current $TMP/user_data restricted true; then
+    PASS
+else
+    FAIL
+fi
 
 printf "Test that an unrestricted launcher creates user data with parent directory"
-run_current $TMP/parent/user_data unrestricted true
+if run_current $TMP/parent/user_data unrestricted true; then
+    PASS
+else
+    FAIL
+fi
 
 printf "Test that a restricted launcher creates user data with parent directory"
-run_current $TMP/parent/user_data restricted true
+if run_current $TMP/parent/user_data restricted true; then
+    PASS
+else
+    FAIL
+fi
 
 printf "Test that user data can contain multiple path separators"
-run_current $TMP//user_data unrestricted true
+if run_current $TMP//user_data unrestricted true; then
+    PASS
+else
+    FAIL
+fi
 
 printf "Test that user data must be absolute"
-run_current "../foo" unrestricted false
+if run_current "../foo" unrestricted false; then
+    PASS
+else
+    FAIL
+fi
 
 printf "Testing that user data cannot be contained within a symlink"
 mkdir $TMP/nefarious_parent
 ln -s $TMP/nefarious_parent $TMP/parent
-run_current $TMP/parent/user_data unrestricted, false
+# NOTE: the comma below is significant
+if run_current $TMP/parent/user_data unrestricted, false; then
+    PASS
+else
+    FAIL
+fi
 
 printf "Test that an unrestricted launcher works when user data exists (current)"
 mkdir $TMP/user_data

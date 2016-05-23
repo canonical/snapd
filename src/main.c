@@ -478,13 +478,13 @@ void setup_user_data()
 
 int main(int argc, char **argv)
 {
-	const int NR_ARGS = 3;
+	const int NR_ARGS = 2;
 	if (argc < NR_ARGS + 1)
-		die("Usage: %s <appname> <apparmor> <binary>", argv[0]);
+		die("Usage: %s <appname> <security-tag> <binary>", argv[0]);
 
 	const char *appname = argv[1];
-	const char *aa_profile = argv[2];
-	const char *binary = argv[3];
+	const char *aa_profile = argv[1];
+	const char *binary = argv[2];
 	uid_t real_uid = getuid();
 	gid_t real_gid = getgid();
 

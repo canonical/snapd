@@ -5,7 +5,7 @@ set -e
 . $(pwd)/common.sh
 
 printf "Test that a non-existing profile causes the launcher to not start"
-if ! $L snap.name.app no-such-profile  /bin/ls >$TMP/testlog 2>&1 ; then
+if ! $L snap.name.app /bin/ls >$TMP/testlog 2>&1 ; then
    PASS
 else
    FAIL

@@ -6,12 +6,12 @@ set -e
 
 printf "Test seccomp filter (bad - too long)"
 
-cat >$TMP/myprofile <<EOF
+cat >$TMP/snap.name.app <<EOF
 # some comment
 baddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
 EOF
 
-if $L snap.name.app myprofile /bin/true 2>/dev/null; then
+if $L snap.name.app /bin/true 2>/dev/null; then
     # true returned successfully, length test failed
     FAIL
 fi

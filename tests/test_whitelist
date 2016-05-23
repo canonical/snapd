@@ -6,7 +6,7 @@ set -e
 
 printf "Test appname whitelist"
 
-cat >$TMP/myprofile <<EOF
+cat >$TMP/snap.name.app <<EOF
 # some comment
 @unrestricted
 EOF
@@ -14,7 +14,7 @@ EOF
 # good
 for name in snap.name.app snap.network-manager.NetworkManager snap.f00.bar-baz1 ; do
     echo -n "Test good appname whitelist - '$name'"
-    if $L snap.name.app myprofile /bin/true ; then
+    if $L snap.name.app /bin/true ; then
         PASS
     else
         FAIL
@@ -23,7 +23,7 @@ done
 
 for name in pkg-foo.bar.0binary-bar+baz pkg-foo_bar_1.1 appname/.. snap snap. snap.name. snap.name.app. snap!name.app snap.name!app sna.pname.app snap.n@me.app SNAP.name.app snap.Name.app snap.0name.app snap.-name.app snap.name.@app .name.app snap..name.app snap.name..app snap.name.app.. ; do
     echo -n "Test bad appname whitelist - '$name'"
-    if $L $name myprofile /bin/true 2>/dev/null; then
+    if $L $name /bin/true 2>/dev/null; then
         FAIL
     else
         PASS
@@ -31,7 +31,7 @@ for name in pkg-foo.bar.0binary-bar+baz pkg-foo_bar_1.1 appname/.. snap snap. sn
 done
 
 echo -n "Test bad appname whitelist - 'appname space'"
-if $L 'appname space' myprofile /bin/true 2>/dev/null; then
+if $L 'appname space' /bin/true 2>/dev/null; then
     # true returned successfully, our appname whitelist is broken!
     FAIL
 else
