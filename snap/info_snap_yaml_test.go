@@ -656,6 +656,8 @@ name: foo
 version: 1.2
 summary: foo app
 type: app
+epoch: 1*
+confinement: devmode
 description: |
     Foo provides useful services
 apps:
@@ -684,6 +686,8 @@ slots:
 	c.Check(info.Name(), Equals, "foo")
 	c.Check(info.Version, Equals, "1.2")
 	c.Check(info.Type, Equals, snap.TypeApp)
+	c.Check(info.Epoch, Equals, "1*")
+	c.Check(info.Confinement, Equals, snap.DevmodeConfinement)
 	c.Check(info.Summary(), Equals, "foo app")
 	c.Check(info.Description(), Equals, "Foo provides useful services\n")
 	c.Check(info.Apps, HasLen, 2)
@@ -803,6 +807,24 @@ version: 1.0
 	c.Assert(info.Type, Equals, snap.TypeApp)
 }
 
+func (s *YamlSuite) TestSnapYamlEpochDefault(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+	c.Assert(info.Epoch, Equals, "0")
+}
+
+func (s *YamlSuite) TestSnapYamlConfinementDefault(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+	c.Assert(info.Confinement, Equals, snap.StrictConfinement)
+}
+
 func (s *YamlSuite) TestSnapYamlMultipleArchitecturesParsing(c *C) {
 	y := []byte(`name: binary
 version: 1.0
@@ -919,5 +941,21 @@ apps:
 			ListenStream:    "listen_stream",
 			BusName:         "busName",
 		},
+	})
+}
+
+func (s *YamlSuite) TestSnapYamlGlobalEnvironment(c *C) {
+	y := []byte(`
+name: foo
+version: 1.0
+environment:
+ foo: bar
+ baz: boom
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+	c.Assert(info.Environment, DeepEquals, map[string]string{
+		"foo": "bar",
+		"baz": "boom",
 	})
 }
