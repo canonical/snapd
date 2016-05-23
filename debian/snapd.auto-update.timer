@@ -2,8 +2,8 @@
 Description=Ubuntu Core Auto Update
 
 [Timer]
-OnCalendar=23,05,11,17:00
-RandomizedDelaySec=6h
+OnCalendar=3:00
+RandomizedDelaySec=2h
 AccuracySec=10min
 Persistent=true
 
