@@ -343,8 +343,13 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Assert(result.Prices, DeepEquals, map[string]float64{"USD": 1.23})
 	c.Check(result.MustBuy, Equals, true)
 
+	// Make sure the epoch (currently not sent by the store) defaults to "0"
+	c.Check(result.Epoch, Equals, "0")
+
 	c.Check(repo.SuggestedCurrency(), Equals, "GBP")
 	c.Check(result.Private, Equals, true)
+
+	c.Check(snap.Validate(result), IsNil)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsSetsAuth(c *C) {

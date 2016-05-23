@@ -40,6 +40,7 @@ type snapYaml struct {
 	Summary          string                 `yaml:"summary"`
 	LicenseAgreement string                 `yaml:"license-agreement,omitempty"`
 	LicenseVersion   string                 `yaml:"license-version,omitempty"`
+	Epoch            string                 `yaml:"epoch,omitempty"`
 	Confinement      ConfinementType        `yaml:"confinement,omitempty"`
 	Plugs            map[string]interface{} `yaml:"plugs,omitempty"`
 	Slots            map[string]interface{} `yaml:"slots,omitempty"`
@@ -96,6 +97,10 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	if y.Type != "" {
 		typ = y.Type
 	}
+	epoch := "0"
+	if y.Epoch != "" {
+		epoch = y.Epoch
+	}
 	confinement := StrictConfinement
 	if y.Confinement != "" {
 		confinement = y.Confinement
@@ -111,6 +116,7 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 		OriginalSummary:     y.Summary,
 		LicenseAgreement:    y.LicenseAgreement,
 		LicenseVersion:      y.LicenseVersion,
+		Epoch:               epoch,
 		Confinement:         confinement,
 		Apps:                make(map[string]*AppInfo),
 		Plugs:               make(map[string]*PlugInfo),

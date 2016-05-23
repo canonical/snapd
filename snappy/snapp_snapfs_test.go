@@ -27,6 +27,7 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/partition"
+	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/squashfs"
 	"github.com/ubuntu-core/snappy/systemd"
@@ -230,6 +231,9 @@ vendor: Someone
 `
 
 func (s *SquashfsTestSuite) TestInstallOsSnapUpdatesBootloader(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	snapPkg := makeTestSnapPackage(c, packageOS)
 	si := &snap.SideInfo{
 		OfficialName: "ubuntu-core",
@@ -252,6 +256,9 @@ vendor: Someone
 `
 
 func (s *SquashfsTestSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	files := [][]string{
 		{"kernel.img", "I'm a kernel"},
 		{"initrd.img", "...and I'm an initrd"},
