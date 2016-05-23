@@ -238,7 +238,7 @@ func (app *AppInfo) SecurityTag() string {
 	return fmt.Sprintf("snap.%s.%s", app.Snap.Name(), app.Name)
 }
 
-func (app *AppInfo) EnvironmentFilePath() string {
+func (app *AppInfo) EnvironmentFile() string {
 	return filepath.Join(dirs.SnapEnvironmentDir, app.SecurityTag())
 }
 
