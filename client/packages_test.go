@@ -38,7 +38,7 @@ func (cs *clientSuite) TestClientSnapsCallsEndpoint(c *check.C) {
 
 func (cs *clientSuite) TestClientListRefreshSetsQuery(c *check.C) {
 	_, _ = cs.cli.List(&client.ListOptions{
-		SelectRefresh: true,
+		Refresh: true,
 	})
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/snaps")

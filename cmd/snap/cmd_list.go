@@ -54,8 +54,8 @@ func (s snapsByName) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 func (x *cmdList) Execute([]string) error {
 	opts := &client.ListOptions{
-		SelectRefresh: x.Refresh,
-		Names:         x.Positional.Snaps,
+		Refresh: x.Refresh,
+		Names:   x.Positional.Snaps,
 	}
 	return listSnaps(opts)
 }

@@ -191,7 +191,7 @@ type cmdRefresh struct {
 func refreshAll() error {
 	// FIXME: move this to snapd instead and have a new refresh-all endpoint
 	cli := Client()
-	updates, err := cli.List(&client.ListOptions{SelectRefresh: true})
+	updates, err := cli.List(&client.ListOptions{Refresh: true})
 	if err != nil {
 		return fmt.Errorf("cannot list updates: %s", err)
 	}
