@@ -101,6 +101,10 @@ func (client *Client) InstallPath(path string, options *SnapOptions) (changeID s
 
 // Try
 func (client *Client) Try(path string, options *SnapOptions) (changeID string, err error) {
+	if options == nil {
+		options = &SnapOptions{}
+	}
+
 	buf := bytes.NewBuffer(nil)
 	mw := multipart.NewWriter(buf)
 	mw.WriteField("action", "try")
