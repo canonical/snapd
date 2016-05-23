@@ -446,7 +446,7 @@ func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideI
 	// XXX: this is still done for now for this legacy Install to
 	// keep unit tests as they are working and as strawman
 	// behavior for current u-d-f
-	if newInfo.Revision != 0 { // not sideloaded
+	if newInfo.Revision.Store() {
 		if err := SaveManifest(newInfo); err != nil {
 			return nil, err
 		}
