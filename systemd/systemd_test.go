@@ -279,22 +279,28 @@ func (s *SystemdTestSuite) TestMountUnitPath(c *C) {
 }
 
 func (s *SystemdTestSuite) TestWriteMountUnit(c *C) {
-	mountUnitName, err := New("", nil).WriteMountUnitFile("foo", "/var/lib/snappy/snaps/foo_1.0.snap", "/apps/foo/1.0")
+	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
+	err := os.MkdirAll(filepath.Dir(mockSnapPath), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(mockSnapPath, nil, 0644)
+	c.Assert(err, IsNil)
+
+	mountUnitName, err := New("", nil).WriteMountUnitFile("foo", mockSnapPath, "/apps/foo/1.0")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
 	mount, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, mountUnitName))
 	c.Assert(err, IsNil)
-	c.Assert(string(mount), Equals, `[Unit]
+	c.Assert(string(mount), Equals, fmt.Sprintf(`[Unit]
 Description=Mount unit for foo
 
 [Mount]
-What=/var/lib/snappy/snaps/foo_1.0.snap
+What=%s
 Where=/apps/foo/1.0
 
 [Install]
 WantedBy=multi-user.target
-`)
+`, mockSnapPath))
 }
 
 func (s *SystemdTestSuite) TestWriteMountUnitForDirs(c *C) {
