@@ -1,3 +1,12 @@
+snapd (2.0.3+2) UNRELEASED; urgency=medium
+
+  * Add a further lintian override for the /snap directory so that the
+    package is not automatically rejected by the NEW queue; this directory
+    location is certainly subject to discussion for Debian, but let's have
+    the discussion rather than blocking the package at the archive level.
+
+ -- Steve Langasek <vorlon@debian.org>  Sun, 22 May 2016 17:35:00 -0700
+
 snapd (2.0.3+1) unstable; urgency=medium
 
   * Initial Debian upload.  Closes: #824943.
