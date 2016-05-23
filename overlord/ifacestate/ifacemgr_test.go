@@ -212,7 +212,7 @@ func (s *interfaceManagerSuite) mockSnap(c *C, yamlText string) *snap.Info {
 }
 
 func (s *interfaceManagerSuite) mockUpdatedSnap(c *C, yamlText string, revision int) *snap.Info {
-	sideInfo := &snap.SideInfo{Revision: revision}
+	sideInfo := &snap.SideInfo{Revision: snap.R(revision)}
 	snapInfo := snaptest.MockSnap(c, yamlText, sideInfo)
 
 	s.state.Lock()
@@ -451,7 +451,7 @@ func (s *interfaceManagerSuite) TestDoSetupProfilesAddsImplicitSlots(c *C) {
 	// Ensure that we have slots on the OS snap.
 	repo := mgr.Repository()
 	slots := repo.Slots(snapInfo.Name())
-	c.Assert(slots, HasLen, 16)
+	c.Assert(slots, HasLen, 17)
 }
 
 func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyReloadsConnectionsWhenInvokedOnPlugSide(c *C) {
@@ -466,7 +466,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyReloadsConnectionsWhenInv
 	s.testDoSetupSnapSecuirtyReloadsConnectionsWhenInvokedOn(c, snapInfo.Name(), snapInfo.Revision)
 }
 
-func (s *interfaceManagerSuite) testDoSetupSnapSecuirtyReloadsConnectionsWhenInvokedOn(c *C, snapName string, revision int) {
+func (s *interfaceManagerSuite) testDoSetupSnapSecuirtyReloadsConnectionsWhenInvokedOn(c *C, snapName string, revision snap.Revision) {
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
 
 	s.state.Lock()
@@ -570,7 +570,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesUsesFreshSnapInfo(c *C) {
 
 	// Sanity check, the revisions are different.
 	c.Assert(oldSnapInfo.Revision, Not(Equals), 42)
-	c.Assert(newSnapInfo.Revision, Equals, 42)
+	c.Assert(newSnapInfo.Revision, Equals, snap.R(42))
 
 	// Run the setup-profiles task for the new revision and let it finish.
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
