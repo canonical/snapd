@@ -42,6 +42,7 @@ type snapYaml struct {
 	LicenseVersion   string                 `yaml:"license-version,omitempty"`
 	Epoch            string                 `yaml:"epoch,omitempty"`
 	Confinement      ConfinementType        `yaml:"confinement,omitempty"`
+	Environment      map[string]string      `yaml:"environment,omitempty"`
 	Plugs            map[string]interface{} `yaml:"plugs,omitempty"`
 	Slots            map[string]interface{} `yaml:"slots,omitempty"`
 	Apps             map[string]appYaml     `yaml:"apps,omitempty"`
@@ -121,8 +122,13 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 		Apps:                make(map[string]*AppInfo),
 		Plugs:               make(map[string]*PlugInfo),
 		Slots:               make(map[string]*SlotInfo),
+		Environment:         make(map[string]string),
 	}
 	sort.Strings(snap.Assumes)
+	// Environment
+	for k, v := range y.Environment {
+		snap.Environment[k] = v
+	}
 	// Collect top-level definitions of plugs
 	for name, data := range y.Plugs {
 		iface, label, attrs, err := convertToSlotOrPlugData("plug", name, data)
