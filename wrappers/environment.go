@@ -43,7 +43,7 @@ func AddSnapEnvironment(s *snap.Info) error {
 		// FIXME: add support for per-app specific environment map
 		//        in snap.yaml too
 
-		if err := osutil.AtomicWriteFile(app.EnvironmentFilePath(), globalEnv.Bytes(), 0755, 0); err != nil {
+		if err := osutil.AtomicWriteFile(app.EnvironmentFile(), globalEnv.Bytes(), 0755, 0); err != nil {
 			return err
 		}
 	}
@@ -53,7 +53,7 @@ func AddSnapEnvironment(s *snap.Info) error {
 
 func RemoveSnapEnvironment(s *snap.Info) error {
 	for _, app := range s.Apps {
-		if err := os.Remove(app.EnvironmentFilePath()); err != nil && !os.IsNotExist(err) {
+		if err := os.Remove(app.EnvironmentFile()); err != nil && !os.IsNotExist(err) {
 			return err
 		}
 	}
