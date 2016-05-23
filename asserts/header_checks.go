@@ -28,10 +28,18 @@ import (
 
 // common checks used when decoding/assembling assertions
 
-func checkMandatory(headers map[string]string, name string) (string, error) {
+func checkExists(headers map[string]string, name string) (string, error) {
 	value, ok := headers[name]
 	if !ok {
 		return "", fmt.Errorf("%q header is mandatory", name)
+	}
+	return value, nil
+}
+
+func checkNotEmpty(headers map[string]string, name string) (string, error) {
+	value, err := checkExists(headers, name)
+	if err != nil {
+		return "", err
 	}
 	if len(value) == 0 {
 		return "", fmt.Errorf("%q header should not be empty", name)
@@ -70,7 +78,7 @@ func checkInteger(headers map[string]string, name string, defl int) (int, error)
 }
 
 func checkRFC3339Date(headers map[string]string, name string) (time.Time, error) {
-	dateStr, err := checkMandatory(headers, name)
+	dateStr, err := checkNotEmpty(headers, name)
 	if err != nil {
 		return time.Time{}, err
 	}
@@ -82,7 +90,7 @@ func checkRFC3339Date(headers map[string]string, name string) (time.Time, error)
 }
 
 func checkUint(headers map[string]string, name string, bitSize int) (uint64, error) {
-	valueStr, err := checkMandatory(headers, name)
+	valueStr, err := checkNotEmpty(headers, name)
 	if err != nil {
 		return 0, err
 	}
