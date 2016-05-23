@@ -21,6 +21,7 @@ package snap_test
 
 import (
 	"github.com/ubuntu-core/snappy/interfaces/builtin"
+	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snap"
 
 	. "gopkg.in/check.v1"
@@ -30,7 +31,10 @@ type SpecialSuite struct{}
 
 var _ = Suite(&SpecialSuite{})
 
-func (s *InfoSnapYamlTestSuite) TestAddImplicitSlots(c *C) {
+func (s *InfoSnapYamlTestSuite) TestAddImplicitSlotsOutsideClassic(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	osYaml := []byte("name: ubuntu-core\ntype: os\n")
 	info, err := snap.InfoFromSnapYaml(osYaml)
 	c.Assert(err, IsNil)
@@ -38,7 +42,21 @@ func (s *InfoSnapYamlTestSuite) TestAddImplicitSlots(c *C) {
 	c.Assert(info.Slots["network"].Interface, Equals, "network")
 	c.Assert(info.Slots["network"].Name, Equals, "network")
 	c.Assert(info.Slots["network"].Snap, Equals, info)
-	c.Assert(info.Slots, HasLen, 16)
+	c.Assert(info.Slots, HasLen, 13)
+}
+
+func (s *InfoSnapYamlTestSuite) TestAddImplicitSlotsOnClassic(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	osYaml := []byte("name: ubuntu-core\ntype: os\n")
+	info, err := snap.InfoFromSnapYaml(osYaml)
+	c.Assert(err, IsNil)
+	snap.AddImplicitSlots(info)
+	c.Assert(info.Slots["unity7"].Interface, Equals, "unity7")
+	c.Assert(info.Slots["unity7"].Name, Equals, "unity7")
+	c.Assert(info.Slots["unity7"].Snap, Equals, info)
+	c.Assert(info.Slots, HasLen, 17)
 }
 
 func (s *InfoSnapYamlTestSuite) TestImplicitSlotsAreRealInterfaces(c *C) {
@@ -47,6 +65,9 @@ func (s *InfoSnapYamlTestSuite) TestImplicitSlotsAreRealInterfaces(c *C) {
 		known[iface.Name()] = true
 	}
 	for _, ifaceName := range snap.ImplicitSlotsForTests {
+		c.Check(known[ifaceName], Equals, true)
+	}
+	for _, ifaceName := range snap.ImplicitClassicSlotsForTests {
 		c.Check(known[ifaceName], Equals, true)
 	}
 }

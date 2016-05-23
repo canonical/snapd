@@ -29,14 +29,14 @@ const (
 	BasicBinariesSnapName = "basic-binaries"
 	// BasicConfigSnapName is the name of the basic snap with config hook
 	BasicConfigSnapName = "basic-config"
-	// BasicFrameworkSnapName is the name of the basic framework snap
-	BasicFrameworkSnapName = "basic-framework"
 	// BasicServiceSnapName is the name of the basic snap with a service
 	BasicServiceSnapName = "basic-service"
 	// BasicDesktopSnapName is the name of the snap with a desktop file
 	BasicDesktopSnapName = "basic-desktop"
 	// NetworkConsumerSnapName is the name of the snap with network plug
 	NetworkConsumerSnapName = "network-consumer"
+	// NetworkBindConsumerSnapName is the name of the snap with network plug
+	NetworkBindConsumerSnapName = "network-bind-consumer"
 	// HomeConsumerSnapName is the name of the snap with home plug
 	HomeConsumerSnapName = "home-consumer"
 	// WrongYamlSnapName is the name of a snap with an invalid meta yaml

@@ -42,28 +42,35 @@ var defaultTemplate = []byte(`
   # for python apps/services
   #include <abstractions/python>
   /usr/bin/python{,2,2.[0-9]*,3,3.[0-9]*} ixr,
-  deny /usr/lib/python3*/{,**/}__pycache__/ w,              # noisy
+
+  # explicitly deny noisy denials to read-only filesystems (see LP: #1496895
+  # for details)
+  deny /usr/lib/python3*/{,**/}__pycache__/ w,
   deny /usr/lib/python3*/{,**/}__pycache__/**.pyc.[0-9]* w,
+  deny @{INSTALL_DIR}/@{SNAP_NAME}/**/__pycache__/             w,
+  deny @{INSTALL_DIR}/@{SNAP_NAME}/**/__pycache__/*.pyc.[0-9]* w,
 
   # for perl apps/services
   #include <abstractions/perl>
   /usr/bin/perl{,5*} ixr,
 
-# TODO: we must remove these since things like 'container-management' will be
-# broken if we have explicit denies. However, the development tools need to be
-# clear that these can't be allowed.
+  # Note: the following dangerous accesses should not be allowed in most
+  # policy, but we cannot explicitly deny since other trusted interfaces might
+  # add them.
   # Explicitly deny ptrace for now since it can be abused to break out of the
   # seccomp sandbox. https://lkml.org/lkml/2015/3/18/823
-#  audit deny ptrace (trace),
+  #audit deny ptrace (trace),
 
   # Explicitly deny capability mknod so apps can't create devices
-#  audit deny capability mknod,
+  #audit deny capability mknod,
 
   # Explicitly deny mount, remount and umount so apps can't modify things in
   # their namespace
-#  audit deny mount,
-#  audit deny remount,
-#  audit deny umount,
+  #audit deny mount,
+  #audit deny remount,
+  #audit deny umount,
+
+  # End dangerous accesses
 
   # for bash 'binaries' (do *not* use abstractions/bash)
   # user-specific bash files
@@ -76,7 +83,6 @@ var defaultTemplate = []byte(`
   /etc/profile r,
   /usr/share/terminfo/** r,
   /etc/inputrc r,
-  deny @{HOME}/.inputrc r,
   # Common utilities for shell scripts
   /{,usr/}bin/{,g,m}awk ixr,
   /{,usr/}bin/basename ixr,
@@ -169,8 +175,11 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/uptime ixr,
   @{PROC}/uptime r,
   @{PROC}/loadavg r,
-  # this is an information leak
-  deny /{,var/}run/utmp r,
+
+  # Note: for now, don't explicitly deny this noisy denial so --devmode isn't
+  # broken but eventually we may conditionally deny this since it is an
+  # information leak.
+  #deny /{,var/}run/utmp r,
 
   # java
   @{PROC}/@{pid}/ r,
@@ -184,11 +193,11 @@ var defaultTemplate = []byte(`
   /sys/devices/system/cpu/** r,
   /sys/kernel/mm/transparent_hugepage/enabled r,
   /sys/kernel/mm/transparent_hugepage/defrag r,
-  # NOTE: this leaks running process and java seems to want it, but operates
-  # ok without it. Deny for now to silence the denial but we could allow
-  # owner match until AppArmor kernel var is available to solve this properly.
-  deny @{PROC}/@{pid}/cmdline r,
-  #owner @{PROC}/@{pid}/cmdline r,
+  # NOTE: this leaks running process but java seems to want it (even though it
+  # seems to operate ok without it) and SDL apps crash without it. Allow owner
+  # match until AppArmor kernel var is available to solve this properly (see
+  # LP: #1546825 for details)
+  owner @{PROC}/@{pid}/cmdline r,
 
   # Miscellaneous accesses
   /etc/mime.types r,
@@ -223,10 +232,6 @@ var defaultTemplate = []byte(`
   @{INSTALL_DIR}/@{SNAP_NAME}/@{SNAP_REVISION}/    r,
   @{INSTALL_DIR}/@{SNAP_NAME}/@{SNAP_REVISION}/**  mrklix,
 
-  # Don't log noisy python denials (see LP: #1496895 for more details)
-  deny @{INSTALL_DIR}/@{SNAP_NAME}/**/__pycache__/             w,
-  deny @{INSTALL_DIR}/@{SNAP_NAME}/**/__pycache__/*.pyc.[0-9]* w,
-
   # Read-only home area for other versions
   owner @{HOME}/snap/@{SNAP_NAME}/                  r,
   owner @{HOME}/snap/@{SNAP_NAME}/**                mrkix,
@@ -249,11 +254,9 @@ var defaultTemplate = []byte(`
   /tmp/   r,
   /tmp/** mrwlkix,
 
-  # Also do the same for shm
-  /{dev,run}/shm/snap/@{SNAP_NAME}/                  r,
-  /{dev,run}/shm/snap/@{SNAP_NAME}/**                rk,
-  /{dev,run}/shm/snap/@{SNAP_NAME}/@{SNAP_REVISION}/   r,
-  /{dev,run}/shm/snap/@{SNAP_NAME}/@{SNAP_REVISION}/** mrwlkix,
+  # App-specific access to files and directories in /dev/shm. We allow file
+  # access in /dev/shm for shm_open() and files in subdirectories for open()
+  /{dev,run}/shm/snap.@{SNAP_NAME}.** mrwlkix,
 
   # Allow apps from the same package to communicate with each other via an
   # abstract or anonymous socket

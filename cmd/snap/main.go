@@ -84,14 +84,28 @@ func addExperimentalCommand(name, shortHelp, longHelp string, builder func() fla
 	return info
 }
 
+type parserSetter interface {
+	setParser(*flags.Parser)
+}
+
 // Parser creates and populates a fresh parser.
 // Since commands have local state a fresh parser is required to isolate tests
 // from each other.
 func Parser() *flags.Parser {
 	parser := flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash)
+	parser.ShortDescription = "Tool to interact with snaps"
+	parser.LongDescription = `
+The snap tool interacts with the snapd daemon to control the snappy software platform.
+`
+
 	// Add all regular commands
 	for _, c := range commands {
-		cmd, err := parser.AddCommand(c.name, c.shortHelp, strings.TrimSpace(c.longHelp), c.builder())
+		obj := c.builder()
+		if x, ok := obj.(parserSetter); ok {
+			x.setParser(parser)
+		}
+
+		cmd, err := parser.AddCommand(c.name, c.shortHelp, strings.TrimSpace(c.longHelp), obj)
 		if err != nil {
 
 			logger.Panicf("cannot add command %q: %v", c.name, err)
@@ -132,13 +146,8 @@ func init() {
 
 func main() {
 	if err := run(); err != nil {
-		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
-			fmt.Fprintf(Stdout, "%v\n", err)
-			os.Exit(0)
-		} else {
-			fmt.Fprintf(Stderr, "error: %v\n", err)
-			os.Exit(1)
-		}
+		fmt.Fprintf(Stderr, "error: %v\n", err)
+		os.Exit(1)
 	}
 }
 
@@ -146,10 +155,19 @@ func run() error {
 	parser := Parser()
 	_, err := parser.Parse()
 	if err != nil {
-		if _, ok := err.(*flags.Error); !ok {
-			logger.Debugf("cannot parse arguments: %v: %v", os.Args, err)
+		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
+			if parser.Command.Active != nil && parser.Command.Active.Name == "help" {
+				parser.Command.Active = nil
+			}
+			parser.WriteHelp(Stdout)
+			return nil
+
 		}
-		return err
+		if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindLoginRequired {
+			return fmt.Errorf("%s (snap login --help)", e.Message)
+
+		}
 	}
-	return nil
+
+	return err
 }

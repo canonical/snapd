@@ -22,12 +22,12 @@ package client
 import (
 	"fmt"
 	"net/url"
-	"strings"
 	"time"
 )
 
 // Snap holds the data for a snap as obtained from snapd.
 type Snap struct {
+	ID            string    `json:"id"`
 	Summary       string    `json:"summary"`
 	Description   string    `json:"description"`
 	DownloadSize  int64     `json:"download-size"`
@@ -44,13 +44,6 @@ type Snap struct {
 	Prices map[string]float64 `json:"prices"`
 }
 
-// SnapFilter is used to filter snaps by source, name and/or type
-type SnapFilter struct {
-	Sources []string
-	Types   []string
-	Query   string
-}
-
 // Statuses and types a snap may have.
 const (
 	StatusAvailable = "available"
@@ -65,34 +58,44 @@ const (
 )
 
 type ResultInfo struct {
-	Sources           []string `json:"sources"`
-	SuggestedCurrency string   `json:"suggested-currency"`
+	SuggestedCurrency string `json:"suggested-currency"`
 }
 
-// Snaps returns the list of all snaps installed on the system and
-// available for install from the store for this system.
-func (client *Client) Snaps() ([]*Snap, *ResultInfo, error) {
-	return client.snapsFromPath("/v2/snaps", nil)
+// ListSnaps returns the list of all snaps installed on the system
+// with names in the given list; if the list is empty, all snaps.
+func (client *Client) ListSnaps(names []string) ([]*Snap, error) {
+	snaps, _, err := client.snapsFromPath("/v2/snaps", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(names) == 0 {
+		return snaps, nil
+	}
+
+	wanted := make(map[string]bool, len(names))
+	for _, name := range names {
+		wanted[name] = true
+	}
+
+	var result []*Snap
+	for _, snap := range snaps {
+		if wanted[snap.Name] {
+			result = append(result, snap)
+		}
+	}
+
+	return result, nil
 }
 
-// FilterSnaps returns a list of snaps per Snaps() but filtered by source, name
-// and/or type
-func (client *Client) FilterSnaps(filter SnapFilter) ([]*Snap, *ResultInfo, error) {
+// FindSnaps returns a list of snaps available for install from the
+// store for this system and that match the query
+func (client *Client) FindSnaps(query string) ([]*Snap, *ResultInfo, error) {
 	q := url.Values{}
 
-	if filter.Query != "" {
-		q.Set("q", filter.Query)
-	}
+	q.Set("q", query)
 
-	if len(filter.Sources) > 0 {
-		q.Set("sources", strings.Join(filter.Sources, ","))
-	}
-
-	if len(filter.Types) > 0 {
-		q.Set("types", strings.Join(filter.Types, ","))
-	}
-
-	return client.snapsFromPath("/v2/snaps", q)
+	return client.snapsFromPath("/v2/find", q)
 }
 
 func (client *Client) snapsFromPath(path string, query url.Values) ([]*Snap, *ResultInfo, error) {

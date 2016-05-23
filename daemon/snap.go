@@ -20,6 +20,7 @@
 package daemon
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -29,6 +30,8 @@ import (
 	"github.com/ubuntu-core/snappy/overlord/state"
 	"github.com/ubuntu-core/snappy/snap"
 )
+
+var errNoSnap = errors.New("no snap installed")
 
 // snapIcon tries to find the icon inside the snap
 func snapIcon(info *snap.Info) string {
@@ -52,27 +55,27 @@ func snapDate(info *snap.Info) time.Time {
 }
 
 // localSnapInfo returns the information about the current snap for the given name plus the SnapState with the active flag and other snap revisions.
-func localSnapInfo(st *state.State, name string) (info *snap.Info, active bool, err error) {
+func localSnapInfo(st *state.State, name string) (*snap.Info, *snapstate.SnapState, error) {
 	st.Lock()
 	defer st.Unlock()
 
 	var snapst snapstate.SnapState
-	err = snapstate.Get(st, name, &snapst)
+	err := snapstate.Get(st, name, &snapst)
 	if err != nil && err != state.ErrNoState {
-		return nil, false, fmt.Errorf("cannot consult state: %v", err)
+		return nil, nil, fmt.Errorf("cannot consult state: %v", err)
 	}
 
 	cur := snapst.Current()
 	if cur == nil {
-		return nil, false, nil
+		return nil, nil, errNoSnap
 	}
 
-	info, err = snap.ReadInfo(name, cur)
+	info, err := snap.ReadInfo(name, cur)
 	if err != nil {
-		return nil, false, fmt.Errorf("cannot read snap details: %v", err)
+		return nil, nil, fmt.Errorf("cannot read snap details: %v", err)
 	}
 
-	return info, snapst.Active, nil
+	return info, &snapst, nil
 }
 
 type aboutSnap struct {
@@ -108,123 +111,50 @@ func allLocalSnapInfos(st *state.State) ([]aboutSnap, error) {
 	return about, firstErr
 }
 
-// Map a localSnap information plus the given active flag to a
-// map[string]interface{}, augmenting it with the given (purportedly remote)
-// snap.
-//
-// It is a programming error (->panic) to call mapSnap with both arguments
-// nil.
-func mapSnap(localSnap *snap.Info, active bool, remoteSnap *snap.Info) map[string]interface{} {
-	var version, icon, name, developer, _type, description, summary string
-	var revision int
-
-	rollback := -1
-	update := -1
-
-	if localSnap == nil && remoteSnap == nil {
-		panic("no localSnaps & remoteSnap is nil -- how did i even get here")
+func mapLocal(localSnap *snap.Info, snapst *snapstate.SnapState) map[string]interface{} {
+	status := "installed"
+	if snapst.Active {
+		status = "active"
 	}
 
+	return map[string]interface{}{
+		"description":    localSnap.Description(),
+		"developer":      localSnap.Developer,
+		"icon":           snapIcon(localSnap),
+		"id":             localSnap.SnapID,
+		"install-date":   snapDate(localSnap),
+		"installed-size": localSnap.Size,
+		"name":           localSnap.Name(),
+		"revision":       localSnap.Revision,
+		"status":         status,
+		"summary":        localSnap.Summary(),
+		"type":           string(localSnap.Type),
+		"version":        localSnap.Version,
+	}
+}
+
+func mapRemote(remoteSnap *snap.Info) map[string]interface{} {
 	status := "available"
-	downloadSize := int64(-1)
-	var prices map[string]float64
-
-	if remoteSnap != nil {
-		prices = remoteSnap.Prices
-	}
-
-	if localSnap != nil {
-		if active {
-			status = "active"
-		} else {
-			status = "installed"
-		}
-	}
-
-	var ref *snap.Info
-	if localSnap != nil {
-		ref = localSnap
-	} else {
-		ref = remoteSnap
-	}
-
-	name = ref.Name()
-	developer = ref.Developer
-	version = ref.Version
-	revision = ref.Revision
-	_type = string(ref.Type)
-
-	if localSnap != nil {
-		icon = snapIcon(localSnap)
-		summary = localSnap.Summary()
-		description = localSnap.Description()
-	}
-
-	if remoteSnap != nil {
-		if icon == "" {
-			icon = remoteSnap.IconURL
-		}
-		if description == "" {
-			description = remoteSnap.Description()
-		}
-		if summary == "" {
-			summary = remoteSnap.Summary()
-		}
-
-		downloadSize = remoteSnap.Size
-	}
-
-	if localSnap != nil && active {
-		if remoteSnap != nil && revision != remoteSnap.Revision {
-			update = remoteSnap.Revision
-		}
-
-		// WARNING this'll only get the right* rollback if
-		// only two things can be installed
-		//
-		// *) not the actual right rollback because we aren't
-		// marking things failed etc etc etc)
-		//
-		//if len(localSnaps) == 2 {
-		//	rollback = localSnaps[1^idx].Revision()
-		//}
+	if remoteSnap.MustBuy {
+		status = "priced"
 	}
 
 	result := map[string]interface{}{
-		"icon":          icon,
-		"name":          name,
-		"developer":     developer,
+		"description":   remoteSnap.Description(),
+		"developer":     remoteSnap.Developer,
+		"download-size": remoteSnap.Size,
+		"icon":          snapIcon(remoteSnap),
+		"id":            remoteSnap.SnapID,
+		"name":          remoteSnap.Name(),
+		"revision":      remoteSnap.Revision,
 		"status":        status,
-		"type":          _type,
-		"vendor":        "",
-		"revision":      revision,
-		"version":       version,
-		"description":   description,
-		"summary":       summary,
-		"download-size": downloadSize,
+		"summary":       remoteSnap.Summary(),
+		"type":          string(remoteSnap.Type),
+		"version":       remoteSnap.Version,
 	}
 
-	if len(prices) > 0 {
-		result["prices"] = prices
+	if len(remoteSnap.Prices) > 0 {
+		result["prices"] = remoteSnap.Prices
 	}
-
-	if localSnap != nil {
-		channel := localSnap.Channel
-		if channel != "" {
-			result["channel"] = channel
-		}
-
-		result["installed-size"] = localSnap.Size
-		result["install-date"] = snapDate(localSnap)
-	}
-
-	if rollback > -1 {
-		result["rollback-available"] = rollback
-	}
-
-	if update > -1 {
-		result["update-available"] = update
-	}
-
 	return result
 }

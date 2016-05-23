@@ -118,36 +118,12 @@ func (s *SnapTestSuite) TestLocalSnapInstallWithBlessedMetadataOverridingName(c 
 	c.Assert(osutil.FileExists(baseDir), Equals, true)
 }
 
-// if the snap asks for accepting a license, and an agreer isn't provided,
-// install fails
-func (s *SnapTestSuite) TestLocalSnapInstallMissingAccepterFails(c *C) {
-	pkg := makeTestSnapPackage(c, `
-name: foo
-version: 1.0
-license-agreement: explicit`)
-	_, err := (&Overlord{}).Install(pkg, 0, nil)
-	c.Check(err, Equals, ErrLicenseNotAccepted)
-	c.Check(IsLicenseNotAccepted(err), Equals, true)
-}
-
-// if the snap asks for accepting a license, and an agreer is provided, and
-// Agreed returns false, install fails
-func (s *SnapTestSuite) TestLocalSnapInstallNegAccepterFails(c *C) {
-	pkg := makeTestSnapPackage(c, `
-name: foo
-version: 1.0
-license-agreement: explicit`)
-	_, err := (&Overlord{}).Install(pkg, 0, &MockProgressMeter{y: false})
-	c.Check(err, Equals, ErrLicenseNotAccepted)
-	c.Check(IsLicenseNotAccepted(err), Equals, true)
-}
-
 func (s *SnapTestSuite) TestLocalSnapInstallMissingAssumes(c *C) {
 	pkg := makeTestSnapPackage(c, `
 name: foo
 version: 1.0
 assumes: [f1, f2]`)
-	_, err := (&Overlord{}).Install(pkg, 0, &MockProgressMeter{y: false})
+	_, err := (&Overlord{}).Install(pkg, 0, &MockProgressMeter{})
 	c.Check(err, ErrorMatches, `snap "foo" assumes unsupported features: f1, f2.*`)
 }
 
@@ -156,115 +132,8 @@ func (s *SnapTestSuite) TestLocalSnapInstallProvidedAssumes(c *C) {
 name: foo
 version: 1.0
 assumes: [common-data-dir]`)
-	_, err := (&Overlord{}).Install(pkg, 0, &MockProgressMeter{y: false})
+	_, err := (&Overlord{}).Install(pkg, 0, &MockProgressMeter{})
 	c.Check(err, IsNil)
-}
-
-// if the snap asks for accepting a license, and an agreer is provided, but
-// the click has no license, install fails
-func (s *SnapTestSuite) TestLocalSnapInstallNoLicenseFails(c *C) {
-	pkg := makeTestSnapPackageFull(c, `
-name: foo
-version: 1.0
-license-agreement: explicit`, false)
-	_, err := (&Overlord{}).Install(pkg, 0, &MockProgressMeter{y: true})
-	c.Check(err, Equals, ErrLicenseNotProvided)
-	c.Check(IsLicenseNotAccepted(err), Equals, false)
-}
-
-// if the snap asks for accepting a license, and an agreer is provided, and
-// Agreed returns true, install succeeds
-func (s *SnapTestSuite) TestLocalSnapInstallPosAccepterWorks(c *C) {
-	pkg := makeTestSnapPackage(c, `
-name: foo
-version: 1.0
-license-agreement: explicit`)
-	_, err := (&Overlord{}).Install(pkg, 0, &MockProgressMeter{y: true})
-	c.Check(err, Equals, nil)
-	c.Check(IsLicenseNotAccepted(err), Equals, false)
-}
-
-// Agreed is given reasonable values for intro and license
-func (s *SnapTestSuite) TestLocalSnapInstallAccepterReasonable(c *C) {
-	pkg := makeTestSnapPackage(c, `
-name: foobar
-version: 1.0
-license-agreement: explicit`)
-	ag := &MockProgressMeter{y: true}
-	_, err := (&Overlord{}).Install(pkg, 0, ag)
-	c.Assert(err, Equals, nil)
-	c.Check(IsLicenseNotAccepted(err), Equals, false)
-	c.Check(ag.intro, Matches, ".*foobar.*requires.*license.*")
-	c.Check(ag.license, Equals, "WTFPL")
-}
-
-// If a previous version is installed with the same license version, the agreer
-// isn't called
-func (s *SnapTestSuite) TestPreviouslyAcceptedLicense(c *C) {
-	ag := &MockProgressMeter{y: true}
-	yaml := `name: foox
-license-agreement: explicit
-license-version: 2
-`
-	yamlFile, err := makeInstalledMockSnap(yaml+"version: 1", 11)
-	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
-	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testDeveloper+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
-	installedSnap, err := NewInstalledSnap(yamlFile)
-	c.Assert(err, IsNil)
-	c.Assert(ActivateSnap(installedSnap, ag), IsNil)
-
-	pkg := makeTestSnapPackage(c, yaml+"version: 2")
-	_, err = (&Overlord{}).InstallWithSideInfo(pkg, &snap.SideInfo{OfficialName: "foox"}, 0, ag)
-	c.Assert(err, Equals, nil)
-	c.Check(IsLicenseNotAccepted(err), Equals, false)
-	c.Check(ag.intro, Equals, "")
-	c.Check(ag.license, Equals, "")
-}
-
-// If a previous version is installed with the same license version, but without
-// explicit license agreement set, the agreer *is* called
-func (s *SnapTestSuite) TestSameLicenseVersionButNotRequired(c *C) {
-	ag := &MockProgressMeter{y: true}
-	yaml := `name: foox
-license-version: 2
-version: 1.0
-`
-	yamlFile, err := makeInstalledMockSnap(yaml+"version: 1", 11)
-	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
-	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testDeveloper+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
-	snap, err := NewInstalledSnap(yamlFile)
-	c.Assert(err, IsNil)
-	c.Assert(ActivateSnap(snap, ag), IsNil)
-
-	pkg := makeTestSnapPackage(c, yaml+"version: 2\nlicense-agreement: explicit\n")
-	_, err = (&Overlord{}).Install(pkg, 0, ag)
-	c.Check(IsLicenseNotAccepted(err), Equals, false)
-	c.Assert(err, Equals, nil)
-	c.Check(ag.license, Equals, "WTFPL")
-}
-
-// If a previous version is installed with a different license version, the
-// agreer *is* called
-func (s *SnapTestSuite) TestDifferentLicenseVersion(c *C) {
-	ag := &MockProgressMeter{y: true}
-	yaml := `name: foox
-license-agreement: explicit
-`
-	yamlFile, err := makeInstalledMockSnap(yaml+"license-version: 2\nversion: 1", 11)
-	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
-	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testDeveloper+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
-	snap, err := NewInstalledSnap(yamlFile)
-	c.Assert(err, IsNil)
-	c.Assert(ActivateSnap(snap, ag), IsNil)
-
-	pkg := makeTestSnapPackage(c, yaml+"license-version: 3\nversion: 2")
-	_, err = (&Overlord{}).Install(pkg, 0, ag)
-	c.Assert(err, Equals, nil)
-	c.Check(IsLicenseNotAccepted(err), Equals, false)
-	c.Check(ag.license, Equals, "WTFPL")
 }
 
 func (s *SnapTestSuite) TestSnapRemove(c *C) {

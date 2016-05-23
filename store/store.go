@@ -69,6 +69,7 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	info.AnonDownloadURL = d.AnonDownloadURL
 	info.DownloadURL = d.DownloadURL
 	info.Prices = d.Prices
+	info.Private = d.Private
 	return info
 }
 
@@ -77,6 +78,7 @@ type SnapUbuntuStoreConfig struct {
 	SearchURI     *url.URL
 	BulkURI       *url.URL
 	AssertionsURI *url.URL
+	PurchasesURI  *url.URL
 }
 
 // SnapUbuntuStoreRepository represents the ubuntu snap store
@@ -85,6 +87,7 @@ type SnapUbuntuStoreRepository struct {
 	searchURI     *url.URL
 	bulkURI       *url.URL
 	assertionsURI *url.URL
+	purchasesURI  *url.URL
 	// reused http client
 	client *http.Client
 
@@ -143,9 +146,9 @@ func assertsURL() string {
 
 func myappsURL() string {
 	if os.Getenv("SNAPPY_USE_STAGING_MYAPPS") != "" {
-		return "https://myapps.developer.staging.ubuntu.com/api/2.0"
+		return "https://myapps.developer.staging.ubuntu.com/"
 	}
-	return "https://myapps.developer.ubuntu.com/api/2.0"
+	return "https://myapps.developer.ubuntu.com/"
 }
 
 var defaultConfig = SnapUbuntuStoreConfig{}
@@ -180,6 +183,10 @@ func init() {
 		panic(err)
 	}
 
+	defaultConfig.PurchasesURI, err = url.Parse(myappsURL() + "dev/api/snap-purchases/")
+	if err != nil {
+		panic(err)
+	}
 }
 
 type searchResults struct {
@@ -199,6 +206,7 @@ func NewUbuntuStoreSnapRepository(cfg *SnapUbuntuStoreConfig, storeID string) *S
 		searchURI:     cfg.SearchURI,
 		bulkURI:       cfg.BulkURI,
 		assertionsURI: cfg.AssertionsURI,
+		purchasesURI:  cfg.PurchasesURI,
 		client:        &http.Client{},
 	}
 }
@@ -215,7 +223,7 @@ func (s *SnapUbuntuStoreRepository) applyUbuntuStoreHeaders(req *http.Request, a
 	req.Header.Set("Accept", accept)
 
 	req.Header.Set("X-Ubuntu-Architecture", string(arch.UbuntuArchitecture()))
-	req.Header.Set("X-Ubuntu-Release", release.Get().Series)
+	req.Header.Set("X-Ubuntu-Release", release.Series)
 	req.Header.Set("X-Ubuntu-Wire-Protocol", UbuntuCoreWireProtocol)
 
 	if s.storeID != "" {
@@ -232,6 +240,172 @@ func (s *SnapUbuntuStoreRepository) checkStoreResponse(resp *http.Response) {
 		s.suggestedCurrency = suggestedCurrency
 		s.mu.Unlock()
 	}
+}
+
+// purchase encapsulates the purchase data sent to us from the software center agent.
+//
+// When making a purchase request, the State "InProgress", together with a RedirectTo
+// URL may be received. In-this case, the user must be directed to that webpage in
+// order to complete the purchase (e.g. to enter 3D-secure credentials).
+// Additionally, Partner ID may be recieved as an extended header "X-Partner-Id",
+// this should be included in the follow-on requests to the redirect URL.
+//
+// HTTP/1.1 200 OK
+// Content-Type: application/json; charset=utf-8
+//
+// [
+//   {
+//     "open_id": "https://login.staging.ubuntu.com/+id/open_id",
+//     "snap_id": "8nzc1x4iim2xj1g2ul64",
+//     "refundable_until": "2015-07-15 18:46:21",
+//     "state": "Complete"
+//   },
+//   {
+//     "open_id": "https://login.staging.ubuntu.com/+id/open_id",
+//     "snap_id": "8nzc1x4iim2xj1g2ul64",
+//     "item_sku": "item-1-sku",
+//     "purchase_id": "1",
+//     "refundable_until": null,
+//     "state": "Complete"
+//   },
+//   {
+//     "open_id": "https://login.staging.ubuntu.com/+id/open_id",
+//     "snap_id": "12jdhg1j2dgj12dgk1jh",
+//     "refundable_until": "2015-07-17 11:33:29",
+//     "state": "Complete"
+//   }
+// ]
+type purchase struct {
+	OpenID          string `json:"open_id"`
+	SnapID          string `json:"snap_id"`
+	RefundableUntil string `json:"refundable_until"`
+	State           string `json:"state"`
+	ItemSKU         string `json:"item_sku,omitempty"`
+	PurchaseID      string `json:"purchase_id,omitempty"`
+	RedirectTo      string `json:"redirect_to,omitempty"`
+}
+
+func (s *SnapUbuntuStoreRepository) getPurchasesFromURL(url *url.URL, channel string, auther Authenticator) ([]*purchase, error) {
+	if auther == nil {
+		return nil, fmt.Errorf("cannot obtain known purchases from store: no authentication credentials provided")
+	}
+
+	req, err := http.NewRequest("GET", url.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	s.applyUbuntuStoreHeaders(req, "", auther)
+	req.Header.Set("X-Ubuntu-Device-Channel", channel)
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var purchases []*purchase
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&purchases); err != nil {
+			return nil, fmt.Errorf("cannot decode known purchases from store: %v", err)
+		}
+	case http.StatusUnauthorized:
+		// TODO handle token expiry and refresh
+		return nil, ErrInvalidCredentials
+	default:
+		return nil, fmt.Errorf("cannot obtain known purchases from store: server returned %v code", resp.StatusCode)
+	}
+
+	return purchases, nil
+}
+
+func setMustBuy(snaps []*snap.Info) {
+	for _, info := range snaps {
+		if len(info.Prices) != 0 {
+			info.MustBuy = true
+		}
+	}
+}
+
+func hasPriced(snaps []*snap.Info) bool {
+	// Search through the list of snaps to see if any are priced
+	for _, info := range snaps {
+		if len(info.Prices) != 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// decorateAllPurchases sets the MustBuy property of each snap in the given list according to the user's known purchases.
+func (s *SnapUbuntuStoreRepository) decoratePurchases(snaps []*snap.Info, channel string, auther Authenticator) error {
+	// Mark every non-free snap as must buy until we know better.
+	setMustBuy(snaps)
+
+	if auther == nil {
+		return nil
+	}
+
+	if !hasPriced(snaps) {
+		return nil
+	}
+
+	var err error
+	var purchasesURL *url.URL
+
+	if len(snaps) == 1 {
+		// If we only have a single snap, we should only find the purchases for that snap
+		purchasesURL, err = s.purchasesURI.Parse(snaps[0].SnapID + "/")
+		if err != nil {
+			return err
+		}
+		q := purchasesURL.Query()
+		q.Set("include_item_purchases", "true")
+		purchasesURL.RawQuery = q.Encode()
+	} else {
+		// Inconsistently, global search implies include_item_purchases.
+		purchasesURL = s.purchasesURI
+	}
+
+	purchases, err := s.getPurchasesFromURL(purchasesURL, channel, auther)
+	if err != nil {
+		return err
+	}
+
+	// Group purchases by snap ID.
+	purchasesByID := make(map[string][]*purchase)
+	for _, purchase := range purchases {
+		purchasesByID[purchase.SnapID] = append(purchasesByID[purchase.SnapID], purchase)
+	}
+
+	for _, info := range snaps {
+		info.MustBuy = mustBuy(info.Prices, purchasesByID[info.SnapID])
+	}
+
+	return nil
+}
+
+// mustBuy determines if a snap requires a payment, based on if it is non-free and if the user has already bought it
+func mustBuy(prices map[string]float64, purchases []*purchase) bool {
+	if len(prices) == 0 {
+		// If the snap is free, then it doesn't need purchasing
+		return false
+	}
+
+	// Search through all the purchases for a snap to see if there are any
+	// that are for the whole snap, and not an "in-app" purchase.
+	for _, purchase := range purchases {
+		if purchase.ItemSKU == "" {
+			// Purchase is for the whole snap.
+			return false
+		}
+	}
+
+	// The snap is not free, and we couldn't find a purchase for the whole snap.
+	return true
 }
 
 // Snap returns the snap.Info for the store hosted snap with the given name or an error.
@@ -291,7 +465,15 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string, auther Authentica
 
 	s.checkStoreResponse(resp)
 
-	return infoFromRemote(searchData.Payload.Packages[0]), nil
+	info := infoFromRemote(searchData.Payload.Packages[0])
+
+	err = s.decoratePurchases([]*snap.Info{info}, channel, auther)
+	if err != nil {
+		logger.Noticef("cannot get user purchases: %v", err)
+	}
+
+	return info, nil
+
 }
 
 // FindSnaps finds  (installable) snaps from the store, matching the
@@ -339,6 +521,11 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string,
 	snaps := make([]*snap.Info, len(searchData.Payload.Packages))
 	for i, pkg := range searchData.Payload.Packages {
 		snaps[i] = infoFromRemote(pkg)
+	}
+
+	err = s.decoratePurchases(snaps, channel, auther)
+	if err != nil {
+		logger.Noticef("cannot get user purchases: %v", err)
 	}
 
 	s.checkStoreResponse(resp)

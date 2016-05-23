@@ -19,6 +19,8 @@
 
 package snap
 
+import "github.com/ubuntu-core/snappy/release"
+
 var implicitSlots = []string{
 	"firewall-control",
 	"home",
@@ -33,10 +35,13 @@ var implicitSlots = []string{
 	"system-observe",
 	"timeserver-control",
 	"timezone-control",
-	// TODO Disable these on devices:
+}
+
+var implicitClassicSlots = []string{
 	"unity7",
 	"x11",
 	"opengl",
+	"network-manager",
 }
 
 // AddImplicitSlots adds implicitly defined slots to a given snap.
@@ -51,11 +56,23 @@ func AddImplicitSlots(snapInfo *Info) {
 	}
 	for _, ifaceName := range implicitSlots {
 		if _, ok := snapInfo.Slots[ifaceName]; !ok {
-			snapInfo.Slots[ifaceName] = &SlotInfo{
-				Name:      ifaceName,
-				Snap:      snapInfo,
-				Interface: ifaceName,
-			}
+			snapInfo.Slots[ifaceName] = makeImplicitSlot(snapInfo, ifaceName)
 		}
+	}
+	if !release.OnClassic {
+		return
+	}
+	for _, ifaceName := range implicitClassicSlots {
+		if _, ok := snapInfo.Slots[ifaceName]; !ok {
+			snapInfo.Slots[ifaceName] = makeImplicitSlot(snapInfo, ifaceName)
+		}
+	}
+}
+
+func makeImplicitSlot(snapInfo *Info, ifaceName string) *SlotInfo {
+	return &SlotInfo{
+		Name:      ifaceName,
+		Snap:      snapInfo,
+		Interface: ifaceName,
 	}
 }

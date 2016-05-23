@@ -100,7 +100,7 @@ var (
 )
 
 var longInstallHelp = i18n.G(`
-The install command installs and activates the named snap in the system.
+The install command installs the named snap in the system.
 `)
 
 var longRemoveHelp = i18n.G(`

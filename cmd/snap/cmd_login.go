@@ -34,13 +34,21 @@ type cmdLogin struct {
 	Positional struct {
 		// FIXME: add support for translated descriptions
 		//        (see cmd/snappy/common.go:addOptionDescription)
-		UserName string `positional-arg-name:"userid" description:"Username for the login"`
+		UserName string `positional-arg-name:"email" description:"login.ubuntu.com email to login as"`
 	} `positional-args:"yes" required:"yes"`
 }
 
-var shortLoginHelp = i18n.G("Log into the store")
+var shortLoginHelp = i18n.G("Authenticates on snapd and the store")
 
-var longLoginHelp = i18n.G("This command logs the given username into the store")
+var longLoginHelp = i18n.G(`
+The login command authenticates on snapd and the snap store and saves credentials
+into the ~/.snap/auth.json file. Further communication with snapd will then be made
+using those credentials.
+
+Login only works for local users in the sudo or admin groups.
+
+An account can be setup at https://login.ubuntu.com
+`)
 
 func init() {
 	addCommand("login",

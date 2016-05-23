@@ -87,6 +87,7 @@ type SideInfo struct {
 	EditedDescription string `yaml:"description,omitempty" json:"description,omitempty"`
 	Size              int64  `yaml:"size,omitempty" json:"size,omitempty"`
 	Sha512            string `yaml:"sha512,omitempty" json:"sha512,omitempty"`
+	Private           bool   `yaml:"private,omitempty" json:"private,omitempty"`
 }
 
 // Info provides information about snaps.
@@ -106,9 +107,6 @@ type Info struct {
 	Plugs            map[string]*PlugInfo
 	Slots            map[string]*SlotInfo
 
-	// legacy fields collected
-	Legacy *LegacyYaml
-
 	// The information in all the remaining fields is not sourced from the snap blob itself.
 	SideInfo
 
@@ -118,6 +116,7 @@ type Info struct {
 
 	IconURL string
 	Prices  map[string]float64 `yaml:"prices,omitempty" json:"prices,omitempty"`
+	MustBuy bool
 }
 
 // Name returns the blessed name for the snap.
@@ -210,11 +209,11 @@ type AppInfo struct {
 	Name    string
 	Command string
 
-	Daemon      string
-	StopTimeout timeout.Timeout
-	Stop        string
-	PostStop    string
-	RestartCond systemd.RestartCondition
+	Daemon          string
+	StopTimeout     timeout.Timeout
+	StopCommand     string
+	PostStopCommand string
+	RestartCond     systemd.RestartCondition
 
 	Socket       bool
 	SocketMode   string
@@ -247,6 +246,27 @@ func (app *AppInfo) WrapperPath() string {
 	}
 
 	return filepath.Join(dirs.SnapBinariesDir, binName)
+}
+
+func (app *AppInfo) launcherCommand(command string) string {
+	securityTag := app.SecurityTag()
+	return fmt.Sprintf("/usr/bin/ubuntu-core-launcher %s %s %s", securityTag, securityTag, filepath.Join(app.Snap.MountDir(), command))
+
+}
+
+// LauncherCommand returns the launcher command line to use when invoking the app binary.
+func (app *AppInfo) LauncherCommand() string {
+	return app.launcherCommand(app.Command)
+}
+
+// LauncherStopCommand returns the launcher command line to use when invoking the app stop command binary.
+func (app *AppInfo) LauncherStopCommand() string {
+	return app.launcherCommand(app.StopCommand)
+}
+
+// LauncherPostStopCommand returns the launcher command line to use when invoking the app post-stop command binary.
+func (app *AppInfo) LauncherPostStopCommand() string {
+	return app.launcherCommand(app.PostStopCommand)
 }
 
 // ServiceFile returns the systemd service file path for the daemon app.

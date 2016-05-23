@@ -69,20 +69,9 @@ The following keys are optional:
 
 ## Interfaces
 
-The `old-security` interface is used to make porting existing snaps easier.
-It provides the following parameters:
-    * `caps`: (optional) list of additional security policies to add.
-              See `security.md` for details
-    * `security-template`: (optional) alternate security template to use
-                           instead of `default`. See `security.md` for details
-    * `security-override`: (optional) high level overrides to use when
-                           `security-template` and `caps` are not
-                           sufficient.  See security.md for details
-    * `security-policy`: (optional) hand-crafted low-level raw security
-                         policy to use instead of using default
-                         template-based  security policy. See
-                         security.md for details
-
+Interfaces allow snaps to communicate or share resources according to the
+protocol established by the interface and play an important part in security
+policy configuration. See `interfaces.md` and `security.md` for details.
 
 ## license.txt
 

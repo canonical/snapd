@@ -1,5 +1,7 @@
 #!/bin/sh
 
+NEEDS_REBOOT=/tmp/needs-reboot
+
 set -ex
 
 # required for the debian adt host
@@ -16,14 +18,25 @@ fi
 # ensure our PATH is right
 . /etc/profile.d/apps-bin-path.sh
 
-tmp="$(mktemp -d)"
+tmp="${ADT_ARTIFACTS}/build"
+mkdir -p $tmp
 export GOPATH=$tmp
-./get-deps.sh
-mkdir -p $GOPATH/src/github.com/ubuntu-core/
-cp -R . $GOPATH/src/github.com/ubuntu-core/snappy/
-mkdir $GOPATH/src/github.com/ubuntu-core/snappy/integration-tests/data/output
+mkdir -p $GOPATH/src/github.com/ubuntu-core/snappy
+cp -R ./* $GOPATH/src/github.com/ubuntu-core/snappy/
+mkdir -p $GOPATH/src/github.com/ubuntu-core/snappy/integration-tests/data/output
 cp debian/tests/testconfig.json $GOPATH/src/github.com/ubuntu-core/snappy/integration-tests/data/output/
 cd $GOPATH/src/github.com/ubuntu-core/snappy
-go test -tags classiconly -c ./integration-tests/tests
 
-./tests.test  -check.vv -check.f 'snapHelloWorldExampleSuite|snapOpSuite|searchSuite|installAppSuite|authSuite|networkInterfaceSuite|homeInterfaceSuite|unitySuite'
+# don't install deps nor compile tests after reboot
+if [ -z "$ADT_REBOOT_MARK" ]; then
+    ./get-deps.sh
+    go test -tags classiconly -c ./integration-tests/tests
+fi
+
+./tests.test  -check.vv -check.f 'snapHelloWorldExampleSuite|snapOpSuite|searchSuite|installAppSuite|authSuite|networkInterfaceSuite|networkBindInterfaceSuite|homeInterfaceSuite|unity7|snapPersistsSuite'
+
+if [ -e ${NEEDS_REBOOT} ]; then
+    mark=`cat ${NEEDS_REBOOT}`
+    echo "Rebooting..."
+    sudo /tmp/autopkgtest-reboot "$mark"
+fi
