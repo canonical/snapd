@@ -63,7 +63,7 @@ func (s *undoTestSuite) TestUndoForSetupSnapSimple(c *C) {
 
 	si := snap.SideInfo{
 		OfficialName: "hello-snap",
-		Revision:     14,
+		Revision:     snap.R(14),
 	}
 
 	minInfo, err := SetupSnap(snapPath, &si, 0, &s.meter)
@@ -86,24 +86,20 @@ func (s *undoTestSuite) TestUndoForSetupSnapKernelUboot(c *C) {
 	}
 
 	testFiles := [][]string{
-		{"vmlinuz-4.4.0-14-generic.efi.signed", "kernel"},
-		{"initrd.img-4.4.0-14-generic", "initrd"},
-		{"lib/modules/4.4.0-14-generic/foo.ko", "a module"},
-		{"lib/firmware/bar.bin", "some firmware"},
+		{"kernel.img", "kernel"},
+		{"initrd.img", "initrd"},
+		{"modules/4.4.0-14-generic/foo.ko", "a module"},
+		{"firmware/bar.bin", "some firmware"},
+		{"meta/kernel.yaml", "version: 4.2"},
 	}
 	snapPath := makeTestSnapPackageWithFiles(c, `name: kernel-snap
 version: 1.0
 type: kernel
-
-kernel: vmlinuz-4.4.0-14-generic.efi.signed
-initrd: initrd.img-4.4.0-14-generic
-modules: lib/modules/4.4.0-14-generic
-firmware: lib/firmware
 `, testFiles)
 
 	si := snap.SideInfo{
 		OfficialName: "kernel-snap",
-		Revision:     140,
+		Revision:     snap.R(140),
 	}
 
 	instDir, err := SetupSnap(snapPath, &si, 0, &s.meter)

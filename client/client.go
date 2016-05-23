@@ -189,6 +189,20 @@ func (client *Client) doAsync(method, path string, query url.Values, headers map
 	return rsp.Change, nil
 }
 
+func (client *Client) ServerVersion() (string, error) {
+	sysInfo, err := client.SysInfo()
+	if err != nil {
+		return "unknown", err
+	}
+
+	version := sysInfo.Version
+	if version == "" {
+		version = "unknown"
+	}
+
+	return fmt.Sprintf("%s (series %s)", version, sysInfo.Series), nil
+}
+
 // A response produced by the REST API will usually fit in this
 // (exceptions are the icons/ endpoints obvs)
 type response struct {
@@ -205,6 +219,8 @@ type response struct {
 type Error struct {
 	Kind    string `json:"kind"`
 	Message string `json:"message"`
+
+	StatusCode int
 }
 
 func (e *Error) Error() string {
@@ -214,6 +230,7 @@ func (e *Error) Error() string {
 const (
 	ErrorKindTwoFactorRequired = "two-factor-required"
 	ErrorKindTwoFactorFailed   = "two-factor-failed"
+	ErrorKindLoginRequired     = "login-required"
 )
 
 // IsTwoFactorError returns whether the given error is due to problems
@@ -229,11 +246,8 @@ func IsTwoFactorError(err error) bool {
 
 // SysInfo holds system information
 type SysInfo struct {
-	Flavor           string `json:"flavor"`
-	Release          string `json:"release"`
-	DefaultChannel   string `json:"default-channel"`
-	APICompatibility string `json:"api-compat"`
-	Store            string `json:"store,omitempty"`
+	Series  string `json:"series,omitempty"`
+	Version string `json:"version,omitempty"`
 }
 
 func (rsp *response) err() error {
@@ -245,6 +259,8 @@ func (rsp *response) err() error {
 	if err != nil || resultErr.Message == "" {
 		return fmt.Errorf("server error: %q", rsp.Status)
 	}
+	resultErr.StatusCode = rsp.StatusCode
+
 	return &resultErr
 }
 

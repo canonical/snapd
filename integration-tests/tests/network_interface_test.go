@@ -29,7 +29,7 @@ import (
 
 var _ = check.Suite(&networkInterfaceSuite{
 	interfaceSuite: interfaceSuite{
-		sampleSnap:  data.NetworkConsumerSnapName,
+		sampleSnaps: []string{data.NetworkBindConsumerSnapName, data.NetworkConsumerSnapName},
 		slot:        "network",
 		plug:        "network-consumer",
 		autoconnect: true}})
@@ -39,8 +39,10 @@ type networkInterfaceSuite struct {
 }
 
 func (s *networkInterfaceSuite) TestPlugDisconnectionDisablesFunctionality(c *check.C) {
-	output := cli.ExecCommand(c, "network-consumer")
-	c.Assert(output, check.Equals, okOutput)
+	providerURL := "http://127.0.0.1:8081"
+
+	output := cli.ExecCommand(c, "network-consumer", providerURL)
+	c.Assert(output, check.Equals, "ok\n")
 
 	cli.ExecCommand(c, "sudo", "snap", "disconnect",
 		s.plug+":"+s.slot, "ubuntu-core:"+s.slot)
@@ -48,6 +50,6 @@ func (s *networkInterfaceSuite) TestPlugDisconnectionDisablesFunctionality(c *ch
 	output = cli.ExecCommand(c, "snap", "interfaces")
 	c.Assert(output, check.Matches, disconnectedPattern(s.slot, s.plug))
 
-	output = cli.ExecCommand(c, "network-consumer")
-	c.Assert(output == okOutput, check.Equals, false)
+	output = cli.ExecCommand(c, "network-consumer", providerURL)
+	c.Assert(output, check.Equals, "Error, reason:  [Errno 13] Permission denied\n")
 }

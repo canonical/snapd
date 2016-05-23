@@ -35,6 +35,7 @@ import (
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/data"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/wait"
+	"github.com/ubuntu-core/snappy/interfaces"
 	"github.com/ubuntu-core/snappy/testutil"
 )
 
@@ -70,8 +71,8 @@ func (s *snapOpSuite) TestRemoveRemovesAllRevisions(c *check.C) {
 	common.InstallSnap(c, snapPath)
 	installOutput := common.InstallSnap(c, snapPath)
 	c.Assert(installOutput, testutil.Contains, data.BasicSnapName)
-	// double check, sideloaded snaps have revnos like 1000xx
-	revnos, _ := filepath.Glob(filepath.Join(dirs.SnapSnapsDir, data.BasicSnapName, "1*"))
+	// double check, sideloaded snaps have revnos like xNN
+	revnos, _ := filepath.Glob(filepath.Join(dirs.SnapSnapsDir, data.BasicSnapName, "x*"))
 	c.Check(len(revnos) >= 2, check.Equals, true)
 
 	removeOutput := common.RemoveSnap(c, data.BasicSnapName)
@@ -107,10 +108,10 @@ func (s *snapOpSuite) TestRemoveBusyRetries(c *check.C) {
 		wait.ForCommand(c, needle, "snap", "changes")
 
 		// find change id of the remove
-		output := cli.ExecCommand(c, "snap", "changes")
+		output := cli.ExecCommand(c, "snap", "changes", data.BasicBinariesSnapName)
 		id := regexp.MustCompile(`(?m)([0-9]+).*Doing.*Remove.*"`).FindStringSubmatch(output)[1]
 		needle = `will retry: `
-		wait.ForCommand(c, needle, "snap", "changes", id)
+		wait.ForCommand(c, needle, "snap", "change", id)
 
 		// now stop the service that blocks the umount
 		cli.ExecCommand(c, "sudo", "systemctl", "stop", blockerSrv)
@@ -137,4 +138,83 @@ func (s *snapOpSuite) TestRemoveBusyRetries(c *check.C) {
 	// ensure no changes are left in Doing state
 	output = cli.ExecCommand(c, "snap", "changes")
 	c.Check(output, check.Not(testutil.Contains), "Doing")
+}
+
+func (s *snapOpSuite) TestInstallFailedIsUndone(c *check.C) {
+	// make snap uninstallable
+	snapName := "hello-world"
+	subdirPath := filepath.Join("/snap", snapName, "current", "foo")
+	_, err := cli.ExecCommandErr("sudo", "mkdir", "-p", subdirPath)
+	c.Assert(err, check.IsNil)
+	defer cli.ExecCommand(c, "sudo", "rm", "-rf", filepath.Dir(subdirPath))
+
+	// try to install snap and see it fail
+	_, err = cli.ExecCommandErr("sudo", "snap", "install", snapName)
+	c.Assert(err, check.NotNil)
+
+	// check undone and error in tasks
+	output := cli.ExecCommand(c, "snap", "changes", snapName)
+	expected := fmt.Sprintf(`(?ms).*\n(\d+) +Error.*Install "%s" snap\n$`, snapName)
+	id := regexp.MustCompile(expected).FindStringSubmatch(output)[1]
+
+	output = cli.ExecCommand(c, "snap", "change", id)
+
+	type undoneCheckerFunc func(*check.C, string, string)
+	for _, fn := range []undoneCheckerFunc{
+		checkDownloadUndone,
+		checkMountUndone,
+		checkDataCopyUndone,
+		checkSecProfilesSetupUndone} {
+		fn(c, snapName, output)
+	}
+}
+
+func checkDownloadUndone(c *check.C, snapName, output string) {
+	expected := fmt.Sprintf(`(?ms).*Undone +.*Download snap %q from channel.*`, snapName)
+	c.Assert(output, check.Matches, expected)
+}
+
+func checkMountUndone(c *check.C, snapName, output string) {
+	expected := fmt.Sprintf(`(?ms).*Undone +.*Mount snap %q\n.*`, snapName)
+	c.Assert(output, check.Matches, expected)
+
+	// MountDir is removed /snap/<name>/<revision>
+	checkEmptyGlob(c, filepath.Join(dirs.SnapSnapsDir, snapName, "[0-9]+"))
+
+	// MountFile is removed /var/lib/snapd/snaps/<name>_<revision>.snap
+	checkEmptyGlob(c, filepath.Join(dirs.SnapBlobDir,
+		fmt.Sprintf("%s_%s.snap", snapName, "[0-9]+")))
+}
+
+func checkDataCopyUndone(c *check.C, snapName, output string) {
+	expected := fmt.Sprintf(`(?ms).*Undone +.*Copy snap %q data\n.*`, snapName)
+	c.Assert(output, check.Matches, expected)
+
+	// DataHomeDir is removed /home/*/snap/<name>/<revision>
+	checkEmptyGlob(c, filepath.Join(dirs.SnapDataHomeGlob, snapName, "[0-9]+"))
+
+	// DataDir is removed /var/snap/<name>/<revision>
+	checkEmptyGlob(c, filepath.Join(dirs.SnapDataDir, snapName, "[0-9]+"))
+}
+
+func checkSecProfilesSetupUndone(c *check.C, snapName, output string) {
+	expected := fmt.Sprintf(`(?ms).*Undone +.*Setup snap %q security profiles\n.*`, snapName)
+	c.Assert(output, check.Matches, expected)
+
+	// security artifacts are removed for each backend: apparmor, seccomp, dbus, udev
+	backends := map[string]string{
+		dirs.SnapAppArmorDir:  interfaces.SecurityTagGlob(snapName),
+		dirs.SnapSeccompDir:   interfaces.SecurityTagGlob(snapName),
+		dirs.SnapBusPolicyDir: fmt.Sprintf("%s.conf", interfaces.SecurityTagGlob(snapName)),
+		dirs.SnapUdevRulesDir: fmt.Sprintf("70-%s.rules", interfaces.SecurityTagGlob(snapName)),
+	}
+	for dir, glob := range backends {
+		checkEmptyGlob(c, filepath.Join(dir, glob))
+	}
+}
+
+func checkEmptyGlob(c *check.C, pattern string) {
+	items, err := filepath.Glob(pattern)
+	c.Assert(err, check.IsNil)
+	c.Assert(items, check.IsNil)
 }

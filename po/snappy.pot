@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-05-04 08:06+0200\n"
+        "POT-Creation-Date: 2016-05-23 14:43+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -19,11 +19,10 @@ msgstr  "Project-Id-Version: snappy\n"
 msgid   "Abort a pending change"
 msgstr  ""
 
-#, c-format
-msgid   "Activate %q snap"
+msgid   "Adds an assertion to the system"
 msgstr  ""
 
-msgid   "Adds an assertion to the system"
+msgid   "Authenticates on snapd and the store"
 msgstr  ""
 
 msgid   "Bad code. Try again: "
@@ -55,10 +54,6 @@ msgstr  ""
 
 #, c-format
 msgid   "Copy snap %q data"
-msgstr  ""
-
-#, c-format
-msgid   "Deactivate %q snap"
 msgstr  ""
 
 #, c-format
@@ -107,6 +102,9 @@ msgstr  ""
 msgid   "Install a snap to the system"
 msgstr  ""
 
+msgid   "List a change's tasks"
+msgstr  ""
+
 msgid   "List installed snaps"
 msgstr  ""
 
@@ -114,9 +112,6 @@ msgid   "List system changes"
 msgstr  ""
 
 msgid   "Lists interfaces in the system"
-msgstr  ""
-
-msgid   "Log into the store"
 msgstr  ""
 
 msgid   "Log out of the store"
@@ -210,9 +205,6 @@ msgstr  ""
 msgid   "This command logs the current user out of the store"
 msgstr  ""
 
-msgid   "This command logs the given username into the store"
-msgstr  ""
-
 msgid   "Two-factor code: "
 msgstr  ""
 
@@ -236,6 +228,10 @@ msgid   "\n"
         "To succeed the assertion must be valid, its signature verified with a known\n"
         "public key and the assertion consistent with and its prerequisite in the\n"
         "database.\n"
+msgstr  ""
+
+msgid   "\n"
+        "The change command displays a summary of tasks associated to an individual change."
 msgstr  ""
 
 msgid   "\n"
@@ -293,7 +289,7 @@ msgid   "\n"
 msgstr  ""
 
 msgid   "\n"
-        "The install command installs and activates the named snap in the system.\n"
+        "The install command installs the named snap in the system.\n"
 msgstr  ""
 
 msgid   "\n"
@@ -325,6 +321,16 @@ msgid   "\n"
 msgstr  ""
 
 msgid   "\n"
+        "The login command authenticates on snapd and the snap store and saves credentials\n"
+        "into the ~/.snap/auth.json file. Further communication with snapd will then be made\n"
+        "using those credentials.\n"
+        "\n"
+        "Login only works for local users in the sudo or admin groups.\n"
+        "\n"
+        "An account can be setup at https://login.ubuntu.com\n"
+msgstr  ""
+
+msgid   "\n"
         "The refresh command refreshes (updates) the named snap.\n"
 msgstr  ""
 
@@ -347,10 +353,7 @@ msgstr  ""
 msgid   "no interfaces found"
 msgstr  ""
 
-msgid   "no snaps found"
-msgstr  ""
-
-msgid   "produces manpage"
+msgid   "unavailable"
 msgstr  ""
 
 #, c-format

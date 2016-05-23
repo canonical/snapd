@@ -33,6 +33,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/snap"
 )
 
 func (s *SnapTestSuite) TestInstallInstall(c *C) {
@@ -61,33 +62,6 @@ func (s *SnapTestSuite) TestInstallNoHook(c *C) {
 	snap := all[0]
 	c.Check(snap.Name(), Equals, name)
 	c.Check(snap.IsActive(), Equals, false) // c.f. TestInstallInstall
-}
-
-func (s *SnapTestSuite) TestInstallInstallLicense(c *C) {
-	snapPath := makeTestSnapPackage(c, `
-name: foo
-version: 1.0
-vendor: Foo Bar <foo@example.com>
-license-agreement: explicit
-`)
-	ag := &MockProgressMeter{y: true}
-	name, err := Install(snapPath, "", AllowUnauthenticated|DoInstallGC, ag)
-	c.Assert(err, IsNil)
-	c.Check(name, Equals, "foo")
-	c.Check(ag.license, Equals, "WTFPL")
-}
-
-func (s *SnapTestSuite) TestInstallInstallLicenseNo(c *C) {
-	snapPath := makeTestSnapPackage(c, `
-name: foo
-version: 1.0
-vendor: Foo Bar <foo@example.com>
-license-agreement: explicit
-`)
-	ag := &MockProgressMeter{y: false}
-	_, err := Install(snapPath, "", AllowUnauthenticated|DoInstallGC, ag)
-	c.Assert(IsLicenseNotAccepted(err), Equals, true)
-	c.Check(ag.license, Equals, "WTFPL")
 }
 
 func (s *SnapTestSuite) installThree(c *C, flags InstallFlags) {
@@ -312,7 +286,7 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 	c.Assert(updates, HasLen, 1)
 	c.Check(updates[0].Name(), Equals, "foo")
 	c.Check(updates[0].Version(), Equals, "2")
-	c.Check(updates[0].Revision(), Equals, 3)
+	c.Check(updates[0].Revision(), Equals, snap.R(3))
 	// ensure that we get a "local" snap back - not a remote one
 	c.Check(updates[0], FitsTypeOf, &Snap{})
 }

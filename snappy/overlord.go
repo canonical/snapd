@@ -116,19 +116,14 @@ func SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, flags InstallFlags,
 	// FIXME: special handling is bad 'mkay
 	if s.Type == snap.TypeKernel {
 		if err := extractKernelAssets(s, snapf, flags, meter); err != nil {
-			return s, fmt.Errorf("failed to install kernel %s", err)
+			return s, fmt.Errorf("cannot install kernel: %s", err)
 		}
 	}
 
 	return s, err
 }
 
-type agreer interface {
-	Agreed(intro, license string) bool
-}
-
 type interacter interface {
-	agreer
 	Notify(status string)
 }
 
@@ -227,6 +222,10 @@ func UndoCopyData(newInfo *snap.Info, flags InstallFlags, meter progress.Meter) 
 }
 
 func GenerateWrappers(s *snap.Info, inter interacter) error {
+	// add the environment
+	if err := wrappers.AddSnapEnvironment(s); err != nil {
+		return err
+	}
 	// add the CLI apps from the snap.yaml
 	if err := wrappers.AddSnapBinaries(s); err != nil {
 		return err
@@ -246,23 +245,27 @@ func GenerateWrappers(s *snap.Info, inter interacter) error {
 // RemoveGeneratedWrappers removes the generated services, binaries, desktop
 // wrappers
 func RemoveGeneratedWrappers(s *snap.Info, inter interacter) error {
+	err0 := wrappers.RemoveSnapEnvironment(s)
+	if err0 != nil {
+		logger.Noticef("Cannot remove environment for %q: %v", s.Name(), err0)
+	}
 
 	err1 := wrappers.RemoveSnapBinaries(s)
 	if err1 != nil {
-		logger.Noticef("Failed to remove binaries for %q: %v", s.Name(), err1)
+		logger.Noticef("Cannot remove binaries for %q: %v", s.Name(), err1)
 	}
 
 	err2 := wrappers.RemoveSnapServices(s, inter)
 	if err2 != nil {
-		logger.Noticef("Failed to remove services for %q: %v", s.Name(), err2)
+		logger.Noticef("Cannot remove services for %q: %v", s.Name(), err2)
 	}
 
 	err3 := wrappers.RemoveSnapDesktopFiles(s)
 	if err3 != nil {
-		logger.Noticef("Failed to remove desktop files for %q: %v", s.Name(), err3)
+		logger.Noticef("Cannot remove desktop files for %q: %v", s.Name(), err3)
 	}
 
-	return firstErr(err1, err2, err3)
+	return firstErr(err0, err1, err2, err3)
 }
 
 // XXX: would really like not to expose this but used in daemon tests atm
@@ -271,14 +274,16 @@ func UpdateCurrentSymlink(info *snap.Info, inter interacter) error {
 
 	currentActiveSymlink := filepath.Join(mountDir, "..", "current")
 	if err := os.Remove(currentActiveSymlink); err != nil && !os.IsNotExist(err) {
-		logger.Noticef("Failed to remove %q: %v", currentActiveSymlink, err)
+		logger.Noticef("Cannot remove %q: %v", currentActiveSymlink, err)
+		return err
 	}
 
 	dataDir := info.DataDir()
 	dbase := filepath.Dir(dataDir)
 	currentDataSymlink := filepath.Join(dbase, "current")
 	if err := os.Remove(currentDataSymlink); err != nil && !os.IsNotExist(err) {
-		logger.Noticef("Failed to remove %q: %v", currentDataSymlink, err)
+		logger.Noticef("Cannot remove %q: %v", currentDataSymlink, err)
+		return err
 	}
 
 	// symlink is relative to parent dir
@@ -292,7 +297,7 @@ func UpdateCurrentSymlink(info *snap.Info, inter interacter) error {
 
 	// FIXME: create {Os,Kernel}Snap type instead of adding special
 	//        cases here
-	if err := setNextBoot(info); err != nil {
+	if err := SetNextBoot(info); err != nil {
 		return err
 	}
 
@@ -306,7 +311,7 @@ func removeCurrentSymlink(info snap.PlaceInfo, inter interacter) error {
 	currentActiveSymlink := filepath.Join(info.MountDir(), "..", "current")
 	err1 = os.Remove(currentActiveSymlink)
 	if err1 != nil && !os.IsNotExist(err1) {
-		logger.Noticef("Failed to remove %q: %v", currentActiveSymlink, err1)
+		logger.Noticef("Cannot remove %q: %v", currentActiveSymlink, err1)
 	} else {
 		err1 = nil
 	}
@@ -315,7 +320,7 @@ func removeCurrentSymlink(info snap.PlaceInfo, inter interacter) error {
 	currentDataSymlink := filepath.Join(filepath.Dir(info.DataDir()), "current")
 	err2 = os.Remove(currentDataSymlink)
 	if err2 != nil && !os.IsNotExist(err2) {
-		logger.Noticef("Failed to remove %q: %v", currentDataSymlink, err2)
+		logger.Noticef("Cannot remove %q: %v", currentDataSymlink, err2)
 	} else {
 		err2 = nil
 	}
@@ -441,7 +446,7 @@ func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideI
 	// XXX: this is still done for now for this legacy Install to
 	// keep unit tests as they are working and as strawman
 	// behavior for current u-d-f
-	if newInfo.Revision != 0 { // not sideloaded
+	if newInfo.Revision.Store() {
 		if err := SaveManifest(newInfo); err != nil {
 			return nil, err
 		}
@@ -515,43 +520,6 @@ func canInstall(s *snap.Info, snapf snap.File, curInfo *snap.Info, allowGadget b
 				return ErrGadgetPackageInstall
 			}
 		}
-	}
-
-	if err := checkLicenseAgreement(s, snapf, curInfo, inter); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// checkLicenseAgreement returns nil if it's ok to proceed with installing the
-// package, as deduced from the license agreement (which might involve asking
-// the user), or an error that explains the reason why installation should not
-// proceed.
-func checkLicenseAgreement(s *snap.Info, snapf snap.File, cur *snap.Info, ag agreer) error {
-	if s.LicenseAgreement != "explicit" {
-		return nil
-	}
-
-	if ag == nil {
-		return ErrLicenseNotAccepted
-	}
-
-	license, err := snapf.ReadFile("meta/license.txt")
-	if err != nil || len(license) == 0 {
-		return ErrLicenseNotProvided
-	}
-
-	// don't ask for the license if
-	// * the previous version also asked for license confirmation, and
-	// * the license version is the same
-	if cur != nil && (cur.LicenseAgreement == "explicit") && cur.LicenseVersion == s.LicenseVersion {
-		return nil
-	}
-
-	msg := fmt.Sprintf("%s requires that you accept the following license before continuing", s.Name())
-	if !ag.Agreed(msg, string(license)) {
-		return ErrLicenseNotAccepted
 	}
 
 	return nil
