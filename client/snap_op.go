@@ -33,7 +33,6 @@ import (
 type SnapOptions struct {
 	Channel string `json:"channel,omitempty"`
 	DevMode bool   `json:"devmode,omitempty"`
-	Try     string `json:"try,omitempty"`
 }
 
 type actionData struct {
