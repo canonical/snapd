@@ -694,7 +694,7 @@ func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, f
 		return BadRequest("cannot try %s: %s", trydir, err)
 	}
 
-	msg := fmt.Sprintf(i18n.G("Try %q snap"), trydir)
+	msg := fmt.Sprintf(i18n.G("Try %q snap from %q"), info.Name(), trydir)
 	chg := newChange(st, "try-snap", msg, []*state.TaskSet{tsets})
 	chg.Set("api-data", map[string]string{"snap-name": info.Name()})
 
