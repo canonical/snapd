@@ -24,9 +24,9 @@ package ifacestate
 import (
 	"fmt"
 
-	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/interfaces"
-	"github.com/ubuntu-core/snappy/overlord/state"
+	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 // InterfaceManager is responsible for the maintenance of interfaces in

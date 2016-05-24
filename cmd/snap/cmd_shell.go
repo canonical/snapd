@@ -26,8 +26,8 @@ import (
 
 	//"github.com/jessevdk/go-flags"
 
-	"github.com/ubuntu-core/snappy/classic"
-	"github.com/ubuntu-core/snappy/i18n"
+	"github.com/snapcore/snapd/classic"
+	"github.com/snapcore/snapd/i18n"
 )
 
 type cmdShell struct {

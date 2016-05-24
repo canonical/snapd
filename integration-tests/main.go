@@ -26,11 +26,11 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/autopkgtest"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/build"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/config"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/image"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/testutils"
+	"github.com/snapcore/snapd/integration-tests/testutils/autopkgtest"
+	"github.com/snapcore/snapd/integration-tests/testutils/build"
+	"github.com/snapcore/snapd/integration-tests/testutils/config"
+	"github.com/snapcore/snapd/integration-tests/testutils/image"
+	"github.com/snapcore/snapd/integration-tests/testutils/testutils"
 )
 
 const (

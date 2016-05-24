@@ -26,8 +26,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/progress"
-	"github.com/ubuntu-core/snappy/snap"
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/snap"
 )
 
 func (s *SnapTestSuite) TestActiveSnapByType(c *C) {

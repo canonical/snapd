@@ -23,7 +23,7 @@ package common
 import (
 	"gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/osutil"
+	"github.com/snapcore/snapd/osutil"
 )
 
 // dependency aliasing

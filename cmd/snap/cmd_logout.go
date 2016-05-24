@@ -22,7 +22,7 @@ package main
 import (
 	"github.com/jessevdk/go-flags"
 
-	"github.com/ubuntu-core/snappy/i18n"
+	"github.com/snapcore/snapd/i18n"
 )
 
 type cmdLogout struct{}

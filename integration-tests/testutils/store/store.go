@@ -31,7 +31,7 @@ import (
 
 	"gopkg.in/tylerb/graceful.v1"
 
-	"github.com/ubuntu-core/snappy/snap"
+	"github.com/snapcore/snapd/snap"
 )
 
 var (

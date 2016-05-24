@@ -20,7 +20,7 @@
 package store
 
 import (
-	"github.com/ubuntu-core/snappy/snap"
+	"github.com/snapcore/snapd/snap"
 )
 
 // snapDetails encapsulates the data sent to us from the store.

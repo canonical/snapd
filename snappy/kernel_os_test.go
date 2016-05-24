@@ -20,11 +20,11 @@
 package snappy
 
 import (
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/partition"
-	"github.com/ubuntu-core/snappy/release"
-	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/snaptest"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/partition"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 
 	. "gopkg.in/check.v1"
 )
