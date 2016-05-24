@@ -82,7 +82,7 @@ func (s *apiSuite) FindSnaps(searchTerm, channel string, auther store.Authentica
 	return s.rsnaps, s.err
 }
 
-func (s *apiSuite) Updates(snaps []string, auther store.Authenticator) ([]*snap.Info, error) {
+func (s *apiSuite) Updates(snaps []*snap.Info, auther store.Authenticator) ([]*snap.Info, error) {
 	return nil, nil
 }
 
