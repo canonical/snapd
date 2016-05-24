@@ -78,7 +78,7 @@ func (t *CreateTestSuite) SetUpTest(c *C) {
 }
 
 func makeMockLxdIndexSystem() string {
-	lsb, err := release.ReadLSB()
+	osRelease, err := release.ReadOSRelease()
 	if err != nil {
 		panic(err)
 	}
@@ -87,7 +87,7 @@ func makeMockLxdIndexSystem() string {
 	s := fmt.Sprintf(`
 ubuntu;xenial;otherarch;default;20151126_03:49;/images/ubuntu/xenial/armhf/default/20151126_03:49/
 ubuntu;%s;%s;default;20151126_03:49;/images/ubuntu/CODENAME/ARCH/default/20151126_03:49/
-`, lsb.Codename, arch)
+`, osRelease.Codename, arch)
 
 	return s
 }
