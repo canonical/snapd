@@ -297,7 +297,7 @@ func UserFromRequest(st *state.State, req *http.Request) (*auth.UserState, error
 type metarepo interface {
 	Snap(string, string, store.Authenticator) (*snap.Info, error)
 	FindSnaps(string, string, store.Authenticator) ([]*snap.Info, error)
-	Updates([]string, store.Authenticator) ([]*snap.Info, error)
+	Updates([]*snap.Info, store.Authenticator) ([]*snap.Info, error)
 	SuggestedCurrency() string
 }
 
@@ -416,17 +416,17 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot list local snaps: %v", err)
 	}
 
-	localSnapsWithChannel := []string{}
+	localSnapsInfo := make([]*snap.Info, len(found))
 	localSnapMap := map[string]*snap.Info{}
-	for _, x := range found {
-		localSnapsWithChannel = append(localSnapsWithChannel, fmt.Sprintf("%s/%s", x.info.Name(), x.info.Channel))
-		localSnapMap[x.info.Name()] = x.info
+	for i, sn := range found {
+		localSnapsInfo[i] = sn.info
+		localSnapMap[sn.info.Name()] = sn.info
 	}
 
 	// the store gives us everything, we need to client side filter
 	// for the updates
 	store := newRemoteRepo()
-	allUpdates, err := store.Updates(localSnapsWithChannel, user.Authenticator())
+	allUpdates, err := store.Updates(localSnapsInfo, user.Authenticator())
 	if err != nil {
 		return InternalError("cannot list updates: %v", err)
 	}
