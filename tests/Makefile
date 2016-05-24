@@ -1,4 +1,4 @@
-#/usr/bin/makefile -f
+#!/usr/bin/make -f
 
 test:
 	./run-tests

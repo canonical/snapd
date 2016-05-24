@@ -2,9 +2,9 @@
 
 set -e
 
-. $(pwd)/common.sh
+. "$(pwd)/common.sh"
 
-cat >$TMP/snap.name.app <<EOF
+cat >"$TMP/snap.name.app" <<EOF
 # super strict filter
 @complai
 @complaim
@@ -17,7 +17,7 @@ EOF
 # filtering
 
 printf "Test that near misses of complain fail"
-if $L snap.name.app /bin/true 2>/dev/null; then
+if "$L" snap.name.app /bin/true 2>/dev/null; then
     # true returned successfully, our filtering is broken!
     FAIL
 else

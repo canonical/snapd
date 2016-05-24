@@ -2,14 +2,14 @@
 
 set -e
 
-. $(pwd)/common.sh
+. "$(pwd)/common.sh"
 
-cat >$TMP/snap.name.app-unrestricted <<EOF
+cat >"$TMP/snap.name.app-unrestricted" <<EOF
 # some comment
 @unrestricted
 EOF
 
-cat >$TMP/snap.name.app-restricted <<EOF
+cat >"$TMP/snap.name.app-restricted" <<EOF
 # filter that works ok for true
 open
 close
@@ -41,12 +41,11 @@ EOF
 # $3: True if success is expected, false otherwise
 run_launcher() {
    pass=false
-   if $L snap.name.app-$2 /bin/true 2>/dev/null; then
+   if "$L" "snap.name.app-$2" /bin/true 2>/dev/null; then
       if $3; then
          if [ ! -d "$1" ]; then
             pass=false
          fi
-
          pass=true
       else
          pass=false
@@ -60,7 +59,7 @@ run_launcher() {
    fi
 
    if [ -d "$1" ]; then
-      rmdir $1
+      rmdir "$1"
    fi
 
    if $pass; then
@@ -74,8 +73,8 @@ run_launcher() {
 # $2 = Profile name
 # $3 = True if success is expected, false otherwise
 run_current() {
-   export SNAP_USER_DATA=$1
-   run_launcher $1 $2 $3
+   export SNAP_USER_DATA="$1"
+   run_launcher "$1" "$2" "$3"
    pass=$?
    unset SNAP_USER_DATA
 
@@ -83,35 +82,35 @@ run_current() {
 }
 
 printf "Test that an unrestricted launcher creates user data"
-if run_current $TMP/user_data unrestricted true; then
+if run_current "$TMP/user_data" unrestricted true; then
    PASS
 else
    FAIL
 fi
 
 printf "Test that a restricted launcher creates user data"
-if run_current $TMP/user_data restricted true; then
+if run_current "$TMP/user_data" restricted true; then
     PASS
 else
     FAIL
 fi
 
 printf "Test that an unrestricted launcher creates user data with parent directory"
-if run_current $TMP/parent/user_data unrestricted true; then
+if run_current "$TMP/parent/user_data" unrestricted true; then
     PASS
 else
     FAIL
 fi
 
 printf "Test that a restricted launcher creates user data with parent directory"
-if run_current $TMP/parent/user_data restricted true; then
+if run_current "$TMP/parent/user_data" restricted true; then
     PASS
 else
     FAIL
 fi
 
 printf "Test that user data can contain multiple path separators"
-if run_current $TMP//user_data unrestricted true; then
+if run_current "$TMP//user_data" unrestricted true; then
     PASS
 else
     FAIL
@@ -125,26 +124,26 @@ else
 fi
 
 printf "Testing that user data cannot be contained within a symlink"
-mkdir $TMP/nefarious_parent
-ln -s $TMP/nefarious_parent $TMP/parent
+mkdir "$TMP/nefarious_parent"
+ln -s "$TMP/nefarious_parent" "$TMP/parent"
 # NOTE: the comma below is significant
-if run_current $TMP/parent/user_data unrestricted, false; then
+if run_current "$TMP/parent/user_data" unrestricted, false; then
     PASS
 else
     FAIL
 fi
 
 printf "Test that an unrestricted launcher works when user data exists (current)"
-mkdir $TMP/user_data
-if run_current $TMP/user_data unrestricted true; then
+mkdir "$TMP/user_data"
+if run_current "$TMP/user_data" unrestricted true; then
    PASS
 else
    FAIL
 fi
 
 printf "Test that an restricted launcher works when user data exists (current)"
-mkdir $TMP/user_data
-if run_current $TMP/user_data restricted true; then
+mkdir "$TMP/user_data"
+if run_current "$TMP/user_data" restricted true; then
    PASS
 else
    FAIL

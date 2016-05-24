@@ -2,9 +2,7 @@
 
 set -e
 
-export UBUNTU_CORE_LAUNCHER_NO_ROOT=1
-
-if [ $(dpkg --print-architecture) != "amd64" ]; then
+if [ "$(dpkg --print-architecture)" != "amd64" ]; then
     printf "Tests will only work on amd64\n"
     exit 0
 fi
