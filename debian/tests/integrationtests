@@ -33,7 +33,7 @@ if [ -z "$ADT_REBOOT_MARK" ]; then
     go test -tags classiconly -c ./integration-tests/tests
 fi
 
-./tests.test  -check.vv -check.f 'snapHelloWorldExampleSuite|snapOpSuite|searchSuite|installSuite|authSuite|networkInterfaceSuite|networkBindInterfaceSuite|homeInterfaceSuite|logObserveInterfaceSuite|unity7|snapPersistsSuite'
+./tests.test  -check.vv -check.f 'snapHelloWorldExampleSuite|snapOpSuite|searchSuite|installSuite|authSuite|networkInterfaceSuite|networkBindInterfaceSuite|homeInterfaceSuite|logObserveInterfaceSuite|unity7|snapPersistsSuite|changesSuite'
 
 if [ -e ${NEEDS_REBOOT} ]; then
     mark=`cat ${NEEDS_REBOOT}`
