@@ -22,7 +22,7 @@ package snap_test
 import (
 	. "gopkg.in/check.v1"
 
-	. "github.com/ubuntu-core/snappy/snap"
+	. "github.com/snapcore/snapd/snap"
 )
 
 type ValidateSuite struct{}

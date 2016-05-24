@@ -20,7 +20,7 @@
 package apparmor
 
 import (
-	"github.com/ubuntu-core/snappy/testutil"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // MockProfilesPath mocks the file read by LoadedProfiles()

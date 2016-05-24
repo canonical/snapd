@@ -25,8 +25,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/overlord/auth"
-	"github.com/ubuntu-core/snappy/overlord/state"
+	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 // Hook up gocheck into the "go test" runner.

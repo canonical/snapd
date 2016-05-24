@@ -24,14 +24,14 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/osutil"
-	"github.com/ubuntu-core/snappy/partition"
-	"github.com/ubuntu-core/snappy/release"
-	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/squashfs"
-	"github.com/ubuntu-core/snappy/systemd"
-	"github.com/ubuntu-core/snappy/testutil"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/partition"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/squashfs"
+	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/testutil"
 
 	. "gopkg.in/check.v1"
 )

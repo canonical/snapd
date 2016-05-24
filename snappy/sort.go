@@ -24,7 +24,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ubuntu-core/snappy/logger"
+	"github.com/snapcore/snapd/logger"
 )
 
 const (

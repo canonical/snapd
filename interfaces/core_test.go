@@ -24,7 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	. "github.com/ubuntu-core/snappy/interfaces"
+	. "github.com/snapcore/snapd/interfaces"
 )
 
 func Test(t *testing.T) {

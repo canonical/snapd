@@ -123,7 +123,7 @@ if [ ! -z "$UNIT" ]; then
     echo "mode: set" > .coverage/coverage.out
 
     echo Building
-    go build -tags=excludeintegration -v github.com/ubuntu-core/snappy/...
+    go build -tags=excludeintegration -v github.com/snapcore/snapd/...
 
     # tests
     echo Running tests from $(pwd)
@@ -135,7 +135,7 @@ if [ ! -z "$UNIT" ]; then
     echo Building the integration tests
     TMP_INTEGRATION="$(mktemp)"
     addtrap "rm -f \"$TMP_INTEGRATION\""
-    go build -v -o $TMP_INTEGRATION github.com/ubuntu-core/snappy/integration-tests/
+    go build -v -o $TMP_INTEGRATION github.com/snapcore/snapd/integration-tests/
 
     # the rabbit hole
     echo Running the tests for the integration testutils
