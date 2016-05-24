@@ -173,7 +173,8 @@ func tbd(c *Command, r *http.Request, user *auth.UserState) Response {
 
 func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	m := map[string]string{
-		"series": release.Series,
+		"series":  release.Series,
+		"version": c.d.Version,
 	}
 
 	return SyncResponse(m, nil)

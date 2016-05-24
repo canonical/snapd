@@ -76,7 +76,13 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
 	snapstate.SetSnapstateBackend(s.fakeBackend)
 
-	s.reset = snapstate.MockReadInfo(s.fakeBackend.ReadInfo)
+	restore1 := snapstate.MockReadInfo(s.fakeBackend.ReadInfo)
+	restore2 := snapstate.MockOpenSnapFile(s.fakeBackend.OpenSnapFile)
+
+	s.reset = func() {
+		restore2()
+		restore1()
+	}
 
 	s.state.Lock()
 	s.user, err = auth.NewUser(s.state, "username", "macaroon", []string{"discharge"})
@@ -291,9 +297,12 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 			channel:  "some-channel",
 		},
 		fakeOp{
-			op:   "check-snap",
+			op:  "current",
+			old: "<no-current>",
+		},
+		fakeOp{
+			op:   "open-snap-file",
 			name: "downloaded-snap-path",
-			old:  "<no-current>",
 		},
 		fakeOp{
 			op:    "setup-snap",
@@ -392,10 +401,12 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 			channel:  "some-channel",
 		},
 		fakeOp{
-			op:    "check-snap",
-			name:  "downloaded-snap-path",
-			flags: int(snappy.DoInstallGC),
-			old:   "/snap/some-snap/7",
+			op:  "current",
+			old: "/snap/some-snap/7",
+		},
+		fakeOp{
+			op:   "open-snap-file",
+			name: "downloaded-snap-path",
 		},
 		fakeOp{
 			op:    "setup-snap",
@@ -512,10 +523,12 @@ func (s *snapmgrTestSuite) TestUpdateUndoIntegration(c *C) {
 			channel:  "some-channel",
 		},
 		{
-			op:    "check-snap",
-			name:  "downloaded-snap-path",
-			flags: int(snappy.DoInstallGC),
-			old:   "/snap/some-snap/7",
+			op:  "current",
+			old: "/snap/some-snap/7",
+		},
+		{
+			op:   "open-snap-file",
+			name: "downloaded-snap-path",
 		},
 		{
 			op:    "setup-snap",
@@ -551,7 +564,10 @@ func (s *snapmgrTestSuite) TestUpdateUndoIntegration(c *C) {
 			op:   "link-snap.failed",
 			name: "/snap/some-snap/11",
 		},
-		// no unlink-snap here is expected!
+		{
+			op:   "unlink-snap",
+			name: "/snap/some-snap/11",
+		},
 		{
 			op:    "setup-profiles:Undoing",
 			name:  "some-snap",
@@ -629,10 +645,12 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoIntegration(c *C) {
 			channel:  "some-channel",
 		},
 		{
-			op:    "check-snap",
-			name:  "downloaded-snap-path",
-			flags: int(snappy.DoInstallGC),
-			old:   "/snap/some-snap/7",
+			op:  "current",
+			old: "/snap/some-snap/7",
+		},
+		{
+			op:   "open-snap-file",
+			name: "downloaded-snap-path",
 		},
 		{
 			op:    "setup-snap",
@@ -782,6 +800,9 @@ func makeTestSnap(c *C, snapYamlContent string) (snapFilePath string) {
 }
 
 func (s *snapmgrTestSuite) TestInstallFirstLocalIntegration(c *C) {
+	// use the real thing for this one
+	snapstate.MockOpenSnapFile(snapstate.OpenSnapFileImpl)
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -797,10 +818,14 @@ version: 1.0`)
 	s.settle()
 	s.state.Lock()
 
-	// ensure only local install was run, i.e. first action is check-snap
+	// ensure only local install was run, i.e. first actions are pseudo-action current
 	c.Assert(s.fakeBackend.ops, HasLen, 6)
-	c.Check(s.fakeBackend.ops[0].op, Equals, "check-snap")
-	c.Check(s.fakeBackend.ops[0].name, Matches, `.*/mock_1.0_all.snap`)
+	c.Check(s.fakeBackend.ops[0].op, Equals, "current")
+	c.Check(s.fakeBackend.ops[0].old, Equals, "<no-current>")
+	// and setup-snap
+	c.Check(s.fakeBackend.ops[1].op, Equals, "setup-snap")
+	c.Check(s.fakeBackend.ops[1].name, Matches, `.*/mock_1.0_all.snap`)
+	c.Check(s.fakeBackend.ops[1].revno, Equals, snap.R("x1"))
 
 	c.Check(s.fakeBackend.ops[4].op, Equals, "candidate")
 	c.Check(s.fakeBackend.ops[4].sinfo, DeepEquals, snap.SideInfo{Revision: snap.R(-1)})
@@ -833,7 +858,10 @@ version: 1.0`)
 	c.Assert(snapst.LocalRevision, Equals, snap.R(-1))
 }
 
-func (s *snapmgrTestSuite) TestInstallSubequentLocalIntegration(c *C) {
+func (s *snapmgrTestSuite) TestInstallSubsequentLocalIntegration(c *C) {
+	// use the real thing for this one
+	snapstate.MockOpenSnapFile(snapstate.OpenSnapFileImpl)
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -855,10 +883,14 @@ version: 1.0`)
 	s.settle()
 	s.state.Lock()
 
-	// ensure only local install was run, i.e. first action is check-snap
+	// ensure only local install was run, i.e. first action is pseudo-action current
 	c.Assert(s.fakeBackend.ops, HasLen, 7)
-	c.Check(s.fakeBackend.ops[0].op, Equals, "check-snap")
-	c.Check(s.fakeBackend.ops[0].name, Matches, `.*/mock_1.0_all.snap`)
+	c.Check(s.fakeBackend.ops[0].op, Equals, "current")
+	c.Check(s.fakeBackend.ops[0].old, Equals, "/snap/mock/x2")
+	// and setup-snap
+	c.Check(s.fakeBackend.ops[1].op, Equals, "setup-snap")
+	c.Check(s.fakeBackend.ops[1].name, Matches, `.*/mock_1.0_all.snap`)
+	c.Check(s.fakeBackend.ops[1].revno, Equals, snap.R("x3"))
 
 	c.Check(s.fakeBackend.ops[2].op, Equals, "unlink-snap")
 	c.Check(s.fakeBackend.ops[2].name, Equals, "/snap/mock/x2")
