@@ -94,7 +94,7 @@ func (s *ReleaseTestSuite) TestOnClassic(c *C) {
 }
 
 func (s *ReleaseTestSuite) TestReleaseInfo(c *C) {
-	reset := release.MockReleaseInfo(&release.OSRelease{
+	reset := release.MockReleaseInfo(&release.OS{
 		ID: "distro-id",
 	})
 	defer reset()
