@@ -31,9 +31,9 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/ubuntu-core/snappy/osutil"
-	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/squashfs"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/squashfs"
 )
 
 // from click's click.build.ClickBuilderBase, and there from

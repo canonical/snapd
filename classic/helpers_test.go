@@ -25,7 +25,7 @@ import (
 	"io/ioutil"
 	"path/filepath"
 
-	"github.com/ubuntu-core/snappy/testutil"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type HelpersTestSuite struct {

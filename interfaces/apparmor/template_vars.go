@@ -23,7 +23,7 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/ubuntu-core/snappy/snap"
+	"github.com/snapcore/snapd/snap"
 )
 
 // templateVariables returns text defining apparmor variables that can be used in the

@@ -28,9 +28,9 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/interfaces/apparmor"
-	"github.com/ubuntu-core/snappy/testutil"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func Test(t *testing.T) {

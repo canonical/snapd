@@ -20,7 +20,7 @@
 package interfaces
 
 import (
-	"github.com/ubuntu-core/snappy/snap"
+	"github.com/snapcore/snapd/snap"
 )
 
 // SecurityBackend abstracts interactions between the interface system and the
