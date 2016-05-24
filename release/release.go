@@ -74,7 +74,15 @@ func ReadLSB() (*LSB, error) {
 var OnClassic bool
 
 func init() {
-	OnClassic = osutil.FileExists("/var/lib/dpkg/status")
+	lsb, err := ReadLSB()
+	// Assume that we are running on Classic
+	OnClassic = true
+	// On Ubuntu, dpkg is not present in an all-snap image so the presence of
+	// dpkg status file can be used as an indicator for a classic vs all-snap
+	// system.
+	if err == nil && lsb.ID == "ubuntu" {
+		OnClassic = osutil.FileExists("/var/lib/dpkg/status")
+	}
 }
 
 // MockOnClassic forces the process to appear inside a classic
