@@ -40,6 +40,7 @@ import (
 
 // A Daemon listens for requests and routes them to the right command
 type Daemon struct {
+	Version  string
 	overlord *overlord.Overlord
 	listener net.Listener
 	tomb     tomb.Tomb

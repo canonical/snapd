@@ -34,6 +34,7 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	all := builtin.Interfaces()
 	c.Check(all, Contains, &builtin.BoolFileInterface{})
 	c.Check(all, Contains, &builtin.BluezInterface{})
+	c.Check(all, Contains, &builtin.LocationControlInterface{})
 	c.Check(all, Contains, &builtin.LocationObserveInterface{})
 	c.Check(all, DeepContains, builtin.NewFirewallControlInterface())
 	c.Check(all, DeepContains, builtin.NewHomeInterface())
@@ -51,4 +52,5 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, DeepContains, builtin.NewUnity7Interface())
 	c.Check(all, DeepContains, builtin.NewX11Interface())
 	c.Check(all, DeepContains, builtin.NewOpenglInterface())
+	c.Check(all, DeepContains, builtin.NewPulseAudioInterface())
 }

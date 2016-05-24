@@ -46,6 +46,7 @@ var (
 
 	SnapStateFile string
 
+	SnapEnvironmentDir  string
 	SnapBinariesDir     string
 	SnapServicesDir     string
 	SnapDesktopFilesDir string
@@ -104,4 +105,7 @@ func SetRootDir(rootdir string) {
 
 	LocaleDir = filepath.Join(rootdir, "/usr/share/locale")
 	ClassicDir = filepath.Join(rootdir, "/writable/classic")
+
+	// keep in sync with ubuntu-core-launcher
+	SnapEnvironmentDir = filepath.Join(rootdir, snappyDir, "environment")
 }
