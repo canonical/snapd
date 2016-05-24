@@ -19,6 +19,8 @@
 
 package release
 
+var ReadOSRelease = readOSRelease
+
 func MockOSReleasePath(filename string) (restore func()) {
 	old := osReleasePath
 	osReleasePath = filename
