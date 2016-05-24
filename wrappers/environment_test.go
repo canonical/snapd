@@ -22,6 +22,8 @@ package wrappers_test
 import (
 	"io/ioutil"
 	"path/filepath"
+	"sort"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -53,9 +55,12 @@ summary: hello
 description: Hello...
 environment:
  LD_LIBRARY_PATH: /some/dir
+ FOO: global
 apps:
  hello:
    command: bin/hello
+   environment:
+    FOO: per-app
  svc1:
   command: bin/hello
 `
@@ -66,14 +71,36 @@ func (s *environmentTestSuite) TestAddSnapEnvironmentAndRemove(c *C) {
 	err := wrappers.AddSnapEnvironment(info)
 	c.Assert(err, IsNil)
 
-	envFile := filepath.Join(s.tempdir, "/var/lib/snapd/environment/snap.hello-snap.hello")
+	// the app
+	helloFile := filepath.Join(s.tempdir, "/var/lib/snapd/environment/snap.hello-snap.hello")
 
-	content, err := ioutil.ReadFile(envFile)
+	content, err := ioutil.ReadFile(helloFile)
 	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, "LD_LIBRARY_PATH=/some/dir\n")
+	lines := strings.Split(string(content), "\n")
+	sort.Strings(lines)
+	c.Assert(lines, DeepEquals, []string{
+		"",
+		"FOO=per-app",
+		"LD_LIBRARY_PATH=/some/dir",
+	})
 
+	// the service
+	svcFile := filepath.Join(s.tempdir, "/var/lib/snapd/environment/snap.hello-snap.svc1")
+
+	content, err = ioutil.ReadFile(svcFile)
+	c.Assert(err, IsNil)
+	lines = strings.Split(string(content), "\n")
+	sort.Strings(lines)
+	c.Assert(lines, DeepEquals, []string{
+		"",
+		"FOO=global",
+		"LD_LIBRARY_PATH=/some/dir",
+	})
+
+	// ensure removal works
 	err = wrappers.RemoveSnapEnvironment(info)
 	c.Assert(err, IsNil)
 
-	c.Check(osutil.FileExists(envFile), Equals, false)
+	c.Check(osutil.FileExists(helloFile), Equals, false)
+	c.Check(osutil.FileExists(svcFile), Equals, false)
 }
