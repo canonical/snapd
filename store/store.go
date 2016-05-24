@@ -56,6 +56,7 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	info.Architectures = d.Architectures
 	info.Type = d.Type
 	info.Version = d.Version
+	info.Epoch = "0"
 	info.OfficialName = d.Name
 	info.SnapID = d.SnapID
 	info.Revision = d.Revision

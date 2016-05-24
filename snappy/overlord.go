@@ -222,6 +222,10 @@ func UndoCopyData(newInfo *snap.Info, flags InstallFlags, meter progress.Meter) 
 }
 
 func GenerateWrappers(s *snap.Info, inter interacter) error {
+	// add the environment
+	if err := wrappers.AddSnapEnvironment(s); err != nil {
+		return err
+	}
 	// add the CLI apps from the snap.yaml
 	if err := wrappers.AddSnapBinaries(s); err != nil {
 		return err
@@ -241,6 +245,10 @@ func GenerateWrappers(s *snap.Info, inter interacter) error {
 // RemoveGeneratedWrappers removes the generated services, binaries, desktop
 // wrappers
 func RemoveGeneratedWrappers(s *snap.Info, inter interacter) error {
+	err0 := wrappers.RemoveSnapEnvironment(s)
+	if err0 != nil {
+		logger.Noticef("Cannot remove environment for %q: %v", s.Name(), err0)
+	}
 
 	err1 := wrappers.RemoveSnapBinaries(s)
 	if err1 != nil {
@@ -257,7 +265,7 @@ func RemoveGeneratedWrappers(s *snap.Info, inter interacter) error {
 		logger.Noticef("Cannot remove desktop files for %q: %v", s.Name(), err3)
 	}
 
-	return firstErr(err1, err2, err3)
+	return firstErr(err0, err1, err2, err3)
 }
 
 // XXX: would really like not to expose this but used in daemon tests atm

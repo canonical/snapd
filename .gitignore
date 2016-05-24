@@ -3,4 +3,5 @@ integration-tests/data/output/
 share
 tags
 .coverage
+cmd/version_generated.go
 *~

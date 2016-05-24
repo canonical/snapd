@@ -402,31 +402,15 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	rec := httptest.NewRecorder()
 	c.Check(sysInfoCmd.Path, check.Equals, "/v2/system-info")
 
+	s.daemon(c).Version = "42b1"
+
 	sysInfoCmd.GET(sysInfoCmd, nil, nil).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 200)
 	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
 
 	expected := map[string]interface{}{
-		"series": "16",
-	}
-	var rsp resp
-	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
-	c.Check(rsp.Status, check.Equals, 200)
-	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Check(rsp.Result, check.DeepEquals, expected)
-}
-
-func (s *apiSuite) TestSysInfoStore(c *check.C) {
-	rec := httptest.NewRecorder()
-	c.Check(sysInfoCmd.Path, check.Equals, "/v2/system-info")
-
-	s.mkGadget(c, "some-store")
-
-	sysInfoCmd.GET(sysInfoCmd, nil, nil).ServeHTTP(rec, nil)
-	c.Check(rec.Code, check.Equals, 200)
-
-	expected := map[string]interface{}{
-		"series": "16",
+		"series":  "16",
+		"version": "42b1",
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)

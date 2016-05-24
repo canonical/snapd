@@ -62,6 +62,9 @@ func (s *linkSuite) TearDownTest(c *C) {
 func (s *linkSuite) TestLinkDoUndoGenerateWrappers(c *C) {
 	const yaml = `name: hello
 version: 1.0
+environment:
+ KEY: value
+
 apps:
  bin:
    command: bin
@@ -81,6 +84,9 @@ apps:
 	l, err = filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.service"))
 	c.Assert(err, IsNil)
 	c.Assert(l, HasLen, 1)
+	l, err = filepath.Glob(filepath.Join(dirs.SnapEnvironmentDir, "*"))
+	c.Assert(err, IsNil)
+	c.Assert(l, HasLen, 2)
 
 	// undo will remove
 	err = s.be.UnlinkSnap(info, &s.nullProgress)
@@ -90,6 +96,9 @@ apps:
 	c.Assert(err, IsNil)
 	c.Assert(l, HasLen, 0)
 	l, err = filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.service"))
+	c.Assert(err, IsNil)
+	c.Assert(l, HasLen, 0)
+	l, err = filepath.Glob(filepath.Join(dirs.SnapEnvironmentDir, "*"))
 	c.Assert(err, IsNil)
 	c.Assert(l, HasLen, 0)
 }
@@ -130,6 +139,8 @@ func (s *linkSuite) TestLinkDoIdempotent(c *C) {
 
 	const yaml = `name: hello
 version: 1.0
+environment:
+ KEY: value
 apps:
  bin:
    command: bin
@@ -152,6 +163,9 @@ apps:
 	l, err = filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.service"))
 	c.Assert(err, IsNil)
 	c.Assert(l, HasLen, 1)
+	l, err = filepath.Glob(filepath.Join(dirs.SnapEnvironmentDir, "*"))
+	c.Assert(err, IsNil)
+	c.Assert(l, HasLen, 2)
 
 	mountDir := info.MountDir()
 	dataDir := info.DataDir()
@@ -195,6 +209,9 @@ apps:
 	c.Assert(err, IsNil)
 	c.Assert(l, HasLen, 0)
 	l, err = filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.service"))
+	c.Assert(err, IsNil)
+	c.Assert(l, HasLen, 0)
+	l, err = filepath.Glob(filepath.Join(dirs.SnapEnvironmentDir, "*"))
 	c.Assert(err, IsNil)
 	c.Assert(l, HasLen, 0)
 

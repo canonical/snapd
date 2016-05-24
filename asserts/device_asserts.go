@@ -111,7 +111,7 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 	}
 
 	for _, mandatory := range modelMandatory {
-		if _, err := checkMandatory(assert.headers, mandatory); err != nil {
+		if _, err := checkNotEmpty(assert.headers, mandatory); err != nil {
 			return nil, err
 		}
 	}
@@ -181,7 +181,7 @@ func (ds *DeviceSerial) Timestamp() time.Time {
 func assembleDeviceSerial(assert assertionBase) (Assertion, error) {
 	// TODO: authority-id can only == canonical or brand-id
 
-	encodedKey, err := checkMandatory(assert.headers, "device-key")
+	encodedKey, err := checkNotEmpty(assert.headers, "device-key")
 	if err != nil {
 		return nil, err
 	}
