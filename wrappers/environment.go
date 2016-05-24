@@ -29,21 +29,33 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+func copyEnv(in map[string]string) map[string]string {
+	out := make(map[string]string)
+	for k, v := range in {
+		out[k] = v
+	}
+
+	return out
+}
+
 func AddSnapEnvironment(s *snap.Info) error {
 	if err := os.MkdirAll(dirs.SnapEnvironmentDir, 0755); err != nil {
 		return err
 	}
 
-	globalEnv := bytes.NewBuffer(nil)
-	for k, v := range s.Environment {
-		fmt.Fprintf(globalEnv, "%s=%s\n", k, v)
-	}
-
 	for _, app := range s.Apps {
-		// FIXME: add support for per-app specific environment map
-		//        in snap.yaml too
+		// init with global env, but per-app env wins on conflict
+		appEnv := copyEnv(s.Environment)
+		for k, v := range app.Environment {
+			appEnv[k] = v
+		}
 
-		if err := osutil.AtomicWriteFile(app.EnvironmentFile(), globalEnv.Bytes(), 0755, 0); err != nil {
+		env := bytes.NewBuffer(nil)
+		for k, v := range appEnv {
+			fmt.Fprintf(env, "%s=%s\n", k, v)
+		}
+
+		if err := osutil.AtomicWriteFile(app.EnvironmentFile(), env.Bytes(), 0755, 0); err != nil {
 			return err
 		}
 	}
