@@ -33,6 +33,7 @@ var Series = "16"
 // LSB contains the /etc/os-release information of the system.
 type LSB struct {
 	ID       string
+	Name     string
 	Release  string
 	Codename string
 }
@@ -49,9 +50,13 @@ func ReadLSB() (*LSB, error) {
 	}
 
 	for _, line := range strings.Split(string(content), "\n") {
-		if strings.HasPrefix(line, "NAME=") {
+		if strings.HasPrefix(line, "ID=") {
 			tmp := strings.SplitN(line, "=", 2)
 			lsb.ID = strings.Trim(tmp[1], "\"")
+		}
+		if strings.HasPrefix(line, "NAME=") {
+			tmp := strings.SplitN(line, "=", 2)
+			lsb.Name = strings.Trim(tmp[1], "\"")
 		}
 		if strings.HasPrefix(line, "VERSION_ID=") {
 			tmp := strings.SplitN(line, "=", 2)
@@ -73,14 +78,25 @@ func ReadLSB() (*LSB, error) {
 // classic Ubuntu system or a native Ubuntu Core image.
 var OnClassic bool
 
+// LSBInfo contains data loaded from /etc/os-release on startup.
+var LSBInfo LSB
+
 func init() {
 	lsb, err := ReadLSB()
+	if err != nil {
+		// Values recommended by os-release(5) as defaults
+		lsb = &LSB{
+			Name: "Linux",
+			ID:   "linux",
+		}
+	}
+	LSBInfo = *lsb
 	// Assume that we are running on Classic
 	OnClassic = true
 	// On Ubuntu, dpkg is not present in an all-snap image so the presence of
 	// dpkg status file can be used as an indicator for a classic vs all-snap
 	// system.
-	if err == nil && lsb.ID == "ubuntu" {
+	if lsb.ID == "ubuntu" {
 		OnClassic = osutil.FileExists("/var/lib/dpkg/status")
 	}
 }
@@ -91,4 +107,12 @@ func MockOnClassic(onClassic bool) (restore func()) {
 	old := OnClassic
 	OnClassic = onClassic
 	return func() { OnClassic = old }
+}
+
+// MockLSB fakes a given information to appear in LSBInfo, as if read
+// /etc/os-release on startup.
+func MockLSB(lsb *LSB) (restore func()) {
+	old := LSBInfo
+	LSBInfo = *lsb
+	return func() { LSBInfo = old }
 }

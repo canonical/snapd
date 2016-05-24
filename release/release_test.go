@@ -69,7 +69,8 @@ func (s *ReleaseTestSuite) TestReadLSB(c *C) {
 
 	lsb, err := release.ReadLSB()
 	c.Assert(err, IsNil)
-	c.Assert(lsb.ID, Equals, "Ubuntu")
+	c.Assert(lsb.ID, Equals, "ubuntu")
+	c.Assert(lsb.Name, Equals, "Ubuntu")
 	c.Assert(lsb.Release, Equals, "18.09")
 	c.Assert(lsb.Codename, Equals, "awesome")
 }
@@ -90,4 +91,12 @@ func (s *ReleaseTestSuite) TestOnClassic(c *C) {
 	reset = release.MockOnClassic(false)
 	defer reset()
 	c.Assert(release.OnClassic, Equals, false)
+}
+
+func (s *ReleaseTestSuite) TestLSBInfo(c *C) {
+	reset := release.MockLSB(&release.LSB{
+		ID: "distro-id",
+	})
+	defer reset()
+	c.Assert(release.LSBInfo.ID, Equals, "distro-id")
 }
