@@ -124,13 +124,10 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 		Apps:                make(map[string]*AppInfo),
 		Plugs:               make(map[string]*PlugInfo),
 		Slots:               make(map[string]*SlotInfo),
-		Environment:         make(map[string]string),
+		Environment:         y.Environment,
 	}
 	sort.Strings(snap.Assumes)
-	// Environment
-	for k, v := range y.Environment {
-		snap.Environment[k] = v
-	}
+
 	// Collect top-level definitions of plugs
 	for name, data := range y.Plugs {
 		iface, label, attrs, err := convertToSlotOrPlugData("plug", name, data)
