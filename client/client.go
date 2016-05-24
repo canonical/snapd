@@ -221,7 +221,11 @@ func (client *Client) ServerVersion() (string, error) {
 		version = "unknown"
 	}
 
-	return fmt.Sprintf("%s (series %s)", version, sysInfo.Series), nil
+	if sysInfo.OnClassic {
+		return fmt.Sprintf("%s (series %s, os: %s, classic)", version, sysInfo.Series, sysInfo.OS), nil
+	} else {
+		return fmt.Sprintf("%s (series %s, os: %s)", version, sysInfo.Series, sysInfo.OS), nil
+	}
 }
 
 // A response produced by the REST API will usually fit in this
