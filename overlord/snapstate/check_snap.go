@@ -51,8 +51,8 @@ func checkAssumes(s *snap.Info) error {
 }
 
 // openSnapFile opens a snap blob returning both a snap.Info completed
-// with sideInfo (if not nil) and a corresponding snap.File.
-func openSnapFileImpl(snapPath string, sideInfo *snap.SideInfo) (*snap.Info, snap.File, error) {
+// with sideInfo (if not nil) and a corresponding snap.Container.
+func openSnapFileImpl(snapPath string, sideInfo *snap.SideInfo) (*snap.Info, snap.Container, error) {
 	snapf, err := snap.Open(snapPath)
 	if err != nil {
 		return nil, nil, err

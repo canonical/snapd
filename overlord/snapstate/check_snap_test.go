@@ -108,7 +108,7 @@ architectures:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.File, error) {
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
 		c.Check(path, Equals, "snap-path")
 		c.Check(si, IsNil)
 		return info, nil, nil
@@ -130,7 +130,7 @@ assumes: [f1, f2]`
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.File, error) {
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
 		return info, nil, nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
@@ -148,7 +148,7 @@ assumes: [common-data-dir]`
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.File, error) {
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
 		return info, nil, nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
@@ -182,7 +182,7 @@ version: 2
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.File, error) {
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
 		return info, nil, nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
@@ -218,7 +218,7 @@ version: 2
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.File, error) {
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
 		return info, nil, nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
@@ -245,7 +245,7 @@ version: 1
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.File, error) {
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
 		return info, nil, nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
@@ -272,7 +272,7 @@ version: 1
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.File, error) {
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
 		return info, nil, nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)

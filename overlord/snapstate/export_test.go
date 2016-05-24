@@ -77,7 +77,7 @@ func MockReadInfo(mock func(name string, si *snap.SideInfo) (*snap.Info, error))
 
 var OpenSnapFileImpl = openSnapFileImpl
 
-func MockOpenSnapFile(mock func(path string, si *snap.SideInfo) (*snap.Info, snap.File, error)) (restore func()) {
+func MockOpenSnapFile(mock func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error)) (restore func()) {
 	openSnapFile = mock
 	return func() { openSnapFile = openSnapFileImpl }
 }
