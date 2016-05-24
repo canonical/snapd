@@ -92,7 +92,7 @@ func (f *fakeSnappyBackend) Download(name, channel string, checker func(*snap.In
 	return info, "downloaded-snap-path", nil
 }
 
-func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo) (*snap.Info, snap.File, error) {
+func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
 	op := fakeOp{
 		op:   "open-snap-file",
 		name: snapFilePath,

@@ -1344,7 +1344,7 @@ func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlag(c *C) {
 	snapst.Sequence = []*snap.SideInfo{
 		{
 			OfficialName: "foo",
-			Revision:     23,
+			Revision:     snap.R(23),
 		},
 	}
 	snapstate.Set(s.state, "foo", &snapst)
