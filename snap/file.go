@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ubuntu-core/snappy/snap/squashfs"
+	"github.com/snapcore/snapd/snap/squashfs"
 )
 
 // File is the interface to interact with the low-level snap files

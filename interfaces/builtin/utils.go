@@ -24,8 +24,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/ubuntu-core/snappy/interfaces"
-	"github.com/ubuntu-core/snappy/snap"
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/snap"
 )
 
 // AppLabelExpr returns the specification of the apparmor label describing

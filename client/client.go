@@ -30,7 +30,7 @@ import (
 	"os"
 	"path"
 
-	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/snapcore/snapd/dirs"
 )
 
 func unixDialer(_, _ string) (net.Conn, error) {

@@ -28,7 +28,7 @@ import (
 
 	"github.com/testing-cabal/subunit-go"
 
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
+	"github.com/snapcore/snapd/integration-tests/testutils/common"
 )
 
 const (

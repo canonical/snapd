@@ -24,7 +24,7 @@ import (
 	"io/ioutil"
 	"strings"
 
-	"github.com/ubuntu-core/snappy/osutil"
+	"github.com/snapcore/snapd/osutil"
 )
 
 // Series holds the Ubuntu Core series for snapd to use.

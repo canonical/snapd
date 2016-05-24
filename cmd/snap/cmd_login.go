@@ -26,8 +26,8 @@ import (
 	"github.com/jessevdk/go-flags"
 	"golang.org/x/crypto/ssh/terminal"
 
-	"github.com/ubuntu-core/snappy/client"
-	"github.com/ubuntu-core/snappy/i18n"
+	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/i18n"
 )
 
 type cmdLogin struct {

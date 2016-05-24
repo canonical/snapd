@@ -24,11 +24,11 @@ import (
 	"os"
 	"sort"
 
-	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/progress"
-	"github.com/ubuntu-core/snappy/provisioning"
-	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/store"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/provisioning"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/store"
 )
 
 // SetupFlags can be used to pass additional flags to the install of a

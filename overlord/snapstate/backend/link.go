@@ -24,12 +24,12 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/progress"
-	"github.com/ubuntu-core/snappy/snap"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/snap"
 	// XXX: eventually not needed
-	"github.com/ubuntu-core/snappy/snappy"
-	"github.com/ubuntu-core/snappy/wrappers"
+	"github.com/snapcore/snapd/snappy"
+	"github.com/snapcore/snapd/wrappers"
 )
 
 func updateCurrentSymlinks(info *snap.Info) error {
