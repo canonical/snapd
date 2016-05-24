@@ -24,8 +24,8 @@ import (
 
 	"gopkg.in/tomb.v2"
 
-	"github.com/ubuntu-core/snappy/overlord/state"
-	"github.com/ubuntu-core/snappy/snap"
+	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 type ManagerBackend managerBackend

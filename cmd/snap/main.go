@@ -25,10 +25,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ubuntu-core/snappy/client"
-	"github.com/ubuntu-core/snappy/cmd"
-	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/logger"
+	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/cmd"
+	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/logger"
 
 	"github.com/jessevdk/go-flags"
 )

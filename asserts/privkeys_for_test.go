@@ -24,7 +24,7 @@ import (
 
 	"golang.org/x/crypto/openpgp/packet"
 
-	"github.com/ubuntu-core/snappy/asserts"
+	"github.com/snapcore/snapd/asserts"
 )
 
 // private keys to use in tests

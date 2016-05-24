@@ -24,7 +24,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/ubuntu-core/snappy/logger"
+	"github.com/snapcore/snapd/logger"
 )
 
 // MakeMapFromEnvList takes a string list of the form "key=value"

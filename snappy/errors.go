@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ubuntu-core/snappy/arch"
+	"github.com/snapcore/snapd/arch"
 )
 
 var (
