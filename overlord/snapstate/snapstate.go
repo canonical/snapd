@@ -24,11 +24,11 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/overlord/state"
-	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snappy"
+	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snappy"
 )
 
 // allow exchange in the tests

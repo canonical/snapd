@@ -34,8 +34,8 @@ import (
 	"golang.org/x/crypto/openpgp/packet"
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/asserts"
-	"github.com/ubuntu-core/snappy/osutil"
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/osutil"
 )
 
 func Test(t *testing.T) { TestingT(t) }

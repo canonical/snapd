@@ -20,7 +20,7 @@
 package snappy
 
 import (
-	"github.com/ubuntu-core/snappy/snap"
+	"github.com/snapcore/snapd/snap"
 )
 
 // openSnapFile opens a snap blob returning both a snap.Info completed

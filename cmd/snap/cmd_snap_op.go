@@ -25,9 +25,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ubuntu-core/snappy/client"
-	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/progress"
+	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/progress"
 
 	"github.com/jessevdk/go-flags"
 )

@@ -26,7 +26,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/ubuntu-core/snappy/snap"
+	"github.com/snapcore/snapd/snap"
 )
 
 // Repository stores all known snappy plugs and slots and ifaces.

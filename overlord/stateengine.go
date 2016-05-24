@@ -23,9 +23,9 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/ubuntu-core/snappy/logger"
+	"github.com/snapcore/snapd/logger"
 
-	"github.com/ubuntu-core/snappy/overlord/state"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 // StateManager is implemented by types responsible for observing

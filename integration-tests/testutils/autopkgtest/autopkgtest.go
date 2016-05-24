@@ -25,8 +25,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/testutils"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/tpl"
+	"github.com/snapcore/snapd/integration-tests/testutils/testutils"
+	"github.com/snapcore/snapd/integration-tests/testutils/tpl"
 )
 
 const (

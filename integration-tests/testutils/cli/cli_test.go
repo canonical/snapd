@@ -29,8 +29,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/config"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/testutils"
+	"github.com/snapcore/snapd/integration-tests/testutils/config"
+	"github.com/snapcore/snapd/integration-tests/testutils/testutils"
 
 	"gopkg.in/check.v1"
 )

@@ -21,26 +21,43 @@
 package tests
 
 import (
-	"path/filepath"
+	"fmt"
 
-	"gopkg.in/check.v1"
-
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/integration-tests/testutils/cli"
 	"github.com/snapcore/snapd/integration-tests/testutils/common"
+
+	"gopkg.in/check.v1"
 )
 
-// for cleanup
-var dev1AccKeyFiles = filepath.Join(dirs.SnapAssertsDBDir, "asserts-v0/account-key/developer1")
+var _ = check.Suite(&changesSuite{})
 
-var _ = check.Suite(&snapAckSuite{})
-
-type snapAckSuite struct {
+type changesSuite struct {
 	common.SnappySuite
 }
 
-func (s *snapAckSuite) TestOK(c *check.C) {
-	cli.ExecCommand(c, "sudo", "snap", "ack", "integration-tests/data/dev1.acckey")
-	// XXX: forceful cleanup of relevant assertions until we have a better general approach
-	defer cli.ExecCommand(c, "sudo", "rm", "-rf", dev1AccKeyFiles)
+// SNAP_CHANGES_001: --help prints the detailed help test for the command
+func (s *changesSuite) TestChangesShowsHelp(c *check.C) {
+	expected := "(?ms)" +
+		"^Usage:\n" +
+		`  snap \[OPTIONS\] changes.*\n` +
+		"\n^The changes command .*\n" +
+		"^Help Options:\n" +
+		"^  -h, --help +Show this help message\n" +
+		".*"
+
+	actual := cli.ExecCommand(c, "snap", "changes", "--help")
+
+	c.Assert(actual, check.Matches, expected)
+}
+
+// SNAP_CHANGES_004: with invalid id
+func (s *changesSuite) TestChangesWithInvalidIdShowsError(c *check.C) {
+	invalidID := "10000000"
+
+	expected := fmt.Sprintf(`error: cannot find change with id "%s"\n`, invalidID)
+
+	actual, err := cli.ExecCommandErr("snap", "change", invalidID)
+
+	c.Assert(err, check.NotNil)
+	c.Assert(actual, check.Matches, expected)
 }
