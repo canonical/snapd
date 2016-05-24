@@ -30,7 +30,7 @@ import (
 	"os"
 	"path"
 
-	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/snapcore/snapd/dirs"
 )
 
 func unixDialer(_, _ string) (net.Conn, error) {
@@ -189,6 +189,20 @@ func (client *Client) doAsync(method, path string, query url.Values, headers map
 	return rsp.Change, nil
 }
 
+func (client *Client) ServerVersion() (string, error) {
+	sysInfo, err := client.SysInfo()
+	if err != nil {
+		return "unknown", err
+	}
+
+	version := sysInfo.Version
+	if version == "" {
+		version = "unknown"
+	}
+
+	return fmt.Sprintf("%s (series %s)", version, sysInfo.Series), nil
+}
+
 // A response produced by the REST API will usually fit in this
 // (exceptions are the icons/ endpoints obvs)
 type response struct {
@@ -232,11 +246,8 @@ func IsTwoFactorError(err error) bool {
 
 // SysInfo holds system information
 type SysInfo struct {
-	Flavor           string `json:"flavor"`
-	Release          string `json:"release"`
-	DefaultChannel   string `json:"default-channel"`
-	APICompatibility string `json:"api-compat"`
-	Store            string `json:"store,omitempty"`
+	Series  string `json:"series,omitempty"`
+	Version string `json:"version,omitempty"`
 }
 
 func (rsp *response) err() error {

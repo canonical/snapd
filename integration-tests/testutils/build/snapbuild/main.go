@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ubuntu-core/snappy/snap/snaptest"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 func main() {

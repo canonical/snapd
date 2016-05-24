@@ -26,7 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	. "github.com/ubuntu-core/snappy/cmd/snap"
+	. "github.com/snapcore/snapd/cmd/snap"
 )
 
 func (s *SnapSuite) TestDisconnectHelp(c *C) {
@@ -47,6 +47,9 @@ Disconnects any previously connected plugs from the provided slot.
 $ snap disconnect <snap>
 
 Disconnects all plugs from the provided snap.
+
+Application Options:
+      --version            print the version and exit
 
 Help Options:
   -h, --help               Show this help message

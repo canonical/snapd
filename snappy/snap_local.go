@@ -24,12 +24,11 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strconv"
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/ubuntu-core/snappy/osutil"
-	"github.com/ubuntu-core/snappy/snap"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
 )
 
 // Snap represents a generic snap type
@@ -46,10 +45,9 @@ func NewInstalledSnap(yamlPath string) (*Snap, error) {
 	// XXX: hack the name and revision out of the path for now
 	// snapstate primitives shouldn't need this
 	name := filepath.Base(filepath.Dir(mountDir))
-	revnoStr := filepath.Base(mountDir)
-	revno, err := strconv.Atoi(revnoStr)
+	revno, err := snap.ParseRevision(filepath.Base(mountDir))
 	if err != nil {
-		return nil, fmt.Errorf("broken snap directory path: %q", mountDir)
+		return nil, fmt.Errorf("broken snap directory path, bad revision: %q", mountDir)
 	}
 
 	s := &Snap{}
@@ -77,7 +75,7 @@ func NewInstalledSnap(yamlPath string) (*Snap, error) {
 
 	s.info = info
 
-	if revno != 0 {
+	if revno.Store() {
 		mfPath := manifestPath(name, revno)
 		if osutil.FileExists(mfPath) {
 			content, err := ioutil.ReadFile(mfPath)
@@ -120,7 +118,7 @@ func (s *Snap) Version() string {
 }
 
 // Revision returns the revision
-func (s *Snap) Revision() int {
+func (s *Snap) Revision() snap.Revision {
 	return s.info.Revision
 
 }

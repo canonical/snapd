@@ -35,20 +35,20 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/ubuntu-core/snappy/asserts"
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/interfaces"
-	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/overlord/auth"
-	"github.com/ubuntu-core/snappy/overlord/ifacestate"
-	"github.com/ubuntu-core/snappy/overlord/snapstate"
-	"github.com/ubuntu-core/snappy/overlord/state"
-	"github.com/ubuntu-core/snappy/progress"
-	"github.com/ubuntu-core/snappy/release"
-	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snappy"
-	"github.com/ubuntu-core/snappy/store"
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snappy"
+	"github.com/snapcore/snapd/store"
 )
 
 var api = []*Command{
@@ -173,7 +173,8 @@ func tbd(c *Command, r *http.Request, user *auth.UserState) Response {
 
 func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	m := map[string]string{
-		"series": release.Series,
+		"series":  release.Series,
+		"version": c.d.Version,
 	}
 
 	return SyncResponse(m, nil)
@@ -382,7 +383,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	for i, x := range found {
 		url, err := route.URL("name", x.Name())
 		if err != nil {
-			logger.Noticef("cannot build URL for snap %q (r%d): %v", x.Name(), x.Revision, err)
+			logger.Noticef("Cannot build URL for snap %q revision %s: %v", x.Name(), x.Revision, err)
 			continue
 		}
 
@@ -445,13 +446,13 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 
 		url, err := route.URL("name", name)
 		if err != nil {
-			logger.Noticef("cannot build URL for snap %q (r%d): %v", name, rev, err)
+			logger.Noticef("cannot build URL for snap %q revision %s: %v", name, rev, err)
 			continue
 		}
 
 		data, err := json.Marshal(webify(mapLocal(x.info, x.snapst), url.String()))
 		if err != nil {
-			return InternalError("cannot serialize snap %q (r%d): %v", name, rev, err)
+			return InternalError("cannot serialize snap %q revision %s: %v", name, rev, err)
 		}
 		raw := json.RawMessage(data)
 		results[i] = &raw
@@ -657,6 +658,7 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	chg := newChange(state, inst.Action+"-snap", msg, tsets)
+	chg.Set("snap-names", []string{inst.snap})
 	state.EnsureBefore(0)
 
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
@@ -774,6 +776,7 @@ out:
 
 	chg := newChange(st, "install-snap", msg, tsets)
 	chg.Set("api-data", map[string]string{"snap-name": snapName})
+	chg.Set("snap-names", []string{snapName})
 
 	go func() {
 		// XXX this needs to be a task in the manager; this is a hack to keep this branch smaller
@@ -904,6 +907,7 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	}
 
 	change := state.NewChange(a.Action+"-snap", summary)
+	change.Set("snap-names", []string{a.Plugs[0].Snap, a.Slots[0].Snap})
 	change.AddAll(taskset)
 
 	state.EnsureBefore(0)
@@ -1070,6 +1074,29 @@ func getChanges(c *Command, r *http.Request, user *auth.UserState) Response {
 		filter = func(chg *state.Change) bool { return chg.Status().Ready() }
 	default:
 		return BadRequest("select should be one of: all,in-progress,ready")
+	}
+
+	if wantedName := query.Get("for"); wantedName != "" {
+		outerFilter := filter
+		filter = func(chg *state.Change) bool {
+			if !outerFilter(chg) {
+				return false
+			}
+
+			var snapNames []string
+			if err := chg.Get("snap-names", &snapNames); err != nil {
+				logger.Noticef("cannot get snap-name for change %v", chg.ID())
+				return false
+			}
+
+			for _, snapName := range snapNames {
+				if snapName == wantedName {
+					return true
+				}
+			}
+
+			return false
+		}
 	}
 
 	state := c.d.overlord.State()

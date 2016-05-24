@@ -25,8 +25,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ubuntu-core/snappy/client"
-	"github.com/ubuntu-core/snappy/logger"
+	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/cmd"
+	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/logger"
 
 	"github.com/jessevdk/go-flags"
 )
@@ -39,7 +41,7 @@ var (
 )
 
 type options struct {
-	// No global options yet
+	Version func() `long:"version" description:"print the version and exit"`
 }
 
 var optionsData options
@@ -92,6 +94,16 @@ type parserSetter interface {
 // Since commands have local state a fresh parser is required to isolate tests
 // from each other.
 func Parser() *flags.Parser {
+	optionsData.Version = func() {
+		cv, err := Client().ServerVersion()
+		if err != nil {
+			cv = i18n.G("unavailable")
+		}
+
+		fmt.Fprintf(Stdout, "snap  %s\nsnapd %s\n", cmd.Version, cv)
+
+		os.Exit(0)
+	}
 	parser := flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash)
 	parser.ShortDescription = "Tool to interact with snaps"
 	parser.LongDescription = `

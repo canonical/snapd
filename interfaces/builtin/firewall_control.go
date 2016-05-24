@@ -20,7 +20,7 @@
 package builtin
 
 import (
-	"github.com/ubuntu-core/snappy/interfaces"
+	"github.com/snapcore/snapd/interfaces"
 )
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/firewall-control
@@ -51,6 +51,7 @@ network inet6 raw,
 # snappy needs to have iptable_filter and ip6table_filter loaded,
 # they don't autoload.
 unix (bind) type=stream addr="@xtables",
+/{,var/}run/xtables.lock rwk,
 @{PROC}/sys/kernel/modprobe r,
 
 @{PROC}/@{pid}/net/ r,

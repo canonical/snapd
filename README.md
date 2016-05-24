@@ -36,7 +36,7 @@ Add `$GOPATH/bin` to your `PATH`, so you can run the go programs you install:
 
 The easiest way to get the source for `snappy` is to use the `go get` command.
 
-    go get -d -v github.com/ubuntu-core/snappy/...
+    go get -d -v github.com/snapcore/snapd/...
 
 This command will checkout the source of `snappy` and inspect it for any unmet
 Go package dependencies, downloading those as well. `go get` will also build
@@ -46,7 +46,7 @@ the `-d` flag. More details on the `go get` flags are available using
     go help get
 
 At this point you will have the git local repository of the `snappy` source at
-`$GOPATH/github.com/ubuntu-core/snappy`. The source for any
+`$GOPATH/github.com/snapcore/snapd`. The source for any
 dependent packages will also be available inside `$GOPATH`.
 
 ### Dependencies handling
@@ -69,12 +69,12 @@ If the dependencies need updating
 
 To build, once the sources are available and `GOPATH` is set, you can just run
 
-    go build -o /tmp/snap github.com/ubuntu-core/snappy/cmd/snap
+    go build -o /tmp/snap github.com/snapcore/snapd/cmd/snap
 
 to get the `snap` binary in /tmp (or without -o to get it in the current
 working directory). Alternatively:
 
-    go install github.com/ubuntu-core/snappy/...
+    go install github.com/snapcore/snapd/...
 
 to have it available in `$GOPATH/bin`
 
@@ -85,7 +85,7 @@ Canonical contributor licence agreement at
 http://www.ubuntu.com/legal/contributors
 
 Snappy can be found on Github, so in order to fork the source and contribute,
-go to https://github.com/ubuntu-core/snappy. Check out [Github's help
+go to https://github.com/snapcore/snapd. Check out [Github's help
 pages](https://help.github.com/) to find out how to set up your local branch,
 commit changes and create pull requests.
 
@@ -132,8 +132,8 @@ so the socket has the right permissions (otherwise you need `sudo` to
 connect).
 
 
-[travis-image]: https://travis-ci.org/ubuntu-core/snappy.svg?branch=master
-[travis-url]: https://travis-ci.org/ubuntu-core/snappy
+[travis-image]: https://travis-ci.org/snapcore/snapd.svg?branch=master
+[travis-url]: https://travis-ci.org/snapcore/snapd
 
-[coveralls-image]: https://coveralls.io/repos/ubuntu-core/snappy/badge.svg?branch=master&service=github
-[coveralls-url]: https://coveralls.io/github/ubuntu-core/snappy?branch=master
+[coveralls-image]: https://coveralls.io/repos/snapcore/snapd/badge.svg?branch=master&service=github
+[coveralls-url]: https://coveralls.io/github/snapcore/snapd?branch=master

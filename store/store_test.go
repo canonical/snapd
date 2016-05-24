@@ -33,12 +33,12 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/asserts"
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/osutil"
-	"github.com/ubuntu-core/snappy/progress"
-	"github.com/ubuntu-core/snappy/snap"
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/snap"
 )
 
 type remoteRepoTestSuite struct {
@@ -172,15 +172,15 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryHeaders(c *C) {
 	req, err := http.NewRequest("GET", "http://example.com", nil)
 	c.Assert(err, IsNil)
 
-	t.store.applyUbuntuStoreHeaders(req, "", nil)
+	t.store.setUbuntuStoreHeaders(req, "", nil)
 
-	c.Assert(req.Header.Get("X-Ubuntu-Release"), Equals, "16")
-	c.Check(req.Header.Get("Accept"), Equals, "application/hal+json")
+	c.Check(req.Header.Get("X-Ubuntu-Release"), Equals, "16")
+	c.Check(req.Header.Get("X-Ubuntu-Device-Channel"), Equals, "")
 
-	t.store.applyUbuntuStoreHeaders(req, "application/json", nil)
+	t.store.setUbuntuStoreHeaders(req, "chan", nil)
 
-	c.Check(req.Header.Get("Accept"), Equals, "application/json")
-	c.Assert(req.Header.Get("Authorization"), Equals, "")
+	c.Check(req.Header.Get("Authorization"), Equals, "")
+	c.Check(req.Header.Get("X-Ubuntu-Device-Channel"), Equals, "chan")
 }
 
 const (
@@ -331,7 +331,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(result.Name(), Equals, "hello-world")
 	c.Check(result.Architectures, DeepEquals, []string{"all"})
-	c.Check(result.Revision, Equals, 25)
+	c.Check(result.Revision, Equals, snap.R(25))
 	c.Check(result.SnapID, Equals, helloWorldSnapID)
 	c.Check(result.Developer, Equals, "canonical")
 	c.Check(result.Version, Equals, "6.0")
@@ -343,8 +343,13 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Assert(result.Prices, DeepEquals, map[string]float64{"USD": 1.23})
 	c.Check(result.MustBuy, Equals, true)
 
+	// Make sure the epoch (currently not sent by the store) defaults to "0"
+	c.Check(result.Epoch, Equals, "0")
+
 	c.Check(repo.SuggestedCurrency(), Equals, "GBP")
 	c.Check(result.Private, Equals, true)
+
+	c.Check(snap.Validate(result), IsNil)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsSetsAuth(c *C) {
@@ -773,7 +778,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].Name(), Equals, funkyAppName)
-	c.Assert(results[0].Revision, Equals, 3)
+	c.Assert(results[0].Revision, Equals, snap.R(3))
 	c.Assert(results[0].Version, Equals, "42")
 }
 

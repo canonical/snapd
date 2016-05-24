@@ -21,27 +21,39 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"regexp"
 	"sort"
+	"time"
 
-	"github.com/ubuntu-core/snappy/client"
-	"github.com/ubuntu-core/snappy/i18n"
+	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/i18n"
 
 	"github.com/jessevdk/go-flags"
-	"time"
 )
 
 var shortChangesHelp = i18n.G("List system changes")
+var shortChangeHelp = i18n.G("List a change's tasks")
 var longChangesHelp = i18n.G(`
 The changes command displays a summary of the recent system changes performed.`)
+var longChangeHelp = i18n.G(`
+The change command displays a summary of tasks associated to an individual change.`)
 
 type cmdChanges struct {
 	Positional struct {
-		Id string `positional-arg-name:"<id>"`
+		Snap string `positional-arg-name:"<snap>"`
+	} `positional-args:"yes"`
+}
+
+type cmdChange struct {
+	Positional struct {
+		Id string `positional-arg-name:"<id>" required:"yes"`
 	} `positional-args:"yes"`
 }
 
 func init() {
 	addCommand("changes", shortChangesHelp, longChangesHelp, func() flags.Commander { return &cmdChanges{} })
+	addCommand("change", shortChangeHelp, longChangeHelp, func() flags.Commander { return &cmdChange{} })
 }
 
 type changesByTime []*client.Change
@@ -50,19 +62,26 @@ func (s changesByTime) Len() int           { return len(s) }
 func (s changesByTime) Less(i, j int) bool { return s[i].SpawnTime.Before(s[j].SpawnTime) }
 func (s changesByTime) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
+var allDigits = regexp.MustCompile(`^[0-9]+$`).MatchString
+
 func (c *cmdChanges) Execute([]string) error {
 
-	if c.Positional.Id == "everything" {
+	if allDigits(c.Positional.Snap) {
+		return fmt.Errorf(`%s changes command expects a snap name, try: %[1]s change %s`, os.Args[0], c.Positional.Snap)
+	}
+
+	if c.Positional.Snap == "everything" {
 		fmt.Fprintln(Stdout, "Yes, yes it does.")
 		return nil
 	}
 
-	if c.Positional.Id != "" {
-		return c.showChange(c.Positional.Id)
+	opts := client.ChangesOptions{
+		SnapName: c.Positional.Snap,
+		Selector: client.ChangesAll,
 	}
 
 	cli := Client()
-	changes, err := cli.Changes(client.ChangesAll)
+	changes, err := cli.Changes(&opts)
 	if err != nil {
 		return err
 	}
@@ -91,9 +110,9 @@ func (c *cmdChanges) Execute([]string) error {
 	return nil
 }
 
-func (c *cmdChanges) showChange(id string) error {
+func (c *cmdChange) Execute([]string) error {
 	cli := Client()
-	chg, err := cli.Change(id)
+	chg, err := cli.Change(c.Positional.Id)
 	if err != nil {
 		return err
 	}

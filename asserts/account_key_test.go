@@ -27,7 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/asserts"
+	"github.com/snapcore/snapd/asserts"
 )
 
 type accountKeySuite struct {
@@ -104,12 +104,19 @@ func (aks *accountKeySuite) TestDecodeInvalidHeaders(c *C) {
 
 	invalidHeaderTests := []struct{ original, invalid, expectedErr string }{
 		{"account-id: acc-id1\n", "", `"account-id" header is mandatory`},
-		{aks.sinceLine, "", `"since" header is mandatory`},
-		{aks.untilLine, "", `"until" header is mandatory`},
-		{aks.sinceLine, "since: 12:30\n", `"since" header is not a RFC3339 date: .*`},
-		{aks.untilLine, "until: " + aks.since.Format(time.RFC3339) + "\n", `invalid 'since' and 'until' times \(no gap after 'since' till 'until'\)`},
+		{"account-id: acc-id1\n", "account-id: \n", `"account-id" header should not be empty`},
 		{"public-key-id: " + aks.keyid + "\n", "", `"public-key-id" header is mandatory`},
+		{"public-key-id: " + aks.keyid + "\n", "public-key-id: \n", `"public-key-id" header should not be empty`},
 		{"public-key-fingerprint: " + aks.fp + "\n", "", `"public-key-fingerprint" header is mandatory`},
+		{"public-key-fingerprint: " + aks.fp + "\n", "public-key-fingerprint: \n", `"public-key-fingerprint" header should not be empty`},
+		{aks.sinceLine, "", `"since" header is mandatory`},
+		{aks.sinceLine, "since: \n", `"since" header should not be empty`},
+		{aks.sinceLine, "since: 12:30\n", `"since" header is not a RFC3339 date: .*`},
+		{aks.sinceLine, "since: \n", `"since" header should not be empty`},
+		{aks.untilLine, "", `"until" header is mandatory`},
+		{aks.untilLine, "until: \n", `"until" header should not be empty`},
+		{aks.untilLine, "until: " + aks.since.Format(time.RFC3339) + "\n", `invalid 'since' and 'until' times \(no gap after 'since' till 'until'\)`},
+		{aks.untilLine, "until: \n", `"until" header should not be empty`},
 	}
 
 	for _, test := range invalidHeaderTests {
