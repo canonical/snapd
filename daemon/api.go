@@ -179,9 +179,11 @@ func tbd(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
-	m := map[string]string{
-		"series":  release.Series,
-		"version": c.d.Version,
+	m := map[string]interface{}{
+		"series":     release.Series,
+		"version":    c.d.Version,
+		"os-id":      release.ReleaseInfo.ID,
+		"on-classic": release.OnClassic,
 	}
 
 	return SyncResponse(m, nil)
