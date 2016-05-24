@@ -40,8 +40,8 @@ type OSRelease struct {
 
 var osReleasePath = "/etc/os-release"
 
-// ReadOSRelease returns the os-release information of the current system.
-func ReadOSRelease() (*OSRelease, error) {
+// readOSRelease returns the os-release information of the current system.
+func readOSRelease() (*OSRelease, error) {
 	osRelease := &OSRelease{}
 
 	content, err := ioutil.ReadFile(osReleasePath)
@@ -82,7 +82,7 @@ var OnClassic bool
 var ReleaseInfo OSRelease
 
 func init() {
-	osRelease, err := ReadOSRelease()
+	osRelease, err := readOSRelease()
 	if err != nil {
 		// Values recommended by os-release(5) as defaults
 		osRelease = &OSRelease{
