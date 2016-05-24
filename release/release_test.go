@@ -41,7 +41,7 @@ func (s *ReleaseTestSuite) TestSetup(c *C) {
 	c.Check(release.Series, Equals, "16")
 }
 
-func makeMockOSRelease(c *C) string {
+func mockOSRelease(c *C) string {
 	// FIXME: use AddCleanup here once available so that we
 	//        can do release.SetLSBReleasePath() here directly
 	mockOSRelease := filepath.Join(c.MkDir(), "mock-os-release")
@@ -64,7 +64,7 @@ UBUNTU_CODENAME=awesome
 }
 
 func (s *ReleaseTestSuite) TestReadOSRelease(c *C) {
-	reset := release.MockOSReleasePath(makeMockOSRelease(c))
+	reset := release.MockOSReleasePath(mockOSRelease(c))
 	defer reset()
 
 	os, err := release.ReadOSRelease()
