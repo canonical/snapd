@@ -22,38 +22,43 @@ package asserts
 import "time"
 
 var (
-	identityValidationCertified = "certified"
+	accountValidationCertified = "certified"
 )
 
-// Identity holds an identity assertion, which provides a name for an account
-// and the authority's confidence in the name's validity.
-type Identity struct {
+// Account holds an account assertion, which ties a name for an account
+// to its identifier and provides the authority's confidence in the name's validity.
+type Account struct {
 	assertionBase
 	certified bool
 	timestamp time.Time
 }
 
-// AccountID returns the account-id of the identit.
-func (id *Identity) AccountID() string {
-	return id.Header("account-id")
+// AccountID returns the account-id of the account.
+func (acc *Account) AccountID() string {
+	return acc.Header("account-id")
 }
 
-// DisplayName returns the human-friendly name for the identity.
-func (id *Identity) DisplayName() string {
-	return id.Header("display-name")
+// Username returns the user name for the account.
+func (acc *Account) Username() string {
+	return acc.Header("username")
 }
 
-// IsCertified returns true if the authority has confidence in the identity's name.
-func (id *Identity) IsCertified() bool {
-	return id.certified
+// DisplayName returns the human-friendly name for the account.
+func (acc *Account) DisplayName() string {
+	return acc.Header("display-name")
 }
 
-// Timestamp returns the time when the identity was issued.
-func (id *Identity) Timestamp() time.Time {
-	return id.timestamp
+// IsCertified returns true if the authority has confidence in the account's name.
+func (acc *Account) IsCertified() bool {
+	return acc.certified
 }
 
-func assembleIdentity(assert assertionBase) (Assertion, error) {
+// Timestamp returns the time when the account was issued.
+func (acc *Account) Timestamp() time.Time {
+	return acc.timestamp
+}
+
+func assembleAccount(assert assertionBase) (Assertion, error) {
 	_, err := checkNotEmpty(assert.headers, "display-name")
 	if err != nil {
 		return nil, err
@@ -63,14 +68,14 @@ func assembleIdentity(assert assertionBase) (Assertion, error) {
 	if err != nil {
 		return nil, err
 	}
-	certified := assert.headers["validation"] == identityValidationCertified
+	certified := assert.headers["validation"] == accountValidationCertified
 
 	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
 	if err != nil {
 		return nil, err
 	}
 
-	return &Identity{
+	return &Account{
 		assertionBase: assert,
 		certified:     certified,
 		timestamp:     timestamp,
