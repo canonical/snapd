@@ -144,9 +144,7 @@ func InstallPath(s *state.State, name, path, channel string, flags snappy.Instal
 // TryPath returns a set of tasks for trying a snap from a file path.
 // Note that the state must be locked by the caller.
 func TryPath(s *state.State, name, path string, flags snappy.InstallFlags) (*state.TaskSet, error) {
-	//FIXME: this is not an install flag, this is a state flag
-	//       set it in the SnapState
-	//flags |= TryMode
+	flags |= snappy.TryMode
 
 	return InstallPath(s, name, path, "", flags)
 }
