@@ -225,6 +225,8 @@ type AppInfo struct {
 
 	Plugs map[string]*PlugInfo
 	Slots map[string]*SlotInfo
+
+	Environment map[string]string
 }
 
 // SecurityTag returns application-specific security tag.
