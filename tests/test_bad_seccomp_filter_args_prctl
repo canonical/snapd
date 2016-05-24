@@ -1,0 +1,55 @@
+#!/bin/sh
+
+set -e
+
+. "$(pwd)"/common.sh
+
+cat >"$TMP"/tmpl <<EOF
+# the ones we must have
+open
+close
+mmap
+munmap
+mprotect
+fstat
+access
+read
+brk
+execve
+arch_prctl
+exit_group
+geteuid
+getuid
+
+# what we are testing
+EOF
+
+for i in 'PR_GET_SECCOM' 'PR_GET_SECCOMPP' 'PR_GET_SECC0MP' ; do
+    printf "Test bad seccomp arg filtering (prctl %s)" "$i"
+    cat "$TMP"/tmpl >"$TMP"/myprofile
+    echo "prctl $i" >>"$TMP"/myprofile
+
+    if $L snap.name.app myprofile /bin/true 2>/dev/null; then
+        # true returned successfully, bad arg test failed
+        cat "$TMP"/myprofile
+        FAIL
+    fi
+
+    # all good
+    PASS
+done
+
+for i in 'PR_CAP_AMBIENT_RAIS' 'PR_CAP_AMBIENT_RAISEE' ; do
+    printf "Test bad seccomp arg filtering (prctl PR_CAP_AMBIENT %s)" "$i"
+    cat "$TMP"/tmpl >"$TMP"/myprofile
+    echo "prctl PR_CAP_AMBIENT $i" >>"$TMP"/myprofile
+
+    if $L snap.name.app myprofile /bin/true 2>/dev/null; then
+        # true returned successfully, bad arg test failed
+        cat "$TMP"/myprofile
+        FAIL
+    fi
+
+    # all good
+    PASS
+done
