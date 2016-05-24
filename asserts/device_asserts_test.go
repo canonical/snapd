@@ -34,8 +34,8 @@ type modelSuite struct {
 }
 
 var (
-	_ = Suite(&deviceSerialSuite{})
 	_ = Suite(&modelSuite{})
+	_ = Suite(&serialSuite{})
 )
 
 func (mods *modelSuite) SetUpSuite(c *C) {
@@ -155,24 +155,24 @@ func (mods *modelSuite) TestModelCheckInconsistentTimestamp(c *C) {
 	c.Assert(err, ErrorMatches, "model assertion timestamp outside of signing key validity")
 }
 
-type deviceSerialSuite struct {
+type serialSuite struct {
 	ts            time.Time
 	tsLine        string
 	deviceKey     asserts.PrivateKey
 	encodedDevKey string
 }
 
-func (dss *deviceSerialSuite) SetUpSuite(c *C) {
-	dss.ts = time.Now().Truncate(time.Second).UTC()
-	dss.tsLine = "timestamp: " + dss.ts.Format(time.RFC3339) + "\n"
+func (ss *serialSuite) SetUpSuite(c *C) {
+	ss.ts = time.Now().Truncate(time.Second).UTC()
+	ss.tsLine = "timestamp: " + ss.ts.Format(time.RFC3339) + "\n"
 
-	dss.deviceKey = asserts.OpenPGPPrivateKey(testPrivKey2)
-	encodedPubKey, err := asserts.EncodePublicKey(dss.deviceKey.PublicKey())
+	ss.deviceKey = asserts.OpenPGPPrivateKey(testPrivKey2)
+	encodedPubKey, err := asserts.EncodePublicKey(ss.deviceKey.PublicKey())
 	c.Assert(err, IsNil)
-	dss.encodedDevKey = string(encodedPubKey)
+	ss.encodedDevKey = string(encodedPubKey)
 }
 
-const deviceSerialExample = "type: device-serial\n" +
+const serialExample = "type: serial\n" +
 	"authority-id: canonical\n" +
 	"brand-id: brand-id1\n" +
 	"model: baz-3000\n" +
@@ -184,27 +184,27 @@ const deviceSerialExample = "type: device-serial\n" +
 	"\n\n" +
 	"openpgp c2ln"
 
-func (dss *deviceSerialSuite) TestDecodeOK(c *C) {
-	encoded := strings.Replace(deviceSerialExample, "TSLINE", dss.tsLine, 1)
-	encoded = strings.Replace(encoded, "DEVICEKEY", strings.Replace(dss.encodedDevKey, "\n", "\n ", -1), 1)
+func (ss *serialSuite) TestDecodeOK(c *C) {
+	encoded := strings.Replace(serialExample, "TSLINE", ss.tsLine, 1)
+	encoded = strings.Replace(encoded, "DEVICEKEY", strings.Replace(ss.encodedDevKey, "\n", "\n ", -1), 1)
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
-	c.Check(a.Type(), Equals, asserts.DeviceSerialType)
-	deviceSerial := a.(*asserts.DeviceSerial)
-	c.Check(deviceSerial.AuthorityID(), Equals, "canonical")
-	c.Check(deviceSerial.Timestamp(), Equals, dss.ts)
-	c.Check(deviceSerial.BrandID(), Equals, "brand-id1")
-	c.Check(deviceSerial.Model(), Equals, "baz-3000")
-	c.Check(deviceSerial.Serial(), Equals, "2700")
-	c.Check(deviceSerial.DeviceKey().Fingerprint(), Equals, dss.deviceKey.PublicKey().Fingerprint())
+	c.Check(a.Type(), Equals, asserts.SerialType)
+	serial := a.(*asserts.Serial)
+	c.Check(serial.AuthorityID(), Equals, "canonical")
+	c.Check(serial.Timestamp(), Equals, ss.ts)
+	c.Check(serial.BrandID(), Equals, "brand-id1")
+	c.Check(serial.Model(), Equals, "baz-3000")
+	c.Check(serial.Serial(), Equals, "2700")
+	c.Check(serial.DeviceKey().Fingerprint(), Equals, ss.deviceKey.PublicKey().Fingerprint())
 }
 
 const (
-	deviceSerialErrPrefix = "assertion device-serial: "
+	serialErrPrefix = "assertion serial: "
 )
 
-func (dss *deviceSerialSuite) TestDecodeInvalid(c *C) {
-	encoded := strings.Replace(deviceSerialExample, "TSLINE", dss.tsLine, 1)
+func (ss *serialSuite) TestDecodeInvalid(c *C) {
+	encoded := strings.Replace(serialExample, "TSLINE", ss.tsLine, 1)
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"brand-id: brand-id1\n", "", `"brand-id" header is mandatory`},
@@ -213,9 +213,9 @@ func (dss *deviceSerialSuite) TestDecodeInvalid(c *C) {
 		{"model: baz-3000\n", "model: \n", `"model" header should not be empty`},
 		{"serial: 2700\n", "", `"serial" header is mandatory`},
 		{"serial: 2700\n", "serial: \n", `"serial" header should not be empty`},
-		{dss.tsLine, "", `"timestamp" header is mandatory`},
-		{dss.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
-		{dss.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
+		{ss.tsLine, "", `"timestamp" header is mandatory`},
+		{ss.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
+		{ss.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
 		{"device-key:\n DEVICEKEY\n", "", `"device-key" header is mandatory`},
 		{"device-key:\n DEVICEKEY\n", "device-key: \n", `"device-key" header should not be empty`},
 		{"device-key:\n DEVICEKEY\n", "device-key: openpgp ZZZ\n", `public key: could not decode base64 data:.*`},
@@ -223,9 +223,9 @@ func (dss *deviceSerialSuite) TestDecodeInvalid(c *C) {
 
 	for _, test := range invalidTests {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
-		invalid = strings.Replace(invalid, "DEVICEKEY", strings.Replace(dss.encodedDevKey, "\n", "\n ", -1), 1)
+		invalid = strings.Replace(invalid, "DEVICEKEY", strings.Replace(ss.encodedDevKey, "\n", "\n ", -1), 1)
 
 		_, err := asserts.Decode([]byte(invalid))
-		c.Check(err, ErrorMatches, deviceSerialErrPrefix+test.expectedErr)
+		c.Check(err, ErrorMatches, serialErrPrefix+test.expectedErr)
 	}
 }
