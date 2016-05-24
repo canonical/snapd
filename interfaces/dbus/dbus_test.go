@@ -22,7 +22,7 @@ package dbus_test
 import (
 	"testing"
 
-	"github.com/ubuntu-core/snappy/interfaces/dbus"
+	"github.com/snapcore/snapd/interfaces/dbus"
 
 	. "gopkg.in/check.v1"
 )

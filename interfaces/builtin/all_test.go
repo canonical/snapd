@@ -20,8 +20,8 @@
 package builtin_test
 
 import (
-	"github.com/ubuntu-core/snappy/interfaces/builtin"
-	. "github.com/ubuntu-core/snappy/testutil"
+	"github.com/snapcore/snapd/interfaces/builtin"
+	. "github.com/snapcore/snapd/testutil"
 
 	. "gopkg.in/check.v1"
 )

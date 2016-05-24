@@ -22,7 +22,7 @@ package main
 import (
 	"github.com/jessevdk/go-flags"
 
-	"github.com/ubuntu-core/snappy/overlord"
+	"github.com/snapcore/snapd/overlord"
 )
 
 type cmdInternalFirstBoot struct{}
