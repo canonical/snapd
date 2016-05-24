@@ -42,12 +42,12 @@ Description=Service for snap application snap.app
 X-Snappy=yes
 
 [Service]
-ExecStart=/usr/bin/ubuntu-core-launcher snap.snap.app snap.snap.app /snap/snap/44/bin/start
+ExecStart=/usr/bin/snap-run snap.snap.app /snap/snap/44/bin/start
 Restart=on-failure
 WorkingDirectory=/var/snap/snap/44
 Environment="SNAP=/snap/snap/44" "SNAP_DATA=/var/snap/snap/44" "SNAP_NAME=snap" "SNAP_VERSION=1.0" "SNAP_REVISION=44" "SNAP_ARCH=%[3]s" "SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:" "SNAP_USER_DATA=/root/snap/snap/44"
-ExecStop=/usr/bin/ubuntu-core-launcher snap.snap.app snap.snap.app /snap/snap/44/bin/stop
-ExecStopPost=/usr/bin/ubuntu-core-launcher snap.snap.app snap.snap.app /snap/snap/44/bin/stop --post
+ExecStop=/usr/bin/snap-run snap.snap.app /snap/snap/44/bin/stop
+ExecStopPost=/usr/bin/snap-run snap.snap.app /snap/snap/44/bin/stop --post
 TimeoutStopSec=10
 %[2]s
 
@@ -68,12 +68,12 @@ Description=Service for snap application xkcd-webserver.xkcd-webserver
 X-Snappy=yes
 
 [Service]
-ExecStart=/usr/bin/ubuntu-core-launcher snap.xkcd-webserver.xkcd-webserver snap.xkcd-webserver.xkcd-webserver /snap/xkcd-webserver/44/bin/foo start
+ExecStart=/usr/bin/snap-run snap.xkcd-webserver.xkcd-webserver /snap/xkcd-webserver/44/bin/foo start
 Restart=on-failure
 WorkingDirectory=/var/snap/xkcd-webserver/44
 Environment="SNAP=/snap/xkcd-webserver/44" "SNAP_DATA=/var/snap/xkcd-webserver/44" "SNAP_NAME=xkcd-webserver" "SNAP_VERSION=0.3.4" "SNAP_REVISION=44" "SNAP_ARCH=%[3]s" "SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:" "SNAP_USER_DATA=/root/snap/xkcd-webserver/44"
-ExecStop=/usr/bin/ubuntu-core-launcher snap.xkcd-webserver.xkcd-webserver snap.xkcd-webserver.xkcd-webserver /snap/xkcd-webserver/44/bin/foo stop
-ExecStopPost=/usr/bin/ubuntu-core-launcher snap.xkcd-webserver.xkcd-webserver snap.xkcd-webserver.xkcd-webserver /snap/xkcd-webserver/44/bin/foo post-stop
+ExecStop=/usr/bin/snap-run snap.xkcd-webserver.xkcd-webserver /snap/xkcd-webserver/44/bin/foo stop
+ExecStopPost=/usr/bin/snap-run snap.xkcd-webserver.xkcd-webserver /snap/xkcd-webserver/44/bin/foo post-stop
 TimeoutStopSec=30
 %[2]s
 
