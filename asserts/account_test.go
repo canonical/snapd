@@ -45,7 +45,8 @@ func (s *accountSuite) SetUpSuite(c *C) {
 const accountExample = "type: account\n" +
 	"authority-id: canonical\n" +
 	"account-id: abc-123\n" +
-	"display-name: Display Name\n" +
+	"display-name: Nice User\n" +
+	"username: nice\n" +
 	"validation: certified\n" +
 	"TSLINE" +
 	"body-length: 0" +
@@ -61,7 +62,8 @@ func (s *accountSuite) TestDecodeOK(c *C) {
 	c.Check(account.AuthorityID(), Equals, "canonical")
 	c.Check(account.Timestamp(), Equals, s.ts)
 	c.Check(account.AccountID(), Equals, "abc-123")
-	c.Check(account.DisplayName(), Equals, "Display Name")
+	c.Check(account.DisplayName(), Equals, "Nice User")
+	c.Check(account.Username(), Equals, "nice")
 	c.Check(account.IsCertified(), Equals, true)
 }
 
@@ -100,8 +102,8 @@ func (s *accountSuite) TestDecodeInvalid(c *C) {
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"account-id: abc-123\n", "", `"account-id" header is mandatory`},
 		{"account-id: abc-123\n", "account-id: \n", `"account-id" header should not be empty`},
-		{"display-name: Display Name\n", "", `"display-name" header is mandatory`},
-		{"display-name: Display Name\n", "display-name: \n", `"display-name" header should not be empty`},
+		{"display-name: Nice User\n", "", `"display-name" header is mandatory`},
+		{"display-name: Nice User\n", "display-name: \n", `"display-name" header should not be empty`},
 		{"validation: certified\n", "", `"validation" header is mandatory`},
 		{"validation: certified\n", "validation: \n", `"validation" header should not be empty`},
 		{s.tsLine, "", `"timestamp" header is mandatory`},
