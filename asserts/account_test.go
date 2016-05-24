@@ -37,9 +37,9 @@ type accountSuite struct {
 	tsLine string
 }
 
-func (ids *accountSuite) SetUpSuite(c *C) {
-	ids.ts = time.Now().Truncate(time.Second).UTC()
-	ids.tsLine = "timestamp: " + ids.ts.Format(time.RFC3339) + "\n"
+func (s *accountSuite) SetUpSuite(c *C) {
+	s.ts = time.Now().Truncate(time.Second).UTC()
+	s.tsLine = "timestamp: " + s.ts.Format(time.RFC3339) + "\n"
 }
 
 const accountExample = "type: account\n" +
@@ -52,20 +52,20 @@ const accountExample = "type: account\n" +
 	"\n\n" +
 	"openpgp c2ln"
 
-func (ids *accountSuite) TestDecodeOK(c *C) {
-	encoded := strings.Replace(accountExample, "TSLINE", ids.tsLine, 1)
+func (s *accountSuite) TestDecodeOK(c *C) {
+	encoded := strings.Replace(accountExample, "TSLINE", s.tsLine, 1)
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.AccountType)
 	account := a.(*asserts.Account)
 	c.Check(account.AuthorityID(), Equals, "canonical")
-	c.Check(account.Timestamp(), Equals, ids.ts)
+	c.Check(account.Timestamp(), Equals, s.ts)
 	c.Check(account.AccountID(), Equals, "abc-123")
 	c.Check(account.DisplayName(), Equals, "Display Name")
 	c.Check(account.IsCertified(), Equals, true)
 }
 
-func (ids *accountSuite) TestIsCertified(c *C) {
+func (s *accountSuite) TestIsCertified(c *C) {
 	tests := []struct {
 		value       string
 		isCertified bool
@@ -75,7 +75,7 @@ func (ids *accountSuite) TestIsCertified(c *C) {
 		{"nonsense", false},
 	}
 
-	template := strings.Replace(accountExample, "TSLINE", ids.tsLine, 1)
+	template := strings.Replace(accountExample, "TSLINE", s.tsLine, 1)
 	for _, test := range tests {
 		encoded := strings.Replace(
 			template,
@@ -94,8 +94,8 @@ const (
 	accountErrPrefix = "assertion account: "
 )
 
-func (ids *accountSuite) TestDecodeInvalid(c *C) {
-	encoded := strings.Replace(accountExample, "TSLINE", ids.tsLine, 1)
+func (s *accountSuite) TestDecodeInvalid(c *C) {
+	encoded := strings.Replace(accountExample, "TSLINE", s.tsLine, 1)
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"account-id: abc-123\n", "", `"account-id" header is mandatory`},
@@ -104,9 +104,9 @@ func (ids *accountSuite) TestDecodeInvalid(c *C) {
 		{"display-name: Display Name\n", "display-name: \n", `"display-name" header should not be empty`},
 		{"validation: certified\n", "", `"validation" header is mandatory`},
 		{"validation: certified\n", "validation: \n", `"validation" header should not be empty`},
-		{ids.tsLine, "", `"timestamp" header is mandatory`},
-		{ids.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
-		{ids.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
+		{s.tsLine, "", `"timestamp" header is mandatory`},
+		{s.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
+		{s.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
 	}
 
 	for _, test := range invalidTests {
@@ -116,8 +116,8 @@ func (ids *accountSuite) TestDecodeInvalid(c *C) {
 	}
 }
 
-func (ids *accountSuite) TestCheckInconsistentTimestamp(c *C) {
-	ex, err := asserts.Decode([]byte(strings.Replace(accountExample, "TSLINE", ids.tsLine, 1)))
+func (s *accountSuite) TestCheckInconsistentTimestamp(c *C) {
+	ex, err := asserts.Decode([]byte(strings.Replace(accountExample, "TSLINE", s.tsLine, 1)))
 	c.Assert(err, IsNil)
 
 	signingKeyID, accSignDB, db := makeSignAndCheckDbWithAccountKey(c, "canonical")

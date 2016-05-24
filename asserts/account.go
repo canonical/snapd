@@ -34,23 +34,23 @@ type Account struct {
 }
 
 // AccountID returns the account-id of the account.
-func (id *Account) AccountID() string {
-	return id.Header("account-id")
+func (acc *Account) AccountID() string {
+	return acc.Header("account-id")
 }
 
 // DisplayName returns the human-friendly name for the account.
-func (id *Account) DisplayName() string {
-	return id.Header("display-name")
+func (acc *Account) DisplayName() string {
+	return acc.Header("display-name")
 }
 
 // IsCertified returns true if the authority has confidence in the account's name.
-func (id *Account) IsCertified() bool {
-	return id.certified
+func (acc *Account) IsCertified() bool {
+	return acc.certified
 }
 
 // Timestamp returns the time when the account was issued.
-func (id *Account) Timestamp() time.Time {
-	return id.timestamp
+func (acc *Account) Timestamp() time.Time {
+	return acc.timestamp
 }
 
 func assembleAccount(assert assertionBase) (Assertion, error) {
