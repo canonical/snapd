@@ -32,13 +32,13 @@ import (
 	"gopkg.in/check.v1"
 )
 
-var _ = check.Suite(&snapHelloWorldExampleSuite{})
+var _ = check.Suite(&snapHelloWorldExampleAutopkgSuite{})
 
-type snapHelloWorldExampleSuite struct {
+type snapHelloWorldExampleAutopkgSuite struct {
 	common.SnappySuite
 }
 
-func (s *snapHelloWorldExampleSuite) TestCallHelloWorldBinary(c *check.C) {
+func (s *snapHelloWorldExampleAutopkgSuite) TestCallHelloWorldBinary(c *check.C) {
 	common.InstallSnap(c, "hello-world")
 	s.AddCleanup(func() {
 		common.RemoveSnap(c, "hello-world")
@@ -52,7 +52,7 @@ func (s *snapHelloWorldExampleSuite) TestCallHelloWorldBinary(c *check.C) {
 		check.Commentf("Wrong output from hello-world binary"))
 }
 
-func (s *snapHelloWorldExampleSuite) TestCallHelloWorldEvilMustPrintPermissionDeniedError(c *check.C) {
+func (s *snapHelloWorldExampleAutopkgSuite) TestCallHelloWorldEvilMustPrintPermissionDeniedError(c *check.C) {
 	common.InstallSnap(c, "hello-world")
 	s.AddCleanup(func() {
 		common.RemoveSnap(c, "hello-world")

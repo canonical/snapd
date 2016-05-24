@@ -32,7 +32,7 @@ import (
 	"gopkg.in/check.v1"
 )
 
-var _ = check.Suite(&unitySuite{})
+var _ = check.Suite(&unityAutopkgSuite{})
 
 const (
 	display       = ":99.0"
@@ -40,11 +40,11 @@ const (
 	appBinaryName = appName + ".clock"
 )
 
-type unitySuite struct {
+type unityAutopkgSuite struct {
 	common.SnappySuite
 }
 
-func (s *unitySuite) TestUnitySnapCanBeStarted(c *check.C) {
+func (s *unityAutopkgSuite) TestUnitySnapCanBeStarted(c *check.C) {
 	_, err := cli.ExecCommandErr("sudo", "snap", "install", appName)
 	c.Assert(err, check.IsNil)
 	defer cli.ExecCommand(c, "sudo", "snap", "remove", appName)

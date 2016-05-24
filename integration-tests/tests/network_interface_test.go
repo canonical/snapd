@@ -27,18 +27,18 @@ import (
 	"gopkg.in/check.v1"
 )
 
-var _ = check.Suite(&networkInterfaceSuite{
+var _ = check.Suite(&networkInterfaceAutopkgSuite{
 	interfaceSuite: interfaceSuite{
 		sampleSnaps: []string{data.NetworkBindConsumerSnapName, data.NetworkConsumerSnapName},
 		slot:        "network",
 		plug:        "network-consumer",
 		autoconnect: true}})
 
-type networkInterfaceSuite struct {
+type networkInterfaceAutopkgSuite struct {
 	interfaceSuite
 }
 
-func (s *networkInterfaceSuite) TestPlugDisconnectionDisablesFunctionality(c *check.C) {
+func (s *networkInterfaceAutopkgSuite) TestPlugDisconnectionDisablesFunctionality(c *check.C) {
 	providerURL := "http://127.0.0.1:8081"
 
 	output := cli.ExecCommand(c, "network-consumer", providerURL)

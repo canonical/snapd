@@ -33,15 +33,15 @@ import (
 	"gopkg.in/check.v1"
 )
 
-var _ = check.Suite(&authSuite{})
+var _ = check.Suite(&authAutopkgSuite{})
 
 // regression test for auth bypass bug:
 // https://bugs.launchpad.net/ubuntu/+source/snapd/+bug/1571491
-type authSuite struct {
+type authAutopkgSuite struct {
 	common.SnappySuite
 }
 
-func (s *authSuite) SetUpTest(c *check.C) {
+func (s *authAutopkgSuite) SetUpTest(c *check.C) {
 	s.SnappySuite.SetUpTest(c)
 
 	user, err := user.Current()
@@ -56,13 +56,13 @@ func (s *authSuite) SetUpTest(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
-func (s *authSuite) TestRegressionAuthCrash(c *check.C) {
+func (s *authAutopkgSuite) TestRegressionAuthCrash(c *check.C) {
 	cmd := []string{"snap", "install", "hello-world"}
 	output, _ := cli.ExecCommandErr(cmd...)
 	c.Assert(output, testutil.Contains, `error: access denied (snap login --help)`)
 }
 
-func (s *authSuite) TestRegressionAuthBypass(c *check.C) {
+func (s *authAutopkgSuite) TestRegressionAuthBypass(c *check.C) {
 	cmd := []string{"snap", "connect", "foo:bar", "baz:fromp"}
 	output, _ := cli.ExecCommandErr(cmd...)
 	c.Assert(output, testutil.Contains, `error: access denied (snap login --help)`)

@@ -39,13 +39,13 @@ import (
 	"github.com/ubuntu-core/snappy/testutil"
 )
 
-var _ = check.Suite(&snapOpSuite{})
+var _ = check.Suite(&snapOpAutopkgSuite{})
 
-type snapOpSuite struct {
+type snapOpAutopkgSuite struct {
 	common.SnappySuite
 }
 
-func (s *snapOpSuite) testInstallRemove(c *check.C, snapName, displayName string) {
+func (s *snapOpAutopkgSuite) testInstallRemove(c *check.C, snapName, displayName string) {
 	installOutput := common.InstallSnap(c, snapName)
 	expected := "(?ms)" +
 		"Name +Version +Rev +Developer\n" +
@@ -58,11 +58,11 @@ func (s *snapOpSuite) testInstallRemove(c *check.C, snapName, displayName string
 	c.Assert(removeOutput, check.Not(testutil.Contains), snapName)
 }
 
-func (s *snapOpSuite) TestInstallRemoveAliasWorks(c *check.C) {
+func (s *snapOpAutopkgSuite) TestInstallRemoveAliasWorks(c *check.C) {
 	s.testInstallRemove(c, "hello-world", "hello-world")
 }
 
-func (s *snapOpSuite) TestRemoveRemovesAllRevisions(c *check.C) {
+func (s *snapOpAutopkgSuite) TestRemoveRemovesAllRevisions(c *check.C) {
 	snapPath, err := build.LocalSnap(c, data.BasicSnapName)
 	defer os.Remove(snapPath)
 	c.Assert(err, check.IsNil, check.Commentf("Error building local snap: %s", err))
@@ -84,7 +84,7 @@ func (s *snapOpSuite) TestRemoveRemovesAllRevisions(c *check.C) {
 }
 
 // TestRemoveBusyRetries is a regression test for LP:#1571721
-func (s *snapOpSuite) TestRemoveBusyRetries(c *check.C) {
+func (s *snapOpAutopkgSuite) TestRemoveBusyRetries(c *check.C) {
 	// install the binaries snap
 	snapPath, err := build.LocalSnap(c, data.BasicBinariesSnapName)
 	defer os.Remove(snapPath)
@@ -140,7 +140,7 @@ func (s *snapOpSuite) TestRemoveBusyRetries(c *check.C) {
 	c.Check(output, check.Not(testutil.Contains), "Doing")
 }
 
-func (s *snapOpSuite) TestInstallFailedIsUndone(c *check.C) {
+func (s *snapOpAutopkgSuite) TestInstallFailedIsUndone(c *check.C) {
 	// make snap uninstallable
 	snapName := "hello-world"
 	subdirPath := filepath.Join("/snap", snapName, "current", "foo")
