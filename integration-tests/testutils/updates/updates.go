@@ -30,8 +30,6 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/integration-tests/testutils/cli"
-	"github.com/snapcore/snapd/integration-tests/testutils/common"
-	"github.com/snapcore/snapd/integration-tests/testutils/partition"
 	"github.com/snapcore/snapd/integration-tests/testutils/store"
 )
 
