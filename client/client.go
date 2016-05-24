@@ -267,8 +267,10 @@ func IsTwoFactorError(err error) bool {
 
 // SysInfo holds system information
 type SysInfo struct {
-	Series  string `json:"series,omitempty"`
-	Version string `json:"version,omitempty"`
+	Series    string `json:"series,omitempty"`
+	Version   string `json:"version,omitempty"`
+	OS        string `json:"os-id,omitempty"`
+	OnClassic bool   `json:"on-classic,omitempty"`
 }
 
 func (rsp *response) err() error {

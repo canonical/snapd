@@ -142,12 +142,15 @@ func (cs *clientSuite) TestClientSetsAuthorization(c *check.C) {
 func (cs *clientSuite) TestClientSysInfo(c *check.C) {
 	cs.rsp = `{"type": "sync", "result":
                      {"series": "16",
-                      "version": "2"}}`
+                      "version": "2",
+                      "os-id": "ubuntu"}}`
 	sysInfo, err := cs.cli.SysInfo()
 	c.Check(err, check.IsNil)
 	c.Check(sysInfo, check.DeepEquals, &client.SysInfo{
-		Version: "2",
-		Series:  "16",
+		Version:   "2",
+		Series:    "16",
+		OS:        "ubuntu",
+		OnClassic: false,
 	})
 }
 
