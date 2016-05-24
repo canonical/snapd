@@ -732,33 +732,34 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindAuthFailed(c *C) {
 }
 
 /* acquired via:
-curl -s --data-binary '{"name":["8nzc1x4iim2xj1g2ul64.chipaca"]}'  -H 'content-type: application/json' https://search.apps.ubuntu.com/api/v1/click-metadata
+$ curl -s --data-binary '{"snaps":[{"snap_id":"1e21e12ex4iim2xj1g2ul6f12f1","channel":"stable","revision":1,"confinement":"strict"}],"fields":["snap_id","package_name","revision","version","download_url"]}'  -H 'content-type: application/json' https://search.staging.apps.ubuntu.com/api/v1/metadata
 */
-const MockUpdatesJSON = `[
-    {
-        "status": "Published",
-        "name": "8nzc1x4iim2xj1g2ul64.chipaca",
-        "package_name": "8nzc1x4iim2xj1g2ul64",
-        "snap_id": "1e21e12ex4iim2xj1g2ul6f12f1",
-        "origin": "chipaca",
-        "changelog": "",
-        "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/04/hello.svg_Dlrd3L4.png",
-        "title": "Returns for store credit only.",
-        "binary_filesize": 65375,
-        "anon_download_url": "https://public.apps.ubuntu.com/anon/download/chipaca/8nzc1x4iim2xj1g2ul64.chipaca/8nzc1x4iim2xj1g2ul64.chipaca_42_all.snap",
-        "allow_unauthenticated": true,
-        "revision": 3,
-        "version": "42",
-        "download_url": "https://public.apps.ubuntu.com/download/chipaca/8nzc1x4iim2xj1g2ul64.chipaca/8nzc1x4iim2xj1g2ul64.chipaca_42_all.snap",
-        "download_sha512": "5364253e4a988f4f5c04380086d542f410455b97d48cc6c69ca2a5877d8aef2a6b2b2f83ec4f688cae61ebc8a6bf2cdbd4dbd8f743f0522fc76540429b79df42"
+const MockUpdatesJSON = `{"_embedded":
+    {"clickindex:package": [
+        {"package_name": "hello-world.canonical",
+         "download_url": "https://public.apps.staging.ubuntu.com/download-snap/arZm9cHX4iN2mUP1Ea2ImCxGrC6dZftX_2.snap",
+         "_links": {
+             "self": {
+                 "href": "https://search.apps.staging.ubuntu.com/api/v1/package/arZm9cHX4iN2mUP1Ea2ImCxGrC6dZftX"}},
+         "snap_id": "arZm9cHX4iN2mUP1Ea2ImCxGrC6dZftX",
+         "version": "42",
+         "revision": 3}]
+    },
+    "_links": {
+        "curies": [
+            {"href": "https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex#reltype_{rel}",
+             "name": "clickindex",
+             "templated": true}
+        ]
     }
-]`
+}
+`
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		jsonReq, err := ioutil.ReadAll(r.Body)
 		c.Assert(err, IsNil)
-		c.Assert(string(jsonReq), Equals, `{"name":["`+funkyAppName+`"]}`)
+		c.Assert(string(jsonReq), Equals, `{"snaps":[{"snap_id":"`+helloWorldSnapID+`","channel":"stable","revision":1}],"fields":["snap_id","package_name","revision","version","download_url"]}`)
 		io.WriteString(w, MockUpdatesJSON)
 	}))
 
@@ -774,10 +775,18 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 	repo := NewUbuntuStoreSnapRepository(&cfg, "")
 	c.Assert(repo, NotNil)
 
-	results, err := repo.Updates([]string{funkyAppName}, nil)
+	results, err := repo.Updates([]*snap.Info{
+		&snap.Info{
+			SideInfo: snap.SideInfo{
+				SnapID:   helloWorldSnapID,
+				Channel:  "stable",
+				Revision: snap.R(1),
+			},
+		},
+	}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].Name(), Equals, funkyAppName)
+	c.Assert(results[0].Name(), Equals, "hello-world.canonical")
 	c.Assert(results[0].Revision, Equals, snap.R(3))
 	c.Assert(results[0].Version, Equals, "42")
 }
@@ -790,7 +799,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdatesSetsAuth(c *C) {
 
 		jsonReq, err := ioutil.ReadAll(r.Body)
 		c.Assert(err, IsNil)
-		c.Assert(string(jsonReq), Equals, `{"name":["`+funkyAppName+`"]}`)
+		c.Assert(string(jsonReq), Equals, `{"snaps":[{"snap_id":"`+helloWorldSnapID+`","channel":"stable","revision":1}],"fields":["snap_id","package_name","revision","version","download_url"]}`)
 		io.WriteString(w, MockUpdatesJSON)
 	}))
 
@@ -807,7 +816,15 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdatesSetsAuth(c *C) {
 	c.Assert(repo, NotNil)
 
 	authenticator := &fakeAuthenticator{}
-	_, err = repo.Updates([]string{funkyAppName}, authenticator)
+	_, err = repo.Updates([]*snap.Info{
+		&snap.Info{
+			SideInfo: snap.SideInfo{
+				SnapID:   helloWorldSnapID,
+				Channel:  "stable",
+				Revision: snap.R(1),
+			},
+		},
+	}, authenticator)
 	c.Assert(err, IsNil)
 }
 
@@ -865,7 +882,7 @@ func (t *remoteRepoTestSuite) TestMyAppsURLDependsOnEnviron(c *C) {
 
 func (t *remoteRepoTestSuite) TestDefaultConfig(c *C) {
 	c.Check(strings.HasPrefix(defaultConfig.SearchURI.String(), "https://search.apps.ubuntu.com/api/v1/search?"), Equals, true)
-	c.Check(strings.HasPrefix(defaultConfig.BulkURI.String(), "https://search.apps.ubuntu.com/api/v1/click-metadata?"), Equals, true)
+	c.Check(strings.HasPrefix(defaultConfig.BulkURI.String(), "https://search.apps.ubuntu.com/api/v1/metadata?"), Equals, true)
 	c.Check(defaultConfig.AssertionsURI.String(), Equals, "https://assertions.ubuntu.com/v1/assertions/")
 }
 

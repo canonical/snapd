@@ -168,7 +168,7 @@ func init() {
 	v.Set("fields", strings.Join(getStructFields(snapDetails{}), ","))
 	defaultConfig.SearchURI.RawQuery = v.Encode()
 
-	defaultConfig.BulkURI, err = storeBaseURI.Parse("click-metadata")
+	defaultConfig.BulkURI, err = storeBaseURI.Parse("metadata")
 	if err != nil {
 		panic(err)
 	}
@@ -531,11 +531,37 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string,
 	return snaps, nil
 }
 
-// Updates returns the available updates for a list of snap identified by fullname with channel.
-func (s *SnapUbuntuStoreRepository) Updates(installed []string, auther Authenticator) (snaps []*snap.Info, err error) {
-	// XXX: uses obsolete end point!
+type metadataInput struct {
+	SnapID   string `json:"snap_id"`
+	Channel  string `json:"channel"`
+	Revision int    `json:"revision"`
+	// FIXME: not in snapinfo yet
+	//Confinement string `json:"confinement"`
+}
 
-	jsonData, err := json.Marshal(map[string][]string{"name": installed})
+type metadataWrapper struct {
+	Snaps  []metadataInput `json:"snaps"`
+	Fields []string        `json:"fields"`
+}
+
+// Updates returns the available updates for a list of snap identified by fullname with channel.
+func (s *SnapUbuntuStoreRepository) Updates(installed []*snap.Info, auther Authenticator) (snaps []*snap.Info, err error) {
+
+	// build input for the updates endpoint
+	is := make([]metadataInput, len(installed))
+	for i, inst := range installed {
+		is[i] = metadataInput{
+			SnapID:   inst.SnapID,
+			Channel:  inst.Channel,
+			Revision: inst.Revision.N,
+			// FIXME: not in snapinfo yet
+			//Confinment: inst.Confinement,
+		}
+	}
+	jsonData, err := json.Marshal(metadataWrapper{
+		Snaps:  is,
+		Fields: []string{"snap_id", "package_name", "revision", "version", "download_url"},
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -555,14 +581,14 @@ func (s *SnapUbuntuStoreRepository) Updates(installed []string, auther Authentic
 	}
 	defer resp.Body.Close()
 
-	var updateData []snapDetails
+	var updateData searchResults
 	dec := json.NewDecoder(resp.Body)
 	if err := dec.Decode(&updateData); err != nil {
 		return nil, err
 	}
 
-	res := make([]*snap.Info, len(updateData))
-	for i, rsnap := range updateData {
+	res := make([]*snap.Info, len(updateData.Payload.Packages))
+	for i, rsnap := range updateData.Payload.Packages {
 		res[i] = infoFromRemote(rsnap)
 	}
 
