@@ -19,8 +19,8 @@
 
 package release
 
-func MockLSBReleasePath(filename string) (restore func()) {
-	old := lsbReleasePath
-	lsbReleasePath = filename
-	return func() { lsbReleasePath = old }
+func MockOSReleasePath(filename string) (restore func()) {
+	old := osReleasePath
+	osReleasePath = filename
+	return func() { osReleasePath = old }
 }

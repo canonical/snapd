@@ -41,10 +41,10 @@ func (s *ReleaseTestSuite) TestSetup(c *C) {
 	c.Check(release.Series, Equals, "16")
 }
 
-func makeMockLSBRelease(c *C) string {
+func makeMockOSRelease(c *C) string {
 	// FIXME: use AddCleanup here once available so that we
 	//        can do release.SetLSBReleasePath() here directly
-	mockLSBRelease := filepath.Join(c.MkDir(), "mock-lsb-release")
+	mockOSRelease := filepath.Join(c.MkDir(), "mock-os-release")
 	s := `
 NAME="Ubuntu"
 VERSION="18.09 (Awesome Artichoke)"
@@ -57,29 +57,29 @@ SUPPORT_URL="http://help.ubuntu.com/"
 BUG_REPORT_URL="http://bugs.launchpad.net/ubuntu/"
 UBUNTU_CODENAME=awesome
 `
-	err := ioutil.WriteFile(mockLSBRelease, []byte(s), 0644)
+	err := ioutil.WriteFile(mockOSRelease, []byte(s), 0644)
 	c.Assert(err, IsNil)
 
-	return mockLSBRelease
+	return mockOSRelease
 }
 
-func (s *ReleaseTestSuite) TestReadLSB(c *C) {
-	reset := release.MockLSBReleasePath(makeMockLSBRelease(c))
+func (s *ReleaseTestSuite) TestReadOSRelease(c *C) {
+	reset := release.MockOSReleasePath(makeMockOSRelease(c))
 	defer reset()
 
-	lsb, err := release.ReadLSB()
+	os, err := release.ReadOSRelease()
 	c.Assert(err, IsNil)
-	c.Assert(lsb.ID, Equals, "ubuntu")
-	c.Assert(lsb.Name, Equals, "Ubuntu")
-	c.Assert(lsb.Release, Equals, "18.09")
-	c.Assert(lsb.Codename, Equals, "awesome")
+	c.Assert(os.ID, Equals, "ubuntu")
+	c.Assert(os.Name, Equals, "Ubuntu")
+	c.Assert(os.Release, Equals, "18.09")
+	c.Assert(os.Codename, Equals, "awesome")
 }
 
-func (s *ReleaseTestSuite) TestReadLSBNotFound(c *C) {
-	reset := release.MockLSBReleasePath("not-there")
+func (s *ReleaseTestSuite) TestReadOSReleaseNotFound(c *C) {
+	reset := release.MockOSReleasePath("not-there")
 	defer reset()
 
-	_, err := release.ReadLSB()
+	_, err := release.ReadOSRelease()
 	c.Assert(err, ErrorMatches, "cannot read os-release:.*")
 }
 
@@ -93,10 +93,10 @@ func (s *ReleaseTestSuite) TestOnClassic(c *C) {
 	c.Assert(release.OnClassic, Equals, false)
 }
 
-func (s *ReleaseTestSuite) TestLSBInfo(c *C) {
-	reset := release.MockLSB(&release.LSB{
+func (s *ReleaseTestSuite) TestReleaseInfo(c *C) {
+	reset := release.MockReleaseInfo(&release.OSRelease{
 		ID: "distro-id",
 	})
 	defer reset()
-	c.Assert(release.LSBInfo.ID, Equals, "distro-id")
+	c.Assert(release.ReleaseInfo.ID, Equals, "distro-id")
 }

@@ -30,21 +30,21 @@ import (
 // Series holds the Ubuntu Core series for snapd to use.
 var Series = "16"
 
-// LSB contains the /etc/os-release information of the system.
-type LSB struct {
+// OSRelease contains information about the system extracted from /etc/os-release.
+type OSRelease struct {
 	ID       string
 	Name     string
 	Release  string
 	Codename string
 }
 
-var lsbReleasePath = "/etc/os-release"
+var osReleasePath = "/etc/os-release"
 
-// ReadLSB returns the os-release information of the current system.
-func ReadLSB() (*LSB, error) {
-	lsb := &LSB{}
+// ReadOSRelease returns the os-release information of the current system.
+func ReadOSRelease() (*OSRelease, error) {
+	osRelease := &OSRelease{}
 
-	content, err := ioutil.ReadFile(lsbReleasePath)
+	content, err := ioutil.ReadFile(osReleasePath)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read os-release: %s", err)
 	}
@@ -52,51 +52,51 @@ func ReadLSB() (*LSB, error) {
 	for _, line := range strings.Split(string(content), "\n") {
 		if strings.HasPrefix(line, "ID=") {
 			tmp := strings.SplitN(line, "=", 2)
-			lsb.ID = strings.Trim(tmp[1], "\"")
+			osRelease.ID = strings.Trim(tmp[1], "\"")
 		}
 		if strings.HasPrefix(line, "NAME=") {
 			tmp := strings.SplitN(line, "=", 2)
-			lsb.Name = strings.Trim(tmp[1], "\"")
+			osRelease.Name = strings.Trim(tmp[1], "\"")
 		}
 		if strings.HasPrefix(line, "VERSION_ID=") {
 			tmp := strings.SplitN(line, "=", 2)
-			lsb.Release = strings.Trim(tmp[1], "\"")
+			osRelease.Release = strings.Trim(tmp[1], "\"")
 		}
 		if strings.HasPrefix(line, "UBUNTU_CODENAME=") {
 			tmp := strings.SplitN(line, "=", 2)
-			lsb.Codename = strings.Trim(tmp[1], "\"")
+			osRelease.Codename = strings.Trim(tmp[1], "\"")
 		}
 	}
-	if lsb.Codename == "" {
-		lsb.Codename = "xenial"
+	if osRelease.Codename == "" {
+		osRelease.Codename = "xenial"
 	}
 
-	return lsb, nil
+	return osRelease, nil
 }
 
 // OnClassic states whether the process is running inside a
 // classic Ubuntu system or a native Ubuntu Core image.
 var OnClassic bool
 
-// LSBInfo contains data loaded from /etc/os-release on startup.
-var LSBInfo LSB
+// ReleaseInfo contains data loaded from /etc/os-release on startup.
+var ReleaseInfo OSRelease
 
 func init() {
-	lsb, err := ReadLSB()
+	osRelease, err := ReadOSRelease()
 	if err != nil {
 		// Values recommended by os-release(5) as defaults
-		lsb = &LSB{
+		osRelease = &OSRelease{
 			Name: "Linux",
 			ID:   "linux",
 		}
 	}
-	LSBInfo = *lsb
+	ReleaseInfo = *osRelease
 	// Assume that we are running on Classic
 	OnClassic = true
 	// On Ubuntu, dpkg is not present in an all-snap image so the presence of
 	// dpkg status file can be used as an indicator for a classic vs all-snap
 	// system.
-	if lsb.ID == "ubuntu" {
+	if osRelease.ID == "ubuntu" {
 		OnClassic = osutil.FileExists("/var/lib/dpkg/status")
 	}
 }
@@ -109,10 +109,10 @@ func MockOnClassic(onClassic bool) (restore func()) {
 	return func() { OnClassic = old }
 }
 
-// MockLSB fakes a given information to appear in LSBInfo, as if read
-// /etc/os-release on startup.
-func MockLSB(lsb *LSB) (restore func()) {
-	old := LSBInfo
-	LSBInfo = *lsb
-	return func() { LSBInfo = old }
+// MockReleaseInfo fakes a given information to appear in ReleaseInfo,
+// as if it was read /etc/os-release on startup.
+func MockReleaseInfo(os *OSRelease) (restore func()) {
+	old := ReleaseInfo
+	ReleaseInfo = *os
+	return func() { ReleaseInfo = old }
 }

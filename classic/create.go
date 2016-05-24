@@ -47,11 +47,11 @@ var getgrnam = osutil.Getgrnam
 
 func findDownloadPathFromLxdIndex(r io.Reader) (string, error) {
 	arch := arch.UbuntuArchitecture()
-	lsb, err := release.ReadLSB()
+	osRelease, err := release.ReadOSRelease()
 	if err != nil {
 		return "", err
 	}
-	release := lsb.Codename
+	release := osRelease.Codename
 
 	needle := fmt.Sprintf("ubuntu;%s;%s;default;", release, arch)
 	scanner := bufio.NewScanner(r)
