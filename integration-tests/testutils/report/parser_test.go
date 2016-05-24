@@ -30,7 +30,7 @@ import (
 	"github.com/testing-cabal/subunit-go"
 	"gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
+	"github.com/snapcore/snapd/integration-tests/testutils/common"
 )
 
 var _ = check.Suite(&ParserReportSuite{})
@@ -85,12 +85,12 @@ var eventTests = []struct {
 	"testSuite.TestExists",
 	"exists",
 }, {
-	"PASS: /tmp/snappy-tests-job/18811/src/github.com/ubuntu-core/snappy/integration-tests/tests/" +
+	"PASS: /tmp/snappy-tests-job/18811/src/github.com/snapcore/snapd/integration-tests/tests/" +
 		"apt_test.go:34: testSuite.TestSuccess      0.005s\n",
 	"testSuite.TestSuccess",
 	"success",
 }, {
-	"FAIL: /tmp/snappy-tests-job/710/src/github.com/ubuntu-core/snappy/integration-tests/tests/" +
+	"FAIL: /tmp/snappy-tests-job/710/src/github.com/snapcore/snapd/integration-tests/tests/" +
 		"installFramework_test.go:85: testSuite.TestFail\n",
 	"testSuite.TestFail",
 	"fail",
@@ -112,7 +112,7 @@ func (s *ParserReportSuite) TestParserReporterSendsSkipEvent(c *check.C) {
 	testID := "testSuite.TestSkip"
 	skipReason := "skip reason"
 	s.subject.Write([]byte(
-		fmt.Sprintf("SKIP: /tmp/snappy-tests-job/21647/src/github.com/ubuntu-core/snappy/"+
+		fmt.Sprintf("SKIP: /tmp/snappy-tests-job/21647/src/github.com/snapcore/snapd/"+
 			"integration-tests/tests/info_test.go:36: %s (%s)\n", testID, skipReason)))
 
 	c.Check(s.spy.calls, check.HasLen, 1)
@@ -210,7 +210,7 @@ func (s *ParserReportSuite) TestParserSendsNothingForSkippedSetUp(c *check.C) {
 	testID := "testSuite.SetUpTest"
 	skipReason := "skip reason"
 	s.subject.Write([]byte(
-		fmt.Sprintf("SKIP: /tmp/snappy-tests-job/21647/src/github.com/ubuntu-core/snappy/"+
+		fmt.Sprintf("SKIP: /tmp/snappy-tests-job/21647/src/github.com/snapcore/snapd/"+
 			"integration-tests/tests/info_test.go:36: %s (%s)\n", testID, skipReason)))
 
 	c.Check(s.spy.calls, check.HasLen, 0)

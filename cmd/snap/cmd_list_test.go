@@ -26,7 +26,7 @@ import (
 
 	"gopkg.in/check.v1"
 
-	snap "github.com/ubuntu-core/snappy/cmd/snap"
+	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
 func (s *SnapSuite) TestList(c *check.C) {

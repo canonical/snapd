@@ -23,16 +23,16 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ubuntu-core/snappy/interfaces"
-	"github.com/ubuntu-core/snappy/interfaces/apparmor"
-	"github.com/ubuntu-core/snappy/interfaces/builtin"
-	"github.com/ubuntu-core/snappy/interfaces/dbus"
-	"github.com/ubuntu-core/snappy/interfaces/seccomp"
-	"github.com/ubuntu-core/snappy/interfaces/udev"
-	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/overlord/snapstate"
-	"github.com/ubuntu-core/snappy/overlord/state"
-	"github.com/ubuntu-core/snappy/snap"
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 func (m *InterfaceManager) initialize(extra []interfaces.Interface) error {

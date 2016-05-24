@@ -108,28 +108,12 @@ if [ ! -z "$STATIC" ]; then
     # cmd/* test sources are tagged so they are not included in
     # special integration test builds
     echo Checking 'cmd/*/*_test.go' build tagging
-    bad=""
-    for cmd in cmd/* ; do
-        nottagged=$(ls ${cmd}/*_test.go|grep -v integration_coverage_test|grep -v -F "$(grep -l '!integrationcoverage' ${cmd}/*_test.go)" || true)
-
-        if [ -n "${nottagged}" ] ; then
-            echo these ${cmd} test files miss the '!integrationcoverage' tag: ${nottagged}
-            bad=1
-        fi
-    done
-    if [ -n "${bad}" ] ; then
+    nottagged=$(grep -r --include '*_test.go' --exclude integration_coverage_test.go -L '!integrationcoverage' cmd/*/)
+    if [ -n "${nottagged}" ] ; then
+        echo these test files miss the '!integrationcoverage' tag: ${nottagged}
         exit 1
     fi
 
-    # pot file
-    echo Checking translations
-    TMPF="$(mktemp)"
-    addtrap "rm -f \"$TMPF\""
-    ./update-pot "$TMPF"
-    if ! diff -u --ignore-matching-lines=.*POT-Creation-Date.* po/snappy.pot $TMPF; then
-        echo "You need to run ./update-pot"
-        exit 1
-    fi
 fi
 
 if [ ! -z "$UNIT" ]; then
@@ -139,7 +123,7 @@ if [ ! -z "$UNIT" ]; then
     echo "mode: set" > .coverage/coverage.out
 
     echo Building
-    go build -tags=excludeintegration -v github.com/ubuntu-core/snappy/...
+    go build -tags=excludeintegration -v github.com/snapcore/snapd/...
 
     # tests
     echo Running tests from $(pwd)
@@ -151,7 +135,7 @@ if [ ! -z "$UNIT" ]; then
     echo Building the integration tests
     TMP_INTEGRATION="$(mktemp)"
     addtrap "rm -f \"$TMP_INTEGRATION\""
-    go build -v -o $TMP_INTEGRATION github.com/ubuntu-core/snappy/integration-tests/
+    go build -v -o $TMP_INTEGRATION github.com/snapcore/snapd/integration-tests/
 
     # the rabbit hole
     echo Running the tests for the integration testutils

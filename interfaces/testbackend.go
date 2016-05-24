@@ -20,7 +20,7 @@
 package interfaces
 
 import (
-	"github.com/ubuntu-core/snappy/snap"
+	"github.com/snapcore/snapd/snap"
 )
 
 // TestSecurityBackend is a security backend intended for testing.

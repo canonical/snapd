@@ -11,7 +11,7 @@ if [ -n "$1" ]; then
 fi
 
 # ensure we have our xgettext-go
-go install github.com/ubuntu-core/snappy/i18n/xgettext-go
+go install github.com/snapcore/snapd/i18n/xgettext-go
 
 $GOPATH/bin/xgettext-go \
     -o "$OUTPUT" \

@@ -26,9 +26,9 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/snaptest"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 func TestSnapTest(t *testing.T) { TestingT(t) }
@@ -57,11 +57,11 @@ func (s *snapTestSuite) TearDownTest(c *C) {
 }
 
 func (s *snapTestSuite) TestMockSnap(c *C) {
-	snapInfo := snaptest.MockSnap(c, sampleYaml, &snap.SideInfo{Revision: 42})
+	snapInfo := snaptest.MockSnap(c, sampleYaml, &snap.SideInfo{Revision: snap.R(42)})
 	// Data from YAML is used
 	c.Check(snapInfo.Name(), Equals, "sample")
 	// Data from SideInfo is used
-	c.Check(snapInfo.Revision, Equals, 42)
+	c.Check(snapInfo.Revision, Equals, snap.R(42))
 	// The YAML is placed on disk
 	cont, err := ioutil.ReadFile(filepath.Join(dirs.SnapSnapsDir, "sample", "42", "meta", "snap.yaml"))
 	c.Assert(err, IsNil)

@@ -22,11 +22,10 @@ package main
 import (
 	"fmt"
 	"sort"
-	"strconv"
 	"text/tabwriter"
 
-	"github.com/ubuntu-core/snappy/client"
-	"github.com/ubuntu-core/snappy/i18n"
+	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/i18n"
 
 	"github.com/jessevdk/go-flags"
 )
@@ -70,7 +69,7 @@ func listSnaps(args []string) error {
 	fmt.Fprintln(w, i18n.G("Name\tVersion\tRev\tDeveloper"))
 
 	for _, snap := range snaps {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", snap.Name, snap.Version, strconv.Itoa(snap.Revision), snap.Developer)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Revision, snap.Developer)
 	}
 
 	return nil

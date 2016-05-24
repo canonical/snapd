@@ -24,9 +24,9 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/arch"
-	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/wrappers"
+	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/wrappers"
 )
 
 type binariesWrapperGenSuite struct{}
@@ -61,7 +61,7 @@ func (s *binariesWrapperGenSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 	info := &snap.Info{}
 	info.SuggestedName = "pastebinit"
 	info.Version = "1.4.0.0.1"
-	info.Revision = 44
+	info.Revision = snap.R(44)
 	binary := &snap.AppInfo{
 		Snap:    info,
 		Name:    "pastebinit",

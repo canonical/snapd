@@ -24,43 +24,46 @@ import (
 	"io/ioutil"
 	"strings"
 
-	"github.com/ubuntu-core/snappy/osutil"
+	"github.com/snapcore/snapd/osutil"
 )
 
 // Series holds the Ubuntu Core series for snapd to use.
 var Series = "16"
 
-// LSB contains the /etc/lsb-release information of the system.
+// LSB contains the /etc/os-release information of the system.
 type LSB struct {
 	ID       string
 	Release  string
 	Codename string
 }
 
-var lsbReleasePath = "/etc/lsb-release"
+var lsbReleasePath = "/etc/os-release"
 
-// ReadLSB returns the lsb-release information of the current system.
+// ReadLSB returns the os-release information of the current system.
 func ReadLSB() (*LSB, error) {
 	lsb := &LSB{}
 
 	content, err := ioutil.ReadFile(lsbReleasePath)
 	if err != nil {
-		return nil, fmt.Errorf("cannot read lsb-release: %s", err)
+		return nil, fmt.Errorf("cannot read os-release: %s", err)
 	}
 
 	for _, line := range strings.Split(string(content), "\n") {
-		if strings.HasPrefix(line, "DISTRIB_ID=") {
+		if strings.HasPrefix(line, "NAME=") {
 			tmp := strings.SplitN(line, "=", 2)
-			lsb.ID = tmp[1]
+			lsb.ID = strings.Trim(tmp[1], "\"")
 		}
-		if strings.HasPrefix(line, "DISTRIB_RELEASE=") {
+		if strings.HasPrefix(line, "VERSION_ID=") {
 			tmp := strings.SplitN(line, "=", 2)
-			lsb.Release = tmp[1]
+			lsb.Release = strings.Trim(tmp[1], "\"")
 		}
-		if strings.HasPrefix(line, "DISTRIB_CODENAME=") {
+		if strings.HasPrefix(line, "UBUNTU_CODENAME=") {
 			tmp := strings.SplitN(line, "=", 2)
-			lsb.Codename = tmp[1]
+			lsb.Codename = strings.Trim(tmp[1], "\"")
 		}
+	}
+	if lsb.Codename == "" {
+		lsb.Codename = "xenial"
 	}
 
 	return lsb, nil

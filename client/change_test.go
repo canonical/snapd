@@ -22,7 +22,7 @@ package client_test
 import (
 	"gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/client"
+	"github.com/snapcore/snapd/client"
 	"io/ioutil"
 	"time"
 )
@@ -131,7 +131,13 @@ func (cs *clientSuite) TestClientChanges(c *check.C) {
   "tasks": [{"kind": "bar", "summary": "...", "status": "Do", "progress": {"done": 0, "total": 1}}]
 }]}`
 
-	for _, i := range []client.ChangeSelector{client.ChangesAll, client.ChangesReady, client.ChangesInProgress} {
+	for _, i := range []*client.ChangesOptions{
+		{Selector: client.ChangesAll},
+		{Selector: client.ChangesReady},
+		{Selector: client.ChangesInProgress},
+		{SnapName: "foo"},
+		nil,
+	} {
 		chg, err := cs.cli.Changes(i)
 		c.Assert(err, check.IsNil)
 		c.Check(chg, check.DeepEquals, []*client.Change{{
@@ -141,8 +147,17 @@ func (cs *clientSuite) TestClientChanges(c *check.C) {
 			Status:  "Do",
 			Tasks:   []*client.Task{{Kind: "bar", Summary: "...", Status: "Do", Progress: client.TaskProgress{Done: 0, Total: 1}}},
 		}})
-		c.Check(cs.req.URL.RawQuery, check.Equals, "select="+i.String())
+		if i == nil {
+			c.Check(cs.req.URL.RawQuery, check.Equals, "")
+		} else {
+			if i.Selector != 0 {
+				c.Check(cs.req.URL.RawQuery, check.Equals, "select="+i.Selector.String())
+			} else {
+				c.Check(cs.req.URL.RawQuery, check.Equals, "for="+i.SnapName)
+			}
+		}
 	}
+
 }
 
 func (cs *clientSuite) TestClientChangesData(c *check.C) {
@@ -155,7 +170,7 @@ func (cs *clientSuite) TestClientChangesData(c *check.C) {
   "data": {"n": 42}
 }]}`
 
-	chgs, err := cs.cli.Changes(client.ChangesAll)
+	chgs, err := cs.cli.Changes(&client.ChangesOptions{Selector: client.ChangesAll})
 	c.Assert(err, check.IsNil)
 
 	chg := chgs[0]

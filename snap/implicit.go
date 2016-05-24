@@ -19,7 +19,7 @@
 
 package snap
 
-import "github.com/ubuntu-core/snappy/release"
+import "github.com/snapcore/snapd/release"
 
 var implicitSlots = []string{
 	"firewall-control",
@@ -38,11 +38,12 @@ var implicitSlots = []string{
 }
 
 var implicitClassicSlots = []string{
+	"gsettings",
+	"network-manager",
+	"opengl",
+	"pulseaudio",
 	"unity7",
 	"x11",
-	"opengl",
-	"network-manager",
-	"gsettings",
 }
 
 // AddImplicitSlots adds implicitly defined slots to a given snap.

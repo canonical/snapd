@@ -26,7 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	. "github.com/ubuntu-core/snappy/cmd/snap"
+	. "github.com/snapcore/snapd/cmd/snap"
 )
 
 func (s *SnapSuite) TestConnectHelp(c *C) {
@@ -52,6 +52,9 @@ Without a name for the snap offering the plug, the plug name is looked at in
 the gadget snap, the kernel snap, and then the os snap, in that order. The
 first of these snaps that has a matching plug name is used and the command
 proceeds as above.
+
+Application Options:
+      --version            print the version and exit
 
 Help Options:
   -h, --help               Show this help message

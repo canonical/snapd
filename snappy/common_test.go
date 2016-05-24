@@ -29,9 +29,9 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/osutil"
-	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/snaptest"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 const (
@@ -71,7 +71,7 @@ apps:
 	if err != nil {
 		return "", err
 	}
-	info.SideInfo = snap.SideInfo{Revision: revno}
+	info.SideInfo = snap.SideInfo{Revision: snap.R(revno)}
 
 	metaDir := filepath.Join(info.MountDir(), "meta")
 	if err := os.MkdirAll(metaDir, 0775); err != nil {
@@ -84,7 +84,7 @@ apps:
 
 	si := snap.SideInfo{
 		OfficialName:      info.Name(),
-		Revision:          revno,
+		Revision:          snap.R(revno),
 		Developer:         testDeveloper,
 		Channel:           "remote-channel",
 		EditedSummary:     "hello in summary",
@@ -177,7 +177,7 @@ func makeTwoTestSnaps(c *C, snapType snap.Type, extra ...string) (*snap.Info, *s
 	foo10 := &snap.SideInfo{
 		OfficialName: "foo",
 		Developer:    testDeveloper,
-		Revision:     100,
+		Revision:     snap.R(100),
 		Channel:      "remote-channel",
 	}
 	info1, err := (&Overlord{}).InstallWithSideInfo(snapPath, foo10, AllowUnauthenticated|AllowGadget, inter)
@@ -187,7 +187,7 @@ func makeTwoTestSnaps(c *C, snapType snap.Type, extra ...string) (*snap.Info, *s
 	foo20 := &snap.SideInfo{
 		OfficialName: "foo",
 		Developer:    testDeveloper,
-		Revision:     200,
+		Revision:     snap.R(200),
 		Channel:      "remote-channel",
 	}
 	info2, err := (&Overlord{}).InstallWithSideInfo(snapPath, foo20, AllowUnauthenticated|AllowGadget, inter)

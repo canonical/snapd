@@ -24,12 +24,12 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/progress"
-	"github.com/ubuntu-core/snappy/snap"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/snap"
 	// XXX: eventually not needed
-	"github.com/ubuntu-core/snappy/snappy"
-	"github.com/ubuntu-core/snappy/wrappers"
+	"github.com/snapcore/snapd/snappy"
+	"github.com/snapcore/snapd/wrappers"
 )
 
 func updateCurrentSymlinks(info *snap.Info) error {
@@ -72,6 +72,10 @@ func (b Backend) LinkSnap(info *snap.Info) error {
 }
 
 func generateWrappers(s *snap.Info) error {
+	// add the environment
+	if err := wrappers.AddSnapEnvironment(s); err != nil {
+		return err
+	}
 	// add the CLI apps from the snap.yaml
 	if err := wrappers.AddSnapBinaries(s); err != nil {
 		return err
@@ -89,6 +93,11 @@ func generateWrappers(s *snap.Info) error {
 }
 
 func removeGeneratedWrappers(s *snap.Info, meter progress.Meter) error {
+	err0 := wrappers.RemoveSnapEnvironment(s)
+	if err0 != nil {
+		logger.Noticef("Cannot remove environment for %q: %v", s.Name(), err0)
+	}
+
 	err1 := wrappers.RemoveSnapBinaries(s)
 	if err1 != nil {
 		logger.Noticef("Cannot remove binaries for %q: %v", s.Name(), err1)
@@ -104,7 +113,7 @@ func removeGeneratedWrappers(s *snap.Info, meter progress.Meter) error {
 		logger.Noticef("Cannot remove desktop files for %q: %v", s.Name(), err3)
 	}
 
-	return firstErr(err1, err2, err3)
+	return firstErr(err0, err1, err2, err3)
 }
 
 // UnlinkSnap makes the snap unavailable to the system removing wrappers and symlinks.

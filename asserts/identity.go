@@ -54,12 +54,12 @@ func (id *Identity) Timestamp() time.Time {
 }
 
 func assembleIdentity(assert assertionBase) (Assertion, error) {
-	_, err := checkMandatory(assert.headers, "display-name")
+	_, err := checkNotEmpty(assert.headers, "display-name")
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = checkMandatory(assert.headers, "validation")
+	_, err = checkNotEmpty(assert.headers, "validation")
 	if err != nil {
 		return nil, err
 	}

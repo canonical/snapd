@@ -4,7 +4,7 @@ Priority: optional
 Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
 Build-Depends: bash-completion,
                debhelper (>= 9),
-               dh-golang,
+               dh-golang (>=1.7),
                dh-systemd,
                fakeroot,
                gettext,
@@ -28,9 +28,9 @@ Build-Depends: bash-completion,
                python3-markdown,
                squashfs-tools
 Standards-Version: 3.9.7
-Homepage: https://github.com/ubuntu-core/snappy
-Vcs-Browser: https://github.com/ubuntu-core/snappy
-Vcs-Git: https://github.com/ubuntu-core/snappy.git
+Homepage: https://github.com/snapcore/snapd
+Vcs-Browser: https://github.com/snapcore/snapd
+Vcs-Git: https://github.com/snapcore/snapd.git
 
 Package: golang-github-ubuntu-core-snappy-dev
 Architecture: all

@@ -20,7 +20,7 @@
 package builtin
 
 import (
-	"github.com/ubuntu-core/snappy/testutil"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // MockEvalSymlinks replaces the path/filepath.EvalSymlinks function used inside the caps package.

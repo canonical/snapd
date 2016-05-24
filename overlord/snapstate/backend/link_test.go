@@ -25,14 +25,14 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/osutil"
-	"github.com/ubuntu-core/snappy/progress"
-	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/snaptest"
-	"github.com/ubuntu-core/snappy/systemd"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/systemd"
 
-	"github.com/ubuntu-core/snappy/overlord/snapstate/backend"
+	"github.com/snapcore/snapd/overlord/snapstate/backend"
 )
 
 func TestBackend(t *testing.T) { TestingT(t) }
@@ -62,6 +62,9 @@ func (s *linkSuite) TearDownTest(c *C) {
 func (s *linkSuite) TestLinkDoUndoGenerateWrappers(c *C) {
 	const yaml = `name: hello
 version: 1.0
+environment:
+ KEY: value
+
 apps:
  bin:
    command: bin
@@ -70,7 +73,7 @@ apps:
    daemon: simple
 `
 
-	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: 11})
+	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
 	err := s.be.LinkSnap(info)
 	c.Assert(err, IsNil)
@@ -81,6 +84,9 @@ apps:
 	l, err = filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.service"))
 	c.Assert(err, IsNil)
 	c.Assert(l, HasLen, 1)
+	l, err = filepath.Glob(filepath.Join(dirs.SnapEnvironmentDir, "*"))
+	c.Assert(err, IsNil)
+	c.Assert(l, HasLen, 2)
 
 	// undo will remove
 	err = s.be.UnlinkSnap(info, &s.nullProgress)
@@ -92,6 +98,9 @@ apps:
 	l, err = filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.service"))
 	c.Assert(err, IsNil)
 	c.Assert(l, HasLen, 0)
+	l, err = filepath.Glob(filepath.Join(dirs.SnapEnvironmentDir, "*"))
+	c.Assert(err, IsNil)
+	c.Assert(l, HasLen, 0)
 }
 
 func (s *linkSuite) TestLinkDoUndoCurrentSymlink(c *C) {
@@ -99,7 +108,7 @@ func (s *linkSuite) TestLinkDoUndoCurrentSymlink(c *C) {
 version: 1.0
 `
 
-	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: 11})
+	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
 	err := s.be.LinkSnap(info)
 	c.Assert(err, IsNil)
@@ -130,6 +139,8 @@ func (s *linkSuite) TestLinkDoIdempotent(c *C) {
 
 	const yaml = `name: hello
 version: 1.0
+environment:
+ KEY: value
 apps:
  bin:
    command: bin
@@ -138,7 +149,7 @@ apps:
    daemon: simple
 `
 
-	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: 11})
+	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
 	err := s.be.LinkSnap(info)
 	c.Assert(err, IsNil)
@@ -152,6 +163,9 @@ apps:
 	l, err = filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.service"))
 	c.Assert(err, IsNil)
 	c.Assert(l, HasLen, 1)
+	l, err = filepath.Glob(filepath.Join(dirs.SnapEnvironmentDir, "*"))
+	c.Assert(err, IsNil)
+	c.Assert(l, HasLen, 2)
 
 	mountDir := info.MountDir()
 	dataDir := info.DataDir()
@@ -179,7 +193,7 @@ apps:
    daemon: simple
 `
 
-	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: 11})
+	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
 	err := s.be.LinkSnap(info)
 	c.Assert(err, IsNil)
@@ -195,6 +209,9 @@ apps:
 	c.Assert(err, IsNil)
 	c.Assert(l, HasLen, 0)
 	l, err = filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.service"))
+	c.Assert(err, IsNil)
+	c.Assert(l, HasLen, 0)
+	l, err = filepath.Glob(filepath.Join(dirs.SnapEnvironmentDir, "*"))
 	c.Assert(err, IsNil)
 	c.Assert(l, HasLen, 0)
 

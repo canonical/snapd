@@ -1,0 +1,10 @@
+name: log-observe-consumer
+version: 1.0
+summary: Basic log-observe consumer snap
+description: A basic snap declaring a plug on log-observe
+
+apps:
+  log-observe-consumer:
+    command: bin/consumer
+    daemon: simple
+    plugs: [network-bind, log-observe]

@@ -23,12 +23,12 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/ubuntu-core/snappy/overlord/auth"
-	"github.com/ubuntu-core/snappy/overlord/snapstate"
-	"github.com/ubuntu-core/snappy/overlord/state"
-	"github.com/ubuntu-core/snappy/progress"
-	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/store"
+	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/store"
 )
 
 type fakeOp struct {
@@ -36,7 +36,7 @@ type fakeOp struct {
 
 	macaroon string
 	name     string
-	revno    int
+	revno    snap.Revision
 	channel  string
 	flags    int
 	active   bool
@@ -69,9 +69,9 @@ func (f *fakeSnappyBackend) Download(name, channel string, checker func(*snap.In
 	p.SetTotal(float64(f.fakeTotalProgress))
 	p.Set(float64(f.fakeCurrentProgress))
 
-	revno := 11
+	revno := snap.R(11)
 	if channel == "channel-for-7" {
-		revno = 7
+		revno.N = 7
 	}
 
 	info := &snap.Info{
@@ -92,22 +92,22 @@ func (f *fakeSnappyBackend) Download(name, channel string, checker func(*snap.In
 	return info, "downloaded-snap-path", nil
 }
 
-func (f *fakeSnappyBackend) CheckSnap(snapFilePath string, curInfo *snap.Info, flags int) error {
-	cur := "<no-current>"
-	if curInfo != nil {
-		cur = curInfo.MountDir()
+func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo) (*snap.Info, snap.File, error) {
+	op := fakeOp{
+		op:   "open-snap-file",
+		name: snapFilePath,
 	}
-	f.ops = append(f.ops, fakeOp{
-		op:    "check-snap",
-		name:  snapFilePath,
-		old:   cur,
-		flags: flags,
-	})
-	return nil
+
+	if si != nil {
+		op.sinfo = *si
+	}
+
+	f.ops = append(f.ops, op)
+	return &snap.Info{Architectures: []string{"all"}}, nil, nil
 }
 
 func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, si *snap.SideInfo, flags int) error {
-	revno := 0
+	revno := snap.R(0)
 	if si != nil {
 		revno = si.Revision
 	}
@@ -222,6 +222,17 @@ func (f *fakeSnappyBackend) Candidate(sideInfo *snap.SideInfo) {
 	f.ops = append(f.ops, fakeOp{
 		op:    "candidate",
 		sinfo: sinfo,
+	})
+}
+
+func (f *fakeSnappyBackend) Current(curInfo *snap.Info) {
+	old := "<no-current>"
+	if curInfo != nil {
+		old = curInfo.MountDir()
+	}
+	f.ops = append(f.ops, fakeOp{
+		op:  "current",
+		old: old,
 	})
 }
 
