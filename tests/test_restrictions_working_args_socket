@@ -20,6 +20,10 @@ read
 brk
 execve
 
+dup
+fcntl
+write
+
 arch_prctl
 exit_group
 
@@ -30,12 +34,12 @@ getpriority
 EOF
 
 for i in AF_UNIX AF_LOCAL AF_INET AF_INET6 AF_PACKET AF_ALG ; do
-    cat "$TMP"/tmpl >"$TMP"/myprofile
-    echo "socket $i" >>"$TMP"/myprofile
+    cat "$TMP"/tmpl >"$TMP"/snap.name.app
+    echo "socket $i" >>"$TMP"/snap.name.app
 
     printf "Test good seccomp arg filtering (socket %s)" "$i"
     # ensure that the command "true" can run with the right filter
-    if $L snap.name.app myprofile /bin/true ; then
+    if $L snap.name.app /bin/true ; then
         PASS
     else
         dmesg|tail -n1
@@ -43,12 +47,12 @@ for i in AF_UNIX AF_LOCAL AF_INET AF_INET6 AF_PACKET AF_ALG ; do
     fi
 
     for j in SOCK_STREAM SOCK_DGRAM SOCK_SEQPACKET SOCK_RAW SOCK_RDM SOCK_PACKET ; do
-        cat "$TMP"/tmpl >"$TMP"/myprofile
-        echo "socket $i $j" >>"$TMP"/myprofile
+        cat "$TMP"/tmpl >"$TMP"/snap.name.app
+        echo "socket $i $j" >>"$TMP"/snap.name.app
 
         printf "Test good seccomp arg filtering (socket %s %s)" "$i" "$j"
         # ensure that the command "true" can run with the right filter
-        if $L snap.name.app myprofile /bin/true ; then
+        if $L snap.name.app /bin/true ; then
             PASS
         else
             dmesg|tail -n1
