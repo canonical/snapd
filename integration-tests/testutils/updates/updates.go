@@ -28,17 +28,11 @@ import (
 
 	"gopkg.in/check.v1"
 
-<<<<<<< HEAD
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/store"
-=======
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/integration-tests/testutils/cli"
 	"github.com/snapcore/snapd/integration-tests/testutils/common"
 	"github.com/snapcore/snapd/integration-tests/testutils/partition"
 	"github.com/snapcore/snapd/integration-tests/testutils/store"
->>>>>>> upstream/master
 )
 
 // ChangeFakeUpdateSnap is the type of the functions used to modify a snap before it is served as
