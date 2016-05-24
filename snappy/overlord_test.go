@@ -260,7 +260,7 @@ func (s *SnapTestSuite) TestClickSetActive(c *C) {
 	c.Assert(snaps[1].IsActive(), Equals, true)
 
 	// deactivate v2
-	err = UnlinkSnap(snaps[1].Info(), nil)
+	err = unlinkSnap(snaps[1].Info(), nil)
 	// set v1 active
 	err = ActivateSnap(snaps[0], nil)
 	snaps, err = (&Overlord{}).Installed()
