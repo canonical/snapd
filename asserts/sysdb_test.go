@@ -27,8 +27,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/asserts"
-	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
 )
 
 type sysDBSuite struct {

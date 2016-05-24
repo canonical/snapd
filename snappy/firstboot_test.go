@@ -26,8 +26,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/systemd"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/systemd"
 )
 
 type FirstBootTestSuite struct {

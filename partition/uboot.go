@@ -22,8 +22,8 @@ package partition
 import (
 	"path/filepath"
 
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/osutil"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 
 	"github.com/mvo5/uboot-go/uenv"
 )

@@ -25,9 +25,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ubuntu-core/snappy/osutil"
-	"github.com/ubuntu-core/snappy/snap/snapdir"
-	"github.com/ubuntu-core/snappy/snap/squashfs"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap/snapdir"
+	"github.com/snapcore/snapd/snap/squashfs"
 )
 
 // Container is the interface to interact with the low-level snap files

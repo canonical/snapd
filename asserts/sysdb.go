@@ -23,7 +23,7 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/snapcore/snapd/dirs"
 )
 
 func openDatabaseAt(path string, cfg *DatabaseConfig) (*Database, error) {

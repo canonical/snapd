@@ -24,11 +24,11 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/asserts"
-	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
 
-	"github.com/ubuntu-core/snappy/overlord/assertstate"
-	"github.com/ubuntu-core/snappy/overlord/state"
+	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 func TestAssertManager(t *testing.T) { TestingT(t) }

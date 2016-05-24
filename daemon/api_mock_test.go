@@ -22,10 +22,10 @@ package daemon
 import (
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/interfaces"
-	"github.com/ubuntu-core/snappy/overlord/snapstate"
-	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/snaptest"
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 func (s *apiSuite) mockSnap(c *C, yamlText string) *snap.Info {

@@ -26,7 +26,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/ubuntu-core/snappy/testutil"
+	"github.com/snapcore/snapd/testutil"
 
 	. "gopkg.in/check.v1"
 )

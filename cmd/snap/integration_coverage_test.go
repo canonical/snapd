@@ -23,7 +23,7 @@ package main
 import (
 	"testing"
 
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/testutils"
+	"github.com/snapcore/snapd/integration-tests/testutils/testutils"
 )
 
 func TestRunMain(t *testing.T) {

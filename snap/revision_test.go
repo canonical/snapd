@@ -25,7 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	. "github.com/ubuntu-core/snappy/snap"
+	. "github.com/snapcore/snapd/snap"
 )
 
 // Keep this in sync between snap and client packages.

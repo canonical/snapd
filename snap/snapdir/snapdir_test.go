@@ -24,7 +24,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/ubuntu-core/snappy/snap/snapdir"
+	"github.com/snapcore/snapd/snap/snapdir"
 
 	. "gopkg.in/check.v1"
 )

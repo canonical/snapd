@@ -24,9 +24,9 @@ import (
 
 	//"github.com/jessevdk/go-flags"
 
-	"github.com/ubuntu-core/snappy/classic"
-	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/progress"
+	"github.com/snapcore/snapd/classic"
+	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/progress"
 )
 
 // FIXME: Implement feature via "snap install classic"

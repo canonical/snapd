@@ -24,8 +24,8 @@ import (
 	"sort"
 	"text/tabwriter"
 
-	"github.com/ubuntu-core/snappy/client"
-	"github.com/ubuntu-core/snappy/i18n"
+	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/i18n"
 
 	"github.com/jessevdk/go-flags"
 )
