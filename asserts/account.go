@@ -38,6 +38,11 @@ func (acc *Account) AccountID() string {
 	return acc.Header("account-id")
 }
 
+// Username returns the user name for the account.
+func (acc *Account) Username() string {
+	return acc.Header("username")
+}
+
 // DisplayName returns the human-friendly name for the account.
 func (acc *Account) DisplayName() string {
 	return acc.Header("display-name")
