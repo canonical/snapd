@@ -67,7 +67,7 @@ apps:
 `
 
 func (s *binariesTestSuite) TestAddSnapBinariesAndRemove(c *C) {
-	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: 11})
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(11)})
 
 	err := wrappers.AddSnapBinaries(info)
 	c.Assert(err, IsNil)

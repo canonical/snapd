@@ -24,13 +24,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/partition"
 	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snap"
 )
 
@@ -122,6 +122,9 @@ func extractKernelAssets(s *snap.Info, flags InstallFlags, inter progress.Meter)
 // SetNextBoot will schedule the given os or kernel snap to be used in
 // the next boot
 func SetNextBoot(s *snap.Info) error {
+	if release.OnClassic {
+		return nil
+	}
 	if s.Type != snap.TypeOS && s.Type != snap.TypeKernel {
 		return nil
 	}
@@ -188,14 +191,14 @@ func kernelOrOsRebootRequired(s *snap.Info) bool {
 	return false
 }
 
-func nameAndRevnoFromSnap(snap string) (string, int) {
-	name := strings.Split(snap, "_")[0]
-	revnoNSuffix := strings.Split(snap, "_")[1]
-	revno, err := strconv.Atoi(strings.Split(revnoNSuffix, ".snap")[0])
+func nameAndRevnoFromSnap(sn string) (string, snap.Revision) {
+	name := strings.Split(sn, "_")[0]
+	revnoNSuffix := strings.Split(sn, "_")[1]
+	rev, err := snap.ParseRevision(strings.Split(revnoNSuffix, ".snap")[0])
 	if err != nil {
-		return "", -1
+		return "", snap.Revision{}
 	}
-	return name, revno
+	return name, rev
 }
 
 // SyncBoot synchronizes the active kernel and OS snap versions with
@@ -206,6 +209,9 @@ func nameAndRevnoFromSnap(snap string) (string, int) {
 // misleading. This code will check what kernel/os booted and set
 // those versions active.
 func SyncBoot() error {
+	if release.OnClassic {
+		return nil
+	}
 	bootloader, err := findBootloader()
 	if err != nil {
 		return fmt.Errorf("cannot run SyncBoot: %s", err)
@@ -224,7 +230,7 @@ func SyncBoot() error {
 		name, revno := nameAndRevnoFromSnap(snap)
 		found := FindSnapsByNameAndRevision(name, revno, installed)
 		if len(found) != 1 {
-			return fmt.Errorf("cannot SyncBoot, expected 1 snap %q (revno=%d) found %d", snap, revno, len(found))
+			return fmt.Errorf("cannot SyncBoot, expected 1 snap %q (revision %s) found %d", snap, revno, len(found))
 		}
 		if err := overlord.SetActive(found[0], true, nil); err != nil {
 			return fmt.Errorf("cannot SyncBoot, cannot make %s active: %s", found[0].Name(), err)

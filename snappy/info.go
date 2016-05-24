@@ -159,7 +159,7 @@ func FindSnapsByNameAndVersion(needle, version string, haystack []*Snap) []*Snap
 
 // FindSnapsByNameAndRevision returns the snaps with the name/version in the
 // given slice of snaps
-func FindSnapsByNameAndRevision(needle string, revision int, haystack []*Snap) []*Snap {
+func FindSnapsByNameAndRevision(needle string, revision snap.Revision, haystack []*Snap) []*Snap {
 	name, developer := SplitDeveloper(needle)
 	ignorens := developer == ""
 	var found []*Snap
@@ -199,14 +199,14 @@ func PackageNameActive(name string) bool {
 }
 
 // manifestPath returns the would be path for the snap manifest.
-func manifestPath(name string, revno int) string {
-	return filepath.Join(dirs.SnapMetaDir, fmt.Sprintf("%s_%d.manifest", name, revno))
+func manifestPath(name string, revno snap.Revision) string {
+	return filepath.Join(dirs.SnapMetaDir, fmt.Sprintf("%s_%s.manifest", name, revno.String()))
 }
 
 // SaveManifest saves the manifest at the designated location for the snap containing information not in the snap.yaml.
 func SaveManifest(rsnap *snap.Info) error {
-	if rsnap.Revision == 0 {
-		return fmt.Errorf("internal error: should not be storring manifests for sideloaded snaps")
+	if !rsnap.Revision.Store() {
+		return fmt.Errorf("internal error: should not be storing manifests for local snaps")
 	}
 
 	// XXX: we store OfficialName though it may not be the blessed one later

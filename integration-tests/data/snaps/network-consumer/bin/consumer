@@ -4,7 +4,6 @@ import sys
 from socket import timeout
 import urllib.request
 
-
 if len(sys.argv) > 1:
   url = sys.argv[1]
 else:
@@ -12,8 +11,9 @@ else:
 
 try:
   response = urllib.request.urlopen(url, timeout=3)
-  if '<!doctype html>' in response.read().decode('utf-8'):
-    print('ok')
+  decoded_response = response.read().decode('utf-8')
+  if '<!doctype html>' in decoded_response:
+    print(decoded_response.replace('<!doctype html>', ''), end="")
 except urllib.error.URLError as e:
   print("Error, reason: ", e.reason)
 except timeout:
