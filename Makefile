@@ -11,5 +11,8 @@ all:
 syntax-check:
 	make -C src syntax-check
 
-check: all syntax-check
+shell-check:
+	shellcheck --format=gcc tests/test_* tests/*.sh
+
+check: all syntax-check shell-check
 	make -C tests test
