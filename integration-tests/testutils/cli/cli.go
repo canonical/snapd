@@ -107,9 +107,6 @@ func findIndex(items []string, targetItems ...string) int {
 }
 
 func addCoverageOptions(cmds []string, index int) ([]string, error) {
-	orig := make([]string, len(cmds))
-	copy(orig, cmds)
-
 	coveragePath := getCoveragePath()
 	err := os.MkdirAll(coveragePath, os.ModePerm)
 	if err != nil {
@@ -119,11 +116,12 @@ func addCoverageOptions(cmds []string, index int) ([]string, error) {
 	tmpFile := getCoverFilename()
 	coverprofile := filepath.Join(coveragePath, tmpFile)
 
-	head := append(cmds[:index+1],
-		[]string{"-test.run=^TestRunMain$", "-test.coverprofile=" + coverprofile}...)
-	tail := filterCmd(orig[index+1:])
+	output := append(cmds, []string{"", ""}...)
 
-	return append(head, tail...), nil
+	copy(output[index+2:], output[index:])
+	output[index+1] = "-test.run=^TestRunMain$"
+	output[index+2] = "-test.coverprofile=" + coverprofile
+	return output, nil
 }
 
 func removeCoverageInfo(input string) string {
@@ -148,16 +146,4 @@ func getCoverFilename() string {
 
 func getCoveragePath() string {
 	return filepath.Join(os.Getenv("ADT_ARTIFACTS"), "coverage")
-}
-
-func filterCmd(cmd []string) []string {
-	output := cmd[:0]
-
-	for _, item := range cmd {
-		if !strings.HasPrefix(item, "-test.run") &&
-			!strings.HasPrefix(item, "-test.coverprofile") {
-			output = append(output, item)
-		}
-	}
-	return output
 }
