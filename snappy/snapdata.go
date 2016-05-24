@@ -24,8 +24,8 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/ubuntu-core/snappy/osutil"
-	"github.com/ubuntu-core/snappy/snap"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
 )
 
 // RemoveSnapData removes the data for the given version of the given snap

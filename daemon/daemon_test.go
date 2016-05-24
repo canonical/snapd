@@ -27,7 +27,7 @@ import (
 	"github.com/gorilla/mux"
 	"gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/overlord/auth"
+	"github.com/snapcore/snapd/overlord/auth"
 )
 
 // Hook up check.v1 into the "go test" runner

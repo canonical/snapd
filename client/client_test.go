@@ -33,8 +33,8 @@ import (
 
 	"gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/client"
-	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/dirs"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -78,23 +78,6 @@ func (cs *clientSuite) TestNewPanics(c *check.C) {
 		client.New(&client.Config{BaseURL: ":"})
 	}, check.PanicMatches, `cannot parse server base URL: ":" \(parse :: missing protocol scheme\)`)
 }
-
-func (cs *clientSuite) TestNewCustomURL(c *check.C) {
-	f := func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.URL.Path, check.Equals, "/v2/system-info")
-		c.Check(r.URL.RawQuery, check.Equals, "")
-		fmt.Fprintln(w, `{"type":"sync", "result":{"store":"X"}}`)
-	}
-	srv := httptest.NewServer(http.HandlerFunc(f))
-	defer srv.Close()
-
-	cli := client.New(&client.Config{BaseURL: srv.URL})
-	c.Assert(cli, check.Not(check.IsNil))
-	si, err := cli.SysInfo()
-	c.Check(err, check.IsNil)
-	c.Check(si.Store, check.Equals, "X")
-}
-
 func (cs *clientSuite) TestClientDoReportsErrors(c *check.C) {
 	cs.err = errors.New("ouchie")
 	err := cs.cli.Do("GET", "/", nil, nil, nil)
@@ -148,19 +131,13 @@ func (cs *clientSuite) TestClientSetsAuthorization(c *check.C) {
 
 func (cs *clientSuite) TestClientSysInfo(c *check.C) {
 	cs.rsp = `{"type": "sync", "result":
-                     {"flavor": "f",
-                      "release": "r",
-                      "default-channel": "dc",
-                      "api-compat": "42",
-                      "store": "store"}}`
+                     {"series": "16",
+                      "version": "2"}}`
 	sysInfo, err := cs.cli.SysInfo()
 	c.Check(err, check.IsNil)
 	c.Check(sysInfo, check.DeepEquals, &client.SysInfo{
-		Flavor:           "f",
-		Release:          "r",
-		DefaultChannel:   "dc",
-		APICompatibility: "42",
-		Store:            "store",
+		Version: "2",
+		Series:  "16",
 	})
 }
 
@@ -175,7 +152,7 @@ func (cs *clientSuite) TestClientIntegration(c *check.C) {
 		c.Check(r.URL.Path, check.Equals, "/v2/system-info")
 		c.Check(r.URL.RawQuery, check.Equals, "")
 
-		fmt.Fprintln(w, `{"type":"sync", "result":{"store":"X"}}`)
+		fmt.Fprintln(w, `{"type":"sync", "result":{"series":"42"}}`)
 	}
 
 	srv := &httptest.Server{
@@ -188,7 +165,7 @@ func (cs *clientSuite) TestClientIntegration(c *check.C) {
 	cli := client.New(nil)
 	si, err := cli.SysInfo()
 	c.Check(err, check.IsNil)
-	c.Check(si.Store, check.Equals, "X")
+	c.Check(si.Series, check.Equals, "42")
 }
 
 func (cs *clientSuite) TestClientReportsOpError(c *check.C) {

@@ -25,7 +25,7 @@ package snappy
 import (
 	"errors"
 
-	"github.com/ubuntu-core/snappy/snap"
+	"github.com/snapcore/snapd/snap"
 )
 
 // getGadget is a convenience function to not go into the details for

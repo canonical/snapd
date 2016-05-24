@@ -225,7 +225,7 @@ func (db *Database) PublicKey(authorityID string, keyID string) (PublicKey, erro
 // Sign assembles an assertion with the provided information and signs it
 // with the private key from `headers["authority-id"]` that has the provided key id.
 func (db *Database) Sign(assertType *AssertionType, headers map[string]string, body []byte, keyID string) (Assertion, error) {
-	authorityID, err := checkMandatory(headers, "authority-id")
+	authorityID, err := checkNotEmpty(headers, "authority-id")
 	if err != nil {
 		return nil, err
 	}

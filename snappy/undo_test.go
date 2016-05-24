@@ -26,12 +26,12 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/osutil"
-	"github.com/ubuntu-core/snappy/partition"
-	"github.com/ubuntu-core/snappy/progress"
-	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/systemd"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/partition"
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/systemd"
 )
 
 type undoTestSuite struct {
@@ -63,7 +63,7 @@ func (s *undoTestSuite) TestUndoForSetupSnapSimple(c *C) {
 
 	si := snap.SideInfo{
 		OfficialName: "hello-snap",
-		Revision:     14,
+		Revision:     snap.R(14),
 	}
 
 	minInfo, err := SetupSnap(snapPath, &si, 0, &s.meter)
@@ -99,7 +99,7 @@ type: kernel
 
 	si := snap.SideInfo{
 		OfficialName: "kernel-snap",
-		Revision:     140,
+		Revision:     snap.R(140),
 	}
 
 	instDir, err := SetupSnap(snapPath, &si, 0, &s.meter)

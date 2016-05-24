@@ -28,14 +28,14 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/ubuntu-core/snappy/arch"
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/osutil"
-	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/snapenv"
-	"github.com/ubuntu-core/snappy/systemd"
-	"github.com/ubuntu-core/snappy/timeout"
+	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapenv"
+	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/timeout"
 )
 
 type interacter interface {
@@ -231,7 +231,7 @@ WantedBy={{.ServiceTargetUnit}}
 		SnapArch string
 		SnapPath string
 		Version  string
-		Revision int
+		Revision snap.Revision
 		Home     string
 	}{
 		App: appInfo,

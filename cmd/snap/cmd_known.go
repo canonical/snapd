@@ -23,8 +23,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ubuntu-core/snappy/asserts"
-	"github.com/ubuntu-core/snappy/i18n"
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/i18n"
 
 	"github.com/jessevdk/go-flags"
 )

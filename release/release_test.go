@@ -26,7 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/release"
+	"github.com/snapcore/snapd/release"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -46,10 +46,16 @@ func makeMockLSBRelease(c *C) string {
 	//        can do release.SetLSBReleasePath() here directly
 	mockLSBRelease := filepath.Join(c.MkDir(), "mock-lsb-release")
 	s := `
-DISTRIB_ID=Ubuntu
-DISTRIB_RELEASE=18.09
-DISTRIB_CODENAME=awsome
-DISTRIB_DESCRIPTION=I'm not real!
+NAME="Ubuntu"
+VERSION="18.09 (Awesome Artichoke)"
+ID=ubuntu
+ID_LIKE=debian
+PRETTY_NAME="I'm not real!"
+VERSION_ID="18.09"
+HOME_URL="http://www.ubuntu.com/"
+SUPPORT_URL="http://help.ubuntu.com/"
+BUG_REPORT_URL="http://bugs.launchpad.net/ubuntu/"
+UBUNTU_CODENAME=awesome
 `
 	err := ioutil.WriteFile(mockLSBRelease, []byte(s), 0644)
 	c.Assert(err, IsNil)
@@ -65,7 +71,7 @@ func (s *ReleaseTestSuite) TestReadLSB(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(lsb.ID, Equals, "Ubuntu")
 	c.Assert(lsb.Release, Equals, "18.09")
-	c.Assert(lsb.Codename, Equals, "awsome")
+	c.Assert(lsb.Codename, Equals, "awesome")
 }
 
 func (s *ReleaseTestSuite) TestReadLSBNotFound(c *C) {
@@ -73,7 +79,7 @@ func (s *ReleaseTestSuite) TestReadLSBNotFound(c *C) {
 	defer reset()
 
 	_, err := release.ReadLSB()
-	c.Assert(err, ErrorMatches, "cannot read lsb-release:.*")
+	c.Assert(err, ErrorMatches, "cannot read os-release:.*")
 }
 
 func (s *ReleaseTestSuite) TestOnClassic(c *C) {

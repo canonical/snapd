@@ -24,8 +24,8 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
-	"github.com/ubuntu-core/snappy/partition"
-	"github.com/ubuntu-core/snappy/snappy"
+	"github.com/snapcore/snapd/partition"
+	"github.com/snapcore/snapd/snappy"
 )
 
 type cmdBooted struct{}

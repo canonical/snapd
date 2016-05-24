@@ -23,7 +23,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ubuntu-core/snappy/strutil"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // AtomicWriteFlags are a bitfield of flags for AtomicWriteFile

@@ -25,7 +25,7 @@ import (
 
 	"gopkg.in/check.v1"
 
-	snap "github.com/ubuntu-core/snappy/cmd/snap"
+	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
 func (s *SnapSuite) TestHelpPrintsHelp(c *check.C) {
@@ -47,6 +47,9 @@ func (s *SnapSuite) TestHelpPrintsHelp(c *check.C) {
 The snap tool interacts with the snapd daemon to control the snappy software
 platform.
 
+
+Application Options:
+ +--version +print the version and exit
 
 Help Options:
  +-h, --help +Show this help message
