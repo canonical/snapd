@@ -26,9 +26,12 @@
 #include <ctype.h>
 #include <stdbool.h>
 #include <stdlib.h>
+
+// needed for search mappings
 #include <sys/prctl.h>
-#include <sys/types.h>
+#include <sys/resource.h>
 #include <sys/socket.h>
+#include <sys/types.h>
 
 #include <seccomp.h>
 
@@ -113,7 +116,7 @@ void map_init()
 	// first initialize the htab for our map
 	memset((void *)&map_htab, 0, sizeof(map_htab));
 
-	const int map_length = 79;	// one for each map_add
+	const int map_length = 82;	// one for each map_add
 	if (hcreate_r(map_length, &map_htab) == 0)
 		die("could not create map");
 
@@ -203,6 +206,11 @@ void map_init()
 	map_add("PR_GET_TSC", (void *)PR_GET_TSC);
 	map_add("PR_SET_UNALIGN", (void *)PR_SET_UNALIGN);
 	map_add("PR_GET_UNALIGN", (void *)PR_GET_UNALIGN);
+
+	// man 2 getpriority
+	map_add("PRIO_PROCESS", (void *)PRIO_PROCESS);
+	map_add("PRIO_PGRP", (void *)PRIO_PGRP);
+	map_add("PRIO_USER", (void *)PRIO_USER);
 }
 
 void map_destroy()

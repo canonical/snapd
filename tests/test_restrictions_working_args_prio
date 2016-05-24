@@ -1,0 +1,48 @@
+#!/bin/sh
+
+set -e
+
+. "$(pwd)"/common.sh
+
+cat >"$TMP"/tmpl <<EOF
+# filter that works ok for true
+open
+close
+
+mmap
+munmap
+mprotect
+
+fstat
+access
+read
+
+brk
+execve
+
+dup
+fcntl
+write
+
+arch_prctl
+exit_group
+
+geteuid
+getuid
+
+getpriority
+EOF
+
+for i in PRIO_PROCESS PRIO_PGRP PRIO_USER ; do
+    cat "$TMP"/tmpl >"$TMP"/snap.name.app
+    echo "setpriority $i - -" >>"$TMP"/snap.name.app
+
+    printf "Test good seccomp arg filtering (setpriority %s - -)" "$i"
+    # ensure that the command "true" can run with the right filter
+    if $L snap.name.app /bin/true ; then
+        PASS
+    else
+        dmesg|tail -n1
+        FAIL
+    fi
+done
