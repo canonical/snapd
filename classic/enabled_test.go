@@ -26,8 +26,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/testutil"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type EnabledTestSuite struct {

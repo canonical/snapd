@@ -29,7 +29,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ubuntu-core/snappy/osutil"
+	"github.com/snapcore/snapd/osutil"
 )
 
 // Magic is the magic prefix of squashfs snap files.

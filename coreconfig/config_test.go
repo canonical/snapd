@@ -26,8 +26,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/ubuntu-core/snappy/osutil"
-	"github.com/ubuntu-core/snappy/systemd"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/systemd"
 
 	. "gopkg.in/check.v1"
 )

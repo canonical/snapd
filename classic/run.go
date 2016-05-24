@@ -26,8 +26,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/strutil"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/strutil"
 )
 
 type bindMount struct {

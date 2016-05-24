@@ -26,12 +26,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/osutil"
-	"github.com/ubuntu-core/snappy/partition"
-	"github.com/ubuntu-core/snappy/progress"
-	"github.com/ubuntu-core/snappy/release"
-	"github.com/ubuntu-core/snappy/snap"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/partition"
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 )
 
 // override in tests

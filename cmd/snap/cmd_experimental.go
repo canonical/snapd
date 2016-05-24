@@ -20,7 +20,7 @@
 package main
 
 import (
-	"github.com/ubuntu-core/snappy/i18n"
+	"github.com/snapcore/snapd/i18n"
 )
 
 type cmdExperimental struct{}
