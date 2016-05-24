@@ -30,7 +30,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ubuntu-core/snappy/logger"
+	"github.com/snapcore/snapd/logger"
 )
 
 // A Backend is used by State to checkpoint on every unlock operation

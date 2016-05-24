@@ -33,12 +33,12 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/asserts"
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/osutil"
-	"github.com/ubuntu-core/snappy/progress"
-	"github.com/ubuntu-core/snappy/snap"
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/snap"
 )
 
 type remoteRepoTestSuite struct {
@@ -343,8 +343,13 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Assert(result.Prices, DeepEquals, map[string]float64{"USD": 1.23})
 	c.Check(result.MustBuy, Equals, true)
 
+	// Make sure the epoch (currently not sent by the store) defaults to "0"
+	c.Check(result.Epoch, Equals, "0")
+
 	c.Check(repo.SuggestedCurrency(), Equals, "GBP")
 	c.Check(result.Private, Equals, true)
+
+	c.Check(snap.Validate(result), IsNil)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsSetsAuth(c *C) {

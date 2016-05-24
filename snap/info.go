@@ -25,9 +25,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/systemd"
-	"github.com/ubuntu-core/snappy/timeout"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/timeout"
 )
 
 // PlaceInfo offers all the information about where a snap and its data are located and exposed in the filesystem.
@@ -100,8 +100,11 @@ type Info struct {
 	OriginalSummary     string
 	OriginalDescription string
 
+	Environment map[string]string
+
 	LicenseAgreement string
 	LicenseVersion   string
+	Epoch            string
 	Confinement      ConfinementType
 	Apps             map[string]*AppInfo
 	Plugs            map[string]*PlugInfo
@@ -217,7 +220,7 @@ type AppInfo struct {
 
 	// TODO: this should go away once we have more plumbing and can change
 	// things vs refactor
-	// https://github.com/ubuntu-core/snappy/pull/794#discussion_r58688496
+	// https://github.com/snapcore/snapd/pull/794#discussion_r58688496
 	BusName string
 
 	Plugs map[string]*PlugInfo
@@ -230,6 +233,10 @@ type AppInfo struct {
 // sometimes also as a part of the file name.
 func (app *AppInfo) SecurityTag() string {
 	return fmt.Sprintf("snap.%s.%s", app.Snap.Name(), app.Name)
+}
+
+func (app *AppInfo) EnvironmentFile() string {
+	return filepath.Join(dirs.SnapEnvironmentDir, app.SecurityTag())
 }
 
 // WrapperPath returns the path to wrapper invoking the app binary.

@@ -31,12 +31,12 @@ import (
 
 	"gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/config"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/partition"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/report"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/runner"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/wait"
+	"github.com/snapcore/snapd/integration-tests/testutils/cli"
+	"github.com/snapcore/snapd/integration-tests/testutils/config"
+	"github.com/snapcore/snapd/integration-tests/testutils/partition"
+	"github.com/snapcore/snapd/integration-tests/testutils/report"
+	"github.com/snapcore/snapd/integration-tests/testutils/runner"
+	"github.com/snapcore/snapd/integration-tests/testutils/wait"
 )
 
 const (

@@ -26,8 +26,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/client"
-	. "github.com/ubuntu-core/snappy/cmd/snap"
+	"github.com/snapcore/snapd/client"
+	. "github.com/snapcore/snapd/cmd/snap"
 )
 
 func (s *SnapSuite) TestInterfacesHelp(c *C) {
@@ -50,6 +50,9 @@ $ snap interfaces -i=<interface> [<snap>]
 
 Filters the complete output so only plugs and/or slots matching the provided
 details are listed.
+
+Application Options:
+      --version                    print the version and exit
 
 Help Options:
   -h, --help                       Show this help message

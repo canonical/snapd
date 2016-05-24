@@ -34,12 +34,12 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/ubuntu-core/snappy/arch"
-	"github.com/ubuntu-core/snappy/asserts"
-	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/progress"
-	"github.com/ubuntu-core/snappy/release"
-	"github.com/ubuntu-core/snappy/snap"
+	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 )
 
 // TODO: better/shorter names are probably in order once fewer legacy places are using this
@@ -56,6 +56,7 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	info.Architectures = d.Architectures
 	info.Type = d.Type
 	info.Version = d.Version
+	info.Epoch = "0"
 	info.OfficialName = d.Name
 	info.SnapID = d.SnapID
 	info.Revision = d.Revision

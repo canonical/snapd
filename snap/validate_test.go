@@ -22,7 +22,7 @@ package snap_test
 import (
 	. "gopkg.in/check.v1"
 
-	. "github.com/ubuntu-core/snappy/snap"
+	. "github.com/snapcore/snapd/snap"
 )
 
 type ValidateSuite struct{}
@@ -58,6 +58,23 @@ func (s *ValidateSuite) TestValidateName(c *C) {
 	for _, name := range invalidNames {
 		err := ValidateName(name)
 		c.Assert(err, ErrorMatches, `invalid snap name: ".*"`)
+	}
+}
+
+func (s *ValidateSuite) TestValidateEpoch(c *C) {
+	validEpochs := []string{
+		"0", "1*", "1", "400*", "1234",
+	}
+	for _, epoch := range validEpochs {
+		err := ValidateEpoch(epoch)
+		c.Assert(err, IsNil)
+	}
+	invalidEpochs := []string{
+		"0*", "_", "1-", "1+", "-1", "+1", "-1*", "a", "1a", "1**",
+	}
+	for _, epoch := range invalidEpochs {
+		err := ValidateEpoch(epoch)
+		c.Assert(err, ErrorMatches, `invalid snap epoch: ".*"`)
 	}
 }
 
@@ -139,4 +156,23 @@ version: 1.0
 
 	err = Validate(info)
 	c.Check(err, ErrorMatches, `snap name cannot be empty`)
+}
+
+func (s *ValidateSuite) TestIllegalSnapEpoch(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+epoch: 0*
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, ErrorMatches, `invalid snap epoch: "0\*"`)
+}
+
+func (s *ValidateSuite) TestMissingSnapEpochIsOkay(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+`))
+	c.Assert(err, IsNil)
+	c.Assert(Validate(info), IsNil)
 }

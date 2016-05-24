@@ -65,12 +65,12 @@ func (snapdcl *SnapDeclaration) Timestamp() time.Time {
 // XXX: consistency check is signed by canonical
 
 func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
-	_, err := checkMandatory(assert.headers, "snap-name")
+	_, err := checkExists(assert.headers, "snap-name")
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = checkMandatory(assert.headers, "publisher-id")
+	_, err = checkNotEmpty(assert.headers, "publisher-id")
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +134,7 @@ func (snapbld *SnapBuild) Timestamp() time.Time {
 func assembleSnapBuild(assert assertionBase) (Assertion, error) {
 	// TODO: more parsing/checking of snap-digest
 
-	_, err := checkMandatory(assert.headers, "grade")
+	_, err := checkNotEmpty(assert.headers, "grade")
 	if err != nil {
 		return nil, err
 	}
@@ -225,7 +225,7 @@ func assembleSnapRevision(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	_, err = checkMandatory(assert.headers, "developer-id")
+	_, err = checkNotEmpty(assert.headers, "developer-id")
 	if err != nil {
 		return nil, err
 	}

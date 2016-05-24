@@ -28,7 +28,7 @@ import (
 
 	"gopkg.in/check.v1"
 
-	snap "github.com/ubuntu-core/snappy/cmd/snap"
+	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
 type snapOpTestServer struct {
@@ -38,6 +38,8 @@ type snapOpTestServer struct {
 	n       int
 	total   int
 }
+
+var _ = check.Suite(&SnapOpSuite{})
 
 func (t *snapOpTestServer) handle(w http.ResponseWriter, r *http.Request) {
 	switch t.n {
@@ -53,12 +55,8 @@ func (t *snapOpTestServer) handle(w http.ResponseWriter, r *http.Request) {
 	case 2:
 		t.c.Check(r.Method, check.Equals, "GET")
 		t.c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
-		fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done"}}`)
+		fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"snap-name": "foo"}}}`)
 	case 3:
-		t.c.Check(r.Method, check.Equals, "GET")
-		t.c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
-		fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done"}}`)
-	case 4:
 		t.c.Check(r.Method, check.Equals, "GET")
 		t.c.Check(r.URL.Path, check.Equals, "/v2/snaps")
 		fmt.Fprintln(w, `{"type": "sync", "result": [{"name": "foo", "status": "active", "version": "1.0", "developer": "bar", "revision":42}]}`)
@@ -75,25 +73,27 @@ type SnapOpSuite struct {
 	srv snapOpTestServer
 }
 
-func (s *SnapOpSuite) SetupTest(c *check.C) {
+func (s *SnapOpSuite) SetUpTest(c *check.C) {
+	s.SnapSuite.SetUpTest(c)
+
 	s.srv = snapOpTestServer{
 		c:     c,
-		total: 5,
+		total: 4,
 	}
 }
 
 func (s *SnapOpSuite) TestInstall(c *check.C) {
 	s.srv.checker = func(r *http.Request) {
-		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo.bar")
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
 			"action":  "install",
-			"name":    "foo.bar",
+			"name":    "foo",
 			"channel": "chan",
 		})
 	}
 
 	s.RedirectClientToTestServer(s.srv.handle)
-	rest, err := snap.Parser().ParseArgs([]string{"install", "--channel", "chan", "foo.bar"})
+	rest, err := snap.Parser().ParseArgs([]string{"install", "--channel", "chan", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo\s+1.0\s+42\s+bar.*`)
@@ -104,17 +104,17 @@ func (s *SnapOpSuite) TestInstall(c *check.C) {
 
 func (s *SnapOpSuite) TestInstallDevMode(c *check.C) {
 	s.srv.checker = func(r *http.Request) {
-		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo.bar")
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
 			"action":  "install",
-			"name":    "foo.bar",
+			"name":    "foo",
 			"devmode": true,
 			"channel": "chan",
 		})
 	}
 
 	s.RedirectClientToTestServer(s.srv.handle)
-	rest, err := snap.Parser().ParseArgs([]string{"install", "--channel", "chan", "--devmode", "foo.bar"})
+	rest, err := snap.Parser().ParseArgs([]string{"install", "--channel", "chan", "--devmode", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo\s+1.0\s+42\s+bar.*`)

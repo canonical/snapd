@@ -25,11 +25,11 @@ import (
 
 	"gopkg.in/tomb.v2"
 
-	"github.com/ubuntu-core/snappy/overlord/auth"
-	"github.com/ubuntu-core/snappy/overlord/state"
-	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snappy"
-	"github.com/ubuntu-core/snappy/store"
+	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snappy"
+	"github.com/snapcore/snapd/store"
 )
 
 // SnapManager is responsible for the installation and removal of snaps.
@@ -112,7 +112,7 @@ func Manager(s *state.State) (*SnapManager, error) {
 		return nil
 	}, nil)
 
-	// install/update releated
+	// install/update related
 	runner.AddHandler("prepare-snap", m.doPrepareSnap, m.undoPrepareSnap)
 	runner.AddHandler("download-snap", m.doDownloadSnap, m.undoPrepareSnap)
 	runner.AddHandler("mount-snap", m.doMountSnap, m.undoMountSnap)
@@ -122,7 +122,7 @@ func Manager(s *state.State) (*SnapManager, error) {
 	// FIXME: port to native tasks and rename
 	//runner.AddHandler("garbage-collect", m.doGarbageCollect, nil)
 
-	// remove releated
+	// remove related
 	runner.AddHandler("unlink-snap", m.doUnlinkSnap, nil)
 	runner.AddHandler("clear-snap", m.doClearSnapData, nil)
 	runner.AddHandler("discard-snap", m.doDiscardSnap, nil)
@@ -422,7 +422,9 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	}
 
-	if err := m.backend.CheckSnap(ss.SnapPath, curInfo, ss.Flags); err != nil {
+	m.backend.Current(curInfo)
+
+	if err := checkSnap(t.State(), ss.SnapPath, curInfo, snappy.InstallFlags(ss.Flags)); err != nil {
 		return err
 	}
 
@@ -562,7 +564,17 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	st.Unlock()
+	// XXX: this block is slightly ugly, find a pattern when we have more examples
 	err = m.backend.LinkSnap(newInfo)
+	if err != nil {
+		pb := &TaskProgressAdapter{task: t}
+		err := m.backend.UnlinkSnap(newInfo, pb)
+		if err != nil {
+			st.Lock()
+			t.Errorf("cannot cleanup failed attempt at making snap %q available to the system: %v", ss.Name, err)
+			st.Unlock()
+		}
+	}
 	st.Lock()
 	if err != nil {
 		return err
@@ -571,6 +583,8 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.Set("old-channel", oldChannel)
 	// Do at the end so we only preserve the new state if it worked.
 	Set(st, ss.Name, snapst)
+	// Make sure if state commits and snapst is mutated we won't be rerun
+	t.SetStatus(state.DoneStatus)
 	return nil
 }
 
@@ -613,5 +627,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// mark as inactive
 	Set(st, ss.Name, snapst)
+	// Make sure if state commits and snapst is mutated we won't be rerun
+	t.SetStatus(state.UndoneStatus)
 	return nil
 }

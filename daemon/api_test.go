@@ -37,18 +37,18 @@ import (
 
 	"gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/asserts"
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/interfaces"
-	"github.com/ubuntu-core/snappy/overlord/auth"
-	"github.com/ubuntu-core/snappy/overlord/ifacestate"
-	"github.com/ubuntu-core/snappy/overlord/snapstate"
-	"github.com/ubuntu-core/snappy/overlord/state"
-	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/snaptest"
-	"github.com/ubuntu-core/snappy/snappy"
-	"github.com/ubuntu-core/snappy/store"
-	"github.com/ubuntu-core/snappy/testutil"
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snappy"
+	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type apiSuite struct {
@@ -397,31 +397,15 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	rec := httptest.NewRecorder()
 	c.Check(sysInfoCmd.Path, check.Equals, "/v2/system-info")
 
+	s.daemon(c).Version = "42b1"
+
 	sysInfoCmd.GET(sysInfoCmd, nil, nil).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 200)
 	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
 
 	expected := map[string]interface{}{
-		"series": "16",
-	}
-	var rsp resp
-	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
-	c.Check(rsp.Status, check.Equals, 200)
-	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Check(rsp.Result, check.DeepEquals, expected)
-}
-
-func (s *apiSuite) TestSysInfoStore(c *check.C) {
-	rec := httptest.NewRecorder()
-	c.Check(sysInfoCmd.Path, check.Equals, "/v2/system-info")
-
-	s.mkGadget(c, "some-store")
-
-	sysInfoCmd.GET(sysInfoCmd, nil, nil).ServeHTTP(rec, nil)
-	c.Check(rec.Code, check.Equals, 200)
-
-	expected := map[string]interface{}{
-		"series": "16",
+		"series":  "16",
+		"version": "42b1",
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)

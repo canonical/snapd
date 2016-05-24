@@ -23,7 +23,7 @@ package main_test
 import (
 	. "gopkg.in/check.v1"
 
-	. "github.com/ubuntu-core/snappy/cmd/snap"
+	. "github.com/snapcore/snapd/cmd/snap"
 )
 
 type AttributePairSuite struct{}

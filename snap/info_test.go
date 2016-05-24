@@ -26,10 +26,10 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/snaptest"
-	"github.com/ubuntu-core/snappy/snap/squashfs"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snap/squashfs"
 )
 
 type infoSuite struct{}
@@ -147,6 +147,7 @@ func (s *infoSuite) TestReadInfoFromSnapFile(c *C) {
 	yaml := `name: foo
 version: 1.0
 type: app
+epoch: 1*
 confinement: devmode`
 	snapPath := makeTestSnap(c, yaml)
 
@@ -158,8 +159,27 @@ confinement: devmode`
 	c.Check(info.Name(), Equals, "foo")
 	c.Check(info.Version, Equals, "1.0")
 	c.Check(info.Type, Equals, snap.TypeApp)
-	c.Check(info.Confinement, Equals, snap.DevmodeConfinement)
 	c.Check(info.Revision, Equals, snap.R(0))
+	c.Check(info.Epoch, Equals, "1*")
+	c.Check(info.Confinement, Equals, snap.DevmodeConfinement)
+}
+
+func (s *infoSuite) TestReadInfoFromSnapFileMissingEpoch(c *C) {
+	yaml := `name: foo
+version: 1.0
+type: app`
+	snapPath := makeTestSnap(c, yaml)
+
+	snapf, err := snap.Open(snapPath)
+	c.Assert(err, IsNil)
+
+	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
+	c.Assert(err, IsNil)
+	c.Check(info.Name(), Equals, "foo")
+	c.Check(info.Version, Equals, "1.0")
+	c.Check(info.Type, Equals, snap.TypeApp)
+	c.Check(info.Revision, Equals, snap.R(0))
+	c.Check(info.Epoch, Equals, "0") // Defaults to 0
 }
 
 func (s *infoSuite) TestReadInfoFromSnapFileWithSideInfo(c *C) {

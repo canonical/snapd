@@ -24,7 +24,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ubuntu-core/snappy/asserts"
+	"github.com/snapcore/snapd/asserts"
 	. "gopkg.in/check.v1"
 )
 

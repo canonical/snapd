@@ -22,8 +22,8 @@ package builtin
 import (
 	"bytes"
 
-	"github.com/ubuntu-core/snappy/interfaces"
-	"github.com/ubuntu-core/snappy/release"
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/release"
 )
 
 var networkManagerPermanentSlotAppArmor = []byte(`

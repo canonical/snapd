@@ -28,7 +28,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/config"
+	"github.com/snapcore/snapd/integration-tests/testutils/config"
 
 	"gopkg.in/check.v1"
 )
