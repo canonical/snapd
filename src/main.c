@@ -480,7 +480,7 @@ int main(int argc, char **argv)
 {
 	const int NR_ARGS = 2;
 	if (argc < NR_ARGS + 1)
-		die("Usage: %s <appname> <security-tag> <binary>", argv[0]);
+		die("Usage: %s <security-tag> <binary>", argv[0]);
 
 	const char *appname = argv[1];
 	const char *aa_profile = argv[1];
