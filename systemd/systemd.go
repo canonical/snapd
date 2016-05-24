@@ -413,11 +413,7 @@ func MountUnitPath(baseDir, ext string) string {
 
 func (s *systemd) WriteMountUnitFile(name, what, where string) (string, error) {
 	extra := ""
-	realWhat, err := filepath.EvalSymlinks(what)
-	if err != nil {
-		return "", err
-	}
-	if osutil.IsDirectory(realWhat) {
+	if osutil.IsDirectory(what) {
 		extra = "Options=bind\nType=none\n"
 	}
 
