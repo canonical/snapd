@@ -25,7 +25,7 @@ import (
 	"net/http"
 	"sort"
 
-	"github.com/ubuntu-core/snappy/overlord/state"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 // AuthState represents current authenticated users as tracked in state

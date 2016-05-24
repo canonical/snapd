@@ -22,7 +22,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/ubuntu-core/snappy/partition"
+	"github.com/snapcore/snapd/partition"
 
 	. "gopkg.in/check.v1"
 )
