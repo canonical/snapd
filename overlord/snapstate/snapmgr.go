@@ -64,6 +64,10 @@ func (ss *SnapSetup) DevMode() bool {
 	return ss.Flags&int(snappy.DeveloperMode) != 0
 }
 
+func (ss *SnapSetup) TryMode() bool {
+	return ss.Flags&int(snappy.TryMode) != 0
+}
+
 // SnapStateFlags are flags stored in SnapState.
 type SnapStateFlags int
 
@@ -404,10 +408,29 @@ func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
 
 func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.State().Lock()
-	ss, err := TaskSnapSetup(t)
+	ss, snapst, err := snapSetupAndState(t)
 	t.State().Unlock()
 	if err != nil {
 		return err
+	}
+
+	// undo try mode (if needed)
+	t.State().Lock()
+	var oldTryMode bool
+	err = t.Get("old-trymode", &oldTryMode)
+	t.State().Unlock()
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if err == nil {
+		if oldTryMode {
+			snapst.Flags |= TryMode
+		} else {
+			snapst.Flags &= ^TryMode
+		}
+		t.State().Lock()
+		Set(t.State(), ss.Name, snapst)
+		t.State().Unlock()
 	}
 
 	return m.backend.UndoSetupSnap(ss.placeInfo())
@@ -434,6 +457,17 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err := m.backend.CheckSnap(ss.SnapPath, curInfo, ss.Flags); err != nil {
 		return err
 	}
+
+	// record the try mode in the state
+	t.State().Lock()
+	t.Set("old-trymode", snapst.TryMode())
+	if ss.TryMode() {
+		snapst.Flags |= TryMode
+	} else {
+		snapst.Flags &= ^TryMode
+	}
+	Set(t.State(), ss.Name, snapst)
+	t.State().Unlock()
 
 	// TODO Use ss.Revision to obtain the right info to mount
 	//      instead of assuming the candidate is the right one.
