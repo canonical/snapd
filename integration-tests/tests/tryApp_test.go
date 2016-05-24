@@ -44,12 +44,11 @@ func (s *trySuite) TestTryBasicBinaries(c *check.C) {
 	defer common.RemoveSnap(c, data.BasicBinariesSnapName)
 
 	expected := "(?ms)" +
-		"Name +Version +Rev +Developer\n" +
 		".*" +
-		"^basic-binaries +.* *\n" +
-		".*"
+		"Name +Version +Rev +Developer\n" +
+		"basic-binaries +.*"
 	c.Check(tryOutput, check.Matches, expected)
 
-	// Exec command does not fail.
+	// can run commands from the snap-try binary
 	cli.ExecCommand(c, "basic-binaries.success")
 }
