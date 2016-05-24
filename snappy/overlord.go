@@ -508,18 +508,7 @@ func canInstall(s *snap.Info, snapf snap.File, curInfo *snap.Info, allowGadget b
 		return &ErrArchitectureNotSupported{s.Architectures}
 	}
 
-	if s.Type == snap.TypeGadget {
-		if !allowGadget {
-			if currentGadget, err := getGadget(); err == nil {
-				if currentGadget.Name() != s.Name() {
-					return ErrGadgetPackageInstall
-				}
-			} else {
-				// there should always be a gadget package now
-				return ErrGadgetPackageInstall
-			}
-		}
-	}
+	// assume allowGadget, this is only used by u-d-f now
 
 	return nil
 }
