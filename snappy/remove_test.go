@@ -29,10 +29,10 @@ import (
 func (s *SnapTestSuite) TestUnlinkSnapActiveVsNotActive(c *C) {
 	foo1, foo2 := makeTwoTestSnaps(c, snap.TypeApp)
 
-	err := UnlinkSnap(foo2, &progress.NullProgress{})
+	err := unlinkSnap(foo2, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 
-	err = UnlinkSnap(foo1, &progress.NullProgress{})
+	err = unlinkSnap(foo1, &progress.NullProgress{})
 	c.Assert(err, Equals, ErrSnapNotActive)
 }
 
