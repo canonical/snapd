@@ -1,27 +1,29 @@
-= Overview =
+# Overview
 
 The snap-run program launches snappy applications to restrict
 access. It uses apparmor and seccomp to do this.
 
 Run with:
-$ snap-run /path/to/rootdir security-profile /path/to/binary additional args
+
+    $ snap-run /path/to/rootdir security-profile /path/to/binary additional args
 
 Can run the tests with:
-$ make check
+
+    $ make check
 
 Note: the tests assume that seccomp denials are logged to dmesg. If seccomp is
 killing processing without logging, verify that auditd is not installed.
 
-== Apparmor ==
+## Apparmor
 
 The apparmor part is similar to aa-exec -p, i.e. it will launch the application
 under the given apparmor profile.
 
 
-== Seccomp ==
+## Seccomp
 
 The seccomp filter profile in expected to be located in
-/var/lib/snappy/seccomp/profiles
+`/var/lib/snappy/seccomp/profiles`
 
 The filter file contains lines with syscall names, comments that start
 with "#" or special directives that start with a "@".
@@ -30,20 +32,20 @@ The supported special directives are:
 @unrestricted
 
 The unrestricted profile looks like this:
-"""
+```
 # Unrestricted profile
 @unrestricted
-"""
+```
 
 A very strict profile might look like this:
-"""
+```
 # Super strict profile
 read
 write
-"""
+```
 
 
-== devices cgroup ==
+## devices cgroup
 
 It works like this:
 - on install of snaps with a special hardware: assign yaml udev rules are
@@ -74,12 +76,12 @@ cgroup, but what is in /sys/fs/cgroups/devices/snap.<snap name>.<app> will not
 reflect assignment/unassignment until after the application is started.
 
 
-== private /tmp ==
+## private /tmp
 
 The launcher will create a private mount namespace for the application and
 mount a per-app /tmp directory under it.
 
 
-== devpts newinstance ==
+## devpts newinstance
 
 The launcher will setup a new instance devpts for each application.
