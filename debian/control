@@ -4,12 +4,21 @@ Priority: optional
 Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
 Build-Depends: debhelper (>= 9), libseccomp-dev, libapparmor-dev, libudev-dev, dh-apparmor, indent
 Standards-Version: 3.9.6
-Vcs-Bzr: lp:~snappy-dev/ubuntu-core-launcher/trunk
+Vcs-Git: https://github.com/ubuntu-core/snap-run
+
+Package: snap-run
+Architecture: any
+Breaks: ubuntu-core-launcher (<< 2.0)
+Replaces: ubuntu-core-launcher (<< 2.0)
+Depends: ${misc:Depends}, ${shlibs:Depends}, apparmor
+Description: Launcher for snappy apps
+ This package contains the launcher for applications packaged as snaps
 
 Package: ubuntu-core-launcher
-Architecture: any
-Depends: ${misc:Depends}, ${shlibs:Depends}, apparmor
-Breaks: ubuntu-snappy-cli (<< 1.9), snapd (<< 1.9)
+Architecture: all
+Depends: ${misc:Depends}, ${shlibs:Depends}, snap-run
+Pre-Depends: dpkg (>= 1.17.14)
 Description: Launcher for ubuntu-core (snappy) apps
- This package contains the launcher for launching ubuntu-core applications
- on a ubuntu "snappy" system.
+ This is a transitional package that lets existing installation depending on
+ ubuntu-core-launcher syntax continue to work as-is. In the future this will become
+ an empty transitional package.

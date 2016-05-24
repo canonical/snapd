@@ -1,16 +1,15 @@
-
 CFLAGS= -D_GNU_SOURCE -O2 -Wall -Werror $(shell dpkg-buildflags --get CFLAGS)
 LD_FLAGS = $(shell dpkg-buildflags --get LDFLAGS)
 LIBS = -lapparmor -lseccomp -ludev
 TMPDIR = ./tmp
 FMT = indent -linux
 
-BIN = ubuntu-core-launcher
+BIN = snap-run
 HDRS = $(wildcard *.h)
 SRCS = $(wildcard *.c)
 OBJS = $(SRCS:.c=.o)
 
-ubuntu-core-launcher: $(OBJS)
+snap-run: $(OBJS)
 	$(CC) $(OBJS) -o $@ $(LD_FLAGS) $(LIBS)
 
 %.o: %.c

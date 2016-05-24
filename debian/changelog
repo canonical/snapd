@@ -1,3 +1,13 @@
+ubuntu-core-launcher (2.0) UNRELEASED; urgency=medium
+
+  * Rename the package and everything else from ubuntu-core-launcher to
+    snap-run
+  * Allow for graceful migrations from ubuntu-core-launcher to snap-run by
+    providing both commands as binary packages, with proper dependencies and
+    post-installation scripts that manage apparmor profile changes.
+
+ -- Zygmunt Krynicki <zygmunt.krynicki@canonical.com>  Sun, 22 May 2016 16:14:24 +0300
+
 ubuntu-core-launcher (1.0.28) yakkety; urgency=medium
 
   * SECURITY UPDATE: delayed attack snap data theft and privilege escalation

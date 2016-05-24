@@ -1,0 +1,3 @@
+#!/bin/sh
+dpkg-maintscript-helper rm_conffile \
+    /etc/apparmor.d/usr.bin.ubuntu-core-launcher 2.0~ -- "$@"

@@ -4,8 +4,8 @@
 	dh $@
 
 override_dh_fixperms:
-	dh_fixperms -Xusr/bin/ubuntu-core-launcher
+	dh_fixperms -Xusr/bin/snap-run
 
 override_dh_installdeb:
-	dh_apparmor --profile-name=usr.bin.ubuntu-core-launcher -pubuntu-core-launcher
+	dh_apparmor --profile-name=usr.bin.snap-run -psnap-run
 	dh_installdeb

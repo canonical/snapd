@@ -1,11 +1,11 @@
 # Overview
 
-The ubuntu-core-launcher launches snappy applications to restrict
+The snap-run program launches snappy applications to restrict
 access. It uses apparmor and seccomp to do this.
 
 Run with:
 
-    $ ubuntu-core-launcher /path/to/rootdir security-profile /path/to/binary additional args
+    $ snap-run /path/to/rootdir security-profile /path/to/binary additional args
 
 Can run the tests with:
 
