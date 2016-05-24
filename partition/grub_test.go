@@ -24,7 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/snapcore/snapd/dirs"
 
 	. "gopkg.in/check.v1"
 )

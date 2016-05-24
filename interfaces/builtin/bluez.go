@@ -22,7 +22,7 @@ package builtin
 import (
 	"bytes"
 
-	"github.com/ubuntu-core/snappy/interfaces"
+	"github.com/snapcore/snapd/interfaces"
 )
 
 var bluezPermanentSlotAppArmor = []byte(`

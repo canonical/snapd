@@ -20,17 +20,16 @@
 package snapstate
 
 import (
-	"github.com/ubuntu-core/snappy/overlord/snapstate/backend"
-	"github.com/ubuntu-core/snappy/progress"
-	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snappy"
-	"github.com/ubuntu-core/snappy/store"
+	"github.com/snapcore/snapd/overlord/snapstate/backend"
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snappy"
+	"github.com/snapcore/snapd/store"
 )
 
 type managerBackend interface {
 	// install releated
 	Download(name, channel string, checker func(*snap.Info) error, meter progress.Meter, auther store.Authenticator) (*snap.Info, string, error)
-	CheckSnap(snapFilePath string, curInfo *snap.Info, flags int) error
 	SetupSnap(snapFilePath string, si *snap.SideInfo, flags int) error
 	CopySnapData(newSnap, oldSnap *snap.Info, flags int) error
 	LinkSnap(info *snap.Info) error
@@ -46,6 +45,7 @@ type managerBackend interface {
 	RemoveSnapCommonData(info *snap.Info) error
 
 	// testing helpers
+	Current(cur *snap.Info)
 	Candidate(sideInfo *snap.SideInfo)
 }
 
@@ -55,6 +55,7 @@ type defaultBackend struct {
 }
 
 func (b *defaultBackend) Candidate(*snap.SideInfo) {}
+func (b *defaultBackend) Current(*snap.Info)       {}
 
 func (b *defaultBackend) Download(name, channel string, checker func(*snap.Info) error, meter progress.Meter, auther store.Authenticator) (*snap.Info, string, error) {
 	mStore := snappy.NewConfiguredUbuntuStoreSnapRepository()
@@ -74,11 +75,6 @@ func (b *defaultBackend) Download(name, channel string, checker func(*snap.Info)
 	}
 
 	return snap, downloadedSnapFile, nil
-}
-
-func (b *defaultBackend) CheckSnap(snapFilePath string, curInfo *snap.Info, flags int) error {
-	meter := &progress.NullProgress{}
-	return snappy.CheckSnap(snapFilePath, curInfo, snappy.InstallFlags(flags), meter)
 }
 
 func (b *defaultBackend) SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, flags int) error {

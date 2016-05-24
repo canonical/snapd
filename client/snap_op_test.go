@@ -28,7 +28,7 @@ import (
 
 	"gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/client"
+	"github.com/snapcore/snapd/client"
 )
 
 var chanName = "achan"

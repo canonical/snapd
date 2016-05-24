@@ -28,7 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 
-	"github.com/ubuntu-core/snappy/overlord/state"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 type taskRunnerSuite struct{}

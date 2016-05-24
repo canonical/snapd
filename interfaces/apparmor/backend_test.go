@@ -27,11 +27,11 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/interfaces"
-	"github.com/ubuntu-core/snappy/interfaces/apparmor"
-	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/testutil"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type backendSuite struct {
@@ -318,7 +318,7 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 func (s *backendSuite) installSnap(c *C, devMode bool, snapYaml string, revision int) *snap.Info {
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
-	snapInfo.Revision = revision
+	snapInfo.Revision = snap.R(revision)
 	// this won't come from snap.yaml
 	snapInfo.Developer = "acme"
 	err = s.repo.AddSnap(snapInfo)
@@ -332,7 +332,7 @@ func (s *backendSuite) installSnap(c *C, devMode bool, snapYaml string, revision
 func (s *backendSuite) updateSnap(c *C, oldSnapInfo *snap.Info, devMode bool, snapYaml string, revision int) *snap.Info {
 	newSnapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
-	newSnapInfo.Revision = revision
+	newSnapInfo.Revision = snap.R(revision)
 	// this won't come from snap.yaml
 	newSnapInfo.Developer = "acme"
 	c.Assert(newSnapInfo.Name(), Equals, oldSnapInfo.Name())

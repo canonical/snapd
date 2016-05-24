@@ -22,7 +22,7 @@ package systemd_test
 import (
 	. "gopkg.in/check.v1"
 
-	. "github.com/ubuntu-core/snappy/systemd"
+	. "github.com/snapcore/snapd/systemd"
 )
 
 func (s *SystemdTestSuite) TestEscape(c *C) {

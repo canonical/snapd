@@ -25,8 +25,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/overlord/state"
-	"github.com/ubuntu-core/snappy/testutil"
+	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/testutil"
 	"time"
 )
 

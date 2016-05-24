@@ -29,14 +29,14 @@ import (
 
 	"gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/build"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/data"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/wait"
-	"github.com/ubuntu-core/snappy/interfaces"
-	"github.com/ubuntu-core/snappy/testutil"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/integration-tests/testutils/build"
+	"github.com/snapcore/snapd/integration-tests/testutils/cli"
+	"github.com/snapcore/snapd/integration-tests/testutils/common"
+	"github.com/snapcore/snapd/integration-tests/testutils/data"
+	"github.com/snapcore/snapd/integration-tests/testutils/wait"
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/testutil"
 )
 
 var _ = check.Suite(&snapOpSuite{})
@@ -71,8 +71,8 @@ func (s *snapOpSuite) TestRemoveRemovesAllRevisions(c *check.C) {
 	common.InstallSnap(c, snapPath)
 	installOutput := common.InstallSnap(c, snapPath)
 	c.Assert(installOutput, testutil.Contains, data.BasicSnapName)
-	// double check, sideloaded snaps have revnos like 1000xx
-	revnos, _ := filepath.Glob(filepath.Join(dirs.SnapSnapsDir, data.BasicSnapName, "1*"))
+	// double check, sideloaded snaps have revnos like xNN
+	revnos, _ := filepath.Glob(filepath.Join(dirs.SnapSnapsDir, data.BasicSnapName, "x*"))
 	c.Check(len(revnos) >= 2, check.Equals, true)
 
 	removeOutput := common.RemoveSnap(c, data.BasicSnapName)

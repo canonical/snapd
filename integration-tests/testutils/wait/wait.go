@@ -27,7 +27,7 @@ import (
 
 	"gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
+	"github.com/snapcore/snapd/integration-tests/testutils/cli"
 )
 
 var (

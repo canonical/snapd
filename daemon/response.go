@@ -29,9 +29,9 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/ubuntu-core/snappy/asserts"
-	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/notifications"
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/notifications"
 )
 
 // ResponseType is the response type

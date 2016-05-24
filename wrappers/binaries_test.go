@@ -28,11 +28,11 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/osutil"
-	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/snaptest"
-	"github.com/ubuntu-core/snappy/wrappers"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/wrappers"
 )
 
 func TestWrappers(t *testing.T) { TestingT(t) }
@@ -67,7 +67,7 @@ apps:
 `
 
 func (s *binariesTestSuite) TestAddSnapBinariesAndRemove(c *C) {
-	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: 11})
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(11)})
 
 	err := wrappers.AddSnapBinaries(info)
 	c.Assert(err, IsNil)

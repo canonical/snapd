@@ -26,7 +26,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/ubuntu-core/snappy/strutil"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // A Subscriber is interested in receiving notifications

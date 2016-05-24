@@ -25,7 +25,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
-	"github.com/ubuntu-core/snappy/logger"
+	"github.com/snapcore/snapd/logger"
 )
 
 // HandlerFunc is the type of function for the handlers

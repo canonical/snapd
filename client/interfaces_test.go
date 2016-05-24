@@ -24,7 +24,7 @@ import (
 
 	"gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/client"
+	"github.com/snapcore/snapd/client"
 )
 
 func (cs *clientSuite) TestClientInterfacesCallsEndpoint(c *check.C) {

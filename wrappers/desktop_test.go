@@ -26,11 +26,11 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/osutil"
-	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/snaptest"
-	"github.com/ubuntu-core/snappy/wrappers"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/wrappers"
 )
 
 type desktopSuite struct {
@@ -62,7 +62,7 @@ func (s *desktopSuite) TestAddPackageDesktopFiles(c *C) {
 	expectedDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar.desktop")
 	c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, false)
 
-	info := snaptest.MockSnap(c, desktopAppYaml, &snap.SideInfo{Revision: 11})
+	info := snaptest.MockSnap(c, desktopAppYaml, &snap.SideInfo{Revision: snap.R(11)})
 
 	// generate .desktop file in the package baseDir
 	baseDir := info.MountDir()
@@ -99,7 +99,7 @@ type sanitizeDesktopFileSuite struct{}
 var _ = Suite(&sanitizeDesktopFileSuite{})
 
 func (s *sanitizeDesktopFileSuite) TestSanitizeIgnoreNotWhitelisted(c *C) {
-	snap := &snap.Info{SideInfo: snap.SideInfo{OfficialName: "foo", Revision: 12}}
+	snap := &snap.Info{SideInfo: snap.SideInfo{OfficialName: "foo", Revision: snap.R(12)}}
 	desktopContent := []byte(`[Desktop Entry]
 Name=foo
 UnknownKey=baz
