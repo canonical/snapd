@@ -30,8 +30,8 @@ import (
 // Series holds the Ubuntu Core series for snapd to use.
 var Series = "16"
 
-// OSRelease contains information about the system extracted from /etc/os-release.
-type OSRelease struct {
+// OS contains information about the system extracted from /etc/os-release.
+type OS struct {
 	ID       string
 	Name     string
 	Release  string
@@ -41,8 +41,8 @@ type OSRelease struct {
 var osReleasePath = "/etc/os-release"
 
 // readOSRelease returns the os-release information of the current system.
-func readOSRelease() (*OSRelease, error) {
-	osRelease := &OSRelease{}
+func readOSRelease() (*OS, error) {
+	osRelease := &OS{}
 
 	content, err := ioutil.ReadFile(osReleasePath)
 	if err != nil {
@@ -79,13 +79,13 @@ func readOSRelease() (*OSRelease, error) {
 var OnClassic bool
 
 // ReleaseInfo contains data loaded from /etc/os-release on startup.
-var ReleaseInfo OSRelease
+var ReleaseInfo OS
 
 func init() {
 	osRelease, err := readOSRelease()
 	if err != nil {
 		// Values recommended by os-release(5) as defaults
-		osRelease = &OSRelease{
+		osRelease = &OS{
 			Name: "Linux",
 			ID:   "linux",
 		}
@@ -111,8 +111,8 @@ func MockOnClassic(onClassic bool) (restore func()) {
 
 // MockReleaseInfo fakes a given information to appear in ReleaseInfo,
 // as if it was read /etc/os-release on startup.
-func MockReleaseInfo(os *OSRelease) (restore func()) {
+func MockReleaseInfo(osRelease *OS) (restore func()) {
 	old := ReleaseInfo
-	ReleaseInfo = *os
+	ReleaseInfo = *osRelease
 	return func() { ReleaseInfo = old }
 }
