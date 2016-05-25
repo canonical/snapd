@@ -35,14 +35,14 @@ type encodeDigestSuite struct{}
 var _ = Suite(&encodeDigestSuite{})
 
 func (eds *encodeDigestSuite) TestEncodeDigestOK(c *C) {
-	h := crypto.SHA256.New()
+	h := crypto.SHA512.New()
 	h.Write([]byte("some stuff to hash"))
 	digest := h.Sum(nil)
-	encoded, err := asserts.EncodeDigest(crypto.SHA256, digest)
+	encoded, err := asserts.EncodeDigest(crypto.SHA512, digest)
 	c.Assert(err, IsNil)
 
-	c.Check(strings.HasPrefix(encoded, "sha256 "), Equals, true)
-	decoded, err := base64.RawURLEncoding.DecodeString(encoded[len("sha256 "):])
+	c.Check(strings.HasPrefix(encoded, "sha512 "), Equals, true)
+	decoded, err := base64.RawURLEncoding.DecodeString(encoded[len("sha512 "):])
 	c.Assert(err, IsNil)
 	c.Check(decoded, DeepEquals, digest)
 }
