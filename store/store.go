@@ -532,12 +532,11 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string,
 }
 
 type metadataInput struct {
-	SnapID   string `json:"snap_id"`
-	Channel  string `json:"channel"`
-	Revision int    `json:"revision"`
-	Epoch    string `json:"epoch"`
-	// FIXME: not in snapinfo yet
-	//Confinement string `json:"confinement"`
+	SnapID      string               `json:"snap_id"`
+	Channel     string               `json:"channel"`
+	Revision    int                  `json:"revision"`
+	Epoch       string               `json:"epoch"`
+	Confinement snap.ConfinementType `json:"confinement"`
 }
 
 type metadataWrapper struct {
@@ -555,12 +554,11 @@ func (s *SnapUbuntuStoreRepository) Updates(installed []*snap.Info, auther Authe
 			continue
 		}
 		is = append(is, metadataInput{
-			SnapID:   inst.SnapID,
-			Channel:  inst.Channel,
-			Revision: inst.Revision.N,
-			Epoch:    inst.Epoch,
-			// FIXME: not in snapinfo yet
-			//Confinment: inst.Confinement,
+			SnapID:      inst.SnapID,
+			Channel:     inst.Channel,
+			Revision:    inst.Revision.N,
+			Epoch:       inst.Epoch,
+			Confinement: inst.Confinement,
 		})
 	}
 	jsonData, err := json.Marshal(metadataWrapper{
