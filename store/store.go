@@ -535,6 +535,7 @@ type metadataInput struct {
 	SnapID   string `json:"snap_id"`
 	Channel  string `json:"channel"`
 	Revision int    `json:"revision"`
+	Epoch    string `json:"epoch"`
 	// FIXME: not in snapinfo yet
 	//Confinement string `json:"confinement"`
 }
@@ -548,15 +549,19 @@ type metadataWrapper struct {
 func (s *SnapUbuntuStoreRepository) Updates(installed []*snap.Info, auther Authenticator) (snaps []*snap.Info, err error) {
 
 	// build input for the updates endpoint
-	is := make([]metadataInput, len(installed))
-	for i, inst := range installed {
-		is[i] = metadataInput{
+	is := make([]metadataInput, 0, len(installed))
+	for _, inst := range installed {
+		if inst.Revision.Local() {
+			continue
+		}
+		is = append(is, metadataInput{
 			SnapID:   inst.SnapID,
 			Channel:  inst.Channel,
 			Revision: inst.Revision.N,
+			Epoch:    inst.Epoch,
 			// FIXME: not in snapinfo yet
 			//Confinment: inst.Confinement,
-		}
+		})
 	}
 	jsonData, err := json.Marshal(metadataWrapper{
 		Snaps:  is,
