@@ -26,12 +26,12 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/build"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/data"
-	"github.com/ubuntu-core/snappy/testutil"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/integration-tests/testutils/build"
+	"github.com/snapcore/snapd/integration-tests/testutils/cli"
+	"github.com/snapcore/snapd/integration-tests/testutils/common"
+	"github.com/snapcore/snapd/integration-tests/testutils/data"
+	"github.com/snapcore/snapd/testutil"
 
 	"gopkg.in/check.v1"
 )

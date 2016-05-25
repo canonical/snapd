@@ -26,8 +26,8 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/ubuntu-core/snappy/systemd"
-	"github.com/ubuntu-core/snappy/timeout"
+	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/timeout"
 )
 
 type snapYaml struct {

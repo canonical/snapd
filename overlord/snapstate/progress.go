@@ -20,7 +20,7 @@
 package snapstate
 
 import (
-	"github.com/ubuntu-core/snappy/overlord/state"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 // TaskProgressAdapter adapts the progress.Meter to the task progress

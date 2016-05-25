@@ -25,7 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/snapcore/snapd/dirs"
 )
 
 // Hook up check.v1 into the "go test" runner

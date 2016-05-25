@@ -24,15 +24,15 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/arch"
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/overlord/state"
-	"github.com/ubuntu-core/snappy/release"
-	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/snaptest"
-	"github.com/ubuntu-core/snappy/snap/squashfs"
+	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snap/squashfs"
 
-	"github.com/ubuntu-core/snappy/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate"
 )
 
 type checkSnapSuite struct {

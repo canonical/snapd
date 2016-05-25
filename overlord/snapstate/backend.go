@@ -20,11 +20,11 @@
 package snapstate
 
 import (
-	"github.com/ubuntu-core/snappy/overlord/snapstate/backend"
-	"github.com/ubuntu-core/snappy/progress"
-	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snappy"
-	"github.com/ubuntu-core/snappy/store"
+	"github.com/snapcore/snapd/overlord/snapstate/backend"
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snappy"
+	"github.com/snapcore/snapd/store"
 )
 
 type managerBackend interface {
