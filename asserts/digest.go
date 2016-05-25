@@ -29,8 +29,6 @@ import (
 func EncodeDigest(hash crypto.Hash, hashDigest []byte) (string, error) {
 	algo := ""
 	switch hash {
-	case crypto.SHA256:
-		algo = "sha256"
 	case crypto.SHA512:
 		algo = "sha512"
 	default:
@@ -39,5 +37,5 @@ func EncodeDigest(hash crypto.Hash, hashDigest []byte) (string, error) {
 	if len(hashDigest) != hash.Size() {
 		return "", fmt.Errorf("hash digest by %s should be %d bytes", algo, hash.Size())
 	}
-	return fmt.Sprintf("%s %s", algo, base64.RawURLEncoding.EncodeToString(hashDigest)), nil
+	return fmt.Sprintf("%s-%s", algo, base64.RawURLEncoding.EncodeToString(hashDigest)), nil
 }

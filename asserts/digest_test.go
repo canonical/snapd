@@ -41,8 +41,8 @@ func (eds *encodeDigestSuite) TestEncodeDigestOK(c *C) {
 	encoded, err := asserts.EncodeDigest(crypto.SHA512, digest)
 	c.Assert(err, IsNil)
 
-	c.Check(strings.HasPrefix(encoded, "sha512 "), Equals, true)
-	decoded, err := base64.RawURLEncoding.DecodeString(encoded[len("sha512 "):])
+	c.Check(strings.HasPrefix(encoded, "sha512-"), Equals, true)
+	decoded, err := base64.RawURLEncoding.DecodeString(encoded[len("sha512-"):])
 	c.Assert(err, IsNil)
 	c.Check(decoded, DeepEquals, digest)
 }
@@ -51,6 +51,6 @@ func (eds *encodeDigestSuite) TestEncodeDigestErrors(c *C) {
 	_, err := asserts.EncodeDigest(crypto.SHA1, nil)
 	c.Check(err, ErrorMatches, "unsupported hash")
 
-	_, err = asserts.EncodeDigest(crypto.SHA256, []byte{1, 2})
-	c.Check(err, ErrorMatches, "hash digest by sha256 should be 32 bytes")
+	_, err = asserts.EncodeDigest(crypto.SHA512, []byte{1, 2})
+	c.Check(err, ErrorMatches, "hash digest by sha256 should be 64 bytes")
 }
