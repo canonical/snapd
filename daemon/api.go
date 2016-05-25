@@ -439,8 +439,7 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 	}
 
-	meta := &Meta{Sources: []string{"updates"}}
-
+	meta := &Meta{Sources: []string{"refresh"}}
 	return sendStorePackages(route, meta, updates)
 }
 
