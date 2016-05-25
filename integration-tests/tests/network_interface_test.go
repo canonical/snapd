@@ -45,7 +45,7 @@ func (s *networkInterfaceSuite) TestPlugDisconnectionDisablesFunctionality(c *ch
 	c.Assert(output, check.Equals, "ok\n")
 
 	cli.ExecCommand(c, "sudo", "snap", "disconnect",
-		s.plug+":"+s.slot, "ubuntu-core:"+s.slot)
+		s.plug+":"+s.slot, "base:"+s.slot)
 
 	output = cli.ExecCommand(c, "snap", "interfaces")
 	c.Assert(output, check.Matches, disconnectedPattern(s.slot, s.plug))

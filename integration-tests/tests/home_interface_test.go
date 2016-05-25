@@ -43,7 +43,7 @@ type homeInterfaceSuite struct {
 
 func (s *homeInterfaceSuite) TestPlugDisconnectionDisablesRead(c *check.C) {
 	cli.ExecCommand(c, "sudo", "snap", "connect",
-		s.plug+":"+s.slot, "ubuntu-core:"+s.slot)
+		s.plug+":"+s.slot, "base:"+s.slot)
 
 	fileName, err := createHomeFile("readable", okOutput)
 	c.Assert(err, check.IsNil)
@@ -53,7 +53,7 @@ func (s *homeInterfaceSuite) TestPlugDisconnectionDisablesRead(c *check.C) {
 	c.Assert(output, check.Equals, okOutput)
 
 	cli.ExecCommand(c, "sudo", "snap", "disconnect",
-		s.plug+":"+s.slot, "ubuntu-core:"+s.slot)
+		s.plug+":"+s.slot, "base:"+s.slot)
 
 	output, err = cli.ExecCommandErr("home-consumer.reader", fileName)
 	c.Assert(err, check.NotNil)
@@ -62,7 +62,7 @@ func (s *homeInterfaceSuite) TestPlugDisconnectionDisablesRead(c *check.C) {
 
 func (s *homeInterfaceSuite) TestPlugDisconnectionDisablesAppend(c *check.C) {
 	cli.ExecCommand(c, "sudo", "snap", "connect",
-		s.plug+":"+s.slot, "ubuntu-core:"+s.slot)
+		s.plug+":"+s.slot, "base:"+s.slot)
 
 	previousContent := "previous content\n"
 	fileName, err := createHomeFile("writable", previousContent)
@@ -78,7 +78,7 @@ func (s *homeInterfaceSuite) TestPlugDisconnectionDisablesAppend(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	cli.ExecCommand(c, "sudo", "snap", "disconnect",
-		s.plug+":"+s.slot, "ubuntu-core:"+s.slot)
+		s.plug+":"+s.slot, "base:"+s.slot)
 
 	_, err = cli.ExecCommandErr("home-consumer.writer", fileName)
 	c.Assert(err, check.NotNil)
@@ -86,7 +86,7 @@ func (s *homeInterfaceSuite) TestPlugDisconnectionDisablesAppend(c *check.C) {
 
 func (s *homeInterfaceSuite) TestPlugDisconnectionDisablesCreate(c *check.C) {
 	cli.ExecCommand(c, "sudo", "snap", "connect",
-		s.plug+":"+s.slot, "ubuntu-core:"+s.slot)
+		s.plug+":"+s.slot, "base:"+s.slot)
 
 	home := os.Getenv("HOME")
 	fileName := filepath.Join(home, "writable")
@@ -101,7 +101,7 @@ func (s *homeInterfaceSuite) TestPlugDisconnectionDisablesCreate(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	cli.ExecCommand(c, "sudo", "snap", "disconnect",
-		s.plug+":"+s.slot, "ubuntu-core:"+s.slot)
+		s.plug+":"+s.slot, "base:"+s.slot)
 
 	_, err = cli.ExecCommandErr("home-consumer.writer", fileName)
 	c.Assert(err, check.NotNil)
@@ -109,7 +109,7 @@ func (s *homeInterfaceSuite) TestPlugDisconnectionDisablesCreate(c *check.C) {
 
 func (s *homeInterfaceSuite) TestReadHiddenFilesForbidden(c *check.C) {
 	cli.ExecCommand(c, "sudo", "snap", "connect",
-		s.plug+":"+s.slot, "ubuntu-core:"+s.slot)
+		s.plug+":"+s.slot, "base:"+s.slot)
 
 	fileName, err := createHomeFile(".readable", okOutput)
 	c.Assert(err, check.IsNil)
@@ -122,7 +122,7 @@ func (s *homeInterfaceSuite) TestReadHiddenFilesForbidden(c *check.C) {
 
 func (s *homeInterfaceSuite) TestWriteHiddenFilesForbidden(c *check.C) {
 	cli.ExecCommand(c, "sudo", "snap", "connect",
-		s.plug+":"+s.slot, "ubuntu-core:"+s.slot)
+		s.plug+":"+s.slot, "base:"+s.slot)
 
 	previousContent := "previous content\n"
 	fileName, err := createHomeFile(".writable", previousContent)

@@ -63,7 +63,7 @@ func (s *searchSuite) TestFindMustPrintCompleteList(c *check.C) {
 		".*" +
 		"^ubuntu-clock-app +.* *\n" +
 		".*" +
-		"^ubuntu-core +.* *\n" +
+		"^base +.* *\n" +
 		".*"
 
 	searchOutput := cli.ExecCommand(c, "snap", "find")

@@ -62,11 +62,11 @@ func (s *removeSuite) TestRemoveInvalidPackageShowsError(c *check.C) {
 	c.Assert(actual, check.Matches, expected)
 }
 
-// SNAP_REMOVE_007: - ubuntu-core
+// SNAP_REMOVE_007: - base
 func (s *removeSuite) TestRemoveUbuntuCoreShowsError(c *check.C) {
-	expected := `error: cannot remove "ubuntu-core": snap "ubuntu-core" is not removable\n`
+	expected := `error: cannot remove "base": snap "base" is not removable\n`
 
-	actual, err := cli.ExecCommandErr("sudo", "snap", "remove", "ubuntu-core")
+	actual, err := cli.ExecCommandErr("sudo", "snap", "remove", "base")
 
 	c.Assert(err, check.NotNil)
 	c.Assert(actual, check.Matches, expected)

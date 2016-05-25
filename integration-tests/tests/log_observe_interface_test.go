@@ -39,7 +39,7 @@ type logObserveInterfaceSuite struct {
 
 func (s *logObserveInterfaceSuite) TestConnectedPlugAllowsLogObserve(c *check.C) {
 	cli.ExecCommand(c, "sudo", "snap", "connect",
-		s.plug+":"+s.slot, "ubuntu-core:"+s.slot)
+		s.plug+":"+s.slot, "base:"+s.slot)
 
 	output := cli.ExecCommand(c, "network-consumer", "http://127.0.0.1:8081")
 	c.Assert(output, check.Equals, "ok\n")

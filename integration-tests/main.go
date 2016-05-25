@@ -41,7 +41,7 @@ const (
 	dataOutputDir    = "integration-tests/data/output/"
 
 	defaultKernel = "canonical-pc-linux"
-	defaultOS     = "ubuntu-core"
+	defaultOS     = "base"
 	defaultGadget = "canonical-pc"
 )
 

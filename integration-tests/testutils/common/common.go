@@ -95,7 +95,7 @@ func (s *SnappySuite) SetUpSuite(c *check.C) {
 
 // SetUpTest handles reboots and stores version information. It will run before
 // all the integration tests. Before running a test, it will save the
-// ubuntu-core version. If a reboot was requested by a previous test, it
+// base snap version. If a reboot was requested by a previous test, it
 // will skip all the following tests. If the suite is being called after the
 // test bed was rebooted, it will resume the test that requested the reboot.
 func (s *SnappySuite) SetUpTest(c *check.C) {
@@ -129,13 +129,13 @@ func GetCurrentVersion(c *check.C, packageName string) string {
 	match := re.FindStringSubmatch(string(output))
 	c.Assert(match, check.NotNil, check.Commentf("Version of %s not found in %s", packageName, output))
 
-	// match is like "ubuntu-core   2015-06-18 93        ubuntu"
+	// match is like "base 2015-06-18 93        ubuntu"
 	items := strings.Fields(match[0])
 	return items[2]
 }
 
 // GetCurrentUbuntuCoreVersion returns the version number of the installed and
-// active ubuntu-core.
+// active base snap.
 func GetCurrentUbuntuCoreVersion(c *check.C) string {
 	if snap := partition.OSSnapName(c); snap != "" {
 		return GetCurrentVersion(c, snap)

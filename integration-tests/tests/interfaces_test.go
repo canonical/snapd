@@ -93,17 +93,17 @@ func (s *interfaceSuite) TestPlugAutoconnect(c *check.C) {
 func (s *interfaceSuite) TestPlugCanBeReconnected(c *check.C) {
 	if !s.autoconnect {
 		cli.ExecCommand(c, "sudo", "snap", "connect",
-			s.plug+":"+s.slot, "ubuntu-core:"+s.slot)
+			s.plug+":"+s.slot, "base:"+s.slot)
 	}
 
 	cli.ExecCommand(c, "sudo", "snap", "disconnect",
-		s.plug+":"+s.slot, "ubuntu-core:"+s.slot)
+		s.plug+":"+s.slot, "base:"+s.slot)
 
 	output := cli.ExecCommand(c, "snap", "interfaces")
 	c.Assert(output, check.Matches, disconnectedPattern(s.slot, s.plug))
 
 	cli.ExecCommand(c, "sudo", "snap", "connect",
-		s.plug+":"+s.slot, "ubuntu-core:"+s.slot)
+		s.plug+":"+s.slot, "base:"+s.slot)
 
 	output = cli.ExecCommand(c, "snap", "interfaces")
 	c.Assert(output, check.Matches, connectedPattern(s.slot, s.plug))
