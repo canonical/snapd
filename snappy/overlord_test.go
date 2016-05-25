@@ -180,52 +180,6 @@ type: gadget
 	c.Assert(err, IsNil)
 }
 
-func (s *SnapTestSuite) TestLocalGadgetSnapInstallVariants(c *C) {
-	snapPath := makeTestSnapPackage(c, `name: foo
-version: 1.0
-type: gadget
-`)
-
-	foo10 := &snap.SideInfo{
-		OfficialName: "foo",
-		Developer:    testDeveloper,
-		Revision:     snap.R(100),
-		Channel:      "remote-channel",
-	}
-	_, err := (&Overlord{}).InstallWithSideInfo(snapPath, foo10, AllowGadget, nil)
-	c.Assert(err, IsNil)
-
-	contentFile := filepath.Join(dirs.SnapSnapsDir, "foo", "100", "bin", "foo")
-	_, err = os.Stat(contentFile)
-	c.Assert(err, IsNil)
-
-	// a package update
-	snapPath = makeTestSnapPackage(c, `name: foo
-version: 2.0
-type: gadget
-`)
-	foo20 := &snap.SideInfo{
-		OfficialName: "foo",
-		Developer:    testDeveloper,
-		Revision:     snap.R(200),
-		Channel:      "remote-channel",
-	}
-	_, err = (&Overlord{}).InstallWithSideInfo(snapPath, foo20, 0, nil)
-	c.Check(err, IsNil)
-
-	// a package name fork, IOW, a different Gadget package.
-	snapPath = makeTestSnapPackage(c, `name: foo-fork
-version: 2.0
-type: gadget
-`)
-	_, err = (&Overlord{}).Install(snapPath, 0, nil)
-	c.Check(err, Equals, ErrGadgetPackageInstall)
-
-	// this will cause chaos, but let's test if it works
-	_, err = (&Overlord{}).Install(snapPath, AllowGadget, nil)
-	c.Check(err, IsNil)
-}
-
 // sideinfos
 var (
 	fooSI10 = &snap.SideInfo{
@@ -260,7 +214,7 @@ func (s *SnapTestSuite) TestClickSetActive(c *C) {
 	c.Assert(snaps[1].IsActive(), Equals, true)
 
 	// deactivate v2
-	err = UnlinkSnap(snaps[1].Info(), nil)
+	err = unlinkSnap(snaps[1].Info(), nil)
 	// set v1 active
 	err = ActivateSnap(snaps[0], nil)
 	snaps, err = (&Overlord{}).Installed()
