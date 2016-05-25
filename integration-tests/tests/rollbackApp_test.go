@@ -24,12 +24,12 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/config"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/store"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/updates"
-	"github.com/ubuntu-core/snappy/testutil"
+	"github.com/snapcore/snapd/integration-tests/testutils/cli"
+	"github.com/snapcore/snapd/integration-tests/testutils/common"
+	"github.com/snapcore/snapd/integration-tests/testutils/config"
+	"github.com/snapcore/snapd/integration-tests/testutils/store"
+	"github.com/snapcore/snapd/integration-tests/testutils/updates"
+	"github.com/snapcore/snapd/testutil"
 
 	"gopkg.in/check.v1"
 )
