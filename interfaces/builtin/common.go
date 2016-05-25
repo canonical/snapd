@@ -48,7 +48,7 @@ func (iface *commonInterface) Name() string {
 
 // SanitizeSlot checks and possibly modifies a slot.
 //
-// If the reservedForOS flag is set then only slots on the "ubuntu-core" snap
+// If the reservedForOS flag is set then only slots on the "base" snap
 // are allowed.
 func (iface *commonInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {

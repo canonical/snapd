@@ -37,7 +37,7 @@ var _ = Suite(&SystemObserveInterfaceSuite{
 	iface: builtin.NewSystemObserveInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "ubuntu-core", Type: snap.TypeOS},
+			Snap:      &snap.Info{SuggestedName: "base", Type: snap.TypeOS},
 			Name:      "system-observe",
 			Interface: "system-observe",
 		},

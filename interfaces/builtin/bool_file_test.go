@@ -55,7 +55,7 @@ var _ = Suite(&BoolFileInterfaceSuite{
 
 func (s *BoolFileInterfaceSuite) SetUpTest(c *C) {
 	info, err := snap.InfoFromSnapYaml([]byte(`
-name: ubuntu-core
+name: base
 slots:
     gpio:
         interface: bool-file
