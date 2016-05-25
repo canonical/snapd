@@ -224,7 +224,7 @@ func (s *SquashfsTestSuite) TestRemoveViaSquashfsWorks(c *C) {
 }
 
 const packageOS = `
-name: ubuntu-core
+name: base
 version: 15.10-1
 type: os
 vendor: Someone
@@ -236,14 +236,14 @@ func (s *SquashfsTestSuite) TestInstallOsSnapUpdatesBootloader(c *C) {
 
 	snapPkg := makeTestSnapPackage(c, packageOS)
 	si := &snap.SideInfo{
-		OfficialName: "ubuntu-core",
+		OfficialName: "base",
 		Revision:     snap.R(160),
 	}
 	_, err := (&Overlord{}).InstallWithSideInfo(snapPkg, si, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 
 	c.Assert(s.bootloader.bootvars, DeepEquals, map[string]string{
-		"snappy_os":   "ubuntu-core_160.snap",
+		"snappy_os":   "base_160.snap",
 		"snappy_mode": "try",
 	})
 }
@@ -373,7 +373,7 @@ func (s *SquashfsTestSuite) TestInstallOsRebootRequired(c *C) {
 	c.Assert(err, IsNil)
 
 	snap.isActive = false
-	s.bootloader.bootvars["snappy_os"] = "ubuntu-core_160.snap"
+	s.bootloader.bootvars["snappy_os"] = "base_160.snap"
 	c.Assert(snap.NeedsReboot(), Equals, true)
 }
 

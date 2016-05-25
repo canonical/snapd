@@ -128,7 +128,7 @@ func (s *FirstBootTestSuite) TestEnableFirstEtherBadEthDir(c *C) {
 }
 
 var mockOSYaml = `
-name: ubuntu-core
+name: base
 version: 1.0
 type: os
 `
