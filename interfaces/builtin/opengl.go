@@ -24,19 +24,22 @@ import (
 )
 
 const openglConnectedPlugAppArmor = `
-# Description: Can access opengl. 
+# Description: Can access opengl.
 # Usage: reserved
 
   # specific gl libs
   /var/lib/snapd/lib/gl/** rm,
 
   # nvidia
-  /proc/driver/nvidia/params r,
-  /sys/bus/pci/devices/** r,
+  @{PROC}/driver/nvidia/params r,
+  @{PROC}/modules r,
   /dev/nvidiactl rw,
-  /proc/modules r,
   /dev/nvidia-modeset rw,
   /dev/nvidia* rw,
+
+  # FIXME: this is an information leak and snapd should instead query udev for
+  # for the specific accesses associated with the above devices.
+  /sys/bus/pci/devices/** r,
 `
 
 const openglConnectedPlugSecComp = `
