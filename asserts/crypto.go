@@ -168,7 +168,7 @@ func verifyContentSignature(content []byte, sig Signature, pubKey *packet.Public
 		panic(fmt.Errorf("not an internally supported Signature: %T", sig))
 	}
 
-	h := openpgpConfig.Hash().New()
+	h := opgSig.sig.Hash.New()
 	h.Write(content)
 	return pubKey.VerifySignature(h, opgSig.sig)
 }
