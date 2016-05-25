@@ -67,6 +67,8 @@ network packet,
 
 /dev/rfkill rw,
 
+/run/udev/data/* r,
+
 # Needed by the ifupdown plugin to check which interfaces can
 # be managed an which not.
 /etc/network/interfaces r,
