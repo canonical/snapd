@@ -550,9 +550,6 @@ func (s *SnapUbuntuStoreRepository) Updates(installed []*snap.Info, auther Authe
 	// build input for the updates endpoint
 	is := make([]metadataInput, 0, len(installed))
 	for _, inst := range installed {
-		if inst.Revision.Local() {
-			continue
-		}
 		is = append(is, metadataInput{
 			SnapID:      inst.SnapID,
 			Channel:     inst.Channel,
