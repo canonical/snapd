@@ -732,7 +732,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindAuthFailed(c *C) {
 }
 
 /* acquired via:
-$ curl -s --data-binary '{"snaps":[{"snap_id":"1e21e12ex4iim2xj1g2ul6f12f1","channel":"stable","revision":1,"confinement":"strict"}],"fields":["snap_id","package_name","revision","version","download_url"]}'  -H 'content-type: application/json' https://search.staging.apps.ubuntu.com/api/v1/metadata
+$ curl -s --data-binary '{"snaps":[{"snap_id":"1e21e12ex4iim2xj1g2ul6f12f1","channel":"stable","revision":1,"confinement":"strict"}],"fields":["snap_id","package_name","revision","version","download_url"]}'  -H 'content-type: application/json' https://search.apps.ubuntu.com/api/v1/metadata
 */
 const MockUpdatesJSON = `{"_embedded":
     {"clickindex:package": [
