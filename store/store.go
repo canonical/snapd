@@ -562,12 +562,16 @@ func (s *SnapUbuntuStoreRepository) Updates(installed []*CurrentSnap, auther Aut
 
 	currentSnaps := make([]currentSnapJson, len(installed))
 	for i, cs := range installed {
+		revision := cs.Revision.N
+		if cs.Revision.Local() {
+			revision = 0
+		}
 		currentSnaps[i] = currentSnapJson{
 			SnapID:      cs.SnapID,
 			Channel:     cs.Channel,
 			Epoch:       cs.Epoch,
 			Confinement: cs.Confinement,
-			Revision:    cs.Revision.N,
+			Revision:    revision,
 		}
 	}
 
