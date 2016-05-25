@@ -38,7 +38,7 @@ const openglConnectedPlugAppArmor = `
   /dev/nvidia* rw,
 
   # FIXME: this is an information leak and snapd should instead query udev for
-  # for the specific accesses associated with the above devices.
+  # the specific accesses associated with the above devices.
   /sys/bus/pci/devices/** r,
 `
 
