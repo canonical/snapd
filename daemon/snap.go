@@ -130,6 +130,8 @@ func mapLocal(localSnap *snap.Info, snapst *snapstate.SnapState) map[string]inte
 		"summary":        localSnap.Summary(),
 		"type":           string(localSnap.Type),
 		"version":        localSnap.Version,
+		"confinement":    localSnap.Confinement,
+		"private":        localSnap.Private,
 	}
 }
 
@@ -151,6 +153,7 @@ func mapRemote(remoteSnap *snap.Info) map[string]interface{} {
 		"summary":       remoteSnap.Summary(),
 		"type":          string(remoteSnap.Type),
 		"version":       remoteSnap.Version,
+		"private":       remoteSnap.Private,
 	}
 
 	if len(remoteSnap.Prices) > 0 {

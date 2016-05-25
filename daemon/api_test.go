@@ -258,6 +258,8 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 			"icon":        "/v2/icons/foo/icon",
 			"type":        string(snap.TypeApp),
 			"resource":    "/v2/snaps/foo",
+			"private":     false,
+			"confinement": snap.StrictConfinement,
 		},
 		Meta: meta,
 	}
