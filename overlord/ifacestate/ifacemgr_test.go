@@ -267,7 +267,7 @@ func (s *interfaceManagerSuite) addDiscardConnsChange(c *C, snapName string) *st
 }
 
 var osSnapYaml = `
-name: ubuntu-core
+name: base
 version: 1
 type: os
 `
@@ -365,7 +365,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyAutoConnects(c *C) {
 	err := s.state.Get("conns", &conns)
 	c.Assert(err, IsNil)
 	c.Check(conns, DeepEquals, map[string]interface{}{
-		"snap:network ubuntu-core:network": map[string]interface{}{
+		"snap:network base:network": map[string]interface{}{
 			"interface": "network", "auto": true,
 		},
 	})
@@ -392,7 +392,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyKeepsExistingConnectionSt
 	// Put fake information about connections for another snap into the state.
 	s.state.Lock()
 	s.state.Set("conns", map[string]interface{}{
-		"other-snap:network ubuntu-core:network": map[string]interface{}{
+		"other-snap:network base:network": map[string]interface{}{
 			"interface": "network",
 		},
 	})
@@ -416,12 +416,12 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyKeepsExistingConnectionSt
 	c.Assert(err, IsNil)
 	c.Check(conns, DeepEquals, map[string]interface{}{
 		// The sample snap was auto-connected, as expected.
-		"snap:network ubuntu-core:network": map[string]interface{}{
+		"snap:network base:network": map[string]interface{}{
 			"interface": "network", "auto": true,
 		},
 		// Connection state for the fake snap is preserved.
 		// The task didn't alter state of other snaps.
-		"other-snap:network ubuntu-core:network": map[string]interface{}{
+		"other-snap:network base:network": map[string]interface{}{
 			"interface": "network",
 		},
 	})
@@ -560,7 +560,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesUsesFreshSnapInfo(c *C) {
 	// and so that the previously broken code path is exercised.
 	s.state.Lock()
 	s.state.Set("conns", map[string]interface{}{
-		"snap:network ubuntu-core:network": map[string]interface{}{"interface": "network"},
+		"snap:network base:network": map[string]interface{}{"interface": "network"},
 	})
 	s.state.Unlock()
 
