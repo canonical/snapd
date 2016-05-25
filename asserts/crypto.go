@@ -24,7 +24,7 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
-	_ "crypto/sha256" // be explicit about needing SHA256
+	_ "crypto/sha512" // be explicit about needing SHA512
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -83,7 +83,7 @@ func encodeKey(key keyEncoder, kind string) ([]byte, error) {
 }
 
 var openpgpConfig = &packet.Config{
-	DefaultHash: crypto.SHA256,
+	DefaultHash: crypto.SHA512,
 }
 
 func signContent(content []byte, privateKey PrivateKey) ([]byte, error) {
@@ -290,7 +290,7 @@ func OpenPGPPrivateKey(privk *packet.PrivateKey) PrivateKey {
 }
 
 func generatePrivateKey() (*packet.PrivateKey, error) {
-	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	priv, err := rsa.GenerateKey(rand.Reader, 4096)
 	if err != nil {
 		return nil, err
 	}

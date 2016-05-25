@@ -31,6 +31,8 @@ func EncodeDigest(hash crypto.Hash, hashDigest []byte) (string, error) {
 	switch hash {
 	case crypto.SHA256:
 		algo = "sha256"
+	case crypto.SHA512:
+		algo = "sha512"
 	default:
 		return "", fmt.Errorf("unsupported hash")
 	}
