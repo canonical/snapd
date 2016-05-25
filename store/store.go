@@ -531,25 +531,49 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string,
 	return snaps, nil
 }
 
-type UpdateDescr struct {
+// CurrentSnap contains information for the store about the currently
+// installed snap so that the store can decide what update we should see
+type CurrentSnap struct {
+	SnapID      string
+	Revision    snap.Revision
+	Epoch       string
+	Confinement snap.ConfinementType
+
+	// the desired channel
+	Channel string
+}
+
+// the exact bits that we need to send to the store
+type currentSnapJson struct {
 	SnapID      string               `json:"snap_id"`
 	Channel     string               `json:"channel"`
-	Revision    int                  `json:"revision"`
+	Revision    int                  `json:"revision,omitempty"`
 	Epoch       string               `json:"epoch"`
 	Confinement snap.ConfinementType `json:"confinement"`
 }
 
 type metadataWrapper struct {
-	Snaps  []*UpdateDescr `json:"snaps"`
-	Fields []string       `json:"fields"`
+	Snaps  []currentSnapJson `json:"snaps"`
+	Fields []string          `json:"fields"`
 }
 
 // Updates returns the available updates for a list of snap identified by fullname with channel.
-func (s *SnapUbuntuStoreRepository) Updates(installed []*UpdateDescr, auther Authenticator) (snaps []*snap.Info, err error) {
+func (s *SnapUbuntuStoreRepository) Updates(installed []*CurrentSnap, auther Authenticator) (snaps []*snap.Info, err error) {
+
+	currentSnaps := make([]currentSnapJson, len(installed))
+	for i, cs := range installed {
+		currentSnaps[i] = currentSnapJson{
+			SnapID:      cs.SnapID,
+			Channel:     cs.Channel,
+			Epoch:       cs.Epoch,
+			Confinement: cs.Confinement,
+			Revision:    cs.Revision.N,
+		}
+	}
 
 	// build input for the updates endpoint
 	jsonData, err := json.Marshal(metadataWrapper{
-		Snaps:  installed,
+		Snaps:  currentSnaps,
 		Fields: []string{"snap_id", "package_name", "revision", "version", "download_url"},
 	})
 	if err != nil {
