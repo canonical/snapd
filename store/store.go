@@ -531,7 +531,7 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string,
 	return snaps, nil
 }
 
-type metadataInput struct {
+type UpdateDescr struct {
 	SnapID      string               `json:"snap_id"`
 	Channel     string               `json:"channel"`
 	Revision    int                  `json:"revision"`
@@ -540,26 +540,16 @@ type metadataInput struct {
 }
 
 type metadataWrapper struct {
-	Snaps  []metadataInput `json:"snaps"`
-	Fields []string        `json:"fields"`
+	Snaps  []*UpdateDescr `json:"snaps"`
+	Fields []string       `json:"fields"`
 }
 
 // Updates returns the available updates for a list of snap identified by fullname with channel.
-func (s *SnapUbuntuStoreRepository) Updates(installed []*snap.Info, auther Authenticator) (snaps []*snap.Info, err error) {
+func (s *SnapUbuntuStoreRepository) Updates(installed []*UpdateDescr, auther Authenticator) (snaps []*snap.Info, err error) {
 
 	// build input for the updates endpoint
-	is := make([]metadataInput, 0, len(installed))
-	for _, inst := range installed {
-		is = append(is, metadataInput{
-			SnapID:      inst.SnapID,
-			Channel:     inst.Channel,
-			Revision:    inst.Revision.N,
-			Epoch:       inst.Epoch,
-			Confinement: inst.Confinement,
-		})
-	}
 	jsonData, err := json.Marshal(metadataWrapper{
-		Snaps:  is,
+		Snaps:  installed,
 		Fields: []string{"snap_id", "package_name", "revision", "version", "download_url"},
 	})
 	if err != nil {
