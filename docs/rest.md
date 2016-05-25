@@ -1,4 +1,4 @@
-# Snappy Ubuntu Core REST API
+# Snapd REST API
 
 Version: v2pre0
 
@@ -274,14 +274,14 @@ Sample result:
       "revision": 1834,
       "channel": "stable"
     }, {
-      "summary": "The ubuntu-core OS snap",
+      "summary": "Base content for snapd",
       "description": "A secure, minimal transactional OS for devices and containers.",
       "icon": "",                  // core might not have an icon
       "installed-size": 67784704,
       "install-date": "2016-03-08T11:29:21Z",
-      "name": "ubuntu-core",
+      "name": "base",
       "developer": "canonical",
-      "resource": "/v2/snaps/ubuntu-core",
+      "resource": "/v2/snaps/base",
       "status": "active",
       "type": "os",
       "update-available": 247,
