@@ -204,11 +204,6 @@ version: %s
 		snapstate.Set(st, name, &snapst)
 	}
 
-	if active {
-		err := snappy.UpdateCurrentSymlink(snapInfo, nil)
-		c.Assert(err, check.IsNil)
-	}
-
 	return snapInfo
 }
 
