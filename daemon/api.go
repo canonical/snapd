@@ -429,14 +429,10 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 		*/
 
 		// get confinment preference from the snapstate
-		confinement := snap.StrictConfinement
-		if sn.snapst.DevMode() {
-			confinement = snap.DevmodeConfinement
-		}
 		candidatesInfo = append(candidatesInfo, &store.RefreshCandidate{
 			// the desired channel (not sn.info.Channel!)
-			Channel:     sn.snapst.Channel,
-			Confinement: confinement,
+			Channel: sn.snapst.Channel,
+			DevMode: sn.snapst.DevMode(),
 
 			SnapID:   sn.info.SnapID,
 			Revision: sn.info.Revision,
