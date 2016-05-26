@@ -303,12 +303,13 @@ func OpenPGPPrivateKey(privk *packet.PrivateKey) PrivateKey {
 	return openpgpPrivateKey{privk}
 }
 
-func generatePrivateKey() (*packet.PrivateKey, error) {
+// GenerateKey generates a private/public key pair.
+func GenerateKey() (PrivateKey, error) {
 	priv, err := rsa.GenerateKey(rand.Reader, 4096)
 	if err != nil {
 		return nil, err
 	}
-	return packet.NewRSAPrivateKey(time.Now(), priv), nil
+	return OpenPGPPrivateKey(packet.NewRSAPrivateKey(time.Now(), priv)), nil
 }
 
 func encodePrivateKey(privKey PrivateKey) ([]byte, error) {
