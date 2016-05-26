@@ -62,7 +62,7 @@ func (s *SnapTestSuite) TestDesktopFileIsAddedAndRemoved(c *C) {
 	c.Assert(string(content), Matches, "(?s).*Name=foo\n.*")
 
 	// unlink (deactivate) removes it again
-	err = UnlinkSnap(snap.Info(), nil)
+	err = unlinkSnap(snap.Info(), nil)
 	c.Assert(err, IsNil)
 	c.Assert(osutil.FileExists(mockDesktopFilePath), Equals, false)
 }
