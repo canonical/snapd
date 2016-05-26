@@ -35,7 +35,6 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/osutil"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -105,14 +104,6 @@ func (dbs *databaseSuite) TestImportKeyAlreadyExists(c *C) {
 
 	err = dbs.db.ImportKey("account0", asserts.OpenPGPPrivateKey(testPrivKey1))
 	c.Check(err, ErrorMatches, "key pair with given key id already exists")
-}
-
-func (dbs *databaseSuite) TestGenerateKey(c *C) {
-	fingerp, err := dbs.db.GenerateKey("account0")
-	c.Assert(err, IsNil)
-	c.Check(fingerp, NotNil)
-	keyPath := filepath.Join(dbs.topDir, "private-keys-v0/account0", fingerp)
-	c.Check(osutil.FileExists(keyPath), Equals, true)
 }
 
 func (dbs *databaseSuite) TestPublicKey(c *C) {

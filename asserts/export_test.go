@@ -28,8 +28,14 @@ import (
 
 // expose test-only things here
 
-// generatePrivateKey exposed for tests
-var GeneratePrivateKeyInTest = generatePrivateKey
+// XXX: just use GenerateKey
+func GeneratePrivateKeyInTest() (*packet.PrivateKey, error) {
+	priv, err := GenerateKey()
+	if err != nil {
+		return nil, err
+	}
+	return priv.(openpgpPrivateKey).privk, nil
+}
 
 // assembleAndSign exposed for tests
 var AssembleAndSignInTest = assembleAndSign
