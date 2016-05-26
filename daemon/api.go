@@ -297,7 +297,7 @@ func UserFromRequest(st *state.State, req *http.Request) (*auth.UserState, error
 type metarepo interface {
 	Snap(string, string, store.Authenticator) (*snap.Info, error)
 	FindSnaps(string, string, store.Authenticator) ([]*snap.Info, error)
-	Updates([]*store.RefreshCandidate, store.Authenticator) ([]*snap.Info, error)
+	ListRefresh([]*store.RefreshCandidate, store.Authenticator) ([]*snap.Info, error)
 	SuggestedCurrency() string
 }
 
@@ -405,6 +405,7 @@ func shouldSearchStore(r *http.Request) bool {
 	return false
 }
 
+// FIXME: add explicit test
 func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 	route := c.d.router.Get(snapCmd.Path)
 	if route == nil {
@@ -416,8 +417,8 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot list local snaps: %v", err)
 	}
 
-	localSnapsInfo := make([]*store.RefreshCandidate, 0, len(found))
-	localSnapMap := map[string]*snap.Info{}
+	candidatesInfo := make([]*store.RefreshCandidate, 0, len(found))
+	candidateMap := map[string]*snap.Info{}
 	for _, sn := range found {
 		// FIXME: enable once try-mode lands
 		/*
@@ -432,7 +433,7 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 		if sn.snapst.DevMode() {
 			confinement = snap.DevmodeConfinement
 		}
-		localSnapsInfo = append(localSnapsInfo, &store.RefreshCandidate{
+		candidatesInfo = append(candidatesInfo, &store.RefreshCandidate{
 			// the desired channel (not sn.info.Channel!)
 			Channel:     sn.snapst.Channel,
 			Confinement: confinement,
@@ -441,20 +442,20 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 			Revision: sn.info.Revision,
 			Epoch:    sn.info.Epoch,
 		})
-		localSnapMap[sn.info.Name()] = sn.info
+		candidateMap[sn.info.Name()] = sn.info
 	}
 
 	// the store gives us everything, we need to client side filter
 	// for the updates
 	store := newRemoteRepo()
-	allUpdates, err := store.Updates(localSnapsInfo, user.Authenticator())
+	allUpdates, err := store.ListRefresh(candidatesInfo, user.Authenticator())
 	if err != nil {
 		return InternalError("cannot list updates: %v", err)
 	}
 
 	updates := []*snap.Info{}
 	for _, update := range allUpdates {
-		local := localSnapMap[update.Name()]
+		local := candidateMap[update.Name()]
 		if !local.Revision.Unset() && local.Revision != update.Revision {
 			updates = append(updates, update)
 		}
