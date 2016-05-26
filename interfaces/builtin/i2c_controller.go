@@ -119,10 +119,6 @@ func (iface *I2CControllerInterface) PermanentPlugSnippet(plug *interfaces.Plug,
 
 func (iface *I2CControllerInterface) devicePath(slot *interfaces.Slot) (string, error) {
 	if path, ok := slot.Attrs["path"].(string); ok {
-		path, err := evalSymlinks(path)
-		if err != nil {
-			return "", err
-		}
 		return filepath.Clean(path), nil
 	}
 	panic("slot is not sanitized")
