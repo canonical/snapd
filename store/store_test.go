@@ -732,7 +732,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindAuthFailed(c *C) {
 }
 
 /* acquired via:
-$ curl -s --data-binary '{"snaps":[{"snap_id":"1e21e12ex4iim2xj1g2ul6f12f1","channel":"stable","revision":1,"confinement":"strict"}],"fields":["snap_id","package_name","revision","version","download_url"]}'  -H 'content-type: application/json' https://search.apps.ubuntu.com/api/v1/metadata
+$ curl -s --data-binary '{"snaps":[{"snap_id":"1e21e12ex4iim2xj1g2ul6f12f1","channel":"stable","revision":1,"devmode":false}],"fields":["snap_id","package_name","revision","version","download_url"]}'  -H 'content-type: application/json' https://search.apps.ubuntu.com/api/v1/metadata
 */
 const MockUpdatesJSON = `{"_embedded":
     {"clickindex:package": [
@@ -759,7 +759,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefresh(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		jsonReq, err := ioutil.ReadAll(r.Body)
 		c.Assert(err, IsNil)
-		c.Assert(string(jsonReq), Equals, `{"snaps":[{"snap_id":"`+helloWorldSnapID+`","channel":"stable","revision":1,"epoch":"0","confinement":"strict"}],"fields":["snap_id","package_name","revision","version","download_url"]}`)
+		c.Assert(string(jsonReq), Equals, `{"snaps":[{"snap_id":"`+helloWorldSnapID+`","channel":"stable","revision":1,"epoch":"0","devmode":false}],"fields":["snap_id","package_name","revision","version","download_url"]}`)
 		io.WriteString(w, MockUpdatesJSON)
 	}))
 
@@ -777,11 +777,11 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefresh(c *C) {
 
 	results, err := repo.ListRefresh([]*RefreshCandidate{
 		{
-			SnapID:      helloWorldSnapID,
-			Channel:     "stable",
-			Revision:    snap.R(1),
-			Epoch:       "0",
-			Confinement: snap.ConfinementType("strict"),
+			SnapID:   helloWorldSnapID,
+			Channel:  "stable",
+			Revision: snap.R(1),
+			Epoch:    "0",
+			DevMode:  false,
 		},
 	}, nil)
 	c.Assert(err, IsNil)
@@ -795,7 +795,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdateNotSendLocalRevs(c 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		jsonReq, err := ioutil.ReadAll(r.Body)
 		c.Assert(err, IsNil)
-		c.Assert(string(jsonReq), Equals, `{"snaps":[{"snap_id":"`+helloWorldSnapID+`","channel":"stable","epoch":"0","confinement":"strict"}],"fields":["snap_id","package_name","revision","version","download_url"]}`)
+		c.Assert(string(jsonReq), Equals, `{"snaps":[{"snap_id":"`+helloWorldSnapID+`","channel":"stable","epoch":"0","devmode":false}],"fields":["snap_id","package_name","revision","version","download_url"]}`)
 		io.WriteString(w, MockUpdatesJSON)
 	}))
 
@@ -813,11 +813,11 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdateNotSendLocalRevs(c 
 
 	_, err = repo.ListRefresh([]*RefreshCandidate{
 		{
-			SnapID:      helloWorldSnapID,
-			Channel:     "stable",
-			Revision:    snap.R(-2),
-			Epoch:       "0",
-			Confinement: snap.ConfinementType("strict"),
+			SnapID:   helloWorldSnapID,
+			Channel:  "stable",
+			Revision: snap.R(-2),
+			Epoch:    "0",
+			DevMode:  false,
 		},
 	}, nil)
 	c.Assert(err, IsNil)
@@ -831,7 +831,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdatesSetsAuth(c *C) {
 
 		jsonReq, err := ioutil.ReadAll(r.Body)
 		c.Assert(err, IsNil)
-		c.Assert(string(jsonReq), Equals, `{"snaps":[{"snap_id":"`+helloWorldSnapID+`","channel":"stable","revision":1,"epoch":"0","confinement":"strict"}],"fields":["snap_id","package_name","revision","version","download_url"]}`)
+		c.Assert(string(jsonReq), Equals, `{"snaps":[{"snap_id":"`+helloWorldSnapID+`","channel":"stable","revision":1,"epoch":"0","devmode":false}],"fields":["snap_id","package_name","revision","version","download_url"]}`)
 		io.WriteString(w, MockUpdatesJSON)
 	}))
 
@@ -850,11 +850,11 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdatesSetsAuth(c *C) {
 	authenticator := &fakeAuthenticator{}
 	_, err = repo.ListRefresh([]*RefreshCandidate{
 		{
-			SnapID:      helloWorldSnapID,
-			Channel:     "stable",
-			Revision:    snap.R(1),
-			Epoch:       "0",
-			Confinement: snap.ConfinementType("strict"),
+			SnapID:   helloWorldSnapID,
+			Channel:  "stable",
+			Revision: snap.R(1),
+			Epoch:    "0",
+			DevMode:  false,
 		},
 	}, authenticator)
 	c.Assert(err, IsNil)

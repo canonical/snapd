@@ -534,10 +534,10 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string,
 // RefreshCandidate contains information for the store about the currently
 // installed snap so that the store can decide what update we should see
 type RefreshCandidate struct {
-	SnapID      string
-	Revision    snap.Revision
-	Epoch       string
-	Confinement snap.ConfinementType
+	SnapID   string
+	Revision snap.Revision
+	Epoch    string
+	DevMode  bool
 
 	// the desired channel
 	Channel string
@@ -545,11 +545,11 @@ type RefreshCandidate struct {
 
 // the exact bits that we need to send to the store
 type currentSnapJson struct {
-	SnapID      string               `json:"snap_id"`
-	Channel     string               `json:"channel"`
-	Revision    int                  `json:"revision,omitempty"`
-	Epoch       string               `json:"epoch"`
-	Confinement snap.ConfinementType `json:"confinement"`
+	SnapID   string `json:"snap_id"`
+	Channel  string `json:"channel"`
+	Revision int    `json:"revision,omitempty"`
+	Epoch    string `json:"epoch"`
+	DevMode  bool   `json:"devmode"`
 }
 
 type metadataWrapper struct {
@@ -567,11 +567,11 @@ func (s *SnapUbuntuStoreRepository) ListRefresh(installed []*RefreshCandidate, a
 			revision = 0
 		}
 		currentSnaps[i] = currentSnapJson{
-			SnapID:      cs.SnapID,
-			Channel:     cs.Channel,
-			Epoch:       cs.Epoch,
-			Confinement: cs.Confinement,
-			Revision:    revision,
+			SnapID:   cs.SnapID,
+			Channel:  cs.Channel,
+			Epoch:    cs.Epoch,
+			DevMode:  cs.DevMode,
+			Revision: revision,
 		}
 	}
 
