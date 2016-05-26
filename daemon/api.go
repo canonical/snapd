@@ -416,15 +416,23 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot list local snaps: %v", err)
 	}
 
-	localSnapsInfo := make([]*store.RefreshCandidate, len(found))
+	localSnapsInfo := make([]*store.RefreshCandidate, 0, len(found))
 	localSnapMap := map[string]*snap.Info{}
-	for i, sn := range found {
+	for _, sn := range found {
+		// FIXME: enable once try-mode lands
+		/*
+			// snaps in try mode are not considered here
+			if sn.snapst.TryMode() {
+				continue
+			}
+		*/
+
 		// get confinment preference from the snapstate
 		confinement := snap.StrictConfinement
 		if sn.snapst.DevMode() {
 			confinement = snap.DevmodeConfinement
 		}
-		localSnapsInfo[i] = &store.RefreshCandidate{
+		localSnapsInfo = append(localSnapsInfo, &store.RefreshCandidate{
 			// the desired channel (not sn.info.Channel!)
 			Channel:     sn.snapst.Channel,
 			Confinement: confinement,
@@ -432,7 +440,7 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 			SnapID:   sn.info.SnapID,
 			Revision: sn.info.Revision,
 			Epoch:    sn.info.Epoch,
-		}
+		})
 		localSnapMap[sn.info.Name()] = sn.info
 	}
 
