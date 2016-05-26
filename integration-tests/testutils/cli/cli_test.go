@@ -420,6 +420,20 @@ func (s *cliTestSuite) TestAddOptionsToSnappyCommand(c *check.C) {
 	}
 }
 
+func (s *cliTestSuite) TestAddOptionsDoesNotModifyOriginalCmds(c *check.C) {
+	for _, cmd := range s.targetCoverCmds {
+		cmdsIn := []string{cmd, "subcommand1", "subcommand2"}
+
+		_, err := AddOptionsToCommand(cmdsIn)
+
+		c.Check(err, check.IsNil)
+		c.Check(len(cmdsIn), check.Equals, 3)
+		c.Check(cmdsIn[0], check.Equals, cmd)
+		c.Check(cmdsIn[1], check.Equals, "subcommand1")
+		c.Check(cmdsIn[2], check.Equals, "subcommand2")
+	}
+}
+
 func (s *cliTestSuite) TestExecCommandWrapperDoesNotWriteVerboseOutputByDefault(c *check.C) {
 	backStdout := os.Stdout
 	defer func() { os.Stdout = backStdout }()
