@@ -39,7 +39,7 @@ type snapRefreshAllSuite struct {
 	common.SnappySuite
 }
 
-func (s *snapRefreshAllSuite) TestAllUpdate(c *check.C) {
+func (s *snapRefreshAllSuite) TestAllRefresh(c *check.C) {
 	// install two  snaps and also create fake updates
 	snaps := []string{"hello-world", "xkcd-webserver"}
 	for _, snap := range snaps {

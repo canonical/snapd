@@ -69,7 +69,7 @@ func (s *listSuite) TestListMustPrintAppVersion(c *check.C) {
 	c.Assert(listOutput, check.Matches, expected)
 }
 
-func (s *listSuite) TestListRefreshesMustPrintUpdates(c *check.C) {
+func (s *listSuite) TestListRefresh(c *check.C) {
 	snap := "hello-world"
 
 	common.InstallSnap(c, snap)

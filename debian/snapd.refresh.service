@@ -1,5 +1,5 @@
 [Unit]
-Description=Ubuntu Core Auto Update
+Description=Automatically refresh installed snaps
 After=network.target
 
 [Service]
