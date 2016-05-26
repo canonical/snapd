@@ -755,7 +755,7 @@ const MockUpdatesJSON = `{"_embedded":
 }
 `
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefresh(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		jsonReq, err := ioutil.ReadAll(r.Body)
 		c.Assert(err, IsNil)
@@ -775,7 +775,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 	repo := NewUbuntuStoreSnapRepository(&cfg, "")
 	c.Assert(repo, NotNil)
 
-	results, err := repo.Updates([]*RefreshCandidate{
+	results, err := repo.ListRefresh([]*RefreshCandidate{
 		{
 			SnapID:      helloWorldSnapID,
 			Channel:     "stable",
@@ -811,7 +811,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdateNotSendLocalRevs(c 
 	repo := NewUbuntuStoreSnapRepository(&cfg, "")
 	c.Assert(repo, NotNil)
 
-	_, err = repo.Updates([]*RefreshCandidate{
+	_, err = repo.ListRefresh([]*RefreshCandidate{
 		{
 			SnapID:      helloWorldSnapID,
 			Channel:     "stable",
@@ -848,7 +848,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdatesSetsAuth(c *C) {
 	c.Assert(repo, NotNil)
 
 	authenticator := &fakeAuthenticator{}
-	_, err = repo.Updates([]*RefreshCandidate{
+	_, err = repo.ListRefresh([]*RefreshCandidate{
 		{
 			SnapID:      helloWorldSnapID,
 			Channel:     "stable",

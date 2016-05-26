@@ -557,8 +557,8 @@ type metadataWrapper struct {
 	Fields []string          `json:"fields"`
 }
 
-// Updates returns the available updates for a list of snap identified by fullname with channel.
-func (s *SnapUbuntuStoreRepository) Updates(installed []*RefreshCandidate, auther Authenticator) (snaps []*snap.Info, err error) {
+// ListRefresh returns the available updates for a list of snap identified by fullname with channel.
+func (s *SnapUbuntuStoreRepository) ListRefresh(installed []*RefreshCandidate, auther Authenticator) (snaps []*snap.Info, err error) {
 
 	currentSnaps := make([]currentSnapJson, len(installed))
 	for i, cs := range installed {
