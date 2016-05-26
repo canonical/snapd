@@ -297,7 +297,7 @@ func UserFromRequest(st *state.State, req *http.Request) (*auth.UserState, error
 type metarepo interface {
 	Snap(string, string, store.Authenticator) (*snap.Info, error)
 	FindSnaps(string, string, store.Authenticator) ([]*snap.Info, error)
-	Updates([]*store.CurrentSnap, store.Authenticator) ([]*snap.Info, error)
+	Updates([]*store.RefreshCandidate, store.Authenticator) ([]*snap.Info, error)
 	SuggestedCurrency() string
 }
 
@@ -416,10 +416,10 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot list local snaps: %v", err)
 	}
 
-	localSnapsInfo := make([]*store.CurrentSnap, len(found))
+	localSnapsInfo := make([]*store.RefreshCandidate, len(found))
 	localSnapMap := map[string]*snap.Info{}
 	for i, sn := range found {
-		localSnapsInfo[i] = &store.CurrentSnap{
+		localSnapsInfo[i] = &store.RefreshCandidate{
 			// the desired channel (not sn.info.Channel!)
 			Channel: sn.snapst.Channel,
 
