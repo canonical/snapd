@@ -712,6 +712,7 @@ func (s *apiSuite) TestSnapsInfoOnePerIntegration(c *check.C) {
 		c.Check(got["version"], check.Equals, s.ver)
 		c.Check(got["revision"], check.Equals, snap.R(s.rev).String())
 		c.Check(got["developer"], check.Equals, s.dev)
+		c.Check(got["confinement"], check.Equals, "strict")
 	}
 }
 
@@ -826,6 +827,47 @@ func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
 	c.Check(snaps[0]["prices"], check.IsNil)
 
 	c.Check(rsp.SuggestedCurrency, check.Equals, "EUR")
+}
+
+func (s *apiSuite) TestSnapsStoreConfinement(c *check.C) {
+	s.rsnaps = []*snap.Info{
+		{
+			// no explicit confinement in this one
+			SideInfo: snap.SideInfo{
+				OfficialName: "foo",
+			},
+		},
+		{
+			Confinement: snap.StrictConfinement,
+			SideInfo: snap.SideInfo{
+				OfficialName: "bar",
+			},
+		},
+		{
+			Confinement: snap.DevmodeConfinement,
+			SideInfo: snap.SideInfo{
+				OfficialName: "baz",
+			},
+		},
+	}
+
+	req, err := http.NewRequest("GET", "/v2/find", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := searchStore(findCmd, req, nil).(*resp)
+
+	snaps := snapList(rsp.Result)
+	c.Assert(snaps, check.HasLen, 3)
+
+	for i, ss := range [][2]string{
+		{"foo", string(snap.StrictConfinement)},
+		{"bar", string(snap.StrictConfinement)},
+		{"baz", string(snap.DevmodeConfinement)},
+	} {
+		name, mode := ss[0], ss[1]
+		c.Check(snaps[i]["name"], check.Equals, name, check.Commentf(name))
+		c.Check(snaps[i]["confinement"], check.Equals, mode, check.Commentf(name))
+	}
 }
 
 func (s *apiSuite) TestSnapsInfoStoreWithAuth(c *check.C) {
