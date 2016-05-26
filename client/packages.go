@@ -57,6 +57,9 @@ const (
 	TypeKernel = "kernel"
 	TypeGadget = "gadget"
 	TypeOS     = "os"
+
+	StrictConfinement  = "strict"
+	DevmodeConfinement = "devmode"
 )
 
 type ResultInfo struct {

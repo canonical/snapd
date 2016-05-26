@@ -78,7 +78,7 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 		Status:        client.StatusAvailable,
 		Type:          client.TypeApp,
 		Version:       "1.0.18",
-		Confinement:   "strict",
+		Confinement:   client.StrictConfinement,
 		Private:       true,
 	}})
 	otherApps, err := cs.cli.ListSnaps([]string{"foo"})
@@ -134,7 +134,7 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 		Status:        client.StatusActive,
 		Type:          client.TypeApp,
 		Version:       "0.1-8",
-		Confinement:   "strict",
+		Confinement:   client.StrictConfinement,
 		Private:       true,
 	})
 }
