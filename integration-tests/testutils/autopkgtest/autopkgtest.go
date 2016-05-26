@@ -80,7 +80,7 @@ func (a *AutoPkgTest) adtRun(testbedOptions string) (err error) {
 	prepareTargetDir(outputDir)
 
 	cmd := []string{
-		"adt-run", "-B",
+		"adt-run", "-B", "-q",
 		"--override-control", controlFile,
 		"--built-tree", a.SourceCodePath,
 		"--output-dir", outputDir,
