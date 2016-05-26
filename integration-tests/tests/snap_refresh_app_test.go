@@ -39,7 +39,7 @@ type snapRefreshAppSuite struct {
 	common.SnappySuite
 }
 
-func (s *snapRefreshAppSuite) TestAppUpdate(c *check.C) {
+func (s *snapRefreshAppSuite) TestAppRefresh(c *check.C) {
 	snap := "hello-world"
 
 	// install edge version from the store (which is squashfs)

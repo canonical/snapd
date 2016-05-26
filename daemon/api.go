@@ -461,8 +461,7 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 	}
 
-	meta := &Meta{Sources: []string{"refresh"}}
-	return sendStorePackages(route, meta, updates)
+	return sendStorePackages(route, nil, updates)
 }
 
 func sendStorePackages(route *mux.Route, meta *Meta, found []*snap.Info) Response {
