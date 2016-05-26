@@ -419,14 +419,19 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 	localSnapsInfo := make([]*store.RefreshCandidate, len(found))
 	localSnapMap := map[string]*snap.Info{}
 	for i, sn := range found {
+		// get confinment preference from the snapstate
+		confinement := snap.StrictConfinement
+		if sn.snapst.DevMode() {
+			confinement = snap.DevmodeConfinement
+		}
 		localSnapsInfo[i] = &store.RefreshCandidate{
 			// the desired channel (not sn.info.Channel!)
-			Channel: sn.snapst.Channel,
+			Channel:     sn.snapst.Channel,
+			Confinement: confinement,
 
-			SnapID:      sn.info.SnapID,
-			Revision:    sn.info.Revision,
-			Epoch:       sn.info.Epoch,
-			Confinement: sn.info.Confinement,
+			SnapID:   sn.info.SnapID,
+			Revision: sn.info.Revision,
+			Epoch:    sn.info.Epoch,
 		}
 		localSnapMap[sn.info.Name()] = sn.info
 	}
