@@ -531,9 +531,9 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string,
 	return snaps, nil
 }
 
-// CurrentSnap contains information for the store about the currently
+// RefreshCandidate contains information for the store about the currently
 // installed snap so that the store can decide what update we should see
-type CurrentSnap struct {
+type RefreshCandidate struct {
 	SnapID      string
 	Revision    snap.Revision
 	Epoch       string
@@ -558,7 +558,7 @@ type metadataWrapper struct {
 }
 
 // Updates returns the available updates for a list of snap identified by fullname with channel.
-func (s *SnapUbuntuStoreRepository) Updates(installed []*CurrentSnap, auther Authenticator) (snaps []*snap.Info, err error) {
+func (s *SnapUbuntuStoreRepository) Updates(installed []*RefreshCandidate, auther Authenticator) (snaps []*snap.Info, err error) {
 
 	currentSnaps := make([]currentSnapJson, len(installed))
 	for i, cs := range installed {

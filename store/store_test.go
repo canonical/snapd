@@ -775,7 +775,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 	repo := NewUbuntuStoreSnapRepository(&cfg, "")
 	c.Assert(repo, NotNil)
 
-	results, err := repo.Updates([]*CurrentSnap{
+	results, err := repo.Updates([]*RefreshCandidate{
 		{
 			SnapID:      helloWorldSnapID,
 			Channel:     "stable",
@@ -811,7 +811,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdateNotSendLocalRevs(c 
 	repo := NewUbuntuStoreSnapRepository(&cfg, "")
 	c.Assert(repo, NotNil)
 
-	_, err = repo.Updates([]*CurrentSnap{
+	_, err = repo.Updates([]*RefreshCandidate{
 		{
 			SnapID:      helloWorldSnapID,
 			Channel:     "stable",
@@ -848,7 +848,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdatesSetsAuth(c *C) {
 	c.Assert(repo, NotNil)
 
 	authenticator := &fakeAuthenticator{}
-	_, err = repo.Updates([]*CurrentSnap{
+	_, err = repo.Updates([]*RefreshCandidate{
 		{
 			SnapID:      helloWorldSnapID,
 			Channel:     "stable",
