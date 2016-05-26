@@ -29,8 +29,8 @@ import (
 	"github.com/snapcore/snapd/integration-tests/testutils/cli"
 	"github.com/snapcore/snapd/integration-tests/testutils/common"
 	"github.com/snapcore/snapd/integration-tests/testutils/config"
+	"github.com/snapcore/snapd/integration-tests/testutils/refresh"
 	"github.com/snapcore/snapd/integration-tests/testutils/store"
-	"github.com/snapcore/snapd/integration-tests/testutils/updates"
 )
 
 var _ = check.Suite(&snapRefreshAllSuite{})
@@ -40,7 +40,7 @@ type snapRefreshAllSuite struct {
 }
 
 func (s *snapRefreshAllSuite) TestAllRefresh(c *check.C) {
-	// install two  snaps and also create fake updates
+	// install two  snaps and also create fake refresh
 	snaps := []string{"hello-world", "xkcd-webserver"}
 	for _, snap := range snaps {
 		cli.ExecCommand(c, "sudo", "snap", "install", snap)
@@ -62,8 +62,8 @@ func (s *snapRefreshAllSuite) TestAllRefresh(c *check.C) {
 	setUpSnapd(c, cfg.FromBranch, env)
 	defer tearDownSnapd(c)
 
-	// and update all snaps
-	output := updates.CallFakeSnapRefreshAll(c, snaps, updates.NoOp, fakeStore)
+	// and refresh all snaps
+	output := refresh.CallFakeSnapRefreshAll(c, snaps, refresh.NoOp, fakeStore)
 	c.Assert(output, check.Matches, "(?ms).*^hello-world.*fake1.*")
 	c.Assert(output, check.Matches, "(?ms).*^xkcd-webserver.*fake1.*")
 }

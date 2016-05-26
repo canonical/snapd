@@ -18,7 +18,7 @@
  *
  */
 
-package updates
+package refresh
 
 import (
 	"io/ioutil"
@@ -49,7 +49,7 @@ func CallFakeSnapRefreshForSnap(c *check.C, snap string, changeFunc ChangeFakeUp
 	c.Log("Preparing fake single snap and calling update.")
 
 	blobDir := fakeStore.SnapsDir()
-	MakeFakeUpdateForSnap(c, snap, blobDir, changeFunc)
+	MakeFakeRefreshForSnap(c, snap, blobDir, changeFunc)
 
 	cli.ExecCommand(c, "sudo", "snap", "refresh", snap)
 
@@ -63,13 +63,13 @@ func CallFakeSnapRefreshAll(c *check.C, snaps []string, changeFunc ChangeFakeUpd
 
 	blobDir := fakeStore.SnapsDir()
 	for _, snap := range snaps {
-		MakeFakeUpdateForSnap(c, snap, blobDir, changeFunc)
+		MakeFakeRefreshForSnap(c, snap, blobDir, changeFunc)
 	}
 
 	return cli.ExecCommand(c, "sudo", "snap", "refresh")
 }
 
-func MakeFakeUpdateForSnap(c *check.C, snap, targetDir string, changeFunc ChangeFakeUpdateSnap) error {
+func MakeFakeRefreshForSnap(c *check.C, snap, targetDir string, changeFunc ChangeFakeUpdateSnap) error {
 
 	// make a fake update snap in /var/tmp (which is not a tempfs)
 	fakeUpdateDir, err := ioutil.TempDir("/var/tmp", "snap-build-")

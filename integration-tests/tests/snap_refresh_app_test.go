@@ -29,8 +29,8 @@ import (
 	"github.com/snapcore/snapd/integration-tests/testutils/cli"
 	"github.com/snapcore/snapd/integration-tests/testutils/common"
 	"github.com/snapcore/snapd/integration-tests/testutils/config"
+	"github.com/snapcore/snapd/integration-tests/testutils/refresh"
 	"github.com/snapcore/snapd/integration-tests/testutils/store"
-	"github.com/snapcore/snapd/integration-tests/testutils/updates"
 )
 
 var _ = check.Suite(&snapRefreshAppSuite{})
@@ -66,7 +66,7 @@ func (s *snapRefreshAppSuite) TestAppRefresh(c *check.C) {
 	setUpSnapd(c, cfg.FromBranch, env)
 	defer tearDownSnapd(c)
 
-	// run the fake update
-	output := updates.CallFakeSnapRefreshForSnap(c, snap, updates.NoOp, fakeStore)
+	// run the fake refresh
+	output := refresh.CallFakeSnapRefreshForSnap(c, snap, refresh.NoOp, fakeStore)
 	c.Assert(output, check.Matches, "(?ms).*^hello-world.*fake1.*")
 }

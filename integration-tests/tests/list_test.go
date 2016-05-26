@@ -28,8 +28,8 @@ import (
 	"github.com/snapcore/snapd/integration-tests/testutils/common"
 	"github.com/snapcore/snapd/integration-tests/testutils/config"
 	"github.com/snapcore/snapd/integration-tests/testutils/partition"
+	"github.com/snapcore/snapd/integration-tests/testutils/refresh"
 	"github.com/snapcore/snapd/integration-tests/testutils/store"
-	"github.com/snapcore/snapd/integration-tests/testutils/updates"
 
 	"gopkg.in/check.v1"
 )
@@ -77,7 +77,7 @@ func (s *listSuite) TestListRefresh(c *check.C) {
 		common.RemoveSnap(c, snap)
 	})
 
-	// fake updates
+	// fake refresh
 	blobDir, err := ioutil.TempDir("", "snap-fake-store-blobs-")
 	fakeStore := store.NewStore(blobDir)
 	err = fakeStore.Start()
@@ -92,7 +92,7 @@ func (s *listSuite) TestListRefresh(c *check.C) {
 	setUpSnapd(c, cfg.FromBranch, env)
 	defer tearDownSnapd(c)
 
-	updates.MakeFakeUpdateForSnap(c, snap, blobDir, updates.NoOp)
+	refresh.MakeFakeRefreshForSnap(c, snap, blobDir, refresh.NoOp)
 
 	listOutput := cli.ExecCommand(c, "snap", "list", "--refresh")
 	expected := "(?ms)" +
