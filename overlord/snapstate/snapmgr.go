@@ -108,6 +108,15 @@ func (snapst *SnapState) TryMode() bool {
 	return snapst.Flags&TryMode != 0
 }
 
+// SetTryMode sets/clears the TryMode flag in the SnapState
+func (snapst *SnapState) SetTryMode(active bool) {
+	if active {
+		snapst.Flags |= TryMode
+	} else {
+		snapst.Flags &= ^TryMode
+	}
+}
+
 // Manager returns a new snap manager.
 func Manager(s *state.State) (*SnapManager, error) {
 	runner := state.NewTaskRunner(s)
@@ -406,29 +415,10 @@ func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
 
 func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.State().Lock()
-	ss, snapst, err := snapSetupAndState(t)
+	ss, _, err := snapSetupAndState(t)
 	t.State().Unlock()
 	if err != nil {
 		return err
-	}
-
-	// undo try mode (if needed)
-	t.State().Lock()
-	var oldTryMode bool
-	err = t.Get("old-trymode", &oldTryMode)
-	t.State().Unlock()
-	if err != nil && err != state.ErrNoState {
-		return err
-	}
-	if err == nil {
-		if oldTryMode {
-			snapst.Flags |= TryMode
-		} else {
-			snapst.Flags &= ^TryMode
-		}
-		t.State().Lock()
-		Set(t.State(), ss.Name, snapst)
-		t.State().Unlock()
 	}
 
 	return m.backend.UndoSetupSnap(ss.placeInfo())
@@ -460,21 +450,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// TODO Use ss.Revision to obtain the right info to mount
 	//      instead of assuming the candidate is the right one.
-	if err := m.backend.SetupSnap(ss.SnapPath, snapst.Candidate, ss.Flags); err != nil {
-		return err
-	}
-
-	// record the try mode in the state
-	t.State().Lock()
-	t.Set("old-trymode", snapst.TryMode())
-	if ss.TryMode() {
-		snapst.Flags |= TryMode
-	} else {
-		snapst.Flags &= ^TryMode
-	}
-	Set(t.State(), ss.Name, snapst)
-	t.State().Unlock()
-	return nil
+	return m.backend.SetupSnap(ss.SnapPath, snapst.Candidate, ss.Flags)
 }
 
 func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -598,6 +574,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Candidate = nil
 	snapst.Active = true
 	oldChannel := snapst.Channel
+	oldTryMode := snapst.TryMode()
 	if ss.Channel != "" {
 		snapst.Channel = ss.Channel
 	}
@@ -624,6 +601,10 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	// record the try mode in the state
+	snapst.SetTryMode(ss.TryMode())
+	// save for undoLinkSnap
+	t.Set("old-trymode", oldTryMode)
 	t.Set("old-channel", oldChannel)
 	// Do at the end so we only preserve the new state if it worked.
 	Set(st, ss.Name, snapst)
@@ -648,6 +629,11 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
+	var oldTryMode bool
+	err = t.Get("old-trymode", &oldTryMode)
+	if err != nil {
+		return err
+	}
 
 	// relinking of the old snap is done in the undo of unlink-current-snap
 
@@ -655,6 +641,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Sequence = snapst.Sequence[:len(snapst.Sequence)-1]
 	snapst.Active = false
 	snapst.Channel = oldChannel
+	snapst.SetTryMode(oldTryMode)
 
 	newInfo, err := readInfo(ss.Name, snapst.Candidate)
 	if err != nil {
