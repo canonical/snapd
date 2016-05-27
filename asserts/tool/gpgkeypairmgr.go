@@ -21,7 +21,9 @@ package tool
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
+	"io"
 	"os/exec"
 	"strings"
 
@@ -75,7 +77,7 @@ func (gkm *gpgKeypairManager) Put(authorityID string, privKey asserts.PrivateKey
 }
 
 func (gkm *gpgKeypairManager) Get(authorityID, keyID string) (asserts.PrivateKey, error) {
-	out, err := gkm.gpg(nil, "--batch", "--export", "--export-options", "export-minimal,export-clean,no-export-attributes", keyID)
+	out, err := gkm.gpg(nil, "--batch", "--export", "--export-options", "export-minimal,export-clean,no-export-attributes", "0x"+keyID)
 	if err != nil {
 		return nil, err
 	}
@@ -83,25 +85,40 @@ func (gkm *gpgKeypairManager) Get(authorityID, keyID string) (asserts.PrivateKey
 		return nil, fmt.Errorf("no matching key pair found")
 	}
 
+	var pubKey *packet.PublicKey
 	rd := packet.NewReader(bytes.NewBuffer(out))
-	pubk, err := rd.Next()
-	if err != nil {
-		return nil, fmt.Errorf("cannot read public part of key pair: %v", err)
+	for {
+		pkt, err := rd.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("cannot read public part of key pair: %v", err)
+		}
+		cand, ok := pkt.(*packet.PublicKey)
+		if ok {
+			if cand.IsSubkey {
+				continue
+			}
+			if pubKey != nil {
+				return nil, fmt.Errorf("cannot find exactly one key pair with key id %q, found many", keyID)
+			}
+			pubKey = cand
+		}
 	}
 
-	pubKey, ok := pubk.(*packet.PublicKey)
-	if !ok {
-		return nil, fmt.Errorf("cannot read public part of key pair: got %T", pubk)
+	if pubKey == nil {
+		return nil, fmt.Errorf("cannot read public part of key pair: unexpectedly missing")
+
 	}
 
 	sign := func(content []byte, cfg *packet.Config) (*packet.Signature, error) {
-		out, err := gkm.gpg(content, "--personal-digest-preferences", "SHA512", "--default-key", keyID, "--detach-sign")
+		out, err := gkm.gpg(content, "--personal-digest-preferences", "SHA512", "--default-key", fmt.Sprintf("0x%s", hex.EncodeToString(pubKey.Fingerprint[:])), "--detach-sign")
 		if err != nil {
 			return nil, err
 		}
 
-		rd := packet.NewReader(bytes.NewBuffer(out))
-		sigpkt, err := rd.Next()
+		sigpkt, err := packet.Read(bytes.NewBuffer(out))
 		if err != nil {
 			return nil, fmt.Errorf("cannot parse gpg produced signature: %v", err)
 		}
