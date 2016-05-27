@@ -362,15 +362,14 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot find route for snaps")
 	}
 
-	query := r.URL.Query()
+	if r.URL.Query().Get("select") == "refresh" {
+		return storeUpdates(c, r)
+	}
 
+	query := r.URL.Query()
 	auther, err := c.d.auther(r)
 	if err != nil && err != auth.ErrInvalidAuth {
 		return InternalError("%v", err)
-	}
-
-	if r.URL.Query().Get("select") == "refresh" {
-		return storeUpdates(c, r, user)
 	}
 
 	remoteRepo := newRemoteRepo()
@@ -410,7 +409,7 @@ func shouldSearchStore(r *http.Request) bool {
 }
 
 // FIXME: add explicit test
-func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
+func storeUpdates(c *Command, r *http.Request) Response {
 	route := c.d.router.Get(snapCmd.Path)
 	if route == nil {
 		return InternalError("cannot find route for snaps")
@@ -443,8 +442,13 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 		})
 	}
 
+	auther, err := c.d.auther(r)
+	if err != nil && err != auth.ErrInvalidAuth {
+		return InternalError("%v", err)
+	}
+
 	store := newRemoteRepo()
-	updates, err := store.ListRefresh(candidatesInfo, user.Authenticator())
+	updates, err := store.ListRefresh(candidatesInfo, auther)
 	if err != nil {
 		return InternalError("cannot list updates: %v", err)
 	}
