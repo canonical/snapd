@@ -437,7 +437,6 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 			Revision: sn.info.Revision,
 			Epoch:    sn.info.Epoch,
 		})
-		candidateMap[sn.info.Name()] = sn.info
 	}
 
 	store := newRemoteRepo()
