@@ -230,20 +230,33 @@ exclude these tests by passing `lowperformance` to the `test-build-tags` flag:
 
     go run integration-tests/main.go -test-build-tags=lowperformance
 
-### Classic-only tests
+### Classic-only and all-snaps-only tests
 
-There are certain integration tests which at the moment only work in classic ubuntu systems, for
-instance the unity suite, which checks features that currently are only available in desktop systems.
+There are some integration tests which only work in classic ubuntu systems, and
+some which only work in all-snaps systems.
 
-These tests are guarded by the `classiconly` build tag, the autopkgtest runner is configured to
-include it when building the tests' binary. If you develop a test of this type remember to add it at
-the top of the file:
+These tests are guarded by a build tag. If you develop a test that will work
+only in one type of system remember to add corresponding tag to the top of the
+file.
+
+For tests that will run only in a classic system, use:
 
 ```
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build !excludeintegration,classiconly
+// +build !excludeintegration,!allsnaps
 ...
 ```
+
+For tests that will run only in an all-snap system, use
+```
+// -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !excludeintegration,!classic
+...
+```
+
+The autopkgtest runner uses a classic testbed so it will exclude the
+all-snaps-only tests by passing the classic tag.
+
 
 ### Store tests
 
