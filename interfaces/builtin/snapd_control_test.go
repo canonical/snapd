@@ -37,7 +37,7 @@ var _ = Suite(&SnapdControlInterfaceSuite{
 	iface: builtin.NewSnapdControlInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "ubuntu-core", Type: snap.TypeOS},
+			Snap:      &snap.Info{SuggestedName: "base", Type: snap.TypeOS},
 			Name:      "snapd-control",
 			Interface: "snapd-control",
 		},

@@ -299,7 +299,7 @@ func (s *SnapSuite) TestInterfacesOsSnapSlots(c *C) {
 			"result": client.Interfaces{
 				Slots: []client.Slot{
 					{
-						Snap:      "ubuntu-core",
+						Snap:      "base",
 						Name:      "network-listening",
 						Interface: "network-listening",
 						Label:     "Ability to be a network service",
@@ -323,7 +323,7 @@ func (s *SnapSuite) TestInterfacesOsSnapSlots(c *C) {
 						Label:     "Ability to be a network service",
 						Connections: []client.SlotRef{
 							{
-								Snap: "ubuntu-core",
+								Snap: "base",
 								Name: "network-listening",
 							},
 						},
@@ -335,7 +335,7 @@ func (s *SnapSuite) TestInterfacesOsSnapSlots(c *C) {
 						Label:     "Ability to be a network service",
 						Connections: []client.SlotRef{
 							{
-								Snap: "ubuntu-core",
+								Snap: "base",
 								Name: "network-listening",
 							},
 						},
@@ -372,7 +372,7 @@ func (s *SnapSuite) TestInterfacesTwoSlotsAndFiltering(c *C) {
 						Label:     "Serial port on the expansion header",
 						Connections: []client.PlugRef{
 							{
-								Snap: "ubuntu-core",
+								Snap: "base",
 								Name: "debug-console",
 							},
 						},
@@ -398,7 +398,7 @@ func (s *SnapSuite) TestInterfacesTwoSlotsAndFiltering(c *C) {
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
 		"Slot                         Plug\n" +
-		"canonical-pi2:debug-console  ubuntu-core\n"
+		"canonical-pi2:debug-console  base\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }

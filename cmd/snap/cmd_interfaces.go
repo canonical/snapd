@@ -78,9 +78,10 @@ func (x *cmdInterfaces) Execute(args []string) error {
 			if x.Interface != "" && slot.Interface != x.Interface {
 				continue
 			}
-			// The OS snap (always ubuntu-core) is special and enable abbreviated
+			// The OS snap (always base) is special and enable abbreviated
 			// display syntax on the slot-side of the connection.
-			if slot.Snap == "ubuntu-core" {
+			// TODO: remove ubuntu-core after a while
+			if slot.Snap == "base" || slot.Snap == "ubuntu-core" {
 				fmt.Fprintf(w, ":%s\t", slot.Name)
 			} else {
 				fmt.Fprintf(w, "%s:%s\t", slot.Snap, slot.Name)

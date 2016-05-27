@@ -1139,11 +1139,11 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 		if hasUbuntuCore {
 			return nil
 		}
-		// pretend we do not have a state for ubuntu-core
+		// pretend we do not have a state for base snap
 		return state.ErrNoState
 	}
 	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snappy.InstallFlags) (*state.TaskSet, error) {
-		// NOTE: ubuntu-core is not installed in developer mode
+		// NOTE: base snap is not installed in developer mode
 		c.Check(flags, check.Equals, snappy.InstallFlags(0))
 		installQueue = append(installQueue, name)
 
@@ -1178,7 +1178,7 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 	}
 	c.Assert(installQueue, check.HasLen, n)
 	if !hasUbuntuCore {
-		c.Check(installQueue[0], check.Equals, "ubuntu-core")
+		c.Check(installQueue[0], check.Equals, "base")
 	}
 	c.Check(installQueue[n-1], check.Matches, "local::.*/snapd-sideload-pkg-.*")
 
@@ -1280,7 +1280,7 @@ func (s *apiSuite) TestInstall(c *check.C) {
 	installQueue := []string{}
 
 	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
-		// we have ubuntu-core
+		// we have base snap
 		return nil
 	}
 	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snappy.InstallFlags) (*state.TaskSet, error) {
@@ -1331,7 +1331,7 @@ func (s *apiSuite) TestRefresh(c *check.C) {
 	installQueue := []string{}
 
 	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
-		// we have ubuntu-core
+		// we have base snap
 		return nil
 	}
 	snapstateUpdate = func(s *state.State, name, channel string, userID int, flags snappy.InstallFlags) (*state.TaskSet, error) {
@@ -1367,7 +1367,7 @@ func (s *apiSuite) TestInstallMissingUbuntuCore(c *check.C) {
 	installQueue := []*state.Task{}
 
 	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
-		// pretend we do not have a state for ubuntu-core
+		// pretend we do not have a state for base snap
 		return state.ErrNoState
 	}
 	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snappy.InstallFlags) (*state.TaskSet, error) {
@@ -1400,8 +1400,8 @@ func (s *apiSuite) TestInstallMissingUbuntuCore(c *check.C) {
 	c.Check(chg.Tasks(), check.HasLen, 4)
 
 	c.Check(installQueue, check.HasLen, 4)
-	// the two "ubuntu-core" install tasks
-	c.Check(installQueue[0].Summary(), check.Equals, "ubuntu-core")
+	// the two "base" install tasks
+	c.Check(installQueue[0].Summary(), check.Equals, "base")
 	c.Check(installQueue[0].WaitTasks(), check.HasLen, 0)
 	c.Check(installQueue[1].WaitTasks(), check.HasLen, 0)
 	// the two "some-snap" install tasks
@@ -1410,13 +1410,13 @@ func (s *apiSuite) TestInstallMissingUbuntuCore(c *check.C) {
 	c.Check(installQueue[3].WaitTasks(), check.HasLen, 2)
 }
 
-// Installing ubuntu-core when not having ubuntu-core doesn't misbehave and try
-// to install ubuntu-core twice.
+// Installing base snap when not having base snap doesn't misbehave and try
+// to install the base snap twice.
 func (s *apiSuite) TestInstallUbuntuCoreWhenMissing(c *check.C) {
 	installQueue := []*state.Task{}
 
 	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
-		// pretend we do not have a state for ubuntu-core
+		// pretend we do not have a state for the base snap
 		return state.ErrNoState
 	}
 	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snappy.InstallFlags) (*state.TaskSet, error) {
@@ -1429,7 +1429,7 @@ func (s *apiSuite) TestInstallUbuntuCoreWhenMissing(c *check.C) {
 	d := s.daemon(c)
 	inst := &snapInstruction{
 		Action: "install",
-		snap:   "ubuntu-core",
+		snap:   "base",
 	}
 
 	st := d.overlord.State()
@@ -1439,15 +1439,15 @@ func (s *apiSuite) TestInstallUbuntuCoreWhenMissing(c *check.C) {
 	c.Check(err, check.IsNil)
 
 	c.Check(installQueue, check.HasLen, 2)
-	// the only "ubuntu-core" install tasks
-	c.Check(installQueue[0].Summary(), check.Equals, "ubuntu-core")
+	// the only "base" snap install tasks
+	c.Check(installQueue[0].Summary(), check.Equals, "base")
 	c.Check(installQueue[0].WaitTasks(), check.HasLen, 0)
 	c.Check(installQueue[1].WaitTasks(), check.HasLen, 0)
 }
 
 func (s *apiSuite) TestInstallFails(c *check.C) {
 	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
-		// we have ubuntu-core
+		// we have base snap
 		return nil
 	}
 

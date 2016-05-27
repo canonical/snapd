@@ -9,7 +9,7 @@
     +++ generic-amd64/meta/snap.yaml	2015-11-09 16:26:12 +0000
     @@ -7,6 +7,8 @@
      config:
-         ubuntu-core:
+         base:
              autopilot: true
     +    config-example-bash:
     +      msg: "huzzah\n"
@@ -55,7 +55,7 @@
     +++ generic-amd64/meta/snap.yaml	2015-11-12 10:14:30 +0000
     @@ -7,6 +7,7 @@
      config:
-         ubuntu-core:
+         base:
              autopilot: true
     +        load-kernel-modules: [tea]
 

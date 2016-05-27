@@ -505,7 +505,7 @@ var snapstateGet = snapstate.Get
 var errNothingToInstall = errors.New("nothing to install")
 
 func ensureUbuntuCore(st *state.State, targetSnap string, userID int) (*state.TaskSet, error) {
-	ubuntuCore := "ubuntu-core"
+	ubuntuCore := "base"
 
 	if targetSnap == ubuntuCore {
 		return nil, errNothingToInstall

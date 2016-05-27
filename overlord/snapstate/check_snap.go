@@ -31,7 +31,7 @@ import (
 )
 
 // featureSet contains the flag values that can be listed in assumes entries
-// that this ubuntu-core actually provides.
+// that this base actually provides.
 var featureSet = map[string]bool{
 	// Support for common data directory across revisions of a snap.
 	"common-data-dir": true,
@@ -45,7 +45,7 @@ func checkAssumes(s *snap.Info) error {
 		}
 	}
 	if len(missing) > 0 {
-		return fmt.Errorf("snap %q assumes unsupported features: %s (try new ubuntu-core)", s.Name(), strings.Join(missing, ", "))
+		return fmt.Errorf("snap %q assumes unsupported features: %s (try new base snap)", s.Name(), strings.Join(missing, ", "))
 	}
 	return nil
 }

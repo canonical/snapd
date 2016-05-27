@@ -48,8 +48,8 @@ func (s *kernelTestSuite) TestNameAndRevnoFromSnap(c *C) {
 	c.Check(name, Equals, "canonical-pc-linux.canonical")
 	c.Check(revno, Equals, snap.R(101))
 
-	name, revno = nameAndRevnoFromSnap("ubuntu-core.canonical_103.snap")
-	c.Check(name, Equals, "ubuntu-core.canonical")
+	name, revno = nameAndRevnoFromSnap("base.canonical_103.snap")
+	c.Check(name, Equals, "base.canonical")
 	c.Check(revno, Equals, snap.R(103))
 }
 

@@ -195,7 +195,7 @@ func (s *updateRollbackSuite) TestUpdateRollbackStress(c *check.C) {
 		// after update
 		doAfterUpdateActions(c, s.cm)
 
-		cli.ExecCommand(c, "sudo", "snappy", "rollback", "ubuntu-core")
+		cli.ExecCommand(c, "sudo", "snappy", "rollback", "base")
 
 	} else {
 		c.Log("Unknown update-rollback status:", s.cm.status)

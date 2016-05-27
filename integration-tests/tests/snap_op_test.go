@@ -118,7 +118,7 @@ func (s *snapOpSuite) TestRemoveBusyRetries(c *check.C) {
 		wait.ForInactiveService(c, blockerSrv)
 
 		// this triggers an Ensure in the overlord
-		cli.ExecCommandErr("sudo", "snap", "refresh", "ubuntu-core")
+		cli.ExecCommandErr("sudo", "snap", "refresh", "base")
 		ch <- 1
 	}()
 
