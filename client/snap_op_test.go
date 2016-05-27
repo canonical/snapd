@@ -181,9 +181,9 @@ func (cs *clientSuite) TestClientOpTryMode(c *check.C) {
 		mr := multipart.NewReader(cs.req.Body, params["boundary"])
 		formData := formToMap(c, mr)
 		c.Check(formData, check.DeepEquals, map[string]string{
-			"action":  "try",
-			"try":     snapdir,
-			"devmode": strconv.FormatBool(opts.DevMode),
+			"action":    "try",
+			"snap-path": snapdir,
+			"devmode":   strconv.FormatBool(opts.DevMode),
 		})
 
 		c.Check(cs.req.Method, check.Equals, "POST")

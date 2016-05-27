@@ -107,7 +107,7 @@ func (client *Client) Try(path string, options *SnapOptions) (changeID string, e
 	buf := bytes.NewBuffer(nil)
 	mw := multipart.NewWriter(buf)
 	mw.WriteField("action", "try")
-	mw.WriteField("try", path)
+	mw.WriteField("snap-path", path)
 	mw.WriteField("devmode", strconv.FormatBool(options.DevMode))
 	mw.Close()
 
