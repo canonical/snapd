@@ -107,6 +107,7 @@ type Info struct {
 	Epoch            string
 	Confinement      ConfinementType
 	Apps             map[string]*AppInfo
+	Hooks            map[string]*HookInfo
 	Plugs            map[string]*PlugInfo
 	Slots            map[string]*SlotInfo
 
@@ -188,6 +189,7 @@ type PlugInfo struct {
 	Attrs     map[string]interface{}
 	Label     string
 	Apps      map[string]*AppInfo
+	Hooks     map[string]*HookInfo
 }
 
 // SlotInfo provides information about a slot.
@@ -225,6 +227,14 @@ type AppInfo struct {
 
 	Plugs map[string]*PlugInfo
 	Slots map[string]*SlotInfo
+}
+
+// HookInfo provides information about a hook.
+type HookInfo struct {
+	Snap *Info
+
+	Name  string
+	Plugs map[string]*PlugInfo
 }
 
 // SecurityTag returns application-specific security tag.
