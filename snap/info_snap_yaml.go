@@ -46,6 +46,7 @@ type snapYaml struct {
 	Plugs            map[string]interface{} `yaml:"plugs,omitempty"`
 	Slots            map[string]interface{} `yaml:"slots,omitempty"`
 	Apps             map[string]appYaml     `yaml:"apps,omitempty"`
+	Hooks            map[string]hookYaml    `yaml:"hooks,omitempty"`
 }
 
 type plugYaml struct {
@@ -82,6 +83,10 @@ type appYaml struct {
 	SocketMode   string `yaml:"socket-mode,omitempty"`
 }
 
+type hookYaml struct {
+	PlugNames []string `yaml:"plugs,omitempty"`
+}
+
 // InfoFromSnapYaml creates a new info based on the given snap.yaml data
 func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	var y snapYaml
@@ -89,7 +94,49 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	if err != nil {
 		return nil, fmt.Errorf("info failed to parse: %s", err)
 	}
-	// Defaults
+
+	snap := infoSkeletonFromSnapYaml(y)
+	setEnvironmentFromSnapYaml(y, snap)
+
+	// Collect top-level definitions of plugs and slots
+	if err := setPlugsFromSnapYaml(y, snap); err != nil {
+		return nil, err
+	}
+	if err := setSlotsFromSnapYaml(y, snap); err != nil {
+		return nil, err
+	}
+
+	// At this point snap.Plugs and snap.Slots only contain globally-declared
+	// plugs and slots. We're about to change that, but we need to remember the
+	// global ones for later, so save their names.
+	globalPlugNames := make([]string, 0, len(snap.Plugs))
+	for plugName := range snap.Plugs {
+		globalPlugNames = append(globalPlugNames, plugName)
+	}
+
+	globalSlotNames := make([]string, 0, len(snap.Slots))
+	for slotName := range snap.Slots {
+		globalSlotNames = append(globalSlotNames, slotName)
+	}
+
+	// Collect all apps and hooks
+	setAppsFromSnapYaml(y, snap)
+	setHooksFromSnapYaml(y, snap)
+
+	// Bind unbound plugs to all apps and hooks
+	bindUnboundPlugs(globalPlugNames, snap)
+
+	// Bind unbound slots to all apps
+	bindUnboundSlots(globalSlotNames, snap)
+
+	// FIXME: validation of the fields
+	return snap, nil
+}
+
+// infoSkeletonFromSnapYaml initializes an Info without apps, hook, plugs, or
+// slots
+func infoSkeletonFromSnapYaml(y snapYaml) *Info {
+	// Prepare defaults
 	architectures := []string{"all"}
 	if len(y.Architectures) != 0 {
 		architectures = y.Architectures
@@ -106,7 +153,8 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	if y.Confinement != "" {
 		confinement = y.Confinement
 	}
-	// Construct snap skeleton, without apps, plugs and slots
+
+	// Construct snap skeleton without apps, hooks, plugs, or slots
 	snap := &Info{
 		SuggestedName:       y.Name,
 		Version:             y.Version,
@@ -120,20 +168,28 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 		Epoch:               epoch,
 		Confinement:         confinement,
 		Apps:                make(map[string]*AppInfo),
+		Hooks:               make(map[string]*HookInfo),
 		Plugs:               make(map[string]*PlugInfo),
 		Slots:               make(map[string]*SlotInfo),
 		Environment:         make(map[string]string),
 	}
+
 	sort.Strings(snap.Assumes)
-	// Environment
+
+	return snap
+}
+
+func setEnvironmentFromSnapYaml(y snapYaml, snap *Info) {
 	for k, v := range y.Environment {
 		snap.Environment[k] = v
 	}
-	// Collect top-level definitions of plugs
+}
+
+func setPlugsFromSnapYaml(y snapYaml, snap *Info) error {
 	for name, data := range y.Plugs {
 		iface, label, attrs, err := convertToSlotOrPlugData("plug", name, data)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		snap.Plugs[name] = &PlugInfo{
 			Snap:      snap,
@@ -145,12 +201,19 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 		if len(y.Apps) > 0 {
 			snap.Plugs[name].Apps = make(map[string]*AppInfo)
 		}
+		if len(y.Hooks) > 0 {
+			snap.Plugs[name].Hooks = make(map[string]*HookInfo)
+		}
 	}
-	// Collect top-level definitions of slots
+
+	return nil
+}
+
+func setSlotsFromSnapYaml(y snapYaml, snap *Info) error {
 	for name, data := range y.Slots {
 		iface, label, attrs, err := convertToSlotOrPlugData("slot", name, data)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		snap.Slots[name] = &SlotInfo{
 			Snap:      snap,
@@ -163,6 +226,11 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 			snap.Slots[name].Apps = make(map[string]*AppInfo)
 		}
 	}
+
+	return nil
+}
+
+func setAppsFromSnapYaml(y snapYaml, snap *Info) {
 	for appName, yApp := range y.Apps {
 		// Collect all apps
 		app := &AppInfo{
@@ -217,16 +285,72 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 			slot.Apps[appName] = app
 		}
 	}
-	// Bind plugs/slots that are not app-bound to all apps
-	for plugName, plug := range snap.Plugs {
-		if len(plug.Apps) == 0 {
+}
+
+func setHooksFromSnapYaml(y snapYaml, snap *Info) {
+	for hookName, yHook := range y.Hooks {
+		// Collect all hooks
+		hook := &HookInfo{
+			Snap: snap,
+			Name: hookName,
+		}
+		if len(y.Plugs) > 0 || len(yHook.PlugNames) > 0 {
+			hook.Plugs = make(map[string]*PlugInfo)
+		}
+		snap.Hooks[hookName] = hook
+		// Bind all plugs/slots listed in this hook
+		for _, plugName := range yHook.PlugNames {
+			plug, ok := snap.Plugs[plugName]
+			if !ok {
+				// Create implicit plug definitions if required
+				plug = &PlugInfo{
+					Snap:      snap,
+					Name:      plugName,
+					Interface: plugName,
+					Hooks:     make(map[string]*HookInfo),
+				}
+				snap.Plugs[plugName] = plug
+			} else if plug.Hooks == nil {
+				plug.Hooks = make(map[string]*HookInfo)
+			}
+			hook.Plugs[plugName] = plug
+			plug.Hooks[hookName] = hook
+		}
+	}
+}
+
+func bindUnboundPlugs(plugNames []string, snap *Info) error {
+	for _, plugName := range plugNames {
+		plug, ok := snap.Plugs[plugName]
+		if !ok {
+			return fmt.Errorf("no plug named %q", plugName)
+		}
+
+		// A plug is considered unbound if it isn't being used by any apps
+		// or hooks. In which case we bind them to all apps and hooks.
+		if len(plug.Apps) == 0 && len(plug.Hooks) == 0 {
 			for appName, app := range snap.Apps {
 				app.Plugs[plugName] = plug
 				plug.Apps[appName] = app
 			}
+
+			for hookName, hook := range snap.Hooks {
+				hook.Plugs[plugName] = plug
+				plug.Hooks[hookName] = hook
+			}
 		}
 	}
-	for slotName, slot := range snap.Slots {
+
+	return nil
+}
+
+func bindUnboundSlots(slotNames []string, snap *Info) error {
+	for _, slotName := range slotNames {
+		slot, ok := snap.Slots[slotName]
+		if !ok {
+			return fmt.Errorf("no slot named %q", slotName)
+		}
+
 		if len(slot.Apps) == 0 {
 			for appName, app := range snap.Apps {
 				app.Slots[slotName] = slot
@@ -234,8 +358,8 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 			}
 		}
 	}
-	// FIXME: validation of the fields
-	return snap, nil
+
+	return nil
 }
 
 func convertToSlotOrPlugData(plugOrSlot, name string, data interface{}) (iface, label string, attrs map[string]interface{}, err error) {
