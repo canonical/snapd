@@ -733,7 +733,10 @@ func sideloadSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 		flags |= snappy.DeveloperMode
 	}
 
-	if len(form.Value["try"]) > 0 && form.Value["try"][0] != "" {
+	if len(form.Value["action"]) > 0 && form.Value["action"][0] == "try" {
+		if len(form.Value["try"]) == 0 {
+			return BadRequest("need 'try' value in form")
+		}
 		return trySnap(c, r, user, form.Value["try"][0], flags)
 	}
 
