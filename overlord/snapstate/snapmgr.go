@@ -458,6 +458,12 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	// TODO Use ss.Revision to obtain the right info to mount
+	//      instead of assuming the candidate is the right one.
+	if err := m.backend.SetupSnap(ss.SnapPath, snapst.Candidate, ss.Flags); err != nil {
+		return err
+	}
+
 	// record the try mode in the state
 	t.State().Lock()
 	t.Set("old-trymode", snapst.TryMode())
@@ -468,10 +474,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 	Set(t.State(), ss.Name, snapst)
 	t.State().Unlock()
-
-	// TODO Use ss.Revision to obtain the right info to mount
-	//      instead of assuming the candidate is the right one.
-	return m.backend.SetupSnap(ss.SnapPath, snapst.Candidate, ss.Flags)
+	return nil
 }
 
 func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
