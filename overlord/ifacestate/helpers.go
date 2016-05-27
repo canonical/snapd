@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -221,5 +222,13 @@ func setConns(st *state.State, conns map[string]connState) {
 }
 
 var securityBackends = []interfaces.SecurityBackend{
-	&apparmor.Backend{}, &seccomp.Backend{}, &dbus.Backend{}, &udev.Backend{},
+	&seccomp.Backend{}, &dbus.Backend{}, &udev.Backend{},
+}
+
+func init() {
+	switch release.ReleaseInfo.ID {
+	case "ubuntu":
+		// Enable apparmor support when running on Ubuntu
+		securityBackends = append(securityBackends, &apparmor.Backend{})
+	}
 }
