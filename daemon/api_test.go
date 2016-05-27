@@ -707,7 +707,7 @@ func (s *apiSuite) TestSnapsInfoOnePerIntegration(c *check.C) {
 		}
 		c.Check(got["name"], check.Equals, s.name)
 		c.Check(got["version"], check.Equals, s.ver)
-		c.Check(got["revision"], check.Equals, float64(s.rev))
+		c.Check(got["revision"], check.Equals, snap.R(s.rev).String())
 		c.Check(got["developer"], check.Equals, s.dev)
 	}
 }
