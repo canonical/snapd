@@ -178,3 +178,15 @@ Comment=It echos stuff
 Exec=/snap/bin/basic-desktop.echo
 `)
 }
+
+// regression of lp #1574829
+func (s *installSuite) TestInstallsPointsToLoginWhenNotAuthenticated(c *check.C) {
+	cli.ExecCommandErr("snap", "logout")
+
+	expected := "error: access denied (snap login --help)\n"
+
+	actual, err := cli.ExecCommandErr("snap", "install", "hello-world")
+
+	c.Assert(err, check.NotNil)
+	c.Assert(actual, check.Equals, expected)
+}
