@@ -734,10 +734,10 @@ func sideloadSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	if len(form.Value["action"]) > 0 && form.Value["action"][0] == "try" {
-		if len(form.Value["try"]) == 0 {
-			return BadRequest("need 'try' value in form")
+		if len(form.Value["snap-path"]) == 0 {
+			return BadRequest("need 'snap-path' value in form")
 		}
-		return trySnap(c, r, user, form.Value["try"][0], flags)
+		return trySnap(c, r, user, form.Value["snap-path"][0], flags)
 	}
 
 	// find the file for the "snap" form field
