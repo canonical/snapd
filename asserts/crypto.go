@@ -315,29 +315,3 @@ func GenerateKey() (PrivateKey, error) {
 func encodePrivateKey(privKey PrivateKey) ([]byte, error) {
 	return encodeKey(privKey, "private key")
 }
-
-type sealedPrivateKey struct {
-	pubk   *packet.PublicKey
-	signer func([]byte, *packet.Config) (*packet.Signature, error)
-}
-
-func (spk *sealedPrivateKey) PublicKey() PublicKey {
-	return OpenPGPPublicKey(spk.pubk)
-}
-
-func (spk *sealedPrivateKey) keyEncode(w io.Writer) error {
-	return fmt.Errorf("cannot encode a sealed private key")
-}
-
-func (spk *sealedPrivateKey) keyFormat() string {
-	return ""
-}
-
-func (spk *sealedPrivateKey) sign(content []byte, cfg *packet.Config) (*packet.Signature, error) {
-	return spk.signer(content, cfg)
-}
-
-// SealedOpenPGPPrivateKey returns a PrivateKey for database use realized as pair of a opengpg packet.PublicKey and a signer function for the sealed private key part.
-func SealedOpenPGPPrivateKey(pubKey *packet.PublicKey, signer func([]byte, *packet.Config) (*packet.Signature, error)) PrivateKey {
-	return &sealedPrivateKey{pubKey, signer}
-}
