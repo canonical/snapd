@@ -560,6 +560,7 @@ type metadataWrapper struct {
 // ListRefresh returns the available updates for a list of snap identified by fullname with channel.
 func (s *SnapUbuntuStoreRepository) ListRefresh(installed []*RefreshCandidate, auther Authenticator) (snaps []*snap.Info, err error) {
 
+	candidateMap := map[string]*RefreshCandidate{}
 	currentSnaps := make([]currentSnapJson, len(installed))
 	for i, cs := range installed {
 		revision := cs.Revision.N
@@ -573,6 +574,7 @@ func (s *SnapUbuntuStoreRepository) ListRefresh(installed []*RefreshCandidate, a
 			DevMode:  cs.DevMode,
 			Revision: revision,
 		}
+		candidateMap[cs.SnapID] = cs
 	}
 
 	// build input for the updates endpoint
@@ -605,9 +607,14 @@ func (s *SnapUbuntuStoreRepository) ListRefresh(installed []*RefreshCandidate, a
 		return nil, err
 	}
 
-	res := make([]*snap.Info, len(updateData.Payload.Packages))
-	for i, rsnap := range updateData.Payload.Packages {
-		res[i] = infoFromRemote(rsnap)
+	res := make([]*snap.Info, 0, len(updateData.Payload.Packages))
+	for _, rsnap := range updateData.Payload.Packages {
+		// the store also gives us identical revisions, filter those
+		// out, we are not interessted
+		if rsnap.Revision == candidateMap[rsnap.SnapID].Revision {
+			continue
+		}
+		res = append(res, infoFromRemote(rsnap))
 	}
 
 	s.checkStoreResponse(resp)

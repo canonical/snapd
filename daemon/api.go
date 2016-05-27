@@ -418,7 +418,6 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	candidatesInfo := make([]*store.RefreshCandidate, 0, len(found))
-	candidateMap := map[string]*snap.Info{}
 	for _, sn := range found {
 		// FIXME: enable once try-mode lands
 		/*
@@ -441,20 +440,10 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 		candidateMap[sn.info.Name()] = sn.info
 	}
 
-	// the store gives us everything, we need to client side filter
-	// for the updates
 	store := newRemoteRepo()
-	allUpdates, err := store.ListRefresh(candidatesInfo, user.Authenticator())
+	updates, err := store.ListRefresh(candidatesInfo, user.Authenticator())
 	if err != nil {
 		return InternalError("cannot list updates: %v", err)
-	}
-
-	updates := []*snap.Info{}
-	for _, update := range allUpdates {
-		local := candidateMap[update.Name()]
-		if !local.Revision.Unset() && local.Revision != update.Revision {
-			updates = append(updates, update)
-		}
 	}
 
 	return sendStorePackages(route, nil, updates)
