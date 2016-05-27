@@ -250,7 +250,7 @@ void setup_devices_cgroup(const char *appname, struct snappy_udev *udev_s)
 	}
 }
 
-bool is_running_on_classic_ubuntu()
+bool is_running_on_classic_distribution()
 {
 	return (access("/var/lib/dpkg/status", F_OK) == 0);
 }
@@ -506,14 +506,14 @@ int main(int argc, char **argv)
 		// Note that this means that no mount actions inside our
 		// namespace are propagated to the main "/". We need this
 		// both for the private /tmp we create and for the bind
-		// mounts we do on a classic ubuntu system
+		// mounts we do on a classic distribution system
 		//
 		// This also means you can't run an automount daemon unter
 		// this launcher
 		setup_slave_mount_namespace();
 
 		// do the mounting if run on a non-native snappy system
-		if (is_running_on_classic_ubuntu()) {
+		if (is_running_on_classic_distribution()) {
 			setup_snappy_os_mounts();
 		}
 		// set up private mounts
