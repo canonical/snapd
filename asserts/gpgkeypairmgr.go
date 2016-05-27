@@ -21,7 +21,6 @@ package asserts
 
 import (
 	"bytes"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"os/exec"
@@ -110,25 +109,42 @@ func (gkm *gpgKeypairManager) Get(authorityID, keyID string) (PrivateKey, error)
 
 	}
 
-	sign := func(content []byte, cfg *packet.Config) (*packet.Signature, error) {
-		out, err := gkm.gpg(content, "--personal-digest-preferences", "SHA512", "--default-key", fmt.Sprintf("0x%s", hex.EncodeToString(pubKey.Fingerprint[:])), "--detach-sign")
-		if err != nil {
-			return nil, err
-		}
+	return &gpgPrivateKey{gkm, OpenPGPPublicKey(pubKey)}, nil
+}
 
-		sigpkt, err := packet.Read(bytes.NewBuffer(out))
-		if err != nil {
-			return nil, fmt.Errorf("cannot parse gpg produced signature: %v", err)
-		}
+type gpgPrivateKey struct {
+	mgr    *gpgKeypairManager
+	pubKey PublicKey
+}
 
-		sig, ok := sigpkt.(*packet.Signature)
-		if !ok {
-			return nil, fmt.Errorf("cannot parse gpg produced signature: got %T", sigpkt)
-		}
+func (gpk *gpgPrivateKey) PublicKey() PublicKey {
+	return gpk.pubKey
+}
 
-		return sig, nil
+func (gpk *gpgPrivateKey) keyEncode(w io.Writer) error {
+	return fmt.Errorf("cannot encode a gpg private key")
+}
 
+func (gpk *gpgPrivateKey) keyFormat() string {
+	return ""
+}
+
+func (gpk *gpgPrivateKey) sign(content []byte, cfg *packet.Config) (*packet.Signature, error) {
+	out, err := gpk.mgr.gpg(content, "--personal-digest-preferences", "SHA512", "--default-key", "0x"+gpk.pubKey.Fingerprint(), "--detach-sign")
+	if err != nil {
+		return nil, err
 	}
 
-	return SealedOpenPGPPrivateKey(pubKey, sign), nil
+	sigpkt, err := packet.Read(bytes.NewBuffer(out))
+	if err != nil {
+		return nil, fmt.Errorf("cannot parse gpg produced signature: %v", err)
+	}
+
+	sig, ok := sigpkt.(*packet.Signature)
+	if !ok {
+		return nil, fmt.Errorf("cannot parse gpg produced signature: got %T", sigpkt)
+	}
+
+	return sig, nil
+
 }
