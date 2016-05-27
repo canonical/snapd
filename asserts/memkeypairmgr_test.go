@@ -62,12 +62,12 @@ func (mkms *memKeypairMgtSuite) TestGetNotFound(c *C) {
 
 	got, err := mkms.keypairMgr.Get("auth-id1", keyID)
 	c.Check(got, IsNil)
-	c.Check(err, ErrorMatches, "no matching key pair found")
+	c.Check(err, ErrorMatches, "cannot find key pair")
 
 	err = mkms.keypairMgr.Put("auth-id1", pk1)
 	c.Assert(err, IsNil)
 
 	got, err = mkms.keypairMgr.Get("auth-id1", keyID+"x")
 	c.Check(got, IsNil)
-	c.Check(err, ErrorMatches, "no matching key pair found")
+	c.Check(err, ErrorMatches, "cannot find key pair")
 }

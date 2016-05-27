@@ -135,13 +135,13 @@ func (dbs *databaseSuite) TestPublicKeyNotFound(c *C) {
 	keyID := pk.PublicKey().ID()
 
 	_, err := dbs.db.PublicKey("account0", keyID)
-	c.Check(err, ErrorMatches, "no matching key pair found")
+	c.Check(err, ErrorMatches, "cannot find key pair")
 
 	err = dbs.db.ImportKey("account0", pk)
 	c.Assert(err, IsNil)
 
 	_, err = dbs.db.PublicKey("account0", "ff"+keyID)
-	c.Check(err, ErrorMatches, "no matching key pair found")
+	c.Check(err, ErrorMatches, "cannot find key pair")
 }
 
 type checkSuite struct {
@@ -311,7 +311,7 @@ func (safs *signAddFindSuite) TestSignNoPrivateKey(c *C) {
 		"primary-key":  "a",
 	}
 	a1, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, "abcd")
-	c.Assert(err, ErrorMatches, "no matching key pair found")
+	c.Assert(err, ErrorMatches, "cannot find key pair")
 	c.Check(a1, IsNil)
 }
 
