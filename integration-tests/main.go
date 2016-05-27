@@ -77,7 +77,7 @@ func main() {
 			"If this flag is used, the image will be updated and then rolled back before running the tests.")
 		outputDir     = flag.String("output-dir", defaultOutputDir, "Directory where test artifacts will be stored.")
 		shellOnFail   = flag.Bool("shell-fail", false, "Run a shell in the testbed if the suite fails.")
-		testBuildTags = flag.String("test-build-tags", "", "Build tags to be passed to the go test command")
+		testBuildTags = flag.String("test-build-tags", "allsnaps", "Build tags to be passed to the go test command")
 		httpProxy     = flag.String("http-proxy", "", "HTTP proxy to set in the testbed.")
 	)
 
