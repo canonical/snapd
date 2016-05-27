@@ -732,24 +732,37 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindAuthFailed(c *C) {
 }
 
 /* acquired via:
-$ curl -s --data-binary '{"snaps":[{"snap_id":"1e21e12ex4iim2xj1g2ul6f12f1","channel":"stable","revision":1,"devmode":false}],"fields":["snap_id","package_name","revision","version","download_url"]}'  -H 'content-type: application/json' https://search.apps.ubuntu.com/api/v1/metadata
+(against staging "hello-world"):
+$ $ curl -s --data-binary '{"snaps":[{"snap_id":"JtwEnisYi8Mmk51vNLZPSOwSOFLwGdhs","channel":"stable","revision":6}],"fields":["snap_id","package_name","revision","version","download_url"]}'  -H 'content-type: application/json' https://search.apps.staging.ubuntu.com/api/v1/metadata|python -m json.tool
+
+(against production "hello-world")
+$ curl -s --data-binary '{"snaps":[{"snap_id":"buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ","channel":"stable","revision":25,"devmode":false}],"fields":["snap_id","package_name","revision","version","download_url"]}'  -H 'content-type: application/json' https://search.apps.ubuntu.com/api/v1/metadata
 */
-const MockUpdatesJSON = `{"_embedded":
-    {"clickindex:package": [
-        {"package_name": "hello-world.canonical",
-         "download_url": "https://public.apps.staging.ubuntu.com/download-snap/arZm9cHX4iN2mUP1Ea2ImCxGrC6dZftX_2.snap",
-         "_links": {
-             "self": {
-                 "href": "https://search.apps.staging.ubuntu.com/api/v1/package/arZm9cHX4iN2mUP1Ea2ImCxGrC6dZftX"}},
-         "snap_id": "arZm9cHX4iN2mUP1Ea2ImCxGrC6dZftX",
-         "version": "42",
-         "revision": 3}]
+const MockUpdatesJSON = `
+{
+    "_embedded": {
+        "clickindex:package": [
+            {
+                "_links": {
+                    "self": {
+                        "href": "https://search.apps.staging.ubuntu.com/api/v1/package/JtwEnisYi8Mmk51vNLZPSOwSOFLwGdhs"
+                    }
+                },
+                "download_url": "https://public.apps.staging.ubuntu.com/download-snap/JtwEnisYi8Mmk51vNLZPSOwSOFLwGdhs_6.snap",
+                "package_name": "hello-world",
+                "revision": 6,
+                "snap_id": "JtwEnisYi8Mmk51vNLZPSOwSOFLwGdhs",
+                "version": "16.04-1"
+            }
+        ]
     },
     "_links": {
         "curies": [
-            {"href": "https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex#reltype_{rel}",
-             "name": "clickindex",
-             "templated": true}
+            {
+                "href": "https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex#reltype_{rel}",
+                "name": "clickindex",
+                "templated": true
+            }
         ]
     }
 }
@@ -786,9 +799,9 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefresh(c *C) {
 	}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].Name(), Equals, "hello-world.canonical")
-	c.Assert(results[0].Revision, Equals, snap.R(3))
-	c.Assert(results[0].Version, Equals, "42")
+	c.Assert(results[0].Name(), Equals, "hello-world")
+	c.Assert(results[0].Revision, Equals, snap.R(6))
+	c.Assert(results[0].Version, Equals, "16.04-1")
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdateNotSendLocalRevs(c *C) {
