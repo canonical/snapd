@@ -28,13 +28,9 @@ import (
 
 // expose test-only things here
 
-// XXX: just use GenerateKey
-func GeneratePrivateKeyInTest() (*packet.PrivateKey, error) {
-	priv, err := GenerateKey()
-	if err != nil {
-		return nil, err
-	}
-	return priv.(openpgpPrivateKey).privk, nil
+// access internal openpgp lib packet
+func PrivateKeyPacket(pk PrivateKey) *packet.PrivateKey {
+	return pk.(openpgpPrivateKey).privk
 }
 
 // assembleAndSign exposed for tests
@@ -59,8 +55,7 @@ func EncoderAppend(enc *Encoder, encoded []byte) error {
 	return enc.append(encoded)
 }
 
-func makeAccountKeyForTest(authorityID string, pubKey *packet.PublicKey, validYears int) *AccountKey {
-	openPGPPubKey := OpenPGPPublicKey(pubKey)
+func makeAccountKeyForTest(authorityID string, openPGPPubKey PublicKey, validYears int) *AccountKey {
 	return &AccountKey{
 		assertionBase: assertionBase{
 			headers: map[string]string{
@@ -75,11 +70,11 @@ func makeAccountKeyForTest(authorityID string, pubKey *packet.PublicKey, validYe
 	}
 }
 
-func BootstrapAccountKeyForTest(authorityID string, pubKey *packet.PublicKey) *AccountKey {
+func BootstrapAccountKeyForTest(authorityID string, pubKey PublicKey) *AccountKey {
 	return makeAccountKeyForTest(authorityID, pubKey, 9999)
 }
 
-func ExpiredAccountKeyForTest(authorityID string, pubKey *packet.PublicKey) *AccountKey {
+func ExpiredAccountKeyForTest(authorityID string, pubKey PublicKey) *AccountKey {
 	return makeAccountKeyForTest(authorityID, pubKey, 1)
 }
 

@@ -36,7 +36,7 @@ func (mkms *memKeypairMgtSuite) SetUpTest(c *C) {
 }
 
 func (mkms *memKeypairMgtSuite) TestPutAndGet(c *C) {
-	pk1 := asserts.OpenPGPPrivateKey(testPrivKey1)
+	pk1 := testPrivKey1
 	keyID := pk1.PublicKey().ID()
 	err := mkms.keypairMgr.Put("auth-id1", pk1)
 	c.Assert(err, IsNil)
@@ -48,7 +48,7 @@ func (mkms *memKeypairMgtSuite) TestPutAndGet(c *C) {
 }
 
 func (mkms *memKeypairMgtSuite) TestPutAlreadyExists(c *C) {
-	pk1 := asserts.OpenPGPPrivateKey(testPrivKey1)
+	pk1 := testPrivKey1
 	err := mkms.keypairMgr.Put("auth-id1", pk1)
 	c.Assert(err, IsNil)
 
@@ -57,7 +57,7 @@ func (mkms *memKeypairMgtSuite) TestPutAlreadyExists(c *C) {
 }
 
 func (mkms *memKeypairMgtSuite) TestGetNotFound(c *C) {
-	pk1 := asserts.OpenPGPPrivateKey(testPrivKey1)
+	pk1 := testPrivKey1
 	keyID := pk1.PublicKey().ID()
 
 	got, err := mkms.keypairMgr.Get("auth-id1", keyID)
