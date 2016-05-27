@@ -176,12 +176,11 @@ func (x *cmdInstall) Execute([]string) error {
 		name = snapName
 	}
 
-	return listSnaps(&client.ListOptions{
-		Names: []string{name},
-	})
+	return listSnaps([]string{name})
 }
 
 type cmdRefresh struct {
+	List       bool   `long:"list" description:"show available snaps for refresh"`
 	Channel    string `long:"channel" description:"Refresh to the latest on this channel, and track this channel henceforth"`
 	Positional struct {
 		Snap string `positional-arg-name:"<snap>"`
@@ -191,7 +190,7 @@ type cmdRefresh struct {
 func refreshAll() error {
 	// FIXME: move this to snapd instead and have a new refresh-all endpoint
 	cli := Client()
-	updates, err := cli.List(&client.ListOptions{Refresh: true})
+	updates, _, err := cli.FindSnaps(&client.FindOptions{Refresh: true})
 	if err != nil {
 		return fmt.Errorf("cannot list updates: %s", err)
 	}
@@ -220,12 +219,15 @@ func refreshOne(name, channel string) error {
 		return err
 	}
 
-	return listSnaps(&client.ListOptions{
-		Names: []string{name},
-	})
+	return listSnaps([]string{name})
 }
 
 func (x *cmdRefresh) Execute([]string) error {
+	if x.List {
+		return findSnaps(&client.FindOptions{
+			Refresh: true,
+		})
+	}
 	if x.Positional.Snap == "" {
 		return refreshAll()
 	} else {

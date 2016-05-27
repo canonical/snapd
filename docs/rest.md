@@ -183,6 +183,11 @@ Query.
 
 Which channel to search in.
 
+#### `select`
+
+Filter from the given selection. Currently only limiting to refreshable
+snaps is supported via the `refresh` key.
+
 #### Sample result:
 
 [//]: # keep the fields sorted, both in the sample and its description below. Makes scanning easier
@@ -249,11 +254,6 @@ Which channel to search in.
 ## /v2/snaps
 
 ### Parameters:
-
-#### `select`
-
-Filter from the given selection. Currently only limiting to refreshable
-snaps is supported via the `refresh` key.
 
 ### GET
 

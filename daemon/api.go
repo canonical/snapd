@@ -369,6 +369,10 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("%v", err)
 	}
 
+	if r.URL.Query().Get("select") == "refresh" {
+		return storeUpdates(c, r, user)
+	}
+
 	remoteRepo := newRemoteRepo()
 	found, err := remoteRepo.FindSnaps(query.Get("q"), query.Get("channel"), auther)
 	if err != nil {
@@ -479,10 +483,6 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	route := c.d.router.Get(snapCmd.Path)
 	if route == nil {
 		return InternalError("cannot find route for snaps")
-	}
-
-	if r.URL.Query().Get("select") == "refresh" {
-		return storeUpdates(c, r, user)
 	}
 
 	found, err := allLocalSnapInfos(c.d.overlord.State())

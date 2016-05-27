@@ -69,7 +69,7 @@ func (s *listSuite) TestListMustPrintAppVersion(c *check.C) {
 	c.Assert(listOutput, check.Matches, expected)
 }
 
-func (s *listSuite) TestListRefresh(c *check.C) {
+func (s *listSuite) TestRefreshList(c *check.C) {
 	snap := "hello-world"
 
 	common.InstallSnap(c, snap)
@@ -94,11 +94,11 @@ func (s *listSuite) TestListRefresh(c *check.C) {
 
 	refresh.MakeFakeRefreshForSnap(c, snap, blobDir, refresh.NoOp)
 
-	listOutput := cli.ExecCommand(c, "snap", "list", "--refresh")
+	listOutput := cli.ExecCommand(c, "snap", "refresh", "--list")
 	expected := "(?ms)" +
-		"Name +Version +Rev +Developer *\n" +
+		"Name +Version +Summary *\n" +
 		".*" +
-		"^hello-world +(\\d+)(\\.\\d+)\\+fake1 +[0-9]+ +.* *\n" +
+		"^hello-world +(\\d+)(\\.\\d+)\\+fake1.*\n" +
 		".*"
 
 	c.Assert(listOutput, check.Matches, expected)
