@@ -17,26 +17,22 @@
  *
  */
 
-package tool_test
+package asserts_test
 
 import (
 	"bytes"
 	"os/exec"
-	"testing"
 	"time"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/asserts/tool"
 	"github.com/snapcore/snapd/osutil"
 )
 
 type gpgKeypairMgrSuite struct {
 	keypairMgr asserts.KeypairManager
 }
-
-func TestTool(t *testing.T) { TestingT(t) }
 
 var _ = Suite(&gpgKeypairMgrSuite{})
 
@@ -86,7 +82,7 @@ e2iuR6+6eT6HvJWZSx04YOy8EZi83gtfrkCL3mASwB2hon+Sxxa7CkHa4ZQ=
 
 func (gkms *gpgKeypairMgrSuite) SetUpTest(c *C) {
 	homedir := c.MkDir()
-	gkms.keypairMgr = tool.NewGPGKeypairManager(homedir)
+	gkms.keypairMgr = asserts.NewGPGKeypairManager(homedir)
 	// import test key
 	gpg := exec.Command("gpg", "--homedir", homedir, "-q", "--batch", "--import", "--armor")
 	gpg.Stdin = bytes.NewBufferString(testKey)
@@ -103,7 +99,7 @@ func (gkms *gpgKeypairMgrSuite) TestGetPublicKeyLooksGood(c *C) {
 
 func (gkms *gpgKeypairMgrSuite) TestGetNotFound(c *C) {
 	got, err := gkms.keypairMgr.Get("auth-id1", "ffffffffffffffff")
-	c.Check(err, ErrorMatches, "no matching key pair found")
+	c.Check(err, ErrorMatches, `cannot find key "ffffffffffffffff" in GPG keyring`)
 	c.Check(got, IsNil)
 }
 
