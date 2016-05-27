@@ -17,7 +17,7 @@
  *
  */
 
-package tool
+package asserts
 
 import (
 	"bytes"
@@ -28,8 +28,6 @@ import (
 	"strings"
 
 	"golang.org/x/crypto/openpgp/packet"
-
-	"github.com/snapcore/snapd/asserts"
 )
 
 type gpgKeypairManager struct {
@@ -55,7 +53,7 @@ func (gkm *gpgKeypairManager) gpg(input []byte, args ...string) ([]byte, error) 
 	cmd.Stderr = &errBuf
 
 	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("gpg %q failed: %v (%q)", strings.Join(args, " "), err, errBuf.Bytes())
+		return nil, fmt.Errorf("gpg %s failed: %v (%q)", strings.Join(args, " "), err, errBuf.Bytes())
 	}
 
 	return outBuf.Bytes(), nil
@@ -65,24 +63,24 @@ func (gkm *gpgKeypairManager) gpg(input []byte, args ...string) ([]byte, error) 
 // and asking GPG to fallback "~/.gnupg" to default if
 // empty. Importing keys through the keypair manager interface is not
 // supported. Main purpose is allowing signing using keys from a GPG setup.
-func NewGPGKeypairManager(homedir string) asserts.KeypairManager {
+func NewGPGKeypairManager(homedir string) KeypairManager {
 	return &gpgKeypairManager{
 		homedir: homedir,
 	}
 }
 
-func (gkm *gpgKeypairManager) Put(authorityID string, privKey asserts.PrivateKey) error {
+func (gkm *gpgKeypairManager) Put(authorityID string, privKey PrivateKey) error {
 	// NOTE: we don't need this initially at least and this keypair mgr is not for general arbitrary usage
-	return fmt.Errorf("importing key in a GPG keypair manager is not supported")
+	return fmt.Errorf("cannot import private key into GPG keyring")
 }
 
-func (gkm *gpgKeypairManager) Get(authorityID, keyID string) (asserts.PrivateKey, error) {
+func (gkm *gpgKeypairManager) Get(authorityID, keyID string) (PrivateKey, error) {
 	out, err := gkm.gpg(nil, "--batch", "--export", "--export-options", "export-minimal,export-clean,no-export-attributes", "0x"+keyID)
 	if err != nil {
 		return nil, err
 	}
 	if len(out) == 0 {
-		return nil, fmt.Errorf("no matching key pair found")
+		return nil, fmt.Errorf("cannot find key %q in GPG keyring", keyID)
 	}
 
 	var pubKey *packet.PublicKey
@@ -132,5 +130,5 @@ func (gkm *gpgKeypairManager) Get(authorityID, keyID string) (asserts.PrivateKey
 
 	}
 
-	return asserts.SealedOpenPGPPrivateKey(pubKey, sign), nil
+	return SealedOpenPGPPrivateKey(pubKey, sign), nil
 }
