@@ -574,10 +574,11 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Candidate = nil
 	snapst.Active = true
 	oldChannel := snapst.Channel
-	oldTryMode := snapst.TryMode()
 	if ss.Channel != "" {
 		snapst.Channel = ss.Channel
 	}
+	oldTryMode := snapst.TryMode()
+	snapst.SetTryMode(ss.TryMode())
 
 	newInfo, err := readInfo(ss.Name, cand)
 	if err != nil {
@@ -601,8 +602,6 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// record the try mode in the state
-	snapst.SetTryMode(ss.TryMode())
 	// save for undoLinkSnap
 	t.Set("old-trymode", oldTryMode)
 	t.Set("old-channel", oldChannel)
