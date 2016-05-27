@@ -738,20 +738,20 @@ $ $ curl -s --data-binary '{"snaps":[{"snap_id":"JtwEnisYi8Mmk51vNLZPSOwSOFLwGdh
 (against production "hello-world")
 $ curl -s --data-binary '{"snaps":[{"snap_id":"buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ","channel":"stable","revision":25,"devmode":false}],"fields":["snap_id","package_name","revision","version","download_url"]}'  -H 'content-type: application/json' https://search.apps.ubuntu.com/api/v1/metadata
 */
-const MockUpdatesJSON = `
+var MockUpdatesJSON = fmt.Sprintf(`
 {
     "_embedded": {
         "clickindex:package": [
             {
                 "_links": {
                     "self": {
-                        "href": "https://search.apps.staging.ubuntu.com/api/v1/package/JtwEnisYi8Mmk51vNLZPSOwSOFLwGdhs"
+                        "href": "https://search.apps.staging.ubuntu.com/api/v1/package/%[1]s"
                     }
                 },
-                "download_url": "https://public.apps.staging.ubuntu.com/download-snap/JtwEnisYi8Mmk51vNLZPSOwSOFLwGdhs_6.snap",
+                "download_url": "https://public.apps.staging.ubuntu.com/download-snap/%[1].snap",
                 "package_name": "hello-world",
                 "revision": 6,
-                "snap_id": "JtwEnisYi8Mmk51vNLZPSOwSOFLwGdhs",
+                "snap_id": "%[1]s",
                 "version": "16.04-1"
             }
         ]
@@ -766,7 +766,7 @@ const MockUpdatesJSON = `
         ]
     }
 }
-`
+`, helloWorldSnapID)
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefresh(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
