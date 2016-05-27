@@ -92,6 +92,11 @@ dbus (receive, send)
     path=/org/a11y/atspi/**
     peer=(label=unconfined),
 
+# input methods (ibus)
+unix (connect, receive, send)
+     type=stream
+     peer=(addr="@/tmp/ibus/dbus-*"),
+
 # org.freedesktop.Accounts
 dbus (send)
     bus=system
