@@ -77,29 +77,3 @@ foo +4.2 +17 +bar
 	// ensure that the fake server api was actually hit
 	c.Check(n, check.Equals, 1)
 }
-
-func (s *SnapSuite) TestListWithRefreshSendsRefresh(c *check.C) {
-	n := 0
-	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		switch n {
-		case 0:
-			c.Check(r.Method, check.Equals, "GET")
-			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
-			c.Check(r.URL.Query().Get("select"), check.Equals, "refresh")
-			fmt.Fprintln(w, `{"type": "sync", "result": [{"name": "foo", "status": "active", "version": "4.2update1", "developer": "bar", "revision":17}]}`)
-		default:
-			c.Fatalf("expected to get 1 requests, now on %d", n+1)
-		}
-
-		n++
-	})
-	rest, err := snap.Parser().ParseArgs([]string{"list", "--refresh"})
-	c.Assert(err, check.IsNil)
-	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `Name +Version +Rev +Developer
-foo +4.2update1 +17 +bar
-`)
-	c.Check(s.Stderr(), check.Equals, "")
-	// ensure that the fake server api was actually hit
-	c.Check(n, check.Equals, 1)
-}

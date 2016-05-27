@@ -36,14 +36,14 @@ func (cs *clientSuite) TestClientSnapsCallsEndpoint(c *check.C) {
 	c.Check(cs.req.URL.Query(), check.DeepEquals, url.Values{})
 }
 
-func (cs *clientSuite) TestClientListRefreshSetsQuery(c *check.C) {
-	_, _ = cs.cli.List(&client.ListOptions{
+func (cs *clientSuite) TestClientFindRefreshSetsQuery(c *check.C) {
+	_, _, _ = cs.cli.FindSnaps(&client.FindOptions{
 		Refresh: true,
 	})
 	c.Check(cs.req.Method, check.Equals, "GET")
-	c.Check(cs.req.URL.Path, check.Equals, "/v2/snaps")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
 	c.Check(cs.req.URL.Query(), check.DeepEquals, url.Values{
-		"select": []string{"refresh"},
+		"q": []string{""}, "select": []string{"refresh"},
 	})
 }
 
@@ -90,13 +90,13 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 		Type:          client.TypeApp,
 		Version:       "1.0.18",
 	}})
-	otherApps, err := cs.cli.List(&client.ListOptions{Names: []string{"foo"}})
+	otherApps, err := cs.cli.List([]string{"foo"})
 	c.Check(err, check.IsNil)
 	c.Check(otherApps, check.HasLen, 0)
 }
 
 func (cs *clientSuite) TestClientFilterSnaps(c *check.C) {
-	_, _, _ = cs.cli.FindSnaps("foo")
+	_, _, _ = cs.cli.FindSnaps(&client.FindOptions{Query: "foo"})
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
 	c.Check(cs.req.URL.RawQuery, check.Equals, "q=foo")
 }

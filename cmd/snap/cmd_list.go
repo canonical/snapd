@@ -35,7 +35,6 @@ var longListHelp = i18n.G(`
 The list command displays a summary of snaps installed in the current system.`)
 
 type cmdList struct {
-	Refresh    bool `long:"refresh" description:"show available snaps for refresh"`
 	Positional struct {
 		Snaps []string `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
@@ -52,16 +51,12 @@ func (s snapsByName) Less(i, j int) bool { return s[i].Name < s[j].Name }
 func (s snapsByName) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 func (x *cmdList) Execute([]string) error {
-	opts := &client.ListOptions{
-		Refresh: x.Refresh,
-		Names:   x.Positional.Snaps,
-	}
-	return listSnaps(opts)
+	return listSnaps(x.Positional.Snaps)
 }
 
-func listSnaps(opts *client.ListOptions) error {
+func listSnaps(names []string) error {
 	cli := Client()
-	snaps, err := cli.List(opts)
+	snaps, err := cli.List(names)
 	if err != nil {
 		return err
 	}

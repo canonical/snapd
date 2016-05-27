@@ -62,25 +62,15 @@ type ResultInfo struct {
 	SuggestedCurrency string `json:"suggested-currency"`
 }
 
-type ListOptions struct {
+type FindOptions struct {
 	Refresh bool
-	Names   []string
+	Query   string
 }
 
 // ListSnaps returns the list of all snaps installed on the system
 // with names in the given list; if the list is empty, all snaps.
-func (client *Client) List(opts *ListOptions) ([]*Snap, error) {
-	if opts == nil {
-		opts = &ListOptions{}
-	}
-
-	q := url.Values{}
-	if opts.Refresh {
-		q.Set("select", "refresh")
-	}
-	names := opts.Names
-
-	snaps, _, err := client.snapsFromPath("/v2/snaps", q)
+func (client *Client) List(names []string) ([]*Snap, error) {
+	snaps, _, err := client.snapsFromPath("/v2/snaps", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -106,10 +96,16 @@ func (client *Client) List(opts *ListOptions) ([]*Snap, error) {
 
 // FindSnaps returns a list of snaps available for install from the
 // store for this system and that match the query
-func (client *Client) FindSnaps(query string) ([]*Snap, *ResultInfo, error) {
-	q := url.Values{}
+func (client *Client) FindSnaps(opts *FindOptions) ([]*Snap, *ResultInfo, error) {
+	if opts == nil {
+		opts = &FindOptions{}
+	}
 
-	q.Set("q", query)
+	q := url.Values{}
+	q.Set("q", opts.Query)
+	if opts.Refresh {
+		q.Set("select", "refresh")
+	}
 
 	return client.snapsFromPath("/v2/find", q)
 }
