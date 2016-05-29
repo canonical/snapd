@@ -315,3 +315,109 @@ func GenerateKey() (PrivateKey, error) {
 func encodePrivateKey(privKey PrivateKey) ([]byte, error) {
 	return encodeKey(privKey, "private key")
 }
+
+// externally held key pairs
+
+type extPGPPrivateKey struct {
+	pubKey PublicKey
+	doSign func(fingerprint string, content []byte) ([]byte, error)
+}
+
+func newExtPGPPrivateKey(exportedPubKeyStream io.Reader, sign func(fingerprint string, content []byte) ([]byte, error)) (PrivateKey, error) {
+	var pubKey *packet.PublicKey
+
+	rd := packet.NewReader(exportedPubKeyStream)
+	for {
+		pkt, err := rd.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("cannot read exported public key: %v", err)
+		}
+		cand, ok := pkt.(*packet.PublicKey)
+		if ok {
+			if cand.IsSubkey {
+				continue
+			}
+			if pubKey != nil {
+				return nil, fmt.Errorf("cannot select exported public key, found many")
+			}
+			pubKey = cand
+		}
+	}
+
+	if pubKey == nil {
+		return nil, fmt.Errorf("cannot read exported public key: found none (broken export)")
+
+	}
+
+	rsaPubKey, ok := pubKey.PublicKey.(*rsa.PublicKey)
+	if !ok {
+		return nil, fmt.Errorf("not a RSA key")
+	}
+
+	bitLen := rsaPubKey.N.BitLen()
+	if bitLen < 2048 { // XXX: 4096
+		return nil, fmt.Errorf("need at least 2048 bits key, got %d", bitLen)
+	}
+
+	return &extPGPPrivateKey{
+		pubKey: OpenPGPPublicKey(pubKey),
+		doSign: sign,
+	}, nil
+}
+
+func (expk *extPGPPrivateKey) PublicKey() PublicKey {
+	return expk.pubKey
+}
+
+func (expk *extPGPPrivateKey) keyEncode(w io.Writer) error {
+	return fmt.Errorf("cannot access external private key to encode it")
+}
+
+func (expk *extPGPPrivateKey) keyFormat() string {
+	return ""
+}
+
+func (expk *extPGPPrivateKey) sign(content []byte) (*packet.Signature, error) {
+	out, err := expk.doSign(expk.pubKey.Fingerprint(), content)
+	if err != nil {
+		return nil, err
+	}
+
+	const cantUseSig = "cannot use signature: "
+
+	sigpkt, err := packet.Read(bytes.NewBuffer(out))
+	if err != nil {
+		return nil, fmt.Errorf(cantUseSig+"%v", err)
+	}
+
+	sig, ok := sigpkt.(*packet.Signature)
+	if !ok {
+		return nil, fmt.Errorf(cantUseSig+"got %T", sigpkt)
+	}
+
+	opgSig := openpgpSignature{sig}
+
+	sigKeyID := "missing in signature"
+	if sig.IssuerKeyId != nil {
+		sigKeyID = opgSig.KeyID()
+	}
+
+	wantedID := expk.pubKey.ID()
+	if sigKeyID != wantedID {
+		return nil, fmt.Errorf(cantUseSig+"wrong key id (expected %q): %s", wantedID, sigKeyID)
+	}
+
+	if sig.Hash != crypto.SHA512 {
+		return nil, fmt.Errorf(cantUseSig + "expected SHA512 digest")
+	}
+
+	err = expk.pubKey.verify(content, opgSig)
+	if err != nil {
+		return nil, fmt.Errorf(cantUseSig+"it does not verify: %v", err)
+	}
+
+	return sig, nil
+}
