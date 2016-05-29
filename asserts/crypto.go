@@ -358,8 +358,8 @@ func newExtPGPPrivateKey(exportedPubKeyStream io.Reader, sign func(fingerprint s
 	}
 
 	bitLen := rsaPubKey.N.BitLen()
-	if bitLen < 2048 { // XXX: switch to 4096, test key needs adjusting
-		return nil, fmt.Errorf("need at least 2048 bits key, got %d", bitLen)
+	if bitLen < 4096 {
+		return nil, fmt.Errorf("need at least 4096 bits key, got %d", bitLen)
 	}
 
 	return &extPGPPrivateKey{
@@ -386,37 +386,37 @@ func (expk *extPGPPrivateKey) sign(content []byte) (*packet.Signature, error) {
 		return nil, err
 	}
 
-	const cantUseSig = "cannot use signature: "
+	const badSig = "bad externally produced signature: "
 
 	sigpkt, err := packet.Read(bytes.NewBuffer(out))
 	if err != nil {
-		return nil, fmt.Errorf(cantUseSig+"%v", err)
+		return nil, fmt.Errorf(badSig+"%v", err)
 	}
 
 	sig, ok := sigpkt.(*packet.Signature)
 	if !ok {
-		return nil, fmt.Errorf(cantUseSig+"got %T", sigpkt)
+		return nil, fmt.Errorf(badSig+"got %T", sigpkt)
 	}
 
 	opgSig := openpgpSignature{sig}
 
-	sigKeyID := "missing in signature"
-	if sig.IssuerKeyId != nil {
-		sigKeyID = opgSig.KeyID()
+	if sig.IssuerKeyId == nil {
+		return nil, fmt.Errorf(badSig + "no key id in the signature")
 	}
 
+	sigKeyID := opgSig.KeyID()
 	wantedID := expk.pubKey.ID()
 	if sigKeyID != wantedID {
-		return nil, fmt.Errorf(cantUseSig+"wrong key id (expected %q): %s", wantedID, sigKeyID)
+		return nil, fmt.Errorf(badSig+"wrong key id (expected %q): %s", wantedID, sigKeyID)
 	}
 
 	if sig.Hash != crypto.SHA512 {
-		return nil, fmt.Errorf(cantUseSig + "expected SHA512 digest")
+		return nil, fmt.Errorf(badSig + "expected SHA512 digest")
 	}
 
 	err = expk.pubKey.verify(content, opgSig)
 	if err != nil {
-		return nil, fmt.Errorf(cantUseSig+"it does not verify: %v", err)
+		return nil, fmt.Errorf(badSig+"it does not verify: %v", err)
 	}
 
 	return sig, nil

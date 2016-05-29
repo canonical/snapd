@@ -113,3 +113,15 @@ func init() {
 func AccountKeyIsKeyValidAt(ak *AccountKey, when time.Time) bool {
 	return ak.isKeyValidAt(when)
 }
+
+type GPGRunner func(homedir string, input []byte, args ...string) ([]byte, error)
+
+func MockRunGPG(mock func(prev GPGRunner, homedir string, input []byte, args ...string) ([]byte, error)) (restore func()) {
+	prevRunGPG := runGPG
+	runGPG = func(homedir string, input []byte, args ...string) ([]byte, error) {
+		return mock(prevRunGPG, homedir, input, args...)
+	}
+	return func() {
+		runGPG = prevRunGPG
+	}
+}

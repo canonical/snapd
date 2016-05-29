@@ -26,14 +26,10 @@ import (
 	"strings"
 )
 
-type gpgKeypairManager struct {
-	homedir string
-}
-
-func (gkm *gpgKeypairManager) gpg(input []byte, args ...string) ([]byte, error) {
+func runGPGImpl(homedir string, input []byte, args ...string) ([]byte, error) {
 	general := []string{"-q"}
-	if gkm.homedir != "" {
-		general = append([]string{"--homedir", gkm.homedir}, general...)
+	if homedir != "" {
+		general = append([]string{"--homedir", homedir}, general...)
 	}
 	allArgs := append(general, args...)
 
@@ -53,6 +49,16 @@ func (gkm *gpgKeypairManager) gpg(input []byte, args ...string) ([]byte, error) 
 	}
 
 	return outBuf.Bytes(), nil
+}
+
+var runGPG = runGPGImpl
+
+type gpgKeypairManager struct {
+	homedir string
+}
+
+func (gkm *gpgKeypairManager) gpg(input []byte, args ...string) ([]byte, error) {
+	return runGPG(gkm.homedir, input, args...)
 }
 
 // NewGPGKeypairManager creates a new key pair manager backed by a local GnuPG setup using the given GPG homedir,
