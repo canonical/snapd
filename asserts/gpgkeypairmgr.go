@@ -21,14 +21,9 @@ package asserts
 
 import (
 	"bytes"
-	"crypto"
-	"crypto/rsa"
 	"fmt"
-	"io"
 	"os/exec"
 	"strings"
-
-	"golang.org/x/crypto/openpgp/packet"
 )
 
 type gpgKeypairManager struct {
@@ -84,100 +79,18 @@ func (gkm *gpgKeypairManager) Get(authorityID, keyID string) (PrivateKey, error)
 		return nil, fmt.Errorf("cannot find key %q in GPG keyring", keyID)
 	}
 
-	var pubKey *packet.PublicKey
-	rd := packet.NewReader(bytes.NewBuffer(out))
-	for {
-		pkt, err := rd.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return nil, fmt.Errorf("cannot read public part of GPG key pair: %v", err)
-		}
-		cand, ok := pkt.(*packet.PublicKey)
-		if ok {
-			if cand.IsSubkey {
-				continue
-			}
-			if pubKey != nil {
-				return nil, fmt.Errorf("cannot find exactly one key pair with key id %q, found many", keyID)
-			}
-			pubKey = cand
-		}
+	pubKeyBuf := bytes.NewBuffer(out)
+	privKey, err := newExtPGPPrivateKey(pubKeyBuf, gkm.sign)
+	if err != nil {
+		return nil, fmt.Errorf("cannot use GPG key %q: %v", keyID, err)
 	}
-
-	if pubKey == nil {
-		return nil, fmt.Errorf("cannot read public part of GPG key pair: unexpectedly missing")
-
-	}
-
-	rsaPubKey, ok := pubKey.PublicKey.(*rsa.PublicKey)
-	if !ok {
-		return nil, fmt.Errorf("cannot use non-RSA GPG key pair")
-	}
-
-	bitLen := rsaPubKey.N.BitLen()
-	if bitLen < 2048 { // XXX: 4096
-		return nil, fmt.Errorf("cannot use GPG RSA key with less than 2048 bits, got: %d", bitLen)
-	}
-
-	return &gpgPrivateKey{gkm, OpenPGPPublicKey(pubKey)}, nil
+	return privKey, nil
 }
 
 func (gkm *gpgKeypairManager) sign(fingerprint string, content []byte) ([]byte, error) {
-	return gkm.gpg(content, "--personal-digest-preferences", "SHA512", "--default-key", "0x"+fingerprint, "--detach-sign")
-}
-
-type gpgPrivateKey struct {
-	mgr    *gpgKeypairManager
-	pubKey PublicKey
-}
-
-func (gpk *gpgPrivateKey) PublicKey() PublicKey {
-	return gpk.pubKey
-}
-
-func (gpk *gpgPrivateKey) keyEncode(w io.Writer) error {
-	return fmt.Errorf("cannot encode a gpg private key")
-}
-
-func (gpk *gpgPrivateKey) keyFormat() string {
-	return ""
-}
-
-func (gpk *gpgPrivateKey) sign(content []byte) (*packet.Signature, error) {
-	out, err := gpk.mgr.sign(gpk.pubKey.Fingerprint(), content)
+	out, err := gkm.gpg(content, "--personal-digest-preferences", "SHA512", "--default-key", "0x"+fingerprint, "--detach-sign")
 	if err != nil {
 		return nil, fmt.Errorf("cannot sign using GPG: %v", err)
 	}
-
-	sigpkt, err := packet.Read(bytes.NewBuffer(out))
-	if err != nil {
-		return nil, fmt.Errorf("cannot parse GPG signature: %v", err)
-	}
-
-	sig, ok := sigpkt.(*packet.Signature)
-	if !ok {
-		return nil, fmt.Errorf("cannot parse GPG signature: got %T", sigpkt)
-	}
-
-	sigKeyID := "unspecified"
-	if sig.IssuerKeyId != nil {
-		sigKeyID = fmt.Sprintf("%016x", *sig.IssuerKeyId)
-	}
-
-	if sigKeyID != gpk.pubKey.ID() {
-		return nil, fmt.Errorf("cannot use GPG signature: wrong key id %s", sigKeyID)
-	}
-
-	if sig.Hash != crypto.SHA512 {
-		return nil, fmt.Errorf("cannot use GPG signature: expected SHA512 digest")
-	}
-
-	err = gpk.pubKey.verify(content, openpgpSignature{sig})
-	if err != nil {
-		return nil, fmt.Errorf("cannot use GPG signatur as it does not verify: %v", err)
-	}
-
-	return sig, nil
+	return out, nil
 }
