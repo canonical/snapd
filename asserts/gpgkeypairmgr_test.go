@@ -316,6 +316,7 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigningBrokenSignature(c *C) {
 		sig.CreationTime = time.Now()
 		sig.IssuerKeyId = &privk.KeyId
 
+		// poking to break the signature
 		cont := breakSig(sig, input)
 
 		h := sig.Hash.New()
