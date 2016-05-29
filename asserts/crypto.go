@@ -83,12 +83,8 @@ func encodeKey(key keyEncoder, kind string) ([]byte, error) {
 	return encodeFormatAndData(key.keyFormat(), buf.Bytes()), nil
 }
 
-var openpgpConfig = &packet.Config{
-	DefaultHash: crypto.SHA512,
-}
-
 type openpgpSigner interface {
-	sign(content []byte, cfg *packet.Config) (*packet.Signature, error)
+	sign(content []byte) (*packet.Signature, error)
 }
 
 func signContent(content []byte, privateKey PrivateKey) ([]byte, error) {
@@ -97,7 +93,7 @@ func signContent(content []byte, privateKey PrivateKey) ([]byte, error) {
 		panic(fmt.Errorf("not an internally supported PrivateKey: %T", privateKey))
 	}
 
-	sig, err := signer.sign(content, openpgpConfig)
+	sig, err := signer.sign(content)
 	if err != nil {
 		return nil, err
 	}
@@ -267,18 +263,22 @@ func (opgPrivK openpgpPrivateKey) keyEncode(w io.Writer) error {
 	return opgPrivK.privk.Serialize(w)
 }
 
-func (opgPrivK openpgpPrivateKey) sign(content []byte, cfg *packet.Config) (*packet.Signature, error) {
+var openpgpConfig = &packet.Config{
+	DefaultHash: crypto.SHA512,
+}
+
+func (opgPrivK openpgpPrivateKey) sign(content []byte) (*packet.Signature, error) {
 	privk := opgPrivK.privk
 	sig := new(packet.Signature)
 	sig.PubKeyAlgo = privk.PubKeyAlgo
-	sig.Hash = cfg.Hash()
+	sig.Hash = openpgpConfig.Hash()
 	sig.CreationTime = time.Now()
 	sig.IssuerKeyId = &privk.KeyId
 
-	h := cfg.Hash().New()
+	h := openpgpConfig.Hash().New()
 	h.Write(content)
 
-	err := sig.Sign(h, privk, cfg)
+	err := sig.Sign(h, privk, openpgpConfig)
 	if err != nil {
 		return nil, err
 	}
