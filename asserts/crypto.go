@@ -348,7 +348,7 @@ func newExtPGPPrivateKey(exportedPubKeyStream io.Reader, sign func(fingerprint s
 	}
 
 	if pubKey == nil {
-		return nil, fmt.Errorf("cannot read exported public key: found none (broken export)")
+		return nil, fmt.Errorf("cannot read exported public key, found none (broken export)")
 
 	}
 
@@ -358,7 +358,7 @@ func newExtPGPPrivateKey(exportedPubKeyStream io.Reader, sign func(fingerprint s
 	}
 
 	bitLen := rsaPubKey.N.BitLen()
-	if bitLen < 2048 { // XXX: 4096
+	if bitLen < 2048 { // XXX: switch to 4096, test key needs adjusting
 		return nil, fmt.Errorf("need at least 2048 bits key, got %d", bitLen)
 	}
 
