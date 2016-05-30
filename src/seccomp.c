@@ -29,6 +29,7 @@
 
 #include <seccomp.h>
 
+#include "seccomp.h"
 #include "utils.h"
 
 #define SC_MAX_LINE_LENGTH	82	// 80 + '\n' + '\0'
