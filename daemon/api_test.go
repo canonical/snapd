@@ -409,6 +409,7 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 			"id":   "distro-id",
 			"name": "distro-name",
 		},
+		"on-classic": true,
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)

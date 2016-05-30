@@ -183,6 +183,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		"series":     release.Series,
 		"version":    c.d.Version,
 		"os-release": release.ReleaseInfo,
+		"on-classic": release.OnClassic,
 	}
 
 	return SyncResponse(m, nil)
