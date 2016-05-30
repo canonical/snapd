@@ -661,6 +661,7 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	chg := newChange(state, inst.Action+"-snap", msg, tsets)
 	chg.Set("snap-names", []string{inst.snap})
+	chg.Set("api-data", map[string]string{"snap-name": inst.snap})
 	state.EnsureBefore(0)
 
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})

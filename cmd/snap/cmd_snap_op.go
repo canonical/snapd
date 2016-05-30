@@ -68,7 +68,9 @@ func wait(client *client.Client, id string) (*client.Change, error) {
 			case t.ID == lastID:
 				pb.Set(float64(t.Progress.Done))
 			default:
-				pb.Start(t.Summary, float64(t.Progress.Total))
+				var pkgname string
+				chg.Get("snap-name", &pkgname)
+				pb.Start(pkgname+" ", float64(t.Progress.Total))
 				lastID = t.ID
 			}
 			break
