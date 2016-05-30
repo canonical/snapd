@@ -181,7 +181,7 @@ func (cs *clientSuite) TestServerVersionOnClassic(c *check.C) {
 	c.Check(version, check.Equals, ""+
 		"snapd:  2\n"+
 		"series: 16\n"+
-		"ubuntu 16.04")
+		"ubuntu 16.04\n")
 }
 
 func (cs *clientSuite) TestClientIntegration(c *check.C) {
