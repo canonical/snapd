@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/ubuntu-core/snappy/snap"
+	"github.com/snapcore/snapd/snap"
 )
 
 // Plug represents the potential of a given snap to connect to a slot.

@@ -29,8 +29,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/config"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/testutils"
+	"github.com/snapcore/snapd/integration-tests/testutils/config"
+	"github.com/snapcore/snapd/integration-tests/testutils/testutils"
 
 	"gopkg.in/check.v1"
 )
@@ -417,6 +417,20 @@ func (s *cliTestSuite) TestAddOptionsToSnappyCommand(c *check.C) {
 		c.Check(cmdsOut[3], check.Equals, "subcommand")
 		c.Check(cmdsOut[1], check.Equals, "-test.run=^TestRunMain$")
 		c.Check(strings.HasPrefix(cmdsOut[2], "-test.coverprofile="), check.Equals, true)
+	}
+}
+
+func (s *cliTestSuite) TestAddOptionsDoesNotModifyOriginalCmds(c *check.C) {
+	for _, cmd := range s.targetCoverCmds {
+		cmdsIn := []string{cmd, "subcommand1", "subcommand2"}
+
+		_, err := AddOptionsToCommand(cmdsIn)
+
+		c.Check(err, check.IsNil)
+		c.Check(len(cmdsIn), check.Equals, 3)
+		c.Check(cmdsIn[0], check.Equals, cmd)
+		c.Check(cmdsIn[1], check.Equals, "subcommand1")
+		c.Check(cmdsIn[2], check.Equals, "subcommand2")
 	}
 }
 

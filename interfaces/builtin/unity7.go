@@ -20,7 +20,7 @@
 package builtin
 
 import (
-	"github.com/ubuntu-core/snappy/interfaces"
+	"github.com/snapcore/snapd/interfaces"
 )
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/unity7
@@ -91,6 +91,11 @@ dbus (receive, send)
     bus=accessibility
     path=/org/a11y/atspi/**
     peer=(label=unconfined),
+
+# input methods (ibus)
+unix (connect, receive, send)
+     type=stream
+     peer=(addr="@/tmp/ibus/dbus-*"),
 
 # org.freedesktop.Accounts
 dbus (send)

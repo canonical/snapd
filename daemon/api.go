@@ -35,20 +35,21 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/ubuntu-core/snappy/asserts"
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/interfaces"
-	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/overlord/auth"
-	"github.com/ubuntu-core/snappy/overlord/ifacestate"
-	"github.com/ubuntu-core/snappy/overlord/snapstate"
-	"github.com/ubuntu-core/snappy/overlord/state"
-	"github.com/ubuntu-core/snappy/progress"
-	"github.com/ubuntu-core/snappy/release"
-	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snappy"
-	"github.com/ubuntu-core/snappy/store"
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snappy"
+	"github.com/snapcore/snapd/store"
 )
 
 var api = []*Command{
@@ -500,6 +501,7 @@ type snapInstruction struct {
 var snapstateInstall = snapstate.Install
 var snapstateUpdate = snapstate.Update
 var snapstateInstallPath = snapstate.InstallPath
+var snapstateTryPath = snapstate.TryPath
 var snapstateGet = snapstate.Get
 
 var errNothingToInstall = errors.New("nothing to install")
@@ -674,6 +676,34 @@ func newChange(st *state.State, kind, summary string, tsets []*state.TaskSet) *s
 
 const maxReadBuflen = 1024 * 1024
 
+func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, flags snappy.InstallFlags) Response {
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	if !osutil.IsDirectory(trydir) {
+		return BadRequest("cannot try %q: not a snap directory", trydir)
+	}
+
+	info, err := readSnapInfo(trydir)
+	if err != nil {
+		return BadRequest("cannot read snap info for %s: %s", trydir, err)
+	}
+
+	tsets, err := snapstateTryPath(st, info.Name(), trydir, flags)
+	if err != nil {
+		return BadRequest("cannot try %s: %s", trydir, err)
+	}
+
+	msg := fmt.Sprintf(i18n.G("Try %q snap from %q"), info.Name(), trydir)
+	chg := newChange(st, "try-snap", msg, []*state.TaskSet{tsets})
+	chg.Set("api-data", map[string]string{"snap-name": info.Name()})
+
+	st.EnsureBefore(0)
+
+	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+}
+
 func sideloadSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	route := c.d.router.Get(stateChangeCmd.Path)
 	if route == nil {
@@ -701,6 +731,13 @@ func sideloadSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	if len(form.Value["devmode"]) > 0 && form.Value["devmode"][0] == "true" {
 		flags |= snappy.DeveloperMode
+	}
+
+	if len(form.Value["action"]) > 0 && form.Value["action"][0] == "try" {
+		if len(form.Value["snap-path"]) == 0 {
+			return BadRequest("need 'snap-path' value in form")
+		}
+		return trySnap(c, r, user, form.Value["snap-path"][0], flags)
 	}
 
 	// find the file for the "snap" form field

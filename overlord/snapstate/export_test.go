@@ -24,8 +24,8 @@ import (
 
 	"gopkg.in/tomb.v2"
 
-	"github.com/ubuntu-core/snappy/overlord/state"
-	"github.com/ubuntu-core/snappy/snap"
+	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 type ManagerBackend managerBackend
@@ -77,7 +77,7 @@ func MockReadInfo(mock func(name string, si *snap.SideInfo) (*snap.Info, error))
 
 var OpenSnapFileImpl = openSnapFileImpl
 
-func MockOpenSnapFile(mock func(path string, si *snap.SideInfo) (*snap.Info, snap.File, error)) (restore func()) {
+func MockOpenSnapFile(mock func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error)) (restore func()) {
 	openSnapFile = mock
 	return func() { openSnapFile = openSnapFileImpl }
 }

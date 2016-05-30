@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,26 +17,32 @@
  *
  */
 
-// TODO this should be it's own package, but depends on splitting out
-// snap.yaml's
-
-package snappy
+package snap_test
 
 import (
-	"errors"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 
-	"github.com/ubuntu-core/snappy/snap"
+	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapdir"
 )
 
-// getGadget is a convenience function to not go into the details for
-// the business logic for a gadget package in every other function
-var getGadget = getGadgetImpl
+type FileSuite struct{}
 
-func getGadgetImpl() (*snap.Info, error) {
-	gadgets, _ := ActiveSnapsByType(snap.TypeGadget)
-	if len(gadgets) == 1 {
-		return gadgets[0].Info(), nil
-	}
+var _ = Suite(&FileSuite{})
 
-	return nil, errors.New("no gadget snap")
+func (s *FileSuite) TestFileOpenForSnapDir(c *C) {
+	sd := c.MkDir()
+	snapYaml := filepath.Join(sd, "meta", "snap.yaml")
+	err := os.MkdirAll(filepath.Dir(snapYaml), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(snapYaml, []byte(`name: foo`), 0644)
+	c.Assert(err, IsNil)
+
+	f, err := snap.Open(sd)
+	c.Assert(err, IsNil)
+	c.Assert(f, FitsTypeOf, &snapdir.SnapDir{})
 }

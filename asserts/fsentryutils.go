@@ -25,7 +25,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ubuntu-core/snappy/osutil"
+	"github.com/snapcore/snapd/osutil"
 )
 
 // utilities to read/write fs entries

@@ -23,11 +23,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ubuntu-core/snappy/arch"
-	"github.com/ubuntu-core/snappy/overlord/state"
-	"github.com/ubuntu-core/snappy/release"
-	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snappy"
+	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snappy"
 )
 
 // featureSet contains the flag values that can be listed in assumes entries
@@ -51,8 +51,8 @@ func checkAssumes(s *snap.Info) error {
 }
 
 // openSnapFile opens a snap blob returning both a snap.Info completed
-// with sideInfo (if not nil) and a corresponding snap.File.
-func openSnapFileImpl(snapPath string, sideInfo *snap.SideInfo) (*snap.Info, snap.File, error) {
+// with sideInfo (if not nil) and a corresponding snap.Container.
+func openSnapFileImpl(snapPath string, sideInfo *snap.SideInfo) (*snap.Info, snap.Container, error) {
 	snapf, err := snap.Open(snapPath)
 	if err != nil {
 		return nil, nil, err

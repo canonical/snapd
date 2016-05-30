@@ -22,7 +22,7 @@ package overlord
 import (
 	"time"
 
-	"github.com/ubuntu-core/snappy/osutil"
+	"github.com/snapcore/snapd/osutil"
 )
 
 type overlordStateBackend struct {

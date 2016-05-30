@@ -24,7 +24,7 @@ import (
 	"path/filepath"
 	"regexp"
 
-	"github.com/ubuntu-core/snappy/interfaces"
+	"github.com/snapcore/snapd/interfaces"
 )
 
 // BoolFileInterface is the type of all the bool-file interfaces.
