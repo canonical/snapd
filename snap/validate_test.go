@@ -94,6 +94,9 @@ func (s *ValidateSuite) TestValidateHook(c *C) {
 	invalidHooks := []*HookInfo{
 		&HookInfo{Name: ""},
 		&HookInfo{Name: "a a"},
+		&HookInfo{Name: "a--a"},
+		&HookInfo{Name: "-a"},
+		&HookInfo{Name: "a-"},
 		&HookInfo{Name: "0"},
 		&HookInfo{Name: "123"},
 		&HookInfo{Name: "abc0"},
