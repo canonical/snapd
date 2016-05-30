@@ -423,13 +423,10 @@ func storeUpdates(c *Command, r *http.Request) Response {
 
 	candidatesInfo := make([]*store.RefreshCandidate, 0, len(found))
 	for _, sn := range found {
-		// FIXME: enable once try-mode lands
-		/*
-			// snaps in try mode are not considered here
-			if sn.snapst.TryMode() {
-				continue
-			}
-		*/
+		// snaps in try mode are not considered here
+		if sn.snapst.TryMode() {
+			continue
+		}
 
 		// get confinment preference from the snapstate
 		candidatesInfo = append(candidatesInfo, &store.RefreshCandidate{
