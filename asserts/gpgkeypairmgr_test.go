@@ -354,19 +354,19 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigningBrokenSignature(c *C) {
 		{func(sig *packet.Signature, cont []byte) []byte {
 			sig.Hash = crypto.SHA1
 			return cont
-		}, "failed to sign assertion: bad externally produced signature: expected SHA512 digest"},
+		}, "cannot sign assertion: bad GPG produced signature: expected SHA512 digest"},
 		{func(sig *packet.Signature, cont []byte) []byte {
 			sig.IssuerKeyId = nil
 			return cont
-		}, "failed to sign assertion: bad externally produced signature: no key id in the signature"},
+		}, "cannot sign assertion: bad GPG produced signature: no key id in the signature"},
 		{func(sig *packet.Signature, cont []byte) []byte {
 			sig.IssuerKeyId = new(uint64)
 			*sig.IssuerKeyId = 0xffffffffffffffff
 			return cont
-		}, regexp.QuoteMeta(fmt.Sprintf("failed to sign assertion: bad externally produced signature: wrong key id (expected %q): ffffffffffffffff", testKeyID))},
+		}, regexp.QuoteMeta(fmt.Sprintf("cannot sign assertion: bad GPG produced signature: wrong key id (expected %q): ffffffffffffffff", testKeyID))},
 		{func(sig *packet.Signature, cont []byte) []byte {
 			return cont[:5]
-		}, "failed to sign assertion: bad externally produced signature: it does not verify:.*"},
+		}, "cannot sign assertion: bad GPG produced signature: it does not verify:.*"},
 	}
 
 	for _, t := range tests {
@@ -406,5 +406,5 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigningFailure(c *C) {
 	}
 
 	_, err = signDB.Sign(asserts.SnapBuildType, headers, nil, testKeyID)
-	c.Check(err, ErrorMatches, "failed to sign assertion: cannot sign using GPG: boom")
+	c.Check(err, ErrorMatches, "cannot sign assertion: cannot sign using GPG: boom")
 }

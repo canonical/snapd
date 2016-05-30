@@ -86,7 +86,7 @@ func (gkm *gpgKeypairManager) Get(authorityID, keyID string) (PrivateKey, error)
 	}
 
 	pubKeyBuf := bytes.NewBuffer(out)
-	privKey, err := newExtPGPPrivateKey(pubKeyBuf, gkm.sign)
+	privKey, err := newExtPGPPrivateKey(pubKeyBuf, "GPG", gkm.sign)
 	if err != nil {
 		return nil, fmt.Errorf("cannot use GPG key %q: %v", keyID, err)
 	}
