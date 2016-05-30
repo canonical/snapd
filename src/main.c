@@ -42,7 +42,7 @@
 #include "libudev.h"
 
 #include "utils.h"
-#include "seccomp.h"
+#include "seccomp_utils.h"
 
 #define MAX_BUF 1000
 
