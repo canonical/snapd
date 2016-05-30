@@ -182,8 +182,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	m := map[string]interface{}{
 		"series":     release.Series,
 		"version":    c.d.Version,
-		"os-id":      release.ReleaseInfo.ID,
-		"on-classic": release.OnClassic,
+		"os-release": release.ReleaseInfo,
 	}
 
 	return SyncResponse(m, nil)
