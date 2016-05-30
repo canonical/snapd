@@ -736,7 +736,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindAuthFailed(c *C) {
 $ $ curl -s --data-binary '{"snaps":[{"snap_id":"JtwEnisYi8Mmk51vNLZPSOwSOFLwGdhs","channel":"stable","revision":6}],"fields":["snap_id","package_name","revision","version","download_url"]}'  -H 'content-type: application/json' https://search.apps.staging.ubuntu.com/api/v1/metadata|python -m json.tool
 
 (against production "hello-world")
-$ curl -s --data-binary '{"snaps":[{"snap_id":"buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ","channel":"stable","revision":25,"devmode":false}],"fields":["snap_id","package_name","revision","version","download_url"]}'  -H 'content-type: application/json' https://search.apps.ubuntu.com/api/v1/metadata
+$ curl -s --data-binary '{"snaps":[{"snap_id":"buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ","channel":"stable","revision":25,"confinement":"strict"}],"fields":["snap_id","package_name","revision","version","download_url"]}'  -H 'content-type: application/json' https://search.apps.ubuntu.com/api/v1/metadata
 */
 var MockUpdatesJSON = fmt.Sprintf(`
 {
@@ -772,7 +772,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefresh(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		jsonReq, err := ioutil.ReadAll(r.Body)
 		c.Assert(err, IsNil)
-		c.Assert(string(jsonReq), Equals, `{"snaps":[{"snap_id":"`+helloWorldSnapID+`","channel":"stable","revision":1,"epoch":"0","devmode":false}],"fields":["snap_id","package_name","revision","version","download_url"]}`)
+		c.Assert(string(jsonReq), Equals, `{"snaps":[{"snap_id":"`+helloWorldSnapID+`","channel":"stable","revision":1,"epoch":"0","confinement":"strict"}],"fields":["snap_id","package_name","revision","version","download_url"]}`)
 		io.WriteString(w, MockUpdatesJSON)
 	}))
 
@@ -808,7 +808,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdateNotSendLocalRevs(c 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		jsonReq, err := ioutil.ReadAll(r.Body)
 		c.Assert(err, IsNil)
-		c.Assert(string(jsonReq), Equals, `{"snaps":[{"snap_id":"`+helloWorldSnapID+`","channel":"stable","epoch":"0","devmode":false}],"fields":["snap_id","package_name","revision","version","download_url"]}`)
+		c.Assert(string(jsonReq), Equals, `{"snaps":[{"snap_id":"`+helloWorldSnapID+`","channel":"stable","epoch":"0","confinement":"devmode"}],"fields":["snap_id","package_name","revision","version","download_url"]}`)
 		io.WriteString(w, MockUpdatesJSON)
 	}))
 
@@ -830,7 +830,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdateNotSendLocalRevs(c 
 			Channel:  "stable",
 			Revision: snap.R(-2),
 			Epoch:    "0",
-			DevMode:  false,
+			DevMode:  true,
 		},
 	}, nil)
 	c.Assert(err, IsNil)
@@ -844,7 +844,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdatesSetsAuth(c *C) {
 
 		jsonReq, err := ioutil.ReadAll(r.Body)
 		c.Assert(err, IsNil)
-		c.Assert(string(jsonReq), Equals, `{"snaps":[{"snap_id":"`+helloWorldSnapID+`","channel":"stable","revision":1,"epoch":"0","devmode":false}],"fields":["snap_id","package_name","revision","version","download_url"]}`)
+		c.Assert(string(jsonReq), Equals, `{"snaps":[{"snap_id":"`+helloWorldSnapID+`","channel":"stable","revision":1,"epoch":"0","confinement":"strict"}],"fields":["snap_id","package_name","revision","version","download_url"]}`)
 		io.WriteString(w, MockUpdatesJSON)
 	}))
 
