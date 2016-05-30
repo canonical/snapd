@@ -320,10 +320,11 @@ func encodePrivateKey(privKey PrivateKey) ([]byte, error) {
 
 type extPGPPrivateKey struct {
 	pubKey PublicKey
+	from   string
 	doSign func(fingerprint string, content []byte) ([]byte, error)
 }
 
-func newExtPGPPrivateKey(exportedPubKeyStream io.Reader, sign func(fingerprint string, content []byte) ([]byte, error)) (PrivateKey, error) {
+func newExtPGPPrivateKey(exportedPubKeyStream io.Reader, from string, sign func(fingerprint string, content []byte) ([]byte, error)) (PrivateKey, error) {
 	var pubKey *packet.PublicKey
 
 	rd := packet.NewReader(exportedPubKeyStream)
@@ -364,6 +365,7 @@ func newExtPGPPrivateKey(exportedPubKeyStream io.Reader, sign func(fingerprint s
 
 	return &extPGPPrivateKey{
 		pubKey: OpenPGPPublicKey(pubKey),
+		from:   from,
 		doSign: sign,
 	}, nil
 }
@@ -386,7 +388,7 @@ func (expk *extPGPPrivateKey) sign(content []byte) (*packet.Signature, error) {
 		return nil, err
 	}
 
-	const badSig = "bad externally produced signature: "
+	badSig := fmt.Sprintf("bad %s produced signature: ", expk.from)
 
 	sigpkt, err := packet.Read(bytes.NewBuffer(out))
 	if err != nil {
