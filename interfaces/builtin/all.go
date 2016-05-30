@@ -46,6 +46,7 @@ var allInterfaces = []interfaces.Interface{
 	NewX11Interface(),
 	NewOpenglInterface(),
 	NewPulseAudioInterface(),
+	NewCupsControlInterface(),
 }
 
 // Interfaces returns all of the built-in interfaces.
