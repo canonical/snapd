@@ -71,7 +71,7 @@ func (s *ReleaseTestSuite) TestReadOSRelease(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(os.ID, Equals, "ubuntu")
 	c.Assert(os.Name, Equals, "Ubuntu")
-	c.Assert(os.Release, Equals, "18.09")
+	c.Assert(os.VersionID, Equals, "18.09")
 	c.Assert(os.Codename, Equals, "awesome")
 }
 
