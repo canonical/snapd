@@ -37,14 +37,14 @@ import (
 
 const nothingPendingErrorTpl = "error: cannot abort change %s with nothing pending\n"
 
-var _ = check.Suite(&abortSuite{})
+var _ = check.Suite(&abortAutopkgSuite{})
 
-type abortSuite struct {
+type abortAutopkgSuite struct {
 	common.SnappySuite
 }
 
 // SNAP_ABORT_001: --help - print detailed help text for the abort command
-func (s *abortSuite) TestAbortShowHelp(c *check.C) {
+func (s *abortAutopkgSuite) TestAbortShowHelp(c *check.C) {
 	expected := "(?ms)" +
 		"^Usage:\n" +
 		`  snap \[OPTIONS\] abort.*\n` +
@@ -59,7 +59,7 @@ func (s *abortSuite) TestAbortShowHelp(c *check.C) {
 }
 
 // SNAP_ABORT_002: with invalid id
-func (s *abortSuite) TestAbortWithInvalidId(c *check.C) {
+func (s *abortAutopkgSuite) TestAbortWithInvalidId(c *check.C) {
 	id := "10000000"
 
 	expected := fmt.Sprintf(`error: cannot find change with id "%s"\n`, id)
@@ -70,7 +70,7 @@ func (s *abortSuite) TestAbortWithInvalidId(c *check.C) {
 }
 
 // SNAP_ABORT_004: with valid id - error
-func (s *abortSuite) TestAbortWithValidIdInErrorStatus(c *check.C) {
+func (s *abortAutopkgSuite) TestAbortWithValidIdInErrorStatus(c *check.C) {
 	snapName := "hello-world"
 
 	provokeTaskError(c, snapName)
@@ -86,7 +86,7 @@ func (s *abortSuite) TestAbortWithValidIdInErrorStatus(c *check.C) {
 }
 
 // SNAP_ABORT_005: with valid id - doing
-func (s *abortSuite) TestAbortWithValidIdInDoingStatus(c *check.C) {
+func (s *abortAutopkgSuite) TestAbortWithValidIdInDoingStatus(c *check.C) {
 	// install the binaries snap
 	snapPath, err := build.LocalSnap(c, data.BasicBinariesSnapName)
 	defer os.Remove(snapPath)
@@ -130,7 +130,7 @@ func (s *abortSuite) TestAbortWithValidIdInDoingStatus(c *check.C) {
 }
 
 // SNAP_ABORT_006: with valid id - done
-func (s *abortSuite) TestAbortWithValidIdInDoneStatus(c *check.C) {
+func (s *abortAutopkgSuite) TestAbortWithValidIdInDoneStatus(c *check.C) {
 	snapName := "hello-world"
 	common.InstallSnap(c, snapName)
 	defer common.RemoveSnap(c, snapName)

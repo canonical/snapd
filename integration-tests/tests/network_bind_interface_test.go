@@ -29,18 +29,18 @@ import (
 
 const providerURL = "http://127.0.0.1:8081"
 
-var _ = check.Suite(&networkBindInterfaceSuite{
+var _ = check.Suite(&networkBindInterfaceAutopkgSuite{
 	interfaceSuite: interfaceSuite{
 		sampleSnaps: []string{data.NetworkBindConsumerSnapName, data.NetworkConsumerSnapName},
 		slot:        "network-bind",
 		plug:        "network-bind-consumer",
 		autoconnect: true}})
 
-type networkBindInterfaceSuite struct {
+type networkBindInterfaceAutopkgSuite struct {
 	interfaceSuite
 }
 
-func (s *networkBindInterfaceSuite) TestPlugDisconnectionDisablesClientConnection(c *check.C) {
+func (s *networkBindInterfaceAutopkgSuite) TestPlugDisconnectionDisablesClientConnection(c *check.C) {
 	output := cli.ExecCommand(c, "network-consumer", providerURL)
 	c.Assert(output, check.Equals, "ok\n")
 

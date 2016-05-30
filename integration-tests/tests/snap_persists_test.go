@@ -31,13 +31,13 @@ import (
 	"gopkg.in/check.v1"
 )
 
-var _ = check.Suite(&snapPersistsSuite{})
+var _ = check.Suite(&snapPersistsAutopkgSuite{})
 
-type snapPersistsSuite struct {
+type snapPersistsAutopkgSuite struct {
 	common.SnappySuite
 }
 
-func (s *snapPersistsSuite) TestSnapPersistAfterReboot(c *check.C) {
+func (s *snapPersistsAutopkgSuite) TestSnapPersistAfterReboot(c *check.C) {
 	if common.BeforeReboot() {
 		snapPath, err := build.LocalSnap(c, data.BasicSnapName)
 		defer os.Remove(snapPath)

@@ -27,13 +27,13 @@ import (
 	"gopkg.in/check.v1"
 )
 
-var _ = check.Suite(&searchSuite{})
+var _ = check.Suite(&searchAutopkgSuite{})
 
-type searchSuite struct {
+type searchAutopkgSuite struct {
 	common.SnappySuite
 }
 
-func (s *searchSuite) TestSearchMustPrintMatch(c *check.C) {
+func (s *searchAutopkgSuite) TestSearchMustPrintMatch(c *check.C) {
 	// XXX: Summary is empty atm, waiting for store support
 	expected := "(?ms)" +
 		"Name +Version +(Price +)?Summary *\n" +
@@ -49,7 +49,7 @@ func (s *searchSuite) TestSearchMustPrintMatch(c *check.C) {
 }
 
 // SNAP_FIND_001: list all packages available on the store
-func (s *searchSuite) TestFindMustPrintCompleteList(c *check.C) {
+func (s *searchAutopkgSuite) TestFindMustPrintCompleteList(c *check.C) {
 	fullListPattern := "(?ms)" +
 		"Name +Version +(Price +)?Summary *\n" +
 		".*" +
@@ -72,7 +72,7 @@ func (s *searchSuite) TestFindMustPrintCompleteList(c *check.C) {
 }
 
 // SNAP_FIND_002: find packages on store with different name formats
-func (s *searchSuite) TestFindWorksWithDifferentFormats(c *check.C) {
+func (s *searchAutopkgSuite) TestFindWorksWithDifferentFormats(c *check.C) {
 	for _, snapName := range []string{"http", "ubuntu-clock-app", "go-example-webserver"} {
 		expected := "(?ms)" +
 			"Name +Version +(Price +)?Summary *\n" +
@@ -86,7 +86,7 @@ func (s *searchSuite) TestFindWorksWithDifferentFormats(c *check.C) {
 }
 
 // SNAP_FIND_003: --help prints the detailed help test for the command
-func (s *searchSuite) TestFindShowsHelp(c *check.C) {
+func (s *searchAutopkgSuite) TestFindShowsHelp(c *check.C) {
 	expected := "(?ms)" +
 		"^Usage:\n" +
 		`  snap \[OPTIONS\] find.*\n` +

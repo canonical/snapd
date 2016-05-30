@@ -29,14 +29,14 @@ import (
 	"gopkg.in/check.v1"
 )
 
-var _ = check.Suite(&removeSuite{})
+var _ = check.Suite(&removeAutopkgSuite{})
 
-type removeSuite struct {
+type removeAutopkgSuite struct {
 	common.SnappySuite
 }
 
 // SNAP_REMOVE_001: --help prints the detailed help test for the command
-func (s *removeSuite) TestRemoveShowsHelp(c *check.C) {
+func (s *removeAutopkgSuite) TestRemoveShowsHelp(c *check.C) {
 	expected := "(?ms)" +
 		"^Usage:\n" +
 		`  snap \[OPTIONS\] remove.*\n` +
@@ -51,7 +51,7 @@ func (s *removeSuite) TestRemoveShowsHelp(c *check.C) {
 }
 
 // SNAP_REMOVE_002: - invalid pkg name
-func (s *removeSuite) TestRemoveInvalidPackageShowsError(c *check.C) {
+func (s *removeAutopkgSuite) TestRemoveInvalidPackageShowsError(c *check.C) {
 	invalidPkg := "invalid-package-name"
 
 	expected := fmt.Sprintf(`error: cannot remove "%s": cannot find snap "%[1]s"\n`, invalidPkg)
@@ -63,7 +63,7 @@ func (s *removeSuite) TestRemoveInvalidPackageShowsError(c *check.C) {
 }
 
 // SNAP_REMOVE_007: - ubuntu-core
-func (s *removeSuite) TestRemoveUbuntuCoreShowsError(c *check.C) {
+func (s *removeAutopkgSuite) TestRemoveUbuntuCoreShowsError(c *check.C) {
 	expected := `error: cannot remove "ubuntu-core": snap "ubuntu-core" is not removable\n`
 
 	actual, err := cli.ExecCommandErr("sudo", "snap", "remove", "ubuntu-core")

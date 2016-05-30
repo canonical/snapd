@@ -29,14 +29,14 @@ import (
 	"gopkg.in/check.v1"
 )
 
-var _ = check.Suite(&changesSuite{})
+var _ = check.Suite(&changesAutopkgSuite{})
 
-type changesSuite struct {
+type changesAutopkgSuite struct {
 	common.SnappySuite
 }
 
 // SNAP_CHANGES_001: --help prints the detailed help test for the command
-func (s *changesSuite) TestChangesShowsHelp(c *check.C) {
+func (s *changesAutopkgSuite) TestChangesShowsHelp(c *check.C) {
 	expected := "(?ms)" +
 		"^Usage:\n" +
 		`  snap \[OPTIONS\] changes.*\n` +
@@ -51,7 +51,7 @@ func (s *changesSuite) TestChangesShowsHelp(c *check.C) {
 }
 
 // SNAP_CHANGES_004: with invalid id
-func (s *changesSuite) TestChangesWithInvalidIdShowsError(c *check.C) {
+func (s *changesAutopkgSuite) TestChangesWithInvalidIdShowsError(c *check.C) {
 	invalidID := "10000000"
 
 	expected := fmt.Sprintf(`error: cannot find change with id "%s"\n`, invalidID)

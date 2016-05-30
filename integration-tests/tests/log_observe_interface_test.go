@@ -27,17 +27,17 @@ import (
 	"github.com/snapcore/snapd/integration-tests/testutils/data"
 )
 
-var _ = check.Suite(&logObserveInterfaceSuite{
+var _ = check.Suite(&logObserveInterfaceAutopkgSuite{
 	interfaceSuite: interfaceSuite{
 		sampleSnaps: []string{data.LogObserveConsumerSnapName, data.NetworkConsumerSnapName},
 		slot:        "log-observe",
 		plug:        "log-observe-consumer"}})
 
-type logObserveInterfaceSuite struct {
+type logObserveInterfaceAutopkgSuite struct {
 	interfaceSuite
 }
 
-func (s *logObserveInterfaceSuite) TestConnectedPlugAllowsLogObserve(c *check.C) {
+func (s *logObserveInterfaceAutopkgSuite) TestConnectedPlugAllowsLogObserve(c *check.C) {
 	cli.ExecCommand(c, "sudo", "snap", "connect",
 		s.plug+":"+s.slot, "ubuntu-core:"+s.slot)
 
@@ -45,7 +45,7 @@ func (s *logObserveInterfaceSuite) TestConnectedPlugAllowsLogObserve(c *check.C)
 	c.Assert(output, check.Equals, "ok\n")
 }
 
-func (s *logObserveInterfaceSuite) TestDisconnectedPlugDisablesLogObserve(c *check.C) {
+func (s *logObserveInterfaceAutopkgSuite) TestDisconnectedPlugDisablesLogObserve(c *check.C) {
 	output := cli.ExecCommand(c, "network-consumer", "http://127.0.0.1:8081")
 	c.Assert(output, check.Equals, "error accessing log\n")
 }

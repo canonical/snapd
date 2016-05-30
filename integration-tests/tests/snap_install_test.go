@@ -36,13 +36,13 @@ import (
 	"gopkg.in/check.v1"
 )
 
-var _ = check.Suite(&installSuite{})
+var _ = check.Suite(&installAutopkgSuite{})
 
-type installSuite struct {
+type installAutopkgSuite struct {
 	common.SnappySuite
 }
 
-func (s *installSuite) TestInstallAppMustPrintPackageInformation(c *check.C) {
+func (s *installAutopkgSuite) TestInstallAppMustPrintPackageInformation(c *check.C) {
 	snapPath, err := build.LocalSnap(c, data.BasicSnapName)
 	defer os.Remove(snapPath)
 	c.Assert(err, check.IsNil, check.Commentf("Error building local snap: %s", err))
@@ -58,7 +58,7 @@ func (s *installSuite) TestInstallAppMustPrintPackageInformation(c *check.C) {
 	c.Assert(installOutput, check.Matches, expected)
 }
 
-func (s *installSuite) TestCallSuccessfulBinaryFromInstalledSnap(c *check.C) {
+func (s *installAutopkgSuite) TestCallSuccessfulBinaryFromInstalledSnap(c *check.C) {
 	snapPath, err := build.LocalSnap(c, data.BasicBinariesSnapName)
 	defer os.Remove(snapPath)
 	c.Assert(err, check.IsNil, check.Commentf("Error building local snap: %s", err))
@@ -69,7 +69,7 @@ func (s *installSuite) TestCallSuccessfulBinaryFromInstalledSnap(c *check.C) {
 	cli.ExecCommand(c, "basic-binaries.success")
 }
 
-func (s *installSuite) TestCallFailBinaryFromInstalledSnap(c *check.C) {
+func (s *installAutopkgSuite) TestCallFailBinaryFromInstalledSnap(c *check.C) {
 	c.Skip("port to snapd")
 
 	snapPath, err := build.LocalSnap(c, data.BasicBinariesSnapName)
@@ -82,7 +82,7 @@ func (s *installSuite) TestCallFailBinaryFromInstalledSnap(c *check.C) {
 	c.Assert(err, check.NotNil, check.Commentf("The binary did not fail"))
 }
 
-func (s *installSuite) TestInstallUnexistingAppMustPrintError(c *check.C) {
+func (s *installAutopkgSuite) TestInstallUnexistingAppMustPrintError(c *check.C) {
 	output, err := cli.ExecCommandErr("sudo", "snap", "install", "unexisting.canonical")
 
 	c.Check(err, check.NotNil,
@@ -94,7 +94,7 @@ func (s *installSuite) TestInstallUnexistingAppMustPrintError(c *check.C) {
 }
 
 // SNAP_INSTALL_001: --help - print detailed help text for the install command
-func (s *installSuite) TestInstallShowHelp(c *check.C) {
+func (s *installAutopkgSuite) TestInstallShowHelp(c *check.C) {
 	expected := "(?ms)" +
 		"^Usage:\n" +
 		`  snap \[OPTIONS\] install.*\n` +
@@ -109,7 +109,7 @@ func (s *installSuite) TestInstallShowHelp(c *check.C) {
 }
 
 // SNAP_INSTALL_002: without snap name shows error
-func (s *installSuite) TestInstallWithoutSnapNameMustPrintError(c *check.C) {
+func (s *installAutopkgSuite) TestInstallWithoutSnapNameMustPrintError(c *check.C) {
 	expected := "error: the required argument `<snap>` was not provided\n"
 
 	actual, err := cli.ExecCommandErr("snap", "install")
@@ -119,7 +119,7 @@ func (s *installSuite) TestInstallWithoutSnapNameMustPrintError(c *check.C) {
 }
 
 // SNAP_INSTALL_004: with already installed snap name and same version
-func (s *installSuite) TestInstallWithAlreadyInstalledSnapAndSameVersionMustFail(c *check.C) {
+func (s *installAutopkgSuite) TestInstallWithAlreadyInstalledSnapAndSameVersionMustFail(c *check.C) {
 	snapName := "hello-world"
 
 	common.InstallSnap(c, snapName)
@@ -133,7 +133,7 @@ func (s *installSuite) TestInstallWithAlreadyInstalledSnapAndSameVersionMustFail
 }
 
 // SNAP_INSTALL_008: from different channel other than default
-func (s *installSuite) TestInstallFromDifferentChannels(c *check.C) {
+func (s *installAutopkgSuite) TestInstallFromDifferentChannels(c *check.C) {
 	snapName := "hello-world"
 
 	expected := "(?ms).*\n" +
@@ -150,7 +150,7 @@ func (s *installSuite) TestInstallFromDifferentChannels(c *check.C) {
 }
 
 // SNAP_INSTALL_009: with devmode option
-func (s *installSuite) TestInstallWithDevmodeOption(c *check.C) {
+func (s *installAutopkgSuite) TestInstallWithDevmodeOption(c *check.C) {
 	snapName := "hello-world"
 
 	expected := "(?ms).*\n" +
@@ -163,7 +163,7 @@ func (s *installSuite) TestInstallWithDevmodeOption(c *check.C) {
 	c.Assert(actual, check.Matches, expected)
 }
 
-func (s *installSuite) TestInstallsDesktopFile(c *check.C) {
+func (s *installAutopkgSuite) TestInstallsDesktopFile(c *check.C) {
 	snapPath, err := build.LocalSnap(c, data.BasicDesktopSnapName)
 	defer os.Remove(snapPath)
 	c.Assert(err, check.IsNil, check.Commentf("Error building local snap: %s", err))

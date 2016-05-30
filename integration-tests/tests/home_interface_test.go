@@ -31,17 +31,17 @@ import (
 	"gopkg.in/check.v1"
 )
 
-var _ = check.Suite(&homeInterfaceSuite{
+var _ = check.Suite(&homeInterfaceAutopkgSuite{
 	interfaceSuite: interfaceSuite{
 		sampleSnaps: []string{data.HomeConsumerSnapName},
 		slot:        "home",
 		plug:        "home-consumer"}})
 
-type homeInterfaceSuite struct {
+type homeInterfaceAutopkgSuite struct {
 	interfaceSuite
 }
 
-func (s *homeInterfaceSuite) TestPlugDisconnectionDisablesRead(c *check.C) {
+func (s *homeInterfaceAutopkgSuite) TestPlugDisconnectionDisablesRead(c *check.C) {
 	cli.ExecCommand(c, "sudo", "snap", "connect",
 		s.plug+":"+s.slot, "ubuntu-core:"+s.slot)
 
@@ -60,7 +60,7 @@ func (s *homeInterfaceSuite) TestPlugDisconnectionDisablesRead(c *check.C) {
 	c.Assert(output == okOutput, check.Equals, false)
 }
 
-func (s *homeInterfaceSuite) TestPlugDisconnectionDisablesAppend(c *check.C) {
+func (s *homeInterfaceAutopkgSuite) TestPlugDisconnectionDisablesAppend(c *check.C) {
 	cli.ExecCommand(c, "sudo", "snap", "connect",
 		s.plug+":"+s.slot, "ubuntu-core:"+s.slot)
 
@@ -84,7 +84,7 @@ func (s *homeInterfaceSuite) TestPlugDisconnectionDisablesAppend(c *check.C) {
 	c.Assert(err, check.NotNil)
 }
 
-func (s *homeInterfaceSuite) TestPlugDisconnectionDisablesCreate(c *check.C) {
+func (s *homeInterfaceAutopkgSuite) TestPlugDisconnectionDisablesCreate(c *check.C) {
 	cli.ExecCommand(c, "sudo", "snap", "connect",
 		s.plug+":"+s.slot, "ubuntu-core:"+s.slot)
 
@@ -107,7 +107,7 @@ func (s *homeInterfaceSuite) TestPlugDisconnectionDisablesCreate(c *check.C) {
 	c.Assert(err, check.NotNil)
 }
 
-func (s *homeInterfaceSuite) TestReadHiddenFilesForbidden(c *check.C) {
+func (s *homeInterfaceAutopkgSuite) TestReadHiddenFilesForbidden(c *check.C) {
 	cli.ExecCommand(c, "sudo", "snap", "connect",
 		s.plug+":"+s.slot, "ubuntu-core:"+s.slot)
 
@@ -120,7 +120,7 @@ func (s *homeInterfaceSuite) TestReadHiddenFilesForbidden(c *check.C) {
 	c.Assert(output == okOutput, check.Equals, false)
 }
 
-func (s *homeInterfaceSuite) TestWriteHiddenFilesForbidden(c *check.C) {
+func (s *homeInterfaceAutopkgSuite) TestWriteHiddenFilesForbidden(c *check.C) {
 	cli.ExecCommand(c, "sudo", "snap", "connect",
 		s.plug+":"+s.slot, "ubuntu-core:"+s.slot)
 
