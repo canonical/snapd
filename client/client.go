@@ -216,12 +216,24 @@ func (client *Client) ServerVersion() (string, error) {
 		return "unknown", err
 	}
 
-	version := sysInfo.Version
-	if version == "" {
-		version = "unknown"
+	// FIXME: get snap version generated at build time
+	clientVersion := ""
+	if clientVersion == "" {
+		clientVersion = "unknown"
+	}
+	serverVersion := sysInfo.Version
+	if serverVersion == "" {
+		serverVersion = "unknown"
 	}
 
-	return fmt.Sprintf("%s (series %s, os-id: %s)", version, sysInfo.Series, sysInfo.OSRelease.ID), nil
+	versionStr := fmt.Sprintf(""+
+		"snap:   %s\n"+
+		"snapd:  %s\n"+
+		"series: %s\n", clientVersion, serverVersion, sysInfo.Series)
+	if sysInfo.OnClassic {
+		versionStr += fmt.Sprintf("%s %s", sysInfo.OSRelease.ID, sysInfo.OSRelease.VersionID)
+	}
+	return versionStr, nil
 }
 
 // A response produced by the REST API will usually fit in this
@@ -267,10 +279,10 @@ func IsTwoFactorError(err error) bool {
 
 // OSRelease contains information about the system extracted from /etc/os-release.
 type OSRelease struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Release  string `json:"release,omitempty"`
-	Codename string `json:"codename,omitempty"`
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	VersionID string `json:"version-id,omitempty"`
+	Codename  string `json:"codename,omitempty"`
 }
 
 // SysInfo holds system information
@@ -278,6 +290,7 @@ type SysInfo struct {
 	Series    string    `json:"series,omitempty"`
 	Version   string    `json:"version,omitempty"`
 	OSRelease OSRelease `json:"os-release"`
+	OnClassic bool      `json:"on-classic"`
 }
 
 func (rsp *response) err() error {
