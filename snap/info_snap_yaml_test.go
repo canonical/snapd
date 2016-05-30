@@ -205,7 +205,7 @@ apps:
 	})
 }
 
-func (s *YamlSuite) TestUnmarshalPlugsExplicitlyDefinedExplicitlyBoundToOneApp(c *C) {
+func (s *YamlSuite) TestUnmarshalGlobalPlugBoundToOneApp(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
 	info, err := snap.InfoFromSnapYaml([]byte(`
 name: snap
@@ -744,7 +744,7 @@ hooks:
 	})
 }
 
-func (s *YamlSuite) TestUnmarshalPlugsExplicitlyDefinedImplicitlyBoundToHooks(c *C) {
+func (s *YamlSuite) TestUnmarshalGlobalPlugsBindToHooks(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
 	info, err := snap.InfoFromSnapYaml([]byte(`
 name: snap
@@ -778,7 +778,7 @@ hooks:
 	})
 }
 
-func (s *YamlSuite) TestUnmarshalPlugsExplicitlyDefinedExplicitlyBoundToOneHook(c *C) {
+func (s *YamlSuite) TestUnmarshalGlobalPlugBoundToOneHook(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
 	info, err := snap.InfoFromSnapYaml([]byte(`
 name: snap
@@ -817,7 +817,7 @@ hooks:
 	})
 }
 
-func (s *YamlSuite) TestUnmarshalPlugsExplicitlyDefinedExplicitlyBoundToHooks(c *C) {
+func (s *YamlSuite) TestUnmarshalExplicitGlobalPlugBoundToHook(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
 	info, err := snap.InfoFromSnapYaml([]byte(`
 name: snap
@@ -852,7 +852,7 @@ hooks:
 	})
 }
 
-func (s *YamlSuite) TestUnmarshalPlugsExplicitlyDefinedExplicitlyBoundToHookNotApp(c *C) {
+func (s *YamlSuite) TestUnmarshalGlobalPlugBoundToHookNotApp(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
 	info, err := snap.InfoFromSnapYaml([]byte(`
 name: snap
