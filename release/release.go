@@ -32,10 +32,10 @@ var Series = "16"
 
 // OS contains information about the system extracted from /etc/os-release.
 type OS struct {
-	ID       string
-	Name     string
-	Release  string
-	Codename string
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Release  string `json:"release,omitempty"`
+	Codename string `json:"codename,omitempty"`
 }
 
 // ForceDevMode returns true if the distribution doesn't implement required
