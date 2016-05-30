@@ -32,10 +32,10 @@ var Series = "16"
 
 // OS contains information about the system extracted from /etc/os-release.
 type OS struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Release  string `json:"release,omitempty"`
-	Codename string `json:"codename,omitempty"`
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	VersionID string `json:"version-id,omitempty"`
+	Codename  string `json:"codename,omitempty"`
 }
 
 // ForceDevMode returns true if the distribution doesn't implement required
@@ -85,7 +85,7 @@ func readOSRelease() (*OS, error) {
 		}
 		if strings.HasPrefix(line, "VERSION_ID=") {
 			tmp := strings.SplitN(line, "=", 2)
-			osRelease.Release = strings.Trim(tmp[1], "\"")
+			osRelease.VersionID = strings.Trim(tmp[1], "\"")
 		}
 		if strings.HasPrefix(line, "UBUNTU_CODENAME=") {
 			tmp := strings.SplitN(line, "=", 2)
