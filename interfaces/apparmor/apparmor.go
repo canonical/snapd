@@ -33,7 +33,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/snapcore/snapd/dirs"
 )
 
 // LoadProfile loads an apparmor profile from the given file.

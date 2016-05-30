@@ -26,7 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/release"
+	"github.com/snapcore/snapd/release"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -41,39 +41,46 @@ func (s *ReleaseTestSuite) TestSetup(c *C) {
 	c.Check(release.Series, Equals, "16")
 }
 
-func makeMockLSBRelease(c *C) string {
+func mockOSRelease(c *C) string {
 	// FIXME: use AddCleanup here once available so that we
 	//        can do release.SetLSBReleasePath() here directly
-	mockLSBRelease := filepath.Join(c.MkDir(), "mock-lsb-release")
+	mockOSRelease := filepath.Join(c.MkDir(), "mock-os-release")
 	s := `
-DISTRIB_ID=Ubuntu
-DISTRIB_RELEASE=18.09
-DISTRIB_CODENAME=awsome
-DISTRIB_DESCRIPTION=I'm not real!
+NAME="Ubuntu"
+VERSION="18.09 (Awesome Artichoke)"
+ID=ubuntu
+ID_LIKE=debian
+PRETTY_NAME="I'm not real!"
+VERSION_ID="18.09"
+HOME_URL="http://www.ubuntu.com/"
+SUPPORT_URL="http://help.ubuntu.com/"
+BUG_REPORT_URL="http://bugs.launchpad.net/ubuntu/"
+UBUNTU_CODENAME=awesome
 `
-	err := ioutil.WriteFile(mockLSBRelease, []byte(s), 0644)
+	err := ioutil.WriteFile(mockOSRelease, []byte(s), 0644)
 	c.Assert(err, IsNil)
 
-	return mockLSBRelease
+	return mockOSRelease
 }
 
-func (s *ReleaseTestSuite) TestReadLSB(c *C) {
-	reset := release.MockLSBReleasePath(makeMockLSBRelease(c))
+func (s *ReleaseTestSuite) TestReadOSRelease(c *C) {
+	reset := release.MockOSReleasePath(mockOSRelease(c))
 	defer reset()
 
-	lsb, err := release.ReadLSB()
+	os, err := release.ReadOSRelease()
 	c.Assert(err, IsNil)
-	c.Assert(lsb.ID, Equals, "Ubuntu")
-	c.Assert(lsb.Release, Equals, "18.09")
-	c.Assert(lsb.Codename, Equals, "awsome")
+	c.Assert(os.ID, Equals, "ubuntu")
+	c.Assert(os.Name, Equals, "Ubuntu")
+	c.Assert(os.Release, Equals, "18.09")
+	c.Assert(os.Codename, Equals, "awesome")
 }
 
-func (s *ReleaseTestSuite) TestReadLSBNotFound(c *C) {
-	reset := release.MockLSBReleasePath("not-there")
+func (s *ReleaseTestSuite) TestReadOSReleaseNotFound(c *C) {
+	reset := release.MockOSReleasePath("not-there")
 	defer reset()
 
-	_, err := release.ReadLSB()
-	c.Assert(err, ErrorMatches, "cannot read lsb-release:.*")
+	_, err := release.ReadOSRelease()
+	c.Assert(err, ErrorMatches, "cannot read os-release:.*")
 }
 
 func (s *ReleaseTestSuite) TestOnClassic(c *C) {
@@ -84,4 +91,12 @@ func (s *ReleaseTestSuite) TestOnClassic(c *C) {
 	reset = release.MockOnClassic(false)
 	defer reset()
 	c.Assert(release.OnClassic, Equals, false)
+}
+
+func (s *ReleaseTestSuite) TestReleaseInfo(c *C) {
+	reset := release.MockReleaseInfo(&release.OS{
+		ID: "distro-id",
+	})
+	defer reset()
+	c.Assert(release.ReleaseInfo.ID, Equals, "distro-id")
 }

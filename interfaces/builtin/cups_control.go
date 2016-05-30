@@ -19,7 +19,7 @@
 
 package builtin
 
-import "github.com/ubuntu-core/snappy/interfaces"
+import "github.com/snapcore/snapd/interfaces"
 
 const cupsConnectedPlugAppArmor = `
 # Description: Can access cups daemon.

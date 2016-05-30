@@ -20,7 +20,7 @@
 package builtin
 
 import (
-	"github.com/ubuntu-core/snappy/interfaces"
+	"github.com/snapcore/snapd/interfaces"
 )
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/system-observe
@@ -48,6 +48,14 @@ deny ptrace (trace),
 
 # Other miscellaneous accesses for observing the system
 @{PROC}/vmstat r,
+
+# These are not process-specific (/proc/*/... and /proc/*/task/*/...)
+@{PROC}/*/{,task/,task/*/} r,
+@{PROC}/*/{,task/*/}auxv r,
+@{PROC}/*/{,task/*/}cmdline r,
+@{PROC}/*/{,task/*/}stat r,
+@{PROC}/*/{,task/*/}statm r,
+@{PROC}/*/{,task/*/}status r,
 `
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/system-observe

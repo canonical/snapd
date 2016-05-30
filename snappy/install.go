@@ -24,11 +24,11 @@ import (
 	"os"
 	"sort"
 
-	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/progress"
-	"github.com/ubuntu-core/snappy/provisioning"
-	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/store"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/provisioning"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/store"
 )
 
 // SetupFlags can be used to pass additional flags to the install of a
@@ -46,6 +46,8 @@ const (
 	AllowGadget
 	// DeveloperMode will install the snap without confinement
 	DeveloperMode
+	// TryMode indicates the snap is in try (unpacked directory) mode
+	TryMode
 )
 
 func installRemote(mStore *store.SnapUbuntuStoreRepository, remoteSnap *snap.Info, flags InstallFlags, meter progress.Meter) (string, error) {

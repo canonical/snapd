@@ -37,18 +37,18 @@ import (
 
 	"gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/asserts"
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/interfaces"
-	"github.com/ubuntu-core/snappy/overlord/auth"
-	"github.com/ubuntu-core/snappy/overlord/ifacestate"
-	"github.com/ubuntu-core/snappy/overlord/snapstate"
-	"github.com/ubuntu-core/snappy/overlord/state"
-	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/snaptest"
-	"github.com/ubuntu-core/snappy/snappy"
-	"github.com/ubuntu-core/snappy/store"
-	"github.com/ubuntu-core/snappy/testutil"
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snappy"
+	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type apiSuite struct {
@@ -204,11 +204,6 @@ version: %s
 		snapstate.Set(st, name, &snapst)
 	}
 
-	if active {
-		err := snappy.UpdateCurrentSymlink(snapInfo, nil)
-		c.Assert(err, check.IsNil)
-	}
-
 	return snapInfo
 }
 
@@ -359,6 +354,7 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"snapstateInstall",
 		"snapstateUpdate",
 		"snapstateInstallPath",
+		"snapstateTryPath",
 		"snapstateGet",
 		"readSnapInfo",
 	}
@@ -712,7 +708,7 @@ func (s *apiSuite) TestSnapsInfoOnePerIntegration(c *check.C) {
 		}
 		c.Check(got["name"], check.Equals, s.name)
 		c.Check(got["version"], check.Equals, s.ver)
-		c.Check(got["revision"], check.Equals, float64(s.rev))
+		c.Check(got["revision"], check.Equals, snap.R(s.rev).String())
 		c.Check(got["developer"], check.Equals, s.dev)
 	}
 }
@@ -1127,6 +1123,51 @@ func (s *apiSuite) TestSideloadSnapNotValidFormFile(c *check.C) {
 	rsp := sideloadSnap(snapsCmd, req, nil).(*resp)
 	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
 	c.Assert(rsp.Result.(*errorResult).Message, check.Matches, `cannot find "snap" file field in provided multipart/form-data payload`)
+}
+
+func (s *apiSuite) TestTrySnap(c *check.C) {
+	d := newTestDaemon(c)
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
+	req, err := http.NewRequest("POST", "/v2/snaps", nil)
+	c.Assert(err, check.IsNil)
+
+	// mock a try dir
+	tryDir := c.MkDir()
+	snapYaml := filepath.Join(tryDir, "meta", "snap.yaml")
+	err = os.MkdirAll(filepath.Dir(snapYaml), 0755)
+	c.Assert(err, check.IsNil)
+	err = ioutil.WriteFile(snapYaml, []byte("name: foo\nversion: 1.0\n"), 0644)
+	c.Assert(err, check.IsNil)
+
+	tryWasCalled := true
+	snapstateTryPath = func(s *state.State, name, path string, flags snappy.InstallFlags) (*state.TaskSet, error) {
+		tryWasCalled = true
+		t := s.NewTask("fake-install-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	}
+
+	// try the snap
+	rsp := trySnap(snapsCmd, req, nil, tryDir, 0).(*resp)
+	c.Assert(rsp.Type, check.Equals, ResponseTypeAsync)
+	c.Assert(tryWasCalled, check.Equals, true)
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	chg := st.Change(rsp.Change)
+	c.Assert(chg, check.NotNil)
+
+	c.Assert(chg.Tasks(), check.HasLen, 1)
+
+	st.Unlock()
+	<-chg.Ready()
+	st.Lock()
+
+	c.Check(chg.Kind(), check.Equals, "try-snap")
+	c.Check(chg.Summary(), check.Equals, fmt.Sprintf(`Try "%s" snap from %q`, "foo", tryDir))
+
 }
 
 func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]string, expectedFlags snappy.InstallFlags, hasUbuntuCore bool) string {

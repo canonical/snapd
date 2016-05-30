@@ -25,7 +25,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ubuntu-core/snappy/strutil"
+	"github.com/snapcore/snapd/strutil"
 
 	. "gopkg.in/check.v1"
 )

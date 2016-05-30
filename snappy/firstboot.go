@@ -26,9 +26,9 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/osutil"
-	"github.com/ubuntu-core/snappy/progress"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/progress"
 
 	"gopkg.in/yaml.v2"
 )

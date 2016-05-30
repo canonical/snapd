@@ -32,12 +32,12 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/arch"
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/osutil"
-	"github.com/ubuntu-core/snappy/progress"
-	"github.com/ubuntu-core/snappy/release"
-	"github.com/ubuntu-core/snappy/testutil"
+	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type CreateTestSuite struct {
@@ -78,16 +78,12 @@ func (t *CreateTestSuite) SetUpTest(c *C) {
 }
 
 func makeMockLxdIndexSystem() string {
-	lsb, err := release.ReadLSB()
-	if err != nil {
-		panic(err)
-	}
 	arch := arch.UbuntuArchitecture()
 
 	s := fmt.Sprintf(`
 ubuntu;xenial;otherarch;default;20151126_03:49;/images/ubuntu/xenial/armhf/default/20151126_03:49/
 ubuntu;%s;%s;default;20151126_03:49;/images/ubuntu/CODENAME/ARCH/default/20151126_03:49/
-`, lsb.Codename, arch)
+`, release.ReleaseInfo.Codename, arch)
 
 	return s
 }

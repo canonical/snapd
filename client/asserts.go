@@ -27,7 +27,7 @@ import (
 	"net/url"
 	"strconv"
 
-	"github.com/ubuntu-core/snappy/asserts" // for parsing
+	"github.com/snapcore/snapd/asserts" // for parsing
 )
 
 // Ack tries to add an assertion to the system assertion
