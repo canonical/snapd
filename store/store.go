@@ -549,7 +549,12 @@ type currentSnapJson struct {
 	Channel  string `json:"channel"`
 	Revision int    `json:"revision,omitempty"`
 	Epoch    string `json:"epoch"`
-	DevMode  bool   `json:"devmode"`
+
+	// The store expects a "confinement" value {"strict", "devmode"}.
+	// We map this accordingly from our devmode bool, we do not
+	// use the value of the current snap as we are interessted in the
+	// users intention, not the actual value of the snap itself.
+	Confinement snap.ConfinementType `json:"confinement"`
 }
 
 type metadataWrapper struct {
@@ -567,12 +572,17 @@ func (s *SnapUbuntuStoreRepository) ListRefresh(installed []*RefreshCandidate, a
 		if !cs.Revision.Store() {
 			revision = 0
 		}
+		confinement := snap.StrictConfinement
+		if cs.DevMode {
+			confinement = snap.DevmodeConfinement
+		}
+
 		currentSnaps[i] = currentSnapJson{
-			SnapID:   cs.SnapID,
-			Channel:  cs.Channel,
-			Epoch:    cs.Epoch,
-			DevMode:  cs.DevMode,
-			Revision: revision,
+			SnapID:      cs.SnapID,
+			Channel:     cs.Channel,
+			Confinement: confinement,
+			Epoch:       cs.Epoch,
+			Revision:    revision,
 		}
 		candidateMap[cs.SnapID] = cs
 	}
