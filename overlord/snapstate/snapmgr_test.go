@@ -27,14 +27,14 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/osutil"
-	"github.com/ubuntu-core/snappy/overlord/auth"
-	"github.com/ubuntu-core/snappy/overlord/snapstate"
-	"github.com/ubuntu-core/snappy/overlord/state"
-	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/snaptest"
-	"github.com/ubuntu-core/snappy/snappy"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snappy"
 )
 
 func TestSnapManager(t *testing.T) { TestingT(t) }
@@ -76,7 +76,13 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
 	snapstate.SetSnapstateBackend(s.fakeBackend)
 
-	s.reset = snapstate.MockReadInfo(s.fakeBackend.ReadInfo)
+	restore1 := snapstate.MockReadInfo(s.fakeBackend.ReadInfo)
+	restore2 := snapstate.MockOpenSnapFile(s.fakeBackend.OpenSnapFile)
+
+	s.reset = func() {
+		restore2()
+		restore1()
+	}
 
 	s.state.Lock()
 	s.user, err = auth.NewUser(s.state, "username", "macaroon", []string{"discharge"})
@@ -291,9 +297,12 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 			channel:  "some-channel",
 		},
 		fakeOp{
-			op:   "check-snap",
+			op:  "current",
+			old: "<no-current>",
+		},
+		fakeOp{
+			op:   "open-snap-file",
 			name: "downloaded-snap-path",
-			old:  "<no-current>",
 		},
 		fakeOp{
 			op:    "setup-snap",
@@ -392,10 +401,12 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 			channel:  "some-channel",
 		},
 		fakeOp{
-			op:    "check-snap",
-			name:  "downloaded-snap-path",
-			flags: int(snappy.DoInstallGC),
-			old:   "/snap/some-snap/7",
+			op:  "current",
+			old: "/snap/some-snap/7",
+		},
+		fakeOp{
+			op:   "open-snap-file",
+			name: "downloaded-snap-path",
 		},
 		fakeOp{
 			op:    "setup-snap",
@@ -512,10 +523,12 @@ func (s *snapmgrTestSuite) TestUpdateUndoIntegration(c *C) {
 			channel:  "some-channel",
 		},
 		{
-			op:    "check-snap",
-			name:  "downloaded-snap-path",
-			flags: int(snappy.DoInstallGC),
-			old:   "/snap/some-snap/7",
+			op:  "current",
+			old: "/snap/some-snap/7",
+		},
+		{
+			op:   "open-snap-file",
+			name: "downloaded-snap-path",
 		},
 		{
 			op:    "setup-snap",
@@ -632,10 +645,12 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoIntegration(c *C) {
 			channel:  "some-channel",
 		},
 		{
-			op:    "check-snap",
-			name:  "downloaded-snap-path",
-			flags: int(snappy.DoInstallGC),
-			old:   "/snap/some-snap/7",
+			op:  "current",
+			old: "/snap/some-snap/7",
+		},
+		{
+			op:   "open-snap-file",
+			name: "downloaded-snap-path",
 		},
 		{
 			op:    "setup-snap",
@@ -785,6 +800,9 @@ func makeTestSnap(c *C, snapYamlContent string) (snapFilePath string) {
 }
 
 func (s *snapmgrTestSuite) TestInstallFirstLocalIntegration(c *C) {
+	// use the real thing for this one
+	snapstate.MockOpenSnapFile(snapstate.OpenSnapFileImpl)
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -800,10 +818,14 @@ version: 1.0`)
 	s.settle()
 	s.state.Lock()
 
-	// ensure only local install was run, i.e. first action is check-snap
+	// ensure only local install was run, i.e. first actions are pseudo-action current
 	c.Assert(s.fakeBackend.ops, HasLen, 6)
-	c.Check(s.fakeBackend.ops[0].op, Equals, "check-snap")
-	c.Check(s.fakeBackend.ops[0].name, Matches, `.*/mock_1.0_all.snap`)
+	c.Check(s.fakeBackend.ops[0].op, Equals, "current")
+	c.Check(s.fakeBackend.ops[0].old, Equals, "<no-current>")
+	// and setup-snap
+	c.Check(s.fakeBackend.ops[1].op, Equals, "setup-snap")
+	c.Check(s.fakeBackend.ops[1].name, Matches, `.*/mock_1.0_all.snap`)
+	c.Check(s.fakeBackend.ops[1].revno, Equals, snap.R("x1"))
 
 	c.Check(s.fakeBackend.ops[4].op, Equals, "candidate")
 	c.Check(s.fakeBackend.ops[4].sinfo, DeepEquals, snap.SideInfo{Revision: snap.R(-1)})
@@ -836,7 +858,10 @@ version: 1.0`)
 	c.Assert(snapst.LocalRevision, Equals, snap.R(-1))
 }
 
-func (s *snapmgrTestSuite) TestInstallSubequentLocalIntegration(c *C) {
+func (s *snapmgrTestSuite) TestInstallSubsequentLocalIntegration(c *C) {
+	// use the real thing for this one
+	snapstate.MockOpenSnapFile(snapstate.OpenSnapFileImpl)
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -858,10 +883,14 @@ version: 1.0`)
 	s.settle()
 	s.state.Lock()
 
-	// ensure only local install was run, i.e. first action is check-snap
+	// ensure only local install was run, i.e. first action is pseudo-action current
 	c.Assert(s.fakeBackend.ops, HasLen, 7)
-	c.Check(s.fakeBackend.ops[0].op, Equals, "check-snap")
-	c.Check(s.fakeBackend.ops[0].name, Matches, `.*/mock_1.0_all.snap`)
+	c.Check(s.fakeBackend.ops[0].op, Equals, "current")
+	c.Check(s.fakeBackend.ops[0].old, Equals, "/snap/mock/x2")
+	// and setup-snap
+	c.Check(s.fakeBackend.ops[1].op, Equals, "setup-snap")
+	c.Check(s.fakeBackend.ops[1].name, Matches, `.*/mock_1.0_all.snap`)
+	c.Check(s.fakeBackend.ops[1].revno, Equals, snap.R("x3"))
 
 	c.Check(s.fakeBackend.ops[2].op, Equals, "unlink-snap")
 	c.Check(s.fakeBackend.ops[2].name, Equals, "/snap/mock/x2")
@@ -1276,6 +1305,70 @@ func (s *snapmgrQuerySuite) TestAllEmptyAndEmptyNormalisation(c *C) {
 	snapStates, err = snapstate.All(st)
 	c.Assert(err, IsNil)
 	c.Check(snapStates, HasLen, 0)
+}
+
+func (s *snapmgrTestSuite) TestTrySetsTryMode(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// make mock try dir
+	tryYaml := filepath.Join(c.MkDir(), "meta", "snap.yaml")
+	err := os.MkdirAll(filepath.Dir(tryYaml), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(tryYaml, []byte("name: foo\nversion: 1.0"), 0644)
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("try", "try snap")
+	ts, err := snapstate.TryPath(s.state, "foo", filepath.Dir(filepath.Dir(tryYaml)), 0)
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	// verify snap is in TryMode
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "foo", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.TryMode(), Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlag(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// simulate existing state for foo
+	var snapst snapstate.SnapState
+	snapst.Sequence = []*snap.SideInfo{
+		{
+			OfficialName: "foo",
+			Revision:     snap.R(23),
+		},
+	}
+	snapstate.Set(s.state, "foo", &snapst)
+	c.Check(snapst.TryMode(), Equals, false)
+
+	chg := s.state.NewChange("try", "try snap")
+	ts, err := snapstate.TryPath(s.state, "foo", c.MkDir(), 0)
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	last := ts.Tasks()[len(ts.Tasks())-1]
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(last)
+	chg.AddTask(terr)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	// verify snap is not in try mode, the state got undone
+	err = snapstate.Get(s.state, "foo", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.TryMode(), Equals, false)
 }
 
 type snapStateSuite struct{}

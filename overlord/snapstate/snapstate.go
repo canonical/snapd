@@ -24,11 +24,11 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/overlord/state"
-	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snappy"
+	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snappy"
 )
 
 // allow exchange in the tests
@@ -139,6 +139,14 @@ func InstallPath(s *state.State, name, path, channel string, flags snappy.Instal
 	}
 
 	return doInstall(s, snapst.Active, name, path, channel, 0, flags)
+}
+
+// TryPath returns a set of tasks for trying a snap from a file path.
+// Note that the state must be locked by the caller.
+func TryPath(s *state.State, name, path string, flags snappy.InstallFlags) (*state.TaskSet, error) {
+	flags |= snappy.TryMode
+
+	return InstallPath(s, name, path, "", flags)
 }
 
 // Update initiates a change updating a snap.

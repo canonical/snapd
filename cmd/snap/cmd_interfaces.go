@@ -22,7 +22,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/ubuntu-core/snappy/i18n"
+	"github.com/snapcore/snapd/i18n"
 
 	"github.com/jessevdk/go-flags"
 )

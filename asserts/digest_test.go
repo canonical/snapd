@@ -27,7 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/asserts"
+	"github.com/snapcore/snapd/asserts"
 )
 
 type encodeDigestSuite struct{}
@@ -35,14 +35,14 @@ type encodeDigestSuite struct{}
 var _ = Suite(&encodeDigestSuite{})
 
 func (eds *encodeDigestSuite) TestEncodeDigestOK(c *C) {
-	h := crypto.SHA256.New()
+	h := crypto.SHA512.New()
 	h.Write([]byte("some stuff to hash"))
 	digest := h.Sum(nil)
-	encoded, err := asserts.EncodeDigest(crypto.SHA256, digest)
+	encoded, err := asserts.EncodeDigest(crypto.SHA512, digest)
 	c.Assert(err, IsNil)
 
-	c.Check(strings.HasPrefix(encoded, "sha256 "), Equals, true)
-	decoded, err := base64.RawURLEncoding.DecodeString(encoded[len("sha256 "):])
+	c.Check(strings.HasPrefix(encoded, "sha512-"), Equals, true)
+	decoded, err := base64.RawURLEncoding.DecodeString(encoded[len("sha512-"):])
 	c.Assert(err, IsNil)
 	c.Check(decoded, DeepEquals, digest)
 }
@@ -51,6 +51,6 @@ func (eds *encodeDigestSuite) TestEncodeDigestErrors(c *C) {
 	_, err := asserts.EncodeDigest(crypto.SHA1, nil)
 	c.Check(err, ErrorMatches, "unsupported hash")
 
-	_, err = asserts.EncodeDigest(crypto.SHA256, []byte{1, 2})
-	c.Check(err, ErrorMatches, "hash digest by sha256 should be 32 bytes")
+	_, err = asserts.EncodeDigest(crypto.SHA512, []byte{1, 2})
+	c.Check(err, ErrorMatches, "hash digest by sha512 should be 64 bytes")
 }

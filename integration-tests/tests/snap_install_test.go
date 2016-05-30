@@ -26,12 +26,12 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/build"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/data"
-	"github.com/ubuntu-core/snappy/testutil"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/integration-tests/testutils/build"
+	"github.com/snapcore/snapd/integration-tests/testutils/cli"
+	"github.com/snapcore/snapd/integration-tests/testutils/common"
+	"github.com/snapcore/snapd/integration-tests/testutils/data"
+	"github.com/snapcore/snapd/testutil"
 
 	"gopkg.in/check.v1"
 )
@@ -177,4 +177,16 @@ Name=Echo
 Comment=It echos stuff
 Exec=/snap/bin/basic-desktop.echo
 `)
+}
+
+// regression test for lp #1574829
+func (s *installSuite) TestInstallsPointsToLoginWhenNotAuthenticated(c *check.C) {
+	cli.ExecCommandErr("snap", "logout")
+
+	expected := ".*snap login --help.*\n"
+
+	actual, err := cli.ExecCommandErr("snap", "install", "hello-world")
+
+	c.Assert(err, check.NotNil)
+	c.Assert(actual, check.Matches, expected)
 }

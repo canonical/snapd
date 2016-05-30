@@ -20,9 +20,9 @@
 package snap_test
 
 import (
-	"github.com/ubuntu-core/snappy/interfaces/builtin"
-	"github.com/ubuntu-core/snappy/release"
-	"github.com/ubuntu-core/snappy/snap"
+	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 
 	. "gopkg.in/check.v1"
 )

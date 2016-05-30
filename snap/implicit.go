@@ -19,7 +19,7 @@
 
 package snap
 
-import "github.com/ubuntu-core/snappy/release"
+import "github.com/snapcore/snapd/release"
 
 var implicitSlots = []string{
 	"firewall-control",

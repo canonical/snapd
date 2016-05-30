@@ -26,8 +26,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/client"
-	. "github.com/ubuntu-core/snappy/cmd/snap"
+	"github.com/snapcore/snapd/client"
+	. "github.com/snapcore/snapd/cmd/snap"
 )
 
 func (s *SnapSuite) TestInterfacesHelp(c *C) {

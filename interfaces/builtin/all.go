@@ -20,12 +20,13 @@
 package builtin
 
 import (
-	"github.com/ubuntu-core/snappy/interfaces"
+	"github.com/snapcore/snapd/interfaces"
 )
 
 var allInterfaces = []interfaces.Interface{
 	&BoolFileInterface{},
 	&BluezInterface{},
+	&LocationControlInterface{},
 	&LocationObserveInterface{},
 	&NetworkManagerInterface{},
 	NewFirewallControlInterface(),

@@ -20,7 +20,7 @@
 package builtin
 
 import (
-	"github.com/ubuntu-core/snappy/interfaces"
+	"github.com/snapcore/snapd/interfaces"
 )
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/log-observe
@@ -32,7 +32,11 @@ const logObserveConnectedPlugAppArmor = `
 /var/log/** r,
 
 # Allow sysctl -w kernel.printk_ratelimit=#
+/{,usr/}sbin/sysctl ixr,
 @{PROC}/sys/kernel/printk_ratelimit rw,
+
+# Allow resolving kernel seccomp denials
+/usr/bin/scmp_sys_resolver ixr,
 
 # Needed since we are root and the owner/group doesn't match :\
 # So long as we have this, the cap must be reserved.

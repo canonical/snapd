@@ -26,8 +26,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/progress"
-	"github.com/ubuntu-core/snappy/snap"
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/snap"
 )
 
 func (s *SnapTestSuite) TestActiveSnapByType(c *C) {
@@ -165,7 +165,7 @@ func (s *SnapTestSuite) TestPackageNameInstalled(c *C) {
 	c.Assert(ActivateSnap(snap, ag), IsNil)
 
 	c.Check(PackageNameActive("hello-snap"), Equals, true)
-	c.Assert(UnlinkSnap(snap.Info(), ag), IsNil)
+	c.Assert(unlinkSnap(snap.Info(), ag), IsNil)
 	c.Check(PackageNameActive("hello-snap"), Equals, false)
 }
 

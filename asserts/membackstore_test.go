@@ -22,7 +22,7 @@ package asserts_test
 import (
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/asserts"
+	"github.com/snapcore/snapd/asserts"
 )
 
 type memBackstoreSuite struct {

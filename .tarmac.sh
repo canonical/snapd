@@ -7,8 +7,8 @@ export GOPATH=$(mktemp -d)
 trap 'rm -rf "$GOPATH"' EXIT
 
 # this is a hack, but not sure tarmac is golang friendly
-mkdir -p $GOPATH/src/github.com/ubuntu-core/snappy
-cp -a . $GOPATH/src/github.com/ubuntu-core/snappy/
-cd $GOPATH/src/github.com/ubuntu-core/snappy
+mkdir -p $GOPATH/src/github.com/snapcore/snapd
+cp -a . $GOPATH/src/github.com/snapcore/snapd/
+cd $GOPATH/src/github.com/snapcore/snapd
 
 sh -v ./run-checks
