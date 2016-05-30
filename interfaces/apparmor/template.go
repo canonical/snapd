@@ -216,6 +216,18 @@ var defaultTemplate = []byte(`
   @{PROC}/sys/kernel/pid_max r,
   @{PROC}/sys/kernel/random/uuid r,
 
+  # Reads of oom_adj and oom_score_adj are safe
+  owner @{PROC}/@{pid}/oom_{,score_}adj r,
+
+  # Note: for now, don't explicitly deny write access so --devmode isn't broken
+  # but eventually we may conditionally deny this since it allows the process
+  # to increase the oom heuristic of other processes (make them more likely to
+  # be killed). Once AppArmor kernel var is available to solve this properly,
+  # this can safely be allowed since non-root processes won't be able to
+  # decrease the value and root processes will only be able to with
+  # 'capability sys_resource,' which we deny be default.
+  # deny owner @{PROC}/@{pid}/oom_{,score_}adj w,
+
   # Eases hardware assignment (doesn't give anything away)
   /etc/udev/udev.conf r,
   /sys/       r,
