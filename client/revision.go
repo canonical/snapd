@@ -53,16 +53,24 @@ func (r Revision) Store() bool {
 }
 
 func (r Revision) MarshalJSON() ([]byte, error) {
-	return strconv.AppendInt(nil, int64(r.N), 10), nil
+	return []byte(`"` + r.String() + `"`), nil
 }
 
 func (r *Revision) UnmarshalJSON(data []byte) error {
-	n, err := strconv.ParseInt(string(data), 10, 64)
-	if err != nil {
-		return fmt.Errorf("invalid snap revision: %q", data)
+	if len(data) > 0 && data[0] == '"' && data[len(data)-1] == '"' {
+		parsed, err := ParseRevision(string(data[1 : len(data)-1]))
+		if err == nil {
+			*r = parsed
+			return nil
+		}
+	} else {
+		n, err := strconv.ParseInt(string(data), 10, 64)
+		if err == nil {
+			r.N = int(n)
+			return nil
+		}
 	}
-	r.N = int(n)
-	return nil
+	return fmt.Errorf("invalid snap revision: %q", data)
 }
 
 // ParseRevisions returns the representation in r as a revision.

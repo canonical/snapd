@@ -45,6 +45,8 @@ const (
 	AllowGadget
 	// DeveloperMode will install the snap without confinement
 	DeveloperMode
+	// TryMode indicates the snap is in try (unpacked directory) mode
+	TryMode
 )
 
 func installRemote(mStore *store.SnapUbuntuStoreRepository, remoteSnap *snap.Info, flags InstallFlags, meter progress.Meter) (string, error) {

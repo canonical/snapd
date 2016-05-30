@@ -311,7 +311,7 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 
 // ReadInfoFromSnapFile reads the snap information from the given File
 // and completes it with the given side-info if this is not nil.
-func ReadInfoFromSnapFile(snapf File, si *SideInfo) (*Info, error) {
+func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 	meta, err := snapf.ReadFile("meta/snap.yaml")
 	if err != nil {
 		return nil, err
