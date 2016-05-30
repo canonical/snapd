@@ -22,8 +22,9 @@ package builtin
 import "github.com/snapcore/snapd/interfaces"
 
 const cupsConnectedPlugAppArmor = `
-# Description: Can access cups daemon.
-# Usage: reserved
+# Description: Can access cups control socket. This is restricted because it provides
+# privileged access to configure printing.
+
 #include <abstractions/cups-client>
 `
 
