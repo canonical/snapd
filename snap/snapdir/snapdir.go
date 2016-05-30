@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2014-2015 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,25 +17,33 @@
  *
  */
 
-package asserts
+package snapdir
 
 import (
-	"crypto"
-	"encoding/base64"
-	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 )
 
-// EncodeDigest encodes a hash algorithm and a digest to be put in an assertion header.
-func EncodeDigest(hash crypto.Hash, hashDigest []byte) (string, error) {
-	algo := ""
-	switch hash {
-	case crypto.SHA512:
-		algo = "sha512"
-	default:
-		return "", fmt.Errorf("unsupported hash")
-	}
-	if len(hashDigest) != hash.Size() {
-		return "", fmt.Errorf("hash digest by %s should be %d bytes", algo, hash.Size())
-	}
-	return fmt.Sprintf("%s-%s", algo, base64.RawURLEncoding.EncodeToString(hashDigest)), nil
+// SnapDir is the snapdir based snap.
+type SnapDir struct {
+	path string
+}
+
+// Path returns the path of the backing container.
+func (s *SnapDir) Path() string {
+	return s.path
+}
+
+// New returns a new snap directory container.
+func New(path string) *SnapDir {
+	return &SnapDir{path: path}
+}
+
+func (s *SnapDir) Install(targetPath, mountDir string) error {
+	return os.Symlink(s.path, targetPath)
+}
+
+func (s *SnapDir) ReadFile(file string) (content []byte, err error) {
+	return ioutil.ReadFile(filepath.Join(s.path, file))
 }

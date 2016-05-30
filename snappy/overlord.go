@@ -109,13 +109,13 @@ func SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, flags InstallFlags,
 	}
 
 	// generate the mount unit for the squashfs
-	if err := addSquashfsMount(s, inhibitHooks, meter); err != nil {
+	if err := addMountUnit(s, inhibitHooks, meter); err != nil {
 		return s, err
 	}
 
 	// FIXME: special handling is bad 'mkay
 	if s.Type == snap.TypeKernel {
-		if err := extractKernelAssets(s, snapf, flags, meter); err != nil {
+		if err := extractKernelAssets(s, flags, meter); err != nil {
 			return s, fmt.Errorf("cannot install kernel: %s", err)
 		}
 	}
@@ -127,7 +127,7 @@ type interacter interface {
 	Notify(status string)
 }
 
-func addSquashfsMount(s *snap.Info, inhibitHooks bool, inter interacter) error {
+func addMountUnit(s *snap.Info, noMount bool, inter interacter) error {
 	squashfsPath := stripGlobalRootDir(s.MountFile())
 	whereDir := stripGlobalRootDir(s.MountDir())
 
@@ -142,14 +142,14 @@ func addSquashfsMount(s *snap.Info, inhibitHooks bool, inter interacter) error {
 		return err
 	}
 
-	if !inhibitHooks {
+	if !noMount {
 		return sysd.Start(mountUnitName)
 	}
 
 	return nil
 }
 
-func removeSquashfsMount(baseDir string, inter interacter) error {
+func removeMountUnit(baseDir string, inter interacter) error {
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
 	unit := systemd.MountUnitPath(stripGlobalRootDir(baseDir), "mount")
 	if osutil.FileExists(unit) {
@@ -502,7 +502,7 @@ func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideI
 }
 
 // CanInstall checks whether the Snap passes a series of tests required for installation
-func canInstall(s *snap.Info, snapf snap.File, curInfo *snap.Info, allowGadget bool, inter interacter) error {
+func canInstall(s *snap.Info, snapf snap.Container, curInfo *snap.Info, allowGadget bool, inter interacter) error {
 	// verify we have a valid architecture
 	if !arch.IsSupportedArchitecture(s.Architectures) {
 		return &ErrArchitectureNotSupported{s.Architectures}
@@ -545,7 +545,7 @@ func RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error {
 
 	snapPath := s.MountFile()
 	// this also ensures that the mount unit stops
-	if err := removeSquashfsMount(mountDir, meter); err != nil {
+	if err := removeMountUnit(mountDir, meter); err != nil {
 		return err
 	}
 
