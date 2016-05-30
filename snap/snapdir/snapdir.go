@@ -17,26 +17,33 @@
  *
  */
 
-package snappy
+package snapdir
 
 import (
-	"github.com/snapcore/snapd/snap"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 )
 
-// openSnapFile opens a snap blob returning both a snap.Info completed
-// with sideInfo (if not nil) and a corresponding snap.Container.
-func openSnapFile(snapPath string, unsignedOk bool, sideInfo *snap.SideInfo) (*snap.Info, snap.Container, error) {
-	// TODO: what precautions to take if unsignedOk == false ?
+// SnapDir is the snapdir based snap.
+type SnapDir struct {
+	path string
+}
 
-	snapf, err := snap.Open(snapPath)
-	if err != nil {
-		return nil, nil, err
-	}
+// Path returns the path of the backing container.
+func (s *SnapDir) Path() string {
+	return s.path
+}
 
-	info, err := snap.ReadInfoFromSnapFile(snapf, sideInfo)
-	if err != nil {
-		return nil, nil, err
-	}
+// New returns a new snap directory container.
+func New(path string) *SnapDir {
+	return &SnapDir{path: path}
+}
 
-	return info, snapf, nil
+func (s *SnapDir) Install(targetPath, mountDir string) error {
+	return os.Symlink(s.path, targetPath)
+}
+
+func (s *SnapDir) ReadFile(file string) (content []byte, err error) {
+	return ioutil.ReadFile(filepath.Join(s.path, file))
 }

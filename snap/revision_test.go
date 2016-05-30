@@ -63,10 +63,16 @@ func (s revisionSuite) TestJSON(c *C) {
 		r := Revision{n}
 		data, err := json.Marshal(Revision{n})
 		c.Assert(err, IsNil)
-		c.Assert(string(data), Equals, strconv.Itoa(n))
+		c.Assert(string(data), Equals, `"`+r.String()+`"`)
 
 		var got Revision
 		err = json.Unmarshal(data, &got)
+		c.Assert(err, IsNil)
+		c.Assert(got, Equals, r)
+
+		got = Revision{}
+		err = json.Unmarshal([]byte(strconv.Itoa(r.N)), &got)
+		c.Assert(err, IsNil)
 		c.Assert(got, Equals, r)
 	}
 }
