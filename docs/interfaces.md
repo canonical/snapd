@@ -132,3 +132,9 @@ Can manage timeservers directly separate from config ubuntu-core.
 
 Usage: reserved
 
+### cups-control
+
+Can access cups control socket. This is restricted because it provides
+privileged access to configure printing.
+
+Usage: reserved
