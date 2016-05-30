@@ -124,6 +124,7 @@ func main() {
 			"TEST_USER_NAME":     os.Getenv("TEST_USER_NAME"),
 			"TEST_USER_PASSWORD": os.Getenv("TEST_USER_PASSWORD"),
 		},
+		Verbose: *verbose,
 	}
 	if !remoteTestbed {
 		img := &image.Image{
