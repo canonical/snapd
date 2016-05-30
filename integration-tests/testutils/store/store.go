@@ -80,7 +80,8 @@ func NewStore(blobDir string) *Store {
 	mux.HandleFunc("/", rootEndpoint)
 	mux.HandleFunc("/search", store.searchEndpoint)
 	mux.HandleFunc("/package/", store.detailsEndpoint)
-	mux.HandleFunc("/click-metadata", store.bulkEndpoint)
+	mux.HandleFunc("/click-metadata", store.oldBulkEndpoint)
+	mux.HandleFunc("/metadata", store.bulkEndpoint)
 	mux.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(blobDir))))
 
 	return store
@@ -147,6 +148,7 @@ type searchReplyJSON struct {
 
 type detailsReplyJSON struct {
 	Name            string `json:"name"`
+	SnapID          string `json:"snap_id"`
 	PackageName     string `json:"package_name"`
 	Developer       string `json:"origin"`
 	AnonDownloadURL string `json:"anon_download_url"`
@@ -247,11 +249,97 @@ func (s *Store) refreshSnaps() error {
 	return nil
 }
 
+type candidateSnap struct {
+	SnapID string `json:"snap_id"`
+}
+
 type bulkReqJSON struct {
-	Name []string
+	CandidateSnaps []candidateSnap `json:"snaps"`
+	Fields         []string        `json:"fields"`
+}
+
+type payload struct {
+	Packages []detailsReplyJSON `json:"clickindex:package"`
 }
 
 type bulkReplyJSON struct {
+	Payload payload `json:"_embedded"`
+}
+
+// FIXME: find a better way to extract the snapID -> name mapping
+//        for the fake store
+var snapIDtoName = map[string]string{
+	"buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ": "hello-world",
+	"EQPfyVOJF0AZNz9P2IJ6UKwldLFN5TzS": "xkcd-webserver",
+	"b8X2psL1ryVrPt5WEmpYiqfr5emixTd7": "ubuntu-core",
+	"bul8uZn9U3Ll4ke6BMqvNVEZjuJCSQvO": "canonical-pc",
+	"SkKeDk2PRgBrX89DdgULk3pyY5DJo6Jk": "canonical-pc-linux",
+}
+
+func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
+	var pkgs bulkReqJSON
+	var replyData bulkReplyJSON
+
+	decoder := json.NewDecoder(req.Body)
+	if err := decoder.Decode(&pkgs); err != nil {
+		http.Error(w, fmt.Sprintf("can't decode request body: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	s.refreshSnaps()
+
+	// check if we have downloadable snap of the given SnapID
+	for _, pkg := range pkgs.CandidateSnaps {
+
+		name := snapIDtoName[pkg.SnapID]
+		if name == "" {
+			http.Error(w, fmt.Sprintf("unknown snapid: %q", pkg.SnapID), http.StatusBadRequest)
+			return
+		}
+
+		if fn, ok := s.snaps[name]; ok {
+			snapFile, err := snap.Open(fn)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("can not read: %v: %v", fn, err), http.StatusBadRequest)
+				return
+			}
+
+			// TODO: get side-info from a aux file
+			info, err := snap.ReadInfoFromSnapFile(snapFile, nil)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("can get info for: %v: %v", fn, err), http.StatusBadRequest)
+				return
+			}
+
+			replyData.Payload.Packages = append(replyData.Payload.Packages, detailsReplyJSON{
+				Name:            fmt.Sprintf("%s.%s", info.Name(), s.defaultDeveloper),
+				SnapID:          pkg.SnapID,
+				PackageName:     info.Name(),
+				Developer:       defaultDeveloper,
+				DownloadURL:     fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn)),
+				AnonDownloadURL: fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn)),
+				Version:         info.Version,
+				Revision:        makeRevision(info),
+			})
+		}
+	}
+
+	// use indent because this is a development tool, output
+	// should look nice
+	out, err := json.MarshalIndent(replyData, "", "    ")
+	if err != nil {
+		http.Error(w, fmt.Sprintf("can marshal: %v: %v", replyData, err), http.StatusBadRequest)
+		return
+	}
+	w.Write(out)
+
+}
+
+type oldBulkReqJSON struct {
+	Name []string
+}
+
+type oldBulkReplyJSON struct {
 	Status          string `json:"status"`
 	Name            string `json:"name"`
 	PackageName     string `json:"package_name"`
@@ -261,9 +349,9 @@ type bulkReplyJSON struct {
 	Revision        int    `json:"revision"`
 }
 
-func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
-	var pkgs bulkReqJSON
-	var replyData []bulkReplyJSON
+func (s *Store) oldBulkEndpoint(w http.ResponseWriter, req *http.Request) {
+	var pkgs oldBulkReqJSON
+	var replyData []oldBulkReplyJSON
 
 	decoder := json.NewDecoder(req.Body)
 	if err := decoder.Decode(&pkgs); err != nil {
@@ -291,7 +379,7 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 				return
 			}
 
-			replyData = append(replyData, bulkReplyJSON{
+			replyData = append(replyData, oldBulkReplyJSON{
 				Status:          "Published",
 				Name:            fmt.Sprintf("%s.%s", info.Name(), s.defaultDeveloper),
 				PackageName:     info.Name(),
