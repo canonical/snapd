@@ -133,8 +133,8 @@ func (cs *clientSuite) TestClientSysInfo(c *check.C) {
 	cs.rsp = `{"type": "sync", "result":
                      {"series": "16",
                       "version": "2",
-					  "os-release": {"id": "ubuntu", "version-id": "16.04"},
-				      "on-classic": true}}`
+                      "os-release": {"id": "ubuntu", "version-id": "16.04"},
+                      "on-classic": true}}`
 	sysInfo, err := cs.cli.SysInfo()
 	c.Check(err, check.IsNil)
 	c.Check(sysInfo, check.DeepEquals, &client.SysInfo{
@@ -152,7 +152,7 @@ func (cs *clientSuite) TestServerVersion(c *check.C) {
 	cs.rsp = `{"type": "sync", "result":
                      {"series": "16",
                       "version": "2",
-					  "os-release": {"id": "ubuntu", "version-id": "16.04"}}}`
+                      "os-release": {"id": "ubuntu", "version-id": "16.04"}}}`
 	version, err := cs.cli.ServerVersion()
 	c.Check(err, check.IsNil)
 	c.Check(version, check.Equals, ""+
@@ -165,8 +165,8 @@ func (cs *clientSuite) TestServerVersionOnClassic(c *check.C) {
 	cs.rsp = `{"type": "sync", "result":
                      {"series": "16",
                       "version": "2",
-					  "os-release": {"id": "ubuntu", "version-id": "16.04"},
-				      "on-classic": true}}`
+                      "os-release": {"id": "ubuntu", "version-id": "16.04"},
+                      "on-classic": true}}`
 	version, err := cs.cli.ServerVersion()
 	c.Check(err, check.IsNil)
 	c.Check(version, check.Equals, ""+
