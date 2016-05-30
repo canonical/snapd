@@ -125,6 +125,10 @@ func (s *abortSuite) TestAbortWithValidIdInDoingStatus(c *check.C) {
 
 	cli.ExecCommand(c, "sudo", "snap", "abort", doingID)
 
+	err = wait.ForCommand(c,
+		fmt.Sprintf(` +Abort +.*Remove "%s" snap`, data.BasicBinariesSnapName), "snap", "changes")
+	c.Assert(err, check.IsNil)
+
 	abortedID := getAbortedRemoveID(data.BasicBinariesSnapName)
 	c.Assert(doingID, check.Equals, abortedID)
 }
