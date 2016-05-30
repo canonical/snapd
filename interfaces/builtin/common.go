@@ -23,8 +23,8 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/ubuntu-core/snappy/interfaces"
-	"github.com/ubuntu-core/snappy/snap"
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/snap"
 )
 
 type evalSymlinksFn func(string) (string, error)

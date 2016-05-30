@@ -22,17 +22,17 @@ package snappy
 import (
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/progress"
-	"github.com/ubuntu-core/snappy/snap"
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/snap"
 )
 
 func (s *SnapTestSuite) TestUnlinkSnapActiveVsNotActive(c *C) {
 	foo1, foo2 := makeTwoTestSnaps(c, snap.TypeApp)
 
-	err := UnlinkSnap(foo2, &progress.NullProgress{})
+	err := unlinkSnap(foo2, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 
-	err = UnlinkSnap(foo1, &progress.NullProgress{})
+	err = unlinkSnap(foo1, &progress.NullProgress{})
 	c.Assert(err, Equals, ErrSnapNotActive)
 }
 

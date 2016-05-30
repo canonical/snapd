@@ -21,11 +21,11 @@ fi
 tmp="${ADT_ARTIFACTS}/build"
 mkdir -p $tmp
 export GOPATH=$tmp
-mkdir -p $GOPATH/src/github.com/ubuntu-core/snappy
-cp -R ./* $GOPATH/src/github.com/ubuntu-core/snappy/
-mkdir -p $GOPATH/src/github.com/ubuntu-core/snappy/integration-tests/data/output
-cp debian/tests/testconfig.json $GOPATH/src/github.com/ubuntu-core/snappy/integration-tests/data/output/
-cd $GOPATH/src/github.com/ubuntu-core/snappy
+mkdir -p $GOPATH/src/github.com/snapcore/snapd
+cp -R ./* $GOPATH/src/github.com/snapcore/snapd/
+mkdir -p $GOPATH/src/github.com/snapcore/snapd/integration-tests/data/output
+cp debian/tests/testconfig.json $GOPATH/src/github.com/snapcore/snapd/integration-tests/data/output/
+cd $GOPATH/src/github.com/snapcore/snapd
 
 # don't install deps nor compile tests after reboot
 if [ -z "$ADT_REBOOT_MARK" ]; then
@@ -33,7 +33,7 @@ if [ -z "$ADT_REBOOT_MARK" ]; then
     go test -tags classiconly -c ./integration-tests/tests
 fi
 
-./tests.test  -check.vv -check.f 'snapHelloWorldExampleSuite|snapOpSuite|searchSuite|installSuite|authSuite|networkInterfaceSuite|networkBindInterfaceSuite|homeInterfaceSuite|logObserveInterfaceSuite|unity7|snapPersistsSuite'
+./tests.test  -check.vv -check.f 'snapHelloWorldExampleSuite|snapOpSuite|searchSuite|installSuite|authSuite|networkInterfaceSuite|networkBindInterfaceSuite|homeInterfaceSuite|logObserveInterfaceSuite|unity7|snapPersistsSuite|changesSuite|removeSuite|abortSuite'
 
 if [ -e ${NEEDS_REBOOT} ]; then
     mark=`cat ${NEEDS_REBOOT}`

@@ -30,11 +30,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ubuntu-core/snappy/arch"
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/osutil"
-	"github.com/ubuntu-core/snappy/progress"
-	"github.com/ubuntu-core/snappy/release"
+	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/release"
 )
 
 var (
@@ -47,13 +47,9 @@ var getgrnam = osutil.Getgrnam
 
 func findDownloadPathFromLxdIndex(r io.Reader) (string, error) {
 	arch := arch.UbuntuArchitecture()
-	lsb, err := release.ReadLSB()
-	if err != nil {
-		return "", err
-	}
-	release := lsb.Codename
+	codename := release.ReleaseInfo.Codename
 
-	needle := fmt.Sprintf("ubuntu;%s;%s;default;", release, arch)
+	needle := fmt.Sprintf("ubuntu;%s;%s;default;", codename, arch)
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		if strings.HasPrefix(scanner.Text(), needle) {

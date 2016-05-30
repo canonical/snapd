@@ -24,11 +24,11 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/arch"
-	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/systemd"
-	"github.com/ubuntu-core/snappy/timeout"
-	"github.com/ubuntu-core/snappy/wrappers"
+	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/timeout"
+	"github.com/snapcore/snapd/wrappers"
 )
 
 type servicesWrapperGenSuite struct{}

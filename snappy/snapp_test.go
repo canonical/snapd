@@ -29,13 +29,13 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ubuntu-core/snappy/arch"
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/policy"
-	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/snapenv"
-	"github.com/ubuntu-core/snappy/store"
-	"github.com/ubuntu-core/snappy/systemd"
+	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/policy"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapenv"
+	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/systemd"
 
 	. "gopkg.in/check.v1"
 )

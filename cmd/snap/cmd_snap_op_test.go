@@ -25,10 +25,11 @@ import (
 	"io/ioutil"
 	"net/http"
 	"path/filepath"
+	"strconv"
 
 	"gopkg.in/check.v1"
 
-	snap "github.com/ubuntu-core/snappy/cmd/snap"
+	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
 type snapOpTestServer struct {
@@ -171,4 +172,39 @@ func (s *SnapOpSuite) TestInstallPathDevMode(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
+func (s *SnapOpSuite) runTryTest(c *check.C, devmode bool) {
+	tryDir := c.MkDir()
+
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+		postData, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, check.IsNil)
+		c.Assert(string(postData), check.Matches, "(?s).*Content-Disposition: form-data; name=\"action\"\r\n\r\ntry\r\n.*")
+		c.Assert(string(postData), check.Matches, fmt.Sprintf("(?s).*Content-Disposition: form-data; name=\"snap-path\"\r\n\r\n%s\r\n.*", tryDir))
+		c.Assert(string(postData), check.Matches, fmt.Sprintf("(?s).*Content-Disposition: form-data; name=\"devmode\"\r\n\r\n%s\r\n.*", strconv.FormatBool(devmode)))
+	}
+
+	s.RedirectClientToTestServer(s.srv.handle)
+
+	cmd := []string{"try", tryDir}
+	if devmode {
+		cmd = append(cmd, "--devmode")
+	}
+
+	rest, err := snap.Parser().ParseArgs(cmd)
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo\s+1.0\s+42\s+bar.*`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
+func (s *SnapOpSuite) TestTryNoDevMode(c *check.C) {
+	s.runTryTest(c, false)
+}
+func (s *SnapOpSuite) TestTryDevMode(c *check.C) {
+	s.runTryTest(c, true)
 }
