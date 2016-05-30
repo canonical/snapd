@@ -156,7 +156,6 @@ func (cs *clientSuite) TestServerVersion(c *check.C) {
 	version, err := cs.cli.ServerVersion()
 	c.Check(err, check.IsNil)
 	c.Check(version, check.Equals, ""+
-		"snap:   unknown\n"+
 		"snapd:  2\n"+
 		"series: 16\n")
 }
@@ -170,7 +169,6 @@ func (cs *clientSuite) TestServerVersionOnClassic(c *check.C) {
 	version, err := cs.cli.ServerVersion()
 	c.Check(err, check.IsNil)
 	c.Check(version, check.Equals, ""+
-		"snap:   unknown\n"+
 		"snapd:  2\n"+
 		"series: 16\n"+
 		"ubuntu 16.04")
