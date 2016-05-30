@@ -100,10 +100,10 @@ func Parser() *flags.Parser {
 	optionsData.Version = func() {
 		cv, err := Client().ServerVersion()
 		if err != nil {
-			cv = i18n.G("unavailable")
+			cv = i18n.G("unavailable") + "\n"
 		}
 
-		fmt.Fprintf(Stdout, "snap  %s\nsnapd %s\n", cmd.Version, cv)
+		fmt.Fprintf(Stdout, "snap:   %s\n%s", cmd.Version, cv)
 
 		os.Exit(0)
 	}
