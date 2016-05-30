@@ -90,6 +90,10 @@ func (gkm *gpgKeypairManager) Get(authorityID, keyID string) (PrivateKey, error)
 	if err != nil {
 		return nil, fmt.Errorf("cannot use GPG key %q: %v", keyID, err)
 	}
+	gotID := privKey.PublicKey().ID()
+	if gotID != keyID {
+		return nil, fmt.Errorf("got wrong key from GPG, expected %q: %s", keyID, gotID)
+	}
 	return privKey, nil
 }
 
