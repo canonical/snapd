@@ -21,14 +21,14 @@ package builtin
 
 import "github.com/snapcore/snapd/interfaces"
 
-const cupsConnectedPlugAppArmor = `
+const cupsControlConnectedPlugAppArmor = `
 # Description: Can access cups control socket. This is restricted because it provides
 # privileged access to configure printing.
 
 #include <abstractions/cups-client>
 `
 
-const cupsConnectedPlugSecComp = `
+const cupsControlConnectedPlugSecComp = `
 setsockopt
 `
 
@@ -36,8 +36,8 @@ setsockopt
 func NewCupsControlInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "cups-control",
-		connectedPlugAppArmor: cupsConnectedPlugAppArmor,
-		connectedPlugSecComp:  cupsConnectedPlugSecComp,
+		connectedPlugAppArmor: cupsControlConnectedPlugAppArmor,
+		connectedPlugSecComp:  cupsControlConnectedPlugSecComp,
 		reservedForOS:         true,
 		autoConnect:           false,
 	}
