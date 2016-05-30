@@ -143,16 +143,47 @@ func (cs *clientSuite) TestClientSysInfo(c *check.C) {
 	cs.rsp = `{"type": "sync", "result":
                      {"series": "16",
                       "version": "2",
-					  "os-release": {"id": "ubuntu"}}}`
+					  "os-release": {"id": "ubuntu", "version-id": "16.04"},
+				      "on-classic": true}}`
 	sysInfo, err := cs.cli.SysInfo()
 	c.Check(err, check.IsNil)
 	c.Check(sysInfo, check.DeepEquals, &client.SysInfo{
 		Version: "2",
 		Series:  "16",
 		OSRelease: client.OSRelease{
-			ID: "ubuntu",
+			ID:        "ubuntu",
+			VersionID: "16.04",
 		},
+		OnClassic: true,
 	})
+}
+
+func (cs *clientSuite) TestServerVersion(c *check.C) {
+	cs.rsp = `{"type": "sync", "result":
+                     {"series": "16",
+                      "version": "2",
+					  "os-release": {"id": "ubuntu", "version-id": "16.04"}}}`
+	version, err := cs.cli.ServerVersion()
+	c.Check(err, check.IsNil)
+	c.Check(version, check.Equals, ""+
+		"snap:   unknown\n"+
+		"snapd:  2\n"+
+		"series: 16\n")
+}
+
+func (cs *clientSuite) TestServerVersionOnClassic(c *check.C) {
+	cs.rsp = `{"type": "sync", "result":
+                     {"series": "16",
+                      "version": "2",
+					  "os-release": {"id": "ubuntu", "version-id": "16.04"},
+				      "on-classic": true}}`
+	version, err := cs.cli.ServerVersion()
+	c.Check(err, check.IsNil)
+	c.Check(version, check.Equals, ""+
+		"snap:   unknown\n"+
+		"snapd:  2\n"+
+		"series: 16\n"+
+		"ubuntu 16.04")
 }
 
 func (cs *clientSuite) TestClientIntegration(c *check.C) {
