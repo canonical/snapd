@@ -225,7 +225,7 @@ func (client *Client) ServerVersion() (string, error) {
 		"snapd:  %s\n"+
 		"series: %s\n", serverVersion, sysInfo.Series)
 	if sysInfo.OnClassic {
-		versionStr += fmt.Sprintf("%s %s", sysInfo.OSRelease.ID, sysInfo.OSRelease.VersionID)
+		versionStr += fmt.Sprintf("%s %s\n", sysInfo.OSRelease.ID, sysInfo.OSRelease.VersionID)
 	}
 	return versionStr, nil
 }
