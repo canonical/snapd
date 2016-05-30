@@ -29,6 +29,7 @@ type Notes struct {
 	Confinement string
 	Price       string
 	Private     bool
+	TryMode     bool
 }
 
 func (n *Notes) String() string {
@@ -44,6 +45,10 @@ func (n *Notes) String() string {
 
 	if n.Private {
 		ns = append(ns, "private")
+	}
+
+	if n.TryMode {
+		ns = append(ns, "try")
 	}
 
 	if len(ns) == 0 {

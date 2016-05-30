@@ -72,6 +72,7 @@ func listSnaps(args []string) error {
 		notes := &Notes{
 			Private:     snap.Private,
 			Confinement: snap.Confinement,
+			TryMode:     snap.TryMode,
 		}
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Revision, snap.Developer, notes)
 	}

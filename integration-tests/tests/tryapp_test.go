@@ -48,8 +48,8 @@ func (s *trySuite) TestTryBasicBinaries(c *check.C) {
 
 	expected := "(?ms)" +
 		".*" +
-		"Name +Version +Rev +Developer\n" +
-		"basic-binaries +.*"
+		"Name +Version +Rev +Developer +Notes\n" +
+		"basic-binaries +.*try"
 	c.Check(tryOutput, check.Matches, expected)
 
 	// can run commands from the snap-try binary
