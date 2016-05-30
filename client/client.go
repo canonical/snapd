@@ -216,20 +216,14 @@ func (client *Client) ServerVersion() (string, error) {
 		return "unknown", err
 	}
 
-	// FIXME: get snap version generated at build time
-	clientVersion := ""
-	if clientVersion == "" {
-		clientVersion = "unknown"
-	}
 	serverVersion := sysInfo.Version
 	if serverVersion == "" {
 		serverVersion = "unknown"
 	}
 
 	versionStr := fmt.Sprintf(""+
-		"snap:   %s\n"+
 		"snapd:  %s\n"+
-		"series: %s\n", clientVersion, serverVersion, sysInfo.Series)
+		"series: %s\n", serverVersion, sysInfo.Series)
 	if sysInfo.OnClassic {
 		versionStr += fmt.Sprintf("%s %s", sysInfo.OSRelease.ID, sysInfo.OSRelease.VersionID)
 	}
