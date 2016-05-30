@@ -80,7 +80,6 @@ func NewStore(blobDir string) *Store {
 	mux.HandleFunc("/", rootEndpoint)
 	mux.HandleFunc("/search", store.searchEndpoint)
 	mux.HandleFunc("/package/", store.detailsEndpoint)
-	mux.HandleFunc("/click-metadata", store.oldBulkEndpoint)
 	mux.HandleFunc("/metadata", store.bulkEndpoint)
 	mux.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(blobDir))))
 
@@ -333,70 +332,4 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 	}
 	w.Write(out)
 
-}
-
-type oldBulkReqJSON struct {
-	Name []string
-}
-
-type oldBulkReplyJSON struct {
-	Status          string `json:"status"`
-	Name            string `json:"name"`
-	PackageName     string `json:"package_name"`
-	Developer       string `json:"origin"`
-	AnonDownloadURL string `json:"anon_download_url"`
-	Version         string `json:"version"`
-	Revision        int    `json:"revision"`
-}
-
-func (s *Store) oldBulkEndpoint(w http.ResponseWriter, req *http.Request) {
-	var pkgs oldBulkReqJSON
-	var replyData []oldBulkReplyJSON
-
-	decoder := json.NewDecoder(req.Body)
-	if err := decoder.Decode(&pkgs); err != nil {
-		http.Error(w, fmt.Sprintf("can't decode request body: %v", err), http.StatusBadRequest)
-		return
-	}
-
-	s.refreshSnaps()
-
-	// check if we have downloadable snap of the given name
-	for _, pkgWithChannel := range pkgs.Name {
-		pkg := strings.Split(pkgWithChannel, "/")[0]
-
-		if fn, ok := s.snaps[pkg]; ok {
-			snapFile, err := snap.Open(fn)
-			if err != nil {
-				http.Error(w, fmt.Sprintf("can not read: %v: %v", fn, err), http.StatusBadRequest)
-				return
-			}
-
-			// TODO: get side-info from a aux file
-			info, err := snap.ReadInfoFromSnapFile(snapFile, nil)
-			if err != nil {
-				http.Error(w, fmt.Sprintf("can get info for: %v: %v", fn, err), http.StatusBadRequest)
-				return
-			}
-
-			replyData = append(replyData, oldBulkReplyJSON{
-				Status:          "Published",
-				Name:            fmt.Sprintf("%s.%s", info.Name(), s.defaultDeveloper),
-				PackageName:     info.Name(),
-				Developer:       defaultDeveloper,
-				AnonDownloadURL: fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn)),
-				Version:         info.Version,
-				Revision:        makeRevision(info),
-			})
-		}
-	}
-
-	// use indent because this is a development tool, output
-	// should look nice
-	out, err := json.MarshalIndent(replyData, "", "    ")
-	if err != nil {
-		http.Error(w, fmt.Sprintf("can marshal: %v: %v", replyData, err), http.StatusBadRequest)
-		return
-	}
-	w.Write(out)
 }
