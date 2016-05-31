@@ -80,6 +80,7 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 		Version:       "1.0.18",
 		Confinement:   client.StrictConfinement,
 		Private:       true,
+		DevMode:       false,
 	}})
 	otherApps, err := cs.cli.ListSnaps([]string{"foo"})
 	c.Check(err, check.IsNil)
@@ -114,7 +115,8 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 			"type": "app",
 			"version": "0.1-8",
                         "confinement": "strict",
-                        "private": true
+                        "private": true,
+                        "devmode": true
 		}
 	}`
 	pkg, _, err := cs.cli.Snap(pkgName)
@@ -136,5 +138,6 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 		Version:       "0.1-8",
 		Confinement:   client.StrictConfinement,
 		Private:       true,
+		DevMode:       true,
 	})
 }

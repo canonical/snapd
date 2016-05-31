@@ -111,13 +111,6 @@ func allLocalSnapInfos(st *state.State) ([]aboutSnap, error) {
 	return about, firstErr
 }
 
-func effectiveConfinement(snapst *snapstate.SnapState) snap.ConfinementType {
-	if snapst.DevMode() {
-		return snap.DevmodeConfinement
-	}
-	return snap.StrictConfinement
-}
-
 func mapLocal(localSnap *snap.Info, snapst *snapstate.SnapState) map[string]interface{} {
 	status := "installed"
 	if snapst.Active {
@@ -137,7 +130,8 @@ func mapLocal(localSnap *snap.Info, snapst *snapstate.SnapState) map[string]inte
 		"summary":        localSnap.Summary(),
 		"type":           string(localSnap.Type),
 		"version":        localSnap.Version,
-		"confinement":    effectiveConfinement(snapst),
+		"confinement":    localSnap.Confinement,
+		"devmode":        snapst.DevMode(),
 		"private":        localSnap.Private,
 	}
 }

@@ -42,6 +42,7 @@ type Snap struct {
 	Revision      Revision  `json:"revision"`
 	Confinement   string    `json:"confinement"`
 	Private       bool      `json:"private"`
+	DevMode       bool      `json:"devmode"`
 
 	Prices map[string]float64 `json:"prices"`
 }
