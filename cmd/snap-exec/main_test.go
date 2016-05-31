@@ -21,13 +21,16 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"syscall"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -40,8 +43,8 @@ type snapExecSuite struct {
 var _ = Suite(&snapExecSuite{})
 
 func (s *snapExecSuite) SetUpTest(c *C) {
-	snapReadInfo = snap.ReadInfo
 	syscallExec = syscall.Exec
+	dirs.SetRootDir("/")
 }
 
 var mockYaml = []byte(`name: snapname
@@ -93,11 +96,11 @@ func (s *snapExecSuite) TestFindCommandNoCommand(c *C) {
 
 func (s *snapExecSuite) TestSnapLaunchIntegration(c *C) {
 	os.Setenv("SNAP_REVISION", "42")
-	snapReadInfo = func(string, *snap.SideInfo) (*snap.Info, error) {
-		info, err := snap.InfoFromSnapYaml(mockYaml)
-		info.SideInfo.Revision = snap.R(os.Getenv("SNAP_REVISION"))
-		return info, err
-	}
+
+	dirs.SetRootDir(c.MkDir())
+	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R(os.Getenv("SNAP_REVISION")),
+	})
 
 	execArgv0 := ""
 	execArgs := []string{}
@@ -109,9 +112,9 @@ func (s *snapExecSuite) TestSnapLaunchIntegration(c *C) {
 		return nil
 	}
 
-	err := snapLaunch("snap.app", "stop", []string{"arg1", "arg2"})
+	err := snapLaunch("snapname.app", "stop", []string{"arg1", "arg2"})
 	c.Assert(err, IsNil)
-	c.Check(execArgv0, Equals, "/snap/snapname/42/stop-app")
+	c.Check(execArgv0, Equals, fmt.Sprintf("%s/snapname/42/stop-app", dirs.SnapSnapsDir))
 	c.Check(execArgs, DeepEquals, []string{"arg1", "arg2"})
 	c.Check(execEnv, testutil.Contains, "LD_LIBRARY_PATH=/some/path\n")
 }
