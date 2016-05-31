@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"syscall"
 
 	"github.com/jessevdk/go-flags"
@@ -56,16 +55,11 @@ func run() error {
 		return err
 	}
 
-	snapApp := opts.Positional.SnapApp
-	return snapLaunch(snapApp, opts.Command, args)
-}
+	// the SNAP_REVISION is set by `snap run`
+	revision := os.Getenv("SNAP_REVISION")
 
-func splitSnapApp(snapApp string) (snap, app string) {
-	l := strings.SplitN(snapApp, ".", 2)
-	if len(l) < 2 {
-		return l[0], l[0]
-	}
-	return l[0], l[1]
+	snapApp := opts.Positional.SnapApp
+	return snapExec(snapApp, revision, opts.Command, args)
 }
 
 func findCommand(app *snap.AppInfo, command string) (string, error) {
@@ -87,10 +81,10 @@ func findCommand(app *snap.AppInfo, command string) (string, error) {
 	return cmd, nil
 }
 
-func snapLaunch(snapApp, command string, args []string) error {
-	snapName, appName := splitSnapApp(snapApp)
+func snapExec(snapApp, revision, command string, args []string) error {
+	snapName, appName := snap.SplitSnapApp(snapApp)
 	info, err := snap.ReadInfo(snapName, &snap.SideInfo{
-		Revision: snap.R(os.Getenv("SNAP_REVISION")),
+		Revision: snap.R(revision),
 	})
 	if err != nil {
 		return err
