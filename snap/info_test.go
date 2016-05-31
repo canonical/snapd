@@ -20,6 +20,7 @@
 package snap_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -287,4 +288,30 @@ apps:
 		"global-and-local=local-v\n",
 		"global-k=global-v\n",
 	})
+}
+
+func (s *infoSuite) TestSplitSnapApp(c *C) {
+	for _, t := range []struct {
+		in  string
+		out []string
+	}{
+		// normal cases
+		{"foo.bar", []string{"foo", "bar"}},
+		{"foo.bar.baz", []string{"foo", "bar.baz"}},
+		// special case, snapName == appName
+		{"foo", []string{"foo", "foo"}},
+	} {
+		snap, app := snap.SplitSnapApp(t.in)
+		c.Check([]string{snap, app}, DeepEquals, t.out)
+	}
+}
+
+func ExampleSpltiSnapApp() {
+	fmt.Println(snap.SplitSnapApp("hello-world.env"))
+	// Output: hello-world env
+}
+
+func ExampleSpltiSnapAppShort() {
+	fmt.Println(snap.SplitSnapApp("hello-world"))
+	// Output: hello-world hello-world
 }
