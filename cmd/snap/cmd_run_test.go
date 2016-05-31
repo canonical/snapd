@@ -21,13 +21,17 @@
 package main_test
 
 import (
+	"fmt"
+	"net/http"
 	"sort"
 	"syscall"
 
 	"gopkg.in/check.v1"
 
 	snaprun "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -57,14 +61,31 @@ func (s *SnapSuite) TestSnapRunGetPhase1AppEnv(c *check.C) {
 	})
 }
 
-func (s *SnapSuite) TestSnapRun(c *check.C) {
-	snaprun.GetSnapInfo = func(snapName string) (*snap.Info, error) {
-		info, err := snap.InfoFromSnapYaml(mockYaml)
-		info.SideInfo.Revision = snap.R(42)
-		return info, err
-	}
-	defer func() { snaprun.GetSnapInfo = snaprun.GetSnapInfoImpl }()
+func (s *SnapSuite) TestSnapRunIntegration(c *check.C) {
+	// mock installed snap
+	dirs.SetRootDir(c.MkDir())
+	defer func() { dirs.SetRootDir("/") }()
 
+	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R(42),
+	})
+
+	// and mock the server
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+			fmt.Fprintln(w, `{"type": "sync", "result": [{"name": "snapname", "status": "active", "version": "1.0", "developer": "someone", "revision":42}]}`)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+
+		n++
+	})
+
+	// redirect exec
 	execArg0 := ""
 	execArgs := []string{}
 	execEnv := []string{}
@@ -76,6 +97,7 @@ func (s *SnapSuite) TestSnapRun(c *check.C) {
 	}
 	defer func() { snaprun.SyscallExec = syscall.Exec }()
 
+	// and run it!
 	err := snaprun.SnapRun("snapname.app", "", []string{"arg1", "arg2"})
 	c.Assert(err, check.IsNil)
 	c.Check(execArg0, check.Equals, "/usr/bin/ubuntu-core-launcher")

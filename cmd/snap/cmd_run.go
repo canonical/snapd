@@ -65,9 +65,7 @@ func (x *cmdRun) Execute(args []string) error {
 	return snapRun(x.Positional.SnapApp, x.Command, args)
 }
 
-var GetSnapInfo = getSnapInfoImpl
-
-func getSnapInfoImpl(snapName string) (*snap.Info, error) {
+func getSnapInfo(snapName string) (*snap.Info, error) {
 	// we need to get the revision here because once we are inside
 	// the confinement its not available anymore
 	snaps, err := Client().ListSnaps([]string{snapName})
@@ -129,7 +127,7 @@ var SyscallExec = syscall.Exec
 
 func snapRun(snapApp, command string, args []string) error {
 	snapName, appName := splitSnapApp(snapApp)
-	info, err := GetSnapInfo(snapName)
+	info, err := getSnapInfo(snapName)
 	if err != nil {
 		return err
 	}
