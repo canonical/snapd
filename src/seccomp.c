@@ -304,15 +304,15 @@ int parse_line(char *line, struct seccomp_args *sargs)
 			// syscall <=N
 			op = SCMP_CMP_LE;
 			value = read_number(&buf_token[2]);
-		} else if (buf_token[0] == '!') {
+		} else if (strncmp(buf_token, "!", 1) == 0) {
 			// syscall !N
 			op = SCMP_CMP_NE;
 			value = read_number(&buf_token[1]);
-		} else if (buf_token[0] == '>') {
+		} else if (strncmp(buf_token, ">", 1) == 0) {
 			// syscall >N
 			op = SCMP_CMP_GT;
 			value = read_number(&buf_token[1]);
-		} else if (buf_token[0] == '<') {
+		} else if (strncmp(buf_token, "<", 1) == 0) {
 			// syscall <N
 			op = SCMP_CMP_LT;
 			value = read_number(&buf_token[1]);
