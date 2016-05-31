@@ -293,7 +293,7 @@ int parse_line(char *line, struct seccomp_args *sargs)
 		if (strlen(buf_token) == 0) {
 			return PARSE_ERROR;
 		} else if (strlen(buf_token) == 1) {
-			// syscall 1
+			// syscall N (length of '1' indicates a single digit)
 			op = SCMP_CMP_EQ;
 			value = read_number(buf_token);
 		} else if (strncmp(buf_token, ">=", 2) == 0) {
