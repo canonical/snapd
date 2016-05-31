@@ -48,7 +48,7 @@ func (s *trySuite) TestTryBasicBinaries(c *check.C) {
 
 	expected := "(?ms)" +
 		".*" +
-		"Name +Version +Rev +Developer\n" +
+		"Name +Version +Rev +Developer +Notes\n" +
 		"basic-binaries +.*"
 	c.Check(tryOutput, check.Matches, expected)
 

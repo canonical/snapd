@@ -96,9 +96,9 @@ func (s *listSuite) TestRefreshListSimple(c *check.C) {
 
 	listOutput := cli.ExecCommand(c, "snap", "refresh", "--list")
 	expected := "(?ms)" +
-		"Name +Version +Summary *\n" +
+		"Name +Version +Developer +Notes +Summary *\n" +
 		".*" +
-		"^hello-world +(\\d+)(\\.\\d+)\\+fake1.*\n" +
+		"^hello-world +(\\d+)(\\.\\d+)\\+fake1 +canonical +- .*\n" +
 		".*"
 
 	c.Assert(listOutput, check.Matches, expected)

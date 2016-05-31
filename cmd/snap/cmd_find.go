@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 
 	"github.com/jessevdk/go-flags"

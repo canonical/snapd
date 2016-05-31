@@ -29,6 +29,7 @@ type Notes struct {
 	Confinement string
 	Price       string
 	Private     bool
+	DevMode     bool
 }
 
 func (n *Notes) String() string {
@@ -38,8 +39,12 @@ func (n *Notes) String() string {
 		ns = append(ns, n.Price)
 	}
 
-	if n.Confinement != "" && n.Confinement != client.StrictConfinement {
-		ns = append(ns, n.Confinement)
+	if n.Confinement != "" {
+		if n.Confinement != client.StrictConfinement {
+			ns = append(ns, n.Confinement)
+		}
+	} else if n.DevMode {
+		ns = append(ns, "devmode")
 	}
 
 	if n.Private {

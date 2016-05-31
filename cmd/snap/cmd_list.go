@@ -72,8 +72,8 @@ func listSnaps(names []string) error {
 
 	for _, snap := range snaps {
 		notes := &Notes{
-			Private:     snap.Private,
-			Confinement: snap.Confinement,
+			Private: snap.Private,
+			DevMode: snap.DevMode,
 		}
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Revision, snap.Developer, notes)
 	}
