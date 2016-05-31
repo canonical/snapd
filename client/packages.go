@@ -68,12 +68,15 @@ type ResultInfo struct {
 	SuggestedCurrency string `json:"suggested-currency"`
 }
 
+// FindOptions supports exactly one of the following options:
+// - Refresh: only return snaps that are refreshable
+// - Query: only return snaps that match the query string
 type FindOptions struct {
 	Refresh bool
 	Query   string
 }
 
-// ListSnaps returns the list of all snaps installed on the system
+// List returns the list of all snaps installed on the system
 // with names in the given list; if the list is empty, all snaps.
 func (client *Client) List(names []string) ([]*Snap, error) {
 	snaps, _, err := client.snapsFromPath("/v2/snaps", nil)
@@ -100,9 +103,9 @@ func (client *Client) List(names []string) ([]*Snap, error) {
 	return result, nil
 }
 
-// FindSnaps returns a list of snaps available for install from the
+// Find returns a list of snaps available for install from the
 // store for this system and that match the query
-func (client *Client) FindSnaps(opts *FindOptions) ([]*Snap, *ResultInfo, error) {
+func (client *Client) Find(opts *FindOptions) ([]*Snap, *ResultInfo, error) {
 	if opts == nil {
 		opts = &FindOptions{}
 	}

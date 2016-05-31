@@ -563,7 +563,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFind(c *C) {
 	repo := NewUbuntuStoreSnapRepository(&cfg, "")
 	c.Assert(repo, NotNil)
 
-	snaps, err := repo.FindSnaps("hello", "", nil)
+	snaps, err := repo.Find("hello", "", nil)
 	c.Assert(err, IsNil)
 	c.Assert(snaps, HasLen, 1)
 	c.Check(snaps[0].Name(), Equals, "hello-world")
@@ -588,7 +588,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindFails(c *C) {
 	repo := NewUbuntuStoreSnapRepository(&cfg, "")
 	c.Assert(repo, NotNil)
 
-	snaps, err := repo.FindSnaps("hello", "", nil)
+	snaps, err := repo.Find("hello", "", nil)
 	c.Check(err, ErrorMatches, `received an unexpected http response code \(418 I'm a teapot\) when trying to search via "http://[^?]+\?q=hello"`)
 	c.Check(snaps, HasLen, 0)
 }
@@ -610,7 +610,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadContentType(c *C) {
 	repo := NewUbuntuStoreSnapRepository(&cfg, "")
 	c.Assert(repo, NotNil)
 
-	snaps, err := repo.FindSnaps("hello", "", nil)
+	snaps, err := repo.Find("hello", "", nil)
 	c.Check(err, ErrorMatches, `received an unexpected content type \("text/plain[^"]+"\) when trying to search via "http://[^?]+\?q=hello"`)
 	c.Check(snaps, HasLen, 0)
 }
@@ -633,7 +633,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadBoody(c *C) {
 	repo := NewUbuntuStoreSnapRepository(&cfg, "")
 	c.Assert(repo, NotNil)
 
-	snaps, err := repo.FindSnaps("hello", "", nil)
+	snaps, err := repo.Find("hello", "", nil)
 	c.Check(err, ErrorMatches, `cannot decode reply \(got invalid character.*\) when trying to search via "http://[^?]+\?q=hello"`)
 	c.Check(snaps, HasLen, 0)
 }
@@ -674,7 +674,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindSetsAuth(c *C) {
 	c.Assert(repo, NotNil)
 
 	authenticator := &fakeAuthenticator{}
-	snaps, err := repo.FindSnaps("foo", "", authenticator)
+	snaps, err := repo.Find("foo", "", authenticator)
 	c.Assert(err, IsNil)
 	c.Assert(snaps, HasLen, 1)
 	c.Check(snaps[0].SnapID, Equals, helloWorldSnapID)
@@ -718,7 +718,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindAuthFailed(c *C) {
 	c.Assert(repo, NotNil)
 
 	authenticator := &fakeAuthenticator{}
-	snaps, err := repo.FindSnaps("foo", "", authenticator)
+	snaps, err := repo.Find("foo", "", authenticator)
 	c.Assert(err, IsNil)
 
 	// Check that we log an error.

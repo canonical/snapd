@@ -74,7 +74,7 @@ func (s *apiSuite) Snap(name, channel string, auther store.Authenticator) (*snap
 	return nil, s.err
 }
 
-func (s *apiSuite) FindSnaps(searchTerm, channel string, auther store.Authenticator) ([]*snap.Info, error) {
+func (s *apiSuite) Find(searchTerm, channel string, auther store.Authenticator) ([]*snap.Info, error) {
 	s.searchTerm = searchTerm
 	s.channel = channel
 	s.auther = auther

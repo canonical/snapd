@@ -30,12 +30,12 @@ override_dh_systemd_enable:
 	# we want the auto-update timer enabled by default
 	dh_systemd_enable \
 		-psnapd \
-		snappy-auto-update.timer
+		snapd.refresh.timer
 	# but the auto-update service disabled
 	dh_systemd_enable \
 		--no-enable \
 		-psnapd \
-		snappy-auto-update.service
+ 		snapd.refresh.service
 	# enable snapd
 	dh_systemd_enable \
 		-psnapd \
@@ -49,12 +49,12 @@ override_dh_systemd_start:
 	# we want to start the auto-update timer
 	dh_systemd_start \
 		-psnapd \
-		snappy-auto-update.timer
+		snapd.refresh.timer
 	# but not start the service
 	dh_systemd_start \
 		--no-start \
 		-psnapd \
-		snappy-auto-update.service
+		snapd.refresh.service
 	# start snapd
 	dh_systemd_start \
 		-psnapd \
