@@ -552,7 +552,7 @@ type currentSnapJson struct {
 
 	// The store expects a "confinement" value {"strict", "devmode"}.
 	// We map this accordingly from our devmode bool, we do not
-	// use the value of the current snap as we are interessted in the
+	// use the value of the current snap as we are interested in the
 	// users intention, not the actual value of the snap itself.
 	Confinement snap.ConfinementType `json:"confinement"`
 }
@@ -620,7 +620,7 @@ func (s *SnapUbuntuStoreRepository) ListRefresh(installed []*RefreshCandidate, a
 	res := make([]*snap.Info, 0, len(updateData.Payload.Packages))
 	for _, rsnap := range updateData.Payload.Packages {
 		// the store also gives us identical revisions, filter those
-		// out, we are not interessted
+		// out, we are not interested
 		if rsnap.Revision == candidateMap[rsnap.SnapID].Revision {
 			continue
 		}
