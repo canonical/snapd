@@ -280,6 +280,28 @@ func (app *AppInfo) ServiceSocketFile() string {
 	return filepath.Join(dirs.SnapServicesDir, app.SecurityTag()+".socket")
 }
 
+func copyEnv(in map[string]string) map[string]string {
+	out := make(map[string]string)
+	for k, v := range in {
+		out[k] = v
+	}
+
+	return out
+}
+
+// Env returns the app specific environment overrides
+func (app *AppInfo) Env() []string {
+	env := []string{}
+	appEnv := copyEnv(app.Snap.Environment)
+	for k, v := range app.Environment {
+		appEnv[k] = v
+	}
+	for k, v := range appEnv {
+		env = append(env, fmt.Sprintf("%s=%s\n", k, v))
+	}
+	return env
+}
+
 func infoFromSnapYamlWithSideInfo(meta []byte, si *SideInfo) (*Info, error) {
 	info, err := InfoFromSnapYaml(meta)
 	if err != nil {
