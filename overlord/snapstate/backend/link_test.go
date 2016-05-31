@@ -84,9 +84,6 @@ apps:
 	l, err = filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.service"))
 	c.Assert(err, IsNil)
 	c.Assert(l, HasLen, 1)
-	l, err = filepath.Glob(filepath.Join(dirs.SnapEnvironmentDir, "*"))
-	c.Assert(err, IsNil)
-	c.Assert(l, HasLen, 2)
 
 	// undo will remove
 	err = s.be.UnlinkSnap(info, &s.nullProgress)
@@ -96,9 +93,6 @@ apps:
 	c.Assert(err, IsNil)
 	c.Assert(l, HasLen, 0)
 	l, err = filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.service"))
-	c.Assert(err, IsNil)
-	c.Assert(l, HasLen, 0)
-	l, err = filepath.Glob(filepath.Join(dirs.SnapEnvironmentDir, "*"))
 	c.Assert(err, IsNil)
 	c.Assert(l, HasLen, 0)
 }
@@ -163,9 +157,6 @@ apps:
 	l, err = filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.service"))
 	c.Assert(err, IsNil)
 	c.Assert(l, HasLen, 1)
-	l, err = filepath.Glob(filepath.Join(dirs.SnapEnvironmentDir, "*"))
-	c.Assert(err, IsNil)
-	c.Assert(l, HasLen, 2)
 
 	mountDir := info.MountDir()
 	dataDir := info.DataDir()
@@ -209,9 +200,6 @@ apps:
 	c.Assert(err, IsNil)
 	c.Assert(l, HasLen, 0)
 	l, err = filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.service"))
-	c.Assert(err, IsNil)
-	c.Assert(l, HasLen, 0)
-	l, err = filepath.Glob(filepath.Join(dirs.SnapEnvironmentDir, "*"))
 	c.Assert(err, IsNil)
 	c.Assert(l, HasLen, 0)
 

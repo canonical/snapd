@@ -225,6 +225,8 @@ type AppInfo struct {
 
 	Plugs map[string]*PlugInfo
 	Slots map[string]*SlotInfo
+
+	Environment map[string]string
 }
 
 // SecurityTag returns application-specific security tag.
@@ -233,10 +235,6 @@ type AppInfo struct {
 // sometimes also as a part of the file name.
 func (app *AppInfo) SecurityTag() string {
 	return fmt.Sprintf("snap.%s.%s", app.Snap.Name(), app.Name)
-}
-
-func (app *AppInfo) EnvironmentFile() string {
-	return filepath.Join(dirs.SnapEnvironmentDir, app.SecurityTag())
 }
 
 // WrapperPath returns the path to wrapper invoking the app binary.
