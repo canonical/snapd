@@ -84,9 +84,14 @@ func findCommand(app *snap.AppInfo, command string) (string, error) {
 }
 
 func snapExec(snapApp, revision, command string, args []string) error {
+	rev, err := snap.ParseRevision(revision)
+	if err != nil {
+		return err
+	}
+
 	snapName, appName := snap.SplitSnapApp(snapApp)
 	info, err := snap.ReadInfo(snapName, &snap.SideInfo{
-		Revision: snap.R(revision),
+		Revision: rev,
 	})
 	if err != nil {
 		return err
