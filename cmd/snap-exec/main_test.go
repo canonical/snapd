@@ -42,7 +42,7 @@ type snapExecSuite struct {
 
 var _ = Suite(&snapExecSuite{})
 
-func (s *snapExecSuite) SetUpTest(c *C) {
+func (s *snapExecSuite) TearDown(c *C) {
 	syscallExec = syscall.Exec
 	dirs.SetRootDir("/")
 }
@@ -95,11 +95,9 @@ func (s *snapExecSuite) TestFindCommandNoCommand(c *C) {
 }
 
 func (s *snapExecSuite) TestSnapLaunchIntegration(c *C) {
-	os.Setenv("SNAP_REVISION", "42")
-
 	dirs.SetRootDir(c.MkDir())
 	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
-		Revision: snap.R(os.Getenv("SNAP_REVISION")),
+		Revision: snap.R("x42"),
 	})
 
 	execArgv0 := ""
@@ -112,9 +110,13 @@ func (s *snapExecSuite) TestSnapLaunchIntegration(c *C) {
 		return nil
 	}
 
-	err := snapLaunch("snapname.app", "stop", []string{"arg1", "arg2"})
+	// this environment is always set by `snap run`
+	os.Setenv("SNAP_REVISION", "x42")
+
+	// launch and verify its run the right way
+	err := snapExec("snapname.app", "stop", []string{"arg1", "arg2"})
 	c.Assert(err, IsNil)
-	c.Check(execArgv0, Equals, fmt.Sprintf("%s/snapname/42/stop-app", dirs.SnapSnapsDir))
+	c.Check(execArgv0, Equals, fmt.Sprintf("%s/snapname/x42/stop-app", dirs.SnapSnapsDir))
 	c.Check(execArgs, DeepEquals, []string{"arg1", "arg2"})
 	c.Check(execEnv, testutil.Contains, "LD_LIBRARY_PATH=/some/path\n")
 }
