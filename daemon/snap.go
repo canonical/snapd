@@ -131,6 +131,9 @@ func mapLocal(localSnap *snap.Info, snapst *snapstate.SnapState) map[string]inte
 		"type":           string(localSnap.Type),
 		"version":        localSnap.Version,
 		"channel":        localSnap.Channel,
+		"confinement":    localSnap.Confinement,
+		"devmode":        snapst.DevMode(),
+		"private":        localSnap.Private,
 	}
 }
 
@@ -138,6 +141,11 @@ func mapRemote(remoteSnap *snap.Info) map[string]interface{} {
 	status := "available"
 	if remoteSnap.MustBuy {
 		status = "priced"
+	}
+
+	confinement := remoteSnap.Confinement
+	if confinement == "" {
+		confinement = snap.StrictConfinement
 	}
 
 	result := map[string]interface{}{
@@ -153,6 +161,8 @@ func mapRemote(remoteSnap *snap.Info) map[string]interface{} {
 		"type":          string(remoteSnap.Type),
 		"version":       remoteSnap.Version,
 		"channel":       remoteSnap.Channel,
+		"private":       remoteSnap.Private,
+		"confinement":   confinement,
 	}
 
 	if len(remoteSnap.Prices) > 0 {
