@@ -31,10 +31,8 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-var (
-	snapReadInfo = snap.ReadInfo
-	syscallExec  = syscall.Exec
-)
+// for the tests
+var syscallExec = syscall.Exec
 
 func main() {
 	if err := run(); err != nil {
@@ -91,7 +89,7 @@ func findCommand(app *snap.AppInfo, command string) (string, error) {
 
 func snapLaunch(snapApp, command string, args []string) error {
 	snapName, appName := splitSnapApp(snapApp)
-	info, err := snapReadInfo(snapName, &snap.SideInfo{
+	info, err := snap.ReadInfo(snapName, &snap.SideInfo{
 		Revision: snap.R(os.Getenv("SNAP_REVISION")),
 	})
 	if err != nil {
