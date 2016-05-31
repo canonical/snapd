@@ -55,7 +55,9 @@ func run() error {
 		return err
 	}
 
-	// the SNAP_REVISION is set by `snap run`
+	// the SNAP_REVISION is set by `snap run` - we can not (easily)
+	// find it in `snap-exec` because `snap-exec` is run inside the
+	// confinement and (generally) can not talk to snapd
 	revision := os.Getenv("SNAP_REVISION")
 
 	snapApp := opts.Positional.SnapApp
