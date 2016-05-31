@@ -317,7 +317,7 @@ int parse_line(char *line, struct seccomp_args *sargs)
 			op = SCMP_CMP_LT;
 			value = read_number(&buf_token[1]);
 		} else {
-			// syscall 123
+			// syscall NNN
 			op = SCMP_CMP_EQ;
 			value = read_number(buf_token);
 		}
