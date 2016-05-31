@@ -253,8 +253,6 @@ snaps is supported via the `refresh` key.
 
 ## /v2/snaps
 
-### Parameters:
-
 ### GET
 
 * Description: List of snaps
