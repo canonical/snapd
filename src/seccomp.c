@@ -35,6 +35,7 @@
 
 #include <seccomp.h>
 
+#include "seccomp.h"
 #include "utils.h"
 
 // libseccomp maximum per ARG_COUNT_MAX in src/arch.h

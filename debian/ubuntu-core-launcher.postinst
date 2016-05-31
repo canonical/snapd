@@ -8,7 +8,9 @@ case $1 in
     configure)
         # remove current profile so that the pass-through can still run
         if [ -e /sys/kernel/security/apparmor/.remove ]; then
-            echo -n '/usr/bin/ubuntu-core-launcher' > /sys/kernel/security/apparmor/.remove
+            if egrep -q '^/usr/bin/ubuntu-core-launcher \([[:alpha:]]+\)$' /sys/kernel/security/apparmor/profiles; then
+                echo -n '/usr/bin/ubuntu-core-launcher' > /sys/kernel/security/apparmor/.remove
+            fi
         fi
         ;;
 esac
