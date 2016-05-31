@@ -23,7 +23,7 @@ under the specified apparmor profile.
 ## Seccomp
 
 The seccomp filter profile in expected to be located in
-/var/lib/snappy/seccomp/profiles
+/var/lib/snapd/seccomp/profiles
 
 The filter file contains lines with syscall names, comments that start with "#"
 or special directives that start with a "@". Lines with syscall names may
