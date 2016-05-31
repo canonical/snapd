@@ -40,6 +40,9 @@ type Snap struct {
 	Type          string    `json:"type"`
 	Version       string    `json:"version"`
 	Revision      Revision  `json:"revision"`
+	Confinement   string    `json:"confinement"`
+	Private       bool      `json:"private"`
+	DevMode       bool      `json:"devmode"`
 
 	Prices map[string]float64 `json:"prices"`
 }
@@ -55,6 +58,9 @@ const (
 	TypeKernel = "kernel"
 	TypeGadget = "gadget"
 	TypeOS     = "os"
+
+	StrictConfinement  = "strict"
+	DevmodeConfinement = "devmode"
 )
 
 type ResultInfo struct {
