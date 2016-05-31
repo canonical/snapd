@@ -22,7 +22,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"strings"
 	"syscall"
 
 	"github.com/jessevdk/go-flags"
@@ -49,17 +48,6 @@ func init() {
 			return &cmdRun{}
 		})
 }
-
-// FIXME: copied code :/
-func splitSnapApp(snapApp string) (snap, app string) {
-	l := strings.SplitN(snapApp, ".", 2)
-	if len(l) < 2 {
-		return l[0], l[0]
-	}
-	return l[0], l[1]
-}
-
-// --- end copied code
 
 func (x *cmdRun) Execute(args []string) error {
 	return snapRun(x.Positional.SnapApp, x.Command, args)
@@ -126,7 +114,7 @@ func getPhase1AppEnv(app *snap.AppInfo) []string {
 var SyscallExec = syscall.Exec
 
 func snapRun(snapApp, command string, args []string) error {
-	snapName, appName := splitSnapApp(snapApp)
+	snapName, appName := snap.SplitSnapApp(snapApp)
 	info, err := getSnapInfo(snapName)
 	if err != nil {
 		return err
