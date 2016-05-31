@@ -116,19 +116,3 @@ func (s *snapExecSuite) TestSnapLaunchIntegration(c *C) {
 	c.Check(execArgs, DeepEquals, []string{"arg1", "arg2"})
 	c.Check(execEnv, testutil.Contains, "LD_LIBRARY_PATH=/some/path\n")
 }
-
-func (s *snapExecSuite) TestSplitSnapApp(c *C) {
-	for _, t := range []struct {
-		in  string
-		out []string
-	}{
-		// normal cases
-		{"foo.bar", []string{"foo", "bar"}},
-		{"foo.bar.baz", []string{"foo", "bar.baz"}},
-		// special case, snapName == appName
-		{"foo", []string{"foo", "foo"}},
-	} {
-		snap, app := splitSnapApp(t.in)
-		c.Check([]string{snap, app}, DeepEquals, t.out)
-	}
-}

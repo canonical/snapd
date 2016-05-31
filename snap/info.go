@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/systemd"
@@ -348,4 +349,15 @@ func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 	}
 
 	return info, nil
+}
+
+// SplitSnapApp will split a string of the form `snap.app` into
+// the `snap` and the `app` part. It also deals with the special
+// case of snapName == appName.
+func SplitSnapApp(snapApp string) (snap, app string) {
+	l := strings.SplitN(snapApp, ".", 2)
+	if len(l) < 2 {
+		return l[0], l[0]
+	}
+	return l[0], l[1]
 }

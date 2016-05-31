@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"syscall"
 
 	"github.com/jessevdk/go-flags"
@@ -63,14 +62,6 @@ func run() error {
 	return snapExec(snapApp, revision, opts.Command, args)
 }
 
-func splitSnapApp(snapApp string) (snap, app string) {
-	l := strings.SplitN(snapApp, ".", 2)
-	if len(l) < 2 {
-		return l[0], l[0]
-	}
-	return l[0], l[1]
-}
-
 func findCommand(app *snap.AppInfo, command string) (string, error) {
 	var cmd string
 	switch command {
@@ -91,7 +82,7 @@ func findCommand(app *snap.AppInfo, command string) (string, error) {
 }
 
 func snapExec(snapApp, revision, command string, args []string) error {
-	snapName, appName := splitSnapApp(snapApp)
+	snapName, appName := snap.SplitSnapApp(snapApp)
 	info, err := snap.ReadInfo(snapName, &snap.SideInfo{
 		Revision: snap.R(revision),
 	})
