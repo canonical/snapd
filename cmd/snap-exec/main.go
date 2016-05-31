@@ -70,15 +70,6 @@ func splitSnapApp(snapApp string) (snap, app string) {
 	return l[0], l[1]
 }
 
-func findApp(info *snap.Info, appName string) *snap.AppInfo {
-	for _, app := range info.Apps {
-		if app.Name == appName {
-			return app
-		}
-	}
-	return nil
-}
-
 func findCommand(app *snap.AppInfo, command string) (string, error) {
 	var cmd string
 	switch command {
@@ -107,7 +98,7 @@ func snapLaunch(snapApp, command string, args []string) error {
 		return err
 	}
 
-	app := findApp(info, appName)
+	app := info.Apps[appName]
 	if app == nil {
 		return fmt.Errorf("cannot find app %q in %q", appName, snapName)
 	}
