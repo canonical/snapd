@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
+#include <math.h>
 #include <search.h>
 #include <ctype.h>
 #include <stdbool.h>
@@ -74,7 +75,8 @@ struct seccomp_args {
  * functions in case we want to swap this out.
  *
  * sc_map_init()		- initialize the hash map
- * sc_map_add(key, value)	- add key/value pair to the map. Value is scmp_datum_t
+ * sc_map_add(key, value)	- add key/value pair to the map. Value is
+ * 				  scmp_data_t
  * sc_map_search(s)	- if found, return scmp_datum_t for key, else set errno
  * sc_map_destroy()	- destroy the hash map
  */
@@ -97,14 +99,28 @@ scmp_datum_t sc_map_search(char *s)
 	return val;
 }
 
-void sc_map_add(char *key, void *data)
+void sc_map_add(char *key, scmp_datum_t data)
 {
+	// FIXME: store the data as a string and then run strtoul on it
+	// - have this take an uint64_t, then see if it is too big, if so,
+	//   error, else store with sprintf and free later
+	//
+	// TODO: scmp_datum_t (what we store in data) is defined as uint64_t,
+	// which is larger than the void pointers on 32-bit systems, so storing
+	// an int here could lead to problems. For now, just fail if the data
+	// is larger than a 32 bit pointer but at some point we may want to
+	// adjust this.
+	if ((unsigned long)data > powl(2, sizeof(void *) * 8) - 1) {
+		errno = ERANGE;
+		perror("seccomp argument value is too large");
+	}
+
 	ENTRY e;
 	ENTRY *ep = NULL;
 	errno = 0;
 
 	e.key = key;
-	e.data = data;
+	e.data = (void *)data;
 	if (hsearch_r(e, ENTER, &ep, &sc_map_htab) == 0)
 		die("hsearch_r failed");
 
@@ -122,99 +138,103 @@ void sc_map_init()
 		die("could not create map");
 
 	// man 2 socket - domain
-	sc_map_add("AF_UNIX", (void *)AF_UNIX);
-	sc_map_add("AF_LOCAL", (void *)AF_LOCAL);
-	sc_map_add("AF_INET", (void *)AF_INET);
-	sc_map_add("AF_INET6", (void *)AF_INET6);
-	sc_map_add("AF_IPX", (void *)AF_IPX);
-	sc_map_add("AF_NETLINK", (void *)AF_NETLINK);
-	sc_map_add("AF_X25", (void *)AF_X25);
-	sc_map_add("AF_AX25", (void *)AF_AX25);
-	sc_map_add("AF_ATMPVC", (void *)AF_ATMPVC);
-	sc_map_add("AF_APPLETALK", (void *)AF_APPLETALK);
-	sc_map_add("AF_PACKET", (void *)AF_PACKET);
-	sc_map_add("AF_ALG", (void *)AF_ALG);
+	sc_map_add("AF_UNIX", (scmp_datum_t) AF_UNIX);
+	sc_map_add("AF_LOCAL", (scmp_datum_t) AF_LOCAL);
+	sc_map_add("AF_INET", (scmp_datum_t) AF_INET);
+	sc_map_add("AF_INET6", (scmp_datum_t) AF_INET6);
+	sc_map_add("AF_IPX", (scmp_datum_t) AF_IPX);
+	sc_map_add("AF_NETLINK", (scmp_datum_t) AF_NETLINK);
+	sc_map_add("AF_X25", (scmp_datum_t) AF_X25);
+	sc_map_add("AF_AX25", (scmp_datum_t) AF_AX25);
+	sc_map_add("AF_ATMPVC", (scmp_datum_t) AF_ATMPVC);
+	sc_map_add("AF_APPLETALK", (scmp_datum_t) AF_APPLETALK);
+	sc_map_add("AF_PACKET", (scmp_datum_t) AF_PACKET);
+	sc_map_add("AF_ALG", (scmp_datum_t) AF_ALG);
 
 	// man 2 socket - type
-	sc_map_add("SOCK_STREAM", (void *)SOCK_STREAM);
-	sc_map_add("SOCK_DGRAM", (void *)SOCK_DGRAM);
-	sc_map_add("SOCK_SEQPACKET", (void *)SOCK_SEQPACKET);
-	sc_map_add("SOCK_RAW", (void *)SOCK_RAW);
-	sc_map_add("SOCK_RDM", (void *)SOCK_RDM);
-	sc_map_add("SOCK_PACKET", (void *)SOCK_PACKET);
+	sc_map_add("SOCK_STREAM", (scmp_datum_t) SOCK_STREAM);
+	sc_map_add("SOCK_DGRAM", (scmp_datum_t) SOCK_DGRAM);
+	sc_map_add("SOCK_SEQPACKET", (scmp_datum_t) SOCK_SEQPACKET);
+	sc_map_add("SOCK_RAW", (scmp_datum_t) SOCK_RAW);
+	sc_map_add("SOCK_RDM", (scmp_datum_t) SOCK_RDM);
+	sc_map_add("SOCK_PACKET", (scmp_datum_t) SOCK_PACKET);
 
 	// man 2 prctl
-	sc_map_add("PR_CAP_AMBIENT", (void *)PR_CAP_AMBIENT);
-	sc_map_add("PR_CAP_AMBIENT_RAISE", (void *)PR_CAP_AMBIENT_RAISE);
-	sc_map_add("PR_CAP_AMBIENT_LOWER", (void *)PR_CAP_AMBIENT_LOWER);
-	sc_map_add("PR_CAP_AMBIENT_IS_SET", (void *)PR_CAP_AMBIENT_IS_SET);
+	sc_map_add("PR_CAP_AMBIENT", (scmp_datum_t) PR_CAP_AMBIENT);
+	sc_map_add("PR_CAP_AMBIENT_RAISE", (scmp_datum_t) PR_CAP_AMBIENT_RAISE);
+	sc_map_add("PR_CAP_AMBIENT_LOWER", (scmp_datum_t) PR_CAP_AMBIENT_LOWER);
+	sc_map_add("PR_CAP_AMBIENT_IS_SET",
+		   (scmp_datum_t) PR_CAP_AMBIENT_IS_SET);
 	sc_map_add("PR_CAP_AMBIENT_CLEAR_ALL",
-		   (void *)PR_CAP_AMBIENT_CLEAR_ALL);
-	sc_map_add("PR_CAPBSET_READ", (void *)PR_CAPBSET_READ);
-	sc_map_add("PR_CAPBSET_DROP", (void *)PR_CAPBSET_DROP);
-	sc_map_add("PR_SET_CHILD_SUBREAPER", (void *)PR_SET_CHILD_SUBREAPER);
-	sc_map_add("PR_GET_CHILD_SUBREAPER", (void *)PR_GET_CHILD_SUBREAPER);
-	sc_map_add("PR_SET_DUMPABLE", (void *)PR_SET_DUMPABLE);
-	sc_map_add("PR_GET_DUMPABLE", (void *)PR_GET_DUMPABLE);
-	sc_map_add("PR_SET_ENDIAN", (void *)PR_SET_ENDIAN);
-	sc_map_add("PR_GET_ENDIAN", (void *)PR_GET_ENDIAN);
-	sc_map_add("PR_SET_FPEMU", (void *)PR_SET_FPEMU);
-	sc_map_add("PR_GET_FPEMU", (void *)PR_GET_FPEMU);
-	sc_map_add("PR_SET_FPEXC", (void *)PR_SET_FPEXC);
-	sc_map_add("PR_GET_FPEXC", (void *)PR_GET_FPEXC);
-	sc_map_add("PR_SET_KEEPCAPS", (void *)PR_SET_KEEPCAPS);
-	sc_map_add("PR_GET_KEEPCAPS", (void *)PR_GET_KEEPCAPS);
-	sc_map_add("PR_MCE_KILL", (void *)PR_MCE_KILL);
-	sc_map_add("PR_MCE_KILL_GET", (void *)PR_MCE_KILL_GET);
-	sc_map_add("PR_SET_MM", (void *)PR_SET_MM);
-	sc_map_add("PR_SET_MM_START_CODE", (void *)PR_SET_MM_START_CODE);
-	sc_map_add("PR_SET_MM_END_CODE", (void *)PR_SET_MM_END_CODE);
-	sc_map_add("PR_SET_MM_START_DATA", (void *)PR_SET_MM_START_DATA);
-	sc_map_add("PR_SET_MM_END_DATA", (void *)PR_SET_MM_END_DATA);
-	sc_map_add("PR_SET_MM_START_STACK", (void *)PR_SET_MM_START_STACK);
-	sc_map_add("PR_SET_MM_START_BRK", (void *)PR_SET_MM_START_BRK);
-	sc_map_add("PR_SET_MM_BRK", (void *)PR_SET_MM_BRK);
-	sc_map_add("PR_SET_MM_ARG_START", (void *)PR_SET_MM_ARG_START);
-	sc_map_add("PR_SET_MM_ARG_END", (void *)PR_SET_MM_ARG_END);
-	sc_map_add("PR_SET_MM_ENV_START", (void *)PR_SET_MM_ENV_START);
-	sc_map_add("PR_SET_MM_ENV_END", (void *)PR_SET_MM_ENV_END);
-	sc_map_add("PR_SET_MM_AUXV", (void *)PR_SET_MM_AUXV);
-	sc_map_add("PR_SET_MM_EXE_FILE", (void *)PR_SET_MM_EXE_FILE);
+		   (scmp_datum_t) PR_CAP_AMBIENT_CLEAR_ALL);
+	sc_map_add("PR_CAPBSET_READ", (scmp_datum_t) PR_CAPBSET_READ);
+	sc_map_add("PR_CAPBSET_DROP", (scmp_datum_t) PR_CAPBSET_DROP);
+	sc_map_add("PR_SET_CHILD_SUBREAPER",
+		   (scmp_datum_t) PR_SET_CHILD_SUBREAPER);
+	sc_map_add("PR_GET_CHILD_SUBREAPER",
+		   (scmp_datum_t) PR_GET_CHILD_SUBREAPER);
+	sc_map_add("PR_SET_DUMPABLE", (scmp_datum_t) PR_SET_DUMPABLE);
+	sc_map_add("PR_GET_DUMPABLE", (scmp_datum_t) PR_GET_DUMPABLE);
+	sc_map_add("PR_SET_ENDIAN", (scmp_datum_t) PR_SET_ENDIAN);
+	sc_map_add("PR_GET_ENDIAN", (scmp_datum_t) PR_GET_ENDIAN);
+	sc_map_add("PR_SET_FPEMU", (scmp_datum_t) PR_SET_FPEMU);
+	sc_map_add("PR_GET_FPEMU", (scmp_datum_t) PR_GET_FPEMU);
+	sc_map_add("PR_SET_FPEXC", (scmp_datum_t) PR_SET_FPEXC);
+	sc_map_add("PR_GET_FPEXC", (scmp_datum_t) PR_GET_FPEXC);
+	sc_map_add("PR_SET_KEEPCAPS", (scmp_datum_t) PR_SET_KEEPCAPS);
+	sc_map_add("PR_GET_KEEPCAPS", (scmp_datum_t) PR_GET_KEEPCAPS);
+	sc_map_add("PR_MCE_KILL", (scmp_datum_t) PR_MCE_KILL);
+	sc_map_add("PR_MCE_KILL_GET", (scmp_datum_t) PR_MCE_KILL_GET);
+	sc_map_add("PR_SET_MM", (scmp_datum_t) PR_SET_MM);
+	sc_map_add("PR_SET_MM_START_CODE", (scmp_datum_t) PR_SET_MM_START_CODE);
+	sc_map_add("PR_SET_MM_END_CODE", (scmp_datum_t) PR_SET_MM_END_CODE);
+	sc_map_add("PR_SET_MM_START_DATA", (scmp_datum_t) PR_SET_MM_START_DATA);
+	sc_map_add("PR_SET_MM_END_DATA", (scmp_datum_t) PR_SET_MM_END_DATA);
+	sc_map_add("PR_SET_MM_START_STACK",
+		   (scmp_datum_t) PR_SET_MM_START_STACK);
+	sc_map_add("PR_SET_MM_START_BRK", (scmp_datum_t) PR_SET_MM_START_BRK);
+	sc_map_add("PR_SET_MM_BRK", (scmp_datum_t) PR_SET_MM_BRK);
+	sc_map_add("PR_SET_MM_ARG_START", (scmp_datum_t) PR_SET_MM_ARG_START);
+	sc_map_add("PR_SET_MM_ARG_END", (scmp_datum_t) PR_SET_MM_ARG_END);
+	sc_map_add("PR_SET_MM_ENV_START", (scmp_datum_t) PR_SET_MM_ENV_START);
+	sc_map_add("PR_SET_MM_ENV_END", (scmp_datum_t) PR_SET_MM_ENV_END);
+	sc_map_add("PR_SET_MM_AUXV", (scmp_datum_t) PR_SET_MM_AUXV);
+	sc_map_add("PR_SET_MM_EXE_FILE", (scmp_datum_t) PR_SET_MM_EXE_FILE);
 	sc_map_add("PR_MPX_ENABLE_MANAGEMENT",
-		   (void *)PR_MPX_ENABLE_MANAGEMENT);
+		   (scmp_datum_t) PR_MPX_ENABLE_MANAGEMENT);
 	sc_map_add("PR_MPX_DISABLE_MANAGEMENT",
-		   (void *)PR_MPX_DISABLE_MANAGEMENT);
-	sc_map_add("PR_SET_NAME", (void *)PR_SET_NAME);
-	sc_map_add("PR_GET_NAME", (void *)PR_GET_NAME);
-	sc_map_add("PR_SET_NO_NEW_PRIVS", (void *)PR_SET_NO_NEW_PRIVS);
-	sc_map_add("PR_GET_NO_NEW_PRIVS", (void *)PR_GET_NO_NEW_PRIVS);
-	sc_map_add("PR_SET_PDEATHSIG", (void *)PR_SET_PDEATHSIG);
-	sc_map_add("PR_GET_PDEATHSIG", (void *)PR_GET_PDEATHSIG);
-	sc_map_add("PR_SET_PTRACER", (void *)PR_SET_PTRACER);
-	sc_map_add("PR_SET_SECCOMP", (void *)PR_SET_SECCOMP);
-	sc_map_add("PR_GET_SECCOMP", (void *)PR_GET_SECCOMP);
-	sc_map_add("PR_SET_SECUREBITS", (void *)PR_SET_SECUREBITS);
-	sc_map_add("PR_GET_SECUREBITS", (void *)PR_GET_SECUREBITS);
-	sc_map_add("PR_SET_THP_DISABLE", (void *)PR_SET_THP_DISABLE);
+		   (scmp_datum_t) PR_MPX_DISABLE_MANAGEMENT);
+	sc_map_add("PR_SET_NAME", (scmp_datum_t) PR_SET_NAME);
+	sc_map_add("PR_GET_NAME", (scmp_datum_t) PR_GET_NAME);
+	sc_map_add("PR_SET_NO_NEW_PRIVS", (scmp_datum_t) PR_SET_NO_NEW_PRIVS);
+	sc_map_add("PR_GET_NO_NEW_PRIVS", (scmp_datum_t) PR_GET_NO_NEW_PRIVS);
+	sc_map_add("PR_SET_PDEATHSIG", (scmp_datum_t) PR_SET_PDEATHSIG);
+	sc_map_add("PR_GET_PDEATHSIG", (scmp_datum_t) PR_GET_PDEATHSIG);
+	sc_map_add("PR_SET_PTRACER", (scmp_datum_t) PR_SET_PTRACER);
+	sc_map_add("PR_SET_SECCOMP", (scmp_datum_t) PR_SET_SECCOMP);
+	sc_map_add("PR_GET_SECCOMP", (scmp_datum_t) PR_GET_SECCOMP);
+	sc_map_add("PR_SET_SECUREBITS", (scmp_datum_t) PR_SET_SECUREBITS);
+	sc_map_add("PR_GET_SECUREBITS", (scmp_datum_t) PR_GET_SECUREBITS);
+	sc_map_add("PR_SET_THP_DISABLE", (scmp_datum_t) PR_SET_THP_DISABLE);
 	sc_map_add("PR_TASK_PERF_EVENTS_DISABLE",
-		   (void *)PR_TASK_PERF_EVENTS_DISABLE);
+		   (scmp_datum_t) PR_TASK_PERF_EVENTS_DISABLE);
 	sc_map_add("PR_TASK_PERF_EVENTS_ENABLE",
-		   (void *)PR_TASK_PERF_EVENTS_ENABLE);
-	sc_map_add("PR_GET_THP_DISABLE", (void *)PR_GET_THP_DISABLE);
-	sc_map_add("PR_GET_TID_ADDRESS", (void *)PR_GET_TID_ADDRESS);
-	sc_map_add("PR_SET_TIMERSLACK", (void *)PR_SET_TIMERSLACK);
-	sc_map_add("PR_GET_TIMERSLACK", (void *)PR_GET_TIMERSLACK);
-	sc_map_add("PR_SET_TIMING", (void *)PR_SET_TIMING);
-	sc_map_add("PR_GET_TIMING", (void *)PR_GET_TIMING);
-	sc_map_add("PR_SET_TSC", (void *)PR_SET_TSC);
-	sc_map_add("PR_GET_TSC", (void *)PR_GET_TSC);
-	sc_map_add("PR_SET_UNALIGN", (void *)PR_SET_UNALIGN);
-	sc_map_add("PR_GET_UNALIGN", (void *)PR_GET_UNALIGN);
+		   (scmp_datum_t) PR_TASK_PERF_EVENTS_ENABLE);
+	sc_map_add("PR_GET_THP_DISABLE", (scmp_datum_t) PR_GET_THP_DISABLE);
+	sc_map_add("PR_GET_TID_ADDRESS", (scmp_datum_t) PR_GET_TID_ADDRESS);
+	sc_map_add("PR_SET_TIMERSLACK", (scmp_datum_t) PR_SET_TIMERSLACK);
+	sc_map_add("PR_GET_TIMERSLACK", (scmp_datum_t) PR_GET_TIMERSLACK);
+	sc_map_add("PR_SET_TIMING", (scmp_datum_t) PR_SET_TIMING);
+	sc_map_add("PR_GET_TIMING", (scmp_datum_t) PR_GET_TIMING);
+	sc_map_add("PR_SET_TSC", (scmp_datum_t) PR_SET_TSC);
+	sc_map_add("PR_GET_TSC", (scmp_datum_t) PR_GET_TSC);
+	sc_map_add("PR_SET_UNALIGN", (scmp_datum_t) PR_SET_UNALIGN);
+	sc_map_add("PR_GET_UNALIGN", (scmp_datum_t) PR_GET_UNALIGN);
 
 	// man 2 getpriority
-	sc_map_add("PRIO_PROCESS", (void *)PRIO_PROCESS);
-	sc_map_add("PRIO_PGRP", (void *)PRIO_PGRP);
-	sc_map_add("PRIO_USER", (void *)PRIO_USER);
+	sc_map_add("PRIO_PROCESS", (scmp_datum_t) PRIO_PROCESS);
+	sc_map_add("PRIO_PGRP", (scmp_datum_t) PRIO_PGRP);
+	sc_map_add("PRIO_USER", (scmp_datum_t) PRIO_USER);
 }
 
 void sc_map_destroy()
