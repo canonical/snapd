@@ -93,9 +93,13 @@ func (s *snapExecSuite) TestFindCommandNoCommand(c *C) {
 
 func (s *snapExecSuite) TestSnapLaunchIntegration(c *C) {
 	os.Setenv("SNAP_REVISION", "42")
-	snapReadInfo = func(string, *snap.SideInfo) (*snap.Info, error) {
+
+	snapReadInfo = func(snapName string, si *snap.SideInfo) (*snap.Info, error) {
+		c.Check(snapName, Equals, "snapname")
+		c.Check(si.Revision, Equals, snap.R(42))
+
 		info, err := snap.InfoFromSnapYaml(mockYaml)
-		info.SideInfo.Revision = snap.R(os.Getenv("SNAP_REVISION"))
+		info.SideInfo = *si
 		return info, err
 	}
 
@@ -109,7 +113,7 @@ func (s *snapExecSuite) TestSnapLaunchIntegration(c *C) {
 		return nil
 	}
 
-	err := snapLaunch("snap.app", "stop", []string{"arg1", "arg2"})
+	err := snapLaunch("snapname.app", "stop", []string{"arg1", "arg2"})
 	c.Assert(err, IsNil)
 	c.Check(execArgv0, Equals, "/snap/snapname/42/stop-app")
 	c.Check(execArgs, DeepEquals, []string{"arg1", "arg2"})
