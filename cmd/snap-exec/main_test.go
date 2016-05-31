@@ -22,7 +22,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"syscall"
 	"testing"
 
@@ -97,7 +96,7 @@ func (s *snapExecSuite) TestFindCommandNoCommand(c *C) {
 func (s *snapExecSuite) TestSnapLaunchIntegration(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
-		Revision: snap.R("x42"),
+		Revision: snap.R("42"),
 	})
 
 	execArgv0 := ""
@@ -110,13 +109,10 @@ func (s *snapExecSuite) TestSnapLaunchIntegration(c *C) {
 		return nil
 	}
 
-	// this environment is always set by `snap run`
-	os.Setenv("SNAP_REVISION", "x42")
-
 	// launch and verify its run the right way
-	err := snapExec("snapname.app", "stop", []string{"arg1", "arg2"})
+	err := snapExec("snapname.app", "42", "stop", []string{"arg1", "arg2"})
 	c.Assert(err, IsNil)
-	c.Check(execArgv0, Equals, fmt.Sprintf("%s/snapname/x42/stop-app", dirs.SnapSnapsDir))
+	c.Check(execArgv0, Equals, fmt.Sprintf("%s/snapname/42/stop-app", dirs.SnapSnapsDir))
 	c.Check(execArgs, DeepEquals, []string{"arg1", "arg2"})
 	c.Check(execEnv, testutil.Contains, "LD_LIBRARY_PATH=/some/path\n")
 }
