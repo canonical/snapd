@@ -37,7 +37,7 @@ func (cs *clientSuite) TestClientSnapsCallsEndpoint(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientFindRefreshSetsQuery(c *check.C) {
-	_, _, _ = cs.cli.FindSnaps(&client.FindOptions{
+	_, _, _ = cs.cli.Find(&client.FindOptions{
 		Refresh: true,
 	})
 	c.Check(cs.req.Method, check.Equals, "GET")
@@ -101,7 +101,7 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientFilterSnaps(c *check.C) {
-	_, _, _ = cs.cli.FindSnaps(&client.FindOptions{Query: "foo"})
+	_, _, _ = cs.cli.Find(&client.FindOptions{Query: "foo"})
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
 	c.Check(cs.req.URL.RawQuery, check.Equals, "q=foo")
 }

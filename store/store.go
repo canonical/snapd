@@ -475,9 +475,9 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string, auther Authentica
 
 }
 
-// FindSnaps finds  (installable) snaps from the store, matching the
+// Find finds  (installable) snaps from the store, matching the
 // given search term.
-func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string, auther Authenticator) ([]*snap.Info, error) {
+func (s *SnapUbuntuStoreRepository) Find(searchTerm string, channel string, auther Authenticator) ([]*snap.Info, error) {
 	if channel == "" {
 		channel = "stable"
 	}

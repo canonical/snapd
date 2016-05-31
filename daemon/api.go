@@ -297,7 +297,7 @@ func UserFromRequest(st *state.State, req *http.Request) (*auth.UserState, error
 
 type metarepo interface {
 	Snap(string, string, store.Authenticator) (*snap.Info, error)
-	FindSnaps(string, string, store.Authenticator) ([]*snap.Info, error)
+	Find(string, string, store.Authenticator) ([]*snap.Info, error)
 	ListRefresh([]*store.RefreshCandidate, store.Authenticator) ([]*snap.Info, error)
 	SuggestedCurrency() string
 }
@@ -362,19 +362,22 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	if route == nil {
 		return InternalError("cannot find route for snaps")
 	}
+	query := r.URL.Query()
 
-	if r.URL.Query().Get("select") == "refresh" {
-		return storeUpdates(c, r)
+	if query.Get("select") == "refresh" {
+		if query.Get("q") != "" {
+			return BadRequest("cannot use 'q' with 'select=refresh'")
+		}
+		return storeUpdates(c, r, user)
 	}
 
-	query := r.URL.Query()
 	auther, err := c.d.auther(r)
 	if err != nil && err != auth.ErrInvalidAuth {
 		return InternalError("%v", err)
 	}
 
 	remoteRepo := newRemoteRepo()
-	found, err := remoteRepo.FindSnaps(query.Get("q"), query.Get("channel"), auther)
+	found, err := remoteRepo.Find(query.Get("q"), query.Get("channel"), auther)
 	if err != nil {
 		return InternalError("%v", err)
 	}
@@ -410,7 +413,7 @@ func shouldSearchStore(r *http.Request) bool {
 }
 
 // FIXME: add explicit test
-func storeUpdates(c *Command, r *http.Request) Response {
+func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 	route := c.d.router.Get(snapCmd.Path)
 	if route == nil {
 		return InternalError("cannot find route for snaps")
@@ -428,7 +431,7 @@ func storeUpdates(c *Command, r *http.Request) Response {
 			continue
 		}
 
-		// get confinment preference from the snapstate
+		// get confinement preference from the snapstate
 		candidatesInfo = append(candidatesInfo, &store.RefreshCandidate{
 			// the desired channel (not sn.info.Channel!)
 			Channel: sn.snapst.Channel,
@@ -440,11 +443,10 @@ func storeUpdates(c *Command, r *http.Request) Response {
 		})
 	}
 
-	auther, err := c.d.auther(r)
-	if err != nil && err != auth.ErrInvalidAuth {
-		return InternalError("%v", err)
+	var auther store.Authenticator
+	if user != nil {
+		auther = user.Authenticator()
 	}
-
 	store := newRemoteRepo()
 	updates, err := store.ListRefresh(candidatesInfo, auther)
 	if err != nil {
@@ -455,8 +457,8 @@ func storeUpdates(c *Command, r *http.Request) Response {
 }
 
 func sendStorePackages(route *mux.Route, meta *Meta, found []*snap.Info) Response {
-	results := make([]*json.RawMessage, len(found))
-	for i, x := range found {
+	results := make([]*json.RawMessage, 0, len(found))
+	for _, x := range found {
 		url, err := route.URL("name", x.Name())
 		if err != nil {
 			logger.Noticef("Cannot build URL for snap %q revision %s: %v", x.Name(), x.Revision, err)
@@ -468,7 +470,7 @@ func sendStorePackages(route *mux.Route, meta *Meta, found []*snap.Info) Respons
 			return InternalError("%v", err)
 		}
 		raw := json.RawMessage(data)
-		results[i] = &raw
+		results = append(results, &raw)
 	}
 
 	return SyncResponse(results, meta)

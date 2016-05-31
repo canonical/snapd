@@ -111,7 +111,7 @@ func (x *cmdFind) Execute([]string) error {
 
 func findSnaps(opts *client.FindOptions) error {
 	cli := Client()
-	snaps, resInfo, err := cli.FindSnaps(opts)
+	snaps, resInfo, err := cli.Find(opts)
 	if err != nil {
 		return err
 	}
