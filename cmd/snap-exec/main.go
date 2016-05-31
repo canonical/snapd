@@ -62,10 +62,10 @@ func run() error {
 	return snapLaunch(snapApp, opts.Command, args)
 }
 
-func splitSnapApp(snapCmd string) (snap, app string) {
-	l := strings.SplitN(snapCmd, ".", 2)
+func splitSnapApp(snapApp string) (snap, app string) {
+	l := strings.SplitN(snapApp, ".", 2)
 	if len(l) < 2 {
-		return l[0], ""
+		return l[0], l[0]
 	}
 	return l[0], l[1]
 }
