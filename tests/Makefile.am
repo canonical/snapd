@@ -9,3 +9,7 @@ TESTS = \
     test_unrestricted \
     test_unrestricted_missed \
     test_whitelist
+
+.PHONY: check-syntax
+check-syntax:
+	shellcheck --format=gcc $(wildcard test_*) common.sh
