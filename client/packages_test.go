@@ -58,7 +58,9 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 			"resource": "/v2/snaps/hello-world.canonical",
 			"status": "available",
 			"type": "app",
-			"version": "1.0.18"
+			"version": "1.0.18",
+                        "confinement": "strict",
+                        "private": true
 		}],
 		"suggested-currency": "GBP"
 	}`
@@ -76,6 +78,8 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 		Status:        client.StatusAvailable,
 		Type:          client.TypeApp,
 		Version:       "1.0.18",
+		Confinement:   client.StrictConfinement,
+		Private:       true,
 	}})
 	otherApps, err := cs.cli.ListSnaps([]string{"foo"})
 	c.Check(err, check.IsNil)
@@ -108,7 +112,9 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 			"resource": "/v2/snaps/chatroom.ogra",
 			"status": "active",
 			"type": "app",
-			"version": "0.1-8"
+			"version": "0.1-8",
+                        "confinement": "strict",
+                        "private": true
 		}
 	}`
 	pkg, _, err := cs.cli.Snap(pkgName)
@@ -128,5 +134,7 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 		Status:        client.StatusActive,
 		Type:          client.TypeApp,
 		Version:       "0.1-8",
+		Confinement:   client.StrictConfinement,
+		Private:       true,
 	})
 }
