@@ -23,3 +23,17 @@ check-syntax:
 	done;
 
 check: check-syntax
+
+# Install udev rules
+install-data-local:
+	install -d -m 755 $(DESTDIR)/lib/udev/rules.d
+	install -m 644 80-snappy-assign.rules $(DESTDIR)/lib/udev/rules.d
+
+# Install support script for udev rules
+install-exec-local:
+	install -d -m 755 $(DESTDIR)/lib/udev
+	install -m 755 snappy-app-dev $(DESTDIR)/lib/udev/
+
+# Ensure that snap-run is +s (setuid)
+install-exec-hook:
+	chmod 4755 $(DESTDIR)$(bindir)/snap-run
