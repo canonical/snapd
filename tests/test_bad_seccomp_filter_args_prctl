@@ -4,23 +4,8 @@ set -e
 
 . "$(pwd)"/common.sh
 
-cat >"$TMP"/tmpl <<EOF
-# the ones we must have
-open
-close
-mmap
-munmap
-mprotect
-fstat
-access
-read
-brk
-execve
-arch_prctl
-exit_group
-geteuid
-getuid
-
+get_common_syscalls >"$TMP"/tmpl
+cat >>"$TMP"/tmpl <<EOF
 # what we are testing
 EOF
 

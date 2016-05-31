@@ -9,29 +9,8 @@ cat >"$TMP/snap.name.app-unrestricted" <<EOF
 @unrestricted
 EOF
 
-cat >"$TMP/snap.name.app-restricted" <<EOF
-# filter that works ok for true
-open
-close
-
-mmap
-munmap
-mprotect
-
-fstat
-access
-read
-
-brk
-execve
-
-arch_prctl
-exit_group
-
-# required for not setting nnp
-geteuid
-getuid
-
+get_common_syscalls >"$TMP/snap.name.app-restricted"
+cat >>"$TMP/snap.name.app-restricted" <<EOF
 # unknown syscalls are ignore
 i-dont-exit
 EOF

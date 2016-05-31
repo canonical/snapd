@@ -2,7 +2,8 @@
 
 set -e
 
-if [ "$(dpkg --print-architecture)" != "amd64" ]; then
+arch=`dpkg --print-architecture`
+if [ "$arch" != "amd64" ] && [ "$arch" != "i386" ]; then
     printf "Tests will only work on amd64\n"
     exit 0
 fi
