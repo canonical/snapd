@@ -78,6 +78,8 @@ type appYaml struct {
 
 	BusName string `yaml:"bus-name,omitempty"`
 
+	Environment map[string]string `yaml:"environment,omitempty"`
+
 	Socket       bool   `yaml:"socket,omitempty"`
 	ListenStream string `yaml:"listen-stream,omitempty"`
 	SocketMode   string `yaml:"socket-mode,omitempty"`
@@ -171,7 +173,7 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 		Hooks:               make(map[string]*HookInfo),
 		Plugs:               make(map[string]*PlugInfo),
 		Slots:               make(map[string]*SlotInfo),
-		Environment:         make(map[string]string),
+		Environment:         y.Environment,
 	}
 
 	sort.Strings(snap.Assumes)
@@ -246,6 +248,7 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) {
 			SocketMode:      yApp.SocketMode,
 			ListenStream:    yApp.ListenStream,
 			BusName:         yApp.BusName,
+			Environment:     yApp.Environment,
 		}
 		if len(y.Plugs) > 0 || len(yApp.PlugNames) > 0 {
 			app.Plugs = make(map[string]*PlugInfo)
