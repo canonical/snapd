@@ -44,11 +44,6 @@ func (s *snapExecSuite) SetUpTest(c *C) {
 	syscallExec = syscall.Exec
 }
 
-func (s *snapExecSuite) TestFindAppNoApp(c *C) {
-	app := findApp(&snap.Info{}, "foo")
-	c.Check(app, IsNil)
-}
-
 var mockYaml = []byte(`name: snapname
 version: 1.0
 apps:
@@ -61,15 +56,6 @@ apps:
  nostop:
   command: nostop
 `)
-
-func (s *snapExecSuite) TestFindApp(c *C) {
-	info, err := snap.InfoFromSnapYaml(mockYaml)
-	c.Assert(err, IsNil)
-
-	app := findApp(info, "app")
-	c.Check(app.Name, Equals, "app")
-	c.Check(app.Command, Equals, "run-app")
-}
 
 func (s *snapExecSuite) TestFindCommand(c *C) {
 	info, err := snap.InfoFromSnapYaml(mockYaml)
