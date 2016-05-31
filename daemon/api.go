@@ -412,7 +412,6 @@ func shouldSearchStore(r *http.Request) bool {
 	return false
 }
 
-// FIXME: add explicit test
 func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 	route := c.d.router.Get(snapCmd.Path)
 	if route == nil {
