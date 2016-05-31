@@ -1216,3 +1216,21 @@ environment:
 		"baz": "boom",
 	})
 }
+
+func (s *YamlSuite) TestSnapYamlPerAppEnvironment(c *C) {
+	y := []byte(`
+name: foo
+version: 1.0
+apps:
+ foo:
+  environment:
+   k1: v1
+   k2: v2
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+	c.Assert(info.Apps["foo"].Environment, DeepEquals, map[string]string{
+		"k1": "v1",
+		"k2": "v2",
+	})
+}
