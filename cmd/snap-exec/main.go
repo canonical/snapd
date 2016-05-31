@@ -56,8 +56,11 @@ func run() error {
 		return err
 	}
 
+	// the SNAP_REVISION is set by `snap run`
+	revision := os.Getenv("SNAP_REVISION")
+
 	snapApp := opts.Positional.SnapApp
-	return snapExec(snapApp, opts.Command, args)
+	return snapExec(snapApp, revision, opts.Command, args)
 }
 
 func splitSnapApp(snapApp string) (snap, app string) {
@@ -87,10 +90,10 @@ func findCommand(app *snap.AppInfo, command string) (string, error) {
 	return cmd, nil
 }
 
-func snapExec(snapApp, command string, args []string) error {
+func snapExec(snapApp, revision, command string, args []string) error {
 	snapName, appName := splitSnapApp(snapApp)
 	info, err := snap.ReadInfo(snapName, &snap.SideInfo{
-		Revision: snap.R(os.Getenv("SNAP_REVISION")),
+		Revision: snap.R(revision),
 	})
 	if err != nil {
 		return err
