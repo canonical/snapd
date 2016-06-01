@@ -30,6 +30,10 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
+// DispatchHook is the hook dispatcher; exported here so it can be overridden in
+// tests.
+var DispatchHook = hooks.DispatchHook
+
 // HookManager is responsible for the maintenance of hooks in the system state.
 // It runs hooks when they're requested, assuming they're present in the given
 // snap. Otherwise they're skipped with no error.
@@ -75,7 +79,7 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	}
 	task.State().Unlock()
 
-	if err := hooks.DispatchHook(hookRef, tomb); err != nil {
+	if err := DispatchHook(hookRef, tomb); err != nil {
 		return fmt.Errorf("error dispatching hook: %s", err)
 	}
 

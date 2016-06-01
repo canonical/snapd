@@ -49,10 +49,10 @@ func (s *hookManagerSuite) SetUpTest(c *C) {
 	manager, err := hookstate.Manager(s.state)
 	c.Assert(err, IsNil)
 	s.manager = manager
-	s.oldDispatch = hooks.DispatchHook
+	s.oldDispatch = hookstate.DispatchHook
 
 	s.dispatchCalled = false
-	hooks.DispatchHook = func(hookRef hooks.HookRef, _ *tomb.Tomb) error {
+	hookstate.DispatchHook = func(hookRef hooks.HookRef, _ *tomb.Tomb) error {
 		s.dispatchCalled = true
 		return nil
 	}
@@ -62,7 +62,7 @@ func (s *hookManagerSuite) TearDownTest(c *C) {
 	s.manager.Stop()
 	dirs.SetRootDir("")
 
-	hooks.DispatchHook = s.oldDispatch
+	hookstate.DispatchHook = s.oldDispatch
 }
 
 func (s *hookManagerSuite) TestSmoke(c *C) {
@@ -118,7 +118,7 @@ func (s *hookManagerSuite) TestRunHookTask(c *C) {
 }
 
 func (s *hookManagerSuite) TestRunHookTaskHandleFailure(c *C) {
-	hooks.DispatchHook = func(hookRef hooks.HookRef, _ *tomb.Tomb) error {
+	hookstate.DispatchHook = func(hookRef hooks.HookRef, _ *tomb.Tomb) error {
 		return errors.New("failed at user request")
 	}
 
