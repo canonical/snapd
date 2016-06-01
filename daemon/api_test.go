@@ -62,6 +62,7 @@ type apiSuite struct {
 	d                 *Daemon
 	auther            store.Authenticator
 	restoreBackends   func()
+	refreshCandidates []*store.RefreshCandidate
 }
 
 var _ = check.Suite(&apiSuite{})
@@ -74,10 +75,16 @@ func (s *apiSuite) Snap(name, channel string, auther store.Authenticator) (*snap
 	return nil, s.err
 }
 
-func (s *apiSuite) FindSnaps(searchTerm, channel string, auther store.Authenticator) ([]*snap.Info, error) {
+func (s *apiSuite) Find(searchTerm, channel string, auther store.Authenticator) ([]*snap.Info, error) {
 	s.searchTerm = searchTerm
 	s.channel = channel
 	s.auther = auther
+
+	return s.rsnaps, s.err
+}
+
+func (s *apiSuite) ListRefresh(snaps []*store.RefreshCandidate, auther store.Authenticator) ([]*snap.Info, error) {
+	s.refreshCandidates = snaps
 
 	return s.rsnaps, s.err
 }
@@ -119,6 +126,7 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 	}
 	s.auther = nil
 	s.d = nil
+	s.refreshCandidates = nil
 	// Disable real security backends for all API tests
 	s.restoreBackends = ifacestate.MockSecurityBackends(nil)
 }
@@ -251,6 +259,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 			"name":        "foo",
 			"revision":    snap.R(10),
 			"version":     "v1",
+			"channel":     "stable",
 			"summary":     "summary",
 			"description": "description",
 			"developer":   "bar",
@@ -764,6 +773,41 @@ func (s *apiSuite) TestFind(c *check.C) {
 
 	c.Check(s.searchTerm, check.Equals, "hi")
 	c.Check(s.channel, check.Equals, "potato")
+	c.Check(s.refreshCandidates, check.HasLen, 0)
+}
+
+func (s *apiSuite) TestFindRefreshes(c *check.C) {
+	d := s.daemon(c)
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
+	s.rsnaps = []*snap.Info{{
+		SideInfo: snap.SideInfo{
+			OfficialName: "store",
+			Developer:    "foo",
+		},
+	}}
+	s.mockSnap(c, "name: foo\nversion: 1.0")
+
+	req, err := http.NewRequest("GET", "/v2/find?select=refresh", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := searchStore(findCmd, req, nil).(*resp)
+
+	snaps := snapList(rsp.Result)
+	c.Assert(snaps, check.HasLen, 1)
+	c.Assert(snaps[0]["name"], check.Equals, "store")
+	c.Check(s.refreshCandidates, check.HasLen, 1)
+}
+
+func (s *apiSuite) TestFindRefreshNotQ(c *check.C) {
+	req, err := http.NewRequest("GET", "/v2/find?select=refresh&q=foo", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := searchStore(findCmd, req, nil).(*resp)
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
+	c.Check(rsp.Result.(*errorResult).Message, check.Matches, "cannot use 'q' with 'select=refresh'")
 }
 
 func (s *apiSuite) TestFindPriced(c *check.C) {

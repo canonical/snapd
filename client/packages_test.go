@@ -21,6 +21,7 @@ package client_test
 
 import (
 	"fmt"
+	"net/url"
 	"time"
 
 	"gopkg.in/check.v1"
@@ -29,9 +30,21 @@ import (
 )
 
 func (cs *clientSuite) TestClientSnapsCallsEndpoint(c *check.C) {
-	_, _ = cs.cli.ListSnaps(nil)
+	_, _ = cs.cli.List(nil)
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/snaps")
+	c.Check(cs.req.URL.Query(), check.DeepEquals, url.Values{})
+}
+
+func (cs *clientSuite) TestClientFindRefreshSetsQuery(c *check.C) {
+	_, _, _ = cs.cli.Find(&client.FindOptions{
+		Refresh: true,
+	})
+	c.Check(cs.req.Method, check.Equals, "GET")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
+	c.Check(cs.req.URL.Query(), check.DeepEquals, url.Values{
+		"q": []string{""}, "select": []string{"refresh"},
+	})
 }
 
 func (cs *clientSuite) TestClientSnapsInvalidSnapsJSON(c *check.C) {
@@ -39,7 +52,7 @@ func (cs *clientSuite) TestClientSnapsInvalidSnapsJSON(c *check.C) {
 		"type": "sync",
 		"result": "not a list of snaps"
 	}`
-	_, err := cs.cli.ListSnaps(nil)
+	_, err := cs.cli.List(nil)
 	c.Check(err, check.ErrorMatches, `.*cannot unmarshal.*`)
 }
 
@@ -64,7 +77,7 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 		}],
 		"suggested-currency": "GBP"
 	}`
-	applications, err := cs.cli.ListSnaps(nil)
+	applications, err := cs.cli.List(nil)
 	c.Check(err, check.IsNil)
 	c.Check(applications, check.DeepEquals, []*client.Snap{{
 		ID:            "funky-snap-id",
@@ -82,13 +95,13 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 		Private:       true,
 		DevMode:       false,
 	}})
-	otherApps, err := cs.cli.ListSnaps([]string{"foo"})
+	otherApps, err := cs.cli.List([]string{"foo"})
 	c.Check(err, check.IsNil)
 	c.Check(otherApps, check.HasLen, 0)
 }
 
 func (cs *clientSuite) TestClientFilterSnaps(c *check.C) {
-	_, _, _ = cs.cli.FindSnaps("foo")
+	_, _, _ = cs.cli.Find(&client.FindOptions{Query: "foo"})
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
 	c.Check(cs.req.URL.RawQuery, check.Equals, "q=foo")
 }

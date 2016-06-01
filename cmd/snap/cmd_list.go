@@ -54,13 +54,12 @@ func (x *cmdList) Execute([]string) error {
 	return listSnaps(x.Positional.Snaps)
 }
 
-func listSnaps(args []string) error {
+func listSnaps(names []string) error {
 	cli := Client()
-	snaps, err := cli.ListSnaps(args)
+	snaps, err := cli.List(names)
 	if err != nil {
 		return err
 	}
-
 	sort.Sort(snapsByName(snaps))
 
 	w := tabWriter()
