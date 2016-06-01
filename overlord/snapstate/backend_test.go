@@ -164,10 +164,14 @@ func (f *fakeSnappyBackend) UndoSetupSnap(s snap.PlaceInfo) error {
 }
 
 func (f *fakeSnappyBackend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.Info, flags int) error {
-	// XXX: report old
+	old := "<no-old>"
+	if oldInfo != nil {
+		old = oldInfo.MountDir()
+	}
 	f.ops = append(f.ops, fakeOp{
 		op:   "undo-copy-snap-data",
 		name: newInfo.MountDir(),
+		old:  old,
 	})
 	return nil
 }
