@@ -735,6 +735,9 @@ func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, f
 	st.Lock()
 	defer st.Unlock()
 
+	if !filepath.IsAbs(trydir) {
+		return BadRequest("cannot try %q: need an absolute path", trydir)
+	}
 	if !osutil.IsDirectory(trydir) {
 		return BadRequest("cannot try %q: not a snap directory", trydir)
 	}
