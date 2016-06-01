@@ -59,6 +59,9 @@ func listSnaps(names []string) error {
 	snaps, err := cli.List(names)
 	if err != nil {
 		return err
+	} else if len(snaps) == 0 {
+		fmt.Fprintln(Stdout, i18n.G("No snaps are installed yet. Try 'snap install hello-world'."))
+		return nil
 	}
 	sort.Sort(snapsByName(snaps))
 
