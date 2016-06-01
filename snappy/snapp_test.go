@@ -22,7 +22,6 @@ package snappy
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -151,80 +150,6 @@ func (s *SnapTestSuite) TestLocalSnapRepositorySimple(c *C) {
 const (
 	funkyAppName = "8nzc1x4iim2xj1g2ul64"
 )
-
-/* acquired via:
-curl -s --data-binary '{"name":["8nzc1x4iim2xj1g2ul64.chipaca"]}'  -H 'content-type: application/json' https://search.apps.ubuntu.com/api/v1/click-metadata
-*/
-const MockUpdatesJSON = `[
-    {
-        "status": "Published",
-        "name": "8nzc1x4iim2xj1g2ul64.chipaca",
-        "package_name": "8nzc1x4iim2xj1g2ul64",
-        "origin": "chipaca",
-        "changelog": "",
-        "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/04/hello.svg_Dlrd3L4.png",
-        "title": "Returns for store credit only.",
-        "binary_filesize": 65375,
-        "anon_download_url": "https://public.apps.ubuntu.com/anon/download/chipaca/8nzc1x4iim2xj1g2ul64.chipaca/8nzc1x4iim2xj1g2ul64.chipaca_42_all.snap",
-        "allow_unauthenticated": true,
-        "revision": 3,
-        "version": "42",
-        "download_url": "https://public.apps.ubuntu.com/download/chipaca/8nzc1x4iim2xj1g2ul64.chipaca/8nzc1x4iim2xj1g2ul64.chipaca_42_all.snap",
-        "download_sha512": "5364253e4a988f4f5c04380086d542f410455b97d48cc6c69ca2a5877d8aef2a6b2b2f83ec4f688cae61ebc8a6bf2cdbd4dbd8f743f0522fc76540429b79df42"
-    }
-]`
-
-func mockActiveSnapIterByType(mockSnaps []string) {
-	ActiveSnapIterByType = func(f func(*snap.Info) string, snapTs ...snap.Type) (res []string, err error) {
-		return mockSnaps, nil
-	}
-}
-
-func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		jsonReq, err := ioutil.ReadAll(r.Body)
-		c.Assert(err, IsNil)
-		c.Assert(string(jsonReq), Equals, `{"name":["`+funkyAppName+`"]}`)
-		io.WriteString(w, MockUpdatesJSON)
-	}))
-
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	var err error
-	s.storeCfg.BulkURI, err = url.Parse(mockServer.URL + "/updates/")
-	c.Assert(err, IsNil)
-	repo := store.NewUbuntuStoreSnapRepository(s.storeCfg, "")
-	c.Assert(repo, NotNil)
-
-	// override the real ActiveSnapIterByType to return our
-	// mock data
-	mockActiveSnapIterByType([]string{funkyAppName})
-
-	// the actual test
-	results, err := snapUpdates(repo)
-	c.Assert(err, IsNil)
-	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].Name(), Equals, funkyAppName)
-	c.Assert(results[0].Revision, Equals, snap.R(3))
-	c.Assert(results[0].Version, Equals, "42")
-}
-
-func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdatesNoSnaps(c *C) {
-
-	var err error
-	s.storeCfg.SearchURI, err = url.Parse("https://some-uri")
-	c.Assert(err, IsNil)
-	repo := store.NewUbuntuStoreSnapRepository(s.storeCfg, "")
-	c.Assert(repo, NotNil)
-
-	mockActiveSnapIterByType([]string{})
-
-	// the actual test
-	results, err := snapUpdates(repo)
-	c.Assert(err, IsNil)
-	c.Assert(results, HasLen, 0)
-}
 
 func (s *SnapTestSuite) TestMakeConfigEnv(c *C) {
 	yamlFile, err := makeInstalledMockSnap("", 11)
