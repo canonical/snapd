@@ -261,24 +261,25 @@ func (app *AppInfo) WrapperPath() string {
 }
 
 func (app *AppInfo) launcherCommand(command string) string {
-	securityTag := app.SecurityTag()
-	return fmt.Sprintf("snap run %s %s %s", securityTag, securityTag, filepath.Join(app.Snap.MountDir(), command))
-
+	if app.Name == app.Snap.Name() {
+		return fmt.Sprintf("/usr/bin/snap run %s %s", command, filepath.Base(app.Name))
+	}
+	return fmt.Sprintf("/usr/bin/snap run %s %s.%s", command, app.Snap.Name(), filepath.Base(app.Name))
 }
 
 // LauncherCommand returns the launcher command line to use when invoking the app binary.
 func (app *AppInfo) LauncherCommand() string {
-	return app.launcherCommand(app.Command)
+	return app.launcherCommand("")
 }
 
 // LauncherStopCommand returns the launcher command line to use when invoking the app stop command binary.
 func (app *AppInfo) LauncherStopCommand() string {
-	return app.launcherCommand(app.StopCommand)
+	return app.launcherCommand("--command=stop")
 }
 
 // LauncherPostStopCommand returns the launcher command line to use when invoking the app post-stop command binary.
 func (app *AppInfo) LauncherPostStopCommand() string {
-	return app.launcherCommand(app.PostStopCommand)
+	return app.launcherCommand("--command=post-stop")
 }
 
 // ServiceFile returns the systemd service file path for the daemon app.

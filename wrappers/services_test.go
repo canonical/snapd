@@ -75,12 +75,10 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 	content, err := ioutil.ReadFile(svcFile)
 	c.Assert(err, IsNil)
 
-	mountDir := info.MountDir()
 	verbs := []string{"Start", "Stop", "StopPost"}
-	bins := []string{"hello", "goodbye", "missya"}
+	cmds := []string{"", "--command=stop", "--command=post-stop"}
 	for i := range verbs {
-		expected := fmt.Sprintf("Exec%s=/usr/bin/ubuntu-core-launcher snap.hello-snap.svc1 snap.hello-snap.svc1 %s/bin/%s",
-			verbs[i], mountDir, bins[i])
+		expected := fmt.Sprintf("Exec%s=/usr/bin/snap run %s hello-snap.svc1", verbs[i], cmds[i])
 		c.Check(string(content), Matches, "(?ms).*^"+regexp.QuoteMeta(expected)) // check.v1 adds ^ and $ around the regexp provided
 	}
 
