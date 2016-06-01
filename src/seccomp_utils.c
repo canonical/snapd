@@ -36,7 +36,7 @@
 
 #include <seccomp.h>
 
-#include "seccomp.h"
+#include "seccomp_utils.h"
 #include "utils.h"
 
 // libseccomp maximum per ARG_COUNT_MAX in src/arch.h
@@ -68,6 +68,19 @@ struct seccomp_args {
 	unsigned int length;
 	struct scmp_arg_cmp arg_cmp[SC_ARGS_MAXLENGTH];
 };
+
+struct sc_map_entry {
+	ENTRY *e;
+	ENTRY *ep;
+	struct sc_map_entry *next;
+};
+
+struct sc_map_list {
+	struct sc_map_entry *list;
+	int count;
+};
+
+struct sc_map_list *sc_map_entries = NULL;
 
 /*
  * Setup an hsearch map to map strings in the policy (eg, AF_UNIX) to
@@ -101,41 +114,43 @@ scmp_datum_t sc_map_search(char *s)
 
 void sc_map_add(char *key, scmp_datum_t data)
 {
-	// FIXME: store the data as a string and then run strtoul on it
-	// - have this take an uint64_t, then see if it is too big, if so,
-	//   error, else store with sprintf and free later
-	//
-	// TODO: scmp_datum_t (what we store in data) is defined as uint64_t,
-	// which is larger than the void pointers on 32-bit systems, so storing
-	// an int here could lead to problems. For now, just fail if the data
-	// is larger than a 32 bit pointer but at some point we may want to
-	// adjust this.
-	if ((unsigned long)data > powl(2, sizeof(void *) * 8) - 1) {
-		errno = ERANGE;
-		perror("seccomp argument value is too large");
+	struct sc_map_entry *node;
+	node = (struct sc_map_entry *)malloc(sizeof(struct sc_map_entry));
+	if (node == NULL)
+		die("Out of memory creating sc_map_entries");
+
+	node->e = (ENTRY *) malloc(sizeof(ENTRY));
+	if (node->e == NULL)
+		die("Out of memory creating ENTRY");
+
+	node->e->key = strdup(key);
+	node->e->data = (void *)data;
+	node->ep = NULL;
+	node->next = NULL;
+
+	if (sc_map_entries->list == NULL) {
+		sc_map_entries->count = 1;
+		sc_map_entries->list = node;
+	} else {
+		struct sc_map_entry *p = sc_map_entries->list;
+		while (p->next != NULL)
+			p = p->next;
+		p->next = node;
+		sc_map_entries->count++;
 	}
-
-	ENTRY e;
-	ENTRY *ep = NULL;
-	errno = 0;
-
-	e.key = key;
-	e.data = (void *)data;
-	if (hsearch_r(e, ENTER, &ep, &sc_map_htab) == 0)
-		die("hsearch_r failed");
-
-	if (ep == NULL)
-		die("could not initialize map");
 }
 
 void sc_map_init()
 {
-	// first initialize the htab for our map
-	memset((void *)&sc_map_htab, 0, sizeof(sc_map_htab));
+	// initialize the map linked list
+	sc_map_entries =
+	    (struct sc_map_list *)malloc(sizeof(struct sc_map_list));
+	if (sc_map_entries == NULL)
+		die("Out of memory creating sc_map_entries");
+	sc_map_entries->list = NULL;
+	sc_map_entries->count = 0;
 
-	const int sc_map_length = 82;	// one for each sc_map_add
-	if (hcreate_r(sc_map_length, &sc_map_htab) == 0)
-		die("could not create map");
+	// build up the map linked list
 
 	// man 2 socket - domain
 	sc_map_add("AF_UNIX", (scmp_datum_t) AF_UNIX);
@@ -235,6 +250,24 @@ void sc_map_init()
 	sc_map_add("PRIO_PROCESS", (scmp_datum_t) PRIO_PROCESS);
 	sc_map_add("PRIO_PGRP", (scmp_datum_t) PRIO_PGRP);
 	sc_map_add("PRIO_USER", (scmp_datum_t) PRIO_USER);
+
+	// initialize the htab for our map
+	memset((void *)&sc_map_htab, 0, sizeof(sc_map_htab));
+	if (hcreate_r(sc_map_entries->count, &sc_map_htab) == 0)
+		die("could not create map");
+
+	// add elements from linked list to map
+	struct sc_map_entry *p = sc_map_entries->list;
+	while (p != NULL) {
+		errno = 0;
+		if (hsearch_r(*p->e, ENTER, &p->ep, &sc_map_htab) == 0)
+			die("hsearch_r failed");
+
+		if (&p->ep == NULL)
+			die("could not initialize map");
+
+		p = p->next;
+	}
 }
 
 void sc_map_destroy()
