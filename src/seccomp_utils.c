@@ -281,6 +281,7 @@ void sc_map_destroy()
 	while (next != NULL) {
 		p = next;
 		next = p->next;
+		free(p->e->key);
 		free(p->e);
 		free(p);
 	}
