@@ -19,11 +19,10 @@
 
 package backend
 
-func MockCpCommand(mockCp string) (restore func()){
+func MockCpCommand(mockCp string) (restore func()) {
 	oldCpCmd := cpCmd
 	cpCmd = mockCp
 	return func() {
 		cpCmd = oldCpCmd
 	}
 }
-
