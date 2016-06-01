@@ -20,9 +20,11 @@
 package backend_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
 
 	. "gopkg.in/check.v1"
 
@@ -345,4 +347,19 @@ func (s *copydataSuite) TestCopyDataUndoFirstInstallIdempotent(c *C) {
 	c.Check(os.IsNotExist(err), Equals, true)
 	_, err = os.Stat(v1.CommonDataDir())
 	c.Check(os.IsNotExist(err), Equals, true)
+}
+
+func (s *copydataSuite) TestCopyDataCopyFial(c *C) {
+	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
+	s.populateData(c, snap.R(10))
+
+	// pretend we install a new version
+	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
+
+	restore := backend.MockCpCommand("false")
+	defer restore()
+
+	// copy data will fail
+	err := s.be.CopyData(v2, v1, &s.nullProgress)
+	c.Assert(err, ErrorMatches, regexp.QuoteMeta(fmt.Sprintf("cannot copy (with cp -a) %q to %q, exit code: 1", v1.DataDir(), v2.DataDir())))
 }
