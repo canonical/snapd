@@ -65,10 +65,14 @@ func listSnaps(names []string) error {
 	w := tabWriter()
 	defer w.Flush()
 
-	fmt.Fprintln(w, i18n.G("Name\tVersion\tRev\tDeveloper"))
+	if len(snaps) > 0 {
+		fmt.Fprintln(w, i18n.G("Name\tVersion\tRev\tDeveloper"))
 
-	for _, snap := range snaps {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Revision, snap.Developer)
+		for _, snap := range snaps {
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Revision, snap.Developer)
+		}
+	} else {
+		fmt.Fprintln(w, i18n.G("No snaps are installed yet. Try 'snap browse' or 'snap install hello-world'"))
 	}
 
 	return nil
