@@ -1,5 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build !excludeintegration
+// +build !excludeintegration,!classic
 
 /*
  * Copyright (C) 2015, 2016 Canonical Ltd

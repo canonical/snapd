@@ -205,6 +205,44 @@ apps:
 	})
 }
 
+func (s *YamlSuite) TestUnmarshalGlobalPlugBoundToOneApp(c *C) {
+	// NOTE: yaml content cannot use tabs, indent the section with spaces.
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+plugs:
+    network-client:
+apps:
+    with-plug:
+        plugs: [network-client]
+    without-plug:
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.Name(), Equals, "snap")
+	c.Check(info.Plugs, HasLen, 1)
+	c.Check(info.Slots, HasLen, 0)
+	c.Check(info.Apps, HasLen, 2)
+
+	plug := info.Plugs["network-client"]
+	withPlugApp := info.Apps["with-plug"]
+	withoutPlugApp := info.Apps["without-plug"]
+	c.Assert(plug, DeepEquals, &snap.PlugInfo{
+		Snap:      info,
+		Name:      "network-client",
+		Interface: "network-client",
+		Apps:      map[string]*snap.AppInfo{withPlugApp.Name: withPlugApp},
+	})
+	c.Assert(withPlugApp, DeepEquals, &snap.AppInfo{
+		Snap:  info,
+		Name:  "with-plug",
+		Plugs: map[string]*snap.PlugInfo{plug.Name: plug},
+	})
+	c.Assert(withoutPlugApp, DeepEquals, &snap.AppInfo{
+		Snap:  info,
+		Name:  "without-plug",
+		Plugs: map[string]*snap.PlugInfo{},
+	})
+}
+
 func (s *YamlSuite) TestUnmarshalPlugsExplicitlyDefinedExplicitlyBoundToApps(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
 	info, err := snap.InfoFromSnapYaml([]byte(`
@@ -649,6 +687,212 @@ slots:
 	c.Assert(err, ErrorMatches, `slot "serial" uses reserved attribute "\$baud-rate"`)
 }
 
+func (s *YamlSuite) TestUnmarshalHook(c *C) {
+	// NOTE: yaml content cannot use tabs, indent the section with spaces.
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+hooks:
+    test-hook:
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.Name(), Equals, "snap")
+	c.Check(info.Plugs, HasLen, 0)
+	c.Check(info.Slots, HasLen, 0)
+	c.Check(info.Apps, HasLen, 0)
+	c.Check(info.Hooks, HasLen, 1)
+
+	hook, ok := info.Hooks["test-hook"]
+	c.Assert(ok, Equals, true, Commentf("Expected hooks to include 'test-hook'"))
+
+	c.Check(hook, DeepEquals, &snap.HookInfo{
+		Snap:  info,
+		Name:  "test-hook",
+		Plugs: nil,
+	})
+}
+
+func (s *YamlSuite) TestUnmarshalHookWithPlug(c *C) {
+	// NOTE: yaml content cannot use tabs, indent the section with spaces.
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+hooks:
+    test-hook:
+        plugs: [test-plug]
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.Name(), Equals, "snap")
+	c.Check(info.Plugs, HasLen, 1)
+	c.Check(info.Slots, HasLen, 0)
+	c.Check(info.Apps, HasLen, 0)
+	c.Check(info.Hooks, HasLen, 1)
+
+	plug, ok := info.Plugs["test-plug"]
+	c.Assert(ok, Equals, true, Commentf("Expected plugs to include 'test-plug'"))
+	hook, ok := info.Hooks["test-hook"]
+	c.Assert(ok, Equals, true, Commentf("Expected hooks to include 'test-hook'"))
+
+	c.Check(plug, DeepEquals, &snap.PlugInfo{
+		Snap:      info,
+		Name:      "test-plug",
+		Interface: "test-plug",
+		Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
+	})
+	c.Check(hook, DeepEquals, &snap.HookInfo{
+		Snap:  info,
+		Name:  "test-hook",
+		Plugs: map[string]*snap.PlugInfo{plug.Name: plug},
+	})
+}
+
+func (s *YamlSuite) TestUnmarshalGlobalPlugsBindToHooks(c *C) {
+	// NOTE: yaml content cannot use tabs, indent the section with spaces.
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+plugs:
+    test-plug:
+hooks:
+    test-hook:
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.Name(), Equals, "snap")
+	c.Check(info.Plugs, HasLen, 1)
+	c.Check(info.Slots, HasLen, 0)
+	c.Check(info.Apps, HasLen, 0)
+	c.Check(info.Hooks, HasLen, 1)
+
+	plug, ok := info.Plugs["test-plug"]
+	c.Assert(ok, Equals, true, Commentf("Expected plugs to include 'test-plug'"))
+	hook, ok := info.Hooks["test-hook"]
+	c.Assert(ok, Equals, true, Commentf("Expected hooks to include 'test-hook'"))
+
+	c.Check(plug, DeepEquals, &snap.PlugInfo{
+		Snap:      info,
+		Name:      "test-plug",
+		Interface: "test-plug",
+		Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
+	})
+	c.Check(hook, DeepEquals, &snap.HookInfo{
+		Snap:  info,
+		Name:  "test-hook",
+		Plugs: map[string]*snap.PlugInfo{plug.Name: plug},
+	})
+}
+
+func (s *YamlSuite) TestUnmarshalGlobalPlugBoundToOneHook(c *C) {
+	// NOTE: yaml content cannot use tabs, indent the section with spaces.
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+plugs:
+    test-plug:
+hooks:
+    with-plug:
+        plugs: [test-plug]
+    without-plug:
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.Name(), Equals, "snap")
+	c.Check(info.Plugs, HasLen, 1)
+	c.Check(info.Slots, HasLen, 0)
+	c.Check(info.Apps, HasLen, 0)
+	c.Check(info.Hooks, HasLen, 2)
+
+	plug := info.Plugs["test-plug"]
+	withPlugHook := info.Hooks["with-plug"]
+	withoutPlugHook := info.Hooks["without-plug"]
+	c.Assert(plug, DeepEquals, &snap.PlugInfo{
+		Snap:      info,
+		Name:      "test-plug",
+		Interface: "test-plug",
+		Hooks:     map[string]*snap.HookInfo{withPlugHook.Name: withPlugHook},
+	})
+	c.Assert(withPlugHook, DeepEquals, &snap.HookInfo{
+		Snap:  info,
+		Name:  "with-plug",
+		Plugs: map[string]*snap.PlugInfo{plug.Name: plug},
+	})
+	c.Assert(withoutPlugHook, DeepEquals, &snap.HookInfo{
+		Snap:  info,
+		Name:  "without-plug",
+		Plugs: map[string]*snap.PlugInfo{},
+	})
+}
+
+func (s *YamlSuite) TestUnmarshalExplicitGlobalPlugBoundToHook(c *C) {
+	// NOTE: yaml content cannot use tabs, indent the section with spaces.
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+plugs:
+    test-plug: test-interface
+hooks:
+    test-hook:
+        plugs: ["test-plug"]
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.Name(), Equals, "snap")
+	c.Check(info.Plugs, HasLen, 1)
+	c.Check(info.Slots, HasLen, 0)
+	c.Check(info.Apps, HasLen, 0)
+	c.Check(info.Hooks, HasLen, 1)
+
+	plug, ok := info.Plugs["test-plug"]
+	c.Assert(ok, Equals, true, Commentf("Expected plugs to include 'test-plug'"))
+	hook, ok := info.Hooks["test-hook"]
+	c.Assert(ok, Equals, true, Commentf("Expected hooks to include 'test-hook'"))
+
+	c.Check(plug, DeepEquals, &snap.PlugInfo{
+		Snap:      info,
+		Name:      "test-plug",
+		Interface: "test-interface",
+		Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
+	})
+	c.Check(hook, DeepEquals, &snap.HookInfo{
+		Snap:  info,
+		Name:  "test-hook",
+		Plugs: map[string]*snap.PlugInfo{plug.Name: plug},
+	})
+}
+
+func (s *YamlSuite) TestUnmarshalGlobalPlugBoundToHookNotApp(c *C) {
+	// NOTE: yaml content cannot use tabs, indent the section with spaces.
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+plugs:
+    test-plug:
+hooks:
+    test-hook:
+        plugs: [test-plug]
+apps:
+    test-app:
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.Name(), Equals, "snap")
+	c.Check(info.Plugs, HasLen, 1)
+	c.Check(info.Slots, HasLen, 0)
+	c.Check(info.Apps, HasLen, 1)
+	c.Check(info.Hooks, HasLen, 1)
+
+	plug := info.Plugs["test-plug"]
+	hook := info.Hooks["test-hook"]
+	app := info.Apps["test-app"]
+	c.Assert(plug, DeepEquals, &snap.PlugInfo{
+		Snap:      info,
+		Name:      "test-plug",
+		Interface: "test-plug",
+		Apps:      map[string]*snap.AppInfo{},
+		Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
+	})
+	c.Assert(hook, DeepEquals, &snap.HookInfo{
+		Snap:  info,
+		Name:  "test-hook",
+		Plugs: map[string]*snap.PlugInfo{plug.Name: plug},
+	})
+	c.Assert(app, DeepEquals, &snap.AppInfo{
+		Snap:  info,
+		Name:  "test-app",
+		Plugs: map[string]*snap.PlugInfo{},
+	})
+}
+
 func (s *YamlSuite) TestUnmarshalComplexExample(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
 	info, err := snap.InfoFromSnapYaml([]byte(`
@@ -667,6 +911,9 @@ apps:
        slots: [foo-socket]
     foo:
        command: fooctl
+       plugs: [foo-socket]
+hooks:
+    test-hook:
        plugs: [foo-socket]
 plugs:
     foo-socket:
@@ -699,6 +946,7 @@ slots:
 
 	app1 := info.Apps["daemon"]
 	app2 := info.Apps["foo"]
+	hook := info.Hooks["test-hook"]
 	plug1 := info.Plugs["network"]
 	plug2 := info.Plugs["network-bind"]
 	plug3 := info.Plugs["foo-socket"]
@@ -731,6 +979,15 @@ slots:
 		plug3.Name: plug3, plug4.Name: plug4})
 	c.Check(app2.Slots, DeepEquals, map[string]*snap.SlotInfo{
 		slot2.Name: slot2})
+
+	// hook1 has two plugs ("foo-socket", "logging"). The plug "logging" is
+	// global while "foo-socket" is hook-bound.
+
+	c.Assert(hook, NotNil)
+	c.Check(hook.Snap, Equals, info)
+	c.Check(hook.Name, Equals, "test-hook")
+	c.Check(hook.Plugs, DeepEquals, map[string]*snap.PlugInfo{
+		plug3.Name: plug3, plug4.Name: plug4})
 
 	// plug1 ("network") is implicitly defined and app-bound to "daemon"
 

@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/systemd"
@@ -107,6 +108,7 @@ type Info struct {
 	Epoch            string
 	Confinement      ConfinementType
 	Apps             map[string]*AppInfo
+	Hooks            map[string]*HookInfo
 	Plugs            map[string]*PlugInfo
 	Slots            map[string]*SlotInfo
 
@@ -188,6 +190,7 @@ type PlugInfo struct {
 	Attrs     map[string]interface{}
 	Label     string
 	Apps      map[string]*AppInfo
+	Hooks     map[string]*HookInfo
 }
 
 // SlotInfo provides information about a slot.
@@ -227,6 +230,14 @@ type AppInfo struct {
 	Slots map[string]*SlotInfo
 
 	Environment map[string]string
+}
+
+// HookInfo provides information about a hook.
+type HookInfo struct {
+	Snap *Info
+
+	Name  string
+	Plugs map[string]*PlugInfo
 }
 
 // SecurityTag returns application-specific security tag.
@@ -280,6 +291,28 @@ func (app *AppInfo) ServiceSocketFile() string {
 	return filepath.Join(dirs.SnapServicesDir, app.SecurityTag()+".socket")
 }
 
+func copyEnv(in map[string]string) map[string]string {
+	out := make(map[string]string)
+	for k, v := range in {
+		out[k] = v
+	}
+
+	return out
+}
+
+// Env returns the app specific environment overrides
+func (app *AppInfo) Env() []string {
+	env := []string{}
+	appEnv := copyEnv(app.Snap.Environment)
+	for k, v := range app.Environment {
+		appEnv[k] = v
+	}
+	for k, v := range appEnv {
+		env = append(env, fmt.Sprintf("%s=%s\n", k, v))
+	}
+	return env
+}
+
 func infoFromSnapYamlWithSideInfo(meta []byte, si *SideInfo) (*Info, error) {
 	info, err := InfoFromSnapYaml(meta)
 	if err != nil {
@@ -326,4 +359,15 @@ func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 	}
 
 	return info, nil
+}
+
+// SplitSnapApp will split a string of the form `snap.app` into
+// the `snap` and the `app` part. It also deals with the special
+// case of snapName == appName.
+func SplitSnapApp(snapApp string) (snap, app string) {
+	l := strings.SplitN(snapApp, ".", 2)
+	if len(l) < 2 {
+		return l[0], l[0]
+	}
+	return l[0], l[1]
 }

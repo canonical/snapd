@@ -30,10 +30,10 @@ cd $GOPATH/src/github.com/snapcore/snapd
 # don't install deps nor compile tests after reboot
 if [ -z "$ADT_REBOOT_MARK" ]; then
     ./get-deps.sh
-    go test -tags classiconly -c ./integration-tests/tests
+    go test -tags classic -c ./integration-tests/tests
 fi
 
-./tests.test  -check.vv -check.f 'snapHelloWorldExampleSuite|snapOpSuite|searchSuite|installSuite|authSuite|networkInterfaceSuite|networkBindInterfaceSuite|homeInterfaceSuite|logObserveInterfaceSuite|unity7|snapPersistsSuite|changesSuite|removeSuite|abortSuite'
+./tests.test -check.vv
 
 if [ -e ${NEEDS_REBOOT} ]; then
     mark=`cat ${NEEDS_REBOOT}`
