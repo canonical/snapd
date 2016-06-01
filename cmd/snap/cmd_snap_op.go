@@ -22,6 +22,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -230,11 +231,31 @@ func refreshOne(name, channel string) error {
 	return listSnaps([]string{name})
 }
 
+func listRefreshs() error {
+	cli := Client()
+	snaps, _, err := cli.Find(&client.FindOptions{
+		Refresh: true,
+	})
+	if err != nil {
+		return err
+	}
+
+	sort.Sort(snapsByName(snaps))
+
+	w := tabWriter()
+	defer w.Flush()
+
+	fmt.Fprintln(w, i18n.G("Name\tVersion\tRev\tDeveloper"))
+	for _, snap := range snaps {
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Revision, snap.Developer)
+	}
+
+	return nil
+}
+
 func (x *cmdRefresh) Execute([]string) error {
 	if x.List {
-		return findSnaps(&client.FindOptions{
-			Refresh: true,
-		})
+		return listRefreshs()
 	}
 	if x.Positional.Snap == "" {
 		return refreshAll()
