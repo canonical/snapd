@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/hooks"
@@ -36,7 +37,7 @@ func TestHookManager(t *testing.T) { TestingT(t) }
 type hookManagerSuite struct {
 	state          *state.State
 	manager        *hookstate.HookManager
-	oldDispatch    func(hookRef hooks.HookRef) error
+	oldDispatch    func(hooks.HookRef, *tomb.Tomb) error
 	dispatchCalled bool
 }
 
@@ -51,7 +52,7 @@ func (s *hookManagerSuite) SetUpTest(c *C) {
 	s.oldDispatch = hooks.DispatchHook
 
 	s.dispatchCalled = false
-	hooks.DispatchHook = func(hookRef hooks.HookRef) error {
+	hooks.DispatchHook = func(hookRef hooks.HookRef, _ *tomb.Tomb) error {
 		s.dispatchCalled = true
 		return nil
 	}
@@ -117,7 +118,7 @@ func (s *hookManagerSuite) TestRunHookTask(c *C) {
 }
 
 func (s *hookManagerSuite) TestRunHookTaskHandleFailure(c *C) {
-	hooks.DispatchHook = func(hookRef hooks.HookRef) error {
+	hooks.DispatchHook = func(hookRef hooks.HookRef, _ *tomb.Tomb) error {
 		return errors.New("failed at user request")
 	}
 

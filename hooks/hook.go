@@ -20,6 +20,10 @@
 // The hooks package contains all hook runners supported by snapd.
 package hooks
 
+import (
+	"gopkg.in/tomb.v2"
+)
+
 // DispatchHook is the hook dispatcher; it's exported here so it can be
 // overridden in tests.
 var DispatchHook = doDispatchHook
@@ -32,6 +36,6 @@ type HookRef struct {
 
 // doDispatchHook is where the snap in question is found and the specific hook
 // is run. TODO: hooks don't actually exist yet, so nothing to dispatch.
-func doDispatchHook(hook HookRef) error {
+func doDispatchHook(hook HookRef, tomb *tomb.Tomb) error {
 	return nil
 }

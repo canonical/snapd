@@ -67,16 +67,15 @@ func (m *HookManager) Stop() {
 	m.runner.Stop()
 }
 
-func (m *HookManager) doRunHook(task *state.Task, _ *tomb.Tomb) error {
+func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	task.State().Lock()
-	defer task.State().Unlock()
-
 	var hookRef hooks.HookRef
 	if err := task.Get("hook", &hookRef); err != nil {
 		return fmt.Errorf("failed to extract hook from task: %s", err)
 	}
+	task.State().Unlock()
 
-	if err := hooks.DispatchHook(hookRef); err != nil {
+	if err := hooks.DispatchHook(hookRef, tomb); err != nil {
 		return fmt.Errorf("error dispatching hook: %s", err)
 	}
 
