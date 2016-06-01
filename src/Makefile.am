@@ -22,6 +22,8 @@ check-syntax:
 	       diff -Naur "$$f" "$$out" || exit 1; \
 	done;
 
+# Run check-syntax when checking
+# TODO: conver those to autotools-style tests later
 check: check-syntax
 
 # Install udev rules
