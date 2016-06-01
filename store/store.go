@@ -566,24 +566,30 @@ type metadataWrapper struct {
 func (s *SnapUbuntuStoreRepository) ListRefresh(installed []*RefreshCandidate, auther Authenticator) (snaps []*snap.Info, err error) {
 
 	candidateMap := map[string]*RefreshCandidate{}
-	currentSnaps := make([]currentSnapJson, len(installed))
-	for i, cs := range installed {
+	currentSnaps := make([]currentSnapJson, 0, len(installed))
+	for _, cs := range installed {
 		revision := cs.Revision.N
 		if !cs.Revision.Store() {
 			revision = 0
 		}
+		// the store gets confused if we send snaps without a snapid
+		// (like local ones)
+		if cs.SnapID == "" {
+			continue
+		}
+
 		confinement := snap.StrictConfinement
 		if cs.DevMode {
 			confinement = snap.DevmodeConfinement
 		}
 
-		currentSnaps[i] = currentSnapJson{
+		currentSnaps = append(currentSnaps, currentSnapJson{
 			SnapID:      cs.SnapID,
 			Channel:     cs.Channel,
 			Confinement: confinement,
 			Epoch:       cs.Epoch,
 			Revision:    revision,
-		}
+		})
 		candidateMap[cs.SnapID] = cs
 	}
 
