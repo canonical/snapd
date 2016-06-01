@@ -272,7 +272,18 @@ void sc_map_init()
 
 void sc_map_destroy()
 {
+	// this frees all of the nodes' ep so we don't have to below
 	hdestroy_r(&sc_map_htab);
+
+	struct sc_map_entry *next = sc_map_entries->list;
+	struct sc_map_entry *p = NULL;
+	while (next != NULL) {
+		p = next;
+		next = p->next;
+		free(p->e);
+		free(p);
+	}
+	free(sc_map_entries);
 }
 
 /* Caller must check if errno != 0 */
