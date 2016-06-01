@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+// CopySnapData makes a copy of oldSnap data for newSnap in its data directories.
 func (b Backend) CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error {
 	// deal with the old data or
 	// otherwise just create a empty data dir
@@ -44,6 +45,7 @@ func (b Backend) CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter)
 	return copySnapData(oldSnap, newSnap)
 }
 
+// UndoCopySnapData removes the copy that may have been done for newInfo snap of oldInfo snap data and also the data directories that may have been created for newInfo snap.
 func (b Backend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.Info, meter progress.Meter) error {
 	err1 := b.RemoveSnapData(newInfo)
 	if err1 != nil {
