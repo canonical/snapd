@@ -115,6 +115,7 @@ func copySnapDataDirectory(oldPath, newPath string) (err error) {
 			// there is no golang "CopyFile"
 			cmd := exec.Command("cp", "-a", oldPath, newPath)
 			if err := cmd.Run(); err != nil {
+				// XXX: test
 				if exitCode, err := osutil.ExitCode(err); err == nil {
 					return fmt.Errorf("cannot copy (with cp -a) %q to %q, exit code: %d", oldPath, newPath, exitCode)
 				}
