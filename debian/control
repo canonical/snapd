@@ -34,8 +34,15 @@ Vcs-Git: https://github.com/snapcore/snapd.git
 
 Package: golang-github-ubuntu-core-snappy-dev
 Architecture: all
-Breaks: golang-snappy-dev (<< 1.7.3+20160303ubuntu4)
-Replaces: golang-snappy-dev (<< 1.7.3+20160303ubuntu4)
+Depends: ${misc:Depends}, golang-github-snapcore-snapd-dev
+Section: oldlibs
+Description: transitional dummy package
+ This is a transitional dummy package. It can safely be removed.
+
+Package: golang-github-snapcore-snapd-dev
+Architecture: all
+Breaks: golang-snappy-dev (<< 1.7.3+20160303ubuntu4), golang-github-ubuntu-core-snappy-dev (<< 2.0.6)
+Replaces: golang-snappy-dev (<< 1.7.3+20160303ubuntu4), golang-github-ubuntu-core-snappy-dev (<< 2.0.6)
 Depends: ${misc:Depends}
 Description: snappy development go packages.
  Use these to use the snappy API.
