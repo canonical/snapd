@@ -104,14 +104,20 @@ func printNoPrices(w *tabwriter.Writer, snaps []*client.Snap) {
 }
 
 func (x *cmdFind) Execute([]string) error {
+	return findSnaps(&client.FindOptions{
+		Query: x.Positional.Query,
+	})
+}
+
+func findSnaps(opts *client.FindOptions) error {
 	cli := Client()
-	snaps, resInfo, err := cli.FindSnaps(x.Positional.Query)
+	snaps, resInfo, err := cli.Find(opts)
 	if err != nil {
 		return err
 	}
 
 	if len(snaps) == 0 {
-		return fmt.Errorf("no snaps found for %q", x.Positional.Query)
+		return fmt.Errorf("no snaps found for %q", opts.Query)
 	}
 
 	sort.Sort(snapsByName(snaps))
