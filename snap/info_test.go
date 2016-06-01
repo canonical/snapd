@@ -20,9 +20,11 @@
 package snap_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 
 	. "gopkg.in/check.v1"
 
@@ -239,6 +241,79 @@ confinement: foo`
 
 	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
 	c.Assert(err, ErrorMatches, ".*invalid confinement type.*")
+}
+
+func (s *infoSuite) TestAppEnvSimple(c *C) {
+	yaml := `name: foo
+version: 1.0
+type: app
+environment:
+ global-k: global-v
+apps:
+ foo:
+  environment:
+   app-k: app-v
+`
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	env := info.Apps["foo"].Env()
+	sort.Strings(env)
+	c.Check(env, DeepEquals, []string{
+		"app-k=app-v\n",
+		"global-k=global-v\n",
+	})
+}
+
+func (s *infoSuite) TestAppEnvOverrideGlobal(c *C) {
+	yaml := `name: foo
+version: 1.0
+type: app
+environment:
+ global-k: global-v
+ global-and-local: global-v
+apps:
+ foo:
+  environment:
+   app-k: app-v
+   global-and-local: local-v
+`
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	env := info.Apps["foo"].Env()
+	sort.Strings(env)
+	c.Check(env, DeepEquals, []string{
+		"app-k=app-v\n",
+		"global-and-local=local-v\n",
+		"global-k=global-v\n",
+	})
+}
+
+func (s *infoSuite) TestSplitSnapApp(c *C) {
+	for _, t := range []struct {
+		in  string
+		out []string
+	}{
+		// normal cases
+		{"foo.bar", []string{"foo", "bar"}},
+		{"foo.bar.baz", []string{"foo", "bar.baz"}},
+		// special case, snapName == appName
+		{"foo", []string{"foo", "foo"}},
+	} {
+		snap, app := snap.SplitSnapApp(t.in)
+		c.Check([]string{snap, app}, DeepEquals, t.out)
+	}
+}
+
+func ExampleSpltiSnapApp() {
+	fmt.Println(snap.SplitSnapApp("hello-world.env"))
+	// Output: hello-world env
+}
+
+func ExampleSpltiSnapAppShort() {
+	fmt.Println(snap.SplitSnapApp("hello-world"))
+	// Output: hello-world hello-world
 }
 
 func (s *infoSuite) TestReadInfoFromSnapFileCatchesInvalidHook(c *C) {
