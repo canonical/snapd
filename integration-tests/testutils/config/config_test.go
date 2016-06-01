@@ -46,9 +46,9 @@ func testConfigFileName(c *check.C) string {
 
 func testConfigStruct(fileName string) *Config {
 	return &Config{
-		fileName,
-		"testrelease", "testchannel",
-		true, true, true, true}
+		FileName: fileName,
+		Release:  "testrelease", Channel: "testchannel",
+		RemoteTestbed: true, Update: true, Rollback: true, FromBranch: true, Verbose: true}
 }
 func testConfigContents(fileName string) string {
 	return `{` +
@@ -58,7 +58,8 @@ func testConfigContents(fileName string) string {
 		`"RemoteTestbed":true,` +
 		`"Update":true,` +
 		`"Rollback":true,` +
-		`"FromBranch":true` +
+		`"FromBranch":true,` +
+		`"Verbose":true` +
 		`}`
 }
 
@@ -103,14 +104,17 @@ func (s *ConfigSuite) TestReadConfigLocalTestBed(c *check.C) {
 		`"RemoteTestbed":false,` +
 		`"Update":true,` +
 		`"Rollback":true,` +
-		`"FromBranch":true` +
+		`"FromBranch":true,` +
+		`"Verbose":true` +
 		`}`
 
 	ioutil.WriteFile(configFileName, []byte(configContents), 0644)
 
 	cfg, err := ReadConfig(configFileName)
 
-	testConfigStruct := &Config{configFileName, "testrelease", "testchannel", false, true, true, true}
+	testConfigStruct := &Config{FileName: configFileName,
+		Release: "testrelease", Channel: "testchannel",
+		RemoteTestbed: false, Update: true, Rollback: true, FromBranch: true, Verbose: true}
 
 	c.Assert(err, check.IsNil, check.Commentf("Error reading config: %v", err))
 	c.Assert(cfg, check.DeepEquals, testConfigStruct)
