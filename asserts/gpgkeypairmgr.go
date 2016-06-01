@@ -61,10 +61,12 @@ func (gkm *gpgKeypairManager) gpg(input []byte, args ...string) ([]byte, error) 
 	return runGPG(gkm.homedir, input, args...)
 }
 
-// NewGPGKeypairManager creates a new key pair manager backed by a local GnuPG setup using the given GPG homedir,
-// and asking GPG to fallback "~/.gnupg" to default if
-// empty. Importing keys through the keypair manager interface is not
-// supported. Main purpose is allowing signing using keys from a GPG setup.
+// NewGPGKeypairManager creates a new key pair manager backed by a local GnuPG setup
+// using the given GPG homedir, and asking GPG to fallback "~/.gnupg"
+// to default if empty.
+// Importing keys through the keypair manager interface is not
+// suppored.
+// Main purpose is allowing signing using keys from a GPG setup.
 func NewGPGKeypairManager(homedir string) KeypairManager {
 	return &gpgKeypairManager{
 		homedir: homedir,

@@ -98,6 +98,26 @@ func (client *Client) InstallPath(path string, options *SnapOptions) (changeID s
 	return client.doAsync("POST", "/v2/snaps", nil, headers, pr)
 }
 
+// Try
+func (client *Client) Try(path string, options *SnapOptions) (changeID string, err error) {
+	if options == nil {
+		options = &SnapOptions{}
+	}
+
+	buf := bytes.NewBuffer(nil)
+	mw := multipart.NewWriter(buf)
+	mw.WriteField("action", "try")
+	mw.WriteField("snap-path", path)
+	mw.WriteField("devmode", strconv.FormatBool(options.DevMode))
+	mw.Close()
+
+	headers := map[string]string{
+		"Content-Type": mw.FormDataContentType(),
+	}
+
+	return client.doAsync("POST", "/v2/snaps", nil, headers, buf)
+}
+
 func sendSnapFile(snapPath string, snapFile *os.File, pw *io.PipeWriter, mw *multipart.Writer, action *actionData) {
 	defer snapFile.Close()
 

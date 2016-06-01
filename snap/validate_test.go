@@ -78,6 +78,36 @@ func (s *ValidateSuite) TestValidateEpoch(c *C) {
 	}
 }
 
+func (s *ValidateSuite) TestValidateHook(c *C) {
+	validHooks := []*HookInfo{
+		&HookInfo{Name: "a"},
+		&HookInfo{Name: "aaa"},
+		&HookInfo{Name: "a-a"},
+		&HookInfo{Name: "aa-a"},
+		&HookInfo{Name: "a-aa"},
+		&HookInfo{Name: "a-b-c"},
+	}
+	for _, hook := range validHooks {
+		err := ValidateHook(hook)
+		c.Assert(err, IsNil)
+	}
+	invalidHooks := []*HookInfo{
+		&HookInfo{Name: ""},
+		&HookInfo{Name: "a a"},
+		&HookInfo{Name: "a--a"},
+		&HookInfo{Name: "-a"},
+		&HookInfo{Name: "a-"},
+		&HookInfo{Name: "0"},
+		&HookInfo{Name: "123"},
+		&HookInfo{Name: "abc0"},
+		&HookInfo{Name: "日本語"},
+	}
+	for _, hook := range invalidHooks {
+		err := ValidateHook(hook)
+		c.Assert(err, ErrorMatches, `invalid hook name: ".*"`)
+	}
+}
+
 // ValidateApp
 
 func (s *ValidateSuite) TestAppWhitelistSimple(c *C) {
@@ -175,4 +205,16 @@ version: 1.0
 `))
 	c.Assert(err, IsNil)
 	c.Assert(Validate(info), IsNil)
+}
+
+func (s *ValidateSuite) TestIllegalHookName(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+hooks:
+  abc123:
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, ErrorMatches, `invalid hook name: "abc123"`)
 }

@@ -123,3 +123,30 @@
         sudo parted -s {dev} unit % print free
 
     * Check that the writable partition was resized to occupy all the empty space.
+
+# Test cups interface by printing something
+
+1. Using ubuntu classic build and install a simple snap with lpr inside.
+
+	name: lpr
+	version: 2.1.3-4
+	summary: submit files for printing
+	description: |
+	   lpr submits files for printing.  Files named on the command line are sent to
+	   the named printer or the default destination if no destination is specified.
+	   If no files are listed on the command-line, lpr reads the print file from
+	   the standard input.
+	apps:
+		lpr:
+			command: lpr
+			plugs: [cups]
+	parts:
+		lpr:
+			plugin: nil
+			stage-packages: [cups-bsd]
+2. Ensure that the 'cups' interface is connected to lpr
+3. Use /snap/bin/lpr to print a short text file (e.g. the snapcraft file)
+4. Ensure that it was added to the queue of the default CUPS printer.  This can
+   be checked in the ubuntu-control-center under the printers applet. Right
+   click on the default printer and look at the queue. Ensure it contains the
+   new item.
