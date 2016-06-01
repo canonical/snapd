@@ -107,6 +107,7 @@ type Info struct {
 	Epoch            string
 	Confinement      ConfinementType
 	Apps             map[string]*AppInfo
+	Hooks            map[string]*HookInfo
 	Plugs            map[string]*PlugInfo
 	Slots            map[string]*SlotInfo
 
@@ -188,6 +189,7 @@ type PlugInfo struct {
 	Attrs     map[string]interface{}
 	Label     string
 	Apps      map[string]*AppInfo
+	Hooks     map[string]*HookInfo
 }
 
 // SlotInfo provides information about a slot.
@@ -225,6 +227,16 @@ type AppInfo struct {
 
 	Plugs map[string]*PlugInfo
 	Slots map[string]*SlotInfo
+
+	Environment map[string]string
+}
+
+// HookInfo provides information about a hook.
+type HookInfo struct {
+	Snap *Info
+
+	Name  string
+	Plugs map[string]*PlugInfo
 }
 
 // SecurityTag returns application-specific security tag.
@@ -233,10 +245,6 @@ type AppInfo struct {
 // sometimes also as a part of the file name.
 func (app *AppInfo) SecurityTag() string {
 	return fmt.Sprintf("snap.%s.%s", app.Snap.Name(), app.Name)
-}
-
-func (app *AppInfo) EnvironmentFile() string {
-	return filepath.Join(dirs.SnapEnvironmentDir, app.SecurityTag())
 }
 
 // WrapperPath returns the path to wrapper invoking the app binary.
@@ -311,7 +319,7 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 
 // ReadInfoFromSnapFile reads the snap information from the given File
 // and completes it with the given side-info if this is not nil.
-func ReadInfoFromSnapFile(snapf File, si *SideInfo) (*Info, error) {
+func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 	meta, err := snapf.ReadFile("meta/snap.yaml")
 	if err != nil {
 		return nil, err
