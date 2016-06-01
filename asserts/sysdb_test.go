@@ -40,7 +40,7 @@ var _ = Suite(&sysDBSuite{})
 func (sdbs *sysDBSuite) SetUpTest(c *C) {
 	tmpdir := c.MkDir()
 
-	pk := asserts.OpenPGPPrivateKey(testPrivKey0)
+	pk := testPrivKey0
 	trustedPubKey := pk.PublicKey()
 	trustedPubKeyEncoded, err := asserts.EncodePublicKey(trustedPubKey)
 	c.Assert(err, IsNil)

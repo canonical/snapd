@@ -54,13 +54,15 @@ func (x *cmdList) Execute([]string) error {
 	return listSnaps(x.Positional.Snaps)
 }
 
-func listSnaps(args []string) error {
+func listSnaps(names []string) error {
 	cli := Client()
-	snaps, err := cli.ListSnaps(args)
+	snaps, err := cli.List(names)
 	if err != nil {
 		return err
+	} else if len(snaps) == 0 {
+		fmt.Fprintln(Stdout, i18n.G("No snaps are installed yet. Try 'snap install hello-world'."))
+		return nil
 	}
-
 	sort.Sort(snapsByName(snaps))
 
 	w := tabWriter()
