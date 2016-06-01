@@ -1,5 +1,7 @@
 #!/bin/sh
 
+#DEBHELPER#
+
 # XXX: doesn't seem to really work in practice. Perhaps the version needs love
 dpkg-maintscript-helper rm_conffile \
     /etc/apparmor.d/usr.bin.ubuntu-core-launcher 2.0~ -- "$@"
@@ -8,7 +10,7 @@ case $1 in
     configure)
         # remove current profile so that the pass-through can still run
         if [ -e /sys/kernel/security/apparmor/.remove ]; then
-            if grep -q "^/usr/bin/ubuntu-core-launcher ([[:alpha:]]+)$" /sys/kernel/security/apparmor/profiles; then
+            if egrep -q '^/usr/bin/ubuntu-core-launcher \([[:alpha:]]+\)$' /sys/kernel/security/apparmor/profiles; then
                 echo -n '/usr/bin/ubuntu-core-launcher' > /sys/kernel/security/apparmor/.remove
             fi
         fi
