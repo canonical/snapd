@@ -27,15 +27,15 @@ override_dh_systemd_enable:
 	dh_systemd_enable \
 		-pubuntu-core-snapd-units \
 		snapd.firstboot.service
-	# we want the autopilot timer enabled by default
-#	dh_systemd_enable \
+	# we want the auto-update timer enabled by default
+	dh_systemd_enable \
 		-psnapd \
-		snappy-autopilot.timer
-	# but the autopilot service disabled
-#	dh_systemd_enable \
+		snapd.refresh.timer
+	# but the auto-update service disabled
+	dh_systemd_enable \
 		--no-enable \
 		-psnapd \
-		snappy-autopilot.service
+ 		snapd.refresh.service
 	# enable snapd
 	dh_systemd_enable \
 		-psnapd \
@@ -46,15 +46,15 @@ override_dh_systemd_start:
 	dh_systemd_start \
 		-pubuntu-core-snapd-units \
 		snapd.boot-ok.service
-	# we want to start the autopilot timer
-#	dh_systemd_start \
+	# we want to start the auto-update timer
+	dh_systemd_start \
 		-psnapd \
-		snappy-autopilot.timer
+		snapd.refresh.timer
 	# but not start the service
-#	dh_systemd_start \
+	dh_systemd_start \
 		--no-start \
 		-psnapd \
-		snappy-autopilot.service
+		snapd.refresh.service
 	# start snapd
 	dh_systemd_start \
 		-psnapd \

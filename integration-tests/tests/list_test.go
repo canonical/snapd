@@ -22,10 +22,14 @@ package tests
 
 import (
 	"fmt"
+	"io/ioutil"
 
 	"github.com/snapcore/snapd/integration-tests/testutils/cli"
 	"github.com/snapcore/snapd/integration-tests/testutils/common"
+	"github.com/snapcore/snapd/integration-tests/testutils/config"
 	"github.com/snapcore/snapd/integration-tests/testutils/partition"
+	"github.com/snapcore/snapd/integration-tests/testutils/refresh"
+	"github.com/snapcore/snapd/integration-tests/testutils/store"
 
 	"gopkg.in/check.v1"
 )
@@ -60,6 +64,41 @@ func (s *listSuite) TestListMustPrintAppVersion(c *check.C) {
 		"Name +Version +Rev +Developer *\n" +
 		".*" +
 		"^hello-world +(\\d+)(\\.\\d+)* +[0-9]+ +.* *\n" +
+		".*"
+
+	c.Assert(listOutput, check.Matches, expected)
+}
+
+func (s *listSuite) TestRefreshListSimple(c *check.C) {
+	snap := "hello-world"
+
+	common.InstallSnap(c, snap)
+	s.AddCleanup(func() {
+		common.RemoveSnap(c, snap)
+	})
+
+	// fake refresh
+	blobDir, err := ioutil.TempDir("", "snap-fake-store-blobs-")
+	fakeStore := store.NewStore(blobDir)
+	err = fakeStore.Start()
+	c.Assert(err, check.IsNil)
+	defer fakeStore.Stop()
+
+	env := fmt.Sprintf(`SNAPPY_FORCE_CPI_URL=%s`, fakeStore.URL())
+	cfg, _ := config.ReadConfig(config.DefaultFileName)
+
+	tearDownSnapd(c)
+	defer setUpSnapd(c, cfg.FromBranch, "")
+	setUpSnapd(c, cfg.FromBranch, env)
+	defer tearDownSnapd(c)
+
+	refresh.MakeFakeRefreshForSnap(c, snap, blobDir, refresh.NoOp)
+
+	listOutput := cli.ExecCommand(c, "snap", "refresh", "--list")
+	expected := "(?ms)" +
+		"Name +Version +Summary *\n" +
+		".*" +
+		"^hello-world +(\\d+)(\\.\\d+)\\+fake1.*\n" +
 		".*"
 
 	c.Assert(listOutput, check.Matches, expected)
