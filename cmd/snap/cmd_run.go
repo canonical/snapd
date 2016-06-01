@@ -56,7 +56,7 @@ func (x *cmdRun) Execute(args []string) error {
 func getSnapInfo(snapName string) (*snap.Info, error) {
 	// we need to get the revision here because once we are inside
 	// the confinement its not available anymore
-	snaps, err := Client().ListSnaps([]string{snapName})
+	snaps, err := Client().List([]string{snapName})
 	if err != nil {
 		return nil, err
 	}
