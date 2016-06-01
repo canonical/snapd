@@ -147,27 +147,35 @@ func (s *copydataSuite) TestCopyDataNoUserHomes(c *C) {
 	c.Check(v1.CommonDataDir(), Equals, v2.CommonDataDir())
 }
 
-func (s *copydataSuite) TestCopyDataDoUndo(c *C) {
-	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
-
-	datadir := filepath.Join(dirs.SnapDataDir, "hello/10")
+func (s *copydataSuite) populateData(c *C, revision snap.Revision) {
+	datadir := filepath.Join(dirs.SnapDataDir, "hello/"+revision.String())
 	subdir := filepath.Join(datadir, "random-subdir")
 	err := os.MkdirAll(subdir, 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(subdir, "canary"), nil, 0644)
 	c.Assert(err, IsNil)
-	homedir := filepath.Join(s.tempdir, "home", "user1", "snap")
-	homeData := filepath.Join(homedir, "hello/10")
-	err = os.MkdirAll(homeData, 0755)
+}
+
+func (s copydataSuite) populateHomeData(c *C, user string, revision snap.Revision) (homedir string) {
+	homedir = filepath.Join(s.tempdir, "home", user, "snap")
+	homeData := filepath.Join(homedir, "hello/"+revision.String())
+	err := os.MkdirAll(homeData, 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(homeData, "canary.home"), nil, 0644)
 	c.Assert(err, IsNil)
+	return
+}
+
+func (s *copydataSuite) TestCopyDataDoUndo(c *C) {
+	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
+	s.populateData(c, snap.R(10))
+	homedir := s.populateHomeData(c, "user1", snap.R(10))
 
 	// pretend we install a new version
 	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
 
 	// copy data
-	err = s.be.CopyData(v2, v1, &s.nullProgress)
+	err := s.be.CopyData(v2, v1, &s.nullProgress)
 	c.Assert(err, IsNil)
 	v2data := filepath.Join(dirs.SnapDataDir, "hello/20")
 	l, err := filepath.Glob(filepath.Join(v2data, "*"))
@@ -195,19 +203,13 @@ func (s *copydataSuite) TestCopyDataDoUndoNoUserHomes(c *C) {
 	dirs.SnapDataHomeGlob = filepath.Join(s.tempdir, "no-such-home", "*", "snap")
 
 	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
-
-	datadir := filepath.Join(dirs.SnapDataDir, "hello/10")
-	subdir := filepath.Join(datadir, "random-subdir")
-	err := os.MkdirAll(subdir, 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(subdir, "canary"), nil, 0644)
-	c.Assert(err, IsNil)
+	s.populateData(c, snap.R(10))
 
 	// pretend we install a new version
 	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
 
 	// copy data
-	err = s.be.CopyData(v2, v1, &s.nullProgress)
+	err := s.be.CopyData(v2, v1, &s.nullProgress)
 	c.Assert(err, IsNil)
 	v2data := filepath.Join(dirs.SnapDataDir, "hello/20")
 	l, err := filepath.Glob(filepath.Join(v2data, "*"))
@@ -245,24 +247,15 @@ func (s *copydataSuite) TestCopyDataDoIdempotent(c *C) {
 	// make sure that a retry wouldn't stumble on partial work
 
 	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
-	datadir := filepath.Join(dirs.SnapDataDir, "hello/10")
-	subdir := filepath.Join(datadir, "random-subdir")
-	err := os.MkdirAll(subdir, 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(subdir, "canary"), nil, 0644)
-	c.Assert(err, IsNil)
-	homedir := filepath.Join(s.tempdir, "home", "user1", "snap")
-	homeData := filepath.Join(homedir, "hello/10")
-	err = os.MkdirAll(homeData, 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(homeData, "canary.home"), nil, 0644)
-	c.Assert(err, IsNil)
+
+	s.populateData(c, snap.R(10))
+	homedir := s.populateHomeData(c, "user1", snap.R(10))
 
 	// pretend we install a new version
 	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
 
 	// copy data
-	err = s.be.CopyData(v2, v1, &s.nullProgress)
+	err := s.be.CopyData(v2, v1, &s.nullProgress)
 	c.Assert(err, IsNil)
 
 	err = s.be.CopyData(v2, v1, &s.nullProgress)
@@ -282,24 +275,14 @@ func (s *copydataSuite) TestCopyDataUndoIdempotent(c *C) {
 	// make sure that a retry wouldn't stumble on partial work
 
 	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
-	datadir := filepath.Join(dirs.SnapDataDir, "hello/10")
-	subdir := filepath.Join(datadir, "random-subdir")
-	err := os.MkdirAll(subdir, 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(subdir, "canary"), nil, 0644)
-	c.Assert(err, IsNil)
-	homedir := filepath.Join(s.tempdir, "home", "user1", "snap")
-	homeData := filepath.Join(homedir, "hello/10")
-	err = os.MkdirAll(homeData, 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(homeData, "canary.home"), nil, 0644)
-	c.Assert(err, IsNil)
+	s.populateData(c, snap.R(10))
+	homedir := s.populateHomeData(c, "user1", snap.R(10))
 
 	// pretend we install a new version
 	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
 
 	// copy data
-	err = s.be.CopyData(v2, v1, &s.nullProgress)
+	err := s.be.CopyData(v2, v1, &s.nullProgress)
 	c.Assert(err, IsNil)
 
 	v2data := filepath.Join(dirs.SnapDataDir, "hello/20")
