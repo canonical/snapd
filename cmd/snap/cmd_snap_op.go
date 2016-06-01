@@ -203,8 +203,13 @@ func refreshAll() error {
 	if err != nil {
 		return fmt.Errorf("cannot list updates: %s", err)
 	}
+	// nothing to update/list
+	if len(updates) == 0 {
+		return nil
+	}
 
-	for _, update := range updates {
+	names := make([]string, len(updates))
+	for i, update := range updates {
 		changeID, err := cli.Refresh(update.Name, &client.SnapOptions{Channel: update.Channel})
 		if err != nil {
 			return err
@@ -212,9 +217,10 @@ func refreshAll() error {
 		if _, err := wait(cli, changeID); err != nil {
 			return err
 		}
+		names[i] = update.Name
 	}
 
-	return listSnaps(nil)
+	return listSnaps(names)
 }
 
 func refreshOne(name, channel string) error {
