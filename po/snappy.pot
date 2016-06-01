@@ -367,10 +367,12 @@ msgstr  ""
 msgid   "no interfaces found"
 msgstr  ""
 
+msgid   "No snaps are installed yet. Try 'snap install hello'."
+msgstr  ""
+
 msgid   "unavailable"
 msgstr  ""
 
 #, c-format
 msgid   "unsupported shell %v"
 msgstr  ""
-
