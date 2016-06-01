@@ -4,12 +4,15 @@ snap_confine_CFLAGS = \
     -Wall -Werror \
     $(AM_CFLAGS) \
     $(SECCOMP_CFLAGS) \
-    $(APPARMOR_CFLAGS) \
     $(UDEV_CFLAGS)
 snap_confine_LDADD = \
     $(SECCOMP_LIBS) \
-    $(APPARMOR_LIBS) \
     $(UDEV_LIBS)
+
+if STRICT_CONFINEMENT
+snap_run_CFLAGS += $(APPARMOR_CFLAGS)
+snap_run_LDADD += $(APPARMOR_LIBS)
+endif
 
 # Force particular coding style on all source and header files.
 .PHONY: check-syntax

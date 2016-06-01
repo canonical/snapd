@@ -24,7 +24,9 @@
 #include <limits.h>
 #include <linux/sched.h>
 #include <sys/mount.h>
+#ifdef STRICT_CONFINEMENT
 #include <sys/apparmor.h>
+#endif
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -43,6 +45,8 @@
 
 #include "utils.h"
 #include "seccomp_utils.h"
+
+#include "config.h"
 
 #define MAX_BUF 1000
 
@@ -545,6 +549,7 @@ int main(int argc, char **argv)
 
 	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
 
+#ifdef STRICT_CONFINEMENT
 	int rc = 0;
 	// set apparmor rules
 	rc = aa_change_onexec(aa_profile);
@@ -552,6 +557,7 @@ int main(int argc, char **argv)
 		if (secure_getenv("SNAPPY_LAUNCHER_INSIDE_TESTS") == NULL)
 			die("aa_change_onexec failed with %i", rc);
 	}
+#endif
 	// set seccomp (note: seccomp_load_filters die()s on all failures)
 	seccomp_load_filters(aa_profile);
 

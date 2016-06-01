@@ -32,10 +32,36 @@ AC_FUNC_FORK
 AC_FUNC_STRNLEN
 AC_CHECK_FUNCS([mkdir regcomp setenv strdup strerror])
 
+# Allow to build without confinement by calling:
+# ./configure --disable-confinement
+# This makes it possible to run snaps in devmode on almost any host,
+# regardless of the kernel version.
+AC_ARG_ENABLE([confinement],
+    AS_HELP_STRING([--disable-confinement], [Disable strict confinement]),
+    [case "${enableval}" in
+        yes) enable_confinement=yes ;;
+        no)  enable_confinement=no ;;
+        *) AC_MSG_ERROR([bad value ${enableval} for --disable-confinement])
+    esac], [enable_confinement=yes])
+AM_CONDITIONAL([STRICT_CONFINEMENT], [test "x$enable_confinement" = "xyes"])
+
 # Check for required external libraries
 PKG_CHECK_MODULES([UDEV], [libudev])
 PKG_CHECK_MODULES([SECCOMP], [libseccomp])
-PKG_CHECK_MODULES([APPARMOR], [libapparmor])
+
+# Check for apparmor when confinement in enabled.
+AS_IF([test "x$enable_confinement" = "xyes"], [
+    PKG_CHECK_MODULES([APPARMOR], [libapparmor])
+    AC_DEFINE([STRICT_CONFINEMENT], [1],
+        [Define if strict apparmor confinement is available])
+], [
+    AC_MSG_WARN([
+    XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    X                                                     X
+    X Confinement disabled, all snaps will run in devmode X
+    X                                                     X
+    XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX])
+])
 
 AC_CONFIG_FILES([Makefile src/Makefile tests/Makefile])
 AC_OUTPUT
