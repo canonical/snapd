@@ -1,6 +1,6 @@
 #!/bin/sh
     
-L="$(pwd)/../src/snap-run"
+L="$(pwd)/../src/snap-confine"
 export L
 
 TMP="$(mktemp -d)"

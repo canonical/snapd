@@ -1,3 +1,3 @@
 #!/bin/sh
 shift
-exec /usr/bin/snap-run "$@"
+exec /usr/bin/snap-confine "$@"
