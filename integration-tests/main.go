@@ -79,14 +79,10 @@ func main() {
 		shellOnFail   = flag.Bool("shell-fail", false, "Run a shell in the testbed if the suite fails.")
 		testBuildTags = flag.String("test-build-tags", "", "Build tags to be passed to the go test command")
 		httpProxy     = flag.String("http-proxy", "", "HTTP proxy to set in the testbed.")
+		verbose       = flag.Bool("v", false, "Show complete test output")
 	)
 
 	flag.Parse()
-
-	build.Assets(&build.Config{
-		UseSnappyFromBranch: *useSnappyFromBranch,
-		Arch:                *arch,
-		TestBuildTags:       *testBuildTags})
 
 	// TODO: generate the files out of the source tree. --elopio - 2015-07-15
 	testutils.PrepareTargetDir(dataOutputDir)
@@ -104,8 +100,14 @@ func main() {
 		Update:        *update,
 		Rollback:      *rollback,
 		FromBranch:    *useSnappyFromBranch,
+		Verbose:       *verbose,
 	}
 	cfg.Write()
+
+	build.Assets(&build.Config{
+		UseSnappyFromBranch: *useSnappyFromBranch,
+		Arch:                *arch,
+		TestBuildTags:       *testBuildTags})
 
 	rootPath := testutils.RootPath()
 
@@ -122,6 +124,7 @@ func main() {
 			"TEST_USER_NAME":     os.Getenv("TEST_USER_NAME"),
 			"TEST_USER_PASSWORD": os.Getenv("TEST_USER_PASSWORD"),
 		},
+		Verbose: *verbose,
 	}
 	if !remoteTestbed {
 		img := &image.Image{
