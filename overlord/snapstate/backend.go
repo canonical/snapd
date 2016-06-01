@@ -35,7 +35,7 @@ type managerBackend interface {
 	LinkSnap(info *snap.Info) error
 	// the undoers for install
 	UndoSetupSnap(s snap.PlaceInfo) error
-	UndoCopySnapData(newSnap *snap.Info, flags int) error
+	UndoCopySnapData(newSnap *snap.Info, oldSnap *snap.Info, flags int) error
 
 	// remove releated
 	CanRemove(info *snap.Info, active bool) bool
@@ -94,7 +94,7 @@ func (b *defaultBackend) UndoSetupSnap(s snap.PlaceInfo) error {
 	return nil
 }
 
-func (b *defaultBackend) UndoCopySnapData(newInfo *snap.Info, flags int) error {
+func (b *defaultBackend) UndoCopySnapData(newInfo *snap.Info, oldSnap *snap.Info, flags int) error {
 	meter := &progress.NullProgress{}
 	snappy.UndoCopyData(newInfo, snappy.InstallFlags(flags), meter)
 	return nil
