@@ -262,7 +262,7 @@ func (app *AppInfo) WrapperPath() string {
 
 func (app *AppInfo) launcherCommand(command string) string {
 	securityTag := app.SecurityTag()
-	return fmt.Sprintf("/usr/bin/ubuntu-core-launcher %s %s %s", securityTag, securityTag, filepath.Join(app.Snap.MountDir(), command))
+	return fmt.Sprintf("snap run %s %s %s", securityTag, securityTag, filepath.Join(app.Snap.MountDir(), command))
 
 }
 

@@ -23,12 +23,16 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/cmd"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 
 	"github.com/jessevdk/go-flags"
 )
@@ -157,6 +161,16 @@ func init() {
 }
 
 func main() {
+	// magic \o/
+	arg0 := os.Args[0]
+	if osutil.IsSymlink(filepath.Join(dirs.SnapBinariesDir, filepath.Base(arg0))) {
+		snapApp := filepath.Base(arg0)
+		cmd := []string{"/usr/bin/snap", "run", snapApp}
+		cmd = append(cmd, os.Args[1:]...)
+		syscall.Exec(cmd[0], cmd, os.Environ())
+	}
+
+	// no magic /o\
 	if err := run(); err != nil {
 		fmt.Fprintf(Stderr, "error: %v\n", err)
 		os.Exit(1)
