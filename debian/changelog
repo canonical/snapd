@@ -1,3 +1,10 @@
+snapd (2.0.6) UNRELEASED; urgency=medium
+
+  * Drop build and runtime dependency on lsb-release. Snapd uses
+    /etc/os-release which is in base-files so no dependency is required.
+
+ -- Zygmunt Krynicki <zygmunt.krynicki@canonical.com>  Wed, 01 Jun 2016 16:35:20 +0200
+
 snapd (2.0.5) xenial; urgency=medium
 
   * New upstream release: LP: #1583085
