@@ -87,11 +87,12 @@ struct sc_map_list *sc_map_entries = NULL;
  * scmp_datum_t values. Abstract away hsearch implementation behind sc_map_*
  * functions in case we want to swap this out.
  *
- * sc_map_init()		- initialize the hash map
- * sc_map_add(key, value)	- add key/value pair to the map. Value is
- * 				  scmp_data_t
+ * sc_map_init()		- initialize the hash map via linked list of
+ * 				  of entries
+ * sc_map_add(key, value)	- create entry from key/value pair and add to
+ * 				  linked list. Value is scmp_data_t
  * sc_map_search(s)	- if found, return scmp_datum_t for key, else set errno
- * sc_map_destroy()	- destroy the hash map
+ * sc_map_destroy()	- destroy the hash map and linked list
  */
 scmp_datum_t sc_map_search(char *s)
 {
