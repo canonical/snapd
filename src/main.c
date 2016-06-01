@@ -18,6 +18,8 @@
 #define _GNU_SOURCE
 #endif
 
+#include "config.h"
+
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -45,8 +47,6 @@
 
 #include "utils.h"
 #include "seccomp_utils.h"
-
-#include "config.h"
 
 #define MAX_BUF 1000
 
