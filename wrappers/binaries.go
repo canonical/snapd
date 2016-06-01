@@ -38,6 +38,9 @@ func AddSnapBinaries(s *snap.Info) error {
 			continue
 		}
 
+		if err := os.Remove(app.WrapperPath()); err != nil && !os.IsNotExist(err) {
+			return err
+		}
 		if err := os.Symlink("/usr/bin/snap", app.WrapperPath()); err != nil {
 			return err
 		}

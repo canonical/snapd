@@ -24,7 +24,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -312,34 +311,6 @@ func (s *SnapTestSuite) TestCopyDataNoUserHomes(c *C) {
 	// sanity atm
 	c.Check(snap.DataDir(), Not(Equals), snap2.DataDir())
 	c.Check(snap.CommonDataDir(), Equals, snap2.CommonDataDir())
-}
-
-func (s *SnapTestSuite) TestSnappyHandleBinariesOnUpgrade(c *C) {
-	snapYamlContent := `name: foo
-apps:
- bar:
-  command: bin/bar
-`
-	snapPath := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
-	_, err := (&Overlord{}).InstallWithSideInfo(snapPath, fooSI10, AllowUnauthenticated, nil)
-	c.Assert(err, IsNil)
-
-	// ensure that the binary wrapper file got generated with the right
-	// path
-	oldSnapBin := filepath.Join(dirs.SnapSnapsDir[len(dirs.GlobalRootDir):], "foo", "10", "bin", "bar")
-	binaryWrapper := filepath.Join(dirs.SnapBinariesDir, "foo.bar")
-	content, err := ioutil.ReadFile(binaryWrapper)
-	c.Assert(err, IsNil)
-	c.Assert(strings.Contains(string(content), oldSnapBin), Equals, true)
-
-	// and that it gets updated on upgrade
-	snapPath = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
-	_, err = (&Overlord{}).InstallWithSideInfo(snapPath, fooSI20, AllowUnauthenticated, nil)
-	c.Assert(err, IsNil)
-	newSnapBin := filepath.Join(dirs.SnapSnapsDir[len(dirs.GlobalRootDir):], "foo", "20", "bin", "bar")
-	content, err = ioutil.ReadFile(binaryWrapper)
-	c.Assert(err, IsNil)
-	c.Assert(strings.Contains(string(content), newSnapBin), Equals, true)
 }
 
 func (s *SnapTestSuite) TestSnappyHandleServicesOnInstall(c *C) {
