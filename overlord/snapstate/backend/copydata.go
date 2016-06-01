@@ -45,7 +45,7 @@ func (b Backend) CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter)
 }
 
 func (b Backend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.Info, meter progress.Meter) error {
-	err1 := RemoveSnapData(newInfo)
+	err1 := b.RemoveSnapData(newInfo)
 	if err1 != nil {
 		logger.Noticef("Cannot remove data directories for %q: %v", newInfo.Name(), err1)
 	}
@@ -53,7 +53,7 @@ func (b Backend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.Info, meter 
 	var err2 error
 	if oldInfo == nil {
 		// first install, remove created common data dir
-		err2 = RemoveSnapCommonData(newInfo)
+		err2 = b.RemoveSnapCommonData(newInfo)
 		if err2 != nil {
 			logger.Noticef("Cannot remove common data directories for %q: %v", newInfo.Name(), err2)
 		}
