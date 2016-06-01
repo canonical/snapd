@@ -1,6 +1,7 @@
 bin_PROGRAMS = snap-run
 snap_run_SOURCES = main.c seccomp_utils.c utils.c
 snap_run_CFLAGS = \
+    -Wall -Werror \
     $(AM_CFLAGS) \
     $(SECCOMP_CFLAGS) \
     $(APPARMOR_CFLAGS) \
