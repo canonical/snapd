@@ -45,7 +45,7 @@ func (aks *accountKeySuite) SetUpSuite(c *C) {
 	}
 	accDb, err := asserts.OpenDatabase(cfg1)
 	c.Assert(err, IsNil)
-	pk := asserts.OpenPGPPrivateKey(testPrivKey1)
+	pk := testPrivKey1
 	err = accDb.ImportKey("acc-id1", pk)
 	c.Assert(err, IsNil)
 	aks.fp = pk.PublicKey().Fingerprint()
@@ -195,7 +195,7 @@ func (aks *accountKeySuite) openDB(c *C) *asserts.Database {
 	cfg := &asserts.DatabaseConfig{
 		Backstore:      bs,
 		KeypairManager: asserts.NewMemoryKeypairManager(),
-		TrustedKeys:    []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
+		TrustedKeys:    []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", trustedKey.PublicKey())},
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
@@ -213,7 +213,7 @@ func (aks *accountKeySuite) TestAccountKeyCheck(c *C) {
 		"since":                  aks.since.Format(time.RFC3339),
 		"until":                  aks.until.Format(time.RFC3339),
 	}
-	accKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, []byte(aks.pubKeyBody), asserts.OpenPGPPrivateKey(trustedKey))
+	accKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, []byte(aks.pubKeyBody), trustedKey)
 	c.Assert(err, IsNil)
 
 	db := aks.openDB(c)
@@ -233,7 +233,7 @@ func (aks *accountKeySuite) TestAccountKeyAddAndFind(c *C) {
 		"since":                  aks.since.Format(time.RFC3339),
 		"until":                  aks.until.Format(time.RFC3339),
 	}
-	accKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, []byte(aks.pubKeyBody), asserts.OpenPGPPrivateKey(trustedKey))
+	accKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, []byte(aks.pubKeyBody), trustedKey)
 	c.Assert(err, IsNil)
 
 	db := aks.openDB(c)
