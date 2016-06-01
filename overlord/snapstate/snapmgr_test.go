@@ -1307,6 +1307,70 @@ func (s *snapmgrQuerySuite) TestAllEmptyAndEmptyNormalisation(c *C) {
 	c.Check(snapStates, HasLen, 0)
 }
 
+func (s *snapmgrTestSuite) TestTrySetsTryMode(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// make mock try dir
+	tryYaml := filepath.Join(c.MkDir(), "meta", "snap.yaml")
+	err := os.MkdirAll(filepath.Dir(tryYaml), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(tryYaml, []byte("name: foo\nversion: 1.0"), 0644)
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("try", "try snap")
+	ts, err := snapstate.TryPath(s.state, "foo", filepath.Dir(filepath.Dir(tryYaml)), 0)
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	// verify snap is in TryMode
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "foo", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.TryMode(), Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlag(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// simulate existing state for foo
+	var snapst snapstate.SnapState
+	snapst.Sequence = []*snap.SideInfo{
+		{
+			OfficialName: "foo",
+			Revision:     snap.R(23),
+		},
+	}
+	snapstate.Set(s.state, "foo", &snapst)
+	c.Check(snapst.TryMode(), Equals, false)
+
+	chg := s.state.NewChange("try", "try snap")
+	ts, err := snapstate.TryPath(s.state, "foo", c.MkDir(), 0)
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	last := ts.Tasks()[len(ts.Tasks())-1]
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(last)
+	chg.AddTask(terr)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	// verify snap is not in try mode, the state got undone
+	err = snapstate.Get(s.state, "foo", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.TryMode(), Equals, false)
+}
+
 type snapStateSuite struct{}
 
 var _ = Suite(&snapStateSuite{})

@@ -53,4 +53,5 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, DeepContains, builtin.NewX11Interface())
 	c.Check(all, DeepContains, builtin.NewOpenglInterface())
 	c.Check(all, DeepContains, builtin.NewPulseAudioInterface())
+	c.Check(all, DeepContains, builtin.NewCupsControlInterface())
 }
