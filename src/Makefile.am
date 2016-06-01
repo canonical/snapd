@@ -26,6 +26,13 @@ check-syntax:
 # TODO: conver those to autotools-style tests later
 check: check-syntax
 
+.PHONY: fmt
+fmt:
+	for f in $(wildcard *.c) $(wildcard *.h); do \
+	       echo "Formatting $$f ... "; \
+	       indent -linux "$$f"; \
+	done;
+
 # Install udev rules
 install-data-local:
 	install -d -m 755 $(DESTDIR)/lib/udev/rules.d
