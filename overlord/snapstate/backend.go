@@ -38,7 +38,6 @@ type managerBackend interface {
 	UndoCopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error
 
 	// remove releated
-	CanRemove(info *snap.Info, active bool) bool
 	UnlinkSnap(info *snap.Info, meter progress.Meter) error
 	RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error
 	RemoveSnapData(info *snap.Info) error
