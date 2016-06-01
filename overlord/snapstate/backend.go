@@ -31,11 +31,11 @@ type managerBackend interface {
 	// install releated
 	Download(name, channel string, checker func(*snap.Info) error, meter progress.Meter, auther store.Authenticator) (*snap.Info, string, error)
 	SetupSnap(snapFilePath string, si *snap.SideInfo, flags int) error
-	CopySnapData(newSnap, oldSnap *snap.Info, flags int) error
+	CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error
 	LinkSnap(info *snap.Info) error
 	// the undoers for install
 	UndoSetupSnap(s snap.PlaceInfo) error
-	UndoCopySnapData(newSnap *snap.Info, oldSnap *snap.Info, flags int) error
+	UndoCopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error
 
 	// remove releated
 	CanRemove(info *snap.Info, active bool) bool
@@ -83,20 +83,9 @@ func (b *defaultBackend) SetupSnap(snapFilePath string, sideInfo *snap.SideInfo,
 	return err
 }
 
-func (b *defaultBackend) CopySnapData(newInfo, oldInfo *snap.Info, flags int) error {
-	meter := &progress.NullProgress{}
-	return snappy.CopyData(newInfo, oldInfo, snappy.InstallFlags(flags), meter)
-}
-
 func (b *defaultBackend) UndoSetupSnap(s snap.PlaceInfo) error {
 	meter := &progress.NullProgress{}
 	snappy.UndoSetupSnap(s, meter)
-	return nil
-}
-
-func (b *defaultBackend) UndoCopySnapData(newInfo *snap.Info, oldSnap *snap.Info, flags int) error {
-	meter := &progress.NullProgress{}
-	snappy.UndoCopyData(newInfo, snappy.InstallFlags(flags), meter)
 	return nil
 }
 

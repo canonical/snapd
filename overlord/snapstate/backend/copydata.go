@@ -27,7 +27,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-func (b Backend) CopyData(newSnap, oldSnap *snap.Info, meter progress.Meter) error {
+func (b Backend) CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error {
 	// deal with the old data or
 	// otherwise just create a empty data dir
 
@@ -44,7 +44,7 @@ func (b Backend) CopyData(newSnap, oldSnap *snap.Info, meter progress.Meter) err
 	return copySnapData(oldSnap, newSnap)
 }
 
-func (b Backend) UndoCopyData(newInfo *snap.Info, oldInfo *snap.Info, meter progress.Meter) error {
+func (b Backend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.Info, meter progress.Meter) error {
 	err1 := RemoveSnapData(newInfo)
 	if err1 != nil {
 		logger.Noticef("Cannot remove data directories for %q: %v", newInfo.Name(), err1)
