@@ -315,3 +315,17 @@ func ExampleSpltiSnapAppShort() {
 	fmt.Println(snap.SplitSnapApp("hello-world"))
 	// Output: hello-world hello-world
 }
+
+func (s *infoSuite) TestReadInfoFromSnapFileCatchesInvalidHook(c *C) {
+	yaml := `name: foo
+version: 1.0
+hooks:
+  abc123:`
+	snapPath := makeTestSnap(c, yaml)
+
+	snapf, err := snap.Open(snapPath)
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
+	c.Assert(err, ErrorMatches, ".*invalid hook name.*")
+}
