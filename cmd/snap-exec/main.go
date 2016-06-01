@@ -55,7 +55,9 @@ func run() error {
 		return err
 	}
 
-	// the SNAP_REVISION is set by `snap run`
+	// the SNAP_REVISION is set by `snap run` - we can not (easily)
+	// find it in `snap-exec` because `snap-exec` is run inside the
+	// confinement and (generally) can not talk to snapd
 	revision := os.Getenv("SNAP_REVISION")
 
 	snapApp := opts.Positional.SnapApp
@@ -82,9 +84,14 @@ func findCommand(app *snap.AppInfo, command string) (string, error) {
 }
 
 func snapExec(snapApp, revision, command string, args []string) error {
+	rev, err := snap.ParseRevision(revision)
+	if err != nil {
+		return err
+	}
+
 	snapName, appName := snap.SplitSnapApp(snapApp)
 	info, err := snap.ReadInfo(snapName, &snap.SideInfo{
-		Revision: snap.R(revision),
+		Revision: rev,
 	})
 	if err != nil {
 		return err
