@@ -22,6 +22,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -255,7 +256,13 @@ func (x *cmdTry) Execute([]string) error {
 	opts := &client.SnapOptions{
 		DevMode: x.DevMode,
 	}
-	changeID, err := cli.Try(name, opts)
+
+	path, err := filepath.Abs(name)
+	if err != nil {
+		return fmt.Errorf("cannot get full path for %q: %s", name, err)
+	}
+
+	changeID, err := cli.Try(path, opts)
 	if err != nil {
 		return err
 	}
