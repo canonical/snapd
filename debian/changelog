@@ -12,6 +12,10 @@ ubuntu-core-launcher (2.0) UNRELEASED; urgency=medium
     tag is derived from an argument containing $SNAP_NAME and $APP_NAME.
   * Clean up tests so that shellcheck reports no more errors or warnings
   * Ensure that shellcheck reports no errors on each build
+  * Add #DEBHELPER# to maintainer scripts (thanks to lintian)
+  * Switch to autotools, build-depend on pkg-config, autotools-dev, autoconf
+    and automake (thanks to ogra for the missing bits).
+  * Use "dh $@ --with autoreconf" to prepare the build system.
 
   [ Jamie Strandboge ]
   * implement seccomp argument filtering (LP: #1446748)
