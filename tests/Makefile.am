@@ -1,4 +1,9 @@
 TESTS = \
+    test_bad_seccomp_filter_args \
+    test_bad_seccomp_filter_args_null \
+    test_bad_seccomp_filter_args_prctl \
+    test_bad_seccomp_filter_args_prio \
+    test_bad_seccomp_filter_args_socket \
     test_bad_seccomp_filter_length \
     test_bad_seccomp_filter_missing_trailing_newline \
     test_complain \
@@ -6,6 +11,10 @@ TESTS = \
     test_create_user_data \
     test_noprofile \
     test_restrictions_working \
+    test_restrictions_working_args \
+    test_restrictions_working_args_prctl \
+    test_restrictions_working_args_prio \
+    test_restrictions_working_args_socket \
     test_unrestricted \
     test_unrestricted_missed \
     test_whitelist
