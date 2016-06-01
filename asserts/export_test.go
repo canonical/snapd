@@ -28,8 +28,10 @@ import (
 
 // expose test-only things here
 
-// generatePrivateKey exposed for tests
-var GeneratePrivateKeyInTest = generatePrivateKey
+// access internal openpgp lib packet
+func PrivateKeyPacket(pk PrivateKey) *packet.PrivateKey {
+	return pk.(openpgpPrivateKey).privk
+}
 
 // assembleAndSign exposed for tests
 var AssembleAndSignInTest = assembleAndSign
@@ -53,8 +55,7 @@ func EncoderAppend(enc *Encoder, encoded []byte) error {
 	return enc.append(encoded)
 }
 
-func makeAccountKeyForTest(authorityID string, pubKey *packet.PublicKey, validYears int) *AccountKey {
-	openPGPPubKey := OpenPGPPublicKey(pubKey)
+func makeAccountKeyForTest(authorityID string, openPGPPubKey PublicKey, validYears int) *AccountKey {
 	return &AccountKey{
 		assertionBase: assertionBase{
 			headers: map[string]string{
@@ -69,11 +70,11 @@ func makeAccountKeyForTest(authorityID string, pubKey *packet.PublicKey, validYe
 	}
 }
 
-func BootstrapAccountKeyForTest(authorityID string, pubKey *packet.PublicKey) *AccountKey {
+func BootstrapAccountKeyForTest(authorityID string, pubKey PublicKey) *AccountKey {
 	return makeAccountKeyForTest(authorityID, pubKey, 9999)
 }
 
-func ExpiredAccountKeyForTest(authorityID string, pubKey *packet.PublicKey) *AccountKey {
+func ExpiredAccountKeyForTest(authorityID string, pubKey PublicKey) *AccountKey {
 	return makeAccountKeyForTest(authorityID, pubKey, 1)
 }
 
@@ -111,4 +112,16 @@ func init() {
 // AccountKeyIsKeyValidAt exposes isKeyValidAt on AccountKey for tests
 func AccountKeyIsKeyValidAt(ak *AccountKey, when time.Time) bool {
 	return ak.isKeyValidAt(when)
+}
+
+type GPGRunner func(homedir string, input []byte, args ...string) ([]byte, error)
+
+func MockRunGPG(mock func(prev GPGRunner, homedir string, input []byte, args ...string) ([]byte, error)) (restore func()) {
+	prevRunGPG := runGPG
+	runGPG = func(homedir string, input []byte, args ...string) ([]byte, error) {
+		return mock(prevRunGPG, homedir, input, args...)
+	}
+	return func() {
+		runGPG = prevRunGPG
+	}
 }
