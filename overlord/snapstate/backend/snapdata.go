@@ -29,7 +29,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// RemoveSnapData removes the data for the given version of the given snap
+// RemoveSnapData removes the data for the given version of the given snap.
 func (b Backend) RemoveSnapData(snap *snap.Info) error {
 	dirs, err := snapDataDirs(snap)
 	if err != nil {
@@ -39,7 +39,7 @@ func (b Backend) RemoveSnapData(snap *snap.Info) error {
 	return removeDirs(dirs)
 }
 
-// RemoveSnapCommonData removes the data common between versions of the given snap
+// RemoveSnapCommonData removes the data common between versions of the given snap.
 func (b Backend) RemoveSnapCommonData(snap *snap.Info) error {
 	dirs, err := snapCommonDataDirs(snap)
 	if err != nil {
