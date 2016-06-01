@@ -604,7 +604,7 @@ func assembleAndSign(assertType *AssertionType, headers map[string]string, body 
 
 	signature, err := signContent(content, privKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to sign assertion: %v", err)
+		return nil, fmt.Errorf("cannot sign assertion: %v", err)
 	}
 	// be 'cat' friendly, add a ignored newline to the signature which is the last part of the encoded assertion
 	signature = append(signature, '\n')
