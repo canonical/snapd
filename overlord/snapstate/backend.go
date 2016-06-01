@@ -96,11 +96,3 @@ func (b *defaultBackend) CanRemove(info *snap.Info, active bool) bool {
 func (b *defaultBackend) RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error {
 	return snappy.RemoveSnapFiles(s, meter)
 }
-
-func (b *defaultBackend) RemoveSnapData(info *snap.Info) error {
-	return snappy.RemoveSnapData(info)
-}
-
-func (b *defaultBackend) RemoveSnapCommonData(info *snap.Info) error {
-	return snappy.RemoveSnapCommonData(info)
-}
