@@ -22,6 +22,7 @@ package backend
 import (
 	"os"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 )
@@ -45,13 +46,17 @@ func (b Backend) CopyData(newSnap, oldSnap *snap.Info, meter progress.Meter) err
 
 func (b Backend) UndoCopyData(newInfo *snap.Info, oldInfo *snap.Info, meter progress.Meter) error {
 	err1 := RemoveSnapData(newInfo)
-	// XXX: log
+	if err1 != nil {
+		logger.Noticef("Cannot remove data directories for %q: %v", newInfo.Name(), err1)
+	}
 
 	var err2 error
 	if oldInfo == nil {
-		// first install, remove created common dir
+		// first install, remove created common data dir
 		err2 = RemoveSnapCommonData(newInfo)
-		// XXX: log
+		if err2 != nil {
+			logger.Noticef("Cannot remove common data directories for %q: %v", newInfo.Name(), err2)
+		}
 	}
 
 	return firstErr(err1, err2)
