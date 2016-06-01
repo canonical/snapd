@@ -24,18 +24,14 @@ import (
 	"gopkg.in/tomb.v2"
 )
 
-// DispatchHook is the hook dispatcher; it's exported here so it can be
-// overridden in tests.
-var DispatchHook = doDispatchHook
-
 // HookRef is a reference to a hook within a specific snap.
 type HookRef struct {
 	Snap string `json:"snap"`
 	Hook string `json:"hook"`
 }
 
-// doDispatchHook is where the snap in question is found and the specific hook
+// DispatchHook is where the snap in question is found and the specific hook
 // is run. TODO: hooks don't actually exist yet, so nothing to dispatch.
-func doDispatchHook(hook HookRef, tomb *tomb.Tomb) error {
+func DispatchHook(hook HookRef, tomb *tomb.Tomb) error {
 	return nil
 }
