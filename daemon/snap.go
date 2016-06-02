@@ -140,6 +140,7 @@ func mapLocal(localSnap *snap.Info, snapst *snapstate.SnapState) map[string]inte
 		"channel":        localSnap.Channel,
 		"confinement":    localSnap.Confinement,
 		"devmode":        snapst.DevMode(),
+		"trymode":        snapst.TryMode(),
 		"private":        localSnap.Private,
 	}
 }
