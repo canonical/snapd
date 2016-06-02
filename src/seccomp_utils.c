@@ -28,6 +28,7 @@
 #include <stdlib.h>
 
 // needed for search mappings
+#include <linux/can.h>
 #include <sys/prctl.h>
 #include <sys/resource.h>
 #include <sys/socket.h>
@@ -175,6 +176,8 @@ void sc_map_init()
 	sc_map_add(AF_APPLETALK);
 	sc_map_add(AF_PACKET);
 	sc_map_add(AF_ALG);
+	// linux/can.h
+	sc_map_add(AF_CAN);
 
 	// man 2 socket - type
 	sc_map_add(SOCK_STREAM);

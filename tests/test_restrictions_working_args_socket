@@ -9,7 +9,7 @@ cat >>"$TMP"/tmpl <<EOF
 getpriority
 EOF
 
-for i in AF_UNIX AF_LOCAL AF_INET AF_INET6 AF_PACKET AF_ALG ; do
+for i in AF_UNIX AF_LOCAL AF_INET AF_INET6 AF_IPX AF_NETLINK AF_X25 AF_AX25 AF_ATMPVC AF_APPLETALK AF_PACKET AF_ALG AF_CAN ; do
     cat "$TMP"/tmpl >"$TMP"/snap.name.app
     echo "socket $i" >>"$TMP"/snap.name.app
 
