@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/hooks"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 func TestHookManager(t *testing.T) { TestingT(t) }
@@ -74,7 +75,7 @@ func (s *hookManagerSuite) TestRunHookInstruction(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	taskSet, err := hookstate.RunHook(s.state, "test-snap", "test-hook")
+	taskSet, err := hookstate.RunHook(s.state, "test-snap", snap.R(1), "test-hook")
 	c.Assert(err, IsNil, Commentf("RunHook unexpectedly failed"))
 	c.Assert(taskSet, NotNil, Commentf("Expected RunHook to provide a task set"))
 
@@ -88,12 +89,13 @@ func (s *hookManagerSuite) TestRunHookInstruction(c *C) {
 	err = task.Get("hook", &hook)
 	c.Check(err, IsNil, Commentf("Expected task to contain hook"))
 	c.Check(hook.Snap, Equals, "test-snap")
+	c.Check(hook.Revision, Equals, snap.R(1))
 	c.Check(hook.Hook, Equals, "test-hook")
 }
 
 func (s *hookManagerSuite) TestRunHookTask(c *C) {
 	s.state.Lock()
-	taskSet, err := hookstate.RunHook(s.state, "test-snap", "test-hook")
+	taskSet, err := hookstate.RunHook(s.state, "test-snap", snap.R(1), "test-hook")
 	c.Assert(err, IsNil, Commentf("RunHook unexpectedly failed"))
 	c.Assert(taskSet, NotNil, Commentf("Expected RunHook to provide a task set"))
 
@@ -123,7 +125,7 @@ func (s *hookManagerSuite) TestRunHookTaskHandleFailure(c *C) {
 	}
 
 	s.state.Lock()
-	taskSet, err := hookstate.RunHook(s.state, "test-snap", "test-hook")
+	taskSet, err := hookstate.RunHook(s.state, "test-snap", snap.R(1), "test-hook")
 	c.Assert(err, IsNil, Commentf("RunHook unexpectedly failed"))
 	c.Assert(taskSet, NotNil, Commentf("Expected RunHook to provide a task set"))
 
