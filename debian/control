@@ -48,7 +48,7 @@ Description: snappy development go packages.
 
 Package: snapd
 Architecture: any
-Depends: ${misc:Depends}, ${shlibs:Depends}, adduser
+Depends: ${misc:Depends}, ${shlibs:Depends}, adduser,
  squashfs-tools, ubuntu-core-launcher (>= 1.0.23),
 Replaces: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9)
 Breaks: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9)
