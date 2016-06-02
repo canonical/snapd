@@ -88,10 +88,6 @@ func (b *defaultBackend) UndoSetupSnap(s snap.PlaceInfo) error {
 	return nil
 }
 
-func (b *defaultBackend) CanRemove(info *snap.Info, active bool) bool {
-	return snappy.CanRemove(info, active)
-}
-
 func (b *defaultBackend) RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error {
 	return snappy.RemoveSnapFiles(s, meter)
 }
