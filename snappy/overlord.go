@@ -504,7 +504,7 @@ func canInstall(s *snap.Info, snapf snap.Container, curInfo *snap.Info, allowGad
 	return nil
 }
 
-func CanRemove(s *snap.Info, active bool) bool {
+func canRemove(s *snap.Info, active bool) bool {
 	// Gadget snaps should not be removed as they are a key
 	// building block for Gadgets. Prunning non active ones
 	// is acceptible.
@@ -566,7 +566,7 @@ func RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error {
 //
 // It returns an error on failure
 func (o *Overlord) Uninstall(s *Snap, meter progress.Meter) error {
-	if !CanRemove(s.Info(), s.IsActive()) {
+	if !canRemove(s.Info(), s.IsActive()) {
 		return ErrPackageNotRemovable
 	}
 
