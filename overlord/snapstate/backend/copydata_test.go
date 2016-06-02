@@ -349,7 +349,7 @@ func (s *copydataSuite) TestCopyDataUndoFirstInstallIdempotent(c *C) {
 	c.Check(os.IsNotExist(err), Equals, true)
 }
 
-func (s *copydataSuite) TestCopyDataCopyFial(c *C) {
+func (s *copydataSuite) TestCopyDataCopyFailure(c *C) {
 	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 	s.populateData(c, snap.R(10))
 
@@ -361,5 +361,5 @@ func (s *copydataSuite) TestCopyDataCopyFial(c *C) {
 
 	// copy data will fail
 	err := s.be.CopySnapData(v2, v1, &s.nullProgress)
-	c.Assert(err, ErrorMatches, regexp.QuoteMeta(fmt.Sprintf("cannot copy (with cp -a) %q to %q, exit code: 1", v1.DataDir(), v2.DataDir())))
+	c.Assert(err, ErrorMatches, regexp.QuoteMeta(fmt.Sprintf("cannot copy %s to %s: exit status 1", v1.DataDir(), v2.DataDir())))
 }
