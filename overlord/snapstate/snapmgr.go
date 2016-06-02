@@ -178,8 +178,11 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	if ss.Revision.Unset() {
 		// Local revisions start at -1 and go down.
+		// (unless it's a really old local revision in which case it needs fixing)
 		revision := snapst.LocalRevision
-		if revision.Unset() {
+		if revision.Unset() || revision.N > 0 {
+			// XXX: if revision.N>0 this fixes it, but
+			// XXX: rolling back from this is going to be tricky
 			revision = snap.R(-1)
 		} else {
 			revision.N--
